@@ -44,9 +44,14 @@ pub fn read_omena_query_cascade_at_position_with_categorical_evidence(
     let mut result =
         read_omena_query_cascade_at_position(style_path, style_source, input, position)?;
     if include_categorical_evidence {
+        let exercised_primitive_role_pairs =
+            super::cascade_checker::query_exercised_cascade_primitive_role_pairs_from_source(
+                style_source,
+            );
         result.categorical_evidence = Some(
-            omena_query_checker_orchestrator::checker_categorical_cascade_evidence_v0(
+            omena_query_checker_orchestrator::checker_categorical_cascade_evidence_for_exercised_primitives_v0(
                 "omena-query.read-cascade-at-position",
+                &exercised_primitive_role_pairs,
             ),
         );
     }

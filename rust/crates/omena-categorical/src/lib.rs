@@ -29,8 +29,8 @@ pub use sheaf::*;
 pub use site::*;
 
 use omena_cascade::{
-    CascadeDeclaration, CascadeKey, CascadeLevel, CascadeOutcome, CascadeValue, LayerRank,
-    Specificity, cascade_property,
+    CascadeDeclaration, CascadeKey, CascadeLevel, CascadeOutcome, CascadeValue,
+    LayerFlattenInputV0, LayerRank, Specificity, cascade_property, prove_layer_flatten_candidate,
 };
 use serde::Serialize;
 
@@ -243,6 +243,52 @@ pub fn categorical_cascade_evidence_v0(
     }
 }
 
+/// Build cascade categorical evidence whose functor application is the real
+/// verdict over the cascade primitives a concrete stylesheet exercises, supplied
+/// as `(primitive_name, categorical_role)` pairs.
+///
+/// Unlike [`categorical_cascade_evidence_v0`], which always runs the functor over
+/// the full static catalog (and is therefore always accepted), this constructor
+/// runs `apply_cascade_role_mapping_functor_v0` over the projected subset, so the
+/// resulting `functor_applications[0].accepted` verdict changes with the source:
+/// a degenerate cascade (fewer than three distinct exercised primitives) cannot
+/// witness composition and is rejected, a richer cascade is accepted.
+pub fn categorical_cascade_evidence_for_exercised_primitives_v0(
+    source_product: &'static str,
+    exercised_primitive_role_pairs: &[(String, String)],
+) -> CategoricalCascadeEvidenceV0 {
+    let endpoints = categorical_evidence_endpoints_v0();
+    let cascade_primitive_roles = cascade_primitive_roles_v0()
+        .into_iter()
+        .filter(|role| {
+            exercised_primitive_role_pairs
+                .iter()
+                .any(|(primitive_name, _)| primitive_name == role.primitive_name)
+        })
+        .collect::<Vec<_>>();
+    let fixture_evidence = endpoints
+        .iter()
+        .filter_map(|endpoint| categorical_fixture_evidence_for_endpoint_v0(endpoint.endpoint_id))
+        .collect();
+    CategoricalCascadeEvidenceV0 {
+        schema_version: CATEGORICAL_SCHEMA_VERSION_V0,
+        product: "omena-categorical.cascade-evidence",
+        layer_marker: CATEGORICAL_LAYER_MARKER_V0,
+        feature_gate: CATEGORICAL_FEATURE_GATE_V0,
+        source_product,
+        endpoint_count: endpoints.len(),
+        endpoints,
+        fixture_evidence,
+        functor_applications: vec![apply_cascade_role_mapping_functor_v0(
+            "cascade-exercised-primitive-role-functor",
+            "omena-categorical.cascade-primitive-role-functor",
+            exercised_primitive_role_pairs,
+        )],
+        cascade_primitive_roles,
+        default_feature_enabled: false,
+    }
+}
+
 pub fn categorical_fixture_evidence_for_endpoint_v0(
     endpoint_id: &'static str,
 ) -> Option<CategoricalEndpointFixtureEvidenceV0> {
@@ -280,31 +326,9 @@ pub fn categorical_fixture_evidence_for_endpoint_v0(
         "rust/omena-categorical/verify-cosheaf-covariance" => {
             Some(cosheaf_covariance_fixture_v0(endpoint_id))
         }
-        "rust/omena-categorical/verify-beck-chevalley" => Some(endpoint_fixture_v0(
-            endpoint_id,
-            "fixture.categorical.beck-chevalley.v0",
-            "Beck-Chevalley witnesses",
-            "omena-categorical.beck-chevalley-check",
-            &[
-                "omena-categorical.beck-chevalley-datum",
-                "omena-categorical.origin-inversion-morphism",
-                "omena-categorical.beck-chevalley-check",
-            ],
-            &[
-                (
-                    "layer-order-preserved",
-                    "omena-categorical.beck-chevalley-datum",
-                    "layerOrderPreserved=true",
-                    "layerOrderPreserved=true",
-                ),
-                (
-                    "origin-inversion-blocked",
-                    "omena-categorical.origin-inversion-morphism",
-                    "importantDeclarationsInvertOrigin=false",
-                    "importantDeclarationsInvertOrigin=false",
-                ),
-            ],
-        )),
+        "rust/omena-categorical/verify-beck-chevalley" => {
+            Some(beck_chevalley_fixture_v0(endpoint_id))
+        }
         "rust/omena-categorical/classify-omega-truth" => Some(omega_truth_fixture_v0(endpoint_id)),
         "rust/omena-categorical/verify-s4-axioms" => Some(endpoint_fixture_v0(
             endpoint_id,
@@ -598,6 +622,83 @@ fn omega_color_declaration(id: &str, value: &str, source_order: u32) -> CascadeD
             source_order,
         ),
     }
+}
+
+fn beck_chevalley_fixture_v0(endpoint_id: &'static str) -> CategoricalEndpointFixtureEvidenceV0 {
+    // Each assertion's `observed` is computed by running the real
+    // `prove_layer_flatten_candidate` cascade producer and mapping its
+    // `LayerFlattenProofV0` through `beck_chevalley_from_layer_flatten_proof_v0`;
+    // only `expected` is the literal target. A closed single-layer bundle proves
+    // layer-order preservation, while a bundle carrying `!important`
+    // declarations blocks origin inversion, so the observed verdicts come from
+    // the producer, not from echoed literals.
+    let preserved = beck_chevalley_from_layer_flatten_proof_v0(&prove_layer_flatten_candidate(
+        LayerFlattenInputV0 {
+            layer_name: Some("base".to_string()),
+            layer_rule_count: 3,
+            peer_layer_count: 0,
+            unlayered_rule_count: 0,
+            important_declaration_count: 0,
+            closed_bundle: true,
+        },
+    ));
+    let important_inverted = beck_chevalley_from_layer_flatten_proof_v0(
+        &prove_layer_flatten_candidate(LayerFlattenInputV0 {
+            layer_name: Some("overrides".to_string()),
+            layer_rule_count: 2,
+            peer_layer_count: 0,
+            unlayered_rule_count: 0,
+            important_declaration_count: 2,
+            closed_bundle: true,
+        }),
+    );
+
+    let assertions = vec![
+        fixture_assertion_v0(
+            "layer-order-preserved",
+            "omena-categorical.beck-chevalley-datum",
+            format!(
+                "layerOrderPreserved={}",
+                preserved.datum.layer_order_preserved
+            ),
+            "layerOrderPreserved=true",
+        ),
+        fixture_assertion_v0(
+            "preserved-bundle-accepted",
+            "omena-categorical.beck-chevalley-check",
+            format!("accepted={}", preserved.accepted),
+            "accepted=true",
+        ),
+        fixture_assertion_v0(
+            "important-inverts-origin",
+            "omena-categorical.origin-inversion-morphism",
+            format!(
+                "importantDeclarationsInvertOrigin={}",
+                important_inverted
+                    .origin_inversion
+                    .important_declarations_invert_origin
+            ),
+            "importantDeclarationsInvertOrigin=true",
+        ),
+        fixture_assertion_v0(
+            "important-bundle-blocked",
+            "omena-categorical.beck-chevalley-check",
+            format!("accepted={}", important_inverted.accepted),
+            "accepted=false",
+        ),
+    ];
+    endpoint_fixture_from_assertions_v0(
+        endpoint_id,
+        "fixture.categorical.beck-chevalley.v0",
+        "Beck-Chevalley witnesses",
+        "omena-categorical.beck-chevalley-check",
+        &[
+            "omena-categorical.beck-chevalley-datum",
+            "omena-categorical.origin-inversion-morphism",
+            "omena-categorical.beck-chevalley-check",
+        ],
+        assertions,
+    )
 }
 
 fn cosheaf_covariance_fixture_v0(
@@ -910,6 +1011,68 @@ mod tests {
         // computed verdict, not a literal echo.
         assert!(!witness_cosheaf_colimit_v0("cascade-cosheaf", 0).accepted);
         assert!(witness_cosheaf_colimit_v0("cascade-cosheaf", 2).accepted);
+    }
+
+    #[test]
+    fn beck_chevalley_fixture_observed_values_come_from_layer_flatten_proof() {
+        let fixture = categorical_fixture_evidence_for_endpoint_v0(
+            "rust/omena-categorical/verify-beck-chevalley",
+        );
+        assert!(fixture.is_some());
+        let Some(fixture) = fixture else {
+            return;
+        };
+        assert!(fixture.accepted);
+        let blocked_assertion = fixture
+            .assertions
+            .iter()
+            .find(|assertion| assertion.assertion_id == "important-bundle-blocked");
+        assert!(blocked_assertion.is_some());
+        let Some(blocked_assertion) = blocked_assertion else {
+            return;
+        };
+        assert_eq!(blocked_assertion.observed, "accepted=false");
+
+        // The observed verdicts are computed by mapping a real
+        // `prove_layer_flatten_candidate` proof through
+        // `beck_chevalley_from_layer_flatten_proof_v0`: a closed single-layer
+        // bundle is accepted, while one carrying `!important` declarations is
+        // blocked and inverts the origin. A constant producer would collapse
+        // these two verdicts and break the fixture.
+        let accepted = beck_chevalley_from_layer_flatten_proof_v0(&prove_layer_flatten_candidate(
+            LayerFlattenInputV0 {
+                layer_name: Some("base".to_string()),
+                layer_rule_count: 3,
+                peer_layer_count: 0,
+                unlayered_rule_count: 0,
+                important_declaration_count: 0,
+                closed_bundle: true,
+            },
+        ));
+        assert!(accepted.accepted);
+        assert!(accepted.datum.layer_order_preserved);
+        assert!(
+            !accepted
+                .origin_inversion
+                .important_declarations_invert_origin
+        );
+
+        let blocked = beck_chevalley_from_layer_flatten_proof_v0(&prove_layer_flatten_candidate(
+            LayerFlattenInputV0 {
+                layer_name: Some("overrides".to_string()),
+                layer_rule_count: 2,
+                peer_layer_count: 0,
+                unlayered_rule_count: 0,
+                important_declaration_count: 2,
+                closed_bundle: true,
+            },
+        ));
+        assert!(!blocked.accepted);
+        assert!(
+            blocked
+                .origin_inversion
+                .important_declarations_invert_origin
+        );
     }
 
     #[test]

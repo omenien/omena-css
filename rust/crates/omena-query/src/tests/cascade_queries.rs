@@ -121,6 +121,52 @@ fn read_cascade_at_position_can_attach_categorical_evidence_when_requested() {
             .iter()
             .any(|endpoint| endpoint.endpoint_id == "rust/omena-categorical/verify-site-stability")
     );
+
+    // The attached functor application is the real verdict over this cascade's
+    // custom-property ranking. The ranking is acyclic (--surface is a literal),
+    // so the cascade-ranking primitive keeps its single canonical role, the
+    // baseline catalog is functorial, and the verdict is accepted. If the field
+    // carried a constant verdict the cyclic sibling test below could not differ.
+    let Some(functor) = evidence.functor_applications.first() else {
+        return;
+    };
+    assert!(functor.accepted);
+    assert!(functor.composition_preserved);
+}
+
+#[test]
+fn read_cascade_at_position_categorical_evidence_rejects_cyclic_ranking() {
+    // A cyclic custom-property ranking (--a -> --b -> --a) cannot converge, so
+    // the cascade-ranking primitive is forced to play a conflicting second
+    // categorical role. The functor object mapping is many-valued and the real
+    // verdict rejects the mapping. The verdict therefore changes with the source.
+    let source = r#":root {
+  --a: var(--b);
+  --b: var(--a);
+}
+.card { color: var(--a); }
+"#;
+    let cascade = read_omena_query_cascade_at_position_with_categorical_evidence(
+        "Component.module.css",
+        source,
+        &sample_input(),
+        ParserPositionV0 {
+            line: 4,
+            character: 22,
+        },
+        true,
+    );
+    let Some(cascade) = cascade else {
+        return;
+    };
+    assert!(cascade.categorical_evidence.is_some());
+    let Some(evidence) = cascade.categorical_evidence else {
+        return;
+    };
+    let Some(functor) = evidence.functor_applications.first() else {
+        return;
+    };
+    assert!(!functor.accepted);
 }
 
 #[test]

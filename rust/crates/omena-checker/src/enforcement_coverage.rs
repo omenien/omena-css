@@ -201,9 +201,9 @@ pub fn list_omena_checker_rule_enforcement_evidence_v0()
         ),
         mechanism(
             CategoricalCascadeEvidenceInconsistency,
-            "engine-shadow-runner.omena-checker-categorical-evaluations",
-            "evaluates_categorical_rule_family_from_functor_verdict",
-            "evaluates_categorical_rule_family_from_functor_verdict",
+            "omena-query-checker-orchestrator.categorical-gate",
+            "categorical_gate_emits_inconsistency_for_non_functorial_role_mapping",
+            "categorical_gate_records_clear_suppression_for_composable_role_mapping",
             &["omena-categorical.cascade-primitive-role-functor"],
         ),
     ]

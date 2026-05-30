@@ -16,15 +16,21 @@ use omena_abstract_value::{
 };
 pub use omena_checker::{
     CategoricalCascadeEvidenceV0, OmenaCheckerCascadeDeclarationInputV0,
-    OmenaCheckerCascadeEvaluationV0, OmenaCheckerCascadeInputV0, OmenaCheckerCustomPropertyInputV0,
-    OmenaCheckerMTierEvaluationV0, OmenaCheckerRgFlowCouplingInputV0,
-    OmenaCheckerRgFlowCouplingSpaceInputV0, OmenaCheckerRgFlowEvaluationV0,
-    OmenaCheckerRgFlowInputV0, OmenaCheckerRuleCodeV0, checker_categorical_cascade_evidence_v0,
+    OmenaCheckerCascadeEvaluationV0, OmenaCheckerCascadeInputV0,
+    OmenaCheckerCategoricalEvaluationV0, OmenaCheckerCategoricalInputV0,
+    OmenaCheckerCategoricalPrimitiveRolePairInputV0, OmenaCheckerCategoricalRoleMappingInputV0,
+    OmenaCheckerCustomPropertyInputV0, OmenaCheckerMTierEvaluationV0,
+    OmenaCheckerRgFlowCouplingInputV0, OmenaCheckerRgFlowCouplingSpaceInputV0,
+    OmenaCheckerRgFlowEvaluationV0, OmenaCheckerRgFlowInputV0, OmenaCheckerRuleCodeV0,
+    checker_cascade_primitive_role_catalog_v0,
+    checker_categorical_cascade_evidence_for_exercised_primitives_v0,
+    checker_categorical_cascade_evidence_v0,
 };
 use omena_checker::{
     OmenaCheckerDynamicClassDomainInputV0, evaluate_omena_checker_cascade_rules,
-    evaluate_omena_checker_m_tier_rules, evaluate_omena_checker_rg_flow_rules,
-    list_omena_checker_m_tier_rule_code_names, list_omena_checker_rule_code_names,
+    evaluate_omena_checker_categorical_rules, evaluate_omena_checker_m_tier_rules,
+    evaluate_omena_checker_rg_flow_rules, list_omena_checker_m_tier_rule_code_names,
+    list_omena_checker_rule_code_names,
 };
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -236,6 +242,73 @@ pub fn run_omena_query_checker_rg_flow_gate_v0(
         ready_surfaces: vec![
             "checkerRuleRegistry",
             "rgFlowCouplingSpectrum",
+            "registeredRuleDiagnosticGate",
+            "queryDiagnosticHandoff",
+        ],
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct OmenaQueryCheckerCategoricalGateV0 {
+    pub schema_version: &'static str,
+    pub product: &'static str,
+    pub orchestrator_kind: &'static str,
+    pub enabled_rule_names: Vec<&'static str>,
+    pub emitted_rule_names: Vec<&'static str>,
+    pub registered_rule_count: usize,
+    pub unregistered_rule_count: usize,
+    pub evaluation_count: usize,
+    pub enforcement_passed: bool,
+    pub evaluations: Vec<OmenaCheckerCategoricalEvaluationV0>,
+    pub ready_surfaces: Vec<&'static str>,
+}
+
+/// Invoke the real categorical cascade primitive-to-role functor evaluator and
+/// gate its emitted rule codes against the registered checker rule registry.
+///
+/// The role mappings are produced by the caller from the cascade primitives a
+/// real parsed stylesheet exercises; this gate runs the genuine
+/// `apply_cascade_role_mapping_functor_v0` verdict inside
+/// `evaluate_omena_checker_categorical_rules` and only surfaces
+/// `categorical-cascade-evidence-inconsistency` diagnostics when the functor
+/// rejects the mapping (identity or composition is not witnessable). A mapping
+/// that exercises enough distinct primitives to witness composition is accepted
+/// by the functor and nothing is surfaced.
+pub fn run_omena_query_checker_categorical_gate_v0(
+    input: OmenaCheckerCategoricalInputV0,
+) -> OmenaQueryCheckerCategoricalGateV0 {
+    let registered_rules = list_omena_checker_rule_code_names()
+        .into_iter()
+        .collect::<BTreeSet<_>>();
+    let enabled_rule_names =
+        vec![OmenaCheckerRuleCodeV0::CategoricalCascadeEvidenceInconsistency.as_str()];
+    let evaluations = evaluate_omena_checker_categorical_rules(input);
+    let emitted_rule_names = evaluations
+        .iter()
+        .map(|evaluation| evaluation.rule_code_name)
+        .collect::<BTreeSet<_>>()
+        .into_iter()
+        .collect::<Vec<_>>();
+    let unregistered_rule_count = emitted_rule_names
+        .iter()
+        .filter(|rule| !registered_rules.contains(**rule))
+        .count();
+
+    OmenaQueryCheckerCategoricalGateV0 {
+        schema_version: "0",
+        product: "omena-query-checker-orchestrator.categorical-gate",
+        orchestrator_kind: "registered-rule-diagnostic-gate",
+        enabled_rule_names,
+        emitted_rule_names,
+        registered_rule_count: registered_rules.len(),
+        unregistered_rule_count,
+        evaluation_count: evaluations.len(),
+        enforcement_passed: unregistered_rule_count == 0,
+        evaluations,
+        ready_surfaces: vec![
+            "checkerRuleRegistry",
+            "categoricalCascadeRoleFunctor",
             "registeredRuleDiagnosticGate",
             "queryDiagnosticHandoff",
         ],
@@ -593,6 +666,73 @@ mod tests {
                 workspace_path: "workspace://settled-token-graph".to_string(),
                 before: rg_flow_coupling(2, 2, 0, 0),
                 after: rg_flow_coupling(2, 2, 0, 0),
+            }],
+        });
+
+        assert!(gate.enforcement_passed);
+        assert_eq!(gate.evaluation_count, 0);
+        assert!(gate.emitted_rule_names.is_empty());
+    }
+
+    #[test]
+    fn categorical_gate_emits_inconsistency_for_non_functorial_role_mapping() {
+        // Only two distinct cascade primitives are exercised, so the functor can
+        // build a single non-identity morphism and cannot witness composition.
+        // The real apply_cascade_role_mapping_functor_v0 verdict rejects the
+        // mapping and the gate surfaces the categorical inconsistency.
+        let gate = run_omena_query_checker_categorical_gate_v0(OmenaCheckerCategoricalInputV0 {
+            mappings: vec![OmenaCheckerCategoricalRoleMappingInputV0 {
+                mapping_id: "stylesheet://narrow-cascade-evidence".to_string(),
+                primitive_role_pairs: vec![
+                    OmenaCheckerCategoricalPrimitiveRolePairInputV0 {
+                        primitive_name: "cascade_property".to_string(),
+                        categorical_role: "cosheaf colimit witness".to_string(),
+                    },
+                    OmenaCheckerCategoricalPrimitiveRolePairInputV0 {
+                        primitive_name: "prove_layer_flatten_candidate".to_string(),
+                        categorical_role: "Beck-Chevalley origin inversion witness".to_string(),
+                    },
+                ],
+            }],
+        });
+
+        assert!(gate.enforcement_passed);
+        assert_eq!(gate.unregistered_rule_count, 0);
+        assert_eq!(gate.evaluation_count, 1);
+        assert!(
+            gate.emitted_rule_names
+                .contains(&"categorical-cascade-evidence-inconsistency")
+        );
+        assert!(!gate.evaluations[0].functor_accepted);
+        assert!(!gate.evaluations[0].composition_preserved);
+        assert_eq!(
+            gate.evaluations[0].mechanism_products,
+            vec!["omena-categorical.cascade-primitive-role-functor"]
+        );
+    }
+
+    #[test]
+    fn categorical_gate_records_clear_suppression_for_composable_role_mapping() {
+        // Three distinct cascade primitives give two composable non-identity
+        // morphisms, so the functor witnesses composition, accepts the mapping,
+        // and the gate surfaces nothing.
+        let gate = run_omena_query_checker_categorical_gate_v0(OmenaCheckerCategoricalInputV0 {
+            mappings: vec![OmenaCheckerCategoricalRoleMappingInputV0 {
+                mapping_id: "stylesheet://broad-cascade-evidence".to_string(),
+                primitive_role_pairs: vec![
+                    OmenaCheckerCategoricalPrimitiveRolePairInputV0 {
+                        primitive_name: "cascade_property".to_string(),
+                        categorical_role: "cosheaf colimit witness".to_string(),
+                    },
+                    OmenaCheckerCategoricalPrimitiveRolePairInputV0 {
+                        primitive_name: "prove_layer_flatten_candidate".to_string(),
+                        categorical_role: "Beck-Chevalley origin inversion witness".to_string(),
+                    },
+                    OmenaCheckerCategoricalPrimitiveRolePairInputV0 {
+                        primitive_name: "evaluate_static_supports_condition".to_string(),
+                        categorical_role: "site-axis decidability witness".to_string(),
+                    },
+                ],
             }],
         });
 

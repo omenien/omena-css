@@ -1005,6 +1005,38 @@ pub fn checker_categorical_cascade_evidence_v0(
     omena_categorical::categorical_cascade_evidence_v0(source_product)
 }
 
+/// Build cascade categorical evidence whose functor application is the real
+/// verdict over the cascade primitives a concrete stylesheet exercises.
+///
+/// Thin wrapper over
+/// `omena_categorical::categorical_cascade_evidence_for_exercised_primitives_v0`
+/// so the query style path can attach a verdict that depends on the parsed
+/// cascade without a Query -> Theory layer skip.
+pub fn checker_categorical_cascade_evidence_for_exercised_primitives_v0(
+    source_product: &'static str,
+    exercised_primitive_role_pairs: &[(String, String)],
+) -> CategoricalCascadeEvidenceV0 {
+    omena_categorical::categorical_cascade_evidence_for_exercised_primitives_v0(
+        source_product,
+        exercised_primitive_role_pairs,
+    )
+}
+
+/// The canonical cascade primitive-to-categorical-role catalog, sourced from
+/// `omena_categorical::cascade_primitive_roles_v0`.
+///
+/// Each tuple is `(primitive_name, categorical_role)`. Product callers (the
+/// query style path) project this catalog down to the cascade primitives a real
+/// stylesheet exercises and feed the projection into the categorical functor
+/// gate; keeping the catalog here avoids a Query -> Theory layer skip and keeps
+/// the role names in sync with the categorical source of truth.
+pub fn checker_cascade_primitive_role_catalog_v0() -> Vec<(&'static str, &'static str)> {
+    omena_categorical::cascade_primitive_roles_v0()
+        .into_iter()
+        .map(|role| (role.primitive_name, role.categorical_role))
+        .collect()
+}
+
 pub fn list_omena_checker_code_bundles() -> Vec<OmenaCheckerCodeBundleV0> {
     use OmenaCheckerCodeBundleNameV0::{
         CascadeAware, CiDefault, SourceMissing, StyleRecovery, StyleUnused,

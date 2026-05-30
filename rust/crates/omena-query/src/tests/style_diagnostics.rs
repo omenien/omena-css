@@ -399,6 +399,81 @@ fn cascade_aware_lints_carry_rg_flow_coupling_spectrum_evidence() -> Result<(), 
 }
 
 #[test]
+fn cascade_aware_lints_carry_categorical_functor_evidence() -> Result<(), &'static str> {
+    // Cyclic custom-property ranking: --a -> --b -> --a. The least-fixed-point
+    // ranking colimit cannot converge, so the cascade-ranking primitive is
+    // forced to play a second, conflicting categorical role. The functor object
+    // mapping becomes many-valued (one primitive -> two role objects), the real
+    // apply_cascade_role_mapping_functor_v0 verdict rejects the mapping, and the
+    // gate surfaces categoricalCascadeEvidenceInconsistency.
+    let cyclic = r#"
+:root {
+  --a: var(--b);
+  --b: var(--a);
+}
+.alert {
+  color: var(--a);
+}
+"#;
+    let cyclic_candidates =
+        crate::summarize_omena_query_style_hover_candidates("Alert.module.css", cyclic)
+            .ok_or("cyclic candidates")?;
+    let cyclic_diagnostics = crate::summarize_omena_query_style_diagnostics_for_file(
+        "file:///workspace/src/Alert.module.css",
+        cyclic,
+        cyclic_candidates.candidates.as_slice(),
+    );
+    let categorical_diagnostics = cyclic_diagnostics
+        .diagnostics
+        .iter()
+        .filter(|diagnostic| diagnostic.code == "categoricalCascadeEvidenceInconsistency")
+        .collect::<Vec<_>>();
+
+    assert_eq!(categorical_diagnostics.len(), 1);
+    assert_eq!(categorical_diagnostics[0].severity, "hint");
+    assert!(
+        categorical_diagnostics[0]
+            .provenance
+            .contains(&"omena-categorical.cascade-primitive-role-functor")
+    );
+    assert!(
+        categorical_diagnostics[0]
+            .provenance
+            .contains(&"omena-query-checker-orchestrator.categorical-gate")
+    );
+
+    // Acyclic custom-property ranking: --a -> --b, --b literal. The ranking
+    // colimit converges, the cascade-ranking primitive maps to exactly one
+    // categorical role, the functor accepts the mapping, and nothing is
+    // surfaced. If the functor verdict were a constant the cyclic case would
+    // still emit but so would this one, breaking the assertion below.
+    let acyclic = r#"
+:root {
+  --a: var(--b);
+  --b: 4px;
+}
+.alert {
+  margin: var(--a);
+}
+"#;
+    let acyclic_candidates =
+        crate::summarize_omena_query_style_hover_candidates("Alert.module.css", acyclic)
+            .ok_or("acyclic candidates")?;
+    let acyclic_diagnostics = crate::summarize_omena_query_style_diagnostics_for_file(
+        "file:///workspace/src/Alert.module.css",
+        acyclic,
+        acyclic_candidates.candidates.as_slice(),
+    );
+    assert!(
+        acyclic_diagnostics
+            .diagnostics
+            .iter()
+            .all(|diagnostic| diagnostic.code != "categoricalCascadeEvidenceInconsistency")
+    );
+    Ok(())
+}
+
+#[test]
 fn cascade_aware_lints_preserve_flatten_invariance_for_nested_ampersand() -> Result<(), &'static str>
 {
     let nested = r#"

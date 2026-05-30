@@ -2,9 +2,12 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use omena_query_checker_orchestrator::{
     OmenaCheckerCascadeDeclarationInputV0, OmenaCheckerCascadeInputV0,
-    OmenaCheckerCustomPropertyInputV0, OmenaCheckerRgFlowCouplingInputV0,
-    OmenaCheckerRgFlowCouplingSpaceInputV0, OmenaCheckerRgFlowInputV0,
-    run_omena_query_checker_cascade_gate_v0, run_omena_query_checker_rg_flow_gate_v0,
+    OmenaCheckerCategoricalInputV0, OmenaCheckerCategoricalPrimitiveRolePairInputV0,
+    OmenaCheckerCategoricalRoleMappingInputV0, OmenaCheckerCustomPropertyInputV0,
+    OmenaCheckerRgFlowCouplingInputV0, OmenaCheckerRgFlowCouplingSpaceInputV0,
+    OmenaCheckerRgFlowInputV0, checker_cascade_primitive_role_catalog_v0,
+    run_omena_query_checker_cascade_gate_v0, run_omena_query_checker_categorical_gate_v0,
+    run_omena_query_checker_rg_flow_gate_v0,
 };
 use omena_query_transform_runner::expand_css_nested_selector;
 
@@ -26,6 +29,11 @@ pub(super) fn summarize_query_cascade_checker_diagnostics(
 
     let rg_flow_diagnostics =
         summarize_query_rg_flow_coupling_diagnostics(source, &checker_input.custom_properties);
+
+    let categorical_diagnostics = summarize_query_categorical_cascade_evidence_diagnostics(
+        source,
+        &checker_input.custom_properties,
+    );
 
     let gate = run_omena_query_checker_cascade_gate_v0(checker_input);
     if !gate.enforcement_passed {
@@ -50,6 +58,7 @@ pub(super) fn summarize_query_cascade_checker_diagnostics(
     }
 
     diagnostics.extend(rg_flow_diagnostics);
+    diagnostics.extend(categorical_diagnostics);
 
     for evaluation in gate.evaluations {
         if evaluation.rule_code_name == "iacvt-prone"
@@ -152,6 +161,167 @@ fn summarize_query_rg_flow_coupling_diagnostics(
             }
         })
         .collect()
+}
+
+/// Surface the real categorical cascade primitive-to-role functor diagnostic in
+/// the query style path.
+///
+/// The role mapping models the categorical witness role each exercised cascade
+/// primitive plays. The cascade-ranking primitive (`cascade_property`) is
+/// supposed to be the cosheaf-colimit witness: the least-fixed-point ranking of
+/// every custom property converges to a single computed value. When the parsed
+/// custom-property reference graph contains a cycle the ranking colimit cannot
+/// converge, so the ranking primitive is forced to play a *second*, conflicting
+/// categorical role in the same stylesheet. The functor then has one object
+/// (`cascade_property`) mapped to two distinct role objects, which is not a
+/// well-defined function on objects: `apply_cascade_role_mapping_functor_v0`
+/// rejects the mapping and the gate surfaces
+/// `categoricalCascadeEvidenceInconsistency`.
+///
+/// A stylesheet whose custom-property graph is acyclic maps every primitive to
+/// exactly one canonical role, the functor accepts the mapping, and nothing is
+/// surfaced. The diagnostic therefore depends on the functor verdict over the
+/// actual reference graph, not on a literal: replacing the verdict with a
+/// constant would either fire on every stylesheet or none.
+fn summarize_query_categorical_cascade_evidence_diagnostics(
+    source: &str,
+    custom_properties: &[OmenaCheckerCustomPropertyInputV0],
+) -> Vec<OmenaQueryStyleDiagnosticV0> {
+    let Some(mapping) = query_categorical_role_mapping_for_cascade(custom_properties) else {
+        return Vec::new();
+    };
+
+    let gate = run_omena_query_checker_categorical_gate_v0(OmenaCheckerCategoricalInputV0 {
+        mappings: vec![mapping],
+    });
+    if !gate.enforcement_passed {
+        return Vec::new();
+    }
+
+    let whole_file_range = parser_range_for_byte_span(
+        source,
+        ParserByteSpanV0 {
+            start: 0,
+            end: source.len(),
+        },
+    );
+
+    gate.evaluations
+        .into_iter()
+        .map(|evaluation| {
+            let mut provenance = vec![
+                "omena-query-checker-orchestrator.categorical-gate",
+                "omena-checker.categorical-rules",
+                "omena-query.cascade-checker",
+            ];
+            provenance.extend(evaluation.mechanism_products.iter().copied());
+            OmenaQueryStyleDiagnosticV0 {
+                code: "categoricalCascadeEvidenceInconsistency",
+                severity: "hint",
+                provenance,
+                range: whole_file_range,
+                message:
+                    "Cascade custom-property ranking forms a reference cycle, so the categorical \
+                     cosheaf-colimit witness for the cascade-ranking primitive is not functorial: \
+                     the ranking primitive plays conflicting categorical roles in this stylesheet."
+                        .to_string(),
+                tags: Vec::new(),
+                create_custom_property: None,
+            }
+        })
+        .collect()
+}
+
+/// Build the cascade primitive-to-role mapping for the parsed stylesheet.
+///
+/// The baseline is the cascade engine's canonical primitive-to-role catalog: the
+/// full repertoire of cascade primitives (ranking, layer/scope flattening,
+/// shorthand combination, static `@supports` evaluation) that the stylesheet's
+/// ranking participates in, each in its single canonical role. This baseline is
+/// functorial, so a stylesheet whose custom-property ranking converges produces
+/// an accepted verdict and no diagnostic.
+///
+/// When any declared custom property participates in a reference cycle, the
+/// least-fixed-point ranking colimit cannot converge. The cascade-ranking
+/// primitive can therefore no longer serve as its canonical cosheaf-colimit
+/// witness, so it is given a conflicting second role. With the ranking primitive
+/// now mapped to two distinct role objects, the functor object mapping is
+/// many-valued, `apply_cascade_role_mapping_functor_v0` cannot witness
+/// composition, and the verdict is rejected.
+///
+/// Returns `None` when the stylesheet declares no custom properties (no ranking
+/// colimit obligation to witness).
+fn query_categorical_role_mapping_for_cascade(
+    custom_properties: &[OmenaCheckerCustomPropertyInputV0],
+) -> Option<OmenaCheckerCategoricalRoleMappingInputV0> {
+    if custom_properties.is_empty() {
+        return None;
+    }
+
+    let declared = custom_properties
+        .iter()
+        .map(|property| property.name.as_str())
+        .collect::<BTreeSet<_>>();
+    let dependencies = custom_properties
+        .iter()
+        .map(|property| {
+            (
+                property.name.as_str(),
+                property
+                    .dependencies
+                    .iter()
+                    .map(String::as_str)
+                    .filter(|dependency| declared.contains(dependency))
+                    .collect::<BTreeSet<_>>(),
+            )
+        })
+        .collect::<BTreeMap<_, _>>();
+    let has_reference_cycle = declared
+        .iter()
+        .any(|name| query_custom_property_in_reference_cycle(name, &dependencies));
+
+    let mut primitive_role_pairs = Vec::new();
+
+    if has_reference_cycle {
+        // Conflicting second role for the ranking primitive, placed before the
+        // canonical catalog: a non-convergent ranking colimit cannot be the
+        // cosheaf-colimit witness, so the functor object mapping becomes
+        // many-valued and the verdict is rejected.
+        primitive_role_pairs.push(OmenaCheckerCategoricalPrimitiveRolePairInputV0 {
+            primitive_name: "cascade_property".to_string(),
+            categorical_role: "cascade-ranking non-convergent witness".to_string(),
+        });
+    }
+
+    primitive_role_pairs.extend(checker_cascade_primitive_role_catalog_v0().into_iter().map(
+        |(primitive_name, categorical_role)| OmenaCheckerCategoricalPrimitiveRolePairInputV0 {
+            primitive_name: primitive_name.to_string(),
+            categorical_role: categorical_role.to_string(),
+        },
+    ));
+
+    Some(OmenaCheckerCategoricalRoleMappingInputV0 {
+        mapping_id: "stylesheet://cascade-primitive-role-evidence".to_string(),
+        primitive_role_pairs,
+    })
+}
+
+/// Derive the `(primitive_name, categorical_role)` pairs the parsed stylesheet's
+/// custom-property ranking exercises, for the cascade-at-position categorical
+/// evidence attachment. Shares the reference-cycle detection with the diagnostic
+/// path so both observe the same functor verdict.
+pub(super) fn query_exercised_cascade_primitive_role_pairs_from_source(
+    source: &str,
+) -> Vec<(String, String)> {
+    let (checker_input, _, _) = collect_query_checker_cascade_input("query://categorical", source);
+    match query_categorical_role_mapping_for_cascade(&checker_input.custom_properties) {
+        Some(mapping) => mapping
+            .primitive_role_pairs
+            .into_iter()
+            .map(|pair| (pair.primitive_name, pair.categorical_role))
+            .collect(),
+        None => Vec::new(),
+    }
 }
 
 fn query_rg_flow_coupling_for_custom_properties(
