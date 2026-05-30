@@ -1648,7 +1648,8 @@ fn read_external_sifs(paths: &[PathBuf]) -> Result<Vec<OmenaQueryExternalSifInpu
 }
 
 /// Generate, in-process, the external SIFs for every on-disk (`file://`) external Sass module
-/// edge in the workspace so the existing SIF-mode query path can pair them against import targets
+/// edge in the workspace — and, transitively, every module reachable through a generated SIF's
+/// `@forward` chain — so the existing SIF-mode query path can pair them against import targets
 /// without a manual `--sif`. (#33)
 ///
 /// Each `file://` `@use`/`@forward`/`@import` source now classifies as an external edge
@@ -1658,21 +1659,50 @@ fn read_external_sifs(paths: &[PathBuf]) -> Result<Vec<OmenaQueryExternalSifInpu
 /// the *verbatim* edge source so it matches the import target 1:1 in
 /// `find_omena_query_external_sif` (the inner SIF still carries the bridge's normalized URL).
 ///
+/// After generating a SIF the walk recurses into that SIF's `exports.forwards[].canonical_url`
+/// (each a *raw* relative/bare specifier as written, e.g. `"./tokens"`), re-resolving every
+/// forwarded specifier against the forwarding SIF's resolved inner `canonical_url` (a `file://`
+/// URI) via the `omena_query` resolver facade and generating those modules' SIFs too. So a
+/// transitively-forwarded module (A `@forward` B where B defines/re-exports the symbols) gets a
+/// SIF generated even though no workspace source imports B directly. The walk is a breadth-first
+/// worklist with cycle/diamond detection keyed on the *resolved* `file://` identity, so an
+/// A↔B forward cycle terminates without hanging or duplicating SIFs.
+///
 /// Skipped, never fabricated:
 /// - an edge already covered by an explicit `--sif` (matching canonical URL) — the user artifact
 ///   wins, so a stale/partial `--sif` is never silently overwritten by a fresh bridge SIF;
 /// - a `file://` edge the bridge cannot read (a genuinely-missing module) — left out so it keeps
 ///   surfacing its `missingExternalSif`/`missingSassSymbol` boundary state (no over-correction);
+/// - a forwarded specifier that does not resolve to an on-disk module (resolver returns `None`)
+///   or that the bridge cannot read — left out so a genuinely-missing transitive forward still
+///   flags;
 /// - `http(s)://`/`sass:` schemes — not on-disk, so the bridge cannot read them in-process.
+///
+/// LIMITATION (#33 P1 scope): this makes the transitive SIFs *available* and correctly keyed
+/// (fixing `missingExternalSif` for the forwarded module itself and enabling stale-dependency
+/// checks), but the query layer's external-SIF symbol collection
+/// (`collect_sif_exported_sass_symbol_keys`) does not yet flatten forwarded exports *across*
+/// external SIF chains, so full transitive-symbol visibility across external forward chains is a
+/// separate query-layer change.
 fn resolve_in_process_external_sifs(
     workspace_sources: &[OmenaQueryStyleSourceInputV0],
     existing_external_sifs: &[OmenaQueryExternalSifInputV0],
 ) -> Vec<OmenaQueryExternalSifInputV0> {
+    // A single `file://`-namespace dedup/cycle set: seeded with the verbatim canonical URLs of any
+    // explicit `--sif`, then extended with each generated SIF's resolved inner `file://` URI. A
+    // workspace `file://` edge source already *is* its resolved URI, so the two keying schemes
+    // coincide in that namespace.
     let mut covered = existing_external_sifs
         .iter()
         .map(|input| input.canonical_url.clone())
         .collect::<std::collections::BTreeSet<_>>();
     let mut resolved = Vec::new();
+    // Worklist of generated SIFs whose `exports.forwards` still need to be walked.
+    let mut worklist: std::collections::VecDeque<omena_sif::OmenaSifV1> =
+        std::collections::VecDeque::new();
+
+    // Direct workspace pass: each `file://` `@use`/`@forward`/`@import` edge written in a workspace
+    // source. Key to the verbatim edge source (which already IS its resolved `file://` URI).
     for source in workspace_sources {
         let Some(module_sources) =
             summarize_omena_query_sass_module_sources(&source.style_path, &source.style_source)
@@ -1701,6 +1731,13 @@ fn resolve_in_process_external_sifs(
             // The bridge errors gracefully (never panics) on an unreadable/missing module; we
             // simply skip it so the boundary state still surfaces — we never fabricate a SIF.
             if let Ok(sif) = generate_omena_bridge_sif_for_resolved_style_path(edge_source) {
+                // The bridge normalizes the path (symlinks/`..`), so the inner `sif.canonical_url`
+                // can differ from the verbatim `file://` edge source. Record BOTH in `covered`:
+                // the verbatim key matches the workspace import 1:1 here, and the resolved key is
+                // what the transitive walk dedups on — without it a forward cycle that resolves
+                // back to this module would regenerate it.
+                covered.insert(sif.canonical_url.clone());
+                worklist.push_back(sif.clone());
                 resolved.push(OmenaQueryExternalSifInputV0 {
                     canonical_url: edge_source.to_string(),
                     sif,
@@ -1708,6 +1745,51 @@ fn resolve_in_process_external_sifs(
             }
         }
     }
+
+    // Transitive `@forward` walk: pop a generated SIF and resolve each forwarded specifier against
+    // that SIF's resolved inner `file://` base, generating the forwarded module's SIF and enqueueing
+    // it so the chain (and any diamond) is followed to a fixpoint.
+    while let Some(sif) = worklist.pop_front() {
+        let base_file_uri = sif.canonical_url.clone();
+        for forward in &sif.exports.forwards {
+            let specifier = forward.canonical_url.as_str();
+            // `sass:` builtins and `http(s)://` modules are not on-disk; the bridge cannot read
+            // them in-process, so they keep surfacing their boundary state.
+            if specifier.starts_with("sass:")
+                || specifier.starts_with("http://")
+                || specifier.starts_with("https://")
+            {
+                continue;
+            }
+            // Resolve the raw forwarded specifier (e.g. `"./tokens"`) relative to the forwarding
+            // module's resolved `file://` URI. `None` => genuinely unresolvable; never fabricate.
+            let Some(child_url) = omena_query::resolve_omena_query_style_uri_for_specifier(
+                base_file_uri.as_str(),
+                None,
+                specifier,
+            ) else {
+                continue;
+            };
+            // Cycle/diamond guard: dedup on the resolved `file://` identity. A relative specifier
+            // can reach the same physical module via different strings, so the verbatim string is
+            // not a sound key — the resolved URI is.
+            if !covered.insert(child_url.clone()) {
+                continue;
+            }
+            // Unreadable/missing forwarded module: skip so it keeps surfacing its boundary state.
+            if let Ok(child) = generate_omena_bridge_sif_for_resolved_style_path(child_url.as_str())
+            {
+                worklist.push_back(child.clone());
+                // Key the entry to the resolved `file://` URI; it equals `child.canonical_url`, so
+                // `find_omena_query_external_sif` matches on either field.
+                resolved.push(OmenaQueryExternalSifInputV0 {
+                    canonical_url: child_url,
+                    sif: child,
+                });
+            }
+        }
+    }
+
     resolved
 }
 
@@ -2224,6 +2306,156 @@ mod tests {
         assert!(result.is_ok(), "{result:?}");
         cleanup(&source_path);
         cleanup(&sif_path);
+        Ok(())
+    }
+
+    /// #33 P1: the in-process external-SIF resolution must walk a generated SIF's `@forward`
+    /// chain transitively. A workspace entry `@forward`s `a.scss`, which `@forward`s `b.scss`,
+    /// which defines `$brand`. Before this change only `a`'s SIF was generated; `b` was reachable
+    /// only inside the external forward chain, so its symbol stayed invisible. The walk must now
+    /// generate `b`'s SIF too, keyed to its resolved `file://` identity.
+    #[test]
+    fn in_process_external_sifs_walk_transitive_forward_chain() -> Result<(), String> {
+        let workspace = temp_dir("transitive-forward");
+        fs::create_dir_all(&workspace)
+            .map_err(|error| format!("fixture workspace should be writable: {error}"))?;
+        let a_path = workspace.join("a.scss");
+        let b_path = workspace.join("b.scss");
+        // a re-exports b; b defines the symbol. The bridge records `@forward "./b"` as a RAW
+        // specifier on a's SIF, so the walk must re-resolve it relative to a's resolved URI.
+        fs::write(&a_path, "@forward \"./b\";\n")
+            .map_err(|error| format!("a.scss should be writable: {error}"))?;
+        fs::write(&b_path, "$brand: #0af;\n")
+            .map_err(|error| format!("b.scss should be writable: {error}"))?;
+
+        // The workspace entry forwards `a` over a literal `file://` edge (the shape that already
+        // routes through the external branch); `b` is reachable ONLY through a's forward chain.
+        // (Match on the resolved inner `sif.canonical_url` suffix: the bridge normalizes the path
+        // — e.g. macOS `/tmp` -> `/private/tmp` — so the verbatim temp path is not a sound key.)
+        let _ = (&a_path, &b_path);
+        let a_file_uri = format!("file://{}", a_path.to_string_lossy());
+        let entry = OmenaQueryStyleSourceInputV0 {
+            style_path: workspace.join("entry.scss").to_string_lossy().into_owned(),
+            style_source: format!("@forward \"{a_file_uri}\";\n"),
+        };
+
+        let resolved = resolve_in_process_external_sifs(std::slice::from_ref(&entry), &[]);
+
+        // The directly-forwarded module a is present.
+        assert!(
+            resolved
+                .iter()
+                .any(|input| input.sif.canonical_url.ends_with("/a.scss")),
+            "directly-forwarded a.scss SIF should be generated: {resolved:?}"
+        );
+        // The TRANSITIVELY-forwarded module b is present and carries the `$brand` symbol that was
+        // previously invisible. Its entry key equals its resolved inner `sif.canonical_url`.
+        let b_input = resolved
+            .iter()
+            .find(|input| input.sif.canonical_url.ends_with("/b.scss"))
+            .ok_or_else(|| {
+                format!("transitively-forwarded b.scss SIF should be generated: {resolved:?}")
+            })?;
+        assert_eq!(b_input.canonical_url, b_input.sif.canonical_url);
+        assert!(
+            b_input
+                .sif
+                .exports
+                .variables
+                .iter()
+                .any(|variable| variable.name == "$brand"),
+            "b.scss SIF must export $brand: {:?}",
+            b_input.sif.exports.variables
+        );
+
+        cleanup_dir(&workspace);
+        Ok(())
+    }
+
+    /// #33 P1 over-correction guard: a forward cycle (a `@forward`s b, b `@forward`s a) must
+    /// terminate — the resolved-`file://`-identity dedup set stops the walk — and must not
+    /// duplicate either module's SIF.
+    #[test]
+    fn in_process_external_sifs_terminate_on_forward_cycle() -> Result<(), String> {
+        let workspace = temp_dir("forward-cycle");
+        fs::create_dir_all(&workspace)
+            .map_err(|error| format!("fixture workspace should be writable: {error}"))?;
+        let a_path = workspace.join("a.scss");
+        let b_path = workspace.join("b.scss");
+        fs::write(&a_path, "@forward \"./b\";\n")
+            .map_err(|error| format!("a.scss should be writable: {error}"))?;
+        fs::write(&b_path, "@forward \"./a\";\n")
+            .map_err(|error| format!("b.scss should be writable: {error}"))?;
+
+        let _ = &b_path;
+        let a_file_uri = format!("file://{}", a_path.to_string_lossy());
+        let entry = OmenaQueryStyleSourceInputV0 {
+            style_path: workspace.join("entry.scss").to_string_lossy().into_owned(),
+            style_source: format!("@forward \"{a_file_uri}\";\n"),
+        };
+
+        // Must not hang; the dedup set breaks the a<->b cycle.
+        let resolved = resolve_in_process_external_sifs(std::slice::from_ref(&entry), &[]);
+
+        // Each physical module appears exactly once despite the cycle (dedup on resolved identity).
+        let a_count = resolved
+            .iter()
+            .filter(|input| input.sif.canonical_url.ends_with("/a.scss"))
+            .count();
+        let b_count = resolved
+            .iter()
+            .filter(|input| input.sif.canonical_url.ends_with("/b.scss"))
+            .count();
+        assert_eq!(
+            a_count, 1,
+            "a.scss SIF must appear exactly once: {resolved:?}"
+        );
+        assert_eq!(
+            b_count, 1,
+            "b.scss SIF must appear exactly once: {resolved:?}"
+        );
+
+        cleanup_dir(&workspace);
+        Ok(())
+    }
+
+    /// #33 P1 over-correction guard: a genuinely-missing transitively-forwarded module produces
+    /// no fabricated SIF. a forwards `./missing`, which does not exist on disk, so the walk
+    /// resolves+reads nothing for it — the boundary state is preserved.
+    #[test]
+    fn in_process_external_sifs_skip_missing_transitive_forward() -> Result<(), String> {
+        let workspace = temp_dir("absent-forward");
+        fs::create_dir_all(&workspace)
+            .map_err(|error| format!("fixture workspace should be writable: {error}"))?;
+        let a_path = workspace.join("a.scss");
+        // a forwards a module that does not exist on disk.
+        fs::write(&a_path, "@forward \"./gone\";\n")
+            .map_err(|error| format!("a.scss should be writable: {error}"))?;
+
+        let a_file_uri = format!("file://{}", a_path.to_string_lossy());
+        let entry = OmenaQueryStyleSourceInputV0 {
+            style_path: workspace.join("entry.scss").to_string_lossy().into_owned(),
+            style_source: format!("@forward \"{a_file_uri}\";\n"),
+        };
+
+        let resolved = resolve_in_process_external_sifs(std::slice::from_ref(&entry), &[]);
+
+        // a is generated, but no SIF is fabricated for the missing `./gone` target.
+        assert!(
+            resolved
+                .iter()
+                .any(|input| input.sif.canonical_url.ends_with("/a.scss")),
+            "a.scss SIF should be generated: {resolved:?}"
+        );
+        assert!(
+            resolved
+                .iter()
+                .all(|input| !input.sif.canonical_url.ends_with("/gone.scss")
+                    && !input.sif.canonical_url.ends_with("/_gone.scss")),
+            "no SIF may be fabricated for the genuinely-missing forward: {resolved:?}"
+        );
+
+        cleanup_dir(&workspace);
         Ok(())
     }
 
