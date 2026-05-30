@@ -39,6 +39,8 @@ use omena_cascade::{
 };
 use omena_checker::{
     OmenaCheckerCascadeEvaluationV0, OmenaCheckerCascadeInputV0,
+    OmenaCheckerCategoricalEvaluationV0, OmenaCheckerCategoricalInputV0,
+    OmenaCheckerCategoricalPrimitiveRolePairInputV0, OmenaCheckerCategoricalRoleMappingInputV0,
     OmenaCheckerDynamicClassDomainInputV0, OmenaCheckerGrnEvaluationV0, OmenaCheckerGrnInputV0,
     OmenaCheckerMTierEvaluationV0, OmenaCheckerMdlEvaluationV0, OmenaCheckerMdlInputV0,
     OmenaCheckerMdlSummaryInputV0, OmenaCheckerReplicaEnsembleEvaluationV0,
@@ -47,10 +49,11 @@ use omena_checker::{
     OmenaCheckerRgFlowEvaluationV0, OmenaCheckerRgFlowInputV0, OmenaCheckerSmtEvaluationV0,
     OmenaCheckerSmtInputV0, OmenaCheckerStreamingIfdsEvaluationV0,
     OmenaCheckerStreamingIfdsInputV0, OmenaCheckerStreamingIfdsReportInputV0,
-    evaluate_omena_checker_cascade_rules, evaluate_omena_checker_grn_rules,
-    evaluate_omena_checker_m_tier_rules, evaluate_omena_checker_mdl_rules,
-    evaluate_omena_checker_replica_ensemble_rules, evaluate_omena_checker_rg_flow_rules,
-    evaluate_omena_checker_smt_rules, evaluate_omena_checker_streaming_ifds_rules,
+    evaluate_omena_checker_cascade_rules, evaluate_omena_checker_categorical_rules,
+    evaluate_omena_checker_grn_rules, evaluate_omena_checker_m_tier_rules,
+    evaluate_omena_checker_mdl_rules, evaluate_omena_checker_replica_ensemble_rules,
+    evaluate_omena_checker_rg_flow_rules, evaluate_omena_checker_smt_rules,
+    evaluate_omena_checker_streaming_ifds_rules,
     summarize_omena_checker_rule_enforcement_coverage_v0,
 };
 use omena_ensemble::{
@@ -870,6 +873,37 @@ struct OmenaCheckerReplicaEnsembleEvaluationRunnerOutputV0 {
     evaluation_count: usize,
     rule_code_names: Vec<&'static str>,
     evaluations: Vec<OmenaCheckerReplicaEnsembleEvaluationV0>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct OmenaCheckerCategoricalEvaluationInputV0 {
+    mappings: Vec<OmenaCheckerCategoricalRoleMappingRunnerInputV0>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct OmenaCheckerCategoricalRoleMappingRunnerInputV0 {
+    mapping_id: String,
+    primitive_role_pairs: Vec<OmenaCheckerCategoricalPrimitiveRolePairRunnerInputV0>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct OmenaCheckerCategoricalPrimitiveRolePairRunnerInputV0 {
+    primitive_name: String,
+    categorical_role: String,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct OmenaCheckerCategoricalEvaluationRunnerOutputV0 {
+    schema_version: &'static str,
+    product: &'static str,
+    mapping_count: usize,
+    evaluation_count: usize,
+    rule_code_names: Vec<&'static str>,
+    evaluations: Vec<OmenaCheckerCategoricalEvaluationV0>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -1989,6 +2023,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             let summary = summarize_omena_checker_replica_ensemble_evaluations(input);
             serde_json::to_writer_pretty(io::stdout(), &summary)?;
         }
+        Some("omena-checker-categorical-evaluations") => {
+            let input: OmenaCheckerCategoricalEvaluationInputV0 = serde_json::from_str(&stdin)?;
+            let summary = summarize_omena_checker_categorical_evaluations(input);
+            serde_json::to_writer_pretty(io::stdout(), &summary)?;
+        }
         Some("omena-checker-rule-enforcement-coverage") => {
             let summary = summarize_omena_checker_rule_enforcement_coverage_v0();
             serde_json::to_writer_pretty(io::stdout(), &summary)?;
@@ -2473,6 +2512,12 @@ fn run_daemon_selected_query_command(
                 summarize_omena_checker_replica_ensemble_evaluations(input),
             )?)
         }
+        "omena-checker-categorical-evaluations" => {
+            let input: OmenaCheckerCategoricalEvaluationInputV0 = serde_json::from_value(input)?;
+            Ok(serde_json::to_value(
+                summarize_omena_checker_categorical_evaluations(input),
+            )?)
+        }
         "omena-checker-rule-enforcement-coverage" => Ok(serde_json::to_value(
             summarize_omena_checker_rule_enforcement_coverage_v0(),
         )?),
@@ -2864,6 +2909,45 @@ fn summarize_omena_checker_rg_flow_evaluations(
         schema_version: "0",
         product: "omena-checker.rg-flow-evaluations",
         flow_count,
+        evaluation_count: evaluations.len(),
+        rule_code_names,
+        evaluations,
+    }
+}
+
+fn summarize_omena_checker_categorical_evaluations(
+    input: OmenaCheckerCategoricalEvaluationInputV0,
+) -> OmenaCheckerCategoricalEvaluationRunnerOutputV0 {
+    let mapping_count = input.mappings.len();
+    let checker_input = OmenaCheckerCategoricalInputV0 {
+        mappings: input
+            .mappings
+            .into_iter()
+            .map(|mapping| OmenaCheckerCategoricalRoleMappingInputV0 {
+                mapping_id: mapping.mapping_id,
+                primitive_role_pairs: mapping
+                    .primitive_role_pairs
+                    .into_iter()
+                    .map(|pair| OmenaCheckerCategoricalPrimitiveRolePairInputV0 {
+                        primitive_name: pair.primitive_name,
+                        categorical_role: pair.categorical_role,
+                    })
+                    .collect(),
+            })
+            .collect(),
+    };
+    let evaluations = evaluate_omena_checker_categorical_rules(checker_input);
+    let rule_code_names = evaluations
+        .iter()
+        .map(|evaluation| evaluation.rule_code_name)
+        .collect::<BTreeSet<_>>()
+        .into_iter()
+        .collect::<Vec<_>>();
+
+    OmenaCheckerCategoricalEvaluationRunnerOutputV0 {
+        schema_version: "0",
+        product: "omena-checker.categorical-evaluations",
+        mapping_count,
         evaluation_count: evaluations.len(),
         rule_code_names,
         evaluations,

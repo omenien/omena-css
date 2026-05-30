@@ -70,14 +70,15 @@ pub fn summarize_omena_checker_rule_enforcement_coverage_v0()
 pub fn list_omena_checker_rule_enforcement_evidence_v0()
 -> Vec<OmenaCheckerRuleEnforcementEvidenceV0> {
     use OmenaCheckerRuleCodeV0::{
-        CascadeDeepConflict, CascadeSMTViolation, CascadeUnreachableRule, CircularVar,
-        DeadCascadeLayer, DesignSystemMdlBudget, DesignerIntentInconsistency, IacvtProne,
-        MissingComposedModule, MissingComposedSelector, MissingCustomProperty,
-        MissingImportedValue, MissingKeyframes, MissingModule, MissingResolvedClassDomain,
-        MissingResolvedClassValues, MissingSassSymbol, MissingStaticClass, MissingTemplatePrefix,
-        MissingValueModule, NoImpossibleSelector, NoImpreciseValue, NoUnknownDynamicClass,
-        ReplicaEnsembleInconsistency, RgFlowRelevantOperator, StreamingIfdsPrecisionParity,
-        UnreachableDeclaration, UnspecifiedCascadeTie, UnusedSelector,
+        CascadeDeepConflict, CascadeSMTViolation, CascadeUnreachableRule,
+        CategoricalCascadeEvidenceInconsistency, CircularVar, DeadCascadeLayer,
+        DesignSystemMdlBudget, DesignerIntentInconsistency, IacvtProne, MissingComposedModule,
+        MissingComposedSelector, MissingCustomProperty, MissingImportedValue, MissingKeyframes,
+        MissingModule, MissingResolvedClassDomain, MissingResolvedClassValues, MissingSassSymbol,
+        MissingStaticClass, MissingTemplatePrefix, MissingValueModule, NoImpossibleSelector,
+        NoImpreciseValue, NoUnknownDynamicClass, ReplicaEnsembleInconsistency,
+        RgFlowRelevantOperator, StreamingIfdsPrecisionParity, UnreachableDeclaration,
+        UnspecifiedCascadeTie, UnusedSelector,
     };
 
     vec![
@@ -198,6 +199,13 @@ pub fn list_omena_checker_rule_enforcement_evidence_v0()
             "evaluates_grn_rule_family_from_cascade_projection",
             &["omena-cascade.grn-outcome-projection"],
         ),
+        mechanism(
+            CategoricalCascadeEvidenceInconsistency,
+            "engine-shadow-runner.omena-checker-categorical-evaluations",
+            "evaluates_categorical_rule_family_from_functor_verdict",
+            "evaluates_categorical_rule_family_from_functor_verdict",
+            &["omena-categorical.cascade-primitive-role-functor"],
+        ),
     ]
 }
 
@@ -283,7 +291,7 @@ mod tests {
         let summary = summarize_omena_checker_rule_enforcement_coverage_v0();
 
         assert!(summary.coverage_passed);
-        assert_eq!(summary.registered_rule_count, 29);
+        assert_eq!(summary.registered_rule_count, 30);
         assert_eq!(summary.mapped_rule_count, summary.registered_rule_count);
         assert!(summary.missing_rule_names.is_empty());
         assert!(summary.extra_rule_names.is_empty());
@@ -307,7 +315,7 @@ mod tests {
             .filter(|entry| entry.evidence_kind == "mechanismEvaluator")
             .collect::<Vec<_>>();
 
-        assert_eq!(mechanism_evidence.len(), 8);
+        assert_eq!(mechanism_evidence.len(), 9);
         assert!(mechanism_evidence.iter().all(|entry| {
             !entry.product_path.is_empty()
                 && !entry.emit_fixture.is_empty()

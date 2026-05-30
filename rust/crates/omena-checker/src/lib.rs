@@ -6,6 +6,7 @@ use omena_abstract_value::{
 };
 use omena_cascade::{GrnBooleanState, GrnVertexStateV0, GrnVertexV0, project_grn_outcome};
 pub use omena_categorical::CategoricalCascadeEvidenceV0;
+use omena_categorical::{CascadeFunctorApplicationV0, apply_cascade_role_mapping_functor_v0};
 use omena_rg_flow::{coupling_space, estimate_coupling_jacobian_spectrum_v0};
 use omena_smt::{
     SmtBackendKindV0, SmtBackendSatResultV0, SmtBackendV0, StubSmtBackendV0, canonical_smt_input_v0,
@@ -53,6 +54,7 @@ pub enum OmenaCheckerRuleCodeV0 {
     StreamingIfdsPrecisionParity,
     RgFlowRelevantOperator,
     ReplicaEnsembleInconsistency,
+    CategoricalCascadeEvidenceInconsistency,
 }
 
 impl OmenaCheckerRuleCodeV0 {
@@ -87,6 +89,9 @@ impl OmenaCheckerRuleCodeV0 {
             Self::StreamingIfdsPrecisionParity => "streaming-ifds-precision-parity",
             Self::RgFlowRelevantOperator => "rg-flow-relevant-operator",
             Self::ReplicaEnsembleInconsistency => "replica-ensemble-inconsistency",
+            Self::CategoricalCascadeEvidenceInconsistency => {
+                "categorical-cascade-evidence-inconsistency"
+            }
         }
     }
 }
@@ -557,17 +562,55 @@ pub struct OmenaCheckerReplicaEnsembleEvaluationV0 {
     pub mechanism_products: Vec<&'static str>,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct OmenaCheckerCategoricalInputV0 {
+    pub mappings: Vec<OmenaCheckerCategoricalRoleMappingInputV0>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct OmenaCheckerCategoricalRoleMappingInputV0 {
+    pub mapping_id: String,
+    pub primitive_role_pairs: Vec<OmenaCheckerCategoricalPrimitiveRolePairInputV0>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct OmenaCheckerCategoricalPrimitiveRolePairInputV0 {
+    pub primitive_name: String,
+    pub categorical_role: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct OmenaCheckerCategoricalEvaluationV0 {
+    pub rule_code: OmenaCheckerRuleCodeV0,
+    pub rule_code_name: &'static str,
+    pub severity: OmenaCheckerSeverityV0,
+    pub severity_name: &'static str,
+    pub mapping_id: String,
+    pub object_mapping_count: usize,
+    pub morphism_mapping_count: usize,
+    pub identity_preserved: bool,
+    pub composition_preserved: bool,
+    pub functor_accepted: bool,
+    pub message: String,
+    pub mechanism_products: Vec<&'static str>,
+}
+
 pub fn list_omena_checker_rule_descriptors() -> Vec<OmenaCheckerRuleDescriptorV0> {
     use OmenaCheckerFindingCategoryV0::{Source, Style};
     use OmenaCheckerRuleCodeV0::{
-        CascadeDeepConflict, CascadeSMTViolation, CascadeUnreachableRule, CircularVar,
-        DeadCascadeLayer, DesignSystemMdlBudget, DesignerIntentInconsistency, IacvtProne,
-        MissingComposedModule, MissingComposedSelector, MissingCustomProperty,
-        MissingImportedValue, MissingKeyframes, MissingModule, MissingResolvedClassDomain,
-        MissingResolvedClassValues, MissingSassSymbol, MissingStaticClass, MissingTemplatePrefix,
-        MissingValueModule, NoImpossibleSelector, NoImpreciseValue, NoUnknownDynamicClass,
-        ReplicaEnsembleInconsistency, RgFlowRelevantOperator, StreamingIfdsPrecisionParity,
-        UnreachableDeclaration, UnspecifiedCascadeTie, UnusedSelector,
+        CascadeDeepConflict, CascadeSMTViolation, CascadeUnreachableRule,
+        CategoricalCascadeEvidenceInconsistency, CircularVar, DeadCascadeLayer,
+        DesignSystemMdlBudget, DesignerIntentInconsistency, IacvtProne, MissingComposedModule,
+        MissingComposedSelector, MissingCustomProperty, MissingImportedValue, MissingKeyframes,
+        MissingModule, MissingResolvedClassDomain, MissingResolvedClassValues, MissingSassSymbol,
+        MissingStaticClass, MissingTemplatePrefix, MissingValueModule, NoImpossibleSelector,
+        NoImpreciseValue, NoUnknownDynamicClass, ReplicaEnsembleInconsistency,
+        RgFlowRelevantOperator, StreamingIfdsPrecisionParity, UnreachableDeclaration,
+        UnspecifiedCascadeTie, UnusedSelector,
     };
     use OmenaCheckerRuleFixabilityV0::{CodeAction, None};
     use OmenaCheckerRulePresetV0::{Recommended, Strict};
@@ -806,6 +849,14 @@ pub fn list_omena_checker_rule_descriptors() -> Vec<OmenaCheckerRuleDescriptorV0
             &[Strict],
             "Report cascade rules that the GRN state model proves unreachable under the current fixture slice.",
         ),
+        rule(
+            CategoricalCascadeEvidenceInconsistency,
+            Style,
+            Hint,
+            None,
+            &[Strict],
+            "Report cascade primitive-to-role mappings whose categorical functor fails identity or composition preservation.",
+        ),
     ]
 }
 
@@ -895,8 +946,9 @@ pub fn list_omena_checker_t_tier_rule_code_names() -> Vec<&'static str> {
 
 pub fn list_omena_checker_i_tier_rule_codes() -> Vec<OmenaCheckerRuleCodeV0> {
     use OmenaCheckerRuleCodeV0::{
-        CascadeUnreachableRule, DesignSystemMdlBudget, DesignerIntentInconsistency,
-        ReplicaEnsembleInconsistency, RgFlowRelevantOperator, StreamingIfdsPrecisionParity,
+        CascadeUnreachableRule, CategoricalCascadeEvidenceInconsistency, DesignSystemMdlBudget,
+        DesignerIntentInconsistency, ReplicaEnsembleInconsistency, RgFlowRelevantOperator,
+        StreamingIfdsPrecisionParity,
     };
 
     vec![
@@ -906,6 +958,7 @@ pub fn list_omena_checker_i_tier_rule_codes() -> Vec<OmenaCheckerRuleCodeV0> {
         RgFlowRelevantOperator,
         ReplicaEnsembleInconsistency,
         CascadeUnreachableRule,
+        CategoricalCascadeEvidenceInconsistency,
     ]
 }
 
@@ -957,10 +1010,11 @@ pub fn list_omena_checker_code_bundles() -> Vec<OmenaCheckerCodeBundleV0> {
         CascadeAware, CiDefault, SourceMissing, StyleRecovery, StyleUnused,
     };
     use OmenaCheckerRuleCodeV0::{
-        CascadeDeepConflict, CascadeSMTViolation, CascadeUnreachableRule, CircularVar,
-        DeadCascadeLayer, DesignSystemMdlBudget, DesignerIntentInconsistency, IacvtProne,
-        MissingComposedModule, MissingComposedSelector, MissingImportedValue, MissingKeyframes,
-        MissingModule, MissingResolvedClassDomain, MissingResolvedClassValues, MissingSassSymbol,
+        CascadeDeepConflict, CascadeSMTViolation, CascadeUnreachableRule,
+        CategoricalCascadeEvidenceInconsistency, CircularVar, DeadCascadeLayer,
+        DesignSystemMdlBudget, DesignerIntentInconsistency, IacvtProne, MissingComposedModule,
+        MissingComposedSelector, MissingImportedValue, MissingKeyframes, MissingModule,
+        MissingResolvedClassDomain, MissingResolvedClassValues, MissingSassSymbol,
         MissingStaticClass, MissingTemplatePrefix, MissingValueModule, NoImpossibleSelector,
         NoImpreciseValue, NoUnknownDynamicClass, StreamingIfdsPrecisionParity,
         UnreachableDeclaration, UnspecifiedCascadeTie, UnusedSelector,
@@ -1023,6 +1077,7 @@ pub fn list_omena_checker_code_bundles() -> Vec<OmenaCheckerCodeBundleV0> {
                 CascadeSMTViolation,
                 DesignerIntentInconsistency,
                 StreamingIfdsPrecisionParity,
+                CategoricalCascadeEvidenceInconsistency,
             ],
         ),
     ]
@@ -1480,6 +1535,51 @@ pub fn evaluate_omena_checker_replica_ensemble_rules(
         .collect()
 }
 
+pub fn evaluate_omena_checker_categorical_rules(
+    input: OmenaCheckerCategoricalInputV0,
+) -> Vec<OmenaCheckerCategoricalEvaluationV0> {
+    input
+        .mappings
+        .into_iter()
+        .filter_map(|mapping| {
+            let object_role_pairs = mapping
+                .primitive_role_pairs
+                .iter()
+                .map(|pair| (pair.primitive_name.clone(), pair.categorical_role.clone()))
+                .collect::<Vec<_>>();
+            let functor = apply_cascade_role_mapping_functor_v0(
+                &format!("checker-cascade-role-functor:{}", mapping.mapping_id),
+                "omena-checker.categorical-cascade-role-functor",
+                &object_role_pairs,
+            );
+            (!functor.accepted).then(|| categorical_evaluation(mapping.mapping_id, &functor))
+        })
+        .collect()
+}
+
+fn categorical_evaluation(
+    mapping_id: String,
+    functor: &CascadeFunctorApplicationV0,
+) -> OmenaCheckerCategoricalEvaluationV0 {
+    OmenaCheckerCategoricalEvaluationV0 {
+        rule_code: OmenaCheckerRuleCodeV0::CategoricalCascadeEvidenceInconsistency,
+        rule_code_name: OmenaCheckerRuleCodeV0::CategoricalCascadeEvidenceInconsistency.as_str(),
+        severity: OmenaCheckerSeverityV0::Hint,
+        severity_name: OmenaCheckerSeverityV0::Hint.as_str(),
+        mapping_id,
+        object_mapping_count: functor.object_mapping_count,
+        morphism_mapping_count: functor.morphism_mapping_count,
+        identity_preserved: functor.identity_preserved,
+        composition_preserved: functor.composition_preserved,
+        functor_accepted: functor.accepted,
+        message:
+            "Categorical cascade-role functor obligation failed: identity or composition is not \
+             preserved, so the cascade primitive-to-role mapping is not functorial."
+                .to_string(),
+        mechanism_products: vec!["omena-categorical.cascade-primitive-role-functor"],
+    }
+}
+
 fn dynamic_class_domain_evaluation(
     outcome: OmenaCheckerDynamicClassDomainOutcomeV0,
     rule_code: Option<OmenaCheckerRuleCodeV0>,
@@ -1881,14 +1981,15 @@ fn rule(
 
 fn rule_ordinal_for_code(code: OmenaCheckerRuleCodeV0) -> u16 {
     use OmenaCheckerRuleCodeV0::{
-        CascadeDeepConflict, CascadeSMTViolation, CascadeUnreachableRule, CircularVar,
-        DeadCascadeLayer, DesignSystemMdlBudget, DesignerIntentInconsistency, IacvtProne,
-        MissingComposedModule, MissingComposedSelector, MissingCustomProperty,
-        MissingImportedValue, MissingKeyframes, MissingModule, MissingResolvedClassDomain,
-        MissingResolvedClassValues, MissingSassSymbol, MissingStaticClass, MissingTemplatePrefix,
-        MissingValueModule, NoImpossibleSelector, NoImpreciseValue, NoUnknownDynamicClass,
-        ReplicaEnsembleInconsistency, RgFlowRelevantOperator, StreamingIfdsPrecisionParity,
-        UnreachableDeclaration, UnspecifiedCascadeTie, UnusedSelector,
+        CascadeDeepConflict, CascadeSMTViolation, CascadeUnreachableRule,
+        CategoricalCascadeEvidenceInconsistency, CircularVar, DeadCascadeLayer,
+        DesignSystemMdlBudget, DesignerIntentInconsistency, IacvtProne, MissingComposedModule,
+        MissingComposedSelector, MissingCustomProperty, MissingImportedValue, MissingKeyframes,
+        MissingModule, MissingResolvedClassDomain, MissingResolvedClassValues, MissingSassSymbol,
+        MissingStaticClass, MissingTemplatePrefix, MissingValueModule, NoImpossibleSelector,
+        NoImpreciseValue, NoUnknownDynamicClass, ReplicaEnsembleInconsistency,
+        RgFlowRelevantOperator, StreamingIfdsPrecisionParity, UnreachableDeclaration,
+        UnspecifiedCascadeTie, UnusedSelector,
     };
 
     match code {
@@ -1921,19 +2022,21 @@ fn rule_ordinal_for_code(code: OmenaCheckerRuleCodeV0) -> u16 {
         CascadeUnreachableRule => 27,
         RgFlowRelevantOperator => 28,
         ReplicaEnsembleInconsistency => 29,
+        CategoricalCascadeEvidenceInconsistency => 30,
     }
 }
 
 fn rule_tier_for_code(code: OmenaCheckerRuleCodeV0) -> OmenaCheckerRuleTierV0 {
     use OmenaCheckerRuleCodeV0::{
-        CascadeDeepConflict, CascadeSMTViolation, CascadeUnreachableRule, CircularVar,
-        DeadCascadeLayer, DesignSystemMdlBudget, DesignerIntentInconsistency, IacvtProne,
-        MissingComposedModule, MissingComposedSelector, MissingCustomProperty,
-        MissingImportedValue, MissingKeyframes, MissingModule, MissingResolvedClassDomain,
-        MissingResolvedClassValues, MissingSassSymbol, MissingStaticClass, MissingTemplatePrefix,
-        MissingValueModule, NoImpossibleSelector, NoImpreciseValue, NoUnknownDynamicClass,
-        ReplicaEnsembleInconsistency, RgFlowRelevantOperator, StreamingIfdsPrecisionParity,
-        UnreachableDeclaration, UnspecifiedCascadeTie, UnusedSelector,
+        CascadeDeepConflict, CascadeSMTViolation, CascadeUnreachableRule,
+        CategoricalCascadeEvidenceInconsistency, CircularVar, DeadCascadeLayer,
+        DesignSystemMdlBudget, DesignerIntentInconsistency, IacvtProne, MissingComposedModule,
+        MissingComposedSelector, MissingCustomProperty, MissingImportedValue, MissingKeyframes,
+        MissingModule, MissingResolvedClassDomain, MissingResolvedClassValues, MissingSassSymbol,
+        MissingStaticClass, MissingTemplatePrefix, MissingValueModule, NoImpossibleSelector,
+        NoImpreciseValue, NoUnknownDynamicClass, ReplicaEnsembleInconsistency,
+        RgFlowRelevantOperator, StreamingIfdsPrecisionParity, UnreachableDeclaration,
+        UnspecifiedCascadeTie, UnusedSelector,
     };
 
     match code {
@@ -1965,7 +2068,8 @@ fn rule_tier_for_code(code: OmenaCheckerRuleCodeV0) -> OmenaCheckerRuleTierV0 {
         | DesignerIntentInconsistency
         | StreamingIfdsPrecisionParity
         | RgFlowRelevantOperator
-        | ReplicaEnsembleInconsistency => OmenaCheckerRuleTierV0::I,
+        | ReplicaEnsembleInconsistency
+        | CategoricalCascadeEvidenceInconsistency => OmenaCheckerRuleTierV0::I,
     }
 }
 
@@ -2036,6 +2140,7 @@ mod tests {
                 "replica-ensemble-inconsistency",
                 "cascade.deep-conflict",
                 "cascade.unreachable-rule",
+                "categorical-cascade-evidence-inconsistency",
             ],
         );
     }
@@ -2070,7 +2175,7 @@ mod tests {
         assert_eq!(descriptors.len(), ordinals.len());
         assert_eq!(
             ordinals.into_iter().collect::<Vec<_>>(),
-            (1..=29).collect::<Vec<_>>()
+            (1..=30).collect::<Vec<_>>()
         );
         assert!(!is_omena_checker_rule_code("not-a-rule"));
     }
@@ -2100,13 +2205,13 @@ mod tests {
             summary.bundle_registry_product,
             "omena-checker.code-bundles"
         );
-        assert_eq!(summary.rule_count, 29);
+        assert_eq!(summary.rule_count, 30);
         assert_eq!(summary.source_rule_count, 8);
-        assert_eq!(summary.style_rule_count, 21);
+        assert_eq!(summary.style_rule_count, 22);
         assert_eq!(summary.m_tier_rule_count, 3);
         assert_eq!(summary.s_tier_rule_count, 7);
         assert_eq!(summary.t_tier_rule_count, 13);
-        assert_eq!(summary.i_tier_rule_count, 6);
+        assert_eq!(summary.i_tier_rule_count, 7);
         assert_eq!(summary.bundle_count, 5);
         assert!(
             summary
@@ -2223,6 +2328,7 @@ mod tests {
                 "rg-flow-relevant-operator",
                 "replica-ensemble-inconsistency",
                 "cascade.unreachable-rule",
+                "categorical-cascade-evidence-inconsistency",
             ]
         );
     }
@@ -2502,6 +2608,75 @@ mod tests {
             }),
             "same cascade tie facts with utility selector evidence must not emit the BEM posterior diagnostic"
         );
+    }
+
+    #[test]
+    fn categorical_evidence_inconsistency_is_gated_by_functor_verdict() {
+        // Composable mapping: three distinct primitive->role pairs give two
+        // non-identity morphisms that the functor can compose, so the functor
+        // verdict is `accepted` and no diagnostic is emitted.
+        let functorial = evaluate_omena_checker_categorical_rules(OmenaCheckerCategoricalInputV0 {
+            mappings: vec![categorical_role_mapping(
+                "functorial-mapping",
+                &[
+                    ("cascade_property", "cosheaf colimit witness"),
+                    ("prove_layer_flatten_candidate", "beck-chevalley witness"),
+                    (
+                        "evaluate_static_supports_condition",
+                        "site decidability witness",
+                    ),
+                ],
+            )],
+        });
+        assert!(
+            functorial.is_empty(),
+            "a composable role mapping must not emit a categorical inconsistency"
+        );
+
+        // Non-composable mapping: only two pairs yield a single non-identity
+        // morphism, so composition cannot be witnessed. The functor verdict is
+        // rejected and the diagnostic fires from the real verdict, not a literal.
+        let broken = evaluate_omena_checker_categorical_rules(OmenaCheckerCategoricalInputV0 {
+            mappings: vec![categorical_role_mapping(
+                "broken-mapping",
+                &[
+                    ("cascade_property", "cosheaf colimit witness"),
+                    ("prove_layer_flatten_candidate", "beck-chevalley witness"),
+                ],
+            )],
+        });
+        assert_eq!(broken.len(), 1);
+        let evaluation = &broken[0];
+        assert_eq!(
+            evaluation.rule_code,
+            OmenaCheckerRuleCodeV0::CategoricalCascadeEvidenceInconsistency
+        );
+        assert_eq!(evaluation.mapping_id, "broken-mapping");
+        assert!(!evaluation.functor_accepted);
+        assert!(!evaluation.composition_preserved);
+        assert!(evaluation.identity_preserved);
+        assert_eq!(
+            evaluation.mechanism_products,
+            vec!["omena-categorical.cascade-primitive-role-functor"]
+        );
+    }
+
+    fn categorical_role_mapping(
+        mapping_id: &str,
+        pairs: &[(&str, &str)],
+    ) -> OmenaCheckerCategoricalRoleMappingInputV0 {
+        OmenaCheckerCategoricalRoleMappingInputV0 {
+            mapping_id: mapping_id.to_string(),
+            primitive_role_pairs: pairs
+                .iter()
+                .map(|(primitive_name, categorical_role)| {
+                    OmenaCheckerCategoricalPrimitiveRolePairInputV0 {
+                        primitive_name: (*primitive_name).to_string(),
+                        categorical_role: (*categorical_role).to_string(),
+                    }
+                })
+                .collect(),
+        }
     }
 
     #[test]

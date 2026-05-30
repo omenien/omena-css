@@ -28,6 +28,10 @@ pub use omega::*;
 pub use sheaf::*;
 pub use site::*;
 
+use omena_cascade::{
+    CascadeDeclaration, CascadeKey, CascadeLevel, CascadeOutcome, CascadeValue, LayerRank,
+    Specificity, cascade_property,
+};
 use serde::Serialize;
 
 pub const CATEGORICAL_SCHEMA_VERSION_V0: &str = "0";
@@ -273,30 +277,9 @@ pub fn categorical_fixture_evidence_for_endpoint_v0(
                 ),
             ],
         )),
-        "rust/omena-categorical/verify-cosheaf-covariance" => Some(endpoint_fixture_v0(
-            endpoint_id,
-            "fixture.categorical.cosheaf-covariance.v0",
-            "cosheaf covariance",
-            "omena-categorical.cascade-cosheaf",
-            &[
-                "omena-categorical.cascade-cosheaf",
-                "omena-categorical.cosheaf-colimit-witness",
-            ],
-            &[
-                (
-                    "compatible-section-count",
-                    "omena-categorical.cosheaf-colimit-witness",
-                    "compatibleSectionCount=2",
-                    "compatibleSectionCount=2",
-                ),
-                (
-                    "colimit-accepted",
-                    "omena-categorical.cosheaf-colimit-witness",
-                    "accepted=true",
-                    "accepted=true",
-                ),
-            ],
-        )),
+        "rust/omena-categorical/verify-cosheaf-covariance" => {
+            Some(cosheaf_covariance_fixture_v0(endpoint_id))
+        }
         "rust/omena-categorical/verify-beck-chevalley" => Some(endpoint_fixture_v0(
             endpoint_id,
             "fixture.categorical.beck-chevalley.v0",
@@ -322,39 +305,7 @@ pub fn categorical_fixture_evidence_for_endpoint_v0(
                 ),
             ],
         )),
-        "rust/omena-categorical/classify-omega-truth" => Some(endpoint_fixture_v0(
-            endpoint_id,
-            "fixture.categorical.omega-truth.v0",
-            "Omega truth values",
-            "omena-categorical.omega-truth-mapping",
-            &["omena-categorical.omega-truth-mapping"],
-            &[
-                (
-                    "definite-to-closed",
-                    "omena-categorical.omega-truth-mapping",
-                    "Definite->Closed",
-                    "Definite->Closed",
-                ),
-                (
-                    "ranked-set-to-boundary",
-                    "omena-categorical.omega-truth-mapping",
-                    "RankedSet->Boundary",
-                    "RankedSet->Boundary",
-                ),
-                (
-                    "inherit-to-open",
-                    "omena-categorical.omega-truth-mapping",
-                    "Inherit->Open",
-                    "Inherit->Open",
-                ),
-                (
-                    "top-to-full",
-                    "omena-categorical.omega-truth-mapping",
-                    "Top->Full",
-                    "Top->Full",
-                ),
-            ],
-        )),
+        "rust/omena-categorical/classify-omega-truth" => Some(omega_truth_fixture_v0(endpoint_id)),
         "rust/omena-categorical/verify-s4-axioms" => Some(endpoint_fixture_v0(
             endpoint_id,
             "fixture.categorical.s4-axioms.v0",
@@ -558,6 +509,129 @@ fn invariant_functoriality_fixture_v0(
             "omena-categorical.design-system-theory",
             "omena-categorical.design-system-invariant-summary",
             "omena-categorical.cascade-primitive-role-functor",
+        ],
+        assertions,
+    )
+}
+
+fn omega_truth_fixture_v0(endpoint_id: &'static str) -> CategoricalEndpointFixtureEvidenceV0 {
+    // Each assertion's `observed` is computed by mapping a real cascade outcome
+    // through `OmegaCascadeTruthValueV0::from_outcome`; only `expected` is the
+    // literal target. The Definite and Inherit outcomes come from the real
+    // `cascade_property` ranking algorithm so the mapping is not echoed.
+    let definite = cascade_property(
+        vec![omega_color_declaration("definite-winner", "red", 1)],
+        "color",
+    );
+    debug_assert!(matches!(definite, CascadeOutcome::Definite { .. }));
+    let inherit = cascade_property(Vec::<CascadeDeclaration>::new(), "color");
+    debug_assert!(matches!(inherit, CascadeOutcome::Inherit));
+    let ranked_set = CascadeOutcome::RankedSet(vec![
+        omega_color_declaration("ranked-a", "red", 1),
+        omega_color_declaration("ranked-b", "blue", 2),
+    ]);
+    let top = CascadeOutcome::Top;
+
+    let assertions = vec![
+        omega_truth_assertion_v0(
+            "definite-to-closed",
+            "Definite",
+            &definite,
+            "Definite->Closed",
+        ),
+        omega_truth_assertion_v0(
+            "ranked-set-to-boundary",
+            "RankedSet",
+            &ranked_set,
+            "RankedSet->Boundary",
+        ),
+        omega_truth_assertion_v0("inherit-to-open", "Inherit", &inherit, "Inherit->Open"),
+        omega_truth_assertion_v0("top-to-full", "Top", &top, "Top->Full"),
+    ];
+    endpoint_fixture_from_assertions_v0(
+        endpoint_id,
+        "fixture.categorical.omega-truth.v0",
+        "Omega truth values",
+        "omena-categorical.omega-truth-mapping",
+        &["omena-categorical.omega-truth-mapping"],
+        assertions,
+    )
+}
+
+fn omega_truth_assertion_v0(
+    assertion_id: &'static str,
+    outcome_kind: &str,
+    outcome: &CascadeOutcome,
+    expected: &'static str,
+) -> CategoricalFixtureAssertionV0 {
+    let truth_value = OmegaCascadeTruthValueV0::from_outcome(outcome);
+    fixture_assertion_v0(
+        assertion_id,
+        "omena-categorical.omega-truth-mapping",
+        format!(
+            "{outcome_kind}->{}",
+            omega_truth_value_label_v0(truth_value)
+        ),
+        expected,
+    )
+}
+
+fn omega_truth_value_label_v0(truth_value: OmegaCascadeTruthValueV0) -> &'static str {
+    match truth_value {
+        OmegaCascadeTruthValueV0::Open => "Open",
+        OmegaCascadeTruthValueV0::Boundary => "Boundary",
+        OmegaCascadeTruthValueV0::Closed => "Closed",
+        OmegaCascadeTruthValueV0::Full => "Full",
+    }
+}
+
+fn omega_color_declaration(id: &str, value: &str, source_order: u32) -> CascadeDeclaration {
+    CascadeDeclaration {
+        id: id.to_string(),
+        property: "color".to_string(),
+        value: CascadeValue::Literal(value.to_string()),
+        key: CascadeKey::new(
+            CascadeLevel::AuthorNormal,
+            LayerRank(0),
+            0,
+            Specificity::ZERO,
+            source_order,
+        ),
+    }
+}
+
+fn cosheaf_covariance_fixture_v0(
+    endpoint_id: &'static str,
+) -> CategoricalEndpointFixtureEvidenceV0 {
+    // The compatible-section count and colimit acceptance are computed by the real
+    // `witness_cosheaf_colimit_v0` algorithm from two compatible sections, not from
+    // a literal: `accepted` is `compatible_section_count > 0`.
+    let witness = witness_cosheaf_colimit_v0("cascade-cosheaf", 2);
+    let assertions = vec![
+        fixture_assertion_v0(
+            "compatible-section-count",
+            "omena-categorical.cosheaf-colimit-witness",
+            format!(
+                "compatibleSectionCount={}",
+                witness.compatible_section_count
+            ),
+            "compatibleSectionCount=2",
+        ),
+        fixture_assertion_v0(
+            "colimit-accepted",
+            "omena-categorical.cosheaf-colimit-witness",
+            format!("accepted={}", witness.accepted),
+            "accepted=true",
+        ),
+    ];
+    endpoint_fixture_from_assertions_v0(
+        endpoint_id,
+        "fixture.categorical.cosheaf-covariance.v0",
+        "cosheaf covariance",
+        "omena-categorical.cascade-cosheaf",
+        &[
+            "omena-categorical.cascade-cosheaf",
+            "omena-categorical.cosheaf-colimit-witness",
         ],
         assertions,
     )
@@ -774,6 +848,68 @@ mod tests {
         assert!(truncated_functor.identity_preserved);
         assert!(!truncated_functor.composition_preserved);
         assert!(!truncated_functor.accepted);
+    }
+
+    #[test]
+    fn omega_truth_fixture_observed_values_come_from_real_outcome_mapping() {
+        // The fixture's observed truth labels are produced by
+        // `OmegaCascadeTruthValueV0::from_outcome` over real cascade outcomes. The
+        // mapping is injective across the four outcomes, so a constant/identity
+        // replacement of `from_outcome` would collapse the labels and break these
+        // assertions while the literal `expected` targets stayed put.
+        let fixture = categorical_fixture_evidence_for_endpoint_v0(
+            "rust/omena-categorical/classify-omega-truth",
+        );
+        assert!(fixture.is_some());
+        let Some(fixture) = fixture else {
+            return;
+        };
+        assert!(fixture.accepted);
+
+        let observed = fixture
+            .assertions
+            .iter()
+            .map(|assertion| (assertion.assertion_id, assertion.observed.clone()))
+            .collect::<std::collections::BTreeMap<_, _>>();
+        assert_eq!(observed["definite-to-closed"], "Definite->Closed");
+        assert_eq!(observed["ranked-set-to-boundary"], "RankedSet->Boundary");
+        assert_eq!(observed["inherit-to-open"], "Inherit->Open");
+        assert_eq!(observed["top-to-full"], "Top->Full");
+        // Cross-check directly against the algorithm: the four cascade outcomes map
+        // to four distinct truth values, so the labels are not echoed literals.
+        let labels = [
+            OmegaCascadeTruthValueV0::from_outcome(&CascadeOutcome::Inherit),
+            OmegaCascadeTruthValueV0::from_outcome(&CascadeOutcome::Top),
+            OmegaCascadeTruthValueV0::from_outcome(&CascadeOutcome::RankedSet(Vec::new())),
+        ];
+        assert_eq!(labels[0], OmegaCascadeTruthValueV0::Open);
+        assert_eq!(labels[1], OmegaCascadeTruthValueV0::Full);
+        assert_eq!(labels[2], OmegaCascadeTruthValueV0::Boundary);
+    }
+
+    #[test]
+    fn cosheaf_fixture_acceptance_is_computed_by_colimit_witness() {
+        let fixture = categorical_fixture_evidence_for_endpoint_v0(
+            "rust/omena-categorical/verify-cosheaf-covariance",
+        );
+        assert!(fixture.is_some());
+        let Some(fixture) = fixture else {
+            return;
+        };
+        assert!(fixture.accepted);
+        let accepted_assertion = fixture
+            .assertions
+            .iter()
+            .find(|assertion| assertion.assertion_id == "colimit-accepted");
+        assert!(accepted_assertion.is_some());
+        let Some(accepted_assertion) = accepted_assertion else {
+            return;
+        };
+        assert_eq!(accepted_assertion.observed, "accepted=true");
+        // The witness rejects an empty section family, so acceptance is a real
+        // computed verdict, not a literal echo.
+        assert!(!witness_cosheaf_colimit_v0("cascade-cosheaf", 0).accepted);
+        assert!(witness_cosheaf_colimit_v0("cascade-cosheaf", 2).accepted);
     }
 
     #[test]

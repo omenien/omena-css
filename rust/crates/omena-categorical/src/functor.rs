@@ -125,18 +125,76 @@ pub fn categorical_role_category_v0(roles: &[CascadePrimitiveRoleV0]) -> Cascade
 pub fn apply_cascade_primitive_role_functor_v0(
     roles: &[CascadePrimitiveRoleV0],
 ) -> CascadeFunctorApplicationV0 {
-    let source = cascade_primitive_category_v0(roles);
-    let target = categorical_role_category_v0(roles);
-    let object_mappings = roles
+    let object_role_pairs = roles
         .iter()
-        .map(|role| CascadeFunctorObjectMappingV0 {
-            schema_version: CATEGORICAL_SCHEMA_VERSION_V0,
-            product: "omena-categorical.functor-object-mapping",
-            layer_marker: CATEGORICAL_LAYER_MARKER_V0,
-            feature_gate: CATEGORICAL_FEATURE_GATE_V0,
-            source_object_id: format!("primitive:{}", role.primitive_name),
-            target_object_id: format!("role:{}", slug_v0(role.categorical_role)),
+        .map(|role| {
+            (
+                role.primitive_name.to_string(),
+                slug_v0(role.categorical_role),
+            )
         })
+        .collect::<Vec<_>>();
+    apply_cascade_role_mapping_functor_v0(
+        "cascade-primitive-role-functor",
+        "omena-categorical.cascade-primitive-role-functor",
+        &object_role_pairs,
+    )
+}
+
+/// Applies the cascade primitive-role functor to an explicit list of
+/// `(primitive_name, role_slug)` pairs and returns the same identity/composition
+/// verdict the static catalog uses.
+///
+/// This is the runtime entry point used by the checker: the source category is
+/// built from `primitive:{primitive_name}` objects, the target category from
+/// `role:{role_slug}` objects, and `accepted`/`identity_preserved`/
+/// `composition_preserved` are computed by the real functor algorithm, not echoed
+/// from the inputs.
+pub fn apply_cascade_role_mapping_functor_v0(
+    functor_id: &str,
+    functor_product: &'static str,
+    object_role_pairs: &[(String, String)],
+) -> CascadeFunctorApplicationV0 {
+    let source_objects = object_role_pairs
+        .iter()
+        .map(|(primitive_name, _)| {
+            category_object_v0(format!("primitive:{primitive_name}"), "primitive")
+        })
+        .collect::<Vec<_>>();
+    let target_objects = object_role_pairs
+        .iter()
+        .map(|(_, role_slug)| category_object_v0(format!("role:{role_slug}"), "role"))
+        .collect::<Vec<_>>();
+    let source = CascadeCategoryV0 {
+        schema_version: CATEGORICAL_SCHEMA_VERSION_V0,
+        product: "omena-categorical.cascade-category",
+        layer_marker: CATEGORICAL_LAYER_MARKER_V0,
+        feature_gate: CATEGORICAL_FEATURE_GATE_V0,
+        category_id: "cascade-primitives".to_string(),
+        morphisms: category_morphisms_from_objects_v0(&source_objects, "primitive-precedes"),
+        objects: source_objects,
+    };
+    let target = CascadeCategoryV0 {
+        schema_version: CATEGORICAL_SCHEMA_VERSION_V0,
+        product: "omena-categorical.cascade-category",
+        layer_marker: CATEGORICAL_LAYER_MARKER_V0,
+        feature_gate: CATEGORICAL_FEATURE_GATE_V0,
+        category_id: "categorical-roles".to_string(),
+        morphisms: category_morphisms_from_objects_v0(&target_objects, "role-precedes"),
+        objects: target_objects,
+    };
+    let object_mappings = object_role_pairs
+        .iter()
+        .map(
+            |(primitive_name, role_slug)| CascadeFunctorObjectMappingV0 {
+                schema_version: CATEGORICAL_SCHEMA_VERSION_V0,
+                product: "omena-categorical.functor-object-mapping",
+                layer_marker: CATEGORICAL_LAYER_MARKER_V0,
+                feature_gate: CATEGORICAL_FEATURE_GATE_V0,
+                source_object_id: format!("primitive:{primitive_name}"),
+                target_object_id: format!("role:{role_slug}"),
+            },
+        )
         .collect::<Vec<_>>();
     let morphism_mappings = source
         .morphisms
@@ -199,10 +257,10 @@ pub fn apply_cascade_primitive_role_functor_v0(
 
     CascadeFunctorApplicationV0 {
         schema_version: CATEGORICAL_SCHEMA_VERSION_V0,
-        product: "omena-categorical.cascade-primitive-role-functor",
+        product: functor_product,
         layer_marker: CATEGORICAL_LAYER_MARKER_V0,
         feature_gate: CATEGORICAL_FEATURE_GATE_V0,
-        functor_id: "cascade-primitive-role-functor".to_string(),
+        functor_id: functor_id.to_string(),
         source_category_id: source.category_id,
         target_category_id: target.category_id,
         object_mapping_count: object_mappings.len(),

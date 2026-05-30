@@ -20,6 +20,7 @@ const checkerMdlBody = commandBodies.get("omena-checker-mdl-evaluations");
 const checkerStreamingIfdsBody = commandBodies.get("omena-checker-streaming-ifds-evaluations");
 const checkerRgFlowBody = commandBodies.get("omena-checker-rg-flow-evaluations");
 const checkerReplicaEnsembleBody = commandBodies.get("omena-checker-replica-ensemble-evaluations");
+const checkerCategoricalBody = commandBodies.get("omena-checker-categorical-evaluations");
 assert.ok(
   checkerMTierBody,
   "missing engine-shadow-runner command arm: omena-checker-m-tier-evaluations",
@@ -51,6 +52,10 @@ assert.ok(
 assert.ok(
   checkerReplicaEnsembleBody,
   "missing engine-shadow-runner command arm: omena-checker-replica-ensemble-evaluations",
+);
+assert.ok(
+  checkerCategoricalBody,
+  "missing engine-shadow-runner command arm: omena-checker-categorical-evaluations",
 );
 assert.ok(
   checkerMTierBody.includes("OmenaCheckerMTierEvaluationInputV0"),
@@ -85,6 +90,10 @@ assert.ok(
   "omena-checker-replica-ensemble-evaluations must deserialize the runner replica-ensemble input product",
 );
 assert.ok(
+  checkerCategoricalBody.includes("OmenaCheckerCategoricalEvaluationInputV0"),
+  "omena-checker-categorical-evaluations must deserialize the runner categorical input product",
+);
+assert.ok(
   checkerMTierBody.includes("summarize_omena_checker_m_tier_evaluations"),
   "omena-checker-m-tier-evaluations must route through the runner-owned checker summary wrapper",
 );
@@ -115,6 +124,10 @@ assert.ok(
 assert.ok(
   checkerReplicaEnsembleBody.includes("summarize_omena_checker_replica_ensemble_evaluations"),
   "omena-checker-replica-ensemble-evaluations must route through the runner-owned checker replica-ensemble summary wrapper",
+);
+assert.ok(
+  checkerCategoricalBody.includes("summarize_omena_checker_categorical_evaluations"),
+  "omena-checker-categorical-evaluations must route through the runner-owned checker categorical summary wrapper",
 );
 assert.ok(
   runnerSource.includes("evaluate_omena_checker_m_tier_rules"),
@@ -161,6 +174,10 @@ assert.ok(
   "engine-shadow-runner must call omena-checker's replica-ensemble evaluator",
 );
 assert.ok(
+  runnerSource.includes("evaluate_omena_checker_categorical_rules"),
+  "engine-shadow-runner must call omena-checker's categorical functor-verdict evaluator",
+);
+assert.ok(
   runnerSource.includes('"omena-checker-m-tier-evaluations" =>'),
   "engine-shadow-runner daemon must support omena-checker-m-tier-evaluations",
 );
@@ -191,6 +208,10 @@ assert.ok(
 assert.ok(
   runnerSource.includes('"omena-checker-replica-ensemble-evaluations" =>'),
   "engine-shadow-runner daemon must support omena-checker-replica-ensemble-evaluations",
+);
+assert.ok(
+  runnerSource.includes('"omena-checker-categorical-evaluations" =>'),
+  "engine-shadow-runner daemon must support omena-checker-categorical-evaluations",
 );
 assert.ok(
   /^\s*omena-checker\s*=/m.test(runnerCargoToml),
@@ -341,6 +362,36 @@ assert.equal(replicaAgreeSummary.recommendation, "noActionNeeded");
 assert.notEqual(replicaDisagreeSummary.meanQ, replicaAgreeSummary.meanQ);
 assert.notEqual(replicaDisagreeSummary.recommendation, replicaAgreeSummary.recommendation);
 
+// End-to-end mechanism-depth proof: drive the real categorical functor through the
+// product path. Both mappings carry distinct primitive->role pairs; the ONLY
+// difference is the number of pairs, which decides whether the functor can witness
+// composition. Three pairs give two composable non-identity morphisms, so the
+// functor verdict is `accepted` and emits nothing. Two pairs give a single
+// non-identity morphism that cannot be composed, so the functor verdict is rejected
+// and the diagnostic fires. No `accepted`/`compositionPreserved` literal is fed in;
+// the runner computes the verdict from the real functor. A constant verdict would
+// make both runs tie and one of these assertions would fail.
+const categoricalClearSummary = runCategoricalEvaluationFixture([
+  ["cascade_property", "cosheaf colimit witness"],
+  ["prove_layer_flatten_candidate", "beck-chevalley witness"],
+  ["evaluate_static_supports_condition", "site decidability witness"],
+]);
+assert.equal(categoricalClearSummary.product, "omena-checker.categorical-evaluations");
+assert.equal(categoricalClearSummary.mappingCount, 1);
+assert.equal(categoricalClearSummary.evaluationCount, 0);
+const categoricalEmitSummary = runCategoricalEvaluationFixture([
+  ["cascade_property", "cosheaf colimit witness"],
+  ["prove_layer_flatten_candidate", "beck-chevalley witness"],
+]);
+assert.equal(categoricalEmitSummary.evaluationCount, 1);
+assert.ok(
+  categoricalEmitSummary.ruleCodeNames.includes("categorical-cascade-evidence-inconsistency"),
+  "categorical runner output must include categorical-cascade-evidence-inconsistency",
+);
+// The load-bearing morphism structure MUST move the functor verdict and the
+// diagnostic outcome between the two runs.
+assert.notEqual(categoricalEmitSummary.evaluationCount, categoricalClearSummary.evaluationCount);
+
 process.stdout.write(
   [
     "validated omena-checker runner boundary:",
@@ -352,6 +403,7 @@ process.stdout.write(
     "streamingIfdsCommand=omena-checker-streaming-ifds-evaluations",
     "rgFlowCommand=omena-checker-rg-flow-evaluations",
     "replicaEnsembleCommand=omena-checker-replica-ensemble-evaluations",
+    "categoricalCommand=omena-checker-categorical-evaluations",
     "runtime=engine-shadow-runner",
     "owner=omena-checker",
   ].join(" "),
@@ -431,6 +483,13 @@ interface ReplicaEnsembleEvaluationSummary {
   readonly replicaCount: number;
   readonly meanQ: number;
   readonly recommendation: string;
+  readonly evaluationCount: number;
+  readonly ruleCodeNames: readonly string[];
+}
+
+interface CategoricalEvaluationSummary {
+  readonly product: string;
+  readonly mappingCount: number;
   readonly evaluationCount: number;
   readonly ruleCodeNames: readonly string[];
 }
@@ -737,6 +796,47 @@ function runReplicaEnsembleEvaluationFixture(agree: boolean): ReplicaEnsembleEva
     `engine-shadow-runner replica-ensemble command failed\nstdout=${result.stdout}\nstderr=${result.stderr}`,
   );
   return JSON.parse(result.stdout) as ReplicaEnsembleEvaluationSummary;
+}
+
+function runCategoricalEvaluationFixture(
+  primitiveRolePairs: readonly (readonly [string, string])[],
+): CategoricalEvaluationSummary {
+  const input = {
+    mappings: [
+      {
+        mappingId: "cascade-role-mapping",
+        primitiveRolePairs: primitiveRolePairs.map(([primitiveName, categoricalRole]) => ({
+          primitiveName,
+          categoricalRole,
+        })),
+      },
+    ],
+  };
+  const result = spawnSync(
+    "cargo",
+    [
+      "run",
+      "--manifest-path",
+      "rust/Cargo.toml",
+      "-p",
+      "engine-shadow-runner",
+      "--quiet",
+      "--",
+      "omena-checker-categorical-evaluations",
+    ],
+    {
+      cwd: process.cwd(),
+      encoding: "utf8",
+      input: JSON.stringify(input),
+      maxBuffer: 1024 * 1024 * 10,
+    },
+  );
+  assert.equal(
+    result.status,
+    0,
+    `engine-shadow-runner categorical command failed\nstdout=${result.stdout}\nstderr=${result.stderr}`,
+  );
+  return JSON.parse(result.stdout) as CategoricalEvaluationSummary;
 }
 
 function cascadeDeclaration(
