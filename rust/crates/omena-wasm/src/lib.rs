@@ -8,6 +8,8 @@ use omena_query::{
     OmenaQueryEngineInputV2 as OmenaWasmEngineInputV2, OmenaQueryExpressionDomainFlowRuntimeV0,
     OmenaQueryExpressionDomainIncrementalFlowAnalysisV0 as OmenaWasmExpressionDomainIncrementalFlowAnalysisV0,
     OmenaQueryExpressionDomainSelectorProjectionV0 as OmenaWasmExpressionDomainSelectorProjectionV0,
+    OmenaQueryExternalModuleModeV0 as OmenaWasmExternalModuleModeV0,
+    OmenaQueryExternalSifInputV0 as OmenaWasmExternalSifInputV0,
     OmenaQuerySourceDiagnosticsForFileV0 as OmenaWasmSourceDiagnosticsForFileV0,
     OmenaQuerySourceDocumentInputV0 as OmenaWasmSourceDocumentInputV0,
     OmenaQuerySourceMissingSelectorDiagnosticCandidateV0 as OmenaWasmSourceMissingSelectorDiagnosticCandidateV0,
@@ -36,7 +38,7 @@ use omena_query::{
     summarize_omena_query_source_diagnostics_for_workspace_file,
     summarize_omena_query_style_completion_at_position,
     summarize_omena_query_style_diagnostics_for_file,
-    summarize_omena_query_style_diagnostics_for_workspace_file,
+    summarize_omena_query_style_diagnostics_for_workspace_file_with_external_mode_and_sifs,
     summarize_omena_query_style_hover_candidates,
     summarize_omena_query_transform_context_from_engine_input,
 };
@@ -255,15 +257,20 @@ pub fn read_workspace_style_diagnostics(
     sources: JsValue,
     source_documents: JsValue,
     package_manifests: JsValue,
+    external_sifs: JsValue,
+    external_mode: Option<String>,
 ) -> Result<JsValue, JsValue> {
     let sources = parse_style_sources_value(sources)?;
     let source_documents = parse_source_documents_value(source_documents)?;
     let package_manifests = parse_package_manifests_value(package_manifests)?;
+    let external_sifs = parse_external_sifs_value(external_sifs)?;
     to_js_value(&read_workspace_style_diagnostics_summary(
         target_path,
         &sources,
         &source_documents,
         &package_manifests,
+        &external_sifs,
+        external_mode.as_deref(),
     )?)
 }
 
@@ -535,14 +542,19 @@ pub fn read_workspace_style_diagnostics_summary(
     sources: &[OmenaWasmStyleSourceInputV0],
     source_documents: &[OmenaWasmSourceDocumentInputV0],
     package_manifests: &[OmenaWasmStylePackageManifestV0],
+    external_sifs: &[OmenaWasmExternalSifInputV0],
+    external_mode: Option<&str>,
 ) -> Result<OmenaWasmStyleDiagnosticsForFileV0, JsValue> {
     let target_path = effective_path(target_path);
-    summarize_omena_query_style_diagnostics_for_workspace_file(
+    let external_mode = parse_external_module_mode(external_mode)?;
+    summarize_omena_query_style_diagnostics_for_workspace_file_with_external_mode_and_sifs(
         target_path,
         sources,
         source_documents,
         package_manifests,
         None,
+        external_mode,
+        external_sifs,
     )
     .ok_or_else(|| {
         JsValue::from_str(&format!(
@@ -669,6 +681,31 @@ fn parse_package_manifests_value(
             "packageManifests must be an array of package manifest objects: {error}"
         ))
     })
+}
+
+fn parse_external_sifs_value(value: JsValue) -> Result<Vec<OmenaWasmExternalSifInputV0>, JsValue> {
+    if value.is_null() || value.is_undefined() {
+        return Ok(Vec::new());
+    }
+
+    serde_wasm_bindgen::from_value(value).map_err(|error| {
+        JsValue::from_str(&format!(
+            "externalSifs must be an array of {{canonicalUrl, sif}} objects: {error}"
+        ))
+    })
+}
+
+fn parse_external_module_mode(
+    external_mode: Option<&str>,
+) -> Result<OmenaWasmExternalModuleModeV0, JsValue> {
+    match external_mode {
+        None => Ok(OmenaWasmExternalModuleModeV0::Ignored),
+        Some("ignored") => Ok(OmenaWasmExternalModuleModeV0::Ignored),
+        Some("sif") => Ok(OmenaWasmExternalModuleModeV0::Sif),
+        Some(other) => Err(JsValue::from_str(&format!(
+            "unsupported external mode '{other}'; expected ignored or sif"
+        ))),
+    }
 }
 
 fn parse_engine_input_value(value: JsValue) -> Result<OmenaWasmEngineInputV2, JsValue> {
@@ -879,6 +916,8 @@ mod tests {
             &sources,
             &[],
             &[],
+            &[],
+            None,
         )
         .map_err(|_| "workspace diagnostics should be available".to_string())?;
 
@@ -898,6 +937,55 @@ mod tests {
                 .diagnostics
                 .iter()
                 .any(|diagnostic| diagnostic.code == "missingImportedValue")
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn carries_external_sif_mode_in_workspace_diagnostics_for_browser_clients() -> Result<(), String>
+    {
+        let sources = vec![OmenaWasmStyleSourceInputV0 {
+            style_path: "/tmp/App.module.scss".to_string(),
+            style_source: r#"@use "https://cdn.example/tokens.scss" as remote;
+.button { color: remote.$brand; }"#
+                .to_string(),
+        }];
+
+        // Default (external_mode = None) is byte-for-byte the Ignored surface: no SIF boundary.
+        let ignored = read_workspace_style_diagnostics_summary(
+            "/tmp/App.module.scss",
+            &sources,
+            &[],
+            &[],
+            &[],
+            None,
+        )
+        .map_err(|_| "ignored workspace diagnostics should be available".to_string())?;
+        assert!(
+            ignored
+                .diagnostics
+                .iter()
+                .all(|diagnostic| diagnostic.code != "missingExternalSif")
+        );
+
+        // external_mode = "sif" with empty external SIFs surfaces the missing-boundary diagnostic.
+        let sif = read_workspace_style_diagnostics_summary(
+            "/tmp/App.module.scss",
+            &sources,
+            &[],
+            &[],
+            &[],
+            Some("sif"),
+        )
+        .map_err(|_| "sif workspace diagnostics should be available".to_string())?;
+        assert!(
+            sif.ready_surfaces
+                .contains(&"externalSifBoundaryDiagnostics")
+        );
+        assert!(
+            sif.diagnostics
+                .iter()
+                .any(|diagnostic| diagnostic.code == "missingExternalSif")
         );
         Ok(())
     }

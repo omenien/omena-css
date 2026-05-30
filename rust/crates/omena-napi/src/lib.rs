@@ -9,6 +9,8 @@ use omena_query::{
     OmenaQueryEngineInputV2 as OmenaNapiEngineInputV2, OmenaQueryExpressionDomainFlowRuntimeV0,
     OmenaQueryExpressionDomainIncrementalFlowAnalysisV0 as OmenaNapiExpressionDomainIncrementalFlowAnalysisV0,
     OmenaQueryExpressionDomainSelectorProjectionV0 as OmenaNapiExpressionDomainSelectorProjectionV0,
+    OmenaQueryExternalModuleModeV0 as OmenaNapiExternalModuleModeV0,
+    OmenaQueryExternalSifInputV0 as OmenaNapiExternalSifInputV0,
     OmenaQuerySourceDiagnosticsForFileV0 as OmenaNapiSourceDiagnosticsForFileV0,
     OmenaQuerySourceDocumentInputV0 as OmenaNapiSourceDocumentInputV0,
     OmenaQuerySourceMissingSelectorDiagnosticCandidateV0 as OmenaNapiSourceMissingSelectorDiagnosticCandidateV0,
@@ -37,7 +39,7 @@ use omena_query::{
     summarize_omena_query_source_diagnostics_for_workspace_file,
     summarize_omena_query_style_completion_at_position,
     summarize_omena_query_style_diagnostics_for_file,
-    summarize_omena_query_style_diagnostics_for_workspace_file,
+    summarize_omena_query_style_diagnostics_for_workspace_file_with_external_mode_and_sifs,
     summarize_omena_query_style_hover_candidates,
     summarize_omena_query_transform_context_from_engine_input,
 };
@@ -253,15 +255,20 @@ pub fn read_workspace_style_diagnostics_json(
     sources_json: String,
     source_documents_json: String,
     package_manifests_json: String,
+    external_sifs_json: Option<String>,
+    external_mode: Option<String>,
 ) -> napi::Result<String> {
     let sources = parse_style_sources_json(&sources_json)?;
     let source_documents = parse_source_documents_json(&source_documents_json)?;
     let package_manifests = parse_package_manifests_json(&package_manifests_json)?;
+    let external_sifs = parse_external_sifs_json(external_sifs_json.as_deref())?;
     to_json_string(&read_workspace_style_diagnostics_summary(
         &target_path,
         &sources,
         &source_documents,
         &package_manifests,
+        &external_sifs,
+        external_mode.as_deref(),
     )?)
 }
 
@@ -532,14 +539,19 @@ pub fn read_workspace_style_diagnostics_summary(
     sources: &[OmenaNapiStyleSourceInputV0],
     source_documents: &[OmenaNapiSourceDocumentInputV0],
     package_manifests: &[OmenaNapiStylePackageManifestV0],
+    external_sifs: &[OmenaNapiExternalSifInputV0],
+    external_mode: Option<&str>,
 ) -> napi::Result<OmenaNapiStyleDiagnosticsForFileV0> {
     let target_path = effective_path(target_path);
-    summarize_omena_query_style_diagnostics_for_workspace_file(
+    let external_mode = parse_external_module_mode(external_mode)?;
+    summarize_omena_query_style_diagnostics_for_workspace_file_with_external_mode_and_sifs(
         target_path,
         sources,
         source_documents,
         package_manifests,
         None,
+        external_mode,
+        external_sifs,
     )
     .ok_or_else(|| {
         napi::Error::from_reason(format!(
@@ -641,6 +653,34 @@ fn parse_package_manifests_json(
     serde_json::from_str(package_manifests_json).map_err(|error| {
         napi::Error::from_reason(format!("failed to parse package manifests JSON: {error}"))
     })
+}
+
+fn parse_external_sifs_json(
+    external_sifs_json: Option<&str>,
+) -> napi::Result<Vec<OmenaNapiExternalSifInputV0>> {
+    let Some(external_sifs_json) = external_sifs_json else {
+        return Ok(Vec::new());
+    };
+    if json_argument_is_absent(external_sifs_json) {
+        return Ok(Vec::new());
+    }
+    serde_json::from_str(external_sifs_json).map_err(|error| {
+        napi::Error::from_reason(format!("failed to parse external SIFs JSON: {error}"))
+    })
+}
+
+fn parse_external_module_mode(
+    external_mode: Option<&str>,
+) -> napi::Result<OmenaNapiExternalModuleModeV0> {
+    match external_mode {
+        None => Ok(OmenaNapiExternalModuleModeV0::Ignored),
+        Some(mode) if json_argument_is_absent(mode) => Ok(OmenaNapiExternalModuleModeV0::Ignored),
+        Some("ignored") => Ok(OmenaNapiExternalModuleModeV0::Ignored),
+        Some("sif") => Ok(OmenaNapiExternalModuleModeV0::Sif),
+        Some(other) => Err(napi::Error::from_reason(format!(
+            "unsupported external mode '{other}'; expected ignored or sif"
+        ))),
+    }
 }
 
 fn parse_engine_input_json(input_json: &str) -> napi::Result<OmenaNapiEngineInputV2> {
@@ -852,6 +892,8 @@ mod tests {
             &sources,
             &[],
             &[],
+            &[],
+            None,
         )
         .map_err(|_| "workspace diagnostics should be available".to_string())?;
 
@@ -1118,11 +1160,46 @@ mod tests {
             sources.to_string(),
             String::new(),
             String::new(),
+            None,
+            None,
         )
         .map_err(|error| napi::Error::from_reason(format!("{error:?}")))?;
 
         assert!(json.contains("\"product\":\"omena-query.diagnostics-for-file\""));
         assert!(json.contains("\"code\":\"missingComposedSelector\""));
+        Ok(())
+    }
+
+    #[test]
+    fn carries_external_sif_mode_in_workspace_diagnostics_for_node_clients() -> napi::Result<()> {
+        let sources = r#"[
+{"stylePath":"/tmp/App.module.scss","styleSource":"@use \"https://cdn.example/tokens.scss\" as remote;\n.button { color: remote.$brand; }"}
+]"#;
+
+        // Default (no external params) is byte-for-byte the Ignored surface: no SIF boundary.
+        let ignored = read_workspace_style_diagnostics_json(
+            "/tmp/App.module.scss".to_string(),
+            sources.to_string(),
+            String::new(),
+            String::new(),
+            None,
+            None,
+        )
+        .map_err(|error| napi::Error::from_reason(format!("{error:?}")))?;
+        assert!(!ignored.contains("\"code\":\"missingExternalSif\""));
+
+        // external_mode = "sif" with empty external SIFs surfaces the missing-boundary diagnostic.
+        let sif = read_workspace_style_diagnostics_json(
+            "/tmp/App.module.scss".to_string(),
+            sources.to_string(),
+            String::new(),
+            String::new(),
+            None,
+            Some("sif".to_string()),
+        )
+        .map_err(|error| napi::Error::from_reason(format!("{error:?}")))?;
+        assert!(sif.contains("\"code\":\"missingExternalSif\""));
+        assert!(sif.contains("externalSifBoundaryDiagnostics"));
         Ok(())
     }
 
