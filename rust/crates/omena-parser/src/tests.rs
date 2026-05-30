@@ -4334,6 +4334,147 @@ fn deterministic_byte_fixture(seed: u32) -> Vec<u8> {
     bytes
 }
 
+fn keyframes_declaration_names(facts: &ParsedStyleFacts) -> Vec<&str> {
+    facts
+        .animations
+        .iter()
+        .filter(|animation| animation.kind == ParsedAnimationFactKind::KeyframesDeclaration)
+        .map(|animation| animation.name.as_str())
+        .collect()
+}
+
+fn animation_name_references(facts: &ParsedStyleFacts) -> Vec<&str> {
+    facts
+        .animations
+        .iter()
+        .filter(|animation| animation.kind == ParsedAnimationFactKind::AnimationNameReference)
+        .map(|animation| animation.name.as_str())
+        .collect()
+}
+
+// RFC-0007-C / #43 C1: a vendor-prefixed `@-webkit-keyframes` registers the same bare
+// keyframes name as the unprefixed `@keyframes`, so `animation: spin` resolves (no FP).
+#[test]
+fn vendor_prefixed_keyframes_registers_bare_name() {
+    let facts = collect_style_facts(
+        "@-webkit-keyframes spin { from { opacity: 0; } to { opacity: 1; } } .x { animation: spin 1s linear; }",
+        StyleDialect::Scss,
+    );
+    assert!(keyframes_declaration_names(&facts).contains(&"spin"));
+
+    // -moz- prefix is normalized identically.
+    let moz = collect_style_facts(
+        "@-moz-keyframes pulse { from { opacity: 0; } to { opacity: 1; } }",
+        StyleDialect::Css,
+    );
+    assert!(keyframes_declaration_names(&moz).contains(&"pulse"));
+}
+
+// RFC-0007-C / #43 C1 over-correction guard: a genuinely missing `@keyframes` (no
+// declaration of any prefix) must still surface as an unresolved animation-name reference.
+#[test]
+fn missing_keyframes_without_declaration_still_referenced() {
+    let facts = collect_style_facts(".x { animation: spin 1s linear; }", StyleDialect::Scss);
+    let declared = keyframes_declaration_names(&facts);
+    let referenced = animation_name_references(&facts);
+    assert!(!declared.contains(&"spin"));
+    assert!(referenced.contains(&"spin"));
+}
+
+// RFC-0007-C / #43 C2: a literal fragment immediately adjacent to an interpolation
+// (`#{$p}-spin` post-interpolation, `spin-#{$p}` pre-interpolation) is part of a
+// statically-unknown name and must not be emitted as a keyframes reference.
+#[test]
+fn interpolation_adjacent_fragment_is_not_a_keyframes_reference() {
+    let post = collect_style_facts(
+        "$p: brand; .x { animation: #{$p}-spin 1s; }",
+        StyleDialect::Scss,
+    );
+    assert!(animation_name_references(&post).is_empty());
+
+    let pre = collect_style_facts(
+        "$p: brand; .x { animation: spin-#{$p} 1s; }",
+        StyleDialect::Scss,
+    );
+    assert!(animation_name_references(&pre).is_empty());
+
+    // animation-name longhand path is covered by the same guard.
+    let longhand = collect_style_facts(
+        "$p: brand; .x { animation-name: #{$p}-spin; }",
+        StyleDialect::Scss,
+    );
+    assert!(animation_name_references(&longhand).is_empty());
+}
+
+// RFC-0007-C / #43 C2 over-correction guard: a fully-static name merely *near* an
+// interpolation but separated from it by whitespace (`#{$p} spin`) is a real
+// space-delimited keyframes reference and must NOT be suppressed.
+#[test]
+fn static_name_separated_from_interpolation_is_a_keyframes_reference() {
+    let facts = collect_style_facts(
+        "$p: brand; .x { animation: #{$p} spin 1s; }",
+        StyleDialect::Scss,
+    );
+    assert!(animation_name_references(&facts).contains(&"spin"));
+}
+
+fn custom_property_reference_fallback(facts: &ParsedStyleFacts, name: &str) -> Option<bool> {
+    facts
+        .variables
+        .iter()
+        .find(|fact| {
+            fact.kind == ParsedVariableFactKind::CustomPropertyReference && fact.name == name
+        })
+        .map(|fact| fact.has_fallback)
+}
+
+// RFC-0007-C / #43 C3: a `var(--x, fallback)` reference carries a `has_fallback` bit so the
+// `missingCustomProperty` lint can skip it (the fallback guarantees a value).
+#[test]
+fn var_reference_with_fallback_sets_has_fallback_bit() {
+    let facts = collect_style_facts(
+        ".x { --declared: red; color: var(--undeclared, blue); }",
+        StyleDialect::Css,
+    );
+    assert_eq!(
+        custom_property_reference_fallback(&facts, "--undeclared"),
+        Some(true)
+    );
+}
+
+// RFC-0007-C / #43 C3 over-correction guard: a fallback-less `var(--x)` keeps
+// `has_fallback == false` so a genuinely missing custom property still fires.
+#[test]
+fn var_reference_without_fallback_keeps_has_fallback_false() {
+    let facts = collect_style_facts(
+        ".x { --declared: red; color: var(--undeclared); }",
+        StyleDialect::Css,
+    );
+    assert_eq!(
+        custom_property_reference_fallback(&facts, "--undeclared"),
+        Some(false)
+    );
+}
+
+// RFC-0007-C / #43 C3 over-correction guard: per-`var()` scoping. In
+// `var(--a, var(--b))` only the outer `--a` carries a fallback; the nested fallback-less
+// `--b` stays a live `missingCustomProperty` candidate.
+#[test]
+fn nested_var_fallback_is_scoped_per_call() {
+    let facts = collect_style_facts(
+        ".x { --declared: red; color: var(--a, var(--b)); }",
+        StyleDialect::Css,
+    );
+    assert_eq!(
+        custom_property_reference_fallback(&facts, "--a"),
+        Some(true)
+    );
+    assert_eq!(
+        custom_property_reference_fallback(&facts, "--b"),
+        Some(false)
+    );
+}
+
 fn assert_lex_ranges_are_char_boundaries(source: &str, tokens: &[LexedToken]) {
     for token in tokens {
         let start = u32::from(token.range.start()) as usize;

@@ -2,7 +2,7 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use omena_parser::{
     ParsedAnimationFactKind, ParsedCssModuleComposesEdgeKind, ParsedSassModuleEdgeFactKind,
-    ParsedSelectorFactKind,
+    ParsedSelectorFactKind, ParsedVariableFactKind,
 };
 
 use super::cascade_checker::summarize_query_cascade_checker_diagnostics;
@@ -33,12 +33,39 @@ pub fn summarize_omena_query_missing_custom_property_diagnostics(
         return Vec::new();
     }
 
+    // `var(--x, fallback)` references cannot be "missing" in any observable way — the
+    // fallback guarantees a value — so suppress the lint per-reference. The fallback fact
+    // range and the candidate range both derive from the same parser byte span via
+    // `parser_range_for_byte_span`, so matching on the rendered range scopes the suppression
+    // to the exact `var()` argument (a nested fallback-less `var(--b)` in
+    // `var(--a, var(--b))` stays a live candidate).
+    let dialect = omena_parser_dialect_for_style_path(style_uri);
+    let facts = collect_omena_query_omena_parser_style_facts_raw(source, dialect);
+    let fallback_ranges = facts
+        .variables
+        .iter()
+        .filter(|fact| {
+            fact.kind == ParsedVariableFactKind::CustomPropertyReference && fact.has_fallback
+        })
+        .map(|fact| {
+            let byte_span = ParserByteSpanV0 {
+                start: u32::from(fact.range.start()) as usize,
+                end: u32::from(fact.range.end()) as usize,
+            };
+            (
+                fact.name.clone(),
+                parser_range_for_byte_span(source, byte_span),
+            )
+        })
+        .collect::<BTreeSet<_>>();
+
     let insertion_range = end_of_source_range(source);
     candidates
         .iter()
         .filter(|candidate| {
             candidate.kind == "customPropertyReference"
                 && !declaration_names.contains(candidate.name.as_str())
+                && !fallback_ranges.contains(&(candidate.name.clone(), candidate.range))
         })
         .map(|candidate| OmenaQueryStyleDiagnosticV0 {
             code: "missingCustomProperty",

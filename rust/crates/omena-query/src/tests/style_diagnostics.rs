@@ -1435,6 +1435,138 @@ export function App() {
     Ok(())
 }
 
+fn missing_keyframes_messages(diagnostics: &[crate::OmenaQueryStyleDiagnosticV0]) -> Vec<&str> {
+    diagnostics
+        .iter()
+        .filter(|diagnostic| diagnostic.code == "missingKeyframes")
+        .map(|diagnostic| diagnostic.message.as_str())
+        .collect()
+}
+
+fn missing_custom_property_messages(
+    diagnostics: &[crate::OmenaQueryStyleDiagnosticV0],
+) -> Vec<&str> {
+    diagnostics
+        .iter()
+        .filter(|diagnostic| diagnostic.code == "missingCustomProperty")
+        .map(|diagnostic| diagnostic.message.as_str())
+        .collect()
+}
+
+// RFC-0007-C / #43 C1: a vendor-prefixed `@-webkit-keyframes spin` resolves the
+// `animation: spin` reference — no false `missingKeyframes`.
+#[test]
+fn vendor_prefixed_keyframes_suppress_missing_keyframes_fp() -> Result<(), &'static str> {
+    let source = "@-webkit-keyframes spin { from { opacity: 0; } to { opacity: 1; } }\n.x { animation: spin 1s linear; }";
+    let candidates =
+        crate::summarize_omena_query_style_hover_candidates("Component.module.scss", source)
+            .ok_or("style candidates")?;
+    let diagnostics = crate::summarize_omena_query_style_diagnostics_for_file(
+        "file:///workspace/src/Component.module.scss",
+        source,
+        candidates.candidates.as_slice(),
+    );
+    assert!(missing_keyframes_messages(&diagnostics.diagnostics).is_empty());
+    Ok(())
+}
+
+// RFC-0007-C / #43 C1 over-correction guard: an animation referencing a keyframes name
+// declared by NO at-rule (prefixed or not) must still fire `missingKeyframes`.
+#[test]
+fn truly_missing_keyframes_still_fires() -> Result<(), &'static str> {
+    let source = ".x { animation: spin 1s linear; }";
+    let candidates =
+        crate::summarize_omena_query_style_hover_candidates("Component.module.scss", source)
+            .ok_or("style candidates")?;
+    let diagnostics = crate::summarize_omena_query_style_diagnostics_for_file(
+        "file:///workspace/src/Component.module.scss",
+        source,
+        candidates.candidates.as_slice(),
+    );
+    assert_eq!(
+        missing_keyframes_messages(&diagnostics.diagnostics),
+        vec!["@keyframes 'spin' not found in this file."]
+    );
+    Ok(())
+}
+
+// RFC-0007-C / #43 C2: an interpolated animation name emits no keyframes reference on the
+// literal fragment, so no `missingKeyframes` fires.
+#[test]
+fn interpolated_animation_name_suppresses_missing_keyframes_fp() -> Result<(), &'static str> {
+    for source in [
+        "$p: brand; .x { animation: #{$p}-spin 1s; }",
+        "$p: brand; .x { animation: spin-#{$p} 1s; }",
+        "$p: brand; .x { animation-name: #{$p}-spin; }",
+    ] {
+        let candidates =
+            crate::summarize_omena_query_style_hover_candidates("Component.module.scss", source)
+                .ok_or("style candidates")?;
+        let diagnostics = crate::summarize_omena_query_style_diagnostics_for_file(
+            "file:///workspace/src/Component.module.scss",
+            source,
+            candidates.candidates.as_slice(),
+        );
+        assert!(
+            missing_keyframes_messages(&diagnostics.diagnostics).is_empty(),
+            "unexpected missingKeyframes for {source:?}"
+        );
+    }
+    Ok(())
+}
+
+// RFC-0007-C / #43 C3: `var(--undeclared, blue)` with a fallback does not fire
+// `missingCustomProperty` (the fallback guarantees a value).
+#[test]
+fn var_fallback_suppresses_missing_custom_property_fp() -> Result<(), &'static str> {
+    let source = ".x { --declared: red; color: var(--undeclared, blue); }";
+    let candidates =
+        crate::summarize_omena_query_style_hover_candidates("Component.module.scss", source)
+            .ok_or("style candidates")?;
+    let diagnostics = crate::summarize_omena_query_missing_custom_property_diagnostics(
+        "file:///workspace/src/Component.module.scss",
+        source,
+        candidates.candidates.as_slice(),
+    );
+    assert!(missing_custom_property_messages(&diagnostics).is_empty());
+    Ok(())
+}
+
+// RFC-0007-C / #43 C3 over-correction guard: a fallback-less `var(--undeclared)` still
+// fires, and per-`var()` scoping keeps a nested fallback-less `var(--b)` live in
+// `var(--a, var(--b))` (the outer `--a` is the only one suppressed).
+#[test]
+fn fallback_less_var_still_fires_missing_custom_property() -> Result<(), &'static str> {
+    let source = ".x { --declared: red; color: var(--undeclared); }";
+    let candidates =
+        crate::summarize_omena_query_style_hover_candidates("Component.module.scss", source)
+            .ok_or("style candidates")?;
+    let diagnostics = crate::summarize_omena_query_missing_custom_property_diagnostics(
+        "file:///workspace/src/Component.module.scss",
+        source,
+        candidates.candidates.as_slice(),
+    );
+    assert_eq!(
+        missing_custom_property_messages(&diagnostics),
+        vec!["CSS custom property '--undeclared' not found in indexed style tokens."]
+    );
+
+    let nested = ".x { --declared: red; color: var(--a, var(--b)); }";
+    let nested_candidates =
+        crate::summarize_omena_query_style_hover_candidates("Component.module.scss", nested)
+            .ok_or("style candidates")?;
+    let nested_diagnostics = crate::summarize_omena_query_missing_custom_property_diagnostics(
+        "file:///workspace/src/Component.module.scss",
+        nested,
+        nested_candidates.candidates.as_slice(),
+    );
+    assert_eq!(
+        missing_custom_property_messages(&nested_diagnostics),
+        vec!["CSS custom property '--b' not found in indexed style tokens."]
+    );
+    Ok(())
+}
+
 fn unused_selector_messages(summary: &OmenaQueryStyleDiagnosticsForFileV0) -> Vec<&str> {
     summary
         .diagnostics

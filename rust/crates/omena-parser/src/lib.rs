@@ -396,6 +396,11 @@ pub struct ParsedVariableFact {
     pub kind: ParsedVariableFactKind,
     pub name: String,
     pub range: TextRange,
+    /// For a `CustomPropertyReference` written as `var(--x, fallback)`, records that a
+    /// top-level fallback argument is present. The reference cannot be "missing" in any
+    /// observable way — the fallback guarantees a value — so the `missingCustomProperty`
+    /// lint must skip it. `false` for declarations and fallback-less references.
+    pub has_fallback: bool,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -8467,13 +8472,59 @@ fn collect_variable_facts_from_tokens(tokens: &[Token<'_>]) -> Vec<ParsedVariabl
             }
             _ => continue,
         };
+        let has_fallback = kind == ParsedVariableFactKind::CustomPropertyReference
+            && custom_property_reference_has_var_fallback(tokens, index);
         variables.push(ParsedVariableFact {
             kind,
             name: token.text.to_string(),
             range: token.range,
+            has_fallback,
         });
     }
     variables
+}
+
+/// Detect a `var(--x, fallback)` fallback for the `CustomPropertyName` at `index`.
+///
+/// True iff the reference is the first argument of an enclosing `var(` call *and* a
+/// top-level comma follows it before that call's closing paren. Scoped per-`var()`: in
+/// `var(--a, var(--b))` only `--a` carries a fallback; the nested `--b` (no fallback of
+/// its own) is unaffected and stays a live `missingCustomProperty` candidate.
+fn custom_property_reference_has_var_fallback(tokens: &[Token<'_>], index: usize) -> bool {
+    // The reference must be the leading argument of a `var(` call: its immediate
+    // non-trivia predecessor is `(`, preceded by an identifier `var`.
+    let Some(open_index) = previous_non_trivia_token_index(tokens, index, 0) else {
+        return false;
+    };
+    if tokens[open_index].kind != SyntaxKind::LeftParen {
+        return false;
+    }
+    let Some(callee_index) = previous_non_trivia_token_index(tokens, open_index, 0) else {
+        return false;
+    };
+    if tokens[callee_index].kind != SyntaxKind::Ident
+        || !tokens[callee_index].text.eq_ignore_ascii_case("var")
+    {
+        return false;
+    }
+    // Scan forward at this call's paren depth for a top-level comma before its close.
+    let mut depth = 0usize;
+    let mut cursor = open_index;
+    while cursor < tokens.len() {
+        match tokens[cursor].kind {
+            SyntaxKind::LeftParen => depth += 1,
+            SyntaxKind::RightParen => {
+                depth = depth.saturating_sub(1);
+                if depth == 0 {
+                    return false;
+                }
+            }
+            SyntaxKind::Comma if depth == 1 => return true,
+            _ => {}
+        }
+        cursor += 1;
+    }
+    false
 }
 
 fn scss_variable_token_is_declaration(tokens: &[Token<'_>], index: usize) -> bool {
@@ -10304,7 +10355,7 @@ fn collect_animation_facts_from_tokens(tokens: &[Token<'_>]) -> Vec<ParsedAnimat
     let mut animations = Vec::new();
     let mut seen = BTreeSet::new();
     for (index, token) in tokens.iter().enumerate() {
-        if token.kind == SyntaxKind::AtKeyword && token.text.eq_ignore_ascii_case("@keyframes") {
+        if token.kind == SyntaxKind::AtKeyword && at_keyword_is_keyframes_rule(token.text) {
             if let Some(name_index) =
                 next_non_trivia_token_index_until(tokens, index + 1, tokens.len())
                 && let Some(name) = animation_name_from_token(tokens[name_index])
@@ -10379,6 +10430,7 @@ fn collect_animation_name_references_until(
 
         if paren_depth == 0
             && bracket_depth == 0
+            && !animation_name_token_is_interpolation_adjacent(tokens, index)
             && let Some(name) = animation_name_from_token(tokens[index])
         {
             push_animation_fact(
@@ -10444,16 +10496,11 @@ fn animation_shorthand_token_can_be_name(tokens: &[Token<'_>], index: usize) -> 
     if token.kind != SyntaxKind::Ident {
         return false;
     }
-    // A unit suffix written immediately after an interpolation boundary (`#{$dur}s`,
-    // `#{$dur}ms`, `#{$x}px`) lexes as a bare ident, but it is the trailing fragment of a
-    // value token, not an animation name. Reject it so the unit is not misread as a missing
-    // `@keyframes` reference.
-    if let Some(previous) = previous_non_trivia_token(tokens, 0, index)
-        && matches!(
-            previous.kind,
-            SyntaxKind::ScssInterpolationEnd | SyntaxKind::LessInterpolationEnd
-        )
-    {
+    // A literal fragment that is *immediately* adjacent to an interpolation boundary is part
+    // of a statically-unknown name (`#{$dur}s` unit suffix, `#{$p}-spin` / `spin-#{$p}`
+    // interpolated keyframes name), not a standalone animation name. Reject it so neither the
+    // unit nor the literal fragment is misread as a missing `@keyframes` reference.
+    if animation_name_token_is_interpolation_adjacent(tokens, index) {
         return false;
     }
     // Standalone CSS time-unit idents (`s` / `ms`) are durations, never animation names.
@@ -10470,6 +10517,35 @@ fn animation_shorthand_token_can_be_name(tokens: &[Token<'_>], index: usize) -> 
 
 fn animation_shorthand_ident_is_time_unit(name: &str) -> bool {
     name.eq_ignore_ascii_case("s") || name.eq_ignore_ascii_case("ms")
+}
+
+/// An ident is part of an interpolated (statically-unknown) animation name when it is
+/// *immediately* adjacent to an interpolation boundary — `#{$p}-spin` (post-interpolation
+/// literal fragment) or `spin-#{$p}` (pre-interpolation literal fragment). The post-`#{...}`
+/// text is the trailing fragment of a dynamic name, not a real keyframes reference, so it
+/// must not be flagged as `missingKeyframes`.
+///
+/// Adjacency is checked against the *immediate* neighbor token (no trivia skipping): a
+/// fully-static name separated from an interpolation by whitespace (`#{$p} spin`, a real
+/// space-delimited keyframes reference) is NOT suppressed.
+fn animation_name_token_is_interpolation_adjacent(tokens: &[Token<'_>], index: usize) -> bool {
+    if index > 0
+        && matches!(
+            tokens[index - 1].kind,
+            SyntaxKind::ScssInterpolationEnd | SyntaxKind::LessInterpolationEnd
+        )
+    {
+        return true;
+    }
+    if let Some(next) = tokens.get(index + 1)
+        && matches!(
+            next.kind,
+            SyntaxKind::ScssInterpolationStart | SyntaxKind::LessInterpolationStart
+        )
+    {
+        return true;
+    }
+    false
 }
 
 fn animation_shorthand_ident_is_non_name(name: &str) -> bool {
@@ -10535,6 +10611,31 @@ fn animation_name_is_reserved(name: &str) -> bool {
         name.to_ascii_lowercase().as_str(),
         "none" | "initial" | "inherit" | "unset" | "revert" | "revert-layer"
     )
+}
+
+/// Recognize an `@keyframes` at-rule prefix-insensitively.
+///
+/// Per CSS, `animation-name` resolves against any `@keyframes`/`@-webkit-keyframes`
+/// (and other vendor prefixes) with a matching name, so a vendor-prefixed at-rule
+/// must register the same bare keyframes-name fact as the unprefixed form. Strips a
+/// leading `@`, then an optional `-vendor-` prefix, and compares the remainder to
+/// `keyframes`.
+fn at_keyword_is_keyframes_rule(text: &str) -> bool {
+    let Some(rule) = text.strip_prefix('@') else {
+        return false;
+    };
+    if rule.eq_ignore_ascii_case("keyframes") {
+        return true;
+    }
+    // Accept a single `-vendor-` prefix (`-webkit-`, `-moz-`, `-o-`, `-ms-`, ...).
+    if let Some(rest) = rule.strip_prefix('-')
+        && let Some((vendor, remainder)) = rest.split_once('-')
+        && !vendor.is_empty()
+        && remainder.eq_ignore_ascii_case("keyframes")
+    {
+        return true;
+    }
+    false
 }
 
 fn containing_at_rule_header_name<'text>(
