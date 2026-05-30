@@ -173,9 +173,9 @@ pub fn list_omena_checker_rule_enforcement_evidence_v0()
         ),
         mechanism(
             RgFlowRelevantOperator,
-            "engine-shadow-runner.omena-checker-rg-flow-evaluations",
-            "evaluates_rg_flow_relevant_operator_rule_family",
-            "evaluates_rg_flow_relevant_operator_rule_family",
+            "omena-query-checker-orchestrator.rg-flow-gate",
+            "rg_flow_gate_emits_relevant_operator_for_divergent_coupling_flow",
+            "rg_flow_gate_records_clear_suppression_for_settled_coupling_flow",
             &["omena-rg-flow.coupling-jacobian-spectrum"],
         ),
         mechanism(

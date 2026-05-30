@@ -11,9 +11,14 @@ use serde::Serialize;
 pub use omena_checker::{
     CategoricalCascadeEvidenceV0, OmenaCheckerCascadeDeclarationInputV0,
     OmenaCheckerCascadeEvaluationV0, OmenaCheckerCascadeInputV0, OmenaCheckerCustomPropertyInputV0,
-    OmenaCheckerRuleCodeV0, checker_categorical_cascade_evidence_v0,
+    OmenaCheckerRgFlowCouplingInputV0, OmenaCheckerRgFlowCouplingSpaceInputV0,
+    OmenaCheckerRgFlowEvaluationV0, OmenaCheckerRgFlowInputV0, OmenaCheckerRuleCodeV0,
+    checker_categorical_cascade_evidence_v0,
 };
-use omena_checker::{evaluate_omena_checker_cascade_rules, list_omena_checker_rule_code_names};
+use omena_checker::{
+    evaluate_omena_checker_cascade_rules, evaluate_omena_checker_rg_flow_rules,
+    list_omena_checker_rule_code_names,
+};
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -166,6 +171,68 @@ fn cascade_gate_enabled_rule_names_v0() -> Vec<&'static str> {
         OmenaCheckerRuleCodeV0::UnspecifiedCascadeTie.as_str(),
         OmenaCheckerRuleCodeV0::DesignerIntentInconsistency.as_str(),
     ]
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct OmenaQueryCheckerRgFlowGateV0 {
+    pub schema_version: &'static str,
+    pub product: &'static str,
+    pub orchestrator_kind: &'static str,
+    pub enabled_rule_names: Vec<&'static str>,
+    pub emitted_rule_names: Vec<&'static str>,
+    pub registered_rule_count: usize,
+    pub unregistered_rule_count: usize,
+    pub evaluation_count: usize,
+    pub enforcement_passed: bool,
+    pub evaluations: Vec<OmenaCheckerRgFlowEvaluationV0>,
+    pub ready_surfaces: Vec<&'static str>,
+}
+
+/// Invoke the real RG-flow coupling-Jacobian-spectrum evaluator and gate its
+/// emitted rule codes against the registered checker rule registry.
+///
+/// The coupling flows are produced by the caller from real parsed stylesheet
+/// structure; this gate runs the genuine `estimate_coupling_jacobian_spectrum_v0`
+/// mechanism inside `evaluate_omena_checker_rg_flow_rules` and only surfaces
+/// `rg-flow-relevant-operator` diagnostics when the spectral radius exceeds one.
+pub fn run_omena_query_checker_rg_flow_gate_v0(
+    input: OmenaCheckerRgFlowInputV0,
+) -> OmenaQueryCheckerRgFlowGateV0 {
+    let registered_rules = list_omena_checker_rule_code_names()
+        .into_iter()
+        .collect::<BTreeSet<_>>();
+    let enabled_rule_names = vec![OmenaCheckerRuleCodeV0::RgFlowRelevantOperator.as_str()];
+    let evaluations = evaluate_omena_checker_rg_flow_rules(input);
+    let emitted_rule_names = evaluations
+        .iter()
+        .map(|evaluation| evaluation.rule_code_name)
+        .collect::<BTreeSet<_>>()
+        .into_iter()
+        .collect::<Vec<_>>();
+    let unregistered_rule_count = emitted_rule_names
+        .iter()
+        .filter(|rule| !registered_rules.contains(**rule))
+        .count();
+
+    OmenaQueryCheckerRgFlowGateV0 {
+        schema_version: "0",
+        product: "omena-query-checker-orchestrator.rg-flow-gate",
+        orchestrator_kind: "registered-rule-diagnostic-gate",
+        enabled_rule_names,
+        emitted_rule_names,
+        registered_rule_count: registered_rules.len(),
+        unregistered_rule_count,
+        evaluation_count: evaluations.len(),
+        enforcement_passed: unregistered_rule_count == 0,
+        evaluations,
+        ready_surfaces: vec![
+            "checkerRuleRegistry",
+            "rgFlowCouplingSpectrum",
+            "registeredRuleDiagnosticGate",
+            "queryDiagnosticHandoff",
+        ],
+    }
 }
 
 #[cfg(test)]
@@ -333,6 +400,45 @@ mod tests {
     }
 
     #[test]
+    fn rg_flow_gate_emits_relevant_operator_for_divergent_coupling_flow() {
+        let gate = run_omena_query_checker_rg_flow_gate_v0(OmenaCheckerRgFlowInputV0 {
+            flows: vec![OmenaCheckerRgFlowCouplingInputV0 {
+                workspace_path: "workspace://divergent-token-graph".to_string(),
+                before: rg_flow_coupling(2, 2, 0, 0),
+                after: rg_flow_coupling(2, 2, 2, 0),
+            }],
+        });
+
+        assert!(gate.enforcement_passed);
+        assert_eq!(gate.unregistered_rule_count, 0);
+        assert_eq!(gate.evaluation_count, 1);
+        assert!(
+            gate.emitted_rule_names
+                .contains(&"rg-flow-relevant-operator")
+        );
+        assert!(gate.evaluations[0].spectral_radius > 1.0);
+        assert_eq!(
+            gate.evaluations[0].mechanism_products,
+            vec!["omena-rg-flow.coupling-jacobian-spectrum"]
+        );
+    }
+
+    #[test]
+    fn rg_flow_gate_records_clear_suppression_for_settled_coupling_flow() {
+        let gate = run_omena_query_checker_rg_flow_gate_v0(OmenaCheckerRgFlowInputV0 {
+            flows: vec![OmenaCheckerRgFlowCouplingInputV0 {
+                workspace_path: "workspace://settled-token-graph".to_string(),
+                before: rg_flow_coupling(2, 2, 0, 0),
+                after: rg_flow_coupling(2, 2, 0, 0),
+            }],
+        });
+
+        assert!(gate.enforcement_passed);
+        assert_eq!(gate.evaluation_count, 0);
+        assert!(gate.emitted_rule_names.is_empty());
+    }
+
+    #[test]
     fn product_diagnostic_gate_leaves_non_checker_advisories_unowned() {
         let gate = gate_omena_query_checker_product_diagnostic_code_v0("deprecatedSassImport");
 
@@ -352,6 +458,20 @@ mod tests {
         layer_order: Option<i32>,
         important: bool,
         var_references: &'a [&'a str],
+    }
+
+    fn rg_flow_coupling(
+        k_env: usize,
+        k_decl: usize,
+        k_cycle: usize,
+        k_dirty: usize,
+    ) -> OmenaCheckerRgFlowCouplingSpaceInputV0 {
+        OmenaCheckerRgFlowCouplingSpaceInputV0 {
+            k_env,
+            k_decl,
+            k_cycle,
+            k_dirty,
+        }
     }
 
     fn cascade_declaration(

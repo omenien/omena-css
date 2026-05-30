@@ -2,7 +2,9 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use omena_query_checker_orchestrator::{
     OmenaCheckerCascadeDeclarationInputV0, OmenaCheckerCascadeInputV0,
-    OmenaCheckerCustomPropertyInputV0, run_omena_query_checker_cascade_gate_v0,
+    OmenaCheckerCustomPropertyInputV0, OmenaCheckerRgFlowCouplingInputV0,
+    OmenaCheckerRgFlowCouplingSpaceInputV0, OmenaCheckerRgFlowInputV0,
+    run_omena_query_checker_cascade_gate_v0, run_omena_query_checker_rg_flow_gate_v0,
 };
 use omena_query_transform_runner::expand_css_nested_selector;
 
@@ -21,6 +23,9 @@ pub(super) fn summarize_query_cascade_checker_diagnostics(
     let (checker_input, declaration_ranges, custom_property_ranges) =
         collect_query_checker_cascade_input(style_uri, source);
     let mut diagnostics = Vec::new();
+
+    let rg_flow_diagnostics =
+        summarize_query_rg_flow_coupling_diagnostics(source, &checker_input.custom_properties);
 
     let gate = run_omena_query_checker_cascade_gate_v0(checker_input);
     if !gate.enforcement_passed {
@@ -43,6 +48,8 @@ pub(super) fn summarize_query_cascade_checker_diagnostics(
             create_custom_property: None,
         }];
     }
+
+    diagnostics.extend(rg_flow_diagnostics);
 
     for evaluation in gate.evaluations {
         if evaluation.rule_code_name == "iacvt-prone"
@@ -90,6 +97,146 @@ pub(super) fn summarize_query_cascade_checker_diagnostics(
     }
 
     diagnostics
+}
+
+/// Surface the real RG-flow coupling-Jacobian-spectrum diagnostic in the query
+/// style path.
+///
+/// The coupling space is extracted from the parsed custom-property dependency
+/// graph: the `before` state is the raw declared structure, and the `after`
+/// state adds the custom properties that participate in a reference cycle and
+/// those that resolve to the guaranteed-invalid value. A diverging stylesheet
+/// (growing cyclic / guaranteed-invalid coupling) drives the spectral radius
+/// above one through `estimate_coupling_jacobian_spectrum_v0`, so the gate emits
+/// `rg-flow-relevant-operator`. A settled stylesheet keeps `before == after`,
+/// the spectral radius is zero, and nothing is surfaced.
+fn summarize_query_rg_flow_coupling_diagnostics(
+    source: &str,
+    custom_properties: &[OmenaCheckerCustomPropertyInputV0],
+) -> Vec<OmenaQueryStyleDiagnosticV0> {
+    let Some(flow) = query_rg_flow_coupling_for_custom_properties(custom_properties) else {
+        return Vec::new();
+    };
+
+    let gate =
+        run_omena_query_checker_rg_flow_gate_v0(OmenaCheckerRgFlowInputV0 { flows: vec![flow] });
+    if !gate.enforcement_passed {
+        return Vec::new();
+    }
+
+    let whole_file_range = parser_range_for_byte_span(
+        source,
+        ParserByteSpanV0 {
+            start: 0,
+            end: source.len(),
+        },
+    );
+
+    gate.evaluations
+        .into_iter()
+        .map(|evaluation| {
+            let mut provenance = vec![
+                "omena-query-checker-orchestrator.rg-flow-gate",
+                "omena-checker.rg-flow-rules",
+                "omena-query.cascade-checker",
+            ];
+            provenance.extend(evaluation.mechanism_products.iter().copied());
+            OmenaQueryStyleDiagnosticV0 {
+                code: "rgFlowRelevantOperator",
+                severity: "hint",
+                provenance,
+                range: whole_file_range,
+                message: evaluation.message,
+                tags: Vec::new(),
+                create_custom_property: None,
+            }
+        })
+        .collect()
+}
+
+fn query_rg_flow_coupling_for_custom_properties(
+    custom_properties: &[OmenaCheckerCustomPropertyInputV0],
+) -> Option<OmenaCheckerRgFlowCouplingInputV0> {
+    if custom_properties.is_empty() {
+        return None;
+    }
+
+    let declared = custom_properties
+        .iter()
+        .map(|property| property.name.as_str())
+        .collect::<BTreeSet<_>>();
+    let dependencies = custom_properties
+        .iter()
+        .map(|property| {
+            (
+                property.name.as_str(),
+                property
+                    .dependencies
+                    .iter()
+                    .map(String::as_str)
+                    .filter(|dependency| declared.contains(dependency))
+                    .collect::<BTreeSet<_>>(),
+            )
+        })
+        .collect::<BTreeMap<_, _>>();
+
+    let k_env = custom_properties.len();
+    let k_decl = custom_properties
+        .iter()
+        .filter(|property| {
+            property
+                .dependencies
+                .iter()
+                .any(|dependency| declared.contains(dependency.as_str()))
+        })
+        .count();
+    let k_cycle = declared
+        .iter()
+        .filter(|name| query_custom_property_in_reference_cycle(name, &dependencies))
+        .count();
+    let k_dirty = custom_properties
+        .iter()
+        .filter(|property| property.guaranteed_invalid)
+        .count();
+
+    Some(OmenaCheckerRgFlowCouplingInputV0 {
+        workspace_path: "stylesheet://custom-property-coupling".to_string(),
+        before: OmenaCheckerRgFlowCouplingSpaceInputV0 {
+            k_env,
+            k_decl,
+            k_cycle: 0,
+            k_dirty: 0,
+        },
+        after: OmenaCheckerRgFlowCouplingSpaceInputV0 {
+            k_env,
+            k_decl,
+            k_cycle,
+            k_dirty,
+        },
+    })
+}
+
+fn query_custom_property_in_reference_cycle(
+    start: &str,
+    dependencies: &BTreeMap<&str, BTreeSet<&str>>,
+) -> bool {
+    let mut stack = dependencies
+        .get(start)
+        .map(|edges| edges.iter().copied().collect::<Vec<_>>())
+        .unwrap_or_default();
+    let mut visited = BTreeSet::new();
+    while let Some(node) = stack.pop() {
+        if node == start {
+            return true;
+        }
+        if !visited.insert(node) {
+            continue;
+        }
+        if let Some(edges) = dependencies.get(node) {
+            stack.extend(edges.iter().copied());
+        }
+    }
+    false
 }
 
 fn query_cascade_checker_code(code: &'static str) -> &'static str {

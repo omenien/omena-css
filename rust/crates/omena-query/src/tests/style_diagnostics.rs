@@ -331,6 +331,74 @@ fn cascade_aware_lints_carry_variational_designer_intent_evidence() -> Result<()
 }
 
 #[test]
+fn cascade_aware_lints_carry_rg_flow_coupling_spectrum_evidence() -> Result<(), &'static str> {
+    // Divergent stylesheet: the custom-property reference graph has a cycle
+    // (--a -> --b -> --a), so the extracted coupling space grows its k_cycle
+    // coordinate between the before/after RG step. The real
+    // estimate_coupling_jacobian_spectrum_v0 linearization drives the spectral
+    // radius above one and the gate surfaces rg-flow-relevant-operator.
+    let divergent = r#"
+:root {
+  --a: var(--b);
+  --b: var(--a);
+}
+"#;
+    let divergent_candidates =
+        crate::summarize_omena_query_style_hover_candidates("Tokens.module.css", divergent)
+            .ok_or("divergent candidates")?;
+    let divergent_diagnostics = crate::summarize_omena_query_style_diagnostics_for_file(
+        "file:///workspace/src/Tokens.module.css",
+        divergent,
+        divergent_candidates.candidates.as_slice(),
+    );
+    let rg_flow_diagnostics = divergent_diagnostics
+        .diagnostics
+        .iter()
+        .filter(|diagnostic| diagnostic.code == "rgFlowRelevantOperator")
+        .collect::<Vec<_>>();
+
+    assert_eq!(rg_flow_diagnostics.len(), 1);
+    assert_eq!(rg_flow_diagnostics[0].severity, "hint");
+    assert!(
+        rg_flow_diagnostics[0]
+            .provenance
+            .contains(&"omena-rg-flow.coupling-jacobian-spectrum")
+    );
+    assert!(
+        rg_flow_diagnostics[0]
+            .provenance
+            .contains(&"omena-query-checker-orchestrator.rg-flow-gate")
+    );
+
+    // Settled stylesheet: same number of custom properties and the same
+    // var-reference fan-out, but acyclic (--a -> --b, --b literal). The coupling
+    // space is identical before/after, the spectral radius is zero, and the gate
+    // surfaces nothing. If the spectrum were replaced by a constant the divergent
+    // case would still emit but so would this one, breaking the assertion below.
+    let settled = r#"
+:root {
+  --a: var(--b);
+  --b: 4px;
+}
+"#;
+    let settled_candidates =
+        crate::summarize_omena_query_style_hover_candidates("Tokens.module.css", settled)
+            .ok_or("settled candidates")?;
+    let settled_diagnostics = crate::summarize_omena_query_style_diagnostics_for_file(
+        "file:///workspace/src/Tokens.module.css",
+        settled,
+        settled_candidates.candidates.as_slice(),
+    );
+    assert!(
+        settled_diagnostics
+            .diagnostics
+            .iter()
+            .all(|diagnostic| diagnostic.code != "rgFlowRelevantOperator")
+    );
+    Ok(())
+}
+
+#[test]
 fn cascade_aware_lints_preserve_flatten_invariance_for_nested_ampersand() -> Result<(), &'static str>
 {
     let nested = r#"
