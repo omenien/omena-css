@@ -217,9 +217,7 @@ class DiagnosticsSchedulerImpl implements DiagnosticsScheduler {
     this.safeSendDiagnostics(uri, diagnostics);
   }
 
-  private resolveExternalSifDeps(
-    workspaceRoot: string | undefined,
-  ):
+  private resolveExternalSifDeps(workspaceRoot: string | undefined):
     | {
         readonly externalMode: "sif";
         readonly externalSifs: ReturnType<typeof loadExternalSifsForWorkspace>;
