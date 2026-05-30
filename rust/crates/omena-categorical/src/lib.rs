@@ -413,31 +413,9 @@ pub fn categorical_fixture_evidence_for_endpoint_v0(
                 ),
             ],
         )),
-        "rust/omena-categorical/summarize-kripke-frame" => Some(endpoint_fixture_v0(
-            endpoint_id,
-            "fixture.categorical.kripke-frame.v0",
-            "Kripke frame valuations",
-            "omena-categorical.kripke-frame",
-            &[
-                "omena-categorical.kripke-frame",
-                "omena-categorical.kripke-edge",
-                "omena-categorical.kripke-valuation",
-            ],
-            &[
-                (
-                    "worlds-present",
-                    "omena-categorical.kripke-frame",
-                    "worldCount=2",
-                    "worldCount=2",
-                ),
-                (
-                    "valuation-present",
-                    "omena-categorical.kripke-valuation",
-                    "valuationCount=2",
-                    "valuationCount=2",
-                ),
-            ],
-        )),
+        "rust/omena-categorical/summarize-kripke-frame" => {
+            Some(kripke_frame_fixture_v0(endpoint_id))
+        }
         "rust/omena-categorical/verify-cross-project-symmetry" => Some(endpoint_fixture_v0(
             endpoint_id,
             "fixture.categorical.cross-project-symmetry.v0",
@@ -736,6 +714,106 @@ fn cosheaf_covariance_fixture_v0(
         ],
         assertions,
     )
+}
+
+fn kripke_frame_fixture_v0(endpoint_id: &'static str) -> CategoricalEndpointFixtureEvidenceV0 {
+    // Build a real S4 Kripke frame whose worlds are cascade nesting contexts: a
+    // base context and a nested `@media` context. Each world's resolved value is
+    // produced by the real `cascade_property` ranking — the base context resolves
+    // `color: red`, while the nested context adds a higher source-order
+    // `color: blue` override that the ranking selects as the winner. Box-stability
+    // compares the resolved value strings across the prefix-of accessibility
+    // relation (never the omega lattice, which collapses every `Definite` to
+    // `Closed`), so the nested override makes `boxStable` a computed `false`. The
+    // S4 frame axioms are constructed by `verify_s4_frame_axioms_v0` over the real
+    // edge set, so their acceptance is computed rather than echoed.
+    let base_value = cascade_winner_value_v0(&cascade_property(
+        vec![omega_color_declaration("kripke-base-color", "red", 1)],
+        "color",
+    ));
+    let nested_value = cascade_winner_value_v0(&cascade_property(
+        vec![
+            omega_color_declaration("kripke-base-color", "red", 1),
+            omega_color_declaration("kripke-media-color", "blue", 2),
+        ],
+        "color",
+    ));
+    let frame = build_cascade_prefix_kripke_frame_v0(
+        "fixture.kripke.cascade-context",
+        "color",
+        &[
+            (Vec::new(), base_value),
+            (vec!["@media (min-width: 600px)".to_string()], nested_value),
+        ],
+    );
+    let box_stable = cascade_box_stable_v0(&frame);
+    let axioms = verify_s4_frame_axioms_v0(&frame);
+    let reflexivity = modal_axiom_accepted_v0(&axioms, "reflexivity-t");
+    let transitivity = modal_axiom_accepted_v0(&axioms, "transitivity-4");
+
+    let assertions = vec![
+        fixture_assertion_v0(
+            "worlds-present",
+            "omena-categorical.kripke-frame",
+            format!("worldCount={}", frame.worlds.len()),
+            "worldCount=2",
+        ),
+        fixture_assertion_v0(
+            "valuation-present",
+            "omena-categorical.kripke-valuation",
+            format!("valuationCount={}", frame.valuations.len()),
+            "valuationCount=2",
+        ),
+        fixture_assertion_v0(
+            "nested-override-breaks-necessity",
+            "omena-categorical.kripke-frame",
+            format!("boxStable={box_stable}"),
+            "boxStable=false",
+        ),
+        fixture_assertion_v0(
+            "s4-frame-reflexivity-t",
+            "omena-categorical.modal-axiom-check",
+            format!("reflexivityT={reflexivity}"),
+            "reflexivityT=true",
+        ),
+        fixture_assertion_v0(
+            "s4-frame-transitivity-4",
+            "omena-categorical.modal-axiom-check",
+            format!("transitivity4={transitivity}"),
+            "transitivity4=true",
+        ),
+    ];
+    endpoint_fixture_from_assertions_v0(
+        endpoint_id,
+        "fixture.categorical.kripke-frame.v0",
+        "Kripke frame valuations",
+        "omena-categorical.kripke-frame",
+        &[
+            "omena-categorical.kripke-frame",
+            "omena-categorical.kripke-edge",
+            "omena-categorical.kripke-valuation",
+            "omena-categorical.modal-axiom-check",
+        ],
+        assertions,
+    )
+}
+
+fn modal_axiom_accepted_v0(axioms: &[ModalAxiomCheckV0], axiom: &str) -> bool {
+    axioms
+        .iter()
+        .find(|check| check.axiom == axiom)
+        .map(|check| check.accepted)
+        .unwrap_or(false)
+}
+
+fn cascade_winner_value_v0(outcome: &CascadeOutcome) -> String {
+    match outcome {
+        CascadeOutcome::Definite { winner, .. } => match &winner.value {
+            CascadeValue::Literal(value) => value.clone(),
+            other => format!("{other:?}"),
+        },
+        other => format!("{other:?}"),
+    }
 }
 
 fn fixture_assertion_v0(
@@ -1095,5 +1173,137 @@ mod tests {
                 && assertion.contract_product == "omena-categorical.cascade-primitive-role-functor"
                 && assertion.accepted
         }));
+    }
+
+    fn kripke_test_frame(nested_value: &str) -> KripkeFrameV0 {
+        build_cascade_prefix_kripke_frame_v0(
+            "test.kripke.frame",
+            "color",
+            &[
+                (Vec::new(), "red".to_string()),
+                (
+                    vec!["@media (min-width: 600px)".to_string()],
+                    nested_value.to_string(),
+                ),
+            ],
+        )
+    }
+
+    #[test]
+    fn kripke_box_stability_distinguishes_divergent_and_stable_frames() {
+        // A nested context that overrides the resolved value is NOT box-stable; a
+        // nested context that keeps the value IS. A constant verdict could satisfy
+        // only one of these, so the necessity verdict is load-bearing: replacing
+        // it with hardcoded `true` breaks the divergent case and with hardcoded
+        // `false` breaks the stable case.
+        let divergent = kripke_test_frame("blue");
+        let stable = kripke_test_frame("red");
+        assert_eq!(divergent.worlds.len(), 2);
+        assert_eq!(divergent.valuations.len(), 2);
+        assert!(!cascade_box_stable_v0(&divergent));
+        assert!(cascade_box_stable_v0(&stable));
+    }
+
+    #[test]
+    fn kripke_frame_world_count_tracks_observed_contexts() {
+        let flat = build_cascade_prefix_kripke_frame_v0(
+            "test.kripke.flat",
+            "color",
+            &[(Vec::new(), "red".to_string())],
+        );
+        let nested = kripke_test_frame("blue");
+        assert_eq!(flat.worlds.len(), 1);
+        assert_eq!(nested.worlds.len(), 2);
+        // A single-context frame is vacuously box-stable; only a real second
+        // context carrying a divergent value can break necessity.
+        assert!(cascade_box_stable_v0(&flat));
+    }
+
+    #[test]
+    fn kripke_s4_axioms_reject_corrupted_edge_set() {
+        let frame = kripke_test_frame("blue");
+        let axioms = verify_s4_frame_axioms_v0(&frame);
+        assert!(modal_axiom_accepted_v0(&axioms, "reflexivity-t"));
+        assert!(modal_axiom_accepted_v0(&axioms, "transitivity-4"));
+
+        // Drop the base world's self-edge: reflexivity (T) must now fail.
+        let mut missing_self = frame.clone();
+        missing_self
+            .edges
+            .retain(|edge| !(edge.from_world == "base" && edge.to_world == "base"));
+        assert!(!modal_axiom_accepted_v0(
+            &verify_s4_frame_axioms_v0(&missing_self),
+            "reflexivity-t"
+        ));
+
+        // A three-context chain whose base->deepest closure edge is removed has a
+        // real `base -> media -> media+supports` chain without its `base ->
+        // media+supports` edge, so transitivity (4) must fail.
+        let chain = build_cascade_prefix_kripke_frame_v0(
+            "test.kripke.chain",
+            "color",
+            &[
+                (Vec::new(), "red".to_string()),
+                (
+                    vec!["@media (min-width: 600px)".to_string()],
+                    "red".to_string(),
+                ),
+                (
+                    vec![
+                        "@media (min-width: 600px)".to_string(),
+                        "@supports (display: grid)".to_string(),
+                    ],
+                    "red".to_string(),
+                ),
+            ],
+        );
+        assert!(modal_axiom_accepted_v0(
+            &verify_s4_frame_axioms_v0(&chain),
+            "transitivity-4"
+        ));
+        let deepest = "base|@media (min-width: 600px)|@supports (display: grid)";
+        let mut broken_chain = chain.clone();
+        broken_chain
+            .edges
+            .retain(|edge| !(edge.from_world == "base" && edge.to_world == deepest));
+        assert!(!modal_axiom_accepted_v0(
+            &verify_s4_frame_axioms_v0(&broken_chain),
+            "transitivity-4"
+        ));
+    }
+
+    #[test]
+    fn kripke_frame_fixture_observed_values_come_from_real_compute() {
+        let fixture = categorical_fixture_evidence_for_endpoint_v0(
+            "rust/omena-categorical/summarize-kripke-frame",
+        );
+        assert!(fixture.is_some());
+        let Some(fixture) = fixture else {
+            return;
+        };
+        assert!(fixture.accepted);
+        assert_eq!(fixture.fixture_id, "fixture.categorical.kripke-frame.v0");
+
+        let observed = fixture
+            .assertions
+            .iter()
+            .map(|assertion| (assertion.assertion_id, assertion.observed.clone()))
+            .collect::<std::collections::BTreeMap<_, _>>();
+        // The necessity verdict is computed `false` because the nested `@media`
+        // context resolves `color` to a different winner than the base context.
+        assert_eq!(
+            observed["nested-override-breaks-necessity"],
+            "boxStable=false"
+        );
+        assert_eq!(observed["worlds-present"], "worldCount=2");
+        assert_eq!(observed["valuation-present"], "valuationCount=2");
+        assert_eq!(observed["s4-frame-reflexivity-t"], "reflexivityT=true");
+        assert_eq!(observed["s4-frame-transitivity-4"], "transitivity4=true");
+
+        // Cross-check against the builder: the same two contexts with a matching
+        // value ARE box-stable, so the fixture's `false` is data-derived, not a
+        // literal echo.
+        assert!(cascade_box_stable_v0(&kripke_test_frame("red")));
+        assert!(!cascade_box_stable_v0(&kripke_test_frame("blue")));
     }
 }
