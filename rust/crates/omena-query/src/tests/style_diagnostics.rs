@@ -1477,6 +1477,117 @@ fn style_diagnostics_external_sif_mode_classifies_partial_boundary() -> Result<(
 }
 
 #[test]
+fn style_diagnostics_external_sif_mode_classifies_unresolved_boundary() -> Result<(), &'static str>
+{
+    // The fifth boundary state (#34): a bare specifier the resolver cannot canonicalize
+    // (no SIF, not a relative path, not a `sass:`/`http(s)://` external) folds through the
+    // resolver-error channel onto `Unresolved`. A second `https://` edge with no SIF in
+    // scope is the over-correction guard: the existing Missing branch must still fire.
+    let sources = vec![OmenaQueryStyleSourceInputV0 {
+        style_path: "/tmp/App.module.scss".to_string(),
+        style_source: r#"@use "bootstrap" as bs;
+@use "https://cdn.example/tokens.scss" as remote;
+.button { color: bs.$brand; border-color: remote.$accent; }"#
+            .to_string(),
+    }];
+
+    let diagnostics =
+        crate::summarize_omena_query_style_diagnostics_for_workspace_file_with_external_mode(
+            "/tmp/App.module.scss",
+            sources.as_slice(),
+            &[],
+            &[],
+            None,
+            crate::OmenaQueryExternalModuleModeV0::Sif,
+        )
+        .ok_or("sif workspace diagnostics")?;
+
+    // The bare `bootstrap` edge surfaces the Unresolved boundary state.
+    let unresolved = diagnostics
+        .diagnostics
+        .iter()
+        .find(|diagnostic| diagnostic.code == "unresolvedExternalReference")
+        .ok_or("expected unresolvedExternalReference boundary diagnostic")?;
+    assert_eq!(unresolved.severity, "warning");
+    assert!(
+        unresolved
+            .message
+            .contains("'bootstrap' is unresolved (topAny)"),
+        "{}",
+        unresolved.message
+    );
+    // Over-correction guard: the `https://` edge with no SIF still fires Missing.
+    assert!(
+        diagnostics
+            .diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.code == "missingExternalSif"
+                && diagnostic
+                    .message
+                    .contains("'https://cdn.example/tokens.scss' is missing")),
+        "missing external boundary must still fire: {:?}",
+        diagnostics
+            .diagnostics
+            .iter()
+            .map(|diagnostic| diagnostic.code)
+            .collect::<Vec<_>>()
+    );
+    // A bare unresolved reference is NOT a workspace-local file, so it is never the hard
+    // `missingModule` error — only the boundary state surfaces.
+    assert!(
+        diagnostics
+            .diagnostics
+            .iter()
+            .all(|diagnostic| diagnostic.code != "missingModule")
+    );
+    Ok(())
+}
+
+#[test]
+fn style_diagnostics_external_sif_mode_does_not_double_flag_local_unresolved_boundary()
+-> Result<(), &'static str> {
+    // Over-correction guard for the Unresolved widening (#34): a workspace-local unresolved
+    // specifier (`./missing`) is already a hard `missingModule` error, so it must NOT also
+    // surface as an `unresolvedExternalReference` boundary state.
+    let sources = vec![OmenaQueryStyleSourceInputV0 {
+        style_path: "/tmp/App.module.scss".to_string(),
+        style_source: "@use \"./missing\";\n.a { color: red; }".to_string(),
+    }];
+
+    let diagnostics =
+        crate::summarize_omena_query_style_diagnostics_for_workspace_file_with_external_mode(
+            "/tmp/App.module.scss",
+            sources.as_slice(),
+            &[],
+            &[],
+            None,
+            crate::OmenaQueryExternalModuleModeV0::Sif,
+        )
+        .ok_or("sif workspace diagnostics")?;
+
+    assert!(
+        diagnostics
+            .diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.code == "missingModule"),
+        "workspace-local unresolved must still be a hard missingModule error: {:?}",
+        diagnostics
+            .diagnostics
+            .iter()
+            .map(|diagnostic| diagnostic.code)
+            .collect::<Vec<_>>()
+    );
+    assert!(
+        diagnostics
+            .diagnostics
+            .iter()
+            .all(|diagnostic| diagnostic.code != "unresolvedExternalReference"),
+        "workspace-local unresolved must not double-flag as a boundary state"
+    );
+    Ok(())
+}
+
+#[test]
 fn style_diagnostics_external_sif_mode_classifies_stale_boundary() -> Result<(), &'static str> {
     // The root SIF records a dependency interface hash, but the dependency SIF in scope
     // has a different interface — a Stale boundary (#34).

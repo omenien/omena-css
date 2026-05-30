@@ -186,6 +186,29 @@ pub fn omena_resolver_boundary_state_from_error_v0(
     }
 }
 
+/// Surface the resolver-error channel for a reference whose canonical URL could not be
+/// canonicalized, then fold it onto the boundary lattice's `Unresolved` state (#34).
+///
+/// This is the cross-crate hop that lets the diagnostics layer reach the fifth boundary
+/// state without re-implementing the error taxonomy: a network reference is
+/// `NetworkForbidden` (the resolver never fetches it), and any other non-canonicalizable
+/// specifier is `Unresolved`. Both fold to a `top == TopAny`, `state == Unresolved`
+/// witness via the shared `omena_resolver_boundary_state_from_error_v0` mapper.
+pub fn omena_resolver_boundary_state_for_unresolved_reference_v0(
+    source: &str,
+) -> OmenaResolverBoundaryStateV0 {
+    let kind = if source.starts_with("http://") || source.starts_with("https://") {
+        OmenaResolverErrorKindV0::NetworkForbidden
+    } else {
+        OmenaResolverErrorKindV0::Unresolved
+    };
+    let error = OmenaResolverErrorV0::new(
+        kind,
+        format!("external reference `{source}` is not canonicalizable by the omena resolver"),
+    );
+    omena_resolver_boundary_state_from_error_v0(&error)
+}
+
 /// Error family for the shared resolver protocol.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -461,6 +484,21 @@ mod tests {
         assert_eq!(states[3].top_name, "topAny");
         assert_eq!(states[4].state_name, "unresolved");
         assert_eq!(states[4].top_name, "topAny");
+    }
+
+    #[test]
+    fn boundary_state_for_unresolved_reference_folds_to_unresolved_via_error_channel() {
+        // A non-canonicalizable bare/relative reference is `Unresolved`.
+        let bare = omena_resolver_boundary_state_for_unresolved_reference_v0("bootstrap");
+        assert_eq!(bare.state, OmenaResolverBoundaryStateKindV0::Unresolved);
+        assert_eq!(bare.top, OmenaResolverBoundaryTopV0::TopAny);
+        assert!(bare.reason.contains("bootstrap"));
+
+        // A network reference folds through `NetworkForbidden` to the same boundary state.
+        let network =
+            omena_resolver_boundary_state_for_unresolved_reference_v0("https://cdn.example/x.scss");
+        assert_eq!(network.state, OmenaResolverBoundaryStateKindV0::Unresolved);
+        assert_eq!(network.top, OmenaResolverBoundaryTopV0::TopAny);
     }
 
     #[test]

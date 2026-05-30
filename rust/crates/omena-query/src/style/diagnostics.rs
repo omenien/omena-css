@@ -1400,8 +1400,9 @@ fn collect_omena_query_external_top_any_sass_symbol_ranges(
 /// - **Resolved** — a SIF is present and every referenced symbol (or no symbol at
 ///   all) is covered by its exported interface.
 ///
-/// The fifth state (`Unresolved`) needs the resolver-error channel that does not yet
-/// reach this layer; it stays deferred (see issue #34 "Deferred").
+/// The fifth state (`Unresolved`) is classified by the caller, not here: an unresolved edge
+/// has no SIF lattice to reason over, so it folds through the resolver-error channel via
+/// `omena_resolver_boundary_state_for_unresolved_reference_v0` (#34).
 fn classify_external_boundary_state(
     edge: &ParsedSassModuleEdgeFact,
     sif: Option<&OmenaQueryExternalSifInputV0>,
@@ -1520,7 +1521,22 @@ fn summarize_omena_query_external_sif_boundary_diagnostics(
         .filter(|edge| edge.status == "external")
         .map(|edge| edge.source.as_str())
         .collect::<BTreeSet<_>>();
-    if external_sources.is_empty() {
+    // The fifth state (`Unresolved`, #34): an edge whose canonical URL the resolver could
+    // not canonicalize at all (`status == "unresolved"`). The resolver-error channel now
+    // reaches this layer through `omena_resolver_boundary_state_for_unresolved_reference_v0`.
+    // We only adopt the *bare* unresolved edges here: workspace-local unresolved specifiers
+    // (`./`, `../`, `/`) are already a hard `missingModule` error elsewhere, so re-flagging
+    // them as a boundary state would double-emit. Bare unresolved edges (`'bootstrap'` with
+    // no SIF in scope) are the ones the boundary diagnostic previously left silent.
+    let unresolved_sources = resolution
+        .edges
+        .iter()
+        .filter(|edge| edge.from_style_path == target_style_path)
+        .filter(|edge| edge.status == "unresolved")
+        .filter(|edge| !sass_module_source_is_workspace_local(edge.source.as_str()))
+        .map(|edge| edge.source.as_str())
+        .collect::<BTreeSet<_>>();
+    if external_sources.is_empty() && unresolved_sources.is_empty() {
         return Vec::new();
     }
 
@@ -1531,22 +1547,31 @@ fn summarize_omena_query_external_sif_boundary_diagnostics(
     let mut emitted = BTreeSet::new();
     let mut diagnostics = Vec::new();
     for edge in &facts.sass_module_edges {
-        if !external_sources.contains(edge.source.as_str()) {
+        let is_external = external_sources.contains(edge.source.as_str());
+        let is_unresolved = unresolved_sources.contains(edge.source.as_str());
+        if !is_external && !is_unresolved {
             continue;
         }
         if !emitted.insert((edge.kind, edge.source.clone())) {
             continue;
         }
-        let sif = find_omena_query_external_sif(edge.source.as_str(), external_sifs);
-        let state = classify_external_boundary_state(edge, sif, &facts, external_sifs);
+        // An unresolved edge folds through the resolver-error channel onto the `Unresolved`
+        // boundary state; an external edge is classified against the SIF lattice (#34).
+        let state = if is_unresolved {
+            omena_resolver_boundary_state_for_unresolved_reference_v0(edge.source.as_str())
+        } else {
+            let sif = find_omena_query_external_sif(edge.source.as_str(), external_sifs);
+            classify_external_boundary_state(edge, sif, &facts, external_sifs)
+        };
         let (code, default_severity) = match state.state {
             // A fully-resolved boundary has no diagnostic to emit.
             OmenaResolverBoundaryStateKindV0::Resolved => continue,
             OmenaResolverBoundaryStateKindV0::Stale => ("staleExternalSif", "warning"),
             OmenaResolverBoundaryStateKindV0::Partial => ("partialExternalSif", "information"),
             OmenaResolverBoundaryStateKindV0::Missing => ("missingExternalSif", "warning"),
-            // `Unresolved` is not reachable from this layer yet (deferred, #34).
-            OmenaResolverBoundaryStateKindV0::Unresolved => continue,
+            OmenaResolverBoundaryStateKindV0::Unresolved => {
+                ("unresolvedExternalReference", "warning")
+            }
         };
         // The strictness sigil (#35) multiplies into the severity decision: `Strict`/`Closed`
         // escalate the boundary to `error`; `Standard`/`Relaxed` pass the default through.
@@ -1593,8 +1618,10 @@ fn external_boundary_remediation_hint(state: OmenaResolverBoundaryStateKindV0) -
         OmenaResolverBoundaryStateKindV0::Partial => {
             "some referenced symbols are absent from the SIF interface; regenerate the SIF or fix the reference."
         }
-        OmenaResolverBoundaryStateKindV0::Resolved
-        | OmenaResolverBoundaryStateKindV0::Unresolved => "",
+        OmenaResolverBoundaryStateKindV0::Unresolved => {
+            "the resolver cannot canonicalize this reference; fix the specifier or add it to the workspace."
+        }
+        OmenaResolverBoundaryStateKindV0::Resolved => "",
     }
 }
 
