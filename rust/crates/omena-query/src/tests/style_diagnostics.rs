@@ -2086,6 +2086,59 @@ export default () => <span className={styles.foo} />;"#
     Ok(())
 }
 
+// RFC-0007-J (#50) root fix: when the workspace's tsconfig path mappings ARE wired in, the alias
+// import `@/styles/a.module.scss` resolves to its real module, so the unused-selector usage
+// collector attributes `cx('foo')` precisely — exactly like the reference/goto path. The lint then
+// stays accurate rather than being globally suppressed: the used `.foo` is NOT dimmed, but the
+// genuinely-unused `.bar` IS still flagged.
+#[test]
+fn style_diagnostics_alias_import_resolves_with_path_mappings() -> Result<(), &'static str> {
+    let sources = vec![OmenaQueryStyleSourceInputV0 {
+        style_path: "/workspace/src/styles/a.module.scss".to_string(),
+        style_source: ".foo { color: red; }\n.bar { color: blue; }\n".to_string(),
+    }];
+    let source_documents = vec![OmenaQuerySourceDocumentInputV0 {
+        source_path: "/workspace/src/component.tsx".to_string(),
+        source_source: r#"import classNames from 'classnames/bind';
+import styles from '@/styles/a.module.scss';
+const cx = classNames.bind(styles);
+export default () => <span className={cx('foo')} />;"#
+            .to_string(),
+    }];
+    // tsconfig `paths`: `@/*` -> `src/*` rooted at the workspace, so `@/styles/a.module.scss`
+    // resolves to `/workspace/src/styles/a.module.scss`.
+    let resolution_inputs = crate::OmenaQueryStyleResolutionInputsV0 {
+        tsconfig_path_mappings: vec![crate::OmenaQueryTsconfigPathMappingV0 {
+            base_path: "/workspace".to_string(),
+            pattern: "@/*".to_string(),
+            target_patterns: vec!["src/*".to_string()],
+        }],
+        ..Default::default()
+    };
+
+    let diagnostics =
+        crate::summarize_omena_query_style_diagnostics_for_workspace_file_with_external_mode_and_sifs_and_resolution_inputs(
+            "/workspace/src/styles/a.module.scss",
+            sources.as_slice(),
+            source_documents.as_slice(),
+            &[],
+            None,
+            crate::OmenaQueryExternalModuleModeV0::Ignored,
+            &[],
+            &resolution_inputs,
+        )
+        .ok_or("alias-import workspace style diagnostics with path mappings")?;
+
+    // Precise (not merely suppressed): `.foo` used -> not dimmed; `.bar` unused -> flagged.
+    assert_eq!(
+        unused_selector_messages(&diagnostics),
+        vec!["Selector '.bar' is declared but never used."],
+        "resolved alias import must dim only the genuinely-unused .bar: {:?}",
+        unused_selector_messages(&diagnostics)
+    );
+    Ok(())
+}
+
 fn missing_keyframes_messages(diagnostics: &[crate::OmenaQueryStyleDiagnosticV0]) -> Vec<&str> {
     diagnostics
         .iter()

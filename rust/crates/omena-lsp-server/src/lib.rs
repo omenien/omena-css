@@ -47,7 +47,7 @@ use omena_query::{
     summarize_omena_query_source_syntax_index_for_source_language,
     summarize_omena_query_style_completion_at_position,
     summarize_omena_query_style_diagnostics_for_file,
-    summarize_omena_query_style_diagnostics_for_workspace_file_with_external_mode_and_sifs,
+    summarize_omena_query_style_diagnostics_for_workspace_file_with_external_mode_and_sifs_and_resolution_inputs,
     summarize_omena_query_style_document, summarize_omena_query_style_extract_code_actions,
     summarize_omena_query_style_hover_render_parts,
     summarize_omena_query_style_inline_code_actions,
@@ -986,8 +986,13 @@ fn resolve_style_diagnostics_for_uri(state: &LspShellState, document_uri: &str) 
     } else {
         OmenaQueryExternalModuleModeV0::Sif
     };
+    // RFC-0007-J (#50): pass the workspace's tsconfig/bundler path mappings so the unused-selector
+    // usage collector resolves alias style imports (`@/styles/...`) the same way the reference/goto
+    // path does — otherwise an alias import dims every selector as `unusedSelector`.
+    let resolution_inputs =
+        resolution_inputs_for_workspace_uri(state, document.workspace_folder_uri.as_deref());
     let diagnostics_summary =
-        summarize_omena_query_style_diagnostics_for_workspace_file_with_external_mode_and_sifs(
+        summarize_omena_query_style_diagnostics_for_workspace_file_with_external_mode_and_sifs_and_resolution_inputs(
             document.uri.as_str(),
             style_sources.as_slice(),
             source_documents.as_slice(),
@@ -995,6 +1000,7 @@ fn resolve_style_diagnostics_for_uri(state: &LspShellState, document_uri: &str) 
             None,
             external_mode,
             external_sifs,
+            &resolution_inputs,
         )
         .unwrap_or_else(|| {
             summarize_omena_query_style_diagnostics_for_file(

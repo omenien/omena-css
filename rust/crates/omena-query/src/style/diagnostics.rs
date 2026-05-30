@@ -1126,6 +1126,38 @@ pub fn summarize_omena_query_style_diagnostics_for_workspace_file_with_external_
     external_mode: OmenaQueryExternalModuleModeV0,
     external_sifs: &[OmenaQueryExternalSifInputV0],
 ) -> Option<OmenaQueryStyleDiagnosticsForFileV0> {
+    summarize_omena_query_style_diagnostics_for_workspace_file_with_external_mode_and_sifs_and_resolution_inputs(
+        target_style_path,
+        style_sources,
+        source_documents,
+        package_manifests,
+        classname_transform,
+        external_mode,
+        external_sifs,
+        &OmenaQueryStyleResolutionInputsV0 {
+            package_manifests: package_manifests.to_vec(),
+            ..Default::default()
+        },
+    )
+}
+
+/// Workspace-file style diagnostics variant that additionally carries the workspace's
+/// tsconfig/bundler path mappings. RFC-0007-J (#50): the unused-selector usage collector resolves
+/// source-document style imports through these mappings so an alias import (`@/styles/a.module.scss`)
+/// is attributed to its real module — matching the reference/goto path — instead of leaving every
+/// selector dimmed `unusedSelector`. Path mappings only affect alias resolution; with empty mappings
+/// the behaviour is byte-for-byte the no-mappings entry above.
+#[allow(clippy::too_many_arguments)]
+pub fn summarize_omena_query_style_diagnostics_for_workspace_file_with_external_mode_and_sifs_and_resolution_inputs(
+    target_style_path: &str,
+    style_sources: &[OmenaQueryStyleSourceInputV0],
+    source_documents: &[OmenaQuerySourceDocumentInputV0],
+    package_manifests: &[OmenaQueryStylePackageManifestV0],
+    classname_transform: Option<&str>,
+    external_mode: OmenaQueryExternalModuleModeV0,
+    external_sifs: &[OmenaQueryExternalSifInputV0],
+    resolution_inputs: &OmenaQueryStyleResolutionInputsV0,
+) -> Option<OmenaQueryStyleDiagnosticsForFileV0> {
     let target = style_sources
         .iter()
         .find(|source| source.style_path == target_style_path)?;
@@ -1185,16 +1217,18 @@ pub fn summarize_omena_query_style_diagnostics_for_workspace_file_with_external_
             package_manifests,
         ),
     );
-    summary
-        .diagnostics
-        .extend(summarize_omena_query_unused_selector_style_diagnostics(
+    summary.diagnostics.extend(
+        summarize_omena_query_unused_selector_style_diagnostics_with_path_mappings(
             target_style_path,
             &target.style_source,
             style_sources,
             source_documents,
             package_manifests,
             classname_transform,
-        ));
+            resolution_inputs.bundler_path_mappings.as_slice(),
+            resolution_inputs.tsconfig_path_mappings.as_slice(),
+        ),
+    );
     summary.diagnostic_count = summary.diagnostics.len();
     push_omena_query_ready_surface(
         &mut summary.ready_surfaces,
@@ -2244,6 +2278,29 @@ pub fn summarize_omena_query_unused_selector_style_diagnostics(
     package_manifests: &[OmenaQueryStylePackageManifestV0],
     classname_transform: Option<&str>,
 ) -> Vec<OmenaQueryStyleDiagnosticV0> {
+    summarize_omena_query_unused_selector_style_diagnostics_with_path_mappings(
+        target_style_path,
+        target_source,
+        style_sources,
+        source_documents,
+        package_manifests,
+        classname_transform,
+        &[],
+        &[],
+    )
+}
+
+#[allow(clippy::too_many_arguments)]
+pub fn summarize_omena_query_unused_selector_style_diagnostics_with_path_mappings(
+    target_style_path: &str,
+    target_source: &str,
+    style_sources: &[OmenaQueryStyleSourceInputV0],
+    source_documents: &[OmenaQuerySourceDocumentInputV0],
+    package_manifests: &[OmenaQueryStylePackageManifestV0],
+    classname_transform: Option<&str>,
+    bundler_path_mappings: &[OmenaResolverBundlerPathAliasMappingV0],
+    tsconfig_path_mappings: &[OmenaResolverTsconfigPathMappingV0],
+) -> Vec<OmenaQueryStyleDiagnosticV0> {
     if source_documents.is_empty() {
         return Vec::new();
     }
@@ -2268,6 +2325,8 @@ pub fn summarize_omena_query_unused_selector_style_diagnostics(
             source_documents,
             package_manifests,
             &aliases_by_path,
+            bundler_path_mappings,
+            tsconfig_path_mappings,
         );
     if unresolved_dynamic_usage.contains(target_style_path) {
         return Vec::new();
@@ -2336,6 +2395,8 @@ fn collect_omena_query_source_selector_usage_by_style(
     source_documents: &[OmenaQuerySourceDocumentInputV0],
     package_manifests: &[OmenaQueryStylePackageManifestV0],
     aliases_by_path: &BTreeMap<String, BTreeMap<String, BTreeSet<String>>>,
+    bundler_path_mappings: &[OmenaResolverBundlerPathAliasMappingV0],
+    tsconfig_path_mappings: &[OmenaResolverTsconfigPathMappingV0],
 ) -> (BTreeMap<String, BTreeSet<String>>, BTreeSet<String>, bool) {
     let mut used_selectors = BTreeMap::<String, BTreeSet<String>>::new();
     let mut unresolved_dynamic_usage = BTreeSet::<String>::new();
@@ -2358,11 +2419,13 @@ fn collect_omena_query_source_selector_usage_by_style(
                 classnames_bind_bindings.push(import.binding);
                 continue;
             }
-            let Some(style_path) = resolve_style_module_source(
+            let Some(style_path) = resolve_style_module_source_with_path_mappings(
                 &document.source_path,
                 &import.specifier,
                 available_style_paths,
                 package_manifests,
+                bundler_path_mappings,
+                tsconfig_path_mappings,
             ) else {
                 if specifier_targets_style_module(&import.specifier) {
                     has_unresolved_style_import = true;

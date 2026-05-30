@@ -1243,6 +1243,36 @@ fn resolve_style_module_source(
     )
 }
 
+/// Alias-aware style-module resolution: the same routing as `resolve_style_module_source`, plus
+/// tsconfig/bundler path-mapping resolution so a workspace-alias specifier (`@/styles/a.module.scss`)
+/// resolves when the workspace's `paths`/`alias` config is wired in. RFC-0007-J (#50): the
+/// unused-selector usage collector must use this so it agrees with the reference/goto path, which
+/// already resolves aliases — otherwise an alias import leaves every selector dimmed `unusedSelector`.
+fn resolve_style_module_source_with_path_mappings(
+    from_style_path: &str,
+    source: &str,
+    available_style_paths: &BTreeSet<&str>,
+    package_manifests: &[OmenaQueryStylePackageManifestV0],
+    bundler_path_mappings: &[OmenaResolverBundlerPathAliasMappingV0],
+    tsconfig_path_mappings: &[OmenaResolverTsconfigPathMappingV0],
+) -> Option<String> {
+    let resolver_package_manifests = package_manifests
+        .iter()
+        .map(|manifest| OmenaResolverStylePackageManifestV0 {
+            package_json_path: manifest.package_json_path.clone(),
+            package_json_source: manifest.package_json_source.clone(),
+        })
+        .collect::<Vec<_>>();
+    resolve_omena_resolver_style_module_source_with_path_mappings(
+        from_style_path,
+        source,
+        available_style_paths,
+        &resolver_package_manifests,
+        bundler_path_mappings,
+        tsconfig_path_mappings,
+    )
+}
+
 fn collect_style_selector_hover_candidates_from_omena_parser_facts(
     source: &str,
     definition_facts: &[ParsedSelectorFact],

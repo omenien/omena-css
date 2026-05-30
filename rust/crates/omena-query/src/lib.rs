@@ -58,8 +58,10 @@ use omena_query_transform_runner::{
 };
 use omena_resolver::{
     OmenaResolverBoundaryStateKindV0, OmenaResolverBoundaryStateV0, OmenaResolverBoundaryTopV0,
-    OmenaResolverCanonicalUrlV0, OmenaResolverStylePackageManifestV0,
+    OmenaResolverBundlerPathAliasMappingV0, OmenaResolverCanonicalUrlV0,
+    OmenaResolverStylePackageManifestV0, OmenaResolverTsconfigPathMappingV0,
     canonicalize_omena_resolver_style_identity_path, resolve_omena_resolver_style_module_source,
+    resolve_omena_resolver_style_module_source_with_path_mappings,
     summarize_omena_resolver_style_module_resolution_with_load_path_roots,
 };
 use omena_semantic::StyleContextIndexV0;
