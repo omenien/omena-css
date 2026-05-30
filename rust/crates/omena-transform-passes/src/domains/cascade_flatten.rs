@@ -3,12 +3,17 @@ use omena_cascade::{
     prove_layer_flatten_candidate, prove_scope_flatten_candidate,
 };
 use omena_parser::{StyleDialect, lex};
+use omena_smt::{LayerInversionDeclarationV0, layer_inversion_declaration_v0};
 use omena_syntax::SyntaxKind;
 
 use crate::helpers::{
-    blocks::at_rule_block_indexes,
+    blocks::{at_rule_block_indexes, at_rule_prelude_end_index, rule_block_token_indexes},
+    declarations::collect_simple_declarations_in_block,
     identifiers::css_identifier_text_is_plain,
-    rules::{collect_top_level_ordinary_rule_slices, is_ordinary_top_level_rule_prelude},
+    rules::{
+        collect_declaration_ordinary_rule_slices, collect_top_level_ordinary_rule_slices,
+        is_ordinary_top_level_rule_prelude,
+    },
     source_rewrite::replace_source_ranges,
     tokens::{token_end, token_start},
 };
@@ -290,6 +295,210 @@ pub(crate) fn collect_layer_flatten_proof_candidates_with_lexer(
     }
 
     candidates
+}
+
+/// A closed-style-world bundle of competing layered declarations, carrying the
+/// real per-declaration `(layer_rank, source_order)` the SMT inversion search
+/// reasons over.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct LayerInversionBundleCandidateV0 {
+    pub(crate) source_span_start: usize,
+    pub(crate) source_span_end: usize,
+    /// Per-declaration cascade coordinates collected from the real token stream:
+    /// no field is a literal inversion flag.
+    pub(crate) declarations: Vec<LayerInversionDeclarationV0>,
+}
+
+/// A declaration competing for the cascade inside a layered bundle, before it is
+/// reduced to the SMT-facing `(layer_rank, source_order)` coordinates.
+struct CompetingLayerDeclarationV0 {
+    /// `selector|property` — the cascade-competition key. Two declarations only
+    /// invert against each other when they target the same property of the same
+    /// selector; declarations with different keys never compete.
+    competition_key: String,
+    layer_rank: usize,
+    source_order: usize,
+    span_start: usize,
+    span_end: usize,
+}
+
+/// Collect the cross-layer declaration coordinates a closed-bundle layer flatten
+/// must preserve.
+///
+/// Layer precedence (`layer_rank`) is taken from the real cascade rule: an
+/// `@layer a, b;` pre-declaration statement fixes the order of its names, and any
+/// layer first seen as a block is appended in appearance order. Higher rank wins
+/// *before* flattening. Each declaration's `source_order` is its byte start in
+/// the source; the later position wins *after* the layer boundary is erased. Only
+/// declarations that genuinely compete — same property of the same selector in
+/// more than one layer — are returned, because a flatten is unsafe exactly when
+/// the layered and flattened winners of a competition disagree. That ordering
+/// inversion is the search [`omena_smt::smt_check_layer_flatten_inversion_v0`]
+/// runs. The discriminating `(layer_rank, source_order)` pairs are read from the
+/// tokens, never fabricated from a literal inversion flag.
+pub(crate) fn collect_layer_inversion_declarations_with_lexer(
+    source: &str,
+    dialect: StyleDialect,
+) -> Option<LayerInversionBundleCandidateV0> {
+    let lexed = lex(source, dialect);
+    let tokens = lexed.tokens();
+
+    let mut layer_ranks: Vec<String> = Vec::new();
+    let mut layer_blocks: Vec<(usize, usize, usize)> = Vec::new();
+    let mut depth = 0usize;
+    let mut index = 0;
+
+    while index < tokens.len() {
+        match tokens[index].kind {
+            SyntaxKind::AtKeyword
+                if depth == 0 && tokens[index].text.eq_ignore_ascii_case("@layer") =>
+            {
+                match at_rule_block_indexes(tokens, index) {
+                    Some((block_start_index, block_end_index)) => {
+                        // `@layer name { ... }` block: register the layer (if not
+                        // already pre-declared) and record its byte range.
+                        let prelude = source
+                            [token_end(&tokens[index])..token_start(&tokens[block_start_index])]
+                            .trim();
+                        let Some(layer_name) = parse_single_layer_name(prelude) else {
+                            index = block_end_index + 1;
+                            continue;
+                        };
+                        let layer_rank = layer_rank_for(&mut layer_ranks, &layer_name);
+                        layer_blocks.push((
+                            layer_rank,
+                            token_start(&tokens[index]),
+                            token_end(&tokens[block_end_index]),
+                        ));
+                        index = block_end_index + 1;
+                        continue;
+                    }
+                    None => {
+                        // `@layer a, b;` pre-declaration statement: fixes the
+                        // precedence order of the named layers.
+                        if let Some(prelude_end) = at_rule_prelude_end_index(tokens, index + 1) {
+                            let prelude = &source
+                                [token_end(&tokens[index])..token_start(&tokens[prelude_end])];
+                            for name in prelude.split(',') {
+                                let name = name.trim();
+                                if !name.is_empty() && css_identifier_text_is_plain(name) {
+                                    layer_rank_for(&mut layer_ranks, name);
+                                }
+                            }
+                            index = prelude_end + 1;
+                            continue;
+                        }
+                    }
+                }
+            }
+            SyntaxKind::LeftBrace => depth += 1,
+            SyntaxKind::RightBrace => depth = depth.saturating_sub(1),
+            _ => {}
+        }
+        index += 1;
+    }
+
+    // The cross-layer obligation only exists for a genuine multi-layer bundle:
+    // a single layer can never invert against itself.
+    if layer_blocks.len() < 2 {
+        return None;
+    }
+
+    // Harvest every `selector { decls }` rule and attribute each declaration to
+    // the layer block whose byte range contains it.
+    let mut competing = Vec::new();
+    for rule in collect_declaration_ordinary_rule_slices(source, tokens) {
+        let Some((layer_rank, _, _)) =
+            layer_blocks
+                .iter()
+                .copied()
+                .find(|(_, block_start, block_end)| {
+                    rule.start >= *block_start && rule.end <= *block_end
+                })
+        else {
+            continue;
+        };
+        let (rule_block_start, rule_block_end) =
+            match rule_block_token_indexes(tokens, rule.block_start, rule.block_end) {
+                Some(indexes) => indexes,
+                None => continue,
+            };
+        for declaration in
+            collect_simple_declarations_in_block(tokens, rule_block_start, rule_block_end)
+        {
+            competing.push(CompetingLayerDeclarationV0 {
+                competition_key: format!("{}|{}", rule.selector, declaration.property),
+                layer_rank,
+                source_order: declaration.start,
+                span_start: declaration.start,
+                span_end: declaration.end,
+            });
+        }
+    }
+
+    // Keep only declarations whose competition key appears in more than one
+    // layer rank: those are the only ones whose flattened/layered winners can
+    // disagree. Single-layer or uncontested declarations never invert.
+    let contested_keys: std::collections::BTreeSet<&str> = competing
+        .iter()
+        .map(|declaration| declaration.competition_key.as_str())
+        .filter(|key| {
+            let ranks: std::collections::BTreeSet<usize> = competing
+                .iter()
+                .filter(|other| other.competition_key == *key)
+                .map(|other| other.layer_rank)
+                .collect();
+            ranks.len() > 1
+        })
+        .collect();
+
+    let contested: Vec<&CompetingLayerDeclarationV0> = competing
+        .iter()
+        .filter(|declaration| contested_keys.contains(declaration.competition_key.as_str()))
+        .collect();
+
+    if contested.len() < 2 {
+        return None;
+    }
+
+    let source_span_start = contested
+        .iter()
+        .map(|declaration| declaration.span_start)
+        .min()
+        .unwrap_or(0);
+    let source_span_end = contested
+        .iter()
+        .map(|declaration| declaration.span_end)
+        .max()
+        .unwrap_or(source_span_start);
+
+    let declarations = contested
+        .iter()
+        .map(|declaration| {
+            layer_inversion_declaration_v0(
+                declaration.competition_key.clone(),
+                declaration.layer_rank as i64,
+                declaration.source_order as i64,
+            )
+        })
+        .collect();
+
+    Some(LayerInversionBundleCandidateV0 {
+        source_span_start,
+        source_span_end,
+        declarations,
+    })
+}
+
+/// Resolve `layer_name` to its cascade rank, registering it in appearance order
+/// when first seen. Returns the index in the precedence order (higher wins).
+fn layer_rank_for(layer_ranks: &mut Vec<String>, layer_name: &str) -> usize {
+    if let Some(rank) = layer_ranks.iter().position(|name| name == layer_name) {
+        rank
+    } else {
+        layer_ranks.push(layer_name.to_string());
+        layer_ranks.len() - 1
+    }
 }
 
 fn count_top_level_at_rules(tokens: &[omena_parser::LexedToken], at_rule: &str) -> usize {

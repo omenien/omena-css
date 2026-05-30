@@ -14,6 +14,9 @@ workspace = true
 [features]
 default = []
 lawvere-trace = ["dep:omena-lawvere"]
+# Discharge the cross-layer flatten inversion obligation with the z3 backend.
+# Default builds stay solver-free and conservatively block multi-layer flattens.
+smt-z3 = ["omena-smt/smt-z3"]
 
 [dependencies]
 omena-cascade = { path = "../omena-cascade" }

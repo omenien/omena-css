@@ -339,3 +339,96 @@ fn layer_flatten_obligation_acceptance_tracks_smt_sat_result() {
     );
     assert_eq!(unsat.cascade_proof_obligations.accepted_count, 0);
 }
+
+/// The cross-layer flatten inversion obligation is the real z3 search, not a
+/// local flag.
+///
+/// Both inputs declare `.card { color }` in two `@layer` blocks whose source
+/// order is identical; the ONLY byte that differs is the `@layer …, …;`
+/// pre-declaration that fixes layer precedence. When precedence (`utilities,
+/// base` => `base` wins) disagrees with source order (`utilities` block is last,
+/// so it wins after flattening), the layered and flattened winners diverge and
+/// z3 proves the QF_LIA inversion `Sat` => the flatten is blocked. Restoring the
+/// precedence to match source order (`base, utilities`) makes z3 prove `Unsat`
+/// => the flatten is accepted.
+///
+/// Litmus: replace z3 with a constant/identity backend and the verdict can no
+/// longer flip on the pre-declaration order — the propositional stub returns
+/// `Sat` for *both* inputs (it cannot model integer ordering), so the safe-case
+/// acceptance below is only reachable because z3 actually solves the search. No
+/// literal inversion flag is fed; the discriminating `(layer_rank, source_order)`
+/// pairs are read from the real token stream.
+#[cfg(feature = "smt-z3")]
+#[test]
+fn cross_layer_flatten_inversion_obligation_tracks_z3_verdict() {
+    let context = TransformExecutionContextV0 {
+        closed_style_world: true,
+        ..TransformExecutionContextV0::default()
+    };
+
+    let find_inversion_obligation = |execution: &crate::TransformExecutionSummaryV0| {
+        let obligation = execution
+            .cascade_proof_obligations
+            .obligations
+            .iter()
+            .find(|obligation| {
+                obligation.proof_product == "omena-cascade.layer-flatten-inversion-proof"
+            })
+            .cloned();
+        assert!(
+            obligation.is_some(),
+            "multi-layer bundle must emit a cross-layer inversion obligation"
+        );
+        obligation.unwrap_or_else(|| unreachable!())
+    };
+
+    // Inverted: pre-declaration `utilities, base` makes `base` (declared first in
+    // source) win the cascade, but flattening hands the win to the later
+    // `utilities` block — the winners diverge, so z3 proves the inversion `Sat`.
+    let inverted_source = concat!(
+        "@layer utilities, base; ",
+        "@layer base { .card { color: red; } } ",
+        "@layer utilities { .card { color: blue; } }"
+    );
+    let inverted = execute_transform_passes_on_source_with_dialect_and_context(
+        inverted_source,
+        StyleDialect::Css,
+        &[TransformPassKind::LayerFlatten, TransformPassKind::PrintCss],
+        &context,
+    );
+    let inverted_obligation = find_inversion_obligation(&inverted);
+    assert!(
+        !inverted_obligation.accepted,
+        "z3 must reject the flatten when a cross-layer ordering inversion exists"
+    );
+    assert_eq!(
+        inverted_obligation.blocked_reason.as_deref(),
+        Some(
+            "smt solver found a cross-layer cascade-ordering inversion: flattening would change the winning declaration"
+        )
+    );
+
+    // Safe: pre-declaration `base, utilities` makes precedence agree with source
+    // order, so the layered and flattened winners coincide and z3 proves `Unsat`.
+    // The ONLY difference from `inverted_source` is the pre-declaration order.
+    let safe_source = concat!(
+        "@layer base, utilities; ",
+        "@layer base { .card { color: red; } } ",
+        "@layer utilities { .card { color: blue; } }"
+    );
+    let safe = execute_transform_passes_on_source_with_dialect_and_context(
+        safe_source,
+        StyleDialect::Css,
+        &[TransformPassKind::LayerFlatten, TransformPassKind::PrintCss],
+        &context,
+    );
+    let safe_obligation = find_inversion_obligation(&safe);
+    assert!(
+        safe_obligation.accepted,
+        "z3 must accept the flatten when no cross-layer ordering inverts"
+    );
+    assert!(safe_obligation.blocked_reason.is_none());
+
+    // The verdict genuinely flipped on the single differing pre-declaration line.
+    assert_ne!(inverted_obligation.accepted, safe_obligation.accepted);
+}

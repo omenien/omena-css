@@ -7,8 +7,9 @@ use omena_cascade::{
 };
 use omena_parser::StyleDialect;
 use omena_smt::{
-    CanonicalSmtInputV0, SmtBackendSatResultV0, SmtBackendV0, StubSmtBackendV0,
-    canonical_smt_input_v0, smt_evaluate_static_supports_condition_v0,
+    CanonicalSmtInputV0, LayerFlattenInversionVerdictV0, LayerInversionDeclarationV0,
+    SmtBackendSatResultV0, SmtBackendV0, SmtVerdictV0, StubSmtBackendV0, canonical_smt_input_v0,
+    smt_check_layer_flatten_inversion_v0, smt_evaluate_static_supports_condition_v0,
     smt_prove_box_shorthand_combination_v0, smt_prove_layer_flatten_candidate_v0,
     smt_prove_scope_flatten_candidate_v0,
 };
@@ -20,6 +21,7 @@ use crate::{
     domains::{
         cascade_flatten::{
             collect_layer_flatten_proof_candidates_with_lexer,
+            collect_layer_inversion_declarations_with_lexer,
             collect_scope_flatten_proof_candidates_with_lexer,
         },
         shorthand::collect_box_shorthand_proof_candidates_with_lexer,
@@ -69,18 +71,34 @@ pub(crate) fn collect_cascade_proof_obligations_for_pass_input(
                 .collect()
         }
         Some(TransformPassKind::LayerFlatten) if context.closed_style_world => {
-            collect_layer_flatten_proof_candidates_with_lexer(source, dialect, true)
-                .into_iter()
-                .map(|candidate| {
-                    layer_obligation(
-                        pass_id,
-                        candidate.source_span_start,
-                        candidate.source_span_end,
-                        candidate.input,
-                        candidate.proof,
-                    )
-                })
-                .collect()
+            let mut obligations: Vec<TransformCascadeProofObligationV0> =
+                collect_layer_flatten_proof_candidates_with_lexer(source, dialect, true)
+                    .into_iter()
+                    .map(|candidate| {
+                        layer_obligation(
+                            pass_id,
+                            candidate.source_span_start,
+                            candidate.source_span_end,
+                            candidate.input,
+                            candidate.proof,
+                        )
+                    })
+                    .collect();
+
+            // A multi-layer closed bundle additionally needs the cross-layer
+            // cascade-ordering inversion discharged by the SMT search: the
+            // per-layer obligation only inspects one layer at a time and cannot
+            // see whether two layers' declarations invert after flattening.
+            if let Some(bundle) = collect_layer_inversion_declarations_with_lexer(source, dialect) {
+                obligations.push(layer_inversion_obligation(
+                    pass_id,
+                    bundle.source_span_start,
+                    bundle.source_span_end,
+                    &bundle.declarations,
+                ));
+            }
+
+            obligations
         }
         Some(TransformPassKind::LayerFlatten) => {
             vec![TransformCascadeProofObligationV0 {
@@ -280,6 +298,79 @@ fn layer_obligation(
         Some(canonical_smt_input),
         proof,
     )
+}
+
+/// Discharge the cross-layer flatten inversion obligation for a closed bundle.
+///
+/// The verdict is the SMT search's, not a local flag: `Unsat` (no ordering
+/// inversion exists across the layers) accepts the flatten, while `Sat` (some
+/// declaration inverts after the layer boundary is erased) rejects it. Under the
+/// `smt-z3` feature the z3 backend decides the QF_LIA search exactly; the default
+/// solver-free build uses the propositional stub, which cannot model integer
+/// ordering and therefore degenerates to `Sat`, conservatively *blocking* the
+/// multi-layer flatten until a real solver proves it safe.
+fn layer_inversion_obligation(
+    pass_id: &'static str,
+    source_span_start: usize,
+    source_span_end: usize,
+    declarations: &[LayerInversionDeclarationV0],
+) -> TransformCascadeProofObligationV0 {
+    let verdict = check_layer_flatten_inversion(declarations);
+    let accepted = verdict.verdict == SmtVerdictV0::Accepted;
+    let blocked_reason = if accepted {
+        None
+    } else if verdict.inversion_exists {
+        Some(
+            "smt solver found a cross-layer cascade-ordering inversion: flattening would change the winning declaration"
+                .to_string(),
+        )
+    } else {
+        Some(
+            "cross-layer flatten inversion search was not decided (no z3 backend); blocking the flatten conservatively"
+                .to_string(),
+        )
+    };
+    let cascade_safe_witness = if accepted {
+        "smt search proved no cross-layer ordering inverts after flattening".to_string()
+    } else {
+        "layered cascade order cannot be erased while an ordering inversion remains".to_string()
+    };
+
+    proof_obligation(
+        pass_id,
+        "omena-cascade.layer-flatten-inversion-proof",
+        accepted,
+        blocked_reason,
+        accepted,
+        cascade_safe_witness,
+        Some(source_span_start),
+        Some(source_span_end),
+        vec![
+            "closedBundleWitness",
+            "crossLayerOrderingNonInversion",
+            "perDeclarationLayerRank",
+            "perDeclarationSourceOrder",
+        ],
+        Some(verdict.canonical_input.clone()),
+        verdict,
+    )
+}
+
+/// Select the SMT backend for the cross-layer inversion search. The z3 backend
+/// is only linked under the `smt-z3` feature; the default build stays
+/// solver-free and uses the propositional stub.
+#[cfg(feature = "smt-z3")]
+fn check_layer_flatten_inversion(
+    declarations: &[LayerInversionDeclarationV0],
+) -> LayerFlattenInversionVerdictV0 {
+    smt_check_layer_flatten_inversion_v0(declarations, &omena_smt::Z3SmtBackendV0::default())
+}
+
+#[cfg(not(feature = "smt-z3"))]
+fn check_layer_flatten_inversion(
+    declarations: &[LayerInversionDeclarationV0],
+) -> LayerFlattenInversionVerdictV0 {
+    smt_check_layer_flatten_inversion_v0(declarations, &StubSmtBackendV0::default())
 }
 
 fn supports_obligation(
