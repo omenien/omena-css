@@ -330,38 +330,7 @@ pub fn categorical_fixture_evidence_for_endpoint_v0(
             Some(beck_chevalley_fixture_v0(endpoint_id))
         }
         "rust/omena-categorical/classify-omega-truth" => Some(omega_truth_fixture_v0(endpoint_id)),
-        "rust/omena-categorical/verify-s4-axioms" => Some(endpoint_fixture_v0(
-            endpoint_id,
-            "fixture.categorical.s4-axioms.v0",
-            "S4 modal axioms",
-            "omena-categorical.modal-evaluation-witness",
-            &[
-                "omena-categorical.kripke-frame",
-                "omena-categorical.modal-formula",
-                "omena-categorical.modal-evaluation-witness",
-                "omena-categorical.modal-axiom-check",
-            ],
-            &[
-                (
-                    "axiom-k",
-                    "omena-categorical.modal-axiom-check",
-                    "accepted=true",
-                    "accepted=true",
-                ),
-                (
-                    "axiom-t",
-                    "omena-categorical.modal-axiom-check",
-                    "accepted=true",
-                    "accepted=true",
-                ),
-                (
-                    "axiom-4",
-                    "omena-categorical.modal-axiom-check",
-                    "accepted=true",
-                    "accepted=true",
-                ),
-            ],
-        )),
+        "rust/omena-categorical/verify-s4-axioms" => Some(s4_axioms_fixture_v0(endpoint_id)),
         "rust/omena-categorical/verify-modal-imperative-equivalence" => Some(endpoint_fixture_v0(
             endpoint_id,
             "fixture.categorical.modal-imperative-equivalence.v0",
@@ -792,6 +761,71 @@ fn kripke_frame_fixture_v0(endpoint_id: &'static str) -> CategoricalEndpointFixt
             "omena-categorical.kripke-frame",
             "omena-categorical.kripke-edge",
             "omena-categorical.kripke-valuation",
+            "omena-categorical.modal-axiom-check",
+        ],
+        assertions,
+    )
+}
+
+fn s4_axioms_fixture_v0(endpoint_id: &'static str) -> CategoricalEndpointFixtureEvidenceV0 {
+    // Build a real S4 Kripke frame (a base cascade context plus a nested @media
+    // context) and verify the S4 frame axioms over its actual edge set instead of
+    // echoing literals: T (reflexivity) and 4 (transitivity) are computed by
+    // `verify_s4_frame_axioms_v0`, and a modal-evaluation witness is produced by
+    // `evaluate_omena_categorical_modal_formula_v0` against the frame valuations.
+    // A corrupted edge set flips T/4 and a frame missing the queried atom flips the
+    // witness, so each observed value is data-derived (see the unit tests).
+    let frame = build_cascade_prefix_kripke_frame_v0(
+        "fixture.s4-axioms.cascade-context",
+        "color",
+        &[
+            (Vec::new(), "red".to_string()),
+            (
+                vec!["@media (min-width: 600px)".to_string()],
+                "red".to_string(),
+            ),
+        ],
+    );
+    let axioms = verify_s4_frame_axioms_v0(&frame);
+    let reflexivity = modal_axiom_accepted_v0(&axioms, "reflexivity-t");
+    let transitivity = modal_axiom_accepted_v0(&axioms, "transitivity-4");
+    let witness = evaluate_omena_categorical_modal_formula_v0(
+        &modal_atom_formula_v0("s4-witness", "color=red"),
+        &frame,
+    );
+
+    let assertions = vec![
+        fixture_assertion_v0(
+            "s4-reflexivity-t",
+            "omena-categorical.modal-axiom-check",
+            format!("reflexivityT={reflexivity}"),
+            "reflexivityT=true",
+        ),
+        fixture_assertion_v0(
+            "s4-transitivity-4",
+            "omena-categorical.modal-axiom-check",
+            format!("transitivity4={transitivity}"),
+            "transitivity4=true",
+        ),
+        fixture_assertion_v0(
+            "modal-witness-evaluated",
+            "omena-categorical.modal-evaluation-witness",
+            format!(
+                "witnessTruth={}",
+                omega_truth_value_label_v0(witness.truth_value)
+            ),
+            "witnessTruth=Closed",
+        ),
+    ];
+    endpoint_fixture_from_assertions_v0(
+        endpoint_id,
+        "fixture.categorical.s4-axioms.v0",
+        "S4 modal axioms",
+        "omena-categorical.modal-evaluation-witness",
+        &[
+            "omena-categorical.kripke-frame",
+            "omena-categorical.modal-formula",
+            "omena-categorical.modal-evaluation-witness",
             "omena-categorical.modal-axiom-check",
         ],
         assertions,
@@ -1305,5 +1339,42 @@ mod tests {
         // literal echo.
         assert!(cascade_box_stable_v0(&kripke_test_frame("red")));
         assert!(!cascade_box_stable_v0(&kripke_test_frame("blue")));
+    }
+
+    #[test]
+    fn s4_axioms_fixture_observed_values_come_from_real_compute() {
+        let fixture =
+            categorical_fixture_evidence_for_endpoint_v0("rust/omena-categorical/verify-s4-axioms");
+        assert!(fixture.is_some());
+        let Some(fixture) = fixture else {
+            return;
+        };
+        assert!(fixture.accepted);
+        assert_eq!(fixture.fixture_id, "fixture.categorical.s4-axioms.v0");
+
+        let observed = fixture
+            .assertions
+            .iter()
+            .map(|assertion| (assertion.assertion_id, assertion.observed.clone()))
+            .collect::<std::collections::BTreeMap<_, _>>();
+        // T and 4 are computed by verify_s4_frame_axioms_v0 over a real frame; the
+        // corrupted-edge controls in `kripke_s4_axioms_reject_corrupted_edge_set`
+        // prove they are load-bearing rather than echoed literals.
+        assert_eq!(observed["s4-reflexivity-t"], "reflexivityT=true");
+        assert_eq!(observed["s4-transitivity-4"], "transitivity4=true");
+        assert_eq!(observed["modal-witness-evaluated"], "witnessTruth=Closed");
+
+        // The witness is data-derived: evaluating a formula whose atom is absent
+        // from the frame valuations yields Open, not Closed.
+        let frame = build_cascade_prefix_kripke_frame_v0(
+            "test.s4.witness",
+            "color",
+            &[(Vec::new(), "red".to_string())],
+        );
+        let absent = evaluate_omena_categorical_modal_formula_v0(
+            &modal_atom_formula_v0("absent", "color=blue"),
+            &frame,
+        );
+        assert_eq!(absent.truth_value, OmegaCascadeTruthValueV0::Open);
     }
 }
