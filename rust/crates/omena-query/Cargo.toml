@@ -18,6 +18,7 @@ hypergraph-ifds = []
 [dependencies]
 omena-bridge = { path = "../omena-bridge" }
 omena-cascade = { path = "../omena-cascade" }
+omena-ensemble = { path = "../omena-ensemble", features = ["replica-ensemble"] }
 omena-parser = { path = "../omena-parser" }
 omena-query-checker-orchestrator = { path = "../omena-query-checker-orchestrator" }
 omena-query-core = { path = "../omena-query-core" }

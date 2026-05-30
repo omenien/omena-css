@@ -20,9 +20,11 @@ pub use omena_checker::{
     OmenaCheckerCategoricalEvaluationV0, OmenaCheckerCategoricalInputV0,
     OmenaCheckerCategoricalPrimitiveRolePairInputV0, OmenaCheckerCategoricalRoleMappingInputV0,
     OmenaCheckerCustomPropertyInputV0, OmenaCheckerMTierEvaluationV0,
-    OmenaCheckerRgFlowCouplingInputV0, OmenaCheckerRgFlowCouplingSpaceInputV0,
-    OmenaCheckerRgFlowEvaluationV0, OmenaCheckerRgFlowInputV0, OmenaCheckerRuleCodeV0,
-    OmenaCheckerSmtEvaluationV0, OmenaCheckerSmtInputV0, OmenaCheckerSmtObligationInputV0,
+    OmenaCheckerReplicaEnsembleEvaluationV0, OmenaCheckerReplicaEnsembleInputV0,
+    OmenaCheckerReplicaEnsembleReportInputV0, OmenaCheckerRgFlowCouplingInputV0,
+    OmenaCheckerRgFlowCouplingSpaceInputV0, OmenaCheckerRgFlowEvaluationV0,
+    OmenaCheckerRgFlowInputV0, OmenaCheckerRuleCodeV0, OmenaCheckerSmtEvaluationV0,
+    OmenaCheckerSmtInputV0, OmenaCheckerSmtObligationInputV0,
     checker_cascade_primitive_role_catalog_v0,
     checker_categorical_cascade_evidence_for_exercised_primitives_v0,
     checker_categorical_cascade_evidence_v0,
@@ -30,8 +32,9 @@ pub use omena_checker::{
 use omena_checker::{
     OmenaCheckerDynamicClassDomainInputV0, evaluate_omena_checker_cascade_rules,
     evaluate_omena_checker_categorical_rules, evaluate_omena_checker_m_tier_rules,
-    evaluate_omena_checker_rg_flow_rules, evaluate_omena_checker_smt_rules,
-    list_omena_checker_m_tier_rule_code_names, list_omena_checker_rule_code_names,
+    evaluate_omena_checker_replica_ensemble_rules, evaluate_omena_checker_rg_flow_rules,
+    evaluate_omena_checker_smt_rules, list_omena_checker_m_tier_rule_code_names,
+    list_omena_checker_rule_code_names,
 };
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -310,6 +313,76 @@ pub fn run_omena_query_checker_categorical_gate_v0(
         ready_surfaces: vec![
             "checkerRuleRegistry",
             "categoricalCascadeRoleFunctor",
+            "registeredRuleDiagnosticGate",
+            "queryDiagnosticHandoff",
+        ],
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct OmenaQueryCheckerReplicaEnsembleGateV0 {
+    pub schema_version: &'static str,
+    pub product: &'static str,
+    pub orchestrator_kind: &'static str,
+    pub enabled_rule_names: Vec<&'static str>,
+    pub emitted_rule_names: Vec<&'static str>,
+    pub registered_rule_count: usize,
+    pub unregistered_rule_count: usize,
+    pub evaluation_count: usize,
+    pub enforcement_passed: bool,
+    pub evaluations: Vec<OmenaCheckerReplicaEnsembleEvaluationV0>,
+    pub ready_surfaces: Vec<&'static str>,
+}
+
+/// Invoke the real replica-ensemble cross-file inconsistency evaluator and gate
+/// its emitted rule codes against the registered checker rule registry.
+///
+/// The reports are produced by the caller from a real cross-file replica overlap
+/// computation: each report carries the `recommendation`, `meanQ`, `varianceQ`,
+/// and disagreement-pair count that `omena-ensemble`'s
+/// `build_cross_file_inconsistency_report` derived from per-file cascade winners.
+/// This gate runs the genuine `evaluate_omena_checker_replica_ensemble_rules`
+/// mechanism, which only emits `replica-ensemble-inconsistency` when a report's
+/// overlap statistics signal a disagreement (recommendation other than
+/// `noActionNeeded`, a non-empty disagreement-pair set, or `meanQ < 1.0`). A
+/// consistent ensemble (every shared cascade outcome agrees, `meanQ == 1.0`, no
+/// disagreement pairs, `noActionNeeded`) is filtered out and nothing is surfaced,
+/// so the diagnostic depends on the overlap statistics over the real winners, not
+/// on a literal.
+pub fn run_omena_query_checker_replica_ensemble_gate_v0(
+    input: OmenaCheckerReplicaEnsembleInputV0,
+) -> OmenaQueryCheckerReplicaEnsembleGateV0 {
+    let registered_rules = list_omena_checker_rule_code_names()
+        .into_iter()
+        .collect::<BTreeSet<_>>();
+    let enabled_rule_names = vec![OmenaCheckerRuleCodeV0::ReplicaEnsembleInconsistency.as_str()];
+    let evaluations = evaluate_omena_checker_replica_ensemble_rules(input);
+    let emitted_rule_names = evaluations
+        .iter()
+        .map(|evaluation| evaluation.rule_code_name)
+        .collect::<BTreeSet<_>>()
+        .into_iter()
+        .collect::<Vec<_>>();
+    let unregistered_rule_count = emitted_rule_names
+        .iter()
+        .filter(|rule| !registered_rules.contains(**rule))
+        .count();
+
+    OmenaQueryCheckerReplicaEnsembleGateV0 {
+        schema_version: "0",
+        product: "omena-query-checker-orchestrator.replica-ensemble-gate",
+        orchestrator_kind: "registered-rule-diagnostic-gate",
+        enabled_rule_names,
+        emitted_rule_names,
+        registered_rule_count: registered_rules.len(),
+        unregistered_rule_count,
+        evaluation_count: evaluations.len(),
+        enforcement_passed: unregistered_rule_count == 0,
+        evaluations,
+        ready_surfaces: vec![
+            "checkerRuleRegistry",
+            "crossFileReplicaOverlap",
             "registeredRuleDiagnosticGate",
             "queryDiagnosticHandoff",
         ],

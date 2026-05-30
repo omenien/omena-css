@@ -3024,3 +3024,103 @@ fn cascade_smt_violation_surfaces_for_unsatisfiable_box_shorthand_obligation()
     );
     Ok(())
 }
+
+// L0 (#33): two cross-file CSS modules that resolve a SHARED `(selector, property)`
+// cascade outcome to DIFFERENT winning values must surface a cross-file
+// `replicaEnsembleInconsistency`, while modules that agree on every shared outcome
+// must NOT — the only difference between the two fixtures below is the winning
+// `color` value in the imported module, so the diagnostic is driven by the real
+// per-file cascade winners, not by structure.
+#[test]
+fn cross_file_replica_ensemble_inconsistency_fires_on_disagreeing_modules()
+-> Result<(), &'static str> {
+    let disagreeing = vec![
+        OmenaQueryStyleSourceInputV0 {
+            style_path: "/tmp/app.module.scss".to_string(),
+            style_source: r#"@use "./theme";
+.button { color: red; }
+.button { color: green; }"#
+                .to_string(),
+        },
+        OmenaQueryStyleSourceInputV0 {
+            style_path: "/tmp/_theme.scss".to_string(),
+            // Same `.button { color }` site, but this module's cascade resolves it to
+            // blue — a genuine cross-module disagreement on the shared outcome.
+            style_source: r#".button { color: red; }
+.button { color: blue; }"#
+                .to_string(),
+        },
+    ];
+
+    let diagnostics = crate::summarize_omena_query_style_diagnostics_for_workspace_file(
+        "/tmp/app.module.scss",
+        disagreeing.as_slice(),
+        &[],
+        &[],
+        None,
+    )
+    .ok_or("disagreeing workspace diagnostics")?;
+
+    assert!(
+        diagnostics
+            .ready_surfaces
+            .contains(&"crossFileReplicaEnsembleDiagnostics"),
+        "the cross-file replica-ensemble surface must be advertised"
+    );
+    assert!(
+        diagnostics
+            .diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.code == "replicaEnsembleInconsistency"),
+        "disagreeing modules must surface replicaEnsembleInconsistency (got {:?})",
+        diagnostics
+            .diagnostics
+            .iter()
+            .map(|diagnostic| diagnostic.code)
+            .collect::<Vec<_>>()
+    );
+
+    // Consistent variant: the imported module now resolves `.button { color }` to the
+    // SAME winner (green) as the target. Same files, same graph, same site — only the
+    // winning value agrees, so nothing must surface.
+    let consistent = vec![
+        OmenaQueryStyleSourceInputV0 {
+            style_path: "/tmp/app.module.scss".to_string(),
+            style_source: r#"@use "./theme";
+.button { color: red; }
+.button { color: green; }"#
+                .to_string(),
+        },
+        OmenaQueryStyleSourceInputV0 {
+            style_path: "/tmp/_theme.scss".to_string(),
+            style_source: r#".button { color: red; }
+.button { color: green; }"#
+                .to_string(),
+        },
+    ];
+
+    let consistent_diagnostics = crate::summarize_omena_query_style_diagnostics_for_workspace_file(
+        "/tmp/app.module.scss",
+        consistent.as_slice(),
+        &[],
+        &[],
+        None,
+    )
+    .ok_or("consistent workspace diagnostics")?;
+
+    assert!(
+        consistent_diagnostics
+            .diagnostics
+            .iter()
+            .all(|diagnostic| diagnostic.code != "replicaEnsembleInconsistency"),
+        "modules that agree on every shared cascade outcome must NOT surface \
+         replicaEnsembleInconsistency (got {:?})",
+        consistent_diagnostics
+            .diagnostics
+            .iter()
+            .map(|diagnostic| diagnostic.code)
+            .collect::<Vec<_>>()
+    );
+
+    Ok(())
+}

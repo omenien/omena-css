@@ -3,52 +3,12 @@ use std::collections::{BTreeMap, BTreeSet};
 use crate::overlap::{compute_overlap_distribution, outcome_projection_policy_for_mode};
 use crate::types::{
     AgreementVerdict, CriticalExponentAnnotationV0, CrossFileInconsistencyReportV0,
-    DetectabilityPhase, ModuleGraphEdgeV0, ModuleGraphV0, OutcomeMode, ParisiM4AlphaSource,
-    PartitionEstimateV0, PartitionHypothesisLabel, PartitionHypothesisResultV0,
-    REPLICA_ENSEMBLE_FEATURE_GATE_V0, REPLICA_ENSEMBLE_LAYER_MARKER_V0,
-    REPLICA_ENSEMBLE_SCHEMA_VERSION_V0, ReplicaOverlapV0, ReplicaSnapshotV0, ReportOptionsV0,
-    ReportRecommendation, RgExponentHandleV0, SBMDetectabilityThresholdV0, SamplingPolicy,
-    SpectralMethod, UniversalityClassHint,
+    DetectabilityPhase, ModuleGraphV0, OutcomeMode, ParisiM4AlphaSource, PartitionEstimateV0,
+    PartitionHypothesisLabel, PartitionHypothesisResultV0, REPLICA_ENSEMBLE_FEATURE_GATE_V0,
+    REPLICA_ENSEMBLE_LAYER_MARKER_V0, REPLICA_ENSEMBLE_SCHEMA_VERSION_V0, ReplicaOverlapV0,
+    ReplicaSnapshotV0, ReportOptionsV0, ReportRecommendation, RgExponentHandleV0,
+    SBMDetectabilityThresholdV0, SamplingPolicy, SpectralMethod, UniversalityClassHint,
 };
-
-pub fn module_graph_from_analyzed_graphs(
-    workspace_root: &str,
-    graphs: &[omena_query::AnalyzedGraphV0],
-) -> ModuleGraphV0 {
-    let nodes = graphs
-        .iter()
-        .map(|graph| graph.style_path.clone())
-        .collect::<Vec<_>>();
-    let edges = graphs
-        .iter()
-        .filter(|graph| graph.edge_count > 0)
-        .flat_map(|graph| {
-            nodes
-                .iter()
-                .filter(move |node| *node != &graph.style_path)
-                .take(graph.edge_count)
-                .map(move |target| ModuleGraphEdgeV0 {
-                    schema_version: REPLICA_ENSEMBLE_SCHEMA_VERSION_V0,
-                    product: "omena-ensemble.module-graph-edge",
-                    layer_marker: REPLICA_ENSEMBLE_LAYER_MARKER_V0,
-                    feature_gate: REPLICA_ENSEMBLE_FEATURE_GATE_V0,
-                    from_module: graph.style_path.clone(),
-                    to_module: target.clone(),
-                    edge_kind: "analyzedGraphEdge",
-                })
-        })
-        .collect::<Vec<_>>();
-
-    ModuleGraphV0 {
-        schema_version: REPLICA_ENSEMBLE_SCHEMA_VERSION_V0,
-        product: "omena-ensemble.module-graph",
-        layer_marker: REPLICA_ENSEMBLE_LAYER_MARKER_V0,
-        feature_gate: REPLICA_ENSEMBLE_FEATURE_GATE_V0,
-        workspace_root: workspace_root.to_string(),
-        nodes,
-        edges,
-    }
-}
 
 pub fn compute_sbm_detectability(
     workspace_root: &str,

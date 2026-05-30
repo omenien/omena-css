@@ -19,5 +19,4 @@ hyperedge-sbm = []
 
 [dependencies]
 omena-cascade = { path = "../omena-cascade" }
-omena-query = { path = "../omena-query" }
 serde.workspace = true
