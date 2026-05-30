@@ -33,7 +33,9 @@ const queryInternalDeps = queryDeps.filter(
 const queryDirectTransformDeps = TRANSFORM_CRATES.filter((dependency) =>
   queryDeps.includes(dependency),
 );
-const runnerTransformDeps = TRANSFORM_CRATES.filter((dependency) => runnerDeps.includes(dependency));
+const runnerTransformDeps = TRANSFORM_CRATES.filter((dependency) =>
+  runnerDeps.includes(dependency),
+);
 const CORE_OWNED_QUERY_DEPS: readonly string[] = [
   "engine-input-producers",
   "omena-abstract-value",
@@ -115,7 +117,10 @@ assert.ok(
   querySource.includes("omena_query_transform_runner"),
   "omena-query lib.rs must route transform-family imports through omena-query-transform-runner",
 );
-const queryCascadeCheckerSource = readFileSync(`${QUERY_SRC_PATH}/style/cascade_checker.rs`, "utf8");
+const queryCascadeCheckerSource = readFileSync(
+  `${QUERY_SRC_PATH}/style/cascade_checker.rs`,
+  "utf8",
+);
 assert.ok(
   !/\b(?:use|pub use)\s+omena_checker\b/u.test(queryCascadeCheckerSource),
   "omena-query cascade checker must not import omena-checker directly",

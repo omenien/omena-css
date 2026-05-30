@@ -72,9 +72,7 @@ for (const marker of [
 
 if (
   !querySource.includes("pub categorical_evidence:") ||
-  !querySource.includes(
-    "Option<omena_query_checker_orchestrator::CategoricalCascadeEvidenceV0>",
-  )
+  !querySource.includes("Option<omena_query_checker_orchestrator::CategoricalCascadeEvidenceV0>")
 ) {
   throw new Error(
     "cascade-at-position query result must expose optional categorical evidence through the checker boundary",

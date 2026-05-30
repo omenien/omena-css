@@ -347,7 +347,8 @@ function buildTheoryClaimGuard(): {
         "zk_backend_link_policy_keeps_real_backends_feature_gated",
         "heavy_dependencies_default_off",
       ],
-      nextAction: "keep default path heavy-free and expand circuit coverage before final ZK wording",
+      nextAction:
+        "keep default path heavy-free and expand circuit coverage before final ZK wording",
     },
     {
       id: "m4-gamma.refinement-type-system",

@@ -610,9 +610,7 @@ function runSmtEvaluationFixture(): SmtEvaluationSummary {
   return JSON.parse(result.stdout) as SmtEvaluationSummary;
 }
 
-function runMdlEvaluationFixture(
-  valueFrequencies: readonly number[],
-): MdlEvaluationSummary {
+function runMdlEvaluationFixture(valueFrequencies: readonly number[]): MdlEvaluationSummary {
   const input = {
     sourceUri: "file:///workspace/Button.module.css",
     sourceHash: "fixture-mdl",

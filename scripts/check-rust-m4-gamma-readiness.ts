@@ -137,9 +137,10 @@ for (const cratePath of gammaCrates) {
   const dependencyBlock = /\[dependencies\]([\s\S]*?)(?:\n\[|$)/u.exec(manifest)?.[1] ?? "";
   for (const dependencyName of heavyDependencyNames) {
     const escapedDependencyName = dependencyName.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&");
-    const heavyDependencyLine = new RegExp(`^\\s*${escapedDependencyName}\\s*=([^\\n]+)$`, "mu").exec(
-      dependencyBlock,
-    )?.[1];
+    const heavyDependencyLine = new RegExp(
+      `^\\s*${escapedDependencyName}\\s*=([^\\n]+)$`,
+      "mu",
+    ).exec(dependencyBlock)?.[1];
     assert(
       !heavyDependencyLine || heavyDependencyLine.includes("optional = true"),
       `${manifestPath} must not pull heavy dependency ${dependencyName} in default dependencies`,
@@ -485,10 +486,14 @@ assertIncludes(
   "ZK audit must expose four CI matrix cells",
 );
 const zkAuditManifest = read("rust/crates/omena-zk-audit/Cargo.toml");
-assertIncludes(zkAuditManifest, "ark-groth16", "ZK audit must link arkworks Groth16 behind a feature");
 assertIncludes(
   zkAuditManifest,
-  'zk-audit = [',
+  "ark-groth16",
+  "ZK audit must link arkworks Groth16 behind a feature",
+);
+assertIncludes(
+  zkAuditManifest,
+  "zk-audit = [",
   "ZK audit real backend dependencies must remain opt-in through the zk-audit feature",
 );
 assertIncludes(zkAudit, "zk_audit_fold_chain_v0", "ZK audit must expose fold-chain evidence");
