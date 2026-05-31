@@ -100,16 +100,27 @@ const gammaCrates = [
   "crates/omena-streaming-ifds",
 ] as const;
 
-assert(
-  workspaceMembers.length === 45,
-  `expected 45 workspace members, got ${workspaceMembers.length}`,
+// Step 7 (omena-structure-design): workspace-roster integrity is DERIVED from the role
+// manifest rather than hardcoded literal counts, so adding a member (e.g. the [U]
+// umbrella crate) cannot break a `=== 45`/`=== 42` assert. Every workspace member must
+// carry the [package.metadata.omena] role manifest; rust/role-boundaries is the
+// authoritative role gate, this is the m4-gamma-side completeness cross-check.
+const untaggedMembers = workspaceMembers.filter(
+  (member) => !read(`rust/${member}/Cargo.toml`).includes("[package.metadata.omena]"),
 );
 assert(
-  workspaceMembers.filter((member) => member.includes("/omena-")).length === 42,
-  "expected omena-* crate roster to be 42",
+  untaggedMembers.length === 0,
+  `every workspace member must carry the [package.metadata.omena] role manifest; untagged: ${untaggedMembers.join(", ")}`,
 );
 for (const cratePath of gammaCrates) {
   assert(workspaceMembers.includes(cratePath), `missing M4-gamma workspace member ${cratePath}`);
+  // gammaCrates is the m4-gamma audit SUBSET of the pillar-tagged theoretical-rigor
+  // crates (pillar ⊋ gammaCrates — pillar also covers m4-alpha/beta theory crates), so
+  // it is NOT derived from pillar; instead cross-check the manifest linkage one way.
+  assert(
+    read(`rust/${cratePath}/Cargo.toml`).includes('pillar = "theoretical-rigor"'),
+    `M4-gamma crate ${cratePath} must be tagged pillar = "theoretical-rigor" in the role manifest`,
+  );
 }
 assertGammaV0StructHeaders(gammaCrates);
 
