@@ -17,7 +17,6 @@ workspace = true
 
 [features]
 default = []
-variational = []
 
 [dependencies]
 omena-abstract-value = { path = "../omena-abstract-value" }

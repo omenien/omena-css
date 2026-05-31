@@ -17,7 +17,6 @@ workspace = true
 
 [features]
 default = []
-rg-flow = []
 
 [dependencies]
 omena-cascade = { path = "../omena-cascade" }

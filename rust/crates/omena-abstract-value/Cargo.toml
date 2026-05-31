@@ -16,7 +16,6 @@ workspace = true
 
 [features]
 default = []
-qtt-provenance = []
 
 [dependencies]
 omena-incremental = { path = "../omena-incremental" }

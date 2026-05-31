@@ -17,7 +17,6 @@ workspace = true
 
 [features]
 default = []
-categorical-evidence = []
 
 [dependencies]
 omena-cascade = { path = "../omena-cascade" }

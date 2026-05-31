@@ -19,7 +19,6 @@ workspace = true
 default = []
 replica-ensemble = ["sequential"]
 sequential = []
-hyperedge-sbm = []
 
 [dependencies]
 omena-cascade = { path = "../omena-cascade" }
