@@ -19,8 +19,6 @@ workspace = true
 default = []
 smt-stub = []
 smt-z3 = ["dep:z3", "z3/gh-release"]
-smt-cvc5 = []
-smt-bitwuzla = []
 
 [dependencies]
 blake3.workspace = true

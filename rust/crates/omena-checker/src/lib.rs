@@ -230,8 +230,6 @@ pub struct OmenaCheckerRuleDescriptorV0 {
 pub enum OmenaCheckerSmtBackendKindV0 {
     Stub,
     Z3,
-    Cvc5,
-    Bitwuzla,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -995,9 +993,7 @@ pub fn resolve_omena_checker_rule_tier_for_smt_backend(
 
     match backend_kind {
         OmenaCheckerSmtBackendKindV0::Stub => OmenaCheckerRuleTierV0::I,
-        OmenaCheckerSmtBackendKindV0::Z3
-        | OmenaCheckerSmtBackendKindV0::Cvc5
-        | OmenaCheckerSmtBackendKindV0::Bitwuzla => OmenaCheckerRuleTierV0::S,
+        OmenaCheckerSmtBackendKindV0::Z3 => OmenaCheckerRuleTierV0::S,
     }
 }
 
@@ -1760,8 +1756,6 @@ fn smt_backend_kind_name(kind: SmtBackendKindV0) -> &'static str {
     match kind {
         SmtBackendKindV0::Stub => "stub",
         SmtBackendKindV0::Z3 => "z3",
-        SmtBackendKindV0::Cvc5 => "cvc5",
-        SmtBackendKindV0::Bitwuzla => "bitwuzla",
     }
 }
 
@@ -1769,8 +1763,6 @@ fn smt_backend_product_name(kind: SmtBackendKindV0) -> &'static str {
     match kind {
         SmtBackendKindV0::Stub => "omena-smt.backend.stub",
         SmtBackendKindV0::Z3 => "omena-smt.backend.z3",
-        SmtBackendKindV0::Cvc5 => "omena-smt.backend.cvc5",
-        SmtBackendKindV0::Bitwuzla => "omena-smt.backend.bitwuzla",
     }
 }
 

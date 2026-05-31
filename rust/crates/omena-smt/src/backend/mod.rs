@@ -7,10 +7,6 @@ use crate::{
 
 mod stub;
 
-#[cfg(feature = "smt-bitwuzla")]
-pub mod bitwuzla;
-#[cfg(feature = "smt-cvc5")]
-pub mod cvc5;
 #[cfg(feature = "smt-z3")]
 pub mod z3;
 
@@ -21,8 +17,6 @@ pub use stub::StubSmtBackendV0;
 pub enum SmtBackendKindV0 {
     Stub,
     Z3,
-    Cvc5,
-    Bitwuzla,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]

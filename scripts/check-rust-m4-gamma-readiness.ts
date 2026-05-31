@@ -297,8 +297,6 @@ for (const smtPath of [
   "rust/crates/omena-smt/src/unsat_core.rs",
   "rust/crates/omena-smt/src/backend/stub.rs",
   "rust/crates/omena-smt/src/backend/z3.rs",
-  "rust/crates/omena-smt/src/backend/cvc5.rs",
-  "rust/crates/omena-smt/src/backend/bitwuzla.rs",
 ]) {
   assert(existsSync(smtPath), `missing SMT module ${smtPath}`);
 }
