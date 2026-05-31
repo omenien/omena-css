@@ -106,6 +106,10 @@ jobs:
         name: Run naming-consistency
         run: pnpm cme-check run rust/naming-consistency
         continue-on-error: true
+      - id: aggregation_complete
+        name: Run closure-fast aggregation completeness
+        run: pnpm cme-check run rust/closure-fast-aggregation-complete
+        continue-on-error: true
       - if: always()
         name: Enforce closure-fast result
         run: |
@@ -120,6 +124,7 @@ jobs:
           echo "role_boundaries=${{ steps.role_boundaries.outcome }}"
           echo "publish_flags=${{ steps.publish_flags.outcome }}"
           echo "naming_consistency=${{ steps.naming_consistency.outcome }}"
+          echo "aggregation_complete=${{ steps.aggregation_complete.outcome }}"
           failed=0
           for outcome in \
             "${{ steps.m1.outcome }}" \
@@ -132,7 +137,8 @@ jobs:
             "${{ steps.train_closure.outcome }}" \
             "${{ steps.role_boundaries.outcome }}" \
             "${{ steps.publish_flags.outcome }}" \
-            "${{ steps.naming_consistency.outcome }}"; do
+            "${{ steps.naming_consistency.outcome }}" \
+            "${{ steps.aggregation_complete.outcome }}"; do
             if [ "$outcome" != "success" ]; then
               failed=1
             fi
