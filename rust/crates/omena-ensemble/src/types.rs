@@ -127,7 +127,7 @@ pub struct ReplicaOverlapDistributionV0 {
 #[serde(rename_all = "camelCase")]
 pub enum ParisiSource {
     M4AlphaCascadeReplicaOverlap,
-    LocalEmFallback,
+    LocalTwoComponentEm,
     Unavailable,
 }
 

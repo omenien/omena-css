@@ -341,12 +341,77 @@ fn parisi_estimate(
 
     if modality == DistributionModality::BimodalRSB {
         return (
-            Some(mean(q_values).clamp(0.0, 1.0)),
-            ParisiSource::LocalEmFallback,
+            two_component_em_low_overlap_weight(q_values),
+            ParisiSource::LocalTwoComponentEm,
         );
     }
 
     (None, ParisiSource::Unavailable)
+}
+
+fn two_component_em_low_overlap_weight(q_values: &[f64]) -> Option<f64> {
+    if q_values.len() < 3 {
+        return None;
+    }
+    let mut sorted = q_values.to_vec();
+    sorted.sort_by(f64::total_cmp);
+    let mut low_mean = sorted[0].clamp(0.0, 1.0);
+    let mut high_mean = sorted[sorted.len() - 1].clamp(0.0, 1.0);
+    if (high_mean - low_mean).abs() < 0.000_001 {
+        return None;
+    }
+
+    let mut low_weight = 0.5;
+    let mut variance = variance(q_values, mean(q_values)).max(0.000_1);
+    for _ in 0..32 {
+        let mut low_responsibility_sum = 0.0;
+        let mut high_responsibility_sum = 0.0;
+        let mut low_weighted_sum = 0.0;
+        let mut high_weighted_sum = 0.0;
+
+        for value in q_values {
+            let low_density = low_weight * gaussian_density(*value, low_mean, variance);
+            let high_density = (1.0 - low_weight) * gaussian_density(*value, high_mean, variance);
+            let total_density = (low_density + high_density).max(0.000_001);
+            let low_responsibility = low_density / total_density;
+            let high_responsibility = 1.0 - low_responsibility;
+            low_responsibility_sum += low_responsibility;
+            high_responsibility_sum += high_responsibility;
+            low_weighted_sum += low_responsibility * value;
+            high_weighted_sum += high_responsibility * value;
+        }
+
+        low_weight = (low_responsibility_sum / q_values.len() as f64).clamp(0.001, 0.999);
+        if low_responsibility_sum > 0.000_001 {
+            low_mean = (low_weighted_sum / low_responsibility_sum).clamp(0.0, 1.0);
+        }
+        if high_responsibility_sum > 0.000_001 {
+            high_mean = (high_weighted_sum / high_responsibility_sum).clamp(0.0, 1.0);
+        }
+
+        let mut variance_sum = 0.0;
+        for value in q_values {
+            let low_density = low_weight * gaussian_density(*value, low_mean, variance);
+            let high_density = (1.0 - low_weight) * gaussian_density(*value, high_mean, variance);
+            let total_density = (low_density + high_density).max(0.000_001);
+            let low_responsibility = low_density / total_density;
+            let high_responsibility = 1.0 - low_responsibility;
+            variance_sum += low_responsibility * (value - low_mean).powi(2);
+            variance_sum += high_responsibility * (value - high_mean).powi(2);
+        }
+        variance = (variance_sum / q_values.len() as f64).max(0.000_1);
+    }
+
+    if low_mean <= high_mean {
+        Some(low_weight.clamp(0.0, 1.0))
+    } else {
+        Some((1.0 - low_weight).clamp(0.0, 1.0))
+    }
+}
+
+fn gaussian_density(value: f64, mean: f64, variance: f64) -> f64 {
+    let variance = variance.max(0.000_1);
+    (-((value - mean).powi(2)) / (2.0 * variance)).exp() / variance.sqrt()
 }
 
 fn modality_definition(
@@ -363,8 +428,11 @@ fn modality_definition(
         (DistributionModality::BimodalRSB, ParisiSource::M4AlphaCascadeReplicaOverlap) => {
             "Two peaks in P(q) with M4-alpha spin-glass Parisi estimate attached"
         }
+        (DistributionModality::BimodalRSB, ParisiSource::LocalTwoComponentEm) => {
+            "Two peaks in P(q) histogram; local two-component EM estimates the low-overlap mixture weight"
+        }
         (DistributionModality::BimodalRSB, _) => {
-            "Two peaks in P(q) histogram; 1-RSB heuristic until spin-glass source is attached"
+            "Two peaks in P(q) histogram; spin-glass source unavailable for Parisi estimate"
         }
         (DistributionModality::Continuous, _) => {
             "Smooth P(q) histogram; peak detection fails the bimodal threshold"

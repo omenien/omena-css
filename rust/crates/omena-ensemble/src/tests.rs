@@ -9,7 +9,7 @@ use crate::{
     ModuleGraphV0, OutcomeMode, ParisiM4AlphaSource, ParisiSource, PartitionHypothesisLabel,
     REPLICA_ENSEMBLE_FEATURE_GATE_V0, REPLICA_ENSEMBLE_LAYER_MARKER_V0,
     REPLICA_ENSEMBLE_SCHEMA_VERSION_V0, ReportOptionsV0, ReportRecommendation, RgExponentHandleV0,
-    SamplingPolicy, SpectralMethod, build_cross_file_inconsistency_report,
+    SamplingPolicy, SpectralMethod, UniversalityClassHint, build_cross_file_inconsistency_report,
     compute_overlap_distribution, compute_replica_overlap, compute_sbm_detectability,
     grn_outcome_projection_policy, outcome_projection_policy_for_mode, site,
 };
@@ -37,7 +37,7 @@ fn tier_one_pairwise_overlap_does_not_require_spin_glass_source() {
 }
 
 #[test]
-fn distribution_uses_local_fallback_without_m4_alpha_parisi_source() {
+fn distribution_uses_local_two_component_em_without_m4_alpha_parisi_source() {
     let replicas = vec![
         fixture_replica("brand-a/a.module.css", ["a", "a", "a"]),
         fixture_replica("brand-a/b.module.css", ["a", "a", "a"]),
@@ -57,8 +57,15 @@ fn distribution_uses_local_fallback_without_m4_alpha_parisi_source() {
     assert_eq!(distribution.pair_count, 6);
     assert_eq!(distribution.histogram_bin_count, 10);
     assert_eq!(distribution.modality, DistributionModality::BimodalRSB);
-    assert_eq!(distribution.parisi_m_source, ParisiSource::LocalEmFallback);
-    assert!(distribution.parisi_m_estimate.is_some());
+    assert_eq!(
+        distribution.parisi_m_source,
+        ParisiSource::LocalTwoComponentEm
+    );
+    let parisi_m = distribution
+        .parisi_m_estimate
+        .expect("bimodal distribution should run local EM");
+    assert!(parisi_m > 0.5);
+    assert!((parisi_m - distribution.mean_q).abs() > 0.1);
 }
 
 #[test]
@@ -108,6 +115,65 @@ fn sbm_detectability_ranks_partition_hypotheses_and_uses_unknown_safe_annotation
     assert_eq!(threshold.partition_hypothesis_results.len(), 3);
     assert!(threshold.best_lambda_snr >= 0.0);
     assert_ne!(threshold.phase, DetectabilityPhase::Undetectable);
+}
+
+#[test]
+fn sbm_detectability_recovers_planted_partition_with_likelihood_evidence() {
+    let graph = planted_two_brand_graph();
+    let threshold = compute_sbm_detectability(
+        "/workspace",
+        &graph,
+        SpectralMethod::Auto,
+        &[
+            PartitionHypothesisLabel::ComposesCluster,
+            PartitionHypothesisLabel::AutoSpectral,
+        ],
+        Some(RgExponentHandleV0 {
+            schema_version: REPLICA_ENSEMBLE_SCHEMA_VERSION_V0,
+            product: "omena-ensemble.rg-exponent-handle",
+            layer_marker: REPLICA_ENSEMBLE_LAYER_MARKER_V0,
+            feature_gate: REPLICA_ENSEMBLE_FEATURE_GATE_V0,
+            workspace_root: "/workspace".to_string(),
+            timestamp: "2026-05-31T00:00:00Z".to_string(),
+            digest: "planted".to_string(),
+        }),
+    );
+
+    assert_eq!(
+        threshold.best_hypothesis,
+        PartitionHypothesisLabel::ComposesCluster
+    );
+    assert!(threshold.p_in_estimate > threshold.p_out_estimate);
+    assert_eq!(threshold.phase, DetectabilityPhase::Detectable);
+    let partitions = &threshold.assortative_partition.partitions;
+    assert_eq!(
+        partitions["brand-a/a.module.css"],
+        partitions["brand-a/b.module.css"]
+    );
+    assert_eq!(
+        partitions["brand-b/c.module.css"],
+        partitions["brand-b/d.module.css"]
+    );
+    assert_ne!(
+        partitions["brand-a/a.module.css"],
+        partitions["brand-b/c.module.css"]
+    );
+    let best_result = threshold
+        .partition_hypothesis_results
+        .iter()
+        .find(|result| result.label == threshold.best_hypothesis)
+        .expect("best hypothesis result");
+    assert!(
+        best_result.likelihood_ratio_p_value.unwrap_or(1.0) < 0.25,
+        "planted partition should improve over the one-community null: {best_result:?}"
+    );
+    assert_eq!(
+        threshold
+            .critical_exponent_annotation
+            .as_ref()
+            .and_then(|annotation| annotation.universality_class_hint),
+        Some(UniversalityClassHint::TokenGraph)
+    );
 }
 
 #[test]

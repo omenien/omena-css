@@ -110,8 +110,9 @@ fn evaluate_partition_hypothesis(
 ) -> PartitionHypothesisResultV0 {
     let partition = partition_for(label, graph);
     let (p_in, p_out) = edge_probabilities(graph, &partition.partitions);
-    let lambda_snr = lambda_snr(p_in, p_out, partition.community_size_distribution.len());
+    let lambda_snr = lambda_snr(p_in, p_out, &partition.community_size_distribution);
     let log_likelihood = log_likelihood(graph, &partition.partitions, p_in, p_out);
+    let null_log_likelihood = null_log_likelihood(graph);
     let k_communities = partition.community_size_distribution.len().max(1);
     let parameter_count = k_communities + 1;
     let aic = 2.0 * parameter_count as f64 - 2.0 * log_likelihood;
@@ -129,7 +130,11 @@ fn evaluate_partition_hypothesis(
         log_likelihood,
         aic_relative: aic,
         bic_relative: bic,
-        likelihood_ratio_p_value: Some((-lambda_snr).exp().clamp(0.0, 1.0)),
+        likelihood_ratio_p_value: Some(likelihood_ratio_p_value(
+            log_likelihood,
+            null_log_likelihood,
+            k_communities,
+        )),
         k_communities,
     }
 }
@@ -323,10 +328,17 @@ fn probability(observed: usize, possible: usize) -> f64 {
     }
 }
 
-fn lambda_snr(p_in: f64, p_out: f64, community_count: usize) -> f64 {
+fn lambda_snr(p_in: f64, p_out: f64, community_size_distribution: &[usize]) -> f64 {
+    let community_count = community_size_distribution.len().max(1);
+    let mean_community_size = if community_size_distribution.is_empty() {
+        1.0
+    } else {
+        community_size_distribution.iter().sum::<usize>() as f64
+            / community_size_distribution.len() as f64
+    };
     let denominator = (p_in + community_count.saturating_sub(1) as f64 * p_out).max(0.000_001);
     let contrast = (p_in - p_out).max(0.0);
-    contrast * contrast / denominator * 10.0
+    contrast * contrast * mean_community_size.max(1.0) / denominator
 }
 
 fn log_likelihood(
@@ -354,6 +366,55 @@ fn log_likelihood(
     }
 
     log_likelihood
+}
+
+fn null_log_likelihood(graph: &ModuleGraphV0) -> f64 {
+    let edge_count = canonical_edges(graph).len();
+    let possible_edge_count = graph
+        .nodes
+        .len()
+        .saturating_mul(graph.nodes.len().saturating_sub(1))
+        / 2;
+    let global_probability =
+        probability(edge_count, possible_edge_count).clamp(0.000_001, 0.999_999);
+    let partitions = graph
+        .nodes
+        .iter()
+        .map(|node| (node.clone(), 0))
+        .collect::<BTreeMap<_, _>>();
+    log_likelihood(graph, &partitions, global_probability, global_probability)
+}
+
+fn likelihood_ratio_p_value(
+    alternative_log_likelihood: f64,
+    null_log_likelihood: f64,
+    k_communities: usize,
+) -> f64 {
+    let statistic = (2.0 * (alternative_log_likelihood - null_log_likelihood)).max(0.0);
+    let degrees_of_freedom = k_communities.saturating_sub(1).max(1) as f64;
+    chi_square_survival_wilson_hilferty(statistic, degrees_of_freedom)
+}
+
+fn chi_square_survival_wilson_hilferty(statistic: f64, degrees_of_freedom: f64) -> f64 {
+    if statistic <= 0.0 {
+        return 1.0;
+    }
+    let z = ((statistic / degrees_of_freedom).powf(1.0 / 3.0)
+        - (1.0 - 2.0 / (9.0 * degrees_of_freedom)))
+        / (2.0 / (9.0 * degrees_of_freedom)).sqrt();
+    (1.0 - normal_cdf_approx(z)).clamp(0.0, 1.0)
+}
+
+fn normal_cdf_approx(value: f64) -> f64 {
+    let sign = if value < 0.0 { -1.0 } else { 1.0 };
+    let x = value.abs();
+    let t = 1.0 / (1.0 + 0.231_641_9 * x);
+    let density = 0.398_942_280_401_432_7 * (-0.5 * x * x).exp();
+    let tail = density
+        * (((((1.330_274_429 * t - 1.821_255_978) * t + 1.781_477_937) * t - 0.356_563_782) * t
+            + 0.319_381_530)
+            * t);
+    if sign > 0.0 { 1.0 - tail } else { tail }
 }
 
 fn detectability_phase(lambda_snr: f64) -> DetectabilityPhase {
@@ -385,12 +446,22 @@ fn critical_exponent_annotation(
         feature_gate: REPLICA_ENSEMBLE_FEATURE_GATE_V0,
         rg_exponent_triple_handle: Some(handle),
         detectability_exponent_beta_est: (lambda_snr - 1.0).abs(),
-        universality_class_hint: Some(UniversalityClassHint::Unknown),
+        universality_class_hint: Some(universality_class_hint_for_detectability(lambda_snr)),
         agreement_with_rg_fixed_point: if lambda_snr >= 1.0 {
             AgreementVerdict::Agree
         } else {
             AgreementVerdict::NotApplicable
         },
+    }
+}
+
+fn universality_class_hint_for_detectability(lambda_snr: f64) -> UniversalityClassHint {
+    if lambda_snr >= 1.1 {
+        UniversalityClassHint::TokenGraph
+    } else if lambda_snr >= 0.9 {
+        UniversalityClassHint::ComponentScoped
+    } else {
+        UniversalityClassHint::UtilityDominated
     }
 }
 
