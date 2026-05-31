@@ -4,7 +4,7 @@ use super::{
     CascadeValueFamilyMemberV0, ClassValueControlFlowBlockV0, ClassValueControlFlowGraphV0,
     ClassValueFlowGraphV0, ClassValueFlowNodeV0, ClassValueFlowTransferV0,
     CompositeClassValueInputV0, ExternalStringTypeFactsV0, KLimitedCallSiteFlowInputV0,
-    Lin01ProvenanceSemiringV0, LinearProvenanceV0, MAX_FINITE_CLASS_VALUES,
+    Lin01ProvenanceSemiringV0, LinearProvenancePathV0, LinearProvenanceV0, MAX_FINITE_CLASS_VALUES,
     NaturalCountProvenanceSemiringV0, OneCfaCallSiteFlowInputV0, ProvenanceSemiringV0,
     SecurityLabelProvenanceSemiringV0, SelectorProjectionCertaintyV0, TropicalProvenanceSemiringV0,
     ViterbiProvenanceSemiringV0, abstract_class_value_from_facts, abstract_class_value_is_subset,
@@ -1842,6 +1842,35 @@ fn linear_provenance_preserves_ordered_legacy_labels_as_strict_superset() {
             .map(|term| (term.coefficient, term.label))
             .collect::<Vec<_>>(),
         labels.iter().map(|label| (1, *label)).collect::<Vec<_>>()
+    );
+}
+
+#[test]
+fn natural_count_linear_provenance_composes_supported_paths() {
+    let labels = [
+        "omena-query.cross-file-summary",
+        "omena-parser.css-module-composes-facts",
+    ];
+    let paths = [
+        LinearProvenancePathV0::supported(&labels, 2),
+        LinearProvenancePathV0::unsupported(&["omena-query.unresolved-reference"]),
+    ];
+    let provenance =
+        LinearProvenanceV0::<NaturalCountProvenanceSemiringV0>::from_composed_paths(&paths);
+
+    assert_eq!(provenance.semiring, NaturalCountProvenanceSemiringV0::new());
+    assert_eq!(provenance.semiring_identifier(), "naturalCount");
+    assert_eq!(
+        provenance
+            .terms
+            .iter()
+            .map(|term| (term.coefficient, term.label))
+            .collect::<Vec<_>>(),
+        vec![
+            (2, "omena-query.cross-file-summary"),
+            (2, "omena-parser.css-module-composes-facts"),
+            (0, "omena-query.unresolved-reference"),
+        ]
     );
 }
 

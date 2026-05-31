@@ -137,8 +137,97 @@ fn source_selector_references_emit_cross_file_summary_edges() {
         ]
     );
     assert_eq!(edge.linear_provenance.labels(), edge.provenance);
-    assert_eq!(edge.linear_provenance.semiring_identifier(), "lin01");
-    assert_eq!(edge.linear_provenance.semiring_identifier, "lin01");
+    assert_eq!(edge.linear_provenance.semiring_identifier(), "naturalCount");
+    assert_eq!(edge.linear_provenance.semiring_identifier, "naturalCount");
+    assert!(summary.capabilities.linear_provenance_semiring_laws_hold);
+}
+
+#[test]
+fn source_selector_prefix_summary_uses_semiring_support_count_for_targets() {
+    let one_target = summarize_omena_query_source_selector_reference_cross_file_summary(
+        &[OmenaQueryStyleSourceInputV0 {
+            style_path: "/tmp/Button.module.scss".to_string(),
+            style_source: ".btn-primary { color: red; }".to_string(),
+        }],
+        &[OmenaQuerySourceDocumentInputV0 {
+            source_path: "/tmp/Button.tsx".to_string(),
+            source_source: r#"import bind from "classnames/bind";
+import styles from "./Button.module.scss";
+const cx = bind.bind(styles);
+export function Button({ variant }) {
+  return <div className={cx(`btn-${variant}`)} />;
+}"#
+            .to_string(),
+        }],
+        &[],
+    );
+    let two_targets = summarize_omena_query_source_selector_reference_cross_file_summary(
+        &[OmenaQueryStyleSourceInputV0 {
+            style_path: "/tmp/Button.module.scss".to_string(),
+            style_source: ".btn-primary { color: red; } .btn-secondary { color: blue; }"
+                .to_string(),
+        }],
+        &[OmenaQuerySourceDocumentInputV0 {
+            source_path: "/tmp/Button.tsx".to_string(),
+            source_source: r#"import bind from "classnames/bind";
+import styles from "./Button.module.scss";
+const cx = bind.bind(styles);
+export function Button({ variant }) {
+  return <div className={cx(`btn-${variant}`)} />;
+}"#
+            .to_string(),
+        }],
+        &[],
+    );
+
+    let one_target_edge = one_target
+        .edges
+        .iter()
+        .find(|edge| edge.edge_kind == "sourceSelectorPrefixReference")
+        .expect("one-target prefix edge");
+    let two_target_edge = two_targets
+        .edges
+        .iter()
+        .find(|edge| edge.edge_kind == "sourceSelectorPrefixReference")
+        .expect("two-target prefix edge");
+
+    assert_eq!(one_target_edge.target_names, vec!["btn-primary"]);
+    assert_eq!(
+        two_target_edge.target_names,
+        vec!["btn-primary", "btn-secondary"]
+    );
+    assert!(
+        one_target_edge
+            .linear_provenance
+            .terms
+            .iter()
+            .all(|term| term.coefficient == 1)
+    );
+    assert!(
+        two_target_edge
+            .linear_provenance
+            .terms
+            .iter()
+            .all(|term| term.coefficient == 2)
+    );
+
+    let mut coefficient_changed = two_targets.clone();
+    coefficient_changed
+        .edges
+        .iter_mut()
+        .find(|edge| edge.edge_kind == "sourceSelectorPrefixReference")
+        .expect("coefficient-mutated prefix edge")
+        .linear_provenance
+        .terms[0]
+        .coefficient = 1;
+    assert_eq!(
+        two_targets.summary_hash,
+        two_targets.recompute_stable_summary_hash()
+    );
+    assert_ne!(
+        two_targets.summary_hash,
+        coefficient_changed.recompute_stable_summary_hash()
+    );
 }
 
 #[test]
@@ -298,7 +387,7 @@ fn workspace_cross_file_summary_linear_provenance_covers_merged_style_and_source
         assert_eq!(
             edge.pointer("/linearProvenance/semiringIdentifier")
                 .and_then(|value| value.as_str()),
-            Some("lin01")
+            Some("naturalCount")
         );
         assert_eq!(
             edge.pointer("/linearProvenance/termCount")
@@ -868,7 +957,7 @@ fn cross_file_summary_edges_are_equivalent_to_resolution_products() {
         custom_property_reference_count
     );
     assert!(summary.edges.iter().all(|edge| {
-        edge.linear_provenance.semiring_identifier() == "lin01"
+        edge.linear_provenance.semiring_identifier() == "naturalCount"
             && edge.linear_provenance.labels() == edge.provenance
     }));
 }
@@ -978,7 +1067,7 @@ fn cross_file_summary_linear_provenance_serializes_as_strict_superset()
         serialized
             .pointer("/linearProvenance/semiringIdentifier")
             .and_then(|value| value.as_str()),
-        Some("lin01")
+        Some("naturalCount")
     );
     assert_eq!(
         serialized

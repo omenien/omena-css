@@ -238,6 +238,7 @@ pub struct OmenaQueryCrossFileSummaryCapabilitiesV0 {
     pub stable_summary_hash_ready: bool,
     pub linear_provenance_ready: bool,
     pub linear_provenance_round_trip_ready: bool,
+    pub linear_provenance_semiring_laws_hold: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -900,12 +901,31 @@ pub struct OmenaQueryStyleDiagnosticV0 {
     pub create_custom_property: Option<OmenaQueryCreateCustomPropertyActionV0>,
 }
 
-pub type OmenaQueryLinearProvenanceV0 = LinearProvenanceV0<Lin01ProvenanceSemiringV0>;
+pub type OmenaQueryLinearProvenanceV0 = LinearProvenanceV0<NaturalCountProvenanceSemiringV0>;
 
 pub fn summarize_omena_query_linear_provenance(
     provenance: &[&'static str],
 ) -> OmenaQueryLinearProvenanceV0 {
-    OmenaQueryLinearProvenanceV0::from_static_labels(provenance)
+    summarize_omena_query_linear_provenance_with_support_count(provenance, 1)
+}
+
+pub fn summarize_omena_query_linear_provenance_with_support_count(
+    provenance: &[&'static str],
+    support_count: u8,
+) -> OmenaQueryLinearProvenanceV0 {
+    let path = if support_count == 0 {
+        LinearProvenancePathV0::unsupported(provenance)
+    } else {
+        LinearProvenancePathV0::supported(provenance, support_count)
+    };
+    OmenaQueryLinearProvenanceV0::from_composed_paths(&[path])
+}
+
+pub fn summarize_omena_query_linear_provenance_semiring_laws() -> ProvenanceSemiringLawReportV0 {
+    verify_provenance_semiring_laws_on_fixtures(
+        &NaturalCountProvenanceSemiringV0::new(),
+        &[0, 1, 2, 3],
+    )
 }
 
 pub fn round_trip_omena_query_linear_provenance_labels(

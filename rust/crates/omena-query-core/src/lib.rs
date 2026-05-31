@@ -30,8 +30,10 @@ use engine_input_producers::{
 };
 pub use omena_abstract_value::{
     AbstractClassValueV0, AbstractValueDomainSummaryV0, ClassValueFlowAnalysisV0,
-    ClassValueFlowIncrementalAnalysisV0, Lin01ProvenanceSemiringV0, LinearProvenanceV0,
+    ClassValueFlowIncrementalAnalysisV0, Lin01ProvenanceSemiringV0, LinearProvenancePathV0,
+    LinearProvenanceV0, NaturalCountProvenanceSemiringV0, ProvenanceSemiringLawReportV0,
     ReducedClassValueProductV0, SelectorProjectionCertaintyV0,
+    verify_provenance_semiring_laws_on_fixtures,
 };
 use omena_abstract_value::{
     analyze_class_value_flow_incremental_with_database, project_abstract_value_selectors,

@@ -1,4 +1,4 @@
-use crate::{Lin01ProvenanceSemiringV0, ProvenanceSemiringV0};
+use crate::{Lin01ProvenanceSemiringV0, NaturalCountProvenanceSemiringV0, ProvenanceSemiringV0};
 use omena_incremental::{IncrementalComputationPlanV0, IncrementalSnapshotV0};
 use serde::Serialize;
 
@@ -305,6 +305,28 @@ pub struct LinearProvenanceTermV0 {
     pub label: &'static str,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct LinearProvenancePathV0 {
+    pub labels: Vec<&'static str>,
+    pub support_count: u8,
+}
+
+impl LinearProvenancePathV0 {
+    pub fn supported(labels: &[&'static str], support_count: u8) -> Self {
+        Self {
+            labels: labels.to_vec(),
+            support_count,
+        }
+    }
+
+    pub fn unsupported(labels: &[&'static str]) -> Self {
+        Self {
+            labels: labels.to_vec(),
+            support_count: 0,
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
 #[serde(bound(serialize = "K: Serialize"))]
@@ -342,17 +364,64 @@ impl LinearProvenanceV0<Lin01ProvenanceSemiringV0> {
                 label,
             })
             .collect::<Vec<_>>();
-        Self {
-            schema_version: "0",
-            product: "omena-abstract-value.linear-provenance",
-            layer_marker: "qtt-graded",
-            feature_gate: "qtt-provenance",
-            semiring_identifier: Lin01ProvenanceSemiringV0::IDENTIFIER,
-            semiring: Lin01ProvenanceSemiringV0::new(),
-            term_count: terms.len(),
-            terms,
-        }
+        linear_provenance_with_terms(Lin01ProvenanceSemiringV0::new(), terms)
     }
+}
+
+impl LinearProvenanceV0<NaturalCountProvenanceSemiringV0> {
+    pub fn from_static_labels(labels: &[&'static str]) -> Self {
+        let path = LinearProvenancePathV0::supported(labels, 1);
+        Self::from_composed_paths(&[path])
+    }
+
+    pub fn from_composed_paths(paths: &[LinearProvenancePathV0]) -> Self {
+        let semiring = NaturalCountProvenanceSemiringV0::new();
+        let mut terms = Vec::<LinearProvenanceTermV0>::new();
+
+        for path in paths {
+            let support = u16::from(path.support_count);
+            let mut path_weight = semiring.multiply(&semiring.one(), &support);
+            for _ in &path.labels {
+                path_weight = semiring.multiply(&path_weight, &semiring.one());
+            }
+
+            for label in &path.labels {
+                if let Some(term) = terms.iter_mut().find(|term| term.label == *label) {
+                    let updated = semiring.add(&u16::from(term.coefficient), &path_weight);
+                    term.coefficient = u16_to_u8_saturating(updated);
+                } else {
+                    terms.push(LinearProvenanceTermV0 {
+                        coefficient: u16_to_u8_saturating(
+                            semiring.add(&semiring.zero(), &path_weight),
+                        ),
+                        label,
+                    });
+                }
+            }
+        }
+
+        linear_provenance_with_terms(semiring, terms)
+    }
+}
+
+fn linear_provenance_with_terms<K: ProvenanceSemiringV0>(
+    semiring: K,
+    terms: Vec<LinearProvenanceTermV0>,
+) -> LinearProvenanceV0<K> {
+    LinearProvenanceV0 {
+        schema_version: "0",
+        product: "omena-abstract-value.linear-provenance",
+        layer_marker: "qtt-graded",
+        feature_gate: "qtt-provenance",
+        semiring_identifier: K::IDENTIFIER,
+        semiring,
+        term_count: terms.len(),
+        terms,
+    }
+}
+
+fn u16_to_u8_saturating(value: u16) -> u8 {
+    value.min(u16::from(u8::MAX)) as u8
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]

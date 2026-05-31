@@ -221,6 +221,8 @@ pub(super) fn summarize_omena_query_cross_file_summary(
             stable_summary_hash_ready: true,
             linear_provenance_ready: true,
             linear_provenance_round_trip_ready: true,
+            linear_provenance_semiring_laws_hold:
+                summarize_omena_query_linear_provenance_semiring_laws().all_fixture_laws_hold,
         },
         next_priorities: vec![
             "sourceSelectorReferenceSummaryEdges",
@@ -444,6 +446,8 @@ pub fn summarize_omena_query_source_selector_reference_cross_file_summary(
             stable_summary_hash_ready: true,
             linear_provenance_ready: true,
             linear_provenance_round_trip_ready: true,
+            linear_provenance_semiring_laws_hold:
+                summarize_omena_query_linear_provenance_semiring_laws().all_fixture_laws_hold,
         },
         next_priorities: vec!["sourceSelectorReferenceSummaryEquivalenceGate"],
     }
@@ -794,6 +798,9 @@ fn merge_omena_query_cross_file_summary_capabilities(
             && summaries
                 .iter()
                 .all(OmenaQueryCrossFileSummaryV0::linear_provenance_round_trips_legacy_labels),
+        linear_provenance_semiring_laws_hold: summaries
+            .iter()
+            .all(|summary| summary.capabilities.linear_provenance_semiring_laws_hold),
     }
 }
 
@@ -817,7 +824,10 @@ fn build_omena_query_cross_file_summary_edge(
     input: OmenaQueryCrossFileSummaryEdgeInput,
 ) -> OmenaQueryCrossFileSummaryEdgeV0 {
     let edge_id = omena_query_cross_file_summary_edge_id(&input);
-    let linear_provenance = summarize_omena_query_linear_provenance(input.provenance.as_slice());
+    let linear_provenance = summarize_omena_query_linear_provenance_with_support_count(
+        input.provenance.as_slice(),
+        linear_provenance_support_count(&input),
+    );
 
     OmenaQueryCrossFileSummaryEdgeV0 {
         edge_id,
@@ -835,6 +845,20 @@ fn build_omena_query_cross_file_summary_edge(
         provenance: input.provenance,
         linear_provenance,
     }
+}
+
+fn linear_provenance_support_count(input: &OmenaQueryCrossFileSummaryEdgeInput) -> u8 {
+    if !cross_file_summary_status_has_supported_target(input.status) {
+        return 0;
+    }
+    input.target_names.len().max(1).min(usize::from(u8::MAX)) as u8
+}
+
+fn cross_file_summary_status_has_supported_target(status: &str) -> bool {
+    matches!(
+        status,
+        "resolved" | "reachable" | "localResolved" | "importResolved" | "external"
+    )
 }
 
 fn omena_query_cross_file_summary_edge_id(input: &OmenaQueryCrossFileSummaryEdgeInput) -> String {
@@ -872,6 +896,12 @@ fn stable_omena_query_cross_file_summary_hash(
         }
     }
     format!("{hash:016x}")
+}
+
+impl OmenaQueryCrossFileSummaryV0 {
+    pub fn recompute_stable_summary_hash(&self) -> String {
+        stable_omena_query_cross_file_summary_hash(self.edges.as_slice())
+    }
 }
 
 fn summarize_omena_query_cross_file_summary_edge_kind_counts(
