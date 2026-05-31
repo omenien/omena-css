@@ -411,32 +411,32 @@
     "configuration": {
       "title": "CSS Module Explainer",
       "properties": {
-        "cssModuleExplainer.features.definition": {
+        "omena.features.definition": {
           "type": "boolean",
           "default": true,
           "description": "Enable Go to Definition for cx() class names."
         },
-        "cssModuleExplainer.features.hover": {
+        "omena.features.hover": {
           "type": "boolean",
           "default": true,
           "description": "Enable hover information for cx() class names."
         },
-        "cssModuleExplainer.features.completion": {
+        "omena.features.completion": {
           "type": "boolean",
           "default": true,
           "description": "Enable autocomplete inside cx() calls."
         },
-        "cssModuleExplainer.features.references": {
+        "omena.features.references": {
           "type": "boolean",
           "default": true,
           "description": "Enable Find References for CSS class selectors."
         },
-        "cssModuleExplainer.features.rename": {
+        "omena.features.rename": {
           "type": "boolean",
           "default": true,
           "description": "Enable Rename Symbol for CSS class selectors across SCSS and TS/TSX files."
         },
-        "cssModuleExplainer.diagnostics.severity": {
+        "omena.diagnostics.severity": {
           "type": "string",
           "enum": [
             "error",
@@ -447,24 +447,24 @@
           "default": "warning",
           "description": "Severity level for unresolved class diagnostics."
         },
-        "cssModuleExplainer.diagnostics.unusedSelector": {
+        "omena.diagnostics.unusedSelector": {
           "type": "boolean",
           "default": true,
           "description": "Show hints for CSS class selectors that are declared but never referenced in any TS/TSX file."
         },
-        "cssModuleExplainer.diagnostics.missingModule": {
+        "omena.diagnostics.missingModule": {
           "type": "boolean",
           "default": true,
           "description": "Warn when 'import styles from ...' for a CSS Module cannot be resolved on disk."
         },
-        "cssModuleExplainer.hover.maxCandidates": {
+        "omena.hover.maxCandidates": {
           "type": "number",
           "default": 10,
           "minimum": 1,
           "maximum": 50,
           "description": "Maximum template/variable candidates shown in hover."
         },
-        "cssModuleExplainer.typeFactBackend": {
+        "omena.typeFactBackend": {
           "type": "string",
           "enum": [
             "tsgo",
@@ -473,7 +473,7 @@
           "default": "tsgo",
           "markdownDescription": "Type-fact backend used by the language server. `tsgo` uses the extension-bundled TS 7 native compiler and does not build a synchronous current-TS program on the LSP request path. `tsgo-workspace` uses `pnpm exec tsgo` in the user workspace."
         },
-        "cssModuleExplainer.lspServerRuntime": {
+        "omena.lspServerRuntime": {
           "type": "string",
           "enum": [
             "auto",
@@ -482,13 +482,13 @@
           "default": "auto",
           "markdownDescription": "Language-server runtime. `auto` uses the bundled or built Rust `omena-lsp-server` and fails fast if no binary is available. `omena-lsp-server` requires the bundled binary, explicit `CME_OMENA_LSP_SERVER_PATH`, or explicit `CME_OMENA_LSP_SERVER_COMMAND` command."
         },
-        "cssModuleExplainer.pathAlias": {
+        "omena.pathAlias": {
           "type": "object",
           "default": {},
           "scope": "resource",
           "markdownDescription": "Resource-scoped import alias map for CSS Module paths. Keys are non-relative import prefixes, values are workspace-relative or absolute target paths."
         },
-        "cssModuleExplainer.scss.classnameTransform": {
+        "omena.scss.classnameTransform": {
           "type": "string",
           "enum": [
             "asIs",

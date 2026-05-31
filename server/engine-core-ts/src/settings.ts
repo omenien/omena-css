@@ -156,7 +156,7 @@ function getConfigurationForSection(
 }
 
 export async function fetchWindowSettings(connection: Connection): Promise<WindowSettings> {
-  const raw = await getConfigurationForSection(connection, "cssModuleExplainer");
+  const raw = await getConfigurationForSection(connection, "omena");
   return parseWindowSettings(raw);
 }
 
@@ -164,7 +164,7 @@ export async function fetchResourceSettings(
   connection: Connection,
   scopeUri?: string,
 ): Promise<ResourceSettings> {
-  const raw = await getConfigurationForSection(connection, "cssModuleExplainer", scopeUri);
+  const raw = await getConfigurationForSection(connection, "omena", scopeUri);
   return parseResourceSettings(raw);
 }
 

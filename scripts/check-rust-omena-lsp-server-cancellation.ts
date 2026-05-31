@@ -116,7 +116,7 @@ try {
       {
         jsonrpc: "2.0",
         id: "debug-state",
-        method: "cssModuleExplainer/rustLspState",
+        method: "omena/rustLspState",
       },
       {
         jsonrpc: "2.0",

@@ -72,7 +72,7 @@ describe("reloadSettings reschedules open documents by language", () => {
     // that routes every open document through `scheduleTsx`
     // never recomputes the SCSS unused-check, so the flag would
     // stay frozen against the prior mode.
-    client.setConfiguration("cssModuleExplainer", {
+    client.setConfiguration("omena", {
       scss: { classnameTransform: "camelCase" },
     });
     client.didChangeConfiguration();

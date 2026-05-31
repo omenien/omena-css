@@ -50,7 +50,7 @@ fn honors_feature_configuration_toggles() {
             "method": "workspace/didChangeConfiguration",
             "params": {
                 "settings": {
-                    "cssModuleExplainer": {
+                    "omena": {
                         "features": {
                             "hover": false,
                         },

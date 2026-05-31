@@ -277,7 +277,7 @@ const didOpenSourceNotification = {
 const styleHoverCandidatesRequest = {
   jsonrpc: "2.0",
   id: 2,
-  method: "cssModuleExplainer/rustStyleHoverCandidates",
+  method: "omena/rustStyleHoverCandidates",
   params: {
     textDocument: {
       uri: styleUri,
@@ -288,7 +288,7 @@ const styleHoverCandidatesRequest = {
 const customPropertyReferenceCandidatesRequest = {
   jsonrpc: "2.0",
   id: 3,
-  method: "cssModuleExplainer/rustStyleHoverCandidates",
+  method: "omena/rustStyleHoverCandidates",
   params: {
     textDocument: {
       uri: styleUri,
@@ -299,7 +299,7 @@ const customPropertyReferenceCandidatesRequest = {
 const customPropertyDeclarationCandidatesRequest = {
   jsonrpc: "2.0",
   id: 4,
-  method: "cssModuleExplainer/rustStyleHoverCandidates",
+  method: "omena/rustStyleHoverCandidates",
   params: {
     textDocument: {
       uri: styleUri,
@@ -357,7 +357,7 @@ const lspCompletionRequest = {
 const styleDiagnosticsRequest = {
   jsonrpc: "2.0",
   id: 9,
-  method: "cssModuleExplainer/rustStyleDiagnostics",
+  method: "omena/rustStyleDiagnostics",
   params: {
     textDocument: {
       uri: styleUri,

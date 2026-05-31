@@ -158,8 +158,8 @@ assert.deepEqual(
   rustSummary.handlerSurfaces.map((surface) => surface.method).toSorted(),
   [
     "$/cancelRequest",
-    "cssModuleExplainer/rustCascadeAtPosition",
-    "cssModuleExplainer/rustStyleContextIndex",
+    "omena/rustCascadeAtPosition",
+    "omena/rustStyleContextIndex",
     "textDocument/codeAction",
     "textDocument/codeLens",
     "textDocument/completion",
@@ -235,14 +235,10 @@ assert.ok(
 );
 assert.ok(rustSummary.sourceProviderAdapter.providerSurfaces.includes("textDocument/definition"));
 assert.ok(
-  rustSummary.sourceProviderAdapter.providerSurfaces.includes(
-    "cssModuleExplainer/rustCascadeAtPosition",
-  ),
+  rustSummary.sourceProviderAdapter.providerSurfaces.includes("omena/rustCascadeAtPosition"),
 );
 assert.ok(
-  rustSummary.sourceProviderAdapter.providerSurfaces.includes(
-    "cssModuleExplainer/rustStyleContextIndex",
-  ),
+  rustSummary.sourceProviderAdapter.providerSurfaces.includes("omena/rustStyleContextIndex"),
 );
 assertDefaultHostPathHasNoNodeWorkspaceResolver(repoRoot);
 assert.equal(
@@ -471,10 +467,10 @@ function assertDefaultHostPathHasNoNodeWorkspaceResolver(root: string): void {
   };
   const properties = packageJson.contributes?.configuration?.properties ?? {};
   assert.ok(
-    !Object.hasOwn(properties, "cssModuleExplainer.typeFactMaxSyncProgramFiles"),
+    !Object.hasOwn(properties, "omena.typeFactMaxSyncProgramFiles"),
     "package settings must not expose sync TypeScript resolver budget",
   );
-  const typeFactBackend = properties["cssModuleExplainer.typeFactBackend"] as
+  const typeFactBackend = properties["omena.typeFactBackend"] as
     | { enum?: readonly string[] }
     | undefined;
   assert.deepEqual(

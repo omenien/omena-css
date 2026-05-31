@@ -9,7 +9,7 @@ import {
  * Workspace-scoped path resolver for CSS Module imports.
  *
  * Merges two alias sources:
- *   - `cssModuleExplainer.pathAlias`
+ *   - `omena.pathAlias`
  *   - literal `resolve.alias` entries from Vite/Webpack config files
  *   - `compilerOptions.paths` from the workspace tsconfig/jsconfig
  *

@@ -32,9 +32,9 @@ Recommended flat config:
 import { createRequire } from "node:module";
 
 const require = createRequire(import.meta.url);
-const cssModuleExplainer = require("eslint-plugin-css-module-explainer");
+const omena = require("eslint-plugin-css-module-explainer");
 
-export default [...cssModuleExplainer.configs.recommended];
+export default [...omena.configs.recommended];
 ```
 
 Focused variant:
@@ -43,9 +43,9 @@ Focused variant:
 import { createRequire } from "node:module";
 
 const require = createRequire(import.meta.url);
-const cssModuleExplainer = require("eslint-plugin-css-module-explainer");
+const omena = require("eslint-plugin-css-module-explainer");
 
-export default [...cssModuleExplainer.configs.focused];
+export default [...omena.configs.focused];
 ```
 
 Supported options:
@@ -76,9 +76,9 @@ Optional dynamic moat:
 import { createRequire } from "node:module";
 
 const require = createRequire(import.meta.url);
-const cssModuleExplainer = require("eslint-plugin-css-module-explainer");
+const omena = require("eslint-plugin-css-module-explainer");
 
-export default [...cssModuleExplainer.configs.dynamicMoat];
+export default [...omena.configs.dynamicMoat];
 ```
 
 This rule targets dynamic class expressions whose resolved values or domains do
@@ -97,9 +97,9 @@ Precise M-tier split:
 import { createRequire } from "node:module";
 
 const require = createRequire(import.meta.url);
-const cssModuleExplainer = require("eslint-plugin-css-module-explainer");
+const omena = require("eslint-plugin-css-module-explainer");
 
-export default [...cssModuleExplainer.configs.mTier];
+export default [...omena.configs.mTier];
 ```
 
 Equivalent manual rules:

@@ -19,7 +19,7 @@ describe("client LSP server runtime config", () => {
 
   it("does not silently fall back to the Node server for auto runtime selection without a Rust binary", () => {
     expect(() => resolveLspServerRuntimeSelection("auto", "/repo", {}, () => false)).toThrow(
-      "cssModuleExplainer.lspServerRuntime=auto requires an omena-lsp-server binary",
+      "omena.lspServerRuntime=auto requires an omena-lsp-server binary",
     );
   });
 

@@ -18,7 +18,7 @@ import { shutdownEngineShadowRunnerDaemon } from "../../engine-host-node/src/sel
 
 const SERVER_NAME = "css-module-explainer";
 const SERVER_VERSION = "5.2.0";
-const RUNTIME_LOOP_PROBE_REQUEST = "cssModuleExplainer/runtimeLoopProbe";
+const RUNTIME_LOOP_PROBE_REQUEST = "omena/runtimeLoopProbe";
 
 /**
  * Transport-agnostic shared options consumed by every

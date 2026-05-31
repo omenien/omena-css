@@ -187,7 +187,7 @@ fn did_change_configuration(state: &mut LspShellState, params: Option<&Value>) {
     state.configuration_change_count += 1;
     let Some(settings) = params
         .and_then(|value| value.get("settings"))
-        .and_then(|value| value.get("cssModuleExplainer"))
+        .and_then(|value| value.get("omena"))
     else {
         return;
     };

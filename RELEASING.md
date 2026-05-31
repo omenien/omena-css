@@ -555,7 +555,7 @@ can use `changeset:skip`.
 ## 4.0 compatibility removals
 
 `cssModules.pathAlias` fallback support has been removed for the 4.0 line.
-Use `cssModuleExplainer.pathAlias` instead.
+Use `omena.pathAlias` instead.
 
 Before publishing 4.0, verify:
 

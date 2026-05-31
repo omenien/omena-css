@@ -87,23 +87,23 @@ APIs, completed proofs, or external runtime support by themselves.
 
 ## Configuration
 
-All settings live under the `cssModuleExplainer.*` namespace.
+All settings live under the `omena.*` namespace.
 
 ### Core settings
 
 | Setting                                         | Default     | Description                                                             |
 | ----------------------------------------------- | ----------- | ----------------------------------------------------------------------- |
-| `cssModuleExplainer.features.definition`        | `true`      | Enable Go to Definition.                                                |
-| `cssModuleExplainer.features.hover`             | `true`      | Enable Hover.                                                           |
-| `cssModuleExplainer.features.completion`        | `true`      | Enable Completion.                                                      |
-| `cssModuleExplainer.features.references`        | `true`      | Enable Find References and CodeLens.                                    |
-| `cssModuleExplainer.features.rename`            | `true`      | Enable Rename.                                                          |
-| `cssModuleExplainer.diagnostics.severity`       | `"warning"` | Severity for unknown-class diagnostics.                                 |
-| `cssModuleExplainer.diagnostics.unusedSelector` | `true`      | Show unused selector hints in style modules.                            |
-| `cssModuleExplainer.diagnostics.missingModule`  | `true`      | Warn when a CSS Module import cannot be resolved.                       |
-| `cssModuleExplainer.hover.maxCandidates`        | `10`        | Maximum dynamic candidates shown in hover.                              |
-| `cssModuleExplainer.typeFactBackend`            | `"tsgo"`    | Type-fact backend: bundled tsgo, workspace tsgo, or current TypeScript. |
-| `cssModuleExplainer.scss.classnameTransform`    | `"asIs"`    | Mirror of `css-loader` `modules.localsConvention`.                      |
+| `omena.features.definition`        | `true`      | Enable Go to Definition.                                                |
+| `omena.features.hover`             | `true`      | Enable Hover.                                                           |
+| `omena.features.completion`        | `true`      | Enable Completion.                                                      |
+| `omena.features.references`        | `true`      | Enable Find References and CodeLens.                                    |
+| `omena.features.rename`            | `true`      | Enable Rename.                                                          |
+| `omena.diagnostics.severity`       | `"warning"` | Severity for unknown-class diagnostics.                                 |
+| `omena.diagnostics.unusedSelector` | `true`      | Show unused selector hints in style modules.                            |
+| `omena.diagnostics.missingModule`  | `true`      | Warn when a CSS Module import cannot be resolved.                       |
+| `omena.hover.maxCandidates`        | `10`        | Maximum dynamic candidates shown in hover.                              |
+| `omena.typeFactBackend`            | `"tsgo"`    | Type-fact backend: bundled tsgo, workspace tsgo, or current TypeScript. |
+| `omena.scss.classnameTransform`    | `"asIs"`    | Mirror of `css-loader` `modules.localsConvention`.                      |
 
 ### Class name transform
 
@@ -125,7 +125,7 @@ because the reverse mapping back to the original selector is lossy.
 The extension resolves non-relative CSS Module imports from:
 
 - `compilerOptions.paths` in the workspace `tsconfig.json` or `jsconfig.json`
-- native `cssModuleExplainer.pathAlias`
+- native `omena.pathAlias`
 
 This allows imports such as:
 
@@ -134,10 +134,10 @@ import styles from "@/components/Button.module.scss";
 import theme from "@styles/theme.module.scss";
 ```
 
-Configure extension-specific aliases with `cssModuleExplainer.pathAlias`:
+Configure extension-specific aliases with `omena.pathAlias`:
 
 ```jsonc
-"cssModuleExplainer.pathAlias": {
+"omena.pathAlias": {
   "@styles": "src/styles"
 }
 ```
@@ -279,8 +279,8 @@ Current checker policy:
   - current comparison slot: `tsgo` on `check:backend-typecheck-smoke`
 - `pnpm check:backend-typecheck-smoke` runs a small multi-case corpus (`template-literals`, `path-alias`, `flow-relations`) for the selected typecheck backend
   - the unset `CME_TYPE_FACT_BACKEND` default is now `tsgo`, which activates a host-side tsgo probe before delegating symbol resolution to the current TS resolver
-  - packaged extension runtime uses the bundled `dist/bin/<platform>-<arch>/tsgo` probe; `cssModuleExplainer.typeFactBackend=tsgo-workspace` preserves the old workspace `pnpm exec tsgo` mode for power users
-  - `cssModuleExplainer.typeFactBackend=typescript-current` or `CME_TYPE_FACT_BACKEND=typescript-current` remains available as the explicit current-TypeScript fallback
+  - packaged extension runtime uses the bundled `dist/bin/<platform>-<arch>/tsgo` probe; `omena.typeFactBackend=tsgo-workspace` preserves the old workspace `pnpm exec tsgo` mode for power users
+  - `omena.typeFactBackend=typescript-current` or `CME_TYPE_FACT_BACKEND=typescript-current` remains available as the explicit current-TypeScript fallback
 - `CME_TYPE_FACT_BACKEND=tsgo pnpm check:release-batch` and `pnpm check:real-project-corpus` now exercise the checker path through the same host-side tsgo probe
 - `pnpm check:type-fact-backend-parity` compares canonical `EngineInputV2.typeFacts` across `typescript-current` and `tsgo` on the backend smoke corpus
 - `pnpm check:ts7-phase-a-readiness` is the current aggregate Phase A gate for the TS 7 beta path
@@ -424,7 +424,7 @@ Current checker policy:
   - packaged VSIX runtime now defaults to `rust-selected-query` through a long-lived `engine-shadow-runner` daemon when the bundled runner is present, while source checkouts keep the unset default on `typescript-current`
   - non-daemon async selected-query calls also use a true asynchronous one-shot runner path, so disabling the daemon does not reintroduce event-loop blocking
   - LSP providers now consume `engine-host-node` query helpers instead of importing `core/query` internals directly, and `pnpm check:provider-host-routing-boundary` guards that provider boundary
-  - `cssModuleExplainer.lspServerRuntime=auto` now selects the bundled or built Rust `omena-lsp-server` and fails fast when no binary is available; the legacy Node LSP server is only selected through explicit `cssModuleExplainer.lspServerRuntime=node`. The Rust path carries provider parity coverage for style providers, source selector providers, source/style diagnostics, quick fixes, watched-file style index updates, and imported-module source reference scoping
+  - `omena.lspServerRuntime=auto` now selects the bundled or built Rust `omena-lsp-server` and fails fast when no binary is available; the legacy Node LSP server is only selected through explicit `omena.lspServerRuntime=node`. The Rust path carries provider parity coverage for style providers, source selector providers, source/style diagnostics, quick fixes, watched-file style index updates, and imported-module source reference scoping
   - style providers now consume Rust-backed semantic graph read models for selector identity, references, diagnostics, completions, rename safety, hover metadata, and style-module usage through host-side caches
   - `pnpm check:rust-phase-2-swap-readiness` remains the historical Phase 2 swap batch; `pnpm release:verify` is the current v5 release gate
   - the Omena Rust split crates are published and externally consumable through crates.io; v5 treats them as the stable internal product baseline, not a separate semver-1.0 crate freeze
@@ -487,9 +487,9 @@ Flat config example:
 import { createRequire } from "node:module";
 
 const require = createRequire(import.meta.url);
-const cssModuleExplainer = require("eslint-plugin-css-module-explainer");
+const omena = require("eslint-plugin-css-module-explainer");
 
-export default [...cssModuleExplainer.configs.recommended];
+export default [...omena.configs.recommended];
 ```
 
 Focused variant:
@@ -498,9 +498,9 @@ Focused variant:
 import { createRequire } from "node:module";
 
 const require = createRequire(import.meta.url);
-const cssModuleExplainer = require("eslint-plugin-css-module-explainer");
+const omena = require("eslint-plugin-css-module-explainer");
 
-export default [...cssModuleExplainer.configs.focused];
+export default [...omena.configs.focused];
 ```
 
 Optional dynamic moat:
@@ -509,9 +509,9 @@ Optional dynamic moat:
 import { createRequire } from "node:module";
 
 const require = createRequire(import.meta.url);
-const cssModuleExplainer = require("eslint-plugin-css-module-explainer");
+const omena = require("eslint-plugin-css-module-explainer");
 
-export default [...cssModuleExplainer.configs.dynamicMoat];
+export default [...omena.configs.dynamicMoat];
 ```
 
 Repo-local clean example:

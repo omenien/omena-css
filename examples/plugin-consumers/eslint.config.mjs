@@ -1,7 +1,7 @@
 import { createRequire } from "node:module";
 
 const require = createRequire(import.meta.url);
-const cssModuleExplainer = require("eslint-plugin-css-module-explainer");
+const omena = require("eslint-plugin-css-module-explainer");
 
 export default [
   {
@@ -16,5 +16,5 @@ export default [
       },
     },
   },
-  ...cssModuleExplainer.configs.recommended,
+  ...omena.configs.recommended,
 ];

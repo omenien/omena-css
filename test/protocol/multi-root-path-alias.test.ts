@@ -50,10 +50,10 @@ describe("multi-root pathAlias", () => {
       readStyleFile,
       typeResolver: new FakeTypeResolver(),
     });
-    client.setScopedConfiguration("cssModuleExplainer", ROOT_A_URI, {
+    client.setScopedConfiguration("omena", ROOT_A_URI, {
       pathAlias: { "@styles": "src/styles-a" },
     });
-    client.setScopedConfiguration("cssModuleExplainer", ROOT_B_URI, {
+    client.setScopedConfiguration("omena", ROOT_B_URI, {
       pathAlias: { "@styles": "src/styles-b" },
     });
     await client.initialize({

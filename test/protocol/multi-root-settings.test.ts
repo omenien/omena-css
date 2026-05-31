@@ -41,10 +41,10 @@ describe("multi-root resource-scoped settings", () => {
       readStyleFile: (path) => (path.endsWith("Button.module.scss") ? SCSS : null),
       typeResolver: new FakeTypeResolver(),
     });
-    client.setScopedConfiguration("cssModuleExplainer", ROOT_A_URI, {
+    client.setScopedConfiguration("omena", ROOT_A_URI, {
       scss: { classnameTransform: "camelCase" },
     });
-    client.setScopedConfiguration("cssModuleExplainer", ROOT_B_URI, {
+    client.setScopedConfiguration("omena", ROOT_B_URI, {
       scss: { classnameTransform: "asIs" },
     });
     await client.initialize({

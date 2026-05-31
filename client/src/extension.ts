@@ -21,11 +21,11 @@ let client: LanguageClient | undefined;
 
 export function activate(context: vscode.ExtensionContext): void {
   const typeFactBackend = readClientTypeFactBackendSetting(
-    vscode.workspace.getConfiguration("cssModuleExplainer").get("typeFactBackend"),
+    vscode.workspace.getConfiguration("omena").get("typeFactBackend"),
   );
   const serverEnv = buildTypeFactBackendEnv(typeFactBackend, process.env);
   const lspServerRuntime = readClientLspServerRuntimeSetting(
-    vscode.workspace.getConfiguration("cssModuleExplainer").get("lspServerRuntime"),
+    vscode.workspace.getConfiguration("omena").get("lspServerRuntime"),
   );
   let runtimeSelection;
   try {
@@ -56,14 +56,14 @@ export function activate(context: vscode.ExtensionContext): void {
   const clientOptions: LanguageClientOptions = {
     documentSelector: buildThinClientDocumentSelector(),
     synchronize: {
-      configurationSection: ["cssModuleExplainer", "cssModules"],
+      configurationSection: ["omena", "cssModules"],
       fileEvents: rustLspFileEvents,
     },
     outputChannelName: "CSS Module Explainer",
     progressOnInitialization: true,
   };
 
-  client = new LanguageClient("cssModuleExplainer", "CSS Module Explainer", serverOptions, {
+  client = new LanguageClient("omena", "CSS Module Explainer", serverOptions, {
     ...clientOptions,
     middleware: {
       provideCodeLenses: async (document, token, next) => {

@@ -59,7 +59,7 @@ export function Button() {
     typeResolver: new FakeTypeResolver(),
   });
 
-  client.setConfiguration("cssModuleExplainer", {
+  client.setConfiguration("omena", {
     scss: { classnameTransform: "camelCase" },
   });
 

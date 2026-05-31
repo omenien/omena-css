@@ -101,7 +101,7 @@ const didChangeConfigurationNotification = {
   method: "workspace/didChangeConfiguration",
   params: {
     settings: {
-      cssModuleExplainer: {
+      omena: {
         lspServerRuntime: "omena-lsp-server",
       },
     },
@@ -122,12 +122,12 @@ const didChangeWatchedFilesNotification = {
 const debugStateRequest = {
   jsonrpc: "2.0",
   id: 3,
-  method: "cssModuleExplainer/rustLspState",
+  method: "omena/rustLspState",
 };
 const debugPostRuntimeChangeRequest = {
   jsonrpc: "2.0",
   id: 4,
-  method: "cssModuleExplainer/rustLspState",
+  method: "omena/rustLspState",
 };
 const shutdownRequest = {
   jsonrpc: "2.0",

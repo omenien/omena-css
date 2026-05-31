@@ -78,13 +78,13 @@ pub(crate) use workspace_index::{
 };
 
 pub const NODE_TEXT_DOCUMENT_SYNC_KIND: u8 = 2;
-pub const DEBUG_STATE_REQUEST: &str = "cssModuleExplainer/rustLspState";
-pub const RUNTIME_LOOP_PROBE_REQUEST: &str = "cssModuleExplainer/runtimeLoopProbe";
-pub const STYLE_HOVER_CANDIDATES_REQUEST: &str = "cssModuleExplainer/rustStyleHoverCandidates";
-pub const STYLE_DIAGNOSTICS_REQUEST: &str = "cssModuleExplainer/rustStyleDiagnostics";
-pub const SOURCE_DIAGNOSTICS_REQUEST: &str = "cssModuleExplainer/rustSourceDiagnostics";
-pub const CASCADE_AT_POSITION_REQUEST: &str = "cssModuleExplainer/rustCascadeAtPosition";
-pub const STYLE_CONTEXT_INDEX_REQUEST: &str = "cssModuleExplainer/rustStyleContextIndex";
+pub const DEBUG_STATE_REQUEST: &str = "omena/rustLspState";
+pub const RUNTIME_LOOP_PROBE_REQUEST: &str = "omena/runtimeLoopProbe";
+pub const STYLE_HOVER_CANDIDATES_REQUEST: &str = "omena/rustStyleHoverCandidates";
+pub const STYLE_DIAGNOSTICS_REQUEST: &str = "omena/rustStyleDiagnostics";
+pub const SOURCE_DIAGNOSTICS_REQUEST: &str = "omena/rustSourceDiagnostics";
+pub const CASCADE_AT_POSITION_REQUEST: &str = "omena/rustCascadeAtPosition";
+pub const STYLE_CONTEXT_INDEX_REQUEST: &str = "omena/rustStyleContextIndex";
 const CANCEL_REQUEST_METHOD: &str = "$/cancelRequest";
 const REQUEST_CANCELLED_ERROR_CODE: i32 = -32800;
 #[derive(Debug, Clone, PartialEq, Eq)]

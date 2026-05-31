@@ -31,10 +31,10 @@ describe("multi-root settings reload", () => {
         readStyleFile: () => BUTTON_SCSS,
         typeResolver: new FakeTypeResolver(),
       });
-      client.setScopedConfiguration("cssModuleExplainer", ROOT_A_URI, {
+      client.setScopedConfiguration("omena", ROOT_A_URI, {
         scss: { classnameTransform: "asIs" },
       });
-      client.setScopedConfiguration("cssModuleExplainer", ROOT_B_URI, {
+      client.setScopedConfiguration("omena", ROOT_B_URI, {
         scss: { classnameTransform: "asIs" },
       });
       await client.initialize({
@@ -72,7 +72,7 @@ describe("multi-root settings reload", () => {
       expect(initialA.find((d) => d.message.includes("'.btn-primary'"))).toBeDefined();
       expect(initialB.find((d) => d.message.includes("'.btn-primary'"))).toBeDefined();
 
-      client.setScopedConfiguration("cssModuleExplainer", ROOT_A_URI, {
+      client.setScopedConfiguration("omena", ROOT_A_URI, {
         scss: { classnameTransform: "camelCase" },
       });
       client.didChangeConfiguration();

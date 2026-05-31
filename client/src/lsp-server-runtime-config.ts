@@ -84,7 +84,7 @@ export function resolveLspServerRuntimeSelection(
   if (!command) {
     throw new Error(
       [
-        `cssModuleExplainer.lspServerRuntime=${runtime} requires an omena-lsp-server binary.`,
+        `omena.lspServerRuntime=${runtime} requires an omena-lsp-server binary.`,
         "Run pnpm build, set CME_OMENA_LSP_SERVER_PATH to an explicit binary, or set CME_OMENA_LSP_SERVER_COMMAND to a command on PATH.",
       ].join("\n"),
     );

@@ -27,7 +27,7 @@ export function BracketAccessScenario() {
       </div>
 
       <p className={styles.meta}>
-        If you switch <code>cssModuleExplainer.scss.classnameTransform</code> to{" "}
+        If you switch <code>omena.scss.classnameTransform</code> to{" "}
         <code>camelCase</code>, you can also verify alias resolution on the dashed selectors
         without changing this scenario's runtime behavior.
       </p>

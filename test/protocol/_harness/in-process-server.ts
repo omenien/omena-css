@@ -206,7 +206,7 @@ export function createInProcessServer(options: InProcessServerOptions = {}): Lsp
   const codeLensRefreshWaiters: Array<{ resolve: () => void; reject: (e: unknown) => void }> = [];
   // Handle workspace/configuration requests from the server. The
   // server's `fetchSettings` asks for two sections
-  // (`cssModuleExplainer` + `cssModules`) in separate requests, so
+  // (`omena` + `cssModules`) in separate requests, so
   // we return a per-section object that tests can swap out between
   // didChangeConfiguration reloads.
   const configBySection: Record<string, unknown> = {};

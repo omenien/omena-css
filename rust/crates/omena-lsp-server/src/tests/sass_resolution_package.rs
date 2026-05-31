@@ -56,7 +56,7 @@ fn resolves_sass_definition_with_configured_package_manifest_path() -> TestResul
             "method": "workspace/didChangeConfiguration",
             "params": {
                 "settings": {
-                    "cssModuleExplainer": {
+                    "omena": {
                         "resolution": {
                             "packageManifestPaths": [override_manifest_path],
                         },

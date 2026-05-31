@@ -176,7 +176,7 @@ through them whenever you update the provider layer.
   without `classnames/bind`. Reverting the typo clears it on
   the next debounce.
 - **`classnameTransform` alias resolution**: set
-  `"cssModuleExplainer.scss.classnameTransform": "camelCase"` in
+  `"omena.scss.classnameTransform": "camelCase"` in
   workspace settings and open `02-multi-binding`. Both
   `styles['btn-primary']` and `styles.btnPrimary` should resolve
   to the same selector (hover, go-to-definition, completion).

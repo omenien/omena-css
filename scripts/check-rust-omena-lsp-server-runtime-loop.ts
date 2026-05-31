@@ -18,7 +18,7 @@ import {
 import { StreamMessageReader, StreamMessageWriter } from "vscode-jsonrpc/node";
 import { resolveOmenaLspServerInvocation } from "./omena-lsp-server-invocation";
 
-const RUNTIME_LOOP_PROBE_REQUEST = "cssModuleExplainer/runtimeLoopProbe";
+const RUNTIME_LOOP_PROBE_REQUEST = "omena/runtimeLoopProbe";
 const SELECTOR_COUNT = parsePositiveInteger(process.env.CME_LSP_RUNTIME_LOOP_SELECTORS, 50);
 const PROBE_INTERVAL_MS = parsePositiveInteger(
   process.env.CME_LSP_RUNTIME_LOOP_PROBE_INTERVAL_MS,

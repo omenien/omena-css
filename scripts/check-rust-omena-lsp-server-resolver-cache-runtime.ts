@@ -18,7 +18,7 @@ import {
 import { StreamMessageReader, StreamMessageWriter } from "vscode-jsonrpc/node";
 import { resolveOmenaLspServerInvocation } from "./omena-lsp-server-invocation";
 
-const DEBUG_STATE_REQUEST = "cssModuleExplainer/rustLspState";
+const DEBUG_STATE_REQUEST = "omena/rustLspState";
 const ALIAS_COUNT = parsePositiveInteger(process.env.CME_LSP_RESOLVER_CACHE_ALIASES, 360);
 const PACKAGE_COUNT = parsePositiveInteger(process.env.CME_LSP_RESOLVER_CACHE_PACKAGES, 160);
 const REFRESH_BASELINE_SAMPLES = parsePositiveInteger(
