@@ -98,6 +98,14 @@ jobs:
         name: Run role-boundaries
         run: pnpm cme-check run rust/role-boundaries
         continue-on-error: true
+      - id: publish_flags
+        name: Run publish-flags
+        run: pnpm cme-check run rust/publish-flags
+        continue-on-error: true
+      - id: naming_consistency
+        name: Run naming-consistency
+        run: pnpm cme-check run rust/naming-consistency
+        continue-on-error: true
       - if: always()
         name: Enforce closure-fast result
         run: |
@@ -110,6 +118,8 @@ jobs:
           echo "diff_test=${{ steps.diff_test.outcome }}"
           echo "train_closure=${{ steps.train_closure.outcome }}"
           echo "role_boundaries=${{ steps.role_boundaries.outcome }}"
+          echo "publish_flags=${{ steps.publish_flags.outcome }}"
+          echo "naming_consistency=${{ steps.naming_consistency.outcome }}"
           failed=0
           for outcome in \
             "${{ steps.m1.outcome }}" \
@@ -120,7 +130,9 @@ jobs:
             "${{ steps.cascade.outcome }}" \
             "${{ steps.diff_test.outcome }}" \
             "${{ steps.train_closure.outcome }}" \
-            "${{ steps.role_boundaries.outcome }}"; do
+            "${{ steps.role_boundaries.outcome }}" \
+            "${{ steps.publish_flags.outcome }}" \
+            "${{ steps.naming_consistency.outcome }}"; do
             if [ "$outcome" != "success" ]; then
               failed=1
             fi
