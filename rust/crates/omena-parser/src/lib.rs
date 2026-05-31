@@ -23,6 +23,10 @@ use std::{
     sync::Arc,
 };
 
+// R1 narrow public surface: `public_product` is private; only this curated set
+// of V0 contract types + summary fns is re-exported (no wildcard). Reuse of
+// omena-parser as a building block goes through these names — keep the list
+// explicit and minimal rather than widening to `pub use public_product::*`.
 mod public_product;
 pub use public_product::{
     ParserCanonicalCandidateBundleV0, ParserCanonicalProducerSignalV0, ParserEvaluatorCandidatesV0,

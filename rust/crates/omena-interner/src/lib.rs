@@ -3,6 +3,18 @@
 //! `cstree` owns token storage inside green trees. This crate owns semantic
 //! string identity above the CST layer so hot-path equality can use typed
 //! interned IDs instead of repeated string comparison.
+//!
+//! ## Reuse cost: the `'db` lifetime (deliberate)
+//!
+//! The interned identities (`ClassName<'db>`, `CssIdent<'db>`, `PropertyName<'db>`,
+//! …) are `#[salsa::interned]` newtypes, so they carry the Salsa database
+//! lifetime `'db`. This is the ONE crate in the workspace that propagates `'db`
+//! onto consumers: any crate that holds these typed IDs inherits the lifetime.
+//! The coupling is deliberate — it buys O(1) typed-ID equality on the hot path —
+//! and is the documented price of reusing this R1 building block (see the role
+//! manifest: `omena-interner` is the `lifetime-coupled` reuse surface). Consumers
+//! that only need owned string identity stay above this layer: the V0 contracts
+//! carried across crate boundaries use owned data, not `'db`-bound IDs.
 
 use std::{error::Error, fmt};
 
