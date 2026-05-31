@@ -52,7 +52,6 @@ const omenaCssCrates = [
   "omena-query-checker-orchestrator",
   "omena-query",
   "omena-cli",
-  "omena-napi",
   "omena-wasm",
 ];
 const omenaCssPublishOrder = [
@@ -89,7 +88,6 @@ const omenaCssPublishOrder = [
   "omena-ensemble",
   "omena-query-checker-orchestrator",
   "omena-query",
-  "omena-napi",
   "omena-wasm",
   "omena-zk-circuit",
   "omena-zk-audit",
@@ -437,7 +435,7 @@ sharing one release train.
 - Transform substrate: \`omena-transform-cst\`, \`omena-transform-passes\`,
   \`omena-transform-bundle\`, \`omena-transform-target\`,
   \`omena-transform-print\`, \`omena-transform-egg\`
-- Consumer surfaces: \`omena-cli\`, \`omena-napi\`, \`omena-wasm\`
+- Consumer surfaces: \`omena-cli\`, \`omena-wasm\`
 
 ## Current Product Surface
 
@@ -450,7 +448,6 @@ The first public surface focuses on parser and transform foundations:
 - Conservative transform planning and execution surfaces with explicit
   provenance.
 - Query-owned consumer facade for CLI, Node native, and browser bindings.
-- Node native JSON binding substrate through \`omena-napi\`.
 - Browser-side in-memory query bindings through \`omena-wasm\`.
 
 ## Design Rules
@@ -588,90 +585,6 @@ const cascade = readCascadeAtPosition(
 );
 \`\`\`
 
-## Use the Node Native Binding Substrate
-
-\`omena-napi\` is the Rust N-API substrate for future npm packaging. It exposes
-JSON-string APIs so Node clients can consume the same query-owned parser and
-transform contracts without depending on unstable Rust structs. A future npm wrapper can
-export this shape:
-
-\`\`\`js
-import {
-  checkStyleSourceJson,
-  buildStyleSourceJson,
-  buildStyleSourceWithContextJson,
-  buildStyleSourceForTargetQueryJson,
-  buildStyleSourceForTargetQueryWithOptionsJson,
-  buildStyleSourceForTargetQueryWithContextJson,
-  buildStyleSourcesWithContextJson,
-  buildStyleSourcesForTargetQueryWithContextJson,
-  readCascadeAtPositionJson,
-} from "omena-napi";
-
-const facts = JSON.parse(
-  checkStyleSourceJson(".card { color: red; }", "demo.module.css"),
-);
-const built = JSON.parse(
-  buildStyleSourceJson(".card { color: #ffffff; }", "demo.css", [
-    "color-compression",
-  ]),
-);
-const legacyBuilt = JSON.parse(
-  buildStyleSourceForTargetQueryJson(
-    ".card { display: flex; color: light-dark(#000, #fff); }",
-    "demo.css",
-    "ie 11",
-  ),
-);
-const legacyBuiltWithOptions = JSON.parse(
-  buildStyleSourceForTargetQueryWithOptionsJson(
-    ".card { margin-inline: 1rem; }",
-    "demo.css",
-    "ie 11",
-    JSON.stringify({ allowLogicalToPhysical: true }),
-  ),
-);
-const evaluatedScss = JSON.parse(
-  buildStyleSourceForTargetQueryWithContextJson(
-    "$brand: red; .card { color: $brand; }",
-    "demo.module.scss",
-    "ie 11",
-    "{}",
-    JSON.stringify({
-      scssModuleEvaluation: {
-        evaluator: "dart-sass-compatible",
-        evaluatedCss: ".card { color: red; }",
-      },
-    }),
-  ),
-);
-const bundledModule = JSON.parse(
-  buildStyleSourcesWithContextJson(
-    "Button.module.css",
-    JSON.stringify([
-      {
-        stylePath: "Button.module.css",
-        styleSource:
-          '@import "./tokens.css"; .button { composes: base; color: var(--brand); } .base { color: blue; }',
-      },
-      { stylePath: "tokens.css", styleSource: ":root { --brand: red; }" },
-    ]),
-    ["import-inline", "composes-resolution"],
-    "{}",
-    "[]",
-  ),
-);
-const cascade = JSON.parse(
-  readCascadeAtPositionJson(
-    ":root { --brand: red; } .button { color: var(--brand); }",
-    "Button.module.css",
-    0,
-    44,
-    "",
-  ),
-);
-\`\`\`
-
 ## Publish Readiness
 
 Run the manual GitHub Actions publish workflow in \`dry-run\` mode first. For a
@@ -802,40 +715,6 @@ Primary consumers:
 - \`expressionDomainSelectorProjection(input)\` projects expression-domain flow
   values to target style selectors.
 - \`listTransformPasses()\` lists accepted transform pass ids.
-
-## Node Native Binding
-
-\`omena-napi\` exposes the first Node native binding substrate:
-
-- \`checkStyleSourceJson(source, path)\` reports query-owned parser facts as JSON.
-- \`buildStyleSourceJson(source, path, passIds)\` runs conservative transform
-  passes and returns JSON.
-- \`buildStyleSourceWithContextJson(source, path, passIds, contextJson)\`
-  accepts explicit evaluator/provenance context and returns JSON.
-- \`buildStyleSourceForTargetQueryJson(source, path, targetQuery)\` plans
-  target-sensitive passes from a Browserslist query or named target profile.
-- \`buildStyleSourceForTargetQueryWithOptionsJson(source, path, targetQuery,
-  targetOptionsJson)\` accepts explicit target transform opt-ins.
-- \`buildStyleSourceForTargetQueryWithContextJson(source, path, targetQuery,
-  targetOptionsJson, contextJson)\` combines target planning with explicit
-  evaluator context.
-- \`buildStyleSourcesWithContextJson(targetPath, sourcesJson, passIds,
-  contextJson, packageManifestsJson)\` derives import/composes context from
-  workspace source JSON and merges explicit evaluator/provenance context.
-- \`buildStyleSourcesForTargetQueryWithContextJson(targetPath, sourcesJson,
-  targetQuery, targetOptionsJson, contextJson, packageManifestsJson)\` combines
-  target planning with workspace-derived import/composes context.
-- \`readCascadeAtPositionJson(source, path, line, character, inputJson)\`
-  reads cascade, computed-value, and custom-property LFP information at a
-  \`var(...)\` reference position.
-- \`expressionDomainIncrementalFlowJson(inputJson)\` runs one query-owned
-  expression-domain incremental-flow pass.
-- \`new ExpressionDomainFlowRuntime().analyzeJson(inputJson)\` keeps the
-  query-owned incremental-flow runtime alive across calls so Node clients can
-  observe graph reuse.
-- \`expressionDomainSelectorProjectionJson(inputJson)\` projects
-  expression-domain flow values to target style selectors.
-- \`listTransformPassesJson()\` lists accepted transform pass ids as JSON.
 `,
   );
   writeFileSync(
