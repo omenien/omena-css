@@ -313,8 +313,7 @@ function buildTheoryClaimGuard(): {
       surface: "SMT backend selection surface with descriptor-only CVC5/Bitwuzla retired",
       evidencePath: "rust/crates/omena-smt/src/backend/z3.rs",
       evidenceMarkers: ["Z3SmtBackendV0", "smt-z3", "z3"],
-      nextAction:
-        "keep Z3 opt-in unless the product lane explicitly accepts the solver dependency",
+      nextAction: "keep Z3 opt-in unless the product lane explicitly accepts the solver dependency",
     },
     {
       id: "m4-gamma.smt-bisimulation-fuzz",
