@@ -15,6 +15,7 @@ use omena_query::{
     execute_omena_query_consumer_build_style_sources_for_target_query_with_context_and_options,
     execute_omena_query_consumer_build_style_sources_with_context,
     list_omena_query_transform_pass_summaries, read_omena_query_cascade_at_position,
+    read_omena_query_cascade_at_position_with_categorical_evidence,
     read_omena_query_style_context_index, summarize_omena_query_consumer_check_style_source,
     summarize_omena_query_expression_domain_incremental_flow_analysis,
     summarize_omena_query_expression_domain_selector_projection,
@@ -186,6 +187,9 @@ enum Command {
         /// Optional EngineInputV2 JSON file for source/type context.
         #[arg(long)]
         engine_input_json: Option<PathBuf>,
+        /// Attach opt-in categorical cascade evidence to the query result.
+        #[arg(long)]
+        categorical_evidence: bool,
         /// Print machine-readable JSON.
         #[arg(long)]
         json: bool,
@@ -529,8 +533,16 @@ fn run(cli: Cli) -> Result<(), String> {
             line,
             character,
             engine_input_json,
+            categorical_evidence,
             json,
-        } => cascade_at_position(path, line, character, engine_input_json, json),
+        } => cascade_at_position(
+            path,
+            line,
+            character,
+            engine_input_json,
+            categorical_evidence,
+            json,
+        ),
         Command::ContextIndex {
             path,
             engine_input_json,
@@ -1313,6 +1325,7 @@ fn cascade_at_position(
     line: usize,
     character: usize,
     engine_input_json: Option<PathBuf>,
+    categorical_evidence: bool,
     json: bool,
 ) -> Result<(), String> {
     let source = read_source(&path)?;
@@ -1323,9 +1336,18 @@ fn cascade_at_position(
         empty_engine_input()
     };
     let position = ParserPositionV0 { line, character };
-    let Some(summary) =
+    let summary = if categorical_evidence {
+        read_omena_query_cascade_at_position_with_categorical_evidence(
+            &style_path,
+            &source,
+            &engine_input,
+            position,
+            true,
+        )
+    } else {
         read_omena_query_cascade_at_position(&style_path, &source, &engine_input, position)
-    else {
+    };
+    let Some(summary) = summary else {
         return Err(format!(
             "failed to read cascade information for {style_path}:{line}:{character}",
         ));
@@ -1376,6 +1398,18 @@ fn cascade_at_position(
         "lfp guaranteed-invalid count: {}",
         summary.custom_property_fixed_point_guaranteed_invalid_count
     );
+    if let Some(evidence) = summary.categorical_evidence.as_ref() {
+        println!("categorical evidence: attached");
+        println!("categorical endpoints: {}", evidence.endpoint_count);
+        println!(
+            "categorical functor accepted: {}",
+            evidence
+                .functor_applications
+                .first()
+                .map(|functor| functor.accepted)
+                .unwrap_or(false)
+        );
+    }
     Ok(())
 }
 
@@ -2198,10 +2232,26 @@ mod tests {
                 line: 1,
                 character: 24,
                 engine_input_json: None,
+                categorical_evidence: false,
                 json: true,
             },
         });
         assert!(cascade_result.is_ok(), "{cascade_result:?}");
+
+        let categorical_cascade_result = run(Cli {
+            command: Command::Cascade {
+                path: source_path.clone(),
+                line: 1,
+                character: 24,
+                engine_input_json: None,
+                categorical_evidence: true,
+                json: true,
+            },
+        });
+        assert!(
+            categorical_cascade_result.is_ok(),
+            "{categorical_cascade_result:?}"
+        );
 
         let context_result = run(Cli {
             command: Command::ContextIndex {
