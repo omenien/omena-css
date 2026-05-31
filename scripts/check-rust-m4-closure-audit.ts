@@ -387,15 +387,18 @@ function buildTheoryClaimGuard(): {
     {
       id: "m4-gamma.categorical-fixture-evidence",
       stage: "m4-gamma",
-      status: "propertyTestEnforced",
-      framing: "enforcedProperty",
-      surface: "fixture-backed categorical evidence endpoints",
+      status: "partialPropertyTest",
+      framing: "partialMechanism",
+      surface:
+        "computed categorical evidence endpoints with residual static endpoints explicitly deferred",
       evidencePath: "rust/crates/omena-categorical/src/lib.rs",
       evidenceMarkers: [
         "CategoricalEndpointFixtureEvidenceV0",
         "categorical_fixture_evidence_for_endpoint_v0",
         "cascade_primitive_roles_v0",
+        "researchDeferredMissingSourceSensitiveSubstrate",
       ],
+      nextAction: "replace deferred categorical residuals with source-sensitive product checks",
     },
     {
       id: "m4-gamma.streaming-ifds-transfer-cache",

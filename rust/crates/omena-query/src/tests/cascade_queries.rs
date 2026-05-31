@@ -126,8 +126,13 @@ fn read_cascade_at_position_can_attach_categorical_evidence_when_requested() {
         evidence
             .fixture_evidence
             .iter()
+            .filter(|fixture| fixture.claim_scope == "computedEvidence")
             .all(|fixture| fixture.accepted)
     );
+    assert!(evidence.fixture_evidence.iter().any(|fixture| {
+        fixture.claim_scope == "researchDeferredMissingSourceSensitiveSubstrate"
+            && !fixture.accepted
+    }));
     assert!(
         evidence
             .endpoints

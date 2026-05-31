@@ -98,6 +98,7 @@ pub struct CategoricalEndpointFixtureEvidenceV0 {
     pub product: &'static str,
     pub layer_marker: &'static str,
     pub feature_gate: &'static str,
+    pub claim_scope: &'static str,
     pub endpoint_id: &'static str,
     pub fixture_id: &'static str,
     pub fixture_focus: &'static str,
@@ -304,84 +305,51 @@ pub fn categorical_fixture_evidence_for_endpoint_v0(
         }
         "rust/omena-categorical/classify-omega-truth" => Some(omega_truth_fixture_v0(endpoint_id)),
         "rust/omena-categorical/verify-s4-axioms" => Some(s4_axioms_fixture_v0(endpoint_id)),
-        "rust/omena-categorical/verify-modal-imperative-equivalence" => Some(endpoint_fixture_v0(
-            endpoint_id,
-            "fixture.categorical.modal-imperative-equivalence.v0",
-            "modal-imperative equivalence",
-            "omena-categorical.modal-diagnostic-schema",
-            &[
+        "rust/omena-categorical/verify-modal-imperative-equivalence" => {
+            Some(deferred_endpoint_fixture_v0(
+                endpoint_id,
+                "fixture.categorical.modal-imperative-equivalence.v0",
+                "modal-imperative equivalence",
                 "omena-categorical.modal-diagnostic-schema",
-                "omena-categorical.modal-evaluation-witness",
-            ],
-            &[
-                (
-                    "diagnostic-css-module-missing-class",
+                &[
                     "omena-categorical.modal-diagnostic-schema",
-                    "modal=true,imperative=true",
-                    "modal=true,imperative=true",
-                ),
-                (
-                    "diagnostic-custom-property-missing",
-                    "omena-categorical.modal-diagnostic-schema",
-                    "modal=true,imperative=true",
-                    "modal=true,imperative=true",
-                ),
-            ],
-        )),
+                    "omena-categorical.modal-evaluation-witness",
+                ],
+                "missing-source-sensitive-diagnostic-modality-substrate",
+            ))
+        }
         "rust/omena-categorical/verify-invariant-functoriality" => {
             Some(invariant_functoriality_fixture_v0(endpoint_id))
         }
-        "rust/omena-categorical/compare-design-system-theory" => Some(endpoint_fixture_v0(
-            endpoint_id,
-            "fixture.categorical.design-system-theory-compare.v0",
-            "cross-project design-system theory",
-            "omena-categorical.design-system-theory",
-            &[
+        "rust/omena-categorical/compare-design-system-theory" => {
+            Some(deferred_endpoint_fixture_v0(
+                endpoint_id,
+                "fixture.categorical.design-system-theory-compare.v0",
+                "cross-project design-system theory",
                 "omena-categorical.design-system-theory",
-                "omena-categorical.design-system-model",
-            ],
-            &[
-                (
-                    "two-model-comparison",
+                &[
                     "omena-categorical.design-system-theory",
-                    "modelCount=2",
-                    "modelCount=2",
-                ),
-                (
-                    "sort-interpretation-preserved",
                     "omena-categorical.design-system-model",
-                    "sortInterpretations>0",
-                    "sortInterpretations>0",
-                ),
-            ],
-        )),
+                ],
+                "missing-cross-project-design-system-model-substrate",
+            ))
+        }
         "rust/omena-categorical/summarize-kripke-frame" => {
             Some(kripke_frame_fixture_v0(endpoint_id))
         }
-        "rust/omena-categorical/verify-cross-project-symmetry" => Some(endpoint_fixture_v0(
-            endpoint_id,
-            "fixture.categorical.cross-project-symmetry.v0",
-            "cross-project symmetry",
-            "omena-categorical.design-system-invariant-summary",
-            &[
-                "omena-categorical.design-system-theory",
+        "rust/omena-categorical/verify-cross-project-symmetry" => {
+            Some(deferred_endpoint_fixture_v0(
+                endpoint_id,
+                "fixture.categorical.cross-project-symmetry.v0",
+                "cross-project symmetry",
                 "omena-categorical.design-system-invariant-summary",
-            ],
-            &[
-                (
-                    "symmetric-project-order",
+                &[
+                    "omena-categorical.design-system-theory",
                     "omena-categorical.design-system-invariant-summary",
-                    "compare(A,B)=compare(B,A)",
-                    "compare(A,B)=compare(B,A)",
-                ),
-                (
-                    "invariant-model-count",
-                    "omena-categorical.design-system-invariant-summary",
-                    "modelCount=2",
-                    "modelCount=2",
-                ),
-            ],
-        )),
+                ],
+                "missing-cross-project-invariant-substrate",
+            ))
+        }
         _ => None,
     }
 }
@@ -429,38 +397,29 @@ fn site_stability_fixture_v0(endpoint_id: &'static str) -> CategoricalEndpointFi
     )
 }
 
-fn endpoint_fixture_v0(
+fn deferred_endpoint_fixture_v0(
     endpoint_id: &'static str,
     fixture_id: &'static str,
     fixture_focus: &'static str,
     evidence_product: &'static str,
     exercised_contract_products: &'static [&'static str],
-    assertions: &'static [(&'static str, &'static str, &'static str, &'static str)],
+    missing_substrate: &'static str,
 ) -> CategoricalEndpointFixtureEvidenceV0 {
-    let assertions = assertions
-        .iter()
-        .map(
-            |(assertion_id, contract_product, observed, expected)| CategoricalFixtureAssertionV0 {
-                schema_version: CATEGORICAL_SCHEMA_VERSION_V0,
-                product: "omena-categorical.fixture-assertion",
-                layer_marker: CATEGORICAL_LAYER_MARKER_V0,
-                feature_gate: CATEGORICAL_FEATURE_GATE_V0,
-                assertion_id,
-                contract_product,
-                observed: observed.to_string(),
-                expected: expected.to_string(),
-                accepted: observed == expected,
-            },
-        )
-        .collect::<Vec<_>>();
-    endpoint_fixture_from_assertions_v0(
+    let mut fixture = endpoint_fixture_from_assertions_v0(
         endpoint_id,
         fixture_id,
         fixture_focus,
         evidence_product,
         exercised_contract_products,
-        assertions,
-    )
+        vec![fixture_assertion_v0(
+            "research-deferred-missing-substrate",
+            evidence_product,
+            format!("deferred:{missing_substrate}"),
+            "implemented:source-sensitive-substrate",
+        )],
+    );
+    fixture.claim_scope = "researchDeferredMissingSourceSensitiveSubstrate";
+    fixture
 }
 
 fn invariant_functoriality_fixture_v0(
@@ -902,6 +861,7 @@ fn endpoint_fixture_from_assertions_v0(
         product: "omena-categorical.endpoint-fixture-evidence",
         layer_marker: CATEGORICAL_LAYER_MARKER_V0,
         feature_gate: CATEGORICAL_FEATURE_GATE_V0,
+        claim_scope: "computedEvidence",
         endpoint_id,
         fixture_id,
         fixture_focus,
@@ -1007,8 +967,13 @@ mod tests {
             evidence
                 .fixture_evidence
                 .iter()
+                .filter(|fixture| fixture.claim_scope == "computedEvidence")
                 .all(|fixture| fixture.accepted)
         );
+        assert!(evidence.fixture_evidence.iter().any(|fixture| {
+            fixture.claim_scope == "researchDeferredMissingSourceSensitiveSubstrate"
+                && !fixture.accepted
+        }));
         assert!(!evidence.default_feature_enabled);
         assert!(endpoint_ids.contains(&"rust/omena-categorical/verify-site-stability"));
         assert!(endpoint_ids.contains(&"rust/omena-categorical/verify-beck-chevalley"));
@@ -1029,17 +994,29 @@ mod tests {
                 assert_eq!(fixture.schema_version, "0");
                 assert_eq!(fixture.endpoint_id, endpoint.endpoint_id);
                 assert_eq!(fixture.evidence_product, endpoint.evidence_product);
+                assert!(
+                    fixture.claim_scope == "computedEvidence"
+                        || fixture.claim_scope == "researchDeferredMissingSourceSensitiveSubstrate"
+                );
                 assert!(!fixture.fixture_id.is_empty());
                 assert!(!fixture.exercised_contract_products.is_empty());
                 assert_eq!(fixture.assertion_count, fixture.assertions.len());
                 assert!(fixture.assertion_count > 0);
-                assert!(fixture.accepted);
-                assert!(
-                    fixture
-                        .assertions
-                        .iter()
-                        .all(|assertion| assertion.accepted)
-                );
+                if fixture.claim_scope == "computedEvidence" {
+                    assert!(fixture.accepted);
+                    assert!(
+                        fixture
+                            .assertions
+                            .iter()
+                            .all(|assertion| assertion.accepted)
+                    );
+                } else {
+                    assert!(!fixture.accepted);
+                    assert!(fixture.assertions.iter().any(|assertion| {
+                        assertion.assertion_id == "research-deferred-missing-substrate"
+                            && !assertion.accepted
+                    }));
+                }
             }
         }
 
@@ -1059,7 +1036,38 @@ mod tests {
         );
         assert!(modal.is_some());
         if let Some(modal) = modal {
-            assert!(modal.assertion_count >= 2);
+            assert_eq!(
+                modal.claim_scope,
+                "researchDeferredMissingSourceSensitiveSubstrate"
+            );
+            assert_eq!(modal.assertion_count, 1);
+            assert!(!modal.accepted);
+        }
+    }
+
+    #[test]
+    fn static_categorical_residuals_are_deferred_not_counted_complete() {
+        for endpoint_id in [
+            "rust/omena-categorical/verify-modal-imperative-equivalence",
+            "rust/omena-categorical/compare-design-system-theory",
+            "rust/omena-categorical/verify-cross-project-symmetry",
+        ] {
+            let fixture = categorical_fixture_evidence_for_endpoint_v0(endpoint_id);
+            assert!(fixture.is_some());
+            let Some(fixture) = fixture else {
+                return;
+            };
+            assert_eq!(
+                fixture.claim_scope,
+                "researchDeferredMissingSourceSensitiveSubstrate"
+            );
+            assert!(!fixture.accepted);
+            assert!(
+                fixture
+                    .assertions
+                    .iter()
+                    .all(|assertion| !assertion.accepted)
+            );
         }
     }
 
