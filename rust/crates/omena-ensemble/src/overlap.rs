@@ -98,7 +98,7 @@ pub fn compute_overlap_distribution(
     parisi_source: Option<ParisiM4AlphaSource<'_>>,
 ) -> ReplicaOverlapDistributionV0 {
     let replicas = replicas.into_iter().collect::<Vec<_>>();
-    let pair_indices = selected_pair_indices(replicas.len(), sampling_policy);
+    let pair_indices = selected_pair_indices(&replicas, sampling_policy);
     let overlaps = pair_indices
         .iter()
         .map(|(alpha_index, beta_index)| {
@@ -208,27 +208,55 @@ fn distribution_from_overlaps(
     }
 }
 
-fn selected_pair_indices(
-    replica_count: usize,
+pub(crate) fn selected_pair_indices(
+    replicas: &[ReplicaSnapshotV0],
     sampling_policy: Option<SamplingPolicy>,
 ) -> Vec<(usize, usize)> {
     let mut pairs = Vec::new();
-    for alpha_index in 0..replica_count {
-        for beta_index in alpha_index + 1..replica_count {
+    for alpha_index in 0..replicas.len() {
+        for beta_index in alpha_index + 1..replicas.len() {
             pairs.push((alpha_index, beta_index));
         }
     }
 
-    let max_pair_count = match sampling_policy {
-        Some(SamplingPolicy::PageRankWeighted { max_pair_count })
-        | Some(SamplingPolicy::RandomSubset { max_pair_count }) => Some(max_pair_count),
-        Some(SamplingPolicy::AllPairs) | None => None,
-    };
-
-    if let Some(max_pair_count) = max_pair_count {
-        pairs.truncate(max_pair_count);
+    match sampling_policy {
+        Some(SamplingPolicy::PageRankWeighted { max_pair_count }) => {
+            pairs.sort_by(|left, right| {
+                replica_pair_footprint_score(replicas, *right)
+                    .cmp(&replica_pair_footprint_score(replicas, *left))
+                    .then_with(|| {
+                        replica_pair_key(replicas, *left).cmp(&replica_pair_key(replicas, *right))
+                    })
+            });
+            pairs.truncate(max_pair_count);
+        }
+        Some(SamplingPolicy::RandomSubset { max_pair_count }) => {
+            pairs.sort_by_key(|pair| stable_pair_hash(&replica_pair_key(replicas, *pair)));
+            pairs.truncate(max_pair_count);
+        }
+        Some(SamplingPolicy::AllPairs) | None => {}
     }
     pairs
+}
+
+fn replica_pair_footprint_score(replicas: &[ReplicaSnapshotV0], pair: (usize, usize)) -> usize {
+    replicas[pair.0]
+        .sites
+        .len()
+        .saturating_add(replicas[pair.1].sites.len())
+}
+
+fn replica_pair_key(replicas: &[ReplicaSnapshotV0], pair: (usize, usize)) -> String {
+    format!("{}|{}", replicas[pair.0].path, replicas[pair.1].path)
+}
+
+fn stable_pair_hash(value: &str) -> u64 {
+    let mut hash = 0xcbf2_9ce4_8422_2325_u64;
+    for byte in value.as_bytes() {
+        hash ^= u64::from(*byte);
+        hash = hash.wrapping_mul(0x0000_0100_0000_01b3);
+    }
+    hash
 }
 
 fn project_outcome(outcome: &CascadeOutcome, mode: OutcomeMode) -> Option<String> {

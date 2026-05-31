@@ -95,6 +95,28 @@ fn tier_two_consumes_m4_alpha_cascade_replica_overlap_when_available() {
 }
 
 #[test]
+fn sampling_policies_choose_distinct_pair_sets() {
+    let replicas = vec![
+        fixture_replica("heavy/a.module.css", ["a", "a", "a", "a"]),
+        fixture_replica("heavy/b.module.css", ["a", "a", "a"]),
+        fixture_replica("light/c.module.css", ["x"]),
+        fixture_replica("light/d.module.css", ["x"]),
+    ];
+
+    let weighted = crate::overlap::selected_pair_indices(
+        &replicas,
+        Some(SamplingPolicy::PageRankWeighted { max_pair_count: 2 }),
+    );
+    let random = crate::overlap::selected_pair_indices(
+        &replicas,
+        Some(SamplingPolicy::RandomSubset { max_pair_count: 2 }),
+    );
+
+    assert_eq!(weighted[0], (0, 1));
+    assert_ne!(weighted, random);
+}
+
+#[test]
 fn sbm_detectability_ranks_partition_hypotheses_and_uses_unknown_safe_annotation() {
     let graph = planted_two_brand_graph();
     let threshold = compute_sbm_detectability(
