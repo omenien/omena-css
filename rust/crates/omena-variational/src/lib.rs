@@ -16,6 +16,11 @@ use serde::Serialize;
 pub const VARIATIONAL_SCHEMA_VERSION_V0: &str = "0";
 pub const VARIATIONAL_LAYER_MARKER_V0: &str = "variational-cascade";
 pub const VARIATIONAL_FEATURE_GATE_V0: &str = "variational";
+const DESIGNER_INTENT_BP_MAX_ITERATIONS_V0: usize = 12;
+const DESIGNER_INTENT_BP_CONVERGENCE_EPSILON_BITS_V0: f64 = 0.005;
+const DESIGNER_INTENT_BP_DAMPING_V0: f64 = 0.35;
+const DESIGNER_INTENT_BP_FEEDBACK_WEIGHT_V0: f64 = 0.08;
+const DESIGNER_INTENT_BP_MAX_FEEDBACK_BITS_V0: f64 = 0.35;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -126,6 +131,7 @@ pub struct PatternPriorCalibrationV0 {
     pub layer_marker: &'static str,
     pub feature_gate: &'static str,
     pub corpus_fingerprint: String,
+    pub calibration_scope: &'static str,
     pub axis_a_schema_version: &'static str,
     pub fixture_count: usize,
     pub generated_at_epoch: u64,
@@ -235,9 +241,21 @@ pub struct DesignerIntentBeliefPropagationTraceV0 {
     pub feature_gate: &'static str,
     pub selector_name: String,
     pub factor_count: usize,
+    pub iteration_count: usize,
+    pub converged: bool,
+    pub max_delta_bits: f64,
+    pub free_energy_delta_bits: f64,
+    pub free_energy: VariationalFreeEnergyV0,
     pub message_count: usize,
     pub messages: Vec<DesignerIntentBeliefPropagationMessageV0>,
     pub posterior_scores: Vec<DesignerIntentScoreV0>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub enum DesignerIntentMessageDirectionV0 {
+    IntentToFactor,
+    FactorToIntent,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize)]
@@ -247,6 +265,8 @@ pub struct DesignerIntentBeliefPropagationMessageV0 {
     pub product: &'static str,
     pub layer_marker: &'static str,
     pub feature_gate: &'static str,
+    pub iteration_index: usize,
+    pub direction: DesignerIntentMessageDirectionV0,
     pub source_factor: &'static str,
     pub target_intent: PatternIntentV0,
     pub message_bits: f64,
@@ -284,7 +304,11 @@ pub fn infer_designer_intent_posterior_v0(
         product: "omena-variational.designer-intent-posterior",
         layer_marker: VARIATIONAL_LAYER_MARKER_V0,
         feature_gate: VARIATIONAL_FEATURE_GATE_V0,
-        mode: DesignerIntentPosteriorModeV0::PcnHierarchical,
+        mode: if trace.converged {
+            DesignerIntentPosteriorModeV0::VciFormal
+        } else {
+            DesignerIntentPosteriorModeV0::PcnHierarchical
+        },
         selector_name: input.selector_name,
         scores: trace.posterior_scores,
         enabled_by_default: true,
@@ -304,48 +328,112 @@ pub fn designer_intent_belief_propagation_trace_v0(
         PatternIntentV0::AdHoc,
     ];
     let prior_log_probability_bits = -(intents.len() as f64).log2();
-    let mut logits = intents
-        .iter()
-        .map(|intent| (*intent, prior_log_probability_bits))
-        .collect::<Vec<_>>();
+    let mut factor_to_intent_messages = vec![vec![0.0; intents.len()]; factors.len()];
+    let mut posterior_log_probability_bits = vec![prior_log_probability_bits; intents.len()];
     let mut messages = Vec::new();
+    let mut iteration_count = 0;
+    let mut converged = false;
+    let mut max_delta_bits = f64::INFINITY;
+    let mut free_energy_delta_bits = f64::INFINITY;
+    let mut free_energy = variational_free_energy_from_beliefs_v0(
+        &posterior_log_probability_bits,
+        prior_log_probability_bits,
+        &factor_to_intent_messages,
+    );
 
-    for factor in factors {
-        for (intent, logit) in &mut logits {
-            let message_bits = factor.message_bits_for(*intent);
-            *logit += message_bits;
-            messages.push(DesignerIntentBeliefPropagationMessageV0 {
-                schema_version: VARIATIONAL_SCHEMA_VERSION_V0,
-                product: "omena-variational.designer-intent-bp-message",
-                layer_marker: VARIATIONAL_LAYER_MARKER_V0,
-                feature_gate: VARIATIONAL_FEATURE_GATE_V0,
-                source_factor: factor.source_factor,
-                target_intent: *intent,
-                message_bits,
-            });
+    for iteration_index in 0..DESIGNER_INTENT_BP_MAX_ITERATIONS_V0 {
+        iteration_count = iteration_index + 1;
+        let mut intent_to_factor_messages = vec![vec![0.0; intents.len()]; factors.len()];
+
+        for (factor_index, factor) in factors.iter().enumerate() {
+            let mut raw_intent_messages = Vec::with_capacity(intents.len());
+            for intent_index in 0..intents.len() {
+                let incoming_from_other_factors = factor_to_intent_messages
+                    .iter()
+                    .enumerate()
+                    .filter(|(candidate_index, _)| *candidate_index != factor_index)
+                    .map(|(_, factor_messages)| factor_messages[intent_index])
+                    .sum::<f64>();
+                raw_intent_messages.push(prior_log_probability_bits + incoming_from_other_factors);
+            }
+            let normalization_bits = log2_sum_exp_v0(&raw_intent_messages);
+            for (intent_index, intent) in intents.iter().enumerate() {
+                let message_bits = raw_intent_messages[intent_index] - normalization_bits;
+                intent_to_factor_messages[factor_index][intent_index] = message_bits;
+                messages.push(DesignerIntentBeliefPropagationMessageV0 {
+                    schema_version: VARIATIONAL_SCHEMA_VERSION_V0,
+                    product: "omena-variational.designer-intent-bp-message",
+                    layer_marker: VARIATIONAL_LAYER_MARKER_V0,
+                    feature_gate: VARIATIONAL_FEATURE_GATE_V0,
+                    iteration_index,
+                    direction: DesignerIntentMessageDirectionV0::IntentToFactor,
+                    source_factor: factor.source_factor,
+                    target_intent: *intent,
+                    message_bits,
+                });
+            }
+        }
+
+        let mut next_factor_to_intent_messages = factor_to_intent_messages.clone();
+        for (factor_index, factor) in factors.iter().enumerate() {
+            for (intent_index, intent) in intents.iter().enumerate() {
+                let evidence_bits = factor.message_bits_for(*intent);
+                let feedback_bits = (intent_to_factor_messages[factor_index][intent_index]
+                    - prior_log_probability_bits)
+                    .clamp(
+                        -DESIGNER_INTENT_BP_MAX_FEEDBACK_BITS_V0,
+                        DESIGNER_INTENT_BP_MAX_FEEDBACK_BITS_V0,
+                    )
+                    * DESIGNER_INTENT_BP_FEEDBACK_WEIGHT_V0;
+                let target_message_bits = evidence_bits + feedback_bits;
+                let message_bits = DESIGNER_INTENT_BP_DAMPING_V0
+                    * factor_to_intent_messages[factor_index][intent_index]
+                    + (1.0 - DESIGNER_INTENT_BP_DAMPING_V0) * target_message_bits;
+                next_factor_to_intent_messages[factor_index][intent_index] = message_bits;
+                messages.push(DesignerIntentBeliefPropagationMessageV0 {
+                    schema_version: VARIATIONAL_SCHEMA_VERSION_V0,
+                    product: "omena-variational.designer-intent-bp-message",
+                    layer_marker: VARIATIONAL_LAYER_MARKER_V0,
+                    feature_gate: VARIATIONAL_FEATURE_GATE_V0,
+                    iteration_index,
+                    direction: DesignerIntentMessageDirectionV0::FactorToIntent,
+                    source_factor: factor.source_factor,
+                    target_intent: *intent,
+                    message_bits,
+                });
+            }
+        }
+
+        let next_posterior_log_probability_bits = posterior_log_probability_bits_from_messages_v0(
+            prior_log_probability_bits,
+            &next_factor_to_intent_messages,
+        );
+        max_delta_bits = max_abs_delta_bits_v0(
+            &posterior_log_probability_bits,
+            &next_posterior_log_probability_bits,
+        );
+        let next_free_energy = variational_free_energy_from_beliefs_v0(
+            &next_posterior_log_probability_bits,
+            prior_log_probability_bits,
+            &next_factor_to_intent_messages,
+        );
+        free_energy_delta_bits =
+            (free_energy.free_energy_bits - next_free_energy.free_energy_bits).abs();
+
+        posterior_log_probability_bits = next_posterior_log_probability_bits;
+        factor_to_intent_messages = next_factor_to_intent_messages;
+        free_energy = next_free_energy;
+
+        if max_delta_bits <= DESIGNER_INTENT_BP_CONVERGENCE_EPSILON_BITS_V0
+            && free_energy_delta_bits <= DESIGNER_INTENT_BP_CONVERGENCE_EPSILON_BITS_V0
+        {
+            converged = true;
+            break;
         }
     }
 
-    let logit_values = logits.iter().map(|(_, logit)| *logit).collect::<Vec<_>>();
-    let normalization_bits = log2_sum_exp_v0(&logit_values);
-    let mut posterior_scores = logits
-        .into_iter()
-        .map(|(intent, logit)| DesignerIntentScoreV0 {
-            schema_version: VARIATIONAL_SCHEMA_VERSION_V0,
-            product: "omena-variational.designer-intent-score",
-            layer_marker: VARIATIONAL_LAYER_MARKER_V0,
-            feature_gate: VARIATIONAL_FEATURE_GATE_V0,
-            intent,
-            log_probability_bits: logit - normalization_bits,
-        })
-        .collect::<Vec<_>>();
-    posterior_scores.sort_by(|left, right| {
-        right
-            .log_probability_bits
-            .partial_cmp(&left.log_probability_bits)
-            .unwrap_or(std::cmp::Ordering::Equal)
-            .then_with(|| left.intent.as_str().cmp(right.intent.as_str()))
-    });
+    let posterior_scores =
+        designer_intent_scores_from_log_probabilities_v0(&intents, &posterior_log_probability_bits);
 
     DesignerIntentBeliefPropagationTraceV0 {
         schema_version: VARIATIONAL_SCHEMA_VERSION_V0,
@@ -353,7 +441,12 @@ pub fn designer_intent_belief_propagation_trace_v0(
         layer_marker: VARIATIONAL_LAYER_MARKER_V0,
         feature_gate: VARIATIONAL_FEATURE_GATE_V0,
         selector_name: input.selector_name.clone(),
-        factor_count: messages.len() / intents.len(),
+        factor_count: factors.len(),
+        iteration_count,
+        converged,
+        max_delta_bits,
+        free_energy_delta_bits,
+        free_energy,
         message_count: messages.len(),
         messages,
         posterior_scores,
@@ -398,6 +491,7 @@ pub fn uniform_pattern_prior_v0(corpus_fingerprint: impl Into<String>) -> Patter
             layer_marker: VARIATIONAL_LAYER_MARKER_V0,
             feature_gate: VARIATIONAL_FEATURE_GATE_V0,
             corpus_fingerprint: corpus_fingerprint.into(),
+            calibration_scope: "fixtureUniformNoCorpusCalibration",
             axis_a_schema_version: "0",
             fixture_count: 0,
             generated_at_epoch: 0,
@@ -532,6 +626,95 @@ fn log2_sum_exp_v0(logits: &[f64]) -> f64 {
             .log2()
 }
 
+fn posterior_log_probability_bits_from_messages_v0(
+    prior_log_probability_bits: f64,
+    factor_to_intent_messages: &[Vec<f64>],
+) -> Vec<f64> {
+    let intent_count = factor_to_intent_messages
+        .first()
+        .map(Vec::len)
+        .unwrap_or_default();
+    let logits = (0..intent_count)
+        .map(|intent_index| {
+            prior_log_probability_bits
+                + factor_to_intent_messages
+                    .iter()
+                    .map(|factor_messages| factor_messages[intent_index])
+                    .sum::<f64>()
+        })
+        .collect::<Vec<_>>();
+    let normalization_bits = log2_sum_exp_v0(&logits);
+    logits
+        .into_iter()
+        .map(|logit| logit - normalization_bits)
+        .collect()
+}
+
+fn designer_intent_scores_from_log_probabilities_v0(
+    intents: &[PatternIntentV0],
+    log_probability_bits: &[f64],
+) -> Vec<DesignerIntentScoreV0> {
+    let mut scores = intents
+        .iter()
+        .zip(log_probability_bits.iter())
+        .map(|(intent, log_probability_bits)| DesignerIntentScoreV0 {
+            schema_version: VARIATIONAL_SCHEMA_VERSION_V0,
+            product: "omena-variational.designer-intent-score",
+            layer_marker: VARIATIONAL_LAYER_MARKER_V0,
+            feature_gate: VARIATIONAL_FEATURE_GATE_V0,
+            intent: *intent,
+            log_probability_bits: *log_probability_bits,
+        })
+        .collect::<Vec<_>>();
+    scores.sort_by(|left, right| {
+        right
+            .log_probability_bits
+            .partial_cmp(&left.log_probability_bits)
+            .unwrap_or(std::cmp::Ordering::Equal)
+            .then_with(|| left.intent.as_str().cmp(right.intent.as_str()))
+    });
+    scores
+}
+
+fn max_abs_delta_bits_v0(left: &[f64], right: &[f64]) -> f64 {
+    left.iter()
+        .zip(right.iter())
+        .map(|(left, right)| (left - right).abs())
+        .fold(0.0, f64::max)
+}
+
+fn variational_free_energy_from_beliefs_v0(
+    posterior_log_probability_bits: &[f64],
+    prior_log_probability_bits: f64,
+    factor_to_intent_messages: &[Vec<f64>],
+) -> VariationalFreeEnergyV0 {
+    let mut complexity_bits = 0.0;
+    let mut accuracy_bits = 0.0;
+    for (intent_index, posterior_log_probability_bits) in
+        posterior_log_probability_bits.iter().enumerate()
+    {
+        let probability = 2_f64.powf(*posterior_log_probability_bits);
+        complexity_bits +=
+            probability * (posterior_log_probability_bits - prior_log_probability_bits);
+        accuracy_bits += probability
+            * factor_to_intent_messages
+                .iter()
+                .map(|factor_messages| factor_messages[intent_index])
+                .sum::<f64>();
+    }
+
+    VariationalFreeEnergyV0 {
+        schema_version: VARIATIONAL_SCHEMA_VERSION_V0,
+        product: "omena-variational.free-energy",
+        layer_marker: VARIATIONAL_LAYER_MARKER_V0,
+        feature_gate: VARIATIONAL_FEATURE_GATE_V0,
+        complexity_bits,
+        accuracy_bits,
+        free_energy_bits: complexity_bits - accuracy_bits,
+        public_framing: "V0 mean-field free-energy over fixture-uniform prior",
+    }
+}
+
 pub fn variational_free_energy_v0(
     complexity_bits: f64,
     accuracy_bits: f64,
@@ -544,7 +727,7 @@ pub fn variational_free_energy_v0(
         complexity_bits,
         accuracy_bits,
         free_energy_bits: complexity_bits - accuracy_bits,
-        public_framing: "Champion 2024 ELBO/VFE framing",
+        public_framing: "V0 mean-field free-energy over fixture-uniform prior",
     }
 }
 
@@ -648,7 +831,7 @@ mod tests {
             0,
         ));
 
-        assert_eq!(bem.mode, DesignerIntentPosteriorModeV0::PcnHierarchical);
+        assert_eq!(bem.mode, DesignerIntentPosteriorModeV0::VciFormal);
         assert!(bem.enabled_by_default);
         assert_eq!(
             dominant_designer_intent_v0(&bem),
@@ -675,24 +858,128 @@ mod tests {
         let explicit_trace = designer_intent_belief_propagation_trace_v0(&explicit);
 
         assert_eq!(tied_trace.factor_count, 5);
-        assert_eq!(tied_trace.message_count, 25);
+        assert!(tied_trace.iteration_count > 1);
+        assert!(tied_trace.converged);
+        assert!(
+            tied_trace.max_delta_bits <= DESIGNER_INTENT_BP_CONVERGENCE_EPSILON_BITS_V0,
+            "final iteration should satisfy posterior fixpoint tolerance"
+        );
+        assert!(
+            tied_trace.free_energy_delta_bits <= DESIGNER_INTENT_BP_CONVERGENCE_EPSILON_BITS_V0,
+            "free-energy objective should participate in convergence"
+        );
+        assert_eq!(
+            tied_trace.message_count,
+            tied_trace.messages.len(),
+            "trace message count must reflect retained iteration evidence"
+        );
+        assert!(
+            tied_trace.message_count > 25,
+            "iterative belief propagation should retain more than one factor-to-intent sweep"
+        );
         assert!(tied_trace.messages.iter().any(|message| {
-            message.source_factor == "selector-bem-marker"
+            message.direction == DesignerIntentMessageDirectionV0::IntentToFactor
+        }));
+        assert!(tied_trace.messages.iter().any(|message| {
+            message.direction == DesignerIntentMessageDirectionV0::FactorToIntent
+        }));
+        assert!(tied_trace.messages.iter().any(|message| {
+            message.direction == DesignerIntentMessageDirectionV0::FactorToIntent
+                && message.source_factor == "selector-bem-marker"
                 && message.target_intent == PatternIntentV0::Bem
                 && message.message_bits > 0.0
         }));
         assert!(tied_trace.messages.iter().any(|message| {
-            message.source_factor == "source-order-tie"
+            message.direction == DesignerIntentMessageDirectionV0::FactorToIntent
+                && message.source_factor == "source-order-tie"
                 && message.target_intent == PatternIntentV0::Bem
                 && message.message_bits < 0.0
         }));
 
+        let single_sweep_trace = designer_intent_single_sweep_trace_for_test_v0(&tied);
+        let single_sweep_bem_bits =
+            score_bits_for_intent(&single_sweep_trace, PatternIntentV0::Bem);
         let tied_bem_bits = score_bits_for_intent(&tied_trace, PatternIntentV0::Bem);
+        assert_ne!(
+            tied_bem_bits, single_sweep_bem_bits,
+            "coupled iterative messages must change the posterior relative to the previous single-sweep mechanism"
+        );
+
         let explicit_bem_bits = score_bits_for_intent(&explicit_trace, PatternIntentV0::Bem);
         assert!(
             tied_bem_bits < explicit_bem_bits,
             "source-order tie factor must lower the BEM posterior instead of leaving the fixture tautological"
         );
+    }
+
+    fn designer_intent_single_sweep_trace_for_test_v0(
+        input: &DesignerIntentPosteriorInputV0,
+    ) -> DesignerIntentBeliefPropagationTraceV0 {
+        let selector = normalize_selector_name_for_intent_v0(&input.selector_name);
+        let factors = designer_intent_evidence_factors_v0(&selector, input);
+        let intents = [
+            PatternIntentV0::Bem,
+            PatternIntentV0::Utility,
+            PatternIntentV0::Atomic,
+            PatternIntentV0::Hybrid,
+            PatternIntentV0::AdHoc,
+        ];
+        let prior_log_probability_bits = -(intents.len() as f64).log2();
+        let factor_to_intent_messages = factors
+            .iter()
+            .map(|factor| {
+                intents
+                    .iter()
+                    .map(|intent| factor.message_bits_for(*intent))
+                    .collect::<Vec<_>>()
+            })
+            .collect::<Vec<_>>();
+        let posterior_log_probability_bits = posterior_log_probability_bits_from_messages_v0(
+            prior_log_probability_bits,
+            &factor_to_intent_messages,
+        );
+        let posterior_scores = designer_intent_scores_from_log_probabilities_v0(
+            &intents,
+            &posterior_log_probability_bits,
+        );
+
+        DesignerIntentBeliefPropagationTraceV0 {
+            schema_version: VARIATIONAL_SCHEMA_VERSION_V0,
+            product: "omena-variational.designer-intent-belief-propagation",
+            layer_marker: VARIATIONAL_LAYER_MARKER_V0,
+            feature_gate: VARIATIONAL_FEATURE_GATE_V0,
+            selector_name: input.selector_name.clone(),
+            factor_count: factors.len(),
+            iteration_count: 1,
+            converged: true,
+            max_delta_bits: 0.0,
+            free_energy_delta_bits: 0.0,
+            free_energy: variational_free_energy_from_beliefs_v0(
+                &posterior_log_probability_bits,
+                prior_log_probability_bits,
+                &factor_to_intent_messages,
+            ),
+            message_count: factors.len() * intents.len(),
+            messages: factors
+                .iter()
+                .flat_map(|factor| {
+                    intents
+                        .iter()
+                        .map(|intent| DesignerIntentBeliefPropagationMessageV0 {
+                            schema_version: VARIATIONAL_SCHEMA_VERSION_V0,
+                            product: "omena-variational.designer-intent-bp-message",
+                            layer_marker: VARIATIONAL_LAYER_MARKER_V0,
+                            feature_gate: VARIATIONAL_FEATURE_GATE_V0,
+                            iteration_index: 0,
+                            direction: DesignerIntentMessageDirectionV0::FactorToIntent,
+                            source_factor: factor.source_factor,
+                            target_intent: *intent,
+                            message_bits: factor.message_bits_for(*intent),
+                        })
+                })
+                .collect(),
+            posterior_scores,
+        }
     }
 
     #[test]
@@ -709,12 +996,14 @@ mod tests {
             vec!["bem", "utility", "atomic", "hybrid", "adHoc"]
         );
         assert_eq!(prior.concentration_bits, 5.0);
+        let calibration = prior.corpus_calibration.as_ref();
         assert_eq!(
-            prior
-                .corpus_calibration
-                .as_ref()
-                .map(|calibration| calibration.axis_a_schema_version),
+            calibration.map(|calibration| calibration.axis_a_schema_version),
             Some("0")
+        );
+        assert_eq!(
+            calibration.map(|calibration| calibration.calibration_scope),
+            Some("fixtureUniformNoCorpusCalibration")
         );
     }
 
