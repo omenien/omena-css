@@ -1,3 +1,4 @@
+#![allow(clippy::expect_used)]
 use crate::{
     OmenaQueryExternalSifInputV0, OmenaQuerySourceDocumentInputV0,
     OmenaQueryStyleDiagnosticsForFileV0, OmenaQueryStyleSourceInputV0, ParserPositionV0,

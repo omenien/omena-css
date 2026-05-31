@@ -1,3 +1,4 @@
+#![allow(clippy::expect_used)]
 use omena_cascade::{
     CascadeDeclaration, CascadeKey, CascadeLevel, CascadeOutcome, CascadeProof, CascadeValue,
     LayerRank, Specificity, summarize_replica_overlap,

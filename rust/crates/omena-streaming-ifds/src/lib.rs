@@ -724,7 +724,7 @@ fn finite_class_set(values: impl IntoIterator<Item = String>) -> AbstractClassVa
 
 fn class_token_from_node_id(node_id: &str) -> String {
     node_id
-        .rsplit(|character: char| matches!(character, '/' | '#' | '.' | ':' | '|'))
+        .rsplit(['/', '#', '.', ':', '|'])
         .find(|segment| !segment.is_empty())
         .unwrap_or(node_id)
         .to_string()

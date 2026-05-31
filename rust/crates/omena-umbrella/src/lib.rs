@@ -7,7 +7,6 @@
 //! This is a pure re-export layer (role = U): it carries NO logic of its own. Membership
 //! is the R1+R2 set of the role manifest; `rust/role-boundaries` keeps it in sync.
 
-
 pub use engine_input_producers;
 pub use omena_abstract_value;
 pub use omena_bridge;
