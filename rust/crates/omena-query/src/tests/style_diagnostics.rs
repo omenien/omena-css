@@ -475,6 +475,62 @@ fn cascade_aware_lints_carry_rg_flow_coupling_spectrum_evidence() -> Result<(), 
 }
 
 #[test]
+fn cascade_aware_lints_surface_standalone_rg_flow_for_acyclic_high_gain_hub() {
+    let high_gain = r#"
+:root {
+  --seed: 1px;
+  --a: var(--seed);
+  --b: var(--seed);
+  --c: var(--seed);
+  --d: var(--seed);
+}
+"#;
+    let candidates =
+        crate::summarize_omena_query_style_hover_candidates("Tokens.module.css", high_gain)
+            .expect("high-gain candidates");
+
+    let default_diagnostics = crate::summarize_omena_query_style_diagnostics_for_file(
+        "file:///workspace/src/Tokens.module.css",
+        high_gain,
+        candidates.candidates.as_slice(),
+    );
+    assert!(
+        default_diagnostics
+            .diagnostics
+            .iter()
+            .all(|diagnostic| diagnostic.code != "rgFlowRelevantOperator"),
+        "rg-flow hint must stay off on the default surface"
+    );
+
+    let deep_diagnostics =
+        crate::summarize_omena_query_style_diagnostics_for_file_with_deep_analysis(
+            "file:///workspace/src/Tokens.module.css",
+            high_gain,
+            candidates.candidates.as_slice(),
+            true,
+        );
+    let rg_flow = deep_diagnostics
+        .diagnostics
+        .iter()
+        .find(|diagnostic| diagnostic.code == "rgFlowRelevantOperator")
+        .expect("acyclic high-gain hub should surface a standalone rg-flow hint");
+    assert!(
+        deep_diagnostics
+            .diagnostics
+            .iter()
+            .all(|diagnostic| diagnostic.code != "circularVar"),
+        "standalone rg-flow hint must not depend on circularVar"
+    );
+    assert!(
+        rg_flow
+            .provenance
+            .contains(&"omena-rg-flow.coupling-jacobian-spectrum"),
+        "rg-flow coupling-spectrum provenance should be carried: {:?}",
+        rg_flow.provenance
+    );
+}
+
+#[test]
 fn cascade_aware_lints_carry_categorical_functor_evidence() -> Result<(), &'static str> {
     // Cyclic custom-property ranking: --a -> --b -> --a. The least-fixed-point
     // ranking colimit cannot converge, so the cascade-ranking primitive is

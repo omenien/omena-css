@@ -77,6 +77,10 @@ pub struct RGFlowMetricV0 {
     pub iteration_count: usize,
     pub fixed_point_reached: bool,
     pub flow_length_bound: usize,
+    pub observed_flow_step_count: usize,
+    pub observed_flow_length_l1: f64,
+    pub fixed_point_residual_l1: usize,
+    pub fixed_point_verified_from_trace: bool,
     pub provenance_handle: String,
 }
 
@@ -404,6 +408,7 @@ pub fn summarize_rg_flow_metric(
     summary: &CustomPropertyLeastFixedPointSummaryV0,
 ) -> RGFlowMetricV0 {
     let beta = estimate_beta_function_from_custom_property_summary("fixed-point.css", summary);
+    let observed_flow = observed_fixed_point_flow(summary);
     RGFlowMetricV0 {
         schema_version: RG_FLOW_SCHEMA_VERSION_V0,
         product: "omena-rg-flow.metric",
@@ -416,6 +421,10 @@ pub fn summarize_rg_flow_metric(
         iteration_count: summary.iteration_count,
         fixed_point_reached: summary.reached_fixed_point,
         flow_length_bound: summary.iteration_bound,
+        observed_flow_step_count: observed_flow.step_count,
+        observed_flow_length_l1: observed_flow.length_l1,
+        fixed_point_residual_l1: observed_flow.fixed_point_residual_l1,
+        fixed_point_verified_from_trace: observed_flow.fixed_point_verified_from_trace,
         provenance_handle: "custom-property-least-fixed-point-v0".to_string(),
     }
 }
@@ -860,9 +869,47 @@ fn coupling_from_iteration(
     )
 }
 
+#[derive(Debug, Clone, Copy, PartialEq)]
+struct ObservedFixedPointFlowV0 {
+    step_count: usize,
+    length_l1: f64,
+    fixed_point_residual_l1: usize,
+    fixed_point_verified_from_trace: bool,
+}
+
+fn observed_fixed_point_flow(
+    summary: &CustomPropertyLeastFixedPointSummaryV0,
+) -> ObservedFixedPointFlowV0 {
+    let length_l1 = summary
+        .iteration_trace
+        .iter()
+        .map(|iteration| iteration.changed_count + iteration.guaranteed_invalid_count)
+        .map(|count| count as f64)
+        .sum::<f64>();
+    let fixed_point_residual_l1 = summary
+        .input_count
+        .saturating_sub(summary.resolved_count)
+        .saturating_sub(summary.guaranteed_invalid_count);
+    let fixed_point_verified_from_trace = summary.reached_fixed_point
+        && summary.monotone_witness_valid
+        && summary.iteration_count == summary.iteration_trace.len()
+        && summary
+            .iteration_trace
+            .last()
+            .is_some_and(|iteration| iteration.iteration == summary.iteration_count)
+        && fixed_point_residual_l1 == 0;
+
+    ObservedFixedPointFlowV0 {
+        step_count: summary.iteration_trace.len(),
+        length_l1,
+        fixed_point_residual_l1,
+        fixed_point_verified_from_trace,
+    }
+}
+
 fn beta_vector_from_couplings(before: &CouplingSpaceV0, after: &CouplingSpaceV0) -> BetaVectorV0 {
     let beta_env = signed_delta(after.k_env, before.k_env);
-    let beta_decl = signed_delta(after.k_decl, before.k_decl).min(0.0);
+    let beta_decl = signed_delta(after.k_decl, before.k_decl);
     let beta_cycle = signed_delta(after.k_cycle, before.k_cycle);
     let beta_dirty = signed_delta(after.k_dirty, before.k_dirty);
     let coupling_jacobian = estimate_coupling_jacobian_spectrum_v0(before, after);
@@ -898,7 +945,7 @@ pub fn estimate_coupling_jacobian_spectrum_v0(
     after: &CouplingSpaceV0,
 ) -> CouplingJacobianSpectrumV0 {
     let beta_env = signed_delta(after.k_env, before.k_env);
-    let beta_decl = signed_delta(after.k_decl, before.k_decl).min(0.0);
+    let beta_decl = signed_delta(after.k_decl, before.k_decl);
     let beta_cycle = signed_delta(after.k_cycle, before.k_cycle);
     let beta_dirty = signed_delta(after.k_dirty, before.k_dirty);
     let env_decl_cross = coupling_cross_sensitivity(before.k_decl, after.k_decl, before.k_env);
@@ -1055,6 +1102,12 @@ mod tests {
         assert!(estimate.sign_witness.monotone_kleene_certificate);
         assert_eq!(metric.feature_gate, "rg-flow");
         assert!(metric.fixed_point_reached);
+        assert_eq!(metric.fixed_point_residual_l1, 0);
+        assert!(metric.fixed_point_verified_from_trace);
+        assert_eq!(
+            metric.observed_flow_step_count,
+            summary.iteration_trace.len()
+        );
         assert_eq!(
             estimate.beta_vector.coupling_jacobian.product,
             "omena-rg-flow.coupling-jacobian-spectrum"
@@ -1068,6 +1121,49 @@ mod tests {
                 estimate.beta_vector.beta_dirty
             ]
         );
+    }
+
+    #[test]
+    fn beta_vector_preserves_positive_declaration_growth() {
+        let before = coupling_space(5, 4, 0, 0);
+        let after = coupling_space(5, 10, 0, 0);
+        let beta = beta_vector_from_couplings(&before, &after);
+        let witness = beta_sign_witness(&beta, true);
+
+        assert_eq!(beta.beta_decl, 6.0);
+        assert_eq!(witness.beta_decl_sign, 1);
+        assert!(beta.coupling_jacobian.spectral_radius > 1.0);
+    }
+
+    #[test]
+    fn rg_flow_metric_records_trace_derived_flow_evidence() {
+        let mut env = CustomPropertyEnv::default();
+        env.insert(
+            "--a".to_string(),
+            CascadeValue::Var {
+                name: "--b".to_string(),
+                fallback: None,
+            },
+        );
+        env.insert(
+            "--b".to_string(),
+            CascadeValue::Var {
+                name: "--c".to_string(),
+                fallback: None,
+            },
+        );
+        env.insert(
+            "--c".to_string(),
+            CascadeValue::Literal("ready".to_string()),
+        );
+        let summary = summarize_custom_property_least_fixed_point(&env);
+        let metric = summarize_rg_flow_metric("workspace", 0, &summary);
+
+        assert!(metric.observed_flow_step_count > 0);
+        assert!(metric.observed_flow_length_l1 > 0.0);
+        assert_eq!(metric.fixed_point_residual_l1, 0);
+        assert!(metric.fixed_point_verified_from_trace);
+        assert!(metric.flow_length_bound >= metric.observed_flow_step_count);
     }
 
     #[test]

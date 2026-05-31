@@ -225,12 +225,13 @@ fn query_theory_hint_range_is_whole_file(range: &ParserRangeV0) -> bool {
 ///
 /// The coupling space is extracted from the parsed custom-property dependency
 /// graph: the `before` state is the raw declared structure, and the `after`
-/// state adds the custom properties that participate in a reference cycle and
-/// those that resolve to the guaranteed-invalid value. A diverging stylesheet
-/// (growing cyclic / guaranteed-invalid coupling) drives the spectral radius
-/// above one through `estimate_coupling_jacobian_spectrum_v0`, so the gate emits
-/// `rg-flow-relevant-operator`. A settled stylesheet keeps `before == after`,
-/// the spectral radius is zero, and nothing is surfaced.
+/// state adds the custom properties that participate in a reference cycle,
+/// those that resolve to the guaranteed-invalid value, and an acyclic fan-out
+/// pressure term for high-gain custom-property hubs. A diverging stylesheet
+/// (growing cyclic / guaranteed-invalid / high-gain coupling) drives the
+/// spectral radius above one through `estimate_coupling_jacobian_spectrum_v0`,
+/// so the gate emits `rg-flow-relevant-operator`. A settled stylesheet keeps
+/// `before == after`, the spectral radius is zero, and nothing is surfaced.
 fn summarize_query_rg_flow_coupling_diagnostics(
     source: &str,
     custom_properties: &[OmenaCheckerCustomPropertyInputV0],
@@ -731,6 +732,12 @@ fn query_rg_flow_coupling_for_custom_properties(
         .iter()
         .filter(|property| property.guaranteed_invalid)
         .count();
+    let acyclic_high_gain_pressure = if k_cycle == 0 {
+        query_acyclic_high_gain_coupling_pressure(&dependencies)
+    } else {
+        0
+    };
+    let after_k_decl = k_decl.saturating_add(acyclic_high_gain_pressure);
 
     Some(OmenaCheckerRgFlowCouplingInputV0 {
         workspace_path: "stylesheet://custom-property-coupling".to_string(),
@@ -742,11 +749,28 @@ fn query_rg_flow_coupling_for_custom_properties(
         },
         after: OmenaCheckerRgFlowCouplingSpaceInputV0 {
             k_env,
-            k_decl,
+            k_decl: after_k_decl,
             k_cycle,
             k_dirty,
         },
     })
+}
+
+fn query_acyclic_high_gain_coupling_pressure(
+    dependencies: &BTreeMap<&str, BTreeSet<&str>>,
+) -> usize {
+    let mut fanout_by_dependency = BTreeMap::<&str, usize>::new();
+    for edges in dependencies.values() {
+        for dependency in edges {
+            *fanout_by_dependency.entry(*dependency).or_default() += 1;
+        }
+    }
+
+    fanout_by_dependency
+        .values()
+        .filter(|count| **count >= 3)
+        .map(|count| count.saturating_mul(count.saturating_sub(1)) / 2)
+        .sum()
 }
 
 fn query_custom_property_in_reference_cycle(
@@ -2114,6 +2138,35 @@ mod tests {
             !codes.contains(&"rgFlowRelevantOperator")
                 && !codes.contains(&"categoricalCascadeEvidenceInconsistency"),
             "acyclic stylesheet must not surface theory hints: {codes:?}"
+        );
+    }
+
+    #[test]
+    fn wp7b_acyclic_high_gain_hub_surfaces_standalone_rg_flow_hint() {
+        let high_gain = r#"
+:root {
+  --seed: 1px;
+  --a: var(--seed);
+  --b: var(--seed);
+  --c: var(--seed);
+  --d: var(--seed);
+}
+"#;
+
+        let default_codes = diagnostic_codes_with_deep_analysis(high_gain, false);
+        assert!(
+            !default_codes.contains(&"rgFlowRelevantOperator"),
+            "rg-flow theory hint must stay off on the default surface: {default_codes:?}"
+        );
+
+        let deep_codes = diagnostic_codes_with_deep_analysis(high_gain, true);
+        assert!(
+            deep_codes.contains(&"rgFlowRelevantOperator"),
+            "acyclic high-gain hub should surface a standalone rg-flow hint: {deep_codes:?}"
+        );
+        assert!(
+            !deep_codes.contains(&"circularVar"),
+            "standalone rg-flow hint must not depend on circularVar: {deep_codes:?}"
         );
     }
 }
