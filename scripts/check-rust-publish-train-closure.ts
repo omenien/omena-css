@@ -1,5 +1,6 @@
 import { execFileSync } from "node:child_process";
 import { strict as assert } from "node:assert";
+import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -114,6 +115,42 @@ function closureGaps(
     .map(([from, to]) => `${from} -> ${to}`);
 }
 
+/**
+ * Deterministic Kahn + lexicographic-tie-break topological order over the train-internal
+ * shipped-path-dep edges: each crate appears AFTER all of its train-internal deps, with
+ * ties broken lexicographically. This is the canonical publish sequence — independent of
+ * cargo-metadata iteration order — that omenaCssPublishOrder must equal.
+ */
+function computeCanonicalOrder(
+  members: readonly string[],
+  train: ReadonlySet<string>,
+  allEdges: ReadonlyArray<readonly [string, string]>,
+): string[] {
+  const remaining = new Map(members.map((crate) => [crate, new Set<string>()]));
+  const dependents = new Map<string, string[]>(members.map((crate) => [crate, []]));
+  for (const [from, to] of allEdges) {
+    if (train.has(to) && from !== to) {
+      remaining.get(from)!.add(to);
+      dependents.get(to)!.push(from);
+    }
+  }
+  const ready = members.filter((crate) => remaining.get(crate)!.size === 0);
+  const order: string[] = [];
+  while (ready.length > 0) {
+    ready.sort();
+    const next = ready.shift()!;
+    order.push(next);
+    for (const dependent of dependents.get(next)!) {
+      const rest = remaining.get(dependent)!;
+      rest.delete(next);
+      if (rest.size === 0) {
+        ready.push(dependent);
+      }
+    }
+  }
+  return order;
+}
+
 // Build the real edge set: every non-dev path-dep of every train crate.
 const edges: Array<readonly [string, string]> = [];
 for (const crate of trainCrates) {
@@ -157,6 +194,39 @@ assert.equal(
   )}`,
 );
 
+// (3b) Canonical order: omenaCssPublishOrder must EQUAL the deterministic Kahn +
+//      lexicographic-tie-break order (deps first), not merely be A valid order. This pins
+//      the literal to a machine derivation so ordering drift is caught, not just invalidity.
+const canonicalOrder = computeCanonicalOrder(trainCrates, trainSet, edges);
+const canonicalMatches =
+  canonicalOrder.length === publishOrder.length &&
+  canonicalOrder.every((crate, index) => crate === publishOrder[index]);
+assert.ok(
+  canonicalMatches,
+  "omenaCssPublishOrder is topologically valid but is NOT the canonical Kahn+lexicographic order.\n" +
+    "Replace the omenaCssPublishOrder literal in scripts/prepare-omena-css-workspace.mjs with:\n" +
+    canonicalOrder.map((crate) => `  "${crate}",`).join("\n"),
+);
+
+// (3c) Edge-set hash: pin the train-graph shape. Any added/removed shipped path-dep edge
+//      changes this hash, forcing a DELIBERATE bump — graph drift, distinct from order drift.
+const edgeSetSha256 = createHash("sha256")
+  .update(
+    edges
+      .map(([from, to]) => `${from}->${to}`)
+      .toSorted()
+      .join("\n"),
+  )
+  .digest("hex");
+const EXPECTED_EDGE_SET_SHA256 = "eec49394fc33084643a30a5459b1c55d30bfa0eecb5d8de966ce87320106b10f";
+assert.equal(
+  edgeSetSha256,
+  EXPECTED_EDGE_SET_SHA256,
+  "train shipped-path-dep edge set changed (graph drift).\n" +
+    "If intended, regenerate omenaCssPublishOrder (the canonical order is printed on an order mismatch)\n" +
+    `and update EXPECTED_EDGE_SET_SHA256 to: ${edgeSetSha256}`,
+);
+
 // (4) Self-test: the detection predicate must flag a non-train path-dep, must
 //     NOT flag an externally-published target, and must NOT flag an in-train edge.
 {
@@ -192,6 +262,8 @@ process.stdout.write(
       shippedPathDepEdges: edges.length,
       closureViolations: 0,
       publishOrderTopologicallyValid: true,
+      publishOrderIsCanonical: true,
+      edgeSetSha256,
       lockStep: true,
     },
     null,

@@ -55,17 +55,26 @@ const omenaCssCrates = [
   "omena-wasm",
   "omena-umbrella",
 ];
+// DERIVED, not hand-tuned: this is the canonical Kahn + lexicographic-tie-break topological
+// order over the train-internal non-dev path-dep edges (deps publish first). It is machine-
+// verified by `check:rust-publish-train-closure` against `cargo metadata`; if a train crate
+// gains/loses a path-dep, that gate REDs and prints the regenerated order + edge-set hash to
+// paste back here. Do not reorder by hand.
 const omenaCssPublishOrder = [
   "omena-meta-macros",
   "omena-refinement-trait",
   "omena-cascade",
+  "omena-categorical",
+  "omena-ensemble",
   "omena-incremental",
   "omena-abstract-value",
   "engine-input-producers",
   "omena-resolver",
+  "omena-rg-flow",
   "omena-sif",
   "omena-smt",
   "omena-refinement",
+  "omena-query-core",
   "omena-spec-audit",
   "omena-syntax",
   "omena-interner",
@@ -75,24 +84,20 @@ const omenaCssPublishOrder = [
   "omena-testkit",
   "omena-transform-cst",
   "omena-lawvere",
-  "omena-categorical",
   "omena-transform-passes",
   "omena-transform-bundle",
   "omena-transform-egg",
   "omena-transform-print",
   "omena-transform-target",
-  "omena-variational",
-  "omena-query-core",
   "omena-query-transform-runner",
-  "omena-rg-flow",
+  "omena-variational",
   "omena-checker",
-  "omena-ensemble",
   "omena-query-checker-orchestrator",
   "omena-query",
+  "omena-streaming-ifds",
   "omena-wasm",
   "omena-zk-circuit",
   "omena-zk-audit",
-  "omena-streaming-ifds",
   "omena-cli",
   "omena-umbrella",
 ];
