@@ -53,6 +53,7 @@ const omenaCssCrates = [
   "omena-query",
   "omena-cli",
   "omena-wasm",
+  "omena-umbrella",
 ];
 const omenaCssPublishOrder = [
   "omena-meta-macros",
@@ -93,6 +94,7 @@ const omenaCssPublishOrder = [
   "omena-zk-audit",
   "omena-streaming-ifds",
   "omena-cli",
+  "omena-umbrella",
 ];
 const externallyPublishedCrates = new Set(["omena-incremental"]);
 const omenaCssWorkspaceVersion = "0.1.15";

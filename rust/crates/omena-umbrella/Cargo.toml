@@ -1,0 +1,51 @@
+[package]
+name = "omena-umbrella"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish.workspace = true
+description = "Umbrella facade re-exporting the omena reusable building blocks (R1) and composed engine libraries (R2)."
+repository = "https://github.com/yongsk0066/css-module-explainer"
+readme = "README.md"
+
+[package.metadata.omena]
+role = "U"
+
+[lints]
+workspace = true
+
+[dependencies]
+engine-input-producers = { path = "../engine-input-producers" }
+omena-abstract-value = { path = "../omena-abstract-value" }
+omena-bridge = { path = "../omena-bridge" }
+omena-cascade = { path = "../omena-cascade" }
+omena-categorical = { path = "../omena-categorical" }
+omena-checker = { path = "../omena-checker" }
+omena-ensemble = { path = "../omena-ensemble" }
+omena-incremental = { path = "../omena-incremental" }
+omena-interner = { path = "../omena-interner" }
+omena-lawvere = { path = "../omena-lawvere" }
+omena-parser = { path = "../omena-parser" }
+omena-query = { path = "../omena-query" }
+omena-query-checker-orchestrator = { path = "../omena-query-checker-orchestrator" }
+omena-query-core = { path = "../omena-query-core" }
+omena-query-transform-runner = { path = "../omena-query-transform-runner" }
+omena-refinement = { path = "../omena-refinement" }
+omena-refinement-trait = { path = "../omena-refinement-trait" }
+omena-resolver = { path = "../omena-resolver" }
+omena-rg-flow = { path = "../omena-rg-flow" }
+omena-semantic = { path = "../omena-semantic" }
+omena-sif = { path = "../omena-sif" }
+omena-smt = { path = "../omena-smt" }
+omena-spec-audit = { path = "../omena-spec-audit" }
+omena-streaming-ifds = { path = "../omena-streaming-ifds" }
+omena-syntax = { path = "../omena-syntax" }
+omena-transform-bundle = { path = "../omena-transform-bundle" }
+omena-transform-cst = { path = "../omena-transform-cst" }
+omena-transform-egg = { path = "../omena-transform-egg" }
+omena-transform-passes = { path = "../omena-transform-passes" }
+omena-transform-print = { path = "../omena-transform-print" }
+omena-transform-target = { path = "../omena-transform-target" }
+omena-variational = { path = "../omena-variational" }
+omena-zk-audit = { path = "../omena-zk-audit" }
+omena-zk-circuit = { path = "../omena-zk-circuit" }

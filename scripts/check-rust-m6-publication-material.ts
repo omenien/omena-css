@@ -27,7 +27,7 @@ try {
   );
   const generated = JSON.parse(prepareOutput) as GeneratedWorkspaceReport;
   assert.equal(generated.destination, workspacePath);
-  assert.equal(generated.crateCount, 38);
+  assert.equal(generated.crateCount, 39);
   assert.equal(generated.publishDryRun, false);
   assert.equal(generated.verified, false);
 
