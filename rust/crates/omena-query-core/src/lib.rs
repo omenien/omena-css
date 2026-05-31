@@ -41,6 +41,10 @@ use omena_abstract_value::{
     summarize_omena_abstract_value_domain, summarize_reduced_class_value_product,
 };
 use omena_incremental::OmenaIncrementalDatabaseV0;
+pub use omena_refinement::{
+    CascadeDimensionalRefinementBridgeV0, RefinementPropertyPredicateV0,
+    summarize_cascade_dimensional_refinement_bridge_v0,
+};
 pub use omena_resolver::OmenaResolverSourceResolutionRuntimeIndexV0;
 use omena_resolver::{
     summarize_omena_resolver_canonical_producer_signal, summarize_omena_resolver_query_fragments,

@@ -2042,7 +2042,6 @@ dependencies = [
  "omena-query-checker-orchestrator",
  "omena-query-core",
  "omena-query-transform-runner",
- "omena-refinement",
  "omena-resolver",
  "omena-semantic",
  "omena-sif",
@@ -2068,6 +2067,7 @@ dependencies = [
  "engine-input-producers",
  "omena-abstract-value",
  "omena-incremental",
+ "omena-refinement",
  "omena-resolver",
  "serde",
 ]

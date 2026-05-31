@@ -10,15 +10,12 @@ use omena_cascade::{
 };
 use omena_parser::{ParserByteSpanV0, ParserPositionV0, ParserRangeV0};
 use omena_query_transform_runner::parse_static_css_cascade_value;
-use omena_refinement::{
-    CascadeDimensionalRefinementBridgeV0, RefinementPropertyPredicateV0,
-    summarize_cascade_dimensional_refinement_bridge_v0,
-};
 use omena_semantic::DesignTokenRankedReferenceV0;
 
 use crate::{
-    AbstractPropertyValueV0, CascadeContextV0, CascadeValueFamilyMemberV0,
-    OmenaQueryCascadeAtPositionV0, derive_cascade_restriction_maps_v0,
+    AbstractPropertyValueV0, CascadeContextV0, CascadeDimensionalRefinementBridgeV0,
+    CascadeValueFamilyMemberV0, OmenaQueryCascadeAtPositionV0, RefinementPropertyPredicateV0,
+    derive_cascade_restriction_maps_v0, summarize_cascade_dimensional_refinement_bridge_v0,
     summarize_cascade_value_family_v0,
 };
 

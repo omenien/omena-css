@@ -112,10 +112,10 @@ pub fn check_cascade_site_axioms_v0(site: &CascadeSiteV0) -> SiteAxiomCheckV0 {
     let singleton_cover_ids = site
         .cover_families
         .iter()
-        .filter_map(|cover| {
-            (cover.object_ids.len() == 1 && axis_object_ids.contains(&cover.object_ids[0]))
-                .then(|| cover.object_ids[0].clone())
+        .filter(|cover| {
+            cover.object_ids.len() == 1 && axis_object_ids.contains(&cover.object_ids[0])
         })
+        .map(|cover| cover.object_ids[0].clone())
         .collect::<BTreeSet<_>>();
     let covered_object_ids = site
         .cover_families

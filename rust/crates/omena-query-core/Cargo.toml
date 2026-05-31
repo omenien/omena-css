@@ -18,5 +18,6 @@ workspace = true
 engine-input-producers = { path = "../engine-input-producers" }
 omena-abstract-value = { path = "../omena-abstract-value" }
 omena-incremental = { path = "../omena-incremental" }
+omena-refinement = { path = "../omena-refinement" }
 omena-resolver = { path = "../omena-resolver" }
 serde.workspace = true
