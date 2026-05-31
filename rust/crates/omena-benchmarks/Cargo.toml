@@ -7,6 +7,9 @@ publish.workspace = true
 description = "Benchmark harnesses for CSS Module Explainer Rust crates"
 repository = "https://github.com/yongsk0066/css-module-explainer"
 
+[package.metadata.omena]
+role = "I"
+
 [lints]
 workspace = true
 

@@ -9,6 +9,9 @@ description = "CLI checker and transform runner for the Omena CSS workspace"
 repository = "https://github.com/yongsk0066/css-module-explainer"
 readme = "README.md"
 
+[package.metadata.omena]
+role = "P"
+
 [lints]
 workspace = true
 

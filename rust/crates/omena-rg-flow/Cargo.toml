@@ -8,6 +8,10 @@ description = "Renormalization-group flow contracts for Omena design-system comp
 repository = "https://github.com/yongsk0066/css-module-explainer"
 readme = "README.md"
 
+[package.metadata.omena]
+role = "R1"
+pillar = "theoretical-rigor"
+
 [lints]
 workspace = true
 

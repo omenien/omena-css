@@ -8,6 +8,10 @@ description = "Streaming IFDS contracts for live Omena LSP analysis"
 repository = "https://github.com/yongsk0066/css-module-explainer"
 readme = "README.md"
 
+[package.metadata.omena]
+role = "R2"
+pillar = "theoretical-rigor"
+
 [lints]
 workspace = true
 

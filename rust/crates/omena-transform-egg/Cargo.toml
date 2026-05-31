@@ -8,6 +8,9 @@ description = "Optional e-graph rewrite boundary for Omena CSS transforms"
 repository = "https://github.com/yongsk0066/css-module-explainer"
 readme = "README.md"
 
+[package.metadata.omena]
+role = "R2"
+
 [lints]
 workspace = true
 

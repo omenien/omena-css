@@ -8,6 +8,9 @@ description = "Transform-runner boundary for the Omena query facade"
 repository = "https://github.com/yongsk0066/css-module-explainer"
 readme = "README.md"
 
+[package.metadata.omena]
+role = "R2"
+
 [lints]
 workspace = true
 

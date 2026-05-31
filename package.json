@@ -121,6 +121,7 @@
     "check:rust-omena-css-h2-workspace": "node ./scripts/prepare-omena-css-workspace.mjs --temp --verify",
     "check:rust-omena-css-h2-publish-dry-run": "node ./scripts/prepare-omena-css-workspace.mjs --temp --verify --publish-dry-run",
     "check:rust-publish-train-closure": "node --import tsx ./scripts/check-rust-publish-train-closure.ts",
+    "check:rust-role-boundaries": "node --import tsx ./scripts/check-rust-role-boundaries.ts",
     "check:rust-m6-publication-material": "node --import tsx ./scripts/check-rust-m6-publication-material.ts",
     "check:rust-m6-dimensional-refinement": "cargo test --manifest-path rust/Cargo.toml -p omena-refinement cascade_dimensional_refinement -- --nocapture && node --import tsx ./scripts/check-rust-m6-dimensional-refinement.ts",
     "check:rust-theory-claim-levels": "node --import tsx ./scripts/check-rust-theory-claim-levels.ts",

@@ -8,6 +8,9 @@ description = "Differential corpus harness for the Omena CSS parser stack"
 repository = "https://github.com/yongsk0066/css-module-explainer"
 readme = "README.md"
 
+[package.metadata.omena]
+role = "I"
+
 [lints]
 workspace = true
 

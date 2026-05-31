@@ -8,6 +8,9 @@ description = "CSS-family syntax substrate for the Omena parser stack"
 repository = "https://github.com/yongsk0066/css-module-explainer"
 readme = "README.md"
 
+[package.metadata.omena]
+role = "R1"
+
 [lints]
 workspace = true
 

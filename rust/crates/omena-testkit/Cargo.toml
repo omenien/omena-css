@@ -8,6 +8,9 @@ description = "Shared Rust fixture and scenario substrate for the Omena CSS test
 repository = "https://github.com/yongsk0066/css-module-explainer"
 readme = "README.md"
 
+[package.metadata.omena]
+role = "S"
+
 [lints]
 workspace = true
 

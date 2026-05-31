@@ -8,6 +8,9 @@ description = "Compile-time metadata attributes for Omena CSS spec and transform
 repository = "https://github.com/yongsk0066/css-module-explainer"
 readme = "README.md"
 
+[package.metadata.omena]
+role = "S"
+
 [lib]
 proc-macro = true
 

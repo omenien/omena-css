@@ -8,6 +8,10 @@ description = "Refinement type system contracts for Omena cascade analysis"
 repository = "https://github.com/yongsk0066/css-module-explainer"
 readme = "README.md"
 
+[package.metadata.omena]
+role = "R1"
+pillar = "theoretical-rigor"
+
 [lints]
 workspace = true
 

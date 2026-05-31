@@ -8,6 +8,9 @@ description = "Salsa-style incremental invalidation primitives for Omena"
 repository = "https://github.com/yongsk0066/css-module-explainer"
 readme = "README.md"
 
+[package.metadata.omena]
+role = "R1"
+
 [lints]
 workspace = true
 

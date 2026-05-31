@@ -8,6 +8,9 @@ description = "Workspace-shared interned name identities for the Omena CSS parse
 repository = "https://github.com/yongsk0066/css-module-explainer"
 readme = "README.md"
 
+[package.metadata.omena]
+role = "R1"
+
 [lints]
 workspace = true
 

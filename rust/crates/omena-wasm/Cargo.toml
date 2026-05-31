@@ -8,6 +8,9 @@ description = "Wasm bindings for browser-side Omena CSS parser and transform che
 repository = "https://github.com/yongsk0066/css-module-explainer"
 readme = "README.md"
 
+[package.metadata.omena]
+role = "P"
+
 [lib]
 crate-type = ["cdylib", "rlib"]
 

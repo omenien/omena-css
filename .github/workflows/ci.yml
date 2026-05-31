@@ -94,6 +94,10 @@ jobs:
         name: Run publish-train closure
         run: pnpm cme-check run rust/publish-train-closure
         continue-on-error: true
+      - id: role_boundaries
+        name: Run role-boundaries
+        run: pnpm cme-check run rust/role-boundaries
+        continue-on-error: true
       - if: always()
         name: Enforce closure-fast result
         run: |
@@ -105,6 +109,7 @@ jobs:
           echo "cascade=${{ steps.cascade.outcome }}"
           echo "diff_test=${{ steps.diff_test.outcome }}"
           echo "train_closure=${{ steps.train_closure.outcome }}"
+          echo "role_boundaries=${{ steps.role_boundaries.outcome }}"
           failed=0
           for outcome in \
             "${{ steps.m1.outcome }}" \
@@ -114,7 +119,8 @@ jobs:
             "${{ steps.lsp.outcome }}" \
             "${{ steps.cascade.outcome }}" \
             "${{ steps.diff_test.outcome }}" \
-            "${{ steps.train_closure.outcome }}"; do
+            "${{ steps.train_closure.outcome }}" \
+            "${{ steps.role_boundaries.outcome }}"; do
             if [ "$outcome" != "success" ]; then
               failed=1
             fi

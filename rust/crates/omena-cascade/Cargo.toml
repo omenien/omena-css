@@ -8,6 +8,9 @@ description = "Cascade-formal substrate for Omena CSS"
 repository = "https://github.com/yongsk0066/css-module-explainer"
 readme = "README.md"
 
+[package.metadata.omena]
+role = "R1"
+
 [lints]
 workspace = true
 
