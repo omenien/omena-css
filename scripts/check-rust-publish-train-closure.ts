@@ -33,7 +33,9 @@ function parseStringArray(name: string): string[] {
 }
 
 function parseStringSet(name: string): Set<string> {
-  const match = generatorSource.match(new RegExp(`const ${name} = new Set\\(\\[([\\s\\S]*?)\\]\\)`));
+  const match = generatorSource.match(
+    new RegExp(`const ${name} = new Set\\(\\[([\\s\\S]*?)\\]\\)`),
+  );
   assert.ok(match, `expected a \`const ${name} = new Set([...])\` literal in ${generatorPath}`);
   return new Set([...match[1].matchAll(/"([^"]+)"/g)].map((entry) => entry[1]));
 }
@@ -48,17 +50,27 @@ assert.equal(trainSet.size, trainCrates.length, "omenaCssCrates contains duplica
 // (1) Lock-step: the publish order is a permutation of the copy set (same members).
 {
   const publishSet = new Set(publishOrder);
-  assert.equal(publishSet.size, publishOrder.length, "omenaCssPublishOrder contains duplicate entries");
+  assert.equal(
+    publishSet.size,
+    publishOrder.length,
+    "omenaCssPublishOrder contains duplicate entries",
+  );
   assert.equal(
     publishOrder.length,
     trainCrates.length,
     `omenaCssPublishOrder length ${publishOrder.length} != omenaCssCrates length ${trainCrates.length}`,
   );
   for (const crate of trainSet) {
-    assert.ok(publishSet.has(crate), `train crate ${crate} is in omenaCssCrates but missing from omenaCssPublishOrder`);
+    assert.ok(
+      publishSet.has(crate),
+      `train crate ${crate} is in omenaCssCrates but missing from omenaCssPublishOrder`,
+    );
   }
   for (const crate of publishSet) {
-    assert.ok(trainSet.has(crate), `${crate} is in omenaCssPublishOrder but missing from omenaCssCrates`);
+    assert.ok(
+      trainSet.has(crate),
+      `${crate} is in omenaCssPublishOrder but missing from omenaCssCrates`,
+    );
   }
 }
 
@@ -132,7 +144,9 @@ for (const [from, to] of edges) {
   const fromPosition = positionInOrder.get(from)!;
   const toPosition = positionInOrder.get(to)!;
   if (toPosition >= fromPosition) {
-    orderViolations.push(`${from} (publish pos ${fromPosition}) must come AFTER its dep ${to} (publish pos ${toPosition})`);
+    orderViolations.push(
+      `${from} (publish pos ${fromPosition}) must come AFTER its dep ${to} (publish pos ${toPosition})`,
+    );
   }
 }
 assert.equal(
@@ -147,7 +161,9 @@ assert.equal(
 //     NOT flag an externally-published target, and must NOT flag an in-train edge.
 {
   const probeTrain = new Set(["probe-train-crate"]);
-  const gapEdge: ReadonlyArray<readonly [string, string]> = [["probe-train-crate", "probe-nontrain-dep"]];
+  const gapEdge: ReadonlyArray<readonly [string, string]> = [
+    ["probe-train-crate", "probe-nontrain-dep"],
+  ];
   assert.equal(
     closureGaps(probeTrain, new Set(), gapEdge).length,
     1,

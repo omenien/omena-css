@@ -124,7 +124,11 @@ function transitiveInternalClosure(crate: string): Set<string> {
 }
 
 /** Shared R1/R2 predicate (also exercised by the self-test below). */
-function computesAsR2(crate: string, family: ReadonlySet<string>, closure: ReadonlySet<string>): boolean {
+function computesAsR2(
+  crate: string,
+  family: ReadonlySet<string>,
+  closure: ReadonlySet<string>,
+): boolean {
   if (family.has(crate)) {
     return true;
   }
@@ -145,10 +149,14 @@ for (const [crate, role] of roleOf) {
   }
   const computedR2 = computesAsR2(crate, R2_FAMILY, transitiveInternalClosure(crate));
   if (role === "R2" && !computedR2) {
-    predicateViolations.push(`${crate} is declared R2 but the predicate computes R1 (it does not compose the engine)`);
+    predicateViolations.push(
+      `${crate} is declared R2 but the predicate computes R1 (it does not compose the engine)`,
+    );
   }
   if (role === "R1" && computedR2) {
-    predicateViolations.push(`${crate} is declared R1 but the predicate computes R2 (it composes the engine) — declare it R2`);
+    predicateViolations.push(
+      `${crate} is declared R1 but the predicate computes R2 (it composes the engine) — declare it R2`,
+    );
   }
 }
 assert.equal(

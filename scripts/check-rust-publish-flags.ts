@@ -56,7 +56,9 @@ const escaping: string[] = [];
 for (const pkg of metadata.packages) {
   const notPublishable = Array.isArray(pkg.publish) && pkg.publish.length === 0;
   if (!notPublishable) {
-    escaping.push(`${pkg.name} resolves publish=${JSON.stringify(pkg.publish)} (expected [] via workspace publish=false)`);
+    escaping.push(
+      `${pkg.name} resolves publish=${JSON.stringify(pkg.publish)} (expected [] via workspace publish=false)`,
+    );
   }
 }
 assert.equal(

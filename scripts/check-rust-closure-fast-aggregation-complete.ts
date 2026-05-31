@@ -87,7 +87,9 @@ for (const job of jobs) {
     gatedSteps += 1;
     const idMatch = stepText.match(/\bid:\s*([A-Za-z0-9_-]+)/);
     if (!idMatch) {
-      violations.push(`${job.name}: a continue-on-error step has no id, so its outcome cannot be aggregated`);
+      violations.push(
+        `${job.name}: a continue-on-error step has no id, so its outcome cannot be aggregated`,
+      );
       continue;
     }
     const id = idMatch[1];
