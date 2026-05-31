@@ -39,6 +39,7 @@
     "build:engine-shadow-runner": "cargo build --manifest-path rust/Cargo.toml -p engine-shadow-runner --release && node ./scripts/prepare-engine-shadow-runner.mjs",
     "build:omena-lsp-server": "cargo build --manifest-path rust/Cargo.toml -p omena-lsp-server --release && node ./scripts/prepare-omena-lsp-server.mjs",
     "build:tsgo-binary": "node ./scripts/prepare-tsgo-binary.mjs",
+    "build:omena-wasm": "wasm-pack build rust/crates/omena-wasm --scope omena --target bundler --out-dir pkg",
     "watch": "rolldown -c rolldown.config.ts --watch",
     "cme": "node --import tsx ./scripts/cme.ts",
     "cme-check": "node --import tsx ./packages/check-orchestrator/src/cli/main.ts",

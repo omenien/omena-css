@@ -9,6 +9,10 @@ dist/
 target/
 rust/target/
 
+# Rust wasm/napi npm build artifacts (wasm-pack / @napi-rs output)
+rust/crates/omena-wasm/pkg/
+rust/crates/omena-napi/*.node
+
 # Test output
 coverage/
 .vitest-cache/
