@@ -90,6 +90,10 @@ jobs:
         name: Run omena-diff-test boundary
         run: pnpm cme-check run rust/omena-diff-test-boundary
         continue-on-error: true
+      - id: train_closure
+        name: Run publish-train closure
+        run: pnpm cme-check run rust/publish-train-closure
+        continue-on-error: true
       - if: always()
         name: Enforce closure-fast result
         run: |
@@ -100,6 +104,7 @@ jobs:
           echo "lsp=${{ steps.lsp.outcome }}"
           echo "cascade=${{ steps.cascade.outcome }}"
           echo "diff_test=${{ steps.diff_test.outcome }}"
+          echo "train_closure=${{ steps.train_closure.outcome }}"
           failed=0
           for outcome in \
             "${{ steps.m1.outcome }}" \
@@ -108,7 +113,8 @@ jobs:
             "${{ steps.query.outcome }}" \
             "${{ steps.lsp.outcome }}" \
             "${{ steps.cascade.outcome }}" \
-            "${{ steps.diff_test.outcome }}"; do
+            "${{ steps.diff_test.outcome }}" \
+            "${{ steps.train_closure.outcome }}"; do
             if [ "$outcome" != "success" ]; then
               failed=1
             fi
