@@ -4,8 +4,8 @@
 //! rank clusters, reorderability evidence, and a scaffolded parallel plan
 //! without changing the existing transform executor.
 //!
-//! claim_level: product-wired differential commutativity witness, not a global
-//! transform-catalog theorem.
+//! claim_level: feature-gated differential commutativity witness, not a global
+//! transform-catalog theorem or default product mechanism.
 
 use std::collections::BTreeMap;
 
@@ -227,6 +227,8 @@ pub struct LawvereTheorySummaryV0 {
     pub saturation_budget_tiers: Vec<SaturationBudgetTierV0>,
     pub differential_corpus_tiers: Vec<LawvereDifferentialCorpusTierV0>,
     pub lawvere_saturation_feature_enabled_by_default: bool,
+    pub product_path_evidence_ready: bool,
+    pub mechanism_scope: &'static str,
     pub omena_categorical_dependency_forbidden: bool,
 }
 
@@ -265,6 +267,8 @@ pub fn summarize_lawvere_theory_v0() -> LawvereTheorySummaryV0 {
         ],
         differential_corpus_tiers: lawvere_differential_corpus_tiers_v0(),
         lawvere_saturation_feature_enabled_by_default: false,
+        product_path_evidence_ready: false,
+        mechanism_scope: "featureGatedResearchSubstrate",
         omena_categorical_dependency_forbidden: true,
     }
 }
@@ -591,6 +595,8 @@ mod tests {
             tier.tier == SaturationBudgetTierV0::Full && tier.fixture_count == 200
         }));
         assert!(!summary.lawvere_saturation_feature_enabled_by_default);
+        assert!(!summary.product_path_evidence_ready);
+        assert_eq!(summary.mechanism_scope, "featureGatedResearchSubstrate");
         assert!(summary.omena_categorical_dependency_forbidden);
     }
 

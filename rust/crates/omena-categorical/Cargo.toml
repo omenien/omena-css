@@ -20,5 +20,4 @@ default = []
 
 [dependencies]
 omena-cascade = { path = "../omena-cascade" }
-omena-lawvere = { path = "../omena-lawvere" }
 serde.workspace = true

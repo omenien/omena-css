@@ -1,6 +1,6 @@
 //! Categorical cascade evidence contracts for Omena CSS.
 //!
-//! This crate is additive: it reads cascade/Lawvere public summaries and emits
+//! This crate is additive: it reads cascade public summaries and emits
 //! V0 categorical evidence without changing cascade winner selection.
 //!
 //! claim_level: product-wired additive evidence, not a completed categorical
@@ -144,7 +144,7 @@ pub fn summarize_categorical_foundation_v0() -> CategoricalFoundationSummaryV0 {
         top_level_contract_count: 26,
         support_contract_count: 16,
         cascade_primitive_roles: cascade_primitive_roles_v0(),
-        lawvere_dependency_direction: "omena-categorical -> omena-lawvere",
+        lawvere_dependency_direction: "no-default-product-lawvere-edge",
         default_feature_enabled: false,
     }
 }
@@ -966,7 +966,7 @@ mod tests {
         assert!(!summary.default_feature_enabled);
         assert_eq!(
             summary.lawvere_dependency_direction,
-            "omena-categorical -> omena-lawvere"
+            "no-default-product-lawvere-edge"
         );
     }
 
