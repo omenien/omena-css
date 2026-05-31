@@ -328,4 +328,26 @@ mod tests {
             assert_eq!(roundtrip.circuit.constraint_count, 3);
         }
     }
+
+    #[cfg(feature = "zk-audit")]
+    #[test]
+    fn arkworks_rejects_unsatisfied_circuit_witness_without_proof_generation() {
+        let payload = omena_smt::canonical_smt_input_v0(
+            "box-shorthand-combination",
+            "prove_box_shorthand_combination",
+            vec![
+                "require:supported-shorthand-property=true".to_string(),
+                "require:canonical-longhand-quartet=false".to_string(),
+                "require:no-important-longhand=true".to_string(),
+            ],
+        );
+        let roundtrip = prove_and_verify_cascade_smt_payload_with_arkworks_v0(&payload);
+        assert!(roundtrip.is_ok(), "{roundtrip:?}");
+        if let Ok(roundtrip) = roundtrip {
+            assert_eq!(roundtrip.circuit.constraint_count, 3);
+            assert_eq!(roundtrip.requirement_count, 3);
+            assert!(!roundtrip.proof_generated);
+            assert!(!roundtrip.proof_verified);
+        }
+    }
 }

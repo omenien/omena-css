@@ -2,13 +2,19 @@ use ark_bls12_381::{Bls12_381, Fr};
 use ark_ff::{Field, One};
 use ark_groth16::{Groth16, prepare_verifying_key};
 use ark_relations::gr1cs::{
-    ConstraintSynthesizer, ConstraintSystem, ConstraintSystemRef, SynthesisError, lc,
+    ConstraintSynthesizer, ConstraintSystemRef, LinearCombination, SynthesisError, Variable,
 };
 use ark_std::rand::{SeedableRng, rngs::StdRng};
 use omena_cascade::BoxLonghandInputV0;
 use omena_smt::{CanonicalSmtInputV0, StubSmtBackendV0, smt_prove_box_shorthand_combination_v0};
-use omena_zk_circuit::{CascadeCircuitSpecV0, cascade_circuit_spec_from_canonical_terms_v0};
+use omena_zk_circuit::{
+    CascadeCircuitSpecV0, R1CSConstraintV0, R1CSLinearCombinationV0, R1CSWitnessAssignmentV0,
+    cascade_circuit_spec_from_canonical_terms_v0, cascade_r1cs_constraints_from_canonical_terms_v0,
+    cascade_r1cs_witness_from_canonical_terms_v0, check_r1cs_witness_satisfaction_v0,
+    r1cs_wire_ids_v0,
+};
 use serde::Serialize;
+use std::collections::BTreeMap;
 use std::marker::PhantomData;
 
 use crate::{
@@ -34,8 +40,9 @@ pub struct ArkworksGroth16RoundTripV0 {
 pub fn prove_and_verify_cascade_smt_payload_with_arkworks_v0(
     payload: &CanonicalSmtInputV0,
 ) -> Result<ArkworksGroth16RoundTripV0, String> {
-    let requirement_values = canonical_requirement_values_v0(payload);
-    if requirement_values.is_empty() {
+    let constraints = cascade_r1cs_constraints_from_canonical_terms_v0(&payload.canonical_terms);
+    let witness = cascade_r1cs_witness_from_canonical_terms_v0(&payload.canonical_terms);
+    if constraints.is_empty() {
         return Err("canonical SMT payload has no R1CS-backed requirements".to_string());
     }
 
@@ -44,13 +51,11 @@ pub fn prove_and_verify_cascade_smt_payload_with_arkworks_v0(
         &payload.canonical_terms,
     );
 
-    // The Groth16 prover asserts `cs.is_satisfied()` internally, so an
-    // unsatisfiable cascade obligation (a `require:...=false` term) would panic
-    // inside arkworks. Pre-flight the witness assignment so an unsatisfiable
-    // obligation is reported as a rejected (unverified) proof instead.
-    let obligation_satisfiable = cascade_obligation_satisfiable_v0(requirement_values.clone())
-        .map_err(|error| format!("arkworks witness satisfiability check failed: {error:?}"))?;
-    if !obligation_satisfiable {
+    // The pure circuit crate owns satisfiability now. Arkworks only adapts the
+    // same R1CS constraints/witness into a Groth16 backend, so rejected
+    // obligations fail through circuit semantics before proof generation.
+    let satisfaction = check_r1cs_witness_satisfaction_v0(&constraints, &witness);
+    if !satisfaction.satisfied {
         return Ok(ArkworksGroth16RoundTripV0 {
             schema_version: ZK_AUDIT_SCHEMA_VERSION_V0,
             product: "omena-zk-audit.arkworks-groth16-roundtrip",
@@ -60,20 +65,20 @@ pub fn prove_and_verify_cascade_smt_payload_with_arkworks_v0(
             backend: "arkworks-groth16",
             obligation_id: payload.obligation_id.clone(),
             circuit,
-            requirement_count: requirement_values.len(),
+            requirement_count: constraints.len(),
             proof_generated: false,
             proof_verified: false,
         });
     }
 
     let mut rng = StdRng::seed_from_u64(0x0c53_0008);
-    let setup_circuit = RequirementSatisfactionCircuit::<Fr>::setup_shape(requirement_values.len());
+    let setup_circuit = R1CSConstraintSystemCircuit::<Fr>::setup_shape(constraints.clone());
     let proving_key =
         Groth16::<Bls12_381>::generate_random_parameters_with_reduction(setup_circuit, &mut rng)
             .map_err(|error| format!("arkworks setup failed: {error:?}"))?;
     let prepared_verifying_key = prepare_verifying_key::<Bls12_381>(&proving_key.vk);
     let proof = Groth16::<Bls12_381>::create_random_proof_with_reduction(
-        RequirementSatisfactionCircuit::<Fr>::with_values(requirement_values.clone()),
+        R1CSConstraintSystemCircuit::<Fr>::with_witness(constraints.clone(), witness),
         &proving_key,
         &mut rng,
     )
@@ -91,7 +96,7 @@ pub fn prove_and_verify_cascade_smt_payload_with_arkworks_v0(
         backend: "arkworks-groth16",
         obligation_id: payload.obligation_id.clone(),
         circuit,
-        requirement_count: requirement_values.len(),
+        requirement_count: constraints.len(),
         proof_generated: true,
         proof_verified,
     })
@@ -145,68 +150,101 @@ pub fn prove_and_verify_canonical_margin_cascade_with_arkworks_v0(
     prove_and_verify_box_shorthand_cascade_with_arkworks_v0("margin", &longhands)
 }
 
-fn cascade_obligation_satisfiable_v0(
-    requirement_values: Vec<bool>,
-) -> Result<bool, SynthesisError> {
-    let cs = ConstraintSystem::<Fr>::new_ref();
-    RequirementSatisfactionCircuit::<Fr>::with_values(requirement_values)
-        .generate_constraints(cs.clone())?;
-    cs.finalize();
-    cs.is_satisfied()
-}
-
 #[derive(Clone)]
-struct RequirementSatisfactionCircuit<F: Field> {
-    requirement_values: Vec<Option<bool>>,
+struct R1CSConstraintSystemCircuit<F: Field> {
+    constraints: Vec<R1CSConstraintV0>,
+    witness: Option<R1CSWitnessAssignmentV0>,
     _field: PhantomData<F>,
 }
 
-impl<F: Field> RequirementSatisfactionCircuit<F> {
-    fn setup_shape(requirement_count: usize) -> Self {
+impl<F: Field> R1CSConstraintSystemCircuit<F> {
+    fn setup_shape(constraints: Vec<R1CSConstraintV0>) -> Self {
         Self {
-            requirement_values: vec![None; requirement_count],
+            constraints,
+            witness: None,
             _field: PhantomData,
         }
     }
 
-    fn with_values(requirement_values: Vec<bool>) -> Self {
+    fn with_witness(constraints: Vec<R1CSConstraintV0>, witness: R1CSWitnessAssignmentV0) -> Self {
         Self {
-            requirement_values: requirement_values.into_iter().map(Some).collect(),
+            constraints,
+            witness: Some(witness),
             _field: PhantomData,
         }
     }
 }
 
-impl<F: Field> ConstraintSynthesizer<F> for RequirementSatisfactionCircuit<F> {
+impl<F: Field> ConstraintSynthesizer<F> for R1CSConstraintSystemCircuit<F> {
     fn generate_constraints(self, cs: ConstraintSystemRef<F>) -> Result<(), SynthesisError> {
-        let public_one = cs.new_input_variable(|| Ok(F::one()))?;
-        for requirement_value in self.requirement_values {
-            let witness_value = match requirement_value {
-                Some(true) | None => F::one(),
-                Some(false) => F::zero(),
-            };
-            let witness = cs.new_witness_variable(|| Ok(witness_value))?;
+        let mut variables = BTreeMap::new();
+        variables.insert(
+            "public.one".to_string(),
+            cs.new_input_variable(|| Ok(F::one()))?,
+        );
+        let witness_values = self
+            .witness
+            .as_ref()
+            .map(witness_value_map_v0)
+            .unwrap_or_default();
+        for wire_id in r1cs_wire_ids_v0(&self.constraints) {
+            if wire_id == "public.one" {
+                continue;
+            }
+            let witness_value = self
+                .witness
+                .as_ref()
+                .map(|_| {
+                    witness_values
+                        .get(&wire_id)
+                        .copied()
+                        .ok_or(SynthesisError::AssignmentMissing)
+                })
+                .unwrap_or(Ok(1))?;
+            let field_value = field_from_i64_v0::<F>(witness_value);
+            let variable = cs.new_witness_variable(|| Ok(field_value))?;
+            variables.insert(wire_id, variable);
+        }
+
+        for constraint in self.constraints {
             cs.enforce_r1cs_constraint(
-                || lc!() + witness,
-                || lc!() + public_one,
-                || lc!() + public_one,
+                || ark_lc_from_r1cs_v0(&constraint.left, &variables),
+                || ark_lc_from_r1cs_v0(&constraint.right, &variables),
+                || ark_lc_from_r1cs_v0(&constraint.output, &variables),
             )?;
         }
         Ok(())
     }
 }
 
-fn canonical_requirement_values_v0(payload: &CanonicalSmtInputV0) -> Vec<bool> {
-    payload
-        .canonical_terms
+fn witness_value_map_v0(witness: &R1CSWitnessAssignmentV0) -> BTreeMap<String, i64> {
+    witness
+        .values
         .iter()
-        .filter_map(|term| {
-            let (_name, value) = term.strip_prefix("require:")?.rsplit_once('=')?;
-            match value {
-                "true" => Some(true),
-                "false" => Some(false),
-                _ => None,
-            }
-        })
+        .map(|value| (value.wire_id.clone(), value.value))
         .collect()
+}
+
+fn ark_lc_from_r1cs_v0<F: Field>(
+    combination: &R1CSLinearCombinationV0,
+    variables: &BTreeMap<String, Variable>,
+) -> LinearCombination<F> {
+    let mut linear_combination = LinearCombination::<F>::new();
+    if combination.constant != 0 {
+        linear_combination += (field_from_i64_v0(combination.constant), Variable::one());
+    }
+    for term in &combination.terms {
+        if let Some(variable) = variables.get(&term.wire_id) {
+            linear_combination += (field_from_i64_v0(term.coefficient), *variable);
+        }
+    }
+    linear_combination
+}
+
+fn field_from_i64_v0<F: Field>(value: i64) -> F {
+    let mut field_value = F::zero();
+    for _ in 0..value.unsigned_abs() {
+        field_value += F::one();
+    }
+    if value < 0 { -field_value } else { field_value }
 }
