@@ -165,6 +165,8 @@ export const SCOPE_DEFINITIONS: readonly ScopeDefinition[] = [
         "build",
         "build:engine-shadow-runner",
         "build:omena-lsp-server",
+        "build:omena-napi",
+        "build:omena-wasm",
         "build:tsgo-binary",
         "check",
         "clean",
