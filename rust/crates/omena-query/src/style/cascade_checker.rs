@@ -356,11 +356,13 @@ fn summarize_query_categorical_cascade_evidence_diagnostics(
 /// declarations (supported shorthand, canonical top/right/bottom/left order, no
 /// `!important` longhand, no empty value, adjacent source order). The gate runs
 /// the genuine `evaluate_omena_checker_smt_rules` mechanism, which discharges the
-/// conjunction through the default `StubSmtBackendV0` propositional backend (z3
-/// is opt-in behind `smt-z3`): a malformed quartet (e.g. an `!important` longhand
-/// or a non-adjacent source order) makes the conjunction `Unsat`, so the backend
-/// rejects the proof obligation and the gate surfaces `cascade.smt-violation`. A
-/// well-formed quartet is `Sat` and nothing is surfaced.
+/// conjunction through the active SMT backend. The default product build remains
+/// solver-free and uses the propositional `StubSmtBackendV0`; opt-in `smt-z3`
+/// builds route this same product gate through z3. A malformed quartet (e.g. an
+/// `!important` longhand or a non-adjacent source order) makes the conjunction
+/// `Unsat`, so the backend rejects the proof obligation and the gate surfaces
+/// `cascade.smt-violation`. A well-formed quartet is `Sat` and nothing is
+/// surfaced.
 ///
 /// The diagnostic therefore depends on the solver verdict over the parsed facts:
 /// replacing the backend verdict with a constant would either fire on every

@@ -23,6 +23,7 @@ smt-cvc5 = []
 smt-bitwuzla = []
 
 [dependencies]
+blake3.workspace = true
 omena-cascade = { path = "../omena-cascade" }
 omena-refinement-trait = { path = "../omena-refinement-trait" }
 serde.workspace = true

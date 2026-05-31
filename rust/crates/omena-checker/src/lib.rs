@@ -8,9 +8,11 @@ use omena_cascade::{GrnBooleanState, GrnVertexStateV0, GrnVertexV0, project_grn_
 pub use omena_categorical::CategoricalCascadeEvidenceV0;
 use omena_categorical::{CascadeFunctorApplicationV0, apply_cascade_role_mapping_functor_v0};
 use omena_rg_flow::{coupling_space, estimate_coupling_jacobian_spectrum_v0};
-use omena_smt::{
-    SmtBackendKindV0, SmtBackendSatResultV0, SmtBackendV0, StubSmtBackendV0, canonical_smt_input_v0,
-};
+#[cfg(not(feature = "smt-z3"))]
+use omena_smt::StubSmtBackendV0;
+#[cfg(feature = "smt-z3")]
+use omena_smt::Z3SmtBackendV0;
+use omena_smt::{SmtBackendKindV0, SmtBackendSatResultV0, SmtBackendV0, canonical_smt_input_v0};
 use omena_variational::{
     PatternIntentV0, designer_intent_posterior_input_v0, dominant_designer_intent_v0,
     infer_designer_intent_posterior_v0,
@@ -1462,6 +1464,9 @@ pub fn evaluate_omena_checker_grn_rules(
 pub fn evaluate_omena_checker_smt_rules(
     input: OmenaCheckerSmtInputV0,
 ) -> Vec<OmenaCheckerSmtEvaluationV0> {
+    #[cfg(feature = "smt-z3")]
+    let backend = Z3SmtBackendV0::default();
+    #[cfg(not(feature = "smt-z3"))]
     let backend = StubSmtBackendV0::default();
     let mut evaluations = Vec::new();
 
@@ -1478,6 +1483,7 @@ pub fn evaluate_omena_checker_smt_rules(
                 smt_backend_kind_name(backend.backend_kind()),
                 smt_sat_result_name(check.sat_result),
                 "SMT backend rejected the cascade proof obligation.",
+                smt_backend_product_name(backend.backend_kind()),
             ));
         }
     }
@@ -1725,6 +1731,7 @@ fn smt_evaluation(
     backend_kind_name: &'static str,
     sat_result_name: &'static str,
     message: &'static str,
+    backend_product_name: &'static str,
 ) -> OmenaCheckerSmtEvaluationV0 {
     OmenaCheckerSmtEvaluationV0 {
         rule_code: OmenaCheckerRuleCodeV0::CascadeSMTViolation,
@@ -1735,7 +1742,7 @@ fn smt_evaluation(
         backend_kind_name,
         sat_result_name,
         message: message.to_string(),
-        mechanism_products: vec!["omena-smt.backend-check"],
+        mechanism_products: vec!["omena-smt.backend-check", backend_product_name],
     }
 }
 
@@ -1755,6 +1762,15 @@ fn smt_backend_kind_name(kind: SmtBackendKindV0) -> &'static str {
         SmtBackendKindV0::Z3 => "z3",
         SmtBackendKindV0::Cvc5 => "cvc5",
         SmtBackendKindV0::Bitwuzla => "bitwuzla",
+    }
+}
+
+fn smt_backend_product_name(kind: SmtBackendKindV0) -> &'static str {
+    match kind {
+        SmtBackendKindV0::Stub => "omena-smt.backend.stub",
+        SmtBackendKindV0::Z3 => "omena-smt.backend.z3",
+        SmtBackendKindV0::Cvc5 => "omena-smt.backend.cvc5",
+        SmtBackendKindV0::Bitwuzla => "omena-smt.backend.bitwuzla",
     }
 }
 
@@ -2833,11 +2849,28 @@ mod tests {
             OmenaCheckerRuleCodeV0::CascadeSMTViolation
         );
         assert_eq!(evaluations[0].obligation_id, "bad-layer-flatten");
-        assert_eq!(evaluations[0].backend_kind_name, "stub");
-        assert_eq!(evaluations[0].sat_result_name, "unsat");
         assert_eq!(
-            evaluations[0].mechanism_products,
-            vec!["omena-smt.backend-check"]
+            evaluations[0].backend_kind_name,
+            if cfg!(feature = "smt-z3") {
+                "z3"
+            } else {
+                "stub"
+            }
+        );
+        assert_eq!(evaluations[0].sat_result_name, "unsat");
+        assert!(
+            evaluations[0]
+                .mechanism_products
+                .contains(&"omena-smt.backend-check")
+        );
+        assert!(
+            evaluations[0]
+                .mechanism_products
+                .contains(&if cfg!(feature = "smt-z3") {
+                    "omena-smt.backend.z3"
+                } else {
+                    "omena-smt.backend.stub"
+                })
         );
 
         let clear_evaluations = evaluate_omena_checker_smt_rules(OmenaCheckerSmtInputV0 {

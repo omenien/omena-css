@@ -14,6 +14,10 @@ role = "R2"
 [lints]
 workspace = true
 
+[features]
+default = []
+smt-z3 = ["omena-checker/smt-z3"]
+
 [dependencies]
 omena-abstract-value = { path = "../omena-abstract-value" }
 omena-checker = { path = "../omena-checker" }

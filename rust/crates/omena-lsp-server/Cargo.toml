@@ -13,6 +13,10 @@ role = "P"
 [lints]
 workspace = true
 
+[features]
+default = []
+smt-z3 = ["omena-query/smt-z3"]
+
 [dependencies]
 omena-cascade = { path = "../omena-cascade" }
 omena-incremental = { path = "../omena-incremental" }

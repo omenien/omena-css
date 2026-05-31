@@ -119,6 +119,16 @@ mod tests {
     }
 
     #[test]
+    fn cascade_spec_digest_is_hash_of_canonical_spec_material() {
+        let digest = cascade_spec_digest_v0();
+        assert_eq!(
+            digest,
+            *blake3::hash(crate::proof::CASCADE_SMT_SPEC_MATERIAL_V0.as_bytes()).as_bytes()
+        );
+        assert_ne!(digest, *b"omena-cascade-smt-spec-v0-------");
+    }
+
+    #[test]
     fn proof_style_bisimulation_invariant_holds_for_all_l1_primitives() {
         let backend = StubSmtBackendV0::default();
         let longhands = vec![

@@ -6,6 +6,15 @@ use crate::{
     SmtBackendCheckV0, SmtBackendKindV0, SmtBackendSatResultV0, SmtBackendV0,
 };
 
+pub(crate) const CASCADE_SMT_SPEC_MATERIAL_V0: &str = "\
+schema=0\n\
+theory=cascade-smt-theory-v0\n\
+encoding=canonical-smt-input-v0\n\
+default-backend=stub-propositional\n\
+opt-in-backend=smt-z3-qf-lia-layer-inversion\n\
+obligations=box-shorthand-combination,scope-flatten-candidate,layer-flatten-candidate,static-supports-condition\n\
+";
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub enum SmtVerdictV0 {
@@ -77,6 +86,6 @@ fn smt_verdict_from_backend_check_v0(sat_result: SmtBackendSatResultV0) -> SmtVe
     }
 }
 
-pub const fn cascade_spec_digest_v0() -> [u8; 32] {
-    *b"omena-cascade-smt-spec-v0-------"
+pub fn cascade_spec_digest_v0() -> [u8; 32] {
+    *blake3::hash(CASCADE_SMT_SPEC_MATERIAL_V0.as_bytes()).as_bytes()
 }

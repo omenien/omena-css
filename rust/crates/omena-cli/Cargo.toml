@@ -18,6 +18,7 @@ workspace = true
 [features]
 default = []
 mdl = []
+smt-z3 = ["omena-query/smt-z3"]
 zk-audit = ["dep:omena-zk-audit", "omena-zk-audit/zk-audit"]
 
 [dependencies]

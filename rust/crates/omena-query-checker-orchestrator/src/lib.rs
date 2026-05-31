@@ -420,8 +420,10 @@ pub struct OmenaQueryCheckerSmtGateV0 {
 /// `require:name=bool` literals that encode the cascade-safety preconditions for
 /// that flatten/combination rewrite. This gate runs the genuine
 /// `evaluate_omena_checker_smt_rules` mechanism, which discharges each obligation
-/// through the default `StubSmtBackendV0` propositional backend (z3 is opt-in
-/// behind the `smt-z3` feature), and only surfaces `cascade.smt-violation`
+/// through the active SMT backend. The default product build stays solver-free
+/// and uses `StubSmtBackendV0`; builds that opt into the `smt-z3` feature route
+/// the same product gate through the z3 backend. The gate only surfaces
+/// `cascade.smt-violation`
 /// diagnostics when the backend's verdict on the conjunction is `Unsat` — i.e. a
 /// required precondition is violated. An obligation whose preconditions all hold
 /// is satisfiable and nothing is surfaced; the diagnostic therefore depends on
@@ -895,8 +897,9 @@ mod tests {
     fn smt_gate_emits_violation_for_unsatisfiable_cascade_obligation() {
         // A box-shorthand combination obligation whose `no-important-longhand`
         // precondition is violated: the conjunction is `Unsat`, so the real
-        // StubSmtBackendV0 verdict drives the gate to surface
-        // `cascade.smt-violation`.
+        // The active backend verdict drives the gate to surface
+        // `cascade.smt-violation`. Default builds use StubSmtBackendV0; opt-in
+        // `smt-z3` builds route this same product gate through z3.
         let gate = run_omena_query_checker_smt_gate_v0(OmenaCheckerSmtInputV0 {
             obligations: vec![OmenaCheckerSmtObligationInputV0 {
                 obligation_id: "stylesheet://.box::box-shorthand-combination".to_string(),
@@ -915,11 +918,28 @@ mod tests {
         assert_eq!(gate.unregistered_rule_count, 0);
         assert_eq!(gate.evaluation_count, 1);
         assert!(gate.emitted_rule_names.contains(&"cascade.smt-violation"));
-        assert_eq!(gate.evaluations[0].backend_kind_name, "stub");
-        assert_eq!(gate.evaluations[0].sat_result_name, "unsat");
         assert_eq!(
-            gate.evaluations[0].mechanism_products,
-            vec!["omena-smt.backend-check"]
+            gate.evaluations[0].backend_kind_name,
+            if cfg!(feature = "smt-z3") {
+                "z3"
+            } else {
+                "stub"
+            }
+        );
+        assert_eq!(gate.evaluations[0].sat_result_name, "unsat");
+        assert!(
+            gate.evaluations[0]
+                .mechanism_products
+                .contains(&"omena-smt.backend-check")
+        );
+        assert!(
+            gate.evaluations[0]
+                .mechanism_products
+                .contains(&if cfg!(feature = "smt-z3") {
+                    "omena-smt.backend.z3"
+                } else {
+                    "omena-smt.backend.stub"
+                })
         );
     }
 

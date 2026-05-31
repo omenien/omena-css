@@ -17,6 +17,7 @@ workspace = true
 [features]
 default = []
 hypergraph-ifds = []
+smt-z3 = ["omena-query-checker-orchestrator/smt-z3"]
 
 [dependencies]
 omena-bridge = { path = "../omena-bridge" }
