@@ -293,36 +293,9 @@ pub fn categorical_fixture_evidence_for_endpoint_v0(
     endpoint_id: &'static str,
 ) -> Option<CategoricalEndpointFixtureEvidenceV0> {
     match endpoint_id {
-        "rust/omena-categorical/verify-site-stability" => Some(endpoint_fixture_v0(
-            endpoint_id,
-            "fixture.categorical.site-stability.v0",
-            "site axioms",
-            "omena-categorical.cascade-site",
-            &[
-                "omena-categorical.cascade-site",
-                "omena-categorical.site-axiom-check",
-            ],
-            &[
-                (
-                    "identity-cover",
-                    "omena-categorical.site-axiom-check",
-                    "identityCover=true",
-                    "identityCover=true",
-                ),
-                (
-                    "pullback-stability",
-                    "omena-categorical.site-axiom-check",
-                    "pullbackStable=true",
-                    "pullbackStable=true",
-                ),
-                (
-                    "cover-transitivity",
-                    "omena-categorical.site-axiom-check",
-                    "transitive=true",
-                    "transitive=true",
-                ),
-            ],
-        )),
+        "rust/omena-categorical/verify-site-stability" => {
+            Some(site_stability_fixture_v0(endpoint_id))
+        }
         "rust/omena-categorical/verify-cosheaf-covariance" => {
             Some(cosheaf_covariance_fixture_v0(endpoint_id))
         }
@@ -411,6 +384,49 @@ pub fn categorical_fixture_evidence_for_endpoint_v0(
         )),
         _ => None,
     }
+}
+
+fn site_stability_fixture_v0(endpoint_id: &'static str) -> CategoricalEndpointFixtureEvidenceV0 {
+    let site = cascade_site_v0("fixture.categorical.cascade-site");
+    let axiom_check = check_cascade_site_axioms_v0(&site);
+    let assertions = vec![
+        fixture_assertion_v0(
+            "cover-family-derived",
+            "omena-categorical.cascade-site",
+            format!("coverFamilyCount={}", site.cover_families.len()),
+            "coverFamilyCount=10",
+        ),
+        fixture_assertion_v0(
+            "identity-cover",
+            "omena-categorical.site-axiom-check",
+            format!("identityCover={}", axiom_check.identity_cover),
+            "identityCover=true",
+        ),
+        fixture_assertion_v0(
+            "pullback-stability",
+            "omena-categorical.site-axiom-check",
+            format!("pullbackStable={}", axiom_check.pullback_stable),
+            "pullbackStable=true",
+        ),
+        fixture_assertion_v0(
+            "cover-transitivity",
+            "omena-categorical.site-axiom-check",
+            format!("transitive={}", axiom_check.transitive),
+            "transitive=true",
+        ),
+    ];
+    endpoint_fixture_from_assertions_v0(
+        endpoint_id,
+        "fixture.categorical.site-stability.v0",
+        "site axioms",
+        "omena-categorical.cascade-site",
+        &[
+            "omena-categorical.cascade-site",
+            "omena-categorical.cover-family",
+            "omena-categorical.site-axiom-check",
+        ],
+        assertions,
+    )
 }
 
 fn endpoint_fixture_v0(
@@ -1045,6 +1061,52 @@ mod tests {
         if let Some(modal) = modal {
             assert!(modal.assertion_count >= 2);
         }
+    }
+
+    #[test]
+    fn site_axiom_fixture_is_computed_from_cover_family() {
+        let fixture = categorical_fixture_evidence_for_endpoint_v0(
+            "rust/omena-categorical/verify-site-stability",
+        );
+        assert!(fixture.is_some());
+        let Some(fixture) = fixture else {
+            return;
+        };
+        assert!(fixture.accepted);
+        assert!(
+            fixture
+                .exercised_contract_products
+                .contains(&"omena-categorical.cover-family")
+        );
+        assert!(fixture.assertions.iter().any(|assertion| {
+            assertion.assertion_id == "cover-family-derived"
+                && assertion.observed == "coverFamilyCount=10"
+        }));
+
+        let site = cascade_site_v0("control.categorical.cascade-site");
+        let stable = check_cascade_site_axioms_v0(&site);
+        assert!(stable.identity_cover);
+        assert!(stable.pullback_stable);
+        assert!(stable.transitive);
+
+        let mut missing_identity = site.clone();
+        let layer_identity = site_axis_object_id_v0(SiteAxisV0::Layer).to_string();
+        missing_identity.cover_families.retain(|cover| {
+            !(cover.object_ids.len() == 1 && cover.object_ids[0] == layer_identity)
+        });
+        let missing_identity_check = check_cascade_site_axioms_v0(&missing_identity);
+        assert!(!missing_identity_check.identity_cover);
+        assert!(!missing_identity_check.pullback_stable);
+        assert!(!missing_identity_check.transitive);
+
+        let mut unknown_object = site;
+        unknown_object
+            .cover_families
+            .push(cover_family_v0("unknown-axis-cover", ["axis:unknown"]));
+        let unknown_object_check = check_cascade_site_axioms_v0(&unknown_object);
+        assert!(unknown_object_check.identity_cover);
+        assert!(!unknown_object_check.pullback_stable);
+        assert!(!unknown_object_check.transitive);
     }
 
     #[test]
