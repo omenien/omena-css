@@ -46,6 +46,8 @@ pub struct PolylogConnectivityWitnessV0 {
     pub start_node_id: String,
     pub reachable_node_ids: Vec<String>,
     pub polylog_query_bound: usize,
+    pub connectivity_algorithm: &'static str,
+    pub polylog_bound_scope: &'static str,
     pub exact_default: bool,
     pub wire_compatible_with_batch_oracle: bool,
 }
@@ -228,7 +230,7 @@ impl Default for PolylogDynamicConnectivityBackendV0 {
     fn default() -> Self {
         Self {
             schema_version: STREAMING_IFDS_SCHEMA_VERSION_V0,
-            product: "omena-streaming-ifds.polylog-dynamic-connectivity-backend",
+            product: "omena-streaming-ifds.exact-bfs-connectivity-backend",
             layer_marker: STREAMING_IFDS_LAYER_MARKER_V0,
             feature_gate: STREAMING_IFDS_FEATURE_GATE_V0,
         }
@@ -311,11 +313,13 @@ pub fn polylog_connectivity_witness_v0(
     let start_node_id = start_node_id.into();
     PolylogConnectivityWitnessV0 {
         schema_version: STREAMING_IFDS_SCHEMA_VERSION_V0,
-        product: "omena-streaming-ifds.polylog-connectivity-witness",
+        product: "omena-streaming-ifds.exact-connectivity-witness",
         layer_marker: STREAMING_IFDS_LAYER_MARKER_V0,
         feature_gate: STREAMING_IFDS_FEATURE_GATE_V0,
         reachable_node_ids: exact_reachable_node_ids(&start_node_id, hyperedges),
         polylog_query_bound: polylog_query_bound(hyperedges.len().saturating_add(1)),
+        connectivity_algorithm: "exactBfsReachability",
+        polylog_bound_scope: "targetOnlyNotAsymptoticEvidence",
         start_node_id,
         exact_default: true,
         wire_compatible_with_batch_oracle: true,
@@ -363,12 +367,14 @@ where
     let reachable_node_ids = oracle.reachable_node_ids(&start_node_id, hyperedges);
     let witness = PolylogConnectivityWitnessV0 {
         schema_version: STREAMING_IFDS_SCHEMA_VERSION_V0,
-        product: "omena-streaming-ifds.polylog-connectivity-witness",
+        product: "omena-streaming-ifds.exact-connectivity-witness",
         layer_marker: STREAMING_IFDS_LAYER_MARKER_V0,
         feature_gate: STREAMING_IFDS_FEATURE_GATE_V0,
         start_node_id: start_node_id.clone(),
         reachable_node_ids: reachable_node_ids.clone(),
         polylog_query_bound: polylog_query_bound(hyperedges.len().saturating_add(1)),
+        connectivity_algorithm: "exactBfsReachability",
+        polylog_bound_scope: "targetOnlyNotAsymptoticEvidence",
         exact_default: true,
         wire_compatible_with_batch_oracle: true,
     };
@@ -441,7 +447,7 @@ pub fn streaming_ifds_transfer_functions_v0(
             edge_kind: edge.edge_kind,
             tail_node_ids: edge.tail_node_ids.clone(),
             head_node_id: edge.head_node_id.clone(),
-            transfer_kind: "identityMonotone",
+            transfer_kind: streaming_ifds_transfer_kind(edge.edge_kind),
         })
         .collect()
 }
@@ -521,11 +527,9 @@ fn propagate_ifds_facts(
         {
             let mut provenance = fact.provenance.clone();
             provenance.push(format!("transfer:{}", transfer.hyperedge_id));
-            let next_fact = streaming_ifds_fact_v0(
-                transfer.head_node_id.clone(),
-                fact.value.clone(),
-                provenance,
-            );
+            let next_value = apply_streaming_ifds_transfer(transfer, &fact.value);
+            let next_fact =
+                streaming_ifds_fact_v0(transfer.head_node_id.clone(), next_value, provenance);
             if seen.insert(fact_key(&next_fact.node_id, &next_fact.value)) {
                 pending.push_back(next_fact.clone());
                 output.push(next_fact);
@@ -631,6 +635,14 @@ fn reused_fact_from_key(key: &str) -> StreamingIFDSFactV0 {
     let value = match value_key {
         "bottom" => AbstractClassValueV0::Bottom,
         "top" => AbstractClassValueV0::Top,
+        other if other.starts_with("finiteSet:") => AbstractClassValueV0::FiniteSet {
+            values: other
+                .trim_start_matches("finiteSet:")
+                .split(',')
+                .filter(|value| !value.is_empty())
+                .map(str::to_string)
+                .collect(),
+        },
         other => AbstractClassValueV0::Exact {
             value: other.strip_prefix("exact:").unwrap_or(other).to_string(),
         },
@@ -648,6 +660,74 @@ fn reused_fact_from_key(key: &str) -> StreamingIFDSFactV0 {
         value,
         provenance: vec![format!("reused:{key}")],
     }
+}
+
+fn streaming_ifds_transfer_kind(edge_kind: UnifiedHypergraphEdgeKindV0) -> &'static str {
+    match edge_kind {
+        UnifiedHypergraphEdgeKindV0::ComposesLocal
+        | UnifiedHypergraphEdgeKindV0::ComposesGlobal
+        | UnifiedHypergraphEdgeKindV0::ComposesExternal => "composeClassSet",
+        UnifiedHypergraphEdgeKindV0::Value | UnifiedHypergraphEdgeKindV0::Icss => {
+            "valueAliasPreserving"
+        }
+        UnifiedHypergraphEdgeKindV0::SassUse
+        | UnifiedHypergraphEdgeKindV0::SassForward
+        | UnifiedHypergraphEdgeKindV0::SassImport
+        | UnifiedHypergraphEdgeKindV0::ForeignReference => "semanticReferencePreserving",
+        _ => "semanticReferencePreserving",
+    }
+}
+
+fn apply_streaming_ifds_transfer(
+    transfer: &StreamingIFDSTransferFunctionV0,
+    value: &AbstractClassValueV0,
+) -> AbstractClassValueV0 {
+    match transfer.edge_kind {
+        UnifiedHypergraphEdgeKindV0::ComposesLocal
+        | UnifiedHypergraphEdgeKindV0::ComposesGlobal
+        | UnifiedHypergraphEdgeKindV0::ComposesExternal => {
+            widen_class_value_with_composed_head(value, &transfer.head_node_id)
+        }
+        UnifiedHypergraphEdgeKindV0::Value
+        | UnifiedHypergraphEdgeKindV0::Icss
+        | UnifiedHypergraphEdgeKindV0::SassUse
+        | UnifiedHypergraphEdgeKindV0::SassForward
+        | UnifiedHypergraphEdgeKindV0::SassImport
+        | UnifiedHypergraphEdgeKindV0::ForeignReference => value.clone(),
+        _ => value.clone(),
+    }
+}
+
+fn widen_class_value_with_composed_head(
+    value: &AbstractClassValueV0,
+    head_node_id: &str,
+) -> AbstractClassValueV0 {
+    let head_token = class_token_from_node_id(head_node_id);
+    match value {
+        AbstractClassValueV0::Bottom | AbstractClassValueV0::Top => value.clone(),
+        AbstractClassValueV0::Exact { value } => finite_class_set([value.clone(), head_token]),
+        AbstractClassValueV0::FiniteSet { values } => {
+            let mut widened = values.clone();
+            widened.push(head_token);
+            finite_class_set(widened)
+        }
+        _ => value.clone(),
+    }
+}
+
+fn finite_class_set(values: impl IntoIterator<Item = String>) -> AbstractClassValueV0 {
+    let mut values = values.into_iter().collect::<Vec<_>>();
+    values.sort();
+    values.dedup();
+    AbstractClassValueV0::FiniteSet { values }
+}
+
+fn class_token_from_node_id(node_id: &str) -> String {
+    node_id
+        .rsplit(|character: char| matches!(character, '/' | '#' | '.' | ':' | '|'))
+        .find(|segment| !segment.is_empty())
+        .unwrap_or(node_id)
+        .to_string()
 }
 
 fn streaming_ifds_fact_v0(
@@ -823,6 +903,18 @@ mod tests {
         assert_eq!(report.input_fact_count, 1);
         assert_eq!(report.output_fact_count, 3);
         assert_eq!(report.transfer_function_count, 2);
+        assert_eq!(
+            report.witness.product,
+            "omena-streaming-ifds.exact-connectivity-witness"
+        );
+        assert_eq!(
+            report.witness.connectivity_algorithm,
+            "exactBfsReachability"
+        );
+        assert_eq!(
+            report.witness.polylog_bound_scope,
+            "targetOnlyNotAsymptoticEvidence"
+        );
         assert_eq!(report.dirty_fact_count, 3);
         assert_eq!(report.reused_fact_count, 0);
         assert!(!report.fallback_to_batch);
@@ -834,6 +926,23 @@ mod tests {
                 .map(|fact| fact.node_id.as_str())
                 .collect::<Vec<_>>(),
             vec!["a", "b", "c"]
+        );
+        assert_eq!(
+            report
+                .output_facts
+                .iter()
+                .map(|fact| abstract_class_value_key(&fact.value))
+                .collect::<Vec<_>>(),
+            vec![
+                "exact:button".to_string(),
+                "finiteSet:b,button".to_string(),
+                "finiteSet:b,button,c".to_string()
+            ]
+        );
+        assert!(
+            streaming_ifds_transfer_functions_v0(&hyperedges)
+                .iter()
+                .all(|transfer| transfer.transfer_kind == "composeClassSet")
         );
     }
 
@@ -970,8 +1079,14 @@ mod tests {
         assert_eq!(report_node_ids(&report), vec!["a", "b", "c"]);
         assert_eq!(
             fact_keys(&propagate_ifds_facts(&new_graph, &next)),
-            vec!["a|exact:button".to_string(), "b|exact:button".to_string()]
+            vec![
+                "a|exact:button".to_string(),
+                "b|finiteSet:b,button".to_string()
+            ]
         );
+        assert!(report.output_facts.iter().any(|fact| {
+            fact.node_id == "c" && abstract_class_value_key(&fact.value) == "finiteSet:b,button,c"
+        }));
     }
 
     #[cfg(feature = "with-frame-rule")]
