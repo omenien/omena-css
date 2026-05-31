@@ -40,6 +40,7 @@
     "build:omena-lsp-server": "cargo build --manifest-path rust/Cargo.toml -p omena-lsp-server --release && node ./scripts/prepare-omena-lsp-server.mjs",
     "build:tsgo-binary": "node ./scripts/prepare-tsgo-binary.mjs",
     "build:omena-wasm": "wasm-pack build rust/crates/omena-wasm --scope omena --target bundler --out-dir pkg",
+    "build:omena-napi": "napi build --manifest-path rust/crates/omena-napi/Cargo.toml --platform --release -o rust/crates/omena-napi/pkg",
     "watch": "rolldown -c rolldown.config.ts --watch",
     "cme": "node --import tsx ./scripts/cme.ts",
     "cme-check": "node --import tsx ./packages/check-orchestrator/src/cli/main.ts",
@@ -380,6 +381,7 @@
   "devDependencies": {
     "@changesets/changelog-github": "^0.6.0",
     "@changesets/cli": "^2.31.0",
+    "@napi-rs/cli": "^3.7.0",
     "@types/node": "^25.9.1",
     "@types/vscode": "~1.115.0",
     "@typescript/native-preview": "7.0.0-dev.20260527.2",
