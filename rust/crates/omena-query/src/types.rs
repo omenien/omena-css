@@ -1102,6 +1102,8 @@ pub struct OmenaQueryCascadeAtPositionV0 {
     pub reference_custom_property_fixed_point_status: Option<&'static str>,
     pub reference_custom_property_fixed_point_value: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
+    pub refinement_evidence: Option<omena_refinement::CascadeDimensionalRefinementBridgeV0>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub categorical_evidence:
         Option<omena_query_checker_orchestrator::CategoricalCascadeEvidenceV0>,
 }

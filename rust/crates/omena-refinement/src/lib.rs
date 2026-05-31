@@ -223,7 +223,7 @@ where
     P: PropertyIndexV0,
     R: RefinementPredicateV0,
 {
-    RefinedAbstractPropertyValueV0 {
+    let mut refined = RefinedAbstractPropertyValueV0 {
         schema_version: REFINEMENT_SCHEMA_VERSION_V0,
         product: "omena-refinement.refined-abstract-property-value",
         layer_marker: REFINEMENT_LAYER_MARKER_V0,
@@ -232,9 +232,12 @@ where
         predicate_id: R::PREDICATE_ID,
         value_shape: abstract_property_value_shape_v0(&legacy_value),
         legacy_value,
-        strict_superset_of_legacy_v0: true,
+        strict_superset_of_legacy_v0: false,
         marker: PhantomData,
-    }
+    };
+    refined.strict_superset_of_legacy_v0 =
+        refined_projection_preserves_legacy_value_v0::<P, R>(&refined);
+    refined
 }
 
 pub fn project_refined_to_legacy_v0<P, R>(
@@ -245,6 +248,22 @@ where
     R: RefinementPredicateV0,
 {
     refined.legacy_value.clone()
+}
+
+pub fn refined_projection_preserves_legacy_value_v0<P, R>(
+    refined: &RefinedAbstractPropertyValueV0<P, R>,
+) -> bool
+where
+    P: PropertyIndexV0,
+    R: RefinementPredicateV0,
+{
+    refined.schema_version == REFINEMENT_SCHEMA_VERSION_V0
+        && refined.layer_marker == REFINEMENT_LAYER_MARKER_V0
+        && refined.feature_gate == REFINEMENT_FEATURE_GATE_V0
+        && refined.property_name == P::PROPERTY_NAME
+        && refined.predicate_id == R::PREDICATE_ID
+        && abstract_property_value_shape_v0(&project_refined_to_legacy_v0(refined))
+            == refined.value_shape
 }
 
 pub fn evaluate_refinement_property_predicate_v0(
@@ -939,6 +958,11 @@ mod tests {
             project_legacy_to_refined_v0::<AnyPropertyIndexV0, TopPredicateV0>(legacy.clone());
         assert_eq!(refined.schema_version, "0");
         assert_eq!(refined.layer_marker, "refinement-cascade");
+        assert!(refined.strict_superset_of_legacy_v0);
+        assert!(refined_projection_preserves_legacy_value_v0::<
+            AnyPropertyIndexV0,
+            TopPredicateV0,
+        >(&refined));
         assert_eq!(project_refined_to_legacy_v0(&refined), legacy);
     }
 

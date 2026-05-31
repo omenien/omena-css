@@ -29,11 +29,12 @@ use engine_input_producers::{
     summarize_selector_usage_query_fragments_input,
 };
 pub use omena_abstract_value::{
-    AbstractClassValueV0, AbstractValueDomainSummaryV0, ClassValueFlowAnalysisV0,
-    ClassValueFlowIncrementalAnalysisV0, Lin01ProvenanceSemiringV0, LinearProvenancePathV0,
-    LinearProvenanceV0, NaturalCountProvenanceSemiringV0, ProvenanceSemiringLawReportV0,
-    ReducedClassValueProductV0, SelectorProjectionCertaintyV0,
-    verify_provenance_semiring_laws_on_fixtures,
+    AbstractClassValueV0, AbstractPropertyValueV0, AbstractValueDomainSummaryV0, CascadeContextV0,
+    CascadeValueFamilyMemberV0, ClassValueFlowAnalysisV0, ClassValueFlowIncrementalAnalysisV0,
+    Lin01ProvenanceSemiringV0, LinearProvenancePathV0, LinearProvenanceV0,
+    NaturalCountProvenanceSemiringV0, ProvenanceSemiringLawReportV0, ReducedClassValueProductV0,
+    SelectorProjectionCertaintyV0, derive_cascade_restriction_maps_v0,
+    summarize_cascade_value_family_v0, verify_provenance_semiring_laws_on_fixtures,
 };
 use omena_abstract_value::{
     analyze_class_value_flow_incremental_with_database, project_abstract_value_selectors,

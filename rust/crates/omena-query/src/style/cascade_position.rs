@@ -10,8 +10,17 @@ use omena_cascade::{
 };
 use omena_parser::{ParserByteSpanV0, ParserPositionV0, ParserRangeV0};
 use omena_query_transform_runner::parse_static_css_cascade_value;
+use omena_refinement::{
+    CascadeDimensionalRefinementBridgeV0, RefinementPropertyPredicateV0,
+    summarize_cascade_dimensional_refinement_bridge_v0,
+};
+use omena_semantic::DesignTokenRankedReferenceV0;
 
-use crate::OmenaQueryCascadeAtPositionV0;
+use crate::{
+    AbstractPropertyValueV0, CascadeContextV0, CascadeValueFamilyMemberV0,
+    OmenaQueryCascadeAtPositionV0, derive_cascade_restriction_maps_v0,
+    summarize_cascade_value_family_v0,
+};
 
 use super::{
     byte_offset_for_parser_position, is_css_identifier_continue, parser_range_for_byte_span,
@@ -111,6 +120,7 @@ pub fn read_omena_query_cascade_at_position_from_graph(
                 .guaranteed_invalid_count,
             reference_custom_property_fixed_point_status: None,
             reference_custom_property_fixed_point_value: None,
+            refinement_evidence: None,
             categorical_evidence: None,
         };
     };
@@ -140,6 +150,11 @@ pub fn read_omena_query_cascade_at_position_from_graph(
         .entries
         .iter()
         .find(|entry| entry.name == reference.name);
+    let fixed_point_value =
+        fixed_point_entry.and_then(|entry| render_query_cascade_value(&entry.resolved));
+    let refinement_evidence = fixed_point_value
+        .as_deref()
+        .map(|value| summarize_query_cascade_refinement_evidence(reference.name, value, ranking));
 
     OmenaQueryCascadeAtPositionV0 {
         schema_version: "0",
@@ -191,8 +206,8 @@ pub fn read_omena_query_cascade_at_position_from_graph(
         custom_property_fixed_point_guaranteed_invalid_count: fixed_point.guaranteed_invalid_count,
         reference_custom_property_fixed_point_status: fixed_point_entry
             .map(query_custom_property_fixed_point_entry_status),
-        reference_custom_property_fixed_point_value: fixed_point_entry
-            .and_then(|entry| render_query_cascade_value(&entry.resolved)),
+        reference_custom_property_fixed_point_value: fixed_point_value,
+        refinement_evidence,
         categorical_evidence: None,
     }
 }
@@ -264,6 +279,41 @@ fn query_custom_property_fixed_point_entry_status(
     } else {
         "fixedPointStable"
     }
+}
+
+fn summarize_query_cascade_refinement_evidence(
+    reference_name: &str,
+    fixed_point_value: &str,
+    ranking: Option<&DesignTokenRankedReferenceV0>,
+) -> CascadeDimensionalRefinementBridgeV0 {
+    let layers = ranking
+        .and_then(|ranking| ranking.winner_declaration_layer_name.clone())
+        .into_iter()
+        .collect::<Vec<_>>();
+    let context = CascadeContextV0 {
+        id: format!("custom-property-fixed-point:{reference_name}"),
+        parent_id: None,
+        selectors: Vec::new(),
+        conditions: Vec::new(),
+        layers,
+    };
+    let members = vec![CascadeValueFamilyMemberV0 {
+        context,
+        value: AbstractPropertyValueV0::Exact {
+            property_name: reference_name.to_string(),
+            value: fixed_point_value.to_string(),
+            pseudo_state: None,
+        },
+    }];
+    let restrictions = derive_cascade_restriction_maps_v0(members.as_slice());
+    let family = summarize_cascade_value_family_v0(reference_name, members, restrictions);
+    let predicate = RefinementPropertyPredicateV0::Not {
+        predicate: Box::new(RefinementPropertyPredicateV0::ExactValue {
+            property_name: reference_name.to_string(),
+            value: "guaranteed-invalid".to_string(),
+        }),
+    };
+    summarize_cascade_dimensional_refinement_bridge_v0(&family, &[predicate])
 }
 
 fn collect_same_file_custom_property_env_from_graph(

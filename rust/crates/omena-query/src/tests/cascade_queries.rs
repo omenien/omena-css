@@ -66,6 +66,19 @@ fn read_cascade_at_position_is_query_owned() {
             .referenced_declaration_computed_value_derivation_steps
             .contains(&"computedValueResolved")
     );
+    let refinement = cascade
+        .refinement_evidence
+        .as_ref()
+        .expect("custom property fixed point refinement evidence");
+    assert_eq!(
+        refinement.product,
+        "omena-refinement.cascade-dimensional-refinement-bridge"
+    );
+    assert_eq!(refinement.property_name, "--surface");
+    assert_eq!(refinement.predicate_count, 1);
+    assert_eq!(refinement.satisfied_all_context_count, 1);
+    assert_eq!(refinement.unsatisfiable_context_count, 0);
+    assert!(refinement.product_path_evidence_ready);
     assert!(cascade.categorical_evidence.is_none());
 
     let no_reference = read_omena_query_cascade_at_position(
@@ -290,5 +303,16 @@ fn read_cascade_at_position_reports_iacvt_seed() {
         cascade
             .referenced_declaration_computed_value_derivation_steps
             .contains(&"invalidAtComputedValueTimeFallsBackAsUnset")
+    );
+    let refinement = cascade
+        .refinement_evidence
+        .as_ref()
+        .expect("cyclic custom property refinement evidence");
+    assert_eq!(refinement.property_name, "--a");
+    assert_eq!(refinement.satisfied_all_context_count, 0);
+    assert_eq!(refinement.unsatisfiable_context_count, 1);
+    assert_eq!(
+        format!("{:?}", refinement.evaluations[0].combined_verdict),
+        "Unsatisfiable"
     );
 }

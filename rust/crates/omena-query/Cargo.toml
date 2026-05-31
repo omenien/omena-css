@@ -26,6 +26,7 @@ omena-parser = { path = "../omena-parser" }
 omena-query-checker-orchestrator = { path = "../omena-query-checker-orchestrator" }
 omena-query-core = { path = "../omena-query-core" }
 omena-query-transform-runner = { path = "../omena-query-transform-runner" }
+omena-refinement = { path = "../omena-refinement" }
 omena-resolver = { path = "../omena-resolver" }
 omena-semantic = { path = "../omena-semantic" }
 omena-sif = { path = "../omena-sif" }
