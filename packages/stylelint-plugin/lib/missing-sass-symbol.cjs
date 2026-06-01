@@ -1,7 +1,7 @@
 const stylelint = require("stylelint");
 const { createFindingRule } = require("./_shared.cjs");
 
-const ruleName = "css-module-explainer/missing-sass-symbol";
+const ruleName = "omena/missing-sass-symbol";
 const messages = stylelint.utils.ruleMessages(ruleName, {
   rejected: (symbolName) => `Sass symbol '${symbolName}' not found.`,
 });

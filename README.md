@@ -487,7 +487,7 @@ Flat config example:
 import { createRequire } from "node:module";
 
 const require = createRequire(import.meta.url);
-const omena = require("eslint-plugin-css-module-explainer");
+const omena = require("@omena/eslint-plugin");
 
 export default [...omena.configs.recommended];
 ```
@@ -498,7 +498,7 @@ Focused variant:
 import { createRequire } from "node:module";
 
 const require = createRequire(import.meta.url);
-const omena = require("eslint-plugin-css-module-explainer");
+const omena = require("@omena/eslint-plugin");
 
 export default [...omena.configs.focused];
 ```
@@ -509,7 +509,7 @@ Optional dynamic moat:
 import { createRequire } from "node:module";
 
 const require = createRequire(import.meta.url);
-const omena = require("eslint-plugin-css-module-explainer");
+const omena = require("@omena/eslint-plugin");
 
 export default [...omena.configs.dynamicMoat];
 ```

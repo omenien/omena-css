@@ -1,7 +1,7 @@
 const stylelint = require("stylelint");
 const { createFindingRule } = require("./_shared.cjs");
 
-const ruleName = "css-module-explainer/missing-composed-module";
+const ruleName = "omena/missing-composed-module";
 const messages = stylelint.utils.ruleMessages(ruleName, {
   rejected: (specifier) => `Cannot resolve composed CSS Module '${specifier}'.`,
 });

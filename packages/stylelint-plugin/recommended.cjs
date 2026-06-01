@@ -1,13 +1,13 @@
 module.exports = {
-  plugins: ["stylelint-plugin-css-module-explainer"],
+  plugins: ["@omena/stylelint-plugin"],
   rules: {
-    "css-module-explainer/unused-selector": [true],
-    "css-module-explainer/missing-composed-module": [true],
-    "css-module-explainer/missing-composed-selector": [true],
-    "css-module-explainer/missing-value-module": [true],
-    "css-module-explainer/missing-imported-value": [true],
-    "css-module-explainer/missing-keyframes": [true],
-    "css-module-explainer/missing-custom-property": [true],
-    "css-module-explainer/missing-sass-symbol": [true],
+    "omena/unused-selector": [true],
+    "omena/missing-composed-module": [true],
+    "omena/missing-composed-selector": [true],
+    "omena/missing-value-module": [true],
+    "omena/missing-imported-value": [true],
+    "omena/missing-keyframes": [true],
+    "omena/missing-custom-property": [true],
+    "omena/missing-sass-symbol": [true],
   },
 };

@@ -13,7 +13,7 @@ const STYLE_FILE_PATHS = [
   path.join(WORKSPACE_ROOT, "src/CustomPropertyMissing.module.css"),
   path.join(WORKSPACE_ROOT, "src/SassSymbolMissing.module.scss"),
 ];
-const PLUGIN_NAME = "stylelint-plugin-css-module-explainer";
+const PLUGIN_NAME = "@omena/stylelint-plugin";
 
 async function main() {
   await assertRecommendedStylelintBridge();
@@ -28,49 +28,49 @@ async function assertRecommendedStylelintBridge() {
       extends: [`${PLUGIN_NAME}/recommended`],
       customSyntax: "postcss-scss",
       rules: {
-        "css-module-explainer/unused-selector": [
+        "omena/unused-selector": [
           true,
           {
             workspaceRoot: WORKSPACE_ROOT,
           },
         ],
-        "css-module-explainer/missing-composed-module": [
+        "omena/missing-composed-module": [
           true,
           {
             workspaceRoot: WORKSPACE_ROOT,
           },
         ],
-        "css-module-explainer/missing-composed-selector": [
+        "omena/missing-composed-selector": [
           true,
           {
             workspaceRoot: WORKSPACE_ROOT,
           },
         ],
-        "css-module-explainer/missing-value-module": [
+        "omena/missing-value-module": [
           true,
           {
             workspaceRoot: WORKSPACE_ROOT,
           },
         ],
-        "css-module-explainer/missing-imported-value": [
+        "omena/missing-imported-value": [
           true,
           {
             workspaceRoot: WORKSPACE_ROOT,
           },
         ],
-        "css-module-explainer/missing-keyframes": [
+        "omena/missing-keyframes": [
           true,
           {
             workspaceRoot: WORKSPACE_ROOT,
           },
         ],
-        "css-module-explainer/missing-custom-property": [
+        "omena/missing-custom-property": [
           true,
           {
             workspaceRoot: WORKSPACE_ROOT,
           },
         ],
-        "css-module-explainer/missing-sass-symbol": [
+        "omena/missing-sass-symbol": [
           true,
           {
             workspaceRoot: WORKSPACE_ROOT,
@@ -145,49 +145,49 @@ async function assertOmenaQueryStyleDiagnosticsAdapter() {
         customSyntax: "postcss-scss",
         plugins: [PLUGIN_NAME],
         rules: {
-          "css-module-explainer/unused-selector": [
+          "omena/unused-selector": [
             true,
             {
               workspaceRoot: WORKSPACE_ROOT,
             },
           ],
-          "css-module-explainer/missing-composed-module": [
+          "omena/missing-composed-module": [
             true,
             {
               workspaceRoot: WORKSPACE_ROOT,
             },
           ],
-          "css-module-explainer/missing-composed-selector": [
+          "omena/missing-composed-selector": [
             true,
             {
               workspaceRoot: WORKSPACE_ROOT,
             },
           ],
-          "css-module-explainer/missing-value-module": [
+          "omena/missing-value-module": [
             true,
             {
               workspaceRoot: WORKSPACE_ROOT,
             },
           ],
-          "css-module-explainer/missing-imported-value": [
+          "omena/missing-imported-value": [
             true,
             {
               workspaceRoot: WORKSPACE_ROOT,
             },
           ],
-          "css-module-explainer/missing-custom-property": [
+          "omena/missing-custom-property": [
             true,
             {
               workspaceRoot: WORKSPACE_ROOT,
             },
           ],
-          "css-module-explainer/missing-keyframes": [
+          "omena/missing-keyframes": [
             true,
             {
               workspaceRoot: WORKSPACE_ROOT,
             },
           ],
-          "css-module-explainer/missing-sass-symbol": [
+          "omena/missing-sass-symbol": [
             true,
             {
               workspaceRoot: WORKSPACE_ROOT,

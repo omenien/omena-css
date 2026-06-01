@@ -1,7 +1,7 @@
 const stylelint = require("stylelint");
 const { createFindingRule } = require("./_shared.cjs");
 
-const ruleName = "css-module-explainer/missing-composed-selector";
+const ruleName = "omena/missing-composed-selector";
 const messages = stylelint.utils.ruleMessages(ruleName, {
   rejected: (selectorName) => `Selector '.${selectorName}' not found in composed module.`,
 });

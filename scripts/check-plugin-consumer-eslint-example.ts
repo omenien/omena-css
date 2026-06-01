@@ -4,7 +4,7 @@ import { createRequire } from "node:module";
 import { ESLint } from "eslint";
 
 const require = createRequire(import.meta.url);
-const plugin = require("eslint-plugin-css-module-explainer");
+const plugin = require("@omena/eslint-plugin");
 const REPO_ROOT = process.cwd();
 const EXAMPLE_ROOT = path.join(REPO_ROOT, "examples/plugin-consumers");
 const ESLINT_CONFIG_PATH = path.join(EXAMPLE_ROOT, "eslint.config.mjs");

@@ -45,7 +45,7 @@ const DIAGNOSTIC_RULES = new Map([
 
 const plugin = {
   meta: {
-    name: "omena-oxlint-plugin",
+    name: "@omena/oxlint-plugin",
     version: "0.0.0",
   },
   rules: Object.fromEntries(

@@ -10,16 +10,16 @@ const noImpossibleSelectorRule = require("./lib/no-impossible-selector.cjs");
 const noImpreciseValueRule = require("./lib/no-imprecise-value.cjs");
 
 const FOCUSED_SOURCE_RULES = {
-  "css-module-explainer/missing-module": "error",
-  "css-module-explainer/missing-static-class": "error",
-  "css-module-explainer/missing-template-prefix": "error",
-  "css-module-explainer/missing-resolved-class-values": "error",
-  "css-module-explainer/missing-resolved-class-domain": "error",
+  "omena/missing-module": "error",
+  "omena/missing-static-class": "error",
+  "omena/missing-template-prefix": "error",
+  "omena/missing-resolved-class-values": "error",
+  "omena/missing-resolved-class-domain": "error",
 };
 
 const plugin = {
   meta: {
-    name: "eslint-plugin-css-module-explainer",
+    name: "@omena/eslint-plugin",
     version: "0.0.1",
   },
   rules: {
@@ -40,17 +40,17 @@ plugin.configs = {
   recommended: [
     {
       plugins: {
-        "css-module-explainer": plugin,
+        omena: plugin,
       },
       rules: {
-        "css-module-explainer/source-check": "error",
+        "omena/source-check": "error",
       },
     },
   ],
   focused: [
     {
       plugins: {
-        "css-module-explainer": plugin,
+        omena: plugin,
       },
       rules: {
         ...FOCUSED_SOURCE_RULES,
@@ -60,21 +60,21 @@ plugin.configs = {
   dynamicMoat: [
     {
       plugins: {
-        "css-module-explainer": plugin,
+        omena: plugin,
       },
       rules: {
-        "css-module-explainer/no-unknown-dynamic-class": "error",
+        "omena/no-unknown-dynamic-class": "error",
       },
     },
   ],
   mTier: [
     {
       plugins: {
-        "css-module-explainer": plugin,
+        omena: plugin,
       },
       rules: {
-        "css-module-explainer/no-impossible-selector": "error",
-        "css-module-explainer/no-imprecise-value": "error",
+        "omena/no-impossible-selector": "error",
+        "omena/no-imprecise-value": "error",
       },
     },
   ],

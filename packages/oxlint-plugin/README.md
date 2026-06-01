@@ -1,4 +1,4 @@
-# omena-oxlint-plugin
+# @omena/oxlint-plugin
 
 Thin Oxlint JS-plugin adapter for omena source diagnostics.
 
@@ -11,7 +11,7 @@ directly, so the source of truth remains `omena-query`.
   "jsPlugins": [
     {
       "name": "omena",
-      "specifier": "omena-oxlint-plugin",
+      "specifier": "@omena/oxlint-plugin",
     },
   ],
   "rules": {

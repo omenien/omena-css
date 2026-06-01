@@ -1,7 +1,7 @@
 const stylelint = require("stylelint");
 const { createFindingRule } = require("./_shared.cjs");
 
-const ruleName = "css-module-explainer/missing-value-module";
+const ruleName = "omena/missing-value-module";
 const messages = stylelint.utils.ruleMessages(ruleName, {
   rejected: (specifier) => `Cannot resolve imported @value module '${specifier}'.`,
 });

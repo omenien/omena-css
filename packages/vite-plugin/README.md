@@ -1,9 +1,9 @@
-# omena-vite-plugin
+# @omena/vite-plugin
 
 Thin Vite consumer surface for `omena build`.
 
 ```js
-import { omenaCss } from "omena-vite-plugin";
+import { omenaCss } from "@omena/vite-plugin";
 
 export default {
   plugins: [

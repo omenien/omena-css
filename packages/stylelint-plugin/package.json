@@ -1,5 +1,5 @@
 {
-  "name": "stylelint-plugin-css-module-explainer",
+  "name": "@omena/stylelint-plugin",
   "version": "0.0.1",
   "private": true,
   "main": "./index.cjs",

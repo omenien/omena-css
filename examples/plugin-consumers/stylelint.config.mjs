@@ -1,3 +1,3 @@
 export default {
-  extends: ["stylelint-plugin-css-module-explainer/recommended"],
+  extends: ["@omena/stylelint-plugin/recommended"],
 };

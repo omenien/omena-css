@@ -3,7 +3,7 @@ import { ESLint } from "eslint";
 import { createRequire } from "node:module";
 
 const require = createRequire(import.meta.url);
-const plugin = require("eslint-plugin-css-module-explainer");
+const plugin = require("@omena/eslint-plugin");
 
 const REPO_ROOT = process.cwd();
 const WORKSPACE_ROOT = path.join(REPO_ROOT, "test/_fixtures/eslint-plugin-smoke");
@@ -76,10 +76,10 @@ async function assertMissingStaticClassRule(): Promise<void> {
           },
         },
         plugins: {
-          "css-module-explainer": plugin,
+          omena: plugin,
         },
         rules: {
-          "css-module-explainer/missing-static-class": "error",
+          "omena/missing-static-class": "error",
         },
       },
     ],
@@ -114,10 +114,10 @@ async function assertMissingTemplatePrefixRule(): Promise<void> {
           },
         },
         plugins: {
-          "css-module-explainer": plugin,
+          omena: plugin,
         },
         rules: {
-          "css-module-explainer/missing-template-prefix": "error",
+          "omena/missing-template-prefix": "error",
         },
       },
     ],
@@ -154,10 +154,10 @@ async function assertNoUnknownDynamicClassRule(): Promise<void> {
           },
         },
         plugins: {
-          "css-module-explainer": plugin,
+          omena: plugin,
         },
         rules: {
-          "css-module-explainer/no-unknown-dynamic-class": "error",
+          "omena/no-unknown-dynamic-class": "error",
         },
       },
     ],
@@ -194,10 +194,10 @@ async function assertMissingResolvedClassValuesRule(): Promise<void> {
           },
         },
         plugins: {
-          "css-module-explainer": plugin,
+          omena: plugin,
         },
         rules: {
-          "css-module-explainer/missing-resolved-class-values": "error",
+          "omena/missing-resolved-class-values": "error",
         },
       },
     ],
@@ -236,10 +236,10 @@ async function assertMissingResolvedClassDomainRule(): Promise<void> {
           },
         },
         plugins: {
-          "css-module-explainer": plugin,
+          omena: plugin,
         },
         rules: {
-          "css-module-explainer/missing-resolved-class-domain": "error",
+          "omena/missing-resolved-class-domain": "error",
         },
       },
     ],
@@ -278,10 +278,10 @@ async function assertNoImpossibleSelectorRule(): Promise<void> {
           },
         },
         plugins: {
-          "css-module-explainer": plugin,
+          omena: plugin,
         },
         rules: {
-          "css-module-explainer/no-impossible-selector": "error",
+          "omena/no-impossible-selector": "error",
         },
       },
     ],
@@ -318,10 +318,10 @@ async function assertNoImpreciseValueRule(): Promise<void> {
           },
         },
         plugins: {
-          "css-module-explainer": plugin,
+          omena: plugin,
         },
         rules: {
-          "css-module-explainer/no-imprecise-value": "error",
+          "omena/no-imprecise-value": "error",
         },
       },
     ],
@@ -365,12 +365,10 @@ async function assertMTierConfig(): Promise<void> {
   if (messages.length !== 2) {
     throw new Error(`Expected 2 mTier config messages, got ${messages.length}.`);
   }
-  if (
-    !messages.some((message) => message.ruleId === "css-module-explainer/no-impossible-selector")
-  ) {
+  if (!messages.some((message) => message.ruleId === "omena/no-impossible-selector")) {
     throw new Error("Expected mTier config to enable no-impossible-selector.");
   }
-  if (!messages.some((message) => message.ruleId === "css-module-explainer/no-imprecise-value")) {
+  if (!messages.some((message) => message.ruleId === "omena/no-imprecise-value")) {
     throw new Error("Expected mTier config to enable no-imprecise-value.");
   }
 }
@@ -440,11 +438,11 @@ async function assertOmenaCliDirectBackend(): Promise<void> {
     ]);
     const messages = results.flatMap((result) => result.messages);
     const expectedRuleIds = [
-      "css-module-explainer/missing-static-class",
-      "css-module-explainer/missing-template-prefix",
-      "css-module-explainer/missing-resolved-class-values",
-      "css-module-explainer/missing-resolved-class-domain",
-      "css-module-explainer/missing-module",
+      "omena/missing-static-class",
+      "omena/missing-template-prefix",
+      "omena/missing-resolved-class-values",
+      "omena/missing-resolved-class-domain",
+      "omena/missing-module",
     ];
     for (const ruleId of expectedRuleIds) {
       if (!messages.some((message) => message.ruleId === ruleId)) {

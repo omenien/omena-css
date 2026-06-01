@@ -1,19 +1,19 @@
-# eslint-plugin-css-module-explainer
+# @omena/eslint-plugin
 
 First-cut ESLint consumer for Omena CSS Modules.
 
 Current rules:
 
-- `css-module-explainer/missing-module`
-- `css-module-explainer/missing-static-class`
-- `css-module-explainer/missing-template-prefix`
-- `css-module-explainer/missing-resolved-class-values`
-- `css-module-explainer/missing-resolved-class-domain`
-- `css-module-explainer/invalid-class-reference`
-- `css-module-explainer/no-unknown-dynamic-class`
-- `css-module-explainer/no-impossible-selector`
-- `css-module-explainer/no-imprecise-value`
-- `css-module-explainer/source-check`
+- `omena/missing-module`
+- `omena/missing-static-class`
+- `omena/missing-template-prefix`
+- `omena/missing-resolved-class-values`
+- `omena/missing-resolved-class-domain`
+- `omena/invalid-class-reference`
+- `omena/no-unknown-dynamic-class`
+- `omena/no-impossible-selector`
+- `omena/no-imprecise-value`
+- `omena/source-check`
 
 Config variants:
 
@@ -32,7 +32,7 @@ Recommended flat config:
 import { createRequire } from "node:module";
 
 const require = createRequire(import.meta.url);
-const omena = require("eslint-plugin-css-module-explainer");
+const omena = require("@omena/eslint-plugin");
 
 export default [...omena.configs.recommended];
 ```
@@ -43,7 +43,7 @@ Focused variant:
 import { createRequire } from "node:module";
 
 const require = createRequire(import.meta.url);
-const omena = require("eslint-plugin-css-module-explainer");
+const omena = require("@omena/eslint-plugin");
 
 export default [...omena.configs.focused];
 ```
@@ -76,7 +76,7 @@ Optional dynamic moat:
 import { createRequire } from "node:module";
 
 const require = createRequire(import.meta.url);
-const omena = require("eslint-plugin-css-module-explainer");
+const omena = require("@omena/eslint-plugin");
 
 export default [...omena.configs.dynamicMoat];
 ```
@@ -87,8 +87,8 @@ not map to any known selector in the referenced CSS Module.
 Manual focused dynamic variants:
 
 ```js
-"css-module-explainer/missing-resolved-class-values": "error"
-"css-module-explainer/missing-resolved-class-domain": "error"
+"omena/missing-resolved-class-values": "error"
+"omena/missing-resolved-class-domain": "error"
 ```
 
 Precise M-tier split:
@@ -97,7 +97,7 @@ Precise M-tier split:
 import { createRequire } from "node:module";
 
 const require = createRequire(import.meta.url);
-const omena = require("eslint-plugin-css-module-explainer");
+const omena = require("@omena/eslint-plugin");
 
 export default [...omena.configs.mTier];
 ```
@@ -105,6 +105,6 @@ export default [...omena.configs.mTier];
 Equivalent manual rules:
 
 ```js
-"css-module-explainer/no-impossible-selector": "error"
-"css-module-explainer/no-imprecise-value": "error"
+"omena/no-impossible-selector": "error"
+"omena/no-imprecise-value": "error"
 ```

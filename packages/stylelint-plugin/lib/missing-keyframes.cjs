@@ -1,7 +1,7 @@
 const stylelint = require("stylelint");
 const { createFindingRule } = require("./_shared.cjs");
 
-const ruleName = "css-module-explainer/missing-keyframes";
+const ruleName = "omena/missing-keyframes";
 const messages = stylelint.utils.ruleMessages(ruleName, {
   rejected: (animationName) => `@keyframes '${animationName}' not found in this file.`,
 });

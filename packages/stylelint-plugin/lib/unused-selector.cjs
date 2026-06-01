@@ -1,7 +1,7 @@
 const stylelint = require("stylelint");
 const { createFindingRule } = require("./_shared.cjs");
 
-const ruleName = "css-module-explainer/unused-selector";
+const ruleName = "omena/unused-selector";
 const messages = stylelint.utils.ruleMessages(ruleName, {
   rejected: (selectorName) => `Selector '.${selectorName}' is declared but never used.`,
 });

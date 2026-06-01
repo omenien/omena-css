@@ -18,6 +18,6 @@ pnpm check:plugin-consumer-example
 
 That command verifies:
 
-- ESLint can load `eslint-plugin-css-module-explainer`
-- Stylelint can load `stylelint-plugin-css-module-explainer`
+- ESLint can load `@omena/eslint-plugin`
+- Stylelint can load `@omena/stylelint-plugin`
 - the example workspace stays clean under both consumer surfaces
