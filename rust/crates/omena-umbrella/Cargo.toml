@@ -5,7 +5,7 @@ edition.workspace = true
 license.workspace = true
 publish.workspace = true
 description = "Umbrella facade re-exporting the omena reusable building blocks (R1) and composed engine libraries (R2)."
-repository = "https://github.com/yongsk0066/css-module-explainer"
+repository = "https://github.com/omenien/omena-css"
 readme = "README.md"
 
 [package.metadata.omena]

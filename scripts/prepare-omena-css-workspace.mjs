@@ -1187,7 +1187,7 @@ function rewriteCrateManifest(manifestPath) {
   let manifest = readFileSync(manifestPath, "utf8");
   const crateDirectoryName = path.basename(path.dirname(manifestPath));
   manifest = manifest.replaceAll(
-    'repository = "https://github.com/yongsk0066/css-module-explainer"',
+    'repository = "https://github.com/omenien/omena-css"',
     'repository = "https://github.com/omenien/omena-css"',
   );
   if (crateDirectoryName === "engine-input-producers") {

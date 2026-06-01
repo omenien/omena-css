@@ -121,7 +121,7 @@ process.stdout.write(
         localGateRequired: true,
       },
       issue38: {
-        githubIssue: "https://github.com/yongsk0066/css-module-explainer/issues/38",
+        githubIssue: "https://github.com/omenien/omena-css/issues/38",
         stateExpectedBeforeM4Close: "technical-regression-gates-green",
         currentLocalStatus: "root-cause-regression-gates-present",
         externalWorkspaceAcceptance: {

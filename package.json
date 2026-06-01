@@ -21,14 +21,14 @@
     "react",
     "scss"
   ],
-  "homepage": "https://github.com/yongsk0066/css-module-explainer#readme",
+  "homepage": "https://github.com/omenien/omena-css#readme",
   "bugs": {
-    "url": "https://github.com/yongsk0066/css-module-explainer/issues"
+    "url": "https://github.com/omenien/omena-css/issues"
   },
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/yongsk0066/css-module-explainer"
+    "url": "https://github.com/omenien/omena-css"
   },
   "qna": "marketplace",
   "publisher": "omena",
