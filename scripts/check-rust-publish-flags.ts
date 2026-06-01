@@ -1,37 +1,36 @@
 import { execFileSync } from "node:child_process";
 import { strict as assert } from "node:assert";
-import { readFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 /**
  * rust/publish-flags
  *
- * The crates.io face is the GENERATED standalone workspace, whose
- * `[workspace.package] publish` is flipped to true. In the SOURCE monorepo the
- * workspace is `publish = false`, so every member resolves to a not-publishable
- * `publish = []`. This gate enforces two invariants that keep the publish
- * surface honest:
+ * Model A (direct publish): the monorepo IS the crates.io publish source — there
+ * is no generated standalone workspace. `[workspace.package] publish = true`, so
+ * every member is publishable BY DEFAULT and the crates.io face is the workspace
+ * itself. This gate pins the exact NON-published set so the publish surface stays
+ * honest under `cargo publish --workspace`:
  *
- *   (1) No source member escapes the workspace publish=false (no explicit
- *       `publish = true` / registry allow-list) — so the ONLY publish path is
- *       the generated train. Transfer-safe.
- *   (2) No [I] internal crate is a publish-train member — an [I] crate must
- *       never be copied into the generated workspace where it would inherit
- *       publish=true. (Jointly with rust/publish-train-closure.)
+ *   publish == false  IFF  (role == "I")  OR  (crate is a known npm-only product)
+ *
+ *   - [I] internal crates (diff-test / benchmarks / engine-shadow-runner /
+ *     engine-style-parser) are never published anywhere.
+ *   - npm-only products (omena-napi) ship to npm via @napi-rs, not crates.io, so
+ *     they are publish = false on the cargo side even though their role is [P].
+ *   - EVERY other member (R1 / R2 / U / S / the crates.io products cli, wasm,
+ *     lsp-server) MUST be publishable — a stray publish = false would silently
+ *     strand it (and any train dependent that pins it) out of the registry.
+ *
+ * A self-test guards the predicate. This gate no longer reads the generator —
+ * the publishable set is derived purely from `cargo metadata` + the role manifest.
  */
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
-const generatorSource = readFileSync(
-  path.join(repoRoot, "scripts/prepare-omena-css-workspace.mjs"),
-  "utf8",
-);
 
-function parseTrain(): Set<string> {
-  const match = generatorSource.match(/const omenaCssCrates = \[([\s\S]*?)\];/);
-  assert.ok(match, "expected omenaCssCrates in prepare-omena-css-workspace.mjs");
-  return new Set([...match[1].matchAll(/"([^"]+)"/g)].map((entry) => entry[1]));
-}
+// Products that publish to npm (@napi-rs / wasm-pack) but NOT to crates.io. These
+// are the only non-[I] members allowed to be publish = false on the cargo side.
+const NPM_ONLY_CRATES = new Set(["omena-napi"]);
 
 interface CargoPackage {
   readonly name: string;
@@ -47,38 +46,67 @@ const metadata = JSON.parse(
   ),
 ) as { readonly packages: readonly CargoPackage[] };
 
-const train = parseTrain();
+/** A member must NOT publish to crates.io iff it is [I] or a known npm-only product. */
+function mustNotPublishToCrates(pkg: {
+  readonly name: string;
+  readonly metadata?: { readonly omena?: { readonly role?: string } };
+}): boolean {
+  return pkg.metadata?.omena?.role === "I" || NPM_ONLY_CRATES.has(pkg.name);
+}
 
-// (1) Source publish hygiene: every member resolves to publish=[] (not
-//     publishable). A null publish means "publishable to any registry" — that
-//     would escape the workspace publish=false and is a hard error.
-const escaping: string[] = [];
+const violations: string[] = [];
+let publishable = 0;
+let nonPublished = 0;
 for (const pkg of metadata.packages) {
-  const notPublishable = Array.isArray(pkg.publish) && pkg.publish.length === 0;
-  if (!notPublishable) {
-    escaping.push(
-      `${pkg.name} resolves publish=${JSON.stringify(pkg.publish)} (expected [] via workspace publish=false)`,
+  const isPublishFalse = Array.isArray(pkg.publish) && pkg.publish.length === 0;
+  const expectedNonPublished = mustNotPublishToCrates(pkg);
+  if (isPublishFalse) {
+    nonPublished += 1;
+  } else {
+    publishable += 1;
+  }
+  if (isPublishFalse !== expectedNonPublished) {
+    const role = pkg.metadata?.omena?.role ?? "(none)";
+    violations.push(
+      isPublishFalse
+        ? `${pkg.name} (role ${role}) is publish=false but is neither [I] nor npm-only — it would be stranded off crates.io`
+        : `${pkg.name} (role ${role}) is publishable but must be publish=false ([I] crate or npm-only product)`,
     );
   }
 }
+
 assert.equal(
-  escaping.length,
+  violations.length,
   0,
-  `source members must inherit the workspace publish=false (resolve to publish=[]); these escape it:\n  ${escaping.join("\n  ")}`,
+  `publish flags must satisfy: publish=false IFF ([I] role OR npm-only product). Violations:\n  ${violations.join(
+    "\n  ",
+  )}\nFix the crate's [package] publish flag (or its [package.metadata.omena].role), ` +
+    `or update NPM_ONLY_CRATES if a new npm-only product was added.`,
 );
 
-// (2) No [I] internal crate is a publish-train member.
-const internalInTrain: string[] = [];
-for (const pkg of metadata.packages) {
-  if (pkg.metadata?.omena?.role === "I" && train.has(pkg.name)) {
-    internalInTrain.push(pkg.name);
-  }
+// Self-test: the predicate flags [I] and npm-only, and clears everything else.
+{
+  assert.equal(
+    mustNotPublishToCrates({ name: "probe", metadata: { omena: { role: "I" } } }),
+    true,
+    "self-test: an [I] crate must not publish to crates.io",
+  );
+  assert.equal(
+    mustNotPublishToCrates({ name: "omena-napi", metadata: { omena: { role: "P" } } }),
+    true,
+    "self-test: a known npm-only product must not publish to crates.io",
+  );
+  assert.equal(
+    mustNotPublishToCrates({ name: "omena-parser", metadata: { omena: { role: "R1" } } }),
+    false,
+    "self-test: an R1 crate must be publishable",
+  );
+  assert.equal(
+    mustNotPublishToCrates({ name: "omena-cli", metadata: { omena: { role: "P" } } }),
+    false,
+    "self-test: a crates.io product must be publishable",
+  );
 }
-assert.equal(
-  internalInTrain.length,
-  0,
-  `internal [I] crates must not be publish-train members (they would be flipped to publish=true in the generated workspace):\n  ${internalInTrain.join("\n  ")}`,
-);
 
 process.stdout.write(
   `${JSON.stringify(
@@ -86,9 +114,10 @@ process.stdout.write(
       schemaVersion: "0",
       product: "rust.publish-flags",
       members: metadata.packages.length,
-      trainMembers: train.size,
-      sourcePublishEscapes: 0,
-      internalInTrain: 0,
+      publishable,
+      nonPublished,
+      npmOnly: [...NPM_ONLY_CRATES],
+      flagViolations: 0,
     },
     null,
     2,

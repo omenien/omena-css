@@ -53,7 +53,10 @@ resolver = "2"
 version = "0.2.0"
 edition = "2024"
 license = "MIT"
-publish = false
+# Model A direct-publish: members are publishable by default; the non-published
+# set (4 [I] crates + the npm-only omena-napi) overrides with explicit publish =
+# false. Enforced by check:rust-publish-flags (publish=false IFF [I] or napi).
+publish = true
 
 [workspace.dependencies]
 serde = { version = "1.0", features = ["derive"] }

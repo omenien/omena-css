@@ -3,7 +3,7 @@ name = "omena-benchmarks"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
-publish.workspace = true
+publish = false
 description = "Benchmark harnesses for Omena CSS Modules Rust crates"
 repository = "https://github.com/omenien/omena-css"
 
