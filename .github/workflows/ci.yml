@@ -26,11 +26,11 @@ jobs:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
       - uses: ./.github/actions/setup-pnpm
       - uses: ./.github/actions/sync-release-metadata
-      - run: pnpm cme-check run core/check
-      - run: pnpm cme-check doctor
-      - run: pnpm cme-check run tooling/orchestrator-inventory
-      - run: pnpm cme-check run test/test
-      - run: pnpm cme-check run core/build
+      - run: pnpm omena-check run core/check
+      - run: pnpm omena-check doctor
+      - run: pnpm omena-check run tooling/orchestrator-inventory
+      - run: pnpm omena-check run test/test
+      - run: pnpm omena-check run core/build
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: build-output
@@ -49,7 +49,7 @@ jobs:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
       - uses: ./.github/actions/setup-pnpm
       - uses: ./.github/actions/sync-release-metadata
-      - run: pnpm cme-check run test/protocol
+      - run: pnpm omena-check run test/protocol
 
   native-runner-matrix:
     uses: ./.github/workflows/_build-native-binaries.yml
@@ -64,51 +64,51 @@ jobs:
       - uses: ./.github/actions/sync-release-metadata
       - id: m1
         name: Run M1 runtime query/API hardening
-        run: pnpm cme-check run rust/m1-runtime-query-api-hardening
+        run: pnpm omena-check run rust/m1-runtime-query-api-hardening
         continue-on-error: true
       - id: m2
         name: Run M2 product-facing capability
-        run: pnpm cme-check run rust/m2-product-facing-capability
+        run: pnpm omena-check run rust/m2-product-facing-capability
         continue-on-error: true
       - id: m3
         name: Run M3 theoretical moat generalization
-        run: pnpm cme-check run rust/m3-theoretical-moat-generalization
+        run: pnpm omena-check run rust/m3-theoretical-moat-generalization
         continue-on-error: true
       - id: query
         name: Run omena-query boundary
-        run: pnpm cme-check run rust/omena-query/boundary
+        run: pnpm omena-check run rust/omena-query/boundary
         continue-on-error: true
       - id: lsp
         name: Run omena-lsp-server boundary
-        run: pnpm cme-check run rust/omena-lsp-server/boundary
+        run: pnpm omena-check run rust/omena-lsp-server/boundary
         continue-on-error: true
       - id: cascade
         name: Run omena-cascade boundary
-        run: pnpm cme-check run rust/omena-cascade/boundary
+        run: pnpm omena-check run rust/omena-cascade/boundary
         continue-on-error: true
       - id: diff_test
         name: Run omena-diff-test boundary
-        run: pnpm cme-check run rust/omena-diff-test-boundary
+        run: pnpm omena-check run rust/omena-diff-test-boundary
         continue-on-error: true
       - id: train_closure
         name: Run publish-train closure
-        run: pnpm cme-check run rust/publish-train-closure
+        run: pnpm omena-check run rust/publish-train-closure
         continue-on-error: true
       - id: role_boundaries
         name: Run role-boundaries
-        run: pnpm cme-check run rust/role-boundaries
+        run: pnpm omena-check run rust/role-boundaries
         continue-on-error: true
       - id: publish_flags
         name: Run publish-flags
-        run: pnpm cme-check run rust/publish-flags
+        run: pnpm omena-check run rust/publish-flags
         continue-on-error: true
       - id: naming_consistency
         name: Run naming-consistency
-        run: pnpm cme-check run rust/naming-consistency
+        run: pnpm omena-check run rust/naming-consistency
         continue-on-error: true
       - id: aggregation_complete
         name: Run closure-fast aggregation completeness
-        run: pnpm cme-check run rust/closure-fast-aggregation-complete
+        run: pnpm omena-check run rust/closure-fast-aggregation-complete
         continue-on-error: true
       - if: always()
         name: Enforce closure-fast result
@@ -157,7 +157,7 @@ jobs:
           name: build-output
           path: dist/
       - run: node ./scripts/restore-native-binary-permissions.mjs
-      - run: xvfb-run -a pnpm cme-check run test/extension-host
+      - run: xvfb-run -a pnpm omena-check run test/extension-host
 
   package:
     needs: [verify, native-runner-matrix]
@@ -174,14 +174,14 @@ jobs:
         with:
           pattern: engine-shadow-runner-*
           path: .runner-artifacts
-      - run: pnpm cme-check run release/package/prepared
+      - run: pnpm omena-check run release/package/prepared
         env:
-          CME_PACKAGED_RUNNER_MIN_TARGETS: "3"
-          CME_PACKAGED_RUNNER_REQUIRED_PLATFORMS: linux,darwin,win32
-          CME_PACKAGED_TSGO_MIN_TARGETS: "3"
-          CME_PACKAGED_TSGO_REQUIRED_PLATFORMS: linux,darwin,win32
-          CME_PACKAGED_OMENA_LSP_SERVER_MIN_TARGETS: "3"
-          CME_PACKAGED_OMENA_LSP_SERVER_REQUIRED_PLATFORMS: linux,darwin,win32
+          OMENA_PACKAGED_RUNNER_MIN_TARGETS: "3"
+          OMENA_PACKAGED_RUNNER_REQUIRED_PLATFORMS: linux,darwin,win32
+          OMENA_PACKAGED_TSGO_MIN_TARGETS: "3"
+          OMENA_PACKAGED_TSGO_REQUIRED_PLATFORMS: linux,darwin,win32
+          OMENA_PACKAGED_LSP_SERVER_MIN_TARGETS: "3"
+          OMENA_PACKAGED_LSP_SERVER_REQUIRED_PLATFORMS: linux,darwin,win32
       - name: VSIX size gate (max 128 MB)
         run: |
           SIZE=$(wc -c < *.vsix | tr -d ' ')

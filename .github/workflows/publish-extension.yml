@@ -55,12 +55,12 @@ jobs:
       RELEASE_CHANNEL: ${{ github.event.inputs.channel }}
       PUBLISH_MARKETPLACE: ${{ github.event.inputs.publish_marketplace }}
       PUBLISH_OPENVSX: ${{ github.event.inputs.publish_openvsx }}
-      CME_PACKAGED_RUNNER_MIN_TARGETS: "3"
-      CME_PACKAGED_RUNNER_REQUIRED_PLATFORMS: linux,darwin,win32
-      CME_PACKAGED_TSGO_MIN_TARGETS: "3"
-      CME_PACKAGED_TSGO_REQUIRED_PLATFORMS: linux,darwin,win32
-      CME_PACKAGED_OMENA_LSP_SERVER_MIN_TARGETS: "3"
-      CME_PACKAGED_OMENA_LSP_SERVER_REQUIRED_PLATFORMS: linux,darwin,win32
+      OMENA_PACKAGED_RUNNER_MIN_TARGETS: "3"
+      OMENA_PACKAGED_RUNNER_REQUIRED_PLATFORMS: linux,darwin,win32
+      OMENA_PACKAGED_TSGO_MIN_TARGETS: "3"
+      OMENA_PACKAGED_TSGO_REQUIRED_PLATFORMS: linux,darwin,win32
+      OMENA_PACKAGED_LSP_SERVER_MIN_TARGETS: "3"
+      OMENA_PACKAGED_LSP_SERVER_REQUIRED_PLATFORMS: linux,darwin,win32
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:

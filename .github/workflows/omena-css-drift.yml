@@ -23,12 +23,12 @@ jobs:
       - uses: ./.github/actions/cache-rust
       - uses: ./.github/actions/setup-cargo-fuzz
       - uses: ./.github/actions/sync-release-metadata
-      - run: pnpm cme-check run rust/omena-css/rustdoc-coverage
-      - run: pnpm cme-check run rust/omena-css/h1-readiness
+      - run: pnpm omena-check run rust/omena-css/rustdoc-coverage
+      - run: pnpm omena-check run rust/omena-css/h1-readiness
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         if: always()
         with:
           name: omena-css-drift-report
-          path: .cme-check/**/*.json
+          path: .omena-check/**/*.json
           retention-days: 30
           if-no-files-found: ignore
