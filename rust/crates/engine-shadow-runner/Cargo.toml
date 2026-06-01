@@ -12,7 +12,7 @@ role = "I"
 workspace = true
 
 [dependencies]
-engine-input-producers = { path = "../engine-input-producers" }
+omena-engine-input-producers = { path = "../omena-engine-input-producers" }
 omena-abstract-value = { path = "../omena-abstract-value" }
 omena-checker = { path = "../omena-checker" }
 omena-cascade = { path = "../omena-cascade" }

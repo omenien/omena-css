@@ -1,5 +1,5 @@
 [package]
-name = "engine-input-producers"
+name = "omena-engine-input-producers"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
@@ -7,6 +7,9 @@ publish.workspace = true
 description = "Rust input-derived producer artifacts for Omena CSS Modules EngineInputV2"
 repository = "https://github.com/omenien/omena-css"
 readme = "README.md"
+
+[lib]
+name = "engine_input_producers"
 
 [package.metadata.omena]
 role = "R1"

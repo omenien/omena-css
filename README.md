@@ -437,7 +437,7 @@ Current checker policy:
   - `TS 7 Phase C` now covers watch / incremental behavior, long-lived LSP session behavior beyond one-shot smoke, and multi-root / workspace-edge cases
   - `selector-usage` remains a shadow validation family, not a release-gating canonical candidate
   - current `EngineInputV2` does not preserve enough reference-level evidence to reproduce `selector-usage` semantics as an input-only canonical producer
-  - the current internal Rust producer boundary is [`rust/crates/engine-input-producers`](./rust/crates/engine-input-producers/README.md)
+  - the current internal Rust producer boundary is [`rust/crates/omena-engine-input-producers`](./rust/crates/omena-engine-input-producers/README.md)
   - the current internal Rust parser/public-product scaffold starts in [`rust/crates/omena-parser`](./rust/crates/omena-parser/README.md)
 - `pnpm check:real-project-corpus` runs a clean multi-file corpus that mimics common product patterns (`variants`, `@value` + `@keyframes`, `composes`, `.module.less`)
 - semantic smoke cases are versioned in `scripts/semantic-smoke-corpus.ts` and should be updated when new semantic surfaces become release-relevant

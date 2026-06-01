@@ -37,8 +37,8 @@ const runnerTransformDeps = TRANSFORM_CRATES.filter((dependency) =>
   runnerDeps.includes(dependency),
 );
 const CORE_OWNED_QUERY_DEPS: readonly string[] = [
-  "engine-input-producers",
   "omena-abstract-value",
+  "omena-engine-input-producers",
   "omena-incremental",
 ] as const;
 

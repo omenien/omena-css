@@ -1,6 +1,5 @@
 [workspace]
 members = [
-  "crates/engine-input-producers",
   "crates/engine-shadow-runner",
   "crates/engine-style-parser",
   "crates/omena-abstract-value",
@@ -11,6 +10,7 @@ members = [
   "crates/omena-checker",
   "crates/omena-cli",
   "crates/omena-diff-test",
+  "crates/omena-engine-input-producers",
   "crates/omena-ensemble",
   "crates/omena-interner",
   "crates/omena-parser",

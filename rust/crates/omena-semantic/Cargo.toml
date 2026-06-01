@@ -15,7 +15,7 @@ role = "R2"
 workspace = true
 
 [dependencies]
-engine-input-producers = { path = "../engine-input-producers" }
+omena-engine-input-producers = { path = "../omena-engine-input-producers" }
 omena-cascade = { path = "../omena-cascade" }
 omena-interner = { path = "../omena-interner" }
 omena-parser = { path = "../omena-parser" }

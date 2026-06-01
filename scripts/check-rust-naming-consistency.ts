@@ -9,15 +9,14 @@ import { fileURLToPath } from "node:url";
  *
  * Brand discipline for the workspace member universe. Every in-tree package name
  * is either `omena-*` or one of a FROZEN, shrink-only `engine-*` allow-list (the
- * half-migrated holdouts that publish under an `omena-engine-*` alias via the
- * generator). The allow-list may only SHRINK as crates migrate to `omena-*`; any
- * OTHER non-omena name is a hard failure with no escape hatch (prevents
- * reintroducing the half-migrated `package=` rename pattern for a new crate).
+ * remaining [I] non-published holdouts). The allow-list may only SHRINK as crates
+ * migrate to `omena-*`; any OTHER non-omena name is a hard failure with no escape
+ * hatch (prevents reintroducing a non-omena name for a new crate).
  *
- * Every PUBLISHED (train) crate must resolve to an `omena-*` published name —
- * directly, or via the one known `engine-input-producers -> omena-engine-input-producers`
- * publish rename. The other two engine-* holdouts are [I] and must stay out of
- * the train.
+ * Every PUBLISHED (train) crate resolves to an `omena-*` published name directly:
+ * all train members are now `omena-*` in-tree (engine-input-producers was renamed
+ * to omena-engine-input-producers), so PUBLISH_RENAME is empty. The two remaining
+ * `engine-*` holdouts are [I] and stay out of the train.
  */
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
@@ -27,15 +26,13 @@ const generatorSource = readFileSync(
 );
 
 // FROZEN, shrink-only allow-list of non-omena package names. Do NOT add to this.
-const ENGINE_ALLOWLIST = new Set([
-  "engine-input-producers",
-  "engine-shadow-runner",
-  "engine-style-parser",
-]);
+const ENGINE_ALLOWLIST = new Set(["engine-shadow-runner", "engine-style-parser"]);
 
 // Known publish-time renames for non-omena train members (the brand seam): the
-// in-tree package name -> its omena-* published name.
-const PUBLISH_RENAME = new Map([["engine-input-producers", "omena-engine-input-producers"]]);
+// in-tree package name -> its omena-* published name. Now EMPTY — every train
+// member is `omena-*` in-tree (engine-input-producers -> omena-engine-input-producers
+// landed in-tree), and the two remaining engine-* holdouts are [I], not train members.
+const PUBLISH_RENAME = new Map<string, string>([]);
 
 function parseTrain(): Set<string> {
   const match = generatorSource.match(/const omenaCssCrates = \[([\s\S]*?)\];/);

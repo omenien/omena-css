@@ -17,7 +17,7 @@ const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), ".."
 const omenaCssCrates = [
   "omena-abstract-value",
   "omena-checker",
-  "engine-input-producers",
+  "omena-engine-input-producers",
   "omena-interner",
   "omena-syntax",
   "omena-meta-macros",
@@ -68,7 +68,7 @@ const omenaCssPublishOrder = [
   "omena-ensemble",
   "omena-incremental",
   "omena-abstract-value",
-  "engine-input-producers",
+  "omena-engine-input-producers",
   "omena-resolver",
   "omena-rg-flow",
   "omena-sif",

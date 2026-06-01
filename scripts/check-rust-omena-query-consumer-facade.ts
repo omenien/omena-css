@@ -14,7 +14,7 @@ const CONSUMER_CRATES: readonly ConsumerCrate[] = [
 ];
 
 const FORBIDDEN_DIRECT_DEPENDENCIES = [
-  "engine-input-producers",
+  "omena-engine-input-producers",
   "omena-abstract-value",
   "omena-bridge",
   "omena-cascade",

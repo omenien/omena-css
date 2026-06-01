@@ -1,4 +1,4 @@
-# `engine-input-producers`
+# `omena-engine-input-producers`
 
 Internal Rust crate for input-derived producer artifacts built from `EngineInputV2`.
 
@@ -24,7 +24,7 @@ Current lane calibration:
 
 Primary checks:
 
-- `cargo test --manifest-path rust/Cargo.toml -p engine-input-producers`
+- `cargo test --manifest-path rust/Cargo.toml -p omena-engine-input-producers`
 - `pnpm check:rust-source-side-lane`
 - `pnpm check:rust-semantic-lane`
 - `pnpm check:rust-producer-boundary`

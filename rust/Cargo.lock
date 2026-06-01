@@ -953,22 +953,13 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "edd0f118536f44f5ccd48bcb8b111bdc3de888b58c74639dfb034a357d0f206d"
 
 [[package]]
-name = "engine-input-producers"
-version = "0.2.0"
-dependencies = [
- "omena-abstract-value",
- "serde",
- "serde_json",
-]
-
-[[package]]
 name = "engine-shadow-runner"
 version = "0.2.0"
 dependencies = [
- "engine-input-producers",
  "omena-abstract-value",
  "omena-cascade",
  "omena-checker",
+ "omena-engine-input-producers",
  "omena-ensemble",
  "omena-query",
  "omena-resolver",
@@ -1891,7 +1882,7 @@ dependencies = [
 name = "omena-bridge"
 version = "0.2.0"
 dependencies = [
- "engine-input-producers",
+ "omena-engine-input-producers",
  "omena-parser",
  "omena-resolver",
  "omena-semantic",
@@ -1955,6 +1946,15 @@ dependencies = [
  "omena-parser",
  "omena-query",
  "omena-testkit",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
+name = "omena-engine-input-producers"
+version = "0.2.0"
+dependencies = [
+ "omena-abstract-value",
  "serde",
  "serde_json",
 ]
@@ -2064,8 +2064,8 @@ dependencies = [
 name = "omena-query-core"
 version = "0.2.0"
 dependencies = [
- "engine-input-producers",
  "omena-abstract-value",
+ "omena-engine-input-producers",
  "omena-incremental",
  "omena-refinement",
  "omena-resolver",
@@ -2107,7 +2107,7 @@ dependencies = [
 name = "omena-resolver"
 version = "0.2.0"
 dependencies = [
- "engine-input-producers",
+ "omena-engine-input-producers",
  "serde",
  "serde_json",
 ]
@@ -2124,8 +2124,8 @@ dependencies = [
 name = "omena-semantic"
 version = "0.2.0"
 dependencies = [
- "engine-input-producers",
  "omena-cascade",
+ "omena-engine-input-producers",
  "omena-interner",
  "omena-parser",
  "salsa",
@@ -2261,12 +2261,12 @@ dependencies = [
 name = "omena-umbrella"
 version = "0.2.0"
 dependencies = [
- "engine-input-producers",
  "omena-abstract-value",
  "omena-bridge",
  "omena-cascade",
  "omena-categorical",
  "omena-checker",
+ "omena-engine-input-producers",
  "omena-ensemble",
  "omena-incremental",
  "omena-interner",
