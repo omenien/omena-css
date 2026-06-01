@@ -1,5 +1,5 @@
 import type ts from "typescript";
-import type { Range } from "@css-module-explainer/shared";
+import type { Range } from "@omena/shared";
 import type { ClassValueUniverseLookupResultV0 } from "../abstract-value/class-value-universe";
 import type { SourceBinderResult } from "./scope-types";
 

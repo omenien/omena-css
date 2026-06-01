@@ -1,4 +1,4 @@
-import type { Range } from "@css-module-explainer/shared";
+import type { Range } from "@omena/shared";
 import type { SassSymbolDeclHIR } from "../server/engine-core-ts/src/core/hir/style-types";
 import { parseStyleDocument } from "../server/engine-core-ts/src/core/scss/scss-parser";
 

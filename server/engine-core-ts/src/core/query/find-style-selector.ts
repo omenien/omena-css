@@ -17,7 +17,7 @@ import type {
   ValueRefHIR,
 } from "../hir/style-types";
 import { rangeContains } from "../util/range-utils";
-import type { ComposesClassToken, ComposesRef } from "@css-module-explainer/shared";
+import type { ComposesClassToken, ComposesRef } from "@omena/shared";
 
 export function findSelectorAtCursor(
   styleDocument: StyleDocumentHIR,

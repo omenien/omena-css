@@ -1,6 +1,6 @@
 import * as nodeUrl from "node:url";
 import type ts from "typescript";
-import type { StyleImport } from "@css-module-explainer/shared";
+import type { StyleImport } from "@omena/shared";
 import type { SourceBindingGraph } from "../binder/source-binding-graph";
 import { buildSourceBindingGraph } from "../binder/source-binding-graph";
 import { composeBinderPluginsV0, type BinderPluginV0 } from "../binder/binder-plugin";

@@ -3,7 +3,7 @@ import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
 import ts from "typescript";
-import type { StyleImport } from "@css-module-explainer/shared";
+import type { StyleImport } from "@omena/shared";
 import { scanCxImports } from "../../../server/engine-core-ts/src/core/cx/binding-detector";
 import {
   AliasResolver,

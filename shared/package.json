@@ -1,5 +1,5 @@
 {
-  "name": "@css-module-explainer/shared",
+  "name": "@omena/shared",
   "version": "0.0.1",
   "private": true,
   "type": "module",

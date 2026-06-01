@@ -1,4 +1,4 @@
-import type { StyleImport } from "@css-module-explainer/shared";
+import type { StyleImport } from "@omena/shared";
 import { findImportDeclId } from "../../binder/import-decls";
 import type { SourceBinderResult } from "../../binder/scope-types";
 import type { ResolvedCxBinding } from "../../cx/resolved-bindings";

@@ -1,4 +1,4 @@
-import type { Range } from "@css-module-explainer/shared";
+import type { Range } from "@omena/shared";
 import type { ProviderDeps } from "../../engine-core-ts/src/provider-deps";
 import { buildEngineInputV2 } from "./engine-input-v2";
 import {

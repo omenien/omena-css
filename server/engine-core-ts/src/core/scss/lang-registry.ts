@@ -1,4 +1,4 @@
-import type { StyleLang } from "@css-module-explainer/shared";
+import type { StyleLang } from "@omena/shared";
 import type { Syntax } from "postcss";
 import postcssLess from "postcss-less";
 import postcssScss from "postcss-scss";

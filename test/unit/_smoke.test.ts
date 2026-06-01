@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import type { Position, Range } from "@css-module-explainer/shared";
+import type { Position, Range } from "@omena/shared";
 
 describe("scaffolding smoke test", () => {
   it("imports shared types without runtime cost", () => {

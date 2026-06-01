@@ -1,4 +1,4 @@
-import type { Position, ShowReferencesLocation } from "@css-module-explainer/shared";
+import type { Position, ShowReferencesLocation } from "@omena/shared";
 import {
   listCanonicalSelectors,
   readSelectorUsageSummary,

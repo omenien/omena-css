@@ -1,4 +1,4 @@
-import type { BemSuffixInfo } from "@css-module-explainer/shared";
+import type { BemSuffixInfo } from "@omena/shared";
 import type { ClassnameTransformMode } from "../scss/classname-transform";
 import type { SelectorDeclHIR, StyleDocumentHIR } from "../hir/style-types";
 import { findCanonicalSelector } from "../query/find-style-selector";

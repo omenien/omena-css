@@ -1,4 +1,4 @@
-import type { Range } from "@css-module-explainer/shared";
+import type { Range } from "@omena/shared";
 import { readSelectorUsageSummary } from "../../engine-core-ts/src/core/query";
 import type { ProviderDeps } from "../../engine-core-ts/src/provider-deps";
 

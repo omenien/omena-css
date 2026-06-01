@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { Range, ResolvedType } from "@css-module-explainer/shared";
+import type { Range, ResolvedType } from "@omena/shared";
 import type { TypeResolver } from "../../../server/engine-core-ts/src/core/ts/type-resolver";
 import {
   buildTsgoAvailabilityInvocation,

@@ -1,4 +1,4 @@
-import type { Range } from "@css-module-explainer/shared";
+import type { Range } from "@omena/shared";
 import type { StyleDocumentHIR } from "../../engine-core-ts/src/core/hir/style-types";
 import {
   resolveStyleDesignTokenRankingForReference,

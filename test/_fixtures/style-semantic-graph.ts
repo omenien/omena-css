@@ -1,4 +1,4 @@
-import type { Range } from "@css-module-explainer/shared";
+import type { Range } from "@omena/shared";
 import type { StyleSemanticGraphSummaryV0 } from "../../server/engine-host-node/src/style-semantic-graph-query-backend";
 
 export function makeDesignTokenDefinitionGraph(args: {

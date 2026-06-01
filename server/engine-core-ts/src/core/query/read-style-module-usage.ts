@@ -1,4 +1,4 @@
-import type { Range } from "@css-module-explainer/shared";
+import type { Range } from "@omena/shared";
 import type { StyleDocumentHIR } from "../hir/style-types";
 import type { SemanticWorkspaceReferenceIndex } from "../semantic/workspace-reference-index";
 import type { StyleDependencyGraph } from "../semantic/style-dependency-graph";

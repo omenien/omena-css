@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import ts from "typescript";
-import type { StyleImport } from "@css-module-explainer/shared";
+import type { StyleImport } from "@omena/shared";
 import { buildSourceBinder } from "../../../server/engine-core-ts/src/core/binder/binder-builder";
 import { buildSourceBindingGraph } from "../../../server/engine-core-ts/src/core/binder/source-binding-graph";
 import type { AnalysisEntry } from "../../../server/engine-core-ts/src/core/indexing/document-analysis-cache";

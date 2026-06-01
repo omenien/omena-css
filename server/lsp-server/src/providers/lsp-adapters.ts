@@ -1,5 +1,5 @@
 import type { Range as LspRange } from "vscode-languageserver/node";
-import type { Range } from "@css-module-explainer/shared";
+import type { Range } from "@omena/shared";
 
 /** Convert shared.Range (readonly) to lsp.Range (mutable). */
 export function toLspRange(r: Range): LspRange {

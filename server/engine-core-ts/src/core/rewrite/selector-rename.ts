@@ -1,4 +1,4 @@
-import type { BemSuffixInfo, Range } from "@css-module-explainer/shared";
+import type { BemSuffixInfo, Range } from "@omena/shared";
 import type { ClassExpressionHIR } from "../hir/source-types";
 import type { SelectorDeclHIR, StyleDocumentHIR } from "../hir/style-types";
 import type { ReferenceQueryEnv, ResolvedReferenceSite } from "../query/find-references";

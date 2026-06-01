@@ -1,4 +1,4 @@
-import type { CallSite, StyleImport } from "@css-module-explainer/shared";
+import type { CallSite, StyleImport } from "@omena/shared";
 import type { ResolvedCxBinding } from "../../server/engine-core-ts/src/core/cx/resolved-bindings";
 import { SourceFileCache } from "../../server/engine-core-ts/src/core/ts/source-file-cache";
 import type { SelectorDeclHIR } from "../../server/engine-core-ts/src/core/hir/style-types";

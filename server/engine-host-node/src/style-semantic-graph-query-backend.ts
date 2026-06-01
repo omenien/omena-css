@@ -1,5 +1,5 @@
 import path from "node:path";
-import type { Range } from "@css-module-explainer/shared";
+import type { Range } from "@omena/shared";
 import type { EngineInputV2 } from "../../engine-core-ts/src/contracts";
 import type { StyleDocumentHIR } from "../../engine-core-ts/src/core/hir/style-types";
 import type { ProviderDeps } from "../../engine-core-ts/src/provider-deps";

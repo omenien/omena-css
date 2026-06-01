@@ -1,5 +1,5 @@
 import ts from "typescript";
-import type { Range } from "@css-module-explainer/shared";
+import type { Range } from "@omena/shared";
 import { detectClassUtilImports } from "../cx/binding-detector";
 import {
   makeDomainLiteralClassReference,

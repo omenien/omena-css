@@ -92,7 +92,7 @@ importers:
 
   client:
     dependencies:
-      '@css-module-explainer/shared':
+      '@omena/shared':
         specifier: workspace:*
         version: link:../shared
       vscode-languageclient:
@@ -171,7 +171,7 @@ importers:
 
   server:
     dependencies:
-      '@css-module-explainer/shared':
+      '@omena/shared':
         specifier: workspace:*
         version: link:../shared
       fast-glob:

@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from "vitest";
 import type ts from "typescript";
-import type { StyleImport } from "@css-module-explainer/shared";
+import type { StyleImport } from "@omena/shared";
 import type { CxBinding } from "../../../server/engine-core-ts/src/core/cx/cx-types";
 import type { ResolvedCxBinding } from "../../../server/engine-core-ts/src/core/cx/resolved-bindings";
 import { cssModulesClassnamesBinderPluginV0 } from "../../../server/engine-core-ts/src/core/binder/binder-plugin";

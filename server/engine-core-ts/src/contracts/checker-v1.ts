@@ -1,4 +1,4 @@
-import type { Range } from "@css-module-explainer/shared";
+import type { Range } from "@omena/shared";
 import type { CheckerFinding } from "../core/checker/contracts";
 import type { ReducedClassValueDerivation } from "../core/query/read-expression-semantics";
 

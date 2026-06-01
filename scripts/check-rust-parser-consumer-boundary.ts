@@ -1,7 +1,7 @@
 import { spawn } from "node:child_process";
 import { strict as assert } from "node:assert";
 
-import type { Range } from "@css-module-explainer/shared";
+import type { Range } from "@omena/shared";
 
 import { parseStyleDocument } from "../server/engine-core-ts/src/core/scss/scss-parser";
 import { deriveSassSummary, type ParserSassSeedFactsV0 } from "./rust-parser-sass-facts";

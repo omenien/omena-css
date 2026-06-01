@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import type ts from "typescript";
 import { DiagnosticSeverity } from "vscode-languageserver-protocol/node";
-import type { Range } from "@css-module-explainer/shared";
+import type { Range } from "@omena/shared";
 import type { CxBinding } from "../../../server/engine-core-ts/src/core/cx/cx-types";
 import type { ResolvedCxBinding } from "../../../server/engine-core-ts/src/core/cx/resolved-bindings";
 import { SourceFileCache } from "../../../server/engine-core-ts/src/core/ts/source-file-cache";

@@ -3,7 +3,7 @@ import type {
   Range,
   ShowReferencesArgs,
   ShowReferencesLocation,
-} from "@css-module-explainer/shared";
+} from "@omena/shared";
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);

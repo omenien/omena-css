@@ -1,4 +1,4 @@
-# `@css-module-explainer/cme-checker`
+# `@omena/checker`
 
 TS-side checker substrate for the M4 testing-toolkit lane.
 

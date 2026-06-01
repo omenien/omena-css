@@ -1,5 +1,5 @@
 import path from "node:path";
-import type { ComposesRef, Range } from "@css-module-explainer/shared";
+import type { ComposesRef, Range } from "@omena/shared";
 import type { StyleDocumentHIR } from "../hir/style-types";
 import {
   findCustomPropertyDeclByName,

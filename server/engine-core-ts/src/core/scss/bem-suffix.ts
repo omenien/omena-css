@@ -1,4 +1,4 @@
-import type { BemSuffixInfo, Range } from "@css-module-explainer/shared";
+import type { BemSuffixInfo, Range } from "@omena/shared";
 import type { Rule } from "postcss";
 
 /**

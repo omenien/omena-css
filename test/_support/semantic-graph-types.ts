@@ -1,4 +1,4 @@
-import type { ClassRefOrigin, Range, StyleImport } from "@css-module-explainer/shared";
+import type { ClassRefOrigin, Range, StyleImport } from "@omena/shared";
 import type { AbstractClassValue } from "../../server/engine-core-ts/src/core/abstract-value/class-value-domain";
 import type { SourceExpressionKind } from "../../server/engine-core-ts/src/core/hir/source-types";
 import type { EdgeCertainty } from "../../server/engine-core-ts/src/core/semantic/certainty";

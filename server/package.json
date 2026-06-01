@@ -1,5 +1,5 @@
 {
-  "name": "@css-module-explainer/server",
+  "name": "@omena/server",
   "version": "0.0.1",
   "private": true,
   "main": "./dist/server.js",
@@ -7,7 +7,7 @@
     "clean": "rm -rf dist *.tsbuildinfo"
   },
   "dependencies": {
-    "@css-module-explainer/shared": "workspace:*",
+    "@omena/shared": "workspace:*",
     "fast-glob": "^3.3.3",
     "postcss": "^8.5.9",
     "postcss-less": "^6.0.0",

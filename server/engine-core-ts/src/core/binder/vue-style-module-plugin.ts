@@ -1,5 +1,5 @@
 import ts from "typescript";
-import type { Range } from "@css-module-explainer/shared";
+import type { Range } from "@omena/shared";
 import { makeDomainLiteralClassReference, type DomainClassReferenceHIR } from "../hir/source-types";
 import type { BinderPluginV0 } from "./binder-plugin";
 

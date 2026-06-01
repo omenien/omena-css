@@ -1,4 +1,4 @@
-import type { StyleImport } from "@css-module-explainer/shared";
+import type { StyleImport } from "@omena/shared";
 import type { SourceBinderResult } from "../../server/engine-core-ts/src/core/binder/scope-types";
 import type { ResolvedCxBinding } from "../../server/engine-core-ts/src/core/cx/resolved-bindings";
 import { buildSourceDocument } from "../../server/engine-core-ts/src/core/hir/builders/ts-source-adapter";

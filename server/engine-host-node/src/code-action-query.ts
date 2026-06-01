@@ -1,5 +1,5 @@
 import nodePath from "node:path";
-import type { ComposesRef, Range } from "@css-module-explainer/shared";
+import type { ComposesRef, Range } from "@omena/shared";
 import {
   getAllStyleExtensions,
   findLangForPath,

@@ -1,4 +1,4 @@
-import type { ClassRefOrigin, Range } from "@css-module-explainer/shared";
+import type { ClassRefOrigin, Range } from "@omena/shared";
 import type { AbstractClassValue } from "../abstract-value/class-value-domain";
 import type { EdgeCertainty } from "./certainty";
 import type { EdgeReason } from "./provenance";

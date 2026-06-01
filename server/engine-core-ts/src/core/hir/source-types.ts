@@ -1,4 +1,4 @@
-import type { ClassRefOrigin, Range, StyleImport } from "@css-module-explainer/shared";
+import type { ClassRefOrigin, Range, StyleImport } from "@omena/shared";
 import type { HirDocumentBase, HirNodeBase, SourceLanguage } from "./shared-types";
 
 export interface SourceDocumentHIR extends HirDocumentBase {

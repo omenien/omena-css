@@ -1,4 +1,4 @@
-import type { BemSuffixInfo, ComposesRef, Range } from "@css-module-explainer/shared";
+import type { BemSuffixInfo, ComposesRef, Range } from "@omena/shared";
 import {
   makeStyleDocumentHIR,
   type AnimationNameRefHIR,

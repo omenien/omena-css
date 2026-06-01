@@ -1,5 +1,5 @@
 {
-  "name": "@css-module-explainer/check-orchestrator",
+  "name": "@omena/check-orchestrator",
   "version": "0.0.0",
   "private": true,
   "type": "module",

@@ -3,7 +3,7 @@ import type {
   ComposesClassToken,
   ComposesRef,
   Range,
-} from "@css-module-explainer/shared";
+} from "@omena/shared";
 import {
   parse as postcssParse,
   type AtRule,

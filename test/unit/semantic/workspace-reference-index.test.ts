@@ -10,7 +10,7 @@ import {
 } from "../../../server/engine-core-ts/src/core/hir/source-types";
 import { WorkspaceSemanticWorkspaceReferenceIndex } from "../../../server/engine-core-ts/src/core/semantic/workspace-reference-index";
 import { collectSemanticReferenceContribution } from "../../../server/engine-core-ts/src/core/semantic/reference-collector";
-import type { StyleImport } from "@css-module-explainer/shared";
+import type { StyleImport } from "@omena/shared";
 import { FakeTypeResolver } from "../../_fixtures/fake-type-resolver";
 import { info } from "../../_fixtures/test-helpers";
 import { buildStyleDocumentFromSelectorMap } from "../../_fixtures/style-documents";

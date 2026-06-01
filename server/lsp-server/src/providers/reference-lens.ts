@@ -1,5 +1,5 @@
 import type { CodeLens, CodeLensParams } from "vscode-languageserver/node";
-import type { ShowReferencesArgs } from "@css-module-explainer/shared";
+import type { ShowReferencesArgs } from "@omena/shared";
 import { findLangForPath } from "../../../engine-core-ts/src/core/scss/lang-registry";
 import { fileUrlToPath } from "../../../engine-core-ts/src/core/util/text-utils";
 import {

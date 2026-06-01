@@ -1,7 +1,7 @@
 import { spawn } from "node:child_process";
 import { strict as assert } from "node:assert";
 
-import type { Range } from "@css-module-explainer/shared";
+import type { Range } from "@omena/shared";
 import { parse as postcssParse, type AtRule, type ChildNode, type Root, type Rule } from "postcss";
 import safeParser from "postcss-safe-parser";
 

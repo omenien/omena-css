@@ -1,5 +1,5 @@
 import path from "node:path";
-import type { Range } from "@css-module-explainer/shared";
+import type { Range } from "@omena/shared";
 import type {
   CustomPropertyDeclHIR,
   CustomPropertyRefHIR,

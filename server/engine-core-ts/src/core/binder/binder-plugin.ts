@@ -1,5 +1,5 @@
 import type ts from "typescript";
-import type { StyleImport } from "@css-module-explainer/shared";
+import type { StyleImport } from "@omena/shared";
 import type { AliasResolver } from "../cx/alias-resolver";
 import { detectClassUtilImports, scanCxImports, type CxScanResult } from "../cx/binding-detector";
 import { parseClassExpressions } from "../cx/class-ref-parser";

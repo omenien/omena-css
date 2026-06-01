@@ -1,4 +1,4 @@
-import type { Range } from "@css-module-explainer/shared";
+import type { Range } from "@omena/shared";
 import type { StyleDocumentBuilder } from "../../engine-core-ts/src/core/scss/scss-index";
 import {
   makeStyleDocumentHIR,

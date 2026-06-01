@@ -1,5 +1,5 @@
 import { test, expect } from "../_fixtures/protocol";
-import type { ResolvedType } from "@css-module-explainer/shared";
+import type { ResolvedType } from "@omena/shared";
 import type { TypeResolver } from "../../server/engine-core-ts/src/core/ts/type-resolver";
 
 const UNKNOWN_DOCUMENT_POSITION = { line: 0, character: 0 };

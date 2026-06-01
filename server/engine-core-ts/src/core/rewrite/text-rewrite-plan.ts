@@ -1,4 +1,4 @@
-import type { Range } from "@css-module-explainer/shared";
+import type { Range } from "@omena/shared";
 
 export interface PlannedTextEdit {
   readonly uri: string;

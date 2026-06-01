@@ -1,4 +1,4 @@
-import type { Range } from "@css-module-explainer/shared";
+import type { Range } from "@omena/shared";
 
 export function rangeContains(range: Range, line: number, character: number): boolean {
   const { start, end } = range;

@@ -1,4 +1,4 @@
-import type { ResolvedType } from "@css-module-explainer/shared";
+import type { ResolvedType } from "@omena/shared";
 import type {
   SourceBindingGraph,
   SourceBindingGraphDeclNode,

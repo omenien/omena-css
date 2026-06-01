@@ -1,6 +1,6 @@
 import * as path from "node:path";
 import ts from "typescript";
-import type { Range, StyleImport } from "@css-module-explainer/shared";
+import type { Range, StyleImport } from "@omena/shared";
 import type { AliasResolver } from "./alias-resolver";
 import type { CxBinding } from "./cx-types";
 // Source of truth for supported style extensions (.scss, .css, .less).

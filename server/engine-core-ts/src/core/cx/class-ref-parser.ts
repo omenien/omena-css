@@ -1,5 +1,5 @@
 import ts from "typescript";
-import type { Range, StyleImport } from "@css-module-explainer/shared";
+import type { Range, StyleImport } from "@omena/shared";
 import {
   buildSourceBindingGraph,
   findImportBindingDeclId,

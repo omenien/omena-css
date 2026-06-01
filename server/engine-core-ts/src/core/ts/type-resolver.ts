@@ -1,4 +1,4 @@
-import type { Range, ResolvedType } from "@css-module-explainer/shared";
+import type { Range, ResolvedType } from "@omena/shared";
 import type { SourceBindingGraph } from "../binder/source-binding-graph";
 import type { SourceBinderResult } from "../binder/scope-types";
 

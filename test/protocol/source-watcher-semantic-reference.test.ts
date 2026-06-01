@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it } from "vitest";
 import { FileChangeType } from "vscode-languageserver-protocol/node";
 import { createInProcessServer, type LspTestClient } from "./_harness/in-process-server";
-import type { Range, ResolvedType } from "@css-module-explainer/shared";
+import type { Range, ResolvedType } from "@omena/shared";
 import { textDocumentPositionParams, workspace } from "../../packages/vitest-cme/src";
 import type {
   ResolveTypeOptions,

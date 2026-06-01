@@ -2,7 +2,7 @@ import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import { existsSync, readFileSync } from "node:fs";
 import ts from "typescript";
-import type { ResolvedType } from "@css-module-explainer/shared";
+import type { ResolvedType } from "@omena/shared";
 import {
   createTypeFactTableEntryV1,
   createTypeFactTableEntryV2,

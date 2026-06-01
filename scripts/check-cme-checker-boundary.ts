@@ -102,7 +102,7 @@ process.stdout.write(
         "checker-source-missing/canonical-candidate",
         "checker-style-unused/canonical-candidate",
       ],
-      package: "@css-module-explainer/cme-checker",
+      package: "@omena/checker",
       diffReport: "cme-checker.canonical-candidate-diff",
       findingCount: bundle.summary.total,
       distinctFileCount: bundle.distinctFileCount,

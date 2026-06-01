@@ -1,5 +1,5 @@
 import type { LocationLink } from "vscode-languageserver/node";
-import type { Range } from "@css-module-explainer/shared";
+import type { Range } from "@omena/shared";
 import { findLangForPath } from "../../../engine-core-ts/src/core/scss/lang-registry";
 import { pathToFileUrl } from "../../../engine-core-ts/src/core/util/text-utils";
 import {

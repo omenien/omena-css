@@ -1,5 +1,5 @@
 import { expect } from "vitest";
-import type { Range } from "@css-module-explainer/shared";
+import type { Range } from "@omena/shared";
 
 /**
  * Custom matchers shared across Tier 1 and Tier 2.

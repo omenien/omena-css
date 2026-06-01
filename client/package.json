@@ -1,5 +1,5 @@
 {
-  "name": "@css-module-explainer/client",
+  "name": "@omena/client",
   "version": "0.0.1",
   "private": true,
   "main": "./dist/extension.js",
@@ -7,7 +7,7 @@
     "clean": "rm -rf dist *.tsbuildinfo"
   },
   "dependencies": {
-    "@css-module-explainer/shared": "workspace:*",
+    "@omena/shared": "workspace:*",
     "vscode-languageclient": "^9.0.1"
   }
 }

@@ -1,7 +1,7 @@
 import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
 import ts from "typescript";
-import type { Range, StyleImport } from "@css-module-explainer/shared";
+import type { Range, StyleImport } from "@omena/shared";
 import { buildSourceBinder } from "../../server/engine-core-ts/src/core/binder/binder-builder";
 import {
   detectClassUtilImports,

@@ -12,7 +12,7 @@ import {
   makeStyleImportBinding,
   makeSymbolRefClassExpression,
 } from "../../../server/engine-core-ts/src/core/hir/source-types";
-import type { StyleImport } from "@css-module-explainer/shared";
+import type { StyleImport } from "@omena/shared";
 
 describe("buildSourceBindingGraph", () => {
   it("materializes declaration-backed source facts and style-module targets", () => {
