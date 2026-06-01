@@ -1,6 +1,6 @@
 # eslint-plugin-css-module-explainer
 
-First-cut ESLint consumer for CSS Module Explainer.
+First-cut ESLint consumer for Omena CSS Modules.
 
 Current rules:
 

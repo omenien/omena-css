@@ -36,7 +36,7 @@ export function activate(context: vscode.ExtensionContext): void {
     );
   } catch (err) {
     void vscode.window.showErrorMessage(
-      `CSS Module Explainer failed to resolve language-server runtime: ${
+      `Omena CSS Modules failed to resolve language-server runtime: ${
         err instanceof Error ? err.message : String(err)
       }`,
     );
@@ -59,11 +59,11 @@ export function activate(context: vscode.ExtensionContext): void {
       configurationSection: ["omena", "cssModules"],
       fileEvents: rustLspFileEvents,
     },
-    outputChannelName: "CSS Module Explainer",
+    outputChannelName: "Omena CSS Modules",
     progressOnInitialization: true,
   };
 
-  client = new LanguageClient("omena", "CSS Module Explainer", serverOptions, {
+  client = new LanguageClient("omena", "Omena CSS Modules", serverOptions, {
     ...clientOptions,
     middleware: {
       provideCodeLenses: async (document, token, next) => {
@@ -102,7 +102,7 @@ export function activate(context: vscode.ExtensionContext): void {
 
   void client.start().catch((err) => {
     void vscode.window.showErrorMessage(
-      `CSS Module Explainer failed to start: ${err instanceof Error ? err.message : String(err)}`,
+      `Omena CSS Modules failed to start: ${err instanceof Error ? err.message : String(err)}`,
     );
   });
 

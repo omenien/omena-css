@@ -71,7 +71,7 @@ Example:
 }
 ```
 
-`"..."` keeps Zed's default language servers enabled alongside CSS Module Explainer.
+`"..."` keeps Zed's default language servers enabled alongside Omena CSS Modules.
 
 ## Notes
 

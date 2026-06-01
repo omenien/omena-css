@@ -64,7 +64,7 @@ vim.lsp.enable("css_module_explainer")
 - Prefer the crates.io-installed `omena-lsp-server` for non-VS Code editors.
 - If you use a repo-local build instead, replace `darwin-arm64` with your packaged `<platform>-<arch>` directory.
 - This server complements your main JS/TS language server. Keep `ts_ls`, `vtsls`, or your existing TypeScript server enabled.
-- The CSS Module Explainer server provides:
+- The Omena CSS Modules server provides:
   - hover
   - definition
   - references

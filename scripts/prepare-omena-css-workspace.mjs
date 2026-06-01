@@ -336,7 +336,7 @@ function writeRootDocs(destinationPath) {
 Standalone Rust workspace for the Omena CSS parser, semantic substrates, cascade
 model, and transform-planning crates.
 
-This repository is staged from the CSS Module Explainer monorepo. The workspace
+This repository is staged from the Omena CSS Modules monorepo. The workspace
 keeps the publish-target crates together so parser, incremental, cascade, and
 transform boundaries can be verified as one product surface.
 

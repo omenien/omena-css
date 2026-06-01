@@ -1,6 +1,6 @@
 # Check Orchestrator
 
-Internal gate inventory and runner for CSS Module Explainer.
+Internal gate inventory and runner for Omena CSS Modules.
 
 This package mirrors the existing root `package.json` scripts into typed gate
 metadata without removing the old script names. CI and release verification can

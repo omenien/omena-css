@@ -5,7 +5,7 @@ module.exports = {
   meta: {
     ...invalidClassReferenceRule.meta,
     docs: {
-      description: "Run all source-side CSS Module Explainer semantic checks.",
+      description: "Run all source-side Omena CSS Modules semantic checks.",
     },
   },
 

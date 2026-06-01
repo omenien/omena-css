@@ -1,6 +1,6 @@
 # Vitest CME
 
-Internal test DSL seed for CSS Module Explainer.
+Internal test DSL seed for Omena CSS Modules.
 
 This package is the incremental home for marker-driven test scenarios. Existing
 `test/_fixtures` helpers remain valid; provider and protocol tests can migrate

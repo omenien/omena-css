@@ -5,7 +5,7 @@ products.
 
 `omena-semantic` still owns the generic semantic boundary and keeps legacy graph
 entry points for compatibility. This crate is the new boundary for entry points
-that combine generic style semantics with CSS Module Explainer source inputs
+that combine generic style semantics with Omena CSS Modules source inputs
 such as `EngineInputV2`.
 
 Current public products:

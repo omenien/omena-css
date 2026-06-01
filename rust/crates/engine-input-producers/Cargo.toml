@@ -4,7 +4,7 @@ version.workspace = true
 edition.workspace = true
 license.workspace = true
 publish.workspace = true
-description = "Rust input-derived producer artifacts for CSS Module Explainer EngineInputV2"
+description = "Rust input-derived producer artifacts for Omena CSS Modules EngineInputV2"
 repository = "https://github.com/yongsk0066/css-module-explainer"
 readme = "README.md"
 

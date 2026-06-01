@@ -4,7 +4,7 @@ version.workspace = true
 edition.workspace = true
 license.workspace = true
 publish.workspace = true
-description = "Benchmark harnesses for CSS Module Explainer Rust crates"
+description = "Benchmark harnesses for Omena CSS Modules Rust crates"
 repository = "https://github.com/yongsk0066/css-module-explainer"
 
 [package.metadata.omena]

@@ -1,6 +1,6 @@
 {
   "name": "omena-css",
-  "displayName": "CSS Module Explainer",
+  "displayName": "Omena CSS Modules",
   "version": "5.2.0",
   "private": true,
   "description": "Go to Definition, Hover, Autocomplete, Diagnostics, Quick Fixes, and Find References for classnames/bind cx() patterns with CSS Modules.",
@@ -409,7 +409,7 @@
   },
   "contributes": {
     "configuration": {
-      "title": "CSS Module Explainer",
+      "title": "Omena CSS Modules",
       "properties": {
         "omena.features.definition": {
           "type": "boolean",

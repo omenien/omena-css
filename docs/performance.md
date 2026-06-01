@@ -1,6 +1,6 @@
 # Performance Baseline
 
-This document defines the public benchmark surface for CSS Module Explainer.
+This document defines the public benchmark surface for Omena CSS Modules.
 It is intentionally reproducible rather than a one-off local timing note.
 
 ## Scope

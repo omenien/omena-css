@@ -1,6 +1,6 @@
 # stylelint-plugin-css-module-explainer
 
-First-cut Stylelint consumer for CSS Module Explainer.
+First-cut Stylelint consumer for Omena CSS Modules.
 
 Current rules:
 

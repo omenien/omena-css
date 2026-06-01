@@ -1,4 +1,4 @@
-# CSS Module Explainer
+# Omena CSS Modules
 
 Semantic language features for CSS Modules in VS Code.
 
