@@ -130,7 +130,7 @@ describe("selectTypeFactCollector", () => {
 
   it("honors an explicit non-tsgo resolver even when the ambient default is tsgo", () => {
     const collector = selectTypeFactCollector({
-      env: { CME_TYPE_FACT_BACKEND: "tsgo" },
+      env: { OMENA_TYPE_FACT_BACKEND: "tsgo" },
       typeResolver: finiteSetResolver(["primary", "secondary"]),
     });
 
@@ -318,14 +318,14 @@ describe("selectTypeFactCollector", () => {
 
     const invocation = buildTsgoTypeFactWorkerInvocation(
       "/workspace",
-      { CME_PROJECT_ROOT: projectRoot } as NodeJS.ProcessEnv,
+      { OMENA_PROJECT_ROOT: projectRoot } as NodeJS.ProcessEnv,
       (filePath) => filePath === packagedTsgoPath,
     );
 
     expect(invocation.command).toBe(process.execPath);
     expect(invocation.args[0]).toBe("-e");
     expect(invocation.cwd).toBe("/workspace");
-    expect(invocation.env.CME_TSGO_PATH).toBe(packagedTsgoPath);
+    expect(invocation.env.OMENA_TSGO_PATH).toBe(packagedTsgoPath);
   });
 });
 

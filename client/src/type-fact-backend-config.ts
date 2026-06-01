@@ -13,11 +13,11 @@ export function buildTypeFactBackendEnv(
 ): NodeJS.ProcessEnv {
   const nextEnv = { ...baseEnv };
 
-  nextEnv.CME_TYPE_FACT_BACKEND = "tsgo";
+  nextEnv.OMENA_TYPE_FACT_BACKEND = "tsgo";
   if (backend === "tsgo-workspace") {
-    nextEnv.CME_TSGO_RESOLUTION = "workspace";
-  } else if (nextEnv.CME_TSGO_RESOLUTION === "workspace") {
-    delete nextEnv.CME_TSGO_RESOLUTION;
+    nextEnv.OMENA_TSGO_RESOLUTION = "workspace";
+  } else if (nextEnv.OMENA_TSGO_RESOLUTION === "workspace") {
+    delete nextEnv.OMENA_TSGO_RESOLUTION;
   }
   return nextEnv;
 }

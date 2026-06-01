@@ -261,12 +261,12 @@ commands plus the tsgo-backed LSP smoke together.
 `pnpm check:ts7-phase-a-stability` is the direct stability check for the two
 tsgo-specific risk points that the basic shadow path does not prove by itself:
 repeated `EngineInputV2.typeFacts` ordering stability and concurrent
-checker-process output stability under `CME_TYPE_FACT_BACKEND=tsgo`. The
-unset `CME_TYPE_FACT_BACKEND` default is now `tsgo`, and the explicit
-`CME_TYPE_FACT_BACKEND=typescript-current` fallback remains available for
+checker-process output stability under `OMENA_TYPE_FACT_BACKEND=tsgo`. The
+unset `OMENA_TYPE_FACT_BACKEND` default is now `tsgo`, and the explicit
+`OMENA_TYPE_FACT_BACKEND=typescript-current` fallback remains available for
 comparison. It runs tsgo through the repo-pinned `@typescript/native-preview`
 devDependency and repeats backend smoke under fixed `--checkers` values (`1`, `2`, `4`) via
-`CME_TSGO_CHECKERS`.
+`OMENA_TSGO_CHECKERS`.
 
 `pnpm check:ts7-phase-a-tsgo-lane` is the current limited non-release
 aggregate for Phase A. It runs the readiness gate, non-release shadow path,
@@ -289,12 +289,12 @@ green before any broader release-facing judgment.
 `pnpm check:ts7-phase-b-protocol-tsgo` is the first bounded protocol-layer
 tsgo path for TS 7 beta Phase B. It runs a focused subset of protocol tests
 (`lifecycle`, `hover`, `definition`, `diagnostics`, `completion`) under
-`CME_TYPE_FACT_BACKEND=tsgo`.
+`OMENA_TYPE_FACT_BACKEND=tsgo`.
 
 `pnpm check:ts7-phase-b-editing-tsgo` is the second bounded protocol-layer
 tsgo path for TS 7 beta Phase B. It runs the editing/reference subset
 (`references`, `rename`, `code-actions`) under
-`CME_TYPE_FACT_BACKEND=tsgo`.
+`OMENA_TYPE_FACT_BACKEND=tsgo`.
 
 `pnpm check:ts7-phase-b-build-tsgo` is the current bounded build-mode
 tsgo path for TS 7 beta Phase B. It runs
@@ -322,7 +322,7 @@ Today it aliases `pnpm check:tsgo-operational-lane` and is part of
 `pnpm check:ts7-phase-c-readiness` is the first TS 7 Phase C edge-readiness
 slice. It runs long-lived LSP session edits, multi-root workspace churn,
 watched-file invalidation, and source/style staleness checks under
-`CME_TYPE_FACT_BACKEND=tsgo`.
+`OMENA_TYPE_FACT_BACKEND=tsgo`.
 
 `pnpm check:selected-query-boundary` is the current local lock point for the
 `3.9` selected-query/editor-path transition. It exercises the protocol subset
@@ -342,30 +342,30 @@ rewrite-safety and direct edit-site resolution, `explain-expression`, source
 diagnostics symbol-ref invalid-class analysis, and host-side `engine-query-v2` query-result emission for
 `source-expression-resolution`,
 `expression-semantics`, and `selector-usage`.
-`CME_SELECTED_QUERY_BACKEND=rust-selected-query` is the unified explicit backend
+`OMENA_SELECTED_QUERY_BACKEND=rust-selected-query` is the unified explicit backend
 for that consumer slice; the narrower `rust-source-resolution`,
 `rust-expression-semantics`, and `rust-selector-usage` values remain available
 for isolated debugging. In packaged VSIX runtime, an unset
-`CME_SELECTED_QUERY_BACKEND` now selects `rust-selected-query` when the
+`OMENA_SELECTED_QUERY_BACKEND` now selects `rust-selected-query` when the
 packaged/prebuilt `engine-shadow-runner` is available. Source checkouts keep the
 unset default on `typescript-current` so local `dist/` artifacts do not change
-dev/test behavior. Use `CME_SELECTED_QUERY_BACKEND=auto` to explicitly exercise
+dev/test behavior. Use `OMENA_SELECTED_QUERY_BACKEND=auto` to explicitly exercise
 the Rust-if-packaged-runner-available default in source checkouts.
 
 `pnpm check:rust-selected-query-default-candidate` is the current
 default-candidate evidence lane for
 the selected-query backend. It first runs
 `pnpm check:rust-selected-query-release-default`, which builds the packaged
-runner and runs the full protocol suite with `CME_SELECTED_QUERY_BACKEND=auto`.
+runner and runs the full protocol suite with `OMENA_SELECTED_QUERY_BACKEND=auto`.
 It then runs the explicit unit/runtime Rust
 selected-query consumer slice plus the full protocol suite with the unified Rust
-selected-query backend enabled and `CME_ENGINE_SHADOW_RUNNER=prebuilt`. The
+selected-query backend enabled and `OMENA_ENGINE_SHADOW_RUNNER=prebuilt`. The
 warmup avoids first-use `cargo run` compilation contention inside parallel
 protocol tests, and the explicit prebuilt mode makes the shadow lane exercise
 the warmed runner binary instead of the cargo wrapper. Ad-hoc local runs still
 use `cargo run` by default, so they do not accidentally reuse a stale
 `rust/target` binary. Prebuilt mode resolves an explicit
-`CME_ENGINE_SHADOW_RUNNER_PATH`, a packaged
+`OMENA_ENGINE_SHADOW_RUNNER_PATH`, a packaged
 `dist/bin/<platform>-<arch>/engine-shadow-runner`, or the warmed
 `rust/target/debug` runner. It is regression evidence for keeping the packaged
 runner matrix safe while `rust-selected-query` is the packaged default. GitHub

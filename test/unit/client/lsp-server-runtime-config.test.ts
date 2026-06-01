@@ -30,7 +30,7 @@ describe("client LSP server runtime config", () => {
     expect(
       resolveOmenaLspServerPath(
         extensionRoot,
-        { CME_OMENA_LSP_SERVER_PATH: "bin/omena-lsp-server" },
+        { OMENA_LSP_SERVER_PATH: "bin/omena-lsp-server" },
         (candidate) => candidate === explicit,
       ),
     ).toBe(explicit);
@@ -40,7 +40,7 @@ describe("client LSP server runtime config", () => {
     expect(
       resolveOmenaLspServerPath(
         "/repo",
-        { CME_OMENA_LSP_SERVER_COMMAND: "omena-lsp-server" },
+        { OMENA_LSP_SERVER_COMMAND: "omena-lsp-server" },
         () => false,
       ),
     ).toBe("omena-lsp-server");
@@ -50,10 +50,10 @@ describe("client LSP server runtime config", () => {
     expect(() =>
       resolveOmenaLspServerPath(
         "/repo",
-        { CME_OMENA_LSP_SERVER_PATH: "missing/omena-lsp-server" },
+        { OMENA_LSP_SERVER_PATH: "missing/omena-lsp-server" },
         () => false,
       ),
-    ).toThrow("CME_OMENA_LSP_SERVER_PATH points to a missing binary");
+    ).toThrow("OMENA_LSP_SERVER_PATH points to a missing binary");
   });
 
   it("selects the packaged omena-lsp-server binary when available", () => {
@@ -103,12 +103,12 @@ describe("client LSP server runtime config", () => {
       "/repo",
     );
     const options = buildThinClientServerOptions(endpoint, {
-      CME_TYPE_FACT_BACKEND: "tsgo",
+      OMENA_TYPE_FACT_BACKEND: "tsgo",
     } as NodeJS.ProcessEnv);
 
     expect(options.run.command).toBe("/repo/dist/bin/darwin-arm64/omena-lsp-server");
     expect(options.run.options.cwd).toBe("/repo");
-    expect(options.run.options.env.CME_TYPE_FACT_BACKEND).toBe("tsgo");
+    expect(options.run.options.env.OMENA_TYPE_FACT_BACKEND).toBe("tsgo");
     expect(options.debug).toEqual(options.run);
   });
 

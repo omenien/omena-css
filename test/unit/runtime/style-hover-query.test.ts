@@ -46,7 +46,7 @@ describe("style hover query", () => {
       },
       deps,
       {
-        env: { CME_SELECTED_QUERY_BACKEND: "rust-selector-usage" } as NodeJS.ProcessEnv,
+        env: { OMENA_SELECTED_QUERY_BACKEND: "rust-selector-usage" } as NodeJS.ProcessEnv,
         readRustSelectorUsagePayloadForWorkspaceTarget: () => ({
           canonicalName: "indicator",
           totalReferences: 4,
@@ -90,7 +90,7 @@ describe("style hover query", () => {
       },
       deps,
       {
-        env: { CME_SELECTED_QUERY_BACKEND: "rust-selector-usage" } as NodeJS.ProcessEnv,
+        env: { OMENA_SELECTED_QUERY_BACKEND: "rust-selector-usage" } as NodeJS.ProcessEnv,
         readRustSelectorUsagePayloadForWorkspaceTarget: () => null,
       },
     );
@@ -119,7 +119,7 @@ describe("style hover query", () => {
       },
       deps,
       {
-        env: { CME_SELECTED_QUERY_BACKEND: "rust-selected-query" } as NodeJS.ProcessEnv,
+        env: { OMENA_SELECTED_QUERY_BACKEND: "rust-selected-query" } as NodeJS.ProcessEnv,
         readRustSelectorUsagePayloadForWorkspaceTarget: () => null,
         readRustStyleSemanticGraphForWorkspaceTarget: () => makeGraph("blocked"),
       },
@@ -155,7 +155,7 @@ describe("style hover query", () => {
       },
       deps,
       {
-        env: { CME_SELECTED_QUERY_BACKEND: "rust-selected-query" } as NodeJS.ProcessEnv,
+        env: { OMENA_SELECTED_QUERY_BACKEND: "rust-selected-query" } as NodeJS.ProcessEnv,
         readRustSelectorUsagePayloadForWorkspaceTarget: () => null,
         readRustStyleSemanticGraphForWorkspaceTargetAsync: async () => makeGraph("blocked"),
       },
@@ -196,7 +196,7 @@ describe("style hover query", () => {
       },
       deps,
       {
-        env: { CME_SELECTED_QUERY_BACKEND: "rust-selected-query" } as NodeJS.ProcessEnv,
+        env: { OMENA_SELECTED_QUERY_BACKEND: "rust-selected-query" } as NodeJS.ProcessEnv,
         readRustStyleSemanticGraphForWorkspaceTargetAsync: async (
           _args,
           _deps,
@@ -332,7 +332,7 @@ describe("style hover query", () => {
         styleDocumentForPath: styleDocumentMap([styleDocument]),
       }),
       {
-        env: { CME_SELECTED_QUERY_BACKEND: "rust-selected-query" },
+        env: { OMENA_SELECTED_QUERY_BACKEND: "rust-selected-query" },
         readRustStyleSemanticGraphForWorkspaceTarget: () => makeDesignTokenRankingGraph(),
       },
     );
@@ -365,7 +365,7 @@ describe("style hover query", () => {
         styleDocumentForPath: styleDocumentMap([styleDocument]),
       }),
       {
-        env: { CME_SELECTED_QUERY_BACKEND: "rust-selected-query" },
+        env: { OMENA_SELECTED_QUERY_BACKEND: "rust-selected-query" },
         readRustStyleSemanticGraphForWorkspaceTargetAsync: async () =>
           makeDesignTokenRankingGraph(),
       },
@@ -403,7 +403,7 @@ describe("style hover query", () => {
         buildStyleDocument: (filePath, content) => parseStyleDocument(content, filePath),
       }),
       {
-        env: { CME_SELECTED_QUERY_BACKEND: "rust-selected-query" },
+        env: { OMENA_SELECTED_QUERY_BACKEND: "rust-selected-query" },
         readRustStyleSemanticGraphForWorkspaceTargetAsync: async () =>
           makeDesignTokenDefinitionGraph({
             referenceName: "--brand",

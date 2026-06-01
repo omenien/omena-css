@@ -258,7 +258,7 @@ describe("explainExpressionAtLocation", () => {
       line: 5,
       character: 28,
       env: {
-        CME_SELECTED_QUERY_BACKEND: "rust-expression-semantics",
+        OMENA_SELECTED_QUERY_BACKEND: "rust-expression-semantics",
       } as NodeJS.ProcessEnv,
       readRustExpressionSemanticsPayload: () => ({
         expressionId: "expr-1",
@@ -327,7 +327,7 @@ describe("explainExpressionAtLocation", () => {
       line: 5,
       character: 28,
       env: {
-        CME_SELECTED_QUERY_BACKEND: "rust-selected-query",
+        OMENA_SELECTED_QUERY_BACKEND: "rust-selected-query",
       } as NodeJS.ProcessEnv,
       readRustExpressionSemanticsPayload: (_document, id, scssModulePath) => {
         expressionId = id;
@@ -392,7 +392,7 @@ describe("explainExpressionAtLocation", () => {
       line: 5,
       character: 28,
       env: {
-        CME_SELECTED_QUERY_BACKEND: "rust-selected-query",
+        OMENA_SELECTED_QUERY_BACKEND: "rust-selected-query",
       } as NodeJS.ProcessEnv,
       readRustExpressionSemanticsPayload: () => ({
         expressionId: "expr-1",

@@ -12,7 +12,7 @@ describe("type backend selection", () => {
   });
 
   it("reads tsgo from env", () => {
-    expect(resolveTypeFactBackendKind({ CME_TYPE_FACT_BACKEND: "tsgo" })).toBe("tsgo");
+    expect(resolveTypeFactBackendKind({ OMENA_TYPE_FACT_BACKEND: "tsgo" })).toBe("tsgo");
   });
 
   it("prefers explicit backend over env", () => {
@@ -26,7 +26,7 @@ describe("type backend selection", () => {
 
     const selection = selectTypeResolver({
       typeBackend: "typescript-current",
-      env: { CME_TYPE_FACT_BACKEND: "tsgo" },
+      env: { OMENA_TYPE_FACT_BACKEND: "tsgo" },
       typeResolver: fakeResolver,
     });
 
@@ -54,7 +54,7 @@ describe("type backend selection", () => {
   it("throws on unknown backend values", () => {
     expect(() =>
       resolveTypeFactBackendKind({
-        CME_TYPE_FACT_BACKEND: "future-backend",
+        OMENA_TYPE_FACT_BACKEND: "future-backend",
       } as NodeJS.ProcessEnv),
     ).toThrow("Unknown type fact backend: future-backend");
   });

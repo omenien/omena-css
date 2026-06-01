@@ -42,10 +42,10 @@ try {
       encoding: "utf8",
       env: {
         ...process.env,
-        CME_OMENA_LSP_SERVER_PATH: serverPath,
-        CME_OMENA_LSP_SERVER_CWD: extensionRoot,
-        CME_PROJECT_ROOT: extensionRoot,
-        CME_TSGO_PATH: tsgoPath,
+        OMENA_LSP_SERVER_PATH: serverPath,
+        OMENA_LSP_SERVER_CWD: extensionRoot,
+        OMENA_PROJECT_ROOT: extensionRoot,
+        OMENA_TSGO_PATH: tsgoPath,
       },
     },
   );

@@ -52,8 +52,8 @@ try {
       cwd: path.resolve(__dirname, ".."),
       env: {
         ...process.env,
-        CME_SELECTED_QUERY_BACKEND: "rust-selected-query",
-        CME_ENGINE_SHADOW_RUNNER_DAEMON: "0",
+        OMENA_SELECTED_QUERY_BACKEND: "rust-selected-query",
+        OMENA_ENGINE_SHADOW_RUNNER_DAEMON: "0",
       },
       encoding: "utf8",
       maxBuffer: 16 * 1024 * 1024,

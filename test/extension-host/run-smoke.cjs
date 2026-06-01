@@ -3,7 +3,7 @@ const { runTests } = require("@vscode/test-electron");
 const packageJson = require("../../package.json");
 
 function resolveVsCodeTestVersion() {
-  const configured = process.env.CME_EXTENSION_HOST_VSCODE_VERSION;
+  const configured = process.env.OMENA_EXTENSION_HOST_VSCODE_VERSION;
   if (configured) {
     return configured;
   }
@@ -11,7 +11,7 @@ function resolveVsCodeTestVersion() {
 }
 
 function resolveVsCodeRequestTimeoutMs() {
-  const configured = Number(process.env.CME_EXTENSION_HOST_VSCODE_REQUEST_TIMEOUT_MS);
+  const configured = Number(process.env.OMENA_EXTENSION_HOST_VSCODE_REQUEST_TIMEOUT_MS);
   return Number.isFinite(configured) && configured > 0 ? configured : 60_000;
 }
 

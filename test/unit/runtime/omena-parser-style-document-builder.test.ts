@@ -14,7 +14,7 @@ describe("buildStyleDocumentWithOmenaParser", () => {
   it("defaults to omena-parser in packaged extension runtimes", () => {
     const projectRoot = "/workspace/packed-extension";
     const builder = resolveRuntimeStyleDocumentBuilder(
-      { CME_PROJECT_ROOT: projectRoot } as NodeJS.ProcessEnv,
+      { OMENA_PROJECT_ROOT: projectRoot } as NodeJS.ProcessEnv,
       (filePath) => filePath === `${projectRoot}/dist/client/extension.js`,
     );
 
@@ -24,7 +24,7 @@ describe("buildStyleDocumentWithOmenaParser", () => {
   it("keeps source checkouts on the current TypeScript builder unless explicitly enabled", () => {
     const projectRoot = "/workspace/css-module-explainer";
     const builder = resolveRuntimeStyleDocumentBuilder(
-      { CME_PROJECT_ROOT: projectRoot } as NodeJS.ProcessEnv,
+      { OMENA_PROJECT_ROOT: projectRoot } as NodeJS.ProcessEnv,
       (filePath) =>
         filePath === `${projectRoot}/dist/client/extension.js` ||
         filePath === `${projectRoot}/rust/Cargo.toml`,
@@ -33,8 +33,8 @@ describe("buildStyleDocumentWithOmenaParser", () => {
     expect(builder).toBeUndefined();
     expect(
       resolveRuntimeStyleDocumentBuilder({
-        CME_PROJECT_ROOT: projectRoot,
-        CME_STYLE_DOCUMENT_BUILDER: "omena-parser",
+        OMENA_PROJECT_ROOT: projectRoot,
+        OMENA_STYLE_DOCUMENT_BUILDER: "omena-parser",
       } as NodeJS.ProcessEnv),
     ).toBe(buildStyleDocumentWithOmenaParser);
   });
@@ -43,8 +43,8 @@ describe("buildStyleDocumentWithOmenaParser", () => {
     const projectRoot = "/workspace/packed-extension";
     const builder = resolveRuntimeStyleDocumentBuilder(
       {
-        CME_PROJECT_ROOT: projectRoot,
-        CME_STYLE_DOCUMENT_BUILDER: "typescript-current",
+        OMENA_PROJECT_ROOT: projectRoot,
+        OMENA_STYLE_DOCUMENT_BUILDER: "typescript-current",
       } as NodeJS.ProcessEnv,
       (filePath) => filePath === `${projectRoot}/dist/client/extension.js`,
     );

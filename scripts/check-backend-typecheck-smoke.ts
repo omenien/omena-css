@@ -32,7 +32,8 @@ for (const fixtureTsconfig of fixtureTsconfigs) {
 process.exit(exitCode);
 
 function readVariant(): BackendTypecheckVariant {
-  const value = process.env.CME_TYPECHECK_VARIANT ?? process.env.CME_TYPE_FACT_BACKEND ?? "tsgo";
+  const value =
+    process.env.OMENA_TYPECHECK_VARIANT ?? process.env.OMENA_TYPE_FACT_BACKEND ?? "tsgo";
   if (value === "typescript-current" || value === "tsgo") {
     return value;
   }
@@ -61,7 +62,7 @@ function commandForVariant(
 }
 
 function tsgoCheckerArgs(): readonly string[] {
-  const value = process.env.CME_TSGO_CHECKERS?.trim();
+  const value = process.env.OMENA_TSGO_CHECKERS?.trim();
   if (!value) {
     return [];
   }

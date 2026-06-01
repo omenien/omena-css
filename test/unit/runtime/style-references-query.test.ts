@@ -74,7 +74,7 @@ describe("resolveStyleReferencesAtCursor", () => {
       },
       makeDeps({ semanticReferenceIndex }),
       {
-        env: { CME_SELECTED_QUERY_BACKEND: "rust-selector-usage" } as NodeJS.ProcessEnv,
+        env: { OMENA_SELECTED_QUERY_BACKEND: "rust-selector-usage" } as NodeJS.ProcessEnv,
         readRustSelectorUsagePayloadForWorkspaceTarget: () => ({
           canonicalName: "indicator",
           totalReferences: 2,
@@ -143,7 +143,7 @@ describe("resolveStyleReferencesAtCursor", () => {
       },
       makeDeps(),
       {
-        env: { CME_SELECTED_QUERY_BACKEND: "rust-selected-query" } as NodeJS.ProcessEnv,
+        env: { OMENA_SELECTED_QUERY_BACKEND: "rust-selected-query" } as NodeJS.ProcessEnv,
         readRustStyleSemanticGraphForWorkspaceTarget: () => makeReferenceGraph(),
       },
     );
@@ -175,7 +175,7 @@ describe("resolveStyleReferencesAtCursor", () => {
       },
       makeDeps(),
       {
-        env: { CME_SELECTED_QUERY_BACKEND: "rust-selected-query" } as NodeJS.ProcessEnv,
+        env: { OMENA_SELECTED_QUERY_BACKEND: "rust-selected-query" } as NodeJS.ProcessEnv,
         readRustStyleSemanticGraphForWorkspaceTarget: () => makeEmptyReferenceGraph(),
         readRustSelectorUsagePayloadForWorkspaceTarget: () => ({
           canonicalName: "indicator",
@@ -233,7 +233,7 @@ describe("resolveStyleReferencesAtCursor", () => {
       },
       makeDeps({ semanticReferenceIndex }),
       {
-        env: { CME_SELECTED_QUERY_BACKEND: "rust-selected-query" } as NodeJS.ProcessEnv,
+        env: { OMENA_SELECTED_QUERY_BACKEND: "rust-selected-query" } as NodeJS.ProcessEnv,
         readRustStyleSemanticGraphForWorkspaceTarget: () => makeEmptyReferenceGraph(),
         readRustSelectorUsagePayloadForWorkspaceTarget: () => ({
           canonicalName: "indicator",
@@ -492,7 +492,7 @@ describe("resolveStyleReferencesAtCursor", () => {
         styleDocumentForPath: styleDocumentMap([styleDocument]),
       }),
       {
-        env: { CME_SELECTED_QUERY_BACKEND: "rust-selected-query" } as NodeJS.ProcessEnv,
+        env: { OMENA_SELECTED_QUERY_BACKEND: "rust-selected-query" } as NodeJS.ProcessEnv,
         readRustStyleSemanticGraphForWorkspaceTarget: () =>
           makeDesignTokenDefinitionGraph({
             referenceName: "--brand",
@@ -538,7 +538,7 @@ describe("resolveStyleReferencesAtCursor", () => {
         styleDocumentForPath: styleDocumentMap([styleDocument]),
       }),
       {
-        env: { CME_SELECTED_QUERY_BACKEND: "rust-selected-query" } as NodeJS.ProcessEnv,
+        env: { OMENA_SELECTED_QUERY_BACKEND: "rust-selected-query" } as NodeJS.ProcessEnv,
         readRustStyleSemanticGraphForWorkspaceTargetAsync: async () =>
           makeDesignTokenDefinitionGraph({
             referenceName: "--brand",

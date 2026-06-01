@@ -340,7 +340,7 @@ describe("resolveStyleDefinitionTargets", () => {
     });
 
     const targets = resolveStyleDefinitionTargets(styleTarget(ws), styleDeps(ws), {
-      env: { CME_SELECTED_QUERY_BACKEND: "rust-selected-query" } as NodeJS.ProcessEnv,
+      env: { OMENA_SELECTED_QUERY_BACKEND: "rust-selected-query" } as NodeJS.ProcessEnv,
       readRustStyleSemanticGraphForWorkspaceTarget: () =>
         makeDesignTokenDefinitionGraph({
           referenceName: "--brand",
@@ -376,7 +376,7 @@ describe("resolveStyleDefinitionTargets", () => {
     });
 
     const targets = await resolveStyleDefinitionTargetsAsync(styleTarget(ws), styleDeps(ws), {
-      env: { CME_SELECTED_QUERY_BACKEND: "rust-selected-query" } as NodeJS.ProcessEnv,
+      env: { OMENA_SELECTED_QUERY_BACKEND: "rust-selected-query" } as NodeJS.ProcessEnv,
       readRustStyleSemanticGraphForWorkspaceTargetAsync: async () =>
         makeDesignTokenDefinitionGraph({
           referenceName: "--brand",

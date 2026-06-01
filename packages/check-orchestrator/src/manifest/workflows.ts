@@ -3,7 +3,8 @@ import path from "node:path";
 import type { CheckDiagnostic, CheckGate } from "./types";
 
 const PNPM_SCRIPT_REF = /\bpnpm\s+(?:run\s+)?([A-Za-z0-9:_-]+)/g;
-const CME_CHECK_TARGET_REF = /\bpnpm\s+(?:run\s+)?cme-check\s+(run|bundle)\s+([A-Za-z0-9:_@/.-]+)/g;
+const OMENA_CHECK_TARGET_REF =
+  /\bpnpm\s+(?:run\s+)?cme-check\s+(run|bundle)\s+([A-Za-z0-9:_@/.-]+)/g;
 
 export function findWorkflowBypassDiagnostics(
   rootDir: string,
@@ -23,7 +24,7 @@ export function findWorkflowBypassDiagnostics(
     const lines = readFileSync(workflowPath, "utf8").split(/\r?\n/);
 
     lines.forEach((line, index) => {
-      for (const match of line.matchAll(CME_CHECK_TARGET_REF)) {
+      for (const match of line.matchAll(OMENA_CHECK_TARGET_REF)) {
         const command = match[1];
         const target = match[2];
         if (!command || !target) continue;

@@ -352,14 +352,14 @@ fn tsgo_process_command_for_workspace(
     Some(build_tsgo_process_command(
         tsgo_path.to_string_lossy().as_ref(),
         workspace_root,
-        std::env::var("CME_TSGO_CHECKERS")
+        std::env::var("OMENA_TSGO_CHECKERS")
             .ok()
             .and_then(|value| value.parse::<usize>().ok()),
     ))
 }
 
 fn resolve_tsgo_binary_path() -> Option<PathBuf> {
-    if let Ok(path) = std::env::var("CME_TSGO_PATH")
+    if let Ok(path) = std::env::var("OMENA_TSGO_PATH")
         && !path.is_empty()
     {
         let path = PathBuf::from(path);

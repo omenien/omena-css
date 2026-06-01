@@ -19,22 +19,25 @@ import { StreamMessageReader, StreamMessageWriter } from "vscode-jsonrpc/node";
 import { resolveOmenaLspServerInvocation } from "./omena-lsp-server-invocation";
 
 const DEBUG_STATE_REQUEST = "omena/rustLspState";
-const ALIAS_COUNT = parsePositiveInteger(process.env.CME_LSP_RESOLVER_CACHE_ALIASES, 360);
-const PACKAGE_COUNT = parsePositiveInteger(process.env.CME_LSP_RESOLVER_CACHE_PACKAGES, 160);
+const ALIAS_COUNT = parsePositiveInteger(process.env.OMENA_LSP_RESOLVER_CACHE_ALIASES, 360);
+const PACKAGE_COUNT = parsePositiveInteger(process.env.OMENA_LSP_RESOLVER_CACHE_PACKAGES, 160);
 const REFRESH_BASELINE_SAMPLES = parsePositiveInteger(
-  process.env.CME_LSP_RESOLVER_CACHE_REFRESH_SAMPLES,
+  process.env.OMENA_LSP_RESOLVER_CACHE_REFRESH_SAMPLES,
   8,
 );
-const HOT_SAMPLES = parsePositiveInteger(process.env.CME_LSP_RESOLVER_CACHE_HOT_SAMPLES, 24);
+const HOT_SAMPLES = parsePositiveInteger(process.env.OMENA_LSP_RESOLVER_CACHE_HOT_SAMPLES, 24);
 const REQUEST_TIMEOUT_MS = parsePositiveInteger(
-  process.env.CME_LSP_RESOLVER_CACHE_REQUEST_TIMEOUT_MS,
+  process.env.OMENA_LSP_RESOLVER_CACHE_REQUEST_TIMEOUT_MS,
   10_000,
 );
 const MIN_REFRESH_TO_HOT_P50_RATIO = parsePositiveNumber(
-  process.env.CME_LSP_RESOLVER_CACHE_MIN_REFRESH_TO_HOT_P50_RATIO,
+  process.env.OMENA_LSP_RESOLVER_CACHE_MIN_REFRESH_TO_HOT_P50_RATIO,
   1.2,
 );
-const MAX_HOT_P95_MS = parsePositiveNumber(process.env.CME_LSP_RESOLVER_CACHE_MAX_HOT_P95_MS, 250);
+const MAX_HOT_P95_MS = parsePositiveNumber(
+  process.env.OMENA_LSP_RESOLVER_CACHE_MAX_HOT_P95_MS,
+  250,
+);
 
 interface TimedSeriesSummary {
   readonly count: number;

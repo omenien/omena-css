@@ -36,24 +36,24 @@ const tsgoBinaryName = process.platform === "win32" ? "tsgo.exe" : "tsgo";
 const omenaLspServerBinaryName =
   process.platform === "win32" ? "omena-lsp-server.exe" : "omena-lsp-server";
 const minimumRunnerTargets = Number.parseInt(
-  process.env.CME_PACKAGED_RUNNER_MIN_TARGETS ?? "1",
+  process.env.OMENA_PACKAGED_RUNNER_MIN_TARGETS ?? "1",
   10,
 );
-const minimumTsgoTargets = Number.parseInt(process.env.CME_PACKAGED_TSGO_MIN_TARGETS ?? "1", 10);
+const minimumTsgoTargets = Number.parseInt(process.env.OMENA_PACKAGED_TSGO_MIN_TARGETS ?? "1", 10);
 const minimumOmenaLspServerTargets = Number.parseInt(
-  process.env.CME_PACKAGED_OMENA_LSP_SERVER_MIN_TARGETS ?? "1",
+  process.env.OMENA_PACKAGED_LSP_SERVER_MIN_TARGETS ?? "1",
   10,
 );
-const requiredRunnerPlatforms = (process.env.CME_PACKAGED_RUNNER_REQUIRED_PLATFORMS ?? "")
+const requiredRunnerPlatforms = (process.env.OMENA_PACKAGED_RUNNER_REQUIRED_PLATFORMS ?? "")
   .split(",")
   .map((value) => value.trim())
   .filter(Boolean);
-const requiredTsgoPlatforms = (process.env.CME_PACKAGED_TSGO_REQUIRED_PLATFORMS ?? "")
+const requiredTsgoPlatforms = (process.env.OMENA_PACKAGED_TSGO_REQUIRED_PLATFORMS ?? "")
   .split(",")
   .map((value) => value.trim())
   .filter(Boolean);
 const requiredOmenaLspServerPlatforms = (
-  process.env.CME_PACKAGED_OMENA_LSP_SERVER_REQUIRED_PLATFORMS ?? ""
+  process.env.OMENA_PACKAGED_LSP_SERVER_REQUIRED_PLATFORMS ?? ""
 )
   .split(",")
   .map((value) => value.trim())
@@ -61,19 +61,19 @@ const requiredOmenaLspServerPlatforms = (
 
 if (!Number.isInteger(minimumRunnerTargets) || minimumRunnerTargets < 1) {
   throw new Error(
-    `CME_PACKAGED_RUNNER_MIN_TARGETS must be a positive integer, got ${process.env.CME_PACKAGED_RUNNER_MIN_TARGETS}`,
+    `OMENA_PACKAGED_RUNNER_MIN_TARGETS must be a positive integer, got ${process.env.OMENA_PACKAGED_RUNNER_MIN_TARGETS}`,
   );
 }
 
 if (!Number.isInteger(minimumTsgoTargets) || minimumTsgoTargets < 1) {
   throw new Error(
-    `CME_PACKAGED_TSGO_MIN_TARGETS must be a positive integer, got ${process.env.CME_PACKAGED_TSGO_MIN_TARGETS}`,
+    `OMENA_PACKAGED_TSGO_MIN_TARGETS must be a positive integer, got ${process.env.OMENA_PACKAGED_TSGO_MIN_TARGETS}`,
   );
 }
 
 if (!Number.isInteger(minimumOmenaLspServerTargets) || minimumOmenaLspServerTargets < 1) {
   throw new Error(
-    `CME_PACKAGED_OMENA_LSP_SERVER_MIN_TARGETS must be a positive integer, got ${process.env.CME_PACKAGED_OMENA_LSP_SERVER_MIN_TARGETS}`,
+    `OMENA_PACKAGED_LSP_SERVER_MIN_TARGETS must be a positive integer, got ${process.env.OMENA_PACKAGED_LSP_SERVER_MIN_TARGETS}`,
   );
 }
 
@@ -148,7 +148,7 @@ const fileExists = (filePath: string): boolean => {
   if (relative.startsWith("..") || path.isAbsolute(relative)) return false;
   return entries.has(`extension/${toPosixPath(relative)}`);
 };
-const packagedEnv = { CME_PROJECT_ROOT: packagedRoot } as NodeJS.ProcessEnv;
+const packagedEnv = { OMENA_PROJECT_ROOT: packagedRoot } as NodeJS.ProcessEnv;
 
 if (!isPackagedExtensionRuntime(packagedEnv, fileExists)) {
   throw new Error("VSIX file set did not satisfy packaged extension runtime detection");
@@ -203,10 +203,10 @@ const tsgoTypeFactWorkerInvocation = buildTsgoTypeFactWorkerInvocation(
   packagedEnv,
   fileExists,
 );
-if (tsgoTypeFactWorkerInvocation.env.CME_TSGO_PATH !== packagedTsgoPath) {
+if (tsgoTypeFactWorkerInvocation.env.OMENA_TSGO_PATH !== packagedTsgoPath) {
   throw new Error(
     `Expected packaged tsgo type-fact worker to use ${packagedTsgoPath}, got ${
-      tsgoTypeFactWorkerInvocation.env.CME_TSGO_PATH ?? "unset"
+      tsgoTypeFactWorkerInvocation.env.OMENA_TSGO_PATH ?? "unset"
     }`,
   );
 }
@@ -222,7 +222,7 @@ if (defaultStyleBuilder !== buildStyleDocumentWithOmenaParser) {
 }
 
 const autoBackend = resolveSelectedQueryBackendKind(
-  { ...packagedEnv, CME_SELECTED_QUERY_BACKEND: "auto" },
+  { ...packagedEnv, OMENA_SELECTED_QUERY_BACKEND: "auto" },
   fileExists,
 );
 if (autoBackend !== "rust-selected-query") {
@@ -235,15 +235,15 @@ if (!shouldUseEngineShadowRunnerDaemon(packagedEnv, fileExists)) {
 
 if (
   shouldUseEngineShadowRunnerDaemon(
-    { ...packagedEnv, CME_ENGINE_SHADOW_RUNNER_DAEMON: "0" },
+    { ...packagedEnv, OMENA_ENGINE_SHADOW_RUNNER_DAEMON: "0" },
     fileExists,
   )
 ) {
-  throw new Error("Expected explicit CME_ENGINE_SHADOW_RUNNER_DAEMON=0 to disable daemon usage");
+  throw new Error("Expected explicit OMENA_ENGINE_SHADOW_RUNNER_DAEMON=0 to disable daemon usage");
 }
 
 const explicitTypescriptBackend = resolveSelectedQueryBackendKind(
-  { ...packagedEnv, CME_SELECTED_QUERY_BACKEND: "typescript-current" },
+  { ...packagedEnv, OMENA_SELECTED_QUERY_BACKEND: "typescript-current" },
   fileExists,
 );
 if (explicitTypescriptBackend !== "typescript-current") {
@@ -253,7 +253,7 @@ if (explicitTypescriptBackend !== "typescript-current") {
 }
 
 const explicitTypescriptStyleBuilder = resolveRuntimeStyleDocumentBuilder(
-  { ...packagedEnv, CME_STYLE_DOCUMENT_BUILDER: "typescript-current" },
+  { ...packagedEnv, OMENA_STYLE_DOCUMENT_BUILDER: "typescript-current" },
   fileExists,
 );
 if (explicitTypescriptStyleBuilder !== undefined) {

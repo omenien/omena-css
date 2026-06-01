@@ -231,8 +231,8 @@ const el = cx('
   });
 
   it("uses async Rust design-token declaration candidates for style completions", async () => {
-    const previousBackend = process.env.CME_SELECTED_QUERY_BACKEND;
-    process.env.CME_SELECTED_QUERY_BACKEND = "rust-selected-query";
+    const previousBackend = process.env.OMENA_SELECTED_QUERY_BACKEND;
+    process.env.OMENA_SELECTED_QUERY_BACKEND = "rust-selected-query";
     try {
       const styleWorkspace = workspace({
         [STYLE_PATH]: `.button {
@@ -299,9 +299,9 @@ const el = cx('
       ]);
     } finally {
       if (previousBackend === undefined) {
-        delete process.env.CME_SELECTED_QUERY_BACKEND;
+        delete process.env.OMENA_SELECTED_QUERY_BACKEND;
       } else {
-        process.env.CME_SELECTED_QUERY_BACKEND = previousBackend;
+        process.env.OMENA_SELECTED_QUERY_BACKEND = previousBackend;
       }
     }
   });

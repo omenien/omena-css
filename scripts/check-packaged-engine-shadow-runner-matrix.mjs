@@ -8,15 +8,15 @@ const binRoot = path.join(repoRoot, "dist", "bin");
 const currentPlatformDir = `${process.platform}-${process.arch}`;
 const currentBinaryName =
   process.platform === "win32" ? "engine-shadow-runner.exe" : "engine-shadow-runner";
-const minimumTargets = Number.parseInt(process.env.CME_PACKAGED_RUNNER_MIN_TARGETS ?? "1", 10);
-const requiredPlatforms = (process.env.CME_PACKAGED_RUNNER_REQUIRED_PLATFORMS ?? "")
+const minimumTargets = Number.parseInt(process.env.OMENA_PACKAGED_RUNNER_MIN_TARGETS ?? "1", 10);
+const requiredPlatforms = (process.env.OMENA_PACKAGED_RUNNER_REQUIRED_PLATFORMS ?? "")
   .split(",")
   .map((value) => value.trim())
   .filter(Boolean);
 
 if (!Number.isInteger(minimumTargets) || minimumTargets < 1) {
   throw new Error(
-    `CME_PACKAGED_RUNNER_MIN_TARGETS must be a positive integer, got ${process.env.CME_PACKAGED_RUNNER_MIN_TARGETS}`,
+    `OMENA_PACKAGED_RUNNER_MIN_TARGETS must be a positive integer, got ${process.env.OMENA_PACKAGED_RUNNER_MIN_TARGETS}`,
   );
 }
 

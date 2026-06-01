@@ -119,7 +119,7 @@ function defaultRunProbeCommand(workspaceRoot: string, configPath: string): Tsgo
       stderr: [
         "No extension-owned tsgo binary was found.",
         `Expected ${resolveTsgoBinaryPathForEnv(process.env)} or the repo-pinned @typescript/native-preview wrapper.`,
-        "Run pnpm build before packaging, or set CME_TSGO_PATH to an explicit tsgo binary.",
+        "Run pnpm build before packaging, or set OMENA_TSGO_PATH to an explicit tsgo binary.",
       ].join("\n"),
     };
   }
@@ -146,9 +146,9 @@ export function buildTsgoAvailabilityInvocation(
 ): TsgoProbeInvocation | null {
   const tsgoArgs = ["--version"];
 
-  if (env.CME_TSGO_PATH) {
+  if (env.OMENA_TSGO_PATH) {
     return {
-      command: path.resolve(env.CME_TSGO_PATH),
+      command: path.resolve(env.OMENA_TSGO_PATH),
       args: tsgoArgs,
       cwd: workspaceRoot,
     };
@@ -173,7 +173,7 @@ export function buildTsgoAvailabilityInvocation(
     };
   }
 
-  if (env.CME_TSGO_RESOLUTION === "workspace") {
+  if (env.OMENA_TSGO_RESOLUTION === "workspace") {
     return {
       command: "pnpm",
       args: ["exec", "tsgo", ...tsgoArgs],
@@ -199,9 +199,9 @@ export function buildTsgoProbeInvocation(
     ...resolveTsgoCheckerArgs(env),
   ];
 
-  if (env.CME_TSGO_PATH) {
+  if (env.OMENA_TSGO_PATH) {
     return {
-      command: path.resolve(env.CME_TSGO_PATH),
+      command: path.resolve(env.OMENA_TSGO_PATH),
       args: tsgoArgs,
       cwd: workspaceRoot,
     };
@@ -226,7 +226,7 @@ export function buildTsgoProbeInvocation(
     };
   }
 
-  if (env.CME_TSGO_RESOLUTION === "workspace") {
+  if (env.OMENA_TSGO_RESOLUTION === "workspace") {
     return {
       command: "pnpm",
       args: ["exec", "tsgo", ...tsgoArgs],
@@ -241,7 +241,7 @@ export function resolveTsgoBinaryPathForEnv(
   env: NodeJS.ProcessEnv = process.env,
   fileExists: (filePath: string) => boolean = existsSync,
 ): string {
-  if (env.CME_TSGO_PATH) return path.resolve(env.CME_TSGO_PATH);
+  if (env.OMENA_TSGO_PATH) return path.resolve(env.OMENA_TSGO_PATH);
   const projectRoot = resolveProjectRoot(env, fileExists);
   return path.join(
     projectRoot,
@@ -256,7 +256,7 @@ function resolveProjectRoot(
   env: NodeJS.ProcessEnv = process.env,
   fileExists: (filePath: string) => boolean = existsSync,
 ): string {
-  if (env.CME_PROJECT_ROOT) return path.resolve(env.CME_PROJECT_ROOT);
+  if (env.OMENA_PROJECT_ROOT) return path.resolve(env.OMENA_PROJECT_ROOT);
 
   for (const candidate of [REPO_ROOT, BUNDLED_EXTENSION_ROOT, process.cwd()]) {
     if (fileExists(path.join(candidate, "package.json"))) return candidate;
@@ -266,7 +266,7 @@ function resolveProjectRoot(
 }
 
 function resolveTsgoCheckerArgs(env: NodeJS.ProcessEnv = process.env): readonly string[] {
-  const value = env.CME_TSGO_CHECKERS?.trim();
+  const value = env.OMENA_TSGO_CHECKERS?.trim();
   if (!value) {
     return [];
   }
@@ -274,6 +274,6 @@ function resolveTsgoCheckerArgs(env: NodeJS.ProcessEnv = process.env): readonly 
 }
 
 function shouldRunSyncWorkspaceProbe(env: NodeJS.ProcessEnv): boolean {
-  const value = env.CME_TSGO_SYNC_WORKSPACE_PROBE?.trim().toLowerCase();
+  const value = env.OMENA_TSGO_SYNC_WORKSPACE_PROBE?.trim().toLowerCase();
   return value === "1" || value === "true";
 }

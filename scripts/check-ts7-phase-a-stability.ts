@@ -94,15 +94,15 @@ const checkerControlConfigs: readonly CheckerControlConfig[] = [
   },
   {
     label: "checkers-1",
-    env: { CME_TSGO_CHECKERS: "1" },
+    env: { OMENA_TSGO_CHECKERS: "1" },
   },
   {
     label: "checkers-2",
-    env: { CME_TSGO_CHECKERS: "2" },
+    env: { OMENA_TSGO_CHECKERS: "2" },
   },
   {
     label: "checkers-4",
-    env: { CME_TSGO_CHECKERS: "4" },
+    env: { OMENA_TSGO_CHECKERS: "4" },
   },
 ] as const;
 
@@ -180,7 +180,7 @@ async function buildTypeFactSnapshot(fixture: OrderingFixture, typeBackend: Type
     typeBackend,
     env: {
       ...process.env,
-      CME_TYPE_FACT_BACKEND: typeBackend,
+      OMENA_TYPE_FACT_BACKEND: typeBackend,
     },
   });
   const sourceDocuments = collectSourceDocuments(
@@ -199,7 +199,7 @@ async function buildTypeFactSnapshot(fixture: OrderingFixture, typeBackend: Type
     typeBackend,
     env: {
       ...process.env,
-      CME_TYPE_FACT_BACKEND: typeBackend,
+      OMENA_TYPE_FACT_BACKEND: typeBackend,
     },
   });
 }
@@ -266,14 +266,14 @@ async function runCheckerControlMatrix() {
         ["check:backend-typecheck-smoke"],
         {
           ...config.env,
-          CME_TYPECHECK_VARIANT: TYPE_BACKEND,
+          OMENA_TYPECHECK_VARIANT: TYPE_BACKEND,
         },
       );
       const repeats = await Promise.all(
         Array.from({ length: CHECKER_CONTROL_RUN_COUNT - 1 }, () =>
           runCommand("backend-typecheck-smoke", ["check:backend-typecheck-smoke"], {
             ...config.env,
-            CME_TYPECHECK_VARIANT: TYPE_BACKEND,
+            OMENA_TYPECHECK_VARIANT: TYPE_BACKEND,
           }),
         ),
       );
@@ -304,7 +304,7 @@ function runCommand(
       cwd: repoRoot,
       env: {
         ...process.env,
-        CME_TYPE_FACT_BACKEND: TYPE_BACKEND,
+        OMENA_TYPE_FACT_BACKEND: TYPE_BACKEND,
         ...envOverrides,
       },
       stdio: ["ignore", "pipe", "pipe"],

@@ -247,14 +247,14 @@ Current checker policy:
   - these providers now route their main selected-query and source/style rewrite reads through `engine-host-node` helpers instead of directly owning the core query/rewrite calls in the LSP layer
 - `pnpm check:rust-selected-query-consumers` is the current local lock point for the first live Rust selected-query consumer slice
   - it runs the explicit unit/runtime coverage for the current opt-in Rust consumers: source `definition`, source `hover`, source `references`, source `rename`, style `hover` usage-summary resolution, style `references` location resolution, style `reference-lens` title/count summary and location resolution, style module usage / style diagnostics unused-selector resolution, style `rename` rewrite-safety and direct edit-site resolution, `explain-expression`, source diagnostics symbol-ref invalid-class analysis, and host-side `engine-query-v2` query-result emission for `source-expression-resolution`, `expression-semantics`, and `selector-usage`
-  - `CME_SELECTED_QUERY_BACKEND=rust-selected-query` is the unified explicit backend for that slice; the narrower `rust-source-resolution`, `rust-expression-semantics`, and `rust-selector-usage` values remain available for isolated debugging
-  - in packaged VSIX runtime, an unset `CME_SELECTED_QUERY_BACKEND` now selects `rust-selected-query` when the packaged/prebuilt `engine-shadow-runner` is available; source checkouts keep the unset default on `typescript-current` so local `dist/` artifacts do not change dev/test behavior
-  - `CME_SELECTED_QUERY_BACKEND=auto` explicitly exercises the same Rust-if-packaged-runner-available selection in source checkouts
-- `pnpm check:rust-selected-query-default-candidate` is the current default-candidate evidence lane for `CME_SELECTED_QUERY_BACKEND=rust-selected-query`
-  - it first runs `pnpm check:rust-selected-query-release-default`, which builds the packaged runner and runs the full protocol suite with `CME_SELECTED_QUERY_BACKEND=auto`
-  - it then warms `engine-shadow-runner`, runs the live Rust selected-query unit consumer slice, and repeats the full protocol suite with the unified Rust selected-query backend explicitly enabled and `CME_ENGINE_SHADOW_RUNNER=prebuilt`
+  - `OMENA_SELECTED_QUERY_BACKEND=rust-selected-query` is the unified explicit backend for that slice; the narrower `rust-source-resolution`, `rust-expression-semantics`, and `rust-selector-usage` values remain available for isolated debugging
+  - in packaged VSIX runtime, an unset `OMENA_SELECTED_QUERY_BACKEND` now selects `rust-selected-query` when the packaged/prebuilt `engine-shadow-runner` is available; source checkouts keep the unset default on `typescript-current` so local `dist/` artifacts do not change dev/test behavior
+  - `OMENA_SELECTED_QUERY_BACKEND=auto` explicitly exercises the same Rust-if-packaged-runner-available selection in source checkouts
+- `pnpm check:rust-selected-query-default-candidate` is the current default-candidate evidence lane for `OMENA_SELECTED_QUERY_BACKEND=rust-selected-query`
+  - it first runs `pnpm check:rust-selected-query-release-default`, which builds the packaged runner and runs the full protocol suite with `OMENA_SELECTED_QUERY_BACKEND=auto`
+  - it then warms `engine-shadow-runner`, runs the live Rust selected-query unit consumer slice, and repeats the full protocol suite with the unified Rust selected-query backend explicitly enabled and `OMENA_ENGINE_SHADOW_RUNNER=prebuilt`
   - prebuilt runner mode is explicit so ad-hoc local runs still use `cargo run` and do not accidentally reuse a stale `rust/target` binary
-  - prebuilt mode can resolve an explicit `CME_ENGINE_SHADOW_RUNNER_PATH`, a packaged `dist/bin/<platform>-<arch>/engine-shadow-runner`, or the warmed `rust/target/debug` runner
+  - prebuilt mode can resolve an explicit `OMENA_ENGINE_SHADOW_RUNNER_PATH`, a packaged `dist/bin/<platform>-<arch>/engine-shadow-runner`, or the warmed `rust/target/debug` runner
   - it is regression evidence for keeping the packaged runner matrix safe while `rust-selected-query` is the packaged default
   - GitHub Actions runs the same lane in the `Rust Selected Query Default Candidate` shadow workflow on `master`
 - `pnpm check:rust-phase-2-swap-readiness` remains the historical Phase 2 swap evidence gate
@@ -278,10 +278,10 @@ Current checker policy:
   - repeated runs can be summarized with `--repeat <n>`
   - current comparison slot: `tsgo` on `check:backend-typecheck-smoke`
 - `pnpm check:backend-typecheck-smoke` runs a small multi-case corpus (`template-literals`, `path-alias`, `flow-relations`) for the selected typecheck backend
-  - the unset `CME_TYPE_FACT_BACKEND` default is now `tsgo`, which activates a host-side tsgo probe before delegating symbol resolution to the current TS resolver
+  - the unset `OMENA_TYPE_FACT_BACKEND` default is now `tsgo`, which activates a host-side tsgo probe before delegating symbol resolution to the current TS resolver
   - packaged extension runtime uses the bundled `dist/bin/<platform>-<arch>/tsgo` probe; `omena.typeFactBackend=tsgo-workspace` preserves the old workspace `pnpm exec tsgo` mode for power users
-  - `omena.typeFactBackend=typescript-current` or `CME_TYPE_FACT_BACKEND=typescript-current` remains available as the explicit current-TypeScript fallback
-- `CME_TYPE_FACT_BACKEND=tsgo pnpm check:release-batch` and `pnpm check:real-project-corpus` now exercise the checker path through the same host-side tsgo probe
+  - `omena.typeFactBackend=typescript-current` or `OMENA_TYPE_FACT_BACKEND=typescript-current` remains available as the explicit current-TypeScript fallback
+- `OMENA_TYPE_FACT_BACKEND=tsgo pnpm check:release-batch` and `pnpm check:real-project-corpus` now exercise the checker path through the same host-side tsgo probe
 - `pnpm check:type-fact-backend-parity` compares canonical `EngineInputV2.typeFacts` across `typescript-current` and `tsgo` on the backend smoke corpus
 - `pnpm check:ts7-phase-a-readiness` is the current aggregate Phase A gate for the TS 7 beta path
   - it runs backend typecheck smoke, type-fact backend parity, and `rust-gate-evidence -- --variant tsgo --repeat 1 --json`
@@ -292,8 +292,8 @@ Current checker policy:
   - it runs the tsgo-backed release-batch, real-project-corpus, and LSP smoke commands together
 - `pnpm check:ts7-phase-a-stability` directly checks the two tsgo-specific risk points that the basic shadow path does not prove by itself
   - repeated `EngineInputV2.typeFacts` snapshots from `tsgo` must stay byte-stable across runs
-  - concurrent `release-batch` and `real-project-corpus` invocations under `CME_TYPE_FACT_BACKEND=tsgo` must keep identical outputs across rounds
-  - tsgo probe calls run through the repo-pinned `@typescript/native-preview` binary in source checkouts and the packaged `dist/bin/<platform>-<arch>/tsgo` binary in VSIX runtime; the stability matrix now also repeats backend smoke under fixed `--checkers` values (`1`, `2`, `4`) via `CME_TSGO_CHECKERS`
+  - concurrent `release-batch` and `real-project-corpus` invocations under `OMENA_TYPE_FACT_BACKEND=tsgo` must keep identical outputs across rounds
+  - tsgo probe calls run through the repo-pinned `@typescript/native-preview` binary in source checkouts and the packaged `dist/bin/<platform>-<arch>/tsgo` binary in VSIX runtime; the stability matrix now also repeats backend smoke under fixed `--checkers` values (`1`, `2`, `4`) via `OMENA_TSGO_CHECKERS`
 - `pnpm check:ts7-phase-a-tsgo-lane` is the current limited non-release aggregate for TS 7 beta Phase A
   - it builds the repo, then runs readiness, shadow, and stability together
 - `pnpm check:ts7-phase-a-shadow-review` reviews recent `TS7 Phase A Shadow` workflow history through `gh`
@@ -301,9 +301,9 @@ Current checker policy:
 - `pnpm check:ts7-phase-a-decision-ready` is the current lock point for Phase A
   - it requires both the local tsgo lane and the successful-shadow-run threshold
 - `pnpm check:ts7-phase-b-protocol-tsgo` is the first bounded protocol-layer tsgo path for TS 7 beta Phase B
-  - it runs `lifecycle`, `hover`, `definition`, `diagnostics`, and `completion` protocol tests under `CME_TYPE_FACT_BACKEND=tsgo`
+  - it runs `lifecycle`, `hover`, `definition`, `diagnostics`, and `completion` protocol tests under `OMENA_TYPE_FACT_BACKEND=tsgo`
 - `pnpm check:ts7-phase-b-editing-tsgo` is the second bounded protocol-layer tsgo path for TS 7 beta Phase B
-  - it runs `references`, `rename`, and `code-actions` protocol tests under `CME_TYPE_FACT_BACKEND=tsgo`
+  - it runs `references`, `rename`, and `code-actions` protocol tests under `OMENA_TYPE_FACT_BACKEND=tsgo`
 - `pnpm check:ts7-phase-b-build-tsgo` is the current bounded build-mode tsgo path for TS 7 beta Phase B
   - it runs `pnpm exec tsgo -b server/tsconfig.json --checkers 2 --builders 2`
 - `pnpm check:ts7-phase-b-workspace-build-tsgo` is the current workspace-level project-reference tsgo path for TS 7 beta Phase B
@@ -314,7 +314,7 @@ Current checker policy:
   - it runs the local `ts7-phase-a-tsgo-lane` plus the bounded Phase B protocol, editing, server-build, workspace-build, and Phase C edge-readiness tsgo subsets
 - `pnpm check:tsgo-release-bundle` is the release-shaped tsgo variant and is part of `pnpm release:verify`
 - `pnpm check:ts7-phase-c-readiness` is the first TS 7 Phase C edge-readiness slice
-  - it runs long-lived LSP session edits, multi-root workspace churn, watched-file invalidation, and source/style staleness checks under `CME_TYPE_FACT_BACKEND=tsgo`
+  - it runs long-lived LSP session edits, multi-root workspace churn, watched-file invalidation, and source/style staleness checks under `OMENA_TYPE_FACT_BACKEND=tsgo`
 - `pnpm check:operational-lane` is the current limited non-release default lane
   - today it resolves to the tsgo-backed operational lane
 - `pnpm check:operational-shadow-review` is the current limited non-release default review command
@@ -428,7 +428,7 @@ Current checker policy:
   - style providers now consume Rust-backed semantic graph read models for selector identity, references, diagnostics, completions, rename safety, hover metadata, and style-module usage through host-side caches
   - `pnpm check:rust-phase-2-swap-readiness` remains the historical Phase 2 swap batch; `pnpm release:verify` is the current v5 release gate
   - the Omena Rust split crates are published and externally consumable through crates.io; v5 treats them as the stable internal product baseline, not a separate semver-1.0 crate freeze
-  - `CME_TYPE_FACT_BACKEND` now defaults to `tsgo`, packaged runtime carries its own tsgo binary, and `typescript-current` is retained as an explicit comparison fallback
+  - `OMENA_TYPE_FACT_BACKEND` now defaults to `tsgo`, packaged runtime carries its own tsgo binary, and `typescript-current` is retained as an explicit comparison fallback
   - `tsgo` is wired into release-batch, real-project corpus, LSP smoke, protocol/editing, server build, workspace build, and Phase C edge-readiness checks
   - the current release-shaped TS 7 aggregate is `pnpm check:tsgo-release-bundle`, and `pnpm release:verify` includes it
   - the current limited non-release default lane is `pnpm check:operational-lane`

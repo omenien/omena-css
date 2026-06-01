@@ -18,8 +18,8 @@ describe("TsgoProbeTypeResolver", () => {
     const invocation = buildTsgoAvailabilityInvocation(
       "/workspace",
       {
-        CME_TSGO_PATH: "/tools/tsgo",
-        CME_TSGO_CHECKERS: "4",
+        OMENA_TSGO_PATH: "/tools/tsgo",
+        OMENA_TSGO_CHECKERS: "4",
       },
       () => false,
     );
@@ -115,8 +115,8 @@ describe("TsgoProbeTypeResolver", () => {
       "/workspace",
       "/workspace/tsconfig.json",
       {
-        CME_TSGO_PATH: "/tools/tsgo",
-        CME_TSGO_CHECKERS: "2",
+        OMENA_TSGO_PATH: "/tools/tsgo",
+        OMENA_TSGO_CHECKERS: "2",
       },
       () => false,
     );
@@ -129,7 +129,7 @@ describe("TsgoProbeTypeResolver", () => {
   });
 
   it("uses packaged extension tsgo before workspace resolution", () => {
-    const env = { CME_PROJECT_ROOT: "/extension" };
+    const env = { OMENA_PROJECT_ROOT: "/extension" };
     const packagedPath = resolveTsgoBinaryPathForEnv(env, (filePath) =>
       filePath.includes("package.json"),
     );
@@ -155,15 +155,15 @@ describe("TsgoProbeTypeResolver", () => {
     const implicitInvocation = buildTsgoProbeInvocation(
       "/workspace",
       "/workspace/tsconfig.json",
-      { CME_PROJECT_ROOT: "/extension" },
+      { OMENA_PROJECT_ROOT: "/extension" },
       (filePath) => filePath.includes("package.json"),
     );
     const explicitInvocation = buildTsgoProbeInvocation(
       "/workspace",
       "/workspace/tsconfig.json",
       {
-        CME_PROJECT_ROOT: "/extension",
-        CME_TSGO_RESOLUTION: "workspace",
+        OMENA_PROJECT_ROOT: "/extension",
+        OMENA_TSGO_RESOLUTION: "workspace",
       },
       (filePath) => filePath.includes("package.json"),
     );

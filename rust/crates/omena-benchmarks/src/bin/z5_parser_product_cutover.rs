@@ -11,7 +11,7 @@ const ITERATIONS: usize = 40;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     validate_parser_product_benchmark_boundary_symmetry()?;
-    let max_ratio = std::env::var("CME_Z5_PARSER_PRODUCT_MAX_RATIO")
+    let max_ratio = std::env::var("OMENA_Z5_PARSER_PRODUCT_MAX_RATIO")
         .ok()
         .and_then(|value| value.parse::<f64>().ok())
         .unwrap_or(DEFAULT_MAX_RATIO);

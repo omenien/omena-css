@@ -24,8 +24,8 @@ const INLINE_RANGE = {
   end: { line: 2, character: 16 },
 };
 
-const previousBackend = process.env.CME_SELECTED_QUERY_BACKEND;
-process.env.CME_SELECTED_QUERY_BACKEND = "rust-selected-query";
+const previousBackend = process.env.OMENA_SELECTED_QUERY_BACKEND;
+process.env.OMENA_SELECTED_QUERY_BACKEND = "rust-selected-query";
 
 try {
   const errors: unknown[] = [];
@@ -100,8 +100,8 @@ try {
   );
 } finally {
   if (previousBackend === undefined) {
-    delete process.env.CME_SELECTED_QUERY_BACKEND;
+    delete process.env.OMENA_SELECTED_QUERY_BACKEND;
   } else {
-    process.env.CME_SELECTED_QUERY_BACKEND = previousBackend;
+    process.env.OMENA_SELECTED_QUERY_BACKEND = previousBackend;
   }
 }

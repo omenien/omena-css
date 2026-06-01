@@ -202,8 +202,8 @@ describe("planCodeActions", () => {
   });
 
   it("routes style refactor actions through omena-query when rust selected-query is active", () => {
-    const previousBackend = process.env.CME_SELECTED_QUERY_BACKEND;
-    process.env.CME_SELECTED_QUERY_BACKEND = "rust-selected-query";
+    const previousBackend = process.env.OMENA_SELECTED_QUERY_BACKEND;
+    process.env.OMENA_SELECTED_QUERY_BACKEND = "rust-selected-query";
     const calls: unknown[] = [];
     try {
       const result = planCodeActions(
@@ -274,9 +274,9 @@ describe("planCodeActions", () => {
       ]);
     } finally {
       if (previousBackend === undefined) {
-        delete process.env.CME_SELECTED_QUERY_BACKEND;
+        delete process.env.OMENA_SELECTED_QUERY_BACKEND;
       } else {
-        process.env.CME_SELECTED_QUERY_BACKEND = previousBackend;
+        process.env.OMENA_SELECTED_QUERY_BACKEND = previousBackend;
       }
     }
   });

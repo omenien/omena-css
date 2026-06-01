@@ -451,14 +451,14 @@ function assertDefaultHostPathHasNoNodeWorkspaceResolver(root: string): void {
   const extensionSource = readRepoFile(root, "client/src/extension.ts");
   assert.doesNotMatch(
     extensionSource,
-    /\btypeFactMaxSyncProgramFiles\b|CME_TYPE_FACT_MAX_SYNC_PROGRAM_FILES/u,
+    /\btypeFactMaxSyncProgramFiles\b|OMENA_TYPE_FACT_MAX_SYNC_PROGRAM_FILES/u,
     "VS Code thin client must not expose sync TypeScript program budget settings",
   );
 
   const typeFactConfigSource = readRepoFile(root, "client/src/type-fact-backend-config.ts");
   assert.doesNotMatch(
     typeFactConfigSource,
-    /typescript-current|CME_TYPE_FACT_MAX_SYNC_PROGRAM_FILES|readTypeFactMaxSyncProgramFilesSetting/u,
+    /typescript-current|OMENA_TYPE_FACT_MAX_SYNC_PROGRAM_FILES|readTypeFactMaxSyncProgramFilesSetting/u,
     "client type-fact config must expose only tsgo-backed product modes",
   );
 

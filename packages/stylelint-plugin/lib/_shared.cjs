@@ -109,8 +109,8 @@ function readDirectStyleDiagnostics(filePath, ruleOptions, includeCodes, sourceT
     includeCodes: [...includeCodes].toSorted(),
     workspaceStylePaths: workspaceStylePathSignature(workspaceStylePaths),
     workspaceSourceDocumentPaths: workspaceStylePathSignature(workspaceSourceDocumentPaths),
-    backend: process.env.CME_STYLELINT_QUERY_BACKEND ?? null,
-    cli: process.env.CME_OMENA_CLI_BIN ?? null,
+    backend: process.env.OMENA_STYLELINT_QUERY_BACKEND ?? null,
+    cli: process.env.OMENA_CLI_BIN ?? null,
   });
   const cached = DIRECT_STYLE_DIAGNOSTICS_CACHE.get(cacheKey);
   if (cached) return cached;
@@ -145,9 +145,9 @@ function readDirectStyleDiagnostics(filePath, ruleOptions, includeCodes, sourceT
 
 function canUseDirectStyleDiagnostics(includeCodes) {
   if (!includeCodes.every((code) => DIRECT_STYLE_DIAGNOSTIC_CODES.has(code))) return false;
-  if (process.env.CME_STYLELINT_QUERY_BACKEND === "legacy") return false;
-  if (process.env.CME_STYLELINT_QUERY_BACKEND === "omena-cli") return true;
-  return Boolean(process.env.CME_OMENA_CLI_BIN);
+  if (process.env.OMENA_STYLELINT_QUERY_BACKEND === "legacy") return false;
+  if (process.env.OMENA_STYLELINT_QUERY_BACKEND === "omena-cli") return true;
+  return Boolean(process.env.OMENA_CLI_BIN);
 }
 
 function readOmenaCliStyleDiagnostics(
@@ -174,7 +174,7 @@ function readOmenaCliStyleDiagnostics(
     });
     return JSON.parse(stdout);
   } catch (error) {
-    if (process.env.CME_STYLELINT_QUERY_BACKEND === "omena-cli") {
+    if (process.env.OMENA_STYLELINT_QUERY_BACKEND === "omena-cli") {
       throw error;
     }
     return null;
@@ -182,12 +182,12 @@ function readOmenaCliStyleDiagnostics(
 }
 
 function resolveOmenaCliInvocation() {
-  if (process.env.CME_OMENA_CLI_BIN) {
-    return { command: process.env.CME_OMENA_CLI_BIN, args: [] };
+  if (process.env.OMENA_CLI_BIN) {
+    return { command: process.env.OMENA_CLI_BIN, args: [] };
   }
 
   const manifestPath = path.join(REPO_ROOT, "rust/Cargo.toml");
-  if (process.env.CME_STYLELINT_QUERY_BACKEND === "omena-cli" && fs.existsSync(manifestPath)) {
+  if (process.env.OMENA_STYLELINT_QUERY_BACKEND === "omena-cli" && fs.existsSync(manifestPath)) {
     return {
       command: "cargo",
       args: ["run", "--manifest-path", manifestPath, "-p", "omena-cli", "--quiet", "--"],

@@ -137,7 +137,7 @@ describe("resolveSourceExpressionReferences", () => {
     expect(
       resolveSourceExpressionReferences(ctx!, cursor, deps, {
         env: {
-          CME_SELECTED_QUERY_BACKEND: "rust-source-resolution",
+          OMENA_SELECTED_QUERY_BACKEND: "rust-source-resolution",
         } as NodeJS.ProcessEnv,
         readRustSourceResolutionSelectorMatch: () => ({
           styleFilePath: "/fake/src/Button.module.scss",
@@ -177,7 +177,7 @@ describe("resolveSourceExpressionReferences", () => {
     expect(
       resolveSourceExpressionReferences(ctx!, cursor, deps, {
         env: {
-          CME_SELECTED_QUERY_BACKEND: "rust-selector-usage",
+          OMENA_SELECTED_QUERY_BACKEND: "rust-selector-usage",
         } as NodeJS.ProcessEnv,
         readRustSelectorUsagePayloadForWorkspaceTarget: () => ({
           canonicalName: "indicator",
@@ -251,7 +251,7 @@ describe("resolveSourceExpressionReferences", () => {
     expect(
       resolveSourceExpressionReferences(ctx!, cursor, deps, {
         env: {
-          CME_SELECTED_QUERY_BACKEND: "rust-selected-query",
+          OMENA_SELECTED_QUERY_BACKEND: "rust-selected-query",
         } as NodeJS.ProcessEnv,
         readRustSourceResolutionSelectorMatch: () => ({
           styleFilePath: "/fake/src/Button.module.scss",
@@ -313,7 +313,7 @@ describe("resolveSourceExpressionReferences", () => {
     expect(
       resolveSourceExpressionReferences(ctx!, cursor, deps, {
         env: {
-          CME_SELECTED_QUERY_BACKEND: "rust-selected-query",
+          OMENA_SELECTED_QUERY_BACKEND: "rust-selected-query",
         } as NodeJS.ProcessEnv,
         readRustSourceResolutionSelectorMatch: () => ({
           styleFilePath: "/fake/src/Button.module.scss",

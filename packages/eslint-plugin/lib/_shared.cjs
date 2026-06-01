@@ -101,8 +101,8 @@ function readDirectSourceDiagnostics(context, ruleOptions) {
     sourceText: context.sourceCode.text,
     includeCodes: [...includeCodes].toSorted(),
     workspaceStylePaths: workspacePathSignature(workspaceStylePaths),
-    backend: process.env.CME_ESLINT_QUERY_BACKEND ?? null,
-    cli: process.env.CME_OMENA_CLI_BIN ?? null,
+    backend: process.env.OMENA_ESLINT_QUERY_BACKEND ?? null,
+    cli: process.env.OMENA_CLI_BIN ?? null,
   });
   const cached = DIRECT_SOURCE_DIAGNOSTICS_CACHE.get(cacheKey);
   if (cached) return cached;
@@ -133,9 +133,9 @@ function readDirectSourceDiagnostics(context, ruleOptions) {
 function canUseDirectSourceDiagnostics(includeCodes) {
   if (!Array.isArray(includeCodes) || includeCodes.length === 0) return false;
   if (!includeCodes.every((code) => DIRECT_SOURCE_DIAGNOSTIC_CODES.has(code))) return false;
-  if (process.env.CME_ESLINT_QUERY_BACKEND === "legacy") return false;
-  if (process.env.CME_ESLINT_QUERY_BACKEND === "omena-cli") return true;
-  return Boolean(process.env.CME_OMENA_CLI_BIN);
+  if (process.env.OMENA_ESLINT_QUERY_BACKEND === "legacy") return false;
+  if (process.env.OMENA_ESLINT_QUERY_BACKEND === "omena-cli") return true;
+  return Boolean(process.env.OMENA_CLI_BIN);
 }
 
 function readOmenaCliSourceDiagnostics(filePath, ruleOptions, workspaceStylePaths) {
@@ -161,7 +161,7 @@ function readOmenaCliSourceDiagnostics(filePath, ruleOptions, workspaceStylePath
     });
     return JSON.parse(stdout);
   } catch (error) {
-    if (process.env.CME_ESLINT_QUERY_BACKEND === "omena-cli") {
+    if (process.env.OMENA_ESLINT_QUERY_BACKEND === "omena-cli") {
       throw error;
     }
     return null;
@@ -169,12 +169,12 @@ function readOmenaCliSourceDiagnostics(filePath, ruleOptions, workspaceStylePath
 }
 
 function resolveOmenaCliInvocation() {
-  if (process.env.CME_OMENA_CLI_BIN) {
-    return { command: process.env.CME_OMENA_CLI_BIN, args: [] };
+  if (process.env.OMENA_CLI_BIN) {
+    return { command: process.env.OMENA_CLI_BIN, args: [] };
   }
 
   const manifestPath = path.join(REPO_ROOT, "rust/Cargo.toml");
-  if (process.env.CME_ESLINT_QUERY_BACKEND === "omena-cli" && fs.existsSync(manifestPath)) {
+  if (process.env.OMENA_ESLINT_QUERY_BACKEND === "omena-cli" && fs.existsSync(manifestPath)) {
     return {
       command: "cargo",
       args: ["run", "--manifest-path", manifestPath, "-p", "omena-cli", "--quiet", "--"],

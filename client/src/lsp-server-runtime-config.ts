@@ -85,7 +85,7 @@ export function resolveLspServerRuntimeSelection(
     throw new Error(
       [
         `omena.lspServerRuntime=${runtime} requires an omena-lsp-server binary.`,
-        "Run pnpm build, set CME_OMENA_LSP_SERVER_PATH to an explicit binary, or set CME_OMENA_LSP_SERVER_COMMAND to a command on PATH.",
+        "Run pnpm build, set OMENA_LSP_SERVER_PATH to an explicit binary, or set OMENA_LSP_SERVER_COMMAND to a command on PATH.",
       ].join("\n"),
     );
   }
@@ -129,14 +129,14 @@ export function resolveOmenaLspServerPath(
   env: NodeJS.ProcessEnv = process.env,
   fileExists: (path: string) => boolean = existsSync,
 ): string | null {
-  const explicitCommand = env.CME_OMENA_LSP_SERVER_COMMAND?.trim();
+  const explicitCommand = env.OMENA_LSP_SERVER_COMMAND?.trim();
   if (explicitCommand) return explicitCommand;
 
-  const explicitPath = env.CME_OMENA_LSP_SERVER_PATH?.trim();
+  const explicitPath = env.OMENA_LSP_SERVER_PATH?.trim();
   if (explicitPath) {
     const resolved = path.resolve(extensionRoot, explicitPath);
     if (fileExists(resolved)) return resolved;
-    throw new Error(`CME_OMENA_LSP_SERVER_PATH points to a missing binary: ${resolved}`);
+    throw new Error(`OMENA_LSP_SERVER_PATH points to a missing binary: ${resolved}`);
   }
 
   const binaryName = process.platform === "win32" ? "omena-lsp-server.exe" : "omena-lsp-server";

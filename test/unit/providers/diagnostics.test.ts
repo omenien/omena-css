@@ -166,8 +166,8 @@ describe("computeDiagnostics", () => {
   });
 
   it("uses omena-query source diagnostics while preserving checker quick-fix data", async () => {
-    const previousBackend = process.env.CME_SELECTED_QUERY_BACKEND;
-    process.env.CME_SELECTED_QUERY_BACKEND = "rust-selected-query";
+    const previousBackend = process.env.OMENA_SELECTED_QUERY_BACKEND;
+    process.env.OMENA_SELECTED_QUERY_BACKEND = "rust-selected-query";
     const BUFFER_SCSS = ".indicator {}\n";
     const DISK_SCSS = ".indicator {}\n.legacy {}\n";
     const commands: string[] = [];
@@ -285,9 +285,9 @@ describe("computeDiagnostics", () => {
       expect(result.some((diagnostic) => diagnostic.message.includes("directOnly"))).toBe(false);
     } finally {
       if (previousBackend === undefined) {
-        delete process.env.CME_SELECTED_QUERY_BACKEND;
+        delete process.env.OMENA_SELECTED_QUERY_BACKEND;
       } else {
-        process.env.CME_SELECTED_QUERY_BACKEND = previousBackend;
+        process.env.OMENA_SELECTED_QUERY_BACKEND = previousBackend;
       }
     }
   });

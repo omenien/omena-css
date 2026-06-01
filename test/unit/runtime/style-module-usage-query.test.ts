@@ -27,7 +27,7 @@ describe("style module usage query", () => {
     });
 
     const unused = resolveUnusedStyleSelectors({ scssPath: SCSS_PATH, styleDocument }, deps, {
-      env: { CME_SELECTED_QUERY_BACKEND: "rust-selector-usage" } as NodeJS.ProcessEnv,
+      env: { OMENA_SELECTED_QUERY_BACKEND: "rust-selector-usage" } as NodeJS.ProcessEnv,
       readRustSelectorUsagePayloadForWorkspaceTarget: (_args, _deps, _filePath, canonicalName) =>
         canonicalName === "indicator"
           ? {
@@ -80,7 +80,7 @@ describe("style module usage query", () => {
     });
 
     const unused = resolveUnusedStyleSelectors({ scssPath: SCSS_PATH, styleDocument }, deps, {
-      env: { CME_SELECTED_QUERY_BACKEND: "rust-selector-usage" } as NodeJS.ProcessEnv,
+      env: { OMENA_SELECTED_QUERY_BACKEND: "rust-selector-usage" } as NodeJS.ProcessEnv,
       readRustSelectorUsagePayloadForWorkspaceTarget: (_args, _deps, _filePath, canonicalName) => ({
         canonicalName,
         totalReferences: canonicalName === "indicator" ? 1 : 0,
@@ -120,7 +120,7 @@ describe("style module usage query", () => {
     let payloadReads = 0;
 
     const unused = resolveUnusedStyleSelectors({ scssPath: SCSS_PATH, styleDocument }, deps, {
-      env: { CME_SELECTED_QUERY_BACKEND: "rust-selector-usage" } as NodeJS.ProcessEnv,
+      env: { OMENA_SELECTED_QUERY_BACKEND: "rust-selector-usage" } as NodeJS.ProcessEnv,
       readRustSelectorUsagePayloadsForWorkspaceTarget: () => {
         payloadReads += 1;
         return [
@@ -156,7 +156,7 @@ describe("style module usage query", () => {
     });
 
     const unused = resolveUnusedStyleSelectors({ scssPath: SCSS_PATH, styleDocument }, deps, {
-      env: { CME_SELECTED_QUERY_BACKEND: "rust-selected-query" } as NodeJS.ProcessEnv,
+      env: { OMENA_SELECTED_QUERY_BACKEND: "rust-selected-query" } as NodeJS.ProcessEnv,
       readRustStyleSemanticGraphForWorkspaceTarget: () => makeReferenceGraph(),
       readRustSelectorUsagePayloadForWorkspaceTarget: () => {
         throw new Error("unexpected selector-usage fallback");
@@ -193,7 +193,7 @@ describe("style module usage query", () => {
     });
 
     const unused = resolveUnusedStyleSelectors({ scssPath: SCSS_PATH, styleDocument }, deps, {
-      env: { CME_SELECTED_QUERY_BACKEND: "rust-selected-query" } as NodeJS.ProcessEnv,
+      env: { OMENA_SELECTED_QUERY_BACKEND: "rust-selected-query" } as NodeJS.ProcessEnv,
       readRustStyleSemanticGraphForWorkspaceTarget: () => makeReferenceGraph({ indicator: false }),
       readRustSelectorUsagePayloadForWorkspaceTarget: () => {
         throw new Error("unexpected selector-usage fallback");
@@ -231,7 +231,7 @@ describe("style module usage query", () => {
     });
 
     const unused = resolveUnusedStyleSelectors({ scssPath: SCSS_PATH, styleDocument }, deps, {
-      env: { CME_SELECTED_QUERY_BACKEND: "rust-selected-query" } as NodeJS.ProcessEnv,
+      env: { OMENA_SELECTED_QUERY_BACKEND: "rust-selected-query" } as NodeJS.ProcessEnv,
       readRustStyleSemanticGraphForWorkspaceTarget: () => {
         throw new Error("unexpected rust graph read");
       },
@@ -266,7 +266,7 @@ describe("style module usage query", () => {
     });
 
     const unused = resolveUnusedStyleSelectors({ scssPath: SCSS_PATH, styleDocument }, deps, {
-      env: { CME_SELECTED_QUERY_BACKEND: "rust-selector-usage" } as NodeJS.ProcessEnv,
+      env: { OMENA_SELECTED_QUERY_BACKEND: "rust-selector-usage" } as NodeJS.ProcessEnv,
       readRustSelectorUsagePayloadForWorkspaceTarget: () => null,
     });
 

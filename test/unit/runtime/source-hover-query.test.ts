@@ -173,7 +173,7 @@ describe("resolveSourceExpressionHoverResult", () => {
     expect(ctx).not.toBeNull();
     const result = resolveSourceExpressionHoverResult(ctx!, params, deps, {
       env: {
-        CME_SELECTED_QUERY_BACKEND: "rust-source-resolution",
+        OMENA_SELECTED_QUERY_BACKEND: "rust-source-resolution",
       } as NodeJS.ProcessEnv,
       readRustSourceResolutionSelectorMatch: () => ({
         styleFilePath: "/fake/src/Button.module.scss",
@@ -205,7 +205,7 @@ describe("resolveSourceExpressionHoverResult", () => {
     expect(ctx).not.toBeNull();
     const result = resolveSourceExpressionHoverResult(ctx!, params, deps, {
       env: {
-        CME_SELECTED_QUERY_BACKEND: "rust-source-resolution",
+        OMENA_SELECTED_QUERY_BACKEND: "rust-source-resolution",
       } as NodeJS.ProcessEnv,
       readRustSourceResolutionSelectorMatch: () => ({
         styleFilePath: "/fake/src/Button.module.scss",
@@ -235,7 +235,7 @@ describe("resolveSourceExpressionHoverResult", () => {
     expect(ctx).not.toBeNull();
     const result = resolveSourceExpressionHoverResult(ctx!, params, deps, {
       env: {
-        CME_SELECTED_QUERY_BACKEND: "rust-expression-semantics",
+        OMENA_SELECTED_QUERY_BACKEND: "rust-expression-semantics",
       } as NodeJS.ProcessEnv,
       readRustExpressionSemanticsPayload: () => ({
         expressionId: "expr-1",
@@ -299,7 +299,7 @@ describe("resolveSourceExpressionHoverResult", () => {
     expect(ctx).not.toBeNull();
     const result = resolveSourceExpressionHoverResult(ctx!, params, deps, {
       env: {
-        CME_SELECTED_QUERY_BACKEND: "rust-selected-query",
+        OMENA_SELECTED_QUERY_BACKEND: "rust-selected-query",
       } as NodeJS.ProcessEnv,
       readRustExpressionSemanticsPayload: (_document, id) => {
         expressionId = id;
@@ -368,7 +368,7 @@ describe("resolveSourceExpressionHoverResult", () => {
     expect(ctx).not.toBeNull();
     const result = resolveSourceExpressionHoverResult(ctx!, params, deps, {
       env: {
-        CME_SELECTED_QUERY_BACKEND: "rust-selected-query",
+        OMENA_SELECTED_QUERY_BACKEND: "rust-selected-query",
       } as NodeJS.ProcessEnv,
       readRustExpressionSemanticsPayload: () => ({
         expressionId: "expr-1",

@@ -160,7 +160,7 @@ describe("source rename query", () => {
     expect(ctx).not.toBeNull();
     const options = {
       env: {
-        CME_SELECTED_QUERY_BACKEND: "rust-source-resolution",
+        OMENA_SELECTED_QUERY_BACKEND: "rust-source-resolution",
       } as NodeJS.ProcessEnv,
       readRustSourceResolutionSelectorMatch: () => ({
         styleFilePath: "/fake/src/Button.module.scss",
@@ -205,7 +205,7 @@ describe("source rename query", () => {
     expect(ctx).not.toBeNull();
     const plan = planSourceExpressionRename(ctx!, cursor, deps, "status", {
       env: {
-        CME_SELECTED_QUERY_BACKEND: "rust-selected-query",
+        OMENA_SELECTED_QUERY_BACKEND: "rust-selected-query",
       } as NodeJS.ProcessEnv,
       readRustSourceResolutionSelectorMatch: () => ({
         styleFilePath: "/fake/src/Button.module.scss",
@@ -253,7 +253,7 @@ describe("source rename query", () => {
     expect(ctx).not.toBeNull();
     const target = readSourceExpressionRenameTarget(ctx!, cursor, deps, {
       env: {
-        CME_SELECTED_QUERY_BACKEND: "rust-selected-query",
+        OMENA_SELECTED_QUERY_BACKEND: "rust-selected-query",
       } as NodeJS.ProcessEnv,
       readRustSourceResolutionSelectorMatch: () => ({
         styleFilePath: "/fake/src/Button.module.scss",

@@ -163,7 +163,7 @@ describe("resolveSourceExpressionDefinitionTargets", () => {
     expect(ctx).not.toBeNull();
     const targets = resolveSourceExpressionDefinitionTargets(ctx!, baseParams, deps, {
       env: {
-        CME_SELECTED_QUERY_BACKEND: "rust-source-resolution",
+        OMENA_SELECTED_QUERY_BACKEND: "rust-source-resolution",
       } as NodeJS.ProcessEnv,
       readRustSourceResolutionSelectorMatch: (_document) => ({
         styleFilePath: "/fake/src/Button.module.scss",
@@ -199,7 +199,7 @@ describe("resolveSourceExpressionDefinitionTargets", () => {
     expect(ctx).not.toBeNull();
     const targets = await resolveSourceExpressionDefinitionTargetsAsync(ctx!, baseParams, deps, {
       env: {
-        CME_SELECTED_QUERY_BACKEND: "rust-source-resolution",
+        OMENA_SELECTED_QUERY_BACKEND: "rust-source-resolution",
       } as NodeJS.ProcessEnv,
       runRustSelectedQueryBackendJsonAsync: async () => {
         rustRunnerCalled = true;

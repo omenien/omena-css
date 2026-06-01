@@ -128,7 +128,7 @@ describe("buildSelectedQueryResultsV2", () => {
       semanticReferenceIndex: deps.semanticReferenceIndex,
       styleDependencyGraph: deps.styleDependencyGraph,
       env: {
-        CME_SELECTED_QUERY_BACKEND: "rust-source-resolution",
+        OMENA_SELECTED_QUERY_BACKEND: "rust-source-resolution",
       } as NodeJS.ProcessEnv,
       readRustSourceResolutionPayload: () => ({
         expressionId: "expr-1",
@@ -183,7 +183,7 @@ describe("buildSelectedQueryResultsV2", () => {
       semanticReferenceIndex: deps.semanticReferenceIndex,
       styleDependencyGraph: deps.styleDependencyGraph,
       env: {
-        CME_SELECTED_QUERY_BACKEND: "rust-expression-semantics",
+        OMENA_SELECTED_QUERY_BACKEND: "rust-expression-semantics",
       } as NodeJS.ProcessEnv,
       readRustExpressionSemanticsPayload: () => ({
         expressionId: "expr-1",
@@ -252,7 +252,7 @@ describe("buildSelectedQueryResultsV2", () => {
       semanticReferenceIndex: deps.semanticReferenceIndex,
       styleDependencyGraph: deps.styleDependencyGraph,
       env: {
-        CME_SELECTED_QUERY_BACKEND: "rust-selector-usage",
+        OMENA_SELECTED_QUERY_BACKEND: "rust-selector-usage",
       } as NodeJS.ProcessEnv,
       readRustSelectorUsagePayload: (_options, filePath, canonicalName) => ({
         canonicalName,
@@ -314,7 +314,7 @@ describe("buildSelectedQueryResultsV2", () => {
       semanticReferenceIndex: deps.semanticReferenceIndex,
       styleDependencyGraph: deps.styleDependencyGraph,
       env: {
-        CME_SELECTED_QUERY_BACKEND: "rust-selected-query",
+        OMENA_SELECTED_QUERY_BACKEND: "rust-selected-query",
       } as NodeJS.ProcessEnv,
       readRustSourceResolutionPayloads: () => {
         sourceResolutionPayloadReads += 1;
@@ -372,7 +372,7 @@ describe("buildSelectedQueryResultsV2", () => {
       semanticReferenceIndex: deps.semanticReferenceIndex,
       styleDependencyGraph: deps.styleDependencyGraph,
       env: {
-        CME_SELECTED_QUERY_BACKEND: "rust-selected-query",
+        OMENA_SELECTED_QUERY_BACKEND: "rust-selected-query",
       } as NodeJS.ProcessEnv,
       readRustSourceResolutionPayloads: () => [
         makeSourceResolutionPayload("class-expr:0", "indicator"),

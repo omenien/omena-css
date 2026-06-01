@@ -21,5 +21,5 @@ directly, so the source of truth remains `omena-query`.
 }
 ```
 
-Set `CME_OMENA_CLI_BIN=/path/to/omena`, or the rule-level `omenaBin` option, to
+Set `OMENA_CLI_BIN=/path/to/omena`, or the rule-level `omenaBin` option, to
 use a prebuilt CLI binary instead of the local Cargo fallback.

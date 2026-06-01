@@ -218,7 +218,7 @@ const issue38RegressionRequirements = [
 for (const marker of issue38RegressionRequirements) {
   assertIncludes(typeFactProtocolScript, marker, `#38 protocol gate must cover ${marker}`);
 }
-for (const marker of ["CME_OMENA_LSP_SERVER_PATH", "CME_OMENA_LSP_SERVER_CWD"] as const) {
+for (const marker of ["OMENA_LSP_SERVER_PATH", "OMENA_LSP_SERVER_CWD"] as const) {
   assertIncludes(typeFactProtocolScript, marker, `#38 protocol gate must support ${marker}`);
 }
 

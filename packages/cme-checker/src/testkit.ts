@@ -8,7 +8,7 @@ export interface CmeCheckerTestkitArchetypeV0 {
   readonly fixture: string;
 }
 
-export const CME_CHECKER_TESTKIT_ARCHETYPES = [
+export const OMENA_CHECKER_TESTKIT_ARCHETYPES = [
   {
     label: "testkit-source-missing-static-class",
     bundle: "source-missing",

@@ -34,10 +34,10 @@ const STYLE_SOURCE = `
 .tie { color: red; color: green; }
 `;
 
-const previousBackend = process.env.CME_SELECTED_QUERY_BACKEND;
-const previousDaemon = process.env.CME_ENGINE_SHADOW_RUNNER_DAEMON;
-process.env.CME_SELECTED_QUERY_BACKEND = "rust-selected-query";
-process.env.CME_ENGINE_SHADOW_RUNNER_DAEMON = "0";
+const previousBackend = process.env.OMENA_SELECTED_QUERY_BACKEND;
+const previousDaemon = process.env.OMENA_ENGINE_SHADOW_RUNNER_DAEMON;
+process.env.OMENA_SELECTED_QUERY_BACKEND = "rust-selected-query";
+process.env.OMENA_ENGINE_SHADOW_RUNNER_DAEMON = "0";
 
 main().catch((err: unknown) => {
   console.error(err);
@@ -120,14 +120,14 @@ async function main(): Promise<void> {
     );
   } finally {
     if (previousBackend === undefined) {
-      delete process.env.CME_SELECTED_QUERY_BACKEND;
+      delete process.env.OMENA_SELECTED_QUERY_BACKEND;
     } else {
-      process.env.CME_SELECTED_QUERY_BACKEND = previousBackend;
+      process.env.OMENA_SELECTED_QUERY_BACKEND = previousBackend;
     }
     if (previousDaemon === undefined) {
-      delete process.env.CME_ENGINE_SHADOW_RUNNER_DAEMON;
+      delete process.env.OMENA_ENGINE_SHADOW_RUNNER_DAEMON;
     } else {
-      process.env.CME_ENGINE_SHADOW_RUNNER_DAEMON = previousDaemon;
+      process.env.OMENA_ENGINE_SHADOW_RUNNER_DAEMON = previousDaemon;
     }
   }
 }

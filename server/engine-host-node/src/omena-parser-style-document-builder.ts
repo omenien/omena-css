@@ -24,13 +24,13 @@ export function resolveRuntimeStyleDocumentBuilder(
   env: NodeJS.ProcessEnv = process.env,
   fileExists?: (filePath: string) => boolean,
 ): StyleDocumentBuilder | undefined {
-  const value = env.CME_STYLE_DOCUMENT_BUILDER?.trim();
+  const value = env.OMENA_STYLE_DOCUMENT_BUILDER?.trim();
   if (value === "typescript-current") return undefined;
   if (value === "omena-parser") return buildStyleDocumentWithOmenaParser;
   if (!value && isPackagedExtensionRuntime(env, fileExists))
     return buildStyleDocumentWithOmenaParser;
   if (!value) return undefined;
-  throw new Error(`Unknown CME_STYLE_DOCUMENT_BUILDER: ${value}`);
+  throw new Error(`Unknown OMENA_STYLE_DOCUMENT_BUILDER: ${value}`);
 }
 
 interface ParserPositionV0 {

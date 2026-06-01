@@ -119,7 +119,7 @@ export function createServer(options: CreateServerOptions): CreatedServer {
     getRegistry: () => registry,
   });
 
-  if (process.env.CME_LSP_RUNTIME_LOOP_PROBE === "1") {
+  if (process.env.OMENA_LSP_RUNTIME_LOOP_PROBE === "1") {
     connection.onRequest(RUNTIME_LOOP_PROBE_REQUEST, () => ({
       now: Date.now(),
     }));

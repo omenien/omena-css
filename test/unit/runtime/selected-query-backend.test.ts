@@ -32,7 +32,7 @@ describe("selected query backend", () => {
     expect(
       resolveSelectedQueryBackendKind(
         {
-          CME_PROJECT_ROOT: "/workspace/css-module-explainer",
+          OMENA_PROJECT_ROOT: "/workspace/css-module-explainer",
         } as NodeJS.ProcessEnv,
         (filePath) =>
           filePath.includes("dist/bin") ||
@@ -47,7 +47,7 @@ describe("selected query backend", () => {
     const projectRoot = path.join("/extension", "css-module-explainer");
     expect(
       resolveSelectedQueryBackendKind(
-        { CME_PROJECT_ROOT: projectRoot } as NodeJS.ProcessEnv,
+        { OMENA_PROJECT_ROOT: projectRoot } as NodeJS.ProcessEnv,
         (filePath) =>
           filePath.includes("dist/bin") || filePath.endsWith("dist/client/extension.js"),
       ),
@@ -58,8 +58,8 @@ describe("selected query backend", () => {
     expect(
       resolveSelectedQueryBackendKind(
         {
-          CME_SELECTED_QUERY_BACKEND: "auto",
-          CME_PROJECT_ROOT: "/extension/css-module-explainer",
+          OMENA_SELECTED_QUERY_BACKEND: "auto",
+          OMENA_PROJECT_ROOT: "/extension/css-module-explainer",
         } as NodeJS.ProcessEnv,
         (filePath) => filePath.includes("dist/bin"),
       ),
@@ -67,8 +67,8 @@ describe("selected query backend", () => {
     expect(
       resolveSelectedQueryBackendKind(
         {
-          CME_SELECTED_QUERY_BACKEND: "auto",
-          CME_PROJECT_ROOT: "/extension/css-module-explainer",
+          OMENA_SELECTED_QUERY_BACKEND: "auto",
+          OMENA_PROJECT_ROOT: "/extension/css-module-explainer",
         } as NodeJS.ProcessEnv,
         () => false,
       ),
@@ -79,8 +79,8 @@ describe("selected query backend", () => {
     expect(
       resolveSelectedQueryBackendKind(
         {
-          CME_SELECTED_QUERY_BACKEND: "typescript-current",
-          CME_PROJECT_ROOT: "/extension/css-module-explainer",
+          OMENA_SELECTED_QUERY_BACKEND: "typescript-current",
+          OMENA_PROJECT_ROOT: "/extension/css-module-explainer",
         } as NodeJS.ProcessEnv,
         (filePath) => filePath.includes("dist/bin"),
       ),
@@ -89,7 +89,7 @@ describe("selected query backend", () => {
 
   it("treats rust-selected-query as the unified Rust backend", () => {
     const kind = resolveSelectedQueryBackendKind({
-      CME_SELECTED_QUERY_BACKEND: "rust-selected-query",
+      OMENA_SELECTED_QUERY_BACKEND: "rust-selected-query",
     } as NodeJS.ProcessEnv);
 
     expect(kind).toBe("rust-selected-query");
@@ -118,7 +118,7 @@ describe("selected query backend", () => {
     expect(
       canUsePrebuiltEngineShadowRunner(
         {
-          CME_PROJECT_ROOT: "/extension/css-module-explainer",
+          OMENA_PROJECT_ROOT: "/extension/css-module-explainer",
         } as NodeJS.ProcessEnv,
         (filePath) => filePath.includes("dist/bin"),
       ),
@@ -130,13 +130,13 @@ describe("selected query backend", () => {
     const projectRoot = path.join("/extension", "css-module-explainer");
     expect(
       isPackagedExtensionRuntime(
-        { CME_PROJECT_ROOT: projectRoot } as NodeJS.ProcessEnv,
+        { OMENA_PROJECT_ROOT: projectRoot } as NodeJS.ProcessEnv,
         (filePath) => filePath.endsWith("dist/client/extension.js"),
       ),
     ).toBe(true);
     expect(
       isPackagedExtensionRuntime(
-        { CME_PROJECT_ROOT: projectRoot } as NodeJS.ProcessEnv,
+        { OMENA_PROJECT_ROOT: projectRoot } as NodeJS.ProcessEnv,
         (filePath) =>
           filePath.endsWith("dist/client/extension.js") || filePath.endsWith("rust/Cargo.toml"),
       ),
@@ -147,8 +147,8 @@ describe("selected query backend", () => {
     const invocation = buildEngineShadowRunnerInvocation(
       "input-source-resolution-canonical-producer",
       {
-        CME_ENGINE_SHADOW_RUNNER: "",
-        CME_PROJECT_ROOT: "/workspace/css-module-explainer",
+        OMENA_ENGINE_SHADOW_RUNNER: "",
+        OMENA_PROJECT_ROOT: "/workspace/css-module-explainer",
       } as NodeJS.ProcessEnv,
     );
 
@@ -177,7 +177,7 @@ describe("selected query backend", () => {
     const invocation = buildEngineShadowRunnerInvocation(
       "omena-parser-css-modules-intermediate",
       {
-        CME_PROJECT_ROOT: projectRoot,
+        OMENA_PROJECT_ROOT: projectRoot,
       } as NodeJS.ProcessEnv,
       (filePath) => filePath === packagedRunner || filePath.endsWith("rust/Cargo.toml"),
     );
@@ -189,8 +189,8 @@ describe("selected query backend", () => {
 
   it("uses the daemon flag in cargo-run daemon mode", () => {
     const invocation = buildEngineShadowRunnerDaemonInvocation({
-      CME_ENGINE_SHADOW_RUNNER: "",
-      CME_PROJECT_ROOT: "/workspace/css-module-explainer",
+      OMENA_ENGINE_SHADOW_RUNNER: "",
+      OMENA_PROJECT_ROOT: "/workspace/css-module-explainer",
     } as NodeJS.ProcessEnv);
 
     expect(invocation.command).toBe("cargo");
@@ -217,7 +217,7 @@ describe("selected query backend", () => {
     const invocation = buildEngineShadowRunnerInvocation(
       "input-source-resolution-canonical-producer",
       {
-        CME_PROJECT_ROOT: projectRoot,
+        OMENA_PROJECT_ROOT: projectRoot,
       } as NodeJS.ProcessEnv,
       (filePath) => filePath === packagedRunner,
     );
@@ -237,7 +237,7 @@ describe("selected query backend", () => {
     );
     const invocation = buildEngineShadowRunnerDaemonInvocation(
       {
-        CME_PROJECT_ROOT: projectRoot,
+        OMENA_PROJECT_ROOT: projectRoot,
       } as NodeJS.ProcessEnv,
       (filePath) => filePath === packagedRunner,
     );
@@ -251,8 +251,8 @@ describe("selected query backend", () => {
     const invocation = buildEngineShadowRunnerInvocation(
       "input-selector-usage-canonical-producer",
       {
-        CME_ENGINE_SHADOW_RUNNER: "prebuilt",
-        CME_PROJECT_ROOT: "/workspace/css-module-explainer",
+        OMENA_ENGINE_SHADOW_RUNNER: "prebuilt",
+        OMENA_PROJECT_ROOT: "/workspace/css-module-explainer",
       } as NodeJS.ProcessEnv,
       () => true,
     );
@@ -267,8 +267,8 @@ describe("selected query backend", () => {
     const invocation = buildEngineShadowRunnerInvocation(
       "input-selector-usage-canonical-producer",
       {
-        CME_ENGINE_SHADOW_RUNNER: "prebuilt",
-        CME_ENGINE_SHADOW_RUNNER_PATH: runnerPath,
+        OMENA_ENGINE_SHADOW_RUNNER: "prebuilt",
+        OMENA_ENGINE_SHADOW_RUNNER_PATH: runnerPath,
       } as NodeJS.ProcessEnv,
       (filePath) => filePath === runnerPath,
     );
@@ -288,8 +288,8 @@ describe("selected query backend", () => {
     const invocation = buildEngineShadowRunnerInvocation(
       "input-expression-semantics-canonical-producer",
       {
-        CME_ENGINE_SHADOW_RUNNER: "prebuilt",
-        CME_PROJECT_ROOT: projectRoot,
+        OMENA_ENGINE_SHADOW_RUNNER: "prebuilt",
+        OMENA_PROJECT_ROOT: projectRoot,
       } as NodeJS.ProcessEnv,
       (filePath) => filePath === packagedRunner,
     );
@@ -303,7 +303,7 @@ describe("selected query backend", () => {
       buildEngineShadowRunnerInvocation(
         "input-expression-semantics-canonical-producer",
         {
-          CME_ENGINE_SHADOW_RUNNER: "prebuilt",
+          OMENA_ENGINE_SHADOW_RUNNER: "prebuilt",
         } as NodeJS.ProcessEnv,
         () => false,
       ),
@@ -348,10 +348,10 @@ process.stdin.on("end", () => {
         readonly command: string;
         readonly input: { readonly ok: true };
       }>("input-selector-usage-canonical-producer", { ok: true }, {
-        CME_ENGINE_SHADOW_RUNNER: "prebuilt",
-        CME_ENGINE_SHADOW_RUNNER_DAEMON: "0",
-        CME_ENGINE_SHADOW_RUNNER_PATH: runnerPath,
-        CME_PROJECT_ROOT: root,
+        OMENA_ENGINE_SHADOW_RUNNER: "prebuilt",
+        OMENA_ENGINE_SHADOW_RUNNER_DAEMON: "0",
+        OMENA_ENGINE_SHADOW_RUNNER_PATH: runnerPath,
+        OMENA_PROJECT_ROOT: root,
       } as NodeJS.ProcessEnv);
       const returnElapsedMs = Date.now() - started;
 
@@ -369,22 +369,22 @@ process.stdin.on("end", () => {
     expect(shouldUseEngineShadowRunnerDaemon({} as NodeJS.ProcessEnv)).toBe(false);
     expect(
       shouldUseEngineShadowRunnerDaemon({
-        CME_ENGINE_SHADOW_RUNNER_DAEMON: "1",
+        OMENA_ENGINE_SHADOW_RUNNER_DAEMON: "1",
       } as NodeJS.ProcessEnv),
     ).toBe(true);
     expect(
       shouldUseEngineShadowRunnerDaemon({
-        CME_ENGINE_SHADOW_RUNNER_DAEMON: "true",
+        OMENA_ENGINE_SHADOW_RUNNER_DAEMON: "true",
       } as NodeJS.ProcessEnv),
     ).toBe(true);
     expect(
       shouldUseEngineShadowRunnerDaemon({
-        CME_ENGINE_SHADOW_RUNNER_DAEMON: "on",
+        OMENA_ENGINE_SHADOW_RUNNER_DAEMON: "on",
       } as NodeJS.ProcessEnv),
     ).toBe(true);
     expect(
       shouldUseEngineShadowRunnerDaemon({
-        CME_ENGINE_SHADOW_RUNNER_DAEMON: "off",
+        OMENA_ENGINE_SHADOW_RUNNER_DAEMON: "off",
       } as NodeJS.ProcessEnv),
     ).toBe(false);
 
@@ -398,9 +398,9 @@ process.stdin.on("end", () => {
     expect(
       shouldUseEngineShadowRunnerDaemon(
         {
-          CME_ENGINE_SHADOW_RUNNER: "prebuilt",
-          CME_PROJECT_ROOT: projectRoot,
-          CME_SELECTED_QUERY_BACKEND: "rust-selected-query",
+          OMENA_ENGINE_SHADOW_RUNNER: "prebuilt",
+          OMENA_PROJECT_ROOT: projectRoot,
+          OMENA_SELECTED_QUERY_BACKEND: "rust-selected-query",
         } as NodeJS.ProcessEnv,
         (filePath) =>
           filePath === packagedRunner ||
@@ -411,10 +411,10 @@ process.stdin.on("end", () => {
     expect(
       shouldUseEngineShadowRunnerDaemon(
         {
-          CME_ENGINE_SHADOW_RUNNER: "prebuilt",
-          CME_ENGINE_SHADOW_RUNNER_DAEMON: "0",
-          CME_PROJECT_ROOT: projectRoot,
-          CME_SELECTED_QUERY_BACKEND: "rust-selected-query",
+          OMENA_ENGINE_SHADOW_RUNNER: "prebuilt",
+          OMENA_ENGINE_SHADOW_RUNNER_DAEMON: "0",
+          OMENA_PROJECT_ROOT: projectRoot,
+          OMENA_SELECTED_QUERY_BACKEND: "rust-selected-query",
         } as NodeJS.ProcessEnv,
         (filePath) => filePath === packagedRunner,
       ),
@@ -426,15 +426,15 @@ process.stdin.on("end", () => {
 
     expect(
       shouldUseEngineShadowRunnerDaemon(
-        { CME_PROJECT_ROOT: projectRoot } as NodeJS.ProcessEnv,
+        { OMENA_PROJECT_ROOT: projectRoot } as NodeJS.ProcessEnv,
         hasPackagedRuntimeFile,
       ),
     ).toBe(true);
     expect(
       shouldUseEngineShadowRunnerDaemon(
         {
-          CME_PROJECT_ROOT: projectRoot,
-          CME_ENGINE_SHADOW_RUNNER_DAEMON: "0",
+          OMENA_PROJECT_ROOT: projectRoot,
+          OMENA_ENGINE_SHADOW_RUNNER_DAEMON: "0",
         } as NodeJS.ProcessEnv,
         hasPackagedRuntimeFile,
       ),
@@ -445,7 +445,7 @@ process.stdin.on("end", () => {
     expect(shouldTraceEngineShadowRunnerDaemon({} as NodeJS.ProcessEnv)).toBe(false);
     expect(
       shouldTraceEngineShadowRunnerDaemon({
-        CME_ENGINE_SHADOW_RUNNER_DAEMON_TRACE: "1",
+        OMENA_ENGINE_SHADOW_RUNNER_DAEMON_TRACE: "1",
       } as NodeJS.ProcessEnv),
     ).toBe(true);
   });

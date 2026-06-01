@@ -8,7 +8,7 @@ export interface OmenaLspServerInvocation {
 export function resolveOmenaLspServerInvocation(
   env: NodeJS.ProcessEnv = process.env,
 ): OmenaLspServerInvocation {
-  const explicitPath = env.CME_OMENA_LSP_SERVER_PATH?.trim();
+  const explicitPath = env.OMENA_LSP_SERVER_PATH?.trim();
   if (explicitPath) {
     return {
       command: path.resolve(process.cwd(), explicitPath),

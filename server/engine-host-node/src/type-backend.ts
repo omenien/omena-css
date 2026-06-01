@@ -17,7 +17,7 @@ export interface TypeResolverSelection {
 export function resolveTypeFactBackendKind(
   env: NodeJS.ProcessEnv = process.env,
 ): TypeFactBackendKind {
-  const value = env.CME_TYPE_FACT_BACKEND ?? "tsgo";
+  const value = env.OMENA_TYPE_FACT_BACKEND ?? "tsgo";
   if (value === "typescript-current" || value === "tsgo") {
     return value;
   }

@@ -13,20 +13,20 @@ describe("client type-fact backend config", () => {
   it("maps bundled tsgo to the server env without workspace resolution", () => {
     expect(
       buildTypeFactBackendEnv("tsgo", {
-        CME_TSGO_RESOLUTION: "workspace",
+        OMENA_TSGO_RESOLUTION: "workspace",
       }),
     ).toMatchObject({
-      CME_TYPE_FACT_BACKEND: "tsgo",
+      OMENA_TYPE_FACT_BACKEND: "tsgo",
     });
     expect(
-      buildTypeFactBackendEnv("tsgo", { CME_TSGO_RESOLUTION: "workspace" }),
-    ).not.toHaveProperty("CME_TSGO_RESOLUTION");
+      buildTypeFactBackendEnv("tsgo", { OMENA_TSGO_RESOLUTION: "workspace" }),
+    ).not.toHaveProperty("OMENA_TSGO_RESOLUTION");
   });
 
   it("keeps workspace tsgo as an explicit power-user mode", () => {
     expect(buildTypeFactBackendEnv("tsgo-workspace", {})).toMatchObject({
-      CME_TYPE_FACT_BACKEND: "tsgo",
-      CME_TSGO_RESOLUTION: "workspace",
+      OMENA_TYPE_FACT_BACKEND: "tsgo",
+      OMENA_TSGO_RESOLUTION: "workspace",
     });
   });
 });

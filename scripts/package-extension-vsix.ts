@@ -52,7 +52,7 @@ try {
     )}\n`,
   );
 } finally {
-  if (process.env.CME_KEEP_VSIX_STAGE !== "1") {
+  if (process.env.OMENA_KEEP_VSIX_STAGE !== "1") {
     rmSync(stageRoot, { recursive: true, force: true });
   }
 }

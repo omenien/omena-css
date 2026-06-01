@@ -5,7 +5,7 @@ import path from "node:path";
 import { strict as assert } from "node:assert";
 import {
   assertCheckerCanonicalCandidateEqual,
-  CME_CHECKER_TESTKIT_ARCHETYPES,
+  OMENA_CHECKER_TESTKIT_ARCHETYPES,
   deriveCheckerCanonicalCandidate,
   type CmeCheckerBundleV0,
   type CmeCheckerTestkitArchetypeV0,
@@ -60,7 +60,7 @@ const STYLE_UNUSED_CODES = new Set(["unused-selector"]);
 
 void (async () => {
   const reports = [];
-  for (const archetype of CME_CHECKER_TESTKIT_ARCHETYPES) {
+  for (const archetype of OMENA_CHECKER_TESTKIT_ARCHETYPES) {
     // oxlint-disable-next-line no-await-in-loop
     reports.push(await validateArchetype(archetype));
   }

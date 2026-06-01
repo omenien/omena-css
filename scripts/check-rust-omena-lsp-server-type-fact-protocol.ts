@@ -13,10 +13,10 @@ const repoRoot = process.cwd();
 const platformDir = `${process.platform}-${process.arch}`;
 const serverBinaryName = process.platform === "win32" ? "omena-lsp-server.exe" : "omena-lsp-server";
 const serverPath = resolvePathOverride(
-  process.env.CME_OMENA_LSP_SERVER_PATH,
+  process.env.OMENA_LSP_SERVER_PATH,
   path.join(repoRoot, "dist", "bin", platformDir, serverBinaryName),
 );
-const serverCwd = resolvePathOverride(process.env.CME_OMENA_LSP_SERVER_CWD, repoRoot);
+const serverCwd = resolvePathOverride(process.env.OMENA_LSP_SERVER_CWD, repoRoot);
 
 if (!existsSync(serverPath)) {
   throw new Error(

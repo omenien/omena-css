@@ -112,7 +112,7 @@ async function buildTsgoTypeFactSnapshot(fixture: {
     typeBackend: "tsgo",
     env: {
       ...process.env,
-      CME_TYPE_FACT_BACKEND: "tsgo",
+      OMENA_TYPE_FACT_BACKEND: "tsgo",
     },
   });
   const sourceDocuments = collectSourceDocuments(
@@ -131,7 +131,7 @@ async function buildTsgoTypeFactSnapshot(fixture: {
     typeBackend: "tsgo",
     env: {
       ...process.env,
-      CME_TYPE_FACT_BACKEND: "tsgo",
+      OMENA_TYPE_FACT_BACKEND: "tsgo",
     },
   });
 }

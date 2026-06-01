@@ -57,9 +57,9 @@ Supported options:
 
 Optional direct Omena backend:
 
-- Set `CME_ESLINT_QUERY_BACKEND=omena-cli` to route focused source-side rules
+- Set `OMENA_ESLINT_QUERY_BACKEND=omena-cli` to route focused source-side rules
   through `omena source-diagnostics`.
-- Set `CME_OMENA_CLI_BIN=/path/to/omena` to use a prebuilt CLI binary instead
+- Set `OMENA_CLI_BIN=/path/to/omena` to use a prebuilt CLI binary instead
   of `cargo run`.
 - Without those variables, the plugin keeps using the existing TypeScript
   checker host path.

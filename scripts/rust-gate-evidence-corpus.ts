@@ -13,8 +13,8 @@ export const RUST_GATE_EVIDENCE_VARIANTS: readonly RustGateEvidenceVariant[] = [
   {
     label: "tsgo",
     env: {
-      CME_TYPE_FACT_BACKEND: "tsgo",
-      CME_TYPECHECK_VARIANT: "tsgo",
+      OMENA_TYPE_FACT_BACKEND: "tsgo",
+      OMENA_TYPECHECK_VARIANT: "tsgo",
     },
   },
 ] as const;

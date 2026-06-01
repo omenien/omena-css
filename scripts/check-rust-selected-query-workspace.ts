@@ -51,8 +51,8 @@ async function checkBoundedWorkspace(): Promise<void> {
       workspaceRoot: boundedWorkspaceRoot,
       env: {
         ...process.env,
-        CME_ENGINE_SHADOW_RUNNER: "prebuilt",
-        CME_SELECTED_QUERY_BACKEND: "rust-selected-query",
+        OMENA_ENGINE_SHADOW_RUNNER: "prebuilt",
+        OMENA_SELECTED_QUERY_BACKEND: "rust-selected-query",
       },
     },
     filters: DEFAULT_FILTERS,
@@ -76,7 +76,7 @@ async function checkCurrentWorkspaceNoOverreport(): Promise<void> {
       ...trackedFiles,
       env: {
         ...process.env,
-        CME_SELECTED_QUERY_BACKEND: "typescript-current",
+        OMENA_SELECTED_QUERY_BACKEND: "typescript-current",
       },
     },
     filters: DEFAULT_FILTERS,
@@ -87,8 +87,8 @@ async function checkCurrentWorkspaceNoOverreport(): Promise<void> {
       ...trackedFiles,
       env: {
         ...process.env,
-        CME_ENGINE_SHADOW_RUNNER: "prebuilt",
-        CME_SELECTED_QUERY_BACKEND: "rust-selected-query",
+        OMENA_ENGINE_SHADOW_RUNNER: "prebuilt",
+        OMENA_SELECTED_QUERY_BACKEND: "rust-selected-query",
       },
     },
     filters: DEFAULT_FILTERS,

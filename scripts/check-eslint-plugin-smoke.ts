@@ -409,8 +409,8 @@ async function assertMissingModuleRule(): Promise<void> {
 }
 
 async function assertOmenaCliDirectBackend(): Promise<void> {
-  const previousBackend = process.env.CME_ESLINT_QUERY_BACKEND;
-  process.env.CME_ESLINT_QUERY_BACKEND = "omena-cli";
+  const previousBackend = process.env.OMENA_ESLINT_QUERY_BACKEND;
+  process.env.OMENA_ESLINT_QUERY_BACKEND = "omena-cli";
   try {
     const eslint = new ESLint({
       cwd: WORKSPACE_ROOT,
@@ -453,9 +453,9 @@ async function assertOmenaCliDirectBackend(): Promise<void> {
     }
   } finally {
     if (previousBackend === undefined) {
-      delete process.env.CME_ESLINT_QUERY_BACKEND;
+      delete process.env.OMENA_ESLINT_QUERY_BACKEND;
     } else {
-      process.env.CME_ESLINT_QUERY_BACKEND = previousBackend;
+      process.env.OMENA_ESLINT_QUERY_BACKEND = previousBackend;
     }
   }
 }

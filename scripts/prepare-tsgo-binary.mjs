@@ -5,8 +5,8 @@ import path from "node:path";
 
 const repoRoot = path.resolve(import.meta.dirname, "..");
 const requireFromRepo = module.createRequire(path.join(repoRoot, "package.json"));
-const platform = process.env.CME_TSGO_PLATFORM || process.platform;
-const arch = process.env.CME_TSGO_ARCH || process.arch;
+const platform = process.env.OMENA_TSGO_PLATFORM || process.platform;
+const arch = process.env.OMENA_TSGO_ARCH || process.arch;
 const packageName = `@typescript/native-preview-${platform}-${arch}`;
 const binaryName = platform === "win32" ? "tsgo.exe" : "tsgo";
 const outputDir = path.join(repoRoot, "dist", "bin", `${platform}-${arch}`);

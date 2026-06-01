@@ -64,7 +64,7 @@ try {
       cwd: path.resolve(__dirname, ".."),
       env: {
         ...process.env,
-        CME_SELECTED_QUERY_BACKEND: "rust-selected-query",
+        OMENA_SELECTED_QUERY_BACKEND: "rust-selected-query",
       },
       encoding: "utf8",
       maxBuffer: 16 * 1024 * 1024,

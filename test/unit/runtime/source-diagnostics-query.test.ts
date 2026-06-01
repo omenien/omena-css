@@ -231,7 +231,7 @@ describe("resolveSourceDiagnosticFindings", () => {
       makeSymbolRefDeps(),
       {
         env: {
-          CME_SELECTED_QUERY_BACKEND: "rust-expression-semantics",
+          OMENA_SELECTED_QUERY_BACKEND: "rust-expression-semantics",
         } as NodeJS.ProcessEnv,
         readRustExpressionSemanticsPayload: () => ({
           expressionId: "expr-1",
@@ -274,7 +274,7 @@ describe("resolveSourceDiagnosticFindings", () => {
       makeSymbolRefDeps({ typeResolver: throwingTypeResolver() }),
       {
         env: {
-          CME_SELECTED_QUERY_BACKEND: "rust-expression-semantics",
+          OMENA_SELECTED_QUERY_BACKEND: "rust-expression-semantics",
         } as NodeJS.ProcessEnv,
         readRustExpressionSemanticsPayload: () => ({
           expressionId: "expr-1",
@@ -314,7 +314,7 @@ describe("resolveSourceDiagnosticFindings", () => {
       makeMultiSymbolRefDeps(),
       {
         env: {
-          CME_SELECTED_QUERY_BACKEND: "rust-expression-semantics",
+          OMENA_SELECTED_QUERY_BACKEND: "rust-expression-semantics",
         } as NodeJS.ProcessEnv,
         readRustExpressionSemanticsPayloads: () => {
           payloadReads += 1;
@@ -375,7 +375,7 @@ describe("resolveSourceDiagnosticFindings", () => {
       makeProjectedSymbolRefDeps(),
       {
         env: {
-          CME_SELECTED_QUERY_BACKEND: "rust-selected-query",
+          OMENA_SELECTED_QUERY_BACKEND: "rust-selected-query",
         } as NodeJS.ProcessEnv,
         readRustExpressionSemanticsPayload: () => ({
           expressionId: "class-expr:0",

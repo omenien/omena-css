@@ -147,7 +147,7 @@ describe("computeScssUnusedDiagnostics", () => {
         workspaceRoot: deps.workspaceRoot,
         settings: deps.settings,
         aliasResolver: deps.aliasResolver,
-        env: { CME_SELECTED_QUERY_BACKEND: "rust-selected-query" } as NodeJS.ProcessEnv,
+        env: { OMENA_SELECTED_QUERY_BACKEND: "rust-selected-query" } as NodeJS.ProcessEnv,
         styleSemanticGraphCache,
       },
     );
@@ -175,7 +175,7 @@ describe("computeScssUnusedDiagnostics", () => {
       new WorkspaceStyleDependencyGraph(),
       undefined,
       {
-        env: { CME_SELECTED_QUERY_BACKEND: "rust-selected-query" } as NodeJS.ProcessEnv,
+        env: { OMENA_SELECTED_QUERY_BACKEND: "rust-selected-query" } as NodeJS.ProcessEnv,
         styleSource,
         sourceDocuments,
         runRustSelectedQueryBackendJsonAsync: async <T>(command: string, input: unknown) => {
@@ -241,7 +241,7 @@ describe("computeScssUnusedDiagnostics", () => {
       new WorkspaceStyleDependencyGraph(),
       undefined,
       {
-        env: { CME_SELECTED_QUERY_BACKEND: "rust-selected-query" } as NodeJS.ProcessEnv,
+        env: { OMENA_SELECTED_QUERY_BACKEND: "rust-selected-query" } as NodeJS.ProcessEnv,
         styleSource,
         externalMode: "sif",
         externalSifs,
@@ -275,7 +275,7 @@ describe("computeScssUnusedDiagnostics", () => {
       new WorkspaceStyleDependencyGraph(),
       undefined,
       {
-        env: { CME_SELECTED_QUERY_BACKEND: "rust-selected-query" } as NodeJS.ProcessEnv,
+        env: { OMENA_SELECTED_QUERY_BACKEND: "rust-selected-query" } as NodeJS.ProcessEnv,
         styleSource,
         runRustSelectedQueryBackendJsonAsync: async <T>(_command: string, input: unknown) => {
           forwardedInput = input as Record<string, unknown>;
@@ -304,7 +304,7 @@ describe("computeScssUnusedDiagnostics", () => {
       new WorkspaceStyleDependencyGraph(),
       undefined,
       {
-        env: { CME_SELECTED_QUERY_BACKEND: "rust-selected-query" } as NodeJS.ProcessEnv,
+        env: { OMENA_SELECTED_QUERY_BACKEND: "rust-selected-query" } as NodeJS.ProcessEnv,
         styleSource,
         runRustSelectedQueryBackendJsonAsync: async <T>() =>
           ({

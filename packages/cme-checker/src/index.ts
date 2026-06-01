@@ -15,4 +15,4 @@ export {
   type CmeCheckerFindingProjectionV0,
   type CmeCheckerSnapshotLikeV0,
 } from "./shadow";
-export { CME_CHECKER_TESTKIT_ARCHETYPES, type CmeCheckerTestkitArchetypeV0 } from "./testkit";
+export { OMENA_CHECKER_TESTKIT_ARCHETYPES, type CmeCheckerTestkitArchetypeV0 } from "./testkit";

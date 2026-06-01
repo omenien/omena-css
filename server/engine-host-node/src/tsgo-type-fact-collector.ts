@@ -223,7 +223,7 @@ export function buildTsgoTypeFactWorkerInvocation(
   const workerEnv = { ...env };
   const tsgoPath = resolveTsgoBinaryPathForEnv(workerEnv, fileExists);
   if (fileExists(tsgoPath)) {
-    workerEnv.CME_TSGO_PATH = tsgoPath;
+    workerEnv.OMENA_TSGO_PATH = tsgoPath;
   }
 
   return {
@@ -347,9 +347,9 @@ function readFileContentHash(filePath: string): string {
 
 function readTsgoTypeFactWorkerEnvSignature(env: NodeJS.ProcessEnv): string {
   return JSON.stringify({
-    projectRoot: env.CME_PROJECT_ROOT ?? "",
-    tsgoCheckers: env.CME_TSGO_CHECKERS ?? "",
-    tsgoPath: env.CME_TSGO_PATH ?? "",
+    projectRoot: env.OMENA_PROJECT_ROOT ?? "",
+    tsgoCheckers: env.OMENA_TSGO_CHECKERS ?? "",
+    tsgoPath: env.OMENA_TSGO_PATH ?? "",
   });
 }
 
@@ -444,9 +444,9 @@ async function main() {
 
 function resolveTsgoInvocation(workspaceRoot) {
   const tsgoArgs = ["--api", "--async", "--cwd", workspaceRoot, ...resolveTsgoCheckerArgs()];
-  if (process.env.CME_TSGO_PATH) {
+  if (process.env.OMENA_TSGO_PATH) {
     return {
-      command: path.resolve(process.env.CME_TSGO_PATH),
+      command: path.resolve(process.env.OMENA_TSGO_PATH),
       args: tsgoArgs,
     };
   }
@@ -574,7 +574,7 @@ function waitForExit(child) {
 }
 
 function resolveTsgoCheckerArgs() {
-  const value = process.env.CME_TSGO_CHECKERS?.trim();
+  const value = process.env.OMENA_TSGO_CHECKERS?.trim();
   return value ? ["--checkers", value] : [];
 }
 `;

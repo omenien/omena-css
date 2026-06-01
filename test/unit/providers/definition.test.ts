@@ -205,8 +205,8 @@ const el = cx(/*<class>*/\`btn-/*|*/\${variant}\`/*</class>*/);
   });
 
   it("uses the async Rust design-token winner path for style definitions", async () => {
-    const previousBackend = process.env.CME_SELECTED_QUERY_BACKEND;
-    process.env.CME_SELECTED_QUERY_BACKEND = "rust-selected-query";
+    const previousBackend = process.env.OMENA_SELECTED_QUERY_BACKEND;
+    process.env.OMENA_SELECTED_QUERY_BACKEND = "rust-selected-query";
     try {
       const winnerPath = "/fake/src/generated.tokens.css";
       const winnerRange = {
@@ -256,9 +256,9 @@ const el = cx(/*<class>*/\`btn-/*|*/\${variant}\`/*</class>*/);
       ]);
     } finally {
       if (previousBackend === undefined) {
-        delete process.env.CME_SELECTED_QUERY_BACKEND;
+        delete process.env.OMENA_SELECTED_QUERY_BACKEND;
       } else {
-        process.env.CME_SELECTED_QUERY_BACKEND = previousBackend;
+        process.env.OMENA_SELECTED_QUERY_BACKEND = previousBackend;
       }
     }
   });

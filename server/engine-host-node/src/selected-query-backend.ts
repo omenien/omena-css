@@ -64,7 +64,7 @@ export function resolveSelectedQueryBackendKind(
   env: NodeJS.ProcessEnv = process.env,
   fileExists: (filePath: string) => boolean = existsSync,
 ): SelectedQueryBackendKind {
-  const value = env.CME_SELECTED_QUERY_BACKEND?.trim();
+  const value = env.OMENA_SELECTED_QUERY_BACKEND?.trim();
   if (value === "auto") {
     return canUsePrebuiltEngineShadowRunner(env, fileExists)
       ? "rust-selected-query"
@@ -165,7 +165,7 @@ function resolveProjectRoot(
   env: NodeJS.ProcessEnv = process.env,
   fileExists: (filePath: string) => boolean = existsSync,
 ): string {
-  if (env.CME_PROJECT_ROOT) return path.resolve(env.CME_PROJECT_ROOT);
+  if (env.OMENA_PROJECT_ROOT) return path.resolve(env.OMENA_PROJECT_ROOT);
 
   for (const candidate of [REPO_ROOT, BUNDLED_EXTENSION_ROOT, process.cwd()]) {
     if (fileExists(path.join(candidate, "package.json"))) return candidate;
@@ -211,8 +211,8 @@ function resolveEngineShadowRunnerBinaryPathForEnv(
   env: NodeJS.ProcessEnv = process.env,
   fileExists: (filePath: string) => boolean = existsSync,
 ): string {
-  if (env.CME_ENGINE_SHADOW_RUNNER_PATH) {
-    return path.resolve(env.CME_ENGINE_SHADOW_RUNNER_PATH);
+  if (env.OMENA_ENGINE_SHADOW_RUNNER_PATH) {
+    return path.resolve(env.OMENA_ENGINE_SHADOW_RUNNER_PATH);
   }
 
   const projectRoot = resolveProjectRoot(env, fileExists);
@@ -254,8 +254,8 @@ function buildEngineShadowRunnerInvocationForArgs(
   fileExists: (filePath: string) => boolean = existsSync,
 ): EngineShadowRunnerInvocation {
   const projectRoot = resolveProjectRoot(env, fileExists);
-  const runnerMode = env.CME_ENGINE_SHADOW_RUNNER?.trim();
-  const hasRunnerMode = env.CME_ENGINE_SHADOW_RUNNER !== undefined;
+  const runnerMode = env.OMENA_ENGINE_SHADOW_RUNNER?.trim();
+  const hasRunnerMode = env.OMENA_ENGINE_SHADOW_RUNNER !== undefined;
   if (
     runnerMode === "prebuilt" ||
     (!hasRunnerMode &&
@@ -265,7 +265,7 @@ function buildEngineShadowRunnerInvocationForArgs(
     const runnerPath = resolveEngineShadowRunnerBinaryPathForEnv(env, fileExists);
     if (!fileExists(runnerPath)) {
       throw new Error(
-        `CME_ENGINE_SHADOW_RUNNER=prebuilt requires ${runnerPath}; run pnpm check:rust-selected-query-warmup first`,
+        `OMENA_ENGINE_SHADOW_RUNNER=prebuilt requires ${runnerPath}; run pnpm check:rust-selected-query-warmup first`,
       );
     }
     return {
@@ -323,7 +323,7 @@ export function shouldUseEngineShadowRunnerDaemon(
   env: NodeJS.ProcessEnv = process.env,
   fileExists: (filePath: string) => boolean = existsSync,
 ): boolean {
-  const value = env.CME_ENGINE_SHADOW_RUNNER_DAEMON?.trim().toLowerCase();
+  const value = env.OMENA_ENGINE_SHADOW_RUNNER_DAEMON?.trim().toLowerCase();
   if (value === "1" || value === "true" || value === "on") return true;
   if (value === "0" || value === "false" || value === "off") return false;
 
@@ -334,7 +334,7 @@ export function shouldUseEngineShadowRunnerDaemon(
 }
 
 export function shouldTraceEngineShadowRunnerDaemon(env: NodeJS.ProcessEnv = process.env): boolean {
-  const value = env.CME_ENGINE_SHADOW_RUNNER_DAEMON_TRACE?.trim().toLowerCase();
+  const value = env.OMENA_ENGINE_SHADOW_RUNNER_DAEMON_TRACE?.trim().toLowerCase();
   return value === "1" || value === "true" || value === "on";
 }
 
@@ -564,11 +564,11 @@ class EngineShadowRunnerDaemon {
   private assertRestartBudget(): void {
     const now = Date.now();
     const windowMs = parsePositiveInteger(
-      this.env.CME_ENGINE_SHADOW_RUNNER_DAEMON_RESTART_WINDOW_MS,
+      this.env.OMENA_ENGINE_SHADOW_RUNNER_DAEMON_RESTART_WINDOW_MS,
       DEFAULT_DAEMON_RESTART_WINDOW_MS,
     );
     const restartLimit = parsePositiveInteger(
-      this.env.CME_ENGINE_SHADOW_RUNNER_DAEMON_RESTART_LIMIT,
+      this.env.OMENA_ENGINE_SHADOW_RUNNER_DAEMON_RESTART_LIMIT,
       DEFAULT_DAEMON_RESTART_LIMIT,
     );
 

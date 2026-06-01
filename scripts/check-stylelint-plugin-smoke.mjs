@@ -126,8 +126,8 @@ async function assertRecommendedStylelintBridge() {
 }
 
 async function assertOmenaQueryStyleDiagnosticsAdapter() {
-  const previousBackend = process.env.CME_STYLELINT_QUERY_BACKEND;
-  process.env.CME_STYLELINT_QUERY_BACKEND = "omena-cli";
+  const previousBackend = process.env.OMENA_STYLELINT_QUERY_BACKEND;
+  process.env.OMENA_STYLELINT_QUERY_BACKEND = "omena-cli";
   try {
     const result = await stylelint.lint({
       files: [
@@ -240,9 +240,9 @@ async function assertOmenaQueryStyleDiagnosticsAdapter() {
     );
   } finally {
     if (previousBackend === undefined) {
-      delete process.env.CME_STYLELINT_QUERY_BACKEND;
+      delete process.env.OMENA_STYLELINT_QUERY_BACKEND;
     } else {
-      process.env.CME_STYLELINT_QUERY_BACKEND = previousBackend;
+      process.env.OMENA_STYLELINT_QUERY_BACKEND = previousBackend;
     }
   }
 }

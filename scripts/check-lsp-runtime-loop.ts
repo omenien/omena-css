@@ -19,19 +19,19 @@ import { StreamMessageReader, StreamMessageWriter } from "vscode-jsonrpc/node";
 const REPO_ROOT = process.cwd();
 const SERVER_ENTRY = path.join(REPO_ROOT, "dist/server/server.js");
 const RUNTIME_LOOP_PROBE_REQUEST = "omena/runtimeLoopProbe";
-const SELECTOR_COUNT = parsePositiveInteger(process.env.CME_LSP_RUNTIME_LOOP_SELECTORS, 50);
+const SELECTOR_COUNT = parsePositiveInteger(process.env.OMENA_LSP_RUNTIME_LOOP_SELECTORS, 50);
 const PROBE_INTERVAL_MS = parsePositiveInteger(
-  process.env.CME_LSP_RUNTIME_LOOP_PROBE_INTERVAL_MS,
+  process.env.OMENA_LSP_RUNTIME_LOOP_PROBE_INTERVAL_MS,
   20,
 );
 const PROBE_DURATION_MS = parsePositiveInteger(
-  process.env.CME_LSP_RUNTIME_LOOP_PROBE_DURATION_MS,
+  process.env.OMENA_LSP_RUNTIME_LOOP_PROBE_DURATION_MS,
   1_200,
 );
-const MAX_PROBE_MS = parsePositiveInteger(process.env.CME_LSP_RUNTIME_LOOP_MAX_MS, 400);
-const P95_PROBE_MS = parsePositiveInteger(process.env.CME_LSP_RUNTIME_LOOP_P95_MS, 150);
+const MAX_PROBE_MS = parsePositiveInteger(process.env.OMENA_LSP_RUNTIME_LOOP_MAX_MS, 400);
+const P95_PROBE_MS = parsePositiveInteger(process.env.OMENA_LSP_RUNTIME_LOOP_P95_MS, 150);
 const REQUEST_TIMEOUT_MS = parsePositiveInteger(
-  process.env.CME_LSP_RUNTIME_LOOP_REQUEST_TIMEOUT_MS,
+  process.env.OMENA_LSP_RUNTIME_LOOP_REQUEST_TIMEOUT_MS,
   10_000,
 );
 
@@ -92,12 +92,12 @@ async function main(): Promise<void> {
     cwd: REPO_ROOT,
     env: {
       ...process.env,
-      CME_ENGINE_SHADOW_RUNNER: "prebuilt",
-      CME_ENGINE_SHADOW_RUNNER_DAEMON: "1",
-      CME_ENGINE_SHADOW_RUNNER_DAEMON_TRACE: "1",
-      CME_LSP_RUNTIME_LOOP_PROBE: "1",
-      CME_PROJECT_ROOT: REPO_ROOT,
-      CME_SELECTED_QUERY_BACKEND: "rust-selected-query",
+      OMENA_ENGINE_SHADOW_RUNNER: "prebuilt",
+      OMENA_ENGINE_SHADOW_RUNNER_DAEMON: "1",
+      OMENA_ENGINE_SHADOW_RUNNER_DAEMON_TRACE: "1",
+      OMENA_LSP_RUNTIME_LOOP_PROBE: "1",
+      OMENA_PROJECT_ROOT: REPO_ROOT,
+      OMENA_SELECTED_QUERY_BACKEND: "rust-selected-query",
     },
     stdio: ["pipe", "pipe", "pipe"],
   });

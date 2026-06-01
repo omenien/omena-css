@@ -124,8 +124,8 @@ function resolveOmenaCliInvocation(options) {
   if (options.omenaBin) {
     return { command: options.omenaBin, args: [] };
   }
-  if (process.env.CME_OMENA_CLI_BIN) {
-    return { command: process.env.CME_OMENA_CLI_BIN, args: [] };
+  if (process.env.OMENA_CLI_BIN) {
+    return { command: process.env.OMENA_CLI_BIN, args: [] };
   }
   const manifestPath = options.cargoManifestPath ?? path.join(REPO_ROOT, "rust/Cargo.toml");
   if (fs.existsSync(manifestPath)) {
@@ -134,9 +134,7 @@ function resolveOmenaCliInvocation(options) {
       args: ["run", "--manifest-path", manifestPath, "-p", "omena-cli", "--quiet", "--"],
     };
   }
-  throw new Error(
-    "Unable to find omena CLI. Set omenaBin, CME_OMENA_CLI_BIN, or cargoManifestPath.",
-  );
+  throw new Error("Unable to find omena CLI. Set omenaBin, OMENA_CLI_BIN, or cargoManifestPath.");
 }
 
 function resolveWorkspaceRoot(filePath, configuredRoot) {

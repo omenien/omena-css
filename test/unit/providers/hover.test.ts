@@ -252,8 +252,8 @@ const el = cx(/*<expr>*/si/*|*/ze/*</expr>*/);
   });
 
   it("uses the async Rust design-token ranking path for style hovers", async () => {
-    const previousBackend = process.env.CME_SELECTED_QUERY_BACKEND;
-    process.env.CME_SELECTED_QUERY_BACKEND = "rust-selected-query";
+    const previousBackend = process.env.OMENA_SELECTED_QUERY_BACKEND;
+    process.env.OMENA_SELECTED_QUERY_BACKEND = "rust-selected-query";
     try {
       const styleWorkspace = workspace({
         [STYLE_PATH]: `.button {
@@ -300,9 +300,9 @@ const el = cx(/*<expr>*/si/*|*/ze/*</expr>*/);
       expect(value).toContain("Button.module.scss");
     } finally {
       if (previousBackend === undefined) {
-        delete process.env.CME_SELECTED_QUERY_BACKEND;
+        delete process.env.OMENA_SELECTED_QUERY_BACKEND;
       } else {
-        process.env.CME_SELECTED_QUERY_BACKEND = previousBackend;
+        process.env.OMENA_SELECTED_QUERY_BACKEND = previousBackend;
       }
     }
   });

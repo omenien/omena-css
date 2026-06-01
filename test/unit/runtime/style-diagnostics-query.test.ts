@@ -71,7 +71,7 @@ describe("resolveStyleDiagnosticFindings", () => {
         settings: deps.settings,
       },
       {
-        env: { CME_SELECTED_QUERY_BACKEND: "rust-selector-usage" } as NodeJS.ProcessEnv,
+        env: { OMENA_SELECTED_QUERY_BACKEND: "rust-selector-usage" } as NodeJS.ProcessEnv,
         readRustSelectorUsagePayloadForWorkspaceTarget: (_args, _deps, _filePath, canonicalName) =>
           canonicalName === "indicator"
             ? {
@@ -137,7 +137,7 @@ describe("resolveStyleDiagnosticFindings", () => {
         settings: deps.settings,
       },
       {
-        env: { CME_SELECTED_QUERY_BACKEND: "rust-selected-query" } as NodeJS.ProcessEnv,
+        env: { OMENA_SELECTED_QUERY_BACKEND: "rust-selected-query" } as NodeJS.ProcessEnv,
         readRustStyleSemanticGraphForWorkspaceTarget: () => makeReferenceGraph(scssPath),
         readRustSelectorUsagePayloadForWorkspaceTarget: () => {
           throw new Error("unexpected selector-usage fallback");
@@ -200,7 +200,7 @@ describe("resolveStyleDiagnosticFindings", () => {
         settings: deps.settings,
       },
       {
-        env: { CME_SELECTED_QUERY_BACKEND: "rust-selected-query" } as NodeJS.ProcessEnv,
+        env: { OMENA_SELECTED_QUERY_BACKEND: "rust-selected-query" } as NodeJS.ProcessEnv,
         sourceDocuments,
         styleFiles,
         styleSemanticGraphCache,
@@ -257,7 +257,7 @@ describe("resolveStyleDiagnosticFindings", () => {
         styleSemanticGraphCache,
       },
       {
-        env: { CME_SELECTED_QUERY_BACKEND: "rust-selected-query" } as NodeJS.ProcessEnv,
+        env: { OMENA_SELECTED_QUERY_BACKEND: "rust-selected-query" } as NodeJS.ProcessEnv,
         readRustStyleSemanticGraphForWorkspaceTarget: (_args, _deps, _filePath, options) => {
           forwardedOptions = options;
           return makeReferenceGraph(scssPath);
@@ -298,7 +298,7 @@ describe("resolveStyleDiagnosticFindings", () => {
         selectorUsagePayloadCache,
       },
       {
-        env: { CME_SELECTED_QUERY_BACKEND: "rust-selector-usage" } as NodeJS.ProcessEnv,
+        env: { OMENA_SELECTED_QUERY_BACKEND: "rust-selector-usage" } as NodeJS.ProcessEnv,
         readRustSelectorUsagePayloadsForWorkspaceTarget: (_args, _deps, _filePath, cache) => {
           forwardedCache = cache;
           return [
@@ -349,7 +349,7 @@ describe("resolveStyleDiagnosticFindings", () => {
         styleDocumentForPath: () => null,
       },
       {
-        env: { CME_SELECTED_QUERY_BACKEND: "rust-selector-usage" } as NodeJS.ProcessEnv,
+        env: { OMENA_SELECTED_QUERY_BACKEND: "rust-selector-usage" } as NodeJS.ProcessEnv,
       },
     );
 
@@ -383,7 +383,7 @@ describe("resolveStyleDiagnosticFindings", () => {
         settings: deps.settings,
       },
       {
-        env: { CME_SELECTED_QUERY_BACKEND: "rust-selected-query" } as NodeJS.ProcessEnv,
+        env: { OMENA_SELECTED_QUERY_BACKEND: "rust-selected-query" } as NodeJS.ProcessEnv,
         readRustStyleSemanticGraphForWorkspaceTarget: () =>
           makeDesignTokenDefinitionGraph({
             referenceName: "--brand",
@@ -439,7 +439,7 @@ describe("resolveStyleDiagnosticFindings", () => {
         settings: deps.settings,
       },
       {
-        env: { CME_SELECTED_QUERY_BACKEND: "rust-selected-query" } as NodeJS.ProcessEnv,
+        env: { OMENA_SELECTED_QUERY_BACKEND: "rust-selected-query" } as NodeJS.ProcessEnv,
         sourceDocuments: [],
         styleFiles: [scssPath, basePath],
         runRustSelectedQueryBackendJson: <T>(command: string): T => {

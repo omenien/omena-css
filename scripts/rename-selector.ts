@@ -73,7 +73,7 @@ function main(argv: readonly string[]): void {
   const backend = resolveSelectedQueryBackendKind(process.env);
   if (backend !== "rust-selected-query") {
     process.stderr.write(
-      `cme rename selector requires CME_SELECTED_QUERY_BACKEND=rust-selected-query; resolved ${backend}.\n`,
+      `cme rename selector requires OMENA_SELECTED_QUERY_BACKEND=rust-selected-query; resolved ${backend}.\n`,
     );
     process.exitCode = 1;
     return;

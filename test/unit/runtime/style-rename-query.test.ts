@@ -388,7 +388,7 @@ describe("style rename query", () => {
 
     expect(styleDocument).not.toBeNull();
     const target = readStyleRenameTargetAtCursor(SCSS_PATH, 1, 3, styleDocument!, deps, {
-      env: { CME_SELECTED_QUERY_BACKEND: "rust-selector-usage" } as NodeJS.ProcessEnv,
+      env: { OMENA_SELECTED_QUERY_BACKEND: "rust-selector-usage" } as NodeJS.ProcessEnv,
       readRustSelectorUsagePayloadForWorkspaceTarget: () => ({
         canonicalName: "indicator",
         totalReferences: 2,
@@ -417,7 +417,7 @@ describe("style rename query", () => {
 
     expect(styleDocument).not.toBeNull();
     const target = readStyleRenameTargetAtCursor(SCSS_PATH, 1, 3, styleDocument!, deps, {
-      env: { CME_SELECTED_QUERY_BACKEND: "rust-selected-query" } as NodeJS.ProcessEnv,
+      env: { OMENA_SELECTED_QUERY_BACKEND: "rust-selected-query" } as NodeJS.ProcessEnv,
       readRustStyleSemanticGraphForWorkspaceTarget: () => makeGraph("blocked"),
       readRustSelectorUsagePayloadForWorkspaceTarget: () => null,
     });
@@ -437,7 +437,7 @@ describe("style rename query", () => {
 
     expect(styleDocument).not.toBeNull();
     const plan = planStyleRenameAtCursor(SCSS_PATH, 1, 3, styleDocument!, deps, "status", {
-      env: { CME_SELECTED_QUERY_BACKEND: "rust-selected-query" } as NodeJS.ProcessEnv,
+      env: { OMENA_SELECTED_QUERY_BACKEND: "rust-selected-query" } as NodeJS.ProcessEnv,
       readRustStyleSemanticGraphForWorkspaceTarget: () => makeGraph("safe"),
       readRustSelectorUsagePayloadForWorkspaceTarget: () => null,
     });
@@ -459,7 +459,7 @@ describe("style rename query", () => {
 
     expect(styleDocument).not.toBeNull();
     const plan = planStyleRenameAtCursor(SCSS_PATH, 1, 3, styleDocument!, deps, "status", {
-      env: { CME_SELECTED_QUERY_BACKEND: "rust-selector-usage" } as NodeJS.ProcessEnv,
+      env: { OMENA_SELECTED_QUERY_BACKEND: "rust-selector-usage" } as NodeJS.ProcessEnv,
       readRustSelectorUsagePayloadForWorkspaceTarget: () => ({
         canonicalName: "indicator",
         totalReferences: 1,

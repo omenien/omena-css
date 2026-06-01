@@ -103,14 +103,14 @@ const binaryName = process.platform === "win32" ? "tsgo.exe" : "tsgo";
 const packagedTsgoPath = path.join(projectRoot, "dist", "bin", platformDir, binaryName);
 const nodeInvocation = buildTsgoTypeFactWorkerInvocation(
   "/workspace",
-  { CME_PROJECT_ROOT: projectRoot } as NodeJS.ProcessEnv,
+  { OMENA_PROJECT_ROOT: projectRoot } as NodeJS.ProcessEnv,
   (filePath) => filePath === packagedTsgoPath,
 );
 
 assert.equal(nodeInvocation.command, process.execPath);
 assert.equal(nodeInvocation.args[0], "-e");
 assert.equal(nodeInvocation.cwd, "/workspace");
-assert.equal(nodeInvocation.env.CME_TSGO_PATH, packagedTsgoPath);
+assert.equal(nodeInvocation.env.OMENA_TSGO_PATH, packagedTsgoPath);
 
 process.stdout.write(
   [
