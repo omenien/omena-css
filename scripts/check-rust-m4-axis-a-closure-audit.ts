@@ -602,7 +602,7 @@ for (const marker of [
 ] as const) {
   assertIncludes(testkitBoundary, marker, `testkit boundary must retain ${marker}`);
 }
-assertIncludes(testkitFixture, "parse_cme_fixture_v0", "testkit must own the fixture parser");
+assertIncludes(testkitFixture, "parse_omena_fixture_v0", "testkit must own the fixture parser");
 assertIncludes(testkitScenario, "CmeScenarioArchetypeV0", "testkit must own scenario archetypes");
 assertIncludes(
   testkitSnapshot,
@@ -701,7 +701,7 @@ process.stdout.write(
         passFeatureBindingCount: countOccurrences(passFeatureBindings, "[[binding]]"),
       },
       testkit: {
-        fixtureGrammar: "cme-fixture-v0",
+        fixtureGrammar: "omena-fixture-v0",
         checkerArchetypes: ["source-missing", "style-unused", "style-recovery"],
       },
       parserStyleFactsParity: {

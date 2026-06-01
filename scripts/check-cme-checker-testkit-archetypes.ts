@@ -69,7 +69,7 @@ void (async () => {
     JSON.stringify(
       {
         product: "cme-checker.testkit-archetypes",
-        fixtureGrammar: "cme-fixture-v0",
+        fixtureGrammar: "omena-fixture-v0",
         archetypeCount: reports.length,
         bundleCount: new Set(reports.map((report) => report.bundle)).size,
         reports,

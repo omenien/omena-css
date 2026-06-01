@@ -8,7 +8,7 @@ pub struct OmenaTestkitFixtureSeedV0 {
     pub label: &'static str,
     /// Fixture lane such as `sass-language` or `cascade-proof`.
     pub lane: &'static str,
-    /// Raw `cme-fixture-v0` text.
+    /// Raw `omena-fixture-v0` text.
     pub raw: &'static str,
     /// Product surfaces expected to consume this fixture.
     pub expected_products: &'static [&'static str],
@@ -19,25 +19,25 @@ pub struct OmenaTestkitFixtureSeedV0 {
 /// Parsed reusable fixture.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
-pub struct CmeFixtureV0 {
+pub struct OmenaFixtureV0 {
     /// Fixture grammar version.
     pub schema_version: &'static str,
     /// Parsed files.
-    pub files: Vec<CmeFixtureFileV0>,
+    pub files: Vec<OmenaFixtureFileV0>,
     /// Parsed expectations.
-    pub expectations: Vec<CmeFixtureExpectationV0>,
+    pub expectations: Vec<OmenaFixtureExpectationV0>,
 }
 
 /// One file section in a reusable fixture.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
-pub struct CmeFixtureFileV0 {
+pub struct OmenaFixtureFileV0 {
     /// Workspace-relative file path.
     pub path: String,
     /// File-header metadata such as dialect or layer.
-    pub metadata: Vec<CmeFixtureFileMetadataV0>,
+    pub metadata: Vec<OmenaFixtureFileMetadataV0>,
     /// Markers removed from the source while preserving clean-source offsets.
-    pub markers: Vec<CmeFixtureMarkerV0>,
+    pub markers: Vec<OmenaFixtureMarkerV0>,
     /// File text.
     pub source: String,
 }
@@ -45,7 +45,7 @@ pub struct CmeFixtureFileV0 {
 /// One metadata key/value pair from a fixture file header.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
-pub struct CmeFixtureFileMetadataV0 {
+pub struct OmenaFixtureFileMetadataV0 {
     /// Metadata key.
     pub key: String,
     /// Metadata value.
@@ -55,7 +55,7 @@ pub struct CmeFixtureFileMetadataV0 {
 /// One marker extracted from fixture source text.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
-pub struct CmeFixtureMarkerV0 {
+pub struct OmenaFixtureMarkerV0 {
     /// Marker kind such as `cursor`, `namedPoint`, or `rangeStart`.
     pub kind: &'static str,
     /// Optional marker payload.
@@ -69,17 +69,17 @@ pub struct CmeFixtureMarkerV0 {
 /// One expectation section in a reusable fixture.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
-pub struct CmeFixtureExpectationV0 {
+pub struct OmenaFixtureExpectationV0 {
     /// Expectation key.
     pub key: String,
     /// Expectation text.
     pub value: String,
 }
 
-/// Known `cme-fixture-v0` expectation families.
+/// Known `omena-fixture-v0` expectation families.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize)]
 #[serde(rename_all = "camelCase")]
-pub enum CmeFixtureExpectationKindV0 {
+pub enum OmenaFixtureExpectationKindV0 {
     /// Product-surface expectation.
     Product,
     /// Free-form assertion text.
@@ -100,26 +100,26 @@ pub enum CmeFixtureExpectationKindV0 {
     Unknown,
 }
 
-impl CmeFixtureExpectationV0 {
+impl OmenaFixtureExpectationV0 {
     /// Classify the expectation family without interpreting product-owned
     /// expectation payloads.
-    pub fn kind(&self) -> CmeFixtureExpectationKindV0 {
-        cme_fixture_expectation_kind_from_key(&self.key)
+    pub fn kind(&self) -> OmenaFixtureExpectationKindV0 {
+        omena_fixture_expectation_kind_from_key(&self.key)
     }
 }
 
 /// Classify a raw expectation key by its leading keyword.
-pub fn cme_fixture_expectation_kind_from_key(key: &str) -> CmeFixtureExpectationKindV0 {
+pub fn omena_fixture_expectation_kind_from_key(key: &str) -> OmenaFixtureExpectationKindV0 {
     match key.split_whitespace().next().unwrap_or_default() {
-        "product" => CmeFixtureExpectationKindV0::Product,
-        "assertion" => CmeFixtureExpectationKindV0::Assertion,
-        "diagnostic" => CmeFixtureExpectationKindV0::Diagnostic,
-        "no-diagnostic" => CmeFixtureExpectationKindV0::NoDiagnostic,
-        "count" => CmeFixtureExpectationKindV0::Count,
-        "cascade-outcome" => CmeFixtureExpectationKindV0::CascadeOutcome,
-        "cascade-witness" => CmeFixtureExpectationKindV0::CascadeWitness,
-        "boundary-state" => CmeFixtureExpectationKindV0::BoundaryState,
-        _ => CmeFixtureExpectationKindV0::Unknown,
+        "product" => OmenaFixtureExpectationKindV0::Product,
+        "assertion" => OmenaFixtureExpectationKindV0::Assertion,
+        "diagnostic" => OmenaFixtureExpectationKindV0::Diagnostic,
+        "no-diagnostic" => OmenaFixtureExpectationKindV0::NoDiagnostic,
+        "count" => OmenaFixtureExpectationKindV0::Count,
+        "cascade-outcome" => OmenaFixtureExpectationKindV0::CascadeOutcome,
+        "cascade-witness" => OmenaFixtureExpectationKindV0::CascadeWitness,
+        "boundary-state" => OmenaFixtureExpectationKindV0::BoundaryState,
+        _ => OmenaFixtureExpectationKindV0::Unknown,
     }
 }
 
@@ -131,7 +131,7 @@ pub struct OmenaTestkitFixtureSeedReportV0 {
     pub label: &'static str,
     /// Fixture lane.
     pub lane: &'static str,
-    /// Whether the fixture parses with `cme-fixture-v0`.
+    /// Whether the fixture parses with `omena-fixture-v0`.
     pub parses: bool,
     /// Parse error when present.
     pub parse_error: Option<String>,
@@ -155,8 +155,8 @@ pub struct OmenaTestkitFixtureSeedReportV0 {
     /// `cascade-outcome`/`cascade-witness` families fail as absent. An
     /// engine-backed consumer supplies real diagnostics, boundary states, and
     /// cascade projections via
-    /// [`crate::fixture_eval::evaluate_cme_fixture_v0`].
-    pub expectation_outcomes: Vec<crate::fixture_eval::CmeFixtureExpectationOutcomeV0>,
+    /// [`crate::fixture_eval::evaluate_omena_fixture_v0`].
+    pub expectation_outcomes: Vec<crate::fixture_eval::OmenaFixtureExpectationOutcomeV0>,
 }
 
 /// Fixture seed corpus summary.
@@ -183,7 +183,7 @@ pub struct OmenaTestkitFixtureSeedCorpusReportV0 {
     pub reports: Vec<OmenaTestkitFixtureSeedReportV0>,
 }
 
-/// Summarize any `cme-fixture-v0` fixture seed corpus.
+/// Summarize any `omena-fixture-v0` fixture seed corpus.
 pub fn summarize_omena_testkit_fixture_seed_corpus(
     seeds: &[OmenaTestkitFixtureSeedV0],
 ) -> OmenaTestkitFixtureSeedCorpusReportV0 {
@@ -204,7 +204,7 @@ pub fn summarize_omena_testkit_fixture_seed_corpus(
     OmenaTestkitFixtureSeedCorpusReportV0 {
         schema_version: "0",
         product: "omena-testkit.fixture-seed-corpus",
-        fixture_grammar: "cme-fixture-v0",
+        fixture_grammar: "omena-fixture-v0",
         fixture_count: reports.len(),
         lane_count,
         metadata_count,
@@ -214,12 +214,12 @@ pub fn summarize_omena_testkit_fixture_seed_corpus(
     }
 }
 
-/// Parse a `cme-fixture-v0` workspace fixture.
-pub fn parse_cme_fixture_v0(raw: &str) -> Result<CmeFixtureV0, String> {
+/// Parse a `omena-fixture-v0` workspace fixture.
+pub fn parse_omena_fixture_v0(raw: &str) -> Result<OmenaFixtureV0, String> {
     let mut files = Vec::new();
     let mut expectations = Vec::new();
-    let mut current_file: Option<CmeFixtureFileV0> = None;
-    let mut current_expectation: Option<CmeFixtureExpectationV0> = None;
+    let mut current_file: Option<OmenaFixtureFileV0> = None;
+    let mut current_expectation: Option<OmenaFixtureExpectationV0> = None;
 
     for line in raw.lines() {
         if let Some(header) = line
@@ -228,8 +228,8 @@ pub fn parse_cme_fixture_v0(raw: &str) -> Result<CmeFixtureV0, String> {
         {
             finish_fixture_section(&mut files, current_file.take());
             finish_fixture_section(&mut expectations, current_expectation.take());
-            let (path, metadata) = parse_cme_fixture_file_header(header.trim())?;
-            current_file = Some(CmeFixtureFileV0 {
+            let (path, metadata) = parse_omena_fixture_file_header(header.trim())?;
+            current_file = Some(OmenaFixtureFileV0 {
                 path,
                 metadata,
                 markers: Vec::new(),
@@ -241,7 +241,7 @@ pub fn parse_cme_fixture_v0(raw: &str) -> Result<CmeFixtureV0, String> {
         if let Some(key) = line.strip_prefix("--- expect:") {
             finish_fixture_section(&mut files, current_file.take());
             finish_fixture_section(&mut expectations, current_expectation.take());
-            current_expectation = Some(CmeFixtureExpectationV0 {
+            current_expectation = Some(OmenaFixtureExpectationV0 {
                 key: key.trim().to_string(),
                 value: String::new(),
             });
@@ -261,7 +261,7 @@ pub fn parse_cme_fixture_v0(raw: &str) -> Result<CmeFixtureV0, String> {
     finish_fixture_section(&mut expectations, current_expectation.take());
 
     for file in &mut files {
-        let (cleaned_source, markers) = extract_cme_fixture_markers(&file.source)?;
+        let (cleaned_source, markers) = extract_omena_fixture_markers(&file.source)?;
         file.source = cleaned_source;
         file.markers = markers;
     }
@@ -273,7 +273,7 @@ pub fn parse_cme_fixture_v0(raw: &str) -> Result<CmeFixtureV0, String> {
         return Err("fixture must contain at least one expectation section".to_string());
     }
 
-    Ok(CmeFixtureV0 {
+    Ok(OmenaFixtureV0 {
         schema_version: "0",
         files,
         expectations,
@@ -281,7 +281,7 @@ pub fn parse_cme_fixture_v0(raw: &str) -> Result<CmeFixtureV0, String> {
 }
 
 fn report_fixture_seed(seed: OmenaTestkitFixtureSeedV0) -> OmenaTestkitFixtureSeedReportV0 {
-    match parse_cme_fixture_v0(seed.raw) {
+    match parse_omena_fixture_v0(seed.raw) {
         Ok(fixture) => {
             let metadata_count = fixture.files.iter().map(|file| file.metadata.len()).sum();
             let marker_count = fixture.files.iter().map(|file| file.markers.len()).sum();
@@ -289,7 +289,7 @@ fn report_fixture_seed(seed: OmenaTestkitFixtureSeedV0) -> OmenaTestkitFixtureSe
             // engine output: this still exercises the evaluator at the hook
             // point so the assertions are run, not merely parsed.
             let expectation_outcomes =
-                crate::fixture_eval::evaluate_cme_fixture_v0(&fixture, &[], &[], &[]);
+                crate::fixture_eval::evaluate_omena_fixture_v0(&fixture, &[], &[], &[]);
             OmenaTestkitFixtureSeedReportV0 {
                 label: seed.label,
                 lane: seed.lane,
@@ -333,9 +333,9 @@ fn push_fixture_line(buffer: &mut String, line: &str) {
     buffer.push_str(line);
 }
 
-fn parse_cme_fixture_file_header(
+fn parse_omena_fixture_file_header(
     header: &str,
-) -> Result<(String, Vec<CmeFixtureFileMetadataV0>), String> {
+) -> Result<(String, Vec<OmenaFixtureFileMetadataV0>), String> {
     let mut parts = header.split_whitespace();
     let path = parts
         .next()
@@ -349,8 +349,8 @@ fn parse_cme_fixture_file_header(
         let Some((key, value)) = part.split_once(':') else {
             return Err(format!("fixture metadata `{part}` must use key:value"));
         };
-        validate_cme_fixture_metadata(key, value)?;
-        metadata.push(CmeFixtureFileMetadataV0 {
+        validate_omena_fixture_metadata(key, value)?;
+        metadata.push(OmenaFixtureFileMetadataV0 {
             key: key.to_string(),
             value: value.to_string(),
         });
@@ -359,7 +359,7 @@ fn parse_cme_fixture_file_header(
     Ok((path.to_string(), metadata))
 }
 
-fn validate_cme_fixture_metadata(key: &str, value: &str) -> Result<(), String> {
+fn validate_omena_fixture_metadata(key: &str, value: &str) -> Result<(), String> {
     if value.is_empty() {
         return Err(format!("fixture metadata `{key}` must have a value"));
     }
@@ -373,7 +373,7 @@ fn validate_cme_fixture_metadata(key: &str, value: &str) -> Result<(), String> {
     }
 }
 
-fn extract_cme_fixture_markers(source: &str) -> Result<(String, Vec<CmeFixtureMarkerV0>), String> {
+fn extract_omena_fixture_markers(source: &str) -> Result<(String, Vec<OmenaFixtureMarkerV0>), String> {
     let mut cleaned = String::new();
     let mut markers = Vec::new();
     let mut cursor = 0;
@@ -386,7 +386,7 @@ fn extract_cme_fixture_markers(source: &str) -> Result<(String, Vec<CmeFixtureMa
         };
         let end = start + 2 + relative_end + 2;
         let body = &source[start + 2..end - 2];
-        if let Some(marker) = parse_cme_fixture_marker(body, cleaned.len())? {
+        if let Some(marker) = parse_omena_fixture_marker(body, cleaned.len())? {
             markers.push(marker);
         } else {
             cleaned.push_str(&source[start..end]);
@@ -398,17 +398,17 @@ fn extract_cme_fixture_markers(source: &str) -> Result<(String, Vec<CmeFixtureMa
     Ok((cleaned, markers))
 }
 
-fn parse_cme_fixture_marker(
+fn parse_omena_fixture_marker(
     body: &str,
     byte_offset: usize,
-) -> Result<Option<CmeFixtureMarkerV0>, String> {
+) -> Result<Option<OmenaFixtureMarkerV0>, String> {
     if body == "|" {
-        return Ok(Some(cme_fixture_marker("cursor", None, byte_offset)));
+        return Ok(Some(omena_fixture_marker("cursor", None, byte_offset)));
     }
     if let Some(name) = body.strip_prefix("at:") {
-        return Ok(Some(cme_fixture_marker(
+        return Ok(Some(omena_fixture_marker(
             "namedPoint",
-            Some(validate_cme_fixture_marker_payload("at", name)?),
+            Some(validate_omena_fixture_marker_payload("at", name)?),
             byte_offset,
         )));
     }
@@ -416,9 +416,9 @@ fn parse_cme_fixture_marker(
         .strip_prefix("</")
         .and_then(|name| name.strip_suffix('>'))
     {
-        return Ok(Some(cme_fixture_marker(
+        return Ok(Some(omena_fixture_marker(
             "rangeEnd",
-            Some(validate_cme_fixture_marker_payload("range end", name)?),
+            Some(validate_omena_fixture_marker_payload("range end", name)?),
             byte_offset,
         )));
     }
@@ -426,35 +426,35 @@ fn parse_cme_fixture_marker(
         .strip_prefix('<')
         .and_then(|name| name.strip_suffix('>'))
     {
-        return Ok(Some(cme_fixture_marker(
+        return Ok(Some(omena_fixture_marker(
             "rangeStart",
-            Some(validate_cme_fixture_marker_payload("range start", name)?),
+            Some(validate_omena_fixture_marker_payload("range start", name)?),
             byte_offset,
         )));
     }
     if let Some(name) = body.strip_prefix("name:") {
-        return Ok(Some(cme_fixture_marker(
+        return Ok(Some(omena_fixture_marker(
             "nameAnchor",
-            Some(validate_cme_fixture_marker_payload("name", name)?),
+            Some(validate_omena_fixture_marker_payload("name", name)?),
             byte_offset,
         )));
     }
     if let Some(target) = body.strip_prefix("from:") {
-        return Ok(Some(cme_fixture_marker(
+        return Ok(Some(omena_fixture_marker(
             "linkEnd",
-            Some(validate_cme_fixture_marker_payload("from", target)?),
+            Some(validate_omena_fixture_marker_payload("from", target)?),
             byte_offset,
         )));
     }
     Ok(None)
 }
 
-fn cme_fixture_marker(
+fn omena_fixture_marker(
     kind: &'static str,
     name: Option<String>,
     byte_offset: usize,
-) -> CmeFixtureMarkerV0 {
-    CmeFixtureMarkerV0 {
+) -> OmenaFixtureMarkerV0 {
+    OmenaFixtureMarkerV0 {
         kind,
         name,
         byte_start: byte_offset,
@@ -462,7 +462,7 @@ fn cme_fixture_marker(
     }
 }
 
-fn validate_cme_fixture_marker_payload(kind: &str, value: &str) -> Result<String, String> {
+fn validate_omena_fixture_marker_payload(kind: &str, value: &str) -> Result<String, String> {
     if value.is_empty() {
         return Err(format!("fixture marker `{kind}` must have a value"));
     }
@@ -485,8 +485,8 @@ shared fixture parser keeps source and style files in the same workspace fixture
 "#;
 
     #[test]
-    fn parses_reusable_cme_fixture_v0_sections() -> Result<(), String> {
-        let fixture = parse_cme_fixture_v0(
+    fn parses_reusable_omena_fixture_v0_sections() -> Result<(), String> {
+        let fixture = parse_omena_fixture_v0(
             r#"--- file: src/proof.css
 .a { color: red; }
 --- expect: product
@@ -512,7 +512,7 @@ proof obligations remain product-visible
 
     #[test]
     fn keeps_source_and_style_files_in_one_workspace_fixture() -> Result<(), String> {
-        let fixture = parse_cme_fixture_v0(CROSS_LANGUAGE_FIXTURE)?;
+        let fixture = parse_omena_fixture_v0(CROSS_LANGUAGE_FIXTURE)?;
 
         assert_eq!(fixture.files.len(), 2);
         assert_eq!(fixture.files[0].path, "src/App.tsx");
@@ -528,8 +528,8 @@ proof obligations remain product-visible
     }
 
     #[test]
-    fn parses_cme_fixture_v0_metadata_and_markers() -> Result<(), String> {
-        let fixture = parse_cme_fixture_v0(
+    fn parses_omena_fixture_v0_metadata_and_markers() -> Result<(), String> {
+        let fixture = parse_omena_fixture_v0(
             r#"//- src/Card.module.scss dialect:scss layer:style
 .card { color: /*|*/red; }
 .card/*at:selector*/ { color: blue; }
@@ -576,7 +576,7 @@ omena-testkit.fixture-markers
 
     #[test]
     fn keeps_non_fixture_comments_in_source() -> Result<(), String> {
-        let fixture = parse_cme_fixture_v0(
+        let fixture = parse_omena_fixture_v0(
             r#"//- src/Card.module.css dialect:css
 .card { /* regular comment */ color: red; }
 --- expect: product
@@ -592,7 +592,7 @@ omena-testkit.fixture-markers
 
     #[test]
     fn classifies_m7_diagnostic_cascade_and_boundary_expectations() -> Result<(), String> {
-        let fixture = parse_cme_fixture_v0(
+        let fixture = parse_omena_fixture_v0(
             r#"//- src/Nested.module.scss dialect:scss
 .article {
   &.box { &.fill { padding: 1px; } }
@@ -616,19 +616,19 @@ range: colorRange
             fixture
                 .expectations
                 .iter()
-                .map(CmeFixtureExpectationV0::kind)
+                .map(OmenaFixtureExpectationV0::kind)
                 .collect::<Vec<_>>(),
             vec![
-                CmeFixtureExpectationKindV0::Diagnostic,
-                CmeFixtureExpectationKindV0::NoDiagnostic,
-                CmeFixtureExpectationKindV0::Count,
-                CmeFixtureExpectationKindV0::CascadeOutcome,
-                CmeFixtureExpectationKindV0::CascadeWitness,
-                CmeFixtureExpectationKindV0::BoundaryState,
-                CmeFixtureExpectationKindV0::BoundaryState,
-                CmeFixtureExpectationKindV0::BoundaryState,
-                CmeFixtureExpectationKindV0::BoundaryState,
-                CmeFixtureExpectationKindV0::BoundaryState,
+                OmenaFixtureExpectationKindV0::Diagnostic,
+                OmenaFixtureExpectationKindV0::NoDiagnostic,
+                OmenaFixtureExpectationKindV0::Count,
+                OmenaFixtureExpectationKindV0::CascadeOutcome,
+                OmenaFixtureExpectationKindV0::CascadeWitness,
+                OmenaFixtureExpectationKindV0::BoundaryState,
+                OmenaFixtureExpectationKindV0::BoundaryState,
+                OmenaFixtureExpectationKindV0::BoundaryState,
+                OmenaFixtureExpectationKindV0::BoundaryState,
+                OmenaFixtureExpectationKindV0::BoundaryState,
             ]
         );
         assert_eq!(
@@ -644,7 +644,7 @@ range: colorRange
 
     #[test]
     fn rejects_unknown_fixture_metadata() {
-        let error = parse_cme_fixture_v0(
+        let error = parse_omena_fixture_v0(
             r#"//- src/Card.module.css unknown:value
 .card { color: red; }
 --- expect: product
@@ -661,7 +661,7 @@ omena-testkit.fixture-markers
 
     #[test]
     fn rejects_fixture_without_sections() {
-        let error = parse_cme_fixture_v0("plain text").err();
+        let error = parse_omena_fixture_v0("plain text").err();
 
         assert_eq!(
             error.as_deref(),
@@ -671,7 +671,7 @@ omena-testkit.fixture-markers
 
     #[test]
     fn rejects_fixture_without_expectations() {
-        let error = parse_cme_fixture_v0(
+        let error = parse_omena_fixture_v0(
             r#"--- file: src/Button.module.scss
 .button { color: red; }
 "#,

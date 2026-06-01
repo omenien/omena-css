@@ -1,6 +1,6 @@
 use serde::Serialize;
 
-use crate::fixture::{CmeFixtureFileV0, CmeFixtureV0, parse_cme_fixture_v0};
+use crate::fixture::{OmenaFixtureFileV0, OmenaFixtureV0, parse_omena_fixture_v0};
 
 /// v0.1 scenario archetypes supported by the Rust testkit substrate.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize)]
@@ -30,7 +30,7 @@ impl CmeScenarioArchetypeV0 {
     }
 }
 
-/// Readiness evidence for one `cme-fixture-v0` scenario.
+/// Readiness evidence for one `omena-fixture-v0` scenario.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct CmeScenarioReadinessV0 {
@@ -208,12 +208,12 @@ shadow scenario exposes product-facing omena verbs without binding to one runner
     },
 ];
 
-/// Build a v0.1 scenario summary from a `cme-fixture-v0` fixture.
+/// Build a v0.1 scenario summary from a `omena-fixture-v0` fixture.
 pub fn summarize_cme_scenario_v0(
     raw: &str,
     archetype: CmeScenarioArchetypeV0,
 ) -> Result<CmeScenarioV0, String> {
-    let fixture = parse_cme_fixture_v0(raw)?;
+    let fixture = parse_omena_fixture_v0(raw)?;
     Ok(build_cme_scenario_v0(fixture, archetype, None))
 }
 
@@ -229,11 +229,11 @@ pub fn summarize_cme_scenario_at_call_site_v0(
         line: caller.line(),
         column: caller.column(),
     };
-    let fixture = parse_cme_fixture_v0(raw)?;
+    let fixture = parse_omena_fixture_v0(raw)?;
     Ok(build_cme_scenario_v0(fixture, archetype, Some(call_site)))
 }
 
-/// Construct a `cme-fixture-v0` scenario using the v0.1 archetype macro.
+/// Construct a `omena-fixture-v0` scenario using the v0.1 archetype macro.
 #[macro_export]
 macro_rules! cme_scenario_v0 {
     (boundary, $raw:expr) => {
@@ -282,7 +282,7 @@ pub fn summarize_omena_testkit_scenario_macro_report() -> OmenaTestkitScenarioMa
     OmenaTestkitScenarioMacroReportV0 {
         schema_version: "0",
         product: "omena-testkit.scenario-macro-report",
-        fixture_grammar: "cme-fixture-v0",
+        fixture_grammar: "omena-fixture-v0",
         supported_archetypes: vec![
             CmeScenarioArchetypeV0::Boundary.id(),
             CmeScenarioArchetypeV0::TransformExecute.id(),
@@ -312,7 +312,7 @@ fn summarize_scenario_macro_call_site_probe() -> OmenaTestkitScenarioMacroCallSi
 }
 
 fn build_cme_scenario_v0(
-    fixture: CmeFixtureV0,
+    fixture: OmenaFixtureV0,
     archetype: CmeScenarioArchetypeV0,
     call_site: Option<CmeScenarioCallSiteV0>,
 ) -> CmeScenarioV0 {
@@ -348,7 +348,7 @@ fn build_cme_scenario_v0(
     CmeScenarioV0 {
         schema_version: "0",
         product: "omena-testkit.scenario",
-        fixture_grammar: "cme-fixture-v0",
+        fixture_grammar: "omena-fixture-v0",
         archetype,
         archetype_id: archetype.id(),
         file_count: fixture.files.len(),
@@ -433,7 +433,7 @@ fn scenario_parse_error(archetype: CmeScenarioArchetypeV0, _error: String) -> Cm
     CmeScenarioV0 {
         schema_version: "0",
         product: "omena-testkit.scenario",
-        fixture_grammar: "cme-fixture-v0",
+        fixture_grammar: "omena-fixture-v0",
         archetype,
         archetype_id: archetype.id(),
         file_count: 0,
@@ -457,7 +457,7 @@ fn scenario_parse_error(archetype: CmeScenarioArchetypeV0, _error: String) -> Cm
     }
 }
 
-fn file_is_source(file: &CmeFixtureFileV0) -> bool {
+fn file_is_source(file: &OmenaFixtureFileV0) -> bool {
     metadata_value(file, "dialect")
         .is_some_and(|dialect| matches!(dialect, "ts" | "tsx" | "js" | "jsx"))
         || file.path.ends_with(".ts")
@@ -468,7 +468,7 @@ fn file_is_source(file: &CmeFixtureFileV0) -> bool {
         || file.path.ends_with(".cts")
 }
 
-fn file_is_style(file: &CmeFixtureFileV0) -> bool {
+fn file_is_style(file: &OmenaFixtureFileV0) -> bool {
     metadata_value(file, "dialect")
         .is_some_and(|dialect| matches!(dialect, "css" | "scss" | "less"))
         || file.path.ends_with(".css")
@@ -477,7 +477,7 @@ fn file_is_style(file: &CmeFixtureFileV0) -> bool {
         || file.path.ends_with(".less")
 }
 
-fn metadata_value<'a>(file: &'a CmeFixtureFileV0, key: &str) -> Option<&'a str> {
+fn metadata_value<'a>(file: &'a OmenaFixtureFileV0, key: &str) -> Option<&'a str> {
     file.metadata
         .iter()
         .find(|metadata| metadata.key == key)

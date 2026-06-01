@@ -2,7 +2,7 @@
 //!
 //! M4 uses this crate to move reusable fixture grammar out of product-specific
 //! harnesses. The M4 substrate also locks scenario macros and snapshot
-//! governance on top of the same `cme-fixture-v0` parser.
+//! governance on top of the same `omena-fixture-v0` parser.
 
 mod boundary;
 pub mod fixture;

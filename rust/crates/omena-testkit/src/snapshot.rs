@@ -112,7 +112,7 @@ pub struct OmenaTestkitSnapshotGovernanceReportV0 {
 
 const SNAPSHOT_POLICY: OmenaTestkitSnapshotGovernancePolicyV0 =
     OmenaTestkitSnapshotGovernancePolicyV0 {
-        fixture_grammar: "cme-fixture-v0",
+        fixture_grammar: "omena-fixture-v0",
         snapshot_manifest_schema: "omena-testkit-snapshot-manifest-v0",
         known_failure_schema: "omena-testkit-known-failures-v0",
         allow_global_disable: false,
@@ -260,7 +260,7 @@ mod tests {
         let report = summarize_omena_testkit_snapshot_governance_report();
 
         assert_eq!(report.product, "omena-testkit.snapshot-governance");
-        assert_eq!(report.fixture_grammar, "cme-fixture-v0");
+        assert_eq!(report.fixture_grammar, "omena-fixture-v0");
         assert!(report.global_disable_rejected);
         assert!(report.policy.update_requires_review);
         assert!(report.unreferenced_reject_ready);

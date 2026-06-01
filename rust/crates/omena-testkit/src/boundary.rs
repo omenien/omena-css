@@ -90,7 +90,7 @@ pub fn summarize_omena_testkit_boundary() -> OmenaTestkitBoundarySummaryV0 {
         schema_version: "0",
         product: "omena-testkit.boundary",
         owner: "omena-css/testkit",
-        fixture_grammar: "cme-fixture-v0",
+        fixture_grammar: "omena-fixture-v0",
         all_fixture_seeds_parse: fixture_seed_report.all_seeds_parse,
         closed_gates: vec![
             "sharedFixtureParserOwnedByOmenaTestkit",
@@ -123,7 +123,7 @@ mod tests {
         let summary = summarize_omena_testkit_boundary();
 
         assert_eq!(summary.product, "omena-testkit.boundary");
-        assert_eq!(summary.fixture_grammar, "cme-fixture-v0");
+        assert_eq!(summary.fixture_grammar, "omena-fixture-v0");
         assert!(summary.all_fixture_seeds_parse);
         assert_eq!(summary.fixture_seed_report.fixture_count, 3);
         assert_eq!(summary.fixture_seed_report.metadata_count, 2);

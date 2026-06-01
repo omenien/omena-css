@@ -13,11 +13,11 @@ use omena_query::{
     summarize_omena_query_style_diagnostics_for_file, summarize_omena_query_style_hover_candidates,
 };
 use omena_testkit::{
-    CmeFixtureDiagnosticV0, CmeFixtureExpectationOutcomeV0, evaluate_cme_fixture_v0_with,
+    OmenaFixtureDiagnosticV0, OmenaFixtureExpectationOutcomeV0, evaluate_omena_fixture_v0_with,
 };
 pub use omena_testkit::{
-    CmeFixtureExpectationV0, CmeFixtureFileV0, CmeFixtureV0, OmenaTestkitFixtureSeedV0,
-    parse_cme_fixture_v0, summarize_omena_testkit_fixture_seed_corpus,
+    OmenaFixtureExpectationV0, OmenaFixtureFileV0, OmenaFixtureV0, OmenaTestkitFixtureSeedV0,
+    parse_omena_fixture_v0, summarize_omena_testkit_fixture_seed_corpus,
 };
 use serde::Serialize;
 
@@ -149,7 +149,7 @@ pub struct M3FixtureSeedV0 {
     pub label: &'static str,
     /// Fixture lane.
     pub lane: M3FixtureLaneV0,
-    /// Raw `cme-fixture-v0` text.
+    /// Raw `omena-fixture-v0` text.
     pub raw: &'static str,
     /// Product surfaces expected to consume this fixture.
     pub expected_products: &'static [&'static str],
@@ -165,7 +165,7 @@ pub struct M3FixtureSeedReportV0 {
     pub label: &'static str,
     /// Fixture lane.
     pub lane: M3FixtureLaneV0,
-    /// Whether the fixture parses with `cme-fixture-v0`.
+    /// Whether the fixture parses with `omena-fixture-v0`.
     pub parses: bool,
     /// Parse error when present.
     pub parse_error: Option<String>,
@@ -558,7 +558,7 @@ pub fn summarize_m3_fixture_seed_corpus() -> M3FixtureSeedCorpusReportV0 {
     M3FixtureSeedCorpusReportV0 {
         schema_version: "0",
         product: "omena-diff-test.m3-fixture-seed-corpus",
-        fixture_grammar: "cme-fixture-v0",
+        fixture_grammar: "omena-fixture-v0",
         fixture_count: reports.len(),
         lane_count,
         all_seeds_parse,
@@ -566,11 +566,11 @@ pub fn summarize_m3_fixture_seed_corpus() -> M3FixtureSeedCorpusReportV0 {
     }
 }
 
-/// Evaluate a parsed `cme-fixture-v0` against the diagnostics the *real* engine
+/// Evaluate a parsed `omena-fixture-v0` against the diagnostics the *real* engine
 /// produces for the fixture's style files.
 ///
 /// This is the missing engine-backed caller of
-/// [`omena_testkit::evaluate_cme_fixture_v0_with`] (#37): the testkit defines the
+/// [`omena_testkit::evaluate_omena_fixture_v0_with`] (#37): the testkit defines the
 /// evaluator but stays free of an `omena-query` dependency to preserve the
 /// workspace DAG, so it can only check fixtures against diagnostics an
 /// engine-aware consumer feeds in. `omena-diff-test` already sits above the
@@ -579,7 +579,7 @@ pub fn summarize_m3_fixture_seed_corpus() -> M3FixtureSeedCorpusReportV0 {
 /// [`summarize_omena_query_style_diagnostics_for_file`] (the exact path the LSP
 /// and CLI surfaces use), projecting each produced
 /// `OmenaQueryStyleDiagnosticV0.code` into the testkit's
-/// [`CmeFixtureDiagnosticV0`].
+/// [`OmenaFixtureDiagnosticV0`].
 ///
 /// The closure is invoked once per fixture file. Non-style files (e.g. JSON
 /// `engine-input.json` seeds) where the summarizer returns `None` contribute no
@@ -587,10 +587,10 @@ pub fn summarize_m3_fixture_seed_corpus() -> M3FixtureSeedCorpusReportV0 {
 /// and cascade families are out of scope for this diagnostics-only caller and
 /// are passed `&[]`; a fixture that only asserts diagnostic-family expectations
 /// therefore evaluates entirely against real engine output.
-pub fn evaluate_cme_fixture_against_real_diagnostics_v0(
-    fixture: &CmeFixtureV0,
-) -> Vec<CmeFixtureExpectationOutcomeV0> {
-    evaluate_cme_fixture_v0_with(fixture, &[], &[], |file: &CmeFixtureFileV0| {
+pub fn evaluate_omena_fixture_against_real_diagnostics_v0(
+    fixture: &OmenaFixtureV0,
+) -> Vec<OmenaFixtureExpectationOutcomeV0> {
+    evaluate_omena_fixture_v0_with(fixture, &[], &[], |file: &OmenaFixtureFileV0| {
         let Some(candidates) =
             summarize_omena_query_style_hover_candidates(&file.path, &file.source)
         else {
@@ -605,7 +605,7 @@ pub fn evaluate_cme_fixture_against_real_diagnostics_v0(
         summary
             .diagnostics
             .iter()
-            .map(|diagnostic| CmeFixtureDiagnosticV0::new(diagnostic.code))
+            .map(|diagnostic| OmenaFixtureDiagnosticV0::new(diagnostic.code))
             .collect()
     })
 }
@@ -1180,12 +1180,12 @@ code: missingCustomProperty
 "#;
 
     #[test]
-    fn evaluates_cme_fixture_against_real_engine_diagnostics() -> Result<(), String> {
-        let fixture = parse_cme_fixture_v0(REAL_DIAGNOSTIC_FIXTURE)?;
-        let outcomes = evaluate_cme_fixture_against_real_diagnostics_v0(&fixture);
+    fn evaluates_omena_fixture_against_real_engine_diagnostics() -> Result<(), String> {
+        let fixture = parse_omena_fixture_v0(REAL_DIAGNOSTIC_FIXTURE)?;
+        let outcomes = evaluate_omena_fixture_against_real_diagnostics_v0(&fixture);
 
         // The three diagnostic-family expectations evaluate against the REAL
-        // engine output flowing through `evaluate_cme_fixture_v0_with`.
+        // engine output flowing through `evaluate_omena_fixture_v0_with`.
         assert_eq!(outcomes.len(), 3);
         assert!(
             outcomes.iter().all(|outcome| outcome.evaluated),
@@ -1204,14 +1204,14 @@ code: missingCustomProperty
         // `missingCustomProperty` for a source where it provably does. If the
         // evaluation were stubbed, this would spuriously pass; because it runs
         // the real engine, the assertion must fail.
-        let fixture = parse_cme_fixture_v0(
+        let fixture = parse_omena_fixture_v0(
             r#"//- src/Component.module.scss dialect:scss
 :root { --brand: red; }
 .alert { color: var(--missing); }
 --- expect: no-diagnostic missingCustomProperty
 "#,
         )?;
-        let outcomes = evaluate_cme_fixture_against_real_diagnostics_v0(&fixture);
+        let outcomes = evaluate_omena_fixture_against_real_diagnostics_v0(&fixture);
 
         assert_eq!(outcomes.len(), 1);
         assert!(
@@ -1231,7 +1231,7 @@ code: missingCustomProperty
     fn clean_source_produces_no_diagnostics_from_real_engine() -> Result<(), String> {
         // A fully-resolved source emits no diagnostics; a `no-diagnostic`
         // expectation against it passes through the real engine path.
-        let fixture = parse_cme_fixture_v0(
+        let fixture = parse_omena_fixture_v0(
             r#"//- src/Component.module.scss dialect:scss
 :root { --brand: red; }
 .alert { color: var(--brand); }
@@ -1239,7 +1239,7 @@ code: missingCustomProperty
 --- expect: count missingCustomProperty:0
 "#,
         )?;
-        let outcomes = evaluate_cme_fixture_against_real_diagnostics_v0(&fixture);
+        let outcomes = evaluate_omena_fixture_against_real_diagnostics_v0(&fixture);
 
         assert!(
             outcomes
@@ -1322,7 +1322,7 @@ code: missingCustomProperty
         let report = summarize_m3_fixture_seed_corpus();
 
         assert_eq!(report.product, "omena-diff-test.m3-fixture-seed-corpus");
-        assert_eq!(report.fixture_grammar, "cme-fixture-v0");
+        assert_eq!(report.fixture_grammar, "omena-fixture-v0");
         assert_eq!(report.fixture_count, 4);
         assert_eq!(report.lane_count, 4);
         assert!(report.all_seeds_parse);
@@ -1346,12 +1346,12 @@ code: missingCustomProperty
     }
 
     #[test]
-    fn parses_reusable_cme_fixture_v0_sections() -> Result<(), String> {
+    fn parses_reusable_omena_fixture_v0_sections() -> Result<(), String> {
         let seed = M3_THEORETICAL_MOAT_FIXTURE_SEEDS
             .iter()
             .find(|seed| seed.label == "cascade-transform-proof-obligations")
             .ok_or_else(|| "cascade fixture seed should stay registered".to_string())?;
-        let fixture = parse_cme_fixture_v0(seed.raw)?;
+        let fixture = parse_omena_fixture_v0(seed.raw)?;
 
         assert_eq!(fixture.schema_version, "0");
         assert_eq!(fixture.files.len(), 1);

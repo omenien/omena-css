@@ -1,7 +1,7 @@
 # `omena-testkit`
 
 `omena-testkit` owns shared Rust-side fixture primitives for omena-css tests.
-The first surface is the `cme-fixture-v0` parser used by M4 conformance and
+The first surface is the `omena-fixture-v0` parser used by M4 conformance and
 testkit migration work. Product crates can keep their own domain assertions,
 but they should consume this shared fixture grammar instead of redefining local
 fixture parsers.
