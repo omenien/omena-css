@@ -56,13 +56,13 @@ TypeScript, TSX, JavaScript, JSX, CSS, SCSS, and Less files.
 
 ## Install
 
-Install from the [VS Code Marketplace](https://marketplace.visualstudio.com/items?itemName=yongsk0066.css-module-explainer)
+Install from the [VS Code Marketplace](https://marketplace.visualstudio.com/items?itemName=omena.omena-css)
 or build from source.
 
 ```bash
 pnpm install
 pnpm package
-code --install-extension css-module-explainer-*.vsix
+code --install-extension omena-css-*.vsix
 ```
 
 ## Performance

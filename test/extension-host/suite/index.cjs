@@ -24,7 +24,7 @@ function toTargetUri(location) {
 }
 
 async function run() {
-  const extension = vscode.extensions.getExtension("yongsk0066.css-module-explainer");
+  const extension = vscode.extensions.getExtension("omena.omena-css");
   assert(extension, "extension should be registered");
 
   await extension.activate();

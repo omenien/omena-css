@@ -1,5 +1,5 @@
 {
-  "name": "css-module-explainer",
+  "name": "omena-css",
   "displayName": "CSS Module Explainer",
   "version": "5.2.0",
   "private": true,
@@ -31,7 +31,7 @@
     "url": "https://github.com/yongsk0066/css-module-explainer"
   },
   "qna": "marketplace",
-  "publisher": "yongsk0066",
+  "publisher": "omena",
   "main": "./dist/client/extension.js",
   "scripts": {
     "clean": "rm -rf dist",

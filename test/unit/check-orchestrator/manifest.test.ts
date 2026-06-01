@@ -238,7 +238,7 @@ describe("check orchestrator manifest", () => {
       path.join(root, "package.json"),
       JSON.stringify(
         {
-          name: "css-module-explainer",
+          name: "omena-css",
           scripts: {
             "omena-check": "node ./check.js",
             check: "echo check",
@@ -280,7 +280,7 @@ describe("check orchestrator manifest", () => {
       path.join(root, "package.json"),
       JSON.stringify(
         {
-          name: "css-module-explainer",
+          name: "omena-css",
           scripts: {
             "omena-check": "node ./check.js",
             check: "echo check",
@@ -329,7 +329,7 @@ describe("check orchestrator manifest", () => {
       path.join(root, "package.json"),
       JSON.stringify(
         {
-          name: "css-module-explainer",
+          name: "omena-css",
           scripts: {
             "omena-check": "node ./check.js",
             "check:rust-checker-bounded-lanes": "echo checker",
@@ -360,7 +360,7 @@ describe("check orchestrator manifest", () => {
       path.join(root, "package.json"),
       JSON.stringify(
         {
-          name: "css-module-explainer",
+          name: "omena-css",
           scripts: {
             "omena-check": "node ./check.js",
             "release:verify": "pnpm omena-check run test",

@@ -82,14 +82,14 @@ export function findRepoRoot(startDir = process.cwd()): string {
   while (true) {
     try {
       const candidate = readRootPackageJson(dir);
-      if (candidate.name === "css-module-explainer") return dir;
+      if (candidate.name === "omena-css") return dir;
     } catch {
       // Keep walking.
     }
 
     const parent = path.dirname(dir);
     if (parent === dir) {
-      throw new Error(`Unable to locate css-module-explainer repo root from ${startDir}`);
+      throw new Error(`Unable to locate omena-css repo root from ${startDir}`);
     }
     dir = parent;
   }

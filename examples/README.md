@@ -32,7 +32,7 @@ through the sidebar.
 # from the repository root
 pnpm build
 pnpm exec vsce package --no-dependencies
-code --install-extension css-module-explainer-*.vsix
+code --install-extension omena-css-*.vsix
 ```
 
 Then restart VS Code and open this folder normally.
