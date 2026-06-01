@@ -14,7 +14,7 @@ export interface OmenaLspServerRuntimeSelection {
 export type LspServerRuntimeSelection = OmenaLspServerRuntimeSelection;
 
 export interface ThinClientRuntimeEndpoint {
-  readonly product: "css-module-explainer.thin-client-runtime-endpoint";
+  readonly product: "omena-css.thin-client-runtime-endpoint";
   readonly runtime: "omena-lsp-server";
   readonly command: string;
   readonly args: readonly string[];
@@ -97,7 +97,7 @@ export function buildThinClientRuntimeEndpoint(
   extensionRoot: string,
 ): ThinClientRuntimeEndpoint {
   return {
-    product: "css-module-explainer.thin-client-runtime-endpoint",
+    product: "omena-css.thin-client-runtime-endpoint",
     runtime: "omena-lsp-server",
     command: selection.command,
     args: [...selection.args],

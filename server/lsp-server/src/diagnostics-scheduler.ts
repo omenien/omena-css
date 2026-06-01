@@ -124,9 +124,7 @@ class DiagnosticsSchedulerImpl implements DiagnosticsScheduler {
         })
         .catch((err: unknown) => {
           const message = err instanceof Error ? err.message : String(err);
-          this.deps.connection.console.error(
-            `[css-module-explainer] indexer readiness failed: ${message}`,
-          );
+          this.deps.connection.console.error(`[omena-css] indexer readiness failed: ${message}`);
         });
     }
   }
@@ -263,9 +261,7 @@ class DiagnosticsSchedulerImpl implements DiagnosticsScheduler {
         .then((resolved) => this.safeSendDiagnostics(uri, resolved))
         .catch((err: unknown) => {
           const message = err instanceof Error ? err.message : String(err);
-          this.deps.connection.console.error(
-            `[css-module-explainer] diagnostics failed: ${message}`,
-          );
+          this.deps.connection.console.error(`[omena-css] diagnostics failed: ${message}`);
           this.safeSendDiagnostics(uri, []);
         });
       return;

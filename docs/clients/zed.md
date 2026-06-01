@@ -41,7 +41,7 @@ Example:
 ```json
 {
   "lsp": {
-    "css-module-explainer": {
+    "omena-css": {
       "binary": {
         "path": "omena-lsp-server",
         "arguments": []
@@ -50,22 +50,22 @@ Example:
   },
   "languages": {
     "TypeScript": {
-      "language_servers": ["css-module-explainer", "..."]
+      "language_servers": ["omena-css", "..."]
     },
     "TSX": {
-      "language_servers": ["css-module-explainer", "..."]
+      "language_servers": ["omena-css", "..."]
     },
     "JavaScript": {
-      "language_servers": ["css-module-explainer", "..."]
+      "language_servers": ["omena-css", "..."]
     },
     "CSS": {
-      "language_servers": ["css-module-explainer", "..."]
+      "language_servers": ["omena-css", "..."]
     },
     "SCSS": {
-      "language_servers": ["css-module-explainer", "..."]
+      "language_servers": ["omena-css", "..."]
     },
     "Less": {
-      "language_servers": ["css-module-explainer", "..."]
+      "language_servers": ["omena-css", "..."]
     }
   }
 }

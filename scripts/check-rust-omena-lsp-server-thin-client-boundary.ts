@@ -43,7 +43,7 @@ assert.equal(
   "rust/omena-lsp-server/thin-client-boundary",
 );
 assert.equal(rustEndpoint.product, "omena-lsp-server.thin-client-endpoint");
-assert.equal(rustEndpoint.endpointName, "css-module-explainer.thin-client-runtime-endpoint");
+assert.equal(rustEndpoint.endpointName, "omena-css.thin-client-runtime-endpoint");
 assert.equal(rustEndpoint.transportContract, "LSP stdio JSON-RPC");
 assert.equal(rustEndpoint.commandOwner, "dist/bin/<platform>-<arch>/omena-lsp-server");
 assert.equal(rustEndpoint.standalonePackage, "omena-lsp-server");

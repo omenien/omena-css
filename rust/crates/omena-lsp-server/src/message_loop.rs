@@ -40,7 +40,7 @@ pub fn handle_lsp_message(state: &mut LspShellState, message: Value) -> Option<V
                 "result": {
                     "capabilities": current_node_lsp_capability_contract(),
                     "serverInfo": {
-                        "name": "css-module-explainer-rust",
+                        "name": "omena-css-rust",
                     },
                 },
             }))

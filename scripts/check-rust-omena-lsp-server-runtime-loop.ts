@@ -95,7 +95,7 @@ async function main(): Promise<void> {
       ),
       "initialize",
     );
-    assert.equal(initialized.serverInfo?.name, "css-module-explainer-rust");
+    assert.equal(initialized.serverInfo?.name, "omena-css-rust");
 
     connection.sendNotification(InitializedNotification.type, {});
     connection.sendNotification(DidOpenTextDocumentNotification.type, {

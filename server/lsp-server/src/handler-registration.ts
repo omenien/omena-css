@@ -261,7 +261,7 @@ function toRuntimeFileEvent(
 function safeLogError(connection: Connection, context: string, err: unknown): void {
   const message = err instanceof Error ? err.message : String(err);
   try {
-    connection.console.error(`[css-module-explainer] ${context}: ${message}`);
+    connection.console.error(`[omena-css] ${context}: ${message}`);
   } catch {
     // Connection already disposed — nothing to log to.
   }

@@ -16,7 +16,7 @@ import type { WorkspaceRegistry } from "../../engine-host-node/src/workspace/wor
 import { defaultReadStyleFile } from "../../engine-host-node/src/runtime";
 import { shutdownEngineShadowRunnerDaemon } from "../../engine-host-node/src/selected-query-backend";
 
-const SERVER_NAME = "css-module-explainer";
+const SERVER_NAME = "omena-css";
 const SERVER_VERSION = "5.2.0";
 const RUNTIME_LOOP_PROBE_REQUEST = "omena/runtimeLoopProbe";
 

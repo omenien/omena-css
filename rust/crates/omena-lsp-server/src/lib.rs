@@ -1029,7 +1029,7 @@ fn resolve_style_diagnostics_for_uri(state: &LspShellState, document_uri: &str) 
                 "range": diagnostic.range,
                 "severity": lsp_diagnostic_severity(query_severity, state.diagnostics.severity),
                 "code": diagnostic.code,
-                "source": "css-module-explainer",
+                "source": "omena-css",
                 "message": diagnostic.message,
                 "data": Value::Object(data),
             });
@@ -1087,7 +1087,7 @@ fn resolve_source_diagnostics_for_uri(state: &LspShellState, document_uri: &str)
             "range": diagnostic.range,
             "severity": lsp_diagnostic_severity(query_severity, state.diagnostics.severity),
             "code": diagnostic.code,
-            "source": "css-module-explainer",
+            "source": "omena-css",
             "message": diagnostic.message,
             "data": Value::Object(data),
         }))

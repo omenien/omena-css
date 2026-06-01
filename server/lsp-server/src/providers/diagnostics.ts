@@ -85,7 +85,7 @@ export const computeDiagnostics = wrapHandler<
   [],
 );
 
-const DIAGNOSTIC_SOURCE = "css-module-explainer";
+const DIAGNOSTIC_SOURCE = "omena-css";
 
 function resolveQueryOwnedSourceDiagnostics(
   params: DocumentParams,

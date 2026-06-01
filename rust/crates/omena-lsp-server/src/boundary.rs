@@ -148,7 +148,7 @@ pub fn summarize_omena_lsp_server_boundary() -> OmenaLspServerBoundarySummaryV0 
     OmenaLspServerBoundarySummaryV0 {
         schema_version: "0",
         product: "omena-lsp-server.boundary",
-        server_name: "css-module-explainer",
+        server_name: "omena-css",
         migration_status: "rustStable",
         transport_contract: "LSP stdio or IPC JSON-RPC",
         capabilities: current_node_lsp_capability_contract(),
@@ -213,7 +213,7 @@ pub fn source_provider_direct_rust_adapter_contract() -> SourceProviderDirectRus
 pub fn thin_client_endpoint_contract() -> ThinClientEndpointV0 {
     ThinClientEndpointV0 {
         product: "omena-lsp-server.thin-client-endpoint",
-        endpoint_name: "css-module-explainer.thin-client-runtime-endpoint",
+        endpoint_name: "omena-css.thin-client-runtime-endpoint",
         transport_contract: "LSP stdio JSON-RPC",
         command_owner: "dist/bin/<platform>-<arch>/omena-lsp-server",
         standalone_package: "omena-lsp-server",

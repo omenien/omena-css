@@ -32,7 +32,7 @@ const initializeRequest = {
   params: {
     processId: null,
     rootUri,
-    workspaceFolders: [{ uri: rootUri, name: "css-module-explainer" }],
+    workspaceFolders: [{ uri: rootUri, name: "omena-css" }],
     capabilities: {},
   },
 };

@@ -48,7 +48,7 @@ function diagnostic(
   return {
     range,
     severity: DiagnosticSeverity.Warning,
-    source: "css-module-explainer",
+    source: "omena-css",
     message,
     data:
       suggestion === undefined
@@ -133,7 +133,7 @@ describe("handleCodeAction", () => {
         {
           range: DEFAULT_DIAGNOSTIC_RANGE,
           severity: DiagnosticSeverity.Warning,
-          source: "css-module-explainer",
+          source: "omena-css",
           message: "whatever",
         },
       ]),
@@ -158,7 +158,7 @@ describe("handleCodeAction", () => {
     const d: Diagnostic = {
       range: DEFAULT_DIAGNOSTIC_RANGE,
       severity: DiagnosticSeverity.Warning,
-      source: "css-module-explainer",
+      source: "omena-css",
       message: "Class '.missing' not found in Button.module.scss.",
       data: {
         createSelector: {
@@ -180,7 +180,7 @@ describe("handleCodeAction", () => {
     const d: Diagnostic = {
       range: moduleWorkspace.range("module", SOURCE_PATH).range,
       severity: DiagnosticSeverity.Warning,
-      source: "css-module-explainer",
+      source: "omena-css",
       message: "Cannot resolve CSS Module './Button.module.scss'. The file does not exist.",
       code: "missing-module",
       data: {
@@ -210,7 +210,7 @@ describe("handleCodeAction", () => {
     const d: Diagnostic = {
       range: styleWorkspace.range("token", STYLE_PATH).range,
       severity: DiagnosticSeverity.Warning,
-      source: "css-module-explainer",
+      source: "omena-css",
       message: "CSS custom property '--missing' not found in indexed style tokens.",
       data: {
         createCustomProperty: {
@@ -238,7 +238,7 @@ describe("handleCodeAction", () => {
     const d: Diagnostic = {
       range: styleWorkspace.range("variable", STYLE_PATH).range,
       severity: DiagnosticSeverity.Warning,
-      source: "css-module-explainer",
+      source: "omena-css",
       message: "Sass variable '$missing' not found in this file.",
       data: {
         createSassSymbol: {

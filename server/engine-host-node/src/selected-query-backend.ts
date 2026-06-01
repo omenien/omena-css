@@ -529,7 +529,7 @@ class EngineShadowRunnerDaemon {
     if (shouldTraceEngineShadowRunnerDaemon(this.env)) {
       process.stderr.write(
         [
-          "[css-module-explainer] engine-shadow-runner daemon spawned",
+          "[omena-css] engine-shadow-runner daemon spawned",
           `pid=${child.pid ?? "unknown"}`,
           `startsInWindow=${this.restartTimestamps.length}`,
         ].join(" ") + "\n",

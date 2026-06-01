@@ -58,7 +58,7 @@ async function main(): Promise<void> {
       connection.sendRequest<InitializeResult>(InitializeRequest.type, initializeParams()),
       "initialize",
     );
-    if (initResult.serverInfo?.name !== "css-module-explainer") {
+    if (initResult.serverInfo?.name !== "omena-css") {
       throw new Error(`Unexpected server name: ${initResult.serverInfo?.name ?? "<missing>"}`);
     }
 

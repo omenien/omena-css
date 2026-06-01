@@ -140,7 +140,7 @@ assert.ok(
 const expectedMissingCustomPropertyDiagnostic = {
   range: nodeMissingCustomPropertyReference.range,
   severity: 2,
-  source: "css-module-explainer",
+  source: "omena-css",
   code: "missingCustomProperty",
   message: "CSS custom property '--missing' not found in indexed style tokens.",
   data: {
@@ -162,7 +162,7 @@ const expectedMissingCustomPropertyDiagnostic = {
 const expectedMissingSelectorDiagnostic = {
   range: sourceMissingSelectorRange,
   severity: 2,
-  source: "css-module-explainer",
+  source: "omena-css",
   code: "missingSelector",
   message: "CSS Module selector '.missing' not found in indexed style tokens.",
   data: {
@@ -184,7 +184,7 @@ const expectedMissingSelectorDiagnostic = {
 const expectedMissingImportedSelectorDiagnostic = {
   range: sourceMissingImportedSelectorRange,
   severity: 2,
-  source: "css-module-explainer",
+  source: "omena-css",
   code: "missingSelector",
   message: "CSS Module selector '.ghost' not found in indexed style tokens.",
   data: {
@@ -1391,7 +1391,7 @@ function documentEndRange(text: string): {
 function unusedSelectorDiagnostic(selector: { readonly name: string; readonly range: unknown }): {
   readonly range: unknown;
   readonly severity: 4;
-  readonly source: "css-module-explainer";
+  readonly source: "omena-css";
   readonly code: "unusedSelector";
   readonly message: string;
   readonly data: {
@@ -1408,7 +1408,7 @@ function unusedSelectorDiagnostic(selector: { readonly name: string; readonly ra
   return {
     range: selector.range,
     severity: 4,
-    source: "css-module-explainer",
+    source: "omena-css",
     code: "unusedSelector",
     message: `Selector '.${selector.name}' is declared but never used.`,
     data: {

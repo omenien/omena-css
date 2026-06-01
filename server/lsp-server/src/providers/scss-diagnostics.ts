@@ -240,7 +240,7 @@ function toQueryOwnedStyleDiagnostic(
     range: toLspRange(diagnostic.range),
     severity: querySeverityToLspSeverity(diagnostic.severity),
     code: diagnostic.code,
-    source: "css-module-explainer",
+    source: "omena-css",
     message: diagnostic.message,
     ...(diagnostic.tags?.length
       ? { tags: diagnostic.tags.map((tag) => tag as DiagnosticTag) }
@@ -404,7 +404,7 @@ function toDiagnostic(
         range: toLspRange(finding.range),
         severity: DiagnosticSeverity.Hint,
         code: finding.code,
-        source: "css-module-explainer",
+        source: "omena-css",
         message: formatCheckerFinding(finding, ""),
         tags: [DiagnosticTag.Unnecessary],
       };
@@ -413,7 +413,7 @@ function toDiagnostic(
         range: toLspRange(finding.range),
         severity: DiagnosticSeverity.Warning,
         code: finding.code,
-        source: "css-module-explainer",
+        source: "omena-css",
         message: formatCheckerFinding(finding, ""),
         data: {
           createModuleFile: {
@@ -437,7 +437,7 @@ function toDiagnostic(
         range: toLspRange(finding.range),
         severity: DiagnosticSeverity.Warning,
         code: finding.code,
-        source: "css-module-explainer",
+        source: "omena-css",
         message: formatCheckerFinding(finding, ""),
         data,
       };
@@ -447,7 +447,7 @@ function toDiagnostic(
         range: toLspRange(finding.range),
         severity: DiagnosticSeverity.Warning,
         code: finding.code,
-        source: "css-module-explainer",
+        source: "omena-css",
         message: formatCheckerFinding(finding, ""),
         data: {
           createModuleFile: {
@@ -471,7 +471,7 @@ function toDiagnostic(
         range: toLspRange(finding.range),
         severity: DiagnosticSeverity.Warning,
         code: finding.code,
-        source: "css-module-explainer",
+        source: "omena-css",
         message: formatCheckerFinding(finding, ""),
         data,
       };
@@ -480,7 +480,7 @@ function toDiagnostic(
         range: toLspRange(finding.range),
         severity: DiagnosticSeverity.Warning,
         code: finding.code,
-        source: "css-module-explainer",
+        source: "omena-css",
         message: formatCheckerFinding(finding, ""),
         data: {
           createKeyframes: buildCreateKeyframesActionData(
@@ -495,7 +495,7 @@ function toDiagnostic(
         range: toLspRange(finding.range),
         severity: DiagnosticSeverity.Warning,
         code: finding.code,
-        source: "css-module-explainer",
+        source: "omena-css",
         message: formatCheckerFinding(finding, ""),
         data: {
           createCustomProperty: buildCreateCustomPropertyActionData(
@@ -510,7 +510,7 @@ function toDiagnostic(
         range: toLspRange(finding.range),
         severity: DiagnosticSeverity.Warning,
         code: finding.code,
-        source: "css-module-explainer",
+        source: "omena-css",
         message: formatCheckerFinding(finding, ""),
         data: {
           createSassSymbol: buildCreateSassSymbolActionData(

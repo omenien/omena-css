@@ -9,7 +9,7 @@ test("returns capabilities including definitionProvider on initialize", async ({
   const result = await client.initialize();
   expect(result.capabilities.definitionProvider).toBe(true);
   expect(result.capabilities.hoverProvider).toBe(true);
-  expect(result.serverInfo?.name).toBe("css-module-explainer");
+  expect(result.serverInfo?.name).toBe("omena-css");
 });
 
 test("advertises completionProvider with every trigger character", async ({ makeClient }) => {

@@ -347,7 +347,7 @@ function cratesIoCrate(
       `https://crates.io/api/v1/crates/${crateName}`,
       {
         headers: {
-          "User-Agent": "css-module-explainer split publish readiness check",
+          "User-Agent": "omena-css split publish readiness check",
         },
       },
       (response) => {

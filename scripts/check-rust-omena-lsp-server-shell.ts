@@ -200,7 +200,7 @@ const initializeResponse = responses[0]!;
 assert.equal(initializeResponse.id, 1);
 assert.deepEqual(initializeResponse.result.capabilities, buildServerCapabilities());
 assert.deepEqual(initializeResponse.result.serverInfo, {
-  name: "css-module-explainer-rust",
+  name: "omena-css-rust",
 });
 
 const debugStateResponse = responses[1]!;

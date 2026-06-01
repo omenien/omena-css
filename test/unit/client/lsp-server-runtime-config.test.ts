@@ -79,7 +79,7 @@ describe("client LSP server runtime config", () => {
     );
 
     expect(endpoint).toMatchObject({
-      product: "css-module-explainer.thin-client-runtime-endpoint",
+      product: "omena-css.thin-client-runtime-endpoint",
       runtime: "omena-lsp-server",
       command: "/repo/dist/bin/darwin-arm64/omena-lsp-server",
       cwd: "/repo",

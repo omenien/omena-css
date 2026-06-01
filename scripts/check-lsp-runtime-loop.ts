@@ -123,7 +123,7 @@ async function main(): Promise<void> {
       ),
       "initialize",
     );
-    if (initialized.serverInfo?.name !== "css-module-explainer") {
+    if (initialized.serverInfo?.name !== "omena-css") {
       throw new Error(`Unexpected server name: ${initialized.serverInfo?.name ?? "<missing>"}`);
     }
 

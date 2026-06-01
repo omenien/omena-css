@@ -101,7 +101,7 @@ describe("computeScssUnusedDiagnostics", () => {
     expect(diagnostics[0]!.message).toContain("'.active'");
     expect(diagnostics[0]!.severity).toBe(DiagnosticSeverity.Hint);
     expect(diagnostics[0]!.tags).toContain(DiagnosticTag.Unnecessary);
-    expect(diagnostics[0]!.source).toBe("css-module-explainer");
+    expect(diagnostics[0]!.source).toBe("omena-css");
   });
 
   it("returns [] when all selectors have references", () => {
@@ -807,7 +807,7 @@ describe("computeScssUnusedDiagnostics", () => {
     expect(diagnostic).toBeDefined();
     expect(diagnostic).toMatchObject({
       severity: DiagnosticSeverity.Warning,
-      source: "css-module-explainer",
+      source: "omena-css",
       data: {
         createCustomProperty: {
           uri: "file:///fake/Button.module.scss",
