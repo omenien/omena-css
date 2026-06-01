@@ -373,7 +373,9 @@ fn validate_omena_fixture_metadata(key: &str, value: &str) -> Result<(), String>
     }
 }
 
-fn extract_omena_fixture_markers(source: &str) -> Result<(String, Vec<OmenaFixtureMarkerV0>), String> {
+fn extract_omena_fixture_markers(
+    source: &str,
+) -> Result<(String, Vec<OmenaFixtureMarkerV0>), String> {
     let mut cleaned = String::new();
     let mut markers = Vec::new();
     let mut cursor = 0;
