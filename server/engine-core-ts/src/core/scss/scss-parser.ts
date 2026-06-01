@@ -1,9 +1,4 @@
-import type {
-  BemSuffixInfo,
-  ComposesClassToken,
-  ComposesRef,
-  Range,
-} from "@omena/shared";
+import type { BemSuffixInfo, ComposesClassToken, ComposesRef, Range } from "@omena/shared";
 import {
   parse as postcssParse,
   type AtRule,

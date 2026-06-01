@@ -1,9 +1,4 @@
-import type {
-  Position,
-  Range,
-  ShowReferencesArgs,
-  ShowReferencesLocation,
-} from "@omena/shared";
+import type { Position, Range, ShowReferencesArgs, ShowReferencesLocation } from "@omena/shared";
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
