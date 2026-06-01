@@ -91,8 +91,8 @@ All settings live under the `omena.*` namespace.
 
 ### Core settings
 
-| Setting                                         | Default     | Description                                                             |
-| ----------------------------------------------- | ----------- | ----------------------------------------------------------------------- |
+| Setting                            | Default     | Description                                                             |
+| ---------------------------------- | ----------- | ----------------------------------------------------------------------- |
 | `omena.features.definition`        | `true`      | Enable Go to Definition.                                                |
 | `omena.features.hover`             | `true`      | Enable Hover.                                                           |
 | `omena.features.completion`        | `true`      | Enable Completion.                                                      |
