@@ -19,11 +19,11 @@ default = []
 smt-z3 = ["omena-smt/smt-z3"]
 
 [dependencies]
-omena-abstract-value = { path = "../omena-abstract-value" }
-omena-cascade = { path = "../omena-cascade" }
-omena-categorical = { path = "../omena-categorical" }
-omena-rg-flow = { path = "../omena-rg-flow" }
-omena-resolver = { path = "../omena-resolver" }
-omena-smt = { path = "../omena-smt" }
-omena-variational = { path = "../omena-variational" }
+omena-abstract-value = { path = "../omena-abstract-value", version = "=0.2.0" }
+omena-cascade = { path = "../omena-cascade", version = "=0.2.0" }
+omena-categorical = { path = "../omena-categorical", version = "=0.2.0" }
+omena-rg-flow = { path = "../omena-rg-flow", version = "=0.2.0" }
+omena-resolver = { path = "../omena-resolver", version = "=0.2.0" }
+omena-smt = { path = "../omena-smt", version = "=0.2.0" }
+omena-variational = { path = "../omena-variational", version = "=0.2.0" }
 serde.workspace = true

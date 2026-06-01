@@ -15,6 +15,6 @@ role = "R1"
 workspace = true
 
 [dependencies]
-omena-syntax = { path = "../omena-syntax" }
+omena-syntax = { path = "../omena-syntax", version = "=0.2.0" }
 salsa.workspace = true
 smol_str.workspace = true

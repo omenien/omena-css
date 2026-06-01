@@ -15,6 +15,6 @@ role = "R1"
 workspace = true
 
 [dependencies]
-omena-engine-input-producers = { path = "../omena-engine-input-producers" }
+omena-engine-input-producers = { path = "../omena-engine-input-producers", version = "=0.2.0" }
 serde.workspace = true
 serde_json.workspace = true

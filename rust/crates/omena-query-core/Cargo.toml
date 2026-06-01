@@ -15,9 +15,9 @@ role = "R2"
 workspace = true
 
 [dependencies]
-omena-engine-input-producers = { path = "../omena-engine-input-producers" }
-omena-abstract-value = { path = "../omena-abstract-value" }
-omena-incremental = { path = "../omena-incremental" }
-omena-refinement = { path = "../omena-refinement" }
-omena-resolver = { path = "../omena-resolver" }
+omena-engine-input-producers = { path = "../omena-engine-input-producers", version = "=0.2.0" }
+omena-abstract-value = { path = "../omena-abstract-value", version = "=0.2.0" }
+omena-incremental = { path = "../omena-incremental", version = "=0.2.0" }
+omena-refinement = { path = "../omena-refinement", version = "=0.2.0" }
+omena-resolver = { path = "../omena-resolver", version = "=0.2.0" }
 serde.workspace = true

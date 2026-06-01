@@ -20,8 +20,8 @@ default = []
 refinement-smt = ["dep:omena-smt"]
 
 [dependencies]
-omena-abstract-value = { path = "../omena-abstract-value" }
-omena-cascade = { path = "../omena-cascade" }
-omena-refinement-trait = { path = "../omena-refinement-trait" }
-omena-smt = { path = "../omena-smt", optional = true }
+omena-abstract-value = { path = "../omena-abstract-value", version = "=0.2.0" }
+omena-cascade = { path = "../omena-cascade", version = "=0.2.0" }
+omena-refinement-trait = { path = "../omena-refinement-trait", version = "=0.2.0" }
+omena-smt = { path = "../omena-smt", version = "=0.2.0", optional = true }
 serde.workspace = true

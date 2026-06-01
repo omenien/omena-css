@@ -19,6 +19,6 @@ workspace = true
 default = []
 
 [dependencies]
-omena-abstract-value = { path = "../omena-abstract-value" }
-omena-cascade = { path = "../omena-cascade" }
+omena-abstract-value = { path = "../omena-abstract-value", version = "=0.2.0" }
+omena-cascade = { path = "../omena-cascade", version = "=0.2.0" }
 serde.workspace = true

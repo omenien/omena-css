@@ -23,5 +23,5 @@ naldi-lumping = []
 spin-glass = []
 
 [dependencies]
-omena-refinement-trait = { path = "../omena-refinement-trait" }
+omena-refinement-trait = { path = "../omena-refinement-trait", version = "=0.2.0" }
 serde.workspace = true

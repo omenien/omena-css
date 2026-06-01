@@ -16,5 +16,5 @@ pillar = "theoretical-rigor"
 workspace = true
 
 [dependencies]
-omena-parser = { path = "../omena-parser" }
+omena-parser = { path = "../omena-parser", version = "=0.2.0" }
 serde.workspace = true

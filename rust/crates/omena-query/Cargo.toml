@@ -20,15 +20,15 @@ hypergraph-ifds = []
 smt-z3 = ["omena-query-checker-orchestrator/smt-z3"]
 
 [dependencies]
-omena-bridge = { path = "../omena-bridge" }
-omena-cascade = { path = "../omena-cascade" }
-omena-parser = { path = "../omena-parser" }
-omena-query-checker-orchestrator = { path = "../omena-query-checker-orchestrator" }
-omena-query-core = { path = "../omena-query-core" }
-omena-query-transform-runner = { path = "../omena-query-transform-runner" }
-omena-resolver = { path = "../omena-resolver" }
-omena-semantic = { path = "../omena-semantic" }
-omena-sif = { path = "../omena-sif" }
-omena-syntax = { path = "../omena-syntax" }
+omena-bridge = { path = "../omena-bridge", version = "=0.2.0" }
+omena-cascade = { path = "../omena-cascade", version = "=0.2.0" }
+omena-parser = { path = "../omena-parser", version = "=0.2.0" }
+omena-query-checker-orchestrator = { path = "../omena-query-checker-orchestrator", version = "=0.2.0" }
+omena-query-core = { path = "../omena-query-core", version = "=0.2.0" }
+omena-query-transform-runner = { path = "../omena-query-transform-runner", version = "=0.2.0" }
+omena-resolver = { path = "../omena-resolver", version = "=0.2.0" }
+omena-semantic = { path = "../omena-semantic", version = "=0.2.0" }
+omena-sif = { path = "../omena-sif", version = "=0.2.0" }
+omena-syntax = { path = "../omena-syntax", version = "=0.2.0" }
 serde.workspace = true
 serde_json.workspace = true

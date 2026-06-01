@@ -123,6 +123,7 @@
     "check:rust-omena-css-h2-workspace": "node ./scripts/prepare-omena-css-workspace.mjs --temp --verify",
     "check:rust-omena-css-h2-publish-dry-run": "node ./scripts/prepare-omena-css-workspace.mjs --temp --verify --publish-dry-run",
     "check:rust-publish-train-closure": "node --import tsx ./scripts/check-rust-publish-train-closure.ts",
+    "check:rust-inter-crate-pin": "node --import tsx ./scripts/check-rust-inter-crate-pin.ts",
     "check:rust-role-boundaries": "node --import tsx ./scripts/check-rust-role-boundaries.ts",
     "check:rust-publish-flags": "node --import tsx ./scripts/check-rust-publish-flags.ts",
     "check:rust-naming-consistency": "node --import tsx ./scripts/check-rust-naming-consistency.ts",

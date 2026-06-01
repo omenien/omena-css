@@ -15,37 +15,37 @@ role = "U"
 workspace = true
 
 [dependencies]
-omena-engine-input-producers = { path = "../omena-engine-input-producers" }
-omena-abstract-value = { path = "../omena-abstract-value" }
-omena-bridge = { path = "../omena-bridge" }
-omena-cascade = { path = "../omena-cascade" }
-omena-categorical = { path = "../omena-categorical" }
-omena-checker = { path = "../omena-checker" }
-omena-ensemble = { path = "../omena-ensemble" }
-omena-incremental = { path = "../omena-incremental" }
-omena-interner = { path = "../omena-interner" }
-omena-lawvere = { path = "../omena-lawvere" }
-omena-parser = { path = "../omena-parser" }
-omena-query = { path = "../omena-query" }
-omena-query-checker-orchestrator = { path = "../omena-query-checker-orchestrator" }
-omena-query-core = { path = "../omena-query-core" }
-omena-query-transform-runner = { path = "../omena-query-transform-runner" }
-omena-refinement = { path = "../omena-refinement" }
-omena-refinement-trait = { path = "../omena-refinement-trait" }
-omena-resolver = { path = "../omena-resolver" }
-omena-rg-flow = { path = "../omena-rg-flow" }
-omena-semantic = { path = "../omena-semantic" }
-omena-sif = { path = "../omena-sif" }
-omena-smt = { path = "../omena-smt" }
-omena-spec-audit = { path = "../omena-spec-audit" }
-omena-streaming-ifds = { path = "../omena-streaming-ifds" }
-omena-syntax = { path = "../omena-syntax" }
-omena-transform-bundle = { path = "../omena-transform-bundle" }
-omena-transform-cst = { path = "../omena-transform-cst" }
-omena-transform-egg = { path = "../omena-transform-egg" }
-omena-transform-passes = { path = "../omena-transform-passes" }
-omena-transform-print = { path = "../omena-transform-print" }
-omena-transform-target = { path = "../omena-transform-target" }
-omena-variational = { path = "../omena-variational" }
-omena-zk-audit = { path = "../omena-zk-audit" }
-omena-zk-circuit = { path = "../omena-zk-circuit" }
+omena-engine-input-producers = { path = "../omena-engine-input-producers", version = "=0.2.0" }
+omena-abstract-value = { path = "../omena-abstract-value", version = "=0.2.0" }
+omena-bridge = { path = "../omena-bridge", version = "=0.2.0" }
+omena-cascade = { path = "../omena-cascade", version = "=0.2.0" }
+omena-categorical = { path = "../omena-categorical", version = "=0.2.0" }
+omena-checker = { path = "../omena-checker", version = "=0.2.0" }
+omena-ensemble = { path = "../omena-ensemble", version = "=0.2.0" }
+omena-incremental = { path = "../omena-incremental", version = "=0.2.0" }
+omena-interner = { path = "../omena-interner", version = "=0.2.0" }
+omena-lawvere = { path = "../omena-lawvere", version = "=0.2.0" }
+omena-parser = { path = "../omena-parser", version = "=0.2.0" }
+omena-query = { path = "../omena-query", version = "=0.2.0" }
+omena-query-checker-orchestrator = { path = "../omena-query-checker-orchestrator", version = "=0.2.0" }
+omena-query-core = { path = "../omena-query-core", version = "=0.2.0" }
+omena-query-transform-runner = { path = "../omena-query-transform-runner", version = "=0.2.0" }
+omena-refinement = { path = "../omena-refinement", version = "=0.2.0" }
+omena-refinement-trait = { path = "../omena-refinement-trait", version = "=0.2.0" }
+omena-resolver = { path = "../omena-resolver", version = "=0.2.0" }
+omena-rg-flow = { path = "../omena-rg-flow", version = "=0.2.0" }
+omena-semantic = { path = "../omena-semantic", version = "=0.2.0" }
+omena-sif = { path = "../omena-sif", version = "=0.2.0" }
+omena-smt = { path = "../omena-smt", version = "=0.2.0" }
+omena-spec-audit = { path = "../omena-spec-audit", version = "=0.2.0" }
+omena-streaming-ifds = { path = "../omena-streaming-ifds", version = "=0.2.0" }
+omena-syntax = { path = "../omena-syntax", version = "=0.2.0" }
+omena-transform-bundle = { path = "../omena-transform-bundle", version = "=0.2.0" }
+omena-transform-cst = { path = "../omena-transform-cst", version = "=0.2.0" }
+omena-transform-egg = { path = "../omena-transform-egg", version = "=0.2.0" }
+omena-transform-passes = { path = "../omena-transform-passes", version = "=0.2.0" }
+omena-transform-print = { path = "../omena-transform-print", version = "=0.2.0" }
+omena-transform-target = { path = "../omena-transform-target", version = "=0.2.0" }
+omena-variational = { path = "../omena-variational", version = "=0.2.0" }
+omena-zk-audit = { path = "../omena-zk-audit", version = "=0.2.0" }
+omena-zk-circuit = { path = "../omena-zk-circuit", version = "=0.2.0" }

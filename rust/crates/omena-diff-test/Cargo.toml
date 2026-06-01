@@ -15,9 +15,9 @@ role = "I"
 workspace = true
 
 [dependencies]
-engine-style-parser = { path = "../engine-style-parser" }
-omena-parser = { path = "../omena-parser" }
-omena-query = { path = "../omena-query" }
-omena-testkit = { path = "../omena-testkit" }
+engine-style-parser = { path = "../engine-style-parser", version = "=0.2.0" }
+omena-parser = { path = "../omena-parser", version = "=0.2.0" }
+omena-query = { path = "../omena-query", version = "=0.2.0" }
+omena-testkit = { path = "../omena-testkit", version = "=0.2.0" }
 serde.workspace = true
 serde_json.workspace = true

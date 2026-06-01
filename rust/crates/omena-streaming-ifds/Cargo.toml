@@ -21,6 +21,6 @@ streaming-ifds = []
 with-frame-rule = []
 
 [dependencies]
-omena-abstract-value = { path = "../omena-abstract-value" }
-omena-query = { path = "../omena-query", features = ["hypergraph-ifds"] }
+omena-abstract-value = { path = "../omena-abstract-value", version = "=0.2.0" }
+omena-query = { path = "../omena-query", version = "=0.2.0", features = ["hypergraph-ifds"] }
 serde.workspace = true

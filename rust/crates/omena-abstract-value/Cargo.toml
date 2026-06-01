@@ -18,5 +18,5 @@ workspace = true
 default = []
 
 [dependencies]
-omena-incremental = { path = "../omena-incremental" }
+omena-incremental = { path = "../omena-incremental", version = "=0.2.0" }
 serde.workspace = true

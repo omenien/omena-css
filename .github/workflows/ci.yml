@@ -94,6 +94,10 @@ jobs:
         name: Run publish-train closure
         run: pnpm omena-check run rust/publish-train-closure
         continue-on-error: true
+      - id: inter_crate_pin
+        name: Run inter-crate version pin
+        run: pnpm omena-check run rust/inter-crate-pin
+        continue-on-error: true
       - id: role_boundaries
         name: Run role-boundaries
         run: pnpm omena-check run rust/role-boundaries
@@ -121,6 +125,7 @@ jobs:
           echo "cascade=${{ steps.cascade.outcome }}"
           echo "diff_test=${{ steps.diff_test.outcome }}"
           echo "train_closure=${{ steps.train_closure.outcome }}"
+          echo "inter_crate_pin=${{ steps.inter_crate_pin.outcome }}"
           echo "role_boundaries=${{ steps.role_boundaries.outcome }}"
           echo "publish_flags=${{ steps.publish_flags.outcome }}"
           echo "naming_consistency=${{ steps.naming_consistency.outcome }}"
@@ -135,6 +140,7 @@ jobs:
             "${{ steps.cascade.outcome }}" \
             "${{ steps.diff_test.outcome }}" \
             "${{ steps.train_closure.outcome }}" \
+            "${{ steps.inter_crate_pin.outcome }}" \
             "${{ steps.role_boundaries.outcome }}" \
             "${{ steps.publish_flags.outcome }}" \
             "${{ steps.naming_consistency.outcome }}" \

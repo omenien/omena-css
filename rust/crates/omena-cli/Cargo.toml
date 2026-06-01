@@ -23,9 +23,11 @@ zk-audit = ["dep:omena-zk-audit", "omena-zk-audit/zk-audit"]
 
 [dependencies]
 clap.workspace = true
-omena-sif = { path = "../omena-sif" }
-omena-query = { path = "../omena-query", features = ["hypergraph-ifds"] }
-omena-streaming-ifds = { path = "../omena-streaming-ifds", features = ["streaming-ifds"] }
-omena-zk-audit = { path = "../omena-zk-audit", optional = true }
+omena-sif = { path = "../omena-sif", version = "=0.2.0" }
+omena-query = { path = "../omena-query", version = "=0.2.0", features = ["hypergraph-ifds"] }
+omena-streaming-ifds = { path = "../omena-streaming-ifds", version = "=0.2.0", features = [
+  "streaming-ifds",
+] }
+omena-zk-audit = { path = "../omena-zk-audit", version = "=0.2.0", optional = true }
 serde.workspace = true
 serde_json.workspace = true

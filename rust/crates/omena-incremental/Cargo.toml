@@ -15,6 +15,6 @@ role = "R1"
 workspace = true
 
 [dependencies]
-omena-cascade = { path = "../omena-cascade" }
+omena-cascade = { path = "../omena-cascade", version = "=0.2.0" }
 serde.workspace = true
 salsa.workspace = true
