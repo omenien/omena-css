@@ -34,5 +34,5 @@ describe("rust gate evidence corpus", () => {
 
 function isRoutablePnpmCommand(argv: readonly string[]): boolean {
   if (argv[0]?.startsWith("check:")) return true;
-  return argv[0] === "cme-check" && (argv[1] === "run" || argv[1] === "bundle");
+  return argv[0] === "omena-check" && (argv[1] === "run" || argv[1] === "bundle");
 }

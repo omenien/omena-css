@@ -35,7 +35,7 @@ export {
 
 const PACKAGE_SCRIPT_REF = /\bpnpm\s+(?:run\s+)?([A-Za-z0-9:_-]+)/g;
 const CHECK_ORCHESTRATOR_TARGET_REF =
-  /\bpnpm\s+(?:run\s+)?cme-check\s+(run|bundle)\s+([A-Za-z0-9:_@/.-]+)/g;
+  /\bpnpm\s+(?:run\s+)?omena-check\s+(run|bundle)\s+([A-Za-z0-9:_@/.-]+)/g;
 
 export function loadCheckManifest(rootDir = findRepoRoot()): CheckManifest {
   const packageJson = readRootPackageJson(rootDir);
@@ -147,7 +147,7 @@ function isAliasScript(command: string, referencedScripts: readonly string[]): b
   const trimmedCommand = command.trim();
   return (
     /^pnpm\s+(?:run\s+)?[A-Za-z0-9:_-]+\s*$/.test(trimmedCommand) ||
-    /^pnpm\s+(?:run\s+)?cme-check\s+(?:run|bundle)\s+[A-Za-z0-9:_@/.-]+\s*$/.test(trimmedCommand)
+    /^pnpm\s+(?:run\s+)?omena-check\s+(?:run|bundle)\s+[A-Za-z0-9:_@/.-]+\s*$/.test(trimmedCommand)
   );
 }
 
@@ -168,7 +168,7 @@ function extractReferencedScripts(
 
   for (const match of command.matchAll(PACKAGE_SCRIPT_REF)) {
     const scriptName = match[1];
-    if (scriptName === "cme-check" && cmeTargetMatches.length > 0) {
+    if (scriptName === "omena-check" && cmeTargetMatches.length > 0) {
       continue;
     }
     if (scriptName && Object.hasOwn(scripts, scriptName)) {
@@ -193,8 +193,8 @@ function findCheckOrchestratorTargetDiagnostics(
       if (!resolved) {
         diagnostics.push({
           severity: "error",
-          code: "unknown-cme-check-target",
-          message: `Script "${gate.scriptName}" references unknown cme-check target "${target}".`,
+          code: "unknown-omena-check-target",
+          message: `Script "${gate.scriptName}" references unknown omena-check target "${target}".`,
         });
         continue;
       }
@@ -202,16 +202,16 @@ function findCheckOrchestratorTargetDiagnostics(
       if (target !== resolved.id) {
         diagnostics.push({
           severity: "error",
-          code: "non-canonical-cme-check-target",
-          message: `Script "${gate.scriptName}" references cme-check target "${target}"; use canonical gate id "${resolved.id}".`,
+          code: "non-canonical-omena-check-target",
+          message: `Script "${gate.scriptName}" references omena-check target "${target}"; use canonical gate id "${resolved.id}".`,
         });
       }
 
       if (command === "bundle" && resolved.kind !== "bundle" && resolved.kind !== "alias") {
         diagnostics.push({
           severity: "error",
-          code: "non-bundle-cme-check-target",
-          message: `Script "${gate.scriptName}" uses cme-check bundle for non-bundle target "${target}".`,
+          code: "non-bundle-omena-check-target",
+          message: `Script "${gate.scriptName}" uses omena-check bundle for non-bundle target "${target}".`,
         });
       }
     }

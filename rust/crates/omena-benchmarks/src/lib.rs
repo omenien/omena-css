@@ -260,7 +260,7 @@ pub fn summarize_criterion_surface_snapshot() -> CriterionSurfaceSnapshotV0 {
         benchmark_family: Z5_PERFORMANCE_BASELINE,
         snapshot_kind: "structural-criterion-surface-after-m4-corpus-expansion",
         timing_policy: "no-local-timing-claim-without-full-criterion-run",
-        command: "pnpm cme-check run rust/z5-criterion-surface-snapshot",
+        command: "pnpm omena-check run rust/z5-criterion-surface-snapshot",
         corpus_sample_count: sample_names.len(),
         benchmark_group_count: groups.len(),
         benchmark_function_count,

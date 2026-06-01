@@ -17,5 +17,5 @@ catalog identifiers in public history.
 ## Verification
 
 Run the smallest relevant check for the files you changed, then run the broader
-gate before release-oriented changes. Prefer existing `pnpm cme-check` targets
+gate before release-oriented changes. Prefer existing `pnpm omena-check` targets
 when a target exists for the changed subsystem.

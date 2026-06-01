@@ -20,7 +20,7 @@ const serverCwd = resolvePathOverride(process.env.OMENA_LSP_SERVER_CWD, repoRoot
 
 if (!existsSync(serverPath)) {
   throw new Error(
-    `Missing built omena-lsp-server binary at ${serverPath}. Run pnpm cme-check run core/build/omena-lsp-server first.`,
+    `Missing built omena-lsp-server binary at ${serverPath}. Run pnpm omena-check run core/build/omena-lsp-server first.`,
   );
 }
 

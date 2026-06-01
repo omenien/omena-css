@@ -21,26 +21,26 @@ The current public corpus is synthetic but product-shaped:
 Compile the benchmark harness without executing timing loops:
 
 ```bash
-pnpm cme-check run rust/z5-performance-baseline-micro
+pnpm omena-check run rust/z5-performance-baseline-micro
 ```
 
 Validate the benchmark boundary contract without running timing loops:
 
 ```bash
-pnpm cme-check run rust/omena-benchmarks-boundary
+pnpm omena-check run rust/omena-benchmarks-boundary
 ```
 
 Emit the machine-readable Criterion surface snapshot:
 
 ```bash
-pnpm cme-check run rust/z5-criterion-surface-snapshot
+pnpm omena-check run rust/z5-criterion-surface-snapshot
 ```
 
 Validate that the same Z5 style corpus is consumable by relevant external
 comparators before making cross-tool benchmark claims:
 
 ```bash
-pnpm cme-check run rust/z5-external-comparator-readiness
+pnpm omena-check run rust/z5-external-comparator-readiness
 ```
 
 Run Criterion micro-benchmarks:
@@ -58,13 +58,13 @@ pnpm run benchmark:z5:macro
 Run the release-grade Z5 readiness check:
 
 ```bash
-pnpm cme-check bundle rust/z5-performance-baseline-readiness
+pnpm omena-check bundle rust/z5-performance-baseline-readiness
 ```
 
 Run the parser-product cut-over ratio gate directly:
 
 ```bash
-pnpm cme-check run rust/z5-parser-product-cutover
+pnpm omena-check run rust/z5-parser-product-cutover
 ```
 
 ## Measured Surfaces
@@ -141,7 +141,7 @@ construction alone. The legacy parser is retained here as a benchmark/oracle
 baseline, not as a product parser lane dependency. The following numbers were
 captured on 2026-05-19 with:
 
-- Command: `pnpm cme-check run rust/z5-parser-product-cutover`
+- Command: `pnpm omena-check run rust/z5-parser-product-cutover`
 - Iterations: 40 per sample
 - Max allowed ratio: `omena / legacy <= 1.10`
 
@@ -158,7 +158,7 @@ OMENA_LSP_RUNTIME_LOOP_SELECTORS=24 \
 OMENA_LSP_RUNTIME_LOOP_PROBE_DURATION_MS=400 \
 OMENA_LSP_RUNTIME_LOOP_P95_MS=250 \
 OMENA_LSP_RUNTIME_LOOP_MAX_MS=750 \
-pnpm cme-check run rust/omena-lsp-server/runtime-loop
+pnpm omena-check run rust/omena-lsp-server/runtime-loop
 ```
 
 | Surface           | Samples |     p50 |     p95 |     max |

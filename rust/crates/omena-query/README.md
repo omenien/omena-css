@@ -76,17 +76,17 @@ Current public products:
 Primary check:
 
 ```sh
-pnpm cme-check run rust/omena-query/boundary
+pnpm omena-check run rust/omena-query/boundary
 ```
 
 Boundary ownership check:
 
 ```sh
-pnpm cme-check run rust/omena-query/runner-boundary
+pnpm omena-check run rust/omena-query/runner-boundary
 ```
 
 Split boundary check:
 
 ```sh
-pnpm cme-check bundle rust/omena-query/split-boundary
+pnpm omena-check bundle rust/omena-query/split-boundary
 ```

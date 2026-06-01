@@ -260,7 +260,7 @@ for (const endpointId of categoricalEndpointIds) {
   assertIncludes(
     categorical,
     endpointId,
-    "omena-categorical must expose all 10 cme-check endpoints",
+    "omena-categorical must expose all 10 omena-check endpoints",
   );
 }
 for (const fixtureId of [

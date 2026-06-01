@@ -28,5 +28,5 @@ Current public products:
 Primary check:
 
 ```sh
-pnpm cme-check run rust/omena-resolver/boundary
+pnpm omena-check run rust/omena-resolver/boundary
 ```

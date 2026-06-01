@@ -58,5 +58,5 @@ cargo test --manifest-path rust/Cargo.toml -p omena-bridge
 Split boundary check:
 
 ```sh
-pnpm cme-check bundle rust/omena-bridge/split-boundary
+pnpm omena-check bundle rust/omena-bridge/split-boundary
 ```

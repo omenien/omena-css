@@ -17,7 +17,7 @@ fixture_count = 25
 chunk_sha256 = "fa05d0c070961f07d3e80ef4e96dc15b139971189196b3e04ece4d11b5418142"
 outcome_olw = 25
 critical_regression_count = 0
-command = "pnpm cme-check run rust/omena-diff-test-wpt-seed"
+command = "pnpm omena-check run rust/omena-diff-test-wpt-seed"
 
 [[green_run]]
 date = "2026-05-22"
@@ -26,7 +26,7 @@ fixture_count = 25
 chunk_sha256 = "fa05d0c070961f07d3e80ef4e96dc15b139971189196b3e04ece4d11b5418142"
 outcome_olw = 25
 critical_regression_count = 0
-command = "pnpm cme-check run rust/omena-diff-test-wpt-seed"
+command = "pnpm omena-check run rust/omena-diff-test-wpt-seed"
 
 [[green_run]]
 date = "2026-05-22"
@@ -35,7 +35,7 @@ fixture_count = 25
 chunk_sha256 = "fa05d0c070961f07d3e80ef4e96dc15b139971189196b3e04ece4d11b5418142"
 outcome_olw = 25
 critical_regression_count = 0
-command = "pnpm cme-check run rust/omena-diff-test-wpt-seed"
+command = "pnpm omena-check run rust/omena-diff-test-wpt-seed"
 
 [[green_run]]
 date = "2026-05-22"
@@ -44,7 +44,7 @@ fixture_count = 25
 chunk_sha256 = "fa05d0c070961f07d3e80ef4e96dc15b139971189196b3e04ece4d11b5418142"
 outcome_olw = 25
 critical_regression_count = 0
-command = "pnpm cme-check run rust/omena-diff-test-wpt-seed"
+command = "pnpm omena-check run rust/omena-diff-test-wpt-seed"
 
 [[green_run]]
 date = "2026-05-22"
@@ -53,4 +53,4 @@ fixture_count = 25
 chunk_sha256 = "fa05d0c070961f07d3e80ef4e96dc15b139971189196b3e04ece4d11b5418142"
 outcome_olw = 25
 critical_regression_count = 0
-command = "pnpm cme-check run rust/omena-diff-test-wpt-seed"
+command = "pnpm omena-check run rust/omena-diff-test-wpt-seed"

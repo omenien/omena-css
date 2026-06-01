@@ -82,7 +82,7 @@ Example:
 - The repo-local smoke command for this transport is:
 
 ```bash
-pnpm cme-check run rust/omena-lsp-server/thin-client-boundary
+pnpm omena-check run rust/omena-lsp-server/thin-client-boundary
 ```
 
 ## References

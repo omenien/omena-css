@@ -54,7 +54,7 @@ switch (parsedArgs.command) {
     printHelp();
     break;
   default:
-    fail(`Unknown command "${parsedArgs.command}". Run "pnpm cme-check help".`);
+    fail(`Unknown command "${parsedArgs.command}". Run "pnpm omena-check help".`);
 }
 
 function parseArgs(argv: readonly string[]): ParsedArgs {
@@ -108,12 +108,12 @@ function printList(json: boolean): void {
 
 function runTarget(parsed: ParsedArgs, bundleOnly: boolean): void {
   if (!parsed.target) {
-    fail(`Missing target. Run "pnpm cme-check ${parsed.command} <id-or-script>".`);
+    fail(`Missing target. Run "pnpm omena-check ${parsed.command} <id-or-script>".`);
   }
 
   const gate = resolveTarget(parsed.target);
   if (bundleOnly && gate.kind !== "bundle" && gate.kind !== "alias") {
-    fail(`Target "${parsed.target}" is not a bundle. Use "pnpm cme-check run ${gate.id}".`);
+    fail(`Target "${parsed.target}" is not a bundle. Use "pnpm omena-check run ${gate.id}".`);
   }
 
   const command = pnpmRunCommand(gate.scriptName, parsed.extraArgs);
@@ -135,7 +135,7 @@ function runTarget(parsed: ParsedArgs, bundleOnly: boolean): void {
 
 function printPlan(parsed: ParsedArgs): void {
   if (!parsed.target) {
-    fail('Missing target. Run "pnpm cme-check plan <id-or-script>".');
+    fail('Missing target. Run "pnpm omena-check plan <id-or-script>".');
   }
 
   const plan = buildCheckPlan(manifest, resolveTarget(parsed.target));
@@ -150,7 +150,7 @@ function printPlan(parsed: ParsedArgs): void {
 function resolveTarget(target: string) {
   const gate = resolveGateTarget(manifest, target);
   if (!gate) {
-    fail(`Unknown target "${target}". Run "pnpm cme-check list".`);
+    fail(`Unknown target "${target}". Run "pnpm omena-check list".`);
   }
   return gate;
 }
@@ -199,7 +199,7 @@ function runInventoryCommand(parsed: ParsedArgs): void {
   if (parsed.check) {
     const current = existsSync(inventoryPath) ? readFileSync(inventoryPath, "utf8") : "";
     if (current !== `${inventory}\n`) {
-      fail("Check inventory is out of date. Run `pnpm cme-check inventory --write`.");
+      fail("Check inventory is out of date. Run `pnpm omena-check inventory --write`.");
     }
     console.log("check-orchestrator inventory: ok");
     return;
@@ -210,13 +210,13 @@ function runInventoryCommand(parsed: ParsedArgs): void {
 
 function printHelp(): void {
   console.log(`Usage:
-  pnpm cme-check list [--json]
-  pnpm cme-check run <id-or-script> [--dry] [-- extra args]
-  pnpm cme-check bundle <id-or-script> [--dry] [-- extra args]
-  pnpm cme-check plan <id-or-script> [--json]
-  pnpm cme-check doctor [--json]
-  pnpm cme-check surface [--json]
-  pnpm cme-check inventory [--check|--write]
+  pnpm omena-check list [--json]
+  pnpm omena-check run <id-or-script> [--dry] [-- extra args]
+  pnpm omena-check bundle <id-or-script> [--dry] [-- extra args]
+  pnpm omena-check plan <id-or-script> [--json]
+  pnpm omena-check doctor [--json]
+  pnpm omena-check surface [--json]
+  pnpm omena-check inventory [--check|--write]
 `);
 }
 

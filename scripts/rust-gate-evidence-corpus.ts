@@ -32,7 +32,7 @@ export const RUST_GATE_EVIDENCE_CORPUS: readonly RustGateEvidenceEntry[] = [
   },
   {
     label: "core-build",
-    argv: ["cme-check", "run", "core/build"],
+    argv: ["omena-check", "run", "core/build"],
     variants: ["tsgo"],
   },
   {

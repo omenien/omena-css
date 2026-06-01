@@ -102,7 +102,7 @@ describe("checkWorkspace", () => {
 });
 
 function makeWorkspace(files: Readonly<Record<string, string>>): string {
-  const root = mkdtempSync(path.join(os.tmpdir(), "cme-check-workspace-"));
+  const root = mkdtempSync(path.join(os.tmpdir(), "omena-check-workspace-"));
   tempDirs.push(root);
   for (const [relativePath, content] of Object.entries(files)) {
     const filePath = path.join(root, relativePath);

@@ -4,7 +4,7 @@ import type { CheckDiagnostic, CheckGate } from "./types";
 
 const PNPM_SCRIPT_REF = /\bpnpm\s+(?:run\s+)?([A-Za-z0-9:_-]+)/g;
 const OMENA_CHECK_TARGET_REF =
-  /\bpnpm\s+(?:run\s+)?cme-check\s+(run|bundle)\s+([A-Za-z0-9:_@/.-]+)/g;
+  /\bpnpm\s+(?:run\s+)?omena-check\s+(run|bundle)\s+([A-Za-z0-9:_@/.-]+)/g;
 
 export function findWorkflowBypassDiagnostics(
   rootDir: string,
@@ -33,8 +33,8 @@ export function findWorkflowBypassDiagnostics(
         if (!gate) {
           diagnostics.push({
             severity: "error",
-            code: "workflow-unknown-cme-check-target",
-            message: `${relativePath}:${index + 1} references unknown cme-check target "${target}".`,
+            code: "workflow-unknown-omena-check-target",
+            message: `${relativePath}:${index + 1} references unknown omena-check target "${target}".`,
           });
           continue;
         }
@@ -42,16 +42,16 @@ export function findWorkflowBypassDiagnostics(
         if (target !== gate.id) {
           diagnostics.push({
             severity: "error",
-            code: "workflow-non-canonical-cme-check-target",
-            message: `${relativePath}:${index + 1} references cme-check target "${target}"; use canonical gate id "${gate.id}".`,
+            code: "workflow-non-canonical-omena-check-target",
+            message: `${relativePath}:${index + 1} references omena-check target "${target}"; use canonical gate id "${gate.id}".`,
           });
         }
 
         if (command === "bundle" && gate.kind !== "bundle" && gate.kind !== "alias") {
           diagnostics.push({
             severity: "error",
-            code: "workflow-non-bundle-cme-check-target",
-            message: `${relativePath}:${index + 1} uses cme-check bundle for non-bundle target "${target}".`,
+            code: "workflow-non-bundle-omena-check-target",
+            message: `${relativePath}:${index + 1} uses omena-check bundle for non-bundle target "${target}".`,
           });
         }
       }
@@ -59,7 +59,7 @@ export function findWorkflowBypassDiagnostics(
       for (const match of line.matchAll(PNPM_SCRIPT_REF)) {
         const scriptName = match[1];
         if (!scriptName) continue;
-        if (scriptName === "cme-check") continue;
+        if (scriptName === "omena-check") continue;
 
         const gate = gatesByScriptName.get(scriptName);
         if (!gate) continue;
@@ -68,7 +68,7 @@ export function findWorkflowBypassDiagnostics(
         diagnostics.push({
           severity: "error",
           code: "workflow-direct-script-call",
-          message: `${relativePath}:${index + 1} calls "${scriptName}" directly; use "pnpm cme-check ${command} ${gate.id}".`,
+          message: `${relativePath}:${index + 1} calls "${scriptName}" directly; use "pnpm omena-check ${command} ${gate.id}".`,
         });
       }
     });
