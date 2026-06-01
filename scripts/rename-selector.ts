@@ -285,7 +285,7 @@ function relativeOrAbsolute(filePath: string, workspaceRoot: string): string {
 
 function buildHelpText(): string {
   return [
-    "Usage: pnpm cme rename selector <selector> <new-name> --dry-run [options]",
+    "Usage: pnpm omena rename selector <selector> <new-name> --dry-run [options]",
     "",
     "Options:",
     "  --root <path>          Workspace root (defaults to cwd)",

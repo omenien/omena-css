@@ -30,7 +30,7 @@ function main(argv: readonly string[]): void {
     return;
   }
 
-  process.stderr.write(`Unknown cme command: ${command}\n`);
+  process.stderr.write(`Unknown omena command: ${command}\n`);
   process.stderr.write(buildHelpText());
   process.exitCode = 2;
 }
@@ -58,9 +58,9 @@ function runScript(scriptName: string, argv: readonly string[]): void {
 function buildHelpText(): string {
   return [
     "Usage:",
-    "  pnpm cme explain <file>:<line>:<column> [options]",
-    "  pnpm cme explain expression <file>:<line>:<column> [options]",
-    "  pnpm cme rename selector <selector> <new-name> --dry-run [options]",
+    "  pnpm omena explain <file>:<line>:<column> [options]",
+    "  pnpm omena explain expression <file>:<line>:<column> [options]",
+    "  pnpm omena rename selector <selector> <new-name> --dry-run [options]",
     "",
     "Commands:",
     "  explain             Explain a source class expression and its value provenance",

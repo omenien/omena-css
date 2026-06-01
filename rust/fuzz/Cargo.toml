@@ -1,5 +1,5 @@
 [package]
-name = "css-module-explainer-fuzz"
+name = "omena-css-fuzz"
 version = "0.0.0"
 publish = false
 edition = "2024"

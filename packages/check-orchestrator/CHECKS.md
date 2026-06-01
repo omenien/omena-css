@@ -373,13 +373,13 @@ Total gates: 343
 
 | ID                                         | Kind    | Script                                    | References                      |
 | ------------------------------------------ | ------- | ----------------------------------------- | ------------------------------- |
-| `editor/cme`                               | command | `cme`                                     |                                 |
 | `editor/code-action-query-consumer`        | gate    | `check:code-action-query-consumer`        |                                 |
 | `editor/completion-query-consumer`         | gate    | `check:completion-query-consumer`         |                                 |
 | `editor/editor-path-boundary`              | bundle  | `check:editor-path-boundary`              | `check:selected-query-boundary` |
 | `editor/explain/expression`                | command | `explain:expression`                      |                                 |
 | `editor/explain/expression-query-consumer` | command | `explain:expression-query-consumer`       | `build:tsgo-binary`             |
 | `editor/lsp-server-smoke`                  | gate    | `check:lsp-server-smoke`                  |                                 |
+| `editor/omena`                             | command | `omena`                                   |                                 |
 | `editor/provider-host-routing-boundary`    | gate    | `check:provider-host-routing-boundary`    |                                 |
 | `editor/rename-query-consumer`             | gate    | `check:rename-query-consumer`             |                                 |
 | `editor/selected-query-boundary`           | gate    | `check:selected-query-boundary`           |                                 |

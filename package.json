@@ -42,7 +42,7 @@
     "build:omena-wasm": "wasm-pack build rust/crates/omena-wasm --scope omena --target bundler --out-dir pkg",
     "build:omena-napi": "napi build --manifest-path rust/crates/omena-napi/Cargo.toml --platform --release -o rust/crates/omena-napi/pkg",
     "watch": "rolldown -c rolldown.config.ts --watch",
-    "cme": "node --import tsx ./scripts/cme.ts",
+    "omena": "node --import tsx ./scripts/cme.ts",
     "omena-check": "node --import tsx ./packages/check-orchestrator/src/cli/main.ts",
     "check:orchestrator-doctor": "pnpm omena-check doctor",
     "check:orchestrator-inventory": "pnpm omena-check inventory --check",
