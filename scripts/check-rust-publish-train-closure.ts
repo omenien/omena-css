@@ -1,79 +1,39 @@
 import { execFileSync } from "node:child_process";
 import { strict as assert } from "node:assert";
 import { createHash } from "node:crypto";
-import { readFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 /**
  * rust/publish-train-closure
  *
- * The omena-css publish train is the GENERATED standalone workspace produced by
- * scripts/prepare-omena-css-workspace.mjs. Its membership lives in two
- * hand-maintained literals there: `omenaCssCrates` (copy set) and
- * `omenaCssPublishOrder` (publish sequence). When a train crate path-depends on
- * a workspace crate that is NOT itself a train member (nor externally
- * published), the generated workspace carries an UNVERSIONABLE path-dep and the
- * next publish breaks. This gate proves, mechanically, that the train is
- * dependency-closed and the two literals stay in lock-step + topological order.
+ * Model A (direct publish): the monorepo IS the crates.io publish source, so the
+ * publish train is simply the PUBLISHABLE set of workspace members — every member
+ * whose resolved `publish` is not `[]` (publish-flags pins that set to exactly the
+ * 41 non-[I] / non-npm-only crates). There is no longer a generated standalone
+ * workspace, and no hand-maintained `omenaCssCrates` / `omenaCssPublishOrder`
+ * literal to keep in lock-step. This gate derives everything from `cargo metadata`.
  *
- * It walks the WIDE dependency set from `cargo metadata` (normal + build +
- * optional path-deps; dev-deps do not ship), NOT the feature-resolved graph, so
- * an optional path-dep to a non-train crate is still caught. A self-test guards
- * the detection predicate itself.
+ * It proves two structural facts plus a drift guard:
+ *
+ *   - (closure) For every publishable crate, every NON-dev path-dep target that is a
+ *     workspace member must ITSELF be publishable. Otherwise that publishable crate
+ *     could not `cargo publish`: its dependency would not exist on crates.io. (A
+ *     dev-dep is exempt — cargo strips its path at publish and requires no version.)
+ *   - (canonical order) The deterministic Kahn + lexicographic-tie-break topological
+ *     order over the train-internal non-dev path-dep edges (deps first) — the genesis
+ *     wave publish sequence. It is EMITTED in the JSON output (a machine derivation,
+ *     no longer a literal to compare against).
+ *   - (edge-set sha) A sha256 of the sorted train shipped-path-dep edge set, pinned to
+ *     EXPECTED_EDGE_SET_SHA256. Any added/removed shipped path-dep edge changes the
+ *     hash, forcing a DELIBERATE bump — graph drift, distinct from a mere set change.
+ *
+ * It walks the WIDE dependency set (normal + build + optional path-deps; dev-deps do
+ * not ship), NOT the feature-resolved graph, so an optional path-dep to a
+ * non-publishable crate is still caught. A self-test guards the closure predicate.
  */
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
-const generatorPath = path.join(repoRoot, "scripts/prepare-omena-css-workspace.mjs");
-const generatorSource = readFileSync(generatorPath, "utf8");
-
-function parseStringArray(name: string): string[] {
-  const match = generatorSource.match(new RegExp(`const ${name} = \\[([\\s\\S]*?)\\];`));
-  assert.ok(match, `expected a \`const ${name} = [...]\` literal in ${generatorPath}`);
-  return [...match[1].matchAll(/"([^"]+)"/g)].map((entry) => entry[1]);
-}
-
-function parseStringSet(name: string): Set<string> {
-  const match = generatorSource.match(
-    new RegExp(`const ${name} = new Set\\(\\[([\\s\\S]*?)\\]\\)`),
-  );
-  assert.ok(match, `expected a \`const ${name} = new Set([...])\` literal in ${generatorPath}`);
-  return new Set([...match[1].matchAll(/"([^"]+)"/g)].map((entry) => entry[1]));
-}
-
-const trainCrates = parseStringArray("omenaCssCrates");
-const publishOrder = parseStringArray("omenaCssPublishOrder");
-const externalCrates = parseStringSet("externallyPublishedCrates");
-const trainSet = new Set(trainCrates);
-
-assert.equal(trainSet.size, trainCrates.length, "omenaCssCrates contains duplicate entries");
-
-// (1) Lock-step: the publish order is a permutation of the copy set (same members).
-{
-  const publishSet = new Set(publishOrder);
-  assert.equal(
-    publishSet.size,
-    publishOrder.length,
-    "omenaCssPublishOrder contains duplicate entries",
-  );
-  assert.equal(
-    publishOrder.length,
-    trainCrates.length,
-    `omenaCssPublishOrder length ${publishOrder.length} != omenaCssCrates length ${trainCrates.length}`,
-  );
-  for (const crate of trainSet) {
-    assert.ok(
-      publishSet.has(crate),
-      `train crate ${crate} is in omenaCssCrates but missing from omenaCssPublishOrder`,
-    );
-  }
-  for (const crate of publishSet) {
-    assert.ok(
-      trainSet.has(crate),
-      `${crate} is in omenaCssPublishOrder but missing from omenaCssCrates`,
-    );
-  }
-}
 
 interface CargoDependency {
   readonly name: string;
@@ -83,6 +43,7 @@ interface CargoDependency {
 }
 interface CargoPackage {
   readonly name: string;
+  readonly publish: readonly string[] | null;
   readonly dependencies: readonly CargoDependency[];
 }
 
@@ -93,25 +54,46 @@ const metadata = JSON.parse(
     { cwd: repoRoot, encoding: "utf8", maxBuffer: 64 * 1024 * 1024 },
   ),
 ) as { readonly packages: readonly CargoPackage[] };
-const packagesByName = new Map(metadata.packages.map((pkg) => [pkg.name, pkg]));
 
-/** Non-dev path-dep targets of a workspace crate (the set that must ship together). */
-function shippedPathDeps(crate: string): string[] {
+const packagesByName = new Map(metadata.packages.map((pkg) => [pkg.name, pkg]));
+const memberNames = new Set(metadata.packages.map((pkg) => pkg.name));
+
+/** A member is publishable iff its resolved `publish` is NOT the empty array. */
+function isPublishable(pkg: { readonly publish: readonly string[] | null }): boolean {
+  return !(Array.isArray(pkg.publish) && pkg.publish.length === 0);
+}
+
+// The publish train: the publishable set of workspace members (sorted for a stable
+// canonical-order seed; the Kahn tie-break re-sorts anyway).
+const trainCrates = metadata.packages
+  .filter(isPublishable)
+  .map((pkg) => pkg.name)
+  .toSorted();
+const trainSet = new Set(trainCrates);
+
+/** Non-dev path-dep targets of a crate that are themselves workspace members (the set that must ship together). */
+function shippedMemberPathDeps(crate: string): string[] {
   const pkg = packagesByName.get(crate);
   assert.ok(pkg, `train crate ${crate} not found in the rust/ workspace cargo metadata`);
   return pkg.dependencies
-    .filter((dep) => dep.kind !== "dev" && typeof dep.path === "string")
+    .filter(
+      (dep) => dep.kind !== "dev" && typeof dep.path === "string" && memberNames.has(dep.name),
+    )
     .map((dep) => dep.name);
 }
 
-/** Shared detection predicate (also exercised by the self-test below). */
+/**
+ * Shared closure predicate (also exercised by the self-test below): a train edge is a
+ * closure GAP when its non-dev path-dep target is a workspace member that is NOT itself
+ * in the train — that target is not on crates.io, so the train crate could not publish.
+ */
 function closureGaps(
   train: ReadonlySet<string>,
-  external: ReadonlySet<string>,
+  members: ReadonlySet<string>,
   edges: ReadonlyArray<readonly [string, string]>,
 ): string[] {
   return edges
-    .filter(([from, to]) => train.has(from) && !train.has(to) && !external.has(to))
+    .filter(([from, to]) => train.has(from) && members.has(to) && !train.has(to))
     .map(([from, to]) => `${from} -> ${to}`);
 }
 
@@ -119,7 +101,7 @@ function closureGaps(
  * Deterministic Kahn + lexicographic-tie-break topological order over the train-internal
  * shipped-path-dep edges: each crate appears AFTER all of its train-internal deps, with
  * ties broken lexicographically. This is the canonical publish sequence — independent of
- * cargo-metadata iteration order — that omenaCssPublishOrder must equal.
+ * cargo-metadata iteration order — i.e. the genesis wave order.
  */
 function computeCanonicalOrder(
   members: readonly string[],
@@ -151,65 +133,37 @@ function computeCanonicalOrder(
   return order;
 }
 
-// Build the real edge set: every non-dev path-dep of every train crate.
+// Build the real edge set: every non-dev path-dep of every train crate whose target is a
+// workspace member (shipped path-deps; only member targets can break the train).
 const edges: Array<readonly [string, string]> = [];
 for (const crate of trainCrates) {
-  for (const target of shippedPathDeps(crate)) {
+  for (const target of shippedMemberPathDeps(crate)) {
     edges.push([crate, target]);
   }
 }
 
-// (2) Closure: every shipped path-dep target of a train crate is itself a train
-//     member or externally published.
-const closureViolations = closureGaps(trainSet, externalCrates, edges);
+// (1) Closure: every shipped path-dep target of a train crate is itself publishable.
+const closureViolations = closureGaps(trainSet, memberNames, edges);
 assert.equal(
   closureViolations.length,
   0,
-  `publish-train closure gap: ${closureViolations.length} shipped path-dep(s) of train crates are neither train members nor externally published:\n  ${closureViolations.join(
+  `publish-train closure gap: ${closureViolations.length} shipped path-dep(s) of publishable crates target a member that is NOT publishable — \`cargo publish\` would fail because that dependency is not on crates.io:\n  ${closureViolations.join(
     "\n  ",
-  )}\nAdd the missing crate(s) to omenaCssCrates + omenaCssPublishOrder (topologically) or to externallyPublishedCrates.`,
+  )}\nMake the target publishable (publish flag / role) or remove the non-dev path-dep.`,
 );
 
-// (3) Topological order: in omenaCssPublishOrder, every train crate is published
-//     AFTER all of its train-internal shipped path-deps.
-const positionInOrder = new Map(publishOrder.map((crate, index) => [crate, index]));
-const orderViolations: string[] = [];
-for (const [from, to] of edges) {
-  if (!trainSet.has(to)) {
-    continue; // non-train targets are covered by the closure check above
-  }
-  const fromPosition = positionInOrder.get(from)!;
-  const toPosition = positionInOrder.get(to)!;
-  if (toPosition >= fromPosition) {
-    orderViolations.push(
-      `${from} (publish pos ${fromPosition}) must come AFTER its dep ${to} (publish pos ${toPosition})`,
-    );
-  }
-}
-assert.equal(
-  orderViolations.length,
-  0,
-  `omenaCssPublishOrder is not topologically valid (a crate publishes before one of its deps):\n  ${orderViolations.join(
-    "\n  ",
-  )}`,
-);
-
-// (3b) Canonical order: omenaCssPublishOrder must EQUAL the deterministic Kahn +
-//      lexicographic-tie-break order (deps first), not merely be A valid order. This pins
-//      the literal to a machine derivation so ordering drift is caught, not just invalidity.
+// (2) Canonical order: the deterministic Kahn + lexicographic-tie-break order (deps first).
+//     This is the genesis wave publish sequence; it is emitted below, not compared to a literal.
 const canonicalOrder = computeCanonicalOrder(trainCrates, trainSet, edges);
-const canonicalMatches =
-  canonicalOrder.length === publishOrder.length &&
-  canonicalOrder.every((crate, index) => crate === publishOrder[index]);
-assert.ok(
-  canonicalMatches,
-  "omenaCssPublishOrder is topologically valid but is NOT the canonical Kahn+lexicographic order.\n" +
-    "Replace the omenaCssPublishOrder literal in scripts/prepare-omena-css-workspace.mjs with:\n" +
-    canonicalOrder.map((crate) => `  "${crate}",`).join("\n"),
+assert.equal(
+  canonicalOrder.length,
+  trainCrates.length,
+  `canonical publish order length ${canonicalOrder.length} != train size ${trainCrates.length} — ` +
+    "the train-internal shipped-path-dep graph has a cycle (no valid publish order).",
 );
 
-// (3c) Edge-set hash: pin the train-graph shape. Any added/removed shipped path-dep edge
-//      changes this hash, forcing a DELIBERATE bump — graph drift, distinct from order drift.
+// (3) Edge-set hash: pin the train-graph shape. Any added/removed shipped path-dep edge
+//     changes this hash, forcing a DELIBERATE bump — graph drift, distinct from set drift.
 const edgeSetSha256 = createHash("sha256")
   .update(
     edges
@@ -218,36 +172,37 @@ const edgeSetSha256 = createHash("sha256")
       .join("\n"),
   )
   .digest("hex");
-const EXPECTED_EDGE_SET_SHA256 = "76f438e0dd84707489ee099995757708b60ed28fa5a6a11923cb919d4f114f39";
+const EXPECTED_EDGE_SET_SHA256 = "773942d6527d7e03ec15d57d54fd9b9775c3cfb67e285f7262b0c94dfb91ed37";
 assert.equal(
   edgeSetSha256,
   EXPECTED_EDGE_SET_SHA256,
   "train shipped-path-dep edge set changed (graph drift).\n" +
-    "If intended, regenerate omenaCssPublishOrder (the canonical order is printed on an order mismatch)\n" +
-    `and update EXPECTED_EDGE_SET_SHA256 to: ${edgeSetSha256}`,
+    "If intended, update EXPECTED_EDGE_SET_SHA256 to: " +
+    edgeSetSha256,
 );
 
-// (4) Self-test: the detection predicate must flag a non-train path-dep, must
-//     NOT flag an externally-published target, and must NOT flag an in-train edge.
+// (4) Self-test: the closure predicate must flag a path-dep to a non-train MEMBER, must
+//     NOT flag a target that is publishable (in-train), and must NOT flag a non-member target.
 {
   const probeTrain = new Set(["probe-train-crate"]);
+  const probeMembers = new Set(["probe-train-crate", "probe-nonpub-member"]);
   const gapEdge: ReadonlyArray<readonly [string, string]> = [
-    ["probe-train-crate", "probe-nontrain-dep"],
+    ["probe-train-crate", "probe-nonpub-member"],
   ];
   assert.equal(
-    closureGaps(probeTrain, new Set(), gapEdge).length,
+    closureGaps(probeTrain, probeMembers, gapEdge).length,
     1,
-    "self-test failed: closure predicate did not flag a path-dep to a non-train crate",
+    "self-test failed: closure predicate did not flag a path-dep to a non-publishable member",
   );
   assert.equal(
-    closureGaps(probeTrain, new Set(["probe-nontrain-dep"]), gapEdge).length,
+    closureGaps(probeMembers, probeMembers, gapEdge).length,
     0,
-    "self-test failed: closure predicate flagged an externally-published target",
+    "self-test failed: closure predicate flagged an edge to a publishable (in-train) target",
   );
   assert.equal(
-    closureGaps(probeTrain, new Set(), [["probe-train-crate", "probe-train-crate"]]).length,
+    closureGaps(probeTrain, probeTrain, [["probe-train-crate", "probe-train-crate"]]).length,
     0,
-    "self-test failed: closure predicate flagged an in-train edge",
+    "self-test failed: closure predicate flagged an in-train self edge",
   );
 }
 
@@ -256,15 +211,12 @@ process.stdout.write(
     {
       schemaVersion: "0",
       product: "rust.publish-train-closure",
+      members: metadata.packages.length,
       trainCrateCount: trainCrates.length,
-      publishOrderCount: publishOrder.length,
-      externallyPublished: [...externalCrates],
       shippedPathDepEdges: edges.length,
       closureViolations: 0,
-      publishOrderTopologicallyValid: true,
-      publishOrderIsCanonical: true,
       edgeSetSha256,
-      lockStep: true,
+      canonicalPublishOrder: canonicalOrder,
     },
     null,
     2,

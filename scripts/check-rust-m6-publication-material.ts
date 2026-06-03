@@ -1,153 +1,135 @@
-import { execFileSync } from "node:child_process";
 import { strict as assert } from "node:assert";
-import { mkdtempSync, readFileSync, rmSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { readFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
-interface GeneratedWorkspaceReport {
-  readonly destination: string;
-  readonly crateCount: number;
-  readonly publishDryRun: boolean;
-  readonly verified: boolean;
-}
+/**
+ * rust/m6-publication-material
+ *
+ * Model A (direct publish): the monorepo IS the public repo, so the M6
+ * publication material ships from `docs/` directly — there is no longer a
+ * generated standalone workspace to template these docs into. This gate reads
+ * the in-tree `docs/positioning.md`, `docs/paper-draft.md`, and
+ * `docs/benchmarks.md` and proves the evidence-boundary discipline holds:
+ *
+ *   - positioning names the comparison tools (Lightning CSS / PostCSS /
+ *     Dart Sass / Biome CSS) with their source-anchor URLs, states the
+ *     not-a-build-replacement + same-corpus + staged-substrate boundaries, and
+ *     lists the current non-claims;
+ *   - paper-draft carries the "M6 Evidence Boundary" + per-substrate hedges and
+ *     the "Publication Requirement" evidence list;
+ *   - benchmarks carries the same-corpus reporting policy.
+ *
+ * It also asserts the UNSUPPORTED-claim exclusions are absent from both the
+ * positioning and paper-draft docs, so an over-claim can never silently land in
+ * the public material. The assertIncludes/assertExcludes helpers are exercised
+ * by the boundary strings themselves; this gate no longer runs the (retired)
+ * workspace generator nor checks generator-only artifacts.
+ */
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
-const workspacePath = mkdtempSync(path.join(tmpdir(), "omena-css-m6-publication-"));
 
-try {
-  const prepareOutput = execFileSync(
-    process.execPath,
-    ["scripts/prepare-omena-css-workspace.mjs", "--dest", workspacePath, "--force"],
+const readDoc = (relativePath: string): string =>
+  readFileSync(path.join(repoRoot, relativePath), "utf8");
+
+const positioning = readDoc("docs/positioning.md");
+const paperDraft = readDoc("docs/paper-draft.md");
+const benchmarks = readDoc("docs/benchmarks.md");
+
+for (const tool of ["Lightning CSS", "PostCSS", "Dart Sass", "Biome CSS"]) {
+  assertIncludes(positioning, tool);
+}
+for (const sourceUrl of [
+  "https://lightningcss.dev/",
+  "https://postcss.org/",
+  "https://www.sasscss.com/dart-sass",
+  "https://biomejs.dev/",
+]) {
+  assertIncludes(positioning, sourceUrl);
+}
+for (const requiredPositioningBoundary of [
+  "not positioned as a build-time replacement",
+  "External speed comparisons require same-corpus",
+  "Research-facing M6 surfaces are staged substrates",
+  "No direct speed ranking",
+  "No Sass compiler replacement claim",
+  "No PostCSS ecosystem replacement claim",
+  "No theorem-complete cascade",
+  "No public Cargo 1.0 API freeze claim",
+]) {
+  assertIncludes(positioning, requiredPositioningBoundary);
+}
+
+for (const requiredPaperBoundary of [
+  "M6 Evidence Boundary",
+  "Vue SFC phase 1",
+  "Cascade-family work is framing-neutral substrate",
+  "Dimensional/refinement work bridges cascade-family values",
+  "does not fork a unit system",
+  "complete SMT refinement",
+  "Liquid-Haskell-style inference",
+  "Edit-distance and cascade-margin work is fixture-witness substrate",
+  "Contextual equality saturation is scaffold-only",
+  "perceptual-check",
+  "does not implement WCAG, APCA, OKLab",
+  "Publication Requirement",
+  "source-controlled gate command",
+  "benchmark corpus and machine record",
+  "workspace publish dry-run",
+]) {
+  assertIncludes(paperDraft, requiredPaperBoundary);
+}
+
+for (const benchmarkBoundary of [
+  "must report the command, input set, machine class, and comparison baseline",
+  "Do not treat a single synthetic benchmark as product readiness",
+]) {
+  assertIncludes(benchmarks, benchmarkBoundary);
+}
+
+for (const unsupportedClaim of [
+  "replaces Lightning CSS",
+  "replaces PostCSS",
+  "replaces Dart Sass",
+  "is faster than Lightning CSS",
+  "theorem-proven cascade semantics",
+  "full WPT/spec conformance",
+  "Cargo 1.0.0 API freeze is complete",
+]) {
+  assertExcludes(positioning, unsupportedClaim);
+  assertExcludes(paperDraft, unsupportedClaim);
+}
+
+// Self-test: the include/exclude predicates flag a present/absent needle.
+{
+  assert.ok(includes("alpha beta", "beta"), "self-test: includes must detect a present needle");
+  assert.ok(!includes("alpha beta", "gamma"), "self-test: includes must reject an absent needle");
+}
+
+process.stdout.write(
+  `${JSON.stringify(
     {
-      cwd: repoRoot,
-      encoding: "utf8",
-      stdio: ["ignore", "pipe", "pipe"],
+      schemaVersion: "0",
+      product: "rust.m6-publication-material",
+      positioningMaterialReady: true,
+      paperDraftBoundaryReady: true,
+      sameCorpusBenchmarkPolicyReady: true,
+      unsupportedClaimGuardReady: true,
+      evidenceClaimLevel: "m6PublicationScaffoldWithExplicitBoundaries",
     },
-  );
-  const generated = JSON.parse(prepareOutput) as GeneratedWorkspaceReport;
-  assert.equal(generated.destination, workspacePath);
-  assert.equal(generated.crateCount, 39);
-  assert.equal(generated.publishDryRun, false);
-  assert.equal(generated.verified, false);
+    null,
+    2,
+  )}\n`,
+);
 
-  const readGenerated = (relativePath: string): string =>
-    readFileSync(path.join(workspacePath, relativePath), "utf8");
-
-  const readme = readGenerated("README.md");
-  const benchmarks = readGenerated("docs/benchmarks.md");
-  const positioning = readGenerated("docs/positioning.md");
-  const paperDraft = readGenerated("docs/paper-draft.md");
-  const release = readGenerated("docs/release.md");
-  const publishWorkflow = readGenerated(".github/workflows/publish.yml");
-
-  assertIncludes(readme, "[Positioning](docs/positioning.md)");
-  assertIncludes(readme, "[Paper draft outline](docs/paper-draft.md)");
-
-  for (const tool of ["Lightning CSS", "PostCSS", "Dart Sass", "Biome CSS"]) {
-    assertIncludes(positioning, tool);
-  }
-  for (const sourceUrl of [
-    "https://lightningcss.dev/",
-    "https://postcss.org/",
-    "https://www.sasscss.com/dart-sass",
-    "https://biomejs.dev/",
-  ]) {
-    assertIncludes(positioning, sourceUrl);
-  }
-  for (const requiredPositioningBoundary of [
-    "not positioned as a build-time replacement",
-    "External speed comparisons require same-corpus",
-    "Research-facing M6 surfaces are staged substrates",
-    "No direct speed ranking",
-    "No Sass compiler replacement claim",
-    "No PostCSS ecosystem replacement claim",
-    "No theorem-complete cascade",
-    "No public Cargo 1.0 API freeze claim",
-  ]) {
-    assertIncludes(positioning, requiredPositioningBoundary);
-  }
-
-  for (const requiredPaperBoundary of [
-    "M6 Evidence Boundary",
-    "Vue SFC phase 1",
-    "Cascade-family work is framing-neutral substrate",
-    "Dimensional/refinement work bridges cascade-family values",
-    "does not fork a unit system",
-    "complete SMT refinement",
-    "Liquid-Haskell-style inference",
-    "Edit-distance and cascade-margin work is fixture-witness substrate",
-    "Contextual equality saturation is scaffold-only",
-    "perceptual-check",
-    "does not implement WCAG, APCA, OKLab",
-    "Publication Requirement",
-    "source-controlled gate command",
-    "benchmark corpus and machine record",
-    "generated standalone workspace verification",
-  ]) {
-    assertIncludes(paperDraft, requiredPaperBoundary);
-  }
-
-  for (const benchmarkBoundary of [
-    "must report the command, input set, machine class, and comparison baseline",
-    "Do not treat a single synthetic benchmark as product readiness",
-  ]) {
-    assertIncludes(benchmarks, benchmarkBoundary);
-  }
-  assertIncludes(release, "Avoid private planning labels");
-  assertOrder(
-    publishWorkflow,
-    'version="$(crate_version "$manifest")"',
-    'if [[ "$PUBLISH_MODE" == "dry-run" ]]',
-  );
-  assertIncludes(publishWorkflow, 'if crate_version_exists "$package" "$version"; then');
-
-  for (const unsupportedClaim of [
-    "replaces Lightning CSS",
-    "replaces PostCSS",
-    "replaces Dart Sass",
-    "is faster than Lightning CSS",
-    "theorem-proven cascade semantics",
-    "full WPT/spec conformance",
-    "Cargo 1.0.0 API freeze is complete",
-  ]) {
-    assertExcludes(positioning, unsupportedClaim);
-    assertExcludes(paperDraft, unsupportedClaim);
-  }
-
-  process.stdout.write(
-    `${JSON.stringify(
-      {
-        schemaVersion: "0",
-        product: "rust.m6-publication-material",
-        generatedWorkspace: true,
-        generatedCrateCount: generated.crateCount,
-        positioningMaterialReady: true,
-        paperDraftBoundaryReady: true,
-        sameCorpusBenchmarkPolicyReady: true,
-        unsupportedClaimGuardReady: true,
-        evidenceClaimLevel: "m6PublicationScaffoldWithExplicitBoundaries",
-      },
-      null,
-      2,
-    )}\n`,
-  );
-} finally {
-  rmSync(workspacePath, { force: true, recursive: true });
+function includes(haystack: string, needle: string): boolean {
+  return haystack.includes(needle);
 }
 
 function assertIncludes(haystack: string, needle: string): void {
-  assert.ok(haystack.includes(needle), `expected generated material to include ${needle}`);
-}
-
-function assertOrder(haystack: string, before: string, after: string): void {
-  const beforeIndex = haystack.indexOf(before);
-  const afterIndex = haystack.indexOf(after);
-  assert.ok(beforeIndex >= 0, `expected generated material to include ${before}`);
-  assert.ok(afterIndex >= 0, `expected generated material to include ${after}`);
-  assert.ok(beforeIndex < afterIndex, `expected ${before} to appear before ${after}`);
+  assert.ok(includes(haystack, needle), `expected publication material to include ${needle}`);
 }
 
 function assertExcludes(haystack: string, needle: string): void {
-  assert.ok(!haystack.includes(needle), `generated material must not claim ${needle}`);
+  assert.ok(!includes(haystack, needle), `publication material must not claim ${needle}`);
 }

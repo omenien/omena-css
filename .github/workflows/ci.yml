@@ -110,6 +110,10 @@ jobs:
         name: Run naming-consistency
         run: pnpm omena-check run rust/naming-consistency
         continue-on-error: true
+      - id: no_split_residue
+        name: Run no-split-repo-residue
+        run: pnpm omena-check run rust/no-split-repo-residue
+        continue-on-error: true
       - id: aggregation_complete
         name: Run closure-fast aggregation completeness
         run: pnpm omena-check run rust/closure-fast-aggregation-complete
@@ -129,6 +133,7 @@ jobs:
           echo "role_boundaries=${{ steps.role_boundaries.outcome }}"
           echo "publish_flags=${{ steps.publish_flags.outcome }}"
           echo "naming_consistency=${{ steps.naming_consistency.outcome }}"
+          echo "no_split_residue=${{ steps.no_split_residue.outcome }}"
           echo "aggregation_complete=${{ steps.aggregation_complete.outcome }}"
           failed=0
           for outcome in \
@@ -144,6 +149,7 @@ jobs:
             "${{ steps.role_boundaries.outcome }}" \
             "${{ steps.publish_flags.outcome }}" \
             "${{ steps.naming_consistency.outcome }}" \
+            "${{ steps.no_split_residue.outcome }}" \
             "${{ steps.aggregation_complete.outcome }}"; do
             if [ "$outcome" != "success" ]; then
               failed=1
