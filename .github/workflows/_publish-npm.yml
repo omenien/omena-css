@@ -124,9 +124,13 @@ jobs:
         with:
           ref: ${{ inputs.ref }}
       - uses: ./.github/actions/setup-pnpm
-      - name: Install Rust toolchain target (wasm-pack host build)
-        shell: bash
-        run: rustup target add wasm32-unknown-unknown
+      # Install the rust-toolchain.toml-pinned 1.96.0 WITH the wasm32 target ON it —
+      # wasm-pack runs cargo from rust/ (1.96.0), so a bare `rustup target add` (which
+      # targets the default toolchain) leaves 1.96.0 without wasm32 -> "can't find crate
+      # for core". setup-rust-pinned adds the target to the pinned toolchain.
+      - uses: ./.github/actions/setup-rust-pinned
+        with:
+          targets: wasm32-unknown-unknown
       - uses: ./.github/actions/cache-rust
         with:
           shared-key: publish-wasm
