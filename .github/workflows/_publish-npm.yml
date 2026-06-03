@@ -205,11 +205,11 @@ jobs:
         if: ${{ !inputs.dry_run }}
         shell: bash
         env:
-          NODE_AUTH_TOKEN: ${{ secrets.OMENA_NPM_AUTH_TOKEN }}
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_AUTO_TOKEN }}
         run: |
           set -euo pipefail
           if [ -z "${NODE_AUTH_TOKEN:-}" ]; then
-            echo "::error::OMENA_NPM_AUTH_TOKEN is empty in the 'release' environment — set an npm automation token there before genesis" >&2
+            echo "::error::NPM_AUTO_TOKEN is empty in the 'release' environment — set an npm automation token there before genesis" >&2
             exit 1
           fi
           printf '//registry.npmjs.org/:_authToken=${NODE_AUTH_TOKEN}\n' > "$HOME/.npmrc"
@@ -220,7 +220,7 @@ jobs:
         shell: bash
         working-directory: ${{ env.WASM_PKG_DIR }}
         env:
-          NODE_AUTH_TOKEN: ${{ secrets.OMENA_NPM_AUTH_TOKEN }}
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_AUTO_TOKEN }}
           NPM_CONFIG_PROVENANCE: "true"
         run: |
           set -euo pipefail
@@ -233,7 +233,7 @@ jobs:
         shell: bash
         working-directory: ${{ env.NAPI_PKG_DIR }}
         env:
-          NODE_AUTH_TOKEN: ${{ secrets.OMENA_NPM_AUTH_TOKEN }}
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_AUTO_TOKEN }}
           NPM_CONFIG_PROVENANCE: "true"
         run: |
           set -euo pipefail
