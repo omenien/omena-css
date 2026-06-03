@@ -130,6 +130,9 @@ jobs:
       - uses: ./.github/actions/cache-rust
         with:
           shared-key: publish-wasm
+      # wasm-pack is a Rust binary (not an npm dep); install the pinned version so
+      # build:omena-wasm finds it on PATH (napi uses the @napi-rs/cli npm dep instead).
+      - uses: ./.github/actions/setup-wasm-pack
 
       # 2a. Build @omena/wasm + @omena/napi. Each build script self-finalizes its
       #     pkg/package.json (build:omena-wasm rewrites name->@omena/wasm + repository;

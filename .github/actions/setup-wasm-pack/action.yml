@@ -1,0 +1,21 @@
+name: Setup wasm-pack
+description: Install the pinned wasm-pack used to build the @omena/wasm npm package.
+inputs:
+  version:
+    description: wasm-pack version to install.
+    required: false
+    default: "0.13.1"
+runs:
+  using: composite
+  steps:
+    - shell: bash
+      run: |
+        set -euo pipefail
+
+        expected="wasm-pack ${{ inputs.version }}"
+        if wasm-pack --version 2>/dev/null | grep -Fq "$expected"; then
+          echo "$expected already installed"
+          exit 0
+        fi
+
+        cargo install wasm-pack --version "${{ inputs.version }}" --locked
