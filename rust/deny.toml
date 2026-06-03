@@ -8,6 +8,29 @@
 # shift could silently change the gate. This file makes the policy EXPLICIT and matches
 # the green baseline — it does not escalate any current warning to an error.
 
+[licenses]
+# Empirically-verified allow-list: exactly the SPDX identifiers present in the
+# current dependency tree (proof-of-green before this list was pinned). Adding the
+# list flips the licenses check from "allow anything" to "allow ONLY these" — any
+# new dependency with a license outside the set REDs the gate (a deliberate review
+# point). Strong copyleft (GPL/AGPL/LGPL) is therefore denied by omission. Do NOT
+# pre-add licenses not actually present (e.g. MPL-2.0 / BSD-3-Clause) — keep the
+# set tight to the real tree.
+allow = [
+  "0BSD",
+  "Apache-2.0",
+  "Apache-2.0 WITH LLVM-exception",
+  "BSD-2-Clause",
+  "BSL-1.0",
+  "CC0-1.0",
+  "ISC",
+  "MIT",
+  "MIT-0",
+  "Unicode-3.0",
+  "Unlicense",
+  "Zlib",
+]
+
 [advisories]
 # Security vulnerabilities are always errors in current cargo-deny. Keep yanked + unmaintained
 # as warnings to match the green baseline; do not escalate to "deny" without a clean run first.
