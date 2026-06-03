@@ -1,0 +1,42 @@
+# Dependabot keeps the SHA-pinned GitHub Actions, the Cargo workspace, and the
+# pnpm workspace up to date. The repo pins every action to a commit SHA for
+# supply-chain integrity (doc 12 §10) — those pins have no other updater and
+# would silently rot, so the github-actions ecosystem is the load-bearing one.
+# Updates are grouped to keep PR volume low for a solo + AI-agent workflow.
+version: 2
+updates:
+  # GitHub Actions: .github/workflows/*.yml + the .github/actions/* composites.
+  - package-ecosystem: github-actions
+    directory: "/"
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    groups:
+      github-actions:
+        patterns:
+          - "*"
+
+  # Cargo workspace (rust/). SHA-pinned toolchain is separate (rust-toolchain.toml);
+  # this tracks the crate dependency graph behind the published train.
+  - package-ecosystem: cargo
+    directory: "/rust"
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    groups:
+      cargo-minor-patch:
+        update-types:
+          - minor
+          - patch
+
+  # pnpm workspace (root pnpm-lock.yaml covers all workspace packages).
+  - package-ecosystem: npm
+    directory: "/"
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    groups:
+      npm-minor-patch:
+        update-types:
+          - minor
+          - patch
