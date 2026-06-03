@@ -29,6 +29,11 @@ on:
         type: boolean
         required: false
         default: false
+      resume:
+        description: Resume a partial genesis — exclude crates already published at the workspace version.
+        type: boolean
+        required: false
+        default: false
     secrets:
       CRATES_IO_TOKEN:
         description: crates.io API token for genesis bootstrap (mode=bootstrap only).
@@ -45,6 +50,11 @@ on:
           - bootstrap
       dry_run:
         description: Dry-run the whole-workspace publish without uploading.
+        type: boolean
+        required: false
+        default: false
+      resume:
+        description: Resume a partial genesis (exclude already-published crates so cargo --workspace does not abort on them).
         type: boolean
         required: false
         default: false
@@ -75,6 +85,7 @@ jobs:
       # fall back to the steady-state defaults (oidc / no dry-run) on a tag push.
       PUBLISH_MODE: ${{ inputs.mode || 'oidc' }}
       DRY_RUN: ${{ inputs.dry_run && 'true' || 'false' }}
+      RESUME: ${{ inputs.resume && 'true' || 'false' }}
     steps:
       # 1. Checkout the EXACT tagged clean commit. The publish step forbids
       #    --allow-dirty; a release must come from an immutable tagged tree.
@@ -144,13 +155,29 @@ jobs:
       #    bootstrap = manual CRATES_IO_TOKEN (genesis, never-published crates);
       #    oidc = rust-lang/crates-io-auth-action Trusted Publishing (0.3.0+). The
       #    composite forbids --allow-dirty; dry_run uploads nothing (docs 12 §5/§6).
+      # 4b. RESUME: `cargo publish --workspace` hard-errors on ANY already-published
+      #     member, so a partial genesis (crates.io publish is non-atomic + the
+      #     new-crate rate limit aborts mid-train) cannot be re-run as-is. Derive
+      #     `--exclude <name>` for every crate already live at the workspace version;
+      #     the publish then targets ONLY the remainder, in cargo's deps-first order.
+      #     Idempotent across waves (the exclude set grows until nothing remains).
+      - name: Compute resume exclude set
+        id: resume
+        if: ${{ env.RESUME == 'true' }}
+        shell: bash
+        run: node scripts/genesis-publish-resume-exclude.mjs
+
       - name: Publish crate train
         id: publish
+        # Skip only when resuming AND the train is already fully published.
+        if: ${{ env.RESUME != 'true' || steps.resume.outputs.remaining_count != '0' }}
         uses: ./.github/actions/cargo-publish-workspace-oidc
         with:
           mode: ${{ env.PUBLISH_MODE == 'bootstrap' && 'bootstrap' || 'trusted' }}
           dry-run: ${{ env.DRY_RUN }}
           locked: "true"
+          # Empty unless resuming; on resume, excludes the already-published crates.
+          extra-args: ${{ steps.resume.outputs.exclude_args }}
         env:
           # Consumed by the composite only in bootstrap mode; harmless/unused in oidc.
           CRATES_IO_TOKEN: ${{ secrets.CRATES_IO_TOKEN }}
