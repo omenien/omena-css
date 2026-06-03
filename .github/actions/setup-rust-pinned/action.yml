@@ -26,11 +26,12 @@ outputs:
 runs:
   using: composite
   steps:
-    # Channel is read from rust/rust-toolchain.toml (1.96.0) — NEVER an input.
-    # dtolnay/rust-toolchain honors the toolchain file when toolchain is unset.
+    # dtolnay/rust-toolchain REQUIRES an explicit toolchain (it does NOT read
+    # rust-toolchain.toml). expected-version defaults to 1.96.0 and MUST track the
+    # rust-toolchain.toml channel; the assert below fails loudly if they ever drift.
     - uses: dtolnay/rust-toolchain@e97e2d8cc328f1b50210efc529dca0028893a2d9 # v1
       with:
-        toolchain: ""
+        toolchain: ${{ inputs.expected-version }}
         targets: ${{ inputs.targets }}
         components: ${{ inputs.components }}
     - id: assert

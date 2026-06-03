@@ -84,8 +84,13 @@ jobs:
           fetch-depth: 0
           persist-credentials: false
 
-      # 2. Pinned toolchain. setup-rust-pinned reads the channel from
-      #    rust/rust-toolchain.toml (1.96.0) — never an input (docs 14 §3).
+      # 1b. Node + pnpm deps: the closure gate (step 3) runs via `node --import tsx`
+      #     and the publish composite derives the crate count via node, so tsx +
+      #     node_modules must be installed.
+      - uses: ./.github/actions/setup-pnpm
+
+      # 2. Pinned toolchain. setup-rust-pinned installs the rust-toolchain.toml
+      #    channel (1.96.0) and asserts the resolved cargo matches it (docs 14 §3).
       - uses: ./.github/actions/setup-rust-pinned
 
       # 2a. DEMONSTRATE, don't assert: the all-or-nothing `cargo publish --workspace`
