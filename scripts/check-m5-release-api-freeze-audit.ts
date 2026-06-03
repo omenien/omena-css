@@ -139,7 +139,10 @@ assert.equal(
   "release-bound changes must be under the package version section",
 );
 assert.equal(cargoToml.match(/^version = "([^"]+)"/m)?.[1], "0.2.0");
-assert.match(cargoToml, /^publish = false$/m);
+// Model A direct-publish: the workspace is publishable (members publish to crates.io
+// directly); the non-published set overrides with explicit publish=false. Enforced in
+// detail by check:rust-publish-flags.
+assert.match(cargoToml, /^publish = true$/m);
 
 assertIncludes(packageJson.scripts[M5_AUDIT_SCRIPT], "check-m5-release-api-freeze-audit.ts");
 assertIncludes(
