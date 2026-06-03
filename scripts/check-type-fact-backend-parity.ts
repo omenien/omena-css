@@ -80,7 +80,7 @@ void (async () => {
     `${JSON.stringify(
       {
         schemaVersion: "3",
-        tool: "css-module-explainer/type-fact-backend-parity",
+        tool: "omena/type-fact-backend-parity",
         backend: "tsgo",
         results,
       },

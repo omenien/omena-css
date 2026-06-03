@@ -138,7 +138,7 @@ void (async () => {
     `${JSON.stringify(
       {
         schemaVersion: "1",
-        tool: "css-module-explainer/ts7-phase-a-stability",
+        tool: "omena/ts7-phase-a-stability",
         backend: TYPE_BACKEND,
         ordering: {
           runCount: ORDERING_RUN_COUNT,

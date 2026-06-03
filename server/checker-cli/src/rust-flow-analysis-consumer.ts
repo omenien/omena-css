@@ -45,7 +45,7 @@ export interface ClassValueFlowNodeResultV0 {
 
 export interface RustFlowAnalysisConsumerV0 {
   readonly schemaVersion: "0";
-  readonly product: "css-module-explainer/checker.rust-flow-analysis-consumer";
+  readonly product: "omena/checker.rust-flow-analysis-consumer";
   readonly inputVersion: string;
   readonly graphCount: number;
   readonly nodeCount: number;
@@ -106,7 +106,7 @@ export async function buildRustFlowAnalysisConsumer(
 
   return {
     schemaVersion: "0",
-    product: "css-module-explainer/checker.rust-flow-analysis-consumer",
+    product: "omena/checker.rust-flow-analysis-consumer",
     inputVersion: flowAnalysis.inputVersion,
     graphCount: analyses.length,
     nodeCount,

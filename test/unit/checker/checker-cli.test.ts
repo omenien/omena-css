@@ -57,7 +57,7 @@ describe("runCheckerCli", () => {
     const payload = JSON.parse(stdout.join(""));
     expect(payload.schemaVersion).toBe("1");
     expect(payload.reportVersion).toBe("1");
-    expect(payload.tool).toBe("css-module-explainer/checker");
+    expect(payload.tool).toBe("omena/checker");
     expect(payload.workspaceRoot).toBe(workspaceRoot);
     expect(payload.filters).toEqual({
       preset: null,
@@ -620,7 +620,7 @@ describe("runCheckerCli", () => {
     const payload = JSON.parse(stdout.join(""));
     expect(payload.rustFlowAnalysisConsumer).toMatchObject({
       schemaVersion: "0",
-      product: "css-module-explainer/checker.rust-flow-analysis-consumer",
+      product: "omena/checker.rust-flow-analysis-consumer",
       inputVersion: "2",
       graphCount: 1,
       convergedGraphCount: 1,

@@ -80,7 +80,7 @@ if (jsonMode) {
     `${JSON.stringify(
       {
         schemaVersion: "3",
-        tool: "css-module-explainer/rust-gate-evidence",
+        tool: "omena/rust-gate-evidence",
         repeatCount,
         variants: selectedVariants.map((variant) => ({
           label: variant.label,

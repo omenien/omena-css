@@ -34,7 +34,7 @@ const STYLE_UNUSED_CODES = new Set(["unused-selector"]);
 export interface CheckerReportJsonV1 {
   readonly schemaVersion: "1";
   readonly reportVersion: CheckerReportV1["version"];
-  readonly tool: "css-module-explainer/checker";
+  readonly tool: "omena/checker";
   readonly workspaceRoot: string;
   readonly filters: {
     readonly preset: WorkspaceCheckCommandPreset | null;
@@ -92,7 +92,7 @@ export interface RustStyleUnusedConsistencyV0 {
 }
 
 const CHECKER_JSON_SCHEMA_VERSION = "1" as const;
-const CHECKER_TOOL_NAME = "css-module-explainer/checker" as const;
+const CHECKER_TOOL_NAME = "omena/checker" as const;
 
 export function buildCheckerJsonReport(
   result: WorkspaceCheckResult,
