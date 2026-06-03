@@ -6,7 +6,7 @@ on:
     paths-ignore:
       - .personal_docs/**
   push:
-    branches: [master, next, feat/ir-stack-base]
+    branches: [master, next]
     paths-ignore:
       - .personal_docs/**
   workflow_dispatch:

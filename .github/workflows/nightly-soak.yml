@@ -58,14 +58,8 @@ jobs:
       - uses: ./.github/actions/sync-release-metadata
       - run: pnpm omena-check run rust/checker/release-gate-shadow
 
-  omena-css-full-readiness:
-    runs-on: ubuntu-latest
-    timeout-minutes: 90
-    continue-on-error: true
-    steps:
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
-      - uses: ./.github/actions/setup-pnpm
-      - uses: ./.github/actions/cache-rust
-      - uses: ./.github/actions/setup-cargo-fuzz
-      - uses: ./.github/actions/sync-release-metadata
-      - run: pnpm omena-check run rust/omena-css/h1-readiness
+  # NOTE: rust/omena-css/h1-readiness runs once nightly in omena-css-drift.yml
+  # (08:00, green there). The duplicate 90-min soft run that lived here was removed
+  # to stop running the same composite twice an hour apart (CI-hardening N7 dedup).
+  # The chronic nightly-soak red is the checker-release-gate / cargo-fuzz flake, a
+  # separate deferred investigation — NOT this h1-readiness duplicate.
