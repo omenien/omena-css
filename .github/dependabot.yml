@@ -29,6 +29,20 @@ updates:
           - minor
           - patch
 
+  # rust/fuzz is a SEPARATE Cargo workspace (omena-css-fuzz, its own [workspace]
+  # + Cargo.lock, not a member of /rust) — needs its own updater or libfuzzer-sys
+  # and its transitive deps rot silently.
+  - package-ecosystem: cargo
+    directory: "/rust/fuzz"
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 3
+    groups:
+      cargo-fuzz-minor-patch:
+        update-types:
+          - minor
+          - patch
+
   # pnpm workspace (root pnpm-lock.yaml covers all workspace packages).
   - package-ecosystem: npm
     directory: "/"
