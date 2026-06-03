@@ -5,6 +5,63 @@ This document describes the current release procedure.
 It is an operations document. It should not contain rollout history or project
 planning notes.
 
+## Release axes (three independent version lines)
+
+The project ships on THREE independent version axes — they do **not** move together:
+
+| Axis                   | Line    | Source of truth                                   | Published to                                                                             | Tag              |
+| ---------------------- | ------- | ------------------------------------------------- | ---------------------------------------------------------------------------------------- | ---------------- |
+| **Crate train**        | `0.2.x` | `rust/Cargo.toml [workspace.package].version`     | crates.io (41 crates, lockstep) + `@omena/wasm`/`@omena/napi` on npm (stamped from this) | `release-v0.2.0` |
+| **VS Code extension**  | `5.x`   | root `package.json` `version`                     | VS Code Marketplace + Open VSX (`omena.omena-css`)                                       | `vscode-v5.2.0`  |
+| **Private TS tooling** | `0.0.x` | per-package `package.json` (changesets-`ignore`d) | not published                                                                            | —                |
+
+Current published baseline: crate train `0.2.0`, npm `@omena/wasm`/`@omena/napi` `0.2.0`,
+extension `omena.omena-css 5.2.0`. The extension procedure is the bulk of this doc
+(below, under **Publish workflow** / **Stable release procedure**); the crate-train + npm
+runbooks follow.
+
+## Crate train (crates.io) — Model A direct publish
+
+The monorepo IS the published source (the old generate-and-push workspace is retired).
+`cargo publish --workspace --locked` uploads the in-tree workspace version directly; every
+inter-crate dependency is pinned `version = "=<workspace.version>"` (exact, lockstep), enforced
+by the `rust/inter-crate-pin` gate.
+
+**Steady-state release (0.3.0+):**
+
+1. Bump `rust/Cargo.toml [workspace.package].version` (one line) + sync the inter-crate pins; commit.
+2. Merge to `master`; full CI green.
+3. Push tag `release-v0.3.0` → `_publish-crate-train.yml` fires (default `mode=oidc`): closure gate →
+   `cargo publish --workspace --locked` via crates.io **Trusted Publishing (OIDC, no stored token)** →
+   poll the sparse index → install-smoke → cut the GitHub release. All 41 crates are TP-registered
+   (`scripts/genesis-register-trusted-publishers.mjs`), so the bootstrap token is not needed.
+4. `release-cli.yml` (same tag) builds the `omena-cli` 5-OS binaries onto the release.
+
+**Hard facts baked into the machinery (relevant if a fresh genesis / large new-crate batch recurs):**
+
+- crates.io throttles **new crate names** (a burst, then ~1 per 10 min). A 41-new-crate publish 429s
+  mid-train. `_publish-crate-train.yml` has a `resume` input → `scripts/genesis-publish-resume-exclude.mjs`
+  queries crates.io and `--exclude`s already-published crates so a re-dispatch resumes. `cargo publish
+--workspace` is **NOT idempotent** (it hard-errors on an already-published version) and can also bail
+  with "no packages ready… awaiting confirmation" on index-propagation lag — a fresh re-run picks up.
+  Existing-name version bumps are not new-crate-rate-limited.
+- The first-ever publish of a name needs a manual `CRATES_IO_TOKEN` (RFC-3691: TP cannot first-publish);
+  `mode=bootstrap` provides it. Steady state is `mode=oidc`.
+- crates.io publish is **non-atomic and irreversible** (yank ≠ delete). The `release` environment has no
+  required reviewer, so a `dry_run=false` dispatch uploads immediately. Always `dry_run=true` first.
+
+## npm packages (`@omena/wasm`, `@omena/napi`) — Model A
+
+`_publish-npm.yml` (dispatch / `release-v*`) builds the 5-OS napi matrix + the wasm package, stamps both
+from the workspace version, and publishes with `--provenance` (Sigstore via OIDC `id-token`).
+
+- **Auth:** `npm publish` reads its token from an `.npmrc` (`//registry.npmjs.org/:_authToken=${NODE_AUTH_TOKEN}`)
+  — `NODE_AUTH_TOKEN` in the env **alone is ignored** (→ `ENEEDAUTH`). The token MUST be an npm **Automation**
+  token; a classic "Publish" / granular token demands a 2FA one-time-password in CI (→ `EOTP`). Secret =
+  `NPM_AUTO_TOKEN`.
+- **Steady state:** configure npm **Trusted Publishing** (OIDC) for both packages, then drop the token.
+  Keep `id-token: write` at the **job** scope only; the workflow-level permission stays `contents: read`.
+
 ## Branches
 
 - `master`: stable releases
@@ -14,11 +71,12 @@ planning notes.
 
 Stable and preview releases both use numeric extension versions.
 
-For the current release chapter, `5.0.0` is already published on the VS Code
-Marketplace and Open VSX. `5.1.0` was consumed by a local publish invocation and
-must not be used as the closure artifact. The current stable release
-candidate is `5.1.1`; publish it through the GitHub `Publish Extension` workflow
-so the native runner matrix is merged before upload.
+For the current release chapter, `5.2.0` is the published extension baseline on the
+VS Code Marketplace and Open VSX (`omena.omena-css`, published 2026-06-03 via the
+`Publish Extension` workflow; tag `vscode-v5.2.0`). The next stable extension release
+is `5.2.1`/`5.3.0`; publish it through the GitHub `Publish Extension` workflow so the
+native runner matrix is merged before upload. (`5.0.0`/`5.1.x` are earlier published or
+locally-consumed versions and must not be reused as closure artifacts.)
 
 Allowed:
 
