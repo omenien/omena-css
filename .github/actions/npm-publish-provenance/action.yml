@@ -1,0 +1,65 @@
+name: npm publish (provenance)
+description: >-
+  Lane2 publish primitive. Stamps the package version from the axis-A workspace
+  version and runs `npm publish --provenance` over OIDC (Sigstore). Hard-fails
+  unless repository.url == github.com/omenien/omena-css, so a stale pre-rebrand
+  URL can never be baked into the signed provenance subject. Requires the CALLER
+  job to grant `permissions: id-token: write`. Assumes Node/npm are already set
+  up (use setup-pnpm or actions/setup-node first; npm>=11.5.1 / Node>=22.14.0).
+inputs:
+  package-dir:
+    description: Directory containing the package.json to publish (e.g. rust/crates/omena-wasm/pkg).
+    required: true
+  version:
+    description: Version to stamp, from [workspace.package].version (NOT changesets).
+    required: true
+  tag:
+    description: npm dist-tag (latest | next).
+    required: false
+    default: latest
+  dry-run:
+    description: Run `npm publish --dry-run` (no upload).
+    required: false
+    default: "false"
+  expected-repo-url:
+    description: The repository.url the manifest MUST carry (provenance subject guard).
+    required: false
+    default: "https://github.com/omenien/omena-css"
+runs:
+  using: composite
+  steps:
+    - shell: bash
+      working-directory: ${{ inputs.package-dir }}
+      run: |
+        set -euo pipefail
+
+        test -f package.json || { echo "::error::no package.json in ${{ inputs.package-dir }}" >&2; exit 1; }
+
+        # Toolchain floor for automatic provenance on OIDC.
+        node_ver="$(node --version)"
+        npm_ver="$(npm --version)"
+        echo "node: ${node_ver}  npm: ${npm_ver}"
+        node -e 'const s=process.argv[1].replace(/^v/,"").split(".").map(Number);const min=[22,14,0];if(s[0]<min[0]||(s[0]===min[0]&&(s[1]<min[1]||(s[1]===min[1]&&s[2]<min[2])))){console.error(`::error::Node ${process.argv[1]} < 22.14.0 (provenance floor)`);process.exit(1);}' "${node_ver}"
+        node -e 'const s=process.argv[1].split(".").map(Number);const min=[11,5,1];if(s[0]<min[0]||(s[0]===min[0]&&(s[1]<min[1]||(s[1]===min[1]&&s[2]<min[2])))){console.error(`::error::npm ${process.argv[1]} < 11.5.1 (provenance floor)`);process.exit(1);}' "${npm_ver}"
+
+        # Provenance subject guard: reject stale pre-rebrand repository.url.
+        repo_url="$(node -p "(require('./package.json').repository && (require('./package.json').repository.url || require('./package.json').repository)) || ''")"
+        echo "repository.url: ${repo_url}"
+        norm() { printf '%s' "$1" | sed -E 's#^git\+##; s#\.git$##; s#/$##'; }
+        if [ "$(norm "${repo_url}")" != "$(norm "${{ inputs.expected-repo-url }}")" ]; then
+          echo "::error::repository.url (${repo_url}) != expected (${{ inputs.expected-repo-url }}) — refusing to sign stale provenance subject" >&2
+          exit 1
+        fi
+
+        # Stamp the axis-A version into the manifest (idempotent, no git tag).
+        npm version "${{ inputs.version }}" --no-git-tag-version --allow-same-version
+    - shell: bash
+      working-directory: ${{ inputs.package-dir }}
+      run: |
+        set -euo pipefail
+        args=(publish --provenance --access public --tag "${{ inputs.tag }}")
+        if [ "${{ inputs.dry-run }}" = "true" ]; then
+          args+=(--dry-run)
+        fi
+        echo "+ npm ${args[*]}"
+        npm "${args[@]}"

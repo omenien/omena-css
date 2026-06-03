@@ -1,0 +1,92 @@
+name: Publish crate train (workspace, OIDC)
+description: >-
+  Lane1 publish primitive. Authenticates to crates.io via OIDC Trusted
+  Publishing (rust-lang/crates-io-auth-action) or a manual bootstrap token, then
+  runs `cargo publish --workspace --locked` over the whole crate train. NO
+  --exclude: the I-crates self-skip via publish=false; omena-incremental rides
+  the train. Assumes the toolchain is already set up (use setup-rust-pinned
+  first) and all inter-crate deps already carry version = "=<workspace.version>".
+inputs:
+  mode:
+    description: >-
+      'trusted' = OIDC Trusted Publishing (steady state, no stored token).
+      'bootstrap' = genesis manual token via CRATES_IO_TOKEN env (first publish
+      of never-before-published crate names; RFC-3691 forbids TP first-publish).
+    required: false
+    default: trusted
+  dry-run:
+    description: Run `cargo publish --dry-run` (no upload). Used by the plan/release-PR gate.
+    required: false
+    default: "false"
+  locked:
+    description: Pass --locked (require Cargo.lock be up to date and committed).
+    required: false
+    default: "true"
+  registry-url:
+    description: Registry base URL for the OIDC auth exchange.
+    required: false
+    default: "https://crates.io"
+  manifest-path:
+    description: Path to the workspace root Cargo.toml.
+    required: false
+    default: rust/Cargo.toml
+  extra-args:
+    description: Extra args appended verbatim to `cargo publish` (e.g. --no-verify on a re-run).
+    required: false
+    default: ""
+outputs:
+  published-count:
+    description: Number of publishable members cargo enumerated for the workspace publish.
+    value: ${{ steps.publish.outputs.published-count }}
+runs:
+  using: composite
+  steps:
+    # OIDC path: mint a short-lived (~30 min, auto-revoked) crates.io token.
+    # Requires the CALLER job to grant `permissions: id-token: write`.
+    - id: auth
+      if: inputs.mode == 'trusted'
+      uses: rust-lang/crates-io-auth-action@bbd81622f20ce9e2dd9622e3218b975523e45bbe # v1.0.4
+      with:
+        url: ${{ inputs.registry-url }}
+    - id: publish
+      shell: bash
+      env:
+        # trusted: token from the OIDC auth step. bootstrap: CRATES_IO_TOKEN
+        # must be exported by the caller (genesis-only, protected environment).
+        CARGO_REGISTRY_TOKEN: ${{ inputs.mode == 'trusted' && steps.auth.outputs.token || env.CRATES_IO_TOKEN }}
+      run: |
+        set -euo pipefail
+
+        if [ "${{ inputs.mode }}" != "trusted" ] && [ "${{ inputs.mode }}" != "bootstrap" ]; then
+          echo "::error::mode must be 'trusted' or 'bootstrap' (got '${{ inputs.mode }}')" >&2
+          exit 1
+        fi
+        if [ -z "${CARGO_REGISTRY_TOKEN:-}" ]; then
+          echo "::error::no crates.io token available for mode='${{ inputs.mode }}'" >&2
+          echo "::error::trusted mode needs id-token:write + the auth step; bootstrap mode needs CRATES_IO_TOKEN env" >&2
+          exit 1
+        fi
+
+        args=(publish --workspace --manifest-path "${{ inputs.manifest-path }}")
+        if [ "${{ inputs.locked }}" = "true" ]; then
+          args+=(--locked)
+        fi
+        if [ "${{ inputs.dry-run }}" = "true" ]; then
+          args+=(--dry-run)
+        fi
+        # Never --allow-dirty: publish only a clean tagged tree.
+        # shellcheck disable=SC2206
+        extra=(${{ inputs.extra-args }})
+        args+=("${extra[@]}")
+
+        # Derive the publishable count from cargo metadata (publish != []),
+        # never hardcoded — this is the role-gate-derived crate-train size.
+        count="$(
+          cargo metadata --no-deps --format-version 1 --manifest-path "${{ inputs.manifest-path }}" \
+            | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{const m=JSON.parse(s);const n=m.packages.filter(p=>!Array.isArray(p.publish)||p.publish.length>0).length;process.stdout.write(String(n));})'
+        )"
+        echo "publishable crate-train size (publish != []): ${count}"
+        echo "published-count=${count}" >> "$GITHUB_OUTPUT"
+
+        echo "+ cargo ${args[*]}"
+        cargo "${args[@]}"

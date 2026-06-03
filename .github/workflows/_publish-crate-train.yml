@@ -1,0 +1,206 @@
+name: _Publish Crate Train
+
+# Lane 1 of the Model A direct-publish release (docs 12 §5 / 14 §4).
+#
+# Publishes the lockstep crate-train (the publishable workspace members emitted by
+# scripts/check-rust-publish-train-closure.ts as `canonicalPublishOrder`) to
+# crates.io via `cargo publish --workspace --locked` (NO --exclude — the
+# non-publishable crates self-skip via `publish = false`), then cuts the
+# crate-train GitHub release at the exact published commit.
+#
+# RFC-3691: Trusted Publishing CANNOT do a crate's FIRST publish, so genesis (0.2.0)
+# uses mode=bootstrap (a manual CRATES_IO_TOKEN in the protected `release`
+# environment). Steady state (0.3.0+) uses mode=oidc (rust-lang/crates-io-auth-action
+# inside the cargo-publish-workspace-oidc composite — no stored token).
+#
+# DORMANT: this workflow only runs on manual workflow_dispatch, on workflow_call from
+# a release entrypoint, or on a pushed `release-v*` tag. It is NOT part of per-push CI.
+
+on:
+  workflow_call:
+    inputs:
+      mode:
+        description: bootstrap (manual CRATES_IO_TOKEN, for never-published crates) or oidc (Trusted Publishing).
+        type: string
+        required: false
+        default: oidc
+      dry_run:
+        description: Run `cargo publish --workspace --dry-run` only; upload nothing.
+        type: boolean
+        required: false
+        default: false
+    secrets:
+      CRATES_IO_TOKEN:
+        description: crates.io API token for genesis bootstrap (mode=bootstrap only).
+        required: false
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: Publish auth mode.
+        type: choice
+        required: true
+        default: oidc
+        options:
+          - oidc
+          - bootstrap
+      dry_run:
+        description: Dry-run the whole-workspace publish without uploading.
+        type: boolean
+        required: false
+        default: false
+  push:
+    tags:
+      - "release-v*"
+
+concurrency:
+  group: publish-crate-train-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  publish:
+    name: publish crate train
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    # Protected environment: required reviewers + the CRATES_IO_TOKEN bootstrap secret
+    # live here (docs 12 §6 / 14 §7).
+    environment: release
+    permissions:
+      id-token: write # OIDC: rust-lang/crates-io-auth-action (oidc mode); also npm-style provenance posture.
+      contents: write # cut the crate-train GitHub release at the published commit.
+    env:
+      # workflow_call passes inputs.*; a raw `push: tags` trigger has no inputs, so
+      # fall back to the steady-state defaults (oidc / no dry-run) on a tag push.
+      PUBLISH_MODE: ${{ inputs.mode || 'oidc' }}
+      DRY_RUN: ${{ inputs.dry_run && 'true' || 'false' }}
+    steps:
+      # 1. Checkout the EXACT tagged clean commit. The publish step forbids
+      #    --allow-dirty; a release must come from an immutable tagged tree.
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          ref: ${{ github.ref }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      # 2. Pinned toolchain. setup-rust-pinned reads the channel from
+      #    rust/rust-toolchain.toml (1.96.0) — never an input (docs 14 §3).
+      - uses: ./.github/actions/setup-rust-pinned
+
+      # 2a. DEMONSTRATE, don't assert: the all-or-nothing `cargo publish --workspace`
+      #     verify behavior is a 1.96.0 property; local dev runs 1.93.1. Fail loudly
+      #     if the resolved toolchain is not the pinned one (docs 12 §5a).
+      - name: Assert pinned toolchain (1.96.0)
+        shell: bash
+        run: |
+          set -euo pipefail
+          expected="$(awk -F'"' '/^channel/{print $2}' rust/rust-toolchain.toml)"
+          active="$(rustup show active-toolchain 2>/dev/null | awk '{print $1}')"
+          echo "expected channel: ${expected}"
+          echo "active toolchain: ${active}"
+          case "${active}" in
+            "${expected}"*) echo "toolchain pin OK" ;;
+            *)
+              echo "::error::active toolchain '${active}' does not match the rust-toolchain.toml pin '${expected}'"
+              exit 1
+              ;;
+          esac
+
+      # 3. Closure gate + canonical wave order. Asserts the train is closed (every
+      #    shipped path-dep of a publishable crate is itself publishable) and EMITS
+      #    `canonicalPublishOrder` (the genesis topo wave sequence) + the count. The
+      #    count is DERIVED here, never hardcoded (docs 12 §3 / §7).
+      - name: Publish-train closure gate
+        id: closure
+        shell: bash
+        run: |
+          set -euo pipefail
+          closure_json="$(node --import tsx ./scripts/check-rust-publish-train-closure.ts)"
+          echo "${closure_json}"
+          count="$(printf '%s' "${closure_json}" | jq -r '.trainCrateCount')"
+          violations="$(printf '%s' "${closure_json}" | jq -r '.closureViolations')"
+          if [ "${violations}" != "0" ]; then
+            echo "::error::publish-train closure gate reported ${violations} violation(s); train is not publishable"
+            exit 1
+          fi
+          # canonicalPublishOrder is the deps-first wave order; persist it for the
+          # genesis runbook / log trail (one crate per line).
+          printf '%s' "${closure_json}" | jq -r '.canonicalPublishOrder[]' > canonical-publish-order.txt
+          echo "train-crate-count=${count}" >> "$GITHUB_OUTPUT"
+          echo "Canonical publish order (${count} crates, deps first):"
+          cat canonical-publish-order.txt
+
+      # 4. cargo-semver-checks is SKIPPED at genesis (0.2.0 has no prior crates.io
+      #    baseline) and is wired in from the first steady-state bump (0.3.0+), when
+      #    a published baseline exists. Intentionally not a step here yet.
+
+      # 5. PUBLISH. `cargo publish --workspace --locked` (no exclude). RFC-3691:
+      #    bootstrap = manual CRATES_IO_TOKEN (genesis, never-published crates);
+      #    oidc = rust-lang/crates-io-auth-action Trusted Publishing (0.3.0+). The
+      #    composite forbids --allow-dirty; dry_run uploads nothing (docs 12 §5/§6).
+      - name: Publish crate train
+        id: publish
+        uses: ./.github/actions/cargo-publish-workspace-oidc
+        with:
+          mode: ${{ env.PUBLISH_MODE == 'bootstrap' && 'bootstrap' || 'trusted' }}
+          dry-run: ${{ env.DRY_RUN }}
+          locked: "true"
+        env:
+          # Consumed by the composite only in bootstrap mode; harmless/unused in oidc.
+          CRATES_IO_TOKEN: ${{ secrets.CRATES_IO_TOKEN }}
+
+      # 6. Resolve the train version (single source of truth: [workspace.package]).
+      - name: Resolve train version
+        id: version
+        if: ${{ env.DRY_RUN != 'true' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          version="$(awk '/^\[workspace\.package\]/{f=1} f&&/^version[[:space:]]*=/{gsub(/[^0-9.]/,"",$0);print;exit}' rust/Cargo.toml)"
+          test -n "${version}"
+          echo "version=${version}" >> "$GITHUB_OUTPUT"
+          echo "train version: ${version}"
+
+      # 7. Poll the crates.io sparse index until each just-published crate@=version
+      #    resolves, BEFORE the install-smoke build (de-flake index propagation lag;
+      #    docs 12 §9 / 14 §3). Skipped on dry-run (nothing was uploaded).
+      - name: Wait for crates.io index
+        if: ${{ env.DRY_RUN != 'true' }}
+        uses: ./.github/actions/registry-poll-until-indexed
+        with:
+          registry: crates
+          name: omena-umbrella
+          version: ${{ steps.version.outputs.version }}
+          timeout-s: "600"
+          backoff-s: "10"
+
+      # 8. Install-smoke: clean `cargo build --locked` of the re-pointed crates.io
+      #    consumer fixture against the published `=<version>` train (docs 12 §9 /
+      #    14 §6 — the Model-A replacement for the retired git-consumer fixtures).
+      - name: Install smoke (crates.io consumer)
+        if: ${{ env.DRY_RUN != 'true' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          fixture="rust/external-consumers/crates-io-consumer"
+          if [ ! -d "${fixture}" ]; then
+            echo "::warning::crates.io install-smoke fixture missing at ${fixture}; skipping (genesis-time artifact, created against the published train — docs 12 §2a / 14 §6)"
+            exit 0
+          fi
+          cargo build --locked --manifest-path "${fixture}/Cargo.toml"
+          echo "install-smoke OK against =${{ steps.version.outputs.version }}"
+
+      # 9. Cut the crate-train GitHub release at the EXACT published commit. Idempotent
+      #    same-tag re-run: a publish-without-release failure is recoverable by
+      #    re-running this workflow on the existing tag (docs 12 §5 / 14 §4). No
+      #    binaries on this page; the manifest table + SBOM are emitted by gh-release.
+      - name: Cut crate-train GitHub release
+        if: ${{ env.DRY_RUN != 'true' && startsWith(github.ref, 'refs/tags/release-v') }}
+        uses: softprops/action-gh-release@b4309332981a82ec1c5618f44dd2e27cc8bfbfda # v3.0.0
+        with:
+          tag_name: ${{ github.ref_name }}
+          name: omena crate train ${{ github.ref_name }}
+          target_commitish: ${{ github.sha }}
+          prerelease: false
+          body_path: canonical-publish-order.txt

@@ -1,0 +1,215 @@
+name: _Publish npm
+
+# Lane2 of the OMENA release fan-out (12 §8 / 14 §4): publish the two public
+# npm packages stamped from the crate-train axis (workspace.package.version):
+#   - @omena/wasm  (wasm-pack pkg/, name rewritten by finalize-omena-wasm-pkg.mjs)
+#   - @omena/napi  (single-package-bundles-the-.node form; .node files built
+#                   across the platform matrix and collected into pkg/)
+#
+# DORMANT: manual workflow_dispatch only; never runs on per-push CI. Genesis
+# (first @omena/wasm + @omena/napi publish) needs a manual/2FA establish step
+# per package — see RELEASING.md. Steady state runs over OIDC provenance.
+#
+# Both packages publish with `npm publish --provenance --access public`
+# (Sigstore via id-token: write). The pre-publish guard fails if either
+# repository.url is not omenien/omena-css so a stale pre-rebrand URL can never
+# be baked into the provenance subject.
+
+on:
+  workflow_call:
+    inputs:
+      ref:
+        description: Git ref (tag/sha) to publish from.
+        type: string
+        required: false
+      dry_run:
+        description: Build + pack only; do not publish to npm.
+        type: boolean
+        required: false
+        default: true
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: Git ref (tag/sha) to publish from (default release-v* tag / current ref).
+        type: string
+        required: false
+      dry_run:
+        description: Build + pack only; do not publish to npm.
+        type: boolean
+        required: true
+        default: true
+
+concurrency:
+  group: publish-npm-${{ inputs.ref || github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  # --- 1. Build napi .node binaries across the 5-target genesis matrix --------
+  # These match release-cli.yml's target set. Each host emits index.<triple>.node
+  # into rust/crates/omena-napi/pkg/; all are collected into the single @omena/napi
+  # package in the publish job (single-package-bundles-the-.node form).
+  napi-binaries:
+    name: napi ${{ matrix.target }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - target: x86_64-unknown-linux-gnu
+            os: ubuntu-latest
+            node-file: index.linux-x64-gnu.node
+          - target: aarch64-unknown-linux-gnu
+            os: ubuntu-24.04-arm
+            node-file: index.linux-arm64-gnu.node
+          - target: x86_64-apple-darwin
+            os: macos-13
+            node-file: index.darwin-x64.node
+          - target: aarch64-apple-darwin
+            os: macos-latest
+            node-file: index.darwin-arm64.node
+          - target: x86_64-pc-windows-msvc
+            os: windows-latest
+            node-file: index.win32-x64-msvc.node
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          ref: ${{ inputs.ref }}
+      - uses: ./.github/actions/setup-pnpm
+      - name: Install Rust target
+        shell: bash
+        run: rustup target add ${{ matrix.target }}
+      - uses: ./.github/actions/cache-rust
+        with:
+          shared-key: publish-napi-${{ matrix.target }}
+      - name: Build napi binary
+        shell: bash
+        run: >-
+          pnpm exec napi build
+          --manifest-path rust/crates/omena-napi/Cargo.toml
+          --platform --release
+          --target ${{ matrix.target }}
+          -o rust/crates/omena-napi/pkg
+      - name: Verify .node produced
+        shell: bash
+        run: test -f "rust/crates/omena-napi/pkg/${{ matrix.node-file }}"
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: napi-node-${{ matrix.target }}
+          path: rust/crates/omena-napi/pkg/${{ matrix.node-file }}
+          if-no-files-found: error
+          retention-days: 7
+
+  # --- 2. Build wasm, collect napi binaries, publish both ---------------------
+  publish:
+    name: publish npm packages
+    needs: napi-binaries
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    environment: release
+    permissions:
+      contents: read
+      id-token: write
+    env:
+      WASM_PKG_DIR: rust/crates/omena-wasm/pkg
+      NAPI_PKG_DIR: rust/crates/omena-napi/pkg
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          ref: ${{ inputs.ref }}
+      - uses: ./.github/actions/setup-pnpm
+      - name: Install Rust toolchain target (wasm-pack host build)
+        shell: bash
+        run: rustup target add wasm32-unknown-unknown
+      - uses: ./.github/actions/cache-rust
+        with:
+          shared-key: publish-wasm
+
+      # 2a. Build @omena/wasm + @omena/napi. Each build script self-finalizes its
+      #     pkg/package.json (build:omena-wasm rewrites name->@omena/wasm + repository;
+      #     build:omena-napi writes the full @omena/napi manifest + the loader
+      #     index.js/index.d.ts + the host .node). pkg/ is a gitignored build dir, so
+      #     these MUST be regenerated here at publish time.
+      - name: Build omena-wasm (pkg + finalized manifest)
+        run: pnpm omena-check run core/build/omena-wasm
+      - name: Build omena-napi (loader + manifest + host .node)
+        run: pnpm omena-check run core/build/omena-napi
+
+      # 2b. Collect the napi matrix .node binaries into the single pkg
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          pattern: napi-node-*
+          path: ${{ env.NAPI_PKG_DIR }}
+          merge-multiple: true
+      - name: Verify bundled napi binaries
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "${NAPI_PKG_DIR}"
+          test -f index.js
+          test -f index.d.ts
+          test -f package.json
+          count="$(ls -1 *.node 2>/dev/null | wc -l | tr -d ' ')"
+          echo "bundled .node binaries: ${count}"
+          ls -1 *.node
+          test "${count}" -ge 1
+
+      # 2c. Coherence guard — repository.url must be omenien/omena-css on BOTH
+      #     packages (12 §8 stale-URL guard; blocks a stale provenance subject)
+      #     and the napi version must equal the crate-train axis A version.
+      - name: Guard package metadata
+        shell: bash
+        run: |
+          set -euo pipefail
+          EXPECTED_URL="https://github.com/omenien/omena-css"
+          AXIS_A="$(node -e "const fs=require('node:fs');const t=fs.readFileSync('rust/Cargo.toml','utf8');const m=t.match(/\[workspace\.package\][\s\S]*?version\s*=\s*\"([^\"]+)\"/);if(!m)throw new Error('no workspace.package version');process.stdout.write(m[1])")"
+          echo "axis-A (workspace) version = ${AXIS_A}"
+          for dir in "${WASM_PKG_DIR}" "${NAPI_PKG_DIR}"; do
+            node -e '
+              const fs = require("node:fs");
+              const path = require("node:path");
+              const dir = process.argv[1];
+              const expectedUrl = process.argv[2];
+              const axisA = process.argv[3];
+              const pkg = JSON.parse(fs.readFileSync(path.join(dir, "package.json"), "utf8"));
+              const url = typeof pkg.repository === "string" ? pkg.repository : pkg.repository?.url;
+              if (url !== expectedUrl) {
+                throw new Error(`${dir}: repository.url is ${url}, expected ${expectedUrl}`);
+              }
+              if (pkg.version !== axisA) {
+                throw new Error(`${dir}: version is ${pkg.version}, expected axis-A ${axisA}`);
+              }
+              console.log(`${dir}: name=${pkg.name} version=${pkg.version} repository OK`);
+            ' "$dir" "$EXPECTED_URL" "$AXIS_A"
+          done
+
+      # 2d. Publish with provenance (Sigstore via OIDC). dry_run packs only.
+      - name: Publish @omena/wasm
+        shell: bash
+        working-directory: ${{ env.WASM_PKG_DIR }}
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.OMENA_NPM_AUTH_TOKEN }}
+          NPM_CONFIG_PROVENANCE: "true"
+        run: |
+          set -euo pipefail
+          if [ "${{ inputs.dry_run }}" = "true" ]; then
+            npm publish --provenance --access public --dry-run
+          else
+            npm publish --provenance --access public
+          fi
+      - name: Publish @omena/napi
+        shell: bash
+        working-directory: ${{ env.NAPI_PKG_DIR }}
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.OMENA_NPM_AUTH_TOKEN }}
+          NPM_CONFIG_PROVENANCE: "true"
+        run: |
+          set -euo pipefail
+          if [ "${{ inputs.dry_run }}" = "true" ]; then
+            npm publish --provenance --access public --dry-run
+          else
+            npm publish --provenance --access public
+          fi

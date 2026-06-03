@@ -1,0 +1,92 @@
+name: Poll registry until indexed
+description: >-
+  De-flakes post-publish install-smoke. Polls the crates.io sparse index or the
+  npm registry with bounded exponential backoff until name@=version resolves,
+  BEFORE any `cargo build --locked` / `npm i` runs against the just-published
+  version (index propagation lag otherwise fails the build with no-matching-package).
+inputs:
+  registry:
+    description: Which registry to poll — 'crates' or 'npm'.
+    required: true
+  name:
+    description: Crate or npm package name (npm may be scoped, e.g. @omena/omena-wasm).
+    required: true
+  version:
+    description: Exact version string to wait for (e.g. 0.2.0).
+    required: true
+  timeout-s:
+    description: Maximum total seconds to poll before failing.
+    required: false
+    default: "300"
+  backoff-s:
+    description: Initial backoff seconds between polls (doubles each attempt, capped at 30s).
+    required: false
+    default: "10"
+runs:
+  using: composite
+  steps:
+    - shell: bash
+      run: |
+        set -euo pipefail
+
+        registry="${{ inputs.registry }}"
+        name="${{ inputs.name }}"
+        version="${{ inputs.version }}"
+        timeout_s="${{ inputs.timeout-s }}"
+        backoff="${{ inputs.backoff-s }}"
+
+        case "${registry}" in
+          crates)
+            # crates.io sparse index path is determined by name length:
+            # 1 char -> /1/<name>; 2 -> /2/<name>; 3 -> /3/<c>/<name>; else /<c1c2>/<c3c4>/<name>.
+            lower="$(printf '%s' "${name}" | tr '[:upper:]' '[:lower:]')"
+            len="${#lower}"
+            if   [ "${len}" -eq 1 ]; then path="1/${lower}";
+            elif [ "${len}" -eq 2 ]; then path="2/${lower}";
+            elif [ "${len}" -eq 3 ]; then path="3/${lower:0:1}/${lower}";
+            else path="${lower:0:2}/${lower:2:2}/${lower}";
+            fi
+            url="https://index.crates.io/${path}"
+            check() {
+              # Each index line is a JSON object with a "vers" field.
+              curl -fsSL "${url}" 2>/dev/null | grep -Fq "\"vers\":\"${version}\""
+            }
+            ;;
+          npm)
+            # npm registry: a published version is queryable at /<pkg>/<version>.
+            enc="$(printf '%s' "${name}" | sed 's#/#%2f#g')"
+            url="https://registry.npmjs.org/${enc}/${version}"
+            check() {
+              code="$(curl -fsS -o /dev/null -w '%{http_code}' "${url}" 2>/dev/null || true)"
+              [ "${code}" = "200" ]
+            }
+            ;;
+          *)
+            echo "::error::registry must be 'crates' or 'npm' (got '${registry}')" >&2
+            exit 1
+            ;;
+        esac
+
+        echo "polling ${registry} for ${name}@${version} (timeout ${timeout_s}s) at ${url}"
+        deadline=$(( $(date +%s) + timeout_s ))
+        attempt=0
+        while :; do
+          attempt=$((attempt + 1))
+          if check; then
+            echo "resolved ${name}@${version} after ${attempt} attempt(s)"
+            exit 0
+          fi
+          now="$(date +%s)"
+          if [ "${now}" -ge "${deadline}" ]; then
+            echo "::error::${name}@${version} not indexed on ${registry} within ${timeout_s}s" >&2
+            exit 1
+          fi
+          # Don't overshoot the deadline; cap per-sleep at 30s.
+          remaining=$(( deadline - now ))
+          sleep_for=${backoff}
+          [ "${sleep_for}" -gt 30 ] && sleep_for=30
+          [ "${sleep_for}" -gt "${remaining}" ] && sleep_for=${remaining}
+          echo "attempt ${attempt}: not yet indexed; sleeping ${sleep_for}s"
+          sleep "${sleep_for}"
+          backoff=$(( backoff * 2 ))
+        done

@@ -1,0 +1,61 @@
+name: Setup Rust (pinned)
+description: >-
+  Install the rust-toolchain.toml-pinned toolchain (channel 1.96.0) and assert
+  the resolved cargo matches the pin, so CI never silently runs an ambient
+  toolchain. Optionally adds extra targets/components on top of the pin.
+inputs:
+  targets:
+    description: Comma-separated extra rustup targets to add (e.g. x86_64-unknown-linux-gnu).
+    required: false
+    default: ""
+  components:
+    description: Comma-separated extra rustup components to add (e.g. llvm-tools-preview).
+    required: false
+    default: ""
+  expected-version:
+    description: >-
+      The cargo/rustc semver the rust-toolchain.toml pin must resolve to. Single
+      source of truth is rust/rust-toolchain.toml; this input is the assertion
+      value only and MUST track that channel.
+    required: false
+    default: "1.96.0"
+outputs:
+  rustc-version:
+    description: The full `rustc --version` string of the resolved toolchain.
+    value: ${{ steps.assert.outputs.rustc-version }}
+runs:
+  using: composite
+  steps:
+    # Channel is read from rust/rust-toolchain.toml (1.96.0) — NEVER an input.
+    # dtolnay/rust-toolchain honors the toolchain file when toolchain is unset.
+    - uses: dtolnay/rust-toolchain@e97e2d8cc328f1b50210efc529dca0028893a2d9 # v1
+      with:
+        toolchain: ""
+        targets: ${{ inputs.targets }}
+        components: ${{ inputs.components }}
+    - id: assert
+      shell: bash
+      working-directory: rust
+      run: |
+        set -euo pipefail
+
+        # Force resolution through the rust-toolchain.toml pin in rust/.
+        active="$(rustup show active-toolchain || true)"
+        echo "active-toolchain: ${active}"
+
+        cargo_ver="$(cargo --version)"
+        rustc_ver="$(rustc --version)"
+        echo "cargo:  ${cargo_ver}"
+        echo "rustc:  ${rustc_ver}"
+
+        expected="${{ inputs.expected-version }}"
+        if ! printf '%s\n' "${cargo_ver}" | grep -Fq " ${expected} "; then
+          echo "::error::resolved cargo (${cargo_ver}) does not match pinned ${expected} from rust-toolchain.toml" >&2
+          exit 1
+        fi
+        if ! printf '%s\n' "${rustc_ver}" | grep -Fq " ${expected} "; then
+          echo "::error::resolved rustc (${rustc_ver}) does not match pinned ${expected} from rust-toolchain.toml" >&2
+          exit 1
+        fi
+
+        echo "rustc-version=${rustc_ver}" >> "$GITHUB_OUTPUT"
