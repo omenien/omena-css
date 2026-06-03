@@ -3,6 +3,11 @@
 # supply-chain integrity (doc 12 §10) — those pins have no other updater and
 # would silently rot, so the github-actions ecosystem is the load-bearing one.
 # Updates are grouped to keep PR volume low for a solo + AI-agent workflow.
+#
+# `cooldown` holds a freshly-released version for a few days before proposing it,
+# so a compromised release (the npm "Shai-Hulud" worm class) has time to be caught
+# and yanked before we pull it. This is the cheap, low-maintenance substitute for
+# cargo-vet hard-gating (doc 13 §10 / the CI-hardening research pass).
 version: 2
 updates:
   # GitHub Actions: .github/workflows/*.yml + the .github/actions/* composites.
@@ -10,6 +15,9 @@ updates:
     directory: "/"
     schedule:
       interval: weekly
+    cooldown:
+      default-days: 7
+      semver-major-days: 30
     open-pull-requests-limit: 5
     groups:
       github-actions:
@@ -22,6 +30,9 @@ updates:
     directory: "/rust"
     schedule:
       interval: weekly
+    cooldown:
+      default-days: 7
+      semver-major-days: 30
     open-pull-requests-limit: 5
     groups:
       cargo-minor-patch:
@@ -36,6 +47,9 @@ updates:
     directory: "/rust/fuzz"
     schedule:
       interval: weekly
+    cooldown:
+      default-days: 7
+      semver-major-days: 30
     open-pull-requests-limit: 3
     groups:
       cargo-fuzz-minor-patch:
@@ -48,6 +62,9 @@ updates:
     directory: "/"
     schedule:
       interval: weekly
+    cooldown:
+      default-days: 7
+      semver-major-days: 30
     open-pull-requests-limit: 5
     groups:
       npm-minor-patch:
