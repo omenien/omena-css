@@ -1,12 +1,16 @@
 # cargo-deny policy for the omena workspace.
 #
 # Pins the policy used by .github/workflows/security-audit.yml
-#   cargo deny --manifest-path rust/Cargo.toml check advisories bans sources
+#   cargo deny --manifest-path rust/Cargo.toml check advisories bans sources licenses
+# (weekly cron AND per-PR/push on rust/Cargo.lock + rust/**/Cargo.toml — CI-hardening 3b).
 #
 # Rationale: the weekly audit was GREEN on cargo-deny's built-in defaults (2026-06-01,
 # cargo-deny 0.19.8), but `--locked` installs the latest cargo-deny so a future default
 # shift could silently change the gate. This file makes the policy EXPLICIT and matches
-# the green baseline — it does not escalate any current warning to an error.
+# the green baseline. The ONE deliberate escalation is `bans.wildcards = "deny"` (no `*`
+# version reqs in a published train) — proof-of-green verified before flipping (2026-06-04,
+# `check advisories bans sources licenses` = all ok). multiple-versions/yanked/unmaintained
+# stay WARNINGS to match the green baseline.
 
 [licenses]
 # Empirically-verified allow-list: exactly the SPDX identifiers present in the
@@ -41,7 +45,9 @@ unmaintained = "workspace"
 # Baseline has 4 duplicate-version warnings (foldhash, hashbrown, thiserror, thiserror-impl).
 # Keep multiple-versions a WARNING so the audit stays green; revisit when the duplicates clear.
 multiple-versions = "warn"
-wildcards = "allow"
+# wildcards = "deny": no `version = "*"` reqs allowed in a published train (inter-crate
+# pins are exact `=0.2.0`; deps are real semver). Verified 0 wildcard deps before flipping.
+wildcards = "deny"
 
 [sources]
 # All workspace dependencies resolve from crates.io. Deny unknown sources (matches the default),

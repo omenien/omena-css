@@ -4,6 +4,19 @@ on:
   schedule:
     - cron: "0 7 * * 1"
   workflow_dispatch:
+  # Also run on dependency-graph changes (closes the ≤7-day poisoned-dep window
+  # between weekly crons — CI-hardening 3b).
+  pull_request:
+    paths:
+      - rust/Cargo.lock
+      - rust/**/Cargo.toml
+      - rust/deny.toml
+  push:
+    branches: [master, next]
+    paths:
+      - rust/Cargo.lock
+      - rust/**/Cargo.toml
+      - rust/deny.toml
 
 concurrency:
   group: security-audit-${{ github.ref }}
@@ -26,4 +39,4 @@ jobs:
           token: ${{ secrets.GITHUB_TOKEN }}
           working-directory: rust
       - run: cargo install cargo-deny --locked
-      - run: cargo deny --manifest-path rust/Cargo.toml check advisories bans sources
+      - run: cargo deny --manifest-path rust/Cargo.toml check advisories bans sources licenses
