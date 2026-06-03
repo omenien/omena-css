@@ -196,6 +196,25 @@ jobs:
             ' "$dir" "$EXPECTED_URL" "$AXIS_A"
           done
 
+      # 2c-bis. Configure npm registry auth. `npm publish` reads the token from an
+      #     .npmrc — NODE_AUTH_TOKEN in the env ALONE is not used (genesis ENEEDAUTH).
+      #     Write the env-var REFERENCE (npm substitutes at publish time, so the token
+      #     never lands on disk) and fail loudly if the secret is unset. Skipped on
+      #     dry-run (which packs without authenticating).
+      - name: Authenticate to npm
+        if: ${{ !inputs.dry_run }}
+        shell: bash
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.OMENA_NPM_AUTH_TOKEN }}
+        run: |
+          set -euo pipefail
+          if [ -z "${NODE_AUTH_TOKEN:-}" ]; then
+            echo "::error::OMENA_NPM_AUTH_TOKEN is empty in the 'release' environment — set an npm automation token there before genesis" >&2
+            exit 1
+          fi
+          printf '//registry.npmjs.org/:_authToken=${NODE_AUTH_TOKEN}\n' > "$HOME/.npmrc"
+          echo "npm auth configured (~/.npmrc references NODE_AUTH_TOKEN; token not written to disk)"
+
       # 2d. Publish with provenance (Sigstore via OIDC). dry_run packs only.
       - name: Publish @omena/wasm
         shell: bash
