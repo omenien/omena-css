@@ -121,6 +121,7 @@
     "check:rust-omena-css-rustdoc-coverage": "node --import tsx ./scripts/check-rust-omena-css-rustdoc-coverage.ts",
     "check:rust-publish-train-closure": "node --import tsx ./scripts/check-rust-publish-train-closure.ts",
     "check:rust-no-split-repo-residue": "node --import tsx ./scripts/check-rust-no-split-repo-residue.ts",
+    "check:release-tag-grammar": "node --import tsx ./scripts/check-release-tag-grammar.ts",
     "check:rust-inter-crate-pin": "node --import tsx ./scripts/check-rust-inter-crate-pin.ts",
     "check:rust-role-boundaries": "node --import tsx ./scripts/check-rust-role-boundaries.ts",
     "check:rust-publish-flags": "node --import tsx ./scripts/check-rust-publish-flags.ts",

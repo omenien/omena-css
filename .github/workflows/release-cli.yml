@@ -3,11 +3,11 @@ name: Release CLI
 on:
   push:
     tags:
-      - "v*"
+      - "release-v*"
   workflow_dispatch:
     inputs:
       tag:
-        description: Existing tag to (re)build CLI release binaries for (e.g. v5.2.0)
+        description: Existing tag to (re)build CLI release binaries for (e.g. release-v0.2.0)
         type: string
         required: true
 

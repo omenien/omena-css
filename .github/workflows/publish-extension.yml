@@ -96,13 +96,13 @@ jobs:
         run: |
           VERSION=$(jq -r '.version' package.json)
           if [ "${RELEASE_CHANNEL}" = "preview" ]; then
-            TAG="v${VERSION}-preview.${GITHUB_RUN_NUMBER}"
+            TAG="vscode-v${VERSION}-preview.${GITHUB_RUN_NUMBER}"
             PRERELEASE=true
-            NAME="v${VERSION} Preview"
+            NAME="Omena CSS Modules v${VERSION} Preview"
           else
-            TAG="v${VERSION}"
+            TAG="vscode-v${VERSION}"
             PRERELEASE=false
-            NAME="v${VERSION}"
+            NAME="Omena CSS Modules v${VERSION}"
           fi
           TARGET_COMMIT="$(git rev-parse "${{ github.event.inputs.ref }}^{commit}")"
           echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
