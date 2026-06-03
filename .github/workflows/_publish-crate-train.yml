@@ -161,16 +161,21 @@ jobs:
       #     `--exclude <name>` for every crate already live at the workspace version;
       #     the publish then targets ONLY the remainder, in cargo's deps-first order.
       #     Idempotent across waves (the exclude set grows until nothing remains).
+      # Also compute the exclude set on a release-v* TAG push so a re-tag of an
+      # already-published version is idempotent (publishes only the remainder, or
+      # skips straight to the GitHub release when nothing remains).
       - name: Compute resume exclude set
         id: resume
-        if: ${{ env.RESUME == 'true' }}
+        if: ${{ env.RESUME == 'true' || startsWith(github.ref, 'refs/tags/release-v') }}
         shell: bash
         run: node scripts/genesis-publish-resume-exclude.mjs
 
       - name: Publish crate train
         id: publish
-        # Skip only when resuming AND the train is already fully published.
-        if: ${{ env.RESUME != 'true' || steps.resume.outputs.remaining_count != '0' }}
+        # Skip publish only when the resume/tag pass ran AND nothing remains. When
+        # the resume step did not run (plain dispatch), remaining_count is empty
+        # ('' != '0' -> true), so a full --workspace publish proceeds as before.
+        if: ${{ steps.resume.outputs.remaining_count != '0' }}
         uses: ./.github/actions/cargo-publish-workspace-oidc
         with:
           mode: ${{ env.PUBLISH_MODE == 'bootstrap' && 'bootstrap' || 'trusted' }}
