@@ -32,3 +32,6 @@ omena-parser = { path = "../omena-parser", version = "=0.2.0" }
 omena-syntax = { path = "../omena-syntax", version = "=0.2.0" }
 serde.workspace = true
 serde_json.workspace = true
+
+[package.metadata.docs.rs]
+features = ["lawvere-trace"]

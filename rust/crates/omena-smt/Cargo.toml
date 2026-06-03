@@ -27,3 +27,6 @@ omena-cascade = { path = "../omena-cascade", version = "=0.2.0" }
 omena-refinement-trait = { path = "../omena-refinement-trait", version = "=0.2.0" }
 serde.workspace = true
 z3 = { version = "0.20.0", optional = true, default-features = false }
+
+[package.metadata.docs.rs]
+features = ["smt-stub"]

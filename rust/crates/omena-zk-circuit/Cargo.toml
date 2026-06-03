@@ -22,3 +22,6 @@ zk-circuit = []
 
 [dependencies]
 serde.workspace = true
+
+[package.metadata.docs.rs]
+all-features = true

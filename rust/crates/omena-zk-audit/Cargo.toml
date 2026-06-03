@@ -40,3 +40,6 @@ omena-cascade = { path = "../omena-cascade", version = "=0.2.0" }
 omena-smt = { path = "../omena-smt", version = "=0.2.0" }
 omena-zk-circuit = { path = "../omena-zk-circuit", version = "=0.2.0" }
 serde.workspace = true
+
+[package.metadata.docs.rs]
+all-features = true

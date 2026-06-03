@@ -26,3 +26,6 @@ omena-lawvere = { path = "../omena-lawvere", version = "=0.2.0", optional = true
 omena-transform-cst = { path = "../omena-transform-cst", version = "=0.2.0" }
 omena-transform-passes = { path = "../omena-transform-passes", version = "=0.2.0" }
 serde.workspace = true
+
+[package.metadata.docs.rs]
+all-features = true

@@ -23,3 +23,6 @@ lawvere-saturation = []
 [dependencies]
 omena-transform-cst = { path = "../omena-transform-cst", version = "=0.2.0" }
 serde.workspace = true
+
+[package.metadata.docs.rs]
+all-features = true
