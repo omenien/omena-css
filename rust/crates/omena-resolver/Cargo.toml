@@ -2,6 +2,7 @@
 name = "omena-resolver"
 version.workspace = true
 edition.workspace = true
+rust-version.workspace = true
 license.workspace = true
 publish.workspace = true
 description = "Omena resolver boundary over CME source-resolution producer contracts"

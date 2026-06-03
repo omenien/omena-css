@@ -2,6 +2,7 @@
 name = "omena-napi"
 version.workspace = true
 edition.workspace = true
+rust-version.workspace = true
 license.workspace = true
 publish = false
 description = "Node native bindings for Omena CSS parser and transform checks"

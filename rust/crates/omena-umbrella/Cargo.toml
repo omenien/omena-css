@@ -2,6 +2,7 @@
 name = "omena-umbrella"
 version.workspace = true
 edition.workspace = true
+rust-version.workspace = true
 license.workspace = true
 publish.workspace = true
 description = "Umbrella facade re-exporting the omena reusable building blocks (R1) and composed engine libraries (R2)."

@@ -2,6 +2,7 @@
 name = "omena-wasm"
 version.workspace = true
 edition.workspace = true
+rust-version.workspace = true
 license.workspace = true
 publish.workspace = true
 description = "Wasm bindings for browser-side Omena CSS parser and transform checks"

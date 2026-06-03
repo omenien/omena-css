@@ -2,6 +2,7 @@
 name = "omena-query-core"
 version.workspace = true
 edition.workspace = true
+rust-version.workspace = true
 license.workspace = true
 publish.workspace = true
 description = "Core query primitives and producer-fragment runtime for the Omena query facade"

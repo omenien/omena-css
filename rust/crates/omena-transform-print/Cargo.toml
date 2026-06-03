@@ -2,6 +2,7 @@
 name = "omena-transform-print"
 version.workspace = true
 edition.workspace = true
+rust-version.workspace = true
 license.workspace = true
 publish.workspace = true
 description = "CSS emission and source-map boundary for Omena CSS transforms"

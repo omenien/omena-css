@@ -2,6 +2,7 @@
 name = "omena-checker"
 version.workspace = true
 edition.workspace = true
+rust-version.workspace = true
 license.workspace = true
 publish.workspace = true
 description = "Checker rule registry and diagnostic policy boundary for Omena"

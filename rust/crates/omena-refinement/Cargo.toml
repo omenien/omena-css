@@ -2,6 +2,7 @@
 name = "omena-refinement"
 version.workspace = true
 edition.workspace = true
+rust-version.workspace = true
 license.workspace = true
 publish.workspace = true
 description = "Refinement type system contracts for Omena cascade analysis"

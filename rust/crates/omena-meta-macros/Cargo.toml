@@ -2,6 +2,7 @@
 name = "omena-meta-macros"
 version.workspace = true
 edition.workspace = true
+rust-version.workspace = true
 license.workspace = true
 publish.workspace = true
 description = "Compile-time metadata attributes for Omena CSS spec and transform surfaces"

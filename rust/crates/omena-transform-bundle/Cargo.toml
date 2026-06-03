@@ -2,6 +2,7 @@
 name = "omena-transform-bundle"
 version.workspace = true
 edition.workspace = true
+rust-version.workspace = true
 license.workspace = true
 publish.workspace = true
 description = "Source-fact backed bundle planning for Omena CSS transforms"

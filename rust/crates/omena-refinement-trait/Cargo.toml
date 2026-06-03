@@ -2,6 +2,7 @@
 name = "omena-refinement-trait"
 version.workspace = true
 edition.workspace = true
+rust-version.workspace = true
 license.workspace = true
 publish.workspace = true
 description = "Interface-only refinement predicate contracts for Omena CSS"
