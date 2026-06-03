@@ -7,7 +7,16 @@
   "access": "restricted",
   "baseBranch": "master",
   "updateInternalDependencies": "patch",
-  "ignore": [],
+  "ignore": [
+    "@omena/check-orchestrator",
+    "@omena/checker",
+    "@omena/eslint-plugin",
+    "@omena/oxlint-plugin",
+    "@omena/stylelint-plugin",
+    "@omena/vite-plugin",
+    "@omena/vitest",
+    "@omena/examples"
+  ],
   "privatePackages": {
     "version": true,
     "tag": true
