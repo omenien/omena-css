@@ -1,8 +1,9 @@
 use std::collections::BTreeSet;
 
 use crate::{
-    AbstractClassValueProvenanceV0, AbstractClassValueV0, AbstractValueDomainSummaryV0,
-    CompositeClassValueInputV0, MAX_FINITE_CLASS_VALUES,
+    ABSTRACT_VALUE_CASCADE_FAMILY_CLAIM_LEVEL_V0, AbstractClassValueProvenanceV0,
+    AbstractClassValueV0, AbstractValueDomainSummaryV0, CompositeClassValueInputV0,
+    MAX_FINITE_CLASS_VALUES,
 };
 
 pub fn summarize_omena_abstract_value_domain() -> AbstractValueDomainSummaryV0 {
@@ -43,7 +44,7 @@ pub fn summarize_omena_abstract_value_domain() -> AbstractValueDomainSummaryV0 {
         ],
         cascade_family_substrate_ready: true,
         cascade_family_framing: "framingNeutralCascadeFamily",
-        cascade_family_claim_level: "researchStagedSubstrate",
+        cascade_family_claim_level: ABSTRACT_VALUE_CASCADE_FAMILY_CLAIM_LEVEL_V0,
     }
 }
 

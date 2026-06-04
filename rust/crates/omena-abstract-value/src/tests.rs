@@ -1,10 +1,11 @@
 use super::{
-    AbstractClassValueProvenanceNodeV0, AbstractClassValueProvenanceV0, AbstractClassValueV0,
-    AbstractPropertyValueCandidateV0, AbstractPropertyValueV0, CascadeContextV0,
-    CascadeValueFamilyMemberV0, ClassValueControlFlowBlockV0, ClassValueControlFlowGraphV0,
-    ClassValueFlowGraphV0, ClassValueFlowNodeV0, ClassValueFlowTransferV0,
-    CompositeClassValueInputV0, ExternalStringTypeFactsV0, KLimitedCallSiteFlowInputV0,
-    Lin01ProvenanceSemiringV0, LinearProvenancePathV0, LinearProvenanceV0, MAX_FINITE_CLASS_VALUES,
+    ABSTRACT_VALUE_CASCADE_FAMILY_CLAIM_LEVEL_V0, AbstractClassValueProvenanceNodeV0,
+    AbstractClassValueProvenanceV0, AbstractClassValueV0, AbstractPropertyValueCandidateV0,
+    AbstractPropertyValueV0, CascadeContextV0, CascadeValueFamilyMemberV0,
+    ClassValueControlFlowBlockV0, ClassValueControlFlowGraphV0, ClassValueFlowGraphV0,
+    ClassValueFlowNodeV0, ClassValueFlowTransferV0, CompositeClassValueInputV0,
+    ExternalStringTypeFactsV0, KLimitedCallSiteFlowInputV0, Lin01ProvenanceSemiringV0,
+    LinearProvenancePathV0, LinearProvenanceV0, MAX_FINITE_CLASS_VALUES,
     NaturalCountProvenanceSemiringV0, OneCfaCallSiteFlowInputV0, ProvenanceSemiringV0,
     SecurityLabelProvenanceSemiringV0, SelectorProjectionCertaintyV0, TropicalProvenanceSemiringV0,
     ViterbiProvenanceSemiringV0, abstract_class_value_from_facts, abstract_class_value_is_subset,
@@ -74,7 +75,7 @@ fn summarizes_domain_boundary_contract() {
     );
     assert_eq!(
         summary.cascade_family_claim_level,
-        "researchStagedSubstrate"
+        ABSTRACT_VALUE_CASCADE_FAMILY_CLAIM_LEVEL_V0
     );
 
     let flow_summary = summarize_omena_abstract_value_flow_analysis();
@@ -135,7 +136,10 @@ fn summarizes_framing_neutral_cascade_value_family_substrate() {
 
     assert_eq!(family.product, "omena-abstract-value.cascade-value-family");
     assert_eq!(family.framing, "framingNeutralCascadeFamily");
-    assert_eq!(family.claim_level, "researchStagedSubstrate");
+    assert_eq!(
+        family.claim_level,
+        ABSTRACT_VALUE_CASCADE_FAMILY_CLAIM_LEVEL_V0
+    );
     assert_eq!(
         family.supported_readings,
         vec!["presheafCompatible", "cosheafCompatible"]

@@ -1,4 +1,4 @@
-use crate::AbstractPropertyValueV0;
+use crate::{ABSTRACT_VALUE_CASCADE_FAMILY_CLAIM_LEVEL_V0, AbstractPropertyValueV0};
 use serde::Serialize;
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -94,7 +94,7 @@ pub fn summarize_cascade_value_family_v0(
         schema_version: "0",
         product: "omena-abstract-value.cascade-value-family",
         framing: "framingNeutralCascadeFamily",
-        claim_level: "researchStagedSubstrate",
+        claim_level: ABSTRACT_VALUE_CASCADE_FAMILY_CLAIM_LEVEL_V0,
         property_name,
         supported_readings: vec!["presheafCompatible", "cosheafCompatible"],
         context_value_count: members.len(),

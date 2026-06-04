@@ -14,6 +14,15 @@ const PRODUCT_WIRED_MARKER = "product-wired";
 
 const TARGETS = [
   {
+    path: "rust/crates/omena-abstract-value/src/lib.rs",
+    required: [
+      "claim_level:",
+      "product-wired class-value, selector-projection, provenance, and reduced-product substrate",
+      "cascade-family remains research-staged",
+      "not a completed abstract-interpretation theorem",
+    ],
+  },
+  {
     path: "rust/crates/omena-categorical/src/lib.rs",
     required: ["claim_level:", "product-wired additive evidence", "not a completed categorical"],
   },

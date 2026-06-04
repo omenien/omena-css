@@ -1,3 +1,9 @@
+//! Abstract class-value and property-value domains for Omena product analysis.
+//!
+//! claim_level: product-wired class-value, selector-projection, provenance, and
+//! reduced-product substrate; cascade-family remains research-staged and this is
+//! not a completed abstract-interpretation theorem.
+
 mod algebra;
 mod cascade_family;
 mod domain;
@@ -30,3 +36,8 @@ pub use types::*;
 
 #[cfg(test)]
 mod tests;
+
+pub const ABSTRACT_VALUE_CLAIM_LEVEL_V0: &str =
+    "productWiredClassValueSelectorProjectionProvenanceReducedProductSubstrate";
+pub const ABSTRACT_VALUE_CASCADE_FAMILY_CLAIM_LEVEL_V0: &str =
+    "researchStagedCascadeFamilySubstrate";
