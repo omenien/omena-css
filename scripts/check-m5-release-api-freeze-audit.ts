@@ -180,9 +180,9 @@ assertIncludes(releaseNotes, "staged research contracts");
 assertIncludes(releaseNotes, "final APIs or completed theory claims");
 
 assertIncludes(releasing, "Release claim discipline");
-assertIncludes(releasing, "`5.0.0` is already published");
-assertIncludes(releasing, "`5.1.0` was consumed by a local publish invocation");
-assertIncludes(releasing, "current stable release\ncandidate is `5.1.1`");
+assertIncludes(releasing, "`5.2.0` is the published extension baseline");
+assertIncludes(releasing, "tag `vscode-v5.2.0`");
+assertIncludes(releasing, "must not be reused as closure artifacts");
 assertIncludes(releasing, "Publish Extension` workflow");
 assertIncludes(releasing, "pnpm check:release-m5-api-freeze-audit");
 assertIncludes(releasing, "pnpm check:release-m5-class-value-universe-matrix");
