@@ -3,6 +3,7 @@ use crate::{
     resolve_document_diagnostics_for_uri, resolve_source_diagnostics_for_uri,
     resolve_workspace_folder_uri, workspace_folder_compatible,
 };
+use omena_query::{summarize_omena_query_analyzed_graph, summarize_omena_query_fast_facts};
 use serde::Serialize;
 use serde_json::{Value, json};
 use std::collections::BTreeSet;
@@ -29,11 +30,14 @@ pub fn rust_diagnostics_scheduler_contract() -> RustDiagnosticsSchedulerBoundary
             "refreshSourceDiagnosticsForResolutionConfigChanges",
             "refreshOpenDocumentsOnConfigurationChange",
             "refreshOpenDocumentsAfterWorkspaceIndexing",
+            "publishBaselineDiagnosticsBeforeOptimizingDiagnostics",
         ],
         request_path_policy: vec![
             "noNodeDiagnosticsSchedulerOnRustLspPath",
             "diagnosticsNotificationsStayRustOwned",
             "closedDocumentsPublishEmptyDiagnostics",
+            "baselineTierUsesFastFactsV0ForStyleDocuments",
+            "optimizingTierUsesAnalyzedGraphV0ForStyleDocuments",
         ],
     }
 }
@@ -91,18 +95,20 @@ fn diagnostics_for_text_document_event(
     uri: &str,
     is_close: bool,
 ) -> Vec<Value> {
-    let mut outputs = vec![publish_diagnostics_notification(
-        uri,
-        if is_close {
-            json!([])
-        } else {
-            resolve_document_diagnostics_for_uri(state, uri)
-        },
-    )];
+    let mut outputs = if is_close {
+        vec![publish_diagnostics_notification(uri, json!([]))]
+    } else {
+        publish_tiered_diagnostics_notifications(
+            state,
+            uri,
+            resolve_document_diagnostics_for_uri(state, uri),
+        )
+    };
 
     if is_style_document_uri(uri) {
         for source_uri in source_uris_for_text_style_change_diagnostics(state, uri) {
-            outputs.push(publish_diagnostics_notification(
+            outputs.extend(publish_tiered_diagnostics_notifications(
+                state,
                 source_uri.as_str(),
                 resolve_source_diagnostics_for_uri(state, source_uri.as_str()),
             ));
@@ -138,7 +144,8 @@ fn diagnostics_for_watched_files(state: &LspShellState, uris: Vec<String>) -> Ve
         }
     }
     for document_uri in document_uris_to_refresh {
-        outputs.push(publish_diagnostics_notification(
+        outputs.extend(publish_tiered_diagnostics_notifications(
+            state,
             document_uri.as_str(),
             resolve_document_diagnostics_for_uri(state, document_uri.as_str()),
         ));
@@ -149,8 +156,9 @@ fn diagnostics_for_watched_files(state: &LspShellState, uris: Vec<String>) -> Ve
 fn diagnostics_for_open_documents(state: &LspShellState) -> Vec<Value> {
     open_document_uris_for_diagnostics(state)
         .into_iter()
-        .map(|uri| {
-            publish_diagnostics_notification(
+        .flat_map(|uri| {
+            publish_tiered_diagnostics_notifications(
+                state,
                 uri.as_str(),
                 resolve_document_diagnostics_for_uri(state, uri.as_str()),
             )
@@ -236,6 +244,130 @@ fn publish_diagnostics_notification(uri: &str, diagnostics: Value) -> Value {
     })
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum DiagnosticsPipelineTier {
+    Baseline,
+    Optimizing,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct DiagnosticsPipelineTierPlan {
+    baseline_evidence: &'static str,
+    optimizing_evidence: &'static str,
+}
+
+fn publish_tiered_diagnostics_notifications(
+    state: &LspShellState,
+    uri: &str,
+    diagnostics: Value,
+) -> Vec<Value> {
+    let Some(diagnostics) = diagnostics.as_array() else {
+        return vec![publish_diagnostics_notification(uri, diagnostics)];
+    };
+    let tier_plan = diagnostics_pipeline_tier_plan_for_uri(state, uri);
+    let baseline_diagnostics = diagnostics
+        .iter()
+        .filter(|diagnostic| {
+            diagnostic_pipeline_tier(diagnostic) == DiagnosticsPipelineTier::Baseline
+        })
+        .map(|diagnostic| {
+            annotate_diagnostic_pipeline_tier(
+                diagnostic.clone(),
+                DiagnosticsPipelineTier::Baseline,
+                tier_plan.baseline_evidence,
+            )
+        })
+        .collect::<Vec<_>>();
+    let full_diagnostics = diagnostics
+        .iter()
+        .map(|diagnostic| {
+            let tier = diagnostic_pipeline_tier(diagnostic);
+            let evidence = match tier {
+                DiagnosticsPipelineTier::Baseline => tier_plan.baseline_evidence,
+                DiagnosticsPipelineTier::Optimizing => tier_plan.optimizing_evidence,
+            };
+            annotate_diagnostic_pipeline_tier(diagnostic.clone(), tier, evidence)
+        })
+        .collect::<Vec<_>>();
+
+    let mut outputs = vec![publish_diagnostics_notification(
+        uri,
+        json!(baseline_diagnostics),
+    )];
+    if full_diagnostics != baseline_diagnostics {
+        outputs.push(publish_diagnostics_notification(
+            uri,
+            json!(full_diagnostics),
+        ));
+    }
+    outputs
+}
+
+fn diagnostics_pipeline_tier_plan_for_uri(
+    state: &LspShellState,
+    uri: &str,
+) -> DiagnosticsPipelineTierPlan {
+    if is_style_document_uri(uri)
+        && let Some(document) = state.document(uri)
+    {
+        let fast_facts =
+            summarize_omena_query_fast_facts(document.uri.as_str(), document.text.as_str());
+        let analyzed_graph =
+            summarize_omena_query_analyzed_graph(document.uri.as_str(), document.text.as_str());
+        return DiagnosticsPipelineTierPlan {
+            baseline_evidence: fast_facts.tier,
+            optimizing_evidence: analyzed_graph.tier,
+        };
+    }
+
+    DiagnosticsPipelineTierPlan {
+        baseline_evidence: "sourceSyntaxIndexV0",
+        optimizing_evidence: "workspaceSourceDiagnosticsV0",
+    }
+}
+
+fn diagnostic_pipeline_tier(diagnostic: &Value) -> DiagnosticsPipelineTier {
+    match diagnostic
+        .get("code")
+        .and_then(Value::as_str)
+        .unwrap_or_default()
+    {
+        "missingStaticClass"
+        | "missingTemplatePrefix"
+        | "missingResolvedClassValues"
+        | "missingResolvedClassDomain"
+        | "missingSelector"
+        | "missingModule"
+        | "missingCustomProperty" => DiagnosticsPipelineTier::Baseline,
+        _ => DiagnosticsPipelineTier::Optimizing,
+    }
+}
+
+fn annotate_diagnostic_pipeline_tier(
+    mut diagnostic: Value,
+    tier: DiagnosticsPipelineTier,
+    tier_evidence: &'static str,
+) -> Value {
+    let Some(diagnostic) = diagnostic.as_object_mut() else {
+        return diagnostic;
+    };
+    let data = diagnostic
+        .entry("data")
+        .or_insert_with(|| json!({}))
+        .as_object_mut();
+    if let Some(data) = data {
+        data.insert(
+            "pipelineTier".to_string(),
+            json!(match tier {
+                DiagnosticsPipelineTier::Baseline => "baseline",
+                DiagnosticsPipelineTier::Optimizing => "optimizing",
+            }),
+        );
+        data.insert("pipelineTierEvidence".to_string(), json!(tier_evidence));
+    }
+    Value::Object(diagnostic.clone())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -273,6 +405,70 @@ mod tests {
             Some(DiagnosticsScheduleEvent::WatchedFiles {
                 uris: vec!["file:///repo/src/App.module.scss".to_string()],
             }),
+        );
+    }
+
+    #[test]
+    fn publishes_baseline_before_optimizing_diagnostics() {
+        let mut state = LspShellState::default();
+        let outputs = crate::handle_lsp_message_outputs(
+            &mut state,
+            json!({
+                "jsonrpc": "2.0",
+                "method": "textDocument/didOpen",
+                "params": {
+                    "textDocument": {
+                        "uri": "file:///workspace-a/src/App.module.scss",
+                        "languageId": "scss",
+                        "version": 1,
+                        "text": ":root { --brand: red; }\n.btn { width: var(--missing); color: red; color: blue; }",
+                    },
+                },
+            }),
+        );
+
+        assert_eq!(outputs.len(), 2);
+        assert_eq!(
+            outputs[0].pointer("/params/diagnostics/0/code"),
+            Some(&json!("missingCustomProperty")),
+        );
+        assert_eq!(
+            outputs[0].pointer("/params/diagnostics/0/data/pipelineTier"),
+            Some(&json!("baseline")),
+        );
+        assert_eq!(
+            outputs[0].pointer("/params/diagnostics/0/data/pipelineTierEvidence"),
+            Some(&json!("fastFactsV0")),
+        );
+        assert!(
+            outputs[0]
+                .pointer("/params/diagnostics")
+                .and_then(Value::as_array)
+                .is_some_and(|diagnostics| diagnostics
+                    .iter()
+                    .all(|diagnostic| diagnostic.pointer("/code")
+                        != Some(&json!("unreachableDeclaration"))))
+        );
+
+        let full_diagnostics = outputs[1]
+            .pointer("/params/diagnostics")
+            .and_then(Value::as_array)
+            .expect("full diagnostics notification");
+        assert!(
+            full_diagnostics
+                .iter()
+                .any(|diagnostic| diagnostic.pointer("/code")
+                    == Some(&json!("missingCustomProperty"))
+                    && diagnostic.pointer("/data/pipelineTier") == Some(&json!("baseline")))
+        );
+        assert!(
+            full_diagnostics
+                .iter()
+                .any(|diagnostic| diagnostic.pointer("/code")
+                    == Some(&json!("unreachableDeclaration"))
+                    && diagnostic.pointer("/data/pipelineTier") == Some(&json!("optimizing"))
+                    && diagnostic.pointer("/data/pipelineTierEvidence")
+                        == Some(&json!("analyzedGraphV0")))
         );
     }
 }
