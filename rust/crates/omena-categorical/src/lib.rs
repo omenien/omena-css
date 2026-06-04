@@ -624,6 +624,10 @@ fn design_system_project_summary_fixture_input_v0(
     edge_kind_counts: &[(&str, usize)],
 ) -> DesignSystemProjectSummaryInputV0 {
     DesignSystemProjectSummaryInputV0 {
+        schema_version: CATEGORICAL_SCHEMA_VERSION_V0,
+        product: "omena-categorical.design-system-project-summary-input",
+        layer_marker: CATEGORICAL_LAYER_MARKER_V0,
+        feature_gate: CATEGORICAL_FEATURE_GATE_V0,
         project_id: project_id.to_string(),
         source_product: "omena-query.cross-file-summary",
         summary_hash: summary_hash.to_string(),
@@ -631,6 +635,10 @@ fn design_system_project_summary_fixture_input_v0(
         edge_kind_counts: edge_kind_counts
             .iter()
             .map(|(edge_kind, count)| DesignSystemEdgeKindCountV0 {
+                schema_version: CATEGORICAL_SCHEMA_VERSION_V0,
+                product: "omena-categorical.design-system-edge-kind-count",
+                layer_marker: CATEGORICAL_LAYER_MARKER_V0,
+                feature_gate: CATEGORICAL_FEATURE_GATE_V0,
                 edge_kind: (*edge_kind).to_string(),
                 count: *count,
             })

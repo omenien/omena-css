@@ -72,6 +72,10 @@ pub struct DesignSystemModelV0 {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct DesignSystemProjectSummaryInputV0 {
+    pub schema_version: &'static str,
+    pub product: &'static str,
+    pub layer_marker: &'static str,
+    pub feature_gate: &'static str,
     pub project_id: String,
     pub source_product: &'static str,
     pub summary_hash: String,
@@ -82,6 +86,10 @@ pub struct DesignSystemProjectSummaryInputV0 {
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct DesignSystemEdgeKindCountV0 {
+    pub schema_version: &'static str,
+    pub product: &'static str,
+    pub layer_marker: &'static str,
+    pub feature_gate: &'static str,
     pub edge_kind: String,
     pub count: usize,
 }
@@ -277,6 +285,10 @@ mod tests {
         edge_kind_counts: &[(&str, usize)],
     ) -> DesignSystemProjectSummaryInputV0 {
         DesignSystemProjectSummaryInputV0 {
+            schema_version: CATEGORICAL_SCHEMA_VERSION_V0,
+            product: "omena-categorical.design-system-project-summary-input",
+            layer_marker: CATEGORICAL_LAYER_MARKER_V0,
+            feature_gate: CATEGORICAL_FEATURE_GATE_V0,
             project_id: project_id.to_string(),
             source_product: "omena-query.cross-file-summary",
             summary_hash: summary_hash.to_string(),
@@ -284,6 +296,10 @@ mod tests {
             edge_kind_counts: edge_kind_counts
                 .iter()
                 .map(|(edge_kind, count)| DesignSystemEdgeKindCountV0 {
+                    schema_version: CATEGORICAL_SCHEMA_VERSION_V0,
+                    product: "omena-categorical.design-system-edge-kind-count",
+                    layer_marker: CATEGORICAL_LAYER_MARKER_V0,
+                    feature_gate: CATEGORICAL_FEATURE_GATE_V0,
                     edge_kind: (*edge_kind).to_string(),
                     count: *count,
                 })

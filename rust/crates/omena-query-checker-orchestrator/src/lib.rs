@@ -15,6 +15,7 @@ use omena_abstract_value::{
     external_string_type_facts_from_abstract_class_value,
 };
 pub use omena_categorical::{
+    CATEGORICAL_FEATURE_GATE_V0, CATEGORICAL_LAYER_MARKER_V0, CATEGORICAL_SCHEMA_VERSION_V0,
     DesignSystemEdgeKindCountV0, DesignSystemInvariantSummaryV0, DesignSystemModelV0,
     DesignSystemProjectSummaryInputV0,
 };

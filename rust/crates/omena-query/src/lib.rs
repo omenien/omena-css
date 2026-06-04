@@ -26,6 +26,7 @@ pub use omena_parser::{
     StyleLanguage,
 };
 use omena_query_checker_orchestrator::{
+    CATEGORICAL_FEATURE_GATE_V0, CATEGORICAL_LAYER_MARKER_V0, CATEGORICAL_SCHEMA_VERSION_V0,
     DesignSystemEdgeKindCountV0, DesignSystemProjectSummaryInputV0,
     build_omena_query_checker_design_system_model_from_project_summary_v0,
     compare_omena_query_checker_design_system_models_for_invariant_v0,

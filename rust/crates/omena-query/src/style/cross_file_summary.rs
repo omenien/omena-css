@@ -495,6 +495,10 @@ pub fn summarize_omena_query_categorical_design_system_cross_project_summary(
             build_omena_query_checker_design_system_model_from_project_summary_v0(
                 "omena-query.cross-project-design-system-theory",
                 DesignSystemProjectSummaryInputV0 {
+                    schema_version: CATEGORICAL_SCHEMA_VERSION_V0,
+                    product: "omena-categorical.design-system-project-summary-input",
+                    layer_marker: CATEGORICAL_LAYER_MARKER_V0,
+                    feature_gate: CATEGORICAL_FEATURE_GATE_V0,
                     project_id: (*project_id).to_string(),
                     source_product: summary.product,
                     summary_hash: summary.summary_hash.clone(),
@@ -503,6 +507,10 @@ pub fn summarize_omena_query_categorical_design_system_cross_project_summary(
                         .edge_kind_counts
                         .iter()
                         .map(|entry| DesignSystemEdgeKindCountV0 {
+                            schema_version: CATEGORICAL_SCHEMA_VERSION_V0,
+                            product: "omena-categorical.design-system-edge-kind-count",
+                            layer_marker: CATEGORICAL_LAYER_MARKER_V0,
+                            feature_gate: CATEGORICAL_FEATURE_GATE_V0,
                             edge_kind: entry.edge_kind.to_string(),
                             count: entry.count,
                         })
