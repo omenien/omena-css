@@ -1637,6 +1637,7 @@ fn summarize_cross_file_streaming_reachability_diagnostics(
         ),
         tags: Vec::new(),
         create_custom_property: None,
+        cascade_narrowing: None,
     }]
 }
 
