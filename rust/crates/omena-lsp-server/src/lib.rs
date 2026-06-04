@@ -43,6 +43,7 @@ use omena_query::{
     summarize_omena_query_refs_for_class, summarize_omena_query_rename_plan,
     summarize_omena_query_sass_module_sources, summarize_omena_query_source_completion_at_position,
     summarize_omena_query_source_diagnostics_for_file,
+    summarize_omena_query_source_diagnostics_for_workspace_file,
     summarize_omena_query_source_import_declarations_for_source_language,
     summarize_omena_query_source_syntax_index_for_source_language,
     summarize_omena_query_style_completion_at_position,
@@ -1051,6 +1052,21 @@ fn resolve_source_diagnostics_for_uri(state: &LspShellState, document_uri: &str)
         return json!([]);
     }
 
+    let style_sources =
+        style_sources_from_open_documents(state, document.workspace_folder_uri.as_deref(), None);
+    let mut query_diagnostics = summarize_omena_query_source_diagnostics_for_workspace_file(
+        document.uri.as_str(),
+        document.text.as_str(),
+        style_sources.as_slice(),
+        state.resolution.package_manifests.as_slice(),
+    )
+    .diagnostics
+    .into_iter()
+    // The LSP source index already resolves tsconfig/bundler aliases. Keep module-resolution
+    // diagnostics on that path until the workspace summary accepts the same resolution inputs.
+    .filter(|diagnostic| diagnostic.code != "missingModule")
+    .collect::<Vec<_>>();
+
     let candidates = resolve_source_provider_candidates(state, document)
         .unresolved
         .into_iter()
@@ -1069,30 +1085,46 @@ fn resolve_source_diagnostics_for_uri(state: &LspShellState, document_uri: &str)
             })
         })
         .collect::<Vec<_>>();
-    let diagnostics: Vec<Value> = summarize_omena_query_source_diagnostics_for_file(
-        document.uri.as_str(),
-        candidates.as_slice(),
-    )
-    .diagnostics
-    .into_iter()
-    .filter_map(|diagnostic| {
-        let query_severity = diagnostic.severity;
-        let create_selector = diagnostic.create_selector?;
-        let mut data = serde_json::Map::new();
-        data.insert("querySeverity".to_string(), json!(query_severity));
-        data.insert("provenance".to_string(), json!(diagnostic.provenance));
-        data.insert("createSelector".to_string(), json!(create_selector));
+    query_diagnostics.extend(
+        summarize_omena_query_source_diagnostics_for_file(
+            document.uri.as_str(),
+            candidates.as_slice(),
+        )
+        .diagnostics,
+    );
+    query_diagnostics.sort_by_key(|diagnostic| {
+        (
+            diagnostic.range.start.line,
+            diagnostic.range.start.character,
+            diagnostic.code,
+            diagnostic.message.clone(),
+        )
+    });
+    query_diagnostics.dedup_by(|left, right| {
+        left.code == right.code && left.range == right.range && left.message == right.message
+    });
 
-        Some(json!({
-            "range": diagnostic.range,
-            "severity": lsp_diagnostic_severity(query_severity, state.diagnostics.severity),
-            "code": diagnostic.code,
-            "source": "omena-css",
-            "message": diagnostic.message,
-            "data": Value::Object(data),
-        }))
-    })
-    .collect();
+    let diagnostics: Vec<Value> = query_diagnostics
+        .into_iter()
+        .map(|diagnostic| {
+            let query_severity = diagnostic.severity;
+            let mut data = serde_json::Map::new();
+            data.insert("querySeverity".to_string(), json!(query_severity));
+            data.insert("provenance".to_string(), json!(diagnostic.provenance));
+            if let Some(create_selector) = diagnostic.create_selector {
+                data.insert("createSelector".to_string(), json!(create_selector));
+            }
+
+            json!({
+                "range": diagnostic.range,
+                "severity": lsp_diagnostic_severity(query_severity, state.diagnostics.severity),
+                "code": diagnostic.code,
+                "source": "omena-css",
+                "message": diagnostic.message,
+                "data": Value::Object(data),
+            })
+        })
+        .collect();
 
     json!(diagnostics)
 }

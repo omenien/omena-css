@@ -203,3 +203,131 @@ export const view = <div className={cx(tone, icon.glyph, `item--${variant}`, { "
     );
     Ok(())
 }
+
+#[test]
+fn source_diagnostics_surface_target_scoped_dynamic_m_tier_flow() -> TestResult {
+    let source_uri = "file:///workspace-a/src/App.tsx";
+    let module_a_uri = "file:///workspace-a/src/A.module.scss";
+    let module_b_uri = "file:///workspace-a/src/B.module.scss";
+    let source_text = r#"import bind from "classnames/bind";
+import a from "./A.module.scss";
+import b from "./B.module.scss";
+const cx = bind.bind(b);
+export function App({ variant }) {
+  return <div className={cx(`card-${variant}`, `btn-${variant}`)} />;
+}"#;
+    let mut state = LspShellState::default();
+    handle_lsp_message(
+        &mut state,
+        json!({
+            "jsonrpc": "2.0",
+            "id": 1,
+            "method": "initialize",
+            "params": {
+                "workspaceFolders": [
+                    {
+                        "uri": "file:///workspace-a",
+                        "name": "workspace-a",
+                    },
+                ],
+            },
+        }),
+    );
+    handle_lsp_message(
+        &mut state,
+        json!({
+            "jsonrpc": "2.0",
+            "method": "textDocument/didOpen",
+            "params": {
+                "textDocument": {
+                    "uri": module_a_uri,
+                    "languageId": "scss",
+                    "version": 1,
+                    "text": ".btn-primary {}\n",
+                },
+            },
+        }),
+    );
+    handle_lsp_message(
+        &mut state,
+        json!({
+            "jsonrpc": "2.0",
+            "method": "textDocument/didOpen",
+            "params": {
+                "textDocument": {
+                    "uri": module_b_uri,
+                    "languageId": "scss",
+                    "version": 1,
+                    "text": ".card-primary {}\n",
+                },
+            },
+        }),
+    );
+    handle_lsp_message(
+        &mut state,
+        json!({
+            "jsonrpc": "2.0",
+            "method": "textDocument/didOpen",
+            "params": {
+                "textDocument": {
+                    "uri": source_uri,
+                    "languageId": "typescriptreact",
+                    "version": 1,
+                    "text": source_text,
+                },
+            },
+        }),
+    );
+
+    let diagnostics_response = handle_lsp_message(
+        &mut state,
+        json!({
+            "jsonrpc": "2.0",
+            "id": 2,
+            "method": SOURCE_DIAGNOSTICS_REQUEST,
+            "params": {
+                "textDocument": {
+                    "uri": source_uri,
+                },
+            },
+        }),
+    );
+    let diagnostics = diagnostics_response
+        .as_ref()
+        .and_then(|value| value.pointer("/result"))
+        .and_then(Value::as_array)
+        .ok_or_else(|| std::io::Error::other("source diagnostics should return an array"))?;
+    let unknown_dynamic = diagnostics
+        .iter()
+        .filter(|diagnostic| diagnostic.get("code") == Some(&json!("noUnknownDynamicClass")))
+        .collect::<Vec<_>>();
+
+    assert_eq!(
+        unknown_dynamic.len(),
+        1,
+        "LSP source diagnostics must surface exactly the bound-module dynamic M-tier finding"
+    );
+    assert_eq!(
+        unknown_dynamic[0]
+            .pointer("/data/provenance/1")
+            .and_then(Value::as_str),
+        Some("omena-abstract-value.k-limited-call-site-flow"),
+        "the LSP diagnostic must be backed by the query/checker k-CFA flow, not a local scan"
+    );
+    assert!(
+        diagnostics
+            .iter()
+            .all(|diagnostic| diagnostic.get("code") != Some(&json!("noImpreciseValue"))),
+        "harvested template diagnostics should not expose information-free noImpreciseValue noise"
+    );
+
+    let range_start = unknown_dynamic[0]
+        .pointer("/range/start")
+        .ok_or_else(|| std::io::Error::other("unknown dynamic diagnostic has a range"))?;
+    assert_eq!(
+        range_start.get("line"),
+        Some(&json!(5)),
+        "the dynamic finding must anchor to the unmatched btn- template"
+    );
+    Ok(())
+}
