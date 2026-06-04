@@ -75,6 +75,10 @@ fn read_cascade_at_position_is_query_owned() {
         refinement.product,
         "omena-refinement.cascade-dimensional-refinement-bridge"
     );
+    assert_eq!(
+        refinement.claim_level,
+        "productWiredCascadeDimensionalRefinementBridgeSubstrate"
+    );
     assert_eq!(refinement.property_name, "--surface");
     assert_eq!(refinement.predicate_count, 1);
     assert_eq!(refinement.satisfied_all_context_count, 1);
@@ -314,6 +318,10 @@ fn read_cascade_at_position_reports_iacvt_seed() {
         .refinement_evidence
         .as_ref()
         .expect("cyclic custom property refinement evidence");
+    assert_eq!(
+        refinement.claim_level,
+        "productWiredCascadeDimensionalRefinementBridgeSubstrate"
+    );
     assert_eq!(refinement.property_name, "--a");
     assert_eq!(refinement.satisfied_all_context_count, 0);
     assert_eq!(refinement.unsatisfiable_context_count, 1);

@@ -4,8 +4,8 @@
 //! strict-superset wrapper and delegating cascade checks to the byte-stable
 //! `omena-cascade` proof primitives.
 //!
-//! claim_level: cascade refinement bridge substrate, not Liquid-Haskell
-//! inference or SMT completeness.
+//! claim_level: product-wired cascade refinement bridge substrate, not
+//! Liquid-Haskell inference or SMT completeness.
 
 use std::{collections::BTreeSet, marker::PhantomData};
 
@@ -20,6 +20,9 @@ use omena_refinement_trait::{
     refinement_provenance_v0, refinement_witness_v0,
 };
 use serde::Serialize;
+
+pub const REFINEMENT_BRIDGE_CLAIM_LEVEL_V0: &str =
+    "productWiredCascadeDimensionalRefinementBridgeSubstrate";
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -387,7 +390,7 @@ pub fn summarize_cascade_dimensional_refinement_bridge_v0(
         product: "omena-refinement.cascade-dimensional-refinement-bridge",
         layer_marker: REFINEMENT_LAYER_MARKER_V0,
         feature_gate: REFINEMENT_FEATURE_GATE_V0,
-        claim_level: "m6DimensionalRefinementBridgeSubstrate",
+        claim_level: REFINEMENT_BRIDGE_CLAIM_LEVEL_V0,
         property_name: family.property_name.clone(),
         cascade_family_product: family.product,
         predicate_count: predicates.len(),
@@ -1188,7 +1191,7 @@ mod tests {
             bridge.product,
             "omena-refinement.cascade-dimensional-refinement-bridge"
         );
-        assert_eq!(bridge.claim_level, "m6DimensionalRefinementBridgeSubstrate");
+        assert_eq!(bridge.claim_level, REFINEMENT_BRIDGE_CLAIM_LEVEL_V0);
         assert_eq!(bridge.cascade_family_product, family.product);
         assert_eq!(bridge.context_evaluation_count, 3);
         assert_eq!(bridge.restriction_map_count, 2);
