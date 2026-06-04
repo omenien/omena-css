@@ -24,7 +24,6 @@ concurrency:
 
 permissions:
   contents: read
-  security-events: write
 
 jobs:
   audit:
@@ -32,11 +31,13 @@ jobs:
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
-      - uses: ./.github/actions/setup-pnpm
       - uses: ./.github/actions/cache-rust
-      - uses: rustsec/audit-check@69366f33c96575abad1ee0dba8212993eecbe998 # v2.0.0
-        with:
-          token: ${{ secrets.GITHUB_TOKEN }}
-          working-directory: rust
+      # cargo-deny IS the authoritative supply-chain check (same RustSec advisory DB
+      # as rustsec/audit-check, but driven by deny.toml — our policy). The separate
+      # rustsec/audit-check action was removed: it failed the job on the transitive
+      # `derivative` *unmaintained* informational warning, which our policy
+      # deliberately does NOT gate (deny.toml [advisories] unmaintained = "workspace");
+      # it was also redundant + Node20-deprecated. Vulnerabilities are always errors
+      # in cargo-deny, so the gating is unchanged.
       - run: cargo install cargo-deny --locked
       - run: cargo deny --manifest-path rust/Cargo.toml check advisories bans sources licenses
