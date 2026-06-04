@@ -3007,6 +3007,9 @@ fn summarize_omena_checker_replica_ensemble_evaluations(
                 mean_q: report.distribution.mean_q,
                 variance_q: report.distribution.variance_q,
                 top_disagreement_pair_count,
+                mechanism_scope: report.mechanism_scope.to_string(),
+                product_surface: report.product_surface.to_string(),
+                default_product_decision_mechanism: report.default_product_decision_mechanism,
             }],
         });
     let rule_code_names = evaluations

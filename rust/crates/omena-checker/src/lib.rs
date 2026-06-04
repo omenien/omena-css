@@ -593,6 +593,12 @@ pub struct OmenaCheckerReplicaEnsembleReportInputV0 {
     pub mean_q: f64,
     pub variance_q: f64,
     pub top_disagreement_pair_count: usize,
+    #[serde(default = "default_replica_ensemble_mechanism_scope_v0")]
+    pub mechanism_scope: String,
+    #[serde(default = "default_replica_ensemble_product_surface_v0")]
+    pub product_surface: String,
+    #[serde(default)]
+    pub default_product_decision_mechanism: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize)]
@@ -607,8 +613,19 @@ pub struct OmenaCheckerReplicaEnsembleEvaluationV0 {
     pub mean_q: f64,
     pub variance_q: f64,
     pub top_disagreement_pair_count: usize,
+    pub mechanism_scope: String,
+    pub product_surface: String,
+    pub default_product_decision_mechanism: bool,
     pub message: String,
     pub mechanism_products: Vec<&'static str>,
+}
+
+fn default_replica_ensemble_mechanism_scope_v0() -> String {
+    "unspecifiedReplicaEnsembleScope".to_string()
+}
+
+fn default_replica_ensemble_product_surface_v0() -> String {
+    "unspecifiedReplicaEnsembleProductSurface".to_string()
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize)]
@@ -1612,7 +1629,9 @@ pub fn evaluate_omena_checker_replica_ensemble_rules(
                 report.mean_q,
                 report.variance_q,
                 report.top_disagreement_pair_count,
-                "Replica-ensemble cross-file report found inconsistent cascade outcomes that require investigation.",
+                report.mechanism_scope,
+                report.product_surface,
+                report.default_product_decision_mechanism,
             )
         })
         .collect()
@@ -1886,7 +1905,9 @@ fn replica_ensemble_evaluation(
     mean_q: f64,
     variance_q: f64,
     top_disagreement_pair_count: usize,
-    message: &'static str,
+    mechanism_scope: String,
+    product_surface: String,
+    default_product_decision_mechanism: bool,
 ) -> OmenaCheckerReplicaEnsembleEvaluationV0 {
     OmenaCheckerReplicaEnsembleEvaluationV0 {
         rule_code: OmenaCheckerRuleCodeV0::ReplicaEnsembleInconsistency,
@@ -1898,7 +1919,10 @@ fn replica_ensemble_evaluation(
         mean_q,
         variance_q,
         top_disagreement_pair_count,
-        message: message.to_string(),
+        mechanism_scope,
+        product_surface,
+        default_product_decision_mechanism,
+        message: "Replica-ensemble cross-file consistency hint found inconsistent cascade outcomes; this is not a default product decision mechanism.".to_string(),
         mechanism_products: vec!["omena-ensemble.cross-file-inconsistency-report"],
     }
 }
@@ -3070,6 +3094,9 @@ mod tests {
                     mean_q: 0.5,
                     variance_q: 0.25,
                     top_disagreement_pair_count: 2,
+                    mechanism_scope: "productWiredCrossFileConsistencyHintSubstrate".to_string(),
+                    product_surface: "defaultCrossFileConsistencyHint".to_string(),
+                    default_product_decision_mechanism: false,
                 }],
             });
 
@@ -3084,6 +3111,20 @@ mod tests {
             evaluations[0].mechanism_products,
             vec!["omena-ensemble.cross-file-inconsistency-report"]
         );
+        assert_eq!(
+            evaluations[0].mechanism_scope,
+            "productWiredCrossFileConsistencyHintSubstrate"
+        );
+        assert_eq!(
+            evaluations[0].product_surface,
+            "defaultCrossFileConsistencyHint"
+        );
+        assert!(!evaluations[0].default_product_decision_mechanism);
+        assert!(
+            evaluations[0]
+                .message
+                .contains("not a default product decision mechanism")
+        );
 
         let clear_evaluations =
             evaluate_omena_checker_replica_ensemble_rules(OmenaCheckerReplicaEnsembleInputV0 {
@@ -3093,6 +3134,9 @@ mod tests {
                     mean_q: 1.0,
                     variance_q: 0.0,
                     top_disagreement_pair_count: 0,
+                    mechanism_scope: "productWiredCrossFileConsistencyHintSubstrate".to_string(),
+                    product_surface: "defaultCrossFileConsistencyHint".to_string(),
+                    default_product_decision_mechanism: false,
                 }],
             });
         assert!(clear_evaluations.is_empty());

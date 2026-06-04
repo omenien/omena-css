@@ -8,11 +8,13 @@ use crate::{ConsumerId, ProjectionFamily, TopVariantTreatment};
 use crate::{
     DetectabilityPhase, DistributionModality, LinearProvenanceTagV0, ModuleGraphEdgeV0,
     ModuleGraphV0, OutcomeMode, ParisiM4AlphaSource, ParisiSource, PartitionHypothesisLabel,
-    REPLICA_ENSEMBLE_FEATURE_GATE_V0, REPLICA_ENSEMBLE_LAYER_MARKER_V0,
-    REPLICA_ENSEMBLE_SCHEMA_VERSION_V0, ReportOptionsV0, ReportRecommendation, RgExponentHandleV0,
-    SamplingPolicy, SpectralMethod, UniversalityClassHint, build_cross_file_inconsistency_report,
-    compute_overlap_distribution, compute_replica_overlap, compute_sbm_detectability,
-    grn_outcome_projection_policy, outcome_projection_policy_for_mode, site,
+    REPLICA_ENSEMBLE_DEFAULT_PRODUCT_DECISION_MECHANISM_V0, REPLICA_ENSEMBLE_FEATURE_GATE_V0,
+    REPLICA_ENSEMBLE_LAYER_MARKER_V0, REPLICA_ENSEMBLE_MECHANISM_SCOPE_V0,
+    REPLICA_ENSEMBLE_PRODUCT_SURFACE_V0, REPLICA_ENSEMBLE_SCHEMA_VERSION_V0, ReportOptionsV0,
+    ReportRecommendation, RgExponentHandleV0, SamplingPolicy, SpectralMethod,
+    UniversalityClassHint, build_cross_file_inconsistency_report, compute_overlap_distribution,
+    compute_replica_overlap, compute_sbm_detectability, grn_outcome_projection_policy,
+    outcome_projection_policy_for_mode, site,
 };
 
 #[test]
@@ -239,6 +241,12 @@ fn integrated_report_exposes_projection_registry_for_replica_and_grn_consumers()
     assert_eq!(
         report.recommendation,
         ReportRecommendation::InvestigateRsbBroken
+    );
+    assert_eq!(report.mechanism_scope, REPLICA_ENSEMBLE_MECHANISM_SCOPE_V0);
+    assert_eq!(report.product_surface, REPLICA_ENSEMBLE_PRODUCT_SURFACE_V0);
+    assert_eq!(
+        report.default_product_decision_mechanism,
+        REPLICA_ENSEMBLE_DEFAULT_PRODUCT_DECISION_MECHANISM_V0
     );
 
     let replica_policy = outcome_projection_policy_for_mode(OutcomeMode::DefiniteOnly);

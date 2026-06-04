@@ -4,8 +4,10 @@ use crate::overlap::{compute_overlap_distribution, outcome_projection_policy_for
 use crate::types::{
     AgreementVerdict, CriticalExponentAnnotationV0, CrossFileInconsistencyReportV0,
     DetectabilityPhase, ModuleGraphV0, OutcomeMode, ParisiM4AlphaSource, PartitionEstimateV0,
-    PartitionHypothesisLabel, PartitionHypothesisResultV0, REPLICA_ENSEMBLE_FEATURE_GATE_V0,
-    REPLICA_ENSEMBLE_LAYER_MARKER_V0, REPLICA_ENSEMBLE_SCHEMA_VERSION_V0, ReplicaOverlapV0,
+    PartitionHypothesisLabel, PartitionHypothesisResultV0,
+    REPLICA_ENSEMBLE_DEFAULT_PRODUCT_DECISION_MECHANISM_V0, REPLICA_ENSEMBLE_FEATURE_GATE_V0,
+    REPLICA_ENSEMBLE_LAYER_MARKER_V0, REPLICA_ENSEMBLE_MECHANISM_SCOPE_V0,
+    REPLICA_ENSEMBLE_PRODUCT_SURFACE_V0, REPLICA_ENSEMBLE_SCHEMA_VERSION_V0, ReplicaOverlapV0,
     ReplicaSnapshotV0, ReportOptionsV0, ReportRecommendation, RgExponentHandleV0,
     SBMDetectabilityThresholdV0, SamplingPolicy, SpectralMethod, UniversalityClassHint,
 };
@@ -95,6 +97,9 @@ pub fn build_cross_file_inconsistency_report(
         product: "omena-ensemble.cross-file-inconsistency-report",
         layer_marker: REPLICA_ENSEMBLE_LAYER_MARKER_V0,
         feature_gate: REPLICA_ENSEMBLE_FEATURE_GATE_V0,
+        mechanism_scope: REPLICA_ENSEMBLE_MECHANISM_SCOPE_V0,
+        product_surface: REPLICA_ENSEMBLE_PRODUCT_SURFACE_V0,
+        default_product_decision_mechanism: REPLICA_ENSEMBLE_DEFAULT_PRODUCT_DECISION_MECHANISM_V0,
         workspace_root: workspace_root.to_string(),
         distribution,
         detectability,

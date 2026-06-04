@@ -6,8 +6,10 @@ use omena_parser::{
     ParsedVariableFactKind,
 };
 use omena_query_checker_orchestrator::{
-    ModuleGraphEdgeV0, ModuleGraphV0, OutcomeMode, REPLICA_ENSEMBLE_FEATURE_GATE_V0,
-    REPLICA_ENSEMBLE_LAYER_MARKER_V0, REPLICA_ENSEMBLE_SCHEMA_VERSION_V0, ReplicaSnapshotV0,
+    ModuleGraphEdgeV0, ModuleGraphV0, OutcomeMode,
+    REPLICA_ENSEMBLE_DEFAULT_PRODUCT_DECISION_MECHANISM_V0, REPLICA_ENSEMBLE_FEATURE_GATE_V0,
+    REPLICA_ENSEMBLE_LAYER_MARKER_V0, REPLICA_ENSEMBLE_MECHANISM_SCOPE_V0,
+    REPLICA_ENSEMBLE_PRODUCT_SURFACE_V0, REPLICA_ENSEMBLE_SCHEMA_VERSION_V0, ReplicaSnapshotV0,
     ReportOptionsV0, ReportRecommendation, build_cross_file_inconsistency_report,
 };
 use omena_query_checker_orchestrator::{
@@ -618,6 +620,12 @@ fn summarize_omena_query_replica_ensemble_inconsistency_diagnostics_for_workspac
         ReportOptionsV0::default(),
         None,
     );
+    debug_assert_eq!(report.mechanism_scope, REPLICA_ENSEMBLE_MECHANISM_SCOPE_V0);
+    debug_assert_eq!(report.product_surface, REPLICA_ENSEMBLE_PRODUCT_SURFACE_V0);
+    debug_assert_eq!(
+        report.default_product_decision_mechanism,
+        REPLICA_ENSEMBLE_DEFAULT_PRODUCT_DECISION_MECHANISM_V0
+    );
 
     // Genuine disagreement count: only replica pairs whose computed overlap-Q is
     // strictly below 1.0 actually disagree on a shared cascade outcome. (The report's
@@ -638,6 +646,9 @@ fn summarize_omena_query_replica_ensemble_inconsistency_diagnostics_for_workspac
                 mean_q: report.distribution.mean_q,
                 variance_q: report.distribution.variance_q,
                 top_disagreement_pair_count: genuine_disagreement_pair_count,
+                mechanism_scope: report.mechanism_scope.to_string(),
+                product_surface: report.product_surface.to_string(),
+                default_product_decision_mechanism: report.default_product_decision_mechanism,
             }],
         });
     if !gate.enforcement_passed {
@@ -1480,6 +1491,10 @@ pub fn summarize_omena_query_style_diagnostics_for_workspace_file_with_external_
     push_omena_query_ready_surface(
         &mut summary.ready_surfaces,
         "crossFileReplicaEnsembleDiagnostics",
+    );
+    push_omena_query_ready_surface(
+        &mut summary.ready_surfaces,
+        "crossFileReplicaEnsembleHintScope",
     );
     if external_mode == OmenaQueryExternalModuleModeV0::Sif {
         // RFC 0004 #28 / #35: the file-scoped `@omena-strict: <level>` sigil dials the

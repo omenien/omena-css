@@ -47,7 +47,11 @@ const TARGETS = [
   },
   {
     path: "rust/crates/omena-ensemble/src/lib.rs",
-    required: ["claim_level:", "opt-in replica-overlap substrate", "not a default product"],
+    required: [
+      "claim_level:",
+      "product-wired cross-file consistency hint substrate",
+      "not a default product",
+    ],
   },
   {
     path: "rust/crates/omena-refinement/src/lib.rs",

@@ -38,8 +38,10 @@ use omena_checker::{
     list_omena_checker_m_tier_rule_code_names, list_omena_checker_rule_code_names,
 };
 pub use omena_ensemble::{
-    ModuleGraphEdgeV0, ModuleGraphV0, OutcomeMode, REPLICA_ENSEMBLE_FEATURE_GATE_V0,
-    REPLICA_ENSEMBLE_LAYER_MARKER_V0, REPLICA_ENSEMBLE_SCHEMA_VERSION_V0, ReplicaSiteOutcomeV0,
+    ModuleGraphEdgeV0, ModuleGraphV0, OutcomeMode,
+    REPLICA_ENSEMBLE_DEFAULT_PRODUCT_DECISION_MECHANISM_V0, REPLICA_ENSEMBLE_FEATURE_GATE_V0,
+    REPLICA_ENSEMBLE_LAYER_MARKER_V0, REPLICA_ENSEMBLE_MECHANISM_SCOPE_V0,
+    REPLICA_ENSEMBLE_PRODUCT_SURFACE_V0, REPLICA_ENSEMBLE_SCHEMA_VERSION_V0, ReplicaSiteOutcomeV0,
     ReplicaSnapshotV0, ReportOptionsV0, ReportRecommendation,
     build_cross_file_inconsistency_report, site,
 };
@@ -135,6 +137,14 @@ pub fn query_product_diagnostic_checker_rule_code_name_v0(
         "unspecifiedCascadeTie" => Some(OmenaCheckerRuleCodeV0::UnspecifiedCascadeTie.as_str()),
         "designerIntentInconsistency" => {
             Some(OmenaCheckerRuleCodeV0::DesignerIntentInconsistency.as_str())
+        }
+        "cascadeSmtViolation" => Some(OmenaCheckerRuleCodeV0::CascadeSMTViolation.as_str()),
+        "rgFlowRelevantOperator" => Some(OmenaCheckerRuleCodeV0::RgFlowRelevantOperator.as_str()),
+        "categoricalCascadeEvidenceInconsistency" => {
+            Some(OmenaCheckerRuleCodeV0::CategoricalCascadeEvidenceInconsistency.as_str())
+        }
+        "replicaEnsembleInconsistency" => {
+            Some(OmenaCheckerRuleCodeV0::ReplicaEnsembleInconsistency.as_str())
         }
         _ => None,
     }
@@ -338,6 +348,9 @@ pub struct OmenaQueryCheckerReplicaEnsembleGateV0 {
     pub unregistered_rule_count: usize,
     pub evaluation_count: usize,
     pub enforcement_passed: bool,
+    pub mechanism_scope: &'static str,
+    pub product_surface: &'static str,
+    pub default_product_decision_mechanism: bool,
     pub evaluations: Vec<OmenaCheckerReplicaEnsembleEvaluationV0>,
     pub ready_surfaces: Vec<&'static str>,
 }
@@ -386,10 +399,14 @@ pub fn run_omena_query_checker_replica_ensemble_gate_v0(
         unregistered_rule_count,
         evaluation_count: evaluations.len(),
         enforcement_passed: unregistered_rule_count == 0,
+        mechanism_scope: REPLICA_ENSEMBLE_MECHANISM_SCOPE_V0,
+        product_surface: REPLICA_ENSEMBLE_PRODUCT_SURFACE_V0,
+        default_product_decision_mechanism: REPLICA_ENSEMBLE_DEFAULT_PRODUCT_DECISION_MECHANISM_V0,
         evaluations,
         ready_surfaces: vec![
             "checkerRuleRegistry",
             "crossFileReplicaOverlap",
+            "crossFileReplicaEnsembleHintScope",
             "registeredRuleDiagnosticGate",
             "queryDiagnosticHandoff",
         ],
@@ -775,6 +792,10 @@ mod tests {
             "circularVar",
             "unspecifiedCascadeTie",
             "designerIntentInconsistency",
+            "cascadeSmtViolation",
+            "rgFlowRelevantOperator",
+            "categoricalCascadeEvidenceInconsistency",
+            "replicaEnsembleInconsistency",
         ];
 
         for product_code in product_codes {
@@ -899,6 +920,43 @@ mod tests {
         assert!(gate.enforcement_passed);
         assert_eq!(gate.evaluation_count, 0);
         assert!(gate.emitted_rule_names.is_empty());
+    }
+
+    #[test]
+    fn replica_ensemble_gate_advertises_hint_scope_not_product_decision() {
+        let gate =
+            run_omena_query_checker_replica_ensemble_gate_v0(OmenaCheckerReplicaEnsembleInputV0 {
+                reports: vec![OmenaCheckerReplicaEnsembleReportInputV0 {
+                    workspace_root: "/workspace".to_string(),
+                    recommendation: "investigateRsbBroken".to_string(),
+                    mean_q: 0.5,
+                    variance_q: 0.25,
+                    top_disagreement_pair_count: 1,
+                    mechanism_scope: REPLICA_ENSEMBLE_MECHANISM_SCOPE_V0.to_string(),
+                    product_surface: REPLICA_ENSEMBLE_PRODUCT_SURFACE_V0.to_string(),
+                    default_product_decision_mechanism:
+                        REPLICA_ENSEMBLE_DEFAULT_PRODUCT_DECISION_MECHANISM_V0,
+                }],
+            });
+
+        assert!(gate.enforcement_passed);
+        assert_eq!(gate.evaluation_count, 1);
+        assert_eq!(gate.mechanism_scope, REPLICA_ENSEMBLE_MECHANISM_SCOPE_V0);
+        assert_eq!(gate.product_surface, REPLICA_ENSEMBLE_PRODUCT_SURFACE_V0);
+        assert!(!gate.default_product_decision_mechanism);
+        assert!(
+            gate.ready_surfaces
+                .contains(&"crossFileReplicaEnsembleHintScope")
+        );
+        assert_eq!(
+            gate.evaluations[0].mechanism_scope,
+            REPLICA_ENSEMBLE_MECHANISM_SCOPE_V0
+        );
+        assert_eq!(
+            gate.evaluations[0].product_surface,
+            REPLICA_ENSEMBLE_PRODUCT_SURFACE_V0
+        );
+        assert!(!gate.evaluations[0].default_product_decision_mechanism);
     }
 
     #[test]

@@ -3138,6 +3138,12 @@ fn cross_file_replica_ensemble_inconsistency_fires_on_disagreeing_modules()
     );
     assert!(
         diagnostics
+            .ready_surfaces
+            .contains(&"crossFileReplicaEnsembleHintScope"),
+        "the cross-file replica-ensemble scope must be advertised as a hint"
+    );
+    assert!(
+        diagnostics
             .diagnostics
             .iter()
             .any(|diagnostic| diagnostic.code == "replicaEnsembleInconsistency"),
@@ -3147,6 +3153,19 @@ fn cross_file_replica_ensemble_inconsistency_fires_on_disagreeing_modules()
             .iter()
             .map(|diagnostic| diagnostic.code)
             .collect::<Vec<_>>()
+    );
+    let diagnostic = diagnostics
+        .diagnostics
+        .iter()
+        .find(|diagnostic| diagnostic.code == "replicaEnsembleInconsistency")
+        .expect("replica ensemble diagnostic");
+    assert_eq!(diagnostic.severity, "hint");
+    assert!(
+        diagnostic
+            .message
+            .contains("not a default product decision mechanism"),
+        "diagnostic must expose the product hint scope, got {:?}",
+        diagnostic.message
     );
 
     // Consistent variant: the imported module now resolves `.button { color }` to the

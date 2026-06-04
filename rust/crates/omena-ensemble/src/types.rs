@@ -6,6 +6,10 @@ use serde::Serialize;
 pub const REPLICA_ENSEMBLE_SCHEMA_VERSION_V0: &str = "0";
 pub const REPLICA_ENSEMBLE_LAYER_MARKER_V0: &str = "replica-ensemble";
 pub const REPLICA_ENSEMBLE_FEATURE_GATE_V0: &str = "replica-ensemble";
+pub const REPLICA_ENSEMBLE_MECHANISM_SCOPE_V0: &str =
+    "productWiredCrossFileConsistencyHintSubstrate";
+pub const REPLICA_ENSEMBLE_PRODUCT_SURFACE_V0: &str = "defaultCrossFileConsistencyHint";
+pub const REPLICA_ENSEMBLE_DEFAULT_PRODUCT_DECISION_MECHANISM_V0: bool = false;
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -304,6 +308,9 @@ pub struct CrossFileInconsistencyReportV0 {
     pub product: &'static str,
     pub layer_marker: &'static str,
     pub feature_gate: &'static str,
+    pub mechanism_scope: &'static str,
+    pub product_surface: &'static str,
+    pub default_product_decision_mechanism: bool,
     pub workspace_root: String,
     pub distribution: ReplicaOverlapDistributionV0,
     pub detectability: SBMDetectabilityThresholdV0,
