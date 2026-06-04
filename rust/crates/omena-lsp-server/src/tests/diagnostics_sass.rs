@@ -164,6 +164,126 @@ fn style_diagnostics_surface_streaming_ifds_cross_file_reachability_from_lsp() {
 }
 
 #[test]
+fn style_diagnostics_surface_replica_ensemble_inconsistency_from_lsp() {
+    let mut state = LspShellState::default();
+    for (uri, text) in [
+        (
+            "file:///workspace-a/src/App.module.scss",
+            "@use \"./theme\";\n.button { color: red; }\n.button { color: green; }",
+        ),
+        (
+            "file:///workspace-a/src/_theme.scss",
+            ".button { color: red; }\n.button { color: blue; }",
+        ),
+    ] {
+        handle_lsp_message(
+            &mut state,
+            json!({
+                "jsonrpc": "2.0",
+                "method": "textDocument/didOpen",
+                "params": {
+                    "textDocument": {
+                        "uri": uri,
+                        "languageId": "scss",
+                        "version": 1,
+                        "text": text,
+                    },
+                },
+            }),
+        );
+    }
+
+    let response = handle_lsp_message(
+        &mut state,
+        json!({
+            "jsonrpc": "2.0",
+            "id": 1,
+            "method": STYLE_DIAGNOSTICS_REQUEST,
+            "params": {
+                "textDocument": {
+                    "uri": "file:///workspace-a/src/App.module.scss",
+                },
+            },
+        }),
+    );
+    let diagnostics = response
+        .as_ref()
+        .and_then(|value| value.pointer("/result"))
+        .and_then(Value::as_array)
+        .expect("style diagnostics response contains an array");
+    let ensemble = diagnostics
+        .iter()
+        .find(|diagnostic| {
+            diagnostic.pointer("/code") == Some(&json!("replicaEnsembleInconsistency"))
+        })
+        .expect("LSP style diagnostics should surface replica-ensemble inconsistency");
+    assert_eq!(
+        ensemble.pointer("/data/provenance/2"),
+        Some(&json!("omena-ensemble.cross-file-inconsistency-report")),
+    );
+    assert!(
+        ensemble
+            .pointer("/message")
+            .and_then(Value::as_str)
+            .is_some_and(|message| message.contains("not a default product decision mechanism")),
+        "ensemble diagnostic should keep hint-scope wording: {ensemble:?}"
+    );
+
+    let mut consistent_state = LspShellState::default();
+    for (uri, text) in [
+        (
+            "file:///workspace-a/src/App.module.scss",
+            "@use \"./theme\";\n.button { color: red; }\n.button { color: green; }",
+        ),
+        (
+            "file:///workspace-a/src/_theme.scss",
+            ".button { color: red; }\n.button { color: green; }",
+        ),
+    ] {
+        handle_lsp_message(
+            &mut consistent_state,
+            json!({
+                "jsonrpc": "2.0",
+                "method": "textDocument/didOpen",
+                "params": {
+                    "textDocument": {
+                        "uri": uri,
+                        "languageId": "scss",
+                        "version": 1,
+                        "text": text,
+                    },
+                },
+            }),
+        );
+    }
+
+    let consistent_response = handle_lsp_message(
+        &mut consistent_state,
+        json!({
+            "jsonrpc": "2.0",
+            "id": 2,
+            "method": STYLE_DIAGNOSTICS_REQUEST,
+            "params": {
+                "textDocument": {
+                    "uri": "file:///workspace-a/src/App.module.scss",
+                },
+            },
+        }),
+    );
+    let consistent_diagnostics = consistent_response
+        .as_ref()
+        .and_then(|value| value.pointer("/result"))
+        .and_then(Value::as_array)
+        .expect("consistent style diagnostics response contains an array");
+    assert!(
+        consistent_diagnostics.iter().all(|diagnostic| {
+            diagnostic.pointer("/code") != Some(&json!("replicaEnsembleInconsistency"))
+        }),
+        "matching replica winners must not surface ensemble inconsistency: {consistent_diagnostics:?}"
+    );
+}
+
+#[test]
 fn style_diagnostics_surface_rg_flow_only_when_deep_analysis_is_enabled() {
     let mut state = LspShellState::default();
     handle_lsp_message(
