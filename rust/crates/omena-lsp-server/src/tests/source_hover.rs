@@ -79,3 +79,109 @@ fn source_hover_renders_unopened_target_style_rule_from_disk() -> TestResult {
     let _ = fs::remove_dir_all(workspace_path.as_path());
     Ok(())
 }
+
+#[test]
+fn source_hover_renders_type_fact_projected_selector_definitions() -> TestResult {
+    let source_uri = "file:///workspace-a/src/App.tsx";
+    let style_uri = "file:///workspace-a/src/App.module.scss";
+    let source_text = r#"import bind from "classnames/bind";
+import styles from "./App.module.scss";
+const cx = bind.bind(styles);
+const view = <div className={cx(`item--${variant}`)} />;
+"#;
+    let mut state = LspShellState::default();
+    handle_lsp_message(
+        &mut state,
+        json!({
+            "jsonrpc": "2.0",
+            "id": 1,
+            "method": "initialize",
+            "params": {
+                "workspaceFolders": [
+                    {
+                        "uri": "file:///workspace-a",
+                        "name": "workspace-a",
+                    },
+                ],
+            },
+        }),
+    );
+    handle_lsp_message(
+        &mut state,
+        json!({
+            "jsonrpc": "2.0",
+            "method": "textDocument/didOpen",
+            "params": {
+                "textDocument": {
+                    "uri": source_uri,
+                    "languageId": "typescriptreact",
+                    "version": 1,
+                    "text": source_text,
+                },
+            },
+        }),
+    );
+    handle_lsp_message(
+        &mut state,
+        json!({
+            "jsonrpc": "2.0",
+            "method": "textDocument/didOpen",
+            "params": {
+                "textDocument": {
+                    "uri": style_uri,
+                    "languageId": "scss",
+                    "version": 1,
+                    "text": ".item--primary { color: red; }\n.item--secondary { color: blue; }\n.item--muted { color: gray; }\n",
+                },
+            },
+        }),
+    );
+
+    let expression_id = state
+        .document(source_uri)
+        .and_then(|document| document.source_syntax_index.type_fact_targets.first())
+        .map(|target| target.expression_id.clone())
+        .ok_or_else(|| std::io::Error::other("expected a source type-fact target"))?;
+    apply_source_type_fact_results_to_document(
+        &mut state,
+        source_uri,
+        &[TsgoTypeFactResultEntryV0 {
+            file_path: "/workspace-a/src/App.tsx".to_string(),
+            expression_id,
+            resolved_type: TsgoResolvedTypeV0 {
+                kind: "union",
+                values: vec!["primary".to_string(), "secondary".to_string()],
+            },
+        }],
+    );
+
+    let hover_response = handle_lsp_message(
+        &mut state,
+        json!({
+            "jsonrpc": "2.0",
+            "id": 2,
+            "method": "textDocument/hover",
+            "params": {
+                "textDocument": {
+                    "uri": source_uri,
+                },
+                "position": parser_position_for_byte_offset(
+                    source_text,
+                    fixture_find(source_text, "variant}`", "source fixture contains dynamic variant")?,
+                ),
+            },
+        }),
+    );
+    let hover_text = hover_response
+        .as_ref()
+        .and_then(|value| value.pointer("/result/contents/value"))
+        .and_then(Value::as_str)
+        .unwrap_or_default();
+
+    assert!(hover_text.contains(".item--primary"), "{hover_text}");
+    assert!(hover_text.contains("color: red"), "{hover_text}");
+    assert!(hover_text.contains(".item--secondary"), "{hover_text}");
+    assert!(hover_text.contains("color: blue"), "{hover_text}");
+    assert!(!hover_text.contains(".item--muted"), "{hover_text}");
+    Ok(())
+}
