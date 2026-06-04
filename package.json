@@ -496,11 +496,11 @@
   },
   "activationEvents": [
     "onLanguage:css",
+    "onLanguage:html",
     "onLanguage:javascript",
     "onLanguage:javascriptreact",
     "onLanguage:less",
     "onLanguage:scss",
-    "onLanguage:html",
     "onLanguage:typescript",
     "onLanguage:typescriptreact",
     "onLanguage:vue"
