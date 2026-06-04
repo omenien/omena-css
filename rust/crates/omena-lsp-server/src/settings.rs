@@ -35,6 +35,9 @@ pub(crate) fn apply_diagnostic_settings(state: &mut LspShellState, diagnostics: 
     {
         state.diagnostics.severity = value;
     }
+    if let Some(value) = diagnostics.get("deepAnalysis").and_then(Value::as_bool) {
+        state.diagnostics.deep_analysis = value;
+    }
 }
 
 pub(crate) fn apply_resolution_settings(

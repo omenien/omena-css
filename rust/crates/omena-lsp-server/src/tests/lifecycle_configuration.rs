@@ -56,6 +56,7 @@ fn honors_feature_configuration_toggles() {
                         },
                         "diagnostics": {
                             "severity": "error",
+                            "deepAnalysis": true,
                         },
                     },
                 },
@@ -88,4 +89,5 @@ fn honors_feature_configuration_toggles() {
     );
     assert!(!state.snapshot().features.hover);
     assert_eq!(state.snapshot().diagnostics.severity, 1);
+    assert!(state.snapshot().diagnostics.deep_analysis);
 }

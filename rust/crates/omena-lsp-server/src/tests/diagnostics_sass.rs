@@ -162,3 +162,97 @@ fn style_diagnostics_surface_streaming_ifds_cross_file_reachability_from_lsp() {
         "leaf module should not surface cross-file streaming reachability: {leaf_diagnostics:?}"
     );
 }
+
+#[test]
+fn style_diagnostics_surface_rg_flow_only_when_deep_analysis_is_enabled() {
+    let mut state = LspShellState::default();
+    handle_lsp_message(
+        &mut state,
+        json!({
+            "jsonrpc": "2.0",
+            "method": "textDocument/didOpen",
+            "params": {
+                "textDocument": {
+                    "uri": "file:///workspace-a/src/RgFlow.module.scss",
+                    "languageId": "scss",
+                    "version": 1,
+                    "text": ":root {\n  --seed: 1px;\n  --a: var(--seed);\n  --b: var(--seed);\n  --c: var(--seed);\n  --d: var(--seed);\n}\n",
+                },
+            },
+        }),
+    );
+
+    let default_response = handle_lsp_message(
+        &mut state,
+        json!({
+            "jsonrpc": "2.0",
+            "id": 1,
+            "method": STYLE_DIAGNOSTICS_REQUEST,
+            "params": {
+                "textDocument": {
+                    "uri": "file:///workspace-a/src/RgFlow.module.scss",
+                },
+            },
+        }),
+    );
+    let default_diagnostics = default_response
+        .as_ref()
+        .and_then(|value| value.pointer("/result"))
+        .and_then(Value::as_array)
+        .expect("default style diagnostics response contains an array");
+    assert!(
+        default_diagnostics
+            .iter()
+            .all(|diagnostic| diagnostic.pointer("/code") != Some(&json!("rgFlowRelevantOperator"))),
+        "RG-flow must stay off by default: {default_diagnostics:?}"
+    );
+
+    handle_lsp_message(
+        &mut state,
+        json!({
+            "jsonrpc": "2.0",
+            "method": "workspace/didChangeConfiguration",
+            "params": {
+                "settings": {
+                    "omena": {
+                        "diagnostics": {
+                            "deepAnalysis": true,
+                        },
+                    },
+                },
+            },
+        }),
+    );
+
+    let deep_response = handle_lsp_message(
+        &mut state,
+        json!({
+            "jsonrpc": "2.0",
+            "id": 2,
+            "method": STYLE_DIAGNOSTICS_REQUEST,
+            "params": {
+                "textDocument": {
+                    "uri": "file:///workspace-a/src/RgFlow.module.scss",
+                },
+            },
+        }),
+    );
+    let deep_diagnostics = deep_response
+        .as_ref()
+        .and_then(|value| value.pointer("/result"))
+        .and_then(Value::as_array)
+        .expect("deep-analysis style diagnostics response contains an array");
+    let rg_flow = deep_diagnostics
+        .iter()
+        .find(|diagnostic| diagnostic.pointer("/code") == Some(&json!("rgFlowRelevantOperator")))
+        .expect("opt-in deep analysis should surface RG-flow hint");
+    assert_eq!(
+        rg_flow.pointer("/data/provenance/3"),
+        Some(&json!("omena-rg-flow.coupling-jacobian-spectrum")),
+    );
+    assert_eq!(
+        rg_flow.pointer("/severity"),
+        Some(&json!(4)),
+        "RG-flow remains a hint-level opt-in diagnostic"
+    );
+}

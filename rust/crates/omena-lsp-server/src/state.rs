@@ -124,11 +124,15 @@ impl Default for LspFeatureSettings {
 #[serde(rename_all = "camelCase")]
 pub struct LspDiagnosticSettings {
     pub severity: u8,
+    pub deep_analysis: bool,
 }
 
 impl Default for LspDiagnosticSettings {
     fn default() -> Self {
-        Self { severity: 2 }
+        Self {
+            severity: 2,
+            deep_analysis: false,
+        }
     }
 }
 

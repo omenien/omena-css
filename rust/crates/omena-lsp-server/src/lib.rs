@@ -48,6 +48,7 @@ use omena_query::{
     summarize_omena_query_source_syntax_index_for_source_language,
     summarize_omena_query_style_completion_at_position,
     summarize_omena_query_style_diagnostics_for_file,
+    summarize_omena_query_style_diagnostics_for_file_with_deep_analysis,
     summarize_omena_query_style_diagnostics_for_workspace_file_with_external_mode_and_sifs_and_resolution_inputs,
     summarize_omena_query_style_document, summarize_omena_query_style_extract_code_actions,
     summarize_omena_query_style_hover_render_parts,
@@ -1019,6 +1020,15 @@ fn resolve_style_diagnostics_for_uri(state: &LspShellState, document_uri: &str) 
             state.resolution.package_manifests.as_slice(),
         ),
     );
+    if state.diagnostics.deep_analysis {
+        diagnostics_summary
+            .diagnostics
+            .extend(summarize_lsp_opt_in_deep_analysis_diagnostics(
+                document.uri.as_str(),
+                document.text.as_str(),
+                query_candidates.as_slice(),
+            ));
+    }
     diagnostics_summary.diagnostic_count = diagnostics_summary.diagnostics.len();
     let diagnostics = diagnostics_summary
         .diagnostics
@@ -1092,6 +1102,30 @@ fn summarize_cross_file_streaming_reachability_diagnostics_for_lsp(
         tags: Vec::new(),
         create_custom_property: None,
     }]
+}
+
+fn summarize_lsp_opt_in_deep_analysis_diagnostics(
+    document_uri: &str,
+    text: &str,
+    candidates: &[omena_query::OmenaQueryStyleHoverCandidateV0],
+) -> Vec<OmenaQueryStyleDiagnosticV0> {
+    summarize_omena_query_style_diagnostics_for_file_with_deep_analysis(
+        document_uri,
+        text,
+        candidates,
+        true,
+    )
+    .diagnostics
+    .into_iter()
+    .filter(|diagnostic| {
+        matches!(
+            diagnostic.code,
+            "rgFlowRelevantOperator"
+                | "categoricalCascadeEvidenceInconsistency"
+                | "cascadeSmtViolation"
+        )
+    })
+    .collect()
 }
 
 fn resolve_source_diagnostics_for_uri(state: &LspShellState, document_uri: &str) -> Value {
