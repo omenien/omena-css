@@ -6,6 +6,7 @@ use crate::{
 };
 
 use super::support::sample_input;
+use std::collections::BTreeSet;
 
 #[test]
 fn owns_style_semantic_graph_adapter_boundary_without_changing_graph_product() {
@@ -651,6 +652,94 @@ fn style_semantic_graph_batch_detects_sass_module_cycles() {
             ]
     }));
     assert!(resolution.capabilities.cycle_detection_ready);
+}
+
+#[test]
+fn style_semantic_graph_batch_surfaces_configured_sass_module_instance_identity() {
+    let input = sample_input();
+    let batch = summarize_omena_query_style_semantic_graph_batch_from_sources(
+        [
+            (
+                "/tmp/tokens.scss",
+                "$brand: blue !default; .base { color: $brand; }",
+            ),
+            (
+                "/tmp/theme-a.scss",
+                r#"@forward "./tokens" with ($brand: red);"#,
+            ),
+            (
+                "/tmp/theme-b.scss",
+                r#"@forward "./tokens" with ($brand: red);"#,
+            ),
+            (
+                "/tmp/theme-c.scss",
+                r#"@forward "./tokens" with ($brand: blue);"#,
+            ),
+            (
+                "/tmp/App.module.scss",
+                r#"@use "./theme-a" as a; @use "./theme-b" as b; @use "./theme-c" as c;"#,
+            ),
+        ],
+        &input,
+    );
+    let resolution = &batch.sass_module_resolution;
+
+    let red_forward_keys = resolution
+        .edges
+        .iter()
+        .filter(|edge| {
+            matches!(
+                edge.from_style_path.as_str(),
+                "/tmp/theme-a.scss" | "/tmp/theme-b.scss"
+            ) && edge.resolved_style_path.as_deref() == Some("/tmp/tokens.scss")
+        })
+        .map(|edge| {
+            assert_eq!(edge.configuration_variable_count, 1);
+            assert!(edge.configuration_signature.contains("brand=3:red"));
+            edge.module_instance_identity_key.clone()
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(red_forward_keys.len(), 2);
+    assert_eq!(red_forward_keys[0], red_forward_keys[1]);
+
+    let blue_forward = resolution
+        .edges
+        .iter()
+        .find(|edge| {
+            edge.from_style_path == "/tmp/theme-c.scss"
+                && edge.resolved_style_path.as_deref() == Some("/tmp/tokens.scss")
+        })
+        .expect("blue configured forward edge");
+    assert_eq!(blue_forward.configuration_variable_count, 1);
+    assert!(
+        blue_forward
+            .configuration_signature
+            .contains("brand=4:blue")
+    );
+    assert_ne!(
+        red_forward_keys[0],
+        blue_forward.module_instance_identity_key
+    );
+
+    let app_to_tokens_keys = resolution
+        .graph_closure_edges
+        .iter()
+        .filter(|edge| {
+            edge.from_style_path == "/tmp/App.module.scss"
+                && edge.target_style_path == "/tmp/tokens.scss"
+        })
+        .filter_map(|edge| edge.module_instance_identity_key.clone())
+        .collect::<BTreeSet<_>>();
+    assert_eq!(app_to_tokens_keys.len(), 2, "{resolution:?}");
+    assert!(app_to_tokens_keys.contains(red_forward_keys[0].as_ref().unwrap()));
+    assert!(
+        app_to_tokens_keys.contains(blue_forward.module_instance_identity_key.as_ref().unwrap())
+    );
+    assert!(
+        resolution
+            .capabilities
+            .configured_module_instance_identity_ready
+    );
 }
 
 #[test]

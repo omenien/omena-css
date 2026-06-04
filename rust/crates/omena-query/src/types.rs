@@ -421,6 +421,9 @@ pub struct OmenaQuerySassModuleEdgeResolutionV0 {
     pub status: &'static str,
     pub resolution_kind: &'static str,
     pub candidate_count: usize,
+    pub configuration_signature: String,
+    pub configuration_variable_count: usize,
+    pub module_instance_identity_key: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -436,6 +439,9 @@ pub struct OmenaQuerySassModuleGraphClosureEdgeV0 {
     pub forward_prefix: Option<String>,
     pub visibility_filter_kind: Option<&'static str>,
     pub visibility_filter_names: Vec<String>,
+    pub configuration_signature: String,
+    pub configuration_variable_count: usize,
+    pub module_instance_identity_key: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -454,6 +460,7 @@ pub struct OmenaQuerySassModuleCrossFileResolutionCapabilitiesV0 {
     pub graph_closure_ready: bool,
     pub cycle_detection_ready: bool,
     pub namespace_show_hide_filter_ready: bool,
+    pub configured_module_instance_identity_ready: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]

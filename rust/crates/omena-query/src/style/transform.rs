@@ -19,9 +19,47 @@ use css_modules::{
 use design_tokens::derive_design_token_routes_for_transform_context;
 use imports::derive_import_inlines_for_transform_context;
 use static_stylesheet::{
+    derive_static_scss_module_rule_variable_overrides,
     derive_static_scss_module_use_evaluations_for_transform_context,
     derive_static_stylesheet_module_evaluation_for_transform_context,
+    static_scss_module_configuration_signature, static_scss_module_instance_identity_key,
 };
+
+pub(super) struct StaticScssModuleResolutionConfigurationEvidence {
+    pub(super) configuration_signature: String,
+    pub(super) configuration_variable_count: usize,
+    pub(super) module_instance_identity_key: Option<String>,
+}
+
+pub(super) fn derive_static_scss_module_resolution_configuration_evidence(
+    style_source: &str,
+    edge_kind: &str,
+    source: &str,
+    resolved_style_path: Option<&str>,
+) -> StaticScssModuleResolutionConfigurationEvidence {
+    let at_keyword = match edge_kind {
+        "sassUse" => Some("@use"),
+        "sassForward" => Some("@forward"),
+        _ => None,
+    };
+    let variable_overrides = at_keyword
+        .map(|at_keyword| {
+            derive_static_scss_module_rule_variable_overrides(style_source, at_keyword, source)
+        })
+        .unwrap_or_default();
+    let module_instance_identity_key =
+        at_keyword
+            .and(resolved_style_path)
+            .map(|resolved_style_path| {
+                static_scss_module_instance_identity_key(resolved_style_path, &variable_overrides)
+            });
+
+    StaticScssModuleResolutionConfigurationEvidence {
+        configuration_signature: static_scss_module_configuration_signature(&variable_overrides),
+        configuration_variable_count: variable_overrides.len(),
+        module_instance_identity_key,
+    }
+}
 
 pub fn summarize_omena_query_transform_plan_from_source(
     style_path: &str,

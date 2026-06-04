@@ -205,17 +205,24 @@ struct StaticScssModuleDeriveContext<'a> {
     emitted_module_identity_keys: &'a mut BTreeSet<String>,
 }
 
-fn static_scss_module_instance_identity_key(
+pub(super) fn static_scss_module_instance_identity_key(
     style_path: &str,
     variable_overrides: &BTreeMap<String, String>,
 ) -> String {
     let canonical_path = canonicalize_omena_resolver_style_identity_path(style_path);
     let mut key = format!("path:{}:{canonical_path}", canonical_path.len());
+    key.push('|');
+    key.push_str(static_scss_module_configuration_signature(variable_overrides).as_str());
+    key
+}
+
+pub(super) fn static_scss_module_configuration_signature(
+    variable_overrides: &BTreeMap<String, String>,
+) -> String {
     if variable_overrides.is_empty() {
-        key.push_str("|with:none");
-        return key;
+        return "with:none".to_string();
     }
-    key.push_str("|with");
+    let mut key = String::from("with");
     for (name, value) in variable_overrides {
         key.push('|');
         key.push_str(name.len().to_string().as_str());
@@ -701,7 +708,7 @@ fn static_scss_module_rule_source_name(
         .map(|token| token.text.trim_matches('"').trim_matches('\'').to_string())
 }
 
-fn derive_static_scss_module_rule_variable_overrides(
+pub(super) fn derive_static_scss_module_rule_variable_overrides(
     style_source: &str,
     at_keyword: &str,
     use_source: &str,

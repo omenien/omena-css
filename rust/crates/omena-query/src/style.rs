@@ -350,6 +350,14 @@ fn summarize_sass_module_cross_file_resolution(
             } else {
                 "unresolved"
             };
+            let resolved_style_path = resolution.resolved_style_path;
+            let configuration_evidence =
+                transform::derive_static_scss_module_resolution_configuration_evidence(
+                    entry.style_source.as_str(),
+                    edge.kind,
+                    edge.source.as_str(),
+                    resolved_style_path.as_deref(),
+                );
             edges.push(OmenaQuerySassModuleEdgeResolutionV0 {
                 from_style_path: entry.style_path.clone(),
                 edge_kind: edge.kind,
@@ -359,10 +367,13 @@ fn summarize_sass_module_cross_file_resolution(
                 forward_prefix: edge.forward_prefix.clone(),
                 visibility_filter_kind: edge.visibility_filter_kind,
                 visibility_filter_names: edge.visibility_filter_names.clone(),
-                resolved_style_path: resolution.resolved_style_path,
+                resolved_style_path,
                 status,
                 resolution_kind: resolution.resolution_kind,
                 candidate_count: resolution.candidate_count,
+                configuration_signature: configuration_evidence.configuration_signature,
+                configuration_variable_count: configuration_evidence.configuration_variable_count,
+                module_instance_identity_key: configuration_evidence.module_instance_identity_key,
             });
         }
     }
@@ -415,6 +426,7 @@ fn summarize_sass_module_cross_file_resolution(
             graph_closure_ready: true,
             cycle_detection_ready: true,
             namespace_show_hide_filter_ready: true,
+            configured_module_instance_identity_ready: true,
         },
         next_priorities: Vec::new(),
     }
@@ -484,6 +496,9 @@ fn summarize_sass_module_graph_closure(
                     forward_prefix: metadata.forward_prefix,
                     visibility_filter_kind: metadata.visibility_filter_kind,
                     visibility_filter_names: metadata.visibility_filter_names,
+                    configuration_signature: metadata.configuration_signature,
+                    configuration_variable_count: metadata.configuration_variable_count,
+                    module_instance_identity_key: metadata.module_instance_identity_key,
                 })
             },
         )
@@ -513,6 +528,9 @@ struct SassModuleGraphClosureStepMetadata {
     forward_prefix: Option<String>,
     visibility_filter_kind: Option<&'static str>,
     visibility_filter_names: Vec<String>,
+    configuration_signature: String,
+    configuration_variable_count: usize,
+    module_instance_identity_key: Option<String>,
 }
 
 impl From<&OmenaQuerySassModuleEdgeResolutionV0> for SassModuleGraphClosureStepMetadata {
@@ -524,6 +542,9 @@ impl From<&OmenaQuerySassModuleEdgeResolutionV0> for SassModuleGraphClosureStepM
             forward_prefix: edge.forward_prefix.clone(),
             visibility_filter_kind: edge.visibility_filter_kind,
             visibility_filter_names: edge.visibility_filter_names.clone(),
+            configuration_signature: edge.configuration_signature.clone(),
+            configuration_variable_count: edge.configuration_variable_count,
+            module_instance_identity_key: edge.module_instance_identity_key.clone(),
         }
     }
 }
