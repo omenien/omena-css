@@ -306,17 +306,7 @@ pub fn categorical_fixture_evidence_for_endpoint_v0(
         "rust/omena-categorical/classify-omega-truth" => Some(omega_truth_fixture_v0(endpoint_id)),
         "rust/omena-categorical/verify-s4-axioms" => Some(s4_axioms_fixture_v0(endpoint_id)),
         "rust/omena-categorical/verify-modal-imperative-equivalence" => {
-            Some(deferred_endpoint_fixture_v0(
-                endpoint_id,
-                "fixture.categorical.modal-imperative-equivalence.v0",
-                "modal-imperative equivalence",
-                "omena-categorical.modal-diagnostic-schema",
-                &[
-                    "omena-categorical.modal-diagnostic-schema",
-                    "omena-categorical.modal-evaluation-witness",
-                ],
-                "missing-source-sensitive-diagnostic-modality-substrate",
-            ))
+            Some(modal_imperative_equivalence_fixture_v0(endpoint_id))
         }
         "rust/omena-categorical/verify-invariant-functoriality" => {
             Some(invariant_functoriality_fixture_v0(endpoint_id))
@@ -420,6 +410,96 @@ fn deferred_endpoint_fixture_v0(
     );
     fixture.claim_scope = "researchDeferredMissingSourceSensitiveSubstrate";
     fixture
+}
+
+fn modal_imperative_equivalence_fixture_v0(
+    endpoint_id: &'static str,
+) -> CategoricalEndpointFixtureEvidenceV0 {
+    let formula = modal_atom_formula_v0("modal-imperative-cycle", "cascadeCycle=true");
+    let schema =
+        modal_diagnostic_schema_v0("categoricalCascadeEvidenceInconsistency", formula.clone());
+    let present_frame = build_cascade_prefix_kripke_frame_v0(
+        "fixture.modal-imperative.present",
+        "cascadeCycle",
+        &[(Vec::new(), "true".to_string())],
+    );
+    let absent_frame = build_cascade_prefix_kripke_frame_v0(
+        "fixture.modal-imperative.absent",
+        "cascadeCycle",
+        &[(Vec::new(), "false".to_string())],
+    );
+    let present_witness = evaluate_omena_categorical_modal_formula_v0(&formula, &present_frame);
+    let absent_witness = evaluate_omena_categorical_modal_formula_v0(&formula, &absent_frame);
+    let present_projection =
+        project_modal_witness_to_imperative_diagnostic_v0(&schema, &present_witness);
+    let absent_projection =
+        project_modal_witness_to_imperative_diagnostic_v0(&schema, &absent_witness);
+
+    let assertions = vec![
+        fixture_assertion_v0(
+            "schema-code-preserved",
+            "omena-categorical.modal-diagnostic-schema",
+            schema.diagnostic_code.to_string(),
+            "categoricalCascadeEvidenceInconsistency",
+        ),
+        fixture_assertion_v0(
+            "present-modal-truth",
+            "omena-categorical.modal-evaluation-witness",
+            format!(
+                "present={}",
+                omega_truth_value_label_v0(present_witness.truth_value)
+            ),
+            "present=Closed",
+        ),
+        fixture_assertion_v0(
+            "present-imperative-action",
+            "omena-categorical.modal-imperative-diagnostic-projection",
+            present_projection.imperative_action.to_string(),
+            "emitDiagnostic",
+        ),
+        fixture_assertion_v0(
+            "present-equivalence",
+            "omena-categorical.modal-imperative-diagnostic-projection",
+            present_projection.equivalent_to_modal_witness.to_string(),
+            "true",
+        ),
+        fixture_assertion_v0(
+            "absent-modal-truth",
+            "omena-categorical.modal-evaluation-witness",
+            format!(
+                "absent={}",
+                omega_truth_value_label_v0(absent_witness.truth_value)
+            ),
+            "absent=Open",
+        ),
+        fixture_assertion_v0(
+            "absent-imperative-action",
+            "omena-categorical.modal-imperative-diagnostic-projection",
+            absent_projection.imperative_action.to_string(),
+            "suppressDiagnostic",
+        ),
+        fixture_assertion_v0(
+            "absent-equivalence",
+            "omena-categorical.modal-imperative-diagnostic-projection",
+            absent_projection.equivalent_to_modal_witness.to_string(),
+            "true",
+        ),
+    ];
+    endpoint_fixture_from_assertions_v0(
+        endpoint_id,
+        "fixture.categorical.modal-imperative-equivalence.v0",
+        "modal-imperative equivalence",
+        "omena-categorical.modal-diagnostic-schema",
+        &[
+            "omena-categorical.modal-diagnostic-schema",
+            "omena-categorical.modal-formula",
+            "omena-categorical.kripke-frame",
+            "omena-categorical.kripke-valuation",
+            "omena-categorical.modal-evaluation-witness",
+            "omena-categorical.modal-imperative-diagnostic-projection",
+        ],
+        assertions,
+    )
 }
 
 fn invariant_functoriality_fixture_v0(
@@ -1031,24 +1111,23 @@ mod tests {
             );
         }
 
-        let modal = categorical_fixture_evidence_for_endpoint_v0(
-            "rust/omena-categorical/verify-modal-imperative-equivalence",
+        let cross_project = categorical_fixture_evidence_for_endpoint_v0(
+            "rust/omena-categorical/compare-design-system-theory",
         );
-        assert!(modal.is_some());
-        if let Some(modal) = modal {
+        assert!(cross_project.is_some());
+        if let Some(cross_project) = cross_project {
             assert_eq!(
-                modal.claim_scope,
+                cross_project.claim_scope,
                 "researchDeferredMissingSourceSensitiveSubstrate"
             );
-            assert_eq!(modal.assertion_count, 1);
-            assert!(!modal.accepted);
+            assert_eq!(cross_project.assertion_count, 1);
+            assert!(!cross_project.accepted);
         }
     }
 
     #[test]
     fn static_categorical_residuals_are_deferred_not_counted_complete() {
         for endpoint_id in [
-            "rust/omena-categorical/verify-modal-imperative-equivalence",
             "rust/omena-categorical/compare-design-system-theory",
             "rust/omena-categorical/verify-cross-project-symmetry",
         ] {
@@ -1069,6 +1148,62 @@ mod tests {
                     .all(|assertion| !assertion.accepted)
             );
         }
+    }
+
+    #[test]
+    fn modal_imperative_equivalence_fixture_is_source_sensitive() {
+        let fixture = categorical_fixture_evidence_for_endpoint_v0(
+            "rust/omena-categorical/verify-modal-imperative-equivalence",
+        );
+        assert!(fixture.is_some());
+        let Some(fixture) = fixture else {
+            return;
+        };
+        assert!(fixture.accepted);
+        assert_eq!(fixture.claim_scope, "computedEvidence");
+        assert!(
+            fixture
+                .exercised_contract_products
+                .contains(&"omena-categorical.modal-imperative-diagnostic-projection")
+        );
+
+        let observed = fixture
+            .assertions
+            .iter()
+            .map(|assertion| (assertion.assertion_id, assertion.observed.clone()))
+            .collect::<std::collections::BTreeMap<_, _>>();
+        assert_eq!(observed["present-modal-truth"], "present=Closed");
+        assert_eq!(observed["present-imperative-action"], "emitDiagnostic");
+        assert_eq!(observed["absent-modal-truth"], "absent=Open");
+        assert_eq!(observed["absent-imperative-action"], "suppressDiagnostic");
+
+        let formula = modal_atom_formula_v0("control.modal-imperative", "cascadeCycle=true");
+        let schema =
+            modal_diagnostic_schema_v0("categoricalCascadeEvidenceInconsistency", formula.clone());
+        let present = build_cascade_prefix_kripke_frame_v0(
+            "control.modal.present",
+            "cascadeCycle",
+            &[(Vec::new(), "true".to_string())],
+        );
+        let absent = build_cascade_prefix_kripke_frame_v0(
+            "control.modal.absent",
+            "cascadeCycle",
+            &[(Vec::new(), "false".to_string())],
+        );
+        let present_projection = project_modal_witness_to_imperative_diagnostic_v0(
+            &schema,
+            &evaluate_omena_categorical_modal_formula_v0(&formula, &present),
+        );
+        let absent_projection = project_modal_witness_to_imperative_diagnostic_v0(
+            &schema,
+            &evaluate_omena_categorical_modal_formula_v0(&formula, &absent),
+        );
+        assert_eq!(present_projection.imperative_action, "emitDiagnostic");
+        assert_eq!(absent_projection.imperative_action, "suppressDiagnostic");
+        assert_ne!(
+            present_projection.witness_truth,
+            absent_projection.witness_truth
+        );
     }
 
     #[test]

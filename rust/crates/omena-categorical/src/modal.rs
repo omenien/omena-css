@@ -42,6 +42,20 @@ pub struct ModalDiagnosticSchemaV0 {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
+pub struct ModalImperativeDiagnosticProjectionV0 {
+    pub schema_version: &'static str,
+    pub product: &'static str,
+    pub layer_marker: &'static str,
+    pub feature_gate: &'static str,
+    pub diagnostic_code: &'static str,
+    pub formula_id: String,
+    pub witness_truth: OmegaCascadeTruthValueV0,
+    pub imperative_action: &'static str,
+    pub equivalent_to_modal_witness: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct ModalEvaluationWitnessV0 {
     pub schema_version: &'static str,
     pub product: &'static str,
@@ -79,6 +93,20 @@ pub fn modal_atom_formula_v0(
     }
 }
 
+pub fn modal_diagnostic_schema_v0(
+    diagnostic_code: &'static str,
+    formula: ModalFormulaV0,
+) -> ModalDiagnosticSchemaV0 {
+    ModalDiagnosticSchemaV0 {
+        schema_version: CATEGORICAL_SCHEMA_VERSION_V0,
+        product: "omena-categorical.modal-diagnostic-schema",
+        layer_marker: CATEGORICAL_LAYER_MARKER_V0,
+        feature_gate: CATEGORICAL_FEATURE_GATE_V0,
+        diagnostic_code,
+        formula,
+    }
+}
+
 pub fn evaluate_omena_categorical_modal_formula_v0(
     formula: &ModalFormulaV0,
     frame: &KripkeFrameV0,
@@ -98,6 +126,29 @@ pub fn evaluate_omena_categorical_modal_formula_v0(
         frame_id: frame.frame_id.clone(),
         truth_value,
         s4_fragment_only: true,
+    }
+}
+
+pub fn project_modal_witness_to_imperative_diagnostic_v0(
+    schema: &ModalDiagnosticSchemaV0,
+    witness: &ModalEvaluationWitnessV0,
+) -> ModalImperativeDiagnosticProjectionV0 {
+    let imperative_action = if modal_truth_emits_diagnostic_v0(witness.truth_value) {
+        "emitDiagnostic"
+    } else {
+        "suppressDiagnostic"
+    };
+    ModalImperativeDiagnosticProjectionV0 {
+        schema_version: CATEGORICAL_SCHEMA_VERSION_V0,
+        product: "omena-categorical.modal-imperative-diagnostic-projection",
+        layer_marker: CATEGORICAL_LAYER_MARKER_V0,
+        feature_gate: CATEGORICAL_FEATURE_GATE_V0,
+        diagnostic_code: schema.diagnostic_code,
+        formula_id: witness.formula_id.clone(),
+        witness_truth: witness.truth_value,
+        imperative_action,
+        equivalent_to_modal_witness: schema.formula.formula_id == witness.formula_id
+            && witness.s4_fragment_only,
     }
 }
 
@@ -139,4 +190,11 @@ pub fn verify_s4_frame_axioms_v0(frame: &KripkeFrameV0) -> Vec<ModalAxiomCheckV0
         modal_axiom_check_v0("reflexivity-t", reflexive),
         modal_axiom_check_v0("transitivity-4", transitive),
     ]
+}
+
+fn modal_truth_emits_diagnostic_v0(truth_value: OmegaCascadeTruthValueV0) -> bool {
+    matches!(
+        truth_value,
+        OmegaCascadeTruthValueV0::Closed | OmegaCascadeTruthValueV0::Full
+    )
 }
