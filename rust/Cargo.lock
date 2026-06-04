@@ -2055,6 +2055,7 @@ name = "omena-query-checker-orchestrator"
 version = "0.2.0"
 dependencies = [
  "omena-abstract-value",
+ "omena-categorical",
  "omena-checker",
  "omena-ensemble",
  "serde",

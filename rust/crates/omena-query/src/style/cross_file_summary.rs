@@ -486,6 +486,52 @@ pub fn summarize_omena_query_workspace_cross_file_summary(
     )
 }
 
+pub fn summarize_omena_query_categorical_design_system_cross_project_summary(
+    project_summaries: &[(&str, &OmenaQueryCrossFileSummaryV0)],
+) -> OmenaQueryCategoricalDesignSystemCrossProjectSummaryV0 {
+    let models = project_summaries
+        .iter()
+        .map(|(project_id, summary)| {
+            build_omena_query_checker_design_system_model_from_project_summary_v0(
+                "omena-query.cross-project-design-system-theory",
+                DesignSystemProjectSummaryInputV0 {
+                    project_id: (*project_id).to_string(),
+                    source_product: summary.product,
+                    summary_hash: summary.summary_hash.clone(),
+                    summary_edge_count: summary.summary_edge_count,
+                    edge_kind_counts: summary
+                        .edge_kind_counts
+                        .iter()
+                        .map(|entry| DesignSystemEdgeKindCountV0 {
+                            edge_kind: entry.edge_kind.to_string(),
+                            count: entry.count,
+                        })
+                        .collect(),
+                },
+            )
+        })
+        .collect::<Vec<_>>();
+    let invariant_summary = compare_omena_query_checker_design_system_models_for_invariant_v0(
+        "omena-query.cross-project-design-system-edge-kind-symmetry",
+        &models,
+    );
+    let product_path_evidence_ready =
+        project_summaries.len() >= 2 && invariant_summary.model_count == project_summaries.len();
+
+    OmenaQueryCategoricalDesignSystemCrossProjectSummaryV0 {
+        schema_version: "0",
+        product: "omena-query.categorical-design-system-cross-project-summary",
+        claim_scope: "productPathComputedCrossProjectSummary",
+        source_product: "omena-query.cross-file-summary",
+        theory_product: "omena-categorical.design-system-theory",
+        project_count: project_summaries.len(),
+        product_path_evidence_ready,
+        models,
+        invariant_summary,
+        deferred_residuals: vec!["rust/omena-categorical/verify-cross-project-symmetry"],
+    }
+}
+
 const M4_AXIS_C_REQUIRED_EDGE_KINDS: [&str; 12] = [
     "cssModulesComposesImport",
     "cssModulesComposesClosure",

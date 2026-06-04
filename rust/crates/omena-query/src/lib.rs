@@ -25,6 +25,15 @@ pub use omena_parser::{
     ParserByteSpanV0, ParserPositionV0, ParserRangeV0, StyleDialect as OmenaParserStyleDialect,
     StyleLanguage,
 };
+use omena_query_checker_orchestrator::{
+    DesignSystemEdgeKindCountV0, DesignSystemProjectSummaryInputV0,
+    build_omena_query_checker_design_system_model_from_project_summary_v0,
+    compare_omena_query_checker_design_system_models_for_invariant_v0,
+};
+pub use omena_query_checker_orchestrator::{
+    DesignSystemInvariantSummaryV0 as OmenaQueryCategoricalDesignSystemInvariantSummaryV0,
+    DesignSystemModelV0 as OmenaQueryCategoricalDesignSystemModelV0,
+};
 pub use omena_query_core::EngineInputV2 as OmenaQueryEngineInputV2;
 pub use omena_query_core::*;
 pub use omena_query_transform_runner::{

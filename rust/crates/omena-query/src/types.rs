@@ -243,6 +243,21 @@ pub struct OmenaQueryCrossFileSummaryCapabilitiesV0 {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
+pub struct OmenaQueryCategoricalDesignSystemCrossProjectSummaryV0 {
+    pub schema_version: &'static str,
+    pub product: &'static str,
+    pub claim_scope: &'static str,
+    pub source_product: &'static str,
+    pub theory_product: &'static str,
+    pub project_count: usize,
+    pub product_path_evidence_ready: bool,
+    pub models: Vec<OmenaQueryCategoricalDesignSystemModelV0>,
+    pub invariant_summary: OmenaQueryCategoricalDesignSystemInvariantSummaryV0,
+    pub deferred_residuals: Vec<&'static str>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct OmenaQueryM4AxisCReadinessSummaryV0 {
     pub schema_version: &'static str,
     pub product: &'static str,

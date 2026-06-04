@@ -312,17 +312,7 @@ pub fn categorical_fixture_evidence_for_endpoint_v0(
             Some(invariant_functoriality_fixture_v0(endpoint_id))
         }
         "rust/omena-categorical/compare-design-system-theory" => {
-            Some(deferred_endpoint_fixture_v0(
-                endpoint_id,
-                "fixture.categorical.design-system-theory-compare.v0",
-                "cross-project design-system theory",
-                "omena-categorical.design-system-theory",
-                &[
-                    "omena-categorical.design-system-theory",
-                    "omena-categorical.design-system-model",
-                ],
-                "missing-cross-project-design-system-model-substrate",
-            ))
+            Some(cross_project_design_system_theory_fixture_v0(endpoint_id))
         }
         "rust/omena-categorical/summarize-kripke-frame" => {
             Some(kripke_frame_fixture_v0(endpoint_id))
@@ -538,6 +528,114 @@ fn invariant_functoriality_fixture_v0(
         ],
         assertions,
     )
+}
+
+fn cross_project_design_system_theory_fixture_v0(
+    endpoint_id: &'static str,
+) -> CategoricalEndpointFixtureEvidenceV0 {
+    let first = design_system_model_from_project_summary_v0(
+        "fixture.cross-project-design-system-theory",
+        design_system_project_summary_fixture_input_v0(
+            "project-a",
+            "hash-a",
+            &[
+                ("cssModulesComposesImport", 1),
+                ("sourceSelectorReference", 1),
+                ("styleDesignTokenReference", 2),
+            ],
+        ),
+    );
+    let second = design_system_model_from_project_summary_v0(
+        "fixture.cross-project-design-system-theory",
+        design_system_project_summary_fixture_input_v0(
+            "project-b",
+            "hash-b",
+            &[
+                ("cssModulesComposesImport", 1),
+                ("sourceSelectorReference", 1),
+                ("styleDesignTokenReference", 2),
+            ],
+        ),
+    );
+    let changed = design_system_model_from_project_summary_v0(
+        "fixture.cross-project-design-system-theory",
+        design_system_project_summary_fixture_input_v0(
+            "project-c",
+            "hash-c",
+            &[
+                ("cssModulesComposesImport", 1),
+                ("sourceSelectorReference", 2),
+                ("styleDesignTokenReference", 2),
+            ],
+        ),
+    );
+    let accepted = compare_design_system_models_for_invariant_v0(
+        "fixture.cross-project-symmetry",
+        &[first.clone(), second],
+    );
+    let rejected = compare_design_system_models_for_invariant_v0(
+        "fixture.cross-project-symmetry",
+        &[first, changed],
+    );
+    let assertions = vec![
+        fixture_assertion_v0(
+            "project-model-sort-count",
+            "omena-categorical.design-system-model",
+            accepted.model_count.to_string(),
+            "2",
+        ),
+        fixture_assertion_v0(
+            "project-model-summary-edge-sort",
+            "omena-categorical.design-system-model",
+            accepted.differing_sort_names.len().to_string(),
+            "0",
+        ),
+        fixture_assertion_v0(
+            "cross-project-invariant-accepted",
+            "omena-categorical.design-system-invariant-summary",
+            accepted.accepted.to_string(),
+            "true",
+        ),
+        fixture_assertion_v0(
+            "changed-project-invariant-rejected",
+            "omena-categorical.design-system-invariant-summary",
+            rejected.accepted.to_string(),
+            "false",
+        ),
+    ];
+
+    endpoint_fixture_from_assertions_v0(
+        endpoint_id,
+        "fixture.categorical.design-system-theory-compare.v0",
+        "cross-project design-system theory",
+        "omena-categorical.design-system-theory",
+        &[
+            "omena-categorical.design-system-theory",
+            "omena-categorical.design-system-model",
+            "omena-categorical.design-system-invariant-summary",
+        ],
+        assertions,
+    )
+}
+
+fn design_system_project_summary_fixture_input_v0(
+    project_id: &str,
+    summary_hash: &str,
+    edge_kind_counts: &[(&str, usize)],
+) -> DesignSystemProjectSummaryInputV0 {
+    DesignSystemProjectSummaryInputV0 {
+        project_id: project_id.to_string(),
+        source_product: "omena-query.cross-file-summary",
+        summary_hash: summary_hash.to_string(),
+        summary_edge_count: edge_kind_counts.iter().map(|(_, count)| *count).sum(),
+        edge_kind_counts: edge_kind_counts
+            .iter()
+            .map(|(edge_kind, count)| DesignSystemEdgeKindCountV0 {
+                edge_kind: (*edge_kind).to_string(),
+                count: *count,
+            })
+            .collect(),
+    }
 }
 
 fn omega_truth_fixture_v0(endpoint_id: &'static str) -> CategoricalEndpointFixtureEvidenceV0 {
@@ -1116,21 +1214,20 @@ mod tests {
         );
         assert!(cross_project.is_some());
         if let Some(cross_project) = cross_project {
-            assert_eq!(
-                cross_project.claim_scope,
-                "researchDeferredMissingSourceSensitiveSubstrate"
-            );
-            assert_eq!(cross_project.assertion_count, 1);
-            assert!(!cross_project.accepted);
+            assert_eq!(cross_project.claim_scope, "computedEvidence");
+            assert!(cross_project.accepted);
+            assert!(cross_project.assertions.iter().any(|assertion| {
+                assertion.assertion_id == "changed-project-invariant-rejected"
+                    && assertion.contract_product
+                        == "omena-categorical.design-system-invariant-summary"
+                    && assertion.accepted
+            }));
         }
     }
 
     #[test]
     fn static_categorical_residuals_are_deferred_not_counted_complete() {
-        for endpoint_id in [
-            "rust/omena-categorical/compare-design-system-theory",
-            "rust/omena-categorical/verify-cross-project-symmetry",
-        ] {
+        for endpoint_id in ["rust/omena-categorical/verify-cross-project-symmetry"] {
             let fixture = categorical_fixture_evidence_for_endpoint_v0(endpoint_id);
             assert!(fixture.is_some());
             let Some(fixture) = fixture else {

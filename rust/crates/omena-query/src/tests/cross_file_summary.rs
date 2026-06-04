@@ -9,7 +9,9 @@ use crate::{
 };
 use crate::{
     OmenaQuerySourceDocumentInputV0, OmenaQueryStylePackageManifestV0,
-    OmenaQueryStyleSourceInputV0, summarize_omena_query_m4_axis_c_readiness,
+    OmenaQueryStyleSourceInputV0,
+    summarize_omena_query_categorical_design_system_cross_project_summary,
+    summarize_omena_query_m4_axis_c_readiness,
     summarize_omena_query_source_selector_reference_cross_file_summary,
     summarize_omena_query_style_document,
     summarize_omena_query_style_semantic_graph_batch_from_sources,
@@ -317,6 +319,93 @@ fn workspace_cross_file_summary_merges_style_and_source_edge_sets() {
             .iter()
             .all(|edge| workspace_edge_ids.contains(edge.edge_id.as_str()))
     );
+}
+
+#[test]
+fn workspace_cross_file_summary_feeds_categorical_cross_project_theory() {
+    let project_a = workspace_summary_with_source_selector_refs(
+        "/tmp/project-a/Button.module.scss",
+        "/tmp/project-a/Button.tsx",
+        ".root { color: red; }",
+        "import styles from './Button.module.scss';\nconst cls = styles.root;\n",
+    );
+    let project_b = workspace_summary_with_source_selector_refs(
+        "/tmp/project-b/Card.module.scss",
+        "/tmp/project-b/Card.tsx",
+        ".root { color: blue; }",
+        "import styles from './Card.module.scss';\nconst cls = styles.root;\n",
+    );
+    let changed_project = workspace_summary_with_source_selector_refs(
+        "/tmp/project-c/Button.module.scss",
+        "/tmp/project-c/Button.tsx",
+        ".root { color: red; } .icon { color: blue; }",
+        "import styles from './Button.module.scss';\nconst cls = `${styles.root} ${styles.icon}`;\n",
+    );
+
+    let accepted = summarize_omena_query_categorical_design_system_cross_project_summary(&[
+        ("project-a", &project_a),
+        ("project-b", &project_b),
+    ]);
+    let rejected = summarize_omena_query_categorical_design_system_cross_project_summary(&[
+        ("project-a", &project_a),
+        ("project-c", &changed_project),
+    ]);
+
+    assert_eq!(
+        accepted.product,
+        "omena-query.categorical-design-system-cross-project-summary"
+    );
+    assert_eq!(
+        accepted.claim_scope,
+        "productPathComputedCrossProjectSummary"
+    );
+    assert!(accepted.product_path_evidence_ready);
+    assert_eq!(accepted.project_count, 2);
+    assert_eq!(accepted.models.len(), 2);
+    assert!(
+        accepted
+            .models
+            .iter()
+            .all(|model| model.source_product == "omena-query.cross-file-summary")
+    );
+    assert!(accepted.invariant_summary.accepted);
+    assert_eq!(
+        accepted.invariant_summary.invariant_kind,
+        "crossProjectEdgeKindSymmetry"
+    );
+    assert!(
+        accepted
+            .deferred_residuals
+            .contains(&"rust/omena-categorical/verify-cross-project-symmetry")
+    );
+
+    assert!(rejected.product_path_evidence_ready);
+    assert!(!rejected.invariant_summary.accepted);
+    assert!(
+        rejected
+            .invariant_summary
+            .differing_sort_names
+            .contains(&"edgeKind:sourceSelectorReference".to_string())
+    );
+}
+
+fn workspace_summary_with_source_selector_refs(
+    style_path: &str,
+    source_path: &str,
+    style_source: &str,
+    source_source: &str,
+) -> crate::OmenaQueryCrossFileSummaryV0 {
+    summarize_omena_query_workspace_cross_file_summary(
+        &[OmenaQueryStyleSourceInputV0 {
+            style_path: style_path.to_string(),
+            style_source: style_source.to_string(),
+        }],
+        &[OmenaQuerySourceDocumentInputV0 {
+            source_path: source_path.to_string(),
+            source_source: source_source.to_string(),
+        }],
+        &[],
+    )
 }
 
 #[test]

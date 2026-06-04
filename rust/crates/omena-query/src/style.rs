@@ -27,6 +27,7 @@ use cross_file_hypergraph::{
 };
 use cross_file_summary::summarize_omena_query_cross_file_summary;
 pub use cross_file_summary::{
+    summarize_omena_query_categorical_design_system_cross_project_summary,
     summarize_omena_query_m4_axis_c_readiness,
     summarize_omena_query_source_selector_reference_cross_file_summary,
     summarize_omena_query_workspace_cross_file_summary,

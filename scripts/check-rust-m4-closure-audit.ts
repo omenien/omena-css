@@ -389,15 +389,19 @@ function buildTheoryClaimGuard(): {
       status: "partialPropertyTest",
       framing: "partialMechanism",
       surface:
-        "computed categorical evidence endpoints with residual static endpoints explicitly deferred",
+        "computed categorical evidence endpoints plus cross-project summary-backed design-system invariant evidence, with remaining static residual explicitly deferred",
       evidencePath: "rust/crates/omena-categorical/src/lib.rs",
       evidenceMarkers: [
         "CategoricalEndpointFixtureEvidenceV0",
         "categorical_fixture_evidence_for_endpoint_v0",
         "cascade_primitive_roles_v0",
+        "cross_project_design_system_theory_fixture_v0",
+        "changed-project-invariant-rejected",
+        "rust/omena-categorical/verify-cross-project-symmetry",
         "researchDeferredMissingSourceSensitiveSubstrate",
       ],
-      nextAction: "replace deferred categorical residuals with source-sensitive product checks",
+      nextAction:
+        "continue remaining verify-cross-project-symmetry residual; compare-design-system-theory now has computed cross-project evidence",
     },
     {
       id: "m4-gamma.streaming-ifds-transfer-cache",

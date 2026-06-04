@@ -14,6 +14,10 @@ use omena_abstract_value::{
     KLimitedCallSiteFlowInputV0, abstract_class_value_kind, analyze_k_limited_call_site_flows,
     external_string_type_facts_from_abstract_class_value,
 };
+pub use omena_categorical::{
+    DesignSystemEdgeKindCountV0, DesignSystemInvariantSummaryV0, DesignSystemModelV0,
+    DesignSystemProjectSummaryInputV0,
+};
 pub use omena_checker::{
     CategoricalCascadeEvidenceV0, OmenaCheckerCascadeDeclarationInputV0,
     OmenaCheckerCascadeEvaluationV0, OmenaCheckerCascadeInputV0,
@@ -345,6 +349,24 @@ pub fn run_omena_query_checker_categorical_gate_v0(
             "queryDiagnosticHandoff",
         ],
     }
+}
+
+/// Build the cross-project design-system model through the query checker
+/// boundary so `omena-query` does not depend directly on theory crates.
+pub fn build_omena_query_checker_design_system_model_from_project_summary_v0(
+    theory_id: impl Into<String>,
+    input: DesignSystemProjectSummaryInputV0,
+) -> DesignSystemModelV0 {
+    omena_categorical::design_system_model_from_project_summary_v0(theory_id, input)
+}
+
+/// Compare design-system models through the query checker boundary. This keeps
+/// the product path explicit: `omena-query` -> orchestrator -> categorical.
+pub fn compare_omena_query_checker_design_system_models_for_invariant_v0(
+    invariant_id: impl Into<String>,
+    models: &[DesignSystemModelV0],
+) -> DesignSystemInvariantSummaryV0 {
+    omena_categorical::compare_design_system_models_for_invariant_v0(invariant_id, models)
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize)]
