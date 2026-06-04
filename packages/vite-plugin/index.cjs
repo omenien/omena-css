@@ -25,11 +25,11 @@ function omenaCss(options = {}) {
         }
       }
 
-      const outputCss = runOmenaBuild(id, options);
-      if (outputCss === code) return null;
+      const output = runOmenaBuild(id, options);
+      if (output.code === code) return null;
       return {
-        code: outputCss,
-        map: null,
+        code: output.code,
+        map: output.map,
       };
     },
   };
@@ -38,6 +38,7 @@ function omenaCss(options = {}) {
 function runOmenaBuild(filePath, options) {
   const invocation = resolveOmenaCliInvocation(options);
   const args = [...invocation.args, "build", filePath];
+  const includeSourceMap = options.sourceMap !== false;
   for (const passId of options.passes ?? []) {
     args.push("--pass", passId);
   }
@@ -53,11 +54,25 @@ function runOmenaBuild(filePath, options) {
   for (const manifestPath of options.packageManifests ?? []) {
     args.push("--package-manifest", manifestPath);
   }
-  return execFileSync(invocation.command, args, {
+  if (includeSourceMap) {
+    args.push("--json", "--source-map");
+  }
+  const stdout = execFileSync(invocation.command, args, {
     cwd: options.cwd ?? process.cwd(),
     encoding: "utf8",
     env: process.env,
   });
+  if (!includeSourceMap) {
+    return { code: stdout, map: null };
+  }
+  const summary = JSON.parse(stdout);
+  if (typeof summary.execution?.outputCss !== "string") {
+    throw new Error(`[omena-css] invalid omena build JSON: missing execution.outputCss`);
+  }
+  return {
+    code: summary.execution.outputCss,
+    map: summary.sourceMapV3 ?? null,
+  };
 }
 
 function resolveOmenaCliInvocation(options) {

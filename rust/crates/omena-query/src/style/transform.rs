@@ -282,6 +282,7 @@ pub fn execute_omena_query_consumer_build_style_source_with_context(
         unknown_pass_ids: execution_summary.unknown_pass_ids,
         semantic_removal_count: execution_summary.semantic_removal_count,
         execution: execution_summary.execution,
+        source_map_v3: None,
         ready_surfaces: vec![
             "consumerBuildFacade",
             "singleSourceTransformContextProducer",
@@ -423,6 +424,7 @@ pub fn execute_omena_query_consumer_build_style_source_for_target_query_with_con
         unknown_pass_ids: Vec::new(),
         semantic_removal_count: plan.semantic_removal_count,
         execution: plan.execution,
+        source_map_v3: None,
         ready_surfaces: vec![
             "consumerBuildFacade",
             "targetQueryBuildFacade",
@@ -481,6 +483,51 @@ pub fn execute_omena_query_consumer_build_style_sources_for_target_query_with_op
         target_options,
         package_manifests,
     )
+}
+
+pub fn attach_omena_query_consumer_build_source_map_v3(
+    summary: &mut OmenaQueryConsumerBuildSummaryV0,
+    style_source: &str,
+) {
+    let source_map = summarize_omena_query_consumer_build_source_map_v3(
+        &summary.style_path,
+        style_source,
+        &summary.execution,
+    );
+    summary.source_map_v3 = Some(source_map);
+    if !summary.ready_surfaces.contains(&"sourceMapV3Serializer") {
+        summary.ready_surfaces.push("sourceMapV3Serializer");
+    }
+}
+
+pub fn summarize_omena_query_consumer_build_source_map_v3(
+    style_path: &str,
+    style_source: &str,
+    execution: &TransformExecutionSummaryV0,
+) -> OmenaQueryTransformSourceMapV3V0 {
+    let dialect = omena_parser_dialect_for_style_path(style_path);
+    let artifact = print_transform_execution_artifact_with_dialect_and_source(
+        style_path,
+        style_source,
+        dialect,
+        format!(
+            "omena-query-consumer-build-source-map-v3:{}:{}",
+            style_path,
+            style_source.len()
+        ),
+        &[TransformPassKind::PrintCss],
+        default_omena_query_transform_print_options(),
+        execution,
+    );
+    artifact.source_map_v3.unwrap_or_else(|| {
+        serialize_transform_source_map_v3(
+            style_path,
+            execution.output_css.as_str(),
+            style_path,
+            Some(style_source),
+            artifact.source_map_segments.as_slice(),
+        )
+    })
 }
 
 fn derive_single_source_transform_context(

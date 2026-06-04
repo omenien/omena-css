@@ -36,8 +36,9 @@ pub use omena_transform_passes::{
     plan_transform_passes_parallel_lawvere_layers,
 };
 pub use omena_transform_print::{
-    TransformPrintArtifactV0, TransformPrintMode, TransformPrintOptionsV0, default_print_options,
-    print_transform_execution_artifact_with_dialect_and_source,
+    TransformPrintArtifactV0, TransformPrintMode, TransformPrintOptionsV0, TransformSourceMapV3V0,
+    default_print_options, print_transform_execution_artifact_with_dialect_and_source,
+    serialize_transform_source_map_v3,
 };
 pub use omena_transform_target::{
     TargetFeatureSupportV0, TargetTransformOptionsV0, TransformTargetPlanV0,
@@ -71,6 +72,7 @@ pub fn summarize_omena_query_transform_runner_boundary_v0() -> OmenaQueryTransfo
         "transformPlannerBoundary",
         "transformExecutorBoundary",
         "transformPrinterBoundary",
+        "transformSourceMapV3SerializerBoundary",
         "transformTargetPlannerBoundary",
         "transformEggWitnessBoundary",
     ];

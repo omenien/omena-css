@@ -32,6 +32,17 @@ try {
   if (!result.code.includes(".root")) {
     throw new Error(`Expected transformed CSS to preserve selector, got: ${result.code}`);
   }
+  if (!result.map || result.map.version !== 3) {
+    throw new Error(`Expected Source Map V3 output, got: ${JSON.stringify(result.map)}`);
+  }
+  if (!Array.isArray(result.map.sources) || !result.map.sources.includes(stylePath)) {
+    throw new Error(
+      `Expected source map to include ${stylePath}, got: ${JSON.stringify(result.map)}`,
+    );
+  }
+  if (typeof result.map.mappings !== "string" || result.map.mappings.length === 0) {
+    throw new Error(`Expected source map mappings, got: ${JSON.stringify(result.map)}`);
+  }
   if (warnings.length > 0) {
     throw new Error(`Unexpected Vite plugin warnings: ${warnings.join(" | ")}`);
   }

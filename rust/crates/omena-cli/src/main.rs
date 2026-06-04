@@ -9,6 +9,7 @@ use omena_query::{
     OmenaQuerySourceDocumentInputV0, OmenaQuerySourceMissingSelectorDiagnosticCandidateV0,
     OmenaQueryStylePackageManifestV0, OmenaQueryStyleSourceInputV0,
     OmenaQueryTargetTransformOptionsV0, OmenaQueryTransformExecutionContextV0, ParserPositionV0,
+    attach_omena_query_consumer_build_source_map_v3,
     execute_omena_query_consumer_build_style_source_for_target_query_with_context_and_options,
     execute_omena_query_consumer_build_style_source_with_context,
     execute_omena_query_consumer_build_style_sources_for_target_query_with_context_and_options,
@@ -115,6 +116,9 @@ enum Command {
         /// package.json file used to resolve package style exports for workspace sources.
         #[arg(long = "package-manifest")]
         package_manifest_paths: Vec<PathBuf>,
+        /// Include a Source Map V3 payload in --json output.
+        #[arg(long)]
+        source_map: bool,
         /// Print a machine-readable execution summary.
         #[arg(long)]
         json: bool,
@@ -493,6 +497,7 @@ fn run(cli: Cli) -> Result<(), String> {
             closed_style_world,
             source_paths,
             package_manifest_paths,
+            source_map,
             json,
         } => build_file(BuildFileOptions {
             path,
@@ -504,6 +509,7 @@ fn run(cli: Cli) -> Result<(), String> {
             closed_style_world,
             source_paths,
             package_manifest_paths,
+            source_map,
             target_options: OmenaQueryTargetTransformOptionsV0 {
                 allow_logical_to_physical,
                 allow_scope_flatten,
@@ -996,6 +1002,7 @@ struct BuildFileOptions {
     closed_style_world: bool,
     source_paths: Vec<PathBuf>,
     package_manifest_paths: Vec<PathBuf>,
+    source_map: bool,
     target_options: OmenaQueryTargetTransformOptionsV0,
     json: bool,
 }
@@ -1011,12 +1018,16 @@ fn build_file(options: BuildFileOptions) -> Result<(), String> {
         closed_style_world,
         source_paths,
         package_manifest_paths,
+        source_map,
         target_options,
         json,
     } = options;
 
     if target_query.is_some() && !pass_ids.is_empty() {
         return Err("cannot combine --target-query with explicit --pass values".to_string());
+    }
+    if source_map && !json {
+        return Err("--source-map requires --json".to_string());
     }
 
     let source = read_source(&path)?;
@@ -1082,6 +1093,9 @@ fn build_file(options: BuildFileOptions) -> Result<(), String> {
             &mut summary.ready_surfaces,
             "expressionDomainSelectorProjection",
         );
+    }
+    if source_map {
+        attach_omena_query_consumer_build_source_map_v3(&mut summary, &source);
     }
 
     if !summary.unknown_pass_ids.is_empty() {
@@ -2150,6 +2164,22 @@ mod tests {
     use std::time::{SystemTime, UNIX_EPOCH};
 
     #[test]
+    fn build_command_exposes_source_map_flag() {
+        let command = Cli::command();
+        command.clone().debug_assert();
+        let build = command
+            .get_subcommands()
+            .find(|subcommand| subcommand.get_name() == "build")
+            .expect("build subcommand should exist");
+
+        assert!(
+            build
+                .get_arguments()
+                .any(|argument| argument.get_long() == Some("source-map"))
+        );
+    }
+
+    #[test]
     fn build_command_writes_query_owned_transform_output() -> Result<(), String> {
         let source_path = temp_path("input.css");
         let output_path = temp_path("output.css");
@@ -2176,6 +2206,7 @@ mod tests {
                 closed_style_world: false,
                 source_paths: Vec::new(),
                 package_manifest_paths: Vec::new(),
+                source_map: false,
                 json: false,
             },
         });
@@ -2188,6 +2219,39 @@ mod tests {
 
         cleanup(&source_path);
         cleanup(&output_path);
+        Ok(())
+    }
+
+    #[test]
+    fn build_source_map_requires_json_output() -> Result<(), String> {
+        let source_path = temp_path("source-map-requires-json.css");
+        fs::write(&source_path, ".card { color: red; }")
+            .map_err(|error| format!("fixture source should be writable: {error}"))?;
+
+        let result = run(Cli {
+            command: Command::Build {
+                path: source_path.clone(),
+                output: None,
+                passes: vec!["print-css".to_string()],
+                target_query: None,
+                allow_logical_to_physical: false,
+                allow_scope_flatten: false,
+                allow_layer_flatten: false,
+                enable_supports_static_eval: false,
+                enable_media_static_eval: false,
+                drop_dark_mode_media_queries: false,
+                context_json: None,
+                engine_input_json: None,
+                closed_style_world: false,
+                source_paths: Vec::new(),
+                package_manifest_paths: Vec::new(),
+                source_map: true,
+                json: false,
+            },
+        });
+
+        assert_eq!(result, Err("--source-map requires --json".to_string()));
+        cleanup(&source_path);
         Ok(())
     }
 

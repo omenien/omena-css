@@ -55,6 +55,26 @@ pub struct TransformSourceMapSegmentV0 {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
+pub struct TransformSourceMapV3V0 {
+    pub version: u8,
+    pub file: String,
+    pub sources: Vec<String>,
+    #[serde(rename = "sourcesContent")]
+    pub sources_content: Vec<String>,
+    pub names: Vec<String>,
+    pub mappings: String,
+    #[serde(rename = "x_omenaSchemaVersion")]
+    pub x_omena_schema_version: &'static str,
+    #[serde(rename = "x_omenaProduct")]
+    pub x_omena_product: &'static str,
+    #[serde(rename = "x_omenaSegmentCount")]
+    pub x_omena_segment_count: usize,
+    #[serde(rename = "x_omenaPassIds")]
+    pub x_omena_pass_ids: Vec<&'static str>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct TransformPrintBoundarySummaryV0 {
     pub schema_version: &'static str,
     pub product: &'static str,
@@ -72,6 +92,8 @@ pub struct TransformPrintArtifactV0 {
     pub source_path: String,
     pub css: String,
     pub source_map_segments: Vec<TransformSourceMapSegmentV0>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub source_map_v3: Option<TransformSourceMapV3V0>,
     pub cst_artifact: TransformCstArtifactV0,
     pub pass_plan: TransformPassPlanV0,
     pub provenance_preserved: bool,
@@ -83,7 +105,7 @@ pub fn summarize_omena_transform_print_boundary() -> TransformPrintBoundarySumma
         product: "omena-transform-print.boundary",
         emission_pass_id: TransformPassKind::PrintCss.id(),
         supported_modes: vec![TransformPrintMode::Identity, TransformPrintMode::Minified],
-        source_map_contract: "stable-IR provenance-anchor emission segments with byte offsets, UTF-8/UTF-16 line-column points, lexical identity fallback, minified deletion projection, and mutation-span segments",
+        source_map_contract: "stable-IR provenance-anchor emission segments with byte offsets, UTF-8/UTF-16 line-column points, lexical identity fallback, minified deletion projection, mutation-span segments, and Source Map V3 mappings serialization",
         planner_surface: "omena-transform-passes.plan",
     }
 }
@@ -135,6 +157,15 @@ pub fn print_transform_cst_source_with_dialect(
     } else {
         Vec::new()
     };
+    let source_map_v3 = options.include_source_map.then(|| {
+        serialize_transform_source_map_v3(
+            &source_path,
+            &css,
+            &source_path,
+            Some(source),
+            source_map_segments.as_slice(),
+        )
+    });
 
     TransformPrintArtifactV0 {
         schema_version: "0",
@@ -142,6 +173,7 @@ pub fn print_transform_cst_source_with_dialect(
         source_path,
         css,
         source_map_segments,
+        source_map_v3,
         cst_artifact,
         pass_plan,
         provenance_preserved: true,
@@ -210,6 +242,13 @@ pub fn print_transform_execution_artifact_with_dialect(
             execution,
             generated_offset_lookup_for_print_mode(&execution.output_css, &artifact.css),
         );
+        artifact.source_map_v3 = Some(serialize_transform_source_map_v3(
+            &source_path,
+            &artifact.css,
+            &source_path,
+            Some(&execution.output_css),
+            artifact.source_map_segments.as_slice(),
+        ));
     }
 
     artifact.provenance_preserved = artifact.provenance_preserved && execution.provenance_preserved;
@@ -243,6 +282,13 @@ pub fn print_transform_execution_artifact_with_dialect_and_source(
             execution,
             generated_offset_lookup_for_print_mode(&execution.output_css, &artifact.css),
         );
+        artifact.source_map_v3 = Some(serialize_transform_source_map_v3(
+            &source_path,
+            &artifact.css,
+            &source_path,
+            Some(original_source),
+            artifact.source_map_segments.as_slice(),
+        ));
     }
 
     artifact.provenance_preserved = artifact.provenance_preserved && execution.provenance_preserved;
@@ -455,6 +501,195 @@ fn compose_identity_source_map_segments(
     segments
 }
 
+pub fn serialize_transform_source_map_v3(
+    file: impl Into<String>,
+    generated_css: &str,
+    source_path: impl Into<String>,
+    source_content: Option<&str>,
+    segments: &[TransformSourceMapSegmentV0],
+) -> TransformSourceMapV3V0 {
+    let source_path = source_path.into();
+    let sources = collect_source_map_sources(&source_path, segments);
+    let mappings = encode_source_map_v3_mappings(generated_css, &sources, segments);
+    let pass_ids = collect_source_map_pass_ids(segments);
+    let source_content = source_content.unwrap_or_default();
+    let sources_content = sources
+        .iter()
+        .map(|source| {
+            if source == &source_path {
+                source_content.to_string()
+            } else {
+                String::new()
+            }
+        })
+        .collect::<Vec<_>>();
+
+    TransformSourceMapV3V0 {
+        version: 3,
+        file: file.into(),
+        sources,
+        sources_content,
+        names: Vec::new(),
+        mappings,
+        x_omena_schema_version: "0",
+        x_omena_product: "omena-transform-print.source-map-v3",
+        x_omena_segment_count: segments.len(),
+        x_omena_pass_ids: pass_ids,
+    }
+}
+
+fn collect_source_map_sources(
+    fallback_source_path: &str,
+    segments: &[TransformSourceMapSegmentV0],
+) -> Vec<String> {
+    let mut sources = segments
+        .iter()
+        .map(|segment| segment.source_path.clone())
+        .collect::<Vec<_>>();
+    if sources.is_empty() {
+        sources.push(fallback_source_path.to_string());
+    }
+    sources.sort();
+    sources.dedup();
+    sources
+}
+
+fn collect_source_map_pass_ids(segments: &[TransformSourceMapSegmentV0]) -> Vec<&'static str> {
+    let mut pass_ids = segments
+        .iter()
+        .map(|segment| segment.pass_id)
+        .collect::<Vec<_>>();
+    pass_ids.sort();
+    pass_ids.dedup();
+    pass_ids
+}
+
+fn encode_source_map_v3_mappings(
+    generated_css: &str,
+    sources: &[String],
+    segments: &[TransformSourceMapSegmentV0],
+) -> String {
+    let mut sortable_segments = segments
+        .iter()
+        .filter(|segment| {
+            segment.generated_start_point.byte_offset <= segment.generated_end_point.byte_offset
+        })
+        .collect::<Vec<_>>();
+    sortable_segments.sort_by(|left, right| {
+        (
+            left.generated_start_point.line,
+            left.generated_start_point.utf16_column,
+            left.source_path.as_str(),
+            left.original_start_point.line,
+            left.original_start_point.utf16_column,
+        )
+            .cmp(&(
+                right.generated_start_point.line,
+                right.generated_start_point.utf16_column,
+                right.source_path.as_str(),
+                right.original_start_point.line,
+                right.original_start_point.utf16_column,
+            ))
+    });
+
+    let max_generated_line = generated_css
+        .chars()
+        .filter(|character| *character == '\n')
+        .count()
+        .max(
+            sortable_segments
+                .iter()
+                .map(|segment| segment.generated_start_point.line)
+                .max()
+                .unwrap_or(0),
+        );
+    let mut lines = vec![Vec::<String>::new(); max_generated_line + 1];
+    let mut previous_source_index = 0isize;
+    let mut previous_original_line = 0isize;
+    let mut previous_original_column = 0isize;
+
+    let mut index = 0;
+    while index < sortable_segments.len() {
+        let line_index = sortable_segments[index].generated_start_point.line;
+        let mut line_end = index + 1;
+        while line_end < sortable_segments.len()
+            && sortable_segments[line_end].generated_start_point.line == line_index
+        {
+            line_end += 1;
+        }
+
+        let mut previous_generated_column = 0isize;
+        let mut seen = Vec::<(usize, usize, usize, usize)>::new();
+        for segment in &sortable_segments[index..line_end] {
+            let source_index = sources
+                .iter()
+                .position(|source| source == &segment.source_path)
+                .unwrap_or(0);
+            let generated_column = segment.generated_start_point.utf16_column;
+            let original_line = segment.original_start_point.line;
+            let original_column = segment.original_start_point.utf16_column;
+            let key = (
+                generated_column,
+                source_index,
+                original_line,
+                original_column,
+            );
+            if seen.contains(&key) {
+                continue;
+            }
+            seen.push(key);
+
+            let encoded_segment = [
+                generated_column as isize - previous_generated_column,
+                source_index as isize - previous_source_index,
+                original_line as isize - previous_original_line,
+                original_column as isize - previous_original_column,
+            ]
+            .into_iter()
+            .map(encode_vlq_value)
+            .collect::<String>();
+            lines[line_index].push(encoded_segment);
+
+            previous_generated_column = generated_column as isize;
+            previous_source_index = source_index as isize;
+            previous_original_line = original_line as isize;
+            previous_original_column = original_column as isize;
+        }
+
+        index = line_end;
+    }
+
+    lines
+        .into_iter()
+        .map(|line_segments| line_segments.join(","))
+        .collect::<Vec<_>>()
+        .join(";")
+}
+
+fn encode_vlq_value(value: isize) -> String {
+    let mut value = if value < 0 {
+        ((-value as usize) << 1) + 1
+    } else {
+        (value as usize) << 1
+    };
+    let mut output = String::new();
+    loop {
+        let mut digit = value & 0b11111;
+        value >>= 5;
+        if value > 0 {
+            digit |= 0b100000;
+        }
+        output.push(BASE64_VLQ_DIGITS[digit] as char);
+        if value == 0 {
+            break;
+        }
+    }
+    output
+}
+
+const BASE64_VLQ_DIGITS: &[u8; 64] =
+    b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+
 #[derive(Debug, Clone, Copy)]
 struct SourceMapSources<'a> {
     original: &'a str,
@@ -589,10 +824,10 @@ fn project_generated_offset(
 #[cfg(test)]
 mod tests {
     use super::{
-        TransformPrintMode, TransformPrintOptionsV0, default_print_options,
+        TransformPrintMode, TransformPrintOptionsV0, default_print_options, encode_vlq_value,
         print_transform_cst_source, print_transform_execution_artifact,
-        print_transform_execution_artifact_with_source, source_map_point,
-        summarize_omena_transform_print_boundary,
+        print_transform_execution_artifact_with_source, serialize_transform_source_map_v3,
+        source_map_point, summarize_omena_transform_print_boundary,
     };
     use omena_transform_cst::TransformPassKind;
     use omena_transform_passes::execute_transform_passes_on_source;
@@ -661,6 +896,19 @@ mod tests {
             artifact.pass_plan.ordered_pass_ids,
             vec!["calc-reduction", "print-css"]
         );
+        let source_map = artifact
+            .source_map_v3
+            .as_ref()
+            .expect("identity print should include Source Map V3 output");
+        assert_eq!(source_map.version, 3);
+        assert_eq!(source_map.file, "Button.module.css");
+        assert_eq!(source_map.sources, vec!["Button.module.css"]);
+        assert_eq!(source_map.sources_content, vec![source]);
+        assert!(!source_map.mappings.is_empty());
+        assert_eq!(
+            source_map.x_omena_segment_count,
+            artifact.source_map_segments.len()
+        );
     }
 
     #[test]
@@ -692,6 +940,56 @@ mod tests {
                 .iter()
                 .any(|segment| segment.generated_start < segment.original_start)
         );
+        assert!(
+            artifact
+                .source_map_v3
+                .as_ref()
+                .is_some_and(|source_map| !source_map.mappings.is_empty())
+        );
+    }
+
+    #[test]
+    fn serializes_source_map_v3_mappings_from_existing_segments() {
+        let source = ".a { color: red; }\n.b { color: blue; }";
+        let artifact = print_transform_cst_source(
+            "Mapped.module.css",
+            source,
+            "semantic:mapped",
+            &[TransformPassKind::PrintCss],
+            default_print_options(),
+        );
+        let source_map = serialize_transform_source_map_v3(
+            "Mapped.module.css",
+            &artifact.css,
+            "Mapped.module.css",
+            Some(source),
+            artifact.source_map_segments.as_slice(),
+        );
+
+        assert_eq!(source_map.version, 3);
+        assert_eq!(source_map.names, Vec::<String>::new());
+        assert_eq!(source_map.sources, vec!["Mapped.module.css"]);
+        assert_eq!(source_map.sources_content, vec![source]);
+        assert_eq!(
+            source_map.x_omena_pass_ids,
+            vec![TransformPassKind::PrintCss.id()]
+        );
+        assert_eq!(
+            source_map.x_omena_segment_count,
+            artifact.source_map_segments.len()
+        );
+        assert!(
+            source_map.mappings.contains(';'),
+            "multi-line generated CSS should produce semicolon-separated mapping lines"
+        );
+    }
+
+    #[test]
+    fn vlq_encoder_matches_source_map_signed_base64_values() {
+        assert_eq!(encode_vlq_value(0), "A");
+        assert_eq!(encode_vlq_value(1), "C");
+        assert_eq!(encode_vlq_value(-1), "D");
+        assert_eq!(encode_vlq_value(16), "gB");
     }
 
     #[test]

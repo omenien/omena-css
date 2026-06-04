@@ -51,6 +51,7 @@ pub use omena_query_transform_runner::{
     TransformModuleEvaluationV0 as OmenaQueryTransformModuleEvaluationV0, TransformPrintArtifactV0,
     TransformPrintMode as OmenaQueryTransformPrintMode,
     TransformPrintOptionsV0 as OmenaQueryTransformPrintOptionsV0,
+    TransformSourceMapV3V0 as OmenaQueryTransformSourceMapV3V0,
     TransformTargetQueryPlanV0 as OmenaQueryTransformTargetQueryPlanV0,
     conservative_target_options as conservative_omena_query_target_options,
     default_print_options as default_omena_query_transform_print_options,
@@ -64,7 +65,7 @@ use omena_query_transform_runner::{
     execute_transform_passes_on_source_with_dialect_and_context,
     plan_egg_rewrite_passes_for_source, plan_target_transforms, plan_target_transforms_from_query,
     plan_transform_passes, print_transform_execution_artifact_with_dialect_and_source,
-    summarize_omena_transform_bundle_from_source,
+    serialize_transform_source_map_v3, summarize_omena_transform_bundle_from_source,
     summarize_static_css_custom_property_fixed_point_from_source,
 };
 #[cfg(feature = "lawvere-trace")]

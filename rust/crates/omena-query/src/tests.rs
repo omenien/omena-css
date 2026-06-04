@@ -3,7 +3,8 @@ use super::execute_omena_query_transform_passes_from_source_with_lawvere_trace;
 use super::{
     EngineInputV2, OmenaQueryCanonicalFormInput, OmenaQueryExpressionDomainFlowRuntimeV0,
     OmenaQueryStylePackageManifestV0, ParserPositionV0, SelectorProjectionCertaintyV0,
-    StyleAnalysisInputV2, StyleDocumentV2,
+    StyleAnalysisInputV2, StyleDocumentV2, attach_omena_query_consumer_build_source_map_v3,
+    execute_omena_query_consumer_build_style_source,
     execute_omena_query_consumer_build_style_source_with_engine_input_context,
     execute_omena_query_consumer_build_style_sources,
     execute_omena_query_consumer_build_style_sources_with_context,

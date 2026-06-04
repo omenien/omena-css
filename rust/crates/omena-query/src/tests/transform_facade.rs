@@ -115,6 +115,34 @@ fn exposes_transform_plan_minified_print_mode() {
 }
 
 #[test]
+fn consumer_build_summary_can_attach_source_map_v3() {
+    let source = "/* remove */ .button { color: red; }\n.card { color: blue; }";
+    let mut summary = execute_omena_query_consumer_build_style_source(
+        "Button.module.css",
+        source,
+        &[
+            "comment-strip".to_string(),
+            "whitespace-strip".to_string(),
+            "print-css".to_string(),
+        ],
+    );
+
+    attach_omena_query_consumer_build_source_map_v3(&mut summary, source);
+
+    let source_map = summary
+        .source_map_v3
+        .as_ref()
+        .expect("consumer build should attach Source Map V3 on request");
+    assert_eq!(source_map.version, 3);
+    assert_eq!(source_map.file, "Button.module.css");
+    assert_eq!(source_map.sources, vec!["Button.module.css"]);
+    assert_eq!(source_map.sources_content, vec![source]);
+    assert!(!source_map.mappings.is_empty());
+    assert!(source_map.x_omena_segment_count > 0);
+    assert!(summary.ready_surfaces.contains(&"sourceMapV3Serializer"));
+}
+
+#[test]
 fn transform_plan_keeps_plain_css_imports_out_of_scss_evaluator() {
     let source = r#"@import "./tokens.css"; .button { color: red; }"#;
     let summary = summarize_omena_query_transform_plan_from_source(
