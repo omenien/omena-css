@@ -232,6 +232,55 @@ pub enum OmenaCheckerSmtBackendKindV0 {
     Z3,
 }
 
+impl OmenaCheckerSmtBackendKindV0 {
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::Stub => "stub",
+            Self::Z3 => "z3",
+        }
+    }
+
+    pub const fn product_name(self) -> &'static str {
+        match self {
+            Self::Stub => "omena-smt.backend.stub",
+            Self::Z3 => "omena-smt.backend.z3",
+        }
+    }
+
+    pub const fn product_scope(self) -> &'static str {
+        match self {
+            Self::Stub => "defaultSolverFreeStubProductGate",
+            Self::Z3 => "explicitOptInZ3SolverBackedProductGate",
+        }
+    }
+
+    pub const fn solver_backed(self) -> bool {
+        matches!(self, Self::Z3)
+    }
+}
+
+#[cfg(feature = "smt-z3")]
+pub const fn active_omena_checker_smt_backend_kind_v0() -> OmenaCheckerSmtBackendKindV0 {
+    OmenaCheckerSmtBackendKindV0::Z3
+}
+
+#[cfg(not(feature = "smt-z3"))]
+pub const fn active_omena_checker_smt_backend_kind_v0() -> OmenaCheckerSmtBackendKindV0 {
+    OmenaCheckerSmtBackendKindV0::Stub
+}
+
+pub const fn active_omena_checker_smt_backend_kind_name_v0() -> &'static str {
+    active_omena_checker_smt_backend_kind_v0().as_str()
+}
+
+pub const fn active_omena_checker_smt_product_scope_v0() -> &'static str {
+    active_omena_checker_smt_backend_kind_v0().product_scope()
+}
+
+pub const fn active_omena_checker_smt_solver_backed_v0() -> bool {
+    active_omena_checker_smt_backend_kind_v0().solver_backed()
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct OmenaCheckerCodeBundleV0 {
@@ -2468,6 +2517,34 @@ mod tests {
                 OmenaCheckerSmtBackendKindV0::Z3,
             ),
             OmenaCheckerRuleTierV0::S
+        );
+        assert_eq!(
+            active_omena_checker_smt_backend_kind_v0(),
+            if cfg!(feature = "smt-z3") {
+                OmenaCheckerSmtBackendKindV0::Z3
+            } else {
+                OmenaCheckerSmtBackendKindV0::Stub
+            }
+        );
+        assert_eq!(
+            active_omena_checker_smt_backend_kind_name_v0(),
+            if cfg!(feature = "smt-z3") {
+                "z3"
+            } else {
+                "stub"
+            }
+        );
+        assert_eq!(
+            active_omena_checker_smt_product_scope_v0(),
+            if cfg!(feature = "smt-z3") {
+                "explicitOptInZ3SolverBackedProductGate"
+            } else {
+                "defaultSolverFreeStubProductGate"
+            }
+        );
+        assert_eq!(
+            active_omena_checker_smt_solver_backed_v0(),
+            cfg!(feature = "smt-z3")
         );
     }
 

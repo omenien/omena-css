@@ -30,11 +30,12 @@ pub use omena_checker::{
     checker_categorical_cascade_evidence_v0,
 };
 use omena_checker::{
-    OmenaCheckerDynamicClassDomainInputV0, evaluate_omena_checker_cascade_rules,
-    evaluate_omena_checker_categorical_rules, evaluate_omena_checker_m_tier_rules,
-    evaluate_omena_checker_replica_ensemble_rules, evaluate_omena_checker_rg_flow_rules,
-    evaluate_omena_checker_smt_rules, list_omena_checker_m_tier_rule_code_names,
-    list_omena_checker_rule_code_names,
+    OmenaCheckerDynamicClassDomainInputV0, active_omena_checker_smt_backend_kind_name_v0,
+    active_omena_checker_smt_product_scope_v0, active_omena_checker_smt_solver_backed_v0,
+    evaluate_omena_checker_cascade_rules, evaluate_omena_checker_categorical_rules,
+    evaluate_omena_checker_m_tier_rules, evaluate_omena_checker_replica_ensemble_rules,
+    evaluate_omena_checker_rg_flow_rules, evaluate_omena_checker_smt_rules,
+    list_omena_checker_m_tier_rule_code_names, list_omena_checker_rule_code_names,
 };
 pub use omena_ensemble::{
     ModuleGraphEdgeV0, ModuleGraphV0, OutcomeMode, REPLICA_ENSEMBLE_FEATURE_GATE_V0,
@@ -401,6 +402,9 @@ pub struct OmenaQueryCheckerSmtGateV0 {
     pub schema_version: &'static str,
     pub product: &'static str,
     pub orchestrator_kind: &'static str,
+    pub backend_kind_name: &'static str,
+    pub solver_backed: bool,
+    pub product_scope: &'static str,
     pub enabled_rule_names: Vec<&'static str>,
     pub emitted_rule_names: Vec<&'static str>,
     pub registered_rule_count: usize,
@@ -451,6 +455,9 @@ pub fn run_omena_query_checker_smt_gate_v0(
         schema_version: "0",
         product: "omena-query-checker-orchestrator.smt-gate",
         orchestrator_kind: "registered-rule-diagnostic-gate",
+        backend_kind_name: active_omena_checker_smt_backend_kind_name_v0(),
+        solver_backed: active_omena_checker_smt_solver_backed_v0(),
+        product_scope: active_omena_checker_smt_product_scope_v0(),
         enabled_rule_names,
         emitted_rule_names,
         registered_rule_count: registered_rules.len(),
@@ -460,6 +467,7 @@ pub fn run_omena_query_checker_smt_gate_v0(
         evaluations,
         ready_surfaces: vec![
             "checkerRuleRegistry",
+            "activeSmtBackendScope",
             "smtCascadeProofObligation",
             "registeredRuleDiagnosticGate",
             "queryDiagnosticHandoff",
@@ -915,6 +923,24 @@ mod tests {
         });
 
         assert!(gate.enforcement_passed);
+        assert_eq!(
+            gate.backend_kind_name,
+            if cfg!(feature = "smt-z3") {
+                "z3"
+            } else {
+                "stub"
+            }
+        );
+        assert_eq!(gate.solver_backed, cfg!(feature = "smt-z3"));
+        assert_eq!(
+            gate.product_scope,
+            if cfg!(feature = "smt-z3") {
+                "explicitOptInZ3SolverBackedProductGate"
+            } else {
+                "defaultSolverFreeStubProductGate"
+            }
+        );
+        assert!(gate.ready_surfaces.contains(&"activeSmtBackendScope"));
         assert_eq!(gate.unregistered_rule_count, 0);
         assert_eq!(gate.evaluation_count, 1);
         assert!(gate.emitted_rule_names.contains(&"cascade.smt-violation"));
@@ -962,6 +988,24 @@ mod tests {
         });
 
         assert!(gate.enforcement_passed);
+        assert_eq!(
+            gate.backend_kind_name,
+            if cfg!(feature = "smt-z3") {
+                "z3"
+            } else {
+                "stub"
+            }
+        );
+        assert_eq!(gate.solver_backed, cfg!(feature = "smt-z3"));
+        assert_eq!(
+            gate.product_scope,
+            if cfg!(feature = "smt-z3") {
+                "explicitOptInZ3SolverBackedProductGate"
+            } else {
+                "defaultSolverFreeStubProductGate"
+            }
+        );
+        assert!(gate.ready_surfaces.contains(&"activeSmtBackendScope"));
         assert_eq!(gate.evaluation_count, 0);
         assert!(gate.emitted_rule_names.is_empty());
     }
