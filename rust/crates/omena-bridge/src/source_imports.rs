@@ -191,4 +191,27 @@ const local = "not a style import";
             vec![("styles", "./Card.module.scss")],
         );
     }
+
+    #[test]
+    fn extracts_imports_from_html_script_projection() {
+        let source = r#"<main>not script</main>
+<script type="module">
+import styles from "./Page.module.scss";
+</script>
+"#;
+        let summary = summarize_omena_bridge_source_import_declarations_for_source_language(
+            "Page.html",
+            source,
+            Some("html"),
+        );
+
+        assert_eq!(
+            summary
+                .imports
+                .iter()
+                .map(|import| (import.binding.as_str(), import.specifier.as_str()))
+                .collect::<Vec<_>>(),
+            vec![("styles", "./Page.module.scss")],
+        );
+    }
 }

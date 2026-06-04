@@ -13,10 +13,13 @@ pub use omena_bridge::{
     SourceImportDeclarationV0 as OmenaQuerySourceImportDeclarationV0,
     SourceImportedStyleBindingV0 as OmenaQuerySourceImportedStyleBindingV0,
     SourceInlineStyleDeclarationFactV0 as OmenaQuerySourceInlineStyleDeclarationFactV0,
+    SourceLanguageParserBoundarySummaryV0 as OmenaQuerySourceLanguageParserBoundarySummaryV0,
+    SourceLanguageParserDescriptorV0 as OmenaQuerySourceLanguageParserDescriptorV0,
     SourceSelectorReferenceFactV0 as OmenaQuerySourceSelectorReferenceFactV0,
     SourceSelectorReferenceMatchKindV0 as OmenaQuerySourceSelectorReferenceMatchKindV0,
     SourceSyntaxIndexV0 as OmenaQuerySourceSyntaxIndexV0,
     SourceTypeFactTargetV0 as OmenaQuerySourceTypeFactTargetV0,
+    summarize_omena_bridge_source_language_parser_boundary_v0 as summarize_omena_query_source_language_parser_boundary_v0,
 };
 use omena_parser::{
     ParsedSassModuleEdgeFactKind, ParsedSassSymbolFactKind, ParsedSelectorFactKind,

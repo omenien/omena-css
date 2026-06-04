@@ -44,6 +44,10 @@ pub use source_imports::{
     summarize_omena_bridge_source_import_declarations_for_path,
     summarize_omena_bridge_source_import_declarations_for_source_language,
 };
+pub use source_language::{
+    SourceLanguageParserBoundarySummaryV0, SourceLanguageParserDescriptorV0,
+    summarize_omena_bridge_source_language_parser_boundary_v0,
+};
 pub use source_syntax::{
     SourceImportedStyleBindingV0, SourceInlineStyleDeclarationFactV0,
     SourceSelectorReferenceFactV0, SourceSelectorReferenceMatchKindV0,

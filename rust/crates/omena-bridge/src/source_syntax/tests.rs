@@ -413,6 +413,37 @@ export const root = styles.root;
     }));
 }
 
+#[test]
+fn indexes_html_script_property_accesses_against_imported_style_uri() {
+    let source = r#"<main>ignored</main>
+<script type="module">
+import styles from "./Page.module.scss";
+export const root = styles.root;
+</script>
+"#;
+    let index = summarize_omena_bridge_source_syntax_index_for_source_language(
+        "file:///workspace/Page.html",
+        source,
+        Some("html"),
+        vec![SourceImportedStyleBindingV0 {
+            binding: "styles".to_string(),
+            style_uri: "file:///workspace/Page.module.scss".to_string(),
+        }],
+        Vec::new(),
+    );
+
+    assert!(index.selector_references.iter().any(|reference| {
+        selector_reference_name(source, reference) == "root"
+            && reference.target_style_uri.as_deref() == Some("file:///workspace/Page.module.scss")
+    }));
+    assert!(
+        !index
+            .selector_references
+            .iter()
+            .any(|reference| selector_reference_name(source, reference) == "ignored")
+    );
+}
+
 fn selector_reference_name<'a>(
     source: &'a str,
     reference: &'a SourceSelectorReferenceFactV0,
