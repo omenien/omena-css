@@ -217,6 +217,15 @@ fn style_diagnostics_for_file_include_cascade_aware_lints() -> Result<(), &'stat
         narrowing.element_class_iteration.product,
         "omena-abstract-value.reduced-product-iteration"
     );
+    assert_eq!(
+        narrowing
+            .runtime_state
+            .as_ref()
+            .ok_or("runtime state scenario evidence")?
+            .static_boundary
+            .boundary_kind,
+        "staticValueAssumingNoRuntimeOverride"
+    );
     assert!(
         unreachable
             .provenance
@@ -251,6 +260,120 @@ fn style_diagnostics_for_file_include_cascade_aware_lints() -> Result<(), &'stat
             .tags
             .is_empty()
     );
+    Ok(())
+}
+
+#[test]
+fn workspace_cascade_diagnostics_join_runtime_state_scenarios_and_inline_overrides()
+-> Result<(), &'static str> {
+    let target_style_path = "file:///workspace/src/App.module.scss";
+    let style_sources = vec![OmenaQueryStyleSourceInputV0 {
+        style_path: target_style_path.to_string(),
+        style_source: r#"
+.btn { color: red; }
+@media (hover: hover) {
+  .btn:hover {
+    color: blue;
+    color: green;
+  }
+}
+"#
+        .to_string(),
+    }];
+    let source_documents = vec![OmenaQuerySourceDocumentInputV0 {
+        source_path: "file:///workspace/src/App.tsx".to_string(),
+        source_source: r#"import styles from "./App.module.scss";
+export function App() {
+  return <button className={styles.btn} style={{ color: "rebeccapurple" }} />;
+}"#
+        .to_string(),
+    }];
+
+    let diagnostics = crate::summarize_omena_query_style_diagnostics_for_workspace_file(
+        target_style_path,
+        style_sources.as_slice(),
+        source_documents.as_slice(),
+        &[],
+        None,
+    )
+    .ok_or("workspace diagnostics")?;
+    let unreachable = diagnostics
+        .diagnostics
+        .iter()
+        .find(|diagnostic| diagnostic.code == "unreachableDeclaration")
+        .ok_or("unreachable declaration diagnostic")?;
+    let runtime_state = unreachable
+        .cascade_narrowing
+        .as_ref()
+        .and_then(|narrowing| narrowing.runtime_state.as_ref())
+        .ok_or("runtime state scenario evidence")?;
+
+    assert_eq!(
+        runtime_state.product,
+        "omena-query.runtime-state-scenario-evidence"
+    );
+    assert_eq!(runtime_state.selector_class_names, vec!["btn".to_string()]);
+    assert_eq!(runtime_state.property_name, "color");
+    assert_eq!(
+        runtime_state.scenario_join_kind,
+        "fixtureWitnessedScenarioJoin"
+    );
+    assert!(
+        runtime_state
+            .driver_summaries
+            .iter()
+            .any(|driver| driver.driver == "pseudoStateScenarioSweep"
+                && driver.status == "fixtureWitnessed")
+    );
+    assert!(
+        runtime_state
+            .driver_summaries
+            .iter()
+            .any(|driver| driver.driver == "mediaEnvironmentScenarioSweep"
+                && driver.status == "fixtureWitnessed")
+    );
+    assert!(
+        runtime_state
+            .driver_summaries
+            .iter()
+            .any(
+                |driver| driver.driver == "inlineStyleHighestSpecificityTier"
+                    && driver.status == "sourceFactsJoined"
+                    && driver.scenario_count == 1
+            )
+    );
+    assert!(runtime_state.scenarios.iter().any(|scenario| {
+        scenario.pseudo_state.as_deref() == Some("hover")
+            && scenario
+                .condition_context
+                .iter()
+                .any(|condition| condition.contains("@media"))
+            && scenario.winner_value.as_deref() == Some("green")
+    }));
+    assert_eq!(runtime_state.inline_style_overrides.len(), 1);
+    assert_eq!(
+        runtime_state.inline_style_overrides[0].cascade_tier,
+        "authorInlineStyle"
+    );
+    assert_eq!(
+        runtime_state.inline_style_overrides[0].property_name,
+        "color"
+    );
+    assert_eq!(
+        runtime_state.inline_style_overrides[0].value.as_deref(),
+        Some("\"rebeccapurple\"")
+    );
+    assert!(runtime_state.scenarios.iter().any(|scenario| {
+        scenario.scenario_kind == "inlineStyleOverride"
+            && scenario.winner_declaration_id.as_deref() == Some("inline-style-author-tier")
+            && scenario.winner_value.as_deref() == Some("\"rebeccapurple\"")
+    }));
+    assert!(
+        runtime_state
+            .static_boundary
+            .static_value_assuming_no_runtime_override
+    );
+    assert!(!runtime_state.static_boundary.tracks_class_list_mutation);
     Ok(())
 }
 

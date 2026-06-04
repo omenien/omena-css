@@ -1,8 +1,8 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use omena_cascade::{
-    CascadeDeclaration, CascadeKey, CascadeLevel, CascadeValue, LayerRank, Specificity,
-    cascade_property, parse_simple_selector_signature,
+    CascadeDeclaration, CascadeKey, CascadeLevel, CascadeOutcome, CascadeValue, LayerRank,
+    Specificity, cascade_property, parse_simple_selector_signature,
 };
 use omena_query_checker_orchestrator::{
     OmenaCheckerCascadeDeclarationInputV0, OmenaCheckerCascadeEvaluationV0,
@@ -28,7 +28,9 @@ use omena_query_core::{
 use omena_query_transform_runner::expand_css_nested_selector;
 
 use super::{
-    OmenaQueryCascadeNarrowingEvidenceV0, OmenaQueryStyleDiagnosticV0, ParserByteSpanV0,
+    OmenaQueryCascadeNarrowingEvidenceV0, OmenaQueryRuntimeStateDriverSummaryV0,
+    OmenaQueryRuntimeStateScenarioEvidenceV0, OmenaQueryRuntimeStateScenarioV0,
+    OmenaQueryRuntimeStateStaticBoundaryV0, OmenaQueryStyleDiagnosticV0, ParserByteSpanV0,
     ParserRangeV0, omena_parser_dialect_for_style_path, parser_range_for_byte_span,
     summarize_static_css_custom_property_fixed_point_from_source,
 };
@@ -1018,7 +1020,303 @@ fn summarize_query_cascade_narrowing_for_evaluation(
             .collect(),
         element_class_iteration,
         property_value_narrowing,
+        runtime_state: summarize_query_runtime_state_for_evaluation(evaluation, declarations),
     })
+}
+
+fn summarize_query_runtime_state_for_evaluation(
+    evaluation: &OmenaCheckerCascadeEvaluationV0,
+    declarations: &[OmenaCheckerCascadeDeclarationInputV0],
+) -> Option<OmenaQueryRuntimeStateScenarioEvidenceV0> {
+    let anchor_id = evaluation.declaration_ids.first()?;
+    let anchor = declarations
+        .iter()
+        .find(|declaration| declaration.declaration_id == *anchor_id)?;
+    let selector_class_names = query_selector_class_names(anchor.selector.as_str());
+    let candidate_declarations = declarations
+        .iter()
+        .filter(|declaration| declaration.property == anchor.property)
+        .filter(|declaration| {
+            query_runtime_selector_matches_anchor_classes(
+                anchor.selector.as_str(),
+                declaration.selector.as_str(),
+            )
+        })
+        .collect::<Vec<_>>();
+    if candidate_declarations.is_empty() {
+        return None;
+    }
+
+    let pseudo_states = query_runtime_candidate_pseudo_states(candidate_declarations.as_slice());
+    let condition_contexts =
+        query_runtime_candidate_condition_contexts(candidate_declarations.as_slice());
+    let mut scenarios = Vec::new();
+
+    for condition_context in &condition_contexts {
+        scenarios.push(query_runtime_state_scenario(
+            anchor.property.as_str(),
+            None,
+            condition_context.as_slice(),
+            candidate_declarations.as_slice(),
+        ));
+        for pseudo_state in &pseudo_states {
+            scenarios.push(query_runtime_state_scenario(
+                anchor.property.as_str(),
+                Some(pseudo_state.as_str()),
+                condition_context.as_slice(),
+                candidate_declarations.as_slice(),
+            ));
+        }
+    }
+
+    let pseudo_scenario_count = scenarios
+        .iter()
+        .filter(|scenario| scenario.pseudo_state.is_some())
+        .count();
+    let media_scenario_count = condition_contexts
+        .iter()
+        .filter(|context| !context.is_empty())
+        .count();
+
+    Some(OmenaQueryRuntimeStateScenarioEvidenceV0 {
+        schema_version: "0",
+        product: "omena-query.runtime-state-scenario-evidence",
+        selector: anchor.selector.clone(),
+        selector_class_names,
+        property_name: anchor.property.clone(),
+        scenario_join_kind: "fixtureWitnessedScenarioJoin",
+        static_boundary: OmenaQueryRuntimeStateStaticBoundaryV0 {
+            boundary_kind: "staticValueAssumingNoRuntimeOverride",
+            static_value_assuming_no_runtime_override: true,
+            tracks_dom_mutation: false,
+            tracks_class_list_mutation: false,
+        },
+        driver_summaries: vec![
+            OmenaQueryRuntimeStateDriverSummaryV0 {
+                driver: "pseudoStateScenarioSweep",
+                status: if pseudo_scenario_count == 0 {
+                    "noRuntimePseudoStates"
+                } else {
+                    "fixtureWitnessed"
+                },
+                scenario_count: pseudo_scenario_count,
+                provenance: vec![
+                    "omena-cascade.selector-signature",
+                    "omena-query.runtime-state-driver",
+                ],
+            },
+            OmenaQueryRuntimeStateDriverSummaryV0 {
+                driver: "inlineStyleHighestSpecificityTier",
+                status: "awaitingSourceFacts",
+                scenario_count: 0,
+                provenance: vec![
+                    "omena-bridge.source-syntax-index",
+                    "omena-query.runtime-state-driver",
+                ],
+            },
+            OmenaQueryRuntimeStateDriverSummaryV0 {
+                driver: "mediaEnvironmentScenarioSweep",
+                status: if media_scenario_count == 0 {
+                    "noConditionalEnvironment"
+                } else {
+                    "fixtureWitnessed"
+                },
+                scenario_count: media_scenario_count,
+                provenance: vec![
+                    "omena-query.cascade-condition-context",
+                    "omena-query.runtime-state-driver",
+                ],
+            },
+            OmenaQueryRuntimeStateDriverSummaryV0 {
+                driver: "staticRuntimeOverrideBoundary",
+                status: "documentedAnalyticalBoundary",
+                scenario_count: scenarios.len(),
+                provenance: vec![
+                    "omena-query.static-runtime-boundary",
+                    "omena-query.runtime-state-driver",
+                ],
+            },
+        ],
+        scenarios,
+        inline_style_overrides: Vec::new(),
+    })
+}
+
+fn query_runtime_selector_matches_anchor_classes(
+    anchor_selector: &str,
+    candidate_selector: &str,
+) -> bool {
+    let anchor_classes = query_selector_class_names(anchor_selector);
+    let candidate_classes = query_selector_class_names(candidate_selector);
+    if anchor_classes.is_empty() {
+        anchor_selector == candidate_selector
+    } else {
+        anchor_classes == candidate_classes
+    }
+}
+
+fn query_runtime_candidate_pseudo_states(
+    declarations: &[&OmenaCheckerCascadeDeclarationInputV0],
+) -> Vec<String> {
+    declarations
+        .iter()
+        .filter_map(|declaration| parse_simple_selector_signature(declaration.selector.as_str()))
+        .flat_map(|signature| signature.required_pseudo_states.into_iter())
+        .filter(|pseudo_state| query_runtime_pseudo_state_is_dynamic(pseudo_state.as_str()))
+        .collect::<BTreeSet<_>>()
+        .into_iter()
+        .collect()
+}
+
+fn query_runtime_pseudo_state_is_dynamic(pseudo_state: &str) -> bool {
+    matches!(
+        pseudo_state,
+        "active"
+            | "checked"
+            | "disabled"
+            | "enabled"
+            | "focus"
+            | "focus-visible"
+            | "focus-within"
+            | "hover"
+            | "target"
+            | "visited"
+    )
+}
+
+fn query_runtime_candidate_condition_contexts(
+    declarations: &[&OmenaCheckerCascadeDeclarationInputV0],
+) -> Vec<Vec<String>> {
+    let mut contexts = declarations
+        .iter()
+        .map(|declaration| declaration.condition_context.clone())
+        .collect::<BTreeSet<_>>()
+        .into_iter()
+        .collect::<Vec<_>>();
+    if contexts.is_empty() {
+        contexts.push(Vec::new());
+    }
+    contexts
+}
+
+fn query_runtime_state_scenario(
+    property_name: &str,
+    pseudo_state: Option<&str>,
+    condition_context: &[String],
+    declarations: &[&OmenaCheckerCascadeDeclarationInputV0],
+) -> OmenaQueryRuntimeStateScenarioV0 {
+    let active_declarations = declarations
+        .iter()
+        .copied()
+        .filter(|declaration| declaration.condition_context == condition_context)
+        .filter(|declaration| {
+            query_runtime_selector_active_for_pseudo_state(declaration, pseudo_state)
+        })
+        .collect::<Vec<_>>();
+    let property_candidates = active_declarations
+        .iter()
+        .map(|declaration| AbstractPropertyValueCandidateV0 {
+            property_name: declaration.property.clone(),
+            value: declaration.value.clone(),
+            pseudo_state: query_runtime_declaration_primary_pseudo_state(declaration),
+        })
+        .collect::<Vec<_>>();
+    let property_value_narrowing = narrow_abstract_property_value_for_pseudo_state(
+        property_name,
+        pseudo_state,
+        property_candidates.as_slice(),
+    );
+    let outcome = if active_declarations.is_empty() {
+        CascadeOutcome::Top
+    } else {
+        cascade_property(
+            active_declarations
+                .iter()
+                .map(|declaration| query_runtime_cascade_declaration_from_input(declaration))
+                .collect::<Vec<_>>(),
+            property_name,
+        )
+    };
+    let (winner_declaration_id, winner_value) = match outcome {
+        CascadeOutcome::Definite { winner, .. } => {
+            let value = match winner.value {
+                CascadeValue::Literal(value) => Some(value),
+                _ => None,
+            };
+            (Some(winner.id), value)
+        }
+        _ => (None, None),
+    };
+
+    OmenaQueryRuntimeStateScenarioV0 {
+        scenario_kind: if condition_context.is_empty() {
+            "pseudoState"
+        } else {
+            "mediaEnvironment"
+        },
+        pseudo_state: pseudo_state.map(str::to_string),
+        condition_context: condition_context.to_vec(),
+        declaration_ids: active_declarations
+            .into_iter()
+            .map(|declaration| declaration.declaration_id.clone())
+            .collect(),
+        winner_declaration_id,
+        winner_value,
+        property_value_narrowing,
+    }
+}
+
+fn query_runtime_selector_active_for_pseudo_state(
+    declaration: &OmenaCheckerCascadeDeclarationInputV0,
+    pseudo_state: Option<&str>,
+) -> bool {
+    let Some(signature) = parse_simple_selector_signature(declaration.selector.as_str()) else {
+        return declaration
+            .selector
+            .split(':')
+            .nth(1)
+            .is_none_or(|required| Some(required) == pseudo_state);
+    };
+    let required = signature
+        .required_pseudo_states
+        .into_iter()
+        .filter(|state| query_runtime_pseudo_state_is_dynamic(state.as_str()))
+        .collect::<BTreeSet<_>>();
+    match pseudo_state {
+        Some(pseudo_state) => required.is_empty() || required.contains(pseudo_state),
+        None => required.is_empty(),
+    }
+}
+
+fn query_runtime_declaration_primary_pseudo_state(
+    declaration: &OmenaCheckerCascadeDeclarationInputV0,
+) -> Option<String> {
+    parse_simple_selector_signature(declaration.selector.as_str())?
+        .required_pseudo_states
+        .into_iter()
+        .find(|state| query_runtime_pseudo_state_is_dynamic(state.as_str()))
+}
+
+fn query_runtime_cascade_declaration_from_input(
+    input: &OmenaCheckerCascadeDeclarationInputV0,
+) -> CascadeDeclaration {
+    let level = if input.important {
+        CascadeLevel::AuthorImportant
+    } else {
+        CascadeLevel::AuthorNormal
+    };
+    let layer_rank = LayerRank(input.layer_order.unwrap_or(0));
+    let specificity = parse_simple_selector_signature(&input.selector)
+        .map(|signature| signature.specificity)
+        .unwrap_or(Specificity::ZERO);
+    let value = input.value.trim().to_string();
+
+    CascadeDeclaration {
+        id: input.declaration_id.clone(),
+        property: input.property.clone(),
+        value: CascadeValue::Literal(value),
+        key: CascadeKey::new(level, layer_rank, 0, specificity, input.source_order),
+    }
 }
 
 fn query_element_class_signature_constraints(

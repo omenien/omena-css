@@ -23,6 +23,7 @@ pub struct SourceSyntaxIndexV0 {
     pub imported_style_bindings: Vec<SourceImportedStyleBindingV0>,
     pub class_string_literals: Vec<ParserByteSpanV0>,
     pub style_property_accesses: Vec<SourceStylePropertyAccessFactV0>,
+    pub inline_style_declarations: Vec<SourceInlineStyleDeclarationFactV0>,
     pub selector_references: Vec<SourceSelectorReferenceFactV0>,
     pub type_fact_targets: Vec<SourceTypeFactTargetV0>,
 }
@@ -39,6 +40,18 @@ pub struct SourceImportedStyleBindingV0 {
 pub struct SourceStylePropertyAccessFactV0 {
     pub byte_span: ParserByteSpanV0,
     pub target_style_uri: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SourceInlineStyleDeclarationFactV0 {
+    pub byte_span: ParserByteSpanV0,
+    pub value_byte_span: Option<ParserByteSpanV0>,
+    pub property_name: String,
+    pub value: Option<String>,
+    pub target_style_uri: Option<String>,
+    pub cascade_tier: &'static str,
+    pub static_value: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -162,6 +175,7 @@ pub fn summarize_omena_bridge_source_syntax_index_for_source_language(
         imported_style_bindings,
         class_string_literals,
         style_property_accesses,
+        inline_style_declarations: ast_facts.inline_style_declarations,
         selector_references: Vec::new(),
         type_fact_targets: Vec::new(),
     };
@@ -300,6 +314,7 @@ fn property_access_style_targets(
 struct SourceSyntaxAstFacts {
     class_string_literals: Vec<ParserByteSpanV0>,
     style_property_accesses: Vec<SourceStylePropertyAccessFactV0>,
+    inline_style_declarations: Vec<SourceInlineStyleDeclarationFactV0>,
     class_name_expression_spans: Vec<ParserByteSpanV0>,
     classnames_bind_utility_bindings: Vec<ClassnamesBindUtilityBinding>,
     classnames_bind_call_arguments: Vec<ClassnamesBindCallArgument>,
@@ -320,6 +335,7 @@ fn collect_source_syntax_ast_facts(
         return SourceSyntaxAstFacts {
             class_string_literals: Vec::new(),
             style_property_accesses: Vec::new(),
+            inline_style_declarations: Vec::new(),
             class_name_expression_spans: Vec::new(),
             classnames_bind_utility_bindings: Vec::new(),
             classnames_bind_call_arguments: Vec::new(),
@@ -333,6 +349,7 @@ fn collect_source_syntax_ast_facts(
         classnames_bind_imports,
         class_string_literals: Vec::new(),
         style_property_accesses: Vec::new(),
+        inline_style_declarations: Vec::new(),
         class_name_expression_spans: Vec::new(),
         classnames_bind_utility_bindings: Vec::new(),
         classnames_bind_call_arguments: Vec::new(),
@@ -342,6 +359,7 @@ fn collect_source_syntax_ast_facts(
     SourceSyntaxAstFacts {
         class_string_literals: collector.class_string_literals,
         style_property_accesses: collector.style_property_accesses,
+        inline_style_declarations: collector.inline_style_declarations,
         class_name_expression_spans: collector.class_name_expression_spans,
         classnames_bind_utility_bindings: collector.classnames_bind_utility_bindings,
         classnames_bind_call_arguments: collector.classnames_bind_call_arguments,
@@ -443,6 +461,7 @@ struct SourceSyntaxAstCollector<'a> {
     classnames_bind_imports: &'a [String],
     class_string_literals: Vec<ParserByteSpanV0>,
     style_property_accesses: Vec<SourceStylePropertyAccessFactV0>,
+    inline_style_declarations: Vec<SourceInlineStyleDeclarationFactV0>,
     class_name_expression_spans: Vec<ParserByteSpanV0>,
     classnames_bind_utility_bindings: Vec<ClassnamesBindUtilityBinding>,
     classnames_bind_call_arguments: Vec<ClassnamesBindCallArgument>,
@@ -896,6 +915,11 @@ impl<'a> SourceSyntaxAstCollector<'a> {
                         self.collect_class_name_string_literal_attribute(value);
                         self.collect_class_name_expression_attribute(value);
                     }
+                    if is_jsx_style_attribute(&attribute.name)
+                        && let Some(value) = &attribute.value
+                    {
+                        self.collect_inline_style_attribute(value);
+                    }
                     if let Some(value) = &attribute.value {
                         self.collect_jsx_attribute_value(value);
                     }
@@ -942,6 +966,39 @@ impl<'a> SourceSyntaxAstCollector<'a> {
         };
         if let Some(span) = jsx_expression_span(&container.expression) {
             self.class_name_expression_spans.push(span);
+        }
+    }
+
+    fn collect_inline_style_attribute(&mut self, value: &JSXAttributeValue<'a>) {
+        let JSXAttributeValue::ExpressionContainer(container) = value else {
+            return;
+        };
+        let JSXExpression::ObjectExpression(object) = &container.expression else {
+            return;
+        };
+        let target_style_uri = self.single_imported_style_target_uri();
+        for property in &object.properties {
+            let ObjectPropertyKind::ObjectProperty(property) = property else {
+                continue;
+            };
+            if property.computed {
+                continue;
+            }
+            let Some((property_name, byte_span)) = self.inline_style_property_name(&property.key)
+            else {
+                continue;
+            };
+            let value_byte_span = Some(parser_byte_span(property.value.span()));
+            self.inline_style_declarations
+                .push(SourceInlineStyleDeclarationFactV0 {
+                    byte_span,
+                    value_byte_span,
+                    property_name,
+                    value: self.inline_style_static_value(&property.value),
+                    target_style_uri: target_style_uri.clone(),
+                    cascade_tier: "authorInlineStyle",
+                    static_value: self.inline_style_value_is_static(&property.value),
+                });
         }
     }
 
@@ -1031,6 +1088,69 @@ impl<'a> SourceSyntaxAstCollector<'a> {
                     self.collect_expression(&spread.argument);
                 }
             }
+        }
+    }
+
+    fn single_imported_style_target_uri(&self) -> Option<String> {
+        let targets = self
+            .style_targets
+            .iter()
+            .filter_map(|target| target.target_style_uri.as_deref())
+            .collect::<BTreeSet<_>>();
+        if targets.len() == 1 {
+            targets.into_iter().next().map(str::to_string)
+        } else {
+            None
+        }
+    }
+
+    fn inline_style_property_name(
+        &self,
+        key: &oxc_ast::ast::PropertyKey<'a>,
+    ) -> Option<(String, ParserByteSpanV0)> {
+        let byte_span = parser_byte_span(key.span());
+        let raw = self.source.get(byte_span.start..byte_span.end)?.trim();
+        let unquoted = raw
+            .strip_prefix(['"', '\''])
+            .and_then(|value| value.strip_suffix(['"', '\'']))
+            .unwrap_or(raw);
+        if unquoted.is_empty() || unquoted.contains(char::is_whitespace) {
+            return None;
+        }
+        Some((normalize_inline_style_property_name(unquoted), byte_span))
+    }
+
+    fn inline_style_static_value(&self, expression: &Expression<'a>) -> Option<String> {
+        if !self.inline_style_value_is_static(expression) {
+            return None;
+        }
+        let span = parser_byte_span(expression.span());
+        Some(self.source.get(span.start..span.end)?.trim().to_string())
+    }
+
+    fn inline_style_value_is_static(&self, expression: &Expression<'a>) -> bool {
+        match expression {
+            Expression::StringLiteral(_)
+            | Expression::NumericLiteral(_)
+            | Expression::BooleanLiteral(_)
+            | Expression::NullLiteral(_) => true,
+            Expression::TemplateLiteral(literal) => literal.expressions.is_empty(),
+            Expression::ParenthesizedExpression(expression) => {
+                self.inline_style_value_is_static(&expression.expression)
+            }
+            Expression::TSAsExpression(expression) => {
+                self.inline_style_value_is_static(&expression.expression)
+            }
+            Expression::TSSatisfiesExpression(expression) => {
+                self.inline_style_value_is_static(&expression.expression)
+            }
+            Expression::TSNonNullExpression(expression) => {
+                self.inline_style_value_is_static(&expression.expression)
+            }
+            Expression::TSTypeAssertion(expression) => {
+                self.inline_style_value_is_static(&expression.expression)
+            }
+            _ => false,
         }
     }
 
@@ -1194,6 +1314,15 @@ impl<'a> SourceSyntaxAstCollector<'a> {
                 .then_with(|| left.target_style_uri.cmp(&right.target_style_uri))
         });
         self.style_property_accesses.dedup();
+        self.inline_style_declarations.sort_by(|left, right| {
+            left.byte_span
+                .start
+                .cmp(&right.byte_span.start)
+                .then_with(|| left.byte_span.end.cmp(&right.byte_span.end))
+                .then_with(|| left.property_name.cmp(&right.property_name))
+                .then_with(|| left.target_style_uri.cmp(&right.target_style_uri))
+        });
+        self.inline_style_declarations.dedup();
         self.classnames_bind_utility_bindings
             .sort_by(|left, right| {
                 left.binding
@@ -1225,6 +1354,28 @@ fn parser_byte_span(span: Span) -> ParserByteSpanV0 {
 
 fn is_jsx_class_name_attribute(name: &JSXAttributeName<'_>) -> bool {
     matches!(name, JSXAttributeName::Identifier(identifier) if identifier.name.as_str() == "className")
+}
+
+fn is_jsx_style_attribute(name: &JSXAttributeName<'_>) -> bool {
+    matches!(name, JSXAttributeName::Identifier(identifier) if identifier.name.as_str() == "style")
+}
+
+fn normalize_inline_style_property_name(name: &str) -> String {
+    if name.starts_with("--") {
+        return name.to_string();
+    }
+    let mut normalized = String::new();
+    for character in name.chars() {
+        if character.is_ascii_uppercase() {
+            if !normalized.is_empty() {
+                normalized.push('-');
+            }
+            normalized.push(character.to_ascii_lowercase());
+        } else {
+            normalized.push(character);
+        }
+    }
+    normalized
 }
 
 fn jsx_expression_span(expression: &JSXExpression<'_>) -> Option<ParserByteSpanV0> {

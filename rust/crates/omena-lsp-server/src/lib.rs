@@ -1045,6 +1045,9 @@ fn resolve_style_diagnostics_for_uri(state: &LspShellState, document_uri: &str) 
                 );
             }
             if let Some(cascade_narrowing) = diagnostic.cascade_narrowing {
+                if let Some(runtime_state) = cascade_narrowing.runtime_state.as_ref() {
+                    data.insert("runtimeState".to_string(), json!(runtime_state));
+                }
                 data.insert("cascadeNarrowing".to_string(), json!(cascade_narrowing));
             }
 

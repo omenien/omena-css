@@ -82,5 +82,18 @@ fn resolves_unnecessary_tags_for_cascade_style_diagnostics() -> TestResult {
         unreachable.pointer("/data/cascadeNarrowing/elementClassIteration/product"),
         Some(&json!("omena-abstract-value.reduced-product-iteration")),
     );
+    assert_eq!(
+        unreachable.pointer("/data/runtimeState/product"),
+        Some(&json!("omena-query.runtime-state-scenario-evidence")),
+    );
+    assert_eq!(
+        unreachable.pointer("/data/runtimeState/staticBoundary/boundaryKind"),
+        Some(&json!("staticValueAssumingNoRuntimeOverride")),
+    );
+    assert_eq!(
+        unreachable
+            .pointer("/data/cascadeNarrowing/runtimeState/staticBoundary/tracksClassListMutation"),
+        Some(&json!(false)),
+    );
     Ok(())
 }

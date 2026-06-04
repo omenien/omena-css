@@ -1266,6 +1266,7 @@ pub fn summarize_omena_query_style_diagnostics_for_file_with_deep_analysis(
             "missingSassSymbolDiagnostics",
             "missingExtendTargetDiagnostics",
             "checkerProductDiagnosticGate",
+            "runtimeStateScenarioEvidence",
         ],
     };
     apply_omena_query_style_diagnostic_suppressions(source, &mut summary);
@@ -1552,11 +1553,192 @@ pub fn summarize_omena_query_style_diagnostics_for_workspace_file_with_external_
         );
         push_omena_query_ready_surface(&mut summary.ready_surfaces, "strictnessSigilGating");
     }
+    attach_omena_query_runtime_state_inline_overrides_for_workspace(
+        target_style_path,
+        &mut summary,
+        style_sources,
+        source_documents,
+        package_manifests,
+        resolution_inputs.bundler_path_mappings.as_slice(),
+        resolution_inputs.tsconfig_path_mappings.as_slice(),
+    );
+    push_omena_query_ready_surface(
+        &mut summary.ready_surfaces,
+        "runtimeStateInlineStyleOverrides",
+    );
     apply_omena_query_checker_product_gate_to_style_diagnostics(&mut summary.diagnostics);
     push_omena_query_ready_surface(&mut summary.ready_surfaces, "checkerProductDiagnosticGate");
     apply_omena_query_style_diagnostic_suppressions(&target.style_source, &mut summary);
     summary.diagnostic_count = summary.diagnostics.len();
     Some(summary)
+}
+
+fn attach_omena_query_runtime_state_inline_overrides_for_workspace(
+    target_style_path: &str,
+    summary: &mut OmenaQueryStyleDiagnosticsForFileV0,
+    style_sources: &[OmenaQueryStyleSourceInputV0],
+    source_documents: &[OmenaQuerySourceDocumentInputV0],
+    package_manifests: &[OmenaQueryStylePackageManifestV0],
+    bundler_path_mappings: &[OmenaResolverBundlerPathAliasMappingV0],
+    tsconfig_path_mappings: &[OmenaResolverTsconfigPathMappingV0],
+) {
+    let inline_overrides = collect_omena_query_inline_style_runtime_overrides_for_style(
+        target_style_path,
+        style_sources,
+        source_documents,
+        package_manifests,
+        bundler_path_mappings,
+        tsconfig_path_mappings,
+    );
+    if inline_overrides.is_empty() {
+        return;
+    }
+
+    for diagnostic in &mut summary.diagnostics {
+        let Some(runtime_state) = diagnostic
+            .cascade_narrowing
+            .as_mut()
+            .and_then(|narrowing| narrowing.runtime_state.as_mut())
+        else {
+            continue;
+        };
+        runtime_state.inline_style_overrides = inline_overrides.clone();
+        let property_name = runtime_state.property_name.clone();
+        runtime_state.scenarios.extend(
+            inline_overrides
+                .iter()
+                .filter(|override_fact| override_fact.property_name == property_name)
+                .map(|override_fact| {
+                    omena_query_inline_style_runtime_override_scenario(
+                        property_name.as_str(),
+                        override_fact,
+                    )
+                }),
+        );
+        for driver in &mut runtime_state.driver_summaries {
+            if driver.driver == "inlineStyleHighestSpecificityTier" {
+                driver.status = "sourceFactsJoined";
+                driver.scenario_count = runtime_state
+                    .inline_style_overrides
+                    .iter()
+                    .filter(|override_fact| override_fact.property_name == property_name)
+                    .count();
+            }
+        }
+    }
+}
+
+fn omena_query_inline_style_runtime_override_scenario(
+    property_name: &str,
+    override_fact: &OmenaQueryInlineStyleRuntimeOverrideV0,
+) -> OmenaQueryRuntimeStateScenarioV0 {
+    let value = override_fact
+        .value
+        .clone()
+        .unwrap_or_else(|| "<dynamic>".to_string());
+    let property_value_narrowing = narrow_abstract_property_value_for_pseudo_state(
+        property_name,
+        None,
+        &[AbstractPropertyValueCandidateV0 {
+            property_name: property_name.to_string(),
+            value: value.clone(),
+            pseudo_state: None,
+        }],
+    );
+
+    OmenaQueryRuntimeStateScenarioV0 {
+        scenario_kind: "inlineStyleOverride",
+        pseudo_state: None,
+        condition_context: Vec::new(),
+        declaration_ids: vec![format!(
+            "inline-style:{}:{}:{}",
+            override_fact.source_path,
+            override_fact.range.start.line,
+            override_fact.range.start.character
+        )],
+        winner_declaration_id: Some("inline-style-author-tier".to_string()),
+        winner_value: Some(value),
+        property_value_narrowing,
+    }
+}
+
+fn collect_omena_query_inline_style_runtime_overrides_for_style(
+    target_style_path: &str,
+    style_sources: &[OmenaQueryStyleSourceInputV0],
+    source_documents: &[OmenaQuerySourceDocumentInputV0],
+    package_manifests: &[OmenaQueryStylePackageManifestV0],
+    bundler_path_mappings: &[OmenaResolverBundlerPathAliasMappingV0],
+    tsconfig_path_mappings: &[OmenaResolverTsconfigPathMappingV0],
+) -> Vec<OmenaQueryInlineStyleRuntimeOverrideV0> {
+    let available_style_paths = style_sources
+        .iter()
+        .map(|source| source.style_path.as_str())
+        .collect::<BTreeSet<_>>();
+    let mut overrides = Vec::new();
+
+    for document in source_documents {
+        let imports = summarize_omena_query_source_import_declarations_for_source_language(
+            document.source_path.as_str(),
+            &document.source_source,
+            None,
+        );
+        let mut imported_style_bindings = Vec::new();
+        let mut classnames_bind_bindings = Vec::new();
+        for import in imports.imports {
+            if import.specifier == "classnames/bind" {
+                classnames_bind_bindings.push(import.binding);
+                continue;
+            }
+            let Some(style_path) = resolve_style_module_source_with_path_mappings(
+                &document.source_path,
+                &import.specifier,
+                &available_style_paths,
+                package_manifests,
+                bundler_path_mappings,
+                tsconfig_path_mappings,
+            ) else {
+                continue;
+            };
+            imported_style_bindings.push(OmenaQuerySourceImportedStyleBindingV0 {
+                binding: import.binding,
+                style_uri: style_path,
+            });
+        }
+        if imported_style_bindings.is_empty() {
+            continue;
+        }
+
+        let index = summarize_omena_query_source_syntax_index_for_source_language(
+            document.source_path.as_str(),
+            &document.source_source,
+            None,
+            imported_style_bindings,
+            classnames_bind_bindings,
+        );
+        for declaration in index.inline_style_declarations {
+            if declaration.target_style_uri.as_deref() != Some(target_style_path) {
+                continue;
+            }
+            overrides.push(OmenaQueryInlineStyleRuntimeOverrideV0 {
+                source_path: document.source_path.clone(),
+                range: parser_range_for_byte_span(&document.source_source, declaration.byte_span),
+                property_name: declaration.property_name,
+                value: declaration.value,
+                cascade_tier: declaration.cascade_tier,
+                static_value: declaration.static_value,
+            });
+        }
+    }
+
+    overrides.sort_by(|left, right| {
+        left.source_path
+            .cmp(&right.source_path)
+            .then_with(|| left.range.start.line.cmp(&right.range.start.line))
+            .then_with(|| left.range.start.character.cmp(&right.range.start.character))
+            .then_with(|| left.property_name.cmp(&right.property_name))
+    });
+    overrides.dedup();
+    overrides
 }
 
 fn collect_omena_query_external_top_any_sass_symbol_ranges(

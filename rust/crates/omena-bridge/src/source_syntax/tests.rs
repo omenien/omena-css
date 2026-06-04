@@ -76,6 +76,65 @@ export function View() {
 }
 
 #[test]
+fn collects_inline_style_declarations_from_jsx_style_prop() {
+    let source = r#"import styles from "./App.module.scss";
+const token = "dynamic";
+export function View() {
+  return <div className={styles.root} style={{ color: "red", borderColor: `blue`, "--brand": token }} />;
+}"#;
+
+    let index = summarize_omena_bridge_source_syntax_index(
+        source,
+        vec![SourceImportedStyleBindingV0 {
+            binding: "styles".to_string(),
+            style_uri: "file:///workspace/App.module.scss".to_string(),
+        }],
+        Vec::new(),
+    );
+
+    let declarations = index
+        .inline_style_declarations
+        .iter()
+        .map(|declaration| {
+            (
+                declaration.property_name.as_str(),
+                declaration.value.as_deref(),
+                declaration.cascade_tier,
+                declaration.static_value,
+                declaration.target_style_uri.as_deref(),
+            )
+        })
+        .collect::<Vec<_>>();
+
+    assert_eq!(
+        declarations,
+        vec![
+            (
+                "color",
+                Some("\"red\""),
+                "authorInlineStyle",
+                true,
+                Some("file:///workspace/App.module.scss")
+            ),
+            (
+                "border-color",
+                Some("`blue`"),
+                "authorInlineStyle",
+                true,
+                Some("file:///workspace/App.module.scss")
+            ),
+            (
+                "--brand",
+                None,
+                "authorInlineStyle",
+                false,
+                Some("file:///workspace/App.module.scss")
+            ),
+        ]
+    );
+}
+
+#[test]
 fn walks_anonymous_arrow_default_export_body_for_style_property_accesses() {
     // Regression for RFC-0007 #53: `collect_export_default_declaration` dropped every
     // expression-kind default export except member/call, so `export default () => <JSX/>` was

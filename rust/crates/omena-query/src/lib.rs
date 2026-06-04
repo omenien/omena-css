@@ -12,6 +12,7 @@ pub use omena_bridge::{
     SourceImportDeclarationSummaryV0 as OmenaQuerySourceImportDeclarationSummaryV0,
     SourceImportDeclarationV0 as OmenaQuerySourceImportDeclarationV0,
     SourceImportedStyleBindingV0 as OmenaQuerySourceImportedStyleBindingV0,
+    SourceInlineStyleDeclarationFactV0 as OmenaQuerySourceInlineStyleDeclarationFactV0,
     SourceSelectorReferenceFactV0 as OmenaQuerySourceSelectorReferenceFactV0,
     SourceSelectorReferenceMatchKindV0 as OmenaQuerySourceSelectorReferenceMatchKindV0,
     SourceSyntaxIndexV0 as OmenaQuerySourceSyntaxIndexV0,

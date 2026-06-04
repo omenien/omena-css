@@ -934,6 +934,68 @@ pub struct OmenaQueryCascadeNarrowingEvidenceV0 {
     pub declaration_ids: Vec<String>,
     pub element_class_iteration: ReducedClassValueProductIterationV0,
     pub property_value_narrowing: AbstractPropertyValueNarrowingV0,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub runtime_state: Option<OmenaQueryRuntimeStateScenarioEvidenceV0>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct OmenaQueryRuntimeStateScenarioEvidenceV0 {
+    pub schema_version: &'static str,
+    pub product: &'static str,
+    pub selector: String,
+    pub selector_class_names: Vec<String>,
+    pub property_name: String,
+    pub scenario_join_kind: &'static str,
+    pub static_boundary: OmenaQueryRuntimeStateStaticBoundaryV0,
+    pub driver_summaries: Vec<OmenaQueryRuntimeStateDriverSummaryV0>,
+    pub scenarios: Vec<OmenaQueryRuntimeStateScenarioV0>,
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub inline_style_overrides: Vec<OmenaQueryInlineStyleRuntimeOverrideV0>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct OmenaQueryRuntimeStateStaticBoundaryV0 {
+    pub boundary_kind: &'static str,
+    pub static_value_assuming_no_runtime_override: bool,
+    pub tracks_dom_mutation: bool,
+    pub tracks_class_list_mutation: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct OmenaQueryRuntimeStateDriverSummaryV0 {
+    pub driver: &'static str,
+    pub status: &'static str,
+    pub scenario_count: usize,
+    pub provenance: Vec<&'static str>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct OmenaQueryRuntimeStateScenarioV0 {
+    pub scenario_kind: &'static str,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub pseudo_state: Option<String>,
+    pub condition_context: Vec<String>,
+    pub declaration_ids: Vec<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub winner_declaration_id: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub winner_value: Option<String>,
+    pub property_value_narrowing: AbstractPropertyValueNarrowingV0,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct OmenaQueryInlineStyleRuntimeOverrideV0 {
+    pub source_path: String,
+    pub range: ParserRangeV0,
+    pub property_name: String,
+    pub value: Option<String>,
+    pub cascade_tier: &'static str,
+    pub static_value: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
