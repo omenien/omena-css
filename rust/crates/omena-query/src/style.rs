@@ -351,6 +351,17 @@ fn summarize_sass_module_cross_file_resolution(
                 "unresolved"
             };
             let resolved_style_path = resolution.resolved_style_path;
+            let symlink_chain_link_count = resolution.symlink_chain.link_count;
+            let symlink_chain_links = resolution
+                .symlink_chain
+                .links
+                .into_iter()
+                .map(|link| OmenaQuerySymlinkChainLinkV0 {
+                    link_path: link.link_path,
+                    target_path: link.target_path,
+                    target_was_absolute: link.target_was_absolute,
+                })
+                .collect::<Vec<_>>();
             let configuration_evidence =
                 transform::derive_static_scss_module_resolution_configuration_evidence(
                     entry.style_source.as_str(),
@@ -371,6 +382,8 @@ fn summarize_sass_module_cross_file_resolution(
                 status,
                 resolution_kind: resolution.resolution_kind,
                 candidate_count: resolution.candidate_count,
+                symlink_chain_link_count,
+                symlink_chain_links,
                 configuration_signature: configuration_evidence.configuration_signature,
                 configuration_variable_count: configuration_evidence.configuration_variable_count,
                 module_instance_identity_key: configuration_evidence.module_instance_identity_key,
@@ -401,6 +414,15 @@ fn summarize_sass_module_cross_file_resolution(
         .iter()
         .filter(|edge| edge.visibility_filter_kind.is_some())
         .count();
+    let symlink_chain_edge_count = edges
+        .iter()
+        .filter(|edge| edge.symlink_chain_link_count > 0)
+        .count();
+    let symlink_chain_link_count = edges.iter().map(|edge| edge.symlink_chain_link_count).sum();
+    let configured_module_instance_count = edges
+        .iter()
+        .filter(|edge| edge.module_instance_identity_key.is_some())
+        .count();
 
     OmenaQuerySassModuleCrossFileResolutionV0 {
         schema_version: "0",
@@ -412,6 +434,9 @@ fn summarize_sass_module_cross_file_resolution(
         resolved_module_edge_count,
         unresolved_module_edge_count,
         external_module_edge_count,
+        symlink_chain_edge_count,
+        symlink_chain_link_count,
+        configured_module_instance_count,
         edges,
         graph_closure_edge_count: graph_closure_edges.len(),
         cycle_count: cycles.len(),
@@ -427,6 +452,7 @@ fn summarize_sass_module_cross_file_resolution(
             cycle_detection_ready: true,
             namespace_show_hide_filter_ready: true,
             configured_module_instance_identity_ready: true,
+            symlink_chain_metadata_ready: true,
         },
         next_priorities: Vec::new(),
     }

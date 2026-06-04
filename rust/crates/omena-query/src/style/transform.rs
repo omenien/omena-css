@@ -552,22 +552,51 @@ pub fn attach_omena_query_consumer_build_source_map_v3(
     summary: &mut OmenaQueryConsumerBuildSummaryV0,
     style_source: &str,
 ) {
+    let style_source = OmenaQueryStyleSourceInputV0 {
+        style_path: summary.style_path.clone(),
+        style_source: style_source.to_string(),
+    };
+    attach_omena_query_consumer_build_source_map_v3_with_sources(summary, &[style_source], &[]);
+}
+
+pub fn attach_omena_query_consumer_build_source_map_v3_with_sources(
+    summary: &mut OmenaQueryConsumerBuildSummaryV0,
+    style_sources: &[OmenaQueryStyleSourceInputV0],
+    package_manifests: &[OmenaQueryStylePackageManifestV0],
+) {
     let source_map = summarize_omena_query_consumer_build_source_map_v3(
         &summary.style_path,
-        style_source,
+        style_sources,
         &summary.execution,
+        package_manifests,
     );
     summary.source_map_v3 = Some(source_map);
     if !summary.ready_surfaces.contains(&"sourceMapV3Serializer") {
         summary.ready_surfaces.push("sourceMapV3Serializer");
     }
+    if summary
+        .source_map_v3
+        .as_ref()
+        .is_some_and(|source_map| source_map.sources.len() > 1)
+        && !summary
+            .ready_surfaces
+            .contains(&"bundleSourceMapOriginChain")
+    {
+        summary.ready_surfaces.push("bundleSourceMapOriginChain");
+    }
 }
 
 pub fn summarize_omena_query_consumer_build_source_map_v3(
     style_path: &str,
-    style_source: &str,
+    style_sources: &[OmenaQueryStyleSourceInputV0],
     execution: &TransformExecutionSummaryV0,
+    package_manifests: &[OmenaQueryStylePackageManifestV0],
 ) -> OmenaQueryTransformSourceMapV3V0 {
+    let source_by_path = style_sources
+        .iter()
+        .map(|source| (source.style_path.as_str(), source.style_source.as_str()))
+        .collect::<BTreeMap<_, _>>();
+    let style_source = source_by_path.get(style_path).copied().unwrap_or_default();
     let dialect = omena_parser_dialect_for_style_path(style_path);
     let artifact = print_transform_execution_artifact_with_dialect_and_source(
         style_path,
@@ -582,15 +611,81 @@ pub fn summarize_omena_query_consumer_build_source_map_v3(
         default_omena_query_transform_print_options(),
         execution,
     );
-    artifact.source_map_v3.unwrap_or_else(|| {
-        serialize_transform_source_map_v3(
+    let available_style_paths = source_by_path.keys().copied().collect::<BTreeSet<_>>();
+    let mut segments = artifact.source_map_segments.clone();
+    segments.extend(import_inline_source_map_segments(
+        style_path,
+        execution,
+        &source_by_path,
+        &available_style_paths,
+        package_manifests,
+    ));
+    let source_contents = style_sources
+        .iter()
+        .map(|source| (source.style_path.as_str(), source.style_source.as_str()))
+        .collect::<Vec<_>>();
+    serialize_transform_source_map_v3_with_source_contents(
+        style_path,
+        execution.output_css.as_str(),
+        style_path,
+        source_contents.as_slice(),
+        segments.as_slice(),
+    )
+}
+
+fn import_inline_source_map_segments(
+    style_path: &str,
+    execution: &TransformExecutionSummaryV0,
+    source_by_path: &BTreeMap<&str, &str>,
+    available_style_paths: &BTreeSet<&str>,
+    package_manifests: &[OmenaQueryStylePackageManifestV0],
+) -> Vec<TransformSourceMapSegmentV0> {
+    let mut segments = Vec::new();
+    let mut search_start = 0;
+    for inline in &execution.css_import_inlines {
+        if inline.replacement_css.is_empty() || search_start > execution.output_css.len() {
+            continue;
+        }
+        let Some(resolved_style_path) = resolve_style_module_source(
             style_path,
-            execution.output_css.as_str(),
-            style_path,
-            Some(style_source),
-            artifact.source_map_segments.as_slice(),
-        )
-    })
+            inline.import_source.as_str(),
+            available_style_paths,
+            package_manifests,
+        ) else {
+            continue;
+        };
+        let Some(imported_source) = source_by_path.get(resolved_style_path.as_str()).copied()
+        else {
+            continue;
+        };
+        let Some(relative_start) =
+            execution.output_css[search_start..].find(&inline.replacement_css)
+        else {
+            continue;
+        };
+        let generated_start = search_start + relative_start;
+        let generated_end = generated_start + inline.replacement_css.len();
+        segments.push(TransformSourceMapSegmentV0 {
+            source_path: resolved_style_path,
+            original_start: 0,
+            original_end: imported_source.len(),
+            generated_start,
+            generated_end,
+            original_start_point: transform_source_map_point(imported_source, 0),
+            original_end_point: transform_source_map_point(imported_source, imported_source.len()),
+            generated_start_point: transform_source_map_point(
+                execution.output_css.as_str(),
+                generated_start,
+            ),
+            generated_end_point: transform_source_map_point(
+                execution.output_css.as_str(),
+                generated_end,
+            ),
+            pass_id: TransformPassKind::ImportInline.id(),
+        });
+        search_start = generated_end;
+    }
+    segments
 }
 
 fn derive_single_source_transform_context(

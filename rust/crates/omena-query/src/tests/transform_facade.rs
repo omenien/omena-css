@@ -115,7 +115,7 @@ fn exposes_transform_plan_minified_print_mode() {
 }
 
 #[test]
-fn consumer_build_summary_can_attach_source_map_v3() {
+fn consumer_build_summary_can_attach_source_map_v3() -> Result<(), String> {
     let source = "/* remove */ .button { color: red; }\n.card { color: blue; }";
     let mut summary = execute_omena_query_consumer_build_style_source(
         "Button.module.css",
@@ -132,7 +132,7 @@ fn consumer_build_summary_can_attach_source_map_v3() {
     let source_map = summary
         .source_map_v3
         .as_ref()
-        .expect("consumer build should attach Source Map V3 on request");
+        .ok_or_else(|| "consumer build should attach Source Map V3 on request".to_string())?;
     assert_eq!(source_map.version, 3);
     assert_eq!(source_map.file, "Button.module.css");
     assert_eq!(source_map.sources, vec!["Button.module.css"]);
@@ -140,10 +140,63 @@ fn consumer_build_summary_can_attach_source_map_v3() {
     assert!(!source_map.mappings.is_empty());
     assert!(source_map.x_omena_segment_count > 0);
     assert!(summary.ready_surfaces.contains(&"sourceMapV3Serializer"));
+    Ok(())
 }
 
 #[test]
-fn consumer_build_summary_can_attach_bundle_asset_urls() {
+fn consumer_build_source_map_v3_preserves_bundle_import_origins() -> Result<(), String> {
+    let sources = vec![
+        OmenaQueryStyleSourceInputV0 {
+            style_path: "src/App.css".to_string(),
+            style_source: r#"@import "./tokens.css"; .app { color: green; }"#.to_string(),
+        },
+        OmenaQueryStyleSourceInputV0 {
+            style_path: "src/tokens.css".to_string(),
+            style_source: ".token { color: blue; }".to_string(),
+        },
+    ];
+    let mut summary = execute_omena_query_consumer_build_style_sources(
+        "src/App.css",
+        &sources,
+        &["import-inline".to_string(), "print-css".to_string()],
+        &[],
+    )?;
+
+    attach_omena_query_consumer_build_bundle_summary(&mut summary, &sources[0].style_source);
+    attach_omena_query_consumer_build_source_map_v3_with_sources(&mut summary, &sources, &[]);
+
+    assert!(
+        summary
+            .execution
+            .output_css
+            .contains(".token { color: blue; }")
+    );
+    assert!(!summary.execution.output_css.contains("@import"));
+    let source_map = summary
+        .source_map_v3
+        .as_ref()
+        .ok_or_else(|| "consumer build should attach bundle-aware Source Map V3".to_string())?;
+    assert!(source_map.sources.contains(&"src/App.css".to_string()));
+    assert!(source_map.sources.contains(&"src/tokens.css".to_string()));
+    assert!(
+        source_map
+            .sources
+            .iter()
+            .position(|source| source == "src/tokens.css")
+            .and_then(|index| source_map.sources_content.get(index))
+            .is_some_and(|content| content == ".token { color: blue; }")
+    );
+    assert!(source_map.x_omena_pass_ids.contains(&"import-inline"));
+    assert!(
+        summary
+            .ready_surfaces
+            .contains(&"bundleSourceMapOriginChain")
+    );
+    Ok(())
+}
+
+#[test]
+fn consumer_build_summary_can_attach_bundle_asset_urls() -> Result<(), String> {
     let source = r#".button { background-image: url("./assets/icon.svg"); }"#;
     let mut summary = execute_omena_query_consumer_build_style_source(
         "src/Button.module.css",
@@ -156,7 +209,7 @@ fn consumer_build_summary_can_attach_bundle_asset_urls() {
     let bundle = summary
         .bundle
         .as_ref()
-        .expect("consumer build should attach bundle summary on request");
+        .ok_or_else(|| "consumer build should attach bundle summary on request".to_string())?;
     assert_eq!(bundle.asset_urls.len(), 1);
     assert_eq!(bundle.asset_urls[0].normalized_url, "./assets/icon.svg");
     assert_eq!(
@@ -167,6 +220,7 @@ fn consumer_build_summary_can_attach_bundle_asset_urls() {
     assert_eq!(bundle.code_split_chunks.len(), 2);
     assert!(summary.ready_surfaces.contains(&"bundleAssetUrlResolution"));
     assert!(summary.ready_surfaces.contains(&"bundleCodeSplitPlan"));
+    Ok(())
 }
 
 #[test]

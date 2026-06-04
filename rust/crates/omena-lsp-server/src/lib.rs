@@ -1,6 +1,7 @@
 mod boundary;
 mod diagnostics_scheduler;
 mod frame_aware_refresh;
+mod lsp_output;
 mod message_loop;
 mod protocol;
 mod query_adapter;
@@ -13,9 +14,12 @@ mod workspace_runtime_registry;
 
 pub use boundary::*;
 pub use frame_aware_refresh::*;
+pub use lsp_output::*;
 #[cfg(test)]
 pub(crate) use message_loop::current_time_millis;
-pub use message_loop::{handle_lsp_message, handle_lsp_message_outputs};
+pub use message_loop::{
+    handle_lsp_message, handle_lsp_message_outputs, handle_lsp_message_scheduled_outputs,
+};
 use omena_query::{
     OmenaQueryCodeActionV0, OmenaQueryCompletionCandidateV0, OmenaQueryCompletionItemV0,
     OmenaQueryEngineInputV2, OmenaQueryExternalModuleModeV0, OmenaQuerySourceDocumentInputV0,

@@ -1,7 +1,7 @@
 use crate::{
-    LspShellState, is_resolution_config_document_uri, is_style_document_uri,
-    resolve_document_diagnostics_for_uri, resolve_source_diagnostics_for_uri,
-    resolve_workspace_folder_uri, workspace_folder_compatible,
+    LspShellState, OPTIMIZING_DIAGNOSTICS_DELAY_MS, ScheduledLspOutput,
+    is_resolution_config_document_uri, is_style_document_uri, resolve_document_diagnostics_for_uri,
+    resolve_source_diagnostics_for_uri, resolve_workspace_folder_uri, workspace_folder_compatible,
 };
 use omena_query::{summarize_omena_query_analyzed_graph, summarize_omena_query_fast_facts};
 use serde::Serialize;
@@ -31,6 +31,7 @@ pub fn rust_diagnostics_scheduler_contract() -> RustDiagnosticsSchedulerBoundary
             "refreshOpenDocumentsOnConfigurationChange",
             "refreshOpenDocumentsAfterWorkspaceIndexing",
             "publishBaselineDiagnosticsBeforeOptimizingDiagnostics",
+            "deferOptimizingDiagnosticsOnRustPath",
         ],
         request_path_policy: vec![
             "noNodeDiagnosticsSchedulerOnRustLspPath",
@@ -38,6 +39,7 @@ pub fn rust_diagnostics_scheduler_contract() -> RustDiagnosticsSchedulerBoundary
             "closedDocumentsPublishEmptyDiagnostics",
             "baselineTierUsesFastFactsV0ForStyleDocuments",
             "optimizingTierUsesAnalyzedGraphV0ForStyleDocuments",
+            "optimizingDiagnosticsUseRustScheduledOutputDelay",
         ],
     }
 }
@@ -76,7 +78,7 @@ pub(crate) fn diagnostics_schedule_event(
 pub(crate) fn run_diagnostics_schedule(
     state: &LspShellState,
     event: DiagnosticsScheduleEvent,
-) -> Vec<Value> {
+) -> Vec<ScheduledLspOutput> {
     match event {
         DiagnosticsScheduleEvent::TextDocument { uri, is_close } => {
             diagnostics_for_text_document_event(state, uri.as_str(), is_close)
@@ -94,9 +96,11 @@ fn diagnostics_for_text_document_event(
     state: &LspShellState,
     uri: &str,
     is_close: bool,
-) -> Vec<Value> {
+) -> Vec<ScheduledLspOutput> {
     let mut outputs = if is_close {
-        vec![publish_diagnostics_notification(uri, json!([]))]
+        vec![ScheduledLspOutput::immediate(
+            publish_diagnostics_notification(uri, json!([])),
+        )]
     } else {
         publish_tiered_diagnostics_notifications(
             state,
@@ -118,7 +122,10 @@ fn diagnostics_for_text_document_event(
     outputs
 }
 
-fn diagnostics_for_watched_files(state: &LspShellState, uris: Vec<String>) -> Vec<Value> {
+fn diagnostics_for_watched_files(
+    state: &LspShellState,
+    uris: Vec<String>,
+) -> Vec<ScheduledLspOutput> {
     let mut outputs = Vec::new();
     let mut style_uris_to_refresh = BTreeSet::new();
     let mut config_uris_to_refresh = BTreeSet::new();
@@ -153,7 +160,7 @@ fn diagnostics_for_watched_files(state: &LspShellState, uris: Vec<String>) -> Ve
     outputs
 }
 
-fn diagnostics_for_open_documents(state: &LspShellState) -> Vec<Value> {
+fn diagnostics_for_open_documents(state: &LspShellState) -> Vec<ScheduledLspOutput> {
     open_document_uris_for_diagnostics(state)
         .into_iter()
         .flat_map(|uri| {
@@ -260,9 +267,11 @@ fn publish_tiered_diagnostics_notifications(
     state: &LspShellState,
     uri: &str,
     diagnostics: Value,
-) -> Vec<Value> {
+) -> Vec<ScheduledLspOutput> {
     let Some(diagnostics) = diagnostics.as_array() else {
-        return vec![publish_diagnostics_notification(uri, diagnostics)];
+        return vec![ScheduledLspOutput::immediate(
+            publish_diagnostics_notification(uri, diagnostics),
+        )];
     };
     let tier_plan = diagnostics_pipeline_tier_plan_for_uri(state, uri);
     let baseline_diagnostics = diagnostics
@@ -290,14 +299,13 @@ fn publish_tiered_diagnostics_notifications(
         })
         .collect::<Vec<_>>();
 
-    let mut outputs = vec![publish_diagnostics_notification(
-        uri,
-        json!(baseline_diagnostics),
+    let mut outputs = vec![ScheduledLspOutput::immediate(
+        publish_diagnostics_notification(uri, json!(baseline_diagnostics)),
     )];
     if full_diagnostics != baseline_diagnostics {
-        outputs.push(publish_diagnostics_notification(
-            uri,
-            json!(full_diagnostics),
+        outputs.push(ScheduledLspOutput::delayed(
+            publish_diagnostics_notification(uri, json!(full_diagnostics)),
+            OPTIMIZING_DIAGNOSTICS_DELAY_MS,
         ));
     }
     outputs
@@ -411,7 +419,7 @@ mod tests {
     #[test]
     fn publishes_baseline_before_optimizing_diagnostics() {
         let mut state = LspShellState::default();
-        let outputs = crate::handle_lsp_message_outputs(
+        let outputs = crate::handle_lsp_message_scheduled_outputs(
             &mut state,
             json!({
                 "jsonrpc": "2.0",
@@ -428,20 +436,30 @@ mod tests {
         );
 
         assert_eq!(outputs.len(), 2);
+        assert_eq!(outputs[0].delay_millis, None);
         assert_eq!(
-            outputs[0].pointer("/params/diagnostics/0/code"),
+            outputs[1].delay_millis,
+            Some(OPTIMIZING_DIAGNOSTICS_DELAY_MS)
+        );
+        assert_eq!(
+            outputs[0].value.pointer("/params/diagnostics/0/code"),
             Some(&json!("missingCustomProperty")),
         );
         assert_eq!(
-            outputs[0].pointer("/params/diagnostics/0/data/pipelineTier"),
+            outputs[0]
+                .value
+                .pointer("/params/diagnostics/0/data/pipelineTier"),
             Some(&json!("baseline")),
         );
         assert_eq!(
-            outputs[0].pointer("/params/diagnostics/0/data/pipelineTierEvidence"),
+            outputs[0]
+                .value
+                .pointer("/params/diagnostics/0/data/pipelineTierEvidence"),
             Some(&json!("fastFactsV0")),
         );
         assert!(
             outputs[0]
+                .value
                 .pointer("/params/diagnostics")
                 .and_then(Value::as_array)
                 .is_some_and(|diagnostics| diagnostics
@@ -450,25 +468,29 @@ mod tests {
                         != Some(&json!("unreachableDeclaration"))))
         );
 
-        let full_diagnostics = outputs[1]
-            .pointer("/params/diagnostics")
-            .and_then(Value::as_array)
-            .expect("full diagnostics notification");
         assert!(
-            full_diagnostics
-                .iter()
-                .any(|diagnostic| diagnostic.pointer("/code")
-                    == Some(&json!("missingCustomProperty"))
-                    && diagnostic.pointer("/data/pipelineTier") == Some(&json!("baseline")))
+            outputs[1]
+                .value
+                .pointer("/params/diagnostics")
+                .and_then(Value::as_array)
+                .is_some_and(|full_diagnostics| full_diagnostics.iter().any(
+                    |diagnostic| diagnostic.pointer("/code")
+                        == Some(&json!("missingCustomProperty"))
+                        && diagnostic.pointer("/data/pipelineTier") == Some(&json!("baseline"))
+                ))
         );
         assert!(
-            full_diagnostics
-                .iter()
-                .any(|diagnostic| diagnostic.pointer("/code")
-                    == Some(&json!("unreachableDeclaration"))
-                    && diagnostic.pointer("/data/pipelineTier") == Some(&json!("optimizing"))
-                    && diagnostic.pointer("/data/pipelineTierEvidence")
-                        == Some(&json!("analyzedGraphV0")))
+            outputs[1]
+                .value
+                .pointer("/params/diagnostics")
+                .and_then(Value::as_array)
+                .is_some_and(|full_diagnostics| full_diagnostics.iter().any(
+                    |diagnostic| diagnostic.pointer("/code")
+                        == Some(&json!("unreachableDeclaration"))
+                        && diagnostic.pointer("/data/pipelineTier") == Some(&json!("optimizing"))
+                        && diagnostic.pointer("/data/pipelineTierEvidence")
+                            == Some(&json!("analyzedGraphV0"))
+                ))
         );
     }
 }

@@ -118,6 +118,8 @@ describe("client LSP server runtime config", () => {
       "javascriptreact",
       "typescript",
       "javascript",
+      "vue",
+      "html",
       "scss",
       "less",
       "css",
@@ -127,7 +129,7 @@ describe("client LSP server runtime config", () => {
   it("declares static file watchers for the Rust LSP runtime", () => {
     expect(buildRustLspFileWatcherGlobs()).toEqual([
       "**/*.module.{scss,css,less}",
-      "**/*.{ts,tsx,js,jsx,mts,cts,mjs,cjs,d.ts}",
+      "**/*.{ts,tsx,js,jsx,mts,cts,mjs,cjs,d.ts,vue,html}",
       "**/tsconfig*.json",
       "**/jsconfig*.json",
       "**/package.json",

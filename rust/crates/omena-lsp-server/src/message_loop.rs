@@ -1,4 +1,5 @@
 use crate::diagnostics_scheduler::{diagnostics_schedule_event, run_diagnostics_schedule};
+use crate::lsp_output::ScheduledLspOutput;
 use crate::{
     CANCEL_REQUEST_METHOD, CASCADE_AT_POSITION_REQUEST, DEBUG_STATE_REQUEST, LspShellState,
     REQUEST_CANCELLED_ERROR_CODE, RUNTIME_LOOP_PROBE_REQUEST, SOURCE_DIAGNOSTICS_REQUEST,
@@ -234,6 +235,16 @@ fn cancelled_request_response(request_id: Value) -> Value {
 }
 
 pub fn handle_lsp_message_outputs(state: &mut LspShellState, message: Value) -> Vec<Value> {
+    handle_lsp_message_scheduled_outputs(state, message)
+        .into_iter()
+        .map(ScheduledLspOutput::into_value)
+        .collect()
+}
+
+pub fn handle_lsp_message_scheduled_outputs(
+    state: &mut LspShellState,
+    message: Value,
+) -> Vec<ScheduledLspOutput> {
     let method = message
         .get("method")
         .and_then(Value::as_str)
@@ -250,7 +261,7 @@ pub fn handle_lsp_message_outputs(state: &mut LspShellState, message: Value) -> 
     let mut outputs = Vec::new();
 
     if let Some(response) = handle_lsp_message(state, message) {
-        outputs.push(response);
+        outputs.push(ScheduledLspOutput::immediate(response));
     }
 
     if let Some(event) = diagnostics_event {

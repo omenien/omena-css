@@ -702,26 +702,18 @@ mod tests {
         );
 
         assert_eq!(summary.asset_urls.len(), 5);
-        let relative = summary
-            .asset_urls
-            .iter()
-            .find(|asset| asset.normalized_url == "../assets/icon.svg")
-            .expect("relative asset URL should be collected");
-        assert_eq!(relative.kind, TransformBundleAssetUrlKind::Relative);
-        assert_eq!(
-            relative.resolved_path.as_deref(),
-            Some("src/assets/icon.svg")
-        );
-        assert!(relative.bundler_resolution_required);
-
-        let absolute = summary
-            .asset_urls
-            .iter()
-            .find(|asset| asset.normalized_url == "/static/mask.svg")
-            .expect("absolute asset URL should be collected");
-        assert_eq!(absolute.kind, TransformBundleAssetUrlKind::AbsolutePath);
-        assert_eq!(absolute.resolved_path.as_deref(), Some("/static/mask.svg"));
-        assert!(absolute.bundler_resolution_required);
+        assert!(summary.asset_urls.iter().any(|asset| {
+            asset.normalized_url == "../assets/icon.svg"
+                && asset.kind == TransformBundleAssetUrlKind::Relative
+                && asset.resolved_path.as_deref() == Some("src/assets/icon.svg")
+                && asset.bundler_resolution_required
+        }));
+        assert!(summary.asset_urls.iter().any(|asset| {
+            asset.normalized_url == "/static/mask.svg"
+                && asset.kind == TransformBundleAssetUrlKind::AbsolutePath
+                && asset.resolved_path.as_deref() == Some("/static/mask.svg")
+                && asset.bundler_resolution_required
+        }));
 
         assert!(summary.asset_urls.iter().any(|asset| {
             asset.kind == TransformBundleAssetUrlKind::Data && !asset.bundler_resolution_required
@@ -746,35 +738,47 @@ mod tests {
 
         assert!(summary.code_splitting_required);
         assert_eq!(summary.code_split_chunks.len(), 3);
-        let entry = summary
+        let entry_chunk_id = summary
             .code_split_chunks
             .iter()
             .find(|chunk| chunk.kind == TransformBundleChunkKind::Entry)
-            .expect("entry chunk should be planned");
-        assert_eq!(entry.split_boundary, "entry");
-        assert_eq!(entry.depends_on.len(), 2);
+            .map(|chunk| {
+                assert_eq!(chunk.split_boundary, "entry");
+                assert_eq!(chunk.depends_on.len(), 2);
+                chunk.chunk_id.clone()
+            });
+        assert!(entry_chunk_id.is_some());
 
-        let style_chunk = summary
+        let style_chunk_id = summary
             .code_split_chunks
             .iter()
             .find(|chunk| chunk.kind == TransformBundleChunkKind::StyleImport)
-            .expect("style import chunk should be planned");
-        assert_eq!(style_chunk.import_source.as_deref(), Some("../theme.css"));
-        assert_eq!(style_chunk.split_boundary, "styleDependency");
-        assert!(entry.depends_on.contains(&style_chunk.chunk_id));
+            .map(|chunk| {
+                assert_eq!(chunk.import_source.as_deref(), Some("../theme.css"));
+                assert_eq!(chunk.split_boundary, "styleDependency");
+                chunk.chunk_id.clone()
+            });
+        assert!(style_chunk_id.is_some());
 
-        let asset_chunk = summary
+        let asset_chunk_id = summary
             .code_split_chunks
             .iter()
             .find(|chunk| chunk.kind == TransformBundleChunkKind::Asset)
-            .expect("asset chunk should be planned");
-        assert_eq!(asset_chunk.asset_url.as_deref(), Some("../assets/icon.svg"));
-        assert_eq!(
-            asset_chunk.resolved_path.as_deref(),
-            Some("src/assets/icon.svg")
-        );
-        assert_eq!(asset_chunk.split_boundary, "assetDependency");
-        assert!(entry.depends_on.contains(&asset_chunk.chunk_id));
+            .map(|chunk| {
+                assert_eq!(chunk.asset_url.as_deref(), Some("../assets/icon.svg"));
+                assert_eq!(chunk.resolved_path.as_deref(), Some("src/assets/icon.svg"));
+                assert_eq!(chunk.split_boundary, "assetDependency");
+                chunk.chunk_id.clone()
+            });
+        assert!(asset_chunk_id.is_some());
+        let entry_dependencies = summary
+            .code_split_chunks
+            .iter()
+            .find(|chunk| chunk.kind == TransformBundleChunkKind::Entry)
+            .map(|chunk| chunk.depends_on.as_slice())
+            .unwrap_or(&[]);
+        assert!(style_chunk_id.is_some_and(|chunk_id| entry_dependencies.contains(&chunk_id)));
+        assert!(asset_chunk_id.is_some_and(|chunk_id| entry_dependencies.contains(&chunk_id)));
     }
 
     #[test]

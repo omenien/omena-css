@@ -5,6 +5,7 @@ use super::{
     OmenaQueryStylePackageManifestV0, ParserPositionV0, SelectorProjectionCertaintyV0,
     StyleAnalysisInputV2, StyleDocumentV2, attach_omena_query_consumer_build_bundle_summary,
     attach_omena_query_consumer_build_source_map_v3,
+    attach_omena_query_consumer_build_source_map_v3_with_sources,
     execute_omena_query_consumer_build_style_source,
     execute_omena_query_consumer_build_style_source_with_engine_input_context,
     execute_omena_query_consumer_build_style_sources,

@@ -461,16 +461,20 @@ fn style_insights_surface_shorthand_combinable_facts() {
         }
     );
     assert_eq!(insight.primary_edit.new_text, "margin: 1px 2px 3px 4px");
-    let shorthand = insight
-        .shorthand_combinable
-        .as_ref()
-        .expect("shorthandCombinable payload");
-    assert_eq!(shorthand.shorthand_property, "margin");
-    assert_eq!(
-        shorthand.longhand_properties,
-        vec!["margin-top", "margin-right", "margin-bottom", "margin-left",]
+    assert!(
+        insight
+            .shorthand_combinable
+            .as_ref()
+            .is_some_and(|shorthand| {
+                shorthand.shorthand_property == "margin"
+                    && shorthand
+                        .longhand_properties
+                        .iter()
+                        .map(String::as_str)
+                        .eq(["margin-top", "margin-right", "margin-bottom", "margin-left"])
+                    && shorthand.combined_value == "1px 2px 3px 4px"
+            })
     );
-    assert_eq!(shorthand.combined_value, "1px 2px 3px 4px");
 }
 
 #[test]

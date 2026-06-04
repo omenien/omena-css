@@ -500,6 +500,7 @@
     "onLanguage:javascriptreact",
     "onLanguage:less",
     "onLanguage:scss",
+    "onLanguage:html",
     "onLanguage:typescript",
     "onLanguage:typescriptreact",
     "onLanguage:vue"

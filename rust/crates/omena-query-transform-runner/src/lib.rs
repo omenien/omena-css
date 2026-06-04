@@ -36,9 +36,11 @@ pub use omena_transform_passes::{
     plan_transform_passes_parallel_lawvere_layers,
 };
 pub use omena_transform_print::{
-    TransformPrintArtifactV0, TransformPrintMode, TransformPrintOptionsV0, TransformSourceMapV3V0,
+    TransformPrintArtifactV0, TransformPrintMode, TransformPrintOptionsV0,
+    TransformSourceMapPointV0, TransformSourceMapSegmentV0, TransformSourceMapV3V0,
     default_print_options, print_transform_execution_artifact_with_dialect_and_source,
-    serialize_transform_source_map_v3,
+    serialize_transform_source_map_v3, serialize_transform_source_map_v3_with_source_contents,
+    transform_source_map_point,
 };
 pub use omena_transform_target::{
     TargetFeatureSupportV0, TargetTransformOptionsV0, TransformTargetPlanV0,

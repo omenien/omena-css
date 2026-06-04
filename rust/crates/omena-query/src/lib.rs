@@ -66,13 +66,13 @@ pub use omena_query_transform_runner::{
 use omena_query_transform_runner::{
     EggRewriteSourceWitnessV0, TransformBundleSourceSummaryV0, TransformEggPlanV0,
     TransformExecutionContextV0, TransformExecutionSummaryV0, TransformPassKind,
-    TransformPassPlanV0, TransformTargetPlanV0, all_transform_pass_kinds,
-    execute_egg_rewrite_witnesses_for_css_source,
+    TransformPassPlanV0, TransformSourceMapSegmentV0, TransformTargetPlanV0,
+    all_transform_pass_kinds, execute_egg_rewrite_witnesses_for_css_source,
     execute_transform_passes_on_source_with_dialect_and_context,
     plan_egg_rewrite_passes_for_source, plan_target_transforms, plan_target_transforms_from_query,
     plan_transform_passes, print_transform_execution_artifact_with_dialect_and_source,
-    serialize_transform_source_map_v3,
-    summarize_static_css_custom_property_fixed_point_from_source,
+    serialize_transform_source_map_v3_with_source_contents,
+    summarize_static_css_custom_property_fixed_point_from_source, transform_source_map_point,
 };
 #[cfg(feature = "lawvere-trace")]
 pub use omena_query_transform_runner::{

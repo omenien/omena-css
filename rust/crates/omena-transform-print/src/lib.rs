@@ -509,19 +509,32 @@ pub fn serialize_transform_source_map_v3(
     segments: &[TransformSourceMapSegmentV0],
 ) -> TransformSourceMapV3V0 {
     let source_path = source_path.into();
+    let source_contents = source_content
+        .map(|source_content| vec![(source_path.as_str(), source_content)])
+        .unwrap_or_default();
+    serialize_transform_source_map_v3_with_source_contents(
+        file,
+        generated_css,
+        source_path.as_str(),
+        source_contents.as_slice(),
+        segments,
+    )
+}
+
+pub fn serialize_transform_source_map_v3_with_source_contents(
+    file: impl Into<String>,
+    generated_css: &str,
+    source_path: impl Into<String>,
+    source_contents: &[(&str, &str)],
+    segments: &[TransformSourceMapSegmentV0],
+) -> TransformSourceMapV3V0 {
+    let source_path = source_path.into();
     let sources = collect_source_map_sources(&source_path, segments);
     let mappings = encode_source_map_v3_mappings(generated_css, &sources, segments);
     let pass_ids = collect_source_map_pass_ids(segments);
-    let source_content = source_content.unwrap_or_default();
     let sources_content = sources
         .iter()
-        .map(|source| {
-            if source == &source_path {
-                source_content.to_string()
-            } else {
-                String::new()
-            }
-        })
+        .map(|source| source_content_for_source_path(source, source_contents))
         .collect::<Vec<_>>();
 
     TransformSourceMapV3V0 {
@@ -536,6 +549,19 @@ pub fn serialize_transform_source_map_v3(
         x_omena_segment_count: segments.len(),
         x_omena_pass_ids: pass_ids,
     }
+}
+
+pub fn transform_source_map_point(source: &str, byte_offset: usize) -> TransformSourceMapPointV0 {
+    source_map_point(source, byte_offset)
+}
+
+fn source_content_for_source_path(source_path: &str, source_contents: &[(&str, &str)]) -> String {
+    source_contents
+        .iter()
+        .find_map(|(candidate_path, source_content)| {
+            (*candidate_path == source_path).then(|| (*source_content).to_string())
+        })
+        .unwrap_or_default()
 }
 
 fn collect_source_map_sources(
@@ -896,19 +922,22 @@ mod tests {
             artifact.pass_plan.ordered_pass_ids,
             vec!["calc-reduction", "print-css"]
         );
-        let source_map = artifact
-            .source_map_v3
-            .as_ref()
-            .expect("identity print should include Source Map V3 output");
-        assert_eq!(source_map.version, 3);
-        assert_eq!(source_map.file, "Button.module.css");
-        assert_eq!(source_map.sources, vec!["Button.module.css"]);
-        assert_eq!(source_map.sources_content, vec![source]);
-        assert!(!source_map.mappings.is_empty());
-        assert_eq!(
-            source_map.x_omena_segment_count,
-            artifact.source_map_segments.len()
-        );
+        assert!(artifact.source_map_v3.as_ref().is_some_and(|source_map| {
+            source_map.version == 3
+                && source_map.file == "Button.module.css"
+                && source_map.sources.len() == 1
+                && source_map
+                    .sources
+                    .first()
+                    .is_some_and(|source_path| source_path == "Button.module.css")
+                && source_map.sources_content.len() == 1
+                && source_map
+                    .sources_content
+                    .first()
+                    .is_some_and(|source_content| source_content == source)
+                && !source_map.mappings.is_empty()
+                && source_map.x_omena_segment_count == artifact.source_map_segments.len()
+        }));
     }
 
     #[test]

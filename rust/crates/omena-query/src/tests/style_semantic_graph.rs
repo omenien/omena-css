@@ -6,7 +6,13 @@ use crate::{
 };
 
 use super::support::sample_input;
-use std::collections::BTreeSet;
+#[cfg(unix)]
+use std::os::unix::fs as unix_fs;
+use std::{
+    collections::BTreeSet,
+    fs,
+    time::{SystemTime, UNIX_EPOCH},
+};
 
 #[test]
 fn owns_style_semantic_graph_adapter_boundary_without_changing_graph_product() {
@@ -702,24 +708,16 @@ fn style_semantic_graph_batch_surfaces_configured_sass_module_instance_identity(
     assert_eq!(red_forward_keys.len(), 2);
     assert_eq!(red_forward_keys[0], red_forward_keys[1]);
 
-    let blue_forward = resolution
-        .edges
-        .iter()
-        .find(|edge| {
-            edge.from_style_path == "/tmp/theme-c.scss"
-                && edge.resolved_style_path.as_deref() == Some("/tmp/tokens.scss")
-        })
-        .expect("blue configured forward edge");
-    assert_eq!(blue_forward.configuration_variable_count, 1);
-    assert!(
-        blue_forward
-            .configuration_signature
-            .contains("brand=4:blue")
-    );
-    assert_ne!(
-        red_forward_keys[0],
-        blue_forward.module_instance_identity_key
-    );
+    let blue_forward_key = resolution.edges.iter().find_map(|edge| {
+        (edge.from_style_path == "/tmp/theme-c.scss"
+            && edge.resolved_style_path.as_deref() == Some("/tmp/tokens.scss")
+            && edge.configuration_variable_count == 1
+            && edge.configuration_signature.contains("brand=4:blue"))
+        .then(|| edge.module_instance_identity_key.clone())
+        .flatten()
+    });
+    assert!(blue_forward_key.is_some(), "{resolution:?}");
+    assert_ne!(red_forward_keys[0], blue_forward_key);
 
     let app_to_tokens_keys = resolution
         .graph_closure_edges
@@ -731,15 +729,73 @@ fn style_semantic_graph_batch_surfaces_configured_sass_module_instance_identity(
         .filter_map(|edge| edge.module_instance_identity_key.clone())
         .collect::<BTreeSet<_>>();
     assert_eq!(app_to_tokens_keys.len(), 2, "{resolution:?}");
-    assert!(app_to_tokens_keys.contains(red_forward_keys[0].as_ref().unwrap()));
     assert!(
-        app_to_tokens_keys.contains(blue_forward.module_instance_identity_key.as_ref().unwrap())
+        red_forward_keys[0]
+            .as_ref()
+            .is_some_and(|key| app_to_tokens_keys.contains(key))
+    );
+    assert!(
+        blue_forward_key
+            .as_ref()
+            .is_some_and(|key| app_to_tokens_keys.contains(key))
     );
     assert!(
         resolution
             .capabilities
             .configured_module_instance_identity_ready
     );
+    assert!(resolution.configured_module_instance_count >= 3);
+}
+
+#[cfg(unix)]
+#[test]
+fn style_semantic_graph_batch_surfaces_symlink_chain_resolution_metadata()
+-> Result<(), Box<dyn std::error::Error>> {
+    let unique = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map_or(0, |duration| duration.as_nanos());
+    let root = std::env::temp_dir().join(format!(
+        "omena-query-symlink-chain-product-consumer-{}-{unique}",
+        std::process::id()
+    ));
+    let real_dir = root.join("real");
+    let linked_dir = root.join("linked");
+    fs::remove_dir_all(&root).ok();
+    fs::create_dir_all(&real_dir)?;
+    fs::write(real_dir.join("tokens.scss"), "$brand: blue;")?;
+    unix_fs::symlink(&real_dir, &linked_dir)?;
+
+    let app_path = root.join("App.module.scss");
+    let linked_tokens_path = linked_dir.join("tokens.scss");
+    let app_path = app_path.to_string_lossy().into_owned();
+    let linked_tokens_path = linked_tokens_path.to_string_lossy().into_owned();
+    let batch = summarize_omena_query_style_semantic_graph_batch_from_sources(
+        [
+            (
+                app_path.as_str(),
+                r#"@use "./linked/tokens" as tokens; .app { color: tokens.$brand; }"#,
+            ),
+            (linked_tokens_path.as_str(), "$brand: blue;"),
+        ],
+        &sample_input(),
+    );
+    let resolution = &batch.sass_module_resolution;
+
+    assert_eq!(resolution.symlink_chain_edge_count, 1, "{resolution:?}");
+    assert!(resolution.symlink_chain_link_count >= 1, "{resolution:?}");
+    assert!(resolution.capabilities.symlink_chain_metadata_ready);
+    assert!(resolution.edges.iter().any(|edge| {
+        edge.from_style_path == app_path
+            && edge.resolved_style_path.as_deref() == Some(linked_tokens_path.as_str())
+            && edge.symlink_chain_link_count >= 1
+            && edge
+                .symlink_chain_links
+                .iter()
+                .any(|link| link.link_path.ends_with("/linked"))
+    }));
+
+    fs::remove_dir_all(&root).ok();
+    Ok(())
 }
 
 #[test]

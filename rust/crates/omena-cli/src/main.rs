@@ -10,7 +10,7 @@ use omena_query::{
     OmenaQueryStylePackageManifestV0, OmenaQueryStyleSourceInputV0,
     OmenaQueryTargetTransformOptionsV0, OmenaQueryTransformExecutionContextV0, ParserPositionV0,
     attach_omena_query_consumer_build_bundle_summary,
-    attach_omena_query_consumer_build_source_map_v3,
+    attach_omena_query_consumer_build_source_map_v3_with_sources,
     execute_omena_query_consumer_build_style_source_for_target_query_with_context_and_options,
     execute_omena_query_consumer_build_style_source_with_context,
     execute_omena_query_consumer_build_style_sources_for_target_query_with_context_and_options,
@@ -1137,7 +1137,11 @@ fn build_file(options: BuildFileOptions) -> Result<(), String> {
         push_ready_surface(&mut summary.ready_surfaces, "bundleBuildMode");
     }
     if source_map {
-        attach_omena_query_consumer_build_source_map_v3(&mut summary, &source);
+        attach_omena_query_consumer_build_source_map_v3_with_sources(
+            &mut summary,
+            &workspace_sources,
+            &package_manifests,
+        );
     }
 
     if !summary.unknown_pass_ids.is_empty() {
@@ -2250,26 +2254,20 @@ mod tests {
     fn build_command_exposes_source_map_flag() {
         let command = Cli::command();
         command.clone().debug_assert();
-        let build = command
+        let build_argument_names = command
             .get_subcommands()
             .find(|subcommand| subcommand.get_name() == "build")
-            .expect("build subcommand should exist");
+            .map(|build| {
+                build
+                    .get_arguments()
+                    .filter_map(|argument| argument.get_long())
+                    .collect::<Vec<_>>()
+            })
+            .unwrap_or_default();
 
-        assert!(
-            build
-                .get_arguments()
-                .any(|argument| argument.get_long() == Some("source-map"))
-        );
-        assert!(
-            build
-                .get_arguments()
-                .any(|argument| argument.get_long() == Some("tree-shake"))
-        );
-        assert!(
-            build
-                .get_arguments()
-                .any(|argument| argument.get_long() == Some("bundle"))
-        );
+        assert!(build_argument_names.contains(&"source-map"));
+        assert!(build_argument_names.contains(&"tree-shake"));
+        assert!(build_argument_names.contains(&"bundle"));
     }
 
     #[test]
@@ -2509,6 +2507,52 @@ mod tests {
         cleanup(&base_path);
         cleanup(&output_path);
         Ok(())
+    }
+
+    #[test]
+    fn build_bundle_mode_combines_json_source_map_origin_chain() -> Result<(), String> {
+        let target_path = temp_path("bundle-sourcemap-app.css");
+        let tokens_path = temp_path("bundle-sourcemap-tokens.css");
+        let tokens_file_name = tokens_path
+            .file_name()
+            .and_then(|file_name| file_name.to_str())
+            .ok_or_else(|| "tokens fixture should have a file name".to_string())?;
+
+        fs::write(&tokens_path, ".token { color: blue; }")
+            .map_err(|error| format!("fixture tokens source should be writable: {error}"))?;
+        fs::write(
+            &target_path,
+            format!(r#"@import "./{tokens_file_name}"; .app {{ color: green; }}"#),
+        )
+        .map_err(|error| format!("fixture target source should be writable: {error}"))?;
+
+        let result = run(Cli {
+            command: Command::Build {
+                path: target_path.clone(),
+                output: None,
+                passes: vec!["import-inline".to_string(), "print-css".to_string()],
+                target_query: None,
+                allow_logical_to_physical: false,
+                allow_scope_flatten: false,
+                allow_layer_flatten: false,
+                enable_supports_static_eval: false,
+                enable_media_static_eval: false,
+                drop_dark_mode_media_queries: false,
+                context_json: None,
+                engine_input_json: None,
+                closed_style_world: false,
+                tree_shake: false,
+                bundle: true,
+                source_paths: vec![tokens_path.clone()],
+                package_manifest_paths: Vec::new(),
+                source_map: true,
+                json: true,
+            },
+        });
+
+        cleanup(&target_path);
+        cleanup(&tokens_path);
+        result
     }
 
     #[cfg(feature = "mdl")]

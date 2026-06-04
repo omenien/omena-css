@@ -396,6 +396,9 @@ pub struct OmenaQuerySassModuleCrossFileResolutionV0 {
     pub resolved_module_edge_count: usize,
     pub unresolved_module_edge_count: usize,
     pub external_module_edge_count: usize,
+    pub symlink_chain_edge_count: usize,
+    pub symlink_chain_link_count: usize,
+    pub configured_module_instance_count: usize,
     pub edges: Vec<OmenaQuerySassModuleEdgeResolutionV0>,
     pub graph_closure_edge_count: usize,
     pub cycle_count: usize,
@@ -421,9 +424,19 @@ pub struct OmenaQuerySassModuleEdgeResolutionV0 {
     pub status: &'static str,
     pub resolution_kind: &'static str,
     pub candidate_count: usize,
+    pub symlink_chain_link_count: usize,
+    pub symlink_chain_links: Vec<OmenaQuerySymlinkChainLinkV0>,
     pub configuration_signature: String,
     pub configuration_variable_count: usize,
     pub module_instance_identity_key: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct OmenaQuerySymlinkChainLinkV0 {
+    pub link_path: String,
+    pub target_path: String,
+    pub target_was_absolute: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -461,6 +474,7 @@ pub struct OmenaQuerySassModuleCrossFileResolutionCapabilitiesV0 {
     pub cycle_detection_ready: bool,
     pub namespace_show_hide_filter_ready: bool,
     pub configured_module_instance_identity_ready: bool,
+    pub symlink_chain_metadata_ready: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]

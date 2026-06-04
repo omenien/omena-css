@@ -1,6 +1,7 @@
 use std::io::{self, BufRead, Write};
+use std::time::Duration;
 
-use omena_lsp_server::{LspShellState, handle_lsp_message_outputs};
+use omena_lsp_server::{LspShellState, handle_lsp_message_scheduled_outputs};
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     run_stdio_server(&mut io::stdin().lock(), &mut io::stdout())?;
@@ -15,8 +16,11 @@ fn run_stdio_server<R: BufRead, W: Write>(
 
     while let Some(payload) = read_lsp_payload(reader)? {
         let message: serde_json::Value = serde_json::from_str(&payload)?;
-        for output in handle_lsp_message_outputs(&mut state, message) {
-            write_lsp_response(writer, &output)?;
+        for output in handle_lsp_message_scheduled_outputs(&mut state, message) {
+            if let Some(delay_millis) = output.delay_millis {
+                std::thread::sleep(Duration::from_millis(delay_millis));
+            }
+            write_lsp_response(writer, &output.value)?;
         }
         if state.should_exit {
             break;
