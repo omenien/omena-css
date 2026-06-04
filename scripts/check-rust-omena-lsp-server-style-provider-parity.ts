@@ -801,7 +801,10 @@ assert.deepEqual(diagnosticNotifications, [
     method: "textDocument/publishDiagnostics",
     params: {
       uri: sourceUri,
-      diagnostics: [expectedMissingImportedStaticClassDiagnostic, expectedMissingSelectorDiagnostic],
+      diagnostics: [
+        expectedMissingImportedStaticClassDiagnostic,
+        expectedMissingSelectorDiagnostic,
+      ],
     },
   },
   {
@@ -817,7 +820,10 @@ assert.deepEqual(diagnosticNotifications, [
     method: "textDocument/publishDiagnostics",
     params: {
       uri: sourceUri,
-      diagnostics: [expectedMissingImportedStaticClassDiagnostic, expectedMissingSelectorDiagnostic],
+      diagnostics: [
+        expectedMissingImportedStaticClassDiagnostic,
+        expectedMissingSelectorDiagnostic,
+      ],
     },
   },
 ]);
