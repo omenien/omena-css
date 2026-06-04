@@ -18,7 +18,9 @@ use std::collections::BTreeMap;
 use std::marker::PhantomData;
 
 use crate::{
-    SetupKindV0, ZK_AUDIT_FEATURE_GATE_V0, ZK_AUDIT_LAYER_MARKER_V0, ZK_AUDIT_SCHEMA_VERSION_V0,
+    SetupKindV0, ZK_AUDIT_DEFAULT_PROOF_BACKEND_ENABLED_V0, ZK_AUDIT_FEATURE_GATE_V0,
+    ZK_AUDIT_LAYER_MARKER_V0, ZK_AUDIT_MECHANISM_SCOPE_V0, ZK_AUDIT_SCHEMA_VERSION_V0,
+    active_zk_audit_proof_backend_scope_v0,
 };
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -28,6 +30,9 @@ pub struct ArkworksGroth16RoundTripV0 {
     pub product: &'static str,
     pub layer_marker: &'static str,
     pub feature_gate: &'static str,
+    pub mechanism_scope: &'static str,
+    pub default_proof_backend_enabled: bool,
+    pub active_proof_backend_scope: &'static str,
     pub setup_kind: SetupKindV0,
     pub backend: &'static str,
     pub obligation_id: String,
@@ -61,6 +66,9 @@ pub fn prove_and_verify_cascade_smt_payload_with_arkworks_v0(
             product: "omena-zk-audit.arkworks-groth16-roundtrip",
             layer_marker: ZK_AUDIT_LAYER_MARKER_V0,
             feature_gate: ZK_AUDIT_FEATURE_GATE_V0,
+            mechanism_scope: ZK_AUDIT_MECHANISM_SCOPE_V0,
+            default_proof_backend_enabled: ZK_AUDIT_DEFAULT_PROOF_BACKEND_ENABLED_V0,
+            active_proof_backend_scope: active_zk_audit_proof_backend_scope_v0(),
             setup_kind: SetupKindV0::ArkworksGroth16,
             backend: "arkworks-groth16",
             obligation_id: payload.obligation_id.clone(),
@@ -92,6 +100,9 @@ pub fn prove_and_verify_cascade_smt_payload_with_arkworks_v0(
         product: "omena-zk-audit.arkworks-groth16-roundtrip",
         layer_marker: ZK_AUDIT_LAYER_MARKER_V0,
         feature_gate: ZK_AUDIT_FEATURE_GATE_V0,
+        mechanism_scope: ZK_AUDIT_MECHANISM_SCOPE_V0,
+        default_proof_backend_enabled: ZK_AUDIT_DEFAULT_PROOF_BACKEND_ENABLED_V0,
+        active_proof_backend_scope: active_zk_audit_proof_backend_scope_v0(),
         setup_kind: SetupKindV0::ArkworksGroth16,
         backend: "arkworks-groth16",
         obligation_id: payload.obligation_id.clone(),

@@ -9,6 +9,9 @@ use std::collections::{BTreeMap, BTreeSet};
 pub const ZK_CIRCUIT_SCHEMA_VERSION_V0: &str = "0";
 pub const ZK_CIRCUIT_LAYER_MARKER_V0: &str = "cryptographic-implementation";
 pub const ZK_CIRCUIT_FEATURE_GATE_V0: &str = "zk-circuit";
+pub const ZK_CIRCUIT_MECHANISM_SCOPE_V0: &str = "constraintGenerationSubstrate";
+pub const ZK_CIRCUIT_STANDALONE_PROVING_BACKEND_V0: bool = false;
+pub const ZK_CIRCUIT_DEFAULT_PRODUCT_PROVING_V0: bool = false;
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -17,6 +20,9 @@ pub struct CascadeCircuitSpecV0 {
     pub product: &'static str,
     pub layer_marker: &'static str,
     pub feature_gate: &'static str,
+    pub mechanism_scope: &'static str,
+    pub standalone_proving_backend: bool,
+    pub default_product_proving: bool,
     pub circuit_id: String,
     pub arithmetization: ArithmetizationKindV0,
     pub constraint_count: usize,
@@ -93,6 +99,8 @@ pub struct R1CSSatisfactionCheckV0 {
     pub product: &'static str,
     pub layer_marker: &'static str,
     pub feature_gate: &'static str,
+    pub mechanism_scope: &'static str,
+    pub standalone_proving_backend: bool,
     pub constraint_count: usize,
     pub witness_value_count: usize,
     pub satisfied: bool,
@@ -119,6 +127,9 @@ pub fn cascade_circuit_spec_v0(
         product: "omena-zk-circuit.cascade-circuit-spec",
         layer_marker: ZK_CIRCUIT_LAYER_MARKER_V0,
         feature_gate: ZK_CIRCUIT_FEATURE_GATE_V0,
+        mechanism_scope: ZK_CIRCUIT_MECHANISM_SCOPE_V0,
+        standalone_proving_backend: ZK_CIRCUIT_STANDALONE_PROVING_BACKEND_V0,
+        default_product_proving: ZK_CIRCUIT_DEFAULT_PRODUCT_PROVING_V0,
         circuit_id: circuit_id.into(),
         arithmetization,
         constraint_count: 0,
@@ -214,6 +225,8 @@ pub fn check_r1cs_witness_satisfaction_v0(
         product: "omena-zk-circuit.r1cs-satisfaction-check",
         layer_marker: ZK_CIRCUIT_LAYER_MARKER_V0,
         feature_gate: ZK_CIRCUIT_FEATURE_GATE_V0,
+        mechanism_scope: ZK_CIRCUIT_MECHANISM_SCOPE_V0,
+        standalone_proving_backend: ZK_CIRCUIT_STANDALONE_PROVING_BACKEND_V0,
         constraint_count: constraints.len(),
         witness_value_count: witness.values.len(),
         satisfied: unsatisfied_constraint_ids.is_empty(),
@@ -311,6 +324,15 @@ mod tests {
         let spec = cascade_circuit_spec_v0("cascade", ArithmetizationKindV0::Plonkish);
         assert_eq!(spec.schema_version, "0");
         assert!(spec.salsa_dependency_free);
+        assert_eq!(spec.mechanism_scope, ZK_CIRCUIT_MECHANISM_SCOPE_V0);
+        assert_eq!(
+            spec.standalone_proving_backend,
+            ZK_CIRCUIT_STANDALONE_PROVING_BACKEND_V0
+        );
+        assert_eq!(
+            spec.default_product_proving,
+            ZK_CIRCUIT_DEFAULT_PRODUCT_PROVING_V0
+        );
     }
 
     #[test]
@@ -326,6 +348,11 @@ mod tests {
         assert_eq!(constraints.len(), 2);
         assert_eq!(spec.arithmetization, ArithmetizationKindV0::R1cs);
         assert_eq!(spec.constraint_count, constraints.len());
+        assert_eq!(spec.mechanism_scope, ZK_CIRCUIT_MECHANISM_SCOPE_V0);
+        assert_eq!(
+            spec.standalone_proving_backend,
+            ZK_CIRCUIT_STANDALONE_PROVING_BACKEND_V0
+        );
         assert_eq!(
             constraints[0].constraint_id,
             "requirement-supported-shorthand-property"
@@ -362,6 +389,11 @@ mod tests {
         let missing = check_r1cs_witness_satisfaction_v0(&constraints, &missing_witness);
 
         assert!(satisfiable.satisfied);
+        assert_eq!(satisfiable.mechanism_scope, ZK_CIRCUIT_MECHANISM_SCOPE_V0);
+        assert_eq!(
+            satisfiable.standalone_proving_backend,
+            ZK_CIRCUIT_STANDALONE_PROVING_BACKEND_V0
+        );
         assert!(!unsatisfiable.satisfied);
         assert!(!missing.satisfied);
         assert_eq!(

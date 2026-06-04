@@ -10,6 +10,7 @@
 use omena_smt::CanonicalSmtInputV0;
 use omena_zk_circuit::{
     ArithmetizationKindV0, CascadeCircuitSpecV0, cascade_circuit_spec_from_canonical_terms_v0,
+    cascade_circuit_spec_v0,
 };
 use serde::Serialize;
 
@@ -26,6 +27,22 @@ pub use arkworks::{
 pub const ZK_AUDIT_SCHEMA_VERSION_V0: &str = "0";
 pub const ZK_AUDIT_LAYER_MARKER_V0: &str = "cryptographic-implementation";
 pub const ZK_AUDIT_FEATURE_GATE_V0: &str = "zk-audit";
+pub const ZK_AUDIT_MECHANISM_SCOPE_V0: &str = "defaultProtocolMetadataOptInProofRoundTrip";
+pub const ZK_AUDIT_DEFAULT_PROOF_BACKEND_ENABLED_V0: bool = false;
+
+#[cfg(feature = "zk-audit")]
+pub const fn active_zk_audit_proof_backend_scope_v0() -> &'static str {
+    "optInArkworksGroth16RealBackendLinked"
+}
+
+#[cfg(not(feature = "zk-audit"))]
+pub const fn active_zk_audit_proof_backend_scope_v0() -> &'static str {
+    "defaultProtocolMetadataOnly"
+}
+
+pub const fn active_zk_audit_proof_backend_linked_v0() -> bool {
+    cfg!(feature = "zk-audit")
+}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -68,6 +85,9 @@ pub struct CascadeZKAuditV0 {
     pub product: &'static str,
     pub layer_marker: &'static str,
     pub feature_gate: &'static str,
+    pub mechanism_scope: &'static str,
+    pub default_proof_backend_enabled: bool,
+    pub active_proof_backend_scope: &'static str,
     pub audit_id: String,
     pub setup_kind: SetupKindV0,
     pub circuit: CascadeCircuitSpecV0,
@@ -94,6 +114,8 @@ pub struct ZKAuditCiMatrixV0 {
     pub product: &'static str,
     pub layer_marker: &'static str,
     pub feature_gate: &'static str,
+    pub mechanism_scope: &'static str,
+    pub default_proof_backend_enabled: bool,
     pub cells: Vec<&'static str>,
     pub heavy_dependencies_default_off: bool,
 }
@@ -105,6 +127,7 @@ pub struct ZKBackendLinkPolicyV0 {
     pub product: &'static str,
     pub layer_marker: &'static str,
     pub feature_gate: &'static str,
+    pub mechanism_scope: &'static str,
     pub setup_kind: SetupKindV0,
     pub cargo_feature: &'static str,
     pub status: ZKBackendLinkStatusV0,
@@ -132,18 +155,12 @@ pub fn cascade_zk_audit_v0(audit_id: impl Into<String>) -> CascadeZKAuditV0 {
         product: "omena-zk-audit.cascade-audit",
         layer_marker: ZK_AUDIT_LAYER_MARKER_V0,
         feature_gate: ZK_AUDIT_FEATURE_GATE_V0,
+        mechanism_scope: ZK_AUDIT_MECHANISM_SCOPE_V0,
+        default_proof_backend_enabled: ZK_AUDIT_DEFAULT_PROOF_BACKEND_ENABLED_V0,
+        active_proof_backend_scope: active_zk_audit_proof_backend_scope_v0(),
         audit_id: audit_id.into(),
         setup_kind: SetupKindV0::Halo2Ipa,
-        circuit: CascadeCircuitSpecV0 {
-            schema_version: "0",
-            product: "omena-zk-circuit.cascade-circuit-spec",
-            layer_marker: "cryptographic-implementation",
-            feature_gate: "zk-circuit",
-            circuit_id: "cascade".to_string(),
-            arithmetization: ArithmetizationKindV0::Plonkish,
-            constraint_count: 0,
-            salsa_dependency_free: true,
-        },
+        circuit: cascade_circuit_spec_v0("cascade", ArithmetizationKindV0::Plonkish),
         proof_payload: None,
         per_pr_delta_fold: true,
         recursion_overhead: "O(1)",
@@ -171,6 +188,8 @@ pub fn zk_audit_ci_matrix_v0() -> ZKAuditCiMatrixV0 {
         product: "omena-zk-audit.ci-matrix",
         layer_marker: ZK_AUDIT_LAYER_MARKER_V0,
         feature_gate: ZK_AUDIT_FEATURE_GATE_V0,
+        mechanism_scope: ZK_AUDIT_MECHANISM_SCOPE_V0,
+        default_proof_backend_enabled: ZK_AUDIT_DEFAULT_PROOF_BACKEND_ENABLED_V0,
         cells: vec!["default", "zk-audit", "zk-audit-stark", "zk-audit-binius"],
         heavy_dependencies_default_off: true,
     }
@@ -217,6 +236,7 @@ fn zk_backend_link_policy_cell_v0(
         product: "omena-zk-audit.backend-link-policy",
         layer_marker: ZK_AUDIT_LAYER_MARKER_V0,
         feature_gate: ZK_AUDIT_FEATURE_GATE_V0,
+        mechanism_scope: ZK_AUDIT_MECHANISM_SCOPE_V0,
         setup_kind,
         cargo_feature,
         status,
@@ -251,6 +271,28 @@ mod tests {
         let matrix = zk_audit_ci_matrix_v0();
         assert_eq!(audit.schema_version, "0");
         assert_eq!(audit.setup_kind, SetupKindV0::Halo2Ipa);
+        assert_eq!(audit.mechanism_scope, ZK_AUDIT_MECHANISM_SCOPE_V0);
+        assert_eq!(
+            audit.default_proof_backend_enabled,
+            ZK_AUDIT_DEFAULT_PROOF_BACKEND_ENABLED_V0
+        );
+        assert_eq!(
+            audit.active_proof_backend_scope,
+            if cfg!(feature = "zk-audit") {
+                "optInArkworksGroth16RealBackendLinked"
+            } else {
+                "defaultProtocolMetadataOnly"
+            }
+        );
+        assert_eq!(
+            active_zk_audit_proof_backend_linked_v0(),
+            cfg!(feature = "zk-audit")
+        );
+        assert_eq!(matrix.mechanism_scope, ZK_AUDIT_MECHANISM_SCOPE_V0);
+        assert_eq!(
+            matrix.default_proof_backend_enabled,
+            ZK_AUDIT_DEFAULT_PROOF_BACKEND_ENABLED_V0
+        );
         assert!(matrix.heavy_dependencies_default_off);
         assert_eq!(matrix.cells.len(), 4);
     }
@@ -268,6 +310,11 @@ mod tests {
         let audit = cascade_zk_audit_with_smt_payload_v0("audit", payload);
         assert!(audit.proof_payload.is_some());
         assert_eq!(audit.setup_kind, SetupKindV0::Halo2Ipa);
+        assert_eq!(audit.mechanism_scope, ZK_AUDIT_MECHANISM_SCOPE_V0);
+        assert_eq!(
+            audit.default_proof_backend_enabled,
+            ZK_AUDIT_DEFAULT_PROOF_BACKEND_ENABLED_V0
+        );
         assert_eq!(audit.circuit.arithmetization, ArithmetizationKindV0::R1cs);
         assert_eq!(audit.circuit.constraint_count, 2);
     }
@@ -287,6 +334,11 @@ mod tests {
         assert_eq!(policy.len(), 4);
         assert!(policy.iter().all(|cell| !cell.default_enabled));
         assert!(policy.iter().all(|cell| cell.schema_version == "0"));
+        assert!(
+            policy
+                .iter()
+                .all(|cell| cell.mechanism_scope == ZK_AUDIT_MECHANISM_SCOPE_V0)
+        );
         assert!(
             policy
                 .iter()
@@ -322,6 +374,15 @@ mod tests {
         assert!(roundtrip.is_ok(), "{roundtrip:?}");
         if let Ok(roundtrip) = roundtrip {
             assert_eq!(roundtrip.setup_kind, SetupKindV0::ArkworksGroth16);
+            assert_eq!(roundtrip.mechanism_scope, ZK_AUDIT_MECHANISM_SCOPE_V0);
+            assert_eq!(
+                roundtrip.default_proof_backend_enabled,
+                ZK_AUDIT_DEFAULT_PROOF_BACKEND_ENABLED_V0
+            );
+            assert_eq!(
+                roundtrip.active_proof_backend_scope,
+                "optInArkworksGroth16RealBackendLinked"
+            );
             assert_eq!(roundtrip.requirement_count, 3);
             assert!(roundtrip.proof_generated);
             assert!(roundtrip.proof_verified);
@@ -346,6 +407,15 @@ mod tests {
         if let Ok(roundtrip) = roundtrip {
             assert_eq!(roundtrip.circuit.constraint_count, 3);
             assert_eq!(roundtrip.requirement_count, 3);
+            assert_eq!(roundtrip.mechanism_scope, ZK_AUDIT_MECHANISM_SCOPE_V0);
+            assert_eq!(
+                roundtrip.default_proof_backend_enabled,
+                ZK_AUDIT_DEFAULT_PROOF_BACKEND_ENABLED_V0
+            );
+            assert_eq!(
+                roundtrip.active_proof_backend_scope,
+                "optInArkworksGroth16RealBackendLinked"
+            );
             assert!(!roundtrip.proof_generated);
             assert!(!roundtrip.proof_verified);
         }
