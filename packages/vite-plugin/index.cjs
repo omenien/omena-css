@@ -48,6 +48,12 @@ function runOmenaBuild(filePath, options) {
   if (options.closedStyleWorld) {
     args.push("--closed-style-world");
   }
+  if (options.treeShake) {
+    args.push("--tree-shake");
+  }
+  if (options.bundle) {
+    args.push("--bundle");
+  }
   for (const sourcePath of options.sources ?? []) {
     args.push("--source", sourcePath);
   }
