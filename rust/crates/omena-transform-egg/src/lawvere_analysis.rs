@@ -5,7 +5,9 @@
 
 use egg::{Analysis, DidMerge, EGraph, Extractor, Id, Language, RecExpr, Runner};
 use omena_lawvere::{
-    AbstractDomainTagV0, LawvereSaturationExecutionV0, summarize_lawvere_saturation_execution_v0,
+    AbstractDomainTagV0, LAWVERE_GLOBAL_TRANSFORM_THEOREM_CLAIMED_V0, LAWVERE_MECHANISM_SCOPE_V0,
+    LAWVERE_PRODUCT_PATH_EVIDENCE_READY_V0, LawvereSaturationExecutionV0,
+    summarize_lawvere_saturation_execution_v0,
 };
 
 use crate::{
@@ -197,5 +199,14 @@ mod tests {
         assert_eq!(saturation.analysis_slot, "LawvereAnalysis");
         assert!(saturation.original_unit_analysis_path_preserved);
         assert_eq!(saturation.differential_fixture_count, 10);
+        assert_eq!(saturation.mechanism_scope, LAWVERE_MECHANISM_SCOPE_V0);
+        assert_eq!(
+            saturation.product_path_evidence_ready,
+            LAWVERE_PRODUCT_PATH_EVIDENCE_READY_V0
+        );
+        assert_eq!(
+            saturation.global_transform_theorem_claimed,
+            LAWVERE_GLOBAL_TRANSFORM_THEOREM_CLAIMED_V0
+        );
     }
 }

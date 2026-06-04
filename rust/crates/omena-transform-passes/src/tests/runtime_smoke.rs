@@ -9,6 +9,11 @@ use super::{
     execute_transform_passes_on_source_with_lawvere_trace,
     plan_transform_passes_parallel_lawvere_layers,
 };
+#[cfg(feature = "lawvere-trace")]
+use omena_lawvere::{
+    LAWVERE_GLOBAL_TRANSFORM_THEOREM_CLAIMED_V0, LAWVERE_MECHANISM_SCOPE_V0,
+    LAWVERE_PRODUCT_PATH_EVIDENCE_READY_V0,
+};
 use omena_parser::StyleDialect;
 use omena_transform_cst::TransformPassKind;
 
@@ -131,9 +136,27 @@ fn lawvere_trace_path_preserves_existing_executor_signature_and_marks_terminal_p
     assert_eq!(traced.output_css, plain.output_css);
     assert_eq!(traced.ordered_pass_ids, plain.ordered_pass_ids);
     assert!(trace.preserves_existing_executor_signature);
+    assert_eq!(trace.mechanism_scope, LAWVERE_MECHANISM_SCOPE_V0);
+    assert_eq!(
+        trace.product_path_evidence_ready,
+        LAWVERE_PRODUCT_PATH_EVIDENCE_READY_V0
+    );
+    assert_eq!(
+        trace.global_transform_theorem_claimed,
+        LAWVERE_GLOBAL_TRANSFORM_THEOREM_CLAIMED_V0
+    );
     assert_eq!(trace.terminal_pass_ids, vec!["print-css"]);
     assert!(!parallel_plan.executor_consumes_plan);
     assert_eq!(parallel_plan.scheduler_status, "scaffoldOnly");
+    assert_eq!(parallel_plan.mechanism_scope, LAWVERE_MECHANISM_SCOPE_V0);
+    assert_eq!(
+        parallel_plan.product_path_evidence_ready,
+        LAWVERE_PRODUCT_PATH_EVIDENCE_READY_V0
+    );
+    assert_eq!(
+        parallel_plan.global_transform_theorem_claimed,
+        LAWVERE_GLOBAL_TRANSFORM_THEOREM_CLAIMED_V0
+    );
 }
 
 #[cfg(feature = "lawvere-trace")]
@@ -155,6 +178,16 @@ fn lawvere_reorderability_uses_differential_commutativity_corpus() {
     assert_eq!(witness.fixture_count, 2);
     assert_eq!(witness.mismatch_count, 0);
     assert_eq!(certificate.differential_equal_fixture_count, 2);
+    assert_eq!(witness.mechanism_scope, LAWVERE_MECHANISM_SCOPE_V0);
+    assert_eq!(certificate.mechanism_scope, LAWVERE_MECHANISM_SCOPE_V0);
+    assert_eq!(
+        certificate.product_path_evidence_ready,
+        LAWVERE_PRODUCT_PATH_EVIDENCE_READY_V0
+    );
+    assert_eq!(
+        certificate.global_transform_theorem_claimed,
+        LAWVERE_GLOBAL_TRANSFORM_THEOREM_CLAIMED_V0
+    );
     assert!(certificate.accepted);
     assert!(witness.cases.iter().all(|case| case.equal_output));
     assert!(
@@ -163,6 +196,31 @@ fn lawvere_reorderability_uses_differential_commutativity_corpus() {
             .iter()
             .all(|case| !case.left_then_right_css.contains("/*"))
     );
+}
+
+#[cfg(feature = "lawvere-trace")]
+#[test]
+fn lawvere_reorderability_rejects_executor_observed_mismatches() {
+    let (certificate, witness) = evaluate_lawvere_reorderability_with_differential_corpus(
+        TransformPassKind::RuleDeduplication,
+        TransformPassKind::NestingUnwrap,
+        &[r#".a { & .b { color: red; } } .a .b { color: red; }"#],
+    );
+
+    assert_eq!(witness.fixture_count, 1);
+    assert_eq!(witness.equal_fixture_count, 0);
+    assert_eq!(witness.mismatch_count, 1);
+    assert_eq!(certificate.differential_mismatch_count, 1);
+    assert_eq!(certificate.mechanism_scope, LAWVERE_MECHANISM_SCOPE_V0);
+    assert_eq!(
+        certificate.global_transform_theorem_claimed,
+        LAWVERE_GLOBAL_TRANSFORM_THEOREM_CLAIMED_V0
+    );
+    assert!(!witness.accepted);
+    assert!(!certificate.accepted);
+    assert!(witness.cases.iter().any(|case| {
+        case.left_then_right_css != case.right_then_left_css && !case.equal_output
+    }));
 }
 
 #[test]

@@ -16,6 +16,9 @@ use omena_transform_cst::{
 use serde::Serialize;
 
 pub const LAWVERE_THEORY_VERSION_V0: &str = "lawvere-css-transform-catalog-v0";
+pub const LAWVERE_MECHANISM_SCOPE_V0: &str = "featureGatedDifferentialWitnessSubstrate";
+pub const LAWVERE_PRODUCT_PATH_EVIDENCE_READY_V0: bool = false;
+pub const LAWVERE_GLOBAL_TRANSFORM_THEOREM_CLAIMED_V0: bool = false;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -114,6 +117,9 @@ pub struct ReorderabilityCertificateV0 {
     pub product: &'static str,
     pub layer_marker: &'static str,
     pub feature_gate: &'static str,
+    pub mechanism_scope: &'static str,
+    pub product_path_evidence_ready: bool,
+    pub global_transform_theorem_claimed: bool,
     pub left_pass_id: &'static str,
     pub right_pass_id: &'static str,
     pub theory_version: &'static str,
@@ -148,6 +154,9 @@ pub struct LawvereDifferentialCommutativityWitnessV0 {
     pub product: &'static str,
     pub layer_marker: &'static str,
     pub feature_gate: &'static str,
+    pub mechanism_scope: &'static str,
+    pub product_path_evidence_ready: bool,
+    pub global_transform_theorem_claimed: bool,
     pub theory_version: &'static str,
     pub left_pass_id: &'static str,
     pub right_pass_id: &'static str,
@@ -165,6 +174,9 @@ pub struct TransformPassParallelPlanV0 {
     pub product: &'static str,
     pub layer_marker: &'static str,
     pub feature_gate: &'static str,
+    pub mechanism_scope: &'static str,
+    pub product_path_evidence_ready: bool,
+    pub global_transform_theorem_claimed: bool,
     pub scheduler_status: &'static str,
     pub requested_pass_ids: Vec<&'static str>,
     pub terminal_pass_ids: Vec<&'static str>,
@@ -179,6 +191,9 @@ pub struct LawvereModelTraceV0 {
     pub product: &'static str,
     pub layer_marker: &'static str,
     pub feature_gate: &'static str,
+    pub mechanism_scope: &'static str,
+    pub product_path_evidence_ready: bool,
+    pub global_transform_theorem_claimed: bool,
     pub theory_version: &'static str,
     pub input_pass_ids: Vec<&'static str>,
     pub ordered_pass_ids: Vec<&'static str>,
@@ -194,6 +209,9 @@ pub struct LawvereSaturationExecutionV0 {
     pub product: &'static str,
     pub layer_marker: &'static str,
     pub feature_gate: &'static str,
+    pub mechanism_scope: &'static str,
+    pub product_path_evidence_ready: bool,
+    pub global_transform_theorem_claimed: bool,
     pub theory_version: &'static str,
     pub pass_id: &'static str,
     pub analysis_slot: &'static str,
@@ -267,8 +285,8 @@ pub fn summarize_lawvere_theory_v0() -> LawvereTheorySummaryV0 {
         ],
         differential_corpus_tiers: lawvere_differential_corpus_tiers_v0(),
         lawvere_saturation_feature_enabled_by_default: false,
-        product_path_evidence_ready: false,
-        mechanism_scope: "featureGatedResearchSubstrate",
+        product_path_evidence_ready: LAWVERE_PRODUCT_PATH_EVIDENCE_READY_V0,
+        mechanism_scope: LAWVERE_MECHANISM_SCOPE_V0,
         omena_categorical_dependency_forbidden: true,
     }
 }
@@ -349,6 +367,9 @@ pub fn plan_transform_pass_parallel_layers_v0(
         product: "omena-lawvere.transform-pass-parallel-plan",
         layer_marker: "enriched-algebraic",
         feature_gate: "lawvere-saturation",
+        mechanism_scope: LAWVERE_MECHANISM_SCOPE_V0,
+        product_path_evidence_ready: LAWVERE_PRODUCT_PATH_EVIDENCE_READY_V0,
+        global_transform_theorem_claimed: LAWVERE_GLOBAL_TRANSFORM_THEOREM_CLAIMED_V0,
         scheduler_status: "scaffoldOnly",
         requested_pass_ids: requested_pass_ids.clone(),
         terminal_pass_ids: terminal_pass_ids_from_pass_kinds(requested),
@@ -367,6 +388,9 @@ pub fn trace_lawvere_model_v0(
         product: "omena-lawvere.model-trace",
         layer_marker: "enriched-algebraic",
         feature_gate: "lawvere-saturation",
+        mechanism_scope: LAWVERE_MECHANISM_SCOPE_V0,
+        product_path_evidence_ready: LAWVERE_PRODUCT_PATH_EVIDENCE_READY_V0,
+        global_transform_theorem_claimed: LAWVERE_GLOBAL_TRANSFORM_THEOREM_CLAIMED_V0,
         theory_version: LAWVERE_THEORY_VERSION_V0,
         rank_clusters: lawvere_equation_clusters_v0(ordered_pass_ids.as_slice()),
         input_pass_ids,
@@ -385,6 +409,9 @@ pub fn reorderability_certificate_v0(
         product: "omena-lawvere.reorderability-certificate",
         layer_marker: "enriched-algebraic",
         feature_gate: "lawvere-saturation",
+        mechanism_scope: LAWVERE_MECHANISM_SCOPE_V0,
+        product_path_evidence_ready: LAWVERE_PRODUCT_PATH_EVIDENCE_READY_V0,
+        global_transform_theorem_claimed: LAWVERE_GLOBAL_TRANSFORM_THEOREM_CLAIMED_V0,
         left_pass_id: left.id(),
         right_pass_id: right.id(),
         theory_version: LAWVERE_THEORY_VERSION_V0,
@@ -419,6 +446,9 @@ pub fn lawvere_differential_commutativity_witness_v0(
         product: "omena-lawvere.differential-commutativity-witness",
         layer_marker: "enriched-algebraic",
         feature_gate: "lawvere-saturation",
+        mechanism_scope: LAWVERE_MECHANISM_SCOPE_V0,
+        product_path_evidence_ready: LAWVERE_PRODUCT_PATH_EVIDENCE_READY_V0,
+        global_transform_theorem_claimed: LAWVERE_GLOBAL_TRANSFORM_THEOREM_CLAIMED_V0,
         theory_version: LAWVERE_THEORY_VERSION_V0,
         left_pass_id: left.id(),
         right_pass_id: right.id(),
@@ -481,6 +511,9 @@ pub fn summarize_lawvere_saturation_execution_v0(
         product: "omena-lawvere.saturation-execution",
         layer_marker: "enriched-algebraic",
         feature_gate: "lawvere-saturation",
+        mechanism_scope: LAWVERE_MECHANISM_SCOPE_V0,
+        product_path_evidence_ready: LAWVERE_PRODUCT_PATH_EVIDENCE_READY_V0,
+        global_transform_theorem_claimed: LAWVERE_GLOBAL_TRANSFORM_THEOREM_CLAIMED_V0,
         theory_version: LAWVERE_THEORY_VERSION_V0,
         pass_id,
         analysis_slot: "LawvereAnalysis",
@@ -595,8 +628,11 @@ mod tests {
             tier.tier == SaturationBudgetTierV0::Full && tier.fixture_count == 200
         }));
         assert!(!summary.lawvere_saturation_feature_enabled_by_default);
-        assert!(!summary.product_path_evidence_ready);
-        assert_eq!(summary.mechanism_scope, "featureGatedResearchSubstrate");
+        assert_eq!(
+            summary.product_path_evidence_ready,
+            LAWVERE_PRODUCT_PATH_EVIDENCE_READY_V0
+        );
+        assert_eq!(summary.mechanism_scope, LAWVERE_MECHANISM_SCOPE_V0);
         assert!(summary.omena_categorical_dependency_forbidden);
     }
 
@@ -627,6 +663,15 @@ mod tests {
         assert_eq!(plan.schema_version, "0");
         assert_eq!(plan.scheduler_status, "scaffoldOnly");
         assert!(!plan.executor_consumes_plan);
+        assert_eq!(plan.mechanism_scope, LAWVERE_MECHANISM_SCOPE_V0);
+        assert_eq!(
+            plan.product_path_evidence_ready,
+            LAWVERE_PRODUCT_PATH_EVIDENCE_READY_V0
+        );
+        assert_eq!(
+            plan.global_transform_theorem_claimed,
+            LAWVERE_GLOBAL_TRANSFORM_THEOREM_CLAIMED_V0
+        );
         assert_eq!(plan.terminal_pass_ids, vec!["print-css"]);
         assert_eq!(plan.rank_clusters.len(), 1);
     }
@@ -648,6 +693,15 @@ mod tests {
         assert_eq!(execution.analysis_slot, "LawvereAnalysis");
         assert_eq!(execution.differential_fixture_count, 10);
         assert!(execution.original_unit_analysis_path_preserved);
+        assert_eq!(execution.mechanism_scope, LAWVERE_MECHANISM_SCOPE_V0);
+        assert_eq!(
+            execution.product_path_evidence_ready,
+            LAWVERE_PRODUCT_PATH_EVIDENCE_READY_V0
+        );
+        assert_eq!(
+            execution.global_transform_theorem_claimed,
+            LAWVERE_GLOBAL_TRANSFORM_THEOREM_CLAIMED_V0
+        );
         assert!(execution.accepted);
     }
 
@@ -661,6 +715,15 @@ mod tests {
         assert_eq!(
             certificate.commute_witness,
             "requiresDifferentialCommutativityWitness"
+        );
+        assert_eq!(certificate.mechanism_scope, LAWVERE_MECHANISM_SCOPE_V0);
+        assert_eq!(
+            certificate.product_path_evidence_ready,
+            LAWVERE_PRODUCT_PATH_EVIDENCE_READY_V0
+        );
+        assert_eq!(
+            certificate.global_transform_theorem_claimed,
+            LAWVERE_GLOBAL_TRANSFORM_THEOREM_CLAIMED_V0
         );
         assert_eq!(certificate.differential_fixture_count, 0);
         assert!(!certificate.accepted);
@@ -691,6 +754,16 @@ mod tests {
         assert_eq!(
             certificate.commute_witness,
             "differentialCommutativityCorpus"
+        );
+        assert_eq!(witness.mechanism_scope, LAWVERE_MECHANISM_SCOPE_V0);
+        assert_eq!(certificate.mechanism_scope, LAWVERE_MECHANISM_SCOPE_V0);
+        assert_eq!(
+            witness.global_transform_theorem_claimed,
+            LAWVERE_GLOBAL_TRANSFORM_THEOREM_CLAIMED_V0
+        );
+        assert_eq!(
+            certificate.global_transform_theorem_claimed,
+            LAWVERE_GLOBAL_TRANSFORM_THEOREM_CLAIMED_V0
         );
         assert_eq!(certificate.differential_fixture_count, 1);
         assert_eq!(certificate.differential_mismatch_count, 0);
