@@ -165,6 +165,22 @@ pub struct StreamingIFDSAnalysisReportV0 {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
+pub struct StreamingIFDSCrossFileReachabilityReportV0 {
+    pub schema_version: &'static str,
+    pub product: &'static str,
+    pub layer_marker: &'static str,
+    pub feature_gate: &'static str,
+    pub target_style_path: String,
+    pub start_node_count: usize,
+    pub reachable_foreign_path_count: usize,
+    pub reachable_foreign_paths: Vec<String>,
+    pub analysis_report_count: usize,
+    pub precision_parity_with_batch: bool,
+    pub exact_default: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct StreamingIfdsFrameRuleBridgePolicyV0 {
     pub schema_version: &'static str,
     pub product: &'static str,
@@ -430,6 +446,65 @@ where
         precision_parity_with_batch: output_fact_keys == batch_fact_keys,
         output_facts: incremental_facts,
         summary_cache,
+    }
+}
+
+/// Compute cross-file reachability over the resolved unified hypergraph.
+///
+/// This is the crate-owned mechanism behind the CLI/product diagnostic. The
+/// caller supplies real `omena-query` hyperedges; this function seeds each node
+/// owned by the target style file, runs the exact streaming IFDS oracle, and
+/// reports the foreign module paths reached by propagated facts.
+pub fn summarize_streaming_ifds_cross_file_reachability_v0(
+    target_style_path: &str,
+    hyperedges: &[UnifiedHypergraphHyperedgeV0],
+) -> StreamingIFDSCrossFileReachabilityReportV0 {
+    let start_node_ids = streaming_ifds_node_ids_for_path(target_style_path, hyperedges);
+    let oracle = ExactStreamingConnectivityOracleV0::default();
+    let mut reachable_foreign_paths = BTreeSet::<String>::new();
+    let mut precision_parity_with_batch = true;
+    let mut analysis_report_count = 0usize;
+
+    for start_node_id in &start_node_ids {
+        let event = streaming_ifds_event_input_v0(
+            format!("foreign-reference-seed:{start_node_id}"),
+            0,
+            start_node_id.clone(),
+            AbstractClassValueV0::Top,
+            None,
+        );
+        let report = run_streaming_ifds_exact_v0(
+            format!("cross-file-reachability:{target_style_path}"),
+            start_node_id.clone(),
+            hyperedges,
+            std::slice::from_ref(&event),
+            &oracle,
+            None,
+        );
+        analysis_report_count += 1;
+        precision_parity_with_batch &= report.precision_parity_with_batch;
+        for fact in &report.output_facts {
+            if let Some(path) = streaming_ifds_node_path(fact.node_id.as_str())
+                && path != target_style_path
+            {
+                reachable_foreign_paths.insert(path.to_string());
+            }
+        }
+    }
+
+    let reachable_foreign_paths = reachable_foreign_paths.into_iter().collect::<Vec<_>>();
+    StreamingIFDSCrossFileReachabilityReportV0 {
+        schema_version: STREAMING_IFDS_SCHEMA_VERSION_V0,
+        product: "omena-streaming-ifds.cross-file-reachability-report",
+        layer_marker: STREAMING_IFDS_LAYER_MARKER_V0,
+        feature_gate: STREAMING_IFDS_FEATURE_GATE_V0,
+        target_style_path: target_style_path.to_string(),
+        start_node_count: start_node_ids.len(),
+        reachable_foreign_path_count: reachable_foreign_paths.len(),
+        reachable_foreign_paths,
+        analysis_report_count,
+        precision_parity_with_batch,
+        exact_default: true,
     }
 }
 
@@ -822,6 +897,30 @@ fn polylog_query_bound(node_count: usize) -> usize {
     log2_ceil.saturating_mul(log2_ceil).max(1)
 }
 
+fn streaming_ifds_node_ids_for_path(
+    target_style_path: &str,
+    hyperedges: &[UnifiedHypergraphHyperedgeV0],
+) -> Vec<String> {
+    hyperedges
+        .iter()
+        .flat_map(|edge| {
+            edge.tail_node_ids
+                .iter()
+                .chain(std::iter::once(&edge.head_node_id))
+        })
+        .filter(|node_id| streaming_ifds_node_path(node_id) == Some(target_style_path))
+        .cloned()
+        .collect::<BTreeSet<_>>()
+        .into_iter()
+        .collect()
+}
+
+fn streaming_ifds_node_path(node_id: &str) -> Option<&str> {
+    let mut parts = node_id.splitn(3, '|');
+    let _kind = parts.next()?;
+    parts.next()
+}
+
 fn exact_reachable_node_ids(
     start_node_id: &str,
     hyperedges: &[UnifiedHypergraphHyperedgeV0],
@@ -1087,6 +1186,50 @@ mod tests {
         assert!(report.output_facts.iter().any(|fact| {
             fact.node_id == "c" && abstract_class_value_key(&fact.value) == "finiteSet:b,button,c"
         }));
+    }
+
+    #[test]
+    fn cross_file_reachability_report_uses_exact_streaming_ifds_facts() {
+        let hyperedges = vec![hyperedge(
+            "edge-button-base",
+            "styleModule|/workspace/Button.module.scss|root",
+            "styleSymbol|/workspace/base.module.scss|base",
+        )];
+        let report = summarize_streaming_ifds_cross_file_reachability_v0(
+            "/workspace/Button.module.scss",
+            &hyperedges,
+        );
+
+        assert_eq!(
+            report.product,
+            "omena-streaming-ifds.cross-file-reachability-report"
+        );
+        assert_eq!(report.start_node_count, 1);
+        assert_eq!(report.analysis_report_count, 1);
+        assert!(report.precision_parity_with_batch);
+        assert!(report.exact_default);
+        assert_eq!(
+            report.reachable_foreign_paths,
+            vec!["/workspace/base.module.scss".to_string()]
+        );
+    }
+
+    #[test]
+    fn cross_file_reachability_report_clears_for_self_contained_graph() {
+        let hyperedges = vec![hyperedge(
+            "edge-self",
+            "styleModule|/workspace/Button.module.scss|root",
+            "styleSymbol|/workspace/Button.module.scss|base",
+        )];
+        let report = summarize_streaming_ifds_cross_file_reachability_v0(
+            "/workspace/Button.module.scss",
+            &hyperedges,
+        );
+
+        assert_eq!(report.start_node_count, 2);
+        assert_eq!(report.reachable_foreign_path_count, 0);
+        assert!(report.reachable_foreign_paths.is_empty());
+        assert!(report.precision_parity_with_batch);
     }
 
     #[cfg(feature = "with-frame-rule")]
