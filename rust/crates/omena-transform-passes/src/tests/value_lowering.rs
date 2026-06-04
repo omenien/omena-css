@@ -46,6 +46,28 @@ fn execution_runtime_expands_target_vendor_prefix_matrix_breadth() {
 }
 
 #[test]
+fn execution_runtime_adds_prefixed_supports_fallback_conditions() {
+    let source = r#"@supports (display: grid) { .grid { display: grid; } } @supports (transform: translateX(1px)) { .motion { transform: translateX(1px); } } @supports ((display: grid) or (display: -ms-grid)) { .already { display: grid; } }"#;
+    let execution = execute_transform_passes_on_source(
+        source,
+        &[
+            TransformPassKind::VendorPrefixing,
+            TransformPassKind::PrintCss,
+        ],
+    );
+
+    assert_eq!(execution.mutation_count, 6);
+    assert_eq!(
+        execution.output_css,
+        r#"@supports ((display: grid) or (display: -ms-grid)) { .grid { display: -ms-grid; display: grid; } } @supports ((transform: translateX(1px)) or (-webkit-transform: translateX(1px)) or (-ms-transform: translateX(1px))) { .motion { -webkit-transform: translateX(1px); -ms-transform: translateX(1px); transform: translateX(1px); } } @supports ((display: grid) or (display: -ms-grid)) { .already { display: -ms-grid; display: grid; } }"#
+    );
+    assert_eq!(
+        execution.executed_pass_ids,
+        vec!["vendor-prefixing", "print-css"]
+    );
+}
+
+#[test]
 fn execution_runtime_lowers_whole_value_light_dark_declarations() {
     let source = r#".card { color: light-dark(#000, #fff); background: linear-gradient(light-dark(red, blue), white); border: 1px solid light-dark(red, blue); box-shadow: 0 0 1px light-dark(black, white); }"#;
     let execution = execute_transform_passes_on_source(

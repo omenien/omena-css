@@ -140,7 +140,7 @@ fn exposes_consumer_build_facade_from_target_query() {
 fn target_query_build_emits_expanded_vendor_prefix_matrix() {
     let summary = execute_omena_query_consumer_build_style_source_for_target_query(
         "Grid.module.css",
-        ".card { display: grid; transform: translateX(1px); columns: 2; touch-action: manipulation; }",
+        ".card { display: grid; transform: translateX(1px); columns: 2; touch-action: manipulation; } @supports (display: grid) { .query { display: grid; } }",
         "ie 11",
     );
 
@@ -177,6 +177,12 @@ fn target_query_build_emits_expanded_vendor_prefix_matrix() {
             .execution
             .output_css
             .contains("-ms-touch-action: manipulation")
+    );
+    assert!(
+        summary
+            .execution
+            .output_css
+            .contains("@supports ((display: grid) or (display: -ms-grid))")
     );
     assert!(summary.ready_surfaces.contains(&"targetQueryBuildFacade"));
 }
