@@ -57,6 +57,19 @@ use omena_query_transform_runner::{
     summarize_omena_transform_bundle_from_source,
     summarize_static_css_custom_property_fixed_point_from_source,
 };
+#[cfg(feature = "lawvere-trace")]
+pub use omena_query_transform_runner::{
+    LawvereDifferentialCommutativityWitnessV0 as OmenaQueryLawvereDifferentialCommutativityWitnessV0,
+    LawvereModelTraceV0 as OmenaQueryLawvereModelTraceV0,
+    ReorderabilityCertificateV0 as OmenaQueryLawvereReorderabilityCertificateV0,
+    TransformPassParallelPlanV0 as OmenaQueryLawvereTransformPassParallelPlanV0,
+};
+#[cfg(feature = "lawvere-trace")]
+use omena_query_transform_runner::{
+    evaluate_lawvere_reorderability_with_differential_corpus,
+    execute_transform_passes_on_source_with_lawvere_trace_and_dialect,
+    plan_transform_passes_parallel_lawvere_layers,
+};
 use omena_resolver::{
     OmenaResolverBoundaryStateKindV0, OmenaResolverBoundaryStateV0, OmenaResolverBoundaryTopV0,
     OmenaResolverBundlerPathAliasMappingV0, OmenaResolverCanonicalUrlV0,

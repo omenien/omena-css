@@ -662,6 +662,62 @@ pub fn execute_omena_query_transform_passes_from_source_with_context(
     }
 }
 
+#[cfg(feature = "lawvere-trace")]
+pub fn execute_omena_query_transform_passes_from_source_with_lawvere_trace(
+    style_path: &str,
+    style_source: &str,
+    requested_pass_ids: &[String],
+) -> OmenaQueryLawvereTransformExecuteSummaryV0 {
+    let execution = execute_omena_query_transform_passes_from_source(
+        style_path,
+        style_source,
+        requested_pass_ids,
+    );
+    let requested_passes = requested_pass_ids
+        .iter()
+        .filter_map(|pass_id| transform_pass_kind_from_id(pass_id))
+        .collect::<Vec<_>>();
+    let dialect = omena_parser_dialect_for_style_path(style_path);
+    let (_traced_execution, lawvere_trace) =
+        execute_transform_passes_on_source_with_lawvere_trace_and_dialect(
+            style_source,
+            dialect,
+            requested_passes.as_slice(),
+        );
+    let parallel_plan = plan_transform_passes_parallel_lawvere_layers(requested_passes.as_slice());
+    let mut reorderability_certificates = Vec::new();
+    let mut differential_witnesses = Vec::new();
+
+    if let Some((left, right)) = requested_passes.first().zip(requested_passes.get(1)) {
+        let (certificate, witness) = evaluate_lawvere_reorderability_with_differential_corpus(
+            *left,
+            *right,
+            &[style_source],
+        );
+        reorderability_certificates.push(certificate);
+        differential_witnesses.push(witness);
+    }
+
+    OmenaQueryLawvereTransformExecuteSummaryV0 {
+        schema_version: "0",
+        product: "omena-query.transform-execute-lawvere-trace",
+        product_scope: "explicitOptInLawvereTraceProductLane",
+        default_product_mechanism: false,
+        global_transform_theorem_claimed: false,
+        execution,
+        lawvere_trace,
+        parallel_plan,
+        reorderability_certificates,
+        differential_witnesses,
+        ready_surfaces: vec![
+            "queryTransformExecutionHandoff",
+            "lawvereModelTrace",
+            "lawvereParallelPlanTrace",
+            "lawvereDifferentialReorderabilityCertificate",
+        ],
+    }
+}
+
 pub fn summarize_omena_query_transform_context_from_sources<'a>(
     target_style_path: &str,
     styles: impl IntoIterator<Item = (&'a str, &'a str)>,

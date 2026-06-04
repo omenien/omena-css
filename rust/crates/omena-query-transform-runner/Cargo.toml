@@ -15,6 +15,10 @@ role = "R2"
 [lints]
 workspace = true
 
+[features]
+default = []
+lawvere-trace = ["omena-transform-passes/lawvere-trace"]
+
 [dependencies]
 omena-transform-bundle = { path = "../omena-transform-bundle", version = "=0.2.0" }
 omena-transform-cst = { path = "../omena-transform-cst", version = "=0.2.0" }

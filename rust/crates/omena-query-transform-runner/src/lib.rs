@@ -28,6 +28,13 @@ pub use omena_transform_passes::{
     restore_less_inline_literal_placeholders,
     summarize_static_css_custom_property_fixed_point_from_source,
 };
+#[cfg(feature = "lawvere-trace")]
+pub use omena_transform_passes::{
+    LawvereDifferentialCommutativityWitnessV0, LawvereModelTraceV0, ReorderabilityCertificateV0,
+    TransformPassParallelPlanV0, evaluate_lawvere_reorderability_with_differential_corpus,
+    execute_transform_passes_on_source_with_lawvere_trace_and_dialect,
+    plan_transform_passes_parallel_lawvere_layers,
+};
 pub use omena_transform_print::{
     TransformPrintArtifactV0, TransformPrintMode, TransformPrintOptionsV0, default_print_options,
     print_transform_execution_artifact_with_dialect_and_source,
@@ -60,6 +67,18 @@ pub struct OmenaQueryTransformRunnerBoundaryV0 {
 }
 
 pub fn summarize_omena_query_transform_runner_boundary_v0() -> OmenaQueryTransformRunnerBoundaryV0 {
+    let ready_surfaces = vec![
+        "transformPlannerBoundary",
+        "transformExecutorBoundary",
+        "transformPrinterBoundary",
+        "transformTargetPlannerBoundary",
+        "transformEggWitnessBoundary",
+    ];
+    #[cfg(feature = "lawvere-trace")]
+    let mut ready_surfaces = ready_surfaces;
+    #[cfg(feature = "lawvere-trace")]
+    ready_surfaces.push("transformLawvereTraceBoundary");
+
     OmenaQueryTransformRunnerBoundaryV0 {
         schema_version: "0",
         product: "omena-query-transform-runner.boundary",
@@ -67,13 +86,7 @@ pub fn summarize_omena_query_transform_runner_boundary_v0() -> OmenaQueryTransfo
         collapsed_transform_crate_count: OMENA_QUERY_TRANSFORM_RUNNER_COLLAPSED_CRATES_V0.len(),
         collapsed_transform_crates: OMENA_QUERY_TRANSFORM_RUNNER_COLLAPSED_CRATES_V0.to_vec(),
         direct_query_dependency_replacement: "omena-query-transform-runner",
-        ready_surfaces: vec![
-            "transformPlannerBoundary",
-            "transformExecutorBoundary",
-            "transformPrinterBoundary",
-            "transformTargetPlannerBoundary",
-            "transformEggWitnessBoundary",
-        ],
+        ready_surfaces,
     }
 }
 

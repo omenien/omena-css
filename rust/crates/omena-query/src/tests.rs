@@ -1,3 +1,5 @@
+#[cfg(feature = "lawvere-trace")]
+use super::execute_omena_query_transform_passes_from_source_with_lawvere_trace;
 use super::{
     EngineInputV2, OmenaQueryCanonicalFormInput, OmenaQueryExpressionDomainFlowRuntimeV0,
     OmenaQueryStylePackageManifestV0, ParserPositionV0, SelectorProjectionCertaintyV0,

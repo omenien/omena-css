@@ -16,6 +16,11 @@ mod runtime;
 pub use domains::css_modules_values::resolve_static_css_modules_local_value_resolutions_from_source;
 pub use domains::number::reduce_static_numeric_expression;
 pub use model::*;
+#[cfg(feature = "lawvere-trace")]
+pub use omena_lawvere::{
+    LawvereDifferentialCommutativityWitnessV0, LawvereModelTraceV0, ReorderabilityCertificateV0,
+    TransformPassParallelPlanV0,
+};
 pub use registry::{
     inline_css_imports, inline_css_imports_for_static_module_evaluation,
     parse_static_css_cascade_value, restore_less_inline_literal_placeholders,

@@ -639,6 +639,23 @@ pub struct OmenaQueryTransformExecuteSummaryV0 {
     pub ready_surfaces: Vec<&'static str>,
 }
 
+#[cfg(feature = "lawvere-trace")]
+#[derive(Debug, Clone, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct OmenaQueryLawvereTransformExecuteSummaryV0 {
+    pub schema_version: &'static str,
+    pub product: &'static str,
+    pub product_scope: &'static str,
+    pub default_product_mechanism: bool,
+    pub global_transform_theorem_claimed: bool,
+    pub execution: OmenaQueryTransformExecuteSummaryV0,
+    pub lawvere_trace: OmenaQueryLawvereModelTraceV0,
+    pub parallel_plan: OmenaQueryLawvereTransformPassParallelPlanV0,
+    pub reorderability_certificates: Vec<OmenaQueryLawvereReorderabilityCertificateV0>,
+    pub differential_witnesses: Vec<OmenaQueryLawvereDifferentialCommutativityWitnessV0>,
+    pub ready_surfaces: Vec<&'static str>,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct OmenaQueryTransformContextFromSourcesSummaryV0 {

@@ -242,6 +242,93 @@ fn exposes_transform_plan_custom_property_fixed_point() {
     );
 }
 
+#[cfg(feature = "lawvere-trace")]
+#[test]
+fn transform_execute_lawvere_trace_is_explicit_opt_in_product_lane() {
+    let source = r#".a { color : red ; /* remove */ content : "x y" ; }"#;
+    let requested_pass_ids = vec![
+        "comment-strip".to_string(),
+        "whitespace-strip".to_string(),
+        "print-css".to_string(),
+    ];
+
+    let summary = execute_omena_query_transform_passes_from_source_with_lawvere_trace(
+        "Button.css",
+        source,
+        &requested_pass_ids,
+    );
+
+    assert_eq!(
+        summary.product,
+        "omena-query.transform-execute-lawvere-trace"
+    );
+    assert_eq!(
+        summary.product_scope,
+        "explicitOptInLawvereTraceProductLane"
+    );
+    assert!(!summary.default_product_mechanism);
+    assert!(!summary.global_transform_theorem_claimed);
+    assert_eq!(
+        summary.execution.execution.output_css,
+        r#".a{color:red;content:"x y"}"#
+    );
+    assert_eq!(summary.lawvere_trace.product, "omena-lawvere.model-trace");
+    assert_eq!(
+        summary.lawvere_trace.ordered_pass_ids,
+        summary.execution.execution.ordered_pass_ids
+    );
+    assert_eq!(summary.parallel_plan.scheduler_status, "scaffoldOnly");
+    assert!(!summary.parallel_plan.executor_consumes_plan);
+    assert_eq!(summary.reorderability_certificates.len(), 1);
+    assert_eq!(summary.differential_witnesses.len(), 1);
+    assert_eq!(
+        summary.reorderability_certificates[0].commute_witness,
+        "differentialCommutativityCorpus"
+    );
+    assert!(summary.reorderability_certificates[0].accepted);
+    assert_eq!(summary.differential_witnesses[0].fixture_count, 1);
+    assert_eq!(summary.differential_witnesses[0].mismatch_count, 0);
+    assert!(
+        summary
+            .ready_surfaces
+            .contains(&"lawvereDifferentialReorderabilityCertificate")
+    );
+}
+
+#[cfg(feature = "lawvere-trace")]
+#[test]
+fn transform_execute_lawvere_trace_exposes_rejected_differential_witness() {
+    let source = r#".a { & .b { color: red; } } .a .b { color: red; }"#;
+    let requested_pass_ids = vec![
+        "rule-deduplication".to_string(),
+        "nesting-unwrap".to_string(),
+    ];
+
+    let summary = execute_omena_query_transform_passes_from_source_with_lawvere_trace(
+        "Nested.css",
+        source,
+        &requested_pass_ids,
+    );
+
+    assert_eq!(
+        summary.product_scope,
+        "explicitOptInLawvereTraceProductLane"
+    );
+    assert!(!summary.default_product_mechanism);
+    assert!(!summary.global_transform_theorem_claimed);
+    assert_eq!(summary.reorderability_certificates.len(), 1);
+    assert_eq!(summary.differential_witnesses.len(), 1);
+    assert_eq!(
+        summary.reorderability_certificates[0].differential_mismatch_count,
+        1
+    );
+    assert!(!summary.reorderability_certificates[0].accepted);
+    assert_eq!(summary.differential_witnesses[0].fixture_count, 1);
+    assert_eq!(summary.differential_witnesses[0].equal_fixture_count, 0);
+    assert_eq!(summary.differential_witnesses[0].mismatch_count, 1);
+    assert!(!summary.differential_witnesses[0].accepted);
+}
+
 #[test]
 fn exposes_transform_plan_facade_from_browserslist_target_query() {
     let source = ".button { display: flex; color: light-dark(#000, #fff); }";
