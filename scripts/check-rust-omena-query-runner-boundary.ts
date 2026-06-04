@@ -196,6 +196,10 @@ assert.ok(
   styleCodeActionHelperBody.includes("summarize_omena_query_style_inline_code_actions"),
   "style-code-actions helper must route through summarize_omena_query_style_inline_code_actions",
 );
+assert.ok(
+  styleCodeActionHelperBody.includes("summarize_omena_query_style_insight_code_actions"),
+  "style-code-actions helper must route through summarize_omena_query_style_insight_code_actions",
+);
 
 for (const [command, expectedCalls] of OMENA_QUERY_OWNED_COMMANDS) {
   const body = commandBodies.get(command);

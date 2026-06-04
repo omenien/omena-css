@@ -102,6 +102,7 @@ use omena_query::{
     summarize_omena_query_style_diagnostics_for_workspace_file_with_external_mode_and_sifs,
     summarize_omena_query_style_extract_code_actions,
     summarize_omena_query_style_inline_code_actions,
+    summarize_omena_query_style_insight_code_actions,
     summarize_omena_query_style_semantic_graph_batch_from_sources_with_package_manifests,
     summarize_omena_query_style_semantic_graph_from_source,
     summarize_omena_query_transform_context_from_engine_input,
@@ -1340,6 +1341,14 @@ fn run_style_code_actions_facade(input: StyleCodeActionsInputV0) -> OmenaQueryCo
     );
     if inline.action_count > 0 {
         return inline;
+    }
+    let insight = summarize_omena_query_style_insight_code_actions(
+        &input.style_uri,
+        &input.style_source,
+        range,
+    );
+    if insight.action_count > 0 {
+        return insight;
     }
     summarize_omena_query_style_extract_code_actions(&input.style_uri, &input.style_source, range)
 }

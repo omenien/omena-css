@@ -155,3 +155,77 @@ fn resolves_style_inline_code_actions_from_omena_query() {
         Some(&json!("omenaQueryStyleInlineCodeActions")),
     );
 }
+
+#[test]
+fn resolves_style_insight_code_actions_from_omena_query() {
+    let mut state = LspShellState::default();
+    handle_lsp_message(
+        &mut state,
+        json!({
+            "jsonrpc": "2.0",
+            "method": "textDocument/didOpen",
+            "params": {
+                "textDocument": {
+                    "uri": "file:///workspace-a/src/App.module.scss",
+                    "languageId": "scss",
+                    "version": 1,
+                    "text": ".button {\n  margin-top: 1px;\n  margin-right: 2px;\n  margin-bottom: 3px;\n  margin-left: 4px;\n}",
+                },
+            },
+        }),
+    );
+
+    let code_action_response = handle_lsp_message(
+        &mut state,
+        json!({
+            "jsonrpc": "2.0",
+            "id": 1,
+            "method": "textDocument/codeAction",
+            "params": {
+                "textDocument": {
+                    "uri": "file:///workspace-a/src/App.module.scss",
+                },
+                "range": {
+                    "start": {
+                        "line": 2,
+                        "character": 4,
+                    },
+                    "end": {
+                        "line": 2,
+                        "character": 4,
+                    },
+                },
+                "context": {
+                    "diagnostics": [],
+                },
+            },
+        }),
+    );
+
+    assert_eq!(
+        code_action_response
+            .as_ref()
+            .and_then(|value| value.pointer("/result/0/title")),
+        Some(&json!("Combine margin longhands into shorthand")),
+    );
+    assert_eq!(
+        code_action_response
+            .as_ref()
+            .and_then(|value| value.pointer("/result/0/kind")),
+        Some(&json!("quickfix")),
+    );
+    assert_eq!(
+        code_action_response
+            .as_ref()
+            .and_then(|value| value.pointer(
+                "/result/0/edit/changes/file:~1~1~1workspace-a~1src~1App.module.scss/0/newText"
+            )),
+        Some(&json!("margin: 1px 2px 3px 4px")),
+    );
+    assert_eq!(
+        code_action_response
+            .as_ref()
+            .and_then(|value| value.pointer("/result/0/data/source")),
+        Some(&json!("omenaQueryStyleInsightCodeActions")),
+    );
+}

@@ -9,6 +9,7 @@ use crate::{
     summarize_omena_query_style_extract_code_actions, summarize_omena_query_style_hover_candidates,
     summarize_omena_query_style_hover_render_parts,
     summarize_omena_query_style_inline_code_actions,
+    summarize_omena_query_style_insight_code_actions, summarize_omena_query_style_insights,
 };
 
 #[test]
@@ -431,6 +432,82 @@ fn style_inline_code_actions_are_query_owned() {
         "color: blue;\n  margin: 1rem;"
     );
     assert!(plan.ready_surfaces.contains(&"styleInlineRefactorActions"));
+}
+
+#[test]
+fn style_insights_surface_shorthand_combinable_facts() {
+    let source = ".button {\n  margin-top: 1px;\n  margin-right: 2px;\n  margin-bottom: 3px;\n  margin-left: 4px;\n}";
+    let insights =
+        summarize_omena_query_style_insights("file:///workspace/src/App.module.scss", source);
+
+    assert_eq!(insights.product, "omena-query.style-insights");
+    assert_eq!(insights.insight_count, 1);
+    assert!(insights.ready_surfaces.contains(&"styleInsightSurface"));
+    let insight = &insights.insights[0];
+    assert_eq!(insight.kind, "shorthandCombinable");
+    assert_eq!(insight.title, "Combine margin longhands into shorthand");
+    assert_eq!(insight.source, "omenaQueryStyleInsights");
+    assert_eq!(
+        insight.range,
+        ParserRangeV0 {
+            start: ParserPositionV0 {
+                line: 1,
+                character: 2,
+            },
+            end: ParserPositionV0 {
+                line: 4,
+                character: 18,
+            },
+        }
+    );
+    assert_eq!(insight.primary_edit.new_text, "margin: 1px 2px 3px 4px");
+    let shorthand = insight
+        .shorthand_combinable
+        .as_ref()
+        .expect("shorthandCombinable payload");
+    assert_eq!(shorthand.shorthand_property, "margin");
+    assert_eq!(
+        shorthand.longhand_properties,
+        vec!["margin-top", "margin-right", "margin-bottom", "margin-left",]
+    );
+    assert_eq!(shorthand.combined_value, "1px 2px 3px 4px");
+}
+
+#[test]
+fn style_insight_code_actions_consume_shorthand_combinable_facts() {
+    let source = ".button {\n  margin-top: 1px;\n  margin-right: 2px;\n  margin-bottom: 3px;\n  margin-left: 4px;\n}";
+    let plan = summarize_omena_query_style_insight_code_actions(
+        "file:///workspace/src/App.module.scss",
+        source,
+        ParserRangeV0 {
+            start: ParserPositionV0 {
+                line: 2,
+                character: 4,
+            },
+            end: ParserPositionV0 {
+                line: 2,
+                character: 4,
+            },
+        },
+    );
+
+    assert_eq!(plan.product, "omena-query.code-actions");
+    assert_eq!(plan.action_count, 1);
+    assert_eq!(
+        plan.ready_surfaces,
+        vec![
+            "styleInsightCodeActions",
+            "styleInsightSurface",
+            "productFacingCodeActions",
+        ]
+    );
+    assert_eq!(plan.actions[0].kind, "quickfix");
+    assert_eq!(plan.actions[0].source, "omenaQueryStyleInsightCodeActions");
+    assert_eq!(
+        plan.actions[0].title,
+        "Combine margin longhands into shorthand"
+    );
+    assert_eq!(plan.actions[0].edits[0].new_text, "margin: 1px 2px 3px 4px");
 }
 
 #[test]

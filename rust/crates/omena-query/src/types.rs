@@ -1106,6 +1106,40 @@ pub struct OmenaQueryCodeActionV0 {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
+pub struct OmenaQueryStyleInsightsV0 {
+    pub schema_version: &'static str,
+    pub product: &'static str,
+    pub style_uri: String,
+    pub insight_count: usize,
+    pub insights: Vec<OmenaQueryInsightV0>,
+    pub ready_surfaces: Vec<&'static str>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct OmenaQueryInsightV0 {
+    pub kind: &'static str,
+    pub title: String,
+    pub message: String,
+    pub range: ParserRangeV0,
+    pub source: &'static str,
+    pub provenance: Vec<&'static str>,
+    pub primary_edit: OmenaQueryWorkspaceTextEditV0,
+    pub shorthand_combinable: Option<OmenaQueryShorthandCombinableV0>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct OmenaQueryShorthandCombinableV0 {
+    pub shorthand_property: String,
+    pub longhand_properties: Vec<String>,
+    pub values: Vec<String>,
+    pub combined_value: String,
+    pub declaration_count: usize,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct OmenaQueryCascadeAtPositionV0 {
     pub schema_version: &'static str,
     pub product: &'static str,

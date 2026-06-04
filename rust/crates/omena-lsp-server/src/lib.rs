@@ -50,9 +50,8 @@ use omena_query::{
     summarize_omena_query_style_diagnostics_for_file,
     summarize_omena_query_style_diagnostics_for_file_with_deep_analysis,
     summarize_omena_query_style_diagnostics_for_workspace_file_with_external_mode_and_sifs_and_resolution_inputs,
-    summarize_omena_query_style_document, summarize_omena_query_style_extract_code_actions,
-    summarize_omena_query_style_hover_render_parts,
-    summarize_omena_query_style_inline_code_actions,
+    summarize_omena_query_style_document, summarize_omena_query_style_hover_render_parts,
+    summarize_omena_query_style_refactor_code_actions,
 };
 use omena_streaming_ifds::summarize_streaming_ifds_workspace_cross_file_reachability_v0;
 #[cfg(test)]
@@ -1375,24 +1374,15 @@ fn resolve_lsp_refactor_code_actions(state: &LspShellState, params: Option<&Valu
         document.workspace_folder_uri.as_deref(),
         Some(document.uri.as_str()),
     );
-    let inline_actions = summarize_omena_query_style_inline_code_actions(
+    let actions = summarize_omena_query_style_refactor_code_actions(
         document.uri.as_str(),
         style_sources.as_slice(),
+        document.text.as_str(),
         range,
         &[],
     )
     .actions;
-    if !inline_actions.is_empty() {
-        return render_omena_query_lsp_code_actions(inline_actions);
-    }
-
-    let extract_actions = summarize_omena_query_style_extract_code_actions(
-        document.uri.as_str(),
-        document.text.as_str(),
-        range,
-    )
-    .actions;
-    render_omena_query_lsp_code_actions(extract_actions)
+    render_omena_query_lsp_code_actions(actions)
 }
 
 fn style_sources_from_open_documents(

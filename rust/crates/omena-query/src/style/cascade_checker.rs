@@ -650,7 +650,8 @@ fn query_smt_layer_inversion_obligations(
 
 /// The canonical top/right/bottom/left longhand quartets for the box shorthands
 /// `omena-smt` proves combinable, mirroring `smt_box_shorthand_longhands_v0`.
-fn query_smt_box_shorthand_longhand_quartets() -> Vec<(&'static str, [&'static str; 4])> {
+pub(super) fn query_smt_box_shorthand_longhand_quartets() -> Vec<(&'static str, [&'static str; 4])>
+{
     vec![
         (
             "margin",
@@ -1112,9 +1113,9 @@ fn query_cascade_declaration_from_input(
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-struct QueryCheckerCascadeDeclaration {
-    input: OmenaCheckerCascadeDeclarationInputV0,
-    byte_span: ParserByteSpanV0,
+pub(super) struct QueryCheckerCascadeDeclaration {
+    pub(super) input: OmenaCheckerCascadeDeclarationInputV0,
+    pub(super) byte_span: ParserByteSpanV0,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -1124,7 +1125,9 @@ struct QueryCheckerCascadeScope {
     layer_order: Option<i32>,
 }
 
-fn collect_query_checker_cascade_declarations(source: &str) -> Vec<QueryCheckerCascadeDeclaration> {
+pub(super) fn collect_query_checker_cascade_declarations(
+    source: &str,
+) -> Vec<QueryCheckerCascadeDeclaration> {
     let mut declarations = Vec::new();
     let mut layer_orders = BTreeMap::new();
     let mut next_layer_order = 0i32;

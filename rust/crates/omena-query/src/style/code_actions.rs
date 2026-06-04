@@ -190,6 +190,31 @@ fn empty_style_code_action_plan(
     }
 }
 
+pub fn summarize_omena_query_style_refactor_code_actions(
+    style_uri: &str,
+    style_sources: &[OmenaQueryStyleSourceInputV0],
+    source: &str,
+    range: ParserRangeV0,
+    package_manifests: &[OmenaQueryStylePackageManifestV0],
+) -> OmenaQueryCodeActionPlanV0 {
+    let inline = summarize_omena_query_style_inline_code_actions(
+        style_uri,
+        style_sources,
+        range,
+        package_manifests,
+    );
+    if inline.action_count > 0 {
+        return inline;
+    }
+
+    let insight = summarize_omena_query_style_insight_code_actions(style_uri, source, range);
+    if insight.action_count > 0 {
+        return insight;
+    }
+
+    summarize_omena_query_style_extract_code_actions(style_uri, source, range)
+}
+
 struct InlineDeclarationContext<'a> {
     style_source_by_path: &'a BTreeMap<&'a str, &'a str>,
     available_style_paths: &'a BTreeSet<&'a str>,
