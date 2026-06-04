@@ -134,6 +134,7 @@ function resolveSourceReferenceTargets(
       workspaceRoot: deps.workspaceRoot,
       sourceBinder: ctx.entry.sourceBinder,
       sourceBindingGraph: ctx.entry.sourceBindingGraph,
+      classValueUniverses: ctx.entry.classValueUniverses,
     },
   );
   if (!resolution.styleDocument || resolution.selectors.length === 0) return [];
@@ -183,6 +184,7 @@ async function resolveSourceReferenceTargetsAsync(
       workspaceRoot: deps.workspaceRoot,
       sourceBinder: ctx.entry.sourceBinder,
       sourceBindingGraph: ctx.entry.sourceBindingGraph,
+      classValueUniverses: ctx.entry.classValueUniverses,
     },
   );
   if (!resolution.styleDocument || resolution.selectors.length === 0) return [];

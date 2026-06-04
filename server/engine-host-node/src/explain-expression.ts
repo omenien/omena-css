@@ -157,6 +157,7 @@ export function explainExpressionAtLocation(
     workspaceRoot: options.workspaceRoot,
     sourceBinder: ctx.entry.sourceBinder,
     sourceBindingGraph: ctx.entry.sourceBindingGraph,
+    classValueUniverses: ctx.entry.classValueUniverses,
   };
   const resolution = readSourceExpressionResolution(
     expressionResolutionContext,

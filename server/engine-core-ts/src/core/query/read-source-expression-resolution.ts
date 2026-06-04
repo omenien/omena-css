@@ -1,6 +1,7 @@
 import { enumerateFiniteClassValues } from "../abstract-value/class-value-domain";
 import type { SourceBindingGraph } from "../binder/source-binding-graph";
 import type { SourceBinderResult } from "../binder/scope-types";
+import type { ClassValueUniverseEntryV0 } from "../binder/class-value-universe-provider";
 import type { FlowResolution } from "../flow/lattice";
 import type { ClassExpressionHIR, SymbolRefClassExpressionHIR } from "../hir/source-types";
 import type { SelectorDeclHIR, StyleDocumentHIR } from "../hir/style-types";
@@ -16,6 +17,7 @@ export interface ReadSourceExpressionResolutionEnv {
   readonly workspaceRoot: string;
   readonly sourceBinder?: SourceBinderResult;
   readonly sourceBindingGraph?: SourceBindingGraph;
+  readonly classValueUniverses?: readonly ClassValueUniverseEntryV0[];
   readonly resolveSymbolValues?: (
     sourceFile: ts.SourceFile,
     expression: SymbolRefClassExpressionHIR,
@@ -60,6 +62,7 @@ export function readSourceExpressionResolution(
     workspaceRoot: env.workspaceRoot,
     ...(env.sourceBinder ? { sourceBinder: env.sourceBinder } : {}),
     ...(env.sourceBindingGraph ? { sourceBindingGraph: env.sourceBindingGraph } : {}),
+    ...(env.classValueUniverses ? { classValueUniverses: env.classValueUniverses } : {}),
     ...(env.resolveSymbolValues ? { resolveSymbolValues: env.resolveSymbolValues } : {}),
   });
 

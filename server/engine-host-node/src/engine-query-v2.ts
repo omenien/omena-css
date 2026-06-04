@@ -104,6 +104,7 @@ export function buildSelectedQueryResultsV2(
         workspaceRoot: options.workspaceRoot,
         sourceBinder: analysis.sourceBinder,
         sourceBindingGraph: analysis.sourceBindingGraph,
+        classValueUniverses: analysis.classValueUniverses,
       } as const;
       const rustSourceResolutionPayload = readRustSourceResolutionPayload
         ? readRustSourceResolutionPayload(

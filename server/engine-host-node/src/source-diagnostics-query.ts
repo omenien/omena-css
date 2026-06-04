@@ -170,6 +170,7 @@ function resolveSourceDiagnosticFindingsViaRustSemantics(
           workspaceRoot: deps.workspaceRoot,
           sourceBinder: entry.sourceBinder,
           sourceBindingGraph: entry.sourceBindingGraph,
+          classValueUniverses: entry.classValueUniverses,
         });
         if (!finding) continue;
         findings.push(mapInvalidClassFinding(finding, styleDocument.filePath));
@@ -182,6 +183,7 @@ function resolveSourceDiagnosticFindingsViaRustSemantics(
         styleDocument,
         sourceBinder: entry.sourceBinder,
         sourceBindingGraph: entry.sourceBindingGraph,
+        classValueUniverses: entry.classValueUniverses,
         deps,
         filePath: params.filePath,
       });
@@ -356,6 +358,7 @@ async function resolveSourceDiagnosticFindingsViaRustSemanticsAsync(
               workspaceRoot: deps.workspaceRoot,
               sourceBinder: entry.sourceBinder,
               sourceBindingGraph: entry.sourceBindingGraph,
+              classValueUniverses: entry.classValueUniverses,
             });
             if (!finding) return [];
             return [mapInvalidClassFinding(finding, styleDocument.filePath)];
@@ -367,6 +370,7 @@ async function resolveSourceDiagnosticFindingsViaRustSemanticsAsync(
             styleDocument,
             sourceBinder: entry.sourceBinder,
             sourceBindingGraph: entry.sourceBindingGraph,
+            classValueUniverses: entry.classValueUniverses,
             deps,
             filePath: params.filePath,
           });
@@ -671,6 +675,9 @@ function createFallbackFindingReader(args: {
   readonly sourceBindingGraph: Parameters<
     typeof findInvalidClassReference
   >[3]["sourceBindingGraph"];
+  readonly classValueUniverses: Parameters<
+    typeof findInvalidClassReference
+  >[3]["classValueUniverses"];
   readonly deps: Pick<ProviderDeps, "typeResolver" | "workspaceRoot">;
   readonly filePath: string;
 }): () => ReturnType<typeof findInvalidClassReference> {
@@ -686,6 +693,9 @@ function createFallbackFindingReader(args: {
         ...(args.sourceBinder !== undefined ? { sourceBinder: args.sourceBinder } : {}),
         ...(args.sourceBindingGraph !== undefined
           ? { sourceBindingGraph: args.sourceBindingGraph }
+          : {}),
+        ...(args.classValueUniverses !== undefined
+          ? { classValueUniverses: args.classValueUniverses }
           : {}),
       });
     }

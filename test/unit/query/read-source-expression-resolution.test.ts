@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
 import ts from "typescript";
+import { TOP_CLASS_VALUE } from "../../../server/engine-core-ts/src/core/abstract-value/class-value-domain";
+import { reducedProductClassValueUniverseV0 } from "../../../server/engine-core-ts/src/core/abstract-value/class-value-universe";
 import { buildSourceBinder } from "../../../server/engine-core-ts/src/core/binder/binder-builder";
 import { readSourceExpressionResolution } from "../../../server/engine-core-ts/src/core/query/read-source-expression-resolution";
 import { FakeTypeResolver } from "../../_fixtures/fake-type-resolver";
@@ -106,6 +108,79 @@ function render(flag: boolean) {
     expect(resolution.styleDocument).toBeNull();
     expect(resolution.selectors).toEqual([]);
     expect(resolution.finiteValues).toBeNull();
+    expect(resolution.selectorCertainty).toBe("possible");
+  });
+
+  it("projects symbol references through owner-matched provider universes", () => {
+    const sourceFile = ts.createSourceFile(
+      "/fake/ws/src/Button.tsx",
+      "cx(button);",
+      ts.ScriptTarget.Latest,
+      true,
+      ts.ScriptKind.TSX,
+    );
+    const expression = {
+      kind: "symbolRef",
+      id: "expr:button",
+      origin: "cxCall",
+      rawReference: "button",
+      rootName: "button",
+      pathSegments: [],
+      range: rangeForToken(sourceFile, "button"),
+      scssModulePath: SCSS_PATH,
+    } as const;
+
+    const resolution = readSourceExpressionResolution(
+      {
+        expression,
+        sourceFile,
+        styleDocument: buildStyleDocumentFromSelectorMap(
+          SCSS_PATH,
+          new Map([
+            ["button_base", info("button_base")],
+            ["button_tone_primary", info("button_tone_primary")],
+            ["unrelated", info("unrelated")],
+          ]),
+        ),
+      },
+      {
+        typeResolver: new FakeTypeResolver(),
+        filePath: "/fake/ws/src/Button.tsx",
+        workspaceRoot: "/fake/ws",
+        sourceBinder: buildSourceBinder(sourceFile),
+        classValueUniverses: [
+          {
+            id: "universe:button",
+            pluginId: "cva-recipe-domain",
+            domain: "cva-recipe",
+            ownerName: "button",
+            universe: reducedProductClassValueUniverseV0({
+              baseClassNames: ["button_base"],
+              axes: [
+                {
+                  axisName: "tone",
+                  role: "variant",
+                  values: [
+                    { name: "primary", classNames: ["button_tone_primary"] },
+                    { name: "danger", classNames: ["button_tone_danger"] },
+                  ],
+                },
+              ],
+            }),
+          },
+        ],
+        resolveSymbolValues: () => ({
+          abstractValue: TOP_CLASS_VALUE,
+          valueCertainty: "possible",
+          reason: "flowBranch",
+        }),
+      },
+    );
+
+    expect(resolution.selectors.map((selector) => selector.name)).toEqual([
+      "button_base",
+      "button_tone_primary",
+    ]);
     expect(resolution.selectorCertainty).toBe("possible");
   });
 });

@@ -111,6 +111,7 @@ function resolveSourceDefinitionTargetsFromTypescript(
       workspaceRoot: deps.workspaceRoot,
       sourceBinder: ctx.entry.sourceBinder,
       sourceBindingGraph: ctx.entry.sourceBindingGraph,
+      classValueUniverses: ctx.entry.classValueUniverses,
     },
   );
   const styleDocument = resolution.styleDocument;

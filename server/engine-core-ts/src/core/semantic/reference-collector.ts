@@ -88,6 +88,7 @@ export function collectSemanticReferenceContribution(
           workspaceRoot: ctx.workspaceRoot,
           sourceBinder: entry.sourceBinder,
           sourceBindingGraph: entry.sourceBindingGraph,
+          classValueUniverses: entry.classValueUniverses,
         },
       );
       if (resolution.styleDocument) {

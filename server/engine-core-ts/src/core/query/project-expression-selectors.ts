@@ -1,5 +1,6 @@
 import type { SourceBindingGraph } from "../binder/source-binding-graph";
 import type { SourceBinderResult } from "../binder/scope-types";
+import type { ClassValueUniverseEntryV0 } from "../binder/class-value-universe-provider";
 import { prefixClassValue, type AbstractClassValue } from "../abstract-value/class-value-domain";
 import { projectAbstractValueSelectors } from "../abstract-value/selector-projection";
 import type { EdgeCertainty } from "../semantic/certainty";
@@ -15,6 +16,7 @@ export interface ProjectExpressionSelectorsEnv {
   readonly workspaceRoot: string;
   readonly sourceBinder?: SourceBinderResult;
   readonly sourceBindingGraph?: SourceBindingGraph;
+  readonly classValueUniverses?: readonly ClassValueUniverseEntryV0[];
   readonly resolveSymbolValues?: (
     sourceFile: ts.SourceFile,
     expression: SymbolRefClassExpressionHIR,
@@ -45,6 +47,7 @@ export function projectExpressionSelectors(
     filePath: env.filePath,
     workspaceRoot: env.workspaceRoot,
     ...(env.sourceBinder ? { sourceBinder: env.sourceBinder } : {}),
+    ...(env.classValueUniverses ? { classValueUniverses: env.classValueUniverses } : {}),
   } satisfies Omit<ProjectExpressionSelectorsEnv, "resolveSymbolValues">;
   switch (expression.kind) {
     case "literal":
@@ -96,7 +99,10 @@ function projectSymbolRefSelectors(
       selectorCertainty: "possible",
     };
   }
-  const projection = projectAbstractValueSelectors(resolved.abstractValue, styleDocument);
+  const projection = projectAbstractValueSelectors(resolved.abstractValue, styleDocument, {
+    ...(env.classValueUniverses ? { classValueUniverses: env.classValueUniverses } : {}),
+    universeOwnerName: expression.rootName,
+  });
   return {
     selectors: projection.selectors,
     abstractValue: resolved.abstractValue,

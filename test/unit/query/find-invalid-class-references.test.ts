@@ -1,5 +1,6 @@
 import ts from "typescript";
 import { describe, expect, it } from "vitest";
+import { reducedProductClassValueUniverseV0 } from "../../../server/engine-core-ts/src/core/abstract-value/class-value-universe";
 import { prefixClassValue } from "../../../server/engine-core-ts/src/core/abstract-value/class-value-domain";
 import type { ClassExpressionHIR } from "../../../server/engine-core-ts/src/core/hir/source-types";
 import { findInvalidClassReference } from "../../../server/engine-core-ts/src/core/query/find-invalid-class-references";
@@ -166,6 +167,67 @@ describe("findInvalidClassReference", () => {
     ).toMatchObject({
       kind: "missingResolvedClassDomain",
       abstractValue: { kind: "prefix", prefix: "ghost-" },
+      reason: "flowBranch",
+      valueCertainty: "inferred",
+      selectorCertainty: "possible",
+    });
+  });
+
+  it("scopes symbol projection through owner-matched provider universes", () => {
+    const sourceFile = ts.createSourceFile(
+      "/fake/ws/src/Button.tsx",
+      "cx(button);",
+      ts.ScriptTarget.Latest,
+      true,
+      ts.ScriptKind.TSX,
+    );
+    const expression: ClassExpressionHIR = {
+      kind: "symbolRef",
+      id: "expr:symbol",
+      origin: "cxCall",
+      rawReference: "button",
+      rootName: "button",
+      pathSegments: [],
+      range: rangeForToken(sourceFile, "button"),
+      scssModulePath: SCSS_PATH,
+    };
+
+    expect(
+      findInvalidClassReference(
+        expression,
+        sourceFile,
+        styleDocument(
+          new Map([
+            ["button_base", info("button_base")],
+            ["global_unknown", info("global_unknown")],
+          ]),
+        ),
+        {
+          typeResolver: new FakeTypeResolver(),
+          filePath: "/fake/ws/src/Button.tsx",
+          workspaceRoot: "/fake/ws",
+          classValueUniverses: [
+            {
+              id: "universe:button",
+              pluginId: "cva-recipe-domain",
+              domain: "cva-recipe",
+              ownerName: "button",
+              universe: reducedProductClassValueUniverseV0({
+                baseClassNames: ["button_base"],
+                axes: [],
+              }),
+            },
+          ],
+          resolveSymbolValues: () => ({
+            abstractValue: prefixClassValue("global_"),
+            valueCertainty: "inferred",
+            reason: "flowBranch",
+          }),
+        },
+      ),
+    ).toMatchObject({
+      kind: "missingResolvedClassDomain",
+      abstractValue: { kind: "prefix", prefix: "global_" },
       reason: "flowBranch",
       valueCertainty: "inferred",
       selectorCertainty: "possible",

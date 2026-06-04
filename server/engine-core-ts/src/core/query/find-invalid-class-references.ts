@@ -5,6 +5,7 @@ import type { FlowResolution } from "../flow/lattice";
 import type ts from "typescript";
 import type { SourceBindingGraph } from "../binder/source-binding-graph";
 import type { SourceBinderResult } from "../binder/scope-types";
+import type { ClassValueUniverseEntryV0 } from "../binder/class-value-universe-provider";
 import type {
   ClassExpressionHIR,
   LiteralClassExpressionHIR,
@@ -23,6 +24,7 @@ export interface InvalidClassReferenceQueryEnv {
   readonly workspaceRoot: string;
   readonly sourceBinder?: SourceBinderResult;
   readonly sourceBindingGraph?: SourceBindingGraph;
+  readonly classValueUniverses?: readonly ClassValueUniverseEntryV0[];
   readonly resolveSymbolValues?: (
     sourceFile: ts.SourceFile,
     expression: SymbolRefClassExpressionHIR,

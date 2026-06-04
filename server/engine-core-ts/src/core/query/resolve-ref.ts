@@ -52,6 +52,7 @@ export function resolveRefDetails(
       workspaceRoot: env.workspaceRoot,
       sourceBinder: ctx.entry.sourceBinder,
       sourceBindingGraph: ctx.entry.sourceBindingGraph,
+      classValueUniverses: ctx.entry.classValueUniverses,
     },
   );
   if (!semantics.styleDocument) {

@@ -147,4 +147,43 @@ describe("resolveAbstractValueSelectors", () => {
       "button_tone_primary",
     ]);
   });
+
+  it("uses owner-matched provider universes before falling back to the style document universe", () => {
+    const recipeStyleDocument = buildStyleDocumentFromSelectorMap(
+      "/fake/ws/src/Button.module.scss",
+      new Map([
+        ["button_base", info("button_base")],
+        ["button_tone_primary", info("button_tone_primary")],
+        ["unrelated", info("unrelated")],
+      ]),
+    );
+    const recipeUniverse = reducedProductClassValueUniverseV0({
+      baseClassNames: ["button_base"],
+      axes: [
+        {
+          axisName: "tone",
+          role: "variant",
+          values: [
+            { name: "primary", classNames: ["button_tone_primary"] },
+            { name: "danger", classNames: ["button_tone_danger"] },
+          ],
+        },
+      ],
+    });
+
+    expect(
+      resolveAbstractValueSelectors(TOP_CLASS_VALUE, recipeStyleDocument, {
+        universeOwnerName: "button",
+        classValueUniverses: [
+          {
+            id: "universe:button",
+            pluginId: "cva-recipe-domain",
+            domain: "cva-recipe",
+            ownerName: "button",
+            universe: recipeUniverse,
+          },
+        ],
+      }).map((selector) => selector.name),
+    ).toEqual(["button_base", "button_tone_primary"]);
+  });
 });

@@ -100,6 +100,7 @@ function checkInvalidClassReferencesRule({
         workspaceRoot: env.workspaceRoot,
         sourceBinder: entry.sourceBinder,
         sourceBindingGraph: entry.sourceBindingGraph,
+        classValueUniverses: entry.classValueUniverses,
       });
       if (!finding) continue;
       findings.push(mapInvalidClassFinding(finding, styleDocument));
