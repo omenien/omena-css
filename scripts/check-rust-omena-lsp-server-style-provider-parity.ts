@@ -181,12 +181,12 @@ const expectedMissingSelectorDiagnostic = {
     },
   },
 };
-const expectedMissingImportedSelectorDiagnostic = {
+const expectedMissingImportedStaticClassDiagnostic = {
   range: sourceMissingImportedSelectorRange,
   severity: 2,
   source: "omena-css",
-  code: "missingSelector",
-  message: "CSS Module selector '.ghost' not found in indexed style tokens.",
+  code: "missingStaticClass",
+  message: "Class '.ghost' not found in target CSS Module.",
   data: {
     querySeverity: "warning",
     provenance: [
@@ -801,7 +801,7 @@ assert.deepEqual(diagnosticNotifications, [
     method: "textDocument/publishDiagnostics",
     params: {
       uri: sourceUri,
-      diagnostics: [expectedMissingImportedSelectorDiagnostic, expectedMissingSelectorDiagnostic],
+      diagnostics: [expectedMissingImportedStaticClassDiagnostic, expectedMissingSelectorDiagnostic],
     },
   },
   {
@@ -817,7 +817,7 @@ assert.deepEqual(diagnosticNotifications, [
     method: "textDocument/publishDiagnostics",
     params: {
       uri: sourceUri,
-      diagnostics: [expectedMissingImportedSelectorDiagnostic, expectedMissingSelectorDiagnostic],
+      diagnostics: [expectedMissingImportedStaticClassDiagnostic, expectedMissingSelectorDiagnostic],
     },
   },
 ]);

@@ -1066,12 +1066,35 @@ fn resolve_source_diagnostics_for_uri(state: &LspShellState, document_uri: &str)
     // diagnostics on that path until the workspace summary accepts the same resolution inputs.
     .filter(|diagnostic| diagnostic.code != "missingModule")
     .collect::<Vec<_>>();
+    let query_resolved_source_diagnostic_keys = query_diagnostics
+        .iter()
+        .filter(|diagnostic| {
+            matches!(
+                diagnostic.code,
+                "missingStaticClass"
+                    | "missingTemplatePrefix"
+                    | "missingResolvedClassValues"
+                    | "missingResolvedClassDomain"
+            )
+        })
+        .filter_map(|diagnostic| {
+            diagnostic
+                .create_selector
+                .as_ref()
+                .map(|create_selector| (diagnostic.range, create_selector.selector_name.clone()))
+        })
+        .collect::<BTreeSet<_>>();
 
     let candidates = resolve_source_provider_candidates(state, document)
         .unresolved
         .into_iter()
         .filter(|candidate| candidate.kind == "sourceSelectorReference")
         .filter_map(|candidate| {
+            if query_resolved_source_diagnostic_keys
+                .contains(&(candidate.range, candidate.name.clone()))
+            {
+                return None;
+            }
             let (target_style_uri, target_style_document) = source_selector_diagnostic_target(
                 state,
                 &candidate,
