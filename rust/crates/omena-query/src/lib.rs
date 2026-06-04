@@ -45,6 +45,7 @@ pub use omena_query_transform_runner::{
     CustomPropertyLeastFixedPointSummaryV0 as OmenaQueryCustomPropertyLeastFixedPointSummaryV0,
     TargetFeatureSupportV0 as OmenaQueryTargetFeatureSupportV0,
     TargetTransformOptionsV0 as OmenaQueryTargetTransformOptionsV0,
+    TransformBundleSourceSummaryV0 as OmenaQueryTransformBundleSourceSummaryV0,
     TransformClassNameRewriteV0 as OmenaQueryTransformClassNameRewriteV0,
     TransformCssModuleComposesResolutionV0 as OmenaQueryTransformCssModuleComposesResolutionV0,
     TransformCssModuleValueResolutionV0 as OmenaQueryTransformCssModuleValueResolutionV0,
@@ -60,6 +61,7 @@ pub use omena_query_transform_runner::{
     conservative_target_options as conservative_omena_query_target_options,
     default_print_options as default_omena_query_transform_print_options,
     modern_feature_support as modern_omena_query_target_feature_support,
+    summarize_omena_transform_bundle_from_source,
 };
 use omena_query_transform_runner::{
     EggRewriteSourceWitnessV0, TransformBundleSourceSummaryV0, TransformEggPlanV0,
@@ -69,7 +71,7 @@ use omena_query_transform_runner::{
     execute_transform_passes_on_source_with_dialect_and_context,
     plan_egg_rewrite_passes_for_source, plan_target_transforms, plan_target_transforms_from_query,
     plan_transform_passes, print_transform_execution_artifact_with_dialect_and_source,
-    serialize_transform_source_map_v3, summarize_omena_transform_bundle_from_source,
+    serialize_transform_source_map_v3,
     summarize_static_css_custom_property_fixed_point_from_source,
 };
 #[cfg(feature = "lawvere-trace")]

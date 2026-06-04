@@ -3,7 +3,7 @@ use omena_query::generate_omena_bridge_sif_for_resolved_style_path;
 #[cfg(feature = "mdl")]
 use omena_query::summarize_omena_query_design_system_minimum_description;
 use omena_query::{
-    OmenaQueryDynamicClassnameMTierInputV0, OmenaQueryEngineInputV2,
+    OmenaParserStyleDialect, OmenaQueryDynamicClassnameMTierInputV0, OmenaQueryEngineInputV2,
     OmenaQueryExpressionDomainFlowRuntimeV0, OmenaQueryExternalModuleModeV0,
     OmenaQueryExternalSifInputV0, OmenaQuerySourceDiagnosticsForFileV0,
     OmenaQuerySourceDocumentInputV0, OmenaQuerySourceMissingSelectorDiagnosticCandidateV0,
@@ -27,6 +27,7 @@ use omena_query::{
     summarize_omena_query_style_diagnostics_for_workspace_file_with_external_mode_and_sifs,
     summarize_omena_query_style_document, summarize_omena_query_style_hover_candidates,
     summarize_omena_query_transform_context_from_engine_input,
+    summarize_omena_transform_bundle_from_source,
 };
 use omena_query::{OmenaQueryStyleDiagnosticV0, ParserRangeV0};
 use omena_sif::{
@@ -113,6 +114,9 @@ enum Command {
         /// Enable the public CSS Modules tree-shake build mode.
         #[arg(long)]
         tree_shake: bool,
+        /// Enable bundle-planned workspace build mode over the provided --source graph.
+        #[arg(long)]
+        bundle: bool,
         /// Additional workspace style source used to derive import/composes build context.
         #[arg(long = "source")]
         source_paths: Vec<PathBuf>,
@@ -499,6 +503,7 @@ fn run(cli: Cli) -> Result<(), String> {
             engine_input_json,
             closed_style_world,
             tree_shake,
+            bundle,
             source_paths,
             package_manifest_paths,
             source_map,
@@ -512,6 +517,7 @@ fn run(cli: Cli) -> Result<(), String> {
             engine_input_json,
             closed_style_world,
             tree_shake,
+            bundle,
             source_paths,
             package_manifest_paths,
             source_map,
@@ -1006,6 +1012,7 @@ struct BuildFileOptions {
     engine_input_json: Option<PathBuf>,
     closed_style_world: bool,
     tree_shake: bool,
+    bundle: bool,
     source_paths: Vec<PathBuf>,
     package_manifest_paths: Vec<PathBuf>,
     source_map: bool,
@@ -1023,6 +1030,7 @@ fn build_file(options: BuildFileOptions) -> Result<(), String> {
         engine_input_json,
         closed_style_world,
         tree_shake,
+        bundle,
         source_paths,
         package_manifest_paths,
         source_map,
@@ -1039,6 +1047,12 @@ fn build_file(options: BuildFileOptions) -> Result<(), String> {
                 .to_string(),
         );
     }
+    if target_query.is_some() && bundle {
+        return Err(
+            "cannot combine --target-query with --bundle; use --bundle without --target-query"
+                .to_string(),
+        );
+    }
     if source_map && !json {
         return Err("--source-map requires --json".to_string());
     }
@@ -1052,6 +1066,9 @@ fn build_file(options: BuildFileOptions) -> Result<(), String> {
     }
     if tree_shake {
         append_tree_shake_build_passes(&mut pass_ids);
+    }
+    if bundle {
+        append_bundle_build_passes(&mut pass_ids, &style_path, &source);
     }
     let used_engine_input = engine_input_json.is_some();
     if let Some(engine_input_path) = engine_input_json.as_deref() {
@@ -1113,6 +1130,9 @@ fn build_file(options: BuildFileOptions) -> Result<(), String> {
     }
     if tree_shake {
         push_ready_surface(&mut summary.ready_surfaces, "treeShakeBuildMode");
+    }
+    if bundle {
+        push_ready_surface(&mut summary.ready_surfaces, "bundleBuildMode");
     }
     if source_map {
         attach_omena_query_consumer_build_source_map_v3(&mut summary, &source);
@@ -2165,6 +2185,33 @@ fn append_tree_shake_build_passes(pass_ids: &mut Vec<String>) {
     }
 }
 
+fn append_bundle_build_passes(pass_ids: &mut Vec<String>, style_path: &str, source: &str) {
+    let bundle = summarize_omena_transform_bundle_from_source(
+        style_path,
+        source,
+        infer_cli_style_dialect(style_path),
+    );
+    for pass_id in bundle.planned_pass_ids {
+        if !pass_ids.iter().any(|existing| existing == pass_id) {
+            pass_ids.push(pass_id.to_string());
+        }
+    }
+}
+
+fn infer_cli_style_dialect(style_path: &str) -> OmenaParserStyleDialect {
+    match Path::new(style_path)
+        .extension()
+        .and_then(|extension| extension.to_str())
+        .map(|extension| extension.to_ascii_lowercase())
+        .as_deref()
+    {
+        Some("scss") => OmenaParserStyleDialect::Scss,
+        Some("sass") => OmenaParserStyleDialect::Sass,
+        Some("less") => OmenaParserStyleDialect::Less,
+        _ => OmenaParserStyleDialect::Css,
+    }
+}
+
 fn push_ready_surface(surfaces: &mut Vec<&'static str>, surface: &'static str) {
     if !surfaces.contains(&surface) {
         surfaces.push(surface);
@@ -2216,6 +2263,11 @@ mod tests {
                 .get_arguments()
                 .any(|argument| argument.get_long() == Some("tree-shake"))
         );
+        assert!(
+            build
+                .get_arguments()
+                .any(|argument| argument.get_long() == Some("bundle"))
+        );
     }
 
     #[test]
@@ -2244,6 +2296,7 @@ mod tests {
                 engine_input_json: None,
                 closed_style_world: false,
                 tree_shake: false,
+                bundle: false,
                 source_paths: Vec::new(),
                 package_manifest_paths: Vec::new(),
                 source_map: false,
@@ -2284,6 +2337,7 @@ mod tests {
                 engine_input_json: None,
                 closed_style_world: false,
                 tree_shake: false,
+                bundle: false,
                 source_paths: Vec::new(),
                 package_manifest_paths: Vec::new(),
                 source_map: true,
@@ -2318,6 +2372,7 @@ mod tests {
                 engine_input_json: None,
                 closed_style_world: false,
                 tree_shake: true,
+                bundle: false,
                 source_paths: Vec::new(),
                 package_manifest_paths: Vec::new(),
                 source_map: false,
@@ -2367,6 +2422,7 @@ mod tests {
                 engine_input_json: None,
                 closed_style_world: false,
                 tree_shake: true,
+                bundle: false,
                 source_paths: Vec::new(),
                 package_manifest_paths: Vec::new(),
                 source_map: false,
@@ -2383,6 +2439,73 @@ mod tests {
         cleanup(&source_path);
         cleanup(&output_path);
         cleanup(&context_path);
+        Ok(())
+    }
+
+    #[test]
+    fn build_bundle_mode_inlines_transitive_workspace_imports() -> Result<(), String> {
+        let target_path = temp_path("bundle-app.css");
+        let tokens_path = temp_path("bundle-tokens.css");
+        let base_path = temp_path("bundle-base.css");
+        let output_path = temp_path("bundle-output.css");
+        let tokens_file_name = tokens_path
+            .file_name()
+            .and_then(|file_name| file_name.to_str())
+            .ok_or_else(|| "tokens fixture should have a file name".to_string())?;
+        let base_file_name = base_path
+            .file_name()
+            .and_then(|file_name| file_name.to_str())
+            .ok_or_else(|| "base fixture should have a file name".to_string())?;
+
+        fs::write(&base_path, ".base { color: red; }")
+            .map_err(|error| format!("fixture base source should be writable: {error}"))?;
+        fs::write(
+            &tokens_path,
+            format!(r#"@import "./{base_file_name}"; .token {{ color: blue; }}"#),
+        )
+        .map_err(|error| format!("fixture tokens source should be writable: {error}"))?;
+        fs::write(
+            &target_path,
+            format!(r#"@import "./{tokens_file_name}"; .app {{ color: green; }}"#),
+        )
+        .map_err(|error| format!("fixture target source should be writable: {error}"))?;
+
+        let result = run(Cli {
+            command: Command::Build {
+                path: target_path.clone(),
+                output: Some(output_path.clone()),
+                passes: Vec::new(),
+                target_query: None,
+                allow_logical_to_physical: false,
+                allow_scope_flatten: false,
+                allow_layer_flatten: false,
+                enable_supports_static_eval: false,
+                enable_media_static_eval: false,
+                drop_dark_mode_media_queries: false,
+                context_json: None,
+                engine_input_json: None,
+                closed_style_world: false,
+                tree_shake: false,
+                bundle: true,
+                source_paths: vec![tokens_path.clone(), base_path.clone()],
+                package_manifest_paths: Vec::new(),
+                source_map: false,
+                json: false,
+            },
+        });
+
+        assert!(result.is_ok(), "{result:?}");
+        let output = fs::read_to_string(&output_path)
+            .map_err(|error| format!("bundle output should be written: {error}"))?;
+        assert!(output.contains(".base { color: red; }"));
+        assert!(output.contains(".token { color: blue; }"));
+        assert!(output.contains(".app { color: green; }"));
+        assert!(!output.contains("@import"));
+
+        cleanup(&target_path);
+        cleanup(&tokens_path);
+        cleanup(&base_path);
+        cleanup(&output_path);
         Ok(())
     }
 
