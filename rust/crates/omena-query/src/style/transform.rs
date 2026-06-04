@@ -320,6 +320,7 @@ pub fn execute_omena_query_consumer_build_style_source_with_context(
         unknown_pass_ids: execution_summary.unknown_pass_ids,
         semantic_removal_count: execution_summary.semantic_removal_count,
         execution: execution_summary.execution,
+        bundle: None,
         source_map_v3: None,
         ready_surfaces: vec![
             "consumerBuildFacade",
@@ -462,6 +463,7 @@ pub fn execute_omena_query_consumer_build_style_source_for_target_query_with_con
         unknown_pass_ids: Vec::new(),
         semantic_removal_count: plan.semantic_removal_count,
         execution: plan.execution,
+        bundle: None,
         source_map_v3: None,
         ready_surfaces: vec![
             "consumerBuildFacade",
@@ -521,6 +523,21 @@ pub fn execute_omena_query_consumer_build_style_sources_for_target_query_with_op
         target_options,
         package_manifests,
     )
+}
+
+pub fn attach_omena_query_consumer_build_bundle_summary(
+    summary: &mut OmenaQueryConsumerBuildSummaryV0,
+    style_source: &str,
+) {
+    let bundle = summarize_omena_transform_bundle_from_source(
+        &summary.style_path,
+        style_source,
+        omena_parser_dialect_for_style_path(&summary.style_path),
+    );
+    summary.bundle = Some(bundle);
+    if !summary.ready_surfaces.contains(&"bundleAssetUrlResolution") {
+        summary.ready_surfaces.push("bundleAssetUrlResolution");
+    }
 }
 
 pub fn attach_omena_query_consumer_build_source_map_v3(

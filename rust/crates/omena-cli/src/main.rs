@@ -9,6 +9,7 @@ use omena_query::{
     OmenaQuerySourceDocumentInputV0, OmenaQuerySourceMissingSelectorDiagnosticCandidateV0,
     OmenaQueryStylePackageManifestV0, OmenaQueryStyleSourceInputV0,
     OmenaQueryTargetTransformOptionsV0, OmenaQueryTransformExecutionContextV0, ParserPositionV0,
+    attach_omena_query_consumer_build_bundle_summary,
     attach_omena_query_consumer_build_source_map_v3,
     execute_omena_query_consumer_build_style_source_for_target_query_with_context_and_options,
     execute_omena_query_consumer_build_style_source_with_context,
@@ -1132,6 +1133,7 @@ fn build_file(options: BuildFileOptions) -> Result<(), String> {
         push_ready_surface(&mut summary.ready_surfaces, "treeShakeBuildMode");
     }
     if bundle {
+        attach_omena_query_consumer_build_bundle_summary(&mut summary, &source);
         push_ready_surface(&mut summary.ready_surfaces, "bundleBuildMode");
     }
     if source_map {

@@ -615,6 +615,8 @@ pub struct OmenaQueryConsumerBuildSummaryV0 {
     pub execution: TransformExecutionSummaryV0,
     pub semantic_removal_count: usize,
     #[serde(skip_serializing_if = "Option::is_none")]
+    pub bundle: Option<TransformBundleSourceSummaryV0>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub source_map_v3: Option<OmenaQueryTransformSourceMapV3V0>,
     pub ready_surfaces: Vec<&'static str>,
 }

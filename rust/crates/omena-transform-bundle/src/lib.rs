@@ -11,6 +11,7 @@ use omena_parser::{
 use omena_transform_cst::TransformPassKind;
 use omena_transform_passes::{TransformPassPlanV0, plan_transform_passes};
 use serde::Serialize;
+use std::path::{Component, Path, PathBuf};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -40,6 +41,29 @@ pub struct TransformBundleEdgeV0 {
     pub provenance_required: bool,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub enum TransformBundleAssetUrlKind {
+    Relative,
+    AbsolutePath,
+    External,
+    Data,
+    Fragment,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TransformBundleAssetUrlV0 {
+    pub source_path: String,
+    pub raw_url: String,
+    pub normalized_url: String,
+    pub kind: TransformBundleAssetUrlKind,
+    pub resolved_path: Option<String>,
+    pub range_start: u32,
+    pub range_end: u32,
+    pub bundler_resolution_required: bool,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct TransformBundleSourceSummaryV0 {
@@ -48,6 +72,7 @@ pub struct TransformBundleSourceSummaryV0 {
     pub source_path: String,
     pub dialect: &'static str,
     pub bundle_edges: Vec<TransformBundleEdgeV0>,
+    pub asset_urls: Vec<TransformBundleAssetUrlV0>,
     pub required_pass_ids: Vec<&'static str>,
     pub planned_pass_ids: Vec<&'static str>,
     pub import_inline_required: bool,
@@ -66,6 +91,7 @@ pub fn summarize_omena_transform_bundle_from_source(
     let source_path = source_path.into();
     let facts = collect_style_facts(source, dialect);
     let bundle_edges = collect_bundle_edges_from_facts(&source_path, dialect, &facts);
+    let asset_urls = collect_bundle_asset_urls(&source_path, source);
     let mut required_passes =
         required_passes_for_source(&source_path, dialect, &facts, &bundle_edges);
     required_passes.sort_by_key(|pass| pass.ordinal());
@@ -83,6 +109,7 @@ pub fn summarize_omena_transform_bundle_from_source(
         source_path,
         dialect: dialect_label(dialect),
         bundle_edges,
+        asset_urls,
         required_pass_ids,
         planned_pass_ids,
         import_inline_required: required_passes.contains(&TransformPassKind::ImportInline),
@@ -193,6 +220,153 @@ fn import_edge_kind_for_dialect(dialect: StyleDialect) -> TransformBundleEdgeKin
     }
 }
 
+fn collect_bundle_asset_urls(source_path: &str, source: &str) -> Vec<TransformBundleAssetUrlV0> {
+    let bytes = source.as_bytes();
+    let mut urls = Vec::new();
+    let mut index = 0usize;
+
+    while index + 4 <= bytes.len() {
+        if !bytes[index].eq_ignore_ascii_case(&b'u')
+            || !bytes[index + 1].eq_ignore_ascii_case(&b'r')
+            || !bytes[index + 2].eq_ignore_ascii_case(&b'l')
+            || bytes[index + 3] != b'('
+        {
+            index += 1;
+            continue;
+        }
+        let Some((raw_url, normalized_url, end)) = parse_bundle_url_function(source, index) else {
+            index += 4;
+            continue;
+        };
+        let (kind, resolved_path) = classify_bundle_asset_url(source_path, &normalized_url);
+        urls.push(TransformBundleAssetUrlV0 {
+            source_path: source_path.to_string(),
+            raw_url,
+            normalized_url,
+            kind,
+            resolved_path,
+            range_start: index as u32,
+            range_end: end as u32,
+            bundler_resolution_required: matches!(
+                kind,
+                TransformBundleAssetUrlKind::Relative | TransformBundleAssetUrlKind::AbsolutePath
+            ),
+        });
+        index = end;
+    }
+
+    urls
+}
+
+fn parse_bundle_url_function(source: &str, start: usize) -> Option<(String, String, usize)> {
+    let open_end = start.checked_add(4)?;
+    let mut index = open_end;
+    let mut quote = None;
+    let mut escaped = false;
+
+    while index < source.len() {
+        let ch = source[index..].chars().next()?;
+        let next = index + ch.len_utf8();
+        if let Some(active_quote) = quote {
+            if escaped {
+                escaped = false;
+            } else if ch == '\\' {
+                escaped = true;
+            } else if ch == active_quote {
+                quote = None;
+            }
+            index = next;
+            continue;
+        }
+
+        match ch {
+            '"' | '\'' => quote = Some(ch),
+            ')' => {
+                let raw_url = source[start..next].to_string();
+                let inner = source[open_end..index].trim();
+                let normalized_url = unquote_bundle_url_inner(inner)?;
+                return Some((raw_url, normalized_url, next));
+            }
+            _ => {}
+        }
+        index = next;
+    }
+
+    None
+}
+
+fn unquote_bundle_url_inner(inner: &str) -> Option<String> {
+    if inner.is_empty() {
+        return None;
+    }
+    let bytes = inner.as_bytes();
+    if bytes.len() >= 2
+        && ((bytes[0] == b'"' && bytes[bytes.len() - 1] == b'"')
+            || (bytes[0] == b'\'' && bytes[bytes.len() - 1] == b'\''))
+    {
+        return Some(inner[1..inner.len() - 1].to_string());
+    }
+    Some(inner.to_string())
+}
+
+fn classify_bundle_asset_url(
+    source_path: &str,
+    normalized_url: &str,
+) -> (TransformBundleAssetUrlKind, Option<String>) {
+    let lower = normalized_url.to_ascii_lowercase();
+    if lower.starts_with("data:") {
+        return (TransformBundleAssetUrlKind::Data, None);
+    }
+    if normalized_url.starts_with('#') {
+        return (TransformBundleAssetUrlKind::Fragment, None);
+    }
+    if lower.starts_with("http://")
+        || lower.starts_with("https://")
+        || normalized_url.starts_with("//")
+    {
+        return (TransformBundleAssetUrlKind::External, None);
+    }
+    if normalized_url.starts_with('/') {
+        return (
+            TransformBundleAssetUrlKind::AbsolutePath,
+            Some(normalized_url.to_string()),
+        );
+    }
+
+    (
+        TransformBundleAssetUrlKind::Relative,
+        Some(resolve_relative_bundle_asset_path(
+            source_path,
+            normalized_url,
+        )),
+    )
+}
+
+fn resolve_relative_bundle_asset_path(source_path: &str, normalized_url: &str) -> String {
+    let base = Path::new(source_path)
+        .parent()
+        .unwrap_or_else(|| Path::new(""));
+    normalize_bundle_path(base.join(normalized_url))
+}
+
+fn normalize_bundle_path(path: PathBuf) -> String {
+    let mut normalized = PathBuf::new();
+    for component in path.components() {
+        match component {
+            Component::CurDir => {}
+            Component::ParentDir => match normalized.components().next_back() {
+                Some(Component::Normal(_)) => {
+                    normalized.pop();
+                }
+                Some(Component::RootDir) => {}
+                _ => normalized.push(".."),
+            },
+            _ => normalized.push(component.as_os_str()),
+        }
+    }
+    normalized.to_string_lossy().into_owned()
+}
+
 fn required_passes_for_source(
     source_path: &str,
     dialect: StyleDialect,
@@ -261,7 +435,10 @@ fn dialect_label(dialect: StyleDialect) -> &'static str {
 
 #[cfg(test)]
 mod tests {
-    use super::{TransformBundleEdgeKind, summarize_omena_transform_bundle_from_source};
+    use super::{
+        TransformBundleAssetUrlKind, TransformBundleEdgeKind,
+        summarize_omena_transform_bundle_from_source,
+    };
     use omena_parser::StyleDialect;
 
     #[test]
@@ -397,6 +574,78 @@ mod tests {
             summary
                 .required_pass_ids
                 .contains(&"css-modules-class-hashing")
+        );
+    }
+
+    #[test]
+    fn resolves_relative_asset_urls_from_source_path() {
+        let summary = summarize_omena_transform_bundle_from_source(
+            "src/components/Button.module.css",
+            r#".button { background: url("../assets/icon.svg"); mask: url(/static/mask.svg); cursor: url(data:image/svg+xml,abc); filter: url(#shadow); border-image-source: URL(https://cdn.example.com/frame.png); }"#,
+            StyleDialect::Css,
+        );
+
+        assert_eq!(summary.asset_urls.len(), 5);
+        let relative = summary
+            .asset_urls
+            .iter()
+            .find(|asset| asset.normalized_url == "../assets/icon.svg")
+            .expect("relative asset URL should be collected");
+        assert_eq!(relative.kind, TransformBundleAssetUrlKind::Relative);
+        assert_eq!(
+            relative.resolved_path.as_deref(),
+            Some("src/assets/icon.svg")
+        );
+        assert!(relative.bundler_resolution_required);
+
+        let absolute = summary
+            .asset_urls
+            .iter()
+            .find(|asset| asset.normalized_url == "/static/mask.svg")
+            .expect("absolute asset URL should be collected");
+        assert_eq!(absolute.kind, TransformBundleAssetUrlKind::AbsolutePath);
+        assert_eq!(absolute.resolved_path.as_deref(), Some("/static/mask.svg"));
+        assert!(absolute.bundler_resolution_required);
+
+        assert!(summary.asset_urls.iter().any(|asset| {
+            asset.kind == TransformBundleAssetUrlKind::Data && !asset.bundler_resolution_required
+        }));
+        assert!(summary.asset_urls.iter().any(|asset| {
+            asset.kind == TransformBundleAssetUrlKind::Fragment
+                && !asset.bundler_resolution_required
+        }));
+        assert!(summary.asset_urls.iter().any(|asset| {
+            asset.kind == TransformBundleAssetUrlKind::External
+                && !asset.bundler_resolution_required
+        }));
+    }
+
+    #[test]
+    fn resolves_asset_urls_after_non_ascii_source_text() {
+        let summary = summarize_omena_transform_bundle_from_source(
+            "src/카드.module.css",
+            ".카드 { background-image: url(./img/아이콘.svg); }",
+            StyleDialect::Css,
+        );
+
+        assert_eq!(summary.asset_urls.len(), 1);
+        let asset = &summary.asset_urls[0];
+        assert_eq!(asset.kind, TransformBundleAssetUrlKind::Relative);
+        assert_eq!(asset.normalized_url, "./img/아이콘.svg");
+        assert_eq!(asset.resolved_path.as_deref(), Some("src/img/아이콘.svg"));
+    }
+
+    #[test]
+    fn preserves_leading_parent_segments_without_source_parent() {
+        let summary = summarize_omena_transform_bundle_from_source(
+            "Button.module.css",
+            ".button { background-image: url(../assets/icon.svg); }",
+            StyleDialect::Css,
+        );
+
+        assert_eq!(
+            summary.asset_urls[0].resolved_path.as_deref(),
+            Some("../assets/icon.svg")
         );
     }
 }

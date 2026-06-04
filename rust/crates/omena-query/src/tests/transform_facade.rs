@@ -143,6 +143,30 @@ fn consumer_build_summary_can_attach_source_map_v3() {
 }
 
 #[test]
+fn consumer_build_summary_can_attach_bundle_asset_urls() {
+    let source = r#".button { background-image: url("./assets/icon.svg"); }"#;
+    let mut summary = execute_omena_query_consumer_build_style_source(
+        "src/Button.module.css",
+        source,
+        &["print-css".to_string()],
+    );
+
+    attach_omena_query_consumer_build_bundle_summary(&mut summary, source);
+
+    let bundle = summary
+        .bundle
+        .as_ref()
+        .expect("consumer build should attach bundle summary on request");
+    assert_eq!(bundle.asset_urls.len(), 1);
+    assert_eq!(bundle.asset_urls[0].normalized_url, "./assets/icon.svg");
+    assert_eq!(
+        bundle.asset_urls[0].resolved_path.as_deref(),
+        Some("src/assets/icon.svg")
+    );
+    assert!(summary.ready_surfaces.contains(&"bundleAssetUrlResolution"));
+}
+
+#[test]
 fn transform_plan_keeps_plain_css_imports_out_of_scss_evaluator() {
     let source = r#"@import "./tokens.css"; .button { color: red; }"#;
     let summary = summarize_omena_query_transform_plan_from_source(
