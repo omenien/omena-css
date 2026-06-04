@@ -4,12 +4,17 @@ import { readFileSync } from "node:fs";
 
 // Crates that anchor the product call-graph. A crate that declares
 // `claim_level: ... product-wired ...` must be reachable from one of these
-// through the Cargo dependency DAG — `omena-napi`/`omena-wasm` → `omena-query`
-// → cascade checker → `omena-query-checker-orchestrator` → `omena-checker` →
-// theory crates. Reachability here means the dependency closure (call-graph),
-// not mere token presence, so a future crate that paints itself `product-wired`
+// through the Cargo dependency DAG — VS Code LSP / CLI / napi / wasm entrypoints
+// into `omena-query`, `omena-query-checker-orchestrator`, `omena-checker`, and
+// theory crates. Reachability here means the dependency closure (call-graph), not
+// mere token presence, so a future crate that paints itself `product-wired`
 // without being wired into the product chain fails this gate.
-const PRODUCT_ROOTS = ["omena-query", "omena-query-checker-orchestrator"] as const;
+const PRODUCT_ROOTS = [
+  "omena-lsp-server",
+  "omena-cli",
+  "omena-query",
+  "omena-query-checker-orchestrator",
+] as const;
 const PRODUCT_WIRED_MARKER = "product-wired";
 
 const TARGETS = [
@@ -57,7 +62,11 @@ const TARGETS = [
   },
   {
     path: "rust/crates/omena-streaming-ifds/src/lib.rs",
-    required: ["claim_level:", "exact default live-analysis mechanism", "not an asymptotic"],
+    required: [
+      "claim_level:",
+      "product-wired exact default live-analysis mechanism",
+      "not an asymptotic",
+    ],
   },
   {
     path: "rust/crates/omena-ensemble/src/lib.rs",

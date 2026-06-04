@@ -3,8 +3,8 @@
 //! The M4-gamma default is exact (`delta = epsilon = 0`) and wire-compatible
 //! with the M4-beta hypergraph IFDS substrate.
 //!
-//! claim_level: exact default live-analysis mechanism; the polylog backend label
-//! is an implementation boundary, not an asymptotic proof claim.
+//! claim_level: product-wired exact default live-analysis mechanism; the polylog
+//! backend label is an implementation boundary, not an asymptotic proof claim.
 
 use std::collections::{BTreeMap, BTreeSet, VecDeque};
 
