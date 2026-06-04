@@ -54,5 +54,33 @@ fn resolves_unnecessary_tags_for_cascade_style_diagnostics() -> TestResult {
         unreachable.pointer("/data/provenance/1"),
         Some(&json!("omena-checker.cascade-rules")),
     );
+    assert_eq!(
+        unreachable.pointer("/data/cascadeNarrowing/product"),
+        Some(&json!("omena-query.cascade-narrowing-evidence")),
+    );
+    assert_eq!(
+        unreachable.pointer("/data/cascadeNarrowing/selector"),
+        Some(&json!(".btn")),
+    );
+    assert_eq!(
+        unreachable.pointer("/data/cascadeNarrowing/selectorClassNames"),
+        Some(&json!(["btn"])),
+    );
+    assert_eq!(
+        unreachable.pointer("/data/cascadeNarrowing/propertyName"),
+        Some(&json!("color")),
+    );
+    assert_eq!(
+        unreachable.pointer("/data/cascadeNarrowing/propertyValueNarrowing/product"),
+        Some(&json!("omena-abstract-value.property-value-narrowing")),
+    );
+    assert_eq!(
+        unreachable.pointer("/data/cascadeNarrowing/propertyValueNarrowing/matchedCandidateCount"),
+        Some(&json!(2)),
+    );
+    assert_eq!(
+        unreachable.pointer("/data/cascadeNarrowing/elementClassIteration/product"),
+        Some(&json!("omena-abstract-value.reduced-product-iteration")),
+    );
     Ok(())
 }

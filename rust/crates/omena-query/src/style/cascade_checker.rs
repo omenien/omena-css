@@ -5,11 +5,11 @@ use omena_cascade::{
     cascade_property, parse_simple_selector_signature,
 };
 use omena_query_checker_orchestrator::{
-    OmenaCheckerCascadeDeclarationInputV0, OmenaCheckerCascadeInputV0,
-    OmenaCheckerCategoricalInputV0, OmenaCheckerCategoricalPrimitiveRolePairInputV0,
-    OmenaCheckerCategoricalRoleMappingInputV0, OmenaCheckerCustomPropertyInputV0,
-    OmenaCheckerRgFlowCouplingInputV0, OmenaCheckerRgFlowCouplingSpaceInputV0,
-    OmenaCheckerRgFlowInputV0, OmenaCheckerSmtInputV0,
+    OmenaCheckerCascadeDeclarationInputV0, OmenaCheckerCascadeEvaluationV0,
+    OmenaCheckerCascadeInputV0, OmenaCheckerCategoricalInputV0,
+    OmenaCheckerCategoricalPrimitiveRolePairInputV0, OmenaCheckerCategoricalRoleMappingInputV0,
+    OmenaCheckerCustomPropertyInputV0, OmenaCheckerRgFlowCouplingInputV0,
+    OmenaCheckerRgFlowCouplingSpaceInputV0, OmenaCheckerRgFlowInputV0, OmenaCheckerSmtInputV0,
     OmenaCheckerSmtLayerInversionDeclarationInputV0, OmenaCheckerSmtLayerInversionInputV0,
     OmenaCheckerSmtLayerInversionObligationInputV0, OmenaCheckerSmtObligationInputV0,
     checker_cascade_primitive_role_catalog_v0, run_omena_query_checker_cascade_gate_v0,
@@ -20,11 +20,16 @@ use omena_query_checker_orchestrator::{
     REPLICA_ENSEMBLE_FEATURE_GATE_V0, REPLICA_ENSEMBLE_LAYER_MARKER_V0,
     REPLICA_ENSEMBLE_SCHEMA_VERSION_V0, ReplicaSiteOutcomeV0, site as replica_ensemble_site,
 };
+use omena_query_core::{
+    AbstractClassValueV0, AbstractPropertyValueCandidateV0,
+    iterate_reduced_class_value_product_constraints,
+    narrow_abstract_property_value_for_pseudo_state, prefix_suffix_class_value,
+};
 use omena_query_transform_runner::expand_css_nested_selector;
 
 use super::{
-    OmenaQueryStyleDiagnosticV0, ParserByteSpanV0, ParserRangeV0,
-    omena_parser_dialect_for_style_path, parser_range_for_byte_span,
+    OmenaQueryCascadeNarrowingEvidenceV0, OmenaQueryStyleDiagnosticV0, ParserByteSpanV0,
+    ParserRangeV0, omena_parser_dialect_for_style_path, parser_range_for_byte_span,
     summarize_static_css_custom_property_fixed_point_from_source,
 };
 
@@ -78,7 +83,7 @@ pub(super) fn summarize_query_cascade_checker_diagnostics_with_deep_analysis(
         (Vec::new(), Vec::new(), Vec::new())
     };
 
-    let gate = run_omena_query_checker_cascade_gate_v0(checker_input);
+    let gate = run_omena_query_checker_cascade_gate_v0(checker_input.clone());
     if !gate.enforcement_passed {
         return vec![OmenaQueryStyleDiagnosticV0 {
             code: "checkerDiagnosticGateFailed",
@@ -97,6 +102,7 @@ pub(super) fn summarize_query_cascade_checker_diagnostics_with_deep_analysis(
             message: "Checker diagnostic gate rejected unregistered rule output.".to_string(),
             tags: Vec::new(),
             create_custom_property: None,
+            cascade_narrowing: None,
         }];
     }
 
@@ -136,6 +142,17 @@ pub(super) fn summarize_query_cascade_checker_diagnostics_with_deep_analysis(
             "omena-query.cascade-checker",
         ];
         provenance.extend(evaluation.mechanism_products.iter().copied());
+        let cascade_narrowing = summarize_query_cascade_narrowing_for_evaluation(
+            &evaluation,
+            checker_input.declarations.as_slice(),
+        );
+        if cascade_narrowing.is_some() {
+            provenance.extend([
+                "omena-query.cascade-narrowing",
+                "omena-abstract-value.property-value-narrowing",
+                "omena-abstract-value.reduced-product-iteration",
+            ]);
+        }
         diagnostics.push(OmenaQueryStyleDiagnosticV0 {
             code: query_cascade_checker_code(evaluation.rule_code_name),
             severity: query_cascade_checker_diagnostic_severity(evaluation.rule_code_name),
@@ -144,6 +161,7 @@ pub(super) fn summarize_query_cascade_checker_diagnostics_with_deep_analysis(
             message: evaluation.message,
             tags: query_cascade_checker_diagnostic_tags(evaluation.rule_code_name),
             create_custom_property: None,
+            cascade_narrowing,
         });
     }
 
@@ -273,6 +291,7 @@ fn summarize_query_rg_flow_coupling_diagnostics(
                 message: evaluation.message,
                 tags: Vec::new(),
                 create_custom_property: None,
+                cascade_narrowing: None,
             }
         })
         .collect()
@@ -342,6 +361,7 @@ fn summarize_query_categorical_cascade_evidence_diagnostics(
                         .to_string(),
                 tags: Vec::new(),
                 create_custom_property: None,
+                cascade_narrowing: None,
             }
         })
         .collect()
@@ -454,6 +474,7 @@ fn summarize_query_smt_cascade_obligation_diagnostics(
                 message: query_smt_diagnostic_message(evaluation.obligation_id.as_str()),
                 tags: Vec::new(),
                 create_custom_property: None,
+                cascade_narrowing: None,
             }
         })
         .collect()
@@ -942,6 +963,113 @@ fn query_cascade_checker_diagnostic_tags(code: &'static str) -> Vec<u8> {
         }
         _ => Vec::new(),
     }
+}
+
+fn summarize_query_cascade_narrowing_for_evaluation(
+    evaluation: &OmenaCheckerCascadeEvaluationV0,
+    declarations: &[OmenaCheckerCascadeDeclarationInputV0],
+) -> Option<OmenaQueryCascadeNarrowingEvidenceV0> {
+    let anchor_id = evaluation.declaration_ids.first()?;
+    let anchor = declarations
+        .iter()
+        .find(|declaration| declaration.declaration_id == *anchor_id)?;
+    let site_declarations = declarations
+        .iter()
+        .filter(|declaration| {
+            declaration.selector == anchor.selector
+                && declaration.property == anchor.property
+                && declaration.condition_context == anchor.condition_context
+        })
+        .collect::<Vec<_>>();
+    if site_declarations.is_empty() {
+        return None;
+    }
+
+    let property_candidates = site_declarations
+        .iter()
+        .map(|declaration| AbstractPropertyValueCandidateV0 {
+            property_name: declaration.property.clone(),
+            value: declaration.value.clone(),
+            pseudo_state: None,
+        })
+        .collect::<Vec<_>>();
+    let property_value_narrowing = narrow_abstract_property_value_for_pseudo_state(
+        anchor.property.as_str(),
+        None,
+        property_candidates.as_slice(),
+    );
+
+    let selector_class_names = query_selector_class_names(anchor.selector.as_str());
+    let element_class_constraints =
+        query_element_class_signature_constraints(selector_class_names.as_slice());
+    let element_class_iteration =
+        iterate_reduced_class_value_product_constraints(element_class_constraints.as_slice());
+
+    Some(OmenaQueryCascadeNarrowingEvidenceV0 {
+        schema_version: "0",
+        product: "omena-query.cascade-narrowing-evidence",
+        selector: anchor.selector.clone(),
+        selector_class_names,
+        property_name: anchor.property.clone(),
+        condition_context: anchor.condition_context.clone(),
+        declaration_ids: site_declarations
+            .into_iter()
+            .map(|declaration| declaration.declaration_id.clone())
+            .collect(),
+        element_class_iteration,
+        property_value_narrowing,
+    })
+}
+
+fn query_element_class_signature_constraints(
+    selector_class_names: &[String],
+) -> Vec<AbstractClassValueV0> {
+    if selector_class_names.is_empty() {
+        return Vec::new();
+    }
+
+    let first = selector_class_names.first().cloned().unwrap_or_default();
+    let last = selector_class_names.last().cloned().unwrap_or_default();
+    let signature_min_length = selector_class_names
+        .iter()
+        .map(String::len)
+        .sum::<usize>()
+        .saturating_add(selector_class_names.len().saturating_sub(1));
+
+    vec![prefix_suffix_class_value(
+        first,
+        last,
+        Some(signature_min_length),
+        None,
+    )]
+}
+
+fn query_selector_class_names(selector: &str) -> Vec<String> {
+    let bytes = selector.as_bytes();
+    let mut index = 0usize;
+    let mut names = BTreeSet::new();
+    while index < bytes.len() {
+        if bytes[index] != b'.' {
+            index += 1;
+            continue;
+        }
+        let start = index + 1;
+        let mut end = start;
+        while end < bytes.len() && query_selector_class_name_byte(bytes[end]) {
+            end += 1;
+        }
+        if end > start {
+            names.insert(selector[start..end].to_string());
+            index = end;
+        } else {
+            index += 1;
+        }
+    }
+    names.into_iter().collect()
+}
+
+fn query_selector_class_name_byte(byte: u8) -> bool {
+    byte.is_ascii_alphanumeric() || byte == b'_' || byte == b'-'
 }
 
 fn collect_query_checker_cascade_input(

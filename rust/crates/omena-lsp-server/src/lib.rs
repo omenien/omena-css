@@ -1044,6 +1044,9 @@ fn resolve_style_diagnostics_for_uri(state: &LspShellState, document_uri: &str) 
                     json!(create_custom_property),
                 );
             }
+            if let Some(cascade_narrowing) = diagnostic.cascade_narrowing {
+                data.insert("cascadeNarrowing".to_string(), json!(cascade_narrowing));
+            }
 
             let mut lsp_diagnostic = json!({
                 "range": diagnostic.range,
@@ -1100,6 +1103,7 @@ fn summarize_cross_file_streaming_reachability_diagnostics_for_lsp(
         ),
         tags: Vec::new(),
         create_custom_property: None,
+        cascade_narrowing: None,
     }]
 }
 

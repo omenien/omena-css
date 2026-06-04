@@ -191,6 +191,47 @@ fn style_diagnostics_for_file_include_cascade_aware_lints() -> Result<(), &'stat
             .severity,
         "hint"
     );
+    let unreachable = diagnostics
+        .diagnostics
+        .iter()
+        .find(|diagnostic| diagnostic.code == "unreachableDeclaration")
+        .ok_or("unreachable declaration diagnostic")?;
+    let narrowing = unreachable
+        .cascade_narrowing
+        .as_ref()
+        .ok_or("cascade narrowing evidence")?;
+    assert_eq!(narrowing.product, "omena-query.cascade-narrowing-evidence");
+    assert_eq!(narrowing.selector, ".btn");
+    assert_eq!(narrowing.selector_class_names, vec!["btn".to_string()]);
+    assert_eq!(narrowing.property_name, "color");
+    assert_eq!(narrowing.property_value_narrowing.property_name, "color");
+    assert_eq!(
+        narrowing.property_value_narrowing.matched_candidate_count,
+        2
+    );
+    assert_eq!(
+        narrowing.property_value_narrowing.product,
+        "omena-abstract-value.property-value-narrowing"
+    );
+    assert_eq!(
+        narrowing.element_class_iteration.product,
+        "omena-abstract-value.reduced-product-iteration"
+    );
+    assert!(
+        unreachable
+            .provenance
+            .contains(&"omena-query.cascade-narrowing")
+    );
+    assert!(
+        unreachable
+            .provenance
+            .contains(&"omena-abstract-value.property-value-narrowing")
+    );
+    assert!(
+        unreachable
+            .provenance
+            .contains(&"omena-abstract-value.reduced-product-iteration")
+    );
     assert_eq!(
         diagnostics
             .diagnostics

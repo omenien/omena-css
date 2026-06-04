@@ -158,6 +158,7 @@ pub(super) fn apply_omena_query_style_diagnostic_suppressions(
             message: "Unused omena-expect-error directive.".to_string(),
             tags: Vec::new(),
             create_custom_property: None,
+            cascade_narrowing: None,
         });
     }
 

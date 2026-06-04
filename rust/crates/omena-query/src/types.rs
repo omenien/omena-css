@@ -924,6 +924,20 @@ pub struct OmenaQueryStyleHoverRenderPartsV0 {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
+pub struct OmenaQueryCascadeNarrowingEvidenceV0 {
+    pub schema_version: &'static str,
+    pub product: &'static str,
+    pub selector: String,
+    pub selector_class_names: Vec<String>,
+    pub property_name: String,
+    pub condition_context: Vec<String>,
+    pub declaration_ids: Vec<String>,
+    pub element_class_iteration: ReducedClassValueProductIterationV0,
+    pub property_value_narrowing: AbstractPropertyValueNarrowingV0,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct OmenaQueryStyleDiagnosticV0 {
     pub code: &'static str,
     pub severity: &'static str,
@@ -933,6 +947,8 @@ pub struct OmenaQueryStyleDiagnosticV0 {
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub tags: Vec<u8>,
     pub create_custom_property: Option<OmenaQueryCreateCustomPropertyActionV0>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub cascade_narrowing: Option<OmenaQueryCascadeNarrowingEvidenceV0>,
 }
 
 pub type OmenaQueryLinearProvenanceV0 = LinearProvenanceV0<NaturalCountProvenanceSemiringV0>;
