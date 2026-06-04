@@ -27,18 +27,14 @@ use omena_query::{
     summarize_omena_query_style_document, summarize_omena_query_style_hover_candidates,
     summarize_omena_query_transform_context_from_engine_input,
 };
-use omena_query::{
-    OmenaQueryStyleDiagnosticV0, ParserRangeV0,
-    summarize_omena_query_unified_cross_file_hypergraph,
-    summarize_omena_query_workspace_cross_file_summary,
-};
+use omena_query::{OmenaQueryStyleDiagnosticV0, ParserRangeV0};
 use omena_sif::{
     OmenaLockV1, OmenaSifSourceSyntaxV1, OmenaSifStaticGeneratorInputV1,
     build_omena_lock_sif_entry_v1, generate_static_omena_sif_v1, read_omena_lock_json_v1,
     read_omena_sif_json_v1, summarize_omena_sif_provenance_advisory_v1,
     verify_omena_lock_frozen_v1, write_omena_lock_json_v1, write_omena_sif_json_v1,
 };
-use omena_streaming_ifds::summarize_streaming_ifds_cross_file_reachability_v0;
+use omena_streaming_ifds::summarize_streaming_ifds_workspace_cross_file_reachability_v0;
 #[cfg(feature = "zk-audit")]
 use omena_zk_audit::{
     ArkworksGroth16RoundTripV0, CascadeZKAuditV0, ZK_AUDIT_DEFAULT_PROOF_BACKEND_ENABLED_V0,
@@ -1587,32 +1583,24 @@ fn style_diagnostics(
 
 /// Surface a real cross-file dataflow reachability fact through the product diagnostics.
 ///
-/// The resolved workspace cross-file summary is projected to the unified hypergraph
-/// (`summarize_omena_query_unified_cross_file_hypergraph`) — the SAME real `composes`/`@use`/
-/// `@forward`/`@import`/value/icss/foreign-reference edges the analyzer already resolves. The
-/// streaming-IFDS crate then owns the exact propagation report: it seeds every node owned by the
-/// target file and returns the foreign module paths reached by facts over those edges. A
-/// self-contained file has no foreign reachable path and no diagnostic is emitted. No synthetic
-/// hyperedges are fed in.
+/// The streaming-IFDS crate projects the resolved workspace cross-file summary
+/// to the unified hypergraph — the SAME real `composes`/`@use`/`@forward`/
+/// `@import`/value/icss/foreign-reference edges the analyzer already resolves.
+/// It then owns the exact propagation report: every node owned by the target
+/// file is seeded and foreign module paths are reached by facts over those
+/// edges. A self-contained file has no foreign reachable path and no diagnostic
+/// is emitted. No synthetic hyperedges are fed in.
 fn summarize_cross_file_streaming_reachability_diagnostics(
     target_style_path: &str,
     workspace_sources: &[OmenaQueryStyleSourceInputV0],
     source_documents: &[OmenaQuerySourceDocumentInputV0],
     package_manifests: &[OmenaQueryStylePackageManifestV0],
 ) -> Vec<OmenaQueryStyleDiagnosticV0> {
-    let summary = summarize_omena_query_workspace_cross_file_summary(
+    let report = summarize_streaming_ifds_workspace_cross_file_reachability_v0(
+        target_style_path,
         workspace_sources,
         source_documents,
         package_manifests,
-    );
-    let hypergraph = summarize_omena_query_unified_cross_file_hypergraph(&summary);
-    if hypergraph.hyperedges.is_empty() {
-        return Vec::new();
-    }
-
-    let report = summarize_streaming_ifds_cross_file_reachability_v0(
-        target_style_path,
-        hypergraph.hyperedges.as_slice(),
     );
     if report.reachable_foreign_paths.is_empty() {
         return Vec::new();

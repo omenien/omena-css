@@ -21,7 +21,10 @@ smt-z3 = ["omena-query/smt-z3"]
 [dependencies]
 omena-cascade = { path = "../omena-cascade", version = "=0.2.0" }
 omena-incremental = { path = "../omena-incremental", version = "=0.2.0" }
-omena-query = { path = "../omena-query", version = "=0.2.0" }
+omena-query = { path = "../omena-query", version = "=0.2.0", features = ["hypergraph-ifds"] }
+omena-streaming-ifds = { path = "../omena-streaming-ifds", version = "=0.2.0", features = [
+  "streaming-ifds",
+] }
 omena-tsgo-client = { path = "../omena-tsgo-client", version = "=0.2.0" }
 serde.workspace = true
 serde_json.workspace = true

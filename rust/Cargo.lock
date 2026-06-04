@@ -2000,6 +2000,7 @@ dependencies = [
  "omena-cascade",
  "omena-incremental",
  "omena-query",
+ "omena-streaming-ifds",
  "omena-tsgo-client",
  "serde",
  "serde_json",

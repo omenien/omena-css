@@ -71,3 +71,94 @@ fn resolves_graph_aware_sass_diagnostics_from_opened_style_documents() {
         "Rust LSP style diagnostics should consume graph-aware omena-query Sass diagnostics"
     );
 }
+
+#[test]
+fn style_diagnostics_surface_streaming_ifds_cross_file_reachability_from_lsp() {
+    let mut state = LspShellState::default();
+    for (uri, text) in [
+        (
+            "file:///workspace-a/src/Button.module.scss",
+            "@use \"./tokens\" as tokens;\n.root { color: tokens.$brand; }",
+        ),
+        ("file:///workspace-a/src/_tokens.scss", "$brand: red;"),
+    ] {
+        handle_lsp_message(
+            &mut state,
+            json!({
+                "jsonrpc": "2.0",
+                "method": "textDocument/didOpen",
+                "params": {
+                    "textDocument": {
+                        "uri": uri,
+                        "languageId": "scss",
+                        "version": 1,
+                        "text": text,
+                    },
+                },
+            }),
+        );
+    }
+
+    let importer_response = handle_lsp_message(
+        &mut state,
+        json!({
+            "jsonrpc": "2.0",
+            "id": 1,
+            "method": STYLE_DIAGNOSTICS_REQUEST,
+            "params": {
+                "textDocument": {
+                    "uri": "file:///workspace-a/src/Button.module.scss",
+                },
+            },
+        }),
+    );
+    let importer_diagnostics = importer_response
+        .as_ref()
+        .and_then(|value| value.pointer("/result"))
+        .and_then(Value::as_array)
+        .expect("style diagnostics response contains an array");
+    let streaming = importer_diagnostics
+        .iter()
+        .find(|diagnostic| {
+            diagnostic.pointer("/code") == Some(&json!("crossFileStreamingReachability"))
+        })
+        .expect("LSP style diagnostics should surface streaming-IFDS reachability");
+    assert_eq!(
+        streaming.pointer("/data/provenance/1"),
+        Some(&json!(
+            "omena-streaming-ifds.cross-file-reachability-report"
+        )),
+    );
+    assert!(
+        streaming
+            .pointer("/message")
+            .and_then(Value::as_str)
+            .is_some_and(|message| message.contains("file:///workspace-a/src/_tokens.scss")),
+        "streaming diagnostic should name the reached foreign module: {streaming:?}"
+    );
+
+    let leaf_response = handle_lsp_message(
+        &mut state,
+        json!({
+            "jsonrpc": "2.0",
+            "id": 2,
+            "method": STYLE_DIAGNOSTICS_REQUEST,
+            "params": {
+                "textDocument": {
+                    "uri": "file:///workspace-a/src/_tokens.scss",
+                },
+            },
+        }),
+    );
+    let leaf_diagnostics = leaf_response
+        .as_ref()
+        .and_then(|value| value.pointer("/result"))
+        .and_then(Value::as_array)
+        .expect("leaf style diagnostics response contains an array");
+    assert!(
+        leaf_diagnostics.iter().all(|diagnostic| {
+            diagnostic.pointer("/code") != Some(&json!("crossFileStreamingReachability"))
+        }),
+        "leaf module should not surface cross-file streaming reachability: {leaf_diagnostics:?}"
+    );
+}

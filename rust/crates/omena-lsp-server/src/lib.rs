@@ -23,9 +23,9 @@ use omena_query::{
     OmenaQuerySourceMissingSelectorDiagnosticCandidateV0,
     OmenaQuerySourceSelectorReferenceFactV0 as SourceSelectorReferenceFact,
     OmenaQuerySourceSelectorReferenceMatchKindV0 as SourceSelectorReferenceMatchKind,
-    OmenaQuerySourceSyntaxIndexV0 as SourceSyntaxIndex, OmenaQueryStyleSourceInputV0,
-    ParserByteSpanV0, ParserPositionV0, ParserRangeV0, StyleLanguage,
-    collect_omena_query_vue_style_module_bindings,
+    OmenaQuerySourceSyntaxIndexV0 as SourceSyntaxIndex, OmenaQueryStyleDiagnosticV0,
+    OmenaQueryStylePackageManifestV0, OmenaQueryStyleSourceInputV0, ParserByteSpanV0,
+    ParserPositionV0, ParserRangeV0, StyleLanguage, collect_omena_query_vue_style_module_bindings,
     is_omena_query_sass_symbol_candidate_kind as is_sass_symbol_candidate_kind,
     is_omena_query_sass_symbol_declaration_kind as is_sass_symbol_declaration_kind,
     is_omena_query_sass_symbol_reference_kind as is_sass_symbol_reference_kind,
@@ -53,6 +53,7 @@ use omena_query::{
     summarize_omena_query_style_hover_render_parts,
     summarize_omena_query_style_inline_code_actions,
 };
+use omena_streaming_ifds::summarize_streaming_ifds_workspace_cross_file_reachability_v0;
 #[cfg(test)]
 pub(crate) use omena_tsgo_client::{TsgoResolvedTypeV0, TsgoTypeFactResultEntryV0};
 use protocol::*;
@@ -992,7 +993,7 @@ fn resolve_style_diagnostics_for_uri(state: &LspShellState, document_uri: &str) 
     // path does — otherwise an alias import dims every selector as `unusedSelector`.
     let resolution_inputs =
         resolution_inputs_for_workspace_uri(state, document.workspace_folder_uri.as_deref());
-    let diagnostics_summary =
+    let mut diagnostics_summary =
         summarize_omena_query_style_diagnostics_for_workspace_file_with_external_mode_and_sifs_and_resolution_inputs(
             document.uri.as_str(),
             style_sources.as_slice(),
@@ -1010,6 +1011,15 @@ fn resolve_style_diagnostics_for_uri(state: &LspShellState, document_uri: &str) 
                 query_candidates.as_slice(),
             )
         });
+    diagnostics_summary.diagnostics.extend(
+        summarize_cross_file_streaming_reachability_diagnostics_for_lsp(
+            document.uri.as_str(),
+            style_sources.as_slice(),
+            source_documents.as_slice(),
+            state.resolution.package_manifests.as_slice(),
+        ),
+    );
+    diagnostics_summary.diagnostic_count = diagnostics_summary.diagnostics.len();
     let diagnostics = diagnostics_summary
         .diagnostics
         .into_iter()
@@ -1042,6 +1052,46 @@ fn resolve_style_diagnostics_for_uri(state: &LspShellState, document_uri: &str) 
         .collect::<Vec<_>>();
 
     json!(diagnostics)
+}
+
+/// Surface streaming-IFDS cross-file reachability through the live LSP style
+/// diagnostics path. The mechanism remains owned by `omena-streaming-ifds`;
+/// LSP only renders the returned report as a product diagnostic.
+fn summarize_cross_file_streaming_reachability_diagnostics_for_lsp(
+    target_style_path: &str,
+    style_sources: &[OmenaQueryStyleSourceInputV0],
+    source_documents: &[OmenaQuerySourceDocumentInputV0],
+    package_manifests: &[OmenaQueryStylePackageManifestV0],
+) -> Vec<OmenaQueryStyleDiagnosticV0> {
+    let report = summarize_streaming_ifds_workspace_cross_file_reachability_v0(
+        target_style_path,
+        style_sources,
+        source_documents,
+        package_manifests,
+    );
+    if report.reachable_foreign_paths.is_empty() {
+        return Vec::new();
+    }
+
+    let reachable_modules = report.reachable_foreign_paths.join(", ");
+    vec![OmenaQueryStyleDiagnosticV0 {
+        code: "crossFileStreamingReachability",
+        severity: "hint",
+        provenance: vec![
+            "omena-lsp-server.style-diagnostics",
+            "omena-streaming-ifds.cross-file-reachability-report",
+            "omena-streaming-ifds.analysis-report",
+            "omena-query.unified-cross-file-hypergraph",
+            "omena-query.cross-file-summary",
+        ],
+        range: ParserRangeV0::default(),
+        message: format!(
+            "cross-file dataflow reaches {} module(s) via resolved edges: {reachable_modules}",
+            report.reachable_foreign_path_count
+        ),
+        tags: Vec::new(),
+        create_custom_property: None,
+    }]
 }
 
 fn resolve_source_diagnostics_for_uri(state: &LspShellState, document_uri: &str) -> Value {
