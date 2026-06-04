@@ -110,6 +110,9 @@ enum Command {
         /// Treat the provided context/engine input as a closed style world for tree shaking.
         #[arg(long)]
         closed_style_world: bool,
+        /// Enable the public CSS Modules tree-shake build mode.
+        #[arg(long)]
+        tree_shake: bool,
         /// Additional workspace style source used to derive import/composes build context.
         #[arg(long = "source")]
         source_paths: Vec<PathBuf>,
@@ -495,6 +498,7 @@ fn run(cli: Cli) -> Result<(), String> {
             context_json,
             engine_input_json,
             closed_style_world,
+            tree_shake,
             source_paths,
             package_manifest_paths,
             source_map,
@@ -507,6 +511,7 @@ fn run(cli: Cli) -> Result<(), String> {
             context_json,
             engine_input_json,
             closed_style_world,
+            tree_shake,
             source_paths,
             package_manifest_paths,
             source_map,
@@ -1000,6 +1005,7 @@ struct BuildFileOptions {
     context_json: Option<PathBuf>,
     engine_input_json: Option<PathBuf>,
     closed_style_world: bool,
+    tree_shake: bool,
     source_paths: Vec<PathBuf>,
     package_manifest_paths: Vec<PathBuf>,
     source_map: bool,
@@ -1016,6 +1022,7 @@ fn build_file(options: BuildFileOptions) -> Result<(), String> {
         context_json,
         engine_input_json,
         closed_style_world,
+        tree_shake,
         source_paths,
         package_manifest_paths,
         source_map,
@@ -1026,15 +1033,25 @@ fn build_file(options: BuildFileOptions) -> Result<(), String> {
     if target_query.is_some() && !pass_ids.is_empty() {
         return Err("cannot combine --target-query with explicit --pass values".to_string());
     }
+    if target_query.is_some() && tree_shake {
+        return Err(
+            "cannot combine --target-query with --tree-shake; use --tree-shake without --target-query"
+                .to_string(),
+        );
+    }
     if source_map && !json {
         return Err("--source-map requires --json".to_string());
     }
 
     let source = read_source(&path)?;
     let style_path = path_string(&path);
+    let mut pass_ids = pass_ids;
     let mut context = read_context_json(context_json.as_deref())?;
-    if closed_style_world {
+    if closed_style_world || tree_shake {
         context.closed_style_world = true;
+    }
+    if tree_shake {
+        append_tree_shake_build_passes(&mut pass_ids);
     }
     let used_engine_input = engine_input_json.is_some();
     if let Some(engine_input_path) = engine_input_json.as_deref() {
@@ -1093,6 +1110,9 @@ fn build_file(options: BuildFileOptions) -> Result<(), String> {
             &mut summary.ready_surfaces,
             "expressionDomainSelectorProjection",
         );
+    }
+    if tree_shake {
+        push_ready_surface(&mut summary.ready_surfaces, "treeShakeBuildMode");
     }
     if source_map {
         attach_omena_query_consumer_build_source_map_v3(&mut summary, &source);
@@ -2132,6 +2152,19 @@ fn merge_cli_transform_context(
     base
 }
 
+fn append_tree_shake_build_passes(pass_ids: &mut Vec<String>) {
+    for pass_id in [
+        "tree-shake-class",
+        "tree-shake-keyframes",
+        "tree-shake-value",
+        "tree-shake-custom-property",
+    ] {
+        if !pass_ids.iter().any(|existing| existing == pass_id) {
+            pass_ids.push(pass_id.to_string());
+        }
+    }
+}
+
 fn push_ready_surface(surfaces: &mut Vec<&'static str>, surface: &'static str) {
     if !surfaces.contains(&surface) {
         surfaces.push(surface);
@@ -2178,6 +2211,11 @@ mod tests {
                 .get_arguments()
                 .any(|argument| argument.get_long() == Some("source-map"))
         );
+        assert!(
+            build
+                .get_arguments()
+                .any(|argument| argument.get_long() == Some("tree-shake"))
+        );
     }
 
     #[test]
@@ -2205,6 +2243,7 @@ mod tests {
                 context_json: None,
                 engine_input_json: None,
                 closed_style_world: false,
+                tree_shake: false,
                 source_paths: Vec::new(),
                 package_manifest_paths: Vec::new(),
                 source_map: false,
@@ -2244,6 +2283,7 @@ mod tests {
                 context_json: None,
                 engine_input_json: None,
                 closed_style_world: false,
+                tree_shake: false,
                 source_paths: Vec::new(),
                 package_manifest_paths: Vec::new(),
                 source_map: true,
@@ -2253,6 +2293,96 @@ mod tests {
 
         assert_eq!(result, Err("--source-map requires --json".to_string()));
         cleanup(&source_path);
+        Ok(())
+    }
+
+    #[test]
+    fn build_tree_shake_mode_rejects_target_query() -> Result<(), String> {
+        let source_path = temp_path("tree-shake-target-query.css");
+        fs::write(&source_path, ".used { color: blue; }")
+            .map_err(|error| format!("fixture source should be writable: {error}"))?;
+
+        let result = run(Cli {
+            command: Command::Build {
+                path: source_path.clone(),
+                output: None,
+                passes: Vec::new(),
+                target_query: Some("ie 11".to_string()),
+                allow_logical_to_physical: false,
+                allow_scope_flatten: false,
+                allow_layer_flatten: false,
+                enable_supports_static_eval: false,
+                enable_media_static_eval: false,
+                drop_dark_mode_media_queries: false,
+                context_json: None,
+                engine_input_json: None,
+                closed_style_world: false,
+                tree_shake: true,
+                source_paths: Vec::new(),
+                package_manifest_paths: Vec::new(),
+                source_map: false,
+                json: false,
+            },
+        });
+
+        assert_eq!(
+            result,
+            Err(
+                "cannot combine --target-query with --tree-shake; use --tree-shake without --target-query"
+                    .to_string(),
+            )
+        );
+        cleanup(&source_path);
+        Ok(())
+    }
+
+    #[test]
+    fn build_tree_shake_mode_removes_unreachable_css_module_selectors() -> Result<(), String> {
+        let source_path = temp_path("tree-shake-input.module.css");
+        let output_path = temp_path("tree-shake-output.module.css");
+        let context_path = temp_path("tree-shake-context.json");
+        fs::write(&source_path, ".used { color: blue; } .dead { color: red; }")
+            .map_err(|error| format!("fixture source should be writable: {error}"))?;
+        fs::write(
+            &context_path,
+            r#"{
+  "reachableClassNames": ["used"]
+}"#,
+        )
+        .map_err(|error| format!("fixture context should be writable: {error}"))?;
+
+        let result = run(Cli {
+            command: Command::Build {
+                path: source_path.clone(),
+                output: Some(output_path.clone()),
+                passes: Vec::new(),
+                target_query: None,
+                allow_logical_to_physical: false,
+                allow_scope_flatten: false,
+                allow_layer_flatten: false,
+                enable_supports_static_eval: false,
+                enable_media_static_eval: false,
+                drop_dark_mode_media_queries: false,
+                context_json: Some(context_path.clone()),
+                engine_input_json: None,
+                closed_style_world: false,
+                tree_shake: true,
+                source_paths: Vec::new(),
+                package_manifest_paths: Vec::new(),
+                source_map: false,
+                json: false,
+            },
+        });
+
+        assert!(result.is_ok(), "{result:?}");
+        let output = fs::read_to_string(&output_path)
+            .map_err(|error| format!("build output should be written: {error}"))?;
+        assert!(output.contains(".used"));
+        assert!(!output.contains(".dead"));
+
+        cleanup(&source_path);
+        cleanup(&output_path);
+        cleanup(&context_path);
         Ok(())
     }
 
