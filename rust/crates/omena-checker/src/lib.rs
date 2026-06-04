@@ -17,6 +17,10 @@ use omena_smt::StubSmtBackendV0;
 #[cfg(feature = "smt-z3")]
 use omena_smt::Z3SmtBackendV0;
 use omena_smt::{SmtBackendKindV0, SmtBackendSatResultV0, SmtBackendV0, canonical_smt_input_v0};
+#[cfg(feature = "smt-z3")]
+use omena_smt::{
+    SmtVerdictV0, layer_inversion_declaration_v0, smt_check_layer_flatten_inversion_v0,
+};
 use omena_variational::{
     PatternIntentV0, designer_intent_posterior_input_v0, dominant_designer_intent_v0,
     infer_designer_intent_posterior_v0,
@@ -474,6 +478,27 @@ pub struct OmenaCheckerSmtObligationInputV0 {
     pub obligation_id: String,
     pub l1_primitive: String,
     pub canonical_terms: Vec<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct OmenaCheckerSmtLayerInversionInputV0 {
+    pub obligations: Vec<OmenaCheckerSmtLayerInversionObligationInputV0>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct OmenaCheckerSmtLayerInversionObligationInputV0 {
+    pub obligation_id: String,
+    pub declarations: Vec<OmenaCheckerSmtLayerInversionDeclarationInputV0>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct OmenaCheckerSmtLayerInversionDeclarationInputV0 {
+    pub declaration_id: String,
+    pub layer_rank: i64,
+    pub source_order: i64,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -1558,6 +1583,52 @@ pub fn evaluate_omena_checker_smt_rules(
     }
 
     evaluations
+}
+
+pub fn evaluate_omena_checker_smt_layer_inversion_rules(
+    input: OmenaCheckerSmtLayerInversionInputV0,
+) -> Vec<OmenaCheckerSmtEvaluationV0> {
+    #[cfg(not(feature = "smt-z3"))]
+    {
+        let _ = input;
+        Vec::new()
+    }
+
+    #[cfg(feature = "smt-z3")]
+    {
+        let backend = Z3SmtBackendV0::default();
+        let mut evaluations = Vec::new();
+
+        for obligation in input.obligations {
+            let declarations = obligation
+                .declarations
+                .into_iter()
+                .map(|declaration| {
+                    layer_inversion_declaration_v0(
+                        declaration.declaration_id,
+                        declaration.layer_rank,
+                        declaration.source_order,
+                    )
+                })
+                .collect::<Vec<_>>();
+            let verdict = smt_check_layer_flatten_inversion_v0(&declarations, &backend);
+            if verdict.verdict == SmtVerdictV0::Rejected {
+                let mut evaluation = smt_evaluation(
+                    obligation.obligation_id,
+                    smt_backend_kind_name(verdict.backend),
+                    smt_sat_result_name(verdict.sat_result),
+                    "Opt-in z3 SMT backend found a layer-flatten inversion.",
+                    smt_backend_product_name(verdict.backend),
+                );
+                evaluation
+                    .mechanism_products
+                    .push("omena-smt.layer-flatten-inversion");
+                evaluations.push(evaluation);
+            }
+        }
+
+        evaluations
+    }
 }
 
 pub fn evaluate_omena_checker_mdl_rules(
@@ -2987,6 +3058,49 @@ mod tests {
             }],
         });
         assert!(clear_evaluations.is_empty());
+    }
+
+    #[test]
+    fn evaluates_smt_layer_inversion_only_for_solver_backed_scope() {
+        let evaluations = evaluate_omena_checker_smt_layer_inversion_rules(
+            OmenaCheckerSmtLayerInversionInputV0 {
+                obligations: vec![OmenaCheckerSmtLayerInversionObligationInputV0 {
+                    obligation_id: "layer-inversion".to_string(),
+                    declarations: vec![
+                        OmenaCheckerSmtLayerInversionDeclarationInputV0 {
+                            declaration_id: "utilities-color".to_string(),
+                            layer_rank: 1,
+                            source_order: 0,
+                        },
+                        OmenaCheckerSmtLayerInversionDeclarationInputV0 {
+                            declaration_id: "base-color".to_string(),
+                            layer_rank: 0,
+                            source_order: 1,
+                        },
+                    ],
+                }],
+            },
+        );
+
+        if cfg!(feature = "smt-z3") {
+            assert_eq!(evaluations.len(), 1);
+            assert_eq!(evaluations[0].backend_kind_name, "z3");
+            assert_eq!(evaluations[0].sat_result_name, "sat");
+            assert_eq!(
+                evaluations[0].message,
+                "Opt-in z3 SMT backend found a layer-flatten inversion."
+            );
+            assert!(
+                evaluations[0]
+                    .mechanism_products
+                    .contains(&"omena-smt.layer-flatten-inversion")
+            );
+        } else {
+            assert!(
+                evaluations.is_empty(),
+                "default solver-free scope must not emit z3-only layer inversion diagnostics"
+            );
+        }
     }
 
     #[test]

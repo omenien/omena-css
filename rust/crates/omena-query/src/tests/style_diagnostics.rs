@@ -3106,6 +3106,76 @@ fn cascade_smt_violation_surfaces_for_unsatisfiable_box_shorthand_obligation()
     Ok(())
 }
 
+#[test]
+fn cascade_smt_layer_inversion_is_explicit_z3_product_lane() -> Result<(), &'static str> {
+    // The first empty `base` layer block establishes base below utilities.
+    // `utilities` then declares the winning layered value before `base` declares
+    // a later source-order value. Flattening layer boundaries would therefore
+    // invert the winner. The default build stays solver-free and does not emit;
+    // the `smt-z3` feature routes the same query diagnostic path through z3 and
+    // surfaces the inversion as `cascadeSmtViolation`.
+    let source = r#"
+@layer base {}
+@layer utilities {
+  .box { color: blue; }
+}
+@layer base {
+  .box { color: red; }
+}
+"#;
+    let candidates =
+        crate::summarize_omena_query_style_hover_candidates("Layered.module.css", source)
+            .ok_or("layered candidates")?;
+    let diagnostics = crate::summarize_omena_query_style_diagnostics_for_file_with_deep_analysis(
+        "file:///workspace/src/Layered.module.css",
+        source,
+        candidates.candidates.as_slice(),
+        true,
+    );
+    let smt_diagnostics = diagnostics
+        .diagnostics
+        .iter()
+        .filter(|diagnostic| diagnostic.code == "cascadeSmtViolation")
+        .collect::<Vec<_>>();
+
+    if cfg!(feature = "smt-z3") {
+        let smt_violation = smt_diagnostics
+            .first()
+            .ok_or("smt-z3 product lane must surface layer inversion")?;
+        assert!(
+            smt_violation.message.contains("@layer ordering inversion"),
+            "diagnostic must explain the layer inversion: {}",
+            smt_violation.message
+        );
+        assert!(
+            smt_violation.provenance.contains(&"omena-smt.backend.z3"),
+            "z3 backend provenance must be attached: {:?}",
+            smt_violation.provenance
+        );
+        assert!(
+            smt_violation
+                .provenance
+                .contains(&"omena-query-checker-orchestrator.smt-layer-inversion-gate"),
+            "layer inversion product gate provenance must be attached: {:?}",
+            smt_violation.provenance
+        );
+        assert!(
+            smt_violation
+                .provenance
+                .contains(&"omena-smt.layer-flatten-inversion"),
+            "layer inversion mechanism provenance must be attached: {:?}",
+            smt_violation.provenance
+        );
+    } else {
+        assert!(
+            smt_diagnostics.is_empty(),
+            "default solver-free product scope must not emit z3-only layer inversion diagnostics: {:?}",
+            smt_diagnostics
+        );
+    }
+    Ok(())
+}
+
 // L0 (#33): two cross-file CSS modules that resolve a SHARED `(selector, property)`
 // cascade outcome to DIFFERENT winning values must surface a cross-file
 // `replicaEnsembleInconsistency`, while modules that agree on every shared outcome

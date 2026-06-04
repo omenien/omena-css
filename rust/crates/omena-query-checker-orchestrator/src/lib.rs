@@ -24,9 +24,11 @@ pub use omena_checker::{
     OmenaCheckerReplicaEnsembleReportInputV0, OmenaCheckerRgFlowCouplingInputV0,
     OmenaCheckerRgFlowCouplingSpaceInputV0, OmenaCheckerRgFlowEvaluationV0,
     OmenaCheckerRgFlowInputV0, OmenaCheckerRuleCodeV0, OmenaCheckerSmtEvaluationV0,
-    OmenaCheckerSmtInputV0, OmenaCheckerSmtObligationInputV0,
-    RG_FLOW_DEFAULT_PRODUCT_DECISION_MECHANISM_V0, RG_FLOW_MECHANISM_SCOPE_V0,
-    RG_FLOW_PRODUCT_SURFACE_V0, checker_cascade_primitive_role_catalog_v0,
+    OmenaCheckerSmtInputV0, OmenaCheckerSmtLayerInversionDeclarationInputV0,
+    OmenaCheckerSmtLayerInversionInputV0, OmenaCheckerSmtLayerInversionObligationInputV0,
+    OmenaCheckerSmtObligationInputV0, RG_FLOW_DEFAULT_PRODUCT_DECISION_MECHANISM_V0,
+    RG_FLOW_MECHANISM_SCOPE_V0, RG_FLOW_PRODUCT_SURFACE_V0,
+    checker_cascade_primitive_role_catalog_v0,
     checker_categorical_cascade_evidence_for_exercised_primitives_v0,
     checker_categorical_cascade_evidence_v0,
 };
@@ -35,8 +37,9 @@ use omena_checker::{
     active_omena_checker_smt_product_scope_v0, active_omena_checker_smt_solver_backed_v0,
     evaluate_omena_checker_cascade_rules, evaluate_omena_checker_categorical_rules,
     evaluate_omena_checker_m_tier_rules, evaluate_omena_checker_replica_ensemble_rules,
-    evaluate_omena_checker_rg_flow_rules, evaluate_omena_checker_smt_rules,
-    list_omena_checker_m_tier_rule_code_names, list_omena_checker_rule_code_names,
+    evaluate_omena_checker_rg_flow_rules, evaluate_omena_checker_smt_layer_inversion_rules,
+    evaluate_omena_checker_smt_rules, list_omena_checker_m_tier_rule_code_names,
+    list_omena_checker_rule_code_names,
 };
 pub use omena_ensemble::{
     ModuleGraphEdgeV0, ModuleGraphV0, OutcomeMode,
@@ -494,6 +497,56 @@ pub fn run_omena_query_checker_smt_gate_v0(
             "checkerRuleRegistry",
             "activeSmtBackendScope",
             "smtCascadeProofObligation",
+            "registeredRuleDiagnosticGate",
+            "queryDiagnosticHandoff",
+        ],
+    }
+}
+
+/// Opt-in z3 product lane for the non-propositional SMT cascade-ordering check.
+///
+/// The default product build remains solver-free and returns no layer-inversion
+/// evaluations: the propositional stub cannot decide QF_LIA ordering searches
+/// without over-warning. Builds that opt into `smt-z3` route this same gate
+/// through the z3 backend, so `cascade.smt-violation` is emitted only when z3
+/// finds an actual `@layer` flattening inversion.
+pub fn run_omena_query_checker_smt_layer_inversion_gate_v0(
+    input: OmenaCheckerSmtLayerInversionInputV0,
+) -> OmenaQueryCheckerSmtGateV0 {
+    let registered_rules = list_omena_checker_rule_code_names()
+        .into_iter()
+        .collect::<BTreeSet<_>>();
+    let enabled_rule_names = vec![OmenaCheckerRuleCodeV0::CascadeSMTViolation.as_str()];
+    let evaluations = evaluate_omena_checker_smt_layer_inversion_rules(input);
+    let emitted_rule_names = evaluations
+        .iter()
+        .map(|evaluation| evaluation.rule_code_name)
+        .collect::<BTreeSet<_>>()
+        .into_iter()
+        .collect::<Vec<_>>();
+    let unregistered_rule_count = emitted_rule_names
+        .iter()
+        .filter(|rule| !registered_rules.contains(**rule))
+        .count();
+
+    OmenaQueryCheckerSmtGateV0 {
+        schema_version: "0",
+        product: "omena-query-checker-orchestrator.smt-layer-inversion-gate",
+        orchestrator_kind: "registered-rule-diagnostic-gate",
+        backend_kind_name: active_omena_checker_smt_backend_kind_name_v0(),
+        solver_backed: active_omena_checker_smt_solver_backed_v0(),
+        product_scope: active_omena_checker_smt_product_scope_v0(),
+        enabled_rule_names,
+        emitted_rule_names,
+        registered_rule_count: registered_rules.len(),
+        unregistered_rule_count,
+        evaluation_count: evaluations.len(),
+        enforcement_passed: unregistered_rule_count == 0,
+        evaluations,
+        ready_surfaces: vec![
+            "checkerRuleRegistry",
+            "activeSmtBackendScope",
+            "smtZ3LayerInversionProductLane",
             "registeredRuleDiagnosticGate",
             "queryDiagnosticHandoff",
         ],
@@ -1085,6 +1138,56 @@ mod tests {
         assert!(gate.ready_surfaces.contains(&"activeSmtBackendScope"));
         assert_eq!(gate.evaluation_count, 0);
         assert!(gate.emitted_rule_names.is_empty());
+    }
+
+    #[test]
+    fn smt_layer_inversion_gate_is_explicit_z3_opt_in_product_scope() {
+        let gate = run_omena_query_checker_smt_layer_inversion_gate_v0(
+            OmenaCheckerSmtLayerInversionInputV0 {
+                obligations: vec![OmenaCheckerSmtLayerInversionObligationInputV0 {
+                    obligation_id: "stylesheet://.box::color-layer-flatten-inversion".to_string(),
+                    declarations: vec![
+                        OmenaCheckerSmtLayerInversionDeclarationInputV0 {
+                            declaration_id: "utilities-color".to_string(),
+                            layer_rank: 1,
+                            source_order: 0,
+                        },
+                        OmenaCheckerSmtLayerInversionDeclarationInputV0 {
+                            declaration_id: "base-color".to_string(),
+                            layer_rank: 0,
+                            source_order: 1,
+                        },
+                    ],
+                }],
+            },
+        );
+
+        assert!(gate.enforcement_passed);
+        assert_eq!(
+            gate.product_scope,
+            if cfg!(feature = "smt-z3") {
+                "explicitOptInZ3SolverBackedProductGate"
+            } else {
+                "defaultSolverFreeStubProductGate"
+            }
+        );
+        assert_eq!(gate.solver_backed, cfg!(feature = "smt-z3"));
+        assert!(
+            gate.ready_surfaces
+                .contains(&"smtZ3LayerInversionProductLane")
+        );
+        if cfg!(feature = "smt-z3") {
+            assert_eq!(gate.evaluation_count, 1);
+            assert!(gate.emitted_rule_names.contains(&"cascade.smt-violation"));
+            assert!(
+                gate.evaluations[0]
+                    .mechanism_products
+                    .contains(&"omena-smt.layer-flatten-inversion")
+            );
+        } else {
+            assert_eq!(gate.evaluation_count, 0);
+            assert!(gate.emitted_rule_names.is_empty());
+        }
     }
 
     #[test]

@@ -9,10 +9,12 @@ use omena_query_checker_orchestrator::{
     OmenaCheckerCategoricalInputV0, OmenaCheckerCategoricalPrimitiveRolePairInputV0,
     OmenaCheckerCategoricalRoleMappingInputV0, OmenaCheckerCustomPropertyInputV0,
     OmenaCheckerRgFlowCouplingInputV0, OmenaCheckerRgFlowCouplingSpaceInputV0,
-    OmenaCheckerRgFlowInputV0, OmenaCheckerSmtInputV0, OmenaCheckerSmtObligationInputV0,
+    OmenaCheckerRgFlowInputV0, OmenaCheckerSmtInputV0,
+    OmenaCheckerSmtLayerInversionDeclarationInputV0, OmenaCheckerSmtLayerInversionInputV0,
+    OmenaCheckerSmtLayerInversionObligationInputV0, OmenaCheckerSmtObligationInputV0,
     checker_cascade_primitive_role_catalog_v0, run_omena_query_checker_cascade_gate_v0,
     run_omena_query_checker_categorical_gate_v0, run_omena_query_checker_rg_flow_gate_v0,
-    run_omena_query_checker_smt_gate_v0,
+    run_omena_query_checker_smt_gate_v0, run_omena_query_checker_smt_layer_inversion_gate_v0,
 };
 use omena_query_checker_orchestrator::{
     REPLICA_ENSEMBLE_FEATURE_GATE_V0, REPLICA_ENSEMBLE_LAYER_MARKER_V0,
@@ -345,14 +347,13 @@ fn summarize_query_categorical_cascade_evidence_diagnostics(
         .collect()
 }
 
-/// Surface the real SMT cascade proof-obligation diagnostic in the query style
-/// path.
+/// Surface real SMT cascade proof-obligation diagnostics in the query style path.
 ///
-/// The obligation is the canonical *box-shorthand combination* obligation, built
-/// from a real parsed signal: when a single selector declares the complete
-/// canonical longhand quartet of a known box shorthand (e.g. `margin-top` …
-/// `margin-left`), combining those four longhands into the `margin` shorthand is
-/// a cascade-sensitive rewrite. The obligation encodes the rewrite's
+/// The first obligation family is the canonical *box-shorthand combination*
+/// obligation, built from a real parsed signal: when a single selector declares
+/// the complete canonical longhand quartet of a known box shorthand (e.g.
+/// `margin-top` … `margin-left`), combining those four longhands into the
+/// `margin` shorthand is a cascade-sensitive rewrite. The obligation encodes the rewrite's
 /// preconditions as `require:name=bool` literals derived from the parsed
 /// declarations (supported shorthand, canonical top/right/bottom/left order, no
 /// `!important` longhand, no empty value, adjacent source order). The gate runs
@@ -365,6 +366,13 @@ fn summarize_query_categorical_cascade_evidence_diagnostics(
 /// `cascade.smt-violation`. A well-formed quartet is `Sat` and nothing is
 /// surfaced.
 ///
+/// The second obligation family is the opt-in z3 `@layer` flatten-inversion lane.
+/// It groups parsed declarations by `(selector, property)` and sends layered
+/// competitors to `omena-smt`'s QF_LIA layer-ordering search. Default builds do
+/// not emit this z3-only diagnostic; `smt-z3` builds surface it only when the
+/// solver proves flattening layer boundaries would invert the winning
+/// declaration.
+///
 /// The diagnostic therefore depends on the solver verdict over the parsed facts:
 /// replacing the backend verdict with a constant would either fire on every
 /// quartet or none, breaking the satisfiable/unsatisfiable split.
@@ -373,30 +381,45 @@ fn summarize_query_smt_cascade_obligation_diagnostics(
     declarations: &[OmenaCheckerCascadeDeclarationInputV0],
     declaration_ranges: &BTreeMap<String, ParserRangeV0>,
 ) -> Vec<OmenaQueryStyleDiagnosticV0> {
-    let obligations = query_smt_box_shorthand_obligations(declarations);
-    if obligations.is_empty() {
+    let box_obligations = query_smt_box_shorthand_obligations(declarations);
+    let layer_inversion_obligations = query_smt_layer_inversion_obligations(declarations);
+    if box_obligations.is_empty() && layer_inversion_obligations.is_empty() {
         return Vec::new();
     }
 
     // Remember which declaration anchors each obligation so an emitted violation
     // can be ranged on the offending longhand rather than the whole file.
-    let anchor_ranges = obligations
+    let anchor_ranges = box_obligations
         .iter()
+        .chain(layer_inversion_obligations.iter())
         .filter_map(|(obligation, anchor_declaration_id)| {
             declaration_ranges
                 .get(anchor_declaration_id)
                 .copied()
-                .map(|range| (obligation.obligation_id.clone(), range))
+                .map(|range| (smt_obligation_id(obligation), range))
         })
         .collect::<BTreeMap<_, _>>();
 
-    let gate = run_omena_query_checker_smt_gate_v0(OmenaCheckerSmtInputV0 {
-        obligations: obligations
+    let box_gate = run_omena_query_checker_smt_gate_v0(OmenaCheckerSmtInputV0 {
+        obligations: box_obligations
             .into_iter()
-            .map(|(obligation, _)| obligation)
+            .filter_map(|(obligation, _)| match obligation {
+                QuerySmtCascadeObligation::BoxShorthand(obligation) => Some(obligation),
+                QuerySmtCascadeObligation::LayerInversion(_) => None,
+            })
             .collect(),
     });
-    if !gate.enforcement_passed {
+    let layer_inversion_gate =
+        run_omena_query_checker_smt_layer_inversion_gate_v0(OmenaCheckerSmtLayerInversionInputV0 {
+            obligations: layer_inversion_obligations
+                .into_iter()
+                .filter_map(|(obligation, _)| match obligation {
+                    QuerySmtCascadeObligation::BoxShorthand(_) => None,
+                    QuerySmtCascadeObligation::LayerInversion(obligation) => Some(obligation),
+                })
+                .collect(),
+        });
+    if !box_gate.enforcement_passed || !layer_inversion_gate.enforcement_passed {
         return Vec::new();
     }
 
@@ -408,15 +431,17 @@ fn summarize_query_smt_cascade_obligation_diagnostics(
         },
     );
 
-    gate.evaluations
+    box_gate
+        .evaluations
         .into_iter()
+        .chain(layer_inversion_gate.evaluations)
         .map(|evaluation| {
             let range = anchor_ranges
                 .get(&evaluation.obligation_id)
                 .copied()
                 .unwrap_or(whole_file_range);
             let mut provenance = vec![
-                "omena-query-checker-orchestrator.smt-gate",
+                query_smt_gate_provenance(evaluation.obligation_id.as_str()),
                 "omena-checker.smt-rules",
                 "omena-query.cascade-checker",
             ];
@@ -426,16 +451,44 @@ fn summarize_query_smt_cascade_obligation_diagnostics(
                 severity: "warning",
                 provenance,
                 range,
-                message:
-                    "Box-shorthand combination proof obligation is unsatisfiable: these longhands \
-                     cannot be safely combined into the shorthand without changing the cascade \
-                     outcome."
-                        .to_string(),
+                message: query_smt_diagnostic_message(evaluation.obligation_id.as_str()),
                 tags: Vec::new(),
                 create_custom_property: None,
             }
         })
         .collect()
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+enum QuerySmtCascadeObligation {
+    BoxShorthand(OmenaCheckerSmtObligationInputV0),
+    LayerInversion(OmenaCheckerSmtLayerInversionObligationInputV0),
+}
+
+fn smt_obligation_id(obligation: &QuerySmtCascadeObligation) -> String {
+    match obligation {
+        QuerySmtCascadeObligation::BoxShorthand(obligation) => obligation.obligation_id.clone(),
+        QuerySmtCascadeObligation::LayerInversion(obligation) => obligation.obligation_id.clone(),
+    }
+}
+
+fn query_smt_diagnostic_message(obligation_id: &str) -> String {
+    if query_smt_is_layer_inversion_obligation(obligation_id) {
+        return "Opt-in z3 SMT layer-flatten proof obligation found an @layer ordering inversion: flattening this layered cascade would change the winning declaration.".to_string();
+    }
+    "Box-shorthand combination proof obligation is unsatisfiable: these longhands cannot be safely combined into the shorthand without changing the cascade outcome.".to_string()
+}
+
+fn query_smt_gate_provenance(obligation_id: &str) -> &'static str {
+    if query_smt_is_layer_inversion_obligation(obligation_id) {
+        "omena-query-checker-orchestrator.smt-layer-inversion-gate"
+    } else {
+        "omena-query-checker-orchestrator.smt-gate"
+    }
+}
+
+fn query_smt_is_layer_inversion_obligation(obligation_id: &str) -> bool {
+    obligation_id.contains("layer-flatten-inversion")
 }
 
 /// Build the SMT box-shorthand combination obligations the parsed stylesheet
@@ -454,7 +507,7 @@ fn summarize_query_smt_cascade_obligation_diagnostics(
 /// quartet (no combination obligation to discharge).
 fn query_smt_box_shorthand_obligations(
     declarations: &[OmenaCheckerCascadeDeclarationInputV0],
-) -> Vec<(OmenaCheckerSmtObligationInputV0, String)> {
+) -> Vec<(QuerySmtCascadeObligation, String)> {
     let mut obligations = Vec::new();
 
     let mut by_selector = BTreeMap::<&str, Vec<&OmenaCheckerCascadeDeclarationInputV0>>::new();
@@ -516,16 +569,80 @@ fn query_smt_box_shorthand_obligations(
                 .unwrap_or_else(|| quartet[0].declaration_id.clone());
 
             obligations.push((
-                OmenaCheckerSmtObligationInputV0 {
+                QuerySmtCascadeObligation::BoxShorthand(OmenaCheckerSmtObligationInputV0 {
                     obligation_id: format!(
                         "stylesheet://{selector}::{shorthand}-shorthand-combination"
                     ),
                     l1_primitive: "boxShorthandCombination".to_string(),
                     canonical_terms,
-                },
+                }),
                 anchor_declaration_id,
             ));
         }
+    }
+
+    obligations
+}
+
+fn query_smt_layer_inversion_obligations(
+    declarations: &[OmenaCheckerCascadeDeclarationInputV0],
+) -> Vec<(QuerySmtCascadeObligation, String)> {
+    let mut obligations = Vec::new();
+    let mut by_selector_property =
+        BTreeMap::<(&str, &str), Vec<&OmenaCheckerCascadeDeclarationInputV0>>::new();
+
+    for declaration in declarations {
+        if declaration.layer_order.is_some() {
+            by_selector_property
+                .entry((declaration.selector.as_str(), declaration.property.as_str()))
+                .or_default()
+                .push(declaration);
+        }
+    }
+
+    for ((selector, property), mut competing_declarations) in by_selector_property {
+        if competing_declarations.len() < 2 {
+            continue;
+        }
+        competing_declarations.sort_by_key(|declaration| declaration.source_order);
+        let anchor_declaration_id = competing_declarations
+            .iter()
+            .find_map(|higher_layer| {
+                let higher_rank = higher_layer.layer_order?;
+                competing_declarations
+                    .iter()
+                    .any(|lower_layer| {
+                        lower_layer.layer_order.is_some_and(|lower_rank| {
+                            higher_rank > lower_rank
+                                && lower_layer.source_order > higher_layer.source_order
+                        })
+                    })
+                    .then(|| higher_layer.declaration_id.clone())
+            })
+            .unwrap_or_else(|| competing_declarations[0].declaration_id.clone());
+        let layer_declarations = competing_declarations
+            .into_iter()
+            .filter_map(|declaration| {
+                let layer_rank = declaration.layer_order?;
+                Some(OmenaCheckerSmtLayerInversionDeclarationInputV0 {
+                    declaration_id: declaration.declaration_id.clone(),
+                    layer_rank: i64::from(layer_rank),
+                    source_order: i64::from(declaration.source_order),
+                })
+            })
+            .collect::<Vec<_>>();
+
+        obligations.push((
+            QuerySmtCascadeObligation::LayerInversion(
+                OmenaCheckerSmtLayerInversionObligationInputV0 {
+                    obligation_id: format!(
+                        "stylesheet://{selector}::{property}-layer-flatten-inversion"
+                    ),
+                    declarations: layer_declarations,
+                },
+            ),
+            anchor_declaration_id,
+        ));
     }
 
     obligations
