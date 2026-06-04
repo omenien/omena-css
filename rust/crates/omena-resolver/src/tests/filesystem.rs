@@ -32,6 +32,83 @@ fn resolves_style_modules_by_canonical_filesystem_identity()
     Ok(())
 }
 
+#[cfg(unix)]
+#[test]
+fn summarizes_package_symlink_chain_for_style_module_resolution()
+-> Result<(), Box<dyn std::error::Error>> {
+    let root = temp_dir("omena_resolver_package_symlink_chain")?;
+    let source = root.join("src/App.module.scss");
+    let real_package = root.join(".pnpm/@design+tokens@1.0.0/node_modules/@design/tokens");
+    let linked_scope = root.join("node_modules/@design");
+    let linked_package = linked_scope.join("tokens");
+    let style = real_package.join("src/index.scss");
+    fs::create_dir_all(
+        source
+            .parent()
+            .ok_or_else(|| std::io::Error::other("source"))?,
+    )?;
+    fs::create_dir_all(
+        style
+            .parent()
+            .ok_or_else(|| std::io::Error::other("style"))?,
+    )?;
+    fs::create_dir_all(linked_scope.as_path())?;
+    fs::write(source.as_path(), r#"@use "@design/tokens" as tokens;"#)?;
+    fs::write(
+        real_package.join("package.json"),
+        r#"{"sass":"src/index.scss"}"#,
+    )?;
+    fs::write(style.as_path(), "$brand: #fff;")?;
+    std::os::unix::fs::symlink(real_package.as_path(), linked_package.as_path())?;
+
+    let source_text = source.to_string_lossy().to_string();
+    let style_text = style.to_string_lossy().to_string();
+    let linked_package_json = linked_package.join("package.json");
+    let linked_package_json_text = linked_package_json.to_string_lossy().to_string();
+    let linked_style_text = linked_package
+        .join("src/index.scss")
+        .to_string_lossy()
+        .to_string();
+    let linked_package_text = linked_package.to_string_lossy().to_string();
+    let real_package_text = real_package.to_string_lossy().to_string();
+    let available_style_paths = BTreeSet::from([style_text.as_str()]);
+    let resolution = summarize_omena_resolver_style_module_resolution(
+        source_text.as_str(),
+        "@design/tokens",
+        &available_style_paths,
+        &[OmenaResolverStylePackageManifestV0 {
+            package_json_path: linked_package_json_text,
+            package_json_source: r#"{"sass":"src/index.scss"}"#.to_string(),
+        }],
+    );
+
+    assert_eq!(
+        resolution.resolved_style_path.as_deref(),
+        Some(style_text.as_str()),
+        "{resolution:?}",
+    );
+    assert_eq!(resolution.resolution_kind, "packageStyleModule");
+    assert_eq!(
+        resolution.symlink_chain.product,
+        "omena-resolver.symlink-chain-inspection"
+    );
+    assert!(resolution.symlink_chain.link_count > 0, "{resolution:?}");
+    assert_eq!(
+        resolution.symlink_chain.requested_path, linked_style_text,
+        "{resolution:?}",
+    );
+    let link = resolution
+        .symlink_chain
+        .links
+        .iter()
+        .find(|link| link.link_path == linked_package_text)
+        .ok_or_else(|| std::io::Error::other("missing symlink link"))?;
+    assert_eq!(link.target_path, real_package_text, "{resolution:?}");
+    assert!(link.target_was_absolute, "{resolution:?}");
+    let _ = fs::remove_dir_all(root);
+    Ok(())
+}
+
 #[test]
 fn resolves_percent_encoded_style_path_segments() {
     let available_style_paths = BTreeSet::from(["/fake/workspace/src/styles/My Theme.module.scss"]);

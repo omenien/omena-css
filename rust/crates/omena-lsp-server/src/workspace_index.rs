@@ -159,7 +159,6 @@ fn should_skip_workspace_index_dir(dir: &Path) -> bool {
                     | ".turbo"
                     | "build"
                     | "coverage"
-                    | "dist"
                     | "node_modules"
                     | "out"
                     | "target"

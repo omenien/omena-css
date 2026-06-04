@@ -214,6 +214,66 @@ fn defers_workspace_style_file_index_until_initialized_notification() {
 }
 
 #[test]
+fn indexes_workspace_style_files_from_dist_artifacts() {
+    let workspace_root = std::env::temp_dir().join(format!(
+        "omena-lsp-server-dist-index-{}",
+        std::process::id()
+    ));
+    let dist_dir = workspace_root.join("dist");
+    let style_path = dist_dir.join("Theme.module.scss");
+    let _ = std::fs::remove_dir_all(&workspace_root);
+    let create_dir_result = std::fs::create_dir_all(&dist_dir);
+    assert!(
+        create_dir_result.is_ok(),
+        "create dist-index fixture directory: {:?}",
+        create_dir_result.err(),
+    );
+    let write_result = std::fs::write(&style_path, ".fromDist { color: red; }");
+    assert!(
+        write_result.is_ok(),
+        "write dist-index style fixture: {:?}",
+        write_result.err(),
+    );
+
+    let workspace_uri = format!("file://{}", workspace_root.display());
+    let style_uri = format!("file://{}", style_path.display());
+    let mut state = LspShellState::default();
+    handle_lsp_message(
+        &mut state,
+        json!({
+            "jsonrpc": "2.0",
+            "id": 1,
+            "method": "initialize",
+            "params": {
+                "workspaceFolders": [
+                    {
+                        "uri": workspace_uri,
+                        "name": "dist-index",
+                    },
+                ],
+            },
+        }),
+    );
+    handle_lsp_message(
+        &mut state,
+        json!({
+            "jsonrpc": "2.0",
+            "method": "initialized",
+            "params": {},
+        }),
+    );
+
+    let indexed = state
+        .document(style_uri.as_str())
+        .and_then(|document| document.style_summary.as_ref());
+    assert_eq!(
+        indexed.map(|summary| summary.selector_names.clone()),
+        Some(vec!["fromDist".to_string()]),
+    );
+    let _ = std::fs::remove_dir_all(&workspace_root);
+}
+
+#[test]
 fn bounds_workspace_style_indexing_by_budget() {
     let workspace_root = std::env::temp_dir().join(format!(
         "omena-lsp-server-index-budget-{}",

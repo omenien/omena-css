@@ -149,6 +149,26 @@ pub struct OmenaResolverStyleModuleResolutionV0 {
     pub candidate_count: usize,
     pub candidates: Vec<String>,
     pub resolution_kind: &'static str,
+    pub symlink_chain: OmenaResolverSymlinkChainInspectionV0,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct OmenaResolverSymlinkChainInspectionV0 {
+    pub schema_version: &'static str,
+    pub product: &'static str,
+    pub requested_path: String,
+    pub inspected_component_count: usize,
+    pub link_count: usize,
+    pub links: Vec<OmenaResolverSymlinkChainLinkV0>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct OmenaResolverSymlinkChainLinkV0 {
+    pub link_path: String,
+    pub target_path: String,
+    pub target_was_absolute: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]

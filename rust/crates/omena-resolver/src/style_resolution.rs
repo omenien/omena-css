@@ -174,6 +174,10 @@ pub fn summarize_omena_resolver_style_module_resolution_with_load_path_roots(
         product: "omena-resolver.style-module-resolution",
         from_style_path: from_style_path.to_string(),
         source: source.to_string(),
+        symlink_chain: summarize_omena_resolver_symlink_chain_for_style_resolution(
+            candidates.as_slice(),
+            resolved_style_path.as_deref(),
+        ),
         resolved_style_path,
         candidate_count: candidates.len(),
         candidates,
@@ -495,6 +499,86 @@ pub fn canonicalize_omena_resolver_style_identity_path(path: &str) -> String {
     fs::canonicalize(path)
         .map(normalize_style_path)
         .unwrap_or_else(|_| normalize_style_path(PathBuf::from(path)))
+}
+
+pub fn inspect_omena_resolver_symlink_chain_v0(
+    path: &str,
+) -> OmenaResolverSymlinkChainInspectionV0 {
+    let requested_path = normalize_style_path(PathBuf::from(path));
+    let mut current = PathBuf::new();
+    let mut inspected_component_count = 0usize;
+    let mut links = Vec::new();
+
+    for component in Path::new(&requested_path).components() {
+        match component {
+            Component::CurDir => continue,
+            Component::ParentDir
+            | Component::Normal(_)
+            | Component::RootDir
+            | Component::Prefix(_) => current.push(component.as_os_str()),
+        }
+        if current.as_os_str().is_empty() {
+            continue;
+        }
+        inspected_component_count += 1;
+        let Ok(target) = fs::read_link(current.as_path()) else {
+            continue;
+        };
+        let target_was_absolute = target.is_absolute();
+        let target_path = if target_was_absolute {
+            target
+        } else {
+            current
+                .parent()
+                .map(|parent| parent.join(target.as_path()))
+                .unwrap_or_else(|| target.clone())
+        };
+        links.push(OmenaResolverSymlinkChainLinkV0 {
+            link_path: normalize_style_path(current.clone()),
+            target_path: normalize_style_path(target_path),
+            target_was_absolute,
+        });
+    }
+
+    OmenaResolverSymlinkChainInspectionV0 {
+        schema_version: "0",
+        product: "omena-resolver.symlink-chain-inspection",
+        requested_path,
+        inspected_component_count,
+        link_count: links.len(),
+        links,
+    }
+}
+
+fn summarize_omena_resolver_symlink_chain_for_style_resolution(
+    candidates: &[String],
+    resolved_style_path: Option<&str>,
+) -> OmenaResolverSymlinkChainInspectionV0 {
+    if let Some(resolved_style_path) = resolved_style_path {
+        for candidate in candidates {
+            if !style_paths_share_identity(candidate, resolved_style_path) {
+                continue;
+            }
+            let inspection = inspect_omena_resolver_symlink_chain_v0(candidate);
+            if inspection.link_count > 0 {
+                return inspection;
+            }
+        }
+        let inspection = inspect_omena_resolver_symlink_chain_v0(resolved_style_path);
+        if inspection.link_count > 0 {
+            return inspection;
+        }
+    }
+    for candidate in candidates {
+        let inspection = inspect_omena_resolver_symlink_chain_v0(candidate);
+        if inspection.link_count > 0 {
+            return inspection;
+        }
+    }
+    if let Some(resolved_style_path) = resolved_style_path {
+        return inspect_omena_resolver_symlink_chain_v0(resolved_style_path);
+    }
+    inspect_omena_resolver_symlink_chain_v0(candidates.first().map(String::as_str).unwrap_or(""))
 }
 
 fn resolve_style_module_candidate_from_available_paths(
