@@ -3,12 +3,12 @@ use omena_query::generate_omena_bridge_sif_for_resolved_style_path;
 #[cfg(feature = "mdl")]
 use omena_query::summarize_omena_query_design_system_minimum_description;
 use omena_query::{
-    OmenaQueryEngineInputV2, OmenaQueryExpressionDomainFlowRuntimeV0,
-    OmenaQueryExternalModuleModeV0, OmenaQueryExternalSifInputV0,
-    OmenaQuerySourceDiagnosticsForFileV0, OmenaQuerySourceDocumentInputV0,
-    OmenaQuerySourceMissingSelectorDiagnosticCandidateV0, OmenaQueryStylePackageManifestV0,
-    OmenaQueryStyleSourceInputV0, OmenaQueryTargetTransformOptionsV0,
-    OmenaQueryTransformExecutionContextV0, ParserPositionV0,
+    OmenaQueryDynamicClassnameMTierInputV0, OmenaQueryEngineInputV2,
+    OmenaQueryExpressionDomainFlowRuntimeV0, OmenaQueryExternalModuleModeV0,
+    OmenaQueryExternalSifInputV0, OmenaQuerySourceDiagnosticsForFileV0,
+    OmenaQuerySourceDocumentInputV0, OmenaQuerySourceMissingSelectorDiagnosticCandidateV0,
+    OmenaQueryStylePackageManifestV0, OmenaQueryStyleSourceInputV0,
+    OmenaQueryTargetTransformOptionsV0, OmenaQueryTransformExecutionContextV0, ParserPositionV0,
     execute_omena_query_consumer_build_style_source_for_target_query_with_context_and_options,
     execute_omena_query_consumer_build_style_source_with_context,
     execute_omena_query_consumer_build_style_sources_for_target_query_with_context_and_options,
@@ -16,6 +16,7 @@ use omena_query::{
     list_omena_query_transform_pass_summaries, read_omena_query_cascade_at_position,
     read_omena_query_cascade_at_position_with_categorical_evidence,
     read_omena_query_style_context_index, summarize_omena_query_consumer_check_style_source,
+    summarize_omena_query_dynamic_classname_m_tier_diagnostics_with_context_depth,
     summarize_omena_query_expression_domain_incremental_flow_analysis,
     summarize_omena_query_expression_domain_selector_projection,
     summarize_omena_query_sass_module_sources, summarize_omena_query_source_diagnostics_for_file,
@@ -268,6 +269,15 @@ enum Command {
         /// package.json file used to resolve package style exports for workspace sources.
         #[arg(long = "package-manifest")]
         package_manifest_paths: Vec<PathBuf>,
+        /// Print machine-readable JSON.
+        #[arg(long)]
+        json: bool,
+    },
+    /// Read query-owned dynamic className M-tier diagnostics from an input JSON contract.
+    DynamicClassnameDiagnostics {
+        /// JSON file containing OmenaQueryDynamicClassnameMTierInputV0.
+        #[arg(long)]
+        input_json: PathBuf,
         /// Print machine-readable JSON.
         #[arg(long)]
         json: bool,
@@ -590,6 +600,9 @@ fn run(cli: Cli) -> Result<(), String> {
             package_manifest_paths,
             json,
         ),
+        Command::DynamicClassnameDiagnostics { input_json, json } => {
+            dynamic_classname_diagnostics(input_json, json)
+        }
         Command::PerceptualCheck { path, json } => perceptual_check(path, json),
         Command::Lock { command } => lock_command(command),
         Command::Sif { command } => sif_command(command),
@@ -1888,6 +1901,22 @@ fn source_diagnostics(
     Ok(())
 }
 
+fn dynamic_classname_diagnostics(input_json: PathBuf, json: bool) -> Result<(), String> {
+    let summary = dynamic_classname_diagnostics_summary(&input_json)?;
+
+    if json {
+        print_json(&summary)?;
+        return Ok(());
+    }
+
+    println!("file: {}", summary.file_uri);
+    println!("diagnostics: {}", summary.diagnostic_count);
+    for diagnostic in &summary.diagnostics {
+        println!("{}\t{}", diagnostic.code, diagnostic.message);
+    }
+    Ok(())
+}
+
 fn perceptual_check(path: PathBuf, json: bool) -> Result<(), String> {
     let report = perceptual_check_summary(&path)?;
 
@@ -1993,6 +2022,25 @@ fn source_diagnostics_summary(
             package_manifests.as_slice(),
         ))
     }
+}
+
+fn dynamic_classname_diagnostics_summary(
+    input_json: &Path,
+) -> Result<OmenaQuerySourceDiagnosticsForFileV0, String> {
+    let json = fs::read_to_string(input_json).map_err(|error| {
+        format!(
+            "failed to read dynamic className diagnostics input JSON {}: {error}",
+            path_string(input_json)
+        )
+    })?;
+    let input: OmenaQueryDynamicClassnameMTierInputV0 =
+        serde_json::from_str(&json).map_err(|error| {
+            format!(
+                "failed to parse dynamic className diagnostics input JSON {}: {error}",
+                path_string(input_json)
+            )
+        })?;
+    Ok(summarize_omena_query_dynamic_classname_m_tier_diagnostics_with_context_depth(&input))
 }
 
 fn read_source(path: &Path) -> Result<String, String> {
@@ -2569,6 +2617,58 @@ export function App() {
 
         cleanup(&source_path);
         cleanup(&style_path);
+        Ok(())
+    }
+
+    #[test]
+    fn dynamic_classname_diagnostics_command_exposes_k_bound_branch_merge() -> Result<(), String> {
+        let zero_path = temp_path("dynamic-classname-zero.json");
+        let two_path = temp_path("dynamic-classname-two.json");
+        fs::write(&zero_path, dynamic_classname_diagnostics_input_json(0))
+            .map_err(|error| format!("zero-CFA fixture input should be writable: {error}"))?;
+        fs::write(&two_path, dynamic_classname_diagnostics_input_json(2))
+            .map_err(|error| format!("two-CFA fixture input should be writable: {error}"))?;
+
+        let zero_cfa = dynamic_classname_diagnostics_summary(&zero_path)?;
+        let two_cfa = dynamic_classname_diagnostics_summary(&two_path)?;
+
+        assert_eq!(zero_cfa.product, "omena-query.diagnostics-for-file");
+        assert_eq!(two_cfa.product, "omena-query.diagnostics-for-file");
+        assert!(
+            zero_cfa
+                .diagnostics
+                .iter()
+                .any(|diagnostic| diagnostic.code == "noImpossibleSelector"),
+            "0-CFA branch merge must surface the joined out-of-universe selector"
+        );
+        assert!(
+            zero_cfa.diagnostics.iter().all(|diagnostic| diagnostic
+                .provenance
+                .contains(&"omena-abstract-value.k-limited-call-site-flow")),
+            "CLI diagnostics must preserve k-limited flow provenance"
+        );
+        assert!(
+            zero_cfa.diagnostic_count > two_cfa.diagnostic_count,
+            "raising k must reduce the branch-merge diagnostic set: zero={zero_cfa:?} two={two_cfa:?}"
+        );
+        assert!(
+            two_cfa
+                .diagnostics
+                .iter()
+                .all(|diagnostic| diagnostic.range.start.line == 20),
+            "2-CFA must keep diagnostics anchored to the secondary branch only"
+        );
+
+        let result = run(Cli {
+            command: Command::DynamicClassnameDiagnostics {
+                input_json: two_path.clone(),
+                json: true,
+            },
+        });
+        assert!(result.is_ok(), "{result:?}");
+
+        cleanup(&zero_path);
+        cleanup(&two_path);
         Ok(())
     }
 
@@ -3168,6 +3268,36 @@ export function App() {
             leaf_diagnostics.is_empty(),
             "a module that reaches no foreign file must not surface a reachability fact: {leaf_diagnostics:?}"
         );
+    }
+
+    fn dynamic_classname_diagnostics_input_json(max_context_depth: usize) -> String {
+        format!(
+            r#"{{
+  "sourceUri": "file:///Routes.tsx",
+  "selectorUniverse": ["btn-primary"],
+  "maxContextDepth": {max_context_depth},
+  "callSites": [
+    {{
+      "calleeKey": "classForVariant",
+      "callSiteStack": ["RouteA.tsx:render", "PrimaryButton.tsx:className"],
+      "exitValue": {{ "kind": "exact", "value": "btn-primary" }},
+      "referenceRange": {{
+        "start": {{ "line": 10, "character": 0 }},
+        "end": {{ "line": 10, "character": 12 }}
+      }}
+    }},
+    {{
+      "calleeKey": "classForVariant",
+      "callSiteStack": ["RouteB.tsx:render", "SecondaryButton.tsx:className"],
+      "exitValue": {{ "kind": "exact", "value": "btn-secondary" }},
+      "referenceRange": {{
+        "start": {{ "line": 20, "character": 0 }},
+        "end": {{ "line": 20, "character": 12 }}
+      }}
+    }}
+  ]
+}}"#
+        )
     }
 
     fn temp_path(name: &str) -> PathBuf {
