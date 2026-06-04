@@ -64,6 +64,27 @@ pub struct TransformBundleAssetUrlV0 {
     pub bundler_resolution_required: bool,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub enum TransformBundleChunkKind {
+    Entry,
+    StyleImport,
+    Asset,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TransformBundleChunkV0 {
+    pub chunk_id: String,
+    pub kind: TransformBundleChunkKind,
+    pub source_path: String,
+    pub import_source: Option<String>,
+    pub asset_url: Option<String>,
+    pub resolved_path: Option<String>,
+    pub depends_on: Vec<String>,
+    pub split_boundary: &'static str,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct TransformBundleSourceSummaryV0 {
@@ -73,6 +94,7 @@ pub struct TransformBundleSourceSummaryV0 {
     pub dialect: &'static str,
     pub bundle_edges: Vec<TransformBundleEdgeV0>,
     pub asset_urls: Vec<TransformBundleAssetUrlV0>,
+    pub code_split_chunks: Vec<TransformBundleChunkV0>,
     pub required_pass_ids: Vec<&'static str>,
     pub planned_pass_ids: Vec<&'static str>,
     pub import_inline_required: bool,
@@ -80,6 +102,7 @@ pub struct TransformBundleSourceSummaryV0 {
     pub css_modules_resolution_required: bool,
     pub class_hashing_required: bool,
     pub value_resolution_required: bool,
+    pub code_splitting_required: bool,
     pub pass_plan: TransformPassPlanV0,
 }
 
@@ -92,6 +115,7 @@ pub fn summarize_omena_transform_bundle_from_source(
     let facts = collect_style_facts(source, dialect);
     let bundle_edges = collect_bundle_edges_from_facts(&source_path, dialect, &facts);
     let asset_urls = collect_bundle_asset_urls(&source_path, source);
+    let code_split_chunks = plan_bundle_code_split_chunks(&source_path, &bundle_edges, &asset_urls);
     let mut required_passes =
         required_passes_for_source(&source_path, dialect, &facts, &bundle_edges);
     required_passes.sort_by_key(|pass| pass.ordinal());
@@ -110,6 +134,8 @@ pub fn summarize_omena_transform_bundle_from_source(
         dialect: dialect_label(dialect),
         bundle_edges,
         asset_urls,
+        code_splitting_required: code_split_chunks.len() > 1,
+        code_split_chunks,
         required_pass_ids,
         planned_pass_ids,
         import_inline_required: required_passes.contains(&TransformPassKind::ImportInline),
@@ -367,6 +393,96 @@ fn normalize_bundle_path(path: PathBuf) -> String {
     normalized.to_string_lossy().into_owned()
 }
 
+fn plan_bundle_code_split_chunks(
+    source_path: &str,
+    bundle_edges: &[TransformBundleEdgeV0],
+    asset_urls: &[TransformBundleAssetUrlV0],
+) -> Vec<TransformBundleChunkV0> {
+    let mut chunks: Vec<TransformBundleChunkV0> = Vec::new();
+    let mut entry_dependencies = Vec::new();
+
+    for edge in bundle_edges {
+        let Some(import_source) = edge.import_source.as_ref() else {
+            continue;
+        };
+        let chunk_id = bundle_chunk_id("style", source_path, import_source);
+        if !entry_dependencies.contains(&chunk_id) {
+            entry_dependencies.push(chunk_id.clone());
+        }
+        if chunks.iter().any(|chunk| chunk.chunk_id == chunk_id) {
+            continue;
+        }
+        chunks.push(TransformBundleChunkV0 {
+            chunk_id,
+            kind: TransformBundleChunkKind::StyleImport,
+            source_path: source_path.to_string(),
+            import_source: Some(import_source.clone()),
+            asset_url: None,
+            resolved_path: None,
+            depends_on: Vec::new(),
+            split_boundary: "styleDependency",
+        });
+    }
+
+    for asset in asset_urls {
+        if !asset.bundler_resolution_required {
+            continue;
+        }
+        let chunk_id = bundle_chunk_id("asset", source_path, asset.normalized_url.as_str());
+        if !entry_dependencies.contains(&chunk_id) {
+            entry_dependencies.push(chunk_id.clone());
+        }
+        if chunks.iter().any(|chunk| chunk.chunk_id == chunk_id) {
+            continue;
+        }
+        chunks.push(TransformBundleChunkV0 {
+            chunk_id,
+            kind: TransformBundleChunkKind::Asset,
+            source_path: source_path.to_string(),
+            import_source: None,
+            asset_url: Some(asset.normalized_url.clone()),
+            resolved_path: asset.resolved_path.clone(),
+            depends_on: Vec::new(),
+            split_boundary: "assetDependency",
+        });
+    }
+
+    entry_dependencies.sort();
+    chunks.sort_by(|left, right| left.chunk_id.cmp(&right.chunk_id));
+    let mut ordered = vec![TransformBundleChunkV0 {
+        chunk_id: bundle_chunk_id("entry", source_path, source_path),
+        kind: TransformBundleChunkKind::Entry,
+        source_path: source_path.to_string(),
+        import_source: None,
+        asset_url: None,
+        resolved_path: Some(source_path.to_string()),
+        depends_on: entry_dependencies,
+        split_boundary: "entry",
+    }];
+    ordered.extend(chunks);
+    ordered
+}
+
+fn bundle_chunk_id(kind: &str, source_path: &str, target: &str) -> String {
+    format!(
+        "{kind}:{}:{}",
+        sanitize_bundle_chunk_id_part(source_path),
+        sanitize_bundle_chunk_id_part(target)
+    )
+}
+
+fn sanitize_bundle_chunk_id_part(value: &str) -> String {
+    let mut sanitized = String::with_capacity(value.len());
+    for ch in value.chars() {
+        if ch.is_ascii_alphanumeric() || matches!(ch, '-' | '_' | '.') {
+            sanitized.push(ch);
+        } else {
+            sanitized.push('-');
+        }
+    }
+    sanitized.trim_matches('-').to_string()
+}
+
 fn required_passes_for_source(
     source_path: &str,
     dialect: StyleDialect,
@@ -436,7 +552,7 @@ fn dialect_label(dialect: StyleDialect) -> &'static str {
 #[cfg(test)]
 mod tests {
     use super::{
-        TransformBundleAssetUrlKind, TransformBundleEdgeKind,
+        TransformBundleAssetUrlKind, TransformBundleChunkKind, TransformBundleEdgeKind,
         summarize_omena_transform_bundle_from_source,
     };
     use omena_parser::StyleDialect;
@@ -618,6 +734,47 @@ mod tests {
             asset.kind == TransformBundleAssetUrlKind::External
                 && !asset.bundler_resolution_required
         }));
+    }
+
+    #[test]
+    fn plans_code_split_chunks_for_style_and_asset_dependencies() {
+        let summary = summarize_omena_transform_bundle_from_source(
+            "src/components/Button.module.css",
+            r#"@import "../theme.css"; .button { background: url("../assets/icon.svg"); }"#,
+            StyleDialect::Css,
+        );
+
+        assert!(summary.code_splitting_required);
+        assert_eq!(summary.code_split_chunks.len(), 3);
+        let entry = summary
+            .code_split_chunks
+            .iter()
+            .find(|chunk| chunk.kind == TransformBundleChunkKind::Entry)
+            .expect("entry chunk should be planned");
+        assert_eq!(entry.split_boundary, "entry");
+        assert_eq!(entry.depends_on.len(), 2);
+
+        let style_chunk = summary
+            .code_split_chunks
+            .iter()
+            .find(|chunk| chunk.kind == TransformBundleChunkKind::StyleImport)
+            .expect("style import chunk should be planned");
+        assert_eq!(style_chunk.import_source.as_deref(), Some("../theme.css"));
+        assert_eq!(style_chunk.split_boundary, "styleDependency");
+        assert!(entry.depends_on.contains(&style_chunk.chunk_id));
+
+        let asset_chunk = summary
+            .code_split_chunks
+            .iter()
+            .find(|chunk| chunk.kind == TransformBundleChunkKind::Asset)
+            .expect("asset chunk should be planned");
+        assert_eq!(asset_chunk.asset_url.as_deref(), Some("../assets/icon.svg"));
+        assert_eq!(
+            asset_chunk.resolved_path.as_deref(),
+            Some("src/assets/icon.svg")
+        );
+        assert_eq!(asset_chunk.split_boundary, "assetDependency");
+        assert!(entry.depends_on.contains(&asset_chunk.chunk_id));
     }
 
     #[test]

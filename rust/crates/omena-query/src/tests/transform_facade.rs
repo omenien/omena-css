@@ -163,7 +163,10 @@ fn consumer_build_summary_can_attach_bundle_asset_urls() {
         bundle.asset_urls[0].resolved_path.as_deref(),
         Some("src/assets/icon.svg")
     );
+    assert!(bundle.code_splitting_required);
+    assert_eq!(bundle.code_split_chunks.len(), 2);
     assert!(summary.ready_surfaces.contains(&"bundleAssetUrlResolution"));
+    assert!(summary.ready_surfaces.contains(&"bundleCodeSplitPlan"));
 }
 
 #[test]

@@ -538,6 +538,14 @@ pub fn attach_omena_query_consumer_build_bundle_summary(
     if !summary.ready_surfaces.contains(&"bundleAssetUrlResolution") {
         summary.ready_surfaces.push("bundleAssetUrlResolution");
     }
+    if summary
+        .bundle
+        .as_ref()
+        .is_some_and(|bundle| bundle.code_splitting_required)
+        && !summary.ready_surfaces.contains(&"bundleCodeSplitPlan")
+    {
+        summary.ready_surfaces.push("bundleCodeSplitPlan");
+    }
 }
 
 pub fn attach_omena_query_consumer_build_source_map_v3(
