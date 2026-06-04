@@ -25,7 +25,8 @@ pub use omena_checker::{
     OmenaCheckerRgFlowCouplingSpaceInputV0, OmenaCheckerRgFlowEvaluationV0,
     OmenaCheckerRgFlowInputV0, OmenaCheckerRuleCodeV0, OmenaCheckerSmtEvaluationV0,
     OmenaCheckerSmtInputV0, OmenaCheckerSmtObligationInputV0,
-    checker_cascade_primitive_role_catalog_v0,
+    RG_FLOW_DEFAULT_PRODUCT_DECISION_MECHANISM_V0, RG_FLOW_MECHANISM_SCOPE_V0,
+    RG_FLOW_PRODUCT_SURFACE_V0, checker_cascade_primitive_role_catalog_v0,
     checker_categorical_cascade_evidence_for_exercised_primitives_v0,
     checker_categorical_cascade_evidence_v0,
 };
@@ -213,6 +214,9 @@ pub struct OmenaQueryCheckerRgFlowGateV0 {
     pub schema_version: &'static str,
     pub product: &'static str,
     pub orchestrator_kind: &'static str,
+    pub mechanism_scope: &'static str,
+    pub product_surface: &'static str,
+    pub default_product_decision_mechanism: bool,
     pub enabled_rule_names: Vec<&'static str>,
     pub emitted_rule_names: Vec<&'static str>,
     pub registered_rule_count: usize,
@@ -253,6 +257,9 @@ pub fn run_omena_query_checker_rg_flow_gate_v0(
         schema_version: "0",
         product: "omena-query-checker-orchestrator.rg-flow-gate",
         orchestrator_kind: "registered-rule-diagnostic-gate",
+        mechanism_scope: RG_FLOW_MECHANISM_SCOPE_V0,
+        product_surface: RG_FLOW_PRODUCT_SURFACE_V0,
+        default_product_decision_mechanism: RG_FLOW_DEFAULT_PRODUCT_DECISION_MECHANISM_V0,
         enabled_rule_names,
         emitted_rule_names,
         registered_rule_count: registered_rules.len(),
@@ -263,6 +270,7 @@ pub fn run_omena_query_checker_rg_flow_gate_v0(
         ready_surfaces: vec![
             "checkerRuleRegistry",
             "rgFlowCouplingSpectrum",
+            "rgFlowOptInDeepAnalysisHintScope",
             "registeredRuleDiagnosticGate",
             "queryDiagnosticHandoff",
         ],
@@ -829,11 +837,22 @@ mod tests {
         assert!(gate.enforcement_passed);
         assert_eq!(gate.unregistered_rule_count, 0);
         assert_eq!(gate.evaluation_count, 1);
+        assert_eq!(gate.mechanism_scope, RG_FLOW_MECHANISM_SCOPE_V0);
+        assert_eq!(gate.product_surface, RG_FLOW_PRODUCT_SURFACE_V0);
+        assert!(!gate.default_product_decision_mechanism);
+        assert!(
+            gate.ready_surfaces
+                .contains(&"rgFlowOptInDeepAnalysisHintScope")
+        );
         assert!(
             gate.emitted_rule_names
                 .contains(&"rg-flow-relevant-operator")
         );
         assert!(gate.evaluations[0].spectral_radius > 1.0);
+        assert_eq!(
+            gate.evaluations[0].mechanism_scope,
+            RG_FLOW_MECHANISM_SCOPE_V0
+        );
         assert_eq!(
             gate.evaluations[0].mechanism_products,
             vec!["omena-rg-flow.coupling-jacobian-spectrum"]

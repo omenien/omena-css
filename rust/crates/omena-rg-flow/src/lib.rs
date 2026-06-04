@@ -5,8 +5,8 @@
 //! beta vectors, tier aggregates, branching estimates, and cross-tier checks.
 //!
 //! claim_level: opt-in deep-analysis Jacobian-spectrum approximation,
-//! deduplicated against the circular-var warning, not a full
-//! renormalization-group theorem.
+//! deduplicated against the circular-var warning, not a default product decision
+//! mechanism and not a full renormalization-group theorem.
 
 use omena_cascade::{
     CascadeReplicaOverlapV0, CustomPropertyLeastFixedPointIterationV0,
@@ -17,6 +17,9 @@ use serde::Serialize;
 pub const RG_FLOW_SCHEMA_VERSION_V0: &str = "0";
 pub const RG_FLOW_LAYER_MARKER_V0: &str = "rg-flow-statistical";
 pub const RG_FLOW_FEATURE_GATE_V0: &str = "rg-flow";
+pub const RG_FLOW_MECHANISM_SCOPE_V0: &str = "optInDeepAnalysisJacobianSpectrumHintSubstrate";
+pub const RG_FLOW_PRODUCT_SURFACE_V0: &str = "deepAnalysisCascadeSensitivityHint";
+pub const RG_FLOW_DEFAULT_PRODUCT_DECISION_MECHANISM_V0: bool = false;
 const RG_FLOW_EIGEN_EPSILON: f64 = 1e-9;
 
 #[derive(Debug, Clone, PartialEq, Serialize)]
@@ -57,6 +60,9 @@ pub struct CouplingJacobianSpectrumV0 {
     pub product: &'static str,
     pub layer_marker: &'static str,
     pub feature_gate: &'static str,
+    pub mechanism_scope: &'static str,
+    pub product_surface: &'static str,
+    pub default_product_decision_mechanism: bool,
     pub matrix: Vec<Vec<f64>>,
     pub eigenvalues: Vec<f64>,
     pub spectral_radius: f64,
@@ -998,6 +1004,9 @@ pub fn estimate_coupling_jacobian_spectrum_v0(
         product: "omena-rg-flow.coupling-jacobian-spectrum",
         layer_marker: RG_FLOW_LAYER_MARKER_V0,
         feature_gate: RG_FLOW_FEATURE_GATE_V0,
+        mechanism_scope: RG_FLOW_MECHANISM_SCOPE_V0,
+        product_surface: RG_FLOW_PRODUCT_SURFACE_V0,
+        default_product_decision_mechanism: RG_FLOW_DEFAULT_PRODUCT_DECISION_MECHANISM_V0,
         matrix,
         eigenvalues,
         spectral_radius,
@@ -1176,6 +1185,9 @@ mod tests {
         assert_eq!(beta.coupling_jacobian, direct_spectrum);
         assert_eq!(direct_spectrum.matrix.len(), 4);
         assert_eq!(direct_spectrum.eigenvalues.len(), 4);
+        assert_eq!(direct_spectrum.mechanism_scope, RG_FLOW_MECHANISM_SCOPE_V0);
+        assert_eq!(direct_spectrum.product_surface, RG_FLOW_PRODUCT_SURFACE_V0);
+        assert!(!direct_spectrum.default_product_decision_mechanism);
         assert!(direct_spectrum.matrix[0][1] > 0.0);
         assert!(direct_spectrum.matrix[1][0] > 0.0);
         assert_ne!(

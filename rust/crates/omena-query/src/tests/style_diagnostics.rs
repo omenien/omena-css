@@ -529,6 +529,18 @@ fn cascade_aware_lints_surface_standalone_rg_flow_for_acyclic_high_gain_hub() {
         "rg-flow coupling-spectrum provenance should be carried: {:?}",
         rg_flow.provenance
     );
+    assert!(
+        rg_flow.message.contains("opt-in deep-analysis hint"),
+        "rg-flow product message must name the opt-in surface: {}",
+        rg_flow.message
+    );
+    assert!(
+        rg_flow
+            .message
+            .contains("not a default product decision mechanism"),
+        "rg-flow product message must not overclaim default decision status: {}",
+        rg_flow.message
+    );
 }
 
 #[test]

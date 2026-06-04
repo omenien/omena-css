@@ -7,6 +7,10 @@ use omena_abstract_value::{
 use omena_cascade::{GrnBooleanState, GrnVertexStateV0, GrnVertexV0, project_grn_outcome};
 pub use omena_categorical::CategoricalCascadeEvidenceV0;
 use omena_categorical::{CascadeFunctorApplicationV0, apply_cascade_role_mapping_functor_v0};
+pub use omena_rg_flow::{
+    RG_FLOW_DEFAULT_PRODUCT_DECISION_MECHANISM_V0, RG_FLOW_MECHANISM_SCOPE_V0,
+    RG_FLOW_PRODUCT_SURFACE_V0,
+};
 use omena_rg_flow::{coupling_space, estimate_coupling_jacobian_spectrum_v0};
 #[cfg(not(feature = "smt-z3"))]
 use omena_smt::StubSmtBackendV0;
@@ -575,6 +579,9 @@ pub struct OmenaCheckerRgFlowEvaluationV0 {
     pub workspace_path: String,
     pub spectral_radius: f64,
     pub eigenvalues: Vec<f64>,
+    pub mechanism_scope: &'static str,
+    pub product_surface: &'static str,
+    pub default_product_decision_mechanism: bool,
     pub message: String,
     pub mechanism_products: Vec<&'static str>,
 }
@@ -1604,7 +1611,7 @@ pub fn evaluate_omena_checker_rg_flow_rules(
                     flow.workspace_path,
                     spectrum.spectral_radius,
                     spectrum.eigenvalues,
-                    "RG-flow coupling Jacobian has a relevant operator; review custom-property fixed-point sensitivity.",
+                    "RG-flow opt-in deep-analysis hint found a relevant coupling operator; review custom-property fixed-point sensitivity. This is not a default product decision mechanism.",
                 )
             })
         })
@@ -1894,6 +1901,9 @@ fn rg_flow_evaluation(
         workspace_path,
         spectral_radius,
         eigenvalues,
+        mechanism_scope: RG_FLOW_MECHANISM_SCOPE_V0,
+        product_surface: RG_FLOW_PRODUCT_SURFACE_V0,
+        default_product_decision_mechanism: RG_FLOW_DEFAULT_PRODUCT_DECISION_MECHANISM_V0,
         message: message.to_string(),
         mechanism_products: vec!["omena-rg-flow.coupling-jacobian-spectrum"],
     }
@@ -3069,6 +3079,14 @@ mod tests {
             "workspace://critical-token-graph"
         );
         assert!(evaluations[0].spectral_radius > 1.0);
+        assert_eq!(evaluations[0].mechanism_scope, RG_FLOW_MECHANISM_SCOPE_V0);
+        assert_eq!(evaluations[0].product_surface, RG_FLOW_PRODUCT_SURFACE_V0);
+        assert!(!evaluations[0].default_product_decision_mechanism);
+        assert!(
+            evaluations[0]
+                .message
+                .contains("not a default product decision mechanism")
+        );
         assert_eq!(
             evaluations[0].mechanism_products,
             vec!["omena-rg-flow.coupling-jacobian-spectrum"]

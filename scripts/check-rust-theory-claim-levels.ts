@@ -44,7 +44,12 @@ const TARGETS = [
   },
   {
     path: "rust/crates/omena-rg-flow/src/lib.rs",
-    required: ["claim_level:", "Jacobian-spectrum approximation", "not a full"],
+    required: [
+      "claim_level:",
+      "opt-in deep-analysis Jacobian-spectrum approximation",
+      "not a default product decision mechanism",
+      "not a full",
+    ],
   },
   {
     path: "rust/crates/omena-lawvere/src/lib.rs",
