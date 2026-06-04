@@ -24,6 +24,28 @@ fn execution_runtime_adds_conservative_vendor_prefixes_when_absent() {
 }
 
 #[test]
+fn execution_runtime_expands_target_vendor_prefix_matrix_breadth() {
+    let source = r#".legacy { transform: translateX(1px); -webkit-transform-origin: left center; transform-origin: left center; backface-visibility: hidden; perspective: 20rem; } .shape { box-decoration-break: clone; clip-path: inset(0); filter: blur(1px); } .columns { columns: 2; column-rule: 1px solid red; column-span: all; tab-size: 4; touch-action: manipulation; } .grid { display: grid; } .inline-grid { display: -ms-inline-grid; display: inline-grid; }"#;
+    let execution = execute_transform_passes_on_source(
+        source,
+        &[
+            TransformPassKind::VendorPrefixing,
+            TransformPassKind::PrintCss,
+        ],
+    );
+
+    assert_eq!(execution.mutation_count, 16);
+    assert_eq!(
+        execution.output_css,
+        r#".legacy { -webkit-transform: translateX(1px); -ms-transform: translateX(1px); transform: translateX(1px); -webkit-transform-origin: left center; -ms-transform-origin: left center; transform-origin: left center; -webkit-backface-visibility: hidden; backface-visibility: hidden; -webkit-perspective: 20rem; perspective: 20rem; } .shape { -webkit-box-decoration-break: clone; box-decoration-break: clone; -webkit-clip-path: inset(0); clip-path: inset(0); -webkit-filter: blur(1px); filter: blur(1px); } .columns { -webkit-columns: 2; -moz-columns: 2; columns: 2; -webkit-column-rule: 1px solid red; -moz-column-rule: 1px solid red; column-rule: 1px solid red; -webkit-column-span: all; column-span: all; -moz-tab-size: 4; tab-size: 4; -ms-touch-action: manipulation; touch-action: manipulation; } .grid { display: -ms-grid; display: grid; } .inline-grid { display: -ms-inline-grid; display: inline-grid; }"#
+    );
+    assert_eq!(
+        execution.executed_pass_ids,
+        vec!["vendor-prefixing", "print-css"]
+    );
+}
+
+#[test]
 fn execution_runtime_lowers_whole_value_light_dark_declarations() {
     let source = r#".card { color: light-dark(#000, #fff); background: linear-gradient(light-dark(red, blue), white); border: 1px solid light-dark(red, blue); box-shadow: 0 0 1px light-dark(black, white); }"#;
     let execution = execute_transform_passes_on_source(

@@ -137,6 +137,51 @@ fn exposes_consumer_build_facade_from_target_query() {
 }
 
 #[test]
+fn target_query_build_emits_expanded_vendor_prefix_matrix() {
+    let summary = execute_omena_query_consumer_build_style_source_for_target_query(
+        "Grid.module.css",
+        ".card { display: grid; transform: translateX(1px); columns: 2; touch-action: manipulation; }",
+        "ie 11",
+    );
+
+    assert!(summary.unknown_pass_ids.is_empty());
+    assert!(
+        summary
+            .requested_pass_ids
+            .iter()
+            .any(|pass_id| pass_id == "vendor-prefixing")
+    );
+    assert!(summary.target_query.is_some());
+    let Some(target_query) = summary.target_query.as_ref() else {
+        return;
+    };
+    assert_eq!(target_query.resolved_targets, vec!["ie 11"]);
+    assert!(target_query.support.vendor_prefix_required);
+    assert!(summary.execution.output_css.contains("display: -ms-grid"));
+    assert!(
+        summary
+            .execution
+            .output_css
+            .contains("-webkit-transform: translateX(1px)")
+    );
+    assert!(
+        summary
+            .execution
+            .output_css
+            .contains("-ms-transform: translateX(1px)")
+    );
+    assert!(summary.execution.output_css.contains("-webkit-columns: 2"));
+    assert!(summary.execution.output_css.contains("-moz-columns: 2"));
+    assert!(
+        summary
+            .execution
+            .output_css
+            .contains("-ms-touch-action: manipulation")
+    );
+    assert!(summary.ready_surfaces.contains(&"targetQueryBuildFacade"));
+}
+
+#[test]
 fn exposes_consumer_build_facade_from_target_query_options() {
     let summary = execute_omena_query_consumer_build_style_source_for_target_query_with_options(
         "Button.module.css",
