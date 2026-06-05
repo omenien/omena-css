@@ -1,7 +1,7 @@
 use super::{
     ABSTRACT_VALUE_CASCADE_FAMILY_CLAIM_LEVEL_V0, AbstractClassValueProvenanceNodeV0,
     AbstractClassValueProvenanceV0, AbstractClassValueV0, AbstractPropertyValueCandidateV0,
-    AbstractPropertyValueV0, CascadeContextV0, CascadeValueFamilyMemberV0,
+    AbstractPropertyValueV0, CascadeContextV0, CascadeRestrictionMapV0, CascadeValueFamilyMemberV0,
     ClassValueControlFlowBlockV0, ClassValueControlFlowGraphV0, ClassValueFlowGraphV0,
     ClassValueFlowNodeV0, ClassValueFlowTransferV0, CompositeClassValueInputV0,
     ExternalStringTypeFactsV0, KLimitedCallSiteFlowInputV0, Lin01ProvenanceSemiringV0,
@@ -13,10 +13,11 @@ use super::{
     analyze_class_value_flow_incremental, analyze_class_value_flow_incremental_batch_with_reuse,
     analyze_class_value_flow_incremental_with_database,
     analyze_class_value_flow_incremental_with_reuse, analyze_k_limited_call_site_flows,
-    analyze_one_cfa_call_site_flows, bottom_class_value, cascade_family_context_values,
-    cascade_value_for_context, char_inclusion_class_value, composite_class_value,
-    concatenate_abstract_class_values, concatenate_reduced_class_value_products,
-    derive_cascade_restriction_maps_v0, derive_selector_projection_certainty, exact_class_value,
+    analyze_one_cfa_call_site_flows, bottom_class_value, cascade_context_refinement_morphism_v0,
+    cascade_family_context_values, cascade_value_for_context, char_inclusion_class_value,
+    composite_class_value, concatenate_abstract_class_values,
+    concatenate_reduced_class_value_products, derive_cascade_restriction_maps_v0,
+    derive_selector_projection_certainty, evaluate_cascade_stalk_v0, exact_class_value,
     finite_set_class_value, finite_values_from_facts, intersect_abstract_class_values,
     intersect_reduced_class_value_products, iterate_reduced_class_value_product_constraints,
     join_abstract_class_values, join_reduced_class_value_products,
@@ -28,10 +29,11 @@ use super::{
     selector_certainty_from_facts, selector_certainty_shape_kind_from_facts,
     selector_certainty_shape_label_from_facts, suffix_class_value,
     summarize_abstract_class_value_provenance_tree, summarize_belief_propagation_iteration_v0,
-    summarize_cascade_value_family_v0, summarize_omena_abstract_value_domain,
-    summarize_omena_abstract_value_flow_analysis, summarize_polynomial_provenance_from_linear_v0,
-    summarize_reduced_class_value_product, top_class_value, value_certainty_from_facts,
-    value_certainty_shape_kind_from_facts, value_certainty_shape_label_from_facts,
+    summarize_cascade_restriction_cycles_v0, summarize_cascade_value_family_v0,
+    summarize_omena_abstract_value_domain, summarize_omena_abstract_value_flow_analysis,
+    summarize_polynomial_provenance_from_linear_v0, summarize_reduced_class_value_product,
+    top_class_value, value_certainty_from_facts, value_certainty_shape_kind_from_facts,
+    value_certainty_shape_label_from_facts,
 };
 use omena_incremental::OmenaIncrementalDatabaseV0;
 use std::collections::BTreeMap;
@@ -158,6 +160,123 @@ fn summarizes_framing_neutral_cascade_value_family_substrate() {
         })
     );
     assert_eq!(cascade_family_context_values(&family).len(), 2);
+}
+
+#[test]
+fn evaluates_cascade_stalks_along_bounded_restriction_paths() {
+    let members = vec![
+        CascadeValueFamilyMemberV0 {
+            context: CascadeContextV0 {
+                id: "root".to_string(),
+                parent_id: None,
+                selectors: vec![".card".to_string()],
+                conditions: Vec::new(),
+                layers: vec!["components".to_string()],
+            },
+            value: AbstractPropertyValueV0::Exact {
+                property_name: "color".to_string(),
+                value: "red".to_string(),
+                pseudo_state: None,
+            },
+        },
+        CascadeValueFamilyMemberV0 {
+            context: CascadeContextV0 {
+                id: "narrow".to_string(),
+                parent_id: Some("root".to_string()),
+                selectors: vec![".card[data-state='loading']".to_string()],
+                conditions: vec!["data-state=loading".to_string()],
+                layers: vec!["components".to_string()],
+            },
+            value: AbstractPropertyValueV0::Bottom {
+                property_name: "color".to_string(),
+            },
+        },
+    ];
+    let restrictions = derive_cascade_restriction_maps_v0(members.as_slice());
+    let family = summarize_cascade_value_family_v0("color", members, restrictions);
+    let stalk = evaluate_cascade_stalk_v0(&family, "narrow");
+
+    assert_eq!(
+        stalk.product,
+        "omena-abstract-value.cascade-stalk-evaluation"
+    );
+    assert_eq!(
+        stalk.claim_level,
+        "fixtureWitnessBoundedCascadeStalkEvaluation"
+    );
+    assert!(stalk.bounded_resolution_ready);
+    assert!(stalk.resolved);
+    assert!(!stalk.theorem_claimed);
+    assert_eq!(stalk.resolved_context_id.as_deref(), Some("root"));
+    assert_eq!(stalk.restriction_path, vec!["narrow", "root"]);
+    assert_eq!(
+        stalk.value,
+        Some(AbstractPropertyValueV0::Exact {
+            property_name: "color".to_string(),
+            value: "red".to_string(),
+            pseudo_state: None,
+        })
+    );
+}
+
+#[test]
+fn detects_bounded_restriction_cycles_without_theorem_claims() {
+    let members = vec![
+        CascadeValueFamilyMemberV0 {
+            context: CascadeContextV0 {
+                id: "a".to_string(),
+                parent_id: Some("b".to_string()),
+                selectors: vec![".a".to_string()],
+                conditions: Vec::new(),
+                layers: Vec::new(),
+            },
+            value: AbstractPropertyValueV0::Exact {
+                property_name: "color".to_string(),
+                value: "red".to_string(),
+                pseudo_state: None,
+            },
+        },
+        CascadeValueFamilyMemberV0 {
+            context: CascadeContextV0 {
+                id: "b".to_string(),
+                parent_id: Some("a".to_string()),
+                selectors: vec![".b".to_string()],
+                conditions: Vec::new(),
+                layers: Vec::new(),
+            },
+            value: AbstractPropertyValueV0::Exact {
+                property_name: "color".to_string(),
+                value: "blue".to_string(),
+                pseudo_state: None,
+            },
+        },
+    ];
+    let restrictions = vec![
+        CascadeRestrictionMapV0 {
+            parent_context_id: "a".to_string(),
+            child_context_id: "b".to_string(),
+            morphism: cascade_context_refinement_morphism_v0(),
+        },
+        CascadeRestrictionMapV0 {
+            parent_context_id: "b".to_string(),
+            child_context_id: "a".to_string(),
+            morphism: cascade_context_refinement_morphism_v0(),
+        },
+    ];
+    let family = summarize_cascade_value_family_v0("color", members, restrictions);
+    let cycles = summarize_cascade_restriction_cycles_v0(&family);
+
+    assert_eq!(
+        cycles.claim_level,
+        "fixtureWitnessBoundedRestrictionCycleDetection"
+    );
+    assert_eq!(
+        cycles.cycle_detection_model,
+        "boundedRestrictionCycleWitnessNotCohomologyTheorem"
+    );
+    assert_eq!(cycles.cycle_count, 1);
+    assert_eq!(cycles.cycles[0].path, vec!["a", "b", "a"]);
+    assert!(!cycles.theorem_claimed);
 }
 
 #[test]

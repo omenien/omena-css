@@ -60,6 +60,49 @@ pub struct CascadeMorphismV0 {
     pub evidence: Vec<&'static str>,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CascadeStalkEvaluationV0 {
+    pub schema_version: &'static str,
+    pub product: &'static str,
+    pub claim_level: &'static str,
+    pub property_name: String,
+    pub requested_context_id: String,
+    pub requested_context_exists: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub resolved_context_id: Option<String>,
+    pub restriction_path: Vec<String>,
+    pub used_restriction_map_count: usize,
+    pub bounded_by_context_count: usize,
+    pub bounded_resolution_ready: bool,
+    pub theorem_claimed: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub value: Option<AbstractPropertyValueV0>,
+    pub resolved: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub blocked_reason: Option<&'static str>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CascadeRestrictionCycleSummaryV0 {
+    pub schema_version: &'static str,
+    pub product: &'static str,
+    pub claim_level: &'static str,
+    pub cycle_detection_model: &'static str,
+    pub context_count: usize,
+    pub restriction_map_count: usize,
+    pub cycle_count: usize,
+    pub cycles: Vec<CascadeRestrictionCycleV0>,
+    pub theorem_claimed: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CascadeRestrictionCycleV0 {
+    pub path: Vec<String>,
+}
+
 pub fn summarize_cascade_value_family_v0(
     property_name: impl Into<String>,
     members: Vec<CascadeValueFamilyMemberV0>,
@@ -164,6 +207,170 @@ pub fn cascade_family_context_values(
         .iter()
         .map(|member| (member.context.id.clone(), member.value.clone()))
         .collect()
+}
+
+pub fn evaluate_cascade_stalk_v0(
+    family: &CascadeValueFamilyV0,
+    context_id: &str,
+) -> CascadeStalkEvaluationV0 {
+    let values = cascade_family_context_values(family);
+    let requested_context_exists = values.contains_key(context_id);
+    let parent_by_child = family
+        .restriction_maps
+        .iter()
+        .map(|restriction| {
+            (
+                restriction.child_context_id.clone(),
+                restriction.parent_context_id.clone(),
+            )
+        })
+        .collect::<BTreeMap<_, _>>();
+    let mut restriction_path = Vec::new();
+    let mut current = context_id.to_string();
+    let bound = family.context_value_count.max(1);
+
+    for _ in 0..=bound {
+        restriction_path.push(current.clone());
+        if let Some(value) = values.get(&current)
+            && !property_value_is_bottom(value)
+        {
+            return CascadeStalkEvaluationV0 {
+                schema_version: "0",
+                product: "omena-abstract-value.cascade-stalk-evaluation",
+                claim_level: "fixtureWitnessBoundedCascadeStalkEvaluation",
+                property_name: family.property_name.clone(),
+                requested_context_id: context_id.to_string(),
+                requested_context_exists,
+                resolved_context_id: Some(current),
+                used_restriction_map_count: restriction_path.len().saturating_sub(1),
+                bounded_by_context_count: bound,
+                bounded_resolution_ready: true,
+                theorem_claimed: false,
+                value: Some(value.clone()),
+                resolved: true,
+                blocked_reason: None,
+                restriction_path,
+            };
+        }
+        let Some(parent) = parent_by_child.get(&current) else {
+            break;
+        };
+        current = parent.clone();
+    }
+
+    CascadeStalkEvaluationV0 {
+        schema_version: "0",
+        product: "omena-abstract-value.cascade-stalk-evaluation",
+        claim_level: "fixtureWitnessBoundedCascadeStalkEvaluation",
+        property_name: family.property_name.clone(),
+        requested_context_id: context_id.to_string(),
+        requested_context_exists,
+        resolved_context_id: None,
+        restriction_path,
+        used_restriction_map_count: 0,
+        bounded_by_context_count: bound,
+        bounded_resolution_ready: true,
+        theorem_claimed: false,
+        value: None,
+        resolved: false,
+        blocked_reason: Some("no non-bottom value found along bounded restriction path"),
+    }
+}
+
+pub fn summarize_cascade_restriction_cycles_v0(
+    family: &CascadeValueFamilyV0,
+) -> CascadeRestrictionCycleSummaryV0 {
+    let context_ids = family
+        .members
+        .iter()
+        .map(|member| member.context.id.clone())
+        .collect::<BTreeSet<_>>();
+    let mut adjacency = BTreeMap::<String, Vec<String>>::new();
+    for restriction in &family.restriction_maps {
+        adjacency
+            .entry(restriction.parent_context_id.clone())
+            .or_default()
+            .push(restriction.child_context_id.clone());
+    }
+    for targets in adjacency.values_mut() {
+        targets.sort();
+        targets.dedup();
+    }
+
+    let mut cycles = BTreeSet::<CascadeRestrictionCycleV0>::new();
+    for start in &context_ids {
+        collect_restriction_cycles_from(
+            start,
+            start,
+            &adjacency,
+            &mut Vec::new(),
+            &mut cycles,
+            family.context_value_count.max(1),
+        );
+    }
+    let cycles = cycles.into_iter().collect::<Vec<_>>();
+    CascadeRestrictionCycleSummaryV0 {
+        schema_version: "0",
+        product: "omena-abstract-value.cascade-restriction-cycle-summary",
+        claim_level: "fixtureWitnessBoundedRestrictionCycleDetection",
+        cycle_detection_model: "boundedRestrictionCycleWitnessNotCohomologyTheorem",
+        context_count: family.context_value_count,
+        restriction_map_count: family.restriction_map_count,
+        cycle_count: cycles.len(),
+        cycles,
+        theorem_claimed: false,
+    }
+}
+
+fn collect_restriction_cycles_from(
+    start: &str,
+    current: &str,
+    adjacency: &BTreeMap<String, Vec<String>>,
+    path: &mut Vec<String>,
+    cycles: &mut BTreeSet<CascadeRestrictionCycleV0>,
+    bound: usize,
+) {
+    if path.len() > bound {
+        return;
+    }
+    path.push(current.to_string());
+    if let Some(children) = adjacency.get(current) {
+        for child in children {
+            if child == start && path.len() > 1 {
+                let mut cycle = path.clone();
+                cycle.push(start.to_string());
+                cycles.insert(CascadeRestrictionCycleV0 {
+                    path: canonical_restriction_cycle(cycle),
+                });
+            } else if !path.contains(child) {
+                collect_restriction_cycles_from(start, child, adjacency, path, cycles, bound);
+            }
+        }
+    }
+    path.pop();
+}
+
+fn canonical_restriction_cycle(mut cycle: Vec<String>) -> Vec<String> {
+    if cycle.len() <= 2 {
+        return cycle;
+    }
+    cycle.pop();
+    let Some((start_index, _)) = cycle
+        .iter()
+        .enumerate()
+        .min_by(|left, right| left.1.cmp(right.1))
+    else {
+        return cycle;
+    };
+    let mut canonical = (0..cycle.len())
+        .map(|offset| cycle[(start_index + offset) % cycle.len()].clone())
+        .collect::<Vec<_>>();
+    canonical.push(canonical[0].clone());
+    canonical
+}
+
+fn property_value_is_bottom(value: &AbstractPropertyValueV0) -> bool {
+    matches!(value, AbstractPropertyValueV0::Bottom { .. })
 }
 
 fn property_value_name(value: &AbstractPropertyValueV0) -> &str {
