@@ -15,18 +15,31 @@ export type CheckGateKind = "command" | "gate" | "bundle" | "alias";
 export type CheckGateOrigin = "package" | "declared" | "package+declared";
 export type CheckCiTier = "verify" | "closure-fast" | "scheduled" | "manual" | "none";
 
+export type DeclaredCheckDepV0 =
+  | string
+  | {
+      readonly target: string;
+      readonly args?: readonly string[];
+    };
+
 export interface DeclaredCheckGateV0 {
   readonly id: string;
   readonly kind: CheckGateKind;
   readonly scope: CheckScopeId;
   readonly command?: readonly string[];
-  readonly deps?: readonly string[];
+  readonly deps?: readonly DeclaredCheckDepV0[];
   readonly packageTarget?: string;
+  readonly replacesPackageTarget?: string;
   readonly tags?: readonly string[];
   readonly timeoutMinutes?: number;
   readonly ciTier?: CheckCiTier;
   readonly ciGroup?: string;
   readonly deprecatedAliases?: readonly string[];
+}
+
+export interface CheckTargetRef {
+  readonly target: string;
+  readonly args?: readonly string[];
 }
 
 export interface CheckGate {
@@ -38,6 +51,7 @@ export interface CheckGate {
   readonly origin: CheckGateOrigin;
   readonly commandParts?: readonly string[];
   readonly referencedTargets?: readonly string[];
+  readonly referencedTargetSpecs?: readonly CheckTargetRef[];
   readonly referencedScripts: readonly string[];
   readonly tags?: readonly string[];
   readonly timeoutMinutes?: number;

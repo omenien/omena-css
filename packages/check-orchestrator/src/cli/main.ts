@@ -11,7 +11,7 @@ import {
   resolveGateTarget,
   runDoctor,
 } from "../manifest/index";
-import type { CheckGate } from "../manifest/index";
+import type { CheckGate, CheckTargetRef } from "../manifest/index";
 import { pnpmRunCommand } from "./commands";
 
 interface ParsedArgs {
@@ -89,6 +89,7 @@ function printList(json: boolean): void {
             origin,
             referencedScripts,
             referencedTargets,
+            referencedTargetSpecs,
             ciTier,
             ciGroup,
             deprecatedAliases,
@@ -101,6 +102,7 @@ function printList(json: boolean): void {
             origin,
             referencedScripts,
             referencedTargets,
+            referencedTargetSpecs,
             ciTier,
             ciGroup,
             deprecatedAliases,
@@ -212,10 +214,10 @@ function executeGate(gate: CheckGate, extraArgs: readonly string[], stack: Set<s
   }
 
   stack.add(gate.id);
-  for (const target of gate.referencedTargets) {
+  for (const targetSpec of getReferencedTargetSpecs(gate)) {
     const status = executeGate(
-      resolveTarget(target),
-      gate.kind === "alias" ? extraArgs : [],
+      resolveTarget(targetSpec.target),
+      getDepExtraArgs(gate, targetSpec.args ?? [], extraArgs),
       stack,
     );
     if (status !== 0) {
@@ -245,9 +247,30 @@ function renderGateCommands(
     );
   }
 
-  return (gate.referencedTargets ?? []).flatMap((target) =>
-    renderGateCommands(resolveTarget(target), gate.kind === "alias" ? extraArgs : []),
+  return getReferencedTargetSpecs(gate).flatMap((targetSpec) =>
+    renderGateCommands(
+      resolveTarget(targetSpec.target),
+      getDepExtraArgs(gate, targetSpec.args ?? [], extraArgs),
+    ),
   );
+}
+
+function getReferencedTargetSpecs(gate: CheckGate): readonly CheckTargetRef[] {
+  return (
+    gate.referencedTargetSpecs ??
+    gate.referencedTargets?.map((target) => ({
+      target,
+    })) ??
+    []
+  );
+}
+
+function getDepExtraArgs(
+  gate: CheckGate,
+  targetArgs: readonly string[],
+  extraArgs: readonly string[],
+): readonly string[] {
+  return gate.kind === "alias" ? [...targetArgs, ...extraArgs] : targetArgs;
 }
 
 function directCommand(

@@ -100,8 +100,13 @@ describe("check orchestrator manifest", () => {
   it("tracks bundle script references", () => {
     const releaseBundle = resolveGateTarget(manifest, "rust/release/bundle");
     expect(releaseBundle?.kind).toBe("bundle");
+    expect(releaseBundle?.origin).toBe("declared");
     expect(releaseBundle?.referencedScripts).toContain("check:rust-workspace");
     expect(releaseBundle?.referencedScripts).toContain("check:rust-producer-boundary");
+    expect(releaseBundle?.referencedTargetSpecs).toContainEqual({
+      target: "rust/gate/evidence",
+      args: ["--variant", "tsgo", "--repeat", "1", "--json"],
+    });
 
     const phaseADecisionReady = resolveGateTarget(manifest, "ts7/phase-a/decision-ready");
     expect(phaseADecisionReady?.kind).toBe("bundle");
@@ -216,6 +221,69 @@ describe("check orchestrator manifest", () => {
         expect.objectContaining({ id: "rust/closure-fast-aggregation-complete", depth: 1 }),
       ]),
     );
+  });
+
+  it("uses declared deps for the release Rust bundle while preserving its public script", () => {
+    const releaseBundle = resolveGateTarget(manifest, "rust/release/bundle");
+    expect(releaseBundle).toMatchObject({
+      kind: "bundle",
+      origin: "declared",
+      scriptName: "check:rust-release-bundle",
+      ciTier: "manual",
+      ciGroup: "release",
+      tags: ["release"],
+    });
+
+    const plan = buildCheckPlan(manifest, releaseBundle!);
+    expect(plan.steps).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ id: "rust/workspace", depth: 1 }),
+        expect.objectContaining({ id: "rust/producer-boundary", depth: 1 }),
+        expect.objectContaining({ id: "rust/gate/evidence", depth: 1 }),
+      ]),
+    );
+  });
+
+  it("lets declared gates explicitly replace package-derived gate definitions", () => {
+    const root = mkdtempSync(path.join(os.tmpdir(), "omena-check-orchestrator-"));
+    writeFileSync(
+      path.join(root, "package.json"),
+      JSON.stringify(
+        {
+          name: "omena-css",
+          scripts: {
+            "check:rust-release-bundle": "echo package source",
+            "check:rust-workspace": "echo workspace",
+          },
+        },
+        null,
+        2,
+      ),
+    );
+
+    const replacementManifest = loadCheckManifest(root, {
+      declaredGates: [
+        {
+          id: "rust/release/bundle",
+          kind: "bundle",
+          scope: "rust",
+          replacesPackageTarget: "rust/release/bundle",
+          deps: [{ target: "rust/workspace", args: ["--release"] }],
+          ciTier: "manual",
+        },
+      ],
+    });
+
+    expect(
+      replacementManifest.gates.filter((gate) => gate.id === "rust/release/bundle"),
+    ).toHaveLength(1);
+    expect(resolveGateTarget(replacementManifest, "rust/release/bundle")).toMatchObject({
+      origin: "declared",
+      scriptName: "check:rust-release-bundle",
+      referencedScripts: ["check:rust-workspace"],
+      referencedTargetSpecs: [{ target: "rust/workspace", args: ["--release"] }],
+    });
+    expect(runDoctor(replacementManifest)).toEqual([]);
   });
 
   it("builds valid declared command gates", () => {
@@ -498,7 +566,7 @@ describe("check orchestrator manifest", () => {
       /\| `tsgo\/release\/bundle`\s+\| alias\s+\| package\s+\| `check:tsgo-release-bundle`\s+\|/,
     );
     expect(inventory).toMatch(
-      /\| `rust\/release\/bundle`\s+\| bundle\s+\| package\s+\| `check:rust-release-bundle`\s+\|/,
+      /\| `rust\/release\/bundle`\s+\| bundle\s+\| declared\s+\| `check:rust-release-bundle`\s+\|/,
     );
   });
 

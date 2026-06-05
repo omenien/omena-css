@@ -1,4 +1,11 @@
-import type { CheckGate, CheckCiTier, CheckDiagnostic, DeclaredCheckGateV0 } from "./types";
+import type {
+  CheckGate,
+  CheckCiTier,
+  CheckDiagnostic,
+  CheckTargetRef,
+  DeclaredCheckDepV0,
+  DeclaredCheckGateV0,
+} from "./types";
 
 const VALID_CI_TIERS = new Set<CheckCiTier>([
   "verify",
@@ -9,6 +16,51 @@ const VALID_CI_TIERS = new Set<CheckCiTier>([
 ]);
 
 export const DECLARED_CHECK_GATES = [
+  {
+    id: "rust/release/bundle",
+    kind: "bundle",
+    scope: "rust",
+    replacesPackageTarget: "rust/release/bundle",
+    deps: [
+      "rust/workspace",
+      "rust/omena-syntax/boundary",
+      "rust/omena-interner/boundary",
+      "rust/omena-parser/boundary",
+      "rust/omena-testkit/boundary",
+      "rust/omena-abstract-value/domain",
+      "rust/omena-abstract-value/incremental-flow",
+      "rust/omena-abstract-value/one-cfa",
+      "rust/omena-incremental/boundary",
+      "rust/omena-resolver/boundary",
+      "rust/omena-sif/boundary",
+      "rust/omena-sif/end-to-end",
+      "rust/omena-query/boundary",
+      "rust/omena-consumer-surfaces",
+      "rust/omena-lsp-server/split-boundary",
+      "rust/producer-boundary",
+      "rust/parser/public-product",
+      "rust/omena-bridge/boundary",
+      "rust/omena-cascade/boundary",
+      "rust/omena-transform-cst/boundary",
+      "rust/omena-transform-passes/boundary",
+      "rust/omena-transform-bundle/boundary",
+      "rust/omena-transform-target/boundary",
+      "rust/omena-transform-print/boundary",
+      "rust/omena-transform-egg/boundary",
+      "rust/omena-css/fuzz-harness",
+      "rust/omena-semantic-boundary",
+      "rust/omena-semantic-publish-readiness",
+      "rust/checker/entrance",
+      "rust/theory-claim-levels",
+      {
+        target: "rust/gate/evidence",
+        args: ["--variant", "tsgo", "--repeat", "1", "--json"],
+      },
+    ],
+    tags: ["release"],
+    ciTier: "manual",
+    ciGroup: "release",
+  },
   {
     id: "rust/closure-fast",
     kind: "bundle",
@@ -153,6 +205,23 @@ export function applyDeclaredPackageMetadata(
   return packageGates.map((gate) => byScriptName.get(gate.scriptName) ?? gate);
 }
 
+export function findDeclaredPackageReplacementIds(
+  packageGates: readonly CheckGate[],
+  declarations: readonly DeclaredCheckGateV0[],
+): ReadonlySet<string> {
+  const replacementIds = new Set<string>();
+  for (const declaration of declarations) {
+    if (!declaration.replacesPackageTarget) {
+      continue;
+    }
+    const packageGate = resolveDeclaredDependency(packageGates, declaration.replacesPackageTarget);
+    if (packageGate?.id === declaration.id) {
+      replacementIds.add(packageGate.id);
+    }
+  }
+  return replacementIds;
+}
+
 export function buildDeclaredGates(
   packageGates: readonly CheckGate[],
   declarations: readonly DeclaredCheckGateV0[],
@@ -168,11 +237,12 @@ export function buildDeclaredGates(
   }
 
   const packageGateIds = new Set(packageGates.map((gate) => gate.id));
+  const replacementIds = findDeclaredPackageReplacementIds(packageGates, declarations);
   for (const declaration of declarations) {
     if (declaration.packageTarget) {
       continue;
     }
-    if (packageGateIds.has(declaration.id)) {
+    if (packageGateIds.has(declaration.id) && !replacementIds.has(declaration.id)) {
       diagnostics.push({
         severity: "error",
         code: "declared-package-gate-id-collision",
@@ -183,17 +253,20 @@ export function buildDeclaredGates(
 
   const executableDeclarations = declarations.filter((declaration) => !declaration.packageTarget);
   const declaredGates = executableDeclarations.map((declaration) =>
-    buildDeclaredGate(declaration, diagnostics),
+    buildDeclaredGate(declaration, packageGates, diagnostics),
   );
   const allGates = [...packageGates, ...declaredGates];
 
+  diagnostics.push(
+    ...findDeclaredPackageReplacementDiagnostics(executableDeclarations, packageGates),
+  );
   diagnostics.push(...findDeclaredDependencyDiagnostics(executableDeclarations, allGates));
   diagnostics.push(...findDeclaredCycleDiagnostics(executableDeclarations));
 
   return declaredGates.map((gate) =>
     Object.assign({}, gate, {
-      referencedScripts: (gate.referencedTargets ?? [])
-        .map((target) => resolveDeclaredDependency(allGates, target)?.scriptName)
+      referencedScripts: (gate.referencedTargetSpecs ?? [])
+        .map(({ target }) => resolveDeclaredDependency(allGates, target)?.scriptName)
         .filter((scriptName): scriptName is string => Boolean(scriptName)),
     }),
   );
@@ -201,18 +274,27 @@ export function buildDeclaredGates(
 
 function buildDeclaredGate(
   declaration: DeclaredCheckGateV0,
+  packageGates: readonly CheckGate[],
   diagnostics: CheckDiagnostic[],
 ): CheckGate {
   validateDeclaredShape(declaration, diagnostics);
+  const targetSpecs = normalizeDeclaredDeps(declaration.deps ?? []);
+  const replacedPackageGate = declaration.replacesPackageTarget
+    ? resolveDeclaredDependency(packageGates, declaration.replacesPackageTarget)
+    : null;
 
   return {
     id: declaration.id,
-    scriptName: `@declared/${declaration.id}`,
-    command: declaration.command?.join(" ") ?? declaration.deps?.join(" && ") ?? "",
+    scriptName: replacedPackageGate?.scriptName ?? `@declared/${declaration.id}`,
+    command:
+      declaration.command?.join(" ") ??
+      targetSpecs.map((targetSpec) => targetSpec.target).join(" && ") ??
+      "",
     scope: declaration.scope,
     kind: declaration.kind,
     origin: "declared",
-    referencedTargets: declaration.deps ?? [],
+    referencedTargets: targetSpecs.map((targetSpec) => targetSpec.target),
+    referencedTargetSpecs: targetSpecs,
     referencedScripts: [],
     ...(declaration.command ? { commandParts: declaration.command } : {}),
     ...(declaration.tags ? { tags: declaration.tags } : {}),
@@ -231,6 +313,14 @@ function validateDeclaredShape(
 ): void {
   const hasCommand = (declaration.command?.length ?? 0) > 0;
   const depCount = declaration.deps?.length ?? 0;
+
+  if (declaration.packageTarget && declaration.replacesPackageTarget) {
+    diagnostics.push({
+      severity: "error",
+      code: "declared-package-target-conflict",
+      message: `Declared gate "${declaration.id}" cannot set both packageTarget and replacesPackageTarget.`,
+    });
+  }
 
   if (declaration.packageTarget) {
     if (hasCommand || depCount > 0) {
@@ -283,6 +373,37 @@ function validateDeclaredShape(
   }
 }
 
+function findDeclaredPackageReplacementDiagnostics(
+  declarations: readonly DeclaredCheckGateV0[],
+  packageGates: readonly CheckGate[],
+): readonly CheckDiagnostic[] {
+  const diagnostics: CheckDiagnostic[] = [];
+  for (const declaration of declarations) {
+    if (!declaration.replacesPackageTarget) {
+      continue;
+    }
+
+    const packageGate = resolveDeclaredDependency(packageGates, declaration.replacesPackageTarget);
+    if (!packageGate) {
+      diagnostics.push({
+        severity: "error",
+        code: "declared-package-replacement-target-unknown",
+        message: `Declared gate "${declaration.id}" replaces unknown package target "${declaration.replacesPackageTarget}".`,
+      });
+      continue;
+    }
+
+    if (packageGate.id !== declaration.id) {
+      diagnostics.push({
+        severity: "error",
+        code: "declared-package-replacement-id-mismatch",
+        message: `Declared gate "${declaration.id}" replaces package gate "${packageGate.id}".`,
+      });
+    }
+  }
+  return diagnostics;
+}
+
 function mergeDeclaredMetadata(gate: CheckGate, declaration: DeclaredCheckGateV0): CheckGate {
   return {
     ...gate,
@@ -314,12 +435,12 @@ function findDeclaredDependencyDiagnostics(
 ): readonly CheckDiagnostic[] {
   const diagnostics: CheckDiagnostic[] = [];
   for (const declaration of declarations) {
-    for (const dep of declaration.deps ?? []) {
-      if (!resolveDeclaredDependency(gates, dep)) {
+    for (const dep of normalizeDeclaredDeps(declaration.deps ?? [])) {
+      if (!resolveDeclaredDependency(gates, dep.target)) {
         diagnostics.push({
           severity: "error",
           code: "declared-gate-unknown-dep",
-          message: `Declared gate "${declaration.id}" references unknown dep "${dep}".`,
+          message: `Declared gate "${declaration.id}" references unknown dep "${dep.target}".`,
         });
       }
     }
@@ -353,8 +474,8 @@ function findDeclaredCycleDiagnostics(
     }
 
     visiting.add(declaration.id);
-    for (const dep of declaration.deps ?? []) {
-      const depDeclaration = byId.get(dep);
+    for (const dep of normalizeDeclaredDeps(declaration.deps ?? [])) {
+      const depDeclaration = byId.get(dep.target);
       if (depDeclaration) {
         visit(depDeclaration, [...path, declaration.id]);
       }
@@ -371,6 +492,10 @@ function resolveDeclaredDependency(gates: readonly CheckGate[], target: string):
     gates.find((gate) => gate.id.endsWith(`/${target}`)) ??
     null
   );
+}
+
+function normalizeDeclaredDeps(deps: readonly DeclaredCheckDepV0[]): readonly CheckTargetRef[] {
+  return deps.map((dep) => (typeof dep === "string" ? { target: dep } : dep));
 }
 
 function findDuplicateValues(values: readonly string[]): readonly string[] {

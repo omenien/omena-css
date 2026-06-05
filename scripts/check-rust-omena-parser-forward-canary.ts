@@ -1,7 +1,15 @@
 import { strict as assert } from "node:assert";
+import { execFileSync } from "node:child_process";
 import { readFileSync } from "node:fs";
 
 const packageJson = read("package.json");
+const releaseBundleDryRun = execFileSync(
+  "pnpm",
+  ["--silent", "omena-check", "bundle", "rust/release/bundle", "--dry"],
+  {
+    encoding: "utf8",
+  },
+);
 
 assert.ok(
   packageJson.includes('"check:rust-omena-parser-boundary"') &&
@@ -11,8 +19,12 @@ assert.ok(
 assert.ok(
   packageJson.includes("rust/omena-parser/style-facts-parity") &&
     packageJson.includes("rust/omena-parser/differential-corpus") &&
-    packageJson.includes("rust/omena-parser/cutover-readiness"),
-  "parser boundary must keep parity, differential, and cutover readiness gates together",
+    packageJson.includes("rust/omena-parser/forward-canary"),
+  "parser boundary must keep parity, differential, and forward-canary gates together",
+);
+assert.ok(
+  !packageJson.includes("rust/omena-parser/cutover-readiness"),
+  "direct-publish parser boundary must not reintroduce the retired split-repo cutover gate",
 );
 assert.ok(
   packageJson.includes('"check:rust-omena-lsp-server-lane"') &&
@@ -29,11 +41,11 @@ assert.ok(
 );
 assert.ok(
   packageJson.includes('"check:rust-release-bundle"') &&
-    packageJson.includes("rust/omena-parser/boundary") &&
-    packageJson.includes("rust/parser/public-product") &&
-    packageJson.includes("rust/omena-bridge/boundary") &&
-    packageJson.includes("rust/omena-cascade/boundary") &&
-    packageJson.includes("rust/gate/evidence -- --variant tsgo"),
+    releaseBundleDryRun.includes("check:rust-omena-parser-boundary") &&
+    releaseBundleDryRun.includes("check:rust-parser-public-product") &&
+    releaseBundleDryRun.includes("check:rust-omena-bridge-boundary") &&
+    releaseBundleDryRun.includes("check:rust-omena-cascade-boundary") &&
+    releaseBundleDryRun.includes("check:rust-gate-evidence -- --variant tsgo --repeat 1 --json"),
   "release bundle must keep parser, public product, bridge, cascade, and evidence gates together",
 );
 assert.ok(
@@ -63,13 +75,6 @@ assert.ok(
   thinClientGate.includes("assert.equal(rustEndpoint.nodeFallbackAllowed, false)") &&
     thinClientGate.includes("assert.equal(clientEndpoint.nodeFallbackAllowed, false)"),
   "thin-client gate must assert fallback=false on both Rust and client endpoint contracts",
-);
-
-const cutoverGate = read("scripts/check-rust-omena-parser-cutover-readiness.ts");
-assert.ok(
-  cutoverGate.includes("must not depend on engine-style-parser") &&
-    cutoverGate.includes("must not invoke engine-style-parser in the product parser lane"),
-  "cutover readiness must block legacy parser dependencies and invocations in product lanes",
 );
 
 process.stdout.write(

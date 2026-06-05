@@ -88,7 +88,9 @@ fn write_scheduled_lsp_output<W: Write + Send + 'static>(
         let writer = Arc::clone(writer);
         delayed_outputs.push(thread::spawn(move || {
             thread::sleep(Duration::from_millis(delay_millis));
-            let mut writer = writer.lock().map_err(|_| "stdout lock poisoned".to_string())?;
+            let mut writer = writer
+                .lock()
+                .map_err(|_| "stdout lock poisoned".to_string())?;
             write_lsp_response(&mut *writer, &output.value).map_err(|error| error.to_string())
         }));
         return Ok(());

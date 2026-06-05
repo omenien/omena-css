@@ -4,6 +4,7 @@ import {
   applyDeclaredPackageMetadata,
   buildDeclaredGates,
   DECLARED_CHECK_GATES,
+  findDeclaredPackageReplacementIds,
   getDeprecatedPackageScriptReplacement,
 } from "./declared";
 import { renderCheckInventory } from "./inventory";
@@ -38,6 +39,7 @@ export type {
   CheckPlanStep,
   CheckScopeId,
   CheckSurfaceReport,
+  CheckTargetRef,
   DeclaredCheckGateV0,
 } from "./types";
 export {
@@ -73,7 +75,14 @@ export function loadCheckManifest(
     declarations.length > 0
       ? buildDeclaredGates(metadataAppliedPackageGates, declarations, diagnostics)
       : [];
-  const gates = [...metadataAppliedPackageGates, ...declaredGates];
+  const replacedPackageIds = findDeclaredPackageReplacementIds(
+    metadataAppliedPackageGates,
+    declarations,
+  );
+  const retainedPackageGates = metadataAppliedPackageGates.filter(
+    (gate) => !replacedPackageIds.has(gate.id),
+  );
+  const gates = [...retainedPackageGates, ...declaredGates];
 
   diagnostics.push(...findDuplicateGateIds(gates));
   diagnostics.push(...findAliasChainDiagnostics(gates));

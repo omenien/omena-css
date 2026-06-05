@@ -1700,18 +1700,7 @@ pub fn evaluate_omena_checker_replica_ensemble_rules(
                 || report.top_disagreement_pair_count > 0
                 || report.mean_q < 1.0
         })
-        .map(|report| {
-            replica_ensemble_evaluation(
-                report.workspace_root,
-                report.recommendation,
-                report.mean_q,
-                report.variance_q,
-                report.top_disagreement_pair_count,
-                report.mechanism_scope,
-                report.product_surface,
-                report.default_product_decision_mechanism,
-            )
-        })
+        .map(replica_ensemble_evaluation)
         .collect()
 }
 
@@ -1981,28 +1970,21 @@ fn rg_flow_evaluation(
 }
 
 fn replica_ensemble_evaluation(
-    workspace_root: String,
-    recommendation: String,
-    mean_q: f64,
-    variance_q: f64,
-    top_disagreement_pair_count: usize,
-    mechanism_scope: String,
-    product_surface: String,
-    default_product_decision_mechanism: bool,
+    report: OmenaCheckerReplicaEnsembleReportInputV0,
 ) -> OmenaCheckerReplicaEnsembleEvaluationV0 {
     OmenaCheckerReplicaEnsembleEvaluationV0 {
         rule_code: OmenaCheckerRuleCodeV0::ReplicaEnsembleInconsistency,
         rule_code_name: OmenaCheckerRuleCodeV0::ReplicaEnsembleInconsistency.as_str(),
         severity: OmenaCheckerSeverityV0::Hint,
         severity_name: OmenaCheckerSeverityV0::Hint.as_str(),
-        workspace_root,
-        recommendation,
-        mean_q,
-        variance_q,
-        top_disagreement_pair_count,
-        mechanism_scope,
-        product_surface,
-        default_product_decision_mechanism,
+        workspace_root: report.workspace_root,
+        recommendation: report.recommendation,
+        mean_q: report.mean_q,
+        variance_q: report.variance_q,
+        top_disagreement_pair_count: report.top_disagreement_pair_count,
+        mechanism_scope: report.mechanism_scope,
+        product_surface: report.product_surface,
+        default_product_decision_mechanism: report.default_product_decision_mechanism,
         message: "Replica-ensemble cross-file consistency hint found inconsistent cascade outcomes; this is not a default product decision mechanism.".to_string(),
         mechanism_products: vec!["omena-ensemble.cross-file-inconsistency-report"],
     }
