@@ -151,6 +151,12 @@ const expectedMissingCustomPropertyDiagnostic = {
       "omena-query-checker-orchestrator.product-diagnostic-gate",
       "omena-checker.rule-registry",
     ],
+    polynomialProvenance: polynomialProvenanceFor([
+      "omena-parser.custom-property-facts",
+      "omena-query.style-diagnostics",
+      "omena-query-checker-orchestrator.product-diagnostic-gate",
+      "omena-checker.rule-registry",
+    ]),
     createCustomProperty: {
       uri: styleUri,
       range: documentEndRange(styleText),
@@ -1477,6 +1483,7 @@ function unusedSelectorDiagnostic(selector: { readonly name: string; readonly ra
       "omena-query-checker-orchestrator.product-diagnostic-gate",
       "omena-checker.rule-registry",
     ];
+    readonly polynomialProvenance: ReturnType<typeof polynomialProvenanceFor>;
   };
   readonly tags: readonly [1];
 } {
@@ -1494,6 +1501,12 @@ function unusedSelectorDiagnostic(selector: { readonly name: string; readonly ra
         "omena-query-checker-orchestrator.product-diagnostic-gate",
         "omena-checker.rule-registry",
       ],
+      polynomialProvenance: polynomialProvenanceFor([
+        "omena-parser.selector-facts",
+        "omena-query.source-selector-usage",
+        "omena-query-checker-orchestrator.product-diagnostic-gate",
+        "omena-checker.rule-registry",
+      ]),
     },
     tags: [1],
   };
@@ -1507,15 +1520,97 @@ function diagnosticWithTier<T extends { readonly data: Record<string, unknown> }
   readonly data: T["data"] & {
     readonly pipelineTier: typeof pipelineTier;
     readonly pipelineTierEvidence: typeof pipelineTierEvidence;
+    readonly polynomialProvenance?: ReturnType<typeof polynomialProvenanceFor>;
   };
 } {
+  const data = {
+    ...diagnostic.data,
+    pipelineTier,
+    pipelineTierEvidence,
+  } as T["data"] & {
+    readonly pipelineTier: typeof pipelineTier;
+    readonly pipelineTierEvidence: typeof pipelineTierEvidence;
+    polynomialProvenance?: ReturnType<typeof polynomialProvenanceFor>;
+  };
+  if (pipelineTierEvidence !== "sourceSyntaxIndexV0") {
+    data.polynomialProvenance = polynomialProvenanceFor(diagnostic.data.provenance);
+  }
   return {
     ...diagnostic,
-    data: {
-      ...diagnostic.data,
-      pipelineTier,
-      pipelineTierEvidence,
-    },
+    data,
+  };
+}
+
+function polynomialProvenanceFor(provenance: unknown): {
+  readonly schemaVersion: "0";
+  readonly product: "omena-abstract-value.polynomial-provenance";
+  readonly layerMarker: "qtt-graded";
+  readonly featureGate: "qtt-provenance-polynomial-v0";
+  readonly theoremClaimed: false;
+  readonly claimLevel: "fixtureWitnessPolynomialProjection";
+  readonly polynomialKind: "naturalCountPolynomialOverLabels";
+  readonly rootOperator: "sum";
+  readonly selectedLadder: "diagnosticDefaultThreeTier";
+  readonly availableLadderTiers: readonly [
+    "linearLabels",
+    "naturalCountPolynomial",
+    "homomorphicProjections",
+  ];
+  readonly variables: readonly { readonly variable: string; readonly label: string }[];
+  readonly terms: readonly { readonly coefficient: 1; readonly variables: readonly string[] }[];
+  readonly projections: readonly {
+    readonly projectionKind: "why" | "whyNot" | "confidence" | "tropical";
+    readonly semiringIdentifier: "lin01" | "naturalCount" | "tropical";
+    readonly value: string;
+  }[];
+} {
+  assert.ok(Array.isArray(provenance), "diagnostic provenance must be an array");
+  assert.ok(
+    provenance.every((entry) => typeof entry === "string"),
+    "diagnostic provenance must contain only strings",
+  );
+  const labels = provenance as string[];
+  return {
+    schemaVersion: "0",
+    product: "omena-abstract-value.polynomial-provenance",
+    layerMarker: "qtt-graded",
+    featureGate: "qtt-provenance-polynomial-v0",
+    theoremClaimed: false,
+    claimLevel: "fixtureWitnessPolynomialProjection",
+    polynomialKind: "naturalCountPolynomialOverLabels",
+    rootOperator: "sum",
+    selectedLadder: "diagnosticDefaultThreeTier",
+    availableLadderTiers: ["linearLabels", "naturalCountPolynomial", "homomorphicProjections"],
+    variables: labels.map((label, index) => ({
+      variable: `x${index}`,
+      label,
+    })),
+    terms: labels.map((_, index) => ({
+      coefficient: 1,
+      variables: [`x${index}`],
+    })),
+    projections: [
+      {
+        projectionKind: "why",
+        semiringIdentifier: "lin01",
+        value: labels.join(" -> "),
+      },
+      {
+        projectionKind: "whyNot",
+        semiringIdentifier: "lin01",
+        value: "noUnsupportedTermsInFixture",
+      },
+      {
+        projectionKind: "confidence",
+        semiringIdentifier: "naturalCount",
+        value: `${labels.length}/${labels.length}`,
+      },
+      {
+        projectionKind: "tropical",
+        semiringIdentifier: "tropical",
+        value: "1",
+      },
+    ],
   };
 }
 
