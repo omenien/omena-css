@@ -954,6 +954,26 @@ fn s4_axioms_fixture_v0(endpoint_id: &'static str) -> CategoricalEndpointFixture
         &modal_atom_formula_v0("s4-witness", "color=red"),
         &frame,
     );
+    let divergent_frame = build_cascade_prefix_kripke_frame_v0(
+        "fixture.s4-axioms.divergent-context",
+        "color",
+        &[
+            (Vec::new(), "red".to_string()),
+            (
+                vec!["@media (min-width: 600px)".to_string()],
+                "blue".to_string(),
+            ),
+        ],
+    );
+    let recursive_witness = evaluate_omena_categorical_modal_formula_v0(
+        &modal_formula_v0(
+            "s4-recursive-possibly-blue",
+            ModalFormulaKindV0::Possibly,
+            Vec::new(),
+            vec![modal_atom_formula_v0("s4-atom-blue", "color=blue")],
+        ),
+        &divergent_frame,
+    );
 
     let assertions = vec![
         fixture_assertion_v0(
@@ -976,6 +996,15 @@ fn s4_axioms_fixture_v0(endpoint_id: &'static str) -> CategoricalEndpointFixture
                 omega_truth_value_label_v0(witness.truth_value)
             ),
             "witnessTruth=Closed",
+        ),
+        fixture_assertion_v0(
+            "modal-recursive-possibly",
+            "omena-categorical.modal-evaluation-witness",
+            format!(
+                "possiblyBlue={}",
+                omega_truth_value_label_v0(recursive_witness.truth_value)
+            ),
+            "possiblyBlue=Closed",
         ),
     ];
     endpoint_fixture_from_assertions_v0(
@@ -1235,24 +1264,24 @@ mod tests {
 
     #[test]
     fn static_categorical_residuals_are_deferred_not_counted_complete() {
-        for endpoint_id in ["rust/omena-categorical/verify-cross-project-symmetry"] {
-            let fixture = categorical_fixture_evidence_for_endpoint_v0(endpoint_id);
-            assert!(fixture.is_some());
-            let Some(fixture) = fixture else {
-                return;
-            };
-            assert_eq!(
-                fixture.claim_scope,
-                "researchDeferredMissingSourceSensitiveSubstrate"
-            );
-            assert!(!fixture.accepted);
-            assert!(
-                fixture
-                    .assertions
-                    .iter()
-                    .all(|assertion| !assertion.accepted)
-            );
-        }
+        let fixture = categorical_fixture_evidence_for_endpoint_v0(
+            "rust/omena-categorical/verify-cross-project-symmetry",
+        );
+        assert!(fixture.is_some());
+        let Some(fixture) = fixture else {
+            return;
+        };
+        assert_eq!(
+            fixture.claim_scope,
+            "researchDeferredMissingSourceSensitiveSubstrate"
+        );
+        assert!(!fixture.accepted);
+        assert!(
+            fixture
+                .assertions
+                .iter()
+                .all(|assertion| !assertion.accepted)
+        );
     }
 
     #[test]
@@ -1673,6 +1702,7 @@ mod tests {
         assert_eq!(observed["s4-reflexivity-t"], "reflexivityT=true");
         assert_eq!(observed["s4-transitivity-4"], "transitivity4=true");
         assert_eq!(observed["modal-witness-evaluated"], "witnessTruth=Closed");
+        assert_eq!(observed["modal-recursive-possibly"], "possiblyBlue=Closed");
 
         // The witness is data-derived: evaluating a formula whose atom is absent
         // from the frame valuations yields Open, not Closed.
