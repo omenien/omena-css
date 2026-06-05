@@ -243,6 +243,26 @@ pub struct OmenaQueryCrossFileSummaryCapabilitiesV0 {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
+pub struct OmenaQueryCrossFileSccEvidenceV0 {
+    pub schema_version: &'static str,
+    pub product: &'static str,
+    pub feature_gate: &'static str,
+    pub claim_level: &'static str,
+    pub theorem_claimed: bool,
+    pub connectivity_backend: &'static str,
+    pub polylog_bound_scope: &'static str,
+    pub scc_id: String,
+    pub node_count: usize,
+    pub directed_edge_count: usize,
+    pub cross_file: bool,
+    pub node_ids: Vec<String>,
+    pub style_paths: Vec<String>,
+    pub edge_kinds: Vec<&'static str>,
+    pub summary_edge_ids: Vec<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct OmenaQueryCategoricalDesignSystemCrossProjectSummaryV0 {
     pub schema_version: &'static str,
     pub product: &'static str,
@@ -1062,6 +1082,8 @@ pub struct OmenaQueryStyleDiagnosticV0 {
     pub cascade_confidence: Option<OmenaQueryCascadeConfidenceV0>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub polynomial_provenance: Option<OmenaQueryPolynomialProvenanceV0>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub cross_file_scc: Option<OmenaQueryCrossFileSccEvidenceV0>,
 }
 
 pub type OmenaQueryLinearProvenanceV0 = LinearProvenanceV0<NaturalCountProvenanceSemiringV0>;

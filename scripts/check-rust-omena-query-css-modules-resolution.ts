@@ -8,10 +8,21 @@ const crossFileSummarySource = readFileSync(
   path.join(root, "rust/crates/omena-query/src/style/cross_file_summary.rs"),
   "utf8",
 );
+const crossFileHypergraphSource = [
+  readFileSync(
+    path.join(root, "rust/crates/omena-query/src/style/cross_file_hypergraph/mod.rs"),
+    "utf8",
+  ),
+  readFileSync(
+    path.join(root, "rust/crates/omena-query/src/style/cross_file_hypergraph/scc.rs"),
+    "utf8",
+  ),
+].join("\n");
 const typeSource = readFileSync(path.join(root, "rust/crates/omena-query/src/types.rs"), "utf8");
 const testSource = [
   readFileSync(path.join(root, "rust/crates/omena-query/src/tests.rs"), "utf8"),
   readFileSync(path.join(root, "rust/crates/omena-query/src/tests/cross_file_summary.rs"), "utf8"),
+  readFileSync(path.join(root, "rust/crates/omena-query/src/tests/style_diagnostics.rs"), "utf8"),
   readFileSync(
     path.join(root, "rust/crates/omena-query/src/tests/style_semantic_graph.rs"),
     "utf8",
@@ -55,6 +66,8 @@ for (const required of [
   "from_path",
   "target_path",
   "linear_provenance",
+  "OmenaQueryCrossFileSccEvidenceV0",
+  "cross_file_scc",
   "visibility_filter_names",
   "namespace_show_hide_filter_ready",
 ]) {
@@ -88,6 +101,21 @@ for (const required of [
 }
 
 for (const required of [
+  "summarize_omena_query_unified_cross_file_scc_report",
+  "OmenaQueryUnifiedCrossFileSccReportV0",
+  "exactTarjanScc",
+  "notClaimedExactTraversal",
+  "fixtureWitnessExactTarjanScc",
+  "theorem_claimed: false",
+  "canonical_scc_node_id",
+]) {
+  assert.ok(
+    crossFileHypergraphSource.includes(required),
+    `omena-query cross-file hypergraph must retain ${required}`,
+  );
+}
+
+for (const required of [
   "style_semantic_graph_batch_detects_css_modules_composes_cycles",
   "style_semantic_graph_batch_detects_css_modules_value_cycles",
   "style_semantic_graph_batch_detects_css_modules_icss_cycles",
@@ -104,6 +132,8 @@ for (const required of [
   "workspace_cross_file_summary_hash_is_input_order_stable",
   "workspace_cross_file_summary_hash_tracks_package_manifest_changes",
   "workspace_cross_file_summary_reports_edge_kind_counts_for_m4_vocabulary",
+  "cross_file_hypergraph_reports_exact_tarjan_scc_for_composes_cycle",
+  "style_diagnostics_for_workspace_file_flags_unified_cross_file_composes_cycle",
   "transitive_composes",
   "transitive_value",
   "transitive_icss",
@@ -145,6 +175,7 @@ process.stdout.write(
     "validated omena-query CSS Modules resolution:",
     "closure=composes,value,icss",
     "cycles=composes,value,icss,sass",
+    "scc=exact-tarjan",
     "sassClosure=moduleGraph",
     "summaryEdges=style,source",
     "nextPriorities=0",

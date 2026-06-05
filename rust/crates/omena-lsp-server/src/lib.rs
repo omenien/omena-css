@@ -1063,6 +1063,9 @@ fn resolve_style_diagnostics_for_uri(state: &LspShellState, document_uri: &str) 
                     json!(polynomial_provenance),
                 );
             }
+            if let Some(cross_file_scc) = diagnostic.cross_file_scc {
+                data.insert("crossFileScc".to_string(), json!(cross_file_scc));
+            }
 
             let mut lsp_diagnostic = json!({
                 "range": diagnostic.range,
@@ -1122,6 +1125,7 @@ fn summarize_cross_file_streaming_reachability_diagnostics_for_lsp(
         cascade_narrowing: None,
         cascade_confidence: None,
         polynomial_provenance: None,
+        cross_file_scc: None,
     }]
 }
 

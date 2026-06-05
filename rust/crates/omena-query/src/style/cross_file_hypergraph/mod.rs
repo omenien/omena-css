@@ -8,6 +8,8 @@ use crate::{OmenaQueryCrossFileSummaryEdgeV0, OmenaQueryCrossFileSummaryV0};
 
 mod edge;
 mod reachability;
+#[cfg(feature = "hypergraph-ifds")]
+mod scc;
 
 pub use edge::*;
 pub use reachability::*;
@@ -15,6 +17,8 @@ pub(in crate::style) use reachability::{
     HypergraphClosureMode, HypergraphClosurePath, collect_hypergraph_transitive_closure_paths,
     collect_hypergraph_transitive_closure_paths_with_mode,
 };
+#[cfg(feature = "hypergraph-ifds")]
+pub use scc::*;
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]

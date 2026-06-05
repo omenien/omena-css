@@ -2852,6 +2852,62 @@ fn style_diagnostics_for_workspace_file_flag_sass_use_cycle() -> Result<(), &'st
     Ok(())
 }
 
+#[cfg(feature = "hypergraph-ifds")]
+#[test]
+fn style_diagnostics_for_workspace_file_flags_unified_cross_file_composes_cycle()
+-> Result<(), &'static str> {
+    let sources = vec![
+        OmenaQueryStyleSourceInputV0 {
+            style_path: "/tmp/a.module.scss".to_string(),
+            style_source: r#".a { composes: b from "./b.module.scss"; }"#.to_string(),
+        },
+        OmenaQueryStyleSourceInputV0 {
+            style_path: "/tmp/b.module.scss".to_string(),
+            style_source: r#".b { composes: a from "./a.module.scss"; }"#.to_string(),
+        },
+    ];
+
+    let diagnostics = crate::summarize_omena_query_style_diagnostics_for_workspace_file(
+        "/tmp/a.module.scss",
+        sources.as_slice(),
+        &[],
+        &[],
+        None,
+    )
+    .ok_or("workspace diagnostics")?;
+
+    assert!(
+        diagnostics
+            .ready_surfaces
+            .contains(&"crossFileSccDiagnostics")
+    );
+    let cycle = diagnostics
+        .diagnostics
+        .iter()
+        .find(|diagnostic| diagnostic.code == "crossFileStyleCycle")
+        .ok_or("cross-file style cycle diagnostic")?;
+    assert_eq!(cycle.severity, "warning");
+    assert!(
+        cycle.message.contains("/tmp/a.module.scss")
+            && cycle.message.contains("/tmp/b.module.scss")
+            && cycle.message.contains("composesExternal"),
+        "message names the unified graph cycle: {}",
+        cycle.message
+    );
+    let evidence = cycle
+        .cross_file_scc
+        .as_ref()
+        .ok_or("cross-file SCC evidence")?;
+    assert_eq!(evidence.feature_gate, "cross-file-scc-v0");
+    assert_eq!(evidence.claim_level, "fixtureWitnessExactTarjanScc");
+    assert_eq!(evidence.connectivity_backend, "exactTarjanScc");
+    assert_eq!(evidence.polylog_bound_scope, "notClaimedExactTraversal");
+    assert!(!evidence.theorem_claimed);
+    assert!(evidence.cross_file);
+    assert!(evidence.edge_kinds.contains(&"composesExternal"));
+    Ok(())
+}
+
 // Self-loop (`@use './self'`) is likewise a hard error in dart-sass.
 #[test]
 fn style_diagnostics_for_workspace_file_flag_sass_use_self_loop() -> Result<(), &'static str> {

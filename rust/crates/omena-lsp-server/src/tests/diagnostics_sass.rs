@@ -164,6 +164,77 @@ fn style_diagnostics_surface_streaming_ifds_cross_file_reachability_from_lsp() {
 }
 
 #[test]
+fn style_diagnostics_surface_unified_cross_file_scc_from_lsp() {
+    let mut state = LspShellState::default();
+    for (uri, text) in [
+        (
+            "file:///workspace-a/src/a.module.scss",
+            r#".a { composes: b from "./b.module.scss"; }"#,
+        ),
+        (
+            "file:///workspace-a/src/b.module.scss",
+            r#".b { composes: a from "./a.module.scss"; }"#,
+        ),
+    ] {
+        handle_lsp_message(
+            &mut state,
+            json!({
+                "jsonrpc": "2.0",
+                "method": "textDocument/didOpen",
+                "params": {
+                    "textDocument": {
+                        "uri": uri,
+                        "languageId": "scss",
+                        "version": 1,
+                        "text": text,
+                    },
+                },
+            }),
+        );
+    }
+
+    let response = handle_lsp_message(
+        &mut state,
+        json!({
+            "jsonrpc": "2.0",
+            "id": 1,
+            "method": STYLE_DIAGNOSTICS_REQUEST,
+            "params": {
+                "textDocument": {
+                    "uri": "file:///workspace-a/src/a.module.scss",
+                },
+            },
+        }),
+    );
+    let diagnostics = response
+        .as_ref()
+        .and_then(|value| value.pointer("/result"))
+        .and_then(Value::as_array)
+        .expect("style diagnostics response contains an array");
+    let cycle = diagnostics
+        .iter()
+        .find(|diagnostic| diagnostic.pointer("/code") == Some(&json!("crossFileStyleCycle")))
+        .expect("LSP style diagnostics should surface unified SCC cycles");
+
+    assert_eq!(
+        cycle.pointer("/data/crossFileScc/featureGate"),
+        Some(&json!("cross-file-scc-v0"))
+    );
+    assert_eq!(
+        cycle.pointer("/data/crossFileScc/connectivityBackend"),
+        Some(&json!("exactTarjanScc"))
+    );
+    assert_eq!(
+        cycle.pointer("/data/crossFileScc/polylogBoundScope"),
+        Some(&json!("notClaimedExactTraversal"))
+    );
+    assert_eq!(
+        cycle.pointer("/data/crossFileScc/theoremClaimed"),
+        Some(&json!(false))
+    );
+}
+
+#[test]
 fn style_diagnostics_surface_replica_ensemble_inconsistency_from_lsp() {
     let mut state = LspShellState::default();
     for (uri, text) in [

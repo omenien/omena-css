@@ -104,6 +104,7 @@ pub fn summarize_omena_query_missing_custom_property_diagnostics(
             cascade_narrowing: None,
             cascade_confidence: None,
             polynomial_provenance: None,
+            cross_file_scc: None,
         })
         .collect()
 }
@@ -161,6 +162,7 @@ pub fn summarize_omena_query_cascade_aware_style_diagnostics_with_deep_analysis(
                         cascade_narrowing: None,
                         cascade_confidence: None,
                         polynomial_provenance: None,
+                        cross_file_scc: None,
                     })
             })
             .collect::<Vec<_>>();
@@ -221,6 +223,7 @@ pub fn summarize_omena_query_missing_keyframes_diagnostics(
             cascade_narrowing: None,
             cascade_confidence: None,
             polynomial_provenance: None,
+            cross_file_scc: None,
         })
         .collect()
 }
@@ -295,6 +298,7 @@ pub fn summarize_omena_query_missing_sass_symbol_diagnostics(
             cascade_narrowing: None,
             cascade_confidence: None,
             polynomial_provenance: None,
+            cross_file_scc: None,
         });
     }
 
@@ -393,6 +397,7 @@ pub fn summarize_omena_query_missing_extend_target_diagnostics(
             cascade_narrowing: None,
             cascade_confidence: None,
             polynomial_provenance: None,
+            cross_file_scc: None,
         });
     }
 
@@ -511,7 +516,8 @@ fn summarize_omena_query_missing_extend_target_diagnostics_for_workspace(
             create_custom_property: None,
             cascade_narrowing: None,
             cascade_confidence: None,
-                polynomial_provenance: None,
+            polynomial_provenance: None,
+            cross_file_scc: None,
         });
     }
 
@@ -702,6 +708,7 @@ fn summarize_omena_query_replica_ensemble_inconsistency_diagnostics_for_workspac
                 cascade_narrowing: None,
                 cascade_confidence: None,
                 polynomial_provenance: None,
+                cross_file_scc: None,
             }
         })
         .collect()
@@ -812,6 +819,7 @@ pub fn summarize_omena_query_sass_import_deprecation_hints(
                 cascade_narrowing: None,
                 cascade_confidence: None,
                 polynomial_provenance: None,
+                cross_file_scc: None,
             }
         })
         .collect()
@@ -956,6 +964,7 @@ fn summarize_omena_query_missing_sass_symbol_diagnostics_for_workspace_with_sifs
             cascade_narrowing: None,
             cascade_confidence: None,
             polynomial_provenance: None,
+            cross_file_scc: None,
         });
     }
 
@@ -1070,10 +1079,89 @@ fn summarize_omena_query_sass_use_cycle_diagnostics_for_workspace(
             cascade_narrowing: None,
             cascade_confidence: None,
             polynomial_provenance: None,
+            cross_file_scc: None,
         });
     }
 
     diagnostics
+}
+
+#[cfg(feature = "hypergraph-ifds")]
+fn summarize_omena_query_unified_cross_file_scc_diagnostics_for_workspace(
+    target_style_path: &str,
+    target_style_source: &str,
+    style_sources: &[OmenaQueryStyleSourceInputV0],
+    source_documents: &[OmenaQuerySourceDocumentInputV0],
+    package_manifests: &[OmenaQueryStylePackageManifestV0],
+) -> Vec<OmenaQueryStyleDiagnosticV0> {
+    let summary = summarize_omena_query_workspace_cross_file_summary(
+        style_sources,
+        source_documents,
+        package_manifests,
+    );
+    let hypergraph = summarize_omena_query_unified_cross_file_hypergraph(&summary);
+    let report = summarize_omena_query_unified_cross_file_scc_report(&hypergraph);
+    if report.sccs.is_empty() {
+        return Vec::new();
+    }
+
+    let whole_file_range = parser_range_for_byte_span(
+        target_style_source,
+        ParserByteSpanV0 {
+            start: 0,
+            end: target_style_source.len(),
+        },
+    );
+    let mut emitted = BTreeSet::new();
+    report
+        .sccs
+        .into_iter()
+        .filter(|scc| scc.cross_file)
+        .filter(|scc| scc.style_paths.iter().any(|path| path == target_style_path))
+        .filter(|scc| {
+            scc.edge_kinds
+                .iter()
+                .any(|edge_kind| edge_kind.starts_with("composes"))
+        })
+        .filter_map(|scc| {
+            if !emitted.insert(scc.scc_id.clone()) {
+                return None;
+            }
+            let style_path_count = scc.style_paths.len();
+            let edge_kinds = scc.edge_kinds.join(", ");
+            let cycle_paths = scc.style_paths.join(" -> ");
+            Some(OmenaQueryStyleDiagnosticV0 {
+                code: "crossFileStyleCycle",
+                severity: "warning",
+                provenance: vec![
+                    "omena-query.unified-cross-file-scc-report",
+                    "omena-query.unified-cross-file-hypergraph",
+                    "omena-query.cross-file-summary",
+                ],
+                range: whole_file_range,
+                message: format!(
+                    "Cross-file style dependency cycle across {style_path_count} files via {edge_kinds}: {cycle_paths}"
+                ),
+                tags: Vec::new(),
+                create_custom_property: None,
+                cascade_narrowing: None,
+                cascade_confidence: None,
+                polynomial_provenance: None,
+                cross_file_scc: Some(scc),
+            })
+        })
+        .collect()
+}
+
+#[cfg(not(feature = "hypergraph-ifds"))]
+fn summarize_omena_query_unified_cross_file_scc_diagnostics_for_workspace(
+    _target_style_path: &str,
+    _target_style_source: &str,
+    _style_sources: &[OmenaQueryStyleSourceInputV0],
+    _source_documents: &[OmenaQuerySourceDocumentInputV0],
+    _package_manifests: &[OmenaQueryStylePackageManifestV0],
+) -> Vec<OmenaQueryStyleDiagnosticV0> {
+    Vec::new()
 }
 
 /// RFC-0007-E3 (#45): an unresolved Sass module reference to a **workspace-local** path.
@@ -1162,6 +1250,7 @@ fn summarize_omena_query_unresolved_sass_import_diagnostics_for_workspace(
             cascade_narrowing: None,
             cascade_confidence: None,
             polynomial_provenance: None,
+            cross_file_scc: None,
         });
     }
 
@@ -1474,6 +1563,15 @@ pub fn summarize_omena_query_style_diagnostics_for_workspace_file_with_external_
         ),
     );
     summary.diagnostics.extend(
+        summarize_omena_query_unified_cross_file_scc_diagnostics_for_workspace(
+            target_style_path,
+            &target.style_source,
+            style_sources,
+            source_documents,
+            package_manifests,
+        ),
+    );
+    summary.diagnostics.extend(
         summarize_omena_query_unresolved_sass_import_diagnostics_for_workspace(
             target_style_path,
             style_sources,
@@ -1510,6 +1608,7 @@ pub fn summarize_omena_query_style_diagnostics_for_workspace_file_with_external_
     );
     push_omena_query_ready_surface(&mut summary.ready_surfaces, "unusedSelectorDiagnostics");
     push_omena_query_ready_surface(&mut summary.ready_surfaces, "sassUseCycleDiagnostics");
+    push_omena_query_ready_surface(&mut summary.ready_surfaces, "crossFileSccDiagnostics");
     push_omena_query_ready_surface(
         &mut summary.ready_surfaces,
         "unresolvedSassImportDiagnostics",
@@ -2063,6 +2162,7 @@ fn summarize_omena_query_external_sif_boundary_diagnostics(
             cascade_narrowing: None,
             cascade_confidence: None,
             polynomial_provenance: None,
+            cross_file_scc: None,
         });
     }
     diagnostics
@@ -2579,6 +2679,7 @@ pub fn summarize_omena_query_css_modules_local_composes_style_diagnostics(
                 cascade_narrowing: None,
                 cascade_confidence: None,
                 polynomial_provenance: None,
+                cross_file_scc: None,
             });
         }
     }
@@ -2646,6 +2747,7 @@ pub fn summarize_omena_query_css_modules_resolution_style_diagnostics(
                     cascade_narrowing: None,
                     cascade_confidence: None,
                     polynomial_provenance: None,
+                    cross_file_scc: None,
                 });
                 continue;
             };
@@ -2690,6 +2792,7 @@ pub fn summarize_omena_query_css_modules_resolution_style_diagnostics(
                 cascade_narrowing: None,
                 cascade_confidence: None,
                 polynomial_provenance: None,
+                cross_file_scc: None,
             });
         }
     }
@@ -2729,6 +2832,7 @@ pub fn summarize_omena_query_css_modules_resolution_style_diagnostics(
                     cascade_narrowing: None,
                     cascade_confidence: None,
                     polynomial_provenance: None,
+                    cross_file_scc: None,
                 });
             }
             continue;
@@ -2768,6 +2872,7 @@ pub fn summarize_omena_query_css_modules_resolution_style_diagnostics(
             cascade_narrowing: None,
             cascade_confidence: None,
             polynomial_provenance: None,
+            cross_file_scc: None,
         });
     }
 
@@ -2892,6 +2997,7 @@ pub fn summarize_omena_query_unused_selector_style_diagnostics_with_path_mapping
                 cascade_narrowing: None,
                 cascade_confidence: None,
                 polynomial_provenance: None,
+                cross_file_scc: None,
             })
         })
         .collect()

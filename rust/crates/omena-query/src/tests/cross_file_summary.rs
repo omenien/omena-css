@@ -6,6 +6,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use crate::{
     OmenaQueryCrossFileSummaryV0, UnifiedHypergraphEdgeKindV0,
     summarize_omena_query_unified_cross_file_hypergraph,
+    summarize_omena_query_unified_cross_file_scc_report,
 };
 use crate::{
     OmenaQuerySourceDocumentInputV0, OmenaQueryStylePackageManifestV0,
@@ -75,6 +76,50 @@ fn cross_file_hypergraph_composes_tail_preserves_target_name_order() {
     assert!(tail[0].ends_with("|a"));
     assert!(tail[1].ends_with("|b"));
     assert!(tail[2].ends_with("|c"));
+}
+
+#[cfg(feature = "hypergraph-ifds")]
+#[test]
+fn cross_file_hypergraph_reports_exact_tarjan_scc_for_composes_cycle() -> Result<(), &'static str> {
+    let summary = summarize_omena_query_workspace_cross_file_summary(
+        &[
+            OmenaQueryStyleSourceInputV0 {
+                style_path: "/tmp/a.module.scss".to_string(),
+                style_source: r#".a { composes: b from "./b.module.scss"; }"#.to_string(),
+            },
+            OmenaQueryStyleSourceInputV0 {
+                style_path: "/tmp/b.module.scss".to_string(),
+                style_source: r#".b { composes: a from "./a.module.scss"; }"#.to_string(),
+            },
+        ],
+        &[],
+        &[],
+    );
+    let hypergraph = summarize_omena_query_unified_cross_file_hypergraph(&summary);
+    let report = summarize_omena_query_unified_cross_file_scc_report(&hypergraph);
+
+    assert_eq!(report.product, "omena-query.unified-cross-file-scc-report");
+    assert_eq!(report.feature_gate, "cross-file-scc-v0");
+    assert_eq!(report.claim_level, "fixtureWitnessExactTarjanScc");
+    assert!(!report.theorem_claimed);
+    assert_eq!(report.connectivity_backend, "exactTarjanScc");
+    assert_eq!(report.polylog_bound_scope, "notClaimedExactTraversal");
+
+    let composes_scc = report
+        .sccs
+        .iter()
+        .find(|scc| {
+            scc.cross_file
+                && scc.edge_kinds.contains(&"composesExternal")
+                && scc.style_paths.contains(&"/tmp/a.module.scss".to_string())
+                && scc.style_paths.contains(&"/tmp/b.module.scss".to_string())
+        })
+        .ok_or("cross-file composes SCC")?;
+    assert_eq!(composes_scc.node_count, 2);
+    assert_eq!(composes_scc.connectivity_backend, "exactTarjanScc");
+    assert_eq!(composes_scc.polylog_bound_scope, "notClaimedExactTraversal");
+    assert!(!composes_scc.theorem_claimed);
+    Ok(())
 }
 
 #[cfg(feature = "hypergraph-ifds")]

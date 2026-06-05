@@ -67,6 +67,7 @@ interface QueryStyleDiagnosticV0 {
   };
   readonly cascadeConfidence?: Record<string, unknown>;
   readonly polynomialProvenance?: Record<string, unknown>;
+  readonly crossFileScc?: Record<string, unknown>;
 }
 
 interface QuerySourceDocumentInputV0 {
@@ -241,6 +242,7 @@ function toQueryOwnedStyleDiagnostic(
     ...(diagnostic.polynomialProvenance
       ? { polynomialProvenance: diagnostic.polynomialProvenance }
       : {}),
+    ...(diagnostic.crossFileScc ? { crossFileScc: diagnostic.crossFileScc } : {}),
   };
   return {
     range: toLspRange(diagnostic.range),

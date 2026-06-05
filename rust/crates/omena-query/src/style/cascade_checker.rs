@@ -108,6 +108,7 @@ pub(super) fn summarize_query_cascade_checker_diagnostics_with_deep_analysis(
             cascade_narrowing: None,
             cascade_confidence: None,
             polynomial_provenance: None,
+            cross_file_scc: None,
         }];
     }
 
@@ -176,6 +177,7 @@ pub(super) fn summarize_query_cascade_checker_diagnostics_with_deep_analysis(
             cascade_narrowing,
             cascade_confidence,
             polynomial_provenance: None,
+            cross_file_scc: None,
         });
     }
 
@@ -308,6 +310,7 @@ fn summarize_query_rg_flow_coupling_diagnostics(
                 cascade_narrowing: None,
                 cascade_confidence: None,
                 polynomial_provenance: None,
+                cross_file_scc: None,
             }
         })
         .collect()
@@ -380,6 +383,7 @@ fn summarize_query_categorical_cascade_evidence_diagnostics(
                 cascade_narrowing: None,
                 cascade_confidence: None,
                 polynomial_provenance: None,
+                cross_file_scc: None,
             }
         })
         .collect()
@@ -495,6 +499,7 @@ fn summarize_query_smt_cascade_obligation_diagnostics(
                 cascade_narrowing: None,
                 cascade_confidence: None,
                 polynomial_provenance: None,
+                cross_file_scc: None,
             }
         })
         .collect()
