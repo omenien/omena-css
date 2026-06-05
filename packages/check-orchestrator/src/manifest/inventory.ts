@@ -85,6 +85,9 @@ function formatCode(value: string): string {
 
 function formatStatus(gate: CheckGate): string {
   const parts: string[] = [];
+  if (isCompatibilityScript(gate)) {
+    parts.push("compatibility script");
+  }
   if (gate.deprecatedBy) {
     parts.push(`deprecated; use ${formatCode(gate.deprecatedBy)}`);
   }
@@ -98,6 +101,10 @@ function formatStatus(gate: CheckGate): string {
     parts.push(`group ${formatCode(gate.ciGroup)}`);
   }
   return parts.join("; ");
+}
+
+function isCompatibilityScript(gate: CheckGate): boolean {
+  return gate.origin === "declared" && !gate.scriptName.startsWith("@declared/");
 }
 
 function escapeMarkdown(value: string): string {

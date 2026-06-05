@@ -7,6 +7,7 @@ import {
   findDeclaredPackageReplacementIds,
   getDeprecatedPackageScriptReplacement,
 } from "./declared";
+import { findDocumentedPublicScriptDiagnostics } from "./documented-commands";
 import { renderCheckInventory } from "./inventory";
 import { buildCheckPlan, renderCheckPlan } from "./plan";
 import { classifyScript } from "./scopes";
@@ -87,6 +88,7 @@ export function loadCheckManifest(
   diagnostics.push(...findDuplicateGateIds(gates));
   diagnostics.push(...findAliasChainDiagnostics(gates));
   diagnostics.push(...findCheckOrchestratorTargetDiagnostics(gates));
+  diagnostics.push(...findDocumentedPublicScriptDiagnostics(rootDir, gates));
   diagnostics.push(...findWorkflowBypassDiagnostics(rootDir, gates));
   diagnostics.push(...findCiTierReachabilityDiagnostics(rootDir, gates));
 
@@ -105,8 +107,10 @@ export function resolveGateTarget(
   target: string,
 ): CheckGate | null {
   return (
-    manifest.gates.find((gate) => gate.id === target || gate.scriptName === target) ??
+    manifest.gates.find((gate) => gate.id === target) ??
+    manifest.gates.find((gate) => gate.scriptName === target && !gate.deprecatedBy) ??
     manifest.gates.find((gate) => gate.deprecatedAliases?.includes(target)) ??
+    manifest.gates.find((gate) => gate.scriptName === target) ??
     manifest.gates.find((gate) => gate.id.endsWith(`/${target}`)) ??
     null
   );

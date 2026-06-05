@@ -345,6 +345,93 @@ describe("check orchestrator manifest", () => {
     );
   });
 
+  it("surfaces declared replacements as preserved compatibility scripts", () => {
+    const compatibilityScripts = [
+      ["release/release/verify", "release:verify"],
+      ["rust/release/bundle", "check:rust-release-bundle"],
+      ["rust/lane/bundle", "check:rust-lane-bundle"],
+      ["rust/omena-css/h1-readiness", "check:rust-omena-css-h1-readiness"],
+    ] as const;
+
+    for (const [id, scriptName] of compatibilityScripts) {
+      expect(resolveGateTarget(manifest, id)).toMatchObject({
+        origin: "declared",
+        scriptName,
+      });
+      expect(resolveGateTarget(manifest, scriptName)?.id).toBe(id);
+    }
+
+    const inventory = renderCheckInventory(manifest);
+    expect(inventory).toMatch(
+      /\| `release\/release\/verify`\s+\| bundle\s+\| declared\s+\| `release:verify`\s+\|[^|]*\| compatibility script;/,
+    );
+    expect(inventory).toMatch(
+      /\| `rust\/lane\/bundle`\s+\| bundle\s+\| declared\s+\| `check:rust-lane-bundle`\s+\|[^|]*\| compatibility script;/,
+    );
+  });
+
+  it("resolves deprecated package aliases to canonical declared gates", () => {
+    expect(resolveGateTarget(manifest, "check:rust-m1-runtime-query-api-hardening")?.id).toBe(
+      "rust/runtime-query-api-hardening",
+    );
+    expect(resolveGateTarget(manifest, "rust/m1-runtime-query-api-hardening")).toMatchObject({
+      deprecatedBy: "rust/runtime-query-api-hardening",
+    });
+  });
+
+  it("protects documented public scripts unless a package script or declared alias exposes them", () => {
+    const root = mkdtempSync(path.join(os.tmpdir(), "omena-check-orchestrator-"));
+    writeFileSync(
+      path.join(root, "package.json"),
+      JSON.stringify(
+        {
+          name: "omena-css",
+          scripts: {
+            "omena-check": "node ./check.js",
+          },
+        },
+        null,
+        2,
+      ),
+    );
+    writeFileSync(path.join(root, "README.md"), "Use `pnpm release:verify` before publishing.\n");
+
+    const missing = runDoctor(loadCheckManifest(root, { declaredGates: [] }));
+    expect(missing).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          severity: "error",
+          code: "documented-public-script-missing",
+          message: expect.stringContaining(
+            'README.md:1 documents "pnpm release:verify", but no package script or declared compatibility alias exposes it.',
+          ),
+        }),
+      ]),
+    );
+
+    const covered = runDoctor(
+      loadCheckManifest(root, {
+        declaredGates: [
+          {
+            id: "release/release/verify",
+            kind: "command",
+            scope: "release",
+            command: ["node", "--version"],
+            deprecatedAliases: ["release:verify"],
+            ciTier: "manual",
+          },
+        ],
+      }),
+    );
+    expect(covered).not.toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          code: "documented-public-script-missing",
+        }),
+      ]),
+    );
+  });
+
   it("lets declared gates explicitly replace package-derived gate definitions", () => {
     const root = mkdtempSync(path.join(os.tmpdir(), "omena-check-orchestrator-"));
     writeFileSync(

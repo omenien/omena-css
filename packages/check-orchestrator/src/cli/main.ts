@@ -61,14 +61,16 @@ switch (parsedArgs.command) {
 function parseArgs(argv: readonly string[]): ParsedArgs {
   const separatorIndex = argv.indexOf("--");
   const visibleArgs = separatorIndex === -1 ? argv : argv.slice(0, separatorIndex);
-  const extraArgs = separatorIndex === -1 ? [] : argv.slice(separatorIndex + 1);
+  const rawExtraArgs = separatorIndex === -1 ? [] : argv.slice(separatorIndex + 1);
+  const forwardedDryRun = rawExtraArgs.some((arg) => arg === "--dry" || arg === "--dry-run");
+  const extraArgs = rawExtraArgs.filter((arg) => arg !== "--dry" && arg !== "--dry-run");
   const flags = new Set(visibleArgs.filter((arg) => arg.startsWith("-")));
   const positionals = visibleArgs.filter((arg) => !arg.startsWith("-"));
 
   return {
     command: positionals[0] ?? "help",
     target: positionals[1] ?? null,
-    dryRun: flags.has("--dry") || flags.has("--dry-run"),
+    dryRun: flags.has("--dry") || flags.has("--dry-run") || forwardedDryRun,
     json: flags.has("--json"),
     check: flags.has("--check"),
     write: flags.has("--write"),
