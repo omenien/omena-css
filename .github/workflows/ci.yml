@@ -62,17 +62,17 @@ jobs:
       - uses: ./.github/actions/setup-pnpm
       - uses: ./.github/actions/cache-rust
       - uses: ./.github/actions/sync-release-metadata
-      - id: m1
-        name: Run M1 runtime query/API hardening
-        run: pnpm omena-check run rust/m1-runtime-query-api-hardening
+      - id: runtime_query_api
+        name: Run runtime query/API hardening
+        run: pnpm omena-check run rust/runtime-query-api-hardening
         continue-on-error: true
-      - id: m2
-        name: Run M2 product-facing capability
-        run: pnpm omena-check run rust/m2-product-facing-capability
+      - id: product_capability
+        name: Run product-facing capability
+        run: pnpm omena-check run rust/product-facing-capability
         continue-on-error: true
-      - id: m3
-        name: Run M3 theoretical moat generalization
-        run: pnpm omena-check run rust/m3-theoretical-moat-generalization
+      - id: theory_generalization
+        name: Run theory generalization
+        run: pnpm omena-check run rust/theory-generalization
         continue-on-error: true
       - id: query
         name: Run omena-query boundary
@@ -125,9 +125,9 @@ jobs:
       - if: always()
         name: Enforce closure-fast result
         run: |
-          echo "m1=${{ steps.m1.outcome }}"
-          echo "m2=${{ steps.m2.outcome }}"
-          echo "m3=${{ steps.m3.outcome }}"
+          echo "runtime_query_api=${{ steps.runtime_query_api.outcome }}"
+          echo "product_capability=${{ steps.product_capability.outcome }}"
+          echo "theory_generalization=${{ steps.theory_generalization.outcome }}"
           echo "query=${{ steps.query.outcome }}"
           echo "lsp=${{ steps.lsp.outcome }}"
           echo "cascade=${{ steps.cascade.outcome }}"
@@ -142,9 +142,9 @@ jobs:
           echo "aggregation_complete=${{ steps.aggregation_complete.outcome }}"
           failed=0
           for outcome in \
-            "${{ steps.m1.outcome }}" \
-            "${{ steps.m2.outcome }}" \
-            "${{ steps.m3.outcome }}" \
+            "${{ steps.runtime_query_api.outcome }}" \
+            "${{ steps.product_capability.outcome }}" \
+            "${{ steps.theory_generalization.outcome }}" \
             "${{ steps.query.outcome }}" \
             "${{ steps.lsp.outcome }}" \
             "${{ steps.cascade.outcome }}" \

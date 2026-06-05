@@ -59,14 +59,16 @@ function renderScopeSection(scope: CheckScopeId, gates: readonly CheckGate[]): s
     `## ${scope}`,
     "",
     renderMarkdownTable(
-      ["ID", "Kind", "Script", "References"],
+      ["ID", "Kind", "Origin", "Script", "References", "Status"],
       scopeGates.map((gate) => [
         formatCode(gate.id),
         gate.kind,
+        gate.origin,
         formatCode(gate.scriptName),
         formatRefs(gate.referencedScripts),
+        formatStatus(gate),
       ]),
-      ["left", "left", "left", "left"],
+      ["left", "left", "left", "left", "left", "left"],
     ),
     "",
   ];
@@ -79,6 +81,16 @@ function formatRefs(referencedScripts: readonly string[]): string {
 
 function formatCode(value: string): string {
   return `\`${escapeMarkdown(value)}\``;
+}
+
+function formatStatus(gate: CheckGate): string {
+  if (gate.deprecatedBy) {
+    return `deprecated; use ${formatCode(gate.deprecatedBy)}`;
+  }
+  if (gate.deprecatedAliases && gate.deprecatedAliases.length > 0) {
+    return `replaces ${gate.deprecatedAliases.map(formatCode).join(", ")}`;
+  }
+  return "";
 }
 
 function escapeMarkdown(value: string): string {

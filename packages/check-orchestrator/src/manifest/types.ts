@@ -12,6 +12,21 @@ export type CheckScopeId =
   | "tooling";
 
 export type CheckGateKind = "command" | "gate" | "bundle" | "alias";
+export type CheckGateOrigin = "package" | "declared";
+export type CheckCiTier = "verify" | "closure-fast" | "scheduled" | "manual" | "none";
+
+export interface DeclaredCheckGateV0 {
+  readonly id: string;
+  readonly kind: CheckGateKind;
+  readonly scope: CheckScopeId;
+  readonly command?: readonly string[];
+  readonly deps?: readonly string[];
+  readonly tags?: readonly string[];
+  readonly timeoutMinutes?: number;
+  readonly ciTier?: CheckCiTier;
+  readonly ciGroup?: string;
+  readonly deprecatedAliases?: readonly string[];
+}
 
 export interface CheckGate {
   readonly id: string;
@@ -19,7 +34,16 @@ export interface CheckGate {
   readonly command: string;
   readonly scope: CheckScopeId;
   readonly kind: CheckGateKind;
+  readonly origin: CheckGateOrigin;
+  readonly commandParts?: readonly string[];
+  readonly referencedTargets?: readonly string[];
   readonly referencedScripts: readonly string[];
+  readonly tags?: readonly string[];
+  readonly timeoutMinutes?: number;
+  readonly ciTier?: CheckCiTier;
+  readonly ciGroup?: string;
+  readonly deprecatedAliases?: readonly string[];
+  readonly deprecatedBy?: string;
 }
 
 export interface CheckBundle extends CheckGate {

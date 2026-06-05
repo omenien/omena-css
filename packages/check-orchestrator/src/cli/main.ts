@@ -11,6 +11,7 @@ import {
   resolveGateTarget,
   runDoctor,
 } from "../manifest/index";
+import type { CheckGate } from "../manifest/index";
 import { pnpmRunCommand } from "./commands";
 
 interface ParsedArgs {
@@ -79,13 +80,33 @@ function printList(json: boolean): void {
   if (json) {
     console.log(
       JSON.stringify(
-        manifest.gates.map(({ id, scriptName, scope, kind, referencedScripts }) => ({
-          id,
-          scriptName,
-          scope,
-          kind,
-          referencedScripts,
-        })),
+        manifest.gates.map(
+          ({
+            id,
+            scriptName,
+            scope,
+            kind,
+            origin,
+            referencedScripts,
+            referencedTargets,
+            ciTier,
+            ciGroup,
+            deprecatedAliases,
+            deprecatedBy,
+          }) => ({
+            id,
+            scriptName,
+            scope,
+            kind,
+            origin,
+            referencedScripts,
+            referencedTargets,
+            ciTier,
+            ciGroup,
+            deprecatedAliases,
+            deprecatedBy,
+          }),
+        ),
         null,
         2,
       ),
@@ -96,11 +117,12 @@ function printList(json: boolean): void {
   const rows = manifest.gates.map((gate) => [
     gate.id.padEnd(48),
     gate.kind.padEnd(7),
+    gate.origin.padEnd(8),
     gate.scope.padEnd(9),
     gate.scriptName,
   ]);
-  console.log("id".padEnd(48), "kind".padEnd(7), "scope".padEnd(9), "script");
-  console.log("-".repeat(92));
+  console.log("id".padEnd(48), "kind".padEnd(7), "origin".padEnd(8), "scope".padEnd(9), "script");
+  console.log("-".repeat(102));
   for (const row of rows) {
     console.log(row.join("  "));
   }
@@ -116,21 +138,12 @@ function runTarget(parsed: ParsedArgs, bundleOnly: boolean): void {
     fail(`Target "${parsed.target}" is not a bundle. Use "pnpm omena-check run ${gate.id}".`);
   }
 
-  const command = pnpmRunCommand(gate.scriptName, parsed.extraArgs);
   if (parsed.dryRun) {
-    console.log(command.display.join(" "));
+    console.log(renderGateCommands(gate, parsed.extraArgs).map(formatCommandDisplay).join("\n"));
     return;
   }
 
-  const result = spawnSync(command.executable, command.args, {
-    cwd: manifest.rootDir,
-    stdio: "inherit",
-    shell: false,
-  });
-  if (result.error) {
-    console.error(`Failed to start "${command.display[0]}": ${result.error.message}`);
-  }
-  process.exit(result.status ?? 1);
+  process.exit(executeGate(gate, parsed.extraArgs, new Set<string>()));
 }
 
 function printPlan(parsed: ParsedArgs): void {
@@ -153,6 +166,107 @@ function resolveTarget(target: string) {
     fail(`Unknown target "${target}". Run "pnpm omena-check list".`);
   }
   return gate;
+}
+
+interface RunnableCommand {
+  readonly executable: string;
+  readonly args: readonly string[];
+  readonly display: readonly string[];
+}
+
+function executeGate(gate: CheckGate, extraArgs: readonly string[], stack: Set<string>): number {
+  if (stack.has(gate.id)) {
+    fail(`Declared gate dependency cycle reached "${gate.id}".`);
+  }
+
+  const commands = gate.commandParts
+    ? [directCommand(gate.commandParts, extraArgs)]
+    : gate.origin === "declared"
+      ? []
+      : [pnpmRunCommand(gate.scriptName, extraArgs)];
+
+  if (commands.length > 0) {
+    const command = commands[0];
+    if (!command) {
+      fail(`Gate "${gate.id}" produced no runnable command.`);
+    }
+    const result = spawnSync(command.executable, command.args, {
+      cwd: manifest.rootDir,
+      stdio: "inherit",
+      shell: false,
+    });
+    if (result.error) {
+      console.error(`Failed to start "${command.display[0]}": ${result.error.message}`);
+    }
+    return result.status ?? 1;
+  }
+
+  if (!gate.referencedTargets || gate.referencedTargets.length === 0) {
+    fail(`Declared gate "${gate.id}" has no command or deps to execute.`);
+  }
+
+  if (gate.kind !== "alias" && extraArgs.length > 0) {
+    fail(
+      `Extra args can only be forwarded through declared commands or aliases, not "${gate.id}".`,
+    );
+  }
+
+  stack.add(gate.id);
+  for (const target of gate.referencedTargets) {
+    const status = executeGate(
+      resolveTarget(target),
+      gate.kind === "alias" ? extraArgs : [],
+      stack,
+    );
+    if (status !== 0) {
+      stack.delete(gate.id);
+      return status;
+    }
+  }
+  stack.delete(gate.id);
+  return 0;
+}
+
+function renderGateCommands(
+  gate: CheckGate,
+  extraArgs: readonly string[],
+): readonly RunnableCommand[] {
+  if (gate.commandParts) {
+    return [directCommand(gate.commandParts, extraArgs)];
+  }
+
+  if (gate.origin !== "declared") {
+    return [pnpmRunCommand(gate.scriptName, extraArgs)];
+  }
+
+  if (gate.kind !== "alias" && extraArgs.length > 0) {
+    fail(
+      `Extra args can only be forwarded through declared commands or aliases, not "${gate.id}".`,
+    );
+  }
+
+  return (gate.referencedTargets ?? []).flatMap((target) =>
+    renderGateCommands(resolveTarget(target), gate.kind === "alias" ? extraArgs : []),
+  );
+}
+
+function directCommand(
+  commandParts: readonly string[],
+  extraArgs: readonly string[],
+): RunnableCommand {
+  const [executable, ...args] = commandParts;
+  if (!executable) {
+    fail("Declared command has no executable.");
+  }
+  return {
+    executable,
+    args: [...args, ...extraArgs],
+    display: [executable, ...args, ...extraArgs],
+  };
+}
+
+function formatCommandDisplay(command: RunnableCommand): string {
+  return command.display.join(" ");
 }
 
 function runDoctorCommand(json: boolean): void {

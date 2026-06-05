@@ -2,9 +2,11 @@
 
 Internal gate inventory and runner for Omena CSS Modules.
 
-This package mirrors the existing root `package.json` scripts into typed gate
-metadata without removing the old script names. CI and release verification can
-route through the manifest-backed CLI while the legacy script names stay valid:
+This package maintains the typed gate inventory for Omena CSS Modules. It still
+mirrors root `package.json` scripts, and it can also load declared gates whose
+commands, dependencies, CI tier, and compatibility aliases are modeled directly
+in the orchestrator. CI and release verification can route through the
+manifest-backed CLI while legacy script names stay valid:
 
 ```sh
 pnpm omena-check list
@@ -18,11 +20,13 @@ pnpm omena-check surface
 pnpm omena-check inventory --check
 ```
 
-The root scripts remain the executable source of truth. Aggregate root scripts
-should depend on canonical `omena-check` gate IDs instead of chaining legacy
-`check:*` script names directly. The orchestrator layer provides stable gate IDs,
-grouping, bundle introspection, argument forwarding, execution plans, and doctor
-checks so workflows do not need to duplicate every script name.
+Root scripts remain the compatibility surface for package-derived gates, but
+migrated gates should use declared manifest metadata as their source of truth.
+Aggregate root scripts and workflows should depend on canonical `omena-check`
+gate IDs instead of chaining legacy `check:*` script names directly. The
+orchestrator layer provides stable gate IDs, grouping, bundle introspection,
+argument forwarding, execution plans, and doctor checks so workflows do not need
+to duplicate every script name.
 `doctor` also rejects GitHub workflow calls that bypass `omena-check` for
 manifest-covered package scripts, non-canonical or unknown `omena-check` targets,
 and `bundle` calls pointed at non-bundle gates. It warns on alias chains so

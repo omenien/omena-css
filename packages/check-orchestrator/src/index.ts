@@ -1,4 +1,5 @@
 export {
+  buildDeclaredGates,
   buildCheckPlan,
   buildCheckSurfaceReport,
   loadCheckManifest,
@@ -10,11 +11,14 @@ export {
   type CheckAliasChain,
   type CheckBundle,
   type CheckBundleSurface,
+  type CheckCiTier,
   type CheckDiagnostic,
   type CheckGate,
+  type CheckGateOrigin,
   type CheckManifest,
   type CheckPlan,
   type CheckPlanStep,
   type CheckScopeId,
   type CheckSurfaceReport,
+  type DeclaredCheckGateV0,
 } from "./manifest/index";

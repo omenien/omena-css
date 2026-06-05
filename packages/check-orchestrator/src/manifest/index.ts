@@ -1,5 +1,10 @@
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
+import {
+  buildDeclaredGates,
+  DECLARED_CHECK_GATES,
+  getDeprecatedPackageScriptReplacement,
+} from "./declared";
 import { renderCheckInventory } from "./inventory";
 import { buildCheckPlan, renderCheckPlan } from "./plan";
 import { classifyScript } from "./scopes";
@@ -17,15 +22,19 @@ export type {
   CheckAliasChain,
   CheckBundle,
   CheckBundleSurface,
+  CheckCiTier,
   CheckDiagnostic,
   CheckGate,
+  CheckGateOrigin,
   CheckManifest,
   CheckPlan,
   CheckPlanStep,
   CheckScopeId,
   CheckSurfaceReport,
+  DeclaredCheckGateV0,
 } from "./types";
 export {
+  buildDeclaredGates,
   buildCheckPlan,
   buildCheckSurfaceReport,
   renderCheckInventory,
@@ -41,9 +50,13 @@ export function loadCheckManifest(rootDir = findRepoRoot()): CheckManifest {
   const packageJson = readRootPackageJson(rootDir);
   const scripts = packageJson.scripts ?? {};
   const diagnostics: CheckDiagnostic[] = [];
-  const gates = Object.entries(scripts)
+  const packageGates = Object.entries(scripts)
     .toSorted(([left], [right]) => left.localeCompare(right))
     .map(([scriptName, command]) => buildGate(scriptName, command, scripts, diagnostics));
+  const declaredGates = shouldLoadRepoDeclaredGates(rootDir)
+    ? buildDeclaredGates(packageGates, DECLARED_CHECK_GATES, diagnostics)
+    : [];
+  const gates = [...packageGates, ...declaredGates];
 
   diagnostics.push(...findDuplicateGateIds(gates));
   diagnostics.push(...findAliasChainDiagnostics(gates));
@@ -66,6 +79,7 @@ export function resolveGateTarget(
 ): CheckGate | null {
   return (
     manifest.gates.find((gate) => gate.id === target || gate.scriptName === target) ??
+    manifest.gates.find((gate) => gate.deprecatedAliases?.includes(target)) ??
     manifest.gates.find((gate) => gate.id.endsWith(`/${target}`)) ??
     null
   );
@@ -112,13 +126,17 @@ function buildGate(
 
   const referencedScripts = extractReferencedScripts(command, scripts);
 
+  const deprecatedBy = getDeprecatedPackageScriptReplacement(scriptName);
+
   return {
     id: scope?.toGateId(scriptName) ?? `unknown/${scriptName.replace(":", "/")}`,
     scriptName,
     command,
     scope: scope?.id ?? "tooling",
     kind: detectGateKind(scriptName, command, referencedScripts),
+    origin: "package",
     referencedScripts,
+    ...(deprecatedBy ? { deprecatedBy } : {}),
   };
 }
 
@@ -264,4 +282,8 @@ function findAliasChainDiagnostics(gates: readonly CheckGate[]): readonly CheckD
 function readRootPackageJson(rootDir: string): RootPackageJson {
   const packageJsonPath = path.join(rootDir, "package.json");
   return JSON.parse(readFileSync(packageJsonPath, "utf8")) as RootPackageJson;
+}
+
+function shouldLoadRepoDeclaredGates(rootDir: string): boolean {
+  return existsSync(path.join(rootDir, "packages/check-orchestrator/src/manifest/declared.ts"));
 }
