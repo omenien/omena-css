@@ -46,6 +46,11 @@ use omena_abstract_value::{
     summarize_omena_abstract_value_domain, summarize_reduced_class_value_product,
 };
 use omena_incremental::OmenaIncrementalDatabaseV0;
+pub use omena_incremental::{
+    IncrementalEditDistancePriorityInputV0, IncrementalGraphInputV0,
+    IncrementalInvalidationPriorityPlanV0, IncrementalNodeInputV0, IncrementalRevisionV0,
+    plan_incremental_computation_with_priority_inputs, snapshot_from_graph_input,
+};
 pub use omena_refinement::{
     CascadeDimensionalRefinementBridgeV0, RefinementPropertyPredicateV0,
     summarize_cascade_dimensional_refinement_bridge_v0,

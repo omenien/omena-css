@@ -1,7 +1,8 @@
 #[cfg(feature = "lawvere-trace")]
 use super::execute_omena_query_transform_passes_from_source_with_lawvere_trace;
 use super::{
-    EngineInputV2, OmenaQueryCanonicalFormInput, OmenaQueryExpressionDomainFlowRuntimeV0,
+    EngineInputV2, IncrementalGraphInputV0, IncrementalNodeInputV0, IncrementalRevisionV0,
+    OmenaQueryCanonicalFormInput, OmenaQueryExpressionDomainFlowRuntimeV0,
     OmenaQueryStylePackageManifestV0, ParserPositionV0, SelectorProjectionCertaintyV0,
     StyleAnalysisInputV2, StyleDocumentV2, attach_omena_query_consumer_build_bundle_summary,
     attach_omena_query_consumer_build_source_map_v3,
@@ -11,6 +12,7 @@ use super::{
     execute_omena_query_consumer_build_style_sources,
     execute_omena_query_consumer_build_style_sources_with_context,
     execute_omena_query_transform_passes_from_source, list_omena_query_transform_pass_summaries,
+    plan_incremental_computation_with_priority_inputs, snapshot_from_graph_input,
     summarize_omena_query_analyzed_graph, summarize_omena_query_boundary,
     summarize_omena_query_canonical_form, summarize_omena_query_custom_property_annotations,
     summarize_omena_query_design_system_minimum_description,
@@ -606,6 +608,63 @@ fn exposes_style_edit_distance_and_cascade_margin_bridge_witness() {
     assert_eq!(bridge.cascade_margin_abs_distance, 1);
     assert!(bridge.checked);
     assert!(!bridge.public_safety_claim_ready);
+    assert_eq!(
+        bridge.incremental_priority_input.product,
+        "omena-incremental.edit-distance-priority-input"
+    );
+    assert_eq!(
+        bridge.incremental_priority_input.feature_gate,
+        "incremental-edit-distance-priority-v0"
+    );
+    assert_eq!(
+        bridge.incremental_priority_input.claim_level,
+        "fixtureWitnessMetricInput"
+    );
+    assert!(!bridge.incremental_priority_input.theorem_claimed);
+    assert_eq!(
+        bridge.incremental_priority_input.node_id,
+        "Card.module.scss"
+    );
+    assert_eq!(
+        bridge.incremental_priority_input.edit_distance_total,
+        distance.total_distance
+    );
+
+    let previous = IncrementalGraphInputV0 {
+        revision: IncrementalRevisionV0 { value: 1 },
+        nodes: vec![IncrementalNodeInputV0 {
+            id: "Card.module.scss".to_string(),
+            digest: "card:v1".to_string(),
+            dependency_ids: Vec::new(),
+        }],
+    };
+    let previous_snapshot = snapshot_from_graph_input(&previous);
+    let next = IncrementalGraphInputV0 {
+        revision: IncrementalRevisionV0 { value: 2 },
+        nodes: vec![IncrementalNodeInputV0 {
+            id: "Card.module.scss".to_string(),
+            digest: "card:v2".to_string(),
+            dependency_ids: Vec::new(),
+        }],
+    };
+    let plan = plan_incremental_computation_with_priority_inputs(
+        &next,
+        Some(&previous_snapshot),
+        std::slice::from_ref(&bridge.incremental_priority_input),
+    );
+    assert_eq!(
+        plan.invalidation_priority_plan.product,
+        "omena-incremental.invalidation-priority-plan"
+    );
+    assert_eq!(plan.invalidation_priority_plan.metric_consumed_count, 1);
+    assert_eq!(
+        plan.invalidation_priority_plan.prioritized_dirty_node_ids,
+        vec!["Card.module.scss".to_string()]
+    );
+    assert_eq!(
+        plan.invalidation_priority_plan.entries[0].priority_kind,
+        "editDistanceCascadeMarginWeighted"
+    );
 }
 
 #[test]

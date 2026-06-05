@@ -88,6 +88,7 @@ pub struct IncrementalComputationPlanV0 {
     pub dependency_dirty_count: usize,
     pub alpha_equivalence_graph_hash: IncrementalAlphaEquivalenceHashV0,
     pub shadow_delta_oracle: IncrementalShadowDeltaOracleV0,
+    pub invalidation_priority_plan: IncrementalInvalidationPriorityPlanV0,
     pub nodes: Vec<IncrementalComputationNodeV0>,
 }
 
@@ -132,6 +133,52 @@ pub struct IncrementalShadowDeltaOracleV0 {
     pub incremental_matches_from_scratch_delta: bool,
     pub dbsp_zset_claim_ready: bool,
     pub performance_benchmark_claim_ready: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct IncrementalEditDistancePriorityInputV0 {
+    pub schema_version: &'static str,
+    pub product: &'static str,
+    pub feature_gate: &'static str,
+    pub claim_level: &'static str,
+    pub theorem_claimed: bool,
+    pub node_id: String,
+    pub edit_distance_total: usize,
+    pub cascade_margin_abs_distance: u64,
+    pub bridge_checked: bool,
+    pub bridge_calibration_stage: &'static str,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct IncrementalInvalidationPriorityPlanV0 {
+    pub schema_version: &'static str,
+    pub product: &'static str,
+    pub feature_gate: &'static str,
+    pub claim_level: &'static str,
+    pub theorem_claimed: bool,
+    pub public_safety_claim_ready: bool,
+    pub calibration_stage: &'static str,
+    pub weight_profile: &'static str,
+    pub metric_input_count: usize,
+    pub dirty_node_count: usize,
+    pub metric_consumed_count: usize,
+    pub prioritized_dirty_node_ids: Vec<String>,
+    pub entries: Vec<IncrementalInvalidationPriorityEntryV0>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct IncrementalInvalidationPriorityEntryV0 {
+    pub node_id: String,
+    pub priority_rank: usize,
+    pub priority_score: u64,
+    pub priority_kind: &'static str,
+    pub metric_consumed: bool,
+    pub edit_distance_total: Option<usize>,
+    pub cascade_margin_abs_distance: Option<u64>,
+    pub bridge_checked: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -232,6 +279,7 @@ pub struct IncrementalLayerEvidenceV0 {
     pub value_equality_backdating_ready: bool,
     pub alpha_equivalence_hash_ready: bool,
     pub shadow_delta_oracle_ready: bool,
+    pub edit_distance_priority_ready: bool,
     pub benchmark_surface_ready: bool,
     pub performance_benchmark_claim_ready: bool,
     pub external_datalog_host_ready: bool,
@@ -299,6 +347,7 @@ pub fn summarize_omena_incremental_boundary() -> OmenaIncrementalBoundarySummary
             "valueEqualityBackdating",
             "alphaEquivalenceHash",
             "incrementalShadowDeltaOracle",
+            "editDistanceInvalidationPriority",
         ],
     }
 }
@@ -381,6 +430,14 @@ pub fn plan_incremental_computation(
     input: &IncrementalGraphInputV0,
     previous: Option<&IncrementalSnapshotV0>,
 ) -> IncrementalComputationPlanV0 {
+    plan_incremental_computation_with_priority_inputs(input, previous, &[])
+}
+
+pub fn plan_incremental_computation_with_priority_inputs(
+    input: &IncrementalGraphInputV0,
+    previous: Option<&IncrementalSnapshotV0>,
+    priority_inputs: &[IncrementalEditDistancePriorityInputV0],
+) -> IncrementalComputationPlanV0 {
     let normalized_nodes = normalized_snapshot_nodes(input);
     let alpha_hashes_by_id = alpha_equivalence_hashes_by_node(input);
     let alpha_equivalence_graph_hash = summarize_alpha_equivalence_hash(input);
@@ -455,6 +512,8 @@ pub fn plan_incremental_computation(
     propagate_dependency_dirty(&mut nodes, &mut dirty_ids);
     let shadow_delta_oracle =
         summarize_incremental_shadow_delta_oracle_v0(input, previous, dirty_ids.clone());
+    let invalidation_priority_plan =
+        summarize_incremental_invalidation_priority_plan_v0(&nodes, priority_inputs);
 
     IncrementalComputationPlanV0 {
         schema_version: "0",
@@ -477,6 +536,7 @@ pub fn plan_incremental_computation(
             .count(),
         alpha_equivalence_graph_hash,
         shadow_delta_oracle,
+        invalidation_priority_plan,
         nodes,
     }
 }
@@ -504,6 +564,87 @@ pub fn summarize_incremental_shadow_delta_oracle_v0(
         dbsp_zset_claim_ready: false,
         performance_benchmark_claim_ready: false,
     }
+}
+
+pub fn summarize_incremental_invalidation_priority_plan_v0(
+    nodes: &[IncrementalComputationNodeV0],
+    priority_inputs: &[IncrementalEditDistancePriorityInputV0],
+) -> IncrementalInvalidationPriorityPlanV0 {
+    let priority_inputs_by_node = priority_inputs
+        .iter()
+        .map(|input| (input.node_id.as_str(), input))
+        .collect::<BTreeMap<_, _>>();
+    let mut entries = nodes
+        .iter()
+        .filter(|node| node.dirty)
+        .map(|node| {
+            let priority_input = priority_inputs_by_node.get(node.id.as_str()).copied();
+            let edit_distance_total = priority_input.map(|input| input.edit_distance_total);
+            let cascade_margin_abs_distance =
+                priority_input.map(|input| input.cascade_margin_abs_distance);
+            let bridge_checked = priority_input.is_some_and(|input| input.bridge_checked);
+            let metric_consumed = priority_input.is_some();
+            let priority_score = invalidation_priority_score(priority_input);
+
+            IncrementalInvalidationPriorityEntryV0 {
+                node_id: node.id.clone(),
+                priority_rank: 0,
+                priority_score,
+                priority_kind: if metric_consumed {
+                    "editDistanceCascadeMarginWeighted"
+                } else {
+                    "dirtyNodeDefault"
+                },
+                metric_consumed,
+                edit_distance_total,
+                cascade_margin_abs_distance,
+                bridge_checked,
+            }
+        })
+        .collect::<Vec<_>>();
+    entries.sort_by(|left, right| {
+        right
+            .priority_score
+            .cmp(&left.priority_score)
+            .then_with(|| left.node_id.cmp(&right.node_id))
+    });
+    for (index, entry) in entries.iter_mut().enumerate() {
+        entry.priority_rank = index + 1;
+    }
+    let metric_consumed_count = entries.iter().filter(|entry| entry.metric_consumed).count();
+    let prioritized_dirty_node_ids = entries
+        .iter()
+        .map(|entry| entry.node_id.clone())
+        .collect::<Vec<_>>();
+
+    IncrementalInvalidationPriorityPlanV0 {
+        schema_version: "0",
+        product: "omena-incremental.invalidation-priority-plan",
+        feature_gate: "incremental-edit-distance-priority-v0",
+        claim_level: "fixtureWitnessSchedulerPriority",
+        theorem_claimed: false,
+        public_safety_claim_ready: false,
+        calibration_stage: "fixtureWitnessDistanceMarginWeightedV0",
+        weight_profile: "editDistance10+cascadeMargin3+bridgeChecked1",
+        metric_input_count: priority_inputs.len(),
+        dirty_node_count: entries.len(),
+        metric_consumed_count,
+        prioritized_dirty_node_ids,
+        entries,
+    }
+}
+
+fn invalidation_priority_score(
+    priority_input: Option<&IncrementalEditDistancePriorityInputV0>,
+) -> u64 {
+    const DIRTY_NODE_BASE_SCORE: u64 = 1_000;
+    let Some(priority_input) = priority_input else {
+        return DIRTY_NODE_BASE_SCORE;
+    };
+    DIRTY_NODE_BASE_SCORE
+        + (priority_input.edit_distance_total as u64).saturating_mul(10)
+        + priority_input.cascade_margin_abs_distance.saturating_mul(3)
+        + u64::from(priority_input.bridge_checked)
 }
 
 pub fn run_incremental_consistency_fuzz_case(
@@ -593,21 +734,36 @@ pub fn summarize_incremental_layer_evidence_v0() -> IncrementalLayerEvidenceV0 {
         ],
     };
     database.plan_and_upsert_graph_input(&previous_input);
-    let sample_update = database.plan_and_upsert_graph_input(&IncrementalGraphInputV0 {
-        revision: IncrementalRevisionV0 { value: 2 },
-        nodes: vec![
-            IncrementalNodeInputV0 {
-                id: "source".to_string(),
-                digest: "source:v2".to_string(),
-                dependency_ids: Vec::new(),
-            },
-            IncrementalNodeInputV0 {
-                id: "style".to_string(),
-                digest: "style:v1".to_string(),
-                dependency_ids: vec!["source".to_string()],
-            },
-        ],
-    });
+    let sample_priority_inputs = vec![IncrementalEditDistancePriorityInputV0 {
+        schema_version: "0",
+        product: "omena-incremental.edit-distance-priority-input",
+        feature_gate: "incremental-edit-distance-priority-v0",
+        claim_level: "fixtureWitnessMetricInput",
+        theorem_claimed: false,
+        node_id: "style".to_string(),
+        edit_distance_total: 3,
+        cascade_margin_abs_distance: 2,
+        bridge_checked: true,
+        bridge_calibration_stage: "fixtureWitnessOnlyUncalibrated",
+    }];
+    let sample_update = database.plan_and_upsert_graph_input_with_priority_inputs(
+        &IncrementalGraphInputV0 {
+            revision: IncrementalRevisionV0 { value: 2 },
+            nodes: vec![
+                IncrementalNodeInputV0 {
+                    id: "source".to_string(),
+                    digest: "source:v2".to_string(),
+                    dependency_ids: Vec::new(),
+                },
+                IncrementalNodeInputV0 {
+                    id: "style".to_string(),
+                    digest: "style:v1".to_string(),
+                    dependency_ids: vec!["source".to_string()],
+                },
+            ],
+        },
+        &sample_priority_inputs,
+    );
 
     IncrementalLayerEvidenceV0 {
         schema_version: "0",
@@ -646,6 +802,16 @@ pub fn summarize_incremental_layer_evidence_v0() -> IncrementalLayerEvidenceV0 {
                 .incremental_plan
                 .shadow_delta_oracle
                 .theorem_claimed,
+        edit_distance_priority_ready: sample_update
+            .incremental_plan
+            .invalidation_priority_plan
+            .entries
+            .iter()
+            .any(|entry| {
+                entry.node_id == "style"
+                    && entry.metric_consumed
+                    && entry.priority_kind == "editDistanceCascadeMarginWeighted"
+            }),
         benchmark_surface_ready: true,
         performance_benchmark_claim_ready: false,
         external_datalog_host_ready: false,
@@ -662,6 +828,7 @@ pub fn summarize_incremental_layer_evidence_v0() -> IncrementalLayerEvidenceV0 {
             "value-equality backdating with changed_at/verified_at split",
             "alpha-equivalence-aware fixture hash",
             "sampled incremental-vs-from-scratch shadow delta oracle",
+            "edit-distance weighted invalidation priority",
         ],
         deferred_claims: vec![
             "DBSP runtime",
@@ -1011,7 +1178,19 @@ impl OmenaIncrementalDatabaseV0 {
         &mut self,
         input: &IncrementalGraphInputV0,
     ) -> IncrementalDatabaseUpdateV0 {
-        let incremental_plan = plan_incremental_computation(input, self.current_snapshot.as_ref());
+        self.plan_and_upsert_graph_input_with_priority_inputs(input, &[])
+    }
+
+    pub fn plan_and_upsert_graph_input_with_priority_inputs(
+        &mut self,
+        input: &IncrementalGraphInputV0,
+        priority_inputs: &[IncrementalEditDistancePriorityInputV0],
+    ) -> IncrementalDatabaseUpdateV0 {
+        let incremental_plan = plan_incremental_computation_with_priority_inputs(
+            input,
+            self.current_snapshot.as_ref(),
+            priority_inputs,
+        );
         let datalog_rule_evaluator =
             summarize_datalog_rule_evaluator_v0(input, self.current_snapshot.as_ref());
         let next_snapshot = self.upsert_graph_input(input);
@@ -1126,6 +1305,7 @@ mod tests {
         IncrementalCancellationRegistryV0, IncrementalGraphInputV0, IncrementalNodeInputV0,
         IncrementalRevisionV0, OmenaIncrementalDatabaseV0, SALSA_DEPENDENCY_QUERY_RUNS,
         SALSA_DIGEST_QUERY_RUNS, plan_incremental_computation,
+        plan_incremental_computation_with_priority_inputs,
         read_salsa_incremental_node_dependency_ids, read_salsa_incremental_node_digest,
         snapshot_from_graph_input, summarize_datalog_rule_evaluator_v0,
         summarize_incremental_layer_evidence_v0, summarize_omena_incremental_boundary,
@@ -1320,6 +1500,49 @@ mod tests {
     }
 
     #[test]
+    fn edit_distance_priority_orders_dirty_nodes_for_scheduler() {
+        let previous = three_node_input("a:v1", "b:v1", "c:v1", 1);
+        let previous_snapshot = snapshot_from_graph_input(&previous);
+        let next = three_node_input("a:v2", "b:v2", "c:v1", 2);
+        let plan = plan_incremental_computation_with_priority_inputs(
+            &next,
+            Some(&previous_snapshot),
+            &[
+                priority_input("a", 1, 1, true),
+                priority_input("b", 8, 2, true),
+            ],
+        );
+
+        assert_eq!(
+            plan.invalidation_priority_plan.product,
+            "omena-incremental.invalidation-priority-plan"
+        );
+        assert_eq!(
+            plan.invalidation_priority_plan.feature_gate,
+            "incremental-edit-distance-priority-v0"
+        );
+        assert_eq!(
+            plan.invalidation_priority_plan.calibration_stage,
+            "fixtureWitnessDistanceMarginWeightedV0"
+        );
+        assert!(!plan.invalidation_priority_plan.theorem_claimed);
+        assert!(!plan.invalidation_priority_plan.public_safety_claim_ready);
+        assert_eq!(plan.invalidation_priority_plan.metric_input_count, 2);
+        assert_eq!(plan.invalidation_priority_plan.metric_consumed_count, 2);
+        assert_eq!(
+            plan.invalidation_priority_plan.prioritized_dirty_node_ids,
+            vec!["b".to_string(), "a".to_string(), "c".to_string()]
+        );
+        let first = &plan.invalidation_priority_plan.entries[0];
+        assert_eq!(first.node_id, "b");
+        assert_eq!(first.priority_rank, 1);
+        assert!(first.metric_consumed);
+        assert_eq!(first.edit_distance_total, Some(8));
+        assert_eq!(first.cascade_margin_abs_distance, Some(2));
+        assert!(first.bridge_checked);
+    }
+
+    #[test]
     fn datalog_rule_evaluator_contract_matches_incremental_dirty_plan() {
         let input = sample_input("a:v1", "b:v1", 1);
         let snapshot = snapshot_from_graph_input(&input);
@@ -1428,6 +1651,7 @@ mod tests {
         assert!(evidence.value_equality_backdating_ready);
         assert!(evidence.alpha_equivalence_hash_ready);
         assert!(evidence.shadow_delta_oracle_ready);
+        assert!(evidence.edit_distance_priority_ready);
         assert!(evidence.benchmark_surface_ready);
         assert!(!evidence.performance_benchmark_claim_ready);
         assert!(!evidence.external_datalog_host_ready);
@@ -1458,6 +1682,11 @@ mod tests {
             evidence
                 .supported_claims
                 .contains(&"value-equality backdating with changed_at/verified_at split")
+        );
+        assert!(
+            evidence
+                .supported_claims
+                .contains(&"edit-distance weighted invalidation priority")
         );
         assert!(evidence.deferred_claims.contains(&"DBSP runtime"));
         assert!(
@@ -1612,6 +1841,54 @@ mod tests {
                     dependency_ids: vec!["a".to_string()],
                 },
             ],
+        }
+    }
+
+    fn three_node_input(
+        a_digest: &str,
+        b_digest: &str,
+        c_digest: &str,
+        revision: u64,
+    ) -> IncrementalGraphInputV0 {
+        IncrementalGraphInputV0 {
+            revision: IncrementalRevisionV0 { value: revision },
+            nodes: vec![
+                IncrementalNodeInputV0 {
+                    id: "a".to_string(),
+                    digest: a_digest.to_string(),
+                    dependency_ids: Vec::new(),
+                },
+                IncrementalNodeInputV0 {
+                    id: "b".to_string(),
+                    digest: b_digest.to_string(),
+                    dependency_ids: Vec::new(),
+                },
+                IncrementalNodeInputV0 {
+                    id: "c".to_string(),
+                    digest: c_digest.to_string(),
+                    dependency_ids: vec!["a".to_string()],
+                },
+            ],
+        }
+    }
+
+    fn priority_input(
+        node_id: &str,
+        edit_distance_total: usize,
+        cascade_margin_abs_distance: u64,
+        bridge_checked: bool,
+    ) -> super::IncrementalEditDistancePriorityInputV0 {
+        super::IncrementalEditDistancePriorityInputV0 {
+            schema_version: "0",
+            product: "omena-incremental.edit-distance-priority-input",
+            feature_gate: "incremental-edit-distance-priority-v0",
+            claim_level: "fixtureWitnessMetricInput",
+            theorem_claimed: false,
+            node_id: node_id.to_string(),
+            edit_distance_total,
+            cascade_margin_abs_distance,
+            bridge_checked,
+            bridge_calibration_stage: "fixtureWitnessOnlyUncalibrated",
         }
     }
 

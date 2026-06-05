@@ -160,6 +160,7 @@ pub fn summarize_omena_query_style_edit_distance_cascade_margin_bridge(
     let checked = lipschitz_bound
         .map(|bound| cascade_margin_abs_distance <= bound)
         .unwrap_or(false);
+    let calibration_stage = "fixtureWitnessOnlyUncalibrated";
 
     StyleEditDistanceCascadeMarginBridgeV0 {
         schema_version: "0",
@@ -180,7 +181,19 @@ pub fn summarize_omena_query_style_edit_distance_cascade_margin_bridge(
         lipschitz_constant,
         lipschitz_bound,
         checked,
-        calibration_stage: "fixtureWitnessOnlyUncalibrated",
+        calibration_stage,
+        incremental_priority_input: IncrementalEditDistancePriorityInputV0 {
+            schema_version: "0",
+            product: "omena-incremental.edit-distance-priority-input",
+            feature_gate: "incremental-edit-distance-priority-v0",
+            claim_level: "fixtureWitnessMetricInput",
+            theorem_claimed: false,
+            node_id: edit_distance.right_style_path.clone(),
+            edit_distance_total: edit_distance.total_distance,
+            cascade_margin_abs_distance,
+            bridge_checked: checked,
+            bridge_calibration_stage: calibration_stage,
+        },
     }
 }
 

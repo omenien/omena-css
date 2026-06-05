@@ -588,6 +588,7 @@ pub struct StyleEditDistanceCascadeMarginBridgeV0 {
     pub lipschitz_bound: Option<u64>,
     pub checked: bool,
     pub calibration_stage: &'static str,
+    pub incremental_priority_input: IncrementalEditDistancePriorityInputV0,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
