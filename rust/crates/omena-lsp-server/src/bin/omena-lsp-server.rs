@@ -1,30 +1,39 @@
 use std::io::{self, BufRead, Write};
+use std::sync::{Arc, Mutex};
+use std::thread::{self, JoinHandle};
 use std::time::Duration;
 
-use omena_lsp_server::{LspShellState, handle_lsp_message_scheduled_outputs};
+use omena_lsp_server::{LspShellState, ScheduledLspOutput, handle_lsp_message_scheduled_outputs};
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-    run_stdio_server(&mut io::stdin().lock(), &mut io::stdout())?;
+    let stdin = io::stdin();
+    run_stdio_server(&mut stdin.lock(), io::stdout())?;
     Ok(())
 }
 
-fn run_stdio_server<R: BufRead, W: Write>(
+fn run_stdio_server<R: BufRead, W: Write + Send + 'static>(
     reader: &mut R,
-    writer: &mut W,
+    writer: W,
 ) -> Result<(), Box<dyn std::error::Error>> {
     let mut state = LspShellState::default();
+    let writer = Arc::new(Mutex::new(writer));
+    let mut delayed_outputs: Vec<JoinHandle<Result<(), String>>> = Vec::new();
 
     while let Some(payload) = read_lsp_payload(reader)? {
         let message: serde_json::Value = serde_json::from_str(&payload)?;
         for output in handle_lsp_message_scheduled_outputs(&mut state, message) {
-            if let Some(delay_millis) = output.delay_millis {
-                std::thread::sleep(Duration::from_millis(delay_millis));
-            }
-            write_lsp_response(writer, &output.value)?;
+            write_scheduled_lsp_output(&writer, output, &mut delayed_outputs)?;
         }
         if state.should_exit {
             break;
         }
+    }
+
+    for handle in delayed_outputs {
+        handle
+            .join()
+            .map_err(|_| "delayed LSP writer panicked".to_string())?
+            .map_err(|error| format!("delayed LSP writer failed: {error}"))?;
     }
 
     Ok(())
@@ -68,4 +77,23 @@ fn write_lsp_response<W: Write>(
     writer.write_all(&body)?;
     writer.flush()?;
     Ok(())
+}
+
+fn write_scheduled_lsp_output<W: Write + Send + 'static>(
+    writer: &Arc<Mutex<W>>,
+    output: ScheduledLspOutput,
+    delayed_outputs: &mut Vec<JoinHandle<Result<(), String>>>,
+) -> Result<(), Box<dyn std::error::Error>> {
+    if let Some(delay_millis) = output.delay_millis {
+        let writer = Arc::clone(writer);
+        delayed_outputs.push(thread::spawn(move || {
+            thread::sleep(Duration::from_millis(delay_millis));
+            let mut writer = writer.lock().map_err(|_| "stdout lock poisoned".to_string())?;
+            write_lsp_response(&mut *writer, &output.value).map_err(|error| error.to_string())
+        }));
+        return Ok(());
+    }
+
+    let mut writer = writer.lock().map_err(|_| "stdout lock poisoned")?;
+    write_lsp_response(&mut *writer, &output.value)
 }

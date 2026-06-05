@@ -28,7 +28,7 @@ const REFRESH_BASELINE_SAMPLES = parsePositiveInteger(
 const HOT_SAMPLES = parsePositiveInteger(process.env.OMENA_LSP_RESOLVER_CACHE_HOT_SAMPLES, 24);
 const REQUEST_TIMEOUT_MS = parsePositiveInteger(
   process.env.OMENA_LSP_RESOLVER_CACHE_REQUEST_TIMEOUT_MS,
-  10_000,
+  30_000,
 );
 const MIN_REFRESH_TO_HOT_P50_RATIO = parsePositiveNumber(
   process.env.OMENA_LSP_RESOLVER_CACHE_MIN_REFRESH_TO_HOT_P50_RATIO,

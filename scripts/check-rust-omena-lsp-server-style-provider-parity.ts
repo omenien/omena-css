@@ -215,11 +215,65 @@ const expectedAppStyleDiagnostics = [
   expectedUnusedAlertSelectorDiagnostic,
   expectedUnusedConditionalSelectorDiagnostic,
 ];
-const expectedOtherStyleDiagnostics = [
+const expectedPublishedMissingCustomPropertyDiagnostic = diagnosticWithTier(
+  expectedMissingCustomPropertyDiagnostic,
+  "baseline",
+  "fastFactsV0",
+);
+const expectedPublishedMissingSelectorDiagnostic = diagnosticWithTier(
+  expectedMissingSelectorDiagnostic,
+  "baseline",
+  "sourceSyntaxIndexV0",
+);
+const expectedPublishedMissingImportedStaticClassDiagnostic = diagnosticWithTier(
+  expectedMissingImportedStaticClassDiagnostic,
+  "baseline",
+  "sourceSyntaxIndexV0",
+);
+const expectedPublishedUnusedAlertSelectorDiagnostic = diagnosticWithTier(
+  expectedUnusedAlertSelectorDiagnostic,
+  "optimizing",
+  "analyzedGraphV0",
+);
+const expectedPublishedUnusedConditionalSelectorDiagnostic = diagnosticWithTier(
+  expectedUnusedConditionalSelectorDiagnostic,
+  "optimizing",
+  "analyzedGraphV0",
+);
+const expectedPublishedUnusedOtherRootSelectorDiagnostic = diagnosticWithTier(
   expectedUnusedOtherRootSelectorDiagnostic,
+  "optimizing",
+  "analyzedGraphV0",
+);
+const expectedPublishedUnusedOtherThemeSelectorDiagnostic = diagnosticWithTier(
   expectedUnusedOtherThemeSelectorDiagnostic,
+  "optimizing",
+  "analyzedGraphV0",
+);
+const expectedPublishedUnusedOtherGhostSelectorDiagnostic = diagnosticWithTier(
   expectedUnusedOtherGhostSelectorDiagnostic,
+  "optimizing",
+  "analyzedGraphV0",
+);
+const expectedPublishedUnusedOtherCardSelectorDiagnostic = diagnosticWithTier(
   expectedUnusedOtherCardSelectorDiagnostic,
+  "optimizing",
+  "analyzedGraphV0",
+);
+const expectedPublishedAppStyleDiagnostics = [
+  expectedPublishedMissingCustomPropertyDiagnostic,
+  expectedPublishedUnusedAlertSelectorDiagnostic,
+  expectedPublishedUnusedConditionalSelectorDiagnostic,
+];
+const expectedPublishedOtherStyleDiagnostics = [
+  expectedPublishedUnusedOtherRootSelectorDiagnostic,
+  expectedPublishedUnusedOtherThemeSelectorDiagnostic,
+  expectedPublishedUnusedOtherGhostSelectorDiagnostic,
+  expectedPublishedUnusedOtherCardSelectorDiagnostic,
+];
+const expectedPublishedSourceDiagnostics = [
+  expectedPublishedMissingImportedStaticClassDiagnostic,
+  expectedPublishedMissingSelectorDiagnostic,
 ];
 
 const initializeRequest = {
@@ -779,7 +833,7 @@ const diagnosticNotifications = messages.filter(
   (message) => message.method === "textDocument/publishDiagnostics",
 );
 assert.equal(responses.length, 38);
-assert.deepEqual(diagnosticNotifications, [
+const expectedDiagnosticNotifications = [
   {
     jsonrpc: "2.0",
     method: "textDocument/publishDiagnostics",
@@ -793,7 +847,15 @@ assert.deepEqual(diagnosticNotifications, [
     method: "textDocument/publishDiagnostics",
     params: {
       uri: styleUri,
-      diagnostics: expectedAppStyleDiagnostics,
+      diagnostics: [expectedPublishedMissingCustomPropertyDiagnostic],
+    },
+  },
+  {
+    jsonrpc: "2.0",
+    method: "textDocument/publishDiagnostics",
+    params: {
+      uri: styleUri,
+      diagnostics: expectedPublishedAppStyleDiagnostics,
     },
   },
   {
@@ -801,10 +863,7 @@ assert.deepEqual(diagnosticNotifications, [
     method: "textDocument/publishDiagnostics",
     params: {
       uri: sourceUri,
-      diagnostics: [
-        expectedMissingImportedStaticClassDiagnostic,
-        expectedMissingSelectorDiagnostic,
-      ],
+      diagnostics: expectedPublishedSourceDiagnostics,
     },
   },
   {
@@ -812,7 +871,15 @@ assert.deepEqual(diagnosticNotifications, [
     method: "textDocument/publishDiagnostics",
     params: {
       uri: otherStyleUri,
-      diagnostics: expectedOtherStyleDiagnostics,
+      diagnostics: [],
+    },
+  },
+  {
+    jsonrpc: "2.0",
+    method: "textDocument/publishDiagnostics",
+    params: {
+      uri: otherStyleUri,
+      diagnostics: expectedPublishedOtherStyleDiagnostics,
     },
   },
   {
@@ -820,13 +887,15 @@ assert.deepEqual(diagnosticNotifications, [
     method: "textDocument/publishDiagnostics",
     params: {
       uri: sourceUri,
-      diagnostics: [
-        expectedMissingImportedStaticClassDiagnostic,
-        expectedMissingSelectorDiagnostic,
-      ],
+      diagnostics: expectedPublishedSourceDiagnostics,
     },
   },
-]);
+];
+assert.equal(diagnosticNotifications.length, expectedDiagnosticNotifications.length);
+assert.deepEqual(
+  sortDiagnosticNotifications(diagnosticNotifications),
+  sortDiagnosticNotifications(expectedDiagnosticNotifications),
+);
 
 const styleHoverResponse = responses[1]!;
 assert.equal(styleHoverResponse.id, 2);
@@ -1430,6 +1499,48 @@ function unusedSelectorDiagnostic(selector: { readonly name: string; readonly ra
   };
 }
 
+function diagnosticWithTier<T extends { readonly data: Record<string, unknown> }>(
+  diagnostic: T,
+  pipelineTier: "baseline" | "optimizing",
+  pipelineTierEvidence: "fastFactsV0" | "sourceSyntaxIndexV0" | "analyzedGraphV0",
+): T & {
+  readonly data: T["data"] & {
+    readonly pipelineTier: typeof pipelineTier;
+    readonly pipelineTierEvidence: typeof pipelineTierEvidence;
+  };
+} {
+  return {
+    ...diagnostic,
+    data: {
+      ...diagnostic.data,
+      pipelineTier,
+      pipelineTierEvidence,
+    },
+  };
+}
+
+function sortDiagnosticNotifications<T>(notifications: readonly T[]): T[] {
+  return notifications.toSorted((left, right) =>
+    diagnosticNotificationSignature(left).localeCompare(diagnosticNotificationSignature(right)),
+  );
+}
+
+function diagnosticNotificationSignature(notification: unknown): string {
+  const params = isRecord(notification) ? notification.params : undefined;
+  const uri = isRecord(params) && typeof params.uri === "string" ? params.uri : "";
+  const diagnostics =
+    isRecord(params) && Array.isArray(params.diagnostics) ? params.diagnostics : [];
+  const codes = diagnostics
+    .map((diagnostic) => {
+      if (!isRecord(diagnostic)) return "";
+      const code = typeof diagnostic.code === "string" ? diagnostic.code : "";
+      const message = typeof diagnostic.message === "string" ? diagnostic.message : "";
+      return `${code}:${message}`;
+    })
+    .join("|");
+  return `${uri}::${diagnostics.length}::${codes}`;
+}
+
 function assertSingleCandidate(
   response: any,
   queryPosition: { readonly line: number; readonly character: number },
@@ -1468,4 +1579,8 @@ function readFrames(stdout: string): any[] {
   }
 
   return frames;
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null;
 }
