@@ -108,6 +108,17 @@ describe("check orchestrator manifest", () => {
       args: ["--variant", "tsgo", "--repeat", "1", "--json"],
     });
 
+    const rustLaneBundle = resolveGateTarget(manifest, "rust/lane/bundle");
+    expect(rustLaneBundle?.kind).toBe("bundle");
+    expect(rustLaneBundle?.origin).toBe("declared");
+    expect(rustLaneBundle?.referencedScripts).toEqual(
+      expect.arrayContaining([
+        "check:rust-omena-syntax-boundary",
+        "check:rust-producer-boundary",
+        "check:rust-theory-claim-levels",
+      ]),
+    );
+
     const phaseADecisionReady = resolveGateTarget(manifest, "ts7/phase-a/decision-ready");
     expect(phaseADecisionReady?.kind).toBe("bundle");
     expect(phaseADecisionReady?.referencedScripts).toEqual(
@@ -240,6 +251,27 @@ describe("check orchestrator manifest", () => {
         expect.objectContaining({ id: "rust/workspace", depth: 1 }),
         expect.objectContaining({ id: "rust/producer-boundary", depth: 1 }),
         expect.objectContaining({ id: "rust/gate/evidence", depth: 1 }),
+      ]),
+    );
+  });
+
+  it("uses declared deps for the Rust lane bundle while preserving its public script", () => {
+    const laneBundle = resolveGateTarget(manifest, "rust/lane/bundle");
+    expect(laneBundle).toMatchObject({
+      kind: "bundle",
+      origin: "declared",
+      scriptName: "check:rust-lane-bundle",
+      ciTier: "manual",
+      ciGroup: "rust",
+      tags: ["rust", "lane"],
+    });
+
+    const plan = buildCheckPlan(manifest, laneBundle!);
+    expect(plan.steps).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ id: "rust/omena-syntax/boundary", depth: 1 }),
+        expect.objectContaining({ id: "rust/producer-boundary", depth: 1 }),
+        expect.objectContaining({ id: "rust/theory-claim-levels", depth: 1 }),
       ]),
     );
   });
@@ -567,6 +599,9 @@ describe("check orchestrator manifest", () => {
     );
     expect(inventory).toMatch(
       /\| `rust\/release\/bundle`\s+\| bundle\s+\| declared\s+\| `check:rust-release-bundle`\s+\|/,
+    );
+    expect(inventory).toMatch(
+      /\| `rust\/lane\/bundle`\s+\| bundle\s+\| declared\s+\| `check:rust-lane-bundle`\s+\|/,
     );
   });
 
