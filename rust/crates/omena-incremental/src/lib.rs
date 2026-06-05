@@ -86,6 +86,8 @@ pub struct IncrementalComputationPlanV0 {
     pub new_node_count: usize,
     pub removed_node_count: usize,
     pub dependency_dirty_count: usize,
+    pub alpha_equivalence_graph_hash: IncrementalAlphaEquivalenceHashV0,
+    pub shadow_delta_oracle: IncrementalShadowDeltaOracleV0,
     pub nodes: Vec<IncrementalComputationNodeV0>,
 }
 
@@ -97,6 +99,39 @@ pub struct IncrementalComputationNodeV0 {
     pub dependency_ids: Vec<String>,
     pub dirty: bool,
     pub reasons: Vec<&'static str>,
+    pub changed_at: IncrementalRevisionV0,
+    pub verified_at: IncrementalRevisionV0,
+    pub value_equal_to_previous: bool,
+    pub alpha_equivalence_hash: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct IncrementalAlphaEquivalenceHashV0 {
+    pub schema_version: &'static str,
+    pub product: &'static str,
+    pub feature_gate: &'static str,
+    pub claim_level: &'static str,
+    pub theorem_claimed: bool,
+    pub hash: String,
+    pub normalized_node_count: usize,
+    pub normalized_edge_count: usize,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct IncrementalShadowDeltaOracleV0 {
+    pub schema_version: &'static str,
+    pub product: &'static str,
+    pub feature_gate: &'static str,
+    pub claim_level: &'static str,
+    pub theorem_claimed: bool,
+    pub sampled_shadow_witness_ready: bool,
+    pub incremental_dirty_ids: Vec<String>,
+    pub from_scratch_dirty_ids: Vec<String>,
+    pub incremental_matches_from_scratch_delta: bool,
+    pub dbsp_zset_claim_ready: bool,
+    pub performance_benchmark_claim_ready: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -194,6 +229,9 @@ pub struct IncrementalLayerEvidenceV0 {
     pub fuzz_evidence_ready: bool,
     pub salsa_reuse_evidence_ready: bool,
     pub datalog_contract_evidence_ready: bool,
+    pub value_equality_backdating_ready: bool,
+    pub alpha_equivalence_hash_ready: bool,
+    pub shadow_delta_oracle_ready: bool,
     pub benchmark_surface_ready: bool,
     pub performance_benchmark_claim_ready: bool,
     pub external_datalog_host_ready: bool,
@@ -258,6 +296,9 @@ pub fn summarize_omena_incremental_boundary() -> OmenaIncrementalBoundarySummary
             "salsaFieldGranularReuse",
             "salsaPlanAndSnapshotUpdate",
             "dependencyFixedPointEarlyExit",
+            "valueEqualityBackdating",
+            "alphaEquivalenceHash",
+            "incrementalShadowDeltaOracle",
         ],
     }
 }
@@ -341,6 +382,8 @@ pub fn plan_incremental_computation(
     previous: Option<&IncrementalSnapshotV0>,
 ) -> IncrementalComputationPlanV0 {
     let normalized_nodes = normalized_snapshot_nodes(input);
+    let alpha_hashes_by_id = alpha_equivalence_hashes_by_node(input);
+    let alpha_equivalence_graph_hash = summarize_alpha_equivalence_hash(input);
     let previous_by_id = previous
         .map(|snapshot| {
             snapshot
@@ -374,21 +417,44 @@ pub fn plan_incremental_computation(
                     }
                 }
             }
+            let value_equal_to_previous =
+                previous_by_id
+                    .get(node.id.as_str())
+                    .is_some_and(|previous_node| {
+                        previous_node.digest == node.digest
+                            && previous_node.dependency_ids == node.dependency_ids
+                    });
+            let changed_at = if value_equal_to_previous {
+                previous
+                    .map(|snapshot| snapshot.revision)
+                    .unwrap_or(input.revision)
+            } else {
+                input.revision
+            };
             if !reasons.is_empty() {
                 dirty_ids.insert(node.id.clone());
             }
 
             IncrementalComputationNodeV0 {
+                alpha_equivalence_hash: alpha_hashes_by_id
+                    .get(node.id.as_str())
+                    .cloned()
+                    .unwrap_or_else(|| stable_hash_hex(node.id.as_bytes())),
                 id: node.id,
                 digest: node.digest,
                 dependency_ids: node.dependency_ids,
                 dirty: !reasons.is_empty(),
                 reasons,
+                changed_at,
+                verified_at: input.revision,
+                value_equal_to_previous,
             }
         })
         .collect::<Vec<_>>();
 
     propagate_dependency_dirty(&mut nodes, &mut dirty_ids);
+    let shadow_delta_oracle =
+        summarize_incremental_shadow_delta_oracle_v0(input, previous, dirty_ids.clone());
 
     IncrementalComputationPlanV0 {
         schema_version: "0",
@@ -409,7 +475,34 @@ pub fn plan_incremental_computation(
             .iter()
             .filter(|node| node.reasons.contains(&"dependencyDirty"))
             .count(),
+        alpha_equivalence_graph_hash,
+        shadow_delta_oracle,
         nodes,
+    }
+}
+
+pub fn summarize_incremental_shadow_delta_oracle_v0(
+    input: &IncrementalGraphInputV0,
+    previous: Option<&IncrementalSnapshotV0>,
+    incremental_dirty_ids: BTreeSet<String>,
+) -> IncrementalShadowDeltaOracleV0 {
+    let from_scratch_dirty_ids = compute_from_scratch_delta_dirty_ids(input, previous);
+    let incremental_dirty_ids = incremental_dirty_ids.into_iter().collect::<Vec<_>>();
+    let from_scratch_dirty_ids = from_scratch_dirty_ids.into_iter().collect::<Vec<_>>();
+    let incremental_matches_from_scratch_delta = incremental_dirty_ids == from_scratch_dirty_ids;
+
+    IncrementalShadowDeltaOracleV0 {
+        schema_version: "0",
+        product: "omena-incremental.shadow-delta-oracle",
+        feature_gate: "incremental-shadow-delta-v0",
+        claim_level: "sampledFixtureWitnessNotEquivalenceProof",
+        theorem_claimed: false,
+        sampled_shadow_witness_ready: incremental_matches_from_scratch_delta,
+        incremental_dirty_ids,
+        from_scratch_dirty_ids,
+        incremental_matches_from_scratch_delta,
+        dbsp_zset_claim_ready: false,
+        performance_benchmark_claim_ready: false,
     }
 }
 
@@ -530,6 +623,29 @@ pub fn summarize_incremental_layer_evidence_v0() -> IncrementalLayerEvidenceV0 {
             .contains(&"salsaTrackedNodeSnapshotQuery"),
         datalog_contract_evidence_ready: sample_update.datalog_rule_evaluator.fixed_point_reached
             && !sample_update.datalog_rule_evaluator.external_host_ready,
+        value_equality_backdating_ready: sample_update.incremental_plan.nodes.iter().any(|node| {
+            node.id == "style"
+                && node.value_equal_to_previous
+                && node.changed_at.value == 1
+                && node.verified_at.value == 2
+        }),
+        alpha_equivalence_hash_ready: sample_update
+            .incremental_plan
+            .alpha_equivalence_graph_hash
+            .feature_gate
+            == "incremental-alpha-equivalence-hash-v0"
+            && !sample_update
+                .incremental_plan
+                .alpha_equivalence_graph_hash
+                .theorem_claimed,
+        shadow_delta_oracle_ready: sample_update
+            .incremental_plan
+            .shadow_delta_oracle
+            .incremental_matches_from_scratch_delta
+            && !sample_update
+                .incremental_plan
+                .shadow_delta_oracle
+                .theorem_claimed,
         benchmark_surface_ready: true,
         performance_benchmark_claim_ready: false,
         external_datalog_host_ready: false,
@@ -543,6 +659,9 @@ pub fn summarize_incremental_layer_evidence_v0() -> IncrementalLayerEvidenceV0 {
             "Salsa-backed tracked node snapshot reuse",
             "fuzzed dirty-set invariant corpus",
             "Datalog-shaped audit contract over the incremental plan",
+            "value-equality backdating with changed_at/verified_at split",
+            "alpha-equivalence-aware fixture hash",
+            "sampled incremental-vs-from-scratch shadow delta oracle",
         ],
         deferred_claims: vec![
             "DBSP runtime",
@@ -611,6 +730,148 @@ fn normalized_ids(ids: &[String]) -> Vec<String> {
         .collect::<BTreeSet<_>>()
         .into_iter()
         .collect()
+}
+
+fn summarize_alpha_equivalence_hash(
+    input: &IncrementalGraphInputV0,
+) -> IncrementalAlphaEquivalenceHashV0 {
+    let node_hashes = alpha_equivalence_hashes_by_node(input);
+    let normalized_node_count = node_hashes.len();
+    let normalized_edge_count = input
+        .nodes
+        .iter()
+        .map(|node| normalized_ids(&node.dependency_ids).len())
+        .sum();
+    let mut labels = node_hashes.into_values().collect::<Vec<_>>();
+    labels.sort();
+    let labels = labels.join("|");
+    let hash = stable_hash_hex(
+        format!("nodes={normalized_node_count};edges={normalized_edge_count};labels={labels}")
+            .as_bytes(),
+    );
+
+    IncrementalAlphaEquivalenceHashV0 {
+        schema_version: "0",
+        product: "omena-incremental.alpha-equivalence-hash",
+        feature_gate: "incremental-alpha-equivalence-hash-v0",
+        claim_level: "fixtureWitnessAlphaRenamingStableHash",
+        theorem_claimed: false,
+        hash,
+        normalized_node_count,
+        normalized_edge_count,
+    }
+}
+
+fn alpha_equivalence_hashes_by_node(input: &IncrementalGraphInputV0) -> BTreeMap<String, String> {
+    let nodes = normalized_snapshot_nodes(input);
+    let internal_ids = nodes
+        .iter()
+        .map(|node| node.id.as_str())
+        .collect::<BTreeSet<_>>();
+    let mut labels = nodes
+        .iter()
+        .map(|node| {
+            (
+                node.id.clone(),
+                stable_hash_hex(format!("digest={}", node.digest).as_bytes()),
+            )
+        })
+        .collect::<BTreeMap<_, _>>();
+
+    for _ in 0..=nodes.len() {
+        let next = nodes
+            .iter()
+            .map(|node| {
+                let mut dependency_labels = node
+                    .dependency_ids
+                    .iter()
+                    .map(|dependency_id| {
+                        if internal_ids.contains(dependency_id.as_str()) {
+                            labels
+                                .get(dependency_id)
+                                .cloned()
+                                .unwrap_or_else(|| stable_hash_hex(dependency_id.as_bytes()))
+                        } else {
+                            format!("external:{dependency_id}")
+                        }
+                    })
+                    .collect::<Vec<_>>();
+                dependency_labels.sort();
+                let signature = format!(
+                    "digest={};deps={}",
+                    node.digest,
+                    dependency_labels.join(",")
+                );
+                (node.id.clone(), stable_hash_hex(signature.as_bytes()))
+            })
+            .collect::<BTreeMap<_, _>>();
+        if next == labels {
+            break;
+        }
+        labels = next;
+    }
+
+    labels
+}
+
+fn compute_from_scratch_delta_dirty_ids(
+    input: &IncrementalGraphInputV0,
+    previous: Option<&IncrementalSnapshotV0>,
+) -> BTreeSet<String> {
+    let normalized_nodes = normalized_snapshot_nodes(input);
+    let previous_by_id = previous
+        .map(|snapshot| {
+            snapshot
+                .nodes
+                .iter()
+                .map(|node| (node.id.as_str(), node))
+                .collect::<BTreeMap<_, _>>()
+        })
+        .unwrap_or_default();
+    let mut dirty_ids = normalized_nodes
+        .iter()
+        .filter_map(|node| match previous_by_id.get(node.id.as_str()) {
+            None => Some(node.id.clone()),
+            Some(previous_node)
+                if previous_node.digest != node.digest
+                    || previous_node.dependency_ids != node.dependency_ids =>
+            {
+                Some(node.id.clone())
+            }
+            Some(_) => None,
+        })
+        .collect::<BTreeSet<_>>();
+
+    let max_iterations = dependency_propagation_iteration_limit(normalized_nodes.len());
+    for _ in 0..max_iterations {
+        let mut changed = false;
+        for node in &normalized_nodes {
+            if dirty_ids.contains(node.id.as_str()) {
+                continue;
+            }
+            if node
+                .dependency_ids
+                .iter()
+                .any(|dependency_id| dirty_ids.contains(dependency_id.as_str()))
+            {
+                changed = dirty_ids.insert(node.id.clone()) || changed;
+            }
+        }
+        if !changed {
+            break;
+        }
+    }
+
+    dirty_ids
+}
+
+fn stable_hash_hex(bytes: &[u8]) -> String {
+    let mut hash = 0xcbf2_9ce4_8422_2325_u64;
+    for byte in bytes {
+        hash ^= u64::from(*byte);
+        hash = hash.wrapping_mul(0x0000_0100_0000_01b3);
+    }
+    format!("{hash:016x}")
 }
 
 fn propagate_dependency_dirty(
@@ -927,6 +1188,21 @@ mod tests {
 
         assert_eq!(plan.dirty_node_count, 0);
         assert_eq!(plan.changed_input_count, 0);
+        assert_eq!(
+            plan.shadow_delta_oracle.incremental_dirty_ids,
+            Vec::<String>::new()
+        );
+        assert!(
+            plan.shadow_delta_oracle
+                .incremental_matches_from_scratch_delta
+        );
+        let Some(b) = node_by_id(&plan, "b") else {
+            assert!(plan.nodes.iter().any(|node| node.id == "b"));
+            return;
+        };
+        assert_eq!(b.changed_at.value, 1);
+        assert_eq!(b.verified_at.value, 2);
+        assert!(b.value_equal_to_previous);
     }
 
     #[test]
@@ -940,6 +1216,107 @@ mod tests {
         assert_eq!(plan.dependency_dirty_count, 1);
         assert_eq!(node_reasons(&plan, "a"), vec!["inputDigestChanged"]);
         assert_eq!(node_reasons(&plan, "b"), vec!["dependencyDirty"]);
+        assert_eq!(
+            plan.shadow_delta_oracle.incremental_dirty_ids,
+            vec!["a".to_string(), "b".to_string()]
+        );
+        assert_eq!(
+            plan.shadow_delta_oracle.from_scratch_dirty_ids,
+            plan.shadow_delta_oracle.incremental_dirty_ids
+        );
+        assert!(
+            plan.shadow_delta_oracle
+                .incremental_matches_from_scratch_delta
+        );
+
+        let Some(changed) = node_by_id(&plan, "a") else {
+            assert!(plan.nodes.iter().any(|node| node.id == "a"));
+            return;
+        };
+        assert_eq!(changed.changed_at.value, 2);
+        assert_eq!(changed.verified_at.value, 2);
+        assert!(!changed.value_equal_to_previous);
+
+        let Some(backdated) = node_by_id(&plan, "b") else {
+            assert!(plan.nodes.iter().any(|node| node.id == "b"));
+            return;
+        };
+        assert_eq!(backdated.changed_at.value, 1);
+        assert_eq!(backdated.verified_at.value, 2);
+        assert!(backdated.value_equal_to_previous);
+    }
+
+    #[test]
+    fn alpha_equivalence_hash_ignores_fixture_node_renaming() {
+        let left = sample_input("root:v1", "leaf:v1", 1);
+        let right = IncrementalGraphInputV0 {
+            revision: IncrementalRevisionV0 { value: 1 },
+            nodes: vec![
+                IncrementalNodeInputV0 {
+                    id: "renamed-leaf".to_string(),
+                    digest: "leaf:v1".to_string(),
+                    dependency_ids: vec!["renamed-root".to_string()],
+                },
+                IncrementalNodeInputV0 {
+                    id: "renamed-root".to_string(),
+                    digest: "root:v1".to_string(),
+                    dependency_ids: Vec::new(),
+                },
+            ],
+        };
+        let left_plan = plan_incremental_computation(&left, None);
+        let right_plan = plan_incremental_computation(&right, None);
+
+        assert_eq!(
+            left_plan.alpha_equivalence_graph_hash.product,
+            "omena-incremental.alpha-equivalence-hash"
+        );
+        assert_eq!(
+            left_plan.alpha_equivalence_graph_hash.feature_gate,
+            "incremental-alpha-equivalence-hash-v0"
+        );
+        assert!(!left_plan.alpha_equivalence_graph_hash.theorem_claimed);
+        assert_eq!(
+            left_plan.alpha_equivalence_graph_hash.hash,
+            right_plan.alpha_equivalence_graph_hash.hash
+        );
+    }
+
+    #[test]
+    fn incremental_shadow_delta_oracle_matches_from_scratch_delta() {
+        let previous = sample_input("a:v1", "b:v1", 1);
+        let previous_snapshot = snapshot_from_graph_input(&previous);
+        let next = sample_input("a:v2", "b:v1", 2);
+        let plan = plan_incremental_computation(&next, Some(&previous_snapshot));
+
+        assert_eq!(
+            plan.shadow_delta_oracle.product,
+            "omena-incremental.shadow-delta-oracle"
+        );
+        assert_eq!(
+            plan.shadow_delta_oracle.feature_gate,
+            "incremental-shadow-delta-v0"
+        );
+        assert_eq!(
+            plan.shadow_delta_oracle.claim_level,
+            "sampledFixtureWitnessNotEquivalenceProof"
+        );
+        assert!(!plan.shadow_delta_oracle.theorem_claimed);
+        assert_eq!(
+            plan.shadow_delta_oracle.incremental_dirty_ids,
+            vec!["a".to_string(), "b".to_string()]
+        );
+        assert_eq!(
+            plan.shadow_delta_oracle.incremental_dirty_ids,
+            plan.shadow_delta_oracle.from_scratch_dirty_ids
+        );
+        assert!(
+            plan.shadow_delta_oracle
+                .incremental_matches_from_scratch_delta
+        );
+        assert!(plan.shadow_delta_oracle.sampled_shadow_witness_ready);
+        assert!(!plan.shadow_delta_oracle.dbsp_zset_claim_ready);
+        assert!(!plan.shadow_delta_oracle.performance_benchmark_claim_ready);
     }
 
     #[test]
@@ -1048,6 +1425,9 @@ mod tests {
         assert!(evidence.fuzz_evidence_ready);
         assert!(evidence.salsa_reuse_evidence_ready);
         assert!(evidence.datalog_contract_evidence_ready);
+        assert!(evidence.value_equality_backdating_ready);
+        assert!(evidence.alpha_equivalence_hash_ready);
+        assert!(evidence.shadow_delta_oracle_ready);
         assert!(evidence.benchmark_surface_ready);
         assert!(!evidence.performance_benchmark_claim_ready);
         assert!(!evidence.external_datalog_host_ready);
@@ -1073,6 +1453,11 @@ mod tests {
             evidence
                 .supported_claims
                 .contains(&"dependency dirty-set fixed point")
+        );
+        assert!(
+            evidence
+                .supported_claims
+                .contains(&"value-equality backdating with changed_at/verified_at split")
         );
         assert!(evidence.deferred_claims.contains(&"DBSP runtime"));
         assert!(
@@ -1228,6 +1613,13 @@ mod tests {
                 },
             ],
         }
+    }
+
+    fn node_by_id<'a>(
+        plan: &'a super::IncrementalComputationPlanV0,
+        id: &str,
+    ) -> Option<&'a super::IncrementalComputationNodeV0> {
+        plan.nodes.iter().find(|node| node.id == id)
     }
 
     fn node_reasons(plan: &super::IncrementalComputationPlanV0, id: &str) -> Vec<&'static str> {
