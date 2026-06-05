@@ -77,7 +77,7 @@ fn read_cascade_at_position_is_query_owned() {
     );
     assert_eq!(
         refinement.claim_level,
-        "productWiredCascadeDimensionalRefinementBridgeSubstrate"
+        "m6DimensionalRefinementBridgeSubstrate"
     );
     assert_eq!(refinement.property_name, "--surface");
     assert_eq!(refinement.predicate_count, 1);
@@ -320,7 +320,7 @@ fn read_cascade_at_position_reports_iacvt_seed() {
         .expect("cyclic custom property refinement evidence");
     assert_eq!(
         refinement.claim_level,
-        "productWiredCascadeDimensionalRefinementBridgeSubstrate"
+        "m6DimensionalRefinementBridgeSubstrate"
     );
     assert_eq!(refinement.property_name, "--a");
     assert_eq!(refinement.satisfied_all_context_count, 0);

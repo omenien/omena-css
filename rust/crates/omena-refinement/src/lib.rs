@@ -4,8 +4,8 @@
 //! strict-superset wrapper and delegating cascade checks to the byte-stable
 //! `omena-cascade` proof primitives.
 //!
-//! claim_level: product-wired cascade refinement bridge substrate, not
-//! Liquid-Haskell inference or SMT completeness.
+//! claim_level: m6DimensionalRefinementBridgeSubstrate, not Liquid-Haskell
+//! inference or SMT completeness.
 
 use std::{collections::BTreeSet, marker::PhantomData};
 
@@ -21,8 +21,7 @@ use omena_refinement_trait::{
 };
 use serde::Serialize;
 
-pub const REFINEMENT_BRIDGE_CLAIM_LEVEL_V0: &str =
-    "productWiredCascadeDimensionalRefinementBridgeSubstrate";
+pub const REFINEMENT_BRIDGE_CLAIM_LEVEL_V0: &str = "m6DimensionalRefinementBridgeSubstrate";
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -162,7 +161,7 @@ pub struct RefinementContextSummaryV0 {
     pub downstream_invalidation_required: bool,
 }
 
-/// M6 #69 bridge between context-indexed property values and refinement facts.
+/// Bridge between context-indexed property values and refinement facts.
 ///
 /// This is a research-staged substrate: it evaluates the existing cascade
 /// family through the existing refinement predicate evaluator. It does not
@@ -197,7 +196,84 @@ pub struct CascadeDimensionalRefinementBridgeV0 {
     pub theorem_claimed: bool,
     pub product_path_evidence_ready: bool,
     pub stronger_type_safety_claim_ready: bool,
+    pub dimension_vector_domain_ready: bool,
+    pub calc_dimension_diagnostics_ready: bool,
+    pub dimension_vector_domain: DimensionVectorDomainSummaryV0,
+    pub calc_dimension_diagnostics: CalcDimensionDiagnosticSummaryV0,
     pub evaluations: Vec<CascadeDimensionalRefinementContextEvaluationV0>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DimensionVectorV0 {
+    pub length: i8,
+    pub angle: i8,
+    pub time: i8,
+    pub percentage: i8,
+    pub number: i8,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DimensionVectorValueV0 {
+    pub source_value: String,
+    pub unit: String,
+    pub unit_family: &'static str,
+    pub vector: DimensionVectorV0,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DimensionVectorDomainSummaryV0 {
+    pub schema_version: &'static str,
+    pub product: &'static str,
+    pub feature_gate: &'static str,
+    pub claim_level: &'static str,
+    pub theorem_claimed: bool,
+    pub forks_unit_system: bool,
+    pub value_count: usize,
+    pub vector_count: usize,
+    pub values: Vec<DimensionVectorValueV0>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub enum CalcDimensionDiagnosticKindV0 {
+    DimensionalMismatch,
+    MixedDimension,
+    ContextDependentDimension,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CalcDimensionDiagnosticV0 {
+    pub schema_version: &'static str,
+    pub product: &'static str,
+    pub feature_gate: &'static str,
+    pub claim_level: &'static str,
+    pub theorem_claimed: bool,
+    pub public_safety_claim_ready: bool,
+    pub kind: CalcDimensionDiagnosticKindV0,
+    pub property_name: String,
+    pub expression: String,
+    pub observed_units: Vec<String>,
+    pub observed_vectors: Vec<DimensionVectorV0>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CalcDimensionDiagnosticSummaryV0 {
+    pub schema_version: &'static str,
+    pub product: &'static str,
+    pub feature_gate: &'static str,
+    pub claim_level: &'static str,
+    pub theorem_claimed: bool,
+    pub forks_unit_system: bool,
+    pub smt_complete: bool,
+    pub liquid_haskell_complete: bool,
+    pub stronger_type_safety_claim_ready: bool,
+    pub diagnostic_count: usize,
+    pub diagnostics: Vec<CalcDimensionDiagnosticV0>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -331,10 +407,89 @@ pub fn summarize_refinement_context_v0(
     }
 }
 
+pub fn summarize_dimension_vector_domain_v0(values: &[String]) -> DimensionVectorDomainSummaryV0 {
+    let mut entries = values
+        .iter()
+        .flat_map(|value| {
+            extract_calc_expression_v0(value)
+                .map(parse_dimension_vector_values_from_expression_v0)
+                .unwrap_or_else(|| parse_dimension_vector_value_v0(value).into_iter().collect())
+        })
+        .collect::<Vec<_>>();
+    entries.sort_by(|left, right| {
+        left.source_value
+            .cmp(&right.source_value)
+            .then_with(|| left.unit.cmp(&right.unit))
+    });
+    entries.dedup_by(|left, right| {
+        left.source_value == right.source_value
+            && left.unit == right.unit
+            && left.unit_family == right.unit_family
+            && left.vector == right.vector
+    });
+    let vector_count = entries
+        .iter()
+        .map(|entry| entry.vector)
+        .collect::<BTreeSet<_>>()
+        .len();
+
+    DimensionVectorDomainSummaryV0 {
+        schema_version: REFINEMENT_SCHEMA_VERSION_V0,
+        product: "omena-refinement.dimension-vector-domain",
+        feature_gate: "dimension-vector-domain-v0",
+        claim_level: "fixtureWitnessDimensionVectorDomain",
+        theorem_claimed: false,
+        forks_unit_system: false,
+        value_count: entries.len(),
+        vector_count,
+        values: entries,
+    }
+}
+
+pub fn summarize_calc_dimension_diagnostics_v0(
+    property_name: &str,
+    values: &[String],
+) -> CalcDimensionDiagnosticSummaryV0 {
+    let mut diagnostics = values
+        .iter()
+        .filter_map(|value| calc_dimension_diagnostic_for_value_v0(property_name, value))
+        .collect::<Vec<_>>();
+    diagnostics.sort_by(|left, right| {
+        left.property_name
+            .cmp(&right.property_name)
+            .then_with(|| left.expression.cmp(&right.expression))
+    });
+
+    CalcDimensionDiagnosticSummaryV0 {
+        schema_version: REFINEMENT_SCHEMA_VERSION_V0,
+        product: "omena-refinement.calc-dimension-diagnostics",
+        feature_gate: "calc-dimension-diagnostics-v0",
+        claim_level: "researchGradeHint",
+        theorem_claimed: false,
+        forks_unit_system: false,
+        smt_complete: false,
+        liquid_haskell_complete: false,
+        stronger_type_safety_claim_ready: false,
+        diagnostic_count: diagnostics.len(),
+        diagnostics,
+    }
+}
+
 pub fn summarize_cascade_dimensional_refinement_bridge_v0(
     family: &CascadeValueFamilyV0,
     predicates: &[RefinementPropertyPredicateV0],
 ) -> CascadeDimensionalRefinementBridgeV0 {
+    let exact_values = family
+        .members
+        .iter()
+        .filter_map(|member| match &member.value {
+            AbstractPropertyValueV0::Exact { value, .. } => Some(value.clone()),
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+    let dimension_vector_domain = summarize_dimension_vector_domain_v0(&exact_values);
+    let calc_dimension_diagnostics =
+        summarize_calc_dimension_diagnostics_v0(&family.property_name, &exact_values);
     let mut global_provenance_sources = BTreeSet::new();
     let mut evaluations = family
         .members
@@ -425,6 +580,16 @@ pub fn summarize_cascade_dimensional_refinement_bridge_v0(
         theorem_claimed: false,
         product_path_evidence_ready: true,
         stronger_type_safety_claim_ready: false,
+        dimension_vector_domain_ready: dimension_vector_domain.value_count > 0
+            && !dimension_vector_domain.forks_unit_system
+            && !dimension_vector_domain.theorem_claimed,
+        calc_dimension_diagnostics_ready: !calc_dimension_diagnostics.forks_unit_system
+            && !calc_dimension_diagnostics.smt_complete
+            && !calc_dimension_diagnostics.liquid_haskell_complete
+            && !calc_dimension_diagnostics.stronger_type_safety_claim_ready
+            && !calc_dimension_diagnostics.theorem_claimed,
+        dimension_vector_domain,
+        calc_dimension_diagnostics,
         evaluations,
     }
 }
@@ -922,6 +1087,180 @@ fn parse_css_integer_with_unit_v0(value: &str) -> Option<(i64, &str)> {
     Some((magnitude, trimmed[end..].trim()))
 }
 
+fn calc_dimension_diagnostic_for_value_v0(
+    property_name: &str,
+    value: &str,
+) -> Option<CalcDimensionDiagnosticV0> {
+    let expression = extract_calc_expression_v0(value)?;
+    let dimension_values = parse_dimension_vector_values_from_expression_v0(expression);
+    let non_number_values = dimension_values
+        .iter()
+        .filter(|entry| entry.vector != dimension_vector_number_v0())
+        .collect::<Vec<_>>();
+    if non_number_values.len() < 2 {
+        return None;
+    }
+
+    let observed_units = non_number_values
+        .iter()
+        .map(|entry| entry.unit.clone())
+        .collect::<BTreeSet<_>>()
+        .into_iter()
+        .collect::<Vec<_>>();
+    let observed_vectors = non_number_values
+        .iter()
+        .map(|entry| entry.vector)
+        .collect::<BTreeSet<_>>()
+        .into_iter()
+        .collect::<Vec<_>>();
+    let unit_families = non_number_values
+        .iter()
+        .map(|entry| entry.unit_family)
+        .collect::<BTreeSet<_>>();
+    let has_percentage = non_number_values
+        .iter()
+        .any(|entry| entry.vector.percentage != 0);
+    let has_non_percentage = non_number_values
+        .iter()
+        .any(|entry| entry.vector.percentage == 0);
+    let kind = if has_percentage && has_non_percentage {
+        CalcDimensionDiagnosticKindV0::ContextDependentDimension
+    } else if observed_vectors.len() > 1 {
+        CalcDimensionDiagnosticKindV0::DimensionalMismatch
+    } else if unit_families.len() > 1 {
+        CalcDimensionDiagnosticKindV0::MixedDimension
+    } else {
+        return None;
+    };
+
+    Some(CalcDimensionDiagnosticV0 {
+        schema_version: REFINEMENT_SCHEMA_VERSION_V0,
+        product: "omena-refinement.calc-dimension-diagnostic",
+        feature_gate: "calc-dimension-diagnostics-v0",
+        claim_level: "researchGradeHint",
+        theorem_claimed: false,
+        public_safety_claim_ready: false,
+        kind,
+        property_name: property_name.to_string(),
+        expression: expression.to_string(),
+        observed_units,
+        observed_vectors,
+    })
+}
+
+fn parse_dimension_vector_values_from_expression_v0(
+    expression: &str,
+) -> Vec<DimensionVectorValueV0> {
+    expression
+        .split(|ch: char| {
+            ch.is_ascii_whitespace() || matches!(ch, '+' | '-' | '*' | '/' | '(' | ')' | ',')
+        })
+        .filter_map(parse_dimension_vector_value_v0)
+        .collect()
+}
+
+fn parse_dimension_vector_value_v0(value: &str) -> Option<DimensionVectorValueV0> {
+    let trimmed = value.trim();
+    if trimmed.is_empty() {
+        return None;
+    }
+    let (unit_start, _) = trimmed
+        .char_indices()
+        .find(|(index, ch)| {
+            *index > 0 && !(ch.is_ascii_digit() || *ch == '.' || *ch == '_' || *ch == '-')
+        })
+        .unwrap_or((trimmed.len(), '\0'));
+    if unit_start == 0 {
+        return None;
+    }
+    let number = trimmed[..unit_start].replace('_', "");
+    if number.parse::<f64>().is_err() {
+        return None;
+    }
+    let unit = trimmed[unit_start..].trim().to_ascii_lowercase();
+    let (unit_family, vector) = dimension_vector_for_unit_v0(&unit)?;
+
+    Some(DimensionVectorValueV0 {
+        source_value: trimmed.to_string(),
+        unit,
+        unit_family,
+        vector,
+    })
+}
+
+fn extract_calc_expression_v0(value: &str) -> Option<&str> {
+    let start = value.find("calc(")? + "calc(".len();
+    let rest = &value[start..];
+    let end = rest.rfind(')')?;
+    Some(rest[..end].trim())
+}
+
+fn dimension_vector_for_unit_v0(unit: &str) -> Option<(&'static str, DimensionVectorV0)> {
+    let vector = match unit {
+        "" => ("number", dimension_vector_number_v0()),
+        "%" => (
+            "percentage",
+            DimensionVectorV0 {
+                length: 0,
+                angle: 0,
+                time: 0,
+                percentage: 1,
+                number: 0,
+            },
+        ),
+        "px" | "cm" | "mm" | "q" | "in" | "pt" | "pc" => {
+            ("absoluteLength", dimension_vector_length_v0())
+        }
+        "em" | "rem" | "ex" | "ch" | "ic" | "lh" | "rlh" => {
+            ("fontRelativeLength", dimension_vector_length_v0())
+        }
+        "vw" | "vh" | "vi" | "vb" | "vmin" | "vmax" | "svw" | "svh" | "lvw" | "lvh" | "dvw"
+        | "dvh" => ("viewportLength", dimension_vector_length_v0()),
+        "deg" | "grad" | "rad" | "turn" => (
+            "angle",
+            DimensionVectorV0 {
+                length: 0,
+                angle: 1,
+                time: 0,
+                percentage: 0,
+                number: 0,
+            },
+        ),
+        "s" | "ms" => (
+            "time",
+            DimensionVectorV0 {
+                length: 0,
+                angle: 0,
+                time: 1,
+                percentage: 0,
+                number: 0,
+            },
+        ),
+        _ => return None,
+    };
+    Some(vector)
+}
+
+fn dimension_vector_length_v0() -> DimensionVectorV0 {
+    DimensionVectorV0 {
+        length: 1,
+        angle: 0,
+        time: 0,
+        percentage: 0,
+        number: 0,
+    }
+}
+
+fn dimension_vector_number_v0() -> DimensionVectorV0 {
+    DimensionVectorV0 {
+        length: 0,
+        angle: 0,
+        time: 0,
+        percentage: 0,
+        number: 1,
+    }
+}
+
 fn deterministic_refinement_digest_v0(bytes: &[u8]) -> u64 {
     bytes.iter().fold(0xcbf29ce484222325, |hash, byte| {
         (hash ^ u64::from(*byte)).wrapping_mul(0x100000001b3)
@@ -1208,6 +1547,19 @@ mod tests {
         assert!(!bridge.theorem_claimed);
         assert!(bridge.product_path_evidence_ready);
         assert!(!bridge.stronger_type_safety_claim_ready);
+        assert!(bridge.dimension_vector_domain_ready);
+        assert!(bridge.calc_dimension_diagnostics_ready);
+        assert!(!bridge.dimension_vector_domain.forks_unit_system);
+        assert!(!bridge.dimension_vector_domain.theorem_claimed);
+        assert_eq!(bridge.dimension_vector_domain.value_count, 2);
+        assert_eq!(bridge.calc_dimension_diagnostics.diagnostic_count, 0);
+        assert!(!bridge.calc_dimension_diagnostics.smt_complete);
+        assert!(!bridge.calc_dimension_diagnostics.liquid_haskell_complete);
+        assert!(
+            !bridge
+                .calc_dimension_diagnostics
+                .stronger_type_safety_claim_ready
+        );
         assert_eq!(bridge.evaluations[0].context_id, "base");
         assert_eq!(
             bridge.evaluations[0].combined_verdict,
@@ -1217,5 +1569,49 @@ mod tests {
             bridge.evaluations[0].predicate_expression_ids,
             vec!["numeric-range:width:0..100:px".to_string()]
         );
+    }
+
+    #[test]
+    fn calc_dimension_diagnostics_classify_fixture_mismatches_without_unit_fork() {
+        let values = vec![
+            "calc(1px + 2s)".to_string(),
+            "calc(1px + 2rem)".to_string(),
+            "calc(100% - 1rem)".to_string(),
+            "calc(1px + 2px)".to_string(),
+        ];
+        let domain = summarize_dimension_vector_domain_v0(&values);
+        let diagnostics = summarize_calc_dimension_diagnostics_v0("width", &values);
+
+        assert_eq!(domain.product, "omena-refinement.dimension-vector-domain");
+        assert_eq!(domain.feature_gate, "dimension-vector-domain-v0");
+        assert_eq!(domain.claim_level, "fixtureWitnessDimensionVectorDomain");
+        assert!(!domain.forks_unit_system);
+        assert!(!domain.theorem_claimed);
+        assert!(domain.vector_count >= 3);
+
+        assert_eq!(
+            diagnostics.product,
+            "omena-refinement.calc-dimension-diagnostics"
+        );
+        assert_eq!(diagnostics.feature_gate, "calc-dimension-diagnostics-v0");
+        assert_eq!(diagnostics.claim_level, "researchGradeHint");
+        assert!(!diagnostics.forks_unit_system);
+        assert!(!diagnostics.smt_complete);
+        assert!(!diagnostics.liquid_haskell_complete);
+        assert!(!diagnostics.stronger_type_safety_claim_ready);
+        assert!(!diagnostics.theorem_claimed);
+        assert_eq!(diagnostics.diagnostic_count, 3);
+        assert!(diagnostics.diagnostics.iter().any(|diagnostic| {
+            diagnostic.kind == CalcDimensionDiagnosticKindV0::DimensionalMismatch
+                && diagnostic.expression == "1px + 2s"
+        }));
+        assert!(diagnostics.diagnostics.iter().any(|diagnostic| {
+            diagnostic.kind == CalcDimensionDiagnosticKindV0::MixedDimension
+                && diagnostic.expression == "1px + 2rem"
+        }));
+        assert!(diagnostics.diagnostics.iter().any(|diagnostic| {
+            diagnostic.kind == CalcDimensionDiagnosticKindV0::ContextDependentDimension
+                && diagnostic.expression == "100% - 1rem"
+        }));
     }
 }

@@ -78,11 +78,7 @@ const TARGETS = [
   },
   {
     path: "rust/crates/omena-refinement/src/lib.rs",
-    required: [
-      "claim_level:",
-      "product-wired cascade refinement bridge substrate",
-      "not Liquid-Haskell",
-    ],
+    required: ["claim_level:", "m6DimensionalRefinementBridgeSubstrate", "not Liquid-Haskell"],
   },
 ] as const;
 
