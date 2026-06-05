@@ -1,4 +1,4 @@
-import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
@@ -19,6 +19,7 @@ import {
 
 describe("check orchestrator manifest", () => {
   const manifest = loadCheckManifest();
+  const repoRoot = process.cwd();
 
   it("mirrors the current root scripts without doctor errors", () => {
     expect(manifest.gates.length).toBeGreaterThan(150);
@@ -276,6 +277,36 @@ describe("check orchestrator manifest", () => {
         expect.objectContaining({ id: "rust/theory-claim-levels", depth: 1 }),
       ]),
     );
+  });
+
+  it("uses declared deps for Omena CSS readiness while keeping scheduled workflow reachability", () => {
+    const readiness = resolveGateTarget(manifest, "rust/omena-css/h1-readiness");
+    expect(readiness).toMatchObject({
+      kind: "bundle",
+      origin: "declared",
+      scriptName: "check:rust-omena-css-h1-readiness",
+      ciTier: "scheduled",
+      ciGroup: "drift",
+      tags: ["rust", "omena-css", "readiness"],
+    });
+
+    const plan = buildCheckPlan(manifest, readiness!);
+    expect(plan.steps).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ id: "rust/omena-syntax/boundary", depth: 1 }),
+        expect.objectContaining({ id: "rust/omena-diff-test-boundary", depth: 1 }),
+        expect.objectContaining({ id: "rust/omena-lsp-server/split-boundary", depth: 1 }),
+        expect.objectContaining({ id: "rust/z5-performance-baseline-readiness", depth: 1 }),
+        expect.objectContaining({ id: "rust/omena-css/cargo-fuzz", depth: 1 }),
+        expect.objectContaining({ id: "rust/omena-css/rustdoc-coverage", depth: 1 }),
+      ]),
+    );
+
+    const workflow = readFileSync(
+      path.join(repoRoot, ".github/workflows/omena-css-drift.yml"),
+      "utf8",
+    );
+    expect(workflow).toContain("pnpm omena-check run rust/omena-css/h1-readiness");
   });
 
   it("uses declared deps for release verification while preserving its public script", () => {
@@ -640,6 +671,9 @@ describe("check orchestrator manifest", () => {
     );
     expect(inventory).toMatch(
       /\| `rust\/lane\/bundle`\s+\| bundle\s+\| declared\s+\| `check:rust-lane-bundle`\s+\|/,
+    );
+    expect(inventory).toMatch(
+      /\| `rust\/omena-css\/h1-readiness`\s+\| bundle\s+\| declared\s+\| `check:rust-omena-css-h1-readiness`\s+\|/,
     );
     expect(inventory).toMatch(
       /\| `release\/release\/verify`\s+\| bundle\s+\| declared\s+\| `release:verify`\s+\|/,
