@@ -83,6 +83,9 @@ async function main(): Promise<void> {
       "omena-query-checker-orchestrator.cascade-gate",
       "omena-checker.cascade-rules",
       "omena-query.cascade-checker",
+      "omena-query.cascade-narrowing",
+      "omena-abstract-value.property-value-narrowing",
+      "omena-abstract-value.reduced-product-iteration",
       "omena-query-checker-orchestrator.product-diagnostic-gate",
       "omena-checker.rule-registry",
     ]);
@@ -94,6 +97,9 @@ async function main(): Promise<void> {
       "omena-query-checker-orchestrator.cascade-gate",
       "omena-checker.cascade-rules",
       "omena-query.cascade-checker",
+      "omena-query.cascade-narrowing",
+      "omena-abstract-value.property-value-narrowing",
+      "omena-abstract-value.reduced-product-iteration",
       "omena-query-checker-orchestrator.product-diagnostic-gate",
       "omena-checker.rule-registry",
     ]);
