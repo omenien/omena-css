@@ -159,6 +159,7 @@ pub(super) fn apply_omena_query_style_diagnostic_suppressions(
             tags: Vec::new(),
             create_custom_property: None,
             cascade_narrowing: None,
+            cascade_confidence: None,
         });
     }
 

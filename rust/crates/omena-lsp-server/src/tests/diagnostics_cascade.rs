@@ -83,6 +83,30 @@ fn resolves_unnecessary_tags_for_cascade_style_diagnostics() -> TestResult {
         Some(&json!("omena-abstract-value.reduced-product-iteration")),
     );
     assert_eq!(
+        unreachable.pointer("/data/cascadeConfidence/product"),
+        Some(&json!("omena-query.cascade-confidence")),
+    );
+    assert_eq!(
+        unreachable.pointer("/data/cascadeConfidence/featureGate"),
+        Some(&json!("cascade-confidence-v0")),
+    );
+    assert_eq!(
+        unreachable.pointer("/data/cascadeConfidence/claimLevel"),
+        Some(&json!("fixtureWitnessResearchHint")),
+    );
+    assert_eq!(
+        unreachable.pointer("/data/cascadeConfidence/theoremClaimed"),
+        Some(&json!(false)),
+    );
+    assert_eq!(
+        unreachable.pointer("/data/cascadeConfidence/publicSafetyClaimReady"),
+        Some(&json!(false)),
+    );
+    assert_eq!(
+        unreachable.pointer("/data/cascadeConfidence/calibrationStage"),
+        Some(&json!("fixtureWitnessTierWeightSigmoidV0")),
+    );
+    assert_eq!(
         unreachable.pointer("/data/runtimeState/product"),
         Some(&json!("omena-query.runtime-state-scenario-evidence")),
     );

@@ -2,7 +2,7 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use omena_cascade::{
     CascadeDeclaration, CascadeKey, CascadeLevel, CascadeOutcome, CascadeValue, LayerRank,
-    Specificity, cascade_property, parse_simple_selector_signature,
+    Specificity, cascade_margin_for_outcome, cascade_property, parse_simple_selector_signature,
 };
 use omena_query_checker_orchestrator::{
     OmenaCheckerCascadeDeclarationInputV0, OmenaCheckerCascadeEvaluationV0,
@@ -28,10 +28,11 @@ use omena_query_core::{
 use omena_query_transform_runner::expand_css_nested_selector;
 
 use super::{
-    OmenaQueryCascadeNarrowingEvidenceV0, OmenaQueryRuntimeStateDriverSummaryV0,
-    OmenaQueryRuntimeStateScenarioEvidenceV0, OmenaQueryRuntimeStateScenarioV0,
-    OmenaQueryRuntimeStateStaticBoundaryV0, OmenaQueryStyleDiagnosticV0, ParserByteSpanV0,
-    ParserRangeV0, omena_parser_dialect_for_style_path, parser_range_for_byte_span,
+    OmenaQueryCascadeConfidenceV0, OmenaQueryCascadeNarrowingEvidenceV0,
+    OmenaQueryRuntimeStateDriverSummaryV0, OmenaQueryRuntimeStateScenarioEvidenceV0,
+    OmenaQueryRuntimeStateScenarioV0, OmenaQueryRuntimeStateStaticBoundaryV0,
+    OmenaQueryStyleDiagnosticV0, ParserByteSpanV0, ParserRangeV0,
+    omena_parser_dialect_for_style_path, parser_range_for_byte_span,
     summarize_static_css_custom_property_fixed_point_from_source,
 };
 
@@ -105,6 +106,7 @@ pub(super) fn summarize_query_cascade_checker_diagnostics_with_deep_analysis(
             tags: Vec::new(),
             create_custom_property: None,
             cascade_narrowing: None,
+            cascade_confidence: None,
         }];
     }
 
@@ -155,6 +157,13 @@ pub(super) fn summarize_query_cascade_checker_diagnostics_with_deep_analysis(
                 "omena-abstract-value.reduced-product-iteration",
             ]);
         }
+        let cascade_confidence = summarize_query_cascade_confidence_for_evaluation(
+            &evaluation,
+            checker_input.declarations.as_slice(),
+        );
+        if cascade_confidence.is_some() {
+            provenance.extend(["omena-cascade.margin", "omena-query.cascade-confidence"]);
+        }
         diagnostics.push(OmenaQueryStyleDiagnosticV0 {
             code: query_cascade_checker_code(evaluation.rule_code_name),
             severity: query_cascade_checker_diagnostic_severity(evaluation.rule_code_name),
@@ -164,6 +173,7 @@ pub(super) fn summarize_query_cascade_checker_diagnostics_with_deep_analysis(
             tags: query_cascade_checker_diagnostic_tags(evaluation.rule_code_name),
             create_custom_property: None,
             cascade_narrowing,
+            cascade_confidence,
         });
     }
 
@@ -294,6 +304,7 @@ fn summarize_query_rg_flow_coupling_diagnostics(
                 tags: Vec::new(),
                 create_custom_property: None,
                 cascade_narrowing: None,
+                cascade_confidence: None,
             }
         })
         .collect()
@@ -364,6 +375,7 @@ fn summarize_query_categorical_cascade_evidence_diagnostics(
                 tags: Vec::new(),
                 create_custom_property: None,
                 cascade_narrowing: None,
+                cascade_confidence: None,
             }
         })
         .collect()
@@ -477,6 +489,7 @@ fn summarize_query_smt_cascade_obligation_diagnostics(
                 tags: Vec::new(),
                 create_custom_property: None,
                 cascade_narrowing: None,
+                cascade_confidence: None,
             }
         })
         .collect()
@@ -1022,6 +1035,115 @@ fn summarize_query_cascade_narrowing_for_evaluation(
         property_value_narrowing,
         runtime_state: summarize_query_runtime_state_for_evaluation(evaluation, declarations),
     })
+}
+
+fn summarize_query_cascade_confidence_for_evaluation(
+    evaluation: &OmenaCheckerCascadeEvaluationV0,
+    declarations: &[OmenaCheckerCascadeDeclarationInputV0],
+) -> Option<OmenaQueryCascadeConfidenceV0> {
+    if !matches!(
+        evaluation.rule_code_name,
+        "unreachable-declaration" | "dead-cascade-layer"
+    ) {
+        return None;
+    }
+    let margin = query_cascade_margin_for_evaluation(evaluation, declarations)?;
+    let abs_distance = margin.signed_distance.unsigned_abs();
+    let dominant_axis_weight_basis_points =
+        query_cascade_confidence_axis_weight_basis_points(margin.dominant_axis);
+    let sigmoid_temperature_basis_points = 1_200u16;
+    let confidence_score_basis_points = query_cascade_confidence_score_basis_points(
+        abs_distance,
+        dominant_axis_weight_basis_points,
+        sigmoid_temperature_basis_points,
+    );
+
+    Some(OmenaQueryCascadeConfidenceV0 {
+        schema_version: "0",
+        product: "omena-query.cascade-confidence",
+        feature_gate: "cascade-confidence-v0",
+        confidence_kind: "fixtureWitnessTierWeightedSigmoid",
+        claim_level: "fixtureWitnessResearchHint",
+        theorem_claimed: false,
+        public_safety_claim_ready: false,
+        calibration_stage: "fixtureWitnessTierWeightSigmoidV0",
+        margin_product: margin.product,
+        margin_kind: margin.margin_kind,
+        dominant_axis: margin.dominant_axis,
+        dominant_axis_weight_basis_points,
+        sigmoid_temperature_basis_points,
+        signed_distance: margin.signed_distance,
+        abs_distance,
+        confidence_score_basis_points,
+        confidence_bucket: query_cascade_confidence_bucket(confidence_score_basis_points),
+        winner_declaration_id: margin.winner_declaration_id,
+        challenger_declaration_id: margin.challenger_declaration_id,
+    })
+}
+
+fn query_cascade_margin_for_evaluation(
+    evaluation: &OmenaCheckerCascadeEvaluationV0,
+    declarations: &[OmenaCheckerCascadeDeclarationInputV0],
+) -> Option<omena_cascade::CascadeMarginV0> {
+    let anchor_id = evaluation.declaration_ids.first()?;
+    let anchor = declarations
+        .iter()
+        .find(|declaration| declaration.declaration_id == *anchor_id)?;
+    let site_declarations = declarations
+        .iter()
+        .filter(|declaration| {
+            declaration.selector == anchor.selector
+                && declaration.property == anchor.property
+                && declaration.condition_context == anchor.condition_context
+        })
+        .map(query_diagnostic_cascade_declaration_from_input)
+        .collect::<Vec<_>>();
+    if site_declarations.len() < 2 {
+        return None;
+    }
+
+    let outcome = cascade_property(site_declarations, anchor.property.as_str());
+    cascade_margin_for_outcome(&outcome)
+}
+
+fn query_diagnostic_cascade_declaration_from_input(
+    input: &OmenaCheckerCascadeDeclarationInputV0,
+) -> CascadeDeclaration {
+    let mut declaration = query_runtime_cascade_declaration_from_input(input);
+    declaration.id = input.declaration_id.clone();
+    declaration
+}
+
+fn query_cascade_confidence_axis_weight_basis_points(axis: &str) -> u16 {
+    match axis {
+        "level" => 7_000,
+        "layerRank" => 6_000,
+        "scopeProximity" => 5_000,
+        "specificityIds" => 4_000,
+        "specificityClasses" => 3_000,
+        "specificityElements" => 2_000,
+        "sourceOrder" => 1_000,
+        _ => 500,
+    }
+}
+
+fn query_cascade_confidence_score_basis_points(
+    abs_distance: u64,
+    axis_weight_basis_points: u16,
+    sigmoid_temperature_basis_points: u16,
+) -> u16 {
+    let signed_input = (abs_distance as f64 * f64::from(axis_weight_basis_points))
+        / f64::from(sigmoid_temperature_basis_points);
+    let confidence = 1.0 / (1.0 + (-signed_input).exp());
+    (confidence * 10_000.0).round().clamp(0.0, 10_000.0) as u16
+}
+
+fn query_cascade_confidence_bucket(score_basis_points: u16) -> &'static str {
+    match score_basis_points {
+        0..=5_999 => "narrow",
+        6_000..=8_499 => "moderate",
+        _ => "clear",
+    }
 }
 
 fn summarize_query_runtime_state_for_evaluation(

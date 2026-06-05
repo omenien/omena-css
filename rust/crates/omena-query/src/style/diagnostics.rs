@@ -102,6 +102,7 @@ pub fn summarize_omena_query_missing_custom_property_diagnostics(
                 property_name: candidate.name.clone(),
             }),
             cascade_narrowing: None,
+            cascade_confidence: None,
         })
         .collect()
 }
@@ -157,6 +158,7 @@ pub fn summarize_omena_query_cascade_aware_style_diagnostics_with_deep_analysis(
                         tags: Vec::new(),
                         create_custom_property: None,
                         cascade_narrowing: None,
+                        cascade_confidence: None,
                     })
             })
             .collect::<Vec<_>>();
@@ -215,6 +217,7 @@ pub fn summarize_omena_query_missing_keyframes_diagnostics(
             tags: Vec::new(),
             create_custom_property: None,
             cascade_narrowing: None,
+            cascade_confidence: None,
         })
         .collect()
 }
@@ -287,6 +290,7 @@ pub fn summarize_omena_query_missing_sass_symbol_diagnostics(
             tags: Vec::new(),
             create_custom_property: None,
             cascade_narrowing: None,
+            cascade_confidence: None,
         });
     }
 
@@ -383,6 +387,7 @@ pub fn summarize_omena_query_missing_extend_target_diagnostics(
             tags: Vec::new(),
             create_custom_property: None,
             cascade_narrowing: None,
+            cascade_confidence: None,
         });
     }
 
@@ -500,6 +505,7 @@ fn summarize_omena_query_missing_extend_target_diagnostics_for_workspace(
             tags: Vec::new(),
             create_custom_property: None,
             cascade_narrowing: None,
+            cascade_confidence: None,
         });
     }
 
@@ -688,6 +694,7 @@ fn summarize_omena_query_replica_ensemble_inconsistency_diagnostics_for_workspac
                 tags: Vec::new(),
                 create_custom_property: None,
                 cascade_narrowing: None,
+                cascade_confidence: None,
             }
         })
         .collect()
@@ -796,6 +803,7 @@ pub fn summarize_omena_query_sass_import_deprecation_hints(
                 tags: vec![LSP_DIAGNOSTIC_TAG_DEPRECATED],
                 create_custom_property: None,
                 cascade_narrowing: None,
+                cascade_confidence: None,
             }
         })
         .collect()
@@ -938,6 +946,7 @@ fn summarize_omena_query_missing_sass_symbol_diagnostics_for_workspace_with_sifs
             tags: Vec::new(),
             create_custom_property: None,
             cascade_narrowing: None,
+            cascade_confidence: None,
         });
     }
 
@@ -1050,6 +1059,7 @@ fn summarize_omena_query_sass_use_cycle_diagnostics_for_workspace(
             tags: Vec::new(),
             create_custom_property: None,
             cascade_narrowing: None,
+            cascade_confidence: None,
         });
     }
 
@@ -1140,6 +1150,7 @@ fn summarize_omena_query_unresolved_sass_import_diagnostics_for_workspace(
             tags: Vec::new(),
             create_custom_property: None,
             cascade_narrowing: None,
+            cascade_confidence: None,
         });
     }
 
@@ -2039,6 +2050,7 @@ fn summarize_omena_query_external_sif_boundary_diagnostics(
             tags: Vec::new(),
             create_custom_property: None,
             cascade_narrowing: None,
+            cascade_confidence: None,
         });
     }
     diagnostics
@@ -2553,6 +2565,7 @@ pub fn summarize_omena_query_css_modules_local_composes_style_diagnostics(
                 tags: Vec::new(),
                 create_custom_property: None,
                 cascade_narrowing: None,
+                cascade_confidence: None,
             });
         }
     }
@@ -2618,6 +2631,7 @@ pub fn summarize_omena_query_css_modules_resolution_style_diagnostics(
                     tags: Vec::new(),
                     create_custom_property: None,
                     cascade_narrowing: None,
+                    cascade_confidence: None,
                 });
                 continue;
             };
@@ -2660,6 +2674,7 @@ pub fn summarize_omena_query_css_modules_resolution_style_diagnostics(
                 tags: Vec::new(),
                 create_custom_property: None,
                 cascade_narrowing: None,
+                cascade_confidence: None,
             });
         }
     }
@@ -2697,6 +2712,7 @@ pub fn summarize_omena_query_css_modules_resolution_style_diagnostics(
                     tags: Vec::new(),
                     create_custom_property: None,
                     cascade_narrowing: None,
+                    cascade_confidence: None,
                 });
             }
             continue;
@@ -2734,6 +2750,7 @@ pub fn summarize_omena_query_css_modules_resolution_style_diagnostics(
             tags: Vec::new(),
             create_custom_property: None,
             cascade_narrowing: None,
+            cascade_confidence: None,
         });
     }
 
@@ -2856,6 +2873,7 @@ pub fn summarize_omena_query_unused_selector_style_diagnostics_with_path_mapping
                 tags: vec![LSP_DIAGNOSTIC_TAG_UNNECESSARY],
                 create_custom_property: None,
                 cascade_narrowing: None,
+                cascade_confidence: None,
             })
         })
         .collect()

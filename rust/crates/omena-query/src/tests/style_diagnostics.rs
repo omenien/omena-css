@@ -217,6 +217,22 @@ fn style_diagnostics_for_file_include_cascade_aware_lints() -> Result<(), &'stat
         narrowing.element_class_iteration.product,
         "omena-abstract-value.reduced-product-iteration"
     );
+    let confidence = unreachable
+        .cascade_confidence
+        .as_ref()
+        .ok_or("cascade confidence evidence")?;
+    assert_eq!(confidence.product, "omena-query.cascade-confidence");
+    assert_eq!(confidence.feature_gate, "cascade-confidence-v0");
+    assert_eq!(confidence.claim_level, "fixtureWitnessResearchHint");
+    assert!(!confidence.theorem_claimed);
+    assert!(!confidence.public_safety_claim_ready);
+    assert_eq!(
+        confidence.calibration_stage,
+        "fixtureWitnessTierWeightSigmoidV0"
+    );
+    assert_eq!(confidence.margin_product, "omena-cascade.margin");
+    assert!(confidence.confidence_score_basis_points > 5_000);
+    assert!(confidence.challenger_declaration_id.is_some());
     assert_eq!(
         narrowing
             .runtime_state
@@ -240,6 +256,12 @@ fn style_diagnostics_for_file_include_cascade_aware_lints() -> Result<(), &'stat
         unreachable
             .provenance
             .contains(&"omena-abstract-value.reduced-product-iteration")
+    );
+    assert!(unreachable.provenance.contains(&"omena-cascade.margin"));
+    assert!(
+        unreachable
+            .provenance
+            .contains(&"omena-query.cascade-confidence")
     );
     assert_eq!(
         diagnostics

@@ -86,9 +86,23 @@ async function main(): Promise<void> {
       "omena-query.cascade-narrowing",
       "omena-abstract-value.property-value-narrowing",
       "omena-abstract-value.reduced-product-iteration",
+      "omena-cascade.margin",
+      "omena-query.cascade-confidence",
       "omena-query-checker-orchestrator.product-diagnostic-gate",
       "omena-checker.rule-registry",
     ]);
+    assert.deepEqual(
+      unreachable.data?.cascadeConfidence?.product,
+      "omena-query.cascade-confidence",
+    );
+    assert.deepEqual(unreachable.data?.cascadeConfidence?.featureGate, "cascade-confidence-v0");
+    assert.deepEqual(unreachable.data?.cascadeConfidence?.claimLevel, "fixtureWitnessResearchHint");
+    assert.deepEqual(unreachable.data?.cascadeConfidence?.theoremClaimed, false);
+    assert.deepEqual(unreachable.data?.cascadeConfidence?.publicSafetyClaimReady, false);
+    assert.deepEqual(
+      unreachable.data?.cascadeConfidence?.calibrationStage,
+      "fixtureWitnessTierWeightSigmoidV0",
+    );
 
     const deadLayer = findDiagnostic(diagnostics, "deadCascadeLayer");
     assert.equal(deadLayer.severity, DiagnosticSeverity.Hint);
@@ -100,9 +114,12 @@ async function main(): Promise<void> {
       "omena-query.cascade-narrowing",
       "omena-abstract-value.property-value-narrowing",
       "omena-abstract-value.reduced-product-iteration",
+      "omena-cascade.margin",
+      "omena-query.cascade-confidence",
       "omena-query-checker-orchestrator.product-diagnostic-gate",
       "omena-checker.rule-registry",
     ]);
+    assert.deepEqual(deadLayer.data?.cascadeConfidence?.product, "omena-query.cascade-confidence");
 
     const unusedSelector = findDiagnostic(diagnostics, "unusedSelector", (diagnostic) =>
       diagnostic.message.includes("'.ghost'"),

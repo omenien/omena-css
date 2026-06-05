@@ -65,6 +65,7 @@ interface QueryStyleDiagnosticV0 {
     readonly newText: string;
     readonly propertyName: string;
   };
+  readonly cascadeConfidence?: Record<string, unknown>;
 }
 
 interface QuerySourceDocumentInputV0 {
@@ -235,6 +236,7 @@ function toQueryOwnedStyleDiagnostic(
     ...(diagnostic.createCustomProperty
       ? { createCustomProperty: diagnostic.createCustomProperty }
       : queryQuickFixData(diagnostic, styleDocument)),
+    ...(diagnostic.cascadeConfidence ? { cascadeConfidence: diagnostic.cascadeConfidence } : {}),
   };
   return {
     range: toLspRange(diagnostic.range),

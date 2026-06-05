@@ -572,6 +572,30 @@ pub struct StyleEditDistanceCascadeMarginBridgeV0 {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
+pub struct OmenaQueryCascadeConfidenceV0 {
+    pub schema_version: &'static str,
+    pub product: &'static str,
+    pub feature_gate: &'static str,
+    pub confidence_kind: &'static str,
+    pub claim_level: &'static str,
+    pub theorem_claimed: bool,
+    pub public_safety_claim_ready: bool,
+    pub calibration_stage: &'static str,
+    pub margin_product: &'static str,
+    pub margin_kind: &'static str,
+    pub dominant_axis: &'static str,
+    pub dominant_axis_weight_basis_points: u16,
+    pub sigmoid_temperature_basis_points: u16,
+    pub signed_distance: i64,
+    pub abs_distance: u64,
+    pub confidence_score_basis_points: u16,
+    pub confidence_bucket: &'static str,
+    pub winner_declaration_id: String,
+    pub challenger_declaration_id: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct OmenaQueryCustomPropertyAnnotationSummaryV0 {
     pub schema_version: &'static str,
     pub product: &'static str,
@@ -1034,6 +1058,8 @@ pub struct OmenaQueryStyleDiagnosticV0 {
     pub create_custom_property: Option<OmenaQueryCreateCustomPropertyActionV0>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub cascade_narrowing: Option<OmenaQueryCascadeNarrowingEvidenceV0>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub cascade_confidence: Option<OmenaQueryCascadeConfidenceV0>,
 }
 
 pub type OmenaQueryLinearProvenanceV0 = LinearProvenanceV0<NaturalCountProvenanceSemiringV0>;
