@@ -160,6 +160,7 @@ pub(super) fn apply_omena_query_style_diagnostic_suppressions(
             create_custom_property: None,
             cascade_narrowing: None,
             cascade_confidence: None,
+            polynomial_provenance: None,
         });
     }
 

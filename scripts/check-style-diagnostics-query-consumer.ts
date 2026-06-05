@@ -103,6 +103,19 @@ async function main(): Promise<void> {
       unreachable.data?.cascadeConfidence?.calibrationStage,
       "fixtureWitnessTierWeightSigmoidV0",
     );
+    assert.deepEqual(
+      unreachable.data?.polynomialProvenance?.product,
+      "omena-abstract-value.polynomial-provenance",
+    );
+    assert.deepEqual(
+      unreachable.data?.polynomialProvenance?.claimLevel,
+      "fixtureWitnessPolynomialProjection",
+    );
+    assert.deepEqual(unreachable.data?.polynomialProvenance?.theoremClaimed, false);
+    assert.deepEqual(
+      unreachable.data?.polynomialProvenance?.selectedLadder,
+      "diagnosticDefaultThreeTier",
+    );
 
     const deadLayer = findDiagnostic(diagnostics, "deadCascadeLayer");
     assert.equal(deadLayer.severity, DiagnosticSeverity.Hint);

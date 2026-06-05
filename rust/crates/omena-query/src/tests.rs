@@ -107,6 +107,11 @@ fn summarizes_query_boundary_over_producer_fragments() {
     );
     assert!(
         summary
+            .ready_surfaces
+            .contains(&"polynomialProvenanceDiagnostics")
+    );
+    assert!(
+        summary
             .abstract_value_domain
             .reduced_product_operations
             .contains(&"matchesString")
@@ -125,6 +130,11 @@ fn summarizes_query_boundary_over_producer_fragments() {
         summary
             .delegated_fragment_products
             .contains(&"omena-resolver.source-resolution-runtime-index")
+    );
+    assert!(
+        summary
+            .delegated_fragment_products
+            .contains(&"omena-abstract-value.polynomial-provenance")
     );
     assert!(
         summary

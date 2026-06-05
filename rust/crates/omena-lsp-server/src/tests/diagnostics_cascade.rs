@@ -107,6 +107,22 @@ fn resolves_unnecessary_tags_for_cascade_style_diagnostics() -> TestResult {
         Some(&json!("fixtureWitnessTierWeightSigmoidV0")),
     );
     assert_eq!(
+        unreachable.pointer("/data/polynomialProvenance/product"),
+        Some(&json!("omena-abstract-value.polynomial-provenance")),
+    );
+    assert_eq!(
+        unreachable.pointer("/data/polynomialProvenance/claimLevel"),
+        Some(&json!("fixtureWitnessPolynomialProjection")),
+    );
+    assert_eq!(
+        unreachable.pointer("/data/polynomialProvenance/theoremClaimed"),
+        Some(&json!(false)),
+    );
+    assert_eq!(
+        unreachable.pointer("/data/polynomialProvenance/selectedLadder"),
+        Some(&json!("diagnosticDefaultThreeTier")),
+    );
+    assert_eq!(
         unreachable.pointer("/data/runtimeState/product"),
         Some(&json!("omena-query.runtime-state-scenario-evidence")),
     );

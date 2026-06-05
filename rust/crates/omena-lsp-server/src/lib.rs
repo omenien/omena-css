@@ -1057,6 +1057,12 @@ fn resolve_style_diagnostics_for_uri(state: &LspShellState, document_uri: &str) 
             if let Some(cascade_confidence) = diagnostic.cascade_confidence {
                 data.insert("cascadeConfidence".to_string(), json!(cascade_confidence));
             }
+            if let Some(polynomial_provenance) = diagnostic.polynomial_provenance {
+                data.insert(
+                    "polynomialProvenance".to_string(),
+                    json!(polynomial_provenance),
+                );
+            }
 
             let mut lsp_diagnostic = json!({
                 "range": diagnostic.range,
@@ -1115,6 +1121,7 @@ fn summarize_cross_file_streaming_reachability_diagnostics_for_lsp(
         create_custom_property: None,
         cascade_narrowing: None,
         cascade_confidence: None,
+        polynomial_provenance: None,
     }]
 }
 

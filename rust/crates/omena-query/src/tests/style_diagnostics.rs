@@ -104,7 +104,30 @@ fn missing_custom_property_diagnostics_are_query_owned() -> Result<(), serde_jso
     );
     assert!(
         serialized.get("linearProvenance").is_none(),
-        "typed provenance is a strict-superset projection and must not change the current wire shape"
+        "linear provenance remains a method-only strict-superset projection"
+    );
+    assert_eq!(
+        serialized
+            .pointer("/polynomialProvenance/product")
+            .and_then(|value| value.as_str()),
+        Some("omena-abstract-value.polynomial-provenance")
+    );
+    assert_eq!(
+        serialized
+            .pointer("/polynomialProvenance/claimLevel")
+            .and_then(|value| value.as_str()),
+        Some("fixtureWitnessPolynomialProjection")
+    );
+    assert_eq!(
+        serialized.pointer("/polynomialProvenance/theoremClaimed"),
+        Some(&serde_json::json!(false))
+    );
+    assert_eq!(
+        serialized
+            .pointer("/polynomialProvenance/projections")
+            .and_then(|value| value.as_array())
+            .map(Vec::len),
+        Some(4)
     );
     assert!(
         summary

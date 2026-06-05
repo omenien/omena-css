@@ -1060,9 +1060,12 @@ pub struct OmenaQueryStyleDiagnosticV0 {
     pub cascade_narrowing: Option<OmenaQueryCascadeNarrowingEvidenceV0>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub cascade_confidence: Option<OmenaQueryCascadeConfidenceV0>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub polynomial_provenance: Option<OmenaQueryPolynomialProvenanceV0>,
 }
 
 pub type OmenaQueryLinearProvenanceV0 = LinearProvenanceV0<NaturalCountProvenanceSemiringV0>;
+pub type OmenaQueryPolynomialProvenanceV0 = PolynomialProvenanceV0;
 
 pub fn summarize_omena_query_linear_provenance(
     provenance: &[&'static str],
@@ -1080,6 +1083,13 @@ pub fn summarize_omena_query_linear_provenance_with_support_count(
         LinearProvenancePathV0::supported(provenance, support_count)
     };
     OmenaQueryLinearProvenanceV0::from_composed_paths(&[path])
+}
+
+pub fn summarize_omena_query_polynomial_provenance(
+    provenance: &[&'static str],
+) -> OmenaQueryPolynomialProvenanceV0 {
+    let linear_provenance = summarize_omena_query_linear_provenance(provenance);
+    summarize_polynomial_provenance_from_linear_v0(&linear_provenance, "diagnosticDefaultThreeTier")
 }
 
 pub fn summarize_omena_query_linear_provenance_semiring_laws() -> ProvenanceSemiringLawReportV0 {
@@ -1113,6 +1123,10 @@ impl OmenaQueryStyleDiagnosticV0 {
     pub fn linear_provenance(&self) -> OmenaQueryLinearProvenanceV0 {
         summarize_omena_query_linear_provenance(self.provenance.as_slice())
     }
+
+    pub fn polynomial_provenance(&self) -> OmenaQueryPolynomialProvenanceV0 {
+        summarize_omena_query_polynomial_provenance(self.provenance.as_slice())
+    }
 }
 
 pub(crate) fn apply_omena_query_checker_product_gate_to_style_diagnostics(
@@ -1123,6 +1137,7 @@ pub(crate) fn apply_omena_query_checker_product_gate_to_style_diagnostics(
             diagnostic.code,
             &mut diagnostic.provenance,
         );
+        diagnostic.polynomial_provenance = Some(diagnostic.polynomial_provenance());
     }
 }
 

@@ -29,9 +29,9 @@ use super::{
     selector_certainty_shape_label_from_facts, suffix_class_value,
     summarize_abstract_class_value_provenance_tree, summarize_belief_propagation_iteration_v0,
     summarize_cascade_value_family_v0, summarize_omena_abstract_value_domain,
-    summarize_omena_abstract_value_flow_analysis, summarize_reduced_class_value_product,
-    top_class_value, value_certainty_from_facts, value_certainty_shape_kind_from_facts,
-    value_certainty_shape_label_from_facts,
+    summarize_omena_abstract_value_flow_analysis, summarize_polynomial_provenance_from_linear_v0,
+    summarize_reduced_class_value_product, top_class_value, value_certainty_from_facts,
+    value_certainty_shape_kind_from_facts, value_certainty_shape_label_from_facts,
 };
 use omena_incremental::OmenaIncrementalDatabaseV0;
 use std::collections::BTreeMap;
@@ -1875,6 +1875,68 @@ fn natural_count_linear_provenance_composes_supported_paths() {
             (2, "omena-parser.css-module-composes-facts"),
             (0, "omena-query.unresolved-reference"),
         ]
+    );
+}
+
+#[test]
+fn polynomial_provenance_projects_linear_labels_to_fixture_witness_flavors() {
+    let labels = [
+        "omena-query.cascade-checker",
+        "omena-query.cascade-confidence",
+    ];
+    let linear =
+        LinearProvenanceV0::<NaturalCountProvenanceSemiringV0>::from_static_labels(&labels);
+    let polynomial =
+        summarize_polynomial_provenance_from_linear_v0(&linear, "diagnosticDefaultThreeTier");
+
+    assert_eq!(
+        polynomial.product,
+        "omena-abstract-value.polynomial-provenance"
+    );
+    assert_eq!(polynomial.feature_gate, "qtt-provenance-polynomial-v0");
+    assert_eq!(
+        polynomial.polynomial_kind,
+        "naturalCountPolynomialOverLabels"
+    );
+    assert_eq!(polynomial.claim_level, "fixtureWitnessPolynomialProjection");
+    assert!(!polynomial.theorem_claimed);
+    assert_eq!(
+        polynomial.available_ladder_tiers,
+        vec![
+            "linearLabels",
+            "naturalCountPolynomial",
+            "homomorphicProjections"
+        ]
+    );
+    assert_eq!(polynomial.variables.len(), 2);
+    assert_eq!(polynomial.terms.len(), 2);
+    assert!(
+        polynomial
+            .projections
+            .iter()
+            .any(|projection| projection.projection_kind == "why"
+                && projection.semiring_identifier == "lin01")
+    );
+    assert!(
+        polynomial
+            .projections
+            .iter()
+            .any(|projection| projection.projection_kind == "whyNot"
+                && projection.value == "noUnsupportedTermsInFixture")
+    );
+    assert!(
+        polynomial
+            .projections
+            .iter()
+            .any(|projection| projection.projection_kind == "confidence"
+                && projection.semiring_identifier == "naturalCount")
+    );
+    assert!(
+        polynomial
+            .projections
+            .iter()
+            .any(|projection| projection.projection_kind == "tropical"
+                && projection.semiring_identifier == "tropical")
     );
 }
 

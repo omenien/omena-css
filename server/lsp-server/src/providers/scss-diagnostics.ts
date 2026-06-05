@@ -66,6 +66,7 @@ interface QueryStyleDiagnosticV0 {
     readonly propertyName: string;
   };
   readonly cascadeConfidence?: Record<string, unknown>;
+  readonly polynomialProvenance?: Record<string, unknown>;
 }
 
 interface QuerySourceDocumentInputV0 {
@@ -237,6 +238,9 @@ function toQueryOwnedStyleDiagnostic(
       ? { createCustomProperty: diagnostic.createCustomProperty }
       : queryQuickFixData(diagnostic, styleDocument)),
     ...(diagnostic.cascadeConfidence ? { cascadeConfidence: diagnostic.cascadeConfidence } : {}),
+    ...(diagnostic.polynomialProvenance
+      ? { polynomialProvenance: diagnostic.polynomialProvenance }
+      : {}),
   };
   return {
     range: toLspRange(diagnostic.range),

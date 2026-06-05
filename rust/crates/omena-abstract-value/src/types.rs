@@ -345,6 +345,46 @@ pub struct LinearProvenanceV0<K: ProvenanceSemiringV0> {
     pub terms: Vec<LinearProvenanceTermV0>,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PolynomialProvenanceVariableV0 {
+    pub variable: String,
+    pub label: &'static str,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PolynomialProvenanceTermV0 {
+    pub coefficient: u16,
+    pub variables: Vec<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PolynomialProvenanceProjectionV0 {
+    pub projection_kind: &'static str,
+    pub semiring_identifier: &'static str,
+    pub value: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PolynomialProvenanceV0 {
+    pub schema_version: &'static str,
+    pub product: &'static str,
+    pub layer_marker: &'static str,
+    pub feature_gate: &'static str,
+    pub polynomial_kind: &'static str,
+    pub claim_level: &'static str,
+    pub theorem_claimed: bool,
+    pub selected_ladder: String,
+    pub available_ladder_tiers: Vec<&'static str>,
+    pub root_operator: &'static str,
+    pub variables: Vec<PolynomialProvenanceVariableV0>,
+    pub terms: Vec<PolynomialProvenanceTermV0>,
+    pub projections: Vec<PolynomialProvenanceProjectionV0>,
+}
+
 impl<K: ProvenanceSemiringV0> LinearProvenanceV0<K> {
     pub fn semiring_identifier(&self) -> &'static str {
         self.semiring_identifier
@@ -352,6 +392,84 @@ impl<K: ProvenanceSemiringV0> LinearProvenanceV0<K> {
 
     pub fn labels(&self) -> Vec<&'static str> {
         self.terms.iter().map(|term| term.label).collect()
+    }
+}
+
+pub fn summarize_polynomial_provenance_from_linear_v0(
+    linear_provenance: &LinearProvenanceV0<NaturalCountProvenanceSemiringV0>,
+    selected_ladder: &str,
+) -> PolynomialProvenanceV0 {
+    let variables = linear_provenance
+        .terms
+        .iter()
+        .enumerate()
+        .map(|(index, term)| PolynomialProvenanceVariableV0 {
+            variable: format!("x{index}"),
+            label: term.label,
+        })
+        .collect::<Vec<_>>();
+    let terms = linear_provenance
+        .terms
+        .iter()
+        .enumerate()
+        .map(|(index, term)| PolynomialProvenanceTermV0 {
+            coefficient: u16::from(term.coefficient),
+            variables: vec![format!("x{index}")],
+        })
+        .collect::<Vec<_>>();
+    let total_support = terms.iter().map(|term| term.coefficient).sum::<u16>();
+    let tropical_cost = terms.iter().map(|term| term.coefficient).min().unwrap_or(0);
+    let why_not_value = linear_provenance
+        .terms
+        .iter()
+        .filter(|term| term.coefficient == 0)
+        .map(|term| term.label)
+        .collect::<Vec<_>>();
+    let why_not_value = if why_not_value.is_empty() {
+        "noUnsupportedTermsInFixture".to_string()
+    } else {
+        why_not_value.join(" -> ")
+    };
+
+    PolynomialProvenanceV0 {
+        schema_version: "0",
+        product: "omena-abstract-value.polynomial-provenance",
+        layer_marker: "qtt-graded",
+        feature_gate: "qtt-provenance-polynomial-v0",
+        polynomial_kind: "naturalCountPolynomialOverLabels",
+        claim_level: "fixtureWitnessPolynomialProjection",
+        theorem_claimed: false,
+        selected_ladder: selected_ladder.to_string(),
+        available_ladder_tiers: vec![
+            "linearLabels",
+            "naturalCountPolynomial",
+            "homomorphicProjections",
+        ],
+        root_operator: "sum",
+        variables,
+        terms,
+        projections: vec![
+            PolynomialProvenanceProjectionV0 {
+                projection_kind: "why",
+                semiring_identifier: "lin01",
+                value: linear_provenance.labels().join(" -> "),
+            },
+            PolynomialProvenanceProjectionV0 {
+                projection_kind: "whyNot",
+                semiring_identifier: "lin01",
+                value: why_not_value,
+            },
+            PolynomialProvenanceProjectionV0 {
+                projection_kind: "confidence",
+                semiring_identifier: "naturalCount",
+                value: format!("{total_support}/{}", linear_provenance.term_count.max(1)),
+            },
+            PolynomialProvenanceProjectionV0 {
+                projection_kind: "tropical",
+                semiring_identifier: "tropical",
+                value: tropical_cost.to_string(),
+            },
+        ],
     }
 }
 
