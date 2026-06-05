@@ -51,8 +51,9 @@ The current research track is evidence-backed only at the substrate level:
   calibrated Lipschitz theorem.
 - Contextual equality saturation is scaffold-only over the optional `egg`
   boundary. It does not claim an egglog binding or full three-view fusion.
-- `perceptual-check` is a downstream CLI/schema scaffold over omena facts. It
-  does not implement WCAG, APCA, OKLab, a full perceptual algorithm, or a
+- `perceptual-check` is a downstream CLI/schema surface over omena facts with a
+  fixture-witnessed WCAG contrast bound for exact sRGB color/background pairs.
+  It does not implement APCA, OKLab, a full perceptual algorithm, or a
   public-safety claim.
 
 ## Publication Requirement

@@ -290,7 +290,7 @@ enum Command {
         #[arg(long)]
         json: bool,
     },
-    /// Emit the #72 downstream perceptual-check JSON scaffold from Omena facts.
+    /// Emit downstream perceptual-check JSON from Omena style facts.
     PerceptualCheck {
         /// CSS, SCSS, Sass, Less, or CSS Modules file to inspect.
         path: PathBuf,
@@ -449,7 +449,7 @@ struct ZkAuditCliResultV0 {
     verified: bool,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]
 struct PerceptualCheckCliReportV0 {
     schema_version: &'static str,
@@ -468,12 +468,48 @@ struct PerceptualCheckCliReportV0 {
     downstream_tool_scaffold_ready: bool,
     consumes_omena_facts: bool,
     wcag_algorithm_ready: bool,
+    wcag_exact_color_contrast_bound_count: usize,
+    wcag_exact_color_contrast_bounds: Vec<PerceptualExactColorContrastBoundV0>,
     apca_algorithm_ready: bool,
     oklab_perceptual_operator_ready: bool,
     full_perceptual_algorithm_ready: bool,
     public_safety_claim_ready: bool,
     supported_claims: Vec<&'static str>,
     deferred_claims: Vec<&'static str>,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct PerceptualExactColorContrastBoundV0 {
+    schema_version: &'static str,
+    product: &'static str,
+    feature_gate: &'static str,
+    claim_level: &'static str,
+    selector_name: String,
+    foreground_property: &'static str,
+    background_property: &'static str,
+    foreground: String,
+    background: String,
+    foreground_luminance: f64,
+    background_luminance: f64,
+    contrast_ratio: f64,
+    wcag_aa_normal_text_threshold: f64,
+    passes_aa_normal_text: bool,
+    public_safety_claim_ready: bool,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+struct PerceptualExactSrgbColorV0 {
+    red: u8,
+    green: u8,
+    blue: u8,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct PerceptualDeclarationColorV0 {
+    property: &'static str,
+    value: String,
+    color: PerceptualExactSrgbColorV0,
 }
 
 fn main() -> ExitCode {
@@ -1684,6 +1720,9 @@ fn summarize_cross_file_streaming_reachability_diagnostics(
         tags: Vec::new(),
         create_custom_property: None,
         cascade_narrowing: None,
+        cascade_confidence: None,
+        polynomial_provenance: None,
+        cross_file_scc: None,
     }]
 }
 
@@ -1993,6 +2032,10 @@ fn perceptual_check(path: PathBuf, json: bool) -> Result<(), String> {
         report.downstream_tool_scaffold_ready
     );
     println!(
+        "WCAG exact color contrast bounds: {}",
+        report.wcag_exact_color_contrast_bound_count
+    );
+    println!(
         "full perceptual algorithm ready: {}",
         report.full_perceptual_algorithm_ready
     );
@@ -2005,12 +2048,14 @@ fn perceptual_check_summary(path: &Path) -> Result<PerceptualCheckCliReportV0, S
     let style_document = summarize_omena_query_style_document(&style_path, &source)
         .ok_or_else(|| format!("failed to read style document facts for {style_path}"))?;
     let check = summarize_omena_query_consumer_check_style_source(&style_path, &source);
+    let wcag_exact_color_contrast_bounds = collect_wcag_exact_color_contrast_bounds_v0(&source);
+    let wcag_exact_color_contrast_bound_count = wcag_exact_color_contrast_bounds.len();
 
     Ok(PerceptualCheckCliReportV0 {
         schema_version: "0",
-        product: "omena-cli.perceptual-check.scaffold",
+        product: "omena-cli.perceptual-check",
         command: "perceptual-check",
-        claim_level: "m6DownstreamToolScaffoldOnly",
+        claim_level: "fixtureWitnessExactColorWcagContrast",
         style_path,
         language: style_document.language,
         fact_source_products: vec![style_document.product, check.product],
@@ -2020,28 +2065,236 @@ fn perceptual_check_summary(path: &Path) -> Result<PerceptualCheckCliReportV0, S
         diagnostic_count: style_document
             .diagnostic_count
             .max(check.parser_error_count),
-        color_machinery_source: "omena-transform-passes.domains.color",
+        color_machinery_source: "omena-cli.perceptual-check.exact-srgb-wcag",
         json_schema_ready: true,
         downstream_tool_scaffold_ready: true,
         consumes_omena_facts: true,
-        wcag_algorithm_ready: false,
+        wcag_algorithm_ready: wcag_exact_color_contrast_bound_count > 0,
+        wcag_exact_color_contrast_bound_count,
+        wcag_exact_color_contrast_bounds,
         apca_algorithm_ready: false,
         oklab_perceptual_operator_ready: false,
         full_perceptual_algorithm_ready: false,
         public_safety_claim_ready: false,
         supported_claims: vec![
-            "perceptual-check CLI scaffold",
+            "perceptual-check CLI report",
             "JSON output schema",
             "Omena fact-level input consumption",
+            "WCAG contrast bound for exact sRGB color/background pairs",
         ],
         deferred_claims: vec![
-            "WCAG luminance algorithm",
+            "non-exact and cascade-computed color contrast",
             "APCA algorithm",
             "OKLab perceptual operator",
             "full perceptual algorithm",
             "public safety claim",
         ],
     })
+}
+
+fn collect_wcag_exact_color_contrast_bounds_v0(
+    source: &str,
+) -> Vec<PerceptualExactColorContrastBoundV0> {
+    let mut bounds = Vec::new();
+    for block in source.split('}') {
+        let Some((selector_text, declaration_text)) = block.split_once('{') else {
+            continue;
+        };
+        let selector_name =
+            extract_first_class_selector_name_v0(selector_text).unwrap_or_else(|| {
+                selector_text
+                    .trim()
+                    .split(',')
+                    .next()
+                    .unwrap_or("<unknown>")
+                    .trim()
+                    .to_string()
+            });
+        let mut foreground = None;
+        let mut background = None;
+        for declaration in declaration_text.split(';') {
+            let Some((property, value)) = declaration.split_once(':') else {
+                continue;
+            };
+            let property = property.trim().to_ascii_lowercase();
+            let value = strip_declaration_priority_v0(value.trim());
+            let Some(color) = parse_perceptual_exact_srgb_color_v0(value) else {
+                continue;
+            };
+            match property.as_str() {
+                "color" => {
+                    foreground = Some(PerceptualDeclarationColorV0 {
+                        property: "color",
+                        value: value.to_string(),
+                        color,
+                    });
+                }
+                "background" | "background-color" => {
+                    background = Some(PerceptualDeclarationColorV0 {
+                        property: if property == "background" {
+                            "background"
+                        } else {
+                            "background-color"
+                        },
+                        value: value.to_string(),
+                        color,
+                    });
+                }
+                _ => {}
+            }
+        }
+        let (Some(foreground), Some(background)) = (foreground, background) else {
+            continue;
+        };
+        let foreground_luminance = wcag_relative_luminance_v0(foreground.color);
+        let background_luminance = wcag_relative_luminance_v0(background.color);
+        let contrast_ratio = wcag_contrast_ratio_v0(foreground_luminance, background_luminance);
+        bounds.push(PerceptualExactColorContrastBoundV0 {
+            schema_version: "0",
+            product: "omena-cli.perceptual-check.wcag-exact-color-contrast",
+            feature_gate: "wcag-exact-color-contrast-v0",
+            claim_level: "fixtureWitnessExactColorWcagContrast",
+            selector_name,
+            foreground_property: foreground.property,
+            background_property: background.property,
+            foreground: foreground.value,
+            background: background.value,
+            foreground_luminance,
+            background_luminance,
+            contrast_ratio,
+            wcag_aa_normal_text_threshold: 4.5,
+            passes_aa_normal_text: contrast_ratio >= 4.5,
+            public_safety_claim_ready: false,
+        });
+    }
+    bounds
+}
+
+fn extract_first_class_selector_name_v0(selector_text: &str) -> Option<String> {
+    let start = selector_text.find('.')? + 1;
+    let name = selector_text[start..]
+        .chars()
+        .take_while(|ch| ch.is_ascii_alphanumeric() || matches!(ch, '-' | '_'))
+        .collect::<String>();
+    (!name.is_empty()).then_some(name)
+}
+
+fn strip_declaration_priority_v0(value: &str) -> &str {
+    value
+        .strip_suffix("!important")
+        .map(str::trim)
+        .unwrap_or(value)
+}
+
+fn parse_perceptual_exact_srgb_color_v0(value: &str) -> Option<PerceptualExactSrgbColorV0> {
+    let trimmed = value.trim();
+    parse_perceptual_hex_color_v0(trimmed)
+        .or_else(|| parse_perceptual_basic_named_color_v0(trimmed))
+        .or_else(|| parse_perceptual_rgb_function_v0(trimmed))
+}
+
+fn parse_perceptual_hex_color_v0(value: &str) -> Option<PerceptualExactSrgbColorV0> {
+    let hex = value.strip_prefix('#')?;
+    match hex.len() {
+        3 => {
+            let mut chars = hex.chars();
+            Some(PerceptualExactSrgbColorV0 {
+                red: parse_repeated_hex_digit_v0(chars.next()?)?,
+                green: parse_repeated_hex_digit_v0(chars.next()?)?,
+                blue: parse_repeated_hex_digit_v0(chars.next()?)?,
+            })
+        }
+        6 => Some(PerceptualExactSrgbColorV0 {
+            red: u8::from_str_radix(hex.get(0..2)?, 16).ok()?,
+            green: u8::from_str_radix(hex.get(2..4)?, 16).ok()?,
+            blue: u8::from_str_radix(hex.get(4..6)?, 16).ok()?,
+        }),
+        _ => None,
+    }
+}
+
+fn parse_repeated_hex_digit_v0(ch: char) -> Option<u8> {
+    let value = ch.to_digit(16)? as u8;
+    Some(value * 17)
+}
+
+fn parse_perceptual_basic_named_color_v0(value: &str) -> Option<PerceptualExactSrgbColorV0> {
+    match value.to_ascii_lowercase().as_str() {
+        "black" => Some(PerceptualExactSrgbColorV0 {
+            red: 0,
+            green: 0,
+            blue: 0,
+        }),
+        "white" => Some(PerceptualExactSrgbColorV0 {
+            red: 255,
+            green: 255,
+            blue: 255,
+        }),
+        "red" => Some(PerceptualExactSrgbColorV0 {
+            red: 255,
+            green: 0,
+            blue: 0,
+        }),
+        "green" => Some(PerceptualExactSrgbColorV0 {
+            red: 0,
+            green: 128,
+            blue: 0,
+        }),
+        "blue" => Some(PerceptualExactSrgbColorV0 {
+            red: 0,
+            green: 0,
+            blue: 255,
+        }),
+        _ => None,
+    }
+}
+
+fn parse_perceptual_rgb_function_v0(value: &str) -> Option<PerceptualExactSrgbColorV0> {
+    let inner = value
+        .strip_prefix("rgb(")
+        .or_else(|| value.strip_prefix("rgba("))?
+        .strip_suffix(')')?;
+    if inner.contains('/') {
+        return None;
+    }
+    let components = inner
+        .split(|ch: char| ch == ',' || ch.is_ascii_whitespace())
+        .filter(|part| !part.is_empty())
+        .collect::<Vec<_>>();
+    let [red, green, blue] = components.as_slice() else {
+        return None;
+    };
+    Some(PerceptualExactSrgbColorV0 {
+        red: parse_perceptual_rgb_channel_v0(red)?,
+        green: parse_perceptual_rgb_channel_v0(green)?,
+        blue: parse_perceptual_rgb_channel_v0(blue)?,
+    })
+}
+
+fn parse_perceptual_rgb_channel_v0(value: &str) -> Option<u8> {
+    let parsed = value.parse::<u8>().ok()?;
+    Some(parsed)
+}
+
+fn wcag_relative_luminance_v0(color: PerceptualExactSrgbColorV0) -> f64 {
+    0.2126 * wcag_linear_srgb_channel_v0(color.red)
+        + 0.7152 * wcag_linear_srgb_channel_v0(color.green)
+        + 0.0722 * wcag_linear_srgb_channel_v0(color.blue)
+}
+
+fn wcag_linear_srgb_channel_v0(channel: u8) -> f64 {
+    let value = f64::from(channel) / 255.0;
+    if value <= 0.039_28 {
+        value / 12.92
+    } else {
+        ((value + 0.055) / 1.055).powf(2.4)
+    }
+}
+
+fn wcag_contrast_ratio_v0(left_luminance: f64, right_luminance: f64) -> f64 {
+    let lighter = left_luminance.max(right_luminance);
+    let darker = left_luminance.min(right_luminance);
+    (lighter + 0.05) / (darker + 0.05)
 }
 
 fn source_diagnostics_summary(
@@ -3173,17 +3426,18 @@ export function App() {
     }
 
     #[test]
-    fn perceptual_check_command_emits_scaffold_schema_from_query_facts() -> Result<(), String> {
+    fn perceptual_check_command_emits_exact_color_wcag_witness_from_query_facts()
+    -> Result<(), String> {
         let source_path = temp_path("perceptual.module.css");
         fs::write(
             &source_path,
-            ":root { --fg: #000; }\n.button { color: var(--fg); background: #fff; }\n",
+            ":root { --fg: #000; }\n.button { color: #000; background: #fff; border-color: var(--fg); }\n",
         )
         .map_err(|error| format!("fixture source should be writable: {error}"))?;
 
         let report = perceptual_check_summary(&source_path)?;
-        assert_eq!(report.product, "omena-cli.perceptual-check.scaffold");
-        assert_eq!(report.claim_level, "m6DownstreamToolScaffoldOnly");
+        assert_eq!(report.product, "omena-cli.perceptual-check");
+        assert_eq!(report.claim_level, "fixtureWitnessExactColorWcagContrast");
         assert_eq!(report.command, "perceptual-check");
         assert!(report.json_schema_ready);
         assert!(report.downstream_tool_scaffold_ready);
@@ -3191,7 +3445,21 @@ export function App() {
         assert_eq!(report.selector_count, 1);
         assert_eq!(report.custom_property_declaration_count, 1);
         assert_eq!(report.custom_property_reference_count, 1);
-        assert!(!report.wcag_algorithm_ready);
+        assert!(report.wcag_algorithm_ready);
+        assert_eq!(report.wcag_exact_color_contrast_bound_count, 1);
+        let contrast = &report.wcag_exact_color_contrast_bounds[0];
+        assert_eq!(
+            contrast.product,
+            "omena-cli.perceptual-check.wcag-exact-color-contrast"
+        );
+        assert_eq!(contrast.feature_gate, "wcag-exact-color-contrast-v0");
+        assert_eq!(contrast.claim_level, "fixtureWitnessExactColorWcagContrast");
+        assert_eq!(contrast.selector_name, "button");
+        assert_eq!(contrast.foreground, "#000");
+        assert_eq!(contrast.background, "#fff");
+        assert!(contrast.passes_aa_normal_text);
+        assert!(!contrast.public_safety_claim_ready);
+        assert!(contrast.contrast_ratio >= 21.0);
         assert!(!report.apca_algorithm_ready);
         assert!(!report.oklab_perceptual_operator_ready);
         assert!(!report.full_perceptual_algorithm_ready);
@@ -3223,7 +3491,7 @@ export function App() {
     fn perceptual_check_help_is_available() {
         let help = Cli::command().render_long_help().to_string();
         assert!(help.contains("perceptual-check"));
-        assert!(help.contains("downstream perceptual-check JSON scaffold"));
+        assert!(help.contains("downstream perceptual-check JSON"));
     }
 
     #[test]

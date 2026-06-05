@@ -30,9 +30,10 @@ Current commands:
   cross-language class-value flow through the query-owned incremental runtime.
 - `omena selector-projection --engine-input-json input.json` projects
   expression-domain values to target style selectors.
-- `omena perceptual-check <file> --json` emits the downstream perceptual-tool
-  scaffold schema from Omena facts. This is a schema/fact-consumption surface,
-  not a complete WCAG/APCA/OKLab perceptual algorithm.
+- `omena perceptual-check <file> --json` emits downstream perceptual-tool JSON
+  from Omena facts, including a fixture-witnessed WCAG contrast bound for exact
+  sRGB color/background pairs. This is not a complete APCA/OKLab/full
+  perceptual algorithm or a public-safety claim.
 - `omena passes` lists the transform pass ids accepted by `omena build`.
 
 Install the published CLI with Cargo:
