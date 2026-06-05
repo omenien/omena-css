@@ -17,6 +17,36 @@ const VALID_CI_TIERS = new Set<CheckCiTier>([
 
 export const DECLARED_CHECK_GATES = [
   {
+    id: "release/sync-server-version",
+    kind: "command",
+    scope: "release",
+    command: ["./scripts/release.sh"],
+    tags: ["release"],
+    ciTier: "manual",
+    ciGroup: "release",
+  },
+  {
+    id: "release/release/verify",
+    kind: "bundle",
+    scope: "release",
+    replacesPackageTarget: "release/release/verify",
+    deps: [
+      "release/sync-server-version",
+      "release/check/release-m5-api-freeze-audit",
+      "core/build",
+      "core/check",
+      "plugin/consumer-example",
+      "plugin/consumers",
+      "rust/release/bundle",
+      "tsgo/release/bundle",
+      "test/test",
+      "release/package",
+    ],
+    tags: ["release"],
+    ciTier: "manual",
+    ciGroup: "release",
+  },
+  {
     id: "rust/release/bundle",
     kind: "bundle",
     scope: "rust",

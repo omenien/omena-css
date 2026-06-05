@@ -169,8 +169,10 @@ describe("check orchestrator manifest", () => {
 
     const releaseVerify = resolveGateTarget(manifest, "release/release/verify");
     expect(releaseVerify?.kind).toBe("bundle");
+    expect(releaseVerify?.origin).toBe("declared");
     expect(releaseVerify?.referencedScripts).toEqual(
       expect.arrayContaining([
+        "@declared/release/sync-server-version",
         "check",
         "check:plugin-consumer-example",
         "check:plugin-consumers",
@@ -272,6 +274,42 @@ describe("check orchestrator manifest", () => {
         expect.objectContaining({ id: "rust/omena-syntax/boundary", depth: 1 }),
         expect.objectContaining({ id: "rust/producer-boundary", depth: 1 }),
         expect.objectContaining({ id: "rust/theory-claim-levels", depth: 1 }),
+      ]),
+    );
+  });
+
+  it("uses declared deps for release verification while preserving its public script", () => {
+    const releaseVerify = resolveGateTarget(manifest, "release/release/verify");
+    expect(releaseVerify).toMatchObject({
+      kind: "bundle",
+      origin: "declared",
+      scriptName: "release:verify",
+      ciTier: "manual",
+      ciGroup: "release",
+      tags: ["release"],
+    });
+
+    const syncVersion = resolveGateTarget(manifest, "release/sync-server-version");
+    expect(syncVersion).toMatchObject({
+      kind: "command",
+      origin: "declared",
+      scriptName: "@declared/release/sync-server-version",
+      commandParts: ["./scripts/release.sh"],
+      ciTier: "manual",
+      ciGroup: "release",
+      tags: ["release"],
+    });
+
+    const plan = buildCheckPlan(manifest, releaseVerify!);
+    expect(plan.steps).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ id: "release/sync-server-version", depth: 1 }),
+        expect.objectContaining({ id: "release/check/release-m5-api-freeze-audit", depth: 1 }),
+        expect.objectContaining({ id: "core/build", depth: 1 }),
+        expect.objectContaining({ id: "core/check", depth: 1 }),
+        expect.objectContaining({ id: "rust/release/bundle", depth: 1 }),
+        expect.objectContaining({ id: "tsgo/release/bundle", depth: 1 }),
+        expect.objectContaining({ id: "release/package", depth: 1 }),
       ]),
     );
   });
@@ -603,6 +641,12 @@ describe("check orchestrator manifest", () => {
     expect(inventory).toMatch(
       /\| `rust\/lane\/bundle`\s+\| bundle\s+\| declared\s+\| `check:rust-lane-bundle`\s+\|/,
     );
+    expect(inventory).toMatch(
+      /\| `release\/release\/verify`\s+\| bundle\s+\| declared\s+\| `release:verify`\s+\|/,
+    );
+    expect(inventory).toMatch(
+      /\| `release\/sync-server-version`\s+\| command\s+\| declared\s+\| `@declared\/release\/sync-server-version`\s+\|/,
+    );
   });
 
   it("builds a readable nested plan for aggregate gates", () => {
@@ -613,6 +657,10 @@ describe("check orchestrator manifest", () => {
     expect(plan.steps[0]?.scriptName).toBe("release:verify");
     expect(plan.steps).toEqual(
       expect.arrayContaining([
+        expect.objectContaining({
+          depth: 1,
+          scriptName: "@declared/release/sync-server-version",
+        }),
         expect.objectContaining({
           depth: 1,
           scriptName: "check:rust-release-bundle",
@@ -630,6 +678,7 @@ describe("check orchestrator manifest", () => {
     const rendered = renderCheckPlan(plan);
     expect(rendered).toContain("Check plan: release/release/verify (release:verify)");
     expect(rendered).toContain("- release/release/verify (release:verify, bundle)");
+    expect(rendered).toContain("  - release/sync-server-version");
     expect(rendered).toContain("  - rust/release/bundle (check:rust-release-bundle, bundle)");
   });
 

@@ -2,6 +2,11 @@ import { execFileSync } from "node:child_process";
 import { strict as assert } from "node:assert";
 import { readFileSync } from "node:fs";
 import path from "node:path";
+import {
+  buildCheckPlan,
+  loadCheckManifest,
+  resolveGateTarget,
+} from "../packages/check-orchestrator/src";
 
 type TheoryClaimGuardSummary = {
   readonly schemaVersion: "0";
@@ -153,7 +158,8 @@ assertIncludes(packageJson.scripts.package, "release/package/prepared");
 assertIncludes(packageJson.scripts["package:prepared"], M5_CLASS_VALUE_MATRIX_TARGET);
 assertIncludes(packageJson.scripts["package:prepared"], M5_AUDIT_TARGET);
 assertIncludes(packageJson.scripts["package:prepared"], "package-extension-vsix.ts");
-assertIncludes(packageJson.scripts["release:verify"], M5_AUDIT_TARGET);
+assertIncludes(packageJson.scripts["release:verify"], "release/release/verify");
+assertReleaseVerifyPlanIncludes(M5_AUDIT_TARGET);
 assertIncludes(read("scripts/package-extension-vsix.ts"), 'copyRequiredFile(".vscodeignore")');
 assertIncludes(publishScript, `pnpm ${M5_CLASS_VALUE_MATRIX_SCRIPT}`);
 assertIncludes(publishScript, `pnpm ${M5_AUDIT_SCRIPT}`);
@@ -237,6 +243,14 @@ process.stdout.write("\n");
 
 function read(relativePath: string): string {
   return readFileSync(path.join(root, relativePath), "utf8");
+}
+
+function assertReleaseVerifyPlanIncludes(target: string): void {
+  const manifest = loadCheckManifest(root);
+  const releaseVerify = resolveGateTarget(manifest, "release/release/verify");
+  assert.ok(releaseVerify, "release/release/verify must exist in the check manifest");
+  const stepIds = new Set(buildCheckPlan(manifest, releaseVerify).steps.map((step) => step.id));
+  assert.ok(stepIds.has(target), `release/release/verify manifest plan must include ${target}`);
 }
 
 function assertIncludes(source: string | undefined, marker: string): void {
