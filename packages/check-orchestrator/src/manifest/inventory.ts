@@ -84,13 +84,20 @@ function formatCode(value: string): string {
 }
 
 function formatStatus(gate: CheckGate): string {
+  const parts: string[] = [];
   if (gate.deprecatedBy) {
-    return `deprecated; use ${formatCode(gate.deprecatedBy)}`;
+    parts.push(`deprecated; use ${formatCode(gate.deprecatedBy)}`);
   }
   if (gate.deprecatedAliases && gate.deprecatedAliases.length > 0) {
-    return `replaces ${gate.deprecatedAliases.map(formatCode).join(", ")}`;
+    parts.push(`replaces ${gate.deprecatedAliases.map(formatCode).join(", ")}`);
   }
-  return "";
+  if (gate.ciTier) {
+    parts.push(`ci ${formatCode(gate.ciTier)}`);
+  }
+  if (gate.ciGroup) {
+    parts.push(`group ${formatCode(gate.ciGroup)}`);
+  }
+  return parts.join("; ");
 }
 
 function escapeMarkdown(value: string): string {

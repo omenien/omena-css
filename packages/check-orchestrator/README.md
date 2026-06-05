@@ -30,7 +30,9 @@ to duplicate every script name.
 `doctor` also rejects GitHub workflow calls that bypass `omena-check` for
 manifest-covered package scripts, non-canonical or unknown `omena-check` targets,
 and `bundle` calls pointed at non-bundle gates. It warns on alias chains so
-public check names stay flat.
+public check names stay flat. Declared gates with a CI tier are also checked
+against workflow reachability so a gate cannot claim `closure-fast` or `verify`
+coverage while being absent from that workflow tier.
 
 `surface` prints the current gate count, alias-chain count, and largest bundles
 by unique leaf dependencies. Use it before broad gate rewrites to identify the

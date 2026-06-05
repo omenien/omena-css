@@ -1,6 +1,7 @@
 import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
 import {
+  applyDeclaredPackageMetadata,
   buildDeclaredGates,
   DECLARED_CHECK_GATES,
   getDeprecatedPackageScriptReplacement,
@@ -9,14 +10,20 @@ import { renderCheckInventory } from "./inventory";
 import { buildCheckPlan, renderCheckPlan } from "./plan";
 import { classifyScript } from "./scopes";
 import { buildCheckSurfaceReport, findAliasChains, renderCheckSurfaceReport } from "./surface";
-import { findWorkflowBypassDiagnostics } from "./workflows";
+import { findCiTierReachabilityDiagnostics, findWorkflowBypassDiagnostics } from "./workflows";
 import type {
   CheckBundle,
   CheckDiagnostic,
   CheckGate,
   CheckManifest,
+  DeclaredCheckGateV0,
   RootPackageJson,
 } from "./types";
+
+export interface LoadCheckManifestOptions {
+  readonly declaredGates?: readonly DeclaredCheckGateV0[];
+  readonly loadDeclaredGates?: boolean;
+}
 
 export type {
   CheckAliasChain,
@@ -46,22 +53,33 @@ const PACKAGE_SCRIPT_REF = /\bpnpm\s+(?:run\s+)?([A-Za-z0-9:_-]+)/g;
 const CHECK_ORCHESTRATOR_TARGET_REF =
   /\bpnpm\s+(?:run\s+)?omena-check\s+(run|bundle)\s+([A-Za-z0-9:_@/.-]+)/g;
 
-export function loadCheckManifest(rootDir = findRepoRoot()): CheckManifest {
+export function loadCheckManifest(
+  rootDir = findRepoRoot(),
+  options: LoadCheckManifestOptions = {},
+): CheckManifest {
   const packageJson = readRootPackageJson(rootDir);
   const scripts = packageJson.scripts ?? {};
   const diagnostics: CheckDiagnostic[] = [];
   const packageGates = Object.entries(scripts)
     .toSorted(([left], [right]) => left.localeCompare(right))
     .map(([scriptName, command]) => buildGate(scriptName, command, scripts, diagnostics));
-  const declaredGates = shouldLoadRepoDeclaredGates(rootDir)
-    ? buildDeclaredGates(packageGates, DECLARED_CHECK_GATES, diagnostics)
-    : [];
-  const gates = [...packageGates, ...declaredGates];
+  const declarations = resolveDeclaredGateDeclarations(rootDir, options);
+  const metadataAppliedPackageGates = applyDeclaredPackageMetadata(
+    packageGates,
+    declarations,
+    diagnostics,
+  );
+  const declaredGates =
+    declarations.length > 0
+      ? buildDeclaredGates(metadataAppliedPackageGates, declarations, diagnostics)
+      : [];
+  const gates = [...metadataAppliedPackageGates, ...declaredGates];
 
   diagnostics.push(...findDuplicateGateIds(gates));
   diagnostics.push(...findAliasChainDiagnostics(gates));
   diagnostics.push(...findCheckOrchestratorTargetDiagnostics(gates));
   diagnostics.push(...findWorkflowBypassDiagnostics(rootDir, gates));
+  diagnostics.push(...findCiTierReachabilityDiagnostics(rootDir, gates));
 
   return {
     rootDir,
@@ -286,4 +304,17 @@ function readRootPackageJson(rootDir: string): RootPackageJson {
 
 function shouldLoadRepoDeclaredGates(rootDir: string): boolean {
   return existsSync(path.join(rootDir, "packages/check-orchestrator/src/manifest/declared.ts"));
+}
+
+function resolveDeclaredGateDeclarations(
+  rootDir: string,
+  options: LoadCheckManifestOptions,
+): readonly DeclaredCheckGateV0[] {
+  if (options.declaredGates) {
+    return options.declaredGates;
+  }
+  if (options.loadDeclaredGates === false) {
+    return [];
+  }
+  return shouldLoadRepoDeclaredGates(rootDir) ? DECLARED_CHECK_GATES : [];
 }

@@ -12,7 +12,7 @@ export type CheckScopeId =
   | "tooling";
 
 export type CheckGateKind = "command" | "gate" | "bundle" | "alias";
-export type CheckGateOrigin = "package" | "declared";
+export type CheckGateOrigin = "package" | "declared" | "package+declared";
 export type CheckCiTier = "verify" | "closure-fast" | "scheduled" | "manual" | "none";
 
 export interface DeclaredCheckGateV0 {
@@ -21,6 +21,7 @@ export interface DeclaredCheckGateV0 {
   readonly scope: CheckScopeId;
   readonly command?: readonly string[];
   readonly deps?: readonly string[];
+  readonly packageTarget?: string;
   readonly tags?: readonly string[];
   readonly timeoutMinutes?: number;
   readonly ciTier?: CheckCiTier;

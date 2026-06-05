@@ -182,6 +182,42 @@ describe("check orchestrator manifest", () => {
     });
   });
 
+  it("annotates the closure-fast package-derived gates with declared metadata", () => {
+    expect(resolveGateTarget(manifest, "rust/omena-query/boundary")).toMatchObject({
+      origin: "package+declared",
+      ciTier: "closure-fast",
+      ciGroup: "closure-fast",
+      tags: ["closure-fast"],
+    });
+    expect(resolveGateTarget(manifest, "release/check/release-tag-grammar")).toMatchObject({
+      origin: "package+declared",
+      ciTier: "closure-fast",
+      ciGroup: "closure-fast",
+      tags: ["closure-fast"],
+    });
+  });
+
+  it("renders the declared closure-fast bundle plan over workflow gate deps", () => {
+    const closureFast = resolveGateTarget(manifest, "rust/closure-fast");
+    expect(closureFast).toMatchObject({
+      kind: "bundle",
+      origin: "declared",
+      ciTier: "none",
+      ciGroup: "closure-fast",
+      tags: ["closure-fast", "ci-unreachable-allowed"],
+    });
+
+    const plan = buildCheckPlan(manifest, closureFast!);
+    expect(plan.steps).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ id: "rust/runtime-query-api-hardening", depth: 1 }),
+        expect.objectContaining({ id: "rust/product-facing-capability", depth: 1 }),
+        expect.objectContaining({ id: "rust/theory-generalization", depth: 1 }),
+        expect.objectContaining({ id: "rust/closure-fast-aggregation-complete", depth: 1 }),
+      ]),
+    );
+  });
+
   it("builds valid declared command gates", () => {
     const diagnostics: CheckDiagnostic[] = [];
     const gates = buildDeclaredGates(
@@ -283,6 +319,158 @@ describe("check orchestrator manifest", () => {
         expect.objectContaining({ code: "declared-gate-unknown-dep" }),
         expect.objectContaining({ code: "declared-gate-cycle" }),
         expect.objectContaining({ code: "declared-gate-unknown-ci-tier" }),
+      ]),
+    );
+  });
+
+  it("reports declared ciTier gates that are not reachable from their workflow tier", () => {
+    const root = mkdtempSync(path.join(os.tmpdir(), "omena-check-orchestrator-"));
+    mkdirSync(path.join(root, ".github/workflows"), { recursive: true });
+    writeFileSync(
+      path.join(root, "package.json"),
+      JSON.stringify(
+        {
+          name: "omena-css",
+          scripts: {
+            "omena-check": "node ./check.js",
+            check: "echo check",
+          },
+        },
+        null,
+        2,
+      ),
+    );
+    writeFileSync(
+      path.join(root, ".github/workflows/ci.yml"),
+      [
+        "name: CI",
+        "jobs:",
+        "  closure-fast:",
+        "    steps:",
+        "      - run: pnpm omena-check run tooling/wired-closure",
+        "  verify:",
+        "    steps:",
+        "      - run: pnpm omena-check run core/check",
+      ].join("\n"),
+    );
+
+    const diagnostics = runDoctor(
+      loadCheckManifest(root, {
+        declaredGates: [
+          {
+            id: "tooling/wired-closure",
+            kind: "command",
+            scope: "tooling",
+            command: ["node", "--version"],
+            ciTier: "closure-fast",
+          },
+          {
+            id: "tooling/missing-closure",
+            kind: "command",
+            scope: "tooling",
+            command: ["node", "--version"],
+            ciTier: "closure-fast",
+          },
+          {
+            id: "tooling/missing-verify",
+            kind: "command",
+            scope: "tooling",
+            command: ["node", "--version"],
+            ciTier: "verify",
+          },
+        ],
+      }),
+    );
+
+    expect(diagnostics).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          severity: "error",
+          code: "ci-tier-unreachable",
+          message:
+            'Gate "tooling/missing-closure" declares ciTier "closure-fast" but is not reachable from that workflow tier.',
+        }),
+        expect.objectContaining({
+          severity: "error",
+          code: "ci-tier-unreachable",
+          message:
+            'Gate "tooling/missing-verify" declares ciTier "verify" but is not reachable from that workflow tier.',
+        }),
+      ]),
+    );
+    expect(diagnostics).not.toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          message: expect.stringContaining("tooling/wired-closure"),
+        }),
+      ]),
+    );
+  });
+
+  it("requires explicit ciTier handling for declared gates", () => {
+    const root = mkdtempSync(path.join(os.tmpdir(), "omena-check-orchestrator-"));
+    mkdirSync(path.join(root, ".github/workflows"), { recursive: true });
+    writeFileSync(
+      path.join(root, "package.json"),
+      JSON.stringify(
+        {
+          name: "omena-css",
+          scripts: {
+            "omena-check": "node ./check.js",
+          },
+        },
+        null,
+        2,
+      ),
+    );
+    writeFileSync(path.join(root, ".github/workflows/ci.yml"), ["name: CI", "jobs:"].join("\n"));
+
+    const diagnostics = runDoctor(
+      loadCheckManifest(root, {
+        declaredGates: [
+          {
+            id: "tooling/missing-tier",
+            kind: "command",
+            scope: "tooling",
+            command: ["node", "--version"],
+          },
+          {
+            id: "tooling/not-allowed-none",
+            kind: "command",
+            scope: "tooling",
+            command: ["node", "--version"],
+            ciTier: "none",
+          },
+          {
+            id: "tooling/allowed-none",
+            kind: "command",
+            scope: "tooling",
+            command: ["node", "--version"],
+            ciTier: "none",
+            tags: ["ci-unreachable-allowed"],
+          },
+        ],
+      }),
+    );
+
+    expect(diagnostics).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          code: "declared-gate-missing-ci-tier",
+          message: 'Declared gate "tooling/missing-tier" must set ciTier explicitly.',
+        }),
+        expect.objectContaining({
+          code: "ci-tier-none-not-allowed",
+          message:
+            'Declared gate "tooling/not-allowed-none" uses ciTier "none" without the ci-unreachable-allowed tag.',
+        }),
+      ]),
+    );
+    expect(diagnostics).not.toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          message: expect.stringContaining("tooling/allowed-none"),
+        }),
       ]),
     );
   });

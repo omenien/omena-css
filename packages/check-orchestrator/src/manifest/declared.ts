@@ -10,6 +10,31 @@ const VALID_CI_TIERS = new Set<CheckCiTier>([
 
 export const DECLARED_CHECK_GATES = [
   {
+    id: "rust/closure-fast",
+    kind: "bundle",
+    scope: "rust",
+    deps: [
+      "rust/runtime-query-api-hardening",
+      "rust/product-facing-capability",
+      "rust/theory-generalization",
+      "rust/omena-query/boundary",
+      "rust/omena-lsp-server/boundary",
+      "rust/omena-cascade/boundary",
+      "rust/omena-diff-test-boundary",
+      "rust/publish-train-closure",
+      "rust/inter-crate-pin",
+      "rust/role-boundaries",
+      "rust/publish-flags",
+      "rust/naming-consistency",
+      "rust/no-split-repo-residue",
+      "release/check/release-tag-grammar",
+      "rust/closure-fast-aggregation-complete",
+    ],
+    tags: ["closure-fast", "ci-unreachable-allowed"],
+    ciTier: "none",
+    ciGroup: "closure-fast",
+  },
+  {
     id: "rust/runtime-query-api-hardening",
     kind: "alias",
     scope: "rust",
@@ -48,6 +73,18 @@ export const DECLARED_CHECK_GATES = [
       "check:rust-m3-theoretical-moat-generalization",
     ],
   },
+  declaredClosurePackageGate("rust/omena-query/boundary", "bundle", "rust"),
+  declaredClosurePackageGate("rust/omena-lsp-server/boundary", "bundle", "rust"),
+  declaredClosurePackageGate("rust/omena-cascade/boundary", "bundle", "rust"),
+  declaredClosurePackageGate("rust/omena-diff-test-boundary", "bundle", "rust"),
+  declaredClosurePackageGate("rust/publish-train-closure", "gate", "rust"),
+  declaredClosurePackageGate("rust/inter-crate-pin", "gate", "rust"),
+  declaredClosurePackageGate("rust/role-boundaries", "gate", "rust"),
+  declaredClosurePackageGate("rust/publish-flags", "gate", "rust"),
+  declaredClosurePackageGate("rust/naming-consistency", "gate", "rust"),
+  declaredClosurePackageGate("rust/no-split-repo-residue", "gate", "rust"),
+  declaredClosurePackageGate("release/check/release-tag-grammar", "gate", "release"),
+  declaredClosurePackageGate("rust/closure-fast-aggregation-complete", "gate", "rust"),
 ] satisfies readonly DeclaredCheckGateV0[];
 
 const LEGACY_PACKAGE_SCRIPT_REPLACEMENTS = new Map(
@@ -60,6 +97,60 @@ const LEGACY_PACKAGE_SCRIPT_REPLACEMENTS = new Map(
 
 export function getDeprecatedPackageScriptReplacement(scriptName: string): string | undefined {
   return LEGACY_PACKAGE_SCRIPT_REPLACEMENTS.get(scriptName);
+}
+
+function declaredClosurePackageGate(
+  id: string,
+  kind: DeclaredCheckGateV0["kind"],
+  scope: DeclaredCheckGateV0["scope"],
+): DeclaredCheckGateV0 {
+  return {
+    id,
+    kind,
+    scope,
+    packageTarget: id,
+    tags: ["closure-fast"],
+    ciTier: "closure-fast",
+    ciGroup: "closure-fast",
+  };
+}
+
+export function applyDeclaredPackageMetadata(
+  packageGates: readonly CheckGate[],
+  declarations: readonly DeclaredCheckGateV0[],
+  diagnostics: CheckDiagnostic[],
+): readonly CheckGate[] {
+  const byScriptName = new Map(packageGates.map((gate) => [gate.scriptName, gate]));
+
+  for (const declaration of declarations) {
+    if (!declaration.packageTarget) {
+      continue;
+    }
+
+    validateDeclaredShape(declaration, diagnostics);
+    const packageGate = resolveDeclaredDependency(packageGates, declaration.packageTarget);
+    if (!packageGate) {
+      diagnostics.push({
+        severity: "error",
+        code: "declared-package-target-unknown",
+        message: `Declared package metadata "${declaration.id}" references unknown package target "${declaration.packageTarget}".`,
+      });
+      continue;
+    }
+
+    if (packageGate.id !== declaration.id) {
+      diagnostics.push({
+        severity: "error",
+        code: "declared-package-target-id-mismatch",
+        message: `Declared package metadata "${declaration.id}" points to package gate "${packageGate.id}".`,
+      });
+      continue;
+    }
+
+    byScriptName.set(packageGate.scriptName, mergeDeclaredMetadata(packageGate, declaration));
+  }
+
+  return packageGates.map((gate) => byScriptName.get(gate.scriptName) ?? gate);
 }
 
 export function buildDeclaredGates(
@@ -78,6 +169,9 @@ export function buildDeclaredGates(
 
   const packageGateIds = new Set(packageGates.map((gate) => gate.id));
   for (const declaration of declarations) {
+    if (declaration.packageTarget) {
+      continue;
+    }
     if (packageGateIds.has(declaration.id)) {
       diagnostics.push({
         severity: "error",
@@ -87,13 +181,14 @@ export function buildDeclaredGates(
     }
   }
 
-  const declaredGates = declarations.map((declaration) =>
+  const executableDeclarations = declarations.filter((declaration) => !declaration.packageTarget);
+  const declaredGates = executableDeclarations.map((declaration) =>
     buildDeclaredGate(declaration, diagnostics),
   );
   const allGates = [...packageGates, ...declaredGates];
 
-  diagnostics.push(...findDeclaredDependencyDiagnostics(declarations, allGates));
-  diagnostics.push(...findDeclaredCycleDiagnostics(declarations));
+  diagnostics.push(...findDeclaredDependencyDiagnostics(executableDeclarations, allGates));
+  diagnostics.push(...findDeclaredCycleDiagnostics(executableDeclarations));
 
   return declaredGates.map((gate) =>
     Object.assign({}, gate, {
@@ -121,7 +216,9 @@ function buildDeclaredGate(
     referencedScripts: [],
     ...(declaration.command ? { commandParts: declaration.command } : {}),
     ...(declaration.tags ? { tags: declaration.tags } : {}),
-    ...(declaration.timeoutMinutes ? { timeoutMinutes: declaration.timeoutMinutes } : {}),
+    ...(declaration.timeoutMinutes !== undefined
+      ? { timeoutMinutes: declaration.timeoutMinutes }
+      : {}),
     ...(declaration.ciTier ? { ciTier: declaration.ciTier } : {}),
     ...(declaration.ciGroup ? { ciGroup: declaration.ciGroup } : {}),
     ...(declaration.deprecatedAliases ? { deprecatedAliases: declaration.deprecatedAliases } : {}),
@@ -134,6 +231,24 @@ function validateDeclaredShape(
 ): void {
   const hasCommand = (declaration.command?.length ?? 0) > 0;
   const depCount = declaration.deps?.length ?? 0;
+
+  if (declaration.packageTarget) {
+    if (hasCommand || depCount > 0) {
+      diagnostics.push({
+        severity: "error",
+        code: "declared-package-metadata-has-executable",
+        message: `Declared package metadata "${declaration.id}" must not define command or deps.`,
+      });
+    }
+    if (declaration.ciTier && !VALID_CI_TIERS.has(declaration.ciTier)) {
+      diagnostics.push({
+        severity: "error",
+        code: "declared-gate-unknown-ci-tier",
+        message: `Declared gate "${declaration.id}" uses unknown ciTier "${declaration.ciTier}".`,
+      });
+    }
+    return;
+  }
 
   if ((declaration.kind === "command" || declaration.kind === "gate") && !hasCommand) {
     diagnostics.push({
@@ -166,6 +281,31 @@ function validateDeclaredShape(
       message: `Declared gate "${declaration.id}" uses unknown ciTier "${declaration.ciTier}".`,
     });
   }
+}
+
+function mergeDeclaredMetadata(gate: CheckGate, declaration: DeclaredCheckGateV0): CheckGate {
+  return {
+    ...gate,
+    origin: "package+declared",
+    ...(declaration.tags ? { tags: mergeUnique(gate.tags ?? [], declaration.tags) } : {}),
+    ...(declaration.timeoutMinutes !== undefined
+      ? { timeoutMinutes: declaration.timeoutMinutes }
+      : {}),
+    ...(declaration.ciTier ? { ciTier: declaration.ciTier } : {}),
+    ...(declaration.ciGroup ? { ciGroup: declaration.ciGroup } : {}),
+    ...(declaration.deprecatedAliases
+      ? {
+          deprecatedAliases: mergeUnique(
+            gate.deprecatedAliases ?? [],
+            declaration.deprecatedAliases,
+          ),
+        }
+      : {}),
+  };
+}
+
+function mergeUnique(left: readonly string[], right: readonly string[]): readonly string[] {
+  return [...new Set([...left, ...right])];
 }
 
 function findDeclaredDependencyDiagnostics(
