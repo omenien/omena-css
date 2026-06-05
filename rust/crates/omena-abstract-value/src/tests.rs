@@ -32,7 +32,8 @@ use super::{
     summarize_cascade_restriction_cycles_v0, summarize_cascade_value_family_v0,
     summarize_omena_abstract_value_domain, summarize_omena_abstract_value_flow_analysis,
     summarize_polynomial_provenance_from_linear_v0, summarize_reduced_class_value_product,
-    top_class_value, value_certainty_from_facts, value_certainty_shape_kind_from_facts,
+    summarize_reduced_product_belief_propagation_domain_graph_v0, top_class_value,
+    value_certainty_from_facts, value_certainty_shape_kind_from_facts,
     value_certainty_shape_label_from_facts,
 };
 use omena_incremental::OmenaIncrementalDatabaseV0;
@@ -898,6 +899,55 @@ fn belief_propagation_iteration_is_strict_superset_of_reduced_product_iteration(
             .messages
             .iter()
             .all(|message| message.operation == "meetReducedProductConstraint")
+    );
+}
+
+#[test]
+fn belief_propagation_domain_graph_generalizes_reduced_product_axes() {
+    let graph = summarize_reduced_product_belief_propagation_domain_graph_v0(&[
+        prefix_class_value("btn-", None),
+        suffix_class_value("-active", None),
+        char_inclusion_class_value("abc", "abcdefghijklmnopqrstuvwxyz", None, false),
+    ]);
+
+    assert_eq!(
+        graph.product,
+        "omena-abstract-value.belief-propagation-domain-graph"
+    );
+    assert_eq!(graph.claim_level, "fixtureWitnessReducedProductDomainGraph");
+    assert_eq!(
+        graph.algorithm_view,
+        "reducedProductDomainGraphMessagePassing"
+    );
+    assert_eq!(graph.variable_count, 4);
+    assert!(graph.factor_count >= 3);
+    assert_eq!(graph.edge_count, graph.factor_count * 2);
+    assert!(graph.converged);
+    assert!(graph.monotone_witness_valid);
+    assert!(!graph.theorem_claimed);
+    assert!(
+        graph
+            .variables
+            .iter()
+            .any(|variable| variable.variable_id == "Pr")
+    );
+    assert!(
+        graph
+            .variables
+            .iter()
+            .any(|variable| variable.variable_id == "Su")
+    );
+    assert!(
+        graph
+            .variables
+            .iter()
+            .any(|variable| variable.variable_id == "CI")
+    );
+    assert!(
+        graph
+            .factors
+            .iter()
+            .any(|factor| factor.operation == "meetReducedProductConstraint")
     );
 }
 

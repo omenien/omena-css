@@ -158,6 +158,42 @@ pub struct BeliefPropagationIterationV0 {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
+pub struct BeliefPropagationDomainGraphV0 {
+    pub schema_version: &'static str,
+    pub product: &'static str,
+    pub claim_level: &'static str,
+    pub theorem_claimed: bool,
+    pub algorithm_view: &'static str,
+    pub substrate: &'static str,
+    pub variable_count: usize,
+    pub factor_count: usize,
+    pub edge_count: usize,
+    pub converged: bool,
+    pub monotone_witness_valid: bool,
+    pub variables: Vec<BeliefPropagationDomainVariableV0>,
+    pub factors: Vec<BeliefPropagationDomainFactorV0>,
+    pub messages: Vec<BeliefPropagationMessageV0>,
+    pub source_iteration: ReducedClassValueProductIterationV0,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct BeliefPropagationDomainVariableV0 {
+    pub variable_id: &'static str,
+    pub axis: &'static str,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct BeliefPropagationDomainFactorV0 {
+    pub factor_id: String,
+    pub input_value_kind: &'static str,
+    pub operation: &'static str,
+    pub result_kind: &'static str,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct ReducedClassValuePrefixAxisV0 {
     pub prefix: String,
 }

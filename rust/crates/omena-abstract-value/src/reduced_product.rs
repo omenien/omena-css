@@ -1,13 +1,14 @@
 use crate::domain::{abstract_class_value_kind, composite_min_length_for_constraints};
 use crate::{
-    AbstractClassValueProvenanceV0, AbstractClassValueV0, BeliefPropagationIterationV0,
-    BeliefPropagationMessageV0, CompositeClassValueInputV0, ReducedClassValueCharInclusionAxisV0,
-    ReducedClassValuePrefixAxisV0, ReducedClassValueProductDomainV0,
-    ReducedClassValueProductIterationStepV0, ReducedClassValueProductIterationV0,
-    ReducedClassValueProductV0, ReducedClassValueSuffixAxisV0, bottom_class_value,
-    char_set_for_string, char_set_is_subset, composite_class_value, intersect_char_sets,
-    meaningful_longest_common_prefix, meaningful_longest_common_suffix, prefix_suffix_class_value,
-    top_class_value, union_char_sets,
+    AbstractClassValueProvenanceV0, AbstractClassValueV0, BeliefPropagationDomainFactorV0,
+    BeliefPropagationDomainGraphV0, BeliefPropagationDomainVariableV0,
+    BeliefPropagationIterationV0, BeliefPropagationMessageV0, CompositeClassValueInputV0,
+    ReducedClassValueCharInclusionAxisV0, ReducedClassValuePrefixAxisV0,
+    ReducedClassValueProductDomainV0, ReducedClassValueProductIterationStepV0,
+    ReducedClassValueProductIterationV0, ReducedClassValueProductV0, ReducedClassValueSuffixAxisV0,
+    bottom_class_value, char_set_for_string, char_set_is_subset, composite_class_value,
+    intersect_char_sets, meaningful_longest_common_prefix, meaningful_longest_common_suffix,
+    prefix_suffix_class_value, top_class_value, union_char_sets,
 };
 
 pub fn summarize_reduced_class_value_product(
@@ -254,6 +255,63 @@ pub fn summarize_belief_propagation_iteration_v0(
         messages,
         source_iteration,
     }
+}
+
+pub fn summarize_reduced_product_belief_propagation_domain_graph_v0(
+    values: &[AbstractClassValueV0],
+) -> BeliefPropagationDomainGraphV0 {
+    let iteration = summarize_belief_propagation_iteration_v0(values);
+    let variables = reduced_product_bp_domain_variables_v0();
+    let factors = iteration
+        .messages
+        .iter()
+        .map(|message| BeliefPropagationDomainFactorV0 {
+            factor_id: format!("constraint:{}:{}", message.iteration, message.from_factor),
+            input_value_kind: message.from_factor,
+            operation: message.operation,
+            result_kind: message.result_kind,
+        })
+        .collect::<Vec<_>>();
+    let edge_count = factors.len().saturating_mul(2);
+
+    BeliefPropagationDomainGraphV0 {
+        schema_version: "0",
+        product: "omena-abstract-value.belief-propagation-domain-graph",
+        claim_level: "fixtureWitnessReducedProductDomainGraph",
+        theorem_claimed: false,
+        algorithm_view: "reducedProductDomainGraphMessagePassing",
+        substrate: iteration.product,
+        variable_count: variables.len(),
+        factor_count: factors.len(),
+        edge_count,
+        converged: iteration.converged,
+        monotone_witness_valid: iteration.monotone_witness_valid,
+        variables,
+        factors,
+        messages: iteration.messages.clone(),
+        source_iteration: iteration.source_iteration,
+    }
+}
+
+fn reduced_product_bp_domain_variables_v0() -> Vec<BeliefPropagationDomainVariableV0> {
+    vec![
+        BeliefPropagationDomainVariableV0 {
+            variable_id: "Pr",
+            axis: "prefix",
+        },
+        BeliefPropagationDomainVariableV0 {
+            variable_id: "Su",
+            axis: "suffix",
+        },
+        BeliefPropagationDomainVariableV0 {
+            variable_id: "CI",
+            axis: "charInclusion",
+        },
+        BeliefPropagationDomainVariableV0 {
+            variable_id: "Len",
+            axis: "minLength",
+        },
+    ]
 }
 
 pub(crate) fn intersect_reduced_product_class_values(
