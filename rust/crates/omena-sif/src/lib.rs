@@ -8,6 +8,7 @@
 
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
+use sha2::{Digest, Sha256};
 
 mod generator;
 
@@ -1152,6 +1153,7 @@ where
                 continue;
             }
         };
+        let actual_sif_sha256 = sha256_hex_v1(sif_json.as_bytes());
 
         if sif.canonical_url != entry.canonical_url {
             push_omena_lock_issue_v1(
@@ -1203,6 +1205,13 @@ where
         for verification in &entry.attestation_verifications {
             if let Err(error) =
                 validate_omena_sif_lock_entry_attestation_verification_v1(entry, verification)
+                    .and_then(|()| {
+                        validate_sif_subject_digest_matches_artifact_sha256_v1(
+                            entry,
+                            verification,
+                            actual_sif_sha256.as_str(),
+                        )
+                    })
             {
                 push_omena_lock_issue_v1(
                     &mut issues,
@@ -1224,6 +1233,35 @@ where
         entries_checked: lock.entries.len(),
         issues,
     }
+}
+
+fn validate_sif_subject_digest_matches_artifact_sha256_v1(
+    entry: &OmenaLockSifEntryV1,
+    verification: &OmenaSifAttestationVerificationV1,
+    artifact_sha256: &str,
+) -> Result<(), String> {
+    if !attestation_verification_requires_sif_subject_binding_v1(verification) {
+        return Ok(());
+    }
+    let statement = verification.attestation_statement.as_ref().ok_or_else(|| {
+        "attestation verification tier t3 requires attestationStatement".to_string()
+    })?;
+    if statement.subject_digests.iter().any(|digest| {
+        digest.name == entry.sif_path
+            && digest.algorithm.eq_ignore_ascii_case("sha256")
+            && digest.digest.eq_ignore_ascii_case(artifact_sha256)
+    }) {
+        return Ok(());
+    }
+    Err(format!(
+        "attestation verification tier t3 provenance statement subjectDigests must bind lock entry SIF path '{}' to sha256:{artifact_sha256}",
+        entry.sif_path
+    ))
+}
+
+fn sha256_hex_v1(bytes: &[u8]) -> String {
+    let digest = Sha256::digest(bytes);
+    digest.iter().map(|byte| format!("{byte:02x}")).collect()
 }
 
 fn compare_omena_semver_core_v1(left: &str, right: &str) -> Option<std::cmp::Ordering> {
@@ -2809,10 +2847,35 @@ mod tests {
     fn lock_frozen_verification_passes_for_matching_sifs() -> Result<(), serde_json::Error> {
         let sif = fixture_sif("pkg:design-system/_tokens.scss", b"$color: red !default;")?;
         let sif_json = write_omena_sif_json_v1(&sif)?;
-        let lock = OmenaLockV1::new(vec![build_omena_lock_sif_entry_v1(
-            "sif/design-system.sif.json",
-            &sif,
-        )?]);
+        let reference = "sif/design-system.sigstore.json".to_string();
+        let mut entry = build_omena_lock_sif_entry_v1("sif/design-system.sif.json", &sif)?;
+        entry.trust_tier = OmenaSifTrustTierV1::T3;
+        entry
+            .attestation_references
+            .push(OmenaSifAttestationReferenceV1 {
+                kind: "sigstore-bundle".to_string(),
+                reference: reference.clone(),
+            });
+        let mut statement = fixture_sif_artifact_provenance_statement(&entry);
+        statement.subject_digests = vec![OmenaSifAttestationSubjectDigestV1 {
+            name: entry.sif_path.clone(),
+            algorithm: "sha256".to_string(),
+            digest: sha256_hex_v1(sif_json.as_bytes()),
+        }];
+        entry
+            .attestation_verifications
+            .push(OmenaSifAttestationVerificationV1 {
+                kind: "omena-toolchain.sigstore".to_string(),
+                reference,
+                verifier: "sigstore-verify".to_string(),
+                verified_trust_tier: OmenaSifTrustTierV1::T3,
+                verified_tlog_integrated_time: Some(1_717_000_000),
+                sigstore_verification_policy: Some(fixture_sigstore_verification_policy()),
+                certificate_issuer: Some("https://github.com/login/oauth".to_string()),
+                certificate_identity: Some("https://github.com/omenien/omena-css/.github/workflows/sif-keyless-attestation.yml@refs/heads/master".to_string()),
+                attestation_statement: Some(statement),
+            });
+        let lock = OmenaLockV1::new(vec![entry]);
         let mut files = BTreeMap::new();
         files.insert("sif/design-system.sif.json".to_string(), sif_json);
 
@@ -2845,7 +2908,7 @@ mod tests {
         let mut statement = fixture_sif_artifact_provenance_statement(&entry);
         statement.subject_digests = vec![OmenaSifAttestationSubjectDigestV1 {
             name: entry.sif_path.clone(),
-            algorithm: "blake3".to_string(),
+            algorithm: "sha256".to_string(),
             digest: "abcdef0123456789".to_string(),
         }];
         entry

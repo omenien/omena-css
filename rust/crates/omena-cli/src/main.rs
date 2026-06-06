@@ -7587,7 +7587,7 @@ export function App() {
         let mut statement = cli_fixture_provenance_statement();
         statement.subject_digests = vec![omena_sif::OmenaSifAttestationSubjectDigestV1 {
             name: "sif/design-system.sif.json".to_string(),
-            algorithm: "blake3".to_string(),
+            algorithm: "sha256".to_string(),
             digest: "abcdef0123456789".to_string(),
         }];
         entry
