@@ -8082,6 +8082,48 @@ export function App() {
         );
     }
 
+    #[test]
+    fn style_diagnostics_cli_identity_uses_downstream_forward_default_configuration() {
+        let sources = vec![
+            OmenaQueryStyleSourceInputV0 {
+                style_path: "/tmp/tokens.scss".to_string(),
+                style_source: "$brand: blue !default;".to_string(),
+            },
+            OmenaQueryStyleSourceInputV0 {
+                style_path: "/tmp/theme.scss".to_string(),
+                style_source: r#"@forward "./tokens" with ($brand: red !default);"#.to_string(),
+            },
+            OmenaQueryStyleSourceInputV0 {
+                style_path: "/tmp/App.module.scss".to_string(),
+                style_source: r#"@use "./theme" as theme with ($brand: green);"#.to_string(),
+            },
+        ];
+
+        let diagnostics = summarize_sass_module_resolution_identity_diagnostics(
+            "/tmp/App.module.scss",
+            sources.as_slice(),
+            &[],
+            &omena_query::OmenaQueryStyleResolutionInputsV0::default(),
+        );
+
+        assert!(
+            diagnostics.iter().any(|diagnostic| {
+                diagnostic.code == "sassModuleInstanceIdentity"
+                    && diagnostic.message.contains("/tmp/tokens.scss")
+                    && diagnostic.message.contains("brand=5:green")
+            }),
+            "CLI diagnostics must propagate downstream Sass configuration through @forward !default: {diagnostics:?}"
+        );
+        assert!(
+            diagnostics.iter().all(|diagnostic| {
+                !(diagnostic.code == "sassModuleInstanceIdentity"
+                    && diagnostic.message.contains("/tmp/tokens.scss")
+                    && diagnostic.message.contains("brand=3:red"))
+            }),
+            "CLI diagnostics must not report the @forward !default value after a downstream override: {diagnostics:?}"
+        );
+    }
+
     #[cfg(unix)]
     #[test]
     fn style_diagnostics_cli_identity_reads_symlink_chain_metadata() -> Result<(), String> {

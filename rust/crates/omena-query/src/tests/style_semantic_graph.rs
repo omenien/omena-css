@@ -747,6 +747,68 @@ fn style_semantic_graph_batch_surfaces_configured_sass_module_instance_identity(
     assert!(resolution.configured_module_instance_count >= 3);
 }
 
+#[test]
+fn style_semantic_graph_batch_propagates_downstream_forward_default_configuration()
+-> Result<(), String> {
+    let input = sample_input();
+    let batch = summarize_omena_query_style_semantic_graph_batch_from_sources(
+        [
+            (
+                "/tmp/tokens.scss",
+                "$brand: blue !default; .base { color: $brand; }",
+            ),
+            (
+                "/tmp/theme.scss",
+                r#"@forward "./tokens" with ($brand: red !default);"#,
+            ),
+            (
+                "/tmp/App.module.scss",
+                r#"@use "./theme" as theme with ($brand: green);"#,
+            ),
+        ],
+        &input,
+    );
+    let resolution = &batch.sass_module_resolution;
+
+    let direct_forward = resolution
+        .edges
+        .iter()
+        .find(|edge| {
+            edge.from_style_path == "/tmp/theme.scss"
+                && edge.resolved_style_path.as_deref() == Some("/tmp/tokens.scss")
+        })
+        .ok_or_else(|| {
+            format!("theme should resolve its forwarded tokens module: {resolution:?}")
+        })?;
+    assert!(
+        direct_forward
+            .configuration_signature
+            .contains("brand=3:red"),
+        "{resolution:?}"
+    );
+
+    let closure = resolution
+        .graph_closure_edges
+        .iter()
+        .find(|edge| {
+            edge.from_style_path == "/tmp/App.module.scss"
+                && edge.target_style_path == "/tmp/tokens.scss"
+        })
+        .ok_or_else(|| format!("App should reach tokens through theme: {resolution:?}"))?;
+    assert!(
+        closure.configuration_signature.contains("brand=5:green"),
+        "{resolution:?}"
+    );
+    assert!(
+        closure
+            .module_instance_identity_key
+            .as_deref()
+            .is_some_and(|key| key.contains("brand=5:green")),
+        "{resolution:?}"
+    );
+    Ok(())
+}
+
 #[cfg(unix)]
 #[test]
 fn style_semantic_graph_batch_surfaces_symlink_chain_resolution_metadata()

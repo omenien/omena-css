@@ -23,6 +23,7 @@ use imports::{
 };
 use static_stylesheet::{
     derive_static_scss_module_configurable_variable_names_for_transform_context,
+    derive_static_scss_module_forward_effective_variable_override_values_for_resolution,
     derive_static_scss_module_forward_variable_override_values,
     derive_static_scss_module_rule_variable_overrides,
     derive_static_scss_module_use_evaluations_for_transform_context,
@@ -86,6 +87,46 @@ pub(super) fn derive_static_scss_module_configurable_variable_names_for_resoluti
         source_by_path,
         package_manifests,
     )
+}
+
+pub(super) fn derive_static_scss_use_configuration_for_resolution(
+    style_source: &str,
+    use_source: &str,
+) -> BTreeMap<String, String> {
+    derive_static_scss_module_rule_variable_overrides(style_source, "@use", use_source)
+}
+
+pub(super) fn derive_static_scss_forward_effective_configuration_for_resolution(
+    style_source: &str,
+    forward_source: &str,
+    inherited_variable_overrides: &BTreeMap<String, String>,
+    export_prefix: Option<&str>,
+    visibility_filter_kind: Option<&'static str>,
+    visibility_filter_names: &[String],
+    configurable_names: &BTreeSet<String>,
+) -> BTreeMap<String, String> {
+    derive_static_scss_module_forward_effective_variable_override_values_for_resolution(
+        style_source,
+        forward_source,
+        inherited_variable_overrides,
+        export_prefix,
+        visibility_filter_kind,
+        visibility_filter_names,
+        configurable_names,
+    )
+}
+
+pub(super) fn derive_static_scss_configuration_signature_for_resolution(
+    variable_overrides: &BTreeMap<String, String>,
+) -> String {
+    static_scss_module_configuration_signature(variable_overrides)
+}
+
+pub(super) fn derive_static_scss_module_instance_identity_key_for_resolution(
+    style_path: &str,
+    variable_overrides: &BTreeMap<String, String>,
+) -> String {
+    static_scss_module_instance_identity_key(style_path, variable_overrides)
 }
 
 pub fn summarize_omena_query_transform_plan_from_source(

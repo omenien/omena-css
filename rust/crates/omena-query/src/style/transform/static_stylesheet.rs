@@ -575,6 +575,27 @@ fn derive_static_scss_forward_effective_variable_overrides(
     variable_overrides
 }
 
+pub(super) fn derive_static_scss_module_forward_effective_variable_override_values_for_resolution(
+    style_source: &str,
+    forward_source: &str,
+    inherited_variable_overrides: &BTreeMap<String, String>,
+    export_prefix: Option<&str>,
+    visibility_filter_kind: Option<&'static str>,
+    visibility_filter_names: &[String],
+    configurable_names: &BTreeSet<String>,
+) -> BTreeMap<String, String> {
+    let explicit_variable_overrides =
+        derive_static_scss_module_forward_variable_overrides(style_source, forward_source);
+    derive_static_scss_forward_effective_variable_overrides(
+        &explicit_variable_overrides,
+        inherited_variable_overrides,
+        export_prefix,
+        visibility_filter_kind,
+        visibility_filter_names,
+        configurable_names,
+    )
+}
+
 fn static_scss_module_configuration_variables_are_valid(
     variable_overrides: &BTreeMap<String, String>,
     configurable_names: &BTreeSet<String>,
