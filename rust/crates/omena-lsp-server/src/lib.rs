@@ -53,10 +53,12 @@ use omena_query::{
     summarize_omena_query_source_syntax_index_for_source_language,
     summarize_omena_query_style_completion_at_position,
     summarize_omena_query_style_completion_candidate_documentation,
+    summarize_omena_query_style_completion_candidate_documentation_for_workspace_file,
     summarize_omena_query_style_diagnostics_for_file,
     summarize_omena_query_style_diagnostics_for_file_with_deep_analysis,
     summarize_omena_query_style_diagnostics_for_workspace_file_with_external_mode_and_sifs_and_resolution_inputs,
     summarize_omena_query_style_document, summarize_omena_query_style_hover_render_parts,
+    summarize_omena_query_style_hover_render_parts_for_workspace_file,
     summarize_omena_query_style_refactor_code_actions,
 };
 use omena_streaming_ifds::summarize_streaming_ifds_workspace_cross_file_reachability_v0;
@@ -2280,7 +2282,8 @@ fn resolve_lsp_hover(state: &LspShellState, params: Option<&Value>) -> Value {
         let mut response = json!({
             "contents": {
                 "kind": "markdown",
-                "value": render_style_hover_candidate_markdown(
+                "value": render_style_hover_candidate_markdown_for_workspace(
+                    state,
                     target_uri.as_str(),
                     target_text.as_str(),
                     &target,
@@ -2299,7 +2302,8 @@ fn resolve_lsp_hover(state: &LspShellState, params: Option<&Value>) -> Value {
     let mut response = json!({
         "contents": {
             "kind": "markdown",
-            "value": render_style_hover_candidate_markdown(
+            "value": render_style_hover_candidate_markdown_for_workspace(
+                state,
                 document.uri.as_str(),
                 document.text.as_str(),
                 candidate,
@@ -2792,6 +2796,13 @@ fn resolve_source_lsp_completion(
     let target_style_uri = inferred_target_style_uri
         .as_deref()
         .map(|uri| external_document_uri_for_query_uri(state, uri));
+    let style_sources = style_sources_from_open_documents(
+        state,
+        document.workspace_folder_uri.as_deref(),
+        target_style_uri.as_deref(),
+    );
+    let resolution_inputs =
+        resolution_inputs_for_workspace_uri(state, document.workspace_folder_uri.as_deref());
 
     let candidates = style_selector_definitions_from_open_documents(
         state,
@@ -2806,12 +2817,23 @@ fn resolve_source_lsp_completion(
     })
     .map(|(uri, definition)| {
         let documentation = style_text_for_uri(state, uri.as_str()).and_then(|style_text| {
-            summarize_omena_query_style_completion_candidate_documentation(
-                style_text.as_str(),
+            summarize_omena_query_style_completion_candidate_documentation_for_workspace_file(
+                uri.as_str(),
+                style_sources.as_slice(),
+                state.resolution.package_manifests.as_slice(),
+                &resolution_inputs,
                 definition.kind,
                 definition.name.as_str(),
                 definition.range.start,
             )
+            .or_else(|| {
+                summarize_omena_query_style_completion_candidate_documentation(
+                    style_text.as_str(),
+                    definition.kind,
+                    definition.name.as_str(),
+                    definition.range.start,
+                )
+            })
         });
         let file_uri = target_style_uri
             .as_deref()
@@ -3552,7 +3574,12 @@ fn render_source_hover_definitions_markdown(
         .iter()
         .filter_map(|(uri, definition)| {
             style_text_for_uri(state, uri).map(|text| {
-                render_style_hover_candidate_markdown(uri.as_str(), text.as_str(), definition)
+                render_style_hover_candidate_markdown_for_workspace(
+                    state,
+                    uri.as_str(),
+                    text.as_str(),
+                    definition,
+                )
             })
         })
         .collect::<Vec<_>>();
@@ -3662,21 +3689,73 @@ fn external_document_uri_for_query_uri(state: &LspShellState, uri: &str) -> Stri
         .unwrap_or_else(|| uri.to_string())
 }
 
-fn render_style_hover_candidate_markdown(
+fn render_style_hover_candidate_markdown_for_workspace(
+    state: &LspShellState,
     document_uri: &str,
     source: &str,
     candidate: &LspStyleHoverCandidate,
+) -> String {
+    let workspace_folder_uri = state
+        .document(document_uri)
+        .and_then(|document| document.workspace_folder_uri.clone())
+        .or_else(|| resolve_workspace_folder_uri(state, document_uri));
+    let style_sources = style_sources_for_hover_render(
+        state,
+        workspace_folder_uri.as_deref(),
+        document_uri,
+        source,
+    );
+    let resolution_inputs =
+        resolution_inputs_for_workspace_uri(state, workspace_folder_uri.as_deref());
+    let render_parts = summarize_omena_query_style_hover_render_parts_for_workspace_file(
+        document_uri,
+        style_sources.as_slice(),
+        state.resolution.package_manifests.as_slice(),
+        &resolution_inputs,
+        candidate.kind,
+        candidate.name.as_str(),
+        candidate.range.start,
+    )
+    .unwrap_or_else(|| {
+        summarize_omena_query_style_hover_render_parts(
+            source,
+            candidate.kind,
+            candidate.name.as_str(),
+            candidate.range.start,
+        )
+    });
+    render_style_hover_candidate_markdown_from_parts(document_uri, candidate, &render_parts)
+}
+
+fn style_sources_for_hover_render(
+    state: &LspShellState,
+    workspace_folder_uri: Option<&str>,
+    document_uri: &str,
+    source: &str,
+) -> Vec<OmenaQueryStyleSourceInputV0> {
+    let mut style_sources =
+        style_sources_from_open_documents(state, workspace_folder_uri, Some(document_uri));
+    if !style_sources
+        .iter()
+        .any(|style_source| style_source.style_path == document_uri)
+    {
+        style_sources.push(OmenaQueryStyleSourceInputV0 {
+            style_path: document_uri.to_string(),
+            style_source: source.to_string(),
+        });
+    }
+    style_sources
+}
+
+fn render_style_hover_candidate_markdown_from_parts(
+    document_uri: &str,
+    candidate: &LspStyleHoverCandidate,
+    render_parts: &omena_query::OmenaQueryStyleHoverRenderPartsV0,
 ) -> String {
     let location = format!(
         "{}:{}",
         file_label_from_uri(document_uri),
         candidate.range.start.line + 1
-    );
-    let render_parts = summarize_omena_query_style_hover_render_parts(
-        source,
-        candidate.kind,
-        candidate.name.as_str(),
-        candidate.range.start,
     );
     match candidate.kind {
         "selector" => {
@@ -3700,7 +3779,7 @@ fn render_style_hover_candidate_markdown(
             )
         }
         kind if is_sass_symbol_candidate_kind(kind) => {
-            render_sass_symbol_hover_markdown(candidate, location.as_str(), &render_parts)
+            render_sass_symbol_hover_markdown(candidate, location.as_str(), render_parts)
         }
         _ => candidate.name.clone(),
     }

@@ -537,7 +537,7 @@ fn summarize_omena_query_missing_extend_target_diagnostics_for_workspace(
 /// closure). Used to scope cross-file `@extend` visibility to the modules the target actually loads
 /// rather than the whole corpus, so a placeholder declared only in an unrelated file is not
 /// (wrongly) treated as visible. Cycle-safe: each path is visited at most once.
-fn collect_sass_module_graph_reachable_style_paths<'a>(
+pub(super) fn collect_sass_module_graph_reachable_style_paths<'a>(
     target_style_path: &'a str,
     resolution: &'a OmenaQuerySassModuleCrossFileResolutionV0,
 ) -> BTreeSet<&'a str> {

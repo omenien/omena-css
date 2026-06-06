@@ -204,6 +204,31 @@ pub fn summarize_omena_query_style_completion_candidate_documentation(
     render_property_value_narrowings_markdown(&render_parts.property_value_narrowings)
 }
 
+#[allow(clippy::too_many_arguments)]
+pub fn summarize_omena_query_style_completion_candidate_documentation_for_workspace_file(
+    target_style_path: &str,
+    style_sources: &[OmenaQueryStyleSourceInputV0],
+    package_manifests: &[OmenaQueryStylePackageManifestV0],
+    resolution_inputs: &OmenaQueryStyleResolutionInputsV0,
+    candidate_kind: &str,
+    candidate_name: &str,
+    candidate_position: ParserPositionV0,
+) -> Option<String> {
+    if candidate_kind != "selector" {
+        return None;
+    }
+    let render_parts = summarize_omena_query_style_hover_render_parts_for_workspace_file(
+        target_style_path,
+        style_sources,
+        package_manifests,
+        resolution_inputs,
+        candidate_kind,
+        candidate_name,
+        candidate_position,
+    )?;
+    render_property_value_narrowings_markdown(&render_parts.property_value_narrowings)
+}
+
 fn render_property_value_narrowings_markdown(
     narrowings: &[AbstractPropertyValueNarrowingV0],
 ) -> Option<String> {
@@ -321,7 +346,35 @@ pub fn summarize_omena_query_source_completion_for_workspace_file(
     value_prefix: Option<&str>,
     preferred_selector_names: &[String],
 ) -> OmenaQueryCompletionAtPositionV0 {
-    let candidates = collect_omena_query_completion_candidates(style_sources);
+    let resolution_inputs = OmenaQueryStyleResolutionInputsV0::default();
+    let candidates =
+        collect_omena_query_completion_candidates(style_sources, &[], &resolution_inputs);
+    summarize_omena_query_source_completion_at_position(
+        source_path,
+        position,
+        candidates.as_slice(),
+        target_style_uri,
+        value_prefix,
+        preferred_selector_names,
+    )
+}
+
+#[allow(clippy::too_many_arguments)]
+pub fn summarize_omena_query_source_completion_for_workspace_file_with_resolution_inputs(
+    source_path: &str,
+    position: ParserPositionV0,
+    style_sources: &[OmenaQueryStyleSourceInputV0],
+    package_manifests: &[OmenaQueryStylePackageManifestV0],
+    resolution_inputs: &OmenaQueryStyleResolutionInputsV0,
+    target_style_uri: Option<&str>,
+    value_prefix: Option<&str>,
+    preferred_selector_names: &[String],
+) -> OmenaQueryCompletionAtPositionV0 {
+    let candidates = collect_omena_query_completion_candidates(
+        style_sources,
+        package_manifests,
+        resolution_inputs,
+    );
     summarize_omena_query_source_completion_at_position(
         source_path,
         position,
@@ -334,6 +387,8 @@ pub fn summarize_omena_query_source_completion_for_workspace_file(
 
 fn collect_omena_query_completion_candidates(
     style_sources: &[OmenaQueryStyleSourceInputV0],
+    package_manifests: &[OmenaQueryStylePackageManifestV0],
+    resolution_inputs: &OmenaQueryStyleResolutionInputsV0,
 ) -> Vec<OmenaQueryCompletionCandidateV0> {
     let mut candidates = Vec::new();
     for source in style_sources {
@@ -347,12 +402,24 @@ fn collect_omena_query_completion_candidates(
             if candidate.kind != "selector" {
                 return None;
             }
-            let documentation = summarize_omena_query_style_completion_candidate_documentation(
-                source.style_source.as_str(),
-                candidate.kind,
-                candidate.name.as_str(),
-                candidate.range.start,
-            );
+            let documentation =
+                summarize_omena_query_style_completion_candidate_documentation_for_workspace_file(
+                    source.style_path.as_str(),
+                    style_sources,
+                    package_manifests,
+                    resolution_inputs,
+                    candidate.kind,
+                    candidate.name.as_str(),
+                    candidate.range.start,
+                )
+                .or_else(|| {
+                    summarize_omena_query_style_completion_candidate_documentation(
+                        source.style_source.as_str(),
+                        candidate.kind,
+                        candidate.name.as_str(),
+                        candidate.range.start,
+                    )
+                });
             Some(OmenaQueryCompletionCandidateV0 {
                 file_uri: source.style_path.clone(),
                 name: candidate.name,

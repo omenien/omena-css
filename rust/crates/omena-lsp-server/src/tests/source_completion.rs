@@ -44,7 +44,22 @@ fn narrows_source_completion_candidates_by_property_access_prefix() -> TestResul
                     "uri": "file:///workspace-a/src/App.module.scss",
                     "languageId": "scss",
                     "version": 1,
-                    "text": ".root { display: block; }\n.row { display: flex; }\n.active { color: red; }",
+                    "text": "@use \"./theme\";\n.root { display: block; }\n.row { display: flex; }\n.active { color: red; }",
+                },
+            },
+        }),
+    );
+    handle_lsp_message(
+        &mut state,
+        json!({
+            "jsonrpc": "2.0",
+            "method": "textDocument/didOpen",
+            "params": {
+                "textDocument": {
+                    "uri": "file:///workspace-a/src/_theme.scss",
+                    "languageId": "scss",
+                    "version": 1,
+                    "text": ".root { display: grid; }",
                 },
             },
         }),
@@ -100,6 +115,10 @@ fn narrows_source_completion_candidates_by_property_access_prefix() -> TestResul
     assert!(
         root_documentation.contains("- `display`: `block`"),
         "{root_documentation}"
+    );
+    assert!(
+        root_documentation.contains("`grid`"),
+        "reachable imported module value should participate: {root_documentation}"
     );
     assert!(
         items

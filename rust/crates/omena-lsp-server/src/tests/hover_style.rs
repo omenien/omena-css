@@ -1,6 +1,93 @@
 use super::*;
 
 #[test]
+fn style_hover_uses_module_graph_property_value_narrowing() -> TestResult {
+    let mut state = LspShellState::default();
+    handle_lsp_message(
+        &mut state,
+        json!({
+            "jsonrpc": "2.0",
+            "id": 1,
+            "method": "initialize",
+            "params": {
+                "workspaceFolders": [
+                    {
+                        "uri": "file:///workspace-a",
+                        "name": "workspace-a",
+                    },
+                ],
+            },
+        }),
+    );
+    for (uri, text) in [
+        (
+            "file:///workspace-a/src/App.module.scss",
+            "@use \"./theme\";\n.btn { color: red; }\n.btn { color: green; }",
+        ),
+        (
+            "file:///workspace-a/src/_theme.scss",
+            ".btn { color: blue; }\n.unrelated { color: black; }",
+        ),
+        (
+            "file:///workspace-a/src/_other.scss",
+            ".btn { color: orange; }",
+        ),
+    ] {
+        handle_lsp_message(
+            &mut state,
+            json!({
+                "jsonrpc": "2.0",
+                "method": "textDocument/didOpen",
+                "params": {
+                    "textDocument": {
+                        "uri": uri,
+                        "languageId": "scss",
+                        "version": 1,
+                        "text": text,
+                    },
+                },
+            }),
+        );
+    }
+
+    let hover_response = handle_lsp_message(
+        &mut state,
+        json!({
+            "jsonrpc": "2.0",
+            "id": 2,
+            "method": "textDocument/hover",
+            "params": {
+                "textDocument": {
+                    "uri": "file:///workspace-a/src/App.module.scss",
+                },
+                "position": {
+                    "line": 1,
+                    "character": 2,
+                },
+            },
+        }),
+    );
+    let hover_text = hover_response
+        .as_ref()
+        .and_then(|value| value.pointer("/result/contents/value"))
+        .and_then(Value::as_str)
+        .ok_or_else(|| std::io::Error::other("style hover should render markdown value"))?;
+    assert!(
+        hover_text.contains("Cascade narrowed values:"),
+        "{hover_text}"
+    );
+    assert!(
+        hover_text.contains("`blue`"),
+        "reachable imported module value should participate: {hover_text}"
+    );
+    assert!(
+        !hover_text.contains("`orange`"),
+        "unreachable module value should not participate: {hover_text}"
+    );
+    Ok(())
+}
+
+#[test]
 fn resolves_style_hover_candidates_from_opened_style_documents() -> TestResult {
     let mut state = LspShellState::default();
     handle_lsp_message(

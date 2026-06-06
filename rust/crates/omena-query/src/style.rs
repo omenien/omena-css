@@ -177,6 +177,36 @@ pub fn summarize_omena_query_style_hover_render_parts(
     parts
 }
 
+pub fn summarize_omena_query_style_hover_render_parts_for_workspace_file(
+    target_style_path: &str,
+    style_sources: &[OmenaQueryStyleSourceInputV0],
+    package_manifests: &[OmenaQueryStylePackageManifestV0],
+    resolution_inputs: &OmenaQueryStyleResolutionInputsV0,
+    kind: &str,
+    name: &str,
+    position: ParserPositionV0,
+) -> Option<OmenaQueryStyleHoverRenderPartsV0> {
+    let target = style_sources
+        .iter()
+        .find(|source| source.style_path == target_style_path)?;
+    let mut parts =
+        summarize_omena_query_style_hover_render_parts(&target.style_source, kind, name, position);
+    if kind == "selector" {
+        let module_graph_narrowings = selector_property_value_narrowings_for_hover_module_graph(
+            target_style_path,
+            style_sources,
+            package_manifests,
+            resolution_inputs.bundler_path_mappings.as_slice(),
+            resolution_inputs.tsconfig_path_mappings.as_slice(),
+            name,
+        );
+        if !module_graph_narrowings.is_empty() {
+            parts.property_value_narrowings = module_graph_narrowings;
+        }
+    }
+    Some(parts)
+}
+
 fn selector_property_value_narrowings_for_hover(
     source: &str,
     name: &str,
@@ -227,6 +257,95 @@ fn selector_property_value_narrowings_for_hover(
                     true,
                     property_candidates.as_slice(),
                 )
+            },
+        )
+        .collect()
+}
+
+fn selector_property_value_narrowings_for_hover_module_graph(
+    target_style_path: &str,
+    style_sources: &[OmenaQueryStyleSourceInputV0],
+    package_manifests: &[OmenaQueryStylePackageManifestV0],
+    bundler_path_mappings: &[OmenaResolverBundlerPathAliasMappingV0],
+    tsconfig_path_mappings: &[OmenaResolverTsconfigPathMappingV0],
+    name: &str,
+) -> Vec<AbstractPropertyValueNarrowingV0> {
+    let style_source_refs = style_sources
+        .iter()
+        .map(|source| (source.style_path.as_str(), source.style_source.as_str()))
+        .collect::<Vec<_>>();
+    let style_fact_entries = collect_omena_query_style_fact_entries(style_source_refs.as_slice());
+    let resolution = summarize_sass_module_cross_file_resolution(
+        &style_fact_entries,
+        package_manifests,
+        bundler_path_mappings,
+        tsconfig_path_mappings,
+    );
+    let reachable_style_paths = diagnostics::collect_sass_module_graph_reachable_style_paths(
+        target_style_path,
+        &resolution,
+    );
+    if reachable_style_paths.len() <= 1 {
+        return Vec::new();
+    }
+
+    let selector = format!(".{name}");
+    let matching_declarations = style_sources
+        .iter()
+        .filter(|source| reachable_style_paths.contains(source.style_path.as_str()))
+        .flat_map(|source| {
+            cascade_checker::collect_query_checker_cascade_declarations(
+                source.style_source.as_str(),
+            )
+        })
+        .filter(|declaration| declaration.input.selector.as_str() == selector)
+        .collect::<Vec<_>>();
+    if matching_declarations.is_empty() {
+        return Vec::new();
+    }
+
+    let mut branch_keys = matching_declarations
+        .iter()
+        .map(|declaration| {
+            (
+                declaration.input.property.clone(),
+                declaration.input.condition_context.clone(),
+                declaration.input.layer_name.clone(),
+                declaration.input.layer_order,
+            )
+        })
+        .collect::<BTreeSet<_>>()
+        .into_iter()
+        .collect::<Vec<_>>();
+    branch_keys.sort();
+
+    branch_keys
+        .into_iter()
+        .map(
+            |(property_name, condition_context, layer_name, layer_order)| {
+                let property_candidates = matching_declarations
+                    .iter()
+                    .filter(|declaration| declaration.input.property == property_name)
+                    .map(|declaration| AbstractPropertyValueCandidateV0 {
+                        property_name: declaration.input.property.clone(),
+                        value: declaration.input.value.clone(),
+                        pseudo_state: None,
+                        condition_context: declaration.input.condition_context.clone(),
+                        layer_name: declaration.input.layer_name.clone(),
+                        layer_order: declaration.input.layer_order,
+                    })
+                    .collect::<Vec<_>>();
+                let mut narrowed = narrow_abstract_property_value_for_cascade_branch(
+                    property_name.as_str(),
+                    None,
+                    condition_context.as_slice(),
+                    layer_name.as_deref(),
+                    layer_order,
+                    true,
+                    property_candidates.as_slice(),
+                );
+                narrowed.stylesheet_scope = "moduleGraph";
+                narrowed
             },
         )
         .collect()
