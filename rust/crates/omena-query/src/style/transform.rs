@@ -23,6 +23,7 @@ use imports::{
 };
 use static_stylesheet::{
     derive_static_scss_module_configurable_variable_names_for_transform_context,
+    derive_static_scss_module_forward_variable_override_values,
     derive_static_scss_module_rule_variable_overrides,
     derive_static_scss_module_use_evaluations_for_transform_context,
     derive_static_stylesheet_module_evaluation_for_transform_context,
@@ -47,11 +48,15 @@ pub(super) fn derive_static_scss_module_resolution_configuration_evidence(
         "sassForward" => Some("@forward"),
         _ => None,
     };
-    let variable_overrides = at_keyword
-        .map(|at_keyword| {
+    let variable_overrides = match at_keyword {
+        Some("@forward") => {
+            derive_static_scss_module_forward_variable_override_values(style_source, source)
+        }
+        Some(at_keyword) => {
             derive_static_scss_module_rule_variable_overrides(style_source, at_keyword, source)
-        })
-        .unwrap_or_default();
+        }
+        None => BTreeMap::new(),
+    };
     let module_instance_identity_key =
         at_keyword
             .and(resolved_style_path)

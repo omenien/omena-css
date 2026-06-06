@@ -1632,6 +1632,102 @@ fn applies_scss_use_configuration_to_prefixed_forwarded_module_instance() {
 }
 
 #[test]
+fn applies_forward_default_configuration_until_downstream_override() {
+    let no_override_summary = summarize_omena_query_transform_context_from_sources(
+        "/tmp/App.module.scss",
+        [
+            (
+                "/tmp/tokens.scss",
+                "$brand: blue !default; .base { color: $brand; }",
+            ),
+            (
+                "/tmp/theme.scss",
+                r#"@forward "./tokens" with ($brand: red !default);"#,
+            ),
+            (
+                "/tmp/App.module.scss",
+                r#"@use "./theme" as theme; .button { color: theme.$brand; }"#,
+            ),
+        ],
+        &[],
+    );
+    let override_summary = summarize_omena_query_transform_context_from_sources(
+        "/tmp/App.module.scss",
+        [
+            (
+                "/tmp/tokens.scss",
+                "$brand: blue !default; .base { color: $brand; }",
+            ),
+            (
+                "/tmp/theme.scss",
+                r#"@forward "./tokens" with ($brand: red !default);"#,
+            ),
+            (
+                "/tmp/App.module.scss",
+                r#"@use "./theme" as theme with ($brand: green); .button { color: theme.$brand; }"#,
+            ),
+        ],
+        &[],
+    );
+
+    let no_override_css = no_override_summary
+        .context
+        .scss_module_evaluation
+        .as_ref()
+        .map(|evaluation| evaluation.evaluated_css.as_str())
+        .unwrap_or_default();
+    assert!(no_override_css.contains(".base { color: red; }"));
+    assert!(no_override_css.contains(".button { color: red; }"));
+
+    let override_css = override_summary
+        .context
+        .scss_module_evaluation
+        .as_ref()
+        .map(|evaluation| evaluation.evaluated_css.as_str())
+        .unwrap_or_default();
+    assert!(override_css.contains(".base { color: green; }"));
+    assert!(override_css.contains(".button { color: green; }"));
+    assert!(!override_css.contains(".base { color: red; }"));
+}
+
+#[test]
+fn sass_module_resolution_flags_downstream_configuration_after_non_default_forward()
+-> Result<(), String> {
+    let sources = vec![
+        OmenaQueryStyleSourceInputV0 {
+            style_path: "/tmp/tokens.scss".to_string(),
+            style_source: "$brand: blue !default; .base { color: $brand; }".to_string(),
+        },
+        OmenaQueryStyleSourceInputV0 {
+            style_path: "/tmp/theme.scss".to_string(),
+            style_source: r#"@forward "./tokens" with ($brand: red);"#.to_string(),
+        },
+        OmenaQueryStyleSourceInputV0 {
+            style_path: "/tmp/App.module.scss".to_string(),
+            style_source: r#"@use "./theme" as theme with ($brand: green);"#.to_string(),
+        },
+    ];
+
+    let resolution = summarize_omena_query_sass_module_cross_file_resolution_for_workspace(
+        sources.as_slice(),
+        &[],
+        &[],
+        &[],
+    );
+    let edge = resolution
+        .edges
+        .iter()
+        .find(|edge| edge.from_style_path == "/tmp/App.module.scss")
+        .ok_or_else(|| format!("App should have a resolved Sass module edge: {resolution:?}"))?;
+
+    assert_eq!(
+        edge.invalid_configuration_variable_names,
+        vec!["brand".to_string()]
+    );
+    Ok(())
+}
+
+#[test]
 fn shares_configured_scss_module_instances_across_transitive_consumers() {
     let summary = summarize_omena_query_transform_context_from_sources(
         "/tmp/App.module.scss",

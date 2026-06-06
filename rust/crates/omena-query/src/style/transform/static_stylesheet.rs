@@ -19,6 +19,8 @@ use std::{
 
 mod scss_variable_overrides;
 
+use scss_variable_overrides::StaticScssModuleVariableOverride;
+
 pub(super) fn derive_static_stylesheet_module_evaluation_for_transform_context(
     style_source: &str,
     dialect: OmenaParserStyleDialect,
@@ -287,6 +289,17 @@ fn derive_static_scss_module_configurable_variable_names_for_transform_context_i
                 package_manifests,
                 visiting,
             );
+        let non_default_forward_overrides = derive_static_scss_module_forward_variable_overrides(
+            style_source,
+            edge.source.as_str(),
+        )
+        .into_iter()
+        .filter_map(|(name, override_entry)| (!override_entry.is_default).then_some(name))
+        .collect::<BTreeSet<_>>();
+        let child_names = child_names
+            .into_iter()
+            .filter(|name| !non_default_forward_overrides.contains(name))
+            .collect::<BTreeSet<_>>();
         let export_prefix =
             derive_static_scss_forward_export_prefix(style_source, edge.source.as_str());
         names.extend(filter_static_scss_forward_configurable_variable_names(
@@ -457,9 +470,8 @@ fn derive_static_scss_module_forward_evaluations_for_transform_context(
         let Some(source) = context.source_by_path.get(resolved.as_str()) else {
             continue;
         };
-        let explicit_variable_overrides = derive_static_scss_module_rule_variable_overrides(
+        let explicit_variable_overrides = derive_static_scss_module_forward_variable_overrides(
             style_source,
-            "@forward",
             edge.source.as_str(),
         );
         let export_prefix =
@@ -524,30 +536,42 @@ fn derive_static_scss_module_forward_evaluations_for_transform_context(
 }
 
 fn derive_static_scss_forward_effective_variable_overrides(
-    explicit_variable_overrides: &BTreeMap<String, String>,
+    explicit_variable_overrides: &BTreeMap<String, StaticScssModuleVariableOverride>,
     inherited_variable_overrides: &BTreeMap<String, String>,
     export_prefix: Option<&str>,
     visibility_filter_kind: Option<&'static str>,
     visibility_filter_names: &[String],
     configurable_names: &BTreeSet<String>,
 ) -> BTreeMap<String, String> {
-    let mut variable_overrides = inherited_variable_overrides
+    let mut variable_overrides = explicit_variable_overrides
         .iter()
-        .filter_map(|(name, value)| {
-            let internal_name = static_scss_forward_internal_variable_name_for_exposed_name(
-                name.as_str(),
-                export_prefix,
-            )?;
-            static_scss_forward_exposed_variable_is_visible(
-                name.as_str(),
-                visibility_filter_kind,
-                visibility_filter_names,
-            )
-            .then_some((internal_name, value.clone()))
-        })
-        .filter(|(name, _)| configurable_names.contains(name))
+        .filter(|(_, override_entry)| override_entry.is_default)
+        .map(|(name, override_entry)| (name.clone(), override_entry.value.clone()))
         .collect::<BTreeMap<_, _>>();
-    variable_overrides.extend(explicit_variable_overrides.clone());
+    variable_overrides.extend(
+        inherited_variable_overrides
+            .iter()
+            .filter_map(|(name, value)| {
+                let internal_name = static_scss_forward_internal_variable_name_for_exposed_name(
+                    name.as_str(),
+                    export_prefix,
+                )?;
+                static_scss_forward_exposed_variable_is_visible(
+                    name.as_str(),
+                    visibility_filter_kind,
+                    visibility_filter_names,
+                )
+                .then_some((internal_name, value.clone()))
+            })
+            .filter(|(name, _)| configurable_names.contains(name))
+            .collect::<BTreeMap<_, _>>(),
+    );
+    variable_overrides.extend(
+        explicit_variable_overrides
+            .iter()
+            .filter(|(_, override_entry)| !override_entry.is_default)
+            .map(|(name, override_entry)| (name.clone(), override_entry.value.clone())),
+    );
     variable_overrides
 }
 
@@ -977,6 +1001,35 @@ pub(super) fn derive_static_scss_module_rule_variable_overrides(
     at_keyword: &str,
     use_source: &str,
 ) -> BTreeMap<String, String> {
+    static_scss_module_rule_source(style_source, at_keyword, use_source)
+        .map(parse_static_scss_use_variable_overrides_from_rule)
+        .unwrap_or_default()
+}
+
+fn derive_static_scss_module_forward_variable_overrides(
+    style_source: &str,
+    forward_source: &str,
+) -> BTreeMap<String, StaticScssModuleVariableOverride> {
+    static_scss_module_rule_source(style_source, "@forward", forward_source)
+        .map(parse_static_scss_forward_variable_overrides_from_rule)
+        .unwrap_or_default()
+}
+
+pub(super) fn derive_static_scss_module_forward_variable_override_values(
+    style_source: &str,
+    forward_source: &str,
+) -> BTreeMap<String, String> {
+    derive_static_scss_module_forward_variable_overrides(style_source, forward_source)
+        .into_iter()
+        .map(|(name, override_entry)| (name, override_entry.value))
+        .collect()
+}
+
+fn static_scss_module_rule_source<'a>(
+    style_source: &'a str,
+    at_keyword: &str,
+    use_source: &str,
+) -> Option<&'a str> {
     let lexed =
         lex_omena_query_omena_parser_style_source(style_source, OmenaParserStyleDialect::Scss);
     let tokens = lexed.tokens();
@@ -999,10 +1052,7 @@ pub(super) fn derive_static_scss_module_rule_variable_overrides(
                 {
                     let start = transform_token_start(&tokens[index]);
                     let end = transform_token_end(&tokens[end_index]);
-                    return style_source
-                        .get(start..end)
-                        .map(parse_static_scss_use_variable_overrides_from_rule)
-                        .unwrap_or_default();
+                    return style_source.get(start..end);
                 }
                 index = end_index + 1;
                 continue;
@@ -1012,7 +1062,7 @@ pub(super) fn derive_static_scss_module_rule_variable_overrides(
         index += 1;
     }
 
-    BTreeMap::new()
+    None
 }
 
 fn derive_static_scss_forward_export_prefix(
@@ -1125,5 +1175,37 @@ fn parse_static_scss_use_variable_overrides_from_rule(
     rule_source
         .get(start..end)
         .map(scss_variable_overrides::parse_static_scss_use_variable_override_list)
+        .unwrap_or_default()
+}
+
+fn parse_static_scss_forward_variable_overrides_from_rule(
+    rule_source: &str,
+) -> BTreeMap<String, StaticScssModuleVariableOverride> {
+    let lexed =
+        lex_omena_query_omena_parser_style_source(rule_source, OmenaParserStyleDialect::Scss);
+    let tokens = lexed.tokens();
+    let Some(with_index) = tokens
+        .iter()
+        .position(|token| token.text.eq_ignore_ascii_case("with"))
+    else {
+        return BTreeMap::new();
+    };
+    let Some(left_paren_index) = tokens[with_index + 1..]
+        .iter()
+        .position(|token| token.kind == SyntaxKind::LeftParen)
+        .map(|offset| with_index + 1 + offset)
+    else {
+        return BTreeMap::new();
+    };
+    let Some(right_paren_index) =
+        scss_variable_overrides::static_scss_matching_right_paren(tokens, left_paren_index)
+    else {
+        return BTreeMap::new();
+    };
+    let start = transform_token_end(&tokens[left_paren_index]);
+    let end = transform_token_start(&tokens[right_paren_index]);
+    rule_source
+        .get(start..end)
+        .map(scss_variable_overrides::parse_static_scss_forward_variable_override_list)
         .unwrap_or_default()
 }

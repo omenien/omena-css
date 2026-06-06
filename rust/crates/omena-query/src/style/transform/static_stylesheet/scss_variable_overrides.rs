@@ -3,15 +3,39 @@ use super::static_scss_identifier_char;
 use omena_syntax::SyntaxKind;
 use std::collections::BTreeMap;
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(super) struct StaticScssModuleVariableOverride {
+    pub(super) value: String,
+    pub(super) is_default: bool,
+}
+
 pub(super) fn parse_static_scss_use_variable_override_list(
     content: &str,
 ) -> BTreeMap<String, String> {
+    parse_static_scss_variable_override_list(content, false)
+        .into_iter()
+        .map(|(name, override_entry)| (name, override_entry.value))
+        .collect()
+}
+
+pub(super) fn parse_static_scss_forward_variable_override_list(
+    content: &str,
+) -> BTreeMap<String, StaticScssModuleVariableOverride> {
+    parse_static_scss_variable_override_list(content, true)
+}
+
+fn parse_static_scss_variable_override_list(
+    content: &str,
+    allow_default_flag: bool,
+) -> BTreeMap<String, StaticScssModuleVariableOverride> {
     let mut overrides = BTreeMap::new();
     for entry in split_static_scss_top_level_commas(content) {
         if entry.trim().is_empty() {
             continue;
         }
-        let Some((name, value)) = parse_static_scss_use_variable_override(entry.trim()) else {
+        let Some((name, value)) =
+            parse_static_scss_variable_override(entry.trim(), allow_default_flag)
+        else {
             return BTreeMap::new();
         };
         overrides.insert(name, value);
@@ -39,17 +63,45 @@ pub(super) fn static_scss_matching_right_paren(
     None
 }
 
-fn parse_static_scss_use_variable_override(entry: &str) -> Option<(String, String)> {
+fn parse_static_scss_variable_override(
+    entry: &str,
+    allow_default_flag: bool,
+) -> Option<(String, StaticScssModuleVariableOverride)> {
     let colon_index = static_scss_top_level_colon_index(entry)?;
     let name = entry[..colon_index].trim().strip_prefix('$')?;
     if name.is_empty() || !name.chars().all(static_scss_identifier_char) {
         return None;
     }
-    let value = entry[colon_index + 1..].trim();
+    let (value, is_default) = split_static_scss_forward_default_flag(
+        entry[colon_index + 1..].trim(),
+        allow_default_flag,
+    )?;
     if !static_scss_use_variable_override_value_is_safe(value) {
         return None;
     }
-    Some((canonical_static_scss_variable_name(name), value.to_string()))
+    Some((
+        canonical_static_scss_variable_name(name),
+        StaticScssModuleVariableOverride {
+            value: value.to_string(),
+            is_default,
+        },
+    ))
+}
+
+fn split_static_scss_forward_default_flag(
+    value: &str,
+    allow_default_flag: bool,
+) -> Option<(&str, bool)> {
+    if !allow_default_flag {
+        return Some((value, false));
+    }
+    let lower = value.to_ascii_lowercase();
+    let Some(before_default) = lower.strip_suffix("!default") else {
+        return Some((value, false));
+    };
+    let value_before_default = &value[..before_default.len()];
+    let stripped = value_before_default.trim_end();
+    (!stripped.is_empty()).then_some((stripped, true))
 }
 
 fn split_static_scss_top_level_commas(content: &str) -> Vec<&str> {

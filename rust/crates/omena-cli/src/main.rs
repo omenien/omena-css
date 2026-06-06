@@ -8046,6 +8046,42 @@ export function App() {
         );
     }
 
+    #[test]
+    fn style_diagnostics_cli_identity_reports_downstream_configuration_after_forward_override() {
+        let sources = vec![
+            OmenaQueryStyleSourceInputV0 {
+                style_path: "/tmp/tokens.scss".to_string(),
+                style_source: "$brand: blue !default;".to_string(),
+            },
+            OmenaQueryStyleSourceInputV0 {
+                style_path: "/tmp/theme.scss".to_string(),
+                style_source: r#"@forward "./tokens" with ($brand: red);"#.to_string(),
+            },
+            OmenaQueryStyleSourceInputV0 {
+                style_path: "/tmp/App.module.scss".to_string(),
+                style_source: r#"@use "./theme" as theme with ($brand: green);"#.to_string(),
+            },
+        ];
+
+        let diagnostics = summarize_sass_module_resolution_identity_diagnostics(
+            "/tmp/App.module.scss",
+            sources.as_slice(),
+            &[],
+            &omena_query::OmenaQueryStyleResolutionInputsV0::default(),
+        );
+
+        assert!(
+            diagnostics.iter().any(|diagnostic| {
+                diagnostic.code == "sassModuleInvalidConfiguration"
+                    && diagnostic.severity == "error"
+                    && diagnostic.message.contains("/tmp/theme.scss")
+                    && diagnostic.message.contains("$brand")
+                    && diagnostic.message.contains("!default")
+            }),
+            "CLI diagnostics must reject downstream configuration after a non-default @forward with(...): {diagnostics:?}"
+        );
+    }
+
     #[cfg(unix)]
     #[test]
     fn style_diagnostics_cli_identity_reads_symlink_chain_metadata() -> Result<(), String> {
