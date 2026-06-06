@@ -434,6 +434,9 @@ enum LockCommand {
         /// Verification evidence kind stored in omena.lock.
         #[arg(long, default_value = "npm-provenance.sigstore")]
         kind: String,
+        /// Verified trust tier recorded after local Sigstore verification: t2 or t3.
+        #[arg(long = "verified-tier", default_value = "t2")]
+        verified_tier: String,
         /// Required certificate identity.
         #[arg(long)]
         identity: Option<String>,
@@ -861,6 +864,7 @@ fn lock_command(
             bundle,
             reference,
             kind,
+            verified_tier,
             identity,
             issuer,
             json,
@@ -871,6 +875,7 @@ fn lock_command(
             bundle,
             reference,
             kind,
+            verified_tier,
             identity,
             issuer,
             json,
@@ -1101,6 +1106,7 @@ struct LockVerifyAttestationInput {
     bundle: PathBuf,
     reference: String,
     kind: String,
+    verified_tier: String,
     identity: Option<String>,
     issuer: String,
     json: bool,
@@ -1114,10 +1120,20 @@ fn lock_verify_attestation(input: LockVerifyAttestationInput) -> Result<(), Stri
         bundle,
         reference,
         kind,
+        verified_tier,
         identity,
         issuer,
         json,
     } = input;
+
+    let verified_trust_tier = parse_lock_trust_tier(Some(verified_tier.as_str()))?
+        .ok_or_else(|| "lock verify-attestation requires --verified-tier".to_string())?;
+    if verified_trust_tier < omena_sif::OmenaSifTrustTierV1::T2 {
+        return Err(format!(
+            "lock verify-attestation --verified-tier must be t2 or t3, got {}",
+            verified_trust_tier.as_str()
+        ));
+    }
 
     let mut lock = read_lockfile_or_empty(&lockfile)?;
     let artifact_bytes = fs::read(&artifact)
@@ -1171,7 +1187,7 @@ fn lock_verify_attestation(input: LockVerifyAttestationInput) -> Result<(), Stri
             kind: kind.clone(),
             reference: reference.clone(),
             verifier: "sigstore-verify".to_string(),
-            verified_trust_tier: omena_sif::OmenaSifTrustTierV1::T2,
+            verified_trust_tier,
             subject_canonical_url: entry.canonical_url.clone(),
             subject_sif_hash: entry.sif_hash.clone(),
         };
@@ -4622,7 +4638,10 @@ mod tests {
         let Command::Lock {
             command:
                 Some(LockCommand::VerifyAttestation {
-                    issuer, identity, ..
+                    issuer,
+                    identity,
+                    verified_tier,
+                    ..
                 }),
             ..
         } = parsed.command
@@ -4631,6 +4650,7 @@ mod tests {
         };
         assert_eq!(issuer, "https://token.actions.githubusercontent.com");
         assert_eq!(identity, None);
+        assert_eq!(verified_tier, "t2");
         Ok(())
     }
 
@@ -6605,6 +6625,7 @@ export function App() {
                     bundle: bundle_path,
                     reference: provenance_reference.to_string(),
                     kind: "npm-provenance.sigstore".to_string(),
+                    verified_tier: "t2".to_string(),
                     identity: None,
                     issuer: "https://token.actions.githubusercontent.com".to_string(),
                     json: true,
@@ -6708,7 +6729,8 @@ export function App() {
                     artifact: artifact_path,
                     bundle: bundle_path,
                     reference: provenance_reference.to_string(),
-                    kind: "npm-provenance.sigstore".to_string(),
+                    kind: "omena-toolchain.sigstore".to_string(),
+                    verified_tier: "t3".to_string(),
                     identity: None,
                     issuer: "https://github.com/login/oauth".to_string(),
                     json: true,
@@ -6724,15 +6746,23 @@ export function App() {
             .map_err(|error| format!("fixture lock should parse: {error}"))?;
         assert_eq!(
             refreshed_lock.entries[0].trust_tier,
-            omena_sif::OmenaSifTrustTierV1::T2
+            omena_sif::OmenaSifTrustTierV1::T3
         );
         assert_eq!(refreshed_lock.entries[0].attestation_verifications.len(), 1);
+        assert_eq!(
+            refreshed_lock.entries[0].attestation_verifications[0].kind,
+            "omena-toolchain.sigstore"
+        );
         assert_eq!(
             refreshed_lock.entries[0].attestation_verifications[0].verifier,
             "sigstore-verify"
         );
+        assert_eq!(
+            refreshed_lock.entries[0].attestation_verifications[0].verified_trust_tier,
+            omena_sif::OmenaSifTrustTierV1::T3
+        );
 
-        let verify_t2_after = run(Cli {
+        let verify_t3_after = run(Cli {
             command: Command::Lock {
                 lockfile: PathBuf::from("omena.lock"),
                 json: false,
@@ -6740,12 +6770,12 @@ export function App() {
                     lockfile: lockfile_path,
                     source_paths: Vec::new(),
                     frozen: true,
-                    tier: Some("t2".to_string()),
+                    tier: Some("t3".to_string()),
                     json: true,
                 }),
             },
         });
-        assert!(verify_t2_after.is_ok(), "{verify_t2_after:?}");
+        assert!(verify_t3_after.is_ok(), "{verify_t3_after:?}");
 
         cleanup_dir(&workspace_path);
         Ok(())
