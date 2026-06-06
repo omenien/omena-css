@@ -3380,8 +3380,58 @@ fn summarize_sass_module_resolution_identity_diagnostics(
             cross_file_scc: None,
         });
     }
+    diagnostics.extend(summarize_sass_module_configuration_conflict_diagnostics(
+        target_style_path,
+        &resolution,
+        range,
+    ));
 
     diagnostics
+}
+
+fn summarize_sass_module_configuration_conflict_diagnostics(
+    target_style_path: &str,
+    resolution: &omena_query::OmenaQuerySassModuleCrossFileResolutionV0,
+    range: ParserRangeV0,
+) -> Vec<OmenaQueryStyleDiagnosticV0> {
+    let mut signatures_by_target = BTreeMap::<String, BTreeSet<String>>::new();
+    for edge in resolution
+        .graph_closure_edges
+        .iter()
+        .filter(|edge| edge.from_style_path == target_style_path)
+        .filter(|edge| edge.configuration_variable_count > 0)
+    {
+        signatures_by_target
+            .entry(edge.target_style_path.clone())
+            .or_default()
+            .insert(edge.configuration_signature.clone());
+    }
+
+    signatures_by_target
+        .into_iter()
+        .filter(|(_, signatures)| signatures.len() > 1)
+        .map(|(target, signatures)| OmenaQueryStyleDiagnosticV0 {
+            code: "sassModuleConfigurationConflict",
+            severity: "error",
+            provenance: vec![
+                "omena-query.sass-module-cross-file-resolution",
+                "omena-query.module-instance-identity",
+                "omena-cli.style-diagnostics",
+            ],
+            range,
+            message: format!(
+                "Sass module '{target}' is reached with {} different configurations ({}); Sass modules can be configured only once per compilation.",
+                signatures.len(),
+                signatures.into_iter().collect::<Vec<_>>().join(", ")
+            ),
+            tags: Vec::new(),
+            create_custom_property: None,
+            cascade_narrowing: None,
+            cascade_confidence: None,
+            polynomial_provenance: None,
+            cross_file_scc: None,
+        })
+        .collect()
 }
 
 fn is_platform_alias_symlink_link(link: &omena_query::OmenaQuerySymlinkChainLinkV0) -> bool {
@@ -6706,6 +6756,85 @@ export function App() {
                         .contains("configured module instance '/tmp/tokens.scss'")
             }),
             "CLI diagnostics must consume module_instance_identity_key through the graph closure: {diagnostics:?}"
+        );
+    }
+
+    #[test]
+    fn style_diagnostics_cli_identity_reports_conflicting_sass_module_configurations() {
+        let sources = vec![
+            OmenaQueryStyleSourceInputV0 {
+                style_path: "/tmp/tokens.scss".to_string(),
+                style_source: "$brand: blue !default;".to_string(),
+            },
+            OmenaQueryStyleSourceInputV0 {
+                style_path: "/tmp/theme-red.scss".to_string(),
+                style_source: r#"@forward "./tokens" with ($brand: red);"#.to_string(),
+            },
+            OmenaQueryStyleSourceInputV0 {
+                style_path: "/tmp/theme-blue.scss".to_string(),
+                style_source: r#"@forward "./tokens" with ($brand: blue);"#.to_string(),
+            },
+            OmenaQueryStyleSourceInputV0 {
+                style_path: "/tmp/App.module.scss".to_string(),
+                style_source:
+                    r#"@use "./theme-red" as redTheme; @use "./theme-blue" as blueTheme;"#
+                        .to_string(),
+            },
+        ];
+
+        let diagnostics = summarize_sass_module_resolution_identity_diagnostics(
+            "/tmp/App.module.scss",
+            sources.as_slice(),
+            &[],
+            &omena_query::OmenaQueryStyleResolutionInputsV0::default(),
+        );
+
+        assert!(
+            diagnostics.iter().any(|diagnostic| {
+                diagnostic.code == "sassModuleConfigurationConflict"
+                    && diagnostic.severity == "error"
+                    && diagnostic.message.contains("/tmp/tokens.scss")
+                    && diagnostic.message.contains("brand=3:red")
+                    && diagnostic.message.contains("brand=4:blue")
+            }),
+            "CLI diagnostics must reject incompatible Sass module configurations: {diagnostics:?}"
+        );
+    }
+
+    #[test]
+    fn style_diagnostics_cli_identity_allows_shared_sass_module_configuration() {
+        let sources = vec![
+            OmenaQueryStyleSourceInputV0 {
+                style_path: "/tmp/tokens.scss".to_string(),
+                style_source: "$brand: blue !default;".to_string(),
+            },
+            OmenaQueryStyleSourceInputV0 {
+                style_path: "/tmp/theme-a.scss".to_string(),
+                style_source: r#"@forward "./tokens" with ($brand: red);"#.to_string(),
+            },
+            OmenaQueryStyleSourceInputV0 {
+                style_path: "/tmp/theme-b.scss".to_string(),
+                style_source: r#"@forward "./tokens" with ($brand: red);"#.to_string(),
+            },
+            OmenaQueryStyleSourceInputV0 {
+                style_path: "/tmp/App.module.scss".to_string(),
+                style_source: r#"@use "./theme-a" as themeA; @use "./theme-b" as themeB;"#
+                    .to_string(),
+            },
+        ];
+
+        let diagnostics = summarize_sass_module_resolution_identity_diagnostics(
+            "/tmp/App.module.scss",
+            sources.as_slice(),
+            &[],
+            &omena_query::OmenaQueryStyleResolutionInputsV0::default(),
+        );
+
+        assert!(
+            diagnostics
+                .iter()
+                .all(|diagnostic| diagnostic.code != "sassModuleConfigurationConflict"),
+            "shared Sass module configuration must remain shareable: {diagnostics:?}"
         );
     }
 
