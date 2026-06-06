@@ -1603,6 +1603,36 @@ fn shares_preconfigured_scss_module_instance_with_unconfigured_transitive_forwar
 }
 
 #[test]
+fn preserves_unconfigured_scss_module_instance_before_later_configuration() {
+    let summary = summarize_omena_query_transform_context_from_sources(
+        "/tmp/App.module.scss",
+        [
+            (
+                "/tmp/tokens.scss",
+                "$brand: blue !default; .base { color: $brand; }",
+            ),
+            ("/tmp/theme.scss", r#"@forward "./tokens";"#),
+            (
+                "/tmp/App.module.scss",
+                r#"@use "./theme" as theme; @use "./tokens" as tokens with ($brand: red); .button { color: tokens.$brand; border-color: theme.$brand; }"#,
+            ),
+        ],
+        &[],
+    );
+
+    let evaluated_css = summary
+        .context
+        .scss_module_evaluation
+        .as_ref()
+        .map(|evaluation| evaluation.evaluated_css.as_str())
+        .unwrap_or_default();
+    assert_eq!(evaluated_css.matches(".base { color: blue; }").count(), 1);
+    assert!(!evaluated_css.contains(".base { color: red; }"));
+    assert!(evaluated_css.contains(r#"@use "./tokens" as tokens with ($brand: red)"#));
+    assert!(evaluated_css.contains(".button { color: tokens.$brand; border-color: blue; }"));
+}
+
+#[test]
 fn preserves_conflicting_scss_module_configuration_boundary() {
     let summary = summarize_omena_query_transform_context_from_sources(
         "/tmp/App.module.scss",

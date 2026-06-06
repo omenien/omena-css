@@ -131,7 +131,7 @@ pub(super) fn derive_static_scss_module_use_evaluations_for_transform_context(
     }
 
     let mut emitted_module_identity_keys = BTreeSet::new();
-    let mut configured_module_overrides_by_path = BTreeMap::new();
+    let mut loaded_module_overrides_by_path = BTreeMap::new();
     entry
         .facts
         .sass_module_edges
@@ -159,7 +159,7 @@ pub(super) fn derive_static_scss_module_use_evaluations_for_transform_context(
             let variable_overrides = resolve_static_scss_module_effective_variable_overrides(
                 resolved.as_str(),
                 &variable_overrides,
-                &mut configured_module_overrides_by_path,
+                &mut loaded_module_overrides_by_path,
             )?;
             let module_identity_key =
                 static_scss_module_instance_identity_key(resolved.as_str(), &variable_overrides);
@@ -171,7 +171,7 @@ pub(super) fn derive_static_scss_module_use_evaluations_for_transform_context(
                     package_manifests,
                     visited: &mut visited,
                     emitted_module_identity_keys: &mut emitted_module_identity_keys,
-                    configured_module_overrides_by_path: &mut configured_module_overrides_by_path,
+                    loaded_module_overrides_by_path: &mut loaded_module_overrides_by_path,
                 };
                 derive_static_scss_module_context_for_transform_context(
                     resolved.as_str(),
@@ -210,7 +210,7 @@ struct StaticScssModuleDeriveContext<'a> {
     package_manifests: &'a [OmenaQueryStylePackageManifestV0],
     visited: &'a mut BTreeSet<String>,
     emitted_module_identity_keys: &'a mut BTreeSet<String>,
-    configured_module_overrides_by_path: &'a mut BTreeMap<String, BTreeMap<String, String>>,
+    loaded_module_overrides_by_path: &'a mut BTreeMap<String, BTreeMap<String, String>>,
 }
 
 pub(super) fn static_scss_module_instance_identity_key(
@@ -247,10 +247,10 @@ pub(super) fn static_scss_module_configuration_signature(
 fn resolve_static_scss_module_effective_variable_overrides(
     style_path: &str,
     variable_overrides: &BTreeMap<String, String>,
-    configured_module_overrides_by_path: &mut BTreeMap<String, BTreeMap<String, String>>,
+    loaded_module_overrides_by_path: &mut BTreeMap<String, BTreeMap<String, String>>,
 ) -> Option<BTreeMap<String, String>> {
     let canonical_path = canonicalize_omena_resolver_style_identity_path(style_path);
-    match configured_module_overrides_by_path.get(canonical_path.as_str()) {
+    match loaded_module_overrides_by_path.get(canonical_path.as_str()) {
         Some(existing_overrides) if variable_overrides.is_empty() => {
             Some(existing_overrides.clone())
         }
@@ -258,10 +258,7 @@ fn resolve_static_scss_module_effective_variable_overrides(
             (existing_overrides == variable_overrides).then(|| variable_overrides.clone())
         }
         None => {
-            if !variable_overrides.is_empty() {
-                configured_module_overrides_by_path
-                    .insert(canonical_path, variable_overrides.clone());
-            }
+            loaded_module_overrides_by_path.insert(canonical_path, variable_overrides.clone());
             Some(variable_overrides.clone())
         }
     }
@@ -276,7 +273,7 @@ fn derive_static_scss_module_context_for_transform_context(
     let variable_overrides = resolve_static_scss_module_effective_variable_overrides(
         style_path,
         variable_overrides,
-        context.configured_module_overrides_by_path,
+        context.loaded_module_overrides_by_path,
     )?;
     let module_identity_key =
         static_scss_module_instance_identity_key(style_path, &variable_overrides);
@@ -372,7 +369,7 @@ fn derive_static_scss_module_forward_evaluations_for_transform_context(
         let variable_overrides = resolve_static_scss_module_effective_variable_overrides(
             resolved.as_str(),
             &variable_overrides,
-            context.configured_module_overrides_by_path,
+            context.loaded_module_overrides_by_path,
         )?;
         let module_identity_key =
             static_scss_module_instance_identity_key(resolved.as_str(), &variable_overrides);

@@ -3466,6 +3466,7 @@ fn summarize_sass_module_resolution_identity_diagnostics(
     }
     diagnostics.extend(summarize_sass_module_configuration_conflict_diagnostics(
         target_style_path,
+        workspace_sources,
         &resolution,
         range,
     ));
@@ -3475,6 +3476,7 @@ fn summarize_sass_module_resolution_identity_diagnostics(
 
 fn summarize_sass_module_configuration_conflict_diagnostics(
     target_style_path: &str,
+    workspace_sources: &[OmenaQueryStyleSourceInputV0],
     resolution: &omena_query::OmenaQuerySassModuleCrossFileResolutionV0,
     range: ParserRangeV0,
 ) -> Vec<OmenaQueryStyleDiagnosticV0> {
@@ -3489,6 +3491,16 @@ fn summarize_sass_module_configuration_conflict_diagnostics(
             .entry(edge.target_style_path.clone())
             .or_default()
             .insert(edge.configuration_signature.clone());
+    }
+    for (target, signatures) in collect_sass_module_load_order_configuration_conflicts(
+        target_style_path,
+        workspace_sources,
+        resolution,
+    ) {
+        signatures_by_target
+            .entry(target)
+            .or_default()
+            .extend(signatures);
     }
 
     signatures_by_target
@@ -3516,6 +3528,130 @@ fn summarize_sass_module_configuration_conflict_diagnostics(
             cross_file_scc: None,
         })
         .collect()
+}
+
+fn collect_sass_module_load_order_configuration_conflicts(
+    target_style_path: &str,
+    workspace_sources: &[OmenaQueryStyleSourceInputV0],
+    resolution: &omena_query::OmenaQuerySassModuleCrossFileResolutionV0,
+) -> BTreeMap<String, BTreeSet<String>> {
+    let source_by_path = workspace_sources
+        .iter()
+        .map(|source| (source.style_path.as_str(), source.style_source.as_str()))
+        .collect::<BTreeMap<_, _>>();
+    let mut edges_by_from =
+        BTreeMap::<&str, Vec<&omena_query::OmenaQuerySassModuleEdgeResolutionV0>>::new();
+    for edge in resolution
+        .edges
+        .iter()
+        .filter(|edge| edge.status == "resolved" && edge.resolved_style_path.is_some())
+    {
+        edges_by_from
+            .entry(edge.from_style_path.as_str())
+            .or_default()
+            .push(edge);
+    }
+    for (style_path, edges) in &mut edges_by_from {
+        let style_source = source_by_path.get(style_path).copied().unwrap_or_default();
+        edges.sort_by_key(|edge| {
+            (
+                sass_module_edge_source_offset(style_source, edge.edge_kind, edge.source.as_str()),
+                edge.edge_kind,
+                edge.source.clone(),
+            )
+        });
+    }
+
+    let mut loaded_signatures_by_target = BTreeMap::new();
+    let mut active_stack = BTreeSet::new();
+    let mut conflicts_by_target = BTreeMap::new();
+    collect_sass_module_load_order_configuration_conflicts_for_style(
+        target_style_path,
+        &edges_by_from,
+        &mut loaded_signatures_by_target,
+        &mut active_stack,
+        &mut conflicts_by_target,
+    );
+    conflicts_by_target
+}
+
+fn collect_sass_module_load_order_configuration_conflicts_for_style(
+    style_path: &str,
+    edges_by_from: &BTreeMap<&str, Vec<&omena_query::OmenaQuerySassModuleEdgeResolutionV0>>,
+    loaded_signatures_by_target: &mut BTreeMap<String, String>,
+    active_stack: &mut BTreeSet<String>,
+    conflicts_by_target: &mut BTreeMap<String, BTreeSet<String>>,
+) {
+    if !active_stack.insert(style_path.to_string()) {
+        return;
+    }
+    if let Some(edges) = edges_by_from.get(style_path) {
+        for edge in edges {
+            let Some(target_style_path) = edge.resolved_style_path.as_ref() else {
+                continue;
+            };
+            let requested_signature = edge.configuration_signature.clone();
+            let should_visit_target =
+                match loaded_signatures_by_target.get(target_style_path.as_str()) {
+                    Some(existing_signature)
+                        if is_unconfigured_sass_module_signature(requested_signature.as_str())
+                            || existing_signature == &requested_signature =>
+                    {
+                        false
+                    }
+                    Some(existing_signature) => {
+                        let signatures = conflicts_by_target
+                            .entry(target_style_path.clone())
+                            .or_default();
+                        signatures.insert(existing_signature.clone());
+                        signatures.insert(requested_signature);
+                        false
+                    }
+                    None => {
+                        loaded_signatures_by_target
+                            .insert(target_style_path.clone(), requested_signature);
+                        true
+                    }
+                };
+            if should_visit_target {
+                collect_sass_module_load_order_configuration_conflicts_for_style(
+                    target_style_path.as_str(),
+                    edges_by_from,
+                    loaded_signatures_by_target,
+                    active_stack,
+                    conflicts_by_target,
+                );
+            }
+        }
+    }
+    active_stack.remove(style_path);
+}
+
+fn is_unconfigured_sass_module_signature(signature: &str) -> bool {
+    signature == "with:none"
+}
+
+fn sass_module_edge_source_offset(style_source: &str, edge_kind: &str, source: &str) -> usize {
+    let keyword = match edge_kind {
+        "sassUse" => "@use",
+        "sassForward" => "@forward",
+        _ => return usize::MAX,
+    };
+    let mut search_start = 0usize;
+    while let Some(relative_keyword_start) = style_source[search_start..].find(keyword) {
+        let keyword_start = search_start + relative_keyword_start;
+        let after_keyword = &style_source[keyword_start + keyword.len()..];
+        let Some(relative_source_start) = after_keyword.find(source) else {
+            search_start = keyword_start + keyword.len();
+            continue;
+        };
+        let between_keyword_and_source = &after_keyword[..relative_source_start];
+        if !between_keyword_and_source.contains(';') && !between_keyword_and_source.contains('{') {
+            return keyword_start;
+        }
+        search_start = keyword_start + keyword.len();
+    }
+    usize::MAX
 }
 
 fn is_platform_alias_symlink_link(link: &omena_query::OmenaQuerySymlinkChainLinkV0) -> bool {
@@ -7063,6 +7199,44 @@ export function App() {
                 .iter()
                 .all(|diagnostic| diagnostic.code != "sassModuleConfigurationConflict"),
             "shared Sass module configuration must remain shareable: {diagnostics:?}"
+        );
+    }
+
+    #[test]
+    fn style_diagnostics_cli_identity_reports_configured_after_unconfigured_load_order() {
+        let sources = vec![
+            OmenaQueryStyleSourceInputV0 {
+                style_path: "/tmp/tokens.scss".to_string(),
+                style_source: "$brand: blue !default;".to_string(),
+            },
+            OmenaQueryStyleSourceInputV0 {
+                style_path: "/tmp/theme.scss".to_string(),
+                style_source: r#"@forward "./tokens";"#.to_string(),
+            },
+            OmenaQueryStyleSourceInputV0 {
+                style_path: "/tmp/App.module.scss".to_string(),
+                style_source:
+                    r#"@use "./theme" as theme; @use "./tokens" as tokens with ($brand: red);"#
+                        .to_string(),
+            },
+        ];
+
+        let diagnostics = summarize_sass_module_resolution_identity_diagnostics(
+            "/tmp/App.module.scss",
+            sources.as_slice(),
+            &[],
+            &omena_query::OmenaQueryStyleResolutionInputsV0::default(),
+        );
+
+        assert!(
+            diagnostics.iter().any(|diagnostic| {
+                diagnostic.code == "sassModuleConfigurationConflict"
+                    && diagnostic.severity == "error"
+                    && diagnostic.message.contains("/tmp/tokens.scss")
+                    && diagnostic.message.contains("with:none")
+                    && diagnostic.message.contains("brand=3:red")
+            }),
+            "CLI diagnostics must reject configuring a Sass module after an unconfigured load: {diagnostics:?}"
         );
     }
 
