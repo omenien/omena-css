@@ -1017,6 +1017,7 @@ pub struct OmenaQueryRuntimeStateScenarioEvidenceV0 {
     pub selector_class_names: Vec<String>,
     pub property_name: String,
     pub scenario_join_kind: &'static str,
+    pub confidence_tier: &'static str,
     pub static_boundary: OmenaQueryRuntimeStateStaticBoundaryV0,
     pub driver_summaries: Vec<OmenaQueryRuntimeStateDriverSummaryV0>,
     pub scenarios: Vec<OmenaQueryRuntimeStateScenarioV0>,

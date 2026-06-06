@@ -30,10 +30,10 @@ use omena_query_transform_runner::expand_css_nested_selector;
 
 use super::{
     OmenaQueryCascadeConfidenceV0, OmenaQueryCascadeNarrowingEvidenceV0,
-    OmenaQueryRuntimeStateDriverSummaryV0, OmenaQueryRuntimeStateScenarioEvidenceV0,
-    OmenaQueryRuntimeStateScenarioV0, OmenaQueryRuntimeStateStaticBoundaryV0,
-    OmenaQueryStyleDiagnosticV0, ParserByteSpanV0, ParserRangeV0,
-    omena_parser_dialect_for_style_path, parser_range_for_byte_span,
+    OmenaQueryInlineStyleRuntimeOverrideV0, OmenaQueryRuntimeStateDriverSummaryV0,
+    OmenaQueryRuntimeStateScenarioEvidenceV0, OmenaQueryRuntimeStateScenarioV0,
+    OmenaQueryRuntimeStateStaticBoundaryV0, OmenaQueryStyleDiagnosticV0, ParserByteSpanV0,
+    ParserRangeV0, omena_parser_dialect_for_style_path, parser_range_for_byte_span,
     summarize_static_css_custom_property_fixed_point_from_source,
 };
 
@@ -1238,6 +1238,7 @@ fn summarize_query_runtime_state_for_evaluation(
         selector_class_names,
         property_name: anchor.property.clone(),
         scenario_join_kind: "fixtureWitnessedScenarioJoin",
+        confidence_tier: query_runtime_state_confidence_tier(scenarios.as_slice(), &[]),
         static_boundary: OmenaQueryRuntimeStateStaticBoundaryV0 {
             boundary_kind: "staticValueAssumingNoRuntimeOverride",
             static_value_assuming_no_runtime_override: true,
@@ -1293,6 +1294,23 @@ fn summarize_query_runtime_state_for_evaluation(
         scenarios,
         inline_style_overrides: Vec::new(),
     })
+}
+
+pub(super) fn query_runtime_state_confidence_tier(
+    scenarios: &[OmenaQueryRuntimeStateScenarioV0],
+    inline_style_overrides: &[OmenaQueryInlineStyleRuntimeOverrideV0],
+) -> &'static str {
+    if !inline_style_overrides.is_empty()
+        || scenarios.iter().any(|scenario| {
+            scenario.pseudo_state.is_some()
+                || !scenario.condition_context.is_empty()
+                || scenario.scenario_kind == "inlineStyleOverride"
+        })
+    {
+        "conditionalDefinite"
+    } else {
+        "staticDefinite"
+    }
 }
 
 fn query_runtime_selector_matches_anchor_classes(

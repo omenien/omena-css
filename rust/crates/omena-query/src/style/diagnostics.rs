@@ -19,6 +19,7 @@ use omena_query_checker_orchestrator::{
 };
 
 use super::cascade_checker::collect_query_replica_ensemble_site_outcomes;
+use super::cascade_checker::query_runtime_state_confidence_tier;
 use super::cascade_checker::summarize_query_cascade_checker_diagnostics_with_deep_analysis;
 use super::diagnostic_suppressions::OmenaStrictnessLevelV0;
 use super::diagnostic_suppressions::apply_omena_query_style_diagnostic_suppressions;
@@ -1843,6 +1844,10 @@ fn attach_omena_query_runtime_state_inline_overrides_for_workspace(
                     .count();
             }
         }
+        runtime_state.confidence_tier = query_runtime_state_confidence_tier(
+            runtime_state.scenarios.as_slice(),
+            runtime_state.inline_style_overrides.as_slice(),
+        );
     }
 }
 

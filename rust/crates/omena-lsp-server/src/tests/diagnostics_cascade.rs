@@ -131,6 +131,10 @@ fn resolves_unnecessary_tags_for_cascade_style_diagnostics() -> TestResult {
         Some(&json!("staticValueAssumingNoRuntimeOverride")),
     );
     assert_eq!(
+        unreachable.pointer("/data/runtimeState/confidenceTier"),
+        Some(&json!("staticDefinite")),
+    );
+    assert_eq!(
         unreachable
             .pointer("/data/cascadeNarrowing/runtimeState/staticBoundary/tracksClassListMutation"),
         Some(&json!(false)),
@@ -205,6 +209,10 @@ fn cascade_narrowing_prunes_to_requested_condition_and_layer_branch() -> TestRes
     assert_eq!(
         layered.pointer("/data/cascadeNarrowing/propertyValueNarrowing/value/value"),
         Some(&json!("red")),
+    );
+    assert_eq!(
+        layered.pointer("/data/runtimeState/confidenceTier"),
+        Some(&json!("conditionalDefinite")),
     );
     Ok(())
 }

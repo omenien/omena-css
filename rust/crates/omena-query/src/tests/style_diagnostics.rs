@@ -368,6 +368,7 @@ export function App() {
         runtime_state.scenario_join_kind,
         "fixtureWitnessedScenarioJoin"
     );
+    assert_eq!(runtime_state.confidence_tier, "conditionalDefinite");
     assert!(
         runtime_state
             .driver_summaries
