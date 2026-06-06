@@ -156,4 +156,26 @@ fn resolves_style_diagnostics_and_code_actions_from_opened_style_documents() {
             .and_then(|value| value.pointer("/result/1/data/source")),
         Some(&json!("omenaLspDiagnosticSuppressionCodeAction")),
     );
+    assert_eq!(
+        code_action_response
+            .as_ref()
+            .and_then(|value| value.pointer("/result/2/title")),
+        Some(&json!("Suppress diagnostics in this block")),
+    );
+    assert_eq!(
+        code_action_response.as_ref().and_then(|value| {
+            value.pointer(
+                "/result/2/edit/changes/file:~1~1~1workspace-a~1src~1App.module.scss/0/newText",
+            )
+        }),
+        Some(&json!(
+            "/* omena-ignore missingCustomProperty [reason: 'TODO'] */\n"
+        )),
+    );
+    assert_eq!(
+        code_action_response
+            .as_ref()
+            .and_then(|value| value.pointer("/result/2/data/scope")),
+        Some(&json!("block")),
+    );
 }

@@ -566,7 +566,8 @@ mod tests {
     }
 
     #[test]
-    fn hot_style_diagnostics_prewarm_optimizing_feedback_for_baseline() {
+    fn hot_style_diagnostics_prewarm_optimizing_feedback_for_baseline() -> Result<(), &'static str>
+    {
         let uri = "file:///workspace-a/src/App.module.scss";
         let mut state = LspShellState::default();
         let first_outputs = crate::handle_lsp_message_scheduled_outputs(
@@ -626,12 +627,12 @@ mod tests {
             Some(&json!("analyzedGraphV0HotStylePrewarm")),
         );
 
-        let document = state.document(uri).expect("style document stays open");
+        let document = state.document(uri).ok_or("style document stays open")?;
         assert_eq!(document.diagnostics_schedule_count, 2);
         let feedback = document
             .optimizing_tier_feedback
             .as_ref()
-            .expect("hot style diagnostics should prewarm optimizing feedback");
+            .ok_or("hot style diagnostics should prewarm optimizing feedback")?;
         assert_eq!(
             feedback.product,
             "omena-lsp-server.optimizing-tier-feedback"
@@ -641,6 +642,7 @@ mod tests {
         assert_eq!(feedback.consumer, "diagnosticsPipelineTierPlan");
         assert_eq!(feedback.analyzed_graph.tier, "analyzedGraphV0");
         assert_eq!(feedback.analyzed_graph.fast_facts.selector_count, 2);
+        Ok(())
     }
 
     fn diagnostic_data_value<'a>(

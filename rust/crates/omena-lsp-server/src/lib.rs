@@ -1403,54 +1403,106 @@ fn resolve_lsp_suppression_code_actions(
         return Vec::new();
     }
 
-    diagnostics
-        .iter()
-        .enumerate()
-        .filter_map(|(index, diagnostic)| {
-            let code = diagnostic.get("code").and_then(Value::as_str)?;
-            let line = diagnostic
-                .pointer("/range/start/line")
-                .and_then(Value::as_u64)?;
-            let line = usize::try_from(line).ok()?;
-            let indent = source_line_indent(document.text.as_str(), line);
-            let insert_range = json!({
+    let mut actions = Vec::new();
+    for (index, diagnostic) in diagnostics.iter().enumerate() {
+        let Some(code) = diagnostic.get("code").and_then(Value::as_str) else {
+            continue;
+        };
+        let Some(line) = diagnostic
+            .pointer("/range/start/line")
+            .and_then(Value::as_u64)
+            .and_then(|line| usize::try_from(line).ok())
+        else {
+            continue;
+        };
+        let character = diagnostic
+            .pointer("/range/start/character")
+            .and_then(Value::as_u64)
+            .and_then(|character| usize::try_from(character).ok())
+            .unwrap_or(0);
+
+        let indent = source_line_indent(document.text.as_str(), line);
+        let insert_range = json!({
+            "start": {
+                "line": line,
+                "character": 0,
+            },
+            "end": {
+                "line": line,
+                "character": 0,
+            },
+        });
+        let mut changes = serde_json::Map::new();
+        changes.insert(
+            document.uri.clone(),
+            json!([
+                {
+                    "range": insert_range,
+                    "newText": format!(
+                        "{indent}/* omena-ignore-next-line {code} [reason: 'TODO'] */\n"
+                    ),
+                },
+            ]),
+        );
+
+        actions.push(json!({
+            "title": "Suppress this diagnostic on the next line",
+            "kind": "quickfix",
+            "diagnostics": [diagnostic],
+            "edit": {
+                "changes": Value::Object(changes),
+            },
+            "data": {
+                "source": "omenaLspDiagnosticSuppressionCodeAction",
+                "diagnosticIndex": index,
+                "code": code,
+            },
+        }));
+
+        if let Some(block_line) =
+            enclosing_style_block_open_line(document.text.as_str(), line, character)
+        {
+            let block_indent = source_line_indent(document.text.as_str(), block_line);
+            let block_insert_range = json!({
                 "start": {
-                    "line": line,
+                    "line": block_line,
                     "character": 0,
                 },
                 "end": {
-                    "line": line,
+                    "line": block_line,
                     "character": 0,
                 },
             });
-            let mut changes = serde_json::Map::new();
-            changes.insert(
+            let mut block_changes = serde_json::Map::new();
+            block_changes.insert(
                 document.uri.clone(),
                 json!([
                     {
-                        "range": insert_range,
+                        "range": block_insert_range,
                         "newText": format!(
-                            "{indent}/* omena-ignore-next-line {code} [reason: 'TODO'] */\n"
+                            "{block_indent}/* omena-ignore {code} [reason: 'TODO'] */\n"
                         ),
                     },
                 ]),
             );
 
-            Some(json!({
-                "title": "Suppress this diagnostic on the next line",
+            actions.push(json!({
+                "title": "Suppress diagnostics in this block",
                 "kind": "quickfix",
                 "diagnostics": [diagnostic],
                 "edit": {
-                    "changes": Value::Object(changes),
+                    "changes": Value::Object(block_changes),
                 },
                 "data": {
                     "source": "omenaLspDiagnosticSuppressionCodeAction",
                     "diagnosticIndex": index,
                     "code": code,
+                    "scope": "block",
                 },
-            }))
-        })
-        .collect()
+            }));
+        }
+    }
+    actions
 }
 
 fn source_line_indent(source: &str, line: usize) -> String {
@@ -1463,6 +1515,56 @@ fn source_line_indent(source: &str, line: usize) -> String {
                 .collect()
         })
         .unwrap_or_default()
+}
+
+fn enclosing_style_block_open_line(source: &str, line: usize, character: usize) -> Option<usize> {
+    let offset =
+        protocol::byte_offset_for_parser_position(source, ParserPositionV0 { line, character })?;
+    let prefix = source.get(..offset)?;
+    let mut block_stack = Vec::new();
+    let mut current_line = 0usize;
+    let mut quote: Option<char> = None;
+    let mut in_block_comment = false;
+    let mut characters = prefix.chars().peekable();
+
+    while let Some(character) = characters.next() {
+        if character == '\n' {
+            current_line += 1;
+            continue;
+        }
+        if in_block_comment {
+            if character == '*' && characters.peek() == Some(&'/') {
+                characters.next();
+                in_block_comment = false;
+            }
+            continue;
+        }
+        if let Some(quote_character) = quote {
+            if character == '\\' {
+                if characters.peek().is_some() {
+                    characters.next();
+                }
+            } else if character == quote_character {
+                quote = None;
+            }
+            continue;
+        }
+        if character == '/' && characters.peek() == Some(&'*') {
+            characters.next();
+            in_block_comment = true;
+            continue;
+        }
+        match character {
+            '"' | '\'' => quote = Some(character),
+            '{' => block_stack.push(current_line),
+            '}' => {
+                block_stack.pop();
+            }
+            _ => {}
+        }
+    }
+
+    block_stack.last().copied()
 }
 
 fn resolve_lsp_refactor_code_actions(state: &LspShellState, params: Option<&Value>) -> Vec<Value> {

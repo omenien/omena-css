@@ -1022,6 +1022,36 @@ assert.deepEqual(lspCodeActionResponse.result, [
       code: "missingCustomProperty",
     },
   },
+  {
+    title: "Suppress diagnostics in this block",
+    kind: "quickfix",
+    diagnostics: [expectedMissingCustomPropertyDiagnostic],
+    edit: {
+      changes: {
+        [styleUri]: [
+          {
+            range: {
+              start: {
+                line: expectedMissingCustomPropertyDiagnostic.range.start.line,
+                character: 0,
+              },
+              end: {
+                line: expectedMissingCustomPropertyDiagnostic.range.start.line,
+                character: 0,
+              },
+            },
+            newText: "/* omena-ignore missingCustomProperty [reason: 'TODO'] */\n",
+          },
+        ],
+      },
+    },
+    data: {
+      source: "omenaLspDiagnosticSuppressionCodeAction",
+      diagnosticIndex: 0,
+      code: "missingCustomProperty",
+      scope: "block",
+    },
+  },
 ]);
 
 const lspPrepareRenameResponse = responses[10]!;
