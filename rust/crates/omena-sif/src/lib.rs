@@ -1081,12 +1081,30 @@ mod tests {
     }
 
     #[test]
-    fn lock_schema_file_is_valid_json() -> Result<(), serde_json::Error> {
-        let schema: Value = serde_json::from_str(OMENA_LOCK_V1_SCHEMA_JSON)?;
+    fn lock_schema_file_is_valid_json() -> Result<(), String> {
+        let schema: Value =
+            serde_json::from_str(OMENA_LOCK_V1_SCHEMA_JSON).map_err(|error| error.to_string())?;
         assert_eq!(
             schema.get("title").and_then(Value::as_str),
             Some("Omena Lockfile v1")
         );
+        let verification_properties = schema
+            .pointer("/$defs/attestationVerification/properties")
+            .and_then(Value::as_object)
+            .ok_or_else(|| {
+                "lock schema must define attestation verification properties".to_string()
+            })?;
+        for field in [
+            "verifiedTlogIntegratedTime",
+            "sigstoreVerificationPolicy",
+            "certificateIssuer",
+            "certificateIdentity",
+        ] {
+            assert!(
+                verification_properties.contains_key(field),
+                "lock schema must preserve attestation verification field {field}"
+            );
+        }
         Ok(())
     }
 

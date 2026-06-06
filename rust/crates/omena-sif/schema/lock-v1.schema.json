@@ -101,6 +101,50 @@
         },
         "verifiedTrustTier": {
           "$ref": "#/$defs/trustTier"
+        },
+        "verifiedTlogIntegratedTime": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "sigstoreVerificationPolicy": {
+          "$ref": "#/$defs/sigstoreVerificationPolicy"
+        },
+        "certificateIssuer": {
+          "type": "string",
+          "minLength": 1
+        },
+        "certificateIdentity": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "sigstoreVerificationPolicy": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "trustedRoot",
+        "transparencyLog",
+        "timestamp",
+        "certificateChain",
+        "signedCertificateTimestamp"
+      ],
+      "properties": {
+        "trustedRoot": {
+          "type": "string",
+          "minLength": 1
+        },
+        "transparencyLog": {
+          "const": true
+        },
+        "timestamp": {
+          "const": true
+        },
+        "certificateChain": {
+          "const": true
+        },
+        "signedCertificateTimestamp": {
+          "const": true
         }
       }
     }
