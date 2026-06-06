@@ -228,9 +228,14 @@ fn style_diagnostics_for_file_include_cascade_aware_lints() -> Result<(), &'stat
     assert_eq!(narrowing.selector_class_names, vec!["btn".to_string()]);
     assert_eq!(narrowing.property_name, "color");
     assert_eq!(narrowing.property_value_narrowing.property_name, "color");
+    assert_eq!(narrowing.property_value_narrowing.candidate_count, 2);
     assert_eq!(
         narrowing.property_value_narrowing.matched_candidate_count,
-        2
+        1
+    );
+    assert_eq!(
+        narrowing.property_value_narrowing.requested_layer_scope,
+        "exactLayer"
     );
     assert_eq!(
         narrowing.property_value_narrowing.product,
