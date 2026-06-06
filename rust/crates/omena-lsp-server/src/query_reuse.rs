@@ -30,6 +30,7 @@ pub fn rust_query_reuse_contract() -> RustQueryReuseBoundaryV0 {
             "workspaceStyleResolutionInputs",
             "styleDocumentSummary",
             "styleHoverCandidates",
+            "optimizingTierFeedback",
             "sourceSyntaxIndex",
             "sourceSelectorCandidates",
         ],
@@ -53,6 +54,7 @@ pub(crate) fn refresh_document_reusable_indexes(
     document: &mut LspTextDocumentState,
     resolution_inputs: &OmenaQueryStyleResolutionInputsV0,
 ) {
+    document.optimizing_tier_feedback = None;
     if is_style_document_uri(document.uri.as_str()) {
         document.style_summary =
             summarize_style_document(document.uri.as_str(), Some(document.text.as_str()));

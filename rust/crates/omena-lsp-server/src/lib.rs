@@ -196,6 +196,8 @@ fn lsp_text_document_state(
         version,
         text,
         style_summary: None,
+        diagnostics_schedule_count: 0,
+        optimizing_tier_feedback: None,
         style_candidates: Vec::new(),
         source_syntax_index: SourceSyntaxIndex::default(),
         source_selector_candidates: Vec::new(),

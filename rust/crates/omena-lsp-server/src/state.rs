@@ -1,9 +1,9 @@
 use crate::workspace_runtime_registry::WorkspaceRuntimeRegistry;
 use omena_incremental::IncrementalCancellationRegistryV0;
 use omena_query::{
-    OmenaQueryExternalSifInputV0, OmenaQuerySourceSyntaxIndexV0 as SourceSyntaxIndex,
-    OmenaQueryStylePackageManifestV0, OmenaQueryStyleResolutionInputsV0, ParserPositionV0,
-    ParserRangeV0,
+    AnalyzedGraphV0, OmenaQueryExternalSifInputV0,
+    OmenaQuerySourceSyntaxIndexV0 as SourceSyntaxIndex, OmenaQueryStylePackageManifestV0,
+    OmenaQueryStyleResolutionInputsV0, ParserPositionV0, ParserRangeV0,
 };
 use omena_tsgo_client::TsgoWorkspaceProcessPoolV0;
 use serde::Serialize;
@@ -18,12 +18,25 @@ pub struct LspTextDocumentState {
     pub version: i64,
     pub text: String,
     pub style_summary: Option<LspStyleDocumentSummary>,
+    pub diagnostics_schedule_count: usize,
+    pub optimizing_tier_feedback: Option<LspOptimizingTierFeedback>,
     #[serde(skip)]
     pub style_candidates: Vec<LspStyleHoverCandidate>,
     #[serde(skip)]
     pub(crate) source_syntax_index: SourceSyntaxIndex,
     #[serde(skip)]
     pub source_selector_candidates: Vec<LspStyleHoverCandidate>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LspOptimizingTierFeedback {
+    pub schema_version: &'static str,
+    pub product: &'static str,
+    pub document_version: i64,
+    pub policy: &'static str,
+    pub consumer: &'static str,
+    pub analyzed_graph: AnalyzedGraphV0,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]

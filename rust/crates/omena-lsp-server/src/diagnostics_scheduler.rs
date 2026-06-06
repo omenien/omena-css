@@ -1,5 +1,5 @@
 use crate::{
-    LspShellState, OPTIMIZING_DIAGNOSTICS_DELAY_MS, ScheduledLspOutput,
+    LspOptimizingTierFeedback, LspShellState, OPTIMIZING_DIAGNOSTICS_DELAY_MS, ScheduledLspOutput,
     is_resolution_config_document_uri, is_style_document_uri, resolve_document_diagnostics_for_uri,
     resolve_source_diagnostics_for_uri, resolve_workspace_folder_uri, workspace_folder_compatible,
 };
@@ -33,6 +33,7 @@ pub fn rust_diagnostics_scheduler_contract() -> RustDiagnosticsSchedulerBoundary
             "publishBaselineDiagnosticsBeforeOptimizingDiagnostics",
             "deferOptimizingDiagnosticsOnRustPath",
             "coalesceStaleOptimizingDiagnosticsByDocument",
+            "tierUpHotStyleDiagnosticsIntoAnalyzedGraphFeedback",
         ],
         request_path_policy: vec![
             "noNodeDiagnosticsSchedulerOnRustLspPath",
@@ -42,6 +43,7 @@ pub fn rust_diagnostics_scheduler_contract() -> RustDiagnosticsSchedulerBoundary
             "optimizingTierUsesAnalyzedGraphV0ForStyleDocuments",
             "optimizingDiagnosticsUseRustScheduledOutputDelay",
             "delayedOptimizingDiagnosticsUseLatestDocumentGeneration",
+            "baselineDiagnosticsConsumeOptimizingTierFeedback",
         ],
     }
 }
@@ -78,7 +80,7 @@ pub(crate) fn diagnostics_schedule_event(
 }
 
 pub(crate) fn run_diagnostics_schedule(
-    state: &LspShellState,
+    state: &mut LspShellState,
     event: DiagnosticsScheduleEvent,
 ) -> Vec<ScheduledLspOutput> {
     match event {
@@ -95,26 +97,24 @@ pub(crate) fn run_diagnostics_schedule(
 }
 
 fn diagnostics_for_text_document_event(
-    state: &LspShellState,
+    state: &mut LspShellState,
     uri: &str,
     is_close: bool,
 ) -> Vec<ScheduledLspOutput> {
     let mut outputs = if is_close {
         vec![publish_immediate_diagnostics_output(uri, json!([]))]
     } else {
-        publish_tiered_diagnostics_notifications(
-            state,
-            uri,
-            resolve_document_diagnostics_for_uri(state, uri),
-        )
+        let diagnostics = resolve_document_diagnostics_for_uri(state, uri);
+        publish_tiered_diagnostics_notifications(state, uri, diagnostics)
     };
 
     if is_style_document_uri(uri) {
         for source_uri in source_uris_for_text_style_change_diagnostics(state, uri) {
+            let diagnostics = resolve_source_diagnostics_for_uri(state, source_uri.as_str());
             outputs.extend(publish_tiered_diagnostics_notifications(
                 state,
                 source_uri.as_str(),
-                resolve_source_diagnostics_for_uri(state, source_uri.as_str()),
+                diagnostics,
             ));
         }
     }
@@ -123,7 +123,7 @@ fn diagnostics_for_text_document_event(
 }
 
 fn diagnostics_for_watched_files(
-    state: &LspShellState,
+    state: &mut LspShellState,
     uris: Vec<String>,
 ) -> Vec<ScheduledLspOutput> {
     let mut outputs = Vec::new();
@@ -151,26 +151,27 @@ fn diagnostics_for_watched_files(
         }
     }
     for document_uri in document_uris_to_refresh {
+        let diagnostics = resolve_document_diagnostics_for_uri(state, document_uri.as_str());
         outputs.extend(publish_tiered_diagnostics_notifications(
             state,
             document_uri.as_str(),
-            resolve_document_diagnostics_for_uri(state, document_uri.as_str()),
+            diagnostics,
         ));
     }
     outputs
 }
 
-fn diagnostics_for_open_documents(state: &LspShellState) -> Vec<ScheduledLspOutput> {
-    open_document_uris_for_diagnostics(state)
-        .into_iter()
-        .flat_map(|uri| {
-            publish_tiered_diagnostics_notifications(
-                state,
-                uri.as_str(),
-                resolve_document_diagnostics_for_uri(state, uri.as_str()),
-            )
-        })
-        .collect()
+fn diagnostics_for_open_documents(state: &mut LspShellState) -> Vec<ScheduledLspOutput> {
+    let mut outputs = Vec::new();
+    for uri in open_document_uris_for_diagnostics(state) {
+        let diagnostics = resolve_document_diagnostics_for_uri(state, uri.as_str());
+        outputs.extend(publish_tiered_diagnostics_notifications(
+            state,
+            uri.as_str(),
+            diagnostics,
+        ));
+    }
+    outputs
 }
 
 fn open_document_uris_for_diagnostics(state: &LspShellState) -> Vec<String> {
@@ -261,16 +262,19 @@ enum DiagnosticsPipelineTier {
 struct DiagnosticsPipelineTierPlan {
     baseline_evidence: &'static str,
     optimizing_evidence: &'static str,
+    baseline_feedback_evidence: Option<&'static str>,
 }
 
 fn publish_tiered_diagnostics_notifications(
-    state: &LspShellState,
+    state: &mut LspShellState,
     uri: &str,
     diagnostics: Value,
 ) -> Vec<ScheduledLspOutput> {
     let Some(diagnostics) = diagnostics.as_array() else {
         return vec![publish_immediate_diagnostics_output(uri, diagnostics)];
     };
+    record_diagnostics_schedule(state, uri);
+    prewarm_optimizing_tier_feedback_for_hot_style_document(state, uri);
     let tier_plan = diagnostics_pipeline_tier_plan_for_uri(state, uri);
     let baseline_diagnostics = diagnostics
         .iter()
@@ -282,6 +286,7 @@ fn publish_tiered_diagnostics_notifications(
                 diagnostic.clone(),
                 DiagnosticsPipelineTier::Baseline,
                 tier_plan.baseline_evidence,
+                tier_plan.baseline_feedback_evidence,
             )
         })
         .collect::<Vec<_>>();
@@ -293,7 +298,12 @@ fn publish_tiered_diagnostics_notifications(
                 DiagnosticsPipelineTier::Baseline => tier_plan.baseline_evidence,
                 DiagnosticsPipelineTier::Optimizing => tier_plan.optimizing_evidence,
             };
-            annotate_diagnostic_pipeline_tier(diagnostic.clone(), tier, evidence)
+            annotate_diagnostic_pipeline_tier(
+                diagnostic.clone(),
+                tier,
+                evidence,
+                tier_plan.baseline_feedback_evidence,
+            )
         })
         .collect::<Vec<_>>();
 
@@ -322,6 +332,41 @@ fn diagnostics_coalesce_key(uri: &str) -> String {
     format!("textDocument/publishDiagnostics:{uri}")
 }
 
+fn record_diagnostics_schedule(state: &mut LspShellState, uri: &str) {
+    if let Some(document) = state.document_mut(uri) {
+        document.diagnostics_schedule_count = document.diagnostics_schedule_count.saturating_add(1);
+    }
+}
+
+fn prewarm_optimizing_tier_feedback_for_hot_style_document(state: &mut LspShellState, uri: &str) {
+    if !is_style_document_uri(uri) {
+        return;
+    }
+    let Some(document) = state.document_mut(uri) else {
+        return;
+    };
+    if document.diagnostics_schedule_count < 2 {
+        return;
+    }
+    if document
+        .optimizing_tier_feedback
+        .as_ref()
+        .is_some_and(|feedback| feedback.document_version == document.version)
+    {
+        return;
+    }
+    let analyzed_graph =
+        summarize_omena_query_analyzed_graph(document.uri.as_str(), document.text.as_str());
+    document.optimizing_tier_feedback = Some(LspOptimizingTierFeedback {
+        schema_version: "0",
+        product: "omena-lsp-server.optimizing-tier-feedback",
+        document_version: document.version,
+        policy: "hotStyleDiagnosticsPrewarm",
+        consumer: "diagnosticsPipelineTierPlan",
+        analyzed_graph,
+    });
+}
+
 fn diagnostics_pipeline_tier_plan_for_uri(
     state: &LspShellState,
     uri: &str,
@@ -331,17 +376,26 @@ fn diagnostics_pipeline_tier_plan_for_uri(
     {
         let fast_facts =
             summarize_omena_query_fast_facts(document.uri.as_str(), document.text.as_str());
-        let analyzed_graph =
-            summarize_omena_query_analyzed_graph(document.uri.as_str(), document.text.as_str());
+        let cached_analyzed_graph = document
+            .optimizing_tier_feedback
+            .as_ref()
+            .filter(|feedback| feedback.document_version == document.version)
+            .map(|feedback| feedback.analyzed_graph.tier);
+        let analyzed_graph_tier = cached_analyzed_graph.unwrap_or_else(|| {
+            summarize_omena_query_analyzed_graph(document.uri.as_str(), document.text.as_str()).tier
+        });
         return DiagnosticsPipelineTierPlan {
             baseline_evidence: fast_facts.tier,
-            optimizing_evidence: analyzed_graph.tier,
+            optimizing_evidence: analyzed_graph_tier,
+            baseline_feedback_evidence: cached_analyzed_graph
+                .map(|_| "analyzedGraphV0HotStylePrewarm"),
         };
     }
 
     DiagnosticsPipelineTierPlan {
         baseline_evidence: "sourceSyntaxIndexV0",
         optimizing_evidence: "workspaceSourceDiagnosticsV0",
+        baseline_feedback_evidence: None,
     }
 }
 
@@ -366,6 +420,7 @@ fn annotate_diagnostic_pipeline_tier(
     mut diagnostic: Value,
     tier: DiagnosticsPipelineTier,
     tier_evidence: &'static str,
+    baseline_feedback_evidence: Option<&'static str>,
 ) -> Value {
     let Some(diagnostic) = diagnostic.as_object_mut() else {
         return diagnostic;
@@ -383,6 +438,11 @@ fn annotate_diagnostic_pipeline_tier(
             }),
         );
         data.insert("pipelineTierEvidence".to_string(), json!(tier_evidence));
+        if tier == DiagnosticsPipelineTier::Baseline
+            && let Some(feedback_evidence) = baseline_feedback_evidence
+        {
+            data.insert("pipelineTierFeedback".to_string(), json!(feedback_evidence));
+        }
     }
     Value::Object(diagnostic.clone())
 }
@@ -503,5 +563,95 @@ mod tests {
                             == Some(&json!("analyzedGraphV0"))
                 ))
         );
+    }
+
+    #[test]
+    fn hot_style_diagnostics_prewarm_optimizing_feedback_for_baseline() {
+        let uri = "file:///workspace-a/src/App.module.scss";
+        let mut state = LspShellState::default();
+        let first_outputs = crate::handle_lsp_message_scheduled_outputs(
+            &mut state,
+            json!({
+                "jsonrpc": "2.0",
+                "method": "textDocument/didOpen",
+                "params": {
+                    "textDocument": {
+                        "uri": uri,
+                        "languageId": "scss",
+                        "version": 1,
+                        "text": ":root { --brand: red; }\n.btn { width: var(--missing); color: red; color: blue; }",
+                    },
+                },
+            }),
+        );
+        assert_eq!(first_outputs.len(), 2);
+        assert!(
+            first_outputs[0]
+                .value
+                .pointer("/params/diagnostics/0/data/pipelineTierFeedback")
+                .is_none()
+        );
+
+        let second_outputs = crate::handle_lsp_message_scheduled_outputs(
+            &mut state,
+            json!({
+                "jsonrpc": "2.0",
+                "method": "textDocument/didChange",
+                "params": {
+                    "textDocument": {
+                        "uri": uri,
+                        "version": 2,
+                    },
+                    "contentChanges": [{
+                        "text": ":root { --brand: red; }\n.btn { width: var(--missing); color: red; color: blue; }\n.card { color: green; }",
+                    }],
+                },
+            }),
+        );
+        assert_eq!(second_outputs.len(), 2);
+        assert_eq!(
+            diagnostic_data_value(
+                second_outputs[0].value.pointer("/params/diagnostics"),
+                "missingCustomProperty",
+                "pipelineTierFeedback",
+            ),
+            Some(&json!("analyzedGraphV0HotStylePrewarm")),
+        );
+        assert_eq!(
+            diagnostic_data_value(
+                second_outputs[1].value.pointer("/params/diagnostics"),
+                "missingCustomProperty",
+                "pipelineTierFeedback",
+            ),
+            Some(&json!("analyzedGraphV0HotStylePrewarm")),
+        );
+
+        let document = state.document(uri).expect("style document stays open");
+        assert_eq!(document.diagnostics_schedule_count, 2);
+        let feedback = document
+            .optimizing_tier_feedback
+            .as_ref()
+            .expect("hot style diagnostics should prewarm optimizing feedback");
+        assert_eq!(
+            feedback.product,
+            "omena-lsp-server.optimizing-tier-feedback"
+        );
+        assert_eq!(feedback.document_version, 2);
+        assert_eq!(feedback.policy, "hotStyleDiagnosticsPrewarm");
+        assert_eq!(feedback.consumer, "diagnosticsPipelineTierPlan");
+        assert_eq!(feedback.analyzed_graph.tier, "analyzedGraphV0");
+        assert_eq!(feedback.analyzed_graph.fast_facts.selector_count, 2);
+    }
+
+    fn diagnostic_data_value<'a>(
+        diagnostics: Option<&'a Value>,
+        code: &str,
+        key: &str,
+    ) -> Option<&'a Value> {
+        diagnostics
+            .and_then(Value::as_array)?
+            .iter()
+            .find(|diagnostic| diagnostic.pointer("/code") == Some(&json!(code)))?
+            .pointer(format!("/data/{key}").as_str())
     }
 }

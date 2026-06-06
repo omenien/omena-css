@@ -292,6 +292,11 @@ assert.ok(
 );
 assert.ok(
   rustSummary.diagnosticsScheduler.eventPolicy.includes(
+    "tierUpHotStyleDiagnosticsIntoAnalyzedGraphFeedback",
+  ),
+);
+assert.ok(
+  rustSummary.diagnosticsScheduler.eventPolicy.includes(
     "refreshSourceDiagnosticsForResolutionConfigChanges",
   ),
 );
@@ -306,6 +311,11 @@ assert.ok(
   ),
 );
 assert.ok(
+  rustSummary.diagnosticsScheduler.requestPathPolicy.includes(
+    "baselineDiagnosticsConsumeOptimizingTierFeedback",
+  ),
+);
+assert.ok(
   !rustSummary.nextDecouplingTargets.includes("rustDiagnosticsScheduler"),
   "implemented diagnostics scheduler should not remain listed as a next target",
 );
@@ -313,6 +323,7 @@ assert.equal(rustSummary.queryReuse.product, "omena-lsp-server.query-reuse");
 assert.equal(rustSummary.queryReuse.owner, "omena-lsp-server/documentQueryReuse");
 assert.equal(rustSummary.queryReuse.reuseModel, "documentRevisionOwnedReusableIndexes");
 assert.ok(rustSummary.queryReuse.cachedSurfaces.includes("sourceSyntaxIndex"));
+assert.ok(rustSummary.queryReuse.cachedSurfaces.includes("optimizingTierFeedback"));
 assert.ok(rustSummary.queryReuse.cachedSurfaces.includes("styleHoverCandidates"));
 assert.ok(rustSummary.queryReuse.cachedSurfaces.includes("workspaceStyleResolutionInputs"));
 assert.ok(rustSummary.queryReuse.invalidationPolicy.includes("refreshOnDocumentContentChange"));
