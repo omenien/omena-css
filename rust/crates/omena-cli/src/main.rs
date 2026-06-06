@@ -5192,6 +5192,7 @@ export function App() {
         let sif_path = sif_dir.join("design-system.sif.json");
         let verification_path = workspace_path.join("attestation-verification.json");
         let bad_verification_path = workspace_path.join("bad-attestation-verification.json");
+        let metadata_path = workspace_path.join("npm-metadata.json");
         let lockfile_path = workspace_path.join("omena.lock");
         let sif = cli_fixture_sif("pkg:design-system/_tokens.scss", b"$color: red !default;")?;
         fs::write(
@@ -5200,17 +5201,8 @@ export function App() {
                 .map_err(|error| format!("fixture SIF should serialize: {error}"))?,
         )
         .map_err(|error| format!("fixture SIF should be writable: {error}"))?;
-        let mut entry =
-            omena_sif::build_omena_lock_sif_entry_v1("sif/design-system.sif.json", &sif)
-                .map_err(|error| format!("fixture lock entry should build: {error}"))?;
-        let provenance_reference =
-            "https://registry.npmjs.org/-/npm/v1/attestations/design-system@1.0.0/provenance";
-        entry
-            .attestation_references
-            .push(omena_sif::OmenaSifAttestationReferenceV1 {
-                kind: "npm-provenance.url".to_string(),
-                reference: provenance_reference.to_string(),
-            });
+        let entry = omena_sif::build_omena_lock_sif_entry_v1("sif/design-system.sif.json", &sif)
+            .map_err(|error| format!("fixture lock entry should build: {error}"))?;
         fs::write(
             &verification_path,
             serde_json::json!({
@@ -5243,6 +5235,20 @@ export function App() {
             .to_string(),
         )
         .map_err(|error| format!("fixture bad verification should be writable: {error}"))?;
+        fs::write(
+            &metadata_path,
+            serde_json::json!({
+                "name": "design-system",
+                "version": "1.0.0",
+                "dist": {
+                    "attestations": {
+                        "provenance": "https://registry.npmjs.org/-/npm/v1/attestations/design-system@1.0.0/provenance"
+                    }
+                }
+            })
+            .to_string(),
+        )
+        .map_err(|error| format!("fixture metadata should be writable: {error}"))?;
         let lock = omena_sif::OmenaLockV1::new(vec![entry]);
         fs::write(
             &lockfile_path,
@@ -5282,6 +5288,37 @@ export function App() {
             rejected_record_result.is_err(),
             "{rejected_record_result:?}"
         );
+
+        let unreferenced_record_result = run(Cli {
+            command: Command::Lock {
+                lockfile: PathBuf::from("omena.lock"),
+                json: false,
+                command: Some(LockCommand::RecordVerification {
+                    package: "design-system".to_string(),
+                    lockfile: lockfile_path.clone(),
+                    verification: verification_path.clone(),
+                    json: true,
+                }),
+            },
+        });
+        assert!(
+            unreferenced_record_result.is_err(),
+            "{unreferenced_record_result:?}"
+        );
+
+        let fetch_result = run(Cli {
+            command: Command::Lock {
+                lockfile: PathBuf::from("omena.lock"),
+                json: false,
+                command: Some(LockCommand::FetchProvenance {
+                    package: "design-system".to_string(),
+                    lockfile: lockfile_path.clone(),
+                    npm_metadata: metadata_path,
+                    json: true,
+                }),
+            },
+        });
+        assert!(fetch_result.is_ok(), "{fetch_result:?}");
 
         let record_result = run(Cli {
             command: Command::Lock {
