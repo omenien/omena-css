@@ -1,6 +1,91 @@
 use super::*;
 
 #[test]
+fn source_hover_renders_variant_recipe_option_universe() -> TestResult {
+    let source_uri = "file:///workspace-a/src/App.tsx";
+    let source_text = r#"import { cva } from "class-variance-authority";
+const button = cva("btn", {
+  variants: {
+    intent: {
+      primary: "btn-primary",
+      secondary: "btn-secondary",
+    },
+  },
+});
+const view = button({ intent: "primary" });
+"#;
+    let mut state = LspShellState::default();
+    handle_lsp_message(
+        &mut state,
+        json!({
+            "jsonrpc": "2.0",
+            "id": 1,
+            "method": "initialize",
+            "params": {
+                "workspaceFolders": [
+                    {
+                        "uri": "file:///workspace-a",
+                        "name": "workspace-a",
+                    },
+                ],
+            },
+        }),
+    );
+    handle_lsp_message(
+        &mut state,
+        json!({
+            "jsonrpc": "2.0",
+            "method": "textDocument/didOpen",
+            "params": {
+                "textDocument": {
+                    "uri": source_uri,
+                    "languageId": "typescriptreact",
+                    "version": 1,
+                    "text": source_text,
+                },
+            },
+        }),
+    );
+
+    let hover_response = handle_lsp_message(
+        &mut state,
+        json!({
+            "jsonrpc": "2.0",
+            "id": 2,
+            "method": "textDocument/hover",
+            "params": {
+                "textDocument": {
+                    "uri": source_uri,
+                },
+                "position": parser_position_for_byte_offset(
+                    source_text,
+                    fixture_find(source_text, "primary\" });", "source fixture contains option")? + 2,
+                ),
+            },
+        }),
+    );
+    let hover_text = hover_response
+        .as_ref()
+        .and_then(|value| value.pointer("/result/contents/value"))
+        .and_then(Value::as_str)
+        .unwrap_or_default();
+
+    assert!(
+        hover_text.contains("button.intent.primary"),
+        "hover text: {hover_text}"
+    );
+    assert!(
+        hover_text.contains("known option"),
+        "hover text: {hover_text}"
+    );
+    assert!(
+        hover_text.contains("Known options: `primary`, `secondary`."),
+        "hover text: {hover_text}"
+    );
+    Ok(())
+}
+
+#[test]
 fn source_hover_renders_unopened_target_style_rule_from_disk() -> TestResult {
     let workspace_path = std::env::temp_dir().join(format!(
         "omena-lsp-disk-style-hover-{}-{}",

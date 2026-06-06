@@ -230,6 +230,46 @@ export function App({ suffix }) {
 }
 
 #[test]
+fn source_diagnostics_surface_variant_recipe_option_universe() {
+    let diagnostics = summarize_omena_query_source_diagnostics_for_workspace_file(
+        "/workspace/src/App.tsx",
+        r#"import { cva } from "class-variance-authority";
+const button = cva("btn", {
+  variants: {
+    intent: {
+      primary: "btn-primary",
+      secondary: "btn-secondary",
+    },
+  },
+});
+button({ intent: "primary" });
+button({ intent: "ghost" });
+"#,
+        &[],
+        &[],
+    );
+
+    let missing_options = diagnostics
+        .diagnostics
+        .iter()
+        .filter(|diagnostic| diagnostic.code == "missingClassValueOption")
+        .collect::<Vec<_>>();
+    assert_eq!(missing_options.len(), 1, "{diagnostics:?}");
+    assert!(
+        missing_options[0]
+            .message
+            .contains("Class value option 'ghost' is not defined for button.intent")
+    );
+    assert_eq!(
+        missing_options[0].provenance,
+        vec![
+            "omena-bridge.class-value-universe-provider",
+            "omena-query.source-domain-class-references"
+        ]
+    );
+}
+
+#[test]
 fn source_provider_candidate_resolution_is_query_owned() {
     let source_range = ParserRangeV0 {
         start: ParserPositionV0 {

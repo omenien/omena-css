@@ -49,11 +49,12 @@ pub use source_language::{
     summarize_omena_bridge_source_language_parser_boundary_v0,
 };
 pub use source_syntax::{
-    SourceImportedStyleBindingV0, SourceInlineStyleDeclarationFactV0,
-    SourceSelectorReferenceFactV0, SourceSelectorReferenceMatchKindV0,
-    SourceStylePropertyAccessFactV0, SourceSyntaxIndexV0, SourceTypeFactTargetV0,
-    canonicalize_source_selector_references, collect_omena_bridge_vue_style_module_bindings,
-    summarize_omena_bridge_source_syntax_index,
+    SourceClassValueUniverseAxisV0, SourceClassValueUniverseEntryV0,
+    SourceDomainClassReferenceFactV0, SourceImportedStyleBindingV0,
+    SourceInlineStyleDeclarationFactV0, SourceSelectorReferenceFactV0,
+    SourceSelectorReferenceMatchKindV0, SourceStylePropertyAccessFactV0, SourceSyntaxIndexV0,
+    SourceTypeFactTargetV0, canonicalize_source_selector_references,
+    collect_omena_bridge_vue_style_module_bindings, summarize_omena_bridge_source_syntax_index,
     summarize_omena_bridge_source_syntax_index_for_source_language,
 };
 pub use style_resolution::{

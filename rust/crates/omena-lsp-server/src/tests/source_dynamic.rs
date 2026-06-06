@@ -1,6 +1,179 @@
 use super::*;
 
 #[test]
+fn source_diagnostics_surface_variant_recipe_option_universe() -> TestResult {
+    let source_uri = "file:///workspace-a/src/App.tsx";
+    let source_text = r#"import { cva } from "class-variance-authority";
+const button = cva("btn", {
+  variants: {
+    intent: {
+      primary: "btn-primary",
+      secondary: "btn-secondary",
+    },
+  },
+});
+const view = button({ intent: "ghost" });
+"#;
+    let mut state = LspShellState::default();
+    handle_lsp_message(
+        &mut state,
+        json!({
+            "jsonrpc": "2.0",
+            "id": 1,
+            "method": "initialize",
+            "params": {
+                "workspaceFolders": [
+                    {
+                        "uri": "file:///workspace-a",
+                        "name": "workspace-a",
+                    },
+                ],
+            },
+        }),
+    );
+    handle_lsp_message(
+        &mut state,
+        json!({
+            "jsonrpc": "2.0",
+            "method": "textDocument/didOpen",
+            "params": {
+                "textDocument": {
+                    "uri": source_uri,
+                    "languageId": "typescriptreact",
+                    "version": 1,
+                    "text": source_text,
+                },
+            },
+        }),
+    );
+
+    let diagnostics_response = handle_lsp_message(
+        &mut state,
+        json!({
+            "jsonrpc": "2.0",
+            "id": 2,
+            "method": SOURCE_DIAGNOSTICS_REQUEST,
+            "params": {
+                "textDocument": {
+                    "uri": source_uri,
+                },
+            },
+        }),
+    );
+    let diagnostics = diagnostics_response
+        .as_ref()
+        .and_then(|value| value.pointer("/result"))
+        .and_then(Value::as_array)
+        .ok_or_else(|| std::io::Error::other("source diagnostics should return an array"))?;
+    let missing_option = diagnostics
+        .iter()
+        .find(|diagnostic| diagnostic.get("code") == Some(&json!("missingClassValueOption")))
+        .ok_or_else(|| std::io::Error::other("expected variant option diagnostic"))?;
+
+    assert!(
+        missing_option
+            .get("message")
+            .and_then(Value::as_str)
+            .is_some_and(|message| message.contains("ghost")),
+        "{missing_option:?}"
+    );
+    assert_eq!(
+        missing_option
+            .pointer("/data/provenance/0")
+            .and_then(Value::as_str),
+        Some("omena-bridge.class-value-universe-provider")
+    );
+    Ok(())
+}
+
+#[test]
+fn source_diagnostics_surface_vanilla_recipe_option_universe() -> TestResult {
+    let source_uri = "file:///workspace-a/src/App.tsx";
+    let source_text = r#"import { recipe } from "@vanilla-extract/recipes";
+const badge = recipe({
+  base: "badge",
+  variants: {
+    tone: {
+      info: "badge-info",
+      danger: "badge-danger",
+    },
+  },
+});
+const view = badge({ tone: "ghost" });
+"#;
+    let mut state = LspShellState::default();
+    handle_lsp_message(
+        &mut state,
+        json!({
+            "jsonrpc": "2.0",
+            "id": 1,
+            "method": "initialize",
+            "params": {
+                "workspaceFolders": [
+                    {
+                        "uri": "file:///workspace-a",
+                        "name": "workspace-a",
+                    },
+                ],
+            },
+        }),
+    );
+    handle_lsp_message(
+        &mut state,
+        json!({
+            "jsonrpc": "2.0",
+            "method": "textDocument/didOpen",
+            "params": {
+                "textDocument": {
+                    "uri": source_uri,
+                    "languageId": "typescriptreact",
+                    "version": 1,
+                    "text": source_text,
+                },
+            },
+        }),
+    );
+
+    let diagnostics_response = handle_lsp_message(
+        &mut state,
+        json!({
+            "jsonrpc": "2.0",
+            "id": 2,
+            "method": SOURCE_DIAGNOSTICS_REQUEST,
+            "params": {
+                "textDocument": {
+                    "uri": source_uri,
+                },
+            },
+        }),
+    );
+    let diagnostics = diagnostics_response
+        .as_ref()
+        .and_then(|value| value.pointer("/result"))
+        .and_then(Value::as_array)
+        .ok_or_else(|| std::io::Error::other("source diagnostics should return an array"))?;
+    let missing_option = diagnostics
+        .iter()
+        .find(|diagnostic| diagnostic.get("code") == Some(&json!("missingClassValueOption")))
+        .ok_or_else(|| std::io::Error::other("expected vanilla recipe option diagnostic"))?;
+
+    assert!(
+        missing_option
+            .get("message")
+            .and_then(Value::as_str)
+            .is_some_and(|message| message.contains("badge.tone")),
+        "{missing_option:?}"
+    );
+    assert_eq!(
+        missing_option
+            .pointer("/data/provenance/0")
+            .and_then(Value::as_str),
+        Some("omena-bridge.class-value-universe-provider")
+    );
+    Ok(())
+}
+
+#[test]
 fn resolves_classnames_bind_dynamic_source_expressions() -> TestResult {
     let source_text = r#"import bind from "classnames/bind";
 import styles from "./styles.module.scss";

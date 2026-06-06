@@ -99,6 +99,90 @@ fn narrows_source_completion_candidates_by_property_access_prefix() -> TestResul
 }
 
 #[test]
+fn completes_variant_recipe_options_from_class_value_universe() -> TestResult {
+    let source_uri = "file:///workspace-a/src/App.tsx";
+    let source_text = r#"import { cva } from "class-variance-authority";
+const button = cva("btn", {
+  variants: {
+    intent: {
+      primary: "btn-primary",
+      secondary: "btn-secondary",
+    },
+  },
+});
+const view = button({ intent: "pri" });
+"#;
+    let mut state = LspShellState::default();
+    handle_lsp_message(
+        &mut state,
+        json!({
+            "jsonrpc": "2.0",
+            "id": 1,
+            "method": "initialize",
+            "params": {
+                "workspaceFolders": [
+                    {
+                        "uri": "file:///workspace-a",
+                        "name": "workspace-a",
+                    },
+                ],
+            },
+        }),
+    );
+    handle_lsp_message(
+        &mut state,
+        json!({
+            "jsonrpc": "2.0",
+            "method": "textDocument/didOpen",
+            "params": {
+                "textDocument": {
+                    "uri": source_uri,
+                    "languageId": "typescriptreact",
+                    "version": 1,
+                    "text": source_text,
+                },
+            },
+        }),
+    );
+
+    let completion_response = handle_lsp_message(
+        &mut state,
+        json!({
+            "jsonrpc": "2.0",
+            "id": 2,
+            "method": "textDocument/completion",
+            "params": {
+                "textDocument": {
+                    "uri": source_uri,
+                },
+                "position": parser_position_for_byte_offset(
+                    source_text,
+                    fixture_find(source_text, "pri\"", "source fixture contains partial option")? + 3,
+                ),
+            },
+        }),
+    );
+    let items = completion_response
+        .as_ref()
+        .and_then(|value| value.pointer("/result/items"))
+        .and_then(Value::as_array)
+        .ok_or_else(|| std::io::Error::other("completion response should contain items"))?;
+    let labels = items
+        .iter()
+        .filter_map(|item| item.get("label").and_then(Value::as_str))
+        .collect::<Vec<_>>();
+
+    assert_eq!(labels, vec!["primary"]);
+    assert_eq!(
+        items
+            .first()
+            .and_then(|item| item.pointer("/data/rankingSource")),
+        Some(&json!("classValueUniverseProvider"))
+    );
+    Ok(())
+}
+
+#[test]
 fn ranks_source_completion_with_value_domain_projection() -> TestResult {
     let source_uri = "file:///workspace-a/src/App.tsx";
     let style_uri = "file:///workspace-a/src/App.module.scss";

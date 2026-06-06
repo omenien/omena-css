@@ -26,6 +26,8 @@ pub struct SourceSyntaxIndexV0 {
     pub inline_style_declarations: Vec<SourceInlineStyleDeclarationFactV0>,
     pub selector_references: Vec<SourceSelectorReferenceFactV0>,
     pub type_fact_targets: Vec<SourceTypeFactTargetV0>,
+    pub class_value_universes: Vec<SourceClassValueUniverseEntryV0>,
+    pub domain_class_references: Vec<SourceDomainClassReferenceFactV0>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize)]
@@ -71,6 +73,36 @@ pub struct SourceTypeFactTargetV0 {
     pub target_style_uri: Option<String>,
     pub prefix: String,
     pub suffix: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SourceClassValueUniverseEntryV0 {
+    pub plugin_id: &'static str,
+    pub domain: &'static str,
+    pub owner_name: String,
+    pub class_names: Vec<String>,
+    pub axes: Vec<SourceClassValueUniverseAxisV0>,
+    pub byte_span: ParserByteSpanV0,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SourceClassValueUniverseAxisV0 {
+    pub axis_name: String,
+    pub values: Vec<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SourceDomainClassReferenceFactV0 {
+    pub byte_span: ParserByteSpanV0,
+    pub plugin_id: &'static str,
+    pub domain: &'static str,
+    pub owner_name: String,
+    pub axis_name: String,
+    pub option_name: Option<String>,
+    pub prefix: Option<String>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize)]
@@ -178,6 +210,8 @@ pub fn summarize_omena_bridge_source_syntax_index_for_source_language(
         inline_style_declarations: ast_facts.inline_style_declarations,
         selector_references: Vec::new(),
         type_fact_targets: Vec::new(),
+        class_value_universes: ast_facts.class_value_universes,
+        domain_class_references: ast_facts.domain_class_references,
     };
 
     for span in &index.class_string_literals {
@@ -318,6 +352,8 @@ struct SourceSyntaxAstFacts {
     class_name_expression_spans: Vec<ParserByteSpanV0>,
     classnames_bind_utility_bindings: Vec<ClassnamesBindUtilityBinding>,
     classnames_bind_call_arguments: Vec<ClassnamesBindCallArgument>,
+    class_value_universes: Vec<SourceClassValueUniverseEntryV0>,
+    domain_class_references: Vec<SourceDomainClassReferenceFactV0>,
 }
 
 fn collect_source_syntax_ast_facts(
@@ -339,20 +375,25 @@ fn collect_source_syntax_ast_facts(
             class_name_expression_spans: Vec::new(),
             classnames_bind_utility_bindings: Vec::new(),
             classnames_bind_call_arguments: Vec::new(),
+            class_value_universes: Vec::new(),
+            domain_class_references: Vec::new(),
         };
     }
 
+    let variant_recipe_bindings = collect_variant_recipe_bindings(source, &program);
     let mut collector = SourceSyntaxAstCollector {
         source,
         property_access_targets,
         style_targets,
         classnames_bind_imports,
+        variant_recipe_bindings: variant_recipe_bindings.as_slice(),
         class_string_literals: Vec::new(),
         style_property_accesses: Vec::new(),
         inline_style_declarations: Vec::new(),
         class_name_expression_spans: Vec::new(),
         classnames_bind_utility_bindings: Vec::new(),
         classnames_bind_call_arguments: Vec::new(),
+        domain_class_references: Vec::new(),
     };
     collector.collect_program(&program);
     collector.canonicalize();
@@ -363,6 +404,460 @@ fn collect_source_syntax_ast_facts(
         class_name_expression_spans: collector.class_name_expression_spans,
         classnames_bind_utility_bindings: collector.classnames_bind_utility_bindings,
         classnames_bind_call_arguments: collector.classnames_bind_call_arguments,
+        class_value_universes: variant_recipe_bindings
+            .iter()
+            .map(VariantRecipeBindingV0::to_universe_entry)
+            .collect(),
+        domain_class_references: collector.domain_class_references,
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum VariantRecipeCallShape {
+    BaseThenConfig,
+    ObjectConfig,
+}
+
+#[derive(Debug, Clone, Copy)]
+struct VariantRecipeConfigV0 {
+    plugin_id: &'static str,
+    domain: &'static str,
+    import_sources: &'static [&'static str],
+    import_names: &'static [&'static str],
+    call_shape: VariantRecipeCallShape,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct VariantRecipeBindingV0 {
+    plugin_id: &'static str,
+    domain: &'static str,
+    local_name: String,
+    base_class_names: Vec<String>,
+    variants: BTreeMap<String, BTreeMap<String, Vec<String>>>,
+    compound_class_names: Vec<String>,
+    byte_span: ParserByteSpanV0,
+}
+
+impl VariantRecipeBindingV0 {
+    fn to_universe_entry(&self) -> SourceClassValueUniverseEntryV0 {
+        let mut class_names = self.base_class_names.clone();
+        class_names.extend(
+            self.variants
+                .values()
+                .flat_map(|options| options.values().flatten().cloned()),
+        );
+        class_names.extend(self.compound_class_names.iter().cloned());
+        class_names.sort();
+        class_names.dedup();
+        SourceClassValueUniverseEntryV0 {
+            plugin_id: self.plugin_id,
+            domain: self.domain,
+            owner_name: self.local_name.clone(),
+            class_names,
+            axes: self
+                .variants
+                .iter()
+                .map(|(axis_name, options)| {
+                    let mut values = options.keys().cloned().collect::<Vec<_>>();
+                    values.sort();
+                    SourceClassValueUniverseAxisV0 {
+                        axis_name: axis_name.clone(),
+                        values,
+                    }
+                })
+                .collect(),
+            byte_span: self.byte_span,
+        }
+    }
+}
+
+fn variant_recipe_configs() -> [VariantRecipeConfigV0; 2] {
+    [
+        VariantRecipeConfigV0 {
+            plugin_id: "cva-recipe-domain",
+            domain: "cva-recipe",
+            import_sources: &["class-variance-authority", "cva"],
+            import_names: &["cva"],
+            call_shape: VariantRecipeCallShape::BaseThenConfig,
+        },
+        VariantRecipeConfigV0 {
+            plugin_id: "vanilla-extract-recipe-domain",
+            domain: "vanilla-extract-recipe",
+            import_sources: &["@vanilla-extract/recipes"],
+            import_names: &["recipe"],
+            call_shape: VariantRecipeCallShape::ObjectConfig,
+        },
+    ]
+}
+
+fn collect_variant_recipe_bindings(
+    source: &str,
+    program: &Program<'_>,
+) -> Vec<VariantRecipeBindingV0> {
+    let mut bindings = Vec::new();
+    for config in variant_recipe_configs() {
+        let imported_names = collect_variant_recipe_import_names(program, config);
+        if imported_names.is_empty() {
+            continue;
+        }
+        for statement in &program.body {
+            collect_variant_recipe_bindings_from_statement(
+                source,
+                statement,
+                config,
+                &imported_names,
+                &mut bindings,
+            );
+        }
+    }
+    bindings.sort_by_key(|binding| {
+        (
+            binding.plugin_id,
+            binding.local_name.clone(),
+            binding.byte_span.start,
+            binding.byte_span.end,
+        )
+    });
+    bindings.dedup_by(|left, right| {
+        left.plugin_id == right.plugin_id
+            && left.local_name == right.local_name
+            && left.byte_span == right.byte_span
+    });
+    bindings
+}
+
+fn collect_variant_recipe_import_names(
+    program: &Program<'_>,
+    config: VariantRecipeConfigV0,
+) -> BTreeSet<String> {
+    let mut names = BTreeSet::new();
+    for statement in &program.body {
+        let Statement::ImportDeclaration(import) = statement else {
+            continue;
+        };
+        if import.import_kind != ImportOrExportKind::Value
+            || !config
+                .import_sources
+                .contains(&import.source.value.as_str())
+        {
+            continue;
+        }
+        let Some(specifiers) = import.specifiers.as_ref() else {
+            continue;
+        };
+        for specifier in specifiers {
+            if let ImportDeclarationSpecifier::ImportSpecifier(specifier) = specifier {
+                let imported_name = specifier.imported.name().as_str();
+                if config.import_names.contains(&imported_name) {
+                    names.insert(specifier.local.name.as_str().to_string());
+                }
+            }
+        }
+    }
+    names
+}
+
+fn collect_variant_recipe_bindings_from_statement(
+    source: &str,
+    statement: &Statement<'_>,
+    config: VariantRecipeConfigV0,
+    imported_names: &BTreeSet<String>,
+    out: &mut Vec<VariantRecipeBindingV0>,
+) {
+    match statement {
+        Statement::VariableDeclaration(declaration) => {
+            collect_variant_recipe_bindings_from_variable_declaration(
+                source,
+                declaration,
+                config,
+                imported_names,
+                out,
+            )
+        }
+        Statement::ExportNamedDeclaration(declaration) => {
+            if let Some(Declaration::VariableDeclaration(declaration)) = &declaration.declaration {
+                collect_variant_recipe_bindings_from_variable_declaration(
+                    source,
+                    declaration,
+                    config,
+                    imported_names,
+                    out,
+                );
+            }
+        }
+        _ => {}
+    }
+}
+
+fn collect_variant_recipe_bindings_from_variable_declaration(
+    source: &str,
+    declaration: &oxc_ast::ast::VariableDeclaration<'_>,
+    config: VariantRecipeConfigV0,
+    imported_names: &BTreeSet<String>,
+    out: &mut Vec<VariantRecipeBindingV0>,
+) {
+    for declarator in &declaration.declarations {
+        let Some(local_name) = binding_pattern_identifier_name(&declarator.id) else {
+            continue;
+        };
+        let Some(Expression::CallExpression(call)) = declarator
+            .init
+            .as_ref()
+            .and_then(unwrap_transparent_expression)
+        else {
+            continue;
+        };
+        let Some(callee_name) = expression_identifier_name(&call.callee) else {
+            continue;
+        };
+        if !imported_names.contains(callee_name) {
+            continue;
+        }
+        let Some(config_object) = variant_recipe_config_object(call, config.call_shape) else {
+            continue;
+        };
+        let base_class_names = variant_recipe_base_class_names(
+            source,
+            local_name,
+            call,
+            config_object,
+            config.call_shape,
+        );
+        let variants = variant_recipe_variants(source, local_name, config_object);
+        let compound_class_names =
+            variant_recipe_compound_class_names(source, local_name, config_object);
+        if base_class_names.is_empty() && variants.is_empty() && compound_class_names.is_empty() {
+            continue;
+        }
+        out.push(VariantRecipeBindingV0 {
+            plugin_id: config.plugin_id,
+            domain: config.domain,
+            local_name: local_name.to_string(),
+            base_class_names,
+            variants,
+            compound_class_names,
+            byte_span: parser_byte_span(call.span()),
+        });
+    }
+}
+
+fn variant_recipe_config_object<'a>(
+    call: &'a CallExpression<'a>,
+    call_shape: VariantRecipeCallShape,
+) -> Option<&'a ObjectExpression<'a>> {
+    let argument = match call_shape {
+        VariantRecipeCallShape::BaseThenConfig => call.arguments.get(1),
+        VariantRecipeCallShape::ObjectConfig => call.arguments.first(),
+    }?;
+    let expression = argument_expression(argument).and_then(unwrap_transparent_expression)?;
+    match expression {
+        Expression::ObjectExpression(object) => Some(object),
+        _ => None,
+    }
+}
+
+fn variant_recipe_base_class_names(
+    source: &str,
+    local_name: &str,
+    call: &CallExpression<'_>,
+    config_object: &ObjectExpression<'_>,
+    call_shape: VariantRecipeCallShape,
+) -> Vec<String> {
+    match call_shape {
+        VariantRecipeCallShape::BaseThenConfig => call
+            .arguments
+            .first()
+            .and_then(argument_expression)
+            .map(|expression| class_names_from_expression(source, expression, Some(local_name)))
+            .unwrap_or_else(|| vec![local_name.to_string()]),
+        VariantRecipeCallShape::ObjectConfig => {
+            object_property_expression(source, config_object, "base")
+                .map(|expression| class_names_from_expression(source, expression, Some(local_name)))
+                .unwrap_or_default()
+        }
+    }
+}
+
+fn variant_recipe_variants(
+    source: &str,
+    recipe_name: &str,
+    config_object: &ObjectExpression<'_>,
+) -> BTreeMap<String, BTreeMap<String, Vec<String>>> {
+    let Some(Expression::ObjectExpression(variants_object)) =
+        object_property_expression(source, config_object, "variants")
+            .and_then(unwrap_transparent_expression)
+    else {
+        return BTreeMap::new();
+    };
+    let mut variants = BTreeMap::new();
+    for property in &variants_object.properties {
+        let ObjectPropertyKind::ObjectProperty(property) = property else {
+            continue;
+        };
+        if property.computed {
+            continue;
+        }
+        let Some(axis_name) = property_key_text(source, &property.key) else {
+            continue;
+        };
+        let Some(Expression::ObjectExpression(options_object)) =
+            unwrap_transparent_expression(&property.value)
+        else {
+            continue;
+        };
+        let mut options = BTreeMap::new();
+        for option in &options_object.properties {
+            let ObjectPropertyKind::ObjectProperty(option) = option else {
+                continue;
+            };
+            if option.computed {
+                continue;
+            }
+            let Some(option_name) = property_key_text(source, &option.key) else {
+                continue;
+            };
+            let fallback = format!("{recipe_name}.{axis_name}.{option_name}");
+            options.insert(
+                option_name,
+                class_names_from_expression(source, &option.value, Some(fallback.as_str())),
+            );
+        }
+        if !options.is_empty() {
+            variants.insert(axis_name, options);
+        }
+    }
+    variants
+}
+
+fn variant_recipe_compound_class_names(
+    source: &str,
+    recipe_name: &str,
+    config_object: &ObjectExpression<'_>,
+) -> Vec<String> {
+    let Some(Expression::ArrayExpression(compounds)) =
+        object_property_expression(source, config_object, "compoundVariants")
+            .and_then(unwrap_transparent_expression)
+    else {
+        return Vec::new();
+    };
+    let mut class_names = Vec::new();
+    for element in &compounds.elements {
+        let Some(Expression::ObjectExpression(compound)) =
+            array_expression_element_expression(element).and_then(unwrap_transparent_expression)
+        else {
+            continue;
+        };
+        let fallback = format!("{recipe_name}.compound");
+        for property_name in ["class", "className", "style"] {
+            if let Some(expression) = object_property_expression(source, compound, property_name) {
+                class_names.extend(class_names_from_expression(
+                    source,
+                    expression,
+                    Some(fallback.as_str()),
+                ));
+            }
+        }
+    }
+    class_names.sort();
+    class_names.dedup();
+    class_names
+}
+
+fn collect_variant_recipe_call_references(
+    source: &str,
+    expression: &Expression<'_>,
+    recipe: &VariantRecipeBindingV0,
+    out: &mut Vec<SourceDomainClassReferenceFactV0>,
+) {
+    let Some(Expression::ObjectExpression(object)) = unwrap_transparent_expression(expression)
+    else {
+        return;
+    };
+    for property in &object.properties {
+        let ObjectPropertyKind::ObjectProperty(property) = property else {
+            continue;
+        };
+        if property.computed {
+            continue;
+        }
+        let Some(axis_name) = property_key_text(source, &property.key) else {
+            continue;
+        };
+        let Some(options) = recipe.variants.get(axis_name.as_str()) else {
+            continue;
+        };
+        collect_variant_recipe_value_reference(
+            source,
+            recipe,
+            axis_name.as_str(),
+            options,
+            &property.value,
+            out,
+        );
+    }
+}
+
+fn collect_variant_recipe_value_reference(
+    source: &str,
+    recipe: &VariantRecipeBindingV0,
+    axis_name: &str,
+    options: &BTreeMap<String, Vec<String>>,
+    expression: &Expression<'_>,
+    out: &mut Vec<SourceDomainClassReferenceFactV0>,
+) {
+    let Some(value) = unwrap_transparent_expression(expression) else {
+        return;
+    };
+    if let Some((option_name, byte_span)) = string_expression_value_and_span(source, value) {
+        out.push(SourceDomainClassReferenceFactV0 {
+            byte_span,
+            plugin_id: recipe.plugin_id,
+            domain: recipe.domain,
+            owner_name: recipe.local_name.clone(),
+            axis_name: axis_name.to_string(),
+            option_name: Some(option_name),
+            prefix: None,
+        });
+        return;
+    }
+    if let Expression::ConditionalExpression(conditional) = value {
+        collect_variant_recipe_value_reference(
+            source,
+            recipe,
+            axis_name,
+            options,
+            &conditional.consequent,
+            out,
+        );
+        collect_variant_recipe_value_reference(
+            source,
+            recipe,
+            axis_name,
+            options,
+            &conditional.alternate,
+            out,
+        );
+        return;
+    }
+    if let Expression::TemplateLiteral(template) = value
+        && let Some(prefix) = source
+            .get(template.span.start as usize + 1..template.span.end as usize)
+            .and_then(|text| text.split("${").next())
+            .filter(|prefix| !prefix.is_empty())
+            .map(str::to_string)
+        && options
+            .keys()
+            .any(|option| option.starts_with(prefix.as_str()))
+    {
+        out.push(SourceDomainClassReferenceFactV0 {
+            byte_span: parser_byte_span(template.span),
+            plugin_id: recipe.plugin_id,
+            domain: recipe.domain,
+            owner_name: recipe.local_name.clone(),
+            axis_name: axis_name.to_string(),
+            option_name: None,
+            prefix: Some(prefix),
+        });
     }
 }
 
@@ -454,20 +949,22 @@ fn collect_vue_use_css_module_bindings_from_variable_declaration(
     }
 }
 
-struct SourceSyntaxAstCollector<'a> {
+struct SourceSyntaxAstCollector<'a, 'b> {
     source: &'a str,
     property_access_targets: &'a [SourceStyleBindingTarget],
     style_targets: &'a [SourceStyleBindingTarget],
     classnames_bind_imports: &'a [String],
+    variant_recipe_bindings: &'b [VariantRecipeBindingV0],
     class_string_literals: Vec<ParserByteSpanV0>,
     style_property_accesses: Vec<SourceStylePropertyAccessFactV0>,
     inline_style_declarations: Vec<SourceInlineStyleDeclarationFactV0>,
     class_name_expression_spans: Vec<ParserByteSpanV0>,
     classnames_bind_utility_bindings: Vec<ClassnamesBindUtilityBinding>,
     classnames_bind_call_arguments: Vec<ClassnamesBindCallArgument>,
+    domain_class_references: Vec<SourceDomainClassReferenceFactV0>,
 }
 
-impl<'a> SourceSyntaxAstCollector<'a> {
+impl<'a, 'b> SourceSyntaxAstCollector<'a, 'b> {
     fn collect_program(&mut self, program: &Program<'a>) {
         for statement in &program.body {
             self.collect_statement(statement);
@@ -1156,6 +1653,19 @@ impl<'a> SourceSyntaxAstCollector<'a> {
 
     fn collect_call_expression(&mut self, expression: &CallExpression<'a>) {
         if let Some(binding) = expression_identifier_name(&expression.callee) {
+            if let Some(recipe) = self
+                .variant_recipe_bindings
+                .iter()
+                .find(|recipe| recipe.local_name == binding)
+                && let Some(argument) = expression.arguments.first().and_then(argument_expression)
+            {
+                collect_variant_recipe_call_references(
+                    self.source,
+                    argument,
+                    recipe,
+                    &mut self.domain_class_references,
+                );
+            }
             for argument in &expression.arguments {
                 if let Some(byte_span) = argument_expression_span(argument) {
                     self.classnames_bind_call_arguments
@@ -1390,6 +1900,148 @@ fn argument_expression_span(argument: &Argument<'_>) -> Option<ParserByteSpanV0>
         Argument::SpreadElement(spread) => Some(parser_byte_span(spread.argument.span())),
         _ => Some(parser_byte_span(argument.span())),
     }
+}
+
+fn argument_expression<'a>(argument: &'a Argument<'a>) -> Option<&'a Expression<'a>> {
+    match argument {
+        Argument::SpreadElement(spread) => Some(&spread.argument),
+        _ => argument.as_expression(),
+    }
+}
+
+fn array_expression_element_expression<'a>(
+    element: &'a ArrayExpressionElement<'a>,
+) -> Option<&'a Expression<'a>> {
+    match element {
+        ArrayExpressionElement::SpreadElement(spread) => Some(&spread.argument),
+        ArrayExpressionElement::Elision(_) => None,
+        _ => element.as_expression(),
+    }
+}
+
+fn unwrap_transparent_expression<'a>(expression: &'a Expression<'a>) -> Option<&'a Expression<'a>> {
+    match expression {
+        Expression::ParenthesizedExpression(expression) => {
+            unwrap_transparent_expression(&expression.expression)
+        }
+        Expression::TSAsExpression(expression) => {
+            unwrap_transparent_expression(&expression.expression)
+        }
+        Expression::TSSatisfiesExpression(expression) => {
+            unwrap_transparent_expression(&expression.expression)
+        }
+        Expression::TSTypeAssertion(expression) => {
+            unwrap_transparent_expression(&expression.expression)
+        }
+        Expression::TSNonNullExpression(expression) => {
+            unwrap_transparent_expression(&expression.expression)
+        }
+        Expression::TSInstantiationExpression(expression) => {
+            unwrap_transparent_expression(&expression.expression)
+        }
+        _ => Some(expression),
+    }
+}
+
+fn object_property_expression<'a>(
+    source: &str,
+    object: &'a ObjectExpression<'a>,
+    name: &str,
+) -> Option<&'a Expression<'a>> {
+    object.properties.iter().find_map(|property| {
+        let ObjectPropertyKind::ObjectProperty(property) = property else {
+            return None;
+        };
+        if property.computed || property_key_text(source, &property.key).as_deref() != Some(name) {
+            return None;
+        }
+        Some(&property.value)
+    })
+}
+
+fn property_key_text(source: &str, key: &oxc_ast::ast::PropertyKey<'_>) -> Option<String> {
+    let span = parser_byte_span(key.span());
+    if source.is_empty() {
+        match key {
+            oxc_ast::ast::PropertyKey::StaticIdentifier(identifier) => {
+                return Some(identifier.name.as_str().to_string());
+            }
+            oxc_ast::ast::PropertyKey::PrivateIdentifier(identifier) => {
+                return Some(identifier.name.as_str().to_string());
+            }
+            _ => return None,
+        }
+    }
+    object_property_name(source, span.start, span.end)
+}
+
+fn class_names_from_expression(
+    source: &str,
+    expression: &Expression<'_>,
+    fallback: Option<&str>,
+) -> Vec<String> {
+    let Some(value) = unwrap_transparent_expression(expression) else {
+        return fallback.into_iter().map(str::to_string).collect();
+    };
+    if let Some((text, _)) = string_expression_value_and_span(source, value) {
+        let class_names = split_class_names(text.as_str());
+        return if class_names.is_empty() {
+            fallback.into_iter().map(str::to_string).collect()
+        } else {
+            class_names
+        };
+    }
+    if let Expression::ArrayExpression(array) = value {
+        let mut values = array
+            .elements
+            .iter()
+            .filter_map(array_expression_element_expression)
+            .flat_map(|element| class_names_from_expression(source, element, None))
+            .collect::<Vec<_>>();
+        values.sort();
+        values.dedup();
+        return if values.is_empty() {
+            fallback.into_iter().map(str::to_string).collect()
+        } else {
+            values
+        };
+    }
+    fallback.into_iter().map(str::to_string).collect()
+}
+
+fn string_expression_value_and_span(
+    source: &str,
+    expression: &Expression<'_>,
+) -> Option<(String, ParserByteSpanV0)> {
+    match expression {
+        Expression::StringLiteral(_) => {}
+        Expression::TemplateLiteral(template) if template.expressions.is_empty() => {}
+        _ => return None,
+    }
+    let span = parser_byte_span(expression.span());
+    let (start, end) = trim_js_expression(source, span.start, span.end);
+    let (literal_start, literal_end, next_offset) = js_string_literal_span(source, start, end)?;
+    if trim_js_expression(source, next_offset, end).0 < end {
+        return None;
+    }
+    Some((
+        source.get(literal_start..literal_end)?.to_string(),
+        ParserByteSpanV0 {
+            start: literal_start,
+            end: literal_end,
+        },
+    ))
+}
+
+fn split_class_names(value: &str) -> Vec<String> {
+    let mut class_names = value
+        .split_whitespace()
+        .filter(|part| !part.is_empty())
+        .map(str::to_string)
+        .collect::<Vec<_>>();
+    class_names.sort();
+    class_names.dedup();
+    class_names
 }
 
 fn binding_pattern_identifier_name<'a>(pattern: &'a BindingPattern<'a>) -> Option<&'a str> {

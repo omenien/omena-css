@@ -23,6 +23,7 @@ pub use message_loop::{
 use omena_query::{
     OmenaQueryCodeActionV0, OmenaQueryCompletionCandidateV0, OmenaQueryCompletionItemV0,
     OmenaQueryEngineInputV2, OmenaQueryExternalModuleModeV0, OmenaQuerySourceDocumentInputV0,
+    OmenaQuerySourceDomainClassReferenceFactV0 as SourceDomainClassReferenceFact,
     OmenaQuerySourceImportedStyleBindingV0 as ImportedStyleBinding,
     OmenaQuerySourceMissingSelectorDiagnosticCandidateV0,
     OmenaQuerySourceSelectorReferenceFactV0 as SourceSelectorReferenceFact,
@@ -2107,6 +2108,15 @@ fn resolve_source_lsp_hover(
     let Some(position) = lsp_position_from_params(params) else {
         return Value::Null;
     };
+    if let Some((range, value)) = source_domain_reference_hover_at_position(document, position) {
+        return json!({
+            "contents": {
+                "kind": "markdown",
+                "value": value,
+            },
+            "range": range,
+        });
+    }
     let candidates = source_selector_candidates_at_position(state, document, position);
     let Some(candidate) = candidates.first() else {
         return Value::Null;
@@ -2126,6 +2136,54 @@ fn resolve_source_lsp_hover(
         },
         "range": candidate.range,
     })
+}
+
+fn source_domain_reference_hover_at_position(
+    document: &LspTextDocumentState,
+    position: ParserPositionV0,
+) -> Option<(ParserRangeV0, String)> {
+    let offset = byte_offset_for_parser_position(document.text.as_str(), position)?;
+    let reference = document
+        .source_syntax_index
+        .domain_class_references
+        .iter()
+        .find(|reference| {
+            offset >= reference.byte_span.start && offset <= reference.byte_span.end
+        })?;
+    let options = source_domain_reference_option_names(&document.source_syntax_index, reference);
+    let current = reference
+        .option_name
+        .as_deref()
+        .or(reference.prefix.as_deref())
+        .unwrap_or("*");
+    let validity = reference
+        .option_name
+        .as_ref()
+        .map(|option| {
+            if options.iter().any(|known| known == option) {
+                "known option"
+            } else {
+                "unknown option"
+            }
+        })
+        .unwrap_or("prefix option");
+    let known_options = if options.is_empty() {
+        "No known options indexed.".to_string()
+    } else {
+        format!("Known options: `{}`.", options.join("`, `"))
+    };
+    Some((
+        parser_range_for_byte_span(document.text.as_str(), reference.byte_span),
+        format!(
+            "**`{}.{}.{}`**\n\n{} from `{}`.\n\n{}",
+            reference.owner_name,
+            reference.axis_name,
+            current,
+            validity,
+            reference.domain,
+            known_options
+        ),
+    ))
 }
 
 fn resolve_source_lsp_definition(
@@ -2226,6 +2284,19 @@ fn resolve_source_lsp_completion(
     let Some(context) = source_completion_context_at_position(state, document, position) else {
         return Value::Null;
     };
+    if !context.domain_option_names.is_empty() {
+        let items = source_domain_option_completion_items(
+            context.domain_option_names.as_slice(),
+            context.value_prefix.as_deref(),
+        )
+        .into_iter()
+        .map(|item| lsp_completion_item_from_query("source", item))
+        .collect::<Vec<_>>();
+        return json!({
+            "isIncomplete": false,
+            "items": items,
+        });
+    }
     let inferred_target_style_uri = context.target_style_uri.clone().or_else(|| {
         source_selector_candidate_at_position(state, document, position)
             .and_then(|candidate| candidate.target_style_uri)
@@ -2284,6 +2355,7 @@ struct SourceCompletionContext {
     target_style_uri: Option<String>,
     value_prefix: Option<String>,
     preferred_selector_names: Vec<String>,
+    domain_option_names: Vec<String>,
 }
 
 fn source_completion_context_at_position(
@@ -2292,6 +2364,26 @@ fn source_completion_context_at_position(
     position: ParserPositionV0,
 ) -> Option<SourceCompletionContext> {
     let offset = byte_offset_for_parser_position(document.text.as_str(), position)?;
+    if let Some(reference) = document
+        .source_syntax_index
+        .domain_class_references
+        .iter()
+        .find(|reference| offset >= reference.byte_span.start && offset <= reference.byte_span.end)
+    {
+        return Some(SourceCompletionContext {
+            target_style_uri: None,
+            value_prefix: source_completion_prefix_from_span(
+                document.text.as_str(),
+                reference.byte_span,
+                offset,
+            ),
+            preferred_selector_names: Vec::new(),
+            domain_option_names: source_domain_reference_option_names(
+                &document.source_syntax_index,
+                reference,
+            ),
+        });
+    }
     if let Some(target) = document
         .source_syntax_index
         .type_fact_targets
@@ -2306,6 +2398,7 @@ fn source_completion_context_at_position(
                 target.byte_span,
                 target.target_style_uri.as_deref(),
             ),
+            domain_option_names: Vec::new(),
         });
     }
     if let Some(candidate) = source_selector_candidates_at_position(state, document, position)
@@ -2324,6 +2417,7 @@ fn source_completion_context_at_position(
                 offset,
             ),
             preferred_selector_names: Vec::new(),
+            domain_option_names: Vec::new(),
         });
     }
     if let Some(access) = document
@@ -2344,6 +2438,7 @@ fn source_completion_context_at_position(
                 offset,
             ),
             preferred_selector_names: Vec::new(),
+            domain_option_names: Vec::new(),
         });
     }
     if let Some(reference) = document
@@ -2364,6 +2459,7 @@ fn source_completion_context_at_position(
                 offset,
             ),
             preferred_selector_names: Vec::new(),
+            domain_option_names: Vec::new(),
         });
     }
     if document
@@ -2386,9 +2482,57 @@ fn source_completion_context_at_position(
                 offset,
             ),
             preferred_selector_names: Vec::new(),
+            domain_option_names: Vec::new(),
         });
     }
     None
+}
+
+fn source_domain_option_completion_items(
+    option_names: &[String],
+    value_prefix: Option<&str>,
+) -> Vec<OmenaQueryCompletionItemV0> {
+    let mut items = option_names
+        .iter()
+        .filter(|option| value_prefix.is_none_or(|prefix| option.starts_with(prefix)))
+        .map(|option| OmenaQueryCompletionItemV0 {
+            label: option.clone(),
+            insert_text: option.clone(),
+            sort_text: format!("00-{option}"),
+            detail: "Class value option",
+            item_kind: "classValueOption",
+            ranking_source: "classValueUniverseProvider",
+            source: "omenaLspSourceCompletion",
+        })
+        .collect::<Vec<_>>();
+    items.sort_by_key(|item| item.label.clone());
+    items.dedup_by(|left, right| left.label == right.label);
+    items
+}
+
+fn source_domain_reference_option_names(
+    index: &SourceSyntaxIndex,
+    reference: &SourceDomainClassReferenceFact,
+) -> Vec<String> {
+    let mut options = index
+        .class_value_universes
+        .iter()
+        .filter(|universe| {
+            universe.plugin_id == reference.plugin_id
+                && universe.domain == reference.domain
+                && universe.owner_name == reference.owner_name
+        })
+        .flat_map(|universe| {
+            universe
+                .axes
+                .iter()
+                .filter(|axis| axis.axis_name == reference.axis_name)
+                .flat_map(|axis| axis.values.iter().cloned())
+        })
+        .collect::<Vec<_>>();
+    options.sort();
+    options.dedup();
+    options
 }
 
 fn source_completion_target_uri_for_span(

@@ -9,6 +9,7 @@ use omena_bridge::{
     summarize_omena_bridge_style_semantic_graph_from_source_with_scoped_workspace_declarations,
 };
 pub use omena_bridge::{
+    SourceDomainClassReferenceFactV0 as OmenaQuerySourceDomainClassReferenceFactV0,
     SourceImportDeclarationSummaryV0 as OmenaQuerySourceImportDeclarationSummaryV0,
     SourceImportDeclarationV0 as OmenaQuerySourceImportDeclarationV0,
     SourceImportedStyleBindingV0 as OmenaQuerySourceImportedStyleBindingV0,

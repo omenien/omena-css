@@ -305,15 +305,19 @@ pub fn summarize_omena_query_source_diagnostics_for_workspace_file_with_context_
         }
     }
 
-    if !imported_style_bindings.is_empty() {
-        let index = summarize_omena_query_source_syntax_index_for_source_language(
-            source_path,
-            source_source,
-            None,
-            imported_style_bindings,
-            classnames_bind_bindings,
-        );
+    let index = summarize_omena_query_source_syntax_index_for_source_language(
+        source_path,
+        source_source,
+        None,
+        imported_style_bindings,
+        classnames_bind_bindings,
+    );
+    diagnostics.extend(summarize_omena_query_domain_class_reference_diagnostics(
+        source_source,
+        &index,
+    ));
 
+    if !index.imported_style_bindings.is_empty() {
         // Harvest dynamic-className call sites (template-interpolation projections)
         // from the same syntax index and route them through the real k-limited
         // (k-CFA) M-tier flow gate, so the LSP-consumed default path emits the
@@ -351,7 +355,7 @@ pub fn summarize_omena_query_source_diagnostics_for_workspace_file_with_context_
             max_context_depth,
         ));
 
-        for reference in index.selector_references {
+        for reference in &index.selector_references {
             let Some(target_style_uri) = reference.target_style_uri.as_deref() else {
                 continue;
             };
@@ -385,7 +389,7 @@ pub fn summarize_omena_query_source_diagnostics_for_workspace_file_with_context_
             diagnostics.push(
                 summarize_omena_query_unresolved_source_reference_diagnostic(
                     source_source,
-                    &reference,
+                    reference,
                     selector_name.as_str(),
                     style_sources_by_path.get(target_style_uri).copied(),
                 ),
@@ -421,6 +425,50 @@ pub fn summarize_omena_query_source_diagnostics_for_workspace_file_with_context_
             "checkerProductDiagnosticGate",
         ],
     }
+}
+
+fn summarize_omena_query_domain_class_reference_diagnostics(
+    source: &str,
+    index: &OmenaQuerySourceSyntaxIndexV0,
+) -> Vec<OmenaQuerySourceDiagnosticV0> {
+    let mut diagnostics = Vec::new();
+    for reference in &index.domain_class_references {
+        let Some(option_name) = reference.option_name.as_ref() else {
+            continue;
+        };
+        let Some(universe) = index.class_value_universes.iter().find(|universe| {
+            universe.plugin_id == reference.plugin_id
+                && universe.domain == reference.domain
+                && universe.owner_name == reference.owner_name
+        }) else {
+            continue;
+        };
+        let Some(axis) = universe
+            .axes
+            .iter()
+            .find(|axis| axis.axis_name == reference.axis_name)
+        else {
+            continue;
+        };
+        if axis.values.iter().any(|value| value == option_name) {
+            continue;
+        }
+        diagnostics.push(OmenaQuerySourceDiagnosticV0 {
+            code: "missingClassValueOption",
+            severity: "warning",
+            provenance: vec![
+                "omena-bridge.class-value-universe-provider",
+                "omena-query.source-domain-class-references",
+            ],
+            range: parser_range_for_byte_span(source, reference.byte_span),
+            message: format!(
+                "Class value option '{}' is not defined for {}.{}.",
+                option_name, reference.owner_name, reference.axis_name
+            ),
+            create_selector: None,
+        });
+    }
+    diagnostics
 }
 
 pub(super) fn summarize_omena_query_style_selector_definitions(

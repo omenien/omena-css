@@ -41,6 +41,48 @@ export function App({ tone }: { tone: "warm" | "cool" }) {
 }
 
 #[test]
+fn collects_variant_recipe_universes_and_domain_references() -> Result<(), String> {
+    let source = r#"import { cva } from "class-variance-authority";
+const button = cva("btn", {
+  variants: {
+    intent: {
+      primary: "btn-primary",
+      secondary: ["btn-secondary"],
+    },
+  },
+});
+button({ intent: "primary" });
+button({ intent: "ghost" });
+"#;
+
+    let index = summarize_omena_bridge_source_syntax_index(source, Vec::new(), Vec::new());
+
+    let universe = index
+        .class_value_universes
+        .iter()
+        .find(|universe| universe.owner_name == "button")
+        .ok_or_else(|| "cva recipe should create a class value universe".to_string())?;
+    assert_eq!(universe.plugin_id, "cva-recipe-domain");
+    assert_eq!(universe.domain, "cva-recipe");
+    assert!(universe.class_names.contains(&"btn".to_string()));
+    assert!(universe.class_names.contains(&"btn-primary".to_string()));
+    assert!(universe.class_names.contains(&"btn-secondary".to_string()));
+    assert!(universe.axes.iter().any(|axis| {
+        axis.axis_name == "intent"
+            && axis.values == vec!["primary".to_string(), "secondary".to_string()]
+    }));
+
+    let referenced_options = index
+        .domain_class_references
+        .iter()
+        .filter(|reference| reference.owner_name == "button" && reference.axis_name == "intent")
+        .filter_map(|reference| reference.option_name.as_deref())
+        .collect::<Vec<_>>();
+    assert_eq!(referenced_options, vec!["primary", "ghost"]);
+    Ok(())
+}
+
+#[test]
 fn collects_style_property_accesses_from_oxc_ast() {
     let source = r#"import styles from "./App.module.scss";
 const text = "styles.fake";
