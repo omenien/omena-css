@@ -246,9 +246,21 @@ pub struct OmenaSifAttestationVerificationV1 {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub verified_tlog_integrated_time: Option<i64>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub sigstore_verification_policy: Option<OmenaSifSigstoreVerificationPolicyV1>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub certificate_issuer: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub certificate_identity: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct OmenaSifSigstoreVerificationPolicyV1 {
+    pub trusted_root: String,
+    pub transparency_log: bool,
+    pub timestamp: bool,
+    pub certificate_chain: bool,
+    pub signed_certificate_timestamp: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -263,6 +275,8 @@ pub struct OmenaSifAttestationVerificationReportV1 {
     pub verified_trust_tier: OmenaSifTrustTierV1,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub verified_tlog_integrated_time: Option<i64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub sigstore_verification_policy: Option<OmenaSifSigstoreVerificationPolicyV1>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub certificate_issuer: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -318,6 +332,7 @@ pub fn apply_omena_sif_attestation_verification_report_to_lock_entry_v1(
         verifier: report.verifier.clone(),
         verified_trust_tier: report.verified_trust_tier,
         verified_tlog_integrated_time: report.verified_tlog_integrated_time,
+        sigstore_verification_policy: report.sigstore_verification_policy.clone(),
         certificate_issuer: report.certificate_issuer.clone(),
         certificate_identity: report.certificate_identity.clone(),
     };
@@ -380,21 +395,50 @@ fn validate_omena_sif_attestation_verification_report_v1(
                 .to_string(),
         );
     }
+    if let Some(policy) = report.sigstore_verification_policy.as_ref() {
+        validate_sigstore_verification_policy_v1(policy)?;
+    }
     validate_attestation_verification_for_trust_tier_v1(&OmenaSifAttestationVerificationV1 {
         kind: report.kind.clone(),
         reference: report.reference.clone(),
         verifier: report.verifier.clone(),
         verified_trust_tier: report.verified_trust_tier,
         verified_tlog_integrated_time: report.verified_tlog_integrated_time,
+        sigstore_verification_policy: report.sigstore_verification_policy.clone(),
         certificate_issuer: report.certificate_issuer.clone(),
         certificate_identity: report.certificate_identity.clone(),
     })?;
     Ok(())
 }
 
+fn validate_sigstore_verification_policy_v1(
+    policy: &OmenaSifSigstoreVerificationPolicyV1,
+) -> Result<(), String> {
+    if policy.trusted_root.trim().is_empty() {
+        return Err(
+            "attestation verification report sigstoreVerificationPolicy.trustedRoot must not be empty"
+                .to_string(),
+        );
+    }
+    if !policy.transparency_log
+        || !policy.timestamp
+        || !policy.certificate_chain
+        || !policy.signed_certificate_timestamp
+    {
+        return Err(
+            "attestation verification report sigstoreVerificationPolicy must require transparency log, timestamp, certificate chain, and signed certificate timestamp verification"
+                .to_string(),
+        );
+    }
+    Ok(())
+}
+
 fn validate_attestation_verification_for_trust_tier_v1(
     verification: &OmenaSifAttestationVerificationV1,
 ) -> Result<(), String> {
+    if let Some(policy) = verification.sigstore_verification_policy.as_ref() {
+        validate_sigstore_verification_policy_v1(policy)?;
+    }
     if verification.verified_trust_tier == OmenaSifTrustTierV1::T3 {
         if !verification.kind.starts_with("omena-toolchain.") {
             return Err(format!(
@@ -488,6 +532,8 @@ pub struct OmenaSifAttestationVerificationPolicyV1 {
     pub verified_trust_tier: OmenaSifTrustTierV1,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub verified_tlog_integrated_time: Option<i64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub sigstore_verification_policy: Option<OmenaSifSigstoreVerificationPolicyV1>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub certificate_issuer: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -637,6 +683,7 @@ fn summarize_attestation_verification_policies(
             verifier: verification.verifier.clone(),
             verified_trust_tier: verification.verified_trust_tier,
             verified_tlog_integrated_time: verification.verified_tlog_integrated_time,
+            sigstore_verification_policy: verification.sigstore_verification_policy.clone(),
             certificate_issuer: verification.certificate_issuer.clone(),
             certificate_identity: verification.certificate_identity.clone(),
         })
@@ -1244,6 +1291,13 @@ mod tests {
                 verifier: "offline-sigstore-verifier".to_string(),
                 verified_trust_tier: OmenaSifTrustTierV1::T2,
                 verified_tlog_integrated_time: Some(1_717_000_000),
+                sigstore_verification_policy: Some(OmenaSifSigstoreVerificationPolicyV1 {
+                    trusted_root: "sigstore-production-trusted-root".to_string(),
+                    transparency_log: true,
+                    timestamp: true,
+                    certificate_chain: true,
+                    signed_certificate_timestamp: true,
+                }),
                 certificate_issuer: Some("https://token.actions.githubusercontent.com".to_string()),
                 certificate_identity: Some(
                     "https://github.com/omenien/omena-css/.github/workflows/release.yml@refs/tags/v1.0.0"
@@ -1258,6 +1312,13 @@ mod tests {
         assert_eq!(
             report.entries[0].attestation_verification_policies[0].verified_tlog_integrated_time,
             Some(1_717_000_000)
+        );
+        assert_eq!(
+            report.entries[0].attestation_verification_policies[0]
+                .sigstore_verification_policy
+                .as_ref()
+                .map(|policy| policy.trusted_root.as_str()),
+            Some("sigstore-production-trusted-root")
         );
         assert_eq!(report.entries[0].attestation_verification_count, 1);
         assert_eq!(report.entries[0].attestation_verification_policies.len(), 1);
@@ -1342,6 +1403,7 @@ mod tests {
                 verifier: "omena-sif-test-fixture".to_string(),
                 verified_trust_tier: OmenaSifTrustTierV1::T2,
                 verified_tlog_integrated_time: None,
+                sigstore_verification_policy: None,
                 certificate_issuer: None,
                 certificate_identity: None,
             });
@@ -1364,6 +1426,7 @@ mod tests {
                 verifier: "omena-sif-test-fixture".to_string(),
                 verified_trust_tier: OmenaSifTrustTierV1::T3,
                 verified_tlog_integrated_time: None,
+                sigstore_verification_policy: None,
                 certificate_issuer: Some("https://github.com/login/oauth".to_string()),
                 certificate_identity: None,
             });
@@ -1568,6 +1631,7 @@ mod tests {
             verifier: "offline-sigstore-verifier".to_string(),
             verified_trust_tier: OmenaSifTrustTierV1::T2,
             verified_tlog_integrated_time: None,
+            sigstore_verification_policy: None,
             certificate_issuer: None,
             certificate_identity: None,
             subject_canonical_url: entry.canonical_url.clone(),
@@ -1610,6 +1674,7 @@ mod tests {
             verifier: "offline-sigstore-verifier".to_string(),
             verified_trust_tier: OmenaSifTrustTierV1::T2,
             verified_tlog_integrated_time: None,
+            sigstore_verification_policy: None,
             certificate_issuer: Some("https://token.actions.githubusercontent.com".to_string()),
             certificate_identity: Some(
                 "https://github.com/omenien/omena-css/.github/workflows/release.yml@refs/tags/v1.0.0"
@@ -1642,6 +1707,18 @@ mod tests {
         assert!(bad_integrated_time.is_err(), "{bad_integrated_time:?}");
 
         report.verified_tlog_integrated_time = None;
+        report.sigstore_verification_policy = Some(OmenaSifSigstoreVerificationPolicyV1 {
+            trusted_root: "sigstore-production-trusted-root".to_string(),
+            transparency_log: false,
+            timestamp: true,
+            certificate_chain: true,
+            signed_certificate_timestamp: true,
+        });
+        let weak_sigstore_policy =
+            apply_omena_sif_attestation_verification_report_to_lock_entry_v1(&mut entry, &report);
+        assert!(weak_sigstore_policy.is_err(), "{weak_sigstore_policy:?}");
+
+        report.sigstore_verification_policy = None;
         report.certificate_issuer = Some(" ".to_string());
         let empty_issuer =
             apply_omena_sif_attestation_verification_report_to_lock_entry_v1(&mut entry, &report);

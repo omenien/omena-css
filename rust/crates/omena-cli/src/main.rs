@@ -47,8 +47,8 @@ use omena_query::{
 use omena_sif::{
     OMENA_SIF_ATTESTATION_VERIFICATION_REPORT_PRODUCT_V1,
     OMENA_SIF_ATTESTATION_VERIFICATION_REPORT_SCHEMA_VERSION_V1, OmenaLockV1,
-    OmenaLockVerificationIssueV1, OmenaSifAttestationVerificationReportV1, OmenaSifSourceSyntaxV1,
-    OmenaSifStaticGeneratorInputV1,
+    OmenaLockVerificationIssueV1, OmenaSifAttestationVerificationReportV1,
+    OmenaSifSigstoreVerificationPolicyV1, OmenaSifSourceSyntaxV1, OmenaSifStaticGeneratorInputV1,
     apply_omena_sif_attestation_verification_report_to_lock_entry_v1,
     apply_omena_sif_npm_provenance_references_to_lock_entry_v1, build_omena_lock_sif_entry_v1,
     collect_omena_sif_npm_provenance_attestation_references_v1, compute_omena_sif_artifact_hash_v1,
@@ -1215,6 +1215,13 @@ fn lock_verify_attestation(input: LockVerifyAttestationInput) -> Result<(), Stri
             verifier: "sigstore-verify".to_string(),
             verified_trust_tier,
             verified_tlog_integrated_time: verification_result.integrated_time,
+            sigstore_verification_policy: Some(OmenaSifSigstoreVerificationPolicyV1 {
+                trusted_root: "sigstore-production-trusted-root".to_string(),
+                transparency_log: policy.verify_tlog,
+                timestamp: policy.verify_timestamp,
+                certificate_chain: policy.verify_certificate,
+                signed_certificate_timestamp: policy.verify_sct,
+            }),
             certificate_issuer: Some(issuer.clone()),
             certificate_identity: identity.clone(),
             subject_canonical_url: entry.canonical_url.clone(),
@@ -6385,6 +6392,7 @@ export function App() {
                 verifier: "sigstore-verify".to_string(),
                 verified_trust_tier: omena_sif::OmenaSifTrustTierV1::T3,
                 verified_tlog_integrated_time: None,
+                sigstore_verification_policy: None,
                 certificate_issuer: Some("https://github.com/login/oauth".to_string()),
                 certificate_identity: None,
             });
@@ -7104,6 +7112,15 @@ export function App() {
                 .as_deref(),
             None
         );
+        let policy = refreshed_lock.entries[0].attestation_verifications[0]
+            .sigstore_verification_policy
+            .as_ref()
+            .ok_or_else(|| "verified sigstore evidence should retain its policy".to_string())?;
+        assert_eq!(policy.trusted_root, "sigstore-production-trusted-root");
+        assert!(policy.transparency_log);
+        assert!(policy.timestamp);
+        assert!(policy.certificate_chain);
+        assert!(policy.signed_certificate_timestamp);
 
         let verify_t2_after = run(Cli {
             command: Command::Lock {
@@ -7456,6 +7473,7 @@ export function App() {
                 verifier: "sigstore-verify".to_string(),
                 verified_trust_tier: omena_sif::OmenaSifTrustTierV1::T3,
                 verified_tlog_integrated_time: None,
+                sigstore_verification_policy: None,
                 certificate_issuer: Some("https://github.com/login/oauth".to_string()),
                 certificate_identity: Some("w.vollprecht@gmail.com".to_string()),
             });
