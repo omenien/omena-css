@@ -749,7 +749,7 @@ fn attestation_statement_binds_sif_path_v1(
     let subject_digest_matches = statement
         .subject_digests
         .iter()
-        .any(|digest| digest.name == sif_path);
+        .any(|digest| digest.name == sif_path && digest.algorithm.eq_ignore_ascii_case("sha256"));
     subject_name_matches && subject_digest_matches
 }
 
@@ -1199,6 +1199,21 @@ where
                     sif.fingerprints.transitive_hash.as_str()
                 ),
             );
+        }
+        for verification in &entry.attestation_verifications {
+            if let Err(error) =
+                validate_omena_sif_lock_entry_attestation_verification_v1(entry, verification)
+            {
+                push_omena_lock_issue_v1(
+                    &mut issues,
+                    entry,
+                    "attestationVerificationInvalid",
+                    format!(
+                        "recorded attestation verification '{}' is invalid: {error}",
+                        verification.reference
+                    ),
+                );
+            }
         }
     }
 
@@ -2580,6 +2595,26 @@ mod tests {
         );
         assert!(entry.attestation_verifications.is_empty());
 
+        let mut wrong_digest_algorithm_statement =
+            fixture_sif_artifact_provenance_statement(&entry);
+        wrong_digest_algorithm_statement.subject_digests =
+            vec![OmenaSifAttestationSubjectDigestV1 {
+                name: entry.sif_path.clone(),
+                algorithm: "blake3".to_string(),
+                digest: "abcdef0123456789".to_string(),
+            }];
+        report.attestation_statement = Some(wrong_digest_algorithm_statement);
+        let wrong_digest_algorithm_subject =
+            apply_omena_sif_attestation_verification_report_to_lock_entry_v1(&mut entry, &report);
+        assert!(
+            matches!(
+                wrong_digest_algorithm_subject.as_ref(),
+                Err(message) if message.contains("subjectNames and subjectDigests")
+            ),
+            "{wrong_digest_algorithm_subject:?}"
+        );
+        assert!(entry.attestation_verifications.is_empty());
+
         report.attestation_statement = Some(fixture_sif_artifact_provenance_statement(&entry));
         let applied =
             apply_omena_sif_attestation_verification_report_to_lock_entry_v1(&mut entry, &report)?;
@@ -2791,6 +2826,52 @@ mod tests {
         assert!(report.verified, "{report:?}");
         assert_eq!(report.entries_checked, 1);
         assert!(report.issues.is_empty());
+        Ok(())
+    }
+
+    #[test]
+    fn lock_frozen_verification_fails_for_invalid_recorded_attestation()
+    -> Result<(), serde_json::Error> {
+        let sif = fixture_sif("pkg:design-system/_tokens.scss", b"$color: red !default;")?;
+        let sif_json = write_omena_sif_json_v1(&sif)?;
+        let mut entry = build_omena_lock_sif_entry_v1("sif/design-system.sif.json", &sif)?;
+        entry.trust_tier = OmenaSifTrustTierV1::T3;
+        entry
+            .attestation_references
+            .push(OmenaSifAttestationReferenceV1 {
+                kind: "sigstore-bundle".to_string(),
+                reference: "sif/design-system.sigstore.json".to_string(),
+            });
+        let mut statement = fixture_sif_artifact_provenance_statement(&entry);
+        statement.subject_digests = vec![OmenaSifAttestationSubjectDigestV1 {
+            name: entry.sif_path.clone(),
+            algorithm: "blake3".to_string(),
+            digest: "abcdef0123456789".to_string(),
+        }];
+        entry
+            .attestation_verifications
+            .push(OmenaSifAttestationVerificationV1 {
+                kind: "omena-toolchain.sigstore".to_string(),
+                reference: "sif/design-system.sigstore.json".to_string(),
+                verifier: "sigstore-verify".to_string(),
+                verified_trust_tier: OmenaSifTrustTierV1::T3,
+                verified_tlog_integrated_time: Some(1_717_000_000),
+                sigstore_verification_policy: Some(fixture_sigstore_verification_policy()),
+                certificate_issuer: Some("https://github.com/login/oauth".to_string()),
+                certificate_identity: Some("https://github.com/omenien/omena-css/.github/workflows/sif-keyless-attestation.yml@refs/heads/master".to_string()),
+                attestation_statement: Some(statement),
+            });
+        let lock = OmenaLockV1::new(vec![entry]);
+        let report = verify_omena_lock_frozen_v1(&lock, |_entry| Ok(sif_json.clone()));
+
+        assert!(!report.verified, "{report:?}");
+        assert!(
+            report
+                .issues
+                .iter()
+                .any(|issue| issue.code == "attestationVerificationInvalid"),
+            "{report:?}"
+        );
         Ok(())
     }
 

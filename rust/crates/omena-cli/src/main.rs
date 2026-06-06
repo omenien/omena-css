@@ -7558,6 +7558,87 @@ export function App() {
     }
 
     #[test]
+    fn lock_verify_frozen_fails_for_invalid_recorded_attestation() -> Result<(), String> {
+        let workspace_path = temp_dir("lock-verify-invalid-attestation");
+        let sif_dir = workspace_path.join("sif");
+        fs::create_dir_all(&sif_dir)
+            .map_err(|error| format!("fixture SIF dir should be writable: {error}"))?;
+        let sif_path = sif_dir.join("design-system.sif.json");
+        let lockfile_path = workspace_path.join("omena.lock");
+        let sif = cli_fixture_sif("pkg:design-system/_tokens.scss", b"$color: red !default;")?;
+        fs::write(
+            &sif_path,
+            omena_sif::write_omena_sif_json_v1(&sif)
+                .map_err(|error| format!("fixture SIF should serialize: {error}"))?,
+        )
+        .map_err(|error| format!("fixture SIF should be writable: {error}"))?;
+
+        let reference = "sif/design-system.sigstore.json".to_string();
+        let mut entry =
+            omena_sif::build_omena_lock_sif_entry_v1("sif/design-system.sif.json", &sif)
+                .map_err(|error| format!("fixture lock entry should build: {error}"))?;
+        entry.trust_tier = omena_sif::OmenaSifTrustTierV1::T3;
+        entry
+            .attestation_references
+            .push(omena_sif::OmenaSifAttestationReferenceV1 {
+                kind: "sigstore-bundle".to_string(),
+                reference: reference.clone(),
+            });
+        let mut statement = cli_fixture_provenance_statement();
+        statement.subject_digests = vec![omena_sif::OmenaSifAttestationSubjectDigestV1 {
+            name: "sif/design-system.sif.json".to_string(),
+            algorithm: "blake3".to_string(),
+            digest: "abcdef0123456789".to_string(),
+        }];
+        entry
+            .attestation_verifications
+            .push(omena_sif::OmenaSifAttestationVerificationV1 {
+                kind: "omena-toolchain.sigstore".to_string(),
+                reference,
+                verifier: "sigstore-verify".to_string(),
+                verified_trust_tier: omena_sif::OmenaSifTrustTierV1::T3,
+                verified_tlog_integrated_time: Some(1_764_787_003),
+                sigstore_verification_policy: Some(
+                    omena_sif::OmenaSifSigstoreVerificationPolicyV1 {
+                        trusted_root: "sigstore-production-trusted-root".to_string(),
+                        transparency_log: true,
+                        timestamp: true,
+                        certificate_chain: true,
+                        signed_certificate_timestamp: true,
+                    },
+                ),
+                certificate_issuer: Some("https://github.com/login/oauth".to_string()),
+                certificate_identity: Some("https://github.com/omenien/omena-css/.github/workflows/sif-keyless-attestation.yml@refs/heads/master".to_string()),
+                attestation_statement: Some(statement),
+            });
+        let lock = omena_sif::OmenaLockV1::new(vec![entry]);
+        fs::write(
+            &lockfile_path,
+            omena_sif::write_omena_lock_json_v1(&lock)
+                .map_err(|error| format!("fixture lock should serialize: {error}"))?,
+        )
+        .map_err(|error| format!("fixture lock should be writable: {error}"))?;
+
+        let result = run(Cli {
+            command: Command::Lock {
+                lockfile: PathBuf::from("omena.lock"),
+                json: false,
+                command: Some(LockCommand::Verify {
+                    lockfile: lockfile_path,
+                    source_paths: Vec::new(),
+                    frozen: true,
+                    tier: None,
+                    json: true,
+                }),
+            },
+        });
+
+        assert!(result.is_err(), "{result:?}");
+        cleanup_dir(&workspace_path);
+        Ok(())
+    }
+
+    #[test]
     fn lock_verify_t3_rejects_identityless_toolchain_evidence() -> Result<(), String> {
         let workspace_path = temp_dir("lock-verify-t3-policy");
         let sif_dir = workspace_path.join("sif");
