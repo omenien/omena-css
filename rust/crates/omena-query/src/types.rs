@@ -1237,6 +1237,8 @@ pub struct OmenaQueryCompletionItemV0 {
     pub insert_text: String,
     pub sort_text: String,
     pub detail: &'static str,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub documentation: Option<String>,
     pub item_kind: &'static str,
     pub ranking_source: &'static str,
     pub source: &'static str,

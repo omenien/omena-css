@@ -34,11 +34,13 @@ pub fn summarize_omena_query_style_completion_at_position(
             }
             let (sort_text, ranking_source) =
                 style_completion_ranking(context_kind, position, candidate, label.as_str());
+            let documentation = style_completion_documentation(source, context_kind, candidate);
             Some(OmenaQueryCompletionItemV0 {
                 insert_text: label.clone(),
                 label,
                 sort_text,
                 detail,
+                documentation,
                 item_kind,
                 ranking_source,
                 source: "omenaQueryCompletionAtPosition",
@@ -102,6 +104,7 @@ pub fn summarize_omena_query_source_completion_at_position(
                 insert_text: candidate.name.clone(),
                 sort_text,
                 detail: "CSS Module selector",
+                documentation: None,
                 item_kind: "cssModuleSelector",
                 ranking_source,
                 source: "omenaQueryCompletionAtPosition",
@@ -164,6 +167,84 @@ fn style_completion_ranking(
     }
 
     (format!("50-{label}"), "label")
+}
+
+fn style_completion_documentation(
+    source: &str,
+    context_kind: &str,
+    candidate: &OmenaQueryStyleHoverCandidateV0,
+) -> Option<String> {
+    if context_kind != "styleDocument" || candidate.kind != "selector" {
+        return None;
+    }
+
+    let render_parts = summarize_omena_query_style_hover_render_parts(
+        source,
+        candidate.kind,
+        candidate.name.as_str(),
+        candidate.range.start,
+    );
+    render_property_value_narrowings_markdown(&render_parts.property_value_narrowings)
+}
+
+fn render_property_value_narrowings_markdown(
+    narrowings: &[AbstractPropertyValueNarrowingV0],
+) -> Option<String> {
+    if narrowings.is_empty() {
+        return None;
+    }
+
+    let lines = narrowings
+        .iter()
+        .take(6)
+        .map(|narrowing| {
+            format!(
+                "- `{}`: {}{}",
+                narrowing.property_name,
+                render_abstract_property_value(&narrowing.value),
+                render_property_value_narrowing_context(narrowing)
+            )
+        })
+        .collect::<Vec<_>>()
+        .join("\n");
+    Some(format!("Cascade narrowed values:\n{lines}"))
+}
+
+fn render_abstract_property_value(value: &AbstractPropertyValueV0) -> String {
+    match value {
+        AbstractPropertyValueV0::Bottom { .. } => "`<bottom>`".to_string(),
+        AbstractPropertyValueV0::Exact { value, .. } => format!("`{value}`"),
+        AbstractPropertyValueV0::FiniteSet { values, .. } => values
+            .iter()
+            .map(|value| format!("`{value}`"))
+            .collect::<Vec<_>>()
+            .join(" | "),
+        AbstractPropertyValueV0::CustomPropertyReference {
+            custom_property_name,
+            ..
+        } => {
+            format!("`var({custom_property_name})`")
+        }
+        AbstractPropertyValueV0::Top { .. } => "`<top>`".to_string(),
+    }
+}
+
+fn render_property_value_narrowing_context(narrowing: &AbstractPropertyValueNarrowingV0) -> String {
+    let mut context = Vec::new();
+    if !narrowing.requested_condition_context.is_empty() {
+        context.push(narrowing.requested_condition_context.join(" / "));
+    }
+    if let Some(layer_name) = narrowing.requested_layer_name.as_deref() {
+        context.push(format!("@layer {layer_name}"));
+    } else if narrowing.requested_layer_scope == "exactLayer" {
+        context.push("unlayered".to_string());
+    }
+
+    if context.is_empty() {
+        String::new()
+    } else {
+        format!(" ({})", context.join(", "))
+    }
 }
 
 fn source_completion_ranking(

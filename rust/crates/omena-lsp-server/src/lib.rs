@@ -869,7 +869,7 @@ fn lsp_completion_item_from_query(file_kind: &str, item: OmenaQueryCompletionIte
         (_, "cssModuleSelector") | (_, "cssCustomProperty") => 10,
         _ => 1,
     };
-    json!({
+    let mut completion_item = json!({
         "label": item.label,
         "kind": kind,
         "sortText": item.sort_text,
@@ -879,7 +879,14 @@ fn lsp_completion_item_from_query(file_kind: &str, item: OmenaQueryCompletionIte
             "source": item.source,
             "rankingSource": item.ranking_source,
         },
-    })
+    });
+    if let Some(documentation) = item.documentation {
+        completion_item["documentation"] = json!({
+            "kind": "markdown",
+            "value": documentation,
+        });
+    }
+    completion_item
 }
 
 fn resolve_style_diagnostics(state: &LspShellState, params: Option<&Value>) -> Value {
@@ -2958,6 +2965,7 @@ fn source_domain_option_completion_items(
             insert_text: option.clone(),
             sort_text: format!("00-{option}"),
             detail: "Class value option",
+            documentation: None,
             item_kind: "classValueOption",
             ranking_source: "classValueUniverseProvider",
             source: "omenaLspSourceCompletion",

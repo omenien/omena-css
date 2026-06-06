@@ -374,11 +374,60 @@ fn resolves_style_hover_candidates_from_opened_style_documents() -> TestResult {
         Some(1),
     );
 
-    let prepare_rename_response = handle_lsp_message(
+    let selector_completion_response = handle_lsp_message(
         &mut state,
         json!({
             "jsonrpc": "2.0",
             "id": 9,
+            "method": "textDocument/completion",
+            "params": {
+                "textDocument": {
+                    "uri": "file:///workspace-a/src/App.module.scss",
+                },
+                "position": {
+                    "line": 0,
+                    "character": 0,
+                },
+            },
+        }),
+    );
+    let selector_completion_items = selector_completion_response
+        .as_ref()
+        .and_then(|value| value.pointer("/result/items"))
+        .and_then(Value::as_array)
+        .ok_or_else(|| std::io::Error::other("selector completion should contain items"))?;
+    let root_completion = selector_completion_items
+        .iter()
+        .find(|item| item.pointer("/label") == Some(&json!(".root")))
+        .ok_or_else(|| std::io::Error::other("root selector completion should be present"))?;
+    let root_completion_documentation = root_completion
+        .pointer("/documentation/value")
+        .and_then(Value::as_str)
+        .ok_or_else(|| {
+            std::io::Error::other("root selector completion should carry markdown documentation")
+        })?;
+    assert!(
+        root_completion_documentation.contains("Cascade narrowed values:"),
+        "{root_completion_documentation}"
+    );
+    assert!(
+        root_completion_documentation.contains("- `color`: `var(--brand)`"),
+        "{root_completion_documentation}"
+    );
+    assert!(
+        root_completion_documentation.contains("@layer theme"),
+        "{root_completion_documentation}"
+    );
+    assert!(
+        root_completion_documentation.contains("`blue`"),
+        "{root_completion_documentation}"
+    );
+
+    let prepare_rename_response = handle_lsp_message(
+        &mut state,
+        json!({
+            "jsonrpc": "2.0",
+            "id": 10,
             "method": "textDocument/prepareRename",
             "params": {
                 "textDocument": {

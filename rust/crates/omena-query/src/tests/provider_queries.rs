@@ -138,6 +138,40 @@ fn style_hover_render_parts_are_query_owned() {
 }
 
 #[test]
+fn style_selector_completion_includes_cascade_narrowed_values() -> Result<(), &'static str> {
+    let source = r#".button { color: var(--brand); }
+@media (min-width: 40rem) { @layer theme { .button { color: blue; } } }
+"#;
+    let candidates = summarize_omena_query_style_hover_candidates("Component.module.scss", source)
+        .ok_or("style candidates")?;
+
+    let completion = summarize_omena_query_style_completion_at_position(
+        "file:///workspace/src/Component.module.scss",
+        source,
+        ParserPositionV0 {
+            line: 0,
+            character: 0,
+        },
+        candidates.candidates.as_slice(),
+    );
+
+    let button = completion
+        .items
+        .iter()
+        .find(|item| item.label == ".button")
+        .ok_or("button completion")?;
+    let documentation = button
+        .documentation
+        .as_deref()
+        .ok_or("button documentation")?;
+    assert!(documentation.contains("Cascade narrowed values:"));
+    assert!(documentation.contains("- `color`: `var(--brand)`"));
+    assert!(documentation.contains("@layer theme"));
+    assert!(documentation.contains("`blue`"));
+    Ok(())
+}
+
+#[test]
 fn completion_at_position_is_query_owned_for_style_and_source() -> Result<(), &'static str> {
     let source = ":root { --brand: red; }\n.root { color: var(--br); }\n.row { display: flex; }";
     let candidates = summarize_omena_query_style_hover_candidates("Component.module.scss", source)
