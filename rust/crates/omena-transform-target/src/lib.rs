@@ -977,6 +977,37 @@ mod tests {
     }
 
     #[test]
+    fn resolved_multi_target_queries_fold_to_the_least_supported_feature_set() {
+        let mixed_targets = plan_target_transforms_from_query(
+            "chrome 123, safari 16.2",
+            conservative_target_options(),
+        );
+
+        assert_eq!(mixed_targets.profile_id, "browserslist-resolved");
+        assert_eq!(
+            mixed_targets.resolved_targets,
+            vec!["chrome 123", "safari 16.2"]
+        );
+        assert!(
+            !mixed_targets.support.supports_light_dark,
+            "safari 16.2 keeps the multi-target set below the light-dark threshold"
+        );
+        assert!(mixed_targets.support.supports_color_mix);
+        assert!(
+            mixed_targets
+                .transform_plan
+                .required_pass_ids
+                .contains(&"light-dark-lowering")
+        );
+        assert!(
+            !mixed_targets
+                .transform_plan
+                .required_pass_ids
+                .contains(&"color-mix-lowering")
+        );
+    }
+
+    #[test]
     fn invalid_target_query_uses_conservative_profile_without_claiming_recognition() {
         let plan = plan_target_transforms_from_query("yuru 1.0", conservative_target_options());
 
