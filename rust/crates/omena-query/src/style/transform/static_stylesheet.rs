@@ -131,6 +131,7 @@ pub(super) fn derive_static_scss_module_use_evaluations_for_transform_context(
     }
 
     let mut emitted_module_identity_keys = BTreeSet::new();
+    let mut configured_module_signatures_by_path = BTreeMap::new();
     entry
         .facts
         .sass_module_edges
@@ -157,6 +158,13 @@ pub(super) fn derive_static_scss_module_use_evaluations_for_transform_context(
             );
             let module_identity_key =
                 static_scss_module_instance_identity_key(resolved.as_str(), &variable_overrides);
+            if !static_scss_module_configuration_is_compatible(
+                resolved.as_str(),
+                &variable_overrides,
+                &mut configured_module_signatures_by_path,
+            ) {
+                return None;
+            }
             let module_context = {
                 let mut visited = BTreeSet::new();
                 let mut derive_context = StaticScssModuleDeriveContext {
@@ -165,13 +173,14 @@ pub(super) fn derive_static_scss_module_use_evaluations_for_transform_context(
                     package_manifests,
                     visited: &mut visited,
                     emitted_module_identity_keys: &mut emitted_module_identity_keys,
+                    configured_module_signatures_by_path: &mut configured_module_signatures_by_path,
                 };
                 derive_static_scss_module_context_for_transform_context(
                     resolved.as_str(),
                     source,
                     &variable_overrides,
                     &mut derive_context,
-                )
+                )?
             };
             let evaluated_css = if emitted_module_identity_keys.insert(module_identity_key.clone())
             {
@@ -203,6 +212,7 @@ struct StaticScssModuleDeriveContext<'a> {
     package_manifests: &'a [OmenaQueryStylePackageManifestV0],
     visited: &'a mut BTreeSet<String>,
     emitted_module_identity_keys: &'a mut BTreeSet<String>,
+    configured_module_signatures_by_path: &'a mut BTreeMap<String, String>,
 }
 
 pub(super) fn static_scss_module_instance_identity_key(
@@ -236,19 +246,45 @@ pub(super) fn static_scss_module_configuration_signature(
     key
 }
 
+fn static_scss_module_configuration_is_compatible(
+    style_path: &str,
+    variable_overrides: &BTreeMap<String, String>,
+    configured_module_signatures_by_path: &mut BTreeMap<String, String>,
+) -> bool {
+    if variable_overrides.is_empty() {
+        return true;
+    }
+    let canonical_path = canonicalize_omena_resolver_style_identity_path(style_path);
+    let signature = static_scss_module_configuration_signature(variable_overrides);
+    match configured_module_signatures_by_path.get(canonical_path.as_str()) {
+        Some(existing_signature) => existing_signature == &signature,
+        None => {
+            configured_module_signatures_by_path.insert(canonical_path, signature);
+            true
+        }
+    }
+}
+
 fn derive_static_scss_module_context_for_transform_context(
     style_path: &str,
     style_source: &str,
     variable_overrides: &BTreeMap<String, String>,
     context: &mut StaticScssModuleDeriveContext<'_>,
-) -> StaticScssModuleContext {
+) -> Option<StaticScssModuleContext> {
+    if !static_scss_module_configuration_is_compatible(
+        style_path,
+        variable_overrides,
+        context.configured_module_signatures_by_path,
+    ) {
+        return None;
+    }
     let module_identity_key =
         static_scss_module_instance_identity_key(style_path, variable_overrides);
     if !context.visited.insert(module_identity_key.clone()) {
-        return StaticScssModuleContext {
+        return Some(StaticScssModuleContext {
             evaluated_css: String::new(),
             variable_exports: BTreeMap::new(),
-        };
+        });
     }
 
     let style_source =
@@ -259,7 +295,7 @@ fn derive_static_scss_module_context_for_transform_context(
         style_path,
         style_source,
         context,
-    );
+    )?;
     let mut variable_exports = derive_static_scss_stylesheet_module_variable_exports(style_source);
     for forward in &forward_evaluations {
         for (name, value) in &forward.variable_exports {
@@ -289,10 +325,10 @@ fn derive_static_scss_module_context_for_transform_context(
     });
 
     context.visited.remove(&module_identity_key);
-    StaticScssModuleContext {
+    Some(StaticScssModuleContext {
         evaluated_css,
         variable_exports,
-    }
+    })
 }
 
 #[derive(Debug, Clone)]
@@ -307,52 +343,58 @@ fn derive_static_scss_module_forward_evaluations_for_transform_context(
     style_path: &str,
     style_source: &str,
     context: &mut StaticScssModuleDeriveContext<'_>,
-) -> Vec<StaticScssModuleForwardEvaluation> {
+) -> Option<Vec<StaticScssModuleForwardEvaluation>> {
     let facts =
         summarize_omena_query_omena_parser_style_facts(style_source, OmenaParserStyleDialect::Scss);
 
-    facts
+    let mut evaluations = Vec::new();
+    for edge in facts
         .sass_module_edges
         .iter()
         .filter(|edge| edge.kind == "sassForward")
-        .filter_map(|edge| {
-            let resolved = resolve_style_module_source(
-                style_path,
-                edge.source.as_str(),
-                context.available_style_paths,
-                context.package_manifests,
-            )?;
-            let source = context.source_by_path.get(resolved.as_str())?;
-            let variable_overrides = derive_static_scss_module_rule_variable_overrides(
-                style_source,
-                "@forward",
-                edge.source.as_str(),
-            );
-            let module_identity_key =
-                static_scss_module_instance_identity_key(resolved.as_str(), &variable_overrides);
-            let export_prefix =
-                derive_static_scss_forward_export_prefix(style_source, edge.source.as_str());
-            let module_context = derive_static_scss_module_context_for_transform_context(
-                resolved.as_str(),
-                source,
-                &variable_overrides,
-                context,
-            );
-            Some(StaticScssModuleForwardEvaluation {
-                source: edge.source.clone(),
-                module_identity_key,
-                evaluated_css: module_context.evaluated_css,
-                variable_exports: filter_static_scss_forward_exports(
-                    prefix_static_scss_forward_exports(
-                        module_context.variable_exports,
-                        export_prefix.as_deref(),
-                    ),
-                    edge.visibility_filter_kind,
-                    &edge.visibility_filter_names,
+    {
+        let Some(resolved) = resolve_style_module_source(
+            style_path,
+            edge.source.as_str(),
+            context.available_style_paths,
+            context.package_manifests,
+        ) else {
+            continue;
+        };
+        let Some(source) = context.source_by_path.get(resolved.as_str()) else {
+            continue;
+        };
+        let variable_overrides = derive_static_scss_module_rule_variable_overrides(
+            style_source,
+            "@forward",
+            edge.source.as_str(),
+        );
+        let module_identity_key =
+            static_scss_module_instance_identity_key(resolved.as_str(), &variable_overrides);
+        let export_prefix =
+            derive_static_scss_forward_export_prefix(style_source, edge.source.as_str());
+        let module_context = derive_static_scss_module_context_for_transform_context(
+            resolved.as_str(),
+            source,
+            &variable_overrides,
+            context,
+        )?;
+        evaluations.push(StaticScssModuleForwardEvaluation {
+            source: edge.source.clone(),
+            module_identity_key,
+            evaluated_css: module_context.evaluated_css,
+            variable_exports: filter_static_scss_forward_exports(
+                prefix_static_scss_forward_exports(
+                    module_context.variable_exports,
+                    export_prefix.as_deref(),
                 ),
-            })
-        })
-        .collect()
+                edge.visibility_filter_kind,
+                &edge.visibility_filter_names,
+            ),
+        });
+    }
+
+    Some(evaluations)
 }
 
 fn filter_static_scss_forward_exports(

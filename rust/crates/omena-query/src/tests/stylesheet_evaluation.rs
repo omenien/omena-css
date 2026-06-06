@@ -1,4 +1,7 @@
-use crate::execute_omena_query_consumer_build_style_source;
+use crate::{
+    OmenaQueryStyleSourceInputV0, execute_omena_query_consumer_build_style_source,
+    execute_omena_query_consumer_build_style_sources,
+};
 
 #[test]
 fn consumer_build_derives_static_scss_evaluator_context() {
@@ -322,6 +325,59 @@ fn consumer_build_derives_static_scss_evaluator_context_with_default_declaration
             .output_css
             .contains("$brand:")
     );
+}
+
+#[test]
+fn consumer_build_preserves_conflicting_sass_module_configuration_boundary() -> Result<(), String> {
+    let sources = vec![
+        OmenaQueryStyleSourceInputV0 {
+            style_path: "/tmp/tokens.scss".to_string(),
+            style_source: "$brand: blue !default; .token { color: $brand; }".to_string(),
+        },
+        OmenaQueryStyleSourceInputV0 {
+            style_path: "/tmp/theme-red.scss".to_string(),
+            style_source: r#"@forward "./tokens" with ($brand: red);"#.to_string(),
+        },
+        OmenaQueryStyleSourceInputV0 {
+            style_path: "/tmp/theme-blue.scss".to_string(),
+            style_source: r#"@forward "./tokens" with ($brand: blue);"#.to_string(),
+        },
+        OmenaQueryStyleSourceInputV0 {
+            style_path: "/tmp/App.module.scss".to_string(),
+            style_source: r#"@use "./theme-red" as redTheme;
+@use "./theme-blue" as blueTheme;
+.button { color: redTheme.$brand; background: blueTheme.$brand; }"#
+                .to_string(),
+        },
+    ];
+
+    let summary = execute_omena_query_consumer_build_style_sources(
+        "/tmp/App.module.scss",
+        sources.as_slice(),
+        &["scss-module-evaluate".to_string(), "print-css".to_string()],
+        &[],
+    )
+    .map_err(|error| format!("multi-source SCSS build should return a summary: {error}"))?;
+
+    assert!(
+        summary.execution.output_css.contains("color: red"),
+        "{}",
+        summary.execution.output_css
+    );
+    assert!(
+        !summary.execution.output_css.contains("color: blue"),
+        "{}",
+        summary.execution.output_css
+    );
+    assert!(
+        summary
+            .execution
+            .output_css
+            .contains(r#"@use "./theme-blue" as blueTheme"#),
+        "{}",
+        summary.execution.output_css
+    );
+    Ok(())
 }
 
 #[test]
