@@ -1,0 +1,6 @@
+@use "./tokens" as tokens;
+
+.button {
+  color: tokens.$brand;
+  padding-inline: tokens.$gap;
+}

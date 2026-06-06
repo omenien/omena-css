@@ -1,0 +1,13 @@
+{
+  "schemaVersion": "0",
+  "product": "omena-diff-test.sass-differential-corpus",
+  "mode": "sass-compilability",
+  "fixtures": [
+    {
+      "id": "local-use-namespace-symbol",
+      "entrypoint": "fixtures/local-use/app.module.scss",
+      "sources": ["fixtures/local-use/_tokens.scss"],
+      "expectedDivergence": "none"
+    }
+  ]
+}

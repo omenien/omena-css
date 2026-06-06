@@ -19,3 +19,8 @@ evidence in `known-failures/wpt-seed-policy.toml`; advisory chunks can grow the
 corpus without invalidating that evidence. Once advisory fixtures have their own
 review history, they can be promoted into the blocking chunk with updated
 green-run evidence.
+
+The Sass differential lane runs dart-sass 1.x as the Mode 1 compilability oracle
+for a small SCSS corpus. When dart-sass compiles a fixture, the Omena diagnostic
+path must not emit `missingSassSymbol`; any mismatch is classified before it can
+silently regress the parser/query boundary.
