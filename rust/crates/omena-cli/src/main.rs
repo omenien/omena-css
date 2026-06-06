@@ -7473,7 +7473,15 @@ export function App() {
                 verifier: "sigstore-verify".to_string(),
                 verified_trust_tier: omena_sif::OmenaSifTrustTierV1::T3,
                 verified_tlog_integrated_time: None,
-                sigstore_verification_policy: None,
+                sigstore_verification_policy: Some(
+                    omena_sif::OmenaSifSigstoreVerificationPolicyV1 {
+                        trusted_root: "sigstore-production-trusted-root".to_string(),
+                        transparency_log: true,
+                        timestamp: true,
+                        certificate_chain: true,
+                        signed_certificate_timestamp: true,
+                    },
+                ),
                 certificate_issuer: Some("https://github.com/login/oauth".to_string()),
                 certificate_identity: Some("w.vollprecht@gmail.com".to_string()),
             });

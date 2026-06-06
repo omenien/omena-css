@@ -436,8 +436,24 @@ fn validate_sigstore_verification_policy_v1(
 fn validate_attestation_verification_for_trust_tier_v1(
     verification: &OmenaSifAttestationVerificationV1,
 ) -> Result<(), String> {
+    for (field, value) in [
+        ("kind", verification.kind.as_str()),
+        ("reference", verification.reference.as_str()),
+        ("verifier", verification.verifier.as_str()),
+    ] {
+        if value.trim().is_empty() {
+            return Err(format!(
+                "attestation verification field {field} must not be empty"
+            ));
+        }
+    }
     if let Some(policy) = verification.sigstore_verification_policy.as_ref() {
         validate_sigstore_verification_policy_v1(policy)?;
+    } else if verification.verifier == "sigstore-verify" {
+        return Err(
+            "attestation verification from sigstore-verify requires sigstoreVerificationPolicy"
+                .to_string(),
+        );
     }
     if verification.verified_trust_tier == OmenaSifTrustTierV1::T3 {
         if !verification.kind.starts_with("omena-toolchain.") {
@@ -1415,6 +1431,43 @@ mod tests {
         assert!(!omena_lock_entry_has_verified_attestation_for_tier_v1(
             &entry,
             OmenaSifTrustTierV1::T3
+        ));
+
+        let mut sigstore_entry = build_omena_lock_sif_entry_v1("sif/design-system.sif.json", &sif)?;
+        sigstore_entry.trust_tier = OmenaSifTrustTierV1::T2;
+        sigstore_entry
+            .attestation_references
+            .push(OmenaSifAttestationReferenceV1 {
+                kind: "npm-provenance.url".to_string(),
+                reference: attestation_reference.clone(),
+            });
+        sigstore_entry
+            .attestation_verifications
+            .push(OmenaSifAttestationVerificationV1 {
+                kind: "npm-provenance.sigstore".to_string(),
+                reference: attestation_reference.clone(),
+                verifier: "sigstore-verify".to_string(),
+                verified_trust_tier: OmenaSifTrustTierV1::T2,
+                verified_tlog_integrated_time: Some(1_717_000_000),
+                sigstore_verification_policy: None,
+                certificate_issuer: Some("https://github.com/login/oauth".to_string()),
+                certificate_identity: None,
+            });
+        assert!(!omena_lock_entry_has_verified_attestation_for_tier_v1(
+            &sigstore_entry,
+            OmenaSifTrustTierV1::T2
+        ));
+        sigstore_entry.attestation_verifications[0].sigstore_verification_policy =
+            Some(OmenaSifSigstoreVerificationPolicyV1 {
+                trusted_root: "sigstore-production-trusted-root".to_string(),
+                transparency_log: true,
+                timestamp: true,
+                certificate_chain: true,
+                signed_certificate_timestamp: true,
+            });
+        assert!(omena_lock_entry_has_verified_attestation_for_tier_v1(
+            &sigstore_entry,
+            OmenaSifTrustTierV1::T2
         ));
 
         entry.trust_tier = OmenaSifTrustTierV1::T3;
