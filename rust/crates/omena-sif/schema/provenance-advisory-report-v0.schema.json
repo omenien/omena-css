@@ -1,0 +1,183 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://omena.dev/schemas/provenance-advisory-report-v0.schema.json",
+  "title": "Omena SIF Provenance Advisory Report v0",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "product", "enforcement", "networkAccess", "entries"],
+  "properties": {
+    "schemaVersion": {
+      "const": "0"
+    },
+    "product": {
+      "const": "omena-sif.provenance-advisory"
+    },
+    "enforcement": {
+      "enum": [
+        "referenceOnlyAdvisory",
+        "lockVerifyTier2Tier3WhenRequested",
+        "invalidRecordedAttestationEvidence"
+      ]
+    },
+    "networkAccess": {
+      "const": "none"
+    },
+    "entries": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/advisoryEntry"
+      }
+    }
+  },
+  "$defs": {
+    "trustTier": {
+      "enum": ["t0", "t1", "t2", "t3"]
+    },
+    "nonNegativeCount": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "sigstoreVerificationPolicy": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "trustedRoot",
+        "transparencyLog",
+        "timestamp",
+        "certificateChain",
+        "signedCertificateTimestamp"
+      ],
+      "properties": {
+        "trustedRoot": {
+          "type": "string",
+          "minLength": 1
+        },
+        "transparencyLog": {
+          "const": true
+        },
+        "timestamp": {
+          "const": true
+        },
+        "certificateChain": {
+          "const": true
+        },
+        "signedCertificateTimestamp": {
+          "const": true
+        }
+      }
+    },
+    "attestationVerificationPolicy": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "reference", "verifier", "verifiedTrustTier"],
+      "properties": {
+        "kind": {
+          "type": "string",
+          "minLength": 1
+        },
+        "reference": {
+          "type": "string",
+          "minLength": 1
+        },
+        "verifier": {
+          "type": "string",
+          "minLength": 1
+        },
+        "verifiedTrustTier": {
+          "$ref": "#/$defs/trustTier"
+        },
+        "verifiedTlogIntegratedTime": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "sigstoreVerificationPolicy": {
+          "$ref": "#/$defs/sigstoreVerificationPolicy"
+        },
+        "certificateIssuer": {
+          "type": "string",
+          "minLength": 1
+        },
+        "certificateIdentity": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "invalidAttestationVerificationIssue": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "reference", "verifier", "verifiedTrustTier", "reason"],
+      "properties": {
+        "kind": {
+          "type": "string",
+          "minLength": 1
+        },
+        "reference": {
+          "type": "string",
+          "minLength": 1
+        },
+        "verifier": {
+          "type": "string",
+          "minLength": 1
+        },
+        "verifiedTrustTier": {
+          "$ref": "#/$defs/trustTier"
+        },
+        "reason": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "advisoryEntry": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "canonicalUrl",
+        "trustTier",
+        "attestationReferenceCount",
+        "recordedAttestationVerificationCount",
+        "attestationVerificationCount",
+        "invalidAttestationVerificationCount",
+        "advisoryMessage"
+      ],
+      "properties": {
+        "canonicalUrl": {
+          "type": "string",
+          "minLength": 1
+        },
+        "trustTier": {
+          "$ref": "#/$defs/trustTier"
+        },
+        "attestationReferenceCount": {
+          "$ref": "#/$defs/nonNegativeCount"
+        },
+        "recordedAttestationVerificationCount": {
+          "$ref": "#/$defs/nonNegativeCount"
+        },
+        "attestationVerificationCount": {
+          "$ref": "#/$defs/nonNegativeCount"
+        },
+        "invalidAttestationVerificationCount": {
+          "$ref": "#/$defs/nonNegativeCount"
+        },
+        "attestationVerificationPolicies": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/attestationVerificationPolicy"
+          }
+        },
+        "invalidAttestationVerificationIssues": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/invalidAttestationVerificationIssue"
+          }
+        },
+        "advisoryMessage": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    }
+  }
+}

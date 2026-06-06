@@ -23,6 +23,8 @@ pub const OMENA_SIF_V1_SCHEMA_JSON: &str = include_str!("../schema/sif-v1.schema
 pub const OMENA_LOCK_V1_SCHEMA_JSON: &str = include_str!("../schema/lock-v1.schema.json");
 pub const OMENA_SIF_ATTESTATION_VERIFICATION_REPORT_V1_SCHEMA_JSON: &str =
     include_str!("../schema/attestation-verification-report-v1.schema.json");
+pub const OMENA_SIF_PROVENANCE_ADVISORY_REPORT_V0_SCHEMA_JSON: &str =
+    include_str!("../schema/provenance-advisory-report-v0.schema.json");
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 #[serde(transparent)]
@@ -1376,6 +1378,56 @@ mod tests {
             }),
             "t3 reports must require omena-toolchain evidence"
         );
+        Ok(())
+    }
+
+    #[test]
+    fn provenance_advisory_report_schema_file_is_valid_json() -> Result<(), String> {
+        let schema: Value =
+            serde_json::from_str(OMENA_SIF_PROVENANCE_ADVISORY_REPORT_V0_SCHEMA_JSON)
+                .map_err(|error| error.to_string())?;
+        assert_eq!(
+            schema.get("title").and_then(Value::as_str),
+            Some("Omena SIF Provenance Advisory Report v0")
+        );
+        assert_eq!(
+            schema.pointer("/properties/product/const"),
+            Some(&Value::String("omena-sif.provenance-advisory".to_string()))
+        );
+        assert_eq!(
+            schema.pointer("/properties/schemaVersion/const"),
+            Some(&Value::String("0".to_string()))
+        );
+        let enforcement = schema
+            .pointer("/properties/enforcement/enum")
+            .and_then(Value::as_array)
+            .ok_or_else(|| {
+                "provenance advisory schema must enumerate enforcement states".to_string()
+            })?;
+        assert!(
+            enforcement.contains(&Value::String(
+                "invalidRecordedAttestationEvidence".to_string()
+            )),
+            "provenance advisory schema must expose invalid recorded evidence"
+        );
+        let entry_properties = schema
+            .pointer("/$defs/advisoryEntry/properties")
+            .and_then(Value::as_object)
+            .ok_or_else(|| {
+                "provenance advisory schema must define advisory entry properties".to_string()
+            })?;
+        for field in [
+            "recordedAttestationVerificationCount",
+            "attestationVerificationCount",
+            "invalidAttestationVerificationCount",
+            "attestationVerificationPolicies",
+            "invalidAttestationVerificationIssues",
+        ] {
+            assert!(
+                entry_properties.contains_key(field),
+                "provenance advisory schema must preserve field {field}"
+            );
+        }
         Ok(())
     }
 
