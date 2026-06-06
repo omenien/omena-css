@@ -851,10 +851,14 @@ fn resolve_lsp_completion(state: &LspShellState, params: Option<&Value>) -> Valu
         position,
         query_candidates.as_slice(),
     );
+    let provider_feedback =
+        current_provider_tier_feedback_data(document, "textDocument/completion");
     let items: Vec<Value> = completion
         .items
         .into_iter()
-        .map(|item| lsp_completion_item_from_query(completion.file_kind, item))
+        .map(|item| {
+            lsp_completion_item_from_query(completion.file_kind, item, provider_feedback.as_ref())
+        })
         .collect();
 
     json!({
@@ -863,7 +867,11 @@ fn resolve_lsp_completion(state: &LspShellState, params: Option<&Value>) -> Valu
     })
 }
 
-fn lsp_completion_item_from_query(file_kind: &str, item: OmenaQueryCompletionItemV0) -> Value {
+fn lsp_completion_item_from_query(
+    file_kind: &str,
+    item: OmenaQueryCompletionItemV0,
+    provider_feedback: Option<&Value>,
+) -> Value {
     let kind = match (file_kind, item.item_kind) {
         ("style", "cssModuleSelector") => 7,
         (_, "cssModuleSelector") | (_, "cssCustomProperty") => 10,
@@ -886,6 +894,7 @@ fn lsp_completion_item_from_query(file_kind: &str, item: OmenaQueryCompletionIte
             "value": documentation,
         });
     }
+    attach_provider_tier_feedback(&mut completion_item, provider_feedback);
     completion_item
 }
 
@@ -2267,7 +2276,7 @@ fn resolve_lsp_hover(state: &LspShellState, params: Option<&Value>) -> Value {
                 .next()
         && let Some(target_text) = style_text_for_uri(state, target_uri.as_str())
     {
-        return json!({
+        let mut response = json!({
             "contents": {
                 "kind": "markdown",
                 "value": render_style_hover_candidate_markdown(
@@ -2278,9 +2287,15 @@ fn resolve_lsp_hover(state: &LspShellState, params: Option<&Value>) -> Value {
             },
             "range": candidate.range,
         });
+        if let Some(target_document) = state.document(target_uri.as_str()) {
+            let provider_feedback =
+                current_provider_tier_feedback_data(target_document, "textDocument/hover");
+            attach_provider_tier_feedback(&mut response, provider_feedback.as_ref());
+        }
+        return response;
     }
 
-    json!({
+    let mut response = json!({
         "contents": {
             "kind": "markdown",
             "value": render_style_hover_candidate_markdown(
@@ -2290,7 +2305,10 @@ fn resolve_lsp_hover(state: &LspShellState, params: Option<&Value>) -> Value {
             ),
         },
         "range": candidate.range,
-    })
+    });
+    let provider_feedback = current_provider_tier_feedback_data(document, "textDocument/hover");
+    attach_provider_tier_feedback(&mut response, provider_feedback.as_ref());
+    response
 }
 
 fn resolve_lsp_hover_trace(state: &LspShellState, params: Option<&Value>) -> Value {
@@ -2527,13 +2545,17 @@ fn resolve_source_lsp_hover(
     let value = render_source_hover_definitions_markdown(state, definitions.as_slice())
         .unwrap_or_else(|| format!("**`.{}`**", candidate.name));
 
-    json!({
+    let mut response = json!({
         "contents": {
             "kind": "markdown",
             "value": value,
         },
         "range": candidate.range,
-    })
+    });
+    let provider_feedback =
+        provider_tier_feedback_for_hover_definitions(state, definitions.as_slice());
+    attach_provider_tier_feedback(&mut response, provider_feedback.as_ref());
+    response
 }
 
 fn source_domain_reference_at_position(
@@ -2755,7 +2777,7 @@ fn resolve_source_lsp_completion(
             context.value_prefix.as_deref(),
         )
         .into_iter()
-        .map(|item| lsp_completion_item_from_query("source", item))
+        .map(|item| lsp_completion_item_from_query("source", item, None))
         .collect::<Vec<_>>();
         return json!({
             "isIncomplete": false,
@@ -2804,16 +2826,73 @@ fn resolve_source_lsp_completion(
         context.value_prefix.as_deref(),
         context.preferred_selector_names.as_slice(),
     );
+    let provider_feedback = target_style_uri
+        .as_deref()
+        .and_then(|uri| state.document(uri))
+        .and_then(|target_document| {
+            current_provider_tier_feedback_data(target_document, "textDocument/completion")
+        });
     let items: Vec<Value> = completion
         .items
         .into_iter()
-        .map(|item| lsp_completion_item_from_query(completion.file_kind, item))
+        .map(|item| {
+            lsp_completion_item_from_query(completion.file_kind, item, provider_feedback.as_ref())
+        })
         .collect();
 
     json!({
         "isIncomplete": false,
         "items": items,
     })
+}
+
+fn current_provider_tier_feedback_data(
+    document: &LspTextDocumentState,
+    provider: &'static str,
+) -> Option<Value> {
+    let feedback = document
+        .optimizing_tier_feedback
+        .as_ref()
+        .filter(|feedback| feedback.document_version == document.version)?;
+    Some(json!({
+        "product": "omena-lsp-server.provider-tier-feedback",
+        "source": feedback.product,
+        "provider": provider,
+        "policy": feedback.policy,
+        "consumer": "hoverCompletionProviderRequest",
+        "tier": feedback.analyzed_graph.tier,
+        "feedback": "analyzedGraphV0HotStylePrewarm",
+        "documentVersion": feedback.document_version,
+        "nodeCount": feedback.analyzed_graph.node_count,
+        "edgeCount": feedback.analyzed_graph.edge_count,
+    }))
+}
+
+fn provider_tier_feedback_for_hover_definitions(
+    state: &LspShellState,
+    definitions: &[(String, LspStyleHoverCandidate)],
+) -> Option<Value> {
+    definitions.iter().find_map(|(uri, _)| {
+        state.document(uri.as_str()).and_then(|document| {
+            current_provider_tier_feedback_data(document, "textDocument/hover")
+        })
+    })
+}
+
+fn attach_provider_tier_feedback(response: &mut Value, provider_feedback: Option<&Value>) {
+    let Some(provider_feedback) = provider_feedback else {
+        return;
+    };
+    let Some(response_object) = response.as_object_mut() else {
+        return;
+    };
+    let data = response_object.entry("data").or_insert_with(|| json!({}));
+    if let Some(data_object) = data.as_object_mut() {
+        data_object.insert(
+            "providerTierFeedback".to_string(),
+            provider_feedback.clone(),
+        );
+    }
 }
 
 struct SourceCompletionContext {

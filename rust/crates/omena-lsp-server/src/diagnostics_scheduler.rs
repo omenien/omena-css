@@ -44,6 +44,7 @@ pub fn rust_diagnostics_scheduler_contract() -> RustDiagnosticsSchedulerBoundary
             "optimizingDiagnosticsUseRustScheduledOutputDelay",
             "delayedOptimizingDiagnosticsUseLatestDocumentGeneration",
             "baselineDiagnosticsConsumeOptimizingTierFeedback",
+            "hoverCompletionProvidersConsumeOptimizingTierFeedback",
         ],
     }
 }
@@ -362,7 +363,7 @@ fn prewarm_optimizing_tier_feedback_for_hot_style_document(state: &mut LspShellS
         product: "omena-lsp-server.optimizing-tier-feedback",
         document_version: document.version,
         policy: "hotStyleDiagnosticsPrewarm",
-        consumer: "diagnosticsPipelineTierPlan",
+        consumer: "diagnosticsPipelineTierPlanAndProviderRequests",
         analyzed_graph,
     });
 }
@@ -639,9 +640,77 @@ mod tests {
         );
         assert_eq!(feedback.document_version, 2);
         assert_eq!(feedback.policy, "hotStyleDiagnosticsPrewarm");
-        assert_eq!(feedback.consumer, "diagnosticsPipelineTierPlan");
+        assert_eq!(
+            feedback.consumer,
+            "diagnosticsPipelineTierPlanAndProviderRequests"
+        );
         assert_eq!(feedback.analyzed_graph.tier, "analyzedGraphV0");
         assert_eq!(feedback.analyzed_graph.fast_facts.selector_count, 2);
+
+        let hover_response = crate::handle_lsp_message(
+            &mut state,
+            json!({
+                "jsonrpc": "2.0",
+                "id": 3,
+                "method": "textDocument/hover",
+                "params": {
+                    "textDocument": {
+                        "uri": uri,
+                    },
+                    "position": {
+                        "line": 2,
+                        "character": 2,
+                    },
+                },
+            }),
+        );
+        assert_eq!(
+            hover_response
+                .as_ref()
+                .and_then(|value| value.pointer("/result/data/providerTierFeedback/provider")),
+            Some(&json!("textDocument/hover")),
+        );
+        assert_eq!(
+            hover_response
+                .as_ref()
+                .and_then(|value| value.pointer("/result/data/providerTierFeedback/feedback")),
+            Some(&json!("analyzedGraphV0HotStylePrewarm")),
+        );
+
+        let completion_response = crate::handle_lsp_message(
+            &mut state,
+            json!({
+                "jsonrpc": "2.0",
+                "id": 4,
+                "method": "textDocument/completion",
+                "params": {
+                    "textDocument": {
+                        "uri": uri,
+                    },
+                    "position": {
+                        "line": 2,
+                        "character": 0,
+                    },
+                },
+            }),
+        );
+        let completion_items = completion_response
+            .as_ref()
+            .and_then(|value| value.pointer("/result/items"))
+            .and_then(Value::as_array)
+            .ok_or("completion items should be present")?;
+        let card_completion = completion_items
+            .iter()
+            .find(|item| item.pointer("/label") == Some(&json!(".card")))
+            .ok_or("card selector completion should be present")?;
+        assert_eq!(
+            card_completion.pointer("/data/providerTierFeedback/provider"),
+            Some(&json!("textDocument/completion")),
+        );
+        assert_eq!(
+            card_completion.pointer("/data/providerTierFeedback/feedback"),
+            Some(&json!("analyzedGraphV0HotStylePrewarm")),
+        );
         Ok(())
     }
 

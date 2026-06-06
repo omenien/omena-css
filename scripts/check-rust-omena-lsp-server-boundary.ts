@@ -316,6 +316,11 @@ assert.ok(
   ),
 );
 assert.ok(
+  rustSummary.diagnosticsScheduler.requestPathPolicy.includes(
+    "hoverCompletionProvidersConsumeOptimizingTierFeedback",
+  ),
+);
+assert.ok(
   !rustSummary.nextDecouplingTargets.includes("rustDiagnosticsScheduler"),
   "implemented diagnostics scheduler should not remain listed as a next target",
 );
