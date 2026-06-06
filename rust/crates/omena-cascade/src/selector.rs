@@ -172,8 +172,19 @@ pub fn selector_signature_co_match_verdict(
     {
         return SelectorMatchVerdict::No;
     }
+    if selector_signature_has_lossy_co_match_constraints(left)
+        || selector_signature_has_lossy_co_match_constraints(right)
+    {
+        return SelectorMatchVerdict::Maybe;
+    }
 
     SelectorMatchVerdict::Yes
+}
+
+fn selector_signature_has_lossy_co_match_constraints(signature: &SelectorSignature) -> bool {
+    selector_has_attribute_value_or_modifier(signature.selector.as_str())
+        || selector_has_functional_pseudo(signature.selector.as_str())
+        || selector_has_pseudo_element(signature.selector.as_str())
 }
 
 fn selector_match_branch_witness(
@@ -495,6 +506,53 @@ fn read_attribute_name(attribute: &str) -> Option<String> {
         .split(|ch: char| ch.is_whitespace() || matches!(ch, '=' | '~' | '|' | '^' | '$' | '*'))
         .find(|part| !part.is_empty())?;
     Some(name.to_string())
+}
+
+fn selector_has_attribute_value_or_modifier(selector: &str) -> bool {
+    let chars = selector.chars().collect::<Vec<_>>();
+    let mut index = 0usize;
+    while index < chars.len() {
+        if chars[index] == '[' {
+            let Some(close) = find_closing_bracket(&chars, index) else {
+                return true;
+            };
+            let attribute = chars[index + 1..close].iter().collect::<String>();
+            if attribute
+                .chars()
+                .any(|ch| ch.is_whitespace() || matches!(ch, '=' | '~' | '|' | '^' | '$' | '*'))
+            {
+                return true;
+            }
+            index = close + 1;
+        } else {
+            index += 1;
+        }
+    }
+    false
+}
+
+fn selector_has_functional_pseudo(selector: &str) -> bool {
+    let chars = selector.chars().collect::<Vec<_>>();
+    let mut index = 0usize;
+    while index < chars.len() {
+        if chars[index] == ':' && !matches!(chars.get(index + 1), Some(':')) {
+            index += 1;
+            let Some((_, next)) = read_identifier(&chars, index) else {
+                return true;
+            };
+            if matches!(chars.get(next), Some('(')) {
+                return true;
+            }
+            index = next;
+        } else {
+            index += 1;
+        }
+    }
+    false
+}
+
+fn selector_has_pseudo_element(selector: &str) -> bool {
+    selector.contains("::")
 }
 
 fn read_identifier(chars: &[char], start: usize) -> Option<(String, usize)> {

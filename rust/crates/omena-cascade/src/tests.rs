@@ -992,6 +992,18 @@ fn selector_co_match_returns_maybe_for_unsupported_selector_syntax() {
         selector_co_match_verdict(".btn:is(.active)", ".btn .icon"),
         SelectorMatchVerdict::Maybe
     );
+    assert_eq!(
+        selector_co_match_verdict("[type=text]", "[type=number]"),
+        SelectorMatchVerdict::Maybe
+    );
+    assert_eq!(
+        selector_co_match_verdict(".btn:is(.active)", ".btn"),
+        SelectorMatchVerdict::Maybe
+    );
+    assert_eq!(
+        selector_co_match_verdict(".btn::before", ".btn"),
+        SelectorMatchVerdict::Maybe
+    );
 }
 
 #[test]
