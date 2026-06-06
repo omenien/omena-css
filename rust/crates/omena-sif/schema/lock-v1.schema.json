@@ -55,6 +55,12 @@
           "items": {
             "$ref": "#/$defs/attestationReference"
           }
+        },
+        "attestationVerifications": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/attestationVerification"
+          }
         }
       }
     },
@@ -73,6 +79,28 @@
         "reference": {
           "type": "string",
           "minLength": 1
+        }
+      }
+    },
+    "attestationVerification": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "reference", "verifier", "verifiedTrustTier"],
+      "properties": {
+        "kind": {
+          "type": "string",
+          "minLength": 1
+        },
+        "reference": {
+          "type": "string",
+          "minLength": 1
+        },
+        "verifier": {
+          "type": "string",
+          "minLength": 1
+        },
+        "verifiedTrustTier": {
+          "$ref": "#/$defs/trustTier"
         }
       }
     }
