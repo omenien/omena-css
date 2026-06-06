@@ -41,6 +41,15 @@ try {
     "explicit --external ignored must preserve Phase 0 compatibility",
   );
 
+  writeFileSync(lockfilePath, "{ not json");
+  const invalid = runStyleDiagnostics([appPath, "--json"]);
+  assertDiagnostic(
+    invalid,
+    "lockfileInvalid",
+    "malformed auto-discovered omena.lock should surface a product diagnostic",
+  );
+  writeFileSync(lockfilePath, '{"entries":[],"lockfileVersion":"1"}');
+
   runOmena([
     "sif",
     "generate",

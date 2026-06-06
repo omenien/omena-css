@@ -2317,8 +2317,13 @@ fn style_diagnostics(
         let workspace_sources = read_workspace_sources(&path, &source, &source_paths)?;
         let source_documents = read_source_documents(&source_document_paths)?;
         let mut external_sifs = read_external_sifs(&sif_paths)?;
+        let mut lockfile_diagnostics = Vec::new();
         if uses_external_sif_path && let Some(lockfile) = resolved_lockfile.as_ref() {
-            external_sifs.extend(read_lock_external_sifs(lockfile)?);
+            match read_lock_external_sifs(lockfile) {
+                Ok(lock_sifs) => external_sifs.extend(lock_sifs),
+                Err(error) => lockfile_diagnostics
+                    .push(lockfile_invalid_style_diagnostic(lockfile, error.as_str())),
+            }
         }
         // #33: an `@use "file:///…"` edge now routes through the external-SIF branch
         // (resolver `is_external_style_module_source`). Generate the bridge SIF for each such
@@ -2357,6 +2362,7 @@ fn style_diagnostics(
                 source_documents.as_slice(),
                 package_manifests.as_slice(),
             ));
+        summary.diagnostics.extend(lockfile_diagnostics);
         summary.diagnostic_count = summary.diagnostics.len();
         summary
     };
@@ -2421,6 +2427,31 @@ fn summarize_cross_file_streaming_reachability_diagnostics(
         polynomial_provenance: None,
         cross_file_scc: None,
     }]
+}
+
+fn lockfile_invalid_style_diagnostic(
+    lockfile: &Path,
+    message: &str,
+) -> OmenaQueryStyleDiagnosticV0 {
+    OmenaQueryStyleDiagnosticV0 {
+        code: "lockfileInvalid",
+        severity: "error",
+        provenance: vec![
+            "omena-cli.lockfile-loader",
+            "omena-query.external-sif-boundary-diagnostics",
+        ],
+        range: ParserRangeV0::default(),
+        message: format!(
+            "Failed to load {} for external SIF diagnostics: {message}",
+            path_string(lockfile)
+        ),
+        tags: Vec::new(),
+        create_custom_property: None,
+        cascade_narrowing: None,
+        cascade_confidence: None,
+        polynomial_provenance: None,
+        cross_file_scc: None,
+    }
 }
 
 fn read_external_sifs(paths: &[PathBuf]) -> Result<Vec<OmenaQueryExternalSifInputV0>, String> {
