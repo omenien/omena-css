@@ -1,10 +1,10 @@
 use crate::{
-    OmenaQueryCompletionCandidateV0, OmenaQuerySourceSelectorReferenceCandidateV0,
-    OmenaQuerySourceSelectorReferenceEditTargetV0, OmenaQueryStyleSelectorDefinitionV0,
-    OmenaQueryStyleSourceInputV0, ParserPositionV0, ParserRangeV0,
-    resolve_omena_query_style_uri_for_specifier, summarize_omena_query_missing_selector_diagnostic,
-    summarize_omena_query_refs_for_class, summarize_omena_query_rename_plan,
-    summarize_omena_query_source_completion_at_position,
+    AbstractPropertyValueV0, OmenaQueryCompletionCandidateV0,
+    OmenaQuerySourceSelectorReferenceCandidateV0, OmenaQuerySourceSelectorReferenceEditTargetV0,
+    OmenaQueryStyleSelectorDefinitionV0, OmenaQueryStyleSourceInputV0, ParserPositionV0,
+    ParserRangeV0, resolve_omena_query_style_uri_for_specifier,
+    summarize_omena_query_missing_selector_diagnostic, summarize_omena_query_refs_for_class,
+    summarize_omena_query_rename_plan, summarize_omena_query_source_completion_at_position,
     summarize_omena_query_style_completion_at_position,
     summarize_omena_query_style_extract_code_actions, summarize_omena_query_style_hover_candidates,
     summarize_omena_query_style_hover_render_parts,
@@ -135,6 +135,36 @@ fn style_hover_render_parts_are_query_owned() {
             && narrowing.requested_layer_name.as_deref() == Some("theme")
             && narrowing.matched_candidate_count == 1
     }));
+}
+
+#[test]
+fn style_hover_render_parts_narrow_same_selector_values_by_source_order() {
+    let selector = summarize_omena_query_style_hover_render_parts(
+        ".button { color: red; }\n.button { color: blue; }",
+        "selector",
+        "button",
+        ParserPositionV0 {
+            line: 1,
+            character: 1,
+        },
+    );
+
+    let color = selector
+        .property_value_narrowings
+        .iter()
+        .find(|narrowing| narrowing.property_name == "color");
+    assert_eq!(
+        color.map(|narrowing| narrowing.matched_candidate_count),
+        Some(2)
+    );
+    assert_eq!(
+        color.map(|narrowing| &narrowing.value),
+        Some(&AbstractPropertyValueV0::Exact {
+            property_name: "color".to_string(),
+            value: "blue".to_string(),
+            pseudo_state: None,
+        })
+    );
 }
 
 #[test]

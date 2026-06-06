@@ -1033,6 +1033,9 @@ fn summarize_query_cascade_narrowing_for_evaluation(
             condition_context: declaration.condition_context.clone(),
             layer_name: declaration.layer_name.clone(),
             layer_order: declaration.layer_order,
+            source_order: Some(declaration.source_order),
+            important: declaration.important,
+            same_selector_ordering: true,
         })
         .collect::<Vec<_>>();
     let property_value_narrowing = narrow_abstract_property_value_for_cascade_branch(
@@ -1387,6 +1390,9 @@ fn query_runtime_state_scenario(
             condition_context: declaration.condition_context.clone(),
             layer_name: declaration.layer_name.clone(),
             layer_order: declaration.layer_order,
+            source_order: Some(declaration.source_order),
+            important: declaration.important,
+            same_selector_ordering: false,
         })
         .collect::<Vec<_>>();
     let property_value_narrowing = narrow_abstract_property_value_for_cascade_branch(

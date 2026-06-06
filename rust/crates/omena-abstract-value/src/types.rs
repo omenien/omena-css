@@ -309,6 +309,9 @@ pub struct AbstractPropertyValueCandidateV0 {
     pub condition_context: Vec<String>,
     pub layer_name: Option<String>,
     pub layer_order: Option<i32>,
+    pub source_order: Option<u32>,
+    pub important: bool,
+    pub same_selector_ordering: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]

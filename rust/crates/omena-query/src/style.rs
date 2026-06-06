@@ -246,6 +246,9 @@ fn selector_property_value_narrowings_for_hover(
                         condition_context: declaration.input.condition_context.clone(),
                         layer_name: declaration.input.layer_name.clone(),
                         layer_order: declaration.input.layer_order,
+                        source_order: Some(declaration.input.source_order),
+                        important: declaration.input.important,
+                        same_selector_ordering: true,
                     })
                     .collect::<Vec<_>>();
                 narrow_abstract_property_value_for_cascade_branch(
@@ -333,6 +336,9 @@ fn selector_property_value_narrowings_for_hover_module_graph(
                         condition_context: declaration.input.condition_context.clone(),
                         layer_name: declaration.input.layer_name.clone(),
                         layer_order: declaration.input.layer_order,
+                        source_order: Some(declaration.input.source_order),
+                        important: declaration.input.important,
+                        same_selector_ordering: false,
                     })
                     .collect::<Vec<_>>();
                 let mut narrowed = narrow_abstract_property_value_for_cascade_branch(

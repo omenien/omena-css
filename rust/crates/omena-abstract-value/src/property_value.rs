@@ -47,6 +47,7 @@ pub fn narrow_abstract_property_value_for_cascade_branch(
         property_name,
         requested_pseudo_state,
         &matched,
+        exact_layer,
     );
 
     AbstractPropertyValueNarrowingV0 {
@@ -73,7 +74,27 @@ fn abstract_property_value_from_matched_candidates(
     property_name: &str,
     requested_pseudo_state: Option<&str>,
     matched: &[&AbstractPropertyValueCandidateV0],
+    exact_layer: bool,
 ) -> AbstractPropertyValueV0 {
+    if exact_layer
+        && matched.len() > 1
+        && matched
+            .iter()
+            .all(|candidate| candidate.same_selector_ordering && candidate.source_order.is_some())
+    {
+        let winner = matched
+            .iter()
+            .max_by_key(|candidate| (candidate.important, candidate.source_order.unwrap_or(0)))
+            .copied();
+        if let Some(winner) = winner {
+            return abstract_property_value_from_single_candidate(
+                property_name,
+                requested_pseudo_state,
+                winner.value.trim(),
+            );
+        }
+    }
+
     let mut values = matched
         .iter()
         .map(|candidate| candidate.value.trim())
@@ -86,19 +107,11 @@ fn abstract_property_value_from_matched_candidates(
     }
 
     if values.len() == 1 {
-        let value = values.pop_first().unwrap_or_default().to_string();
-        if let Some(custom_property_name) = referenced_custom_property_name(value.as_str()) {
-            return AbstractPropertyValueV0::CustomPropertyReference {
-                property_name: property_name.to_string(),
-                custom_property_name,
-                pseudo_state: requested_pseudo_state.map(str::to_string),
-            };
-        }
-        return AbstractPropertyValueV0::Exact {
-            property_name: property_name.to_string(),
-            value,
-            pseudo_state: requested_pseudo_state.map(str::to_string),
-        };
+        return abstract_property_value_from_single_candidate(
+            property_name,
+            requested_pseudo_state,
+            values.pop_first().unwrap_or_default(),
+        );
     }
 
     let pseudo_states = matched
@@ -113,6 +126,26 @@ fn abstract_property_value_from_matched_candidates(
         property_name: property_name.to_string(),
         values: values.into_iter().map(str::to_string).collect(),
         pseudo_states,
+    }
+}
+
+fn abstract_property_value_from_single_candidate(
+    property_name: &str,
+    requested_pseudo_state: Option<&str>,
+    value: &str,
+) -> AbstractPropertyValueV0 {
+    let value = value.to_string();
+    if let Some(custom_property_name) = referenced_custom_property_name(value.as_str()) {
+        return AbstractPropertyValueV0::CustomPropertyReference {
+            property_name: property_name.to_string(),
+            custom_property_name,
+            pseudo_state: requested_pseudo_state.map(str::to_string),
+        };
+    }
+    AbstractPropertyValueV0::Exact {
+        property_name: property_name.to_string(),
+        value,
+        pseudo_state: requested_pseudo_state.map(str::to_string),
     }
 }
 

@@ -431,6 +431,9 @@ fn narrows_property_values_to_requested_cascade_branch() {
             condition_context: media_context.clone(),
             layer_name: Some("components".to_string()),
             layer_order: Some(0),
+            source_order: Some(0),
+            important: false,
+            same_selector_ordering: true,
         },
         AbstractPropertyValueCandidateV0 {
             property_name: "color".to_string(),
@@ -439,6 +442,9 @@ fn narrows_property_values_to_requested_cascade_branch() {
             condition_context: media_context.clone(),
             layer_name: Some("theme".to_string()),
             layer_order: Some(1),
+            source_order: Some(1),
+            important: false,
+            same_selector_ordering: true,
         },
         AbstractPropertyValueCandidateV0 {
             property_name: "color".to_string(),
@@ -447,6 +453,9 @@ fn narrows_property_values_to_requested_cascade_branch() {
             condition_context: Vec::new(),
             layer_name: Some("components".to_string()),
             layer_order: Some(0),
+            source_order: Some(2),
+            important: false,
+            same_selector_ordering: true,
         },
     ];
 
@@ -472,6 +481,100 @@ fn narrows_property_values_to_requested_cascade_branch() {
             property_name: "color".to_string(),
             value: "blue".to_string(),
             pseudo_state: None,
+        }
+    );
+}
+
+#[test]
+fn narrows_same_selector_property_values_to_latest_source_order() {
+    let candidates = vec![
+        AbstractPropertyValueCandidateV0 {
+            property_name: "color".to_string(),
+            value: "red".to_string(),
+            pseudo_state: None,
+            condition_context: Vec::new(),
+            layer_name: None,
+            layer_order: None,
+            source_order: Some(0),
+            important: false,
+            same_selector_ordering: true,
+        },
+        AbstractPropertyValueCandidateV0 {
+            property_name: "color".to_string(),
+            value: "blue".to_string(),
+            pseudo_state: None,
+            condition_context: Vec::new(),
+            layer_name: None,
+            layer_order: None,
+            source_order: Some(1),
+            important: false,
+            same_selector_ordering: true,
+        },
+    ];
+
+    let narrowed = narrow_abstract_property_value_for_cascade_branch(
+        "color",
+        None,
+        &[],
+        None,
+        None,
+        true,
+        candidates.as_slice(),
+    );
+
+    assert_eq!(
+        narrowed.value,
+        AbstractPropertyValueV0::Exact {
+            property_name: "color".to_string(),
+            value: "blue".to_string(),
+            pseudo_state: None,
+        }
+    );
+}
+
+#[test]
+fn keeps_property_value_set_when_selector_ordering_is_unknown() {
+    let candidates = vec![
+        AbstractPropertyValueCandidateV0 {
+            property_name: "color".to_string(),
+            value: "red".to_string(),
+            pseudo_state: None,
+            condition_context: Vec::new(),
+            layer_name: None,
+            layer_order: None,
+            source_order: Some(0),
+            important: false,
+            same_selector_ordering: false,
+        },
+        AbstractPropertyValueCandidateV0 {
+            property_name: "color".to_string(),
+            value: "blue".to_string(),
+            pseudo_state: None,
+            condition_context: Vec::new(),
+            layer_name: None,
+            layer_order: None,
+            source_order: Some(1),
+            important: false,
+            same_selector_ordering: false,
+        },
+    ];
+
+    let narrowed = narrow_abstract_property_value_for_cascade_branch(
+        "color",
+        None,
+        &[],
+        None,
+        None,
+        true,
+        candidates.as_slice(),
+    );
+
+    assert_eq!(
+        narrowed.value,
+        AbstractPropertyValueV0::FiniteSet {
+            property_name: "color".to_string(),
+            values: vec!["blue".to_string(), "red".to_string()],
+            pseudo_states: Vec::new(),
         }
     );
 }
@@ -2412,6 +2515,9 @@ fn property_candidate(
         condition_context: Vec::new(),
         layer_name: None,
         layer_order: None,
+        source_order: None,
+        important: false,
+        same_selector_ordering: false,
     }
 }
 

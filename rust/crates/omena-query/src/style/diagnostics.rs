@@ -1847,6 +1847,9 @@ fn attach_omena_query_module_graph_property_value_narrowing_for_workspace(
                         condition_context: declaration.input.condition_context,
                         layer_name: declaration.input.layer_name,
                         layer_order: declaration.input.layer_order,
+                        source_order: Some(declaration.input.source_order),
+                        important: declaration.input.important,
+                        same_selector_ordering: false,
                     },
                 )
             })
@@ -1965,6 +1968,9 @@ fn omena_query_inline_style_runtime_override_scenario(
             condition_context: Vec::new(),
             layer_name: None,
             layer_order: None,
+            source_order: Some(0),
+            important: true,
+            same_selector_ordering: true,
         }],
     );
 
