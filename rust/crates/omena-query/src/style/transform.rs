@@ -17,7 +17,10 @@ use css_modules::{
     derive_css_module_value_resolutions_for_transform_context,
 };
 use design_tokens::derive_design_token_routes_for_transform_context;
-use imports::derive_import_inlines_for_transform_context;
+use imports::{
+    derive_import_inlines_for_transform_context,
+    resolve_import_inline_replacement_for_transform_context,
+};
 use static_stylesheet::{
     derive_static_scss_module_rule_variable_overrides,
     derive_static_scss_module_use_evaluations_for_transform_context,
@@ -641,6 +644,16 @@ fn import_inline_source_map_segments(
     package_manifests: &[OmenaQueryStylePackageManifestV0],
 ) -> Vec<TransformSourceMapSegmentV0> {
     let mut segments = Vec::new();
+    let mut seen_segments = BTreeSet::new();
+    extend_import_graph_source_map_segments(
+        &mut segments,
+        &mut seen_segments,
+        style_path,
+        execution,
+        source_by_path,
+        available_style_paths,
+        package_manifests,
+    );
     let mut search_start = 0;
     for inline in &execution.css_import_inlines {
         if inline.replacement_css.is_empty() || search_start > execution.output_css.len() {
@@ -665,27 +678,172 @@ fn import_inline_source_map_segments(
         };
         let generated_start = search_start + relative_start;
         let generated_end = generated_start + inline.replacement_css.len();
-        segments.push(TransformSourceMapSegmentV0 {
-            source_path: resolved_style_path,
-            original_start: 0,
-            original_end: imported_source.len(),
+        push_unique_import_origin_segment(
+            &mut segments,
+            &mut seen_segments,
+            resolved_style_path,
+            imported_source,
+            execution.output_css.as_str(),
             generated_start,
             generated_end,
-            original_start_point: transform_source_map_point(imported_source, 0),
-            original_end_point: transform_source_map_point(imported_source, imported_source.len()),
-            generated_start_point: transform_source_map_point(
-                execution.output_css.as_str(),
-                generated_start,
-            ),
-            generated_end_point: transform_source_map_point(
-                execution.output_css.as_str(),
-                generated_end,
-            ),
-            pass_id: TransformPassKind::ImportInline.id(),
-        });
+        );
         search_start = generated_end;
     }
     segments
+}
+
+fn extend_import_graph_source_map_segments(
+    segments: &mut Vec<TransformSourceMapSegmentV0>,
+    seen_segments: &mut BTreeSet<(String, usize, usize, &'static str)>,
+    style_path: &str,
+    execution: &TransformExecutionSummaryV0,
+    source_by_path: &BTreeMap<&str, &str>,
+    available_style_paths: &BTreeSet<&str>,
+    package_manifests: &[OmenaQueryStylePackageManifestV0],
+) {
+    let style_sources = source_by_path
+        .iter()
+        .map(|(style_path, style_source)| (*style_path, *style_source))
+        .collect::<Vec<_>>();
+    let style_fact_entries = collect_omena_query_style_fact_entries(style_sources.as_slice());
+    let entries_by_path = style_fact_entries
+        .iter()
+        .map(|entry| (entry.style_path.as_str(), entry))
+        .collect::<BTreeMap<_, _>>();
+    let owned_source_by_path = source_by_path
+        .iter()
+        .map(|(style_path, style_source)| ((*style_path).to_string(), (*style_source).to_string()))
+        .collect::<BTreeMap<_, _>>();
+    let mut visiting = BTreeSet::new();
+    collect_import_graph_source_map_segments(
+        segments,
+        seen_segments,
+        style_path,
+        0,
+        execution.output_css.len(),
+        execution.output_css.as_str(),
+        &entries_by_path,
+        &owned_source_by_path,
+        source_by_path,
+        available_style_paths,
+        package_manifests,
+        &mut visiting,
+    );
+}
+
+fn collect_import_graph_source_map_segments(
+    segments: &mut Vec<TransformSourceMapSegmentV0>,
+    seen_segments: &mut BTreeSet<(String, usize, usize, &'static str)>,
+    importer_style_path: &str,
+    generated_start_bound: usize,
+    generated_end_bound: usize,
+    output_css: &str,
+    entries_by_path: &BTreeMap<&str, &OmenaQueryStyleFactEntry>,
+    owned_source_by_path: &BTreeMap<String, String>,
+    source_by_path: &BTreeMap<&str, &str>,
+    available_style_paths: &BTreeSet<&str>,
+    package_manifests: &[OmenaQueryStylePackageManifestV0],
+    visiting: &mut BTreeSet<String>,
+) {
+    if !visiting.insert(importer_style_path.to_string()) {
+        return;
+    }
+    let Some(entry) = entries_by_path.get(importer_style_path) else {
+        visiting.remove(importer_style_path);
+        return;
+    };
+
+    for edge in entry
+        .facts
+        .sass_module_edges
+        .iter()
+        .filter(|edge| edge.kind == "sassImport")
+    {
+        let Some(resolved_style_path) = resolve_style_module_source(
+            importer_style_path,
+            edge.source.as_str(),
+            available_style_paths,
+            package_manifests,
+        ) else {
+            continue;
+        };
+        let Some(imported_source) = source_by_path.get(resolved_style_path.as_str()).copied()
+        else {
+            continue;
+        };
+        let Some(replacement_css) = resolve_import_inline_replacement_for_transform_context(
+            resolved_style_path.as_str(),
+            entries_by_path,
+            available_style_paths,
+            owned_source_by_path,
+            package_manifests,
+            &mut BTreeSet::new(),
+        ) else {
+            continue;
+        };
+        if replacement_css.is_empty() || generated_start_bound > generated_end_bound {
+            continue;
+        }
+        let search_range = generated_start_bound..generated_end_bound;
+        let Some(relative_start) = output_css[search_range.clone()].find(replacement_css.as_str())
+        else {
+            continue;
+        };
+        let generated_start = generated_start_bound + relative_start;
+        let generated_end = generated_start + replacement_css.len();
+        push_unique_import_origin_segment(
+            segments,
+            seen_segments,
+            resolved_style_path.clone(),
+            imported_source,
+            output_css,
+            generated_start,
+            generated_end,
+        );
+        collect_import_graph_source_map_segments(
+            segments,
+            seen_segments,
+            resolved_style_path.as_str(),
+            generated_start,
+            generated_end,
+            output_css,
+            entries_by_path,
+            owned_source_by_path,
+            source_by_path,
+            available_style_paths,
+            package_manifests,
+            visiting,
+        );
+    }
+
+    visiting.remove(importer_style_path);
+}
+
+fn push_unique_import_origin_segment(
+    segments: &mut Vec<TransformSourceMapSegmentV0>,
+    seen_segments: &mut BTreeSet<(String, usize, usize, &'static str)>,
+    source_path: String,
+    source: &str,
+    output_css: &str,
+    generated_start: usize,
+    generated_end: usize,
+) {
+    let pass_id = TransformPassKind::ImportInline.id();
+    if !seen_segments.insert((source_path.clone(), generated_start, generated_end, pass_id)) {
+        return;
+    }
+    segments.push(TransformSourceMapSegmentV0 {
+        source_path,
+        original_start: 0,
+        original_end: source.len(),
+        generated_start,
+        generated_end,
+        original_start_point: transform_source_map_point(source, 0),
+        original_end_point: transform_source_map_point(source, source.len()),
+        generated_start_point: transform_source_map_point(output_css, generated_start),
+        generated_end_point: transform_source_map_point(output_css, generated_end),
+        pass_id,
+    });
 }
 
 fn derive_single_source_transform_context(

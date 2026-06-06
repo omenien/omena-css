@@ -41,7 +41,7 @@ pub(super) fn derive_import_inlines_for_transform_context(
         .collect()
 }
 
-fn resolve_import_inline_replacement_for_transform_context(
+pub(super) fn resolve_import_inline_replacement_for_transform_context(
     style_path: &str,
     entries_by_path: &BTreeMap<&str, &OmenaQueryStyleFactEntry>,
     available_style_paths: &BTreeSet<&str>,

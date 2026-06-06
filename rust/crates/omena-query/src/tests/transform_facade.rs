@@ -148,11 +148,15 @@ fn consumer_build_source_map_v3_preserves_bundle_import_origins() -> Result<(), 
     let sources = vec![
         OmenaQueryStyleSourceInputV0 {
             style_path: "src/App.css".to_string(),
-            style_source: r#"@import "./tokens.css"; .app { color: green; }"#.to_string(),
+            style_source: r#"@import "./theme/tokens.css"; .app { color: green; }"#.to_string(),
         },
         OmenaQueryStyleSourceInputV0 {
-            style_path: "src/tokens.css".to_string(),
-            style_source: ".token { color: blue; }".to_string(),
+            style_path: "src/theme/tokens.css".to_string(),
+            style_source: r#"@import "./base.css"; .token { color: blue; }"#.to_string(),
+        },
+        OmenaQueryStyleSourceInputV0 {
+            style_path: "src/theme/base.css".to_string(),
+            style_source: ".base { color: red; }".to_string(),
         },
     ];
     let mut summary = execute_omena_query_consumer_build_style_sources(
@@ -169,6 +173,12 @@ fn consumer_build_source_map_v3_preserves_bundle_import_origins() -> Result<(), 
         summary
             .execution
             .output_css
+            .contains(".base { color: red; }")
+    );
+    assert!(
+        summary
+            .execution
+            .output_css
             .contains(".token { color: blue; }")
     );
     assert!(!summary.execution.output_css.contains("@import"));
@@ -177,14 +187,31 @@ fn consumer_build_source_map_v3_preserves_bundle_import_origins() -> Result<(), 
         .as_ref()
         .ok_or_else(|| "consumer build should attach bundle-aware Source Map V3".to_string())?;
     assert!(source_map.sources.contains(&"src/App.css".to_string()));
-    assert!(source_map.sources.contains(&"src/tokens.css".to_string()));
+    assert!(
+        source_map
+            .sources
+            .contains(&"src/theme/tokens.css".to_string())
+    );
+    assert!(
+        source_map
+            .sources
+            .contains(&"src/theme/base.css".to_string())
+    );
     assert!(
         source_map
             .sources
             .iter()
-            .position(|source| source == "src/tokens.css")
+            .position(|source| source == "src/theme/tokens.css")
             .and_then(|index| source_map.sources_content.get(index))
-            .is_some_and(|content| content == ".token { color: blue; }")
+            .is_some_and(|content| content == r#"@import "./base.css"; .token { color: blue; }"#)
+    );
+    assert!(
+        source_map
+            .sources
+            .iter()
+            .position(|source| source == "src/theme/base.css")
+            .and_then(|index| source_map.sources_content.get(index))
+            .is_some_and(|content| content == ".base { color: red; }")
     );
     assert!(source_map.x_omena_pass_ids.contains(&"import-inline"));
     assert!(
