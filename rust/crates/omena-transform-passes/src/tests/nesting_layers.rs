@@ -294,6 +294,40 @@ fn layer_flatten_inversion_obligation_tracks_co_matching_selector_pairs() {
     );
 }
 
+#[test]
+fn layer_flatten_inversion_obligation_keeps_maybe_co_matches_competing() {
+    let context = TransformExecutionContextV0 {
+        closed_style_world: true,
+        ..TransformExecutionContextV0::default()
+    };
+    let source = concat!(
+        "@layer utilities, base; ",
+        "@layer base { .btn .icon { color: red; } } ",
+        "@layer utilities { .btn:is(.active) { color: blue; } }"
+    );
+
+    let execution = execute_transform_passes_on_source_with_dialect_and_context(
+        source,
+        StyleDialect::Css,
+        &[TransformPassKind::LayerFlatten, TransformPassKind::PrintCss],
+        &context,
+    );
+    let inversion_obligations = execution
+        .cascade_proof_obligations
+        .obligations
+        .iter()
+        .filter(|obligation| {
+            obligation.proof_product == "omena-cascade.layer-flatten-inversion-proof"
+        })
+        .collect::<Vec<_>>();
+
+    assert_eq!(
+        inversion_obligations.len(),
+        1,
+        "unsupported selector structure must stay possibly competing: {inversion_obligations:?}"
+    );
+}
+
 /// Mechanism-depth guard: the layer-flatten obligation's `accepted` flag is the
 /// SMT solver's sat verdict over the obligation's own canonical input, not an
 /// independent L1 flag.

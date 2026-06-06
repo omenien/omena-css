@@ -2783,6 +2783,22 @@ mod tests {
         );
     }
 
+    #[test]
+    fn layer_inversion_obligations_keep_maybe_co_matches_competing() {
+        let declarations = vec![
+            layered_declaration("base", ".btn .icon", "color", 20, 0),
+            layered_declaration("theme", ".btn:is(.active)", "color", 10, 1),
+        ];
+
+        let obligations = query_smt_layer_inversion_obligations(&declarations);
+
+        assert_eq!(
+            obligations.len(),
+            1,
+            "unsupported selector structure must stay possibly competing: {obligations:?}"
+        );
+    }
+
     // ---- WP7-b: de-noise rg-flow + categorical theory hints -----------
 
     /// A two-property custom-property reference cycle that the product chain
