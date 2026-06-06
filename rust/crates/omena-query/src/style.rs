@@ -972,6 +972,7 @@ fn summarize_sass_module_cross_file_resolution(
                 from_style_path: entry.style_path.clone(),
                 edge_kind: edge.kind,
                 source: edge.source.clone(),
+                rule_ordinal,
                 namespace_kind: edge.namespace_kind,
                 namespace: edge.namespace.clone(),
                 forward_prefix: edge.forward_prefix.clone(),
@@ -1087,7 +1088,7 @@ fn summarize_sass_module_graph_closure(
 
     let mut graph = BTreeMap::<String, BTreeSet<String>>::new();
     let mut metadata_by_step =
-        BTreeMap::<(String, String), SassModuleGraphClosureStepMetadata>::new();
+        BTreeMap::<(String, String), Vec<SassModuleGraphClosureStepMetadata>>::new();
     for edge in resolved_edges {
         let Some(target_style_path) = edge.resolved_style_path.clone() else {
             continue;
@@ -1098,7 +1099,8 @@ fn summarize_sass_module_graph_closure(
             .insert(target_style_path.clone());
         metadata_by_step
             .entry((edge.from_style_path.clone(), target_style_path))
-            .or_insert_with(|| SassModuleGraphClosureStepMetadata::from(edge));
+            .or_default()
+            .push(SassModuleGraphClosureStepMetadata::from(edge));
     }
 
     let (closure_paths, cycle_paths) = collect_hypergraph_transitive_closure_paths_with_mode(
@@ -1108,26 +1110,27 @@ fn summarize_sass_module_graph_closure(
     );
     let mut closure_edges = closure_paths
         .into_iter()
-        .filter_map(
+        .flat_map(
             |HypergraphClosurePath {
                  origin,
                  target,
                  depth,
                  path_labels,
              }| {
-                let metadata = derive_sass_module_graph_closure_path_metadata(
+                derive_sass_module_graph_closure_path_metadata(
                     path_labels.as_slice(),
                     &metadata_by_step,
                     source_by_path,
                     available_style_paths,
                     package_manifests,
-                )?;
-                Some(OmenaQuerySassModuleGraphClosureEdgeV0 {
-                    from_style_path: origin,
-                    target_style_path: target,
+                )
+                .into_iter()
+                .map(|metadata| OmenaQuerySassModuleGraphClosureEdgeV0 {
+                    from_style_path: origin.clone(),
+                    target_style_path: target.clone(),
                     edge_kind: metadata.edge_kind,
                     depth,
-                    path: path_labels,
+                    path: path_labels.clone(),
                     namespace_kind: metadata.namespace_kind,
                     namespace: metadata.namespace,
                     forward_prefix: metadata.forward_prefix,
@@ -1139,6 +1142,7 @@ fn summarize_sass_module_graph_closure(
                         .invalid_configuration_variable_names,
                     module_instance_identity_key: metadata.module_instance_identity_key,
                 })
+                .collect::<Vec<_>>()
             },
         )
         .collect::<Vec<_>>();
@@ -1152,16 +1156,21 @@ fn summarize_sass_module_graph_closure(
             edge.depth,
             edge.target_style_path.clone(),
             edge.edge_kind,
+            edge.configuration_signature.clone(),
+            edge.module_instance_identity_key
+                .clone()
+                .unwrap_or_default(),
             edge.path.clone(),
         )
     });
+    closure_edges.dedup();
     cycles.sort_by_key(|cycle| cycle.path.clone());
     (closure_edges, cycles)
 }
 
 #[derive(Debug, Clone)]
 struct SassModuleGraphClosureStepMetadata {
-    source: String,
+    rule_ordinal: usize,
     edge_kind: &'static str,
     namespace_kind: Option<&'static str>,
     namespace: Option<String>,
@@ -1177,7 +1186,7 @@ struct SassModuleGraphClosureStepMetadata {
 impl From<&OmenaQuerySassModuleEdgeResolutionV0> for SassModuleGraphClosureStepMetadata {
     fn from(edge: &OmenaQuerySassModuleEdgeResolutionV0) -> Self {
         Self {
-            source: edge.source.clone(),
+            rule_ordinal: edge.rule_ordinal,
             edge_kind: edge.edge_kind,
             namespace_kind: edge.namespace_kind,
             namespace: edge.namespace.clone(),
@@ -1194,41 +1203,55 @@ impl From<&OmenaQuerySassModuleEdgeResolutionV0> for SassModuleGraphClosureStepM
 
 fn derive_sass_module_graph_closure_path_metadata(
     path_labels: &[String],
-    metadata_by_step: &BTreeMap<(String, String), SassModuleGraphClosureStepMetadata>,
+    metadata_by_step: &BTreeMap<(String, String), Vec<SassModuleGraphClosureStepMetadata>>,
     source_by_path: &BTreeMap<String, String>,
     available_style_paths: &BTreeSet<&str>,
     package_manifests: &[OmenaQueryStylePackageManifestV0],
-) -> Option<SassModuleGraphClosureStepMetadata> {
-    let mut inherited_variable_overrides = BTreeMap::<String, String>::new();
-    let mut last_metadata = None;
+) -> Vec<SassModuleGraphClosureStepMetadata> {
+    let mut states = vec![(BTreeMap::<String, String>::new(), None)];
 
     for step in path_labels.windows(2) {
-        let from_style_path = step.first()?;
-        let target_style_path = step.get(1)?;
-        let metadata = metadata_by_step
-            .get(&(from_style_path.clone(), target_style_path.clone()))?
-            .clone();
-        let variable_overrides = derive_sass_module_graph_closure_step_variable_overrides(
-            from_style_path,
-            target_style_path,
-            &metadata,
-            &inherited_variable_overrides,
-            source_by_path,
-            available_style_paths,
-            package_manifests,
-        );
-        inherited_variable_overrides = variable_overrides.clone();
-        last_metadata = Some(apply_sass_module_graph_closure_step_configuration(
-            metadata,
-            target_style_path,
-            variable_overrides,
-            source_by_path,
-            available_style_paths,
-            package_manifests,
-        ));
+        let Some(from_style_path) = step.first() else {
+            return Vec::new();
+        };
+        let Some(target_style_path) = step.get(1) else {
+            return Vec::new();
+        };
+        let Some(step_metadata) =
+            metadata_by_step.get(&(from_style_path.clone(), target_style_path.clone()))
+        else {
+            return Vec::new();
+        };
+        let mut next_states = Vec::new();
+        for (inherited_variable_overrides, _) in &states {
+            for metadata in step_metadata {
+                let variable_overrides = derive_sass_module_graph_closure_step_variable_overrides(
+                    from_style_path,
+                    target_style_path,
+                    metadata,
+                    inherited_variable_overrides,
+                    source_by_path,
+                    available_style_paths,
+                    package_manifests,
+                );
+                let applied_metadata = apply_sass_module_graph_closure_step_configuration(
+                    metadata.clone(),
+                    target_style_path,
+                    variable_overrides.clone(),
+                    source_by_path,
+                    available_style_paths,
+                    package_manifests,
+                );
+                next_states.push((variable_overrides, Some(applied_metadata)));
+            }
+        }
+        states = next_states;
     }
 
-    last_metadata
+    states
+        .into_iter()
+        .filter_map(|(_, metadata)| metadata)
+        .collect()
 }
 
 fn derive_sass_module_graph_closure_step_variable_overrides(
@@ -1257,9 +1280,9 @@ fn derive_sass_module_graph_closure_step_variable_overrides(
                     )
                 })
                 .unwrap_or_default();
-            transform::derive_static_scss_forward_effective_configuration_for_resolution(
+            transform::derive_static_scss_forward_effective_configuration_for_resolution_at_ordinal(
                 style_source,
-                metadata.source.as_str(),
+                metadata.rule_ordinal,
                 inherited_variable_overrides,
                 metadata.forward_prefix.as_deref(),
                 metadata.visibility_filter_kind,
@@ -1267,9 +1290,9 @@ fn derive_sass_module_graph_closure_step_variable_overrides(
                 &configurable_names,
             )
         }
-        "sassUse" => transform::derive_static_scss_use_configuration_for_resolution(
+        "sassUse" => transform::derive_static_scss_use_configuration_for_resolution_at_ordinal(
             style_source,
-            metadata.source.as_str(),
+            metadata.rule_ordinal,
         ),
         _ => BTreeMap::new(),
     }

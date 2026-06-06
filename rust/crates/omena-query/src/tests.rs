@@ -1632,6 +1632,54 @@ fn sass_module_resolution_tracks_repeated_forward_configuration_per_rule() -> Re
 }
 
 #[test]
+fn sass_module_graph_closure_preserves_parallel_forward_configurations() -> Result<(), String> {
+    let sources = vec![
+        OmenaQueryStyleSourceInputV0 {
+            style_path: "/tmp/tokens.scss".to_string(),
+            style_source: "$brand: blue !default; .base { color: $brand; }".to_string(),
+        },
+        OmenaQueryStyleSourceInputV0 {
+            style_path: "/tmp/theme.scss".to_string(),
+            style_source: r#"@forward "./tokens" with ($brand: red); @forward "./tokens" with ($brand: blue);"#.to_string(),
+        },
+        OmenaQueryStyleSourceInputV0 {
+            style_path: "/tmp/App.module.scss".to_string(),
+            style_source: r#"@use "./theme" as theme;"#.to_string(),
+        },
+    ];
+
+    let resolution = summarize_omena_query_sass_module_cross_file_resolution_for_workspace(
+        sources.as_slice(),
+        &[],
+        &[],
+        &[],
+    );
+    let signatures = resolution
+        .graph_closure_edges
+        .iter()
+        .filter(|edge| {
+            edge.from_style_path == "/tmp/App.module.scss"
+                && edge.target_style_path == "/tmp/tokens.scss"
+        })
+        .map(|edge| edge.configuration_signature.as_str())
+        .collect::<Vec<_>>();
+
+    assert!(
+        signatures
+            .iter()
+            .any(|signature| signature.contains("brand=3:red")),
+        "{resolution:?}"
+    );
+    assert!(
+        signatures
+            .iter()
+            .any(|signature| signature.contains("brand=4:blue")),
+        "{resolution:?}"
+    );
+    Ok(())
+}
+
+#[test]
 fn derives_configured_scss_forward_aware_static_stylesheet_module_evaluation() {
     let summary = summarize_omena_query_transform_context_from_sources(
         "/tmp/App.module.scss",

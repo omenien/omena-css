@@ -581,9 +581,9 @@ fn derive_static_scss_forward_effective_variable_overrides(
     variable_overrides
 }
 
-pub(super) fn derive_static_scss_module_forward_effective_variable_override_values_for_resolution(
+pub(super) fn derive_static_scss_module_forward_effective_variable_override_values_for_resolution_at_ordinal(
     style_source: &str,
-    forward_source: &str,
+    forward_rule_ordinal: usize,
     inherited_variable_overrides: &BTreeMap<String, String>,
     export_prefix: Option<&str>,
     visibility_filter_kind: Option<&'static str>,
@@ -591,9 +591,10 @@ pub(super) fn derive_static_scss_module_forward_effective_variable_override_valu
     configurable_names: &BTreeSet<String>,
 ) -> BTreeMap<String, String> {
     let explicit_variable_overrides =
-        static_scss_module_rule_source(style_source, "@forward", forward_source)
-            .map(parse_static_scss_forward_variable_overrides_from_rule)
-            .unwrap_or_default();
+        derive_static_scss_module_forward_variable_overrides_at_ordinal(
+            style_source,
+            forward_rule_ordinal,
+        );
     derive_static_scss_forward_effective_variable_overrides(
         &explicit_variable_overrides,
         inherited_variable_overrides,
@@ -1035,16 +1036,6 @@ fn static_scss_module_rule_source_name(
         .map(|token| token.text.trim_matches('"').trim_matches('\'').to_string())
 }
 
-pub(super) fn derive_static_scss_module_rule_variable_overrides(
-    style_source: &str,
-    at_keyword: &str,
-    use_source: &str,
-) -> BTreeMap<String, String> {
-    static_scss_module_rule_source(style_source, at_keyword, use_source)
-        .map(parse_static_scss_use_variable_overrides_from_rule)
-        .unwrap_or_default()
-}
-
 pub(super) fn derive_static_scss_module_rule_variable_overrides_at_ordinal(
     style_source: &str,
     at_keyword: &str,
@@ -1075,46 +1066,6 @@ pub(super) fn derive_static_scss_module_forward_variable_override_values_at_ordi
     .into_iter()
     .map(|(name, override_entry)| (name, override_entry.value))
     .collect()
-}
-
-fn static_scss_module_rule_source<'a>(
-    style_source: &'a str,
-    at_keyword: &str,
-    use_source: &str,
-) -> Option<&'a str> {
-    let lexed =
-        lex_omena_query_omena_parser_style_source(style_source, OmenaParserStyleDialect::Scss);
-    let tokens = lexed.tokens();
-    let mut depth = 0usize;
-    let mut index = 0usize;
-
-    while index < tokens.len() {
-        match tokens[index].kind {
-            SyntaxKind::LeftBrace => depth += 1,
-            SyntaxKind::RightBrace => depth = depth.saturating_sub(1),
-            SyntaxKind::AtKeyword
-                if depth == 0 && tokens[index].text.eq_ignore_ascii_case(at_keyword) =>
-            {
-                let Some(end_index) = static_scss_use_rule_semicolon(tokens, index) else {
-                    index += 1;
-                    continue;
-                };
-                if static_scss_module_rule_source_name(tokens, index + 1, end_index)
-                    .is_some_and(|source_name| source_name == use_source)
-                {
-                    let start = transform_token_start(&tokens[index]);
-                    let end = transform_token_end(&tokens[end_index]);
-                    return style_source.get(start..end);
-                }
-                index = end_index + 1;
-                continue;
-            }
-            _ => {}
-        }
-        index += 1;
-    }
-
-    None
 }
 
 fn static_scss_module_rule_source_at_ordinal<'a>(

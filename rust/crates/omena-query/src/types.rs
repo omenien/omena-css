@@ -435,6 +435,7 @@ pub struct OmenaQuerySassModuleEdgeResolutionV0 {
     pub from_style_path: String,
     pub edge_kind: &'static str,
     pub source: String,
+    pub rule_ordinal: usize,
     pub namespace_kind: Option<&'static str>,
     pub namespace: Option<String>,
     pub forward_prefix: Option<String>,

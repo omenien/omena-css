@@ -23,9 +23,8 @@ use imports::{
 };
 use static_stylesheet::{
     derive_static_scss_module_configurable_variable_names_for_transform_context,
-    derive_static_scss_module_forward_effective_variable_override_values_for_resolution,
+    derive_static_scss_module_forward_effective_variable_override_values_for_resolution_at_ordinal,
     derive_static_scss_module_forward_variable_override_values_at_ordinal,
-    derive_static_scss_module_rule_variable_overrides,
     derive_static_scss_module_rule_variable_overrides_at_ordinal,
     derive_static_scss_module_use_evaluations_for_transform_context,
     derive_static_stylesheet_module_evaluation_for_transform_context,
@@ -146,25 +145,29 @@ pub(super) fn derive_static_scss_module_configurable_variable_names_for_resoluti
     )
 }
 
-pub(super) fn derive_static_scss_use_configuration_for_resolution(
+pub(super) fn derive_static_scss_use_configuration_for_resolution_at_ordinal(
     style_source: &str,
-    use_source: &str,
+    use_rule_ordinal: usize,
 ) -> BTreeMap<String, String> {
-    derive_static_scss_module_rule_variable_overrides(style_source, "@use", use_source)
+    derive_static_scss_module_rule_variable_overrides_at_ordinal(
+        style_source,
+        "@use",
+        use_rule_ordinal,
+    )
 }
 
-pub(super) fn derive_static_scss_forward_effective_configuration_for_resolution(
+pub(super) fn derive_static_scss_forward_effective_configuration_for_resolution_at_ordinal(
     style_source: &str,
-    forward_source: &str,
+    forward_rule_ordinal: usize,
     inherited_variable_overrides: &BTreeMap<String, String>,
     export_prefix: Option<&str>,
     visibility_filter_kind: Option<&'static str>,
     visibility_filter_names: &[String],
     configurable_names: &BTreeSet<String>,
 ) -> BTreeMap<String, String> {
-    derive_static_scss_module_forward_effective_variable_override_values_for_resolution(
+    derive_static_scss_module_forward_effective_variable_override_values_for_resolution_at_ordinal(
         style_source,
-        forward_source,
+        forward_rule_ordinal,
         inherited_variable_overrides,
         export_prefix,
         visibility_filter_kind,
