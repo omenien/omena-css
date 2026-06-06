@@ -722,11 +722,11 @@ fn validate_attestation_verification_subject_for_lock_entry_v1(
     let statement = verification.attestation_statement.as_ref().ok_or_else(|| {
         "attestation verification tier t3 requires attestationStatement".to_string()
     })?;
-    if attestation_statement_mentions_sif_path_v1(statement, entry.sif_path.as_str()) {
+    if attestation_statement_binds_sif_path_v1(statement, entry.sif_path.as_str()) {
         return Ok(());
     }
     Err(format!(
-        "attestation verification tier t3 provenance statement subject must include lock entry SIF path '{}'",
+        "attestation verification tier t3 provenance statement subject must include lock entry SIF path '{}' in subjectNames and subjectDigests",
         entry.sif_path
     ))
 }
@@ -738,18 +738,19 @@ fn attestation_verification_requires_sif_subject_binding_v1(
         && verification.kind.starts_with("omena-toolchain.")
 }
 
-fn attestation_statement_mentions_sif_path_v1(
+fn attestation_statement_binds_sif_path_v1(
     statement: &OmenaSifAttestationStatementV1,
     sif_path: &str,
 ) -> bool {
-    statement
+    let subject_name_matches = statement
         .subject_names
         .iter()
-        .any(|subject| subject == sif_path)
-        || statement
-            .subject_digests
-            .iter()
-            .any(|digest| digest.name == sif_path)
+        .any(|subject| subject == sif_path);
+    let subject_digest_matches = statement
+        .subject_digests
+        .iter()
+        .any(|digest| digest.name == sif_path);
+    subject_name_matches && subject_digest_matches
 }
 
 fn lock_entry_has_compatible_attestation_reference_v1(
@@ -2546,6 +2547,38 @@ mod tests {
         );
         assert!(entry.attestation_verifications.is_empty());
         assert_eq!(entry.trust_tier, OmenaSifTrustTierV1::T1);
+
+        let mut name_only_statement = fixture_sif_artifact_provenance_statement(&entry);
+        name_only_statement.subject_digests = vec![OmenaSifAttestationSubjectDigestV1 {
+            name: "sif/other.sif.json".to_string(),
+            algorithm: "sha256".to_string(),
+            digest: "abcdef0123456789".to_string(),
+        }];
+        report.attestation_statement = Some(name_only_statement);
+        let name_only_subject =
+            apply_omena_sif_attestation_verification_report_to_lock_entry_v1(&mut entry, &report);
+        assert!(
+            matches!(
+                name_only_subject.as_ref(),
+                Err(message) if message.contains("subjectNames and subjectDigests")
+            ),
+            "{name_only_subject:?}"
+        );
+        assert!(entry.attestation_verifications.is_empty());
+
+        let mut digest_only_statement = fixture_sif_artifact_provenance_statement(&entry);
+        digest_only_statement.subject_names = vec!["sif/other.sif.json".to_string()];
+        report.attestation_statement = Some(digest_only_statement);
+        let digest_only_subject =
+            apply_omena_sif_attestation_verification_report_to_lock_entry_v1(&mut entry, &report);
+        assert!(
+            matches!(
+                digest_only_subject.as_ref(),
+                Err(message) if message.contains("subjectNames and subjectDigests")
+            ),
+            "{digest_only_subject:?}"
+        );
+        assert!(entry.attestation_verifications.is_empty());
 
         report.attestation_statement = Some(fixture_sif_artifact_provenance_statement(&entry));
         let applied =
