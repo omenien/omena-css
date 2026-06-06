@@ -2744,9 +2744,19 @@ mod tests {
         let obligations = query_smt_layer_inversion_obligations(&declarations);
 
         assert_eq!(obligations.len(), 1, "{obligations:?}");
-        let QuerySmtCascadeObligation::LayerInversion(obligation) = &obligations[0].0 else {
-            panic!("expected layer inversion obligation");
-        };
+        let layer_obligations = obligations
+            .iter()
+            .filter_map(|(obligation, _)| match obligation {
+                QuerySmtCascadeObligation::LayerInversion(obligation) => Some(obligation),
+                QuerySmtCascadeObligation::BoxShorthand(_) => None,
+            })
+            .collect::<Vec<_>>();
+        assert_eq!(
+            layer_obligations.len(),
+            1,
+            "expected layer inversion obligation: {obligations:?}"
+        );
+        let obligation = layer_obligations[0];
         assert_eq!(
             obligation
                 .declarations

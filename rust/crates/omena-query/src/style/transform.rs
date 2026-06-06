@@ -715,20 +715,32 @@ fn extend_import_graph_source_map_segments(
         .map(|(style_path, style_source)| ((*style_path).to_string(), (*style_source).to_string()))
         .collect::<BTreeMap<_, _>>();
     let mut visiting = BTreeSet::new();
+    let context = ImportGraphSourceMapSegmentContext {
+        output_css: execution.output_css.as_str(),
+        entries_by_path: &entries_by_path,
+        owned_source_by_path: &owned_source_by_path,
+        source_by_path,
+        available_style_paths,
+        package_manifests,
+    };
     collect_import_graph_source_map_segments(
         segments,
         seen_segments,
         style_path,
         0,
         execution.output_css.len(),
-        execution.output_css.as_str(),
-        &entries_by_path,
-        &owned_source_by_path,
-        source_by_path,
-        available_style_paths,
-        package_manifests,
+        &context,
         &mut visiting,
     );
+}
+
+struct ImportGraphSourceMapSegmentContext<'a> {
+    output_css: &'a str,
+    entries_by_path: &'a BTreeMap<&'a str, &'a OmenaQueryStyleFactEntry>,
+    owned_source_by_path: &'a BTreeMap<String, String>,
+    source_by_path: &'a BTreeMap<&'a str, &'a str>,
+    available_style_paths: &'a BTreeSet<&'a str>,
+    package_manifests: &'a [OmenaQueryStylePackageManifestV0],
 }
 
 fn collect_import_graph_source_map_segments(
@@ -737,18 +749,13 @@ fn collect_import_graph_source_map_segments(
     importer_style_path: &str,
     generated_start_bound: usize,
     generated_end_bound: usize,
-    output_css: &str,
-    entries_by_path: &BTreeMap<&str, &OmenaQueryStyleFactEntry>,
-    owned_source_by_path: &BTreeMap<String, String>,
-    source_by_path: &BTreeMap<&str, &str>,
-    available_style_paths: &BTreeSet<&str>,
-    package_manifests: &[OmenaQueryStylePackageManifestV0],
+    context: &ImportGraphSourceMapSegmentContext<'_>,
     visiting: &mut BTreeSet<String>,
 ) {
     if !visiting.insert(importer_style_path.to_string()) {
         return;
     }
-    let Some(entry) = entries_by_path.get(importer_style_path) else {
+    let Some(entry) = context.entries_by_path.get(importer_style_path) else {
         visiting.remove(importer_style_path);
         return;
     };
@@ -762,21 +769,24 @@ fn collect_import_graph_source_map_segments(
         let Some(resolved_style_path) = resolve_style_module_source(
             importer_style_path,
             edge.source.as_str(),
-            available_style_paths,
-            package_manifests,
+            context.available_style_paths,
+            context.package_manifests,
         ) else {
             continue;
         };
-        let Some(imported_source) = source_by_path.get(resolved_style_path.as_str()).copied()
+        let Some(imported_source) = context
+            .source_by_path
+            .get(resolved_style_path.as_str())
+            .copied()
         else {
             continue;
         };
         let Some(replacement_css) = resolve_import_inline_replacement_for_transform_context(
             resolved_style_path.as_str(),
-            entries_by_path,
-            available_style_paths,
-            owned_source_by_path,
-            package_manifests,
+            context.entries_by_path,
+            context.available_style_paths,
+            context.owned_source_by_path,
+            context.package_manifests,
             &mut BTreeSet::new(),
         ) else {
             continue;
@@ -785,7 +795,8 @@ fn collect_import_graph_source_map_segments(
             continue;
         }
         let search_range = generated_start_bound..generated_end_bound;
-        let Some(relative_start) = output_css[search_range.clone()].find(replacement_css.as_str())
+        let Some(relative_start) =
+            context.output_css[search_range.clone()].find(replacement_css.as_str())
         else {
             continue;
         };
@@ -796,7 +807,7 @@ fn collect_import_graph_source_map_segments(
             seen_segments,
             resolved_style_path.clone(),
             imported_source,
-            output_css,
+            context.output_css,
             generated_start,
             generated_end,
         );
@@ -806,12 +817,7 @@ fn collect_import_graph_source_map_segments(
             resolved_style_path.as_str(),
             generated_start,
             generated_end,
-            output_css,
-            entries_by_path,
-            owned_source_by_path,
-            source_by_path,
-            available_style_paths,
-            package_manifests,
+            context,
             visiting,
         );
     }
