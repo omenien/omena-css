@@ -32,9 +32,9 @@ use omena_query::{
 };
 use omena_query::{OmenaQueryStyleDiagnosticV0, ParserRangeV0};
 use omena_sif::{
-    OmenaLockV1, OmenaSifSourceSyntaxV1, OmenaSifStaticGeneratorInputV1,
-    build_omena_lock_sif_entry_v1, generate_static_omena_sif_v1, read_omena_lock_json_v1,
-    read_omena_sif_json_v1, summarize_omena_sif_provenance_advisory_v1,
+    OmenaLockV1, OmenaLockVerificationIssueV1, OmenaSifSourceSyntaxV1,
+    OmenaSifStaticGeneratorInputV1, build_omena_lock_sif_entry_v1, generate_static_omena_sif_v1,
+    read_omena_lock_json_v1, read_omena_sif_json_v1, summarize_omena_sif_provenance_advisory_v1,
     verify_omena_lock_frozen_v1, write_omena_lock_json_v1, write_omena_sif_json_v1,
 };
 use omena_streaming_ifds::summarize_streaming_ifds_workspace_cross_file_reachability_v0;
@@ -343,6 +343,9 @@ enum LockCommand {
         /// Lockfile path. Defaults to ./omena.lock.
         #[arg(long, default_value = "omena.lock")]
         lockfile: PathBuf,
+        /// Source file whose external Sass module references must be covered by omena.lock.
+        #[arg(long = "source")]
+        source_paths: Vec<PathBuf>,
         /// Refuse to update lockfile state and fail on any drift.
         #[arg(long)]
         frozen: bool,
@@ -676,9 +679,10 @@ fn lock_command(command: LockCommand) -> Result<(), String> {
         } => lock_update(lockfile, sif_paths, json),
         LockCommand::Verify {
             lockfile,
+            source_paths,
             frozen,
             json,
-        } => lock_verify(lockfile, frozen, json),
+        } => lock_verify(lockfile, source_paths, frozen, json),
     }
 }
 
@@ -737,7 +741,12 @@ fn relativize_lock_sif_path(lockfile: &Path, sif_path: &Path) -> String {
     path_string(sif_path)
 }
 
-fn lock_verify(lockfile: PathBuf, frozen: bool, json: bool) -> Result<(), String> {
+fn lock_verify(
+    lockfile: PathBuf,
+    source_paths: Vec<PathBuf>,
+    frozen: bool,
+    json: bool,
+) -> Result<(), String> {
     if !frozen {
         return Err("omena lock verify currently requires --frozen".to_string());
     }
@@ -745,10 +754,16 @@ fn lock_verify(lockfile: PathBuf, frozen: bool, json: bool) -> Result<(), String
     let lockfile_source = read_source(&lockfile)?;
     let lock = read_omena_lock_json_v1(&lockfile_source)
         .map_err(|error| format!("failed to parse {}: {error}", path_string(&lockfile)))?;
-    let report = verify_omena_lock_frozen_v1(&lock, |entry| {
+    let mut report = verify_omena_lock_frozen_v1(&lock, |entry| {
         let sif_path = resolve_lock_relative_path(&lockfile, &entry.sif_path);
         read_source(&sif_path)
     });
+    let source_coverage_issues =
+        collect_lock_source_coverage_issues(&lock, source_paths.as_slice())?;
+    if !source_coverage_issues.is_empty() {
+        report.verified = false;
+        report.issues.extend(source_coverage_issues);
+    }
 
     if json {
         print_json(&report)?;
@@ -777,6 +792,73 @@ fn lock_verify(lockfile: PathBuf, frozen: bool, json: bool) -> Result<(), String
         return Err("omena.lock frozen verification failed".to_string());
     }
     Ok(())
+}
+
+fn collect_lock_source_coverage_issues(
+    lock: &OmenaLockV1,
+    source_paths: &[PathBuf],
+) -> Result<Vec<OmenaLockVerificationIssueV1>, String> {
+    if source_paths.is_empty() {
+        return Ok(Vec::new());
+    }
+
+    let locked_sources = lock
+        .entries
+        .iter()
+        .map(|entry| entry.canonical_url.as_str())
+        .collect::<std::collections::BTreeSet<_>>();
+    let mut missing = std::collections::BTreeSet::new();
+    for source_path in source_paths {
+        let style_source = read_source(source_path)?;
+        let style_path = path_string(source_path);
+        let Some(module_sources) =
+            summarize_omena_query_sass_module_sources(&style_path, &style_source)
+        else {
+            continue;
+        };
+        for module_source in module_sources
+            .module_use_edges
+            .iter()
+            .map(|edge| edge.source.as_str())
+            .chain(
+                module_sources
+                    .module_forward_sources
+                    .iter()
+                    .map(String::as_str),
+            )
+        {
+            if !lock_source_requires_sif(module_source) {
+                continue;
+            }
+            if locked_sources.contains(module_source) {
+                continue;
+            }
+            missing.insert((module_source.to_string(), style_path.clone()));
+        }
+    }
+
+    Ok(missing
+        .into_iter()
+        .map(|(canonical_url, style_path)| OmenaLockVerificationIssueV1 {
+            canonical_url: canonical_url.clone(),
+            sif_path: style_path.clone(),
+            code: "sourceSifMissingFromLock".to_string(),
+            message: format!(
+                "source {} references external Sass module '{}' but omena.lock has no matching SIF entry",
+                style_path, canonical_url
+            ),
+        })
+        .collect())
+}
+
+fn lock_source_requires_sif(source: &str) -> bool {
+    if source.starts_with("sass:") {
+        return false;
+    }
+    if source.starts_with('.') || source.starts_with('/') || source.starts_with("file://") {
+        return false;
+    }
+    true
 }
 
 fn resolve_lock_relative_path(lockfile: &Path, entry_path: &str) -> PathBuf {
@@ -3612,6 +3694,7 @@ export function App() {
             command: Command::Lock {
                 command: LockCommand::Verify {
                     lockfile: lockfile_path,
+                    source_paths: Vec::new(),
                     frozen: true,
                     json: true,
                 },
@@ -3656,6 +3739,52 @@ export function App() {
             command: Command::Lock {
                 command: LockCommand::Verify {
                     lockfile: lockfile_path,
+                    source_paths: Vec::new(),
+                    frozen: true,
+                    json: true,
+                },
+            },
+        });
+
+        assert!(result.is_err(), "{result:?}");
+        cleanup_dir(&workspace_path);
+        Ok(())
+    }
+
+    #[test]
+    fn lock_verify_frozen_fails_for_source_referenced_missing_sif_entry() -> Result<(), String> {
+        let workspace_path = temp_dir("lock-verify-source-coverage");
+        fs::create_dir_all(&workspace_path)
+            .map_err(|error| format!("fixture workspace should be writable: {error}"))?;
+        let source_path = workspace_path.join("app.module.scss");
+        let lockfile_path = workspace_path.join("omena.lock");
+        fs::write(
+            &source_path,
+            r#"@use "sass:map";
+@use "./local" as local;
+@use "design-system/tokens" as tokens;
+.button { color: tokens.$color; }"#,
+        )
+        .map_err(|error| format!("fixture source should be writable: {error}"))?;
+        let lock = omena_sif::OmenaLockV1::new(Vec::new());
+        fs::write(
+            &lockfile_path,
+            omena_sif::write_omena_lock_json_v1(&lock)
+                .map_err(|error| format!("fixture lock should serialize: {error}"))?,
+        )
+        .map_err(|error| format!("fixture lock should be writable: {error}"))?;
+
+        let issues =
+            collect_lock_source_coverage_issues(&lock, std::slice::from_ref(&source_path))?;
+        assert_eq!(issues.len(), 1, "{issues:?}");
+        assert_eq!(issues[0].code, "sourceSifMissingFromLock");
+        assert_eq!(issues[0].canonical_url, "design-system/tokens");
+
+        let result = run(Cli {
+            command: Command::Lock {
+                command: LockCommand::Verify {
+                    lockfile: lockfile_path,
+                    source_paths: vec![source_path.clone()],
                     frozen: true,
                     json: true,
                 },
@@ -3706,6 +3835,7 @@ export function App() {
             command: Command::Lock {
                 command: LockCommand::Verify {
                     lockfile: lockfile_path.clone(),
+                    source_paths: Vec::new(),
                     frozen: true,
                     json: true,
                 },
@@ -3726,6 +3856,7 @@ export function App() {
             command: Command::Lock {
                 command: LockCommand::Verify {
                     lockfile: lockfile_path,
+                    source_paths: Vec::new(),
                     frozen: true,
                     json: true,
                 },
