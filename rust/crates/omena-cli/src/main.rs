@@ -458,9 +458,15 @@ enum LockCommand {
         /// Expected source ref recorded in the signed provenance statement.
         #[arg(long = "statement-source-ref")]
         statement_source_ref: Option<String>,
+        /// Expected source commit recorded in the signed provenance statement.
+        #[arg(long = "statement-source-commit")]
+        statement_source_commit: Option<String>,
         /// Expected builder id recorded in the signed provenance statement.
         #[arg(long = "statement-builder-id")]
         statement_builder_id: Option<String>,
+        /// Expected build type recorded in the signed provenance statement.
+        #[arg(long = "statement-build-type")]
+        statement_build_type: Option<String>,
         /// Print machine-readable JSON.
         #[arg(long)]
         json: bool,
@@ -894,7 +900,9 @@ fn lock_command(
             statement_predicate_type,
             statement_source_repository,
             statement_source_ref,
+            statement_source_commit,
             statement_builder_id,
+            statement_build_type,
             json,
         }) => lock_verify_attestation(LockVerifyAttestationInput {
             lockfile,
@@ -910,7 +918,9 @@ fn lock_command(
                 predicate_type: statement_predicate_type,
                 source_repository: statement_source_repository,
                 source_ref: statement_source_ref,
+                source_commit: statement_source_commit,
                 builder_id: statement_builder_id,
+                build_type: statement_build_type,
             },
             json,
         }),
@@ -1152,7 +1162,9 @@ struct AttestationStatementPolicy {
     predicate_type: Option<String>,
     source_repository: Option<String>,
     source_ref: Option<String>,
+    source_commit: Option<String>,
     builder_id: Option<String>,
+    build_type: Option<String>,
 }
 
 impl AttestationStatementPolicy {
@@ -1160,7 +1172,9 @@ impl AttestationStatementPolicy {
         self.predicate_type.is_none()
             && self.source_repository.is_none()
             && self.source_ref.is_none()
+            && self.source_commit.is_none()
             && self.builder_id.is_none()
+            && self.build_type.is_none()
     }
 }
 
@@ -1470,10 +1484,22 @@ fn require_statement_policy_matches(
             statement.source_ref.as_ref(),
         ),
         (
+            "sourceCommit",
+            "--statement-source-commit",
+            policy.source_commit.as_ref(),
+            statement.source_commit.as_ref(),
+        ),
+        (
             "builderId",
             "--statement-builder-id",
             policy.builder_id.as_ref(),
             statement.builder_id.as_ref(),
+        ),
+        (
+            "buildType",
+            "--statement-build-type",
+            policy.build_type.as_ref(),
+            statement.build_type.as_ref(),
         ),
     ] {
         if let Some(expected) = expected {
@@ -5290,8 +5316,12 @@ mod tests {
             "https://github.com/omenien/omena-css",
             "--statement-source-ref",
             "refs/heads/master",
+            "--statement-source-commit",
+            "abcdef0123456789",
             "--statement-builder-id",
             "https://github.com/actions/runner/github-hosted",
+            "--statement-build-type",
+            "https://slsa-framework.github.io/github-actions-buildtypes/workflow/v1",
         ])
         .map_err(|error| {
             format!("issuer-bound attestation verification command should parse: {error}")
@@ -5306,7 +5336,9 @@ mod tests {
                     statement_predicate_type,
                     statement_source_repository,
                     statement_source_ref,
+                    statement_source_commit,
                     statement_builder_id,
+                    statement_build_type,
                     ..
                 }),
             ..
@@ -5326,9 +5358,14 @@ mod tests {
             Some("https://github.com/omenien/omena-css")
         );
         assert_eq!(statement_source_ref.as_deref(), Some("refs/heads/master"));
+        assert_eq!(statement_source_commit.as_deref(), Some("abcdef0123456789"));
         assert_eq!(
             statement_builder_id.as_deref(),
             Some("https://github.com/actions/runner/github-hosted")
+        );
+        assert_eq!(
+            statement_build_type.as_deref(),
+            Some("https://slsa-framework.github.io/github-actions-buildtypes/workflow/v1")
         );
         Ok(())
     }
@@ -5404,7 +5441,12 @@ mod tests {
                 predicate_type: Some("https://slsa.dev/provenance/v1".to_string()),
                 source_repository: Some("https://github.com/omenien/omena-css".to_string()),
                 source_ref: Some("refs/heads/master".to_string()),
+                source_commit: Some("abcdef0123456789".to_string()),
                 builder_id: Some("https://github.com/actions/runner/github-hosted".to_string()),
+                build_type: Some(
+                    "https://slsa-framework.github.io/github-actions-buildtypes/workflow/v1"
+                        .to_string(),
+                ),
             },
         )?;
 
@@ -5414,7 +5456,9 @@ mod tests {
                 predicate_type: None,
                 source_repository: None,
                 source_ref: Some("refs/tags/v1.0.0".to_string()),
+                source_commit: None,
                 builder_id: None,
+                build_type: None,
             },
         );
         assert!(
@@ -5422,6 +5466,42 @@ mod tests {
                 .as_ref()
                 .is_err_and(|error| error.contains("sourceRef mismatch")),
             "{mismatch:?}"
+        );
+
+        let commit_mismatch = require_statement_policy_matches(
+            &summary,
+            &AttestationStatementPolicy {
+                predicate_type: None,
+                source_repository: None,
+                source_ref: None,
+                source_commit: Some("fedcba9876543210".to_string()),
+                builder_id: None,
+                build_type: None,
+            },
+        );
+        assert!(
+            commit_mismatch
+                .as_ref()
+                .is_err_and(|error| error.contains("sourceCommit mismatch")),
+            "{commit_mismatch:?}"
+        );
+
+        let build_type_mismatch = require_statement_policy_matches(
+            &summary,
+            &AttestationStatementPolicy {
+                predicate_type: None,
+                source_repository: None,
+                source_ref: None,
+                source_commit: None,
+                builder_id: None,
+                build_type: Some("https://example.com/build-type/v1".to_string()),
+            },
+        );
+        assert!(
+            build_type_mismatch
+                .as_ref()
+                .is_err_and(|error| error.contains("buildType mismatch")),
+            "{build_type_mismatch:?}"
         );
 
         Ok(())
@@ -5446,7 +5526,9 @@ mod tests {
                     statement_predicate_type: None,
                     statement_source_repository: None,
                     statement_source_ref: None,
+                    statement_source_commit: None,
                     statement_builder_id: None,
+                    statement_build_type: None,
                     json: true,
                 }),
             },
@@ -5479,7 +5561,9 @@ mod tests {
                     statement_predicate_type: None,
                     statement_source_repository: None,
                     statement_source_ref: None,
+                    statement_source_commit: None,
                     statement_builder_id: None,
+                    statement_build_type: None,
                     json: true,
                 }),
             },
@@ -7749,7 +7833,9 @@ export function App() {
                     statement_predicate_type: None,
                     statement_source_repository: None,
                     statement_source_ref: None,
+                    statement_source_commit: None,
                     statement_builder_id: None,
+                    statement_build_type: None,
                     json: true,
                 }),
             },
@@ -7858,7 +7944,9 @@ export function App() {
                     statement_predicate_type: None,
                     statement_source_repository: None,
                     statement_source_ref: None,
+                    statement_source_commit: None,
                     statement_builder_id: None,
+                    statement_build_type: None,
                     json: true,
                 }),
             },
@@ -8013,7 +8101,9 @@ export function App() {
                     statement_predicate_type: None,
                     statement_source_repository: None,
                     statement_source_ref: None,
+                    statement_source_commit: None,
                     statement_builder_id: None,
+                    statement_build_type: None,
                     json: true,
                 }),
             },
