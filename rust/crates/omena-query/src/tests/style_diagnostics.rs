@@ -1273,7 +1273,7 @@ fn style_diagnostics_omena_ignore_file_respects_rule_code_filters() -> Result<()
 #[test]
 fn style_diagnostics_omena_ignore_block_suppresses_targeted_code_only() -> Result<(), &'static str>
 {
-    let source = r#"/* omena-ignore: unspecifiedCascadeTie */
+    let source = r#"/* omena-ignore: unspecifiedCascadeTie [reason: 'legacy cascade order'] */
 .button {
   color: red;
   color: blue;
@@ -1297,6 +1297,19 @@ fn style_diagnostics_omena_ignore_block_suppresses_targeted_code_only() -> Resul
     assert!(!codes.contains(&"unspecifiedCascadeTie"));
     assert!(codes.contains(&"unreachableDeclaration"));
     assert!(codes.contains(&"missingKeyframes"));
+    let suppression = diagnostics
+        .suppression_summary
+        .as_ref()
+        .ok_or("suppression summary")?;
+    assert_eq!(suppression.suppression_reasons.len(), 1);
+    assert_eq!(
+        suppression.suppression_reasons[0].reason,
+        "legacy cascade order"
+    );
+    assert_eq!(
+        suppression.suppression_reasons[0].codes,
+        vec!["unspecifiedCascadeTie"]
+    );
     Ok(())
 }
 

@@ -1185,6 +1185,17 @@ pub struct OmenaQueryDiagnosticSuppressionSummaryV0 {
     pub emitted_diagnostic_count: usize,
     pub suppressed_diagnostic_count: usize,
     pub unused_expect_error_count: usize,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub suppression_reasons: Vec<OmenaQueryDiagnosticSuppressionReasonV0>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct OmenaQueryDiagnosticSuppressionReasonV0 {
+    pub directive_kind: &'static str,
+    pub codes: Vec<String>,
+    pub reason: String,
+    pub range: ParserRangeV0,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]

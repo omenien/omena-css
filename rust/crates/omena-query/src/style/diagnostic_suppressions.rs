@@ -100,6 +100,7 @@ struct OmenaDiagnosticDirectiveV0 {
     target_line_end: Option<usize>,
     range: ParserRangeV0,
     codes: BTreeSet<String>,
+    reason: Option<String>,
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -130,6 +131,7 @@ pub(super) fn apply_omena_query_style_diagnostic_suppressions(
             emitted_diagnostic_count: summary.diagnostics.len(),
             suppressed_diagnostic_count: 0,
             unused_expect_error_count: 0,
+            suppression_reasons: Vec::new(),
         });
         return;
     }
@@ -180,11 +182,13 @@ pub(super) fn apply_omena_query_style_diagnostic_suppressions(
     }
 
     summary.diagnostic_count = summary.diagnostics.len();
+    let suppression_reasons = summarize_omena_query_diagnostic_suppression_reasons(&directives);
     summary.suppression_summary = Some(OmenaQueryDiagnosticSuppressionSummaryV0 {
         original_diagnostic_count,
         emitted_diagnostic_count: summary.diagnostics.len(),
         suppressed_diagnostic_count,
         unused_expect_error_count,
+        suppression_reasons,
     });
 }
 
@@ -310,6 +314,7 @@ fn collect_line_directive(
         target_line_end: None,
         range,
         codes: parse_omena_query_diagnostic_directive_codes(code_tail),
+        reason: parse_omena_query_diagnostic_directive_reason(code_tail),
     });
 }
 
@@ -341,6 +346,7 @@ fn collect_block_directive(
         target_line_end: Some(target_line_end),
         range,
         codes: parse_omena_query_diagnostic_directive_codes(code_tail),
+        reason: parse_omena_query_diagnostic_directive_reason(code_tail),
     });
 }
 
@@ -413,6 +419,9 @@ fn parse_omena_query_diagnostic_directive_codes(tail: &str) -> BTreeSet<String> 
     if let Some((before_comment_end, _)) = code_text.split_once("*/") {
         code_text = before_comment_end;
     }
+    if let Some((before_reason, _)) = code_text.split_once("[reason") {
+        code_text = before_reason;
+    }
     if let Some((before_reason, _)) = code_text.split_once("--") {
         code_text = before_reason;
     }
@@ -431,4 +440,43 @@ fn parse_omena_query_diagnostic_directive_codes(tail: &str) -> BTreeSet<String> 
             Some(code.to_string())
         })
         .collect()
+}
+
+fn parse_omena_query_diagnostic_directive_reason(tail: &str) -> Option<String> {
+    let (_, after_marker) = tail.split_once("[reason")?;
+    let (_, after_colon) = after_marker.split_once(':')?;
+    let before_end = after_colon
+        .split_once(']')
+        .map_or(after_colon, |(before, _)| before);
+    let reason = before_end
+        .trim()
+        .trim_matches(|character| matches!(character, '"' | '\'' | '`'))
+        .trim();
+    (!reason.is_empty()).then(|| reason.to_string())
+}
+
+fn summarize_omena_query_diagnostic_suppression_reasons(
+    directives: &[OmenaDiagnosticDirectiveV0],
+) -> Vec<OmenaQueryDiagnosticSuppressionReasonV0> {
+    directives
+        .iter()
+        .filter_map(|directive| {
+            let reason = directive.reason.clone()?;
+            Some(OmenaQueryDiagnosticSuppressionReasonV0 {
+                directive_kind: directive_kind_label(directive.kind),
+                codes: directive.codes.iter().cloned().collect(),
+                reason,
+                range: directive.range,
+            })
+        })
+        .collect()
+}
+
+fn directive_kind_label(kind: OmenaDiagnosticDirectiveKindV0) -> &'static str {
+    match kind {
+        OmenaDiagnosticDirectiveKindV0::IgnoreFile => "ignoreFile",
+        OmenaDiagnosticDirectiveKindV0::IgnoreBlock => "ignoreBlock",
+        OmenaDiagnosticDirectiveKindV0::IgnoreNextLine => "ignoreNextLine",
+        OmenaDiagnosticDirectiveKindV0::ExpectError => "expectError",
+    }
 }

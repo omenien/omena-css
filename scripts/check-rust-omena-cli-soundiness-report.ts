@@ -7,6 +7,11 @@ import { join } from "node:path";
 interface SoundinessReport {
   readonly product: string;
   readonly suppressedDiagnosticCount: number;
+  readonly suppressionReasons: readonly {
+    readonly directiveKind: string;
+    readonly codes: readonly string[];
+    readonly reason: string;
+  }[];
   readonly boundaryDiagnostics: {
     readonly unresolvedExternalReference: number;
   };
@@ -28,7 +33,7 @@ try {
     [
       ".button { color: var(--missing); }",
       '@use "design-system/tokens" as tokens;',
-      "/* omena-ignore-next-line missingSassSymbol */",
+      "/* omena-ignore-next-line missingSassSymbol [reason: 'awaiting upstream SIF'] */",
       ".token { color: tokens.$brand; }",
     ].join("\n"),
   );
@@ -68,6 +73,10 @@ try {
   const report = JSON.parse(result.stdout) as SoundinessReport;
   assert.equal(report.product, "omena-cli.soundiness-report");
   assert.ok(report.suppressedDiagnosticCount >= 1, "expected suppression accounting");
+  assert.equal(report.suppressionReasons.length, 1, "expected suppression reason capture");
+  assert.equal(report.suppressionReasons[0]?.directiveKind, "ignoreNextLine");
+  assert.deepEqual(report.suppressionReasons[0]?.codes, ["missingSassSymbol"]);
+  assert.equal(report.suppressionReasons[0]?.reason, "awaiting upstream SIF");
   assert.ok(
     report.boundaryDiagnostics.unresolvedExternalReference >= 1,
     "expected unresolved external boundary visibility",
@@ -78,6 +87,7 @@ try {
   assert.equal(report.noiseBudget.withinBudget, false);
   assert.ok(report.readySurfaces.includes("soundinessReport"));
   assert.ok(report.readySurfaces.includes("noiseBudgetVisibilityGates"));
+  assert.ok(report.readySurfaces.includes("diagnosticSuppressionReasonSummary"));
 
   console.log(
     "validated omena-cli soundiness report: suppression=visible boundary=visible budget=review",

@@ -33,7 +33,8 @@ use omena_query::{
     summarize_omena_transform_bundle_from_source,
 };
 use omena_query::{
-    OmenaQueryStyleDiagnosticV0, OmenaQueryStyleDiagnosticsForFileV0, ParserRangeV0,
+    OmenaQueryDiagnosticSuppressionReasonV0, OmenaQueryStyleDiagnosticV0,
+    OmenaQueryStyleDiagnosticsForFileV0, ParserRangeV0,
     load_omena_query_workspace_style_resolution_inputs,
 };
 use omena_sif::{
@@ -1199,6 +1200,7 @@ struct SoundinessReportV0 {
     suppressed_diagnostic_count: usize,
     boundary_diagnostics: SoundinessBoundaryDiagnosticsV0,
     strictness_distribution: SoundinessStrictnessDistributionV0,
+    suppression_reasons: Vec<OmenaQueryDiagnosticSuppressionReasonV0>,
     file_reports: Vec<SoundinessFileReportV0>,
     noise_budget: SoundinessNoiseBudgetV0,
     ready_surfaces: Vec<&'static str>,
@@ -1230,6 +1232,7 @@ struct SoundinessFileReportV0 {
     original_diagnostic_count: usize,
     emitted_diagnostic_count: usize,
     suppressed_diagnostic_count: usize,
+    suppression_reasons: Vec<OmenaQueryDiagnosticSuppressionReasonV0>,
     suppressed_per_100_loc: f64,
 }
 
@@ -1321,6 +1324,7 @@ fn summarize_soundiness_report(
     let mut original_diagnostic_count = 0usize;
     let mut emitted_diagnostic_count = 0usize;
     let mut suppressed_diagnostic_count = 0usize;
+    let mut suppression_reasons = Vec::new();
     let mut line_count = 0usize;
 
     for source in &style_sources {
@@ -1352,15 +1356,20 @@ fn summarize_soundiness_report(
         let suppressed = suppression
             .map(|summary| summary.suppressed_diagnostic_count)
             .unwrap_or(0);
+        let file_suppression_reasons = suppression
+            .map(|summary| summary.suppression_reasons.clone())
+            .unwrap_or_default();
         original_diagnostic_count += original;
         emitted_diagnostic_count += emitted;
         suppressed_diagnostic_count += suppressed;
+        suppression_reasons.extend(file_suppression_reasons.iter().cloned());
         file_reports.push(SoundinessFileReportV0 {
             file_uri: source.style_path.clone(),
             line_count: file_line_count,
             original_diagnostic_count: original,
             emitted_diagnostic_count: emitted,
             suppressed_diagnostic_count: suppressed,
+            suppression_reasons: file_suppression_reasons,
             suppressed_per_100_loc: ratio_per_100(suppressed, file_line_count),
         });
     }
@@ -1402,12 +1411,14 @@ fn summarize_soundiness_report(
         suppressed_diagnostic_count,
         boundary_diagnostics,
         strictness_distribution,
+        suppression_reasons,
         file_reports,
         noise_budget,
         ready_surfaces: vec![
             "soundinessReport",
             "externalBoundaryStateSummary",
             "diagnosticSuppressionRateSummary",
+            "diagnosticSuppressionReasonSummary",
             "noiseBudgetVisibilityGates",
         ],
     })
