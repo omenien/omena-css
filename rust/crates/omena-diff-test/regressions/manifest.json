@@ -12,12 +12,12 @@
       }
     },
     {
-      "id": "rfcs-20-todo-policy-control",
-      "path": "rfcs-20-todo-policy-control/fixture.omena",
+      "id": "rfcs-22-todo-policy-control",
+      "path": "rfcs-22-todo-policy-control/fixture.omena",
       "status": "todo",
       "issue": {
         "repository": "omenien/rfcs",
-        "number": 20
+        "number": 22
       }
     }
   ]
