@@ -73,6 +73,110 @@ fn resolves_graph_aware_sass_diagnostics_from_opened_style_documents() {
 }
 
 #[test]
+fn style_diagnostics_resolve_sass_symbols_through_tsconfig_path_alias() -> TestResult {
+    let workspace_path = std::env::temp_dir().join(format!(
+        "omena-lsp-sass-diagnostics-tsconfig-alias-{}-{}",
+        std::process::id(),
+        current_time_millis()
+    ));
+    let app_style_path = workspace_path.join("src").join("App.module.scss");
+    let tokens_style_path = workspace_path
+        .join("src")
+        .join("styles")
+        .join("_tokens.scss");
+    fs::create_dir_all(fixture_parent(
+        app_style_path.as_path(),
+        "app style fixture path has parent directory",
+    )?)?;
+    fs::create_dir_all(fixture_parent(
+        tokens_style_path.as_path(),
+        "tokens style fixture path has parent directory",
+    )?)?;
+    fs::write(
+        workspace_path.join("tsconfig.json"),
+        r#"{"compilerOptions":{"baseUrl":".","paths":{"$styles/*":["src/styles/*"]}}}"#,
+    )?;
+
+    let workspace_uri = path_to_file_uri(workspace_path.as_path());
+    let app_style_uri = path_to_file_uri(app_style_path.as_path());
+    let tokens_style_uri = path_to_file_uri(tokens_style_path.as_path());
+
+    let mut state = LspShellState::default();
+    handle_lsp_message(
+        &mut state,
+        json!({
+            "jsonrpc": "2.0",
+            "id": 1,
+            "method": "initialize",
+            "params": {
+                "workspaceFolders": [
+                    {
+                        "uri": workspace_uri,
+                        "name": "workspace-a",
+                    },
+                ],
+            },
+        }),
+    );
+    for (uri, text) in [
+        (
+            app_style_uri.as_str(),
+            "@import \"$styles/_tokens.scss\";\n.button { color: $brand; padding: $missing; }",
+        ),
+        (tokens_style_uri.as_str(), "$brand: red;"),
+    ] {
+        handle_lsp_message(
+            &mut state,
+            json!({
+                "jsonrpc": "2.0",
+                "method": "textDocument/didOpen",
+                "params": {
+                    "textDocument": {
+                        "uri": uri,
+                        "languageId": "scss",
+                        "version": 1,
+                        "text": text,
+                    },
+                },
+            }),
+        );
+    }
+
+    let diagnostics_response = handle_lsp_message(
+        &mut state,
+        json!({
+            "jsonrpc": "2.0",
+            "id": 2,
+            "method": STYLE_DIAGNOSTICS_REQUEST,
+            "params": {
+                "textDocument": {
+                    "uri": app_style_uri,
+                },
+            },
+        }),
+    );
+    let diagnostics = diagnostics_response
+        .as_ref()
+        .and_then(|value| value.pointer("/result"))
+        .and_then(Value::as_array)
+        .expect("style diagnostics response contains an array");
+    let missing_sass_messages = diagnostics
+        .iter()
+        .filter(|diagnostic| diagnostic.pointer("/code") == Some(&json!("missingSassSymbol")))
+        .filter_map(|diagnostic| diagnostic.pointer("/message").and_then(Value::as_str))
+        .collect::<Vec<_>>();
+
+    assert_eq!(
+        missing_sass_messages,
+        vec!["Sass variable '$missing' not found in the visible Sass module graph."],
+        "tsconfig path aliases should make imported Sass symbols visible without hiding unresolved controls"
+    );
+
+    let _ = fs::remove_dir_all(workspace_path.as_path());
+    Ok(())
+}
+
+#[test]
 fn style_diagnostics_surface_streaming_ifds_cross_file_reachability_from_lsp() {
     let mut state = LspShellState::default();
     for (uri, text) in [

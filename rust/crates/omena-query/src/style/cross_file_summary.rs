@@ -465,8 +465,12 @@ pub fn summarize_omena_query_workspace_cross_file_summary(
     let style_fact_entries = super::collect_omena_query_style_fact_entries(style_pairs.as_slice());
     let css_modules_resolution =
         super::summarize_css_modules_cross_file_resolution(&style_fact_entries, package_manifests);
-    let sass_module_resolution =
-        super::summarize_sass_module_cross_file_resolution(&style_fact_entries, package_manifests);
+    let sass_module_resolution = super::summarize_sass_module_cross_file_resolution(
+        &style_fact_entries,
+        package_manifests,
+        &[],
+        &[],
+    );
     let style_summary = summarize_omena_query_cross_file_summary(
         &style_fact_entries,
         &css_modules_resolution,
@@ -567,8 +571,12 @@ pub fn summarize_omena_query_m4_axis_c_readiness() -> OmenaQueryM4AxisCReadiness
     let style_fact_entries = super::collect_omena_query_style_fact_entries(style_pairs.as_slice());
     let css_modules_resolution =
         super::summarize_css_modules_cross_file_resolution(&style_fact_entries, &package_manifests);
-    let sass_module_resolution =
-        super::summarize_sass_module_cross_file_resolution(&style_fact_entries, &package_manifests);
+    let sass_module_resolution = super::summarize_sass_module_cross_file_resolution(
+        &style_fact_entries,
+        &package_manifests,
+        &[],
+        &[],
+    );
     let style_summary = summarize_omena_query_cross_file_summary(
         &style_fact_entries,
         &css_modules_resolution,

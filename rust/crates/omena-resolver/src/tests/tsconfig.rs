@@ -154,6 +154,29 @@ fn resolves_tsconfig_path_mapped_sass_partials() {
 }
 
 #[test]
+fn resolves_tsconfig_path_mapped_sass_partials_against_file_uri_available_paths() {
+    let available_style_paths =
+        BTreeSet::from(["file:///fake/workspace/src/styles/_Theme.module.scss"]);
+    let resolution = summarize_omena_resolver_style_module_resolution_with_tsconfig_paths(
+        "file:///fake/workspace/src/components/App.module.scss",
+        "@styles/Theme",
+        &available_style_paths,
+        &[],
+        &[OmenaResolverTsconfigPathMappingV0 {
+            base_path: "/fake/workspace".to_string(),
+            pattern: "@styles/*".to_string(),
+            target_patterns: vec!["src/styles/*".to_string()],
+        }],
+    );
+
+    assert_eq!(resolution.resolution_kind, "tsconfigPathStyleModule");
+    assert_eq!(
+        resolution.resolved_style_path.as_deref(),
+        Some("file:///fake/workspace/src/styles/_Theme.module.scss")
+    );
+}
+
+#[test]
 fn resolves_percent_encoded_tsconfig_targets() {
     let available_style_paths =
         BTreeSet::from(["/fake/workspace/src/styles/Brand Tokens.module.scss"]);

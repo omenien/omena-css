@@ -9,9 +9,9 @@ use std::{fs, path::PathBuf, time::SystemTime};
 
 use super::{
     OmenaResolverBundlerPathAliasMappingV0, OmenaResolverStylePackageManifestV0,
-    OmenaResolverTsconfigPathMappingV0, query_omena_resolver_runtime_module,
-    query_omena_resolver_source_expression, summarize_omena_resolver_boundary,
-    summarize_omena_resolver_canonical_producer_signal,
+    OmenaResolverTsconfigPathMappingV0, canonicalize_omena_resolver_style_identity_path,
+    query_omena_resolver_runtime_module, query_omena_resolver_source_expression,
+    summarize_omena_resolver_boundary, summarize_omena_resolver_canonical_producer_signal,
     summarize_omena_resolver_module_graph_index, summarize_omena_resolver_query_fragments,
     summarize_omena_resolver_runtime_query_boundary,
     summarize_omena_resolver_source_resolution_runtime,
@@ -222,6 +222,14 @@ fn classifies_file_uri_use_edge_as_external_with_sif() {
     );
     assert_eq!(missing.resolution_kind, "unresolved");
     assert!(missing.resolved_style_path.is_none());
+}
+
+#[test]
+fn canonicalizes_file_uri_and_collapsed_file_pseudo_uri_to_same_identity() {
+    assert_eq!(
+        canonicalize_omena_resolver_style_identity_path("file:///workspace/src/_tokens.scss"),
+        canonicalize_omena_resolver_style_identity_path("file:/workspace/src/_tokens.scss")
+    );
 }
 
 #[test]

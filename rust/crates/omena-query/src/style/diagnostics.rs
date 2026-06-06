@@ -443,7 +443,8 @@ fn summarize_omena_query_missing_extend_target_diagnostics_for_workspace(
         .map(|source| (source.style_path.as_str(), source.style_source.as_str()))
         .collect::<Vec<_>>();
     let style_fact_entries = collect_omena_query_style_fact_entries(style_source_refs.as_slice());
-    let resolution = summarize_sass_module_cross_file_resolution(&style_fact_entries, &[]);
+    let resolution =
+        summarize_sass_module_cross_file_resolution(&style_fact_entries, &[], &[], &[]);
     let reachable_paths =
         collect_sass_module_graph_reachable_style_paths(target_style_path, &resolution);
 
@@ -592,8 +593,12 @@ fn summarize_omena_query_replica_ensemble_inconsistency_diagnostics_for_workspac
         .map(|source| (source.style_path.as_str(), source.style_source.as_str()))
         .collect::<Vec<_>>();
     let style_fact_entries = collect_omena_query_style_fact_entries(style_source_refs.as_slice());
-    let resolution =
-        summarize_sass_module_cross_file_resolution(&style_fact_entries, package_manifests);
+    let resolution = summarize_sass_module_cross_file_resolution(
+        &style_fact_entries,
+        package_manifests,
+        &[],
+        &[],
+    );
     let reachable_paths =
         collect_sass_module_graph_reachable_style_paths(target_style_path, &resolution);
 
@@ -872,6 +877,8 @@ pub fn summarize_omena_query_missing_sass_symbol_diagnostics_for_workspace(
         style_sources,
         package_manifests,
         &[],
+        &[],
+        &[],
     )
 }
 
@@ -880,6 +887,8 @@ fn summarize_omena_query_missing_sass_symbol_diagnostics_for_workspace_with_sifs
     style_sources: &[OmenaQueryStyleSourceInputV0],
     package_manifests: &[OmenaQueryStylePackageManifestV0],
     external_sifs: &[OmenaQueryExternalSifInputV0],
+    bundler_path_mappings: &[OmenaResolverBundlerPathAliasMappingV0],
+    tsconfig_path_mappings: &[OmenaResolverTsconfigPathMappingV0],
 ) -> Vec<OmenaQueryStyleDiagnosticV0> {
     let Some(target) = style_sources
         .iter()
@@ -896,8 +905,12 @@ fn summarize_omena_query_missing_sass_symbol_diagnostics_for_workspace_with_sifs
         .iter()
         .map(|entry| (entry.style_path.as_str(), &entry.facts))
         .collect::<BTreeMap<_, _>>();
-    let resolution =
-        summarize_sass_module_cross_file_resolution(&style_fact_entries, package_manifests);
+    let resolution = summarize_sass_module_cross_file_resolution(
+        &style_fact_entries,
+        package_manifests,
+        bundler_path_mappings,
+        tsconfig_path_mappings,
+    );
     let visible_symbols = collect_visible_sass_symbol_keys(
         target_style_path,
         &facts_by_path,
@@ -1002,8 +1015,12 @@ fn summarize_omena_query_sass_use_cycle_diagnostics_for_workspace(
         .map(|source| (source.style_path.as_str(), source.style_source.as_str()))
         .collect::<Vec<_>>();
     let style_fact_entries = collect_omena_query_style_fact_entries(style_source_refs.as_slice());
-    let resolution =
-        summarize_sass_module_cross_file_resolution(&style_fact_entries, package_manifests);
+    let resolution = summarize_sass_module_cross_file_resolution(
+        &style_fact_entries,
+        package_manifests,
+        &[],
+        &[],
+    );
     if resolution.cycles.is_empty() {
         return Vec::new();
     }
@@ -1202,8 +1219,12 @@ fn summarize_omena_query_unresolved_sass_import_diagnostics_for_workspace(
         .map(|source| (source.style_path.as_str(), source.style_source.as_str()))
         .collect::<Vec<_>>();
     let style_fact_entries = collect_omena_query_style_fact_entries(style_source_refs.as_slice());
-    let resolution =
-        summarize_sass_module_cross_file_resolution(&style_fact_entries, package_manifests);
+    let resolution = summarize_sass_module_cross_file_resolution(
+        &style_fact_entries,
+        package_manifests,
+        &[],
+        &[],
+    );
 
     let target_facts = collect_omena_query_omena_parser_style_facts_raw(
         target.style_source.as_str(),
@@ -1545,6 +1566,8 @@ pub fn summarize_omena_query_style_diagnostics_for_workspace_file_with_external_
             style_sources,
             package_manifests,
             external_sifs,
+            resolution_inputs.bundler_path_mappings.as_slice(),
+            resolution_inputs.tsconfig_path_mappings.as_slice(),
         ),
     );
     summary.diagnostics.extend(
@@ -1879,8 +1902,12 @@ fn collect_omena_query_external_top_any_sass_symbol_ranges(
         .map(|source| (source.style_path.as_str(), source.style_source.as_str()))
         .collect::<Vec<_>>();
     let style_fact_entries = collect_omena_query_style_fact_entries(style_source_refs.as_slice());
-    let resolution =
-        summarize_sass_module_cross_file_resolution(&style_fact_entries, package_manifests);
+    let resolution = summarize_sass_module_cross_file_resolution(
+        &style_fact_entries,
+        package_manifests,
+        &[],
+        &[],
+    );
     let external_sources = resolution
         .edges
         .iter()
@@ -2067,8 +2094,12 @@ fn summarize_omena_query_external_sif_boundary_diagnostics(
         .map(|source| (source.style_path.as_str(), source.style_source.as_str()))
         .collect::<Vec<_>>();
     let style_fact_entries = collect_omena_query_style_fact_entries(style_source_refs.as_slice());
-    let resolution =
-        summarize_sass_module_cross_file_resolution(&style_fact_entries, package_manifests);
+    let resolution = summarize_sass_module_cross_file_resolution(
+        &style_fact_entries,
+        package_manifests,
+        &[],
+        &[],
+    );
     // Every external edge is now classified on the real lattice — including ones that
     // *do* have a SIF in scope (the `.is_none()` pre-filter is gone, #34). Missing edges
     // warn; Stale/Partial edges warn with distinct codes; Resolved edges emit nothing.

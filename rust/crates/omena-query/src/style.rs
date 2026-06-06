@@ -213,8 +213,12 @@ pub fn summarize_omena_query_style_semantic_graph_batch_from_sources_with_packag
         .collect::<Vec<_>>();
     let css_modules_resolution =
         summarize_css_modules_cross_file_resolution(&style_fact_entries, package_manifests);
-    let sass_module_resolution =
-        summarize_sass_module_cross_file_resolution(&style_fact_entries, package_manifests);
+    let sass_module_resolution = summarize_sass_module_cross_file_resolution(
+        &style_fact_entries,
+        package_manifests,
+        &[],
+        &[],
+    );
     let cross_file_summary = summarize_omena_query_cross_file_summary(
         &style_fact_entries,
         &css_modules_resolution,
@@ -308,6 +312,8 @@ fn collect_load_path_roots(available_style_paths: &BTreeSet<&str>) -> Vec<String
 fn summarize_sass_module_cross_file_resolution(
     style_fact_entries: &[OmenaQueryStyleFactEntry],
     package_manifests: &[OmenaQueryStylePackageManifestV0],
+    bundler_path_mappings: &[OmenaResolverBundlerPathAliasMappingV0],
+    tsconfig_path_mappings: &[OmenaResolverTsconfigPathMappingV0],
 ) -> OmenaQuerySassModuleCrossFileResolutionV0 {
     let available_style_paths = style_fact_entries
         .iter()
@@ -339,8 +345,8 @@ fn summarize_sass_module_cross_file_resolution(
                 edge.source.as_str(),
                 &available_style_paths,
                 &resolver_package_manifests,
-                &[],
-                &[],
+                bundler_path_mappings,
+                tsconfig_path_mappings,
                 &load_path_root_refs,
             );
             let status = if resolution.resolution_kind == "externalIgnored" {

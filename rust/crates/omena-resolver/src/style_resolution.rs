@@ -496,9 +496,19 @@ fn is_external_style_module_source(source: &str) -> bool {
 }
 
 pub fn canonicalize_omena_resolver_style_identity_path(path: &str) -> String {
+    let path = style_identity_path_input(path);
     fs::canonicalize(path)
         .map(normalize_style_path)
         .unwrap_or_else(|_| normalize_style_path(PathBuf::from(path)))
+}
+
+fn style_identity_path_input(path: &str) -> &str {
+    if let Some(path) = path.strip_prefix("file://") {
+        return path;
+    }
+    path.strip_prefix("file:")
+        .filter(|path| path.starts_with('/'))
+        .unwrap_or(path)
 }
 
 pub fn inspect_omena_resolver_symlink_chain_v0(
