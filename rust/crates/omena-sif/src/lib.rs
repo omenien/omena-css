@@ -455,6 +455,32 @@ fn validate_attestation_verification_for_trust_tier_v1(
                 .to_string(),
         );
     }
+    for (field, value) in [
+        (
+            "certificateIssuer",
+            verification.certificate_issuer.as_ref(),
+        ),
+        (
+            "certificateIdentity",
+            verification.certificate_identity.as_ref(),
+        ),
+    ] {
+        if value.is_some_and(|value| value.trim().is_empty()) {
+            return Err(format!(
+                "attestation verification field {field} must not be empty when present"
+            ));
+        }
+    }
+    if verification.verifier == "sigstore-verify"
+        && verification
+            .certificate_issuer
+            .as_deref()
+            .is_none_or(|issuer| issuer.trim().is_empty())
+    {
+        return Err(
+            "attestation verification from sigstore-verify requires certificateIssuer".to_string(),
+        );
+    }
     if verification.verified_trust_tier == OmenaSifTrustTierV1::T3 {
         if !verification.kind.starts_with("omena-toolchain.") {
             return Err(format!(
@@ -1489,6 +1515,13 @@ mod tests {
                 certificate_chain: true,
                 signed_certificate_timestamp: true,
             });
+        sigstore_entry.attestation_verifications[0].certificate_issuer = None;
+        assert!(!omena_lock_entry_has_verified_attestation_for_tier_v1(
+            &sigstore_entry,
+            OmenaSifTrustTierV1::T2
+        ));
+        sigstore_entry.attestation_verifications[0].certificate_issuer =
+            Some("https://github.com/login/oauth".to_string());
         assert!(omena_lock_entry_has_verified_attestation_for_tier_v1(
             &sigstore_entry,
             OmenaSifTrustTierV1::T2
@@ -1800,6 +1833,25 @@ mod tests {
         let empty_issuer =
             apply_omena_sif_attestation_verification_report_to_lock_entry_v1(&mut entry, &report);
         assert!(empty_issuer.is_err(), "{empty_issuer:?}");
+
+        report.certificate_issuer = None;
+        report.verifier = "sigstore-verify".to_string();
+        report.sigstore_verification_policy = Some(OmenaSifSigstoreVerificationPolicyV1 {
+            trusted_root: "sigstore-production-trusted-root".to_string(),
+            transparency_log: true,
+            timestamp: true,
+            certificate_chain: true,
+            signed_certificate_timestamp: true,
+        });
+        let sigstore_without_issuer =
+            apply_omena_sif_attestation_verification_report_to_lock_entry_v1(&mut entry, &report);
+        assert!(
+            matches!(
+                sigstore_without_issuer.as_ref(),
+                Err(message) if message.contains("requires certificateIssuer")
+            ),
+            "{sigstore_without_issuer:?}"
+        );
         Ok(())
     }
 
