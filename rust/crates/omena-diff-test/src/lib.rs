@@ -130,10 +130,16 @@ pub struct OmenaDiffTestBoundarySummary {
     pub soundiness_metamorphic_relation_count: usize,
     /// Whether every soundiness metamorphic relation currently holds.
     pub all_soundiness_metamorphic_relations_hold: bool,
+    /// Diagnostic metamorphic relation count.
+    pub diagnostic_metamorphic_relation_count: usize,
+    /// Whether every diagnostic metamorphic relation currently holds.
+    pub all_diagnostic_metamorphic_relations_hold: bool,
     /// WPT-style seed metadata report.
     pub wpt_seed_metadata_report: WptSeedCorpusMetadataReportV0,
     /// Soundiness metamorphic relation report.
     pub soundiness_metamorphic_report: SoundinessMetamorphicReportV0,
+    /// Internal omena-vs-omena diagnostic metamorphic relation report.
+    pub diagnostic_metamorphic_report: DiagnosticMetamorphicReportV0,
     /// Named evidence gates closed by this crate.
     pub closed_gates: Vec<&'static str>,
     /// Field-level reports for every seed fixture.
@@ -308,6 +314,40 @@ pub struct SoundinessMetamorphicRelationReportV0 {
     /// Diagnostic count after applying the relation transform.
     pub after_diagnostic_count: usize,
     /// Whether this relation currently holds.
+    pub holds: bool,
+    /// Product surfaces exercised by the relation.
+    pub evidence_surfaces: Vec<&'static str>,
+}
+
+/// Internal omena-vs-omena metamorphic report for diagnostic code-set stability.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DiagnosticMetamorphicReportV0 {
+    /// Schema version.
+    pub schema_version: &'static str,
+    /// Product surface name.
+    pub product: &'static str,
+    /// Relation count.
+    pub relation_count: usize,
+    /// Whether every relation currently holds.
+    pub all_relations_hold: bool,
+    /// Relation reports.
+    pub relations: Vec<DiagnosticMetamorphicRelationReportV0>,
+    /// Named gates closed by this report.
+    pub closed_gates: Vec<&'static str>,
+}
+
+/// One diagnostic metamorphic relation result.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DiagnosticMetamorphicRelationReportV0 {
+    /// Stable relation label.
+    pub relation: &'static str,
+    /// Diagnostic code set before applying the relation transform.
+    pub before_diagnostic_codes: Vec<String>,
+    /// Diagnostic code set after applying the relation transform.
+    pub after_diagnostic_codes: Vec<String>,
+    /// Whether this relation preserves the diagnostic code set.
     pub holds: bool,
     /// Product surfaces exercised by the relation.
     pub evidence_surfaces: Vec<&'static str>,
@@ -554,6 +594,7 @@ pub fn summarize_omena_diff_test_boundary() -> OmenaDiffTestBoundarySummary {
     let m3_fixture_seed_report = summarize_m3_fixture_seed_corpus();
     let wpt_seed_metadata_report = summarize_wpt_seed_corpus_metadata();
     let soundiness_metamorphic_report = summarize_soundiness_metamorphic_relations();
+    let diagnostic_metamorphic_report = summarize_diagnostic_metamorphic_relations();
 
     OmenaDiffTestBoundarySummary {
         schema_version: "0",
@@ -567,6 +608,8 @@ pub fn summarize_omena_diff_test_boundary() -> OmenaDiffTestBoundarySummary {
         all_wpt_seed_metadata_valid: wpt_seed_metadata_report.all_metadata_valid,
         soundiness_metamorphic_relation_count: soundiness_metamorphic_report.relation_count,
         all_soundiness_metamorphic_relations_hold: soundiness_metamorphic_report.all_relations_hold,
+        diagnostic_metamorphic_relation_count: diagnostic_metamorphic_report.relation_count,
+        all_diagnostic_metamorphic_relations_hold: diagnostic_metamorphic_report.all_relations_hold,
         closed_gates: vec![
             "parserVsLegacyOracle",
             "legacyParserQuarantinedAsOracle",
@@ -574,11 +617,13 @@ pub fn summarize_omena_diff_test_boundary() -> OmenaDiffTestBoundarySummary {
             "m3FixtureSeedsConsumeOmenaTestkitParser",
             "wptSeedCorpusMetadataPolicy",
             "soundinessMetamorphicRelations",
+            "diagnosticMetamorphicRelations",
         ],
         reports,
         m3_fixture_seed_report,
         wpt_seed_metadata_report,
         soundiness_metamorphic_report,
+        diagnostic_metamorphic_report,
     }
 }
 
@@ -645,6 +690,112 @@ pub fn summarize_soundiness_metamorphic_relations() -> SoundinessMetamorphicRepo
             "soundinessBlobSoundnessRelation",
         ],
     }
+}
+
+/// Summarize internal diagnostic metamorphic relations over the product diagnostics path.
+pub fn summarize_diagnostic_metamorphic_relations() -> DiagnosticMetamorphicReportV0 {
+    let relations = vec![
+        diagnostic_relation_report(
+            "mr-selector-list-distribution",
+            "/tmp/SelectorList.module.css",
+            ":root { --known: red; }\n.a, .b { color: var(--missing); animation: fade 1s; }",
+            ":root { --known: red; }\n.a { color: var(--missing); animation: fade 1s; }\n.b { color: var(--missing); animation: fade 1s; }",
+        ),
+        diagnostic_relation_report(
+            "mr-declaration-permutation",
+            "/tmp/DeclarationPermutation.module.css",
+            ":root { --known: red; }\n.button { color: var(--missing); animation: fade 1s; }",
+            ":root { --known: red; }\n.button { animation: fade 1s; color: var(--missing); }",
+        ),
+        diagnostic_relation_report(
+            "mr-selector-rename-invariance",
+            "/tmp/Rename.module.css",
+            ":root { --known: red; }\n.button { color: var(--missing); animation: fade 1s; }",
+            ":root { --known: red; }\n.card { color: var(--missing); animation: fade 1s; }",
+        ),
+        diagnostic_relation_report(
+            "mr-whitespace-comment-invariance",
+            "/tmp/Whitespace.module.css",
+            ":root { --known: red; }\n.button { color: var(--missing); animation: fade 1s; }",
+            "/* comment */\n:root { --known: red; }\n.button {\n  color: var(--missing);\n  animation: fade 1s;\n}",
+        ),
+        diagnostic_relation_report(
+            "mr-nesting-depth-equivalence",
+            "/tmp/Nesting.module.scss",
+            ":root { --known: red; }\n.button { &__icon { color: var(--missing); animation: fade 1s; } }",
+            ":root { --known: red; }\n.button__icon { color: var(--missing); animation: fade 1s; }",
+        ),
+        diagnostic_relation_report(
+            "mr-media-query-equivalence",
+            "/tmp/Media.module.css",
+            ":root { --known: red; }\n@media screen { .button { color: var(--missing); animation: fade 1s; } }",
+            ":root { --known: red; }\n.button { color: var(--missing); animation: fade 1s; }\n@media screen {}",
+        ),
+        diagnostic_relation_report(
+            "mr-canonicalizer-idempotence",
+            "/tmp/Canonical.module.css",
+            ":root { --known: red; }\n.button { color: var(--missing); animation: fade 1s; }",
+            ":root{--known:red}.button{color:var(--missing);animation:fade 1s}",
+        ),
+    ];
+    let all_relations_hold = relations.iter().all(|relation| relation.holds);
+
+    DiagnosticMetamorphicReportV0 {
+        schema_version: "0",
+        product: "omena-diff-test.diagnostic-metamorphic-relations",
+        relation_count: relations.len(),
+        all_relations_hold,
+        relations,
+        closed_gates: vec![
+            "diagnosticMetamorphicRelationHarness",
+            "diagnosticMetamorphicSelectorListDistribution",
+            "diagnosticMetamorphicDeclarationPermutation",
+            "diagnosticMetamorphicSelectorRename",
+            "diagnosticMetamorphicWhitespaceComment",
+            "diagnosticMetamorphicNestingDepth",
+            "diagnosticMetamorphicMediaQuery",
+            "diagnosticMetamorphicCanonicalizerIdempotence",
+        ],
+    }
+}
+
+fn diagnostic_relation_report(
+    relation: &'static str,
+    style_uri: &str,
+    before_source: &str,
+    after_source: &str,
+) -> DiagnosticMetamorphicRelationReportV0 {
+    let before_diagnostic_codes = diagnostic_code_set_for_source(style_uri, before_source);
+    let after_diagnostic_codes = diagnostic_code_set_for_source(style_uri, after_source);
+    let holds = before_diagnostic_codes == after_diagnostic_codes;
+    DiagnosticMetamorphicRelationReportV0 {
+        relation,
+        before_diagnostic_codes,
+        after_diagnostic_codes,
+        holds,
+        evidence_surfaces: vec![
+            "omena-query.style-hover-candidates",
+            "omena-query.style-diagnostics",
+            "omena-diff-test.diagnostic-metamorphic-relations",
+        ],
+    }
+}
+
+fn diagnostic_code_set_for_source(style_uri: &str, source: &str) -> Vec<String> {
+    let Some(candidates) = summarize_omena_query_style_hover_candidates(style_uri, source) else {
+        return vec!["summaryUnavailable".to_string()];
+    };
+    summarize_omena_query_style_diagnostics_for_file(
+        style_uri,
+        source,
+        candidates.candidates.as_slice(),
+    )
+    .diagnostics
+    .iter()
+    .map(|diagnostic| diagnostic.code.to_string())
+    .collect::<BTreeSet<_>>()
+    .into_iter()
+    .collect()
 }
 
 fn soundiness_resolved_sif_relation() -> SoundinessMetamorphicRelationReportV0 {
@@ -1535,6 +1686,8 @@ code: missingCustomProperty
         assert!(summary.wpt_seed_fixture_count >= 25);
         assert_eq!(summary.soundiness_metamorphic_relation_count, 3);
         assert!(summary.all_soundiness_metamorphic_relations_hold);
+        assert_eq!(summary.diagnostic_metamorphic_relation_count, 7);
+        assert!(summary.all_diagnostic_metamorphic_relations_hold);
         assert_eq!(
             summary.wpt_seed_metadata_report.stale_known_failure_count,
             0
@@ -1558,6 +1711,11 @@ code: missingCustomProperty
             summary
                 .closed_gates
                 .contains(&"soundinessMetamorphicRelations")
+        );
+        assert!(
+            summary
+                .closed_gates
+                .contains(&"diagnosticMetamorphicRelations")
         );
         assert!(
             summary
@@ -1625,6 +1783,41 @@ code: missingCustomProperty
                     .after_diagnostic_codes
                     .contains(&"missingSassSymbol".to_string())
         }));
+    }
+
+    #[test]
+    fn diagnostic_metamorphic_relations_hold_on_real_diagnostics_path() {
+        let report = summarize_diagnostic_metamorphic_relations();
+
+        assert_eq!(
+            report.product,
+            "omena-diff-test.diagnostic-metamorphic-relations"
+        );
+        assert_eq!(report.relation_count, 7);
+        assert!(report.all_relations_hold);
+        assert!(
+            report
+                .closed_gates
+                .contains(&"diagnosticMetamorphicRelationHarness")
+        );
+        assert!(report.relations.iter().all(|relation| relation.holds));
+        for relation in [
+            "mr-selector-list-distribution",
+            "mr-declaration-permutation",
+            "mr-selector-rename-invariance",
+            "mr-whitespace-comment-invariance",
+            "mr-nesting-depth-equivalence",
+            "mr-media-query-equivalence",
+            "mr-canonicalizer-idempotence",
+        ] {
+            assert!(
+                report
+                    .relations
+                    .iter()
+                    .any(|candidate| candidate.relation == relation),
+                "missing diagnostic metamorphic relation: {relation}"
+            );
+        }
     }
 
     #[test]

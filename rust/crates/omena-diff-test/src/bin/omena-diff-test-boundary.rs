@@ -10,6 +10,7 @@ fn main() -> ExitCode {
     if summary.all_parser_legacy_fixtures_match
         && summary.all_m3_fixture_seeds_parse
         && summary.all_soundiness_metamorphic_relations_hold
+        && summary.all_diagnostic_metamorphic_relations_hold
     {
         ExitCode::SUCCESS
     } else {
