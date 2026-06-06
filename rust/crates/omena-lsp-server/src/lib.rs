@@ -1370,6 +1370,12 @@ fn resolve_lsp_code_actions(state: &LspShellState, params: Option<&Value>) -> Va
         }))
         .collect();
 
+    actions.extend(resolve_lsp_suppression_code_actions(
+        state,
+        params,
+        diagnostics,
+    ));
+
     if diagnostics.is_empty() {
         actions.extend(resolve_lsp_refactor_code_actions(state, params));
     }
@@ -1379,6 +1385,81 @@ fn resolve_lsp_code_actions(state: &LspShellState, params: Option<&Value>) -> Va
     } else {
         json!(actions)
     }
+}
+
+fn resolve_lsp_suppression_code_actions(
+    state: &LspShellState,
+    params: Option<&Value>,
+    diagnostics: &[Value],
+) -> Vec<Value> {
+    let document_uri = document_uri_from_params(params);
+    let Some(document) = state.document(document_uri.as_str()) else {
+        return Vec::new();
+    };
+    if !is_style_document_uri(document.uri.as_str()) {
+        return Vec::new();
+    }
+
+    diagnostics
+        .iter()
+        .enumerate()
+        .filter_map(|(index, diagnostic)| {
+            let code = diagnostic.get("code").and_then(Value::as_str)?;
+            let line = diagnostic
+                .pointer("/range/start/line")
+                .and_then(Value::as_u64)?;
+            let line = usize::try_from(line).ok()?;
+            let indent = source_line_indent(document.text.as_str(), line);
+            let insert_range = json!({
+                "start": {
+                    "line": line,
+                    "character": 0,
+                },
+                "end": {
+                    "line": line,
+                    "character": 0,
+                },
+            });
+            let mut changes = serde_json::Map::new();
+            changes.insert(
+                document.uri.clone(),
+                json!([
+                    {
+                        "range": insert_range,
+                        "newText": format!(
+                            "{indent}/* omena-ignore-next-line {code} [reason: 'TODO'] */\n"
+                        ),
+                    },
+                ]),
+            );
+
+            Some(json!({
+                "title": "Suppress this diagnostic on the next line",
+                "kind": "quickfix",
+                "diagnostics": [diagnostic],
+                "edit": {
+                    "changes": Value::Object(changes),
+                },
+                "data": {
+                    "source": "omenaLspDiagnosticSuppressionCodeAction",
+                    "diagnosticIndex": index,
+                    "code": code,
+                },
+            }))
+        })
+        .collect()
+}
+
+fn source_line_indent(source: &str, line: usize) -> String {
+    source
+        .lines()
+        .nth(line)
+        .map(|text| {
+            text.chars()
+                .take_while(|character| character.is_whitespace())
+                .collect()
+        })
+        .unwrap_or_default()
 }
 
 fn resolve_lsp_refactor_code_actions(state: &LspShellState, params: Option<&Value>) -> Vec<Value> {

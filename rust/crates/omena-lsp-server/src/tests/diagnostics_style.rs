@@ -134,4 +134,26 @@ fn resolves_style_diagnostics_and_code_actions_from_opened_style_documents() {
             .and_then(|value| value.pointer("/result/0/data/source")),
         Some(&json!("omenaQueryStyleDiagnosticsForFile")),
     );
+    assert_eq!(
+        code_action_response
+            .as_ref()
+            .and_then(|value| value.pointer("/result/1/title")),
+        Some(&json!("Suppress this diagnostic on the next line")),
+    );
+    assert_eq!(
+        code_action_response.as_ref().and_then(|value| {
+            value.pointer(
+                "/result/1/edit/changes/file:~1~1~1workspace-a~1src~1App.module.scss/0/newText",
+            )
+        }),
+        Some(&json!(
+            "/* omena-ignore-next-line missingCustomProperty [reason: 'TODO'] */\n"
+        )),
+    );
+    assert_eq!(
+        code_action_response
+            .as_ref()
+            .and_then(|value| value.pointer("/result/1/data/source")),
+        Some(&json!("omenaLspDiagnosticSuppressionCodeAction")),
+    );
 }
