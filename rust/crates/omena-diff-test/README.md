@@ -27,5 +27,5 @@ silently regress the parser/query boundary.
 
 The regression lane stores issue-linked `omena-fixture-v0` cases under
 `regressions/{id}/`. Fixed fixtures must keep passing while linked issues are
-closed; todo fixtures are allowed to fail only while their linked issue remains
-open.
+closed; todo fixtures, when present, are allowed to fail only while their linked
+issue remains open.

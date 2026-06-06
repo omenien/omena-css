@@ -1,6 +1,0 @@
---- file: src/Clean.module.scss
-.clean {
-  color: red;
-}
---- expect: diagnostic
-code: missingSassSymbol

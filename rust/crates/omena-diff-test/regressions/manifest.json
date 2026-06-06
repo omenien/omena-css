@@ -10,15 +10,6 @@
         "repository": "omenien/rfcs",
         "number": 54
       }
-    },
-    {
-      "id": "rfcs-22-todo-policy-control",
-      "path": "rfcs-22-todo-policy-control/fixture.omena",
-      "status": "todo",
-      "issue": {
-        "repository": "omenien/rfcs",
-        "number": 22
-      }
     }
   ]
 }
