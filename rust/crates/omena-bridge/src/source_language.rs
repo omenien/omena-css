@@ -15,6 +15,7 @@ enum SourceLanguageParserKindV0 {
     OxcTsx,
     VueSfcScript,
     HtmlScript,
+    SvelteComponentScript,
 }
 
 impl SourceLanguageParserV0 for SourceLanguageParserKindV0 {
@@ -23,6 +24,7 @@ impl SourceLanguageParserV0 for SourceLanguageParserKindV0 {
             Self::OxcTsx => "oxcTsxSourceLanguageParserV0",
             Self::VueSfcScript => "vueSfcScriptProjectionParserV0",
             Self::HtmlScript => "htmlScriptProjectionParserV0",
+            Self::SvelteComponentScript => "svelteComponentScriptProjectionParserV0",
         }
     }
 
@@ -31,6 +33,7 @@ impl SourceLanguageParserV0 for SourceLanguageParserKindV0 {
             Self::OxcTsx => "tsx",
             Self::VueSfcScript => "vue",
             Self::HtmlScript => "html",
+            Self::SvelteComponentScript => "svelte",
         }
     }
 
@@ -39,6 +42,7 @@ impl SourceLanguageParserV0 for SourceLanguageParserKindV0 {
             Self::OxcTsx => "identityOxc",
             Self::VueSfcScript => "bytePreservingScriptBlocks",
             Self::HtmlScript => "bytePreservingScriptBlocks",
+            Self::SvelteComponentScript => "bytePreservingScriptBlocks",
         }
     }
 
@@ -47,7 +51,9 @@ impl SourceLanguageParserV0 for SourceLanguageParserKindV0 {
             Self::OxcTsx => {
                 SourceType::from_path(source_path).unwrap_or_else(|_| SourceType::tsx())
             }
-            Self::VueSfcScript | Self::HtmlScript => SourceType::tsx(),
+            Self::VueSfcScript | Self::HtmlScript | Self::SvelteComponentScript => {
+                SourceType::tsx()
+            }
         }
     }
 
@@ -60,6 +66,11 @@ impl SourceLanguageParserV0 for SourceLanguageParserKindV0 {
                 "</script>",
             )),
             Self::HtmlScript => Cow::Owned(project_tag_contents_to_typescript_source(
+                source,
+                "<script",
+                "</script>",
+            )),
+            Self::SvelteComponentScript => Cow::Owned(project_tag_contents_to_typescript_source(
                 source,
                 "<script",
                 "</script>",
@@ -94,6 +105,7 @@ pub fn summarize_omena_bridge_source_language_parser_boundary_v0()
         SourceLanguageParserKindV0::OxcTsx,
         SourceLanguageParserKindV0::VueSfcScript,
         SourceLanguageParserKindV0::HtmlScript,
+        SourceLanguageParserKindV0::SvelteComponentScript,
     ]
     .into_iter()
     .map(|parser| SourceLanguageParserDescriptorV0 {
@@ -115,6 +127,7 @@ pub fn summarize_omena_bridge_source_language_parser_boundary_v0()
             "oxcTsxParserBoundary",
             "vueSfcScriptProjection",
             "htmlScriptProjection",
+            "svelteComponentScriptProjection",
         ],
     }
 }
@@ -129,6 +142,10 @@ pub(crate) fn is_html_source(source_path: &str, source_language: Option<&str>) -
         || source_path.ends_with(".htm")
 }
 
+pub(crate) fn is_svelte_source(source_path: &str, source_language: Option<&str>) -> bool {
+    source_language == Some("svelte") || source_path.ends_with(".svelte")
+}
+
 fn source_language_parser_for_path(
     source_path: &str,
     source_language: Option<&str>,
@@ -137,6 +154,8 @@ fn source_language_parser_for_path(
         SourceLanguageParserKindV0::VueSfcScript
     } else if is_html_source(source_path, source_language) {
         SourceLanguageParserKindV0::HtmlScript
+    } else if is_svelte_source(source_path, source_language) {
+        SourceLanguageParserKindV0::SvelteComponentScript
     } else {
         SourceLanguageParserKindV0::OxcTsx
     }
@@ -164,6 +183,11 @@ fn project_vue_sfc_script_to_typescript_source(source: &str) -> String {
 
 #[cfg(test)]
 fn project_html_script_to_typescript_source(source: &str) -> String {
+    project_tag_contents_to_typescript_source(source, "<script", "</script>")
+}
+
+#[cfg(test)]
+fn project_svelte_component_script_to_typescript_source(source: &str) -> String {
     project_tag_contents_to_typescript_source(source, "<script", "</script>")
 }
 
@@ -239,6 +263,21 @@ mod tests {
     }
 
     #[test]
+    fn svelte_projection_preserves_script_import_offsets() {
+        let source = "<script lang=\"ts\">\nimport styles from \"./Card.module.scss\";\nexport const root = styles.root;\n</script>\n<section>ignored</section>\n<style>.root { color: red; }</style>\n";
+        let projected = project_svelte_component_script_to_typescript_source(source);
+
+        assert_eq!(projected.len(), source.len());
+        assert_eq!(
+            projected.find("import styles"),
+            source.find("import styles")
+        );
+        assert_eq!(projected.find("styles.root"), source.find("styles.root"));
+        assert!(!projected.contains("ignored"));
+        assert!(!projected.contains("color: red"));
+    }
+
+    #[test]
     fn source_language_parser_boundary_lists_fixture_witnessed_v0_parsers() {
         let summary = summarize_omena_bridge_source_language_parser_boundary_v0();
 
@@ -246,13 +285,17 @@ mod tests {
             summary.product,
             "omena-bridge.source-language-parser-boundary"
         );
-        assert_eq!(summary.parser_count, 3);
+        assert_eq!(summary.parser_count, 4);
         assert!(!summary.external_parser_abi_stable);
         assert!(summary.parsers.iter().any(|parser| {
             parser.parser_id == "oxcTsxSourceLanguageParserV0" && parser.fixture_witnessed
         }));
         assert!(summary.parsers.iter().any(|parser| {
             parser.parser_id == "htmlScriptProjectionParserV0" && parser.language == "html"
+        }));
+        assert!(summary.parsers.iter().any(|parser| {
+            parser.parser_id == "svelteComponentScriptProjectionParserV0"
+                && parser.language == "svelte"
         }));
     }
 }

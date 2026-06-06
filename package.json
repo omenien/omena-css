@@ -494,6 +494,7 @@
     "onLanguage:javascriptreact",
     "onLanguage:less",
     "onLanguage:scss",
+    "onLanguage:svelte",
     "onLanguage:typescript",
     "onLanguage:typescriptreact",
     "onLanguage:vue"

@@ -60,6 +60,8 @@ mod source_type_facts;
 mod style_context;
 #[path = "tests/style_indexing.rs"]
 mod style_indexing;
+#[path = "tests/svelte_component.rs"]
+mod svelte_component;
 #[path = "tests/vue_sfc.rs"]
 mod vue_sfc;
 #[path = "tests/workspace_folders.rs"]

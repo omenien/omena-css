@@ -33,7 +33,7 @@ export interface ThinClientServerOptions {
 export function buildRustLspFileWatcherGlobs(): readonly string[] {
   return [
     "**/*.module.{scss,css,less}",
-    "**/*.{ts,tsx,js,jsx,mts,cts,mjs,cjs,d.ts,vue,html}",
+    "**/*.{ts,tsx,js,jsx,mts,cts,mjs,cjs,d.ts,vue,html,svelte}",
     "**/tsconfig*.json",
     "**/jsconfig*.json",
     "**/package.json",
@@ -65,6 +65,7 @@ export function buildThinClientDocumentSelector(): DocumentSelector {
     { scheme: "file", language: "javascript" },
     { scheme: "file", language: "vue" },
     { scheme: "file", language: "html" },
+    { scheme: "file", language: "svelte" },
     { scheme: "file", language: "scss" },
     { scheme: "file", language: "less" },
     { scheme: "file", language: "css" },
