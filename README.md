@@ -68,6 +68,8 @@ code --install-extension omena-css-*.vsix
 ## Performance
 
 The public benchmark surface is documented in [docs/performance.md](docs/performance.md).
+External Sass module migration and `omena.lock` compatibility behavior are
+documented in [docs/migration.md](docs/migration.md).
 It covers Rust parser/semantic/abstract-value micro-benchmarks and an LSP
 macro-benchmark for hover, definition, completion, references, and event-loop
 latency.

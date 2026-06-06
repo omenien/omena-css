@@ -17,6 +17,7 @@ const workspace = mkdtempSync(join(tmpdir(), "omena-cli-external-migration-"));
 try {
   const appPath = join(workspace, "app.module.scss");
   const tokensPath = join(workspace, "tokens.scss");
+  const explicitLockfilePath = join(workspace, "explicit.omena.lock");
   const sifPath = join(workspace, "tokens.sif.json");
   const lockfilePath = join(workspace, "omena.lock");
 
@@ -25,6 +26,33 @@ try {
     '@use "design-system/tokens" as tokens;\n.button { color: tokens.$brand; }',
   );
   writeFileSync(tokensPath, "$brand: red !default;");
+
+  const noLockfile = runStyleDiagnostics([appPath, "--json"]);
+  assertNoExternalBoundaryDiagnostic(
+    noLockfile,
+    "omitted --external without omena.lock must preserve Phase 0 compatibility",
+  );
+
+  const explicitSifWithoutLockfile = runStyleDiagnostics([appPath, "--external", "sif", "--json"]);
+  assertDiagnostic(
+    explicitSifWithoutLockfile,
+    "unresolvedExternalReference",
+    "explicit --external sif should opt into boundary diagnostics without omena.lock",
+  );
+
+  writeFileSync(explicitLockfilePath, '{"entries":[],"lockfileVersion":"1"}');
+  const explicitLockfile = runStyleDiagnostics([
+    appPath,
+    "--lockfile",
+    explicitLockfilePath,
+    "--json",
+  ]);
+  assertDiagnostic(
+    explicitLockfile,
+    "unresolvedExternalReference",
+    "explicit --lockfile should opt into boundary diagnostics even when no omena.lock is discovered",
+  );
+
   writeFileSync(lockfilePath, '{"entries":[],"lockfileVersion":"1"}');
 
   const missing = runStyleDiagnostics([appPath, "--json"]);
@@ -73,7 +101,15 @@ try {
     "auto-discovered lockfile SIF should resolve exported Sass symbols",
   );
 
-  console.log("validated omena-cli external migration: lockfile-trigger explicit-ignored resolved");
+  const ignoredAfterResolution = runStyleDiagnostics([appPath, "--external", "ignored", "--json"]);
+  assertNoExternalBoundaryDiagnostic(
+    ignoredAfterResolution,
+    "explicit --external ignored must remain reversible after omena.lock is populated",
+  );
+
+  console.log(
+    "validated omena-cli external migration: phase0 phase1 explicit-sif lockfile-invalid resolved",
+  );
 } finally {
   rmSync(workspace, { force: true, recursive: true });
 }
@@ -94,6 +130,21 @@ function assertNoDiagnostic(summary: StyleDiagnosticsSummary, code: string, mess
     summary.diagnostics.every((diagnostic) => diagnostic.code !== code),
     `${message}: got ${summary.diagnostics.map((diagnostic) => diagnostic.code).join(",")}`,
   );
+}
+
+function assertNoExternalBoundaryDiagnostic(
+  summary: StyleDiagnosticsSummary,
+  message: string,
+): void {
+  for (const code of [
+    "missingExternalSif",
+    "partialExternalSif",
+    "staleExternalSif",
+    "unresolvedExternalReference",
+    "lockfileInvalid",
+  ]) {
+    assertNoDiagnostic(summary, code, message);
+  }
 }
 
 function runOmena(args: readonly string[], expectedStatus = 0): { readonly stdout: string } {
