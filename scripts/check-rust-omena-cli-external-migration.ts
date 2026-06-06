@@ -28,9 +28,10 @@ try {
   writeFileSync(tokensPath, "$brand: red !default;");
 
   const noLockfile = runStyleDiagnostics([appPath, "--json"]);
-  assertNoExternalBoundaryDiagnostic(
+  assertDiagnostic(
     noLockfile,
-    "omitted --external without omena.lock must preserve Phase 0 compatibility",
+    "unresolvedExternalReference",
+    "omitted --external without omena.lock must use Phase 2 SIF discovery",
   );
 
   const explicitSifWithoutLockfile = runStyleDiagnostics([appPath, "--external", "sif", "--json"]);
@@ -108,7 +109,7 @@ try {
   );
 
   console.log(
-    "validated omena-cli external migration: phase0 phase1 explicit-sif lockfile-invalid resolved",
+    "validated omena-cli external migration: phase2-default explicit-sif ignored lockfile-invalid resolved",
   );
 } finally {
   rmSync(workspace, { force: true, recursive: true });

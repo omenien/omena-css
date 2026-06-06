@@ -246,7 +246,7 @@ enum Command {
         /// Omena lockfile whose SIF entries should resolve opt-in external Sass modules.
         #[arg(long = "lockfile")]
         lockfile: Option<PathBuf>,
-        /// External Sass module mode: omitted preserves compatibility unless an omena.lock is discovered.
+        /// External Sass module mode: omitted enables SIF discovery; use ignored as the compatibility opt-out.
         #[arg(long)]
         external: Option<String>,
         /// Opt-in deep analysis: also surface the rg-flow / categorical theory hints
@@ -3371,12 +3371,11 @@ fn parse_external_module_mode(external: &str) -> Result<OmenaQueryExternalModule
 
 fn resolve_external_module_mode_for_style_diagnostics(
     external: Option<&str>,
-    lockfile: &Option<PathBuf>,
+    _lockfile: &Option<PathBuf>,
 ) -> Result<OmenaQueryExternalModuleModeV0, String> {
     match external {
         Some(external) => parse_external_module_mode(external),
-        None if lockfile.is_some() => Ok(OmenaQueryExternalModuleModeV0::Sif),
-        None => Ok(OmenaQueryExternalModuleModeV0::Ignored),
+        None => Ok(OmenaQueryExternalModuleModeV0::Sif),
     }
 }
 

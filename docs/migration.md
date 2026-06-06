@@ -5,11 +5,12 @@ handling to SIF-backed external Sass module analysis.
 
 ## Current Default
 
-In the current v5.2 line, `omena style-diagnostics` preserves the legacy
-compatibility default when no lockfile is present and `--external` is omitted.
-That mode does not enable external SIF boundary diagnostics.
+In the current v5.2 line, `omena style-diagnostics` enables SIF discovery when
+`--external` is omitted. This means bare or aliased external Sass references are
+reported through the external boundary diagnostic surface even before a lockfile
+has been authored.
 
-The SIF-aware path is enabled by either:
+The SIF-aware path is also enabled by either:
 
 - Passing `--external sif`.
 - Passing `--lockfile <path>`.
@@ -20,10 +21,9 @@ legacy boundary behavior even when `omena.lock` exists.
 
 ## Phase 0: Compatibility Mode
 
-Phase 0 is the default for workspaces without `omena.lock`.
+Phase 0 remains available as the explicit compatibility opt-out.
 
 ```sh
-omena style-diagnostics app.module.scss --json
 omena style-diagnostics app.module.scss --external ignored --json
 ```
 
@@ -52,25 +52,21 @@ Malformed or unreadable lockfiles are reported through the normal JSON
 diagnostic surface with `code: "lockfileInvalid"`. They do not abort before
 style diagnostics can be produced.
 
-## Phase 2: Planned Default SIF Discovery
+## Phase 2: Default SIF Discovery
 
-Phase 2 is not the current default. The planned behavior is:
+Phase 2 is the current default behavior:
 
 - Omitted `--external` enables SIF discovery by default.
 - `--external ignored` remains the explicit compatibility escape hatch.
-- `omena.lock` generation and update behavior is documented before the flip.
 - Compatibility gates cover omitted mode, explicit ignored mode, explicit SIF
   mode, lockfile-triggered mode, malformed lockfile diagnostics, and resolved
   SIF-backed packages.
-
-Until Phase 2 is explicitly released, do not assume a workspace without
-`omena.lock` is analyzed with external SIF boundary diagnostics.
 
 ## Compatibility Matrix
 
 | Invocation                                                        | `omena.lock`          | Expected behavior                                       |
 | ----------------------------------------------------------------- | --------------------- | ------------------------------------------------------- |
-| `style-diagnostics app.module.scss`                               | absent                | Phase 0 compatibility; no external boundary diagnostics |
+| `style-diagnostics app.module.scss`                               | absent                | Phase 2 SIF discovery; external boundary diagnostics    |
 | `style-diagnostics app.module.scss --external ignored`            | absent or present     | Phase 0 compatibility; reversible opt-out               |
 | `style-diagnostics app.module.scss --external sif`                | absent                | SIF boundary diagnostics enabled                        |
 | `style-diagnostics app.module.scss --lockfile path/to/omena.lock` | explicit path         | SIF boundary diagnostics enabled                        |
