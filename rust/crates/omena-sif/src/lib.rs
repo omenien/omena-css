@@ -317,13 +317,13 @@ pub fn apply_omena_sif_attestation_verification_report_to_lock_entry_v1(
             entry.sif_hash.as_str()
         ));
     }
-    if !entry
-        .attestation_references
-        .iter()
-        .any(|reference| reference.reference == report.reference)
-    {
+    if !lock_entry_has_compatible_attestation_reference_v1(
+        entry,
+        report.kind.as_str(),
+        report.reference.as_str(),
+    ) {
         return Err(format!(
-            "attestation verification report reference '{}' was not recorded for lock entry {}",
+            "attestation verification report reference '{}' was not recorded with a compatible kind for lock entry {}",
             report.reference, entry.canonical_url
         ));
     }
@@ -524,6 +524,56 @@ pub fn validate_omena_sif_attestation_verification_v1(
     validate_attestation_verification_for_trust_tier_v1(verification)
 }
 
+pub fn validate_omena_sif_lock_entry_attestation_verification_v1(
+    entry: &OmenaLockSifEntryV1,
+    verification: &OmenaSifAttestationVerificationV1,
+) -> Result<(), String> {
+    validate_attestation_verification_for_trust_tier_v1(verification)?;
+    if lock_entry_has_compatible_attestation_reference_v1(
+        entry,
+        verification.kind.as_str(),
+        verification.reference.as_str(),
+    ) {
+        Ok(())
+    } else {
+        Err(format!(
+            "attestation verification reference '{}' is not backed by a compatible attestation reference",
+            verification.reference
+        ))
+    }
+}
+
+fn lock_entry_has_compatible_attestation_reference_v1(
+    entry: &OmenaLockSifEntryV1,
+    verification_kind: &str,
+    verification_reference: &str,
+) -> bool {
+    entry.attestation_references.iter().any(|reference| {
+        reference.reference == verification_reference
+            && attestation_reference_kind_satisfies_verification_kind_v1(
+                reference.kind.as_str(),
+                verification_kind,
+            )
+    })
+}
+
+fn attestation_reference_kind_satisfies_verification_kind_v1(
+    reference_kind: &str,
+    verification_kind: &str,
+) -> bool {
+    if reference_kind == verification_kind {
+        return true;
+    }
+    if verification_kind.starts_with("npm-provenance.") {
+        return matches!(reference_kind, "npm-provenance" | "npm-provenance.url");
+    }
+    if verification_kind.starts_with("omena-toolchain.") {
+        return reference_kind == "sigstore-bundle"
+            || reference_kind.starts_with("omena-toolchain.");
+    }
+    false
+}
+
 pub fn collect_omena_sif_npm_provenance_attestation_references_v1(
     source: &str,
 ) -> Result<Vec<OmenaSifAttestationReferenceV1>, serde_json::Error> {
@@ -555,7 +605,8 @@ pub fn omena_lock_entry_has_verified_attestation_for_tier_v1(
     minimum_tier <= OmenaSifTrustTierV1::T1
         || entry.attestation_verifications.iter().any(|verification| {
             verification.verified_trust_tier >= minimum_tier
-                && validate_attestation_verification_for_trust_tier_v1(verification).is_ok()
+                && validate_omena_sif_lock_entry_attestation_verification_v1(entry, verification)
+                    .is_ok()
         })
 }
 
@@ -1445,13 +1496,20 @@ mod tests {
         let sif = fixture_sif("pkg:design-system/_tokens.scss", b"$color: red !default;")?;
         let mut entry = build_omena_lock_sif_entry_v1("sif/design-system.sif.json", &sif)?;
         entry.trust_tier = OmenaSifTrustTierV1::T2;
+        let attestation_reference =
+            "https://registry.npmjs.org/-/npm/v1/attestations/design-system@1.0.0/provenance"
+                .to_string();
+        entry
+            .attestation_references
+            .push(OmenaSifAttestationReferenceV1 {
+                kind: "npm-provenance.url".to_string(),
+                reference: attestation_reference.clone(),
+            });
         entry
             .attestation_verifications
             .push(OmenaSifAttestationVerificationV1 {
                 kind: "npm-provenance.sigstore".to_string(),
-                reference:
-                    "https://registry.npmjs.org/-/npm/v1/attestations/design-system@1.0.0/provenance"
-                        .to_string(),
+                reference: attestation_reference,
                 verifier: "offline-sigstore-verifier".to_string(),
                 verified_trust_tier: OmenaSifTrustTierV1::T2,
                 verified_tlog_integrated_time: Some(1_717_000_000),
@@ -1642,6 +1700,32 @@ mod tests {
             &entry,
             OmenaSifTrustTierV1::T3
         ));
+
+        let mut toolchain_entry =
+            build_omena_lock_sif_entry_v1("sif/design-system.sif.json", &sif)?;
+        toolchain_entry.trust_tier = OmenaSifTrustTierV1::T3;
+        toolchain_entry
+            .attestation_references
+            .push(OmenaSifAttestationReferenceV1 {
+                kind: "sigstore-bundle".to_string(),
+                reference: "sif/design-system.sigstore.json".to_string(),
+            });
+        toolchain_entry
+            .attestation_verifications
+            .push(OmenaSifAttestationVerificationV1 {
+                kind: "omena-toolchain.sigstore".to_string(),
+                reference: "sif/design-system.sigstore.json".to_string(),
+                verifier: "omena-sif-test-fixture".to_string(),
+                verified_trust_tier: OmenaSifTrustTierV1::T3,
+                verified_tlog_integrated_time: None,
+                sigstore_verification_policy: None,
+                certificate_issuer: Some("https://github.com/login/oauth".to_string()),
+                certificate_identity: Some("https://github.com/omenien/omena-css/.github/workflows/sif-keyless-attestation.yml@refs/heads/master".to_string()),
+            });
+        assert!(omena_lock_entry_has_verified_attestation_for_tier_v1(
+            &toolchain_entry,
+            OmenaSifTrustTierV1::T3
+        ));
         Ok(())
     }
 
@@ -1808,6 +1892,53 @@ mod tests {
             matches!(
                 result.as_ref(),
                 Err(message) if message.contains("tier t3 requires certificateIdentity")
+            ),
+            "{result:?}"
+        );
+        assert!(entry.attestation_verifications.is_empty());
+        assert_eq!(entry.trust_tier, OmenaSifTrustTierV1::T1);
+        Ok(())
+    }
+
+    #[test]
+    fn verified_attestation_report_rejects_incompatible_reference_kind() -> Result<(), String> {
+        let sif = fixture_sif("pkg:design-system/_tokens.scss", b"$color: red !default;")
+            .map_err(|error| error.to_string())?;
+        let mut entry = build_omena_lock_sif_entry_v1("sif/design-system.sif.json", &sif)
+            .map_err(|error| error.to_string())?;
+        let provenance_reference =
+            "https://registry.npmjs.org/-/npm/v1/attestations/design-system@1.0.0/provenance";
+        entry
+            .attestation_references
+            .push(OmenaSifAttestationReferenceV1 {
+                kind: "npm-provenance.url".to_string(),
+                reference: provenance_reference.to_string(),
+            });
+        let report = read_omena_sif_attestation_verification_report_json_v1(
+            &json!({
+                "schemaVersion": "1",
+                "product": "omena-sif.attestation-verification-report",
+                "verified": true,
+                "kind": "omena-toolchain.sigstore",
+                "reference": provenance_reference,
+                "verifier": "offline-sigstore-verifier",
+                "verifiedTrustTier": "t3",
+                "certificateIssuer": "https://github.com/login/oauth",
+                "certificateIdentity": "https://github.com/omenien/omena-css/.github/workflows/sif-keyless-attestation.yml@refs/heads/master",
+                "subjectCanonicalUrl": entry.canonical_url.as_str(),
+                "subjectSifHash": entry.sif_hash.as_str()
+            })
+            .to_string(),
+        )
+        .map_err(|error| error.to_string())?;
+
+        let result =
+            apply_omena_sif_attestation_verification_report_to_lock_entry_v1(&mut entry, &report);
+
+        assert!(
+            matches!(
+                result.as_ref(),
+                Err(message) if message.contains("compatible kind")
             ),
             "{result:?}"
         );

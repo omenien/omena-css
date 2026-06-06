@@ -1611,7 +1611,10 @@ fn collect_lock_trust_tier_issues(
                     continue;
                 }
                 candidate_count += 1;
-                match omena_sif::validate_omena_sif_attestation_verification_v1(verification) {
+                match omena_sif::validate_omena_sif_lock_entry_attestation_verification_v1(
+                    entry,
+                    verification,
+                ) {
                     Ok(()) => {
                         has_valid_evidence = true;
                         break;
