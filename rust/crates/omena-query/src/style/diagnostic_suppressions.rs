@@ -2,6 +2,7 @@ use super::*;
 
 const OMENA_IGNORE_FILE: &str = "omena-ignore-file";
 const OMENA_IGNORE_NEXT_LINE: &str = "omena-ignore-next-line";
+const OMENA_IGNORE_BLOCK: &str = "omena-ignore";
 const OMENA_EXPECT_ERROR: &str = "omena-expect-error";
 const OMENA_STRICT: &str = "@omena-strict";
 
@@ -87,6 +88,7 @@ pub(super) fn parse_omena_query_style_strictness_level(source: &str) -> OmenaStr
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum OmenaDiagnosticDirectiveKindV0 {
     IgnoreFile,
+    IgnoreBlock,
     IgnoreNextLine,
     ExpectError,
 }
@@ -95,6 +97,7 @@ enum OmenaDiagnosticDirectiveKindV0 {
 struct OmenaDiagnosticDirectiveV0 {
     kind: OmenaDiagnosticDirectiveKindV0,
     target_line: Option<usize>,
+    target_line_end: Option<usize>,
     range: ParserRangeV0,
     codes: BTreeSet<String>,
 }
@@ -191,6 +194,9 @@ fn diagnostic_is_suppressed(
 ) -> bool {
     directives.iter().any(|directive| match directive.kind {
         OmenaDiagnosticDirectiveKindV0::IgnoreFile => directive_matches_code(directive, diagnostic),
+        OmenaDiagnosticDirectiveKindV0::IgnoreBlock => {
+            diagnostic_matches_block_directive(diagnostic, directive)
+        }
         OmenaDiagnosticDirectiveKindV0::IgnoreNextLine
         | OmenaDiagnosticDirectiveKindV0::ExpectError => {
             diagnostic_matches_line_directive(diagnostic, directive)
@@ -203,6 +209,20 @@ fn diagnostic_matches_line_directive(
     directive: &OmenaDiagnosticDirectiveV0,
 ) -> bool {
     directive.target_line == Some(diagnostic.range.start.line)
+        && directive_matches_code(directive, diagnostic)
+}
+
+fn diagnostic_matches_block_directive(
+    diagnostic: &OmenaQueryStyleDiagnosticV0,
+    directive: &OmenaDiagnosticDirectiveV0,
+) -> bool {
+    let Some(start_line) = directive.target_line else {
+        return false;
+    };
+    let Some(end_line) = directive.target_line_end else {
+        return false;
+    };
+    (start_line..=end_line).contains(&diagnostic.range.start.line)
         && directive_matches_code(directive, diagnostic)
 }
 
@@ -261,6 +281,7 @@ fn parse_omena_query_diagnostic_directives(source: &str) -> Vec<OmenaDiagnosticD
             },
             &mut directives,
         );
+        collect_block_directive(line_context, &mut directives);
         line_start_offset += line.len();
     }
 
@@ -286,9 +307,104 @@ fn collect_line_directive(
     directives.push(OmenaDiagnosticDirectiveV0 {
         kind: spec.kind,
         target_line: spec.target_line,
+        target_line_end: None,
         range,
         codes: parse_omena_query_diagnostic_directive_codes(code_tail),
     });
+}
+
+fn collect_block_directive(
+    line_context: OmenaDiagnosticDirectiveLineV0<'_>,
+    directives: &mut Vec<OmenaDiagnosticDirectiveV0>,
+) {
+    let Some(directive_offset) = find_plain_omena_ignore_directive(line_context.line) else {
+        return;
+    };
+    let directive_end =
+        line_context.line_start_offset + directive_offset + OMENA_IGNORE_BLOCK.len();
+    let Some((target_line, target_line_end)) =
+        find_omena_ignore_block_line_range(line_context.source, directive_end)
+    else {
+        return;
+    };
+    let range = parser_range_for_byte_span(
+        line_context.source,
+        ParserByteSpanV0 {
+            start: line_context.line_start_offset + directive_offset,
+            end: directive_end,
+        },
+    );
+    let code_tail = &line_context.line[directive_offset + OMENA_IGNORE_BLOCK.len()..];
+    directives.push(OmenaDiagnosticDirectiveV0 {
+        kind: OmenaDiagnosticDirectiveKindV0::IgnoreBlock,
+        target_line: Some(target_line),
+        target_line_end: Some(target_line_end),
+        range,
+        codes: parse_omena_query_diagnostic_directive_codes(code_tail),
+    });
+}
+
+fn find_plain_omena_ignore_directive(line: &str) -> Option<usize> {
+    line.match_indices(OMENA_IGNORE_BLOCK)
+        .find_map(|(offset, _)| {
+            let tail = &line[offset + OMENA_IGNORE_BLOCK.len()..];
+            if tail.starts_with("-file") || tail.starts_with("-next-line") {
+                return None;
+            }
+            Some(offset)
+        })
+}
+
+fn find_omena_ignore_block_line_range(source: &str, after_offset: usize) -> Option<(usize, usize)> {
+    let open_index = source[after_offset..]
+        .find('{')
+        .map(|relative| after_offset + relative)?;
+    let open_range = parser_range_for_byte_span(
+        source,
+        ParserByteSpanV0 {
+            start: open_index,
+            end: open_index + 1,
+        },
+    );
+    let mut depth = 0usize;
+    let mut index = open_index;
+    let mut quote: Option<char> = None;
+    while index < source.len() {
+        let Some(character) = source[index..].chars().next() else {
+            break;
+        };
+        if let Some(quote_character) = quote {
+            index += character.len_utf8();
+            if character == '\\' {
+                if let Some(escaped) = source[index..].chars().next() {
+                    index += escaped.len_utf8();
+                }
+            } else if character == quote_character {
+                quote = None;
+            }
+            continue;
+        }
+        match character {
+            '"' | '\'' => quote = Some(character),
+            '{' => depth += 1,
+            '}' => {
+                depth = depth.saturating_sub(1);
+                if depth == 0 {
+                    let close_range = parser_range_for_byte_span(
+                        source,
+                        ParserByteSpanV0 {
+                            start: index,
+                            end: index + character.len_utf8(),
+                        },
+                    );
+                    return Some((open_range.start.line, close_range.end.line));
+                }
+            }
+            _ => {}
+        }
+        index += character.len_utf8();
+    }
+    None
 }
 
 fn parse_omena_query_diagnostic_directive_codes(tail: &str) -> BTreeSet<String> {

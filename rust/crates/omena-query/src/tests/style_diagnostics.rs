@@ -1271,6 +1271,36 @@ fn style_diagnostics_omena_ignore_file_respects_rule_code_filters() -> Result<()
 }
 
 #[test]
+fn style_diagnostics_omena_ignore_block_suppresses_targeted_code_only() -> Result<(), &'static str>
+{
+    let source = r#"/* omena-ignore: unspecifiedCascadeTie */
+.button {
+  color: red;
+  color: blue;
+  animation: fade 1s ease;
+}"#;
+    let candidates =
+        crate::summarize_omena_query_style_hover_candidates("Component.module.scss", source)
+            .ok_or("style candidates")?;
+
+    let diagnostics = crate::summarize_omena_query_style_diagnostics_for_file(
+        "file:///workspace/src/Component.module.scss",
+        source,
+        candidates.candidates.as_slice(),
+    );
+
+    let codes = diagnostics
+        .diagnostics
+        .iter()
+        .map(|diagnostic| diagnostic.code)
+        .collect::<Vec<_>>();
+    assert!(!codes.contains(&"unspecifiedCascadeTie"));
+    assert!(codes.contains(&"unreachableDeclaration"));
+    assert!(codes.contains(&"missingKeyframes"));
+    Ok(())
+}
+
+#[test]
 fn style_diagnostics_omena_expect_error_suppresses_expected_diagnostic() -> Result<(), &'static str>
 {
     let source = r#"/* omena-expect-error missingSassSymbol */
