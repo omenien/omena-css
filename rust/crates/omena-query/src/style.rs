@@ -996,6 +996,7 @@ fn summarize_sass_module_cross_file_resolution(
         (
             edge.from_style_path.clone(),
             edge.edge_kind,
+            edge.rule_ordinal,
             edge.source.clone(),
         )
     });
@@ -1082,6 +1083,7 @@ fn summarize_sass_module_graph_closure(
             edge.from_style_path.clone(),
             edge.resolved_style_path.clone().unwrap_or_default(),
             edge.edge_kind,
+            edge.rule_ordinal,
             edge.source.clone(),
         )
     });

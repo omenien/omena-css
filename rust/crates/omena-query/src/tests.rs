@@ -1570,6 +1570,12 @@ fn sass_module_resolution_tracks_repeated_source_configuration_per_rule() -> Res
         .filter(|edge| edge.from_style_path == "/tmp/App.module.scss" && edge.source == "./tokens")
         .map(|edge| edge.configuration_signature.as_str())
         .collect::<Vec<_>>();
+    let rule_ordinals = resolution
+        .edges
+        .iter()
+        .filter(|edge| edge.from_style_path == "/tmp/App.module.scss" && edge.source == "./tokens")
+        .map(|edge| edge.rule_ordinal)
+        .collect::<Vec<_>>();
 
     assert!(
         signatures
@@ -1583,6 +1589,7 @@ fn sass_module_resolution_tracks_repeated_source_configuration_per_rule() -> Res
             .any(|signature| signature.contains("brand=4:blue")),
         "{resolution:?}"
     );
+    assert_eq!(rule_ordinals, vec![0, 1], "{resolution:?}");
     Ok(())
 }
 
@@ -1615,6 +1622,12 @@ fn sass_module_resolution_tracks_repeated_forward_configuration_per_rule() -> Re
         .filter(|edge| edge.from_style_path == "/tmp/theme.scss" && edge.source == "./tokens")
         .map(|edge| edge.configuration_signature.as_str())
         .collect::<Vec<_>>();
+    let rule_ordinals = resolution
+        .edges
+        .iter()
+        .filter(|edge| edge.from_style_path == "/tmp/theme.scss" && edge.source == "./tokens")
+        .map(|edge| edge.rule_ordinal)
+        .collect::<Vec<_>>();
 
     assert!(
         signatures
@@ -1628,6 +1641,7 @@ fn sass_module_resolution_tracks_repeated_forward_configuration_per_rule() -> Re
             .any(|signature| signature.contains("brand=4:blue")),
         "{resolution:?}"
     );
+    assert_eq!(rule_ordinals, vec![0, 1], "{resolution:?}");
     Ok(())
 }
 

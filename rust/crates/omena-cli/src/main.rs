@@ -4448,6 +4448,7 @@ fn collect_sass_module_load_order_configuration_conflicts(
             (
                 sass_module_edge_source_offset(style_source, edge.edge_kind, edge.source.as_str()),
                 edge.edge_kind,
+                edge.rule_ordinal,
                 edge.source.clone(),
             )
         });
