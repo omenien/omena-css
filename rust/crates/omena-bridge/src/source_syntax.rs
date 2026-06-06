@@ -268,6 +268,13 @@ pub fn summarize_omena_bridge_source_syntax_index_for_source_language(
         source_language,
         &mut index.selector_references,
     );
+    collect_template_class_expression_selector_references(
+        source_path,
+        source,
+        source_language,
+        imported_style_targets.as_slice(),
+        &mut index.selector_references,
+    );
     canonicalize_source_selector_references(&mut index.selector_references);
 
     index
@@ -347,6 +354,33 @@ fn collect_template_class_attribute_selector_references(
     }
 }
 
+fn collect_template_class_expression_selector_references(
+    source_path: &str,
+    source: &str,
+    source_language: Option<&str>,
+    style_targets: &[SourceStyleBindingTarget],
+    references: &mut Vec<SourceSelectorReferenceFactV0>,
+) {
+    if style_targets.is_empty() || !is_html_like_template_source(source_path, source_language) {
+        return;
+    }
+
+    let mut suppressed_ranges = tag_content_ranges(source, "<script", "</script>");
+    suppressed_ranges.extend(tag_content_ranges(source, "<style", "</style>"));
+    suppressed_ranges.sort_unstable();
+
+    for expression_span in template_class_expression_spans(source, suppressed_ranges.as_slice()) {
+        for target in style_targets {
+            push_style_binding_selector_references_from_expression(
+                source,
+                expression_span,
+                target,
+                references,
+            );
+        }
+    }
+}
+
 fn is_html_like_template_source(source_path: &str, source_language: Option<&str>) -> bool {
     is_vue_source(source_path, source_language)
         || is_html_source(source_path, source_language)
@@ -394,6 +428,62 @@ fn template_class_attribute_value_spans(
     spans
 }
 
+fn template_class_expression_spans(
+    source: &str,
+    suppressed_ranges: &[(usize, usize)],
+) -> Vec<ParserByteSpanV0> {
+    let lower = source.to_ascii_lowercase();
+    let bytes = source.as_bytes();
+    let mut cursor = 0usize;
+    let mut spans = Vec::new();
+
+    while let Some(relative_start) = lower[cursor..].find("class") {
+        let attr_start = cursor + relative_start;
+        cursor = attr_start + "class".len();
+        if byte_in_ranges(attr_start, suppressed_ranges) {
+            continue;
+        }
+
+        let is_dynamic_attr = is_template_dynamic_class_attribute_name(source, attr_start);
+        let is_literal_attr = is_template_class_attribute_name(source, attr_start);
+        if !is_dynamic_attr && !is_literal_attr {
+            continue;
+        }
+
+        let mut index = skip_ascii_whitespace_bytes(bytes, attr_start + "class".len());
+        if bytes.get(index) != Some(&b'=') {
+            continue;
+        }
+        index = skip_ascii_whitespace_bytes(bytes, index + 1);
+        let Some((value_start, value_end)) = template_attribute_value_span(bytes, index) else {
+            continue;
+        };
+        let expression_span = if is_dynamic_attr {
+            ParserByteSpanV0 {
+                start: value_start,
+                end: value_end,
+            }
+        } else if value_start < value_end
+            && bytes.get(value_start) == Some(&b'{')
+            && bytes.get(value_end - 1) == Some(&b'}')
+        {
+            ParserByteSpanV0 {
+                start: value_start + 1,
+                end: value_end - 1,
+            }
+        } else {
+            continue;
+        };
+        let (start, end) = trim_js_expression(source, expression_span.start, expression_span.end);
+        if start < end {
+            spans.push(ParserByteSpanV0 { start, end });
+        }
+        cursor = value_end;
+    }
+
+    spans
+}
+
 fn is_template_class_attribute_name(source: &str, attr_start: usize) -> bool {
     let bytes = source.as_bytes();
     let before = attr_start
@@ -407,6 +497,31 @@ fn is_template_class_attribute_name(source: &str, attr_start: usize) -> bool {
     bytes
         .get(after)
         .is_none_or(|byte| !is_html_attribute_name_byte(*byte))
+}
+
+fn is_template_dynamic_class_attribute_name(source: &str, attr_start: usize) -> bool {
+    let bytes = source.as_bytes();
+    if attr_start >= 1
+        && bytes.get(attr_start - 1) == Some(&b':')
+        && attr_start
+            .checked_sub(2)
+            .and_then(|index| bytes.get(index))
+            .is_none_or(|byte| !is_html_attribute_name_byte(*byte))
+    {
+        return true;
+    }
+    let prefix = "v-bind:";
+    if attr_start < prefix.len() {
+        return false;
+    }
+    let prefix_start = attr_start - prefix.len();
+    source
+        .get(prefix_start..attr_start)
+        .is_some_and(|candidate| candidate.eq_ignore_ascii_case(prefix))
+        && prefix_start
+            .checked_sub(1)
+            .and_then(|index| bytes.get(index))
+            .is_none_or(|byte| !is_html_attribute_name_byte(*byte))
 }
 
 fn is_html_attribute_name_byte(byte: u8) -> bool {
@@ -443,6 +558,75 @@ fn is_static_template_class_attribute_value(source: &str, start: usize, end: usi
     source
         .get(start..end)
         .is_some_and(|value| !value.contains(['{', '}']))
+}
+
+fn push_style_binding_selector_references_from_expression(
+    source: &str,
+    expression_span: ParserByteSpanV0,
+    target: &SourceStyleBindingTarget,
+    references: &mut Vec<SourceSelectorReferenceFactV0>,
+) {
+    let Some(expression) = source.get(expression_span.start..expression_span.end) else {
+        return;
+    };
+    let mut cursor = 0usize;
+    while let Some(relative_start) = expression[cursor..].find(target.binding.as_str()) {
+        let binding_start = expression_span.start + cursor + relative_start;
+        let binding_end = binding_start + target.binding.len();
+        cursor += relative_start + target.binding.len();
+        if !is_js_identifier_boundary(source, binding_start, binding_end) {
+            continue;
+        }
+
+        let access_start = skip_ascii_whitespace(source, binding_end);
+        if source.as_bytes().get(access_start) == Some(&b'.') {
+            let property_start = skip_ascii_whitespace(source, access_start + 1);
+            if let Some((_, property_end)) = read_js_identifier(source, property_start) {
+                let span = ParserByteSpanV0 {
+                    start: property_start,
+                    end: property_end,
+                };
+                if source[span.start..span.end]
+                    .chars()
+                    .all(is_css_identifier_continue)
+                {
+                    push_selector_reference(
+                        span,
+                        Some(source[span.start..span.end].to_string()),
+                        SourceSelectorReferenceMatchKindV0::Exact,
+                        target.target_style_uri.as_deref(),
+                        references,
+                    );
+                }
+            }
+            continue;
+        }
+
+        if let Some((literal_start, literal_end, _)) =
+            bracket_string_literal_access(source, access_start)
+        {
+            push_selector_reference(
+                ParserByteSpanV0 {
+                    start: literal_start,
+                    end: literal_end,
+                },
+                Some(source[literal_start..literal_end].to_string()),
+                SourceSelectorReferenceMatchKindV0::Exact,
+                target.target_style_uri.as_deref(),
+                references,
+            );
+        }
+    }
+}
+
+fn is_js_identifier_boundary(source: &str, start: usize, end: usize) -> bool {
+    let before = start
+        .checked_sub(1)
+        .and_then(|index| source.get(index..start))
+        .and_then(|text| text.chars().next());
+    let after = source.get(end..).and_then(|text| text.chars().next());
+    before.is_none_or(|ch| !is_js_identifier_continue(ch))
+        && after.is_none_or(|ch| !is_js_identifier_continue(ch))
 }
 
 fn byte_in_ranges(byte_offset: usize, ranges: &[(usize, usize)]) -> bool {

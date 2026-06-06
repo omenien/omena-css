@@ -7,7 +7,7 @@ import styles from "./Card.module.scss";
 const root = styles.root;
 ---
 
-<section class={root}>ignored</section>
+<section class={styles.root}>{root}</section>
 "#;
     let style = ".root { color: red; }\n";
     let source_uri = "file:///workspace-a/src/Card.astro";
@@ -105,6 +105,44 @@ const root = styles.root;
     );
     assert_eq!(
         definition_response
+            .as_ref()
+            .and_then(|value| value.pointer("/result/0/range")),
+        Some(&json!(parser_range_for_byte_span(
+            style,
+            ParserByteSpanV0 {
+                start: expected_selector_start,
+                end: expected_selector_start + "root".len(),
+            },
+        ))),
+    );
+
+    let template_definition_response = handle_lsp_message(
+        &mut state,
+        json!({
+            "jsonrpc": "2.0",
+            "id": 3,
+            "method": "textDocument/definition",
+            "params": {
+                "textDocument": {
+                    "uri": source_uri,
+                },
+                "position": parser_position_for_byte_offset(
+                    source,
+                    fixture_find(source, "class={styles.root", "Astro template contains styles.root")?
+                        + "class={styles.".len()
+                        + 1,
+                ),
+            },
+        }),
+    );
+    assert_eq!(
+        template_definition_response
+            .as_ref()
+            .and_then(|value| value.pointer("/result/0/uri")),
+        Some(&json!(style_uri)),
+    );
+    assert_eq!(
+        template_definition_response
             .as_ref()
             .and_then(|value| value.pointer("/result/0/range")),
         Some(&json!(parser_range_for_byte_span(

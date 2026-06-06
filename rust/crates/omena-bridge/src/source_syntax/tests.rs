@@ -44,6 +44,7 @@ export function App({ tone }: { tone: "warm" | "cool" }) {
 fn collects_html_like_template_literal_class_attributes() {
     let source = r#"<main class="root active">
   <section class={dynamic}></section>
+  <span class=""></span>
   <script type="module">
     const ignored = "class=\"from-script\"";
   </script>
@@ -66,6 +67,33 @@ fn collects_html_like_template_literal_class_attributes() {
     assert_eq!(names, vec!["root", "active"]);
     assert!(!names.contains(&"{dynamic}"));
     assert!(!names.contains(&"from-script"));
+}
+
+#[test]
+fn collects_template_style_binding_class_expressions() {
+    let source = r#"<template>
+  <section class={styles.root}></section>
+  <section :class="styles['item--primary']"></section>
+  <section v-bind:class="styles.icon"></section>
+</template>
+"#;
+    let index = summarize_omena_bridge_source_syntax_index_for_source_language(
+        "Card.vue",
+        source,
+        Some("vue"),
+        vec![SourceImportedStyleBindingV0 {
+            binding: "styles".to_string(),
+            style_uri: "file:///workspace/Card.vue".to_string(),
+        }],
+        Vec::new(),
+    );
+
+    for expected in ["root", "item--primary", "icon"] {
+        assert!(index.selector_references.iter().any(|reference| {
+            selector_reference_name(source, reference) == expected
+                && reference.target_style_uri.as_deref() == Some("file:///workspace/Card.vue")
+        }));
+    }
 }
 
 #[test]

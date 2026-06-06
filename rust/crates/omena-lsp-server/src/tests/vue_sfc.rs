@@ -2,7 +2,7 @@ use super::*;
 
 #[test]
 fn resolves_vue_sfc_use_css_module_definition_to_embedded_style_module_selector() -> TestResult {
-    let source = r#"<template><div /></template>
+    let source = r#"<template><div :class="styles.root" /></template>
 <script setup lang="ts">
 import { useCssModule } from "vue";
 const styles = useCssModule();
@@ -109,11 +109,49 @@ export const root = styles.root;
         ))),
     );
 
-    let diagnostics_response = handle_lsp_message(
+    let template_definition_response = handle_lsp_message(
         &mut state,
         json!({
             "jsonrpc": "2.0",
             "id": 3,
+            "method": "textDocument/definition",
+            "params": {
+                "textDocument": {
+                    "uri": vue_uri,
+                },
+                "position": parser_position_for_byte_offset(
+                    source,
+                    fixture_find(source, ":class=\"styles.root", "Vue template contains styles.root")?
+                        + ":class=\"styles.".len()
+                        + 1,
+                ),
+            },
+        }),
+    );
+    assert_eq!(
+        template_definition_response
+            .as_ref()
+            .and_then(|value| value.pointer("/result/0/uri")),
+        Some(&json!(vue_uri)),
+    );
+    assert_eq!(
+        template_definition_response
+            .as_ref()
+            .and_then(|value| value.pointer("/result/0/range")),
+        Some(&json!(parser_range_for_byte_span(
+            source,
+            ParserByteSpanV0 {
+                start: expected_selector_start,
+                end: expected_selector_start + "root".len(),
+            },
+        ))),
+    );
+
+    let diagnostics_response = handle_lsp_message(
+        &mut state,
+        json!({
+            "jsonrpc": "2.0",
+            "id": 4,
             "method": SOURCE_DIAGNOSTICS_REQUEST,
             "params": {
                 "textDocument": {
