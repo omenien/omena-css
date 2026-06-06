@@ -156,6 +156,20 @@ pub(super) fn derive_static_scss_module_use_evaluations_for_transform_context(
                 "@use",
                 edge.source.as_str(),
             );
+            let configurable_variable_names =
+                derive_static_scss_module_configurable_variable_names_for_transform_context(
+                    resolved.as_str(),
+                    source,
+                    available_style_paths,
+                    source_by_path,
+                    package_manifests,
+                );
+            if !static_scss_module_configuration_variables_are_valid(
+                &variable_overrides,
+                &configurable_variable_names,
+            ) {
+                return None;
+            }
             let variable_overrides = resolve_static_scss_module_effective_variable_overrides(
                 resolved.as_str(),
                 &variable_overrides,
@@ -202,6 +216,7 @@ pub(super) fn derive_static_scss_module_use_evaluations_for_transform_context(
 struct StaticScssModuleContext {
     evaluated_css: String,
     variable_exports: BTreeMap<String, String>,
+    configurable_variable_names: BTreeSet<String>,
 }
 
 struct StaticScssModuleDeriveContext<'a> {
@@ -211,6 +226,79 @@ struct StaticScssModuleDeriveContext<'a> {
     visited: &'a mut BTreeSet<String>,
     emitted_module_identity_keys: &'a mut BTreeSet<String>,
     loaded_module_overrides_by_path: &'a mut BTreeMap<String, BTreeMap<String, String>>,
+}
+
+pub(super) fn derive_static_scss_module_configurable_variable_names_for_transform_context(
+    style_path: &str,
+    style_source: &str,
+    available_style_paths: &BTreeSet<&str>,
+    source_by_path: &BTreeMap<String, String>,
+    package_manifests: &[OmenaQueryStylePackageManifestV0],
+) -> BTreeSet<String> {
+    let mut visiting = BTreeSet::new();
+    derive_static_scss_module_configurable_variable_names_for_transform_context_inner(
+        style_path,
+        style_source,
+        available_style_paths,
+        source_by_path,
+        package_manifests,
+        &mut visiting,
+    )
+}
+
+fn derive_static_scss_module_configurable_variable_names_for_transform_context_inner(
+    style_path: &str,
+    style_source: &str,
+    available_style_paths: &BTreeSet<&str>,
+    source_by_path: &BTreeMap<String, String>,
+    package_manifests: &[OmenaQueryStylePackageManifestV0],
+    visiting: &mut BTreeSet<String>,
+) -> BTreeSet<String> {
+    let identity_path = canonicalize_omena_resolver_style_identity_path(style_path);
+    if !visiting.insert(identity_path.clone()) {
+        return BTreeSet::new();
+    }
+
+    let mut names = derive_static_scss_stylesheet_module_configurable_variable_names(style_source);
+    let facts =
+        summarize_omena_query_omena_parser_style_facts(style_source, OmenaParserStyleDialect::Scss);
+    for edge in facts
+        .sass_module_edges
+        .iter()
+        .filter(|edge| edge.kind == "sassForward")
+    {
+        let Some(resolved) = resolve_style_module_source(
+            style_path,
+            edge.source.as_str(),
+            available_style_paths,
+            package_manifests,
+        ) else {
+            continue;
+        };
+        let Some(source) = source_by_path.get(resolved.as_str()) else {
+            continue;
+        };
+        let child_names =
+            derive_static_scss_module_configurable_variable_names_for_transform_context_inner(
+                resolved.as_str(),
+                source,
+                available_style_paths,
+                source_by_path,
+                package_manifests,
+                visiting,
+            );
+        let export_prefix =
+            derive_static_scss_forward_export_prefix(style_source, edge.source.as_str());
+        names.extend(filter_static_scss_forward_configurable_variable_names(
+            child_names,
+            export_prefix.as_deref(),
+            edge.visibility_filter_kind,
+            &edge.visibility_filter_names,
+        ));
+    }
+
+    visiting.remove(identity_path.as_str());
+    names
 }
 
 pub(super) fn static_scss_module_instance_identity_key(
@@ -281,9 +369,12 @@ fn derive_static_scss_module_context_for_transform_context(
         return Some(StaticScssModuleContext {
             evaluated_css: String::new(),
             variable_exports: BTreeMap::new(),
+            configurable_variable_names: BTreeSet::new(),
         });
     }
 
+    let mut configurable_variable_names =
+        derive_static_scss_stylesheet_module_configurable_variable_names(style_source);
     let style_source =
         apply_static_scss_module_variable_overrides(style_source, &variable_overrides);
     let style_source = style_source.as_ref();
@@ -301,6 +392,7 @@ fn derive_static_scss_module_context_for_transform_context(
                 .entry(name.clone())
                 .or_insert_with(|| value.clone());
         }
+        configurable_variable_names.extend(forward.configurable_variable_names.iter().cloned());
     }
 
     let (evaluation_source, forward_mutation_count) = inline_static_scss_forward_rules(
@@ -326,6 +418,7 @@ fn derive_static_scss_module_context_for_transform_context(
     Some(StaticScssModuleContext {
         evaluated_css,
         variable_exports,
+        configurable_variable_names,
     })
 }
 
@@ -335,6 +428,7 @@ struct StaticScssModuleForwardEvaluation {
     module_identity_key: String,
     evaluated_css: String,
     variable_exports: BTreeMap<String, String>,
+    configurable_variable_names: BTreeSet<String>,
 }
 
 fn derive_static_scss_module_forward_evaluations_for_transform_context(
@@ -370,14 +464,28 @@ fn derive_static_scss_module_forward_evaluations_for_transform_context(
         );
         let export_prefix =
             derive_static_scss_forward_export_prefix(style_source, edge.source.as_str());
+        let configurable_variable_names =
+            derive_static_scss_module_configurable_variable_names_for_transform_context(
+                resolved.as_str(),
+                source,
+                context.available_style_paths,
+                context.source_by_path,
+                context.package_manifests,
+            );
         let variable_overrides = derive_static_scss_forward_effective_variable_overrides(
             &explicit_variable_overrides,
             inherited_variable_overrides,
             export_prefix.as_deref(),
             edge.visibility_filter_kind,
             &edge.visibility_filter_names,
-            source,
+            &configurable_variable_names,
         );
+        if !static_scss_module_configuration_variables_are_valid(
+            &variable_overrides,
+            &configurable_variable_names,
+        ) {
+            continue;
+        }
         let variable_overrides = resolve_static_scss_module_effective_variable_overrides(
             resolved.as_str(),
             &variable_overrides,
@@ -403,6 +511,12 @@ fn derive_static_scss_module_forward_evaluations_for_transform_context(
                 edge.visibility_filter_kind,
                 &edge.visibility_filter_names,
             ),
+            configurable_variable_names: filter_static_scss_forward_configurable_variable_names(
+                module_context.configurable_variable_names,
+                export_prefix.as_deref(),
+                edge.visibility_filter_kind,
+                &edge.visibility_filter_names,
+            ),
         });
     }
 
@@ -415,10 +529,8 @@ fn derive_static_scss_forward_effective_variable_overrides(
     export_prefix: Option<&str>,
     visibility_filter_kind: Option<&'static str>,
     visibility_filter_names: &[String],
-    forwarded_source: &str,
+    configurable_names: &BTreeSet<String>,
 ) -> BTreeMap<String, String> {
-    let configurable_names =
-        derive_static_scss_stylesheet_module_configurable_variable_names(forwarded_source);
     let mut variable_overrides = inherited_variable_overrides
         .iter()
         .filter_map(|(name, value)| {
@@ -437,6 +549,37 @@ fn derive_static_scss_forward_effective_variable_overrides(
         .collect::<BTreeMap<_, _>>();
     variable_overrides.extend(explicit_variable_overrides.clone());
     variable_overrides
+}
+
+fn static_scss_module_configuration_variables_are_valid(
+    variable_overrides: &BTreeMap<String, String>,
+    configurable_names: &BTreeSet<String>,
+) -> bool {
+    variable_overrides
+        .keys()
+        .all(|name| configurable_names.contains(name))
+}
+
+fn filter_static_scss_forward_configurable_variable_names(
+    names: BTreeSet<String>,
+    prefix: Option<&str>,
+    visibility_filter_kind: Option<&'static str>,
+    visibility_filter_names: &[String],
+) -> BTreeSet<String> {
+    names
+        .into_iter()
+        .filter_map(|name| {
+            let exposed_name = prefix
+                .map(|prefix| prefix.replace('*', name.as_str()))
+                .unwrap_or(name);
+            static_scss_forward_exposed_variable_is_visible(
+                exposed_name.as_str(),
+                visibility_filter_kind,
+                visibility_filter_names,
+            )
+            .then(|| canonical_static_scss_variable_name(exposed_name.as_str()))
+        })
+        .collect()
 }
 
 fn static_scss_forward_exposed_variable_is_visible(

@@ -22,6 +22,7 @@ use imports::{
     resolve_import_inline_replacement_for_transform_context,
 };
 use static_stylesheet::{
+    derive_static_scss_module_configurable_variable_names_for_transform_context,
     derive_static_scss_module_rule_variable_overrides,
     derive_static_scss_module_use_evaluations_for_transform_context,
     derive_static_stylesheet_module_evaluation_for_transform_context,
@@ -31,6 +32,7 @@ use static_stylesheet::{
 pub(super) struct StaticScssModuleResolutionConfigurationEvidence {
     pub(super) configuration_signature: String,
     pub(super) configuration_variable_count: usize,
+    pub(super) configuration_variable_names: Vec<String>,
     pub(super) module_instance_identity_key: Option<String>,
 }
 
@@ -60,8 +62,25 @@ pub(super) fn derive_static_scss_module_resolution_configuration_evidence(
     StaticScssModuleResolutionConfigurationEvidence {
         configuration_signature: static_scss_module_configuration_signature(&variable_overrides),
         configuration_variable_count: variable_overrides.len(),
+        configuration_variable_names: variable_overrides.keys().cloned().collect(),
         module_instance_identity_key,
     }
+}
+
+pub(super) fn derive_static_scss_module_configurable_variable_names_for_resolution(
+    style_path: &str,
+    style_source: &str,
+    available_style_paths: &BTreeSet<&str>,
+    source_by_path: &BTreeMap<String, String>,
+    package_manifests: &[OmenaQueryStylePackageManifestV0],
+) -> BTreeSet<String> {
+    derive_static_scss_module_configurable_variable_names_for_transform_context(
+        style_path,
+        style_source,
+        available_style_paths,
+        source_by_path,
+        package_manifests,
+    )
 }
 
 pub fn summarize_omena_query_transform_plan_from_source(

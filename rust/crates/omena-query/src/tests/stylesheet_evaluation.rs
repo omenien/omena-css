@@ -381,6 +381,47 @@ fn consumer_build_preserves_conflicting_sass_module_configuration_boundary() -> 
 }
 
 #[test]
+fn consumer_build_preserves_non_default_sass_module_configuration_boundary() -> Result<(), String> {
+    let sources = vec![
+        OmenaQueryStyleSourceInputV0 {
+            style_path: "/tmp/tokens.scss".to_string(),
+            style_source: "$brand: blue; .token { color: $brand; }".to_string(),
+        },
+        OmenaQueryStyleSourceInputV0 {
+            style_path: "/tmp/App.module.scss".to_string(),
+            style_source:
+                r#"@use "./tokens" as tokens with ($brand: red); .button { color: tokens.$brand; }"#
+                    .to_string(),
+        },
+    ];
+
+    let summary = execute_omena_query_consumer_build_style_sources(
+        "/tmp/App.module.scss",
+        sources.as_slice(),
+        &["scss-module-evaluate".to_string(), "print-css".to_string()],
+        &[],
+    )
+    .map_err(|error| format!("multi-source SCSS build should return a summary: {error}"))?;
+
+    assert!(
+        summary
+            .execution
+            .output_css
+            .contains(r#"@use "./tokens" as tokens with ($brand: red)"#),
+        "{}",
+        summary.execution.output_css
+    );
+    assert!(summary.execution.output_css.contains("tokens.$brand"));
+    assert!(
+        !summary
+            .execution
+            .output_css
+            .contains(".token { color: blue; }")
+    );
+    Ok(())
+}
+
+#[test]
 fn consumer_build_derives_static_stylesheet_evaluator_context_for_composite_values() {
     let scss_summary = execute_omena_query_consumer_build_style_source(
         "Button.module.scss",

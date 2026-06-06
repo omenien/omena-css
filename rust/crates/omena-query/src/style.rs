@@ -532,6 +532,10 @@ fn summarize_sass_module_cross_file_resolution(
             package_json_source: manifest.package_json_source.clone(),
         })
         .collect::<Vec<_>>();
+    let source_by_path = style_fact_entries
+        .iter()
+        .map(|entry| (entry.style_path.clone(), entry.style_source.clone()))
+        .collect::<BTreeMap<_, _>>();
     let mut edges = Vec::new();
 
     for entry in style_fact_entries {
@@ -571,6 +575,27 @@ fn summarize_sass_module_cross_file_resolution(
                     edge.source.as_str(),
                     resolved_style_path.as_deref(),
                 );
+            let invalid_configuration_variable_names =
+                resolved_style_path
+                    .as_deref()
+                    .and_then(|target_path| {
+                        source_by_path.get(target_path).map(|target_source| {
+                            let configurable_names = transform::derive_static_scss_module_configurable_variable_names_for_resolution(
+                                target_path,
+                                target_source,
+                                &available_style_paths,
+                                &source_by_path,
+                                package_manifests,
+                            );
+                            configuration_evidence
+                                .configuration_variable_names
+                                .iter()
+                                .filter(|name| !configurable_names.contains(*name))
+                                .cloned()
+                                .collect::<Vec<_>>()
+                        })
+                    })
+                    .unwrap_or_default();
             edges.push(OmenaQuerySassModuleEdgeResolutionV0 {
                 from_style_path: entry.style_path.clone(),
                 edge_kind: edge.kind,
@@ -588,6 +613,7 @@ fn summarize_sass_module_cross_file_resolution(
                 symlink_chain_links,
                 configuration_signature: configuration_evidence.configuration_signature,
                 configuration_variable_count: configuration_evidence.configuration_variable_count,
+                invalid_configuration_variable_names,
                 module_instance_identity_key: configuration_evidence.module_instance_identity_key,
             });
         }
@@ -726,6 +752,8 @@ fn summarize_sass_module_graph_closure(
                     visibility_filter_names: metadata.visibility_filter_names,
                     configuration_signature: metadata.configuration_signature,
                     configuration_variable_count: metadata.configuration_variable_count,
+                    invalid_configuration_variable_names: metadata
+                        .invalid_configuration_variable_names,
                     module_instance_identity_key: metadata.module_instance_identity_key,
                 })
             },
@@ -758,6 +786,7 @@ struct SassModuleGraphClosureStepMetadata {
     visibility_filter_names: Vec<String>,
     configuration_signature: String,
     configuration_variable_count: usize,
+    invalid_configuration_variable_names: Vec<String>,
     module_instance_identity_key: Option<String>,
 }
 
@@ -772,6 +801,7 @@ impl From<&OmenaQuerySassModuleEdgeResolutionV0> for SassModuleGraphClosureStepM
             visibility_filter_names: edge.visibility_filter_names.clone(),
             configuration_signature: edge.configuration_signature.clone(),
             configuration_variable_count: edge.configuration_variable_count,
+            invalid_configuration_variable_names: edge.invalid_configuration_variable_names.clone(),
             module_instance_identity_key: edge.module_instance_identity_key.clone(),
         }
     }

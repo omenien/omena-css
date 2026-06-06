@@ -42,6 +42,7 @@ use crate::{
     OmenaQueryTransformExecutionContextV0, OmenaQueryTransformPrintMode,
     OmenaQueryTransformPrintOptionsV0, default_omena_query_transform_print_options,
     modern_omena_query_target_feature_support,
+    summarize_omena_query_sass_module_cross_file_resolution_for_workspace,
 };
 use omena_cascade::{CascadeKey, CascadeLevel, CascadeMarginV0, LayerRank, Specificity};
 
@@ -1505,6 +1506,40 @@ fn derives_configured_scss_use_aware_static_stylesheet_module_evaluation() {
             .map(|evaluation| evaluation.evaluated_css.as_str()),
         Some("  .base { color: red; } .button { color: red; }")
     );
+}
+
+#[test]
+fn sass_module_resolution_flags_non_default_configured_variables() -> Result<(), String> {
+    let sources = vec![
+        OmenaQueryStyleSourceInputV0 {
+            style_path: "/tmp/tokens.scss".to_string(),
+            style_source: "$brand: blue; .base { color: $brand; }".to_string(),
+        },
+        OmenaQueryStyleSourceInputV0 {
+            style_path: "/tmp/App.module.scss".to_string(),
+            style_source:
+                r#"@use "./tokens" as tokens with ($brand: red); .button { color: tokens.$brand; }"#
+                    .to_string(),
+        },
+    ];
+
+    let resolution = summarize_omena_query_sass_module_cross_file_resolution_for_workspace(
+        sources.as_slice(),
+        &[],
+        &[],
+        &[],
+    );
+    let edge = resolution
+        .edges
+        .iter()
+        .find(|edge| edge.from_style_path == "/tmp/App.module.scss")
+        .ok_or_else(|| format!("App should have a resolved Sass module edge: {resolution:?}"))?;
+
+    assert_eq!(
+        edge.invalid_configuration_variable_names,
+        vec!["brand".to_string()]
+    );
+    Ok(())
 }
 
 #[test]

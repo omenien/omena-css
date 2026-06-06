@@ -448,6 +448,7 @@ pub struct OmenaQuerySassModuleEdgeResolutionV0 {
     pub symlink_chain_links: Vec<OmenaQuerySymlinkChainLinkV0>,
     pub configuration_signature: String,
     pub configuration_variable_count: usize,
+    pub invalid_configuration_variable_names: Vec<String>,
     pub module_instance_identity_key: Option<String>,
 }
 
@@ -474,6 +475,7 @@ pub struct OmenaQuerySassModuleGraphClosureEdgeV0 {
     pub visibility_filter_names: Vec<String>,
     pub configuration_signature: String,
     pub configuration_variable_count: usize,
+    pub invalid_configuration_variable_names: Vec<String>,
     pub module_instance_identity_key: Option<String>,
 }
 

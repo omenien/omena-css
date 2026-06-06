@@ -3624,6 +3624,43 @@ fn summarize_sass_module_resolution_identity_diagnostics(
                 cross_file_scc: None,
             });
         }
+
+        if !edge.invalid_configuration_variable_names.is_empty()
+            && emitted.insert((
+                "sassModuleInvalidConfiguration",
+                edge.source.clone(),
+                edge.resolved_style_path.clone(),
+            ))
+        {
+            let target_path = edge
+                .resolved_style_path
+                .as_deref()
+                .unwrap_or(edge.source.as_str());
+            diagnostics.push(OmenaQueryStyleDiagnosticV0 {
+                code: "sassModuleInvalidConfiguration",
+                severity: "error",
+                provenance: vec![
+                    "omena-query.sass-module-cross-file-resolution",
+                    "omena-query.module-instance-identity",
+                    "omena-cli.style-diagnostics",
+                ],
+                range,
+                message: format!(
+                    "Sass module '{}' configures {} on '{}', but Sass @use/@forward with(...) can configure only public !default variables.",
+                    edge.source,
+                    format_sass_configuration_variable_names(
+                        edge.invalid_configuration_variable_names.as_slice()
+                    ),
+                    target_path
+                ),
+                tags: Vec::new(),
+                create_custom_property: None,
+                cascade_narrowing: None,
+                cascade_confidence: None,
+                polynomial_provenance: None,
+                cross_file_scc: None,
+            });
+        }
     }
 
     for edge in resolution
@@ -3654,6 +3691,43 @@ fn summarize_sass_module_resolution_identity_diagnostics(
             message: format!(
                 "Sass module graph reaches configured module instance '{}' in {} hop(s); module instance identity is {}.",
                 edge.target_style_path, edge.depth, identity_key
+            ),
+            tags: Vec::new(),
+            create_custom_property: None,
+            cascade_narrowing: None,
+            cascade_confidence: None,
+            polynomial_provenance: None,
+            cross_file_scc: None,
+        });
+    }
+    for edge in resolution
+        .graph_closure_edges
+        .iter()
+        .filter(|edge| edge.from_style_path == target_style_path)
+        .filter(|edge| !edge.invalid_configuration_variable_names.is_empty())
+    {
+        if !emitted.insert((
+            "sassModuleInvalidConfiguration",
+            edge.target_style_path.clone(),
+            Some(edge.configuration_signature.clone()),
+        )) {
+            continue;
+        }
+        diagnostics.push(OmenaQueryStyleDiagnosticV0 {
+            code: "sassModuleInvalidConfiguration",
+            severity: "error",
+            provenance: vec![
+                "omena-query.sass-module-cross-file-resolution",
+                "omena-query.module-instance-identity",
+                "omena-cli.style-diagnostics",
+            ],
+            range,
+            message: format!(
+                "Sass module graph reaches invalid configuration for '{}': {} are not public !default variables.",
+                edge.target_style_path,
+                format_sass_configuration_variable_names(
+                    edge.invalid_configuration_variable_names.as_slice()
+                )
             ),
             tags: Vec::new(),
             create_custom_property: None,
@@ -3828,6 +3902,14 @@ fn collect_sass_module_load_order_configuration_conflicts_for_style(
 
 fn is_unconfigured_sass_module_signature(signature: &str) -> bool {
     signature == "with:none"
+}
+
+fn format_sass_configuration_variable_names(names: &[String]) -> String {
+    names
+        .iter()
+        .map(|name| format!("${name}"))
+        .collect::<Vec<_>>()
+        .join(", ")
 }
 
 fn sass_module_edge_source_offset(style_source: &str, edge_kind: &str, source: &str) -> usize {
@@ -7929,6 +8011,38 @@ export function App() {
                     && diagnostic.message.contains("brand=3:red")
             }),
             "CLI diagnostics must reject configuring a Sass module after an unconfigured load: {diagnostics:?}"
+        );
+    }
+
+    #[test]
+    fn style_diagnostics_cli_identity_reports_non_default_sass_module_configuration() {
+        let sources = vec![
+            OmenaQueryStyleSourceInputV0 {
+                style_path: "/tmp/tokens.scss".to_string(),
+                style_source: "$brand: blue;".to_string(),
+            },
+            OmenaQueryStyleSourceInputV0 {
+                style_path: "/tmp/App.module.scss".to_string(),
+                style_source: r#"@use "./tokens" as tokens with ($brand: red);"#.to_string(),
+            },
+        ];
+
+        let diagnostics = summarize_sass_module_resolution_identity_diagnostics(
+            "/tmp/App.module.scss",
+            sources.as_slice(),
+            &[],
+            &omena_query::OmenaQueryStyleResolutionInputsV0::default(),
+        );
+
+        assert!(
+            diagnostics.iter().any(|diagnostic| {
+                diagnostic.code == "sassModuleInvalidConfiguration"
+                    && diagnostic.severity == "error"
+                    && diagnostic.message.contains("/tmp/tokens.scss")
+                    && diagnostic.message.contains("$brand")
+                    && diagnostic.message.contains("!default")
+            }),
+            "CLI diagnostics must reject non-!default Sass module configuration: {diagnostics:?}"
         );
     }
 
