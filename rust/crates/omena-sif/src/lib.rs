@@ -273,6 +273,8 @@ pub struct OmenaSifSigstoreVerificationPolicyV1 {
 #[serde(rename_all = "camelCase")]
 pub struct OmenaSifAttestationStatementV1 {
     #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub statement_type: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub predicate_type: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub source_repository: Option<String>,
@@ -479,6 +481,7 @@ fn validate_attestation_statement_v1(
     statement: &OmenaSifAttestationStatementV1,
 ) -> Result<(), String> {
     for (field, value) in [
+        ("statementType", statement.statement_type.as_ref()),
         ("predicateType", statement.predicate_type.as_ref()),
         ("sourceRepository", statement.source_repository.as_ref()),
         ("sourceRef", statement.source_ref.as_ref()),
@@ -1309,7 +1312,7 @@ mod tests {
         Ok(())
     }
 
-    fn assert_attestation_statement_schema_preserves_subject_digests(
+    fn assert_attestation_statement_schema_preserves_statement_fields(
         schema: &Value,
         properties_pointer: &str,
         context: &str,
@@ -1318,6 +1321,14 @@ mod tests {
             .pointer(properties_pointer)
             .and_then(Value::as_object)
             .ok_or_else(|| format!("{context} must define attestation statement properties"))?;
+        let statement_type = properties
+            .get("statementType")
+            .ok_or_else(|| format!("{context} must preserve statementType"))?;
+        assert_eq!(
+            statement_type.get("type").and_then(Value::as_str),
+            Some("string"),
+            "{context} statementType must remain a string"
+        );
         let subject_digest = properties
             .get("subjectDigests")
             .ok_or_else(|| format!("{context} must preserve subjectDigests"))?;
@@ -1360,7 +1371,7 @@ mod tests {
                 "lock schema must preserve attestation verification field {field}"
             );
         }
-        assert_attestation_statement_schema_preserves_subject_digests(
+        assert_attestation_statement_schema_preserves_statement_fields(
             &schema,
             "/$defs/attestationStatement/properties",
             "lock schema",
@@ -1443,7 +1454,7 @@ mod tests {
             report_properties.contains_key("attestationStatement"),
             "attestation report schema must preserve statement claim summary"
         );
-        assert_attestation_statement_schema_preserves_subject_digests(
+        assert_attestation_statement_schema_preserves_statement_fields(
             &schema,
             "/$defs/attestationStatement/properties",
             "attestation report schema",
@@ -1566,7 +1577,7 @@ mod tests {
             policy_properties.contains_key("attestationStatement"),
             "provenance advisory schema must preserve statement claim summary"
         );
-        assert_attestation_statement_schema_preserves_subject_digests(
+        assert_attestation_statement_schema_preserves_statement_fields(
             &schema,
             "/$defs/attestationStatement/properties",
             "provenance advisory schema",
@@ -1817,6 +1828,7 @@ mod tests {
                         .to_string(),
                 ),
                 attestation_statement: Some(OmenaSifAttestationStatementV1 {
+                    statement_type: Some("https://in-toto.io/Statement/v1".to_string()),
                     predicate_type: Some("https://slsa.dev/provenance/v1".to_string()),
                     source_repository: Some("https://github.com/omenien/omena-css".to_string()),
                     source_ref: Some("refs/tags/v1.0.0".to_string()),

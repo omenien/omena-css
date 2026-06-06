@@ -450,6 +450,9 @@ enum LockCommand {
         /// Required certificate OIDC issuer.
         #[arg(long)]
         issuer: String,
+        /// Expected in-toto statement _type.
+        #[arg(long = "statement-type")]
+        statement_type: Option<String>,
         /// Expected in-toto/SLSA statement predicateType.
         #[arg(long = "statement-predicate-type")]
         statement_predicate_type: Option<String>,
@@ -904,6 +907,7 @@ fn lock_command(
             verified_tier,
             identity,
             issuer,
+            statement_type,
             statement_predicate_type,
             statement_source_repository,
             statement_source_ref,
@@ -924,6 +928,7 @@ fn lock_command(
             identity,
             issuer,
             statement_policy: AttestationStatementPolicy {
+                statement_type,
                 predicate_type: statement_predicate_type,
                 source_repository: statement_source_repository,
                 source_ref: statement_source_ref,
@@ -1170,6 +1175,7 @@ struct LockVerifyAttestationInput {
 
 #[derive(Debug, Clone, Default)]
 struct AttestationStatementPolicy {
+    statement_type: Option<String>,
     predicate_type: Option<String>,
     source_repository: Option<String>,
     source_ref: Option<String>,
@@ -1189,7 +1195,8 @@ struct AttestationStatementSubjectDigestPolicy {
 
 impl AttestationStatementPolicy {
     fn is_empty(&self) -> bool {
-        self.predicate_type.is_none()
+        self.statement_type.is_none()
+            && self.predicate_type.is_none()
             && self.source_repository.is_none()
             && self.source_ref.is_none()
             && self.source_commit.is_none()
@@ -1478,6 +1485,7 @@ fn summarize_verified_attestation_statement(
         .unwrap_or_default();
 
     OmenaSifAttestationStatementV1 {
+        statement_type: statement_string(statement, "/_type"),
         predicate_type: statement_string(statement, "/predicateType"),
         source_repository,
         source_ref,
@@ -1546,6 +1554,12 @@ fn require_statement_policy_matches(
     policy: &AttestationStatementPolicy,
 ) -> Result<(), String> {
     for (field, flag, expected, observed) in [
+        (
+            "statementType",
+            "--statement-type",
+            policy.statement_type.as_ref(),
+            statement.statement_type.as_ref(),
+        ),
         (
             "predicateType",
             "--statement-predicate-type",
@@ -5420,6 +5434,8 @@ mod tests {
             "sif/design-system.sigstore.json",
             "--issuer",
             "https://token.actions.githubusercontent.com",
+            "--statement-type",
+            "https://in-toto.io/Statement/v1",
             "--statement-predicate-type",
             "https://slsa.dev/provenance/v1",
             "--statement-source-repository",
@@ -5447,6 +5463,7 @@ mod tests {
                     issuer,
                     identity,
                     verified_tier,
+                    statement_type,
                     statement_predicate_type,
                     statement_source_repository,
                     statement_source_ref,
@@ -5465,6 +5482,10 @@ mod tests {
         assert_eq!(issuer, "https://token.actions.githubusercontent.com");
         assert_eq!(identity, None);
         assert_eq!(verified_tier, "t2");
+        assert_eq!(
+            statement_type.as_deref(),
+            Some("https://in-toto.io/Statement/v1")
+        );
         assert_eq!(
             statement_predicate_type.as_deref(),
             Some("https://slsa.dev/provenance/v1")
@@ -5537,6 +5558,10 @@ mod tests {
         let summary = summarize_verified_attestation_statement(&statement);
 
         assert_eq!(
+            summary.statement_type.as_deref(),
+            Some("https://in-toto.io/Statement/v1")
+        );
+        assert_eq!(
             summary.predicate_type.as_deref(),
             Some("https://slsa.dev/provenance/v1")
         );
@@ -5570,6 +5595,7 @@ mod tests {
         require_statement_policy_matches(
             &summary,
             &AttestationStatementPolicy {
+                statement_type: Some("https://in-toto.io/Statement/v1".to_string()),
                 predicate_type: Some("https://slsa.dev/provenance/v1".to_string()),
                 source_repository: Some("https://github.com/omenien/omena-css".to_string()),
                 source_ref: Some("refs/heads/master".to_string()),
@@ -5586,9 +5612,31 @@ mod tests {
             },
         )?;
 
+        let statement_type_mismatch = require_statement_policy_matches(
+            &summary,
+            &AttestationStatementPolicy {
+                statement_type: Some("https://example.com/Statement/v1".to_string()),
+                predicate_type: None,
+                source_repository: None,
+                source_ref: None,
+                source_commit: None,
+                builder_id: None,
+                build_type: None,
+                subject_names: Vec::new(),
+                subject_digests: Vec::new(),
+            },
+        );
+        assert!(
+            statement_type_mismatch
+                .as_ref()
+                .is_err_and(|error| error.contains("statementType mismatch")),
+            "{statement_type_mismatch:?}"
+        );
+
         let mismatch = require_statement_policy_matches(
             &summary,
             &AttestationStatementPolicy {
+                statement_type: None,
                 predicate_type: None,
                 source_repository: None,
                 source_ref: Some("refs/tags/v1.0.0".to_string()),
@@ -5609,6 +5657,7 @@ mod tests {
         let commit_mismatch = require_statement_policy_matches(
             &summary,
             &AttestationStatementPolicy {
+                statement_type: None,
                 predicate_type: None,
                 source_repository: None,
                 source_ref: None,
@@ -5629,6 +5678,7 @@ mod tests {
         let build_type_mismatch = require_statement_policy_matches(
             &summary,
             &AttestationStatementPolicy {
+                statement_type: None,
                 predicate_type: None,
                 source_repository: None,
                 source_ref: None,
@@ -5649,6 +5699,7 @@ mod tests {
         let subject_mismatch = require_statement_policy_matches(
             &summary,
             &AttestationStatementPolicy {
+                statement_type: None,
                 predicate_type: None,
                 source_repository: None,
                 source_ref: None,
@@ -5669,6 +5720,7 @@ mod tests {
         let subject_digest_mismatch = require_statement_policy_matches(
             &summary,
             &AttestationStatementPolicy {
+                statement_type: None,
                 predicate_type: None,
                 source_repository: None,
                 source_ref: None,
@@ -5707,6 +5759,7 @@ mod tests {
                     verified_tier: "t3".to_string(),
                     identity: None,
                     issuer: "https://token.actions.githubusercontent.com".to_string(),
+                    statement_type: None,
                     statement_predicate_type: None,
                     statement_source_repository: None,
                     statement_source_ref: None,
@@ -5744,6 +5797,7 @@ mod tests {
                     verified_tier: "t3".to_string(),
                     identity: None,
                     issuer: "https://github.com/login/oauth".to_string(),
+                    statement_type: None,
                     statement_predicate_type: None,
                     statement_source_repository: None,
                     statement_source_ref: None,
@@ -8018,6 +8072,7 @@ export function App() {
                     verified_tier: "t2".to_string(),
                     identity: None,
                     issuer: "https://token.actions.githubusercontent.com".to_string(),
+                    statement_type: None,
                     statement_predicate_type: None,
                     statement_source_repository: None,
                     statement_source_ref: None,
@@ -8131,6 +8186,7 @@ export function App() {
                     verified_tier: "t2".to_string(),
                     identity: None,
                     issuer: "https://github.com/login/oauth".to_string(),
+                    statement_type: None,
                     statement_predicate_type: None,
                     statement_source_repository: None,
                     statement_source_ref: None,
@@ -8290,6 +8346,7 @@ export function App() {
                     verified_tier: "t3".to_string(),
                     identity: Some("w.vollprecht@gmail.com".to_string()),
                     issuer: "https://github.com/login/oauth".to_string(),
+                    statement_type: None,
                     statement_predicate_type: None,
                     statement_source_repository: None,
                     statement_source_ref: None,
