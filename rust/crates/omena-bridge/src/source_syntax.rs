@@ -13,7 +13,10 @@ use oxc_span::{GetSpan, SourceType, Span};
 use serde::Serialize;
 use std::collections::{BTreeMap, BTreeSet};
 
-use crate::source_language::{project_source_for_language, source_type_for_language};
+use crate::source_language::{
+    is_astro_source, is_html_source, is_svelte_source, is_vue_source, project_source_for_language,
+    source_type_for_language, tag_content_ranges,
+};
 
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -259,6 +262,12 @@ pub fn summarize_omena_bridge_source_syntax_index_for_source_language(
             );
         }
     }
+    collect_template_class_attribute_selector_references(
+        source_path,
+        source,
+        source_language,
+        &mut index.selector_references,
+    );
     canonicalize_source_selector_references(&mut index.selector_references);
 
     index
@@ -317,6 +326,121 @@ pub fn canonicalize_source_selector_references(
         }
     }
     *references = canonical;
+}
+
+fn collect_template_class_attribute_selector_references(
+    source_path: &str,
+    source: &str,
+    source_language: Option<&str>,
+    references: &mut Vec<SourceSelectorReferenceFactV0>,
+) {
+    if !is_html_like_template_source(source_path, source_language) {
+        return;
+    }
+
+    let mut suppressed_ranges = tag_content_ranges(source, "<script", "</script>");
+    suppressed_ranges.extend(tag_content_ranges(source, "<style", "</style>"));
+    suppressed_ranges.sort_unstable();
+
+    for value_span in template_class_attribute_value_spans(source, suppressed_ranges.as_slice()) {
+        push_string_literal_selector_references(source, value_span, None, references);
+    }
+}
+
+fn is_html_like_template_source(source_path: &str, source_language: Option<&str>) -> bool {
+    is_vue_source(source_path, source_language)
+        || is_html_source(source_path, source_language)
+        || is_svelte_source(source_path, source_language)
+        || is_astro_source(source_path, source_language)
+}
+
+fn template_class_attribute_value_spans(
+    source: &str,
+    suppressed_ranges: &[(usize, usize)],
+) -> Vec<ParserByteSpanV0> {
+    let lower = source.to_ascii_lowercase();
+    let bytes = source.as_bytes();
+    let mut cursor = 0usize;
+    let mut spans = Vec::new();
+
+    while let Some(relative_start) = lower[cursor..].find("class") {
+        let attr_start = cursor + relative_start;
+        cursor = attr_start + "class".len();
+        if byte_in_ranges(attr_start, suppressed_ranges)
+            || !is_template_class_attribute_name(source, attr_start)
+        {
+            continue;
+        }
+
+        let mut index = skip_ascii_whitespace_bytes(bytes, attr_start + "class".len());
+        if bytes.get(index) != Some(&b'=') {
+            continue;
+        }
+        index = skip_ascii_whitespace_bytes(bytes, index + 1);
+        let Some((value_start, value_end)) = template_attribute_value_span(bytes, index) else {
+            continue;
+        };
+        if value_start < value_end {
+            spans.push(ParserByteSpanV0 {
+                start: value_start,
+                end: value_end,
+            });
+        }
+        cursor = value_end;
+    }
+
+    spans
+}
+
+fn is_template_class_attribute_name(source: &str, attr_start: usize) -> bool {
+    let bytes = source.as_bytes();
+    let before = attr_start
+        .checked_sub(1)
+        .and_then(|index| bytes.get(index))
+        .copied();
+    if before.is_some_and(is_html_attribute_name_byte) {
+        return false;
+    }
+    let after = attr_start + "class".len();
+    bytes
+        .get(after)
+        .is_none_or(|byte| !is_html_attribute_name_byte(*byte))
+}
+
+fn is_html_attribute_name_byte(byte: u8) -> bool {
+    byte.is_ascii_alphanumeric() || matches!(byte, b':' | b'-' | b'_' | b'.')
+}
+
+fn skip_ascii_whitespace_bytes(bytes: &[u8], mut index: usize) -> usize {
+    while bytes.get(index).is_some_and(u8::is_ascii_whitespace) {
+        index += 1;
+    }
+    index
+}
+
+fn template_attribute_value_span(bytes: &[u8], value_start: usize) -> Option<(usize, usize)> {
+    let quote = *bytes.get(value_start)?;
+    if quote == b'\'' || quote == b'"' {
+        let content_start = value_start + 1;
+        let relative_end = bytes
+            .get(content_start..)?
+            .iter()
+            .position(|byte| *byte == quote)?;
+        return Some((content_start, content_start + relative_end));
+    }
+
+    let relative_end = bytes
+        .get(value_start..)?
+        .iter()
+        .position(|byte| byte.is_ascii_whitespace() || *byte == b'>')
+        .unwrap_or_else(|| bytes.len().saturating_sub(value_start));
+    Some((value_start, value_start + relative_end))
+}
+
+fn byte_in_ranges(byte_offset: usize, ranges: &[(usize, usize)]) -> bool {
+    ranges
+        .iter()
+        .any(|(start, end)| byte_offset >= *start && byte_offset < *end)
 }
 
 fn imported_style_targets(

@@ -48,6 +48,8 @@ mod source_hover;
 mod source_imports;
 #[path = "tests/source_language_astro.rs"]
 mod source_language_astro;
+#[path = "tests/source_language_html.rs"]
+mod source_language_html;
 #[path = "tests/source_language_markdown.rs"]
 mod source_language_markdown;
 #[path = "tests/source_resolution.rs"]

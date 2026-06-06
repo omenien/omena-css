@@ -327,7 +327,11 @@ fn markdown_fence_language_is_typescript(language: &str) -> bool {
     )
 }
 
-fn tag_content_ranges(source: &str, open_tag: &str, close_tag: &str) -> Vec<(usize, usize)> {
+pub(crate) fn tag_content_ranges(
+    source: &str,
+    open_tag: &str,
+    close_tag: &str,
+) -> Vec<(usize, usize)> {
     let lower = source.to_ascii_lowercase();
     let mut cursor = 0usize;
     let mut ranges = Vec::new();

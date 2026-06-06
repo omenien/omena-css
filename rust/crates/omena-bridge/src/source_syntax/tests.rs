@@ -41,6 +41,32 @@ export function App({ tone }: { tone: "warm" | "cool" }) {
 }
 
 #[test]
+fn collects_html_like_template_literal_class_attributes() {
+    let source = r#"<main class="root active">
+  <script type="module">
+    const ignored = "class=\"from-script\"";
+  </script>
+</main>
+"#;
+    let index = summarize_omena_bridge_source_syntax_index_for_source_language(
+        "Page.html",
+        source,
+        Some("html"),
+        Vec::new(),
+        Vec::new(),
+    );
+
+    let names = index
+        .selector_references
+        .iter()
+        .map(|reference| selector_reference_name(source, reference))
+        .collect::<Vec<_>>();
+
+    assert_eq!(names, vec!["root", "active"]);
+    assert!(!names.contains(&"from-script"));
+}
+
+#[test]
 fn collects_variant_recipe_universes_and_domain_references() -> Result<(), String> {
     let source = r#"import { cva } from "class-variance-authority";
 const button = cva("btn", {
