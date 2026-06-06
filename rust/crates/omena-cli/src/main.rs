@@ -9440,6 +9440,44 @@ export function App() {
     }
 
     #[test]
+    fn style_diagnostics_cli_identity_reports_repeated_forward_configuration_conflicts() {
+        let sources = vec![
+            OmenaQueryStyleSourceInputV0 {
+                style_path: "/tmp/tokens.scss".to_string(),
+                style_source: "$brand: blue !default;".to_string(),
+            },
+            OmenaQueryStyleSourceInputV0 {
+                style_path: "/tmp/theme.scss".to_string(),
+                style_source:
+                    r#"@forward "./tokens" with ($brand: red); @forward "./tokens" with ($brand: blue);"#
+                        .to_string(),
+            },
+            OmenaQueryStyleSourceInputV0 {
+                style_path: "/tmp/App.module.scss".to_string(),
+                style_source: r#"@use "./theme" as theme;"#.to_string(),
+            },
+        ];
+
+        let diagnostics = summarize_sass_module_resolution_identity_diagnostics(
+            "/tmp/App.module.scss",
+            sources.as_slice(),
+            &[],
+            &omena_query::OmenaQueryStyleResolutionInputsV0::default(),
+        );
+
+        assert!(
+            diagnostics.iter().any(|diagnostic| {
+                diagnostic.code == "sassModuleConfigurationConflict"
+                    && diagnostic.severity == "error"
+                    && diagnostic.message.contains("/tmp/tokens.scss")
+                    && diagnostic.message.contains("brand=3:red")
+                    && diagnostic.message.contains("brand=4:blue")
+            }),
+            "CLI diagnostics must reject repeated @forward configuration conflicts: {diagnostics:?}"
+        );
+    }
+
+    #[test]
     fn style_diagnostics_cli_identity_allows_shared_sass_module_configuration() {
         let sources = vec![
             OmenaQueryStyleSourceInputV0 {
