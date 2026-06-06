@@ -4079,6 +4079,71 @@ assert(!configuredScssForwardEvaluationSummary.execution.outputCss.includes("@fo
 assert(!configuredScssForwardEvaluationSummary.execution.outputCss.includes("theme.$"));
 assert(!configuredScssForwardEvaluationSummary.execution.outputCss.includes("red);"));
 
+const conflictingScssForwardEvaluationResult = spawnSync(
+  "cargo",
+  [
+    "run",
+    "--quiet",
+    "--manifest-path",
+    "rust/Cargo.toml",
+    "-p",
+    "engine-shadow-runner",
+    "--",
+    "consumer-build-style-sources",
+  ],
+  {
+    cwd: process.cwd(),
+    encoding: "utf8",
+    input: JSON.stringify({
+      targetStylePath: "/tmp/App.module.scss",
+      styles: [
+        {
+          stylePath: "/tmp/tokens.scss",
+          styleSource: "$brand: blue !default; .base { color: $brand; }",
+        },
+        {
+          stylePath: "/tmp/theme-red.scss",
+          styleSource: '@forward "./tokens" with ($brand: red);',
+        },
+        {
+          stylePath: "/tmp/theme-blue.scss",
+          styleSource: '@forward "./tokens" with ($brand: blue);',
+        },
+        {
+          stylePath: "/tmp/App.module.scss",
+          styleSource:
+            '@use "./theme-red" as redTheme; @use "./theme-blue" as blueTheme; .button { color: redTheme.$brand; background: blueTheme.$brand; }',
+        },
+      ],
+      requestedPassIds: ["scss-module-evaluate", "print-css"],
+    }),
+    maxBuffer: 8 * 1024 * 1024,
+  },
+);
+
+assert.equal(
+  conflictingScssForwardEvaluationResult.status,
+  0,
+  conflictingScssForwardEvaluationResult.stderr,
+);
+assert.equal(conflictingScssForwardEvaluationResult.error, undefined);
+
+const conflictingScssForwardEvaluationSummary = JSON.parse(
+  conflictingScssForwardEvaluationResult.stdout,
+) as ConsumerBuildSummaryV0;
+
+assert(
+  conflictingScssForwardEvaluationSummary.execution.outputCss.includes(".base { color: red; }"),
+);
+assert(
+  !conflictingScssForwardEvaluationSummary.execution.outputCss.includes(".base { color: blue; }"),
+);
+assert(
+  conflictingScssForwardEvaluationSummary.execution.outputCss.includes(
+    '@use "./theme-blue" as blueTheme',
+  ),
+);
+
 const prefixedScssForwardEvaluationResult = spawnSync(
   "cargo",
   [
