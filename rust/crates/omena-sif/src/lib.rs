@@ -1534,6 +1534,27 @@ mod tests {
         Ok(())
     }
 
+    fn assert_schema_t3_requires_sha256_subject_digest(
+        rule: &Value,
+        context: &str,
+    ) -> Result<(), String> {
+        assert_eq!(
+            rule.pointer("/if/properties/verifiedTrustTier/const")
+                .and_then(Value::as_str),
+            Some("t3"),
+            "{context} rule must be the t3 conditional"
+        );
+        assert_eq!(
+            rule.pointer(
+                "/then/properties/attestationStatement/properties/subjectDigests/contains/properties/algorithm/const",
+            )
+            .and_then(Value::as_str),
+            Some("sha256"),
+            "{context} t3 evidence must require a sha256 subject digest"
+        );
+        Ok(())
+    }
+
     #[test]
     fn lock_schema_file_is_valid_json() -> Result<(), String> {
         let schema: Value =
@@ -1611,6 +1632,15 @@ mod tests {
             }),
             "lock schema sigstore evidence kinds must require policy, issuer, and log time"
         );
+        let t3_rule = all_of
+            .iter()
+            .find(|rule| {
+                rule.pointer("/if/properties/verifiedTrustTier/const")
+                    .and_then(Value::as_str)
+                    == Some("t3")
+            })
+            .ok_or_else(|| "lock schema must define a t3 conditional rule".to_string())?;
+        assert_schema_t3_requires_sha256_subject_digest(t3_rule, "lock schema")?;
         Ok(())
     }
 
@@ -1706,6 +1736,17 @@ mod tests {
             }),
             "t3 reports must require omena-toolchain evidence"
         );
+        let t3_rule = all_of
+            .iter()
+            .find(|rule| {
+                rule.pointer("/if/properties/verifiedTrustTier/const")
+                    .and_then(Value::as_str)
+                    == Some("t3")
+            })
+            .ok_or_else(|| {
+                "attestation report schema must define a t3 conditional rule".to_string()
+            })?;
+        assert_schema_t3_requires_sha256_subject_digest(t3_rule, "attestation report schema")?;
         Ok(())
     }
 
@@ -1771,6 +1812,23 @@ mod tests {
             "/$defs/attestationStatement/properties",
             "provenance advisory schema",
         )?;
+        let all_of = schema
+            .pointer("/$defs/attestationVerificationPolicy/allOf")
+            .and_then(Value::as_array)
+            .ok_or_else(|| {
+                "provenance advisory schema must encode conditional policy requirements".to_string()
+            })?;
+        let t3_rule = all_of
+            .iter()
+            .find(|rule| {
+                rule.pointer("/if/properties/verifiedTrustTier/const")
+                    .and_then(Value::as_str)
+                    == Some("t3")
+            })
+            .ok_or_else(|| {
+                "provenance advisory schema must define a t3 conditional rule".to_string()
+            })?;
+        assert_schema_t3_requires_sha256_subject_digest(t3_rule, "provenance advisory schema")?;
         Ok(())
     }
 

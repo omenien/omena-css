@@ -131,6 +131,21 @@
           "kind": {
             "type": "string",
             "pattern": "^omena-toolchain\\."
+          },
+          "attestationStatement": {
+            "properties": {
+              "subjectDigests": {
+                "contains": {
+                  "type": "object",
+                  "required": ["algorithm"],
+                  "properties": {
+                    "algorithm": {
+                      "const": "sha256"
+                    }
+                  }
+                }
+              }
+            }
           }
         }
       }

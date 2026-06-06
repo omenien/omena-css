@@ -158,6 +158,40 @@
           "then": {
             "required": ["attestationStatement"]
           }
+        },
+        {
+          "if": {
+            "properties": {
+              "verifiedTrustTier": {
+                "const": "t3"
+              }
+            },
+            "required": ["verifiedTrustTier"]
+          },
+          "then": {
+            "required": ["certificateIssuer", "certificateIdentity"],
+            "properties": {
+              "kind": {
+                "type": "string",
+                "pattern": "^omena-toolchain\\."
+              },
+              "attestationStatement": {
+                "properties": {
+                  "subjectDigests": {
+                    "contains": {
+                      "type": "object",
+                      "required": ["algorithm"],
+                      "properties": {
+                        "algorithm": {
+                          "const": "sha256"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
         }
       ],
       "properties": {
