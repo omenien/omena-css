@@ -228,6 +228,9 @@ enum Command {
         /// SIF v1 artifact used to resolve opt-in external Sass modules.
         #[arg(long = "sif")]
         sif_paths: Vec<PathBuf>,
+        /// Omena lockfile whose SIF entries should resolve opt-in external Sass modules.
+        #[arg(long = "lockfile")]
+        lockfile: Option<PathBuf>,
         /// External Sass module mode: ignored preserves compatibility, sif reports missing SIF boundaries.
         #[arg(long, default_value = "ignored")]
         external: String,
@@ -615,6 +618,7 @@ fn run(cli: Cli) -> Result<(), String> {
             source_document_paths,
             package_manifest_paths,
             sif_paths,
+            lockfile,
             external,
             deep_analysis,
             json,
@@ -624,6 +628,7 @@ fn run(cli: Cli) -> Result<(), String> {
             source_document_paths,
             package_manifest_paths,
             sif_paths,
+            lockfile,
             external,
             deep_analysis,
             json,
@@ -1595,6 +1600,7 @@ fn style_diagnostics(
     source_document_paths: Vec<PathBuf>,
     package_manifest_paths: Vec<PathBuf>,
     sif_paths: Vec<PathBuf>,
+    lockfile: Option<PathBuf>,
     external: String,
     deep_analysis: bool,
     json: bool,
@@ -1623,6 +1629,9 @@ fn style_diagnostics(
         let workspace_sources = read_workspace_sources(&path, &source, &source_paths)?;
         let source_documents = read_source_documents(&source_document_paths)?;
         let mut external_sifs = read_external_sifs(&sif_paths)?;
+        if let Some(lockfile) = lockfile.as_ref() {
+            external_sifs.extend(read_lock_external_sifs(lockfile)?);
+        }
         // #33: an `@use "file:///…"` edge now routes through the external-SIF branch
         // (resolver `is_external_style_module_source`). Generate the bridge SIF for each such
         // on-disk external edge in-process so an external `missingSassSymbol` is suppressed
@@ -1741,6 +1750,34 @@ fn read_external_sifs(paths: &[PathBuf]) -> Result<Vec<OmenaQueryExternalSifInpu
         .collect()
 }
 
+fn read_lock_external_sifs(lockfile: &Path) -> Result<Vec<OmenaQueryExternalSifInputV0>, String> {
+    let lockfile_source = read_source(lockfile)?;
+    let lock = read_omena_lock_json_v1(&lockfile_source)
+        .map_err(|error| format!("failed to parse {}: {error}", path_string(lockfile)))?;
+    lock.entries
+        .iter()
+        .map(|entry| {
+            let sif_path = resolve_lock_relative_path(lockfile, &entry.sif_path);
+            let sif_json = read_source(&sif_path)?;
+            let sif = read_omena_sif_json_v1(&sif_json).map_err(|error| {
+                format!("failed to parse SIF {}: {error}", path_string(&sif_path))
+            })?;
+            if sif.canonical_url != entry.canonical_url {
+                return Err(format!(
+                    "lock entry {} points to SIF {} with canonicalUrl {}",
+                    entry.canonical_url,
+                    path_string(&sif_path),
+                    sif.canonical_url
+                ));
+            }
+            Ok(OmenaQueryExternalSifInputV0 {
+                canonical_url: entry.canonical_url.clone(),
+                sif,
+            })
+        })
+        .collect()
+}
+
 /// Generate, in-process, the external SIFs for every on-disk (`file://`) external Sass module
 /// edge in the workspace — and, transitively, every module reachable through a generated SIF's
 /// `@forward` chain — so the existing SIF-mode query path can pair them against import targets
@@ -1772,12 +1809,8 @@ fn read_external_sifs(paths: &[PathBuf]) -> Result<Vec<OmenaQueryExternalSifInpu
 ///   flags;
 /// - `http(s)://`/`sass:` schemes — not on-disk, so the bridge cannot read them in-process.
 ///
-/// LIMITATION (#33 P1 scope): this makes the transitive SIFs *available* and correctly keyed
-/// (fixing `missingExternalSif` for the forwarded module itself and enabling stale-dependency
-/// checks), but the query layer's external-SIF symbol collection
-/// (`collect_sif_exported_sass_symbol_keys`) does not yet flatten forwarded exports *across*
-/// external SIF chains, so full transitive-symbol visibility across external forward chains is a
-/// separate query-layer change.
+/// The query layer consumes the generated chain by flattening forwarded external-SIF exports when
+/// it computes the visible Sass symbol set for the root external module.
 fn resolve_in_process_external_sifs(
     workspace_sources: &[OmenaQueryStyleSourceInputV0],
     existing_external_sifs: &[OmenaQueryExternalSifInputV0],
@@ -2894,6 +2927,7 @@ mod tests {
                 source_document_paths: Vec::new(),
                 package_manifest_paths: Vec::new(),
                 sif_paths: Vec::new(),
+                lockfile: None,
                 external: "ignored".to_string(),
                 deep_analysis: false,
                 json: true,
@@ -2923,6 +2957,7 @@ mod tests {
                 source_document_paths: Vec::new(),
                 package_manifest_paths: Vec::new(),
                 sif_paths: Vec::new(),
+                lockfile: None,
                 external: "sif".to_string(),
                 deep_analysis: false,
                 json: true,
@@ -2959,6 +2994,7 @@ mod tests {
                 source_document_paths: Vec::new(),
                 package_manifest_paths: Vec::new(),
                 sif_paths: vec![sif_path.clone()],
+                lockfile: None,
                 external: "sif".to_string(),
                 deep_analysis: false,
                 json: true,
@@ -2968,6 +3004,58 @@ mod tests {
         assert!(result.is_ok(), "{result:?}");
         cleanup(&source_path);
         cleanup(&sif_path);
+        Ok(())
+    }
+
+    #[test]
+    fn style_diagnostics_command_reads_external_sif_lockfile() -> Result<(), String> {
+        let workspace_path = temp_dir("external-sif-lockfile");
+        let sif_dir = workspace_path.join("sif");
+        fs::create_dir_all(&sif_dir)
+            .map_err(|error| format!("fixture SIF dir should be writable: {error}"))?;
+        let source_path = workspace_path.join("app.module.scss");
+        let sif_path = sif_dir.join("tokens.sif.json");
+        let lockfile_path = workspace_path.join("omena.lock");
+        fs::write(
+            &source_path,
+            r#"@use "design-system/tokens" as remote;
+.button { color: remote.$color; }"#,
+        )
+        .map_err(|error| format!("fixture source should be writable: {error}"))?;
+        let sif = cli_fixture_sif("design-system/tokens", b"$color: red !default;")?;
+        fs::write(
+            &sif_path,
+            omena_sif::write_omena_sif_json_v1(&sif)
+                .map_err(|error| format!("fixture SIF should serialize: {error}"))?,
+        )
+        .map_err(|error| format!("fixture SIF should be writable: {error}"))?;
+        let lock = omena_sif::OmenaLockV1::new(vec![
+            omena_sif::build_omena_lock_sif_entry_v1("sif/tokens.sif.json", &sif)
+                .map_err(|error| format!("fixture lock entry should build: {error}"))?,
+        ]);
+        fs::write(
+            &lockfile_path,
+            omena_sif::write_omena_lock_json_v1(&lock)
+                .map_err(|error| format!("fixture lock should serialize: {error}"))?,
+        )
+        .map_err(|error| format!("fixture lock should be writable: {error}"))?;
+
+        let result = run(Cli {
+            command: Command::StyleDiagnostics {
+                path: source_path.clone(),
+                source_paths: vec![source_path.clone()],
+                source_document_paths: Vec::new(),
+                package_manifest_paths: Vec::new(),
+                sif_paths: Vec::new(),
+                lockfile: Some(lockfile_path.clone()),
+                external: "sif".to_string(),
+                deep_analysis: false,
+                json: true,
+            },
+        });
+
+        assert!(result.is_ok(), "{result:?}");
+        cleanup_dir(&workspace_path);
         Ok(())
     }
 

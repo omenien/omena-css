@@ -1,4 +1,5 @@
 use std::collections::{BTreeMap, BTreeSet};
+use std::path::{Path, PathBuf};
 
 use omena_parser::{
     ParsedAnimationFactKind, ParsedCssModuleComposesEdgeKind, ParsedExtendTargetFactKind,
@@ -905,11 +906,12 @@ fn summarize_omena_query_missing_sass_symbol_diagnostics_for_workspace_with_sifs
         .iter()
         .map(|entry| (entry.style_path.as_str(), &entry.facts))
         .collect::<BTreeMap<_, _>>();
-    let resolution = summarize_sass_module_cross_file_resolution(
+    let resolution = summarize_sass_module_cross_file_resolution_with_external_sifs(
         &style_fact_entries,
         package_manifests,
         bundler_path_mappings,
         tsconfig_path_mappings,
+        external_sifs,
     );
     let visible_symbols = collect_visible_sass_symbol_keys(
         target_style_path,
@@ -1902,11 +1904,12 @@ fn collect_omena_query_external_top_any_sass_symbol_ranges(
         .map(|source| (source.style_path.as_str(), source.style_source.as_str()))
         .collect::<Vec<_>>();
     let style_fact_entries = collect_omena_query_style_fact_entries(style_source_refs.as_slice());
-    let resolution = summarize_sass_module_cross_file_resolution(
+    let resolution = summarize_sass_module_cross_file_resolution_with_external_sifs(
         &style_fact_entries,
         package_manifests,
         &[],
         &[],
+        external_sifs,
     );
     let external_sources = resolution
         .edges
@@ -2025,7 +2028,7 @@ fn classify_external_boundary_state(
 
     // Partial vs Resolved: do all symbols referenced through this edge's namespace
     // appear in the SIF's exported interface?
-    let exported = collect_sif_exported_sass_symbol_keys(&sif.sif);
+    let exported = collect_sif_exported_sass_symbol_keys(&sif.sif, external_sifs);
     let mut referenced = 0usize;
     let mut covered = 0usize;
     for symbol in &target_facts.sass_symbols {
@@ -2094,11 +2097,12 @@ fn summarize_omena_query_external_sif_boundary_diagnostics(
         .map(|source| (source.style_path.as_str(), source.style_source.as_str()))
         .collect::<Vec<_>>();
     let style_fact_entries = collect_omena_query_style_fact_entries(style_source_refs.as_slice());
-    let resolution = summarize_sass_module_cross_file_resolution(
+    let resolution = summarize_sass_module_cross_file_resolution_with_external_sifs(
         &style_fact_entries,
         package_manifests,
         &[],
         &[],
+        external_sifs,
     );
     // Every external edge is now classified on the real lattice — including ones that
     // *do* have a SIF in scope (the `.is_none()` pre-filter is gone, #34). Missing edges
@@ -2279,7 +2283,7 @@ fn collect_visible_sass_symbol_keys(
                 .unwrap_or_default()
         } else if edge.status == "external" {
             find_omena_query_external_sif(edge.source.as_str(), external_sifs)
-                .map(|sif| collect_sif_exported_sass_symbol_keys(&sif.sif))
+                .map(|sif| collect_sif_exported_sass_symbol_keys(&sif.sif, external_sifs))
                 .unwrap_or_default()
         } else {
             BTreeSet::new()
@@ -2357,7 +2361,7 @@ fn collect_exported_sass_symbol_keys(
                     .unwrap_or_default()
             } else if edge.status == "external" {
                 find_omena_query_external_sif(edge.source.as_str(), external_sifs)
-                    .map(|sif| collect_sif_exported_sass_symbol_keys(&sif.sif))
+                    .map(|sif| collect_sif_exported_sass_symbol_keys(&sif.sif, external_sifs))
                     .unwrap_or_default()
             } else {
                 BTreeSet::new()
@@ -2391,9 +2395,70 @@ fn own_sass_symbol_declaration_keys(
         .collect()
 }
 
+fn summarize_sass_module_cross_file_resolution_with_external_sifs(
+    style_fact_entries: &[OmenaQueryStyleFactEntry],
+    package_manifests: &[OmenaQueryStylePackageManifestV0],
+    bundler_path_mappings: &[OmenaResolverBundlerPathAliasMappingV0],
+    tsconfig_path_mappings: &[OmenaResolverTsconfigPathMappingV0],
+    external_sifs: &[OmenaQueryExternalSifInputV0],
+) -> OmenaQuerySassModuleCrossFileResolutionV0 {
+    let mut resolution = summarize_sass_module_cross_file_resolution(
+        style_fact_entries,
+        package_manifests,
+        bundler_path_mappings,
+        tsconfig_path_mappings,
+    );
+    promote_sif_backed_external_edges(&mut resolution, external_sifs);
+    resolution
+}
+
+fn promote_sif_backed_external_edges(
+    resolution: &mut OmenaQuerySassModuleCrossFileResolutionV0,
+    external_sifs: &[OmenaQueryExternalSifInputV0],
+) {
+    if external_sifs.is_empty() {
+        return;
+    }
+    for edge in &mut resolution.edges {
+        if edge.status == "unresolved"
+            && !sass_module_source_is_workspace_local(edge.source.as_str())
+            && find_omena_query_external_sif(edge.source.as_str(), external_sifs).is_some()
+        {
+            edge.status = "external";
+            edge.resolution_kind = "externalSifCanonicalUrl";
+        }
+    }
+    resolution.resolved_module_edge_count = resolution
+        .edges
+        .iter()
+        .filter(|edge| edge.status == "resolved")
+        .count();
+    resolution.external_module_edge_count = resolution
+        .edges
+        .iter()
+        .filter(|edge| edge.status == "external")
+        .count();
+    resolution.unresolved_module_edge_count = resolution.module_edge_count.saturating_sub(
+        resolution.resolved_module_edge_count + resolution.external_module_edge_count,
+    );
+}
+
 fn collect_sif_exported_sass_symbol_keys(
     sif: &omena_sif::OmenaSifV1,
+    external_sifs: &[OmenaQueryExternalSifInputV0],
 ) -> BTreeSet<(&'static str, String)> {
+    let mut visiting = BTreeSet::new();
+    collect_sif_exported_sass_symbol_keys_inner(sif, external_sifs, &mut visiting)
+}
+
+fn collect_sif_exported_sass_symbol_keys_inner(
+    sif: &omena_sif::OmenaSifV1,
+    external_sifs: &[OmenaQueryExternalSifInputV0],
+    visiting: &mut BTreeSet<String>,
+) -> BTreeSet<(&'static str, String)> {
+    if !visiting.insert(sif.canonical_url.clone()) {
+        return BTreeSet::new();
+    }
     let mut exported = BTreeSet::new();
     exported.extend(sif.exports.variables.iter().map(|variable| {
         (
@@ -2413,7 +2478,115 @@ fn collect_sif_exported_sass_symbol_keys(
             .iter()
             .map(|function| ("function", function.name.clone())),
     );
+    exported.extend(sif.exports.placeholders.iter().map(|placeholder| {
+        (
+            "placeholder",
+            placeholder.name.trim_start_matches('%').to_string(),
+        )
+    }));
+    for forward in &sif.exports.forwards {
+        let Some(forwarded_sif) =
+            find_omena_query_external_sif_for_forward(sif, forward, external_sifs)
+        else {
+            continue;
+        };
+        let forwarded_exports = collect_sif_exported_sass_symbol_keys_inner(
+            &forwarded_sif.sif,
+            external_sifs,
+            visiting,
+        );
+        for (symbol_kind, name) in forwarded_exports {
+            if !sif_forward_visibility_allows(forward, symbol_kind, name.as_str()) {
+                continue;
+            }
+            exported.insert((
+                symbol_kind,
+                apply_sass_forward_prefix(forward.prefix.as_deref(), name.as_str()),
+            ));
+        }
+    }
+    visiting.remove(sif.canonical_url.as_str());
     exported
+}
+
+fn find_omena_query_external_sif_for_forward<'a>(
+    sif: &omena_sif::OmenaSifV1,
+    forward: &omena_sif::OmenaSifForwardExportV1,
+    external_sifs: &'a [OmenaQueryExternalSifInputV0],
+) -> Option<&'a OmenaQueryExternalSifInputV0> {
+    let candidates = collect_sif_forward_canonical_url_candidates(
+        sif.canonical_url.as_str(),
+        forward.canonical_url.as_str(),
+    );
+    candidates
+        .iter()
+        .find_map(|candidate| find_omena_query_external_sif(candidate.as_str(), external_sifs))
+}
+
+fn collect_sif_forward_canonical_url_candidates(
+    base_canonical_url: &str,
+    source: &str,
+) -> Vec<String> {
+    let mut candidates = BTreeSet::new();
+    candidates.insert(source.to_string());
+    if let Some(base_file_path) = base_canonical_url.strip_prefix("file://") {
+        push_file_uri_forward_candidates(&mut candidates, base_file_path, source);
+    }
+    candidates.into_iter().collect()
+}
+
+fn push_file_uri_forward_candidates(
+    candidates: &mut BTreeSet<String>,
+    base_file_path: &str,
+    source: &str,
+) {
+    if source.starts_with("sass:")
+        || source.starts_with("http://")
+        || source.starts_with("https://")
+        || source.starts_with("file://")
+        || source.starts_with("pkg:")
+    {
+        return;
+    }
+    let base_path = Path::new(base_file_path);
+    let joined = if source.starts_with('/') {
+        PathBuf::from(source)
+    } else {
+        base_path
+            .parent()
+            .unwrap_or_else(|| Path::new(""))
+            .join(source)
+    };
+    push_file_uri_style_path_candidates(candidates, joined.as_path());
+}
+
+fn push_file_uri_style_path_candidates(candidates: &mut BTreeSet<String>, path: &Path) {
+    let has_extension = path
+        .extension()
+        .and_then(|extension| extension.to_str())
+        .is_some();
+    if has_extension {
+        push_file_uri_candidate(candidates, path);
+        return;
+    }
+    for extension in ["scss", "sass", "css"] {
+        let with_extension = path.with_extension(extension);
+        push_file_uri_candidate(candidates, with_extension.as_path());
+        if let Some(file_name) = path.file_name().and_then(|file_name| file_name.to_str()) {
+            let partial = path
+                .with_file_name(format!("_{file_name}"))
+                .with_extension(extension);
+            push_file_uri_candidate(candidates, partial.as_path());
+        }
+    }
+}
+
+fn push_file_uri_candidate(candidates: &mut BTreeSet<String>, path: &Path) {
+    candidates.insert(format!("file://{}", normalize_sif_file_uri_path(path)));
+}
+
+fn normalize_sif_file_uri_path(path: &Path) -> String {
+    path.to_string_lossy().replace('\\', "/")
 }
 
 fn find_omena_query_external_sif<'a>(
@@ -2423,6 +2596,25 @@ fn find_omena_query_external_sif<'a>(
     external_sifs.iter().find(|input| {
         input.canonical_url == canonical_url || input.sif.canonical_url == canonical_url
     })
+}
+
+fn sif_forward_visibility_allows(
+    forward: &omena_sif::OmenaSifForwardExportV1,
+    symbol_kind: &'static str,
+    name: &str,
+) -> bool {
+    let prefixed = apply_sass_forward_prefix(forward.prefix.as_deref(), name);
+    let matches_filter = |filter_name: &String| {
+        filter_name == name
+            || filter_name == prefixed.as_str()
+            || filter_name.trim_start_matches('$') == name
+            || filter_name.trim_start_matches('$') == prefixed.as_str()
+            || (symbol_kind != "variable" && filter_name.trim_start_matches('@') == name)
+    };
+    if !forward.show.is_empty() {
+        return forward.show.iter().any(matches_filter);
+    }
+    !forward.hide.iter().any(matches_filter)
 }
 
 fn sass_forward_visibility_allows(

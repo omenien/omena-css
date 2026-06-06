@@ -1727,6 +1727,166 @@ fn style_diagnostics_external_sif_mode_resolves_symbols_from_sif_artifact()
     Ok(())
 }
 
+#[test]
+fn style_diagnostics_external_sif_mode_resolves_bare_canonical_url_sif() -> Result<(), &'static str>
+{
+    let sources = vec![OmenaQueryStyleSourceInputV0 {
+        style_path: "/tmp/App.module.scss".to_string(),
+        style_source: r#"@use "design-system/tokens" as remote;
+.button { color: remote.$brand; }"#
+            .to_string(),
+    }];
+    let sif = omena_sif::OmenaSifV1::from_static_exports(
+        "design-system/tokens",
+        omena_sif::OmenaSifGeneratorV1 {
+            name: "fixture-sifgen".to_string(),
+            version: "0.1.0".to_string(),
+            toolchain_id: "fixture-sifgen@0.1.0".to_string(),
+        },
+        omena_sif::OmenaSifSourceV1 {
+            syntax: omena_sif::OmenaSifSourceSyntaxV1::Scss,
+        },
+        omena_sif::OmenaSifExportsV1 {
+            variables: vec![omena_sif::OmenaSifVariableExportV1 {
+                name: "$brand".to_string(),
+                defaulted: true,
+                value_repr: Some("red".to_string()),
+            }],
+            mixins: Vec::new(),
+            functions: Vec::new(),
+            placeholders: Vec::new(),
+            forwards: Vec::new(),
+        },
+        Vec::new(),
+        b"$brand: red !default;",
+    )
+    .map_err(|_| "bare canonical-url sif fixture")?;
+    let external_sifs = vec![OmenaQueryExternalSifInputV0 {
+        canonical_url: "design-system/tokens".to_string(),
+        sif,
+    }];
+
+    let diagnostics =
+        crate::summarize_omena_query_style_diagnostics_for_workspace_file_with_external_mode_and_sifs(
+            "/tmp/App.module.scss",
+            sources.as_slice(),
+            &[],
+            &[],
+            None,
+            crate::OmenaQueryExternalModuleModeV0::Sif,
+            external_sifs.as_slice(),
+        )
+        .ok_or("bare canonical-url sif workspace diagnostics")?;
+
+    assert!(
+        diagnostics
+            .diagnostics
+            .iter()
+            .all(
+                |diagnostic| diagnostic.code != "unresolvedExternalReference"
+                    && diagnostic.code != "missingExternalSif"
+                    && diagnostic.code != "missingSassSymbol"
+            ),
+        "bare canonicalUrl backed by a SIF must resolve through the external path: {:?}",
+        diagnostics.diagnostics
+    );
+    Ok(())
+}
+
+#[test]
+fn style_diagnostics_external_sif_mode_flattens_forwarded_sif_exports() -> Result<(), &'static str>
+{
+    let sources = vec![OmenaQueryStyleSourceInputV0 {
+        style_path: "/tmp/App.module.scss".to_string(),
+        style_source: r#"@use "design-system/index" as ds;
+.button { color: ds.$brand; }"#
+            .to_string(),
+    }];
+    let generator = || omena_sif::OmenaSifGeneratorV1 {
+        name: "fixture-sifgen".to_string(),
+        version: "0.1.0".to_string(),
+        toolchain_id: "fixture-sifgen@0.1.0".to_string(),
+    };
+    let source = || omena_sif::OmenaSifSourceV1 {
+        syntax: omena_sif::OmenaSifSourceSyntaxV1::Scss,
+    };
+    let root_sif = omena_sif::OmenaSifV1::from_static_exports(
+        "design-system/index",
+        generator(),
+        source(),
+        omena_sif::OmenaSifExportsV1 {
+            variables: Vec::new(),
+            mixins: Vec::new(),
+            functions: Vec::new(),
+            placeholders: Vec::new(),
+            forwards: vec![omena_sif::OmenaSifForwardExportV1 {
+                canonical_url: "design-system/tokens".to_string(),
+                prefix: None,
+                show: Vec::new(),
+                hide: Vec::new(),
+            }],
+        },
+        Vec::new(),
+        b"@forward \"design-system/tokens\";",
+    )
+    .map_err(|_| "forwarding sif fixture")?;
+    let tokens_sif = omena_sif::OmenaSifV1::from_static_exports(
+        "design-system/tokens",
+        generator(),
+        source(),
+        omena_sif::OmenaSifExportsV1 {
+            variables: vec![omena_sif::OmenaSifVariableExportV1 {
+                name: "$brand".to_string(),
+                defaulted: true,
+                value_repr: Some("red".to_string()),
+            }],
+            mixins: Vec::new(),
+            functions: Vec::new(),
+            placeholders: Vec::new(),
+            forwards: Vec::new(),
+        },
+        Vec::new(),
+        b"$brand: red !default;",
+    )
+    .map_err(|_| "forwarded sif fixture")?;
+    let external_sifs = vec![
+        OmenaQueryExternalSifInputV0 {
+            canonical_url: "design-system/index".to_string(),
+            sif: root_sif,
+        },
+        OmenaQueryExternalSifInputV0 {
+            canonical_url: "design-system/tokens".to_string(),
+            sif: tokens_sif,
+        },
+    ];
+
+    let diagnostics =
+        crate::summarize_omena_query_style_diagnostics_for_workspace_file_with_external_mode_and_sifs(
+            "/tmp/App.module.scss",
+            sources.as_slice(),
+            &[],
+            &[],
+            None,
+            crate::OmenaQueryExternalModuleModeV0::Sif,
+            external_sifs.as_slice(),
+        )
+        .ok_or("forwarded sif workspace diagnostics")?;
+
+    assert!(
+        diagnostics
+            .diagnostics
+            .iter()
+            .all(
+                |diagnostic| diagnostic.code != "unresolvedExternalReference"
+                    && diagnostic.code != "missingExternalSif"
+                    && diagnostic.code != "missingSassSymbol"
+            ),
+        "forwarded SIF exports should be visible through the root external module: {:?}",
+        diagnostics.diagnostics
+    );
+    Ok(())
+}
+
 // #33/#34: a cross-file `@use "file:///…"` edge — the canonical-URL form a bridge-generated SIF
 // carries — now routes through the external-SIF branch (resolver kind `externalIgnored` ->
 // `status == "external"`). With a matching SIF in scope, the referenced symbol resolves from the
