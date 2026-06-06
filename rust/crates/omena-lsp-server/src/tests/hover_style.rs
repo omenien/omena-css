@@ -1,7 +1,7 @@
 use super::*;
 
 #[test]
-fn resolves_style_hover_candidates_from_opened_style_documents() {
+fn resolves_style_hover_candidates_from_opened_style_documents() -> TestResult {
     let mut state = LspShellState::default();
     handle_lsp_message(
         &mut state,
@@ -44,7 +44,7 @@ fn resolves_style_hover_candidates_from_opened_style_documents() {
                     "uri": "file:///workspace-a/src/App.module.scss",
                     "languageId": "scss",
                     "version": 1,
-                    "text": ".root { color: var(--brand); }\n.theme { --brand: red; }",
+                    "text": ".root { color: var(--brand); }\n.theme { --brand: red; }\n@media (min-width: 40rem) { @layer theme { .root { color: blue; } } }",
                 },
             },
         }),
@@ -224,6 +224,21 @@ fn resolves_style_hover_candidates_from_opened_style_documents() {
             },
         })),
     );
+    let hover_text = hover_response
+        .as_ref()
+        .and_then(|value| value.pointer("/result/contents/value"))
+        .and_then(Value::as_str)
+        .ok_or_else(|| std::io::Error::other("style hover should render markdown value"))?;
+    assert!(
+        hover_text.contains("Cascade narrowed values:"),
+        "{hover_text}"
+    );
+    assert!(
+        hover_text.contains("- `color`: `var(--brand)`"),
+        "{hover_text}"
+    );
+    assert!(hover_text.contains("@layer theme"), "{hover_text}");
+    assert!(hover_text.contains("`blue`"), "{hover_text}");
 
     let definition_response = handle_lsp_message(
         &mut state,
@@ -452,4 +467,5 @@ fn resolves_style_hover_candidates_from_opened_style_documents() {
             },
         })),
     );
+    Ok(())
 }

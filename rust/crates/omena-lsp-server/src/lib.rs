@@ -3479,9 +3479,11 @@ fn render_style_hover_candidate_markdown(
     );
     match candidate.kind {
         "selector" => {
+            let narrowing_markdown =
+                render_property_value_narrowings_markdown(&render_parts.property_value_narrowings);
             format!(
-                "**`.{}`** - _{}_\n\n```scss\n{}\n```",
-                candidate.name, location, render_parts.snippet
+                "**`.{}`** - _{}_\n\n```scss\n{}\n```{}",
+                candidate.name, location, render_parts.snippet, narrowing_markdown
             )
         }
         "customPropertyReference" => {
@@ -3500,6 +3502,66 @@ fn render_style_hover_candidate_markdown(
             render_sass_symbol_hover_markdown(candidate, location.as_str(), &render_parts)
         }
         _ => candidate.name.clone(),
+    }
+}
+
+fn render_property_value_narrowings_markdown(
+    narrowings: &[omena_query::AbstractPropertyValueNarrowingV0],
+) -> String {
+    if narrowings.is_empty() {
+        return String::new();
+    }
+    let lines = narrowings
+        .iter()
+        .take(6)
+        .map(|narrowing| {
+            format!(
+                "- `{}`: {}{}",
+                narrowing.property_name,
+                render_abstract_property_value(&narrowing.value),
+                render_property_value_narrowing_context(narrowing)
+            )
+        })
+        .collect::<Vec<_>>()
+        .join("\n");
+    format!("\n\nCascade narrowed values:\n{lines}")
+}
+
+fn render_abstract_property_value(value: &omena_query::AbstractPropertyValueV0) -> String {
+    match value {
+        omena_query::AbstractPropertyValueV0::Bottom { .. } => "`<bottom>`".to_string(),
+        omena_query::AbstractPropertyValueV0::Exact { value, .. } => format!("`{value}`"),
+        omena_query::AbstractPropertyValueV0::FiniteSet { values, .. } => values
+            .iter()
+            .map(|value| format!("`{value}`"))
+            .collect::<Vec<_>>()
+            .join(" | "),
+        omena_query::AbstractPropertyValueV0::CustomPropertyReference {
+            custom_property_name,
+            ..
+        } => {
+            format!("`var({custom_property_name})`")
+        }
+        omena_query::AbstractPropertyValueV0::Top { .. } => "`<top>`".to_string(),
+    }
+}
+
+fn render_property_value_narrowing_context(
+    narrowing: &omena_query::AbstractPropertyValueNarrowingV0,
+) -> String {
+    let mut context = Vec::new();
+    if !narrowing.requested_condition_context.is_empty() {
+        context.push(narrowing.requested_condition_context.join(" / "));
+    }
+    if let Some(layer_name) = narrowing.requested_layer_name.as_deref() {
+        context.push(format!("@layer {layer_name}"));
+    } else if narrowing.requested_layer_scope == "exactLayer" {
+        context.push("unlayered".to_string());
+    }
+    if context.is_empty() {
+        String::new()
+    } else {
+        format!(" ({})", context.join(", "))
     }
 }
 

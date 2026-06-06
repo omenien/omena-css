@@ -131,6 +131,7 @@ pub fn summarize_omena_query_style_hover_render_parts(
         snippet: String::new(),
         value: None,
         signature: None,
+        property_value_narrowings: Vec::new(),
         render_source: "lineSnippet",
     };
 
@@ -143,6 +144,8 @@ pub fn summarize_omena_query_style_hover_render_parts(
             if parts.render_source != "selectorFallback" {
                 parts.render_source = "ruleSnippet";
             }
+            parts.property_value_narrowings =
+                selector_property_value_narrowings_for_hover(source, name);
         }
         "customPropertyReference" | "customPropertyDeclaration" => {
             parts.snippet = line_snippet_at_position(source, position).unwrap_or_default();
@@ -172,6 +175,61 @@ pub fn summarize_omena_query_style_hover_render_parts(
     }
 
     parts
+}
+
+fn selector_property_value_narrowings_for_hover(
+    source: &str,
+    name: &str,
+) -> Vec<AbstractPropertyValueNarrowingV0> {
+    let selector = format!(".{name}");
+    let declarations = cascade_checker::collect_query_checker_cascade_declarations(source);
+    let matching_declarations = declarations
+        .iter()
+        .filter(|declaration| declaration.input.selector.as_str() == selector)
+        .collect::<Vec<_>>();
+    let mut branch_keys = matching_declarations
+        .iter()
+        .map(|declaration| {
+            (
+                declaration.input.property.clone(),
+                declaration.input.condition_context.clone(),
+                declaration.input.layer_name.clone(),
+                declaration.input.layer_order,
+            )
+        })
+        .collect::<BTreeSet<_>>()
+        .into_iter()
+        .collect::<Vec<_>>();
+    branch_keys.sort();
+
+    branch_keys
+        .into_iter()
+        .map(
+            |(property_name, condition_context, layer_name, layer_order)| {
+                let property_candidates = matching_declarations
+                    .iter()
+                    .filter(|declaration| declaration.input.property == property_name)
+                    .map(|declaration| AbstractPropertyValueCandidateV0 {
+                        property_name: declaration.input.property.clone(),
+                        value: declaration.input.value.clone(),
+                        pseudo_state: None,
+                        condition_context: declaration.input.condition_context.clone(),
+                        layer_name: declaration.input.layer_name.clone(),
+                        layer_order: declaration.input.layer_order,
+                    })
+                    .collect::<Vec<_>>();
+                narrow_abstract_property_value_for_cascade_branch(
+                    property_name.as_str(),
+                    None,
+                    condition_context.as_slice(),
+                    layer_name.as_deref(),
+                    layer_order,
+                    true,
+                    property_candidates.as_slice(),
+                )
+            },
+        )
+        .collect()
 }
 
 fn source_reference_text_selector_name(source: &str, span: ParserByteSpanV0) -> Option<String> {

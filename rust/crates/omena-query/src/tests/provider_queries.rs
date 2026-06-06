@@ -82,6 +82,7 @@ fn style_hover_render_parts_are_query_owned() {
   color: $color;
 }
 .button { color: var(--brand); }
+@media (min-width: 40rem) { @layer theme { .button { color: blue; } } }
 "#;
 
     let variable = summarize_omena_query_style_hover_render_parts(
@@ -121,6 +122,19 @@ fn style_hover_render_parts_are_query_owned() {
     );
     assert_eq!(selector.snippet, ".button { color: var(--brand); }");
     assert_eq!(selector.render_source, "ruleSnippet");
+    assert!(selector.property_value_narrowings.iter().any(|narrowing| {
+        narrowing.property_name == "color"
+            && narrowing.requested_condition_context.is_empty()
+            && narrowing.requested_layer_scope == "exactLayer"
+            && narrowing.matched_candidate_count == 1
+    }));
+    assert!(selector.property_value_narrowings.iter().any(|narrowing| {
+        narrowing.property_name == "color"
+            && narrowing.requested_condition_context
+                == vec!["@media (min-width: 40rem)".to_string()]
+            && narrowing.requested_layer_name.as_deref() == Some("theme")
+            && narrowing.matched_candidate_count == 1
+    }));
 }
 
 #[test]

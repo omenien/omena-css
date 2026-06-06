@@ -987,6 +987,8 @@ pub struct OmenaQueryStyleHoverRenderPartsV0 {
     pub snippet: String,
     pub value: Option<String>,
     pub signature: Option<String>,
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub property_value_narrowings: Vec<AbstractPropertyValueNarrowingV0>,
     pub render_source: &'static str,
 }
 
