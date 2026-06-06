@@ -1330,10 +1330,15 @@ pub struct OmenaQueryInsightV0 {
     pub title: String,
     pub message: String,
     pub range: ParserRangeV0,
+    pub confidence: &'static str,
+    pub scope: &'static str,
     pub source: &'static str,
     pub provenance: Vec<&'static str>,
-    pub primary_edit: OmenaQueryWorkspaceTextEditV0,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub primary_edit: Option<OmenaQueryWorkspaceTextEditV0>,
     pub shorthand_combinable: Option<OmenaQueryShorthandCombinableV0>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub cascade_insight: Option<OmenaQueryCascadeInsightV0>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -1344,6 +1349,18 @@ pub struct OmenaQueryShorthandCombinableV0 {
     pub values: Vec<String>,
     pub combined_value: String,
     pub declaration_count: usize,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct OmenaQueryCascadeInsightV0 {
+    pub relationship: &'static str,
+    pub selector: String,
+    pub property: String,
+    pub related_selector: Option<String>,
+    pub related_property: Option<String>,
+    pub source_order: u32,
+    pub related_source_order: Option<u32>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]

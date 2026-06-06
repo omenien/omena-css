@@ -447,6 +447,8 @@ fn style_insights_surface_shorthand_combinable_facts() {
     assert_eq!(insight.kind, "shorthandCombinable");
     assert_eq!(insight.title, "Combine margin longhands into shorthand");
     assert_eq!(insight.source, "omenaQueryStyleInsights");
+    assert_eq!(insight.confidence, "high");
+    assert_eq!(insight.scope, "singleSelector");
     assert_eq!(
         insight.range,
         ParserRangeV0 {
@@ -460,7 +462,13 @@ fn style_insights_surface_shorthand_combinable_facts() {
             },
         }
     );
-    assert_eq!(insight.primary_edit.new_text, "margin: 1px 2px 3px 4px");
+    assert_eq!(
+        insight
+            .primary_edit
+            .as_ref()
+            .map(|edit| edit.new_text.as_str()),
+        Some("margin: 1px 2px 3px 4px")
+    );
     assert!(
         insight
             .shorthand_combinable
@@ -474,6 +482,12 @@ fn style_insights_surface_shorthand_combinable_facts() {
                         .eq(["margin-top", "margin-right", "margin-bottom", "margin-left"])
                     && shorthand.combined_value == "1px 2px 3px 4px"
             })
+    );
+    assert!(
+        insight
+            .cascade_insight
+            .as_ref()
+            .is_some_and(|cascade| cascade.relationship == "replaceLonghandQuartetWithShorthand")
     );
 }
 
@@ -512,6 +526,92 @@ fn style_insight_code_actions_consume_shorthand_combinable_facts() {
         "Combine margin longhands into shorthand"
     );
     assert_eq!(plan.actions[0].edits[0].new_text, "margin: 1px 2px 3px 4px");
+}
+
+#[test]
+fn style_insights_surface_cascade_relationship_facts() {
+    let source = ".button {\n  margin: 1px;\n  margin-left: 2px;\n  border-color: red;\n  border-color: red;\n}\n.primary { color: blue; }\n.secondary { color: green; }";
+    let insights =
+        summarize_omena_query_style_insights("file:///workspace/src/App.module.scss", source);
+    let kinds = insights
+        .insights
+        .iter()
+        .map(|insight| insight.kind)
+        .collect::<Vec<_>>();
+
+    assert!(
+        insights
+            .ready_surfaces
+            .contains(&"cascadeRelationshipInsights")
+    );
+    assert!(insights.ready_surfaces.contains(&"insightConfidenceScope"));
+    assert!(kinds.contains(&"partialShorthandOverride"));
+    assert!(kinds.contains(&"longhandRedundant"));
+    assert!(kinds.contains(&"specificityTie"));
+
+    let partial = insights
+        .insights
+        .iter()
+        .find(|insight| insight.kind == "partialShorthandOverride");
+    assert!(partial.is_some());
+    assert_eq!(partial.map(|insight| insight.confidence), Some("high"));
+    assert_eq!(partial.map(|insight| insight.scope), Some("singleSelector"));
+    assert_eq!(
+        partial.map(|insight| insight.primary_edit.is_none()),
+        Some(true)
+    );
+    assert_eq!(
+        partial
+            .and_then(|insight| insight.cascade_insight.as_ref())
+            .map(|cascade| {
+                cascade.relationship == "longhandOverridesEarlierShorthand"
+                    && cascade.property == "margin"
+                    && cascade.related_property.as_deref() == Some("margin-left")
+            }),
+        Some(true)
+    );
+
+    let redundant = insights
+        .insights
+        .iter()
+        .find(|insight| insight.kind == "longhandRedundant");
+    assert!(redundant.is_some());
+    assert_eq!(redundant.map(|insight| insight.confidence), Some("high"));
+    assert_eq!(
+        redundant.map(|insight| insight.primary_edit.is_none()),
+        Some(true)
+    );
+
+    let tie = insights
+        .insights
+        .iter()
+        .find(|insight| insight.kind == "specificityTie");
+    assert!(tie.is_some());
+    assert_eq!(
+        tie.map(|insight| insight.scope),
+        Some("crossSelectorSameStylesheet")
+    );
+    assert_eq!(
+        tie.and_then(|insight| insight.cascade_insight.as_ref())
+            .map(|cascade| cascade.relationship == "sourceOrderDecidesEqualSpecificity"),
+        Some(true)
+    );
+
+    let plan = summarize_omena_query_style_insight_code_actions(
+        "file:///workspace/src/App.module.scss",
+        source,
+        ParserRangeV0 {
+            start: ParserPositionV0 {
+                line: 2,
+                character: 4,
+            },
+            end: ParserPositionV0 {
+                line: 2,
+                character: 4,
+            },
+        },
+    );
+    assert_eq!(plan.action_count, 0);
 }
 
 #[test]
