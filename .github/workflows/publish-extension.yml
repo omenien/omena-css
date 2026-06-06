@@ -62,7 +62,7 @@ jobs:
       OMENA_PACKAGED_LSP_SERVER_MIN_TARGETS: "3"
       OMENA_PACKAGED_LSP_SERVER_REQUIRED_PLATFORMS: linux,darwin,win32
     steps:
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
         with:
           ref: ${{ github.event.inputs.ref }}
       - uses: ./.github/actions/setup-pnpm
@@ -88,7 +88,7 @@ jobs:
             sbom.json
             cyclonedx-npm.log
       - name: Attest build provenance for VSIX
-        uses: actions/attest-build-provenance@e8998f949152b193b063cb0ec769d69d929409be # v2
+        uses: actions/attest-build-provenance@a2bbfa25375fe432b6a289bc6b6cd05ecd0c4c32 # v4.1.0
         with:
           subject-path: "*.vsix"
       - name: Compute release metadata
