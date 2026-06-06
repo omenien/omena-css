@@ -1,0 +1,99 @@
+name: SIF Keyless Attestation
+
+on:
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: Git ref to generate the SIF from.
+        type: string
+        required: true
+      source_path:
+        description: Repository-relative CSS, SCSS, or Sass source to scan.
+        type: string
+        required: true
+      canonical_url:
+        description: Stable canonical URL stored in the generated SIF.
+        type: string
+        required: true
+      output_name:
+        description: Output artifact basename without extension.
+        type: string
+        required: false
+        default: omena-sif
+
+concurrency:
+  group: sif-keyless-attestation-${{ github.run_id }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  id-token: write
+  attestations: write
+
+jobs:
+  generate-and-attest:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          ref: ${{ inputs.ref }}
+      - uses: ./.github/actions/setup-rust-pinned
+      - uses: ./.github/actions/cache-rust
+        with:
+          shared-key: sif-keyless-attestation
+      - name: Generate SIF artifact
+        shell: bash
+        env:
+          SOURCE_PATH: ${{ inputs.source_path }}
+          CANONICAL_URL: ${{ inputs.canonical_url }}
+          OUTPUT_NAME: ${{ inputs.output_name }}
+        run: |
+          set -euo pipefail
+
+          case "${SOURCE_PATH}" in
+            /*|*..*)
+              echo "::error::source_path must be a repository-relative path without '..': ${SOURCE_PATH}" >&2
+              exit 1
+              ;;
+          esac
+          case "${OUTPUT_NAME}" in
+            ""|*[!A-Za-z0-9._-]*)
+              echo "::error::output_name must contain only letters, numbers, dot, underscore, and dash: ${OUTPUT_NAME}" >&2
+              exit 1
+              ;;
+          esac
+          test -f "${SOURCE_PATH}"
+          repo_root="$(pwd -P)"
+          source_realpath="$(realpath "${SOURCE_PATH}")"
+          case "${source_realpath}" in
+            "${repo_root}"/*)
+              ;;
+            *)
+              echo "::error::source_path must resolve inside the checked-out repository: ${SOURCE_PATH}" >&2
+              exit 1
+              ;;
+          esac
+
+          cargo build --manifest-path rust/Cargo.toml -p omena-cli --release --locked
+
+          mkdir -p dist/sif
+          output_path="dist/sif/${OUTPUT_NAME}.sif.json"
+          ./rust/target/release/omena-cli sif generate "${SOURCE_PATH}" \
+            --canonical-url "${CANONICAL_URL}" \
+            --output "${output_path}"
+          test -s "${output_path}"
+          jq -e --arg canonicalUrl "${CANONICAL_URL}" \
+            '.sifVersion == "1" and .canonicalUrl == $canonicalUrl and .fingerprints.hashAlgorithm == "blake3"' \
+            "${output_path}" >/dev/null
+      - name: Attest SIF build provenance
+        uses: actions/attest-build-provenance@e8998f949152b193b063cb0ec769d69d929409be # v2
+        with:
+          subject-path: dist/sif/*.sif.json
+      - name: Upload SIF artifact
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: sif-keyless-attestation-${{ github.run_id }}
+          path: dist/sif/*.sif.json
+          if-no-files-found: error
+          retention-days: 30
