@@ -86,14 +86,28 @@ jobs:
           jq -e --arg canonicalUrl "${CANONICAL_URL}" \
             '.sifVersion == "1" and .canonicalUrl == $canonicalUrl and .fingerprints.hashAlgorithm == "blake3"' \
             "${output_path}" >/dev/null
+
+          ./rust/target/release/omena-cli lock update \
+            --lockfile dist/sif/omena.lock \
+            --sif "${output_path}" \
+            --json >dist/sif/omena.lock.report.json
+          test -s dist/sif/omena.lock
+          jq -e --arg canonicalUrl "${CANONICAL_URL}" \
+            '.entries | length == 1 and .[0].canonicalUrl == $canonicalUrl and .[0].trustTier == "t1"' \
+            dist/sif/omena.lock >/dev/null
       - name: Attest SIF build provenance
         uses: actions/attest-build-provenance@e8998f949152b193b063cb0ec769d69d929409be # v2
         with:
-          subject-path: dist/sif/*.sif.json
+          subject-path: |
+            dist/sif/*.sif.json
+            dist/sif/omena.lock
       - name: Upload SIF artifact
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: sif-keyless-attestation-${{ github.run_id }}
-          path: dist/sif/*.sif.json
+          path: |
+            dist/sif/*.sif.json
+            dist/sif/omena.lock
+            dist/sif/omena.lock.report.json
           if-no-files-found: error
           retention-days: 30

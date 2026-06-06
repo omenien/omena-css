@@ -38,13 +38,32 @@ assert.ok(
   "SIF attestation workflow must generate the SIF through the shipped CLI surface",
 );
 assert.ok(
+  workflow.includes("./rust/target/release/omena-cli lock update"),
+  "SIF attestation workflow must package a lock entry beside the generated SIF",
+);
+assert.ok(
+  workflow.includes("--lockfile dist/sif/omena.lock"),
+  "SIF attestation workflow must write a distributable omena.lock beside the SIF",
+);
+assert.ok(
+  workflow.includes('.[0].trustTier == "t1"'),
+  "SIF attestation workflow must validate the generated lock entry trust tier",
+);
+assert.ok(
   workflow.includes("actions/attest-build-provenance@e8998f949152b193b063cb0ec769d69d929409be"),
   "SIF attestation workflow must use the pinned keyless provenance action",
 );
-assert.match(workflow, /subject-path:\s*dist\/sif\/\*\.sif\.json/);
+assert.match(
+  workflow,
+  /subject-path:\s*\|\s*\n\s+dist\/sif\/\*\.sif\.json\s*\n\s+dist\/sif\/omena\.lock/,
+);
 assert.ok(
   workflow.includes("actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a"),
   "SIF attestation workflow must publish the generated SIF artifact for review",
+);
+assert.match(
+  workflow,
+  /path:\s*\|\s*\n\s+dist\/sif\/\*\.sif\.json\s*\n\s+dist\/sif\/omena\.lock\s*\n\s+dist\/sif\/omena\.lock\.report\.json/,
 );
 assert.match(workflow, /if-no-files-found:\s*error/);
 
@@ -81,7 +100,8 @@ process.stdout.write(
       keyless: true,
       longLivedSecrets: false,
       generationSurface: "omena-cli sif generate",
-      attestationSubject: "dist/sif/*.sif.json",
+      lockSurface: "omena-cli lock update",
+      attestationSubject: "dist/sif/*.sif.json + dist/sif/omena.lock",
     },
     null,
     2,
