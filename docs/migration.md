@@ -82,3 +82,65 @@ Phase 2 is the current default behavior:
 Older omena versions that do not understand SIF mode ignore `omena.lock` as
 ordinary workspace data. Newer versions must keep `--external ignored` as the
 documented compatibility escape hatch for the migration window.
+
+## Provenance Verification
+
+SIF provenance is enforced through the CLI and lockfile, not through LSP request
+handling. The language server reads local workspace files, SIF artifacts, and
+`omena.lock`; it never fetches registry metadata or queries transparency logs
+while serving editor requests.
+
+Recorded provenance references are advisory until verified evidence is added.
+For npm provenance metadata, first record the reference:
+
+```sh
+omena lock fetch-provenance design-system \
+  --lockfile omena.lock \
+  --npm-metadata npm-metadata.json \
+  --json
+```
+
+Then record verified evidence through one of the local verification paths:
+
+```sh
+omena lock verify-attestation design-system \
+  --lockfile omena.lock \
+  --artifact package.tgz \
+  --bundle package.sigstore.json \
+  --reference https://registry.npmjs.org/-/npm/v1/attestations/design-system@1.0.0/provenance \
+  --kind npm-provenance.sigstore \
+  --verified-tier t2 \
+  --issuer https://token.actions.githubusercontent.com \
+  --statement-type https://in-toto.io/Statement/v1 \
+  --statement-predicate-type https://slsa.dev/provenance/v1
+```
+
+Offline verifier reports can also be recorded:
+
+```sh
+omena lock record-verification design-system \
+  --lockfile omena.lock \
+  --verification attestation-verification.json \
+  --json
+```
+
+For T3 omena-toolchain evidence, the verified subject is the SIF artifact
+itself. Both direct verification and offline report ingestion must bind the
+signed provenance statement to the selected lock entry's `sifPath`; offline
+reports also require the matching SIF JSON artifact so omena can check the
+statement's `sha256` subject digest against the artifact bytes:
+
+```sh
+omena lock record-verification design-system \
+  --lockfile omena.lock \
+  --verification t3-attestation-verification.json \
+  --artifact sif/design-system.sif.json \
+  --json
+```
+
+Finally, CI can enforce the required tier:
+
+```sh
+omena lock verify --lockfile omena.lock --tier t2 --frozen --json
+omena lock verify --lockfile omena.lock --tier t3 --frozen --json
+```
