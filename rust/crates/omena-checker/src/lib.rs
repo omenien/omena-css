@@ -378,6 +378,37 @@ pub struct OmenaCheckerCascadeInputV0 {
     pub custom_properties: Vec<OmenaCheckerCustomPropertyInputV0>,
 }
 
+/// Selector text before the parser/query boundary has expanded nesting.
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Deserialize, Serialize)]
+#[serde(transparent)]
+pub struct RawSelector(String);
+
+impl RawSelector {
+    pub fn new(selector: impl Into<String>) -> Self {
+        Self(selector.into())
+    }
+
+    pub fn as_str(&self) -> &str {
+        self.0.as_str()
+    }
+
+    pub fn into_string(self) -> String {
+        self.0
+    }
+}
+
+impl fmt::Display for RawSelector {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        self.0.fmt(formatter)
+    }
+}
+
+impl AsRef<str> for RawSelector {
+    fn as_ref(&self) -> &str {
+        self.as_str()
+    }
+}
+
 /// Selector text after the parser/query boundary has expanded nesting and
 /// normalized the selector enough for cascade-context comparison.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Deserialize, Serialize)]
@@ -415,6 +446,27 @@ impl AsRef<str> for CanonicalSelector {
     }
 }
 
+/// Cascade declaration consumed by the checker.
+///
+/// The selector field intentionally requires [`CanonicalSelector`]. Raw parser
+/// selectors must be expanded by the query/parser boundary first.
+///
+/// ```compile_fail
+/// use omena_checker::OmenaCheckerCascadeDeclarationInputV0;
+///
+/// let _declaration = OmenaCheckerCascadeDeclarationInputV0 {
+///     declaration_id: "decl-0".to_string(),
+///     selector: ".button".to_string(),
+///     property: "color".to_string(),
+///     value: "red".to_string(),
+///     source_order: 0,
+///     condition_context: Vec::new(),
+///     layer_name: None,
+///     layer_order: None,
+///     important: false,
+///     var_references: Vec::new(),
+/// };
+/// ```
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct OmenaCheckerCascadeDeclarationInputV0 {
