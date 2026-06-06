@@ -17,6 +17,7 @@ enum SourceLanguageParserKindV0 {
     HtmlScript,
     SvelteComponentScript,
     AstroComponentScript,
+    MarkdownFencedCode,
 }
 
 impl SourceLanguageParserV0 for SourceLanguageParserKindV0 {
@@ -27,6 +28,7 @@ impl SourceLanguageParserV0 for SourceLanguageParserKindV0 {
             Self::HtmlScript => "htmlScriptProjectionParserV0",
             Self::SvelteComponentScript => "svelteComponentScriptProjectionParserV0",
             Self::AstroComponentScript => "astroComponentScriptProjectionParserV0",
+            Self::MarkdownFencedCode => "markdownFencedCodeProjectionParserV0",
         }
     }
 
@@ -37,6 +39,7 @@ impl SourceLanguageParserV0 for SourceLanguageParserKindV0 {
             Self::HtmlScript => "html",
             Self::SvelteComponentScript => "svelte",
             Self::AstroComponentScript => "astro",
+            Self::MarkdownFencedCode => "markdown",
         }
     }
 
@@ -47,6 +50,7 @@ impl SourceLanguageParserV0 for SourceLanguageParserKindV0 {
             Self::HtmlScript => "bytePreservingScriptBlocks",
             Self::SvelteComponentScript => "bytePreservingScriptBlocks",
             Self::AstroComponentScript => "bytePreservingFrontmatterAndScriptBlocks",
+            Self::MarkdownFencedCode => "bytePreservingFencedCodeBlocks",
         }
     }
 
@@ -58,7 +62,8 @@ impl SourceLanguageParserV0 for SourceLanguageParserKindV0 {
             Self::VueSfcScript
             | Self::HtmlScript
             | Self::SvelteComponentScript
-            | Self::AstroComponentScript => SourceType::tsx(),
+            | Self::AstroComponentScript
+            | Self::MarkdownFencedCode => SourceType::tsx(),
         }
     }
 
@@ -83,6 +88,7 @@ impl SourceLanguageParserV0 for SourceLanguageParserKindV0 {
             Self::AstroComponentScript => {
                 Cow::Owned(project_astro_component_to_typescript_source(source))
             }
+            Self::MarkdownFencedCode => Cow::Owned(project_markdown_to_typescript_source(source)),
         }
     }
 }
@@ -115,6 +121,7 @@ pub fn summarize_omena_bridge_source_language_parser_boundary_v0()
         SourceLanguageParserKindV0::HtmlScript,
         SourceLanguageParserKindV0::SvelteComponentScript,
         SourceLanguageParserKindV0::AstroComponentScript,
+        SourceLanguageParserKindV0::MarkdownFencedCode,
     ]
     .into_iter()
     .map(|parser| SourceLanguageParserDescriptorV0 {
@@ -138,6 +145,7 @@ pub fn summarize_omena_bridge_source_language_parser_boundary_v0()
             "htmlScriptProjection",
             "svelteComponentScriptProjection",
             "astroComponentScriptProjection",
+            "markdownFencedCodeProjection",
         ],
     }
 }
@@ -160,6 +168,13 @@ pub(crate) fn is_astro_source(source_path: &str, source_language: Option<&str>) 
     source_language == Some("astro") || source_path.ends_with(".astro")
 }
 
+pub(crate) fn is_markdown_source(source_path: &str, source_language: Option<&str>) -> bool {
+    source_language == Some("markdown")
+        || source_language == Some("mdx")
+        || source_path.ends_with(".md")
+        || source_path.ends_with(".mdx")
+}
+
 fn source_language_parser_for_path(
     source_path: &str,
     source_language: Option<&str>,
@@ -172,6 +187,8 @@ fn source_language_parser_for_path(
         SourceLanguageParserKindV0::SvelteComponentScript
     } else if is_astro_source(source_path, source_language) {
         SourceLanguageParserKindV0::AstroComponentScript
+    } else if is_markdown_source(source_path, source_language) {
+        SourceLanguageParserKindV0::MarkdownFencedCode
     } else {
         SourceLanguageParserKindV0::OxcTsx
     }
@@ -212,6 +229,11 @@ fn project_astro_component_script_to_typescript_source(source: &str) -> String {
     project_astro_component_to_typescript_source(source)
 }
 
+#[cfg(test)]
+fn project_markdown_fenced_code_to_typescript_source(source: &str) -> String {
+    project_markdown_to_typescript_source(source)
+}
+
 fn project_tag_contents_to_typescript_source(
     source: &str,
     open_tag: &str,
@@ -227,6 +249,82 @@ fn project_astro_component_to_typescript_source(source: &str) -> String {
     }
     ranges.extend(tag_content_ranges(source, "<script", "</script>"));
     project_ranges_to_typescript_source(source, ranges)
+}
+
+fn project_markdown_to_typescript_source(source: &str) -> String {
+    project_ranges_to_typescript_source(source, markdown_typescript_fence_ranges(source))
+}
+
+fn markdown_typescript_fence_ranges(source: &str) -> Vec<(usize, usize)> {
+    let mut ranges = Vec::new();
+    let mut open_fence: Option<(char, usize, usize)> = None;
+    let mut offset = 0usize;
+
+    for line in source.split_inclusive('\n') {
+        let line_start = offset;
+        let line_end = offset + line.len();
+        let line_without_newline = line.trim_end_matches(['\r', '\n']);
+        let leading_spaces = line_without_newline
+            .chars()
+            .take_while(|ch| *ch == ' ')
+            .count();
+        let trimmed = line_without_newline.trim_start_matches(' ');
+        if leading_spaces <= 3 {
+            if let Some((fence_char, fence_len, content_start)) = open_fence {
+                if markdown_fence_marker(trimmed).is_some_and(|(candidate_char, candidate_len)| {
+                    candidate_char == fence_char && candidate_len >= fence_len
+                }) {
+                    ranges.push((content_start, line_start));
+                    open_fence = None;
+                }
+            } else if let Some((fence_char, fence_len)) = markdown_fence_marker(trimmed) {
+                let language = trimmed[fence_len..].trim();
+                if markdown_fence_language_is_typescript(language) {
+                    open_fence = Some((fence_char, fence_len, line_end));
+                }
+            }
+        }
+        offset = line_end;
+    }
+
+    if let Some((_, _, content_start)) = open_fence {
+        ranges.push((content_start, source.len()));
+    }
+    ranges
+}
+
+fn markdown_fence_marker(line: &str) -> Option<(char, usize)> {
+    let mut chars = line.chars();
+    let fence_char = chars.next()?;
+    if fence_char != '`' && fence_char != '~' {
+        return None;
+    }
+    let fence_len = 1 + chars.take_while(|ch| *ch == fence_char).count();
+    if fence_len >= 3 {
+        Some((fence_char, fence_len))
+    } else {
+        None
+    }
+}
+
+fn markdown_fence_language_is_typescript(language: &str) -> bool {
+    let normalized = language
+        .split_whitespace()
+        .next()
+        .unwrap_or_default()
+        .trim_start_matches('{')
+        .trim_end_matches('}')
+        .to_ascii_lowercase();
+    matches!(
+        normalized.as_str(),
+        "ts" | "tsx"
+            | "typescript"
+            | "typescriptreact"
+            | "js"
+            | "jsx"
+            | "javascript"
+            | "javascriptreact"
+    )
 }
 
 fn tag_content_ranges(source: &str, open_tag: &str, close_tag: &str) -> Vec<(usize, usize)> {
@@ -347,6 +445,21 @@ mod tests {
     }
 
     #[test]
+    fn markdown_projection_preserves_typescript_fenced_code_offsets() {
+        let source = "# Notes\n\nignored text\n\n```tsx\nimport styles from \"./Card.module.scss\";\nconst root = styles.root;\n```\n\n```css\n.root { color: red; }\n```\n";
+        let projected = project_markdown_fenced_code_to_typescript_source(source);
+
+        assert_eq!(projected.len(), source.len());
+        assert_eq!(
+            projected.find("import styles"),
+            source.find("import styles")
+        );
+        assert_eq!(projected.find("styles.root"), source.find("styles.root"));
+        assert!(!projected.contains("ignored text"));
+        assert!(!projected.contains("color: red"));
+    }
+
+    #[test]
     fn source_language_parser_boundary_lists_fixture_witnessed_v0_parsers() {
         let summary = summarize_omena_bridge_source_language_parser_boundary_v0();
 
@@ -354,7 +467,7 @@ mod tests {
             summary.product,
             "omena-bridge.source-language-parser-boundary"
         );
-        assert_eq!(summary.parser_count, 5);
+        assert_eq!(summary.parser_count, 6);
         assert!(!summary.external_parser_abi_stable);
         assert!(summary.parsers.iter().any(|parser| {
             parser.parser_id == "oxcTsxSourceLanguageParserV0" && parser.fixture_witnessed
@@ -369,6 +482,10 @@ mod tests {
         assert!(summary.parsers.iter().any(|parser| {
             parser.parser_id == "astroComponentScriptProjectionParserV0"
                 && parser.language == "astro"
+        }));
+        assert!(summary.parsers.iter().any(|parser| {
+            parser.parser_id == "markdownFencedCodeProjectionParserV0"
+                && parser.language == "markdown"
         }));
     }
 }
