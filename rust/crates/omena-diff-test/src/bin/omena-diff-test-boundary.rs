@@ -7,7 +7,10 @@ fn main() -> ExitCode {
         eprintln!("failed to write omena-diff-test boundary summary: {error}");
         return ExitCode::FAILURE;
     }
-    if summary.all_parser_legacy_fixtures_match && summary.all_m3_fixture_seeds_parse {
+    if summary.all_parser_legacy_fixtures_match
+        && summary.all_m3_fixture_seeds_parse
+        && summary.all_soundiness_metamorphic_relations_hold
+    {
         ExitCode::SUCCESS
     } else {
         ExitCode::FAILURE

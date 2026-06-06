@@ -19,6 +19,7 @@ workspace = true
 engine-style-parser = { path = "../engine-style-parser", version = "=0.2.0" }
 omena-parser = { path = "../omena-parser", version = "=0.2.0" }
 omena-query = { path = "../omena-query", version = "=0.2.0" }
+omena-sif = { path = "../omena-sif", version = "=0.2.0" }
 omena-testkit = { path = "../omena-testkit", version = "=0.2.0" }
 serde.workspace = true
 serde_json.workspace = true

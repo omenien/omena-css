@@ -10,7 +10,15 @@ use std::collections::BTreeSet;
 use engine_style_parser::{parse_style_module, summarize_css_modules_intermediate};
 use omena_parser::{StyleDialect, summarize_omena_parser_style_facts};
 use omena_query::{
-    summarize_omena_query_style_diagnostics_for_file, summarize_omena_query_style_hover_candidates,
+    OmenaQueryExternalModuleModeV0, OmenaQueryExternalSifInputV0,
+    OmenaQueryStyleDiagnosticsForFileV0, OmenaQueryStyleSourceInputV0,
+    summarize_omena_query_style_diagnostics_for_file,
+    summarize_omena_query_style_diagnostics_for_workspace_file_with_external_mode_and_sifs,
+    summarize_omena_query_style_hover_candidates,
+};
+use omena_sif::{
+    OmenaSifExportsV1, OmenaSifGeneratorV1, OmenaSifSourceSyntaxV1, OmenaSifSourceV1, OmenaSifV1,
+    OmenaSifVariableExportV1,
 };
 use omena_testkit::{
     OmenaFixtureDiagnosticV0, OmenaFixtureExpectationOutcomeV0, evaluate_omena_fixture_v0_with,
@@ -118,8 +126,14 @@ pub struct OmenaDiffTestBoundarySummary {
     pub wpt_seed_fixture_count: usize,
     /// Whether WPT seed corpus metadata and known-failure policy are valid.
     pub all_wpt_seed_metadata_valid: bool,
+    /// Soundiness metamorphic relation count.
+    pub soundiness_metamorphic_relation_count: usize,
+    /// Whether every soundiness metamorphic relation currently holds.
+    pub all_soundiness_metamorphic_relations_hold: bool,
     /// WPT-style seed metadata report.
     pub wpt_seed_metadata_report: WptSeedCorpusMetadataReportV0,
+    /// Soundiness metamorphic relation report.
+    pub soundiness_metamorphic_report: SoundinessMetamorphicReportV0,
     /// Named evidence gates closed by this crate.
     pub closed_gates: Vec<&'static str>,
     /// Field-level reports for every seed fixture.
@@ -259,6 +273,44 @@ pub struct WptSeedSparsePathFixtureCountV0 {
     pub sparse_path: String,
     /// Fixture count whose WPT path is below this sparse path.
     pub fixture_count: usize,
+}
+
+/// Soundiness metamorphic report for external-boundary diagnostics.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SoundinessMetamorphicReportV0 {
+    /// Schema version.
+    pub schema_version: &'static str,
+    /// Product surface name.
+    pub product: &'static str,
+    /// Relation count.
+    pub relation_count: usize,
+    /// Whether every relation currently holds.
+    pub all_relations_hold: bool,
+    /// Relation reports.
+    pub relations: Vec<SoundinessMetamorphicRelationReportV0>,
+    /// Named gates closed by this report.
+    pub closed_gates: Vec<&'static str>,
+}
+
+/// One soundiness metamorphic relation result.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SoundinessMetamorphicRelationReportV0 {
+    /// Stable relation label.
+    pub relation: &'static str,
+    /// Diagnostic codes before applying the relation transform.
+    pub before_diagnostic_codes: Vec<String>,
+    /// Diagnostic codes after applying the relation transform.
+    pub after_diagnostic_codes: Vec<String>,
+    /// Diagnostic count before applying the relation transform.
+    pub before_diagnostic_count: usize,
+    /// Diagnostic count after applying the relation transform.
+    pub after_diagnostic_count: usize,
+    /// Whether this relation currently holds.
+    pub holds: bool,
+    /// Product surfaces exercised by the relation.
+    pub evidence_surfaces: Vec<&'static str>,
 }
 
 const WPT_SEED_MANIFEST_SOURCE: &str = include_str!("../wpt-corpus/manifest.json");
@@ -501,6 +553,7 @@ pub fn summarize_omena_diff_test_boundary() -> OmenaDiffTestBoundarySummary {
     let all_parser_legacy_fixtures_match = reports.iter().all(|report| report.all_fields_match);
     let m3_fixture_seed_report = summarize_m3_fixture_seed_corpus();
     let wpt_seed_metadata_report = summarize_wpt_seed_corpus_metadata();
+    let soundiness_metamorphic_report = summarize_soundiness_metamorphic_relations();
 
     OmenaDiffTestBoundarySummary {
         schema_version: "0",
@@ -512,16 +565,20 @@ pub fn summarize_omena_diff_test_boundary() -> OmenaDiffTestBoundarySummary {
         all_m3_fixture_seeds_parse: m3_fixture_seed_report.all_seeds_parse,
         wpt_seed_fixture_count: wpt_seed_metadata_report.fixture_count,
         all_wpt_seed_metadata_valid: wpt_seed_metadata_report.all_metadata_valid,
+        soundiness_metamorphic_relation_count: soundiness_metamorphic_report.relation_count,
+        all_soundiness_metamorphic_relations_hold: soundiness_metamorphic_report.all_relations_hold,
         closed_gates: vec![
             "parserVsLegacyOracle",
             "legacyParserQuarantinedAsOracle",
             "h1DifferentialHarnessOwnedByRustCrate",
             "m3FixtureSeedsConsumeOmenaTestkitParser",
             "wptSeedCorpusMetadataPolicy",
+            "soundinessMetamorphicRelations",
         ],
         reports,
         m3_fixture_seed_report,
         wpt_seed_metadata_report,
+        soundiness_metamorphic_report,
     }
 }
 
@@ -564,6 +621,217 @@ pub fn summarize_m3_fixture_seed_corpus() -> M3FixtureSeedCorpusReportV0 {
         all_seeds_parse,
         reports,
     }
+}
+
+/// Summarize soundiness metamorphic relations over the real workspace diagnostics path.
+pub fn summarize_soundiness_metamorphic_relations() -> SoundinessMetamorphicReportV0 {
+    let relations = vec![
+        soundiness_resolved_sif_relation(),
+        soundiness_partial_to_complete_relation(),
+        soundiness_blob_soundness_relation(),
+    ];
+    let all_relations_hold = relations.iter().all(|relation| relation.holds);
+
+    SoundinessMetamorphicReportV0 {
+        schema_version: "0",
+        product: "omena-diff-test.soundiness-metamorphic-relations",
+        relation_count: relations.len(),
+        all_relations_hold,
+        relations,
+        closed_gates: vec![
+            "soundinessMetamorphicRelationHarness",
+            "soundinessResolvedSifRelation",
+            "soundinessMonotonicityRelation",
+            "soundinessBlobSoundnessRelation",
+        ],
+    }
+}
+
+fn soundiness_resolved_sif_relation() -> SoundinessMetamorphicRelationReportV0 {
+    let source = r#"@use "https://cdn.example/tokens.scss" as remote;
+.button { color: remote.$brand; }"#;
+    let before = soundiness_workspace_diagnostics(source, &[]);
+    let after_sif = soundiness_sif_input("https://cdn.example/tokens.scss", &["$brand"]);
+    let after = after_sif
+        .as_ref()
+        .ok()
+        .and_then(|sif| soundiness_workspace_diagnostics(source, std::slice::from_ref(sif)));
+    soundiness_relation_report(
+        "mr-soundiness-resolved-sif",
+        before,
+        after,
+        |before, after| {
+            diagnostic_codes_contain(before, "missingExternalSif")
+                && !diagnostic_codes_contain(after, "missingExternalSif")
+                && !diagnostic_codes_contain(after, "missingSassSymbol")
+                && after.diagnostic_count <= before.diagnostic_count
+        },
+    )
+}
+
+fn soundiness_partial_to_complete_relation() -> SoundinessMetamorphicRelationReportV0 {
+    let source = r#"@use "https://cdn.example/tokens.scss" as remote;
+.button { color: remote.$brand; border-color: remote.$accent; }"#;
+    let partial_sif = soundiness_sif_input("https://cdn.example/tokens.scss", &["$brand"]);
+    let complete_sif =
+        soundiness_sif_input("https://cdn.example/tokens.scss", &["$brand", "$accent"]);
+    let before = partial_sif
+        .as_ref()
+        .ok()
+        .and_then(|sif| soundiness_workspace_diagnostics(source, std::slice::from_ref(sif)));
+    let after = complete_sif
+        .as_ref()
+        .ok()
+        .and_then(|sif| soundiness_workspace_diagnostics(source, std::slice::from_ref(sif)));
+    soundiness_relation_report(
+        "mr-monotonicity-partial-to-complete-sif",
+        before,
+        after,
+        |before, after| {
+            diagnostic_codes_contain(before, "partialExternalSif")
+                && !diagnostic_codes_contain(after, "partialExternalSif")
+                && !diagnostic_codes_contain(after, "missingSassSymbol")
+                && after.diagnostic_count < before.diagnostic_count
+        },
+    )
+}
+
+fn soundiness_blob_soundness_relation() -> SoundinessMetamorphicRelationReportV0 {
+    let before_source = r#"@use "https://cdn.example/tokens.scss" as remote;
+.button { color: remote.$brand; }"#;
+    let after_source = r#"// @omena-strict: closed
+@use "https://cdn.example/tokens.scss" as remote;
+.button { color: remote.$brand; }"#;
+    let before = soundiness_workspace_diagnostics(before_source, &[]);
+    let after = soundiness_workspace_diagnostics(after_source, &[]);
+    soundiness_relation_report(
+        "mr-blob-soundness-closed-world-exposes-top-any",
+        before,
+        after,
+        |before, after| {
+            !diagnostic_codes_contain(before, "missingSassSymbol")
+                && diagnostic_codes_contain(before, "missingExternalSif")
+                && diagnostic_codes_contain(after, "missingSassSymbol")
+                && diagnostic_codes_contain(after, "missingExternalSif")
+        },
+    )
+}
+
+fn soundiness_workspace_diagnostics(
+    source: &str,
+    external_sifs: &[OmenaQueryExternalSifInputV0],
+) -> Option<OmenaQueryStyleDiagnosticsForFileV0> {
+    let style_sources = vec![OmenaQueryStyleSourceInputV0 {
+        style_path: "/tmp/Soundiness.module.scss".to_string(),
+        style_source: source.to_string(),
+    }];
+    summarize_omena_query_style_diagnostics_for_workspace_file_with_external_mode_and_sifs(
+        "/tmp/Soundiness.module.scss",
+        style_sources.as_slice(),
+        &[],
+        &[],
+        None,
+        OmenaQueryExternalModuleModeV0::Sif,
+        external_sifs,
+    )
+}
+
+fn soundiness_sif_input(
+    canonical_url: &str,
+    variable_names: &[&str],
+) -> Result<OmenaQueryExternalSifInputV0, serde_json::Error> {
+    let exports = OmenaSifExportsV1 {
+        variables: variable_names
+            .iter()
+            .map(|name| OmenaSifVariableExportV1 {
+                name: (*name).to_string(),
+                defaulted: true,
+                value_repr: Some("red".to_string()),
+            })
+            .collect(),
+        mixins: Vec::new(),
+        functions: Vec::new(),
+        placeholders: Vec::new(),
+        forwards: Vec::new(),
+    };
+    let source_bytes = variable_names
+        .iter()
+        .map(|name| format!("{name}: red !default;"))
+        .collect::<Vec<_>>()
+        .join("\n");
+    let sif = OmenaSifV1::from_static_exports(
+        canonical_url,
+        OmenaSifGeneratorV1 {
+            name: "omena-diff-test-sifgen".to_string(),
+            version: "0.0.0".to_string(),
+            toolchain_id: "omena-diff-test-sifgen@0.0.0".to_string(),
+        },
+        OmenaSifSourceV1 {
+            syntax: OmenaSifSourceSyntaxV1::Scss,
+        },
+        exports,
+        Vec::new(),
+        source_bytes.as_bytes(),
+    )?;
+    Ok(OmenaQueryExternalSifInputV0 {
+        canonical_url: canonical_url.to_string(),
+        sif,
+    })
+}
+
+fn soundiness_relation_report(
+    relation: &'static str,
+    before: Option<OmenaQueryStyleDiagnosticsForFileV0>,
+    after: Option<OmenaQueryStyleDiagnosticsForFileV0>,
+    predicate: impl FnOnce(
+        &OmenaQueryStyleDiagnosticsForFileV0,
+        &OmenaQueryStyleDiagnosticsForFileV0,
+    ) -> bool,
+) -> SoundinessMetamorphicRelationReportV0 {
+    let holds = before
+        .as_ref()
+        .zip(after.as_ref())
+        .is_some_and(|(before, after)| predicate(before, after));
+    SoundinessMetamorphicRelationReportV0 {
+        relation,
+        before_diagnostic_codes: before
+            .as_ref()
+            .map(diagnostic_codes)
+            .unwrap_or_else(|| vec!["summaryUnavailable".to_string()]),
+        after_diagnostic_codes: after
+            .as_ref()
+            .map(diagnostic_codes)
+            .unwrap_or_else(|| vec!["summaryUnavailable".to_string()]),
+        before_diagnostic_count: before
+            .as_ref()
+            .map(|summary| summary.diagnostic_count)
+            .unwrap_or(0),
+        after_diagnostic_count: after
+            .as_ref()
+            .map(|summary| summary.diagnostic_count)
+            .unwrap_or(0),
+        holds,
+        evidence_surfaces: vec![
+            "omena-query.workspace-style-diagnostics",
+            "omena-query.external-sif-boundary",
+            "omena-diff-test.boundary",
+        ],
+    }
+}
+
+fn diagnostic_codes(summary: &OmenaQueryStyleDiagnosticsForFileV0) -> Vec<String> {
+    summary
+        .diagnostics
+        .iter()
+        .map(|diagnostic| diagnostic.code.to_string())
+        .collect()
+}
+
+fn diagnostic_codes_contain(summary: &OmenaQueryStyleDiagnosticsForFileV0, code: &str) -> bool {
+    summary
+        .diagnostics
+        .iter()
+        .any(|diagnostic| diagnostic.code == code)
 }
 
 /// Evaluate a parsed `omena-fixture-v0` against the diagnostics the *real* engine
@@ -1265,6 +1533,8 @@ code: missingCustomProperty
         assert!(summary.all_m3_fixture_seeds_parse);
         assert!(summary.all_wpt_seed_metadata_valid);
         assert!(summary.wpt_seed_fixture_count >= 25);
+        assert_eq!(summary.soundiness_metamorphic_relation_count, 3);
+        assert!(summary.all_soundiness_metamorphic_relations_hold);
         assert_eq!(
             summary.wpt_seed_metadata_report.stale_known_failure_count,
             0
@@ -1286,10 +1556,75 @@ code: missingCustomProperty
         );
         assert!(
             summary
+                .closed_gates
+                .contains(&"soundinessMetamorphicRelations")
+        );
+        assert!(
+            summary
                 .wpt_seed_metadata_report
                 .closed_gates
                 .contains(&"wptSeedStaleKnownFailurePruning")
         );
+    }
+
+    #[test]
+    fn soundiness_metamorphic_relations_hold_on_real_diagnostics_path() {
+        let report = summarize_soundiness_metamorphic_relations();
+
+        assert_eq!(
+            report.product,
+            "omena-diff-test.soundiness-metamorphic-relations"
+        );
+        assert_eq!(report.relation_count, 3);
+        assert!(report.all_relations_hold);
+        assert!(
+            report
+                .closed_gates
+                .contains(&"soundinessMetamorphicRelationHarness")
+        );
+        assert!(
+            report
+                .closed_gates
+                .contains(&"soundinessResolvedSifRelation")
+        );
+        assert!(
+            report
+                .closed_gates
+                .contains(&"soundinessMonotonicityRelation")
+        );
+        assert!(
+            report
+                .closed_gates
+                .contains(&"soundinessBlobSoundnessRelation")
+        );
+        assert!(report.relations.iter().all(|relation| relation.holds));
+        assert!(report.relations.iter().any(|relation| {
+            relation.relation == "mr-soundiness-resolved-sif"
+                && relation
+                    .before_diagnostic_codes
+                    .contains(&"missingExternalSif".to_string())
+                && !relation
+                    .after_diagnostic_codes
+                    .contains(&"missingExternalSif".to_string())
+        }));
+        assert!(report.relations.iter().any(|relation| {
+            relation.relation == "mr-monotonicity-partial-to-complete-sif"
+                && relation
+                    .before_diagnostic_codes
+                    .contains(&"partialExternalSif".to_string())
+                && !relation
+                    .after_diagnostic_codes
+                    .contains(&"partialExternalSif".to_string())
+        }));
+        assert!(report.relations.iter().any(|relation| {
+            relation.relation == "mr-blob-soundness-closed-world-exposes-top-any"
+                && !relation
+                    .before_diagnostic_codes
+                    .contains(&"missingSassSymbol".to_string())
+                && relation
+                    .after_diagnostic_codes
+                    .contains(&"missingSassSymbol".to_string())
+        }));
     }
 
     #[test]

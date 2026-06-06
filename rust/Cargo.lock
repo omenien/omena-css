@@ -1946,6 +1946,7 @@ dependencies = [
  "engine-style-parser",
  "omena-parser",
  "omena-query",
+ "omena-sif",
  "omena-testkit",
  "serde",
  "serde_json",

@@ -1402,6 +1402,7 @@ pub fn summarize_omena_query_style_diagnostics_for_file_with_deep_analysis(
             "checkerProductDiagnosticGate",
             "runtimeStateScenarioEvidence",
         ],
+        suppression_summary: None,
     };
     apply_omena_query_style_diagnostic_suppressions(source, &mut summary);
     summary

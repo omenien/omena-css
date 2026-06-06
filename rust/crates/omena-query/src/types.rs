@@ -1174,6 +1174,17 @@ pub struct OmenaQueryStyleDiagnosticsForFileV0 {
     pub diagnostic_count: usize,
     pub diagnostics: Vec<OmenaQueryStyleDiagnosticV0>,
     pub ready_surfaces: Vec<&'static str>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub suppression_summary: Option<OmenaQueryDiagnosticSuppressionSummaryV0>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct OmenaQueryDiagnosticSuppressionSummaryV0 {
+    pub original_diagnostic_count: usize,
+    pub emitted_diagnostic_count: usize,
+    pub suppressed_diagnostic_count: usize,
+    pub unused_expect_error_count: usize,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]

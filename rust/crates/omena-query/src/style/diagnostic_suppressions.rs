@@ -117,10 +117,17 @@ pub(super) fn apply_omena_query_style_diagnostic_suppressions(
     source: &str,
     summary: &mut OmenaQueryStyleDiagnosticsForFileV0,
 ) {
+    let original_diagnostic_count = summary.diagnostics.len();
     let directives = parse_omena_query_diagnostic_directives(source);
     push_omena_query_ready_surface(&mut summary.ready_surfaces, "diagnosticSuppressionSyntax");
     if directives.is_empty() {
         summary.diagnostic_count = summary.diagnostics.len();
+        summary.suppression_summary = Some(OmenaQueryDiagnosticSuppressionSummaryV0 {
+            original_diagnostic_count,
+            emitted_diagnostic_count: summary.diagnostics.len(),
+            suppressed_diagnostic_count: 0,
+            unused_expect_error_count: 0,
+        });
         return;
     }
 
@@ -141,7 +148,10 @@ pub(super) fn apply_omena_query_style_diagnostic_suppressions(
     summary
         .diagnostics
         .retain(|diagnostic| !diagnostic_is_suppressed(diagnostic, directives.as_slice()));
+    let suppressed_diagnostic_count =
+        original_diagnostic_count.saturating_sub(summary.diagnostics.len());
 
+    let mut unused_expect_error_count = 0usize;
     for (directive_index, directive) in directives.iter().enumerate() {
         if directive.kind != OmenaDiagnosticDirectiveKindV0::ExpectError
             || consumed_expect_directives.contains(&directive_index)
@@ -150,6 +160,7 @@ pub(super) fn apply_omena_query_style_diagnostic_suppressions(
             continue;
         }
 
+        unused_expect_error_count += 1;
         summary.diagnostics.push(OmenaQueryStyleDiagnosticV0 {
             code: "unusedOmenaExpectError",
             severity: "warning",
@@ -166,6 +177,12 @@ pub(super) fn apply_omena_query_style_diagnostic_suppressions(
     }
 
     summary.diagnostic_count = summary.diagnostics.len();
+    summary.suppression_summary = Some(OmenaQueryDiagnosticSuppressionSummaryV0 {
+        original_diagnostic_count,
+        emitted_diagnostic_count: summary.diagnostics.len(),
+        suppressed_diagnostic_count,
+        unused_expect_error_count,
+    });
 }
 
 fn diagnostic_is_suppressed(
