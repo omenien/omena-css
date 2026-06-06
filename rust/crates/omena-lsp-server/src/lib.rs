@@ -92,6 +92,7 @@ pub const STYLE_DIAGNOSTICS_REQUEST: &str = "omena/rustStyleDiagnostics";
 pub const SOURCE_DIAGNOSTICS_REQUEST: &str = "omena/rustSourceDiagnostics";
 pub const CASCADE_AT_POSITION_REQUEST: &str = "omena/rustCascadeAtPosition";
 pub const STYLE_CONTEXT_INDEX_REQUEST: &str = "omena/rustStyleContextIndex";
+pub const EXPLAIN_HOVER_TRACE_REQUEST: &str = "omena/explainHoverTrace";
 const CANCEL_REQUEST_METHOD: &str = "$/cancelRequest";
 const REQUEST_CANCELLED_ERROR_CODE: i32 = -32800;
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -2181,6 +2182,211 @@ fn resolve_lsp_hover(state: &LspShellState, params: Option<&Value>) -> Value {
     })
 }
 
+fn resolve_lsp_hover_trace(state: &LspShellState, params: Option<&Value>) -> Value {
+    let document_uri = document_uri_from_params(params);
+    let Some(position) = lsp_position_from_params(params) else {
+        return empty_hover_trace(document_uri, None, "unknown", None, "missingPosition");
+    };
+    let Some(document) = state.document(document_uri.as_str()) else {
+        return empty_hover_trace(
+            document_uri,
+            None,
+            "unknown",
+            Some(position),
+            "documentNotIndexed",
+        );
+    };
+
+    if is_style_document_uri(document.uri.as_str()) {
+        return resolve_style_lsp_hover_trace(state, document, position);
+    }
+    resolve_source_lsp_hover_trace(state, document, position)
+}
+
+fn resolve_style_lsp_hover_trace(
+    state: &LspShellState,
+    document: &LspTextDocumentState,
+    position: ParserPositionV0,
+) -> Value {
+    let Some((language, candidates)) = style_hover_candidates_for_document(document) else {
+        return empty_hover_trace(
+            document.uri.clone(),
+            document.workspace_folder_uri.clone(),
+            "style",
+            Some(position),
+            "styleDocumentNotIndexed",
+        );
+    };
+    let matched = candidates
+        .iter()
+        .filter(|candidate| parser_range_contains_position(&candidate.range, position))
+        .cloned()
+        .collect::<Vec<_>>();
+    let Some(candidate) = matched.first() else {
+        return json!({
+            "schemaVersion": "0",
+            "product": "omena-lsp-server.explain-hover-trace",
+            "documentUri": document.uri.as_str(),
+            "workspaceFolderUri": document.workspace_folder_uri.as_deref(),
+            "fileKind": "style",
+            "language": language,
+            "queryPosition": position,
+            "matched": false,
+            "reason": "noStyleCandidateAtPosition",
+            "candidateCount": 0,
+            "definitionCount": 0,
+            "candidates": [],
+            "definitions": [],
+            "resolutionPath": ["styleHoverCandidates"],
+            "readySurfaces": ["explainHoverTraceRpc", "styleHoverCandidates"],
+        });
+    };
+    let definitions =
+        style_hover_trace_definitions(state, document, candidate, candidates.as_slice());
+    let rendered_markdown =
+        render_source_hover_definitions_markdown(state, definitions.as_slice()).unwrap_or_default();
+
+    json!({
+        "schemaVersion": "0",
+        "product": "omena-lsp-server.explain-hover-trace",
+        "documentUri": document.uri.as_str(),
+        "workspaceFolderUri": document.workspace_folder_uri.as_deref(),
+        "fileKind": "style",
+        "language": language,
+        "queryPosition": position,
+        "matched": true,
+        "reason": "styleCandidateResolved",
+        "candidateCount": matched.len(),
+        "definitionCount": definitions.len(),
+        "candidates": matched,
+        "definitions": hover_trace_definition_values(definitions.as_slice()),
+        "renderedMarkdown": rendered_markdown,
+        "resolutionPath": ["styleHoverCandidates", "styleDefinitionResolver", "hoverMarkdownRenderer"],
+        "readySurfaces": ["explainHoverTraceRpc", "styleHoverCandidates", "hoverMarkdownRenderer"],
+    })
+}
+
+fn resolve_source_lsp_hover_trace(
+    state: &LspShellState,
+    document: &LspTextDocumentState,
+    position: ParserPositionV0,
+) -> Value {
+    if let Some(trace) = source_domain_reference_trace_at_position(document, position) {
+        return trace;
+    }
+
+    let resolution = resolve_source_provider_candidates(state, document);
+    let matched = resolution
+        .matched
+        .into_iter()
+        .filter(|candidate| parser_range_contains_position(&candidate.range, position))
+        .collect::<Vec<_>>();
+    let unresolved = resolution
+        .unresolved
+        .into_iter()
+        .filter(|candidate| parser_range_contains_position(&candidate.range, position))
+        .collect::<Vec<_>>();
+    if matched.is_empty() && unresolved.is_empty() {
+        return empty_hover_trace(
+            document.uri.clone(),
+            document.workspace_folder_uri.clone(),
+            "source",
+            Some(position),
+            "noSourceCandidateAtPosition",
+        );
+    }
+
+    let definitions = style_selector_definitions_for_source_candidates(
+        state,
+        matched.as_slice(),
+        document.workspace_folder_uri.as_deref(),
+    );
+    let rendered_markdown =
+        render_source_hover_definitions_markdown(state, definitions.as_slice()).unwrap_or_default();
+
+    json!({
+        "schemaVersion": "0",
+        "product": "omena-lsp-server.explain-hover-trace",
+        "documentUri": document.uri.as_str(),
+        "workspaceFolderUri": document.workspace_folder_uri.as_deref(),
+        "fileKind": "source",
+        "languageId": document.language_id.as_str(),
+        "queryPosition": position,
+        "matched": !matched.is_empty(),
+        "reason": if matched.is_empty() { "sourceCandidateUnresolved" } else { "sourceCandidateResolved" },
+        "matchedCandidateCount": matched.len(),
+        "unresolvedCandidateCount": unresolved.len(),
+        "definitionCount": definitions.len(),
+        "candidates": matched,
+        "unresolvedCandidates": unresolved,
+        "definitions": hover_trace_definition_values(definitions.as_slice()),
+        "renderedMarkdown": rendered_markdown,
+        "resolutionPath": ["sourceSyntaxIndex", "sourceProviderCandidateResolution", "styleSelectorDefinitionResolver", "hoverMarkdownRenderer"],
+        "readySurfaces": ["explainHoverTraceRpc", "sourceSyntaxIndex", "sourceProviderCandidateResolution", "hoverMarkdownRenderer"],
+    })
+}
+
+fn empty_hover_trace(
+    document_uri: String,
+    workspace_folder_uri: Option<String>,
+    file_kind: &'static str,
+    query_position: Option<ParserPositionV0>,
+    reason: &'static str,
+) -> Value {
+    json!({
+        "schemaVersion": "0",
+        "product": "omena-lsp-server.explain-hover-trace",
+        "documentUri": document_uri,
+        "workspaceFolderUri": workspace_folder_uri,
+        "fileKind": file_kind,
+        "queryPosition": query_position,
+        "matched": false,
+        "reason": reason,
+        "candidateCount": 0,
+        "definitionCount": 0,
+        "candidates": [],
+        "definitions": [],
+        "resolutionPath": [],
+        "readySurfaces": ["explainHoverTraceRpc"],
+    })
+}
+
+fn style_hover_trace_definitions(
+    state: &LspShellState,
+    document: &LspTextDocumentState,
+    candidate: &LspStyleHoverCandidate,
+    candidates: &[LspStyleHoverCandidate],
+) -> Vec<(String, LspStyleHoverCandidate)> {
+    if is_sass_symbol_reference_kind(candidate.kind) {
+        return sass_symbol_definitions_for_candidate(state, document, candidate);
+    }
+    if candidate.kind == "customPropertyReference"
+        && let Some(target) = candidates.iter().find(|target| {
+            target.kind == "customPropertyDeclaration" && target.name == candidate.name
+        })
+    {
+        return vec![(document.uri.clone(), target.clone())];
+    }
+    vec![(document.uri.clone(), candidate.clone())]
+}
+
+fn hover_trace_definition_values(definitions: &[(String, LspStyleHoverCandidate)]) -> Vec<Value> {
+    definitions
+        .iter()
+        .map(|(uri, definition)| {
+            json!({
+                "uri": uri,
+                "kind": definition.kind,
+                "name": definition.name,
+                "range": definition.range,
+                "source": definition.source,
+                "targetStyleUri": definition.target_style_uri,
+                "namespace": definition.namespace,
+            })
+        })
+        .collect()
+}
+
 fn resolve_source_lsp_hover(
     state: &LspShellState,
     document: &LspTextDocumentState,
@@ -2219,25 +2425,83 @@ fn resolve_source_lsp_hover(
     })
 }
 
+fn source_domain_reference_at_position(
+    document: &LspTextDocumentState,
+    position: ParserPositionV0,
+) -> Option<&SourceDomainClassReferenceFact> {
+    let offset = byte_offset_for_parser_position(document.text.as_str(), position)?;
+    document
+        .source_syntax_index
+        .domain_class_references
+        .iter()
+        .find(|reference| offset >= reference.byte_span.start && offset <= reference.byte_span.end)
+}
+
+fn source_domain_reference_trace_at_position(
+    document: &LspTextDocumentState,
+    position: ParserPositionV0,
+) -> Option<Value> {
+    let reference = source_domain_reference_at_position(document, position)?;
+    let options = source_domain_reference_option_names(&document.source_syntax_index, reference);
+    let current = source_domain_reference_current_option(reference);
+    let validity = source_domain_reference_validity(reference, options.as_slice());
+    let range = parser_range_for_byte_span(document.text.as_str(), reference.byte_span);
+
+    Some(json!({
+        "schemaVersion": "0",
+        "product": "omena-lsp-server.explain-hover-trace",
+        "documentUri": document.uri.as_str(),
+        "workspaceFolderUri": document.workspace_folder_uri.as_deref(),
+        "fileKind": "source",
+        "languageId": document.language_id.as_str(),
+        "queryPosition": position,
+        "matched": true,
+        "reason": "domainClassReferenceResolved",
+        "hoverKind": "domainClassReference",
+        "range": range,
+        "sourceOwner": reference.owner_name,
+        "domain": reference.domain,
+        "axisName": reference.axis_name,
+        "optionName": reference.option_name,
+        "prefix": reference.prefix,
+        "currentOption": current,
+        "validity": validity,
+        "knownOptions": options,
+        "candidateCount": 1,
+        "definitionCount": 0,
+        "candidates": [],
+        "definitions": [],
+        "renderedMarkdown": render_source_domain_reference_hover_text(reference, options.as_slice()),
+        "resolutionPath": ["sourceSyntaxIndex", "classValueUniverseProvider", "sourceDomainReferenceHover"],
+        "readySurfaces": ["explainHoverTraceRpc", "sourceSyntaxIndex", "classValueUniverseProvider"],
+    }))
+}
+
 fn source_domain_reference_hover_at_position(
     document: &LspTextDocumentState,
     position: ParserPositionV0,
 ) -> Option<(ParserRangeV0, String)> {
-    let offset = byte_offset_for_parser_position(document.text.as_str(), position)?;
-    let reference = document
-        .source_syntax_index
-        .domain_class_references
-        .iter()
-        .find(|reference| {
-            offset >= reference.byte_span.start && offset <= reference.byte_span.end
-        })?;
+    let reference = source_domain_reference_at_position(document, position)?;
     let options = source_domain_reference_option_names(&document.source_syntax_index, reference);
-    let current = reference
+    Some((
+        parser_range_for_byte_span(document.text.as_str(), reference.byte_span),
+        render_source_domain_reference_hover_text(reference, options.as_slice()),
+    ))
+}
+
+fn source_domain_reference_current_option(reference: &SourceDomainClassReferenceFact) -> &str {
+    reference
         .option_name
         .as_deref()
         .or(reference.prefix.as_deref())
-        .unwrap_or("*");
-    let validity = reference
+        .unwrap_or("*")
+}
+
+fn source_domain_reference_validity(
+    reference: &SourceDomainClassReferenceFact,
+    options: &[String],
+) -> &'static str {
+    reference
         .option_name
         .as_ref()
         .map(|option| {
@@ -2247,24 +2511,33 @@ fn source_domain_reference_hover_at_position(
                 "unknown option"
             }
         })
-        .unwrap_or("prefix option");
+        .unwrap_or("prefix option")
+}
+
+fn render_source_domain_reference_hover_text(
+    reference: &SourceDomainClassReferenceFact,
+    options: &[String],
+) -> String {
+    let current = reference
+        .option_name
+        .as_deref()
+        .or(reference.prefix.as_deref())
+        .unwrap_or("*");
+    let validity = source_domain_reference_validity(reference, options);
     let known_options = if options.is_empty() {
         "No known options indexed.".to_string()
     } else {
         format!("Known options: `{}`.", options.join("`, `"))
     };
-    Some((
-        parser_range_for_byte_span(document.text.as_str(), reference.byte_span),
-        format!(
-            "**`{}.{}.{}`**\n\n{} from `{}`.\n\n{}",
-            reference.owner_name,
-            reference.axis_name,
-            current,
-            validity,
-            reference.domain,
-            known_options
-        ),
-    ))
+    format!(
+        "**`{}.{}.{}`**\n\n{} from `{}`.\n\n{}",
+        reference.owner_name,
+        reference.axis_name,
+        current,
+        validity,
+        reference.domain,
+        known_options
+    )
 }
 
 fn resolve_source_lsp_definition(

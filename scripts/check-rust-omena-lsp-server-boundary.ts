@@ -158,6 +158,7 @@ assert.deepEqual(
   rustSummary.handlerSurfaces.map((surface) => surface.method).toSorted(),
   [
     "$/cancelRequest",
+    "omena/explainHoverTrace",
     "omena/rustCascadeAtPosition",
     "omena/rustStyleContextIndex",
     "textDocument/codeAction",
@@ -240,6 +241,7 @@ assert.ok(
 assert.ok(
   rustSummary.sourceProviderAdapter.providerSurfaces.includes("omena/rustStyleContextIndex"),
 );
+assert.ok(rustSummary.sourceProviderAdapter.providerSurfaces.includes("omena/explainHoverTrace"));
 assertDefaultHostPathHasNoNodeWorkspaceResolver(repoRoot);
 assert.equal(
   rustSummary.workspaceRuntimeRegistry.product,
