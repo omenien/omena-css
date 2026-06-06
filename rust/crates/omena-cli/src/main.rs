@@ -1141,6 +1141,7 @@ fn lock_verify_attestation(input: LockVerifyAttestationInput) -> Result<(), Stri
             verified_trust_tier.as_str()
         ));
     }
+    validate_attestation_kind_for_verified_tier(kind.as_str(), verified_trust_tier)?;
 
     let mut lock = read_lockfile_or_empty(&lockfile)?;
     let artifact_bytes = fs::read(&artifact)
@@ -1240,6 +1241,20 @@ fn lock_verify_attestation(input: LockVerifyAttestationInput) -> Result<(), Stri
         );
     }
 
+    Ok(())
+}
+
+fn validate_attestation_kind_for_verified_tier(
+    kind: &str,
+    verified_trust_tier: omena_sif::OmenaSifTrustTierV1,
+) -> Result<(), String> {
+    if verified_trust_tier == omena_sif::OmenaSifTrustTierV1::T3
+        && !kind.starts_with("omena-toolchain.")
+    {
+        return Err(format!(
+            "lock verify-attestation --verified-tier t3 requires --kind omena-toolchain.*, got {kind}"
+        ));
+    }
     Ok(())
 }
 
@@ -4696,6 +4711,35 @@ mod tests {
         assert_eq!(identity, None);
         assert_eq!(verified_tier, "t2");
         Ok(())
+    }
+
+    #[test]
+    fn lock_verify_attestation_t3_requires_omena_toolchain_kind() {
+        let result = run(Cli {
+            command: Command::Lock {
+                lockfile: PathBuf::from("omena.lock"),
+                json: false,
+                command: Some(LockCommand::VerifyAttestation {
+                    package: "pkg:design-system/_tokens.scss".to_string(),
+                    lockfile: PathBuf::from("missing.lock"),
+                    artifact: PathBuf::from("missing.sif.json"),
+                    bundle: PathBuf::from("missing.sigstore.json"),
+                    reference: "sif/design-system.sigstore.json".to_string(),
+                    kind: "npm-provenance.sigstore".to_string(),
+                    verified_tier: "t3".to_string(),
+                    identity: None,
+                    issuer: "https://token.actions.githubusercontent.com".to_string(),
+                    json: true,
+                }),
+            },
+        });
+
+        assert!(
+            result.as_ref().is_err_and(|error| error.contains(
+                "lock verify-attestation --verified-tier t3 requires --kind omena-toolchain.*"
+            )),
+            "{result:?}"
+        );
     }
 
     #[test]
