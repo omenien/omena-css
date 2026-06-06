@@ -1602,21 +1602,53 @@ fn collect_lock_trust_tier_issues(
             });
             continue;
         }
-        if minimum_tier >= omena_sif::OmenaSifTrustTierV1::T2
-            && !omena_sif::omena_lock_entry_has_verified_attestation_for_tier_v1(
-                entry,
-                minimum_tier,
-            )
-        {
+        if minimum_tier >= omena_sif::OmenaSifTrustTierV1::T2 {
+            let mut candidate_count = 0usize;
+            let mut invalid_reasons = Vec::new();
+            let mut has_valid_evidence = false;
+            for verification in &entry.attestation_verifications {
+                if verification.verified_trust_tier < minimum_tier {
+                    continue;
+                }
+                candidate_count += 1;
+                match omena_sif::validate_omena_sif_attestation_verification_v1(verification) {
+                    Ok(()) => {
+                        has_valid_evidence = true;
+                        break;
+                    }
+                    Err(error) => invalid_reasons.push(error),
+                }
+            }
+            if has_valid_evidence {
+                continue;
+            }
+            let (code, message) = if candidate_count == 0 {
+                (
+                    "attestationVerificationMissing",
+                    format!(
+                        "lock entry trust tier {} must carry verified attestation evidence for required {}",
+                        entry.trust_tier.as_str(),
+                        minimum_tier.as_str()
+                    ),
+                )
+            } else {
+                (
+                    "attestationVerificationInvalid",
+                    format!(
+                        "lock entry trust tier {} has attestation evidence for required {}, but the evidence is invalid: {}",
+                        entry.trust_tier.as_str(),
+                        minimum_tier.as_str(),
+                        invalid_reasons
+                            .first()
+                            .map_or("unknown validation failure", String::as_str)
+                    ),
+                )
+            };
             issues.push(OmenaLockVerificationIssueV1 {
                 canonical_url: entry.canonical_url.clone(),
                 sif_path: entry.sif_path.clone(),
-                code: "attestationVerificationMissing".to_string(),
-                message: format!(
-                    "lock entry trust tier {} must carry verified attestation evidence for required {}",
-                    entry.trust_tier.as_str(),
-                    minimum_tier.as_str()
-                ),
+                code: code.to_string(),
+                message,
             });
         }
     }
@@ -6392,14 +6424,26 @@ export function App() {
                 verifier: "sigstore-verify".to_string(),
                 verified_trust_tier: omena_sif::OmenaSifTrustTierV1::T3,
                 verified_tlog_integrated_time: None,
-                sigstore_verification_policy: None,
+                sigstore_verification_policy: Some(
+                    omena_sif::OmenaSifSigstoreVerificationPolicyV1 {
+                        trusted_root: "sigstore-production-trusted-root".to_string(),
+                        transparency_log: true,
+                        timestamp: true,
+                        certificate_chain: true,
+                        signed_certificate_timestamp: true,
+                    },
+                ),
                 certificate_issuer: Some("https://github.com/login/oauth".to_string()),
                 certificate_identity: None,
             });
         let lock = omena_sif::OmenaLockV1::new(vec![entry]);
         let issues = collect_lock_trust_tier_issues(&lock, omena_sif::OmenaSifTrustTierV1::T3);
         assert_eq!(issues.len(), 1, "{issues:?}");
-        assert_eq!(issues[0].code, "attestationVerificationMissing");
+        assert_eq!(issues[0].code, "attestationVerificationInvalid");
+        assert!(
+            issues[0].message.contains("requires certificateIdentity"),
+            "{issues:?}"
+        );
         fs::write(
             &lockfile_path,
             omena_sif::write_omena_lock_json_v1(&lock)

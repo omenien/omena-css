@@ -482,6 +482,12 @@ fn validate_attestation_verification_for_trust_tier_v1(
     Ok(())
 }
 
+pub fn validate_omena_sif_attestation_verification_v1(
+    verification: &OmenaSifAttestationVerificationV1,
+) -> Result<(), String> {
+    validate_attestation_verification_for_trust_tier_v1(verification)
+}
+
 pub fn collect_omena_sif_npm_provenance_attestation_references_v1(
     source: &str,
 ) -> Result<Vec<OmenaSifAttestationReferenceV1>, serde_json::Error> {
