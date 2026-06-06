@@ -231,6 +231,33 @@ pub struct OmenaSifAttestationReferenceV1 {
     pub reference: String,
 }
 
+pub fn collect_omena_sif_npm_provenance_attestation_references_v1(
+    source: &str,
+) -> Result<Vec<OmenaSifAttestationReferenceV1>, serde_json::Error> {
+    let value = serde_json::from_str::<Value>(source)?;
+    let mut references = std::collections::BTreeSet::new();
+    collect_npm_metadata_provenance_references_v1(&value, &mut references);
+    Ok(references.into_iter().collect())
+}
+
+pub fn apply_omena_sif_npm_provenance_references_to_lock_entry_v1(
+    entry: &mut OmenaLockSifEntryV1,
+    references: &[OmenaSifAttestationReferenceV1],
+) -> usize {
+    let mut existing = entry
+        .attestation_references
+        .iter()
+        .cloned()
+        .collect::<std::collections::BTreeSet<_>>();
+    let before = existing.len();
+    existing.extend(references.iter().cloned());
+    entry.attestation_references = existing.into_iter().collect();
+    if !entry.attestation_references.is_empty() && entry.trust_tier < OmenaSifTrustTierV1::T2 {
+        entry.trust_tier = OmenaSifTrustTierV1::T2;
+    }
+    entry.attestation_references.len().saturating_sub(before)
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct OmenaSifProvenanceAdvisoryReportV1 {
@@ -595,10 +622,68 @@ fn provenance_advisory_message(trust_tier: OmenaSifTrustTierV1) -> &'static str 
         OmenaSifTrustTierV1::T0 => {
             "No enforced provenance verification is available for this SIF entry."
         }
-        OmenaSifTrustTierV1::T1 => "T1 local lock verification is the enforced M7 trust path.",
+        OmenaSifTrustTierV1::T1 => "T1 local lock verification is the enforced trust path.",
         OmenaSifTrustTierV1::T2 | OmenaSifTrustTierV1::T3 => {
-            "T2/T3 attestation references are recorded but not verified by M7."
+            "T2/T3 attestation references are recorded but not cryptographically verified by this local advisory path."
         }
+    }
+}
+
+fn collect_npm_metadata_provenance_references_v1(
+    value: &Value,
+    references: &mut std::collections::BTreeSet<OmenaSifAttestationReferenceV1>,
+) {
+    if let Some(provenance) = value.pointer("/dist/attestations/provenance") {
+        collect_npm_provenance_value_references_v1(provenance, references);
+    }
+    if let Some(provenance) = value.pointer("/attestations/provenance") {
+        collect_npm_provenance_value_references_v1(provenance, references);
+    }
+    if let Some(versions) = value.get("versions").and_then(Value::as_object) {
+        for version in versions.values() {
+            collect_npm_metadata_provenance_references_v1(version, references);
+        }
+    }
+}
+
+fn collect_npm_provenance_value_references_v1(
+    value: &Value,
+    references: &mut std::collections::BTreeSet<OmenaSifAttestationReferenceV1>,
+) {
+    match value {
+        Value::String(reference) if !reference.trim().is_empty() => {
+            references.insert(OmenaSifAttestationReferenceV1 {
+                kind: "npm-provenance".to_string(),
+                reference: reference.trim().to_string(),
+            });
+        }
+        Value::Array(values) => {
+            for value in values {
+                collect_npm_provenance_value_references_v1(value, references);
+            }
+        }
+        Value::Object(object) => {
+            let before = references.len();
+            for key in ["url", "uri", "reference", "bundle", "provenance"] {
+                if let Some(reference) = object.get(key).and_then(Value::as_str)
+                    && !reference.trim().is_empty()
+                {
+                    references.insert(OmenaSifAttestationReferenceV1 {
+                        kind: format!("npm-provenance.{key}"),
+                        reference: reference.trim().to_string(),
+                    });
+                }
+            }
+            if references.len() == before
+                && let Ok(reference) = serde_json::to_string(value)
+            {
+                references.insert(OmenaSifAttestationReferenceV1 {
+                    kind: "npm-provenance.object".to_string(),
+                    reference,
+                });
+            }
+        }
+        _ => {}
     }
 }
 
@@ -879,8 +964,39 @@ mod tests {
         assert_eq!(report.entries[0].attestation_reference_count, 1);
         assert_eq!(
             report.entries[0].advisory_message,
-            "T2/T3 attestation references are recorded but not verified by M7."
+            "T2/T3 attestation references are recorded but not cryptographically verified by this local advisory path."
         );
+        Ok(())
+    }
+
+    #[test]
+    fn npm_provenance_metadata_references_upgrade_lock_entry_to_t2() -> Result<(), serde_json::Error>
+    {
+        let metadata = json!({
+            "name": "design-system",
+            "version": "1.0.0",
+            "dist": {
+                "attestations": {
+                    "provenance": [
+                        "https://registry.npmjs.org/-/npm/v1/attestations/design-system@1.0.0/provenance",
+                        {"url": "https://registry.npmjs.org/-/npm/v1/attestations/design-system@1.0.0/bundle"}
+                    ]
+                }
+            }
+        });
+        let references = collect_omena_sif_npm_provenance_attestation_references_v1(
+            &serde_json::to_string(&metadata)?,
+        )?;
+        assert_eq!(references.len(), 2, "{references:?}");
+
+        let sif = fixture_sif("pkg:design-system/_tokens.scss", b"$color: red !default;")?;
+        let mut entry = build_omena_lock_sif_entry_v1("sif/design-system.sif.json", &sif)?;
+        let added =
+            apply_omena_sif_npm_provenance_references_to_lock_entry_v1(&mut entry, &references);
+
+        assert_eq!(added, 2);
+        assert_eq!(entry.trust_tier, OmenaSifTrustTierV1::T2);
+        assert_eq!(entry.attestation_references.len(), 2);
         Ok(())
     }
 
