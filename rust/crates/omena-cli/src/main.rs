@@ -5200,8 +5200,17 @@ export function App() {
                 .map_err(|error| format!("fixture SIF should serialize: {error}"))?,
         )
         .map_err(|error| format!("fixture SIF should be writable: {error}"))?;
-        let entry = omena_sif::build_omena_lock_sif_entry_v1("sif/design-system.sif.json", &sif)
-            .map_err(|error| format!("fixture lock entry should build: {error}"))?;
+        let mut entry =
+            omena_sif::build_omena_lock_sif_entry_v1("sif/design-system.sif.json", &sif)
+                .map_err(|error| format!("fixture lock entry should build: {error}"))?;
+        let provenance_reference =
+            "https://registry.npmjs.org/-/npm/v1/attestations/design-system@1.0.0/provenance";
+        entry
+            .attestation_references
+            .push(omena_sif::OmenaSifAttestationReferenceV1 {
+                kind: "npm-provenance.url".to_string(),
+                reference: provenance_reference.to_string(),
+            });
         fs::write(
             &verification_path,
             serde_json::json!({

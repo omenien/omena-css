@@ -289,6 +289,16 @@ pub fn apply_omena_sif_attestation_verification_report_to_lock_entry_v1(
             entry.sif_hash.as_str()
         ));
     }
+    if !entry
+        .attestation_references
+        .iter()
+        .any(|reference| reference.reference == report.reference)
+    {
+        return Err(format!(
+            "attestation verification report reference '{}' was not recorded for lock entry {}",
+            report.reference, entry.canonical_url
+        ));
+    }
 
     let verification = OmenaSifAttestationVerificationV1 {
         kind: report.kind.clone(),
@@ -1214,6 +1224,14 @@ mod tests {
             .map_err(|error| error.to_string())?;
         let mut entry = build_omena_lock_sif_entry_v1("sif/design-system.sif.json", &sif)
             .map_err(|error| error.to_string())?;
+        let provenance_reference =
+            "https://registry.npmjs.org/-/npm/v1/attestations/design-system@1.0.0/provenance";
+        entry
+            .attestation_references
+            .push(OmenaSifAttestationReferenceV1 {
+                kind: "npm-provenance.url".to_string(),
+                reference: provenance_reference.to_string(),
+            });
         let report = read_omena_sif_attestation_verification_report_json_v1(
             &json!({
                 "schemaVersion": "1",
@@ -1240,6 +1258,39 @@ mod tests {
             &entry,
             OmenaSifTrustTierV1::T2
         ));
+        Ok(())
+    }
+
+    #[test]
+    fn verified_attestation_report_rejects_unrecorded_reference() -> Result<(), String> {
+        let sif = fixture_sif("pkg:design-system/_tokens.scss", b"$color: red !default;")
+            .map_err(|error| error.to_string())?;
+        let mut entry = build_omena_lock_sif_entry_v1("sif/design-system.sif.json", &sif)
+            .map_err(|error| error.to_string())?;
+        let report = read_omena_sif_attestation_verification_report_json_v1(
+            &json!({
+                "schemaVersion": "1",
+                "product": "omena-sif.attestation-verification-report",
+                "verified": true,
+                "kind": "npm-provenance.sigstore",
+                "reference": "https://registry.npmjs.org/-/npm/v1/attestations/design-system@1.0.0/provenance",
+                "verifier": "offline-sigstore-verifier",
+                "verifiedTrustTier": "t2",
+                "subjectCanonicalUrl": entry.canonical_url.as_str(),
+                "subjectSifHash": entry.sif_hash.as_str()
+            })
+            .to_string(),
+        )
+        .map_err(|error| error.to_string())?;
+
+        let result =
+            apply_omena_sif_attestation_verification_report_to_lock_entry_v1(&mut entry, &report);
+
+        assert!(
+            matches!(result.as_ref(), Err(message) if message.contains("was not recorded")),
+            "{result:?}"
+        );
+        assert!(entry.attestation_verifications.is_empty());
         Ok(())
     }
 
