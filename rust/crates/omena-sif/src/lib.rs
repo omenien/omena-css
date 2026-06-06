@@ -506,7 +506,7 @@ pub fn summarize_omena_sif_provenance_advisory_v1(
     OmenaSifProvenanceAdvisoryReportV1 {
         schema_version: "0",
         product: "omena-sif.provenance-advisory",
-        enforcement: "deferred",
+        enforcement: provenance_advisory_enforcement(lock),
         network_access: "none",
         entries: lock
             .entries
@@ -519,6 +519,18 @@ pub fn summarize_omena_sif_provenance_advisory_v1(
                 advisory_message: provenance_advisory_message(entry),
             })
             .collect(),
+    }
+}
+
+fn provenance_advisory_enforcement(lock: &OmenaLockV1) -> &'static str {
+    if lock
+        .entries
+        .iter()
+        .any(|entry| !entry.attestation_verifications.is_empty())
+    {
+        "lockVerifyTier2Tier3WhenRequested"
+    } else {
+        "referenceOnlyAdvisory"
     }
 }
 
@@ -1068,7 +1080,7 @@ mod tests {
     }
 
     #[test]
-    fn provenance_advisory_report_records_tier_without_enforcing_t2_t3()
+    fn provenance_advisory_report_marks_reference_only_lock_as_advisory()
     -> Result<(), serde_json::Error> {
         let sif = fixture_sif("pkg:design-system/_tokens.scss", b"$color: red !default;")?;
         let mut entry = build_omena_lock_sif_entry_v1("sif/design-system.sif.json", &sif)?;
@@ -1083,7 +1095,7 @@ mod tests {
 
         let report = summarize_omena_sif_provenance_advisory_v1(&lock);
 
-        assert_eq!(report.enforcement, "deferred");
+        assert_eq!(report.enforcement, "referenceOnlyAdvisory");
         assert_eq!(report.network_access, "none");
         assert_eq!(report.entries[0].trust_tier, OmenaSifTrustTierV1::T3);
         assert_eq!(report.entries[0].attestation_reference_count, 1);
@@ -1091,6 +1103,35 @@ mod tests {
         assert_eq!(
             report.entries[0].advisory_message,
             "T2/T3 trust tiers require verified attestation evidence; references alone are advisory."
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn provenance_advisory_report_marks_verified_evidence_as_enforceable()
+    -> Result<(), serde_json::Error> {
+        let sif = fixture_sif("pkg:design-system/_tokens.scss", b"$color: red !default;")?;
+        let mut entry = build_omena_lock_sif_entry_v1("sif/design-system.sif.json", &sif)?;
+        entry.trust_tier = OmenaSifTrustTierV1::T2;
+        entry
+            .attestation_verifications
+            .push(OmenaSifAttestationVerificationV1 {
+            kind: "npm-provenance.sigstore".to_string(),
+            reference:
+                "https://registry.npmjs.org/-/npm/v1/attestations/design-system@1.0.0/provenance"
+                    .to_string(),
+            verifier: "offline-sigstore-verifier".to_string(),
+            verified_trust_tier: OmenaSifTrustTierV1::T2,
+        });
+        let lock = OmenaLockV1::new(vec![entry]);
+
+        let report = summarize_omena_sif_provenance_advisory_v1(&lock);
+
+        assert_eq!(report.enforcement, "lockVerifyTier2Tier3WhenRequested");
+        assert_eq!(report.entries[0].attestation_verification_count, 1);
+        assert_eq!(
+            report.entries[0].advisory_message,
+            "Verified attestation evidence is recorded for this trust tier."
         );
         Ok(())
     }

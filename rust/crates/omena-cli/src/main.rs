@@ -1803,9 +1803,18 @@ fn provenance_status(lockfile: PathBuf, json: bool) -> Result<(), String> {
     if json {
         print_json(&report)?;
     } else {
-        println!(
-            "SIF provenance enforcement is deferred; T1 lock verification remains the enforced path."
-        );
+        match report.enforcement {
+            "lockVerifyTier2Tier3WhenRequested" => {
+                println!(
+                    "SIF provenance enforcement is available through `omena lock verify --tier t2|t3`."
+                );
+            }
+            _ => {
+                println!(
+                    "SIF provenance references are advisory until verified attestation evidence is recorded."
+                );
+            }
+        }
         println!(
             "network access: {}; entries: {}",
             report.network_access,
@@ -5463,7 +5472,7 @@ export function App() {
     }
 
     #[test]
-    fn provenance_status_reports_deferred_advisory_lock_metadata() -> Result<(), String> {
+    fn provenance_status_reports_reference_only_advisory_lock_metadata() -> Result<(), String> {
         let workspace_path = temp_dir("provenance-status");
         let lockfile_path = workspace_path.join("omena.lock");
         fs::create_dir_all(&workspace_path)
