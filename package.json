@@ -392,6 +392,13 @@
     "vscode-languageserver-protocol": "^3.17.5"
   },
   "contributes": {
+    "commands": [
+      {
+        "command": "omena.explainHoverTrace",
+        "title": "Omena: Explain Hover Trace",
+        "category": "Omena"
+      }
+    ],
     "configuration": {
       "title": "Omena CSS Modules",
       "properties": {
@@ -489,6 +496,7 @@
     }
   },
   "activationEvents": [
+    "onCommand:omena.explainHoverTrace",
     "onLanguage:astro",
     "onLanguage:css",
     "onLanguage:html",

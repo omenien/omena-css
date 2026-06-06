@@ -238,6 +238,7 @@ pub fn thin_client_endpoint_contract() -> ThinClientEndpointV0 {
             "startLanguageClient",
             "registerStaticFileWatchers",
             "translateShowReferencesArguments",
+            "renderHoverTracePanel",
             "surfaceStartupErrors",
         ],
         rust_responsibilities: vec![

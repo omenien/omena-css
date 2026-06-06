@@ -466,6 +466,16 @@ function assertDefaultHostPathHasNoNodeWorkspaceResolver(root: string): void {
     /\btypeFactMaxSyncProgramFiles\b|OMENA_TYPE_FACT_MAX_SYNC_PROGRAM_FILES/u,
     "VS Code thin client must not expose sync TypeScript program budget settings",
   );
+  assert.match(
+    extensionSource,
+    /EXPLAIN_HOVER_TRACE_REQUEST\s*=\s*"omena\/explainHoverTrace"/u,
+    "VS Code thin client must keep the hover trace request method explicit",
+  );
+  assert.match(
+    extensionSource,
+    /sendRequest<ExplainHoverTraceResponse>\(\s*EXPLAIN_HOVER_TRACE_REQUEST/u,
+    "VS Code thin client must consume the Rust explain-hover trace request",
+  );
 
   const typeFactConfigSource = readRepoFile(root, "client/src/type-fact-backend-config.ts");
   assert.doesNotMatch(
@@ -475,8 +485,22 @@ function assertDefaultHostPathHasNoNodeWorkspaceResolver(root: string): void {
   );
 
   const packageJson = JSON.parse(readRepoFile(root, "package.json")) as {
-    contributes?: { configuration?: { properties?: Record<string, unknown> } };
+    activationEvents?: readonly string[];
+    contributes?: {
+      commands?: readonly { command?: string }[];
+      configuration?: { properties?: Record<string, unknown> };
+    };
   };
+  assert.ok(
+    packageJson.activationEvents?.includes("onCommand:omena.explainHoverTrace"),
+    "package activation events must include the hover trace command",
+  );
+  assert.ok(
+    packageJson.contributes?.commands?.some(
+      (command) => command.command === "omena.explainHoverTrace",
+    ),
+    "package command contributions must expose the hover trace command",
+  );
   const properties = packageJson.contributes?.configuration?.properties ?? {};
   assert.ok(
     !Object.hasOwn(properties, "omena.typeFactMaxSyncProgramFiles"),

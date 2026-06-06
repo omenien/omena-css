@@ -17,7 +17,23 @@ import {
 } from "./lsp-server-runtime-config";
 import { isShowReferencesArgs } from "./util/show-references-guards";
 
+const EXPLAIN_HOVER_TRACE_REQUEST = "omena/explainHoverTrace";
+const EXPLAIN_HOVER_TRACE_COMMAND = "omena.explainHoverTrace";
+
 let client: LanguageClient | undefined;
+let clientReady: Promise<void> | undefined;
+
+interface ExplainHoverTraceResponse {
+  readonly product?: string;
+  readonly fileKind?: string;
+  readonly matched?: boolean;
+  readonly reason?: string;
+  readonly definitionCount?: number;
+  readonly renderedMarkdown?: string;
+  readonly resolutionPath?: readonly unknown[];
+  readonly readySurfaces?: readonly unknown[];
+  readonly [key: string]: unknown;
+}
 
 export function activate(context: vscode.ExtensionContext): void {
   const typeFactBackend = readClientTypeFactBackendSetting(
@@ -100,11 +116,18 @@ export function activate(context: vscode.ExtensionContext): void {
     },
   });
 
-  void client.start().catch((err) => {
+  clientReady = Promise.resolve(client.start());
+  void clientReady.catch((err) => {
     void vscode.window.showErrorMessage(
       `Omena CSS Modules failed to start: ${err instanceof Error ? err.message : String(err)}`,
     );
   });
+
+  context.subscriptions.push(
+    vscode.commands.registerCommand(EXPLAIN_HOVER_TRACE_COMMAND, async () => {
+      await showHoverTracePanel(context);
+    }),
+  );
 
   context.subscriptions.push({
     dispose: () => {
@@ -115,4 +138,186 @@ export function activate(context: vscode.ExtensionContext): void {
 
 export function deactivate(): Thenable<void> | undefined {
   return client?.stop();
+}
+
+async function showHoverTracePanel(context: vscode.ExtensionContext): Promise<void> {
+  const activeClient = client;
+  const ready = clientReady;
+  if (!activeClient || !ready) {
+    void vscode.window.showErrorMessage("Omena CSS Modules language server is not initialized.");
+    return;
+  }
+  const editor = vscode.window.activeTextEditor;
+  if (!editor) {
+    void vscode.window.showInformationMessage(
+      "Open a source or style document to explain hover trace.",
+    );
+    return;
+  }
+
+  try {
+    await ready;
+    const trace = await activeClient.sendRequest<ExplainHoverTraceResponse>(
+      EXPLAIN_HOVER_TRACE_REQUEST,
+      {
+        textDocument: {
+          uri: editor.document.uri.toString(),
+        },
+        position: {
+          line: editor.selection.active.line,
+          character: editor.selection.active.character,
+        },
+      },
+    );
+    showTracePanel(context, editor, trace);
+  } catch (err) {
+    void vscode.window.showErrorMessage(
+      `Omena hover trace failed: ${err instanceof Error ? err.message : String(err)}`,
+    );
+  }
+}
+
+function showTracePanel(
+  context: vscode.ExtensionContext,
+  editor: vscode.TextEditor,
+  trace: ExplainHoverTraceResponse,
+): void {
+  const panel = vscode.window.createWebviewPanel(
+    "omenaHoverTrace",
+    "Omena Hover Trace",
+    vscode.ViewColumn.Beside,
+    {
+      enableScripts: false,
+      localResourceRoots: [context.extensionUri],
+      retainContextWhenHidden: true,
+    },
+  );
+  panel.webview.html = renderTracePanelHtml(editor, trace);
+}
+
+function renderTracePanelHtml(editor: vscode.TextEditor, trace: ExplainHoverTraceResponse): string {
+  const matched = trace.matched === true;
+  const reason = typeof trace.reason === "string" ? trace.reason : "unknown";
+  const fileKind = typeof trace.fileKind === "string" ? trace.fileKind : "unknown";
+  const definitionCount =
+    typeof trace.definitionCount === "number" ? String(trace.definitionCount) : "0";
+  const renderedMarkdown =
+    typeof trace.renderedMarkdown === "string" && trace.renderedMarkdown.trim()
+      ? trace.renderedMarkdown
+      : "(no rendered hover markdown)";
+  const resolutionPath = trace.resolutionPath
+    ?.filter((entry): entry is string => typeof entry === "string")
+    .map((entry) => `<li>${escapeHtml(entry)}</li>`)
+    .join("");
+  const readySurfaces = trace.readySurfaces
+    ?.filter((entry): entry is string => typeof entry === "string")
+    .map((entry) => `<span class="chip">${escapeHtml(entry)}</span>`)
+    .join("");
+
+  return `<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline';">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Omena Hover Trace</title>
+  <style>
+    :root {
+      color-scheme: light dark;
+      --bg: var(--vscode-editor-background);
+      --fg: var(--vscode-editor-foreground);
+      --muted: var(--vscode-descriptionForeground);
+      --border: var(--vscode-panel-border);
+      --accent: var(--vscode-textLink-foreground);
+      --code-bg: var(--vscode-textCodeBlock-background);
+    }
+    body {
+      background: var(--bg);
+      color: var(--fg);
+      font: 13px/1.55 var(--vscode-font-family);
+      margin: 0;
+      padding: 24px;
+    }
+    h1 {
+      font-size: 20px;
+      margin: 0 0 8px;
+    }
+    h2 {
+      font-size: 14px;
+      margin: 24px 0 8px;
+    }
+    .muted {
+      color: var(--muted);
+    }
+    .status {
+      border: 1px solid var(--border);
+      border-left: 4px solid var(--accent);
+      border-radius: 8px;
+      margin-top: 18px;
+      padding: 14px;
+    }
+    .grid {
+      display: grid;
+      gap: 8px 18px;
+      grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+      margin-top: 12px;
+    }
+    .label {
+      color: var(--muted);
+      display: block;
+      font-size: 11px;
+      text-transform: uppercase;
+    }
+    .chip {
+      border: 1px solid var(--border);
+      border-radius: 999px;
+      display: inline-block;
+      margin: 0 6px 6px 0;
+      padding: 2px 8px;
+    }
+    pre {
+      background: var(--code-bg);
+      border-radius: 8px;
+      overflow: auto;
+      padding: 14px;
+      white-space: pre-wrap;
+    }
+  </style>
+</head>
+<body>
+  <h1>Omena Hover Trace</h1>
+  <div class="muted">${escapeHtml(editor.document.uri.toString())}:${editor.selection.active.line + 1}:${editor.selection.active.character + 1}</div>
+
+  <section class="status">
+    <strong>${matched ? "Matched" : "Not matched"}</strong>
+    <div class="grid">
+      <div><span class="label">File kind</span>${escapeHtml(fileKind)}</div>
+      <div><span class="label">Reason</span>${escapeHtml(reason)}</div>
+      <div><span class="label">Definitions</span>${escapeHtml(definitionCount)}</div>
+      <div><span class="label">Product</span>${escapeHtml(trace.product ?? "unknown")}</div>
+    </div>
+  </section>
+
+  <h2>Resolution Path</h2>
+  <ol>${resolutionPath || "<li>(empty)</li>"}</ol>
+
+  <h2>Ready Surfaces</h2>
+  <div>${readySurfaces || '<span class="muted">(empty)</span>'}</div>
+
+  <h2>Rendered Hover Markdown</h2>
+  <pre>${escapeHtml(renderedMarkdown)}</pre>
+
+  <h2>Raw Trace JSON</h2>
+  <pre>${escapeHtml(JSON.stringify(trace, null, 2))}</pre>
+</body>
+</html>`;
+}
+
+function escapeHtml(value: string): string {
+  return value
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#39;");
 }

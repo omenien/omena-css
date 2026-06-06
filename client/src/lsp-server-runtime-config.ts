@@ -118,6 +118,7 @@ export function buildThinClientRuntimeEndpoint(
       "startLanguageClient",
       "registerStaticFileWatchers",
       "translateShowReferencesArguments",
+      "renderHoverTracePanel",
       "surfaceStartupErrors",
     ],
     rustResponsibilities: [
