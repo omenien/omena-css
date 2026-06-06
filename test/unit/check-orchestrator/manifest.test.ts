@@ -58,6 +58,9 @@ describe("check orchestrator manifest", () => {
       resolveGateTarget(manifest, "rust/omena-lsp-server/explain-hover-trace")?.scriptName,
     ).toBe("check:rust-omena-lsp-server-explain-hover-trace");
     expect(
+      resolveGateTarget(manifest, "rust/omena-lsp-server/sass-alias-diagnostics")?.scriptName,
+    ).toBe("check:rust-omena-lsp-server-sass-alias-diagnostics");
+    expect(
       resolveGateTarget(manifest, "rust/omena-lsp-server/style-provider-parity")?.scriptName,
     ).toBe("check:rust-omena-lsp-server-style-provider-parity");
     expect(resolveGateTarget(manifest, "rust/omena-lsp-server/lane")?.scriptName).toBe(
@@ -170,6 +173,7 @@ describe("check orchestrator manifest", () => {
         "check:rust-omena-lsp-server-runtime-loop",
         "check:rust-omena-lsp-server-diagnostics-coalescing",
         "check:rust-omena-lsp-server-explain-hover-trace",
+        "check:rust-omena-lsp-server-sass-alias-diagnostics",
       ]),
     );
 
