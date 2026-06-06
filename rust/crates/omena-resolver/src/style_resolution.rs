@@ -198,6 +198,83 @@ pub fn collect_omena_resolver_style_module_source_candidates(
     )
 }
 
+pub fn summarize_omena_resolver_style_resolution_policy_v0() -> OmenaResolverStyleResolutionPolicyV0
+{
+    OmenaResolverStyleResolutionPolicyV0 {
+        schema_version: "0",
+        product: "omena-resolver.style-resolution-policy",
+        candidate_strategy: "orderedFirstExistingCandidate",
+        network_access: "neverFetch",
+        steps: vec![
+            OmenaResolverStyleResolutionPolicyStepV0 {
+                order: 0,
+                key: "externalUrlBoundary",
+                applies_to: "http/https/protocol-relative references",
+                precedence: "blocked before local candidate generation",
+                candidate_semantics: "network references are external boundaries and are never fetched",
+            },
+            OmenaResolverStyleResolutionPolicyStepV0 {
+                order: 10,
+                key: "bundlerPathMapping",
+                applies_to: "configured bundler resolve.alias mappings",
+                precedence: "before tsconfig paths and package resolution",
+                candidate_semantics: "webpack-compatible first matching alias, with `$` exact aliases",
+            },
+            OmenaResolverStyleResolutionPolicyStepV0 {
+                order: 20,
+                key: "tsconfigPathMapping",
+                applies_to: "configured tsconfig paths mappings",
+                precedence: "after bundler aliases, before package resolution",
+                candidate_semantics: "TypeScript-compatible exact and wildcard path candidates from configured base paths",
+            },
+            OmenaResolverStyleResolutionPolicyStepV0 {
+                order: 30,
+                key: "sassPkgImporter",
+                applies_to: "explicit pkg: Sass package importer specifiers",
+                precedence: "exclusive package-import route",
+                candidate_semantics: "package exports/style/sass candidates are generated and no local fallback is attempted",
+            },
+            OmenaResolverStyleResolutionPolicyStepV0 {
+                order: 40,
+                key: "fileRelativeOrAbsolute",
+                applies_to: "relative, parent-relative, and absolute style specifiers",
+                precedence: "before package-manifest and node package fallback",
+                candidate_semantics: "extension and Sass partial candidates are generated relative to the importer",
+            },
+            OmenaResolverStyleResolutionPolicyStepV0 {
+                order: 50,
+                key: "packageManifestSubpath",
+                applies_to: "path-shaped package subpaths with available package manifests",
+                precedence: "after file-relative candidates, before node package fallback",
+                candidate_semantics: "package.json exports/imports/style/sass candidates are appended when not blocked",
+            },
+            OmenaResolverStyleResolutionPolicyStepV0 {
+                order: 60,
+                key: "nodePackageFallback",
+                applies_to: "bare package-style specifiers",
+                precedence: "after package-manifest subpath candidates",
+                candidate_semantics: "node_modules-style package candidates are appended as filesystem candidates",
+            },
+            OmenaResolverStyleResolutionPolicyStepV0 {
+                order: 70,
+                key: "sassLoadPathRoot",
+                applies_to: "path-shaped non-relative specifiers with explicit style extensions",
+                precedence: "last local fallback",
+                candidate_semantics: "dart-sass load-path candidates are appended only when relative/package routes did not already win",
+            },
+        ],
+        ready_surfaces: vec![
+            "resolutionPolicyReport",
+            "bundlerAliasBeforeTsconfig",
+            "webpackFirstAliasMatch",
+            "tsconfigPathMapping",
+            "sassPkgImporterBoundary",
+            "sassLoadPathFallback",
+            "networkFetchForbidden",
+        ],
+    }
+}
+
 pub fn collect_omena_resolver_style_module_source_candidates_with_tsconfig_paths(
     from_style_path: &str,
     source: &str,

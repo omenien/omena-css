@@ -99,6 +99,11 @@ use omena_resolver::{
     resolve_omena_resolver_style_module_source_with_path_mappings,
     summarize_omena_resolver_style_module_resolution_with_load_path_roots,
 };
+pub use omena_resolver::{
+    OmenaResolverStyleResolutionPolicyStepV0 as OmenaQueryStyleResolutionPolicyStepV0,
+    OmenaResolverStyleResolutionPolicyV0 as OmenaQueryStyleResolutionPolicyV0,
+    summarize_omena_resolver_style_resolution_policy_v0 as summarize_omena_query_style_resolution_policy_v0,
+};
 use omena_semantic::StyleContextIndexV0;
 use serde::{Deserialize, Serialize};
 

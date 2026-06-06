@@ -168,6 +168,27 @@ impl OmenaResolverBoundaryStateV0 {
     }
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct OmenaResolverStyleResolutionPolicyV0 {
+    pub schema_version: &'static str,
+    pub product: &'static str,
+    pub candidate_strategy: &'static str,
+    pub network_access: &'static str,
+    pub steps: Vec<OmenaResolverStyleResolutionPolicyStepV0>,
+    pub ready_surfaces: Vec<&'static str>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct OmenaResolverStyleResolutionPolicyStepV0 {
+    pub order: u8,
+    pub key: &'static str,
+    pub applies_to: &'static str,
+    pub precedence: &'static str,
+    pub candidate_semantics: &'static str,
+}
+
 pub fn omena_resolver_boundary_state_from_error_v0(
     error: &OmenaResolverErrorV0,
 ) -> OmenaResolverBoundaryStateV0 {

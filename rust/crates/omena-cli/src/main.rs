@@ -35,6 +35,7 @@ use omena_query::{
     summarize_omena_query_style_diagnostics_for_workspace_file_with_external_mode_and_sifs_and_resolution_inputs,
     summarize_omena_query_style_diagnostics_for_workspace_file_with_external_mode_and_sifs_and_suppression_mode,
     summarize_omena_query_style_document, summarize_omena_query_style_hover_candidates,
+    summarize_omena_query_style_resolution_policy_v0,
     summarize_omena_query_transform_context_from_engine_input,
     summarize_omena_transform_bundle_from_source,
 };
@@ -532,6 +533,12 @@ enum ReportCommand {
         /// Fail when stale expect-error suppressions are observed.
         #[arg(long = "report-stale-suppressions")]
         report_stale_suppressions: bool,
+        /// Print machine-readable JSON.
+        #[arg(long)]
+        json: bool,
+    },
+    /// Report the ordered style-resolution policy used by resolver-backed product paths.
+    ResolutionPolicy {
         /// Print machine-readable JSON.
         #[arg(long)]
         json: bool,
@@ -1633,7 +1640,27 @@ fn report_command(command: ReportCommand) -> Result<(), String> {
             report_stale_suppressions,
             json,
         ),
+        ReportCommand::ResolutionPolicy { json } => report_resolution_policy(json),
     }
+}
+
+fn report_resolution_policy(json: bool) -> Result<(), String> {
+    let report = summarize_omena_query_style_resolution_policy_v0();
+    if json {
+        print_json(&report)?;
+    } else {
+        println!(
+            "{} candidateStrategy={} networkAccess={}",
+            report.product, report.candidate_strategy, report.network_access
+        );
+        for step in &report.steps {
+            println!(
+                "{} {}: {} ({})",
+                step.order, step.key, step.precedence, step.candidate_semantics
+            );
+        }
+    }
+    Ok(())
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -4669,6 +4696,17 @@ mod tests {
         assert_eq!(identity, None);
         assert_eq!(verified_tier, "t2");
         Ok(())
+    }
+
+    #[test]
+    fn report_resolution_policy_outputs_resolver_contract() {
+        let result = run(Cli {
+            command: Command::Report {
+                command: ReportCommand::ResolutionPolicy { json: true },
+            },
+        });
+
+        assert!(result.is_ok(), "{result:?}");
     }
 
     #[test]

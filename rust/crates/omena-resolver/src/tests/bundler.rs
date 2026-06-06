@@ -1,4 +1,28 @@
 use super::*;
+use crate::summarize_omena_resolver_style_resolution_policy_v0;
+
+#[test]
+fn style_resolution_policy_reports_ordered_candidate_contract() {
+    let policy = summarize_omena_resolver_style_resolution_policy_v0();
+
+    assert_eq!(policy.product, "omena-resolver.style-resolution-policy");
+    assert_eq!(policy.candidate_strategy, "orderedFirstExistingCandidate");
+    assert_eq!(policy.network_access, "neverFetch");
+    assert_eq!(
+        policy.steps.iter().map(|step| step.key).collect::<Vec<_>>(),
+        vec![
+            "externalUrlBoundary",
+            "bundlerPathMapping",
+            "tsconfigPathMapping",
+            "sassPkgImporter",
+            "fileRelativeOrAbsolute",
+            "packageManifestSubpath",
+            "nodePackageFallback",
+            "sassLoadPathRoot",
+        ]
+    );
+    assert!(policy.ready_surfaces.contains(&"resolutionPolicyReport"));
+}
 
 #[test]
 fn resolves_bundler_path_mapped_style_modules_before_tsconfig_paths() {
