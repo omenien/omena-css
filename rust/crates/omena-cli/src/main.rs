@@ -67,6 +67,7 @@ use omena_zk_audit::{
     zk_audit_ci_matrix_v0,
 };
 use serde::Serialize;
+use sha2::{Digest, Sha256};
 use std::{
     collections::{BTreeMap, BTreeSet},
     fs,
@@ -1297,6 +1298,11 @@ fn lock_verify_attestation(input: LockVerifyAttestationInput) -> Result<(), Stri
         matched_count += 1;
         if let Some(binding) = t3_artifact_binding.as_ref() {
             validate_verified_t3_attestation_artifact_binding(entry, binding)?;
+            validate_verified_t3_attestation_statement_binding(
+                entry,
+                binding,
+                attestation_statement.as_ref(),
+            )?;
         }
         let report = OmenaSifAttestationVerificationReportV1 {
             schema_version: OMENA_SIF_ATTESTATION_VERIFICATION_REPORT_SCHEMA_VERSION_V1.to_string(),
@@ -1689,6 +1695,7 @@ fn github_repository_url(repository: &str) -> String {
 struct VerifiedT3AttestationArtifactBinding {
     canonical_url: String,
     sif_hash: omena_sif::OmenaSifDigestV1,
+    artifact_sha256: String,
 }
 
 fn read_verified_t3_attestation_artifact_binding(
@@ -1716,6 +1723,7 @@ fn read_verified_t3_attestation_artifact_binding(
     Ok(VerifiedT3AttestationArtifactBinding {
         canonical_url: sif.canonical_url,
         sif_hash,
+        artifact_sha256: sha256_hex(artifact_bytes),
     })
 }
 
@@ -1737,6 +1745,43 @@ fn validate_verified_t3_attestation_artifact_binding(
         ));
     }
     Ok(())
+}
+
+fn validate_verified_t3_attestation_statement_binding(
+    entry: &omena_sif::OmenaLockSifEntryV1,
+    binding: &VerifiedT3AttestationArtifactBinding,
+    statement: Option<&OmenaSifAttestationStatementV1>,
+) -> Result<(), String> {
+    let statement = statement.ok_or_else(|| {
+        "lock verify-attestation --verified-tier t3 requires a signed SIF provenance statement"
+            .to_string()
+    })?;
+    if !statement
+        .subject_names
+        .iter()
+        .any(|subject| subject == &entry.sif_path)
+    {
+        return Err(format!(
+            "lock verify-attestation --verified-tier t3 requires the signed provenance statement subjectNames to include selected SIF path {}",
+            entry.sif_path
+        ));
+    }
+    if !statement.subject_digests.iter().any(|digest| {
+        digest.name == entry.sif_path
+            && digest.algorithm.eq_ignore_ascii_case("sha256")
+            && digest.digest.eq_ignore_ascii_case(&binding.artifact_sha256)
+    }) {
+        return Err(format!(
+            "lock verify-attestation --verified-tier t3 requires the signed provenance statement subjectDigests to bind {} to sha256:{}",
+            entry.sif_path, binding.artifact_sha256
+        ));
+    }
+    Ok(())
+}
+
+fn sha256_hex(bytes: &[u8]) -> String {
+    let digest = Sha256::digest(bytes);
+    digest.iter().map(|byte| format!("{byte:02x}")).collect()
 }
 
 fn validate_attestation_policy_for_verified_tier(
@@ -5748,6 +5793,82 @@ mod tests {
         );
 
         Ok(())
+    }
+
+    #[test]
+    fn lock_verify_attestation_t3_requires_signed_statement_artifact_digest_binding()
+    -> Result<(), String> {
+        let sif = cli_fixture_sif("pkg:design-system/_tokens.scss", b"$color: red !default;")?;
+        let sif_source = omena_sif::write_omena_sif_json_v1(&sif)
+            .map_err(|error| format!("fixture SIF should serialize: {error}"))?;
+        let entry = omena_sif::build_omena_lock_sif_entry_v1("sif/design-system.sif.json", &sif)
+            .map_err(|error| format!("fixture lock entry should build: {error}"))?;
+        let binding = VerifiedT3AttestationArtifactBinding {
+            canonical_url: sif.canonical_url.clone(),
+            sif_hash: omena_sif::compute_omena_sif_artifact_hash_v1(&sif)
+                .map_err(|error| format!("fixture SIF should hash: {error}"))?,
+            artifact_sha256: sha256_hex(sif_source.as_bytes()),
+        };
+        let mut statement = cli_fixture_provenance_statement();
+        statement.subject_names = vec![entry.sif_path.clone()];
+        statement.subject_digests = vec![omena_sif::OmenaSifAttestationSubjectDigestV1 {
+            name: entry.sif_path.clone(),
+            algorithm: "sha256".to_string(),
+            digest: binding.artifact_sha256.clone(),
+        }];
+
+        validate_verified_t3_attestation_statement_binding(&entry, &binding, Some(&statement))?;
+
+        let mut digest_mismatch = statement.clone();
+        digest_mismatch.subject_digests = vec![omena_sif::OmenaSifAttestationSubjectDigestV1 {
+            name: entry.sif_path.clone(),
+            algorithm: "sha256".to_string(),
+            digest: "0000000000000000000000000000000000000000000000000000000000000000".to_string(),
+        }];
+        let digest_result = validate_verified_t3_attestation_statement_binding(
+            &entry,
+            &binding,
+            Some(&digest_mismatch),
+        );
+        assert!(
+            digest_result
+                .as_ref()
+                .is_err_and(|error| error.contains("subjectDigests")),
+            "{digest_result:?}"
+        );
+
+        let mut subject_mismatch = statement;
+        subject_mismatch.subject_names = vec!["sif/other.sif.json".to_string()];
+        let subject_result = validate_verified_t3_attestation_statement_binding(
+            &entry,
+            &binding,
+            Some(&subject_mismatch),
+        );
+        assert!(
+            subject_result
+                .as_ref()
+                .is_err_and(|error| error.contains("subjectNames")),
+            "{subject_result:?}"
+        );
+
+        let missing_statement =
+            validate_verified_t3_attestation_statement_binding(&entry, &binding, None);
+        assert!(
+            missing_statement
+                .as_ref()
+                .is_err_and(|error| error.contains("signed SIF provenance statement")),
+            "{missing_statement:?}"
+        );
+
+        Ok(())
+    }
+
+    #[test]
+    fn lock_verify_attestation_sha256_hex_is_lowercase_stable() {
+        assert_eq!(
+            sha256_hex(b"abc"),
+            "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad"
+        );
     }
 
     #[test]
