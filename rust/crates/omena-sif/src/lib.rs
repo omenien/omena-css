@@ -366,6 +366,19 @@ fn validate_omena_sif_attestation_verification_report_v1(
             ));
         }
     }
+    validate_attestation_kind_for_trust_tier_v1(&report.kind, report.verified_trust_tier)?;
+    Ok(())
+}
+
+fn validate_attestation_kind_for_trust_tier_v1(
+    kind: &str,
+    verified_trust_tier: OmenaSifTrustTierV1,
+) -> Result<(), String> {
+    if verified_trust_tier == OmenaSifTrustTierV1::T3 && !kind.starts_with("omena-toolchain.") {
+        return Err(format!(
+            "attestation verification report tier t3 requires kind omena-toolchain.*, got {kind}"
+        ));
+    }
     Ok(())
 }
 
@@ -1373,6 +1386,51 @@ mod tests {
             "{result:?}"
         );
         assert!(entry.attestation_verifications.is_empty());
+        Ok(())
+    }
+
+    #[test]
+    fn verified_attestation_report_t3_requires_omena_toolchain_kind() -> Result<(), String> {
+        let sif = fixture_sif("pkg:design-system/_tokens.scss", b"$color: red !default;")
+            .map_err(|error| error.to_string())?;
+        let mut entry = build_omena_lock_sif_entry_v1("sif/design-system.sif.json", &sif)
+            .map_err(|error| error.to_string())?;
+        let provenance_reference =
+            "https://registry.npmjs.org/-/npm/v1/attestations/design-system@1.0.0/provenance";
+        entry
+            .attestation_references
+            .push(OmenaSifAttestationReferenceV1 {
+                kind: "npm-provenance.url".to_string(),
+                reference: provenance_reference.to_string(),
+            });
+        let report = read_omena_sif_attestation_verification_report_json_v1(
+            &json!({
+                "schemaVersion": "1",
+                "product": "omena-sif.attestation-verification-report",
+                "verified": true,
+                "kind": "npm-provenance.sigstore",
+                "reference": provenance_reference,
+                "verifier": "offline-sigstore-verifier",
+                "verifiedTrustTier": "t3",
+                "subjectCanonicalUrl": entry.canonical_url.as_str(),
+                "subjectSifHash": entry.sif_hash.as_str()
+            })
+            .to_string(),
+        )
+        .map_err(|error| error.to_string())?;
+
+        let result =
+            apply_omena_sif_attestation_verification_report_to_lock_entry_v1(&mut entry, &report);
+
+        assert!(
+            matches!(
+                result.as_ref(),
+                Err(message) if message.contains("tier t3 requires kind omena-toolchain.*")
+            ),
+            "{result:?}"
+        );
+        assert!(entry.attestation_verifications.is_empty());
+        assert_eq!(entry.trust_tier, OmenaSifTrustTierV1::T1);
         Ok(())
     }
 
