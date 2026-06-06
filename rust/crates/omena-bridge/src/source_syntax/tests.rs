@@ -43,6 +43,7 @@ export function App({ tone }: { tone: "warm" | "cool" }) {
 #[test]
 fn collects_html_like_template_literal_class_attributes() {
     let source = r#"<main class="root active">
+  <section class={dynamic}></section>
   <script type="module">
     const ignored = "class=\"from-script\"";
   </script>
@@ -63,6 +64,7 @@ fn collects_html_like_template_literal_class_attributes() {
         .collect::<Vec<_>>();
 
     assert_eq!(names, vec!["root", "active"]);
+    assert!(!names.contains(&"{dynamic}"));
     assert!(!names.contains(&"from-script"));
 }
 

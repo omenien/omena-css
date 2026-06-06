@@ -380,7 +380,9 @@ fn template_class_attribute_value_spans(
         let Some((value_start, value_end)) = template_attribute_value_span(bytes, index) else {
             continue;
         };
-        if value_start < value_end {
+        if value_start < value_end
+            && is_static_template_class_attribute_value(source, value_start, value_end)
+        {
             spans.push(ParserByteSpanV0 {
                 start: value_start,
                 end: value_end,
@@ -435,6 +437,12 @@ fn template_attribute_value_span(bytes: &[u8], value_start: usize) -> Option<(us
         .position(|byte| byte.is_ascii_whitespace() || *byte == b'>')
         .unwrap_or_else(|| bytes.len().saturating_sub(value_start));
     Some((value_start, value_start + relative_end))
+}
+
+fn is_static_template_class_attribute_value(source: &str, start: usize, end: usize) -> bool {
+    source
+        .get(start..end)
+        .is_some_and(|value| !value.contains(['{', '}']))
 }
 
 fn byte_in_ranges(byte_offset: usize, ranges: &[(usize, usize)]) -> bool {
