@@ -32,6 +32,7 @@ pub fn rust_diagnostics_scheduler_contract() -> RustDiagnosticsSchedulerBoundary
             "refreshOpenDocumentsAfterWorkspaceIndexing",
             "publishBaselineDiagnosticsBeforeOptimizingDiagnostics",
             "deferOptimizingDiagnosticsOnRustPath",
+            "coalesceStaleOptimizingDiagnosticsByDocument",
         ],
         request_path_policy: vec![
             "noNodeDiagnosticsSchedulerOnRustLspPath",
@@ -40,6 +41,7 @@ pub fn rust_diagnostics_scheduler_contract() -> RustDiagnosticsSchedulerBoundary
             "baselineTierUsesFastFactsV0ForStyleDocuments",
             "optimizingTierUsesAnalyzedGraphV0ForStyleDocuments",
             "optimizingDiagnosticsUseRustScheduledOutputDelay",
+            "delayedOptimizingDiagnosticsUseLatestDocumentGeneration",
         ],
     }
 }
@@ -98,9 +100,7 @@ fn diagnostics_for_text_document_event(
     is_close: bool,
 ) -> Vec<ScheduledLspOutput> {
     let mut outputs = if is_close {
-        vec![ScheduledLspOutput::immediate(
-            publish_diagnostics_notification(uri, json!([])),
-        )]
+        vec![publish_immediate_diagnostics_output(uri, json!([]))]
     } else {
         publish_tiered_diagnostics_notifications(
             state,
@@ -269,9 +269,7 @@ fn publish_tiered_diagnostics_notifications(
     diagnostics: Value,
 ) -> Vec<ScheduledLspOutput> {
     let Some(diagnostics) = diagnostics.as_array() else {
-        return vec![ScheduledLspOutput::immediate(
-            publish_diagnostics_notification(uri, diagnostics),
-        )];
+        return vec![publish_immediate_diagnostics_output(uri, diagnostics)];
     };
     let tier_plan = diagnostics_pipeline_tier_plan_for_uri(state, uri);
     let baseline_diagnostics = diagnostics
@@ -299,16 +297,29 @@ fn publish_tiered_diagnostics_notifications(
         })
         .collect::<Vec<_>>();
 
-    let mut outputs = vec![ScheduledLspOutput::immediate(
-        publish_diagnostics_notification(uri, json!(baseline_diagnostics)),
+    let mut outputs = vec![publish_immediate_diagnostics_output(
+        uri,
+        json!(baseline_diagnostics),
     )];
     if full_diagnostics != baseline_diagnostics {
-        outputs.push(ScheduledLspOutput::delayed(
+        outputs.push(ScheduledLspOutput::delayed_coalesced(
             publish_diagnostics_notification(uri, json!(full_diagnostics)),
             OPTIMIZING_DIAGNOSTICS_DELAY_MS,
+            diagnostics_coalesce_key(uri),
         ));
     }
     outputs
+}
+
+fn publish_immediate_diagnostics_output(uri: &str, diagnostics: Value) -> ScheduledLspOutput {
+    ScheduledLspOutput::immediate_coalesced(
+        publish_diagnostics_notification(uri, diagnostics),
+        diagnostics_coalesce_key(uri),
+    )
+}
+
+fn diagnostics_coalesce_key(uri: &str) -> String {
+    format!("textDocument/publishDiagnostics:{uri}")
 }
 
 fn diagnostics_pipeline_tier_plan_for_uri(

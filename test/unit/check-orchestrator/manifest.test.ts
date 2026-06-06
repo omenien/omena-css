@@ -165,6 +165,7 @@ describe("check orchestrator manifest", () => {
         "check:rust-omena-lsp-server-shell",
         "check:rust-omena-lsp-server-provider-parity",
         "check:rust-omena-lsp-server-runtime-loop",
+        "check:rust-omena-lsp-server-diagnostics-coalescing",
       ]),
     );
 

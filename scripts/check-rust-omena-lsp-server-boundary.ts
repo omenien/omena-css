@@ -285,12 +285,22 @@ assert.ok(
 assert.ok(rustSummary.diagnosticsScheduler.eventPolicy.includes("dedupeWatchedStyleDiagnostics"));
 assert.ok(
   rustSummary.diagnosticsScheduler.eventPolicy.includes(
+    "coalesceStaleOptimizingDiagnosticsByDocument",
+  ),
+);
+assert.ok(
+  rustSummary.diagnosticsScheduler.eventPolicy.includes(
     "refreshSourceDiagnosticsForResolutionConfigChanges",
   ),
 );
 assert.ok(
   rustSummary.diagnosticsScheduler.requestPathPolicy.includes(
     "noNodeDiagnosticsSchedulerOnRustLspPath",
+  ),
+);
+assert.ok(
+  rustSummary.diagnosticsScheduler.requestPathPolicy.includes(
+    "delayedOptimizingDiagnosticsUseLatestDocumentGeneration",
   ),
 );
 assert.ok(

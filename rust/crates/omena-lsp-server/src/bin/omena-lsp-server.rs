@@ -2,6 +2,7 @@ use std::io::{self, BufRead, Write};
 use std::sync::{Arc, Mutex};
 use std::thread::{self, JoinHandle};
 use std::time::Duration;
+use std::{collections::BTreeMap, sync::MutexGuard};
 
 use omena_lsp_server::{LspShellState, ScheduledLspOutput, handle_lsp_message_scheduled_outputs};
 
@@ -17,12 +18,13 @@ fn run_stdio_server<R: BufRead, W: Write + Send + 'static>(
 ) -> Result<(), Box<dyn std::error::Error>> {
     let mut state = LspShellState::default();
     let writer = Arc::new(Mutex::new(writer));
+    let coalescer = Arc::new(Mutex::new(ScheduledOutputCoalescer::default()));
     let mut delayed_outputs: Vec<JoinHandle<Result<(), String>>> = Vec::new();
 
     while let Some(payload) = read_lsp_payload(reader)? {
         let message: serde_json::Value = serde_json::from_str(&payload)?;
         for output in handle_lsp_message_scheduled_outputs(&mut state, message) {
-            write_scheduled_lsp_output(&writer, output, &mut delayed_outputs)?;
+            write_scheduled_lsp_output(&writer, &coalescer, output, &mut delayed_outputs)?;
         }
         if state.should_exit {
             break;
@@ -37,6 +39,31 @@ fn run_stdio_server<R: BufRead, W: Write + Send + 'static>(
     }
 
     Ok(())
+}
+
+#[derive(Debug, Default)]
+struct ScheduledOutputCoalescer {
+    latest_revision_by_key: BTreeMap<String, u64>,
+}
+
+impl ScheduledOutputCoalescer {
+    fn schedule(&mut self, key: &str) -> u64 {
+        let next_revision = self
+            .latest_revision_by_key
+            .get(key)
+            .copied()
+            .unwrap_or(0)
+            .saturating_add(1);
+        self.latest_revision_by_key
+            .insert(key.to_string(), next_revision);
+        next_revision
+    }
+
+    fn is_current(&self, key: &str, revision: u64) -> bool {
+        self.latest_revision_by_key
+            .get(key)
+            .is_some_and(|latest_revision| *latest_revision == revision)
+    }
 }
 
 fn read_lsp_payload<R: BufRead>(
@@ -81,13 +108,25 @@ fn write_lsp_response<W: Write>(
 
 fn write_scheduled_lsp_output<W: Write + Send + 'static>(
     writer: &Arc<Mutex<W>>,
+    coalescer: &Arc<Mutex<ScheduledOutputCoalescer>>,
     output: ScheduledLspOutput,
     delayed_outputs: &mut Vec<JoinHandle<Result<(), String>>>,
 ) -> Result<(), Box<dyn std::error::Error>> {
+    let scheduled_revision = output
+        .coalesce_key
+        .as_ref()
+        .map(|key| lock_coalescer(coalescer).schedule(key));
+
     if let Some(delay_millis) = output.delay_millis {
         let writer = Arc::clone(writer);
+        let coalescer = Arc::clone(coalescer);
         delayed_outputs.push(thread::spawn(move || {
             thread::sleep(Duration::from_millis(delay_millis));
+            if let (Some(key), Some(revision)) = (output.coalesce_key.as_ref(), scheduled_revision)
+                && !lock_coalescer(&coalescer).is_current(key, revision)
+            {
+                return Ok(());
+            }
             let mut writer = writer
                 .lock()
                 .map_err(|_| "stdout lock poisoned".to_string())?;
@@ -98,4 +137,10 @@ fn write_scheduled_lsp_output<W: Write + Send + 'static>(
 
     let mut writer = writer.lock().map_err(|_| "stdout lock poisoned")?;
     write_lsp_response(&mut *writer, &output.value)
+}
+
+fn lock_coalescer(
+    coalescer: &Arc<Mutex<ScheduledOutputCoalescer>>,
+) -> MutexGuard<'_, ScheduledOutputCoalescer> {
+    coalescer.lock().unwrap_or_else(|error| error.into_inner())
 }
