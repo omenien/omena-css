@@ -7,8 +7,10 @@ import { readFileSync } from "node:fs";
 // through the Cargo dependency DAG — VS Code LSP / CLI / napi / wasm entrypoints
 // into `omena-query`, `omena-query-checker-orchestrator`, `omena-checker`, and
 // theory crates. Reachability here means the dependency closure (call-graph), not
-// mere token presence, so a future crate that paints itself `product-wired`
-// without being wired into the product chain fails this gate.
+// mere token presence. It proves compile reachability from a product root, not
+// that the crate's evidence fires on every product surface or default request.
+// A future crate that paints itself `product-wired` without being wired into the
+// product chain fails this gate.
 const PRODUCT_ROOTS = [
   "omena-lsp-server",
   "omena-cli",
