@@ -125,6 +125,36 @@ pub fn summarize_omena_query_style_hover_render_parts(
     name: &str,
     position: ParserPositionV0,
 ) -> OmenaQueryStyleHoverRenderPartsV0 {
+    summarize_omena_query_style_hover_render_parts_with_branch_scope(
+        source, kind, name, position, None,
+    )
+}
+
+pub fn summarize_omena_query_style_hover_render_parts_for_hover_position(
+    source: &str,
+    kind: &str,
+    name: &str,
+    position: ParserPositionV0,
+) -> OmenaQueryStyleHoverRenderPartsV0 {
+    let branch_scope = (kind == "selector")
+        .then(|| selector_hover_branch_scope_at_position(source, name, position))
+        .flatten();
+    summarize_omena_query_style_hover_render_parts_with_branch_scope(
+        source,
+        kind,
+        name,
+        position,
+        branch_scope,
+    )
+}
+
+fn summarize_omena_query_style_hover_render_parts_with_branch_scope(
+    source: &str,
+    kind: &str,
+    name: &str,
+    position: ParserPositionV0,
+    selector_branch_scope: Option<HoverCascadeBranchScope>,
+) -> OmenaQueryStyleHoverRenderPartsV0 {
     let mut parts = OmenaQueryStyleHoverRenderPartsV0 {
         schema_version: "0",
         product: "omena-query.style-hover-render-parts",
@@ -144,8 +174,11 @@ pub fn summarize_omena_query_style_hover_render_parts(
             if parts.render_source != "selectorFallback" {
                 parts.render_source = "ruleSnippet";
             }
-            parts.property_value_narrowings =
-                selector_property_value_narrowings_for_hover(source, name);
+            parts.property_value_narrowings = selector_property_value_narrowings_for_hover(
+                source,
+                name,
+                selector_branch_scope.as_ref(),
+            );
         }
         "customPropertyReference" | "customPropertyDeclaration" => {
             parts.snippet = line_snippet_at_position(source, position).unwrap_or_default();
@@ -199,6 +232,7 @@ pub fn summarize_omena_query_style_hover_render_parts_for_workspace_file(
             resolution_inputs.bundler_path_mappings.as_slice(),
             resolution_inputs.tsconfig_path_mappings.as_slice(),
             name,
+            None,
         );
         if !module_graph_narrowings.is_empty() {
             parts.property_value_narrowings = module_graph_narrowings;
@@ -207,9 +241,64 @@ pub fn summarize_omena_query_style_hover_render_parts_for_workspace_file(
     Some(parts)
 }
 
+pub fn summarize_omena_query_style_hover_render_parts_for_workspace_file_hover_position(
+    target_style_path: &str,
+    style_sources: &[OmenaQueryStyleSourceInputV0],
+    package_manifests: &[OmenaQueryStylePackageManifestV0],
+    resolution_inputs: &OmenaQueryStyleResolutionInputsV0,
+    kind: &str,
+    name: &str,
+    position: ParserPositionV0,
+) -> Option<OmenaQueryStyleHoverRenderPartsV0> {
+    let target = style_sources
+        .iter()
+        .find(|source| source.style_path == target_style_path)?;
+    let branch_scope = (kind == "selector")
+        .then(|| selector_hover_branch_scope_at_position(&target.style_source, name, position))
+        .flatten();
+    let mut parts = summarize_omena_query_style_hover_render_parts_with_branch_scope(
+        &target.style_source,
+        kind,
+        name,
+        position,
+        branch_scope.clone(),
+    );
+    if kind == "selector" {
+        let module_graph_narrowings = selector_property_value_narrowings_for_hover_module_graph(
+            target_style_path,
+            style_sources,
+            package_manifests,
+            resolution_inputs.bundler_path_mappings.as_slice(),
+            resolution_inputs.tsconfig_path_mappings.as_slice(),
+            name,
+            branch_scope.as_ref(),
+        );
+        if !module_graph_narrowings.is_empty() {
+            parts.property_value_narrowings = module_graph_narrowings;
+        }
+    }
+    Some(parts)
+}
+
+#[derive(Clone, Debug, Eq, Ord, PartialEq, PartialOrd)]
+struct HoverCascadeBranchScope {
+    condition_context: Vec<String>,
+    layer_name: Option<String>,
+    layer_order: Option<i32>,
+}
+
+#[derive(Clone, Debug, Eq, Ord, PartialEq, PartialOrd)]
+struct HoverCascadeBranchMatch {
+    span_len: usize,
+    scope: HoverCascadeBranchScope,
+}
+
+type SelectorPropertyBranchKey = (String, Vec<String>, Option<String>, Option<i32>);
+
 fn selector_property_value_narrowings_for_hover(
     source: &str,
     name: &str,
+    hovered_branch_scope: Option<&HoverCascadeBranchScope>,
 ) -> Vec<AbstractPropertyValueNarrowingV0> {
     let selector = format!(".{name}");
     let declarations = cascade_checker::collect_query_checker_cascade_declarations(source);
@@ -231,6 +320,13 @@ fn selector_property_value_narrowings_for_hover(
         .into_iter()
         .collect::<Vec<_>>();
     branch_keys.sort();
+    if let Some(hovered_branch_scope) = hovered_branch_scope {
+        let filtered_branch_keys =
+            filter_hovered_branch_keys(branch_keys.as_slice(), hovered_branch_scope);
+        if !filtered_branch_keys.is_empty() {
+            branch_keys = filtered_branch_keys;
+        }
+    }
 
     branch_keys
         .into_iter()
@@ -272,6 +368,7 @@ fn selector_property_value_narrowings_for_hover_module_graph(
     bundler_path_mappings: &[OmenaResolverBundlerPathAliasMappingV0],
     tsconfig_path_mappings: &[OmenaResolverTsconfigPathMappingV0],
     name: &str,
+    hovered_branch_scope: Option<&HoverCascadeBranchScope>,
 ) -> Vec<AbstractPropertyValueNarrowingV0> {
     let style_source_refs = style_sources
         .iter()
@@ -321,6 +418,13 @@ fn selector_property_value_narrowings_for_hover_module_graph(
         .into_iter()
         .collect::<Vec<_>>();
     branch_keys.sort();
+    if let Some(hovered_branch_scope) = hovered_branch_scope {
+        let filtered_branch_keys =
+            filter_hovered_branch_keys(branch_keys.as_slice(), hovered_branch_scope);
+        if !filtered_branch_keys.is_empty() {
+            branch_keys = filtered_branch_keys;
+        }
+    }
 
     branch_keys
         .into_iter()
@@ -355,6 +459,253 @@ fn selector_property_value_narrowings_for_hover_module_graph(
             },
         )
         .collect()
+}
+
+fn filter_hovered_branch_keys(
+    branch_keys: &[SelectorPropertyBranchKey],
+    hovered_branch_scope: &HoverCascadeBranchScope,
+) -> Vec<SelectorPropertyBranchKey> {
+    branch_keys
+        .iter()
+        .filter(|(_, condition_context, layer_name, layer_order)| {
+            condition_context == &hovered_branch_scope.condition_context
+                && layer_name == &hovered_branch_scope.layer_name
+                && layer_order == &hovered_branch_scope.layer_order
+        })
+        .cloned()
+        .collect()
+}
+
+fn selector_hover_branch_scope_at_position(
+    source: &str,
+    name: &str,
+    position: ParserPositionV0,
+) -> Option<HoverCascadeBranchScope> {
+    let offset = byte_offset_for_parser_position(source, position)?;
+    let selector = format!(".{name}");
+    let mut layer_orders = BTreeMap::new();
+    let mut next_layer_order = 0i32;
+    let mut matches = Vec::new();
+    collect_hover_selector_branch_scopes(
+        source,
+        0,
+        source.len(),
+        None,
+        Vec::new(),
+        None,
+        None,
+        &mut layer_orders,
+        &mut next_layer_order,
+        selector.as_str(),
+        offset,
+        &mut matches,
+    );
+    matches.sort();
+    matches.into_iter().next().map(|matched| matched.scope)
+}
+
+#[allow(clippy::too_many_arguments)]
+fn collect_hover_selector_branch_scopes(
+    source: &str,
+    start: usize,
+    end: usize,
+    parent_selector: Option<String>,
+    condition_context: Vec<String>,
+    layer_name: Option<String>,
+    layer_order: Option<i32>,
+    layer_orders: &mut BTreeMap<String, i32>,
+    next_layer_order: &mut i32,
+    target_selector: &str,
+    hover_offset: usize,
+    matches: &mut Vec<HoverCascadeBranchMatch>,
+) {
+    let mut index = start;
+    while let Some(open_index) = find_hover_style_top_level_byte(source, index, end, b'{') {
+        let Some(close_index) = matching_style_block_end(source, open_index, b'{', b'}') else {
+            break;
+        };
+        if close_index > end {
+            break;
+        }
+        let prelude_start = hover_style_prelude_start(source, start, open_index);
+        let prelude = source[prelude_start..open_index].trim();
+        let body_start = open_index + 1;
+
+        if let Some(layer) = hover_layer_name_from_prelude(prelude) {
+            let order = *layer_orders.entry(layer.clone()).or_insert_with(|| {
+                let order = *next_layer_order;
+                *next_layer_order += 1;
+                order
+            });
+            collect_hover_selector_branch_scopes(
+                source,
+                body_start,
+                close_index,
+                parent_selector.clone(),
+                condition_context.clone(),
+                Some(layer),
+                Some(order),
+                layer_orders,
+                next_layer_order,
+                target_selector,
+                hover_offset,
+                matches,
+            );
+        } else if prelude.starts_with('@') {
+            let mut nested_condition_context = condition_context.clone();
+            nested_condition_context.push(normalize_hover_condition_prelude(prelude));
+            collect_hover_selector_branch_scopes(
+                source,
+                body_start,
+                close_index,
+                parent_selector.clone(),
+                nested_condition_context,
+                layer_name.clone(),
+                layer_order,
+                layer_orders,
+                next_layer_order,
+                target_selector,
+                hover_offset,
+                matches,
+            );
+        } else if !prelude.is_empty() {
+            let canonical_members = split_hover_selector_list(prelude)
+                .into_iter()
+                .map(|member| canonical_hover_selector(parent_selector.as_deref(), member.as_str()))
+                .collect::<Vec<_>>();
+            if canonical_members
+                .iter()
+                .any(|member| member == target_selector)
+                && hover_offset >= prelude_start
+                && hover_offset <= close_index
+            {
+                matches.push(HoverCascadeBranchMatch {
+                    span_len: close_index.saturating_sub(prelude_start),
+                    scope: HoverCascadeBranchScope {
+                        condition_context: condition_context.clone(),
+                        layer_name: layer_name.clone(),
+                        layer_order,
+                    },
+                });
+            }
+            for canonical_selector in canonical_members {
+                collect_hover_selector_branch_scopes(
+                    source,
+                    body_start,
+                    close_index,
+                    Some(canonical_selector),
+                    condition_context.clone(),
+                    layer_name.clone(),
+                    layer_order,
+                    layer_orders,
+                    next_layer_order,
+                    target_selector,
+                    hover_offset,
+                    matches,
+                );
+            }
+        }
+
+        index = close_index + 1;
+    }
+}
+
+fn find_hover_style_top_level_byte(
+    source: &str,
+    start: usize,
+    end: usize,
+    needle: u8,
+) -> Option<usize> {
+    let mut index = start;
+    let mut quote: Option<u8> = None;
+    let mut paren_depth = 0usize;
+    while index < end {
+        let byte = source.as_bytes().get(index).copied()?;
+        if let Some(quote_byte) = quote {
+            if byte == b'\\' {
+                index = advance_style_escaped_char(source, index, end);
+            } else if byte == quote_byte {
+                quote = None;
+                index = advance_style_scan_cursor(source, index, end);
+            } else {
+                index = advance_style_scan_cursor(source, index, end);
+            }
+            continue;
+        }
+        if source[index..end].starts_with("/*")
+            && let Some(close_offset) = source[index + 2..end].find("*/")
+        {
+            index += close_offset + 4;
+            continue;
+        }
+        if byte == needle && paren_depth == 0 {
+            return Some(index);
+        }
+        match byte {
+            b'"' | b'\'' | b'`' => {
+                quote = Some(byte);
+                index = advance_style_scan_cursor(source, index, end);
+            }
+            b'(' => {
+                paren_depth += 1;
+                index = advance_style_scan_cursor(source, index, end);
+            }
+            b')' => {
+                paren_depth = paren_depth.saturating_sub(1);
+                index = advance_style_scan_cursor(source, index, end);
+            }
+            _ => index = advance_style_scan_cursor(source, index, end),
+        }
+    }
+    None
+}
+
+fn hover_style_prelude_start(source: &str, search_start: usize, open_index: usize) -> usize {
+    source[search_start..open_index]
+        .rfind(['{', '}', ';'])
+        .map(|offset| search_start + offset + 1)
+        .unwrap_or(search_start)
+}
+
+fn hover_layer_name_from_prelude(prelude: &str) -> Option<String> {
+    let rest = prelude.trim_start().strip_prefix("@layer")?.trim();
+    let name = rest
+        .split(|ch: char| ch.is_ascii_whitespace() || matches!(ch, ',' | '{' | ';'))
+        .next()
+        .unwrap_or_default()
+        .trim_matches(['"', '\'']);
+    if name.is_empty() {
+        Some("(anonymous-layer)".to_string())
+    } else {
+        Some(name.to_string())
+    }
+}
+
+fn normalize_hover_condition_prelude(prelude: &str) -> String {
+    prelude.split_whitespace().collect::<Vec<_>>().join(" ")
+}
+
+fn split_hover_selector_list(prelude: &str) -> Vec<String> {
+    let mut members = split_top_level_style_segments(prelude, 0, prelude.len(), b',')
+        .into_iter()
+        .filter_map(|(start, end)| {
+            let member = prelude[start..end].trim();
+            (!member.is_empty()).then(|| member.to_string())
+        })
+        .collect::<Vec<_>>();
+    if members.is_empty() {
+        members.push(prelude.trim().to_string());
+    }
+    members
+}
+
+fn canonical_hover_selector(parent_selector: Option<&str>, selector: &str) -> String {
+    let selector = selector.trim();
+    match parent_selector {
+        Some(parent_selector) if selector.contains('&') => selector.replace('&', parent_selector),
+        Some(parent_selector) => format!("{parent_selector} {selector}"),
+        None => selector.to_string(),
+    }
 }
 
 fn source_reference_text_selector_name(source: &str, span: ParserByteSpanV0) -> Option<String> {

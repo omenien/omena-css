@@ -8,6 +8,7 @@ use crate::{
     summarize_omena_query_style_completion_at_position,
     summarize_omena_query_style_extract_code_actions, summarize_omena_query_style_hover_candidates,
     summarize_omena_query_style_hover_render_parts,
+    summarize_omena_query_style_hover_render_parts_for_hover_position,
     summarize_omena_query_style_inline_code_actions,
     summarize_omena_query_style_insight_code_actions, summarize_omena_query_style_insights,
 };
@@ -164,6 +165,47 @@ fn style_hover_render_parts_narrow_same_selector_values_by_source_order() {
             value: "blue".to_string(),
             pseudo_state: None,
         })
+    );
+}
+
+#[test]
+fn style_hover_render_parts_for_hover_position_prefers_active_condition_layer_branch() {
+    let source = r#".button { color: red; }
+@media (min-width: 40rem) {
+  @layer theme {
+    .button { color: blue; }
+  }
+}
+"#;
+    let selector = summarize_omena_query_style_hover_render_parts_for_hover_position(
+        source,
+        "selector",
+        "button",
+        ParserPositionV0 {
+            line: 3,
+            character: 5,
+        },
+    );
+
+    let color_narrowings = selector
+        .property_value_narrowings
+        .iter()
+        .filter(|narrowing| narrowing.property_name == "color")
+        .collect::<Vec<_>>();
+    assert_eq!(color_narrowings.len(), 1);
+    let color = color_narrowings[0];
+    assert_eq!(
+        color.requested_condition_context,
+        vec!["@media (min-width: 40rem)".to_string()]
+    );
+    assert_eq!(color.requested_layer_name.as_deref(), Some("theme"));
+    assert_eq!(
+        color.value,
+        AbstractPropertyValueV0::Exact {
+            property_name: "color".to_string(),
+            value: "blue".to_string(),
+            pseudo_state: None,
+        }
     );
 }
 

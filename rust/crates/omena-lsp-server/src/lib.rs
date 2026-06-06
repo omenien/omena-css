@@ -57,8 +57,9 @@ use omena_query::{
     summarize_omena_query_style_diagnostics_for_file,
     summarize_omena_query_style_diagnostics_for_file_with_deep_analysis,
     summarize_omena_query_style_diagnostics_for_workspace_file_with_external_mode_and_sifs_and_resolution_inputs,
-    summarize_omena_query_style_document, summarize_omena_query_style_hover_render_parts,
-    summarize_omena_query_style_hover_render_parts_for_workspace_file,
+    summarize_omena_query_style_document,
+    summarize_omena_query_style_hover_render_parts_for_hover_position,
+    summarize_omena_query_style_hover_render_parts_for_workspace_file_hover_position,
     summarize_omena_query_style_refactor_code_actions,
 };
 use omena_streaming_ifds::summarize_streaming_ifds_workspace_cross_file_reachability_v0;
@@ -3707,23 +3708,24 @@ fn render_style_hover_candidate_markdown_for_workspace(
     );
     let resolution_inputs =
         resolution_inputs_for_workspace_uri(state, workspace_folder_uri.as_deref());
-    let render_parts = summarize_omena_query_style_hover_render_parts_for_workspace_file(
-        document_uri,
-        style_sources.as_slice(),
-        state.resolution.package_manifests.as_slice(),
-        &resolution_inputs,
-        candidate.kind,
-        candidate.name.as_str(),
-        candidate.range.start,
-    )
-    .unwrap_or_else(|| {
-        summarize_omena_query_style_hover_render_parts(
-            source,
+    let render_parts =
+        summarize_omena_query_style_hover_render_parts_for_workspace_file_hover_position(
+            document_uri,
+            style_sources.as_slice(),
+            state.resolution.package_manifests.as_slice(),
+            &resolution_inputs,
             candidate.kind,
             candidate.name.as_str(),
             candidate.range.start,
         )
-    });
+        .unwrap_or_else(|| {
+            summarize_omena_query_style_hover_render_parts_for_hover_position(
+                source,
+                candidate.kind,
+                candidate.name.as_str(),
+                candidate.range.start,
+            )
+        });
     render_style_hover_candidate_markdown_from_parts(document_uri, candidate, &render_parts)
 }
 

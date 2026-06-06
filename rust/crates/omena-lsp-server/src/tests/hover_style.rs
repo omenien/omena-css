@@ -161,6 +161,78 @@ fn style_hover_narrows_same_selector_values_by_source_order() -> TestResult {
 }
 
 #[test]
+fn style_hover_prefers_positioned_condition_layer_branch() -> TestResult {
+    let mut state = LspShellState::default();
+    handle_lsp_message(
+        &mut state,
+        json!({
+            "jsonrpc": "2.0",
+            "id": 1,
+            "method": "initialize",
+            "params": {
+                "workspaceFolders": [
+                    {
+                        "uri": "file:///workspace-a",
+                        "name": "workspace-a",
+                    },
+                ],
+            },
+        }),
+    );
+    handle_lsp_message(
+        &mut state,
+        json!({
+            "jsonrpc": "2.0",
+            "method": "textDocument/didOpen",
+            "params": {
+                "textDocument": {
+                    "uri": "file:///workspace-a/src/App.module.scss",
+                    "languageId": "scss",
+                    "version": 1,
+                    "text": ".button { color: red; }\n@media (min-width: 40rem) {\n  @layer theme {\n    .button { color: blue; }\n  }\n}",
+                },
+            },
+        }),
+    );
+
+    let hover_response = handle_lsp_message(
+        &mut state,
+        json!({
+            "jsonrpc": "2.0",
+            "id": 2,
+            "method": "textDocument/hover",
+            "params": {
+                "textDocument": {
+                    "uri": "file:///workspace-a/src/App.module.scss",
+                },
+                "position": {
+                    "line": 3,
+                    "character": 6,
+                },
+            },
+        }),
+    );
+    let hover_text = hover_response
+        .as_ref()
+        .and_then(|value| value.pointer("/result/contents/value"))
+        .and_then(Value::as_str)
+        .ok_or_else(|| std::io::Error::other("style hover should render markdown value"))?;
+    assert!(
+        hover_text.contains("Cascade narrowed values:"),
+        "{hover_text}"
+    );
+    assert!(
+        hover_text.contains("- `color`: `blue`"),
+        "hovered media/layer branch should drive the narrowed value: {hover_text}"
+    );
+    assert!(
+        !hover_text.contains("- `color`: `red`"),
+        "base branch value should not be mixed into a positioned media/layer hover: {hover_text}"
+    );
+    Ok(())
+}
+
+#[test]
 fn resolves_style_hover_candidates_from_opened_style_documents() -> TestResult {
     let mut state = LspShellState::default();
     handle_lsp_message(
@@ -397,8 +469,8 @@ fn resolves_style_hover_candidates_from_opened_style_documents() -> TestResult {
         hover_text.contains("- `color`: `var(--brand)`"),
         "{hover_text}"
     );
-    assert!(hover_text.contains("@layer theme"), "{hover_text}");
-    assert!(hover_text.contains("`blue`"), "{hover_text}");
+    assert!(!hover_text.contains("@layer theme"), "{hover_text}");
+    assert!(!hover_text.contains("`blue`"), "{hover_text}");
 
     let definition_response = handle_lsp_message(
         &mut state,
