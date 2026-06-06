@@ -1,0 +1,121 @@
+import { strict as assert } from "node:assert";
+import { spawnSync } from "node:child_process";
+import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+
+interface StyleDiagnostic {
+  readonly code: string;
+}
+
+interface StyleDiagnosticsSummary {
+  readonly diagnostics: readonly StyleDiagnostic[];
+}
+
+const workspace = mkdtempSync(join(tmpdir(), "omena-cli-external-migration-"));
+
+try {
+  const appPath = join(workspace, "app.module.scss");
+  const tokensPath = join(workspace, "tokens.scss");
+  const sifPath = join(workspace, "tokens.sif.json");
+  const lockfilePath = join(workspace, "omena.lock");
+
+  writeFileSync(
+    appPath,
+    '@use "design-system/tokens" as tokens;\n.button { color: tokens.$brand; }',
+  );
+  writeFileSync(tokensPath, "$brand: red !default;");
+  writeFileSync(lockfilePath, '{"entries":[],"lockfileVersion":"1"}');
+
+  const missing = runStyleDiagnostics([appPath, "--json"]);
+  assertDiagnostic(
+    missing,
+    "unresolvedExternalReference",
+    "lockfile presence should auto-enable external SIF boundary diagnostics",
+  );
+
+  const ignored = runStyleDiagnostics([appPath, "--external", "ignored", "--json"]);
+  assertNoDiagnostic(
+    ignored,
+    "unresolvedExternalReference",
+    "explicit --external ignored must preserve Phase 0 compatibility",
+  );
+
+  runOmena([
+    "sif",
+    "generate",
+    tokensPath,
+    "--canonical-url",
+    "design-system/tokens",
+    "--output",
+    sifPath,
+  ]);
+  runOmena(["lock", "update", "--lockfile", lockfilePath, "--sif", sifPath, "--json"]);
+
+  const resolved = runStyleDiagnostics([appPath, "--json"]);
+  assertNoDiagnostic(
+    resolved,
+    "unresolvedExternalReference",
+    "auto-discovered lockfile SIF should resolve the external boundary",
+  );
+  assertNoDiagnostic(
+    resolved,
+    "missingSassSymbol",
+    "auto-discovered lockfile SIF should resolve exported Sass symbols",
+  );
+
+  console.log("validated omena-cli external migration: lockfile-trigger explicit-ignored resolved");
+} finally {
+  rmSync(workspace, { force: true, recursive: true });
+}
+
+function runStyleDiagnostics(args: readonly string[]): StyleDiagnosticsSummary {
+  return JSON.parse(runOmena(["style-diagnostics", ...args]).stdout) as StyleDiagnosticsSummary;
+}
+
+function assertDiagnostic(summary: StyleDiagnosticsSummary, code: string, message: string): void {
+  assert.ok(
+    summary.diagnostics.some((diagnostic) => diagnostic.code === code),
+    `${message}: got ${summary.diagnostics.map((diagnostic) => diagnostic.code).join(",")}`,
+  );
+}
+
+function assertNoDiagnostic(summary: StyleDiagnosticsSummary, code: string, message: string): void {
+  assert.ok(
+    summary.diagnostics.every((diagnostic) => diagnostic.code !== code),
+    `${message}: got ${summary.diagnostics.map((diagnostic) => diagnostic.code).join(",")}`,
+  );
+}
+
+function runOmena(args: readonly string[], expectedStatus = 0): { readonly stdout: string } {
+  const result = spawnSync(
+    "cargo",
+    [
+      "run",
+      "--quiet",
+      "--manifest-path",
+      "rust/Cargo.toml",
+      "-p",
+      "omena-cli",
+      "--bin",
+      "omena-cli",
+      "--",
+      ...args,
+    ],
+    {
+      cwd: process.cwd(),
+      encoding: "utf8",
+      maxBuffer: 1024 * 1024 * 64,
+    },
+  );
+
+  if (result.error) {
+    throw result.error;
+  }
+  assert.equal(
+    result.status,
+    expectedStatus,
+    `omena-cli ${args.join(" ")} exited ${result.status}, expected ${expectedStatus}\nstdout=${result.stdout}\nstderr=${result.stderr}`,
+  );
+  return { stdout: result.stdout };
+}

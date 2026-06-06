@@ -233,9 +233,9 @@ enum Command {
         /// Omena lockfile whose SIF entries should resolve opt-in external Sass modules.
         #[arg(long = "lockfile")]
         lockfile: Option<PathBuf>,
-        /// External Sass module mode: ignored preserves compatibility, sif reports missing SIF boundaries.
-        #[arg(long, default_value = "ignored")]
-        external: String,
+        /// External Sass module mode: omitted preserves compatibility unless an omena.lock is discovered.
+        #[arg(long)]
+        external: Option<String>,
         /// Opt-in deep analysis: also surface the rg-flow / categorical theory hints
         /// (off by default; deduplicated against the circular-var warning). Single-file path only.
         #[arg(long)]
@@ -2281,16 +2281,24 @@ fn style_diagnostics(
     package_manifest_paths: Vec<PathBuf>,
     sif_paths: Vec<PathBuf>,
     lockfile: Option<PathBuf>,
-    external: String,
+    external: Option<String>,
     deep_analysis: bool,
     json: bool,
 ) -> Result<(), String> {
     let source = read_source(&path)?;
     let style_path = path_string(&path);
     let package_manifests = read_package_manifests(&package_manifest_paths)?;
+    let resolved_lockfile = lockfile.or_else(|| discover_omena_lockfile_for_path(&path));
+    let external_mode = resolve_external_module_mode_for_style_diagnostics(
+        external.as_deref(),
+        &resolved_lockfile,
+    )?;
+    let uses_external_sif_path = external_mode == OmenaQueryExternalModuleModeV0::Sif;
     let summary = if source_paths.is_empty()
         && source_document_paths.is_empty()
         && package_manifests.is_empty()
+        && sif_paths.is_empty()
+        && !uses_external_sif_path
     {
         let Some(candidates) = summarize_omena_query_style_hover_candidates(&style_path, &source)
         else {
@@ -2309,7 +2317,7 @@ fn style_diagnostics(
         let workspace_sources = read_workspace_sources(&path, &source, &source_paths)?;
         let source_documents = read_source_documents(&source_document_paths)?;
         let mut external_sifs = read_external_sifs(&sif_paths)?;
-        if let Some(lockfile) = lockfile.as_ref() {
+        if uses_external_sif_path && let Some(lockfile) = resolved_lockfile.as_ref() {
             external_sifs.extend(read_lock_external_sifs(lockfile)?);
         }
         // #33: an `@use "file:///…"` edge now routes through the external-SIF branch
@@ -2331,7 +2339,7 @@ fn style_diagnostics(
                 source_documents.as_slice(),
                 package_manifests.as_slice(),
                 None,
-                parse_external_module_mode(&external)?,
+                external_mode,
                 external_sifs.as_slice(),
             )
             .ok_or_else(|| {
@@ -2608,6 +2616,30 @@ fn parse_external_module_mode(external: &str) -> Result<OmenaQueryExternalModule
             "unsupported external mode '{external}'; expected ignored or sif"
         )),
     }
+}
+
+fn resolve_external_module_mode_for_style_diagnostics(
+    external: Option<&str>,
+    lockfile: &Option<PathBuf>,
+) -> Result<OmenaQueryExternalModuleModeV0, String> {
+    match external {
+        Some(external) => parse_external_module_mode(external),
+        None if lockfile.is_some() => Ok(OmenaQueryExternalModuleModeV0::Sif),
+        None => Ok(OmenaQueryExternalModuleModeV0::Ignored),
+    }
+}
+
+fn discover_omena_lockfile_for_path(path: &Path) -> Option<PathBuf> {
+    let mut current = path.parent();
+    while let Some(directory) = current {
+        let candidate = directory.join("omena.lock");
+        if candidate.exists() {
+            return Some(candidate);
+        }
+        current = directory.parent();
+    }
+    let cwd_candidate = PathBuf::from("omena.lock");
+    cwd_candidate.exists().then_some(cwd_candidate)
 }
 
 fn style_hover_candidates(path: PathBuf, json: bool) -> Result<(), String> {
@@ -3608,7 +3640,7 @@ mod tests {
                 package_manifest_paths: Vec::new(),
                 sif_paths: Vec::new(),
                 lockfile: None,
-                external: "ignored".to_string(),
+                external: Some("ignored".to_string()),
                 deep_analysis: false,
                 json: true,
             },
@@ -3638,7 +3670,7 @@ mod tests {
                 package_manifest_paths: Vec::new(),
                 sif_paths: Vec::new(),
                 lockfile: None,
-                external: "sif".to_string(),
+                external: Some("sif".to_string()),
                 deep_analysis: false,
                 json: true,
             },
@@ -3675,7 +3707,7 @@ mod tests {
                 package_manifest_paths: Vec::new(),
                 sif_paths: vec![sif_path.clone()],
                 lockfile: None,
-                external: "sif".to_string(),
+                external: Some("sif".to_string()),
                 deep_analysis: false,
                 json: true,
             },
@@ -3728,7 +3760,7 @@ mod tests {
                 package_manifest_paths: Vec::new(),
                 sif_paths: Vec::new(),
                 lockfile: Some(lockfile_path.clone()),
-                external: "sif".to_string(),
+                external: Some("sif".to_string()),
                 deep_analysis: false,
                 json: true,
             },
