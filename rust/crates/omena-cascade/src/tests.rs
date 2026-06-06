@@ -963,6 +963,38 @@ fn unknown_functional_pseudo_is_still_unsupported() {
 }
 
 #[test]
+fn selector_co_match_rejects_only_conflicting_single_valued_axes() {
+    assert_eq!(
+        selector_co_match_verdict("button.btn", "a.btn"),
+        SelectorMatchVerdict::No
+    );
+    assert_eq!(
+        selector_co_match_verdict("#save.primary", "#cancel.primary"),
+        SelectorMatchVerdict::No
+    );
+}
+
+#[test]
+fn selector_co_match_keeps_additive_axes_compatible() {
+    assert_eq!(
+        selector_co_match_verdict(".btn", "button.btn"),
+        SelectorMatchVerdict::Yes
+    );
+    assert_eq!(
+        selector_co_match_verdict(".btn", ".btn.active[data-state]:hover"),
+        SelectorMatchVerdict::Yes
+    );
+}
+
+#[test]
+fn selector_co_match_returns_maybe_for_unsupported_selector_syntax() {
+    assert_eq!(
+        selector_co_match_verdict(".btn:is(.active)", ".btn .icon"),
+        SelectorMatchVerdict::Maybe
+    );
+}
+
+#[test]
 fn matches_simple_compound_selectors_against_concrete_signature() {
     let mut element =
         ElementSignature::concrete(Some("button"), Some("save"), ["primary", "active"]);

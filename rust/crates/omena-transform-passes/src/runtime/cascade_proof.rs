@@ -89,7 +89,7 @@ pub(crate) fn collect_cascade_proof_obligations_for_pass_input(
             // cascade-ordering inversion discharged by the SMT search: the
             // per-layer obligation only inspects one layer at a time and cannot
             // see whether two layers' declarations invert after flattening.
-            if let Some(bundle) = collect_layer_inversion_declarations_with_lexer(source, dialect) {
+            for bundle in collect_layer_inversion_declarations_with_lexer(source, dialect) {
                 obligations.push(layer_inversion_obligation(
                     pass_id,
                     bundle.source_span_start,

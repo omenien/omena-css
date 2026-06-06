@@ -243,6 +243,57 @@ fn execution_runtime_flattens_layers_only_with_closed_bundle_context() {
     );
 }
 
+#[test]
+fn layer_flatten_inversion_obligation_tracks_co_matching_selector_pairs() {
+    let context = TransformExecutionContextV0 {
+        closed_style_world: true,
+        ..TransformExecutionContextV0::default()
+    };
+    let source = concat!(
+        "@layer utilities, base; ",
+        "@layer base { .btn { color: red; } } ",
+        "@layer utilities { button.btn { color: blue; } }"
+    );
+
+    let execution = execute_transform_passes_on_source_with_dialect_and_context(
+        source,
+        StyleDialect::Css,
+        &[TransformPassKind::LayerFlatten, TransformPassKind::PrintCss],
+        &context,
+    );
+    let inversion_obligations = execution
+        .cascade_proof_obligations
+        .obligations
+        .iter()
+        .filter(|obligation| {
+            obligation.proof_product == "omena-cascade.layer-flatten-inversion-proof"
+        })
+        .collect::<Vec<_>>();
+
+    assert_eq!(
+        inversion_obligations.len(),
+        1,
+        "co-matching cross-layer selector pair must produce one inversion obligation: {inversion_obligations:?}"
+    );
+    let canonical_terms = inversion_obligations[0]
+        .canonical_smt_input
+        .as_ref()
+        .map(|input| input.canonical_terms.as_slice())
+        .unwrap_or(&[]);
+    assert!(
+        canonical_terms
+            .iter()
+            .any(|term| term.contains(".btn|color@")),
+        "base selector declaration must reach the inversion obligation: {canonical_terms:?}"
+    );
+    assert!(
+        canonical_terms
+            .iter()
+            .any(|term| term.contains("button.btn|color@")),
+        "tag-qualified selector declaration must reach the inversion obligation: {canonical_terms:?}"
+    );
+}
+
 /// Mechanism-depth guard: the layer-flatten obligation's `accepted` flag is the
 /// SMT solver's sat verdict over the obligation's own canonical input, not an
 /// independent L1 flag.

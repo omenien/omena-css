@@ -2,7 +2,8 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use omena_cascade::{
     CascadeDeclaration, CascadeKey, CascadeLevel, CascadeOutcome, CascadeValue, LayerRank,
-    Specificity, cascade_margin_for_outcome, cascade_property, parse_simple_selector_signature,
+    SelectorMatchVerdict, Specificity, cascade_margin_for_outcome, cascade_property,
+    parse_simple_selector_signature, selector_co_match_verdict,
 };
 use omena_query_checker_orchestrator::{
     OmenaCheckerCascadeDeclarationInputV0, OmenaCheckerCascadeEvaluationV0,
@@ -634,61 +635,74 @@ fn query_smt_layer_inversion_obligations(
     declarations: &[OmenaCheckerCascadeDeclarationInputV0],
 ) -> Vec<(QuerySmtCascadeObligation, String)> {
     let mut obligations = Vec::new();
-    let mut by_selector_property =
-        BTreeMap::<(&str, &str), Vec<&OmenaCheckerCascadeDeclarationInputV0>>::new();
+    let mut by_property = BTreeMap::<&str, Vec<&OmenaCheckerCascadeDeclarationInputV0>>::new();
 
     for declaration in declarations {
         if declaration.layer_order.is_some() {
-            by_selector_property
-                .entry((declaration.selector.as_str(), declaration.property.as_str()))
+            by_property
+                .entry(declaration.property.as_str())
                 .or_default()
                 .push(declaration);
         }
     }
 
-    for ((selector, property), mut competing_declarations) in by_selector_property {
-        if competing_declarations.len() < 2 {
-            continue;
-        }
-        competing_declarations.sort_by_key(|declaration| declaration.source_order);
-        let anchor_declaration_id = competing_declarations
-            .iter()
-            .find_map(|higher_layer| {
-                let higher_rank = higher_layer.layer_order?;
-                competing_declarations
+    for (property, competing_declarations) in by_property {
+        for (left_index, left) in competing_declarations.iter().enumerate() {
+            for right in competing_declarations.iter().skip(left_index + 1) {
+                if left.layer_order == right.layer_order
+                    || selector_co_match_verdict(left.selector.as_str(), right.selector.as_str())
+                        == SelectorMatchVerdict::No
+                {
+                    continue;
+                }
+
+                let mut pair = vec![*left, *right];
+                pair.sort_by_key(|declaration| declaration.source_order);
+                let anchor_declaration_id = pair
                     .iter()
-                    .any(|lower_layer| {
-                        lower_layer.layer_order.is_some_and(|lower_rank| {
-                            higher_rank > lower_rank
-                                && lower_layer.source_order > higher_layer.source_order
+                    .find_map(|higher_layer| {
+                        let higher_rank = higher_layer.layer_order?;
+                        pair.iter()
+                            .any(|lower_layer| {
+                                lower_layer.layer_order.is_some_and(|lower_rank| {
+                                    higher_rank > lower_rank
+                                        && lower_layer.source_order > higher_layer.source_order
+                                })
+                            })
+                            .then(|| higher_layer.declaration_id.clone())
+                    })
+                    .unwrap_or_else(|| pair[0].declaration_id.clone());
+                let layer_declarations = pair
+                    .into_iter()
+                    .filter_map(|declaration| {
+                        let layer_rank = declaration.layer_order?;
+                        Some(OmenaCheckerSmtLayerInversionDeclarationInputV0 {
+                            declaration_id: declaration.declaration_id.clone(),
+                            layer_rank: i64::from(layer_rank),
+                            source_order: i64::from(declaration.source_order),
                         })
                     })
-                    .then(|| higher_layer.declaration_id.clone())
-            })
-            .unwrap_or_else(|| competing_declarations[0].declaration_id.clone());
-        let layer_declarations = competing_declarations
-            .into_iter()
-            .filter_map(|declaration| {
-                let layer_rank = declaration.layer_order?;
-                Some(OmenaCheckerSmtLayerInversionDeclarationInputV0 {
-                    declaration_id: declaration.declaration_id.clone(),
-                    layer_rank: i64::from(layer_rank),
-                    source_order: i64::from(declaration.source_order),
-                })
-            })
-            .collect::<Vec<_>>();
+                    .collect::<Vec<_>>();
 
-        obligations.push((
-            QuerySmtCascadeObligation::LayerInversion(
-                OmenaCheckerSmtLayerInversionObligationInputV0 {
-                    obligation_id: format!(
-                        "stylesheet://{selector}::{property}-layer-flatten-inversion"
+                let selector_pair = [left.selector.as_str(), right.selector.as_str()]
+                    .into_iter()
+                    .collect::<BTreeSet<_>>()
+                    .into_iter()
+                    .collect::<Vec<_>>()
+                    .join("~");
+                obligations.push((
+                    QuerySmtCascadeObligation::LayerInversion(
+                        OmenaCheckerSmtLayerInversionObligationInputV0 {
+                            obligation_id: format!(
+                                "stylesheet://{selector_pair}::{property}-layer-flatten-inversion"
+                            ),
+                            declarations: layer_declarations,
+                        },
                     ),
-                    declarations: layer_declarations,
-                },
-            ),
-            anchor_declaration_id,
-        ));
+                    anchor_declaration_id,
+                ));
+            }
+        }
     }
 
     obligations
@@ -1278,13 +1292,7 @@ fn query_runtime_selector_matches_anchor_classes(
     anchor_selector: &str,
     candidate_selector: &str,
 ) -> bool {
-    let anchor_classes = query_selector_class_names(anchor_selector);
-    let candidate_classes = query_selector_class_names(candidate_selector);
-    if anchor_classes.is_empty() {
-        anchor_selector == candidate_selector
-    } else {
-        anchor_classes == candidate_classes
-    }
+    selector_co_match_verdict(anchor_selector, candidate_selector) != SelectorMatchVerdict::No
 }
 
 fn query_runtime_candidate_pseudo_states(
@@ -2546,6 +2554,27 @@ mod tests {
             .collect()
     }
 
+    fn layered_declaration(
+        declaration_id: &str,
+        selector: &str,
+        property: &str,
+        source_order: u32,
+        layer_order: i32,
+    ) -> OmenaCheckerCascadeDeclarationInputV0 {
+        OmenaCheckerCascadeDeclarationInputV0 {
+            declaration_id: declaration_id.to_string(),
+            selector: selector.to_string(),
+            property: property.to_string(),
+            value: "red".to_string(),
+            source_order,
+            condition_context: Vec::new(),
+            layer_name: Some(format!("layer-{layer_order}")),
+            layer_order: Some(layer_order),
+            important: false,
+            var_references: Vec::new(),
+        }
+    }
+
     // ---- B1: comment poisoning ----------------------------------------
 
     #[test]
@@ -2680,6 +2709,67 @@ mod tests {
         let recorded = recorded(":is(.a, .b) { color: red; }");
         let selectors: Vec<_> = recorded.iter().map(|(selector, ..)| selector).collect();
         assert_eq!(selectors, vec![":is(.a, .b)"], "{recorded:?}");
+    }
+
+    #[test]
+    fn runtime_selector_filter_uses_conservative_co_match_axes() {
+        assert!(query_runtime_selector_matches_anchor_classes(
+            ".btn",
+            "button.btn"
+        ));
+        assert!(query_runtime_selector_matches_anchor_classes(
+            ".btn",
+            ".btn.active"
+        ));
+        assert!(query_runtime_selector_matches_anchor_classes(
+            ".btn:is(.active)",
+            ".btn .icon"
+        ));
+        assert!(!query_runtime_selector_matches_anchor_classes(
+            "div.btn", "span.btn"
+        ));
+        assert!(!query_runtime_selector_matches_anchor_classes(
+            "#save", "#cancel"
+        ));
+    }
+
+    #[test]
+    fn layer_inversion_obligations_group_property_equal_co_matching_selectors_pairwise() {
+        let declarations = vec![
+            layered_declaration("base", ".btn", "color", 20, 0),
+            layered_declaration("theme", "button.btn", "color", 10, 1),
+            layered_declaration("other-property", "button.btn", "background", 30, 2),
+        ];
+
+        let obligations = query_smt_layer_inversion_obligations(&declarations);
+
+        assert_eq!(obligations.len(), 1, "{obligations:?}");
+        let QuerySmtCascadeObligation::LayerInversion(obligation) = &obligations[0].0 else {
+            panic!("expected layer inversion obligation");
+        };
+        assert_eq!(
+            obligation
+                .declarations
+                .iter()
+                .map(|declaration| declaration.declaration_id.as_str())
+                .collect::<Vec<_>>(),
+            vec!["theme", "base"]
+        );
+    }
+
+    #[test]
+    fn layer_inversion_obligations_skip_disjoint_single_valued_axes() {
+        let declarations = vec![
+            layered_declaration("button", "button.btn", "color", 10, 0),
+            layered_declaration("anchor", "a.btn", "color", 20, 1),
+        ];
+
+        let obligations = query_smt_layer_inversion_obligations(&declarations);
+
+        assert!(
+            obligations.is_empty(),
+            "conflicting required tags must not compete: {obligations:?}"
+        );
     }
 
     // ---- WP7-b: de-noise rg-flow + categorical theory hints -----------

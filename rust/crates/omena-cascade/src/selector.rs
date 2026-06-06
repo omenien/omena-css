@@ -139,6 +139,43 @@ pub fn parse_simple_selector_signature(selector: &str) -> Option<SelectorSignatu
     parse_simple_selector_signature_inner(selector.trim())
 }
 
+pub fn selector_co_match_verdict(
+    left_selector: &str,
+    right_selector: &str,
+) -> SelectorMatchVerdict {
+    match (
+        parse_simple_selector_signature(left_selector),
+        parse_simple_selector_signature(right_selector),
+    ) {
+        (Some(left), Some(right)) => selector_signature_co_match_verdict(&left, &right),
+        _ => SelectorMatchVerdict::Maybe,
+    }
+}
+
+pub fn selector_signature_co_match_verdict(
+    left: &SelectorSignature,
+    right: &SelectorSignature,
+) -> SelectorMatchVerdict {
+    if left
+        .required_tag
+        .as_ref()
+        .zip(right.required_tag.as_ref())
+        .is_some_and(|(left, right)| left != right)
+    {
+        return SelectorMatchVerdict::No;
+    }
+    if left
+        .required_id
+        .as_ref()
+        .zip(right.required_id.as_ref())
+        .is_some_and(|(left, right)| left != right)
+    {
+        return SelectorMatchVerdict::No;
+    }
+
+    SelectorMatchVerdict::Yes
+}
+
 fn selector_match_branch_witness(
     selector: &str,
     element: &ElementSignature,
