@@ -3366,13 +3366,13 @@ fn sif_forward_visibility_allows(
     symbol_kind: &'static str,
     name: &str,
 ) -> bool {
-    let prefixed = apply_sass_forward_prefix(forward.prefix.as_deref(), name);
     let matches_filter = |filter_name: &String| {
-        filter_name == name
-            || filter_name == prefixed.as_str()
-            || filter_name.trim_start_matches('$') == name
-            || filter_name.trim_start_matches('$') == prefixed.as_str()
-            || (symbol_kind != "variable" && filter_name.trim_start_matches('@') == name)
+        sass_forward_filter_name_matches_symbol(
+            filter_name,
+            forward.prefix.as_deref(),
+            symbol_kind,
+            name,
+        )
     };
     if !forward.show.is_empty() {
         return forward.show.iter().any(matches_filter);
@@ -3385,19 +3385,31 @@ fn sass_forward_visibility_allows(
     symbol_kind: &'static str,
     name: &str,
 ) -> bool {
-    let prefixed = apply_sass_forward_prefix(edge.forward_prefix.as_deref(), name);
     let matches_filter = |filter_name: &String| {
-        filter_name == name
-            || filter_name == prefixed.as_str()
-            || filter_name.trim_start_matches('$') == name
-            || filter_name.trim_start_matches('$') == prefixed.as_str()
-            || (symbol_kind != "variable" && filter_name.trim_start_matches('@') == name)
+        sass_forward_filter_name_matches_symbol(
+            filter_name,
+            edge.forward_prefix.as_deref(),
+            symbol_kind,
+            name,
+        )
     };
     match edge.visibility_filter_kind {
         Some("show") => edge.visibility_filter_names.iter().any(matches_filter),
         Some("hide") => !edge.visibility_filter_names.iter().any(matches_filter),
         _ => true,
     }
+}
+
+fn sass_forward_filter_name_matches_symbol(
+    filter_name: &str,
+    prefix: Option<&str>,
+    symbol_kind: &'static str,
+    name: &str,
+) -> bool {
+    let exposed_name = apply_sass_forward_prefix(prefix, name);
+    filter_name == exposed_name
+        || filter_name.trim_start_matches('$') == exposed_name
+        || (symbol_kind != "variable" && filter_name.trim_start_matches('@') == exposed_name)
 }
 
 fn apply_sass_forward_prefix(prefix: Option<&str>, name: &str) -> String {

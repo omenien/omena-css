@@ -1582,7 +1582,8 @@ fn style_diagnostics_for_workspace_file_resolve_sass_module_graph_symbols()
         },
         OmenaQueryStyleSourceInputV0 {
             style_path: "/tmp/_tokens.scss".to_string(),
-            style_source: r#"@forward "./palette" as token-* show $brand, tone;"#.to_string(),
+            style_source: r#"@forward "./palette" as token-* show $token-brand, token-tone;"#
+                .to_string(),
         },
         OmenaQueryStyleSourceInputV0 {
             style_path: "/tmp/_palette.scss".to_string(),
@@ -1628,6 +1629,58 @@ fn style_diagnostics_for_workspace_file_resolve_sass_module_graph_symbols()
         .filter(|diagnostic| diagnostic.code == "deprecatedSassImport")
         .collect::<Vec<_>>();
     assert_eq!(import_hints.len(), 1);
+    Ok(())
+}
+
+#[test]
+fn style_diagnostics_respect_prefixed_forward_show_filters() -> Result<(), &'static str> {
+    let sources = vec![
+        OmenaQueryStyleSourceInputV0 {
+            style_path: "/tmp/App.module.scss".to_string(),
+            style_source: r#"@use "./tokens" as tokens;
+.button {
+  color: tokens.$token-brand;
+  @include tokens.token-tone;
+}"#
+            .to_string(),
+        },
+        OmenaQueryStyleSourceInputV0 {
+            style_path: "/tmp/_tokens.scss".to_string(),
+            style_source: r#"@forward "./palette" as token-* show $brand, tone;"#.to_string(),
+        },
+        OmenaQueryStyleSourceInputV0 {
+            style_path: "/tmp/_palette.scss".to_string(),
+            style_source: r#"$brand: red; @mixin tone { color: $brand; }"#.to_string(),
+        },
+    ];
+
+    let diagnostics = crate::summarize_omena_query_style_diagnostics_for_workspace_file(
+        "/tmp/App.module.scss",
+        sources.as_slice(),
+        &[],
+        &[],
+        None,
+    )
+    .ok_or("workspace diagnostics")?;
+    let missing_messages = diagnostics
+        .diagnostics
+        .iter()
+        .filter(|diagnostic| diagnostic.code == "missingSassSymbol")
+        .map(|diagnostic| diagnostic.message.as_str())
+        .collect::<Vec<_>>();
+
+    assert!(
+        missing_messages
+            .iter()
+            .any(|message| message.contains("$token-brand")),
+        "show filters on prefixed forwards must match the exposed name, not the source name: {missing_messages:?}"
+    );
+    assert!(
+        missing_messages
+            .iter()
+            .any(|message| message.contains("token-tone")),
+        "prefixed mixin references must remain missing when show lists the unprefixed source name: {missing_messages:?}"
+    );
     Ok(())
 }
 
