@@ -18,6 +18,7 @@ enum SourceLanguageParserKindV0 {
     SvelteComponentScript,
     AstroComponentScript,
     MarkdownFencedCode,
+    ServerTemplateMarkup,
 }
 
 impl SourceLanguageParserV0 for SourceLanguageParserKindV0 {
@@ -29,6 +30,7 @@ impl SourceLanguageParserV0 for SourceLanguageParserKindV0 {
             Self::SvelteComponentScript => "svelteComponentScriptProjectionParserV0",
             Self::AstroComponentScript => "astroComponentScriptProjectionParserV0",
             Self::MarkdownFencedCode => "markdownFencedCodeProjectionParserV0",
+            Self::ServerTemplateMarkup => "serverTemplateMarkupProjectionParserV0",
         }
     }
 
@@ -40,6 +42,7 @@ impl SourceLanguageParserV0 for SourceLanguageParserKindV0 {
             Self::SvelteComponentScript => "svelte",
             Self::AstroComponentScript => "astro",
             Self::MarkdownFencedCode => "markdown",
+            Self::ServerTemplateMarkup => "server-template",
         }
     }
 
@@ -51,6 +54,7 @@ impl SourceLanguageParserV0 for SourceLanguageParserKindV0 {
             Self::SvelteComponentScript => "bytePreservingScriptBlocks",
             Self::AstroComponentScript => "bytePreservingFrontmatterAndScriptBlocks",
             Self::MarkdownFencedCode => "bytePreservingFencedCodeBlocks",
+            Self::ServerTemplateMarkup => "bytePreservingTemplateMarkupScan",
         }
     }
 
@@ -63,7 +67,8 @@ impl SourceLanguageParserV0 for SourceLanguageParserKindV0 {
             | Self::HtmlScript
             | Self::SvelteComponentScript
             | Self::AstroComponentScript
-            | Self::MarkdownFencedCode => SourceType::tsx(),
+            | Self::MarkdownFencedCode
+            | Self::ServerTemplateMarkup => SourceType::tsx(),
         }
     }
 
@@ -89,6 +94,7 @@ impl SourceLanguageParserV0 for SourceLanguageParserKindV0 {
                 Cow::Owned(project_astro_component_to_typescript_source(source))
             }
             Self::MarkdownFencedCode => Cow::Owned(project_markdown_to_typescript_source(source)),
+            Self::ServerTemplateMarkup => Cow::Owned(String::new()),
         }
     }
 }
@@ -122,6 +128,7 @@ pub fn summarize_omena_bridge_source_language_parser_boundary_v0()
         SourceLanguageParserKindV0::SvelteComponentScript,
         SourceLanguageParserKindV0::AstroComponentScript,
         SourceLanguageParserKindV0::MarkdownFencedCode,
+        SourceLanguageParserKindV0::ServerTemplateMarkup,
     ]
     .into_iter()
     .map(|parser| SourceLanguageParserDescriptorV0 {
@@ -146,6 +153,7 @@ pub fn summarize_omena_bridge_source_language_parser_boundary_v0()
             "svelteComponentScriptProjection",
             "astroComponentScriptProjection",
             "markdownFencedCodeProjection",
+            "serverTemplateMarkupScan",
         ],
     }
 }
@@ -175,6 +183,33 @@ pub(crate) fn is_markdown_source(source_path: &str, source_language: Option<&str
         || source_path.ends_with(".mdx")
 }
 
+pub(crate) fn is_server_template_source(source_path: &str, source_language: Option<&str>) -> bool {
+    matches!(
+        source_language,
+        Some(
+            "liquid"
+                | "twig"
+                | "nunjucks"
+                | "handlebars"
+                | "erb"
+                | "ejs"
+                | "django-html"
+                | "jinja"
+                | "html-eex"
+                | "heex"
+        )
+    ) || source_path.ends_with(".liquid")
+        || source_path.ends_with(".twig")
+        || source_path.ends_with(".njk")
+        || source_path.ends_with(".nunjucks")
+        || source_path.ends_with(".hbs")
+        || source_path.ends_with(".handlebars")
+        || source_path.ends_with(".erb")
+        || source_path.ends_with(".ejs")
+        || source_path.ends_with(".html.eex")
+        || source_path.ends_with(".heex")
+}
+
 fn source_language_parser_for_path(
     source_path: &str,
     source_language: Option<&str>,
@@ -189,6 +224,8 @@ fn source_language_parser_for_path(
         SourceLanguageParserKindV0::AstroComponentScript
     } else if is_markdown_source(source_path, source_language) {
         SourceLanguageParserKindV0::MarkdownFencedCode
+    } else if is_server_template_source(source_path, source_language) {
+        SourceLanguageParserKindV0::ServerTemplateMarkup
     } else {
         SourceLanguageParserKindV0::OxcTsx
     }
@@ -471,7 +508,7 @@ mod tests {
             summary.product,
             "omena-bridge.source-language-parser-boundary"
         );
-        assert_eq!(summary.parser_count, 6);
+        assert_eq!(summary.parser_count, 7);
         assert!(!summary.external_parser_abi_stable);
         assert!(summary.parsers.iter().any(|parser| {
             parser.parser_id == "oxcTsxSourceLanguageParserV0" && parser.fixture_witnessed
@@ -490,6 +527,10 @@ mod tests {
         assert!(summary.parsers.iter().any(|parser| {
             parser.parser_id == "markdownFencedCodeProjectionParserV0"
                 && parser.language == "markdown"
+        }));
+        assert!(summary.parsers.iter().any(|parser| {
+            parser.parser_id == "serverTemplateMarkupProjectionParserV0"
+                && parser.language == "server-template"
         }));
     }
 }

@@ -52,6 +52,8 @@ mod source_language_astro;
 mod source_language_html;
 #[path = "tests/source_language_markdown.rs"]
 mod source_language_markdown;
+#[path = "tests/source_language_template.rs"]
+mod source_language_template;
 #[path = "tests/source_resolution.rs"]
 mod source_resolution;
 #[path = "tests/source_resolution_bundler.rs"]

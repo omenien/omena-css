@@ -70,6 +70,34 @@ fn collects_html_like_template_literal_class_attributes() {
 }
 
 #[test]
+fn collects_server_template_literal_class_attributes() {
+    let source = r#"{% if enabled %}
+<main class="root active">
+  <script>const ignored = "class=\"from-script\"";</script>
+  <style>.ignored::before { content: "class=\"from-style\""; }</style>
+</main>
+{% endif %}
+"#;
+    let index = summarize_omena_bridge_source_syntax_index_for_source_language(
+        "card.liquid",
+        source,
+        Some("liquid"),
+        Vec::new(),
+        Vec::new(),
+    );
+
+    let names = index
+        .selector_references
+        .iter()
+        .map(|reference| selector_reference_name(source, reference))
+        .collect::<Vec<_>>();
+
+    assert_eq!(names, vec!["root", "active"]);
+    assert!(!names.contains(&"from-script"));
+    assert!(!names.contains(&"from-style"));
+}
+
+#[test]
 fn collects_template_style_binding_class_expressions() {
     let source = r#"<template>
   <section class={styles.root}></section>

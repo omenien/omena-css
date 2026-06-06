@@ -14,8 +14,9 @@ use serde::Serialize;
 use std::collections::{BTreeMap, BTreeSet};
 
 use crate::source_language::{
-    is_astro_source, is_html_source, is_markdown_source, is_svelte_source, is_vue_source,
-    project_source_for_language, source_type_for_language, tag_content_ranges,
+    is_astro_source, is_html_source, is_markdown_source, is_server_template_source,
+    is_svelte_source, is_vue_source, project_source_for_language, source_type_for_language,
+    tag_content_ranges,
 };
 
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize)]
@@ -412,6 +413,7 @@ fn is_html_like_template_source(source_path: &str, source_language: Option<&str>
         || is_html_source(source_path, source_language)
         || is_svelte_source(source_path, source_language)
         || is_astro_source(source_path, source_language)
+        || is_server_template_source(source_path, source_language)
 }
 
 fn template_source_scan_scope(
