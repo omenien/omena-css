@@ -74,7 +74,11 @@
         "required": ["verifier"]
       },
       "then": {
-        "required": ["sigstoreVerificationPolicy", "certificateIssuer"]
+        "required": [
+          "sigstoreVerificationPolicy",
+          "certificateIssuer",
+          "verifiedTlogIntegratedTime"
+        ]
       }
     },
     {

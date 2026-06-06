@@ -6423,7 +6423,7 @@ export function App() {
                 reference,
                 verifier: "sigstore-verify".to_string(),
                 verified_trust_tier: omena_sif::OmenaSifTrustTierV1::T3,
-                verified_tlog_integrated_time: None,
+                verified_tlog_integrated_time: Some(1_764_787_003),
                 sigstore_verification_policy: Some(
                     omena_sif::OmenaSifSigstoreVerificationPolicyV1 {
                         trusted_root: "sigstore-production-trusted-root".to_string(),
@@ -7516,7 +7516,7 @@ export function App() {
                 reference,
                 verifier: "sigstore-verify".to_string(),
                 verified_trust_tier: omena_sif::OmenaSifTrustTierV1::T3,
-                verified_tlog_integrated_time: None,
+                verified_tlog_integrated_time: Some(1_764_787_003),
                 sigstore_verification_policy: Some(
                     omena_sif::OmenaSifSigstoreVerificationPolicyV1 {
                         trusted_root: "sigstore-production-trusted-root".to_string(),

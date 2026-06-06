@@ -86,6 +86,44 @@
       "type": "object",
       "additionalProperties": false,
       "required": ["kind", "reference", "verifier", "verifiedTrustTier"],
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "verifier": {
+                "const": "sigstore-verify"
+              }
+            },
+            "required": ["verifier"]
+          },
+          "then": {
+            "required": [
+              "sigstoreVerificationPolicy",
+              "certificateIssuer",
+              "verifiedTlogIntegratedTime"
+            ]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "verifiedTrustTier": {
+                "const": "t3"
+              }
+            },
+            "required": ["verifiedTrustTier"]
+          },
+          "then": {
+            "required": ["certificateIssuer", "certificateIdentity"],
+            "properties": {
+              "kind": {
+                "type": "string",
+                "pattern": "^omena-toolchain\\."
+              }
+            }
+          }
+        }
+      ],
       "properties": {
         "kind": {
           "type": "string",

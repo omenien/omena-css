@@ -483,6 +483,14 @@ fn validate_attestation_verification_for_trust_tier_v1(
             "attestation verification from sigstore-verify requires certificateIssuer".to_string(),
         );
     }
+    if verification.verifier == "sigstore-verify"
+        && verification.verified_tlog_integrated_time.is_none()
+    {
+        return Err(
+            "attestation verification from sigstore-verify requires verifiedTlogIntegratedTime"
+                .to_string(),
+        );
+    }
     if verification.verified_trust_tier == OmenaSifTrustTierV1::T3 {
         if !verification.kind.starts_with("omena-toolchain.") {
             return Err(format!(
@@ -1133,6 +1141,32 @@ mod tests {
                 "lock schema must preserve attestation verification field {field}"
             );
         }
+        let all_of = schema
+            .pointer("/$defs/attestationVerification/allOf")
+            .and_then(Value::as_array)
+            .ok_or_else(|| {
+                "lock schema must encode conditional verification requirements".to_string()
+            })?;
+        assert!(
+            all_of.iter().any(|rule| {
+                rule.pointer("/if/properties/verifier/const")
+                    .and_then(Value::as_str)
+                    == Some("sigstore-verify")
+                    && rule
+                        .pointer("/then/required")
+                        .and_then(Value::as_array)
+                        .is_some_and(|required| {
+                            required
+                                .contains(&Value::String("sigstoreVerificationPolicy".to_string()))
+                                && required
+                                    .contains(&Value::String("certificateIssuer".to_string()))
+                                && required.contains(&Value::String(
+                                    "verifiedTlogIntegratedTime".to_string(),
+                                ))
+                        })
+            }),
+            "lock schema sigstore-verify evidence must require policy, issuer, and log time"
+        );
         Ok(())
     }
 
@@ -1176,9 +1210,12 @@ mod tests {
                                 .contains(&Value::String("sigstoreVerificationPolicy".to_string()))
                                 && required
                                     .contains(&Value::String("certificateIssuer".to_string()))
+                                && required.contains(&Value::String(
+                                    "verifiedTlogIntegratedTime".to_string(),
+                                ))
                         })
             }),
-            "sigstore-verify reports must require policy and issuer"
+            "sigstore-verify reports must require policy, issuer, and log time"
         );
         assert!(
             all_of.iter().any(|rule| {
@@ -1904,6 +1941,7 @@ mod tests {
             certificate_chain: true,
             signed_certificate_timestamp: true,
         });
+        report.verified_tlog_integrated_time = Some(1_717_000_000);
         let sigstore_without_issuer =
             apply_omena_sif_attestation_verification_report_to_lock_entry_v1(&mut entry, &report);
         assert!(
@@ -1912,6 +1950,17 @@ mod tests {
                 Err(message) if message.contains("requires certificateIssuer")
             ),
             "{sigstore_without_issuer:?}"
+        );
+        report.certificate_issuer = Some("https://token.actions.githubusercontent.com".to_string());
+        report.verified_tlog_integrated_time = None;
+        let sigstore_without_log_time =
+            apply_omena_sif_attestation_verification_report_to_lock_entry_v1(&mut entry, &report);
+        assert!(
+            matches!(
+                sigstore_without_log_time.as_ref(),
+                Err(message) if message.contains("requires verifiedTlogIntegratedTime")
+            ),
+            "{sigstore_without_log_time:?}"
         );
         Ok(())
     }
