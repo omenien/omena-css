@@ -9329,9 +9329,9 @@ export function App() {
                 "https://slsa-framework.github.io/github-actions-buildtypes/workflow/v1"
                     .to_string(),
             ),
-            subject_names: vec!["pkg:npm/@omenacss/omena-css@1.0.0".to_string()],
+            subject_names: vec!["sif/design-system.sif.json".to_string()],
             subject_digests: vec![omena_sif::OmenaSifAttestationSubjectDigestV1 {
-                name: "pkg:npm/@omenacss/omena-css@1.0.0".to_string(),
+                name: "sif/design-system.sif.json".to_string(),
                 algorithm: "sha256".to_string(),
                 digest: "0123456789abcdef".to_string(),
             }],

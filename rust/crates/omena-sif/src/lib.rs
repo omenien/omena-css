@@ -379,6 +379,7 @@ pub fn apply_omena_sif_attestation_verification_report_to_lock_entry_v1(
         certificate_identity: report.certificate_identity.clone(),
         attestation_statement: report.attestation_statement.clone(),
     };
+    validate_attestation_verification_subject_for_lock_entry_v1(entry, &verification)?;
     let mut verifications = entry
         .attestation_verifications
         .iter()
@@ -696,6 +697,7 @@ pub fn validate_omena_sif_lock_entry_attestation_verification_v1(
     verification: &OmenaSifAttestationVerificationV1,
 ) -> Result<(), String> {
     validate_attestation_verification_for_trust_tier_v1(verification)?;
+    validate_attestation_verification_subject_for_lock_entry_v1(entry, verification)?;
     if lock_entry_has_compatible_attestation_reference_v1(
         entry,
         verification.kind.as_str(),
@@ -708,6 +710,46 @@ pub fn validate_omena_sif_lock_entry_attestation_verification_v1(
             verification.reference
         ))
     }
+}
+
+fn validate_attestation_verification_subject_for_lock_entry_v1(
+    entry: &OmenaLockSifEntryV1,
+    verification: &OmenaSifAttestationVerificationV1,
+) -> Result<(), String> {
+    if !attestation_verification_requires_sif_subject_binding_v1(verification) {
+        return Ok(());
+    }
+    let statement = verification.attestation_statement.as_ref().ok_or_else(|| {
+        "attestation verification tier t3 requires attestationStatement".to_string()
+    })?;
+    if attestation_statement_mentions_sif_path_v1(statement, entry.sif_path.as_str()) {
+        return Ok(());
+    }
+    Err(format!(
+        "attestation verification tier t3 provenance statement subject must include lock entry SIF path '{}'",
+        entry.sif_path
+    ))
+}
+
+fn attestation_verification_requires_sif_subject_binding_v1(
+    verification: &OmenaSifAttestationVerificationV1,
+) -> bool {
+    verification.verified_trust_tier == OmenaSifTrustTierV1::T3
+        && verification.kind.starts_with("omena-toolchain.")
+}
+
+fn attestation_statement_mentions_sif_path_v1(
+    statement: &OmenaSifAttestationStatementV1,
+    sif_path: &str,
+) -> bool {
+    statement
+        .subject_names
+        .iter()
+        .any(|subject| subject == sif_path)
+        || statement
+            .subject_digests
+            .iter()
+            .any(|digest| digest.name == sif_path)
 }
 
 fn lock_entry_has_compatible_attestation_reference_v1(
@@ -2220,7 +2262,7 @@ mod tests {
                 sigstore_verification_policy: Some(fixture_sigstore_verification_policy()),
                 certificate_issuer: Some("https://github.com/login/oauth".to_string()),
                 certificate_identity: Some("https://github.com/omenien/omena-css/.github/workflows/sif-keyless-attestation.yml@refs/heads/master".to_string()),
-                attestation_statement: Some(fixture_provenance_statement()),
+                attestation_statement: Some(fixture_sif_artifact_provenance_statement(&toolchain_entry)),
             });
         assert!(omena_lock_entry_has_verified_attestation_for_tier_v1(
             &toolchain_entry,
@@ -2460,6 +2502,61 @@ mod tests {
         );
         assert!(entry.attestation_verifications.is_empty());
         assert_eq!(entry.trust_tier, OmenaSifTrustTierV1::T1);
+        Ok(())
+    }
+
+    #[test]
+    fn verified_attestation_report_t3_requires_sif_statement_subject() -> Result<(), String> {
+        let sif = fixture_sif("pkg:design-system/_tokens.scss", b"$color: red !default;")
+            .map_err(|error| error.to_string())?;
+        let mut entry = build_omena_lock_sif_entry_v1("sif/design-system.sif.json", &sif)
+            .map_err(|error| error.to_string())?;
+        let provenance_reference = "sif/design-system.sigstore.json";
+        entry
+            .attestation_references
+            .push(OmenaSifAttestationReferenceV1 {
+                kind: "sigstore-bundle".to_string(),
+                reference: provenance_reference.to_string(),
+            });
+        let mut report = OmenaSifAttestationVerificationReportV1 {
+            schema_version: "1".to_string(),
+            product: "omena-sif.attestation-verification-report".to_string(),
+            verified: true,
+            kind: "omena-toolchain.sigstore".to_string(),
+            reference: provenance_reference.to_string(),
+            verifier: "offline-sigstore-verifier".to_string(),
+            verified_trust_tier: OmenaSifTrustTierV1::T3,
+            verified_tlog_integrated_time: Some(1_717_000_000),
+            sigstore_verification_policy: Some(fixture_sigstore_verification_policy()),
+            certificate_issuer: Some("https://github.com/login/oauth".to_string()),
+            certificate_identity: Some("https://github.com/omenien/omena-css/.github/workflows/sif-keyless-attestation.yml@refs/heads/master".to_string()),
+            attestation_statement: Some(fixture_provenance_statement()),
+            subject_canonical_url: entry.canonical_url.clone(),
+            subject_sif_hash: entry.sif_hash.clone(),
+        };
+
+        let unbound_subject =
+            apply_omena_sif_attestation_verification_report_to_lock_entry_v1(&mut entry, &report);
+        assert!(
+            matches!(
+                unbound_subject.as_ref(),
+                Err(message) if message.contains("subject must include lock entry SIF path")
+            ),
+            "{unbound_subject:?}"
+        );
+        assert!(entry.attestation_verifications.is_empty());
+        assert_eq!(entry.trust_tier, OmenaSifTrustTierV1::T1);
+
+        report.attestation_statement = Some(fixture_sif_artifact_provenance_statement(&entry));
+        let applied =
+            apply_omena_sif_attestation_verification_report_to_lock_entry_v1(&mut entry, &report)?;
+
+        assert!(applied);
+        assert_eq!(entry.trust_tier, OmenaSifTrustTierV1::T3);
+        assert!(omena_lock_entry_has_verified_attestation_for_tier_v1(
+            &entry,
+            OmenaSifTrustTierV1::T3
+        ));
         Ok(())
     }
 
@@ -2736,6 +2833,29 @@ mod tests {
             subject_names: vec!["pkg:npm/@omenacss/omena-css@1.0.0".to_string()],
             subject_digests: vec![OmenaSifAttestationSubjectDigestV1 {
                 name: "pkg:npm/@omenacss/omena-css@1.0.0".to_string(),
+                algorithm: "sha256".to_string(),
+                digest: "0123456789abcdef".to_string(),
+            }],
+        }
+    }
+
+    fn fixture_sif_artifact_provenance_statement(
+        entry: &OmenaLockSifEntryV1,
+    ) -> OmenaSifAttestationStatementV1 {
+        OmenaSifAttestationStatementV1 {
+            statement_type: Some(IN_TOTO_STATEMENT_TYPE_V1.to_string()),
+            predicate_type: Some(SLSA_PROVENANCE_PREDICATE_TYPE_V1.to_string()),
+            source_repository: Some("https://github.com/omenien/omena-css".to_string()),
+            source_ref: Some("refs/tags/v1.0.0".to_string()),
+            source_commit: Some("0123456789abcdef".to_string()),
+            builder_id: Some("https://github.com/actions/runner/github-hosted".to_string()),
+            build_type: Some(
+                "https://slsa-framework.github.io/github-actions-buildtypes/workflow/v1"
+                    .to_string(),
+            ),
+            subject_names: vec![entry.sif_path.clone()],
+            subject_digests: vec![OmenaSifAttestationSubjectDigestV1 {
+                name: entry.sif_path.clone(),
                 algorithm: "sha256".to_string(),
                 digest: "0123456789abcdef".to_string(),
             }],
