@@ -105,6 +105,20 @@
     {
       "if": {
         "properties": {
+          "kind": {
+            "type": "string",
+            "pattern": "^(npm-provenance|omena-toolchain)\\."
+          }
+        },
+        "required": ["kind"]
+      },
+      "then": {
+        "required": ["attestationStatement"]
+      }
+    },
+    {
+      "if": {
+        "properties": {
           "verifiedTrustTier": {
             "const": "t3"
           }
@@ -159,6 +173,7 @@
     "attestationStatement": {
       "type": "object",
       "additionalProperties": false,
+      "required": ["statementType", "predicateType", "subjectNames", "subjectDigests"],
       "properties": {
         "statementType": {
           "type": "string",

@@ -7757,6 +7757,7 @@ export function App() {
                 "certificateIssuer": "https://token.actions.githubusercontent.com",
                 "certificateIdentity": "https://github.com/omenien/omena-css/.github/workflows/release.yml@refs/tags/v1.0.0",
                 "attestationStatement": {
+                    "statementType": "https://in-toto.io/Statement/v1",
                     "predicateType": "https://slsa.dev/provenance/v1",
                     "sourceRepository": "https://github.com/omenien/omena-css",
                     "sourceRef": "refs/tags/v1.0.0",
@@ -7765,6 +7766,13 @@ export function App() {
                     "buildType": "https://slsa-framework.github.io/github-actions-buildtypes/workflow/v1",
                     "subjectNames": [
                         "pkg:npm/@omenacss/omena-css@1.0.0"
+                    ],
+                    "subjectDigests": [
+                        {
+                            "name": "pkg:npm/@omenacss/omena-css@1.0.0",
+                            "algorithm": "sha256",
+                            "digest": "0123456789abcdef"
+                        }
                     ]
                 },
                 "subjectCanonicalUrl": entry.canonical_url.as_str(),
@@ -8111,7 +8119,6 @@ export function App() {
         fs::create_dir_all(&sif_dir)
             .map_err(|error| format!("fixture SIF dir should be writable: {error}"))?;
         let sif_path = sif_dir.join("design-system.sif.json");
-        let metadata_path = workspace_path.join("npm-metadata.json");
         let artifact_path = workspace_path.join("cosign-v3-blob.txt");
         let bundle_path = workspace_path.join("cosign-v3-blob.sigstore.json");
         let lockfile_path = workspace_path.join("omena.lock");
@@ -8123,30 +8130,22 @@ export function App() {
                 .map_err(|error| format!("fixture SIF should serialize: {error}"))?,
         )
         .map_err(|error| format!("fixture SIF should be writable: {error}"))?;
-        let lock = omena_sif::OmenaLockV1::new(vec![
+        let mut entry =
             omena_sif::build_omena_lock_sif_entry_v1("sif/design-system.sif.json", &sif)
-                .map_err(|error| format!("fixture lock entry should build: {error}"))?,
-        ]);
+                .map_err(|error| format!("fixture lock entry should build: {error}"))?;
+        entry
+            .attestation_references
+            .push(omena_sif::OmenaSifAttestationReferenceV1 {
+                kind: "sigstore-bundle".to_string(),
+                reference: provenance_reference.to_string(),
+            });
+        let lock = omena_sif::OmenaLockV1::new(vec![entry]);
         fs::write(
             &lockfile_path,
             omena_sif::write_omena_lock_json_v1(&lock)
                 .map_err(|error| format!("fixture lock should serialize: {error}"))?,
         )
         .map_err(|error| format!("fixture lock should be writable: {error}"))?;
-        fs::write(
-            &metadata_path,
-            serde_json::json!({
-                "name": "design-system",
-                "version": "1.0.0",
-                "dist": {
-                    "attestations": {
-                        "provenance": provenance_reference
-                    }
-                }
-            })
-            .to_string(),
-        )
-        .map_err(|error| format!("fixture metadata should be writable: {error}"))?;
         fs::write(
             &artifact_path,
             include_bytes!("../fixtures/sigstore/cosign-v3-blob.txt"),
@@ -8158,20 +8157,6 @@ export function App() {
         )
         .map_err(|error| format!("fixture bundle should be writable: {error}"))?;
 
-        let fetch_result = run(Cli {
-            command: Command::Lock {
-                lockfile: PathBuf::from("omena.lock"),
-                json: false,
-                command: Some(LockCommand::FetchProvenance {
-                    package: "design-system".to_string(),
-                    lockfile: lockfile_path.clone(),
-                    npm_metadata: metadata_path,
-                    json: true,
-                }),
-            },
-        });
-        assert!(fetch_result.is_ok(), "{fetch_result:?}");
-
         let verify_attestation_result = run(Cli {
             command: Command::Lock {
                 lockfile: PathBuf::from("omena.lock"),
@@ -8182,7 +8167,7 @@ export function App() {
                     artifact: artifact_path,
                     bundle: bundle_path,
                     reference: provenance_reference.to_string(),
-                    kind: "npm-provenance.sigstore".to_string(),
+                    kind: "sigstore-bundle".to_string(),
                     verified_tier: "t2".to_string(),
                     identity: None,
                     issuer: "https://github.com/login/oauth".to_string(),
@@ -8213,7 +8198,7 @@ export function App() {
         assert_eq!(refreshed_lock.entries[0].attestation_verifications.len(), 1);
         assert_eq!(
             refreshed_lock.entries[0].attestation_verifications[0].kind,
-            "npm-provenance.sigstore"
+            "sigstore-bundle"
         );
         assert_eq!(
             refreshed_lock.entries[0].attestation_verifications[0].verifier,
@@ -8616,9 +8601,12 @@ export function App() {
                 ),
                 certificate_issuer: Some("https://github.com/login/oauth".to_string()),
                 certificate_identity: Some("w.vollprecht@gmail.com".to_string()),
-                attestation_statement: None,
+                attestation_statement: Some(cli_fixture_provenance_statement()),
             });
         let lock = omena_sif::OmenaLockV1::new(vec![entry]);
+        let report = omena_sif::summarize_omena_sif_provenance_advisory_v1(&lock);
+        assert_eq!(report.entries[0].attestation_verification_count, 1);
+        assert_eq!(report.entries[0].invalid_attestation_verification_count, 0);
         fs::write(
             &lockfile_path,
             omena_sif::write_omena_lock_json_v1(&lock)
@@ -9224,6 +9212,27 @@ export function App() {
             source_bytes,
         )
         .map_err(|error| format!("fixture SIF should build: {error}"))
+    }
+
+    fn cli_fixture_provenance_statement() -> omena_sif::OmenaSifAttestationStatementV1 {
+        omena_sif::OmenaSifAttestationStatementV1 {
+            statement_type: Some("https://in-toto.io/Statement/v1".to_string()),
+            predicate_type: Some("https://slsa.dev/provenance/v1".to_string()),
+            source_repository: Some("https://github.com/omenien/omena-css".to_string()),
+            source_ref: Some("refs/tags/v1.0.0".to_string()),
+            source_commit: Some("0123456789abcdef".to_string()),
+            builder_id: Some("https://github.com/actions/runner/github-hosted".to_string()),
+            build_type: Some(
+                "https://slsa-framework.github.io/github-actions-buildtypes/workflow/v1"
+                    .to_string(),
+            ),
+            subject_names: vec!["pkg:npm/@omenacss/omena-css@1.0.0".to_string()],
+            subject_digests: vec![omena_sif::OmenaSifAttestationSubjectDigestV1 {
+                name: "pkg:npm/@omenacss/omena-css@1.0.0".to_string(),
+                algorithm: "sha256".to_string(),
+                digest: "0123456789abcdef".to_string(),
+            }],
+        }
     }
 
     fn cleanup(path: &Path) {

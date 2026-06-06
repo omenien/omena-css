@@ -26,6 +26,9 @@ pub const OMENA_SIF_ATTESTATION_VERIFICATION_REPORT_V1_SCHEMA_JSON: &str =
 pub const OMENA_SIF_PROVENANCE_ADVISORY_REPORT_V0_SCHEMA_JSON: &str =
     include_str!("../schema/provenance-advisory-report-v0.schema.json");
 
+const IN_TOTO_STATEMENT_TYPE_V1: &str = "https://in-toto.io/Statement/v1";
+const SLSA_PROVENANCE_PREDICATE_TYPE_V1: &str = "https://slsa.dev/provenance/v1";
+
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 #[serde(transparent)]
 pub struct OmenaSifDigestV1(String);
@@ -599,7 +602,13 @@ fn validate_attestation_verification_for_trust_tier_v1(
                 .to_string(),
         );
     }
-    if let Some(statement) = verification.attestation_statement.as_ref() {
+    if attestation_verification_requires_provenance_statement_v1(verification) {
+        let statement = verification.attestation_statement.as_ref().ok_or_else(|| {
+            "attestation verification with provenance evidence requires attestationStatement"
+                .to_string()
+        })?;
+        validate_attestation_provenance_statement_claims_v1(statement)?;
+    } else if let Some(statement) = verification.attestation_statement.as_ref() {
         validate_attestation_statement_v1(statement)?;
     }
     Ok(())
@@ -611,6 +620,56 @@ fn attestation_verification_requires_sigstore_evidence_v1(
     verification.verifier == "sigstore-verify"
         || verification.kind == "sigstore-bundle"
         || verification.kind.ends_with(".sigstore")
+}
+
+fn attestation_verification_requires_provenance_statement_v1(
+    verification: &OmenaSifAttestationVerificationV1,
+) -> bool {
+    verification.kind.starts_with("npm-provenance.")
+        || verification.kind.starts_with("omena-toolchain.")
+}
+
+fn validate_attestation_provenance_statement_claims_v1(
+    statement: &OmenaSifAttestationStatementV1,
+) -> Result<(), String> {
+    validate_attestation_statement_v1(statement)?;
+    match statement.statement_type.as_deref() {
+        Some(IN_TOTO_STATEMENT_TYPE_V1) => {}
+        Some(statement_type) => {
+            return Err(format!(
+                "attestation verification provenance statementType must be {IN_TOTO_STATEMENT_TYPE_V1}, got {statement_type}"
+            ));
+        }
+        None => {
+            return Err(
+                "attestation verification provenance statement requires statementType".to_string(),
+            );
+        }
+    }
+    match statement.predicate_type.as_deref() {
+        Some(SLSA_PROVENANCE_PREDICATE_TYPE_V1) => {}
+        Some(predicate_type) => {
+            return Err(format!(
+                "attestation verification provenance predicateType must be {SLSA_PROVENANCE_PREDICATE_TYPE_V1}, got {predicate_type}"
+            ));
+        }
+        None => {
+            return Err(
+                "attestation verification provenance statement requires predicateType".to_string(),
+            );
+        }
+    }
+    if statement.subject_names.is_empty() {
+        return Err(
+            "attestation verification provenance statement requires subjectNames".to_string(),
+        );
+    }
+    if statement.subject_digests.is_empty() {
+        return Err(
+            "attestation verification provenance statement requires subjectDigests".to_string(),
+        );
+    }
+    Ok(())
 }
 
 pub fn validate_omena_sif_attestation_verification_v1(
@@ -1321,6 +1380,22 @@ mod tests {
             .pointer(properties_pointer)
             .and_then(Value::as_object)
             .ok_or_else(|| format!("{context} must define attestation statement properties"))?;
+        let required = schema
+            .pointer(properties_pointer.trim_end_matches("/properties"))
+            .and_then(|statement| statement.get("required"))
+            .and_then(Value::as_array)
+            .ok_or_else(|| format!("{context} must define attestation statement requirements"))?;
+        for field in [
+            "statementType",
+            "predicateType",
+            "subjectNames",
+            "subjectDigests",
+        ] {
+            assert!(
+                required.contains(&Value::String(field.to_string())),
+                "{context} attestation statement must require {field}"
+            );
+        }
         let statement_type = properties
             .get("statementType")
             .ok_or_else(|| format!("{context} must preserve statementType"))?;
@@ -2022,6 +2097,12 @@ mod tests {
             Some(fixture_sigstore_verification_policy());
         entry.attestation_verifications[0].certificate_issuer =
             Some("https://token.actions.githubusercontent.com".to_string());
+        assert!(!omena_lock_entry_has_verified_attestation_for_tier_v1(
+            &entry,
+            OmenaSifTrustTierV1::T2
+        ));
+        entry.attestation_verifications[0].attestation_statement =
+            Some(fixture_provenance_statement());
         assert!(omena_lock_entry_has_verified_attestation_for_tier_v1(
             &entry,
             OmenaSifTrustTierV1::T2
@@ -2071,6 +2152,12 @@ mod tests {
         ));
         sigstore_entry.attestation_verifications[0].certificate_issuer =
             Some("https://github.com/login/oauth".to_string());
+        assert!(!omena_lock_entry_has_verified_attestation_for_tier_v1(
+            &sigstore_entry,
+            OmenaSifTrustTierV1::T2
+        ));
+        sigstore_entry.attestation_verifications[0].attestation_statement =
+            Some(fixture_provenance_statement());
         assert!(omena_lock_entry_has_verified_attestation_for_tier_v1(
             &sigstore_entry,
             OmenaSifTrustTierV1::T2
@@ -2115,7 +2202,7 @@ mod tests {
                 sigstore_verification_policy: Some(fixture_sigstore_verification_policy()),
                 certificate_issuer: Some("https://github.com/login/oauth".to_string()),
                 certificate_identity: Some("https://github.com/omenien/omena-css/.github/workflows/sif-keyless-attestation.yml@refs/heads/master".to_string()),
-                attestation_statement: None,
+                attestation_statement: Some(fixture_provenance_statement()),
             });
         assert!(omena_lock_entry_has_verified_attestation_for_tier_v1(
             &toolchain_entry,
@@ -2150,6 +2237,7 @@ mod tests {
                 "verifiedTlogIntegratedTime": 1717000000,
                 "sigstoreVerificationPolicy": fixture_sigstore_verification_policy_json(),
                 "certificateIssuer": "https://token.actions.githubusercontent.com",
+                "attestationStatement": fixture_provenance_statement_json(),
                 "subjectCanonicalUrl": entry.canonical_url.as_str(),
                 "subjectSifHash": entry.sif_hash.as_str()
             })
@@ -2198,6 +2286,7 @@ mod tests {
                 "verifiedTlogIntegratedTime": 1717000000,
                 "sigstoreVerificationPolicy": fixture_sigstore_verification_policy_json(),
                 "certificateIssuer": "https://token.actions.githubusercontent.com",
+                "attestationStatement": fixture_provenance_statement_json(),
                 "subjectCanonicalUrl": entry.canonical_url.as_str(),
                 "subjectSifHash": entry.sif_hash.as_str()
             })
@@ -2333,6 +2422,7 @@ mod tests {
                 "sigstoreVerificationPolicy": fixture_sigstore_verification_policy_json(),
                 "certificateIssuer": "https://github.com/login/oauth",
                 "certificateIdentity": "https://github.com/omenien/omena-css/.github/workflows/sif-keyless-attestation.yml@refs/heads/master",
+                "attestationStatement": fixture_provenance_statement_json(),
                 "subjectCanonicalUrl": entry.canonical_url.as_str(),
                 "subjectSifHash": entry.sif_hash.as_str()
             })
@@ -2381,7 +2471,7 @@ mod tests {
             sigstore_verification_policy: Some(fixture_sigstore_verification_policy()),
             certificate_issuer: Some("https://token.actions.githubusercontent.com".to_string()),
             certificate_identity: None,
-            attestation_statement: None,
+            attestation_statement: Some(fixture_provenance_statement()),
             subject_canonical_url: entry.canonical_url.clone(),
             subject_sif_hash: changed_entry.sif_hash,
         };
@@ -2428,7 +2518,7 @@ mod tests {
                 "https://github.com/omenien/omena-css/.github/workflows/release.yml@refs/tags/v1.0.0"
                     .to_string(),
             ),
-            attestation_statement: None,
+            attestation_statement: Some(fixture_provenance_statement()),
             subject_canonical_url: entry.canonical_url.clone(),
             subject_sif_hash: entry.sif_hash.clone(),
         };
@@ -2502,6 +2592,17 @@ mod tests {
                 Err(message) if message.contains("requires verifiedTlogIntegratedTime")
             ),
             "{sigstore_without_log_time:?}"
+        );
+        report.verified_tlog_integrated_time = Some(1_717_000_000);
+        report.attestation_statement = None;
+        let provenance_without_statement =
+            apply_omena_sif_attestation_verification_report_to_lock_entry_v1(&mut entry, &report);
+        assert!(
+            matches!(
+                provenance_without_statement.as_ref(),
+                Err(message) if message.contains("requires attestationStatement")
+            ),
+            "{provenance_without_statement:?}"
         );
         Ok(())
     }
@@ -2584,6 +2685,47 @@ mod tests {
             "timestamp": true,
             "certificateChain": true,
             "signedCertificateTimestamp": true
+        })
+    }
+
+    fn fixture_provenance_statement() -> OmenaSifAttestationStatementV1 {
+        OmenaSifAttestationStatementV1 {
+            statement_type: Some(IN_TOTO_STATEMENT_TYPE_V1.to_string()),
+            predicate_type: Some(SLSA_PROVENANCE_PREDICATE_TYPE_V1.to_string()),
+            source_repository: Some("https://github.com/omenien/omena-css".to_string()),
+            source_ref: Some("refs/tags/v1.0.0".to_string()),
+            source_commit: Some("0123456789abcdef".to_string()),
+            builder_id: Some("https://github.com/actions/runner/github-hosted".to_string()),
+            build_type: Some(
+                "https://slsa-framework.github.io/github-actions-buildtypes/workflow/v1"
+                    .to_string(),
+            ),
+            subject_names: vec!["pkg:npm/@omenacss/omena-css@1.0.0".to_string()],
+            subject_digests: vec![OmenaSifAttestationSubjectDigestV1 {
+                name: "pkg:npm/@omenacss/omena-css@1.0.0".to_string(),
+                algorithm: "sha256".to_string(),
+                digest: "0123456789abcdef".to_string(),
+            }],
+        }
+    }
+
+    fn fixture_provenance_statement_json() -> Value {
+        json!({
+            "statementType": IN_TOTO_STATEMENT_TYPE_V1,
+            "predicateType": SLSA_PROVENANCE_PREDICATE_TYPE_V1,
+            "sourceRepository": "https://github.com/omenien/omena-css",
+            "sourceRef": "refs/tags/v1.0.0",
+            "sourceCommit": "0123456789abcdef",
+            "builderId": "https://github.com/actions/runner/github-hosted",
+            "buildType": "https://slsa-framework.github.io/github-actions-buildtypes/workflow/v1",
+            "subjectNames": ["pkg:npm/@omenacss/omena-css@1.0.0"],
+            "subjectDigests": [
+                {
+                    "name": "pkg:npm/@omenacss/omena-css@1.0.0",
+                    "algorithm": "sha256",
+                    "digest": "0123456789abcdef"
+                }
+            ]
         })
     }
 

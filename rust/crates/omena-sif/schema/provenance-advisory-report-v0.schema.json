@@ -69,6 +69,7 @@
     "attestationStatement": {
       "type": "object",
       "additionalProperties": false,
+      "required": ["statementType", "predicateType", "subjectNames", "subjectDigests"],
       "properties": {
         "statementType": {
           "type": "string",
@@ -133,6 +134,22 @@
       "type": "object",
       "additionalProperties": false,
       "required": ["kind", "reference", "verifier", "verifiedTrustTier"],
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "kind": {
+                "type": "string",
+                "pattern": "^(npm-provenance|omena-toolchain)\\."
+              }
+            },
+            "required": ["kind"]
+          },
+          "then": {
+            "required": ["attestationStatement"]
+          }
+        }
+      ],
       "properties": {
         "kind": {
           "type": "string",
