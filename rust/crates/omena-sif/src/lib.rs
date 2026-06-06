@@ -635,9 +635,13 @@ pub struct OmenaSifProvenanceAdvisoryEntryV1 {
     pub canonical_url: String,
     pub trust_tier: OmenaSifTrustTierV1,
     pub attestation_reference_count: usize,
+    pub recorded_attestation_verification_count: usize,
     pub attestation_verification_count: usize,
+    pub invalid_attestation_verification_count: usize,
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub attestation_verification_policies: Vec<OmenaSifAttestationVerificationPolicyV1>,
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub invalid_attestation_verification_issues: Vec<OmenaSifInvalidAttestationVerificationIssueV1>,
     pub advisory_message: &'static str,
 }
 
@@ -656,6 +660,16 @@ pub struct OmenaSifAttestationVerificationPolicyV1 {
     pub certificate_issuer: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub certificate_identity: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct OmenaSifInvalidAttestationVerificationIssueV1 {
+    pub kind: String,
+    pub reference: String,
+    pub verifier: String,
+    pub verified_trust_tier: OmenaSifTrustTierV1,
+    pub reason: String,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -767,54 +781,78 @@ pub fn build_omena_lock_sif_entry_v1(
 pub fn summarize_omena_sif_provenance_advisory_v1(
     lock: &OmenaLockV1,
 ) -> OmenaSifProvenanceAdvisoryReportV1 {
+    let entries: Vec<_> = lock
+        .entries
+        .iter()
+        .map(summarize_omena_sif_provenance_advisory_entry)
+        .collect();
     OmenaSifProvenanceAdvisoryReportV1 {
         schema_version: "0",
         product: "omena-sif.provenance-advisory",
-        enforcement: provenance_advisory_enforcement(lock),
+        enforcement: provenance_advisory_enforcement(&entries),
         network_access: "none",
-        entries: lock
-            .entries
-            .iter()
-            .map(|entry| OmenaSifProvenanceAdvisoryEntryV1 {
-                canonical_url: entry.canonical_url.clone(),
-                trust_tier: entry.trust_tier,
-                attestation_reference_count: entry.attestation_references.len(),
-                attestation_verification_count: entry.attestation_verifications.len(),
-                attestation_verification_policies: summarize_attestation_verification_policies(
-                    entry,
-                ),
-                advisory_message: provenance_advisory_message(entry),
-            })
-            .collect(),
+        entries,
     }
 }
 
-fn summarize_attestation_verification_policies(
+fn summarize_omena_sif_provenance_advisory_entry(
     entry: &OmenaLockSifEntryV1,
-) -> Vec<OmenaSifAttestationVerificationPolicyV1> {
-    entry
-        .attestation_verifications
-        .iter()
-        .map(|verification| OmenaSifAttestationVerificationPolicyV1 {
-            kind: verification.kind.clone(),
-            reference: verification.reference.clone(),
-            verifier: verification.verifier.clone(),
-            verified_trust_tier: verification.verified_trust_tier,
-            verified_tlog_integrated_time: verification.verified_tlog_integrated_time,
-            sigstore_verification_policy: verification.sigstore_verification_policy.clone(),
-            certificate_issuer: verification.certificate_issuer.clone(),
-            certificate_identity: verification.certificate_identity.clone(),
-        })
-        .collect()
+) -> OmenaSifProvenanceAdvisoryEntryV1 {
+    let mut attestation_verification_policies = Vec::new();
+    let mut invalid_attestation_verification_issues = Vec::new();
+    for verification in &entry.attestation_verifications {
+        match validate_omena_sif_lock_entry_attestation_verification_v1(entry, verification) {
+            Ok(()) => {
+                attestation_verification_policies.push(OmenaSifAttestationVerificationPolicyV1 {
+                    kind: verification.kind.clone(),
+                    reference: verification.reference.clone(),
+                    verifier: verification.verifier.clone(),
+                    verified_trust_tier: verification.verified_trust_tier,
+                    verified_tlog_integrated_time: verification.verified_tlog_integrated_time,
+                    sigstore_verification_policy: verification.sigstore_verification_policy.clone(),
+                    certificate_issuer: verification.certificate_issuer.clone(),
+                    certificate_identity: verification.certificate_identity.clone(),
+                });
+            }
+            Err(reason) => invalid_attestation_verification_issues.push(
+                OmenaSifInvalidAttestationVerificationIssueV1 {
+                    kind: verification.kind.clone(),
+                    reference: verification.reference.clone(),
+                    verifier: verification.verifier.clone(),
+                    verified_trust_tier: verification.verified_trust_tier,
+                    reason,
+                },
+            ),
+        }
+    }
+    OmenaSifProvenanceAdvisoryEntryV1 {
+        canonical_url: entry.canonical_url.clone(),
+        trust_tier: entry.trust_tier,
+        attestation_reference_count: entry.attestation_references.len(),
+        recorded_attestation_verification_count: entry.attestation_verifications.len(),
+        attestation_verification_count: attestation_verification_policies.len(),
+        invalid_attestation_verification_count: invalid_attestation_verification_issues.len(),
+        advisory_message: provenance_advisory_message(
+            entry,
+            attestation_verification_policies.len(),
+            invalid_attestation_verification_issues.len(),
+        ),
+        attestation_verification_policies,
+        invalid_attestation_verification_issues,
+    }
 }
 
-fn provenance_advisory_enforcement(lock: &OmenaLockV1) -> &'static str {
-    if lock
-        .entries
+fn provenance_advisory_enforcement(entries: &[OmenaSifProvenanceAdvisoryEntryV1]) -> &'static str {
+    if entries
         .iter()
-        .any(|entry| !entry.attestation_verifications.is_empty())
+        .any(|entry| entry.attestation_verification_count > 0)
     {
         "lockVerifyTier2Tier3WhenRequested"
+    } else if entries
+        .iter()
+        .any(|entry| entry.invalid_attestation_verification_count > 0)
+    {
+        "invalidRecordedAttestationEvidence"
     } else {
         "referenceOnlyAdvisory"
     }
@@ -1034,19 +1072,28 @@ fn default_omena_sif_trust_tier_v1() -> OmenaSifTrustTierV1 {
     OmenaSifTrustTierV1::T1
 }
 
-fn provenance_advisory_message(entry: &OmenaLockSifEntryV1) -> &'static str {
+fn provenance_advisory_message(
+    entry: &OmenaLockSifEntryV1,
+    valid_attestation_verification_count: usize,
+    invalid_attestation_verification_count: usize,
+) -> &'static str {
     match entry.trust_tier {
         OmenaSifTrustTierV1::T0 => {
             "No enforced provenance verification is available for this SIF entry."
         }
         OmenaSifTrustTierV1::T1 => "T1 local lock verification is the enforced trust path.",
         OmenaSifTrustTierV1::T2 | OmenaSifTrustTierV1::T3
-            if entry.attestation_verifications.is_empty() =>
+            if valid_attestation_verification_count > 0 =>
         {
-            "T2/T3 trust tiers require verified attestation evidence; references alone are advisory."
+            "Verified attestation evidence is recorded for this trust tier."
+        }
+        OmenaSifTrustTierV1::T2 | OmenaSifTrustTierV1::T3
+            if invalid_attestation_verification_count > 0 =>
+        {
+            "Recorded attestation evidence is invalid; run omena lock verify --tier t2|t3 for details."
         }
         OmenaSifTrustTierV1::T2 | OmenaSifTrustTierV1::T3 => {
-            "Verified attestation evidence is recorded for this trust tier."
+            "T2/T3 trust tiers require verified attestation evidence; references alone are advisory."
         }
     }
 }
@@ -1610,6 +1657,60 @@ mod tests {
         assert_eq!(
             report.entries[0].advisory_message,
             "Verified attestation evidence is recorded for this trust tier."
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn provenance_advisory_report_marks_invalid_evidence_as_non_enforceable()
+    -> Result<(), serde_json::Error> {
+        let sif = fixture_sif("pkg:design-system/_tokens.scss", b"$color: red !default;")?;
+        let mut entry = build_omena_lock_sif_entry_v1("sif/design-system.sif.json", &sif)?;
+        entry.trust_tier = OmenaSifTrustTierV1::T3;
+        let attestation_reference = "sif/design-system.sigstore.json".to_string();
+        entry
+            .attestation_references
+            .push(OmenaSifAttestationReferenceV1 {
+                kind: "sigstore-bundle".to_string(),
+                reference: attestation_reference.clone(),
+            });
+        entry
+            .attestation_verifications
+            .push(OmenaSifAttestationVerificationV1 {
+                kind: "omena-toolchain.sigstore".to_string(),
+                reference: attestation_reference,
+                verifier: "sigstore-verify".to_string(),
+                verified_trust_tier: OmenaSifTrustTierV1::T3,
+                verified_tlog_integrated_time: Some(1_717_000_000),
+                sigstore_verification_policy: Some(fixture_sigstore_verification_policy()),
+                certificate_issuer: Some("https://github.com/login/oauth".to_string()),
+                certificate_identity: None,
+            });
+        let lock = OmenaLockV1::new(vec![entry]);
+
+        let report = summarize_omena_sif_provenance_advisory_v1(&lock);
+
+        assert_eq!(report.enforcement, "invalidRecordedAttestationEvidence");
+        assert_eq!(report.entries[0].recorded_attestation_verification_count, 1);
+        assert_eq!(report.entries[0].attestation_verification_count, 0);
+        assert_eq!(report.entries[0].invalid_attestation_verification_count, 1);
+        assert!(
+            report.entries[0]
+                .attestation_verification_policies
+                .is_empty()
+        );
+        assert_eq!(
+            report.entries[0].invalid_attestation_verification_issues[0].verified_trust_tier,
+            OmenaSifTrustTierV1::T3
+        );
+        assert!(
+            report.entries[0].invalid_attestation_verification_issues[0]
+                .reason
+                .contains("requires certificateIdentity")
+        );
+        assert_eq!(
+            report.entries[0].advisory_message,
+            "Recorded attestation evidence is invalid; run omena lock verify --tier t2|t3 for details."
         );
         Ok(())
     }

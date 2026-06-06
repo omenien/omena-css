@@ -2179,6 +2179,11 @@ fn provenance_status(lockfile: PathBuf, json: bool) -> Result<(), String> {
                     "SIF provenance enforcement is available through `omena lock verify --tier t2|t3`."
                 );
             }
+            "invalidRecordedAttestationEvidence" => {
+                println!(
+                    "SIF provenance has invalid recorded attestation evidence; run `omena lock verify --tier t2|t3`."
+                );
+            }
             _ => {
                 println!(
                     "SIF provenance references are advisory until verified attestation evidence is recorded."
@@ -2192,11 +2197,13 @@ fn provenance_status(lockfile: PathBuf, json: bool) -> Result<(), String> {
         );
         for entry in &report.entries {
             println!(
-                "{} {} attestations={} verifiedAttestations={}: {}",
+                "{} {} attestations={} recordedVerifications={} verifiedAttestations={} invalidAttestations={}: {}",
                 entry.trust_tier.as_str(),
                 entry.canonical_url,
                 entry.attestation_reference_count,
+                entry.recorded_attestation_verification_count,
                 entry.attestation_verification_count,
+                entry.invalid_attestation_verification_count,
                 entry.advisory_message
             );
             for policy in &entry.attestation_verification_policies {
@@ -2212,6 +2219,15 @@ fn provenance_status(lockfile: PathBuf, json: bool) -> Result<(), String> {
                         .certificate_identity
                         .as_deref()
                         .unwrap_or("unspecified")
+                );
+            }
+            for issue in &entry.invalid_attestation_verification_issues {
+                println!(
+                    "  invalid attestation {} kind={} verifier={}: {}",
+                    issue.verified_trust_tier.as_str(),
+                    issue.kind,
+                    issue.verifier,
+                    issue.reason
                 );
             }
         }
