@@ -121,6 +121,29 @@ pub(super) fn apply_omena_query_style_diagnostic_suppressions(
     source: &str,
     summary: &mut OmenaQueryStyleDiagnosticsForFileV0,
 ) {
+    apply_omena_query_style_diagnostic_suppressions_with_mode(
+        source,
+        summary,
+        OmenaQueryDiagnosticSuppressionModeV0::Apply,
+    );
+}
+
+pub(super) fn report_omena_query_style_diagnostic_suppressions(
+    source: &str,
+    summary: &mut OmenaQueryStyleDiagnosticsForFileV0,
+) {
+    apply_omena_query_style_diagnostic_suppressions_with_mode(
+        source,
+        summary,
+        OmenaQueryDiagnosticSuppressionModeV0::ReportOnly,
+    );
+}
+
+fn apply_omena_query_style_diagnostic_suppressions_with_mode(
+    source: &str,
+    summary: &mut OmenaQueryStyleDiagnosticsForFileV0,
+    mode: OmenaQueryDiagnosticSuppressionModeV0,
+) {
     let original_diagnostic_count = summary.diagnostics.len();
     let directives = parse_omena_query_diagnostic_directives(source);
     push_omena_query_ready_surface(&mut summary.ready_surfaces, "diagnosticSuppressionSyntax");
@@ -150,11 +173,17 @@ pub(super) fn apply_omena_query_style_diagnostic_suppressions(
         }
     }
 
-    summary
+    let suppressible_diagnostic_count = summary
         .diagnostics
-        .retain(|diagnostic| !diagnostic_is_suppressed(diagnostic, directives.as_slice()));
-    let suppressed_diagnostic_count =
-        original_diagnostic_count.saturating_sub(summary.diagnostics.len());
+        .iter()
+        .filter(|diagnostic| diagnostic_is_suppressed(diagnostic, directives.as_slice()))
+        .count();
+    if mode.suppresses_diagnostics() {
+        summary
+            .diagnostics
+            .retain(|diagnostic| !diagnostic_is_suppressed(diagnostic, directives.as_slice()));
+    }
+    let suppressed_diagnostic_count = suppressible_diagnostic_count;
 
     let mut unused_expect_error_count = 0usize;
     for (directive_index, directive) in directives.iter().enumerate() {

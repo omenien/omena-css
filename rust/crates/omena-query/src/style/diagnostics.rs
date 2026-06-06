@@ -23,6 +23,7 @@ use super::cascade_checker::summarize_query_cascade_checker_diagnostics_with_dee
 use super::diagnostic_suppressions::OmenaStrictnessLevelV0;
 use super::diagnostic_suppressions::apply_omena_query_style_diagnostic_suppressions;
 use super::diagnostic_suppressions::parse_omena_query_style_strictness_level;
+use super::diagnostic_suppressions::report_omena_query_style_diagnostic_suppressions;
 use super::parser_facade::collect_omena_query_omena_parser_style_facts_raw;
 use super::*;
 
@@ -1502,7 +1503,30 @@ pub fn summarize_omena_query_style_diagnostics_for_workspace_file_with_external_
     external_mode: OmenaQueryExternalModuleModeV0,
     external_sifs: &[OmenaQueryExternalSifInputV0],
 ) -> Option<OmenaQueryStyleDiagnosticsForFileV0> {
-    summarize_omena_query_style_diagnostics_for_workspace_file_with_external_mode_and_sifs_and_resolution_inputs(
+    summarize_omena_query_style_diagnostics_for_workspace_file_with_external_mode_and_sifs_and_suppression_mode(
+        target_style_path,
+        style_sources,
+        source_documents,
+        package_manifests,
+        classname_transform,
+        external_mode,
+        external_sifs,
+        OmenaQueryDiagnosticSuppressionModeV0::Apply,
+    )
+}
+
+#[allow(clippy::too_many_arguments)]
+pub fn summarize_omena_query_style_diagnostics_for_workspace_file_with_external_mode_and_sifs_and_suppression_mode(
+    target_style_path: &str,
+    style_sources: &[OmenaQueryStyleSourceInputV0],
+    source_documents: &[OmenaQuerySourceDocumentInputV0],
+    package_manifests: &[OmenaQueryStylePackageManifestV0],
+    classname_transform: Option<&str>,
+    external_mode: OmenaQueryExternalModuleModeV0,
+    external_sifs: &[OmenaQueryExternalSifInputV0],
+    suppression_mode: OmenaQueryDiagnosticSuppressionModeV0,
+) -> Option<OmenaQueryStyleDiagnosticsForFileV0> {
+    summarize_omena_query_style_diagnostics_for_workspace_file_with_external_mode_and_sifs_and_resolution_inputs_and_suppression_mode(
         target_style_path,
         style_sources,
         source_documents,
@@ -1514,6 +1538,7 @@ pub fn summarize_omena_query_style_diagnostics_for_workspace_file_with_external_
             package_manifests: package_manifests.to_vec(),
             ..Default::default()
         },
+        suppression_mode,
     )
 }
 
@@ -1533,6 +1558,31 @@ pub fn summarize_omena_query_style_diagnostics_for_workspace_file_with_external_
     external_mode: OmenaQueryExternalModuleModeV0,
     external_sifs: &[OmenaQueryExternalSifInputV0],
     resolution_inputs: &OmenaQueryStyleResolutionInputsV0,
+) -> Option<OmenaQueryStyleDiagnosticsForFileV0> {
+    summarize_omena_query_style_diagnostics_for_workspace_file_with_external_mode_and_sifs_and_resolution_inputs_and_suppression_mode(
+        target_style_path,
+        style_sources,
+        source_documents,
+        package_manifests,
+        classname_transform,
+        external_mode,
+        external_sifs,
+        resolution_inputs,
+        OmenaQueryDiagnosticSuppressionModeV0::Apply,
+    )
+}
+
+#[allow(clippy::too_many_arguments)]
+pub fn summarize_omena_query_style_diagnostics_for_workspace_file_with_external_mode_and_sifs_and_resolution_inputs_and_suppression_mode(
+    target_style_path: &str,
+    style_sources: &[OmenaQueryStyleSourceInputV0],
+    source_documents: &[OmenaQuerySourceDocumentInputV0],
+    package_manifests: &[OmenaQueryStylePackageManifestV0],
+    classname_transform: Option<&str>,
+    external_mode: OmenaQueryExternalModuleModeV0,
+    external_sifs: &[OmenaQueryExternalSifInputV0],
+    resolution_inputs: &OmenaQueryStyleResolutionInputsV0,
+    suppression_mode: OmenaQueryDiagnosticSuppressionModeV0,
 ) -> Option<OmenaQueryStyleDiagnosticsForFileV0> {
     let target = style_sources
         .iter()
@@ -1715,7 +1765,14 @@ pub fn summarize_omena_query_style_diagnostics_for_workspace_file_with_external_
     );
     apply_omena_query_checker_product_gate_to_style_diagnostics(&mut summary.diagnostics);
     push_omena_query_ready_surface(&mut summary.ready_surfaces, "checkerProductDiagnosticGate");
-    apply_omena_query_style_diagnostic_suppressions(&target.style_source, &mut summary);
+    match suppression_mode {
+        OmenaQueryDiagnosticSuppressionModeV0::Apply => {
+            apply_omena_query_style_diagnostic_suppressions(&target.style_source, &mut summary);
+        }
+        OmenaQueryDiagnosticSuppressionModeV0::ReportOnly => {
+            report_omena_query_style_diagnostic_suppressions(&target.style_source, &mut summary);
+        }
+    }
     summary.diagnostic_count = summary.diagnostics.len();
     Some(summary)
 }

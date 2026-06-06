@@ -3,7 +3,8 @@ use omena_query::generate_omena_bridge_sif_for_resolved_style_path;
 #[cfg(feature = "mdl")]
 use omena_query::summarize_omena_query_design_system_minimum_description;
 use omena_query::{
-    OmenaParserStyleDialect, OmenaQueryDynamicClassnameMTierInputV0, OmenaQueryEngineInputV2,
+    OmenaParserStyleDialect, OmenaQueryDiagnosticSuppressionModeV0,
+    OmenaQueryDynamicClassnameMTierInputV0, OmenaQueryEngineInputV2,
     OmenaQueryExpressionDomainFlowRuntimeV0, OmenaQueryExternalModuleModeV0,
     OmenaQueryExternalSifInputV0, OmenaQuerySourceDiagnosticsForFileV0,
     OmenaQuerySourceDocumentInputV0, OmenaQuerySourceMissingSelectorDiagnosticCandidateV0,
@@ -26,8 +27,8 @@ use omena_query::{
     summarize_omena_query_source_diagnostics_for_workspace_file,
     summarize_omena_query_style_completion_at_position,
     summarize_omena_query_style_diagnostics_for_file_with_local_composes_and_deep_analysis,
-    summarize_omena_query_style_diagnostics_for_workspace_file_with_external_mode_and_sifs,
     summarize_omena_query_style_diagnostics_for_workspace_file_with_external_mode_and_sifs_and_resolution_inputs,
+    summarize_omena_query_style_diagnostics_for_workspace_file_with_external_mode_and_sifs_and_suppression_mode,
     summarize_omena_query_style_document, summarize_omena_query_style_hover_candidates,
     summarize_omena_query_transform_context_from_engine_input,
     summarize_omena_transform_bundle_from_source,
@@ -445,6 +446,9 @@ enum ReportCommand {
         /// External Sass module mode: ignored preserves compatibility, sif reports boundary states.
         #[arg(long, default_value = "sif")]
         external: String,
+        /// Report diagnostics without hiding entries matched by omena suppression directives.
+        #[arg(long = "no-suppress")]
+        no_suppress: bool,
         /// Fail when the report observes more suppressions than this threshold.
         #[arg(long = "max-suppressions")]
         max_suppressions: Option<usize>,
@@ -1181,6 +1185,7 @@ fn report_command(command: ReportCommand) -> Result<(), String> {
             sif_paths,
             lockfile,
             external,
+            no_suppress,
             max_suppressions,
             report_stale_suppressions,
             json,
@@ -1191,6 +1196,7 @@ fn report_command(command: ReportCommand) -> Result<(), String> {
             sif_paths,
             lockfile,
             external,
+            no_suppress,
             max_suppressions,
             report_stale_suppressions,
             json,
@@ -1209,6 +1215,7 @@ struct SoundinessReportV0 {
     emitted_diagnostic_count: usize,
     suppressed_diagnostic_count: usize,
     unused_expect_error_count: usize,
+    diagnostic_suppression_mode: &'static str,
     boundary_diagnostics: SoundinessBoundaryDiagnosticsV0,
     strictness_distribution: SoundinessStrictnessDistributionV0,
     suppression_reasons: Vec<OmenaQueryDiagnosticSuppressionReasonV0>,
@@ -1244,6 +1251,7 @@ struct SoundinessFileReportV0 {
     emitted_diagnostic_count: usize,
     suppressed_diagnostic_count: usize,
     unused_expect_error_count: usize,
+    diagnostic_suppression_mode: &'static str,
     suppression_reasons: Vec<OmenaQueryDiagnosticSuppressionReasonV0>,
     suppressed_per_100_loc: f64,
 }
@@ -1274,6 +1282,7 @@ fn report_soundiness(
     sif_paths: Vec<PathBuf>,
     lockfile: Option<PathBuf>,
     external: String,
+    no_suppress: bool,
     max_suppressions: Option<usize>,
     report_stale_suppressions: bool,
     json: bool,
@@ -1285,6 +1294,7 @@ fn report_soundiness(
         sif_paths,
         lockfile,
         external,
+        no_suppress,
     )?;
     enforce_soundiness_report_audit_flags(&report, max_suppressions, report_stale_suppressions)?;
     if json {
@@ -1316,6 +1326,7 @@ fn summarize_soundiness_report(
     sif_paths: Vec<PathBuf>,
     lockfile: Option<PathBuf>,
     external: String,
+    no_suppress: bool,
 ) -> Result<SoundinessReportV0, String> {
     if source_paths.is_empty() {
         return Err("omena report soundiness requires at least one --source <path>".to_string());
@@ -1332,6 +1343,11 @@ fn summarize_soundiness_report(
         resolve_in_process_external_sifs(style_sources.as_slice(), external_sifs.as_slice());
     external_sifs.extend(in_process_external_sifs);
     let external_mode = parse_external_module_mode(&external)?;
+    let suppression_mode = if no_suppress {
+        OmenaQueryDiagnosticSuppressionModeV0::ReportOnly
+    } else {
+        OmenaQueryDiagnosticSuppressionModeV0::Apply
+    };
 
     let mut boundary_diagnostics = SoundinessBoundaryDiagnosticsV0::default();
     let mut strictness_distribution = SoundinessStrictnessDistributionV0::default();
@@ -1345,7 +1361,7 @@ fn summarize_soundiness_report(
 
     for source in &style_sources {
         let summary =
-            summarize_omena_query_style_diagnostics_for_workspace_file_with_external_mode_and_sifs(
+            summarize_omena_query_style_diagnostics_for_workspace_file_with_external_mode_and_sifs_and_suppression_mode(
                 source.style_path.as_str(),
                 style_sources.as_slice(),
                 source_documents.as_slice(),
@@ -1353,6 +1369,7 @@ fn summarize_soundiness_report(
                 None,
                 external_mode,
                 external_sifs.as_slice(),
+                suppression_mode,
             )
             .ok_or_else(|| {
                 format!(
@@ -1390,6 +1407,7 @@ fn summarize_soundiness_report(
             emitted_diagnostic_count: emitted,
             suppressed_diagnostic_count: suppressed,
             unused_expect_error_count: unused_expect_errors,
+            diagnostic_suppression_mode: suppression_mode.as_str(),
             suppression_reasons: file_suppression_reasons,
             suppressed_per_100_loc: ratio_per_100(suppressed, file_line_count),
         });
@@ -1431,6 +1449,7 @@ fn summarize_soundiness_report(
         emitted_diagnostic_count,
         suppressed_diagnostic_count,
         unused_expect_error_count,
+        diagnostic_suppression_mode: suppression_mode.as_str(),
         boundary_diagnostics,
         strictness_distribution,
         suppression_reasons,

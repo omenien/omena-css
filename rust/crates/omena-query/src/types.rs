@@ -1198,6 +1198,25 @@ pub struct OmenaQueryDiagnosticSuppressionReasonV0 {
     pub range: ParserRangeV0,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum OmenaQueryDiagnosticSuppressionModeV0 {
+    Apply,
+    ReportOnly,
+}
+
+impl OmenaQueryDiagnosticSuppressionModeV0 {
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::Apply => "apply",
+            Self::ReportOnly => "reportOnly",
+        }
+    }
+
+    pub const fn suppresses_diagnostics(self) -> bool {
+        matches!(self, Self::Apply)
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct OmenaQueryCompletionCandidateV0 {

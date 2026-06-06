@@ -6,8 +6,11 @@ import { join } from "node:path";
 
 interface SoundinessReport {
   readonly product: string;
+  readonly originalDiagnosticCount: number;
+  readonly emittedDiagnosticCount: number;
   readonly suppressedDiagnosticCount: number;
   readonly unusedExpectErrorCount: number;
+  readonly diagnosticSuppressionMode: string;
   readonly suppressionReasons: readonly {
     readonly directiveKind: string;
     readonly codes: readonly string[];
@@ -43,6 +46,11 @@ try {
   const report = JSON.parse(result.stdout) as SoundinessReport;
   assert.equal(report.product, "omena-cli.soundiness-report");
   assert.ok(report.suppressedDiagnosticCount >= 1, "expected suppression accounting");
+  assert.equal(report.diagnosticSuppressionMode, "apply");
+  assert.ok(
+    report.emittedDiagnosticCount < report.originalDiagnosticCount,
+    "default report must apply suppression directives",
+  );
   assert.equal(report.unusedExpectErrorCount, 0);
   assert.equal(report.suppressionReasons.length, 1, "expected suppression reason capture");
   assert.equal(report.suppressionReasons[0]?.directiveKind, "ignoreNextLine");
@@ -59,6 +67,20 @@ try {
   assert.ok(report.readySurfaces.includes("soundinessReport"));
   assert.ok(report.readySurfaces.includes("noiseBudgetVisibilityGates"));
   assert.ok(report.readySurfaces.includes("diagnosticSuppressionReasonSummary"));
+
+  const noSuppressReport = JSON.parse(
+    runSoundinessReport(stylePath, ["--no-suppress"]).stdout,
+  ) as SoundinessReport;
+  assert.equal(noSuppressReport.diagnosticSuppressionMode, "reportOnly");
+  assert.equal(
+    noSuppressReport.emittedDiagnosticCount,
+    noSuppressReport.originalDiagnosticCount,
+    "--no-suppress must leave matched diagnostics visible",
+  );
+  assert.ok(
+    noSuppressReport.suppressedDiagnosticCount >= 1,
+    "--no-suppress must still report suppression accounting",
+  );
 
   const budgetFailure = runSoundinessReport(stylePath, ["--max-suppressions", "0"], 1);
   assert.match(
