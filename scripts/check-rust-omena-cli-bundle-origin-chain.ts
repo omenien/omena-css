@@ -21,6 +21,30 @@ interface ConsumerBuildSummary {
   readonly readySurfaces: readonly string[];
 }
 
+interface BundleSplitManifestImport {
+  readonly importSource: string;
+  readonly resolvedStylePath: string;
+  readonly fileName: string;
+}
+
+interface BundleSplitManifestOutput {
+  readonly sourcePath: string;
+  readonly fileName: string;
+  readonly isEntry: boolean;
+  readonly sourceMapFile: string | null;
+  readonly imports: readonly BundleSplitManifestImport[];
+}
+
+interface BundleSplitManifest {
+  readonly schemaVersion: number;
+  readonly product: string;
+  readonly entryStylePath: string;
+  readonly entryFile: string;
+  readonly outputCount: number;
+  readonly outputs: readonly BundleSplitManifestOutput[];
+}
+
+const splitManifestFileName = "omena.bundle-split.manifest.json";
 const workspace = mkdtempSync(join(tmpdir(), "omena-cli-bundle-origin-"));
 
 try {
@@ -103,6 +127,7 @@ try {
   assert.ok(summary.readySurfaces.includes("sourceMapV3Serializer"));
   assert.ok(summary.readySurfaces.includes("bundleSourceMapOriginChain"));
   assert.ok(summary.readySurfaces.includes("bundleCodeSplitEmission"));
+  assert.ok(summary.readySurfaces.includes("bundleCodeSplitManifestEmission"));
   assert.ok(summary.readySurfaces.includes("bundleCodeSplitTreeShakeEmission"));
   assert.ok(summary.readySurfaces.includes("bundleCodeSplitSourceMapEmission"));
   assert.ok(!summary.execution.outputCss.includes("@import"));
@@ -130,7 +155,7 @@ try {
       "validated omena-cli bundle origin chain:",
       `sources=${sourceMap.sources.length}`,
       `segments=${sourceMap.x_omenaSegmentCount}`,
-      "ready=bundleSourceMapOriginChain+bundleAssetUrlRewrite+bundleCodeSplitEmission+bundleCodeSplitTreeShakeEmission+bundleCodeSplitSourceMapEmission",
+      "ready=bundleSourceMapOriginChain+bundleAssetUrlRewrite+bundleCodeSplitEmission+bundleCodeSplitManifestEmission+bundleCodeSplitTreeShakeEmission+bundleCodeSplitSourceMapEmission",
     ].join(" "),
   );
 } finally {
@@ -156,6 +181,9 @@ function assertSplitOutputs(
   const files = readdirSync(splitDir);
   const cssFiles = files.filter((file) => file.endsWith(".css"));
   const mapFiles = files.filter((file) => file.endsWith(".css.map"));
+  const manifest = JSON.parse(
+    readFileSync(join(splitDir, splitManifestFileName), "utf8"),
+  ) as BundleSplitManifest;
   assert.equal(
     cssFiles.length,
     3,
@@ -186,6 +214,42 @@ function assertSplitOutputs(
   assert.ok(!tokensOutput.includes("./base.css"));
   assert.ok(appOutput.includes('@import "'));
   assert.ok(tokensOutput.includes('@import "'));
+  assert.equal(manifest.product, "omena-cli.bundle-code-split-manifest");
+  assert.equal(manifest.schemaVersion, 0);
+  assert.equal(manifest.outputCount, 3);
+  assert.equal(manifest.outputs.length, 3);
+  assert.ok(cssFiles.includes(manifest.entryFile), "split manifest entry file should be emitted");
+  const manifestFiles = new Set(manifest.outputs.map((output) => output.fileName));
+  assert.deepEqual(
+    [...manifestFiles].sort(),
+    [...cssFiles].sort(),
+    "split manifest should describe every emitted CSS split file",
+  );
+  const appManifest = manifest.outputs.find((output) => output.sourcePath.endsWith("/app.css"));
+  const tokensManifest = manifest.outputs.find((output) =>
+    output.sourcePath.endsWith("/theme/tokens.css"),
+  );
+  const baseManifest = manifest.outputs.find((output) =>
+    output.sourcePath.endsWith("/theme/base.css"),
+  );
+  assert.ok(appManifest, "split manifest should describe the entry file");
+  assert.ok(tokensManifest, "split manifest should describe the token import file");
+  assert.ok(baseManifest, "split manifest should describe the base transitive import file");
+  assert.equal(appManifest.isEntry, true);
+  assert.equal(tokensManifest.isEntry, false);
+  assert.equal(baseManifest.isEntry, false);
+  assert.equal(appManifest.sourceMapFile, `${appManifest.fileName}.map`);
+  assert.equal(tokensManifest.sourceMapFile, `${tokensManifest.fileName}.map`);
+  assert.equal(baseManifest.sourceMapFile, `${baseManifest.fileName}.map`);
+  assert.equal(appManifest.imports.length, 1);
+  assert.equal(appManifest.imports[0].importSource, "./theme/tokens.css");
+  assert.equal(appManifest.imports[0].fileName, tokensManifest.fileName);
+  assert.equal(appManifest.imports[0].resolvedStylePath, tokensManifest.sourcePath);
+  assert.equal(tokensManifest.imports.length, 1);
+  assert.equal(tokensManifest.imports[0].importSource, "./base.css");
+  assert.equal(tokensManifest.imports[0].fileName, baseManifest.fileName);
+  assert.equal(tokensManifest.imports[0].resolvedStylePath, baseManifest.sourcePath);
+  assert.equal(baseManifest.imports.length, 0);
   for (const cssFile of cssFiles) {
     const output = readFileSync(join(splitDir, cssFile), "utf8");
     const sourceMapFile = `${cssFile}.map`;

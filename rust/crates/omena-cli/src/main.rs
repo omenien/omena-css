@@ -2616,6 +2616,10 @@ fn build_file(options: BuildFileOptions) -> Result<(), String> {
             source_map,
         })?;
         push_ready_surface(&mut summary.ready_surfaces, "bundleCodeSplitEmission");
+        push_ready_surface(
+            &mut summary.ready_surfaces,
+            "bundleCodeSplitManifestEmission",
+        );
         if tree_shake {
             push_ready_surface(
                 &mut summary.ready_surfaces,
@@ -2733,6 +2737,37 @@ struct BundleCodeSplitOutputOptions<'a> {
     source_map: bool,
 }
 
+const BUNDLE_CODE_SPLIT_MANIFEST_FILE_NAME: &str = "omena.bundle-split.manifest.json";
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct BundleCodeSplitManifestV0 {
+    schema_version: u8,
+    product: &'static str,
+    entry_style_path: String,
+    entry_file: String,
+    output_count: usize,
+    outputs: Vec<BundleCodeSplitManifestOutputV0>,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct BundleCodeSplitManifestOutputV0 {
+    source_path: String,
+    file_name: String,
+    is_entry: bool,
+    source_map_file: Option<String>,
+    imports: Vec<BundleCodeSplitManifestImportV0>,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct BundleCodeSplitManifestImportV0 {
+    import_source: String,
+    resolved_style_path: String,
+    file_name: String,
+}
+
 fn emit_bundle_code_split_outputs(options: BundleCodeSplitOutputOptions<'_>) -> Result<(), String> {
     let BundleCodeSplitOutputOptions {
         out_dir,
@@ -2776,6 +2811,7 @@ fn emit_bundle_code_split_outputs(options: BundleCodeSplitOutputOptions<'_>) -> 
         &source_path_lookup,
     );
 
+    let mut manifest_outputs = Vec::new();
     for style_path in reachable_paths {
         let Some(source) = source_by_path.get(style_path.as_str()) else {
             continue;
@@ -2783,6 +2819,13 @@ fn emit_bundle_code_split_outputs(options: BundleCodeSplitOutputOptions<'_>) -> 
         let Some(file_name) = file_name_by_path.get(style_path.as_str()) else {
             continue;
         };
+        let manifest_imports = bundle_code_split_manifest_imports_for_source(
+            style_path.as_str(),
+            source,
+            &file_name_by_path,
+            resolution_inputs,
+            &source_path_lookup,
+        );
         let rewritten_source = rewrite_bundle_code_split_imports_for_source(
             style_path.as_str(),
             source,
@@ -2791,6 +2834,7 @@ fn emit_bundle_code_split_outputs(options: BundleCodeSplitOutputOptions<'_>) -> 
             &source_path_lookup,
         );
         let mut output_css = rewritten_source;
+        let source_map_file = source_map.then(|| format!("{file_name}.map"));
         if !split_transform_pass_ids.is_empty() {
             let split_summary = execute_omena_query_consumer_build_style_source_with_context(
                 style_path.as_str(),
@@ -2807,8 +2851,7 @@ fn emit_bundle_code_split_outputs(options: BundleCodeSplitOutputOptions<'_>) -> 
             }
             output_css = split_summary.execution.output_css;
         }
-        if source_map {
-            let map_file_name = format!("{file_name}.map");
+        if let Some(map_file_name) = source_map_file.as_deref() {
             let source_map_source = source_map_source_by_path
                 .get(style_path.as_str())
                 .copied()
@@ -2819,7 +2862,7 @@ fn emit_bundle_code_split_outputs(options: BundleCodeSplitOutputOptions<'_>) -> 
                 style_path.as_str(),
                 source_map_source,
             );
-            let map_output_path = out_dir.join(&map_file_name);
+            let map_output_path = out_dir.join(map_file_name);
             let source_map_json = serde_json::to_string_pretty(&source_map_v3)
                 .map_err(|error| format!("failed to serialize split source map: {error}"))?;
             fs::write(&map_output_path, source_map_json).map_err(|error| {
@@ -2829,7 +2872,7 @@ fn emit_bundle_code_split_outputs(options: BundleCodeSplitOutputOptions<'_>) -> 
                 )
             })?;
             output_css.push_str("\n/*# sourceMappingURL=");
-            output_css.push_str(&map_file_name);
+            output_css.push_str(map_file_name);
             output_css.push_str(" */\n");
         }
         let output_path = out_dir.join(file_name);
@@ -2839,7 +2882,35 @@ fn emit_bundle_code_split_outputs(options: BundleCodeSplitOutputOptions<'_>) -> 
                 path_string(&output_path)
             )
         })?;
+        manifest_outputs.push(BundleCodeSplitManifestOutputV0 {
+            source_path: style_path.clone(),
+            file_name: file_name.clone(),
+            is_entry: style_path == entry_style_path,
+            source_map_file,
+            imports: manifest_imports,
+        });
     }
+    let entry_file = file_name_by_path
+        .get(entry_style_path)
+        .cloned()
+        .unwrap_or_else(|| bundle_split_file_name(entry_style_path));
+    let manifest = BundleCodeSplitManifestV0 {
+        schema_version: 0,
+        product: "omena-cli.bundle-code-split-manifest",
+        entry_style_path: entry_style_path.to_string(),
+        entry_file,
+        output_count: manifest_outputs.len(),
+        outputs: manifest_outputs,
+    };
+    let manifest_json = serde_json::to_string_pretty(&manifest)
+        .map_err(|error| format!("failed to serialize bundle split manifest: {error}"))?;
+    let manifest_path = out_dir.join(BUNDLE_CODE_SPLIT_MANIFEST_FILE_NAME);
+    fs::write(&manifest_path, manifest_json).map_err(|error| {
+        format!(
+            "failed to write bundle split manifest {}: {error}",
+            path_string(&manifest_path)
+        )
+    })?;
     Ok(())
 }
 
@@ -2946,6 +3017,49 @@ fn rewrite_bundle_code_split_imports_for_source(
         output.replace_range(source_start..source_end, target_file_name);
     }
     output
+}
+
+fn bundle_code_split_manifest_imports_for_source(
+    style_path: &str,
+    source: &str,
+    file_name_by_path: &BTreeMap<&str, String>,
+    resolution_inputs: &OmenaQueryStyleResolutionInputsV0,
+    source_path_lookup: &BTreeMap<String, String>,
+) -> Vec<BundleCodeSplitManifestImportV0> {
+    let bundle = summarize_omena_transform_bundle_from_source(
+        style_path,
+        source,
+        infer_cli_style_dialect(style_path),
+    );
+    let mut imports = Vec::new();
+    for edge in bundle.bundle_edges {
+        if !matches!(
+            edge.kind,
+            TransformBundleEdgeKind::CssImport | TransformBundleEdgeKind::LessImport
+        ) {
+            continue;
+        }
+        let Some(import_source) = edge.import_source else {
+            continue;
+        };
+        let Some(target_path) =
+            resolve_bundle_code_split_import_path(style_path, &import_source, resolution_inputs)
+        else {
+            continue;
+        };
+        let Some(source_path) = source_path_lookup.get(target_path.as_str()) else {
+            continue;
+        };
+        let Some(file_name) = file_name_by_path.get(source_path.as_str()) else {
+            continue;
+        };
+        imports.push(BundleCodeSplitManifestImportV0 {
+            import_source,
+            resolved_style_path: source_path.clone(),
+            file_name: file_name.clone(),
+        });
+    }
+    imports
 }
 
 fn bundle_split_source_path_lookup(
@@ -5310,6 +5424,11 @@ mod tests {
             .map_err(|error| format!("tokens split output should be readable: {error}"))?;
         let base_output = fs::read_to_string(split_dir.join(&base_split_file))
             .map_err(|error| format!("base split output should be readable: {error}"))?;
+        let manifest_json =
+            fs::read_to_string(split_dir.join(BUNDLE_CODE_SPLIT_MANIFEST_FILE_NAME))
+                .map_err(|error| format!("split manifest should be readable: {error}"))?;
+        let manifest: serde_json::Value = serde_json::from_str(&manifest_json)
+            .map_err(|error| format!("split manifest should be valid JSON: {error}"))?;
 
         assert!(
             target_output.contains(&format!(
@@ -5330,6 +5449,86 @@ mod tests {
             "{target_output}"
         );
         assert!(!tokens_output.contains("./base.css"), "{tokens_output}");
+        assert_eq!(
+            manifest.get("product").and_then(|value| value.as_str()),
+            Some("omena-cli.bundle-code-split-manifest")
+        );
+        assert_eq!(
+            manifest
+                .get("entryStylePath")
+                .and_then(|value| value.as_str()),
+            Some(target_style_path.as_str())
+        );
+        assert_eq!(
+            manifest.get("entryFile").and_then(|value| value.as_str()),
+            Some(target_split_file.as_str())
+        );
+        assert_eq!(
+            manifest.get("outputCount").and_then(|value| value.as_u64()),
+            Some(3)
+        );
+        let manifest_outputs = manifest
+            .get("outputs")
+            .and_then(|value| value.as_array())
+            .ok_or_else(|| "split manifest should include outputs".to_string())?;
+        let target_manifest = manifest_outputs
+            .iter()
+            .find(|value| {
+                value.get("fileName").and_then(|value| value.as_str())
+                    == Some(target_split_file.as_str())
+            })
+            .ok_or_else(|| "split manifest should include target output".to_string())?;
+        let tokens_manifest = manifest_outputs
+            .iter()
+            .find(|value| {
+                value.get("fileName").and_then(|value| value.as_str())
+                    == Some(tokens_split_file.as_str())
+            })
+            .ok_or_else(|| "split manifest should include tokens output".to_string())?;
+        let base_manifest = manifest_outputs
+            .iter()
+            .find(|value| {
+                value.get("fileName").and_then(|value| value.as_str())
+                    == Some(base_split_file.as_str())
+            })
+            .ok_or_else(|| "split manifest should include base output".to_string())?;
+        assert_eq!(
+            target_manifest
+                .get("sourceMapFile")
+                .and_then(|value| value.as_str()),
+            None
+        );
+        assert_eq!(
+            target_manifest
+                .get("isEntry")
+                .and_then(|value| value.as_bool()),
+            Some(true)
+        );
+        assert_eq!(
+            target_manifest
+                .get("imports")
+                .and_then(|value| value.as_array())
+                .and_then(|imports| imports.first())
+                .and_then(|import| import.get("fileName"))
+                .and_then(|value| value.as_str()),
+            Some(tokens_split_file.as_str())
+        );
+        assert_eq!(
+            tokens_manifest
+                .get("imports")
+                .and_then(|value| value.as_array())
+                .and_then(|imports| imports.first())
+                .and_then(|import| import.get("fileName"))
+                .and_then(|value| value.as_str()),
+            Some(base_split_file.as_str())
+        );
+        assert_eq!(
+            base_manifest
+                .get("imports")
+                .and_then(|value| value.as_array())
+                .map(|imports| imports.len()),
+            Some(0)
+        );
 
         cleanup_dir(&root);
         Ok(())
