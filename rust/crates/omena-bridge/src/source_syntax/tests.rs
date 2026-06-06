@@ -97,6 +97,41 @@ fn collects_template_style_binding_class_expressions() {
 }
 
 #[test]
+fn collects_markdown_inline_html_classes_without_scanning_prose_or_code() {
+    let source = r#"# Notes
+
+The prose says class="from-prose" but it is not an HTML block.
+
+<main class="root active">
+  <section
+    class="card"
+  ></section>
+</main>
+
+    <span class="from-indented-code"></span>
+
+```html
+<span class="from-fence"></span>
+```
+"#;
+    let index = summarize_omena_bridge_source_syntax_index_for_source_language(
+        "Notes.md",
+        source,
+        Some("markdown"),
+        Vec::new(),
+        Vec::new(),
+    );
+
+    let names = index
+        .selector_references
+        .iter()
+        .map(|reference| selector_reference_name(source, reference))
+        .collect::<Vec<_>>();
+
+    assert_eq!(names, vec!["root", "active", "card"]);
+}
+
+#[test]
 fn collects_variant_recipe_universes_and_domain_references() -> Result<(), String> {
     let source = r#"import { cva } from "class-variance-authority";
 const button = cva("btn", {

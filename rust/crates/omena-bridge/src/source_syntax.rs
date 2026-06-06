@@ -14,8 +14,8 @@ use serde::Serialize;
 use std::collections::{BTreeMap, BTreeSet};
 
 use crate::source_language::{
-    is_astro_source, is_html_source, is_svelte_source, is_vue_source, project_source_for_language,
-    source_type_for_language, tag_content_ranges,
+    is_astro_source, is_html_source, is_markdown_source, is_svelte_source, is_vue_source,
+    project_source_for_language, source_type_for_language, tag_content_ranges,
 };
 
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize)]
@@ -131,6 +131,21 @@ struct ClassnamesBindUtilityBinding {
 struct ClassnamesBindCallArgument {
     binding: String,
     byte_span: ParserByteSpanV0,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+enum TemplateScanScope {
+    WholeDocument,
+    Ranges(Vec<(usize, usize)>),
+}
+
+impl TemplateScanScope {
+    fn as_ranges(&self) -> Option<&[(usize, usize)]> {
+        match self {
+            Self::WholeDocument => None,
+            Self::Ranges(ranges) => Some(ranges.as_slice()),
+        }
+    }
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
@@ -341,15 +356,19 @@ fn collect_template_class_attribute_selector_references(
     source_language: Option<&str>,
     references: &mut Vec<SourceSelectorReferenceFactV0>,
 ) {
-    if !is_html_like_template_source(source_path, source_language) {
+    let Some(scan_scope) = template_source_scan_scope(source_path, source, source_language) else {
         return;
-    }
+    };
 
     let mut suppressed_ranges = tag_content_ranges(source, "<script", "</script>");
     suppressed_ranges.extend(tag_content_ranges(source, "<style", "</style>"));
     suppressed_ranges.sort_unstable();
 
-    for value_span in template_class_attribute_value_spans(source, suppressed_ranges.as_slice()) {
+    for value_span in template_class_attribute_value_spans(
+        source,
+        scan_scope.as_ranges(),
+        suppressed_ranges.as_slice(),
+    ) {
         push_string_literal_selector_references(source, value_span, None, references);
     }
 }
@@ -361,15 +380,22 @@ fn collect_template_class_expression_selector_references(
     style_targets: &[SourceStyleBindingTarget],
     references: &mut Vec<SourceSelectorReferenceFactV0>,
 ) {
-    if style_targets.is_empty() || !is_html_like_template_source(source_path, source_language) {
+    if style_targets.is_empty() {
         return;
     }
+    let Some(scan_scope) = template_source_scan_scope(source_path, source, source_language) else {
+        return;
+    };
 
     let mut suppressed_ranges = tag_content_ranges(source, "<script", "</script>");
     suppressed_ranges.extend(tag_content_ranges(source, "<style", "</style>"));
     suppressed_ranges.sort_unstable();
 
-    for expression_span in template_class_expression_spans(source, suppressed_ranges.as_slice()) {
+    for expression_span in template_class_expression_spans(
+        source,
+        scan_scope.as_ranges(),
+        suppressed_ranges.as_slice(),
+    ) {
         for target in style_targets {
             push_style_binding_selector_references_from_expression(
                 source,
@@ -388,8 +414,25 @@ fn is_html_like_template_source(source_path: &str, source_language: Option<&str>
         || is_astro_source(source_path, source_language)
 }
 
+fn template_source_scan_scope(
+    source_path: &str,
+    source: &str,
+    source_language: Option<&str>,
+) -> Option<TemplateScanScope> {
+    if is_html_like_template_source(source_path, source_language) {
+        return Some(TemplateScanScope::WholeDocument);
+    }
+    if is_markdown_source(source_path, source_language) {
+        return Some(TemplateScanScope::Ranges(markdown_html_template_ranges(
+            source,
+        )));
+    }
+    None
+}
+
 fn template_class_attribute_value_spans(
     source: &str,
+    scan_ranges: Option<&[(usize, usize)]>,
     suppressed_ranges: &[(usize, usize)],
 ) -> Vec<ParserByteSpanV0> {
     let lower = source.to_ascii_lowercase();
@@ -400,7 +443,8 @@ fn template_class_attribute_value_spans(
     while let Some(relative_start) = lower[cursor..].find("class") {
         let attr_start = cursor + relative_start;
         cursor = attr_start + "class".len();
-        if byte_in_ranges(attr_start, suppressed_ranges)
+        if !byte_in_optional_ranges(attr_start, scan_ranges)
+            || byte_in_ranges(attr_start, suppressed_ranges)
             || !is_template_class_attribute_name(source, attr_start)
         {
             continue;
@@ -430,6 +474,7 @@ fn template_class_attribute_value_spans(
 
 fn template_class_expression_spans(
     source: &str,
+    scan_ranges: Option<&[(usize, usize)]>,
     suppressed_ranges: &[(usize, usize)],
 ) -> Vec<ParserByteSpanV0> {
     let lower = source.to_ascii_lowercase();
@@ -440,7 +485,9 @@ fn template_class_expression_spans(
     while let Some(relative_start) = lower[cursor..].find("class") {
         let attr_start = cursor + relative_start;
         cursor = attr_start + "class".len();
-        if byte_in_ranges(attr_start, suppressed_ranges) {
+        if !byte_in_optional_ranges(attr_start, scan_ranges)
+            || byte_in_ranges(attr_start, suppressed_ranges)
+        {
             continue;
         }
 
@@ -482,6 +529,103 @@ fn template_class_expression_spans(
     }
 
     spans
+}
+
+fn markdown_html_template_ranges(source: &str) -> Vec<(usize, usize)> {
+    let mut ranges = Vec::new();
+    let mut open_fence: Option<(char, usize)> = None;
+    let mut open_html_start: Option<usize> = None;
+    let mut offset = 0usize;
+
+    for line in source.split_inclusive('\n') {
+        let line_start = offset;
+        let line_end = offset + line.len();
+        let line_without_newline = line.trim_end_matches(['\r', '\n']);
+        let leading_spaces = line_without_newline
+            .chars()
+            .take_while(|ch| *ch == ' ')
+            .count();
+        let trimmed = line_without_newline.trim_start_matches(' ');
+        if leading_spaces <= 3 {
+            if let Some((fence_char, fence_len)) = open_fence {
+                if markdown_fence_marker_for_template_scan(trimmed).is_some_and(
+                    |(candidate_char, candidate_len)| {
+                        candidate_char == fence_char && candidate_len >= fence_len
+                    },
+                ) {
+                    open_fence = None;
+                }
+                offset = line_end;
+                continue;
+            }
+            if let Some((fence_char, fence_len)) = markdown_fence_marker_for_template_scan(trimmed)
+            {
+                open_fence = Some((fence_char, fence_len));
+                offset = line_end;
+                continue;
+            }
+        }
+
+        if let Some(start) = open_html_start {
+            if trimmed.contains('>') {
+                ranges.push((start, line_end));
+                open_html_start = None;
+            }
+            offset = line_end;
+            continue;
+        }
+
+        if leading_spaces >= 4 || trimmed.is_empty() {
+            offset = line_end;
+            continue;
+        }
+
+        if markdown_line_starts_html_tag(trimmed) {
+            if trimmed.contains('>') {
+                ranges.push((line_start, line_end));
+            } else {
+                open_html_start = Some(line_start);
+            }
+        }
+
+        offset = line_end;
+    }
+
+    if let Some(start) = open_html_start {
+        ranges.push((start, source.len()));
+    }
+    ranges
+}
+
+fn markdown_line_starts_html_tag(trimmed_line: &str) -> bool {
+    let mut chars = trimmed_line.chars();
+    if chars.next() != Some('<') {
+        return false;
+    }
+    match chars.next() {
+        Some('/') => chars.next().is_some_and(is_html_tag_name_start),
+        Some('!') | Some('?') => false,
+        Some(ch) => is_html_tag_name_start(ch),
+        None => false,
+    }
+}
+
+fn is_html_tag_name_start(ch: char) -> bool {
+    ch.is_ascii_alphabetic()
+}
+
+fn markdown_fence_marker_for_template_scan(line: &str) -> Option<(char, usize)> {
+    let mut chars = line.chars();
+    let fence_char = chars.next()?;
+    if fence_char != '`' && fence_char != '~' {
+        return None;
+    }
+    let fence_len = 1 + chars.take_while(|ch| *ch == fence_char).count();
+    if fence_len >= 3 {
+        Some((fence_char, fence_len))
+    } else {
+        None
+    }
 }
 
 fn is_template_class_attribute_name(source: &str, attr_start: usize) -> bool {
@@ -633,6 +777,10 @@ fn byte_in_ranges(byte_offset: usize, ranges: &[(usize, usize)]) -> bool {
     ranges
         .iter()
         .any(|(start, end)| byte_offset >= *start && byte_offset < *end)
+}
+
+fn byte_in_optional_ranges(byte_offset: usize, ranges: Option<&[(usize, usize)]>) -> bool {
+    ranges.is_none_or(|ranges| byte_in_ranges(byte_offset, ranges))
 }
 
 fn imported_style_targets(
