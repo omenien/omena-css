@@ -14,6 +14,7 @@ mod generator;
 pub use generator::*;
 
 pub const OMENA_SIF_VERSION_V1: &str = "1";
+pub const OMENA_LOCK_CURRENT_MIN_VERSION_V1: &str = env!("CARGO_PKG_VERSION");
 pub const OMENA_SIF_HASH_ALGORITHM_V1: &str = "blake3";
 pub const OMENA_SIF_V1_SCHEMA_JSON: &str = include_str!("../schema/sif-v1.schema.json");
 pub const OMENA_LOCK_V1_SCHEMA_JSON: &str = include_str!("../schema/lock-v1.schema.json");
@@ -163,13 +164,23 @@ pub struct OmenaSifFingerprintChainV1 {
 #[serde(rename_all = "camelCase")]
 pub struct OmenaLockV1 {
     pub lockfile_version: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub omena_min_version: Option<String>,
     pub entries: Vec<OmenaLockSifEntryV1>,
 }
 
 impl OmenaLockV1 {
     pub fn new(entries: Vec<OmenaLockSifEntryV1>) -> Self {
+        Self::new_with_min_version(entries, Some(OMENA_LOCK_CURRENT_MIN_VERSION_V1.to_string()))
+    }
+
+    pub fn new_with_min_version(
+        entries: Vec<OmenaLockSifEntryV1>,
+        omena_min_version: Option<String>,
+    ) -> Self {
         Self {
             lockfile_version: OMENA_SIF_VERSION_V1.to_string(),
+            omena_min_version,
             entries: sorted_omena_lock_entries_v1(entries),
         }
     }
@@ -370,17 +381,58 @@ pub fn read_omena_lock_json_v1(source: &str) -> Result<OmenaLockV1, serde_json::
 }
 
 pub fn write_omena_lock_json_v1(lock: &OmenaLockV1) -> Result<String, serde_json::Error> {
-    write_omena_canonical_json_string_v1(&OmenaLockV1::new(lock.entries.clone()))
+    write_omena_canonical_json_string_v1(&OmenaLockV1::new_with_min_version(
+        lock.entries.clone(),
+        lock.omena_min_version.clone(),
+    ))
 }
 
 pub fn verify_omena_lock_frozen_v1<F>(
     lock: &OmenaLockV1,
+    load_sif_json: F,
+) -> OmenaLockVerificationReportV1
+where
+    F: FnMut(&OmenaLockSifEntryV1) -> Result<String, String>,
+{
+    verify_omena_lock_frozen_with_runtime_version_v1(
+        lock,
+        OMENA_LOCK_CURRENT_MIN_VERSION_V1,
+        load_sif_json,
+    )
+}
+
+pub fn verify_omena_lock_frozen_with_runtime_version_v1<F>(
+    lock: &OmenaLockV1,
+    runtime_version: &str,
     mut load_sif_json: F,
 ) -> OmenaLockVerificationReportV1
 where
     F: FnMut(&OmenaLockSifEntryV1) -> Result<String, String>,
 {
     let mut issues = Vec::new();
+
+    if let Some(required_version) = lock.omena_min_version.as_deref() {
+        match compare_omena_semver_core_v1(runtime_version, required_version) {
+            Some(std::cmp::Ordering::Less) => issues.push(OmenaLockVerificationIssueV1 {
+                canonical_url: "omena.lock".to_string(),
+                sif_path: "omena.lock".to_string(),
+                code: "omenaMinVersionUnsupported".to_string(),
+                message: format!(
+                    "omena.lock requires omena >= {required_version}, but the running binary is {runtime_version}"
+                ),
+            }),
+            Some(_) => {}
+            None if runtime_version != required_version => issues.push(OmenaLockVerificationIssueV1 {
+                canonical_url: "omena.lock".to_string(),
+                sif_path: "omena.lock".to_string(),
+                code: "omenaMinVersionUnparseable".to_string(),
+                message: format!(
+                    "omena.lock omenaMinVersion '{required_version}' cannot be compared with running binary version '{runtime_version}'"
+                ),
+            }),
+            None => {}
+        }
+    }
 
     for entry in &lock.entries {
         let sif_json = match load_sif_json(entry) {
@@ -471,6 +523,24 @@ where
         entries_checked: lock.entries.len(),
         issues,
     }
+}
+
+fn compare_omena_semver_core_v1(left: &str, right: &str) -> Option<std::cmp::Ordering> {
+    let left = parse_omena_semver_core_v1(left)?;
+    let right = parse_omena_semver_core_v1(right)?;
+    Some(left.cmp(&right))
+}
+
+fn parse_omena_semver_core_v1(version: &str) -> Option<(u64, u64, u64)> {
+    let core = version.split(['-', '+']).next().unwrap_or(version);
+    let mut parts = core.split('.');
+    let major = parts.next()?.parse::<u64>().ok()?;
+    let minor = parts.next().unwrap_or("0").parse::<u64>().ok()?;
+    let patch = parts.next().unwrap_or("0").parse::<u64>().ok()?;
+    if parts.next().is_some() {
+        return None;
+    }
+    Some((major, minor, patch))
 }
 
 pub fn read_omena_sif_json_v1(source: &str) -> Result<OmenaSifV1, serde_json::Error> {
@@ -719,6 +789,7 @@ mod tests {
         let second = fixture_sif("pkg:a/_tokens.scss", b"$a: red;")?;
         let lock = OmenaLockV1 {
             lockfile_version: OMENA_SIF_VERSION_V1.to_string(),
+            omena_min_version: Some("0.2.0".to_string()),
             entries: vec![
                 build_omena_lock_sif_entry_v1("sif/z.sif.json", &first)?,
                 build_omena_lock_sif_entry_v1("sif/a.sif.json", &second)?,
@@ -727,6 +798,7 @@ mod tests {
 
         let json = write_omena_lock_json_v1(&lock)?;
         assert!(json.contains(r#""lockfileVersion":"1""#));
+        assert!(json.contains(r#""omenaMinVersion":"0.2.0""#));
         assert!(
             json.find("pkg:a/_tokens.scss") < json.find("pkg:z/_tokens.scss"),
             "{json}"
@@ -751,8 +823,37 @@ mod tests {
         );
 
         let lock = read_omena_lock_json_v1(&lock_json)?;
+        assert!(lock.omena_min_version.is_none());
         assert_eq!(lock.entries[0].trust_tier, OmenaSifTrustTierV1::T1);
         assert!(lock.entries[0].attestation_references.is_empty());
+        Ok(())
+    }
+
+    #[test]
+    fn lock_frozen_verification_fails_when_min_version_exceeds_runtime()
+    -> Result<(), serde_json::Error> {
+        let sif = fixture_sif("pkg:design-system/_tokens.scss", b"$color: red !default;")?;
+        let sif_json = write_omena_sif_json_v1(&sif)?;
+        let lock = OmenaLockV1::new_with_min_version(
+            vec![build_omena_lock_sif_entry_v1(
+                "sif/design-system.sif.json",
+                &sif,
+            )?],
+            Some("999.0.0".to_string()),
+        );
+
+        let report = verify_omena_lock_frozen_with_runtime_version_v1(&lock, "0.2.0", |_entry| {
+            Ok(sif_json.clone())
+        });
+
+        assert!(!report.verified, "{report:?}");
+        assert!(
+            report
+                .issues
+                .iter()
+                .any(|issue| issue.code == "omenaMinVersionUnsupported"),
+            "{report:?}"
+        );
         Ok(())
     }
 

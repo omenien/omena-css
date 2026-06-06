@@ -9,6 +9,10 @@
     "lockfileVersion": {
       "const": "1"
     },
+    "omenaMinVersion": {
+      "type": "string",
+      "minLength": 1
+    },
     "entries": {
       "type": "array",
       "items": {

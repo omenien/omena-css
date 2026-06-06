@@ -305,8 +305,14 @@ enum Command {
     },
     /// Verify local Omena lockfile integrity.
     Lock {
+        /// Lockfile path used by bare `omena lock` status. Subcommands keep their own --lockfile flag.
+        #[arg(long, default_value = "omena.lock")]
+        lockfile: PathBuf,
+        /// Print machine-readable JSON for bare `omena lock` status.
+        #[arg(long)]
+        json: bool,
         #[command(subcommand)]
-        command: LockCommand,
+        command: Option<LockCommand>,
     },
     /// Generate local Sass Interface File artifacts.
     Sif {
@@ -335,6 +341,22 @@ enum Command {
 enum LockCommand {
     /// Author or refresh omena.lock from generated SIF artifacts.
     Update {
+        /// Optional package/canonical URL selector to refresh while preserving other entries.
+        package: Option<String>,
+        /// Lockfile path. Defaults to ./omena.lock.
+        #[arg(long, default_value = "omena.lock")]
+        lockfile: PathBuf,
+        /// SIF artifact to record. Repeat for multiple entries.
+        #[arg(long = "sif")]
+        sif_paths: Vec<PathBuf>,
+        /// Print machine-readable JSON.
+        #[arg(long)]
+        json: bool,
+    },
+    /// Add a package/canonical URL to omena.lock from generated SIF artifacts.
+    Add {
+        /// Package or canonical URL selector whose SIF artifacts should be added.
+        package: String,
         /// Lockfile path. Defaults to ./omena.lock.
         #[arg(long, default_value = "omena.lock")]
         lockfile: PathBuf,
@@ -697,7 +719,11 @@ fn run(cli: Cli) -> Result<(), String> {
             dynamic_classname_diagnostics(input_json, json)
         }
         Command::PerceptualCheck { path, json } => perceptual_check(path, json),
-        Command::Lock { command } => lock_command(command),
+        Command::Lock {
+            lockfile,
+            json,
+            command,
+        } => lock_command(lockfile, json, command),
         Command::Sif { command } => sif_command(command),
         Command::Provenance { command } => provenance_command(command),
         Command::Report { command } => report_command(command),
@@ -706,40 +732,55 @@ fn run(cli: Cli) -> Result<(), String> {
     }
 }
 
-fn lock_command(command: LockCommand) -> Result<(), String> {
+fn lock_command(
+    status_lockfile: PathBuf,
+    status_json: bool,
+    command: Option<LockCommand>,
+) -> Result<(), String> {
     match command {
-        LockCommand::Update {
+        None => lock_status(status_lockfile, status_json),
+        Some(LockCommand::Update {
+            package,
             lockfile,
             sif_paths,
             json,
-        } => lock_update(lockfile, sif_paths, json),
-        LockCommand::Verify {
+        }) => lock_update(lockfile, package, sif_paths, json),
+        Some(LockCommand::Add {
+            package,
+            lockfile,
+            sif_paths,
+            json,
+        }) => lock_add(lockfile, package, sif_paths, json),
+        Some(LockCommand::Verify {
             lockfile,
             source_paths,
             frozen,
             json,
-        } => lock_verify(lockfile, source_paths, frozen, json),
+        }) => lock_verify(lockfile, source_paths, frozen, json),
     }
 }
 
-fn lock_update(lockfile: PathBuf, sif_paths: Vec<PathBuf>, json: bool) -> Result<(), String> {
+fn lock_update(
+    lockfile: PathBuf,
+    package: Option<String>,
+    sif_paths: Vec<PathBuf>,
+    json: bool,
+) -> Result<(), String> {
     if sif_paths.is_empty() {
         return Err("omena lock update requires at least one --sif <path>".to_string());
     }
 
-    let mut entries = Vec::with_capacity(sif_paths.len());
-    for sif_path in &sif_paths {
-        let sif_json = read_source(sif_path)?;
-        let sif = read_omena_sif_json_v1(&sif_json)
-            .map_err(|error| format!("failed to parse SIF {}: {error}", path_string(sif_path)))?;
-        let entry_path = relativize_lock_sif_path(&lockfile, sif_path);
-        let entry = build_omena_lock_sif_entry_v1(entry_path, &sif).map_err(|error| {
-            format!(
-                "failed to build lock entry for {}: {error}",
-                path_string(sif_path)
-            )
-        })?;
-        entries.push(entry);
+    let mut entries = build_lock_entries_from_sif_paths(&lockfile, &sif_paths)?;
+    if let Some(package) = package.as_deref() {
+        entries = filter_lock_entries_for_package(entries, package)?;
+        let existing = read_lockfile_or_empty(&lockfile)?;
+        let mut merged = existing
+            .entries
+            .into_iter()
+            .filter(|entry| !lock_entry_matches_package_selector(entry, package))
+            .collect::<Vec<_>>();
+        merged.extend(entries);
+        entries = merged;
     }
 
     let lock = OmenaLockV1::new(entries);
@@ -759,6 +800,200 @@ fn lock_update(lockfile: PathBuf, sif_paths: Vec<PathBuf>, json: bool) -> Result
         );
     }
 
+    Ok(())
+}
+
+fn lock_add(
+    lockfile: PathBuf,
+    package: String,
+    sif_paths: Vec<PathBuf>,
+    json: bool,
+) -> Result<(), String> {
+    if sif_paths.is_empty() {
+        return Err("omena lock add requires at least one --sif <path>".to_string());
+    }
+
+    let existing = read_lockfile_or_empty(&lockfile)?;
+    if existing
+        .entries
+        .iter()
+        .any(|entry| lock_entry_matches_package_selector(entry, &package))
+    {
+        return Err(format!(
+            "omena.lock already contains entries for '{package}'; use `omena lock update {package}` to refresh them"
+        ));
+    }
+
+    let mut entries = existing.entries;
+    entries.extend(filter_lock_entries_for_package(
+        build_lock_entries_from_sif_paths(&lockfile, &sif_paths)?,
+        &package,
+    )?);
+    let lock = OmenaLockV1::new(entries);
+    let lock_json = write_omena_lock_json_v1(&lock)
+        .map_err(|error| format!("failed to serialize {}: {error}", path_string(&lockfile)))?;
+    fs::write(&lockfile, &lock_json)
+        .map_err(|error| format!("failed to write {}: {error}", path_string(&lockfile)))?;
+
+    let added_count = lock
+        .entries
+        .iter()
+        .filter(|entry| lock_entry_matches_package_selector(entry, &package))
+        .count();
+    if json {
+        print_json(&lock)?;
+    } else {
+        println!(
+            "omena.lock added '{package}': {} SIF entr{} recorded at {}",
+            added_count,
+            if added_count == 1 { "y" } else { "ies" },
+            path_string(&lockfile)
+        );
+    }
+
+    Ok(())
+}
+
+fn build_lock_entries_from_sif_paths(
+    lockfile: &Path,
+    sif_paths: &[PathBuf],
+) -> Result<Vec<omena_sif::OmenaLockSifEntryV1>, String> {
+    let mut entries = Vec::with_capacity(sif_paths.len());
+    for sif_path in sif_paths {
+        let sif_json = read_source(sif_path)?;
+        let sif = read_omena_sif_json_v1(&sif_json)
+            .map_err(|error| format!("failed to parse SIF {}: {error}", path_string(sif_path)))?;
+        let entry_path = relativize_lock_sif_path(lockfile, sif_path);
+        let entry = build_omena_lock_sif_entry_v1(entry_path, &sif).map_err(|error| {
+            format!(
+                "failed to build lock entry for {}: {error}",
+                path_string(sif_path)
+            )
+        })?;
+        entries.push(entry);
+    }
+    Ok(entries)
+}
+
+fn read_lockfile_or_empty(lockfile: &Path) -> Result<OmenaLockV1, String> {
+    if !lockfile.exists() {
+        return Ok(OmenaLockV1::new(Vec::new()));
+    }
+    let lockfile_source = read_source(lockfile)?;
+    read_omena_lock_json_v1(&lockfile_source)
+        .map_err(|error| format!("failed to parse {}: {error}", path_string(lockfile)))
+}
+
+fn filter_lock_entries_for_package(
+    entries: Vec<omena_sif::OmenaLockSifEntryV1>,
+    package: &str,
+) -> Result<Vec<omena_sif::OmenaLockSifEntryV1>, String> {
+    let filtered = entries
+        .into_iter()
+        .filter(|entry| lock_entry_matches_package_selector(entry, package))
+        .collect::<Vec<_>>();
+    if filtered.is_empty() {
+        return Err(format!(
+            "no provided SIF entries match package or canonical URL selector '{package}'"
+        ));
+    }
+    Ok(filtered)
+}
+
+fn lock_entry_matches_package_selector(
+    entry: &omena_sif::OmenaLockSifEntryV1,
+    selector: &str,
+) -> bool {
+    let canonical_url = entry
+        .canonical_url
+        .strip_prefix("pkg:")
+        .unwrap_or(&entry.canonical_url);
+    let selector = selector.strip_prefix("pkg:").unwrap_or(selector);
+    canonical_url == selector || canonical_url.starts_with(&format!("{selector}/"))
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct LockStatusReportV1 {
+    product: &'static str,
+    lockfile: String,
+    present: bool,
+    lockfile_version: Option<String>,
+    omena_min_version: Option<String>,
+    running_omena_version: &'static str,
+    entry_count: usize,
+    t0_entry_count: usize,
+    t1_entry_count: usize,
+    t2_entry_count: usize,
+    t3_entry_count: usize,
+}
+
+fn lock_status(lockfile: PathBuf, json: bool) -> Result<(), String> {
+    let report = if lockfile.exists() {
+        let lockfile_source = read_source(&lockfile)?;
+        let lock = read_omena_lock_json_v1(&lockfile_source)
+            .map_err(|error| format!("failed to parse {}: {error}", path_string(&lockfile)))?;
+        LockStatusReportV1 {
+            product: "omena-cli.lock-status",
+            lockfile: path_string(&lockfile),
+            present: true,
+            lockfile_version: Some(lock.lockfile_version.clone()),
+            omena_min_version: lock.omena_min_version.clone(),
+            running_omena_version: env!("CARGO_PKG_VERSION"),
+            entry_count: lock.entries.len(),
+            t0_entry_count: lock
+                .entries
+                .iter()
+                .filter(|entry| entry.trust_tier == omena_sif::OmenaSifTrustTierV1::T0)
+                .count(),
+            t1_entry_count: lock
+                .entries
+                .iter()
+                .filter(|entry| entry.trust_tier == omena_sif::OmenaSifTrustTierV1::T1)
+                .count(),
+            t2_entry_count: lock
+                .entries
+                .iter()
+                .filter(|entry| entry.trust_tier == omena_sif::OmenaSifTrustTierV1::T2)
+                .count(),
+            t3_entry_count: lock
+                .entries
+                .iter()
+                .filter(|entry| entry.trust_tier == omena_sif::OmenaSifTrustTierV1::T3)
+                .count(),
+        }
+    } else {
+        LockStatusReportV1 {
+            product: "omena-cli.lock-status",
+            lockfile: path_string(&lockfile),
+            present: false,
+            lockfile_version: None,
+            omena_min_version: None,
+            running_omena_version: env!("CARGO_PKG_VERSION"),
+            entry_count: 0,
+            t0_entry_count: 0,
+            t1_entry_count: 0,
+            t2_entry_count: 0,
+            t3_entry_count: 0,
+        }
+    };
+
+    if json {
+        print_json(&report)?;
+    } else if report.present {
+        println!(
+            "omena.lock status: {} entr{} at {} (requires omena >= {})",
+            report.entry_count,
+            if report.entry_count == 1 { "y" } else { "ies" },
+            report.lockfile,
+            report.omena_min_version.as_deref().unwrap_or("unspecified")
+        );
+    } else {
+        println!(
+            "omena.lock status: no lockfile found at {}",
+            report.lockfile
+        );
+    }
     Ok(())
 }
 
@@ -4055,12 +4290,14 @@ export function App() {
 
         let result = run(Cli {
             command: Command::Lock {
-                command: LockCommand::Verify {
+                lockfile: PathBuf::from("omena.lock"),
+                json: false,
+                command: Some(LockCommand::Verify {
                     lockfile: lockfile_path,
                     source_paths: Vec::new(),
                     frozen: true,
                     json: true,
-                },
+                }),
             },
         });
 
@@ -4100,12 +4337,14 @@ export function App() {
 
         let result = run(Cli {
             command: Command::Lock {
-                command: LockCommand::Verify {
+                lockfile: PathBuf::from("omena.lock"),
+                json: false,
+                command: Some(LockCommand::Verify {
                     lockfile: lockfile_path,
                     source_paths: Vec::new(),
                     frozen: true,
                     json: true,
-                },
+                }),
             },
         });
 
@@ -4145,12 +4384,14 @@ export function App() {
 
         let result = run(Cli {
             command: Command::Lock {
-                command: LockCommand::Verify {
+                lockfile: PathBuf::from("omena.lock"),
+                json: false,
+                command: Some(LockCommand::Verify {
                     lockfile: lockfile_path,
                     source_paths: vec![source_path.clone()],
                     frozen: true,
                     json: true,
-                },
+                }),
             },
         });
 
@@ -4179,11 +4420,14 @@ export function App() {
         // Author the lock from the generated SIF artifact.
         let update_result = run(Cli {
             command: Command::Lock {
-                command: LockCommand::Update {
+                lockfile: PathBuf::from("omena.lock"),
+                json: false,
+                command: Some(LockCommand::Update {
+                    package: None,
                     lockfile: lockfile_path.clone(),
                     sif_paths: vec![sif_path.clone()],
                     json: true,
-                },
+                }),
             },
         });
         assert!(update_result.is_ok(), "{update_result:?}");
@@ -4196,12 +4440,14 @@ export function App() {
         // The authored lock verifies against the SIF it was produced from.
         let verify_pass = run(Cli {
             command: Command::Lock {
-                command: LockCommand::Verify {
+                lockfile: PathBuf::from("omena.lock"),
+                json: false,
+                command: Some(LockCommand::Verify {
                     lockfile: lockfile_path.clone(),
                     source_paths: Vec::new(),
                     frozen: true,
                     json: true,
-                },
+                }),
             },
         });
         assert!(verify_pass.is_ok(), "{verify_pass:?}");
@@ -4217,15 +4463,172 @@ export function App() {
         .map_err(|error| format!("tampered SIF should be writable: {error}"))?;
         let verify_fail = run(Cli {
             command: Command::Lock {
-                command: LockCommand::Verify {
+                lockfile: PathBuf::from("omena.lock"),
+                json: false,
+                command: Some(LockCommand::Verify {
                     lockfile: lockfile_path,
                     source_paths: Vec::new(),
                     frozen: true,
                     json: true,
-                },
+                }),
             },
         });
         assert!(verify_fail.is_err(), "{verify_fail:?}");
+
+        cleanup_dir(&workspace_path);
+        Ok(())
+    }
+
+    #[test]
+    fn lock_verify_frozen_fails_when_lock_requires_future_omena() -> Result<(), String> {
+        let workspace_path = temp_dir("lock-min-version");
+        let sif_dir = workspace_path.join("sif");
+        fs::create_dir_all(&sif_dir)
+            .map_err(|error| format!("fixture SIF dir should be writable: {error}"))?;
+        let sif_path = sif_dir.join("design-system.sif.json");
+        let lockfile_path = workspace_path.join("omena.lock");
+        let sif = cli_fixture_sif("pkg:design-system/_tokens.scss", b"$color: red !default;")?;
+        fs::write(
+            &sif_path,
+            omena_sif::write_omena_sif_json_v1(&sif)
+                .map_err(|error| format!("fixture SIF should serialize: {error}"))?,
+        )
+        .map_err(|error| format!("fixture SIF should be writable: {error}"))?;
+        let lock = omena_sif::OmenaLockV1::new_with_min_version(
+            vec![
+                omena_sif::build_omena_lock_sif_entry_v1("sif/design-system.sif.json", &sif)
+                    .map_err(|error| format!("fixture lock entry should build: {error}"))?,
+            ],
+            Some("999.0.0".to_string()),
+        );
+        fs::write(
+            &lockfile_path,
+            omena_sif::write_omena_lock_json_v1(&lock)
+                .map_err(|error| format!("fixture lock should serialize: {error}"))?,
+        )
+        .map_err(|error| format!("fixture lock should be writable: {error}"))?;
+
+        let result = run(Cli {
+            command: Command::Lock {
+                lockfile: PathBuf::from("omena.lock"),
+                json: false,
+                command: Some(LockCommand::Verify {
+                    lockfile: lockfile_path,
+                    source_paths: Vec::new(),
+                    frozen: true,
+                    json: true,
+                }),
+            },
+        });
+
+        assert!(result.is_err(), "{result:?}");
+        cleanup_dir(&workspace_path);
+        Ok(())
+    }
+
+    #[test]
+    fn lock_status_and_package_authoring_manage_entries_without_overwriting_others()
+    -> Result<(), String> {
+        let workspace_path = temp_dir("lock-package-authoring");
+        let sif_dir = workspace_path.join("sif");
+        fs::create_dir_all(&sif_dir)
+            .map_err(|error| format!("fixture SIF dir should be writable: {error}"))?;
+        let lockfile_path = workspace_path.join("omena.lock");
+        let design_sif_path = sif_dir.join("design-system.sif.json");
+        let palette_sif_path = sif_dir.join("palette.sif.json");
+        let updated_design_sif_path = sif_dir.join("design-system-updated.sif.json");
+        let design_sif = cli_fixture_sif("pkg:design-system/_tokens.scss", b"$color: red;")?;
+        let palette_sif = cli_fixture_sif("pkg:palette/_colors.scss", b"$brand: blue;")?;
+        let updated_design_sif =
+            cli_fixture_sif("pkg:design-system/_tokens.scss", b"$color: green;")?;
+        for (path, sif) in [
+            (&design_sif_path, &design_sif),
+            (&palette_sif_path, &palette_sif),
+            (&updated_design_sif_path, &updated_design_sif),
+        ] {
+            fs::write(
+                path,
+                omena_sif::write_omena_sif_json_v1(sif)
+                    .map_err(|error| format!("fixture SIF should serialize: {error}"))?,
+            )
+            .map_err(|error| format!("fixture SIF should be writable: {error}"))?;
+        }
+
+        let add_design = run(Cli {
+            command: Command::Lock {
+                lockfile: PathBuf::from("omena.lock"),
+                json: false,
+                command: Some(LockCommand::Add {
+                    package: "design-system".to_string(),
+                    lockfile: lockfile_path.clone(),
+                    sif_paths: vec![design_sif_path.clone()],
+                    json: true,
+                }),
+            },
+        });
+        assert!(add_design.is_ok(), "{add_design:?}");
+
+        let add_palette = run(Cli {
+            command: Command::Lock {
+                lockfile: PathBuf::from("omena.lock"),
+                json: false,
+                command: Some(LockCommand::Add {
+                    package: "palette".to_string(),
+                    lockfile: lockfile_path.clone(),
+                    sif_paths: vec![palette_sif_path.clone()],
+                    json: true,
+                }),
+            },
+        });
+        assert!(add_palette.is_ok(), "{add_palette:?}");
+
+        let update_design = run(Cli {
+            command: Command::Lock {
+                lockfile: PathBuf::from("omena.lock"),
+                json: false,
+                command: Some(LockCommand::Update {
+                    package: Some("design-system".to_string()),
+                    lockfile: lockfile_path.clone(),
+                    sif_paths: vec![updated_design_sif_path.clone()],
+                    json: true,
+                }),
+            },
+        });
+        assert!(update_design.is_ok(), "{update_design:?}");
+
+        let lock = omena_sif::read_omena_lock_json_v1(
+            &fs::read_to_string(&lockfile_path)
+                .map_err(|error| format!("fixture lock should be readable: {error}"))?,
+        )
+        .map_err(|error| format!("fixture lock should parse: {error}"))?;
+        assert_eq!(lock.entries.len(), 2, "{lock:?}");
+        assert!(
+            lock.entries
+                .iter()
+                .any(|entry| entry.canonical_url == "pkg:palette/_colors.scss"),
+            "{lock:?}"
+        );
+        let design_entry = lock
+            .entries
+            .iter()
+            .find(|entry| entry.canonical_url == "pkg:design-system/_tokens.scss")
+            .ok_or_else(|| format!("updated design-system entry should exist: {lock:?}"))?;
+        assert!(
+            design_entry
+                .sif_path
+                .ends_with("design-system-updated.sif.json"),
+            "{design_entry:?}"
+        );
+        assert!(lock.omena_min_version.is_some(), "{lock:?}");
+
+        let status = run(Cli {
+            command: Command::Lock {
+                lockfile: lockfile_path,
+                json: true,
+                command: None,
+            },
+        });
+        assert!(status.is_ok(), "{status:?}");
 
         cleanup_dir(&workspace_path);
         Ok(())
