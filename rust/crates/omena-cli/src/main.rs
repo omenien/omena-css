@@ -419,6 +419,9 @@ enum LockCommand {
         /// Verification report JSON produced by an offline attestation verifier.
         #[arg(long)]
         verification: PathBuf,
+        /// SIF artifact bytes covered by a T3 offline verification report.
+        #[arg(long)]
+        artifact: Option<PathBuf>,
         /// Print machine-readable JSON.
         #[arg(long)]
         json: bool,
@@ -896,8 +899,9 @@ fn lock_command(
             package,
             lockfile,
             verification,
+            artifact,
             json,
-        }) => lock_record_verification(lockfile, package, verification, json),
+        }) => lock_record_verification(lockfile, package, verification, artifact, json),
         Some(LockCommand::VerifyAttestation {
             package,
             lockfile,
@@ -1103,6 +1107,7 @@ fn lock_record_verification(
     lockfile: PathBuf,
     package: String,
     verification: PathBuf,
+    artifact: Option<PathBuf>,
     json: bool,
 ) -> Result<(), String> {
     let mut lock = read_lockfile_or_empty(&lockfile)?;
@@ -1117,16 +1122,38 @@ fn lock_record_verification(
             continue;
         }
         matched_count += 1;
-        let applied =
-            apply_omena_sif_attestation_verification_report_to_lock_entry_v1(entry, &report)
-                .map_err(|error| {
-                    format!(
-                        "attestation verification report {} rejected for {}: {error}",
-                        path_string(&verification),
-                        entry.canonical_url
-                    )
-                })?;
+        let mut updated_entry = entry.clone();
+        let applied = apply_omena_sif_attestation_verification_report_to_lock_entry_v1(
+            &mut updated_entry,
+            &report,
+        )
+        .map_err(|error| {
+            format!(
+                "attestation verification report {} rejected for {}: {error}",
+                path_string(&verification),
+                entry.canonical_url
+            )
+        })?;
         if applied {
+            if report.verified_trust_tier == omena_sif::OmenaSifTrustTierV1::T3 {
+                let artifact = artifact.as_ref().ok_or_else(|| {
+                    "lock record-verification with verifiedTrustTier t3 requires --artifact to be the matching SIF JSON".to_string()
+                })?;
+                let artifact_bytes = fs::read(artifact).map_err(|error| {
+                    format!("failed to read {}: {error}", path_string(artifact))
+                })?;
+                let binding = read_verified_t3_attestation_artifact_binding(
+                    artifact,
+                    artifact_bytes.as_slice(),
+                )?;
+                validate_verified_t3_attestation_artifact_binding(entry, &binding)?;
+                validate_verified_t3_attestation_statement_binding(
+                    entry,
+                    &binding,
+                    report.attestation_statement.as_ref(),
+                )?;
+            }
+            *entry = updated_entry;
             applied_count += 1;
         }
     }
@@ -8004,6 +8031,7 @@ export function App() {
                     package: "design-system".to_string(),
                     lockfile: lockfile_path.clone(),
                     verification: bad_verification_path,
+                    artifact: None,
                     json: true,
                 }),
             },
@@ -8021,6 +8049,7 @@ export function App() {
                     package: "design-system".to_string(),
                     lockfile: lockfile_path.clone(),
                     verification: verification_path.clone(),
+                    artifact: None,
                     json: true,
                 }),
             },
@@ -8052,6 +8081,7 @@ export function App() {
                     package: "design-system".to_string(),
                     lockfile: lockfile_path.clone(),
                     verification: bad_t3_verification_path,
+                    artifact: None,
                     json: true,
                 }),
             },
@@ -8071,6 +8101,7 @@ export function App() {
                     package: "design-system".to_string(),
                     lockfile: lockfile_path.clone(),
                     verification: verification_path,
+                    artifact: None,
                     json: true,
                 }),
             },
@@ -8126,6 +8157,136 @@ export function App() {
             },
         });
         assert!(verify_t2_after.is_ok(), "{verify_t2_after:?}");
+
+        cleanup_dir(&workspace_path);
+        Ok(())
+    }
+
+    #[test]
+    fn lock_record_verification_t3_requires_matching_sif_artifact_digest() -> Result<(), String> {
+        let workspace_path = temp_dir("lock-record-verification-t3-artifact");
+        let sif_dir = workspace_path.join("sif");
+        fs::create_dir_all(&sif_dir)
+            .map_err(|error| format!("fixture SIF dir should be writable: {error}"))?;
+        let sif_path = sif_dir.join("design-system.sif.json");
+        let verification_path = workspace_path.join("t3-attestation-verification.json");
+        let lockfile_path = workspace_path.join("omena.lock");
+        let reference = "sif/design-system.sigstore.json";
+        let sif = cli_fixture_sif("pkg:design-system/_tokens.scss", b"$color: red !default;")?;
+        let sif_source = omena_sif::write_omena_sif_json_v1(&sif)
+            .map_err(|error| format!("fixture SIF should serialize: {error}"))?;
+        fs::write(&sif_path, &sif_source)
+            .map_err(|error| format!("fixture SIF should be writable: {error}"))?;
+        let mut entry =
+            omena_sif::build_omena_lock_sif_entry_v1("sif/design-system.sif.json", &sif)
+                .map_err(|error| format!("fixture lock entry should build: {error}"))?;
+        entry
+            .attestation_references
+            .push(omena_sif::OmenaSifAttestationReferenceV1 {
+                kind: "sigstore-bundle".to_string(),
+                reference: reference.to_string(),
+            });
+        fs::write(
+            &lockfile_path,
+            omena_sif::write_omena_lock_json_v1(&omena_sif::OmenaLockV1::new(vec![entry.clone()]))
+                .map_err(|error| format!("fixture lock should serialize: {error}"))?,
+        )
+        .map_err(|error| format!("fixture lock should be writable: {error}"))?;
+        fs::write(
+            &verification_path,
+            serde_json::json!({
+                "schemaVersion": "1",
+                "product": "omena-sif.attestation-verification-report",
+                "verified": true,
+                "kind": "omena-toolchain.sigstore",
+                "reference": reference,
+                "verifier": "offline-sigstore-verifier",
+                "verifiedTrustTier": "t3",
+                "verifiedTlogIntegratedTime": 1717000000,
+                "sigstoreVerificationPolicy": {
+                    "trustedRoot": "sigstore-production-trusted-root",
+                    "transparencyLog": true,
+                    "timestamp": true,
+                    "certificateChain": true,
+                    "signedCertificateTimestamp": true
+                },
+                "certificateIssuer": "https://token.actions.githubusercontent.com",
+                "certificateIdentity": "https://github.com/omenien/omena-css/.github/workflows/sif-keyless-attestation.yml@refs/heads/master",
+                "attestationStatement": {
+                    "statementType": "https://in-toto.io/Statement/v1",
+                    "predicateType": "https://slsa.dev/provenance/v1",
+                    "sourceRepository": "https://github.com/omenien/omena-css",
+                    "sourceRef": "refs/heads/master",
+                    "sourceCommit": "abcdef0123456789",
+                    "builderId": "https://github.com/actions/runner/github-hosted",
+                    "buildType": "https://slsa-framework.github.io/github-actions-buildtypes/workflow/v1",
+                    "subjectNames": [
+                        entry.sif_path.as_str()
+                    ],
+                    "subjectDigests": [
+                        {
+                            "name": entry.sif_path.as_str(),
+                            "algorithm": "sha256",
+                            "digest": sha256_hex(sif_source.as_bytes())
+                        }
+                    ]
+                },
+                "subjectCanonicalUrl": entry.canonical_url.as_str(),
+                "subjectSifHash": entry.sif_hash.as_str()
+            })
+            .to_string(),
+        )
+        .map_err(|error| format!("fixture T3 verification should be writable: {error}"))?;
+
+        let missing_artifact_result = run(Cli {
+            command: Command::Lock {
+                lockfile: PathBuf::from("omena.lock"),
+                json: false,
+                command: Some(LockCommand::RecordVerification {
+                    package: "design-system".to_string(),
+                    lockfile: lockfile_path.clone(),
+                    verification: verification_path.clone(),
+                    artifact: None,
+                    json: true,
+                }),
+            },
+        });
+        assert!(
+            missing_artifact_result
+                .as_ref()
+                .is_err_and(|error| error.contains("verifiedTrustTier t3 requires --artifact")),
+            "{missing_artifact_result:?}"
+        );
+
+        let record_result = run(Cli {
+            command: Command::Lock {
+                lockfile: PathBuf::from("omena.lock"),
+                json: false,
+                command: Some(LockCommand::RecordVerification {
+                    package: "design-system".to_string(),
+                    lockfile: lockfile_path.clone(),
+                    verification: verification_path,
+                    artifact: Some(sif_path),
+                    json: true,
+                }),
+            },
+        });
+        assert!(record_result.is_ok(), "{record_result:?}");
+
+        let verify_t3_after = run(Cli {
+            command: Command::Lock {
+                lockfile: PathBuf::from("omena.lock"),
+                json: false,
+                command: Some(LockCommand::Verify {
+                    lockfile: lockfile_path,
+                    source_paths: Vec::new(),
+                    frozen: true,
+                    tier: Some("t3".to_string()),
+                    json: true,
+                }),
+            },
+        });
+        assert!(verify_t3_after.is_ok(), "{verify_t3_after:?}");
 
         cleanup_dir(&workspace_path);
         Ok(())
