@@ -1214,6 +1214,7 @@ fn lock_verify_attestation(input: LockVerifyAttestationInput) -> Result<(), Stri
             reference: reference.clone(),
             verifier: "sigstore-verify".to_string(),
             verified_trust_tier,
+            verified_tlog_integrated_time: verification_result.integrated_time,
             certificate_issuer: Some(issuer.clone()),
             certificate_identity: identity.clone(),
             subject_canonical_url: entry.canonical_url.clone(),
@@ -6383,6 +6384,7 @@ export function App() {
                 reference,
                 verifier: "sigstore-verify".to_string(),
                 verified_trust_tier: omena_sif::OmenaSifTrustTierV1::T3,
+                verified_tlog_integrated_time: None,
                 certificate_issuer: Some("https://github.com/login/oauth".to_string()),
                 certificate_identity: None,
             });
@@ -7453,6 +7455,7 @@ export function App() {
                 reference,
                 verifier: "sigstore-verify".to_string(),
                 verified_trust_tier: omena_sif::OmenaSifTrustTierV1::T3,
+                verified_tlog_integrated_time: None,
                 certificate_issuer: Some("https://github.com/login/oauth".to_string()),
                 certificate_identity: Some("w.vollprecht@gmail.com".to_string()),
             });
