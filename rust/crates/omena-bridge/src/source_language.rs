@@ -5,6 +5,7 @@ use std::borrow::Cow;
 pub(crate) trait SourceLanguageParserV0 {
     fn parser_id(&self) -> &'static str;
     fn language(&self) -> &'static str;
+    fn language_aliases(&self) -> Vec<&'static str>;
     fn projection_kind(&self) -> &'static str;
     fn source_type(&self, source_path: &str) -> SourceType;
     fn project<'a>(&self, source: &'a str) -> Cow<'a, str>;
@@ -43,6 +44,31 @@ impl SourceLanguageParserV0 for SourceLanguageParserKindV0 {
             Self::AstroComponentScript => "astro",
             Self::MarkdownFencedCode => "markdown",
             Self::ServerTemplateMarkup => "server-template",
+        }
+    }
+
+    fn language_aliases(&self) -> Vec<&'static str> {
+        match self {
+            Self::OxcTsx => vec![
+                "typescriptreact",
+                "javascriptreact",
+                "typescript",
+                "javascript",
+            ],
+            Self::MarkdownFencedCode => vec!["mdx"],
+            Self::ServerTemplateMarkup => vec![
+                "liquid",
+                "twig",
+                "nunjucks",
+                "handlebars",
+                "erb",
+                "ejs",
+                "django-html",
+                "jinja",
+                "html-eex",
+                "heex",
+            ],
+            _ => Vec::new(),
         }
     }
 
@@ -115,6 +141,7 @@ pub struct SourceLanguageParserBoundarySummaryV0 {
 pub struct SourceLanguageParserDescriptorV0 {
     pub parser_id: &'static str,
     pub language: &'static str,
+    pub language_aliases: Vec<&'static str>,
     pub projection_kind: &'static str,
     pub fixture_witnessed: bool,
 }
@@ -134,6 +161,7 @@ pub fn summarize_omena_bridge_source_language_parser_boundary_v0()
     .map(|parser| SourceLanguageParserDescriptorV0 {
         parser_id: parser.parser_id(),
         language: parser.language(),
+        language_aliases: parser.language_aliases(),
         projection_kind: parser.projection_kind(),
         fixture_witnessed: true,
     })
@@ -153,7 +181,9 @@ pub fn summarize_omena_bridge_source_language_parser_boundary_v0()
             "svelteComponentScriptProjection",
             "astroComponentScriptProjection",
             "markdownFencedCodeProjection",
+            "mdxFencedCodeProjection",
             "serverTemplateMarkupScan",
+            "serverTemplateLanguageAliases",
         ],
     }
 }
@@ -527,10 +557,19 @@ mod tests {
         assert!(summary.parsers.iter().any(|parser| {
             parser.parser_id == "markdownFencedCodeProjectionParserV0"
                 && parser.language == "markdown"
+                && parser.language_aliases == vec!["mdx"]
         }));
         assert!(summary.parsers.iter().any(|parser| {
             parser.parser_id == "serverTemplateMarkupProjectionParserV0"
                 && parser.language == "server-template"
+                && parser.language_aliases.contains(&"liquid")
+                && parser.language_aliases.contains(&"heex")
         }));
+        assert!(summary.ready_surfaces.contains(&"mdxFencedCodeProjection"));
+        assert!(
+            summary
+                .ready_surfaces
+                .contains(&"serverTemplateLanguageAliases")
+        );
     }
 }
