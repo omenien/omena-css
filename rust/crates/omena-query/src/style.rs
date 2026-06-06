@@ -958,6 +958,8 @@ fn summarize_sass_module_cross_file_resolution(
                                 &available_style_paths,
                                 &source_by_path,
                                 package_manifests,
+                                bundler_path_mappings,
+                                tsconfig_path_mappings,
                             );
                             configuration_evidence
                                 .configuration_variable_names
@@ -1013,9 +1015,13 @@ fn summarize_sass_module_cross_file_resolution(
         .saturating_sub(resolved_module_edge_count + external_module_edge_count);
     let (graph_closure_edges, cycles) = summarize_sass_module_graph_closure(
         &edges,
-        &source_by_path,
-        &available_style_paths,
-        package_manifests,
+        SassModuleGraphClosureContext {
+            source_by_path: &source_by_path,
+            available_style_paths: &available_style_paths,
+            package_manifests,
+            bundler_path_mappings,
+            tsconfig_path_mappings,
+        },
     );
     let visibility_filter_count = edges
         .iter()
@@ -1067,9 +1073,7 @@ fn summarize_sass_module_cross_file_resolution(
 
 fn summarize_sass_module_graph_closure(
     edges: &[OmenaQuerySassModuleEdgeResolutionV0],
-    source_by_path: &BTreeMap<String, String>,
-    available_style_paths: &BTreeSet<&str>,
-    package_manifests: &[OmenaQueryStylePackageManifestV0],
+    context: SassModuleGraphClosureContext<'_>,
 ) -> (
     Vec<OmenaQuerySassModuleGraphClosureEdgeV0>,
     Vec<OmenaQuerySassModuleCycleV0>,
@@ -1122,9 +1126,7 @@ fn summarize_sass_module_graph_closure(
                 derive_sass_module_graph_closure_path_metadata(
                     path_labels.as_slice(),
                     &metadata_by_step,
-                    source_by_path,
-                    available_style_paths,
-                    package_manifests,
+                    context,
                 )
                 .into_iter()
                 .map(|metadata| OmenaQuerySassModuleGraphClosureEdgeV0 {
@@ -1170,6 +1172,15 @@ fn summarize_sass_module_graph_closure(
     (closure_edges, cycles)
 }
 
+#[derive(Debug, Clone, Copy)]
+struct SassModuleGraphClosureContext<'a> {
+    source_by_path: &'a BTreeMap<String, String>,
+    available_style_paths: &'a BTreeSet<&'a str>,
+    package_manifests: &'a [OmenaQueryStylePackageManifestV0],
+    bundler_path_mappings: &'a [OmenaResolverBundlerPathAliasMappingV0],
+    tsconfig_path_mappings: &'a [OmenaResolverTsconfigPathMappingV0],
+}
+
 #[derive(Debug, Clone)]
 struct SassModuleGraphClosureStepMetadata {
     rule_ordinal: usize,
@@ -1206,9 +1217,7 @@ impl From<&OmenaQuerySassModuleEdgeResolutionV0> for SassModuleGraphClosureStepM
 fn derive_sass_module_graph_closure_path_metadata(
     path_labels: &[String],
     metadata_by_step: &BTreeMap<(String, String), Vec<SassModuleGraphClosureStepMetadata>>,
-    source_by_path: &BTreeMap<String, String>,
-    available_style_paths: &BTreeSet<&str>,
-    package_manifests: &[OmenaQueryStylePackageManifestV0],
+    context: SassModuleGraphClosureContext<'_>,
 ) -> Vec<SassModuleGraphClosureStepMetadata> {
     let mut states = vec![(BTreeMap::<String, String>::new(), None)];
 
@@ -1232,17 +1241,13 @@ fn derive_sass_module_graph_closure_path_metadata(
                     target_style_path,
                     metadata,
                     inherited_variable_overrides,
-                    source_by_path,
-                    available_style_paths,
-                    package_manifests,
+                    context,
                 );
                 let applied_metadata = apply_sass_module_graph_closure_step_configuration(
                     metadata.clone(),
                     target_style_path,
                     variable_overrides.clone(),
-                    source_by_path,
-                    available_style_paths,
-                    package_manifests,
+                    context,
                 );
                 next_states.push((variable_overrides, Some(applied_metadata)));
             }
@@ -1261,24 +1266,25 @@ fn derive_sass_module_graph_closure_step_variable_overrides(
     target_style_path: &str,
     metadata: &SassModuleGraphClosureStepMetadata,
     inherited_variable_overrides: &BTreeMap<String, String>,
-    source_by_path: &BTreeMap<String, String>,
-    available_style_paths: &BTreeSet<&str>,
-    package_manifests: &[OmenaQueryStylePackageManifestV0],
+    context: SassModuleGraphClosureContext<'_>,
 ) -> BTreeMap<String, String> {
-    let Some(style_source) = source_by_path.get(from_style_path) else {
+    let Some(style_source) = context.source_by_path.get(from_style_path) else {
         return BTreeMap::new();
     };
     match metadata.edge_kind {
         "sassForward" => {
-            let configurable_names = source_by_path
+            let configurable_names = context
+                .source_by_path
                 .get(target_style_path)
                 .map(|target_source| {
                     transform::derive_static_scss_module_configurable_variable_names_for_resolution(
                         target_style_path,
                         target_source,
-                        available_style_paths,
-                        source_by_path,
-                        package_manifests,
+                        context.available_style_paths,
+                        context.source_by_path,
+                        context.package_manifests,
+                        context.bundler_path_mappings,
+                        context.tsconfig_path_mappings,
                     )
                 })
                 .unwrap_or_default();
@@ -1304,19 +1310,20 @@ fn apply_sass_module_graph_closure_step_configuration(
     mut metadata: SassModuleGraphClosureStepMetadata,
     target_style_path: &str,
     variable_overrides: BTreeMap<String, String>,
-    source_by_path: &BTreeMap<String, String>,
-    available_style_paths: &BTreeSet<&str>,
-    package_manifests: &[OmenaQueryStylePackageManifestV0],
+    context: SassModuleGraphClosureContext<'_>,
 ) -> SassModuleGraphClosureStepMetadata {
-    let configurable_names = source_by_path
+    let configurable_names = context
+        .source_by_path
         .get(target_style_path)
         .map(|target_source| {
             transform::derive_static_scss_module_configurable_variable_names_for_resolution(
                 target_style_path,
                 target_source,
-                available_style_paths,
-                source_by_path,
-                package_manifests,
+                context.available_style_paths,
+                context.source_by_path,
+                context.package_manifests,
+                context.bundler_path_mappings,
+                context.tsconfig_path_mappings,
             )
         })
         .unwrap_or_default();

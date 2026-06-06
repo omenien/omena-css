@@ -9212,6 +9212,56 @@ export function App() {
         );
     }
 
+    #[test]
+    fn style_diagnostics_query_identity_accepts_path_mapped_forwarded_configuration() {
+        let sources = vec![
+            OmenaQueryStyleSourceInputV0 {
+                style_path: "/workspace/src/_tokens.scss".to_string(),
+                style_source: "$brand: blue !default;".to_string(),
+            },
+            OmenaQueryStyleSourceInputV0 {
+                style_path: "/workspace/src/_theme.scss".to_string(),
+                style_source: r#"@forward "@design/tokens" with ($brand: red !default);"#
+                    .to_string(),
+            },
+            OmenaQueryStyleSourceInputV0 {
+                style_path: "/workspace/src/App.module.scss".to_string(),
+                style_source: r#"@use "./theme" as theme with ($brand: green);"#.to_string(),
+            },
+        ];
+        let resolution_inputs = omena_query::OmenaQueryStyleResolutionInputsV0 {
+            tsconfig_path_mappings: vec![omena_query::OmenaQueryTsconfigPathMappingV0 {
+                base_path: "/workspace".to_string(),
+                pattern: "@design/*".to_string(),
+                target_patterns: vec!["src/*".to_string()],
+            }],
+            ..Default::default()
+        };
+
+        let diagnostics =
+            omena_query::summarize_omena_query_sass_module_resolution_identity_diagnostics_for_workspace(
+            "/workspace/src/App.module.scss",
+            sources.as_slice(),
+            &[],
+            &resolution_inputs,
+        );
+
+        assert!(
+            diagnostics
+                .iter()
+                .all(|diagnostic| diagnostic.code != "sassModuleInvalidConfiguration"),
+            "path-mapped forwarded Sass configuration must not be reported as invalid: {diagnostics:?}"
+        );
+        assert!(
+            diagnostics.iter().any(|diagnostic| {
+                diagnostic.code == "sassModuleInstanceIdentity"
+                    && diagnostic.message.contains("/workspace/src/_tokens.scss")
+                    && diagnostic.message.contains("brand=5:green")
+            }),
+            "style diagnostics must propagate downstream configuration through the aliased @forward edge: {diagnostics:?}"
+        );
+    }
+
     #[cfg(unix)]
     #[test]
     fn style_diagnostics_query_identity_reads_symlink_chain_metadata() -> Result<(), String> {

@@ -135,13 +135,19 @@ pub(super) fn derive_static_scss_module_configurable_variable_names_for_resoluti
     available_style_paths: &BTreeSet<&str>,
     source_by_path: &BTreeMap<String, String>,
     package_manifests: &[OmenaQueryStylePackageManifestV0],
+    bundler_path_mappings: &[OmenaResolverBundlerPathAliasMappingV0],
+    tsconfig_path_mappings: &[OmenaResolverTsconfigPathMappingV0],
 ) -> BTreeSet<String> {
     derive_static_scss_module_configurable_variable_names_for_transform_context(
         style_path,
         style_source,
         available_style_paths,
         source_by_path,
-        TransformResolutionContext::from_package_manifests(package_manifests),
+        TransformResolutionContext {
+            package_manifests,
+            bundler_path_mappings,
+            tsconfig_path_mappings,
+        },
     )
 }
 

@@ -809,6 +809,73 @@ fn style_semantic_graph_batch_propagates_downstream_forward_default_configuratio
     Ok(())
 }
 
+#[test]
+fn sass_module_resolution_preserves_path_mappings_for_forwarded_configurable_names()
+-> Result<(), String> {
+    let sources = vec![
+        crate::OmenaQueryStyleSourceInputV0 {
+            style_path: "/workspace/src/_tokens.scss".to_string(),
+            style_source: "$brand: blue !default; .base { color: $brand; }".to_string(),
+        },
+        crate::OmenaQueryStyleSourceInputV0 {
+            style_path: "/workspace/src/_theme.scss".to_string(),
+            style_source: r#"@forward "@design/tokens" with ($brand: red !default);"#.to_string(),
+        },
+        crate::OmenaQueryStyleSourceInputV0 {
+            style_path: "/workspace/src/App.module.scss".to_string(),
+            style_source: r#"@use "./theme" as theme with ($brand: green);"#.to_string(),
+        },
+    ];
+    let tsconfig_mappings = vec![crate::OmenaQueryTsconfigPathMappingV0 {
+        base_path: "/workspace".to_string(),
+        pattern: "@design/*".to_string(),
+        target_patterns: vec!["src/*".to_string()],
+    }];
+    let resolution = crate::summarize_omena_query_sass_module_cross_file_resolution_for_workspace(
+        sources.as_slice(),
+        &[],
+        &[],
+        tsconfig_mappings.as_slice(),
+    );
+
+    let app_to_theme = resolution
+        .graph_closure_edges
+        .iter()
+        .find(|edge| {
+            edge.from_style_path == "/workspace/src/App.module.scss"
+                && edge.target_style_path == "/workspace/src/_theme.scss"
+        })
+        .ok_or_else(|| format!("App should reach the theme module: {resolution:?}"))?;
+    assert!(
+        app_to_theme.invalid_configuration_variable_names.is_empty(),
+        "path-mapped forwarded variables must remain configurable through the public theme module: {resolution:?}"
+    );
+    assert!(
+        app_to_theme
+            .configuration_signature
+            .contains("brand=5:green"),
+        "{resolution:?}"
+    );
+
+    let app_to_tokens = resolution
+        .graph_closure_edges
+        .iter()
+        .find(|edge| {
+            edge.from_style_path == "/workspace/src/App.module.scss"
+                && edge.target_style_path == "/workspace/src/_tokens.scss"
+        })
+        .ok_or_else(|| {
+            format!("App should reach the aliased forwarded tokens module: {resolution:?}")
+        })?;
+    assert!(
+        app_to_tokens
+            .configuration_signature
+            .contains("brand=5:green"),
+        "{resolution:?}"
+    );
+    Ok(())
+}
+
 #[cfg(unix)]
 #[test]
 fn style_semantic_graph_batch_surfaces_symlink_chain_resolution_metadata()
