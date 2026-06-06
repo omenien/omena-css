@@ -1837,6 +1837,80 @@ fn style_diagnostics_external_sif_mode_resolves_bare_canonical_url_sif() -> Resu
 }
 
 #[test]
+fn style_diagnostics_external_sif_mode_resolves_bundler_alias_canonical_url_sif()
+-> Result<(), &'static str> {
+    let sources = vec![OmenaQueryStyleSourceInputV0 {
+        style_path: "/workspace/App.module.scss".to_string(),
+        style_source: r#"@use "@remote/tokens" as remote;
+.button { color: remote.$accent; }"#
+            .to_string(),
+    }];
+    let sif = omena_sif::OmenaSifV1::from_static_exports(
+        "/workspace/vendor/tokens.scss",
+        omena_sif::OmenaSifGeneratorV1 {
+            name: "fixture-sifgen".to_string(),
+            version: "0.1.0".to_string(),
+            toolchain_id: "fixture-sifgen@0.1.0".to_string(),
+        },
+        omena_sif::OmenaSifSourceV1 {
+            syntax: omena_sif::OmenaSifSourceSyntaxV1::Scss,
+        },
+        omena_sif::OmenaSifExportsV1 {
+            variables: vec![omena_sif::OmenaSifVariableExportV1 {
+                name: "$accent".to_string(),
+                defaulted: true,
+                value_repr: Some("blue".to_string()),
+            }],
+            mixins: Vec::new(),
+            functions: Vec::new(),
+            placeholders: Vec::new(),
+            forwards: Vec::new(),
+        },
+        Vec::new(),
+        b"$accent: blue !default;",
+    )
+    .map_err(|_| "bundler alias canonical-url sif fixture")?;
+    let external_sifs = vec![OmenaQueryExternalSifInputV0 {
+        canonical_url: "/workspace/vendor/tokens.scss".to_string(),
+        sif,
+    }];
+    let resolution_inputs = crate::OmenaQueryStyleResolutionInputsV0 {
+        bundler_path_mappings: vec![crate::OmenaQueryBundlerPathAliasMappingV0 {
+            pattern: "@remote".to_string(),
+            target_path: "/workspace/vendor".to_string(),
+        }],
+        ..Default::default()
+    };
+
+    let diagnostics =
+        crate::summarize_omena_query_style_diagnostics_for_workspace_file_with_external_mode_and_sifs_and_resolution_inputs(
+            "/workspace/App.module.scss",
+            sources.as_slice(),
+            &[],
+            &[],
+            None,
+            crate::OmenaQueryExternalModuleModeV0::Sif,
+            external_sifs.as_slice(),
+            &resolution_inputs,
+        )
+        .ok_or("bundler alias canonical-url sif workspace diagnostics")?;
+
+    assert!(
+        diagnostics
+            .diagnostics
+            .iter()
+            .all(
+                |diagnostic| diagnostic.code != "unresolvedExternalReference"
+                    && diagnostic.code != "missingExternalSif"
+                    && diagnostic.code != "missingSassSymbol"
+            ),
+        "bundler alias canonicalUrl backed by a SIF must resolve through the external path: {:?}",
+        diagnostics.diagnostics
+    );
+    Ok(())
+}
+
+#[test]
 fn style_diagnostics_external_sif_mode_flattens_forwarded_sif_exports() -> Result<(), &'static str>
 {
     let sources = vec![OmenaQueryStyleSourceInputV0 {

@@ -1,6 +1,6 @@
 import { strict as assert } from "node:assert";
 import { spawnSync } from "node:child_process";
-import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -20,12 +20,22 @@ try {
   const indexPath = join(workspace, "index.scss");
   const directAppPath = join(workspace, "direct.module.scss");
   const forwardedAppPath = join(workspace, "forwarded.module.scss");
+  const aliasedAppPath = join(workspace, "aliased.module.scss");
+  const vendorDir = join(workspace, "vendor");
+  const aliasTokensPath = join(vendorDir, "tokens.scss");
   const tokensSifPath = join(workspace, "tokens.sif.json");
   const indexSifPath = join(workspace, "index.sif.json");
+  const aliasTokensSifPath = join(workspace, "alias-tokens.sif.json");
   const lockfilePath = join(workspace, "omena.lock");
 
+  mkdirSync(vendorDir, { recursive: true });
   writeFileSync(tokensPath, "$brand: red !default;");
   writeFileSync(indexPath, '@forward "design-system/tokens";');
+  writeFileSync(aliasTokensPath, "$accent: blue !default;");
+  writeFileSync(
+    join(workspace, "vite.config.ts"),
+    'export default { resolve: { alias: { "@remote": "./vendor" } } };',
+  );
   writeFileSync(
     directAppPath,
     '@use "design-system/tokens" as remote;\n.button { color: remote.$brand; }',
@@ -33,6 +43,10 @@ try {
   writeFileSync(
     forwardedAppPath,
     '@use "design-system/index" as ds;\n.button { color: ds.$brand; }',
+  );
+  writeFileSync(
+    aliasedAppPath,
+    '@use "@remote/tokens" as remote;\n.button { color: remote.$accent; }',
   );
 
   runOmena([
@@ -54,6 +68,15 @@ try {
     indexSifPath,
   ]);
   runOmena([
+    "sif",
+    "generate",
+    aliasTokensPath,
+    "--canonical-url",
+    aliasTokensPath,
+    "--output",
+    aliasTokensSifPath,
+  ]);
+  runOmena([
     "lock",
     "update",
     "--lockfile",
@@ -62,6 +85,8 @@ try {
     tokensSifPath,
     "--sif",
     indexSifPath,
+    "--sif",
+    aliasTokensSifPath,
     "--json",
   ]);
 
@@ -71,11 +96,15 @@ try {
   const forwarded = runStyleDiagnostics(forwardedAppPath, lockfilePath);
   assertNoExternalResolutionCodes(forwarded, "forwarded SIF export chain");
 
+  const aliased = runStyleDiagnostics(aliasedAppPath, lockfilePath);
+  assertNoExternalResolutionCodes(aliased, "bundler-alias canonicalUrl SIF");
+
   console.log(
     [
       "validated omena-cli external SIF chain:",
       `directDiagnostics=${direct.diagnostics.length}`,
       `forwardedDiagnostics=${forwarded.diagnostics.length}`,
+      `aliasedDiagnostics=${aliased.diagnostics.length}`,
       "ready=externalSifBoundaryDiagnostics",
     ].join(" "),
   );
