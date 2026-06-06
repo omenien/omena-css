@@ -216,3 +216,82 @@ fn cascade_narrowing_prunes_to_requested_condition_and_layer_branch() -> TestRes
     );
     Ok(())
 }
+
+#[test]
+fn cascade_narrowing_uses_reachable_module_graph_candidates() -> TestResult {
+    let mut state = LspShellState::default();
+    for (uri, text) in [
+        (
+            "file:///workspace-a/src/App.module.scss",
+            "@use \"./theme\";\n.btn { color: red; }\n.btn { color: green; }",
+        ),
+        (
+            "file:///workspace-a/src/_theme.scss",
+            ".btn { color: blue; }\n.unrelated { color: black; }",
+        ),
+        (
+            "file:///workspace-a/src/_other.scss",
+            ".btn { color: orange; }",
+        ),
+    ] {
+        handle_lsp_message(
+            &mut state,
+            json!({
+                "jsonrpc": "2.0",
+                "method": "textDocument/didOpen",
+                "params": {
+                    "textDocument": {
+                        "uri": uri,
+                        "languageId": "scss",
+                        "version": 1,
+                        "text": text,
+                    },
+                },
+            }),
+        );
+    }
+
+    let diagnostics_response = handle_lsp_message(
+        &mut state,
+        json!({
+            "jsonrpc": "2.0",
+            "id": 1,
+            "method": STYLE_DIAGNOSTICS_REQUEST,
+            "params": {
+                "textDocument": {
+                    "uri": "file:///workspace-a/src/App.module.scss",
+                },
+            },
+        }),
+    );
+    let diagnostics = diagnostics_response
+        .as_ref()
+        .and_then(|value| value.pointer("/result"))
+        .and_then(Value::as_array)
+        .ok_or_else(|| std::io::Error::other("style diagnostics result"))?;
+    let unreachable = diagnostics
+        .iter()
+        .find(|diagnostic| diagnostic.pointer("/code") == Some(&json!("unreachableDeclaration")))
+        .ok_or_else(|| std::io::Error::other("unreachable declaration diagnostic"))?;
+    assert_eq!(
+        unreachable.pointer("/data/cascadeNarrowing/propertyValueNarrowing/stylesheetScope"),
+        Some(&json!("moduleGraph")),
+    );
+    assert_eq!(
+        unreachable.pointer("/data/cascadeNarrowing/propertyValueNarrowing/candidateCount"),
+        Some(&json!(3)),
+    );
+    let values = unreachable
+        .pointer("/data/cascadeNarrowing/propertyValueNarrowing/value/values")
+        .and_then(Value::as_array)
+        .ok_or_else(|| std::io::Error::other("finite property values"))?;
+    assert!(
+        values.iter().any(|value| value == &json!("blue")),
+        "reachable imported module value should participate: {values:?}"
+    );
+    assert!(
+        values.iter().all(|value| value != &json!("orange")),
+        "unreachable module value should not participate: {values:?}"
+    );
+    Ok(())
+}

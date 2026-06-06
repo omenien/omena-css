@@ -1684,6 +1684,14 @@ pub fn summarize_omena_query_style_diagnostics_for_workspace_file_with_external_
             package_manifests,
         ),
     );
+    attach_omena_query_module_graph_property_value_narrowing_for_workspace(
+        target_style_path,
+        &mut summary,
+        style_sources,
+        package_manifests,
+        resolution_inputs.bundler_path_mappings.as_slice(),
+        resolution_inputs.tsconfig_path_mappings.as_slice(),
+    );
     summary.diagnostic_count = summary.diagnostics.len();
     push_omena_query_ready_surface(
         &mut summary.ready_surfaces,
@@ -1715,6 +1723,10 @@ pub fn summarize_omena_query_style_diagnostics_for_workspace_file_with_external_
     push_omena_query_ready_surface(
         &mut summary.ready_surfaces,
         "crossFileReplicaEnsembleHintScope",
+    );
+    push_omena_query_ready_surface(
+        &mut summary.ready_surfaces,
+        "moduleGraphPropertyValueNarrowing",
     );
     if external_mode == OmenaQueryExternalModuleModeV0::Sif {
         // RFC 0004 #28 / #35: the file-scoped `@omena-strict: <level>` sigil dials the
@@ -1790,6 +1802,90 @@ pub fn summarize_omena_query_style_diagnostics_for_workspace_file_with_external_
     }
     summary.diagnostic_count = summary.diagnostics.len();
     Some(summary)
+}
+
+fn attach_omena_query_module_graph_property_value_narrowing_for_workspace(
+    target_style_path: &str,
+    summary: &mut OmenaQueryStyleDiagnosticsForFileV0,
+    style_sources: &[OmenaQueryStyleSourceInputV0],
+    package_manifests: &[OmenaQueryStylePackageManifestV0],
+    bundler_path_mappings: &[OmenaResolverBundlerPathAliasMappingV0],
+    tsconfig_path_mappings: &[OmenaResolverTsconfigPathMappingV0],
+) {
+    let style_source_refs = style_sources
+        .iter()
+        .map(|source| (source.style_path.as_str(), source.style_source.as_str()))
+        .collect::<Vec<_>>();
+    let style_fact_entries = collect_omena_query_style_fact_entries(style_source_refs.as_slice());
+    let resolution = summarize_sass_module_cross_file_resolution(
+        &style_fact_entries,
+        package_manifests,
+        bundler_path_mappings,
+        tsconfig_path_mappings,
+    );
+    let reachable_style_paths =
+        collect_sass_module_graph_reachable_style_paths(target_style_path, &resolution);
+    if reachable_style_paths.len() <= 1 {
+        return;
+    }
+
+    let graph_candidates = style_sources
+        .iter()
+        .filter(|source| reachable_style_paths.contains(source.style_path.as_str()))
+        .flat_map(|source| {
+            super::cascade_checker::collect_query_checker_cascade_declarations(
+                source.style_source.as_str(),
+            )
+            .into_iter()
+            .map(|declaration| {
+                (
+                    declaration.input.selector.as_str().to_string(),
+                    AbstractPropertyValueCandidateV0 {
+                        property_name: declaration.input.property,
+                        value: declaration.input.value,
+                        pseudo_state: None,
+                        condition_context: declaration.input.condition_context,
+                        layer_name: declaration.input.layer_name,
+                        layer_order: declaration.input.layer_order,
+                    },
+                )
+            })
+        })
+        .collect::<Vec<_>>();
+    if graph_candidates.is_empty() {
+        return;
+    }
+
+    for diagnostic in &mut summary.diagnostics {
+        let Some(cascade_narrowing) = diagnostic.cascade_narrowing.as_mut() else {
+            continue;
+        };
+        let property_value_narrowing = &cascade_narrowing.property_value_narrowing;
+        let property_candidates = graph_candidates
+            .iter()
+            .filter(|(selector, candidate)| {
+                selector == &cascade_narrowing.selector
+                    && candidate.property_name == cascade_narrowing.property_name
+            })
+            .map(|(_, candidate)| candidate.clone())
+            .collect::<Vec<_>>();
+        if property_candidates.is_empty() {
+            continue;
+        }
+        let mut narrowed = narrow_abstract_property_value_for_cascade_branch(
+            cascade_narrowing.property_name.as_str(),
+            property_value_narrowing.requested_pseudo_state.as_deref(),
+            property_value_narrowing
+                .requested_condition_context
+                .as_slice(),
+            property_value_narrowing.requested_layer_name.as_deref(),
+            property_value_narrowing.requested_layer_order,
+            property_value_narrowing.requested_layer_scope == "exactLayer",
+            property_candidates.as_slice(),
+        );
+        narrowed.stylesheet_scope = "moduleGraph";
+        cascade_narrowing.property_value_narrowing = narrowed;
+    }
 }
 
 fn attach_omena_query_runtime_state_inline_overrides_for_workspace(
