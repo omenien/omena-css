@@ -467,6 +467,9 @@ enum LockCommand {
         /// Expected build type recorded in the signed provenance statement.
         #[arg(long = "statement-build-type")]
         statement_build_type: Option<String>,
+        /// Required subject name recorded in the signed provenance statement. Repeat for multiple subjects.
+        #[arg(long = "statement-subject-name")]
+        statement_subject_names: Vec<String>,
         /// Print machine-readable JSON.
         #[arg(long)]
         json: bool,
@@ -903,6 +906,7 @@ fn lock_command(
             statement_source_commit,
             statement_builder_id,
             statement_build_type,
+            statement_subject_names,
             json,
         }) => lock_verify_attestation(LockVerifyAttestationInput {
             lockfile,
@@ -921,6 +925,7 @@ fn lock_command(
                 source_commit: statement_source_commit,
                 builder_id: statement_builder_id,
                 build_type: statement_build_type,
+                subject_names: statement_subject_names,
             },
             json,
         }),
@@ -1165,6 +1170,7 @@ struct AttestationStatementPolicy {
     source_commit: Option<String>,
     builder_id: Option<String>,
     build_type: Option<String>,
+    subject_names: Vec<String>,
 }
 
 impl AttestationStatementPolicy {
@@ -1175,6 +1181,7 @@ impl AttestationStatementPolicy {
             && self.source_commit.is_none()
             && self.builder_id.is_none()
             && self.build_type.is_none()
+            && self.subject_names.is_empty()
     }
 }
 
@@ -1519,6 +1526,22 @@ fn require_statement_policy_matches(
                     ));
                 }
             }
+        }
+    }
+    for expected in &policy.subject_names {
+        if expected.trim().is_empty() {
+            return Err(
+                "lock verify-attestation --statement-subject-name must not be empty".to_string(),
+            );
+        }
+        if !statement
+            .subject_names
+            .iter()
+            .any(|subject| subject == expected)
+        {
+            return Err(format!(
+                "verified attestation statement missing required subjectName: expected {expected}"
+            ));
         }
     }
     Ok(())
@@ -5322,6 +5345,8 @@ mod tests {
             "https://github.com/actions/runner/github-hosted",
             "--statement-build-type",
             "https://slsa-framework.github.io/github-actions-buildtypes/workflow/v1",
+            "--statement-subject-name",
+            "pkg:npm/@omenacss/omena-css@1.0.0",
         ])
         .map_err(|error| {
             format!("issuer-bound attestation verification command should parse: {error}")
@@ -5339,6 +5364,7 @@ mod tests {
                     statement_source_commit,
                     statement_builder_id,
                     statement_build_type,
+                    statement_subject_names,
                     ..
                 }),
             ..
@@ -5366,6 +5392,10 @@ mod tests {
         assert_eq!(
             statement_build_type.as_deref(),
             Some("https://slsa-framework.github.io/github-actions-buildtypes/workflow/v1")
+        );
+        assert_eq!(
+            statement_subject_names,
+            vec!["pkg:npm/@omenacss/omena-css@1.0.0".to_string()]
         );
         Ok(())
     }
@@ -5447,6 +5477,7 @@ mod tests {
                     "https://slsa-framework.github.io/github-actions-buildtypes/workflow/v1"
                         .to_string(),
                 ),
+                subject_names: vec!["pkg:npm/@omenacss/omena-css@1.0.0".to_string()],
             },
         )?;
 
@@ -5459,6 +5490,7 @@ mod tests {
                 source_commit: None,
                 builder_id: None,
                 build_type: None,
+                subject_names: Vec::new(),
             },
         );
         assert!(
@@ -5477,6 +5509,7 @@ mod tests {
                 source_commit: Some("fedcba9876543210".to_string()),
                 builder_id: None,
                 build_type: None,
+                subject_names: Vec::new(),
             },
         );
         assert!(
@@ -5495,6 +5528,7 @@ mod tests {
                 source_commit: None,
                 builder_id: None,
                 build_type: Some("https://example.com/build-type/v1".to_string()),
+                subject_names: Vec::new(),
             },
         );
         assert!(
@@ -5502,6 +5536,25 @@ mod tests {
                 .as_ref()
                 .is_err_and(|error| error.contains("buildType mismatch")),
             "{build_type_mismatch:?}"
+        );
+
+        let subject_mismatch = require_statement_policy_matches(
+            &summary,
+            &AttestationStatementPolicy {
+                predicate_type: None,
+                source_repository: None,
+                source_ref: None,
+                source_commit: None,
+                builder_id: None,
+                build_type: None,
+                subject_names: vec!["pkg:npm/@omenacss/other@1.0.0".to_string()],
+            },
+        );
+        assert!(
+            subject_mismatch
+                .as_ref()
+                .is_err_and(|error| error.contains("subjectName")),
+            "{subject_mismatch:?}"
         );
 
         Ok(())
@@ -5529,6 +5582,7 @@ mod tests {
                     statement_source_commit: None,
                     statement_builder_id: None,
                     statement_build_type: None,
+                    statement_subject_names: Vec::new(),
                     json: true,
                 }),
             },
@@ -5564,6 +5618,7 @@ mod tests {
                     statement_source_commit: None,
                     statement_builder_id: None,
                     statement_build_type: None,
+                    statement_subject_names: Vec::new(),
                     json: true,
                 }),
             },
@@ -7836,6 +7891,7 @@ export function App() {
                     statement_source_commit: None,
                     statement_builder_id: None,
                     statement_build_type: None,
+                    statement_subject_names: Vec::new(),
                     json: true,
                 }),
             },
@@ -7947,6 +8003,7 @@ export function App() {
                     statement_source_commit: None,
                     statement_builder_id: None,
                     statement_build_type: None,
+                    statement_subject_names: Vec::new(),
                     json: true,
                 }),
             },
@@ -8104,6 +8161,7 @@ export function App() {
                     statement_source_commit: None,
                     statement_builder_id: None,
                     statement_build_type: None,
+                    statement_subject_names: Vec::new(),
                     json: true,
                 }),
             },
