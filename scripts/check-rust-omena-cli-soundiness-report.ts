@@ -28,7 +28,7 @@ try {
     [
       ".button { color: var(--missing); }",
       '@use "design-system/tokens" as tokens;',
-      '/* omena-ignore-next-line missingSassSymbol */',
+      "/* omena-ignore-next-line missingSassSymbol */",
       ".token { color: tokens.$brand; }",
     ].join("\n"),
   );
@@ -79,7 +79,9 @@ try {
   assert.ok(report.readySurfaces.includes("soundinessReport"));
   assert.ok(report.readySurfaces.includes("noiseBudgetVisibilityGates"));
 
-  console.log("validated omena-cli soundiness report: suppression=visible boundary=visible budget=review");
+  console.log(
+    "validated omena-cli soundiness report: suppression=visible boundary=visible budget=review",
+  );
 } finally {
   rmSync(workspace, { force: true, recursive: true });
 }
