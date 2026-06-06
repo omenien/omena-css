@@ -4909,6 +4909,71 @@ mod tests {
     }
 
     #[test]
+    fn build_scss_module_mode_shares_preconfigured_transitive_module_instance() -> Result<(), String>
+    {
+        let root = temp_dir("scss-module-preconfigured-transitive-instance");
+        let output_path = root.join("output.css");
+        let target_path = root.join("App.module.scss");
+        let theme_path = root.join("theme.scss");
+        let tokens_path = root.join("tokens.scss");
+        fs::create_dir_all(&root)
+            .map_err(|error| format!("fixture root dir should be writable: {error}"))?;
+
+        fs::write(
+            &tokens_path,
+            "$brand: blue !default; .base { color: $brand; }",
+        )
+        .map_err(|error| format!("fixture tokens source should be writable: {error}"))?;
+        fs::write(&theme_path, r#"@forward "./tokens";"#)
+            .map_err(|error| format!("fixture theme source should be writable: {error}"))?;
+        fs::write(
+            &target_path,
+            r#"@use "./tokens" as tokens with ($brand: red);
+@use "./theme" as theme;
+.button { color: tokens.$brand; border-color: theme.$brand; }"#,
+        )
+        .map_err(|error| format!("fixture target source should be writable: {error}"))?;
+
+        let result = run(Cli {
+            command: Command::Build {
+                path: target_path.clone(),
+                output: Some(output_path.clone()),
+                passes: vec!["scss-module-evaluate".to_string(), "print-css".to_string()],
+                target_query: None,
+                allow_logical_to_physical: false,
+                allow_scope_flatten: false,
+                allow_layer_flatten: false,
+                enable_supports_static_eval: false,
+                enable_media_static_eval: false,
+                drop_dark_mode_media_queries: false,
+                context_json: None,
+                engine_input_json: None,
+                closed_style_world: false,
+                tree_shake: false,
+                bundle: false,
+                split_out_dir: None,
+                source_paths: vec![tokens_path.clone(), theme_path.clone()],
+                package_manifest_paths: Vec::new(),
+                source_map: false,
+                json: false,
+            },
+        });
+
+        assert!(result.is_ok(), "{result:?}");
+        let output = fs::read_to_string(&output_path)
+            .map_err(|error| format!("build output should be readable: {error}"))?;
+        assert_eq!(output.matches(".base { color: red; }").count(), 1);
+        assert!(!output.contains(".base { color: blue; }"), "{output}");
+        assert!(
+            output.contains(".button { color: red; border-color: red; }"),
+            "{output}"
+        );
+
+        cleanup_dir(&root);
+        Ok(())
+    }
+
+    #[test]
     fn build_bundle_mode_rewrites_asset_urls_by_source_path() -> Result<(), String> {
         let root = temp_dir("bundle-asset-url-rewrite");
         let target_path = root.join("app.css");

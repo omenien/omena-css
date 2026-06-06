@@ -131,7 +131,7 @@ pub(super) fn derive_static_scss_module_use_evaluations_for_transform_context(
     }
 
     let mut emitted_module_identity_keys = BTreeSet::new();
-    let mut configured_module_signatures_by_path = BTreeMap::new();
+    let mut configured_module_overrides_by_path = BTreeMap::new();
     entry
         .facts
         .sass_module_edges
@@ -156,15 +156,13 @@ pub(super) fn derive_static_scss_module_use_evaluations_for_transform_context(
                 "@use",
                 edge.source.as_str(),
             );
-            let module_identity_key =
-                static_scss_module_instance_identity_key(resolved.as_str(), &variable_overrides);
-            if !static_scss_module_configuration_is_compatible(
+            let variable_overrides = resolve_static_scss_module_effective_variable_overrides(
                 resolved.as_str(),
                 &variable_overrides,
-                &mut configured_module_signatures_by_path,
-            ) {
-                return None;
-            }
+                &mut configured_module_overrides_by_path,
+            )?;
+            let module_identity_key =
+                static_scss_module_instance_identity_key(resolved.as_str(), &variable_overrides);
             let module_context = {
                 let mut visited = BTreeSet::new();
                 let mut derive_context = StaticScssModuleDeriveContext {
@@ -173,7 +171,7 @@ pub(super) fn derive_static_scss_module_use_evaluations_for_transform_context(
                     package_manifests,
                     visited: &mut visited,
                     emitted_module_identity_keys: &mut emitted_module_identity_keys,
-                    configured_module_signatures_by_path: &mut configured_module_signatures_by_path,
+                    configured_module_overrides_by_path: &mut configured_module_overrides_by_path,
                 };
                 derive_static_scss_module_context_for_transform_context(
                     resolved.as_str(),
@@ -212,7 +210,7 @@ struct StaticScssModuleDeriveContext<'a> {
     package_manifests: &'a [OmenaQueryStylePackageManifestV0],
     visited: &'a mut BTreeSet<String>,
     emitted_module_identity_keys: &'a mut BTreeSet<String>,
-    configured_module_signatures_by_path: &'a mut BTreeMap<String, String>,
+    configured_module_overrides_by_path: &'a mut BTreeMap<String, BTreeMap<String, String>>,
 }
 
 pub(super) fn static_scss_module_instance_identity_key(
@@ -246,21 +244,25 @@ pub(super) fn static_scss_module_configuration_signature(
     key
 }
 
-fn static_scss_module_configuration_is_compatible(
+fn resolve_static_scss_module_effective_variable_overrides(
     style_path: &str,
     variable_overrides: &BTreeMap<String, String>,
-    configured_module_signatures_by_path: &mut BTreeMap<String, String>,
-) -> bool {
-    if variable_overrides.is_empty() {
-        return true;
-    }
+    configured_module_overrides_by_path: &mut BTreeMap<String, BTreeMap<String, String>>,
+) -> Option<BTreeMap<String, String>> {
     let canonical_path = canonicalize_omena_resolver_style_identity_path(style_path);
-    let signature = static_scss_module_configuration_signature(variable_overrides);
-    match configured_module_signatures_by_path.get(canonical_path.as_str()) {
-        Some(existing_signature) => existing_signature == &signature,
+    match configured_module_overrides_by_path.get(canonical_path.as_str()) {
+        Some(existing_overrides) if variable_overrides.is_empty() => {
+            Some(existing_overrides.clone())
+        }
+        Some(existing_overrides) => {
+            (existing_overrides == variable_overrides).then(|| variable_overrides.clone())
+        }
         None => {
-            configured_module_signatures_by_path.insert(canonical_path, signature);
-            true
+            if !variable_overrides.is_empty() {
+                configured_module_overrides_by_path
+                    .insert(canonical_path, variable_overrides.clone());
+            }
+            Some(variable_overrides.clone())
         }
     }
 }
@@ -271,15 +273,13 @@ fn derive_static_scss_module_context_for_transform_context(
     variable_overrides: &BTreeMap<String, String>,
     context: &mut StaticScssModuleDeriveContext<'_>,
 ) -> Option<StaticScssModuleContext> {
-    if !static_scss_module_configuration_is_compatible(
+    let variable_overrides = resolve_static_scss_module_effective_variable_overrides(
         style_path,
         variable_overrides,
-        context.configured_module_signatures_by_path,
-    ) {
-        return None;
-    }
+        context.configured_module_overrides_by_path,
+    )?;
     let module_identity_key =
-        static_scss_module_instance_identity_key(style_path, variable_overrides);
+        static_scss_module_instance_identity_key(style_path, &variable_overrides);
     if !context.visited.insert(module_identity_key.clone()) {
         return Some(StaticScssModuleContext {
             evaluated_css: String::new(),
@@ -288,7 +288,7 @@ fn derive_static_scss_module_context_for_transform_context(
     }
 
     let style_source =
-        apply_static_scss_module_variable_overrides(style_source, variable_overrides);
+        apply_static_scss_module_variable_overrides(style_source, &variable_overrides);
     let style_source = style_source.as_ref();
 
     let forward_evaluations = derive_static_scss_module_forward_evaluations_for_transform_context(
@@ -369,6 +369,11 @@ fn derive_static_scss_module_forward_evaluations_for_transform_context(
             "@forward",
             edge.source.as_str(),
         );
+        let variable_overrides = resolve_static_scss_module_effective_variable_overrides(
+            resolved.as_str(),
+            &variable_overrides,
+            context.configured_module_overrides_by_path,
+        )?;
         let module_identity_key =
             static_scss_module_instance_identity_key(resolved.as_str(), &variable_overrides);
         let export_prefix =
