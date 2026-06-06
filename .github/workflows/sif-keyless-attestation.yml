@@ -7,14 +7,18 @@ on:
         description: Git ref to generate the SIF from.
         type: string
         required: true
+      manifest_path:
+        description: Optional repository-relative JSON manifest of SIF generation entries.
+        type: string
+        required: false
       source_path:
         description: Repository-relative CSS, SCSS, or Sass source to scan.
         type: string
-        required: true
+        required: false
       canonical_url:
         description: Stable canonical URL stored in the generated SIF.
         type: string
-        required: true
+        required: false
       output_name:
         description: Output artifact basename without extension.
         type: string
@@ -45,55 +49,106 @@ jobs:
       - name: Generate SIF artifact
         shell: bash
         env:
+          MANIFEST_PATH: ${{ inputs.manifest_path }}
           SOURCE_PATH: ${{ inputs.source_path }}
           CANONICAL_URL: ${{ inputs.canonical_url }}
           OUTPUT_NAME: ${{ inputs.output_name }}
         run: |
           set -euo pipefail
 
-          case "${SOURCE_PATH}" in
-            /*|*..*)
-              echo "::error::source_path must be a repository-relative path without '..': ${SOURCE_PATH}" >&2
-              exit 1
-              ;;
-          esac
-          case "${OUTPUT_NAME}" in
-            ""|*[!A-Za-z0-9._-]*)
-              echo "::error::output_name must contain only letters, numbers, dot, underscore, and dash: ${OUTPUT_NAME}" >&2
-              exit 1
-              ;;
-          esac
-          test -f "${SOURCE_PATH}"
           repo_root="$(pwd -P)"
-          source_realpath="$(realpath "${SOURCE_PATH}")"
-          case "${source_realpath}" in
-            "${repo_root}"/*)
-              ;;
-            *)
-              echo "::error::source_path must resolve inside the checked-out repository: ${SOURCE_PATH}" >&2
+
+          validate_repo_file() {
+            local label="$1"
+            local repo_path="$2"
+            case "${repo_path}" in
+              ""|/*|*..*)
+                echo "::error::${label} must be a repository-relative path without '..': ${repo_path}" >&2
+                exit 1
+                ;;
+            esac
+            test -f "${repo_path}"
+            local file_realpath
+            file_realpath="$(realpath "${repo_path}")"
+            case "${file_realpath}" in
+              "${repo_root}"/*)
+                ;;
+              *)
+                echo "::error::${label} must resolve inside the checked-out repository: ${repo_path}" >&2
+                exit 1
+                ;;
+            esac
+          }
+
+          validate_output_name() {
+            local output_name="$1"
+            case "${output_name}" in
+              ""|*[!A-Za-z0-9._-]*)
+                echo "::error::output_name must contain only letters, numbers, dot, underscore, and dash: ${output_name}" >&2
+                exit 1
+                ;;
+            esac
+          }
+
+          sif_args=()
+          generate_sif_entry() {
+            local source_path="$1"
+            local canonical_url="$2"
+            local output_name="$3"
+            if [ -z "${output_name}" ]; then
+              local source_basename
+              source_basename="$(basename "${source_path}")"
+              output_name="${source_basename%.*}"
+            fi
+            validate_repo_file source_path "${source_path}"
+            validate_output_name "${output_name}"
+            local output_path="dist/sif/${output_name}.sif.json"
+            if [ -e "${output_path}" ]; then
+              echo "::error::duplicate SIF output path: ${output_path}" >&2
               exit 1
-              ;;
-          esac
+            fi
+            ./rust/target/release/omena-cli sif generate "${source_path}" \
+              --canonical-url "${canonical_url}" \
+              --output "${output_path}"
+            test -s "${output_path}"
+            jq -e --arg canonicalUrl "${canonical_url}" \
+              '.sifVersion == "1" and .canonicalUrl == $canonicalUrl and .fingerprints.hashAlgorithm == "blake3"' \
+              "${output_path}" >/dev/null
+            sif_args+=(--sif "${output_path}")
+          }
 
           cargo build --manifest-path rust/Cargo.toml -p omena-cli --release --locked
 
           mkdir -p dist/sif
-          output_path="dist/sif/${OUTPUT_NAME}.sif.json"
-          ./rust/target/release/omena-cli sif generate "${SOURCE_PATH}" \
-            --canonical-url "${CANONICAL_URL}" \
-            --output "${output_path}"
-          test -s "${output_path}"
-          jq -e --arg canonicalUrl "${CANONICAL_URL}" \
-            '.sifVersion == "1" and .canonicalUrl == $canonicalUrl and .fingerprints.hashAlgorithm == "blake3"' \
-            "${output_path}" >/dev/null
+          if [ -n "${MANIFEST_PATH}" ]; then
+            if [ -n "${SOURCE_PATH}" ] || [ -n "${CANONICAL_URL}" ]; then
+              echo "::error::manifest_path is mutually exclusive with source_path and canonical_url" >&2
+              exit 1
+            fi
+            validate_repo_file manifest_path "${MANIFEST_PATH}"
+            jq -e 'type == "array" and length > 0 and all(.[]; (.sourcePath | type == "string") and (.canonicalUrl | type == "string") and ((.outputName // "") | type == "string"))' \
+              "${MANIFEST_PATH}" >/dev/null
+            while IFS= read -r manifest_entry; do
+              generate_sif_entry \
+                "$(jq -r '.sourcePath' <<<"${manifest_entry}")" \
+                "$(jq -r '.canonicalUrl' <<<"${manifest_entry}")" \
+                "$(jq -r '.outputName // ""' <<<"${manifest_entry}")"
+            done < <(jq -c '.[]' "${MANIFEST_PATH}")
+          else
+            if [ -z "${SOURCE_PATH}" ] || [ -z "${CANONICAL_URL}" ]; then
+              echo "::error::source_path and canonical_url are required when manifest_path is not set" >&2
+              exit 1
+            fi
+            generate_sif_entry "${SOURCE_PATH}" "${CANONICAL_URL}" "${OUTPUT_NAME}"
+          fi
 
           ./rust/target/release/omena-cli lock update \
             --lockfile dist/sif/omena.lock \
-            --sif "${output_path}" \
+            "${sif_args[@]}" \
             --json >dist/sif/omena.lock.report.json
           test -s dist/sif/omena.lock
-          jq -e --arg canonicalUrl "${CANONICAL_URL}" \
-            '.entries | length == 1 and .[0].canonicalUrl == $canonicalUrl and .[0].trustTier == "t1"' \
+          jq -e \
+            '.entries | length >= 1 and all(.[]; .trustTier == "t1" and (.sifPath | endswith(".sif.json")))' \
             dist/sif/omena.lock >/dev/null
       - name: Attest SIF build provenance
         uses: actions/attest-build-provenance@e8998f949152b193b063cb0ec769d69d929409be # v2

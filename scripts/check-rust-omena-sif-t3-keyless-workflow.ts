@@ -12,7 +12,7 @@ const packageJson = JSON.parse(readFileSync(path.join(repoRoot, "package.json"),
 
 assert.match(workflow, /^name:\s*SIF Keyless Attestation$/m);
 assert.match(workflow, /^\s*workflow_dispatch:\s*$/m);
-for (const input of ["ref", "source_path", "canonical_url", "output_name"]) {
+for (const input of ["ref", "manifest_path", "source_path", "canonical_url", "output_name"]) {
   assert.match(workflow, new RegExp(`^\\s{6}${input}:\\s*$`, "m"));
 }
 
@@ -38,6 +38,22 @@ assert.ok(
   "SIF attestation workflow must generate the SIF through the shipped CLI surface",
 );
 assert.ok(
+  workflow.includes("manifest_path is mutually exclusive with source_path and canonical_url"),
+  "SIF attestation workflow must keep manifest and single-source modes mutually exclusive",
+);
+assert.ok(
+  workflow.includes('jq -e \'type == "array" and length > 0'),
+  "SIF attestation workflow must validate the manifest shape before generating artifacts",
+);
+assert.ok(
+  workflow.includes("done < <(jq -c '.[]' \"${MANIFEST_PATH}\")"),
+  "SIF attestation workflow must iterate every manifest entry",
+);
+assert.ok(
+  workflow.includes('sif_args+=(--sif "${output_path}")'),
+  "SIF attestation workflow must pass every generated SIF into lock packaging",
+);
+assert.ok(
   workflow.includes("./rust/target/release/omena-cli lock update"),
   "SIF attestation workflow must package a lock entry beside the generated SIF",
 );
@@ -46,8 +62,8 @@ assert.ok(
   "SIF attestation workflow must write a distributable omena.lock beside the SIF",
 );
 assert.ok(
-  workflow.includes('.[0].trustTier == "t1"'),
-  "SIF attestation workflow must validate the generated lock entry trust tier",
+  workflow.includes('.entries | length >= 1 and all(.[]; .trustTier == "t1"'),
+  "SIF attestation workflow must validate every generated lock entry trust tier",
 );
 assert.ok(
   workflow.includes("actions/attest-build-provenance@e8998f949152b193b063cb0ec769d69d929409be"),
@@ -72,11 +88,11 @@ assert.ok(
   "SIF keyless attestation must not depend on long-lived repository secrets",
 );
 assert.ok(
-  workflow.includes("source_path must be a repository-relative path without"),
+  workflow.includes("must be a repository-relative path without '..'"),
   "SIF attestation workflow must reject path traversal and absolute source paths",
 );
 assert.ok(
-  workflow.includes("source_path must resolve inside the checked-out repository"),
+  workflow.includes("must resolve inside the checked-out repository"),
   "SIF attestation workflow must reject symlink escapes outside the repository",
 );
 assert.ok(
