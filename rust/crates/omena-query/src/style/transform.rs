@@ -698,13 +698,17 @@ fn import_inline_source_map_segments(
         else {
             continue;
         };
-        let Some(relative_start) =
-            execution.output_css[search_start..].find(&inline.replacement_css)
+        let Some((generated_start, generated_end, _exact_match)) =
+            find_import_origin_generated_range(
+                execution.output_css.as_str(),
+                search_start..execution.output_css.len(),
+                &inline.replacement_css,
+                resolved_style_path.as_str(),
+                imported_source,
+            )
         else {
             continue;
         };
-        let generated_start = search_start + relative_start;
-        let generated_end = generated_start + inline.replacement_css.len();
         push_unique_import_origin_segment(
             &mut segments,
             &mut seen_segments,
@@ -821,14 +825,17 @@ fn collect_import_graph_source_map_segments(
         if replacement_css.is_empty() || generated_start_bound > generated_end_bound {
             continue;
         }
-        let search_range = generated_start_bound..generated_end_bound;
-        let Some(relative_start) =
-            context.output_css[search_range.clone()].find(replacement_css.as_str())
+        let Some((generated_start, generated_end, exact_match)) =
+            find_import_origin_generated_range(
+                context.output_css,
+                generated_start_bound..generated_end_bound,
+                replacement_css.as_str(),
+                resolved_style_path.as_str(),
+                imported_source,
+            )
         else {
             continue;
         };
-        let generated_start = generated_start_bound + relative_start;
-        let generated_end = generated_start + replacement_css.len();
         push_unique_import_origin_segment(
             segments,
             seen_segments,
@@ -842,14 +849,81 @@ fn collect_import_graph_source_map_segments(
             segments,
             seen_segments,
             resolved_style_path.as_str(),
-            generated_start,
-            generated_end,
+            if exact_match {
+                generated_start
+            } else {
+                generated_start_bound
+            },
+            if exact_match {
+                generated_end
+            } else {
+                generated_end_bound
+            },
             context,
             visiting,
         );
     }
 
     visiting.remove(importer_style_path);
+}
+
+fn find_import_origin_generated_range(
+    output_css: &str,
+    search_range: std::ops::Range<usize>,
+    replacement_css: &str,
+    source_path: &str,
+    source: &str,
+) -> Option<(usize, usize, bool)> {
+    if search_range.start > search_range.end || search_range.end > output_css.len() {
+        return None;
+    }
+    if let Some(relative_start) = output_css[search_range.clone()].find(replacement_css) {
+        let generated_start = search_range.start + relative_start;
+        return Some((
+            generated_start,
+            generated_start + replacement_css.len(),
+            true,
+        ));
+    }
+
+    let facts = summarize_omena_query_omena_parser_style_facts(
+        source,
+        omena_parser_dialect_for_style_path(source_path),
+    );
+    let mut candidate_needles = Vec::new();
+    candidate_needles.extend(
+        facts
+            .class_selector_names
+            .iter()
+            .map(|name| format!(".{name}")),
+    );
+    candidate_needles.extend(facts.custom_property_names.iter().cloned());
+    candidate_needles.extend(
+        facts
+            .keyframe_names
+            .iter()
+            .map(|name| format!("@keyframes {name}")),
+    );
+
+    let mut generated_start = None;
+    let mut generated_end = None;
+    for needle in candidate_needles {
+        if needle.is_empty() {
+            continue;
+        }
+        let Some(relative_start) = output_css[search_range.clone()].find(needle.as_str()) else {
+            continue;
+        };
+        let start = search_range.start + relative_start;
+        let end = start + needle.len();
+        generated_start = Some(generated_start.map_or(start, |current: usize| current.min(start)));
+        generated_end = Some(generated_end.map_or(end, |current: usize| current.max(end)));
+    }
+
+    match (generated_start, generated_end) {
+        (Some(start), Some(end)) if start < end => Some((start, end, false)),
+        _ => None,
+    }
 }
 
 fn push_unique_import_origin_segment(

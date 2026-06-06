@@ -1046,6 +1046,11 @@ pub fn default_transform_dag_edges() -> Vec<TransformDagEdgeV0> {
             reason: "hashing must run after nested selectors are expanded into final selector branches",
         },
         TransformDagEdgeV0 {
+            from: "tree-shake-class",
+            to: "css-modules-class-hashing",
+            reason: "class reachability is expressed in authored selector names and must run before hashing rewrites them",
+        },
+        TransformDagEdgeV0 {
             from: "css-modules-class-hashing",
             to: "selector-merging",
             reason: "selector merging must see post-hash selector identities",

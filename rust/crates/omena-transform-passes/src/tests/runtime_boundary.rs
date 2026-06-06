@@ -301,6 +301,21 @@ fn planner_respects_nesting_before_hash_edges() {
 }
 
 #[test]
+fn planner_respects_class_tree_shake_before_hash_edges() {
+    let plan = plan_transform_passes(&[
+        TransformPassKind::HashCssModuleClassNames,
+        TransformPassKind::TreeShakeClass,
+        TransformPassKind::PrintCss,
+    ]);
+
+    assert_eq!(plan.violated_dag_edge_count, 0);
+    assert_eq!(
+        plan.ordered_pass_ids,
+        vec!["tree-shake-class", "css-modules-class-hashing", "print-css"]
+    );
+}
+
+#[test]
 fn planner_respects_comment_strip_before_empty_rule_removal_edge() {
     let plan = plan_transform_passes(&[
         TransformPassKind::EmptyRuleRemoval,

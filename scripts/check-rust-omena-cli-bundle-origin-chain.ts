@@ -36,17 +36,19 @@ try {
   const appPath = join(workspace, "app.css");
   const tokensPath = join(themeDir, "tokens.css");
   const basePath = join(themeDir, "base.css");
+  const contextPath = join(workspace, "context.json");
   const appAssetPath = join(assetDir, "app.svg");
   const tokenAssetPath = join(tokenAssetDir, "token.svg");
   const appSource =
-    '@import "./theme/tokens.css"; .app { color: green; background: url("./assets/app.svg"); }';
+    '@import "./theme/tokens.css"; .app { color: green; background: url("./assets/app.svg"); } .deadApp { color: red; }';
   const tokensSource =
-    '@import "./base.css"; .token { color: blue; background-image: url("./icons/token.svg"); }';
-  const baseSource = ".base { color: red; }";
+    '@import "./base.css"; .token { color: blue; background-image: url("./icons/token.svg"); } .deadToken { color: red; }';
+  const baseSource = ".base { color: red; } .deadBase { color: gray; }";
 
   writeFileSync(appPath, appSource);
   writeFileSync(tokensPath, tokensSource);
   writeFileSync(basePath, baseSource);
+  writeFileSync(contextPath, JSON.stringify({ reachableClassNames: ["app", "token", "base"] }));
   writeFileSync(appAssetPath, "<svg />");
   writeFileSync(tokenAssetPath, "<svg />");
 
@@ -72,6 +74,9 @@ try {
       "--source-map",
       "--split-out-dir",
       splitDir,
+      "--tree-shake",
+      "--context-json",
+      contextPath,
       "--json",
     ],
     {
@@ -98,11 +103,15 @@ try {
   assert.ok(summary.readySurfaces.includes("sourceMapV3Serializer"));
   assert.ok(summary.readySurfaces.includes("bundleSourceMapOriginChain"));
   assert.ok(summary.readySurfaces.includes("bundleCodeSplitEmission"));
+  assert.ok(summary.readySurfaces.includes("bundleCodeSplitTreeShakeEmission"));
   assert.ok(summary.readySurfaces.includes("bundleCodeSplitSourceMapEmission"));
   assert.ok(!summary.execution.outputCss.includes("@import"));
-  assert.ok(summary.execution.outputCss.includes(baseSource));
+  assert.ok(summary.execution.outputCss.includes(".base { color: red;"));
   assert.ok(summary.execution.outputCss.includes(".token { color: blue;"));
   assert.ok(summary.execution.outputCss.includes(".app { color: green;"));
+  assert.ok(!summary.execution.outputCss.includes(".deadApp"));
+  assert.ok(!summary.execution.outputCss.includes(".deadToken"));
+  assert.ok(!summary.execution.outputCss.includes(".deadBase"));
   assert.ok(summary.execution.outputCss.includes(`url("${appAssetPath}")`));
   assert.ok(summary.execution.outputCss.includes(`url("${tokenAssetPath}")`));
   assert.ok(!summary.execution.outputCss.includes("./assets/app.svg"));
@@ -121,7 +130,7 @@ try {
       "validated omena-cli bundle origin chain:",
       `sources=${sourceMap.sources.length}`,
       `segments=${sourceMap.x_omenaSegmentCount}`,
-      "ready=bundleSourceMapOriginChain+bundleAssetUrlRewrite+bundleCodeSplitEmission+bundleCodeSplitSourceMapEmission",
+      "ready=bundleSourceMapOriginChain+bundleAssetUrlRewrite+bundleCodeSplitEmission+bundleCodeSplitTreeShakeEmission+bundleCodeSplitSourceMapEmission",
     ].join(" "),
   );
 } finally {
@@ -160,10 +169,13 @@ function assertSplitOutputs(
   const outputs = cssFiles.map((file) => readFileSync(join(splitDir, file), "utf8"));
   const appOutput = outputs.find((output) => output.includes(".app { color: green;"));
   const tokensOutput = outputs.find((output) => output.includes(".token { color: blue;"));
-  const baseOutput = outputs.find((output) => output.includes(baseSource));
+  const baseOutput = outputs.find((output) => output.includes(".base { color: red;"));
   assert.ok(appOutput, "split outputs should include the entry CSS file");
   assert.ok(tokensOutput, "split outputs should include the imported token CSS file");
   assert.ok(baseOutput, "split outputs should include the transitive base CSS file");
+  assert.ok(!appOutput.includes(".deadApp"));
+  assert.ok(!tokensOutput.includes(".deadToken"));
+  assert.ok(!baseOutput.includes(".deadBase"));
   assert.notEqual(appOutput, appSource, "entry split output should rewrite its import specifier");
   assert.notEqual(
     tokensOutput,

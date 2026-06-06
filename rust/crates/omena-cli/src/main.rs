@@ -2316,6 +2316,10 @@ fn build_file(options: BuildFileOptions) -> Result<(), String> {
     } else {
         (original_workspace_sources.clone(), 0)
     };
+    let mut split_transform_pass_ids = Vec::new();
+    if tree_shake {
+        append_tree_shake_build_passes(&mut split_transform_pass_ids);
+    }
     let source_for_build = workspace_sources
         .iter()
         .find(|style_source| style_source.style_path == style_path)
@@ -2386,15 +2390,23 @@ fn build_file(options: BuildFileOptions) -> Result<(), String> {
         );
     }
     if let Some(split_out_dir) = split_out_dir.as_ref() {
-        emit_bundle_code_split_outputs(
-            split_out_dir,
-            &style_path,
-            &workspace_sources,
-            &original_workspace_sources,
-            &resolution_inputs,
+        emit_bundle_code_split_outputs(BundleCodeSplitOutputOptions {
+            out_dir: split_out_dir,
+            entry_style_path: &style_path,
+            sources: &workspace_sources,
+            source_map_sources: &original_workspace_sources,
+            resolution_inputs: &resolution_inputs,
+            split_transform_pass_ids: &split_transform_pass_ids,
+            context: &context,
             source_map,
-        )?;
+        })?;
         push_ready_surface(&mut summary.ready_surfaces, "bundleCodeSplitEmission");
+        if tree_shake {
+            push_ready_surface(
+                &mut summary.ready_surfaces,
+                "bundleCodeSplitTreeShakeEmission",
+            );
+        }
         if source_map {
             push_ready_surface(
                 &mut summary.ready_surfaces,
@@ -2495,14 +2507,29 @@ fn resolution_inputs_for_build_path(
     )
 }
 
-fn emit_bundle_code_split_outputs(
-    out_dir: &Path,
-    entry_style_path: &str,
-    sources: &[OmenaQueryStyleSourceInputV0],
-    source_map_sources: &[OmenaQueryStyleSourceInputV0],
-    resolution_inputs: &OmenaQueryStyleResolutionInputsV0,
+struct BundleCodeSplitOutputOptions<'a> {
+    out_dir: &'a Path,
+    entry_style_path: &'a str,
+    sources: &'a [OmenaQueryStyleSourceInputV0],
+    source_map_sources: &'a [OmenaQueryStyleSourceInputV0],
+    resolution_inputs: &'a OmenaQueryStyleResolutionInputsV0,
+    split_transform_pass_ids: &'a [String],
+    context: &'a OmenaQueryTransformExecutionContextV0,
     source_map: bool,
-) -> Result<(), String> {
+}
+
+fn emit_bundle_code_split_outputs(options: BundleCodeSplitOutputOptions<'_>) -> Result<(), String> {
+    let BundleCodeSplitOutputOptions {
+        out_dir,
+        entry_style_path,
+        sources,
+        source_map_sources,
+        resolution_inputs,
+        split_transform_pass_ids,
+        context,
+        source_map,
+    } = options;
+
     fs::create_dir_all(out_dir).map_err(|error| {
         format!(
             "failed to create bundle split output directory {}: {error}",
@@ -2549,6 +2576,22 @@ fn emit_bundle_code_split_outputs(
             &source_path_lookup,
         );
         let mut output_css = rewritten_source;
+        if !split_transform_pass_ids.is_empty() {
+            let split_summary = execute_omena_query_consumer_build_style_source_with_context(
+                style_path.as_str(),
+                output_css.as_str(),
+                split_transform_pass_ids,
+                context,
+            );
+            if !split_summary.unknown_pass_ids.is_empty() {
+                return Err(format!(
+                    "unknown transform pass id for bundle split output {}: {}",
+                    style_path,
+                    split_summary.unknown_pass_ids.join(", ")
+                ));
+            }
+            output_css = split_summary.execution.output_css;
+        }
         if source_map {
             let map_file_name = format!("{file_name}.map");
             let source_map_source = source_map_source_by_path
@@ -4781,6 +4824,85 @@ mod tests {
             "{target_output}"
         );
         assert!(!tokens_output.contains("./base.css"), "{tokens_output}");
+
+        cleanup_dir(&root);
+        Ok(())
+    }
+
+    #[test]
+    fn build_bundle_mode_tree_shakes_code_split_outputs() -> Result<(), String> {
+        let root = temp_dir("bundle-code-split-tree-shake");
+        let theme_dir = root.join("theme");
+        let split_dir = root.join("split");
+        fs::create_dir_all(&theme_dir)
+            .map_err(|error| format!("fixture theme dir should be writable: {error}"))?;
+        let target_path = root.join("app.module.css");
+        let tokens_path = theme_dir.join("tokens.module.css");
+        let context_path = root.join("context.json");
+        let output_path = root.join("bundle-output.css");
+        let target_style_path = path_string(&target_path);
+        let tokens_style_path = path_string(&tokens_path);
+        let target_split_file = bundle_split_file_name(&target_style_path);
+        let tokens_split_file = bundle_split_file_name(&tokens_style_path);
+
+        fs::write(
+            &tokens_path,
+            r#".token { color: blue; } .ghost { color: gray; }"#,
+        )
+        .map_err(|error| format!("fixture tokens source should be writable: {error}"))?;
+        fs::write(
+            &target_path,
+            r#"@import "./theme/tokens.module.css"; .used { color: green; } .dead { color: red; }"#,
+        )
+        .map_err(|error| format!("fixture target source should be writable: {error}"))?;
+        fs::write(
+            &context_path,
+            r#"{
+  "reachableClassNames": ["used", "token"]
+}"#,
+        )
+        .map_err(|error| format!("fixture context should be writable: {error}"))?;
+
+        let result = run(Cli {
+            command: Command::Build {
+                path: target_path.clone(),
+                output: Some(output_path.clone()),
+                passes: Vec::new(),
+                target_query: None,
+                allow_logical_to_physical: false,
+                allow_scope_flatten: false,
+                allow_layer_flatten: false,
+                enable_supports_static_eval: false,
+                enable_media_static_eval: false,
+                drop_dark_mode_media_queries: false,
+                context_json: Some(context_path.clone()),
+                engine_input_json: None,
+                closed_style_world: false,
+                tree_shake: true,
+                bundle: true,
+                split_out_dir: Some(split_dir.clone()),
+                source_paths: vec![tokens_path.clone()],
+                package_manifest_paths: Vec::new(),
+                source_map: false,
+                json: false,
+            },
+        });
+
+        assert!(result.is_ok(), "{result:?}");
+        let main_output = fs::read_to_string(&output_path)
+            .map_err(|error| format!("main bundle output should be readable: {error}"))?;
+        let target_output = fs::read_to_string(split_dir.join(&target_split_file))
+            .map_err(|error| format!("target split output should be readable: {error}"))?;
+        let tokens_output = fs::read_to_string(split_dir.join(&tokens_split_file))
+            .map_err(|error| format!("tokens split output should be readable: {error}"))?;
+
+        assert!(main_output.contains("_used"), "{main_output}");
+        assert!(main_output.contains(".token"), "{main_output}");
+        assert!(!main_output.contains("dead"), "{main_output}");
+        assert!(target_output.contains(".used"), "{target_output}");
+        assert!(!target_output.contains(".dead"), "{target_output}");
+        assert!(tokens_output.contains(".token"), "{tokens_output}");
+        assert!(!tokens_output.contains(".ghost"), "{tokens_output}");
 
         cleanup_dir(&root);
         Ok(())
