@@ -1,0 +1,18 @@
+--- file: tsconfig.json
+{
+  "compilerOptions": {
+    "baseUrl": ".",
+    "paths": {
+      "$styles/tokens": ["src/styles/_tokens.scss"]
+    }
+  }
+}
+--- file: src/styles/_tokens.scss
+$brand: #c43a31 !default;
+--- file: src/Button.module.scss
+@use "$styles/tokens" as tokens;
+
+.button {
+  color: tokens.$brand;
+}
+--- expect: no-diagnostic missingSassSymbol

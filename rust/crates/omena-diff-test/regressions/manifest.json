@@ -1,0 +1,24 @@
+{
+  "schemaVersion": "0",
+  "product": "omena-diff-test.regression-corpus",
+  "fixtures": [
+    {
+      "id": "rfcs-54-tsconfig-sass-alias",
+      "path": "rfcs-54-tsconfig-sass-alias/fixture.omena",
+      "status": "fixed",
+      "issue": {
+        "repository": "omenien/rfcs",
+        "number": 54
+      }
+    },
+    {
+      "id": "rfcs-20-todo-policy-control",
+      "path": "rfcs-20-todo-policy-control/fixture.omena",
+      "status": "todo",
+      "issue": {
+        "repository": "omenien/rfcs",
+        "number": 20
+      }
+    }
+  ]
+}

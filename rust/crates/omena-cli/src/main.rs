@@ -26,12 +26,14 @@ use omena_query::{
     summarize_omena_query_style_completion_at_position,
     summarize_omena_query_style_diagnostics_for_file_with_local_composes_and_deep_analysis,
     summarize_omena_query_style_diagnostics_for_workspace_file_with_external_mode_and_sifs,
+    summarize_omena_query_style_diagnostics_for_workspace_file_with_external_mode_and_sifs_and_resolution_inputs,
     summarize_omena_query_style_document, summarize_omena_query_style_hover_candidates,
     summarize_omena_query_transform_context_from_engine_input,
     summarize_omena_transform_bundle_from_source,
 };
 use omena_query::{
     OmenaQueryStyleDiagnosticV0, OmenaQueryStyleDiagnosticsForFileV0, ParserRangeV0,
+    load_omena_query_workspace_style_resolution_inputs,
 };
 use omena_sif::{
     OmenaLockV1, OmenaLockVerificationIssueV1, OmenaSifSourceSyntaxV1,
@@ -2337,8 +2339,13 @@ fn style_diagnostics(
             external_sifs.as_slice(),
         );
         external_sifs.extend(in_process_external_sifs);
+        let workspace_folder_uri = style_resolution_workspace_uri_for_path(&path);
+        let resolution_inputs = load_omena_query_workspace_style_resolution_inputs(
+            workspace_folder_uri.as_deref(),
+            package_manifests.as_slice(),
+        );
         let mut summary =
-            summarize_omena_query_style_diagnostics_for_workspace_file_with_external_mode_and_sifs(
+            summarize_omena_query_style_diagnostics_for_workspace_file_with_external_mode_and_sifs_and_resolution_inputs(
                 &style_path,
                 workspace_sources.as_slice(),
                 source_documents.as_slice(),
@@ -2346,6 +2353,7 @@ fn style_diagnostics(
                 None,
                 external_mode,
                 external_sifs.as_slice(),
+                &resolution_inputs,
             )
             .ok_or_else(|| {
                 format!("failed to read workspace style diagnostics for {style_path}")
@@ -3271,6 +3279,28 @@ fn print_json<T: Serialize>(value: &T) -> Result<(), String> {
 
 fn path_string(path: &Path) -> String {
     path.to_string_lossy().into_owned()
+}
+
+fn style_resolution_workspace_uri_for_path(path: &Path) -> Option<String> {
+    path.parent()
+        .and_then(discover_style_resolution_workspace_root)
+        .map(|workspace_root| format!("file://{}", workspace_root.to_string_lossy()))
+}
+
+fn discover_style_resolution_workspace_root(path: &Path) -> Option<&Path> {
+    path.ancestors().find(|candidate| {
+        [
+            "tsconfig.json",
+            "tsconfig.base.json",
+            "jsconfig.json",
+            "package.json",
+            "vite.config.ts",
+            "vite.config.js",
+            "webpack.config.js",
+        ]
+        .iter()
+        .any(|marker| candidate.join(marker).is_file())
+    })
 }
 
 #[cfg(test)]

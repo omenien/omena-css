@@ -24,3 +24,8 @@ The Sass differential lane runs dart-sass 1.x as the Mode 1 compilability oracle
 for a small SCSS corpus. When dart-sass compiles a fixture, the Omena diagnostic
 path must not emit `missingSassSymbol`; any mismatch is classified before it can
 silently regress the parser/query boundary.
+
+The regression lane stores issue-linked `omena-fixture-v0` cases under
+`regressions/{id}/`. Fixed fixtures must keep passing while linked issues are
+closed; todo fixtures are allowed to fail only while their linked issue remains
+open.
