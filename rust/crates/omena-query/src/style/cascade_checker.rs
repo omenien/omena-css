@@ -6,7 +6,7 @@ use omena_cascade::{
     parse_simple_selector_signature, selector_co_match_verdict,
 };
 use omena_query_checker_orchestrator::{
-    OmenaCheckerCascadeDeclarationInputV0, OmenaCheckerCascadeEvaluationV0,
+    CanonicalSelector, OmenaCheckerCascadeDeclarationInputV0, OmenaCheckerCascadeEvaluationV0,
     OmenaCheckerCascadeInputV0, OmenaCheckerCategoricalInputV0,
     OmenaCheckerCategoricalPrimitiveRolePairInputV0, OmenaCheckerCategoricalRoleMappingInputV0,
     OmenaCheckerCustomPropertyInputV0, OmenaCheckerRgFlowCouplingInputV0,
@@ -1047,7 +1047,7 @@ fn summarize_query_cascade_narrowing_for_evaluation(
     Some(OmenaQueryCascadeNarrowingEvidenceV0 {
         schema_version: "0",
         product: "omena-query.cascade-narrowing-evidence",
-        selector: anchor.selector.clone(),
+        selector: anchor.selector.as_str().to_string(),
         selector_class_names,
         property_name: anchor.property.clone(),
         condition_context: anchor.condition_context.clone(),
@@ -1227,7 +1227,7 @@ fn summarize_query_runtime_state_for_evaluation(
     Some(OmenaQueryRuntimeStateScenarioEvidenceV0 {
         schema_version: "0",
         product: "omena-query.runtime-state-scenario-evidence",
-        selector: anchor.selector.clone(),
+        selector: anchor.selector.as_str().to_string(),
         selector_class_names,
         property_name: anchor.property.clone(),
         scenario_join_kind: "fixtureWitnessedScenarioJoin",
@@ -1413,6 +1413,7 @@ fn query_runtime_selector_active_for_pseudo_state(
     let Some(signature) = parse_simple_selector_signature(declaration.selector.as_str()) else {
         return declaration
             .selector
+            .as_str()
             .split(':')
             .nth(1)
             .is_none_or(|required| Some(required) == pseudo_state);
@@ -1446,7 +1447,7 @@ fn query_runtime_cascade_declaration_from_input(
         CascadeLevel::AuthorNormal
     };
     let layer_rank = LayerRank(input.layer_order.unwrap_or(0));
-    let specificity = parse_simple_selector_signature(&input.selector)
+    let specificity = parse_simple_selector_signature(input.selector.as_str())
         .map(|signature| signature.specificity)
         .unwrap_or(Specificity::ZERO);
     let value = input.value.trim().to_string();
@@ -1622,7 +1623,7 @@ pub(super) fn collect_query_replica_ensemble_site_outcomes(
         let cascade_declaration = query_cascade_declaration_from_input(&declaration.input);
         by_site
             .entry((
-                declaration.input.selector.clone(),
+                declaration.input.selector.as_str().to_string(),
                 declaration.input.property.clone(),
             ))
             .or_default()
@@ -1665,7 +1666,7 @@ fn query_cascade_declaration_from_input(
         CascadeLevel::AuthorNormal
     };
     let layer_rank = LayerRank(input.layer_order.unwrap_or(0));
-    let specificity = parse_simple_selector_signature(&input.selector)
+    let specificity = parse_simple_selector_signature(input.selector.as_str())
         .map(|signature| signature.specificity)
         .unwrap_or(Specificity::ZERO);
     let value = input.value.trim().to_string();
@@ -2041,7 +2042,7 @@ fn push_query_checker_declaration(
     declarations.push(QueryCheckerCascadeDeclaration {
         input: OmenaCheckerCascadeDeclarationInputV0 {
             declaration_id,
-            selector: selector.to_string(),
+            selector: CanonicalSelector::from_canonical(selector),
             property: property.to_string(),
             value: value.clone(),
             source_order: source_order.min(u32::MAX as usize) as u32,
@@ -2517,7 +2518,7 @@ mod tests {
             .into_iter()
             .map(|declaration| {
                 (
-                    declaration.input.selector,
+                    declaration.input.selector.into_string(),
                     declaration.input.property,
                     declaration.input.value,
                 )
@@ -2563,7 +2564,7 @@ mod tests {
     ) -> OmenaCheckerCascadeDeclarationInputV0 {
         OmenaCheckerCascadeDeclarationInputV0 {
             declaration_id: declaration_id.to_string(),
-            selector: selector.to_string(),
+            selector: CanonicalSelector::from_canonical(selector),
             property: property.to_string(),
             value: "red".to_string(),
             source_order,

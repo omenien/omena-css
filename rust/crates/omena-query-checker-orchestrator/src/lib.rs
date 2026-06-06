@@ -20,7 +20,7 @@ pub use omena_categorical::{
     DesignSystemProjectSummaryInputV0,
 };
 pub use omena_checker::{
-    CategoricalCascadeEvidenceV0, OmenaCheckerCascadeDeclarationInputV0,
+    CanonicalSelector, CategoricalCascadeEvidenceV0, OmenaCheckerCascadeDeclarationInputV0,
     OmenaCheckerCascadeEvaluationV0, OmenaCheckerCascadeInputV0,
     OmenaCheckerCategoricalEvaluationV0, OmenaCheckerCategoricalInputV0,
     OmenaCheckerCategoricalPrimitiveRolePairInputV0, OmenaCheckerCategoricalRoleMappingInputV0,
@@ -1355,7 +1355,7 @@ mod tests {
     ) -> OmenaCheckerCascadeDeclarationInputV0 {
         OmenaCheckerCascadeDeclarationInputV0 {
             declaration_id: fixture.declaration_id.to_string(),
-            selector: fixture.selector.to_string(),
+            selector: CanonicalSelector::from_canonical(fixture.selector),
             property: fixture.property.to_string(),
             value: fixture.value.to_string(),
             source_order: fixture.source_order,

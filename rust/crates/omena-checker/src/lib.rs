@@ -1,4 +1,5 @@
 use std::collections::{BTreeMap, BTreeSet};
+use std::fmt;
 
 use omena_abstract_value::{
     AbstractClassValueV0, SelectorProjectionCertaintyV0, enumerate_finite_class_values,
@@ -377,11 +378,48 @@ pub struct OmenaCheckerCascadeInputV0 {
     pub custom_properties: Vec<OmenaCheckerCustomPropertyInputV0>,
 }
 
+/// Selector text after the parser/query boundary has expanded nesting and
+/// normalized the selector enough for cascade-context comparison.
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Deserialize, Serialize)]
+#[serde(transparent)]
+pub struct CanonicalSelector(String);
+
+impl CanonicalSelector {
+    pub fn from_canonical(selector: impl Into<String>) -> Self {
+        let selector = selector.into();
+        debug_assert!(
+            !selector.contains('&'),
+            "canonical selector must not contain an unexpanded ampersand: {selector:?}"
+        );
+        Self(selector)
+    }
+
+    pub fn as_str(&self) -> &str {
+        self.0.as_str()
+    }
+
+    pub fn into_string(self) -> String {
+        self.0
+    }
+}
+
+impl fmt::Display for CanonicalSelector {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        self.0.fmt(formatter)
+    }
+}
+
+impl AsRef<str> for CanonicalSelector {
+    fn as_ref(&self) -> &str {
+        self.as_str()
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct OmenaCheckerCascadeDeclarationInputV0 {
     pub declaration_id: String,
-    pub selector: String,
+    pub selector: CanonicalSelector,
     pub property: String,
     pub value: String,
     pub source_order: u32,
@@ -2001,7 +2039,7 @@ fn designer_intent_source_order_tie_is_inconsistent(
     right: &OmenaCheckerCascadeDeclarationInputV0,
 ) -> bool {
     let posterior = infer_designer_intent_posterior_v0(designer_intent_posterior_input_v0(
-        left.selector.clone(),
+        left.selector.as_str().to_string(),
         2,
         1,
         left.var_references.len() + right.var_references.len(),
@@ -2123,7 +2161,7 @@ fn declarations_share_cascade_context(
     left: &OmenaCheckerCascadeDeclarationInputV0,
     right: &OmenaCheckerCascadeDeclarationInputV0,
 ) -> bool {
-    left.selector == right.selector
+    left.selector.as_str() == right.selector.as_str()
         && left.property == right.property
         && left.condition_context == right.condition_context
 }
@@ -3577,7 +3615,7 @@ mod tests {
     ) -> OmenaCheckerCascadeDeclarationInputV0 {
         OmenaCheckerCascadeDeclarationInputV0 {
             declaration_id: fixture.declaration_id.to_string(),
-            selector: fixture.selector.to_string(),
+            selector: CanonicalSelector::from_canonical(fixture.selector),
             property: fixture.property.to_string(),
             value: fixture.value.to_string(),
             source_order: fixture.source_order,
