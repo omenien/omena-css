@@ -265,6 +265,25 @@ struct OmenaQueryStyleFactEntry {
     facts: OmenaQueryOmenaParserStyleFactsV0,
 }
 
+pub fn summarize_omena_query_sass_module_cross_file_resolution_for_workspace(
+    style_sources: &[OmenaQueryStyleSourceInputV0],
+    package_manifests: &[OmenaQueryStylePackageManifestV0],
+    bundler_path_mappings: &[OmenaResolverBundlerPathAliasMappingV0],
+    tsconfig_path_mappings: &[OmenaResolverTsconfigPathMappingV0],
+) -> OmenaQuerySassModuleCrossFileResolutionV0 {
+    let style_source_refs = style_sources
+        .iter()
+        .map(|source| (source.style_path.as_str(), source.style_source.as_str()))
+        .collect::<Vec<_>>();
+    let style_fact_entries = collect_omena_query_style_fact_entries(style_source_refs.as_slice());
+    summarize_sass_module_cross_file_resolution(
+        &style_fact_entries,
+        package_manifests,
+        bundler_path_mappings,
+        tsconfig_path_mappings,
+    )
+}
+
 fn collect_omena_query_style_fact_entries(
     style_sources: &[(&str, &str)],
 ) -> Vec<OmenaQueryStyleFactEntry> {

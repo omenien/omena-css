@@ -21,6 +21,7 @@ use omena_query::{
     summarize_omena_query_dynamic_classname_m_tier_diagnostics_with_context_depth,
     summarize_omena_query_expression_domain_incremental_flow_analysis,
     summarize_omena_query_expression_domain_selector_projection,
+    summarize_omena_query_sass_module_cross_file_resolution_for_workspace,
     summarize_omena_query_sass_module_sources, summarize_omena_query_source_diagnostics_for_file,
     summarize_omena_query_source_diagnostics_for_workspace_file,
     summarize_omena_query_style_completion_at_position,
@@ -51,6 +52,7 @@ use omena_zk_audit::{
 };
 use serde::Serialize;
 use std::{
+    collections::BTreeSet,
     fs,
     path::{Path, PathBuf},
     process::ExitCode,
@@ -2358,10 +2360,8 @@ fn style_diagnostics(
             .ok_or_else(|| {
                 format!("failed to read workspace style diagnostics for {style_path}")
             })?;
-        // L2 (#33/M4-gamma): drive the crate-owned streaming-IFDS cross-file
-        // reachability report from the REAL resolved cross-file hypergraph — not
-        // a synthetic harness — so a genuine cross-file dataflow fact surfaces
-        // in the product diagnostics.
+        // Drive the crate-owned streaming-IFDS cross-file reachability report from
+        // the resolved cross-file hypergraph, not a synthetic harness.
         summary
             .diagnostics
             .extend(summarize_cross_file_streaming_reachability_diagnostics(
@@ -2370,6 +2370,18 @@ fn style_diagnostics(
                 source_documents.as_slice(),
                 package_manifests.as_slice(),
             ));
+        summary
+            .diagnostics
+            .extend(summarize_sass_module_resolution_identity_diagnostics(
+                &style_path,
+                workspace_sources.as_slice(),
+                package_manifests.as_slice(),
+                &resolution_inputs,
+            ));
+        push_cli_ready_surface(
+            &mut summary.ready_surfaces,
+            "sassModuleResolutionIdentityDiagnostics",
+        );
         summary.diagnostics.extend(lockfile_diagnostics);
         summary.diagnostic_count = summary.diagnostics.len();
         summary
@@ -2435,6 +2447,183 @@ fn summarize_cross_file_streaming_reachability_diagnostics(
         polynomial_provenance: None,
         cross_file_scc: None,
     }]
+}
+
+fn summarize_sass_module_resolution_identity_diagnostics(
+    target_style_path: &str,
+    workspace_sources: &[OmenaQueryStyleSourceInputV0],
+    package_manifests: &[OmenaQueryStylePackageManifestV0],
+    resolution_inputs: &omena_query::OmenaQueryStyleResolutionInputsV0,
+) -> Vec<OmenaQueryStyleDiagnosticV0> {
+    let Some(target) = workspace_sources
+        .iter()
+        .find(|source| source.style_path == target_style_path)
+    else {
+        return Vec::new();
+    };
+    let resolution = summarize_omena_query_sass_module_cross_file_resolution_for_workspace(
+        workspace_sources,
+        package_manifests,
+        resolution_inputs.bundler_path_mappings.as_slice(),
+        resolution_inputs.tsconfig_path_mappings.as_slice(),
+    );
+    let range = whole_file_range(target.style_source.as_str());
+    let mut emitted = BTreeSet::new();
+    let mut diagnostics = Vec::new();
+
+    for edge in resolution
+        .edges
+        .iter()
+        .filter(|edge| edge.from_style_path == target_style_path)
+    {
+        let visible_symlink_links = edge
+            .symlink_chain_links
+            .iter()
+            .filter(|link| !is_platform_alias_symlink_link(link))
+            .collect::<Vec<_>>();
+        if !visible_symlink_links.is_empty()
+            && emitted.insert((
+                "sassModuleSymlinkResolution",
+                edge.source.clone(),
+                edge.resolved_style_path.clone(),
+            ))
+        {
+            let target_path = edge
+                .resolved_style_path
+                .as_deref()
+                .unwrap_or(edge.source.as_str());
+            let link_summary = visible_symlink_links
+                .first()
+                .map(|link| format!("; first link {} -> {}", link.link_path, link.target_path))
+                .unwrap_or_default();
+            diagnostics.push(OmenaQueryStyleDiagnosticV0 {
+                code: "sassModuleSymlinkResolution",
+                severity: "hint",
+                provenance: vec![
+                    "omena-query.sass-module-cross-file-resolution",
+                    "omena-resolver.symlink-chain-metadata",
+                    "omena-cli.style-diagnostics",
+                ],
+                range,
+                message: format!(
+                    "Sass module '{}' resolves to '{}' through {} symlink link(s){}.",
+                    edge.source,
+                    target_path,
+                    visible_symlink_links.len(),
+                    link_summary
+                ),
+                tags: Vec::new(),
+                create_custom_property: None,
+                cascade_narrowing: None,
+                cascade_confidence: None,
+                polynomial_provenance: None,
+                cross_file_scc: None,
+            });
+        }
+
+        if edge.configuration_variable_count > 0
+            && let Some(identity_key) = edge.module_instance_identity_key.as_ref()
+            && emitted.insert((
+                "sassModuleInstanceIdentity",
+                edge.source.clone(),
+                Some(identity_key.clone()),
+            ))
+        {
+            diagnostics.push(OmenaQueryStyleDiagnosticV0 {
+                code: "sassModuleInstanceIdentity",
+                severity: "hint",
+                provenance: vec![
+                    "omena-query.sass-module-cross-file-resolution",
+                    "omena-query.module-instance-identity",
+                    "omena-cli.style-diagnostics",
+                ],
+                range,
+                message: format!(
+                    "Sass module '{}' uses {} configured variable(s); module instance identity is {}.",
+                    edge.source, edge.configuration_variable_count, identity_key
+                ),
+                tags: Vec::new(),
+                create_custom_property: None,
+                cascade_narrowing: None,
+                cascade_confidence: None,
+                polynomial_provenance: None,
+                cross_file_scc: None,
+            });
+        }
+    }
+
+    for edge in resolution
+        .graph_closure_edges
+        .iter()
+        .filter(|edge| edge.from_style_path == target_style_path)
+        .filter(|edge| edge.configuration_variable_count > 0)
+    {
+        let Some(identity_key) = edge.module_instance_identity_key.as_ref() else {
+            continue;
+        };
+        if !emitted.insert((
+            "sassModuleInstanceIdentity",
+            edge.target_style_path.clone(),
+            Some(identity_key.clone()),
+        )) {
+            continue;
+        }
+        diagnostics.push(OmenaQueryStyleDiagnosticV0 {
+            code: "sassModuleInstanceIdentity",
+            severity: "hint",
+            provenance: vec![
+                "omena-query.sass-module-cross-file-resolution",
+                "omena-query.module-instance-identity",
+                "omena-cli.style-diagnostics",
+            ],
+            range,
+            message: format!(
+                "Sass module graph reaches configured module instance '{}' in {} hop(s); module instance identity is {}.",
+                edge.target_style_path, edge.depth, identity_key
+            ),
+            tags: Vec::new(),
+            create_custom_property: None,
+            cascade_narrowing: None,
+            cascade_confidence: None,
+            polynomial_provenance: None,
+            cross_file_scc: None,
+        });
+    }
+
+    diagnostics
+}
+
+fn is_platform_alias_symlink_link(link: &omena_query::OmenaQuerySymlinkChainLinkV0) -> bool {
+    matches!(
+        (link.link_path.as_str(), link.target_path.as_str()),
+        ("/var", "/private/var") | ("/tmp", "/private/tmp") | ("/etc", "/private/etc")
+    )
+}
+
+fn whole_file_range(source: &str) -> ParserRangeV0 {
+    let mut line = 0usize;
+    let mut character = 0usize;
+    for ch in source.chars() {
+        if ch == '\n' {
+            line += 1;
+            character = 0;
+        } else {
+            character += ch.len_utf16();
+        }
+    }
+    ParserRangeV0 {
+        start: ParserPositionV0 {
+            line: 0,
+            character: 0,
+        },
+        end: ParserPositionV0 { line, character },
+    }
+}
+
+fn push_cli_ready_surface(surfaces: &mut Vec<&'static str>, surface: &'static str) {
+    if !surfaces.contains(&surface) {
+        surfaces.push(surface);
+    }
 }
 
 fn lockfile_invalid_style_diagnostic(
@@ -3307,6 +3496,8 @@ fn discover_style_resolution_workspace_root(path: &Path) -> Option<&Path> {
 mod tests {
     use super::*;
     use clap::CommandFactory;
+    #[cfg(unix)]
+    use std::os::unix::fs as unix_fs;
     use std::time::{SystemTime, UNIX_EPOCH};
 
     #[test]
@@ -4966,6 +5157,90 @@ export function App() {
             leaf_diagnostics.is_empty(),
             "a module that reaches no foreign file must not surface a reachability fact: {leaf_diagnostics:?}"
         );
+    }
+
+    #[test]
+    fn style_diagnostics_cli_identity_reads_configured_module_instance_key() {
+        let sources = vec![
+            OmenaQueryStyleSourceInputV0 {
+                style_path: "/tmp/tokens.scss".to_string(),
+                style_source: "$brand: blue !default;".to_string(),
+            },
+            OmenaQueryStyleSourceInputV0 {
+                style_path: "/tmp/theme-a.scss".to_string(),
+                style_source: r#"@forward "./tokens" with ($brand: red);"#.to_string(),
+            },
+            OmenaQueryStyleSourceInputV0 {
+                style_path: "/tmp/App.module.scss".to_string(),
+                style_source: r#"@use "./theme-a" as theme;"#.to_string(),
+            },
+        ];
+
+        let diagnostics = summarize_sass_module_resolution_identity_diagnostics(
+            "/tmp/App.module.scss",
+            sources.as_slice(),
+            &[],
+            &omena_query::OmenaQueryStyleResolutionInputsV0::default(),
+        );
+
+        assert!(
+            diagnostics.iter().any(|diagnostic| {
+                diagnostic.code == "sassModuleInstanceIdentity"
+                    && diagnostic
+                        .message
+                        .contains("configured module instance '/tmp/tokens.scss'")
+            }),
+            "CLI diagnostics must consume module_instance_identity_key through the graph closure: {diagnostics:?}"
+        );
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn style_diagnostics_cli_identity_reads_symlink_chain_metadata() -> Result<(), String> {
+        let workspace = temp_dir("sass-module-identity-symlink");
+        let real_dir = workspace.join("real");
+        let linked_dir = workspace.join("linked");
+        fs::remove_dir_all(&workspace).ok();
+        fs::create_dir_all(&real_dir)
+            .map_err(|error| format!("fixture real dir should be writable: {error}"))?;
+        fs::write(real_dir.join("tokens.scss"), "$brand: blue;")
+            .map_err(|error| format!("fixture tokens source should be writable: {error}"))?;
+        unix_fs::symlink(&real_dir, &linked_dir)
+            .map_err(|error| format!("fixture symlink should be creatable: {error}"))?;
+
+        let app_path = workspace.join("App.module.scss");
+        let linked_tokens_path = linked_dir.join("tokens.scss");
+        let app_path = app_path.to_string_lossy().into_owned();
+        let linked_tokens_path = linked_tokens_path.to_string_lossy().into_owned();
+        let sources = vec![
+            OmenaQueryStyleSourceInputV0 {
+                style_path: app_path.clone(),
+                style_source: r#"@use "./linked/tokens" as tokens;"#.to_string(),
+            },
+            OmenaQueryStyleSourceInputV0 {
+                style_path: linked_tokens_path,
+                style_source: "$brand: blue;".to_string(),
+            },
+        ];
+
+        let diagnostics = summarize_sass_module_resolution_identity_diagnostics(
+            app_path.as_str(),
+            sources.as_slice(),
+            &[],
+            &omena_query::OmenaQueryStyleResolutionInputsV0::default(),
+        );
+
+        assert!(
+            diagnostics.iter().any(|diagnostic| {
+                diagnostic.code == "sassModuleSymlinkResolution"
+                    && diagnostic.message.contains("symlink link")
+                    && diagnostic.message.contains("/linked")
+            }),
+            "CLI diagnostics must consume symlink_chain_links: {diagnostics:?}"
+        );
+
+        cleanup_dir(&workspace);
+        Ok(())
     }
 
     fn dynamic_classname_diagnostics_input_json(max_context_depth: usize) -> String {
