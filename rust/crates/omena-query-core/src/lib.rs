@@ -37,6 +37,7 @@ pub use omena_abstract_value::{
     PolynomialProvenanceV0, PolynomialProvenanceVariableV0, ProvenanceSemiringLawReportV0,
     ReducedClassValueProductIterationV0, ReducedClassValueProductV0, SelectorProjectionCertaintyV0,
     derive_cascade_restriction_maps_v0, iterate_reduced_class_value_product_constraints,
+    narrow_abstract_property_value_for_cascade_branch,
     narrow_abstract_property_value_for_pseudo_state, prefix_suffix_class_value,
     summarize_cascade_value_family_v0, summarize_polynomial_provenance_from_linear_v0,
     verify_provenance_semiring_laws_on_fixtures,

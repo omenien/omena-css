@@ -137,3 +137,74 @@ fn resolves_unnecessary_tags_for_cascade_style_diagnostics() -> TestResult {
     );
     Ok(())
 }
+
+#[test]
+fn cascade_narrowing_prunes_to_requested_condition_and_layer_branch() -> TestResult {
+    let mut state = LspShellState::default();
+    handle_lsp_message(
+        &mut state,
+        json!({
+            "jsonrpc": "2.0",
+            "method": "textDocument/didOpen",
+            "params": {
+                "textDocument": {
+                    "uri": "file:///workspace-a/src/App.module.scss",
+                    "languageId": "scss",
+                    "version": 1,
+                    "text": "@media (min-width: 40rem) {\n  @layer base { .btn { color: red; } }\n  @layer theme { .btn { color: blue; } }\n}",
+                },
+            },
+        }),
+    );
+
+    let diagnostics_response = handle_lsp_message(
+        &mut state,
+        json!({
+            "jsonrpc": "2.0",
+            "id": 1,
+            "method": STYLE_DIAGNOSTICS_REQUEST,
+            "params": {
+                "textDocument": {
+                    "uri": "file:///workspace-a/src/App.module.scss",
+                },
+            },
+        }),
+    );
+    let diagnostics = diagnostics_response
+        .as_ref()
+        .and_then(|value| value.pointer("/result"))
+        .and_then(Value::as_array)
+        .ok_or_else(|| std::io::Error::other("style diagnostics result"))?;
+    let Some(layered) = diagnostics.iter().find(|diagnostic| {
+        diagnostic.pointer("/data/cascadeNarrowing/propertyValueNarrowing/requestedLayerName")
+            == Some(&json!("base"))
+    }) else {
+        return Err(std::io::Error::other("layered cascade narrowing diagnostic").into());
+    };
+
+    assert_eq!(
+        layered.pointer("/data/cascadeNarrowing/propertyValueNarrowing/requestedConditionContext"),
+        Some(&json!(["@media (min-width: 40rem)"])),
+    );
+    assert_eq!(
+        layered.pointer("/data/cascadeNarrowing/propertyValueNarrowing/requestedLayerOrder"),
+        Some(&json!(0)),
+    );
+    assert_eq!(
+        layered.pointer("/data/cascadeNarrowing/propertyValueNarrowing/requestedLayerScope"),
+        Some(&json!("exactLayer")),
+    );
+    assert_eq!(
+        layered.pointer("/data/cascadeNarrowing/propertyValueNarrowing/matchedCandidateCount"),
+        Some(&json!(1)),
+    );
+    assert_eq!(
+        layered.pointer("/data/cascadeNarrowing/propertyValueNarrowing/value/kind"),
+        Some(&json!("exact")),
+    );
+    assert_eq!(
+        layered.pointer("/data/cascadeNarrowing/propertyValueNarrowing/value/value"),
+        Some(&json!("red")),
+    );
+    Ok(())
+}

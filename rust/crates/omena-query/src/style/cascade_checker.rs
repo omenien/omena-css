@@ -24,7 +24,7 @@ use omena_query_checker_orchestrator::{
 use omena_query_core::{
     AbstractClassValueV0, AbstractPropertyValueCandidateV0,
     iterate_reduced_class_value_product_constraints,
-    narrow_abstract_property_value_for_pseudo_state, prefix_suffix_class_value,
+    narrow_abstract_property_value_for_cascade_branch, prefix_suffix_class_value,
 };
 use omena_query_transform_runner::expand_css_nested_selector;
 
@@ -1030,11 +1030,18 @@ fn summarize_query_cascade_narrowing_for_evaluation(
             property_name: declaration.property.clone(),
             value: declaration.value.clone(),
             pseudo_state: None,
+            condition_context: declaration.condition_context.clone(),
+            layer_name: declaration.layer_name.clone(),
+            layer_order: declaration.layer_order,
         })
         .collect::<Vec<_>>();
-    let property_value_narrowing = narrow_abstract_property_value_for_pseudo_state(
+    let property_value_narrowing = narrow_abstract_property_value_for_cascade_branch(
         anchor.property.as_str(),
         None,
+        anchor.condition_context.as_slice(),
+        anchor.layer_name.as_deref(),
+        anchor.layer_order,
+        true,
         property_candidates.as_slice(),
     );
 
@@ -1359,11 +1366,18 @@ fn query_runtime_state_scenario(
             property_name: declaration.property.clone(),
             value: declaration.value.clone(),
             pseudo_state: query_runtime_declaration_primary_pseudo_state(declaration),
+            condition_context: declaration.condition_context.clone(),
+            layer_name: declaration.layer_name.clone(),
+            layer_order: declaration.layer_order,
         })
         .collect::<Vec<_>>();
-    let property_value_narrowing = narrow_abstract_property_value_for_pseudo_state(
+    let property_value_narrowing = narrow_abstract_property_value_for_cascade_branch(
         property_name,
         pseudo_state,
+        condition_context,
+        None,
+        None,
+        false,
         property_candidates.as_slice(),
     );
     let outcome = if active_declarations.is_empty() {

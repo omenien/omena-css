@@ -1861,6 +1861,9 @@ fn omena_query_inline_style_runtime_override_scenario(
             property_name: property_name.to_string(),
             value: value.clone(),
             pseudo_state: None,
+            condition_context: Vec::new(),
+            layer_name: None,
+            layer_order: None,
         }],
     );
 

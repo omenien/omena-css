@@ -306,6 +306,9 @@ pub struct AbstractPropertyValueCandidateV0 {
     pub property_name: String,
     pub value: String,
     pub pseudo_state: Option<String>,
+    pub condition_context: Vec<String>,
+    pub layer_name: Option<String>,
+    pub layer_order: Option<i32>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -317,6 +320,13 @@ pub struct AbstractPropertyValueNarrowingV0 {
     pub property_name: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub requested_pseudo_state: Option<String>,
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub requested_condition_context: Vec<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub requested_layer_name: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub requested_layer_order: Option<i32>,
+    pub requested_layer_scope: &'static str,
     pub candidate_count: usize,
     pub matched_candidate_count: usize,
     pub value: AbstractPropertyValueV0,

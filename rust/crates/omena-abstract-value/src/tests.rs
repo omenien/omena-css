@@ -21,17 +21,18 @@ use super::{
     finite_set_class_value, finite_values_from_facts, intersect_abstract_class_values,
     intersect_reduced_class_value_products, iterate_reduced_class_value_product_constraints,
     join_abstract_class_values, join_reduced_class_value_products,
-    m4_alpha_provenance_semiring_law_reports_v0, narrow_abstract_property_value_for_pseudo_state,
-    prefix_class_value, prefix_suffix_class_value, project_abstract_value_selectors,
-    reduce_class_value_product, reduced_abstract_class_value_from_facts,
-    reduced_class_value_derivation_from_facts, reduced_class_value_product_is_subset,
-    reduced_class_value_product_matches_string, reduced_value_domain_kind_from_facts,
-    selector_certainty_from_facts, selector_certainty_shape_kind_from_facts,
-    selector_certainty_shape_label_from_facts, suffix_class_value,
-    summarize_abstract_class_value_provenance_tree, summarize_belief_propagation_iteration_v0,
-    summarize_cascade_restriction_cycles_v0, summarize_cascade_value_family_v0,
-    summarize_omena_abstract_value_domain, summarize_omena_abstract_value_flow_analysis,
-    summarize_polynomial_provenance_from_linear_v0, summarize_reduced_class_value_product,
+    m4_alpha_provenance_semiring_law_reports_v0, narrow_abstract_property_value_for_cascade_branch,
+    narrow_abstract_property_value_for_pseudo_state, prefix_class_value, prefix_suffix_class_value,
+    project_abstract_value_selectors, reduce_class_value_product,
+    reduced_abstract_class_value_from_facts, reduced_class_value_derivation_from_facts,
+    reduced_class_value_product_is_subset, reduced_class_value_product_matches_string,
+    reduced_value_domain_kind_from_facts, selector_certainty_from_facts,
+    selector_certainty_shape_kind_from_facts, selector_certainty_shape_label_from_facts,
+    suffix_class_value, summarize_abstract_class_value_provenance_tree,
+    summarize_belief_propagation_iteration_v0, summarize_cascade_restriction_cycles_v0,
+    summarize_cascade_value_family_v0, summarize_omena_abstract_value_domain,
+    summarize_omena_abstract_value_flow_analysis, summarize_polynomial_provenance_from_linear_v0,
+    summarize_reduced_class_value_product,
     summarize_reduced_product_belief_propagation_domain_graph_v0, top_class_value,
     value_certainty_from_facts, value_certainty_shape_kind_from_facts,
     value_certainty_shape_label_from_facts,
@@ -415,6 +416,62 @@ fn narrows_property_values_to_custom_property_reference_annotation_target() {
             property_name: "background".to_string(),
             custom_property_name: "--surface".to_string(),
             pseudo_state: Some("focus".to_string()),
+        }
+    );
+}
+
+#[test]
+fn narrows_property_values_to_requested_cascade_branch() {
+    let media_context = vec!["@media (min-width: 40rem)".to_string()];
+    let candidates = vec![
+        AbstractPropertyValueCandidateV0 {
+            property_name: "color".to_string(),
+            value: "red".to_string(),
+            pseudo_state: None,
+            condition_context: media_context.clone(),
+            layer_name: Some("components".to_string()),
+            layer_order: Some(0),
+        },
+        AbstractPropertyValueCandidateV0 {
+            property_name: "color".to_string(),
+            value: "blue".to_string(),
+            pseudo_state: None,
+            condition_context: media_context.clone(),
+            layer_name: Some("theme".to_string()),
+            layer_order: Some(1),
+        },
+        AbstractPropertyValueCandidateV0 {
+            property_name: "color".to_string(),
+            value: "green".to_string(),
+            pseudo_state: None,
+            condition_context: Vec::new(),
+            layer_name: Some("components".to_string()),
+            layer_order: Some(0),
+        },
+    ];
+
+    let narrowed = narrow_abstract_property_value_for_cascade_branch(
+        "color",
+        None,
+        media_context.as_slice(),
+        Some("theme"),
+        Some(1),
+        true,
+        candidates.as_slice(),
+    );
+
+    assert_eq!(narrowed.requested_condition_context, media_context);
+    assert_eq!(narrowed.requested_layer_name.as_deref(), Some("theme"));
+    assert_eq!(narrowed.requested_layer_order, Some(1));
+    assert_eq!(narrowed.requested_layer_scope, "exactLayer");
+    assert_eq!(narrowed.candidate_count, 3);
+    assert_eq!(narrowed.matched_candidate_count, 1);
+    assert_eq!(
+        narrowed.value,
+        AbstractPropertyValueV0::Exact {
+            property_name: "color".to_string(),
+            value: "blue".to_string(),
+            pseudo_state: None,
         }
     );
 }
@@ -2352,6 +2409,9 @@ fn property_candidate(
         property_name: property_name.to_string(),
         value: value.to_string(),
         pseudo_state: pseudo_state.map(str::to_string),
+        condition_context: Vec::new(),
+        layer_name: None,
+        layer_order: None,
     }
 }
 
