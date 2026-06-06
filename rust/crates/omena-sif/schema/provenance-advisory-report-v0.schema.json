@@ -66,6 +66,43 @@
         }
       }
     },
+    "attestationStatement": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "predicateType": {
+          "type": "string",
+          "minLength": 1
+        },
+        "sourceRepository": {
+          "type": "string",
+          "minLength": 1
+        },
+        "sourceRef": {
+          "type": "string",
+          "minLength": 1
+        },
+        "sourceCommit": {
+          "type": "string",
+          "minLength": 1
+        },
+        "builderId": {
+          "type": "string",
+          "minLength": 1
+        },
+        "buildType": {
+          "type": "string",
+          "minLength": 1
+        },
+        "subjectNames": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        }
+      }
+    },
     "attestationVerificationPolicy": {
       "type": "object",
       "additionalProperties": false,
@@ -100,6 +137,9 @@
         "certificateIdentity": {
           "type": "string",
           "minLength": 1
+        },
+        "attestationStatement": {
+          "$ref": "#/$defs/attestationStatement"
         }
       }
     },

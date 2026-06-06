@@ -47,8 +47,9 @@ use omena_query::{
 use omena_sif::{
     OMENA_SIF_ATTESTATION_VERIFICATION_REPORT_PRODUCT_V1,
     OMENA_SIF_ATTESTATION_VERIFICATION_REPORT_SCHEMA_VERSION_V1, OmenaLockV1,
-    OmenaLockVerificationIssueV1, OmenaSifAttestationVerificationReportV1,
-    OmenaSifSigstoreVerificationPolicyV1, OmenaSifSourceSyntaxV1, OmenaSifStaticGeneratorInputV1,
+    OmenaLockVerificationIssueV1, OmenaSifAttestationStatementV1,
+    OmenaSifAttestationVerificationReportV1, OmenaSifSigstoreVerificationPolicyV1,
+    OmenaSifSourceSyntaxV1, OmenaSifStaticGeneratorInputV1,
     apply_omena_sif_attestation_verification_report_to_lock_entry_v1,
     apply_omena_sif_npm_provenance_references_to_lock_entry_v1, build_omena_lock_sif_entry_v1,
     collect_omena_sif_npm_provenance_attestation_references_v1, compute_omena_sif_artifact_hash_v1,
@@ -359,6 +360,9 @@ enum Command {
     },
 }
 
+// Clap subcommand enums are parsed once per process; direct fields keep argv
+// parsing simple without meaningful runtime pressure.
+#[allow(clippy::large_enum_variant)]
 #[derive(Debug, Subcommand)]
 enum LockCommand {
     /// Author or refresh omena.lock from generated SIF artifacts.
@@ -445,6 +449,18 @@ enum LockCommand {
         /// Required certificate OIDC issuer.
         #[arg(long)]
         issuer: String,
+        /// Expected in-toto/SLSA statement predicateType.
+        #[arg(long = "statement-predicate-type")]
+        statement_predicate_type: Option<String>,
+        /// Expected source repository recorded in the signed provenance statement.
+        #[arg(long = "statement-source-repository")]
+        statement_source_repository: Option<String>,
+        /// Expected source ref recorded in the signed provenance statement.
+        #[arg(long = "statement-source-ref")]
+        statement_source_ref: Option<String>,
+        /// Expected builder id recorded in the signed provenance statement.
+        #[arg(long = "statement-builder-id")]
+        statement_builder_id: Option<String>,
         /// Print machine-readable JSON.
         #[arg(long)]
         json: bool,
@@ -875,6 +891,10 @@ fn lock_command(
             verified_tier,
             identity,
             issuer,
+            statement_predicate_type,
+            statement_source_repository,
+            statement_source_ref,
+            statement_builder_id,
             json,
         }) => lock_verify_attestation(LockVerifyAttestationInput {
             lockfile,
@@ -886,6 +906,12 @@ fn lock_command(
             verified_tier,
             identity,
             issuer,
+            statement_policy: AttestationStatementPolicy {
+                predicate_type: statement_predicate_type,
+                source_repository: statement_source_repository,
+                source_ref: statement_source_ref,
+                builder_id: statement_builder_id,
+            },
             json,
         }),
         Some(LockCommand::Verify {
@@ -1117,7 +1143,25 @@ struct LockVerifyAttestationInput {
     verified_tier: String,
     identity: Option<String>,
     issuer: String,
+    statement_policy: AttestationStatementPolicy,
     json: bool,
+}
+
+#[derive(Debug, Clone, Default)]
+struct AttestationStatementPolicy {
+    predicate_type: Option<String>,
+    source_repository: Option<String>,
+    source_ref: Option<String>,
+    builder_id: Option<String>,
+}
+
+impl AttestationStatementPolicy {
+    fn is_empty(&self) -> bool {
+        self.predicate_type.is_none()
+            && self.source_repository.is_none()
+            && self.source_ref.is_none()
+            && self.builder_id.is_none()
+    }
 }
 
 fn lock_verify_attestation(input: LockVerifyAttestationInput) -> Result<(), String> {
@@ -1131,6 +1175,7 @@ fn lock_verify_attestation(input: LockVerifyAttestationInput) -> Result<(), Stri
         verified_tier,
         identity,
         issuer,
+        statement_policy,
         json,
     } = input;
 
@@ -1186,6 +1231,8 @@ fn lock_verify_attestation(input: LockVerifyAttestationInput) -> Result<(), Stri
             path_string(&bundle)
         ));
     }
+    let attestation_statement =
+        extract_verified_attestation_statement(&sigstore_bundle, &statement_policy)?;
 
     let t3_artifact_binding = if verified_trust_tier == omena_sif::OmenaSifTrustTierV1::T3 {
         Some(read_verified_t3_attestation_artifact_binding(
@@ -1224,6 +1271,7 @@ fn lock_verify_attestation(input: LockVerifyAttestationInput) -> Result<(), Stri
             }),
             certificate_issuer: Some(issuer.clone()),
             certificate_identity: identity.clone(),
+            attestation_statement: attestation_statement.clone(),
             subject_canonical_url: entry.canonical_url.clone(),
             subject_sif_hash: entry.sif_hash.clone(),
         };
@@ -1268,6 +1316,217 @@ fn lock_verify_attestation(input: LockVerifyAttestationInput) -> Result<(), Stri
     }
 
     Ok(())
+}
+
+fn extract_verified_attestation_statement(
+    bundle: &sigstore_verify::types::Bundle,
+    policy: &AttestationStatementPolicy,
+) -> Result<Option<OmenaSifAttestationStatementV1>, String> {
+    let sigstore_verify::types::SignatureContent::DsseEnvelope(envelope) = &bundle.content else {
+        if policy.is_empty() {
+            return Ok(None);
+        }
+        return Err(
+            "lock verify-attestation statement policy requires a DSSE in-toto provenance bundle"
+                .to_string(),
+        );
+    };
+    if envelope.payload_type != "application/vnd.in-toto+json" {
+        if policy.is_empty() {
+            return Ok(None);
+        }
+        return Err(format!(
+            "lock verify-attestation statement policy requires payloadType application/vnd.in-toto+json, got {}",
+            envelope.payload_type
+        ));
+    }
+    let payload = envelope.decode_payload();
+    let statement: serde_json::Value = serde_json::from_slice(&payload)
+        .map_err(|error| format!("failed to parse verified in-toto statement payload: {error}"))?;
+    let statement = summarize_verified_attestation_statement(&statement);
+    require_statement_policy_matches(&statement, policy)?;
+    Ok(Some(statement))
+}
+
+fn summarize_verified_attestation_statement(
+    statement: &serde_json::Value,
+) -> OmenaSifAttestationStatementV1 {
+    let (repository_from_config, ref_from_config) = statement
+        .pointer("/predicate/invocation/configSource/uri")
+        .and_then(|value| value.as_str())
+        .map(split_git_source_uri)
+        .unwrap_or((None, None));
+    let (repository_from_material, ref_from_material) = statement
+        .pointer("/predicate/materials")
+        .and_then(|value| value.as_array())
+        .and_then(|materials| {
+            materials
+                .iter()
+                .filter_map(|material| material.get("uri").and_then(|value| value.as_str()))
+                .map(split_git_source_uri)
+                .find(|(repository, _)| repository.is_some())
+        })
+        .unwrap_or((None, None));
+    let source_repository = first_owned_string([
+        statement_string(
+            statement,
+            "/predicate/buildDefinition/externalParameters/workflow/repository",
+        ),
+        statement_string(
+            statement,
+            "/predicate/invocation/environment/GITHUB_REPOSITORY",
+        )
+        .map(|repository| github_repository_url(repository.as_str())),
+        repository_from_config,
+        repository_from_material,
+    ]);
+    let source_ref = first_owned_string([
+        statement_string(
+            statement,
+            "/predicate/buildDefinition/externalParameters/workflow/ref",
+        ),
+        statement_string(statement, "/predicate/invocation/environment/GITHUB_REF"),
+        ref_from_config,
+        ref_from_material,
+    ]);
+    let source_commit = first_owned_string([
+        statement
+            .pointer("/predicate/buildDefinition/resolvedDependencies")
+            .and_then(|value| value.as_array())
+            .and_then(|dependencies| {
+                dependencies.iter().find_map(|dependency| {
+                    dependency
+                        .pointer("/digest/gitCommit")
+                        .and_then(|value| value.as_str())
+                        .map(ToOwned::to_owned)
+                })
+            }),
+        statement_string(statement, "/predicate/invocation/configSource/digest/sha1"),
+        statement
+            .pointer("/predicate/materials")
+            .and_then(|value| value.as_array())
+            .and_then(|materials| {
+                materials.iter().find_map(|material| {
+                    material
+                        .pointer("/digest/sha1")
+                        .and_then(|value| value.as_str())
+                        .map(ToOwned::to_owned)
+                })
+            }),
+    ]);
+
+    OmenaSifAttestationStatementV1 {
+        predicate_type: statement_string(statement, "/predicateType"),
+        source_repository,
+        source_ref,
+        source_commit,
+        builder_id: first_owned_string([
+            statement_string(statement, "/predicate/runDetails/builder/id"),
+            statement_string(statement, "/predicate/builder/id"),
+        ]),
+        build_type: first_owned_string([
+            statement_string(statement, "/predicate/buildDefinition/buildType"),
+            statement_string(statement, "/predicate/buildType"),
+        ]),
+        subject_names: statement
+            .pointer("/subject")
+            .and_then(|value| value.as_array())
+            .map(|subjects| {
+                subjects
+                    .iter()
+                    .filter_map(|subject| {
+                        subject
+                            .get("name")
+                            .and_then(|value| value.as_str())
+                            .map(ToOwned::to_owned)
+                    })
+                    .collect()
+            })
+            .unwrap_or_default(),
+    }
+}
+
+fn require_statement_policy_matches(
+    statement: &OmenaSifAttestationStatementV1,
+    policy: &AttestationStatementPolicy,
+) -> Result<(), String> {
+    for (field, flag, expected, observed) in [
+        (
+            "predicateType",
+            "--statement-predicate-type",
+            policy.predicate_type.as_ref(),
+            statement.predicate_type.as_ref(),
+        ),
+        (
+            "sourceRepository",
+            "--statement-source-repository",
+            policy.source_repository.as_ref(),
+            statement.source_repository.as_ref(),
+        ),
+        (
+            "sourceRef",
+            "--statement-source-ref",
+            policy.source_ref.as_ref(),
+            statement.source_ref.as_ref(),
+        ),
+        (
+            "builderId",
+            "--statement-builder-id",
+            policy.builder_id.as_ref(),
+            statement.builder_id.as_ref(),
+        ),
+    ] {
+        if let Some(expected) = expected {
+            if expected.trim().is_empty() {
+                return Err(format!("lock verify-attestation {flag} must not be empty"));
+            }
+            match observed {
+                Some(observed) if observed == expected => {}
+                Some(observed) => {
+                    return Err(format!(
+                        "verified attestation statement {field} mismatch: expected {expected}, got {observed}"
+                    ));
+                }
+                None => {
+                    return Err(format!(
+                        "verified attestation statement missing required {field}: expected {expected}"
+                    ));
+                }
+            }
+        }
+    }
+    Ok(())
+}
+
+fn statement_string(statement: &serde_json::Value, pointer: &str) -> Option<String> {
+    statement
+        .pointer(pointer)
+        .and_then(|value| value.as_str())
+        .filter(|value| !value.trim().is_empty())
+        .map(ToOwned::to_owned)
+}
+
+fn first_owned_string(values: impl IntoIterator<Item = Option<String>>) -> Option<String> {
+    values
+        .into_iter()
+        .flatten()
+        .find(|value| !value.trim().is_empty())
+}
+
+fn split_git_source_uri(uri: &str) -> (Option<String>, Option<String>) {
+    let source = uri.strip_prefix("git+").unwrap_or(uri);
+    let Some((repository, source_ref)) = source.rsplit_once('@') else {
+        return (Some(source.to_string()), None);
+    };
+    (Some(repository.to_string()), Some(source_ref.to_string()))
+}
+
+fn github_repository_url(repository: &str) -> String {
+    if repository.starts_with("http://") || repository.starts_with("https://") {
+        repository.to_string()
+    } else {
+        format!("https://github.com/{repository}")
+    }
 }
 
 struct VerifiedT3AttestationArtifactBinding {
@@ -5025,6 +5284,14 @@ mod tests {
             "sif/design-system.sigstore.json",
             "--issuer",
             "https://token.actions.githubusercontent.com",
+            "--statement-predicate-type",
+            "https://slsa.dev/provenance/v1",
+            "--statement-source-repository",
+            "https://github.com/omenien/omena-css",
+            "--statement-source-ref",
+            "refs/heads/master",
+            "--statement-builder-id",
+            "https://github.com/actions/runner/github-hosted",
         ])
         .map_err(|error| {
             format!("issuer-bound attestation verification command should parse: {error}")
@@ -5036,6 +5303,10 @@ mod tests {
                     issuer,
                     identity,
                     verified_tier,
+                    statement_predicate_type,
+                    statement_source_repository,
+                    statement_source_ref,
+                    statement_builder_id,
                     ..
                 }),
             ..
@@ -5046,6 +5317,113 @@ mod tests {
         assert_eq!(issuer, "https://token.actions.githubusercontent.com");
         assert_eq!(identity, None);
         assert_eq!(verified_tier, "t2");
+        assert_eq!(
+            statement_predicate_type.as_deref(),
+            Some("https://slsa.dev/provenance/v1")
+        );
+        assert_eq!(
+            statement_source_repository.as_deref(),
+            Some("https://github.com/omenien/omena-css")
+        );
+        assert_eq!(statement_source_ref.as_deref(), Some("refs/heads/master"));
+        assert_eq!(
+            statement_builder_id.as_deref(),
+            Some("https://github.com/actions/runner/github-hosted")
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn lock_verify_attestation_statement_policy_matches_slsa_payload() -> Result<(), String> {
+        let statement = serde_json::json!({
+            "_type": "https://in-toto.io/Statement/v1",
+            "predicateType": "https://slsa.dev/provenance/v1",
+            "subject": [
+                {
+                    "name": "pkg:npm/@omenacss/omena-css@1.0.0",
+                    "digest": {
+                        "sha256": "0123456789abcdef"
+                    }
+                }
+            ],
+            "predicate": {
+                "buildDefinition": {
+                    "buildType": "https://slsa-framework.github.io/github-actions-buildtypes/workflow/v1",
+                    "externalParameters": {
+                        "workflow": {
+                            "repository": "https://github.com/omenien/omena-css",
+                            "ref": "refs/heads/master",
+                            "path": ".github/workflows/release.yml"
+                        }
+                    },
+                    "resolvedDependencies": [
+                        {
+                            "uri": "git+https://github.com/omenien/omena-css@refs/heads/master",
+                            "digest": {
+                                "gitCommit": "abcdef0123456789"
+                            }
+                        }
+                    ]
+                },
+                "runDetails": {
+                    "builder": {
+                        "id": "https://github.com/actions/runner/github-hosted"
+                    }
+                }
+            }
+        });
+
+        let summary = summarize_verified_attestation_statement(&statement);
+
+        assert_eq!(
+            summary.predicate_type.as_deref(),
+            Some("https://slsa.dev/provenance/v1")
+        );
+        assert_eq!(
+            summary.source_repository.as_deref(),
+            Some("https://github.com/omenien/omena-css")
+        );
+        assert_eq!(summary.source_ref.as_deref(), Some("refs/heads/master"));
+        assert_eq!(summary.source_commit.as_deref(), Some("abcdef0123456789"));
+        assert_eq!(
+            summary.builder_id.as_deref(),
+            Some("https://github.com/actions/runner/github-hosted")
+        );
+        assert_eq!(
+            summary.build_type.as_deref(),
+            Some("https://slsa-framework.github.io/github-actions-buildtypes/workflow/v1")
+        );
+        assert_eq!(
+            summary.subject_names,
+            vec!["pkg:npm/@omenacss/omena-css@1.0.0".to_string()]
+        );
+
+        require_statement_policy_matches(
+            &summary,
+            &AttestationStatementPolicy {
+                predicate_type: Some("https://slsa.dev/provenance/v1".to_string()),
+                source_repository: Some("https://github.com/omenien/omena-css".to_string()),
+                source_ref: Some("refs/heads/master".to_string()),
+                builder_id: Some("https://github.com/actions/runner/github-hosted".to_string()),
+            },
+        )?;
+
+        let mismatch = require_statement_policy_matches(
+            &summary,
+            &AttestationStatementPolicy {
+                predicate_type: None,
+                source_repository: None,
+                source_ref: Some("refs/tags/v1.0.0".to_string()),
+                builder_id: None,
+            },
+        );
+        assert!(
+            mismatch
+                .as_ref()
+                .is_err_and(|error| error.contains("sourceRef mismatch")),
+            "{mismatch:?}"
+        );
+
         Ok(())
     }
 
@@ -5065,6 +5443,10 @@ mod tests {
                     verified_tier: "t3".to_string(),
                     identity: None,
                     issuer: "https://token.actions.githubusercontent.com".to_string(),
+                    statement_predicate_type: None,
+                    statement_source_repository: None,
+                    statement_source_ref: None,
+                    statement_builder_id: None,
                     json: true,
                 }),
             },
@@ -5094,6 +5476,10 @@ mod tests {
                     verified_tier: "t3".to_string(),
                     identity: None,
                     issuer: "https://github.com/login/oauth".to_string(),
+                    statement_predicate_type: None,
+                    statement_source_repository: None,
+                    statement_source_ref: None,
+                    statement_builder_id: None,
                     json: true,
                 }),
             },
@@ -6735,6 +7121,7 @@ export function App() {
                 ),
                 certificate_issuer: Some("https://github.com/login/oauth".to_string()),
                 certificate_identity: None,
+                attestation_statement: None,
             });
         let lock = omena_sif::OmenaLockV1::new(vec![entry]);
         let issues = collect_lock_trust_tier_issues(&lock, omena_sif::OmenaSifTrustTierV1::T3);
@@ -7043,6 +7430,17 @@ export function App() {
                 },
                 "certificateIssuer": "https://token.actions.githubusercontent.com",
                 "certificateIdentity": "https://github.com/omenien/omena-css/.github/workflows/release.yml@refs/tags/v1.0.0",
+                "attestationStatement": {
+                    "predicateType": "https://slsa.dev/provenance/v1",
+                    "sourceRepository": "https://github.com/omenien/omena-css",
+                    "sourceRef": "refs/tags/v1.0.0",
+                    "sourceCommit": "abcdef0123456789",
+                    "builderId": "https://github.com/actions/runner/github-hosted",
+                    "buildType": "https://slsa-framework.github.io/github-actions-buildtypes/workflow/v1",
+                    "subjectNames": [
+                        "pkg:npm/@omenacss/omena-css@1.0.0"
+                    ]
+                },
                 "subjectCanonicalUrl": entry.canonical_url.as_str(),
                 "subjectSifHash": entry.sif_hash.as_str()
             })
@@ -7238,6 +7636,19 @@ export function App() {
                 "https://github.com/omenien/omena-css/.github/workflows/release.yml@refs/tags/v1.0.0"
             )
         );
+        let statement = refreshed_lock.entries[0].attestation_verifications[0]
+            .attestation_statement
+            .as_ref()
+            .ok_or_else(|| "recorded verification should preserve statement claims".to_string())?;
+        assert_eq!(
+            statement.predicate_type.as_deref(),
+            Some("https://slsa.dev/provenance/v1")
+        );
+        assert_eq!(
+            statement.source_repository.as_deref(),
+            Some("https://github.com/omenien/omena-css")
+        );
+        assert_eq!(statement.source_ref.as_deref(), Some("refs/tags/v1.0.0"));
 
         let verify_t2_after = run(Cli {
             command: Command::Lock {
@@ -7335,6 +7746,10 @@ export function App() {
                     verified_tier: "t2".to_string(),
                     identity: None,
                     issuer: "https://token.actions.githubusercontent.com".to_string(),
+                    statement_predicate_type: None,
+                    statement_source_repository: None,
+                    statement_source_ref: None,
+                    statement_builder_id: None,
                     json: true,
                 }),
             },
@@ -7440,6 +7855,10 @@ export function App() {
                     verified_tier: "t2".to_string(),
                     identity: None,
                     issuer: "https://github.com/login/oauth".to_string(),
+                    statement_predicate_type: None,
+                    statement_source_repository: None,
+                    statement_source_ref: None,
+                    statement_builder_id: None,
                     json: true,
                 }),
             },
@@ -7591,6 +8010,10 @@ export function App() {
                     verified_tier: "t3".to_string(),
                     identity: Some("w.vollprecht@gmail.com".to_string()),
                     issuer: "https://github.com/login/oauth".to_string(),
+                    statement_predicate_type: None,
+                    statement_source_repository: None,
+                    statement_source_ref: None,
+                    statement_builder_id: None,
                     json: true,
                 }),
             },
@@ -7852,6 +8275,7 @@ export function App() {
                 ),
                 certificate_issuer: Some("https://github.com/login/oauth".to_string()),
                 certificate_identity: Some("w.vollprecht@gmail.com".to_string()),
+                attestation_statement: None,
             });
         let lock = omena_sif::OmenaLockV1::new(vec![entry]);
         fs::write(
