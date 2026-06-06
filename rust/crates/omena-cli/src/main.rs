@@ -1141,7 +1141,12 @@ fn lock_verify_attestation(input: LockVerifyAttestationInput) -> Result<(), Stri
             verified_trust_tier.as_str()
         ));
     }
-    validate_attestation_kind_for_verified_tier(kind.as_str(), verified_trust_tier)?;
+    validate_attestation_policy_for_verified_tier(
+        kind.as_str(),
+        verified_trust_tier,
+        Some(issuer.as_str()),
+        identity.as_deref(),
+    )?;
 
     let mut lock = read_lockfile_or_empty(&lockfile)?;
     let artifact_bytes = fs::read(&artifact)
@@ -1244,16 +1249,26 @@ fn lock_verify_attestation(input: LockVerifyAttestationInput) -> Result<(), Stri
     Ok(())
 }
 
-fn validate_attestation_kind_for_verified_tier(
+fn validate_attestation_policy_for_verified_tier(
     kind: &str,
     verified_trust_tier: omena_sif::OmenaSifTrustTierV1,
+    certificate_issuer: Option<&str>,
+    certificate_identity: Option<&str>,
 ) -> Result<(), String> {
-    if verified_trust_tier == omena_sif::OmenaSifTrustTierV1::T3
-        && !kind.starts_with("omena-toolchain.")
-    {
-        return Err(format!(
-            "lock verify-attestation --verified-tier t3 requires --kind omena-toolchain.*, got {kind}"
-        ));
+    if verified_trust_tier == omena_sif::OmenaSifTrustTierV1::T3 {
+        if !kind.starts_with("omena-toolchain.") {
+            return Err(format!(
+                "lock verify-attestation --verified-tier t3 requires --kind omena-toolchain.*, got {kind}"
+            ));
+        }
+        if certificate_issuer.is_none_or(|issuer| issuer.trim().is_empty()) {
+            return Err("lock verify-attestation --verified-tier t3 requires --issuer".to_string());
+        }
+        if certificate_identity.is_none_or(|identity| identity.trim().is_empty()) {
+            return Err(
+                "lock verify-attestation --verified-tier t3 requires --identity".to_string(),
+            );
+        }
     }
     Ok(())
 }
@@ -4743,6 +4758,35 @@ mod tests {
     }
 
     #[test]
+    fn lock_verify_attestation_t3_requires_identity() {
+        let result = run(Cli {
+            command: Command::Lock {
+                lockfile: PathBuf::from("omena.lock"),
+                json: false,
+                command: Some(LockCommand::VerifyAttestation {
+                    package: "pkg:design-system/_tokens.scss".to_string(),
+                    lockfile: PathBuf::from("missing.lock"),
+                    artifact: PathBuf::from("missing.sif.json"),
+                    bundle: PathBuf::from("missing.sigstore.json"),
+                    reference: "sif/design-system.sigstore.json".to_string(),
+                    kind: "omena-toolchain.sigstore".to_string(),
+                    verified_tier: "t3".to_string(),
+                    identity: None,
+                    issuer: "https://github.com/login/oauth".to_string(),
+                    json: true,
+                }),
+            },
+        });
+
+        assert!(
+            result
+                .as_ref()
+                .is_err_and(|error| error.contains("requires --identity")),
+            "{result:?}"
+        );
+    }
+
+    #[test]
     fn report_resolution_policy_outputs_resolver_contract() {
         let result = run(Cli {
             command: Command::Report {
@@ -6241,6 +6285,72 @@ export function App() {
     }
 
     #[test]
+    fn lock_verify_t3_rejects_identityless_toolchain_evidence() -> Result<(), String> {
+        let workspace_path = temp_dir("lock-verify-t3-policy");
+        let sif_dir = workspace_path.join("sif");
+        fs::create_dir_all(&sif_dir)
+            .map_err(|error| format!("fixture SIF dir should be writable: {error}"))?;
+        let sif_path = sif_dir.join("design-system.sif.json");
+        let lockfile_path = workspace_path.join("omena.lock");
+        let sif = cli_fixture_sif("pkg:design-system/_tokens.scss", b"$color: red !default;")?;
+        fs::write(
+            &sif_path,
+            omena_sif::write_omena_sif_json_v1(&sif)
+                .map_err(|error| format!("fixture SIF should serialize: {error}"))?,
+        )
+        .map_err(|error| format!("fixture SIF should be writable: {error}"))?;
+        let reference = "sif/design-system.sigstore.json".to_string();
+        let mut entry =
+            omena_sif::build_omena_lock_sif_entry_v1("sif/design-system.sif.json", &sif)
+                .map_err(|error| format!("fixture lock entry should build: {error}"))?;
+        entry.trust_tier = omena_sif::OmenaSifTrustTierV1::T3;
+        entry
+            .attestation_references
+            .push(omena_sif::OmenaSifAttestationReferenceV1 {
+                kind: "sigstore-bundle".to_string(),
+                reference: reference.clone(),
+            });
+        entry
+            .attestation_verifications
+            .push(omena_sif::OmenaSifAttestationVerificationV1 {
+                kind: "omena-toolchain.sigstore".to_string(),
+                reference,
+                verifier: "sigstore-verify".to_string(),
+                verified_trust_tier: omena_sif::OmenaSifTrustTierV1::T3,
+                certificate_issuer: Some("https://github.com/login/oauth".to_string()),
+                certificate_identity: None,
+            });
+        let lock = omena_sif::OmenaLockV1::new(vec![entry]);
+        let issues = collect_lock_trust_tier_issues(&lock, omena_sif::OmenaSifTrustTierV1::T3);
+        assert_eq!(issues.len(), 1, "{issues:?}");
+        assert_eq!(issues[0].code, "attestationVerificationMissing");
+        fs::write(
+            &lockfile_path,
+            omena_sif::write_omena_lock_json_v1(&lock)
+                .map_err(|error| format!("fixture lock should serialize: {error}"))?,
+        )
+        .map_err(|error| format!("fixture lock should be writable: {error}"))?;
+
+        let result = run(Cli {
+            command: Command::Lock {
+                lockfile: PathBuf::from("omena.lock"),
+                json: false,
+                command: Some(LockCommand::Verify {
+                    lockfile: lockfile_path,
+                    source_paths: Vec::new(),
+                    frozen: true,
+                    tier: Some("t3".to_string()),
+                    json: true,
+                }),
+            },
+        });
+
+        assert!(result.is_err(), "{result:?}");
+        cleanup_dir(&workspace_path);
+        Ok(())
+    }
+
+    #[test]
     fn lock_verify_frozen_fails_for_source_referenced_missing_sif_entry() -> Result<(), String> {
         let workspace_path = temp_dir("lock-verify-source-coverage");
         fs::create_dir_all(&workspace_path)
@@ -6884,7 +6994,7 @@ export function App() {
                     reference: provenance_reference.to_string(),
                     kind: "omena-toolchain.sigstore".to_string(),
                     verified_tier: "t3".to_string(),
-                    identity: None,
+                    identity: Some("w.vollprecht@gmail.com".to_string()),
                     issuer: "https://github.com/login/oauth".to_string(),
                     json: true,
                 }),
@@ -6921,8 +7031,10 @@ export function App() {
             Some("https://github.com/login/oauth")
         );
         assert_eq!(
-            refreshed_lock.entries[0].attestation_verifications[0].certificate_identity,
-            None
+            refreshed_lock.entries[0].attestation_verifications[0]
+                .certificate_identity
+                .as_deref(),
+            Some("w.vollprecht@gmail.com")
         );
 
         let verify_t3_after = run(Cli {
@@ -7165,7 +7277,7 @@ export function App() {
                 verifier: "sigstore-verify".to_string(),
                 verified_trust_tier: omena_sif::OmenaSifTrustTierV1::T3,
                 certificate_issuer: Some("https://github.com/login/oauth".to_string()),
-                certificate_identity: None,
+                certificate_identity: Some("w.vollprecht@gmail.com".to_string()),
             });
         let lock = omena_sif::OmenaLockV1::new(vec![entry]);
         fs::write(

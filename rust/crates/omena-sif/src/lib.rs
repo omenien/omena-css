@@ -366,18 +366,43 @@ fn validate_omena_sif_attestation_verification_report_v1(
             ));
         }
     }
-    validate_attestation_kind_for_trust_tier_v1(&report.kind, report.verified_trust_tier)?;
+    validate_attestation_verification_for_trust_tier_v1(&OmenaSifAttestationVerificationV1 {
+        kind: report.kind.clone(),
+        reference: report.reference.clone(),
+        verifier: report.verifier.clone(),
+        verified_trust_tier: report.verified_trust_tier,
+        certificate_issuer: report.certificate_issuer.clone(),
+        certificate_identity: report.certificate_identity.clone(),
+    })?;
     Ok(())
 }
 
-fn validate_attestation_kind_for_trust_tier_v1(
-    kind: &str,
-    verified_trust_tier: OmenaSifTrustTierV1,
+fn validate_attestation_verification_for_trust_tier_v1(
+    verification: &OmenaSifAttestationVerificationV1,
 ) -> Result<(), String> {
-    if verified_trust_tier == OmenaSifTrustTierV1::T3 && !kind.starts_with("omena-toolchain.") {
-        return Err(format!(
-            "attestation verification report tier t3 requires kind omena-toolchain.*, got {kind}"
-        ));
+    if verification.verified_trust_tier == OmenaSifTrustTierV1::T3 {
+        if !verification.kind.starts_with("omena-toolchain.") {
+            return Err(format!(
+                "attestation verification tier t3 requires kind omena-toolchain.*, got {}",
+                verification.kind
+            ));
+        }
+        if verification
+            .certificate_issuer
+            .as_deref()
+            .is_none_or(|issuer| issuer.trim().is_empty())
+        {
+            return Err("attestation verification tier t3 requires certificateIssuer".to_string());
+        }
+        if verification
+            .certificate_identity
+            .as_deref()
+            .is_none_or(|identity| identity.trim().is_empty())
+        {
+            return Err(
+                "attestation verification tier t3 requires certificateIdentity".to_string(),
+            );
+        }
     }
     Ok(())
 }
@@ -411,10 +436,10 @@ pub fn omena_lock_entry_has_verified_attestation_for_tier_v1(
     minimum_tier: OmenaSifTrustTierV1,
 ) -> bool {
     minimum_tier <= OmenaSifTrustTierV1::T1
-        || entry
-            .attestation_verifications
-            .iter()
-            .any(|verification| verification.verified_trust_tier >= minimum_tier)
+        || entry.attestation_verifications.iter().any(|verification| {
+            verification.verified_trust_tier >= minimum_tier
+                && validate_attestation_verification_for_trust_tier_v1(verification).is_ok()
+        })
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -1290,7 +1315,7 @@ mod tests {
             .attestation_verifications
             .push(OmenaSifAttestationVerificationV1 {
                 kind: "npm-provenance.sigstore".to_string(),
-                reference: attestation_reference,
+                reference: attestation_reference.clone(),
                 verifier: "omena-sif-test-fixture".to_string(),
                 verified_trust_tier: OmenaSifTrustTierV1::T2,
                 certificate_issuer: None,
@@ -1301,6 +1326,22 @@ mod tests {
             &entry,
             OmenaSifTrustTierV1::T2
         ));
+        assert!(!omena_lock_entry_has_verified_attestation_for_tier_v1(
+            &entry,
+            OmenaSifTrustTierV1::T3
+        ));
+
+        entry.trust_tier = OmenaSifTrustTierV1::T3;
+        entry
+            .attestation_verifications
+            .push(OmenaSifAttestationVerificationV1 {
+                kind: "omena-toolchain.sigstore".to_string(),
+                reference: attestation_reference,
+                verifier: "omena-sif-test-fixture".to_string(),
+                verified_trust_tier: OmenaSifTrustTierV1::T3,
+                certificate_issuer: Some("https://github.com/login/oauth".to_string()),
+                certificate_identity: None,
+            });
         assert!(!omena_lock_entry_has_verified_attestation_for_tier_v1(
             &entry,
             OmenaSifTrustTierV1::T3
@@ -1426,6 +1467,51 @@ mod tests {
             matches!(
                 result.as_ref(),
                 Err(message) if message.contains("tier t3 requires kind omena-toolchain.*")
+            ),
+            "{result:?}"
+        );
+        assert!(entry.attestation_verifications.is_empty());
+        assert_eq!(entry.trust_tier, OmenaSifTrustTierV1::T1);
+        Ok(())
+    }
+
+    #[test]
+    fn verified_attestation_report_t3_requires_certificate_identity() -> Result<(), String> {
+        let sif = fixture_sif("pkg:design-system/_tokens.scss", b"$color: red !default;")
+            .map_err(|error| error.to_string())?;
+        let mut entry = build_omena_lock_sif_entry_v1("sif/design-system.sif.json", &sif)
+            .map_err(|error| error.to_string())?;
+        let provenance_reference = "sif/design-system.sigstore.json";
+        entry
+            .attestation_references
+            .push(OmenaSifAttestationReferenceV1 {
+                kind: "sigstore-bundle".to_string(),
+                reference: provenance_reference.to_string(),
+            });
+        let report = read_omena_sif_attestation_verification_report_json_v1(
+            &json!({
+                "schemaVersion": "1",
+                "product": "omena-sif.attestation-verification-report",
+                "verified": true,
+                "kind": "omena-toolchain.sigstore",
+                "reference": provenance_reference,
+                "verifier": "offline-sigstore-verifier",
+                "verifiedTrustTier": "t3",
+                "certificateIssuer": "https://github.com/login/oauth",
+                "subjectCanonicalUrl": entry.canonical_url.as_str(),
+                "subjectSifHash": entry.sif_hash.as_str()
+            })
+            .to_string(),
+        )
+        .map_err(|error| error.to_string())?;
+
+        let result =
+            apply_omena_sif_attestation_verification_report_to_lock_entry_v1(&mut entry, &report);
+
+        assert!(
+            matches!(
+                result.as_ref(),
+                Err(message) if message.contains("tier t3 requires certificateIdentity")
             ),
             "{result:?}"
         );
