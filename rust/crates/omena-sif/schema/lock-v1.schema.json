@@ -107,6 +107,24 @@
         {
           "if": {
             "properties": {
+              "kind": {
+                "type": "string",
+                "pattern": "(^sigstore-bundle$|\\.sigstore$)"
+              }
+            },
+            "required": ["kind"]
+          },
+          "then": {
+            "required": [
+              "sigstoreVerificationPolicy",
+              "certificateIssuer",
+              "verifiedTlogIntegratedTime"
+            ]
+          }
+        },
+        {
+          "if": {
+            "properties": {
               "verifiedTrustTier": {
                 "const": "t3"
               }

@@ -449,48 +449,8 @@ fn validate_attestation_verification_for_trust_tier_v1(
             ));
         }
     }
-    if let Some(policy) = verification.sigstore_verification_policy.as_ref() {
-        validate_sigstore_verification_policy_v1(policy)?;
-    } else if verification.verifier == "sigstore-verify" {
-        return Err(
-            "attestation verification from sigstore-verify requires sigstoreVerificationPolicy"
-                .to_string(),
-        );
-    }
-    for (field, value) in [
-        (
-            "certificateIssuer",
-            verification.certificate_issuer.as_ref(),
-        ),
-        (
-            "certificateIdentity",
-            verification.certificate_identity.as_ref(),
-        ),
-    ] {
-        if value.is_some_and(|value| value.trim().is_empty()) {
-            return Err(format!(
-                "attestation verification field {field} must not be empty when present"
-            ));
-        }
-    }
-    if verification.verifier == "sigstore-verify"
-        && verification
-            .certificate_issuer
-            .as_deref()
-            .is_none_or(|issuer| issuer.trim().is_empty())
-    {
-        return Err(
-            "attestation verification from sigstore-verify requires certificateIssuer".to_string(),
-        );
-    }
-    if verification.verifier == "sigstore-verify"
-        && verification.verified_tlog_integrated_time.is_none()
-    {
-        return Err(
-            "attestation verification from sigstore-verify requires verifiedTlogIntegratedTime"
-                .to_string(),
-        );
-    }
+    let requires_sigstore_evidence =
+        attestation_verification_requires_sigstore_evidence_v1(verification);
     if verification.verified_trust_tier == OmenaSifTrustTierV1::T3 {
         if !verification.kind.starts_with("omena-toolchain.") {
             return Err(format!(
@@ -515,7 +475,56 @@ fn validate_attestation_verification_for_trust_tier_v1(
             );
         }
     }
+    if let Some(policy) = verification.sigstore_verification_policy.as_ref() {
+        validate_sigstore_verification_policy_v1(policy)?;
+    } else if requires_sigstore_evidence {
+        return Err(
+            "attestation verification with sigstore evidence requires sigstoreVerificationPolicy"
+                .to_string(),
+        );
+    }
+    for (field, value) in [
+        (
+            "certificateIssuer",
+            verification.certificate_issuer.as_ref(),
+        ),
+        (
+            "certificateIdentity",
+            verification.certificate_identity.as_ref(),
+        ),
+    ] {
+        if value.is_some_and(|value| value.trim().is_empty()) {
+            return Err(format!(
+                "attestation verification field {field} must not be empty when present"
+            ));
+        }
+    }
+    if requires_sigstore_evidence
+        && verification
+            .certificate_issuer
+            .as_deref()
+            .is_none_or(|issuer| issuer.trim().is_empty())
+    {
+        return Err(
+            "attestation verification with sigstore evidence requires certificateIssuer"
+                .to_string(),
+        );
+    }
+    if requires_sigstore_evidence && verification.verified_tlog_integrated_time.is_none() {
+        return Err(
+            "attestation verification with sigstore evidence requires verifiedTlogIntegratedTime"
+                .to_string(),
+        );
+    }
     Ok(())
+}
+
+fn attestation_verification_requires_sigstore_evidence_v1(
+    verification: &OmenaSifAttestationVerificationV1,
+) -> bool {
+    verification.verifier == "sigstore-verify"
+        || verification.kind == "sigstore-bundle"
+        || verification.kind.ends_with(".sigstore")
 }
 
 pub fn validate_omena_sif_attestation_verification_v1(
@@ -1218,6 +1227,26 @@ mod tests {
             }),
             "lock schema sigstore-verify evidence must require policy, issuer, and log time"
         );
+        assert!(
+            all_of.iter().any(|rule| {
+                rule.pointer("/if/properties/kind/pattern")
+                    .and_then(Value::as_str)
+                    == Some("(^sigstore-bundle$|\\.sigstore$)")
+                    && rule
+                        .pointer("/then/required")
+                        .and_then(Value::as_array)
+                        .is_some_and(|required| {
+                            required
+                                .contains(&Value::String("sigstoreVerificationPolicy".to_string()))
+                                && required
+                                    .contains(&Value::String("certificateIssuer".to_string()))
+                                && required.contains(&Value::String(
+                                    "verifiedTlogIntegratedTime".to_string(),
+                                ))
+                        })
+            }),
+            "lock schema sigstore evidence kinds must require policy, issuer, and log time"
+        );
         Ok(())
     }
 
@@ -1267,6 +1296,26 @@ mod tests {
                         })
             }),
             "sigstore-verify reports must require policy, issuer, and log time"
+        );
+        assert!(
+            all_of.iter().any(|rule| {
+                rule.pointer("/if/properties/kind/pattern")
+                    .and_then(Value::as_str)
+                    == Some("(^sigstore-bundle$|\\.sigstore$)")
+                    && rule
+                        .pointer("/then/required")
+                        .and_then(Value::as_array)
+                        .is_some_and(|required| {
+                            required
+                                .contains(&Value::String("sigstoreVerificationPolicy".to_string()))
+                                && required
+                                    .contains(&Value::String("certificateIssuer".to_string()))
+                                && required.contains(&Value::String(
+                                    "verifiedTlogIntegratedTime".to_string(),
+                                ))
+                        })
+            }),
+            "sigstore report evidence kinds must require policy, issuer, and log time"
         );
         assert!(
             all_of.iter().any(|rule| {
@@ -1630,6 +1679,15 @@ mod tests {
                 certificate_identity: None,
             });
 
+        assert!(!omena_lock_entry_has_verified_attestation_for_tier_v1(
+            &entry,
+            OmenaSifTrustTierV1::T2
+        ));
+        entry.attestation_verifications[0].verified_tlog_integrated_time = Some(1_717_000_000);
+        entry.attestation_verifications[0].sigstore_verification_policy =
+            Some(fixture_sigstore_verification_policy());
+        entry.attestation_verifications[0].certificate_issuer =
+            Some("https://token.actions.githubusercontent.com".to_string());
         assert!(omena_lock_entry_has_verified_attestation_for_tier_v1(
             &entry,
             OmenaSifTrustTierV1::T2
@@ -1717,8 +1775,8 @@ mod tests {
                 reference: "sif/design-system.sigstore.json".to_string(),
                 verifier: "omena-sif-test-fixture".to_string(),
                 verified_trust_tier: OmenaSifTrustTierV1::T3,
-                verified_tlog_integrated_time: None,
-                sigstore_verification_policy: None,
+                verified_tlog_integrated_time: Some(1_717_000_000),
+                sigstore_verification_policy: Some(fixture_sigstore_verification_policy()),
                 certificate_issuer: Some("https://github.com/login/oauth".to_string()),
                 certificate_identity: Some("https://github.com/omenien/omena-css/.github/workflows/sif-keyless-attestation.yml@refs/heads/master".to_string()),
             });
@@ -1752,6 +1810,9 @@ mod tests {
                 "reference": "https://registry.npmjs.org/-/npm/v1/attestations/design-system@1.0.0/provenance",
                 "verifier": "offline-sigstore-verifier",
                 "verifiedTrustTier": "t2",
+                "verifiedTlogIntegratedTime": 1717000000,
+                "sigstoreVerificationPolicy": fixture_sigstore_verification_policy_json(),
+                "certificateIssuer": "https://token.actions.githubusercontent.com",
                 "subjectCanonicalUrl": entry.canonical_url.as_str(),
                 "subjectSifHash": entry.sif_hash.as_str()
             })
@@ -1765,7 +1826,12 @@ mod tests {
         assert!(applied);
         assert_eq!(entry.trust_tier, OmenaSifTrustTierV1::T2);
         assert_eq!(entry.attestation_verifications.len(), 1);
-        assert_eq!(entry.attestation_verifications[0].certificate_issuer, None);
+        assert_eq!(
+            entry.attestation_verifications[0]
+                .certificate_issuer
+                .as_deref(),
+            Some("https://token.actions.githubusercontent.com")
+        );
         assert_eq!(
             entry.attestation_verifications[0].certificate_identity,
             None
@@ -1792,6 +1858,9 @@ mod tests {
                 "reference": "https://registry.npmjs.org/-/npm/v1/attestations/design-system@1.0.0/provenance",
                 "verifier": "offline-sigstore-verifier",
                 "verifiedTrustTier": "t2",
+                "verifiedTlogIntegratedTime": 1717000000,
+                "sigstoreVerificationPolicy": fixture_sigstore_verification_policy_json(),
+                "certificateIssuer": "https://token.actions.githubusercontent.com",
                 "subjectCanonicalUrl": entry.canonical_url.as_str(),
                 "subjectSifHash": entry.sif_hash.as_str()
             })
@@ -1923,6 +1992,8 @@ mod tests {
                 "reference": provenance_reference,
                 "verifier": "offline-sigstore-verifier",
                 "verifiedTrustTier": "t3",
+                "verifiedTlogIntegratedTime": 1717000000,
+                "sigstoreVerificationPolicy": fixture_sigstore_verification_policy_json(),
                 "certificateIssuer": "https://github.com/login/oauth",
                 "certificateIdentity": "https://github.com/omenien/omena-css/.github/workflows/sif-keyless-attestation.yml@refs/heads/master",
                 "subjectCanonicalUrl": entry.canonical_url.as_str(),
@@ -1969,9 +2040,9 @@ mod tests {
                     .to_string(),
             verifier: "offline-sigstore-verifier".to_string(),
             verified_trust_tier: OmenaSifTrustTierV1::T2,
-            verified_tlog_integrated_time: None,
-            sigstore_verification_policy: None,
-            certificate_issuer: None,
+            verified_tlog_integrated_time: Some(1_717_000_000),
+            sigstore_verification_policy: Some(fixture_sigstore_verification_policy()),
+            certificate_issuer: Some("https://token.actions.githubusercontent.com".to_string()),
             certificate_identity: None,
             subject_canonical_url: entry.canonical_url.clone(),
             subject_sif_hash: changed_entry.sif_hash,
@@ -2155,6 +2226,26 @@ mod tests {
         OmenaSifSourceV1 {
             syntax: OmenaSifSourceSyntaxV1::Scss,
         }
+    }
+
+    fn fixture_sigstore_verification_policy() -> OmenaSifSigstoreVerificationPolicyV1 {
+        OmenaSifSigstoreVerificationPolicyV1 {
+            trusted_root: "sigstore-production-trusted-root".to_string(),
+            transparency_log: true,
+            timestamp: true,
+            certificate_chain: true,
+            signed_certificate_timestamp: true,
+        }
+    }
+
+    fn fixture_sigstore_verification_policy_json() -> Value {
+        json!({
+            "trustedRoot": "sigstore-production-trusted-root",
+            "transparencyLog": true,
+            "timestamp": true,
+            "certificateChain": true,
+            "signedCertificateTimestamp": true
+        })
     }
 
     fn fixture_sif(

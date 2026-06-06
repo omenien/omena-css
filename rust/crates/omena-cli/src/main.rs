@@ -6736,6 +6736,14 @@ export function App() {
                 "reference": "https://registry.npmjs.org/-/npm/v1/attestations/design-system@1.0.0/provenance",
                 "verifier": "offline-sigstore-verifier",
                 "verifiedTrustTier": "t2",
+                "verifiedTlogIntegratedTime": 1717000000,
+                "sigstoreVerificationPolicy": {
+                    "trustedRoot": "sigstore-production-trusted-root",
+                    "transparencyLog": true,
+                    "timestamp": true,
+                    "certificateChain": true,
+                    "signedCertificateTimestamp": true
+                },
                 "certificateIssuer": "https://token.actions.githubusercontent.com",
                 "certificateIdentity": "https://github.com/omenien/omena-css/.github/workflows/release.yml@refs/tags/v1.0.0",
                 "subjectCanonicalUrl": entry.canonical_url.as_str(),
@@ -6754,6 +6762,14 @@ export function App() {
                 "reference": "https://registry.npmjs.org/-/npm/v1/attestations/design-system@1.0.0/provenance",
                 "verifier": "offline-sigstore-verifier",
                 "verifiedTrustTier": "t2",
+                "verifiedTlogIntegratedTime": 1717000000,
+                "sigstoreVerificationPolicy": {
+                    "trustedRoot": "sigstore-production-trusted-root",
+                    "transparencyLog": true,
+                    "timestamp": true,
+                    "certificateChain": true,
+                    "signedCertificateTimestamp": true
+                },
                 "certificateIssuer": "https://token.actions.githubusercontent.com",
                 "subjectCanonicalUrl": entry.canonical_url.as_str(),
                 "subjectSifHash": entry.sif_hash.as_str()
@@ -6771,6 +6787,14 @@ export function App() {
                 "reference": "https://registry.npmjs.org/-/npm/v1/attestations/design-system@1.0.0/provenance",
                 "verifier": "offline-sigstore-verifier",
                 "verifiedTrustTier": "t3",
+                "verifiedTlogIntegratedTime": 1717000000,
+                "sigstoreVerificationPolicy": {
+                    "trustedRoot": "sigstore-production-trusted-root",
+                    "transparencyLog": true,
+                    "timestamp": true,
+                    "certificateChain": true,
+                    "signedCertificateTimestamp": true
+                },
                 "certificateIssuer": "https://token.actions.githubusercontent.com",
                 "subjectCanonicalUrl": entry.canonical_url.as_str(),
                 "subjectSifHash": entry.sif_hash.as_str()
