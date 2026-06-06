@@ -22,6 +22,7 @@ use omena_query::{
     read_omena_query_style_context_index,
     resolve_omena_query_style_uri_for_specifier_with_resolution_inputs,
     rewrite_omena_transform_bundle_asset_urls_in_source,
+    summarize_omena_query_bundle_code_split_source_map_v3,
     summarize_omena_query_consumer_check_style_source,
     summarize_omena_query_dynamic_classname_m_tier_diagnostics_with_context_depth,
     summarize_omena_query_expression_domain_incremental_flow_analysis,
@@ -2389,9 +2390,17 @@ fn build_file(options: BuildFileOptions) -> Result<(), String> {
             split_out_dir,
             &style_path,
             &workspace_sources,
+            &original_workspace_sources,
             &resolution_inputs,
+            source_map,
         )?;
         push_ready_surface(&mut summary.ready_surfaces, "bundleCodeSplitEmission");
+        if source_map {
+            push_ready_surface(
+                &mut summary.ready_surfaces,
+                "bundleCodeSplitSourceMapEmission",
+            );
+        }
     }
 
     if !summary.unknown_pass_ids.is_empty() {
@@ -2490,7 +2499,9 @@ fn emit_bundle_code_split_outputs(
     out_dir: &Path,
     entry_style_path: &str,
     sources: &[OmenaQueryStyleSourceInputV0],
+    source_map_sources: &[OmenaQueryStyleSourceInputV0],
     resolution_inputs: &OmenaQueryStyleResolutionInputsV0,
+    source_map: bool,
 ) -> Result<(), String> {
     fs::create_dir_all(out_dir).map_err(|error| {
         format!(
@@ -2499,6 +2510,10 @@ fn emit_bundle_code_split_outputs(
         )
     })?;
     let source_by_path = sources
+        .iter()
+        .map(|source| (source.style_path.as_str(), source.style_source.as_str()))
+        .collect::<BTreeMap<_, _>>();
+    let source_map_source_by_path = source_map_sources
         .iter()
         .map(|source| (source.style_path.as_str(), source.style_source.as_str()))
         .collect::<BTreeMap<_, _>>();
@@ -2533,8 +2548,34 @@ fn emit_bundle_code_split_outputs(
             resolution_inputs,
             &source_path_lookup,
         );
+        let mut output_css = rewritten_source;
+        if source_map {
+            let map_file_name = format!("{file_name}.map");
+            let source_map_source = source_map_source_by_path
+                .get(style_path.as_str())
+                .copied()
+                .unwrap_or(source);
+            let source_map_v3 = summarize_omena_query_bundle_code_split_source_map_v3(
+                file_name,
+                output_css.as_str(),
+                style_path.as_str(),
+                source_map_source,
+            );
+            let map_output_path = out_dir.join(&map_file_name);
+            let source_map_json = serde_json::to_string_pretty(&source_map_v3)
+                .map_err(|error| format!("failed to serialize split source map: {error}"))?;
+            fs::write(&map_output_path, source_map_json).map_err(|error| {
+                format!(
+                    "failed to write bundle split source map {}: {error}",
+                    path_string(&map_output_path)
+                )
+            })?;
+            output_css.push_str("\n/*# sourceMappingURL=");
+            output_css.push_str(&map_file_name);
+            output_css.push_str(" */\n");
+        }
         let output_path = out_dir.join(file_name);
-        fs::write(&output_path, rewritten_source).map_err(|error| {
+        fs::write(&output_path, output_css).map_err(|error| {
             format!(
                 "failed to write bundle split output {}: {error}",
                 path_string(&output_path)

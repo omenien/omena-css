@@ -1,17 +1,11 @@
 import { strict as assert } from "node:assert";
 import { spawnSync } from "node:child_process";
-import {
-  mkdtempSync,
-  mkdirSync,
-  readdirSync,
-  readFileSync,
-  rmSync,
-  writeFileSync,
-} from "node:fs";
+import { mkdtempSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 interface SourceMapV3 {
+  readonly file: string;
   readonly sources: readonly string[];
   readonly sourcesContent: readonly string[];
   readonly mappings: string;
@@ -104,6 +98,7 @@ try {
   assert.ok(summary.readySurfaces.includes("sourceMapV3Serializer"));
   assert.ok(summary.readySurfaces.includes("bundleSourceMapOriginChain"));
   assert.ok(summary.readySurfaces.includes("bundleCodeSplitEmission"));
+  assert.ok(summary.readySurfaces.includes("bundleCodeSplitSourceMapEmission"));
   assert.ok(!summary.execution.outputCss.includes("@import"));
   assert.ok(summary.execution.outputCss.includes(baseSource));
   assert.ok(summary.execution.outputCss.includes(".token { color: blue;"));
@@ -126,7 +121,7 @@ try {
       "validated omena-cli bundle origin chain:",
       `sources=${sourceMap.sources.length}`,
       `segments=${sourceMap.x_omenaSegmentCount}`,
-      "ready=bundleSourceMapOriginChain+bundleAssetUrlRewrite+bundleCodeSplitEmission",
+      "ready=bundleSourceMapOriginChain+bundleAssetUrlRewrite+bundleCodeSplitEmission+bundleCodeSplitSourceMapEmission",
     ].join(" "),
   );
 } finally {
@@ -150,8 +145,19 @@ function assertSplitOutputs(
   baseSource: string,
 ): void {
   const files = readdirSync(splitDir);
-  assert.equal(files.length, 3, `expected entry plus two imported split files: ${files.join(",")}`);
-  const outputs = files.map((file) => readFileSync(join(splitDir, file), "utf8"));
+  const cssFiles = files.filter((file) => file.endsWith(".css"));
+  const mapFiles = files.filter((file) => file.endsWith(".css.map"));
+  assert.equal(
+    cssFiles.length,
+    3,
+    `expected entry plus two imported split files: ${files.join(",")}`,
+  );
+  assert.equal(
+    mapFiles.length,
+    3,
+    `expected source-map sidecars for every split CSS file: ${files.join(",")}`,
+  );
+  const outputs = cssFiles.map((file) => readFileSync(join(splitDir, file), "utf8"));
   const appOutput = outputs.find((output) => output.includes(".app { color: green;"));
   const tokensOutput = outputs.find((output) => output.includes(".token { color: blue;"));
   const baseOutput = outputs.find((output) => output.includes(baseSource));
@@ -168,4 +174,26 @@ function assertSplitOutputs(
   assert.ok(!tokensOutput.includes("./base.css"));
   assert.ok(appOutput.includes('@import "'));
   assert.ok(tokensOutput.includes('@import "'));
+  for (const cssFile of cssFiles) {
+    const output = readFileSync(join(splitDir, cssFile), "utf8");
+    const sourceMapFile = `${cssFile}.map`;
+    assert.ok(
+      output.includes(`sourceMappingURL=${sourceMapFile}`),
+      `split CSS should point at its map sidecar: ${cssFile}`,
+    );
+    assert.ok(
+      mapFiles.includes(sourceMapFile),
+      `split source map sidecar should exist for ${cssFile}: ${files.join(",")}`,
+    );
+    const splitMap = JSON.parse(readFileSync(join(splitDir, sourceMapFile), "utf8")) as SourceMapV3;
+    assert.equal(splitMap.file, cssFile);
+    assert.equal(splitMap.sources.length, 1);
+    assert.equal(splitMap.sourcesContent.length, 1);
+    assert.ok(splitMap.mappings.length > 0);
+    assert.ok(splitMap.x_omenaPassIds.includes("code-split-emission"));
+    assert.ok(
+      [appSource, tokensSource, baseSource].includes(splitMap.sourcesContent[0]),
+      `split map should preserve original source content for ${cssFile}`,
+    );
+  }
 }

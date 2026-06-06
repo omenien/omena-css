@@ -636,6 +636,33 @@ pub fn summarize_omena_query_consumer_build_source_map_v3(
     )
 }
 
+pub fn summarize_omena_query_bundle_code_split_source_map_v3(
+    output_file_name: &str,
+    generated_css: &str,
+    source_path: &str,
+    source_content: &str,
+) -> OmenaQueryTransformSourceMapV3V0 {
+    let segment = TransformSourceMapSegmentV0 {
+        source_path: source_path.to_string(),
+        original_start: 0,
+        original_end: source_content.len(),
+        generated_start: 0,
+        generated_end: generated_css.len(),
+        original_start_point: transform_source_map_point(source_content, 0),
+        original_end_point: transform_source_map_point(source_content, source_content.len()),
+        generated_start_point: transform_source_map_point(generated_css, 0),
+        generated_end_point: transform_source_map_point(generated_css, generated_css.len()),
+        pass_id: "code-split-emission",
+    };
+    serialize_transform_source_map_v3_with_source_contents(
+        output_file_name,
+        generated_css,
+        source_path,
+        &[(source_path, source_content)],
+        &[segment],
+    )
+}
+
 fn import_inline_source_map_segments(
     style_path: &str,
     execution: &TransformExecutionSummaryV0,

@@ -1,4 +1,5 @@
 use super::*;
+use crate::summarize_omena_query_bundle_code_split_source_map_v3;
 
 #[test]
 fn exposes_transform_plan_facade_from_source() {
@@ -220,6 +221,26 @@ fn consumer_build_source_map_v3_preserves_bundle_import_origins() -> Result<(), 
             .contains(&"bundleSourceMapOriginChain")
     );
     Ok(())
+}
+
+#[test]
+fn bundle_code_split_source_map_preserves_split_origin() {
+    let source = r#"@import "./base.css"; .token { color: blue; }"#;
+    let generated = r#"@import "theme-base-css-1.css"; .token { color: blue; }"#;
+    let source_map = summarize_omena_query_bundle_code_split_source_map_v3(
+        "theme-tokens-css-1.css",
+        generated,
+        "src/theme/tokens.css",
+        source,
+    );
+
+    assert_eq!(source_map.version, 3);
+    assert_eq!(source_map.file, "theme-tokens-css-1.css");
+    assert_eq!(source_map.sources, vec!["src/theme/tokens.css"]);
+    assert_eq!(source_map.sources_content, vec![source]);
+    assert!(!source_map.mappings.is_empty());
+    assert_eq!(source_map.x_omena_segment_count, 1);
+    assert_eq!(source_map.x_omena_pass_ids, vec!["code-split-emission"]);
 }
 
 #[test]
