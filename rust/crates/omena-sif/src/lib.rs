@@ -242,6 +242,68 @@ pub struct OmenaSifAttestationVerificationV1 {
     pub verified_trust_tier: OmenaSifTrustTierV1,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct OmenaSifAttestationVerificationReportV1 {
+    pub product: String,
+    pub verified: bool,
+    pub kind: String,
+    pub reference: String,
+    pub verifier: String,
+    pub verified_trust_tier: OmenaSifTrustTierV1,
+    pub subject_canonical_url: String,
+    pub subject_sif_hash: OmenaSifDigestV1,
+}
+
+pub fn read_omena_sif_attestation_verification_report_json_v1(
+    source: &str,
+) -> Result<OmenaSifAttestationVerificationReportV1, serde_json::Error> {
+    serde_json::from_str(source)
+}
+
+pub fn apply_omena_sif_attestation_verification_report_to_lock_entry_v1(
+    entry: &mut OmenaLockSifEntryV1,
+    report: &OmenaSifAttestationVerificationReportV1,
+) -> Result<bool, String> {
+    if !report.verified {
+        return Err("attestation verification report is not marked verified".to_string());
+    }
+    if report.verified_trust_tier < OmenaSifTrustTierV1::T2 {
+        return Err(format!(
+            "attestation verification report tier {} cannot satisfy enforced provenance",
+            report.verified_trust_tier.as_str()
+        ));
+    }
+    if entry.canonical_url != report.subject_canonical_url {
+        return Ok(false);
+    }
+    if entry.sif_hash != report.subject_sif_hash {
+        return Err(format!(
+            "attestation verification report subject hash {} does not match lock entry {}",
+            report.subject_sif_hash.as_str(),
+            entry.sif_hash.as_str()
+        ));
+    }
+
+    let verification = OmenaSifAttestationVerificationV1 {
+        kind: report.kind.clone(),
+        reference: report.reference.clone(),
+        verifier: report.verifier.clone(),
+        verified_trust_tier: report.verified_trust_tier,
+    };
+    let mut verifications = entry
+        .attestation_verifications
+        .iter()
+        .cloned()
+        .collect::<std::collections::BTreeSet<_>>();
+    verifications.insert(verification);
+    entry.attestation_verifications = verifications.into_iter().collect();
+    if entry.trust_tier < report.verified_trust_tier {
+        entry.trust_tier = report.verified_trust_tier;
+    }
+    Ok(true)
+}
+
 pub fn collect_omena_sif_npm_provenance_attestation_references_v1(
     source: &str,
 ) -> Result<Vec<OmenaSifAttestationReferenceV1>, serde_json::Error> {
@@ -1067,6 +1129,83 @@ mod tests {
             &entry,
             OmenaSifTrustTierV1::T3
         ));
+        Ok(())
+    }
+
+    #[test]
+    fn verified_attestation_report_upgrades_matching_lock_entry() -> Result<(), String> {
+        let sif = fixture_sif("pkg:design-system/_tokens.scss", b"$color: red !default;")
+            .map_err(|error| error.to_string())?;
+        let mut entry = build_omena_lock_sif_entry_v1("sif/design-system.sif.json", &sif)
+            .map_err(|error| error.to_string())?;
+        let report = read_omena_sif_attestation_verification_report_json_v1(
+            &json!({
+                "product": "omena-sif.attestation-verification-report",
+                "verified": true,
+                "kind": "npm-provenance.sigstore",
+                "reference": "https://registry.npmjs.org/-/npm/v1/attestations/design-system@1.0.0/provenance",
+                "verifier": "offline-sigstore-verifier",
+                "verifiedTrustTier": "t2",
+                "subjectCanonicalUrl": entry.canonical_url.as_str(),
+                "subjectSifHash": entry.sif_hash.as_str()
+            })
+            .to_string(),
+        )
+        .map_err(|error| error.to_string())?;
+
+        let applied =
+            apply_omena_sif_attestation_verification_report_to_lock_entry_v1(&mut entry, &report)?;
+
+        assert!(applied);
+        assert_eq!(entry.trust_tier, OmenaSifTrustTierV1::T2);
+        assert_eq!(entry.attestation_verifications.len(), 1);
+        assert!(omena_lock_entry_has_verified_attestation_for_tier_v1(
+            &entry,
+            OmenaSifTrustTierV1::T2
+        ));
+        Ok(())
+    }
+
+    #[test]
+    fn verified_attestation_report_rejects_unverified_or_mismatched_subject() -> Result<(), String>
+    {
+        let sif = fixture_sif("pkg:design-system/_tokens.scss", b"$color: red !default;")
+            .map_err(|error| error.to_string())?;
+        let mut entry = build_omena_lock_sif_entry_v1("sif/design-system.sif.json", &sif)
+            .map_err(|error| error.to_string())?;
+        let changed_sif = fixture_sif("pkg:design-system/_tokens.scss", b"$color: blue !default;")
+            .map_err(|error| error.to_string())?;
+        let changed_entry =
+            build_omena_lock_sif_entry_v1("sif/design-system.changed.sif.json", &changed_sif)
+                .map_err(|error| error.to_string())?;
+        let mut report = OmenaSifAttestationVerificationReportV1 {
+            product: "omena-sif.attestation-verification-report".to_string(),
+            verified: true,
+            kind: "npm-provenance.sigstore".to_string(),
+            reference:
+                "https://registry.npmjs.org/-/npm/v1/attestations/design-system@1.0.0/provenance"
+                    .to_string(),
+            verifier: "offline-sigstore-verifier".to_string(),
+            verified_trust_tier: OmenaSifTrustTierV1::T2,
+            subject_canonical_url: entry.canonical_url.clone(),
+            subject_sif_hash: changed_entry.sif_hash,
+        };
+
+        let hash_mismatch =
+            apply_omena_sif_attestation_verification_report_to_lock_entry_v1(&mut entry, &report);
+        assert!(hash_mismatch.is_err(), "{hash_mismatch:?}");
+
+        report.subject_canonical_url = "pkg:other/_tokens.scss".to_string();
+        let unmatched =
+            apply_omena_sif_attestation_verification_report_to_lock_entry_v1(&mut entry, &report)?;
+        assert!(!unmatched);
+
+        report.subject_canonical_url = entry.canonical_url.clone();
+        report.subject_sif_hash = entry.sif_hash.clone();
+        report.verified = false;
+        let unverified =
+            apply_omena_sif_attestation_verification_report_to_lock_entry_v1(&mut entry, &report);
+        assert!(unverified.is_err(), "{unverified:?}");
         Ok(())
     }
 
