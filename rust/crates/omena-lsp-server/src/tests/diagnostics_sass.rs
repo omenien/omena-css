@@ -73,6 +73,82 @@ fn resolves_graph_aware_sass_diagnostics_from_opened_style_documents() {
 }
 
 #[test]
+fn style_diagnostics_surface_sass_module_identity_conflicts_from_lsp() {
+    let mut state = LspShellState::default();
+    for (uri, text) in [
+        (
+            "file:///workspace-a/src/App.module.scss",
+            "@use \"./theme\" as theme;",
+        ),
+        (
+            "file:///workspace-a/src/_theme.scss",
+            "@forward \"./tokens\" with ($brand: red); @forward \"./tokens\" with ($brand: blue);",
+        ),
+        (
+            "file:///workspace-a/src/_tokens.scss",
+            "$brand: blue !default;",
+        ),
+    ] {
+        handle_lsp_message(
+            &mut state,
+            json!({
+                "jsonrpc": "2.0",
+                "method": "textDocument/didOpen",
+                "params": {
+                    "textDocument": {
+                        "uri": uri,
+                        "languageId": "scss",
+                        "version": 1,
+                        "text": text,
+                    },
+                },
+            }),
+        );
+    }
+
+    let diagnostics_response = handle_lsp_message(
+        &mut state,
+        json!({
+            "jsonrpc": "2.0",
+            "id": 1,
+            "method": STYLE_DIAGNOSTICS_REQUEST,
+            "params": {
+                "textDocument": {
+                    "uri": "file:///workspace-a/src/App.module.scss",
+                },
+            },
+        }),
+    );
+    let diagnostics = diagnostics_response
+        .as_ref()
+        .and_then(|value| value.pointer("/result"))
+        .and_then(Value::as_array)
+        .expect("style diagnostics response contains an array");
+    let conflict = diagnostics
+        .iter()
+        .find(|diagnostic| {
+            diagnostic.pointer("/code") == Some(&json!("sassModuleConfigurationConflict"))
+        })
+        .expect("LSP style diagnostics should surface Sass module identity conflicts");
+
+    assert_eq!(
+        conflict.pointer("/data/provenance/2"),
+        Some(&json!("omena-query.style-diagnostics"))
+    );
+    assert!(
+        conflict
+            .pointer("/message")
+            .and_then(Value::as_str)
+            .is_some_and(|message| {
+                message.contains("_tokens.scss")
+                    && message.contains("brand=3:red")
+                    && message.contains("brand=4:blue")
+            }),
+        "diagnostic should describe the conflicting configured module instance: {conflict:?}"
+    );
+}
+
+#[test]
 fn style_diagnostics_resolve_sass_symbols_through_tsconfig_path_alias() -> TestResult {
     let workspace_path = std::env::temp_dir().join(format!(
         "omena-lsp-sass-diagnostics-tsconfig-alias-{}-{}",

@@ -143,6 +143,58 @@ fn missing_custom_property_diagnostics_are_query_owned() -> Result<(), serde_jso
 }
 
 #[test]
+fn workspace_style_diagnostics_include_sass_module_identity_conflicts() {
+    let sources = vec![
+        OmenaQueryStyleSourceInputV0 {
+            style_path: "/tmp/tokens.scss".to_string(),
+            style_source: "$brand: blue !default;".to_string(),
+        },
+        OmenaQueryStyleSourceInputV0 {
+            style_path: "/tmp/theme.scss".to_string(),
+            style_source:
+                r#"@forward "./tokens" with ($brand: red); @forward "./tokens" with ($brand: blue);"#
+                    .to_string(),
+        },
+        OmenaQueryStyleSourceInputV0 {
+            style_path: "/tmp/App.module.scss".to_string(),
+            style_source: r#"@use "./theme" as theme;"#.to_string(),
+        },
+    ];
+
+    let summary =
+        crate::summarize_omena_query_style_diagnostics_for_workspace_file_with_external_mode_and_sifs_and_resolution_inputs(
+            "/tmp/App.module.scss",
+            sources.as_slice(),
+            &[],
+            &[],
+            None,
+            crate::OmenaQueryExternalModuleModeV0::Ignored,
+            &[],
+            &crate::OmenaQueryStyleResolutionInputsV0::default(),
+        )
+        .expect("workspace diagnostics should read target style");
+
+    assert!(
+        summary
+            .ready_surfaces
+            .contains(&"sassModuleResolutionIdentityDiagnostics")
+    );
+    assert!(
+        summary.diagnostics.iter().any(|diagnostic| {
+            diagnostic.code == "sassModuleConfigurationConflict"
+                && diagnostic.severity == "error"
+                && diagnostic.message.contains("/tmp/tokens.scss")
+                && diagnostic.message.contains("brand=3:red")
+                && diagnostic.message.contains("brand=4:blue")
+                && diagnostic
+                    .provenance
+                    .contains(&"omena-query.style-diagnostics")
+        }),
+        "workspace diagnostics must surface query-owned Sass module identity conflicts: {summary:?}"
+    );
+}
+
+#[test]
 fn style_diagnostics_for_file_include_cascade_aware_lints() -> Result<(), &'static str> {
     let source = r#"
 @layer base {
