@@ -7,6 +7,7 @@ import { join } from "node:path";
 interface SoundinessReport {
   readonly product: string;
   readonly suppressedDiagnosticCount: number;
+  readonly unusedExpectErrorCount: number;
   readonly suppressionReasons: readonly {
     readonly directiveKind: string;
     readonly codes: readonly string[];
@@ -38,6 +39,61 @@ try {
     ].join("\n"),
   );
 
+  const result = runSoundinessReport(stylePath);
+  const report = JSON.parse(result.stdout) as SoundinessReport;
+  assert.equal(report.product, "omena-cli.soundiness-report");
+  assert.ok(report.suppressedDiagnosticCount >= 1, "expected suppression accounting");
+  assert.equal(report.unusedExpectErrorCount, 0);
+  assert.equal(report.suppressionReasons.length, 1, "expected suppression reason capture");
+  assert.equal(report.suppressionReasons[0]?.directiveKind, "ignoreNextLine");
+  assert.deepEqual(report.suppressionReasons[0]?.codes, ["missingSassSymbol"]);
+  assert.equal(report.suppressionReasons[0]?.reason, "awaiting upstream SIF");
+  assert.ok(
+    report.boundaryDiagnostics.unresolvedExternalReference >= 1,
+    "expected unresolved external boundary visibility",
+  );
+  assert.equal(report.noiseBudget.perPrSuppressedDiagnosticRatio.status, "review");
+  assert.equal(report.noiseBudget.perFileSuppressedDensity.status, "review");
+  assert.equal(report.noiseBudget.projectSuppressionRate.status, "review");
+  assert.equal(report.noiseBudget.withinBudget, false);
+  assert.ok(report.readySurfaces.includes("soundinessReport"));
+  assert.ok(report.readySurfaces.includes("noiseBudgetVisibilityGates"));
+  assert.ok(report.readySurfaces.includes("diagnosticSuppressionReasonSummary"));
+
+  const budgetFailure = runSoundinessReport(stylePath, ["--max-suppressions", "0"], 1);
+  assert.match(
+    budgetFailure.stderr,
+    /suppression budget exceeded/,
+    "max suppression audit flag must fail when the report exceeds the threshold",
+  );
+
+  const stalePath = join(workspace, "stale.module.scss");
+  writeFileSync(
+    stalePath,
+    [
+      "/* omena-expect-error missingSassSymbol [reason: 'stale fixture'] */",
+      ".clean { color: red; }",
+    ].join("\n"),
+  );
+  const staleFailure = runSoundinessReport(stalePath, ["--report-stale-suppressions"], 1);
+  assert.match(
+    staleFailure.stderr,
+    /stale suppressions observed/,
+    "stale suppression audit flag must fail on unused omena-expect-error",
+  );
+
+  console.log(
+    "validated omena-cli soundiness report: suppression=visible boundary=visible budget=review",
+  );
+} finally {
+  rmSync(workspace, { force: true, recursive: true });
+}
+
+function runSoundinessReport(
+  stylePath: string,
+  extraArgs: readonly string[] = [],
+  expectedStatus = 0,
+): { readonly stdout: string; readonly stderr: string } {
   const result = spawnSync(
     "cargo",
     [
@@ -57,6 +113,7 @@ try {
       "--external",
       "sif",
       "--json",
+      ...extraArgs,
     ],
     {
       cwd: process.cwd(),
@@ -67,31 +124,8 @@ try {
 
   assert.equal(
     result.status,
-    0,
-    `omena report soundiness failed\nstdout=${result.stdout}\nstderr=${result.stderr}`,
+    expectedStatus,
+    `omena report soundiness status mismatch\nstdout=${result.stdout}\nstderr=${result.stderr}`,
   );
-  const report = JSON.parse(result.stdout) as SoundinessReport;
-  assert.equal(report.product, "omena-cli.soundiness-report");
-  assert.ok(report.suppressedDiagnosticCount >= 1, "expected suppression accounting");
-  assert.equal(report.suppressionReasons.length, 1, "expected suppression reason capture");
-  assert.equal(report.suppressionReasons[0]?.directiveKind, "ignoreNextLine");
-  assert.deepEqual(report.suppressionReasons[0]?.codes, ["missingSassSymbol"]);
-  assert.equal(report.suppressionReasons[0]?.reason, "awaiting upstream SIF");
-  assert.ok(
-    report.boundaryDiagnostics.unresolvedExternalReference >= 1,
-    "expected unresolved external boundary visibility",
-  );
-  assert.equal(report.noiseBudget.perPrSuppressedDiagnosticRatio.status, "review");
-  assert.equal(report.noiseBudget.perFileSuppressedDensity.status, "review");
-  assert.equal(report.noiseBudget.projectSuppressionRate.status, "review");
-  assert.equal(report.noiseBudget.withinBudget, false);
-  assert.ok(report.readySurfaces.includes("soundinessReport"));
-  assert.ok(report.readySurfaces.includes("noiseBudgetVisibilityGates"));
-  assert.ok(report.readySurfaces.includes("diagnosticSuppressionReasonSummary"));
-
-  console.log(
-    "validated omena-cli soundiness report: suppression=visible boundary=visible budget=review",
-  );
-} finally {
-  rmSync(workspace, { force: true, recursive: true });
+  return { stdout: result.stdout, stderr: result.stderr };
 }

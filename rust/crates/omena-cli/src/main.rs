@@ -445,6 +445,12 @@ enum ReportCommand {
         /// External Sass module mode: ignored preserves compatibility, sif reports boundary states.
         #[arg(long, default_value = "sif")]
         external: String,
+        /// Fail when the report observes more suppressions than this threshold.
+        #[arg(long = "max-suppressions")]
+        max_suppressions: Option<usize>,
+        /// Fail when stale expect-error suppressions are observed.
+        #[arg(long = "report-stale-suppressions")]
+        report_stale_suppressions: bool,
         /// Print machine-readable JSON.
         #[arg(long)]
         json: bool,
@@ -1175,6 +1181,8 @@ fn report_command(command: ReportCommand) -> Result<(), String> {
             sif_paths,
             lockfile,
             external,
+            max_suppressions,
+            report_stale_suppressions,
             json,
         } => report_soundiness(
             source_paths,
@@ -1183,6 +1191,8 @@ fn report_command(command: ReportCommand) -> Result<(), String> {
             sif_paths,
             lockfile,
             external,
+            max_suppressions,
+            report_stale_suppressions,
             json,
         ),
     }
@@ -1198,6 +1208,7 @@ struct SoundinessReportV0 {
     original_diagnostic_count: usize,
     emitted_diagnostic_count: usize,
     suppressed_diagnostic_count: usize,
+    unused_expect_error_count: usize,
     boundary_diagnostics: SoundinessBoundaryDiagnosticsV0,
     strictness_distribution: SoundinessStrictnessDistributionV0,
     suppression_reasons: Vec<OmenaQueryDiagnosticSuppressionReasonV0>,
@@ -1232,6 +1243,7 @@ struct SoundinessFileReportV0 {
     original_diagnostic_count: usize,
     emitted_diagnostic_count: usize,
     suppressed_diagnostic_count: usize,
+    unused_expect_error_count: usize,
     suppression_reasons: Vec<OmenaQueryDiagnosticSuppressionReasonV0>,
     suppressed_per_100_loc: f64,
 }
@@ -1262,6 +1274,8 @@ fn report_soundiness(
     sif_paths: Vec<PathBuf>,
     lockfile: Option<PathBuf>,
     external: String,
+    max_suppressions: Option<usize>,
+    report_stale_suppressions: bool,
     json: bool,
 ) -> Result<(), String> {
     let report = summarize_soundiness_report(
@@ -1272,6 +1286,7 @@ fn report_soundiness(
         lockfile,
         external,
     )?;
+    enforce_soundiness_report_audit_flags(&report, max_suppressions, report_stale_suppressions)?;
     if json {
         print_json(&report)?;
     } else {
@@ -1324,6 +1339,7 @@ fn summarize_soundiness_report(
     let mut original_diagnostic_count = 0usize;
     let mut emitted_diagnostic_count = 0usize;
     let mut suppressed_diagnostic_count = 0usize;
+    let mut unused_expect_error_count = 0usize;
     let mut suppression_reasons = Vec::new();
     let mut line_count = 0usize;
 
@@ -1356,12 +1372,16 @@ fn summarize_soundiness_report(
         let suppressed = suppression
             .map(|summary| summary.suppressed_diagnostic_count)
             .unwrap_or(0);
+        let unused_expect_errors = suppression
+            .map(|summary| summary.unused_expect_error_count)
+            .unwrap_or(0);
         let file_suppression_reasons = suppression
             .map(|summary| summary.suppression_reasons.clone())
             .unwrap_or_default();
         original_diagnostic_count += original;
         emitted_diagnostic_count += emitted;
         suppressed_diagnostic_count += suppressed;
+        unused_expect_error_count += unused_expect_errors;
         suppression_reasons.extend(file_suppression_reasons.iter().cloned());
         file_reports.push(SoundinessFileReportV0 {
             file_uri: source.style_path.clone(),
@@ -1369,6 +1389,7 @@ fn summarize_soundiness_report(
             original_diagnostic_count: original,
             emitted_diagnostic_count: emitted,
             suppressed_diagnostic_count: suppressed,
+            unused_expect_error_count: unused_expect_errors,
             suppression_reasons: file_suppression_reasons,
             suppressed_per_100_loc: ratio_per_100(suppressed, file_line_count),
         });
@@ -1409,6 +1430,7 @@ fn summarize_soundiness_report(
         original_diagnostic_count,
         emitted_diagnostic_count,
         suppressed_diagnostic_count,
+        unused_expect_error_count,
         boundary_diagnostics,
         strictness_distribution,
         suppression_reasons,
@@ -1422,6 +1444,28 @@ fn summarize_soundiness_report(
             "noiseBudgetVisibilityGates",
         ],
     })
+}
+
+fn enforce_soundiness_report_audit_flags(
+    report: &SoundinessReportV0,
+    max_suppressions: Option<usize>,
+    report_stale_suppressions: bool,
+) -> Result<(), String> {
+    if let Some(max_suppressions) = max_suppressions
+        && report.suppressed_diagnostic_count > max_suppressions
+    {
+        return Err(format!(
+            "suppression budget exceeded: {} suppressions observed, max {}",
+            report.suppressed_diagnostic_count, max_suppressions
+        ));
+    }
+    if report_stale_suppressions && report.unused_expect_error_count > 0 {
+        return Err(format!(
+            "stale suppressions observed: {} unused omena-expect-error directives",
+            report.unused_expect_error_count
+        ));
+    }
+    Ok(())
 }
 
 impl SoundinessBoundaryDiagnosticsV0 {
