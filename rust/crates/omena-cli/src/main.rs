@@ -48,8 +48,8 @@ use omena_sif::{
     OMENA_SIF_ATTESTATION_VERIFICATION_REPORT_PRODUCT_V1,
     OMENA_SIF_ATTESTATION_VERIFICATION_REPORT_SCHEMA_VERSION_V1, OmenaLockV1,
     OmenaLockVerificationIssueV1, OmenaSifAttestationStatementV1,
-    OmenaSifAttestationVerificationReportV1, OmenaSifSigstoreVerificationPolicyV1,
-    OmenaSifSourceSyntaxV1, OmenaSifStaticGeneratorInputV1,
+    OmenaSifAttestationSubjectDigestV1, OmenaSifAttestationVerificationReportV1,
+    OmenaSifSigstoreVerificationPolicyV1, OmenaSifSourceSyntaxV1, OmenaSifStaticGeneratorInputV1,
     apply_omena_sif_attestation_verification_report_to_lock_entry_v1,
     apply_omena_sif_npm_provenance_references_to_lock_entry_v1, build_omena_lock_sif_entry_v1,
     collect_omena_sif_npm_provenance_attestation_references_v1, compute_omena_sif_artifact_hash_v1,
@@ -85,6 +85,7 @@ struct Cli {
 }
 
 #[derive(Debug, Subcommand)]
+#[allow(clippy::large_enum_variant)]
 enum Command {
     /// Parse a CSS-family source and report parser-owned facts.
     Check {
@@ -470,6 +471,9 @@ enum LockCommand {
         /// Required subject name recorded in the signed provenance statement. Repeat for multiple subjects.
         #[arg(long = "statement-subject-name")]
         statement_subject_names: Vec<String>,
+        /// Required subject digest recorded in the signed provenance statement as name=algorithm:digest. Repeat for multiple subjects.
+        #[arg(long = "statement-subject-digest")]
+        statement_subject_digests: Vec<String>,
         /// Print machine-readable JSON.
         #[arg(long)]
         json: bool,
@@ -907,6 +911,7 @@ fn lock_command(
             statement_builder_id,
             statement_build_type,
             statement_subject_names,
+            statement_subject_digests,
             json,
         }) => lock_verify_attestation(LockVerifyAttestationInput {
             lockfile,
@@ -926,6 +931,7 @@ fn lock_command(
                 builder_id: statement_builder_id,
                 build_type: statement_build_type,
                 subject_names: statement_subject_names,
+                subject_digests: statement_subject_digests,
             },
             json,
         }),
@@ -1171,6 +1177,14 @@ struct AttestationStatementPolicy {
     builder_id: Option<String>,
     build_type: Option<String>,
     subject_names: Vec<String>,
+    subject_digests: Vec<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct AttestationStatementSubjectDigestPolicy {
+    name: String,
+    algorithm: String,
+    digest: String,
 }
 
 impl AttestationStatementPolicy {
@@ -1182,6 +1196,7 @@ impl AttestationStatementPolicy {
             && self.builder_id.is_none()
             && self.build_type.is_none()
             && self.subject_names.is_empty()
+            && self.subject_digests.is_empty()
     }
 }
 
@@ -1435,6 +1450,32 @@ fn summarize_verified_attestation_statement(
                 })
             }),
     ]);
+    let subject_digests = statement
+        .pointer("/subject")
+        .and_then(|value| value.as_array())
+        .map(|subjects| {
+            let mut result = Vec::new();
+            for subject in subjects {
+                let Some(name) = subject.get("name").and_then(|value| value.as_str()) else {
+                    continue;
+                };
+                let Some(digests) = subject.get("digest").and_then(|value| value.as_object())
+                else {
+                    continue;
+                };
+                for (algorithm, digest) in digests {
+                    if let Some(digest) = digest.as_str() {
+                        result.push(OmenaSifAttestationSubjectDigestV1 {
+                            name: name.to_string(),
+                            algorithm: algorithm.to_string(),
+                            digest: digest.to_string(),
+                        });
+                    }
+                }
+            }
+            result
+        })
+        .unwrap_or_default();
 
     OmenaSifAttestationStatementV1 {
         predicate_type: statement_string(statement, "/predicateType"),
@@ -1464,7 +1505,40 @@ fn summarize_verified_attestation_statement(
                     .collect()
             })
             .unwrap_or_default(),
+        subject_digests,
     }
+}
+
+fn parse_attestation_statement_subject_digest_policy(
+    input: &str,
+) -> Result<AttestationStatementSubjectDigestPolicy, String> {
+    let input = input.trim();
+    let Some((name, digest_with_algorithm)) = input.split_once('=') else {
+        return Err(
+            "lock verify-attestation --statement-subject-digest must use name=algorithm:digest"
+                .to_string(),
+        );
+    };
+    let Some((algorithm, digest)) = digest_with_algorithm.split_once(':') else {
+        return Err(
+            "lock verify-attestation --statement-subject-digest must use name=algorithm:digest"
+                .to_string(),
+        );
+    };
+    let name = name.trim();
+    let algorithm = algorithm.trim();
+    let digest = digest.trim();
+    if name.is_empty() || algorithm.is_empty() || digest.is_empty() {
+        return Err(
+            "lock verify-attestation --statement-subject-digest must include non-empty name, algorithm, and digest"
+                .to_string(),
+        );
+    }
+    Ok(AttestationStatementSubjectDigestPolicy {
+        name: name.to_string(),
+        algorithm: algorithm.to_string(),
+        digest: digest.to_string(),
+    })
 }
 
 fn require_statement_policy_matches(
@@ -1541,6 +1615,19 @@ fn require_statement_policy_matches(
         {
             return Err(format!(
                 "verified attestation statement missing required subjectName: expected {expected}"
+            ));
+        }
+    }
+    for expected in &policy.subject_digests {
+        let expected = parse_attestation_statement_subject_digest_policy(expected)?;
+        if !statement.subject_digests.iter().any(|observed| {
+            observed.name == expected.name
+                && observed.algorithm == expected.algorithm
+                && observed.digest == expected.digest
+        }) {
+            return Err(format!(
+                "verified attestation statement missing required subjectDigest: expected {}={}:{}",
+                expected.name, expected.algorithm, expected.digest
             ));
         }
     }
@@ -5347,6 +5434,8 @@ mod tests {
             "https://slsa-framework.github.io/github-actions-buildtypes/workflow/v1",
             "--statement-subject-name",
             "pkg:npm/@omenacss/omena-css@1.0.0",
+            "--statement-subject-digest",
+            "pkg:npm/@omenacss/omena-css@1.0.0=sha256:0123456789abcdef",
         ])
         .map_err(|error| {
             format!("issuer-bound attestation verification command should parse: {error}")
@@ -5365,6 +5454,7 @@ mod tests {
                     statement_builder_id,
                     statement_build_type,
                     statement_subject_names,
+                    statement_subject_digests,
                     ..
                 }),
             ..
@@ -5396,6 +5486,10 @@ mod tests {
         assert_eq!(
             statement_subject_names,
             vec!["pkg:npm/@omenacss/omena-css@1.0.0".to_string()]
+        );
+        assert_eq!(
+            statement_subject_digests,
+            vec!["pkg:npm/@omenacss/omena-css@1.0.0=sha256:0123456789abcdef".to_string()]
         );
         Ok(())
     }
@@ -5464,6 +5558,14 @@ mod tests {
             summary.subject_names,
             vec!["pkg:npm/@omenacss/omena-css@1.0.0".to_string()]
         );
+        assert_eq!(
+            summary.subject_digests,
+            vec![OmenaSifAttestationSubjectDigestV1 {
+                name: "pkg:npm/@omenacss/omena-css@1.0.0".to_string(),
+                algorithm: "sha256".to_string(),
+                digest: "0123456789abcdef".to_string(),
+            }]
+        );
 
         require_statement_policy_matches(
             &summary,
@@ -5478,6 +5580,9 @@ mod tests {
                         .to_string(),
                 ),
                 subject_names: vec!["pkg:npm/@omenacss/omena-css@1.0.0".to_string()],
+                subject_digests: vec![
+                    "pkg:npm/@omenacss/omena-css@1.0.0=sha256:0123456789abcdef".to_string(),
+                ],
             },
         )?;
 
@@ -5491,6 +5596,7 @@ mod tests {
                 builder_id: None,
                 build_type: None,
                 subject_names: Vec::new(),
+                subject_digests: Vec::new(),
             },
         );
         assert!(
@@ -5510,6 +5616,7 @@ mod tests {
                 builder_id: None,
                 build_type: None,
                 subject_names: Vec::new(),
+                subject_digests: Vec::new(),
             },
         );
         assert!(
@@ -5529,6 +5636,7 @@ mod tests {
                 builder_id: None,
                 build_type: Some("https://example.com/build-type/v1".to_string()),
                 subject_names: Vec::new(),
+                subject_digests: Vec::new(),
             },
         );
         assert!(
@@ -5548,6 +5656,7 @@ mod tests {
                 builder_id: None,
                 build_type: None,
                 subject_names: vec!["pkg:npm/@omenacss/other@1.0.0".to_string()],
+                subject_digests: Vec::new(),
             },
         );
         assert!(
@@ -5555,6 +5664,28 @@ mod tests {
                 .as_ref()
                 .is_err_and(|error| error.contains("subjectName")),
             "{subject_mismatch:?}"
+        );
+
+        let subject_digest_mismatch = require_statement_policy_matches(
+            &summary,
+            &AttestationStatementPolicy {
+                predicate_type: None,
+                source_repository: None,
+                source_ref: None,
+                source_commit: None,
+                builder_id: None,
+                build_type: None,
+                subject_names: Vec::new(),
+                subject_digests: vec![
+                    "pkg:npm/@omenacss/omena-css@1.0.0=sha256:fedcba9876543210".to_string(),
+                ],
+            },
+        );
+        assert!(
+            subject_digest_mismatch
+                .as_ref()
+                .is_err_and(|error| error.contains("subjectDigest")),
+            "{subject_digest_mismatch:?}"
         );
 
         Ok(())
@@ -5583,6 +5714,7 @@ mod tests {
                     statement_builder_id: None,
                     statement_build_type: None,
                     statement_subject_names: Vec::new(),
+                    statement_subject_digests: Vec::new(),
                     json: true,
                 }),
             },
@@ -5619,6 +5751,7 @@ mod tests {
                     statement_builder_id: None,
                     statement_build_type: None,
                     statement_subject_names: Vec::new(),
+                    statement_subject_digests: Vec::new(),
                     json: true,
                 }),
             },
@@ -7892,6 +8025,7 @@ export function App() {
                     statement_builder_id: None,
                     statement_build_type: None,
                     statement_subject_names: Vec::new(),
+                    statement_subject_digests: Vec::new(),
                     json: true,
                 }),
             },
@@ -8004,6 +8138,7 @@ export function App() {
                     statement_builder_id: None,
                     statement_build_type: None,
                     statement_subject_names: Vec::new(),
+                    statement_subject_digests: Vec::new(),
                     json: true,
                 }),
             },
@@ -8162,6 +8297,7 @@ export function App() {
                     statement_builder_id: None,
                     statement_build_type: None,
                     statement_subject_names: Vec::new(),
+                    statement_subject_digests: Vec::new(),
                     json: true,
                 }),
             },

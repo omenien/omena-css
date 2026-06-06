@@ -286,6 +286,16 @@ pub struct OmenaSifAttestationStatementV1 {
     pub build_type: Option<String>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub subject_names: Vec<String>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub subject_digests: Vec<OmenaSifAttestationSubjectDigestV1>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct OmenaSifAttestationSubjectDigestV1 {
+    pub name: String,
+    pub algorithm: String,
+    pub digest: String,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -490,6 +500,17 @@ fn validate_attestation_statement_v1(
         return Err(
             "attestation statement field subjectNames must not contain empty values".to_string(),
         );
+    }
+    for digest in &statement.subject_digests {
+        if digest.name.trim().is_empty()
+            || digest.algorithm.trim().is_empty()
+            || digest.digest.trim().is_empty()
+        {
+            return Err(
+                "attestation statement field subjectDigests must not contain empty name, algorithm, or digest values"
+                    .to_string(),
+            );
+        }
     }
     Ok(())
 }
@@ -1288,6 +1309,31 @@ mod tests {
         Ok(())
     }
 
+    fn assert_attestation_statement_schema_preserves_subject_digests(
+        schema: &Value,
+        properties_pointer: &str,
+        context: &str,
+    ) -> Result<(), String> {
+        let properties = schema
+            .pointer(properties_pointer)
+            .and_then(Value::as_object)
+            .ok_or_else(|| format!("{context} must define attestation statement properties"))?;
+        let subject_digest = properties
+            .get("subjectDigests")
+            .ok_or_else(|| format!("{context} must preserve subjectDigests"))?;
+        let item_properties = subject_digest
+            .pointer("/items/properties")
+            .and_then(Value::as_object)
+            .ok_or_else(|| format!("{context} subjectDigests must define item properties"))?;
+        for field in ["name", "algorithm", "digest"] {
+            assert!(
+                item_properties.contains_key(field),
+                "{context} subjectDigests must preserve field {field}"
+            );
+        }
+        Ok(())
+    }
+
     #[test]
     fn lock_schema_file_is_valid_json() -> Result<(), String> {
         let schema: Value =
@@ -1314,6 +1360,11 @@ mod tests {
                 "lock schema must preserve attestation verification field {field}"
             );
         }
+        assert_attestation_statement_schema_preserves_subject_digests(
+            &schema,
+            "/$defs/attestationStatement/properties",
+            "lock schema",
+        )?;
         let all_of = schema
             .pointer("/$defs/attestationVerification/allOf")
             .and_then(Value::as_array)
@@ -1392,6 +1443,11 @@ mod tests {
             report_properties.contains_key("attestationStatement"),
             "attestation report schema must preserve statement claim summary"
         );
+        assert_attestation_statement_schema_preserves_subject_digests(
+            &schema,
+            "/$defs/attestationStatement/properties",
+            "attestation report schema",
+        )?;
         let all_of = schema
             .pointer("/allOf")
             .and_then(Value::as_array)
@@ -1510,6 +1566,11 @@ mod tests {
             policy_properties.contains_key("attestationStatement"),
             "provenance advisory schema must preserve statement claim summary"
         );
+        assert_attestation_statement_schema_preserves_subject_digests(
+            &schema,
+            "/$defs/attestationStatement/properties",
+            "provenance advisory schema",
+        )?;
         Ok(())
     }
 
@@ -1766,6 +1827,11 @@ mod tests {
                             .to_string(),
                     ),
                     subject_names: vec!["pkg:npm/@omenacss/omena-css@1.0.0".to_string()],
+                    subject_digests: vec![OmenaSifAttestationSubjectDigestV1 {
+                        name: "pkg:npm/@omenacss/omena-css@1.0.0".to_string(),
+                        algorithm: "sha256".to_string(),
+                        digest: "0123456789abcdef".to_string(),
+                    }],
                 }),
             });
         let lock = OmenaLockV1::new(vec![entry]);
