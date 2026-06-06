@@ -3,6 +3,8 @@ import path from "node:path";
 import type { CheckDiagnostic, CheckGate } from "./types";
 
 const PNPM_COMMAND_REF = /\bpnpm\s+(?:run\s+)?([A-Za-z0-9:_-]+)/g;
+const OMENA_CHECK_TARGET_REF =
+  /\bpnpm\s+(?:run\s+)?omena-check\s+(run|bundle)\s+([A-Za-z0-9:_@/.-]+)/g;
 
 const DOCUMENTED_COMMAND_ROOTS = ["README.md", "docs", "packages", "examples"] as const;
 
@@ -54,9 +56,9 @@ export function findDocumentedPublicScriptDiagnostics(
   gates: readonly CheckGate[],
 ): readonly CheckDiagnostic[] {
   const diagnostics: CheckDiagnostic[] = [];
-  const documentedCommands = collectDocumentedCommands(rootDir);
+  const documentedCommands = collectDocumentedReferences(rootDir);
 
-  for (const command of documentedCommands) {
+  for (const command of documentedCommands.scriptRefs) {
     if (!shouldProtectCommand(command.command, gates)) continue;
     if (findGateByPublicTarget(gates, command.command)) continue;
 
@@ -67,7 +69,31 @@ export function findDocumentedPublicScriptDiagnostics(
     });
   }
 
+  for (const ref of documentedCommands.targetRefs) {
+    const gate = findGateByTarget(gates, ref.target);
+    if (!gate) {
+      diagnostics.push({
+        severity: "error",
+        code: "documented-omena-check-target-missing",
+        message: `${ref.relativePath}:${ref.line} documents "pnpm omena-check ${ref.command} ${ref.target}", but no manifest gate exposes that target.`,
+      });
+      continue;
+    }
+    if (ref.command === "bundle" && gate.kind !== "bundle" && gate.kind !== "alias") {
+      diagnostics.push({
+        severity: "error",
+        code: "documented-omena-check-target-not-bundle",
+        message: `${ref.relativePath}:${ref.line} documents "pnpm omena-check bundle ${ref.target}", but target "${gate.id}" is a ${gate.kind}.`,
+      });
+    }
+  }
+
   return diagnostics;
+}
+
+interface DocumentedReferences {
+  readonly scriptRefs: readonly DocumentedCommandRef[];
+  readonly targetRefs: readonly DocumentedTargetRef[];
 }
 
 interface DocumentedCommandRef {
@@ -76,8 +102,18 @@ interface DocumentedCommandRef {
   readonly line: number;
 }
 
-function collectDocumentedCommands(rootDir: string): readonly DocumentedCommandRef[] {
-  const refs: DocumentedCommandRef[] = [];
+interface DocumentedTargetRef {
+  readonly command: "run" | "bundle";
+  readonly target: string;
+  readonly relativePath: string;
+  readonly line: number;
+}
+
+function collectDocumentedReferences(rootDir: string): DocumentedReferences {
+  const refs: MutableDocumentedReferences = {
+    scriptRefs: [],
+    targetRefs: [],
+  };
 
   for (const root of DOCUMENTED_COMMAND_ROOTS) {
     const absolutePath = path.join(rootDir, root);
@@ -92,10 +128,15 @@ function collectDocumentedCommands(rootDir: string): readonly DocumentedCommandR
   return refs;
 }
 
+interface MutableDocumentedReferences {
+  readonly scriptRefs: DocumentedCommandRef[];
+  readonly targetRefs: DocumentedTargetRef[];
+}
+
 function collectMarkdownCommands(
   rootDir: string,
   directory: string,
-  refs: DocumentedCommandRef[],
+  refs: MutableDocumentedReferences,
 ): void {
   for (const entry of readdirSync(directory, { withFileTypes: true })) {
     if (entry.isDirectory()) {
@@ -112,7 +153,7 @@ function collectMarkdownCommands(
 function collectFileCommands(
   rootDir: string,
   absolutePath: string,
-  refs: DocumentedCommandRef[],
+  refs: MutableDocumentedReferences,
 ): void {
   const relativePath = path.relative(rootDir, absolutePath);
   if (IGNORED_MARKDOWN_FILES.has(relativePath)) return;
@@ -123,8 +164,20 @@ function collectFileCommands(
     const command = match[1];
     if (!command) continue;
     if (PNPM_BUILTINS.has(command) || command === "omena-check") continue;
-    refs.push({
+    refs.scriptRefs.push({
       command,
+      relativePath,
+      line: lineForIndex(lineStarts, match.index ?? 0),
+    });
+  }
+
+  for (const match of content.matchAll(OMENA_CHECK_TARGET_REF)) {
+    const command = match[1];
+    const target = match[2];
+    if ((command !== "run" && command !== "bundle") || !target) continue;
+    refs.targetRefs.push({
+      command,
+      target,
       relativePath,
       line: lineForIndex(lineStarts, match.index ?? 0),
     });
@@ -146,6 +199,17 @@ function findGateByPublicTarget(gates: readonly CheckGate[], command: string): C
   return (
     gates.find((gate) => gate.scriptName === command) ??
     gates.find((gate) => gate.deprecatedAliases?.includes(command)) ??
+    null
+  );
+}
+
+function findGateByTarget(gates: readonly CheckGate[], target: string): CheckGate | null {
+  return (
+    gates.find((gate) => gate.id === target) ??
+    gates.find((gate) => gate.scriptName === target && !gate.deprecatedBy) ??
+    gates.find((gate) => gate.deprecatedAliases?.includes(target)) ??
+    gates.find((gate) => gate.scriptName === target) ??
+    gates.find((gate) => gate.id.endsWith(`/${target}`)) ??
     null
   );
 }

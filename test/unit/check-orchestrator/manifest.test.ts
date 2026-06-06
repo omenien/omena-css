@@ -432,6 +432,64 @@ describe("check orchestrator manifest", () => {
     );
   });
 
+  it("protects documented omena-check targets from pointing at removed gates", () => {
+    const root = mkdtempSync(path.join(os.tmpdir(), "omena-check-orchestrator-"));
+    writeFileSync(
+      path.join(root, "package.json"),
+      JSON.stringify(
+        {
+          name: "omena-css",
+          scripts: {
+            "omena-check": "node ./check.js",
+          },
+        },
+        null,
+        2,
+      ),
+    );
+    writeFileSync(
+      path.join(root, "README.md"),
+      [
+        "Use `pnpm omena-check run tooling/known` for the known gate.",
+        "Do not document `pnpm omena-check run tooling/missing`.",
+        "Do not document `pnpm omena-check bundle tooling/known` as a bundle.",
+      ].join("\n"),
+    );
+
+    const diagnostics = runDoctor(
+      loadCheckManifest(root, {
+        declaredGates: [
+          {
+            id: "tooling/known",
+            kind: "command",
+            scope: "tooling",
+            command: ["node", "--version"],
+            ciTier: "manual",
+          },
+        ],
+      }),
+    );
+
+    expect(diagnostics).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          severity: "error",
+          code: "documented-omena-check-target-missing",
+          message: expect.stringContaining(
+            'README.md:2 documents "pnpm omena-check run tooling/missing", but no manifest gate exposes that target.',
+          ),
+        }),
+        expect.objectContaining({
+          severity: "error",
+          code: "documented-omena-check-target-not-bundle",
+          message: expect.stringContaining(
+            'README.md:3 documents "pnpm omena-check bundle tooling/known", but target "tooling/known" is a command.',
+          ),
+        }),
+      ]),
+    );
+  });
+
   it("lets declared gates explicitly replace package-derived gate definitions", () => {
     const root = mkdtempSync(path.join(os.tmpdir(), "omena-check-orchestrator-"));
     writeFileSync(
