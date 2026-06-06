@@ -1,0 +1,6 @@
+@use "./missing" as missing;
+@error "intentional dart-sass oracle failure";
+
+.button {
+  color: missing.$brand;
+}

@@ -8,6 +8,18 @@
       "entrypoint": "fixtures/local-use/app.module.scss",
       "sources": ["fixtures/local-use/_tokens.scss"],
       "expectedDivergence": "none"
+    },
+    {
+      "id": "sass-error-without-missing-symbol",
+      "entrypoint": "fixtures/sass-error-clean/app.module.scss",
+      "sources": [],
+      "expectedDivergence": "typeB"
+    },
+    {
+      "id": "sass-error-with-missing-symbol",
+      "entrypoint": "fixtures/sass-error-missing-symbol/app.module.scss",
+      "sources": [],
+      "expectedDivergence": "typeC"
     }
   ]
 }
