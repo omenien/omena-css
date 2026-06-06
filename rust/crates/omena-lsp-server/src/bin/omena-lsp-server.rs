@@ -144,3 +144,65 @@ fn lock_coalescer(
 ) -> MutexGuard<'_, ScheduledOutputCoalescer> {
     coalescer.lock().unwrap_or_else(|error| error.into_inner())
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use serde_json::json;
+
+    #[test]
+    fn delayed_output_with_stale_coalesce_revision_is_skipped() -> Result<(), String> {
+        let writer = Arc::new(Mutex::new(Vec::<u8>::new()));
+        let coalescer = Arc::new(Mutex::new(ScheduledOutputCoalescer::default()));
+        let mut delayed_outputs = Vec::new();
+        let key = "textDocument/publishDiagnostics:file:///workspace/App.module.scss".to_string();
+
+        write_scheduled_lsp_output(
+            &writer,
+            &coalescer,
+            ScheduledLspOutput::delayed_coalesced(
+                json!({
+                    "jsonrpc": "2.0",
+                    "method": "oldOptimizingDiagnostics",
+                }),
+                10,
+                key.clone(),
+            ),
+            &mut delayed_outputs,
+        )
+        .map_err(|error| error.to_string())?;
+
+        write_scheduled_lsp_output(
+            &writer,
+            &coalescer,
+            ScheduledLspOutput::immediate_coalesced(
+                json!({
+                    "jsonrpc": "2.0",
+                    "method": "newBaselineDiagnostics",
+                }),
+                key,
+            ),
+            &mut delayed_outputs,
+        )
+        .map_err(|error| error.to_string())?;
+
+        for handle in delayed_outputs {
+            handle
+                .join()
+                .map_err(|_| "delayed writer panicked".to_string())??;
+        }
+
+        let body = String::from_utf8(
+            writer
+                .lock()
+                .map_err(|_| "writer lock poisoned".to_string())?
+                .clone(),
+        )
+        .map_err(|error| error.to_string())?;
+
+        assert!(body.contains("\"method\":\"newBaselineDiagnostics\""));
+        assert!(!body.contains("\"method\":\"oldOptimizingDiagnostics\""));
+
+        Ok(())
+    }
+}
