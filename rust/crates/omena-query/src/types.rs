@@ -1228,6 +1228,8 @@ pub struct OmenaQueryCompletionCandidateV0 {
     pub kind: &'static str,
     pub range: ParserRangeV0,
     pub source: &'static str,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub documentation: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]

@@ -88,6 +88,19 @@ fn narrows_source_completion_candidates_by_property_access_prefix() -> TestResul
             .and_then(|item| item.pointer("/data/rankingSource")),
         Some(&json!("targetAndPrefixNarrowing")),
     );
+    let root_documentation = items
+        .first()
+        .and_then(|item| item.pointer("/documentation/value"))
+        .and_then(Value::as_str)
+        .ok_or_else(|| std::io::Error::other("root completion should carry documentation"))?;
+    assert!(
+        root_documentation.contains("Cascade narrowed values:"),
+        "{root_documentation}"
+    );
+    assert!(
+        root_documentation.contains("- `display`: `block`"),
+        "{root_documentation}"
+    );
     assert!(
         items
             .first()

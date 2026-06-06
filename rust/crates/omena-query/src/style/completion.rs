@@ -104,7 +104,7 @@ pub fn summarize_omena_query_source_completion_at_position(
                 insert_text: candidate.name.clone(),
                 sort_text,
                 detail: "CSS Module selector",
-                documentation: None,
+                documentation: candidate.documentation.clone(),
                 item_kind: "cssModuleSelector",
                 ranking_source,
                 source: "omenaQueryCompletionAtPosition",
@@ -178,11 +178,28 @@ fn style_completion_documentation(
         return None;
     }
 
-    let render_parts = summarize_omena_query_style_hover_render_parts(
+    summarize_omena_query_style_completion_candidate_documentation(
         source,
         candidate.kind,
         candidate.name.as_str(),
         candidate.range.start,
+    )
+}
+
+pub fn summarize_omena_query_style_completion_candidate_documentation(
+    source: &str,
+    candidate_kind: &str,
+    candidate_name: &str,
+    candidate_position: ParserPositionV0,
+) -> Option<String> {
+    if candidate_kind != "selector" {
+        return None;
+    }
+    let render_parts = summarize_omena_query_style_hover_render_parts(
+        source,
+        candidate_kind,
+        candidate_name,
+        candidate_position,
     );
     render_property_value_narrowings_markdown(&render_parts.property_value_narrowings)
 }
@@ -327,12 +344,22 @@ fn collect_omena_query_completion_candidates(
             continue;
         };
         candidates.extend(summary.candidates.into_iter().filter_map(|candidate| {
-            (candidate.kind == "selector").then(|| OmenaQueryCompletionCandidateV0 {
+            if candidate.kind != "selector" {
+                return None;
+            }
+            let documentation = summarize_omena_query_style_completion_candidate_documentation(
+                source.style_source.as_str(),
+                candidate.kind,
+                candidate.name.as_str(),
+                candidate.range.start,
+            );
+            Some(OmenaQueryCompletionCandidateV0 {
                 file_uri: source.style_path.clone(),
                 name: candidate.name,
                 kind: "selector",
                 range: candidate.range,
                 source: "omenaQueryStyleHoverCandidates",
+                documentation,
             })
         }));
     }

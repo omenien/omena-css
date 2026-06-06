@@ -52,6 +52,7 @@ use omena_query::{
     summarize_omena_query_source_import_declarations_for_source_language,
     summarize_omena_query_source_syntax_index_for_source_language,
     summarize_omena_query_style_completion_at_position,
+    summarize_omena_query_style_completion_candidate_documentation,
     summarize_omena_query_style_diagnostics_for_file,
     summarize_omena_query_style_diagnostics_for_file_with_deep_analysis,
     summarize_omena_query_style_diagnostics_for_workspace_file_with_external_mode_and_sifs_and_resolution_inputs,
@@ -2804,6 +2805,14 @@ fn resolve_source_lsp_completion(
             .is_none_or(|target_uri| file_uri_equivalent(target_uri, uri))
     })
     .map(|(uri, definition)| {
+        let documentation = style_text_for_uri(state, uri.as_str()).and_then(|style_text| {
+            summarize_omena_query_style_completion_candidate_documentation(
+                style_text.as_str(),
+                definition.kind,
+                definition.name.as_str(),
+                definition.range.start,
+            )
+        });
         let file_uri = target_style_uri
             .as_deref()
             .filter(|target_uri| file_uri_equivalent(target_uri, uri.as_str()))
@@ -2815,6 +2824,7 @@ fn resolve_source_lsp_completion(
             kind: definition.kind,
             range: definition.range,
             source: definition.source,
+            documentation,
         }
     })
     .collect::<Vec<_>>();

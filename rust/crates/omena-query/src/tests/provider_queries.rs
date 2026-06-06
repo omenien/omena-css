@@ -223,6 +223,7 @@ fn completion_at_position_is_query_owned_for_style_and_source() -> Result<(), &'
                     },
                 },
                 source: "omenaQueryStyleHoverCandidates",
+                documentation: Some("Cascade narrowed values:\n- `display`: `block`".to_string()),
             },
             OmenaQueryCompletionCandidateV0 {
                 file_uri: "file:///workspace/src/Other.module.scss".to_string(),
@@ -239,6 +240,7 @@ fn completion_at_position_is_query_owned_for_style_and_source() -> Result<(), &'
                     },
                 },
                 source: "omenaQueryStyleHoverCandidates",
+                documentation: None,
             },
         ],
         Some("file:///workspace/src/Component.module.scss"),
@@ -251,6 +253,10 @@ fn completion_at_position_is_query_owned_for_style_and_source() -> Result<(), &'
     assert_eq!(
         source_completion.items[0].ranking_source,
         "targetAndPrefixNarrowing"
+    );
+    assert_eq!(
+        source_completion.items[0].documentation.as_deref(),
+        Some("Cascade narrowed values:\n- `display`: `block`")
     );
     assert!(
         source_completion
@@ -278,6 +284,7 @@ fn source_completion_ranking_prefers_value_domain_projection() {
                 },
             },
             source: "omenaQueryStyleHoverCandidates",
+            documentation: None,
         },
         OmenaQueryCompletionCandidateV0 {
             file_uri: "file:///workspace/src/Component.module.scss".to_string(),
@@ -294,6 +301,7 @@ fn source_completion_ranking_prefers_value_domain_projection() {
                 },
             },
             source: "omenaQueryStyleHoverCandidates",
+            documentation: None,
         },
         OmenaQueryCompletionCandidateV0 {
             file_uri: "file:///workspace/src/Component.module.scss".to_string(),
@@ -310,6 +318,7 @@ fn source_completion_ranking_prefers_value_domain_projection() {
                 },
             },
             source: "omenaQueryStyleHoverCandidates",
+            documentation: None,
         },
     ];
     let completion = summarize_omena_query_source_completion_at_position(
