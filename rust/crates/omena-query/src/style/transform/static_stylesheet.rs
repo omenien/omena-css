@@ -291,6 +291,7 @@ fn derive_static_scss_module_context_for_transform_context(
     let forward_evaluations = derive_static_scss_module_forward_evaluations_for_transform_context(
         style_path,
         style_source,
+        &variable_overrides,
         context,
     )?;
     let mut variable_exports = derive_static_scss_stylesheet_module_variable_exports(style_source);
@@ -339,6 +340,7 @@ struct StaticScssModuleForwardEvaluation {
 fn derive_static_scss_module_forward_evaluations_for_transform_context(
     style_path: &str,
     style_source: &str,
+    inherited_variable_overrides: &BTreeMap<String, String>,
     context: &mut StaticScssModuleDeriveContext<'_>,
 ) -> Option<Vec<StaticScssModuleForwardEvaluation>> {
     let facts =
@@ -361,10 +363,20 @@ fn derive_static_scss_module_forward_evaluations_for_transform_context(
         let Some(source) = context.source_by_path.get(resolved.as_str()) else {
             continue;
         };
-        let variable_overrides = derive_static_scss_module_rule_variable_overrides(
+        let explicit_variable_overrides = derive_static_scss_module_rule_variable_overrides(
             style_source,
             "@forward",
             edge.source.as_str(),
+        );
+        let export_prefix =
+            derive_static_scss_forward_export_prefix(style_source, edge.source.as_str());
+        let variable_overrides = derive_static_scss_forward_effective_variable_overrides(
+            &explicit_variable_overrides,
+            inherited_variable_overrides,
+            export_prefix.as_deref(),
+            edge.visibility_filter_kind,
+            &edge.visibility_filter_names,
+            source,
         );
         let variable_overrides = resolve_static_scss_module_effective_variable_overrides(
             resolved.as_str(),
@@ -373,8 +385,6 @@ fn derive_static_scss_module_forward_evaluations_for_transform_context(
         )?;
         let module_identity_key =
             static_scss_module_instance_identity_key(resolved.as_str(), &variable_overrides);
-        let export_prefix =
-            derive_static_scss_forward_export_prefix(style_source, edge.source.as_str());
         let module_context = derive_static_scss_module_context_for_transform_context(
             resolved.as_str(),
             source,
@@ -397,6 +407,73 @@ fn derive_static_scss_module_forward_evaluations_for_transform_context(
     }
 
     Some(evaluations)
+}
+
+fn derive_static_scss_forward_effective_variable_overrides(
+    explicit_variable_overrides: &BTreeMap<String, String>,
+    inherited_variable_overrides: &BTreeMap<String, String>,
+    export_prefix: Option<&str>,
+    visibility_filter_kind: Option<&'static str>,
+    visibility_filter_names: &[String],
+    forwarded_source: &str,
+) -> BTreeMap<String, String> {
+    let configurable_names =
+        derive_static_scss_stylesheet_module_configurable_variable_names(forwarded_source);
+    let mut variable_overrides = inherited_variable_overrides
+        .iter()
+        .filter_map(|(name, value)| {
+            let internal_name = static_scss_forward_internal_variable_name_for_exposed_name(
+                name.as_str(),
+                export_prefix,
+            )?;
+            static_scss_forward_exposed_variable_is_visible(
+                name.as_str(),
+                visibility_filter_kind,
+                visibility_filter_names,
+            )
+            .then_some((internal_name, value.clone()))
+        })
+        .filter(|(name, _)| configurable_names.contains(name))
+        .collect::<BTreeMap<_, _>>();
+    variable_overrides.extend(explicit_variable_overrides.clone());
+    variable_overrides
+}
+
+fn static_scss_forward_exposed_variable_is_visible(
+    exposed_name: &str,
+    visibility_filter_kind: Option<&'static str>,
+    visibility_filter_names: &[String],
+) -> bool {
+    match visibility_filter_kind {
+        Some("show") => visibility_filter_names
+            .iter()
+            .any(|filter| static_scss_variable_names_equal(filter, exposed_name)),
+        Some("hide") => !visibility_filter_names
+            .iter()
+            .any(|filter| static_scss_variable_names_equal(filter, exposed_name)),
+        _ => true,
+    }
+}
+
+fn static_scss_forward_internal_variable_name_for_exposed_name(
+    exposed_name: &str,
+    export_prefix: Option<&str>,
+) -> Option<String> {
+    let exposed_name = canonical_static_scss_variable_name(exposed_name);
+    let Some(export_prefix) = export_prefix else {
+        return Some(exposed_name);
+    };
+    let star_offset = export_prefix.find('*')?;
+    let prefix_before_star = canonical_static_scss_variable_name(&export_prefix[..star_offset]);
+    let prefix_after_star =
+        canonical_static_scss_variable_name(&export_prefix[star_offset + '*'.len_utf8()..]);
+    let without_prefix = exposed_name.strip_prefix(prefix_before_star.as_str())?;
+    let without_suffix = if prefix_after_star.is_empty() {
+        without_prefix
+    } else {
+        without_prefix.strip_suffix(prefix_after_star.as_str())?
+    };
+    (!without_suffix.is_empty()).then(|| canonical_static_scss_variable_name(without_suffix))
 }
 
 fn filter_static_scss_forward_exports(

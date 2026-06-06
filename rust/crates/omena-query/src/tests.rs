@@ -1539,6 +1539,64 @@ fn derives_configured_scss_forward_aware_static_stylesheet_module_evaluation() {
 }
 
 #[test]
+fn applies_scss_use_configuration_to_forwarded_module_instance() {
+    let summary = summarize_omena_query_transform_context_from_sources(
+        "/tmp/App.module.scss",
+        [
+            (
+                "/tmp/tokens.scss",
+                "$brand: blue !default; .base { color: $brand; }",
+            ),
+            ("/tmp/theme.scss", r#"@forward "./tokens";"#),
+            (
+                "/tmp/App.module.scss",
+                r#"@use "./theme" as theme with ($brand: red); .button { color: theme.$brand; }"#,
+            ),
+        ],
+        &[],
+    );
+
+    let evaluated_css = summary
+        .context
+        .scss_module_evaluation
+        .as_ref()
+        .map(|evaluation| evaluation.evaluated_css.as_str())
+        .unwrap_or_default();
+    assert_eq!(evaluated_css.matches(".base { color: red; }").count(), 1);
+    assert!(!evaluated_css.contains(".base { color: blue; }"));
+    assert!(evaluated_css.contains(".button { color: red; }"));
+}
+
+#[test]
+fn applies_scss_use_configuration_to_prefixed_forwarded_module_instance() {
+    let summary = summarize_omena_query_transform_context_from_sources(
+        "/tmp/App.module.scss",
+        [
+            (
+                "/tmp/tokens.scss",
+                "$brand: blue !default; .base { color: $brand; }",
+            ),
+            ("/tmp/theme.scss", r#"@forward "./tokens" as token-*;"#),
+            (
+                "/tmp/App.module.scss",
+                r#"@use "./theme" as theme with ($token-brand: red); .button { color: theme.$token-brand; }"#,
+            ),
+        ],
+        &[],
+    );
+
+    let evaluated_css = summary
+        .context
+        .scss_module_evaluation
+        .as_ref()
+        .map(|evaluation| evaluation.evaluated_css.as_str())
+        .unwrap_or_default();
+    assert_eq!(evaluated_css.matches(".base { color: red; }").count(), 1);
+    assert!(!evaluated_css.contains(".base { color: blue; }"));
+    assert!(evaluated_css.contains(".button { color: red; }"));
+}
+
+#[test]
 fn shares_configured_scss_module_instances_across_transitive_consumers() {
     let summary = summarize_omena_query_transform_context_from_sources(
         "/tmp/App.module.scss",
