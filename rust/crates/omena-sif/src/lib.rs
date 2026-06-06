@@ -243,6 +243,10 @@ pub struct OmenaSifAttestationVerificationV1 {
     pub reference: String,
     pub verifier: String,
     pub verified_trust_tier: OmenaSifTrustTierV1,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub certificate_issuer: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub certificate_identity: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -255,6 +259,10 @@ pub struct OmenaSifAttestationVerificationReportV1 {
     pub reference: String,
     pub verifier: String,
     pub verified_trust_tier: OmenaSifTrustTierV1,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub certificate_issuer: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub certificate_identity: Option<String>,
     pub subject_canonical_url: String,
     pub subject_sif_hash: OmenaSifDigestV1,
 }
@@ -305,6 +313,8 @@ pub fn apply_omena_sif_attestation_verification_report_to_lock_entry_v1(
         reference: report.reference.clone(),
         verifier: report.verifier.clone(),
         verified_trust_tier: report.verified_trust_tier,
+        certificate_issuer: report.certificate_issuer.clone(),
+        certificate_identity: report.certificate_identity.clone(),
     };
     let mut verifications = entry
         .attestation_verifications
@@ -343,6 +353,16 @@ fn validate_omena_sif_attestation_verification_report_v1(
         if value.trim().is_empty() {
             return Err(format!(
                 "attestation verification report field {field} must not be empty"
+            ));
+        }
+    }
+    for (field, value) in [
+        ("certificateIssuer", report.certificate_issuer.as_ref()),
+        ("certificateIdentity", report.certificate_identity.as_ref()),
+    ] {
+        if value.is_some_and(|value| value.trim().is_empty()) {
+            return Err(format!(
+                "attestation verification report field {field} must not be empty when present"
             ));
         }
     }
@@ -401,7 +421,22 @@ pub struct OmenaSifProvenanceAdvisoryEntryV1 {
     pub trust_tier: OmenaSifTrustTierV1,
     pub attestation_reference_count: usize,
     pub attestation_verification_count: usize,
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub attestation_verification_policies: Vec<OmenaSifAttestationVerificationPolicyV1>,
     pub advisory_message: &'static str,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct OmenaSifAttestationVerificationPolicyV1 {
+    pub kind: String,
+    pub reference: String,
+    pub verifier: String,
+    pub verified_trust_tier: OmenaSifTrustTierV1,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub certificate_issuer: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub certificate_identity: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -526,10 +561,30 @@ pub fn summarize_omena_sif_provenance_advisory_v1(
                 trust_tier: entry.trust_tier,
                 attestation_reference_count: entry.attestation_references.len(),
                 attestation_verification_count: entry.attestation_verifications.len(),
+                attestation_verification_policies: summarize_attestation_verification_policies(
+                    entry,
+                ),
                 advisory_message: provenance_advisory_message(entry),
             })
             .collect(),
     }
+}
+
+fn summarize_attestation_verification_policies(
+    entry: &OmenaLockSifEntryV1,
+) -> Vec<OmenaSifAttestationVerificationPolicyV1> {
+    entry
+        .attestation_verifications
+        .iter()
+        .map(|verification| OmenaSifAttestationVerificationPolicyV1 {
+            kind: verification.kind.clone(),
+            reference: verification.reference.clone(),
+            verifier: verification.verifier.clone(),
+            verified_trust_tier: verification.verified_trust_tier,
+            certificate_issuer: verification.certificate_issuer.clone(),
+            certificate_identity: verification.certificate_identity.clone(),
+        })
+        .collect()
 }
 
 fn provenance_advisory_enforcement(lock: &OmenaLockV1) -> &'static str {
@@ -1126,19 +1181,39 @@ mod tests {
         entry
             .attestation_verifications
             .push(OmenaSifAttestationVerificationV1 {
-            kind: "npm-provenance.sigstore".to_string(),
-            reference:
-                "https://registry.npmjs.org/-/npm/v1/attestations/design-system@1.0.0/provenance"
-                    .to_string(),
-            verifier: "offline-sigstore-verifier".to_string(),
-            verified_trust_tier: OmenaSifTrustTierV1::T2,
-        });
+                kind: "npm-provenance.sigstore".to_string(),
+                reference:
+                    "https://registry.npmjs.org/-/npm/v1/attestations/design-system@1.0.0/provenance"
+                        .to_string(),
+                verifier: "offline-sigstore-verifier".to_string(),
+                verified_trust_tier: OmenaSifTrustTierV1::T2,
+                certificate_issuer: Some("https://token.actions.githubusercontent.com".to_string()),
+                certificate_identity: Some(
+                    "https://github.com/omenien/omena-css/.github/workflows/release.yml@refs/tags/v1.0.0"
+                        .to_string(),
+                ),
+            });
         let lock = OmenaLockV1::new(vec![entry]);
 
         let report = summarize_omena_sif_provenance_advisory_v1(&lock);
 
         assert_eq!(report.enforcement, "lockVerifyTier2Tier3WhenRequested");
         assert_eq!(report.entries[0].attestation_verification_count, 1);
+        assert_eq!(report.entries[0].attestation_verification_policies.len(), 1);
+        assert_eq!(
+            report.entries[0].attestation_verification_policies[0]
+                .certificate_issuer
+                .as_deref(),
+            Some("https://token.actions.githubusercontent.com")
+        );
+        assert_eq!(
+            report.entries[0].attestation_verification_policies[0]
+                .certificate_identity
+                .as_deref(),
+            Some(
+                "https://github.com/omenien/omena-css/.github/workflows/release.yml@refs/tags/v1.0.0"
+            )
+        );
         assert_eq!(
             report.entries[0].advisory_message,
             "Verified attestation evidence is recorded for this trust tier."
@@ -1205,6 +1280,8 @@ mod tests {
                 reference: attestation_reference,
                 verifier: "omena-sif-test-fixture".to_string(),
                 verified_trust_tier: OmenaSifTrustTierV1::T2,
+                certificate_issuer: None,
+                certificate_identity: None,
             });
 
         assert!(omena_lock_entry_has_verified_attestation_for_tier_v1(
@@ -1254,6 +1331,11 @@ mod tests {
         assert!(applied);
         assert_eq!(entry.trust_tier, OmenaSifTrustTierV1::T2);
         assert_eq!(entry.attestation_verifications.len(), 1);
+        assert_eq!(entry.attestation_verifications[0].certificate_issuer, None);
+        assert_eq!(
+            entry.attestation_verifications[0].certificate_identity,
+            None
+        );
         assert!(omena_lock_entry_has_verified_attestation_for_tier_v1(
             &entry,
             OmenaSifTrustTierV1::T2
@@ -1316,6 +1398,8 @@ mod tests {
                     .to_string(),
             verifier: "offline-sigstore-verifier".to_string(),
             verified_trust_tier: OmenaSifTrustTierV1::T2,
+            certificate_issuer: None,
+            certificate_identity: None,
             subject_canonical_url: entry.canonical_url.clone(),
             subject_sif_hash: changed_entry.sif_hash,
         };
@@ -1355,6 +1439,11 @@ mod tests {
                     .to_string(),
             verifier: "offline-sigstore-verifier".to_string(),
             verified_trust_tier: OmenaSifTrustTierV1::T2,
+            certificate_issuer: Some("https://token.actions.githubusercontent.com".to_string()),
+            certificate_identity: Some(
+                "https://github.com/omenien/omena-css/.github/workflows/release.yml@refs/tags/v1.0.0"
+                    .to_string(),
+            ),
             subject_canonical_url: entry.canonical_url.clone(),
             subject_sif_hash: entry.sif_hash.clone(),
         };
@@ -1374,6 +1463,12 @@ mod tests {
         let empty_verifier =
             apply_omena_sif_attestation_verification_report_to_lock_entry_v1(&mut entry, &report);
         assert!(empty_verifier.is_err(), "{empty_verifier:?}");
+
+        report.verifier = "offline-sigstore-verifier".to_string();
+        report.certificate_issuer = Some(" ".to_string());
+        let empty_issuer =
+            apply_omena_sif_attestation_verification_report_to_lock_entry_v1(&mut entry, &report);
+        assert!(empty_issuer.is_err(), "{empty_issuer:?}");
         Ok(())
     }
 
