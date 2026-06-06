@@ -5182,6 +5182,7 @@ export function App() {
             .map_err(|error| format!("fixture SIF dir should be writable: {error}"))?;
         let sif_path = sif_dir.join("design-system.sif.json");
         let verification_path = workspace_path.join("attestation-verification.json");
+        let bad_verification_path = workspace_path.join("bad-attestation-verification.json");
         let lockfile_path = workspace_path.join("omena.lock");
         let sif = cli_fixture_sif("pkg:design-system/_tokens.scss", b"$color: red !default;")?;
         fs::write(
@@ -5195,6 +5196,7 @@ export function App() {
         fs::write(
             &verification_path,
             serde_json::json!({
+                "schemaVersion": "1",
                 "product": "omena-sif.attestation-verification-report",
                 "verified": true,
                 "kind": "npm-provenance.sigstore",
@@ -5207,6 +5209,22 @@ export function App() {
             .to_string(),
         )
         .map_err(|error| format!("fixture verification should be writable: {error}"))?;
+        fs::write(
+            &bad_verification_path,
+            serde_json::json!({
+                "schemaVersion": "0",
+                "product": "omena-sif.attestation-verification-report",
+                "verified": true,
+                "kind": "npm-provenance.sigstore",
+                "reference": "https://registry.npmjs.org/-/npm/v1/attestations/design-system@1.0.0/provenance",
+                "verifier": "offline-sigstore-verifier",
+                "verifiedTrustTier": "t2",
+                "subjectCanonicalUrl": entry.canonical_url.as_str(),
+                "subjectSifHash": entry.sif_hash.as_str()
+            })
+            .to_string(),
+        )
+        .map_err(|error| format!("fixture bad verification should be writable: {error}"))?;
         let lock = omena_sif::OmenaLockV1::new(vec![entry]);
         fs::write(
             &lockfile_path,
@@ -5229,6 +5247,23 @@ export function App() {
             },
         });
         assert!(verify_t2_before.is_err(), "{verify_t2_before:?}");
+
+        let rejected_record_result = run(Cli {
+            command: Command::Lock {
+                lockfile: PathBuf::from("omena.lock"),
+                json: false,
+                command: Some(LockCommand::RecordVerification {
+                    package: "design-system".to_string(),
+                    lockfile: lockfile_path.clone(),
+                    verification: bad_verification_path,
+                    json: true,
+                }),
+            },
+        });
+        assert!(
+            rejected_record_result.is_err(),
+            "{rejected_record_result:?}"
+        );
 
         let record_result = run(Cli {
             command: Command::Lock {

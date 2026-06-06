@@ -16,6 +16,9 @@ pub use generator::*;
 pub const OMENA_SIF_VERSION_V1: &str = "1";
 pub const OMENA_LOCK_CURRENT_MIN_VERSION_V1: &str = env!("CARGO_PKG_VERSION");
 pub const OMENA_SIF_HASH_ALGORITHM_V1: &str = "blake3";
+pub const OMENA_SIF_ATTESTATION_VERIFICATION_REPORT_PRODUCT_V1: &str =
+    "omena-sif.attestation-verification-report";
+pub const OMENA_SIF_ATTESTATION_VERIFICATION_REPORT_SCHEMA_VERSION_V1: &str = "1";
 pub const OMENA_SIF_V1_SCHEMA_JSON: &str = include_str!("../schema/sif-v1.schema.json");
 pub const OMENA_LOCK_V1_SCHEMA_JSON: &str = include_str!("../schema/lock-v1.schema.json");
 
@@ -245,6 +248,7 @@ pub struct OmenaSifAttestationVerificationV1 {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct OmenaSifAttestationVerificationReportV1 {
+    pub schema_version: String,
     pub product: String,
     pub verified: bool,
     pub kind: String,
@@ -265,6 +269,7 @@ pub fn apply_omena_sif_attestation_verification_report_to_lock_entry_v1(
     entry: &mut OmenaLockSifEntryV1,
     report: &OmenaSifAttestationVerificationReportV1,
 ) -> Result<bool, String> {
+    validate_omena_sif_attestation_verification_report_v1(report)?;
     if !report.verified {
         return Err("attestation verification report is not marked verified".to_string());
     }
@@ -302,6 +307,36 @@ pub fn apply_omena_sif_attestation_verification_report_to_lock_entry_v1(
         entry.trust_tier = report.verified_trust_tier;
     }
     Ok(true)
+}
+
+fn validate_omena_sif_attestation_verification_report_v1(
+    report: &OmenaSifAttestationVerificationReportV1,
+) -> Result<(), String> {
+    if report.schema_version != OMENA_SIF_ATTESTATION_VERIFICATION_REPORT_SCHEMA_VERSION_V1 {
+        return Err(format!(
+            "unsupported attestation verification report schemaVersion '{}'; expected {}",
+            report.schema_version, OMENA_SIF_ATTESTATION_VERIFICATION_REPORT_SCHEMA_VERSION_V1
+        ));
+    }
+    if report.product != OMENA_SIF_ATTESTATION_VERIFICATION_REPORT_PRODUCT_V1 {
+        return Err(format!(
+            "unsupported attestation verification report product '{}'; expected {}",
+            report.product, OMENA_SIF_ATTESTATION_VERIFICATION_REPORT_PRODUCT_V1
+        ));
+    }
+    for (field, value) in [
+        ("kind", report.kind.as_str()),
+        ("reference", report.reference.as_str()),
+        ("verifier", report.verifier.as_str()),
+        ("subjectCanonicalUrl", report.subject_canonical_url.as_str()),
+    ] {
+        if value.trim().is_empty() {
+            return Err(format!(
+                "attestation verification report field {field} must not be empty"
+            ));
+        }
+    }
+    Ok(())
 }
 
 pub fn collect_omena_sif_npm_provenance_attestation_references_v1(
@@ -1140,6 +1175,7 @@ mod tests {
             .map_err(|error| error.to_string())?;
         let report = read_omena_sif_attestation_verification_report_json_v1(
             &json!({
+                "schemaVersion": "1",
                 "product": "omena-sif.attestation-verification-report",
                 "verified": true,
                 "kind": "npm-provenance.sigstore",
@@ -1179,6 +1215,7 @@ mod tests {
             build_omena_lock_sif_entry_v1("sif/design-system.changed.sif.json", &changed_sif)
                 .map_err(|error| error.to_string())?;
         let mut report = OmenaSifAttestationVerificationReportV1 {
+            schema_version: "1".to_string(),
             product: "omena-sif.attestation-verification-report".to_string(),
             verified: true,
             kind: "npm-provenance.sigstore".to_string(),
@@ -1206,6 +1243,45 @@ mod tests {
         let unverified =
             apply_omena_sif_attestation_verification_report_to_lock_entry_v1(&mut entry, &report);
         assert!(unverified.is_err(), "{unverified:?}");
+        Ok(())
+    }
+
+    #[test]
+    fn verified_attestation_report_rejects_wrong_contract_or_empty_evidence() -> Result<(), String>
+    {
+        let sif = fixture_sif("pkg:design-system/_tokens.scss", b"$color: red !default;")
+            .map_err(|error| error.to_string())?;
+        let mut entry = build_omena_lock_sif_entry_v1("sif/design-system.sif.json", &sif)
+            .map_err(|error| error.to_string())?;
+        let mut report = OmenaSifAttestationVerificationReportV1 {
+            schema_version: "0".to_string(),
+            product: "omena-sif.attestation-verification-report".to_string(),
+            verified: true,
+            kind: "npm-provenance.sigstore".to_string(),
+            reference:
+                "https://registry.npmjs.org/-/npm/v1/attestations/design-system@1.0.0/provenance"
+                    .to_string(),
+            verifier: "offline-sigstore-verifier".to_string(),
+            verified_trust_tier: OmenaSifTrustTierV1::T2,
+            subject_canonical_url: entry.canonical_url.clone(),
+            subject_sif_hash: entry.sif_hash.clone(),
+        };
+
+        let bad_schema =
+            apply_omena_sif_attestation_verification_report_to_lock_entry_v1(&mut entry, &report);
+        assert!(bad_schema.is_err(), "{bad_schema:?}");
+
+        report.schema_version = "1".to_string();
+        report.product = "other-product".to_string();
+        let bad_product =
+            apply_omena_sif_attestation_verification_report_to_lock_entry_v1(&mut entry, &report);
+        assert!(bad_product.is_err(), "{bad_product:?}");
+
+        report.product = "omena-sif.attestation-verification-report".to_string();
+        report.verifier.clear();
+        let empty_verifier =
+            apply_omena_sif_attestation_verification_report_to_lock_entry_v1(&mut entry, &report);
+        assert!(empty_verifier.is_err(), "{empty_verifier:?}");
         Ok(())
     }
 
