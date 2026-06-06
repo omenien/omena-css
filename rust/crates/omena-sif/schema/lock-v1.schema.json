@@ -224,7 +224,17 @@
     "attestationStatement": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["statementType", "predicateType", "subjectNames", "subjectDigests"],
+      "required": [
+        "statementType",
+        "predicateType",
+        "sourceRepository",
+        "sourceRef",
+        "sourceCommit",
+        "builderId",
+        "buildType",
+        "subjectNames",
+        "subjectDigests"
+      ],
       "properties": {
         "statementType": {
           "type": "string",

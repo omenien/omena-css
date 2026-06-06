@@ -659,6 +659,19 @@ fn validate_attestation_provenance_statement_claims_v1(
             );
         }
     }
+    for (field, value) in [
+        ("sourceRepository", statement.source_repository.as_ref()),
+        ("sourceRef", statement.source_ref.as_ref()),
+        ("sourceCommit", statement.source_commit.as_ref()),
+        ("builderId", statement.builder_id.as_ref()),
+        ("buildType", statement.build_type.as_ref()),
+    ] {
+        if value.is_none() {
+            return Err(format!(
+                "attestation verification provenance statement requires {field}"
+            ));
+        }
+    }
     if statement.subject_names.is_empty() {
         return Err(
             "attestation verification provenance statement requires subjectNames".to_string(),
@@ -1388,6 +1401,11 @@ mod tests {
         for field in [
             "statementType",
             "predicateType",
+            "sourceRepository",
+            "sourceRef",
+            "sourceCommit",
+            "builderId",
+            "buildType",
             "subjectNames",
             "subjectDigests",
         ] {
@@ -2603,6 +2621,21 @@ mod tests {
                 Err(message) if message.contains("requires attestationStatement")
             ),
             "{provenance_without_statement:?}"
+        );
+        report.attestation_statement = Some(fixture_provenance_statement());
+        let statement = report
+            .attestation_statement
+            .as_mut()
+            .ok_or_else(|| "fixture statement should be present".to_string())?;
+        statement.source_commit = None;
+        let provenance_without_source_commit =
+            apply_omena_sif_attestation_verification_report_to_lock_entry_v1(&mut entry, &report);
+        assert!(
+            matches!(
+                provenance_without_source_commit.as_ref(),
+                Err(message) if message.contains("requires sourceCommit")
+            ),
+            "{provenance_without_source_commit:?}"
         );
         Ok(())
     }
