@@ -45,7 +45,7 @@ pub use omena_query_core::*;
 pub use omena_query_transform_runner::{
     CustomPropertyLeastFixedPointSummaryV0 as OmenaQueryCustomPropertyLeastFixedPointSummaryV0,
     TargetFeatureSupportV0 as OmenaQueryTargetFeatureSupportV0,
-    TargetTransformOptionsV0 as OmenaQueryTargetTransformOptionsV0,
+    TargetTransformOptionsV0 as OmenaQueryTargetTransformOptionsV0, TransformBundleEdgeKind,
     TransformBundleSourceSummaryV0 as OmenaQueryTransformBundleSourceSummaryV0,
     TransformClassNameRewriteV0 as OmenaQueryTransformClassNameRewriteV0,
     TransformCssModuleComposesResolutionV0 as OmenaQueryTransformCssModuleComposesResolutionV0,

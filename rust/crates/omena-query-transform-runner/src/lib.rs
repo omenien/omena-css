@@ -8,8 +8,8 @@
 use serde::Serialize;
 
 pub use omena_transform_bundle::{
-    TransformBundleAssetUrlRewriteSummaryV0, TransformBundleSourceSummaryV0,
-    rewrite_omena_transform_bundle_asset_urls_in_source,
+    TransformBundleAssetUrlRewriteSummaryV0, TransformBundleEdgeKind,
+    TransformBundleSourceSummaryV0, rewrite_omena_transform_bundle_asset_urls_in_source,
     summarize_omena_transform_bundle_from_source,
 };
 pub use omena_transform_cst::{TransformPassKind, all_transform_pass_kinds};

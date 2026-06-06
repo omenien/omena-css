@@ -8,8 +8,9 @@ use omena_query::{
     OmenaQueryExpressionDomainFlowRuntimeV0, OmenaQueryExternalModuleModeV0,
     OmenaQueryExternalSifInputV0, OmenaQuerySourceDiagnosticsForFileV0,
     OmenaQuerySourceDocumentInputV0, OmenaQuerySourceMissingSelectorDiagnosticCandidateV0,
-    OmenaQueryStylePackageManifestV0, OmenaQueryStyleSourceInputV0,
-    OmenaQueryTargetTransformOptionsV0, OmenaQueryTransformExecutionContextV0, ParserPositionV0,
+    OmenaQueryStylePackageManifestV0, OmenaQueryStyleResolutionInputsV0,
+    OmenaQueryStyleSourceInputV0, OmenaQueryTargetTransformOptionsV0,
+    OmenaQueryTransformExecutionContextV0, ParserPositionV0, TransformBundleEdgeKind,
     attach_omena_query_consumer_build_bundle_summary,
     attach_omena_query_consumer_build_source_map_v3_with_sources,
     execute_omena_query_consumer_build_style_source_for_target_query_with_context_and_options,
@@ -18,7 +19,9 @@ use omena_query::{
     execute_omena_query_consumer_build_style_sources_with_context,
     list_omena_query_transform_pass_summaries, read_omena_query_cascade_at_position,
     read_omena_query_cascade_at_position_with_categorical_evidence,
-    read_omena_query_style_context_index, rewrite_omena_transform_bundle_asset_urls_in_source,
+    read_omena_query_style_context_index,
+    resolve_omena_query_style_uri_for_specifier_with_resolution_inputs,
+    rewrite_omena_transform_bundle_asset_urls_in_source,
     summarize_omena_query_consumer_check_style_source,
     summarize_omena_query_dynamic_classname_m_tier_diagnostics_with_context_depth,
     summarize_omena_query_expression_domain_incremental_flow_analysis,
@@ -61,7 +64,7 @@ use omena_zk_audit::{
 };
 use serde::Serialize;
 use std::{
-    collections::BTreeSet,
+    collections::{BTreeMap, BTreeSet},
     fs,
     path::{Path, PathBuf},
     process::ExitCode,
@@ -133,6 +136,9 @@ enum Command {
         /// Enable bundle-planned workspace build mode over the provided --source graph.
         #[arg(long)]
         bundle: bool,
+        /// Emit bundle code-split CSS files into this directory.
+        #[arg(long = "split-out-dir")]
+        split_out_dir: Option<PathBuf>,
         /// Additional workspace style source used to derive import/composes build context.
         #[arg(long = "source")]
         source_paths: Vec<PathBuf>,
@@ -686,6 +692,7 @@ fn run(cli: Cli) -> Result<(), String> {
             closed_style_world,
             tree_shake,
             bundle,
+            split_out_dir,
             source_paths,
             package_manifest_paths,
             source_map,
@@ -700,6 +707,7 @@ fn run(cli: Cli) -> Result<(), String> {
             closed_style_world,
             tree_shake,
             bundle,
+            split_out_dir,
             source_paths,
             package_manifest_paths,
             source_map,
@@ -2228,6 +2236,7 @@ struct BuildFileOptions {
     closed_style_world: bool,
     tree_shake: bool,
     bundle: bool,
+    split_out_dir: Option<PathBuf>,
     source_paths: Vec<PathBuf>,
     package_manifest_paths: Vec<PathBuf>,
     source_map: bool,
@@ -2246,6 +2255,7 @@ fn build_file(options: BuildFileOptions) -> Result<(), String> {
         closed_style_world,
         tree_shake,
         bundle,
+        split_out_dir,
         source_paths,
         package_manifest_paths,
         source_map,
@@ -2267,6 +2277,9 @@ fn build_file(options: BuildFileOptions) -> Result<(), String> {
             "cannot combine --target-query with --bundle; use --bundle without --target-query"
                 .to_string(),
         );
+    }
+    if split_out_dir.is_some() && !bundle {
+        return Err("--split-out-dir requires --bundle".to_string());
     }
     if source_map && !json {
         return Err("--source-map requires --json".to_string());
@@ -2308,6 +2321,7 @@ fn build_file(options: BuildFileOptions) -> Result<(), String> {
         .map(|style_source| style_source.style_source.as_str())
         .unwrap_or(source.as_str());
     let package_manifests = read_package_manifests(&package_manifest_paths)?;
+    let resolution_inputs = resolution_inputs_for_build_path(&path, package_manifests.as_slice());
     let mut summary = if let Some(target_query) = target_query {
         if workspace_sources.len() > 1 {
             execute_omena_query_consumer_build_style_sources_for_target_query_with_context_and_options(
@@ -2369,6 +2383,15 @@ fn build_file(options: BuildFileOptions) -> Result<(), String> {
             &original_workspace_sources,
             &package_manifests,
         );
+    }
+    if let Some(split_out_dir) = split_out_dir.as_ref() {
+        emit_bundle_code_split_outputs(
+            split_out_dir,
+            &style_path,
+            &workspace_sources,
+            &resolution_inputs,
+        )?;
+        push_ready_surface(&mut summary.ready_surfaces, "bundleCodeSplitEmission");
     }
 
     if !summary.unknown_pass_ids.is_empty() {
@@ -2450,6 +2473,251 @@ fn rewrite_bundle_asset_urls_for_build_sources(
         })
         .collect::<Vec<_>>();
     (rewritten_sources, rewrite_count)
+}
+
+fn resolution_inputs_for_build_path(
+    path: &Path,
+    package_manifests: &[OmenaQueryStylePackageManifestV0],
+) -> OmenaQueryStyleResolutionInputsV0 {
+    let workspace_folder_uri = style_resolution_workspace_uri_for_path(path);
+    load_omena_query_workspace_style_resolution_inputs(
+        workspace_folder_uri.as_deref(),
+        package_manifests,
+    )
+}
+
+fn emit_bundle_code_split_outputs(
+    out_dir: &Path,
+    entry_style_path: &str,
+    sources: &[OmenaQueryStyleSourceInputV0],
+    resolution_inputs: &OmenaQueryStyleResolutionInputsV0,
+) -> Result<(), String> {
+    fs::create_dir_all(out_dir).map_err(|error| {
+        format!(
+            "failed to create bundle split output directory {}: {error}",
+            path_string(out_dir)
+        )
+    })?;
+    let source_by_path = sources
+        .iter()
+        .map(|source| (source.style_path.as_str(), source.style_source.as_str()))
+        .collect::<BTreeMap<_, _>>();
+    let file_name_by_path = sources
+        .iter()
+        .map(|source| {
+            (
+                source.style_path.as_str(),
+                bundle_split_file_name(source.style_path.as_str()),
+            )
+        })
+        .collect::<BTreeMap<_, _>>();
+    let source_path_lookup = bundle_split_source_path_lookup(sources);
+    let reachable_paths = collect_bundle_code_split_reachable_style_paths(
+        entry_style_path,
+        sources,
+        resolution_inputs,
+        &source_path_lookup,
+    );
+
+    for style_path in reachable_paths {
+        let Some(source) = source_by_path.get(style_path.as_str()) else {
+            continue;
+        };
+        let Some(file_name) = file_name_by_path.get(style_path.as_str()) else {
+            continue;
+        };
+        let rewritten_source = rewrite_bundle_code_split_imports_for_source(
+            style_path.as_str(),
+            source,
+            &file_name_by_path,
+            resolution_inputs,
+            &source_path_lookup,
+        );
+        let output_path = out_dir.join(file_name);
+        fs::write(&output_path, rewritten_source).map_err(|error| {
+            format!(
+                "failed to write bundle split output {}: {error}",
+                path_string(&output_path)
+            )
+        })?;
+    }
+    Ok(())
+}
+
+fn collect_bundle_code_split_reachable_style_paths(
+    entry_style_path: &str,
+    sources: &[OmenaQueryStyleSourceInputV0],
+    resolution_inputs: &OmenaQueryStyleResolutionInputsV0,
+    source_path_lookup: &BTreeMap<String, String>,
+) -> Vec<String> {
+    let source_by_path = sources
+        .iter()
+        .map(|source| (source.style_path.as_str(), source.style_source.as_str()))
+        .collect::<BTreeMap<_, _>>();
+    let mut reachable = Vec::new();
+    let mut visited = BTreeSet::new();
+    let mut stack = vec![entry_style_path.to_string()];
+
+    while let Some(style_path) = stack.pop() {
+        if !visited.insert(style_path.clone()) {
+            continue;
+        }
+        let Some(source) = source_by_path.get(style_path.as_str()) else {
+            continue;
+        };
+        reachable.push(style_path.clone());
+        let bundle = summarize_omena_transform_bundle_from_source(
+            style_path.as_str(),
+            source,
+            infer_cli_style_dialect(style_path.as_str()),
+        );
+        for edge in bundle.bundle_edges {
+            if !matches!(
+                edge.kind,
+                TransformBundleEdgeKind::CssImport | TransformBundleEdgeKind::LessImport
+            ) {
+                continue;
+            }
+            let Some(import_source) = edge.import_source.as_deref() else {
+                continue;
+            };
+            let Some(target_path) = resolve_bundle_code_split_import_path(
+                style_path.as_str(),
+                import_source,
+                resolution_inputs,
+            ) else {
+                continue;
+            };
+            if let Some(source_path) = source_path_lookup.get(target_path.as_str())
+                && source_by_path.contains_key(source_path.as_str())
+            {
+                stack.push(source_path.clone());
+            }
+        }
+    }
+
+    reachable
+}
+
+fn rewrite_bundle_code_split_imports_for_source(
+    style_path: &str,
+    source: &str,
+    file_name_by_path: &BTreeMap<&str, String>,
+    resolution_inputs: &OmenaQueryStyleResolutionInputsV0,
+    source_path_lookup: &BTreeMap<String, String>,
+) -> String {
+    let bundle = summarize_omena_transform_bundle_from_source(
+        style_path,
+        source,
+        infer_cli_style_dialect(style_path),
+    );
+    let mut output = source.to_string();
+    for edge in bundle.bundle_edges.iter().rev() {
+        if !matches!(
+            edge.kind,
+            TransformBundleEdgeKind::CssImport | TransformBundleEdgeKind::LessImport
+        ) {
+            continue;
+        }
+        let Some(import_source) = edge.import_source.as_deref() else {
+            continue;
+        };
+        let Some(target_path) =
+            resolve_bundle_code_split_import_path(style_path, import_source, resolution_inputs)
+        else {
+            continue;
+        };
+        let Some(source_path) = source_path_lookup.get(target_path.as_str()) else {
+            continue;
+        };
+        let Some(target_file_name) = file_name_by_path.get(source_path.as_str()) else {
+            continue;
+        };
+        let range_start = edge.range_start as usize;
+        let range_end = edge.range_end as usize;
+        if range_start > range_end || range_end > output.len() {
+            continue;
+        }
+        let rule_text = &output[range_start..range_end];
+        let Some(relative_source_start) = rule_text.find(import_source) else {
+            continue;
+        };
+        let source_start = range_start + relative_source_start;
+        let source_end = source_start + import_source.len();
+        output.replace_range(source_start..source_end, target_file_name);
+    }
+    output
+}
+
+fn bundle_split_source_path_lookup(
+    sources: &[OmenaQueryStyleSourceInputV0],
+) -> BTreeMap<String, String> {
+    let mut lookup = BTreeMap::new();
+    for source in sources {
+        lookup.insert(source.style_path.clone(), source.style_path.clone());
+        if let Ok(canonical_path) = fs::canonicalize(&source.style_path) {
+            lookup.insert(path_string(&canonical_path), source.style_path.clone());
+        }
+    }
+    lookup
+}
+
+fn resolve_bundle_code_split_import_path(
+    style_path: &str,
+    import_source: &str,
+    resolution_inputs: &OmenaQueryStyleResolutionInputsV0,
+) -> Option<String> {
+    let base_uri = cli_path_to_file_uri(Path::new(style_path));
+    let workspace_folder_uri = Path::new(style_path).parent().map(cli_path_to_file_uri);
+    let resolved_uri = resolve_omena_query_style_uri_for_specifier_with_resolution_inputs(
+        base_uri.as_str(),
+        workspace_folder_uri.as_deref(),
+        import_source,
+        resolution_inputs,
+    )?;
+    cli_file_uri_to_path(resolved_uri.as_str()).map(|path| path_string(&path))
+}
+
+fn bundle_split_file_name(style_path: &str) -> String {
+    let path = Path::new(style_path);
+    let extension = path
+        .extension()
+        .and_then(|value| value.to_str())
+        .unwrap_or("css");
+    let stem = path
+        .file_stem()
+        .and_then(|value| value.to_str())
+        .unwrap_or("chunk");
+    let mut sanitized = String::new();
+    for ch in stem.chars() {
+        if ch.is_ascii_alphanumeric() || matches!(ch, '-' | '_' | '.') {
+            sanitized.push(ch);
+        } else {
+            sanitized.push('-');
+        }
+    }
+    if sanitized.is_empty() {
+        sanitized.push_str("chunk");
+    }
+    let hash = bundle_split_path_hash(style_path);
+    format!("{sanitized}-{hash:016x}.{extension}")
+}
+
+fn bundle_split_path_hash(value: &str) -> u64 {
+    let mut hash = 0xcbf29ce484222325_u64;
+    for byte in value.as_bytes() {
+        hash ^= u64::from(*byte);
+        hash = hash.wrapping_mul(0x100000001b3);
+    }
+    hash
+}
+
+fn cli_path_to_file_uri(path: &Path) -> String {
+    format!("file://{}", path.to_string_lossy())
+}
+
+fn cli_file_uri_to_path(uri: &str) -> Option<PathBuf> {
+    uri.strip_prefix("file://").map(PathBuf::from)
 }
 
 fn read_source_documents(
@@ -4123,6 +4391,7 @@ mod tests {
                 closed_style_world: false,
                 tree_shake: false,
                 bundle: false,
+                split_out_dir: None,
                 source_paths: Vec::new(),
                 package_manifest_paths: Vec::new(),
                 source_map: false,
@@ -4164,6 +4433,7 @@ mod tests {
                 closed_style_world: false,
                 tree_shake: false,
                 bundle: false,
+                split_out_dir: None,
                 source_paths: Vec::new(),
                 package_manifest_paths: Vec::new(),
                 source_map: true,
@@ -4199,6 +4469,7 @@ mod tests {
                 closed_style_world: false,
                 tree_shake: true,
                 bundle: false,
+                split_out_dir: None,
                 source_paths: Vec::new(),
                 package_manifest_paths: Vec::new(),
                 source_map: false,
@@ -4249,6 +4520,7 @@ mod tests {
                 closed_style_world: false,
                 tree_shake: true,
                 bundle: false,
+                split_out_dir: None,
                 source_paths: Vec::new(),
                 package_manifest_paths: Vec::new(),
                 source_map: false,
@@ -4313,6 +4585,7 @@ mod tests {
                 closed_style_world: false,
                 tree_shake: false,
                 bundle: true,
+                split_out_dir: None,
                 source_paths: vec![tokens_path.clone(), base_path.clone()],
                 package_manifest_paths: Vec::new(),
                 source_map: false,
@@ -4332,6 +4605,93 @@ mod tests {
         cleanup(&tokens_path);
         cleanup(&base_path);
         cleanup(&output_path);
+        Ok(())
+    }
+
+    #[test]
+    fn build_bundle_mode_emits_code_split_outputs() -> Result<(), String> {
+        let root = temp_dir("bundle-code-split-output");
+        let theme_dir = root.join("theme");
+        let split_dir = root.join("split");
+        fs::create_dir_all(&theme_dir)
+            .map_err(|error| format!("fixture theme dir should be writable: {error}"))?;
+        let target_path = root.join("app.css");
+        let tokens_path = theme_dir.join("tokens.css");
+        let base_path = theme_dir.join("base.css");
+        let target_style_path = path_string(&target_path);
+        let tokens_style_path = path_string(&tokens_path);
+        let base_style_path = path_string(&base_path);
+        let target_split_file = bundle_split_file_name(&target_style_path);
+        let tokens_split_file = bundle_split_file_name(&tokens_style_path);
+        let base_split_file = bundle_split_file_name(&base_style_path);
+
+        fs::write(&base_path, ".base { color: red; }")
+            .map_err(|error| format!("fixture base source should be writable: {error}"))?;
+        fs::write(
+            &tokens_path,
+            r#"@import "./base.css" layer(tokens); .token { color: blue; }"#,
+        )
+        .map_err(|error| format!("fixture tokens source should be writable: {error}"))?;
+        fs::write(
+            &target_path,
+            r#"@import "./theme/tokens.css" supports(display: grid) screen; .app { color: green; }"#,
+        )
+        .map_err(|error| format!("fixture target source should be writable: {error}"))?;
+
+        let result = run(Cli {
+            command: Command::Build {
+                path: target_path.clone(),
+                output: None,
+                passes: Vec::new(),
+                target_query: None,
+                allow_logical_to_physical: false,
+                allow_scope_flatten: false,
+                allow_layer_flatten: false,
+                enable_supports_static_eval: false,
+                enable_media_static_eval: false,
+                drop_dark_mode_media_queries: false,
+                context_json: None,
+                engine_input_json: None,
+                closed_style_world: false,
+                tree_shake: false,
+                bundle: true,
+                split_out_dir: Some(split_dir.clone()),
+                source_paths: vec![tokens_path.clone(), base_path.clone()],
+                package_manifest_paths: Vec::new(),
+                source_map: false,
+                json: false,
+            },
+        });
+
+        assert!(result.is_ok(), "{result:?}");
+        let target_output = fs::read_to_string(split_dir.join(&target_split_file))
+            .map_err(|error| format!("target split output should be readable: {error}"))?;
+        let tokens_output = fs::read_to_string(split_dir.join(&tokens_split_file))
+            .map_err(|error| format!("tokens split output should be readable: {error}"))?;
+        let base_output = fs::read_to_string(split_dir.join(&base_split_file))
+            .map_err(|error| format!("base split output should be readable: {error}"))?;
+
+        assert!(
+            target_output.contains(&format!(
+                r#"@import "{tokens_split_file}" supports(display: grid) screen;"#
+            )),
+            "{target_output}"
+        );
+        assert!(
+            tokens_output.contains(&format!(r#"@import "{base_split_file}" layer(tokens);"#)),
+            "{tokens_output}"
+        );
+        assert!(
+            base_output.contains(".base { color: red; }"),
+            "{base_output}"
+        );
+        assert!(
+            !target_output.contains("./theme/tokens.css"),
+            "{target_output}"
+        );
+        assert!(!tokens_output.contains("./base.css"), "{tokens_output}");
+
+        cleanup_dir(&root);
         Ok(())
     }
 
@@ -4380,6 +4740,7 @@ mod tests {
                 closed_style_world: false,
                 tree_shake: false,
                 bundle: true,
+                split_out_dir: None,
                 source_paths: vec![tokens_path.clone()],
                 package_manifest_paths: Vec::new(),
                 source_map: false,
@@ -4439,6 +4800,7 @@ mod tests {
                 closed_style_world: false,
                 tree_shake: false,
                 bundle: true,
+                split_out_dir: None,
                 source_paths: vec![tokens_path.clone()],
                 package_manifest_paths: Vec::new(),
                 source_map: true,

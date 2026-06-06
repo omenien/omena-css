@@ -1,6 +1,13 @@
 import { strict as assert } from "node:assert";
 import { spawnSync } from "node:child_process";
-import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
+import {
+  mkdtempSync,
+  mkdirSync,
+  readdirSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -26,9 +33,11 @@ try {
   const themeDir = join(workspace, "theme");
   const assetDir = join(workspace, "assets");
   const tokenAssetDir = join(themeDir, "icons");
+  const splitDir = join(workspace, "split");
   mkdirSync(themeDir, { recursive: true });
   mkdirSync(assetDir, { recursive: true });
   mkdirSync(tokenAssetDir, { recursive: true });
+  mkdirSync(splitDir, { recursive: true });
 
   const appPath = join(workspace, "app.css");
   const tokensPath = join(themeDir, "tokens.css");
@@ -67,6 +76,8 @@ try {
       "--source",
       basePath,
       "--source-map",
+      "--split-out-dir",
+      splitDir,
       "--json",
     ],
     {
@@ -92,6 +103,7 @@ try {
   assert.ok(summary.readySurfaces.includes("bundleAssetUrlRewrite"));
   assert.ok(summary.readySurfaces.includes("sourceMapV3Serializer"));
   assert.ok(summary.readySurfaces.includes("bundleSourceMapOriginChain"));
+  assert.ok(summary.readySurfaces.includes("bundleCodeSplitEmission"));
   assert.ok(!summary.execution.outputCss.includes("@import"));
   assert.ok(summary.execution.outputCss.includes(baseSource));
   assert.ok(summary.execution.outputCss.includes(".token { color: blue;"));
@@ -107,13 +119,14 @@ try {
   assertSourceContent(sourceMap, appPath, appSource);
   assertSourceContent(sourceMap, tokensPath, tokensSource);
   assertSourceContent(sourceMap, basePath, baseSource);
+  assertSplitOutputs(splitDir, appSource, tokensSource, baseSource);
 
   console.log(
     [
       "validated omena-cli bundle origin chain:",
       `sources=${sourceMap.sources.length}`,
       `segments=${sourceMap.x_omenaSegmentCount}`,
-      "ready=bundleSourceMapOriginChain+bundleAssetUrlRewrite",
+      "ready=bundleSourceMapOriginChain+bundleAssetUrlRewrite+bundleCodeSplitEmission",
     ].join(" "),
   );
 } finally {
@@ -128,4 +141,31 @@ function assertSourceContent(sourceMap: SourceMapV3, sourcePath: string, source:
     source,
     `source map should preserve sourcesContent for ${sourcePath}`,
   );
+}
+
+function assertSplitOutputs(
+  splitDir: string,
+  appSource: string,
+  tokensSource: string,
+  baseSource: string,
+): void {
+  const files = readdirSync(splitDir);
+  assert.equal(files.length, 3, `expected entry plus two imported split files: ${files.join(",")}`);
+  const outputs = files.map((file) => readFileSync(join(splitDir, file), "utf8"));
+  const appOutput = outputs.find((output) => output.includes(".app { color: green;"));
+  const tokensOutput = outputs.find((output) => output.includes(".token { color: blue;"));
+  const baseOutput = outputs.find((output) => output.includes(baseSource));
+  assert.ok(appOutput, "split outputs should include the entry CSS file");
+  assert.ok(tokensOutput, "split outputs should include the imported token CSS file");
+  assert.ok(baseOutput, "split outputs should include the transitive base CSS file");
+  assert.notEqual(appOutput, appSource, "entry split output should rewrite its import specifier");
+  assert.notEqual(
+    tokensOutput,
+    tokensSource,
+    "imported split output should rewrite its transitive import specifier",
+  );
+  assert.ok(!appOutput.includes("./theme/tokens.css"));
+  assert.ok(!tokensOutput.includes("./base.css"));
+  assert.ok(appOutput.includes('@import "'));
+  assert.ok(tokensOutput.includes('@import "'));
 }
