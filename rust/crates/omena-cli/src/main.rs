@@ -8250,6 +8250,102 @@ export function App() {
     }
 
     #[test]
+    fn lock_verify_attestation_rejects_non_provenance_bundle_for_provenance_kind()
+    -> Result<(), String> {
+        let workspace_path = temp_dir("lock-verify-attestation-provenance-statement");
+        let sif_dir = workspace_path.join("sif");
+        fs::create_dir_all(&sif_dir)
+            .map_err(|error| format!("fixture SIF dir should be writable: {error}"))?;
+        let sif_path = sif_dir.join("design-system.sif.json");
+        let artifact_path = workspace_path.join("cosign-v3-blob.txt");
+        let bundle_path = workspace_path.join("cosign-v3-blob.sigstore.json");
+        let lockfile_path = workspace_path.join("omena.lock");
+        let provenance_reference =
+            "https://registry.npmjs.org/-/npm/v1/attestations/design-system@1.0.0/provenance";
+        let sif = cli_fixture_sif("pkg:design-system/_tokens.scss", b"$color: red !default;")?;
+        fs::write(
+            &sif_path,
+            omena_sif::write_omena_sif_json_v1(&sif)
+                .map_err(|error| format!("fixture SIF should serialize: {error}"))?,
+        )
+        .map_err(|error| format!("fixture SIF should be writable: {error}"))?;
+        let mut entry =
+            omena_sif::build_omena_lock_sif_entry_v1("sif/design-system.sif.json", &sif)
+                .map_err(|error| format!("fixture lock entry should build: {error}"))?;
+        entry
+            .attestation_references
+            .push(omena_sif::OmenaSifAttestationReferenceV1 {
+                kind: "npm-provenance.url".to_string(),
+                reference: provenance_reference.to_string(),
+            });
+        let lock = omena_sif::OmenaLockV1::new(vec![entry]);
+        fs::write(
+            &lockfile_path,
+            omena_sif::write_omena_lock_json_v1(&lock)
+                .map_err(|error| format!("fixture lock should serialize: {error}"))?,
+        )
+        .map_err(|error| format!("fixture lock should be writable: {error}"))?;
+        fs::write(
+            &artifact_path,
+            include_bytes!("../fixtures/sigstore/cosign-v3-blob.txt"),
+        )
+        .map_err(|error| format!("fixture artifact should be writable: {error}"))?;
+        fs::write(
+            &bundle_path,
+            include_str!("../fixtures/sigstore/cosign-v3-blob.sigstore.json"),
+        )
+        .map_err(|error| format!("fixture bundle should be writable: {error}"))?;
+
+        let verify_attestation_result = run(Cli {
+            command: Command::Lock {
+                lockfile: PathBuf::from("omena.lock"),
+                json: false,
+                command: Some(LockCommand::VerifyAttestation {
+                    package: "design-system".to_string(),
+                    lockfile: lockfile_path.clone(),
+                    artifact: artifact_path,
+                    bundle: bundle_path,
+                    reference: provenance_reference.to_string(),
+                    kind: "npm-provenance.sigstore".to_string(),
+                    verified_tier: "t2".to_string(),
+                    identity: None,
+                    issuer: "https://github.com/login/oauth".to_string(),
+                    statement_type: None,
+                    statement_predicate_type: None,
+                    statement_source_repository: None,
+                    statement_source_ref: None,
+                    statement_source_commit: None,
+                    statement_builder_id: None,
+                    statement_build_type: None,
+                    statement_subject_names: Vec::new(),
+                    statement_subject_digests: Vec::new(),
+                    json: true,
+                }),
+            },
+        });
+        assert!(
+            verify_attestation_result
+                .as_ref()
+                .is_err_and(|error| error.contains("requires attestationStatement")),
+            "{verify_attestation_result:?}"
+        );
+        let refreshed_lock = read_omena_lock_json_v1(&read_source(&lockfile_path)?)
+            .map_err(|error| format!("fixture lock should parse: {error}"))?;
+        assert_eq!(
+            refreshed_lock.entries[0].trust_tier,
+            omena_sif::OmenaSifTrustTierV1::T1
+        );
+        assert!(
+            refreshed_lock.entries[0]
+                .attestation_verifications
+                .is_empty()
+        );
+
+        cleanup_dir(&workspace_path);
+        Ok(())
+    }
+
+    #[test]
     fn lock_verify_attestation_t3_rejects_non_sif_artifact() -> Result<(), String> {
         let workspace_path = temp_dir("lock-verify-attestation-t3-artifact-binding");
         let sif_dir = workspace_path.join("sif");
