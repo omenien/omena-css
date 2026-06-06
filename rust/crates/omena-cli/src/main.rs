@@ -1274,9 +1274,6 @@ fn lock_verify_attestation(input: LockVerifyAttestationInput) -> Result<(), Stri
             path_string(&bundle)
         ));
     }
-    let attestation_statement =
-        extract_verified_attestation_statement(&sigstore_bundle, &statement_policy)?;
-
     let t3_artifact_binding = if verified_trust_tier == omena_sif::OmenaSifTrustTierV1::T3 {
         Some(read_verified_t3_attestation_artifact_binding(
             &artifact,
@@ -1285,6 +1282,11 @@ fn lock_verify_attestation(input: LockVerifyAttestationInput) -> Result<(), Stri
     } else {
         None
     };
+    let attestation_statement = extract_verified_attestation_statement(
+        &sigstore_bundle,
+        &statement_policy,
+        attestation_kind_requires_provenance_statement(kind.as_str()),
+    )?;
 
     let mut matched_count = 0usize;
     let mut applied_count = 0usize;
@@ -1364,22 +1366,23 @@ fn lock_verify_attestation(input: LockVerifyAttestationInput) -> Result<(), Stri
 fn extract_verified_attestation_statement(
     bundle: &sigstore_verify::types::Bundle,
     policy: &AttestationStatementPolicy,
+    require_provenance_statement: bool,
 ) -> Result<Option<OmenaSifAttestationStatementV1>, String> {
     let sigstore_verify::types::SignatureContent::DsseEnvelope(envelope) = &bundle.content else {
-        if policy.is_empty() {
+        if policy.is_empty() && !require_provenance_statement {
             return Ok(None);
         }
         return Err(
-            "lock verify-attestation statement policy requires a DSSE in-toto provenance bundle"
+            "lock verify-attestation provenance evidence requires a DSSE in-toto provenance bundle"
                 .to_string(),
         );
     };
     if envelope.payload_type != "application/vnd.in-toto+json" {
-        if policy.is_empty() {
+        if policy.is_empty() && !require_provenance_statement {
             return Ok(None);
         }
         return Err(format!(
-            "lock verify-attestation statement policy requires payloadType application/vnd.in-toto+json, got {}",
+            "lock verify-attestation provenance evidence requires payloadType application/vnd.in-toto+json, got {}",
             envelope.payload_type
         ));
     }
@@ -1389,6 +1392,10 @@ fn extract_verified_attestation_statement(
     let statement = summarize_verified_attestation_statement(&statement);
     require_statement_policy_matches(&statement, policy)?;
     Ok(Some(statement))
+}
+
+fn attestation_kind_requires_provenance_statement(kind: &str) -> bool {
+    kind.starts_with("npm-provenance.") || kind.starts_with("omena-toolchain.")
 }
 
 fn summarize_verified_attestation_statement(
@@ -8326,7 +8333,7 @@ export function App() {
         assert!(
             verify_attestation_result
                 .as_ref()
-                .is_err_and(|error| error.contains("requires attestationStatement")),
+                .is_err_and(|error| error.contains("requires a DSSE in-toto provenance bundle")),
             "{verify_attestation_result:?}"
         );
         let refreshed_lock = read_omena_lock_json_v1(&read_source(&lockfile_path)?)
