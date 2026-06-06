@@ -1205,14 +1205,17 @@ fn collect_lock_trust_tier_issues(
             continue;
         }
         if minimum_tier >= omena_sif::OmenaSifTrustTierV1::T2
-            && entry.attestation_references.is_empty()
+            && !omena_sif::omena_lock_entry_has_verified_attestation_for_tier_v1(
+                entry,
+                minimum_tier,
+            )
         {
             issues.push(OmenaLockVerificationIssueV1 {
                 canonical_url: entry.canonical_url.clone(),
                 sif_path: entry.sif_path.clone(),
-                code: "attestationReferencesMissing".to_string(),
+                code: "attestationVerificationMissing".to_string(),
                 message: format!(
-                    "lock entry trust tier {} must carry attestation references for required {}",
+                    "lock entry trust tier {} must carry verified attestation evidence for required {}",
                     entry.trust_tier.as_str(),
                     minimum_tier.as_str()
                 ),
@@ -1727,10 +1730,11 @@ fn provenance_status(lockfile: PathBuf, json: bool) -> Result<(), String> {
         );
         for entry in &report.entries {
             println!(
-                "{} {} attestations={}: {}",
+                "{} {} attestations={} verifiedAttestations={}: {}",
                 entry.trust_tier.as_str(),
                 entry.canonical_url,
                 entry.attestation_reference_count,
+                entry.attestation_verification_count,
                 entry.advisory_message
             );
         }
@@ -4985,7 +4989,7 @@ export function App() {
     }
 
     #[test]
-    fn lock_fetch_provenance_records_npm_attestations_and_enables_t2_verify() -> Result<(), String>
+    fn lock_fetch_provenance_records_npm_attestations_without_t2_verification() -> Result<(), String>
     {
         let workspace_path = temp_dir("lock-fetch-provenance");
         let sif_dir = workspace_path.join("sif");
@@ -5059,9 +5063,14 @@ export function App() {
             .map_err(|error| format!("fixture lock should parse: {error}"))?;
         assert_eq!(
             refreshed_lock.entries[0].trust_tier,
-            omena_sif::OmenaSifTrustTierV1::T2
+            omena_sif::OmenaSifTrustTierV1::T1
         );
         assert_eq!(refreshed_lock.entries[0].attestation_references.len(), 1);
+        assert!(
+            refreshed_lock.entries[0]
+                .attestation_verifications
+                .is_empty()
+        );
 
         let verify_t2_after = run(Cli {
             command: Command::Lock {
@@ -5076,7 +5085,7 @@ export function App() {
                 }),
             },
         });
-        assert!(verify_t2_after.is_ok(), "{verify_t2_after:?}");
+        assert!(verify_t2_after.is_err(), "{verify_t2_after:?}");
 
         cleanup_dir(&workspace_path);
         Ok(())

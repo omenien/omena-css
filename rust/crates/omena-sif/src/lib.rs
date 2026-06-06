@@ -198,6 +198,8 @@ pub struct OmenaLockSifEntryV1 {
     pub trust_tier: OmenaSifTrustTierV1,
     #[serde(default)]
     pub attestation_references: Vec<OmenaSifAttestationReferenceV1>,
+    #[serde(default)]
+    pub attestation_verifications: Vec<OmenaSifAttestationVerificationV1>,
 }
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
@@ -231,6 +233,15 @@ pub struct OmenaSifAttestationReferenceV1 {
     pub reference: String,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct OmenaSifAttestationVerificationV1 {
+    pub kind: String,
+    pub reference: String,
+    pub verifier: String,
+    pub verified_trust_tier: OmenaSifTrustTierV1,
+}
+
 pub fn collect_omena_sif_npm_provenance_attestation_references_v1(
     source: &str,
 ) -> Result<Vec<OmenaSifAttestationReferenceV1>, serde_json::Error> {
@@ -252,10 +263,18 @@ pub fn apply_omena_sif_npm_provenance_references_to_lock_entry_v1(
     let before = existing.len();
     existing.extend(references.iter().cloned());
     entry.attestation_references = existing.into_iter().collect();
-    if !entry.attestation_references.is_empty() && entry.trust_tier < OmenaSifTrustTierV1::T2 {
-        entry.trust_tier = OmenaSifTrustTierV1::T2;
-    }
     entry.attestation_references.len().saturating_sub(before)
+}
+
+pub fn omena_lock_entry_has_verified_attestation_for_tier_v1(
+    entry: &OmenaLockSifEntryV1,
+    minimum_tier: OmenaSifTrustTierV1,
+) -> bool {
+    minimum_tier <= OmenaSifTrustTierV1::T1
+        || entry
+            .attestation_verifications
+            .iter()
+            .any(|verification| verification.verified_trust_tier >= minimum_tier)
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -274,6 +293,7 @@ pub struct OmenaSifProvenanceAdvisoryEntryV1 {
     pub canonical_url: String,
     pub trust_tier: OmenaSifTrustTierV1,
     pub attestation_reference_count: usize,
+    pub attestation_verification_count: usize,
     pub advisory_message: &'static str,
 }
 
@@ -379,6 +399,7 @@ pub fn build_omena_lock_sif_entry_v1(
         transitive_hash: sif.fingerprints.transitive_hash.clone(),
         trust_tier: OmenaSifTrustTierV1::T1,
         attestation_references: Vec::new(),
+        attestation_verifications: Vec::new(),
     })
 }
 
@@ -397,7 +418,8 @@ pub fn summarize_omena_sif_provenance_advisory_v1(
                 canonical_url: entry.canonical_url.clone(),
                 trust_tier: entry.trust_tier,
                 attestation_reference_count: entry.attestation_references.len(),
-                advisory_message: provenance_advisory_message(entry.trust_tier),
+                attestation_verification_count: entry.attestation_verifications.len(),
+                advisory_message: provenance_advisory_message(entry),
             })
             .collect(),
     }
@@ -617,14 +639,19 @@ fn default_omena_sif_trust_tier_v1() -> OmenaSifTrustTierV1 {
     OmenaSifTrustTierV1::T1
 }
 
-fn provenance_advisory_message(trust_tier: OmenaSifTrustTierV1) -> &'static str {
-    match trust_tier {
+fn provenance_advisory_message(entry: &OmenaLockSifEntryV1) -> &'static str {
+    match entry.trust_tier {
         OmenaSifTrustTierV1::T0 => {
             "No enforced provenance verification is available for this SIF entry."
         }
         OmenaSifTrustTierV1::T1 => "T1 local lock verification is the enforced trust path.",
+        OmenaSifTrustTierV1::T2 | OmenaSifTrustTierV1::T3
+            if entry.attestation_verifications.is_empty() =>
+        {
+            "T2/T3 trust tiers require verified attestation evidence; references alone are advisory."
+        }
         OmenaSifTrustTierV1::T2 | OmenaSifTrustTierV1::T3 => {
-            "T2/T3 attestation references are recorded but not cryptographically verified by this local advisory path."
+            "Verified attestation evidence is recorded for this trust tier."
         }
     }
 }
@@ -911,6 +938,7 @@ mod tests {
         assert!(lock.omena_min_version.is_none());
         assert_eq!(lock.entries[0].trust_tier, OmenaSifTrustTierV1::T1);
         assert!(lock.entries[0].attestation_references.is_empty());
+        assert!(lock.entries[0].attestation_verifications.is_empty());
         Ok(())
     }
 
@@ -962,16 +990,17 @@ mod tests {
         assert_eq!(report.network_access, "none");
         assert_eq!(report.entries[0].trust_tier, OmenaSifTrustTierV1::T3);
         assert_eq!(report.entries[0].attestation_reference_count, 1);
+        assert_eq!(report.entries[0].attestation_verification_count, 0);
         assert_eq!(
             report.entries[0].advisory_message,
-            "T2/T3 attestation references are recorded but not cryptographically verified by this local advisory path."
+            "T2/T3 trust tiers require verified attestation evidence; references alone are advisory."
         );
         Ok(())
     }
 
     #[test]
-    fn npm_provenance_metadata_references_upgrade_lock_entry_to_t2() -> Result<(), serde_json::Error>
-    {
+    fn npm_provenance_metadata_references_do_not_upgrade_without_verification()
+    -> Result<(), serde_json::Error> {
         let metadata = json!({
             "name": "design-system",
             "version": "1.0.0",
@@ -995,8 +1024,49 @@ mod tests {
             apply_omena_sif_npm_provenance_references_to_lock_entry_v1(&mut entry, &references);
 
         assert_eq!(added, 2);
-        assert_eq!(entry.trust_tier, OmenaSifTrustTierV1::T2);
+        assert_eq!(entry.trust_tier, OmenaSifTrustTierV1::T1);
         assert_eq!(entry.attestation_references.len(), 2);
+        assert!(entry.attestation_verifications.is_empty());
+        Ok(())
+    }
+
+    #[test]
+    fn verified_attestation_evidence_controls_trust_tier_gate() -> Result<(), serde_json::Error> {
+        let sif = fixture_sif("pkg:design-system/_tokens.scss", b"$color: red !default;")?;
+        let mut entry = build_omena_lock_sif_entry_v1("sif/design-system.sif.json", &sif)?;
+        entry.trust_tier = OmenaSifTrustTierV1::T2;
+        let attestation_reference =
+            "https://registry.npmjs.org/-/npm/v1/attestations/design-system@1.0.0/provenance"
+                .to_string();
+        entry
+            .attestation_references
+            .push(OmenaSifAttestationReferenceV1 {
+                kind: "npm-provenance.url".to_string(),
+                reference: attestation_reference.clone(),
+            });
+
+        assert!(!omena_lock_entry_has_verified_attestation_for_tier_v1(
+            &entry,
+            OmenaSifTrustTierV1::T2
+        ));
+
+        entry
+            .attestation_verifications
+            .push(OmenaSifAttestationVerificationV1 {
+                kind: "npm-provenance.sigstore".to_string(),
+                reference: attestation_reference,
+                verifier: "omena-sif-test-fixture".to_string(),
+                verified_trust_tier: OmenaSifTrustTierV1::T2,
+            });
+
+        assert!(omena_lock_entry_has_verified_attestation_for_tier_v1(
+            &entry,
+            OmenaSifTrustTierV1::T2
+        ));
+        assert!(!omena_lock_entry_has_verified_attestation_for_tier_v1(
+            &entry,
+            OmenaSifTrustTierV1::T3
+        ));
         Ok(())
     }
 
