@@ -1,0 +1,135 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://omena.dev/schemas/attestation-verification-report-v1.schema.json",
+  "title": "Omena SIF Attestation Verification Report v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "product",
+    "verified",
+    "kind",
+    "reference",
+    "verifier",
+    "verifiedTrustTier",
+    "subjectCanonicalUrl",
+    "subjectSifHash"
+  ],
+  "properties": {
+    "schemaVersion": {
+      "const": "1"
+    },
+    "product": {
+      "const": "omena-sif.attestation-verification-report"
+    },
+    "verified": {
+      "const": true
+    },
+    "kind": {
+      "type": "string",
+      "minLength": 1
+    },
+    "reference": {
+      "type": "string",
+      "minLength": 1
+    },
+    "verifier": {
+      "type": "string",
+      "minLength": 1
+    },
+    "verifiedTrustTier": {
+      "enum": ["t2", "t3"]
+    },
+    "verifiedTlogIntegratedTime": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "sigstoreVerificationPolicy": {
+      "$ref": "#/$defs/sigstoreVerificationPolicy"
+    },
+    "certificateIssuer": {
+      "type": "string",
+      "minLength": 1
+    },
+    "certificateIdentity": {
+      "type": "string",
+      "minLength": 1
+    },
+    "subjectCanonicalUrl": {
+      "type": "string",
+      "minLength": 1
+    },
+    "subjectSifHash": {
+      "$ref": "#/$defs/digest"
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "verifier": {
+            "const": "sigstore-verify"
+          }
+        },
+        "required": ["verifier"]
+      },
+      "then": {
+        "required": ["sigstoreVerificationPolicy", "certificateIssuer"]
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "verifiedTrustTier": {
+            "const": "t3"
+          }
+        },
+        "required": ["verifiedTrustTier"]
+      },
+      "then": {
+        "required": ["certificateIssuer", "certificateIdentity"],
+        "properties": {
+          "kind": {
+            "type": "string",
+            "pattern": "^omena-toolchain\\."
+          }
+        }
+      }
+    }
+  ],
+  "$defs": {
+    "digest": {
+      "type": "string",
+      "pattern": "^blake3:[0-9a-f]{64}$"
+    },
+    "sigstoreVerificationPolicy": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "trustedRoot",
+        "transparencyLog",
+        "timestamp",
+        "certificateChain",
+        "signedCertificateTimestamp"
+      ],
+      "properties": {
+        "trustedRoot": {
+          "type": "string",
+          "minLength": 1
+        },
+        "transparencyLog": {
+          "const": true
+        },
+        "timestamp": {
+          "const": true
+        },
+        "certificateChain": {
+          "const": true
+        },
+        "signedCertificateTimestamp": {
+          "const": true
+        }
+      }
+    }
+  }
+}

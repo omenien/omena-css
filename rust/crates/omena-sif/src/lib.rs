@@ -21,6 +21,8 @@ pub const OMENA_SIF_ATTESTATION_VERIFICATION_REPORT_PRODUCT_V1: &str =
 pub const OMENA_SIF_ATTESTATION_VERIFICATION_REPORT_SCHEMA_VERSION_V1: &str = "1";
 pub const OMENA_SIF_V1_SCHEMA_JSON: &str = include_str!("../schema/sif-v1.schema.json");
 pub const OMENA_LOCK_V1_SCHEMA_JSON: &str = include_str!("../schema/lock-v1.schema.json");
+pub const OMENA_SIF_ATTESTATION_VERIFICATION_REPORT_V1_SCHEMA_JSON: &str =
+    include_str!("../schema/attestation-verification-report-v1.schema.json");
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 #[serde(transparent)]
@@ -1131,6 +1133,65 @@ mod tests {
                 "lock schema must preserve attestation verification field {field}"
             );
         }
+        Ok(())
+    }
+
+    #[test]
+    fn attestation_verification_report_schema_file_is_valid_json() -> Result<(), String> {
+        let schema: Value =
+            serde_json::from_str(OMENA_SIF_ATTESTATION_VERIFICATION_REPORT_V1_SCHEMA_JSON)
+                .map_err(|error| error.to_string())?;
+        assert_eq!(
+            schema.get("title").and_then(Value::as_str),
+            Some("Omena SIF Attestation Verification Report v1")
+        );
+        assert_eq!(
+            schema.pointer("/properties/product/const"),
+            Some(&Value::String(
+                OMENA_SIF_ATTESTATION_VERIFICATION_REPORT_PRODUCT_V1.to_string()
+            ))
+        );
+        assert_eq!(
+            schema.pointer("/properties/schemaVersion/const"),
+            Some(&Value::String(
+                OMENA_SIF_ATTESTATION_VERIFICATION_REPORT_SCHEMA_VERSION_V1.to_string()
+            ))
+        );
+        let all_of = schema
+            .pointer("/allOf")
+            .and_then(Value::as_array)
+            .ok_or_else(|| {
+                "attestation report schema must encode conditional policy requirements".to_string()
+            })?;
+        assert!(
+            all_of.iter().any(|rule| {
+                rule.pointer("/if/properties/verifier/const")
+                    .and_then(Value::as_str)
+                    == Some("sigstore-verify")
+                    && rule
+                        .pointer("/then/required")
+                        .and_then(Value::as_array)
+                        .is_some_and(|required| {
+                            required
+                                .contains(&Value::String("sigstoreVerificationPolicy".to_string()))
+                                && required
+                                    .contains(&Value::String("certificateIssuer".to_string()))
+                        })
+            }),
+            "sigstore-verify reports must require policy and issuer"
+        );
+        assert!(
+            all_of.iter().any(|rule| {
+                rule.pointer("/if/properties/verifiedTrustTier/const")
+                    .and_then(Value::as_str)
+                    == Some("t3")
+                    && rule
+                        .pointer("/then/properties/kind/pattern")
+                        .and_then(Value::as_str)
+                        == Some("^omena-toolchain\\.")
+            }),
+            "t3 reports must require omena-toolchain evidence"
+        );
         Ok(())
     }
 
