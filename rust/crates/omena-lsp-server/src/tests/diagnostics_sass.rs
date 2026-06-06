@@ -177,6 +177,64 @@ fn style_diagnostics_resolve_sass_symbols_through_tsconfig_path_alias() -> TestR
 }
 
 #[test]
+fn style_diagnostics_keep_relative_import_symbols_visible() {
+    let mut state = LspShellState::default();
+    for (uri, text) in [
+        (
+            "file:///workspace-a/src/App.module.scss",
+            "@import \"./tokens\";\n.button { color: $brand; padding: $missing; }",
+        ),
+        ("file:///workspace-a/src/_tokens.scss", "$brand: red;"),
+    ] {
+        handle_lsp_message(
+            &mut state,
+            json!({
+                "jsonrpc": "2.0",
+                "method": "textDocument/didOpen",
+                "params": {
+                    "textDocument": {
+                        "uri": uri,
+                        "languageId": "scss",
+                        "version": 1,
+                        "text": text,
+                    },
+                },
+            }),
+        );
+    }
+
+    let diagnostics_response = handle_lsp_message(
+        &mut state,
+        json!({
+            "jsonrpc": "2.0",
+            "id": 1,
+            "method": STYLE_DIAGNOSTICS_REQUEST,
+            "params": {
+                "textDocument": {
+                    "uri": "file:///workspace-a/src/App.module.scss",
+                },
+            },
+        }),
+    );
+    let diagnostics = diagnostics_response
+        .as_ref()
+        .and_then(|value| value.pointer("/result"))
+        .and_then(Value::as_array)
+        .expect("style diagnostics response contains an array");
+    let missing_sass_messages = diagnostics
+        .iter()
+        .filter(|diagnostic| diagnostic.pointer("/code") == Some(&json!("missingSassSymbol")))
+        .filter_map(|diagnostic| diagnostic.pointer("/message").and_then(Value::as_str))
+        .collect::<Vec<_>>();
+
+    assert_eq!(
+        missing_sass_messages,
+        vec!["Sass variable '$missing' not found in the visible Sass module graph."],
+        "relative Sass imports should keep imported symbols visible without hiding unresolved controls"
+    );
+}
+
+#[test]
 fn style_diagnostics_surface_streaming_ifds_cross_file_reachability_from_lsp() {
     let mut state = LspShellState::default();
     for (uri, text) in [
