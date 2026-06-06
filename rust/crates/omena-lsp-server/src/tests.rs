@@ -44,6 +44,8 @@ mod source_dynamic;
 mod source_hover;
 #[path = "tests/source_imports.rs"]
 mod source_imports;
+#[path = "tests/source_language_astro.rs"]
+mod source_language_astro;
 #[path = "tests/source_resolution.rs"]
 mod source_resolution;
 #[path = "tests/source_resolution_bundler.rs"]

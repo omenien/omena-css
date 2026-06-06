@@ -16,6 +16,7 @@ enum SourceLanguageParserKindV0 {
     VueSfcScript,
     HtmlScript,
     SvelteComponentScript,
+    AstroComponentScript,
 }
 
 impl SourceLanguageParserV0 for SourceLanguageParserKindV0 {
@@ -25,6 +26,7 @@ impl SourceLanguageParserV0 for SourceLanguageParserKindV0 {
             Self::VueSfcScript => "vueSfcScriptProjectionParserV0",
             Self::HtmlScript => "htmlScriptProjectionParserV0",
             Self::SvelteComponentScript => "svelteComponentScriptProjectionParserV0",
+            Self::AstroComponentScript => "astroComponentScriptProjectionParserV0",
         }
     }
 
@@ -34,6 +36,7 @@ impl SourceLanguageParserV0 for SourceLanguageParserKindV0 {
             Self::VueSfcScript => "vue",
             Self::HtmlScript => "html",
             Self::SvelteComponentScript => "svelte",
+            Self::AstroComponentScript => "astro",
         }
     }
 
@@ -43,6 +46,7 @@ impl SourceLanguageParserV0 for SourceLanguageParserKindV0 {
             Self::VueSfcScript => "bytePreservingScriptBlocks",
             Self::HtmlScript => "bytePreservingScriptBlocks",
             Self::SvelteComponentScript => "bytePreservingScriptBlocks",
+            Self::AstroComponentScript => "bytePreservingFrontmatterAndScriptBlocks",
         }
     }
 
@@ -51,9 +55,10 @@ impl SourceLanguageParserV0 for SourceLanguageParserKindV0 {
             Self::OxcTsx => {
                 SourceType::from_path(source_path).unwrap_or_else(|_| SourceType::tsx())
             }
-            Self::VueSfcScript | Self::HtmlScript | Self::SvelteComponentScript => {
-                SourceType::tsx()
-            }
+            Self::VueSfcScript
+            | Self::HtmlScript
+            | Self::SvelteComponentScript
+            | Self::AstroComponentScript => SourceType::tsx(),
         }
     }
 
@@ -75,6 +80,9 @@ impl SourceLanguageParserV0 for SourceLanguageParserKindV0 {
                 "<script",
                 "</script>",
             )),
+            Self::AstroComponentScript => {
+                Cow::Owned(project_astro_component_to_typescript_source(source))
+            }
         }
     }
 }
@@ -106,6 +114,7 @@ pub fn summarize_omena_bridge_source_language_parser_boundary_v0()
         SourceLanguageParserKindV0::VueSfcScript,
         SourceLanguageParserKindV0::HtmlScript,
         SourceLanguageParserKindV0::SvelteComponentScript,
+        SourceLanguageParserKindV0::AstroComponentScript,
     ]
     .into_iter()
     .map(|parser| SourceLanguageParserDescriptorV0 {
@@ -128,6 +137,7 @@ pub fn summarize_omena_bridge_source_language_parser_boundary_v0()
             "vueSfcScriptProjection",
             "htmlScriptProjection",
             "svelteComponentScriptProjection",
+            "astroComponentScriptProjection",
         ],
     }
 }
@@ -146,6 +156,10 @@ pub(crate) fn is_svelte_source(source_path: &str, source_language: Option<&str>)
     source_language == Some("svelte") || source_path.ends_with(".svelte")
 }
 
+pub(crate) fn is_astro_source(source_path: &str, source_language: Option<&str>) -> bool {
+    source_language == Some("astro") || source_path.ends_with(".astro")
+}
+
 fn source_language_parser_for_path(
     source_path: &str,
     source_language: Option<&str>,
@@ -156,6 +170,8 @@ fn source_language_parser_for_path(
         SourceLanguageParserKindV0::HtmlScript
     } else if is_svelte_source(source_path, source_language) {
         SourceLanguageParserKindV0::SvelteComponentScript
+    } else if is_astro_source(source_path, source_language) {
+        SourceLanguageParserKindV0::AstroComponentScript
     } else {
         SourceLanguageParserKindV0::OxcTsx
     }
@@ -191,14 +207,32 @@ fn project_svelte_component_script_to_typescript_source(source: &str) -> String 
     project_tag_contents_to_typescript_source(source, "<script", "</script>")
 }
 
+#[cfg(test)]
+fn project_astro_component_script_to_typescript_source(source: &str) -> String {
+    project_astro_component_to_typescript_source(source)
+}
+
 fn project_tag_contents_to_typescript_source(
     source: &str,
     open_tag: &str,
     close_tag: &str,
 ) -> String {
+    project_ranges_to_typescript_source(source, tag_content_ranges(source, open_tag, close_tag))
+}
+
+fn project_astro_component_to_typescript_source(source: &str) -> String {
+    let mut ranges = Vec::new();
+    if let Some(range) = astro_frontmatter_range(source) {
+        ranges.push(range);
+    }
+    ranges.extend(tag_content_ranges(source, "<script", "</script>"));
+    project_ranges_to_typescript_source(source, ranges)
+}
+
+fn tag_content_ranges(source: &str, open_tag: &str, close_tag: &str) -> Vec<(usize, usize)> {
     let lower = source.to_ascii_lowercase();
-    let mut keep = vec![false; source.len()];
     let mut cursor = 0usize;
+    let mut ranges = Vec::new();
 
     while let Some(relative_start) = lower[cursor..].find(open_tag) {
         let tag_start = cursor + relative_start;
@@ -210,10 +244,30 @@ fn project_tag_contents_to_typescript_source(
             break;
         };
         let content_end = content_start + relative_close_start;
-        for item in keep.iter_mut().take(content_end).skip(content_start) {
+        ranges.push((content_start, content_end));
+        cursor = content_end + close_tag.len();
+    }
+    ranges
+}
+
+fn astro_frontmatter_range(source: &str) -> Option<(usize, usize)> {
+    if !source.starts_with("---") {
+        return None;
+    }
+    let content_start = source[3..].find('\n')? + 4;
+    let relative_close = source[content_start..].find("\n---")?;
+    Some((content_start, content_start + relative_close))
+}
+
+fn project_ranges_to_typescript_source(
+    source: &str,
+    ranges: impl IntoIterator<Item = (usize, usize)>,
+) -> String {
+    let mut keep = vec![false; source.len()];
+    for (start, end) in ranges {
+        for item in keep.iter_mut().take(end).skip(start) {
             *item = true;
         }
-        cursor = content_end + close_tag.len();
     }
 
     let mut projected = String::with_capacity(source.len());
@@ -278,6 +332,21 @@ mod tests {
     }
 
     #[test]
+    fn astro_projection_preserves_frontmatter_and_script_import_offsets() {
+        let source = "---\nimport styles from \"./Card.module.scss\";\nconst root = styles.root;\n---\n<div class={root}>ignored</div>\n<script>\nconst local = styles.root;\n</script>\n<style>.root { color: red; }</style>\n";
+        let projected = project_astro_component_script_to_typescript_source(source);
+
+        assert_eq!(projected.len(), source.len());
+        assert_eq!(
+            projected.find("import styles"),
+            source.find("import styles")
+        );
+        assert_eq!(projected.find("const local"), source.find("const local"));
+        assert!(!projected.contains("ignored"));
+        assert!(!projected.contains("color: red"));
+    }
+
+    #[test]
     fn source_language_parser_boundary_lists_fixture_witnessed_v0_parsers() {
         let summary = summarize_omena_bridge_source_language_parser_boundary_v0();
 
@@ -285,7 +354,7 @@ mod tests {
             summary.product,
             "omena-bridge.source-language-parser-boundary"
         );
-        assert_eq!(summary.parser_count, 4);
+        assert_eq!(summary.parser_count, 5);
         assert!(!summary.external_parser_abi_stable);
         assert!(summary.parsers.iter().any(|parser| {
             parser.parser_id == "oxcTsxSourceLanguageParserV0" && parser.fixture_witnessed
@@ -296,6 +365,10 @@ mod tests {
         assert!(summary.parsers.iter().any(|parser| {
             parser.parser_id == "svelteComponentScriptProjectionParserV0"
                 && parser.language == "svelte"
+        }));
+        assert!(summary.parsers.iter().any(|parser| {
+            parser.parser_id == "astroComponentScriptProjectionParserV0"
+                && parser.language == "astro"
         }));
     }
 }

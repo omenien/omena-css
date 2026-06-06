@@ -488,6 +488,7 @@
     }
   },
   "activationEvents": [
+    "onLanguage:astro",
     "onLanguage:css",
     "onLanguage:html",
     "onLanguage:javascript",
