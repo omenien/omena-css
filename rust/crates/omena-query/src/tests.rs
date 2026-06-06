@@ -1574,7 +1574,7 @@ fn shares_configured_scss_module_instances_across_transitive_consumers() {
 }
 
 #[test]
-fn separates_configured_scss_module_instances_by_configuration_signature() {
+fn preserves_conflicting_scss_module_configuration_boundary() {
     let summary = summarize_omena_query_transform_context_from_sources(
         "/tmp/App.module.scss",
         [
@@ -1605,8 +1605,9 @@ fn separates_configured_scss_module_instances_by_configuration_signature() {
         .map(|evaluation| evaluation.evaluated_css.as_str())
         .unwrap_or_default();
     assert_eq!(evaluated_css.matches(".base { color: red; }").count(), 1);
-    assert_eq!(evaluated_css.matches(".base { color: blue; }").count(), 1);
-    assert!(evaluated_css.contains(".button { color: red; border-color: blue; }"));
+    assert!(!evaluated_css.contains(".base { color: blue; }"));
+    assert!(evaluated_css.contains(r#"@use "./theme-blue" as blueTheme"#));
+    assert!(evaluated_css.contains(".button { color: red; border-color: blueTheme.$brand; }"));
 }
 
 #[test]
