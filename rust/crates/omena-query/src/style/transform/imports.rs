@@ -1,5 +1,8 @@
 use super::*;
-use omena_query_transform_runner::{TransformImportInlineV0, inline_css_imports};
+use omena_query_transform_runner::{
+    TransformImportInlineV0, inline_css_imports,
+    rewrite_omena_transform_bundle_asset_urls_in_source,
+};
 use std::collections::{BTreeMap, BTreeSet};
 
 pub(super) fn derive_import_inlines_for_transform_context(
@@ -49,7 +52,11 @@ pub(super) fn resolve_import_inline_replacement_for_transform_context(
     package_manifests: &[OmenaQueryStylePackageManifestV0],
     visiting: &mut BTreeSet<String>,
 ) -> Option<String> {
-    let source = source_by_path.get(style_path)?.clone();
+    let source = rewrite_omena_transform_bundle_asset_urls_in_source(
+        style_path,
+        source_by_path.get(style_path)?,
+    )
+    .output_css;
     if !visiting.insert(style_path.to_string()) {
         return Some(source);
     }

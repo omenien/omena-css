@@ -64,6 +64,18 @@ pub struct TransformBundleAssetUrlV0 {
     pub bundler_resolution_required: bool,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TransformBundleAssetUrlRewriteSummaryV0 {
+    pub schema_version: &'static str,
+    pub product: &'static str,
+    pub source_path: String,
+    pub asset_url_count: usize,
+    pub rewrite_count: usize,
+    pub output_css: String,
+    pub rewritten_asset_urls: Vec<TransformBundleAssetUrlV0>,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub enum TransformBundleChunkKind {
@@ -156,6 +168,43 @@ pub fn summarize_omena_transform_bundle_from_source(
             .contains(&TransformPassKind::HashCssModuleClassNames),
         value_resolution_required: required_passes.contains(&TransformPassKind::ValueResolution),
         pass_plan,
+    }
+}
+
+pub fn rewrite_omena_transform_bundle_asset_urls_in_source(
+    source_path: impl Into<String>,
+    source: &str,
+) -> TransformBundleAssetUrlRewriteSummaryV0 {
+    let source_path = source_path.into();
+    let asset_urls = collect_bundle_asset_urls(&source_path, source);
+    let mut output_css = source.to_string();
+    let mut rewritten_asset_urls = Vec::new();
+
+    for asset in asset_urls.iter().rev() {
+        let Some(resolved_path) = asset.resolved_path.as_deref() else {
+            continue;
+        };
+        if !asset.bundler_resolution_required || asset.normalized_url == resolved_path {
+            continue;
+        }
+        let range_start = asset.range_start as usize;
+        let range_end = asset.range_end as usize;
+        if range_start > range_end || range_end > output_css.len() {
+            continue;
+        }
+        output_css.replace_range(range_start..range_end, &format!("url(\"{resolved_path}\")"));
+        rewritten_asset_urls.push(asset.clone());
+    }
+
+    rewritten_asset_urls.reverse();
+    TransformBundleAssetUrlRewriteSummaryV0 {
+        schema_version: "0",
+        product: "omena-transform-bundle.asset-url-rewrite",
+        source_path,
+        asset_url_count: asset_urls.len(),
+        rewrite_count: rewritten_asset_urls.len(),
+        output_css,
+        rewritten_asset_urls,
     }
 }
 
@@ -553,6 +602,7 @@ fn dialect_label(dialect: StyleDialect) -> &'static str {
 mod tests {
     use super::{
         TransformBundleAssetUrlKind, TransformBundleChunkKind, TransformBundleEdgeKind,
+        rewrite_omena_transform_bundle_asset_urls_in_source,
         summarize_omena_transform_bundle_from_source,
     };
     use omena_parser::StyleDialect;
@@ -807,6 +857,28 @@ mod tests {
         assert_eq!(
             summary.asset_urls[0].resolved_path.as_deref(),
             Some("../assets/icon.svg")
+        );
+    }
+
+    #[test]
+    fn rewrites_relative_asset_urls_to_resolved_bundle_paths() {
+        let summary = rewrite_omena_transform_bundle_asset_urls_in_source(
+            "src/components/Button.module.css",
+            r#".button { background: url("../assets/icon.svg"); mask: url(/static/mask.svg); filter: url(#shadow); }"#,
+        );
+
+        assert_eq!(summary.product, "omena-transform-bundle.asset-url-rewrite");
+        assert_eq!(summary.asset_url_count, 3);
+        assert_eq!(summary.rewrite_count, 1);
+        assert!(summary.output_css.contains(r#"url("src/assets/icon.svg")"#));
+        assert!(summary.output_css.contains("url(/static/mask.svg)"));
+        assert!(summary.output_css.contains("url(#shadow)"));
+        assert_eq!(
+            summary
+                .rewritten_asset_urls
+                .first()
+                .and_then(|asset| asset.resolved_path.as_deref()),
+            Some("src/assets/icon.svg")
         );
     }
 }

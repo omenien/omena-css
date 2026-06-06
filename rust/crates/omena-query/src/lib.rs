@@ -62,6 +62,7 @@ pub use omena_query_transform_runner::{
     conservative_target_options as conservative_omena_query_target_options,
     default_print_options as default_omena_query_transform_print_options,
     modern_feature_support as modern_omena_query_target_feature_support,
+    rewrite_omena_transform_bundle_asset_urls_in_source,
     summarize_omena_transform_bundle_from_source,
 };
 use omena_query_transform_runner::{

@@ -24,18 +24,28 @@ const workspace = mkdtempSync(join(tmpdir(), "omena-cli-bundle-origin-"));
 
 try {
   const themeDir = join(workspace, "theme");
+  const assetDir = join(workspace, "assets");
+  const tokenAssetDir = join(themeDir, "icons");
   mkdirSync(themeDir, { recursive: true });
+  mkdirSync(assetDir, { recursive: true });
+  mkdirSync(tokenAssetDir, { recursive: true });
 
   const appPath = join(workspace, "app.css");
   const tokensPath = join(themeDir, "tokens.css");
   const basePath = join(themeDir, "base.css");
-  const appSource = '@import "./theme/tokens.css"; .app { color: green; }';
-  const tokensSource = '@import "./base.css"; .token { color: blue; }';
+  const appAssetPath = join(assetDir, "app.svg");
+  const tokenAssetPath = join(tokenAssetDir, "token.svg");
+  const appSource =
+    '@import "./theme/tokens.css"; .app { color: green; background: url("./assets/app.svg"); }';
+  const tokensSource =
+    '@import "./base.css"; .token { color: blue; background-image: url("./icons/token.svg"); }';
   const baseSource = ".base { color: red; }";
 
   writeFileSync(appPath, appSource);
   writeFileSync(tokensPath, tokensSource);
   writeFileSync(basePath, baseSource);
+  writeFileSync(appAssetPath, "<svg />");
+  writeFileSync(tokenAssetPath, "<svg />");
 
   const result = spawnSync(
     "cargo",
@@ -79,12 +89,17 @@ try {
   const sourceMap = summary.sourceMapV3;
   assert.ok(sourceMap, "bundle build should include Source Map V3 output");
   assert.ok(summary.readySurfaces.includes("bundleBuildMode"));
+  assert.ok(summary.readySurfaces.includes("bundleAssetUrlRewrite"));
   assert.ok(summary.readySurfaces.includes("sourceMapV3Serializer"));
   assert.ok(summary.readySurfaces.includes("bundleSourceMapOriginChain"));
   assert.ok(!summary.execution.outputCss.includes("@import"));
   assert.ok(summary.execution.outputCss.includes(baseSource));
-  assert.ok(summary.execution.outputCss.includes(".token { color: blue; }"));
-  assert.ok(summary.execution.outputCss.includes(".app { color: green; }"));
+  assert.ok(summary.execution.outputCss.includes(".token { color: blue;"));
+  assert.ok(summary.execution.outputCss.includes(".app { color: green;"));
+  assert.ok(summary.execution.outputCss.includes(`url("${appAssetPath}")`));
+  assert.ok(summary.execution.outputCss.includes(`url("${tokenAssetPath}")`));
+  assert.ok(!summary.execution.outputCss.includes("./assets/app.svg"));
+  assert.ok(!summary.execution.outputCss.includes("./icons/token.svg"));
   assert.ok(sourceMap.mappings.length > 0);
   assert.ok(sourceMap.x_omenaSegmentCount >= 3);
   assert.ok(sourceMap.x_omenaPassIds.includes("import-inline"));
@@ -98,7 +113,7 @@ try {
       "validated omena-cli bundle origin chain:",
       `sources=${sourceMap.sources.length}`,
       `segments=${sourceMap.x_omenaSegmentCount}`,
-      "ready=bundleSourceMapOriginChain",
+      "ready=bundleSourceMapOriginChain+bundleAssetUrlRewrite",
     ].join(" "),
   );
 } finally {

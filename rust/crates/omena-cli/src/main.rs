@@ -18,7 +18,8 @@ use omena_query::{
     execute_omena_query_consumer_build_style_sources_with_context,
     list_omena_query_transform_pass_summaries, read_omena_query_cascade_at_position,
     read_omena_query_cascade_at_position_with_categorical_evidence,
-    read_omena_query_style_context_index, summarize_omena_query_consumer_check_style_source,
+    read_omena_query_style_context_index, rewrite_omena_transform_bundle_asset_urls_in_source,
+    summarize_omena_query_consumer_check_style_source,
     summarize_omena_query_dynamic_classname_m_tier_diagnostics_with_context_depth,
     summarize_omena_query_expression_domain_incremental_flow_analysis,
     summarize_omena_query_expression_domain_selector_projection,
@@ -2295,7 +2296,17 @@ fn build_file(options: BuildFileOptions) -> Result<(), String> {
         .context;
         context = merge_cli_transform_context(context, &engine_context);
     }
-    let workspace_sources = read_workspace_sources(&path, &source, &source_paths)?;
+    let original_workspace_sources = read_workspace_sources(&path, &source, &source_paths)?;
+    let (workspace_sources, bundle_asset_url_rewrite_count) = if bundle {
+        rewrite_bundle_asset_urls_for_build_sources(&original_workspace_sources)
+    } else {
+        (original_workspace_sources.clone(), 0)
+    };
+    let source_for_build = workspace_sources
+        .iter()
+        .find(|style_source| style_source.style_path == style_path)
+        .map(|style_source| style_source.style_source.as_str())
+        .unwrap_or(source.as_str());
     let package_manifests = read_package_manifests(&package_manifest_paths)?;
     let mut summary = if let Some(target_query) = target_query {
         if workspace_sources.len() > 1 {
@@ -2310,7 +2321,7 @@ fn build_file(options: BuildFileOptions) -> Result<(), String> {
         } else {
             execute_omena_query_consumer_build_style_source_for_target_query_with_context_and_options(
                 &style_path,
-                &source,
+                source_for_build,
                 &target_query,
                 &context,
                 target_options,
@@ -2327,7 +2338,7 @@ fn build_file(options: BuildFileOptions) -> Result<(), String> {
     } else {
         execute_omena_query_consumer_build_style_source_with_context(
             &style_path,
-            &source,
+            source_for_build,
             &pass_ids,
             &context,
         )
@@ -2348,11 +2359,14 @@ fn build_file(options: BuildFileOptions) -> Result<(), String> {
     if bundle {
         attach_omena_query_consumer_build_bundle_summary(&mut summary, &source);
         push_ready_surface(&mut summary.ready_surfaces, "bundleBuildMode");
+        if bundle_asset_url_rewrite_count > 0 {
+            push_ready_surface(&mut summary.ready_surfaces, "bundleAssetUrlRewrite");
+        }
     }
     if source_map {
         attach_omena_query_consumer_build_source_map_v3_with_sources(
             &mut summary,
-            &workspace_sources,
+            &original_workspace_sources,
             &package_manifests,
         );
     }
@@ -2415,6 +2429,27 @@ fn read_workspace_sources(
     }
 
     Ok(sources)
+}
+
+fn rewrite_bundle_asset_urls_for_build_sources(
+    sources: &[OmenaQueryStyleSourceInputV0],
+) -> (Vec<OmenaQueryStyleSourceInputV0>, usize) {
+    let mut rewrite_count = 0usize;
+    let rewritten_sources = sources
+        .iter()
+        .map(|source| {
+            let rewrite = rewrite_omena_transform_bundle_asset_urls_in_source(
+                source.style_path.as_str(),
+                source.style_source.as_str(),
+            );
+            rewrite_count = rewrite_count.saturating_add(rewrite.rewrite_count);
+            OmenaQueryStyleSourceInputV0 {
+                style_path: source.style_path.clone(),
+                style_source: rewrite.output_css,
+            }
+        })
+        .collect::<Vec<_>>();
+    (rewritten_sources, rewrite_count)
 }
 
 fn read_source_documents(
@@ -4298,6 +4333,76 @@ mod tests {
         cleanup(&tokens_path);
         cleanup(&base_path);
         cleanup(&output_path);
+        Ok(())
+    }
+
+    #[test]
+    fn build_bundle_mode_rewrites_asset_urls_by_source_path() -> Result<(), String> {
+        let root = temp_dir("bundle-asset-url-rewrite");
+        let target_path = root.join("app.css");
+        let tokens_dir = root.join("theme");
+        let tokens_path = tokens_dir.join("tokens.css");
+        let output_path = root.join("bundle-output.css");
+        let target_asset_path = root.join("assets/app.svg");
+        let token_asset_path = tokens_dir.join("icons/token.svg");
+        fs::create_dir_all(root.join("assets"))
+            .map_err(|error| format!("fixture target asset dir should be writable: {error}"))?;
+        fs::create_dir_all(tokens_dir.join("icons"))
+            .map_err(|error| format!("fixture token asset dir should be writable: {error}"))?;
+        fs::write(&target_asset_path, "<svg />")
+            .map_err(|error| format!("fixture target asset should be writable: {error}"))?;
+        fs::write(&token_asset_path, "<svg />")
+            .map_err(|error| format!("fixture token asset should be writable: {error}"))?;
+        fs::write(
+            &tokens_path,
+            r#".token { background-image: url("./icons/token.svg"); }"#,
+        )
+        .map_err(|error| format!("fixture tokens source should be writable: {error}"))?;
+        fs::write(
+            &target_path,
+            r#"@import "./theme/tokens.css"; .app { background: url("./assets/app.svg"); }"#,
+        )
+        .map_err(|error| format!("fixture target source should be writable: {error}"))?;
+
+        let result = run(Cli {
+            command: Command::Build {
+                path: target_path.clone(),
+                output: Some(output_path.clone()),
+                passes: Vec::new(),
+                target_query: None,
+                allow_logical_to_physical: false,
+                allow_scope_flatten: false,
+                allow_layer_flatten: false,
+                enable_supports_static_eval: false,
+                enable_media_static_eval: false,
+                drop_dark_mode_media_queries: false,
+                context_json: None,
+                engine_input_json: None,
+                closed_style_world: false,
+                tree_shake: false,
+                bundle: true,
+                source_paths: vec![tokens_path.clone()],
+                package_manifest_paths: Vec::new(),
+                source_map: false,
+                json: false,
+            },
+        });
+
+        assert!(result.is_ok(), "{result:?}");
+        let output = fs::read_to_string(&output_path)
+            .map_err(|error| format!("bundle output should be written: {error}"))?;
+        assert!(
+            output.contains(&format!(r#"url("{}")"#, path_string(&target_asset_path))),
+            "{output}"
+        );
+        assert!(
+            output.contains(&format!(r#"url("{}")"#, path_string(&token_asset_path))),
+            "{output}"
+        );
+        assert!(!output.contains("./assets/app.svg"), "{output}");
+        assert!(!output.contains("./icons/token.svg"), "{output}");
+
+        cleanup_dir(&root);
         Ok(())
     }
 
