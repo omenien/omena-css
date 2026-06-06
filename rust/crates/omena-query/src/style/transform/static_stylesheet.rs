@@ -112,6 +112,7 @@ fn static_stylesheet_module_system_evaluator_label(
 #[derive(Debug, Clone)]
 pub(super) struct StaticScssModuleUseEvaluation {
     source: String,
+    use_rule_ordinal: usize,
     module_identity_key: String,
     namespace_kind: Option<&'static str>,
     namespace: Option<String>,
@@ -139,23 +140,24 @@ pub(super) fn derive_static_scss_module_use_evaluations_for_transform_context(
         .sass_module_edges
         .iter()
         .filter(|edge| edge.kind == "sassUse")
-        .filter(|edge| {
+        .enumerate()
+        .filter(|(_, edge)| {
             matches!(
                 edge.namespace_kind,
                 Some("alias") | Some("default") | Some("wildcard")
             )
         })
-        .filter_map(|edge| {
+        .filter_map(|(use_rule_ordinal, edge)| {
             let resolved = resolution_context.resolve_style_module_source(
                 entry.style_path.as_str(),
                 edge.source.as_str(),
                 available_style_paths,
             )?;
             let source = source_by_path.get(resolved.as_str())?;
-            let variable_overrides = derive_static_scss_module_rule_variable_overrides(
+            let variable_overrides = derive_static_scss_module_rule_variable_overrides_at_ordinal(
                 entry.style_source.as_str(),
                 "@use",
-                edge.source.as_str(),
+                use_rule_ordinal,
             );
             let configurable_variable_names =
                 derive_static_scss_module_configurable_variable_names_for_transform_context(
@@ -203,6 +205,7 @@ pub(super) fn derive_static_scss_module_use_evaluations_for_transform_context(
             };
             Some(StaticScssModuleUseEvaluation {
                 source: edge.source.clone(),
+                use_rule_ordinal,
                 module_identity_key,
                 namespace_kind: edge.namespace_kind,
                 namespace: edge.namespace.clone(),
@@ -263,10 +266,11 @@ fn derive_static_scss_module_configurable_variable_names_for_transform_context_i
     let mut names = derive_static_scss_stylesheet_module_configurable_variable_names(style_source);
     let facts =
         summarize_omena_query_omena_parser_style_facts(style_source, OmenaParserStyleDialect::Scss);
-    for edge in facts
+    for (forward_rule_ordinal, edge) in facts
         .sass_module_edges
         .iter()
         .filter(|edge| edge.kind == "sassForward")
+        .enumerate()
     {
         let Some(resolved) = resolution_context.resolve_style_module_source(
             style_path,
@@ -287,19 +291,20 @@ fn derive_static_scss_module_configurable_variable_names_for_transform_context_i
                 resolution_context,
                 visiting,
             );
-        let non_default_forward_overrides = derive_static_scss_module_forward_variable_overrides(
-            style_source,
-            edge.source.as_str(),
-        )
-        .into_iter()
-        .filter_map(|(name, override_entry)| (!override_entry.is_default).then_some(name))
-        .collect::<BTreeSet<_>>();
+        let non_default_forward_overrides =
+            derive_static_scss_module_forward_variable_overrides_at_ordinal(
+                style_source,
+                forward_rule_ordinal,
+            )
+            .into_iter()
+            .filter_map(|(name, override_entry)| (!override_entry.is_default).then_some(name))
+            .collect::<BTreeSet<_>>();
         let child_names = child_names
             .into_iter()
             .filter(|name| !non_default_forward_overrides.contains(name))
             .collect::<BTreeSet<_>>();
         let export_prefix =
-            derive_static_scss_forward_export_prefix(style_source, edge.source.as_str());
+            derive_static_scss_forward_export_prefix_at_ordinal(style_source, forward_rule_ordinal);
         names.extend(filter_static_scss_forward_configurable_variable_names(
             child_names,
             export_prefix.as_deref(),
@@ -436,6 +441,7 @@ fn derive_static_scss_module_context_for_transform_context(
 #[derive(Debug, Clone)]
 struct StaticScssModuleForwardEvaluation {
     source: String,
+    forward_rule_ordinal: usize,
     module_identity_key: String,
     evaluated_css: String,
     variable_exports: BTreeMap<String, String>,
@@ -452,10 +458,11 @@ fn derive_static_scss_module_forward_evaluations_for_transform_context(
         summarize_omena_query_omena_parser_style_facts(style_source, OmenaParserStyleDialect::Scss);
 
     let mut evaluations = Vec::new();
-    for edge in facts
+    for (forward_rule_ordinal, edge) in facts
         .sass_module_edges
         .iter()
         .filter(|edge| edge.kind == "sassForward")
+        .enumerate()
     {
         let Some(resolved) = context.resolution_context.resolve_style_module_source(
             style_path,
@@ -467,12 +474,13 @@ fn derive_static_scss_module_forward_evaluations_for_transform_context(
         let Some(source) = context.source_by_path.get(resolved.as_str()) else {
             continue;
         };
-        let explicit_variable_overrides = derive_static_scss_module_forward_variable_overrides(
-            style_source,
-            edge.source.as_str(),
-        );
+        let explicit_variable_overrides =
+            derive_static_scss_module_forward_variable_overrides_at_ordinal(
+                style_source,
+                forward_rule_ordinal,
+            );
         let export_prefix =
-            derive_static_scss_forward_export_prefix(style_source, edge.source.as_str());
+            derive_static_scss_forward_export_prefix_at_ordinal(style_source, forward_rule_ordinal);
         let configurable_variable_names =
             derive_static_scss_module_configurable_variable_names_for_transform_context(
                 resolved.as_str(),
@@ -510,6 +518,7 @@ fn derive_static_scss_module_forward_evaluations_for_transform_context(
         )?;
         evaluations.push(StaticScssModuleForwardEvaluation {
             source: edge.source.clone(),
+            forward_rule_ordinal,
             module_identity_key,
             evaluated_css: module_context.evaluated_css,
             variable_exports: filter_static_scss_forward_exports(
@@ -582,7 +591,9 @@ pub(super) fn derive_static_scss_module_forward_effective_variable_override_valu
     configurable_names: &BTreeSet<String>,
 ) -> BTreeMap<String, String> {
     let explicit_variable_overrides =
-        derive_static_scss_module_forward_variable_overrides(style_source, forward_source);
+        static_scss_module_rule_source(style_source, "@forward", forward_source)
+            .map(parse_static_scss_forward_variable_overrides_from_rule)
+            .unwrap_or_default();
     derive_static_scss_forward_effective_variable_overrides(
         &explicit_variable_overrides,
         inherited_variable_overrides,
@@ -896,6 +907,7 @@ fn inline_static_scss_use_rules(
     let mut replacements = Vec::new();
     let mut emitted_module_identity_keys = BTreeSet::<String>::new();
     let mut depth = 0usize;
+    let mut use_rule_ordinal = 0usize;
     let mut index = 0usize;
 
     while index < tokens.len() {
@@ -913,18 +925,22 @@ fn inline_static_scss_use_rules(
                 let end = transform_token_end(&tokens[end_index]);
                 if let Some(source_name) =
                     static_scss_module_rule_source_name(tokens, index + 1, end_index)
-                    && let Some(module_use) = scss_module_uses
-                        .iter()
-                        .find(|module_use| module_use.source == source_name)
                 {
-                    let replacement = if emitted_module_identity_keys
-                        .insert(module_use.module_identity_key.clone())
-                    {
-                        module_use.evaluated_css.clone()
-                    } else {
-                        String::new()
-                    };
-                    replacements.push((start, end, replacement));
+                    let matching_module_use = scss_module_uses.iter().find(|module_use| {
+                        module_use.use_rule_ordinal == use_rule_ordinal
+                            && module_use.source == source_name
+                    });
+                    use_rule_ordinal += 1;
+                    if let Some(module_use) = matching_module_use {
+                        let replacement = if emitted_module_identity_keys
+                            .insert(module_use.module_identity_key.clone())
+                        {
+                            module_use.evaluated_css.clone()
+                        } else {
+                            String::new()
+                        };
+                        replacements.push((start, end, replacement));
+                    }
                 }
                 index = end_index + 1;
                 continue;
@@ -947,6 +963,7 @@ fn inline_static_scss_forward_rules(
     let tokens = lexed.tokens();
     let mut replacements = Vec::new();
     let mut depth = 0usize;
+    let mut forward_rule_ordinal = 0usize;
     let mut index = 0usize;
 
     while index < tokens.len() {
@@ -964,18 +981,22 @@ fn inline_static_scss_forward_rules(
                 let end = transform_token_end(&tokens[end_index]);
                 if let Some(source_name) =
                     static_scss_module_rule_source_name(tokens, index + 1, end_index)
-                    && let Some(forward) = forward_evaluations
-                        .iter()
-                        .find(|forward| forward.source == source_name)
                 {
-                    let replacement = if emitted_module_identity_keys
-                        .insert(forward.module_identity_key.clone())
-                    {
-                        forward.evaluated_css.clone()
-                    } else {
-                        String::new()
-                    };
-                    replacements.push((start, end, replacement));
+                    let matching_forward = forward_evaluations.iter().find(|forward| {
+                        forward.forward_rule_ordinal == forward_rule_ordinal
+                            && forward.source == source_name
+                    });
+                    forward_rule_ordinal += 1;
+                    if let Some(forward) = matching_forward {
+                        let replacement = if emitted_module_identity_keys
+                            .insert(forward.module_identity_key.clone())
+                        {
+                            forward.evaluated_css.clone()
+                        } else {
+                            String::new()
+                        };
+                        replacements.push((start, end, replacement));
+                    }
                 }
                 index = end_index + 1;
                 continue;
@@ -1024,23 +1045,36 @@ pub(super) fn derive_static_scss_module_rule_variable_overrides(
         .unwrap_or_default()
 }
 
-fn derive_static_scss_module_forward_variable_overrides(
+pub(super) fn derive_static_scss_module_rule_variable_overrides_at_ordinal(
     style_source: &str,
-    forward_source: &str,
+    at_keyword: &str,
+    rule_ordinal: usize,
+) -> BTreeMap<String, String> {
+    static_scss_module_rule_source_at_ordinal(style_source, at_keyword, rule_ordinal)
+        .map(parse_static_scss_use_variable_overrides_from_rule)
+        .unwrap_or_default()
+}
+
+fn derive_static_scss_module_forward_variable_overrides_at_ordinal(
+    style_source: &str,
+    forward_rule_ordinal: usize,
 ) -> BTreeMap<String, StaticScssModuleVariableOverride> {
-    static_scss_module_rule_source(style_source, "@forward", forward_source)
+    static_scss_module_rule_source_at_ordinal(style_source, "@forward", forward_rule_ordinal)
         .map(parse_static_scss_forward_variable_overrides_from_rule)
         .unwrap_or_default()
 }
 
-pub(super) fn derive_static_scss_module_forward_variable_override_values(
+pub(super) fn derive_static_scss_module_forward_variable_override_values_at_ordinal(
     style_source: &str,
-    forward_source: &str,
+    forward_rule_ordinal: usize,
 ) -> BTreeMap<String, String> {
-    derive_static_scss_module_forward_variable_overrides(style_source, forward_source)
-        .into_iter()
-        .map(|(name, override_entry)| (name, override_entry.value))
-        .collect()
+    derive_static_scss_module_forward_variable_overrides_at_ordinal(
+        style_source,
+        forward_rule_ordinal,
+    )
+    .into_iter()
+    .map(|(name, override_entry)| (name, override_entry.value))
+    .collect()
 }
 
 fn static_scss_module_rule_source<'a>(
@@ -1083,15 +1117,58 @@ fn static_scss_module_rule_source<'a>(
     None
 }
 
-fn derive_static_scss_forward_export_prefix(
+fn static_scss_module_rule_source_at_ordinal<'a>(
+    style_source: &'a str,
+    at_keyword: &str,
+    rule_ordinal: usize,
+) -> Option<&'a str> {
+    let lexed =
+        lex_omena_query_omena_parser_style_source(style_source, OmenaParserStyleDialect::Scss);
+    let tokens = lexed.tokens();
+    let mut depth = 0usize;
+    let mut index = 0usize;
+    let mut current_rule_ordinal = 0usize;
+
+    while index < tokens.len() {
+        match tokens[index].kind {
+            SyntaxKind::LeftBrace => depth += 1,
+            SyntaxKind::RightBrace => depth = depth.saturating_sub(1),
+            SyntaxKind::AtKeyword
+                if depth == 0 && tokens[index].text.eq_ignore_ascii_case(at_keyword) =>
+            {
+                let Some(end_index) = static_scss_use_rule_semicolon(tokens, index) else {
+                    index += 1;
+                    continue;
+                };
+                if static_scss_module_rule_source_name(tokens, index + 1, end_index).is_some() {
+                    if current_rule_ordinal == rule_ordinal {
+                        let start = transform_token_start(&tokens[index]);
+                        let end = transform_token_end(&tokens[end_index]);
+                        return style_source.get(start..end);
+                    }
+                    current_rule_ordinal += 1;
+                }
+                index = end_index + 1;
+                continue;
+            }
+            _ => {}
+        }
+        index += 1;
+    }
+
+    None
+}
+
+fn derive_static_scss_forward_export_prefix_at_ordinal(
     style_source: &str,
-    forward_source: &str,
+    forward_rule_ordinal: usize,
 ) -> Option<String> {
     let lexed =
         lex_omena_query_omena_parser_style_source(style_source, OmenaParserStyleDialect::Scss);
     let tokens = lexed.tokens();
     let mut depth = 0usize;
     let mut index = 0usize;
+    let mut current_forward_rule_ordinal = 0usize;
 
     while index < tokens.len() {
         match tokens[index].kind {
@@ -1104,14 +1181,19 @@ fn derive_static_scss_forward_export_prefix(
                     index += 1;
                     continue;
                 };
-                if static_scss_module_rule_source_name(tokens, index + 1, end_index)
-                    .is_some_and(|source_name| source_name == forward_source)
-                {
-                    return parse_static_scss_forward_export_prefix(tokens, index + 1, end_index)
+                if static_scss_module_rule_source_name(tokens, index + 1, end_index).is_some() {
+                    if current_forward_rule_ordinal == forward_rule_ordinal {
+                        return parse_static_scss_forward_export_prefix(
+                            tokens,
+                            index + 1,
+                            end_index,
+                        )
                         .and_then(|(start, end)| style_source.get(start..end))
                         .map(str::trim)
                         .filter(|prefix| static_scss_forward_export_prefix_is_safe(prefix))
                         .map(str::to_string);
+                    }
+                    current_forward_rule_ordinal += 1;
                 }
                 index = end_index + 1;
                 continue;

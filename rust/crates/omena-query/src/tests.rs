@@ -1546,6 +1546,47 @@ fn sass_module_resolution_flags_non_default_configured_variables() -> Result<(),
 }
 
 #[test]
+fn sass_module_resolution_tracks_repeated_source_configuration_per_rule() -> Result<(), String> {
+    let sources = vec![
+        OmenaQueryStyleSourceInputV0 {
+            style_path: "/tmp/tokens.scss".to_string(),
+            style_source: "$brand: blue !default; .base { color: $brand; }".to_string(),
+        },
+        OmenaQueryStyleSourceInputV0 {
+            style_path: "/tmp/App.module.scss".to_string(),
+            style_source: r#"@use "./tokens" as redTokens with ($brand: red); @use "./tokens" as blueTokens with ($brand: blue);"#.to_string(),
+        },
+    ];
+
+    let resolution = summarize_omena_query_sass_module_cross_file_resolution_for_workspace(
+        sources.as_slice(),
+        &[],
+        &[],
+        &[],
+    );
+    let signatures = resolution
+        .edges
+        .iter()
+        .filter(|edge| edge.from_style_path == "/tmp/App.module.scss" && edge.source == "./tokens")
+        .map(|edge| edge.configuration_signature.as_str())
+        .collect::<Vec<_>>();
+
+    assert!(
+        signatures
+            .iter()
+            .any(|signature| signature.contains("brand=3:red")),
+        "{resolution:?}"
+    );
+    assert!(
+        signatures
+            .iter()
+            .any(|signature| signature.contains("brand=4:blue")),
+        "{resolution:?}"
+    );
+    Ok(())
+}
+
+#[test]
 fn derives_configured_scss_forward_aware_static_stylesheet_module_evaluation() {
     let summary = summarize_omena_query_transform_context_from_sources(
         "/tmp/App.module.scss",
@@ -1950,6 +1991,38 @@ fn preserves_conflicting_scss_module_configuration_boundary() {
     assert!(!evaluated_css.contains(".base { color: blue; }"));
     assert!(evaluated_css.contains(r#"@use "./theme-blue" as blueTheme"#));
     assert!(evaluated_css.contains(".button { color: red; border-color: blueTheme.$brand; }"));
+}
+
+#[test]
+fn preserves_conflicting_scss_module_configuration_for_repeated_source_use() {
+    let summary = summarize_omena_query_transform_context_from_sources(
+        "/tmp/App.module.scss",
+        [
+            (
+                "/tmp/tokens.scss",
+                "$brand: blue !default; .base { color: $brand; }",
+            ),
+            (
+                "/tmp/App.module.scss",
+                r#"@use "./tokens" as redTokens with ($brand: red); @use "./tokens" as blueTokens with ($brand: blue); .button { color: redTokens.$brand; border-color: blueTokens.$brand; }"#,
+            ),
+        ],
+        &[],
+    );
+
+    let evaluated_css = summary
+        .context
+        .scss_module_evaluation
+        .as_ref()
+        .map(|evaluation| evaluation.evaluated_css.as_str())
+        .unwrap_or_default();
+    assert_eq!(evaluated_css.matches(".base { color: red; }").count(), 1);
+    assert!(!evaluated_css.contains(".base { color: blue; }"));
+    assert!(
+        evaluated_css.contains(r#"@use "./tokens" as blueTokens with ($brand: blue)"#),
+        "{evaluated_css}"
+    );
+    assert!(evaluated_css.contains(".button { color: red; border-color: blueTokens.$brand; }"));
 }
 
 #[test]

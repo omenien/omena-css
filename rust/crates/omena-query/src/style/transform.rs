@@ -24,8 +24,9 @@ use imports::{
 use static_stylesheet::{
     derive_static_scss_module_configurable_variable_names_for_transform_context,
     derive_static_scss_module_forward_effective_variable_override_values_for_resolution,
-    derive_static_scss_module_forward_variable_override_values,
+    derive_static_scss_module_forward_variable_override_values_at_ordinal,
     derive_static_scss_module_rule_variable_overrides,
+    derive_static_scss_module_rule_variable_overrides_at_ordinal,
     derive_static_scss_module_use_evaluations_for_transform_context,
     derive_static_stylesheet_module_evaluation_for_transform_context,
     static_scss_module_configuration_signature, static_scss_module_instance_identity_key,
@@ -94,7 +95,7 @@ impl<'a> TransformResolutionContext<'a> {
 pub(super) fn derive_static_scss_module_resolution_configuration_evidence(
     style_source: &str,
     edge_kind: &str,
-    source: &str,
+    rule_ordinal: usize,
     resolved_style_path: Option<&str>,
 ) -> StaticScssModuleResolutionConfigurationEvidence {
     let at_keyword = match edge_kind {
@@ -103,12 +104,15 @@ pub(super) fn derive_static_scss_module_resolution_configuration_evidence(
         _ => None,
     };
     let variable_overrides = match at_keyword {
-        Some("@forward") => {
-            derive_static_scss_module_forward_variable_override_values(style_source, source)
-        }
-        Some(at_keyword) => {
-            derive_static_scss_module_rule_variable_overrides(style_source, at_keyword, source)
-        }
+        Some("@forward") => derive_static_scss_module_forward_variable_override_values_at_ordinal(
+            style_source,
+            rule_ordinal,
+        ),
+        Some(at_keyword) => derive_static_scss_module_rule_variable_overrides_at_ordinal(
+            style_source,
+            at_keyword,
+            rule_ordinal,
+        ),
         None => BTreeMap::new(),
     };
     let module_instance_identity_key =

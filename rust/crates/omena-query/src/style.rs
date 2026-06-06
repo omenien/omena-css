@@ -896,7 +896,22 @@ fn summarize_sass_module_cross_file_resolution(
     let mut edges = Vec::new();
 
     for entry in style_fact_entries {
+        let mut sass_use_rule_ordinal = 0usize;
+        let mut sass_forward_rule_ordinal = 0usize;
         for edge in &entry.facts.sass_module_edges {
+            let rule_ordinal = match edge.kind {
+                "sassUse" => {
+                    let rule_ordinal = sass_use_rule_ordinal;
+                    sass_use_rule_ordinal += 1;
+                    rule_ordinal
+                }
+                "sassForward" => {
+                    let rule_ordinal = sass_forward_rule_ordinal;
+                    sass_forward_rule_ordinal += 1;
+                    rule_ordinal
+                }
+                _ => 0,
+            };
             let resolution = summarize_omena_resolver_style_module_resolution_with_load_path_roots(
                 entry.style_path.as_str(),
                 edge.source.as_str(),
@@ -929,7 +944,7 @@ fn summarize_sass_module_cross_file_resolution(
                 transform::derive_static_scss_module_resolution_configuration_evidence(
                     entry.style_source.as_str(),
                     edge.kind,
-                    edge.source.as_str(),
+                    rule_ordinal,
                     resolved_style_path.as_deref(),
                 );
             let invalid_configuration_variable_names =
