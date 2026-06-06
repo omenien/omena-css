@@ -38,6 +38,59 @@ pub(super) struct StaticScssModuleResolutionConfigurationEvidence {
     pub(super) module_instance_identity_key: Option<String>,
 }
 
+#[derive(Clone, Copy)]
+pub(super) struct TransformResolutionContext<'a> {
+    pub(super) package_manifests: &'a [OmenaQueryStylePackageManifestV0],
+    pub(super) bundler_path_mappings: &'a [OmenaResolverBundlerPathAliasMappingV0],
+    pub(super) tsconfig_path_mappings: &'a [OmenaResolverTsconfigPathMappingV0],
+}
+
+impl<'a> TransformResolutionContext<'a> {
+    pub(super) fn from_package_manifests(
+        package_manifests: &'a [OmenaQueryStylePackageManifestV0],
+    ) -> Self {
+        Self {
+            package_manifests,
+            bundler_path_mappings: &[],
+            tsconfig_path_mappings: &[],
+        }
+    }
+
+    pub(super) fn from_resolution_inputs(
+        resolution_inputs: &'a OmenaQueryStyleResolutionInputsV0,
+    ) -> Self {
+        Self {
+            package_manifests: resolution_inputs.package_manifests.as_slice(),
+            bundler_path_mappings: resolution_inputs.bundler_path_mappings.as_slice(),
+            tsconfig_path_mappings: resolution_inputs.tsconfig_path_mappings.as_slice(),
+        }
+    }
+
+    pub(super) fn resolve_style_module_source(
+        self,
+        from_style_path: &str,
+        source: &str,
+        available_style_paths: &BTreeSet<&str>,
+    ) -> Option<String> {
+        if self.bundler_path_mappings.is_empty() && self.tsconfig_path_mappings.is_empty() {
+            return super::resolve_style_module_source(
+                from_style_path,
+                source,
+                available_style_paths,
+                self.package_manifests,
+            );
+        }
+        super::resolve_style_module_source_with_path_mappings(
+            from_style_path,
+            source,
+            available_style_paths,
+            self.package_manifests,
+            self.bundler_path_mappings,
+            self.tsconfig_path_mappings,
+        )
+    }
+}
+
 pub(super) fn derive_static_scss_module_resolution_configuration_evidence(
     style_source: &str,
     edge_kind: &str,
@@ -85,7 +138,7 @@ pub(super) fn derive_static_scss_module_configurable_variable_names_for_resoluti
         style_source,
         available_style_paths,
         source_by_path,
-        package_manifests,
+        TransformResolutionContext::from_package_manifests(package_manifests),
     )
 }
 
@@ -433,6 +486,26 @@ pub fn execute_omena_query_consumer_build_style_sources_with_context(
     context: &TransformExecutionContextV0,
     package_manifests: &[OmenaQueryStylePackageManifestV0],
 ) -> Result<OmenaQueryConsumerBuildSummaryV0, String> {
+    let resolution_inputs = OmenaQueryStyleResolutionInputsV0 {
+        package_manifests: package_manifests.to_vec(),
+        ..OmenaQueryStyleResolutionInputsV0::default()
+    };
+    execute_omena_query_consumer_build_style_sources_with_context_and_resolution_inputs(
+        target_style_path,
+        style_sources,
+        requested_pass_ids,
+        context,
+        &resolution_inputs,
+    )
+}
+
+pub fn execute_omena_query_consumer_build_style_sources_with_context_and_resolution_inputs(
+    target_style_path: &str,
+    style_sources: &[OmenaQueryStyleSourceInputV0],
+    requested_pass_ids: &[String],
+    context: &TransformExecutionContextV0,
+    resolution_inputs: &OmenaQueryStyleResolutionInputsV0,
+) -> Result<OmenaQueryConsumerBuildSummaryV0, String> {
     let Some(target_source) = find_target_style_source(target_style_path, style_sources) else {
         return Err(format!(
             "target style path {target_style_path:?} was not found in workspace style sources"
@@ -442,7 +515,7 @@ pub fn execute_omena_query_consumer_build_style_sources_with_context(
         target_style_path,
         style_sources,
         context,
-        package_manifests,
+        TransformResolutionContext::from_resolution_inputs(resolution_inputs),
     );
     let mut summary = execute_omena_query_consumer_build_style_source_with_context(
         target_style_path,
@@ -551,6 +624,28 @@ pub fn execute_omena_query_consumer_build_style_sources_for_target_query_with_co
     target_options: OmenaQueryTargetTransformOptionsV0,
     package_manifests: &[OmenaQueryStylePackageManifestV0],
 ) -> Result<OmenaQueryConsumerBuildSummaryV0, String> {
+    let resolution_inputs = OmenaQueryStyleResolutionInputsV0 {
+        package_manifests: package_manifests.to_vec(),
+        ..OmenaQueryStyleResolutionInputsV0::default()
+    };
+    execute_omena_query_consumer_build_style_sources_for_target_query_with_context_and_options_and_resolution_inputs(
+        target_style_path,
+        style_sources,
+        target_query,
+        context,
+        target_options,
+        &resolution_inputs,
+    )
+}
+
+pub fn execute_omena_query_consumer_build_style_sources_for_target_query_with_context_and_options_and_resolution_inputs(
+    target_style_path: &str,
+    style_sources: &[OmenaQueryStyleSourceInputV0],
+    target_query: &str,
+    context: &TransformExecutionContextV0,
+    target_options: OmenaQueryTargetTransformOptionsV0,
+    resolution_inputs: &OmenaQueryStyleResolutionInputsV0,
+) -> Result<OmenaQueryConsumerBuildSummaryV0, String> {
     let Some(target_source) = find_target_style_source(target_style_path, style_sources) else {
         return Err(format!(
             "target style path {target_style_path:?} was not found in workspace style sources"
@@ -560,7 +655,7 @@ pub fn execute_omena_query_consumer_build_style_sources_for_target_query_with_co
         target_style_path,
         style_sources,
         context,
-        package_manifests,
+        TransformResolutionContext::from_resolution_inputs(resolution_inputs),
     );
     let mut summary =
         execute_omena_query_consumer_build_style_source_for_target_query_with_context_and_options(
@@ -632,11 +727,27 @@ pub fn attach_omena_query_consumer_build_source_map_v3_with_sources(
     style_sources: &[OmenaQueryStyleSourceInputV0],
     package_manifests: &[OmenaQueryStylePackageManifestV0],
 ) {
-    let source_map = summarize_omena_query_consumer_build_source_map_v3(
+    let resolution_inputs = OmenaQueryStyleResolutionInputsV0 {
+        package_manifests: package_manifests.to_vec(),
+        ..OmenaQueryStyleResolutionInputsV0::default()
+    };
+    attach_omena_query_consumer_build_source_map_v3_with_sources_and_resolution_inputs(
+        summary,
+        style_sources,
+        &resolution_inputs,
+    );
+}
+
+pub fn attach_omena_query_consumer_build_source_map_v3_with_sources_and_resolution_inputs(
+    summary: &mut OmenaQueryConsumerBuildSummaryV0,
+    style_sources: &[OmenaQueryStyleSourceInputV0],
+    resolution_inputs: &OmenaQueryStyleResolutionInputsV0,
+) {
+    let source_map = summarize_omena_query_consumer_build_source_map_v3_with_resolution_inputs(
         &summary.style_path,
         style_sources,
         &summary.execution,
-        package_manifests,
+        resolution_inputs,
     );
     summary.source_map_v3 = Some(source_map);
     if !summary.ready_surfaces.contains(&"sourceMapV3Serializer") {
@@ -659,6 +770,24 @@ pub fn summarize_omena_query_consumer_build_source_map_v3(
     style_sources: &[OmenaQueryStyleSourceInputV0],
     execution: &TransformExecutionSummaryV0,
     package_manifests: &[OmenaQueryStylePackageManifestV0],
+) -> OmenaQueryTransformSourceMapV3V0 {
+    let resolution_inputs = OmenaQueryStyleResolutionInputsV0 {
+        package_manifests: package_manifests.to_vec(),
+        ..OmenaQueryStyleResolutionInputsV0::default()
+    };
+    summarize_omena_query_consumer_build_source_map_v3_with_resolution_inputs(
+        style_path,
+        style_sources,
+        execution,
+        &resolution_inputs,
+    )
+}
+
+pub fn summarize_omena_query_consumer_build_source_map_v3_with_resolution_inputs(
+    style_path: &str,
+    style_sources: &[OmenaQueryStyleSourceInputV0],
+    execution: &TransformExecutionSummaryV0,
+    resolution_inputs: &OmenaQueryStyleResolutionInputsV0,
 ) -> OmenaQueryTransformSourceMapV3V0 {
     let source_by_path = style_sources
         .iter()
@@ -686,7 +815,7 @@ pub fn summarize_omena_query_consumer_build_source_map_v3(
         execution,
         &source_by_path,
         &available_style_paths,
-        package_manifests,
+        TransformResolutionContext::from_resolution_inputs(resolution_inputs),
     ));
     let source_contents = style_sources
         .iter()
@@ -733,7 +862,7 @@ fn import_inline_source_map_segments(
     execution: &TransformExecutionSummaryV0,
     source_by_path: &BTreeMap<&str, &str>,
     available_style_paths: &BTreeSet<&str>,
-    package_manifests: &[OmenaQueryStylePackageManifestV0],
+    resolution_context: TransformResolutionContext<'_>,
 ) -> Vec<TransformSourceMapSegmentV0> {
     let mut segments = Vec::new();
     let mut seen_segments = BTreeSet::new();
@@ -744,18 +873,17 @@ fn import_inline_source_map_segments(
         execution,
         source_by_path,
         available_style_paths,
-        package_manifests,
+        resolution_context,
     );
     let mut search_start = 0;
     for inline in &execution.css_import_inlines {
         if inline.replacement_css.is_empty() || search_start > execution.output_css.len() {
             continue;
         }
-        let Some(resolved_style_path) = resolve_style_module_source(
+        let Some(resolved_style_path) = resolution_context.resolve_style_module_source(
             style_path,
             inline.import_source.as_str(),
             available_style_paths,
-            package_manifests,
         ) else {
             continue;
         };
@@ -795,7 +923,7 @@ fn extend_import_graph_source_map_segments(
     execution: &TransformExecutionSummaryV0,
     source_by_path: &BTreeMap<&str, &str>,
     available_style_paths: &BTreeSet<&str>,
-    package_manifests: &[OmenaQueryStylePackageManifestV0],
+    resolution_context: TransformResolutionContext<'_>,
 ) {
     let style_sources = source_by_path
         .iter()
@@ -817,7 +945,7 @@ fn extend_import_graph_source_map_segments(
         owned_source_by_path: &owned_source_by_path,
         source_by_path,
         available_style_paths,
-        package_manifests,
+        resolution_context,
     };
     collect_import_graph_source_map_segments(
         segments,
@@ -836,7 +964,7 @@ struct ImportGraphSourceMapSegmentContext<'a> {
     owned_source_by_path: &'a BTreeMap<String, String>,
     source_by_path: &'a BTreeMap<&'a str, &'a str>,
     available_style_paths: &'a BTreeSet<&'a str>,
-    package_manifests: &'a [OmenaQueryStylePackageManifestV0],
+    resolution_context: TransformResolutionContext<'a>,
 }
 
 fn collect_import_graph_source_map_segments(
@@ -862,11 +990,10 @@ fn collect_import_graph_source_map_segments(
         .iter()
         .filter(|edge| edge.kind == "sassImport")
     {
-        let Some(resolved_style_path) = resolve_style_module_source(
+        let Some(resolved_style_path) = context.resolution_context.resolve_style_module_source(
             importer_style_path,
             edge.source.as_str(),
             context.available_style_paths,
-            context.package_manifests,
         ) else {
             continue;
         };
@@ -882,7 +1009,7 @@ fn collect_import_graph_source_map_segments(
             context.entries_by_path,
             context.available_style_paths,
             context.owned_source_by_path,
-            context.package_manifests,
+            context.resolution_context,
             &mut BTreeSet::new(),
         ) else {
             continue;
@@ -1045,16 +1172,16 @@ fn merge_workspace_transform_context(
     target_style_path: &str,
     style_sources: &[OmenaQueryStyleSourceInputV0],
     context: &TransformExecutionContextV0,
-    package_manifests: &[OmenaQueryStylePackageManifestV0],
+    resolution_context: TransformResolutionContext<'_>,
 ) -> TransformExecutionContextV0 {
     let style_refs = style_sources
         .iter()
         .map(|source| (source.style_path.as_str(), source.style_source.as_str()))
         .collect::<Vec<_>>();
-    let derived = summarize_omena_query_transform_context_from_sources(
+    let derived = summarize_omena_query_transform_context_from_sources_with_resolution_context(
         target_style_path,
         style_refs,
-        package_manifests,
+        resolution_context,
     )
     .context;
     merge_transform_context(derived, context)
@@ -1258,6 +1385,30 @@ pub fn summarize_omena_query_transform_context_from_sources<'a>(
     styles: impl IntoIterator<Item = (&'a str, &'a str)>,
     package_manifests: &[OmenaQueryStylePackageManifestV0],
 ) -> OmenaQueryTransformContextFromSourcesSummaryV0 {
+    summarize_omena_query_transform_context_from_sources_with_resolution_context(
+        target_style_path,
+        styles,
+        TransformResolutionContext::from_package_manifests(package_manifests),
+    )
+}
+
+pub fn summarize_omena_query_transform_context_from_sources_with_resolution_inputs<'a>(
+    target_style_path: &str,
+    styles: impl IntoIterator<Item = (&'a str, &'a str)>,
+    resolution_inputs: &OmenaQueryStyleResolutionInputsV0,
+) -> OmenaQueryTransformContextFromSourcesSummaryV0 {
+    summarize_omena_query_transform_context_from_sources_with_resolution_context(
+        target_style_path,
+        styles,
+        TransformResolutionContext::from_resolution_inputs(resolution_inputs),
+    )
+}
+
+fn summarize_omena_query_transform_context_from_sources_with_resolution_context<'a>(
+    target_style_path: &str,
+    styles: impl IntoIterator<Item = (&'a str, &'a str)>,
+    resolution_context: TransformResolutionContext<'_>,
+) -> OmenaQueryTransformContextFromSourcesSummaryV0 {
     let style_sources = styles.into_iter().collect::<Vec<_>>();
     let style_count = style_sources.len();
     let style_fact_entries = collect_omena_query_style_fact_entries(style_sources.as_slice());
@@ -1281,13 +1432,13 @@ pub fn summarize_omena_query_transform_context_from_sources<'a>(
             &style_fact_entries,
             &available_style_paths,
             &source_by_path,
-            package_manifests,
+            resolution_context,
         );
         let scss_module_uses = derive_static_scss_module_use_evaluations_for_transform_context(
             entry,
             &available_style_paths,
             &source_by_path,
-            package_manifests,
+            resolution_context,
         );
         match omena_parser_dialect_for_style_path(entry.style_path.as_str()) {
             OmenaParserStyleDialect::Scss | OmenaParserStyleDialect::Sass => {
@@ -1317,7 +1468,7 @@ pub fn summarize_omena_query_transform_context_from_sources<'a>(
                 entry,
                 &style_fact_entries,
                 &available_style_paths,
-                package_manifests,
+                resolution_context,
             );
         context.css_module_value_resolutions =
             derive_css_module_value_resolutions_for_transform_context(
@@ -1325,12 +1476,12 @@ pub fn summarize_omena_query_transform_context_from_sources<'a>(
                 &style_fact_entries,
                 &available_style_paths,
                 &source_by_path,
-                package_manifests,
+                resolution_context,
             );
         context.design_token_routes = derive_design_token_routes_for_transform_context(
             entry,
             &style_fact_entries,
-            package_manifests,
+            resolution_context.package_manifests,
         );
     }
 

@@ -12,11 +12,11 @@ use omena_query::{
     OmenaQueryStyleSourceInputV0, OmenaQueryTargetTransformOptionsV0,
     OmenaQueryTransformExecutionContextV0, ParserPositionV0, TransformBundleEdgeKind,
     attach_omena_query_consumer_build_bundle_summary,
-    attach_omena_query_consumer_build_source_map_v3_with_sources,
+    attach_omena_query_consumer_build_source_map_v3_with_sources_and_resolution_inputs,
     execute_omena_query_consumer_build_style_source_for_target_query_with_context_and_options,
     execute_omena_query_consumer_build_style_source_with_context,
-    execute_omena_query_consumer_build_style_sources_for_target_query_with_context_and_options,
-    execute_omena_query_consumer_build_style_sources_with_context,
+    execute_omena_query_consumer_build_style_sources_for_target_query_with_context_and_options_and_resolution_inputs,
+    execute_omena_query_consumer_build_style_sources_with_context_and_resolution_inputs,
     list_omena_query_transform_pass_summaries, read_omena_query_cascade_at_position,
     read_omena_query_cascade_at_position_with_categorical_evidence,
     read_omena_query_style_context_index,
@@ -3032,13 +3032,13 @@ fn build_file(options: BuildFileOptions) -> Result<(), String> {
     let resolution_inputs = resolution_inputs_for_build_path(&path, package_manifests.as_slice());
     let mut summary = if let Some(target_query) = target_query {
         if workspace_sources.len() > 1 {
-            execute_omena_query_consumer_build_style_sources_for_target_query_with_context_and_options(
+            execute_omena_query_consumer_build_style_sources_for_target_query_with_context_and_options_and_resolution_inputs(
                 &style_path,
                 &workspace_sources,
                 &target_query,
                 &context,
                 target_options,
-                &package_manifests,
+                &resolution_inputs,
             )?
         } else {
             execute_omena_query_consumer_build_style_source_for_target_query_with_context_and_options(
@@ -3050,12 +3050,12 @@ fn build_file(options: BuildFileOptions) -> Result<(), String> {
             )
         }
     } else if workspace_sources.len() > 1 {
-        execute_omena_query_consumer_build_style_sources_with_context(
+        execute_omena_query_consumer_build_style_sources_with_context_and_resolution_inputs(
             &style_path,
             &workspace_sources,
             &pass_ids,
             &context,
-            &package_manifests,
+            &resolution_inputs,
         )?
     } else {
         execute_omena_query_consumer_build_style_source_with_context(
@@ -3086,10 +3086,10 @@ fn build_file(options: BuildFileOptions) -> Result<(), String> {
         }
     }
     if source_map {
-        attach_omena_query_consumer_build_source_map_v3_with_sources(
+        attach_omena_query_consumer_build_source_map_v3_with_sources_and_resolution_inputs(
             &mut summary,
             &original_workspace_sources,
-            &package_manifests,
+            &resolution_inputs,
         );
     }
     if let Some(split_out_dir) = split_out_dir.as_ref() {

@@ -11,6 +11,7 @@ use super::{
     execute_omena_query_consumer_build_style_source_with_engine_input_context,
     execute_omena_query_consumer_build_style_sources,
     execute_omena_query_consumer_build_style_sources_with_context,
+    execute_omena_query_consumer_build_style_sources_with_context_and_resolution_inputs,
     execute_omena_query_transform_passes_from_source, list_omena_query_transform_pass_summaries,
     plan_incremental_computation_with_priority_inputs, snapshot_from_graph_input,
     summarize_omena_query_analyzed_graph, summarize_omena_query_boundary,
@@ -33,14 +34,16 @@ use super::{
     summarize_omena_query_style_edit_distance_cascade_margin_bridge,
     summarize_omena_query_transform_context_from_engine_input,
     summarize_omena_query_transform_context_from_sources,
+    summarize_omena_query_transform_context_from_sources_with_resolution_inputs,
     summarize_omena_query_transform_plan_from_source,
     summarize_omena_query_transform_plan_from_target_query,
 };
 use crate::{
-    ModelClassV0, OmenaQueryStyleSourceInputV0, OmenaQueryTargetFeatureSupportV0,
-    OmenaQueryTargetTransformOptionsV0, OmenaQueryTransformDesignTokenRouteV0,
-    OmenaQueryTransformExecutionContextV0, OmenaQueryTransformPrintMode,
-    OmenaQueryTransformPrintOptionsV0, default_omena_query_transform_print_options,
+    ModelClassV0, OmenaQueryStyleResolutionInputsV0, OmenaQueryStyleSourceInputV0,
+    OmenaQueryTargetFeatureSupportV0, OmenaQueryTargetTransformOptionsV0,
+    OmenaQueryTransformDesignTokenRouteV0, OmenaQueryTransformExecutionContextV0,
+    OmenaQueryTransformPrintMode, OmenaQueryTransformPrintOptionsV0,
+    OmenaQueryTsconfigPathMappingV0, default_omena_query_transform_print_options,
     modern_omena_query_target_feature_support,
     summarize_omena_query_sass_module_cross_file_resolution_for_workspace,
 };
@@ -1763,6 +1766,97 @@ fn shares_configured_scss_module_instances_across_transitive_consumers() {
 }
 
 #[test]
+fn resolves_transform_context_style_references_through_tsconfig_aliases() {
+    let resolution_inputs = OmenaQueryStyleResolutionInputsV0 {
+        package_manifests: vec![],
+        tsconfig_path_mappings: vec![OmenaQueryTsconfigPathMappingV0 {
+            base_path: "/workspace".to_string(),
+            pattern: "@styles/*".to_string(),
+            target_patterns: vec!["src/styles/*".to_string()],
+        }],
+        bundler_path_mappings: vec![],
+    };
+
+    let scss_summary = summarize_omena_query_transform_context_from_sources_with_resolution_inputs(
+        "/workspace/src/components/App.module.scss",
+        [
+            (
+                "/workspace/src/styles/_tokens.scss",
+                "$brand: blue !default; .base { color: $brand; }",
+            ),
+            (
+                "/workspace/src/components/App.module.scss",
+                r#"@use "@styles/tokens" as tokens with ($brand: red); .button { color: tokens.$brand; }"#,
+            ),
+        ],
+        &resolution_inputs,
+    );
+    let evaluated_css = scss_summary
+        .context
+        .scss_module_evaluation
+        .as_ref()
+        .map(|evaluation| evaluation.evaluated_css.as_str())
+        .unwrap_or_default();
+    assert!(evaluated_css.contains(".base { color: red; }"));
+    assert!(evaluated_css.contains(".button { color: red; }"));
+    assert!(!evaluated_css.contains(".base { color: blue; }"));
+
+    let value_summary = summarize_omena_query_transform_context_from_sources_with_resolution_inputs(
+        "/workspace/src/components/Values.module.css",
+        [
+            (
+                "/workspace/src/styles/tokens.module.css",
+                "@value primary: #fff;",
+            ),
+            (
+                "/workspace/src/components/Values.module.css",
+                r#"@value primary as brand from "@styles/tokens.module.css"; .btn { color: brand; }"#,
+            ),
+        ],
+        &resolution_inputs,
+    );
+    assert_eq!(
+        value_summary
+            .context
+            .css_module_value_resolutions
+            .iter()
+            .map(|resolution| {
+                (
+                    resolution.local_name.as_str(),
+                    resolution.resolved_value.as_str(),
+                )
+            })
+            .collect::<Vec<_>>(),
+        vec![("brand", "#fff")]
+    );
+
+    let composes_summary =
+        summarize_omena_query_transform_context_from_sources_with_resolution_inputs(
+            "/workspace/src/components/Composes.module.scss",
+            [
+                (
+                    "/workspace/src/styles/base.module.scss",
+                    ".foundation { display: block; } .base { composes: foundation; color: red; }",
+                ),
+                (
+                    "/workspace/src/components/Composes.module.scss",
+                    r#".btn { composes: base from "@styles/base.module.scss"; color: blue; }"#,
+                ),
+            ],
+            &resolution_inputs,
+        );
+    assert_eq!(composes_summary.css_module_composes_resolution_count, 1);
+    assert_eq!(
+        composes_summary.context.css_module_composes_resolutions[0].local_class_name,
+        "btn"
+    );
+    assert_eq!(
+        composes_summary.context.css_module_composes_resolutions[0].exported_class_names,
+        vec!["base", "btn", "foundation"]
+    );
+}
+
+#[test]
 fn shares_preconfigured_scss_module_instance_with_unconfigured_transitive_forward() {
     let summary = summarize_omena_query_transform_context_from_sources(
         "/tmp/App.module.scss",
@@ -2021,6 +2115,47 @@ fn consumer_build_resolves_cross_file_css_modules_values_through_query_context()
         r#" .btn { color: #fff; margin: 8px; } @media (min-width: 8px) { .btn { color: #fff; } }"#
     );
     assert_eq!(summary.execution.mutation_count, 5);
+    assert!(
+        summary
+            .ready_surfaces
+            .contains(&"multiSourceTransformContextProducer")
+    );
+    Ok(())
+}
+
+#[test]
+fn consumer_build_resolves_css_modules_values_through_tsconfig_aliases()
+-> Result<(), Box<dyn std::error::Error>> {
+    let resolution_inputs = OmenaQueryStyleResolutionInputsV0 {
+        package_manifests: vec![],
+        tsconfig_path_mappings: vec![OmenaQueryTsconfigPathMappingV0 {
+            base_path: "/workspace".to_string(),
+            pattern: "@styles/*".to_string(),
+            target_patterns: vec!["src/styles/*".to_string()],
+        }],
+        bundler_path_mappings: vec![],
+    };
+    let summary = execute_omena_query_consumer_build_style_sources_with_context_and_resolution_inputs(
+        "/workspace/src/components/App.module.css",
+        &[
+            OmenaQueryStyleSourceInputV0 {
+                style_path: "/workspace/src/styles/tokens.module.css".to_string(),
+                style_source: "@value primary: #fff; @value gap: 8px;".to_string(),
+            },
+            OmenaQueryStyleSourceInputV0 {
+                style_path: "/workspace/src/components/App.module.css".to_string(),
+                style_source: r#"@value primary as brand, gap from "@styles/tokens.module.css"; .btn { color: brand; margin: gap; }"#.to_string(),
+            },
+        ],
+        &["value-resolution".to_string(), "print-css".to_string()],
+        &OmenaQueryTransformExecutionContextV0::default(),
+        &resolution_inputs,
+    )?;
+
+    assert_eq!(
+        summary.execution.output_css,
+        r#" .btn { color: #fff; margin: 8px; }"#
+    );
     assert!(
         summary
             .ready_surfaces

@@ -40,16 +40,18 @@ pub(super) fn derive_css_module_composes_resolutions_for_transform_context(
     entry: &OmenaQueryStyleFactEntry,
     entries: &[OmenaQueryStyleFactEntry],
     available_style_paths: &BTreeSet<&str>,
-    package_manifests: &[OmenaQueryStylePackageManifestV0],
+    resolution_context: TransformResolutionContext<'_>,
 ) -> Vec<TransformCssModuleComposesResolutionV0> {
     let facts_by_path = entries
         .iter()
         .map(|entry| (entry.style_path.as_str(), entry.facts.clone()))
         .collect::<BTreeMap<_, _>>();
-    let composes_graph = collect_css_modules_composes_adjacency(
+    let composes_graph = collect_css_modules_composes_adjacency_with_path_mappings(
         &facts_by_path,
         available_style_paths,
-        package_manifests,
+        resolution_context.package_manifests,
+        resolution_context.bundler_path_mappings,
+        resolution_context.tsconfig_path_mappings,
     );
     let mut resolutions = BTreeMap::<String, BTreeSet<String>>::new();
 
@@ -86,7 +88,7 @@ pub(super) fn derive_css_module_value_resolutions_for_transform_context(
     entries: &[OmenaQueryStyleFactEntry],
     available_style_paths: &BTreeSet<&str>,
     source_by_path: &BTreeMap<String, String>,
-    package_manifests: &[OmenaQueryStylePackageManifestV0],
+    resolution_context: TransformResolutionContext<'_>,
 ) -> Vec<TransformCssModuleValueResolutionV0> {
     let facts_by_path = entries
         .iter()
@@ -99,11 +101,10 @@ pub(super) fn derive_css_module_value_resolutions_for_transform_context(
         if blocked_names.iter().any(|name| name == &edge.local_name) {
             continue;
         }
-        let Some(resolved_style_path) = resolve_style_module_source(
+        let Some(resolved_style_path) = resolution_context.resolve_style_module_source(
             entry.style_path.as_str(),
             edge.import_source.as_str(),
             available_style_paths,
-            package_manifests,
         ) else {
             continue;
         };
@@ -119,7 +120,7 @@ pub(super) fn derive_css_module_value_resolutions_for_transform_context(
             &facts_by_path,
             available_style_paths,
             source_by_path,
-            package_manifests,
+            resolution_context,
             &mut BTreeSet::new(),
         ) else {
             continue;
@@ -164,7 +165,7 @@ fn resolve_css_module_value_for_transform_context(
     facts_by_path: &BTreeMap<&str, OmenaQueryOmenaParserStyleFactsV0>,
     available_style_paths: &BTreeSet<&str>,
     source_by_path: &BTreeMap<String, String>,
-    package_manifests: &[OmenaQueryStylePackageManifestV0],
+    resolution_context: TransformResolutionContext<'_>,
     visiting: &mut BTreeSet<(String, String)>,
 ) -> Option<String> {
     let visit_key = (style_path.to_string(), value_name.to_string());
@@ -178,7 +179,7 @@ fn resolve_css_module_value_for_transform_context(
         facts_by_path,
         available_style_paths,
         source_by_path,
-        package_manifests,
+        resolution_context,
         visiting,
     );
     visiting.remove(&visit_key);
@@ -191,7 +192,7 @@ fn resolve_css_module_value_for_transform_context_inner(
     facts_by_path: &BTreeMap<&str, OmenaQueryOmenaParserStyleFactsV0>,
     available_style_paths: &BTreeSet<&str>,
     source_by_path: &BTreeMap<String, String>,
-    package_manifests: &[OmenaQueryStylePackageManifestV0],
+    resolution_context: TransformResolutionContext<'_>,
     visiting: &mut BTreeSet<(String, String)>,
 ) -> Option<String> {
     let facts = facts_by_path.get(style_path)?;
@@ -209,7 +210,7 @@ fn resolve_css_module_value_for_transform_context_inner(
         facts_by_path,
         available_style_paths,
         source_by_path,
-        package_manifests,
+        resolution_context,
         visiting,
     );
     if let Some(imported_value) = imported_resolutions.get(value_name) {
@@ -233,7 +234,7 @@ fn resolve_css_module_imported_values_for_transform_context(
     facts_by_path: &BTreeMap<&str, OmenaQueryOmenaParserStyleFactsV0>,
     available_style_paths: &BTreeSet<&str>,
     source_by_path: &BTreeMap<String, String>,
-    package_manifests: &[OmenaQueryStylePackageManifestV0],
+    resolution_context: TransformResolutionContext<'_>,
     visiting: &mut BTreeSet<(String, String)>,
 ) -> BTreeMap<String, String> {
     let mut resolutions = BTreeMap::<String, String>::new();
@@ -242,11 +243,10 @@ fn resolve_css_module_imported_values_for_transform_context(
         if blocked_names.contains(&edge.local_name) {
             continue;
         }
-        let Some(target_style_path) = resolve_style_module_source(
+        let Some(target_style_path) = resolution_context.resolve_style_module_source(
             style_path,
             edge.import_source.as_str(),
             available_style_paths,
-            package_manifests,
         ) else {
             continue;
         };
@@ -256,7 +256,7 @@ fn resolve_css_module_imported_values_for_transform_context(
             facts_by_path,
             available_style_paths,
             source_by_path,
-            package_manifests,
+            resolution_context,
             visiting,
         ) else {
             continue;

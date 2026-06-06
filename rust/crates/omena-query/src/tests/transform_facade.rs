@@ -1,5 +1,9 @@
 use super::*;
-use crate::summarize_omena_query_bundle_code_split_source_map_v3;
+use crate::{
+    OmenaQueryTransformExecutionContextV0,
+    attach_omena_query_consumer_build_source_map_v3_with_sources_and_resolution_inputs,
+    summarize_omena_query_bundle_code_split_source_map_v3,
+};
 
 #[test]
 fn exposes_transform_plan_facade_from_source() {
@@ -215,6 +219,73 @@ fn consumer_build_source_map_v3_preserves_bundle_import_origins() -> Result<(), 
             .is_some_and(|content| content == ".base { color: red; }")
     );
     assert!(source_map.x_omena_pass_ids.contains(&"import-inline"));
+    assert!(
+        summary
+            .ready_surfaces
+            .contains(&"bundleSourceMapOriginChain")
+    );
+    Ok(())
+}
+
+#[test]
+fn consumer_build_source_map_v3_preserves_alias_resolved_import_origins() -> Result<(), String> {
+    let sources = vec![
+        OmenaQueryStyleSourceInputV0 {
+            style_path: "/workspace/src/App.css".to_string(),
+            style_source: r#"@import "@styles/tokens.css"; .app { color: green; }"#.to_string(),
+        },
+        OmenaQueryStyleSourceInputV0 {
+            style_path: "/workspace/src/styles/tokens.css".to_string(),
+            style_source: ".token { color: blue; }".to_string(),
+        },
+    ];
+    let resolution_inputs = OmenaQueryStyleResolutionInputsV0 {
+        package_manifests: vec![],
+        tsconfig_path_mappings: vec![OmenaQueryTsconfigPathMappingV0 {
+            base_path: "/workspace".to_string(),
+            pattern: "@styles/*".to_string(),
+            target_patterns: vec!["src/styles/*".to_string()],
+        }],
+        bundler_path_mappings: vec![],
+    };
+    let mut summary =
+        execute_omena_query_consumer_build_style_sources_with_context_and_resolution_inputs(
+            "/workspace/src/App.css",
+            &sources,
+            &["import-inline".to_string(), "print-css".to_string()],
+            &OmenaQueryTransformExecutionContextV0::default(),
+            &resolution_inputs,
+        )?;
+
+    attach_omena_query_consumer_build_source_map_v3_with_sources_and_resolution_inputs(
+        &mut summary,
+        &sources,
+        &resolution_inputs,
+    );
+
+    assert!(
+        summary
+            .execution
+            .output_css
+            .contains(".token { color: blue; }")
+    );
+    assert!(!summary.execution.output_css.contains("@import"));
+    let source_map = summary.source_map_v3.as_ref().ok_or_else(|| {
+        "consumer build should attach alias-aware bundle Source Map V3".to_string()
+    })?;
+    assert!(
+        source_map
+            .sources
+            .contains(&"/workspace/src/styles/tokens.css".to_string())
+    );
+    assert!(
+        source_map
+            .sources
+            .iter()
+            .position(|source| source == "/workspace/src/styles/tokens.css")
+            .and_then(|index| source_map.sources_content.get(index))
+            .is_some_and(|content| content == ".token { color: blue; }")
+    );
     assert!(
         summary
             .ready_surfaces

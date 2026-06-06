@@ -10,7 +10,7 @@ pub(super) fn derive_import_inlines_for_transform_context(
     entries: &[OmenaQueryStyleFactEntry],
     available_style_paths: &BTreeSet<&str>,
     source_by_path: &BTreeMap<String, String>,
-    package_manifests: &[OmenaQueryStylePackageManifestV0],
+    resolution_context: TransformResolutionContext<'_>,
 ) -> Vec<TransformImportInlineV0> {
     let entries_by_path = entries
         .iter()
@@ -22,18 +22,17 @@ pub(super) fn derive_import_inlines_for_transform_context(
         .iter()
         .filter(|edge| edge.kind == "sassImport")
         .filter_map(|edge| {
-            let resolved = resolve_style_module_source(
+            let resolved = resolution_context.resolve_style_module_source(
                 entry.style_path.as_str(),
                 edge.source.as_str(),
                 available_style_paths,
-                package_manifests,
             )?;
             let replacement_css = resolve_import_inline_replacement_for_transform_context(
                 resolved.as_str(),
                 &entries_by_path,
                 available_style_paths,
                 source_by_path,
-                package_manifests,
+                resolution_context,
                 &mut BTreeSet::new(),
             )?;
             Some(TransformImportInlineV0 {
@@ -49,7 +48,7 @@ pub(super) fn resolve_import_inline_replacement_for_transform_context(
     entries_by_path: &BTreeMap<&str, &OmenaQueryStyleFactEntry>,
     available_style_paths: &BTreeSet<&str>,
     source_by_path: &BTreeMap<String, String>,
-    package_manifests: &[OmenaQueryStylePackageManifestV0],
+    resolution_context: TransformResolutionContext<'_>,
     visiting: &mut BTreeSet<String>,
 ) -> Option<String> {
     let source = rewrite_omena_transform_bundle_asset_urls_in_source(
@@ -69,7 +68,7 @@ pub(super) fn resolve_import_inline_replacement_for_transform_context(
         entries_by_path,
         available_style_paths,
         source_by_path,
-        package_manifests,
+        resolution_context,
         visiting,
     );
     visiting.remove(style_path);
@@ -91,7 +90,7 @@ fn derive_import_inlines_for_transform_context_entry(
     entries_by_path: &BTreeMap<&str, &OmenaQueryStyleFactEntry>,
     available_style_paths: &BTreeSet<&str>,
     source_by_path: &BTreeMap<String, String>,
-    package_manifests: &[OmenaQueryStylePackageManifestV0],
+    resolution_context: TransformResolutionContext<'_>,
     visiting: &mut BTreeSet<String>,
 ) -> Vec<TransformImportInlineV0> {
     entry
@@ -100,18 +99,17 @@ fn derive_import_inlines_for_transform_context_entry(
         .iter()
         .filter(|edge| edge.kind == "sassImport")
         .filter_map(|edge| {
-            let resolved = resolve_style_module_source(
+            let resolved = resolution_context.resolve_style_module_source(
                 entry.style_path.as_str(),
                 edge.source.as_str(),
                 available_style_paths,
-                package_manifests,
             )?;
             let replacement_css = resolve_import_inline_replacement_for_transform_context(
                 resolved.as_str(),
                 entries_by_path,
                 available_style_paths,
                 source_by_path,
-                package_manifests,
+                resolution_context,
                 visiting,
             )?;
             Some(TransformImportInlineV0 {

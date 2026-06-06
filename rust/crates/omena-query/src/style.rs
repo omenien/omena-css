@@ -1560,6 +1560,22 @@ fn collect_css_modules_composes_adjacency(
     available_style_paths: &BTreeSet<&str>,
     package_manifests: &[OmenaQueryStylePackageManifestV0],
 ) -> BTreeMap<CssModulesComposesNode, BTreeSet<CssModulesComposesNode>> {
+    collect_css_modules_composes_adjacency_with_path_mappings(
+        facts_by_path,
+        available_style_paths,
+        package_manifests,
+        &[],
+        &[],
+    )
+}
+
+fn collect_css_modules_composes_adjacency_with_path_mappings(
+    facts_by_path: &BTreeMap<&str, OmenaQueryOmenaParserStyleFactsV0>,
+    available_style_paths: &BTreeSet<&str>,
+    package_manifests: &[OmenaQueryStylePackageManifestV0],
+    bundler_path_mappings: &[OmenaResolverBundlerPathAliasMappingV0],
+    tsconfig_path_mappings: &[OmenaResolverTsconfigPathMappingV0],
+) -> BTreeMap<CssModulesComposesNode, BTreeSet<CssModulesComposesNode>> {
     let mut graph = BTreeMap::new();
     for (style_path, facts) in facts_by_path {
         let class_names = facts
@@ -1573,11 +1589,13 @@ fn collect_css_modules_composes_adjacency(
             }
             let target_style_path = if edge.kind == "external" {
                 edge.import_source.as_deref().and_then(|source| {
-                    resolve_style_module_source(
+                    resolve_style_module_source_with_path_mappings(
                         style_path,
                         source,
                         available_style_paths,
                         package_manifests,
+                        bundler_path_mappings,
+                        tsconfig_path_mappings,
                     )
                 })
             } else {

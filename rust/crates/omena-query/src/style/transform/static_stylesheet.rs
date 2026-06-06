@@ -123,7 +123,7 @@ pub(super) fn derive_static_scss_module_use_evaluations_for_transform_context(
     entry: &OmenaQueryStyleFactEntry,
     available_style_paths: &BTreeSet<&str>,
     source_by_path: &BTreeMap<String, String>,
-    package_manifests: &[OmenaQueryStylePackageManifestV0],
+    resolution_context: TransformResolutionContext<'_>,
 ) -> Vec<StaticScssModuleUseEvaluation> {
     if !matches!(
         omena_parser_dialect_for_style_path(entry.style_path.as_str()),
@@ -146,11 +146,10 @@ pub(super) fn derive_static_scss_module_use_evaluations_for_transform_context(
             )
         })
         .filter_map(|edge| {
-            let resolved = resolve_style_module_source(
+            let resolved = resolution_context.resolve_style_module_source(
                 entry.style_path.as_str(),
                 edge.source.as_str(),
                 available_style_paths,
-                package_manifests,
             )?;
             let source = source_by_path.get(resolved.as_str())?;
             let variable_overrides = derive_static_scss_module_rule_variable_overrides(
@@ -164,7 +163,7 @@ pub(super) fn derive_static_scss_module_use_evaluations_for_transform_context(
                     source,
                     available_style_paths,
                     source_by_path,
-                    package_manifests,
+                    resolution_context,
                 );
             if !static_scss_module_configuration_variables_are_valid(
                 &variable_overrides,
@@ -184,7 +183,7 @@ pub(super) fn derive_static_scss_module_use_evaluations_for_transform_context(
                 let mut derive_context = StaticScssModuleDeriveContext {
                     available_style_paths,
                     source_by_path,
-                    package_manifests,
+                    resolution_context,
                     visited: &mut visited,
                     emitted_module_identity_keys: &mut emitted_module_identity_keys,
                     loaded_module_overrides_by_path: &mut loaded_module_overrides_by_path,
@@ -224,7 +223,7 @@ struct StaticScssModuleContext {
 struct StaticScssModuleDeriveContext<'a> {
     available_style_paths: &'a BTreeSet<&'a str>,
     source_by_path: &'a BTreeMap<String, String>,
-    package_manifests: &'a [OmenaQueryStylePackageManifestV0],
+    resolution_context: TransformResolutionContext<'a>,
     visited: &'a mut BTreeSet<String>,
     emitted_module_identity_keys: &'a mut BTreeSet<String>,
     loaded_module_overrides_by_path: &'a mut BTreeMap<String, BTreeMap<String, String>>,
@@ -235,7 +234,7 @@ pub(super) fn derive_static_scss_module_configurable_variable_names_for_transfor
     style_source: &str,
     available_style_paths: &BTreeSet<&str>,
     source_by_path: &BTreeMap<String, String>,
-    package_manifests: &[OmenaQueryStylePackageManifestV0],
+    resolution_context: TransformResolutionContext<'_>,
 ) -> BTreeSet<String> {
     let mut visiting = BTreeSet::new();
     derive_static_scss_module_configurable_variable_names_for_transform_context_inner(
@@ -243,7 +242,7 @@ pub(super) fn derive_static_scss_module_configurable_variable_names_for_transfor
         style_source,
         available_style_paths,
         source_by_path,
-        package_manifests,
+        resolution_context,
         &mut visiting,
     )
 }
@@ -253,7 +252,7 @@ fn derive_static_scss_module_configurable_variable_names_for_transform_context_i
     style_source: &str,
     available_style_paths: &BTreeSet<&str>,
     source_by_path: &BTreeMap<String, String>,
-    package_manifests: &[OmenaQueryStylePackageManifestV0],
+    resolution_context: TransformResolutionContext<'_>,
     visiting: &mut BTreeSet<String>,
 ) -> BTreeSet<String> {
     let identity_path = canonicalize_omena_resolver_style_identity_path(style_path);
@@ -269,11 +268,10 @@ fn derive_static_scss_module_configurable_variable_names_for_transform_context_i
         .iter()
         .filter(|edge| edge.kind == "sassForward")
     {
-        let Some(resolved) = resolve_style_module_source(
+        let Some(resolved) = resolution_context.resolve_style_module_source(
             style_path,
             edge.source.as_str(),
             available_style_paths,
-            package_manifests,
         ) else {
             continue;
         };
@@ -286,7 +284,7 @@ fn derive_static_scss_module_configurable_variable_names_for_transform_context_i
                 source,
                 available_style_paths,
                 source_by_path,
-                package_manifests,
+                resolution_context,
                 visiting,
             );
         let non_default_forward_overrides = derive_static_scss_module_forward_variable_overrides(
@@ -459,11 +457,10 @@ fn derive_static_scss_module_forward_evaluations_for_transform_context(
         .iter()
         .filter(|edge| edge.kind == "sassForward")
     {
-        let Some(resolved) = resolve_style_module_source(
+        let Some(resolved) = context.resolution_context.resolve_style_module_source(
             style_path,
             edge.source.as_str(),
             context.available_style_paths,
-            context.package_manifests,
         ) else {
             continue;
         };
@@ -482,7 +479,7 @@ fn derive_static_scss_module_forward_evaluations_for_transform_context(
                 source,
                 context.available_style_paths,
                 context.source_by_path,
-                context.package_manifests,
+                context.resolution_context,
             );
         let variable_overrides = derive_static_scss_forward_effective_variable_overrides(
             &explicit_variable_overrides,
