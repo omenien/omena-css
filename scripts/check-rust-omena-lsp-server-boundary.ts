@@ -1,5 +1,5 @@
 import { spawnSync } from "node:child_process";
-import { readFileSync } from "node:fs";
+import { readdirSync, readFileSync, statSync } from "node:fs";
 import path from "node:path";
 import { strict as assert } from "node:assert";
 import { buildServerCapabilities } from "../server/lsp-server/src/server-capabilities";
@@ -38,6 +38,13 @@ interface RustOmenaLspServerBoundarySummary {
     readonly method: string;
     readonly migrationState: string;
   }[];
+  readonly trustBoundary: {
+    readonly product: string;
+    readonly networkAccess: string;
+    readonly verificationOwner: string;
+    readonly requestPathPolicy: readonly string[];
+    readonly forbiddenRuntimeCapabilities: readonly string[];
+  };
   readonly migrationPhases: readonly {
     readonly phase: string;
     readonly goal: string;
@@ -123,6 +130,21 @@ const lspServerDiagnosticsTestsSource = [
 assert.equal(rustSummary.schemaVersion, "0");
 assert.equal(rustSummary.product, "omena-lsp-server.boundary");
 assert.equal(rustSummary.migrationStatus, "rustStable");
+assert.equal(rustSummary.trustBoundary.product, "omena-lsp-server.trust-boundary");
+assert.equal(rustSummary.trustBoundary.networkAccess, "neverFetch");
+assert.equal(rustSummary.trustBoundary.verificationOwner, "omena-cli.lock-provenance");
+for (const requiredTrustPolicy of [
+  "analysisTimeUsesLocalWorkspaceOnly",
+  "lockAndSifEvidenceReadFromDisk",
+  "attestationVerificationOwnedByCli",
+  "noRegistryFetchOnLspRequestPath",
+  "noTransparencyLogLookupOnLspRequestPath",
+]) {
+  assert.ok(
+    rustSummary.trustBoundary.requestPathPolicy.includes(requiredTrustPolicy),
+    `Rust LSP trust boundary must include ${requiredTrustPolicy}`,
+  );
+}
 assert.ok(
   !/^\s*engine-style-parser\s*=/.test(lspServerCargoToml),
   "omena-lsp-server must consume style parser facts through omena-query, not a direct engine-style-parser dependency",
@@ -131,6 +153,7 @@ assert.ok(
   !/^\s*omena-bridge\s*=/.test(lspServerCargoToml),
   "omena-lsp-server must consume source syntax and style URI facts through omena-query, not a direct omena-bridge dependency",
 );
+assertLspServerHasNoNetworkSurface(repoRoot);
 assert.ok(
   [
     "mod diagnostics_cascade;",
@@ -530,6 +553,81 @@ function assertDefaultHostPathHasNoNodeWorkspaceResolver(root: string): void {
     ["tsgo", "tsgo-workspace"],
     "package settings must expose only tsgo-backed type fact backends",
   );
+}
+
+function assertLspServerHasNoNetworkSurface(root: string): void {
+  const manifest = readRepoFile(root, "rust/crates/omena-lsp-server/Cargo.toml");
+  const forbiddenDependencies = [
+    "reqwest",
+    "ureq",
+    "hyper",
+    "isahc",
+    "curl",
+    "surf",
+    "native-tls",
+    "rustls",
+    "webpki-roots",
+    "sigstore",
+    "sigstore-verify",
+    "cosign",
+  ];
+  for (const dependency of forbiddenDependencies) {
+    assert.doesNotMatch(
+      manifest,
+      new RegExp(`^\\s*${escapeRegExp(dependency)}\\s*=`, "mu"),
+      `omena-lsp-server must not depend directly on network/provenance crate ${dependency}`,
+    );
+  }
+
+  const sourceRoot = path.join(root, "rust/crates/omena-lsp-server/src");
+  const forbiddenSourcePatterns: readonly [RegExp, string][] = [
+    [/\bstd::net::/u, "std::net"],
+    [/\buse\s+std::net\b/u, "std::net import"],
+    [/\bTcpStream\b/u, "TcpStream"],
+    [/\bTcpListener\b/u, "TcpListener"],
+    [/\bUdpSocket\b/u, "UdpSocket"],
+    [/\bToSocketAddrs\b/u, "ToSocketAddrs"],
+    [/\breqwest::/u, "reqwest"],
+    [/\bureq::/u, "ureq"],
+    [/\bhyper::/u, "hyper"],
+    [/\bcurl::/u, "curl"],
+    [/\bisahc::/u, "isahc"],
+    [/\bsurf::/u, "surf"],
+    [/\bsigstore_verify::/u, "sigstore-verify"],
+    [/\bsigstore::/u, "sigstore"],
+  ];
+  for (const sourcePath of collectFiles(sourceRoot, ".rs")) {
+    const source = readFileSync(sourcePath, "utf8");
+    for (const [pattern, label] of forbiddenSourcePatterns) {
+      assert.doesNotMatch(
+        source,
+        pattern,
+        `omena-lsp-server source must not use ${label} on the LSP request/runtime path: ${path.relative(
+          root,
+          sourcePath,
+        )}`,
+      );
+    }
+  }
+}
+
+function collectFiles(root: string, extension: string): string[] {
+  const entries = readdirSync(root);
+  const files: string[] = [];
+  for (const entry of entries) {
+    const absolutePath = path.join(root, entry);
+    const stat = statSync(absolutePath);
+    if (stat.isDirectory()) {
+      files.push(...collectFiles(absolutePath, extension));
+    } else if (entry.endsWith(extension)) {
+      files.push(absolutePath);
+    }
+  }
+  return files;
+}
+
+function escapeRegExp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&");
 }
 
 function readRepoFile(root: string, relativePath: string): string {

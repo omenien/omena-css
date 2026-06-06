@@ -20,6 +20,7 @@ pub struct OmenaLspServerBoundarySummaryV0 {
     pub server_name: &'static str,
     pub migration_status: &'static str,
     pub transport_contract: &'static str,
+    pub trust_boundary: LspTrustBoundaryV0,
     pub capabilities: OmenaLspServerCapabilitiesV0,
     pub handler_surfaces: Vec<LspHandlerSurfaceV0>,
     pub migration_phases: Vec<LspMigrationPhaseV0>,
@@ -33,6 +34,16 @@ pub struct OmenaLspServerBoundarySummaryV0 {
     pub multi_editor_distribution: MultiEditorDistributionV0,
     pub node_parity_contracts: Vec<&'static str>,
     pub next_decoupling_targets: Vec<&'static str>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LspTrustBoundaryV0 {
+    pub product: &'static str,
+    pub network_access: &'static str,
+    pub verification_owner: &'static str,
+    pub request_path_policy: Vec<&'static str>,
+    pub forbidden_runtime_capabilities: Vec<&'static str>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -151,6 +162,7 @@ pub fn summarize_omena_lsp_server_boundary() -> OmenaLspServerBoundarySummaryV0 
         server_name: "omena-css",
         migration_status: "rustStable",
         transport_contract: "LSP stdio or IPC JSON-RPC",
+        trust_boundary: lsp_trust_boundary_contract(),
         capabilities: current_node_lsp_capability_contract(),
         handler_surfaces: lsp_handler_surfaces(),
         migration_phases: lsp_migration_phases(),
@@ -177,6 +189,27 @@ pub fn summarize_omena_lsp_server_boundary() -> OmenaLspServerBoundarySummaryV0 
             "codeLensRefresh",
         ],
         next_decoupling_targets: vec![],
+    }
+}
+
+pub fn lsp_trust_boundary_contract() -> LspTrustBoundaryV0 {
+    LspTrustBoundaryV0 {
+        product: "omena-lsp-server.trust-boundary",
+        network_access: "neverFetch",
+        verification_owner: "omena-cli.lock-provenance",
+        request_path_policy: vec![
+            "analysisTimeUsesLocalWorkspaceOnly",
+            "lockAndSifEvidenceReadFromDisk",
+            "attestationVerificationOwnedByCli",
+            "noRegistryFetchOnLspRequestPath",
+            "noTransparencyLogLookupOnLspRequestPath",
+        ],
+        forbidden_runtime_capabilities: vec![
+            "registryHttpClient",
+            "sigstoreBundleVerifier",
+            "transparencyLogClient",
+            "socketNetworkIo",
+        ],
     }
 }
 
