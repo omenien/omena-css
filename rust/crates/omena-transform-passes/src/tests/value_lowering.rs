@@ -25,7 +25,7 @@ fn execution_runtime_adds_conservative_vendor_prefixes_when_absent() {
 
 #[test]
 fn execution_runtime_expands_target_vendor_prefix_matrix_breadth() {
-    let source = r#".legacy { transform: translateX(1px); -webkit-transform-origin: left center; transform-origin: left center; backface-visibility: hidden; perspective: 20rem; } .shape { box-decoration-break: clone; clip-path: inset(0); filter: blur(1px); } .columns { columns: 2; column-rule: 1px solid red; column-span: all; tab-size: 4; touch-action: manipulation; } .grid { display: grid; } .inline-grid { display: -ms-inline-grid; display: inline-grid; }"#;
+    let source = r#".legacy { transform: translateX(1px); -webkit-transform-origin: left center; transform-origin: left center; backface-visibility: hidden; perspective: 20rem; } .shape { box-decoration-break: clone; clip-path: inset(0); filter: blur(1px); } .columns { columns: 2; column-rule: 1px solid red; column-span: all; tab-size: 4; touch-action: manipulation; } .flex { display: flex; align-items: flex-start; justify-content: space-between; flex-direction: row-reverse; flex-wrap: wrap; } .grid { display: grid; } .inline-grid { display: -ms-inline-grid; display: inline-grid; }"#;
     let execution = execute_transform_passes_on_source(
         source,
         &[
@@ -34,10 +34,10 @@ fn execution_runtime_expands_target_vendor_prefix_matrix_breadth() {
         ],
     );
 
-    assert_eq!(execution.mutation_count, 16);
+    assert_eq!(execution.mutation_count, 30);
     assert_eq!(
         execution.output_css,
-        r#".legacy { -webkit-transform: translateX(1px); -ms-transform: translateX(1px); transform: translateX(1px); -webkit-transform-origin: left center; -ms-transform-origin: left center; transform-origin: left center; -webkit-backface-visibility: hidden; backface-visibility: hidden; -webkit-perspective: 20rem; perspective: 20rem; } .shape { -webkit-box-decoration-break: clone; box-decoration-break: clone; -webkit-clip-path: inset(0); clip-path: inset(0); -webkit-filter: blur(1px); filter: blur(1px); } .columns { -webkit-columns: 2; -moz-columns: 2; columns: 2; -webkit-column-rule: 1px solid red; -moz-column-rule: 1px solid red; column-rule: 1px solid red; -webkit-column-span: all; column-span: all; -moz-tab-size: 4; tab-size: 4; -ms-touch-action: manipulation; touch-action: manipulation; } .grid { display: -ms-grid; display: grid; } .inline-grid { display: -ms-inline-grid; display: inline-grid; }"#
+        r#".legacy { -webkit-transform: translateX(1px); -ms-transform: translateX(1px); transform: translateX(1px); -webkit-transform-origin: left center; -ms-transform-origin: left center; transform-origin: left center; -webkit-backface-visibility: hidden; backface-visibility: hidden; -webkit-perspective: 20rem; perspective: 20rem; } .shape { -webkit-box-decoration-break: clone; box-decoration-break: clone; -webkit-clip-path: inset(0); clip-path: inset(0); -webkit-filter: blur(1px); filter: blur(1px); } .columns { -webkit-columns: 2; -moz-columns: 2; columns: 2; -webkit-column-rule: 1px solid red; -moz-column-rule: 1px solid red; column-rule: 1px solid red; -webkit-column-span: all; column-span: all; -moz-tab-size: 4; tab-size: 4; -ms-touch-action: manipulation; touch-action: manipulation; } .flex { display: -webkit-box; display: -ms-flexbox; display: flex; -webkit-box-align: start; -webkit-align-items: flex-start; -ms-flex-align: start; align-items: flex-start; -webkit-box-pack: justify; -webkit-justify-content: space-between; -ms-flex-pack: justify; justify-content: space-between; -webkit-box-orient: horizontal; -webkit-box-direction: reverse; -webkit-flex-direction: row-reverse; -ms-flex-direction: row-reverse; flex-direction: row-reverse; -webkit-flex-wrap: wrap; -ms-flex-wrap: wrap; flex-wrap: wrap; } .grid { display: -ms-grid; display: grid; } .inline-grid { display: -ms-inline-grid; display: inline-grid; }"#
     );
     assert_eq!(
         execution.executed_pass_ids,

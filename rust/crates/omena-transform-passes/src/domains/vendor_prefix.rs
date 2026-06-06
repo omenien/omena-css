@@ -76,6 +76,22 @@ fn collect_vendor_prefix_insertions(source: &str, tokens: &[LexedToken]) -> Vec<
                         format!("{}: {prefixed_value}; ", declaration.property),
                     ));
                 }
+                for (prefixed_property, prefixed_value) in
+                    prefixed_declarations_for(&declaration.property, &declaration.value)
+                {
+                    if declarations.iter().any(|candidate| {
+                        candidate.property == prefixed_property
+                            && candidate
+                                .value
+                                .eq_ignore_ascii_case(prefixed_value.as_str())
+                    }) {
+                        continue;
+                    }
+                    insertions.push((
+                        declaration.start,
+                        format!("{prefixed_property}: {prefixed_value}; "),
+                    ));
+                }
             }
             index += 1;
             continue;
@@ -340,5 +356,87 @@ fn prefixed_values_for(property: &str, value: &str) -> Vec<&'static str> {
         ("display", "inline-grid") => vec!["-ms-inline-grid"],
         ("position", "sticky") => vec!["-webkit-sticky"],
         _ => Vec::new(),
+    }
+}
+
+fn prefixed_declarations_for(property: &str, value: &str) -> Vec<(&'static str, String)> {
+    let normalized = value.trim().to_ascii_lowercase();
+    match property {
+        "align-items" => flex_align_value(normalized.as_str())
+            .map(|legacy_value| {
+                vec![
+                    ("-webkit-box-align", legacy_value.to_string()),
+                    ("-webkit-align-items", normalized.clone()),
+                    ("-ms-flex-align", legacy_value.to_string()),
+                ]
+            })
+            .unwrap_or_default(),
+        "align-self" => flex_align_value(normalized.as_str())
+            .map(|legacy_value| {
+                vec![
+                    ("-webkit-align-self", normalized.clone()),
+                    ("-ms-flex-item-align", legacy_value.to_string()),
+                ]
+            })
+            .unwrap_or_default(),
+        "justify-content" => flex_pack_value(normalized.as_str())
+            .map(|legacy_value| {
+                vec![
+                    ("-webkit-box-pack", legacy_value.to_string()),
+                    ("-webkit-justify-content", normalized.clone()),
+                    ("-ms-flex-pack", legacy_value.to_string()),
+                ]
+            })
+            .unwrap_or_default(),
+        "flex-direction" => flex_direction_values(normalized.as_str())
+            .map(|(orient, direction)| {
+                vec![
+                    ("-webkit-box-orient", orient.to_string()),
+                    ("-webkit-box-direction", direction.to_string()),
+                    ("-webkit-flex-direction", normalized.clone()),
+                    ("-ms-flex-direction", normalized.clone()),
+                ]
+            })
+            .unwrap_or_default(),
+        "flex-wrap" => match normalized.as_str() {
+            "nowrap" | "wrap" | "wrap-reverse" => vec![
+                ("-webkit-flex-wrap", normalized.clone()),
+                ("-ms-flex-wrap", normalized),
+            ],
+            _ => Vec::new(),
+        },
+        _ => Vec::new(),
+    }
+}
+
+fn flex_align_value(value: &str) -> Option<&'static str> {
+    match value {
+        "flex-start" | "start" => Some("start"),
+        "flex-end" | "end" => Some("end"),
+        "center" => Some("center"),
+        "baseline" => Some("baseline"),
+        "stretch" => Some("stretch"),
+        _ => None,
+    }
+}
+
+fn flex_pack_value(value: &str) -> Option<&'static str> {
+    match value {
+        "flex-start" | "start" | "left" => Some("start"),
+        "flex-end" | "end" | "right" => Some("end"),
+        "center" => Some("center"),
+        "space-between" => Some("justify"),
+        "space-around" | "space-evenly" => Some("distribute"),
+        _ => None,
+    }
+}
+
+fn flex_direction_values(value: &str) -> Option<(&'static str, &'static str)> {
+    match value {
+        "row" => Some(("horizontal", "normal")),
+        "row-reverse" => Some(("horizontal", "reverse")),
+        "column" => Some(("vertical", "normal")),
+        "column-reverse" => Some(("vertical", "reverse")),
+        _ => None,
     }
 }

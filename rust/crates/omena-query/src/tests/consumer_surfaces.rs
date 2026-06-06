@@ -140,7 +140,7 @@ fn exposes_consumer_build_facade_from_target_query() {
 fn target_query_build_emits_expanded_vendor_prefix_matrix() {
     let summary = execute_omena_query_consumer_build_style_source_for_target_query(
         "Grid.module.css",
-        ".card { display: grid; transform: translateX(1px); columns: 2; touch-action: manipulation; } @supports (display: grid) { .query { display: grid; } }",
+        ".card { display: grid; transform: translateX(1px); columns: 2; touch-action: manipulation; } .flex { display: flex; align-items: flex-start; justify-content: space-between; flex-direction: row-reverse; flex-wrap: wrap; } @supports (display: grid) { .query { display: grid; } }",
         "ie 11",
     );
 
@@ -178,6 +178,25 @@ fn target_query_build_emits_expanded_vendor_prefix_matrix() {
             .output_css
             .contains("-ms-touch-action: manipulation")
     );
+    assert!(
+        summary
+            .execution
+            .output_css
+            .contains("-webkit-box-align: start")
+    );
+    assert!(
+        summary
+            .execution
+            .output_css
+            .contains("-ms-flex-pack: justify")
+    );
+    assert!(
+        summary
+            .execution
+            .output_css
+            .contains("-webkit-box-direction: reverse")
+    );
+    assert!(summary.execution.output_css.contains("-ms-flex-wrap: wrap"));
     assert!(
         summary
             .execution
