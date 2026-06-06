@@ -17,10 +17,11 @@ import { fileURLToPath } from "node:url";
  *   R1 reusable building block | R2 composed engine library | U umbrella facade
  *   P product surface | I internal/dev (publish=false) | S support/infrastructure
  *
- * R1-vs-R2 is a COMPUTED predicate, not a hand judgment: a crate is R2 iff it is
- * itself one of the pinned engine hubs OR its transitive internal-dep closure
- * reaches >= R2_REACH_THRESHOLD of them. The gate recomputes it and asserts the
- * declared role matches — a mis-tagged role reds CI.
+ * R1-vs-R2 is a curated-anchor reach guardrail, not a from-scratch classifier:
+ * a crate is treated as R2 iff it is itself one of the pinned engine hubs OR its
+ * transitive internal-dep closure reaches >= R2_REACH_THRESHOLD of them. The
+ * gate recomputes that anchor reach and asserts the declared role stays aligned
+ * with the manifest's structural intent.
  *
  * Edge invariants enforced here:
  *   - no R1 -> R2 edge (a building block must not depend on the engine)
@@ -34,9 +35,9 @@ const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), ".."
 const VALID_ROLES = new Set(["R1", "R2", "U", "P", "I", "S"]);
 const PUBLISHED_ROLES = new Set(["R1", "R2", "U", "P", "S"]);
 
-// Pinned engine-hub family for the R1/R2 computed predicate. These are the
-// composed-engine crates; a crate that reaches >= threshold of them composes the
-// engine and is therefore R2. Recorded here as the predicate anchor (plan §5.1).
+// Pinned engine-hub family for the R1/R2 reach predicate. These are the
+// composed-engine crates; the set is intentionally curated, while the transitive
+// reach check prevents hand-maintained role tags from drifting silently.
 const R2_FAMILY = new Set([
   "omena-semantic",
   "omena-bridge",
