@@ -431,7 +431,7 @@ enum LockCommand {
         identity: Option<String>,
         /// Required certificate OIDC issuer.
         #[arg(long)]
-        issuer: Option<String>,
+        issuer: String,
         /// Print machine-readable JSON.
         #[arg(long)]
         json: bool,
@@ -1092,7 +1092,7 @@ struct LockVerifyAttestationInput {
     reference: String,
     kind: String,
     identity: Option<String>,
-    issuer: Option<String>,
+    issuer: String,
     json: bool,
 }
 
@@ -1124,9 +1124,7 @@ fn lock_verify_attestation(input: LockVerifyAttestationInput) -> Result<(), Stri
     if let Some(identity) = identity {
         policy = policy.require_identity(identity);
     }
-    if let Some(issuer) = issuer {
-        policy = policy.require_issuer(issuer);
-    }
+    policy = policy.require_issuer(issuer);
     let verification_result = sigstore_verify::verify(
         artifact_bytes.as_slice(),
         &sigstore_bundle,
@@ -4011,6 +4009,60 @@ mod tests {
     }
 
     #[test]
+    fn lock_verify_attestation_cli_requires_issuer() -> Result<(), String> {
+        let missing_issuer = Cli::try_parse_from([
+            "omena",
+            "lock",
+            "verify-attestation",
+            "pkg:design-system/_tokens.scss",
+            "--artifact",
+            "design-system.sif.json",
+            "--bundle",
+            "design-system.sigstore.json",
+            "--reference",
+            "sif/design-system.sigstore.json",
+        ]);
+        assert!(
+            missing_issuer
+                .as_ref()
+                .is_err_and(|error| error.to_string().contains("--issuer")),
+            "{missing_issuer:?}"
+        );
+
+        let parsed = Cli::try_parse_from([
+            "omena",
+            "lock",
+            "verify-attestation",
+            "pkg:design-system/_tokens.scss",
+            "--artifact",
+            "design-system.sif.json",
+            "--bundle",
+            "design-system.sigstore.json",
+            "--reference",
+            "sif/design-system.sigstore.json",
+            "--issuer",
+            "https://token.actions.githubusercontent.com",
+        ])
+        .map_err(|error| {
+            format!("issuer-bound attestation verification command should parse: {error}")
+        })?;
+
+        let Command::Lock {
+            command:
+                Some(LockCommand::VerifyAttestation {
+                    issuer, identity, ..
+                }),
+            ..
+        } = parsed.command
+        else {
+            return Err("expected lock verify-attestation command".to_string());
+        };
+        assert_eq!(issuer, "https://token.actions.githubusercontent.com");
+        assert_eq!(identity, None);
+        Ok(())
+    }
+
+    #[test]
     fn build_command_writes_query_owned_transform_output() -> Result<(), String> {
         let source_path = temp_path("input.css");
         let output_path = temp_path("output.css");
@@ -5614,7 +5666,7 @@ export function App() {
                     reference: provenance_reference.to_string(),
                     kind: "npm-provenance.sigstore".to_string(),
                     identity: None,
-                    issuer: Some("https://token.actions.githubusercontent.com".to_string()),
+                    issuer: "https://token.actions.githubusercontent.com".to_string(),
                     json: true,
                 }),
             },
@@ -5718,7 +5770,7 @@ export function App() {
                     reference: provenance_reference.to_string(),
                     kind: "npm-provenance.sigstore".to_string(),
                     identity: None,
-                    issuer: Some("https://github.com/login/oauth".to_string()),
+                    issuer: "https://github.com/login/oauth".to_string(),
                     json: true,
                 }),
             },
