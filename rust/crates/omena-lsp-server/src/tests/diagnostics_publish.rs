@@ -177,3 +177,103 @@ fn dedupes_watched_style_diagnostics_notifications() {
 
     assert_eq!(published_uris, vec![style_uri, source_uri]);
 }
+
+// rfcs#61 FIX-1: a watched change to a style file must also republish diagnostics for
+// OPEN style documents that (transitively) import it — resolved over disk, so an
+// intermediate partial that is neither open nor indexed does not break the importer
+// chain. An unrelated open style document must NOT be republished.
+#[test]
+fn refreshes_open_style_importer_after_watched_transitive_dependency_change() -> TestResult {
+    let workspace_path = std::env::temp_dir().join(format!(
+        "omena-lsp-style-peer-refresh-{}-{}",
+        std::process::id(),
+        current_time_millis()
+    ));
+    let consumer_path = workspace_path.join("src/App.module.scss");
+    let unrelated_path = workspace_path.join("src/Other.module.scss");
+    let mid_path = workspace_path.join("src/partials/_mid.scss");
+    let leaf_path = workspace_path.join("src/partials/_leaf.scss");
+    fs::create_dir_all(fixture_parent(
+        consumer_path.as_path(),
+        "consumer fixture path has parent directory",
+    )?)?;
+    fs::create_dir_all(fixture_parent(
+        mid_path.as_path(),
+        "partials fixture path has parent directory",
+    )?)?;
+    let consumer_text = "@use \"./partials/mid\";\n.app { color: red; }\n";
+    let unrelated_text = ".other { color: blue; }\n";
+    fs::write(consumer_path.as_path(), consumer_text)?;
+    fs::write(unrelated_path.as_path(), unrelated_text)?;
+    fs::write(mid_path.as_path(), "@use \"./leaf\";\n")?;
+    fs::write(leaf_path.as_path(), "$tone: red;\n")?;
+
+    let workspace_uri = path_to_file_uri(workspace_path.as_path());
+    let consumer_uri = path_to_file_uri(consumer_path.as_path());
+    let unrelated_uri = path_to_file_uri(unrelated_path.as_path());
+    let leaf_uri = path_to_file_uri(leaf_path.as_path());
+
+    let mut state = LspShellState::default();
+    let _ = handle_lsp_message_outputs(
+        &mut state,
+        json!({
+            "jsonrpc": "2.0",
+            "id": 1,
+            "method": "initialize",
+            "params": {
+                "workspaceFolders": [
+                    { "uri": workspace_uri, "name": "style-peer-refresh" },
+                ],
+            },
+        }),
+    );
+    for (uri, text) in [
+        (consumer_uri.as_str(), consumer_text),
+        (unrelated_uri.as_str(), unrelated_text),
+    ] {
+        let _ = handle_lsp_message_outputs(
+            &mut state,
+            json!({
+                "jsonrpc": "2.0",
+                "method": "textDocument/didOpen",
+                "params": {
+                    "textDocument": {
+                        "uri": uri,
+                        "languageId": "scss",
+                        "version": 1,
+                        "text": text,
+                    },
+                },
+            }),
+        );
+    }
+
+    let outputs = handle_lsp_message_outputs(
+        &mut state,
+        json!({
+            "jsonrpc": "2.0",
+            "method": "workspace/didChangeWatchedFiles",
+            "params": {
+                "changes": [
+                    { "uri": leaf_uri, "type": 2 },
+                ],
+            },
+        }),
+    );
+    let published_uris = outputs
+        .iter()
+        .filter_map(|value| value.pointer("/params/uri").and_then(Value::as_str))
+        .collect::<Vec<_>>();
+
+    assert!(
+        published_uris.contains(&consumer_uri.as_str()),
+        "open importer must be republished after its transitive dependency changes: {published_uris:?}"
+    );
+    assert!(
+        !published_uris.contains(&unrelated_uri.as_str()),
+        "unrelated open style document must not be republished: {published_uris:?}"
+    );
+
+    let _ = fs::remove_dir_all(workspace_path.as_path());
+    Ok(())
+}

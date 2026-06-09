@@ -1,12 +1,25 @@
 use crate::{
     LspOptimizingTierFeedback, LspShellState, OPTIMIZING_DIAGNOSTICS_DELAY_MS, ScheduledLspOutput,
-    is_resolution_config_document_uri, is_style_document_uri, resolve_document_diagnostics_for_uri,
+    is_resolution_config_document_uri, is_style_document_uri,
+    protocol::{file_uri_equivalent, file_uri_to_path},
+    resolution_inputs_for_workspace_uri, resolve_document_diagnostics_for_uri,
     resolve_source_diagnostics_for_uri, resolve_workspace_folder_uri, workspace_folder_compatible,
 };
-use omena_query::{summarize_omena_query_analyzed_graph, summarize_omena_query_fast_facts};
+use omena_query::{
+    resolve_omena_query_style_uri_for_specifier_with_resolution_inputs,
+    summarize_omena_query_analyzed_graph, summarize_omena_query_fast_facts,
+    summarize_omena_query_sass_module_sources,
+};
 use serde::Serialize;
 use serde_json::{Value, json};
-use std::collections::BTreeSet;
+use std::collections::{BTreeSet, VecDeque};
+use std::fs;
+
+/// rfcs#61 FIX-1: per peer-recompute walk, the maximum number of style files whose
+/// import edges are expanded while deciding whether an open style document
+/// (transitively) imports the changed one. Mirrors the workspace-index budgeting
+/// philosophy so a pathological import graph cannot stall the loop.
+const STYLE_PEER_DISK_WALK_MAX_FILES: usize = 64;
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -26,6 +39,7 @@ pub fn rust_diagnostics_scheduler_contract() -> RustDiagnosticsSchedulerBoundary
         event_policy: vec![
             "publishOnOpenChangeClose",
             "refreshSourceDiagnosticsForStyleChanges",
+            "refreshOpenStyleImporterDiagnosticsForStyleChanges",
             "dedupeWatchedStyleDiagnostics",
             "refreshSourceDiagnosticsForResolutionConfigChanges",
             "refreshOpenDocumentsOnConfigurationChange",
@@ -118,6 +132,14 @@ fn diagnostics_for_text_document_event(
                 diagnostics,
             ));
         }
+        for peer_uri in style_uris_for_style_peer_change_diagnostics(state, uri) {
+            let diagnostics = resolve_document_diagnostics_for_uri(state, peer_uri.as_str());
+            outputs.extend(publish_tiered_diagnostics_notifications(
+                state,
+                peer_uri.as_str(),
+                diagnostics,
+            ));
+        }
     }
 
     outputs
@@ -142,6 +164,9 @@ fn diagnostics_for_watched_files(
         document_uris_to_refresh.insert(uri.clone());
         for source_uri in source_uris_for_style_change_diagnostics(state, uri.as_str()) {
             document_uris_to_refresh.insert(source_uri);
+        }
+        for peer_uri in style_uris_for_style_peer_change_diagnostics(state, uri.as_str()) {
+            document_uris_to_refresh.insert(peer_uri);
         }
     }
     for uri in config_uris_to_refresh {
@@ -223,6 +248,90 @@ fn source_uris_for_style_change_diagnostics(state: &LspShellState, style_uri: &s
         })
         .map(|document| document.uri.clone())
         .collect()
+}
+
+/// rfcs#61 FIX-1: open style documents whose transitive `@use`/`@forward`/`@import`
+/// closure reaches `changed_style_uri`. The closure is resolved over DISK with the
+/// same specifier resolver navigation uses (alias-aware, existence-checked), NOT the
+/// in-memory open-document graph — an intermediate partial that is not open (or fell
+/// outside the indexing budget) must not break the importer chain, otherwise a stale
+/// diagnostic on the importer survives edits to its dependency.
+fn style_uris_for_style_peer_change_diagnostics(
+    state: &LspShellState,
+    changed_style_uri: &str,
+) -> Vec<String> {
+    state
+        .open_document_uris
+        .iter()
+        .filter(|uri| is_style_document_uri(uri.as_str()))
+        .filter(|uri| !file_uri_equivalent(uri.as_str(), changed_style_uri))
+        .filter(|uri| state.document(uri.as_str()).is_some())
+        .filter(|uri| style_disk_import_closure_reaches(state, uri.as_str(), changed_style_uri))
+        .cloned()
+        .collect()
+}
+
+/// Walks `from_uri`'s Sass import closure breadth-first, reading not-open
+/// intermediates from disk, and reports whether `needle_uri` is reachable.
+fn style_disk_import_closure_reaches(
+    state: &LspShellState,
+    from_uri: &str,
+    needle_uri: &str,
+) -> bool {
+    let workspace_folder_uri = state
+        .document(from_uri)
+        .and_then(|document| document.workspace_folder_uri.clone())
+        .or_else(|| resolve_workspace_folder_uri(state, from_uri));
+    let resolution_inputs =
+        resolution_inputs_for_workspace_uri(state, workspace_folder_uri.as_deref());
+    let mut visited = BTreeSet::from([from_uri.to_string()]);
+    let mut queue = VecDeque::from([from_uri.to_string()]);
+    let mut remaining_files = STYLE_PEER_DISK_WALK_MAX_FILES;
+
+    while let Some(uri) = queue.pop_front() {
+        if remaining_files == 0 {
+            return false;
+        }
+        remaining_files -= 1;
+        let text = match state.document(uri.as_str()) {
+            Some(document) => document.text.clone(),
+            None => {
+                let Some(path) = file_uri_to_path(uri.as_str()) else {
+                    continue;
+                };
+                let Ok(text) = fs::read_to_string(path) else {
+                    continue;
+                };
+                text
+            }
+        };
+        let Some(sources) = summarize_omena_query_sass_module_sources(uri.as_str(), text.as_str())
+        else {
+            continue;
+        };
+        let specifiers = sources
+            .module_use_edges
+            .iter()
+            .map(|edge| edge.source.clone())
+            .chain(sources.module_forward_sources.iter().cloned());
+        for specifier in specifiers {
+            let Some(resolved) = resolve_omena_query_style_uri_for_specifier_with_resolution_inputs(
+                uri.as_str(),
+                workspace_folder_uri.as_deref(),
+                specifier.as_str(),
+                &resolution_inputs,
+            ) else {
+                continue;
+            };
+            if file_uri_equivalent(resolved.as_str(), needle_uri) {
+                return true;
+            }
+            if visited.insert(resolved.clone()) {
+                queue.push_back(resolved);
+            }
+        }
+    }
+    false
 }
 
 fn document_uris_for_resolution_config_change_diagnostics(
