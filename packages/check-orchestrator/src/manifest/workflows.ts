@@ -207,6 +207,7 @@ function inferWorkflowJobTier(
 ): CheckCiTier | null {
   if (fileName === "ci.yml" && jobName === "verify") return "verify";
   if (fileName === "ci.yml" && jobName === "closure-fast") return "closure-fast";
+  if (fileName === "ci.yml" && jobName === "rust-workspace") return "rust-workspace";
   if (/^\s+schedule:\s*$/m.test(workflowText)) return "scheduled";
   return null;
 }

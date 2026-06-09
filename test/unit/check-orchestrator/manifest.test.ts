@@ -730,6 +730,79 @@ describe("check orchestrator manifest", () => {
     );
   });
 
+  // rfcs#60: the per-PR rust-workspace job (the rfcs#56 strict clippy/fmt gate) is bound to
+  // its own ci tier, so deleting the ci.yml job — or its `omena-check run rust/workspace`
+  // step — must surface as ci-tier-unreachable instead of passing silently.
+  it("guards the per-PR rust-workspace job with the ci-tier reachability check", () => {
+    const declaredGates: DeclaredCheckGateV0[] = [
+      {
+        id: "rust/workspace",
+        kind: "command",
+        scope: "rust",
+        command: ["node", "--version"],
+        ciTier: "rust-workspace",
+      },
+    ];
+    const packageJson = JSON.stringify(
+      {
+        name: "omena-css",
+        scripts: {
+          "omena-check": "node ./check.js",
+        },
+      },
+      null,
+      2,
+    );
+
+    const wiredRoot = mkdtempSync(path.join(os.tmpdir(), "omena-check-orchestrator-"));
+    mkdirSync(path.join(wiredRoot, ".github/workflows"), { recursive: true });
+    writeFileSync(path.join(wiredRoot, "package.json"), packageJson);
+    writeFileSync(
+      path.join(wiredRoot, ".github/workflows/ci.yml"),
+      [
+        "name: CI",
+        "jobs:",
+        "  rust-workspace:",
+        "    steps:",
+        "      - run: pnpm omena-check run rust/workspace",
+      ].join("\n"),
+    );
+    const wiredDiagnostics = runDoctor(loadCheckManifest(wiredRoot, { declaredGates }));
+    expect(wiredDiagnostics).not.toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          message: expect.stringContaining("rust/workspace"),
+        }),
+      ]),
+    );
+
+    // Delete-simulation: the same declaration with the rust-workspace job removed from ci.yml.
+    const deletedRoot = mkdtempSync(path.join(os.tmpdir(), "omena-check-orchestrator-"));
+    mkdirSync(path.join(deletedRoot, ".github/workflows"), { recursive: true });
+    writeFileSync(path.join(deletedRoot, "package.json"), packageJson);
+    writeFileSync(
+      path.join(deletedRoot, ".github/workflows/ci.yml"),
+      [
+        "name: CI",
+        "jobs:",
+        "  verify:",
+        "    steps:",
+        "      - run: pnpm omena-check run core/check",
+      ].join("\n"),
+    );
+    const deletedDiagnostics = runDoctor(loadCheckManifest(deletedRoot, { declaredGates }));
+    expect(deletedDiagnostics).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          severity: "error",
+          code: "ci-tier-unreachable",
+          message:
+            'Gate "rust/workspace" declares ciTier "rust-workspace" but is not reachable from that workflow tier.',
+        }),
+      ]),
+    );
+  });
+
   it("requires explicit ciTier handling for declared gates", () => {
     const root = mkdtempSync(path.join(os.tmpdir(), "omena-check-orchestrator-"));
     mkdirSync(path.join(root, ".github/workflows"), { recursive: true });

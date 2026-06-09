@@ -13,7 +13,13 @@ export type CheckScopeId =
 
 export type CheckGateKind = "command" | "gate" | "bundle" | "alias";
 export type CheckGateOrigin = "package" | "declared" | "package+declared";
-export type CheckCiTier = "verify" | "closure-fast" | "scheduled" | "manual" | "none";
+export type CheckCiTier =
+  | "verify"
+  | "closure-fast"
+  | "rust-workspace"
+  | "scheduled"
+  | "manual"
+  | "none";
 
 export type DeclaredCheckDepV0 =
   | string

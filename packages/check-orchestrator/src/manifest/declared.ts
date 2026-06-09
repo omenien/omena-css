@@ -10,6 +10,7 @@ import type {
 const VALID_CI_TIERS = new Set<CheckCiTier>([
   "verify",
   "closure-fast",
+  "rust-workspace",
   "scheduled",
   "manual",
   "none",
@@ -241,6 +242,18 @@ export const DECLARED_CHECK_GATES = [
   declaredClosurePackageGate("rust/no-split-repo-residue", "gate", "rust"),
   declaredClosurePackageGate("release/check/release-tag-grammar", "gate", "release"),
   declaredClosurePackageGate("rust/closure-fast-aggregation-complete", "gate", "rust"),
+  // rfcs#60: the per-PR rust-workspace strict clippy/fmt job (the rfcs#56 gate) gets an
+  // explicit ci tier so the reachability check fails loudly if the ci.yml job that runs
+  // `pnpm omena-check run rust/workspace` is ever deleted or stops invoking it.
+  {
+    id: "rust/workspace",
+    kind: "gate",
+    scope: "rust",
+    packageTarget: "rust/workspace",
+    tags: ["rust-workspace"],
+    ciTier: "rust-workspace",
+    ciGroup: "rust-workspace",
+  },
 ] satisfies readonly DeclaredCheckGateV0[];
 
 const LEGACY_PACKAGE_SCRIPT_REPLACEMENTS = new Map(
