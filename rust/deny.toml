@@ -18,13 +18,15 @@
 # list flips the licenses check from "allow anything" to "allow ONLY these" — any
 # new dependency with a license outside the set REDs the gate (a deliberate review
 # point). Strong copyleft (GPL/AGPL/LGPL) is therefore denied by omission. Do NOT
-# pre-add licenses not actually present (e.g. MPL-2.0 / BSD-3-Clause) — keep the
-# set tight to the real tree.
+# pre-add licenses not actually present (e.g. MPL-2.0) — keep the set tight to the
+# real tree. BSD-3-Clause entered the tree via aws-lc-sys (rustls <- sigstore-verify,
+# the RFC 0005 T2/T3 attestation read path) and was reviewed/allowed 2026-06-10.
 allow = [
   "0BSD",
   "Apache-2.0",
   "Apache-2.0 WITH LLVM-exception",
   "BSD-2-Clause",
+  "BSD-3-Clause",
   "BSL-1.0",
   "CC0-1.0",
   "ISC",
