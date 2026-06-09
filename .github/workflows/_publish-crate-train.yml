@@ -105,8 +105,9 @@ jobs:
       - uses: ./.github/actions/setup-rust-pinned
 
       # 2a. DEMONSTRATE, don't assert: the all-or-nothing `cargo publish --workspace`
-      #     verify behavior is a 1.96.0 property; local dev runs 1.93.1. Fail loudly
-      #     if the resolved toolchain is not the pinned one (docs 12 §5a).
+      #     verify behavior is a 1.96.0 property; local dev also pins 1.96.0 via the
+      #     repo-root rust-toolchain.toml. Fail loudly if the resolved toolchain is
+      #     not the pinned one (docs 12 §5a).
       - name: Assert pinned toolchain (1.96.0)
         shell: bash
         run: |
