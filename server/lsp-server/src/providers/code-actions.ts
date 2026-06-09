@@ -28,7 +28,13 @@ export const handleCodeAction = wrapHandler<
         documentUri: params.textDocument.uri,
         ...(documentContent !== undefined ? { documentContent } : {}),
         range: params.range,
-        diagnostics: params.context.diagnostics,
+        // LSP 3.18 widened Diagnostic.message to string | MarkupContent; the
+        // host-side plan input is protocol-agnostic and takes plain text.
+        diagnostics: params.context.diagnostics.map((diagnostic) => ({
+          ...diagnostic,
+          message:
+            typeof diagnostic.message === "string" ? diagnostic.message : diagnostic.message.value,
+        })),
       },
       deps,
     );

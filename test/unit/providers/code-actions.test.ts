@@ -440,14 +440,15 @@ describe("handleCodeAction", () => {
 
   it("logs and returns null on exception", () => {
     const logError = vi.fn();
-    // Poison the diagnostics iterable so for-of throws.
+    // Poison the diagnostics array so the handler's first traversal throws
+    // (map for the message normalization, Symbol.iterator for any for-of).
     const poisonedParams = {
       textDocument: { uri: SOURCE_URI },
       range: DEFAULT_DIAGNOSTIC_RANGE,
       context: {
         diagnostics: new Proxy([diagnostic("x")], {
           get(target, prop) {
-            if (prop === Symbol.iterator) throw new Error("boom");
+            if (prop === Symbol.iterator || prop === "map") throw new Error("boom");
             return Reflect.get(target, prop);
           },
         }) as Diagnostic[],
