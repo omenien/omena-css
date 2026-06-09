@@ -1010,8 +1010,7 @@ assert.deepEqual(lspCodeActionResponse.result, [
                 character: 0,
               },
             },
-            newText:
-              "/* omena-ignore-next-line missingCustomProperty [reason: 'TODO'] */\n",
+            newText: "/* omena-ignore-next-line missingCustomProperty [reason: 'TODO'] */\n",
           },
         ],
       },

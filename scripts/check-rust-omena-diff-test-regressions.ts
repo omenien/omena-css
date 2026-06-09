@@ -6,6 +6,11 @@ import path from "node:path";
 
 type RegressionStatus = "fixed" | "todo";
 type IssueState = "OPEN" | "CLOSED";
+// UNKNOWN = the gh probe itself failed (no gh binary, no network, or a token that
+// cannot read the issue's repository — the default CI token cannot view a private
+// sibling repo). State-consistency checks are skipped for that fixture with a
+// notice; the diagnostics expectations remain fully enforced.
+type ProbedIssueState = IssueState | "UNKNOWN";
 
 interface RegressionManifestV0 {
   readonly schemaVersion: string;
@@ -50,7 +55,7 @@ interface FixtureReport {
   readonly id: string;
   readonly status: RegressionStatus;
   readonly issue: string;
-  readonly issueState: IssueState;
+  readonly issueState: ProbedIssueState;
   readonly evaluatedExpectationCount: number;
   readonly satisfiedExpectationCount: number;
   readonly outcome: "pass" | "expectedFailure";
@@ -64,7 +69,7 @@ assert.equal(manifest.schemaVersion, "0");
 assert.equal(manifest.product, "omena-diff-test.regression-corpus");
 assert.ok(manifest.fixtures.length > 0, "regression corpus must not be empty");
 
-const issueStateCache = new Map<string, IssueState>();
+const issueStateCache = new Map<string, ProbedIssueState>();
 const reports = manifest.fixtures.map((fixture) => evaluateRegressionFixture(fixture));
 
 process.stdout.write(
@@ -97,24 +102,33 @@ function evaluateRegressionFixture(fixture: RegressionManifestFixtureV0): Fixtur
     const allSatisfied = satisfiedCount === outcomes.length;
 
     if (fixture.status === "fixed") {
-      assert.equal(
-        issueState,
-        "CLOSED",
-        `${fixture.id} is fixed but ${issueKey} is still ${issueState}`,
-      );
+      if (issueState !== "UNKNOWN") {
+        assert.equal(
+          issueState,
+          "CLOSED",
+          `${fixture.id} is fixed but ${issueKey} is still ${issueState}`,
+        );
+      }
       assert.ok(allSatisfied, `${fixture.id} fixed regression expectations failed`);
       return report(fixture, issueState, outcomes.length, satisfiedCount, "pass");
     }
 
-    assert.equal(
-      issueState,
-      "OPEN",
-      `${fixture.id} is still marked todo but ${issueKey} is ${issueState}`,
-    );
-    assert.ok(
-      !allSatisfied,
-      `${fixture.id} todo regression now passes while ${issueKey} is still open`,
-    );
+    if (issueState !== "UNKNOWN") {
+      assert.equal(
+        issueState,
+        "OPEN",
+        `${fixture.id} is still marked todo but ${issueKey} is ${issueState}`,
+      );
+      assert.ok(
+        !allSatisfied,
+        `${fixture.id} todo regression now passes while ${issueKey} is still open`,
+      );
+    } else {
+      assert.ok(
+        !allSatisfied,
+        `${fixture.id} todo regression now passes; update its status (issue state unavailable)`,
+      );
+    }
     return report(fixture, issueState, outcomes.length, satisfiedCount, "expectedFailure");
   } finally {
     rmSync(workspace, { force: true, recursive: true });
@@ -123,7 +137,7 @@ function evaluateRegressionFixture(fixture: RegressionManifestFixtureV0): Fixtur
 
 function report(
   fixture: RegressionManifestFixtureV0,
-  issueState: IssueState,
+  issueState: ProbedIssueState,
   evaluatedExpectationCount: number,
   satisfiedExpectationCount: number,
   outcome: FixtureReport["outcome"],
@@ -242,14 +256,27 @@ function codeFromBody(value: string): string | undefined {
     .replace(/^code:\s*/u, "");
 }
 
-function issueStateFor(repository: string, number: number): IssueState {
+function issueStateFor(repository: string, number: number): ProbedIssueState {
   const key = `${repository}#${number}`;
   const cached = issueStateCache.get(key);
   if (cached) {
     return cached;
   }
-  const result = run("gh", ["issue", "view", String(number), "-R", repository, "--json", "state"]);
-  const state = JSON.parse(result.stdout) as { readonly state: IssueState };
+  const probe = spawnSync(
+    "gh",
+    ["issue", "view", String(number), "-R", repository, "--json", "state"],
+    { cwd: repoRoot, encoding: "utf8", maxBuffer: 1024 * 1024 },
+  );
+  if (probe.error || probe.status !== 0) {
+    process.stdout.write(
+      `notice: issue-state probe unavailable for ${key} (gh ${
+        probe.error ? `error: ${probe.error.message}` : `exited ${probe.status}`
+      }); skipping state-consistency checks for this fixture\n`,
+    );
+    issueStateCache.set(key, "UNKNOWN");
+    return "UNKNOWN";
+  }
+  const state = JSON.parse(probe.stdout) as { readonly state: IssueState };
   assert.match(state.state, /^(OPEN|CLOSED)$/u, `${key} issue state must be OPEN or CLOSED`);
   issueStateCache.set(key, state.state);
   return state.state;

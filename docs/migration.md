@@ -64,14 +64,14 @@ Phase 2 is the current default behavior:
 
 ## Compatibility Matrix
 
-| Invocation                                                        | `omena.lock`          | Expected behavior                                       |
-| ----------------------------------------------------------------- | --------------------- | ------------------------------------------------------- |
-| `style-diagnostics app.module.scss`                               | absent                | Phase 2 SIF discovery; external boundary diagnostics    |
-| `style-diagnostics app.module.scss --external ignored`            | absent or present     | Phase 0 compatibility; reversible opt-out               |
-| `style-diagnostics app.module.scss --external sif`                | absent                | SIF boundary diagnostics enabled                        |
-| `style-diagnostics app.module.scss --lockfile path/to/omena.lock` | explicit path         | SIF boundary diagnostics enabled                        |
-| `style-diagnostics app.module.scss`                               | present and valid     | Lockfile-triggered SIF mode                             |
-| `style-diagnostics app.module.scss`                               | present but malformed | `lockfileInvalid` diagnostic                            |
+| Invocation                                                        | `omena.lock`          | Expected behavior                                    |
+| ----------------------------------------------------------------- | --------------------- | ---------------------------------------------------- |
+| `style-diagnostics app.module.scss`                               | absent                | Phase 2 SIF discovery; external boundary diagnostics |
+| `style-diagnostics app.module.scss --external ignored`            | absent or present     | Phase 0 compatibility; reversible opt-out            |
+| `style-diagnostics app.module.scss --external sif`                | absent                | SIF boundary diagnostics enabled                     |
+| `style-diagnostics app.module.scss --lockfile path/to/omena.lock` | explicit path         | SIF boundary diagnostics enabled                     |
+| `style-diagnostics app.module.scss`                               | present and valid     | Lockfile-triggered SIF mode                          |
+| `style-diagnostics app.module.scss`                               | present but malformed | `lockfileInvalid` diagnostic                         |
 
 ## Lockfile Version Compatibility
 

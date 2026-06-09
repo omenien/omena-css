@@ -216,6 +216,8 @@ assert.deepEqual(debugStateResponse.result.documents, [
     languageId: "scss",
     version: 1,
     text: ".root { color: var(--brand); } :root { --brand: red; }",
+    diagnosticsScheduleCount: 1,
+    optimizingTierFeedback: null,
     styleSummary: {
       language: "scss",
       selectorNames: ["root"],
@@ -232,6 +234,8 @@ assert.deepEqual(debugStateResponse.result.documents, [
     languageId: "typescriptreact",
     version: 2,
     text: "import styles from \"./App.module.scss\"; const view = <div className={styles.root} />; const tone = 'red';",
+    diagnosticsScheduleCount: 3,
+    optimizingTierFeedback: null,
     styleSummary: null,
   },
 ]);
@@ -256,6 +260,8 @@ assert.deepEqual(runtimeChangeResponse.result.documents, [
     languageId: "typescriptreact",
     version: 2,
     text: "import styles from \"./App.module.scss\"; const view = <div className={styles.root} />; const tone = 'red';",
+    diagnosticsScheduleCount: 6,
+    optimizingTierFeedback: null,
     styleSummary: null,
   },
 ]);

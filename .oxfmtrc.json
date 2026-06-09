@@ -10,5 +10,11 @@
   "bracketSpacing": true,
   "endOfLine": "lf",
   "insertFinalNewline": true,
-  "ignorePatterns": [".*/**", "examples/**", "**/*.vsix", "CHANGELOG.md"]
+  "ignorePatterns": [
+    ".*/**",
+    "examples/**",
+    "**/*.vsix",
+    "CHANGELOG.md",
+    "rust/crates/**/fixtures/**"
+  ]
 }
