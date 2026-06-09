@@ -421,6 +421,8 @@ pub fn summarize_omena_query_missing_extend_target_diagnostics(
 fn summarize_omena_query_missing_extend_target_diagnostics_for_workspace(
     target_style_path: &str,
     style_sources: &[OmenaQueryStyleSourceInputV0],
+    bundler_path_mappings: &[OmenaResolverBundlerPathAliasMappingV0],
+    tsconfig_path_mappings: &[OmenaResolverTsconfigPathMappingV0],
 ) -> Vec<OmenaQueryStyleDiagnosticV0> {
     let Some(target) = style_sources
         .iter()
@@ -445,13 +447,20 @@ fn summarize_omena_query_missing_extend_target_diagnostics_for_workspace(
     // Resolve the import graph so visibility tracks only the modules the target actually loads,
     // not the whole corpus. `summarize_sass_module_cross_file_resolution` already gives us the
     // resolved edges; `collect_sass_module_graph_reachable_style_paths` walks them from the target.
+    // Bundler/tsconfig path mappings are threaded through (rfcs#59) so an `@use`/`@forward`/
+    // `@import` behind an alias keeps its edge resolved — without them the aliased edge drops out
+    // of the reachable set and a placeholder declared in the aliased partial false-positives.
     let style_source_refs = style_sources
         .iter()
         .map(|source| (source.style_path.as_str(), source.style_source.as_str()))
         .collect::<Vec<_>>();
     let style_fact_entries = collect_omena_query_style_fact_entries(style_source_refs.as_slice());
-    let resolution =
-        summarize_sass_module_cross_file_resolution(&style_fact_entries, &[], &[], &[]);
+    let resolution = summarize_sass_module_cross_file_resolution(
+        &style_fact_entries,
+        &[],
+        bundler_path_mappings,
+        tsconfig_path_mappings,
+    );
     let reachable_paths =
         collect_sass_module_graph_reachable_style_paths(target_style_path, &resolution);
 
@@ -587,6 +596,8 @@ fn summarize_omena_query_replica_ensemble_inconsistency_diagnostics_for_workspac
     target_style_path: &str,
     style_sources: &[OmenaQueryStyleSourceInputV0],
     package_manifests: &[OmenaQueryStylePackageManifestV0],
+    bundler_path_mappings: &[OmenaResolverBundlerPathAliasMappingV0],
+    tsconfig_path_mappings: &[OmenaResolverTsconfigPathMappingV0],
 ) -> Vec<OmenaQueryStyleDiagnosticV0> {
     let Some(target) = style_sources
         .iter()
@@ -603,8 +614,8 @@ fn summarize_omena_query_replica_ensemble_inconsistency_diagnostics_for_workspac
     let resolution = summarize_sass_module_cross_file_resolution(
         &style_fact_entries,
         package_manifests,
-        &[],
-        &[],
+        bundler_path_mappings,
+        tsconfig_path_mappings,
     );
     let reachable_paths =
         collect_sass_module_graph_reachable_style_paths(target_style_path, &resolution);
@@ -1017,6 +1028,8 @@ fn summarize_omena_query_sass_use_cycle_diagnostics_for_workspace(
     target_style_path: &str,
     style_sources: &[OmenaQueryStyleSourceInputV0],
     package_manifests: &[OmenaQueryStylePackageManifestV0],
+    bundler_path_mappings: &[OmenaResolverBundlerPathAliasMappingV0],
+    tsconfig_path_mappings: &[OmenaResolverTsconfigPathMappingV0],
 ) -> Vec<OmenaQueryStyleDiagnosticV0> {
     let Some(target) = style_sources
         .iter()
@@ -1032,8 +1045,8 @@ fn summarize_omena_query_sass_use_cycle_diagnostics_for_workspace(
     let resolution = summarize_sass_module_cross_file_resolution(
         &style_fact_entries,
         package_manifests,
-        &[],
-        &[],
+        bundler_path_mappings,
+        tsconfig_path_mappings,
     );
     if resolution.cycles.is_empty() {
         return Vec::new();
@@ -1622,6 +1635,8 @@ pub fn summarize_omena_query_style_diagnostics_for_workspace_file_with_external_
         summarize_omena_query_missing_extend_target_diagnostics_for_workspace(
             target_style_path,
             style_sources,
+            resolution_inputs.bundler_path_mappings.as_slice(),
+            resolution_inputs.tsconfig_path_mappings.as_slice(),
         ),
     );
     summary.diagnostics.extend(
@@ -1647,6 +1662,8 @@ pub fn summarize_omena_query_style_diagnostics_for_workspace_file_with_external_
             target_style_path,
             style_sources,
             package_manifests,
+            resolution_inputs.bundler_path_mappings.as_slice(),
+            resolution_inputs.tsconfig_path_mappings.as_slice(),
         ),
     );
     summary.diagnostics.extend(
@@ -1690,6 +1707,8 @@ pub fn summarize_omena_query_style_diagnostics_for_workspace_file_with_external_
             target_style_path,
             style_sources,
             package_manifests,
+            resolution_inputs.bundler_path_mappings.as_slice(),
+            resolution_inputs.tsconfig_path_mappings.as_slice(),
         ),
     );
     attach_omena_query_module_graph_property_value_narrowing_for_workspace(

@@ -3587,6 +3587,61 @@ fn missing_extend_target_workspace_resolves_class_through_transitive_forward()
     Ok(())
 }
 
+// rfcs#59 (residual sibling of rfcs#54): an `@extend` whose target placeholder lives in a partial
+// reachable ONLY through a tsconfig-aliased `@use` must NOT fire once the workspace's path
+// mappings are threaded into the extend-target reachability walk — while a target declared
+// nowhere in the closure still fires in the same file (no blanket suppression).
+#[test]
+fn missing_extend_target_workspace_resolves_placeholder_behind_tsconfig_alias()
+-> Result<(), &'static str> {
+    let sources = vec![
+        OmenaQueryStyleSourceInputV0 {
+            style_path: "/workspace/src/App.module.scss".to_string(),
+            style_source: "@use \"@app/base\";\n.a { @extend %base; }\n.b { @extend %gone; }"
+                .to_string(),
+        },
+        OmenaQueryStyleSourceInputV0 {
+            style_path: "/workspace/src/app/_base.scss".to_string(),
+            style_source: "%base { color: red; }".to_string(),
+        },
+    ];
+    // tsconfig `paths`: `@app/*` -> `src/app/*` rooted at the workspace, so `@app/base` resolves
+    // to `/workspace/src/app/_base.scss`.
+    let resolution_inputs = crate::OmenaQueryStyleResolutionInputsV0 {
+        tsconfig_path_mappings: vec![crate::OmenaQueryTsconfigPathMappingV0 {
+            base_path: "/workspace".to_string(),
+            pattern: "@app/*".to_string(),
+            target_patterns: vec!["src/app/*".to_string()],
+        }],
+        ..Default::default()
+    };
+    let diagnostics =
+        crate::summarize_omena_query_style_diagnostics_for_workspace_file_with_external_mode_and_sifs_and_resolution_inputs(
+            "/workspace/src/App.module.scss",
+            sources.as_slice(),
+            &[],
+            &[],
+            None,
+            crate::OmenaQueryExternalModuleModeV0::Ignored,
+            &[],
+            &resolution_inputs,
+        )
+        .ok_or("aliased workspace extend-target diagnostics")?;
+    let extend_messages = diagnostics
+        .diagnostics
+        .iter()
+        .filter(|diagnostic| diagnostic.code == "missingExtendTarget")
+        .map(|diagnostic| diagnostic.message.as_str())
+        .collect::<Vec<_>>();
+    // `%base` resolves through the alias -> silent; `%gone` is genuinely missing -> still fires.
+    assert_eq!(extend_messages.len(), 1, "got {extend_messages:?}");
+    assert!(
+        extend_messages[0].contains("'%gone'"),
+        "got {extend_messages:?}"
+    );
+    Ok(())
+}
+
 // RFC-0007-E3 (#45): unresolved workspace-local Sass `@import`/`@use`.
 #[test]
 fn unresolved_sass_import_fires_on_local_path_but_not_external_or_bare() -> Result<(), &'static str>
