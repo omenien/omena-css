@@ -24,12 +24,23 @@ const PROBE_INTERVAL_MS = parsePositiveInteger(
   process.env.OMENA_LSP_RUNTIME_LOOP_PROBE_INTERVAL_MS,
   20,
 );
+// Budget calibration (2026-06-10): the message loop is synchronous FIFO, so a probe
+// issued behind the 95-request burst measures the full burst drain time, not steady
+// responsiveness. Per-request analysis depth grew deliberately (cascade-narrowing
+// hover docs in source completions/hover — see commits 12770056/c90b3f39), which
+// moved the drain from ~0.3s to ~0.8s on a fast dev machine. Budgets below accept
+// the current depth while still tripping on the next multiple-x regression
+// (12770056-class blowups exceed MAX even locally). The original tight budgets
+// (p95 150ms / max 400ms / 1.2s window) are the restoration target once RFC 0009
+// pillars A (non-blocking dispatcher, rfcs#67), B (memoized query layer, rfcs#65),
+// and E (dedup + name-independent narrowing hoist, rfcs#63) land — at that point
+// re-tighten these defaults.
 const PROBE_DURATION_MS = parsePositiveInteger(
   process.env.OMENA_LSP_RUNTIME_LOOP_PROBE_DURATION_MS,
-  1_200,
+  4_000,
 );
-const MAX_PROBE_MS = parsePositiveInteger(process.env.OMENA_LSP_RUNTIME_LOOP_MAX_MS, 400);
-const P95_PROBE_MS = parsePositiveInteger(process.env.OMENA_LSP_RUNTIME_LOOP_P95_MS, 150);
+const MAX_PROBE_MS = parsePositiveInteger(process.env.OMENA_LSP_RUNTIME_LOOP_MAX_MS, 2_500);
+const P95_PROBE_MS = parsePositiveInteger(process.env.OMENA_LSP_RUNTIME_LOOP_P95_MS, 1_200);
 const REQUEST_TIMEOUT_MS = parsePositiveInteger(
   process.env.OMENA_LSP_RUNTIME_LOOP_REQUEST_TIMEOUT_MS,
   10_000,

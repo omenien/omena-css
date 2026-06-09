@@ -99,6 +99,10 @@ pub const STYLE_CONTEXT_INDEX_REQUEST: &str = "omena/rustStyleContextIndex";
 pub const EXPLAIN_HOVER_TRACE_REQUEST: &str = "omena/explainHoverTrace";
 const CANCEL_REQUEST_METHOD: &str = "$/cancelRequest";
 const REQUEST_CANCELLED_ERROR_CODE: i32 = -32800;
+// Cascade docs cost a whole-corpus narrowing analysis per completion item; only the
+// top-ranked items an editor list actually shows get them, so completion latency
+// stays independent of the workspace selector count.
+const SOURCE_COMPLETION_DOCUMENTATION_BUDGET: usize = 12;
 #[derive(Debug, Clone, PartialEq, Eq)]
 struct SourceProviderCandidateResolution {
     matched: Vec<LspStyleHoverCandidate>,
@@ -2805,7 +2809,7 @@ fn resolve_source_lsp_completion(
     let resolution_inputs =
         resolution_inputs_for_workspace_uri(state, document.workspace_folder_uri.as_deref());
 
-    let candidates = style_selector_definitions_from_open_documents(
+    let definitions = style_selector_definitions_from_open_documents(
         state,
         "",
         document.workspace_folder_uri.as_deref(),
@@ -2816,8 +2820,52 @@ fn resolve_source_lsp_completion(
             .as_deref()
             .is_none_or(|target_uri| file_uri_equivalent(target_uri, uri))
     })
-    .map(|(uri, definition)| {
-        let documentation = style_text_for_uri(state, uri.as_str()).and_then(|style_text| {
+    .collect::<Vec<_>>();
+    let candidates = definitions
+        .iter()
+        .map(|(uri, definition)| {
+            let file_uri = target_style_uri
+                .as_deref()
+                .filter(|target_uri| file_uri_equivalent(target_uri, uri.as_str()))
+                .map(ToString::to_string)
+                .unwrap_or_else(|| uri.clone());
+            OmenaQueryCompletionCandidateV0 {
+                file_uri,
+                name: definition.name.clone(),
+                kind: definition.kind,
+                range: definition.range,
+                source: definition.source,
+                documentation: None,
+            }
+        })
+        .collect::<Vec<_>>();
+    let mut completion = summarize_omena_query_source_completion_at_position(
+        document.uri.as_str(),
+        position,
+        candidates.as_slice(),
+        target_style_uri.as_deref(),
+        context.value_prefix.as_deref(),
+        context.preferred_selector_names.as_slice(),
+    );
+    // Cascade documentation runs a whole-corpus narrowing analysis per candidate, so
+    // it is attached lazily AFTER ranking/dedup and only for the top-ranked items a
+    // completion list actually surfaces. The budget keeps textDocument/completion
+    // latency independent of the workspace selector count (runtime-loop probe gate).
+    for item in completion
+        .items
+        .iter_mut()
+        .take(SOURCE_COMPLETION_DOCUMENTATION_BUDGET)
+    {
+        if item.item_kind != "cssModuleSelector" || item.documentation.is_some() {
+            continue;
+        }
+        let Some((uri, definition)) = definitions
+            .iter()
+            .find(|(_, definition)| definition.kind == "selector" && definition.name == item.label)
+        else {
+            continue;
+        };
+        item.documentation = style_text_for_uri(state, uri.as_str()).and_then(|style_text| {
             summarize_omena_query_style_completion_candidate_documentation_for_workspace_file(
                 uri.as_str(),
                 style_sources.as_slice(),
@@ -2836,29 +2884,8 @@ fn resolve_source_lsp_completion(
                 )
             })
         });
-        let file_uri = target_style_uri
-            .as_deref()
-            .filter(|target_uri| file_uri_equivalent(target_uri, uri.as_str()))
-            .map(ToString::to_string)
-            .unwrap_or(uri);
-        OmenaQueryCompletionCandidateV0 {
-            file_uri,
-            name: definition.name,
-            kind: definition.kind,
-            range: definition.range,
-            source: definition.source,
-            documentation,
-        }
-    })
-    .collect::<Vec<_>>();
-    let completion = summarize_omena_query_source_completion_at_position(
-        document.uri.as_str(),
-        position,
-        candidates.as_slice(),
-        target_style_uri.as_deref(),
-        context.value_prefix.as_deref(),
-        context.preferred_selector_names.as_slice(),
-    );
+    }
+    let completion = completion;
     let provider_feedback = target_style_uri
         .as_deref()
         .and_then(|uri| state.document(uri))
