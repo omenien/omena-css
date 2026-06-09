@@ -1,6 +1,7 @@
 import * as vscode from "vscode";
 import {
   LanguageClient,
+  State,
   type LanguageClientOptions,
   type ServerOptions,
 } from "vscode-languageclient/node";
@@ -19,9 +20,37 @@ import { isShowReferencesArgs } from "./util/show-references-guards";
 
 const EXPLAIN_HOVER_TRACE_REQUEST = "omena/explainHoverTrace";
 const EXPLAIN_HOVER_TRACE_COMMAND = "omena.explainHoverTrace";
+const SHOW_SERVER_OUTPUT_COMMAND = "omena.showLanguageServerOutput";
 
 let client: LanguageClient | undefined;
 let clientReady: Promise<void> | undefined;
+let serverStatusItem: vscode.StatusBarItem | undefined;
+
+/**
+ * Render the language-server lifecycle on the status bar item (omena-css#62
+ * Phase 1). `State.StartFailed` (v10) and the pre-client resolution failure
+ * both fold into the error rendering.
+ */
+function renderServerStatus(state: State | "failed"): void {
+  if (!serverStatusItem) return;
+  switch (state) {
+    case State.Starting:
+      serverStatusItem.text = "$(sync~spin) Omena";
+      serverStatusItem.tooltip = "Omena CSS Modules language server is starting…";
+      break;
+    case State.Running:
+      serverStatusItem.text = "$(check) Omena";
+      serverStatusItem.tooltip = "Omena CSS Modules language server is running.";
+      break;
+    default:
+      // State.Stopped, State.StartFailed, or a pre-start failure.
+      serverStatusItem.text = "$(error) Omena";
+      serverStatusItem.tooltip =
+        "Omena CSS Modules language server is not running. Click to open its output.";
+      break;
+  }
+  serverStatusItem.show();
+}
 
 interface ExplainHoverTraceResponse {
   readonly product?: string;
@@ -36,6 +65,17 @@ interface ExplainHoverTraceResponse {
 }
 
 export function activate(context: vscode.ExtensionContext): void {
+  serverStatusItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right, 100);
+  serverStatusItem.name = "Omena CSS Modules";
+  serverStatusItem.command = SHOW_SERVER_OUTPUT_COMMAND;
+  context.subscriptions.push(serverStatusItem);
+  context.subscriptions.push(
+    vscode.commands.registerCommand(SHOW_SERVER_OUTPUT_COMMAND, () => {
+      client?.outputChannel.show(true);
+    }),
+  );
+  renderServerStatus(State.Starting);
+
   const typeFactBackend = readClientTypeFactBackendSetting(
     vscode.workspace.getConfiguration("omena").get("typeFactBackend"),
   );
@@ -51,6 +91,7 @@ export function activate(context: vscode.ExtensionContext): void {
       process.env,
     );
   } catch (err) {
+    renderServerStatus("failed");
     void vscode.window.showErrorMessage(
       `Omena CSS Modules failed to resolve language-server runtime: ${
         err instanceof Error ? err.message : String(err)
@@ -116,8 +157,15 @@ export function activate(context: vscode.ExtensionContext): void {
     },
   });
 
+  context.subscriptions.push(
+    client.onDidChangeState((event) => {
+      renderServerStatus(event.newState);
+    }),
+  );
+
   clientReady = Promise.resolve(client.start());
   void clientReady.catch((err) => {
+    renderServerStatus("failed");
     void vscode.window.showErrorMessage(
       `Omena CSS Modules failed to start: ${err instanceof Error ? err.message : String(err)}`,
     );

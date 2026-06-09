@@ -400,6 +400,11 @@
         "command": "omena.explainHoverTrace",
         "title": "Omena: Explain Hover Trace",
         "category": "Omena"
+      },
+      {
+        "command": "omena.showLanguageServerOutput",
+        "title": "Omena: Show Language Server Output",
+        "category": "Omena"
       }
     ],
     "configuration": {
@@ -500,6 +505,7 @@
   },
   "activationEvents": [
     "onCommand:omena.explainHoverTrace",
+    "onCommand:omena.showLanguageServerOutput",
     "onLanguage:astro",
     "onLanguage:css",
     "onLanguage:django-html",
