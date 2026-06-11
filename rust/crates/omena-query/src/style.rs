@@ -17,6 +17,8 @@ mod stylesheet_evaluation;
 mod substrate;
 mod transform;
 
+#[cfg(test)]
+pub(crate) use cascade_checker::cascade_declarations_collect_probe;
 pub use cascade_position::*;
 pub use code_actions::*;
 pub use completion::*;
@@ -36,6 +38,8 @@ pub use cross_file_summary::{
 pub use diagnostics::*;
 pub use dynamic_classname::*;
 pub use insights::*;
+#[cfg(test)]
+pub(crate) use parser_facade::style_facts_collect_probe;
 use parser_facade::{
     collect_omena_query_omena_parser_style_facts_raw, omena_parser_dialect_for_style_path,
     omena_parser_style_dialect_label, omena_query_sass_symbol_fact_kind_is_declaration,
@@ -126,7 +130,7 @@ pub fn summarize_omena_query_style_hover_render_parts(
     position: ParserPositionV0,
 ) -> OmenaQueryStyleHoverRenderPartsV0 {
     summarize_omena_query_style_hover_render_parts_with_branch_scope(
-        source, kind, name, position, None,
+        source, kind, name, position, None, None,
     )
 }
 
@@ -145,6 +149,7 @@ pub fn summarize_omena_query_style_hover_render_parts_for_hover_position(
         name,
         position,
         branch_scope,
+        None,
     )
 }
 
@@ -154,6 +159,7 @@ fn summarize_omena_query_style_hover_render_parts_with_branch_scope(
     name: &str,
     position: ParserPositionV0,
     selector_branch_scope: Option<HoverCascadeBranchScope>,
+    precollected_target_declarations: Option<&[cascade_checker::QueryCheckerCascadeDeclaration]>,
 ) -> OmenaQueryStyleHoverRenderPartsV0 {
     let mut parts = OmenaQueryStyleHoverRenderPartsV0 {
         schema_version: "0",
@@ -174,11 +180,18 @@ fn summarize_omena_query_style_hover_render_parts_with_branch_scope(
             if parts.render_source != "selectorFallback" {
                 parts.render_source = "ruleSnippet";
             }
-            parts.property_value_narrowings = selector_property_value_narrowings_for_hover(
-                source,
-                name,
-                selector_branch_scope.as_ref(),
-            );
+            parts.property_value_narrowings = match precollected_target_declarations {
+                Some(declarations) => selector_property_value_narrowings_from_declarations(
+                    declarations,
+                    name,
+                    selector_branch_scope.as_ref(),
+                ),
+                None => selector_property_value_narrowings_for_hover(
+                    source,
+                    name,
+                    selector_branch_scope.as_ref(),
+                ),
+            };
         }
         "customPropertyReference" | "customPropertyDeclaration" => {
             parts.snippet = line_snippet_at_position(source, position).unwrap_or_default();
@@ -262,6 +275,7 @@ pub fn summarize_omena_query_style_hover_render_parts_for_workspace_file_hover_p
         name,
         position,
         branch_scope.clone(),
+        None,
     );
     if kind == "selector" {
         let module_graph_narrowings = selector_property_value_narrowings_for_hover_module_graph(
@@ -273,6 +287,93 @@ pub fn summarize_omena_query_style_hover_render_parts_for_workspace_file_hover_p
             name,
             branch_scope.as_ref(),
         );
+        if !module_graph_narrowings.is_empty() {
+            parts.property_value_narrowings = module_graph_narrowings;
+        }
+    }
+    Some(parts)
+}
+
+/// Substrate-backed variant of
+/// [`summarize_omena_query_style_hover_render_parts_for_workspace_file`]: the
+/// name-independent collection (per-file cascade declarations + cross-file resolution)
+/// comes precollected, so only the per-name narrowing runs here. The substrate MUST
+/// have been built from the same `style_sources` (rfcs#63 E-ii).
+pub fn summarize_omena_query_style_hover_render_parts_for_workspace_file_with_substrate(
+    target_style_path: &str,
+    style_sources: &[OmenaQueryStyleSourceInputV0],
+    substrate: &OmenaQueryStyleCascadeNarrowingSubstrateV0,
+    kind: &str,
+    name: &str,
+    position: ParserPositionV0,
+) -> Option<OmenaQueryStyleHoverRenderPartsV0> {
+    let target = style_sources
+        .iter()
+        .find(|source| source.style_path == target_style_path)?;
+    summarize_omena_query_style_hover_render_parts_for_target_with_substrate(
+        target_style_path,
+        &target.style_source,
+        substrate,
+        kind,
+        name,
+        position,
+        // Mirror the non-substrate workspace-file variant: no hovered-branch narrowing.
+        None,
+    )
+}
+
+/// Substrate-backed variant of
+/// [`summarize_omena_query_style_hover_render_parts_for_workspace_file_hover_position`].
+pub fn summarize_omena_query_style_hover_render_parts_for_workspace_file_hover_position_with_substrate(
+    target_style_path: &str,
+    style_sources: &[OmenaQueryStyleSourceInputV0],
+    substrate: &OmenaQueryStyleCascadeNarrowingSubstrateV0,
+    kind: &str,
+    name: &str,
+    position: ParserPositionV0,
+) -> Option<OmenaQueryStyleHoverRenderPartsV0> {
+    let target = style_sources
+        .iter()
+        .find(|source| source.style_path == target_style_path)?;
+    let branch_scope = (kind == "selector")
+        .then(|| selector_hover_branch_scope_at_position(&target.style_source, name, position))
+        .flatten();
+    summarize_omena_query_style_hover_render_parts_for_target_with_substrate(
+        target_style_path,
+        &target.style_source,
+        substrate,
+        kind,
+        name,
+        position,
+        branch_scope,
+    )
+}
+
+fn summarize_omena_query_style_hover_render_parts_for_target_with_substrate(
+    target_style_path: &str,
+    target_style_source: &str,
+    substrate: &OmenaQueryStyleCascadeNarrowingSubstrateV0,
+    kind: &str,
+    name: &str,
+    position: ParserPositionV0,
+    branch_scope: Option<HoverCascadeBranchScope>,
+) -> Option<OmenaQueryStyleHoverRenderPartsV0> {
+    let mut parts = summarize_omena_query_style_hover_render_parts_with_branch_scope(
+        target_style_source,
+        kind,
+        name,
+        position,
+        branch_scope.clone(),
+        substrate.declarations_for_style_path(target_style_path),
+    );
+    if kind == "selector" {
+        let module_graph_narrowings =
+            selector_property_value_narrowings_for_hover_module_graph_with_substrate(
+                target_style_path,
+                substrate,
+                name,
+                branch_scope.as_ref(),
+            );
         if !module_graph_narrowings.is_empty() {
             parts.property_value_narrowings = module_graph_narrowings;
         }
@@ -295,13 +396,86 @@ struct HoverCascadeBranchMatch {
 
 type SelectorPropertyBranchKey = (String, Vec<String>, Option<String>, Option<i32>);
 
+/// Name-independent cascade-narrowing inputs precollected over a fixed style corpus
+/// (rfcs#63 E-ii): per-file cascade declarations in `style_sources` order plus the
+/// cross-file resolution. Building it costs one collection pass over the corpus; every
+/// subsequent per-name narrowing (hover, completion documentation) is a cheap filter.
+/// Only valid for the exact `(style_sources, package_manifests, resolution_inputs)` it
+/// was built from — callers own that cache-key discipline.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct OmenaQueryStyleCascadeNarrowingSubstrateV0 {
+    entries: Vec<StyleCascadeNarrowingSubstrateEntry>,
+    resolution: OmenaQuerySassModuleCrossFileResolutionV0,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct StyleCascadeNarrowingSubstrateEntry {
+    style_path: String,
+    declarations: Vec<cascade_checker::QueryCheckerCascadeDeclaration>,
+}
+
+impl OmenaQueryStyleCascadeNarrowingSubstrateV0 {
+    fn declarations_for_style_path(
+        &self,
+        style_path: &str,
+    ) -> Option<&[cascade_checker::QueryCheckerCascadeDeclaration]> {
+        self.entries
+            .iter()
+            .find(|entry| entry.style_path == style_path)
+            .map(|entry| entry.declarations.as_slice())
+    }
+}
+
+pub fn collect_omena_query_style_cascade_narrowing_substrate(
+    style_sources: &[OmenaQueryStyleSourceInputV0],
+    package_manifests: &[OmenaQueryStylePackageManifestV0],
+    resolution_inputs: &OmenaQueryStyleResolutionInputsV0,
+) -> OmenaQueryStyleCascadeNarrowingSubstrateV0 {
+    let style_source_refs = style_sources
+        .iter()
+        .map(|source| (source.style_path.as_str(), source.style_source.as_str()))
+        .collect::<Vec<_>>();
+    let style_fact_entries = collect_omena_query_style_fact_entries(style_source_refs.as_slice());
+    let resolution = summarize_sass_module_cross_file_resolution(
+        &style_fact_entries,
+        package_manifests,
+        resolution_inputs.bundler_path_mappings.as_slice(),
+        resolution_inputs.tsconfig_path_mappings.as_slice(),
+    );
+    let entries = style_sources
+        .iter()
+        .map(|source| StyleCascadeNarrowingSubstrateEntry {
+            style_path: source.style_path.clone(),
+            declarations: cascade_checker::collect_query_checker_cascade_declarations(
+                source.style_source.as_str(),
+            ),
+        })
+        .collect();
+    OmenaQueryStyleCascadeNarrowingSubstrateV0 {
+        entries,
+        resolution,
+    }
+}
+
 fn selector_property_value_narrowings_for_hover(
     source: &str,
     name: &str,
     hovered_branch_scope: Option<&HoverCascadeBranchScope>,
 ) -> Vec<AbstractPropertyValueNarrowingV0> {
-    let selector = format!(".{name}");
     let declarations = cascade_checker::collect_query_checker_cascade_declarations(source);
+    selector_property_value_narrowings_from_declarations(
+        declarations.as_slice(),
+        name,
+        hovered_branch_scope,
+    )
+}
+
+fn selector_property_value_narrowings_from_declarations(
+    declarations: &[cascade_checker::QueryCheckerCascadeDeclaration],
+    name: &str,
+    hovered_branch_scope: Option<&HoverCascadeBranchScope>,
+) -> Vec<AbstractPropertyValueNarrowingV0> {
+    let selector = format!(".{name}");
     let matching_declarations = declarations
         .iter()
         .filter(|declaration| declaration.input.selector.as_str() == selector)
@@ -390,7 +564,7 @@ fn selector_property_value_narrowings_for_hover_module_graph(
     }
 
     let selector = format!(".{name}");
-    let matching_declarations = style_sources
+    let collected_declarations = style_sources
         .iter()
         .filter(|source| reachable_style_paths.contains(source.style_path.as_str()))
         .flat_map(|source| {
@@ -400,6 +574,45 @@ fn selector_property_value_narrowings_for_hover_module_graph(
         })
         .filter(|declaration| declaration.input.selector.as_str() == selector)
         .collect::<Vec<_>>();
+    let matching_declarations = collected_declarations.iter().collect::<Vec<_>>();
+    module_graph_narrowings_from_matching_declarations(
+        matching_declarations.as_slice(),
+        hovered_branch_scope,
+    )
+}
+
+fn selector_property_value_narrowings_for_hover_module_graph_with_substrate(
+    target_style_path: &str,
+    substrate: &OmenaQueryStyleCascadeNarrowingSubstrateV0,
+    name: &str,
+    hovered_branch_scope: Option<&HoverCascadeBranchScope>,
+) -> Vec<AbstractPropertyValueNarrowingV0> {
+    let reachable_style_paths = diagnostics::collect_sass_module_graph_reachable_style_paths(
+        target_style_path,
+        &substrate.resolution,
+    );
+    if reachable_style_paths.len() <= 1 {
+        return Vec::new();
+    }
+
+    let selector = format!(".{name}");
+    let matching_declarations = substrate
+        .entries
+        .iter()
+        .filter(|entry| reachable_style_paths.contains(entry.style_path.as_str()))
+        .flat_map(|entry| entry.declarations.iter())
+        .filter(|declaration| declaration.input.selector.as_str() == selector)
+        .collect::<Vec<_>>();
+    module_graph_narrowings_from_matching_declarations(
+        matching_declarations.as_slice(),
+        hovered_branch_scope,
+    )
+}
+
+fn module_graph_narrowings_from_matching_declarations(
+    matching_declarations: &[&cascade_checker::QueryCheckerCascadeDeclaration],
+    hovered_branch_scope: Option<&HoverCascadeBranchScope>,
+) -> Vec<AbstractPropertyValueNarrowingV0> {
     if matching_declarations.is_empty() {
         return Vec::new();
     }

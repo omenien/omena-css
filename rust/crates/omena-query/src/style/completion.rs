@@ -229,6 +229,33 @@ pub fn summarize_omena_query_style_completion_candidate_documentation_for_worksp
     render_property_value_narrowings_markdown(&render_parts.property_value_narrowings)
 }
 
+/// Substrate-backed variant of
+/// [`summarize_omena_query_style_completion_candidate_documentation_for_workspace_file`]
+/// (rfcs#63 E-ii): the per-candidate documentation reuses the precollected narrowing
+/// substrate instead of re-collecting the whole corpus per completion item.
+pub fn summarize_omena_query_style_completion_candidate_documentation_for_workspace_file_with_substrate(
+    target_style_path: &str,
+    style_sources: &[OmenaQueryStyleSourceInputV0],
+    substrate: &OmenaQueryStyleCascadeNarrowingSubstrateV0,
+    candidate_kind: &str,
+    candidate_name: &str,
+    candidate_position: ParserPositionV0,
+) -> Option<String> {
+    if candidate_kind != "selector" {
+        return None;
+    }
+    let render_parts =
+        summarize_omena_query_style_hover_render_parts_for_workspace_file_with_substrate(
+            target_style_path,
+            style_sources,
+            substrate,
+            candidate_kind,
+            candidate_name,
+            candidate_position,
+        )?;
+    render_property_value_narrowings_markdown(&render_parts.property_value_narrowings)
+}
+
 fn render_property_value_narrowings_markdown(
     narrowings: &[AbstractPropertyValueNarrowingV0],
 ) -> Option<String> {

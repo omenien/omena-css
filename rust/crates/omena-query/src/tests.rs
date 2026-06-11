@@ -43,11 +43,36 @@ use crate::{
     OmenaQueryTargetFeatureSupportV0, OmenaQueryTargetTransformOptionsV0,
     OmenaQueryTransformDesignTokenRouteV0, OmenaQueryTransformExecutionContextV0,
     OmenaQueryTransformPrintMode, OmenaQueryTransformPrintOptionsV0,
-    OmenaQueryTsconfigPathMappingV0, default_omena_query_transform_print_options,
-    modern_omena_query_target_feature_support,
+    OmenaQueryTsconfigPathMappingV0, collect_omena_query_style_cascade_narrowing_substrate,
+    default_omena_query_transform_print_options, modern_omena_query_target_feature_support,
     summarize_omena_query_sass_module_cross_file_resolution_for_workspace,
+    summarize_omena_query_style_completion_candidate_documentation_for_workspace_file,
+    summarize_omena_query_style_completion_candidate_documentation_for_workspace_file_with_substrate,
+    summarize_omena_query_style_hover_render_parts_for_workspace_file,
+    summarize_omena_query_style_hover_render_parts_for_workspace_file_hover_position,
+    summarize_omena_query_style_hover_render_parts_for_workspace_file_hover_position_with_substrate,
+    summarize_omena_query_style_hover_render_parts_for_workspace_file_with_substrate,
 };
 use omena_cascade::{CascadeKey, CascadeLevel, CascadeMarginV0, LayerRank, Specificity};
+
+fn cascade_narrowing_substrate_corpus() -> Vec<OmenaQueryStyleSourceInputV0> {
+    vec![
+        OmenaQueryStyleSourceInputV0 {
+            style_path: "/tmp/tokens.scss".to_string(),
+            style_source: "@layer base { .card { color: red; } }\n.card { padding: 4px; }"
+                .to_string(),
+        },
+        OmenaQueryStyleSourceInputV0 {
+            style_path: "/tmp/theme.scss".to_string(),
+            style_source: r#"@forward "./tokens";"#.to_string(),
+        },
+        OmenaQueryStyleSourceInputV0 {
+            style_path: "/tmp/App.module.scss".to_string(),
+            style_source: "@use \"./theme\";\n.card { color: blue; }\n@media (min-width: 600px) { .card { color: green; } }"
+                .to_string(),
+        },
+    ]
+}
 
 mod cascade_queries;
 mod consumer_reachability;
@@ -538,6 +563,207 @@ fn exposes_fast_facts_analyzed_graph_and_custom_property_annotations() {
             && annotation.annotation_kind == "reference"
             && !annotation.participates_in_fixed_point
     }));
+}
+
+#[test]
+fn analyzed_graph_collects_style_facts_once_and_embeds_identical_fast_facts() {
+    let source = r#"
+      @use "tokens";
+      :root { --surface: #fff; }
+      .card { color: var(--surface); }
+      .card:hover { color: var(--accent); }
+    "#;
+
+    crate::style::style_facts_collect_probe::reset();
+    let graph = summarize_omena_query_analyzed_graph("Card.module.scss", source);
+    assert_eq!(crate::style::style_facts_collect_probe::count(), 1);
+
+    crate::style::style_facts_collect_probe::reset();
+    let fast_facts = summarize_omena_query_fast_facts("Card.module.scss", source);
+    assert_eq!(crate::style::style_facts_collect_probe::count(), 1);
+    assert_eq!(graph.fast_facts, fast_facts);
+}
+
+#[test]
+fn style_edit_distance_collects_style_facts_once_per_side() {
+    let left = ".card { color: red; }";
+    let right = ".card { color: blue; }\n.badge { color: green; }";
+
+    crate::style::style_facts_collect_probe::reset();
+    let distance = summarize_omena_query_style_edit_distance(
+        "Left.module.css",
+        left,
+        "Right.module.css",
+        right,
+    );
+    assert_eq!(crate::style::style_facts_collect_probe::count(), 2);
+    assert_eq!(
+        distance.left_fast_facts,
+        summarize_omena_query_fast_facts("Left.module.css", left)
+    );
+    assert_eq!(
+        distance.right_fast_facts,
+        summarize_omena_query_fast_facts("Right.module.css", right)
+    );
+}
+
+#[test]
+fn cascade_narrowing_substrate_matches_fresh_workspace_narrowing_paths() {
+    let sources = cascade_narrowing_substrate_corpus();
+    let resolution_inputs = OmenaQueryStyleResolutionInputsV0::default();
+    let substrate =
+        collect_omena_query_style_cascade_narrowing_substrate(&sources, &[], &resolution_inputs);
+
+    // (target, hover position) cases: module-graph aggregation in the importing file
+    // (plain + inside the @media branch) and the single-file fallback in the leaf file.
+    let cases = [
+        (
+            "/tmp/App.module.scss",
+            ParserPositionV0 {
+                line: 1,
+                character: 1,
+            },
+        ),
+        (
+            "/tmp/App.module.scss",
+            ParserPositionV0 {
+                line: 2,
+                character: 30,
+            },
+        ),
+        (
+            "/tmp/tokens.scss",
+            ParserPositionV0 {
+                line: 1,
+                character: 1,
+            },
+        ),
+    ];
+    for (target, position) in cases {
+        let fresh =
+            summarize_omena_query_style_hover_render_parts_for_workspace_file_hover_position(
+                target,
+                sources.as_slice(),
+                &[],
+                &resolution_inputs,
+                "selector",
+                "card",
+                position,
+            );
+        let reused =
+            summarize_omena_query_style_hover_render_parts_for_workspace_file_hover_position_with_substrate(
+                target,
+                sources.as_slice(),
+                &substrate,
+                "selector",
+                "card",
+                position,
+            );
+        assert_eq!(fresh, reused, "hover-position parts diverged for {target}");
+        assert!(
+            fresh
+                .as_ref()
+                .is_some_and(|parts| !parts.property_value_narrowings.is_empty()),
+            "case must exercise non-empty narrowings for {target}"
+        );
+
+        let fresh_plain = summarize_omena_query_style_hover_render_parts_for_workspace_file(
+            target,
+            sources.as_slice(),
+            &[],
+            &resolution_inputs,
+            "selector",
+            "card",
+            position,
+        );
+        let reused_plain =
+            summarize_omena_query_style_hover_render_parts_for_workspace_file_with_substrate(
+                target,
+                sources.as_slice(),
+                &substrate,
+                "selector",
+                "card",
+                position,
+            );
+        assert_eq!(
+            fresh_plain, reused_plain,
+            "plain parts diverged for {target}"
+        );
+
+        let fresh_docs =
+            summarize_omena_query_style_completion_candidate_documentation_for_workspace_file(
+                target,
+                sources.as_slice(),
+                &[],
+                &resolution_inputs,
+                "selector",
+                "card",
+                position,
+            );
+        let reused_docs =
+            summarize_omena_query_style_completion_candidate_documentation_for_workspace_file_with_substrate(
+                target,
+                sources.as_slice(),
+                &substrate,
+                "selector",
+                "card",
+                position,
+            );
+        assert_eq!(
+            fresh_docs, reused_docs,
+            "completion docs diverged for {target}"
+        );
+        assert!(
+            fresh_docs.is_some(),
+            "case must exercise non-empty documentation for {target}"
+        );
+    }
+}
+
+#[test]
+fn cascade_narrowing_substrate_candidates_run_zero_recollections() {
+    let sources = cascade_narrowing_substrate_corpus();
+    let resolution_inputs = OmenaQueryStyleResolutionInputsV0::default();
+
+    crate::style::cascade_declarations_collect_probe::reset();
+    let substrate =
+        collect_omena_query_style_cascade_narrowing_substrate(&sources, &[], &resolution_inputs);
+    assert_eq!(
+        crate::style::cascade_declarations_collect_probe::count(),
+        sources.len(),
+        "substrate build collects each file exactly once"
+    );
+
+    crate::style::cascade_declarations_collect_probe::reset();
+    crate::style::style_facts_collect_probe::reset();
+    for _ in 0..12 {
+        summarize_omena_query_style_hover_render_parts_for_workspace_file_hover_position_with_substrate(
+            "/tmp/App.module.scss",
+            sources.as_slice(),
+            &substrate,
+            "selector",
+            "card",
+            ParserPositionV0 { line: 1, character: 1 },
+        );
+        summarize_omena_query_style_completion_candidate_documentation_for_workspace_file_with_substrate(
+            "/tmp/App.module.scss",
+            sources.as_slice(),
+            &substrate,
+            "selector",
+            "card",
+            ParserPositionV0 { line: 1, character: 1 },
+        );
+    }
+    assert_eq!(
+        crate::style::cascade_declarations_collect_probe::count(),
+        0,
+        "substrate-backed narrowing must not re-collect cascade declarations"
+    );
+    assert_eq!(
+        crate::style::style_facts_collect_probe::count(),
+        0,
+        "substrate-backed narrowing must not re-collect style facts"
+    );
 }
 
 #[test]

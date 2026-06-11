@@ -1730,9 +1730,35 @@ struct QueryCheckerCascadeScope {
     layer_order: Option<i32>,
 }
 
+/// Test-only per-thread counter of cascade-declaration collections, so the
+/// substrate-backed narrowing paths can assert "zero re-collections per candidate"
+/// (rfcs#63 E-ii) instead of assuming it.
+#[cfg(test)]
+pub(crate) mod cascade_declarations_collect_probe {
+    use std::cell::Cell;
+
+    thread_local! {
+        static COLLECT_CALLS: Cell<usize> = const { Cell::new(0) };
+    }
+
+    pub(crate) fn reset() {
+        COLLECT_CALLS.with(|calls| calls.set(0));
+    }
+
+    pub(crate) fn count() -> usize {
+        COLLECT_CALLS.with(Cell::get)
+    }
+
+    pub(super) fn record() {
+        COLLECT_CALLS.with(|calls| calls.set(calls.get() + 1));
+    }
+}
+
 pub(super) fn collect_query_checker_cascade_declarations(
     source: &str,
 ) -> Vec<QueryCheckerCascadeDeclaration> {
+    #[cfg(test)]
+    cascade_declarations_collect_probe::record();
     let mut declarations = Vec::new();
     let mut layer_orders = BTreeMap::new();
     let mut next_layer_order = 0i32;

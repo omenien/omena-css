@@ -13,6 +13,8 @@ pub(super) fn collect_omena_query_omena_parser_style_facts_raw(
     style_source: &str,
     dialect: OmenaParserStyleDialect,
 ) -> ParsedStyleFacts {
+    #[cfg(test)]
+    style_facts_collect_probe::record();
     collect_style_facts(style_source, dialect)
 }
 
@@ -495,4 +497,27 @@ pub(super) fn omena_query_sass_symbol_fact_kind_is_reference(
             | ParsedSassSymbolFactKind::MixinInclude
             | ParsedSassSymbolFactKind::FunctionCall
     )
+}
+
+/// Test-only per-thread counter of raw style-fact collections, so dedup contracts
+/// ("one parse per (path, content)") are assertable instead of assumed.
+#[cfg(test)]
+pub(crate) mod style_facts_collect_probe {
+    use std::cell::Cell;
+
+    thread_local! {
+        static COLLECT_CALLS: Cell<usize> = const { Cell::new(0) };
+    }
+
+    pub(crate) fn reset() {
+        COLLECT_CALLS.with(|calls| calls.set(0));
+    }
+
+    pub(crate) fn count() -> usize {
+        COLLECT_CALLS.with(Cell::get)
+    }
+
+    pub(super) fn record() {
+        COLLECT_CALLS.with(|calls| calls.set(calls.get() + 1));
+    }
 }

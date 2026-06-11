@@ -1,9 +1,18 @@
 use super::*;
+use omena_parser::ParsedStyleFacts;
 use std::collections::{BTreeMap, BTreeSet};
 
 pub fn summarize_omena_query_fast_facts(style_path: &str, style_source: &str) -> FastFactsV0 {
     let dialect = omena_parser_dialect_for_style_path(style_path);
     let facts = collect_omena_query_omena_parser_style_facts_raw(style_source, dialect);
+    fast_facts_from_collected_style_facts(style_path, dialect, &facts)
+}
+
+fn fast_facts_from_collected_style_facts(
+    style_path: &str,
+    dialect: OmenaParserStyleDialect,
+    facts: &ParsedStyleFacts,
+) -> FastFactsV0 {
     let custom_property_count = facts
         .variables
         .iter()
@@ -36,7 +45,7 @@ pub fn summarize_omena_query_analyzed_graph(
 ) -> AnalyzedGraphV0 {
     let dialect = omena_parser_dialect_for_style_path(style_path);
     let facts = collect_omena_query_omena_parser_style_facts_raw(style_source, dialect);
-    let fast_facts = summarize_omena_query_fast_facts(style_path, style_source);
+    let fast_facts = fast_facts_from_collected_style_facts(style_path, dialect, &facts);
     let edge_count = facts.css_module_composes_edges.len()
         + facts.css_module_value_import_edges.len()
         + facts.css_module_value_definition_edges.len()
@@ -69,12 +78,12 @@ pub fn summarize_omena_query_style_edit_distance(
     right_style_path: &str,
     right_style_source: &str,
 ) -> StyleEditDistanceSummaryV0 {
-    let left_fast_facts = summarize_omena_query_fast_facts(left_style_path, left_style_source);
-    let right_fast_facts = summarize_omena_query_fast_facts(right_style_path, right_style_source);
     let left_analyzed_graph =
         summarize_omena_query_analyzed_graph(left_style_path, left_style_source);
     let right_analyzed_graph =
         summarize_omena_query_analyzed_graph(right_style_path, right_style_source);
+    let left_fast_facts = left_analyzed_graph.fast_facts.clone();
+    let right_fast_facts = right_analyzed_graph.fast_facts.clone();
 
     let selector_delta = absolute_count_delta(
         left_fast_facts.selector_count,
