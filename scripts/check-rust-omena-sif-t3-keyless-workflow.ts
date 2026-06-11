@@ -21,9 +21,13 @@ assert.match(workflow, /^\s{2}contents:\s*read\s*$/m);
 assert.match(workflow, /^\s{2}id-token:\s*write\s*$/m);
 assert.match(workflow, /^\s{2}attestations:\s*write\s*$/m);
 
-assert.ok(
-  workflow.includes("actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd"),
-  "SIF attestation workflow must use the pinned checkout action",
+// Supply-chain intent: the action must be pinned to a full commit SHA. Dependabot
+// legitimately rotates the SHA (grouped, cooled-down), so asserting one frozen
+// value just rots in the release tier — assert the pin FORM instead.
+assert.match(
+  workflow,
+  /actions\/checkout@[0-9a-f]{40}\b/,
+  "SIF attestation workflow must use a SHA-pinned checkout action",
 );
 assert.ok(
   workflow.includes("uses: ./.github/actions/setup-rust-pinned"),
@@ -65,16 +69,18 @@ assert.ok(
   workflow.includes('.entries | length >= 1 and all(.[]; .trustTier == "t1"'),
   "SIF attestation workflow must validate every generated lock entry trust tier",
 );
-assert.ok(
-  workflow.includes("actions/attest-build-provenance@e8998f949152b193b063cb0ec769d69d929409be"),
+assert.match(
+  workflow,
+  /actions\/attest-build-provenance@[0-9a-f]{40}\b/,
   "SIF attestation workflow must use the pinned keyless provenance action",
 );
 assert.match(
   workflow,
   /subject-path:\s*\|\s*\n\s+dist\/sif\/\*\.sif\.json\s*\n\s+dist\/sif\/omena\.lock/,
 );
-assert.ok(
-  workflow.includes("actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a"),
+assert.match(
+  workflow,
+  /actions\/upload-artifact@[0-9a-f]{40}\b/,
   "SIF attestation workflow must publish the generated SIF artifact for review",
 );
 assert.match(
