@@ -53,13 +53,13 @@ use omena_query::{
     summarize_omena_query_source_syntax_index_for_source_language,
     summarize_omena_query_style_completion_at_position,
     summarize_omena_query_style_completion_candidate_documentation,
-    summarize_omena_query_style_completion_candidate_documentation_for_workspace_file,
+    summarize_omena_query_style_completion_candidate_documentation_for_workspace_file_with_substrate,
     summarize_omena_query_style_diagnostics_for_file,
     summarize_omena_query_style_diagnostics_for_file_with_deep_analysis,
     summarize_omena_query_style_diagnostics_for_workspace_file_with_external_mode_and_sifs_and_resolution_inputs,
     summarize_omena_query_style_document,
     summarize_omena_query_style_hover_render_parts_for_hover_position,
-    summarize_omena_query_style_hover_render_parts_for_workspace_file_hover_position,
+    summarize_omena_query_style_hover_render_parts_for_workspace_file_hover_position_with_substrate,
     summarize_omena_query_style_refactor_code_actions,
 };
 use omena_streaming_ifds::summarize_streaming_ifds_workspace_cross_file_reachability_v0;
@@ -67,7 +67,9 @@ use omena_streaming_ifds::summarize_streaming_ifds_workspace_cross_file_reachabi
 pub(crate) use omena_tsgo_client::{TsgoResolvedTypeV0, TsgoTypeFactResultEntryV0};
 use protocol::*;
 use query_adapter::*;
-use query_reuse::refresh_document_reusable_indexes;
+use query_reuse::{
+    cascade_narrowing_substrate_for_style_sources, refresh_document_reusable_indexes,
+};
 use serde_json::{Value, json};
 pub(crate) use settings::{
     apply_diagnostic_settings, apply_feature_settings, apply_resolution_settings,
@@ -2847,10 +2849,12 @@ fn resolve_source_lsp_completion(
         context.value_prefix.as_deref(),
         context.preferred_selector_names.as_slice(),
     );
-    // Cascade documentation runs a whole-corpus narrowing analysis per candidate, so
-    // it is attached lazily AFTER ranking/dedup and only for the top-ranked items a
-    // completion list actually surfaces. The budget keeps textDocument/completion
-    // latency independent of the workspace selector count (runtime-loop probe gate).
+    // Cascade documentation is attached lazily AFTER ranking/dedup and only for the
+    // top-ranked items a completion list actually surfaces. The name-independent
+    // narrowing inputs come from the memoized substrate (rfcs#63 E-ii) — fetched once
+    // per request, reused across requests while the corpus is unchanged — so the
+    // per-candidate work is the cheap per-name filter, not a whole-corpus collection.
+    let mut narrowing_substrate = None;
     for item in completion
         .items
         .iter_mut()
@@ -2865,12 +2869,18 @@ fn resolve_source_lsp_completion(
         else {
             continue;
         };
+        let narrowing_substrate = narrowing_substrate.get_or_insert_with(|| {
+            cascade_narrowing_substrate_for_style_sources(
+                state,
+                style_sources.as_slice(),
+                &resolution_inputs,
+            )
+        });
         item.documentation = style_text_for_uri(state, uri.as_str()).and_then(|style_text| {
-            summarize_omena_query_style_completion_candidate_documentation_for_workspace_file(
+            summarize_omena_query_style_completion_candidate_documentation_for_workspace_file_with_substrate(
                 uri.as_str(),
                 style_sources.as_slice(),
-                state.resolution.package_manifests.as_slice(),
-                &resolution_inputs,
+                narrowing_substrate,
                 definition.kind,
                 definition.name.as_str(),
                 definition.range.start,
@@ -3735,12 +3745,16 @@ fn render_style_hover_candidate_markdown_for_workspace(
     );
     let resolution_inputs =
         resolution_inputs_for_workspace_uri(state, workspace_folder_uri.as_deref());
+    let narrowing_substrate = cascade_narrowing_substrate_for_style_sources(
+        state,
+        style_sources.as_slice(),
+        &resolution_inputs,
+    );
     let render_parts =
-        summarize_omena_query_style_hover_render_parts_for_workspace_file_hover_position(
+        summarize_omena_query_style_hover_render_parts_for_workspace_file_hover_position_with_substrate(
             document_uri,
             style_sources.as_slice(),
-            state.resolution.package_manifests.as_slice(),
-            &resolution_inputs,
+            &narrowing_substrate,
             candidate.kind,
             candidate.name.as_str(),
             candidate.range.start,

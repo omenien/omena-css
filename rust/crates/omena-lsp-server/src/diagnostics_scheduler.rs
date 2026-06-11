@@ -7,8 +7,7 @@ use crate::{
 };
 use omena_query::{
     resolve_omena_query_style_uri_for_specifier_with_resolution_inputs,
-    summarize_omena_query_analyzed_graph, summarize_omena_query_fast_facts,
-    summarize_omena_query_sass_module_sources,
+    summarize_omena_query_analyzed_graph, summarize_omena_query_sass_module_sources,
 };
 use serde::Serialize;
 use serde_json::{Value, json};
@@ -484,21 +483,33 @@ fn diagnostics_pipeline_tier_plan_for_uri(
     if is_style_document_uri(uri)
         && let Some(document) = state.document(uri)
     {
-        let fast_facts =
-            summarize_omena_query_fast_facts(document.uri.as_str(), document.text.as_str());
-        let cached_analyzed_graph = document
+        // The version-keyed prewarm feedback already embeds the fast facts, so a cache
+        // hit costs zero style-fact collections and a miss runs the analysis exactly
+        // once for both tier evidences. The hit path may only consume input-independent
+        // fields (the tier labels are constants); consuming data fields (node_count,
+        // selector_count, ...) here would make correctness depend on the feedback
+        // invalidation set staying exhaustive — re-audit it first.
+        let cached_feedback = document
             .optimizing_tier_feedback
             .as_ref()
-            .filter(|feedback| feedback.document_version == document.version)
-            .map(|feedback| feedback.analyzed_graph.tier);
-        let analyzed_graph_tier = cached_analyzed_graph.unwrap_or_else(|| {
-            summarize_omena_query_analyzed_graph(document.uri.as_str(), document.text.as_str()).tier
-        });
+            .filter(|feedback| feedback.document_version == document.version);
+        let (baseline_evidence, optimizing_evidence) = match cached_feedback {
+            Some(feedback) => (
+                feedback.analyzed_graph.fast_facts.tier,
+                feedback.analyzed_graph.tier,
+            ),
+            None => {
+                let analyzed_graph = summarize_omena_query_analyzed_graph(
+                    document.uri.as_str(),
+                    document.text.as_str(),
+                );
+                (analyzed_graph.fast_facts.tier, analyzed_graph.tier)
+            }
+        };
         return DiagnosticsPipelineTierPlan {
-            baseline_evidence: fast_facts.tier,
-            optimizing_evidence: analyzed_graph_tier,
-            baseline_feedback_evidence: cached_analyzed_graph
-                .map(|_| "analyzedGraphV0HotStylePrewarm"),
+            baseline_evidence,
+            optimizing_evidence,
+            baseline_feedback_evidence: cached_feedback.map(|_| "analyzedGraphV0HotStylePrewarm"),
         };
     }
 

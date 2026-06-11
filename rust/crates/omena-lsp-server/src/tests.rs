@@ -26,6 +26,8 @@ mod lifecycle_capabilities;
 mod lifecycle_configuration;
 #[path = "tests/lifecycle_text_sync.rs"]
 mod lifecycle_text_sync;
+#[path = "tests/narrowing_substrate.rs"]
+mod narrowing_substrate;
 #[path = "tests/sass_resolution_package.rs"]
 mod sass_resolution_package;
 #[path = "tests/sass_resolution_symlink.rs"]

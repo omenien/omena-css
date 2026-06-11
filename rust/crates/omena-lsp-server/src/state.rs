@@ -2,12 +2,15 @@ use crate::workspace_runtime_registry::WorkspaceRuntimeRegistry;
 use omena_incremental::IncrementalCancellationRegistryV0;
 use omena_query::{
     AnalyzedGraphV0, OmenaQueryExternalSifInputV0,
-    OmenaQuerySourceSyntaxIndexV0 as SourceSyntaxIndex, OmenaQueryStylePackageManifestV0,
-    OmenaQueryStyleResolutionInputsV0, ParserPositionV0, ParserRangeV0,
+    OmenaQuerySourceSyntaxIndexV0 as SourceSyntaxIndex, OmenaQueryStyleCascadeNarrowingSubstrateV0,
+    OmenaQueryStylePackageManifestV0, OmenaQueryStyleResolutionInputsV0,
+    OmenaQueryStyleSourceInputV0, ParserPositionV0, ParserRangeV0,
 };
 use omena_tsgo_client::TsgoWorkspaceProcessPoolV0;
 use serde::Serialize;
+use std::cell::RefCell;
 use std::collections::{BTreeMap, BTreeSet};
+use std::sync::Arc;
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -165,6 +168,19 @@ pub struct LspResolutionSettings {
     pub external_sifs: Vec<OmenaQueryExternalSifInputV0>,
 }
 
+/// Workspace-revision memo for the cascade-narrowing substrate (rfcs#63 E-ii).
+/// Self-validating: the key is the exact narrowing input set (ordered style sources +
+/// package manifests + resolution mappings), so any document open/close/edit, disk
+/// reload, or resolution-config change misses by comparison and rebuilds — there is no
+/// eviction site to keep in sync.
+#[derive(Debug)]
+pub(crate) struct LspCascadeNarrowingSubstrateMemo {
+    pub(crate) style_sources: Vec<OmenaQueryStyleSourceInputV0>,
+    pub(crate) package_manifests: Vec<OmenaQueryStylePackageManifestV0>,
+    pub(crate) resolution_inputs: OmenaQueryStyleResolutionInputsV0,
+    pub(crate) substrate: Arc<OmenaQueryStyleCascadeNarrowingSubstrateV0>,
+}
+
 #[derive(Debug, Default)]
 pub struct LspShellState {
     pub shutdown_requested: bool,
@@ -180,6 +196,7 @@ pub struct LspShellState {
     pub(crate) workspace_runtime_registry: WorkspaceRuntimeRegistry,
     pub(crate) tsgo_workspace_process_pool: TsgoWorkspaceProcessPoolV0,
     pub(crate) watched_file_changes: Vec<LspWatchedFileChangeState>,
+    pub(crate) cascade_narrowing_substrate_memo: RefCell<Option<LspCascadeNarrowingSubstrateMemo>>,
 }
 
 impl LspShellState {

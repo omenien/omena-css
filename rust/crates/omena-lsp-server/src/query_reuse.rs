@@ -1,14 +1,20 @@
 use crate::{
-    LspStyleDocumentSummary, LspStyleHoverCandidate, LspTextDocumentState,
+    LspShellState, LspStyleDocumentSummary, LspStyleHoverCandidate, LspTextDocumentState,
     build_source_syntax_index, collect_style_hover_candidates,
     protocol::{
         byte_offset_for_parser_position, is_style_document_uri, parser_range_for_byte_span,
     },
-    source_selector_candidates_from_index, summarize_style_document,
+    source_selector_candidates_from_index,
+    state::LspCascadeNarrowingSubstrateMemo,
+    summarize_style_document,
 };
-use omena_query::OmenaQueryStyleResolutionInputsV0;
-use omena_query::ParserByteSpanV0;
+use omena_query::{
+    OmenaQueryStyleCascadeNarrowingSubstrateV0, OmenaQueryStyleResolutionInputsV0,
+    OmenaQueryStyleSourceInputV0, ParserByteSpanV0,
+    collect_omena_query_style_cascade_narrowing_substrate,
+};
 use serde::Serialize;
+use std::sync::Arc;
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -33,6 +39,7 @@ pub fn rust_query_reuse_contract() -> RustQueryReuseBoundaryV0 {
             "optimizingTierFeedback",
             "sourceSyntaxIndex",
             "sourceSelectorCandidates",
+            "cascadeNarrowingSubstrate",
         ],
         invalidation_policy: vec![
             "refreshOnDocumentOpen",
@@ -40,6 +47,7 @@ pub fn rust_query_reuse_contract() -> RustQueryReuseBoundaryV0 {
             "refreshOnWorkspaceFileReload",
             "refreshOnResolutionConfigChange",
             "refreshOnResolutionSettingsChange",
+            "rebuildCascadeNarrowingSubstrateOnInputContentMismatch",
         ],
         request_path_policy: vec![
             "noPackageManifestOrConfigReadOnProviderRequest",
@@ -48,6 +56,40 @@ pub fn rust_query_reuse_contract() -> RustQueryReuseBoundaryV0 {
             "providerRequestsConsumeDocumentIndexes",
         ],
     }
+}
+
+/// Get-or-build the cascade-narrowing substrate for this exact narrowing input set
+/// (rfcs#63 E-ii). A hit returns the memoized substrate (zero re-collections); a miss
+/// rebuilds and replaces the memo. The compare is exact content equality — cheap next
+/// to the collection pass it avoids — so reuse can never serve stale narrowing inputs.
+pub(crate) fn cascade_narrowing_substrate_for_style_sources(
+    state: &LspShellState,
+    style_sources: &[OmenaQueryStyleSourceInputV0],
+    resolution_inputs: &OmenaQueryStyleResolutionInputsV0,
+) -> Arc<OmenaQueryStyleCascadeNarrowingSubstrateV0> {
+    let package_manifests = state.resolution.package_manifests.as_slice();
+    {
+        let memo = state.cascade_narrowing_substrate_memo.borrow();
+        if let Some(memo) = memo.as_ref()
+            && memo.style_sources.as_slice() == style_sources
+            && memo.package_manifests.as_slice() == package_manifests
+            && &memo.resolution_inputs == resolution_inputs
+        {
+            return Arc::clone(&memo.substrate);
+        }
+    }
+    let substrate = Arc::new(collect_omena_query_style_cascade_narrowing_substrate(
+        style_sources,
+        package_manifests,
+        resolution_inputs,
+    ));
+    *state.cascade_narrowing_substrate_memo.borrow_mut() = Some(LspCascadeNarrowingSubstrateMemo {
+        style_sources: style_sources.to_vec(),
+        package_manifests: package_manifests.to_vec(),
+        resolution_inputs: resolution_inputs.clone(),
+        substrate: Arc::clone(&substrate),
+    });
+    substrate
 }
 
 pub(crate) fn refresh_document_reusable_indexes(
