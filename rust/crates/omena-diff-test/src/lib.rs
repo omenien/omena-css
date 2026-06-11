@@ -29,6 +29,14 @@ pub use omena_testkit::{
 };
 use serde::Serialize;
 
+mod cache_equivalence;
+pub use cache_equivalence::{
+    OmenaDiffCacheEquivalenceFileReportV0, OmenaDiffCacheEquivalenceReportV0,
+    evaluate_workspace_diagnostics_from_scratch_v0, omena_diff_cache_equivalence_default_corpus_v0,
+    summarize_workspace_diagnostics_equivalence_v0,
+    summarize_workspace_diagnostics_warm_pass_equivalence_v0,
+};
+
 /// Style dialects that can be compared against the legacy parser oracle.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -134,12 +142,18 @@ pub struct OmenaDiffTestBoundarySummary {
     pub diagnostic_metamorphic_relation_count: usize,
     /// Whether every diagnostic metamorphic relation currently holds.
     pub all_diagnostic_metamorphic_relations_hold: bool,
+    /// Cache-equivalence oracle corpus size (RFC 0009 §0).
+    pub cache_equivalence_file_count: usize,
+    /// Whether the cached-vs-from-scratch equivalence gate holds.
+    pub all_cache_equivalence_files_identical: bool,
     /// WPT-style seed metadata report.
     pub wpt_seed_metadata_report: WptSeedCorpusMetadataReportV0,
     /// Soundiness metamorphic relation report.
     pub soundiness_metamorphic_report: SoundinessMetamorphicReportV0,
     /// Internal omena-vs-omena diagnostic metamorphic relation report.
     pub diagnostic_metamorphic_report: DiagnosticMetamorphicReportV0,
+    /// Cached-vs-from-scratch diagnostic equivalence report (RFC 0009 §0).
+    pub cache_equivalence_report: OmenaDiffCacheEquivalenceReportV0,
     /// Named evidence gates closed by this crate.
     pub closed_gates: Vec<&'static str>,
     /// Field-level reports for every seed fixture.
@@ -595,6 +609,12 @@ pub fn summarize_omena_diff_test_boundary() -> OmenaDiffTestBoundarySummary {
     let wpt_seed_metadata_report = summarize_wpt_seed_corpus_metadata();
     let soundiness_metamorphic_report = summarize_soundiness_metamorphic_relations();
     let diagnostic_metamorphic_report = summarize_diagnostic_metamorphic_relations();
+    let (cache_equivalence_corpus, cache_equivalence_resolution_inputs) =
+        omena_diff_cache_equivalence_default_corpus_v0();
+    let cache_equivalence_report = summarize_workspace_diagnostics_warm_pass_equivalence_v0(
+        cache_equivalence_corpus.as_slice(),
+        &cache_equivalence_resolution_inputs,
+    );
 
     OmenaDiffTestBoundarySummary {
         schema_version: "0",
@@ -610,6 +630,8 @@ pub fn summarize_omena_diff_test_boundary() -> OmenaDiffTestBoundarySummary {
         all_soundiness_metamorphic_relations_hold: soundiness_metamorphic_report.all_relations_hold,
         diagnostic_metamorphic_relation_count: diagnostic_metamorphic_report.relation_count,
         all_diagnostic_metamorphic_relations_hold: diagnostic_metamorphic_report.all_relations_hold,
+        cache_equivalence_file_count: cache_equivalence_report.file_count,
+        all_cache_equivalence_files_identical: cache_equivalence_report.all_files_identical,
         closed_gates: vec![
             "parserVsLegacyOracle",
             "legacyParserQuarantinedAsOracle",
@@ -618,12 +640,14 @@ pub fn summarize_omena_diff_test_boundary() -> OmenaDiffTestBoundarySummary {
             "wptSeedCorpusMetadataPolicy",
             "soundinessMetamorphicRelations",
             "diagnosticMetamorphicRelations",
+            "cachedVsFromScratchEquivalenceOracle",
         ],
         reports,
         m3_fixture_seed_report,
         wpt_seed_metadata_report,
         soundiness_metamorphic_report,
         diagnostic_metamorphic_report,
+        cache_equivalence_report,
     }
 }
 
