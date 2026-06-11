@@ -35,6 +35,17 @@ updates:
       semver-major-days: 30
     open-pull-requests-limit: 5
     groups:
+      # The oxc crate family must move in lockstep — a solo oxc_* bump is version
+      # skew and breaks the build (seen at 0.128→0.134 and again at 0.134→0.135).
+      # 0.x family bumps classify as semver-major, so the group covers major too.
+      oxc:
+        patterns:
+          - "oxc_*"
+          - "oxc-*"
+        update-types:
+          - major
+          - minor
+          - patch
       cargo-minor-patch:
         update-types:
           - minor
@@ -66,6 +77,16 @@ updates:
       default-days: 7
       semver-major-days: 30
     open-pull-requests-limit: 5
+    ignore:
+      # vsce enforces @types/vscode <= engines.vscode (^1.115.0); raising the
+      # engine floor is a product decision, so this bump is manual-only.
+      - dependency-name: "@types/vscode"
+        versions: [">1.115"]
+      # tsgo nightlies have regressed the type-fact protocol twice (20260606.1,
+      # 20260609.1 — hover contents.value null / finiteSet→none). Bump manually,
+      # gated by check-rust-omena-lsp-server-type-fact-protocol and
+      # check-explain-expression-query-consumer.
+      - dependency-name: "@typescript/native-preview"
     groups:
       npm-minor-patch:
         update-types:
