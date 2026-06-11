@@ -21,9 +21,9 @@ omena-parser = { path = "../omena-parser", version = "=0.2.0" }
 omena-resolver = { path = "../omena-resolver", version = "=0.2.0" }
 omena-semantic = { path = "../omena-semantic", version = "=0.2.0" }
 omena-sif = { path = "../omena-sif", version = "=0.2.0" }
-oxc_allocator = "0.134.0"
-oxc_ast = "0.134.0"
-oxc_parser = "0.134.0"
-oxc_span = "0.134.0"
+oxc_allocator = "0.135.0"
+oxc_ast = "0.135.0"
+oxc_parser = "0.135.0"
+oxc_span = "0.135.0"
 serde.workspace = true
 serde_json.workspace = true
