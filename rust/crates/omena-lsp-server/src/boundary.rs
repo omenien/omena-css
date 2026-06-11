@@ -256,7 +256,7 @@ pub fn thin_client_endpoint_contract() -> ThinClientEndpointV0 {
         node_fallback_allowed: false,
         file_watcher_globs: vec![
             "**/*.module.{scss,css,less}",
-            "**/*.{ts,tsx,js,jsx,mts,cts,mjs,cjs,d.ts,vue,html,svelte,astro,md,mdx}",
+            "**/*.{ts,tsx,js,jsx,mts,cts,mjs,cjs,d.ts,vue,html,svelte,astro,md,mdx,liquid,twig,njk,nunjucks,hbs,handlebars,erb,ejs,html.eex,heex}",
             "**/tsconfig*.json",
             "**/jsconfig*.json",
             "**/package.json",
