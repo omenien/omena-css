@@ -3,16 +3,18 @@ use omena_query::generate_omena_bridge_sif_for_resolved_style_path;
 #[cfg(feature = "mdl")]
 use omena_query::summarize_omena_query_design_system_minimum_description;
 use omena_query::{
-    OmenaParserStyleDialect, OmenaQueryDiagnosticSuppressionModeV0,
-    OmenaQueryDynamicClassnameMTierInputV0, OmenaQueryEngineInputV2,
-    OmenaQueryExpressionDomainFlowRuntimeV0, OmenaQueryExternalModuleModeV0,
-    OmenaQueryExternalSifInputV0, OmenaQuerySourceDiagnosticsForFileV0,
-    OmenaQuerySourceDocumentInputV0, OmenaQuerySourceMissingSelectorDiagnosticCandidateV0,
-    OmenaQueryStylePackageManifestV0, OmenaQueryStyleResolutionInputsV0,
-    OmenaQueryStyleSourceInputV0, OmenaQueryTargetTransformOptionsV0,
-    OmenaQueryTransformExecutionContextV0, ParserPositionV0, TransformBundleEdgeKind,
+    OmenaParserStyleDialect, OmenaQueryConsumerBuildSummaryV0,
+    OmenaQueryDiagnosticSuppressionModeV0, OmenaQueryDynamicClassnameMTierInputV0,
+    OmenaQueryEngineInputV2, OmenaQueryExpressionDomainFlowRuntimeV0,
+    OmenaQueryExternalModuleModeV0, OmenaQueryExternalSifInputV0,
+    OmenaQuerySourceDiagnosticsForFileV0, OmenaQuerySourceDocumentInputV0,
+    OmenaQuerySourceMissingSelectorDiagnosticCandidateV0, OmenaQueryStylePackageManifestV0,
+    OmenaQueryStyleResolutionInputsV0, OmenaQueryStyleSourceInputV0,
+    OmenaQueryTargetTransformOptionsV0, OmenaQueryTransformExecutionContextV0,
+    OmenaQueryTransformSourceMapV3V0, ParserPositionV0, TransformBundleEdgeKind,
     attach_omena_query_consumer_build_bundle_summary,
     attach_omena_query_consumer_build_source_map_v3_with_sources_and_resolution_inputs,
+    compose_omena_query_transform_source_map_v3_with_upstream_map,
     execute_omena_query_consumer_build_style_source_for_target_query_with_context_and_options,
     execute_omena_query_consumer_build_style_source_with_context,
     execute_omena_query_consumer_build_style_sources_for_target_query_with_context_and_options_and_resolution_inputs,
@@ -153,6 +155,9 @@ enum Command {
         /// Include a Source Map V3 payload in --json output.
         #[arg(long)]
         source_map: bool,
+        /// Compose an upstream Source Map V3 into build output maps. Use STYLE=MAP; omit STYLE for the entry file.
+        #[arg(long = "input-source-map")]
+        input_source_maps: Vec<String>,
         /// Print a machine-readable execution summary.
         #[arg(long)]
         json: bool,
@@ -743,6 +748,7 @@ fn run(cli: Cli) -> Result<(), String> {
             source_paths,
             package_manifest_paths,
             source_map,
+            input_source_maps,
             json,
         } => build_file(BuildFileOptions {
             path,
@@ -758,6 +764,7 @@ fn run(cli: Cli) -> Result<(), String> {
             source_paths,
             package_manifest_paths,
             source_map,
+            input_source_maps,
             target_options: OmenaQueryTargetTransformOptionsV0 {
                 allow_logical_to_physical,
                 allow_scope_flatten,
@@ -2943,6 +2950,7 @@ struct BuildFileOptions {
     source_paths: Vec<PathBuf>,
     package_manifest_paths: Vec<PathBuf>,
     source_map: bool,
+    input_source_maps: Vec<String>,
     target_options: OmenaQueryTargetTransformOptionsV0,
     json: bool,
 }
@@ -2962,6 +2970,7 @@ fn build_file(options: BuildFileOptions) -> Result<(), String> {
         source_paths,
         package_manifest_paths,
         source_map,
+        input_source_maps,
         target_options,
         json,
     } = options;
@@ -2987,9 +2996,13 @@ fn build_file(options: BuildFileOptions) -> Result<(), String> {
     if source_map && !json {
         return Err("--source-map requires --json".to_string());
     }
+    if !input_source_maps.is_empty() && !source_map {
+        return Err("--input-source-map requires --source-map".to_string());
+    }
 
     let source = read_source(&path)?;
     let style_path = path_string(&path);
+    let input_source_maps = read_input_source_maps(&input_source_maps, &style_path)?;
     let mut pass_ids = pass_ids;
     let mut context = read_context_json(context_json.as_deref())?;
     if closed_style_world || tree_shake {
@@ -3090,18 +3103,32 @@ fn build_file(options: BuildFileOptions) -> Result<(), String> {
             &original_workspace_sources,
             &resolution_inputs,
         );
+        if compose_summary_source_map_with_input_source_maps(&mut summary, &input_source_maps) {
+            push_ready_surface(
+                &mut summary.ready_surfaces,
+                "bundleUpstreamSourceMapComposition",
+            );
+        }
     }
     if let Some(split_out_dir) = split_out_dir.as_ref() {
-        emit_bundle_code_split_outputs(BundleCodeSplitOutputOptions {
-            out_dir: split_out_dir,
-            entry_style_path: &style_path,
-            sources: &workspace_sources,
-            source_map_sources: &original_workspace_sources,
-            resolution_inputs: &resolution_inputs,
-            split_transform_pass_ids: &split_transform_pass_ids,
-            context: &context,
-            source_map,
-        })?;
+        let split_upstream_maps_applied =
+            emit_bundle_code_split_outputs(BundleCodeSplitOutputOptions {
+                out_dir: split_out_dir,
+                entry_style_path: &style_path,
+                sources: &workspace_sources,
+                source_map_sources: &original_workspace_sources,
+                resolution_inputs: &resolution_inputs,
+                split_transform_pass_ids: &split_transform_pass_ids,
+                input_source_maps: &input_source_maps,
+                context: &context,
+                source_map,
+            })?;
+        if split_upstream_maps_applied {
+            push_ready_surface(
+                &mut summary.ready_surfaces,
+                "bundleUpstreamSourceMapComposition",
+            );
+        }
         push_ready_surface(&mut summary.ready_surfaces, "bundleCodeSplitEmission");
         push_ready_surface(
             &mut summary.ready_surfaces,
@@ -3181,6 +3208,72 @@ fn read_workspace_sources(
     Ok(sources)
 }
 
+fn read_input_source_maps(
+    source_map_specs: &[String],
+    entry_style_path: &str,
+) -> Result<BTreeMap<String, String>, String> {
+    let mut source_maps = BTreeMap::new();
+    for spec in source_map_specs {
+        let (style_path, source_map_path) = if let Some((style_path, source_map_path)) =
+            spec.split_once('=')
+        {
+            if style_path.is_empty() || source_map_path.is_empty() {
+                return Err(
+                    "--input-source-map expects STYLE=MAP or MAP for the entry file".to_string(),
+                );
+            }
+            (style_path.to_string(), PathBuf::from(source_map_path))
+        } else {
+            (entry_style_path.to_string(), PathBuf::from(spec))
+        };
+        let source_map_json = fs::read_to_string(&source_map_path).map_err(|error| {
+            format!(
+                "failed to read input source map {}: {error}",
+                path_string(&source_map_path)
+            )
+        })?;
+        source_maps.insert(style_path, source_map_json);
+    }
+    Ok(source_maps)
+}
+
+fn compose_summary_source_map_with_input_source_maps(
+    summary: &mut OmenaQueryConsumerBuildSummaryV0,
+    input_source_maps: &BTreeMap<String, String>,
+) -> bool {
+    let Some(source_map) = summary.source_map_v3.take() else {
+        return false;
+    };
+    let (source_map, upstream_map_applied) =
+        compose_source_map_with_input_source_maps(source_map, input_source_maps);
+    summary.source_map_v3 = Some(source_map);
+    upstream_map_applied
+}
+
+fn compose_source_map_with_input_source_maps(
+    source_map: OmenaQueryTransformSourceMapV3V0,
+    input_source_maps: &BTreeMap<String, String>,
+) -> (OmenaQueryTransformSourceMapV3V0, bool) {
+    let mut source_map = source_map;
+    let mut upstream_map_applied = false;
+    let source_paths = source_map.sources.clone();
+    for source_path in source_paths {
+        let Some(input_source_map) = input_source_maps.get(&source_path) else {
+            continue;
+        };
+        let composition = compose_omena_query_transform_source_map_v3_with_upstream_map(
+            &source_map,
+            source_path.as_str(),
+            input_source_map,
+        );
+        if composition.upstream_map_applied {
+            source_map = composition.source_map;
+            upstream_map_applied = true;
+        }
+    }
+    (source_map, upstream_map_applied)
+}
+
 fn rewrite_bundle_asset_urls_for_build_sources(
     sources: &[OmenaQueryStyleSourceInputV0],
 ) -> (Vec<OmenaQueryStyleSourceInputV0>, usize) {
@@ -3220,6 +3313,7 @@ struct BundleCodeSplitOutputOptions<'a> {
     source_map_sources: &'a [OmenaQueryStyleSourceInputV0],
     resolution_inputs: &'a OmenaQueryStyleResolutionInputsV0,
     split_transform_pass_ids: &'a [String],
+    input_source_maps: &'a BTreeMap<String, String>,
     context: &'a OmenaQueryTransformExecutionContextV0,
     source_map: bool,
 }
@@ -3255,7 +3349,9 @@ struct BundleCodeSplitManifestImportV0 {
     file_name: String,
 }
 
-fn emit_bundle_code_split_outputs(options: BundleCodeSplitOutputOptions<'_>) -> Result<(), String> {
+fn emit_bundle_code_split_outputs(
+    options: BundleCodeSplitOutputOptions<'_>,
+) -> Result<bool, String> {
     let BundleCodeSplitOutputOptions {
         out_dir,
         entry_style_path,
@@ -3263,6 +3359,7 @@ fn emit_bundle_code_split_outputs(options: BundleCodeSplitOutputOptions<'_>) -> 
         source_map_sources,
         resolution_inputs,
         split_transform_pass_ids,
+        input_source_maps,
         context,
         source_map,
     } = options;
@@ -3299,6 +3396,7 @@ fn emit_bundle_code_split_outputs(options: BundleCodeSplitOutputOptions<'_>) -> 
     );
 
     let mut manifest_outputs = Vec::new();
+    let mut upstream_maps_applied = false;
     for style_path in reachable_paths {
         let Some(source) = source_by_path.get(style_path.as_str()) else {
             continue;
@@ -3349,6 +3447,9 @@ fn emit_bundle_code_split_outputs(options: BundleCodeSplitOutputOptions<'_>) -> 
                 style_path.as_str(),
                 source_map_source,
             );
+            let (source_map_v3, upstream_map_applied) =
+                compose_source_map_with_input_source_maps(source_map_v3, input_source_maps);
+            upstream_maps_applied = upstream_maps_applied || upstream_map_applied;
             let map_output_path = out_dir.join(map_file_name);
             let source_map_json = serde_json::to_string_pretty(&source_map_v3)
                 .map_err(|error| format!("failed to serialize split source map: {error}"))?;
@@ -3398,7 +3499,7 @@ fn emit_bundle_code_split_outputs(options: BundleCodeSplitOutputOptions<'_>) -> 
             path_string(&manifest_path)
         )
     })?;
-    Ok(())
+    Ok(upstream_maps_applied)
 }
 
 fn collect_bundle_code_split_reachable_style_paths(
@@ -5017,6 +5118,7 @@ mod tests {
             .unwrap_or_default();
 
         assert!(build_argument_names.contains(&"source-map"));
+        assert!(build_argument_names.contains(&"input-source-map"));
         assert!(build_argument_names.contains(&"tree-shake"));
         assert!(build_argument_names.contains(&"bundle"));
     }
@@ -5558,6 +5660,7 @@ mod tests {
                 source_paths: Vec::new(),
                 package_manifest_paths: Vec::new(),
                 source_map: false,
+                input_source_maps: Vec::new(),
                 json: false,
             },
         });
@@ -5600,6 +5703,7 @@ mod tests {
                 source_paths: Vec::new(),
                 package_manifest_paths: Vec::new(),
                 source_map: true,
+                input_source_maps: Vec::new(),
                 json: false,
             },
         });
@@ -5636,6 +5740,7 @@ mod tests {
                 source_paths: Vec::new(),
                 package_manifest_paths: Vec::new(),
                 source_map: false,
+                input_source_maps: Vec::new(),
                 json: false,
             },
         });
@@ -5687,6 +5792,7 @@ mod tests {
                 source_paths: Vec::new(),
                 package_manifest_paths: Vec::new(),
                 source_map: false,
+                input_source_maps: Vec::new(),
                 json: false,
             },
         });
@@ -5752,6 +5858,7 @@ mod tests {
                 source_paths: vec![tokens_path.clone(), base_path.clone()],
                 package_manifest_paths: Vec::new(),
                 source_map: false,
+                input_source_maps: Vec::new(),
                 json: false,
             },
         });
@@ -5822,6 +5929,7 @@ mod tests {
                 source_paths: vec![tokens_path.clone(), base_path.clone()],
                 package_manifest_paths: Vec::new(),
                 source_map: false,
+                input_source_maps: Vec::new(),
                 json: false,
             },
         });
@@ -5998,6 +6106,7 @@ mod tests {
                 source_paths: vec![tokens_path.clone()],
                 package_manifest_paths: Vec::new(),
                 source_map: false,
+                input_source_maps: Vec::new(),
                 json: false,
             },
         });
@@ -6069,6 +6178,7 @@ mod tests {
                 source_paths: vec![tokens_path.clone(), theme_path.clone()],
                 package_manifest_paths: Vec::new(),
                 source_map: false,
+                input_source_maps: Vec::new(),
                 json: false,
             },
         });
@@ -6132,6 +6242,7 @@ mod tests {
                 source_paths: vec![tokens_path.clone(), theme_path.clone()],
                 package_manifest_paths: Vec::new(),
                 source_map: false,
+                input_source_maps: Vec::new(),
                 json: false,
             },
         });
@@ -6191,6 +6302,7 @@ mod tests {
                 source_paths: vec![tokens_path.clone()],
                 package_manifest_paths: Vec::new(),
                 source_map: false,
+                input_source_maps: Vec::new(),
                 json: false,
             },
         });
@@ -6262,6 +6374,7 @@ mod tests {
                 source_paths: vec![tokens_path.clone()],
                 package_manifest_paths: Vec::new(),
                 source_map: false,
+                input_source_maps: Vec::new(),
                 json: false,
             },
         });
@@ -6322,6 +6435,7 @@ mod tests {
                 source_paths: vec![tokens_path.clone()],
                 package_manifest_paths: Vec::new(),
                 source_map: true,
+                input_source_maps: Vec::new(),
                 json: true,
             },
         });

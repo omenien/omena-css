@@ -58,6 +58,8 @@ try {
   mkdirSync(splitDir, { recursive: true });
 
   const appPath = join(workspace, "app.css");
+  const appScssPath = join(workspace, "app.scss");
+  const appSourceMapPath = join(workspace, "app.css.map");
   const tokensPath = join(themeDir, "tokens.css");
   const basePath = join(themeDir, "base.css");
   const contextPath = join(workspace, "context.json");
@@ -65,11 +67,22 @@ try {
   const tokenAssetPath = join(tokenAssetDir, "token.svg");
   const appSource =
     '@import "./theme/tokens.css"; .app { color: green; background: url("./assets/app.svg"); } .deadApp { color: red; }';
+  const appScssSource = '$brand: green;\n.app { color: $brand; }\n';
   const tokensSource =
     '@import "./base.css"; .token { color: blue; background-image: url("./icons/token.svg"); } .deadToken { color: red; }';
   const baseSource = ".base { color: red; } .deadBase { color: gray; }";
+  const appSourceMap = {
+    version: 3,
+    file: "app.css",
+    sources: [appScssPath],
+    sourcesContent: [appScssSource],
+    names: [],
+    mappings: "AAAA",
+  };
 
   writeFileSync(appPath, appSource);
+  writeFileSync(appScssPath, appScssSource);
+  writeFileSync(appSourceMapPath, JSON.stringify(appSourceMap, null, 2));
   writeFileSync(tokensPath, tokensSource);
   writeFileSync(basePath, baseSource);
   writeFileSync(contextPath, JSON.stringify({ reachableClassNames: ["app", "token", "base"] }));
@@ -96,6 +109,8 @@ try {
       "--source",
       basePath,
       "--source-map",
+      "--input-source-map",
+      `${appPath}=${appSourceMapPath}`,
       "--split-out-dir",
       splitDir,
       "--tree-shake",
@@ -130,6 +145,7 @@ try {
   assert.ok(summary.readySurfaces.includes("bundleCodeSplitManifestEmission"));
   assert.ok(summary.readySurfaces.includes("bundleCodeSplitTreeShakeEmission"));
   assert.ok(summary.readySurfaces.includes("bundleCodeSplitSourceMapEmission"));
+  assert.ok(summary.readySurfaces.includes("bundleUpstreamSourceMapComposition"));
   assert.ok(!summary.execution.outputCss.includes("@import"));
   assert.ok(summary.execution.outputCss.includes(".base { color: red;"));
   assert.ok(summary.execution.outputCss.includes(".token { color: blue;"));
@@ -145,17 +161,17 @@ try {
   assert.ok(sourceMap.x_omenaSegmentCount >= 3);
   assert.ok(sourceMap.x_omenaPassIds.includes("import-inline"));
 
-  assertSourceContent(sourceMap, appPath, appSource);
+  assertSourceContent(sourceMap, appScssPath, appScssSource);
   assertSourceContent(sourceMap, tokensPath, tokensSource);
   assertSourceContent(sourceMap, basePath, baseSource);
-  assertSplitOutputs(splitDir, appSource, tokensSource, baseSource);
+  assertSplitOutputs(splitDir, appScssSource, tokensSource, baseSource);
 
   console.log(
     [
       "validated omena-cli bundle origin chain:",
       `sources=${sourceMap.sources.length}`,
       `segments=${sourceMap.x_omenaSegmentCount}`,
-      "ready=bundleSourceMapOriginChain+bundleAssetUrlRewrite+bundleCodeSplitEmission+bundleCodeSplitManifestEmission+bundleCodeSplitTreeShakeEmission+bundleCodeSplitSourceMapEmission",
+      "ready=bundleSourceMapOriginChain+bundleAssetUrlRewrite+bundleCodeSplitEmission+bundleCodeSplitManifestEmission+bundleCodeSplitTreeShakeEmission+bundleCodeSplitSourceMapEmission+bundleUpstreamSourceMapComposition",
     ].join(" "),
   );
 } finally {
@@ -224,6 +240,10 @@ function assertSplitOutputs(
     [...manifestFiles].sort(),
     [...cssFiles].sort(),
     "split manifest should describe every emitted CSS split file",
+  );
+  assert.ok(
+    manifest.outputs.every((output) => !("sources" in output) && !("sourcesContent" in output)),
+    "split manifest should not duplicate composed original sources; sidecar .map files are the origin authority",
   );
   const appManifest = manifest.outputs.find((output) => output.sourcePath.endsWith("/app.css"));
   const tokensManifest = manifest.outputs.find((output) =>
