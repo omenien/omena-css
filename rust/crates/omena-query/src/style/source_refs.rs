@@ -410,10 +410,6 @@ pub fn summarize_omena_query_source_diagnostics_for_workspace_file_with_context_
         .iter()
         .map(|source| source.style_path.as_str())
         .collect::<BTreeSet<_>>();
-    let style_sources_by_path = style_sources
-        .iter()
-        .map(|source| (source.style_path.as_str(), source.style_source.as_str()))
-        .collect::<BTreeMap<_, _>>();
     let definitions = summarize_omena_query_style_selector_definitions(style_sources);
     let imports = summarize_omena_query_source_import_declarations_for_source_language(
         source_path,
@@ -470,9 +466,118 @@ pub fn summarize_omena_query_source_diagnostics_for_workspace_file_with_context_
         imported_style_bindings,
         classnames_bind_bindings,
     );
-    diagnostics.extend(summarize_omena_query_domain_class_reference_diagnostics(
+    summarize_omena_query_source_diagnostics_from_syntax_index(
+        source_path,
         source_source,
         &index,
+        OmenaQuerySourceDiagnosticsWorkspaceFacts {
+            definitions: definitions.as_slice(),
+            style_sources,
+        },
+        diagnostics,
+        max_context_depth,
+        vec![
+            "sourceMissingModuleDiagnostics",
+            "sourceMissingSelectorDiagnostics",
+            "sourceResolvedClassDiagnostics",
+            "crossLanguageDiagnostics",
+            "checkerProductDiagnosticGate",
+        ],
+    )
+}
+
+pub fn summarize_omena_query_source_diagnostics_for_workspace_file_with_source_syntax_index(
+    source_path: &str,
+    source_source: &str,
+    source_syntax_index: &OmenaQuerySourceSyntaxIndexV0,
+    style_sources: &[OmenaQueryStyleSourceInputV0],
+) -> OmenaQuerySourceDiagnosticsForFileV0 {
+    summarize_omena_query_source_diagnostics_for_workspace_file_with_source_syntax_index_and_context_depth(
+        source_path,
+        source_source,
+        source_syntax_index,
+        style_sources,
+        OMENA_QUERY_WORKSPACE_DYNAMIC_CLASSNAME_CONTEXT_DEPTH,
+    )
+}
+
+pub fn summarize_omena_query_source_diagnostics_for_workspace_file_with_source_syntax_index_and_definitions(
+    source_path: &str,
+    source_source: &str,
+    source_syntax_index: &OmenaQuerySourceSyntaxIndexV0,
+    definitions: &[OmenaQueryStyleSelectorDefinitionV0],
+    style_sources: &[OmenaQueryStyleSourceInputV0],
+) -> OmenaQuerySourceDiagnosticsForFileV0 {
+    summarize_omena_query_source_diagnostics_from_syntax_index(
+        source_path,
+        source_source,
+        source_syntax_index,
+        OmenaQuerySourceDiagnosticsWorkspaceFacts {
+            definitions,
+            style_sources,
+        },
+        Vec::new(),
+        OMENA_QUERY_WORKSPACE_DYNAMIC_CLASSNAME_CONTEXT_DEPTH,
+        vec![
+            "sourceIndexedSyntaxDiagnostics",
+            "sourceMissingSelectorDiagnostics",
+            "sourceResolvedClassDiagnostics",
+            "crossLanguageDiagnostics",
+            "checkerProductDiagnosticGate",
+        ],
+    )
+}
+
+pub fn summarize_omena_query_source_diagnostics_for_workspace_file_with_source_syntax_index_and_context_depth(
+    source_path: &str,
+    source_source: &str,
+    source_syntax_index: &OmenaQuerySourceSyntaxIndexV0,
+    style_sources: &[OmenaQueryStyleSourceInputV0],
+    max_context_depth: usize,
+) -> OmenaQuerySourceDiagnosticsForFileV0 {
+    let definitions = summarize_omena_query_style_selector_definitions(style_sources);
+    summarize_omena_query_source_diagnostics_from_syntax_index(
+        source_path,
+        source_source,
+        source_syntax_index,
+        OmenaQuerySourceDiagnosticsWorkspaceFacts {
+            definitions: definitions.as_slice(),
+            style_sources,
+        },
+        Vec::new(),
+        max_context_depth,
+        vec![
+            "sourceIndexedSyntaxDiagnostics",
+            "sourceMissingSelectorDiagnostics",
+            "sourceResolvedClassDiagnostics",
+            "crossLanguageDiagnostics",
+            "checkerProductDiagnosticGate",
+        ],
+    )
+}
+
+struct OmenaQuerySourceDiagnosticsWorkspaceFacts<'a> {
+    definitions: &'a [OmenaQueryStyleSelectorDefinitionV0],
+    style_sources: &'a [OmenaQueryStyleSourceInputV0],
+}
+
+fn summarize_omena_query_source_diagnostics_from_syntax_index(
+    source_path: &str,
+    source_source: &str,
+    index: &OmenaQuerySourceSyntaxIndexV0,
+    workspace_facts: OmenaQuerySourceDiagnosticsWorkspaceFacts<'_>,
+    mut diagnostics: Vec<OmenaQuerySourceDiagnosticV0>,
+    max_context_depth: usize,
+    ready_surfaces: Vec<&'static str>,
+) -> OmenaQuerySourceDiagnosticsForFileV0 {
+    let style_sources_by_path = workspace_facts
+        .style_sources
+        .iter()
+        .map(|source| (source.style_path.as_str(), source.style_source.as_str()))
+        .collect::<BTreeMap<_, _>>();
+    diagnostics.extend(summarize_omena_query_domain_class_reference_diagnostics(
+        source_source,
+        index,
     ));
 
     if !index.imported_style_bindings.is_empty() {
@@ -487,14 +592,15 @@ pub fn summarize_omena_query_source_diagnostics_for_workspace_file_with_context_
         // selectors (`selector_universe_by_uri`), so a `btn-` prefix is not
         // cross-attributed to a `btn-*` selector in a different imported module.
         // Targets with no resolved binding fall back to the union universe.
-        let selector_universe = definitions
+        let selector_universe = workspace_facts
+            .definitions
             .iter()
             .map(|definition| definition.name.clone())
             .collect::<BTreeSet<_>>()
             .into_iter()
             .collect::<Vec<_>>();
         let mut selector_universe_by_uri: BTreeMap<String, Vec<String>> = BTreeMap::new();
-        for definition in &definitions {
+        for definition in workspace_facts.definitions {
             selector_universe_by_uri
                 .entry(definition.uri.clone())
                 .or_default()
@@ -517,6 +623,15 @@ pub fn summarize_omena_query_source_diagnostics_for_workspace_file_with_context_
             let Some(target_style_uri) = reference.target_style_uri.as_deref() else {
                 continue;
             };
+            let target_style_is_known =
+                workspace_facts.definitions.iter().any(|definition| {
+                    file_uri_equivalent(definition.uri.as_str(), target_style_uri)
+                }) || style_sources_by_path
+                    .keys()
+                    .any(|style_uri| file_uri_equivalent(style_uri, target_style_uri));
+            if !target_style_is_known {
+                continue;
+            }
             let Some(selector_name) = reference.selector_name.clone().or_else(|| {
                 source_reference_text_selector_name(source_source, reference.byte_span)
             }) else {
@@ -538,18 +653,27 @@ pub fn summarize_omena_query_source_diagnostics_for_workspace_file_with_context_
             };
             if !resolve_omena_query_style_selector_definitions_for_source_candidate(
                 &candidate,
-                definitions.as_slice(),
+                workspace_facts.definitions,
             )
             .is_empty()
             {
                 continue;
             }
+            let target_style_source = style_sources_by_path
+                .get(target_style_uri)
+                .copied()
+                .or_else(|| {
+                    style_sources_by_path
+                        .iter()
+                        .find(|(style_uri, _)| file_uri_equivalent(style_uri, target_style_uri))
+                        .map(|(_, source)| *source)
+                });
             diagnostics.push(
                 summarize_omena_query_unresolved_source_reference_diagnostic(
                     source_source,
                     reference,
                     selector_name.as_str(),
-                    style_sources_by_path.get(target_style_uri).copied(),
+                    target_style_source,
                 ),
             );
         }
@@ -575,13 +699,7 @@ pub fn summarize_omena_query_source_diagnostics_for_workspace_file_with_context_
         file_kind: "source",
         diagnostic_count: diagnostics.len(),
         diagnostics,
-        ready_surfaces: vec![
-            "sourceMissingModuleDiagnostics",
-            "sourceMissingSelectorDiagnostics",
-            "sourceResolvedClassDiagnostics",
-            "crossLanguageDiagnostics",
-            "checkerProductDiagnosticGate",
-        ],
+        ready_surfaces,
     }
 }
 

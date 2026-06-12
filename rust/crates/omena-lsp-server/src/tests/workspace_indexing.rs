@@ -1307,6 +1307,131 @@ fn indexed_source_files_do_not_receive_style_change_diagnostics_until_open() -> 
 }
 
 #[test]
+fn indexed_source_diagnostics_use_persisted_source_syntax_without_provider_candidates() -> TestResult
+{
+    let workspace_root = std::env::temp_dir().join(format!(
+        "omena-lsp-server-source-diagnostics-indexed-{}",
+        std::process::id()
+    ));
+    let src_dir = workspace_root.join("src");
+    let source_path = src_dir.join("App.tsx");
+    let style_path = src_dir.join("Button.module.scss");
+    let _ = std::fs::remove_dir_all(&workspace_root);
+    std::fs::create_dir_all(&src_dir)?;
+    let source_text = "const view = styles.ghost;";
+    let selector_start = fixture_find(
+        source_text,
+        "ghost",
+        "source fixture contains selector reference",
+    )?;
+    std::fs::write(&source_path, source_text)?;
+    std::fs::write(&style_path, ".root { color: red; }")?;
+
+    let workspace_uri = crate::protocol::path_to_file_uri(workspace_root.as_path());
+    let source_uri = crate::protocol::path_to_file_uri(source_path.as_path());
+    let style_uri = crate::protocol::path_to_file_uri(style_path.as_path());
+    let resolution_inputs = omena_query::OmenaQueryStyleResolutionInputsV0::default();
+    let cached_index = SourceSyntaxIndex {
+        schema_version: "0",
+        product: "omena-bridge.source-syntax-index",
+        imported_style_bindings: vec![ImportedStyleBinding {
+            binding: "styles".to_string(),
+            style_uri: style_uri.clone(),
+        }],
+        class_string_literals: Vec::new(),
+        style_property_accesses: Vec::new(),
+        inline_style_declarations: Vec::new(),
+        selector_references: vec![SourceSelectorReferenceFact {
+            byte_span: ParserByteSpanV0 {
+                start: selector_start,
+                end: selector_start + "ghost".len(),
+            },
+            selector_name: Some("ghost".to_string()),
+            match_kind: SourceSelectorReferenceMatchKind::Exact,
+            target_style_uri: Some(style_uri.clone()),
+        }],
+        type_fact_targets: Vec::new(),
+        class_value_universes: Vec::new(),
+        domain_class_references: Vec::new(),
+    };
+    let text_hash = crate::source_document_cache::source_document_text_hash(source_text);
+    crate::source_document_cache::store_source_document_index_sidecar(
+        Some(workspace_uri.as_str()),
+        source_uri.as_str(),
+        "typescriptreact",
+        text_hash.as_str(),
+        &resolution_inputs,
+        &cached_index,
+        false,
+    );
+
+    let mut state = LspShellState::default();
+    handle_lsp_message(
+        &mut state,
+        json!({
+            "jsonrpc": "2.0",
+            "id": 1,
+            "method": "initialize",
+            "params": {
+                "workspaceFolders": [
+                    {
+                        "uri": workspace_uri,
+                        "name": "source-diagnostics-indexed",
+                    },
+                ],
+            },
+        }),
+    );
+    let turn = handle_lsp_message_scheduled_outputs_or_dispatch(
+        &mut state,
+        json!({
+            "jsonrpc": "2.0",
+            "method": "initialized",
+            "params": {},
+        }),
+    );
+    let workspace_index_job = match turn {
+        LspLoopTurnV0::OutputsAndDeferredDiagnostics {
+            mut workspace_index_jobs,
+            ..
+        } => workspace_index_jobs
+            .pop()
+            .ok_or_else(|| std::io::Error::other("missing workspace index job"))?,
+        other => {
+            return Err(std::io::Error::other(format!(
+                "initialized should schedule background workspace indexing: {other:?}"
+            ))
+            .into());
+        }
+    };
+    let result = collect_background_workspace_index(workspace_index_job);
+    apply_background_workspace_index_result(&mut state, result);
+    state
+        .document_mut(source_uri.as_str())
+        .ok_or_else(|| std::io::Error::other("source sidecar should index source document"))?
+        .source_selector_candidates
+        .clear();
+
+    let diagnostics = resolve_source_diagnostics_for_uri(&state, source_uri.as_str());
+    assert!(
+        diagnostics
+            .as_array()
+            .is_some_and(|items| items.iter().any(|diagnostic| diagnostic.get("code")
+                == Some(&json!("missingStaticClass"))
+                && diagnostic
+                    .pointer("/data/provenance")
+                    .and_then(Value::as_array)
+                    .is_some_and(|provenance| provenance
+                        .iter()
+                        .any(|item| item == "omena-query.source-syntax-index")))),
+        "source diagnostics should consume the persisted source syntax index without provider candidates: {diagnostics:?}"
+    );
+
+    let _ = std::fs::remove_dir_all(&workspace_root);
+    Ok(())
+}
+
+#[test]
 fn indexed_style_files_feed_custom_property_references_and_rename() -> TestResult {
     let workspace_root = std::env::temp_dir().join(format!(
         "omena-lsp-server-style-symbol-custom-property-{}",

@@ -61,7 +61,7 @@ use omena_query::{
     summarize_omena_query_rename_plan_from_occurrence_index,
     summarize_omena_query_sass_module_sources, summarize_omena_query_source_completion_at_position,
     summarize_omena_query_source_diagnostics_for_file,
-    summarize_omena_query_source_diagnostics_for_workspace_file,
+    summarize_omena_query_source_diagnostics_for_workspace_file_with_source_syntax_index_and_definitions,
     summarize_omena_query_source_import_declarations_for_source_language,
     summarize_omena_query_source_selector_occurrence_index,
     summarize_omena_query_source_syntax_index_for_source_language,
@@ -1475,67 +1475,54 @@ fn resolve_source_diagnostics_for_uri(state: &LspShellState, document_uri: &str)
 
     let style_sources =
         style_sources_from_open_documents(state, document.workspace_folder_uri.as_deref(), None);
-    let mut query_diagnostics = summarize_omena_query_source_diagnostics_for_workspace_file(
-        document.uri.as_str(),
-        document.text.as_str(),
-        style_sources.as_slice(),
-        state.resolution.package_manifests.as_slice(),
-    )
-    .diagnostics
-    .into_iter()
-    // The LSP source index already resolves tsconfig/bundler aliases. Keep module-resolution
-    // diagnostics on that path until the workspace summary accepts the same resolution inputs.
-    .filter(|diagnostic| diagnostic.code != "missingModule")
-    .collect::<Vec<_>>();
-    let query_resolved_source_diagnostic_keys = query_diagnostics
-        .iter()
-        .filter(|diagnostic| {
-            matches!(
-                diagnostic.code,
-                "missingStaticClass"
-                    | "missingTemplatePrefix"
-                    | "missingResolvedClassValues"
-                    | "missingResolvedClassDomain"
-            )
-        })
-        .filter_map(|diagnostic| {
-            diagnostic
-                .create_selector
-                .as_ref()
-                .map(|create_selector| (diagnostic.range, create_selector.selector_name.clone()))
-        })
-        .collect::<BTreeSet<_>>();
-
-    let candidates = resolve_source_provider_candidates(state, document)
+    let query_definitions = source_diagnostic_selector_definitions(state, document);
+    let mut query_diagnostics =
+        summarize_omena_query_source_diagnostics_for_workspace_file_with_source_syntax_index_and_definitions(
+            document.uri.as_str(),
+            document.text.as_str(),
+            &document.source_syntax_index,
+            query_definitions.as_slice(),
+            style_sources.as_slice(),
+        )
+        .diagnostics
+        .into_iter()
+        .collect::<Vec<_>>();
+    let provider_candidates = resolve_source_provider_candidates(state, document)
         .unresolved
         .into_iter()
         .filter(|candidate| candidate.kind == "sourceSelectorReference")
-        .filter_map(|candidate| {
-            if query_resolved_source_diagnostic_keys
-                .contains(&(candidate.range, candidate.name.clone()))
-            {
-                return None;
-            }
-            let (target_style_uri, target_style_document) = source_selector_diagnostic_target(
-                state,
-                &candidate,
-                document.workspace_folder_uri.as_deref(),
-            )?;
-            Some(OmenaQuerySourceMissingSelectorDiagnosticCandidateV0 {
+        .collect::<Vec<_>>();
+    for candidate in provider_candidates {
+        let Some((target_style_uri, target_style_document)) = source_selector_diagnostic_target(
+            state,
+            &candidate,
+            document.workspace_folder_uri.as_deref(),
+        ) else {
+            continue;
+        };
+        let fallback_diagnostics = summarize_omena_query_source_diagnostics_for_file(
+            document.uri.as_str(),
+            &[OmenaQuerySourceMissingSelectorDiagnosticCandidateV0 {
                 target_style_uri,
                 target_style_source: target_style_document.text.clone(),
                 selector_name: candidate.name,
                 source_reference_range: candidate.range,
-            })
-        })
-        .collect::<Vec<_>>();
-    query_diagnostics.extend(
-        summarize_omena_query_source_diagnostics_for_file(
-            document.uri.as_str(),
-            candidates.as_slice(),
+            }],
         )
-        .diagnostics,
-    );
+        .diagnostics;
+        for fallback_diagnostic in fallback_diagnostics {
+            if let Some(existing) = query_diagnostics.iter_mut().find(|diagnostic| {
+                source_missing_selector_diagnostic_code(diagnostic.code)
+                    && diagnostic.range == fallback_diagnostic.range
+            }) {
+                if existing.create_selector.is_none() {
+                    existing.create_selector = fallback_diagnostic.create_selector;
+                }
+                continue;
+            }
+            query_diagnostics.push(fallback_diagnostic);
+        }
+    }
     query_diagnostics.sort_by_key(|diagnostic| {
         (
             diagnostic.range.start.line,
@@ -1571,6 +1558,43 @@ fn resolve_source_diagnostics_for_uri(state: &LspShellState, document_uri: &str)
         .collect();
 
     json!(diagnostics)
+}
+
+fn source_missing_selector_diagnostic_code(code: &str) -> bool {
+    matches!(
+        code,
+        "missingStaticClass"
+            | "missingTemplatePrefix"
+            | "missingResolvedClassValues"
+            | "missingResolvedClassDomain"
+    )
+}
+
+fn source_diagnostic_selector_definitions(
+    state: &LspShellState,
+    document: &LspTextDocumentState,
+) -> Vec<omena_query::OmenaQueryStyleSelectorDefinitionV0> {
+    let mut definitions = style_selector_definitions_from_open_documents(
+        state,
+        "",
+        document.workspace_folder_uri.as_deref(),
+    );
+    for reference in &document.source_syntax_index.selector_references {
+        let Some(target_uri) = reference.target_style_uri.as_deref() else {
+            continue;
+        };
+        if definitions
+            .iter()
+            .any(|(uri, _)| file_uri_equivalent(uri, target_uri))
+        {
+            continue;
+        }
+        definitions.extend(style_selector_definitions_from_uri(state, target_uri));
+    }
+    definitions
+        .iter()
+        .map(|(uri, definition)| query_style_selector_definition_for_matching(uri, definition))
+        .collect()
 }
 
 fn lsp_diagnostic_severity(query_severity: &str, configured_severity: u8) -> u8 {

@@ -1,11 +1,12 @@
 use crate::{
     OmenaQuerySourceImportedStyleBindingV0, OmenaQuerySourceMissingSelectorDiagnosticCandidateV0,
     OmenaQuerySourceSelectorCandidateV0, OmenaQuerySourceSelectorReferenceEditTargetV0,
-    OmenaQueryStyleSelectorDefinitionV0, OmenaQueryStyleSourceInputV0, ParserPositionV0,
-    ParserRangeV0, canonicalize_omena_query_source_selector_references,
-    is_omena_query_sass_symbol_candidate_kind, is_omena_query_sass_symbol_reference_kind,
-    omena_query_sass_symbol_kind_from_candidate_kind, omena_query_sass_symbol_target_matches,
-    resolve_omena_query_sass_forward_sources,
+    OmenaQuerySourceSelectorReferenceFactV0, OmenaQuerySourceSelectorReferenceMatchKindV0,
+    OmenaQuerySourceSyntaxIndexV0, OmenaQueryStyleSelectorDefinitionV0,
+    OmenaQueryStyleSourceInputV0, ParserByteSpanV0, ParserPositionV0, ParserRangeV0,
+    canonicalize_omena_query_source_selector_references, is_omena_query_sass_symbol_candidate_kind,
+    is_omena_query_sass_symbol_reference_kind, omena_query_sass_symbol_kind_from_candidate_kind,
+    omena_query_sass_symbol_target_matches, resolve_omena_query_sass_forward_sources,
     resolve_omena_query_sass_module_use_sources_for_candidate,
     resolve_omena_query_sass_symbol_declarations, resolve_omena_query_selector_rename_edits,
     resolve_omena_query_source_candidate_selector_names,
@@ -15,6 +16,7 @@ use crate::{
     summarize_omena_query_source_diagnostics_for_file,
     summarize_omena_query_source_diagnostics_for_workspace_file,
     summarize_omena_query_source_diagnostics_for_workspace_file_with_context_depth,
+    summarize_omena_query_source_diagnostics_for_workspace_file_with_source_syntax_index,
     summarize_omena_query_source_import_declarations, summarize_omena_query_source_syntax_index,
     summarize_omena_query_style_hover_candidates,
 };
@@ -226,6 +228,69 @@ export function App({ suffix }) {
         diagnostics
             .ready_surfaces
             .contains(&"checkerProductDiagnosticGate")
+    );
+}
+
+#[test]
+fn source_diagnostics_consume_precomputed_source_syntax_index() {
+    let source_path = "/workspace/src/App.tsx";
+    let source = "const view = styles.ghost;";
+    assert!(source.contains("ghost"), "fixture should contain selector");
+    let selector_start = source.find("ghost").unwrap_or_default();
+    let style_uri = "/workspace/src/App.module.scss";
+    let diagnostics =
+        summarize_omena_query_source_diagnostics_for_workspace_file_with_source_syntax_index(
+            source_path,
+            source,
+            &OmenaQuerySourceSyntaxIndexV0 {
+                schema_version: "0",
+                product: "omena-bridge.source-syntax-index",
+                imported_style_bindings: vec![OmenaQuerySourceImportedStyleBindingV0 {
+                    binding: "styles".to_string(),
+                    style_uri: style_uri.to_string(),
+                }],
+                class_string_literals: Vec::new(),
+                style_property_accesses: Vec::new(),
+                inline_style_declarations: Vec::new(),
+                selector_references: vec![OmenaQuerySourceSelectorReferenceFactV0 {
+                    byte_span: ParserByteSpanV0 {
+                        start: selector_start,
+                        end: selector_start + "ghost".len(),
+                    },
+                    selector_name: Some("ghost".to_string()),
+                    match_kind: OmenaQuerySourceSelectorReferenceMatchKindV0::Exact,
+                    target_style_uri: Some(style_uri.to_string()),
+                }],
+                type_fact_targets: Vec::new(),
+                class_value_universes: Vec::new(),
+                domain_class_references: Vec::new(),
+            },
+            &[OmenaQueryStyleSourceInputV0 {
+                style_path: style_uri.to_string(),
+                style_source: ".root {}".to_string(),
+            }],
+        );
+
+    assert_eq!(diagnostics.product, "omena-query.diagnostics-for-file");
+    assert!(
+        diagnostics
+            .ready_surfaces
+            .contains(&"sourceIndexedSyntaxDiagnostics")
+    );
+    assert!(
+        diagnostics
+            .diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.code == "missingStaticClass"),
+        "precomputed source syntax index should drive source diagnostics without reparsing imports: {:?}",
+        diagnostics.diagnostics
+    );
+    assert!(
+        diagnostics
+            .diagnostics
+            .iter()
+            .all(|diagnostic| diagnostic.code != "missingModule"),
+        "the precomputed-index path should not synthesize import-resolution diagnostics"
     );
 }
 
