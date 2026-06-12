@@ -69,7 +69,7 @@ try {
   const tokenAssetPath = join(tokenAssetDir, "token.svg");
   const appSource =
     '@import "./theme/tokens.css"; .app { color: green; background: url("./assets/app.svg"); } .deadApp { color: red; }';
-  const appScssSource = '$brand: green;\n.app { color: $brand; }\n';
+  const appScssSource = "$brand: green;\n.app { color: $brand; }\n";
   const adminSource =
     '@import "./theme/tokens.css"; .admin { color: green; } .deadAdmin { color: red; }';
   const tokensSource =
@@ -262,9 +262,7 @@ function assertSplitOutputs(
     "split manifest should not duplicate composed original sources; sidecar .map files are the origin authority",
   );
   const appManifest = manifest.outputs.find((output) => output.sourcePath.endsWith("/app.css"));
-  const adminManifest = manifest.outputs.find((output) =>
-    output.sourcePath.endsWith("/admin.css"),
-  );
+  const adminManifest = manifest.outputs.find((output) => output.sourcePath.endsWith("/admin.css"));
   const tokensManifest = manifest.outputs.find((output) =>
     output.sourcePath.endsWith("/theme/tokens.css"),
   );
