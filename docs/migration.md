@@ -91,6 +91,15 @@ handling. The language server reads local workspace files, SIF artifacts, and
 while serving editor requests.
 
 Recorded provenance references are advisory until verified evidence is added.
+The enforced trust tier determines which evidence is sufficient:
+
+| Tier | Enforcement meaning |
+| ---- | ------------------- |
+| T0   | No enforced provenance verification is available for the SIF entry. |
+| T1   | Local lock and SIF verification is the enforced trust path. |
+| T2   | Verified package or third-party attestation evidence is required; recorded references alone are advisory. |
+| T3   | Verified omena-toolchain attestation evidence is required and must bind the signed subject to the selected SIF artifact. |
+
 For npm provenance metadata, first record the reference:
 
 ```sh
