@@ -7,12 +7,23 @@ establishes the source-fact boundary that later mutation engines must consume.
 
 ## Bundle and source-map decisions
 
-The current bundle/source-map baseline is the six-surface gate set reported by
-`rust/omena-cli-bundle-origin-chain`:
+The decision-time bundle/source-map baseline was the six-surface gate set
+reported by `rust/omena-cli-bundle-origin-chain`:
 
 ```text
 bundleSourceMapOriginChain+bundleAssetUrlRewrite+bundleCodeSplitEmission+bundleCodeSplitManifestEmission+bundleCodeSplitTreeShakeEmission+bundleCodeSplitSourceMapEmission
 ```
+
+The completed bundle/source-map closure extends that product gate with
+upstream-map composition and split-boundary policy surfaces:
+
+```text
+bundleCodeSplitBoundaryManifest+bundleCodeSplitEntryConfig+bundleCodeSplitSharedChunkEmission+bundleUpstreamSourceMapComposition
+```
+
+The query layer also exposes the same workspace split boundary plan through
+`omena-query.bundle-code-split-workspace-plan`, so `entry`, `entryConfig`, and
+`shared` boundaries are visible before CLI split emission.
 
 The following decisions keep the bundle pipeline in one product shape while
 upstream source-map composition and split-policy work continue.
