@@ -18,13 +18,14 @@
 
 use omena_query::{
     OmenaQueryExternalModuleModeV0, OmenaQueryExternalSifInputV0, OmenaQuerySourceDocumentInputV0,
-    OmenaQueryStyleDiagnosticsForFileV0, OmenaQueryStyleMemoHostV0,
+    OmenaQueryStyleDiagnosticsForFileV0, OmenaQueryStyleMemoDatabaseV0, OmenaQueryStyleMemoHostV0,
     OmenaQueryStylePackageManifestV0, OmenaQueryStyleResolutionInputsV0,
-    OmenaQueryStyleSourceInputV0,
+    OmenaQueryStyleSourceInputV0, resolve_memo_workspace_style_diagnostics_from_view,
     summarize_omena_query_style_diagnostics_for_workspace_file_with_external_mode_and_sifs_and_resolution_inputs,
 };
 use serde::Serialize;
 use std::cell::RefCell;
+use std::collections::BTreeMap;
 
 /// Per-file byte-equivalence outcome. The serialized payloads are embedded
 /// only on mismatch so green reports stay small.
@@ -410,6 +411,168 @@ pub fn summarize_workspace_diagnostics_salsa_memo_equivalence_v0(
     }
 }
 
+/// RFC 0009 Pillar F (rfcs#68) merge gate: N concurrent fixed-revision read
+/// views over ONE `sync_workspace_for_parallel_resolve` bundle must be
+/// byte-identical to the straight-line evaluator at every lifecycle position
+/// — cold start, warm revalidation (the memo-hit position inside the views),
+/// a targeted edit (the `set_*` happens AFTER the previous phase's views all
+/// dropped, so this phase also witnesses the pending-write release), and the
+/// revert. This turns the rfcs#64 spike's identical-reads result into a
+/// standing gate.
+///
+/// Workers run on `std::thread::scope` rather than rayon: the spike proved
+/// both drivers equivalent for fixed-revision reads, and scoped threads keep
+/// this oracle crate free of the rayon dependency (rayon stays confined to
+/// omena-lsp-server).
+pub fn summarize_workspace_diagnostics_parallel_salsa_views_equivalence_v0(
+    corpus: &[OmenaQueryStyleSourceInputV0],
+    resolution_inputs: &OmenaQueryStyleResolutionInputsV0,
+) -> OmenaDiffSalsaMemoEquivalenceReportV0 {
+    let host = RefCell::new(OmenaQueryStyleMemoHostV0::new());
+    let compare = |phase: &'static str,
+                   corpus_state: &[OmenaQueryStyleSourceInputV0]|
+     -> OmenaDiffSalsaMemoEquivalencePhaseV0 {
+        let candidate_jsons =
+            parallel_salsa_view_diagnostics_jsons(&host, corpus_state, resolution_inputs);
+        let files = corpus_state
+            .iter()
+            .zip(candidate_jsons)
+            .map(|(file, candidate_json)| {
+                let baseline_json = serialized_diagnostics(
+                    evaluate_workspace_diagnostics_from_scratch_with_inputs_v0(
+                        file.style_path.as_str(),
+                        corpus_state,
+                        &[],
+                        &[],
+                        &[],
+                        resolution_inputs,
+                    ),
+                );
+                let identical = baseline_json == candidate_json;
+                OmenaDiffCacheEquivalenceFileReportV0 {
+                    style_path: file.style_path.clone(),
+                    identical,
+                    baseline_json: (!identical).then_some(baseline_json),
+                    candidate_json: (!identical).then_some(candidate_json),
+                }
+            })
+            .collect::<Vec<_>>();
+        let identical_file_count = files.iter().filter(|file| file.identical).count();
+        OmenaDiffSalsaMemoEquivalencePhaseV0 {
+            phase,
+            report: OmenaDiffCacheEquivalenceReportV0 {
+                schema_version: "0",
+                product: "omena-diff-test.cache-equivalence",
+                baseline_evaluator: "straightLineFromScratch",
+                candidate_evaluator: "parallelSalsaFixedRevisionViews",
+                file_count: files.len(),
+                identical_file_count,
+                all_files_identical: identical_file_count == files.len(),
+                files,
+            },
+        }
+    };
+
+    // Same lifecycle edit as the serial gate: it must CHANGE the entry
+    // file's from-scratch diagnostics (non-vacuity pinned there), so a stale
+    // or torn parallel read diverges here instead of passing silently.
+    let mut edited_corpus = corpus.to_vec();
+    if let Some(last) = edited_corpus.last_mut() {
+        last.style_source
+            .push_str("\n.salsa-memo-edit { @extend %salsa-memo-missing-target; }\n");
+    }
+
+    let phases = vec![
+        compare("coldStart", corpus),
+        compare("warmRevalidation", corpus),
+        compare("afterTargetedEdit", edited_corpus.as_slice()),
+        compare("afterRevert", corpus),
+    ];
+    let comparison_count = phases.iter().map(|phase| phase.report.file_count).sum();
+    let all_phases_identical = phases.iter().all(|phase| phase.report.all_files_identical);
+    OmenaDiffSalsaMemoEquivalenceReportV0 {
+        schema_version: "0",
+        product: "omena-diff-test.parallel-salsa-views-equivalence",
+        phases,
+        comparison_count,
+        all_phases_identical,
+    }
+}
+
+/// One parallel-arm round: sync the host once (all `set_*` loop-side, before
+/// the handle exists), fan one scoped thread per corpus file out over cloned
+/// handles — each rebuilds its own fixed-revision view and resolves its
+/// target — and collect the serialized diagnostics in corpus order. The sync
+/// bundle (handle included) drops before this function returns. A corpus the
+/// host refuses (duplicate paths — not reachable from the default corpus)
+/// evaluates through the straight-line bypass, mirroring the host's own
+/// semantics.
+fn parallel_salsa_view_diagnostics_jsons(
+    host: &RefCell<OmenaQueryStyleMemoHostV0>,
+    corpus_state: &[OmenaQueryStyleSourceInputV0],
+    resolution_inputs: &OmenaQueryStyleResolutionInputsV0,
+) -> Vec<String> {
+    let Some(sync) = host.borrow_mut().sync_workspace_for_parallel_resolve(
+        corpus_state,
+        &[],
+        &[],
+        &[],
+        resolution_inputs,
+    ) else {
+        return corpus_state
+            .iter()
+            .map(|file| {
+                serialized_diagnostics(evaluate_workspace_diagnostics_from_scratch_with_inputs_v0(
+                    file.style_path.as_str(),
+                    corpus_state,
+                    &[],
+                    &[],
+                    &[],
+                    resolution_inputs,
+                ))
+            })
+            .collect();
+    };
+    let files_by_path = sync
+        .files
+        .iter()
+        .map(|(style_path, file)| (style_path.as_str(), *file))
+        .collect::<BTreeMap<_, _>>();
+    let workspace = sync.workspace;
+    // The barrier pins TRUE concurrency: every worker holds a live view at
+    // the same instant before any query runs, so the gate cannot pass by
+    // accidentally serializing the reads on a saturated runner.
+    let start_barrier = std::sync::Barrier::new(corpus_state.len());
+    let jsons = std::thread::scope(|scope| {
+        let workers = corpus_state
+            .iter()
+            .map(|file| {
+                let handle = sync.handle.clone();
+                let target = files_by_path.get(file.style_path.as_str()).copied();
+                let start_barrier = &start_barrier;
+                scope.spawn(move || {
+                    let db = OmenaQueryStyleMemoDatabaseV0::from_handle(handle);
+                    start_barrier.wait();
+                    let summary = target.and_then(|target| {
+                        resolve_memo_workspace_style_diagnostics_from_view(&db, workspace, target)
+                    });
+                    serialized_diagnostics(summary)
+                })
+            })
+            .collect::<Vec<_>>();
+        workers
+            .into_iter()
+            .map(|worker| {
+                worker
+                    .join()
+                    .unwrap_or_else(|_| "parallelViewWorkerPanicked".to_string())
+            })
+            .collect::<Vec<_>>()
+    });
+    drop(sync);
+    jsons
+}
+
 /// A source document importing the corpus entry file and using exactly one
 /// of its selectors, so the unused-selector pass has a usage signal to flip.
 fn salsa_memo_lifecycle_usage_source_document(
@@ -475,6 +638,21 @@ mod tests {
         assert!(
             report.all_phases_identical,
             "salsa-memoized diagnostics must be byte-identical to from-scratch in every lifecycle phase: {report:?}"
+        );
+    }
+
+    #[test]
+    fn parallel_salsa_views_equivalence_holds_across_the_lifecycle() {
+        let (corpus, resolution_inputs) = omena_diff_cache_equivalence_default_corpus_v0();
+        let report = summarize_workspace_diagnostics_parallel_salsa_views_equivalence_v0(
+            &corpus,
+            &resolution_inputs,
+        );
+        assert_eq!(report.phases.len(), 4);
+        assert_eq!(report.comparison_count, corpus.len() * 4);
+        assert!(
+            report.all_phases_identical,
+            "parallel fixed-revision view diagnostics must be byte-identical to from-scratch in every lifecycle phase: {report:?}"
         );
     }
 

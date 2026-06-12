@@ -67,6 +67,11 @@ publish = true
 serde = { version = "1.0", features = ["derive"] }
 serde_json = { version = "1.0", features = ["preserve_order"] }
 salsa = { version = "0.27.0", default-features = false, features = ["macros", "inventory"] }
+# RFC 0009 Pillar F (rfcs#68): bounded parallel diagnostics waves in
+# omena-lsp-server ONLY (already resolved in Cargo.lock transitively via
+# criterion). Never enable salsa's own rayon feature, and never let rayon
+# reach wasm/napi-consumed crates.
+rayon = "1.12"
 clap = { version = "4.6.1", features = ["derive"] }
 criterion = "0.8.2"
 cstree = "0.14.0"

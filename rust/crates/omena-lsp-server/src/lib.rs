@@ -4,6 +4,8 @@ mod disk_cache;
 mod frame_aware_refresh;
 mod lsp_output;
 mod message_loop;
+#[cfg(feature = "parallel-style-diagnostics")]
+mod parallel_style_wave;
 mod protocol;
 mod query_adapter;
 mod query_reuse;
@@ -1089,28 +1091,71 @@ fn resolve_style_diagnostics_for_uri(state: &LspShellState, document_uri: &str) 
             external_sifs,
             &resolution_inputs,
         );
+    let diagnostics = finish_style_diagnostics_value(
+        &LspStyleDiagnosticsRenderInputsV0 {
+            document_uri: document.uri.as_str(),
+            document_text: document.text.as_str(),
+            query_candidates: query_candidates.as_slice(),
+            style_sources: style_sources.as_slice(),
+            source_documents: source_documents.as_slice(),
+            package_manifests: state.resolution.package_manifests.as_slice(),
+            deep_analysis: state.diagnostics.deep_analysis,
+            configured_severity: state.diagnostics.severity,
+        },
+        workspace_diagnostics_summary,
+    );
+    // RFC 0009 Pillar C (rfcs#66): write-behind after the compute. Fail-soft —
+    // io errors are swallowed and a session breaker stops retrying hot.
+    if let Some(slot) = disk_cache_slot.as_ref() {
+        slot.store_write_behind(state, &diagnostics);
+    }
+    diagnostics
+}
+
+/// The full argument surface of [`finish_style_diagnostics_value`]: plain
+/// `Send` data only, by design — no `&LspShellState`.
+pub(crate) struct LspStyleDiagnosticsRenderInputsV0<'inputs> {
+    pub(crate) document_uri: &'inputs str,
+    pub(crate) document_text: &'inputs str,
+    pub(crate) query_candidates: &'inputs [omena_query::OmenaQueryStyleHoverCandidateV0],
+    pub(crate) style_sources: &'inputs [OmenaQueryStyleSourceInputV0],
+    pub(crate) source_documents: &'inputs [OmenaQuerySourceDocumentInputV0],
+    pub(crate) package_manifests: &'inputs [OmenaQueryStylePackageManifestV0],
+    pub(crate) deep_analysis: bool,
+    pub(crate) configured_severity: u8,
+}
+
+/// RFC 0009 Pillar F (rfcs#68): the worker-safe tail of the style
+/// diagnostics pipeline — per-file fallback summarize, streaming-IFDS
+/// extend, opt-in deep analysis, severity mapping and LSP JSON rendering.
+/// Pure of its arguments, so the serial resolve and the parallel wave share
+/// ONE implementation and cannot drift byte-wise.
+pub(crate) fn finish_style_diagnostics_value(
+    inputs: &LspStyleDiagnosticsRenderInputsV0<'_>,
+    workspace_diagnostics_summary: Option<omena_query::OmenaQueryStyleDiagnosticsForFileV0>,
+) -> Value {
     let mut diagnostics_summary = workspace_diagnostics_summary.unwrap_or_else(|| {
         summarize_omena_query_style_diagnostics_for_file(
-            document.uri.as_str(),
-            document.text.as_str(),
-            query_candidates.as_slice(),
+            inputs.document_uri,
+            inputs.document_text,
+            inputs.query_candidates,
         )
     });
     diagnostics_summary.diagnostics.extend(
         summarize_cross_file_streaming_reachability_diagnostics_for_lsp(
-            document.uri.as_str(),
-            style_sources.as_slice(),
-            source_documents.as_slice(),
-            state.resolution.package_manifests.as_slice(),
+            inputs.document_uri,
+            inputs.style_sources,
+            inputs.source_documents,
+            inputs.package_manifests,
         ),
     );
-    if state.diagnostics.deep_analysis {
+    if inputs.deep_analysis {
         diagnostics_summary
             .diagnostics
             .extend(summarize_lsp_opt_in_deep_analysis_diagnostics(
-                document.uri.as_str(),
-                document.text.as_str(),
-                query_candidates.as_slice(),
+                inputs.document_uri,
+                inputs.document_text,
+                inputs.query_candidates,
             ));
     }
     diagnostics_summary.diagnostic_count = diagnostics_summary.diagnostics.len();
@@ -1150,7 +1195,7 @@ fn resolve_style_diagnostics_for_uri(state: &LspShellState, document_uri: &str) 
 
             let mut lsp_diagnostic = json!({
                 "range": diagnostic.range,
-                "severity": lsp_diagnostic_severity(query_severity, state.diagnostics.severity),
+                "severity": lsp_diagnostic_severity(query_severity, inputs.configured_severity),
                 "code": diagnostic.code,
                 "source": "omena-css",
                 "message": diagnostic.message,
@@ -1163,13 +1208,7 @@ fn resolve_style_diagnostics_for_uri(state: &LspShellState, document_uri: &str) 
         })
         .collect::<Vec<_>>();
 
-    let diagnostics = json!(diagnostics);
-    // RFC 0009 Pillar C (rfcs#66): write-behind after the compute. Fail-soft —
-    // io errors are swallowed and a session breaker stops retrying hot.
-    if let Some(slot) = disk_cache_slot.as_ref() {
-        slot.store_write_behind(state, &diagnostics);
-    }
-    diagnostics
+    json!(diagnostics)
 }
 
 /// Surface streaming-IFDS cross-file reachability through the live LSP style

@@ -47,6 +47,10 @@ pub fn rust_diagnostics_scheduler_contract() -> RustDiagnosticsSchedulerBoundary
             "deferOptimizingDiagnosticsOnRustPath",
             "coalesceStaleOptimizingDiagnosticsByDocument",
             "tierUpHotStyleDiagnosticsIntoAnalyzedGraphFeedback",
+            // RFC 0009 Pillar F (rfcs#68): present only when the wave arm is
+            // compiled in; the serial arm's contract is unchanged.
+            #[cfg(feature = "parallel-style-diagnostics")]
+            "parallelizeMemoEligibleStyleWavesOrderPreserving",
         ],
         request_path_policy: vec![
             "noNodeDiagnosticsSchedulerOnRustLspPath",
@@ -175,7 +179,31 @@ fn diagnostics_for_watched_files(
             document_uris_to_refresh.insert(document_uri);
         }
     }
-    for document_uri in document_uris_to_refresh {
+    outputs.extend(diagnostics_outputs_for_document_uris(
+        state,
+        document_uris_to_refresh.into_iter().collect(),
+    ));
+    outputs
+}
+
+fn diagnostics_for_open_documents(state: &mut LspShellState) -> Vec<ScheduledLspOutput> {
+    let document_uris = open_document_uris_for_diagnostics(state);
+    diagnostics_outputs_for_document_uris(state, document_uris)
+}
+
+/// Resolve + publish diagnostics for `document_uris` in their given
+/// (canonical) order — the straight serial arm. Under
+/// `parallel-style-diagnostics` the sibling arm below computes memo-eligible
+/// style targets on a bounded wave first, but publishes through this very
+/// loop shape in the SAME order, so the notification stream is byte-identical
+/// between the arms (gated by tests and the publish-order expectations).
+#[cfg(not(feature = "parallel-style-diagnostics"))]
+fn diagnostics_outputs_for_document_uris(
+    state: &mut LspShellState,
+    document_uris: Vec<String>,
+) -> Vec<ScheduledLspOutput> {
+    let mut outputs = Vec::new();
+    for document_uri in document_uris {
         let diagnostics = resolve_document_diagnostics_for_uri(state, document_uri.as_str());
         outputs.extend(publish_tiered_diagnostics_notifications(
             state,
@@ -186,13 +214,57 @@ fn diagnostics_for_watched_files(
     outputs
 }
 
-fn diagnostics_for_open_documents(state: &mut LspShellState) -> Vec<ScheduledLspOutput> {
+/// RFC 0009 Pillar F (rfcs#68): the wave-assisted arm. The parallel wave
+/// resolves memo-eligible style targets first (joining — and dropping every
+/// salsa handle/view — before this function touches `&mut state`); the loop
+/// below then walks the SAME canonical order as the serial arm, consuming
+/// wave results where present (write-behind + publish loop-side) and running
+/// the unchanged serial resolve for everything else, including any target
+/// whose worker panicked (which then panics exactly where the serial arm
+/// would).
+#[cfg(feature = "parallel-style-diagnostics")]
+fn diagnostics_outputs_for_document_uris(
+    state: &mut LspShellState,
+    document_uris: Vec<String>,
+) -> Vec<ScheduledLspOutput> {
+    diagnostics_outputs_for_document_uris_with_min_parallel_targets(
+        state,
+        document_uris,
+        crate::parallel_style_wave::PARALLEL_STYLE_WAVE_MIN_PARALLEL_TARGETS,
+    )
+}
+
+#[cfg(feature = "parallel-style-diagnostics")]
+fn diagnostics_outputs_for_document_uris_with_min_parallel_targets(
+    state: &mut LspShellState,
+    document_uris: Vec<String>,
+    min_parallel_targets: usize,
+) -> Vec<ScheduledLspOutput> {
+    let mut wave_results = crate::parallel_style_wave::resolved_parallel_style_wave_targets(
+        state,
+        document_uris.as_slice(),
+        min_parallel_targets,
+    );
     let mut outputs = Vec::new();
-    for uri in open_document_uris_for_diagnostics(state) {
-        let diagnostics = resolve_document_diagnostics_for_uri(state, uri.as_str());
+    for (index, document_uri) in document_uris.iter().enumerate() {
+        if let Some(resolved) = wave_results.remove(&index) {
+            // Mirrors the serial resolve's tail: write-behind (computed
+            // values only — cache hits return before the write there) then
+            // tiered publish, on the loop, in canonical order.
+            if let Some(slot) = resolved.disk_cache_slot.as_ref() {
+                slot.store_write_behind(state, &resolved.diagnostics);
+            }
+            outputs.extend(publish_tiered_diagnostics_notifications(
+                state,
+                document_uri.as_str(),
+                resolved.diagnostics,
+            ));
+            continue;
+        }
+        let diagnostics = resolve_document_diagnostics_for_uri(state, document_uri.as_str());
         outputs.extend(publish_tiered_diagnostics_notifications(
             state,
-            uri.as_str(),
+            document_uri.as_str(),
             diagnostics,
         ));
     }
@@ -844,5 +916,274 @@ mod tests {
             .iter()
             .find(|diagnostic| diagnostic.pointer("/code") == Some(&json!(code)))?
             .pointer(format!("/data/{key}").as_str())
+    }
+
+    /// RFC 0009 Pillar F (rfcs#68) fixtures: one workspace, three open style
+    /// documents (each with a real diagnostic so the parity compare is
+    /// non-trivial) plus one source consumer.
+    #[cfg(feature = "parallel-style-diagnostics")]
+    fn parallel_wave_fixture_state() -> LspShellState {
+        let mut state = LspShellState::default();
+        let _ = crate::handle_lsp_message_outputs(
+            &mut state,
+            json!({
+                "jsonrpc": "2.0",
+                "id": 1,
+                "method": "initialize",
+                "params": {
+                    "workspaceFolders": [
+                        { "uri": "file:///workspace-parallel-wave", "name": "parallel-wave" },
+                    ],
+                },
+            }),
+        );
+        let documents = [
+            (
+                "file:///workspace-parallel-wave/src/Alpha.module.scss",
+                "scss",
+                ":root { --brand: red; }\n.alpha { width: var(--missing-alpha); }",
+            ),
+            (
+                "file:///workspace-parallel-wave/src/Beta.module.scss",
+                "scss",
+                ".beta { color: var(--missing-beta); }",
+            ),
+            (
+                "file:///workspace-parallel-wave/src/Gamma.module.scss",
+                "scss",
+                ".gamma { color: red; color: blue; }",
+            ),
+            (
+                "file:///workspace-parallel-wave/src/App.tsx",
+                "typescriptreact",
+                "import styles from \"./Alpha.module.scss\";\nconst view = <div className={styles.alpha} />;",
+            ),
+        ];
+        for (uri, language_id, text) in documents {
+            let _ = crate::handle_lsp_message_outputs(
+                &mut state,
+                json!({
+                    "jsonrpc": "2.0",
+                    "method": "textDocument/didOpen",
+                    "params": {
+                        "textDocument": {
+                            "uri": uri,
+                            "languageId": language_id,
+                            "version": 1,
+                            "text": text,
+                        },
+                    },
+                }),
+            );
+        }
+        state
+    }
+
+    /// The wave arm must publish the SAME notifications, with the same
+    /// bytes, in the same order, as a forced-serial run over the same URI
+    /// list (the group-size knob at `usize::MAX` disables the wave).
+    #[cfg(feature = "parallel-style-diagnostics")]
+    #[test]
+    fn parallel_wave_outputs_match_forced_serial_in_order_and_bytes() -> Result<(), &'static str> {
+        let mut parallel_state = parallel_wave_fixture_state();
+        let mut serial_state = parallel_wave_fixture_state();
+        let document_uris = open_document_uris_for_diagnostics(&parallel_state);
+        assert_eq!(document_uris.len(), 4);
+
+        // Non-vacuity: the wave must actually take at least two style
+        // targets — otherwise this test compares serial to serial.
+        let wave_results = crate::parallel_style_wave::resolved_parallel_style_wave_targets(
+            &parallel_state,
+            document_uris.as_slice(),
+            crate::parallel_style_wave::PARALLEL_STYLE_WAVE_MIN_PARALLEL_TARGETS,
+        );
+        assert!(
+            wave_results.len() >= 2,
+            "expected at least two wave-resolved style targets, got {}",
+            wave_results.len(),
+        );
+        drop(wave_results);
+
+        let parallel_outputs =
+            diagnostics_outputs_for_document_uris(&mut parallel_state, document_uris.clone());
+        let serial_outputs = diagnostics_outputs_for_document_uris_with_min_parallel_targets(
+            &mut serial_state,
+            document_uris,
+            usize::MAX,
+        );
+        assert_eq!(
+            parallel_outputs, serial_outputs,
+            "parallel wave outputs must be byte-identical to the serial arm, in the same order",
+        );
+        let nonempty_publish = parallel_outputs.iter().any(|output| {
+            output
+                .value
+                .pointer("/params/diagnostics")
+                .and_then(Value::as_array)
+                .is_some_and(|diagnostics| !diagnostics.is_empty())
+        });
+        assert!(
+            nonempty_publish,
+            "the parity compare must cover non-empty diagnostics",
+        );
+        Ok(())
+    }
+
+    /// RFC 0009 Pillar F (rfcs#68) end-to-end: multiple open style importers,
+    /// ONE watched change to their shared on-disk dependency — the
+    /// wave-assisted watched-files schedule must publish the SAME
+    /// notifications in the SAME order as a forced-serial run over the same
+    /// merged refresh set.
+    #[cfg(feature = "parallel-style-diagnostics")]
+    #[test]
+    fn watched_change_wave_matches_forced_serial_for_open_importers() -> Result<(), String> {
+        let workspace_path = std::env::temp_dir().join(format!(
+            "omena-lsp-parallel-wave-watched-{}-{}",
+            std::process::id(),
+            crate::current_time_millis(),
+        ));
+        let alpha_path = workspace_path.join("src/Alpha.module.scss");
+        let beta_path = workspace_path.join("src/Beta.module.scss");
+        let leaf_path = workspace_path.join("src/partials/_leaf.scss");
+        let alpha_text = "@use \"./partials/leaf\";\n.alpha { width: var(--missing-alpha); }\n";
+        let beta_text = "@use \"./partials/leaf\";\n.beta { color: var(--missing-beta); }\n";
+        fs::create_dir_all(workspace_path.join("src/partials"))
+            .map_err(|error| error.to_string())?;
+        fs::write(alpha_path.as_path(), alpha_text).map_err(|error| error.to_string())?;
+        fs::write(beta_path.as_path(), beta_text).map_err(|error| error.to_string())?;
+        fs::write(leaf_path.as_path(), "$tone: red;\n").map_err(|error| error.to_string())?;
+        let workspace_uri = crate::protocol::path_to_file_uri(workspace_path.as_path());
+        let alpha_uri = crate::protocol::path_to_file_uri(alpha_path.as_path());
+        let beta_uri = crate::protocol::path_to_file_uri(beta_path.as_path());
+        let leaf_uri = crate::protocol::path_to_file_uri(leaf_path.as_path());
+
+        let built_state = || {
+            let mut state = LspShellState::default();
+            let _ = crate::handle_lsp_message_outputs(
+                &mut state,
+                json!({
+                    "jsonrpc": "2.0",
+                    "id": 1,
+                    "method": "initialize",
+                    "params": {
+                        "workspaceFolders": [
+                            { "uri": workspace_uri, "name": "parallel-wave-watched" },
+                        ],
+                    },
+                }),
+            );
+            for (uri, text) in [
+                (alpha_uri.as_str(), alpha_text),
+                (beta_uri.as_str(), beta_text),
+            ] {
+                let _ = crate::handle_lsp_message_outputs(
+                    &mut state,
+                    json!({
+                        "jsonrpc": "2.0",
+                        "method": "textDocument/didOpen",
+                        "params": {
+                            "textDocument": {
+                                "uri": uri,
+                                "languageId": "scss",
+                                "version": 1,
+                                "text": text,
+                            },
+                        },
+                    }),
+                );
+            }
+            state
+        };
+        let mut parallel_state = built_state();
+        let mut serial_state = built_state();
+        let probe_state = built_state();
+
+        let parallel_outputs = run_diagnostics_schedule(
+            &mut parallel_state,
+            DiagnosticsScheduleEvent::WatchedFiles {
+                uris: vec![leaf_uri.clone()],
+            },
+        );
+        // One immediate publish per merged-set member, in the canonical
+        // (BTreeSet) drain order — recover that order from the stream.
+        let published_uris = parallel_outputs
+            .iter()
+            .filter(|output| output.delay_millis.is_none())
+            .filter_map(|output| {
+                output
+                    .value
+                    .pointer("/params/uri")
+                    .and_then(Value::as_str)
+                    .map(str::to_string)
+            })
+            .collect::<Vec<_>>();
+        assert!(
+            published_uris.contains(&alpha_uri) && published_uris.contains(&beta_uri),
+            "both open importers must be refreshed by the watched change: {published_uris:?}",
+        );
+        let mut sorted_uris = published_uris.clone();
+        sorted_uris.sort();
+        assert_eq!(
+            published_uris, sorted_uris,
+            "the watched merged set must drain in canonical order",
+        );
+
+        // Non-vacuity: the wave path actually takes both importers.
+        let wave_results = crate::parallel_style_wave::resolved_parallel_style_wave_targets(
+            &probe_state,
+            published_uris.as_slice(),
+            crate::parallel_style_wave::PARALLEL_STYLE_WAVE_MIN_PARALLEL_TARGETS,
+        );
+        assert!(
+            wave_results.len() >= 2,
+            "expected both open importers wave-resolved, got {}",
+            wave_results.len(),
+        );
+        drop(wave_results);
+
+        let serial_outputs = diagnostics_outputs_for_document_uris_with_min_parallel_targets(
+            &mut serial_state,
+            published_uris,
+            usize::MAX,
+        );
+        assert_eq!(
+            parallel_outputs, serial_outputs,
+            "the watched-change wave must publish byte-identically to the serial arm",
+        );
+
+        let _ = fs::remove_dir_all(workspace_path.as_path());
+        Ok(())
+    }
+
+    /// End-to-end through the scheduler event: a configuration change over
+    /// multiple open style documents publishes one immediate notification
+    /// per document in canonical (BTreeSet) URI order — the same order the
+    /// serial arm pins.
+    #[cfg(feature = "parallel-style-diagnostics")]
+    #[test]
+    fn configuration_change_wave_publishes_in_canonical_order() {
+        let mut state = parallel_wave_fixture_state();
+        let outputs = crate::handle_lsp_message_scheduled_outputs(
+            &mut state,
+            json!({
+                "jsonrpc": "2.0",
+                "method": "workspace/didChangeConfiguration",
+                "params": { "settings": {} },
+            }),
+        );
+        let immediate_publish_uris = outputs
+            .iter()
+            .filter(|output| output.delay_millis.is_none())
+            .filter_map(|output| output.value.pointer("/params/uri").and_then(Value::as_str))
+            .collect::<Vec<_>>();
+        assert_eq!(
+            immediate_publish_uris,
+            vec![
+                "file:///workspace-parallel-wave/src/Alpha.module.scss",
+                "file:///workspace-parallel-wave/src/App.tsx",
+                "file:///workspace-parallel-wave/src/Beta.module.scss",
+                "file:///workspace-parallel-wave/src/Gamma.module.scss",
+            ],
+        );
     }
 }

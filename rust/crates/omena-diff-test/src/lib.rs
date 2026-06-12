@@ -36,6 +36,7 @@ pub use cache_equivalence::{
     evaluate_workspace_diagnostics_from_scratch_v0,
     evaluate_workspace_diagnostics_from_scratch_with_inputs_v0,
     omena_diff_cache_equivalence_default_corpus_v0, summarize_workspace_diagnostics_equivalence_v0,
+    summarize_workspace_diagnostics_parallel_salsa_views_equivalence_v0,
     summarize_workspace_diagnostics_salsa_memo_equivalence_v0,
     summarize_workspace_diagnostics_warm_pass_equivalence_v0,
 };
@@ -153,6 +154,10 @@ pub struct OmenaDiffTestBoundarySummary {
     pub salsa_memo_equivalence_comparison_count: usize,
     /// Whether the salsa-memoized evaluator matched from-scratch in every phase.
     pub all_salsa_memo_equivalence_phases_identical: bool,
+    /// Parallel fixed-revision view comparisons (RFC 0009 Pillar F merge gate).
+    pub parallel_salsa_equivalence_comparison_count: usize,
+    /// Whether every parallel-view comparison matched from-scratch in every phase.
+    pub all_parallel_salsa_equivalence_phases_identical: bool,
     /// WPT-style seed metadata report.
     pub wpt_seed_metadata_report: WptSeedCorpusMetadataReportV0,
     /// Soundiness metamorphic relation report.
@@ -163,6 +168,8 @@ pub struct OmenaDiffTestBoundarySummary {
     pub cache_equivalence_report: OmenaDiffCacheEquivalenceReportV0,
     /// Salsa-memo lifecycle equivalence report (RFC 0009 Pillar B).
     pub salsa_memo_equivalence_report: OmenaDiffSalsaMemoEquivalenceReportV0,
+    /// Parallel fixed-revision view equivalence report (RFC 0009 Pillar F).
+    pub parallel_salsa_equivalence_report: OmenaDiffSalsaMemoEquivalenceReportV0,
     /// Named evidence gates closed by this crate.
     pub closed_gates: Vec<&'static str>,
     /// Field-level reports for every seed fixture.
@@ -628,6 +635,11 @@ pub fn summarize_omena_diff_test_boundary() -> OmenaDiffTestBoundarySummary {
         cache_equivalence_corpus.as_slice(),
         &cache_equivalence_resolution_inputs,
     );
+    let parallel_salsa_equivalence_report =
+        summarize_workspace_diagnostics_parallel_salsa_views_equivalence_v0(
+            cache_equivalence_corpus.as_slice(),
+            &cache_equivalence_resolution_inputs,
+        );
 
     OmenaDiffTestBoundarySummary {
         schema_version: "0",
@@ -648,6 +660,10 @@ pub fn summarize_omena_diff_test_boundary() -> OmenaDiffTestBoundarySummary {
         salsa_memo_equivalence_comparison_count: salsa_memo_equivalence_report.comparison_count,
         all_salsa_memo_equivalence_phases_identical: salsa_memo_equivalence_report
             .all_phases_identical,
+        parallel_salsa_equivalence_comparison_count: parallel_salsa_equivalence_report
+            .comparison_count,
+        all_parallel_salsa_equivalence_phases_identical: parallel_salsa_equivalence_report
+            .all_phases_identical,
         closed_gates: vec![
             "parserVsLegacyOracle",
             "legacyParserQuarantinedAsOracle",
@@ -658,6 +674,7 @@ pub fn summarize_omena_diff_test_boundary() -> OmenaDiffTestBoundarySummary {
             "diagnosticMetamorphicRelations",
             "cachedVsFromScratchEquivalenceOracle",
             "salsaMemoizedVsFromScratchEquivalence",
+            "parallelSalsaViewsVsFromScratchEquivalence",
         ],
         reports,
         m3_fixture_seed_report,
@@ -666,6 +683,7 @@ pub fn summarize_omena_diff_test_boundary() -> OmenaDiffTestBoundarySummary {
         diagnostic_metamorphic_report,
         cache_equivalence_report,
         salsa_memo_equivalence_report,
+        parallel_salsa_equivalence_report,
     }
 }
 
@@ -1758,6 +1776,16 @@ code: missingCustomProperty
             summary
                 .closed_gates
                 .contains(&"diagnosticMetamorphicRelations")
+        );
+        assert!(
+            summary
+                .closed_gates
+                .contains(&"parallelSalsaViewsVsFromScratchEquivalence")
+        );
+        assert!(summary.all_parallel_salsa_equivalence_phases_identical);
+        assert_eq!(
+            summary.parallel_salsa_equivalence_comparison_count,
+            summary.cache_equivalence_file_count * 4,
         );
         assert!(
             summary

@@ -76,6 +76,42 @@ pub struct OmenaQueryStyleWorkspaceInputV0 {
     pub resolution_inputs: OmenaQueryStyleResolutionInputsV0,
 }
 
+/// RFC 0009 Pillar F (rfcs#68): one loop-side sync, many worker-side read
+/// views. Produced by
+/// [`OmenaQueryStyleMemoHostV0::sync_workspace_for_parallel_resolve`] AFTER
+/// every `set_*` for the wave has been applied; the embedded `handle` pins
+/// that revision and is `Send`, so a parallel wave rebuilds per-worker views
+/// via [`OmenaQueryStyleMemoDatabaseV0::from_handle`]. Every handle clone and
+/// every rebuilt view MUST be dropped before the owning thread issues its
+/// next `set_*` (the salsa pending-write contract) — a leaked view blocks
+/// that write forever. The LSP wave joins inside one loop turn precisely to
+/// guarantee the drop, and `omena-diff-test`'s
+/// `parallelSalsaViewsVsFromScratchEquivalence` gate drives this bundle
+/// through edit phases that would deadlock on a leak.
+pub struct OmenaQueryStyleParallelResolveSyncV0 {
+    /// Fixed-revision database handle: clone per worker, drop with the wave.
+    pub handle: salsa::StorageHandle<OmenaQueryStyleMemoDatabaseV0>,
+    /// The synced workspace input entity (`Copy` salsa id).
+    pub workspace: OmenaQueryStyleWorkspaceInputV0,
+    /// `(style_path, file input entity)` for every corpus member, in corpus
+    /// order, so callers map targets onto input ids without re-entering the
+    /// host.
+    pub files: Vec<(String, OmenaQueryStyleFileInputV0)>,
+}
+
+/// RFC 0009 Pillar F (rfcs#68): the tracked workspace diagnostics query,
+/// callable from a fixed-revision read view rebuilt via `from_handle` on a
+/// worker thread. Byte-identity with the host entry point holds by
+/// construction (same tracked function, same revision); the parallel arm of
+/// omena-diff-test's cache-equivalence oracle stands as the merge gate.
+pub fn resolve_memo_workspace_style_diagnostics_from_view(
+    db: &OmenaQueryStyleMemoDatabaseV0,
+    workspace: OmenaQueryStyleWorkspaceInputV0,
+    target: OmenaQueryStyleFileInputV0,
+) -> Option<OmenaQueryStyleDiagnosticsForFileV0> {
+    memo_workspace_style_diagnostics(db, workspace, target)
+}
+
 /// The memoized workspace diagnostics query. Mirrors the LSP's call shape
 /// exactly: `classname_transform` is `None` and the external mode is derived
 /// from SIF presence, byte-identical to `resolve_style_diagnostics_for_uri`.
@@ -208,6 +244,51 @@ impl OmenaQueryStyleMemoHostV0 {
         memo_workspace_style_diagnostics(&self.db, workspace, target)
     }
 
+    /// RFC 0009 Pillar F (rfcs#68): run the SAME diff-only sync as
+    /// [`Self::workspace_style_diagnostics`] — loop-side, before any handle
+    /// exists — and hand back a fixed-revision view bundle for a parallel
+    /// fan-out. Returns `None` for a corpus with duplicate `style_path`
+    /// entries, exactly where the memoized entry point bypasses to the
+    /// straight-line arm; the caller must fall back to its serial path.
+    pub fn sync_workspace_for_parallel_resolve(
+        &mut self,
+        style_sources: &[OmenaQueryStyleSourceInputV0],
+        source_documents: &[OmenaQuerySourceDocumentInputV0],
+        package_manifests: &[OmenaQueryStylePackageManifestV0],
+        external_sifs: &[OmenaQueryExternalSifInputV0],
+        resolution_inputs: &OmenaQueryStyleResolutionInputsV0,
+    ) -> Option<OmenaQueryStyleParallelResolveSyncV0> {
+        let mut seen_paths = std::collections::BTreeSet::new();
+        if style_sources
+            .iter()
+            .any(|source| !seen_paths.insert(source.style_path.as_str()))
+        {
+            return None;
+        }
+        // All `set_*` happen here, on the calling (owner) thread, BEFORE the
+        // handle is created — the pending-write contract for the wave.
+        let workspace = self.sync_workspace(
+            style_sources,
+            source_documents,
+            package_manifests,
+            external_sifs,
+            resolution_inputs,
+        );
+        let files = style_sources
+            .iter()
+            .filter_map(|source| {
+                self.files_by_path
+                    .get(source.style_path.as_str())
+                    .map(|file| (source.style_path.clone(), *file))
+            })
+            .collect::<Vec<_>>();
+        Some(OmenaQueryStyleParallelResolveSyncV0 {
+            handle: self.db.handle(),
+            workspace,
+            files,
+        })
+    }
+
     fn sync_workspace(
         &mut self,
         style_sources: &[OmenaQueryStyleSourceInputV0],
@@ -280,5 +361,170 @@ impl OmenaQueryStyleMemoHostV0 {
                 workspace
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn parallel_probe_corpus() -> Vec<OmenaQueryStyleSourceInputV0> {
+        vec![
+            OmenaQueryStyleSourceInputV0 {
+                style_path: "/workspace/src/App.module.scss".to_string(),
+                style_source: "@use \"./theme\";\n.app { color: red; }\n".to_string(),
+            },
+            OmenaQueryStyleSourceInputV0 {
+                style_path: "/workspace/src/_theme.scss".to_string(),
+                style_source: ":root { --tone: green; }\n.btn { color: var(--tone); }\n"
+                    .to_string(),
+            },
+        ]
+    }
+
+    #[test]
+    fn parallel_resolve_views_match_the_host_entry_point() -> Result<(), &'static str> {
+        let corpus = parallel_probe_corpus();
+        let resolution_inputs = OmenaQueryStyleResolutionInputsV0::default();
+        let mut host = OmenaQueryStyleMemoHostV0::new();
+
+        let sync = host
+            .sync_workspace_for_parallel_resolve(
+                corpus.as_slice(),
+                &[],
+                &[],
+                &[],
+                &resolution_inputs,
+            )
+            .ok_or("duplicate-free corpus must sync for parallel resolve")?;
+        let workspace = sync.workspace;
+        let view_results = std::thread::scope(|scope| {
+            let workers = sync
+                .files
+                .iter()
+                .map(|(style_path, file)| {
+                    let handle = sync.handle.clone();
+                    let file = *file;
+                    let style_path = style_path.clone();
+                    scope.spawn(move || {
+                        let db = OmenaQueryStyleMemoDatabaseV0::from_handle(handle);
+                        let summary = resolve_memo_workspace_style_diagnostics_from_view(
+                            &db, workspace, file,
+                        );
+                        (style_path, serde_json::to_string(&summary).ok())
+                    })
+                })
+                .collect::<Vec<_>>();
+            workers
+                .into_iter()
+                .map(|worker| worker.join().map_err(|_| "parallel view worker panicked"))
+                .collect::<Result<Vec<_>, _>>()
+        })?;
+        drop(sync);
+
+        for (style_path, view_json) in view_results {
+            let host_summary = host.workspace_style_diagnostics(
+                style_path.as_str(),
+                corpus.as_slice(),
+                &[],
+                &[],
+                &[],
+                &resolution_inputs,
+            );
+            assert_eq!(
+                view_json,
+                serde_json::to_string(&host_summary).ok(),
+                "fixed-revision view diagnostics must be byte-identical to the host entry point for {style_path}",
+            );
+        }
+        Ok(())
+    }
+
+    #[test]
+    fn duplicate_path_corpus_refuses_a_parallel_resolve_sync() {
+        let mut corpus = parallel_probe_corpus();
+        corpus.push(OmenaQueryStyleSourceInputV0 {
+            style_path: "/workspace/src/App.module.scss".to_string(),
+            style_source: ".dup { color: blue; }".to_string(),
+        });
+        let resolution_inputs = OmenaQueryStyleResolutionInputsV0::default();
+        let mut host = OmenaQueryStyleMemoHostV0::new();
+        assert!(
+            host.sync_workspace_for_parallel_resolve(
+                corpus.as_slice(),
+                &[],
+                &[],
+                &[],
+                &resolution_inputs,
+            )
+            .is_none(),
+            "a duplicate style_path corpus must bypass to the caller's serial arm",
+        );
+    }
+
+    /// RFC 0009 Pillar F handle-scope regression: once every view and handle
+    /// clone from a parallel wave is dropped, the next `set_*` MUST proceed.
+    /// A leaked view would block the write forever, so the post-wave edit
+    /// resolve runs on a watchdog thread and the test fails (instead of
+    /// hanging) when it does not complete.
+    #[test]
+    fn post_wave_edit_writes_proceed_after_views_drop() -> Result<(), &'static str> {
+        let corpus = parallel_probe_corpus();
+        let resolution_inputs = OmenaQueryStyleResolutionInputsV0::default();
+        let mut host = OmenaQueryStyleMemoHostV0::new();
+
+        let sync = host
+            .sync_workspace_for_parallel_resolve(
+                corpus.as_slice(),
+                &[],
+                &[],
+                &[],
+                &resolution_inputs,
+            )
+            .ok_or("duplicate-free corpus must sync for parallel resolve")?;
+        let workspace = sync.workspace;
+        std::thread::scope(|scope| {
+            for (_, file) in sync.files.iter() {
+                let handle = sync.handle.clone();
+                let file = *file;
+                scope.spawn(move || {
+                    let db = OmenaQueryStyleMemoDatabaseV0::from_handle(handle);
+                    let _ =
+                        resolve_memo_workspace_style_diagnostics_from_view(&db, workspace, file);
+                });
+            }
+        });
+        drop(sync);
+
+        let mut edited_corpus = corpus.clone();
+        let edited_entry = edited_corpus.first_mut().ok_or("non-empty probe corpus")?;
+        edited_entry
+            .style_source
+            .push_str("\n.after-wave { @extend %missing-after-wave; }\n");
+        let (sender, receiver) = std::sync::mpsc::channel();
+        let writer = std::thread::spawn(move || {
+            let edited = host.workspace_style_diagnostics(
+                "/workspace/src/App.module.scss",
+                edited_corpus.as_slice(),
+                &[],
+                &[],
+                &[],
+                &resolution_inputs,
+            );
+            sender.send(serde_json::to_string(&edited).ok()).ok();
+        });
+        let edited_json = receiver
+            .recv_timeout(std::time::Duration::from_secs(30))
+            .map_err(|_| {
+                "post-wave set_* deadlocked: a parallel view or handle clone leaked past the wave"
+            })?;
+        writer
+            .join()
+            .map_err(|_| "post-wave edit resolve panicked")?;
+        assert!(
+            edited_json.is_some(),
+            "post-wave edit resolve must serialize",
+        );
+        Ok(())
     }
 }

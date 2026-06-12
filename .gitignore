@@ -16,6 +16,9 @@ rust/crates/omena-napi/pkg/
 # Test output
 coverage/
 .vitest-cache/
+# omena LSP disk diagnostics cache (RFC 0009 Pillar C) — written when the
+# repo itself is opened as a workspace (e.g. local gate probe runs).
+.cache/
 .vscode-test/
 .worktrees/
 

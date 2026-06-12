@@ -2210,6 +2210,7 @@ dependencies = [
  "omena-sif",
  "omena-streaming-ifds",
  "omena-tsgo-client",
+ "rayon",
  "serde",
  "serde_json",
 ]
