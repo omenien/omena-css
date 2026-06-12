@@ -25,7 +25,10 @@ use std::cell::RefCell;
 use std::fs;
 use std::path::{Path, PathBuf};
 
-pub(crate) const DISK_DIAGNOSTICS_CACHE_SCHEMA_VERSION_V0: &str = "0";
+pub(crate) const DISK_DIAGNOSTICS_CACHE_SCHEMA_VERSION_V0: &str = "1";
+/// Serving more than this many diagnostics from one shard is not a plausible
+/// healthy state; such shards are deleted-as-miss.
+const DISK_DIAGNOSTICS_CACHE_MAX_DIAGNOSTICS: usize = 4096;
 const DISK_DIAGNOSTICS_CACHE_SHARD_PRODUCT_V0: &str =
     "omena-lsp-server.disk-diagnostics-cache-shard";
 pub(crate) const DISK_DIAGNOSTICS_CACHE_ENV_KILL_SWITCH: &str = "OMENA_LSP_DISK_CACHE";
@@ -109,7 +112,10 @@ pub fn disk_diagnostics_cache_contract() -> DiskDiagnosticsCacheBoundaryV0 {
         reuse_policy: vec![
             "contentAddressedExactKeyMatchOnly",
             "keyChainsFullDiagnosticsInputSurface",
+            "keyChainsBinaryIdentityFingerprint",
             "schemaValidateShardsBeforeServe",
+            "outputDigestVerifiedBeforeServe",
+            "diagnosticShapeAndCountValidatedBeforeServe",
             "oversizedOrUnparsableShardsAreDeletedMisses",
             "neverTrustShardContentBeyondExactKeyServe",
         ],
@@ -137,6 +143,12 @@ pub fn disk_diagnostics_cache_contract() -> DiskDiagnosticsCacheBoundaryV0 {
 struct DiskDiagnosticsCacheKeyInputV0<'a> {
     cache_schema_version: &'a str,
     crate_version: &'a str,
+    /// The analysis MECHANISM lives in dependency crates that share the
+    /// workspace version, so the crate version alone cannot distinguish two
+    /// dev builds with edited diagnostics behavior. The running binary's
+    /// identity (length + mtime) does: any rebuild or reinstall invalidates
+    /// every shard, at the cost of one cold start per new binary.
+    binary_fingerprint: &'a str,
     diagnostics_arm: &'a str,
     target_style_path: &'a str,
     style_sources: &'a [OmenaQueryStyleSourceInputV0],
@@ -166,6 +178,7 @@ pub(crate) fn disk_diagnostics_cache_key_v0(
     let input = DiskDiagnosticsCacheKeyInputV0 {
         cache_schema_version: DISK_DIAGNOSTICS_CACHE_SCHEMA_VERSION_V0,
         crate_version: env!("CARGO_PKG_VERSION"),
+        binary_fingerprint: disk_diagnostics_cache_binary_fingerprint(),
         diagnostics_arm: DISK_DIAGNOSTICS_CACHE_ARM_V0,
         target_style_path: components.target_style_path,
         style_sources: components.style_sources,
@@ -294,9 +307,48 @@ pub(crate) fn is_disk_diagnostics_cache_kill_switch_value(value: &str) -> bool {
     value.eq_ignore_ascii_case("off") || value == "0" || value.eq_ignore_ascii_case("false")
 }
 
-fn disk_diagnostics_shard_file_path(dir: &Path, key: &str) -> PathBuf {
+/// Identity of the running binary, folded into the cache key so a rebuilt
+/// server (changed analysis behavior, same workspace version) never serves a
+/// previous build's shards. Falls back to a constant when the executable
+/// cannot be inspected — version + schema still guard released builds.
+fn disk_diagnostics_cache_binary_fingerprint() -> &'static str {
+    static FINGERPRINT: std::sync::OnceLock<String> = std::sync::OnceLock::new();
+    FINGERPRINT.get_or_init(|| {
+        std::env::current_exe()
+            .and_then(fs::metadata)
+            .ok()
+            .and_then(|metadata| {
+                let modified = metadata
+                    .modified()
+                    .ok()?
+                    .duration_since(std::time::UNIX_EPOCH)
+                    .ok()?;
+                Some(format!(
+                    "len{}-mtime{}.{:09}",
+                    metadata.len(),
+                    modified.as_secs(),
+                    modified.subsec_nanos(),
+                ))
+            })
+            .unwrap_or_else(|| "unknownBinaryIdentity".to_string())
+    })
+}
+
+/// The shard filename is the hex component of a `blake3:<hex>` key. The hex
+/// is validated here so containment is a property of the helper, not of every
+/// caller: any non-hex component (which could otherwise smuggle separators or
+/// `..`) disables the path entirely.
+fn disk_diagnostics_shard_file_path(dir: &Path, key: &str) -> Option<PathBuf> {
     let hex = key.split(':').next_back().unwrap_or(key);
-    dir.join(format!("{hex}.json"))
+    if hex.is_empty()
+        || hex.len() > 64
+        || !hex
+            .bytes()
+            .all(|byte| byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte))
+    {
+        return None;
+    }
+    Some(dir.join(format!("{hex}.json")))
 }
 
 pub(crate) fn load_disk_diagnostics_shard_with_limits(
@@ -305,7 +357,7 @@ pub(crate) fn load_disk_diagnostics_shard_with_limits(
     target_style_path: &str,
     limits: &DiskDiagnosticsCacheLimitsV0,
 ) -> Option<Value> {
-    let shard_path = disk_diagnostics_shard_file_path(dir, key);
+    let shard_path = disk_diagnostics_shard_file_path(dir, key)?;
     let metadata = fs::metadata(shard_path.as_path()).ok()?;
     if !metadata.is_file() {
         return None;
@@ -326,6 +378,13 @@ pub(crate) fn load_disk_diagnostics_shard_with_limits(
     shard.get_mut("diagnosticsJson").map(Value::take)
 }
 
+/// The composite key proves the INPUTS match; the stored `outputDigest`
+/// (blake3 over the canonical-JSON diagnostics bytes) binds the OUTPUT to
+/// what the writer computed for those inputs, so bit-rot, truncation that
+/// still parses, or a payload swapped under a valid key all miss instead of
+/// being served. The digest carries no secret — it is an integrity check
+/// against corruption and buggy writes, not an authentication mechanism;
+/// an actor who can write into `.cache/` already controls the workspace.
 fn disk_diagnostics_shard_matches(shard: &Value, key: &str, target_style_path: &str) -> bool {
     shard.get("schemaVersion").and_then(Value::as_str)
         == Some(DISK_DIAGNOSTICS_CACHE_SCHEMA_VERSION_V0)
@@ -333,7 +392,39 @@ fn disk_diagnostics_shard_matches(shard: &Value, key: &str, target_style_path: &
             == Some(DISK_DIAGNOSTICS_CACHE_SHARD_PRODUCT_V0)
         && shard.get("key").and_then(Value::as_str) == Some(key)
         && shard.get("targetStylePath").and_then(Value::as_str) == Some(target_style_path)
-        && shard.get("diagnosticsJson").is_some_and(Value::is_array)
+        && shard
+            .get("diagnosticsJson")
+            .is_some_and(disk_diagnostics_payload_is_well_formed)
+        && shard.get("outputDigest").and_then(Value::as_str)
+            == shard
+                .get("diagnosticsJson")
+                .and_then(disk_diagnostics_output_digest)
+                .as_deref()
+}
+
+/// Every served element must look like an LSP diagnostic (object with a
+/// `range` object and a `message` string) and the count must be plausible —
+/// the writer only ever produces such arrays, so anything else is corruption.
+fn disk_diagnostics_payload_is_well_formed(diagnostics: &Value) -> bool {
+    let Some(elements) = diagnostics.as_array() else {
+        return false;
+    };
+    elements.len() <= DISK_DIAGNOSTICS_CACHE_MAX_DIAGNOSTICS
+        && elements.iter().all(|element| {
+            element.get("range").is_some_and(Value::is_object)
+                && element
+                    .get("message")
+                    .is_some_and(|message| message.is_string())
+        })
+}
+
+fn disk_diagnostics_output_digest(diagnostics: &Value) -> Option<String> {
+    let canonical_bytes = write_omena_canonical_json_bytes_v1(diagnostics).ok()?;
+    Some(
+        compute_omena_sif_leaf_hash_v1(canonical_bytes.as_slice())
+            .as_str()
+            .to_string(),
+    )
 }
 
 pub(crate) fn store_disk_diagnostics_shard_with_limits(
@@ -344,14 +435,18 @@ pub(crate) fn store_disk_diagnostics_shard_with_limits(
     diagnostics: &Value,
     limits: &DiskDiagnosticsCacheLimitsV0,
 ) {
-    if session.borrow().writes_disabled() || !diagnostics.is_array() {
+    if session.borrow().writes_disabled() || !disk_diagnostics_payload_is_well_formed(diagnostics) {
         return;
     }
+    let Some(output_digest) = disk_diagnostics_output_digest(diagnostics) else {
+        return;
+    };
     let shard = json!({
         "schemaVersion": DISK_DIAGNOSTICS_CACHE_SCHEMA_VERSION_V0,
         "product": DISK_DIAGNOSTICS_CACHE_SHARD_PRODUCT_V0,
         "key": key,
         "targetStylePath": target_style_path,
+        "outputDigest": output_digest,
         "diagnosticsJson": diagnostics,
     });
     let Ok(bytes) = serde_json::to_vec(&shard) else {
@@ -373,7 +468,9 @@ fn write_disk_diagnostics_shard_atomically(
     bytes: &[u8],
 ) -> std::io::Result<()> {
     fs::create_dir_all(dir)?;
-    let final_path = disk_diagnostics_shard_file_path(dir, key);
+    let final_path = disk_diagnostics_shard_file_path(dir, key).ok_or_else(|| {
+        std::io::Error::new(std::io::ErrorKind::InvalidInput, "non-hex shard key")
+    })?;
     // Same-directory rename keeps the swap atomic on POSIX; the pid suffix
     // keeps concurrent servers (multi-editor, multi-window) from clobbering
     // each other's in-flight temp files.
@@ -382,14 +479,22 @@ fn write_disk_diagnostics_shard_atomically(
     let renamed = fs::rename(temp_path.as_path(), final_path.as_path());
     if renamed.is_err() {
         let _ = fs::remove_file(temp_path.as_path());
+        // Windows refuses rename-over-existing. A destination that appeared
+        // in the meantime means a concurrent server already wrote this
+        // content-addressed shard — that is success, not failure.
+        if final_path.is_file() {
+            return Ok(());
+        }
     }
     renamed
 }
 
 /// Content-addressed keys never overwrite, so growth is bounded here: evict
 /// oldest-mtime shards (write-order; reads do not refresh mtime in stage 1)
-/// until both the shard-count and total-byte caps hold. The just-written
-/// newest shard is always kept. Best-effort like every other write.
+/// until both the shard-count and total-byte caps hold. At least the
+/// globally-newest shard is retained — under concurrent writers a peer's
+/// newer shard may outrank the one just written here, which is a benign
+/// miss. Best-effort like every other write.
 fn enforce_disk_diagnostics_cache_caps(dir: &Path, limits: &DiskDiagnosticsCacheLimitsV0) {
     let Ok(entries) = fs::read_dir(dir) else {
         return;
@@ -599,7 +704,8 @@ mod tests {
         let fixture = KeyFixture::base();
         let key = fixture.key().ok_or("key")?;
         let diagnostics = json!([
-            {"code": "missingCustomProperty", "message": "unknown --brand"},
+            {"code": "missingCustomProperty", "message": "unknown --brand",
+             "range": {"start": {"line": 0, "character": 0}, "end": {"line": 0, "character": 1}}},
         ]);
         let session = RefCell::new(DiskDiagnosticsCacheSessionV0::default());
         let limits = DiskDiagnosticsCacheLimitsV0::with_defaults();
@@ -612,7 +718,11 @@ mod tests {
             &limits,
         );
 
-        assert!(disk_diagnostics_shard_file_path(dir.as_path(), key.as_str()).is_file());
+        assert!(
+            disk_diagnostics_shard_file_path(dir.as_path(), key.as_str())
+                .ok_or("shard path")?
+                .is_file()
+        );
         let loaded = load_disk_diagnostics_shard_with_limits(
             dir.as_path(),
             key.as_str(),
@@ -661,7 +771,11 @@ mod tests {
             ),
             None,
         );
-        assert!(!disk_diagnostics_shard_file_path(dir.as_path(), key.as_str()).exists());
+        assert!(
+            !disk_diagnostics_shard_file_path(dir.as_path(), key.as_str())
+                .ok_or("shard path")?
+                .exists()
+        );
         Ok(())
     }
 
@@ -671,7 +785,8 @@ mod tests {
         let key = KeyFixture::base().key().ok_or("key")?;
         let target = "file:///repo/src/App.module.scss";
         let limits = DiskDiagnosticsCacheLimitsV0::with_defaults();
-        let shard_path = disk_diagnostics_shard_file_path(dir.as_path(), key.as_str());
+        let shard_path =
+            disk_diagnostics_shard_file_path(dir.as_path(), key.as_str()).ok_or("shard path")?;
         fs::create_dir_all(dir.as_path()).map_err(|_| "create cache dir")?;
 
         fs::write(shard_path.as_path(), b"{ truncated garbage").map_err(|_| "write garbage")?;
@@ -730,7 +845,9 @@ mod tests {
             max_total_bytes: 64 * 1024 * 1024,
         };
         let session = RefCell::new(DiskDiagnosticsCacheSessionV0::default());
-        let oversized = json!([{"message": "x".repeat(512)}]);
+        let oversized = json!([
+            {"message": "x".repeat(512), "range": {"start": {}, "end": {}}},
+        ]);
         store_disk_diagnostics_shard_with_limits(
             &session,
             dir.as_path(),
@@ -739,7 +856,8 @@ mod tests {
             &oversized,
             &limits,
         );
-        let shard_path = disk_diagnostics_shard_file_path(dir.as_path(), key.as_str());
+        let shard_path =
+            disk_diagnostics_shard_file_path(dir.as_path(), key.as_str()).ok_or("shard path")?;
         assert!(
             !shard_path.exists(),
             "oversized payload must not be written"
@@ -824,8 +942,16 @@ mod tests {
             std::thread::sleep(std::time::Duration::from_millis(10));
         }
 
-        assert!(!disk_diagnostics_shard_file_path(dir.as_path(), keys[0]).exists());
-        assert!(disk_diagnostics_shard_file_path(dir.as_path(), keys[2]).is_file());
+        assert!(
+            !disk_diagnostics_shard_file_path(dir.as_path(), keys[0])
+                .ok_or("evicted path")?
+                .exists()
+        );
+        assert!(
+            disk_diagnostics_shard_file_path(dir.as_path(), keys[2])
+                .ok_or("newest path")?
+                .is_file()
+        );
         let remaining = fs::read_dir(dir.as_path())
             .map_err(|_| "read cache dir")?
             .flatten()
@@ -844,7 +970,9 @@ mod tests {
             max_total_bytes: 300,
         };
         let session = RefCell::new(DiskDiagnosticsCacheSessionV0::default());
-        let diagnostics = json!([{"message": "y".repeat(120)}]);
+        let diagnostics = json!([
+            {"message": "y".repeat(120), "range": {"start": {}, "end": {}}},
+        ]);
         store_disk_diagnostics_shard_with_limits(
             &session,
             dir.as_path(),
@@ -863,8 +991,129 @@ mod tests {
             &limits,
         );
 
-        assert!(!disk_diagnostics_shard_file_path(dir.as_path(), "blake3:dddd").exists());
-        assert!(disk_diagnostics_shard_file_path(dir.as_path(), "blake3:eeee").is_file());
+        assert!(
+            !disk_diagnostics_shard_file_path(dir.as_path(), "blake3:dddd")
+                .ok_or("evicted path")?
+                .exists()
+        );
+        assert!(
+            disk_diagnostics_shard_file_path(dir.as_path(), "blake3:eeee")
+                .ok_or("kept path")?
+                .is_file()
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn non_hex_key_components_disable_the_shard_path_entirely() {
+        let dir = Path::new("/var/lib/omena-cache");
+        assert_eq!(
+            disk_diagnostics_shard_file_path(dir, "../../../etc/evil"),
+            None,
+            "a colon-less non-hex key must never derive a path",
+        );
+        assert_eq!(
+            disk_diagnostics_shard_file_path(dir, "blake3:../escape"),
+            None,
+        );
+        assert_eq!(disk_diagnostics_shard_file_path(dir, "blake3:"), None);
+        assert_eq!(
+            disk_diagnostics_shard_file_path(dir, "blake3:ABCDEF"),
+            None,
+            "uppercase is not produced by the digest formatter",
+        );
+        assert_eq!(
+            disk_diagnostics_shard_file_path(dir, "blake3:abc123"),
+            Some(dir.join("abc123.json")),
+        );
+    }
+
+    #[test]
+    fn tampered_payload_with_stale_output_digest_is_a_deleted_miss() -> Result<(), &'static str> {
+        let dir = temp_cache_dir("digest");
+        let fixture = KeyFixture::base();
+        let key = fixture.key().ok_or("key")?;
+        let limits = DiskDiagnosticsCacheLimitsV0::with_defaults();
+        let session = RefCell::new(DiskDiagnosticsCacheSessionV0::default());
+        let genuine = json!([
+            {"message": "real", "range": {"start": {}, "end": {}}},
+        ]);
+        store_disk_diagnostics_shard_with_limits(
+            &session,
+            dir.as_path(),
+            key.as_str(),
+            fixture.target_style_path.as_str(),
+            &genuine,
+            &limits,
+        );
+        let shard_path =
+            disk_diagnostics_shard_file_path(dir.as_path(), key.as_str()).ok_or("path")?;
+        let mut shard: Value = serde_json::from_slice(
+            fs::read(shard_path.as_path())
+                .map_err(|_| "read shard")?
+                .as_slice(),
+        )
+        .map_err(|_| "parse shard")?;
+        shard["diagnosticsJson"] = json!([
+            {"message": "forged", "range": {"start": {}, "end": {}}},
+        ]);
+        fs::write(
+            shard_path.as_path(),
+            serde_json::to_vec(&shard).map_err(|_| "serialize")?,
+        )
+        .map_err(|_| "write tampered")?;
+
+        assert_eq!(
+            load_disk_diagnostics_shard_with_limits(
+                dir.as_path(),
+                key.as_str(),
+                fixture.target_style_path.as_str(),
+                &limits,
+            ),
+            None,
+            "payload not matching the output digest must miss",
+        );
+        assert!(!shard_path.exists(), "digest-mismatched shard is deleted");
+        Ok(())
+    }
+
+    #[test]
+    fn malformed_diagnostic_elements_are_rejected_even_with_a_valid_digest()
+    -> Result<(), &'static str> {
+        let dir = temp_cache_dir("shape");
+        let fixture = KeyFixture::base();
+        let key = fixture.key().ok_or("key")?;
+        let limits = DiskDiagnosticsCacheLimitsV0::with_defaults();
+        let malformed = json!(["not-an-object", 42]);
+        let digest = disk_diagnostics_output_digest(&malformed).ok_or("digest")?;
+        let shard = json!({
+            "schemaVersion": DISK_DIAGNOSTICS_CACHE_SCHEMA_VERSION_V0,
+            "product": DISK_DIAGNOSTICS_CACHE_SHARD_PRODUCT_V0,
+            "key": key,
+            "targetStylePath": fixture.target_style_path,
+            "outputDigest": digest,
+            "diagnosticsJson": malformed,
+        });
+        fs::create_dir_all(dir.as_path()).map_err(|_| "create dir")?;
+        let shard_path =
+            disk_diagnostics_shard_file_path(dir.as_path(), key.as_str()).ok_or("path")?;
+        fs::write(
+            shard_path.as_path(),
+            serde_json::to_vec(&shard).map_err(|_| "serialize")?,
+        )
+        .map_err(|_| "write")?;
+
+        assert_eq!(
+            load_disk_diagnostics_shard_with_limits(
+                dir.as_path(),
+                key.as_str(),
+                fixture.target_style_path.as_str(),
+                &limits,
+            ),
+            None,
+            "elements without range+message must miss even when digested",
+        );
+        assert!(!shard_path.exists());
         Ok(())
     }
 

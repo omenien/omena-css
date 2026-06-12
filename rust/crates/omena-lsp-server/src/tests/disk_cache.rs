@@ -204,6 +204,31 @@ fn exact_key_hit_serves_diagnostics_from_the_shard_on_disk() -> Result<(), Strin
             "data": {},
         },
     ]);
+    // The output digest binds the payload to the shard, so the sentinel swap
+    // must re-digest its payload (computed independently of the production
+    // code path) — and a swap WITHOUT a matching digest must be rejected.
+    let sentinel_digest = omena_sif::compute_omena_sif_leaf_hash_v1(
+        omena_sif::write_omena_canonical_json_bytes_v1(&shard["diagnosticsJson"])
+            .map_err(|error| format!("canonicalize sentinel: {error}"))?
+            .as_slice(),
+    )
+    .as_str()
+    .to_string();
+    let stale_digest_shard =
+        serde_json::to_vec(&shard).map_err(|error| format!("serialize stale: {error}"))?;
+    std::fs::write(shard_path, stale_digest_shard)
+        .map_err(|error| format!("write stale: {error}"))?;
+    let stale_outputs = run_disk_cache_session(
+        workspace_uri.as_str(),
+        style_uri.as_str(),
+        DISK_CACHE_STYLE_TEXT,
+    );
+    assert!(
+        !outputs_contain_diagnostic_code(&stale_outputs, "diskCacheSentinel"),
+        "a payload swap without a matching output digest must be rejected",
+    );
+
+    shard["outputDigest"] = json!(sentinel_digest);
     let tampered =
         serde_json::to_vec(&shard).map_err(|error| format!("serialize tampered: {error}"))?;
     std::fs::write(shard_path, tampered).map_err(|error| format!("write tampered: {error}"))?;
@@ -215,7 +240,7 @@ fn exact_key_hit_serves_diagnostics_from_the_shard_on_disk() -> Result<(), Strin
     );
     assert!(
         outputs_contain_diagnostic_code(&outputs, "diskCacheSentinel"),
-        "an exact key match must serve the shard content from disk",
+        "an exact key match with a bound digest must serve the shard content from disk",
     );
     assert!(
         !outputs_contain_diagnostic_code(&outputs, "missingCustomProperty"),
