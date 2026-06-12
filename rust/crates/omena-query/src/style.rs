@@ -11,6 +11,8 @@ mod diagnostics;
 mod dynamic_classname;
 mod insights;
 mod parser_facade;
+#[cfg(feature = "salsa-memo")]
+mod salsa_memo;
 mod sass;
 mod source_refs;
 mod stylesheet_evaluation;
@@ -50,6 +52,8 @@ pub use parser_facade::{
     summarize_omena_query_omena_parser_lex, summarize_omena_query_omena_parser_style_facts,
     summarize_omena_query_style_document,
 };
+#[cfg(feature = "salsa-memo")]
+pub use salsa_memo::*;
 pub use sass::*;
 pub use source_refs::*;
 pub use substrate::*;

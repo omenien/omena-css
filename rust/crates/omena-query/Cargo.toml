@@ -19,6 +19,7 @@ workspace = true
 default = []
 hypergraph-ifds = []
 lawvere-trace = ["omena-query-transform-runner/lawvere-trace"]
+salsa-memo = ["dep:salsa"]
 smt-z3 = ["omena-query-checker-orchestrator/smt-z3"]
 
 [dependencies]
@@ -32,6 +33,7 @@ omena-resolver = { path = "../omena-resolver", version = "=0.2.0" }
 omena-semantic = { path = "../omena-semantic", version = "=0.2.0" }
 omena-sif = { path = "../omena-sif", version = "=0.2.0" }
 omena-syntax = { path = "../omena-syntax", version = "=0.2.0" }
+salsa = { workspace = true, optional = true }
 serde.workspace = true
 serde_json.workspace = true
 
