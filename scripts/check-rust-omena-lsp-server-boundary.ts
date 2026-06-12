@@ -367,11 +367,22 @@ assert.equal(rustSummary.queryReuse.product, "omena-lsp-server.query-reuse");
 assert.equal(rustSummary.queryReuse.owner, "omena-lsp-server/documentQueryReuse");
 assert.equal(rustSummary.queryReuse.reuseModel, "documentRevisionOwnedReusableIndexes");
 assert.ok(rustSummary.queryReuse.cachedSurfaces.includes("sourceSyntaxIndex"));
+assert.ok(rustSummary.queryReuse.cachedSurfaces.includes("sourceTypeFactCache"));
 assert.ok(rustSummary.queryReuse.cachedSurfaces.includes("optimizingTierFeedback"));
 assert.ok(rustSummary.queryReuse.cachedSurfaces.includes("styleHoverCandidates"));
 assert.ok(rustSummary.queryReuse.cachedSurfaces.includes("workspaceStyleResolutionInputs"));
 assert.ok(rustSummary.queryReuse.invalidationPolicy.includes("refreshOnDocumentContentChange"));
 assert.ok(rustSummary.queryReuse.invalidationPolicy.includes("refreshOnResolutionConfigChange"));
+assert.ok(
+  rustSummary.queryReuse.invalidationPolicy.includes(
+    "rebuildSourceTypeFactCacheOnContentConfigOrWorkspaceSourceMismatch",
+  ),
+);
+assert.ok(
+  rustSummary.queryReuse.requestPathPolicy.includes(
+    "typeFactRefreshConsumesCacheBeforeTsgoTransport",
+  ),
+);
 assert.ok(
   rustSummary.queryReuse.requestPathPolicy.includes("providerRequestsConsumeDocumentIndexes"),
 );
