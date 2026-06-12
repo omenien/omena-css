@@ -1,8 +1,10 @@
 #![allow(clippy::expect_used)]
 use crate::{
     OmenaQueryExternalSifInputV0, OmenaQuerySourceDocumentInputV0,
-    OmenaQueryStyleDiagnosticsForFileV0, OmenaQueryStyleSourceInputV0, ParserPositionV0,
-    ParserRangeV0,
+    OmenaQuerySourceImportedStyleBindingV0, OmenaQuerySourceSelectorReferenceFactV0,
+    OmenaQuerySourceSelectorReferenceMatchKindV0, OmenaQuerySourceStylePropertyAccessFactV0,
+    OmenaQuerySourceSyntaxIndexV0, OmenaQueryStyleDiagnosticsForFileV0,
+    OmenaQueryStyleSourceInputV0, ParserByteSpanV0, ParserPositionV0, ParserRangeV0,
 };
 
 #[test]
@@ -427,6 +429,8 @@ export function App() {
   return <button className={styles.btn} style={{ color: "rebeccapurple" }} />;
 }"#
         .to_string(),
+        source_syntax_index: None,
+        has_unresolved_style_import: false,
     }];
 
     let diagnostics = crate::summarize_omena_query_style_diagnostics_for_workspace_file(
@@ -2969,6 +2973,8 @@ export function App() {
   return <div className={styles.composed}>hi</div>;
 }"#
         .to_string(),
+        source_syntax_index: None,
+        has_unresolved_style_import: false,
     }];
 
     let diagnostics = crate::summarize_omena_query_style_diagnostics_for_workspace_file(
@@ -3018,6 +3024,250 @@ export function App() {
 }
 
 #[test]
+fn style_diagnostics_unused_selector_consumes_precomputed_source_syntax_index()
+-> Result<(), &'static str> {
+    let sources = vec![OmenaQueryStyleSourceInputV0 {
+        style_path: "/workspace/src/App.module.css".to_string(),
+        style_source: ".used { color: red; }\n.ghost { color: blue; }\n".to_string(),
+    }];
+    let source = "const local = used;\n";
+    let used_start = source
+        .find("used")
+        .ok_or("fixture should contain indexed selector token")?;
+    let source_documents = vec![OmenaQuerySourceDocumentInputV0 {
+        source_path: "/workspace/src/App.tsx".to_string(),
+        source_source: source.to_string(),
+        source_syntax_index: Some(OmenaQuerySourceSyntaxIndexV0 {
+            schema_version: "0",
+            product: "omena-bridge.source-syntax-index",
+            imported_style_bindings: vec![OmenaQuerySourceImportedStyleBindingV0 {
+                binding: "styles".to_string(),
+                style_uri: "/workspace/src/App.module.css".to_string(),
+            }],
+            class_string_literals: Vec::new(),
+            style_property_accesses: Vec::new(),
+            inline_style_declarations: Vec::new(),
+            selector_references: vec![OmenaQuerySourceSelectorReferenceFactV0 {
+                byte_span: ParserByteSpanV0 {
+                    start: used_start,
+                    end: used_start + "used".len(),
+                },
+                selector_name: Some("used".to_string()),
+                match_kind: OmenaQuerySourceSelectorReferenceMatchKindV0::Exact,
+                target_style_uri: Some("/workspace/src/App.module.css".to_string()),
+            }],
+            type_fact_targets: Vec::new(),
+            class_value_universes: Vec::new(),
+            domain_class_references: Vec::new(),
+        }),
+        has_unresolved_style_import: false,
+    }];
+
+    let diagnostics = crate::summarize_omena_query_style_diagnostics_for_workspace_file(
+        "/workspace/src/App.module.css",
+        sources.as_slice(),
+        source_documents.as_slice(),
+        &[],
+        None,
+    )
+    .ok_or("indexed source syntax workspace style diagnostics")?;
+
+    let unused = unused_selector_messages(&diagnostics);
+    assert!(
+        !unused.iter().any(|message| message.contains("'.used'")),
+        "precomputed source syntax index should mark .used as referenced: {unused:?}"
+    );
+    assert!(
+        unused.iter().any(|message| message.contains("'.ghost'")),
+        "non-indexed selector should still be reported unused: {unused:?}"
+    );
+    Ok(())
+}
+
+#[test]
+fn style_diagnostics_unused_selector_falls_back_when_source_syntax_index_is_empty()
+-> Result<(), &'static str> {
+    let sources = vec![OmenaQueryStyleSourceInputV0 {
+        style_path: "file:///tmp/cme-rust-lsp-style-provider/src/App.module.css".to_string(),
+        style_source: ".used { color: red; }\n.ghost { color: blue; }\n".to_string(),
+    }];
+    let source_documents = vec![OmenaQuerySourceDocumentInputV0 {
+        source_path: "file:///tmp/cme-rust-lsp-style-provider/src/App.tsx".to_string(),
+        source_source: "import styles from \"./App.module.css\";\nconst view = styles.used;\n"
+            .to_string(),
+        source_syntax_index: Some(OmenaQuerySourceSyntaxIndexV0 {
+            schema_version: "0",
+            product: "omena-bridge.source-syntax-index",
+            imported_style_bindings: Vec::new(),
+            class_string_literals: Vec::new(),
+            style_property_accesses: Vec::new(),
+            inline_style_declarations: Vec::new(),
+            selector_references: Vec::new(),
+            type_fact_targets: Vec::new(),
+            class_value_universes: Vec::new(),
+            domain_class_references: Vec::new(),
+        }),
+        has_unresolved_style_import: false,
+    }];
+
+    let diagnostics = crate::summarize_omena_query_style_diagnostics_for_workspace_file(
+        "file:///tmp/cme-rust-lsp-style-provider/src/App.module.css",
+        sources.as_slice(),
+        source_documents.as_slice(),
+        &[],
+        None,
+    )
+    .ok_or("fallback source syntax workspace style diagnostics")?;
+
+    let unused = unused_selector_messages(&diagnostics);
+    assert!(
+        !unused.iter().any(|message| message.contains("'.used'")),
+        "empty precomputed index should fall back to text-backed source usage: {unused:?}"
+    );
+    assert!(
+        unused.iter().any(|message| message.contains("'.ghost'")),
+        "fallback should still report genuinely unused selectors: {unused:?}"
+    );
+    Ok(())
+}
+
+#[test]
+fn style_diagnostics_unused_selector_consumes_precomputed_style_property_accesses()
+-> Result<(), &'static str> {
+    let sources = vec![OmenaQueryStyleSourceInputV0 {
+        style_path: "/workspace/src/App.module.css".to_string(),
+        style_source: ".used { color: red; }\n.ghost { color: blue; }\n".to_string(),
+    }];
+    let source = "const view = styles.used;\n";
+    let used_start = source
+        .find("used")
+        .ok_or("fixture should contain property access selector token")?;
+    let source_documents = vec![OmenaQuerySourceDocumentInputV0 {
+        source_path: "/workspace/src/App.tsx".to_string(),
+        source_source: source.to_string(),
+        source_syntax_index: Some(OmenaQuerySourceSyntaxIndexV0 {
+            schema_version: "0",
+            product: "omena-bridge.source-syntax-index",
+            imported_style_bindings: vec![OmenaQuerySourceImportedStyleBindingV0 {
+                binding: "styles".to_string(),
+                style_uri: "/workspace/src/App.module.css".to_string(),
+            }],
+            class_string_literals: Vec::new(),
+            style_property_accesses: vec![OmenaQuerySourceStylePropertyAccessFactV0 {
+                byte_span: ParserByteSpanV0 {
+                    start: used_start,
+                    end: used_start + "used".len(),
+                },
+                target_style_uri: None,
+            }],
+            inline_style_declarations: Vec::new(),
+            selector_references: Vec::new(),
+            type_fact_targets: Vec::new(),
+            class_value_universes: Vec::new(),
+            domain_class_references: Vec::new(),
+        }),
+        has_unresolved_style_import: false,
+    }];
+
+    let diagnostics = crate::summarize_omena_query_style_diagnostics_for_workspace_file(
+        "/workspace/src/App.module.css",
+        sources.as_slice(),
+        source_documents.as_slice(),
+        &[],
+        None,
+    )
+    .ok_or("indexed style property access workspace style diagnostics")?;
+
+    let unused = unused_selector_messages(&diagnostics);
+    assert!(
+        !unused.iter().any(|message| message.contains("'.used'")),
+        "precomputed style property access should mark .used as referenced: {unused:?}"
+    );
+    assert!(
+        unused.iter().any(|message| message.contains("'.ghost'")),
+        "non-indexed selector should still be reported unused: {unused:?}"
+    );
+    Ok(())
+}
+
+#[test]
+fn style_diagnostics_unused_selector_consumes_provider_fixture_property_accesses()
+-> Result<(), &'static str> {
+    let style_uri = "file:///tmp/cme-rust-lsp-style-provider/src/App.module.scss";
+    let source = "import styles from \"./App.module.scss\";\nconst view = <div className={styles.root} />;\nconst bracket = styles[\"theme\"];\n";
+    let root_start = source
+        .find("root")
+        .ok_or("fixture should contain root property access")?;
+    let theme_start = source
+        .find("theme")
+        .ok_or("fixture should contain bracket property access")?;
+    let sources = vec![OmenaQueryStyleSourceInputV0 {
+        style_path: style_uri.to_string(),
+        style_source: ".root { color: red; }\n.theme { color: blue; }\n.alert { color: green; }\n"
+            .to_string(),
+    }];
+    let source_documents = vec![OmenaQuerySourceDocumentInputV0 {
+        source_path: "file:///tmp/cme-rust-lsp-style-provider/src/App.tsx".to_string(),
+        source_source: source.to_string(),
+        source_syntax_index: Some(OmenaQuerySourceSyntaxIndexV0 {
+            schema_version: "0",
+            product: "omena-bridge.source-syntax-index",
+            imported_style_bindings: vec![OmenaQuerySourceImportedStyleBindingV0 {
+                binding: "styles".to_string(),
+                style_uri: style_uri.to_string(),
+            }],
+            class_string_literals: Vec::new(),
+            style_property_accesses: vec![
+                OmenaQuerySourceStylePropertyAccessFactV0 {
+                    byte_span: ParserByteSpanV0 {
+                        start: root_start,
+                        end: root_start + "root".len(),
+                    },
+                    target_style_uri: Some(style_uri.to_string()),
+                },
+                OmenaQuerySourceStylePropertyAccessFactV0 {
+                    byte_span: ParserByteSpanV0 {
+                        start: theme_start,
+                        end: theme_start + "theme".len(),
+                    },
+                    target_style_uri: Some(style_uri.to_string()),
+                },
+            ],
+            inline_style_declarations: Vec::new(),
+            selector_references: Vec::new(),
+            type_fact_targets: Vec::new(),
+            class_value_universes: Vec::new(),
+            domain_class_references: Vec::new(),
+        }),
+        has_unresolved_style_import: false,
+    }];
+
+    let diagnostics = crate::summarize_omena_query_style_diagnostics_for_workspace_file(
+        style_uri,
+        sources.as_slice(),
+        source_documents.as_slice(),
+        &[],
+        None,
+    )
+    .ok_or("provider fixture workspace style diagnostics")?;
+
+    let unused = unused_selector_messages(&diagnostics);
+    assert!(
+        !unused.iter().any(|message| message.contains("'.root'")),
+        "precomputed provider fixture access should mark .root as referenced: {unused:?}"
+    );
+    assert!(
+        !unused.iter().any(|message| message.contains("'.theme'")),
+        "precomputed provider fixture access should mark .theme as referenced: {unused:?}"
+    );
+    assert!(
+        unused.iter().any(|message| message.contains("'.alert'")),
+        "unused selector pass should still report genuinely unused selectors: {unused:?}"
+    );
+    Ok(())
+}
+
+#[test]
 fn style_diagnostics_walk_anonymous_arrow_default_export_for_unused_selector_lints()
 -> Result<(), &'static str> {
     // Regression for RFC-0007 #53: `export default () => <JSX/>` was never walked, so every
@@ -3044,6 +3294,8 @@ export default () => (<i className={s.arrowUsed} />);"#,
         let source_documents = vec![OmenaQuerySourceDocumentInputV0 {
             source_path: "/workspace/src/Arrow.tsx".to_string(),
             source_source: source_source.to_string(),
+            source_syntax_index: None,
+            has_unresolved_style_import: false,
         }];
 
         let diagnostics = crate::summarize_omena_query_style_diagnostics_for_workspace_file(
@@ -3086,6 +3338,8 @@ export function App() {
   return <div className={styles.btnPrimary}>hi</div>;
 }"#
         .to_string(),
+        source_syntax_index: None,
+        has_unresolved_style_import: false,
     }];
 
     let as_is = crate::summarize_omena_query_style_diagnostics_for_workspace_file(
@@ -3137,6 +3391,8 @@ import styles from '@/styles/a.module.scss';
 const cx = classNames.bind(styles);
 export default () => <span className={cx('foo')} />;"#
             .to_string(),
+        source_syntax_index: None,
+        has_unresolved_style_import: false,
     }];
 
     let diagnostics = crate::summarize_omena_query_style_diagnostics_for_workspace_file(
@@ -3176,6 +3432,8 @@ fn style_diagnostics_resolved_import_still_flags_unused_selector() -> Result<(),
 import styles from './a.module.scss';
 export default () => <span className={styles.foo} />;"#
             .to_string(),
+        source_syntax_index: None,
+        has_unresolved_style_import: false,
     }];
 
     let diagnostics = crate::summarize_omena_query_style_diagnostics_for_workspace_file(
@@ -3214,6 +3472,8 @@ import styles from '@/styles/a.module.scss';
 const cx = classNames.bind(styles);
 export default () => <span className={cx('foo')} />;"#
             .to_string(),
+        source_syntax_index: None,
+        has_unresolved_style_import: false,
     }];
     // tsconfig `paths`: `@/*` -> `src/*` rooted at the workspace, so `@/styles/a.module.scss`
     // resolves to `/workspace/src/styles/a.module.scss`.

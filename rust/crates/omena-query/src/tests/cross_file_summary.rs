@@ -139,6 +139,8 @@ fn hypergraph_summary_fixture() -> OmenaQueryCrossFileSummaryV0 {
             source_path: "/tmp/Button.tsx".into(),
             source_source: "import styles from './Button.module.scss';\nconst cls = styles.root;\n"
                 .into(),
+            source_syntax_index: None,
+            has_unresolved_style_import: false,
         }],
         &[],
     )
@@ -155,6 +157,8 @@ fn source_selector_references_emit_cross_file_summary_edges() {
             source_path: "/tmp/Button.tsx".to_string(),
             source_source: "import styles from './Button.module.scss';\nconst cls = styles.root;\n"
                 .to_string(),
+            source_syntax_index: None,
+            has_unresolved_style_import: false,
         }],
         &[],
     );
@@ -205,6 +209,8 @@ export function Button({ variant }) {
   return <div className={cx(`btn-${variant}`)} />;
 }"#
             .to_string(),
+            source_syntax_index: None,
+            has_unresolved_style_import: false,
         }],
         &[],
     );
@@ -223,6 +229,8 @@ export function Button({ variant }) {
   return <div className={cx(`btn-${variant}`)} />;
 }"#
             .to_string(),
+            source_syntax_index: None,
+            has_unresolved_style_import: false,
         }],
         &[],
     );
@@ -296,6 +304,8 @@ fn workspace_cross_file_summary_merges_style_and_source_edge_sets() {
         source_path: "/tmp/Button.tsx".to_string(),
         source_source: "import styles from './Button.module.scss';\nconst cls = styles.root;\n"
             .to_string(),
+        source_syntax_index: None,
+        has_unresolved_style_import: false,
     }];
 
     let style_batch = summarize_omena_query_style_semantic_graph_batch_from_sources(
@@ -448,6 +458,8 @@ fn workspace_summary_with_source_selector_refs(
         &[OmenaQuerySourceDocumentInputV0 {
             source_path: source_path.to_string(),
             source_source: source_source.to_string(),
+            source_syntax_index: None,
+            has_unresolved_style_import: false,
         }],
         &[],
     )
@@ -470,6 +482,8 @@ fn workspace_cross_file_summary_linear_provenance_covers_merged_style_and_source
         source_path: "/tmp/Button.tsx".to_string(),
         source_source: "import styles from './Button.module.scss';\nconst cls = styles.root;\n"
             .to_string(),
+        source_syntax_index: None,
+        has_unresolved_style_import: false,
     }];
     let workspace_summary = summarize_omena_query_workspace_cross_file_summary(
         style_sources.as_slice(),
@@ -551,6 +565,8 @@ fn workspace_cross_file_summary_hash_tracks_source_selector_changes() {
             source_path: "/tmp/Button.tsx".to_string(),
             source_source: "import styles from './Button.module.scss';\nconst cls = styles.root;\n"
                 .to_string(),
+            source_syntax_index: None,
+            has_unresolved_style_import: false,
         }],
         &[],
     );
@@ -561,6 +577,8 @@ fn workspace_cross_file_summary_hash_tracks_source_selector_changes() {
             source_source:
                 "import styles from './Button.module.scss';\nconst cls = styles.missing;\n"
                     .to_string(),
+            source_syntax_index: None,
+            has_unresolved_style_import: false,
         }],
         &[],
     );
@@ -584,6 +602,8 @@ fn workspace_cross_file_summary_hash_tracks_style_edge_changes() {
         source_path: "/tmp/Button.tsx".to_string(),
         source_source: "import styles from './Button.module.scss';\nconst cls = styles.root;\n"
             .to_string(),
+        source_syntax_index: None,
+        has_unresolved_style_import: false,
     }];
     let baseline = summarize_omena_query_workspace_cross_file_summary(
         &[
@@ -679,12 +699,16 @@ fn workspace_cross_file_summary_hash_is_input_order_stable() {
             source_path: "/fake/workspace/src/Button.tsx".to_string(),
             source_source: "import styles from './Button.module.scss';\nconst cls = styles.root;\n"
                 .to_string(),
+            source_syntax_index: None,
+            has_unresolved_style_import: false,
         },
         OmenaQuerySourceDocumentInputV0 {
             source_path: "/fake/workspace/src/Card.tsx".to_string(),
             source_source:
                 "import buttonStyles from './Button.module.scss';\nconst cls = buttonStyles.root;\n"
                     .to_string(),
+            source_syntax_index: None,
+            has_unresolved_style_import: false,
         },
     ];
     let reordered_source_documents = vec![source_documents[1].clone(), source_documents[0].clone()];
@@ -764,6 +788,8 @@ fn workspace_cross_file_summary_hash_tracks_package_manifest_changes() {
         source_path: "/fake/workspace/src/Button.tsx".to_string(),
         source_source: "import styles from './Button.module.scss';\nconst cls = styles.root;\n"
             .to_string(),
+        source_syntax_index: None,
+        has_unresolved_style_import: false,
     }];
     let baseline_manifest = vec![OmenaQueryStylePackageManifestV0 {
         package_json_path: "/fake/workspace/node_modules/@design/tokens/package.json".to_string(),
@@ -832,6 +858,8 @@ fn workspace_cross_file_summary_resolves_imported_design_token_references() {
         source_path: "/fake/workspace/src/Button.tsx".to_string(),
         source_source: "import styles from './Button.module.scss';\nconst cls = styles.root;\n"
             .to_string(),
+        source_syntax_index: None,
+        has_unresolved_style_import: false,
     }];
     let baseline_manifest = vec![OmenaQueryStylePackageManifestV0 {
         package_json_path: "/fake/workspace/node_modules/@design/tokens/package.json".to_string(),
@@ -916,6 +944,8 @@ fn workspace_cross_file_summary_reports_edge_kind_counts_for_m4_vocabulary() {
             source_path: "/tmp/Button.tsx".to_string(),
             source_source: "import styles from './Button.module.scss';\nconst cls = styles.root;\n"
                 .to_string(),
+            source_syntax_index: None,
+            has_unresolved_style_import: false,
         }],
         &[],
     );

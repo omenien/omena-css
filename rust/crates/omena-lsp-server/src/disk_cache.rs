@@ -566,6 +566,8 @@ mod tests {
                 source_documents: vec![OmenaQuerySourceDocumentInputV0 {
                     source_path: "file:///repo/src/App.tsx".to_string(),
                     source_source: "import styles from './App.module.scss';".to_string(),
+                    source_syntax_index: None,
+                    has_unresolved_style_import: false,
                 }],
                 package_manifests: Vec::new(),
                 external_sifs: Vec::new(),

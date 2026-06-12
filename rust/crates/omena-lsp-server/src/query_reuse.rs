@@ -1,6 +1,6 @@
 use crate::{
     LspShellState, LspStyleDocumentSummary, LspStyleHoverCandidate, LspTextDocumentState,
-    build_source_syntax_index, collect_style_hover_candidates,
+    build_source_syntax_index, collect_source_imports, collect_style_hover_candidates,
     protocol::{
         byte_offset_for_parser_position, is_style_document_uri, parser_range_for_byte_span,
     },
@@ -130,6 +130,8 @@ pub(crate) fn refresh_document_reusable_indexes(
         document.style_candidates = Vec::new();
     }
     let source_syntax_index = build_source_syntax_index(document, resolution_inputs);
+    document.has_unresolved_style_import =
+        collect_source_imports(document, resolution_inputs).has_unresolved_style_import;
     document.source_selector_candidates =
         source_selector_candidates_from_index(document, &source_syntax_index);
     document.source_syntax_index = source_syntax_index;

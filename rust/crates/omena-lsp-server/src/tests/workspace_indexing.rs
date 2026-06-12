@@ -299,6 +299,250 @@ fn indexes_workspace_source_files_from_disk() -> TestResult {
 }
 
 #[test]
+fn style_open_refreshes_source_syntax_index_for_source_first_order() -> TestResult {
+    let workspace_uri = "file:///tmp/cme-rust-lsp-source-first-refresh";
+    let source_uri = format!("{workspace_uri}/src/App.tsx");
+    let style_uri = format!("{workspace_uri}/src/App.module.scss");
+    let source_text = "import styles from \"./App.module.scss\";\nconst view = styles.root;\n";
+    let mut state = LspShellState::default();
+    handle_lsp_message(
+        &mut state,
+        json!({
+            "jsonrpc": "2.0",
+            "id": 1,
+            "method": "initialize",
+            "params": {
+                "workspaceFolders": [
+                    {
+                        "uri": workspace_uri,
+                        "name": "source-first-refresh",
+                    },
+                ],
+            },
+        }),
+    );
+    handle_lsp_message(
+        &mut state,
+        json!({
+            "jsonrpc": "2.0",
+            "method": "textDocument/didOpen",
+            "params": {
+                "textDocument": {
+                    "uri": source_uri,
+                    "languageId": "typescriptreact",
+                    "version": 1,
+                    "text": source_text,
+                },
+            },
+        }),
+    );
+    handle_lsp_message(
+        &mut state,
+        json!({
+            "jsonrpc": "2.0",
+            "method": "textDocument/didOpen",
+            "params": {
+                "textDocument": {
+                    "uri": style_uri,
+                    "languageId": "scss",
+                    "version": 1,
+                    "text": ".root { color: red; }",
+                },
+            },
+        }),
+    );
+
+    let source_document = state
+        .document(source_uri.as_str())
+        .ok_or_else(|| std::io::Error::other("source document should stay indexed"))?;
+    assert!(
+        source_document
+            .source_syntax_index
+            .imported_style_bindings
+            .iter()
+            .any(|binding| {
+                binding.binding == "styles"
+                    && file_uri_equivalent(binding.style_uri.as_str(), style_uri.as_str())
+            }),
+        "style open should refresh source import bindings: {:?}",
+        source_document.source_syntax_index.imported_style_bindings
+    );
+    assert!(
+        source_document
+            .source_syntax_index
+            .style_property_accesses
+            .iter()
+            .any(|access| {
+                source_document
+                    .text
+                    .get(access.byte_span.start..access.byte_span.end)
+                    == Some("root")
+                    && access
+                        .target_style_uri
+                        .as_deref()
+                        .is_some_and(|target| file_uri_equivalent(target, style_uri.as_str()))
+            }),
+        "style open should refresh source property access targets: {:?}",
+        source_document.source_syntax_index.style_property_accesses
+    );
+    Ok(())
+}
+
+#[test]
+fn style_diagnostics_reuse_source_syntax_index_after_source_first_open() -> TestResult {
+    let workspace_uri = "file:///tmp/cme-rust-lsp-source-first-diagnostics";
+    let source_uri = format!("{workspace_uri}/src/App.tsx");
+    let style_uri = format!("{workspace_uri}/src/App.module.scss");
+    let source_text = "import styles from \"./App.module.scss\";\nconst view = <div className={styles.root} />;\nconst bracket = styles[\"theme\"];\n";
+    let mut state = LspShellState::default();
+    handle_lsp_message(
+        &mut state,
+        json!({
+            "jsonrpc": "2.0",
+            "id": 1,
+            "method": "initialize",
+            "params": {
+                "workspaceFolders": [
+                    {
+                        "uri": workspace_uri,
+                        "name": "source-first-diagnostics",
+                    },
+                ],
+            },
+        }),
+    );
+    handle_lsp_message(
+        &mut state,
+        json!({
+            "jsonrpc": "2.0",
+            "method": "textDocument/didOpen",
+            "params": {
+                "textDocument": {
+                    "uri": source_uri,
+                    "languageId": "typescriptreact",
+                    "version": 1,
+                    "text": source_text,
+                },
+            },
+        }),
+    );
+    handle_lsp_message(
+        &mut state,
+        json!({
+            "jsonrpc": "2.0",
+            "method": "textDocument/didOpen",
+            "params": {
+                "textDocument": {
+                    "uri": style_uri,
+                    "languageId": "scss",
+                    "version": 1,
+                    "text": ".root { color: red; }\n.theme { color: blue; }\n.alert { color: green; }",
+                },
+            },
+        }),
+    );
+
+    let source_document = state
+        .document(source_uri.as_str())
+        .ok_or_else(|| std::io::Error::other("source document should stay indexed"))?;
+    for expected_selector in ["root", "theme"] {
+        assert!(
+            source_document
+                .source_syntax_index
+                .style_property_accesses
+                .iter()
+                .any(|access| {
+                    source_document
+                        .text
+                        .get(access.byte_span.start..access.byte_span.end)
+                        == Some(expected_selector)
+                        && access
+                            .target_style_uri
+                            .as_deref()
+                            .is_some_and(|target| file_uri_equivalent(target, style_uri.as_str()))
+                }),
+            "source index should target {expected_selector}: {:?}",
+            source_document.source_syntax_index.style_property_accesses
+        );
+    }
+
+    let style_sources =
+        style_sources_from_open_documents(&state, Some(workspace_uri), Some(style_uri.as_str()));
+    let source_documents = source_documents_from_open_documents(&state, Some(workspace_uri));
+    assert_eq!(
+        source_documents.len(),
+        1,
+        "workspace-compatible source document should be forwarded into style diagnostics"
+    );
+    assert!(
+        source_documents[0]
+            .source_syntax_index
+            .as_ref()
+            .is_some_and(|index| index.style_property_accesses.iter().any(|access| {
+                source_documents[0]
+                    .source_source
+                    .get(access.byte_span.start..access.byte_span.end)
+                    == Some("root")
+                    && access
+                        .target_style_uri
+                        .as_deref()
+                        .is_some_and(|target| file_uri_equivalent(target, style_uri.as_str()))
+            })),
+        "forwarded source document should retain target-aware source syntax index: {:?}",
+        source_documents[0].source_syntax_index
+    );
+    let direct_summary = omena_query::summarize_omena_query_style_diagnostics_for_workspace_file(
+        style_uri.as_str(),
+        style_sources.as_slice(),
+        source_documents.as_slice(),
+        &[],
+        None,
+    )
+    .ok_or_else(|| std::io::Error::other("direct workspace style diagnostics should resolve"))?;
+    let direct_unused_messages = direct_summary
+        .diagnostics
+        .iter()
+        .filter(|diagnostic| diagnostic.code == "unusedSelector")
+        .map(|diagnostic| diagnostic.message.as_str())
+        .collect::<Vec<_>>();
+    assert!(
+        !direct_unused_messages
+            .iter()
+            .any(|message| message.contains("'.root'")),
+        "direct source index usage should mark .root as referenced: {direct_unused_messages:?}"
+    );
+
+    let diagnostics = resolve_style_diagnostics_for_uri(&state, style_uri.as_str());
+    let empty = Vec::new();
+    let unused_messages = diagnostics
+        .as_array()
+        .unwrap_or(&empty)
+        .iter()
+        .filter(|diagnostic| diagnostic.get("code") == Some(&json!("unusedSelector")))
+        .filter_map(|diagnostic| diagnostic.get("message").and_then(Value::as_str))
+        .collect::<Vec<_>>();
+    assert!(
+        !unused_messages
+            .iter()
+            .any(|message| message.contains("'.root'")),
+        "source-first index reuse should mark .root as referenced: {unused_messages:?}"
+    );
+    assert!(
+        !unused_messages
+            .iter()
+            .any(|message| message.contains("'.theme'")),
+        "source-first index reuse should mark .theme as referenced: {unused_messages:?}"
+    );
+    assert!(
+        unused_messages
+            .iter()
+            .any(|message| message.contains("'.alert'")),
+        "style diagnostics should still report genuinely unused selectors: {unused_messages:?}"
+    );
+    Ok(())
+}
+
+#[test]
 fn scheduled_initialized_indexes_workspace_sources_on_background_result() -> TestResult {
     let workspace_root = std::env::temp_dir().join(format!(
         "omena-lsp-server-background-source-index-{}",
@@ -597,6 +841,7 @@ fn background_source_index_uses_persisted_source_syntax_sidecar() -> TestResult 
         text_hash.as_str(),
         &resolution_inputs,
         &cached_index,
+        false,
     );
     let sidecar_path =
         crate::source_document_cache::source_document_index_sidecar_file_path_for_test(

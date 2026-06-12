@@ -1,5 +1,7 @@
 use std::collections::{BTreeMap, BTreeSet};
-use std::path::{Path, PathBuf};
+use std::ffi::OsString;
+use std::fs;
+use std::path::{Component, Path, PathBuf};
 
 use omena_parser::{
     ParsedAnimationFactKind, ParsedCssModuleComposesEdgeKind, ParsedExtendTargetFactKind,
@@ -4204,10 +4206,9 @@ pub fn summarize_omena_query_unused_selector_style_diagnostics_with_path_mapping
 }
 
 /// Substrate-threaded core of the unused-selector pass (RFC 0009 Pillar B stage-2,
-/// #65). `style_fact_entries` is the substrate's ENTRIES slot; this pass never computed
-/// a Sass cross-file resolution (source usage resolves per-document imports via
-/// `collect_omena_query_source_selector_usage_by_style`, which still re-runs its own
-/// source import/syntax indexing — not covered by the substrate).
+/// #65). `style_fact_entries` is the substrate's ENTRIES slot; source usage now
+/// consumes precomputed source syntax indexes when callers provide them, while
+/// retaining the text-backed import/syntax fallback for non-indexed callers.
 #[allow(clippy::too_many_arguments)]
 fn summarize_omena_query_unused_selector_style_diagnostics_with_path_mappings_from_entries(
     target_style_path: &str,
@@ -4324,6 +4325,29 @@ fn collect_omena_query_source_selector_usage_by_style(
     let mut has_unresolved_style_import = false;
 
     for document in source_documents {
+        if let Some(index) = document
+            .source_syntax_index
+            .as_ref()
+            .filter(|index| source_syntax_index_has_style_usage_facts(index))
+        {
+            let mut index = index.clone();
+            crate::canonicalize_omena_query_source_selector_references(
+                &mut index.selector_references,
+            );
+            if document.has_unresolved_style_import {
+                has_unresolved_style_import = true;
+            }
+            collect_omena_query_source_selector_usage_from_syntax_index(
+                document,
+                &index,
+                available_style_paths,
+                aliases_by_path,
+                &mut used_selectors,
+                &mut unresolved_dynamic_usage,
+            );
+            continue;
+        }
+
         let imports = summarize_omena_query_source_import_declarations_for_source_language(
             document.source_path.as_str(),
             &document.source_source,
@@ -4392,6 +4416,199 @@ fn collect_omena_query_source_selector_usage_by_style(
         unresolved_dynamic_usage,
         has_unresolved_style_import,
     )
+}
+
+fn collect_omena_query_source_selector_usage_from_syntax_index(
+    document: &OmenaQuerySourceDocumentInputV0,
+    index: &OmenaQuerySourceSyntaxIndexV0,
+    available_style_paths: &BTreeSet<&str>,
+    aliases_by_path: &BTreeMap<String, BTreeMap<String, BTreeSet<String>>>,
+    used_selectors: &mut BTreeMap<String, BTreeSet<String>>,
+    unresolved_dynamic_usage: &mut BTreeSet<String>,
+) {
+    let single_imported_style_target_uri = (index.imported_style_bindings.len() == 1)
+        .then(|| index.imported_style_bindings[0].style_uri.clone());
+    for access in &index.style_property_accesses {
+        let Some(target_style_path) = access
+            .target_style_uri
+            .clone()
+            .or_else(|| single_imported_style_target_uri.clone())
+        else {
+            continue;
+        };
+        let target_style_path =
+            source_usage_available_style_path(target_style_path, available_style_paths);
+        let Some(selector_name) =
+            source_reference_text_selector_name(&document.source_source, access.byte_span)
+        else {
+            unresolved_dynamic_usage.insert(target_style_path);
+            continue;
+        };
+        record_omena_query_used_source_selector(
+            target_style_path,
+            selector_name,
+            aliases_by_path,
+            used_selectors,
+        );
+    }
+    for reference in &index.selector_references {
+        let Some(target_style_path) = reference.target_style_uri.clone() else {
+            continue;
+        };
+        let target_style_path =
+            source_usage_available_style_path(target_style_path, available_style_paths);
+        let Some(selector_name) = reference.selector_name.clone().or_else(|| {
+            source_reference_text_selector_name(&document.source_source, reference.byte_span)
+        }) else {
+            unresolved_dynamic_usage.insert(target_style_path);
+            continue;
+        };
+        record_omena_query_used_source_selector(
+            target_style_path,
+            selector_name,
+            aliases_by_path,
+            used_selectors,
+        );
+    }
+}
+
+fn source_syntax_index_has_style_usage_facts(index: &OmenaQuerySourceSyntaxIndexV0) -> bool {
+    index
+        .style_property_accesses
+        .iter()
+        .any(|access| access.target_style_uri.is_some())
+        || (index.imported_style_bindings.len() == 1 && !index.style_property_accesses.is_empty())
+        || index
+            .selector_references
+            .iter()
+            .any(|reference| reference.target_style_uri.is_some())
+}
+
+fn source_usage_available_style_path(
+    target_style_path: String,
+    available_style_paths: &BTreeSet<&str>,
+) -> String {
+    if available_style_paths.contains(target_style_path.as_str()) {
+        return target_style_path;
+    }
+    available_style_paths
+        .iter()
+        .find(|available_style_path| {
+            source_usage_style_paths_equivalent(target_style_path.as_str(), available_style_path)
+        })
+        .map(|available_style_path| (*available_style_path).to_string())
+        .unwrap_or(target_style_path)
+}
+
+fn source_usage_style_paths_equivalent(left: &str, right: &str) -> bool {
+    if left == right {
+        return true;
+    }
+    source_usage_style_identity(left) == source_usage_style_identity(right)
+}
+
+fn source_usage_style_identity(path_or_uri: &str) -> String {
+    let path = if let Some(path) = source_usage_file_uri_path(path_or_uri) {
+        PathBuf::from(path)
+    } else {
+        PathBuf::from(path_or_uri)
+    };
+    source_usage_normalize_path(
+        source_usage_canonicalize_existing_path_or_parent(path.as_path()).unwrap_or(path),
+    )
+    .to_string_lossy()
+    .replace('\\', "/")
+}
+
+fn source_usage_file_uri_path(uri: &str) -> Option<String> {
+    let path = uri.strip_prefix("file://")?;
+    source_usage_percent_decode_uri_path(path)
+}
+
+fn source_usage_percent_decode_uri_path(raw_path: &str) -> Option<String> {
+    let bytes = raw_path.as_bytes();
+    let mut decoded = Vec::with_capacity(bytes.len());
+    let mut index = 0usize;
+    while index < bytes.len() {
+        if bytes[index] == b'%' {
+            let high = bytes
+                .get(index + 1)
+                .and_then(|byte| source_usage_hex_value(*byte))?;
+            let low = bytes
+                .get(index + 2)
+                .and_then(|byte| source_usage_hex_value(*byte))?;
+            decoded.push((high << 4) | low);
+            index += 3;
+        } else {
+            decoded.push(bytes[index]);
+            index += 1;
+        }
+    }
+    String::from_utf8(decoded).ok()
+}
+
+fn source_usage_hex_value(byte: u8) -> Option<u8> {
+    match byte {
+        b'0'..=b'9' => Some(byte - b'0'),
+        b'a'..=b'f' => Some(byte - b'a' + 10),
+        b'A'..=b'F' => Some(byte - b'A' + 10),
+        _ => None,
+    }
+}
+
+fn source_usage_canonicalize_existing_path_or_parent(path: &Path) -> Option<PathBuf> {
+    if let Ok(canonical) = fs::canonicalize(path) {
+        return Some(canonical);
+    }
+
+    let mut current = path.to_path_buf();
+    let mut suffix = Vec::<OsString>::new();
+    while let Some(parent) = current.parent() {
+        if let Some(file_name) = current.file_name() {
+            suffix.push(file_name.to_os_string());
+        }
+        if let Ok(mut canonical_parent) = fs::canonicalize(parent) {
+            for segment in suffix.iter().rev() {
+                canonical_parent.push(segment);
+            }
+            return Some(canonical_parent);
+        }
+        current = parent.to_path_buf();
+    }
+    None
+}
+
+fn source_usage_normalize_path(path: PathBuf) -> PathBuf {
+    let mut normalized = PathBuf::new();
+    for component in path.components() {
+        match component {
+            Component::CurDir => {}
+            Component::ParentDir => {
+                normalized.pop();
+            }
+            Component::Normal(_) | Component::RootDir | Component::Prefix(_) => {
+                normalized.push(component.as_os_str());
+            }
+        }
+    }
+    normalized
+}
+
+fn record_omena_query_used_source_selector(
+    target_style_path: String,
+    selector_name: String,
+    aliases_by_path: &BTreeMap<String, BTreeMap<String, BTreeSet<String>>>,
+    used_selectors: &mut BTreeMap<String, BTreeSet<String>>,
+) {
+    let used_for_style = used_selectors.entry(target_style_path.clone()).or_default();
+    if let Some(canonical_names) = aliases_by_path
+        .get(target_style_path.as_str())
+        .and_then(|aliases| aliases.get(selector_name.as_str()))
+    {
+        used_for_style.extend(canonical_names.iter().cloned());
+    } else {
+        used_for_style.insert(selector_name);
+    }
 }
 
 /// Whether an import specifier names a CSS-family style module (so failing to resolve it is a

@@ -289,7 +289,10 @@ fn query_engine_input_for_source_type_facts(
     let class_expressions = targets
         .iter()
         .filter_map(|target| {
-            let target_style_uri = target.target_style_uri.as_ref()?;
+            let target_style_uri = target
+                .target_style_uri
+                .as_deref()
+                .map(canonical_type_fact_query_uri)?;
             Some(json!({
                 "id": target.expression_id,
                 "kind": "symbolRef",
@@ -325,7 +328,7 @@ fn query_engine_input_for_source_type_facts(
                 })
                 .collect::<Vec<_>>();
             json!({
-                "filePath": style_document.uri,
+                "filePath": canonical_type_fact_query_uri(style_document.uri.as_str()),
                 "source": style_document.text,
                 "document": {
                     "selectors": selectors,
@@ -376,6 +379,10 @@ fn query_engine_input_for_source_type_facts(
         "typeFacts": type_facts,
     }))
     .ok()
+}
+
+fn canonical_type_fact_query_uri(uri: &str) -> String {
+    crate::protocol::canonical_file_uri(uri).unwrap_or_else(|| uri.to_string())
 }
 
 fn project_tsgo_type_fact_target(

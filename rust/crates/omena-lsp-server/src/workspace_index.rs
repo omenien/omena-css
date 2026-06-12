@@ -228,7 +228,7 @@ fn collect_workspace_index_documents_from_dir(
             .unwrap_or_default();
         let text_hash = source_document_text_hash(text.as_str());
         let document = if !is_style_document_uri(uri.as_str())
-            && let Some(source_syntax_index) = load_source_document_index_sidecar(
+            && let Some(sidecar) = load_source_document_index_sidecar(
                 Some(workspace_owner_uri.as_str()),
                 uri.as_str(),
                 language_id.as_str(),
@@ -241,7 +241,8 @@ fn collect_workspace_index_documents_from_dir(
                 language_id,
                 0,
                 text,
-                source_syntax_index,
+                sidecar.source_syntax_index,
+                sidecar.has_unresolved_style_import,
             )
         } else {
             let document = lsp_text_document_state(
@@ -260,6 +261,7 @@ fn collect_workspace_index_documents_from_dir(
                     document.text_hash.as_str(),
                     &resolution_inputs,
                     &document.source_syntax_index,
+                    document.has_unresolved_style_import,
                 );
             }
             document

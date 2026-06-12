@@ -585,6 +585,8 @@ fn salsa_memo_lifecycle_usage_source_document(
         source_source: format!(
             "import styles from \"./{file_name}\";\nexport const used = styles.app;\n"
         ),
+        source_syntax_index: None,
+        has_unresolved_style_import: false,
     })
 }
 

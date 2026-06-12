@@ -242,3 +242,112 @@ export function Badge({ size, fontSize }: BadgeProps) {
     assert!(!style_edits.is_empty());
     Ok(())
 }
+
+#[test]
+fn projects_late_opened_style_type_facts_across_canonical_uri_mismatch() -> TestResult {
+    let source_uri = "file:///workspace-late/src/Late.tsx";
+    let style_uri = "file:///workspace-late/src/Late.module.scss";
+    let raw_style_uri = "file:///workspace-late/src/./Late.module.scss";
+    let source_text = r#"import bind from "classnames/bind";
+import styles from "./Late.module.scss";
+const cx = bind.bind(styles);
+interface Props { tone: "info" | "warn"; }
+export function LateBadge({ tone }: Props) {
+  return <span className={cx(tone)} />;
+}"#;
+    let style_text = ".info { color: blue; }\n.warn { color: orange; }";
+
+    let mut state = LspShellState::default();
+    handle_lsp_message(
+        &mut state,
+        json!({
+            "jsonrpc": "2.0",
+            "id": 1,
+            "method": "initialize",
+            "params": {
+                "workspaceFolders": [
+                    {
+                        "uri": "file:///workspace-late",
+                        "name": "workspace-late",
+                    },
+                ],
+            },
+        }),
+    );
+    handle_lsp_message(
+        &mut state,
+        json!({
+            "jsonrpc": "2.0",
+            "method": "textDocument/didOpen",
+            "params": {
+                "textDocument": {
+                    "uri": source_uri,
+                    "languageId": "typescriptreact",
+                    "version": 1,
+                    "text": source_text,
+                },
+            },
+        }),
+    );
+    handle_lsp_message(
+        &mut state,
+        json!({
+            "jsonrpc": "2.0",
+            "method": "textDocument/didOpen",
+            "params": {
+                "textDocument": {
+                    "uri": raw_style_uri,
+                    "languageId": "scss",
+                    "version": 1,
+                    "text": style_text,
+                },
+            },
+        }),
+    );
+
+    let tone_target = state
+        .document(source_uri)
+        .ok_or_else(|| std::io::Error::other("source document should be indexed"))?
+        .source_syntax_index
+        .type_fact_targets
+        .iter()
+        .find(|target| &source_text[target.byte_span.start..target.byte_span.end] == "tone")
+        .cloned()
+        .ok_or_else(|| std::io::Error::other("tone type fact target should exist"))?;
+    assert_eq!(tone_target.target_style_uri.as_deref(), Some(style_uri));
+    apply_source_type_fact_results_to_document(
+        &mut state,
+        source_uri,
+        &[TsgoTypeFactResultEntryV0 {
+            file_path: "/workspace-late/src/Late.tsx".to_string(),
+            expression_id: tone_target.expression_id.clone(),
+            resolved_type: TsgoResolvedTypeV0 {
+                kind: "union",
+                values: vec!["info".to_string(), "warn".to_string()],
+            },
+        }],
+    );
+
+    let hover = handle_lsp_message(
+        &mut state,
+        json!({
+            "jsonrpc": "2.0",
+            "id": 2,
+            "method": "textDocument/hover",
+            "params": {
+                "textDocument": {
+                    "uri": source_uri,
+                },
+                "position": parser_position_for_byte_offset(source_text, tone_target.byte_span.start),
+            },
+        }),
+    );
+    let hover_text = hover
+        .as_ref()
+        .and_then(|value| value.pointer("/result/contents/value"))
+        .and_then(Value::as_str)
+        .ok_or_else(|| std::io::Error::other("tone hover should render markdown"))?;
+    assert!(hover_text.contains("`.info`"));
+    assert!(hover_text.contains("`.warn`"));
+    Ok(())
+}

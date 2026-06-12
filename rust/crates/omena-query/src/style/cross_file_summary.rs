@@ -759,6 +759,8 @@ fn m4_axis_c_source_documents(class_expression: &str) -> Vec<OmenaQuerySourceDoc
         source_source: format!(
             "import styles from './Button.module.scss';\nconst cls = {class_expression};\n"
         ),
+        source_syntax_index: None,
+        has_unresolved_style_import: false,
     }]
 }
 

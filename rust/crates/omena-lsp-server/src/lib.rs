@@ -241,6 +241,7 @@ fn lsp_text_document_state(
         optimizing_tier_feedback: None,
         style_candidates: Vec::new(),
         source_syntax_index: SourceSyntaxIndex::default(),
+        has_unresolved_style_import: false,
         source_selector_candidates: Vec::new(),
     };
     refresh_document_reusable_indexes(&mut document, resolution_inputs);
@@ -254,6 +255,7 @@ fn lsp_text_document_state_with_source_syntax_index(
     version: i64,
     text: String,
     source_syntax_index: SourceSyntaxIndex,
+    has_unresolved_style_import: bool,
 ) -> LspTextDocumentState {
     let mut document = LspTextDocumentState {
         uri,
@@ -267,6 +269,7 @@ fn lsp_text_document_state_with_source_syntax_index(
         optimizing_tier_feedback: None,
         style_candidates: Vec::new(),
         source_syntax_index: SourceSyntaxIndex::default(),
+        has_unresolved_style_import,
         source_selector_candidates: Vec::new(),
     };
     document.text_hash = compute_omena_sif_leaf_hash_v1(document.text.as_bytes())
@@ -310,7 +313,7 @@ fn did_open_text_document(state: &mut LspShellState, params: Option<&Value>) {
         ),
     );
     if is_style_document_uri(uri) {
-        refresh_source_type_fact_candidates_for_referencing_documents(state, uri);
+        refresh_source_indexes_for_style_document_change(state, uri);
     } else {
         refresh_source_type_fact_candidates_for_document(state, uri);
     }
@@ -354,7 +357,7 @@ fn did_change_text_document(state: &mut LspShellState, params: Option<&Value>) {
     }
     if text_changed {
         if is_style_document_uri(uri) {
-            refresh_source_type_fact_candidates_for_referencing_documents(state, uri);
+            refresh_source_indexes_for_style_document_change(state, uri);
         } else {
             refresh_source_type_fact_candidates_for_document(state, uri);
         }
@@ -396,12 +399,12 @@ fn did_close_text_document(state: &mut LspShellState, params: Option<&Value>) {
     };
     state.remove_open_document_uri(uri);
     if is_style_document_uri(uri) && reload_indexed_style_document_from_disk(state, uri) {
-        refresh_source_type_fact_candidates_for_referencing_documents(state, uri);
+        refresh_source_indexes_for_style_document_change(state, uri);
         return;
     }
     state.remove_document_uri(uri);
     if is_style_document_uri(uri) {
-        refresh_source_type_fact_candidates_for_referencing_documents(state, uri);
+        refresh_source_indexes_for_style_document_change(state, uri);
     }
 }
 
@@ -514,12 +517,12 @@ fn apply_watched_file_change_to_index(state: &mut LspShellState, uri: &str, chan
     }
     if change_type == 3 {
         state.remove_document_uri(uri);
-        refresh_source_type_fact_candidates_for_referencing_documents(state, uri);
+        refresh_source_indexes_for_style_document_change(state, uri);
         return;
     }
 
     if reload_indexed_style_document_from_disk(state, uri) {
-        refresh_source_type_fact_candidates_for_referencing_documents(state, uri);
+        refresh_source_indexes_for_style_document_change(state, uri);
     }
 }
 
@@ -639,33 +642,36 @@ fn reload_indexed_style_document_from_disk(state: &mut LspShellState, uri: &str)
     true
 }
 
-fn refresh_source_type_fact_candidates_for_referencing_documents(
-    state: &mut LspShellState,
-    style_uri: &str,
-) {
+fn refresh_source_indexes_for_style_document_change(state: &mut LspShellState, style_uri: &str) {
+    let workspace_folder_uri = state
+        .document(style_uri)
+        .and_then(|document| document.workspace_folder_uri.clone())
+        .or_else(|| resolve_workspace_folder_uri(state, style_uri));
     let source_uris = state
         .documents
         .values()
         .filter(|document| !is_style_document_uri(document.uri.as_str()))
-        .filter(|document| document_references_style_uri(document, style_uri))
+        .filter(|document| {
+            workspace_folder_uri.as_deref().is_none_or(|workspace_uri| {
+                workspace_folder_compatible(Some(workspace_uri), document)
+            })
+        })
         .map(|document| document.uri.clone())
         .collect::<Vec<_>>();
     for source_uri in source_uris {
+        let resolution_inputs = state
+            .document(source_uri.as_str())
+            .map(|document| {
+                resolution_inputs_for_workspace_uri(state, document.workspace_folder_uri.as_deref())
+            })
+            .unwrap_or_else(|| {
+                resolution_inputs_for_workspace_uri(state, workspace_folder_uri.as_deref())
+            });
+        if let Some(document) = state.document_mut(source_uri.as_str()) {
+            refresh_document_reusable_indexes(document, &resolution_inputs);
+        }
         refresh_source_type_fact_candidates_for_document(state, source_uri.as_str());
     }
-}
-
-fn document_references_style_uri(document: &LspTextDocumentState, style_uri: &str) -> bool {
-    document
-        .source_syntax_index
-        .selector_references
-        .iter()
-        .any(|reference| reference.target_style_uri.as_deref() == Some(style_uri))
-        || document
-            .source_syntax_index
-            .type_fact_targets
-            .iter()
-            .any(|target| target.target_style_uri.as_deref() == Some(style_uri))
 }
 
 fn insert_workspace_folder(state: &mut LspShellState, folder: &Value) {
@@ -1959,6 +1965,8 @@ fn source_documents_from_open_documents(
         .map(|document| OmenaQuerySourceDocumentInputV0 {
             source_path: document.uri.clone(),
             source_source: document.text.clone(),
+            source_syntax_index: Some(document.source_syntax_index.clone()),
+            has_unresolved_style_import: document.has_unresolved_style_import,
         })
         .collect()
 }
@@ -3739,12 +3747,13 @@ fn build_source_syntax_index(
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-struct SourceImportIndex {
-    imported_style_bindings: Vec<ImportedStyleBinding>,
-    classnames_bind_bindings: Vec<String>,
+pub(crate) struct SourceImportIndex {
+    pub(crate) imported_style_bindings: Vec<ImportedStyleBinding>,
+    pub(crate) classnames_bind_bindings: Vec<String>,
+    pub(crate) has_unresolved_style_import: bool,
 }
 
-fn collect_source_imports(
+pub(crate) fn collect_source_imports(
     document: &LspTextDocumentState,
     resolution_inputs: &omena_query::OmenaQueryStyleResolutionInputsV0,
 ) -> SourceImportIndex {
@@ -3752,6 +3761,7 @@ fn collect_source_imports(
     let mut imports = SourceImportIndex {
         imported_style_bindings: Vec::new(),
         classnames_bind_bindings: Vec::new(),
+        has_unresolved_style_import: false,
     };
     let summary = summarize_omena_query_source_import_declarations_for_source_language(
         document.uri.as_str(),
@@ -3761,19 +3771,22 @@ fn collect_source_imports(
     for import in summary.imports {
         if import.specifier == "classnames/bind" {
             imports.classnames_bind_bindings.push(import.binding);
-        } else if StyleLanguage::from_module_path(import.specifier.as_str()).is_some()
-            && let Some(style_uri) =
+        } else if StyleLanguage::from_module_path(import.specifier.as_str()).is_some() {
+            if let Some(style_uri) =
                 resolve_omena_query_style_uri_for_specifier_with_resolution_inputs(
                     document.uri.as_str(),
                     document.workspace_folder_uri.as_deref(),
                     import.specifier.as_str(),
                     resolution_inputs,
                 )
-        {
-            imports.imported_style_bindings.push(ImportedStyleBinding {
-                binding: import.binding,
-                style_uri,
-            });
+            {
+                imports.imported_style_bindings.push(ImportedStyleBinding {
+                    binding: import.binding,
+                    style_uri,
+                });
+            } else {
+                imports.has_unresolved_style_import = true;
+            }
         }
     }
     if is_vue_document(document) && has_vue_module_style_block(source) {

@@ -31,13 +31,19 @@ struct SourceDocumentIndexKeyInputV0<'a> {
     resolution_inputs: &'a OmenaQueryStyleResolutionInputsV0,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct LspSourceDocumentIndexSidecarLoadV0 {
+    pub(crate) source_syntax_index: OmenaQuerySourceSyntaxIndexV0,
+    pub(crate) has_unresolved_style_import: bool,
+}
+
 pub(crate) fn load_source_document_index_sidecar(
     workspace_folder_uri: Option<&str>,
     document_uri: &str,
     language_id: &str,
     text_hash: &str,
     resolution_inputs: &OmenaQueryStyleResolutionInputsV0,
-) -> Option<OmenaQuerySourceSyntaxIndexV0> {
+) -> Option<LspSourceDocumentIndexSidecarLoadV0> {
     let key = source_document_index_key(
         workspace_folder_uri,
         document_uri,
@@ -65,7 +71,14 @@ pub(crate) fn load_source_document_index_sidecar(
     if shard.pointer("/payloadDigest").and_then(Value::as_str) != Some(payload_digest.as_str()) {
         return None;
     }
-    source_syntax_index_from_value(payload.pointer("/sourceSyntaxIndex")?)
+    Some(LspSourceDocumentIndexSidecarLoadV0 {
+        source_syntax_index: source_syntax_index_from_value(
+            payload.pointer("/sourceSyntaxIndex")?,
+        )?,
+        has_unresolved_style_import: payload
+            .pointer("/hasUnresolvedStyleImport")
+            .and_then(Value::as_bool)?,
+    })
 }
 
 pub(crate) fn store_source_document_index_sidecar(
@@ -75,6 +88,7 @@ pub(crate) fn store_source_document_index_sidecar(
     text_hash: &str,
     resolution_inputs: &OmenaQueryStyleResolutionInputsV0,
     source_syntax_index: &OmenaQuerySourceSyntaxIndexV0,
+    has_unresolved_style_import: bool,
 ) {
     let Some(key) = source_document_index_key(
         workspace_folder_uri,
@@ -96,6 +110,7 @@ pub(crate) fn store_source_document_index_sidecar(
     }
     let payload = json!({
         "sourceSyntaxIndex": source_syntax_index,
+        "hasUnresolvedStyleImport": has_unresolved_style_import,
     });
     let Some(payload_digest) = source_document_index_payload_digest(&payload) else {
         return;

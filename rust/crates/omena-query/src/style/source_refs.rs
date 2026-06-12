@@ -711,44 +711,13 @@ pub(super) fn collect_omena_query_source_selector_references(
     let mut references = Vec::new();
 
     for document in source_documents {
-        let imports = summarize_omena_query_source_import_declarations_for_source_language(
-            document.source_path.as_str(),
-            &document.source_source,
-            None,
-        );
-        let mut imported_style_bindings = Vec::new();
-        let mut classnames_bind_bindings = Vec::new();
-
-        for import in imports.imports {
-            if import.specifier == "classnames/bind" {
-                classnames_bind_bindings.push(import.binding);
-                continue;
-            }
-            let Some(style_uri) = resolve_style_module_source(
-                &document.source_path,
-                &import.specifier,
-                &available_style_paths,
-                package_manifests,
-            ) else {
-                continue;
-            };
-            imported_style_bindings.push(OmenaQuerySourceImportedStyleBindingV0 {
-                binding: import.binding,
-                style_uri,
-            });
-        }
-
-        if imported_style_bindings.is_empty() {
+        let Some(mut index) = source_selector_reference_index_for_document(
+            document,
+            &available_style_paths,
+            package_manifests,
+        ) else {
             continue;
-        }
-
-        let mut index = summarize_omena_query_source_syntax_index_for_source_language(
-            document.source_path.as_str(),
-            &document.source_source,
-            None,
-            imported_style_bindings,
-            classnames_bind_bindings,
-        );
+        };
         canonicalize_omena_query_source_selector_references(&mut index.selector_references);
 
         for reference in index.selector_references {
@@ -794,6 +763,63 @@ pub(super) fn collect_omena_query_source_selector_references(
             && left.candidate.target_style_uri == right.candidate.target_style_uri
     });
     references
+}
+
+fn source_selector_reference_index_for_document(
+    document: &OmenaQuerySourceDocumentInputV0,
+    available_style_paths: &BTreeSet<&str>,
+    package_manifests: &[OmenaQueryStylePackageManifestV0],
+) -> Option<OmenaQuerySourceSyntaxIndexV0> {
+    if let Some(index) = document.source_syntax_index.clone()
+        && (!index.imported_style_bindings.is_empty()
+            || index
+                .selector_references
+                .iter()
+                .any(|reference| reference.target_style_uri.is_some()))
+    {
+        return Some(index);
+    }
+
+    let imports = summarize_omena_query_source_import_declarations_for_source_language(
+        document.source_path.as_str(),
+        &document.source_source,
+        None,
+    );
+    let mut imported_style_bindings = Vec::new();
+    let mut classnames_bind_bindings = Vec::new();
+
+    for import in imports.imports {
+        if import.specifier == "classnames/bind" {
+            classnames_bind_bindings.push(import.binding);
+            continue;
+        }
+        let Some(style_uri) = resolve_style_module_source(
+            &document.source_path,
+            &import.specifier,
+            available_style_paths,
+            package_manifests,
+        ) else {
+            continue;
+        };
+        imported_style_bindings.push(OmenaQuerySourceImportedStyleBindingV0 {
+            binding: import.binding,
+            style_uri,
+        });
+    }
+
+    if imported_style_bindings.is_empty() {
+        return None;
+    }
+
+    Some(
+        summarize_omena_query_source_syntax_index_for_source_language(
+            document.source_path.as_str(),
+            &document.source_source,
+            None,
+            imported_style_bindings,
+            classnames_bind_bindings,
+        ),
+    )
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

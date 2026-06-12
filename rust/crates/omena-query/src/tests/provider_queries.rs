@@ -1,10 +1,13 @@
 use crate::{
-    AbstractPropertyValueV0, OmenaQueryCompletionCandidateV0,
-    OmenaQuerySourceSelectorReferenceCandidateV0, OmenaQuerySourceSelectorReferenceEditTargetV0,
-    OmenaQueryStyleSelectorDefinitionV0, OmenaQueryStyleSourceInputV0, ParserPositionV0,
-    ParserRangeV0, resolve_omena_query_style_uri_for_specifier,
+    AbstractPropertyValueV0, OmenaQueryCompletionCandidateV0, OmenaQuerySourceDocumentInputV0,
+    OmenaQuerySourceImportedStyleBindingV0, OmenaQuerySourceSelectorReferenceCandidateV0,
+    OmenaQuerySourceSelectorReferenceEditTargetV0, OmenaQuerySourceSelectorReferenceFactV0,
+    OmenaQuerySourceSelectorReferenceMatchKindV0, OmenaQuerySourceSyntaxIndexV0,
+    OmenaQueryStyleSelectorDefinitionV0, OmenaQueryStyleSourceInputV0, ParserByteSpanV0,
+    ParserPositionV0, ParserRangeV0, resolve_omena_query_style_uri_for_specifier,
     summarize_omena_query_missing_selector_diagnostic, summarize_omena_query_refs_for_class,
-    summarize_omena_query_refs_for_class_from_occurrence_index, summarize_omena_query_rename_plan,
+    summarize_omena_query_refs_for_class_from_occurrence_index,
+    summarize_omena_query_refs_for_workspace_class, summarize_omena_query_rename_plan,
     summarize_omena_query_rename_plan_from_occurrence_index,
     summarize_omena_query_source_completion_at_position,
     summarize_omena_query_source_selector_occurrence_index,
@@ -972,6 +975,63 @@ fn source_selector_occurrence_index_feeds_refs_and_rename() {
             .ready_surfaces
             .contains(&"sourceSelectorOccurrenceIndex")
     );
+}
+
+#[test]
+fn workspace_refs_consume_precomputed_source_syntax_index() -> Result<(), &'static str> {
+    let source = "const local = root;\n";
+    let root_start = source
+        .find("root")
+        .ok_or("fixture should contain the selector token")?;
+    let refs = summarize_omena_query_refs_for_workspace_class(
+        "root",
+        Some("file:///workspace/src/Component.module.scss"),
+        false,
+        &[OmenaQueryStyleSourceInputV0 {
+            style_path: "file:///workspace/src/Component.module.scss".to_string(),
+            style_source: ".root { color: red; }".to_string(),
+        }],
+        &[OmenaQuerySourceDocumentInputV0 {
+            source_path: "file:///workspace/src/App.tsx".to_string(),
+            source_source: source.to_string(),
+            source_syntax_index: Some(OmenaQuerySourceSyntaxIndexV0 {
+                schema_version: "0",
+                product: "omena-bridge.source-syntax-index",
+                imported_style_bindings: vec![OmenaQuerySourceImportedStyleBindingV0 {
+                    binding: "styles".to_string(),
+                    style_uri: "file:///workspace/src/Component.module.scss".to_string(),
+                }],
+                class_string_literals: Vec::new(),
+                style_property_accesses: Vec::new(),
+                inline_style_declarations: Vec::new(),
+                selector_references: vec![OmenaQuerySourceSelectorReferenceFactV0 {
+                    byte_span: ParserByteSpanV0 {
+                        start: root_start,
+                        end: root_start + "root".len(),
+                    },
+                    selector_name: Some("root".to_string()),
+                    match_kind: OmenaQuerySourceSelectorReferenceMatchKindV0::Exact,
+                    target_style_uri: Some(
+                        "file:///workspace/src/Component.module.scss".to_string(),
+                    ),
+                }],
+                type_fact_targets: Vec::new(),
+                class_value_universes: Vec::new(),
+                domain_class_references: Vec::new(),
+            }),
+            has_unresolved_style_import: false,
+        }],
+        &[],
+    );
+
+    assert_eq!(refs.location_count, 1);
+    assert_eq!(refs.locations[0].uri, "file:///workspace/src/App.tsx");
+    assert_eq!(refs.locations[0].name, "root");
+    assert_eq!(
+        refs.locations[0].source,
+        "omenaQuerySourceSelectorReferences"
+    );
+    Ok(())
 }
 
 #[test]

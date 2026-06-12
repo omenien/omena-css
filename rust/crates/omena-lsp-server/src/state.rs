@@ -32,6 +32,8 @@ pub struct LspTextDocumentState {
     #[serde(skip)]
     pub(crate) source_syntax_index: SourceSyntaxIndex,
     #[serde(skip)]
+    pub(crate) has_unresolved_style_import: bool,
+    #[serde(skip)]
     pub source_selector_candidates: Vec<LspStyleHoverCandidate>,
 }
 

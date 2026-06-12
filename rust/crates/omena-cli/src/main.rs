@@ -3745,6 +3745,8 @@ fn read_source_documents(
             Ok(OmenaQuerySourceDocumentInputV0 {
                 source_path: path_string(path),
                 source_source: read_source(path)?,
+                source_syntax_index: None,
+                has_unresolved_style_import: false,
             })
         })
         .collect()

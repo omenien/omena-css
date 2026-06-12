@@ -844,6 +844,13 @@ pub struct OmenaQueryExternalSifInputV0 {
 pub struct OmenaQuerySourceDocumentInputV0 {
     pub source_path: String,
     pub source_source: String,
+    /// Precomputed source syntax facts from the LSP workspace/source index. When
+    /// present, query consumers can avoid reparsing source text while preserving
+    /// the existing text-backed fallback for non-indexed callers.
+    #[serde(default, skip_deserializing, skip_serializing_if = "Option::is_none")]
+    pub source_syntax_index: Option<OmenaQuerySourceSyntaxIndexV0>,
+    #[serde(default)]
+    pub has_unresolved_style_import: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
