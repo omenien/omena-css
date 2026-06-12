@@ -4,7 +4,10 @@ use crate::{
     OmenaQueryStyleSelectorDefinitionV0, OmenaQueryStyleSourceInputV0, ParserPositionV0,
     ParserRangeV0, resolve_omena_query_style_uri_for_specifier,
     summarize_omena_query_missing_selector_diagnostic, summarize_omena_query_refs_for_class,
-    summarize_omena_query_rename_plan, summarize_omena_query_source_completion_at_position,
+    summarize_omena_query_refs_for_class_from_occurrence_index, summarize_omena_query_rename_plan,
+    summarize_omena_query_rename_plan_from_occurrence_index,
+    summarize_omena_query_source_completion_at_position,
+    summarize_omena_query_source_selector_occurrence_index,
     summarize_omena_query_style_completion_at_position,
     summarize_omena_query_style_extract_code_actions, summarize_omena_query_style_hover_candidates,
     summarize_omena_query_style_hover_render_parts,
@@ -867,6 +870,108 @@ fn rename_plan_is_query_owned_and_workspace_scoped() {
         ]
     );
     assert!(plan.ready_surfaces.contains(&"workspaceWideSelectorRename"));
+}
+
+#[test]
+fn source_selector_occurrence_index_feeds_refs_and_rename() {
+    let definition = OmenaQueryStyleSelectorDefinitionV0 {
+        uri: "file:///workspace/src/Component.module.scss".to_string(),
+        name: "root".to_string(),
+        range: ParserRangeV0 {
+            start: ParserPositionV0 {
+                line: 0,
+                character: 1,
+            },
+            end: ParserPositionV0 {
+                line: 0,
+                character: 5,
+            },
+        },
+    };
+    let references = vec![
+        OmenaQuerySourceSelectorReferenceCandidateV0 {
+            uri: "file:///workspace/src/App.tsx".to_string(),
+            kind: "sourceSelectorReference",
+            name: "root".to_string(),
+            range: ParserRangeV0 {
+                start: ParserPositionV0 {
+                    line: 1,
+                    character: 31,
+                },
+                end: ParserPositionV0 {
+                    line: 1,
+                    character: 35,
+                },
+            },
+            source: "omenaQuerySourceSyntaxIndex",
+            target_style_uri: Some("file:///workspace/src/Component.module.scss".to_string()),
+        },
+        OmenaQuerySourceSelectorReferenceCandidateV0 {
+            uri: "file:///workspace/src/Other.tsx".to_string(),
+            kind: "sourceSelectorReference",
+            name: "root".to_string(),
+            range: ParserRangeV0 {
+                start: ParserPositionV0 {
+                    line: 1,
+                    character: 31,
+                },
+                end: ParserPositionV0 {
+                    line: 1,
+                    character: 35,
+                },
+            },
+            source: "omenaQuerySourceSyntaxIndex",
+            target_style_uri: Some("file:///workspace/src/Other.module.scss".to_string()),
+        },
+    ];
+
+    let index = summarize_omena_query_source_selector_occurrence_index(
+        std::slice::from_ref(&definition),
+        &references,
+    );
+    assert_eq!(
+        index.product,
+        "omena-query.source-selector-occurrence-index"
+    );
+    assert_eq!(index.moniker_count, 2);
+    assert_eq!(index.occurrence_count, 2);
+    assert!(index.occurrences.iter().any(|occurrence| occurrence.moniker
+        == "css-module-selector:file:///workspace/src/Component.module.scss#.root"));
+
+    let refs = summarize_omena_query_refs_for_class_from_occurrence_index(
+        "root",
+        Some("file:///workspace/src/Component.module.scss"),
+        true,
+        std::slice::from_ref(&definition),
+        &index,
+    );
+    assert_eq!(refs.location_count, 2);
+    assert_eq!(refs.locations[0].role, "definition");
+    assert_eq!(refs.locations[1].uri, "file:///workspace/src/App.tsx");
+
+    let rename = summarize_omena_query_rename_plan_from_occurrence_index(
+        "root",
+        "button",
+        Some("file:///workspace/src/Component.module.scss"),
+        std::slice::from_ref(&definition),
+        &index,
+    );
+    assert_eq!(
+        rename
+            .edits
+            .iter()
+            .map(|edit| edit.uri.as_str())
+            .collect::<Vec<_>>(),
+        vec![
+            "file:///workspace/src/App.tsx",
+            "file:///workspace/src/Component.module.scss"
+        ]
+    );
+    assert!(
+        rename
+            .ready_surfaces
+            .contains(&"sourceSelectorOccurrenceIndex")
+    );
 }
 
 #[test]

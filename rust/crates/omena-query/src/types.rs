@@ -1580,6 +1580,31 @@ pub struct OmenaQuerySourceSelectorReferenceEditTargetV0 {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
+pub struct OmenaQuerySourceSelectorOccurrenceIndexV0 {
+    pub schema_version: &'static str,
+    pub product: &'static str,
+    pub moniker_count: usize,
+    pub occurrence_count: usize,
+    pub occurrences: Vec<OmenaQuerySourceSelectorOccurrenceV0>,
+    pub ready_surfaces: Vec<&'static str>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct OmenaQuerySourceSelectorOccurrenceV0 {
+    pub moniker: String,
+    pub uri: String,
+    pub selector_name: String,
+    pub range: ParserRangeV0,
+    pub kind: &'static str,
+    pub role: &'static str,
+    pub source: &'static str,
+    pub target_style_uri: Option<String>,
+    pub rename_target: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct OmenaQueryWorkspaceTextEditV0 {
     pub uri: String,
     pub range: ParserRangeV0,

@@ -111,6 +111,164 @@ pub fn summarize_omena_query_rename_plan(
     }
 }
 
+pub fn summarize_omena_query_source_selector_occurrence_index(
+    definitions: &[OmenaQueryStyleSelectorDefinitionV0],
+    references: &[OmenaQuerySourceSelectorReferenceCandidateV0],
+) -> OmenaQuerySourceSelectorOccurrenceIndexV0 {
+    let mut occurrences = Vec::new();
+    for reference in references {
+        let reference_candidate = OmenaQuerySourceSelectorCandidateV0 {
+            kind: reference.kind,
+            name: reference.name.clone(),
+            range: reference.range,
+            source: reference.source,
+            target_style_uri: reference.target_style_uri.clone(),
+        };
+        for selector_name in resolve_omena_query_source_candidate_selector_names(
+            &reference_candidate,
+            definitions,
+            reference.target_style_uri.as_deref(),
+        ) {
+            occurrences.push(OmenaQuerySourceSelectorOccurrenceV0 {
+                moniker: source_selector_occurrence_moniker(
+                    selector_name.as_str(),
+                    reference.target_style_uri.as_deref(),
+                ),
+                uri: reference.uri.clone(),
+                selector_name: selector_name.clone(),
+                range: reference.range,
+                kind: reference.kind,
+                role: "reference",
+                source: reference.source,
+                target_style_uri: reference.target_style_uri.clone(),
+                rename_target: reference.kind == "sourceSelectorReference"
+                    && reference.name == selector_name,
+            });
+        }
+    }
+
+    occurrences.sort();
+    occurrences.dedup();
+    let moniker_count = occurrences
+        .iter()
+        .map(|occurrence| occurrence.moniker.as_str())
+        .collect::<BTreeSet<_>>()
+        .len();
+    OmenaQuerySourceSelectorOccurrenceIndexV0 {
+        schema_version: "0",
+        product: "omena-query.source-selector-occurrence-index",
+        moniker_count,
+        occurrence_count: occurrences.len(),
+        occurrences,
+        ready_surfaces: vec![
+            "sourceSelectorOccurrenceIndex",
+            "workspaceWideSelectorReferences",
+            "workspaceWideSelectorRename",
+        ],
+    }
+}
+
+pub fn summarize_omena_query_refs_for_class_from_occurrence_index(
+    selector_name: &str,
+    target_style_uri: Option<&str>,
+    include_declaration: bool,
+    definitions: &[OmenaQueryStyleSelectorDefinitionV0],
+    occurrence_index: &OmenaQuerySourceSelectorOccurrenceIndexV0,
+) -> OmenaQueryRefsForClassV0 {
+    let mut locations = Vec::new();
+
+    if include_declaration {
+        locations.extend(
+            definitions
+                .iter()
+                .filter(|definition| definition.name == selector_name)
+                .filter(|definition| {
+                    target_style_uri.is_none_or(|target_uri| {
+                        file_uri_equivalent(target_uri, definition.uri.as_str())
+                    })
+                })
+                .map(|definition| OmenaQueryReferenceLocationV0 {
+                    uri: definition.uri.clone(),
+                    range: definition.range,
+                    name: definition.name.clone(),
+                    role: "definition",
+                    source: "omenaQueryStyleSelectorDefinitions",
+                }),
+        );
+    }
+
+    locations.extend(
+        occurrence_index
+            .occurrences
+            .iter()
+            .filter(|occurrence| occurrence.selector_name == selector_name)
+            .filter(|occurrence| {
+                source_selector_occurrence_matches_target_uri(occurrence, target_style_uri)
+            })
+            .map(|occurrence| OmenaQueryReferenceLocationV0 {
+                uri: occurrence.uri.clone(),
+                range: occurrence.range,
+                name: occurrence.selector_name.clone(),
+                role: occurrence.role,
+                source: "omenaQuerySourceSelectorOccurrenceIndex",
+            }),
+    );
+
+    locations.sort_by_key(|location| {
+        (
+            reference_location_role_rank(location.role),
+            location.uri.clone(),
+            location.range.start.line,
+            location.range.start.character,
+        )
+    });
+    locations.dedup_by(|left, right| left.uri == right.uri && left.range == right.range);
+
+    OmenaQueryRefsForClassV0 {
+        schema_version: "0",
+        product: "omena-query.refs-for-class",
+        selector_name: selector_name.to_string(),
+        target_style_uri: target_style_uri.map(ToString::to_string),
+        include_declaration,
+        location_count: locations.len(),
+        locations,
+        ready_surfaces: vec![
+            "refsForClass",
+            "workspaceWideSelectorReferences",
+            "sourceSelectorOccurrenceIndex",
+        ],
+    }
+}
+
+pub fn summarize_omena_query_rename_plan_from_occurrence_index(
+    selector_name: &str,
+    new_name: &str,
+    target_style_uri: Option<&str>,
+    definitions: &[OmenaQueryStyleSelectorDefinitionV0],
+    occurrence_index: &OmenaQuerySourceSelectorOccurrenceIndexV0,
+) -> OmenaQueryRenamePlanV0 {
+    let references = occurrence_index
+        .occurrences
+        .iter()
+        .filter(|occurrence| occurrence.rename_target)
+        .map(|occurrence| OmenaQuerySourceSelectorReferenceEditTargetV0 {
+            uri: occurrence.uri.clone(),
+            name: occurrence.selector_name.clone(),
+            range: occurrence.range,
+            target_style_uri: occurrence.target_style_uri.clone(),
+        })
+        .collect::<Vec<_>>();
+    let mut plan = summarize_omena_query_rename_plan(
+        selector_name,
+        new_name,
+        target_style_uri,
+        definitions,
+        references.as_slice(),
+    );
+    plan.ready_surfaces.push("sourceSelectorOccurrenceIndex");
+    plan
+}
+
 pub fn summarize_omena_query_refs_for_workspace_class(
     selector_name: &str,
     target_style_uri: Option<&str>,
@@ -878,6 +1036,20 @@ fn source_reference_matches_target_style(
     })
 }
 
+fn source_selector_occurrence_matches_target_uri(
+    occurrence: &OmenaQuerySourceSelectorOccurrenceV0,
+    target_style_uri: Option<&str>,
+) -> bool {
+    target_style_uri.is_none_or(|target_uri| {
+        occurrence
+            .target_style_uri
+            .as_deref()
+            .is_none_or(|candidate_target_uri| {
+                file_uri_equivalent(candidate_target_uri, target_uri)
+            })
+    })
+}
+
 fn source_selector_candidate_matches_target_uri(
     candidate: &OmenaQuerySourceSelectorCandidateV0,
     target_style_uri: Option<&str>,
@@ -890,6 +1062,14 @@ fn source_selector_candidate_matches_target_uri(
                 file_uri_equivalent(candidate_target_uri, target_uri)
             })
     })
+}
+
+fn source_selector_occurrence_moniker(
+    selector_name: &str,
+    target_style_uri: Option<&str>,
+) -> String {
+    let target = target_style_uri.unwrap_or("*");
+    format!("css-module-selector:{target}#.{selector_name}")
 }
 
 fn reference_location_role_rank(role: &str) -> u8 {

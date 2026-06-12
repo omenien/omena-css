@@ -299,6 +299,124 @@ fn indexes_workspace_source_files_from_disk() -> TestResult {
 }
 
 #[test]
+fn indexed_source_files_feed_references_and_rename() -> TestResult {
+    let workspace_root = std::env::temp_dir().join(format!(
+        "omena-lsp-server-source-occurrences-{}",
+        std::process::id()
+    ));
+    let src_dir = workspace_root.join("src");
+    let source_path = src_dir.join("App.tsx");
+    let style_path = src_dir.join("Button.module.scss");
+    let _ = std::fs::remove_dir_all(&workspace_root);
+    std::fs::create_dir_all(&src_dir)?;
+    std::fs::write(&style_path, ".root { color: red; }")?;
+    std::fs::write(
+        &source_path,
+        "import styles from \"./Button.module.scss\";\nconst view = <div className={styles.root} />;",
+    )?;
+
+    let workspace_uri = format!("file://{}", workspace_root.display());
+    let source_uri = format!("file://{}", source_path.display());
+    let style_uri = format!("file://{}", style_path.display());
+    let mut state = LspShellState::default();
+    handle_lsp_message(
+        &mut state,
+        json!({
+            "jsonrpc": "2.0",
+            "id": 1,
+            "method": "initialize",
+            "params": {
+                "workspaceFolders": [
+                    {
+                        "uri": workspace_uri,
+                        "name": "source-occurrences",
+                    },
+                ],
+            },
+        }),
+    );
+    handle_lsp_message(
+        &mut state,
+        json!({
+            "jsonrpc": "2.0",
+            "method": "initialized",
+            "params": {},
+        }),
+    );
+
+    let references_response = handle_lsp_message(
+        &mut state,
+        json!({
+            "jsonrpc": "2.0",
+            "id": 2,
+            "method": "textDocument/references",
+            "params": {
+                "textDocument": {
+                    "uri": style_uri,
+                },
+                "position": {
+                    "line": 0,
+                    "character": 2,
+                },
+                "context": {
+                    "includeDeclaration": false,
+                },
+            },
+        }),
+    );
+    let reference_locations = references_response
+        .as_ref()
+        .and_then(|response| response.pointer("/result"))
+        .and_then(Value::as_array)
+        .ok_or_else(|| std::io::Error::other("references response should contain locations"))?;
+    assert!(
+        reference_locations.iter().any(|location| location
+            .get("uri")
+            .and_then(Value::as_str)
+            .is_some_and(|uri| file_uri_equivalent(uri, source_uri.as_str()))),
+        "disk-indexed source occurrence should appear in references: {references_response:?}"
+    );
+
+    let rename_response = handle_lsp_message(
+        &mut state,
+        json!({
+            "jsonrpc": "2.0",
+            "id": 3,
+            "method": "textDocument/rename",
+            "params": {
+                "textDocument": {
+                    "uri": style_uri,
+                },
+                "position": {
+                    "line": 0,
+                    "character": 2,
+                },
+                "newName": "button",
+            },
+        }),
+    );
+    let changes = rename_response
+        .as_ref()
+        .and_then(|response| response.pointer("/result/changes"))
+        .and_then(Value::as_object)
+        .ok_or_else(|| std::io::Error::other("rename response should contain changes"))?;
+    assert!(
+        changes
+            .keys()
+            .any(|uri| file_uri_equivalent(uri.as_str(), source_uri.as_str())),
+        "disk-indexed source occurrence should receive rename edits: {rename_response:?}"
+    );
+    assert!(
+        changes
+            .keys()
+            .any(|uri| file_uri_equivalent(uri.as_str(), style_uri.as_str())),
+        "style definition should still receive rename edits: {rename_response:?}"
+    );
+    let _ = std::fs::remove_dir_all(&workspace_root);
+    Ok(())
+}
+
+#[test]
 fn indexed_source_files_do_not_receive_style_change_diagnostics_until_open() -> TestResult {
     let workspace_root = std::env::temp_dir().join(format!(
         "omena-lsp-server-source-publish-bound-{}",

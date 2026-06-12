@@ -34,6 +34,7 @@ use omena_query::{
     OmenaQuerySourceDomainClassReferenceFactV0 as SourceDomainClassReferenceFact,
     OmenaQuerySourceImportedStyleBindingV0 as ImportedStyleBinding,
     OmenaQuerySourceMissingSelectorDiagnosticCandidateV0,
+    OmenaQuerySourceSelectorOccurrenceIndexV0, OmenaQuerySourceSelectorOccurrenceV0,
     OmenaQuerySourceSelectorReferenceFactV0 as SourceSelectorReferenceFact,
     OmenaQuerySourceSelectorReferenceMatchKindV0 as SourceSelectorReferenceMatchKind,
     OmenaQuerySourceSyntaxIndexV0 as SourceSyntaxIndex, OmenaQueryStyleDiagnosticV0,
@@ -53,11 +54,13 @@ use omena_query::{
     resolve_omena_query_source_provider_candidates,
     resolve_omena_query_style_selector_definitions_for_source_candidate,
     resolve_omena_query_style_uri_for_specifier_with_resolution_inputs,
-    summarize_omena_query_refs_for_class, summarize_omena_query_rename_plan,
+    summarize_omena_query_refs_for_class_from_occurrence_index,
+    summarize_omena_query_rename_plan_from_occurrence_index,
     summarize_omena_query_sass_module_sources, summarize_omena_query_source_completion_at_position,
     summarize_omena_query_source_diagnostics_for_file,
     summarize_omena_query_source_diagnostics_for_workspace_file,
     summarize_omena_query_source_import_declarations_for_source_language,
+    summarize_omena_query_source_selector_occurrence_index,
     summarize_omena_query_source_syntax_index_for_source_language,
     summarize_omena_query_style_completion_at_position,
     summarize_omena_query_style_completion_candidate_documentation,
@@ -2007,34 +2010,15 @@ fn selector_reference_locations_from_open_documents(
     workspace_folder_uri: Option<&str>,
     target_style_uri: Option<&str>,
 ) -> Vec<Value> {
-    let definitions =
-        style_selector_definitions_from_open_documents(state, "", workspace_folder_uri)
-            .iter()
-            .map(|(uri, definition)| query_style_selector_definition_for_matching(uri, definition))
-            .collect::<Vec<_>>();
+    let occurrence_index =
+        source_selector_occurrence_index_from_open_documents(state, workspace_folder_uri);
     let query_target_style_uri = query_target_style_uri_for_matching(target_style_uri);
-    let mut references = Vec::new();
-    for document in state.documents.values() {
-        if is_style_document_uri(document.uri.as_str()) {
-            continue;
-        }
-        if !workspace_folder_compatible(workspace_folder_uri, document) {
-            continue;
-        }
-        references.extend(
-            collect_source_selector_reference_candidates(state, document)
-                .iter()
-                .map(|candidate| {
-                    query_source_selector_reference_candidate_for_matching(document, candidate)
-                }),
-        );
-    }
-    summarize_omena_query_refs_for_class(
+    summarize_omena_query_refs_for_class_from_occurrence_index(
         selector_name,
         query_target_style_uri.as_deref(),
         false,
-        definitions.as_slice(),
-        references.as_slice(),
+        occurrence_index.definitions.as_slice(),
+        &occurrence_index.index,
     )
     .locations
     .into_iter()
@@ -2048,33 +2032,23 @@ fn selector_reference_locations_by_name_from_open_documents(
     target_style_uri: Option<&str>,
 ) -> BTreeMap<String, Vec<Value>> {
     let mut locations_by_name: BTreeMap<String, Vec<Value>> = BTreeMap::new();
-    let definitions =
-        style_selector_definitions_from_open_documents(state, "", workspace_folder_uri);
-    for document in state.documents.values() {
-        if is_style_document_uri(document.uri.as_str()) {
+    let occurrence_index =
+        source_selector_occurrence_index_from_open_documents(state, workspace_folder_uri);
+    let query_target_style_uri = query_target_style_uri_for_matching(target_style_uri);
+    for occurrence in occurrence_index.index.occurrences {
+        if !source_selector_occurrence_matches_target_style(
+            &occurrence,
+            query_target_style_uri.as_deref(),
+        ) {
             continue;
         }
-        if !workspace_folder_compatible(workspace_folder_uri, document) {
-            continue;
-        }
-        for candidate in collect_source_selector_reference_candidates(state, document) {
-            if !source_candidate_matches_target_style(&candidate, target_style_uri) {
-                continue;
-            }
-            for selector_name in source_candidate_selector_names(
-                &candidate,
-                definitions.as_slice(),
-                target_style_uri,
-            ) {
-                locations_by_name
-                    .entry(selector_name)
-                    .or_default()
-                    .push(json!({
-                        "uri": document.uri.as_str(),
-                        "range": candidate.range,
-                    }));
-            }
-        }
+        locations_by_name
+            .entry(occurrence.selector_name)
+            .or_default()
+            .push(json!({
+                "uri": occurrence.uri,
+                "range": occurrence.range,
+            }));
     }
     for locations in locations_by_name.values_mut() {
         locations.sort_by_key(location_sort_key);
@@ -2082,6 +2056,56 @@ fn selector_reference_locations_by_name_from_open_documents(
             .dedup_by(|left, right| location_identity_key(left) == location_identity_key(right));
     }
     locations_by_name
+}
+
+#[derive(Debug, Clone)]
+struct SourceSelectorOccurrenceWorkspaceIndex {
+    definitions: Vec<omena_query::OmenaQueryStyleSelectorDefinitionV0>,
+    index: OmenaQuerySourceSelectorOccurrenceIndexV0,
+}
+
+fn source_selector_occurrence_index_from_open_documents(
+    state: &LspShellState,
+    workspace_folder_uri: Option<&str>,
+) -> SourceSelectorOccurrenceWorkspaceIndex {
+    let definitions =
+        style_selector_definitions_from_open_documents(state, "", workspace_folder_uri)
+            .iter()
+            .map(|(uri, definition)| query_style_selector_definition_for_matching(uri, definition))
+            .collect::<Vec<_>>();
+    let references = state
+        .documents
+        .values()
+        .filter(|document| !is_style_document_uri(document.uri.as_str()))
+        .filter(|document| workspace_folder_compatible(workspace_folder_uri, document))
+        .flat_map(|document| {
+            collect_source_selector_reference_candidates(state, document)
+                .iter()
+                .map(|candidate| {
+                    query_source_selector_reference_candidate_for_matching(document, candidate)
+                })
+                .collect::<Vec<_>>()
+        })
+        .collect::<Vec<_>>();
+    let index = summarize_omena_query_source_selector_occurrence_index(
+        definitions.as_slice(),
+        references.as_slice(),
+    );
+    SourceSelectorOccurrenceWorkspaceIndex { definitions, index }
+}
+
+fn source_selector_occurrence_matches_target_style(
+    occurrence: &OmenaQuerySourceSelectorOccurrenceV0,
+    target_style_uri: Option<&str>,
+) -> bool {
+    target_style_uri.is_none_or(|target_uri| {
+        occurrence
+            .target_style_uri
+            .as_deref()
+            .is_none_or(|candidate_target_uri| {
+                file_uri_equivalent(candidate_target_uri, target_uri)
+            })
+    })
 }
 
 fn source_candidate_selector_names(
@@ -2099,20 +2123,6 @@ fn source_candidate_selector_names(
         query_definitions.as_slice(),
         query_target_style_uri.as_deref(),
     )
-}
-
-fn source_candidate_matches_target_style(
-    candidate: &LspStyleHoverCandidate,
-    target_style_uri: Option<&str>,
-) -> bool {
-    target_style_uri.is_none_or(|target_uri| {
-        candidate
-            .target_style_uri
-            .as_deref()
-            .is_none_or(|candidate_target_uri| {
-                file_uri_equivalent(candidate_target_uri, target_uri)
-            })
-    })
 }
 
 fn sass_symbol_definitions_for_candidate(
@@ -3895,34 +3905,15 @@ fn resolve_selector_rename(
     selector_name: &str,
     new_name: &str,
 ) -> Value {
-    let query_definitions =
-        style_selector_definitions_from_open_documents(state, selector_name, workspace_folder_uri)
-            .iter()
-            .map(|(uri, definition)| query_style_selector_definition_for_matching(uri, definition))
-            .collect::<Vec<_>>();
+    let occurrence_index =
+        source_selector_occurrence_index_from_open_documents(state, workspace_folder_uri);
     let query_target_style_uri = query_target_style_uri_for_matching(target_style_uri);
-    let mut query_references = Vec::new();
-    for document in state.documents.values() {
-        if is_style_document_uri(document.uri.as_str()) {
-            continue;
-        }
-        if !workspace_folder_compatible(workspace_folder_uri, document) {
-            continue;
-        }
-        query_references.extend(
-            collect_source_selector_reference_candidates(state, document)
-                .iter()
-                .map(|candidate| {
-                    query_source_selector_reference_edit_target_for_matching(document, candidate)
-                }),
-        );
-    }
-    let rename_plan = summarize_omena_query_rename_plan(
+    let rename_plan = summarize_omena_query_rename_plan_from_occurrence_index(
         selector_name,
         new_name,
         query_target_style_uri.as_deref(),
-        query_definitions.as_slice(),
-        query_references.as_slice(),
+        occurrence_index.definitions.as_slice(),
+        &occurrence_index.index,
     );
     if rename_plan.edits.is_empty() {
         return Value::Null;
