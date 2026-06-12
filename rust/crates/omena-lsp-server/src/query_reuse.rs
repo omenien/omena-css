@@ -13,6 +13,7 @@ use omena_query::{
     OmenaQueryStyleSourceInputV0, ParserByteSpanV0,
     collect_omena_query_style_cascade_narrowing_substrate,
 };
+use omena_sif::compute_omena_sif_leaf_hash_v1;
 use serde::Serialize;
 use std::sync::Arc;
 
@@ -103,6 +104,9 @@ pub(crate) fn refresh_document_reusable_indexes(
     resolution_inputs: &OmenaQueryStyleResolutionInputsV0,
 ) {
     document.optimizing_tier_feedback = None;
+    document.text_hash = compute_omena_sif_leaf_hash_v1(document.text.as_bytes())
+        .as_str()
+        .to_string();
     if is_style_document_uri(document.uri.as_str()) {
         document.style_summary =
             summarize_style_document(document.uri.as_str(), Some(document.text.as_str()));

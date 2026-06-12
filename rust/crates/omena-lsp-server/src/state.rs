@@ -2,10 +2,11 @@ use crate::disk_cache::DiskDiagnosticsCacheSessionV0;
 use crate::workspace_runtime_registry::WorkspaceRuntimeRegistry;
 use omena_incremental::IncrementalCancellationRegistryV0;
 use omena_query::{
-    AnalyzedGraphV0, OmenaQueryExternalSifInputV0,
+    AnalyzedGraphV0, OmenaQueryExternalSifInputV0, OmenaQuerySourceSelectorOccurrenceIndexV0,
     OmenaQuerySourceSyntaxIndexV0 as SourceSyntaxIndex, OmenaQueryStyleCascadeNarrowingSubstrateV0,
     OmenaQueryStylePackageManifestV0, OmenaQueryStyleResolutionInputsV0,
-    OmenaQueryStyleSourceInputV0, ParserPositionV0, ParserRangeV0,
+    OmenaQueryStyleSelectorDefinitionV0, OmenaQueryStyleSourceInputV0, ParserPositionV0,
+    ParserRangeV0,
 };
 use omena_tsgo_client::TsgoWorkspaceProcessPoolV0;
 use serde::Serialize;
@@ -21,6 +22,8 @@ pub struct LspTextDocumentState {
     pub language_id: String,
     pub version: i64,
     pub text: String,
+    #[serde(skip)]
+    pub(crate) text_hash: String,
     pub style_summary: Option<LspStyleDocumentSummary>,
     pub diagnostics_schedule_count: usize,
     pub optimizing_tier_feedback: Option<LspOptimizingTierFeedback>,
@@ -182,6 +185,23 @@ pub(crate) struct LspCascadeNarrowingSubstrateMemo {
     pub(crate) substrate: Arc<OmenaQueryStyleCascadeNarrowingSubstrateV0>,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct LspSourceSelectorOccurrenceDocumentKey {
+    pub(crate) uri: String,
+    pub(crate) workspace_folder_uri: Option<String>,
+    pub(crate) language_id: String,
+    pub(crate) version: i64,
+    pub(crate) text_hash: String,
+}
+
+#[derive(Debug, Clone)]
+pub(crate) struct LspSourceSelectorOccurrenceIndexMemo {
+    pub(crate) workspace_folder_uri: Option<String>,
+    pub(crate) document_keys: Vec<LspSourceSelectorOccurrenceDocumentKey>,
+    pub(crate) definitions: Vec<OmenaQueryStyleSelectorDefinitionV0>,
+    pub(crate) index: Arc<OmenaQuerySourceSelectorOccurrenceIndexV0>,
+}
+
 #[derive(Debug, Default)]
 pub struct LspShellState {
     pub shutdown_requested: bool,
@@ -212,6 +232,8 @@ pub struct LspShellState {
     /// the substrate collection (see `cascade_narrowing_substrate_for_style_sources`).
     pub(crate) cascade_narrowing_substrate_memo:
         Arc<Mutex<Option<LspCascadeNarrowingSubstrateMemo>>>,
+    pub(crate) source_selector_occurrence_index_memo:
+        RefCell<Option<LspSourceSelectorOccurrenceIndexMemo>>,
     /// RFC 0009 Pillar C (rfcs#66): fail-soft write breaker for the disk
     /// diagnostics shard cache. Interior mutability because the write-behind
     /// runs on the immutable resolve path; owned by the single loop thread.

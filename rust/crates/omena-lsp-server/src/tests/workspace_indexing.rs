@@ -376,6 +376,14 @@ fn indexed_source_files_feed_references_and_rename() -> TestResult {
             .is_some_and(|uri| file_uri_equivalent(uri, source_uri.as_str()))),
         "disk-indexed source occurrence should appear in references: {references_response:?}"
     );
+    let memo_after_references = state
+        .source_selector_occurrence_index_memo
+        .borrow()
+        .as_ref()
+        .map(|memo| std::sync::Arc::clone(&memo.index))
+        .ok_or_else(|| {
+            std::io::Error::other("references should populate source occurrence memo")
+        })?;
 
     let rename_response = handle_lsp_message(
         &mut state,
@@ -411,6 +419,16 @@ fn indexed_source_files_feed_references_and_rename() -> TestResult {
             .keys()
             .any(|uri| file_uri_equivalent(uri.as_str(), style_uri.as_str())),
         "style definition should still receive rename edits: {rename_response:?}"
+    );
+    let memo_after_rename = state
+        .source_selector_occurrence_index_memo
+        .borrow()
+        .as_ref()
+        .map(|memo| std::sync::Arc::clone(&memo.index))
+        .ok_or_else(|| std::io::Error::other("rename should retain source occurrence memo"))?;
+    assert!(
+        std::sync::Arc::ptr_eq(&memo_after_references, &memo_after_rename),
+        "rename should reuse the source occurrence index produced for references"
     );
     let _ = std::fs::remove_dir_all(&workspace_root);
     Ok(())

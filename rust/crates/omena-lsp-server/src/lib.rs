@@ -98,6 +98,7 @@ use std::path::Path;
 use std::{
     collections::{BTreeMap, BTreeSet},
     fs,
+    sync::Arc,
 };
 pub(crate) use workspace_index::index_workspace_style_files;
 #[cfg(test)]
@@ -224,6 +225,7 @@ fn lsp_text_document_state(
         language_id,
         version,
         text,
+        text_hash: String::new(),
         style_summary: None,
         diagnostics_schedule_count: 0,
         optimizing_tier_feedback: None,
@@ -2035,15 +2037,15 @@ fn selector_reference_locations_by_name_from_open_documents(
     let occurrence_index =
         source_selector_occurrence_index_from_open_documents(state, workspace_folder_uri);
     let query_target_style_uri = query_target_style_uri_for_matching(target_style_uri);
-    for occurrence in occurrence_index.index.occurrences {
+    for occurrence in &occurrence_index.index.occurrences {
         if !source_selector_occurrence_matches_target_style(
-            &occurrence,
+            occurrence,
             query_target_style_uri.as_deref(),
         ) {
             continue;
         }
         locations_by_name
-            .entry(occurrence.selector_name)
+            .entry(occurrence.selector_name.clone())
             .or_default()
             .push(json!({
                 "uri": occurrence.uri,
@@ -2061,13 +2063,28 @@ fn selector_reference_locations_by_name_from_open_documents(
 #[derive(Debug, Clone)]
 struct SourceSelectorOccurrenceWorkspaceIndex {
     definitions: Vec<omena_query::OmenaQueryStyleSelectorDefinitionV0>,
-    index: OmenaQuerySourceSelectorOccurrenceIndexV0,
+    index: Arc<OmenaQuerySourceSelectorOccurrenceIndexV0>,
 }
 
 fn source_selector_occurrence_index_from_open_documents(
     state: &LspShellState,
     workspace_folder_uri: Option<&str>,
 ) -> SourceSelectorOccurrenceWorkspaceIndex {
+    let document_keys = source_selector_occurrence_document_keys(state, workspace_folder_uri);
+    let memo_workspace_folder_uri = workspace_folder_uri.map(str::to_string);
+    if let Some(memo) = state
+        .source_selector_occurrence_index_memo
+        .borrow()
+        .as_ref()
+        && memo.workspace_folder_uri == memo_workspace_folder_uri
+        && memo.document_keys == document_keys
+    {
+        return SourceSelectorOccurrenceWorkspaceIndex {
+            definitions: memo.definitions.clone(),
+            index: Arc::clone(&memo.index),
+        };
+    }
+
     let definitions =
         style_selector_definitions_from_open_documents(state, "", workspace_folder_uri)
             .iter()
@@ -2091,7 +2108,33 @@ fn source_selector_occurrence_index_from_open_documents(
         definitions.as_slice(),
         references.as_slice(),
     );
+    let index = Arc::new(index);
+    *state.source_selector_occurrence_index_memo.borrow_mut() =
+        Some(LspSourceSelectorOccurrenceIndexMemo {
+            workspace_folder_uri: memo_workspace_folder_uri,
+            document_keys,
+            definitions: definitions.clone(),
+            index: Arc::clone(&index),
+        });
     SourceSelectorOccurrenceWorkspaceIndex { definitions, index }
+}
+
+fn source_selector_occurrence_document_keys(
+    state: &LspShellState,
+    workspace_folder_uri: Option<&str>,
+) -> Vec<LspSourceSelectorOccurrenceDocumentKey> {
+    state
+        .documents
+        .values()
+        .filter(|document| workspace_folder_compatible(workspace_folder_uri, document))
+        .map(|document| LspSourceSelectorOccurrenceDocumentKey {
+            uri: document.uri.clone(),
+            workspace_folder_uri: document.workspace_folder_uri.clone(),
+            language_id: document.language_id.clone(),
+            version: document.version,
+            text_hash: document.text_hash.clone(),
+        })
+        .collect()
 }
 
 fn source_selector_occurrence_matches_target_style(
