@@ -8,6 +8,28 @@ interface PassPlanV0 {
   readonly allRequestedRegistered: boolean;
 }
 
+interface TargetDataEvidenceV0 {
+  readonly product: string;
+  readonly passId: string;
+  readonly supportTable: string;
+  readonly caniuseKeys: readonly string[];
+  readonly sourceQuorum: readonly string[];
+  readonly lastVerified: readonly string[];
+  readonly allResolvedTargetsSupported: boolean;
+  readonly resolvedTargets: readonly {
+    readonly browser: string;
+    readonly version: string;
+    readonly supported: boolean;
+    readonly matchedThreshold: {
+      readonly browser: string;
+      readonly minVersion: string;
+      readonly caniuseKey: string;
+      readonly sourceQuorum: readonly string[];
+      readonly lastVerified: string;
+    } | null;
+  }[];
+}
+
 interface TransformPlanSummaryV0 {
   readonly schemaVersion: string;
   readonly product: string;
@@ -29,6 +51,10 @@ interface TransformPlanSummaryV0 {
     readonly product: string;
     readonly profileId: string;
     readonly targetDataSource: string;
+    readonly targetDataContractId: string;
+    readonly targetDataSnapshotId: string;
+    readonly targetDataEvidence: readonly TargetDataEvidenceV0[];
+    readonly vendorPrefixMatrixSource: string;
     readonly resolvedTargets: readonly string[];
     readonly resolutionError: string | null;
     readonly support: {
@@ -483,8 +509,28 @@ assert.equal(
   targetQuerySummary.targetQuery?.targetDataSource,
   "oxcBrowserslistV3+browserThresholdsTomlV0+featureSubsetV0",
 );
+assert.equal(targetQuerySummary.targetQuery?.targetDataContractId, "omena-transform-target-data-v0");
+assert.equal(
+  targetQuerySummary.targetQuery?.targetDataSnapshotId,
+  "omena-transform-target-data-v0:thresholds-2026-05-22:bindings-2026-05-22",
+);
+assert.equal(
+  targetQuerySummary.targetQuery?.vendorPrefixMatrixSource,
+  "conservativeHandMaintainedMatrixV0",
+);
 assert.deepEqual(targetQuerySummary.targetQuery?.resolvedTargets, ["ie 11"]);
 assert.equal(targetQuerySummary.targetQuery?.resolutionError, null);
+const ieLightDarkEvidence = requireTargetDataEvidence(targetQuerySummary, "light_dark");
+assert.equal(ieLightDarkEvidence.product, "omena-transform-target.data-evidence");
+assert.equal(ieLightDarkEvidence.passId, "light-dark-lowering");
+assert.deepEqual(ieLightDarkEvidence.caniuseKeys, ["css-light-dark-function"]);
+assert.deepEqual(ieLightDarkEvidence.sourceQuorum, ["caniuse", "web-features", "mdn-bcd"]);
+assert.deepEqual(ieLightDarkEvidence.lastVerified, ["2026-05-22"]);
+assert.equal(ieLightDarkEvidence.allResolvedTargetsSupported, false);
+const ieLightDarkTarget = requireResolvedTargetEvidence(ieLightDarkEvidence, "ie");
+assert.equal(ieLightDarkTarget.version, "11");
+assert.equal(ieLightDarkTarget.supported, false);
+assert.equal(ieLightDarkTarget.matchedThreshold, null);
 assert.deepEqual(
   targetQuerySummary.target.plannedPassIds,
   targetQuerySummary.targetQuery?.transformPlan.plannedPassIds,
@@ -539,6 +585,30 @@ assert.equal(chrome122TargetQuerySummary.targetQuery?.profileId, "browserslist-r
 assert.deepEqual(chrome122TargetQuerySummary.targetQuery?.resolvedTargets, ["chrome 122"]);
 assert.equal(chrome122TargetQuerySummary.targetQuery?.support.supportsLightDark, false);
 assert.equal(chrome122TargetQuerySummary.targetQuery?.support.supportsColorMix, true);
+const chrome122LightDarkEvidence = requireTargetDataEvidence(
+  chrome122TargetQuerySummary,
+  "light_dark",
+);
+const chrome122LightDarkTarget = requireResolvedTargetEvidence(chrome122LightDarkEvidence, "chrome");
+assert.equal(chrome122LightDarkEvidence.allResolvedTargetsSupported, false);
+assert.equal(chrome122LightDarkTarget.supported, false);
+assert.equal(chrome122LightDarkTarget.matchedThreshold?.minVersion, "123.0");
+assert.equal(chrome122LightDarkTarget.matchedThreshold?.caniuseKey, "css-light-dark-function");
+assert.deepEqual(chrome122LightDarkTarget.matchedThreshold?.sourceQuorum, [
+  "caniuse",
+  "web-features",
+  "mdn-bcd",
+]);
+assert.equal(chrome122LightDarkTarget.matchedThreshold?.lastVerified, "2026-05-22");
+const chrome122ColorMixEvidence = requireTargetDataEvidence(
+  chrome122TargetQuerySummary,
+  "color_mix",
+);
+const chrome122ColorMixTarget = requireResolvedTargetEvidence(chrome122ColorMixEvidence, "chrome");
+assert.equal(chrome122ColorMixEvidence.allResolvedTargetsSupported, true);
+assert.equal(chrome122ColorMixTarget.supported, true);
+assert.equal(chrome122ColorMixTarget.matchedThreshold?.minVersion, "111.0");
+assert.equal(chrome122ColorMixTarget.matchedThreshold?.caniuseKey, "css-color-mix");
 assert.deepEqual(chrome122TargetQuerySummary.target.plannedPassIds, ["light-dark-lowering"]);
 assert.equal(
   chrome122TargetQuerySummary.execution.outputCss,
@@ -709,6 +779,33 @@ process.stdout.write(
   ].join(" "),
 );
 process.stdout.write("\n");
+
+function requireTargetDataEvidence(
+  summary: TransformPlanSummaryV0,
+  supportTable: string,
+): TargetDataEvidenceV0 {
+  if (!summary.targetQuery) {
+    throw new Error(`target query plan is required for ${supportTable} evidence`);
+  }
+  const evidence = summary.targetQuery.targetDataEvidence.find(
+    (candidate) => candidate.supportTable === supportTable,
+  );
+  if (!evidence) {
+    throw new Error(`target query evidence must include ${supportTable}`);
+  }
+  return evidence;
+}
+
+function requireResolvedTargetEvidence(
+  evidence: TargetDataEvidenceV0,
+  browser: string,
+): TargetDataEvidenceV0["resolvedTargets"][number] {
+  const target = evidence.resolvedTargets.find((candidate) => candidate.browser === browser);
+  if (!target) {
+    throw new Error(`${evidence.supportTable} evidence must include ${browser}`);
+  }
+  return target;
+}
 
 function assertIncludesAll(actual: readonly string[], expected: readonly string[], label: string) {
   for (const value of expected) {

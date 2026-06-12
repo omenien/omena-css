@@ -15,6 +15,12 @@ use serde::{Deserialize, Serialize};
 
 const BROWSER_THRESHOLDS_SOURCE: &str = include_str!("../data/browser-thresholds.toml");
 const PASS_FEATURE_BINDINGS_SOURCE: &str = include_str!("../data/pass-feature-bindings.toml");
+const TARGET_DATA_CONTRACT_ID: &str = "omena-transform-target-data-v0";
+const TARGET_DATA_SOURCE_FILES: &[&str] = &[
+    "data/browser-thresholds.toml",
+    "data/pass-feature-bindings.toml",
+];
+const VENDOR_PREFIX_MATRIX_SOURCE: &str = "conservativeHandMaintainedMatrixV0";
 
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 struct BrowserThresholdDataV0 {
@@ -87,6 +93,61 @@ impl Default for TargetTransformOptionsV0 {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
+pub struct TransformTargetDataContractV0 {
+    pub product: &'static str,
+    pub contract_id: &'static str,
+    pub snapshot_id: String,
+    pub browser_threshold_schema_version: String,
+    pub pass_feature_binding_schema_version: String,
+    pub browser_threshold_refreshed_at: String,
+    pub pass_feature_binding_refreshed_at: String,
+    pub source_files: Vec<&'static str>,
+    pub parse_error_count: usize,
+    pub quorum_min_sources: usize,
+    pub browser_threshold_table_count: usize,
+    pub browser_threshold_entry_count: usize,
+    pub pass_feature_binding_count: usize,
+    pub stale_entry_count: usize,
+    pub unmapped_threshold_table_count: usize,
+    pub quorum_valid: bool,
+    pub bindings_valid: bool,
+    pub valid: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TransformTargetDataEvidenceV0 {
+    pub product: &'static str,
+    pub pass_id: String,
+    pub support_table: String,
+    pub caniuse_keys: Vec<String>,
+    pub source_quorum: Vec<String>,
+    pub last_verified: Vec<String>,
+    pub resolved_targets: Vec<TransformTargetResolvedTargetEvidenceV0>,
+    pub all_resolved_targets_supported: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TransformTargetResolvedTargetEvidenceV0 {
+    pub browser: String,
+    pub version: String,
+    pub supported: bool,
+    pub matched_threshold: Option<TransformTargetThresholdEvidenceV0>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TransformTargetThresholdEvidenceV0 {
+    pub browser: String,
+    pub min_version: String,
+    pub caniuse_key: String,
+    pub source_quorum: Vec<String>,
+    pub last_verified: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct TransformTargetBoundarySummaryV0 {
     pub schema_version: &'static str,
     pub product: &'static str,
@@ -101,6 +162,8 @@ pub struct TransformTargetBoundarySummaryV0 {
     pub browser_data_parse_error_count: usize,
     pub browser_data_quorum_valid: bool,
     pub browser_data_bindings_valid: bool,
+    pub target_data_contract: TransformTargetDataContractV0,
+    pub vendor_prefix_matrix_source: &'static str,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -113,6 +176,10 @@ pub struct TransformTargetQueryPlanV0 {
     pub profile_id: &'static str,
     pub recognized_profile: bool,
     pub target_data_source: &'static str,
+    pub target_data_contract_id: &'static str,
+    pub target_data_snapshot_id: String,
+    pub target_data_evidence: Vec<TransformTargetDataEvidenceV0>,
+    pub vendor_prefix_matrix_source: &'static str,
     pub resolved_targets: Vec<String>,
     pub resolution_error: Option<String>,
     pub support: TargetFeatureSupportV0,
@@ -134,6 +201,7 @@ pub struct TransformTargetPlanV0 {
 pub fn summarize_omena_transform_target_boundary() -> TransformTargetBoundarySummaryV0 {
     let browser_data = browser_threshold_data();
     let bindings = pass_feature_binding_data();
+    let target_data_contract = target_data_contract_summary(browser_data, bindings);
 
     TransformTargetBoundarySummaryV0 {
         schema_version: "0",
@@ -152,13 +220,12 @@ pub fn summarize_omena_transform_target_boundary() -> TransformTargetBoundarySum
         browser_threshold_table_count: browser_threshold_table_count(browser_data),
         browser_threshold_entry_count: browser_data.thresholds.len(),
         pass_feature_binding_count: bindings.bindings.len(),
-        browser_data_source_files: vec![
-            "data/browser-thresholds.toml",
-            "data/pass-feature-bindings.toml",
-        ],
+        browser_data_source_files: target_data_source_files(),
         browser_data_parse_error_count: browser_data.parse_error_count + bindings.parse_error_count,
         browser_data_quorum_valid: browser_threshold_data_is_valid(browser_data),
         browser_data_bindings_valid: pass_feature_binding_data_is_valid(browser_data, bindings),
+        target_data_contract,
+        vendor_prefix_matrix_source: VENDOR_PREFIX_MATRIX_SOURCE,
     }
 }
 
@@ -183,6 +250,10 @@ pub fn plan_target_transforms_from_query(
         profile_id: target_resolution.profile_id,
         recognized_profile: target_resolution.recognized_profile,
         target_data_source: target_resolution.target_data_source,
+        target_data_contract_id: target_resolution.target_data_contract_id,
+        target_data_snapshot_id: target_resolution.target_data_snapshot_id,
+        target_data_evidence: target_resolution.target_data_evidence,
+        vendor_prefix_matrix_source: target_resolution.vendor_prefix_matrix_source,
         resolved_targets: target_resolution.resolved_targets,
         resolution_error: target_resolution.resolution_error,
         support: target_resolution.support,
@@ -313,6 +384,10 @@ struct TargetQueryResolutionV0 {
     profile_id: &'static str,
     recognized_profile: bool,
     target_data_source: &'static str,
+    target_data_contract_id: &'static str,
+    target_data_snapshot_id: String,
+    target_data_evidence: Vec<TransformTargetDataEvidenceV0>,
+    vendor_prefix_matrix_source: &'static str,
     resolved_targets: Vec<String>,
     resolution_error: Option<String>,
     support: TargetFeatureSupportV0,
@@ -336,6 +411,10 @@ fn target_feature_support_for_query(normalized_query: &str) -> TargetQueryResolu
             profile_id: "modern-evergreen",
             recognized_profile: true,
             target_data_source: "staticTargetProfileV0",
+            target_data_contract_id: TARGET_DATA_CONTRACT_ID,
+            target_data_snapshot_id: current_target_data_snapshot_id(),
+            target_data_evidence: Vec::new(),
+            vendor_prefix_matrix_source: VENDOR_PREFIX_MATRIX_SOURCE,
             resolved_targets: Vec::new(),
             resolution_error: None,
             support: modern_feature_support(),
@@ -347,6 +426,10 @@ fn target_feature_support_for_query(normalized_query: &str) -> TargetQueryResolu
             profile_id: "legacy-webview",
             recognized_profile: true,
             target_data_source: "staticTargetProfileV0",
+            target_data_contract_id: TARGET_DATA_CONTRACT_ID,
+            target_data_snapshot_id: current_target_data_snapshot_id(),
+            target_data_evidence: Vec::new(),
+            vendor_prefix_matrix_source: VENDOR_PREFIX_MATRIX_SOURCE,
             resolved_targets: Vec::new(),
             resolution_error: None,
             support: legacy_webview_feature_support(),
@@ -356,10 +439,15 @@ fn target_feature_support_for_query(normalized_query: &str) -> TargetQueryResolu
     match resolve_browserslist(&[normalized_query], &Opts::default()) {
         Ok(distribs) if !distribs.is_empty() => {
             let resolved_targets = distribs.iter().map(distrib_key).collect::<Vec<_>>();
+            let target_data_evidence = target_data_evidence_for_resolved_targets(&distribs);
             TargetQueryResolutionV0 {
                 profile_id: "browserslist-resolved",
                 recognized_profile: true,
                 target_data_source: "oxcBrowserslistV3+browserThresholdsTomlV0+featureSubsetV0",
+                target_data_contract_id: TARGET_DATA_CONTRACT_ID,
+                target_data_snapshot_id: current_target_data_snapshot_id(),
+                target_data_evidence,
+                vendor_prefix_matrix_source: VENDOR_PREFIX_MATRIX_SOURCE,
                 support: feature_support_for_resolved_targets(&distribs),
                 resolved_targets,
                 resolution_error: None,
@@ -375,6 +463,10 @@ fn unknown_conservative_resolution(resolution_error: Option<String>) -> TargetQu
         profile_id: "unknown-conservative",
         recognized_profile: false,
         target_data_source: "staticTargetProfileV0",
+        target_data_contract_id: TARGET_DATA_CONTRACT_ID,
+        target_data_snapshot_id: current_target_data_snapshot_id(),
+        target_data_evidence: Vec::new(),
+        vendor_prefix_matrix_source: VENDOR_PREFIX_MATRIX_SOURCE,
         resolved_targets: Vec::new(),
         resolution_error,
         support: legacy_webview_feature_support(),
@@ -461,6 +553,166 @@ fn pass_feature_binding_data() -> &'static PassFeatureBindingDataV0 {
             }
         })
     })
+}
+
+fn target_data_source_files() -> Vec<&'static str> {
+    TARGET_DATA_SOURCE_FILES.to_vec()
+}
+
+fn current_target_data_snapshot_id() -> String {
+    target_data_snapshot_id(browser_threshold_data(), pass_feature_binding_data())
+}
+
+fn target_data_snapshot_id(
+    browser_data: &BrowserThresholdDataV0,
+    bindings: &PassFeatureBindingDataV0,
+) -> String {
+    format!(
+        "{TARGET_DATA_CONTRACT_ID}:thresholds-{}:bindings-{}",
+        browser_data.refreshed_at, bindings.refreshed_at
+    )
+}
+
+fn target_data_contract_summary(
+    browser_data: &BrowserThresholdDataV0,
+    bindings: &PassFeatureBindingDataV0,
+) -> TransformTargetDataContractV0 {
+    let parse_error_count = browser_data.parse_error_count + bindings.parse_error_count;
+    let stale_entry_count = browser_threshold_stale_entry_count(browser_data);
+    let unmapped_threshold_table_count = unmapped_threshold_table_count(browser_data, bindings);
+    let quorum_valid = browser_threshold_data_is_valid(browser_data);
+    let bindings_valid = pass_feature_binding_data_is_valid(browser_data, bindings);
+
+    TransformTargetDataContractV0 {
+        product: "omena-transform-target.data-contract",
+        contract_id: TARGET_DATA_CONTRACT_ID,
+        snapshot_id: target_data_snapshot_id(browser_data, bindings),
+        browser_threshold_schema_version: browser_data.schema_version.clone(),
+        pass_feature_binding_schema_version: bindings.schema_version.clone(),
+        browser_threshold_refreshed_at: browser_data.refreshed_at.clone(),
+        pass_feature_binding_refreshed_at: bindings.refreshed_at.clone(),
+        source_files: target_data_source_files(),
+        parse_error_count,
+        quorum_min_sources: browser_data.quorum_min_sources,
+        browser_threshold_table_count: browser_threshold_table_count(browser_data),
+        browser_threshold_entry_count: browser_data.thresholds.len(),
+        pass_feature_binding_count: bindings.bindings.len(),
+        stale_entry_count,
+        unmapped_threshold_table_count,
+        quorum_valid,
+        bindings_valid,
+        valid: parse_error_count == 0
+            && stale_entry_count == 0
+            && unmapped_threshold_table_count == 0
+            && quorum_valid
+            && bindings_valid,
+    }
+}
+
+fn target_data_evidence_for_resolved_targets(
+    distribs: &[Distrib],
+) -> Vec<TransformTargetDataEvidenceV0> {
+    let browser_data = browser_threshold_data();
+    pass_feature_binding_data()
+        .bindings
+        .iter()
+        .map(|binding| {
+            let resolved_targets = distribs
+                .iter()
+                .map(|distrib| {
+                    resolved_target_evidence_for_table(
+                        browser_data,
+                        distrib,
+                        &binding.support_table,
+                    )
+                })
+                .collect::<Vec<_>>();
+            let all_resolved_targets_supported = !resolved_targets.is_empty()
+                && resolved_targets.iter().all(|target| target.supported);
+
+            TransformTargetDataEvidenceV0 {
+                product: "omena-transform-target.data-evidence",
+                pass_id: binding.pass_id.clone(),
+                support_table: binding.support_table.clone(),
+                caniuse_keys: binding.caniuse_keys.clone(),
+                source_quorum: source_quorum_for_table(browser_data, &binding.support_table),
+                last_verified: last_verified_for_table(browser_data, &binding.support_table),
+                resolved_targets,
+                all_resolved_targets_supported,
+            }
+        })
+        .collect()
+}
+
+fn resolved_target_evidence_for_table(
+    browser_data: &BrowserThresholdDataV0,
+    distrib: &Distrib,
+    table: &str,
+) -> TransformTargetResolvedTargetEvidenceV0 {
+    let threshold = browser_threshold_for_table_and_browser(browser_data, table, distrib.name());
+    let supported = threshold.is_some_and(|threshold| {
+        browser_version_at_least(distrib.version(), threshold.min_major, threshold.min_minor)
+    });
+
+    TransformTargetResolvedTargetEvidenceV0 {
+        browser: distrib.name().to_string(),
+        version: distrib.version().to_string(),
+        supported,
+        matched_threshold: threshold.map(threshold_evidence),
+    }
+}
+
+fn threshold_evidence(threshold: &BrowserFeatureThresholdV0) -> TransformTargetThresholdEvidenceV0 {
+    TransformTargetThresholdEvidenceV0 {
+        browser: threshold.browser.clone(),
+        min_version: format!("{}.{}", threshold.min_major, threshold.min_minor),
+        caniuse_key: threshold.caniuse_key.clone(),
+        source_quorum: threshold.source_quorum.clone(),
+        last_verified: threshold.last_verified.clone(),
+    }
+}
+
+fn browser_threshold_for_table_and_browser<'a>(
+    browser_data: &'a BrowserThresholdDataV0,
+    table: &str,
+    browser: &str,
+) -> Option<&'a BrowserFeatureThresholdV0> {
+    browser_data
+        .thresholds
+        .iter()
+        .find(|threshold| threshold.table == table && threshold.browser == browser)
+}
+
+fn source_quorum_for_table(browser_data: &BrowserThresholdDataV0, table: &str) -> Vec<String> {
+    let mut sources = Vec::new();
+    for threshold in browser_data
+        .thresholds
+        .iter()
+        .filter(|threshold| threshold.table == table)
+    {
+        push_unique_strings(&mut sources, threshold.source_quorum.iter());
+    }
+    sources
+}
+
+fn last_verified_for_table(browser_data: &BrowserThresholdDataV0, table: &str) -> Vec<String> {
+    let mut dates = Vec::new();
+    for threshold in browser_data
+        .thresholds
+        .iter()
+        .filter(|threshold| threshold.table == table)
+    {
+        push_unique_strings(&mut dates, std::iter::once(&threshold.last_verified));
+    }
+    dates
+}
+
+fn push_unique_strings<'a>(output: &mut Vec<String>, values: impl IntoIterator<Item = &'a String>) {
+    for value in values {
+        if !output.iter().any(|existing| existing == value) {
+            output.push(value.clone());
+        }
+    }
 }
 
 fn parse_browser_threshold_data(source: &str) -> Result<BrowserThresholdDataV0, String> {
@@ -603,6 +855,7 @@ fn browser_threshold_data_is_valid(data: &BrowserThresholdDataV0) -> bool {
         && is_iso_date(&data.refreshed_at)
         && data.quorum_min_sources >= 2
         && browser_threshold_table_count(data) >= 2
+        && browser_threshold_stale_entry_count(data) == 0
         && data.thresholds.iter().all(|threshold| {
             !threshold.table.is_empty()
                 && !threshold.browser.is_empty()
@@ -625,6 +878,7 @@ fn pass_feature_binding_data_is_valid(
         && binding_data.product == "omena-transform-target.pass-feature-bindings"
         && is_iso_date(&binding_data.refreshed_at)
         && !binding_data.bindings.is_empty()
+        && unmapped_threshold_table_count(browser_data, binding_data) == 0
         && binding_data.bindings.iter().all(|binding| {
             !binding.pass_id.is_empty()
                 && target_managed_passes()
@@ -637,6 +891,31 @@ fn pass_feature_binding_data_is_valid(
                     })
                 })
         })
+}
+
+fn browser_threshold_stale_entry_count(data: &BrowserThresholdDataV0) -> usize {
+    data.thresholds
+        .iter()
+        .filter(|threshold| threshold.last_verified != data.refreshed_at)
+        .count()
+}
+
+fn unmapped_threshold_table_count(
+    browser_data: &BrowserThresholdDataV0,
+    binding_data: &PassFeatureBindingDataV0,
+) -> usize {
+    let bound_tables = binding_data
+        .bindings
+        .iter()
+        .map(|binding| binding.support_table.as_str())
+        .collect::<BTreeSet<_>>();
+    browser_data
+        .thresholds
+        .iter()
+        .map(|threshold| threshold.table.as_str())
+        .collect::<BTreeSet<_>>()
+        .difference(&bound_tables)
+        .count()
 }
 
 fn browser_threshold_table_count(data: &BrowserThresholdDataV0) -> usize {
@@ -752,6 +1031,24 @@ mod tests {
         assert_eq!(boundary.browser_data_parse_error_count, 0);
         assert!(boundary.browser_data_quorum_valid);
         assert!(boundary.browser_data_bindings_valid);
+        assert_eq!(
+            boundary.target_data_contract.contract_id,
+            super::TARGET_DATA_CONTRACT_ID
+        );
+        assert_eq!(
+            boundary.target_data_contract.snapshot_id,
+            "omena-transform-target-data-v0:thresholds-2026-05-22:bindings-2026-05-22"
+        );
+        assert!(boundary.target_data_contract.valid);
+        assert_eq!(boundary.target_data_contract.stale_entry_count, 0);
+        assert_eq!(
+            boundary.target_data_contract.unmapped_threshold_table_count,
+            0
+        );
+        assert_eq!(
+            boundary.vendor_prefix_matrix_source,
+            super::VENDOR_PREFIX_MATRIX_SOURCE
+        );
         assert!(boundary.managed_pass_ids.contains(&"vendor-prefixing"));
         assert!(boundary.managed_pass_ids.contains(&"media-static-eval"));
         assert!(boundary.opt_in_pass_ids.contains(&"scope-flatten"));
@@ -773,6 +1070,22 @@ mod tests {
         );
         assert!(boundary.browser_data_quorum_valid);
         assert!(boundary.browser_data_bindings_valid);
+        assert_eq!(
+            boundary.target_data_contract.source_files,
+            boundary.browser_data_source_files
+        );
+        assert_eq!(
+            boundary
+                .target_data_contract
+                .browser_threshold_schema_version,
+            "0"
+        );
+        assert_eq!(
+            boundary
+                .target_data_contract
+                .pass_feature_binding_schema_version,
+            "0"
+        );
     }
 
     #[test]
@@ -887,6 +1200,15 @@ mod tests {
         assert!(modern.recognized_profile);
         assert_eq!(modern.profile_id, "modern-evergreen");
         assert_eq!(modern.target_data_source, "staticTargetProfileV0");
+        assert_eq!(
+            modern.target_data_contract_id,
+            super::TARGET_DATA_CONTRACT_ID
+        );
+        assert_eq!(
+            modern.target_data_snapshot_id,
+            "omena-transform-target-data-v0:thresholds-2026-05-22:bindings-2026-05-22"
+        );
+        assert!(modern.target_data_evidence.is_empty());
         assert!(modern.transform_plan.required_pass_ids.is_empty());
     }
 
@@ -910,6 +1232,25 @@ mod tests {
         );
         assert_eq!(plan.resolved_targets, vec!["ie 11"]);
         assert_eq!(plan.resolution_error, None);
+        assert_eq!(plan.target_data_contract_id, super::TARGET_DATA_CONTRACT_ID);
+        assert_eq!(
+            plan.target_data_snapshot_id,
+            "omena-transform-target-data-v0:thresholds-2026-05-22:bindings-2026-05-22"
+        );
+        assert_eq!(plan.target_data_evidence.len(), 2);
+        assert!(
+            plan.target_data_evidence
+                .iter()
+                .any(|evidence| evidence.support_table == "light_dark"
+                    && evidence.caniuse_keys == vec!["css-light-dark-function".to_string()]
+                    && evidence.source_quorum
+                        == vec![
+                            "caniuse".to_string(),
+                            "web-features".to_string(),
+                            "mdn-bcd".to_string()
+                        ]
+                    && evidence.last_verified == vec!["2026-05-22".to_string()])
+        );
         assert!(plan.support.vendor_prefix_required);
         assert!(
             plan.transform_plan
@@ -977,6 +1318,98 @@ mod tests {
     }
 
     #[test]
+    fn query_plan_evidence_explains_threshold_support_for_resolved_targets() {
+        let chrome_122 =
+            plan_target_transforms_from_query("chrome 122", conservative_target_options());
+
+        let light_dark = chrome_122
+            .target_data_evidence
+            .iter()
+            .find(|evidence| evidence.support_table == "light_dark");
+        assert!(
+            light_dark.is_some(),
+            "light-dark target data evidence should be present"
+        );
+        let Some(light_dark) = light_dark else {
+            return;
+        };
+        assert_eq!(light_dark.pass_id, "light-dark-lowering");
+        assert_eq!(
+            light_dark.caniuse_keys,
+            vec!["css-light-dark-function".to_string()]
+        );
+        assert_eq!(
+            light_dark.source_quorum,
+            vec![
+                "caniuse".to_string(),
+                "web-features".to_string(),
+                "mdn-bcd".to_string()
+            ]
+        );
+        assert_eq!(light_dark.last_verified, vec!["2026-05-22".to_string()]);
+        assert!(!light_dark.all_resolved_targets_supported);
+
+        let chrome_light_dark = light_dark
+            .resolved_targets
+            .iter()
+            .find(|target| target.browser == "chrome");
+        assert!(
+            chrome_light_dark.is_some(),
+            "chrome target evidence should be present"
+        );
+        let Some(chrome_light_dark) = chrome_light_dark else {
+            return;
+        };
+        assert_eq!(chrome_light_dark.version, "122");
+        assert!(!chrome_light_dark.supported);
+        let light_dark_threshold = chrome_light_dark.matched_threshold.as_ref();
+        assert!(
+            light_dark_threshold.is_some(),
+            "chrome light-dark threshold should be present"
+        );
+        let Some(light_dark_threshold) = light_dark_threshold else {
+            return;
+        };
+        assert_eq!(light_dark_threshold.min_version, "123.0");
+        assert_eq!(light_dark_threshold.caniuse_key, "css-light-dark-function");
+
+        let color_mix = chrome_122
+            .target_data_evidence
+            .iter()
+            .find(|evidence| evidence.support_table == "color_mix");
+        assert!(
+            color_mix.is_some(),
+            "color-mix target data evidence should be present"
+        );
+        let Some(color_mix) = color_mix else {
+            return;
+        };
+        assert!(color_mix.all_resolved_targets_supported);
+        let chrome_color_mix = color_mix
+            .resolved_targets
+            .iter()
+            .find(|target| target.browser == "chrome");
+        assert!(
+            chrome_color_mix.is_some(),
+            "chrome target evidence should be present"
+        );
+        let Some(chrome_color_mix) = chrome_color_mix else {
+            return;
+        };
+        assert!(chrome_color_mix.supported);
+        let color_mix_threshold = chrome_color_mix.matched_threshold.as_ref();
+        assert!(
+            color_mix_threshold.is_some(),
+            "chrome color-mix threshold should be present"
+        );
+        let Some(color_mix_threshold) = color_mix_threshold else {
+            return;
+        };
+        assert_eq!(color_mix_threshold.min_version, "111.0");
+        assert_eq!(color_mix_threshold.caniuse_key, "css-color-mix");
+    }
+
+    #[test]
     fn resolved_multi_target_queries_fold_to_the_least_supported_feature_set() {
         let mixed_targets = plan_target_transforms_from_query(
             "chrome 123, safari 16.2",
@@ -1025,5 +1458,54 @@ mod tests {
                 .blocked_pass_ids
                 .contains(&"scope-flatten")
         );
+    }
+
+    #[test]
+    fn browser_data_contract_rejects_stale_threshold_entries() {
+        let mut browser_data = super::browser_threshold_data().clone();
+        browser_data.thresholds[0].last_verified = "2026-05-01".to_string();
+
+        assert_eq!(super::browser_threshold_stale_entry_count(&browser_data), 1);
+        assert!(!super::browser_threshold_data_is_valid(&browser_data));
+
+        let contract =
+            super::target_data_contract_summary(&browser_data, super::pass_feature_binding_data());
+        assert_eq!(contract.stale_entry_count, 1);
+        assert!(!contract.valid);
+    }
+
+    #[test]
+    fn browser_data_contract_rejects_unmapped_threshold_tables() {
+        let mut browser_data = super::browser_threshold_data().clone();
+        browser_data
+            .thresholds
+            .push(super::BrowserFeatureThresholdV0 {
+                table: "unmapped_feature".to_string(),
+                browser: "chrome".to_string(),
+                min_major: 1,
+                min_minor: 0,
+                caniuse_key: "css-unmapped-feature".to_string(),
+                source_quorum: vec![
+                    "caniuse".to_string(),
+                    "web-features".to_string(),
+                    "mdn-bcd".to_string(),
+                ],
+                last_verified: browser_data.refreshed_at.clone(),
+            });
+        let bindings = super::pass_feature_binding_data().clone();
+
+        assert_eq!(
+            super::unmapped_threshold_table_count(&browser_data, &bindings),
+            1
+        );
+        assert!(super::browser_threshold_data_is_valid(&browser_data));
+        assert!(!super::pass_feature_binding_data_is_valid(
+            &browser_data,
+            &bindings
+        ));
+
+        let contract = super::target_data_contract_summary(&browser_data, &bindings);
+        assert_eq!(contract.unmapped_threshold_table_count, 1);
+        assert!(!contract.valid);
     }
 }
