@@ -1390,7 +1390,7 @@ fn query_runtime_candidate_condition_contexts(
         keep
     });
     if contexts.is_empty() {
-        contexts.push(Vec::new());
+        contexts.push(anchor_condition_context.to_vec());
     }
     (contexts, pruning)
 }
