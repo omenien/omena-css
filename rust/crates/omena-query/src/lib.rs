@@ -9,6 +9,8 @@ use omena_bridge::{
     summarize_omena_bridge_style_semantic_graph_from_source_with_scoped_workspace_declarations,
 };
 pub use omena_bridge::{
+    SourceClassValueUniverseAxisV0 as OmenaQuerySourceClassValueUniverseAxisV0,
+    SourceClassValueUniverseEntryV0 as OmenaQuerySourceClassValueUniverseEntryV0,
     SourceDomainClassReferenceFactV0 as OmenaQuerySourceDomainClassReferenceFactV0,
     SourceImportDeclarationSummaryV0 as OmenaQuerySourceImportDeclarationSummaryV0,
     SourceImportDeclarationV0 as OmenaQuerySourceImportDeclarationV0,
@@ -18,6 +20,7 @@ pub use omena_bridge::{
     SourceLanguageParserDescriptorV0 as OmenaQuerySourceLanguageParserDescriptorV0,
     SourceSelectorReferenceFactV0 as OmenaQuerySourceSelectorReferenceFactV0,
     SourceSelectorReferenceMatchKindV0 as OmenaQuerySourceSelectorReferenceMatchKindV0,
+    SourceStylePropertyAccessFactV0 as OmenaQuerySourceStylePropertyAccessFactV0,
     SourceSyntaxIndexV0 as OmenaQuerySourceSyntaxIndexV0,
     SourceTypeFactTargetV0 as OmenaQuerySourceTypeFactTargetV0,
     summarize_omena_bridge_source_language_parser_boundary_v0 as summarize_omena_query_source_language_parser_boundary_v0,

@@ -1,6 +1,13 @@
-use crate::protocol::{file_uri_to_path, normalize_path, path_to_file_uri, style_language_label};
+use crate::protocol::{
+    file_uri_to_path, is_style_document_uri, normalize_path, path_to_file_uri, style_language_label,
+};
+use crate::source_document_cache::{
+    load_source_document_index_sidecar, source_document_text_hash,
+    store_source_document_index_sidecar,
+};
 use crate::{
     LspShellState, LspTextDocumentState, LspWorkspaceFolderState, lsp_text_document_state,
+    lsp_text_document_state_with_source_syntax_index,
 };
 use omena_query::{OmenaQueryStyleResolutionInputsV0, StyleLanguage};
 use std::{collections::BTreeMap, fs, path::Path, time::Instant};
@@ -219,14 +226,45 @@ fn collect_workspace_index_documents_from_dir(
             .get(workspace_owner_uri.as_str())
             .cloned()
             .unwrap_or_default();
-        documents.push(lsp_text_document_state(
-            uri,
-            Some(workspace_owner_uri),
-            language_id,
-            0,
-            text,
-            &resolution_inputs,
-        ));
+        let text_hash = source_document_text_hash(text.as_str());
+        let document = if !is_style_document_uri(uri.as_str())
+            && let Some(source_syntax_index) = load_source_document_index_sidecar(
+                Some(workspace_owner_uri.as_str()),
+                uri.as_str(),
+                language_id.as_str(),
+                text_hash.as_str(),
+                &resolution_inputs,
+            ) {
+            lsp_text_document_state_with_source_syntax_index(
+                uri,
+                Some(workspace_owner_uri),
+                language_id,
+                0,
+                text,
+                source_syntax_index,
+            )
+        } else {
+            let document = lsp_text_document_state(
+                uri,
+                Some(workspace_owner_uri),
+                language_id,
+                0,
+                text,
+                &resolution_inputs,
+            );
+            if !is_style_document_uri(document.uri.as_str()) {
+                store_source_document_index_sidecar(
+                    document.workspace_folder_uri.as_deref(),
+                    document.uri.as_str(),
+                    document.language_id.as_str(),
+                    document.text_hash.as_str(),
+                    &resolution_inputs,
+                    &document.source_syntax_index,
+                );
+            }
+            document
+        };
+        documents.push(document);
         budget.consume_indexed_file();
     }
 }

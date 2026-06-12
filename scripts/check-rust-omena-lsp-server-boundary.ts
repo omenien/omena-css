@@ -350,6 +350,11 @@ assert.ok(
   ),
 );
 assert.ok(
+  rustSummary.diagnosticsScheduler.eventPolicy.includes(
+    "publishIndexedSourceDiagnosticsOnlyWhenOpen",
+  ),
+);
+assert.ok(
   rustSummary.diagnosticsScheduler.requestPathPolicy.includes(
     "noNodeDiagnosticsSchedulerOnRustLspPath",
   ),
@@ -383,6 +388,11 @@ assert.ok(
     "sourceSelectorOccurrenceSidecar",
   ),
 );
+assert.ok(
+  rustSummary.queryReuse.cachedSurfaces.includes(
+    "sourceDocumentIndexSidecar",
+  ),
+);
 assert.ok(rustSummary.queryReuse.cachedSurfaces.includes("optimizingTierFeedback"));
 assert.ok(rustSummary.queryReuse.cachedSurfaces.includes("styleHoverCandidates"));
 assert.ok(rustSummary.queryReuse.cachedSurfaces.includes("workspaceStyleResolutionInputs"));
@@ -396,6 +406,11 @@ assert.ok(
 assert.ok(
   rustSummary.queryReuse.invalidationPolicy.includes(
     "rebuildSourceSelectorOccurrenceSidecarOnDocumentKeyMismatch",
+  ),
+);
+assert.ok(
+  rustSummary.queryReuse.invalidationPolicy.includes(
+    "rebuildSourceDocumentIndexSidecarOnTextResolutionOrLanguageMismatch",
   ),
 );
 assert.ok(

@@ -10,6 +10,7 @@ mod protocol;
 mod query_adapter;
 mod query_reuse;
 mod settings;
+mod source_document_cache;
 mod source_occurrence_cache;
 mod source_type_facts;
 mod state;
@@ -78,6 +79,7 @@ use omena_query::{
     OmenaQueryExternalModuleModeV0,
     summarize_omena_query_style_diagnostics_for_workspace_file_with_external_mode_and_sifs_and_resolution_inputs,
 };
+use omena_sif::compute_omena_sif_leaf_hash_v1;
 use omena_streaming_ifds::summarize_streaming_ifds_workspace_cross_file_reachability_v0;
 #[cfg(test)]
 pub(crate) use omena_tsgo_client::{TsgoResolvedTypeV0, TsgoTypeFactResultEntryV0};
@@ -242,6 +244,37 @@ fn lsp_text_document_state(
         source_selector_candidates: Vec::new(),
     };
     refresh_document_reusable_indexes(&mut document, resolution_inputs);
+    document
+}
+
+fn lsp_text_document_state_with_source_syntax_index(
+    uri: String,
+    workspace_folder_uri: Option<String>,
+    language_id: String,
+    version: i64,
+    text: String,
+    source_syntax_index: SourceSyntaxIndex,
+) -> LspTextDocumentState {
+    let mut document = LspTextDocumentState {
+        uri,
+        workspace_folder_uri,
+        language_id,
+        version,
+        text,
+        text_hash: String::new(),
+        style_summary: None,
+        diagnostics_schedule_count: 0,
+        optimizing_tier_feedback: None,
+        style_candidates: Vec::new(),
+        source_syntax_index: SourceSyntaxIndex::default(),
+        source_selector_candidates: Vec::new(),
+    };
+    document.text_hash = compute_omena_sif_leaf_hash_v1(document.text.as_bytes())
+        .as_str()
+        .to_string();
+    document.source_selector_candidates =
+        source_selector_candidates_from_index(&document, &source_syntax_index);
+    document.source_syntax_index = source_syntax_index;
     document
 }
 

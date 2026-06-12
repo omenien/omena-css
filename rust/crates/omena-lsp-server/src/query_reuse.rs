@@ -41,6 +41,7 @@ pub fn rust_query_reuse_contract() -> RustQueryReuseBoundaryV0 {
             "sourceSyntaxIndex",
             "sourceSelectorCandidates",
             "sourceTypeFactCache",
+            "sourceDocumentIndexSidecar",
             "sourceSelectorOccurrenceSidecar",
             "cascadeNarrowingSubstrate",
         ],
@@ -52,6 +53,7 @@ pub fn rust_query_reuse_contract() -> RustQueryReuseBoundaryV0 {
             "refreshOnResolutionSettingsChange",
             "rebuildCascadeNarrowingSubstrateOnInputContentMismatch",
             "rebuildSourceTypeFactCacheOnContentConfigOrWorkspaceSourceMismatch",
+            "rebuildSourceDocumentIndexSidecarOnTextResolutionOrLanguageMismatch",
             "rebuildSourceSelectorOccurrenceSidecarOnDocumentKeyMismatch",
         ],
         request_path_policy: vec![

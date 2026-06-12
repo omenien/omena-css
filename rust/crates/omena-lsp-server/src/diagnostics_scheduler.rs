@@ -43,6 +43,7 @@ pub fn rust_diagnostics_scheduler_contract() -> RustDiagnosticsSchedulerBoundary
             "refreshOpenStyleImporterDiagnosticsForStyleChanges",
             "dedupeWatchedStyleDiagnostics",
             "refreshSourceDiagnosticsForResolutionConfigChanges",
+            "publishIndexedSourceDiagnosticsOnlyWhenOpen",
             "refreshOpenDocumentsOnConfigurationChange",
             "refreshOpenDocumentsAfterWorkspaceIndexing",
             "publishBaselineDiagnosticsBeforeOptimizingDiagnostics",
@@ -475,6 +476,10 @@ fn document_uris_for_resolution_config_change_diagnostics(
             workspace_folder_uri.as_deref().is_none_or(|workspace_uri| {
                 workspace_folder_compatible(Some(workspace_uri), document)
             })
+        })
+        .filter(|document| {
+            is_style_document_uri(document.uri.as_str())
+                || state.has_open_document_uri(document.uri.as_str())
         })
         .map(|document| document.uri.clone())
         .collect()

@@ -230,9 +230,9 @@ fn indexes_workspace_source_files_from_disk() -> TestResult {
         "import styles from \"./Button.module.scss\";\nconst view = <div className={styles.root} />;",
     )?;
 
-    let workspace_uri = format!("file://{}", workspace_root.display());
-    let source_uri = format!("file://{}", source_path.display());
-    let style_uri = format!("file://{}", style_path.display());
+    let workspace_uri = crate::protocol::path_to_file_uri(workspace_root.as_path());
+    let source_uri = crate::protocol::path_to_file_uri(source_path.as_path());
+    let style_uri = crate::protocol::path_to_file_uri(style_path.as_path());
     let mut state = LspShellState::default();
     handle_lsp_message(
         &mut state,
@@ -399,9 +399,9 @@ fn background_indexed_source_files_feed_references_and_drop_stale_results() -> T
         "import styles from \"./Button.module.scss\";\nconst view = <div className={styles.root} />;",
     )?;
 
-    let workspace_uri = format!("file://{}", workspace_root.display());
-    let source_uri = format!("file://{}", source_path.display());
-    let style_uri = format!("file://{}", style_path.display());
+    let workspace_uri = crate::protocol::path_to_file_uri(workspace_root.as_path());
+    let source_uri = crate::protocol::path_to_file_uri(source_path.as_path());
+    let style_uri = crate::protocol::path_to_file_uri(style_path.as_path());
     let mut state = LspShellState::default();
     handle_lsp_message(
         &mut state,
@@ -506,6 +506,220 @@ fn background_indexed_source_files_feed_references_and_drop_stale_results() -> T
             .and_then(Value::as_str)
             .is_some_and(|uri| file_uri_equivalent(uri, source_uri.as_str()))),
         "background-indexed source occurrence should appear in references: {references_response:?}"
+    );
+
+    let _ = std::fs::remove_dir_all(&workspace_root);
+    Ok(())
+}
+
+#[test]
+fn background_source_index_uses_persisted_source_syntax_sidecar() -> TestResult {
+    let workspace_root = std::env::temp_dir().join(format!(
+        "omena-lsp-server-source-syntax-sidecar-{}",
+        std::process::id()
+    ));
+    let src_dir = workspace_root.join("src");
+    let source_path = src_dir.join("App.tsx");
+    let style_path = src_dir.join("Button.module.scss");
+    let _ = std::fs::remove_dir_all(&workspace_root);
+    std::fs::create_dir_all(&src_dir)?;
+    std::fs::write(&style_path, ".cachedRoot { color: red; }")?;
+    let source_text = "import styles from \"./Button.module.scss\";\nconst view = <div />;";
+    std::fs::write(&source_path, source_text)?;
+
+    let workspace_uri = crate::protocol::path_to_file_uri(workspace_root.as_path());
+    let source_uri = crate::protocol::path_to_file_uri(source_path.as_path());
+    let style_uri = crate::protocol::path_to_file_uri(style_path.as_path());
+    let resolution_inputs = omena_query::OmenaQueryStyleResolutionInputsV0::default();
+    let selector_start = source_text
+        .find("styles")
+        .ok_or_else(|| std::io::Error::other("fixture should contain styles binding"))?;
+    let selector_span = ParserByteSpanV0 {
+        start: selector_start,
+        end: selector_start + "styles".len(),
+    };
+    let cached_index = SourceSyntaxIndex {
+        schema_version: "0",
+        product: "omena-bridge.source-syntax-index",
+        imported_style_bindings: vec![ImportedStyleBinding {
+            binding: "styles".to_string(),
+            style_uri: style_uri.clone(),
+        }],
+        class_string_literals: Vec::new(),
+        style_property_accesses: vec![omena_query::OmenaQuerySourceStylePropertyAccessFactV0 {
+            byte_span: selector_span,
+            target_style_uri: Some(style_uri.clone()),
+        }],
+        inline_style_declarations: vec![
+            omena_query::OmenaQuerySourceInlineStyleDeclarationFactV0 {
+                byte_span: selector_span,
+                value_byte_span: Some(selector_span),
+                property_name: "color".to_string(),
+                value: Some("red".to_string()),
+                target_style_uri: Some(style_uri.clone()),
+                cascade_tier: "authorInlineStyle",
+                static_value: true,
+            },
+        ],
+        selector_references: vec![SourceSelectorReferenceFact {
+            byte_span: selector_span,
+            selector_name: Some("cachedRoot".to_string()),
+            match_kind: SourceSelectorReferenceMatchKind::Exact,
+            target_style_uri: Some(style_uri.clone()),
+        }],
+        type_fact_targets: Vec::new(),
+        class_value_universes: vec![omena_query::OmenaQuerySourceClassValueUniverseEntryV0 {
+            plugin_id: "cva-recipe-domain",
+            domain: "cva-recipe",
+            owner_name: "buttonRecipe".to_string(),
+            class_names: vec!["button_primary".to_string()],
+            axes: vec![omena_query::OmenaQuerySourceClassValueUniverseAxisV0 {
+                axis_name: "intent".to_string(),
+                values: vec!["primary".to_string()],
+            }],
+            byte_span: selector_span,
+        }],
+        domain_class_references: vec![omena_query::OmenaQuerySourceDomainClassReferenceFactV0 {
+            byte_span: selector_span,
+            plugin_id: "cva-recipe-domain",
+            domain: "cva-recipe",
+            owner_name: "buttonRecipe".to_string(),
+            axis_name: "intent".to_string(),
+            option_name: Some("primary".to_string()),
+            prefix: None,
+        }],
+    };
+    let text_hash = crate::source_document_cache::source_document_text_hash(source_text);
+    crate::source_document_cache::store_source_document_index_sidecar(
+        Some(workspace_uri.as_str()),
+        source_uri.as_str(),
+        "typescriptreact",
+        text_hash.as_str(),
+        &resolution_inputs,
+        &cached_index,
+    );
+    let sidecar_path =
+        crate::source_document_cache::source_document_index_sidecar_file_path_for_test(
+            Some(workspace_uri.as_str()),
+            source_uri.as_str(),
+            "typescriptreact",
+            text_hash.as_str(),
+            &resolution_inputs,
+        )
+        .ok_or_else(|| std::io::Error::other("source document sidecar path should resolve"))?;
+    assert!(
+        sidecar_path.exists(),
+        "fixture should persist a source syntax sidecar: {sidecar_path:?}"
+    );
+
+    let mut state = LspShellState::default();
+    handle_lsp_message(
+        &mut state,
+        json!({
+            "jsonrpc": "2.0",
+            "id": 1,
+            "method": "initialize",
+            "params": {
+                "workspaceFolders": [
+                    {
+                        "uri": workspace_uri,
+                        "name": "source-syntax-sidecar",
+                    },
+                ],
+            },
+        }),
+    );
+    let turn = handle_lsp_message_scheduled_outputs_or_dispatch(
+        &mut state,
+        json!({
+            "jsonrpc": "2.0",
+            "method": "initialized",
+            "params": {},
+        }),
+    );
+    let workspace_index_job = match turn {
+        LspLoopTurnV0::OutputsAndDeferredDiagnostics {
+            mut workspace_index_jobs,
+            ..
+        } => workspace_index_jobs
+            .pop()
+            .ok_or_else(|| std::io::Error::other("missing workspace index job"))?,
+        other => {
+            return Err(std::io::Error::other(format!(
+                "initialized should schedule background workspace indexing: {other:?}"
+            ))
+            .into());
+        }
+    };
+    let result = collect_background_workspace_index(workspace_index_job);
+    apply_background_workspace_index_result(&mut state, result);
+    let indexed_source = state
+        .document(source_uri.as_str())
+        .ok_or_else(|| std::io::Error::other("source sidecar should index source document"))?;
+    assert_eq!(
+        indexed_source
+            .source_syntax_index
+            .style_property_accesses
+            .len(),
+        1,
+        "source syntax sidecar must preserve style property accesses"
+    );
+    assert_eq!(
+        indexed_source
+            .source_syntax_index
+            .inline_style_declarations
+            .len(),
+        1,
+        "source syntax sidecar must preserve inline style declarations"
+    );
+    assert_eq!(
+        indexed_source
+            .source_syntax_index
+            .class_value_universes
+            .len(),
+        1,
+        "source syntax sidecar must preserve class value universes"
+    );
+    assert_eq!(
+        indexed_source
+            .source_syntax_index
+            .domain_class_references
+            .len(),
+        1,
+        "source syntax sidecar must preserve domain class references"
+    );
+
+    let references_response = handle_lsp_message(
+        &mut state,
+        json!({
+            "jsonrpc": "2.0",
+            "id": 2,
+            "method": "textDocument/references",
+            "params": {
+                "textDocument": {
+                    "uri": style_uri,
+                },
+                "position": {
+                    "line": 0,
+                    "character": 2,
+                },
+                "context": {
+                    "includeDeclaration": false,
+                },
+            },
+        }),
+    );
+    let reference_locations = references_response
+        .as_ref()
+        .and_then(|response| response.pointer("/result"))
+        .and_then(Value::as_array)
+        .ok_or_else(|| std::io::Error::other("references response should contain locations"))?;
+    assert!(
+        reference_locations.iter().any(|location| location
+            .get("uri")
+            .and_then(Value::as_str)
+            .is_some_and(|uri| file_uri_equivalent(uri, source_uri.as_str()))),
+        "background index should use the persisted source syntax sidecar: {references_response:?}"
     );
 
     let _ = std::fs::remove_dir_all(&workspace_root);
@@ -718,15 +932,18 @@ fn indexed_source_files_do_not_receive_style_change_diagnostics_until_open() -> 
     let src_dir = workspace_root.join("src");
     let source_path = src_dir.join("App.tsx");
     let style_path = src_dir.join("Button.module.scss");
+    let package_json_path = workspace_root.join("package.json");
     let _ = std::fs::remove_dir_all(&workspace_root);
     std::fs::create_dir_all(&src_dir)?;
     let source_text = "import styles from \"./Button.module.scss\";\nconst view = <div className={styles.root} />;";
     std::fs::write(&style_path, ".root { color: red; }")?;
     std::fs::write(&source_path, source_text)?;
+    std::fs::write(&package_json_path, r#"{"name":"source-publish-bound"}"#)?;
 
-    let workspace_uri = format!("file://{}", workspace_root.display());
-    let source_uri = format!("file://{}", source_path.display());
-    let style_uri = format!("file://{}", style_path.display());
+    let workspace_uri = crate::protocol::path_to_file_uri(workspace_root.as_path());
+    let source_uri = crate::protocol::path_to_file_uri(source_path.as_path());
+    let style_uri = crate::protocol::path_to_file_uri(style_path.as_path());
+    let package_json_uri = crate::protocol::path_to_file_uri(package_json_path.as_path());
     let mut state = LspShellState::default();
     handle_lsp_message(
         &mut state,
@@ -754,6 +971,28 @@ fn indexed_source_files_do_not_receive_style_change_diagnostics_until_open() -> 
     );
     assert!(state.document(source_uri.as_str()).is_some());
     assert!(!state.has_open_document_uri(source_uri.as_str()));
+
+    let config_change_outputs = handle_lsp_message_outputs(
+        &mut state,
+        json!({
+            "jsonrpc": "2.0",
+            "method": "workspace/didChangeWatchedFiles",
+            "params": {
+                "changes": [
+                    {
+                        "uri": package_json_uri,
+                        "type": 2,
+                    },
+                ],
+            },
+        }),
+    );
+    let published_after_config_change =
+        published_diagnostics_uris(config_change_outputs.as_slice());
+    assert!(
+        !published_after_config_change.contains(&source_uri),
+        "never-opened indexed source documents must not receive publishDiagnostics after config changes: {published_after_config_change:?}"
+    );
 
     let open_style_outputs = handle_lsp_message_outputs(
         &mut state,
