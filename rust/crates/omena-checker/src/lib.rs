@@ -2,8 +2,9 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::fmt;
 
 use omena_abstract_value::{
-    AbstractClassValueV0, SelectorProjectionCertaintyV0, enumerate_finite_class_values,
-    project_abstract_value_selectors,
+    AbstractClassValueV0, RegisteredSyntaxMatchV0, SelectorProjectionCertaintyV0,
+    enumerate_finite_class_values, project_abstract_value_selectors,
+    registered_property_syntax_requires_initial_value_v0, registered_syntax_match,
 };
 use omena_cascade::{GrnBooleanState, GrnVertexStateV0, GrnVertexV0, project_grn_outcome};
 pub use omena_categorical::CategoricalCascadeEvidenceV0;
@@ -66,6 +67,7 @@ pub enum OmenaCheckerRuleCodeV0 {
     RgFlowRelevantOperator,
     ReplicaEnsembleInconsistency,
     CategoricalCascadeEvidenceInconsistency,
+    RegisteredPropertyTypeMismatch,
 }
 
 impl OmenaCheckerRuleCodeV0 {
@@ -103,6 +105,7 @@ impl OmenaCheckerRuleCodeV0 {
             Self::CategoricalCascadeEvidenceInconsistency => {
                 "categorical-cascade-evidence-inconsistency"
             }
+            Self::RegisteredPropertyTypeMismatch => "registered-property-type-mismatch",
         }
     }
 }
@@ -376,6 +379,8 @@ pub struct OmenaCheckerMTierEvaluationV0 {
 pub struct OmenaCheckerCascadeInputV0 {
     pub declarations: Vec<OmenaCheckerCascadeDeclarationInputV0>,
     pub custom_properties: Vec<OmenaCheckerCustomPropertyInputV0>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub custom_property_registrations: Vec<OmenaCheckerCustomPropertyRegistrationInputV0>,
 }
 
 /// Selector text before the parser/query boundary has expanded nesting.
@@ -491,6 +496,18 @@ pub struct OmenaCheckerCustomPropertyInputV0 {
     pub name: String,
     pub dependencies: Vec<String>,
     pub guaranteed_invalid: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct OmenaCheckerCustomPropertyRegistrationInputV0 {
+    pub name: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub syntax: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub inherits: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub initial_value: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -796,9 +813,9 @@ pub fn list_omena_checker_rule_descriptors() -> Vec<OmenaCheckerRuleDescriptorV0
         MissingComposedSelector, MissingCustomProperty, MissingImportedValue, MissingKeyframes,
         MissingModule, MissingResolvedClassDomain, MissingResolvedClassValues, MissingSassSymbol,
         MissingStaticClass, MissingTemplatePrefix, MissingValueModule, NoImpossibleSelector,
-        NoImpreciseValue, NoUnknownDynamicClass, ReplicaEnsembleInconsistency,
-        RgFlowRelevantOperator, StreamingIfdsPrecisionParity, UnreachableDeclaration,
-        UnspecifiedCascadeTie, UnusedSelector,
+        NoImpreciseValue, NoUnknownDynamicClass, RegisteredPropertyTypeMismatch,
+        ReplicaEnsembleInconsistency, RgFlowRelevantOperator, StreamingIfdsPrecisionParity,
+        UnreachableDeclaration, UnspecifiedCascadeTie, UnusedSelector,
     };
     use OmenaCheckerRuleFixabilityV0::{CodeAction, None};
     use OmenaCheckerRulePresetV0::{Recommended, Strict};
@@ -1045,6 +1062,14 @@ pub fn list_omena_checker_rule_descriptors() -> Vec<OmenaCheckerRuleDescriptorV0
             &[Strict],
             "Report cascade primitive-to-role mappings whose categorical functor fails identity or composition preservation.",
         ),
+        rule(
+            RegisteredPropertyTypeMismatch,
+            Style,
+            Warning,
+            None,
+            &[Recommended],
+            "Report custom property declarations whose values definitely do not match their same-file @property syntax registration.",
+        ),
     ]
 }
 
@@ -1105,7 +1130,8 @@ pub fn list_omena_checker_t_tier_rule_codes() -> Vec<OmenaCheckerRuleCodeV0> {
     use OmenaCheckerRuleCodeV0::{
         CircularVar, DeadCascadeLayer, IacvtProne, MissingComposedModule, MissingComposedSelector,
         MissingCustomProperty, MissingImportedValue, MissingKeyframes, MissingSassSymbol,
-        MissingValueModule, UnreachableDeclaration, UnspecifiedCascadeTie, UnusedSelector,
+        MissingValueModule, RegisteredPropertyTypeMismatch, UnreachableDeclaration,
+        UnspecifiedCascadeTie, UnusedSelector,
     };
 
     vec![
@@ -1121,6 +1147,7 @@ pub fn list_omena_checker_t_tier_rule_codes() -> Vec<OmenaCheckerRuleCodeV0> {
         DeadCascadeLayer,
         IacvtProne,
         CircularVar,
+        RegisteredPropertyTypeMismatch,
         UnspecifiedCascadeTie,
     ]
 }
@@ -1234,8 +1261,9 @@ pub fn list_omena_checker_code_bundles() -> Vec<OmenaCheckerCodeBundleV0> {
         MissingComposedSelector, MissingImportedValue, MissingKeyframes, MissingModule,
         MissingResolvedClassDomain, MissingResolvedClassValues, MissingSassSymbol,
         MissingStaticClass, MissingTemplatePrefix, MissingValueModule, NoImpossibleSelector,
-        NoImpreciseValue, NoUnknownDynamicClass, StreamingIfdsPrecisionParity,
-        UnreachableDeclaration, UnspecifiedCascadeTie, UnusedSelector,
+        NoImpreciseValue, NoUnknownDynamicClass, RegisteredPropertyTypeMismatch,
+        StreamingIfdsPrecisionParity, UnreachableDeclaration, UnspecifiedCascadeTie,
+        UnusedSelector,
     };
 
     vec![
@@ -1288,6 +1316,7 @@ pub fn list_omena_checker_code_bundles() -> Vec<OmenaCheckerCodeBundleV0> {
                 DeadCascadeLayer,
                 IacvtProne,
                 CircularVar,
+                RegisteredPropertyTypeMismatch,
                 UnspecifiedCascadeTie,
                 CascadeDeepConflict,
                 CascadeUnreachableRule,
@@ -1475,6 +1504,8 @@ pub fn evaluate_omena_checker_cascade_rules(
 ) -> Vec<OmenaCheckerCascadeEvaluationV0> {
     let declarations = input.declarations;
     let custom_properties = input.custom_properties;
+    let active_registrations =
+        active_custom_property_registrations(input.custom_property_registrations);
     let invalid_custom_properties = custom_properties
         .iter()
         .filter(|property| property.guaranteed_invalid)
@@ -1562,6 +1593,27 @@ pub fn evaluate_omena_checker_cascade_rules(
         }
     }
 
+    for declaration in &declarations {
+        if !declaration.property.starts_with("--") {
+            continue;
+        }
+        let Some(registration) = active_registrations.get(declaration.property.as_str()) else {
+            continue;
+        };
+        if registered_syntax_match(registration.syntax.as_str(), declaration.value.as_str())
+            == RegisteredSyntaxMatchV0::Rejects
+        {
+            evaluations.push(cascade_evaluation(
+                OmenaCheckerRuleCodeV0::RegisteredPropertyTypeMismatch,
+                OmenaCheckerSeverityV0::Warning,
+                vec![declaration.declaration_id.clone()],
+                declaration.layer_name.clone(),
+                vec![declaration.property.clone()],
+                "Custom property value does not match its same-file @property syntax registration and may be discarded at computed-value time.",
+            ));
+        }
+    }
+
     if !cyclic_custom_properties.is_empty() {
         evaluations.push(cascade_evaluation(
             OmenaCheckerRuleCodeV0::CircularVar,
@@ -1600,6 +1652,35 @@ pub fn evaluate_omena_checker_cascade_rules(
     }
 
     evaluations
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct ActiveCustomPropertyRegistrationV0 {
+    syntax: String,
+}
+
+fn active_custom_property_registrations(
+    registrations: Vec<OmenaCheckerCustomPropertyRegistrationInputV0>,
+) -> BTreeMap<String, ActiveCustomPropertyRegistrationV0> {
+    let mut active_registrations = BTreeMap::new();
+    for registration in registrations {
+        let Some(syntax) = registration.syntax else {
+            continue;
+        };
+        if registration.inherits.is_none() {
+            continue;
+        }
+        if registered_property_syntax_requires_initial_value_v0(syntax.as_str())
+            && registration.initial_value.is_none()
+        {
+            continue;
+        }
+        active_registrations.insert(
+            registration.name,
+            ActiveCustomPropertyRegistrationV0 { syntax },
+        );
+    }
+    active_registrations
 }
 
 pub fn evaluate_omena_checker_grn_rules(
@@ -2303,9 +2384,9 @@ fn rule_ordinal_for_code(code: OmenaCheckerRuleCodeV0) -> u16 {
         MissingComposedSelector, MissingCustomProperty, MissingImportedValue, MissingKeyframes,
         MissingModule, MissingResolvedClassDomain, MissingResolvedClassValues, MissingSassSymbol,
         MissingStaticClass, MissingTemplatePrefix, MissingValueModule, NoImpossibleSelector,
-        NoImpreciseValue, NoUnknownDynamicClass, ReplicaEnsembleInconsistency,
-        RgFlowRelevantOperator, StreamingIfdsPrecisionParity, UnreachableDeclaration,
-        UnspecifiedCascadeTie, UnusedSelector,
+        NoImpreciseValue, NoUnknownDynamicClass, RegisteredPropertyTypeMismatch,
+        ReplicaEnsembleInconsistency, RgFlowRelevantOperator, StreamingIfdsPrecisionParity,
+        UnreachableDeclaration, UnspecifiedCascadeTie, UnusedSelector,
     };
 
     match code {
@@ -2339,6 +2420,7 @@ fn rule_ordinal_for_code(code: OmenaCheckerRuleCodeV0) -> u16 {
         RgFlowRelevantOperator => 28,
         ReplicaEnsembleInconsistency => 29,
         CategoricalCascadeEvidenceInconsistency => 30,
+        RegisteredPropertyTypeMismatch => 31,
     }
 }
 
@@ -2350,9 +2432,9 @@ fn rule_tier_for_code(code: OmenaCheckerRuleCodeV0) -> OmenaCheckerRuleTierV0 {
         MissingComposedSelector, MissingCustomProperty, MissingImportedValue, MissingKeyframes,
         MissingModule, MissingResolvedClassDomain, MissingResolvedClassValues, MissingSassSymbol,
         MissingStaticClass, MissingTemplatePrefix, MissingValueModule, NoImpossibleSelector,
-        NoImpreciseValue, NoUnknownDynamicClass, ReplicaEnsembleInconsistency,
-        RgFlowRelevantOperator, StreamingIfdsPrecisionParity, UnreachableDeclaration,
-        UnspecifiedCascadeTie, UnusedSelector,
+        NoImpreciseValue, NoUnknownDynamicClass, RegisteredPropertyTypeMismatch,
+        ReplicaEnsembleInconsistency, RgFlowRelevantOperator, StreamingIfdsPrecisionParity,
+        UnreachableDeclaration, UnspecifiedCascadeTie, UnusedSelector,
     };
 
     match code {
@@ -2378,6 +2460,7 @@ fn rule_tier_for_code(code: OmenaCheckerRuleCodeV0) -> OmenaCheckerRuleTierV0 {
         | DeadCascadeLayer
         | IacvtProne
         | CircularVar
+        | RegisteredPropertyTypeMismatch
         | UnspecifiedCascadeTie => OmenaCheckerRuleTierV0::T,
         DesignSystemMdlBudget
         | CascadeUnreachableRule
@@ -2457,6 +2540,7 @@ mod tests {
                 "cascade.deep-conflict",
                 "cascade.unreachable-rule",
                 "categorical-cascade-evidence-inconsistency",
+                "registered-property-type-mismatch",
             ],
         );
     }
@@ -2491,7 +2575,7 @@ mod tests {
         assert_eq!(descriptors.len(), ordinals.len());
         assert_eq!(
             ordinals.into_iter().collect::<Vec<_>>(),
-            (1..=30).collect::<Vec<_>>()
+            (1..=31).collect::<Vec<_>>()
         );
         assert!(!is_omena_checker_rule_code("not-a-rule"));
     }
@@ -2521,12 +2605,12 @@ mod tests {
             summary.bundle_registry_product,
             "omena-checker.code-bundles"
         );
-        assert_eq!(summary.rule_count, 30);
+        assert_eq!(summary.rule_count, 31);
         assert_eq!(summary.source_rule_count, 8);
-        assert_eq!(summary.style_rule_count, 22);
+        assert_eq!(summary.style_rule_count, 23);
         assert_eq!(summary.m_tier_rule_count, 3);
         assert_eq!(summary.s_tier_rule_count, 7);
-        assert_eq!(summary.t_tier_rule_count, 13);
+        assert_eq!(summary.t_tier_rule_count, 14);
         assert_eq!(summary.i_tier_rule_count, 7);
         assert_eq!(summary.bundle_count, 5);
         assert!(
@@ -2628,6 +2712,7 @@ mod tests {
                 "dead-cascade-layer",
                 "iacvt-prone",
                 "circular-var",
+                "registered-property-type-mismatch",
                 "unspecified-cascade-tie",
             ]
         );
@@ -2850,6 +2935,7 @@ mod tests {
                     guaranteed_invalid: false,
                 },
             ],
+            custom_property_registrations: Vec::new(),
         });
         let rule_names = evaluations
             .iter()
@@ -2868,6 +2954,174 @@ mod tests {
         assert!(evaluations.iter().any(|evaluation| evaluation.rule_code
             == OmenaCheckerRuleCodeV0::CircularVar
             && evaluation.custom_property_names == vec!["--a", "--b"]));
+    }
+
+    #[test]
+    fn registered_property_type_mismatch_only_fires_on_definite_rejects() {
+        let evaluations = evaluate_omena_checker_cascade_rules(OmenaCheckerCascadeInputV0 {
+            declarations: vec![
+                cascade_declaration(CascadeDeclarationFixture {
+                    declaration_id: "bad-gap",
+                    selector: ".bad",
+                    property: "--gap",
+                    value: "red",
+                    source_order: 1,
+                    condition_context: &[],
+                    layer_name: None,
+                    layer_order: None,
+                    important: false,
+                    var_references: &[],
+                }),
+                cascade_declaration(CascadeDeclarationFixture {
+                    declaration_id: "good-gap",
+                    selector: ".good",
+                    property: "--gap",
+                    value: "16px",
+                    source_order: 2,
+                    condition_context: &[],
+                    layer_name: None,
+                    layer_order: None,
+                    important: false,
+                    var_references: &[],
+                }),
+                cascade_declaration(CascadeDeclarationFixture {
+                    declaration_id: "dynamic-gap",
+                    selector: ".dynamic",
+                    property: "--gap",
+                    value: "var(--runtime-gap)",
+                    source_order: 3,
+                    condition_context: &[],
+                    layer_name: None,
+                    layer_order: None,
+                    important: false,
+                    var_references: &[],
+                }),
+                cascade_declaration(CascadeDeclarationFixture {
+                    declaration_id: "unregistered",
+                    selector: ".plain",
+                    property: "--other",
+                    value: "red",
+                    source_order: 4,
+                    condition_context: &[],
+                    layer_name: None,
+                    layer_order: None,
+                    important: false,
+                    var_references: &[],
+                }),
+                cascade_declaration(CascadeDeclarationFixture {
+                    declaration_id: "universal-mode",
+                    selector: ".mode",
+                    property: "--mode",
+                    value: "red",
+                    source_order: 5,
+                    condition_context: &[],
+                    layer_name: None,
+                    layer_order: None,
+                    important: false,
+                    var_references: &[],
+                }),
+            ],
+            custom_properties: Vec::new(),
+            custom_property_registrations: vec![
+                OmenaCheckerCustomPropertyRegistrationInputV0 {
+                    name: "--gap".to_string(),
+                    syntax: Some("'<length>'".to_string()),
+                    inherits: Some("false".to_string()),
+                    initial_value: Some("8px".to_string()),
+                },
+                OmenaCheckerCustomPropertyRegistrationInputV0 {
+                    name: "--mode".to_string(),
+                    syntax: Some("'*'".to_string()),
+                    inherits: Some("false".to_string()),
+                    initial_value: None,
+                },
+            ],
+        });
+        let mismatches = evaluations
+            .iter()
+            .filter(|evaluation| {
+                evaluation.rule_code == OmenaCheckerRuleCodeV0::RegisteredPropertyTypeMismatch
+            })
+            .collect::<Vec<_>>();
+
+        assert_eq!(mismatches.len(), 1);
+        assert_eq!(mismatches[0].declaration_ids, vec!["bad-gap"]);
+        assert_eq!(mismatches[0].custom_property_names, vec!["--gap"]);
+    }
+
+    #[test]
+    fn registered_property_type_mismatch_ignores_inactive_registrations_and_uses_last_wins() {
+        let evaluations = evaluate_omena_checker_cascade_rules(OmenaCheckerCascadeInputV0 {
+            declarations: vec![
+                cascade_declaration(CascadeDeclarationFixture {
+                    declaration_id: "missing-inherits",
+                    selector: ".a",
+                    property: "--missing-inherits",
+                    value: "red",
+                    source_order: 1,
+                    condition_context: &[],
+                    layer_name: None,
+                    layer_order: None,
+                    important: false,
+                    var_references: &[],
+                }),
+                cascade_declaration(CascadeDeclarationFixture {
+                    declaration_id: "missing-initial",
+                    selector: ".b",
+                    property: "--missing-initial",
+                    value: "red",
+                    source_order: 2,
+                    condition_context: &[],
+                    layer_name: None,
+                    layer_order: None,
+                    important: false,
+                    var_references: &[],
+                }),
+                cascade_declaration(CascadeDeclarationFixture {
+                    declaration_id: "last-wins",
+                    selector: ".c",
+                    property: "--tone",
+                    value: "red",
+                    source_order: 3,
+                    condition_context: &[],
+                    layer_name: None,
+                    layer_order: None,
+                    important: false,
+                    var_references: &[],
+                }),
+            ],
+            custom_properties: Vec::new(),
+            custom_property_registrations: vec![
+                OmenaCheckerCustomPropertyRegistrationInputV0 {
+                    name: "--missing-inherits".to_string(),
+                    syntax: Some("'<length>'".to_string()),
+                    inherits: None,
+                    initial_value: Some("8px".to_string()),
+                },
+                OmenaCheckerCustomPropertyRegistrationInputV0 {
+                    name: "--missing-initial".to_string(),
+                    syntax: Some("'<length>'".to_string()),
+                    inherits: Some("false".to_string()),
+                    initial_value: None,
+                },
+                OmenaCheckerCustomPropertyRegistrationInputV0 {
+                    name: "--tone".to_string(),
+                    syntax: Some("'<length>'".to_string()),
+                    inherits: Some("false".to_string()),
+                    initial_value: Some("8px".to_string()),
+                },
+                OmenaCheckerCustomPropertyRegistrationInputV0 {
+                    name: "--tone".to_string(),
+                    syntax: Some("'<color>'".to_string()),
+                    inherits: Some("false".to_string()),
+                    initial_value: Some("red".to_string()),
+                },
+            ],
+        });
+
+        assert!(!evaluations.iter().any(|evaluation| {
+            evaluation.rule_code == OmenaCheckerRuleCodeV0::RegisteredPropertyTypeMismatch
+        }));
     }
 
     #[test]
@@ -2900,6 +3154,7 @@ mod tests {
                 }),
             ],
             custom_properties: Vec::new(),
+            custom_property_registrations: Vec::new(),
         });
         let utility_evaluations =
             evaluate_omena_checker_cascade_rules(OmenaCheckerCascadeInputV0 {
@@ -2930,6 +3185,7 @@ mod tests {
                     }),
                 ],
                 custom_properties: Vec::new(),
+                custom_property_registrations: Vec::new(),
             });
 
         let designer_evaluation = bem_evaluations.iter().find(|evaluation| {
@@ -3388,6 +3644,7 @@ mod tests {
                 }),
             ],
             custom_properties: Vec::new(),
+            custom_property_registrations: Vec::new(),
         });
 
         let rule_names = evaluations
@@ -3452,6 +3709,7 @@ mod tests {
                 }),
             ],
             custom_properties: Vec::new(),
+            custom_property_registrations: Vec::new(),
         });
 
         assert!(evaluations.iter().any(|evaluation| evaluation.rule_code
@@ -3510,6 +3768,7 @@ mod tests {
                 }),
             ],
             custom_properties: Vec::new(),
+            custom_property_registrations: Vec::new(),
         });
 
         let rule_names = evaluations
@@ -3550,6 +3809,7 @@ mod tests {
                 }),
             ],
             custom_properties: Vec::new(),
+            custom_property_registrations: Vec::new(),
         });
 
         let rule_names = evaluations
@@ -3590,6 +3850,7 @@ mod tests {
                 }),
             ],
             custom_properties: Vec::new(),
+            custom_property_registrations: Vec::new(),
         });
 
         assert!(evaluations.iter().any(|evaluation| evaluation.rule_code

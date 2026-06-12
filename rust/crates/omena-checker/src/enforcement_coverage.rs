@@ -76,9 +76,9 @@ pub fn list_omena_checker_rule_enforcement_evidence_v0()
         MissingComposedSelector, MissingCustomProperty, MissingImportedValue, MissingKeyframes,
         MissingModule, MissingResolvedClassDomain, MissingResolvedClassValues, MissingSassSymbol,
         MissingStaticClass, MissingTemplatePrefix, MissingValueModule, NoImpossibleSelector,
-        NoImpreciseValue, NoUnknownDynamicClass, ReplicaEnsembleInconsistency,
-        RgFlowRelevantOperator, StreamingIfdsPrecisionParity, UnreachableDeclaration,
-        UnspecifiedCascadeTie, UnusedSelector,
+        NoImpreciseValue, NoUnknownDynamicClass, RegisteredPropertyTypeMismatch,
+        ReplicaEnsembleInconsistency, RgFlowRelevantOperator, StreamingIfdsPrecisionParity,
+        UnreachableDeclaration, UnspecifiedCascadeTie, UnusedSelector,
     };
 
     vec![
@@ -136,6 +136,12 @@ pub fn list_omena_checker_rule_enforcement_evidence_v0()
             "omena-query-checker-orchestrator.cascade-gate",
             "cascade_gate_filters_emitted_rules_through_registered_checker_codes",
             "cascade_gate_records_clear_suppression_for_clean_fixture",
+        ),
+        direct(
+            RegisteredPropertyTypeMismatch,
+            "omena-query-checker-orchestrator.cascade-gate",
+            "registered_property_type_mismatch_only_fires_on_definite_rejects",
+            "registered_property_type_mismatch_ignores_inactive_registrations_and_uses_last_wins",
         ),
         direct(
             UnspecifiedCascadeTie,
@@ -291,7 +297,7 @@ mod tests {
         let summary = summarize_omena_checker_rule_enforcement_coverage_v0();
 
         assert!(summary.coverage_passed);
-        assert_eq!(summary.registered_rule_count, 30);
+        assert_eq!(summary.registered_rule_count, 31);
         assert_eq!(summary.mapped_rule_count, summary.registered_rule_count);
         assert!(summary.missing_rule_names.is_empty());
         assert!(summary.extra_rule_names.is_empty());

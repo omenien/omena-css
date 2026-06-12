@@ -366,6 +366,44 @@ fn style_diagnostics_for_file_include_cascade_aware_lints() -> Result<(), &'stat
 }
 
 #[test]
+fn registered_property_type_mismatch_surfaces_as_product_diagnostic() -> Result<(), &'static str> {
+    let source = r#"@property --gap { syntax: '<length>'; inherits: false; initial-value: 8px; }
+@property --mode { syntax: '*'; inherits: false; }
+.bad { --gap: red; }
+.good { --gap: 16px; }
+.dynamic { --gap: var(--runtime-gap); }
+.plain { --unregistered: red; }
+.mode { --mode: red; }
+"#;
+    let candidates =
+        crate::summarize_omena_query_style_hover_candidates("Component.module.scss", source)
+            .ok_or("style candidates")?;
+    let diagnostics = crate::summarize_omena_query_style_diagnostics_for_file(
+        "file:///workspace/src/Component.module.scss",
+        source,
+        candidates.candidates.as_slice(),
+    );
+    let registered_property_diagnostics = diagnostics
+        .diagnostics
+        .iter()
+        .filter(|diagnostic| diagnostic.code == "registeredPropertyTypeMismatch")
+        .collect::<Vec<_>>();
+
+    assert_eq!(registered_property_diagnostics.len(), 1);
+    let diagnostic = registered_property_diagnostics[0];
+    assert_eq!(diagnostic.severity, "warning");
+    assert!(diagnostic.tags.is_empty());
+    assert_eq!(diagnostic.range.start.line, 2);
+    assert_eq!(diagnostic.range.end.line, 2);
+    assert!(
+        diagnostic
+            .message
+            .contains("does not match its same-file @property syntax registration")
+    );
+    Ok(())
+}
+
+#[test]
 fn workspace_cascade_diagnostics_join_runtime_state_scenarios_and_inline_overrides()
 -> Result<(), &'static str> {
     let target_style_path = "file:///workspace/src/App.module.scss";

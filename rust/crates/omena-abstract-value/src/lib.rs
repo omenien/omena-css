@@ -12,6 +12,7 @@ mod flow;
 mod property_value;
 mod provenance;
 mod reduced_product;
+mod registered_property;
 mod selector_projection;
 mod semiring;
 mod types;
@@ -31,6 +32,7 @@ pub use reduced_product::{
     summarize_reduced_class_value_product,
     summarize_reduced_product_belief_propagation_domain_graph_v0, summarize_reduced_product_domain,
 };
+pub use registered_property::*;
 pub use selector_projection::*;
 pub use semiring::*;
 pub use types::*;

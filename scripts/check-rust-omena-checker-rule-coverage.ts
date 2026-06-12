@@ -26,6 +26,7 @@ const REQUIRED_RULE_NAMES = [
   "dead-cascade-layer",
   "iacvt-prone",
   "circular-var",
+  "registered-property-type-mismatch",
   "unspecified-cascade-tie",
   "designer-intent-inconsistency",
   "cascade.smt-violation",
@@ -65,13 +66,13 @@ assert.ok(
 
 const coverage = readRuleCoverage();
 assert.equal(coverage.product, "omena-checker.rule-enforcement-coverage");
-assert.equal(coverage.registeredRuleCount, 30);
+assert.equal(coverage.registeredRuleCount, 31);
 assert.equal(coverage.mappedRuleCount, coverage.registeredRuleCount);
 assert.equal(coverage.coveragePassed, true);
 assert.deepEqual(coverage.missingRuleNames, []);
 assert.deepEqual(coverage.extraRuleNames, []);
 assert.equal(coverage.productDiagnosticGateRuleCount, 13);
-assert.equal(coverage.directEvaluatorRuleCount, 8);
+assert.equal(coverage.directEvaluatorRuleCount, 9);
 assert.equal(coverage.mechanismEvaluatorRuleCount, 9);
 
 const evidenceByRule = new Map(coverage.evidence.map((entry) => [entry.ruleCodeName, entry]));

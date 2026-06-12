@@ -42,6 +42,8 @@ pub(crate) struct CustomPropertyRegistrationRule {
     pub(crate) name: String,
     pub(crate) start: usize,
     pub(crate) end: usize,
+    pub(crate) syntax: Option<String>,
+    pub(crate) inherits: Option<String>,
     pub(crate) initial_value: Option<String>,
 }
 
@@ -74,17 +76,27 @@ fn parse_custom_property_registration_rule(
     let name = normalize_custom_property_name(tokens.get(name_index)?.text.as_str())?.to_string();
     let block_start_index = at_rule_block_start(tokens, name_index + 1)?;
     let close_index = matching_right_brace_index(tokens, block_start_index)?;
-    let initial_value =
-        collect_simple_declarations_in_block(tokens, block_start_index, close_index)
-            .into_iter()
-            .find(|declaration| declaration.property == "initial-value" && !declaration.important)
-            .map(|declaration| declaration.value);
+    let declarations = collect_simple_declarations_in_block(tokens, block_start_index, close_index);
+    let syntax = declarations
+        .iter()
+        .find(|declaration| declaration.property == "syntax" && !declaration.important)
+        .map(|declaration| declaration.value.clone());
+    let inherits = declarations
+        .iter()
+        .find(|declaration| declaration.property == "inherits" && !declaration.important)
+        .map(|declaration| declaration.value.clone());
+    let initial_value = declarations
+        .into_iter()
+        .find(|declaration| declaration.property == "initial-value" && !declaration.important)
+        .map(|declaration| declaration.value);
 
     Some((
         CustomPropertyRegistrationRule {
             name,
             start: token_start(&tokens[at_property_index]),
             end: token_end(&tokens[close_index]),
+            syntax,
+            inherits,
             initial_value,
         },
         close_index + 1,

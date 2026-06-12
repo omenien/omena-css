@@ -1,7 +1,9 @@
 use crate::{
-    TransformExecutionContextV0, execute_transform_passes_on_source_with_dialect_and_context,
+    TransformExecutionContextV0,
+    domains::custom_property::collect_custom_property_registration_rules,
+    execute_transform_passes_on_source_with_dialect_and_context,
 };
-use omena_parser::StyleDialect;
+use omena_parser::{StyleDialect, lex};
 use omena_transform_cst::TransformPassKind;
 
 #[test]
@@ -262,6 +264,19 @@ fn execution_runtime_ignores_dead_keyframe_custom_property_dependencies() {
             .collect::<Vec<_>>(),
         vec![("customProperty", "--ghost"), ("customProperty", "--used")]
     );
+}
+
+#[test]
+fn custom_property_registration_rules_preserve_syntax_and_inherits_descriptors() {
+    let source = r#"@property --x { syntax: '<color>'; inherits: false; initial-value: red; }"#;
+    let lexed = lex(source, StyleDialect::Css);
+    let registrations = collect_custom_property_registration_rules(lexed.tokens());
+
+    assert_eq!(registrations.len(), 1);
+    assert_eq!(registrations[0].name, "--x");
+    assert_eq!(registrations[0].syntax.as_deref(), Some("'<color>'"));
+    assert_eq!(registrations[0].inherits.as_deref(), Some("false"));
+    assert_eq!(registrations[0].initial_value.as_deref(), Some("red"));
 }
 
 #[test]

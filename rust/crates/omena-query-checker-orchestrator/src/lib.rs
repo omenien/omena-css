@@ -24,16 +24,16 @@ pub use omena_checker::{
     OmenaCheckerCascadeEvaluationV0, OmenaCheckerCascadeInputV0,
     OmenaCheckerCategoricalEvaluationV0, OmenaCheckerCategoricalInputV0,
     OmenaCheckerCategoricalPrimitiveRolePairInputV0, OmenaCheckerCategoricalRoleMappingInputV0,
-    OmenaCheckerCustomPropertyInputV0, OmenaCheckerMTierEvaluationV0,
-    OmenaCheckerReplicaEnsembleEvaluationV0, OmenaCheckerReplicaEnsembleInputV0,
-    OmenaCheckerReplicaEnsembleReportInputV0, OmenaCheckerRgFlowCouplingInputV0,
-    OmenaCheckerRgFlowCouplingSpaceInputV0, OmenaCheckerRgFlowEvaluationV0,
-    OmenaCheckerRgFlowInputV0, OmenaCheckerRuleCodeV0, OmenaCheckerSmtEvaluationV0,
-    OmenaCheckerSmtInputV0, OmenaCheckerSmtLayerInversionDeclarationInputV0,
-    OmenaCheckerSmtLayerInversionInputV0, OmenaCheckerSmtLayerInversionObligationInputV0,
-    OmenaCheckerSmtObligationInputV0, RG_FLOW_DEFAULT_PRODUCT_DECISION_MECHANISM_V0,
-    RG_FLOW_MECHANISM_SCOPE_V0, RG_FLOW_PRODUCT_SURFACE_V0,
-    checker_cascade_primitive_role_catalog_v0,
+    OmenaCheckerCustomPropertyInputV0, OmenaCheckerCustomPropertyRegistrationInputV0,
+    OmenaCheckerMTierEvaluationV0, OmenaCheckerReplicaEnsembleEvaluationV0,
+    OmenaCheckerReplicaEnsembleInputV0, OmenaCheckerReplicaEnsembleReportInputV0,
+    OmenaCheckerRgFlowCouplingInputV0, OmenaCheckerRgFlowCouplingSpaceInputV0,
+    OmenaCheckerRgFlowEvaluationV0, OmenaCheckerRgFlowInputV0, OmenaCheckerRuleCodeV0,
+    OmenaCheckerSmtEvaluationV0, OmenaCheckerSmtInputV0,
+    OmenaCheckerSmtLayerInversionDeclarationInputV0, OmenaCheckerSmtLayerInversionInputV0,
+    OmenaCheckerSmtLayerInversionObligationInputV0, OmenaCheckerSmtObligationInputV0,
+    RG_FLOW_DEFAULT_PRODUCT_DECISION_MECHANISM_V0, RG_FLOW_MECHANISM_SCOPE_V0,
+    RG_FLOW_PRODUCT_SURFACE_V0, checker_cascade_primitive_role_catalog_v0,
     checker_categorical_cascade_evidence_for_exercised_primitives_v0,
     checker_categorical_cascade_evidence_v0,
 };
@@ -143,6 +143,9 @@ pub fn query_product_diagnostic_checker_rule_code_name_v0(
             Some(OmenaCheckerRuleCodeV0::IacvtProne.as_str())
         }
         "circularVar" => Some(OmenaCheckerRuleCodeV0::CircularVar.as_str()),
+        "registeredPropertyTypeMismatch" => {
+            Some(OmenaCheckerRuleCodeV0::RegisteredPropertyTypeMismatch.as_str())
+        }
         "unspecifiedCascadeTie" => Some(OmenaCheckerRuleCodeV0::UnspecifiedCascadeTie.as_str()),
         "designerIntentInconsistency" => {
             Some(OmenaCheckerRuleCodeV0::DesignerIntentInconsistency.as_str())
@@ -211,6 +214,7 @@ fn cascade_gate_enabled_rule_names_v0() -> Vec<&'static str> {
         OmenaCheckerRuleCodeV0::DeadCascadeLayer.as_str(),
         OmenaCheckerRuleCodeV0::IacvtProne.as_str(),
         OmenaCheckerRuleCodeV0::CircularVar.as_str(),
+        OmenaCheckerRuleCodeV0::RegisteredPropertyTypeMismatch.as_str(),
         OmenaCheckerRuleCodeV0::UnspecifiedCascadeTie.as_str(),
         OmenaCheckerRuleCodeV0::DesignerIntentInconsistency.as_str(),
     ]
@@ -795,6 +799,17 @@ mod tests {
                     important: false,
                     var_references: &[],
                 }),
+                cascade_declaration(CascadeDeclarationFixture {
+                    declaration_id: "registered-gap",
+                    selector: ".card",
+                    property: "--gap-size",
+                    value: "red",
+                    source_order: 6,
+                    layer_name: None,
+                    layer_order: None,
+                    important: false,
+                    var_references: &[],
+                }),
             ],
             custom_properties: vec![
                 OmenaCheckerCustomPropertyInputV0 {
@@ -813,6 +828,12 @@ mod tests {
                     guaranteed_invalid: false,
                 },
             ],
+            custom_property_registrations: vec![OmenaCheckerCustomPropertyRegistrationInputV0 {
+                name: "--gap-size".to_string(),
+                syntax: Some("'<length>'".to_string()),
+                inherits: Some("false".to_string()),
+                initial_value: Some("8px".to_string()),
+            }],
         });
 
         assert!(gate.enforcement_passed);
@@ -821,6 +842,10 @@ mod tests {
         assert!(gate.emitted_rule_names.contains(&"dead-cascade-layer"));
         assert!(gate.emitted_rule_names.contains(&"iacvt-prone"));
         assert!(gate.emitted_rule_names.contains(&"circular-var"));
+        assert!(
+            gate.emitted_rule_names
+                .contains(&"registered-property-type-mismatch")
+        );
         assert!(gate.emitted_rule_names.contains(&"unspecified-cascade-tie"));
         assert!(
             gate.emitted_rule_names
@@ -845,6 +870,7 @@ mod tests {
                 var_references: &[],
             })],
             custom_properties: Vec::new(),
+            custom_property_registrations: Vec::new(),
         });
 
         assert!(gate.enforcement_passed);
@@ -874,6 +900,7 @@ mod tests {
             "iacvtProne",
             "guaranteedInvalidCustomProperty",
             "circularVar",
+            "registeredPropertyTypeMismatch",
             "unspecifiedCascadeTie",
             "designerIntentInconsistency",
             "cascadeSmtViolation",
