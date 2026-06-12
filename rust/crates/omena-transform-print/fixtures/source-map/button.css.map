@@ -1,0 +1,8 @@
+{
+  "version": 3,
+  "file": "button.css",
+  "sources": ["button.scss"],
+  "sourcesContent": ["$brand: red;\n\n.button {\n  color: $brand;\n}\n"],
+  "names": [],
+  "mappings": "AAEA;EACS;AACT"
+}
