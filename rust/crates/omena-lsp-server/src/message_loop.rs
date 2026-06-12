@@ -178,14 +178,20 @@ pub fn handle_lsp_message(state: &mut LspShellState, message: Value) -> Option<V
             },
         })),
         (Some(_), None) => None,
-        (None, Some(request_id)) => Some(json!({
-            "jsonrpc": "2.0",
-            "id": request_id,
-            "error": {
-                "code": -32600,
-                "message": "Invalid Request",
-            },
-        })),
+        (None, Some(request_id)) => {
+            if take_server_progress_response(state, &request_id) {
+                None
+            } else {
+                Some(json!({
+                    "jsonrpc": "2.0",
+                    "id": request_id,
+                    "error": {
+                        "code": -32600,
+                        "message": "Invalid Request",
+                    },
+                }))
+            }
+        }
         (None, None) => None,
     }
 }
@@ -217,6 +223,12 @@ fn cancel_lsp_request(state: &mut LspShellState, params: Option<&Value>) {
 fn take_cancelled_request(state: &mut LspShellState, request_id: &Value) -> bool {
     request_id_key(request_id)
         .is_some_and(|key| state.cancelled_request_ids.take_cancelled(key.as_str()))
+}
+
+fn take_server_progress_response(state: &mut LspShellState, request_id: &Value) -> bool {
+    request_id
+        .as_str()
+        .is_some_and(|id| state.take_server_progress_response(id))
 }
 
 fn request_id_key(id: &Value) -> Option<String> {
@@ -415,6 +427,15 @@ fn handle_lsp_message_scheduled_effects_with_deferral(
             .push(ScheduledLspOutput::immediate(response));
     }
 
+    if let Some(method_name) = method.as_deref() {
+        effects
+            .outputs
+            .extend(work_done_progress_outputs_for_index_event(
+                state,
+                method_name,
+            ));
+    }
+
     if let Some(event) = diagnostics_event {
         let diagnostics_effects = if enable_deferred_style_diagnostics {
             run_diagnostics_schedule_effects(state, event)
@@ -445,6 +466,59 @@ impl From<Vec<ScheduledLspOutput>> for LspScheduledEffectsV0 {
             deferred_diagnostics: Vec::new(),
         }
     }
+}
+
+fn work_done_progress_outputs_for_index_event(
+    state: &mut LspShellState,
+    method: &str,
+) -> Vec<ScheduledLspOutput> {
+    if !matches!(
+        method,
+        "initialized" | "workspace/didChangeWorkspaceFolders"
+    ) || !state.client_supports_work_done_progress
+    {
+        return Vec::new();
+    }
+
+    let (id, token) = state.allocate_work_done_progress_request();
+    let end_message = if state.workspace_style_index_exhausted_count > 0 {
+        "Workspace style index updated; additional files remain budgeted for later refreshes"
+    } else {
+        "Workspace style index updated"
+    };
+    vec![
+        ScheduledLspOutput::immediate(json!({
+            "jsonrpc": "2.0",
+            "id": id,
+            "method": "window/workDoneProgress/create",
+            "params": {
+                "token": token,
+            },
+        })),
+        ScheduledLspOutput::immediate(json!({
+            "jsonrpc": "2.0",
+            "method": "$/progress",
+            "params": {
+                "token": token,
+                "value": {
+                    "kind": "begin",
+                    "title": "Omena CSS workspace index",
+                    "message": "Scanning workspace style files",
+                },
+            },
+        })),
+        ScheduledLspOutput::immediate(json!({
+            "jsonrpc": "2.0",
+            "method": "$/progress",
+            "params": {
+                "token": token,
+                "value": {
+                    "kind": "end",
+                    "message": end_message,
+                },
+            },
+        })),
+    ]
 }
 
 pub(crate) fn current_time_millis() -> u128 {

@@ -202,6 +202,9 @@ pub struct LspShellState {
     pub(crate) workspace_runtime_registry: WorkspaceRuntimeRegistry,
     pub(crate) tsgo_workspace_process_pool: TsgoWorkspaceProcessPoolV0,
     pub(crate) watched_file_changes: Vec<LspWatchedFileChangeState>,
+    pub(crate) client_supports_work_done_progress: bool,
+    pub(crate) next_server_progress_request_id: u64,
+    pub(crate) pending_server_progress_request_tokens: BTreeMap<String, String>,
     /// Shared (not per-state) since RFC 0009 Pillar A: the loop and dispatched
     /// query snapshots reuse ONE memo slot so a substrate built on either side is
     /// visible to both. The memo is self-validating by exact input compare, so
@@ -227,6 +230,27 @@ impl LspShellState {
 
     pub fn workspace_folder_count(&self) -> usize {
         self.workspace_runtime_registry.len()
+    }
+
+    pub(crate) fn allocate_work_done_progress_request(&mut self) -> (String, String) {
+        self.next_server_progress_request_id += 1;
+        let id = format!(
+            "omena-work-done-progress-create-{}",
+            self.next_server_progress_request_id
+        );
+        let token = format!(
+            "omena-workspace-index-{}",
+            self.next_server_progress_request_id
+        );
+        self.pending_server_progress_request_tokens
+            .insert(id.clone(), token.clone());
+        (id, token)
+    }
+
+    pub(crate) fn take_server_progress_response(&mut self, id: &str) -> bool {
+        self.pending_server_progress_request_tokens
+            .remove(id)
+            .is_some()
     }
 
     pub fn document(&self, uri: &str) -> Option<&LspTextDocumentState> {

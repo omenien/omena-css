@@ -125,6 +125,10 @@ struct SourceProviderCandidateResolution {
 
 fn initialize_workspace_folders(state: &mut LspShellState, params: Option<&Value>) {
     state.workspace_runtime_registry.clear();
+    state.client_supports_work_done_progress = params
+        .and_then(|value| value.pointer("/capabilities/window/workDoneProgress"))
+        .and_then(Value::as_bool)
+        .unwrap_or(false);
     if let Some(folders) = params
         .and_then(|value| value.get("workspaceFolders"))
         .and_then(Value::as_array)
