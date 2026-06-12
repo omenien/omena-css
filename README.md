@@ -39,6 +39,8 @@ export function Button({ active, size }: { active: boolean; size: "sm" | "lg" })
   - Template literals and symbol references with local flow analysis and TypeScript union fallback
   - `css-loader`-compatible class name transform modes
   - Multi-root workspaces with resource-scoped transform and path-alias settings
+- The `Omena CSS Modules` status bar item shows the language server lifecycle and opens the leveled
+  `Omena CSS Modules` Output panel for filtered runtime logs.
 
 ## Supported patterns
 
