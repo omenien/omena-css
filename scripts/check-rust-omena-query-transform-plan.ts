@@ -509,7 +509,10 @@ assert.equal(
   targetQuerySummary.targetQuery?.targetDataSource,
   "oxcBrowserslistV3+browserThresholdsTomlV0+featureSubsetV0",
 );
-assert.equal(targetQuerySummary.targetQuery?.targetDataContractId, "omena-transform-target-data-v0");
+assert.equal(
+  targetQuerySummary.targetQuery?.targetDataContractId,
+  "omena-transform-target-data-v0",
+);
 assert.equal(
   targetQuerySummary.targetQuery?.targetDataSnapshotId,
   "omena-transform-target-data-v0:thresholds-2026-05-22:bindings-2026-05-22",
@@ -589,7 +592,10 @@ const chrome122LightDarkEvidence = requireTargetDataEvidence(
   chrome122TargetQuerySummary,
   "light_dark",
 );
-const chrome122LightDarkTarget = requireResolvedTargetEvidence(chrome122LightDarkEvidence, "chrome");
+const chrome122LightDarkTarget = requireResolvedTargetEvidence(
+  chrome122LightDarkEvidence,
+  "chrome",
+);
 assert.equal(chrome122LightDarkEvidence.allResolvedTargetsSupported, false);
 assert.equal(chrome122LightDarkTarget.supported, false);
 assert.equal(chrome122LightDarkTarget.matchedThreshold?.minVersion, "123.0");

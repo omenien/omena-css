@@ -380,15 +380,9 @@ assert.ok(
     "noPackageManifestOrConfigReadOnProviderRequest",
   ),
 );
-assert.equal(
-  rustSummary.diskDiagnosticsCache.product,
-  "omena-lsp-server.disk-diagnostics-cache",
-);
+assert.equal(rustSummary.diskDiagnosticsCache.product, "omena-lsp-server.disk-diagnostics-cache");
 assert.equal(rustSummary.diskDiagnosticsCache.owner, "omena-lsp-server/diskDiagnosticsCache");
-assert.equal(
-  rustSummary.diskDiagnosticsCache.cacheModel,
-  "contentAddressedExactMatchShardStore",
-);
+assert.equal(rustSummary.diskDiagnosticsCache.cacheModel, "contentAddressedExactMatchShardStore");
 assert.equal(
   rustSummary.diskDiagnosticsCache.storageLocation,
   "<workspaceFolder>/.cache/omena/diagnostics-cache-v0",
