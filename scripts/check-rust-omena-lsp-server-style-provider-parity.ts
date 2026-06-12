@@ -834,7 +834,13 @@ assert.equal(
 );
 
 const messages = readFrames(result.stdout);
-const responses = messages.filter((message) => "id" in message);
+// RFC 0009 Pillar A (rfcs#67): hover/definition responses are produced by the
+// query worker and may arrive out of arrival-order relative to synchronous
+// responses — the LSP permits that. Sort by id so the positional assertions
+// below keep checking response CONTENT, not transport interleaving.
+const responses = messages
+  .filter((message) => "id" in message)
+  .sort((a, b) => Number(a.id) - Number(b.id));
 const diagnosticNotifications = messages.filter(
   (message) => message.method === "textDocument/publishDiagnostics",
 );
