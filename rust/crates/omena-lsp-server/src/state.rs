@@ -185,7 +185,8 @@ pub(crate) struct LspCascadeNarrowingSubstrateMemo {
     pub(crate) substrate: Arc<OmenaQueryStyleCascadeNarrowingSubstrateV0>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub(crate) struct LspSourceSelectorOccurrenceDocumentKey {
     pub(crate) uri: String,
     pub(crate) workspace_folder_uri: Option<String>,

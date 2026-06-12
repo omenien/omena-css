@@ -590,13 +590,74 @@ fn indexed_source_files_feed_references_and_rename() -> TestResult {
             .is_some_and(|uri| file_uri_equivalent(uri, source_uri.as_str()))),
         "disk-indexed source occurrence should appear in references: {references_response:?}"
     );
-    let memo_after_references = state
+    assert!(
+        state
+            .source_selector_occurrence_index_memo
+            .borrow()
+            .is_some(),
+        "references should populate source occurrence memo"
+    );
+    let document_keys =
+        source_selector_occurrence_document_keys(&state, Some(workspace_uri.as_str()));
+    let sidecar_path =
+        crate::source_occurrence_cache::source_occurrence_sidecar_file_path_for_test(
+            &state,
+            Some(workspace_uri.as_str()),
+            document_keys.as_slice(),
+        )
+        .ok_or_else(|| std::io::Error::other("source occurrence sidecar path should resolve"))?;
+    assert!(
+        sidecar_path.exists(),
+        "references should persist the source occurrence sidecar: {sidecar_path:?}"
+    );
+    *state.source_selector_occurrence_index_memo.borrow_mut() = None;
+    state
+        .document_mut(source_uri.as_str())
+        .ok_or_else(|| std::io::Error::other("source document should remain indexed"))?
+        .source_selector_candidates
+        .clear();
+
+    let cached_references_response = handle_lsp_message(
+        &mut state,
+        json!({
+            "jsonrpc": "2.0",
+            "id": 4,
+            "method": "textDocument/references",
+            "params": {
+                "textDocument": {
+                    "uri": style_uri,
+                },
+                "position": {
+                    "line": 0,
+                    "character": 2,
+                },
+                "context": {
+                    "includeDeclaration": false,
+                },
+            },
+        }),
+    );
+    let cached_reference_locations = cached_references_response
+        .as_ref()
+        .and_then(|response| response.pointer("/result"))
+        .and_then(Value::as_array)
+        .ok_or_else(|| {
+            std::io::Error::other("cached references response should contain locations")
+        })?;
+    assert!(
+        cached_reference_locations.iter().any(|location| location
+            .get("uri")
+            .and_then(Value::as_str)
+            .is_some_and(|uri| file_uri_equivalent(uri, source_uri.as_str()))),
+        "disk sidecar should rehydrate source references without source candidate rescanning: {cached_references_response:?}"
+    );
+    let memo_after_cached_references = state
         .source_selector_occurrence_index_memo
         .borrow()
         .as_ref()
         .map(|memo| std::sync::Arc::clone(&memo.index))
         .ok_or_else(|| {
-            std::io::Error::other("references should populate source occurrence memo")
+            std::io::Error::other("cached references should populate source occurrence memo")
         })?;
 
     let rename_response = handle_lsp_message(
@@ -641,8 +702,8 @@ fn indexed_source_files_feed_references_and_rename() -> TestResult {
         .map(|memo| std::sync::Arc::clone(&memo.index))
         .ok_or_else(|| std::io::Error::other("rename should retain source occurrence memo"))?;
     assert!(
-        std::sync::Arc::ptr_eq(&memo_after_references, &memo_after_rename),
-        "rename should reuse the source occurrence index produced for references"
+        std::sync::Arc::ptr_eq(&memo_after_cached_references, &memo_after_rename),
+        "rename should reuse the source occurrence index rehydrated for references"
     );
     let _ = std::fs::remove_dir_all(&workspace_root);
     Ok(())

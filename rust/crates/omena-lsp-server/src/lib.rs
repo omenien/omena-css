@@ -10,6 +10,7 @@ mod protocol;
 mod query_adapter;
 mod query_reuse;
 mod settings;
+mod source_occurrence_cache;
 mod source_type_facts;
 mod state;
 mod workspace_index;
@@ -88,6 +89,9 @@ use query_reuse::{
 use serde_json::{Value, json};
 pub(crate) use settings::{
     apply_diagnostic_settings, apply_feature_settings, apply_resolution_settings,
+};
+use source_occurrence_cache::{
+    load_source_selector_occurrence_sidecar, store_source_selector_occurrence_sidecar,
 };
 #[cfg(test)]
 pub(crate) use source_type_facts::apply_source_type_fact_results_to_document;
@@ -2093,6 +2097,23 @@ fn source_selector_occurrence_index_from_open_documents(
             index: Arc::clone(&memo.index),
         };
     }
+    if let Some(cached) = load_source_selector_occurrence_sidecar(
+        state,
+        workspace_folder_uri,
+        document_keys.as_slice(),
+    ) {
+        *state.source_selector_occurrence_index_memo.borrow_mut() =
+            Some(LspSourceSelectorOccurrenceIndexMemo {
+                workspace_folder_uri: memo_workspace_folder_uri,
+                document_keys,
+                definitions: cached.definitions.clone(),
+                index: Arc::clone(&cached.index),
+            });
+        return SourceSelectorOccurrenceWorkspaceIndex {
+            definitions: cached.definitions,
+            index: cached.index,
+        };
+    }
 
     let definitions =
         style_selector_definitions_from_open_documents(state, "", workspace_folder_uri)
@@ -2118,6 +2139,13 @@ fn source_selector_occurrence_index_from_open_documents(
         references.as_slice(),
     );
     let index = Arc::new(index);
+    store_source_selector_occurrence_sidecar(
+        state,
+        workspace_folder_uri,
+        document_keys.as_slice(),
+        definitions.as_slice(),
+        &index,
+    );
     *state.source_selector_occurrence_index_memo.borrow_mut() =
         Some(LspSourceSelectorOccurrenceIndexMemo {
             workspace_folder_uri: memo_workspace_folder_uri,
