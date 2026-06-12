@@ -26,6 +26,8 @@ pub use message_loop::{
     handle_lsp_message, handle_lsp_message_outputs, handle_lsp_message_scheduled_outputs,
     handle_lsp_message_scheduled_outputs_or_dispatch, resolve_dispatched_query_response,
 };
+#[cfg(feature = "salsa-style-diagnostics")]
+use omena_query::summarize_omena_query_target_unresolved_sass_import_diagnostics_for_workspace_paths;
 use omena_query::{
     OmenaQueryCodeActionV0, OmenaQueryCompletionCandidateV0, OmenaQueryCompletionItemV0,
     OmenaQueryEngineInputV2, OmenaQuerySourceDocumentInputV0,
@@ -1125,6 +1127,136 @@ pub(crate) struct LspStyleDiagnosticsRenderInputsV0<'inputs> {
     pub(crate) configured_severity: u8,
 }
 
+#[cfg(feature = "salsa-style-diagnostics")]
+impl LspOwnedStyleDiagnosticsRenderInputsV0 {
+    fn borrowed(&self) -> LspStyleDiagnosticsRenderInputsV0<'_> {
+        LspStyleDiagnosticsRenderInputsV0 {
+            document_uri: self.document_uri.as_str(),
+            document_text: self.document_text.as_str(),
+            query_candidates: self.query_candidates.as_slice(),
+            style_sources: self.style_sources.as_slice(),
+            source_documents: self.source_documents.as_slice(),
+            package_manifests: self.package_manifests.as_slice(),
+            deep_analysis: self.deep_analysis,
+            configured_severity: self.configured_severity,
+        }
+    }
+}
+
+pub(crate) fn prepare_deferred_style_diagnostics_for_uri(
+    state: &LspShellState,
+    document_uri: &str,
+    tier_plan: DiagnosticsPipelineTierPlanV0,
+) -> Option<(Value, LspDeferredDiagnosticsDispatchV0)> {
+    #[cfg(not(feature = "salsa-style-diagnostics"))]
+    {
+        let _ = (state, document_uri, tier_plan);
+        None
+    }
+    #[cfg(feature = "salsa-style-diagnostics")]
+    {
+        let render_inputs = owned_style_diagnostics_render_inputs_for_uri(state, document_uri)?;
+        let disk_cache_slot = disk_diagnostics_cache_slot_for_resolve(
+            state,
+            state
+                .document(document_uri)
+                .and_then(|document| document.workspace_folder_uri.as_deref()),
+            document_uri,
+            render_inputs.style_sources.as_slice(),
+            render_inputs.source_documents.as_slice(),
+            render_inputs.external_sifs.as_slice(),
+            &render_inputs.resolution_inputs,
+        );
+        if disk_cache_slot
+            .as_ref()
+            .and_then(|slot| slot.load())
+            .is_some()
+        {
+            return None;
+        }
+
+        let mut baseline_summary = summarize_omena_query_style_diagnostics_for_file(
+            render_inputs.document_uri.as_str(),
+            render_inputs.document_text.as_str(),
+            render_inputs.query_candidates.as_slice(),
+        );
+        baseline_summary.diagnostics.extend(
+            summarize_omena_query_target_unresolved_sass_import_diagnostics_for_workspace_paths(
+                render_inputs.document_uri.as_str(),
+                render_inputs.document_text.as_str(),
+                render_inputs.style_sources.as_slice(),
+                render_inputs.package_manifests.as_slice(),
+            ),
+        );
+        baseline_summary.diagnostic_count = baseline_summary.diagnostics.len();
+        let baseline_diagnostics =
+            render_style_diagnostics_summary_value(&render_inputs.borrowed(), baseline_summary);
+        let dispatch = LspDeferredDiagnosticsDispatchV0 {
+            uri: document_uri.to_string(),
+            coalesce_key: String::new(),
+            tier_plan,
+            render_inputs,
+        };
+        Some((baseline_diagnostics, dispatch))
+    }
+}
+
+#[cfg(feature = "salsa-style-diagnostics")]
+fn owned_style_diagnostics_render_inputs_for_uri(
+    state: &LspShellState,
+    document_uri: &str,
+) -> Option<LspOwnedStyleDiagnosticsRenderInputsV0> {
+    let document = state.document(document_uri)?;
+    let (_, candidates) = style_hover_candidates_for_document(document)?;
+    let query_candidates = candidates
+        .iter()
+        .map(query_style_hover_candidate_from_lsp)
+        .collect::<Vec<_>>();
+    let style_sources = style_sources_from_open_documents(
+        state,
+        document.workspace_folder_uri.as_deref(),
+        Some(document.uri.as_str()),
+    );
+    let source_documents =
+        source_documents_from_open_documents(state, document.workspace_folder_uri.as_deref());
+    let resolution_inputs =
+        resolution_inputs_for_workspace_uri(state, document.workspace_folder_uri.as_deref());
+    Some(LspOwnedStyleDiagnosticsRenderInputsV0 {
+        document_uri: document.uri.clone(),
+        document_text: document.text.clone(),
+        query_candidates,
+        style_sources,
+        source_documents,
+        package_manifests: state.resolution.package_manifests.clone(),
+        external_sifs: state.resolution.external_sifs.clone(),
+        resolution_inputs,
+        deep_analysis: state.diagnostics.deep_analysis,
+        configured_severity: state.diagnostics.severity,
+    })
+}
+
+#[cfg(feature = "salsa-style-diagnostics")]
+pub fn resolve_deferred_diagnostics_notification(
+    host: &mut omena_query::OmenaQueryStyleMemoHostV0,
+    dispatch: &LspDeferredDiagnosticsDispatchV0,
+) -> Value {
+    let inputs = &dispatch.render_inputs;
+    let workspace_summary = host.workspace_style_diagnostics(
+        inputs.document_uri.as_str(),
+        inputs.style_sources.as_slice(),
+        inputs.source_documents.as_slice(),
+        inputs.package_manifests.as_slice(),
+        inputs.external_sifs.as_slice(),
+        &inputs.resolution_inputs,
+    );
+    let diagnostics = finish_style_diagnostics_value(&inputs.borrowed(), workspace_summary);
+    diagnostics_scheduler::deferred_full_diagnostics_notification(
+        dispatch.uri.as_str(),
+        diagnostics,
+        dispatch.tier_plan,
+    )
+}
+
 /// RFC 0009 Pillar F (rfcs#68): the worker-safe tail of the style
 /// diagnostics pipeline — per-file fallback summarize, streaming-IFDS
 /// extend, opt-in deep analysis, severity mapping and LSP JSON rendering.
@@ -1159,6 +1291,13 @@ pub(crate) fn finish_style_diagnostics_value(
             ));
     }
     diagnostics_summary.diagnostic_count = diagnostics_summary.diagnostics.len();
+    render_style_diagnostics_summary_value(inputs, diagnostics_summary)
+}
+
+fn render_style_diagnostics_summary_value(
+    inputs: &LspStyleDiagnosticsRenderInputsV0<'_>,
+    diagnostics_summary: omena_query::OmenaQueryStyleDiagnosticsForFileV0,
+) -> Value {
     let diagnostics = diagnostics_summary
         .diagnostics
         .into_iter()

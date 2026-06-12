@@ -3,8 +3,15 @@ use std::sync::mpsc;
 use std::sync::{Arc, Mutex};
 use std::thread::{self, JoinHandle};
 use std::time::Duration;
+#[cfg(feature = "salsa-style-diagnostics")]
+use std::time::Instant;
 use std::{collections::BTreeMap, sync::MutexGuard};
 
+#[cfg(feature = "salsa-style-diagnostics")]
+use omena_lsp_server::{
+    LspDeferredDiagnosticsDispatchV0, OPTIMIZING_DIAGNOSTICS_DELAY_MS,
+    resolve_deferred_diagnostics_notification,
+};
 use omena_lsp_server::{
     LspLoopTurnV0, LspQueryDispatchV0, LspShellState, ScheduledLspOutput,
     dispatched_query_internal_error_response, handle_lsp_message_scheduled_outputs_or_dispatch,
@@ -25,6 +32,9 @@ fn run_stdio_server<R: BufRead, W: Write + Send + 'static>(
     let writer = Arc::new(Mutex::new(writer));
     let coalescer = Arc::new(Mutex::new(ScheduledOutputCoalescer::default()));
     let mut delayed_outputs: Vec<JoinHandle<Result<(), String>>> = Vec::new();
+    #[cfg(feature = "salsa-style-diagnostics")]
+    let (diagnostics_sender, diagnostics_receiver) =
+        mpsc::sync_channel::<DeferredDiagnosticsWorkV0>(256);
     // RFC 0009 Pillar A (rfcs#67, slice A-min): one worker thread answers the
     // heaviest read-only request class (hover/definition) from loop-built
     // copy-on-write snapshots, so a heavy resolve no longer stalls every queued
@@ -63,6 +73,50 @@ fn run_stdio_server<R: BufRead, W: Write + Send + 'static>(
             Ok(())
         })
     };
+    #[cfg(feature = "salsa-style-diagnostics")]
+    let diagnostics_worker: JoinHandle<Result<(), String>> = {
+        let writer = Arc::clone(&writer);
+        let coalescer = Arc::clone(&coalescer);
+        thread::spawn(move || {
+            let mut host = omena_query::OmenaQueryStyleMemoHostV0::new();
+            while let Ok(work) = diagnostics_receiver.recv() {
+                if !lock_coalescer(&coalescer)
+                    .is_current(work.dispatch.coalesce_key.as_str(), work.revision)
+                {
+                    continue;
+                }
+                let started_at = Instant::now();
+                let notification = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+                    resolve_deferred_diagnostics_notification(&mut host, &work.dispatch)
+                }));
+                let Ok(notification) = notification else {
+                    continue;
+                };
+                if !lock_coalescer(&coalescer)
+                    .is_current(work.dispatch.coalesce_key.as_str(), work.revision)
+                {
+                    continue;
+                }
+                let elapsed_millis = started_at.elapsed().as_millis() as u64;
+                let remaining_delay =
+                    OPTIMIZING_DIAGNOSTICS_DELAY_MS.saturating_sub(elapsed_millis);
+                if remaining_delay > 0 {
+                    thread::sleep(Duration::from_millis(remaining_delay));
+                }
+                if !lock_coalescer(&coalescer)
+                    .is_current(work.dispatch.coalesce_key.as_str(), work.revision)
+                {
+                    continue;
+                }
+                let mut writer = writer
+                    .lock()
+                    .map_err(|_| "stdout lock poisoned".to_string())?;
+                write_lsp_response(&mut *writer, &notification)
+                    .map_err(|error| error.to_string())?;
+            }
+            Ok(())
+        })
+    };
 
     while let Some(payload) = read_lsp_payload(reader)? {
         let message: serde_json::Value = serde_json::from_str(&payload)?;
@@ -77,6 +131,22 @@ fn run_stdio_server<R: BufRead, W: Write + Send + 'static>(
                     write_scheduled_lsp_output(&writer, &coalescer, output, &mut delayed_outputs)?;
                 }
             }
+            LspLoopTurnV0::OutputsAndDeferredDiagnostics {
+                outputs,
+                deferred_diagnostics,
+            } => {
+                for output in outputs {
+                    write_scheduled_lsp_output(&writer, &coalescer, output, &mut delayed_outputs)?;
+                }
+                for dispatch in deferred_diagnostics {
+                    #[cfg(feature = "salsa-style-diagnostics")]
+                    dispatch_deferred_diagnostics(&diagnostics_sender, &coalescer, dispatch)?;
+                    #[cfg(not(feature = "salsa-style-diagnostics"))]
+                    {
+                        let _ = dispatch;
+                    }
+                }
+            }
         }
         if state.should_exit {
             break;
@@ -87,10 +157,17 @@ fn run_stdio_server<R: BufRead, W: Write + Send + 'static>(
     // finish every dispatched request before exiting, so shutdown/exit never
     // drops an in-flight hover/definition response.
     drop(query_sender);
+    #[cfg(feature = "salsa-style-diagnostics")]
+    drop(diagnostics_sender);
     query_worker
         .join()
         .map_err(|_| "query worker panicked".to_string())?
         .map_err(|error| format!("query worker failed: {error}"))?;
+    #[cfg(feature = "salsa-style-diagnostics")]
+    diagnostics_worker
+        .join()
+        .map_err(|_| "diagnostics worker panicked".to_string())?
+        .map_err(|error| format!("diagnostics worker failed: {error}"))?;
 
     for handle in delayed_outputs {
         handle
@@ -100,6 +177,13 @@ fn run_stdio_server<R: BufRead, W: Write + Send + 'static>(
     }
 
     Ok(())
+}
+
+#[cfg(feature = "salsa-style-diagnostics")]
+#[derive(Debug)]
+struct DeferredDiagnosticsWorkV0 {
+    dispatch: LspDeferredDiagnosticsDispatchV0,
+    revision: u64,
 }
 
 #[derive(Debug, Default)]
@@ -200,6 +284,18 @@ fn write_scheduled_lsp_output<W: Write + Send + 'static>(
     write_lsp_response(&mut *writer, &output.value)
 }
 
+#[cfg(feature = "salsa-style-diagnostics")]
+fn dispatch_deferred_diagnostics(
+    sender: &mpsc::SyncSender<DeferredDiagnosticsWorkV0>,
+    coalescer: &Arc<Mutex<ScheduledOutputCoalescer>>,
+    dispatch: LspDeferredDiagnosticsDispatchV0,
+) -> Result<(), Box<dyn std::error::Error>> {
+    let revision = lock_coalescer(coalescer).schedule(dispatch.coalesce_key.as_str());
+    sender
+        .send(DeferredDiagnosticsWorkV0 { dispatch, revision })
+        .map_err(|_| "diagnostics worker exited before shutdown".into())
+}
+
 fn lock_coalescer(
     coalescer: &Arc<Mutex<ScheduledOutputCoalescer>>,
 ) -> MutexGuard<'_, ScheduledOutputCoalescer> {
@@ -276,6 +372,128 @@ mod tests {
             cursor = body_start + length;
         }
         Ok(messages)
+    }
+
+    fn publish_diagnostics_for_uri<'a>(messages: &'a [Value], uri: &str) -> Vec<&'a Value> {
+        messages
+            .iter()
+            .filter(|message| {
+                message.get("method") == Some(&json!("textDocument/publishDiagnostics"))
+                    && message.pointer("/params/uri").and_then(Value::as_str) == Some(uri)
+            })
+            .collect()
+    }
+
+    fn diagnostic_codes(message: &Value) -> Vec<&str> {
+        message
+            .pointer("/params/diagnostics")
+            .and_then(Value::as_array)
+            .map(|diagnostics| {
+                diagnostics
+                    .iter()
+                    .filter_map(|diagnostic| diagnostic.get("code").and_then(Value::as_str))
+                    .collect()
+            })
+            .unwrap_or_default()
+    }
+
+    fn app_style_open_message(version: u64, text: String) -> Value {
+        json!({
+            "jsonrpc": "2.0",
+            "method": "textDocument/didOpen",
+            "params": {
+                "textDocument": {
+                    "uri": APP_STYLE_URI,
+                    "languageId": "scss",
+                    "version": version,
+                    "text": text,
+                },
+            },
+        })
+    }
+
+    fn app_style_change_message(version: u64, text: String) -> Value {
+        json!({
+            "jsonrpc": "2.0",
+            "method": "textDocument/didChange",
+            "params": {
+                "textDocument": {
+                    "uri": APP_STYLE_URI,
+                    "version": version,
+                },
+                "contentChanges": [
+                    {
+                        "text": text,
+                    },
+                ],
+            },
+        })
+    }
+
+    fn initialize_workspace_a_message() -> Value {
+        json!({
+            "jsonrpc": "2.0",
+            "id": 1,
+            "method": "initialize",
+            "params": {
+                "workspaceFolders": [
+                    {
+                        "uri": "file:///workspace-a",
+                        "name": "workspace-a",
+                    },
+                ],
+            },
+        })
+    }
+
+    fn synchronous_app_style_publishes(text: &str) -> Vec<Value> {
+        synchronous_app_style_publish_sequence(&[text.to_string()])
+            .into_iter()
+            .next()
+            .unwrap_or_default()
+    }
+
+    fn synchronous_app_style_publish_sequence(texts: &[String]) -> Vec<Vec<Value>> {
+        let mut state = LspShellState::default();
+        let _ = omena_lsp_server::handle_lsp_message_outputs(
+            &mut state,
+            initialize_workspace_a_message(),
+        );
+        texts
+            .iter()
+            .enumerate()
+            .map(|(index, text)| {
+                let message = if index == 0 {
+                    app_style_open_message(1, text.clone())
+                } else {
+                    app_style_change_message(index as u64 + 1, text.clone())
+                };
+                omena_lsp_server::handle_lsp_message_outputs(&mut state, message)
+                    .into_iter()
+                    .filter(|message| {
+                        message.get("method") == Some(&json!("textDocument/publishDiagnostics"))
+                            && message.pointer("/params/uri").and_then(Value::as_str)
+                                == Some(APP_STYLE_URI)
+                    })
+                    .collect()
+            })
+            .collect()
+    }
+
+    fn run_script(script: &[Value]) -> Result<Vec<Value>, String> {
+        let mut input: Vec<u8> = Vec::new();
+        for message in script {
+            input.extend_from_slice(frame(message)?.as_slice());
+        }
+        let sink = SharedBufferWriter::default();
+        let mut reader: &[u8] = input.as_slice();
+        run_stdio_server(&mut reader, sink.clone()).map_err(|error| error.to_string())?;
+        let output = sink
+            .0
+            .lock()
+            .map_err(|_| "shared writer poisoned".to_string())?
+            .clone();
+        parse_lsp_frames(output.as_slice())
     }
 
     fn theme_text_for_generation(generation: usize) -> String {
@@ -412,20 +630,7 @@ mod tests {
             "method": "exit",
         }));
 
-        let mut input: Vec<u8> = Vec::new();
-        for message in &script {
-            input.extend_from_slice(frame(message)?.as_slice());
-        }
-        let sink = SharedBufferWriter::default();
-        let mut reader: &[u8] = input.as_slice();
-        run_stdio_server(&mut reader, sink.clone()).map_err(|error| error.to_string())?;
-
-        let output = sink
-            .0
-            .lock()
-            .map_err(|_| "shared writer poisoned".to_string())?
-            .clone();
-        let messages = parse_lsp_frames(output.as_slice())?;
+        let messages = run_script(&script)?;
 
         // (a) + (c): every request answered exactly once, nothing lost at exit.
         let expected_ids: Vec<u64> = std::iter::once(1)
@@ -486,6 +691,166 @@ mod tests {
                 "definition after didChange {generation} must resolve in that generation's corpus"
             );
         }
+        Ok(())
+    }
+
+    #[test]
+    fn deferred_style_diagnostics_publish_baseline_then_forced_full() -> Result<(), String> {
+        let style_text = "@use \"./missing\";\n:root { --brand: red; }\n.btn { width: var(--missing); color: red; color: blue; }";
+        let synchronous_publishes = synchronous_app_style_publishes(style_text);
+        assert_eq!(
+            synchronous_publishes.len(),
+            2,
+            "the synchronous oracle must publish baseline and full diagnostics"
+        );
+        let script = vec![
+            initialize_workspace_a_message(),
+            app_style_open_message(1, style_text.to_string()),
+            json!({
+                "jsonrpc": "2.0",
+                "id": 2,
+                "method": "shutdown",
+            }),
+            json!({
+                "jsonrpc": "2.0",
+                "method": "exit",
+            }),
+        ];
+        let messages = run_script(&script)?;
+        let publishes = publish_diagnostics_for_uri(&messages, APP_STYLE_URI);
+        assert!(
+            publishes.len() >= 2,
+            "deferred diagnostics must publish baseline and full sets: {publishes:?}"
+        );
+
+        assert_eq!(
+            publishes[0], &synchronous_publishes[0],
+            "immediate baseline publish must byte-match the synchronous Baseline subset"
+        );
+        assert_eq!(
+            publishes[publishes.len() - 1],
+            &synchronous_publishes[1],
+            "deferred full publish must byte-match the synchronous full diagnostics"
+        );
+
+        let first_codes = diagnostic_codes(publishes[0]);
+        assert!(
+            first_codes.contains(&"missingCustomProperty"),
+            "immediate baseline publish must include file-local baseline diagnostics: {first_codes:?}"
+        );
+        assert!(
+            first_codes.contains(&"missingModule"),
+            "immediate baseline publish must include target-only Sass missingModule parity: {first_codes:?}"
+        );
+        assert!(
+            !first_codes.contains(&"unreachableDeclaration"),
+            "immediate baseline publish must not include optimizing diagnostics: {first_codes:?}"
+        );
+        assert!(
+            publishes[0]
+                .pointer("/params/diagnostics")
+                .and_then(Value::as_array)
+                .is_some_and(|diagnostics| diagnostics
+                    .iter()
+                    .all(|diagnostic| diagnostic.pointer("/data/pipelineTier")
+                        == Some(&json!("baseline")))),
+            "all immediate diagnostics must be baseline-tier annotated"
+        );
+
+        let last_codes = diagnostic_codes(publishes[publishes.len() - 1]);
+        assert!(
+            last_codes.contains(&"missingCustomProperty")
+                && last_codes.contains(&"missingModule")
+                && last_codes.contains(&"unreachableDeclaration"),
+            "forced full publish must equal the tier-union shape: {last_codes:?}"
+        );
+        assert!(
+            publishes[publishes.len() - 1]
+                .pointer("/params/diagnostics")
+                .and_then(Value::as_array)
+                .is_some_and(|diagnostics| diagnostics
+                    .iter()
+                    .any(|diagnostic| diagnostic.pointer("/data/pipelineTier")
+                        == Some(&json!("optimizing")))),
+            "forced full publish must carry optimizing-tier annotations"
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn deferred_style_diagnostics_supersession_finishes_on_full_latest_state() -> Result<(), String>
+    {
+        let style_text = |token: &str| {
+            format!(
+                ":root {{ --brand: red; }}\n.btn {{ width: var(--{token}); color: red; color: blue; }}"
+            )
+        };
+        let first_text = style_text("first");
+        let second_text = style_text("second");
+        let third_text = style_text("third");
+        let expected_sequence = synchronous_app_style_publish_sequence(&[
+            first_text.clone(),
+            second_text.clone(),
+            third_text.clone(),
+        ]);
+        assert_eq!(
+            expected_sequence.len(),
+            3,
+            "the synchronous oracle must return one publish set per textDocument event"
+        );
+        let script = vec![
+            initialize_workspace_a_message(),
+            app_style_open_message(1, first_text),
+            app_style_change_message(2, second_text),
+            app_style_change_message(3, third_text),
+            json!({
+                "jsonrpc": "2.0",
+                "id": 2,
+                "method": "shutdown",
+            }),
+            json!({
+                "jsonrpc": "2.0",
+                "method": "exit",
+            }),
+        ];
+        let messages = run_script(&script)?;
+        let publishes = publish_diagnostics_for_uri(&messages, APP_STYLE_URI);
+        assert!(
+            publishes.len() >= 4,
+            "rapid edits must publish immediate baselines plus one final full set: {publishes:?}"
+        );
+        assert_eq!(
+            publishes[0], &expected_sequence[0][0],
+            "didOpen baseline must byte-match a fresh synchronous Baseline subset"
+        );
+        assert_eq!(
+            publishes[1], &expected_sequence[1][0],
+            "first didChange baseline must byte-match the synchronous Baseline subset for the same event sequence"
+        );
+        assert_eq!(
+            publishes[2], &expected_sequence[2][0],
+            "latest didChange baseline must byte-match the synchronous Baseline subset for the same event sequence"
+        );
+        let last = publishes[publishes.len() - 1];
+        assert_eq!(
+            last, &expected_sequence[2][1],
+            "latest deferred full publish must byte-match the synchronous full diagnostics for the same event sequence"
+        );
+        let last_codes = diagnostic_codes(last);
+        assert!(
+            last_codes.contains(&"missingCustomProperty")
+                && last_codes.contains(&"unreachableDeclaration"),
+            "latest state must not be left baseline-only: {last_codes:?}"
+        );
+        assert!(
+            last.pointer("/params/diagnostics")
+                .and_then(Value::as_array)
+                .is_some_and(|diagnostics| diagnostics
+                    .iter()
+                    .any(|diagnostic| diagnostic.pointer("/data/pipelineTier")
+                        == Some(&json!("optimizing")))),
+            "latest state must receive an optimizing-tier full publish"
+        );
         Ok(())
     }
 

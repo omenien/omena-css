@@ -1,19 +1,19 @@
-use crate::diagnostics_scheduler::{diagnostics_schedule_event, run_diagnostics_schedule};
+use crate::diagnostics_scheduler::{diagnostics_schedule_event, run_diagnostics_schedule_effects};
 use crate::lsp_output::ScheduledLspOutput;
 use crate::{
     CANCEL_REQUEST_METHOD, CASCADE_AT_POSITION_REQUEST, DEBUG_STATE_REQUEST,
-    EXPLAIN_HOVER_TRACE_REQUEST, LspQuerySnapshotV0, LspShellState, REQUEST_CANCELLED_ERROR_CODE,
-    RUNTIME_LOOP_PROBE_REQUEST, SOURCE_DIAGNOSTICS_REQUEST, STYLE_CONTEXT_INDEX_REQUEST,
-    STYLE_DIAGNOSTICS_REQUEST, STYLE_HOVER_CANDIDATES_REQUEST, apply_diagnostic_settings,
-    apply_feature_settings, apply_resolution_settings, current_node_lsp_capability_contract,
-    did_change_text_document, did_change_watched_files, did_change_workspace_folders,
-    did_close_text_document, did_open_text_document, index_workspace_style_files,
-    initialize_workspace_folders, refresh_source_indexes_for_resolution_settings_change,
-    resolve_cascade_at_position, resolve_lsp_code_actions, resolve_lsp_code_lens,
-    resolve_lsp_completion, resolve_lsp_definition, resolve_lsp_hover, resolve_lsp_hover_trace,
-    resolve_lsp_prepare_rename, resolve_lsp_references, resolve_lsp_rename,
-    resolve_source_diagnostics, resolve_style_context_index, resolve_style_diagnostics,
-    resolve_style_hover_candidates,
+    EXPLAIN_HOVER_TRACE_REQUEST, LspDeferredDiagnosticsDispatchV0, LspQuerySnapshotV0,
+    LspShellState, REQUEST_CANCELLED_ERROR_CODE, RUNTIME_LOOP_PROBE_REQUEST,
+    SOURCE_DIAGNOSTICS_REQUEST, STYLE_CONTEXT_INDEX_REQUEST, STYLE_DIAGNOSTICS_REQUEST,
+    STYLE_HOVER_CANDIDATES_REQUEST, apply_diagnostic_settings, apply_feature_settings,
+    apply_resolution_settings, current_node_lsp_capability_contract, did_change_text_document,
+    did_change_watched_files, did_change_workspace_folders, did_close_text_document,
+    did_open_text_document, index_workspace_style_files, initialize_workspace_folders,
+    refresh_source_indexes_for_resolution_settings_change, resolve_cascade_at_position,
+    resolve_lsp_code_actions, resolve_lsp_code_lens, resolve_lsp_completion,
+    resolve_lsp_definition, resolve_lsp_hover, resolve_lsp_hover_trace, resolve_lsp_prepare_rename,
+    resolve_lsp_references, resolve_lsp_rename, resolve_source_diagnostics,
+    resolve_style_context_index, resolve_style_diagnostics, resolve_style_hover_candidates,
 };
 use serde_json::{Value, json};
 use std::time::{SystemTime, UNIX_EPOCH};
@@ -259,6 +259,10 @@ pub fn handle_lsp_message_outputs(state: &mut LspShellState, message: Value) -> 
 #[derive(Debug)]
 pub enum LspLoopTurnV0 {
     Outputs(Vec<ScheduledLspOutput>),
+    OutputsAndDeferredDiagnostics {
+        outputs: Vec<ScheduledLspOutput>,
+        deferred_diagnostics: Vec<LspDeferredDiagnosticsDispatchV0>,
+    },
     // Boxed: a dispatch carries the whole snapshot (settings + documents map),
     // which would otherwise dominate the enum size for the common Outputs turn.
     DispatchQuery(Box<LspQueryDispatchV0>),
@@ -298,7 +302,15 @@ pub fn handle_lsp_message_scheduled_outputs_or_dispatch(
             message,
         }));
     }
-    LspLoopTurnV0::Outputs(handle_lsp_message_scheduled_outputs(state, message))
+    let effects = handle_lsp_message_scheduled_effects(state, message);
+    if effects.deferred_diagnostics.is_empty() {
+        LspLoopTurnV0::Outputs(effects.outputs)
+    } else {
+        LspLoopTurnV0::OutputsAndDeferredDiagnostics {
+            outputs: effects.outputs,
+            deferred_diagnostics: effects.deferred_diagnostics,
+        }
+    }
 }
 
 /// The dispatched request class: hover/definition REQUESTS (an `id` is
@@ -367,6 +379,21 @@ pub fn handle_lsp_message_scheduled_outputs(
     state: &mut LspShellState,
     message: Value,
 ) -> Vec<ScheduledLspOutput> {
+    handle_lsp_message_scheduled_effects_with_deferral(state, message, false).outputs
+}
+
+pub fn handle_lsp_message_scheduled_effects(
+    state: &mut LspShellState,
+    message: Value,
+) -> LspScheduledEffectsV0 {
+    handle_lsp_message_scheduled_effects_with_deferral(state, message, true)
+}
+
+fn handle_lsp_message_scheduled_effects_with_deferral(
+    state: &mut LspShellState,
+    message: Value,
+    enable_deferred_style_diagnostics: bool,
+) -> LspScheduledEffectsV0 {
     let method = message
         .get("method")
         .and_then(Value::as_str)
@@ -380,17 +407,44 @@ pub fn handle_lsp_message_scheduled_outputs(
     let watched_file_uris = watched_file_uris_from_message(&message);
     let diagnostics_event =
         diagnostics_schedule_event(method.as_deref(), document_uri, watched_file_uris);
-    let mut outputs = Vec::new();
+    let mut effects = LspScheduledEffectsV0::default();
 
     if let Some(response) = handle_lsp_message(state, message) {
-        outputs.push(ScheduledLspOutput::immediate(response));
+        effects
+            .outputs
+            .push(ScheduledLspOutput::immediate(response));
     }
 
     if let Some(event) = diagnostics_event {
-        outputs.extend(run_diagnostics_schedule(state, event));
+        let diagnostics_effects = if enable_deferred_style_diagnostics {
+            run_diagnostics_schedule_effects(state, event)
+        } else {
+            crate::diagnostics_scheduler::DiagnosticsScheduleEffectsV0::from_outputs(
+                crate::diagnostics_scheduler::run_diagnostics_schedule(state, event),
+            )
+        };
+        effects.outputs.extend(diagnostics_effects.outputs);
+        effects
+            .deferred_diagnostics
+            .extend(diagnostics_effects.deferred_diagnostics);
     }
 
-    outputs
+    effects
+}
+
+#[derive(Debug, Default)]
+pub struct LspScheduledEffectsV0 {
+    pub outputs: Vec<ScheduledLspOutput>,
+    pub deferred_diagnostics: Vec<LspDeferredDiagnosticsDispatchV0>,
+}
+
+impl From<Vec<ScheduledLspOutput>> for LspScheduledEffectsV0 {
+    fn from(outputs: Vec<ScheduledLspOutput>) -> Self {
+        Self {
+            outputs,
+            deferred_diagnostics: Vec::new(),
+        }
+    }
 }
 
 pub(crate) fn current_time_millis() -> u128 {

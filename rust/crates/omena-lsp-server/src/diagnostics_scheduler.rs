@@ -1,6 +1,8 @@
 use crate::{
-    LspOptimizingTierFeedback, LspShellState, OPTIMIZING_DIAGNOSTICS_DELAY_MS, ScheduledLspOutput,
+    DiagnosticsPipelineTierPlanV0, LspDeferredDiagnosticsDispatchV0, LspOptimizingTierFeedback,
+    LspShellState, OPTIMIZING_DIAGNOSTICS_DELAY_MS, ScheduledLspOutput,
     is_resolution_config_document_uri, is_style_document_uri,
+    prepare_deferred_style_diagnostics_for_uri,
     protocol::{file_uri_equivalent, file_uri_to_path},
     resolution_inputs_for_workspace_uri, resolve_document_diagnostics_for_uri,
     resolve_source_diagnostics_for_uri, resolve_workspace_folder_uri, workspace_folder_compatible,
@@ -101,9 +103,44 @@ pub(crate) fn run_diagnostics_schedule(
     state: &mut LspShellState,
     event: DiagnosticsScheduleEvent,
 ) -> Vec<ScheduledLspOutput> {
+    run_diagnostics_schedule_effects_with_deferral(state, event, false).outputs
+}
+
+#[derive(Debug, Default)]
+pub(crate) struct DiagnosticsScheduleEffectsV0 {
+    pub(crate) outputs: Vec<ScheduledLspOutput>,
+    pub(crate) deferred_diagnostics: Vec<LspDeferredDiagnosticsDispatchV0>,
+}
+
+impl DiagnosticsScheduleEffectsV0 {
+    pub(crate) fn from_outputs(outputs: Vec<ScheduledLspOutput>) -> Self {
+        Self {
+            outputs,
+            deferred_diagnostics: Vec::new(),
+        }
+    }
+}
+
+pub(crate) fn run_diagnostics_schedule_effects(
+    state: &mut LspShellState,
+    event: DiagnosticsScheduleEvent,
+) -> DiagnosticsScheduleEffectsV0 {
+    run_diagnostics_schedule_effects_with_deferral(state, event, true)
+}
+
+fn run_diagnostics_schedule_effects_with_deferral(
+    state: &mut LspShellState,
+    event: DiagnosticsScheduleEvent,
+    enable_deferred_style_diagnostics: bool,
+) -> DiagnosticsScheduleEffectsV0 {
     match event {
         DiagnosticsScheduleEvent::TextDocument { uri, is_close } => {
-            diagnostics_for_text_document_event(state, uri.as_str(), is_close)
+            diagnostics_for_text_document_event(
+                state,
+                uri.as_str(),
+                is_close,
+                enable_deferred_style_diagnostics,
+            )
         }
         DiagnosticsScheduleEvent::WatchedFiles { uris } => {
             diagnostics_for_watched_files(state, uris)
@@ -118,40 +155,56 @@ fn diagnostics_for_text_document_event(
     state: &mut LspShellState,
     uri: &str,
     is_close: bool,
-) -> Vec<ScheduledLspOutput> {
-    let mut outputs = if is_close {
-        vec![publish_immediate_diagnostics_output(uri, json!([]))]
+    enable_deferred_style_diagnostics: bool,
+) -> DiagnosticsScheduleEffectsV0 {
+    let mut effects = if is_close {
+        DiagnosticsScheduleEffectsV0::from_outputs(vec![publish_immediate_diagnostics_output(
+            uri,
+            json!([]),
+        )])
+    } else if enable_deferred_style_diagnostics
+        && let Some(effects) = deferred_style_diagnostics_for_text_document_event(state, uri)
+    {
+        effects
     } else {
         let diagnostics = resolve_document_diagnostics_for_uri(state, uri);
-        publish_tiered_diagnostics_notifications(state, uri, diagnostics)
+        DiagnosticsScheduleEffectsV0::from_outputs(publish_tiered_diagnostics_notifications(
+            state,
+            uri,
+            diagnostics,
+        ))
     };
 
     if is_style_document_uri(uri) {
         for source_uri in source_uris_for_text_style_change_diagnostics(state, uri) {
             let diagnostics = resolve_source_diagnostics_for_uri(state, source_uri.as_str());
-            outputs.extend(publish_tiered_diagnostics_notifications(
-                state,
-                source_uri.as_str(),
-                diagnostics,
-            ));
+            effects
+                .outputs
+                .extend(publish_tiered_diagnostics_notifications(
+                    state,
+                    source_uri.as_str(),
+                    diagnostics,
+                ));
         }
         for peer_uri in style_uris_for_style_peer_change_diagnostics(state, uri) {
             let diagnostics = resolve_document_diagnostics_for_uri(state, peer_uri.as_str());
-            outputs.extend(publish_tiered_diagnostics_notifications(
-                state,
-                peer_uri.as_str(),
-                diagnostics,
-            ));
+            effects
+                .outputs
+                .extend(publish_tiered_diagnostics_notifications(
+                    state,
+                    peer_uri.as_str(),
+                    diagnostics,
+                ));
         }
     }
 
-    outputs
+    effects
 }
 
 fn diagnostics_for_watched_files(
     state: &mut LspShellState,
     uris: Vec<String>,
-) -> Vec<ScheduledLspOutput> {
+) -> DiagnosticsScheduleEffectsV0 {
     let mut outputs = Vec::new();
     let mut style_uris_to_refresh = BTreeSet::new();
     let mut config_uris_to_refresh = BTreeSet::new();
@@ -183,12 +236,15 @@ fn diagnostics_for_watched_files(
         state,
         document_uris_to_refresh.into_iter().collect(),
     ));
-    outputs
+    DiagnosticsScheduleEffectsV0::from_outputs(outputs)
 }
 
-fn diagnostics_for_open_documents(state: &mut LspShellState) -> Vec<ScheduledLspOutput> {
+fn diagnostics_for_open_documents(state: &mut LspShellState) -> DiagnosticsScheduleEffectsV0 {
     let document_uris = open_document_uris_for_diagnostics(state);
-    diagnostics_outputs_for_document_uris(state, document_uris)
+    DiagnosticsScheduleEffectsV0::from_outputs(diagnostics_outputs_for_document_uris(
+        state,
+        document_uris,
+    ))
 }
 
 /// Resolve + publish diagnostics for `document_uris` in their given
@@ -439,13 +495,6 @@ enum DiagnosticsPipelineTier {
     Optimizing,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
-struct DiagnosticsPipelineTierPlan {
-    baseline_evidence: &'static str,
-    optimizing_evidence: &'static str,
-    baseline_feedback_evidence: Option<&'static str>,
-}
-
 fn publish_tiered_diagnostics_notifications(
     state: &mut LspShellState,
     uri: &str,
@@ -457,36 +506,8 @@ fn publish_tiered_diagnostics_notifications(
     record_diagnostics_schedule(state, uri);
     prewarm_optimizing_tier_feedback_for_hot_style_document(state, uri);
     let tier_plan = diagnostics_pipeline_tier_plan_for_uri(state, uri);
-    let baseline_diagnostics = diagnostics
-        .iter()
-        .filter(|diagnostic| {
-            diagnostic_pipeline_tier(diagnostic) == DiagnosticsPipelineTier::Baseline
-        })
-        .map(|diagnostic| {
-            annotate_diagnostic_pipeline_tier(
-                diagnostic.clone(),
-                DiagnosticsPipelineTier::Baseline,
-                tier_plan.baseline_evidence,
-                tier_plan.baseline_feedback_evidence,
-            )
-        })
-        .collect::<Vec<_>>();
-    let full_diagnostics = diagnostics
-        .iter()
-        .map(|diagnostic| {
-            let tier = diagnostic_pipeline_tier(diagnostic);
-            let evidence = match tier {
-                DiagnosticsPipelineTier::Baseline => tier_plan.baseline_evidence,
-                DiagnosticsPipelineTier::Optimizing => tier_plan.optimizing_evidence,
-            };
-            annotate_diagnostic_pipeline_tier(
-                diagnostic.clone(),
-                tier,
-                evidence,
-                tier_plan.baseline_feedback_evidence,
-            )
-        })
-        .collect::<Vec<_>>();
+    let baseline_diagnostics = baseline_diagnostics_for_slice(diagnostics, tier_plan);
+    let full_diagnostics = full_diagnostics_for_slice(diagnostics, tier_plan);
 
     let mut outputs = vec![publish_immediate_diagnostics_output(
         uri,
@@ -500,6 +521,33 @@ fn publish_tiered_diagnostics_notifications(
         ));
     }
     outputs
+}
+
+fn deferred_style_diagnostics_for_text_document_event(
+    state: &mut LspShellState,
+    uri: &str,
+) -> Option<DiagnosticsScheduleEffectsV0> {
+    if !is_style_document_uri(uri) {
+        return None;
+    }
+    let probe_tier_plan = diagnostics_pipeline_tier_plan_for_uri(state, uri);
+    let (baseline_diagnostics, mut dispatch) =
+        prepare_deferred_style_diagnostics_for_uri(state, uri, probe_tier_plan)?;
+    record_diagnostics_schedule(state, uri);
+    prewarm_optimizing_tier_feedback_for_hot_style_document(state, uri);
+    let tier_plan = diagnostics_pipeline_tier_plan_for_uri(state, uri);
+    dispatch.coalesce_key = diagnostics_coalesce_key(uri);
+    dispatch.tier_plan = tier_plan;
+    Some(DiagnosticsScheduleEffectsV0 {
+        outputs: vec![publish_immediate_diagnostics_output(
+            uri,
+            json!(baseline_diagnostics_for_plan(
+                &baseline_diagnostics,
+                tier_plan
+            )),
+        )],
+        deferred_diagnostics: vec![dispatch],
+    })
 }
 
 fn publish_immediate_diagnostics_output(uri: &str, diagnostics: Value) -> ScheduledLspOutput {
@@ -551,7 +599,7 @@ fn prewarm_optimizing_tier_feedback_for_hot_style_document(state: &mut LspShellS
 fn diagnostics_pipeline_tier_plan_for_uri(
     state: &LspShellState,
     uri: &str,
-) -> DiagnosticsPipelineTierPlan {
+) -> DiagnosticsPipelineTierPlanV0 {
     if is_style_document_uri(uri)
         && let Some(document) = state.document(uri)
     {
@@ -578,14 +626,14 @@ fn diagnostics_pipeline_tier_plan_for_uri(
                 (analyzed_graph.fast_facts.tier, analyzed_graph.tier)
             }
         };
-        return DiagnosticsPipelineTierPlan {
+        return DiagnosticsPipelineTierPlanV0 {
             baseline_evidence,
             optimizing_evidence,
             baseline_feedback_evidence: cached_feedback.map(|_| "analyzedGraphV0HotStylePrewarm"),
         };
     }
 
-    DiagnosticsPipelineTierPlan {
+    DiagnosticsPipelineTierPlanV0 {
         baseline_evidence: "sourceSyntaxIndexV0",
         optimizing_evidence: "workspaceSourceDiagnosticsV0",
         baseline_feedback_evidence: None,
@@ -607,6 +655,81 @@ fn diagnostic_pipeline_tier(diagnostic: &Value) -> DiagnosticsPipelineTier {
         | "missingCustomProperty" => DiagnosticsPipelineTier::Baseline,
         _ => DiagnosticsPipelineTier::Optimizing,
     }
+}
+
+fn baseline_diagnostics_for_plan(
+    diagnostics: &Value,
+    tier_plan: DiagnosticsPipelineTierPlanV0,
+) -> Vec<Value> {
+    diagnostics
+        .as_array()
+        .map(|diagnostics| baseline_diagnostics_for_slice(diagnostics, tier_plan))
+        .unwrap_or_default()
+}
+
+fn baseline_diagnostics_for_slice(
+    diagnostics: &[Value],
+    tier_plan: DiagnosticsPipelineTierPlanV0,
+) -> Vec<Value> {
+    diagnostics
+        .iter()
+        .filter(|diagnostic| {
+            diagnostic_pipeline_tier(diagnostic) == DiagnosticsPipelineTier::Baseline
+        })
+        .map(|diagnostic| {
+            annotate_diagnostic_pipeline_tier(
+                diagnostic.clone(),
+                DiagnosticsPipelineTier::Baseline,
+                tier_plan.baseline_evidence,
+                tier_plan.baseline_feedback_evidence,
+            )
+        })
+        .collect()
+}
+
+#[cfg(feature = "salsa-style-diagnostics")]
+fn full_diagnostics_for_plan(
+    diagnostics: &Value,
+    tier_plan: DiagnosticsPipelineTierPlanV0,
+) -> Vec<Value> {
+    diagnostics
+        .as_array()
+        .map(|diagnostics| full_diagnostics_for_slice(diagnostics, tier_plan))
+        .unwrap_or_default()
+}
+
+fn full_diagnostics_for_slice(
+    diagnostics: &[Value],
+    tier_plan: DiagnosticsPipelineTierPlanV0,
+) -> Vec<Value> {
+    diagnostics
+        .iter()
+        .map(|diagnostic| {
+            let tier = diagnostic_pipeline_tier(diagnostic);
+            let evidence = match tier {
+                DiagnosticsPipelineTier::Baseline => tier_plan.baseline_evidence,
+                DiagnosticsPipelineTier::Optimizing => tier_plan.optimizing_evidence,
+            };
+            annotate_diagnostic_pipeline_tier(
+                diagnostic.clone(),
+                tier,
+                evidence,
+                tier_plan.baseline_feedback_evidence,
+            )
+        })
+        .collect()
+}
+
+#[cfg(feature = "salsa-style-diagnostics")]
+pub(crate) fn deferred_full_diagnostics_notification(
+    uri: &str,
+    diagnostics: Value,
+    tier_plan: DiagnosticsPipelineTierPlanV0,
+) -> Value {
+    publish_diagnostics_notification(
+        uri,
+        json!(full_diagnostics_for_plan(&diagnostics, tier_plan)),
+    )
 }
 
 fn annotate_diagnostic_pipeline_tier(

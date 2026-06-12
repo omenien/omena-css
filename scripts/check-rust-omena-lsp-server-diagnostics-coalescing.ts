@@ -97,13 +97,17 @@ const diagnosticNotifications = messages.filter(
   (message) => message.method === "textDocument/publishDiagnostics",
 );
 
-assert.equal(diagnosticNotifications.length, 2);
+assert.equal(
+  diagnosticNotifications.length,
+  3,
+  "D#70 emits open baseline, changed baseline, and latest full diagnostics; the stale open full set must still be pruned",
+);
 for (const notification of diagnosticNotifications) {
   assert.equal(notification.params.uri, documentUri);
   assert.deepEqual(
     diagnosticCodes(notification),
     ["missingCustomProperty"],
-    "stale optimizing diagnostics must not publish after a newer document change",
+    "stale optimizing diagnostics from the superseded open generation must not publish after a newer document change",
   );
   assert.equal(notification.params.diagnostics[0]?.data?.pipelineTier, "baseline");
 }

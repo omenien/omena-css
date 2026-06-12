@@ -1,3 +1,8 @@
+use omena_query::{
+    OmenaQueryExternalSifInputV0, OmenaQuerySourceDocumentInputV0, OmenaQueryStyleHoverCandidateV0,
+    OmenaQueryStylePackageManifestV0, OmenaQueryStyleResolutionInputsV0,
+    OmenaQueryStyleSourceInputV0,
+};
 use serde_json::Value;
 
 pub const OPTIMIZING_DIAGNOSTICS_DELAY_MS: u64 = 200;
@@ -45,4 +50,33 @@ impl ScheduledLspOutput {
     pub fn into_value(self) -> Value {
         self.value
     }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct DiagnosticsPipelineTierPlanV0 {
+    pub baseline_evidence: &'static str,
+    pub optimizing_evidence: &'static str,
+    pub baseline_feedback_evidence: Option<&'static str>,
+}
+
+#[derive(Debug, Clone)]
+pub struct LspOwnedStyleDiagnosticsRenderInputsV0 {
+    pub document_uri: String,
+    pub document_text: String,
+    pub query_candidates: Vec<OmenaQueryStyleHoverCandidateV0>,
+    pub style_sources: Vec<OmenaQueryStyleSourceInputV0>,
+    pub source_documents: Vec<OmenaQuerySourceDocumentInputV0>,
+    pub package_manifests: Vec<OmenaQueryStylePackageManifestV0>,
+    pub external_sifs: Vec<OmenaQueryExternalSifInputV0>,
+    pub resolution_inputs: OmenaQueryStyleResolutionInputsV0,
+    pub deep_analysis: bool,
+    pub configured_severity: u8,
+}
+
+#[derive(Debug, Clone)]
+pub struct LspDeferredDiagnosticsDispatchV0 {
+    pub uri: String,
+    pub coalesce_key: String,
+    pub tier_plan: DiagnosticsPipelineTierPlanV0,
+    pub render_inputs: LspOwnedStyleDiagnosticsRenderInputsV0,
 }

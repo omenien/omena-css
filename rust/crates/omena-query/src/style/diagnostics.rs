@@ -1263,14 +1263,114 @@ fn summarize_omena_query_unresolved_sass_import_diagnostics_for_workspace(
         omena_parser_dialect_for_style_path(target_style_path),
     );
 
+    unresolved_sass_import_diagnostics_from_edges(
+        target_style_path,
+        target.style_source.as_str(),
+        &target_facts,
+        resolution.edges.iter().filter_map(|edge| {
+            (edge.from_style_path == target_style_path).then_some(
+                ResolvedSassImportEdgeForDiagnostic {
+                    source: edge.source.as_str(),
+                    edge_kind: edge.edge_kind,
+                    status: edge.status,
+                },
+            )
+        }),
+    )
+}
+
+/// RFC 0009 Pillar D (rfcs#70): target-only Baseline `missingModule`
+/// derivation for the LSP fast path. It parses only the target document, but it
+/// runs the same resolver policy as RES-C over the in-hand workspace style path
+/// set and package manifests, then renders diagnostics through the shared
+/// workspace emission helper above. That keeps the immediate Baseline publish
+/// byte-aligned with the full workspace pass for the code family that cannot be
+/// produced by the single-file diagnostics summary.
+pub fn summarize_omena_query_target_unresolved_sass_import_diagnostics_for_workspace_paths(
+    target_style_path: &str,
+    target_style_source: &str,
+    style_sources: &[OmenaQueryStyleSourceInputV0],
+    package_manifests: &[OmenaQueryStylePackageManifestV0],
+) -> Vec<OmenaQueryStyleDiagnosticV0> {
+    let available_style_paths = style_sources
+        .iter()
+        .map(|source| source.style_path.as_str())
+        .collect::<BTreeSet<_>>();
+    let load_path_roots = collect_load_path_roots(&available_style_paths);
+    let load_path_root_refs = load_path_roots
+        .iter()
+        .map(String::as_str)
+        .collect::<Vec<_>>();
+    let resolver_package_manifests = package_manifests
+        .iter()
+        .map(|manifest| OmenaResolverStylePackageManifestV0 {
+            package_json_path: manifest.package_json_path.clone(),
+            package_json_source: manifest.package_json_source.clone(),
+        })
+        .collect::<Vec<_>>();
+    let target_facts = collect_omena_query_omena_parser_style_facts_raw(
+        target_style_source,
+        omena_parser_dialect_for_style_path(target_style_path),
+    );
+    let edge_resolutions = target_facts
+        .sass_module_edges
+        .iter()
+        .map(|fact| {
+            let edge_kind = parsed_sass_module_edge_fact_kind_label(fact.kind);
+            let resolution = summarize_omena_resolver_style_module_resolution_with_load_path_roots(
+                target_style_path,
+                fact.source.as_str(),
+                &available_style_paths,
+                &resolver_package_manifests,
+                &[],
+                &[],
+                &load_path_root_refs,
+            );
+            let status = if resolution.resolution_kind == "externalIgnored" {
+                "external"
+            } else if resolution.resolved_style_path.is_some() {
+                "resolved"
+            } else {
+                "unresolved"
+            };
+            ResolvedSassImportEdgeForDiagnostic {
+                source: fact.source.as_str(),
+                edge_kind,
+                status,
+            }
+        })
+        .collect::<Vec<_>>();
+
+    let mut diagnostics = unresolved_sass_import_diagnostics_from_edges(
+        target_style_path,
+        target_style_source,
+        &target_facts,
+        edge_resolutions,
+    );
+    apply_omena_query_checker_product_gate_to_style_diagnostics(&mut diagnostics);
+    diagnostics
+}
+
+#[derive(Debug, Clone, Copy)]
+struct ResolvedSassImportEdgeForDiagnostic<'a> {
+    source: &'a str,
+    edge_kind: &'a str,
+    status: &'a str,
+}
+
+fn unresolved_sass_import_diagnostics_from_edges<'a>(
+    _target_style_path: &str,
+    target_style_source: &str,
+    target_facts: &omena_parser::ParsedStyleFacts,
+    edges: impl IntoIterator<Item = ResolvedSassImportEdgeForDiagnostic<'a>>,
+) -> Vec<OmenaQueryStyleDiagnosticV0> {
     let mut emitted = BTreeSet::new();
     let mut diagnostics = Vec::new();
 
-    for edge in resolution.edges.iter().filter(|edge| {
-        edge.from_style_path == target_style_path
-            && edge.status == "unresolved"
-            && sass_module_source_is_workspace_local(edge.source.as_str())
-    }) {
+    for edge in edges {
+        if edge.status != "unresolved" || !sass_module_source_is_workspace_local(edge.source) {
+            continue;
+        }
         let Some(fact) = target_facts.sass_module_edges.iter().find(|fact| {
             fact.source == edge.source
                 && parsed_sass_module_edge_fact_kind_matches(fact.kind, edge.edge_kind)
@@ -1293,7 +1393,7 @@ fn summarize_omena_query_unresolved_sass_import_diagnostics_for_workspace(
                 "omena-query.sass-module-cross-file-resolution",
                 "omena-query.unresolved-sass-import-diagnostics",
             ],
-            range: parser_range_for_byte_span(target.style_source.as_str(), byte_span),
+            range: parser_range_for_byte_span(target_style_source, byte_span),
             message: format!(
                 "Cannot resolve Sass module '{}'. dart-sass rejects this as a hard error.",
                 edge.source
@@ -1329,6 +1429,16 @@ fn parsed_sass_module_edge_fact_kind_matches(
             | (ParsedSassModuleEdgeFactKind::Forward, "sassForward")
             | (ParsedSassModuleEdgeFactKind::Import, "sassImport")
     )
+}
+
+fn parsed_sass_module_edge_fact_kind_label(
+    fact_kind: ParsedSassModuleEdgeFactKind,
+) -> &'static str {
+    match fact_kind {
+        ParsedSassModuleEdgeFactKind::Use => "sassUse",
+        ParsedSassModuleEdgeFactKind::Forward => "sassForward",
+        ParsedSassModuleEdgeFactKind::Import => "sassImport",
+    }
 }
 
 /// Reduce a cycle `path` (a node ring whose first and last entries repeat, e.g. `[a, b, a]`) to a
