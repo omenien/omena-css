@@ -28,6 +28,8 @@ pub fn workspace_runtime_registry_contract() -> WorkspaceRuntimeRegistryBoundary
         ],
         indexed_document_policy: vec![
             "indexStyleDocumentsPerWorkspaceRoot",
+            "indexSourceDocumentsPerWorkspaceRoot",
+            "backgroundWorkspaceIndexAppliesOnLoopThread",
             "evictIndexedDocumentsOnWorkspaceRemoval",
             "retargetIndexedDocumentsToRemainingOwnerOnWorkspaceRemoval",
             "openedDocumentsRemainAuthoritative",

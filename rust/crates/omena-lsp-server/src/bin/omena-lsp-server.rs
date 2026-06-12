@@ -13,9 +13,10 @@ use omena_lsp_server::{
     resolve_deferred_diagnostics_notification,
 };
 use omena_lsp_server::{
-    LspLoopTurnV0, LspQueryDispatchV0, LspShellState, ScheduledLspOutput,
-    dispatched_query_internal_error_response, handle_lsp_message_scheduled_outputs_or_dispatch,
-    resolve_dispatched_query_response,
+    LspLoopTurnV0, LspQueryDispatchV0, LspShellState, LspWorkspaceIndexJobV0,
+    LspWorkspaceIndexResultV0, ScheduledLspOutput, apply_background_workspace_index_result,
+    collect_background_workspace_index, dispatched_query_internal_error_response,
+    handle_lsp_message_scheduled_outputs_or_dispatch, resolve_dispatched_query_response,
 };
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -51,6 +52,19 @@ fn run_stdio_server<R: BufRead, W: Write + Send + 'static>(
     // Bounded so a pathological request flood degrades to the old blocking
     // loop behavior instead of queueing unbounded snapshots.
     let (query_sender, query_receiver) = mpsc::sync_channel::<Box<LspQueryDispatchV0>>(256);
+    let (workspace_index_sender, workspace_index_receiver) =
+        mpsc::channel::<LspWorkspaceIndexJobV0>();
+    let (workspace_index_result_sender, workspace_index_result_receiver) =
+        mpsc::channel::<LspWorkspaceIndexResultV0>();
+    let workspace_index_worker: JoinHandle<Result<(), String>> = thread::spawn(move || {
+        while let Ok(job) = workspace_index_receiver.recv() {
+            let result = collect_background_workspace_index(job);
+            workspace_index_result_sender
+                .send(result)
+                .map_err(|_| "workspace index result receiver dropped".to_string())?;
+        }
+        Ok(())
+    });
     let query_worker: JoinHandle<Result<(), String>> = {
         let writer = Arc::clone(&writer);
         thread::spawn(move || {
@@ -120,6 +134,7 @@ fn run_stdio_server<R: BufRead, W: Write + Send + 'static>(
 
     while let Some(payload) = read_lsp_payload(reader)? {
         let message: serde_json::Value = serde_json::from_str(&payload)?;
+        drain_workspace_index_results(&mut state, &workspace_index_result_receiver);
         match handle_lsp_message_scheduled_outputs_or_dispatch(&mut state, message) {
             LspLoopTurnV0::DispatchQuery(dispatch) => {
                 query_sender
@@ -134,9 +149,15 @@ fn run_stdio_server<R: BufRead, W: Write + Send + 'static>(
             LspLoopTurnV0::OutputsAndDeferredDiagnostics {
                 outputs,
                 deferred_diagnostics,
+                workspace_index_jobs,
             } => {
                 for output in outputs {
                     write_scheduled_lsp_output(&writer, &coalescer, output, &mut delayed_outputs)?;
+                }
+                for job in workspace_index_jobs {
+                    workspace_index_sender
+                        .send(job)
+                        .map_err(|_| "workspace index worker exited before shutdown")?;
                 }
                 for dispatch in deferred_diagnostics {
                     #[cfg(feature = "salsa-style-diagnostics")]
@@ -157,8 +178,13 @@ fn run_stdio_server<R: BufRead, W: Write + Send + 'static>(
     // finish every dispatched request before exiting, so shutdown/exit never
     // drops an in-flight hover/definition response.
     drop(query_sender);
+    drop(workspace_index_sender);
     #[cfg(feature = "salsa-style-diagnostics")]
     drop(diagnostics_sender);
+    workspace_index_worker
+        .join()
+        .map_err(|_| "workspace index worker panicked".to_string())?
+        .map_err(|error| format!("workspace index worker failed: {error}"))?;
     query_worker
         .join()
         .map_err(|_| "query worker panicked".to_string())?
@@ -177,6 +203,15 @@ fn run_stdio_server<R: BufRead, W: Write + Send + 'static>(
     }
 
     Ok(())
+}
+
+fn drain_workspace_index_results(
+    state: &mut LspShellState,
+    receiver: &mpsc::Receiver<LspWorkspaceIndexResultV0>,
+) {
+    while let Ok(result) = receiver.try_recv() {
+        apply_background_workspace_index_result(state, result);
+    }
 }
 
 #[cfg(feature = "salsa-style-diagnostics")]

@@ -101,6 +101,10 @@ use std::{
     sync::Arc,
 };
 pub(crate) use workspace_index::index_workspace_style_files;
+pub use workspace_index::{
+    LspWorkspaceIndexJobV0, LspWorkspaceIndexResultV0, apply_background_workspace_index_result,
+    collect_background_workspace_index, prepare_background_workspace_index_job,
+};
 #[cfg(test)]
 pub(crate) use workspace_index::{
     WorkspaceStyleIndexBudget, index_workspace_style_files_with_budget,
@@ -364,7 +368,11 @@ fn did_close_text_document(state: &mut LspShellState, params: Option<&Value>) {
     }
 }
 
-fn did_change_workspace_folders(state: &mut LspShellState, params: Option<&Value>) {
+fn did_change_workspace_folders(
+    state: &mut LspShellState,
+    params: Option<&Value>,
+    index_added_workspace_folders: bool,
+) -> bool {
     let event = params.and_then(|value| value.get("event"));
     let mut removed_workspace_uris = Vec::new();
     if let Some(removed) = event
@@ -390,9 +398,10 @@ fn did_change_workspace_folders(state: &mut LspShellState, params: Option<&Value
     }
     reconcile_documents_after_workspace_folder_changes(state, removed_workspace_uris.as_slice());
     refresh_workspace_resolution_inputs(state);
-    if added_workspace_folder {
+    if added_workspace_folder && index_added_workspace_folders {
         index_workspace_style_files(state);
     }
+    added_workspace_folder
 }
 
 fn reconcile_documents_after_workspace_folder_changes(

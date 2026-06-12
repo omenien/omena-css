@@ -211,6 +211,7 @@ pub struct LspShellState {
     pub(crate) resolution: LspResolutionSettings,
     pub(crate) cancelled_request_ids: IncrementalCancellationRegistryV0,
     pub(crate) workspace_style_index_exhausted_count: usize,
+    pub(crate) workspace_index_revision: u64,
     pub(crate) configuration_change_count: usize,
     /// RFC 0009 Pillar A (rfcs#67, slice A-min): documents are `Arc` entries so a
     /// query snapshot clones pointers instead of the corpus; mutation paths go

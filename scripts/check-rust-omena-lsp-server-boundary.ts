@@ -305,6 +305,16 @@ assert.ok(
 );
 assert.ok(
   rustSummary.workspaceRuntimeRegistry.indexedDocumentPolicy.includes(
+    "indexSourceDocumentsPerWorkspaceRoot",
+  ),
+);
+assert.ok(
+  rustSummary.workspaceRuntimeRegistry.indexedDocumentPolicy.includes(
+    "backgroundWorkspaceIndexAppliesOnLoopThread",
+  ),
+);
+assert.ok(
+  rustSummary.workspaceRuntimeRegistry.indexedDocumentPolicy.includes(
     "retargetIndexedDocumentsToRemainingOwnerOnWorkspaceRemoval",
   ),
 );

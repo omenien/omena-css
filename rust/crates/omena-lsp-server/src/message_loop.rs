@@ -3,12 +3,13 @@ use crate::lsp_output::ScheduledLspOutput;
 use crate::{
     CANCEL_REQUEST_METHOD, CASCADE_AT_POSITION_REQUEST, DEBUG_STATE_REQUEST,
     EXPLAIN_HOVER_TRACE_REQUEST, LspDeferredDiagnosticsDispatchV0, LspQuerySnapshotV0,
-    LspShellState, REQUEST_CANCELLED_ERROR_CODE, RUNTIME_LOOP_PROBE_REQUEST,
-    SOURCE_DIAGNOSTICS_REQUEST, STYLE_CONTEXT_INDEX_REQUEST, STYLE_DIAGNOSTICS_REQUEST,
-    STYLE_HOVER_CANDIDATES_REQUEST, apply_diagnostic_settings, apply_feature_settings,
-    apply_resolution_settings, current_node_lsp_capability_contract, did_change_text_document,
-    did_change_watched_files, did_change_workspace_folders, did_close_text_document,
-    did_open_text_document, index_workspace_style_files, initialize_workspace_folders,
+    LspShellState, LspWorkspaceIndexJobV0, REQUEST_CANCELLED_ERROR_CODE,
+    RUNTIME_LOOP_PROBE_REQUEST, SOURCE_DIAGNOSTICS_REQUEST, STYLE_CONTEXT_INDEX_REQUEST,
+    STYLE_DIAGNOSTICS_REQUEST, STYLE_HOVER_CANDIDATES_REQUEST, apply_diagnostic_settings,
+    apply_feature_settings, apply_resolution_settings, current_node_lsp_capability_contract,
+    did_change_text_document, did_change_watched_files, did_change_workspace_folders,
+    did_close_text_document, did_open_text_document, index_workspace_style_files,
+    initialize_workspace_folders, prepare_background_workspace_index_job,
     refresh_source_indexes_for_resolution_settings_change, resolve_cascade_at_position,
     resolve_lsp_code_actions, resolve_lsp_code_lens, resolve_lsp_completion,
     resolve_lsp_definition, resolve_lsp_hover, resolve_lsp_hover_trace, resolve_lsp_prepare_rename,
@@ -64,7 +65,7 @@ pub fn handle_lsp_message(state: &mut LspShellState, message: Value) -> Option<V
             None
         }
         (Some("workspace/didChangeWorkspaceFolders"), None) => {
-            did_change_workspace_folders(state, message.get("params"));
+            did_change_workspace_folders(state, message.get("params"), true);
             None
         }
         (Some("workspace/didChangeConfiguration"), None) => {
@@ -274,6 +275,7 @@ pub enum LspLoopTurnV0 {
     OutputsAndDeferredDiagnostics {
         outputs: Vec<ScheduledLspOutput>,
         deferred_diagnostics: Vec<LspDeferredDiagnosticsDispatchV0>,
+        workspace_index_jobs: Vec<LspWorkspaceIndexJobV0>,
     },
     // Boxed: a dispatch carries the whole snapshot (settings + documents map),
     // which would otherwise dominate the enum size for the common Outputs turn.
@@ -314,13 +316,14 @@ pub fn handle_lsp_message_scheduled_outputs_or_dispatch(
             message,
         }));
     }
-    let effects = handle_lsp_message_scheduled_effects(state, message);
-    if effects.deferred_diagnostics.is_empty() {
+    let effects = handle_lsp_message_scheduled_effects_with_deferral(state, message, true, true);
+    if effects.deferred_diagnostics.is_empty() && effects.workspace_index_jobs.is_empty() {
         LspLoopTurnV0::Outputs(effects.outputs)
     } else {
         LspLoopTurnV0::OutputsAndDeferredDiagnostics {
             outputs: effects.outputs,
             deferred_diagnostics: effects.deferred_diagnostics,
+            workspace_index_jobs: effects.workspace_index_jobs,
         }
     }
 }
@@ -391,20 +394,14 @@ pub fn handle_lsp_message_scheduled_outputs(
     state: &mut LspShellState,
     message: Value,
 ) -> Vec<ScheduledLspOutput> {
-    handle_lsp_message_scheduled_effects_with_deferral(state, message, false).outputs
-}
-
-pub fn handle_lsp_message_scheduled_effects(
-    state: &mut LspShellState,
-    message: Value,
-) -> LspScheduledEffectsV0 {
-    handle_lsp_message_scheduled_effects_with_deferral(state, message, true)
+    handle_lsp_message_scheduled_effects_with_deferral(state, message, false, false).outputs
 }
 
 fn handle_lsp_message_scheduled_effects_with_deferral(
     state: &mut LspShellState,
     message: Value,
     enable_deferred_style_diagnostics: bool,
+    enable_background_workspace_index: bool,
 ) -> LspScheduledEffectsV0 {
     let method = message
         .get("method")
@@ -421,7 +418,13 @@ fn handle_lsp_message_scheduled_effects_with_deferral(
         diagnostics_schedule_event(method.as_deref(), document_uri, watched_file_uris);
     let mut effects = LspScheduledEffectsV0::default();
 
-    if let Some(response) = handle_lsp_message(state, message) {
+    let response = if enable_background_workspace_index {
+        handle_lsp_message_for_background_workspace_index(state, &message, &mut effects)
+    } else {
+        handle_lsp_message(state, message)
+    };
+
+    if let Some(response) = response {
         effects
             .outputs
             .push(ScheduledLspOutput::immediate(response));
@@ -457,6 +460,7 @@ fn handle_lsp_message_scheduled_effects_with_deferral(
 pub struct LspScheduledEffectsV0 {
     pub outputs: Vec<ScheduledLspOutput>,
     pub deferred_diagnostics: Vec<LspDeferredDiagnosticsDispatchV0>,
+    pub workspace_index_jobs: Vec<LspWorkspaceIndexJobV0>,
 }
 
 impl From<Vec<ScheduledLspOutput>> for LspScheduledEffectsV0 {
@@ -464,7 +468,34 @@ impl From<Vec<ScheduledLspOutput>> for LspScheduledEffectsV0 {
         Self {
             outputs,
             deferred_diagnostics: Vec::new(),
+            workspace_index_jobs: Vec::new(),
         }
+    }
+}
+
+fn handle_lsp_message_for_background_workspace_index(
+    state: &mut LspShellState,
+    message: &Value,
+    effects: &mut LspScheduledEffectsV0,
+) -> Option<Value> {
+    match message.get("method").and_then(Value::as_str) {
+        Some("initialized") if message.get("id").is_none() => {
+            effects
+                .workspace_index_jobs
+                .push(prepare_background_workspace_index_job(state));
+            None
+        }
+        Some("workspace/didChangeWorkspaceFolders") if message.get("id").is_none() => {
+            let added_workspace_folder =
+                did_change_workspace_folders(state, message.get("params"), false);
+            if added_workspace_folder {
+                effects
+                    .workspace_index_jobs
+                    .push(prepare_background_workspace_index_job(state));
+            }
+            None
+        }
+        _ => handle_lsp_message(state, message.clone()),
     }
 }
 

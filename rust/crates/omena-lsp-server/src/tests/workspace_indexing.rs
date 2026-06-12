@@ -299,6 +299,220 @@ fn indexes_workspace_source_files_from_disk() -> TestResult {
 }
 
 #[test]
+fn scheduled_initialized_indexes_workspace_sources_on_background_result() -> TestResult {
+    let workspace_root = std::env::temp_dir().join(format!(
+        "omena-lsp-server-background-source-index-{}",
+        std::process::id()
+    ));
+    let src_dir = workspace_root.join("src");
+    let source_path = src_dir.join("App.tsx");
+    let style_path = src_dir.join("Button.module.scss");
+    let _ = std::fs::remove_dir_all(&workspace_root);
+    std::fs::create_dir_all(&src_dir)?;
+    std::fs::write(&style_path, ".root { color: red; }")?;
+    std::fs::write(
+        &source_path,
+        "import styles from \"./Button.module.scss\";\nconst view = <div className={styles.root} />;",
+    )?;
+
+    let workspace_uri = format!("file://{}", workspace_root.display());
+    let source_uri = format!("file://{}", source_path.display());
+    let mut state = LspShellState::default();
+    handle_lsp_message(
+        &mut state,
+        json!({
+            "jsonrpc": "2.0",
+            "id": 1,
+            "method": "initialize",
+            "params": {
+                "workspaceFolders": [
+                    {
+                        "uri": workspace_uri,
+                        "name": "background-source-index",
+                    },
+                ],
+            },
+        }),
+    );
+
+    let turn = handle_lsp_message_scheduled_outputs_or_dispatch(
+        &mut state,
+        json!({
+            "jsonrpc": "2.0",
+            "method": "initialized",
+            "params": {},
+        }),
+    );
+    let workspace_index_jobs = match turn {
+        LspLoopTurnV0::OutputsAndDeferredDiagnostics {
+            workspace_index_jobs,
+            ..
+        } => workspace_index_jobs,
+        other => {
+            return Err(std::io::Error::other(format!(
+                "initialized should schedule background workspace indexing: {other:?}"
+            ))
+            .into());
+        }
+    };
+    assert_eq!(workspace_index_jobs.len(), 1);
+    assert!(
+        state.document(source_uri.as_str()).is_none(),
+        "stdio scheduled path must not index source documents on the loop turn"
+    );
+
+    let result = collect_background_workspace_index(
+        workspace_index_jobs
+            .into_iter()
+            .next()
+            .ok_or_else(|| std::io::Error::other("missing workspace index job"))?,
+    );
+    apply_background_workspace_index_result(&mut state, result);
+
+    let source_document = state
+        .document(source_uri.as_str())
+        .ok_or_else(|| std::io::Error::other("background result should index source document"))?;
+    assert_eq!(source_document.language_id, "typescriptreact");
+    assert!(
+        !state.has_open_document_uri(source_uri.as_str()),
+        "background-indexed source documents must not become open buffers"
+    );
+
+    let _ = std::fs::remove_dir_all(&workspace_root);
+    Ok(())
+}
+
+#[test]
+fn background_indexed_source_files_feed_references_and_drop_stale_results() -> TestResult {
+    let workspace_root = std::env::temp_dir().join(format!(
+        "omena-lsp-server-background-source-occurrences-{}",
+        std::process::id()
+    ));
+    let src_dir = workspace_root.join("src");
+    let source_path = src_dir.join("App.tsx");
+    let style_path = src_dir.join("Button.module.scss");
+    let _ = std::fs::remove_dir_all(&workspace_root);
+    std::fs::create_dir_all(&src_dir)?;
+    std::fs::write(&style_path, ".root { color: red; }")?;
+    std::fs::write(
+        &source_path,
+        "import styles from \"./Button.module.scss\";\nconst view = <div className={styles.root} />;",
+    )?;
+
+    let workspace_uri = format!("file://{}", workspace_root.display());
+    let source_uri = format!("file://{}", source_path.display());
+    let style_uri = format!("file://{}", style_path.display());
+    let mut state = LspShellState::default();
+    handle_lsp_message(
+        &mut state,
+        json!({
+            "jsonrpc": "2.0",
+            "id": 1,
+            "method": "initialize",
+            "params": {
+                "workspaceFolders": [
+                    {
+                        "uri": workspace_uri,
+                        "name": "background-source-occurrences",
+                    },
+                ],
+            },
+        }),
+    );
+
+    let first_turn = handle_lsp_message_scheduled_outputs_or_dispatch(
+        &mut state,
+        json!({
+            "jsonrpc": "2.0",
+            "method": "initialized",
+            "params": {},
+        }),
+    );
+    let first_job = match first_turn {
+        LspLoopTurnV0::OutputsAndDeferredDiagnostics {
+            mut workspace_index_jobs,
+            ..
+        } => workspace_index_jobs
+            .pop()
+            .ok_or_else(|| std::io::Error::other("missing first workspace index job"))?,
+        other => {
+            return Err(std::io::Error::other(format!(
+                "initialized should schedule first background workspace indexing job: {other:?}"
+            ))
+            .into());
+        }
+    };
+    let stale_result = collect_background_workspace_index(first_job);
+
+    let second_turn = handle_lsp_message_scheduled_outputs_or_dispatch(
+        &mut state,
+        json!({
+            "jsonrpc": "2.0",
+            "method": "initialized",
+            "params": {},
+        }),
+    );
+    let second_job = match second_turn {
+        LspLoopTurnV0::OutputsAndDeferredDiagnostics {
+            mut workspace_index_jobs,
+            ..
+        } => workspace_index_jobs
+            .pop()
+            .ok_or_else(|| std::io::Error::other("missing second workspace index job"))?,
+        other => {
+            return Err(std::io::Error::other(format!(
+                "initialized should schedule second background workspace indexing job: {other:?}"
+            ))
+            .into());
+        }
+    };
+
+    apply_background_workspace_index_result(&mut state, stale_result);
+    assert!(
+        state.document(source_uri.as_str()).is_none(),
+        "stale background index results must not repopulate the document map"
+    );
+    let fresh_result = collect_background_workspace_index(second_job);
+    apply_background_workspace_index_result(&mut state, fresh_result);
+
+    let references_response = handle_lsp_message(
+        &mut state,
+        json!({
+            "jsonrpc": "2.0",
+            "id": 2,
+            "method": "textDocument/references",
+            "params": {
+                "textDocument": {
+                    "uri": style_uri,
+                },
+                "position": {
+                    "line": 0,
+                    "character": 2,
+                },
+                "context": {
+                    "includeDeclaration": false,
+                },
+            },
+        }),
+    );
+    let reference_locations = references_response
+        .as_ref()
+        .and_then(|response| response.pointer("/result"))
+        .and_then(Value::as_array)
+        .ok_or_else(|| std::io::Error::other("references response should contain locations"))?;
+    assert!(
+        reference_locations.iter().any(|location| location
+            .get("uri")
+            .and_then(Value::as_str)
+            .is_some_and(|uri| file_uri_equivalent(uri, source_uri.as_str()))),
+        "background-indexed source occurrence should appear in references: {references_response:?}"
+    );
+
+    let _ = std::fs::remove_dir_all(&workspace_root);
+    Ok(())
+}
+
+#[test]
 fn indexed_source_files_feed_references_and_rename() -> TestResult {
     let workspace_root = std::env::temp_dir().join(format!(
         "omena-lsp-server-source-occurrences-{}",
