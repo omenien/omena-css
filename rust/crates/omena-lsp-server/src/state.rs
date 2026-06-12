@@ -1,3 +1,4 @@
+use crate::disk_cache::DiskDiagnosticsCacheSessionV0;
 use crate::workspace_runtime_registry::WorkspaceRuntimeRegistry;
 use omena_incremental::IncrementalCancellationRegistryV0;
 use omena_query::{
@@ -197,6 +198,10 @@ pub struct LspShellState {
     pub(crate) tsgo_workspace_process_pool: TsgoWorkspaceProcessPoolV0,
     pub(crate) watched_file_changes: Vec<LspWatchedFileChangeState>,
     pub(crate) cascade_narrowing_substrate_memo: RefCell<Option<LspCascadeNarrowingSubstrateMemo>>,
+    /// RFC 0009 Pillar C (rfcs#66): fail-soft write breaker for the disk
+    /// diagnostics shard cache. Interior mutability because the write-behind
+    /// runs on the immutable resolve path; owned by the single loop thread.
+    pub(crate) disk_diagnostics_cache_session: RefCell<DiskDiagnosticsCacheSessionV0>,
     /// RFC 0009 Pillar B (rfcs#65): the long-lived salsa-memoized
     /// style-diagnostics host. Owned by the loop thread; the host diff-syncs
     /// its inputs on every resolve, so it never serves a stale revision.

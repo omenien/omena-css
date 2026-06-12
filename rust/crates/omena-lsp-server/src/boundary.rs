@@ -1,6 +1,7 @@
 use crate::diagnostics_scheduler::{
     RustDiagnosticsSchedulerBoundaryV0, rust_diagnostics_scheduler_contract,
 };
+use crate::disk_cache::{DiskDiagnosticsCacheBoundaryV0, disk_diagnostics_cache_contract};
 use crate::query_reuse::{RustQueryReuseBoundaryV0, rust_query_reuse_contract};
 use crate::workspace_runtime_registry::{
     WorkspaceRuntimeRegistryBoundaryV0, workspace_runtime_registry_contract,
@@ -30,6 +31,7 @@ pub struct OmenaLspServerBoundarySummaryV0 {
     pub workspace_runtime_registry: WorkspaceRuntimeRegistryBoundaryV0,
     pub diagnostics_scheduler: RustDiagnosticsSchedulerBoundaryV0,
     pub query_reuse: RustQueryReuseBoundaryV0,
+    pub disk_diagnostics_cache: DiskDiagnosticsCacheBoundaryV0,
     pub thin_client_endpoint: ThinClientEndpointV0,
     pub multi_editor_distribution: MultiEditorDistributionV0,
     pub node_parity_contracts: Vec<&'static str>,
@@ -44,6 +46,11 @@ pub struct LspTrustBoundaryV0 {
     pub verification_owner: &'static str,
     pub request_path_policy: Vec<&'static str>,
     pub forbidden_runtime_capabilities: Vec<&'static str>,
+    /// Declared local-disk write surfaces. The LSP historically wrote NO
+    /// files; the disk diagnostics cache (RFC 0009 Pillar C, rfcs#66) is the
+    /// first declared write surface. Local workspace disk only — this does
+    /// not weaken the `neverFetch` network invariant.
+    pub disk_write_surfaces: Vec<&'static str>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -178,6 +185,7 @@ pub fn summarize_omena_lsp_server_boundary() -> OmenaLspServerBoundarySummaryV0 
         workspace_runtime_registry: workspace_runtime_registry_contract(),
         diagnostics_scheduler: rust_diagnostics_scheduler_contract(),
         query_reuse: rust_query_reuse_contract(),
+        disk_diagnostics_cache: disk_diagnostics_cache_contract(),
         thin_client_endpoint: thin_client_endpoint_contract(),
         multi_editor_distribution: multi_editor_distribution_contract(),
         node_parity_contracts: vec![
@@ -203,6 +211,7 @@ pub fn lsp_trust_boundary_contract() -> LspTrustBoundaryV0 {
             "attestationVerificationOwnedByCli",
             "noRegistryFetchOnLspRequestPath",
             "noTransparencyLogLookupOnLspRequestPath",
+            "diskDiagnosticsCacheLocalWorkspaceWritesOnly",
         ],
         forbidden_runtime_capabilities: vec![
             "registryHttpClient",
@@ -210,6 +219,7 @@ pub fn lsp_trust_boundary_contract() -> LspTrustBoundaryV0 {
             "transparencyLogClient",
             "socketNetworkIo",
         ],
+        disk_write_surfaces: vec!["<workspaceFolder>/.cache/omena/diagnostics-cache-v0"],
     }
 }
 

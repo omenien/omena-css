@@ -44,6 +44,7 @@ interface RustOmenaLspServerBoundarySummary {
     readonly verificationOwner: string;
     readonly requestPathPolicy: readonly string[];
     readonly forbiddenRuntimeCapabilities: readonly string[];
+    readonly diskWriteSurfaces: readonly string[];
   };
   readonly migrationPhases: readonly {
     readonly phase: string;
@@ -86,6 +87,15 @@ interface RustOmenaLspServerBoundarySummary {
     readonly cachedSurfaces: readonly string[];
     readonly invalidationPolicy: readonly string[];
     readonly requestPathPolicy: readonly string[];
+  };
+  readonly diskDiagnosticsCache: {
+    readonly product: string;
+    readonly owner: string;
+    readonly cacheModel: string;
+    readonly storageLocation: string;
+    readonly reusePolicy: readonly string[];
+    readonly writePolicy: readonly string[];
+    readonly killSwitches: readonly string[];
   };
   readonly thinClientEndpoint: {
     readonly product: string;
@@ -139,12 +149,18 @@ for (const requiredTrustPolicy of [
   "attestationVerificationOwnedByCli",
   "noRegistryFetchOnLspRequestPath",
   "noTransparencyLogLookupOnLspRequestPath",
+  "diskDiagnosticsCacheLocalWorkspaceWritesOnly",
 ]) {
   assert.ok(
     rustSummary.trustBoundary.requestPathPolicy.includes(requiredTrustPolicy),
     `Rust LSP trust boundary must include ${requiredTrustPolicy}`,
   );
 }
+// RFC 0009 Pillar C (rfcs#66): the disk diagnostics cache is the ONLY declared
+// local-disk write surface; the neverFetch network invariant stays untouched.
+assert.deepEqual(rustSummary.trustBoundary.diskWriteSurfaces, [
+  "<workspaceFolder>/.cache/omena/diagnostics-cache-v0",
+]);
 assert.ok(
   !/^\s*engine-style-parser\s*=/.test(lspServerCargoToml),
   "omena-lsp-server must consume style parser facts through omena-query, not a direct engine-style-parser dependency",
@@ -364,6 +380,52 @@ assert.ok(
     "noPackageManifestOrConfigReadOnProviderRequest",
   ),
 );
+assert.equal(
+  rustSummary.diskDiagnosticsCache.product,
+  "omena-lsp-server.disk-diagnostics-cache",
+);
+assert.equal(rustSummary.diskDiagnosticsCache.owner, "omena-lsp-server/diskDiagnosticsCache");
+assert.equal(
+  rustSummary.diskDiagnosticsCache.cacheModel,
+  "contentAddressedExactMatchShardStore",
+);
+assert.equal(
+  rustSummary.diskDiagnosticsCache.storageLocation,
+  "<workspaceFolder>/.cache/omena/diagnostics-cache-v0",
+);
+for (const requiredReusePolicy of [
+  "contentAddressedExactKeyMatchOnly",
+  "keyChainsFullDiagnosticsInputSurface",
+  "schemaValidateShardsBeforeServe",
+  "oversizedOrUnparsableShardsAreDeletedMisses",
+  "neverTrustShardContentBeyondExactKeyServe",
+]) {
+  assert.ok(
+    rustSummary.diskDiagnosticsCache.reusePolicy.includes(requiredReusePolicy),
+    `disk diagnostics cache must declare reuse policy ${requiredReusePolicy}`,
+  );
+}
+for (const requiredWritePolicy of [
+  "writeBehindAfterComputeOnly",
+  "atomicTempFileRenameWrites",
+  "failSoftDisableWritesAfterRepeatedIoFailures",
+  "boundedShardCountAndTotalBytesWithOldestMtimeEviction",
+  "localWorkspaceDiskOnlyNeverNetwork",
+]) {
+  assert.ok(
+    rustSummary.diskDiagnosticsCache.writePolicy.includes(requiredWritePolicy),
+    `disk diagnostics cache must declare write policy ${requiredWritePolicy}`,
+  );
+}
+for (const requiredKillSwitch of [
+  "envOmenaLspDiskCacheOff",
+  "noWorkspaceFolderFilesystemPathDisables",
+]) {
+  assert.ok(
+    rustSummary.diskDiagnosticsCache.killSwitches.includes(requiredKillSwitch),
+    `disk diagnostics cache must declare kill switch ${requiredKillSwitch}`,
+  );
+}
 assert.ok(
   !rustSummary.nextDecouplingTargets.includes("thinVsCodeClientHost"),
   "implemented thin VS Code client host should not remain listed as a next target",

@@ -1,5 +1,6 @@
 mod boundary;
 mod diagnostics_scheduler;
+mod disk_cache;
 mod frame_aware_refresh;
 mod lsp_output;
 mod message_loop;
@@ -13,6 +14,7 @@ mod workspace_index;
 mod workspace_runtime_registry;
 
 pub use boundary::*;
+use disk_cache::disk_diagnostics_cache_slot_for_resolve;
 pub use frame_aware_refresh::*;
 pub use lsp_output::*;
 #[cfg(test)]
@@ -1032,6 +1034,26 @@ fn resolve_style_diagnostics_for_uri(state: &LspShellState, document_uri: &str) 
     // path does — otherwise an alias import dims every selector as `unusedSelector`.
     let resolution_inputs =
         resolution_inputs_for_workspace_uri(state, document.workspace_folder_uri.as_deref());
+    // RFC 0009 Pillar C (rfcs#66) stage 1: the persistent content-addressed
+    // shard cache. The composite key chains the FULL input surface gathered
+    // above (target path, every style source, every source document, package
+    // manifests, external SIFs, resolution inputs, diagnostics settings) plus
+    // crate/schema/arm versions, so a shard can only serve when a recompute
+    // would be byte-identical by construction. Misses fall through to the
+    // compute below and persist write-behind; everything is fail-soft and
+    // killable via OMENA_LSP_DISK_CACHE=off.
+    let disk_cache_slot = disk_diagnostics_cache_slot_for_resolve(
+        state,
+        document.workspace_folder_uri.as_deref(),
+        document.uri.as_str(),
+        style_sources.as_slice(),
+        source_documents.as_slice(),
+        external_sifs,
+        &resolution_inputs,
+    );
+    if let Some(cached_diagnostics) = disk_cache_slot.as_ref().and_then(|slot| slot.load()) {
+        return cached_diagnostics;
+    }
     // RFC 0009 Pillar B (rfcs#65): the workspace entry point runs through the
     // salsa-memoized host (input diff-sync + tracked query) so an unchanged
     // corpus revalidates instead of recomputing. `--no-default-features`
@@ -1138,7 +1160,13 @@ fn resolve_style_diagnostics_for_uri(state: &LspShellState, document_uri: &str) 
         })
         .collect::<Vec<_>>();
 
-    json!(diagnostics)
+    let diagnostics = json!(diagnostics);
+    // RFC 0009 Pillar C (rfcs#66): write-behind after the compute. Fail-soft —
+    // io errors are swallowed and a session breaker stops retrying hot.
+    if let Some(slot) = disk_cache_slot.as_ref() {
+        slot.store_write_behind(state, &diagnostics);
+    }
+    diagnostics
 }
 
 /// Surface streaming-IFDS cross-file reachability through the live LSP style

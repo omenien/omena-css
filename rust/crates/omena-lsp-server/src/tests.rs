@@ -10,6 +10,8 @@ mod diagnostics_publish;
 mod diagnostics_sass;
 #[path = "tests/diagnostics_style.rs"]
 mod diagnostics_style;
+#[path = "tests/disk_cache.rs"]
+mod disk_cache;
 #[path = "tests/explain_hover_trace.rs"]
 mod explain_hover_trace;
 #[path = "tests/hover_sass.rs"]

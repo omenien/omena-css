@@ -2207,6 +2207,7 @@ dependencies = [
  "omena-cascade",
  "omena-incremental",
  "omena-query",
+ "omena-sif",
  "omena-streaming-ifds",
  "omena-tsgo-client",
  "serde",
