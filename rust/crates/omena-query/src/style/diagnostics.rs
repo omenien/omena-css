@@ -421,8 +421,7 @@ pub fn summarize_omena_query_missing_extend_target_diagnostics(
 fn summarize_omena_query_missing_extend_target_diagnostics_for_workspace(
     target_style_path: &str,
     style_sources: &[OmenaQueryStyleSourceInputV0],
-    bundler_path_mappings: &[OmenaResolverBundlerPathAliasMappingV0],
-    tsconfig_path_mappings: &[OmenaResolverTsconfigPathMappingV0],
+    substrate: &OmenaQueryWorkspaceDiagnosticsSubstrateV0,
 ) -> Vec<OmenaQueryStyleDiagnosticV0> {
     let Some(target) = style_sources
         .iter()
@@ -445,24 +444,15 @@ fn summarize_omena_query_missing_extend_target_diagnostics_for_workspace(
     }
 
     // Resolve the import graph so visibility tracks only the modules the target actually loads,
-    // not the whole corpus. `summarize_sass_module_cross_file_resolution` already gives us the
-    // resolved edges; `collect_sass_module_graph_reachable_style_paths` walks them from the target.
+    // not the whole corpus. The substrate's RES-B slot (EMPTY manifests + bundler/tsconfig
+    // mappings) is exactly the resolution this pass computed for itself;
+    // `collect_sass_module_graph_reachable_style_paths` walks its edges from the target.
     // Bundler/tsconfig path mappings are threaded through (rfcs#59) so an `@use`/`@forward`/
     // `@import` behind an alias keeps its edge resolved — without them the aliased edge drops out
     // of the reachable set and a placeholder declared in the aliased partial false-positives.
-    let style_source_refs = style_sources
-        .iter()
-        .map(|source| (source.style_path.as_str(), source.style_source.as_str()))
-        .collect::<Vec<_>>();
-    let style_fact_entries = collect_omena_query_style_fact_entries(style_source_refs.as_slice());
-    let resolution = summarize_sass_module_cross_file_resolution(
-        &style_fact_entries,
-        &[],
-        bundler_path_mappings,
-        tsconfig_path_mappings,
-    );
+    let resolution = &substrate.sass_resolution_without_manifests;
     let reachable_paths =
-        collect_sass_module_graph_reachable_style_paths(target_style_path, &resolution);
+        collect_sass_module_graph_reachable_style_paths(target_style_path, resolution);
 
     // Declared placeholders/classes from the target plus every file reachable through its
     // `@use`/`@forward`/`@import` graph. A placeholder declared only in an unrelated, non-imported
@@ -595,9 +585,7 @@ pub(super) fn collect_sass_module_graph_reachable_style_paths<'a>(
 fn summarize_omena_query_replica_ensemble_inconsistency_diagnostics_for_workspace(
     target_style_path: &str,
     style_sources: &[OmenaQueryStyleSourceInputV0],
-    package_manifests: &[OmenaQueryStylePackageManifestV0],
-    bundler_path_mappings: &[OmenaResolverBundlerPathAliasMappingV0],
-    tsconfig_path_mappings: &[OmenaResolverTsconfigPathMappingV0],
+    substrate: &OmenaQueryWorkspaceDiagnosticsSubstrateV0,
 ) -> Vec<OmenaQueryStyleDiagnosticV0> {
     let Some(target) = style_sources
         .iter()
@@ -606,19 +594,10 @@ fn summarize_omena_query_replica_ensemble_inconsistency_diagnostics_for_workspac
         return Vec::new();
     };
 
-    let style_source_refs = style_sources
-        .iter()
-        .map(|source| (source.style_path.as_str(), source.style_source.as_str()))
-        .collect::<Vec<_>>();
-    let style_fact_entries = collect_omena_query_style_fact_entries(style_source_refs.as_slice());
-    let resolution = summarize_sass_module_cross_file_resolution(
-        &style_fact_entries,
-        package_manifests,
-        bundler_path_mappings,
-        tsconfig_path_mappings,
-    );
+    // Substrate RES-A slot: plain resolution with (package_manifests, bundler, tsconfig).
+    let resolution = &substrate.sass_resolution;
     let reachable_paths =
-        collect_sass_module_graph_reachable_style_paths(target_style_path, &resolution);
+        collect_sass_module_graph_reachable_style_paths(target_style_path, resolution);
 
     // A single-module closure is not an ensemble: there is no second replica to
     // overlap against, so there is no cross-file inconsistency to surface.
@@ -655,7 +634,7 @@ fn summarize_omena_query_replica_ensemble_inconsistency_diagnostics_for_workspac
 
     let module_graph = replica_ensemble_module_graph_from_resolution(
         target_style_path,
-        &resolution,
+        resolution,
         &reachable_paths,
         &replicas,
     );
@@ -908,21 +887,17 @@ fn summarize_omena_query_missing_sass_symbol_diagnostics_for_workspace_with_sifs
     bundler_path_mappings: &[OmenaResolverBundlerPathAliasMappingV0],
     tsconfig_path_mappings: &[OmenaResolverTsconfigPathMappingV0],
 ) -> Vec<OmenaQueryStyleDiagnosticV0> {
-    let Some(target) = style_sources
+    if !style_sources
         .iter()
-        .find(|source| source.style_path == target_style_path)
-    else {
+        .any(|source| source.style_path == target_style_path)
+    {
         return Vec::new();
-    };
+    }
     let style_source_refs = style_sources
         .iter()
         .map(|source| (source.style_path.as_str(), source.style_source.as_str()))
         .collect::<Vec<_>>();
     let style_fact_entries = collect_omena_query_style_fact_entries(style_source_refs.as_slice());
-    let facts_by_path = style_fact_entries
-        .iter()
-        .map(|entry| (entry.style_path.as_str(), &entry.facts))
-        .collect::<BTreeMap<_, _>>();
     let resolution = summarize_sass_module_cross_file_resolution_with_external_sifs(
         &style_fact_entries,
         package_manifests,
@@ -930,6 +905,45 @@ fn summarize_omena_query_missing_sass_symbol_diagnostics_for_workspace_with_sifs
         tsconfig_path_mappings,
         external_sifs,
     );
+    summarize_omena_query_missing_sass_symbol_diagnostics_for_workspace_with_sifs_from_substrate(
+        target_style_path,
+        style_sources,
+        package_manifests,
+        external_sifs,
+        bundler_path_mappings,
+        tsconfig_path_mappings,
+        &style_fact_entries,
+        &resolution,
+    )
+}
+
+/// Substrate-threaded core of the graph-aware `missingSassSymbol` pass (RFC 0009 Pillar
+/// B stage-2, #65). `style_fact_entries` is the ENTRIES slot and `resolution` the RES-D
+/// slot (`summarize_sass_module_cross_file_resolution_with_external_sifs` over the same
+/// arguments) — RES-D, not RES-A, because the slot keys on the actual `external_sifs`
+/// argument: the monolith calls this pass unconditionally (even in `Ignored` mode), and
+/// the two resolutions coincide only when `external_sifs` is empty.
+#[allow(clippy::too_many_arguments)]
+fn summarize_omena_query_missing_sass_symbol_diagnostics_for_workspace_with_sifs_from_substrate(
+    target_style_path: &str,
+    style_sources: &[OmenaQueryStyleSourceInputV0],
+    package_manifests: &[OmenaQueryStylePackageManifestV0],
+    external_sifs: &[OmenaQueryExternalSifInputV0],
+    bundler_path_mappings: &[OmenaResolverBundlerPathAliasMappingV0],
+    tsconfig_path_mappings: &[OmenaResolverTsconfigPathMappingV0],
+    style_fact_entries: &[OmenaQueryStyleFactEntry],
+    resolution: &OmenaQuerySassModuleCrossFileResolutionV0,
+) -> Vec<OmenaQueryStyleDiagnosticV0> {
+    let Some(target) = style_sources
+        .iter()
+        .find(|source| source.style_path == target_style_path)
+    else {
+        return Vec::new();
+    };
+    let facts_by_path = style_fact_entries
+        .iter()
+        .map(|entry| (entry.style_path.as_str(), &entry.facts))
+        .collect::<BTreeMap<_, _>>();
     let external_sif_context = OmenaQueryExternalSifResolutionContext {
         package_manifests,
         bundler_path_mappings,
@@ -939,7 +953,7 @@ fn summarize_omena_query_missing_sass_symbol_diagnostics_for_workspace_with_sifs
     let visible_symbols = collect_visible_sass_symbol_keys(
         target_style_path,
         &facts_by_path,
-        &resolution,
+        resolution,
         external_sif_context,
     );
     let facts = collect_omena_query_omena_parser_style_facts_raw(
@@ -1027,9 +1041,7 @@ fn summarize_omena_query_missing_sass_symbol_diagnostics_for_workspace_with_sifs
 fn summarize_omena_query_sass_use_cycle_diagnostics_for_workspace(
     target_style_path: &str,
     style_sources: &[OmenaQueryStyleSourceInputV0],
-    package_manifests: &[OmenaQueryStylePackageManifestV0],
-    bundler_path_mappings: &[OmenaResolverBundlerPathAliasMappingV0],
-    tsconfig_path_mappings: &[OmenaResolverTsconfigPathMappingV0],
+    substrate: &OmenaQueryWorkspaceDiagnosticsSubstrateV0,
 ) -> Vec<OmenaQueryStyleDiagnosticV0> {
     let Some(target) = style_sources
         .iter()
@@ -1037,17 +1049,8 @@ fn summarize_omena_query_sass_use_cycle_diagnostics_for_workspace(
     else {
         return Vec::new();
     };
-    let style_source_refs = style_sources
-        .iter()
-        .map(|source| (source.style_path.as_str(), source.style_source.as_str()))
-        .collect::<Vec<_>>();
-    let style_fact_entries = collect_omena_query_style_fact_entries(style_source_refs.as_slice());
-    let resolution = summarize_sass_module_cross_file_resolution(
-        &style_fact_entries,
-        package_manifests,
-        bundler_path_mappings,
-        tsconfig_path_mappings,
-    );
+    // Substrate RES-A slot: plain resolution with (package_manifests, bundler, tsconfig).
+    let resolution = &substrate.sass_resolution;
     if resolution.cycles.is_empty() {
         return Vec::new();
     }
@@ -1137,11 +1140,19 @@ fn summarize_omena_query_unified_cross_file_scc_diagnostics_for_workspace(
     style_sources: &[OmenaQueryStyleSourceInputV0],
     source_documents: &[OmenaQuerySourceDocumentInputV0],
     package_manifests: &[OmenaQueryStylePackageManifestV0],
+    substrate: &OmenaQueryWorkspaceDiagnosticsSubstrateV0,
 ) -> Vec<OmenaQueryStyleDiagnosticV0> {
-    let summary = summarize_omena_query_workspace_cross_file_summary(
+    // Substrate slots ENTRIES + RES-E (css-modules resolution) + RES-C (plain Sass
+    // resolution with EMPTY path mappings) — exactly what the workspace cross-file
+    // summary collected for itself. The summary's source-selector leg still re-parses
+    // `source_documents` internally (not covered by the substrate).
+    let summary = super::cross_file_summary::summarize_omena_query_workspace_cross_file_summary_with_substrate(
         style_sources,
         source_documents,
         package_manifests,
+        &substrate.style_fact_entries,
+        &substrate.css_modules_resolution,
+        &substrate.sass_resolution_without_path_mappings,
     );
     let hypergraph = summarize_omena_query_unified_cross_file_hypergraph(&summary);
     let report = summarize_omena_query_unified_cross_file_scc_report(&hypergraph);
@@ -1204,6 +1215,7 @@ fn summarize_omena_query_unified_cross_file_scc_diagnostics_for_workspace(
     _style_sources: &[OmenaQueryStyleSourceInputV0],
     _source_documents: &[OmenaQuerySourceDocumentInputV0],
     _package_manifests: &[OmenaQueryStylePackageManifestV0],
+    _substrate: &OmenaQueryWorkspaceDiagnosticsSubstrateV0,
 ) -> Vec<OmenaQueryStyleDiagnosticV0> {
     Vec::new()
 }
@@ -1233,7 +1245,7 @@ fn summarize_omena_query_unified_cross_file_scc_diagnostics_for_workspace(
 fn summarize_omena_query_unresolved_sass_import_diagnostics_for_workspace(
     target_style_path: &str,
     style_sources: &[OmenaQueryStyleSourceInputV0],
-    package_manifests: &[OmenaQueryStylePackageManifestV0],
+    substrate: &OmenaQueryWorkspaceDiagnosticsSubstrateV0,
 ) -> Vec<OmenaQueryStyleDiagnosticV0> {
     let Some(target) = style_sources
         .iter()
@@ -1241,17 +1253,10 @@ fn summarize_omena_query_unresolved_sass_import_diagnostics_for_workspace(
     else {
         return Vec::new();
     };
-    let style_source_refs = style_sources
-        .iter()
-        .map(|source| (source.style_path.as_str(), source.style_source.as_str()))
-        .collect::<Vec<_>>();
-    let style_fact_entries = collect_omena_query_style_fact_entries(style_source_refs.as_slice());
-    let resolution = summarize_sass_module_cross_file_resolution(
-        &style_fact_entries,
-        package_manifests,
-        &[],
-        &[],
-    );
+    // Substrate RES-C slot: plain resolution with (package_manifests) + EMPTY path
+    // mappings — this pass never threaded bundler/tsconfig mappings, and substituting
+    // the full-args RES-A would change the unresolved-edge set behind an alias.
+    let resolution = &substrate.sass_resolution_without_path_mappings;
 
     let target_facts = collect_omena_query_omena_parser_style_facts_raw(
         target.style_source.as_str(),
@@ -1596,6 +1601,110 @@ pub fn summarize_omena_query_style_diagnostics_for_workspace_file_with_external_
     )
 }
 
+/// RFC 0009 Pillar B stage-2 (#65): the per-call workspace diagnostics substrate.
+///
+/// Each workspace sub-pass used to rebuild the style fact entries (one full parse per
+/// in-graph style source) and its own Sass cross-file resolution from the same corpus on
+/// every monolith call. The substrate hoists those rebuilds to ONE collection per call.
+///
+/// The resolution variants are intentionally NOT collapsed into one slot: the sub-passes
+/// call `summarize_sass_module_cross_file_resolution` with *different* argument shapes
+/// (empty manifests, empty path mappings, SIF promotion), and substituting one variant
+/// for another would change reachability / unresolved-edge sets — package manifests
+/// enable bare-package and pkg-export edges, path mappings enable alias edges. Every
+/// distinct `(entries, resolution-arguments)` value the monolith's sub-passes actually
+/// compute is carried as its own slot, byte-identical to what the sub-pass would have
+/// computed itself. The slots are built from the monolith's separate `package_manifests`
+/// parameter (NOT `resolution_inputs.package_manifests`, which no sub-pass reads).
+struct OmenaQueryWorkspaceDiagnosticsSubstrateV0 {
+    /// ENTRIES: `collect_omena_query_style_fact_entries` over ALL
+    /// `(style_path, style_source)` pairs in input order. Order-sensitive: the
+    /// resolution derives per-kind `rule_ordinal`s from iteration order, so the corpus
+    /// is never sorted/deduped/keyed here.
+    style_fact_entries: Vec<OmenaQueryStyleFactEntry>,
+    /// RES-A: plain resolution with `(package_manifests, bundler, tsconfig)`.
+    /// Consumers: sass-use-cycle, resolution-identity, replica-ensemble, module-graph
+    /// property-value narrowing.
+    sass_resolution: OmenaQuerySassModuleCrossFileResolutionV0,
+    /// RES-B: plain resolution with EMPTY manifests + `(bundler, tsconfig)`. Sole
+    /// consumer: missing-extend-target. Equals RES-A only when `package_manifests` is
+    /// empty, so it stays a separate slot.
+    sass_resolution_without_manifests: OmenaQuerySassModuleCrossFileResolutionV0,
+    /// RES-C: plain resolution with `(package_manifests)` + EMPTY path mappings.
+    /// Consumers: unresolved-sass-import (always) and the unified-SCC pass's Sass leg
+    /// (`hypergraph-ifds` builds only). Equals RES-A only when both mapping vecs are
+    /// empty, so it stays a separate slot.
+    sass_resolution_without_path_mappings: OmenaQuerySassModuleCrossFileResolutionV0,
+    /// RES-D: SIF-promoted resolution (== RES-A + `promote_sif_backed_external_edges`;
+    /// byte-identical to RES-A when `external_sifs` is empty since the promotion
+    /// early-returns). Consumers: missing-sass-symbol (unconditional, even in `Ignored`
+    /// mode), external top-any ranges + SIF boundary (Sif mode).
+    sass_resolution_with_external_sifs: OmenaQuerySassModuleCrossFileResolutionV0,
+    /// RES-E (`hypergraph-ifds` only): css-modules resolution with
+    /// `(package_manifests)`, consumed by the unified-SCC pass via the workspace
+    /// cross-file summary. Default builds run the empty SCC stub and never compute it.
+    #[cfg(feature = "hypergraph-ifds")]
+    css_modules_resolution: OmenaQueryCssModulesCrossFileResolutionV0,
+}
+
+fn collect_omena_query_workspace_diagnostics_substrate(
+    style_sources: &[OmenaQueryStyleSourceInputV0],
+    package_manifests: &[OmenaQueryStylePackageManifestV0],
+    external_sifs: &[OmenaQueryExternalSifInputV0],
+    bundler_path_mappings: &[OmenaResolverBundlerPathAliasMappingV0],
+    tsconfig_path_mappings: &[OmenaResolverTsconfigPathMappingV0],
+) -> OmenaQueryWorkspaceDiagnosticsSubstrateV0 {
+    let style_source_refs = style_sources
+        .iter()
+        .map(|source| (source.style_path.as_str(), source.style_source.as_str()))
+        .collect::<Vec<_>>();
+    let style_fact_entries = collect_omena_query_style_fact_entries(style_source_refs.as_slice());
+    let sass_resolution = summarize_sass_module_cross_file_resolution(
+        &style_fact_entries,
+        package_manifests,
+        bundler_path_mappings,
+        tsconfig_path_mappings,
+    );
+    // RES-D is what `summarize_sass_module_cross_file_resolution_with_external_sifs`
+    // returns for the same arguments — and that function is exactly "plain resolution
+    // (RES-A's arguments) + in-place `promote_sif_backed_external_edges`" — so it is
+    // derived from a clone of RES-A instead of re-running the plain resolution again.
+    let mut sass_resolution_with_external_sifs = sass_resolution.clone();
+    promote_sif_backed_external_edges(
+        &mut sass_resolution_with_external_sifs,
+        OmenaQueryExternalSifResolutionContext {
+            package_manifests,
+            bundler_path_mappings,
+            tsconfig_path_mappings,
+            external_sifs,
+        },
+    );
+    let sass_resolution_without_manifests = summarize_sass_module_cross_file_resolution(
+        &style_fact_entries,
+        &[],
+        bundler_path_mappings,
+        tsconfig_path_mappings,
+    );
+    let sass_resolution_without_path_mappings = summarize_sass_module_cross_file_resolution(
+        &style_fact_entries,
+        package_manifests,
+        &[],
+        &[],
+    );
+    #[cfg(feature = "hypergraph-ifds")]
+    let css_modules_resolution =
+        summarize_css_modules_cross_file_resolution(&style_fact_entries, package_manifests);
+    OmenaQueryWorkspaceDiagnosticsSubstrateV0 {
+        style_fact_entries,
+        sass_resolution,
+        sass_resolution_without_manifests,
+        sass_resolution_without_path_mappings,
+        sass_resolution_with_external_sifs,
+        #[cfg(feature = "hypergraph-ifds")]
+        css_modules_resolution,
+    }
+}
+
 #[allow(clippy::too_many_arguments)]
 pub fn summarize_omena_query_style_diagnostics_for_workspace_file_with_external_mode_and_sifs_and_resolution_inputs_and_suppression_mode(
     target_style_path: &str,
@@ -1631,29 +1740,40 @@ pub fn summarize_omena_query_style_diagnostics_for_workspace_file_with_external_
     summary
         .diagnostics
         .retain(|diagnostic| diagnostic.code != "missingExtendTarget");
+    // RFC 0009 Pillar B stage-2 (#65): one shared substrate per monolith call. Every
+    // workspace sub-pass below receives the precomputed (entries, resolution-variant)
+    // slot it would otherwise have rebuilt from the same corpus itself.
+    let substrate = collect_omena_query_workspace_diagnostics_substrate(
+        style_sources,
+        package_manifests,
+        external_sifs,
+        resolution_inputs.bundler_path_mappings.as_slice(),
+        resolution_inputs.tsconfig_path_mappings.as_slice(),
+    );
     summary.diagnostics.extend(
         summarize_omena_query_missing_extend_target_diagnostics_for_workspace(
             target_style_path,
             style_sources,
-            resolution_inputs.bundler_path_mappings.as_slice(),
-            resolution_inputs.tsconfig_path_mappings.as_slice(),
+            &substrate,
         ),
     );
     summary.diagnostics.extend(
-        summarize_omena_query_missing_sass_symbol_diagnostics_for_workspace_with_sifs(
+        summarize_omena_query_missing_sass_symbol_diagnostics_for_workspace_with_sifs_from_substrate(
             target_style_path,
             style_sources,
             package_manifests,
             external_sifs,
             resolution_inputs.bundler_path_mappings.as_slice(),
             resolution_inputs.tsconfig_path_mappings.as_slice(),
+            &substrate.style_fact_entries,
+            &substrate.sass_resolution_with_external_sifs,
         ),
     );
     summary.diagnostics.extend(
-        summarize_omena_query_css_modules_resolution_style_diagnostics(
+        summarize_omena_query_css_modules_resolution_style_diagnostics_from_entries(
             target_style_path,
             &target.style_source,
-            style_sources,
+            &substrate.style_fact_entries,
             package_manifests,
         ),
     );
@@ -1661,9 +1781,7 @@ pub fn summarize_omena_query_style_diagnostics_for_workspace_file_with_external_
         summarize_omena_query_sass_use_cycle_diagnostics_for_workspace(
             target_style_path,
             style_sources,
-            package_manifests,
-            resolution_inputs.bundler_path_mappings.as_slice(),
-            resolution_inputs.tsconfig_path_mappings.as_slice(),
+            &substrate,
         ),
     );
     summary.diagnostics.extend(
@@ -1673,28 +1791,28 @@ pub fn summarize_omena_query_style_diagnostics_for_workspace_file_with_external_
             style_sources,
             source_documents,
             package_manifests,
+            &substrate,
         ),
     );
     summary.diagnostics.extend(
         summarize_omena_query_unresolved_sass_import_diagnostics_for_workspace(
             target_style_path,
             style_sources,
-            package_manifests,
+            &substrate,
         ),
     );
     summary.diagnostics.extend(
-        summarize_omena_query_sass_module_resolution_identity_diagnostics_for_workspace(
+        summarize_omena_query_sass_module_resolution_identity_diagnostics_for_workspace_from_resolution(
             target_style_path,
             style_sources,
-            package_manifests,
-            resolution_inputs,
+            &substrate.sass_resolution,
         ),
     );
     summary.diagnostics.extend(
-        summarize_omena_query_unused_selector_style_diagnostics_with_path_mappings(
+        summarize_omena_query_unused_selector_style_diagnostics_with_path_mappings_from_entries(
             target_style_path,
             &target.style_source,
-            style_sources,
+            &substrate.style_fact_entries,
             source_documents,
             package_manifests,
             classname_transform,
@@ -1706,18 +1824,14 @@ pub fn summarize_omena_query_style_diagnostics_for_workspace_file_with_external_
         summarize_omena_query_replica_ensemble_inconsistency_diagnostics_for_workspace(
             target_style_path,
             style_sources,
-            package_manifests,
-            resolution_inputs.bundler_path_mappings.as_slice(),
-            resolution_inputs.tsconfig_path_mappings.as_slice(),
+            &substrate,
         ),
     );
     attach_omena_query_module_graph_property_value_narrowing_for_workspace(
         target_style_path,
         &mut summary,
         style_sources,
-        package_manifests,
-        resolution_inputs.bundler_path_mappings.as_slice(),
-        resolution_inputs.tsconfig_path_mappings.as_slice(),
+        &substrate,
     );
     summary.diagnostic_count = summary.diagnostics.len();
     push_omena_query_ready_surface(
@@ -1772,6 +1886,7 @@ pub fn summarize_omena_query_style_diagnostics_for_workspace_file_with_external_
                 resolution_inputs.bundler_path_mappings.as_slice(),
                 resolution_inputs.tsconfig_path_mappings.as_slice(),
                 external_sifs,
+                &substrate,
             );
         if strictness.suppresses_top_any_external_symbols() {
             summary.diagnostics.retain(|diagnostic| {
@@ -1800,6 +1915,7 @@ pub fn summarize_omena_query_style_diagnostics_for_workspace_file_with_external_
                     resolution_inputs.tsconfig_path_mappings.as_slice(),
                     external_sifs,
                     strictness,
+                    &substrate,
                 ));
         }
         push_omena_query_ready_surface(
@@ -1841,18 +1957,40 @@ pub fn summarize_omena_query_sass_module_resolution_identity_diagnostics_for_wor
     package_manifests: &[OmenaQueryStylePackageManifestV0],
     resolution_inputs: &OmenaQueryStyleResolutionInputsV0,
 ) -> Vec<OmenaQueryStyleDiagnosticV0> {
-    let Some(target) = workspace_sources
+    if !workspace_sources
         .iter()
-        .find(|source| source.style_path == target_style_path)
-    else {
+        .any(|source| source.style_path == target_style_path)
+    {
         return Vec::new();
-    };
+    }
     let resolution = summarize_omena_query_sass_module_cross_file_resolution_for_workspace(
         workspace_sources,
         package_manifests,
         resolution_inputs.bundler_path_mappings.as_slice(),
         resolution_inputs.tsconfig_path_mappings.as_slice(),
     );
+    summarize_omena_query_sass_module_resolution_identity_diagnostics_for_workspace_from_resolution(
+        target_style_path,
+        workspace_sources,
+        &resolution,
+    )
+}
+
+/// Substrate-threaded core of the resolution-identity pass (RFC 0009 Pillar B stage-2,
+/// #65). `resolution` is the substrate's RES-A slot — plain resolution with
+/// (package_manifests, bundler, tsconfig), identical to what the pub wrapper above
+/// computes via `summarize_omena_query_sass_module_cross_file_resolution_for_workspace`.
+fn summarize_omena_query_sass_module_resolution_identity_diagnostics_for_workspace_from_resolution(
+    target_style_path: &str,
+    workspace_sources: &[OmenaQueryStyleSourceInputV0],
+    resolution: &OmenaQuerySassModuleCrossFileResolutionV0,
+) -> Vec<OmenaQueryStyleDiagnosticV0> {
+    let Some(target) = workspace_sources
+        .iter()
+        .find(|source| source.style_path == target_style_path)
+    else {
+        return Vec::new();
+    };
     let range = whole_file_omena_query_style_range(target.style_source.as_str());
     let mut emitted = BTreeSet::new();
     let mut diagnostics = Vec::new();
@@ -2053,7 +2191,7 @@ pub fn summarize_omena_query_sass_module_resolution_identity_diagnostics_for_wor
         summarize_omena_query_sass_module_configuration_conflict_diagnostics(
             target_style_path,
             workspace_sources,
-            &resolution,
+            resolution,
             range,
         ),
     );
@@ -2289,23 +2427,12 @@ fn attach_omena_query_module_graph_property_value_narrowing_for_workspace(
     target_style_path: &str,
     summary: &mut OmenaQueryStyleDiagnosticsForFileV0,
     style_sources: &[OmenaQueryStyleSourceInputV0],
-    package_manifests: &[OmenaQueryStylePackageManifestV0],
-    bundler_path_mappings: &[OmenaResolverBundlerPathAliasMappingV0],
-    tsconfig_path_mappings: &[OmenaResolverTsconfigPathMappingV0],
+    substrate: &OmenaQueryWorkspaceDiagnosticsSubstrateV0,
 ) {
-    let style_source_refs = style_sources
-        .iter()
-        .map(|source| (source.style_path.as_str(), source.style_source.as_str()))
-        .collect::<Vec<_>>();
-    let style_fact_entries = collect_omena_query_style_fact_entries(style_source_refs.as_slice());
-    let resolution = summarize_sass_module_cross_file_resolution(
-        &style_fact_entries,
-        package_manifests,
-        bundler_path_mappings,
-        tsconfig_path_mappings,
-    );
+    // Substrate RES-A slot: plain resolution with (package_manifests, bundler, tsconfig).
+    let resolution = &substrate.sass_resolution;
     let reachable_style_paths =
-        collect_sass_module_graph_reachable_style_paths(target_style_path, &resolution);
+        collect_sass_module_graph_reachable_style_paths(target_style_path, resolution);
     if reachable_style_paths.len() <= 1 {
         return;
     }
@@ -2550,6 +2677,7 @@ fn collect_omena_query_inline_style_runtime_overrides_for_style(
     overrides
 }
 
+#[allow(clippy::too_many_arguments)]
 fn collect_omena_query_external_top_any_sass_symbol_ranges(
     target_style_path: &str,
     style_sources: &[OmenaQueryStyleSourceInputV0],
@@ -2557,6 +2685,7 @@ fn collect_omena_query_external_top_any_sass_symbol_ranges(
     bundler_path_mappings: &[OmenaResolverBundlerPathAliasMappingV0],
     tsconfig_path_mappings: &[OmenaResolverTsconfigPathMappingV0],
     external_sifs: &[OmenaQueryExternalSifInputV0],
+    substrate: &OmenaQueryWorkspaceDiagnosticsSubstrateV0,
 ) -> BTreeSet<ParserRangeV0> {
     let Some(target) = style_sources
         .iter()
@@ -2564,18 +2693,9 @@ fn collect_omena_query_external_top_any_sass_symbol_ranges(
     else {
         return BTreeSet::new();
     };
-    let style_source_refs = style_sources
-        .iter()
-        .map(|source| (source.style_path.as_str(), source.style_source.as_str()))
-        .collect::<Vec<_>>();
-    let style_fact_entries = collect_omena_query_style_fact_entries(style_source_refs.as_slice());
-    let resolution = summarize_sass_module_cross_file_resolution_with_external_sifs(
-        &style_fact_entries,
-        package_manifests,
-        bundler_path_mappings,
-        tsconfig_path_mappings,
-        external_sifs,
-    );
+    // Substrate RES-D slot: SIF-promoted resolution over the same
+    // (package_manifests, bundler, tsconfig, external_sifs) arguments.
+    let resolution = &substrate.sass_resolution_with_external_sifs;
     let external_sif_context = OmenaQueryExternalSifResolutionContext {
         package_manifests,
         bundler_path_mappings,
@@ -2760,6 +2880,7 @@ fn sass_symbol_reference_belongs_to_edge(
     }
 }
 
+#[allow(clippy::too_many_arguments)]
 fn summarize_omena_query_external_sif_boundary_diagnostics(
     target_style_path: &str,
     style_sources: &[OmenaQueryStyleSourceInputV0],
@@ -2768,6 +2889,7 @@ fn summarize_omena_query_external_sif_boundary_diagnostics(
     tsconfig_path_mappings: &[OmenaResolverTsconfigPathMappingV0],
     external_sifs: &[OmenaQueryExternalSifInputV0],
     strictness: OmenaStrictnessLevelV0,
+    substrate: &OmenaQueryWorkspaceDiagnosticsSubstrateV0,
 ) -> Vec<OmenaQueryStyleDiagnosticV0> {
     let Some(target) = style_sources
         .iter()
@@ -2775,18 +2897,9 @@ fn summarize_omena_query_external_sif_boundary_diagnostics(
     else {
         return Vec::new();
     };
-    let style_source_refs = style_sources
-        .iter()
-        .map(|source| (source.style_path.as_str(), source.style_source.as_str()))
-        .collect::<Vec<_>>();
-    let style_fact_entries = collect_omena_query_style_fact_entries(style_source_refs.as_slice());
-    let resolution = summarize_sass_module_cross_file_resolution_with_external_sifs(
-        &style_fact_entries,
-        package_manifests,
-        bundler_path_mappings,
-        tsconfig_path_mappings,
-        external_sifs,
-    );
+    // Substrate RES-D slot: SIF-promoted resolution over the same
+    // (package_manifests, bundler, tsconfig, external_sifs) arguments.
+    let resolution = &substrate.sass_resolution_with_external_sifs;
     let external_sif_context = OmenaQueryExternalSifResolutionContext {
         package_manifests,
         bundler_path_mappings,
@@ -3715,6 +3828,24 @@ pub fn summarize_omena_query_css_modules_resolution_style_diagnostics(
         .map(|source| (source.style_path.as_str(), source.style_source.as_str()))
         .collect::<Vec<_>>();
     let style_fact_entries = collect_omena_query_style_fact_entries(style_source_refs.as_slice());
+    summarize_omena_query_css_modules_resolution_style_diagnostics_from_entries(
+        target_style_path,
+        target_source,
+        &style_fact_entries,
+        package_manifests,
+    )
+}
+
+/// Substrate-threaded core of the css-modules resolution pass (RFC 0009 Pillar B
+/// stage-2, #65). `style_fact_entries` is the substrate's ENTRIES slot; this pass never
+/// computed a Sass cross-file resolution (composes targets resolve per-edge via
+/// `resolve_style_module_source`).
+fn summarize_omena_query_css_modules_resolution_style_diagnostics_from_entries(
+    target_style_path: &str,
+    target_source: &str,
+    style_fact_entries: &[OmenaQueryStyleFactEntry],
+    package_manifests: &[OmenaQueryStylePackageManifestV0],
+) -> Vec<OmenaQueryStyleDiagnosticV0> {
     let available_style_paths = style_fact_entries
         .iter()
         .map(|entry| entry.style_path.as_str())
@@ -3936,6 +4067,38 @@ pub fn summarize_omena_query_unused_selector_style_diagnostics_with_path_mapping
         .map(|source| (source.style_path.as_str(), source.style_source.as_str()))
         .collect::<Vec<_>>();
     let style_fact_entries = collect_omena_query_style_fact_entries(style_source_refs.as_slice());
+    summarize_omena_query_unused_selector_style_diagnostics_with_path_mappings_from_entries(
+        target_style_path,
+        target_source,
+        &style_fact_entries,
+        source_documents,
+        package_manifests,
+        classname_transform,
+        bundler_path_mappings,
+        tsconfig_path_mappings,
+    )
+}
+
+/// Substrate-threaded core of the unused-selector pass (RFC 0009 Pillar B stage-2,
+/// #65). `style_fact_entries` is the substrate's ENTRIES slot; this pass never computed
+/// a Sass cross-file resolution (source usage resolves per-document imports via
+/// `collect_omena_query_source_selector_usage_by_style`, which still re-runs its own
+/// source import/syntax indexing — not covered by the substrate).
+#[allow(clippy::too_many_arguments)]
+fn summarize_omena_query_unused_selector_style_diagnostics_with_path_mappings_from_entries(
+    target_style_path: &str,
+    target_source: &str,
+    style_fact_entries: &[OmenaQueryStyleFactEntry],
+    source_documents: &[OmenaQuerySourceDocumentInputV0],
+    package_manifests: &[OmenaQueryStylePackageManifestV0],
+    classname_transform: Option<&str>,
+    bundler_path_mappings: &[OmenaResolverBundlerPathAliasMappingV0],
+    tsconfig_path_mappings: &[OmenaResolverTsconfigPathMappingV0],
+) -> Vec<OmenaQueryStyleDiagnosticV0> {
+    if source_documents.is_empty() {
+        return Vec::new();
+    }
+
     let available_style_paths = style_fact_entries
         .iter()
         .map(|entry| entry.style_path.as_str())

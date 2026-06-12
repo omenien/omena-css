@@ -471,10 +471,34 @@ pub fn summarize_omena_query_workspace_cross_file_summary(
         &[],
         &[],
     );
-    let style_summary = summarize_omena_query_cross_file_summary(
+    summarize_omena_query_workspace_cross_file_summary_with_substrate(
+        style_sources,
+        source_documents,
+        package_manifests,
         &style_fact_entries,
         &css_modules_resolution,
         &sass_module_resolution,
+    )
+}
+
+/// Substrate-threaded core of the workspace cross-file summary (RFC 0009 Pillar B
+/// stage-2, #65): the workspace-diagnostics monolith hands in its precomputed ENTRIES /
+/// css-modules (RES-E) / Sass-without-path-mappings (RES-C) slots instead of letting
+/// this function rebuild them from the same corpus. The source-selector leg still
+/// re-parses `source_documents` internally (not covered by the substrate). The pub
+/// entry point above keeps collecting for its external callers.
+pub(super) fn summarize_omena_query_workspace_cross_file_summary_with_substrate(
+    style_sources: &[OmenaQueryStyleSourceInputV0],
+    source_documents: &[OmenaQuerySourceDocumentInputV0],
+    package_manifests: &[OmenaQueryStylePackageManifestV0],
+    style_fact_entries: &[OmenaQueryStyleFactEntry],
+    css_modules_resolution: &OmenaQueryCssModulesCrossFileResolutionV0,
+    sass_module_resolution: &OmenaQuerySassModuleCrossFileResolutionV0,
+) -> OmenaQueryCrossFileSummaryV0 {
+    let style_summary = summarize_omena_query_cross_file_summary(
+        style_fact_entries,
+        css_modules_resolution,
+        sass_module_resolution,
     );
     let source_summary = summarize_omena_query_source_selector_reference_cross_file_summary(
         style_sources,
