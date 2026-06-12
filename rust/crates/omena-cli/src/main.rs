@@ -146,6 +146,9 @@ enum Command {
         /// Emit bundle code-split CSS files into this directory.
         #[arg(long = "split-out-dir")]
         split_out_dir: Option<PathBuf>,
+        /// Additional entry CSS file for bundle code-split emission.
+        #[arg(long = "bundle-entry")]
+        bundle_entry_paths: Vec<PathBuf>,
         /// Additional workspace style source used to derive import/composes build context.
         #[arg(long = "source")]
         source_paths: Vec<PathBuf>,
@@ -745,6 +748,7 @@ fn run(cli: Cli) -> Result<(), String> {
             tree_shake,
             bundle,
             split_out_dir,
+            bundle_entry_paths,
             source_paths,
             package_manifest_paths,
             source_map,
@@ -761,6 +765,7 @@ fn run(cli: Cli) -> Result<(), String> {
             tree_shake,
             bundle,
             split_out_dir,
+            bundle_entry_paths,
             source_paths,
             package_manifest_paths,
             source_map,
@@ -2947,6 +2952,7 @@ struct BuildFileOptions {
     tree_shake: bool,
     bundle: bool,
     split_out_dir: Option<PathBuf>,
+    bundle_entry_paths: Vec<PathBuf>,
     source_paths: Vec<PathBuf>,
     package_manifest_paths: Vec<PathBuf>,
     source_map: bool,
@@ -2967,6 +2973,7 @@ fn build_file(options: BuildFileOptions) -> Result<(), String> {
         tree_shake,
         bundle,
         split_out_dir,
+        bundle_entry_paths,
         source_paths,
         package_manifest_paths,
         source_map,
@@ -2993,6 +3000,9 @@ fn build_file(options: BuildFileOptions) -> Result<(), String> {
     if split_out_dir.is_some() && !bundle {
         return Err("--split-out-dir requires --bundle".to_string());
     }
+    if !bundle_entry_paths.is_empty() && split_out_dir.is_none() {
+        return Err("--bundle-entry requires --split-out-dir".to_string());
+    }
     if source_map && !json {
         return Err("--source-map requires --json".to_string());
     }
@@ -3003,6 +3013,16 @@ fn build_file(options: BuildFileOptions) -> Result<(), String> {
     let source = read_source(&path)?;
     let style_path = path_string(&path);
     let input_source_maps = read_input_source_maps(&input_source_maps, &style_path)?;
+    let bundle_entry_style_paths = bundle_entry_paths
+        .iter()
+        .map(|entry_path| path_string(entry_path))
+        .collect::<Vec<_>>();
+    let mut workspace_source_paths = source_paths.clone();
+    for entry_path in &bundle_entry_paths {
+        if entry_path != &path && !workspace_source_paths.contains(entry_path) {
+            workspace_source_paths.push(entry_path.clone());
+        }
+    }
     let mut pass_ids = pass_ids;
     let mut context = read_context_json(context_json.as_deref())?;
     if closed_style_world || tree_shake {
@@ -3025,7 +3045,8 @@ fn build_file(options: BuildFileOptions) -> Result<(), String> {
         .context;
         context = merge_cli_transform_context(context, &engine_context);
     }
-    let original_workspace_sources = read_workspace_sources(&path, &source, &source_paths)?;
+    let original_workspace_sources =
+        read_workspace_sources(&path, &source, &workspace_source_paths)?;
     let (workspace_sources, bundle_asset_url_rewrite_count) = if bundle {
         rewrite_bundle_asset_urls_for_build_sources(&original_workspace_sources)
     } else {
@@ -3111,19 +3132,19 @@ fn build_file(options: BuildFileOptions) -> Result<(), String> {
         }
     }
     if let Some(split_out_dir) = split_out_dir.as_ref() {
-        let split_upstream_maps_applied =
-            emit_bundle_code_split_outputs(BundleCodeSplitOutputOptions {
-                out_dir: split_out_dir,
-                entry_style_path: &style_path,
-                sources: &workspace_sources,
-                source_map_sources: &original_workspace_sources,
-                resolution_inputs: &resolution_inputs,
-                split_transform_pass_ids: &split_transform_pass_ids,
-                input_source_maps: &input_source_maps,
-                context: &context,
-                source_map,
-            })?;
-        if split_upstream_maps_applied {
+        let split_emission = emit_bundle_code_split_outputs(BundleCodeSplitOutputOptions {
+            out_dir: split_out_dir,
+            entry_style_path: &style_path,
+            sources: &workspace_sources,
+            source_map_sources: &original_workspace_sources,
+            resolution_inputs: &resolution_inputs,
+            split_transform_pass_ids: &split_transform_pass_ids,
+            input_source_maps: &input_source_maps,
+            bundle_entry_style_paths: &bundle_entry_style_paths,
+            context: &context,
+            source_map,
+        })?;
+        if split_emission.upstream_maps_applied {
             push_ready_surface(
                 &mut summary.ready_surfaces,
                 "bundleUpstreamSourceMapComposition",
@@ -3134,6 +3155,19 @@ fn build_file(options: BuildFileOptions) -> Result<(), String> {
             &mut summary.ready_surfaces,
             "bundleCodeSplitManifestEmission",
         );
+        push_ready_surface(
+            &mut summary.ready_surfaces,
+            "bundleCodeSplitBoundaryManifest",
+        );
+        if split_emission.configured_entry_count > 0 {
+            push_ready_surface(&mut summary.ready_surfaces, "bundleCodeSplitEntryConfig");
+        }
+        if split_emission.shared_boundary_count > 0 {
+            push_ready_surface(
+                &mut summary.ready_surfaces,
+                "bundleCodeSplitSharedChunkEmission",
+            );
+        }
         if tree_shake {
             push_ready_surface(
                 &mut summary.ready_surfaces,
@@ -3314,8 +3348,16 @@ struct BundleCodeSplitOutputOptions<'a> {
     resolution_inputs: &'a OmenaQueryStyleResolutionInputsV0,
     split_transform_pass_ids: &'a [String],
     input_source_maps: &'a BTreeMap<String, String>,
+    bundle_entry_style_paths: &'a [String],
     context: &'a OmenaQueryTransformExecutionContextV0,
     source_map: bool,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+struct BundleCodeSplitEmissionSummaryV0 {
+    upstream_maps_applied: bool,
+    configured_entry_count: usize,
+    shared_boundary_count: usize,
 }
 
 const BUNDLE_CODE_SPLIT_MANIFEST_FILE_NAME: &str = "omena.bundle-split.manifest.json";
@@ -3337,6 +3379,7 @@ struct BundleCodeSplitManifestOutputV0 {
     source_path: String,
     file_name: String,
     is_entry: bool,
+    split_boundary: &'static str,
     source_map_file: Option<String>,
     imports: Vec<BundleCodeSplitManifestImportV0>,
 }
@@ -3351,7 +3394,7 @@ struct BundleCodeSplitManifestImportV0 {
 
 fn emit_bundle_code_split_outputs(
     options: BundleCodeSplitOutputOptions<'_>,
-) -> Result<bool, String> {
+) -> Result<BundleCodeSplitEmissionSummaryV0, String> {
     let BundleCodeSplitOutputOptions {
         out_dir,
         entry_style_path,
@@ -3360,6 +3403,7 @@ fn emit_bundle_code_split_outputs(
         resolution_inputs,
         split_transform_pass_ids,
         input_source_maps,
+        bundle_entry_style_paths,
         context,
         source_map,
     } = options;
@@ -3388,15 +3432,32 @@ fn emit_bundle_code_split_outputs(
         })
         .collect::<BTreeMap<_, _>>();
     let source_path_lookup = bundle_split_source_path_lookup(sources);
-    let reachable_paths = collect_bundle_code_split_reachable_style_paths(
-        entry_style_path,
+    let mut entry_style_paths = vec![entry_style_path.to_string()];
+    for configured_entry in bundle_entry_style_paths {
+        if configured_entry != entry_style_path && !entry_style_paths.contains(configured_entry) {
+            entry_style_paths.push(configured_entry.clone());
+        }
+    }
+    for configured_entry in &entry_style_paths {
+        if !source_by_path.contains_key(configured_entry.as_str()) {
+            return Err(format!(
+                "bundle entry source is not loaded: {configured_entry}"
+            ));
+        }
+    }
+    let entry_style_path_set = entry_style_paths.iter().cloned().collect::<BTreeSet<_>>();
+    let entry_reachability = collect_bundle_code_split_entry_reachability(
+        entry_style_paths.as_slice(),
         sources,
         resolution_inputs,
         &source_path_lookup,
     );
+    let reachable_paths = entry_reachability.keys().cloned().collect::<Vec<_>>();
 
     let mut manifest_outputs = Vec::new();
     let mut upstream_maps_applied = false;
+    let mut configured_entry_count = 0usize;
+    let mut shared_boundary_count = 0usize;
     for style_path in reachable_paths {
         let Some(source) = source_by_path.get(style_path.as_str()) else {
             continue;
@@ -3470,10 +3531,23 @@ fn emit_bundle_code_split_outputs(
                 path_string(&output_path)
             )
         })?;
+        let split_boundary = bundle_code_split_manifest_boundary(
+            style_path.as_str(),
+            entry_style_path,
+            &entry_style_path_set,
+            &entry_reachability,
+        );
+        if split_boundary == "entryConfig" {
+            configured_entry_count = configured_entry_count.saturating_add(1);
+        }
+        if split_boundary == "shared" {
+            shared_boundary_count = shared_boundary_count.saturating_add(1);
+        }
         manifest_outputs.push(BundleCodeSplitManifestOutputV0 {
             source_path: style_path.clone(),
             file_name: file_name.clone(),
-            is_entry: style_path == entry_style_path,
+            is_entry: entry_style_path_set.contains(style_path.as_str()),
+            split_boundary,
             source_map_file,
             imports: manifest_imports,
         });
@@ -3499,62 +3573,93 @@ fn emit_bundle_code_split_outputs(
             path_string(&manifest_path)
         )
     })?;
-    Ok(upstream_maps_applied)
+    Ok(BundleCodeSplitEmissionSummaryV0 {
+        upstream_maps_applied,
+        configured_entry_count,
+        shared_boundary_count,
+    })
 }
 
-fn collect_bundle_code_split_reachable_style_paths(
-    entry_style_path: &str,
+fn collect_bundle_code_split_entry_reachability(
+    entry_style_paths: &[String],
     sources: &[OmenaQueryStyleSourceInputV0],
     resolution_inputs: &OmenaQueryStyleResolutionInputsV0,
     source_path_lookup: &BTreeMap<String, String>,
-) -> Vec<String> {
+) -> BTreeMap<String, BTreeSet<String>> {
     let source_by_path = sources
         .iter()
         .map(|source| (source.style_path.as_str(), source.style_source.as_str()))
         .collect::<BTreeMap<_, _>>();
-    let mut reachable = Vec::new();
-    let mut visited = BTreeSet::new();
-    let mut stack = vec![entry_style_path.to_string()];
+    let mut reachability = BTreeMap::<String, BTreeSet<String>>::new();
 
-    while let Some(style_path) = stack.pop() {
-        if !visited.insert(style_path.clone()) {
-            continue;
-        }
-        let Some(source) = source_by_path.get(style_path.as_str()) else {
-            continue;
-        };
-        reachable.push(style_path.clone());
-        let bundle = summarize_omena_transform_bundle_from_source(
-            style_path.as_str(),
-            source,
-            infer_cli_style_dialect(style_path.as_str()),
-        );
-        for edge in bundle.bundle_edges {
-            if !matches!(
-                edge.kind,
-                TransformBundleEdgeKind::CssImport | TransformBundleEdgeKind::LessImport
-            ) {
+    for entry_style_path in entry_style_paths {
+        let mut visited = BTreeSet::new();
+        let mut stack = vec![entry_style_path.clone()];
+
+        while let Some(style_path) = stack.pop() {
+            if !visited.insert(style_path.clone()) {
                 continue;
             }
-            let Some(import_source) = edge.import_source.as_deref() else {
+            let Some(source) = source_by_path.get(style_path.as_str()) else {
                 continue;
             };
-            let Some(target_path) = resolve_bundle_code_split_import_path(
+            reachability
+                .entry(style_path.clone())
+                .or_default()
+                .insert(entry_style_path.clone());
+            let bundle = summarize_omena_transform_bundle_from_source(
                 style_path.as_str(),
-                import_source,
-                resolution_inputs,
-            ) else {
-                continue;
-            };
-            if let Some(source_path) = source_path_lookup.get(target_path.as_str())
-                && source_by_path.contains_key(source_path.as_str())
-            {
-                stack.push(source_path.clone());
+                source,
+                infer_cli_style_dialect(style_path.as_str()),
+            );
+            for edge in bundle.bundle_edges {
+                if !matches!(
+                    edge.kind,
+                    TransformBundleEdgeKind::CssImport | TransformBundleEdgeKind::LessImport
+                ) {
+                    continue;
+                }
+                let Some(import_source) = edge.import_source.as_deref() else {
+                    continue;
+                };
+                let Some(target_path) = resolve_bundle_code_split_import_path(
+                    style_path.as_str(),
+                    import_source,
+                    resolution_inputs,
+                ) else {
+                    continue;
+                };
+                if let Some(source_path) = source_path_lookup.get(target_path.as_str())
+                    && source_by_path.contains_key(source_path.as_str())
+                {
+                    stack.push(source_path.clone());
+                }
             }
         }
     }
 
-    reachable
+    reachability
+}
+
+fn bundle_code_split_manifest_boundary(
+    style_path: &str,
+    primary_entry_style_path: &str,
+    entry_style_paths: &BTreeSet<String>,
+    entry_reachability: &BTreeMap<String, BTreeSet<String>>,
+) -> &'static str {
+    if style_path == primary_entry_style_path {
+        return "entry";
+    }
+    if entry_style_paths.contains(style_path) {
+        return "entryConfig";
+    }
+    if entry_reachability
+        .get(style_path)
+        .is_some_and(|entries| entries.len() > 1)
+    {
+        return "shared";
+    }
+    "styleDependency"
 }
 
 fn rewrite_bundle_code_split_imports_for_source(
@@ -5121,6 +5226,7 @@ mod tests {
         assert!(build_argument_names.contains(&"input-source-map"));
         assert!(build_argument_names.contains(&"tree-shake"));
         assert!(build_argument_names.contains(&"bundle"));
+        assert!(build_argument_names.contains(&"bundle-entry"));
     }
 
     #[test]
@@ -5657,6 +5763,7 @@ mod tests {
                 tree_shake: false,
                 bundle: false,
                 split_out_dir: None,
+                bundle_entry_paths: Vec::new(),
                 source_paths: Vec::new(),
                 package_manifest_paths: Vec::new(),
                 source_map: false,
@@ -5700,6 +5807,7 @@ mod tests {
                 tree_shake: false,
                 bundle: false,
                 split_out_dir: None,
+                bundle_entry_paths: Vec::new(),
                 source_paths: Vec::new(),
                 package_manifest_paths: Vec::new(),
                 source_map: true,
@@ -5737,6 +5845,7 @@ mod tests {
                 tree_shake: true,
                 bundle: false,
                 split_out_dir: None,
+                bundle_entry_paths: Vec::new(),
                 source_paths: Vec::new(),
                 package_manifest_paths: Vec::new(),
                 source_map: false,
@@ -5789,6 +5898,7 @@ mod tests {
                 tree_shake: true,
                 bundle: false,
                 split_out_dir: None,
+                bundle_entry_paths: Vec::new(),
                 source_paths: Vec::new(),
                 package_manifest_paths: Vec::new(),
                 source_map: false,
@@ -5855,6 +5965,7 @@ mod tests {
                 tree_shake: false,
                 bundle: true,
                 split_out_dir: None,
+                bundle_entry_paths: Vec::new(),
                 source_paths: vec![tokens_path.clone(), base_path.clone()],
                 package_manifest_paths: Vec::new(),
                 source_map: false,
@@ -5926,6 +6037,7 @@ mod tests {
                 tree_shake: false,
                 bundle: true,
                 split_out_dir: Some(split_dir.clone()),
+                bundle_entry_paths: Vec::new(),
                 source_paths: vec![tokens_path.clone(), base_path.clone()],
                 package_manifest_paths: Vec::new(),
                 source_map: false,
@@ -6103,6 +6215,7 @@ mod tests {
                 tree_shake: true,
                 bundle: true,
                 split_out_dir: Some(split_dir.clone()),
+                bundle_entry_paths: Vec::new(),
                 source_paths: vec![tokens_path.clone()],
                 package_manifest_paths: Vec::new(),
                 source_map: false,
@@ -6175,6 +6288,7 @@ mod tests {
                 tree_shake: false,
                 bundle: false,
                 split_out_dir: None,
+                bundle_entry_paths: Vec::new(),
                 source_paths: vec![tokens_path.clone(), theme_path.clone()],
                 package_manifest_paths: Vec::new(),
                 source_map: false,
@@ -6239,6 +6353,7 @@ mod tests {
                 tree_shake: false,
                 bundle: false,
                 split_out_dir: None,
+                bundle_entry_paths: Vec::new(),
                 source_paths: vec![tokens_path.clone(), theme_path.clone()],
                 package_manifest_paths: Vec::new(),
                 source_map: false,
@@ -6299,6 +6414,7 @@ mod tests {
                 tree_shake: false,
                 bundle: false,
                 split_out_dir: None,
+                bundle_entry_paths: Vec::new(),
                 source_paths: vec![tokens_path.clone()],
                 package_manifest_paths: Vec::new(),
                 source_map: false,
@@ -6371,6 +6487,7 @@ mod tests {
                 tree_shake: false,
                 bundle: true,
                 split_out_dir: None,
+                bundle_entry_paths: Vec::new(),
                 source_paths: vec![tokens_path.clone()],
                 package_manifest_paths: Vec::new(),
                 source_map: false,
@@ -6432,6 +6549,7 @@ mod tests {
                 tree_shake: false,
                 bundle: true,
                 split_out_dir: None,
+                bundle_entry_paths: Vec::new(),
                 source_paths: vec![tokens_path.clone()],
                 package_manifest_paths: Vec::new(),
                 source_map: true,

@@ -31,6 +31,7 @@ interface BundleSplitManifestOutput {
   readonly sourcePath: string;
   readonly fileName: string;
   readonly isEntry: boolean;
+  readonly splitBoundary: string;
   readonly sourceMapFile: string | null;
   readonly imports: readonly BundleSplitManifestImport[];
 }
@@ -60,6 +61,7 @@ try {
   const appPath = join(workspace, "app.css");
   const appScssPath = join(workspace, "app.scss");
   const appSourceMapPath = join(workspace, "app.css.map");
+  const adminPath = join(workspace, "admin.css");
   const tokensPath = join(themeDir, "tokens.css");
   const basePath = join(themeDir, "base.css");
   const contextPath = join(workspace, "context.json");
@@ -68,6 +70,8 @@ try {
   const appSource =
     '@import "./theme/tokens.css"; .app { color: green; background: url("./assets/app.svg"); } .deadApp { color: red; }';
   const appScssSource = '$brand: green;\n.app { color: $brand; }\n';
+  const adminSource =
+    '@import "./theme/tokens.css"; .admin { color: green; } .deadAdmin { color: red; }';
   const tokensSource =
     '@import "./base.css"; .token { color: blue; background-image: url("./icons/token.svg"); } .deadToken { color: red; }';
   const baseSource = ".base { color: red; } .deadBase { color: gray; }";
@@ -83,9 +87,13 @@ try {
   writeFileSync(appPath, appSource);
   writeFileSync(appScssPath, appScssSource);
   writeFileSync(appSourceMapPath, JSON.stringify(appSourceMap, null, 2));
+  writeFileSync(adminPath, adminSource);
   writeFileSync(tokensPath, tokensSource);
   writeFileSync(basePath, baseSource);
-  writeFileSync(contextPath, JSON.stringify({ reachableClassNames: ["app", "token", "base"] }));
+  writeFileSync(
+    contextPath,
+    JSON.stringify({ reachableClassNames: ["app", "admin", "token", "base"] }),
+  );
   writeFileSync(appAssetPath, "<svg />");
   writeFileSync(tokenAssetPath, "<svg />");
 
@@ -105,6 +113,8 @@ try {
       appPath,
       "--bundle",
       "--source",
+      adminPath,
+      "--source",
       tokensPath,
       "--source",
       basePath,
@@ -113,6 +123,8 @@ try {
       `${appPath}=${appSourceMapPath}`,
       "--split-out-dir",
       splitDir,
+      "--bundle-entry",
+      adminPath,
       "--tree-shake",
       "--context-json",
       contextPath,
@@ -143,6 +155,9 @@ try {
   assert.ok(summary.readySurfaces.includes("bundleSourceMapOriginChain"));
   assert.ok(summary.readySurfaces.includes("bundleCodeSplitEmission"));
   assert.ok(summary.readySurfaces.includes("bundleCodeSplitManifestEmission"));
+  assert.ok(summary.readySurfaces.includes("bundleCodeSplitBoundaryManifest"));
+  assert.ok(summary.readySurfaces.includes("bundleCodeSplitEntryConfig"));
+  assert.ok(summary.readySurfaces.includes("bundleCodeSplitSharedChunkEmission"));
   assert.ok(summary.readySurfaces.includes("bundleCodeSplitTreeShakeEmission"));
   assert.ok(summary.readySurfaces.includes("bundleCodeSplitSourceMapEmission"));
   assert.ok(summary.readySurfaces.includes("bundleUpstreamSourceMapComposition"));
@@ -164,14 +179,14 @@ try {
   assertSourceContent(sourceMap, appScssPath, appScssSource);
   assertSourceContent(sourceMap, tokensPath, tokensSource);
   assertSourceContent(sourceMap, basePath, baseSource);
-  assertSplitOutputs(splitDir, appScssSource, tokensSource, baseSource);
+  assertSplitOutputs(splitDir, appScssSource, adminSource, tokensSource, baseSource);
 
   console.log(
     [
       "validated omena-cli bundle origin chain:",
       `sources=${sourceMap.sources.length}`,
       `segments=${sourceMap.x_omenaSegmentCount}`,
-      "ready=bundleSourceMapOriginChain+bundleAssetUrlRewrite+bundleCodeSplitEmission+bundleCodeSplitManifestEmission+bundleCodeSplitTreeShakeEmission+bundleCodeSplitSourceMapEmission+bundleUpstreamSourceMapComposition",
+      "ready=bundleSourceMapOriginChain+bundleAssetUrlRewrite+bundleCodeSplitEmission+bundleCodeSplitManifestEmission+bundleCodeSplitBoundaryManifest+bundleCodeSplitEntryConfig+bundleCodeSplitSharedChunkEmission+bundleCodeSplitTreeShakeEmission+bundleCodeSplitSourceMapEmission+bundleUpstreamSourceMapComposition",
     ].join(" "),
   );
 } finally {
@@ -191,6 +206,7 @@ function assertSourceContent(sourceMap: SourceMapV3, sourcePath: string, source:
 function assertSplitOutputs(
   splitDir: string,
   appSource: string,
+  adminSource: string,
   tokensSource: string,
   baseSource: string,
 ): void {
@@ -202,12 +218,12 @@ function assertSplitOutputs(
   ) as BundleSplitManifest;
   assert.equal(
     cssFiles.length,
-    3,
-    `expected entry plus two imported split files: ${files.join(",")}`,
+    4,
+    `expected two entries plus two shared imported split files: ${files.join(",")}`,
   );
   assert.equal(
     mapFiles.length,
-    3,
+    4,
     `expected source-map sidecars for every split CSS file: ${files.join(",")}`,
   );
   const outputs = cssFiles.map((file) => readFileSync(join(splitDir, file), "utf8"));
@@ -232,8 +248,8 @@ function assertSplitOutputs(
   assert.ok(tokensOutput.includes('@import "'));
   assert.equal(manifest.product, "omena-cli.bundle-code-split-manifest");
   assert.equal(manifest.schemaVersion, 0);
-  assert.equal(manifest.outputCount, 3);
-  assert.equal(manifest.outputs.length, 3);
+  assert.equal(manifest.outputCount, 4);
+  assert.equal(manifest.outputs.length, 4);
   assert.ok(cssFiles.includes(manifest.entryFile), "split manifest entry file should be emitted");
   const manifestFiles = new Set(manifest.outputs.map((output) => output.fileName));
   assert.deepEqual(
@@ -246,6 +262,9 @@ function assertSplitOutputs(
     "split manifest should not duplicate composed original sources; sidecar .map files are the origin authority",
   );
   const appManifest = manifest.outputs.find((output) => output.sourcePath.endsWith("/app.css"));
+  const adminManifest = manifest.outputs.find((output) =>
+    output.sourcePath.endsWith("/admin.css"),
+  );
   const tokensManifest = manifest.outputs.find((output) =>
     output.sourcePath.endsWith("/theme/tokens.css"),
   );
@@ -253,18 +272,29 @@ function assertSplitOutputs(
     output.sourcePath.endsWith("/theme/base.css"),
   );
   assert.ok(appManifest, "split manifest should describe the entry file");
+  assert.ok(adminManifest, "split manifest should describe the configured entry file");
   assert.ok(tokensManifest, "split manifest should describe the token import file");
   assert.ok(baseManifest, "split manifest should describe the base transitive import file");
   assert.equal(appManifest.isEntry, true);
+  assert.equal(adminManifest.isEntry, true);
   assert.equal(tokensManifest.isEntry, false);
   assert.equal(baseManifest.isEntry, false);
+  assert.equal(appManifest.splitBoundary, "entry");
+  assert.equal(adminManifest.splitBoundary, "entryConfig");
+  assert.equal(tokensManifest.splitBoundary, "shared");
+  assert.equal(baseManifest.splitBoundary, "shared");
   assert.equal(appManifest.sourceMapFile, `${appManifest.fileName}.map`);
+  assert.equal(adminManifest.sourceMapFile, `${adminManifest.fileName}.map`);
   assert.equal(tokensManifest.sourceMapFile, `${tokensManifest.fileName}.map`);
   assert.equal(baseManifest.sourceMapFile, `${baseManifest.fileName}.map`);
   assert.equal(appManifest.imports.length, 1);
   assert.equal(appManifest.imports[0].importSource, "./theme/tokens.css");
   assert.equal(appManifest.imports[0].fileName, tokensManifest.fileName);
   assert.equal(appManifest.imports[0].resolvedStylePath, tokensManifest.sourcePath);
+  assert.equal(adminManifest.imports.length, 1);
+  assert.equal(adminManifest.imports[0].importSource, "./theme/tokens.css");
+  assert.equal(adminManifest.imports[0].fileName, tokensManifest.fileName);
+  assert.equal(adminManifest.imports[0].resolvedStylePath, tokensManifest.sourcePath);
   assert.equal(tokensManifest.imports.length, 1);
   assert.equal(tokensManifest.imports[0].importSource, "./base.css");
   assert.equal(tokensManifest.imports[0].fileName, baseManifest.fileName);
@@ -288,7 +318,7 @@ function assertSplitOutputs(
     assert.ok(splitMap.mappings.length > 0);
     assert.ok(splitMap.x_omenaPassIds.includes("code-split-emission"));
     assert.ok(
-      [appSource, tokensSource, baseSource].includes(splitMap.sourcesContent[0]),
+      [appSource, adminSource, tokensSource, baseSource].includes(splitMap.sourcesContent[0]),
       `split map should preserve original source content for ${cssFile}`,
     );
   }
