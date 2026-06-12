@@ -1307,6 +1307,419 @@ fn indexed_source_files_do_not_receive_style_change_diagnostics_until_open() -> 
 }
 
 #[test]
+fn indexed_style_files_feed_custom_property_references_and_rename() -> TestResult {
+    let workspace_root = std::env::temp_dir().join(format!(
+        "omena-lsp-server-style-symbol-custom-property-{}",
+        std::process::id()
+    ));
+    let src_dir = workspace_root.join("src");
+    let app_path = src_dir.join("App.module.scss");
+    let tokens_path = src_dir.join("tokens.scss");
+    let _ = std::fs::remove_dir_all(&workspace_root);
+    std::fs::create_dir_all(&src_dir)?;
+    let app_text = ".root { color: var(--brand); }\n";
+    let tokens_text = ":root { --brand: red; }\n";
+    std::fs::write(&app_path, app_text)?;
+    std::fs::write(&tokens_path, tokens_text)?;
+
+    let workspace_uri = path_to_file_uri(workspace_root.as_path());
+    let app_uri = path_to_file_uri(app_path.as_path());
+    let tokens_uri = path_to_file_uri(tokens_path.as_path());
+    let mut state = LspShellState::default();
+    handle_lsp_message(
+        &mut state,
+        json!({
+            "jsonrpc": "2.0",
+            "id": 1,
+            "method": "initialize",
+            "params": {
+                "workspaceFolders": [
+                    {
+                        "uri": workspace_uri,
+                        "name": "style-symbol-custom-property",
+                    },
+                ],
+            },
+        }),
+    );
+    handle_lsp_message(
+        &mut state,
+        json!({
+            "jsonrpc": "2.0",
+            "method": "initialized",
+            "params": {},
+        }),
+    );
+
+    let reference_position = parser_position_for_byte_offset(
+        app_text,
+        fixture_find(
+            app_text,
+            "--brand",
+            "app style contains custom property reference",
+        )?,
+    );
+    let references_response = handle_lsp_message(
+        &mut state,
+        json!({
+            "jsonrpc": "2.0",
+            "id": 2,
+            "method": "textDocument/references",
+            "params": {
+                "textDocument": {
+                    "uri": app_uri,
+                },
+                "position": reference_position,
+                "context": {
+                    "includeDeclaration": true,
+                },
+            },
+        }),
+    );
+    let reference_locations = references_response
+        .as_ref()
+        .and_then(|response| response.pointer("/result"))
+        .and_then(Value::as_array)
+        .ok_or_else(|| {
+            std::io::Error::other("custom property references should return locations")
+        })?;
+    assert!(
+        reference_locations.iter().any(|location| location
+            .get("uri")
+            .and_then(Value::as_str)
+            .is_some_and(|uri| file_uri_equivalent(uri, app_uri.as_str()))),
+        "indexed custom property references should include the referencing style: {references_response:?}"
+    );
+    assert!(
+        reference_locations.iter().any(|location| location
+            .get("uri")
+            .and_then(Value::as_str)
+            .is_some_and(|uri| file_uri_equivalent(uri, tokens_uri.as_str()))),
+        "indexed custom property references should include the declaring style: {references_response:?}"
+    );
+
+    let definition_response = handle_lsp_message(
+        &mut state,
+        json!({
+            "jsonrpc": "2.0",
+            "id": 3,
+            "method": "textDocument/definition",
+            "params": {
+                "textDocument": {
+                    "uri": app_uri,
+                },
+                "position": reference_position,
+            },
+        }),
+    );
+    assert!(
+        definition_response
+            .as_ref()
+            .and_then(|response| response.pointer("/result"))
+            .and_then(Value::as_array)
+            .is_some_and(|locations| locations.iter().any(|location| location
+                .get("uri")
+                .and_then(Value::as_str)
+                .is_some_and(|uri| file_uri_equivalent(uri, tokens_uri.as_str())))),
+        "custom property definition should resolve through the indexed style-symbol occurrence index: {definition_response:?}"
+    );
+    assert!(
+        state.style_symbol_occurrence_index_memo.borrow().is_some(),
+        "custom property definition should populate the style symbol occurrence memo"
+    );
+    let document_keys = style_symbol_occurrence_document_keys(&state, Some(workspace_uri.as_str()));
+    let sidecar_path =
+        crate::style_symbol_occurrence_cache::style_symbol_occurrence_sidecar_file_path_for_test(
+            &state,
+            Some(workspace_uri.as_str()),
+            document_keys.as_slice(),
+        )
+        .ok_or_else(|| {
+            std::io::Error::other("style symbol occurrence sidecar path should resolve")
+        })?;
+    assert!(
+        sidecar_path.exists(),
+        "custom property lookup should persist the style symbol occurrence sidecar: {sidecar_path:?}"
+    );
+    *state.style_symbol_occurrence_index_memo.borrow_mut() = None;
+    state
+        .document_mut(tokens_uri.as_str())
+        .ok_or_else(|| std::io::Error::other("tokens style should remain indexed"))?
+        .style_candidates
+        .clear();
+    let cached_definition_response = handle_lsp_message(
+        &mut state,
+        json!({
+            "jsonrpc": "2.0",
+            "id": 5,
+            "method": "textDocument/definition",
+            "params": {
+                "textDocument": {
+                    "uri": app_uri,
+                },
+                "position": reference_position,
+            },
+        }),
+    );
+    assert!(
+        cached_definition_response
+            .as_ref()
+            .and_then(|response| response.pointer("/result"))
+            .and_then(Value::as_array)
+            .is_some_and(|locations| locations.iter().any(|location| location
+                .get("uri")
+                .and_then(Value::as_str)
+                .is_some_and(|uri| file_uri_equivalent(uri, tokens_uri.as_str())))),
+        "style symbol sidecar should rehydrate custom property definitions without rescanning the declaring style candidates: {cached_definition_response:?}"
+    );
+
+    let rename_response = handle_lsp_message(
+        &mut state,
+        json!({
+            "jsonrpc": "2.0",
+            "id": 4,
+            "method": "textDocument/rename",
+            "params": {
+                "textDocument": {
+                    "uri": app_uri,
+                },
+                "position": reference_position,
+                "newName": "--accent",
+            },
+        }),
+    );
+    let changes = rename_response
+        .as_ref()
+        .and_then(|response| response.pointer("/result/changes"))
+        .and_then(Value::as_object)
+        .ok_or_else(|| std::io::Error::other("custom property rename should return changes"))?;
+    assert!(
+        changes
+            .keys()
+            .any(|uri| file_uri_equivalent(uri.as_str(), app_uri.as_str())),
+        "custom property rename should edit the referencing style: {rename_response:?}"
+    );
+    assert!(
+        changes
+            .keys()
+            .any(|uri| file_uri_equivalent(uri.as_str(), tokens_uri.as_str())),
+        "custom property rename should edit the declaring style: {rename_response:?}"
+    );
+
+    let _ = std::fs::remove_dir_all(&workspace_root);
+    Ok(())
+}
+
+#[test]
+fn indexed_style_files_feed_sass_symbol_references_and_rename() -> TestResult {
+    let workspace_root = std::env::temp_dir().join(format!(
+        "omena-lsp-server-style-symbol-sass-{}",
+        std::process::id()
+    ));
+    let src_dir = workspace_root.join("src");
+    let app_path = src_dir.join("App.module.scss");
+    let other_path = src_dir.join("Other.module.scss");
+    let tokens_path = src_dir.join("_tokens.scss");
+    let _ = std::fs::remove_dir_all(&workspace_root);
+    std::fs::create_dir_all(&src_dir)?;
+    let app_text = "@use \"./tokens\" as *;\n.root { color: $brand; }\n";
+    let other_text = "@use \"./tokens\" as *;\n.other { background: $brand; }\n";
+    let tokens_text = "$brand: red;\n";
+    std::fs::write(&app_path, app_text)?;
+    std::fs::write(&other_path, other_text)?;
+    std::fs::write(&tokens_path, tokens_text)?;
+
+    let workspace_uri = path_to_file_uri(workspace_root.as_path());
+    let app_uri = path_to_file_uri(app_path.as_path());
+    let other_uri = path_to_file_uri(other_path.as_path());
+    let tokens_uri = path_to_file_uri(tokens_path.as_path());
+    let mut state = LspShellState::default();
+    handle_lsp_message(
+        &mut state,
+        json!({
+            "jsonrpc": "2.0",
+            "id": 1,
+            "method": "initialize",
+            "params": {
+                "workspaceFolders": [
+                    {
+                        "uri": workspace_uri,
+                        "name": "style-symbol-sass",
+                    },
+                ],
+            },
+        }),
+    );
+    handle_lsp_message(
+        &mut state,
+        json!({
+            "jsonrpc": "2.0",
+            "method": "initialized",
+            "params": {},
+        }),
+    );
+
+    let declaration_position = parser_position_for_byte_offset(
+        tokens_text,
+        fixture_find(
+            tokens_text,
+            "$brand",
+            "tokens style contains Sass variable declaration",
+        )? + 1,
+    );
+    let references_response = handle_lsp_message(
+        &mut state,
+        json!({
+            "jsonrpc": "2.0",
+            "id": 2,
+            "method": "textDocument/references",
+            "params": {
+                "textDocument": {
+                    "uri": tokens_uri,
+                },
+                "position": declaration_position,
+                "context": {
+                    "includeDeclaration": true,
+                },
+            },
+        }),
+    );
+    let reference_locations = references_response
+        .as_ref()
+        .and_then(|response| response.pointer("/result"))
+        .and_then(Value::as_array)
+        .ok_or_else(|| std::io::Error::other("Sass references should return locations"))?;
+    assert!(
+        reference_locations.iter().any(|location| location
+            .get("uri")
+            .and_then(Value::as_str)
+            .is_some_and(|uri| file_uri_equivalent(uri, tokens_uri.as_str()))),
+        "Sass references should include the declaration style: {references_response:?}"
+    );
+    assert!(
+        reference_locations.iter().any(|location| location
+            .get("uri")
+            .and_then(Value::as_str)
+            .is_some_and(|uri| file_uri_equivalent(uri, app_uri.as_str()))),
+        "Sass references should include the first indexed consumer style: {references_response:?}"
+    );
+    assert!(
+        reference_locations.iter().any(|location| location
+            .get("uri")
+            .and_then(Value::as_str)
+            .is_some_and(|uri| file_uri_equivalent(uri, other_uri.as_str()))),
+        "Sass references should include the second indexed consumer style: {references_response:?}"
+    );
+    assert!(
+        state.style_symbol_occurrence_index_memo.borrow().is_some(),
+        "Sass references should populate the style symbol occurrence memo"
+    );
+    let document_keys = style_symbol_occurrence_document_keys(&state, Some(workspace_uri.as_str()));
+    let sidecar_path =
+        crate::style_symbol_occurrence_cache::style_symbol_occurrence_sidecar_file_path_for_test(
+            &state,
+            Some(workspace_uri.as_str()),
+            document_keys.as_slice(),
+        )
+        .ok_or_else(|| {
+            std::io::Error::other("style symbol occurrence sidecar path should resolve")
+        })?;
+    assert!(
+        sidecar_path.exists(),
+        "Sass reference lookup should persist the style symbol occurrence sidecar: {sidecar_path:?}"
+    );
+    *state.style_symbol_occurrence_index_memo.borrow_mut() = None;
+    state
+        .document_mut(app_uri.as_str())
+        .ok_or_else(|| std::io::Error::other("app style should remain indexed"))?
+        .style_candidates
+        .clear();
+    state
+        .document_mut(other_uri.as_str())
+        .ok_or_else(|| std::io::Error::other("other style should remain indexed"))?
+        .style_candidates
+        .clear();
+    let cached_references_response = handle_lsp_message(
+        &mut state,
+        json!({
+            "jsonrpc": "2.0",
+            "id": 4,
+            "method": "textDocument/references",
+            "params": {
+                "textDocument": {
+                    "uri": tokens_uri,
+                },
+                "position": declaration_position,
+                "context": {
+                    "includeDeclaration": true,
+                },
+            },
+        }),
+    );
+    let cached_reference_locations = cached_references_response
+        .as_ref()
+        .and_then(|response| response.pointer("/result"))
+        .and_then(Value::as_array)
+        .ok_or_else(|| std::io::Error::other("cached Sass references should return locations"))?;
+    assert!(
+        cached_reference_locations.iter().any(|location| location
+            .get("uri")
+            .and_then(Value::as_str)
+            .is_some_and(|uri| file_uri_equivalent(uri, app_uri.as_str()))),
+        "style symbol sidecar should rehydrate the first Sass consumer without rescanning style candidates: {cached_references_response:?}"
+    );
+    assert!(
+        cached_reference_locations.iter().any(|location| location
+            .get("uri")
+            .and_then(Value::as_str)
+            .is_some_and(|uri| file_uri_equivalent(uri, other_uri.as_str()))),
+        "style symbol sidecar should rehydrate the second Sass consumer without rescanning style candidates: {cached_references_response:?}"
+    );
+
+    let rename_response = handle_lsp_message(
+        &mut state,
+        json!({
+            "jsonrpc": "2.0",
+            "id": 3,
+            "method": "textDocument/rename",
+            "params": {
+                "textDocument": {
+                    "uri": tokens_uri,
+                },
+                "position": declaration_position,
+                "newName": "accent",
+            },
+        }),
+    );
+    let changes = rename_response
+        .as_ref()
+        .and_then(|response| response.pointer("/result/changes"))
+        .and_then(Value::as_object)
+        .ok_or_else(|| std::io::Error::other("Sass rename should return changes"))?;
+    assert!(
+        changes
+            .keys()
+            .any(|uri| file_uri_equivalent(uri.as_str(), tokens_uri.as_str())),
+        "Sass rename should edit the declaration style: {rename_response:?}"
+    );
+    assert!(
+        changes
+            .keys()
+            .any(|uri| file_uri_equivalent(uri.as_str(), app_uri.as_str())),
+        "Sass rename should edit the first indexed consumer style: {rename_response:?}"
+    );
+    assert!(
+        changes
+            .keys()
+            .any(|uri| file_uri_equivalent(uri.as_str(), other_uri.as_str())),
+        "Sass rename should edit the second indexed consumer style: {rename_response:?}"
+    );
+
+    let _ = std::fs::remove_dir_all(&workspace_root);
+    Ok(())
+}
+
+#[test]
 fn indexes_workspace_style_files_from_dist_artifacts() {
     let workspace_root = std::env::temp_dir().join(format!(
         "omena-lsp-server-dist-index-{}",

@@ -205,6 +205,27 @@ pub(crate) struct LspSourceSelectorOccurrenceIndexMemo {
     pub(crate) index: Arc<OmenaQuerySourceSelectorOccurrenceIndexV0>,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct LspStyleSymbolOccurrenceV0 {
+    pub(crate) moniker: String,
+    pub(crate) uri: String,
+    pub(crate) kind: &'static str,
+    pub(crate) family: &'static str,
+    pub(crate) name: String,
+    pub(crate) range: ParserRangeV0,
+    pub(crate) role: &'static str,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub(crate) namespace: Option<String>,
+}
+
+#[derive(Debug, Clone)]
+pub(crate) struct LspStyleSymbolOccurrenceIndexMemo {
+    pub(crate) workspace_folder_uri: Option<String>,
+    pub(crate) document_keys: Vec<LspSourceSelectorOccurrenceDocumentKey>,
+    pub(crate) occurrences: Arc<Vec<LspStyleSymbolOccurrenceV0>>,
+}
+
 #[derive(Debug, Default)]
 pub struct LspShellState {
     pub shutdown_requested: bool,
@@ -238,6 +259,8 @@ pub struct LspShellState {
         Arc<Mutex<Option<LspCascadeNarrowingSubstrateMemo>>>,
     pub(crate) source_selector_occurrence_index_memo:
         RefCell<Option<LspSourceSelectorOccurrenceIndexMemo>>,
+    pub(crate) style_symbol_occurrence_index_memo:
+        RefCell<Option<LspStyleSymbolOccurrenceIndexMemo>>,
     pub(crate) source_type_fact_cache: BTreeMap<String, Vec<TsgoTypeFactResultEntryV0>>,
     /// RFC 0009 Pillar C (rfcs#66): fail-soft write breaker for the disk
     /// diagnostics shard cache. Interior mutability because the write-behind

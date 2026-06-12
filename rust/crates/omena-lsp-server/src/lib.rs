@@ -14,6 +14,7 @@ mod source_document_cache;
 mod source_occurrence_cache;
 mod source_type_facts;
 mod state;
+mod style_symbol_occurrence_cache;
 mod workspace_index;
 mod workspace_runtime_registry;
 
@@ -47,7 +48,6 @@ use omena_query::{
     is_omena_query_sass_symbol_reference_kind as is_sass_symbol_reference_kind,
     load_omena_query_workspace_style_resolution_inputs,
     omena_query_sass_symbol_kind_from_candidate_kind as sass_symbol_kind_from_candidate_kind,
-    omena_query_sass_symbol_target_matches,
     read_omena_query_cascade_at_position_with_categorical_evidence,
     read_omena_query_style_context_index, resolve_omena_query_sass_forward_sources,
     resolve_omena_query_sass_module_use_sources_for_candidate,
@@ -105,6 +105,9 @@ use std::{
     collections::{BTreeMap, BTreeSet},
     fs,
     sync::Arc,
+};
+use style_symbol_occurrence_cache::{
+    load_style_symbol_occurrence_sidecar, store_style_symbol_occurrence_sidecar,
 };
 pub(crate) use workspace_index::index_workspace_style_files;
 pub use workspace_index::{
@@ -809,16 +812,15 @@ fn resolve_lsp_definition(state: &LspShellState, params: Option<&Value>) -> Valu
                 .collect::<Vec<_>>()
         );
     }
-    let target = if candidate.kind == "customPropertyReference" {
-        candidates
-            .iter()
-            .find(|target| {
-                target.kind == "customPropertyDeclaration" && target.name == candidate.name
-            })
-            .unwrap_or(candidate)
-    } else {
-        candidate
-    };
+    if candidate.kind == "customPropertyReference" {
+        let definitions =
+            style_symbol_definition_locations_from_documents(state, document, candidate);
+        if !definitions.is_empty() {
+            return json!(definitions);
+        }
+    }
+
+    let target = candidate;
 
     json!([
         {
@@ -850,32 +852,15 @@ fn resolve_lsp_references(state: &LspShellState, params: Option<&Value>) -> Valu
         return Value::Null;
     };
     let include_declaration = include_declaration_from_params(params);
-    let mut locations: Vec<Value> = if candidate.kind.starts_with("customProperty") {
-        candidates
-            .iter()
-            .filter(|target| {
-                target.name == candidate.name
-                    && (target.kind == "customPropertyReference"
-                        || (include_declaration && target.kind == "customPropertyDeclaration"))
-            })
-            .map(|target| json!({ "uri": document.uri.as_str(), "range": target.range }))
-            .collect()
-    } else if is_sass_symbol_candidate_kind(candidate.kind) {
-        let mut locations = Vec::new();
-        if include_declaration {
-            locations.extend(
-                sass_symbol_definitions_for_candidate(state, document, candidate)
-                    .into_iter()
-                    .map(|(uri, definition)| json!({ "uri": uri, "range": definition.range })),
-            );
-        }
-        locations.extend(
-            candidates
-                .iter()
-                .filter(|target| sass_symbol_reference_matches(candidate, target))
-                .map(|target| json!({ "uri": document.uri.as_str(), "range": target.range })),
-        );
-        locations
+    let mut locations: Vec<Value> = if candidate.kind.starts_with("customProperty")
+        || is_sass_symbol_candidate_kind(candidate.kind)
+    {
+        style_symbol_reference_locations_from_documents(
+            state,
+            document,
+            candidate,
+            include_declaration,
+        )
     } else if candidate.kind == "selector" {
         let mut locations = if include_declaration {
             vec![json!({ "uri": document.uri.as_str(), "range": candidate.range })]
@@ -2229,6 +2214,303 @@ fn source_selector_occurrence_matches_target_style(
     })
 }
 
+fn style_symbol_definition_locations_from_documents(
+    state: &LspShellState,
+    document: &LspTextDocumentState,
+    candidate: &LspStyleHoverCandidate,
+) -> Vec<Value> {
+    let monikers = style_symbol_monikers_for_candidate(state, document, candidate);
+    let occurrences = style_symbol_occurrence_index_from_documents(
+        state,
+        document.workspace_folder_uri.as_deref(),
+    );
+    let mut locations = occurrences
+        .iter()
+        .filter(|occurrence| monikers.contains(occurrence.moniker.as_str()))
+        .filter(|occurrence| occurrence.role == "definition")
+        .map(|occurrence| {
+            json!({
+                "uri": occurrence.uri,
+                "range": occurrence.range,
+            })
+        })
+        .collect::<Vec<_>>();
+    locations.sort_by_key(location_sort_key);
+    locations.dedup_by(|left, right| location_identity_key(left) == location_identity_key(right));
+    locations
+}
+
+fn style_symbol_reference_locations_from_documents(
+    state: &LspShellState,
+    document: &LspTextDocumentState,
+    candidate: &LspStyleHoverCandidate,
+    include_declaration: bool,
+) -> Vec<Value> {
+    let monikers = style_symbol_monikers_for_candidate(state, document, candidate);
+    let occurrences = style_symbol_occurrence_index_from_documents(
+        state,
+        document.workspace_folder_uri.as_deref(),
+    );
+    let mut locations = occurrences
+        .iter()
+        .filter(|occurrence| monikers.contains(occurrence.moniker.as_str()))
+        .filter(|occurrence| {
+            occurrence.role == "reference"
+                || (include_declaration && occurrence.role == "definition")
+        })
+        .map(|occurrence| {
+            json!({
+                "uri": occurrence.uri,
+                "range": occurrence.range,
+            })
+        })
+        .collect::<Vec<_>>();
+    locations.sort_by_key(location_sort_key);
+    locations.dedup_by(|left, right| location_identity_key(left) == location_identity_key(right));
+    locations
+}
+
+fn resolve_style_symbol_rename(
+    state: &LspShellState,
+    document: &LspTextDocumentState,
+    candidate: &LspStyleHoverCandidate,
+    new_name: &str,
+) -> Value {
+    let monikers = style_symbol_monikers_for_candidate(state, document, candidate);
+    let occurrences = style_symbol_occurrence_index_from_documents(
+        state,
+        document.workspace_folder_uri.as_deref(),
+    );
+    let mut seen = BTreeSet::new();
+    let mut changes: BTreeMap<String, Vec<Value>> = BTreeMap::new();
+    for occurrence in occurrences
+        .iter()
+        .filter(|occurrence| monikers.contains(occurrence.moniker.as_str()))
+    {
+        let key = (
+            occurrence.uri.clone(),
+            occurrence.range.start.line,
+            occurrence.range.start.character,
+            occurrence.range.end.line,
+            occurrence.range.end.character,
+        );
+        if !seen.insert(key) {
+            continue;
+        }
+        let edit_uri = external_document_uri_for_query_uri(state, occurrence.uri.as_str());
+        changes.entry(edit_uri).or_default().push(json!({
+            "range": occurrence.range,
+            "newText": new_name,
+        }));
+    }
+
+    if changes.is_empty() {
+        return Value::Null;
+    }
+    for edits in changes.values_mut() {
+        edits.sort_by_key(lsp_range_start_sort_key);
+    }
+    json!({
+        "changes": Value::Object(changes.into_iter().map(|(uri, edits)| (uri, json!(edits))).collect()),
+    })
+}
+
+fn style_symbol_occurrence_index_from_documents(
+    state: &LspShellState,
+    workspace_folder_uri: Option<&str>,
+) -> Arc<Vec<LspStyleSymbolOccurrenceV0>> {
+    let document_keys = style_symbol_occurrence_document_keys(state, workspace_folder_uri);
+    let memo_workspace_folder_uri = workspace_folder_uri.map(str::to_string);
+    if let Some(memo) = state.style_symbol_occurrence_index_memo.borrow().as_ref()
+        && memo.workspace_folder_uri == memo_workspace_folder_uri
+        && memo.document_keys == document_keys
+    {
+        return Arc::clone(&memo.occurrences);
+    }
+    if let Some(cached) =
+        load_style_symbol_occurrence_sidecar(state, workspace_folder_uri, document_keys.as_slice())
+    {
+        *state.style_symbol_occurrence_index_memo.borrow_mut() =
+            Some(LspStyleSymbolOccurrenceIndexMemo {
+                workspace_folder_uri: memo_workspace_folder_uri,
+                document_keys,
+                occurrences: Arc::clone(&cached.occurrences),
+            });
+        return cached.occurrences;
+    }
+
+    let mut occurrences = Vec::new();
+    for document in state
+        .documents
+        .values()
+        .filter(|document| document_has_style_index(document))
+        .filter(|document| workspace_folder_compatible(workspace_folder_uri, document))
+    {
+        let Some((_, candidates)) = style_hover_candidates_for_document(document) else {
+            continue;
+        };
+        for candidate in candidates {
+            if candidate.kind.starts_with("customProperty") {
+                occurrences.push(style_symbol_occurrence_for_candidate(
+                    style_custom_property_moniker(workspace_folder_uri, candidate.name.as_str()),
+                    document.uri.as_str(),
+                    &candidate,
+                    "customProperty",
+                    style_symbol_role_for_candidate(&candidate),
+                ));
+                continue;
+            }
+            if !is_sass_symbol_candidate_kind(candidate.kind) {
+                continue;
+            }
+            if is_sass_symbol_declaration_kind(candidate.kind) {
+                occurrences.push(style_symbol_occurrence_for_candidate(
+                    style_sass_symbol_moniker(document.uri.as_str(), &candidate),
+                    document.uri.as_str(),
+                    &candidate,
+                    sass_symbol_kind_from_candidate_kind(candidate.kind).unwrap_or("symbol"),
+                    "definition",
+                ));
+                continue;
+            }
+            let definitions = sass_symbol_definitions_for_candidate(state, document, &candidate);
+            if definitions.is_empty() {
+                occurrences.push(style_symbol_occurrence_for_candidate(
+                    style_unresolved_sass_symbol_moniker(workspace_folder_uri, &candidate),
+                    document.uri.as_str(),
+                    &candidate,
+                    sass_symbol_kind_from_candidate_kind(candidate.kind).unwrap_or("symbol"),
+                    "reference",
+                ));
+                continue;
+            }
+            for (definition_uri, definition) in definitions {
+                occurrences.push(style_symbol_occurrence_for_candidate(
+                    style_sass_symbol_moniker(definition_uri.as_str(), &definition),
+                    document.uri.as_str(),
+                    &candidate,
+                    sass_symbol_kind_from_candidate_kind(candidate.kind).unwrap_or("symbol"),
+                    "reference",
+                ));
+            }
+        }
+    }
+    occurrences.sort();
+    occurrences.dedup();
+    let occurrences = Arc::new(occurrences);
+    store_style_symbol_occurrence_sidecar(
+        state,
+        workspace_folder_uri,
+        document_keys.as_slice(),
+        &occurrences,
+    );
+    *state.style_symbol_occurrence_index_memo.borrow_mut() =
+        Some(LspStyleSymbolOccurrenceIndexMemo {
+            workspace_folder_uri: memo_workspace_folder_uri,
+            document_keys,
+            occurrences: Arc::clone(&occurrences),
+        });
+    occurrences
+}
+
+fn style_symbol_occurrence_document_keys(
+    state: &LspShellState,
+    workspace_folder_uri: Option<&str>,
+) -> Vec<LspSourceSelectorOccurrenceDocumentKey> {
+    state
+        .documents
+        .values()
+        .filter(|document| document_has_style_index(document))
+        .filter(|document| workspace_folder_compatible(workspace_folder_uri, document))
+        .map(|document| LspSourceSelectorOccurrenceDocumentKey {
+            uri: document.uri.clone(),
+            workspace_folder_uri: document.workspace_folder_uri.clone(),
+            language_id: document.language_id.clone(),
+            version: document.version,
+            text_hash: document.text_hash.clone(),
+        })
+        .collect()
+}
+
+fn style_symbol_monikers_for_candidate(
+    state: &LspShellState,
+    document: &LspTextDocumentState,
+    candidate: &LspStyleHoverCandidate,
+) -> BTreeSet<String> {
+    if candidate.kind.starts_with("customProperty") {
+        return BTreeSet::from([style_custom_property_moniker(
+            document.workspace_folder_uri.as_deref(),
+            candidate.name.as_str(),
+        )]);
+    }
+    if is_sass_symbol_declaration_kind(candidate.kind) {
+        return BTreeSet::from([style_sass_symbol_moniker(document.uri.as_str(), candidate)]);
+    }
+    let definitions = sass_symbol_definitions_for_candidate(state, document, candidate);
+    if definitions.is_empty() {
+        return BTreeSet::from([style_unresolved_sass_symbol_moniker(
+            document.workspace_folder_uri.as_deref(),
+            candidate,
+        )]);
+    }
+    definitions
+        .into_iter()
+        .map(|(uri, definition)| style_sass_symbol_moniker(uri.as_str(), &definition))
+        .collect()
+}
+
+fn style_symbol_occurrence_for_candidate(
+    moniker: String,
+    uri: &str,
+    candidate: &LspStyleHoverCandidate,
+    family: &'static str,
+    role: &'static str,
+) -> LspStyleSymbolOccurrenceV0 {
+    LspStyleSymbolOccurrenceV0 {
+        moniker,
+        uri: uri.to_string(),
+        kind: candidate.kind,
+        family,
+        name: candidate.name.clone(),
+        range: candidate.range,
+        role,
+        namespace: candidate.namespace.clone(),
+    }
+}
+
+fn style_symbol_role_for_candidate(candidate: &LspStyleHoverCandidate) -> &'static str {
+    if candidate.kind.ends_with("Declaration") {
+        "definition"
+    } else {
+        "reference"
+    }
+}
+
+fn style_custom_property_moniker(workspace_folder_uri: Option<&str>, name: &str) -> String {
+    format!(
+        "css-custom-property:{}#{name}",
+        workspace_folder_uri.unwrap_or("global")
+    )
+}
+
+fn style_sass_symbol_moniker(uri: &str, candidate: &LspStyleHoverCandidate) -> String {
+    let family = sass_symbol_kind_from_candidate_kind(candidate.kind).unwrap_or("symbol");
+    format!("sass-symbol:{uri}#{family}:{}", candidate.name)
+}
+
+fn style_unresolved_sass_symbol_moniker(
+    workspace_folder_uri: Option<&str>,
+    candidate: &LspStyleHoverCandidate,
+) -> String {
+    let family = sass_symbol_kind_from_candidate_kind(candidate.kind).unwrap_or("symbol");
+    let namespace = candidate.namespace.as_deref().unwrap_or("*");
+    format!(
+        "sass-symbol-unresolved:{}#{family}:{namespace}:{}",
+        workspace_folder_uri.unwrap_or("global"),
+        candidate.name
+    )
+}
+
 fn source_candidate_selector_names(
     candidate: &LspStyleHoverCandidate,
     definitions: &[(String, LspStyleHoverCandidate)],
@@ -2460,27 +2742,6 @@ fn resolve_lsp_style_uri_for_specifier(
     )
 }
 
-fn sass_symbol_reference_matches(
-    candidate: &LspStyleHoverCandidate,
-    target: &LspStyleHoverCandidate,
-) -> bool {
-    is_sass_symbol_reference_kind(target.kind) && sass_symbol_target_matches(candidate, target)
-}
-
-fn sass_symbol_target_matches(
-    candidate: &LspStyleHoverCandidate,
-    target: &LspStyleHoverCandidate,
-) -> bool {
-    omena_query_sass_symbol_target_matches(
-        candidate.kind,
-        candidate.name.as_str(),
-        candidate.namespace.as_deref(),
-        target.kind,
-        target.name.as_str(),
-        target.namespace.as_deref(),
-    )
-}
-
 fn render_sass_symbol_label(candidate: &LspStyleHoverCandidate) -> String {
     let namespace_prefix = candidate
         .namespace
@@ -2545,7 +2806,7 @@ fn resolve_lsp_rename(state: &LspShellState, params: Option<&Value>) -> Value {
         );
     }
 
-    let Some((document_uri, candidate, candidates)) = style_candidates_for_params(state, params)
+    let Some((document_uri, candidate, _candidates)) = style_candidates_for_params(state, params)
     else {
         return Value::Null;
     };
@@ -2563,40 +2824,15 @@ fn resolve_lsp_rename(state: &LspShellState, params: Option<&Value>) -> Value {
         );
     }
 
-    let replacement = match candidate.kind {
-        "customPropertyReference" | "customPropertyDeclaration" => new_name.to_string(),
-        _ => return Value::Null,
-    };
-    let mut targets: Vec<&LspStyleHoverCandidate> = candidates
-        .iter()
-        .filter(|target| rename_target_matches(&candidate, target))
-        .collect();
-    targets.sort_by_key(|target| {
-        (
-            target.range.start.line,
-            target.range.start.character,
-            target.range.end.line,
-            target.range.end.character,
-        )
-    });
-    let edits: Vec<Value> = targets
-        .into_iter()
-        .map(|target| {
-            json!({
-                "range": target.range,
-                "newText": replacement,
-            })
-        })
-        .collect();
-    if edits.is_empty() {
-        return Value::Null;
+    if candidate.kind.starts_with("customProperty") || is_sass_symbol_candidate_kind(candidate.kind)
+    {
+        let Some(document) = state.document(document_uri.as_str()) else {
+            return Value::Null;
+        };
+        return resolve_style_symbol_rename(state, document, &candidate, new_name);
     }
 
-    let mut changes = serde_json::Map::new();
-    changes.insert(document_uri, json!(edits));
-    json!({
-        "changes": Value::Object(changes),
-    })
+    Value::Null
 }
 
 fn style_candidates_for_params(
@@ -2616,22 +2852,6 @@ fn style_candidates_for_params(
 
 fn rename_placeholder(candidate: &LspStyleHoverCandidate) -> &str {
     candidate.name.as_str()
-}
-
-fn rename_target_matches(
-    candidate: &LspStyleHoverCandidate,
-    target: &LspStyleHoverCandidate,
-) -> bool {
-    match candidate.kind {
-        "selector" => target.kind == "selector" && target.name == candidate.name,
-        "customPropertyReference" | "customPropertyDeclaration" => {
-            target.name == candidate.name && target.kind.starts_with("customProperty")
-        }
-        kind if is_sass_symbol_candidate_kind(kind) => {
-            sass_symbol_target_matches(candidate, target)
-        }
-        _ => false,
-    }
 }
 
 fn resolve_lsp_hover(state: &LspShellState, params: Option<&Value>) -> Value {
