@@ -1,4 +1,4 @@
-use crate::protocol::{file_uri_to_path, is_css_identifier_continue};
+use crate::protocol::{file_uri_to_path, is_css_identifier_continue, workspace_folder_compatible};
 use crate::{
     LspShellState, LspTextDocumentState, ensure_style_document_loaded_from_disk,
     parser_range_for_byte_span, source_selector_candidates_from_index,
@@ -11,6 +11,7 @@ use omena_query::{
     canonicalize_omena_query_source_selector_references,
     summarize_omena_query_expression_domain_selector_projection,
 };
+use omena_sif::compute_omena_sif_leaf_hash_v1;
 use omena_tsgo_client::{
     TsgoJsonRpcTypeFactProviderV0, TsgoResolvedTypeV0, TsgoTypeFactRequestV0,
     TsgoTypeFactResultEntryV0, TsgoTypeFactTargetV0, build_tsgo_process_command,
@@ -19,11 +20,13 @@ use serde_json::json;
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 
+const SOURCE_TYPE_FACT_CACHE_MAX_ENTRIES: usize = 128;
+
 pub(crate) fn refresh_source_type_fact_candidates_for_document(
     state: &mut LspShellState,
     uri: &str,
 ) {
-    let Some(document) = state.document(uri) else {
+    let Some(document) = state.document(uri).cloned() else {
         return;
     };
     if crate::protocol::is_style_document_uri(document.uri.as_str()) {
@@ -33,10 +36,22 @@ pub(crate) fn refresh_source_type_fact_candidates_for_document(
     if type_fact_targets.is_empty() {
         return;
     }
-    let Some(request) = tsgo_type_fact_request_for_document(document, type_fact_targets.as_slice())
+    let Some(request) =
+        tsgo_type_fact_request_for_document(&document, type_fact_targets.as_slice())
     else {
         return;
     };
+    let cache_key =
+        source_type_fact_cache_key(state, &document, &request, type_fact_targets.as_slice());
+    if let Some(entries) = cache_key
+        .as_ref()
+        .and_then(|key| state.source_type_fact_cache.get(key))
+        .cloned()
+    {
+        apply_source_type_fact_results_to_document(state, uri, entries.as_slice());
+        return;
+    }
+
     let Some(tsgo_command) = tsgo_process_command_for_workspace(request.workspace_root.as_str())
     else {
         return;
@@ -60,7 +75,94 @@ pub(crate) fn refresh_source_type_fact_candidates_for_document(
     let Some(entries) = entries else {
         return;
     };
+    if let Some(cache_key) = cache_key {
+        state
+            .source_type_fact_cache
+            .insert(cache_key, entries.clone());
+        trim_source_type_fact_cache(&mut state.source_type_fact_cache);
+    }
     apply_source_type_fact_results_to_document(state, uri, entries.as_slice());
+}
+
+fn source_type_fact_cache_key(
+    state: &LspShellState,
+    document: &LspTextDocumentState,
+    request: &TsgoTypeFactRequestV0,
+    type_fact_targets: &[SourceTypeFactTarget],
+) -> Option<String> {
+    let key = json!({
+        "schemaVersion": "0",
+        "product": "omena-lsp-server.source-type-fact-cache-key",
+        "documentUri": document.uri,
+        "documentHash": document_text_hash(document),
+        "workspaceRoot": request.workspace_root,
+        "configPath": request.config_path,
+        "configSignature": source_type_fact_tsconfig_signature(request.config_path.as_str()),
+        "workspaceSourceSignature": source_type_fact_workspace_signature(
+            state,
+            document.workspace_folder_uri.as_deref(),
+        ),
+        "requestTargets": request.targets,
+        "sourceTargets": type_fact_targets,
+    });
+    let bytes = serde_json::to_vec(&key).ok()?;
+    Some(
+        compute_omena_sif_leaf_hash_v1(bytes.as_slice())
+            .as_str()
+            .to_string(),
+    )
+}
+
+fn source_type_fact_tsconfig_signature(config_path: &str) -> String {
+    std::fs::read(config_path)
+        .map(|bytes| {
+            compute_omena_sif_leaf_hash_v1(bytes.as_slice())
+                .as_str()
+                .to_string()
+        })
+        .unwrap_or_else(|_| format!("unreadable:{config_path}"))
+}
+
+fn source_type_fact_workspace_signature(
+    state: &LspShellState,
+    workspace_folder_uri: Option<&str>,
+) -> String {
+    let source_inputs = state
+        .documents
+        .values()
+        .filter(|document| !crate::protocol::is_style_document_uri(document.uri.as_str()))
+        .filter(|document| workspace_folder_compatible(workspace_folder_uri, document))
+        .map(|document| {
+            json!({
+                "uri": document.uri,
+                "workspaceFolderUri": document.workspace_folder_uri,
+                "languageId": document.language_id,
+                "textHash": document_text_hash(document),
+            })
+        })
+        .collect::<Vec<_>>();
+    let bytes = serde_json::to_vec(&source_inputs).unwrap_or_default();
+    compute_omena_sif_leaf_hash_v1(bytes.as_slice())
+        .as_str()
+        .to_string()
+}
+
+fn document_text_hash(document: &LspTextDocumentState) -> String {
+    if document.text_hash.is_empty() {
+        return compute_omena_sif_leaf_hash_v1(document.text.as_bytes())
+            .as_str()
+            .to_string();
+    }
+    document.text_hash.clone()
+}
+
+fn trim_source_type_fact_cache(cache: &mut BTreeMap<String, Vec<TsgoTypeFactResultEntryV0>>) {
+    while cache.len() > SOURCE_TYPE_FACT_CACHE_MAX_ENTRIES {
+        let Some(key) = cache.keys().next().cloned() else {
+            break;
+        };
+        cache.remove(key.as_str());
+    }
 }
 
 fn tsgo_type_fact_request_for_document(
@@ -377,4 +479,148 @@ fn resolve_tsgo_binary_path() -> Option<PathBuf> {
         return Some(path);
     }
     None
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::{handle_lsp_message, protocol::path_to_file_uri};
+    use omena_tsgo_client::TsgoResolvedTypeV0;
+    use serde_json::json;
+
+    type TestResult = Result<(), Box<dyn std::error::Error>>;
+
+    #[test]
+    fn cached_source_type_facts_project_without_tsgo_transport() -> TestResult {
+        let workspace_root = std::env::temp_dir().join(format!(
+            "omena-lsp-source-type-fact-cache-{}",
+            std::process::id()
+        ));
+        let src_dir = workspace_root.join("src");
+        let source_path = src_dir.join("App.tsx");
+        let style_path = src_dir.join("App.module.scss");
+        let _ = std::fs::remove_dir_all(&workspace_root);
+        std::fs::create_dir_all(&src_dir)?;
+        std::fs::write(workspace_root.join("tsconfig.json"), "{}")?;
+        std::fs::write(
+            &style_path,
+            ".small { color: red; }\n.medium { color: blue; }",
+        )?;
+        let source_text = r#"import bind from "classnames/bind";
+import styles from "./App.module.scss";
+const cx = bind.bind(styles);
+interface BadgeProps { size: "small" | "medium"; }
+export function Badge({ size }: BadgeProps) {
+  return <span className={cx(size)} />;
+}"#;
+        std::fs::write(&source_path, source_text)?;
+
+        let workspace_uri = path_to_file_uri(workspace_root.as_path());
+        let source_uri = path_to_file_uri(source_path.as_path());
+        let style_uri = path_to_file_uri(style_path.as_path());
+        let mut state = LspShellState::default();
+        handle_lsp_message(
+            &mut state,
+            json!({
+                "jsonrpc": "2.0",
+                "id": 1,
+                "method": "initialize",
+                "params": {
+                    "workspaceFolders": [
+                        {
+                            "uri": workspace_uri,
+                            "name": "source-type-fact-cache",
+                        },
+                    ],
+                },
+            }),
+        );
+        handle_lsp_message(
+            &mut state,
+            json!({
+                "jsonrpc": "2.0",
+                "method": "textDocument/didOpen",
+                "params": {
+                    "textDocument": {
+                        "uri": style_uri,
+                        "languageId": "scss",
+                        "version": 1,
+                        "text": ".small { color: red; }\n.medium { color: blue; }",
+                    },
+                },
+            }),
+        );
+        handle_lsp_message(
+            &mut state,
+            json!({
+                "jsonrpc": "2.0",
+                "method": "textDocument/didOpen",
+                "params": {
+                    "textDocument": {
+                        "uri": source_uri,
+                        "languageId": "typescriptreact",
+                        "version": 1,
+                        "text": source_text,
+                    },
+                },
+            }),
+        );
+
+        let (cache_key, entry) = {
+            let document = state
+                .document(source_uri.as_str())
+                .ok_or_else(|| std::io::Error::other("source document should be open"))?;
+            let type_fact_targets = document.source_syntax_index.type_fact_targets.clone();
+            let size_target = type_fact_targets
+                .iter()
+                .find(|target| {
+                    source_text.get(target.byte_span.start..target.byte_span.end) == Some("size")
+                })
+                .ok_or_else(|| std::io::Error::other("size type fact target should exist"))?;
+            let request =
+                tsgo_type_fact_request_for_document(document, type_fact_targets.as_slice())
+                    .ok_or_else(|| std::io::Error::other("type fact request should build"))?;
+            let cache_key = source_type_fact_cache_key(
+                &state,
+                document,
+                &request,
+                type_fact_targets.as_slice(),
+            )
+            .ok_or_else(|| std::io::Error::other("cache key should build"))?;
+            (
+                cache_key,
+                TsgoTypeFactResultEntryV0 {
+                    file_path: request
+                        .targets
+                        .first()
+                        .map(|target| target.file_path.clone())
+                        .unwrap_or_default(),
+                    expression_id: size_target.expression_id.clone(),
+                    resolved_type: TsgoResolvedTypeV0 {
+                        kind: "union",
+                        values: vec!["medium".to_string(), "small".to_string()],
+                    },
+                },
+            )
+        };
+        state.source_type_fact_cache.insert(cache_key, vec![entry]);
+
+        refresh_source_type_fact_candidates_for_document(&mut state, source_uri.as_str());
+
+        let selector_names = state
+            .document(source_uri.as_str())
+            .ok_or_else(|| std::io::Error::other("source document should remain open"))?
+            .source_syntax_index
+            .selector_references
+            .iter()
+            .filter_map(|reference| reference.selector_name.as_deref())
+            .collect::<Vec<_>>();
+        assert!(
+            selector_names.contains(&"small") && selector_names.contains(&"medium"),
+            "cached type facts should project class references without starting tsgo: {selector_names:?}"
+        );
+
+        let _ = std::fs::remove_dir_all(&workspace_root);
+        Ok(())
+    }
 }

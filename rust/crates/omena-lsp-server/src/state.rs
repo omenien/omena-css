@@ -8,7 +8,7 @@ use omena_query::{
     OmenaQueryStyleSelectorDefinitionV0, OmenaQueryStyleSourceInputV0, ParserPositionV0,
     ParserRangeV0,
 };
-use omena_tsgo_client::TsgoWorkspaceProcessPoolV0;
+use omena_tsgo_client::{TsgoTypeFactResultEntryV0, TsgoWorkspaceProcessPoolV0};
 use serde::Serialize;
 use std::cell::RefCell;
 use std::collections::{BTreeMap, BTreeSet};
@@ -234,6 +234,7 @@ pub struct LspShellState {
         Arc<Mutex<Option<LspCascadeNarrowingSubstrateMemo>>>,
     pub(crate) source_selector_occurrence_index_memo:
         RefCell<Option<LspSourceSelectorOccurrenceIndexMemo>>,
+    pub(crate) source_type_fact_cache: BTreeMap<String, Vec<TsgoTypeFactResultEntryV0>>,
     /// RFC 0009 Pillar C (rfcs#66): fail-soft write breaker for the disk
     /// diagnostics shard cache. Interior mutability because the write-behind
     /// runs on the immutable resolve path; owned by the single loop thread.
