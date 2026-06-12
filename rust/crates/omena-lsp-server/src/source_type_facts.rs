@@ -1,4 +1,7 @@
 use crate::protocol::{file_uri_to_path, is_css_identifier_continue, workspace_folder_compatible};
+use crate::source_type_fact_cache::{
+    load_source_type_fact_sidecar, store_source_type_fact_sidecar,
+};
 use crate::{
     LspShellState, LspTextDocumentState, ensure_style_document_loaded_from_disk,
     parser_range_for_byte_span, source_selector_candidates_from_index,
@@ -51,6 +54,17 @@ pub(crate) fn refresh_source_type_fact_candidates_for_document(
         apply_source_type_fact_results_to_document(state, uri, entries.as_slice());
         return;
     }
+    if let Some((cache_key, entries)) = cache_key.as_ref().and_then(|key| {
+        load_source_type_fact_sidecar(state, document.workspace_folder_uri.as_deref(), key)
+            .map(|entries| (key.clone(), entries))
+    }) {
+        state
+            .source_type_fact_cache
+            .insert(cache_key, entries.clone());
+        trim_source_type_fact_cache(&mut state.source_type_fact_cache);
+        apply_source_type_fact_results_to_document(state, uri, entries.as_slice());
+        return;
+    }
 
     let Some(tsgo_command) = tsgo_process_command_for_workspace(request.workspace_root.as_str())
     else {
@@ -76,6 +90,12 @@ pub(crate) fn refresh_source_type_fact_candidates_for_document(
         return;
     };
     if let Some(cache_key) = cache_key {
+        store_source_type_fact_sidecar(
+            state,
+            document.workspace_folder_uri.as_deref(),
+            cache_key.as_str(),
+            entries.as_slice(),
+        );
         state
             .source_type_fact_cache
             .insert(cache_key, entries.clone());
@@ -498,7 +518,7 @@ mod tests {
     type TestResult = Result<(), Box<dyn std::error::Error>>;
 
     #[test]
-    fn cached_source_type_facts_project_without_tsgo_transport() -> TestResult {
+    fn persisted_source_type_facts_project_without_tsgo_transport() -> TestResult {
         let workspace_root = std::env::temp_dir().join(format!(
             "omena-lsp-source-type-fact-cache-{}",
             std::process::id()
@@ -610,7 +630,27 @@ export function Badge({ size }: BadgeProps) {
                 },
             )
         };
-        state.source_type_fact_cache.insert(cache_key, vec![entry]);
+        crate::source_type_fact_cache::store_source_type_fact_sidecar(
+            &state,
+            Some(workspace_uri.as_str()),
+            cache_key.as_str(),
+            &[entry],
+        );
+        let sidecar_path =
+            crate::source_type_fact_cache::source_type_fact_sidecar_file_path_for_test(
+                &state,
+                Some(workspace_uri.as_str()),
+                cache_key.as_str(),
+            )
+            .ok_or_else(|| std::io::Error::other("source type fact sidecar path should resolve"))?;
+        assert!(
+            sidecar_path.exists(),
+            "fixture should persist a source type fact sidecar: {sidecar_path:?}"
+        );
+        assert!(
+            state.source_type_fact_cache.is_empty(),
+            "test must prove disk rehydration, not the in-memory source type fact cache"
+        );
 
         refresh_source_type_fact_candidates_for_document(&mut state, source_uri.as_str());
 
@@ -624,7 +664,13 @@ export function Badge({ size }: BadgeProps) {
             .collect::<Vec<_>>();
         assert!(
             selector_names.contains(&"small") && selector_names.contains(&"medium"),
-            "cached type facts should project class references without starting tsgo: {selector_names:?}"
+            "persisted type facts should project class references without starting tsgo: {selector_names:?}"
+        );
+        assert!(
+            state
+                .source_type_fact_cache
+                .contains_key(cache_key.as_str()),
+            "disk-loaded source type facts should repopulate the in-memory cache"
         );
 
         let _ = std::fs::remove_dir_all(&workspace_root);

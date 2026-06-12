@@ -12,6 +12,7 @@ mod query_reuse;
 mod settings;
 mod source_document_cache;
 mod source_occurrence_cache;
+mod source_type_fact_cache;
 mod source_type_facts;
 mod state;
 mod style_symbol_occurrence_cache;
