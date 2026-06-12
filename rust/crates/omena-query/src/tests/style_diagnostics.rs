@@ -519,6 +519,131 @@ export function App() {
 }
 
 #[test]
+fn runtime_state_prunes_statically_false_supports_contexts() -> Result<(), &'static str> {
+    let target_style_path = "file:///workspace/src/App.module.scss";
+    let style_sources = vec![OmenaQueryStyleSourceInputV0 {
+        style_path: target_style_path.to_string(),
+        style_source: r#"
+.button { color: red; color: maroon; }
+@supports (display: grid) { .button { color: green; } }
+@supports not (display: grid) { .button { color: blue; } }
+@supports font-tech(unknown-thing) { .button { color: teal; } }
+"#
+        .to_string(),
+    }];
+
+    let diagnostics = crate::summarize_omena_query_style_diagnostics_for_workspace_file(
+        target_style_path,
+        style_sources.as_slice(),
+        &[],
+        &[],
+        None,
+    )
+    .ok_or("workspace diagnostics")?;
+    let unreachable = diagnostics
+        .diagnostics
+        .iter()
+        .find(|diagnostic| diagnostic.code == "unreachableDeclaration")
+        .ok_or("unreachable declaration diagnostic")?;
+    let runtime_state = unreachable
+        .cascade_narrowing
+        .as_ref()
+        .and_then(|narrowing| narrowing.runtime_state.as_ref())
+        .ok_or("runtime state scenario evidence")?;
+
+    assert!(
+        !runtime_state
+            .scenarios
+            .iter()
+            .any(|scenario| scenario.condition_context
+                == vec!["@supports not (display: grid)".to_string()]),
+        "statically false @supports context must be pruned: {:?}",
+        runtime_state.scenarios
+    );
+    assert!(runtime_state.scenarios.iter().any(
+        |scenario| scenario.condition_context == vec!["@supports (display: grid)".to_string()]
+    ));
+    assert!(
+        runtime_state
+            .scenarios
+            .iter()
+            .any(|scenario| scenario.condition_context
+                == vec!["@supports font-tech(unknown-thing)".to_string()])
+    );
+    assert_eq!(runtime_state.static_condition_pruning.len(), 1);
+    let pruning = &runtime_state.static_condition_pruning[0];
+    assert_eq!(
+        pruning.condition_context,
+        vec!["@supports not (display: grid)".to_string()]
+    );
+    assert_eq!(pruning.assumption, "modernBrowser");
+    assert_eq!(pruning.verdict, "AlwaysFalse");
+    assert!(pruning.pruned);
+    assert!(!pruning.anchor_context);
+    assert!(runtime_state.driver_summaries.iter().any(|driver| {
+        driver.driver == "mediaEnvironmentScenarioSweep" && driver.scenario_count == 2
+    }));
+    assert!(runtime_state.driver_summaries.iter().any(|driver| {
+        driver.driver == "pseudoStateScenarioSweep" && driver.scenario_count == 0
+    }));
+    Ok(())
+}
+
+#[test]
+fn runtime_state_preserves_statically_false_anchor_context() -> Result<(), &'static str> {
+    let target_style_path = "file:///workspace/src/App.module.scss";
+    let style_sources = vec![OmenaQueryStyleSourceInputV0 {
+        style_path: target_style_path.to_string(),
+        style_source: r#"
+@supports not (display: grid) { .button { color: red; color: maroon; } }
+@supports (display: grid) { .button { color: green; } }
+@supports font-tech(unknown-thing) { .button { color: teal; } }
+"#
+        .to_string(),
+    }];
+
+    let diagnostics = crate::summarize_omena_query_style_diagnostics_for_workspace_file(
+        target_style_path,
+        style_sources.as_slice(),
+        &[],
+        &[],
+        None,
+    )
+    .ok_or("workspace diagnostics")?;
+    let unreachable = diagnostics
+        .diagnostics
+        .iter()
+        .find(|diagnostic| diagnostic.code == "unreachableDeclaration")
+        .ok_or("unreachable declaration diagnostic")?;
+    let runtime_state = unreachable
+        .cascade_narrowing
+        .as_ref()
+        .and_then(|narrowing| narrowing.runtime_state.as_ref())
+        .ok_or("runtime state scenario evidence")?;
+
+    assert!(
+        runtime_state
+            .scenarios
+            .iter()
+            .any(|scenario| scenario.condition_context
+                == vec!["@supports not (display: grid)".to_string()])
+    );
+    assert_eq!(runtime_state.static_condition_pruning.len(), 1);
+    let pruning = &runtime_state.static_condition_pruning[0];
+    assert_eq!(
+        pruning.condition_context,
+        vec!["@supports not (display: grid)".to_string()]
+    );
+    assert_eq!(pruning.verdict, "AlwaysFalse");
+    assert!(!pruning.pruned);
+    assert!(pruning.anchor_context);
+    assert!(runtime_state.driver_summaries.iter().any(|driver| {
+        driver.driver == "mediaEnvironmentScenarioSweep" && driver.scenario_count == 3
+    }));
+    Ok(())
+}
+
+#[test]
 fn workspace_runtime_state_uses_selector_co_match_for_superset_classes() -> Result<(), &'static str>
 {
     let target_style_path = "file:///workspace/src/App.module.scss";

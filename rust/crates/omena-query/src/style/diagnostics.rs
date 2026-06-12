@@ -2472,11 +2472,25 @@ fn attach_omena_query_module_graph_property_value_narrowing_for_workspace(
             continue;
         };
         let property_value_narrowing = &cascade_narrowing.property_value_narrowing;
+        let mut static_reachability_by_context = BTreeMap::new();
         let property_candidates = graph_candidates
             .iter()
             .filter(|(selector, candidate)| {
                 selector == &cascade_narrowing.selector
                     && candidate.property_name == cascade_narrowing.property_name
+                    && *static_reachability_by_context
+                        .entry(candidate.condition_context.clone())
+                        .or_insert_with(|| {
+                            super::cascade_checker::query_condition_context_static_supports_pruning_evidence(
+                                candidate.condition_context.as_slice(),
+                                Some(
+                                    property_value_narrowing
+                                        .requested_condition_context
+                                        .as_slice(),
+                                ),
+                            )
+                            .is_none_or(|evidence| !evidence.pruned)
+                        })
             })
             .map(|(_, candidate)| candidate.clone())
             .collect::<Vec<_>>();

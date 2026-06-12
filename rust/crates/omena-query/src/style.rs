@@ -496,6 +496,13 @@ fn selector_property_value_narrowings_from_declarations(
         })
         .collect::<BTreeSet<_>>()
         .into_iter()
+        .filter(|(_, condition_context, _, _)| {
+            cascade_checker::query_condition_context_static_supports_pruning_evidence(
+                condition_context.as_slice(),
+                hovered_branch_scope.map(|scope| scope.condition_context.as_slice()),
+            )
+            .is_none_or(|evidence| !evidence.pruned)
+        })
         .collect::<Vec<_>>();
     branch_keys.sort();
     if let Some(hovered_branch_scope) = hovered_branch_scope {
@@ -633,6 +640,13 @@ fn module_graph_narrowings_from_matching_declarations(
         })
         .collect::<BTreeSet<_>>()
         .into_iter()
+        .filter(|(_, condition_context, _, _)| {
+            cascade_checker::query_condition_context_static_supports_pruning_evidence(
+                condition_context.as_slice(),
+                hovered_branch_scope.map(|scope| scope.condition_context.as_slice()),
+            )
+            .is_none_or(|evidence| !evidence.pruned)
+        })
         .collect::<Vec<_>>();
     branch_keys.sort();
     if let Some(hovered_branch_scope) = hovered_branch_scope {

@@ -1013,6 +1013,18 @@ pub struct OmenaQueryCascadeNarrowingEvidenceV0 {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
+pub struct OmenaQueryStaticConditionPruningEvidenceV0 {
+    pub schema_version: &'static str,
+    pub product: &'static str,
+    pub condition_context: Vec<String>,
+    pub assumption: &'static str,
+    pub verdict: &'static str,
+    pub pruned: bool,
+    pub anchor_context: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct OmenaQueryRuntimeStateScenarioEvidenceV0 {
     pub schema_version: &'static str,
     pub product: &'static str,
@@ -1024,6 +1036,8 @@ pub struct OmenaQueryRuntimeStateScenarioEvidenceV0 {
     pub static_boundary: OmenaQueryRuntimeStateStaticBoundaryV0,
     pub driver_summaries: Vec<OmenaQueryRuntimeStateDriverSummaryV0>,
     pub scenarios: Vec<OmenaQueryRuntimeStateScenarioV0>,
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub static_condition_pruning: Vec<OmenaQueryStaticConditionPruningEvidenceV0>,
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub inline_style_overrides: Vec<OmenaQueryInlineStyleRuntimeOverrideV0>,
 }

@@ -218,6 +218,176 @@ fn cascade_narrowing_prunes_to_requested_condition_and_layer_branch() -> TestRes
 }
 
 #[test]
+fn cascade_narrowing_prunes_statically_false_supports_runtime_branch() -> TestResult {
+    let mut state = LspShellState::default();
+    handle_lsp_message(
+        &mut state,
+        json!({
+            "jsonrpc": "2.0",
+            "method": "textDocument/didOpen",
+            "params": {
+                "textDocument": {
+                    "uri": "file:///workspace-a/src/App.module.scss",
+                    "languageId": "scss",
+                    "version": 1,
+                    "text": ".button { color: red; color: maroon; }\n@supports (display: grid) { .button { color: green; } }\n@supports not (display: grid) { .button { color: blue; } }\n@supports font-tech(unknown-thing) { .button { color: teal; } }",
+                },
+            },
+        }),
+    );
+
+    let diagnostics_response = handle_lsp_message(
+        &mut state,
+        json!({
+            "jsonrpc": "2.0",
+            "id": 1,
+            "method": STYLE_DIAGNOSTICS_REQUEST,
+            "params": {
+                "textDocument": {
+                    "uri": "file:///workspace-a/src/App.module.scss",
+                },
+            },
+        }),
+    );
+    let diagnostics = diagnostics_response
+        .as_ref()
+        .and_then(|value| value.pointer("/result"))
+        .and_then(Value::as_array)
+        .ok_or_else(|| std::io::Error::other("style diagnostics result"))?;
+    let mut codes = diagnostics
+        .iter()
+        .filter_map(|diagnostic| diagnostic.pointer("/code").and_then(Value::as_str))
+        .collect::<Vec<_>>();
+    codes.sort_unstable();
+    assert_eq!(
+        codes,
+        vec!["unreachableDeclaration", "unspecifiedCascadeTie"]
+    );
+    let unreachable = &diagnostics[0];
+    let scenarios = unreachable
+        .pointer("/data/runtimeState/scenarios")
+        .and_then(Value::as_array)
+        .ok_or_else(|| std::io::Error::other("runtime scenarios"))?;
+    assert!(
+        !scenarios.iter().any(|scenario| scenario
+            .pointer("/conditionContext")
+            .is_some_and(|context| context == &json!(["@supports not (display: grid)"]))),
+        "statically false @supports branch must be pruned: {scenarios:?}"
+    );
+    assert!(
+        scenarios.iter().any(|scenario| scenario
+            .pointer("/conditionContext")
+            .is_some_and(|context| context == &json!(["@supports (display: grid)"]))),
+        "statically true @supports branch must be kept: {scenarios:?}"
+    );
+    assert!(
+        scenarios.iter().any(|scenario| scenario
+            .pointer("/conditionContext")
+            .is_some_and(|context| context == &json!(["@supports font-tech(unknown-thing)"]))),
+        "unknown @supports branch must be kept: {scenarios:?}"
+    );
+    let pruning = unreachable
+        .pointer("/data/runtimeState/staticConditionPruning/0")
+        .ok_or_else(|| std::io::Error::other("static condition pruning evidence"))?;
+    assert_eq!(
+        pruning.pointer("/conditionContext"),
+        Some(&json!(["@supports not (display: grid)"])),
+    );
+    assert_eq!(
+        pruning.pointer("/assumption"),
+        Some(&json!("modernBrowser"))
+    );
+    assert_eq!(pruning.pointer("/verdict"), Some(&json!("AlwaysFalse")));
+    assert_eq!(pruning.pointer("/pruned"), Some(&json!(true)));
+    assert_eq!(pruning.pointer("/anchorContext"), Some(&json!(false)));
+    let media_driver = unreachable
+        .pointer("/data/runtimeState/driverSummaries")
+        .and_then(Value::as_array)
+        .and_then(|drivers| {
+            drivers.iter().find(|driver| {
+                driver.pointer("/driver") == Some(&json!("mediaEnvironmentScenarioSweep"))
+            })
+        })
+        .ok_or_else(|| std::io::Error::other("media driver summary"))?;
+    assert_eq!(media_driver.pointer("/scenarioCount"), Some(&json!(2)));
+    Ok(())
+}
+
+#[test]
+fn cascade_narrowing_exempts_anchor_inside_statically_false_supports_branch() -> TestResult {
+    let mut state = LspShellState::default();
+    handle_lsp_message(
+        &mut state,
+        json!({
+            "jsonrpc": "2.0",
+            "method": "textDocument/didOpen",
+            "params": {
+                "textDocument": {
+                    "uri": "file:///workspace-a/src/App.module.scss",
+                    "languageId": "scss",
+                    "version": 1,
+                    "text": "@supports not (display: grid) { .button { color: red; color: maroon; } }\n@supports (display: grid) { .button { color: green; } }\n@supports font-tech(unknown-thing) { .button { color: teal; } }",
+                },
+            },
+        }),
+    );
+
+    let diagnostics_response = handle_lsp_message(
+        &mut state,
+        json!({
+            "jsonrpc": "2.0",
+            "id": 1,
+            "method": STYLE_DIAGNOSTICS_REQUEST,
+            "params": {
+                "textDocument": {
+                    "uri": "file:///workspace-a/src/App.module.scss",
+                },
+            },
+        }),
+    );
+    let diagnostics = diagnostics_response
+        .as_ref()
+        .and_then(|value| value.pointer("/result"))
+        .and_then(Value::as_array)
+        .ok_or_else(|| std::io::Error::other("style diagnostics result"))?;
+    let unreachable = diagnostics
+        .iter()
+        .find(|diagnostic| diagnostic.pointer("/code") == Some(&json!("unreachableDeclaration")))
+        .ok_or_else(|| std::io::Error::other("unreachable declaration diagnostic"))?;
+    let scenarios = unreachable
+        .pointer("/data/runtimeState/scenarios")
+        .and_then(Value::as_array)
+        .ok_or_else(|| std::io::Error::other("runtime scenarios"))?;
+    assert!(
+        scenarios.iter().any(|scenario| scenario
+            .pointer("/conditionContext")
+            .is_some_and(|context| context == &json!(["@supports not (display: grid)"]))),
+        "anchor context must be preserved even when statically false: {scenarios:?}"
+    );
+    let pruning = unreachable
+        .pointer("/data/runtimeState/staticConditionPruning/0")
+        .ok_or_else(|| std::io::Error::other("static condition pruning evidence"))?;
+    assert_eq!(
+        pruning.pointer("/conditionContext"),
+        Some(&json!(["@supports not (display: grid)"])),
+    );
+    assert_eq!(pruning.pointer("/verdict"), Some(&json!("AlwaysFalse")));
+    assert_eq!(pruning.pointer("/pruned"), Some(&json!(false)));
+    assert_eq!(pruning.pointer("/anchorContext"), Some(&json!(true)));
+    let media_driver = unreachable
+        .pointer("/data/runtimeState/driverSummaries")
+        .and_then(Value::as_array)
+        .and_then(|drivers| {
+            drivers.iter().find(|driver| {
+                driver.pointer("/driver") == Some(&json!("mediaEnvironmentScenarioSweep"))
+            })
+        })
+        .ok_or_else(|| std::io::Error::other("media driver summary"))?;
+    assert_eq!(media_driver.pointer("/scenarioCount"), Some(&json!(3)));
+    Ok(())
+}
+
+#[test]
 fn cascade_narrowing_uses_reachable_module_graph_candidates() -> TestResult {
     let mut state = LspShellState::default();
     for (uri, text) in [

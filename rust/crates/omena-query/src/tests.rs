@@ -721,6 +721,64 @@ fn cascade_narrowing_substrate_matches_fresh_workspace_narrowing_paths() {
 }
 
 #[test]
+fn cascade_narrowing_substrate_prunes_statically_false_supports_branch_keys()
+-> Result<(), &'static str> {
+    let sources = vec![
+        OmenaQueryStyleSourceInputV0 {
+            style_path: "/tmp/theme.scss".to_string(),
+            style_source: ".card { color: red; }".to_string(),
+        },
+        OmenaQueryStyleSourceInputV0 {
+            style_path: "/tmp/App.module.scss".to_string(),
+            style_source: "@use \"./theme\";\n.card { color: blue; }\n@supports (display: grid) { .card { color: green; } }\n@supports not (display: grid) { .card { color: orange; } }\n@supports font-tech(unknown-thing) { .card { color: teal; } }"
+                .to_string(),
+        },
+    ];
+    let resolution_inputs = OmenaQueryStyleResolutionInputsV0::default();
+    let substrate =
+        collect_omena_query_style_cascade_narrowing_substrate(&sources, &[], &resolution_inputs);
+    let position = ParserPositionV0 {
+        line: 1,
+        character: 1,
+    };
+
+    let fresh = summarize_omena_query_style_hover_render_parts_for_workspace_file(
+        "/tmp/App.module.scss",
+        sources.as_slice(),
+        &[],
+        &resolution_inputs,
+        "selector",
+        "card",
+        position,
+    )
+    .ok_or("fresh hover parts")?;
+    let reused = summarize_omena_query_style_hover_render_parts_for_workspace_file_with_substrate(
+        "/tmp/App.module.scss",
+        sources.as_slice(),
+        &substrate,
+        "selector",
+        "card",
+        position,
+    )
+    .ok_or("substrate hover parts")?;
+
+    assert_eq!(fresh, reused);
+    let contexts = fresh
+        .property_value_narrowings
+        .iter()
+        .map(|narrowing| narrowing.requested_condition_context.clone())
+        .collect::<Vec<_>>();
+    assert!(
+        !contexts.contains(&vec!["@supports not (display: grid)".to_string()]),
+        "statically false @supports branch must not produce a module-graph narrowing: {contexts:?}",
+    );
+    assert!(contexts.contains(&Vec::<String>::new()));
+    assert!(contexts.contains(&vec!["@supports (display: grid)".to_string()]));
+    assert!(contexts.contains(&vec!["@supports font-tech(unknown-thing)".to_string()]));
+    Ok(())
+}
+
+#[test]
 fn cascade_narrowing_substrate_candidates_run_zero_recollections() {
     let sources = cascade_narrowing_substrate_corpus();
     let resolution_inputs = OmenaQueryStyleResolutionInputsV0::default();

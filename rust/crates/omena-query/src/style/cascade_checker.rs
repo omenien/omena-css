@@ -2,7 +2,8 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use omena_cascade::{
     CascadeDeclaration, CascadeKey, CascadeLevel, CascadeOutcome, CascadeValue, LayerRank,
-    SelectorMatchVerdict, Specificity, cascade_margin_for_outcome, cascade_property,
+    SelectorMatchVerdict, Specificity, StaticSupportsAssumptionV0, StaticSupportsEvalVerdictV0,
+    cascade_margin_for_outcome, cascade_property, evaluate_static_supports_condition,
     parse_simple_selector_signature, selector_co_match_verdict,
 };
 use omena_parser::{LexedToken, lex};
@@ -35,8 +36,9 @@ use super::{
     OmenaQueryCascadeConfidenceV0, OmenaQueryCascadeNarrowingEvidenceV0,
     OmenaQueryInlineStyleRuntimeOverrideV0, OmenaQueryRuntimeStateDriverSummaryV0,
     OmenaQueryRuntimeStateScenarioEvidenceV0, OmenaQueryRuntimeStateScenarioV0,
-    OmenaQueryRuntimeStateStaticBoundaryV0, OmenaQueryStyleDiagnosticV0, ParserByteSpanV0,
-    ParserRangeV0, omena_parser_dialect_for_style_path, parser_range_for_byte_span,
+    OmenaQueryRuntimeStateStaticBoundaryV0, OmenaQueryStaticConditionPruningEvidenceV0,
+    OmenaQueryStyleDiagnosticV0, ParserByteSpanV0, ParserRangeV0,
+    omena_parser_dialect_for_style_path, parser_range_for_byte_span,
     summarize_static_css_custom_property_fixed_point_from_source,
 };
 
@@ -1208,8 +1210,10 @@ fn summarize_query_runtime_state_for_evaluation(
     }
 
     let pseudo_states = query_runtime_candidate_pseudo_states(candidate_declarations.as_slice());
-    let condition_contexts =
-        query_runtime_candidate_condition_contexts(candidate_declarations.as_slice());
+    let (condition_contexts, static_condition_pruning) = query_runtime_candidate_condition_contexts(
+        candidate_declarations.as_slice(),
+        anchor.condition_context.as_slice(),
+    );
     let mut scenarios = Vec::new();
 
     for condition_context in &condition_contexts {
@@ -1299,6 +1303,7 @@ fn summarize_query_runtime_state_for_evaluation(
             },
         ],
         scenarios,
+        static_condition_pruning,
         inline_style_overrides: Vec::new(),
     })
 }
@@ -1358,7 +1363,11 @@ fn query_runtime_pseudo_state_is_dynamic(pseudo_state: &str) -> bool {
 
 fn query_runtime_candidate_condition_contexts(
     declarations: &[&OmenaCheckerCascadeDeclarationInputV0],
-) -> Vec<Vec<String>> {
+    anchor_condition_context: &[String],
+) -> (
+    Vec<Vec<String>>,
+    Vec<OmenaQueryStaticConditionPruningEvidenceV0>,
+) {
     let mut contexts = declarations
         .iter()
         .map(|declaration| declaration.condition_context.clone())
@@ -1368,7 +1377,108 @@ fn query_runtime_candidate_condition_contexts(
     if contexts.is_empty() {
         contexts.push(Vec::new());
     }
-    contexts
+    let mut pruning = Vec::new();
+    contexts.retain(|context| {
+        let Some(evidence) = query_condition_context_static_supports_pruning_evidence(
+            context.as_slice(),
+            Some(anchor_condition_context),
+        ) else {
+            return true;
+        };
+        let keep = !evidence.pruned;
+        pruning.push(evidence);
+        keep
+    });
+    if contexts.is_empty() {
+        contexts.push(Vec::new());
+    }
+    (contexts, pruning)
+}
+
+pub(crate) fn query_condition_context_static_supports_pruning_evidence(
+    condition_context: &[String],
+    anchor_condition_context: Option<&[String]>,
+) -> Option<OmenaQueryStaticConditionPruningEvidenceV0> {
+    let verdict = query_condition_context_static_supports_verdict(condition_context)?;
+    if verdict != StaticSupportsEvalVerdictV0::AlwaysFalse {
+        return None;
+    }
+    let anchor_context = anchor_condition_context.is_some_and(|anchor| anchor == condition_context);
+    Some(OmenaQueryStaticConditionPruningEvidenceV0 {
+        schema_version: "0",
+        product: "omena-query.static-condition-pruning-evidence",
+        condition_context: condition_context.to_vec(),
+        assumption: "modernBrowser",
+        verdict: query_static_supports_verdict_label(verdict),
+        pruned: !anchor_context,
+        anchor_context,
+    })
+}
+
+fn query_condition_context_static_supports_verdict(
+    condition_context: &[String],
+) -> Option<StaticSupportsEvalVerdictV0> {
+    let mut saw_supports = false;
+    let mut saw_unknown = false;
+    for entry in condition_context {
+        let Some(condition) = query_supports_condition_from_context_entry(entry.as_str()) else {
+            continue;
+        };
+        saw_supports = true;
+        let witness = evaluate_static_supports_condition(
+            condition,
+            StaticSupportsAssumptionV0::ModernBrowser,
+        );
+        match witness.verdict {
+            StaticSupportsEvalVerdictV0::AlwaysFalse => {
+                return Some(StaticSupportsEvalVerdictV0::AlwaysFalse);
+            }
+            StaticSupportsEvalVerdictV0::Unknown => {
+                saw_unknown = true;
+            }
+            StaticSupportsEvalVerdictV0::AlwaysTrue => {}
+        }
+    }
+    if !saw_supports {
+        None
+    } else if saw_unknown {
+        Some(StaticSupportsEvalVerdictV0::Unknown)
+    } else {
+        Some(StaticSupportsEvalVerdictV0::AlwaysTrue)
+    }
+}
+
+fn query_supports_condition_from_context_entry(entry: &str) -> Option<&str> {
+    let trimmed = entry.trim_start();
+    let prefix = "@supports";
+    if trimmed.len() < prefix.len() {
+        return None;
+    }
+    let (candidate_prefix, rest) = trimmed.split_at(prefix.len());
+    if !candidate_prefix.eq_ignore_ascii_case(prefix) {
+        return None;
+    }
+    if rest
+        .chars()
+        .next()
+        .is_some_and(|ch| !ch.is_whitespace() && ch != '(')
+    {
+        return None;
+    }
+    let condition = rest.trim_start();
+    if condition.is_empty() {
+        None
+    } else {
+        Some(condition)
+    }
+}
+
+fn query_static_supports_verdict_label(verdict: StaticSupportsEvalVerdictV0) -> &'static str {
+    match verdict {
+        StaticSupportsEvalVerdictV0::AlwaysTrue => "AlwaysTrue",
+        StaticSupportsEvalVerdictV0::AlwaysFalse => "AlwaysFalse",
+        StaticSupportsEvalVerdictV0::Unknown => "Unknown",
+    }
 }
 
 fn query_runtime_state_scenario(
