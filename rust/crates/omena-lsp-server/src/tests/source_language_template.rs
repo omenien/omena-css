@@ -2,12 +2,48 @@ use super::*;
 
 #[test]
 fn resolves_server_template_class_definition_to_opened_style_selector() -> TestResult {
-    let source = r#"{% if enabled %}
+    assert_server_template_definition_to_opened_style_selector(
+        r#"{% if enabled %}
 <main class="root">content</main>
 {% endif %}
-"#;
+"#,
+        "file:///workspace-a/src/page.liquid",
+        "liquid",
+        &[],
+    )
+}
+
+#[test]
+fn resolves_liquid_interpolated_class_definition_to_opened_style_selector() -> TestResult {
+    assert_server_template_definition_to_opened_style_selector(
+        r#"{% if enabled %}
+<main class="root {{ modifier }}">content</main>
+{% endif %}
+"#,
+        "file:///workspace-a/src/page.liquid",
+        "liquid",
+        &["modifier"],
+    )
+}
+
+#[test]
+fn resolves_erb_interpolated_class_definition_to_opened_style_selector() -> TestResult {
+    assert_server_template_definition_to_opened_style_selector(
+        r#"<main class="root <%= modifier %>">content</main>
+"#,
+        "file:///workspace-a/src/page.erb",
+        "erb",
+        &["modifier"],
+    )
+}
+
+fn assert_server_template_definition_to_opened_style_selector(
+    source: &str,
+    source_uri: &str,
+    language_id: &str,
+    ignored_tokens: &[&str],
+) -> TestResult {
     let style = ".root { color: red; }\n";
-    let source_uri = "file:///workspace-a/src/page.liquid";
     let style_uri = "file:///workspace-a/src/Page.module.scss";
     let mut state = LspShellState::default();
     handle_lsp_message(
@@ -49,7 +85,7 @@ fn resolves_server_template_class_definition_to_opened_style_selector() -> TestR
             "params": {
                 "textDocument": {
                     "uri": source_uri,
-                    "languageId": "liquid",
+                    "languageId": language_id,
                     "version": 1,
                     "text": source,
                 },
@@ -59,7 +95,7 @@ fn resolves_server_template_class_definition_to_opened_style_selector() -> TestR
 
     let document = state
         .document(source_uri)
-        .ok_or_else(|| std::io::Error::other("Liquid document is open"))?;
+        .ok_or_else(|| std::io::Error::other("server-template document is open"))?;
     assert!(
         document
             .source_syntax_index
@@ -70,6 +106,17 @@ fn resolves_server_template_class_definition_to_opened_style_selector() -> TestR
                     && reference.target_style_uri.is_none()
             })
     );
+    for ignored_token in ignored_tokens {
+        assert!(
+            !document
+                .source_syntax_index
+                .selector_references
+                .iter()
+                .any(|reference| {
+                    &source[reference.byte_span.start..reference.byte_span.end] == *ignored_token
+                })
+        );
+    }
 
     let definition_response = handle_lsp_message(
         &mut state,
@@ -83,7 +130,7 @@ fn resolves_server_template_class_definition_to_opened_style_selector() -> TestR
                 },
                 "position": parser_position_for_byte_offset(
                     source,
-                    fixture_find(source, "root", "Liquid template contains root class")? + 1,
+                    fixture_find(source, "root", "server-template contains root class")? + 1,
                 ),
             },
         }),

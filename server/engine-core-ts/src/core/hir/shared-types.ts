@@ -24,5 +24,10 @@ export type SourceLanguage =
   | "javascriptreact"
   | "typescript"
   | "typescriptreact"
+  | "html"
+  | "svelte"
+  | "astro"
+  | "markdown"
+  | "server-template"
   | "vue"
   | "unknown";

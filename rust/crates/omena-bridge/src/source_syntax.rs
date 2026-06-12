@@ -14,9 +14,9 @@ use serde::Serialize;
 use std::collections::{BTreeMap, BTreeSet};
 
 use crate::source_language::{
-    is_astro_source, is_html_source, is_markdown_source, is_server_template_source,
-    is_svelte_source, is_vue_source, project_source_for_language, source_type_for_language,
-    tag_content_ranges,
+    ServerTemplateDelimiterFamilyV0, is_astro_source, is_html_source, is_markdown_source,
+    is_server_template_source, is_svelte_source, is_vue_source, project_source_for_language,
+    server_template_delimiter_family, source_type_for_language, tag_content_ranges,
 };
 
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize)]
@@ -360,6 +360,7 @@ fn collect_template_class_attribute_selector_references(
     let Some(scan_scope) = template_source_scan_scope(source_path, source, source_language) else {
         return;
     };
+    let delimiter_family = server_template_delimiter_family(source_path, source_language);
 
     let mut suppressed_ranges = tag_content_ranges(source, "<script", "</script>");
     suppressed_ranges.extend(tag_content_ranges(source, "<style", "</style>"));
@@ -369,8 +370,15 @@ fn collect_template_class_attribute_selector_references(
         source,
         scan_scope.as_ranges(),
         suppressed_ranges.as_slice(),
+        delimiter_family.is_some(),
     ) {
-        push_string_literal_selector_references(source, value_span, None, references);
+        if let Some(family) = delimiter_family {
+            push_server_template_class_attribute_selector_references(
+                source, value_span, family, references,
+            );
+        } else {
+            push_string_literal_selector_references(source, value_span, None, references);
+        }
     }
 }
 
@@ -436,6 +444,7 @@ fn template_class_attribute_value_spans(
     source: &str,
     scan_ranges: Option<&[(usize, usize)]>,
     suppressed_ranges: &[(usize, usize)],
+    allow_server_template_interpolation: bool,
 ) -> Vec<ParserByteSpanV0> {
     let lower = source.to_ascii_lowercase();
     let bytes = source.as_bytes();
@@ -461,7 +470,8 @@ fn template_class_attribute_value_spans(
             continue;
         };
         if value_start < value_end
-            && is_static_template_class_attribute_value(source, value_start, value_end)
+            && (allow_server_template_interpolation
+                || is_static_template_class_attribute_value(source, value_start, value_end))
         {
             spans.push(ParserByteSpanV0 {
                 start: value_start,
@@ -704,6 +714,137 @@ fn is_static_template_class_attribute_value(source: &str, start: usize, end: usi
     source
         .get(start..end)
         .is_some_and(|value| !value.contains(['{', '}']))
+}
+
+fn push_server_template_class_attribute_selector_references(
+    source: &str,
+    literal_span: ParserByteSpanV0,
+    family: ServerTemplateDelimiterFamilyV0,
+    references: &mut Vec<SourceSelectorReferenceFactV0>,
+) {
+    let interpolation_ranges =
+        server_template_interpolation_ranges(source, literal_span.start, literal_span.end, family);
+    if interpolation_ranges.is_empty() {
+        if is_static_template_class_attribute_value(source, literal_span.start, literal_span.end) {
+            push_string_literal_selector_references(source, literal_span, None, references);
+        }
+        return;
+    }
+
+    for span in class_token_byte_spans(source, literal_span.start, literal_span.end) {
+        if token_intersects_dynamic_template_segment(source, span, interpolation_ranges.as_slice())
+        {
+            continue;
+        }
+        references.push(SourceSelectorReferenceFactV0 {
+            byte_span: span,
+            selector_name: None,
+            match_kind: SourceSelectorReferenceMatchKindV0::Exact,
+            target_style_uri: None,
+        });
+    }
+}
+
+fn server_template_interpolation_ranges(
+    source: &str,
+    value_start: usize,
+    value_end: usize,
+    family: ServerTemplateDelimiterFamilyV0,
+) -> Vec<ParserByteSpanV0> {
+    match family {
+        ServerTemplateDelimiterFamilyV0::LiquidLike => collect_delimited_template_ranges(
+            source,
+            value_start,
+            value_end,
+            &[("{{", "}}"), ("{%", "%}"), ("{#", "#}")],
+        ),
+        ServerTemplateDelimiterFamilyV0::ErbLike => {
+            collect_delimited_template_ranges(source, value_start, value_end, &[("<%", "%>")])
+        }
+        ServerTemplateDelimiterFamilyV0::Handlebars => collect_delimited_template_ranges(
+            source,
+            value_start,
+            value_end,
+            &[("{{{", "}}}"), ("{{", "}}")],
+        ),
+    }
+}
+
+fn collect_delimited_template_ranges(
+    source: &str,
+    value_start: usize,
+    value_end: usize,
+    delimiters: &[(&'static str, &'static str)],
+) -> Vec<ParserByteSpanV0> {
+    let mut ranges = Vec::new();
+    let mut cursor = value_start;
+    while cursor < value_end {
+        let Some((range_start, open, close)) =
+            next_template_delimiter(source, cursor, value_end, delimiters)
+        else {
+            break;
+        };
+        let content_start = range_start + open.len();
+        let Some(relative_end) = source
+            .get(content_start..value_end)
+            .and_then(|value| value.find(close))
+        else {
+            break;
+        };
+        let range_end = content_start + relative_end + close.len();
+        ranges.push(ParserByteSpanV0 {
+            start: range_start,
+            end: range_end,
+        });
+        cursor = range_end;
+    }
+    ranges
+}
+
+fn next_template_delimiter(
+    source: &str,
+    cursor: usize,
+    limit: usize,
+    delimiters: &[(&'static str, &'static str)],
+) -> Option<(usize, &'static str, &'static str)> {
+    let haystack = source.get(cursor..limit)?;
+    delimiters
+        .iter()
+        .filter_map(|(open, close)| {
+            haystack
+                .find(open)
+                .map(|relative_start| (cursor + relative_start, *open, *close))
+        })
+        .min_by(|(left_start, left_open, _), (right_start, right_open, _)| {
+            left_start
+                .cmp(right_start)
+                .then_with(|| right_open.len().cmp(&left_open.len()))
+        })
+}
+
+fn token_intersects_dynamic_template_segment(
+    source: &str,
+    token_span: ParserByteSpanV0,
+    interpolation_ranges: &[ParserByteSpanV0],
+) -> bool {
+    interpolation_ranges.iter().any(|range| {
+        spans_overlap(token_span, *range)
+            || adjacent_without_ascii_whitespace(source, token_span.end, range.start)
+            || adjacent_without_ascii_whitespace(source, range.end, token_span.start)
+    })
+}
+
+fn spans_overlap(left: ParserByteSpanV0, right: ParserByteSpanV0) -> bool {
+    left.start < right.end && right.start < left.end
+}
+
+fn adjacent_without_ascii_whitespace(source: &str, left_end: usize, right_start: usize) -> bool {
+    if left_end > right_start {
+        return false;
+    }
+    source
+        .get(left_end..right_start)
+        .is_some_and(|between| !between.chars().any(|ch| ch.is_ascii_whitespace()))
 }
 
 fn push_style_binding_selector_references_from_expression(

@@ -68,6 +68,24 @@ export function buildSourceDocument(args: BuildSourceDocumentArgs): SourceDocume
 
 function inferSourceLanguage(filePath: string): SourceLanguage {
   if (filePath.endsWith(".vue")) return "vue";
+  if (
+    filePath.endsWith(".liquid") ||
+    filePath.endsWith(".twig") ||
+    filePath.endsWith(".njk") ||
+    filePath.endsWith(".nunjucks") ||
+    filePath.endsWith(".hbs") ||
+    filePath.endsWith(".handlebars") ||
+    filePath.endsWith(".erb") ||
+    filePath.endsWith(".ejs") ||
+    filePath.endsWith(".html.eex") ||
+    filePath.endsWith(".heex")
+  ) {
+    return "server-template";
+  }
+  if (filePath.endsWith(".html") || filePath.endsWith(".htm")) return "html";
+  if (filePath.endsWith(".svelte")) return "svelte";
+  if (filePath.endsWith(".astro")) return "astro";
+  if (filePath.endsWith(".md") || filePath.endsWith(".mdx")) return "markdown";
   if (filePath.endsWith(".tsx")) return "typescriptreact";
   if (filePath.endsWith(".ts") || filePath.endsWith(".mts") || filePath.endsWith(".cts")) {
     return "typescript";

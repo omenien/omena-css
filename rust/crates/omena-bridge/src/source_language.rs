@@ -183,6 +183,7 @@ pub fn summarize_omena_bridge_source_language_parser_boundary_v0()
             "markdownFencedCodeProjection",
             "mdxFencedCodeProjection",
             "serverTemplateMarkupScan",
+            "serverTemplateInterpolationScan",
             "serverTemplateLanguageAliases",
         ],
     }
@@ -213,6 +214,44 @@ pub(crate) fn is_markdown_source(source_path: &str, source_language: Option<&str
         || source_path.ends_with(".mdx")
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum ServerTemplateDelimiterFamilyV0 {
+    LiquidLike,
+    ErbLike,
+    Handlebars,
+}
+
+pub(crate) fn server_template_delimiter_family(
+    source_path: &str,
+    source_language: Option<&str>,
+) -> Option<ServerTemplateDelimiterFamilyV0> {
+    if matches!(
+        source_language,
+        Some("liquid" | "twig" | "nunjucks" | "django-html" | "jinja")
+    ) || source_path.ends_with(".liquid")
+        || source_path.ends_with(".twig")
+        || source_path.ends_with(".njk")
+        || source_path.ends_with(".nunjucks")
+    {
+        return Some(ServerTemplateDelimiterFamilyV0::LiquidLike);
+    }
+    if matches!(source_language, Some("erb" | "ejs" | "html-eex" | "heex"))
+        || source_path.ends_with(".erb")
+        || source_path.ends_with(".ejs")
+        || source_path.ends_with(".html.eex")
+        || source_path.ends_with(".heex")
+    {
+        return Some(ServerTemplateDelimiterFamilyV0::ErbLike);
+    }
+    if source_language == Some("handlebars")
+        || source_path.ends_with(".hbs")
+        || source_path.ends_with(".handlebars")
+    {
+        return Some(ServerTemplateDelimiterFamilyV0::Handlebars);
+    }
+    None
+}
+
 pub(crate) fn is_server_template_source(source_path: &str, source_language: Option<&str>) -> bool {
     matches!(
         source_language,
@@ -228,16 +267,7 @@ pub(crate) fn is_server_template_source(source_path: &str, source_language: Opti
                 | "html-eex"
                 | "heex"
         )
-    ) || source_path.ends_with(".liquid")
-        || source_path.ends_with(".twig")
-        || source_path.ends_with(".njk")
-        || source_path.ends_with(".nunjucks")
-        || source_path.ends_with(".hbs")
-        || source_path.ends_with(".handlebars")
-        || source_path.ends_with(".erb")
-        || source_path.ends_with(".ejs")
-        || source_path.ends_with(".html.eex")
-        || source_path.ends_with(".heex")
+    ) || server_template_delimiter_family(source_path, source_language).is_some()
 }
 
 fn source_language_parser_for_path(
@@ -569,7 +599,23 @@ mod tests {
         assert!(
             summary
                 .ready_surfaces
+                .contains(&"serverTemplateInterpolationScan")
+        );
+        assert!(
+            summary
+                .ready_surfaces
                 .contains(&"serverTemplateLanguageAliases")
         );
+    }
+
+    #[test]
+    fn server_template_projection_keeps_script_extraction_inert() {
+        let projected = project_source_for_language(
+            "page.liquid",
+            r#"<main class="{{ modifier }}">content</main>"#,
+            Some("liquid"),
+        );
+
+        assert_eq!(projected.as_ref(), "");
     }
 }

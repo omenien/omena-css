@@ -98,6 +98,129 @@ fn collects_server_template_literal_class_attributes() {
 }
 
 #[test]
+fn masks_liquid_template_class_interpolations_without_shifting_literal_spans() -> Result<(), String>
+{
+    let source = r#"{% if enabled %}
+<main class="card {{ modifier }} active"></main>
+<section class="{{ modifier }}"></section>
+<aside class="card--{{ m }} stable"></aside>
+{% endif %}
+"#;
+    let index = summarize_omena_bridge_source_syntax_index_for_source_language(
+        "card.liquid",
+        source,
+        Some("liquid"),
+        Vec::new(),
+        Vec::new(),
+    );
+
+    let names = index
+        .selector_references
+        .iter()
+        .map(|reference| selector_reference_name(source, reference))
+        .collect::<Vec<_>>();
+
+    assert_eq!(names, vec!["card", "active", "stable"]);
+    assert!(!names.contains(&"modifier"));
+    assert!(!names.contains(&"card--"));
+    for expected in ["card", "active", "stable"] {
+        let reference = index
+            .selector_references
+            .iter()
+            .find(|reference| selector_reference_name(source, reference) == expected)
+            .ok_or_else(|| format!("literal selector reference is emitted for {expected}"))?;
+        assert_eq!(
+            &source[reference.byte_span.start..reference.byte_span.end],
+            expected
+        );
+    }
+    Ok(())
+}
+
+#[test]
+fn masks_server_template_delimiter_families_in_literal_class_attributes() {
+    let cases = [
+        (
+            "page.twig",
+            Some("twig"),
+            r#"<main class="card {{ modifier }} active item--{{ m }}"></main>"#,
+            vec!["card", "active"],
+        ),
+        (
+            "page.njk",
+            Some("nunjucks"),
+            r#"<main class="card {% if active %} active {% endif %} item--{{ m }}"></main>"#,
+            vec!["card", "active"],
+        ),
+        (
+            "page.django-html",
+            Some("django-html"),
+            r#"<main class="card {# ignored #} active item--{{ m }}"></main>"#,
+            vec!["card", "active"],
+        ),
+        (
+            "page.jinja",
+            Some("jinja"),
+            r#"<main class="card {{ modifier }} active item--{{ m }}"></main>"#,
+            vec!["card", "active"],
+        ),
+        (
+            "page.erb",
+            Some("erb"),
+            r#"<main class="card <%= modifier %> active item--<%= m %>"></main>"#,
+            vec!["card", "active"],
+        ),
+        (
+            "page.ejs",
+            Some("ejs"),
+            r#"<main class="card <%- modifier %> active item--<%= m %>"></main>"#,
+            vec!["card", "active"],
+        ),
+        (
+            "page.html.eex",
+            Some("html-eex"),
+            r#"<main class="card <%= modifier %> active item--<%= m %>"></main>"#,
+            vec!["card", "active"],
+        ),
+        (
+            "page.heex",
+            Some("heex"),
+            r#"<main class="card <%= modifier %> active item--<%= m %>"></main>"#,
+            vec!["card", "active"],
+        ),
+        (
+            "page.hbs",
+            Some("handlebars"),
+            r#"<main class="card {{{modifier}}} active item--{{m}}"></main>"#,
+            vec!["card", "active"],
+        ),
+        (
+            "page.njk",
+            None,
+            r#"<main class="card {{ modifier }} active item--{{ m }}"></main>"#,
+            vec!["card", "active"],
+        ),
+    ];
+
+    for (source_path, source_language, source, expected) in cases {
+        let index = summarize_omena_bridge_source_syntax_index_for_source_language(
+            source_path,
+            source,
+            source_language,
+            Vec::new(),
+            Vec::new(),
+        );
+        let names = index
+            .selector_references
+            .iter()
+            .map(|reference| selector_reference_name(source, reference))
+            .collect::<Vec<_>>();
+
+        assert_eq!(names, expected, "{source_path}");
+    }
+}
+
+#[test]
 fn collects_template_style_binding_class_expressions() {
     let source = r#"<template>
   <section class={styles.root}></section>
