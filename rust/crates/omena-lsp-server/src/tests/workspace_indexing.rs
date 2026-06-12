@@ -214,6 +214,204 @@ fn defers_workspace_style_file_index_until_initialized_notification() {
 }
 
 #[test]
+fn indexes_workspace_source_files_from_disk() -> TestResult {
+    let workspace_root = std::env::temp_dir().join(format!(
+        "omena-lsp-server-source-index-{}",
+        std::process::id()
+    ));
+    let src_dir = workspace_root.join("src");
+    let source_path = src_dir.join("App.tsx");
+    let style_path = src_dir.join("Button.module.scss");
+    let _ = std::fs::remove_dir_all(&workspace_root);
+    std::fs::create_dir_all(&src_dir)?;
+    std::fs::write(&style_path, ".root { color: red; }")?;
+    std::fs::write(
+        &source_path,
+        "import styles from \"./Button.module.scss\";\nconst view = <div className={styles.root} />;",
+    )?;
+
+    let workspace_uri = format!("file://{}", workspace_root.display());
+    let source_uri = format!("file://{}", source_path.display());
+    let style_uri = format!("file://{}", style_path.display());
+    let mut state = LspShellState::default();
+    handle_lsp_message(
+        &mut state,
+        json!({
+            "jsonrpc": "2.0",
+            "id": 1,
+            "method": "initialize",
+            "params": {
+                "workspaceFolders": [
+                    {
+                        "uri": workspace_uri,
+                        "name": "source-index",
+                    },
+                ],
+            },
+        }),
+    );
+    handle_lsp_message(
+        &mut state,
+        json!({
+            "jsonrpc": "2.0",
+            "method": "initialized",
+            "params": {},
+        }),
+    );
+
+    let source_document = state
+        .document(source_uri.as_str())
+        .ok_or_else(|| std::io::Error::other("source document should be indexed from disk"))?;
+    assert!(
+        !state.has_open_document_uri(source_uri.as_str()),
+        "disk-indexed source documents must not be treated as open buffers"
+    );
+    assert_eq!(source_document.language_id, "typescriptreact");
+    let imported_style_bindings = &source_document.source_syntax_index.imported_style_bindings;
+    assert_eq!(imported_style_bindings.len(), 1);
+    assert_eq!(imported_style_bindings[0].binding, "styles");
+    assert!(
+        file_uri_equivalent(
+            imported_style_bindings[0].style_uri.as_str(),
+            style_uri.as_str()
+        ),
+        "indexed source binding should target the imported CSS module: {imported_style_bindings:?}"
+    );
+    assert!(
+        source_document
+            .source_syntax_index
+            .style_property_accesses
+            .iter()
+            .any(|access| {
+                source_document
+                    .text
+                    .get(access.byte_span.start..access.byte_span.end)
+                    == Some("root")
+                    && access
+                        .target_style_uri
+                        .as_deref()
+                        .is_some_and(|target| file_uri_equivalent(target, style_uri.as_str()))
+            }),
+        "disk-indexed source syntax should resolve CSS Module property access to the imported target"
+    );
+    let _ = std::fs::remove_dir_all(&workspace_root);
+    Ok(())
+}
+
+#[test]
+fn indexed_source_files_do_not_receive_style_change_diagnostics_until_open() -> TestResult {
+    let workspace_root = std::env::temp_dir().join(format!(
+        "omena-lsp-server-source-publish-bound-{}",
+        std::process::id()
+    ));
+    let src_dir = workspace_root.join("src");
+    let source_path = src_dir.join("App.tsx");
+    let style_path = src_dir.join("Button.module.scss");
+    let _ = std::fs::remove_dir_all(&workspace_root);
+    std::fs::create_dir_all(&src_dir)?;
+    let source_text = "import styles from \"./Button.module.scss\";\nconst view = <div className={styles.root} />;";
+    std::fs::write(&style_path, ".root { color: red; }")?;
+    std::fs::write(&source_path, source_text)?;
+
+    let workspace_uri = format!("file://{}", workspace_root.display());
+    let source_uri = format!("file://{}", source_path.display());
+    let style_uri = format!("file://{}", style_path.display());
+    let mut state = LspShellState::default();
+    handle_lsp_message(
+        &mut state,
+        json!({
+            "jsonrpc": "2.0",
+            "id": 1,
+            "method": "initialize",
+            "params": {
+                "workspaceFolders": [
+                    {
+                        "uri": workspace_uri,
+                        "name": "source-publish-bound",
+                    },
+                ],
+            },
+        }),
+    );
+    handle_lsp_message(
+        &mut state,
+        json!({
+            "jsonrpc": "2.0",
+            "method": "initialized",
+            "params": {},
+        }),
+    );
+    assert!(state.document(source_uri.as_str()).is_some());
+    assert!(!state.has_open_document_uri(source_uri.as_str()));
+
+    let open_style_outputs = handle_lsp_message_outputs(
+        &mut state,
+        json!({
+            "jsonrpc": "2.0",
+            "method": "textDocument/didOpen",
+            "params": {
+                "textDocument": {
+                    "uri": style_uri,
+                    "languageId": "scss",
+                    "version": 1,
+                    "text": ".root { color: blue; }",
+                },
+            },
+        }),
+    );
+    let published_uris = published_diagnostics_uris(open_style_outputs.as_slice());
+    assert!(
+        published_uris.contains(&style_uri),
+        "style open should publish diagnostics for the opened style document: {published_uris:?}"
+    );
+    assert!(
+        !published_uris.contains(&source_uri),
+        "never-opened indexed source documents must not receive publishDiagnostics: {published_uris:?}"
+    );
+
+    handle_lsp_message_outputs(
+        &mut state,
+        json!({
+            "jsonrpc": "2.0",
+            "method": "textDocument/didOpen",
+            "params": {
+                "textDocument": {
+                    "uri": source_uri,
+                    "languageId": "typescriptreact",
+                    "version": 1,
+                    "text": source_text,
+                },
+            },
+        }),
+    );
+    let changed_style_outputs = handle_lsp_message_outputs(
+        &mut state,
+        json!({
+            "jsonrpc": "2.0",
+            "method": "textDocument/didChange",
+            "params": {
+                "textDocument": {
+                    "uri": style_uri,
+                    "version": 2,
+                },
+                "contentChanges": [
+                    {
+                        "text": ".root { color: green; }",
+                    },
+                ],
+            },
+        }),
+    );
+    let published_after_open = published_diagnostics_uris(changed_style_outputs.as_slice());
+    assert!(
+        published_after_open.contains(&source_uri),
+        "open source documents should still be republished after their referenced style changes: {published_after_open:?}"
+    );
+    let _ = std::fs::remove_dir_all(&workspace_root);
+    Ok(())
+}
+
+#[test]
 fn indexes_workspace_style_files_from_dist_artifacts() {
     let workspace_root = std::env::temp_dir().join(format!(
         "omena-lsp-server-dist-index-{}",
@@ -271,6 +469,22 @@ fn indexes_workspace_style_files_from_dist_artifacts() {
         Some(vec!["fromDist".to_string()]),
     );
     let _ = std::fs::remove_dir_all(&workspace_root);
+}
+
+fn published_diagnostics_uris(outputs: &[Value]) -> Vec<String> {
+    outputs
+        .iter()
+        .filter_map(|output| {
+            if output.get("method") == Some(&json!("textDocument/publishDiagnostics")) {
+                output
+                    .pointer("/params/uri")
+                    .and_then(Value::as_str)
+                    .map(str::to_string)
+            } else {
+                None
+            }
+        })
+        .collect()
 }
 
 #[test]

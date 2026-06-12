@@ -482,9 +482,9 @@ fn work_done_progress_outputs_for_index_event(
 
     let (id, token) = state.allocate_work_done_progress_request();
     let end_message = if state.workspace_style_index_exhausted_count > 0 {
-        "Workspace style index updated; additional files remain budgeted for later refreshes"
+        "Workspace index updated; additional files remain budgeted for later refreshes"
     } else {
-        "Workspace style index updated"
+        "Workspace index updated"
     };
     vec![
         ScheduledLspOutput::immediate(json!({
@@ -503,7 +503,7 @@ fn work_done_progress_outputs_for_index_event(
                 "value": {
                     "kind": "begin",
                     "title": "Omena CSS workspace index",
-                    "message": "Scanning workspace style files",
+                    "message": "Scanning workspace files",
                 },
             },
         })),

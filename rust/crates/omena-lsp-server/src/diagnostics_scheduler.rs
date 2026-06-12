@@ -347,6 +347,7 @@ fn source_uris_for_text_style_change_diagnostics(
         .documents
         .values()
         .filter(|document| !is_style_document_uri(document.uri.as_str()))
+        .filter(|document| state.has_open_document_uri(document.uri.as_str()))
         .filter(|document| {
             state.document(style_uri).is_none_or(|style_document| {
                 workspace_folder_compatible(
@@ -368,6 +369,7 @@ fn source_uris_for_style_change_diagnostics(state: &LspShellState, style_uri: &s
         .documents
         .values()
         .filter(|document| !is_style_document_uri(document.uri.as_str()))
+        .filter(|document| state.has_open_document_uri(document.uri.as_str()))
         .filter(|document| {
             workspace_folder_uri.as_deref().is_none_or(|workspace_uri| {
                 workspace_folder_compatible(Some(workspace_uri), document)
