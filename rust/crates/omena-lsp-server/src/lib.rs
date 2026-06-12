@@ -22,7 +22,7 @@ pub use message_loop::{
 };
 use omena_query::{
     OmenaQueryCodeActionV0, OmenaQueryCompletionCandidateV0, OmenaQueryCompletionItemV0,
-    OmenaQueryEngineInputV2, OmenaQueryExternalModuleModeV0, OmenaQuerySourceDocumentInputV0,
+    OmenaQueryEngineInputV2, OmenaQuerySourceDocumentInputV0,
     OmenaQuerySourceDomainClassReferenceFactV0 as SourceDomainClassReferenceFact,
     OmenaQuerySourceImportedStyleBindingV0 as ImportedStyleBinding,
     OmenaQuerySourceMissingSelectorDiagnosticCandidateV0,
@@ -56,11 +56,15 @@ use omena_query::{
     summarize_omena_query_style_completion_candidate_documentation_for_workspace_file_with_substrate,
     summarize_omena_query_style_diagnostics_for_file,
     summarize_omena_query_style_diagnostics_for_file_with_deep_analysis,
-    summarize_omena_query_style_diagnostics_for_workspace_file_with_external_mode_and_sifs_and_resolution_inputs,
     summarize_omena_query_style_document,
     summarize_omena_query_style_hover_render_parts_for_hover_position,
     summarize_omena_query_style_hover_render_parts_for_workspace_file_hover_position_with_substrate,
     summarize_omena_query_style_refactor_code_actions,
+};
+#[cfg(not(feature = "salsa-style-diagnostics"))]
+use omena_query::{
+    OmenaQueryExternalModuleModeV0,
+    summarize_omena_query_style_diagnostics_for_workspace_file_with_external_mode_and_sifs_and_resolution_inputs,
 };
 use omena_streaming_ifds::summarize_streaming_ifds_workspace_cross_file_reachability_v0;
 #[cfg(test)]
@@ -1017,6 +1021,7 @@ fn resolve_style_diagnostics_for_uri(state: &LspShellState, document_uri: &str) 
     // boundary lattice and parses the `@omena-strict:` sigil; with no SIFs present we fall back to
     // `Ignored`, which is byte-for-byte the legacy behaviour.
     let external_sifs = state.resolution.external_sifs.as_slice();
+    #[cfg(not(feature = "salsa-style-diagnostics"))]
     let external_mode = if external_sifs.is_empty() {
         OmenaQueryExternalModuleModeV0::Ignored
     } else {
@@ -1027,7 +1032,28 @@ fn resolve_style_diagnostics_for_uri(state: &LspShellState, document_uri: &str) 
     // path does — otherwise an alias import dims every selector as `unusedSelector`.
     let resolution_inputs =
         resolution_inputs_for_workspace_uri(state, document.workspace_folder_uri.as_deref());
-    let mut diagnostics_summary =
+    // RFC 0009 Pillar B (rfcs#65): the workspace entry point runs through the
+    // salsa-memoized host (input diff-sync + tracked query) so an unchanged
+    // corpus revalidates instead of recomputing. `--no-default-features`
+    // preserves the straight-line call; byte-identity between the two is
+    // enforced by omena-diff-test's salsaMemoizedVsFromScratchEquivalence
+    // gate. The host derives the external mode from SIF presence exactly as
+    // the straight-line arm below does.
+    #[cfg(feature = "salsa-style-diagnostics")]
+    let workspace_diagnostics_summary = {
+        let mut host_slot = state.style_memo_host.borrow_mut();
+        let host = host_slot.get_or_insert_with(omena_query::OmenaQueryStyleMemoHostV0::new);
+        host.workspace_style_diagnostics(
+            document.uri.as_str(),
+            style_sources.as_slice(),
+            source_documents.as_slice(),
+            state.resolution.package_manifests.as_slice(),
+            external_sifs,
+            &resolution_inputs,
+        )
+    };
+    #[cfg(not(feature = "salsa-style-diagnostics"))]
+    let workspace_diagnostics_summary =
         summarize_omena_query_style_diagnostics_for_workspace_file_with_external_mode_and_sifs_and_resolution_inputs(
             document.uri.as_str(),
             style_sources.as_slice(),
@@ -1037,14 +1063,14 @@ fn resolve_style_diagnostics_for_uri(state: &LspShellState, document_uri: &str) 
             external_mode,
             external_sifs,
             &resolution_inputs,
+        );
+    let mut diagnostics_summary = workspace_diagnostics_summary.unwrap_or_else(|| {
+        summarize_omena_query_style_diagnostics_for_file(
+            document.uri.as_str(),
+            document.text.as_str(),
+            query_candidates.as_slice(),
         )
-        .unwrap_or_else(|| {
-            summarize_omena_query_style_diagnostics_for_file(
-                document.uri.as_str(),
-                document.text.as_str(),
-                query_candidates.as_slice(),
-            )
-        });
+    });
     diagnostics_summary.diagnostics.extend(
         summarize_cross_file_streaming_reachability_diagnostics_for_lsp(
             document.uri.as_str(),

@@ -197,6 +197,11 @@ pub struct LspShellState {
     pub(crate) tsgo_workspace_process_pool: TsgoWorkspaceProcessPoolV0,
     pub(crate) watched_file_changes: Vec<LspWatchedFileChangeState>,
     pub(crate) cascade_narrowing_substrate_memo: RefCell<Option<LspCascadeNarrowingSubstrateMemo>>,
+    /// RFC 0009 Pillar B (rfcs#65): the long-lived salsa-memoized
+    /// style-diagnostics host. Owned by the loop thread; the host diff-syncs
+    /// its inputs on every resolve, so it never serves a stale revision.
+    #[cfg(feature = "salsa-style-diagnostics")]
+    pub(crate) style_memo_host: RefCell<Option<omena_query::OmenaQueryStyleMemoHostV0>>,
 }
 
 impl LspShellState {
