@@ -32,8 +32,11 @@ use serde::Serialize;
 mod cache_equivalence;
 pub use cache_equivalence::{
     OmenaDiffCacheEquivalenceFileReportV0, OmenaDiffCacheEquivalenceReportV0,
-    evaluate_workspace_diagnostics_from_scratch_v0, omena_diff_cache_equivalence_default_corpus_v0,
-    summarize_workspace_diagnostics_equivalence_v0,
+    OmenaDiffSalsaMemoEquivalencePhaseV0, OmenaDiffSalsaMemoEquivalenceReportV0,
+    evaluate_workspace_diagnostics_from_scratch_v0,
+    evaluate_workspace_diagnostics_from_scratch_with_inputs_v0,
+    omena_diff_cache_equivalence_default_corpus_v0, summarize_workspace_diagnostics_equivalence_v0,
+    summarize_workspace_diagnostics_salsa_memo_equivalence_v0,
     summarize_workspace_diagnostics_warm_pass_equivalence_v0,
 };
 
@@ -146,6 +149,10 @@ pub struct OmenaDiffTestBoundarySummary {
     pub cache_equivalence_file_count: usize,
     /// Whether the cached-vs-from-scratch equivalence gate holds.
     pub all_cache_equivalence_files_identical: bool,
+    /// Salsa-memo lifecycle comparisons (RFC 0009 Pillar B merge gate).
+    pub salsa_memo_equivalence_comparison_count: usize,
+    /// Whether the salsa-memoized evaluator matched from-scratch in every phase.
+    pub all_salsa_memo_equivalence_phases_identical: bool,
     /// WPT-style seed metadata report.
     pub wpt_seed_metadata_report: WptSeedCorpusMetadataReportV0,
     /// Soundiness metamorphic relation report.
@@ -154,6 +161,8 @@ pub struct OmenaDiffTestBoundarySummary {
     pub diagnostic_metamorphic_report: DiagnosticMetamorphicReportV0,
     /// Cached-vs-from-scratch diagnostic equivalence report (RFC 0009 §0).
     pub cache_equivalence_report: OmenaDiffCacheEquivalenceReportV0,
+    /// Salsa-memo lifecycle equivalence report (RFC 0009 Pillar B).
+    pub salsa_memo_equivalence_report: OmenaDiffSalsaMemoEquivalenceReportV0,
     /// Named evidence gates closed by this crate.
     pub closed_gates: Vec<&'static str>,
     /// Field-level reports for every seed fixture.
@@ -615,6 +624,10 @@ pub fn summarize_omena_diff_test_boundary() -> OmenaDiffTestBoundarySummary {
         cache_equivalence_corpus.as_slice(),
         &cache_equivalence_resolution_inputs,
     );
+    let salsa_memo_equivalence_report = summarize_workspace_diagnostics_salsa_memo_equivalence_v0(
+        cache_equivalence_corpus.as_slice(),
+        &cache_equivalence_resolution_inputs,
+    );
 
     OmenaDiffTestBoundarySummary {
         schema_version: "0",
@@ -632,6 +645,9 @@ pub fn summarize_omena_diff_test_boundary() -> OmenaDiffTestBoundarySummary {
         all_diagnostic_metamorphic_relations_hold: diagnostic_metamorphic_report.all_relations_hold,
         cache_equivalence_file_count: cache_equivalence_report.file_count,
         all_cache_equivalence_files_identical: cache_equivalence_report.all_files_identical,
+        salsa_memo_equivalence_comparison_count: salsa_memo_equivalence_report.comparison_count,
+        all_salsa_memo_equivalence_phases_identical: salsa_memo_equivalence_report
+            .all_phases_identical,
         closed_gates: vec![
             "parserVsLegacyOracle",
             "legacyParserQuarantinedAsOracle",
@@ -641,6 +657,7 @@ pub fn summarize_omena_diff_test_boundary() -> OmenaDiffTestBoundarySummary {
             "soundinessMetamorphicRelations",
             "diagnosticMetamorphicRelations",
             "cachedVsFromScratchEquivalenceOracle",
+            "salsaMemoizedVsFromScratchEquivalence",
         ],
         reports,
         m3_fixture_seed_report,
@@ -648,6 +665,7 @@ pub fn summarize_omena_diff_test_boundary() -> OmenaDiffTestBoundarySummary {
         soundiness_metamorphic_report,
         diagnostic_metamorphic_report,
         cache_equivalence_report,
+        salsa_memo_equivalence_report,
     }
 }
 

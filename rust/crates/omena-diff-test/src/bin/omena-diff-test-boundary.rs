@@ -12,6 +12,7 @@ fn main() -> ExitCode {
         && summary.all_soundiness_metamorphic_relations_hold
         && summary.all_diagnostic_metamorphic_relations_hold
         && summary.all_cache_equivalence_files_identical
+        && summary.all_salsa_memo_equivalence_phases_identical
     {
         ExitCode::SUCCESS
     } else {
