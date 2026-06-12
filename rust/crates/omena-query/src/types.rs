@@ -685,6 +685,28 @@ pub struct OmenaQueryConsumerBuildSummaryV0 {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
+pub struct OmenaQueryBundleCodeSplitWorkspacePlanV0 {
+    pub schema_version: &'static str,
+    pub product: &'static str,
+    pub primary_entry_style_path: String,
+    pub configured_entry_count: usize,
+    pub output_count: usize,
+    pub shared_boundary_count: usize,
+    pub outputs: Vec<OmenaQueryBundleCodeSplitWorkspacePlanOutputV0>,
+    pub ready_surfaces: Vec<&'static str>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct OmenaQueryBundleCodeSplitWorkspacePlanOutputV0 {
+    pub source_path: String,
+    pub is_entry: bool,
+    pub split_boundary: &'static str,
+    pub reachable_from_entries: Vec<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct OmenaQueryTransformPassSummaryV0 {
     pub id: &'static str,
     pub title: &'static str,

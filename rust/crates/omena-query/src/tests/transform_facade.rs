@@ -3,6 +3,7 @@ use crate::{
     OmenaQueryTransformExecutionContextV0,
     attach_omena_query_consumer_build_source_map_v3_with_sources_and_resolution_inputs,
     summarize_omena_query_bundle_code_split_source_map_v3,
+    summarize_omena_query_bundle_code_split_workspace_plan,
 };
 
 #[test]
@@ -339,6 +340,61 @@ fn consumer_build_summary_can_attach_bundle_asset_urls() -> Result<(), String> {
     assert_eq!(bundle.code_split_chunks.len(), 2);
     assert!(summary.ready_surfaces.contains(&"bundleAssetUrlResolution"));
     assert!(summary.ready_surfaces.contains(&"bundleCodeSplitPlan"));
+    Ok(())
+}
+
+#[test]
+fn bundle_code_split_workspace_plan_surfaces_entry_config_and_shared_boundaries()
+-> Result<(), String> {
+    let sources = vec![
+        OmenaQueryStyleSourceInputV0 {
+            style_path: "src/app.css".to_string(),
+            style_source: r#"@import "./theme/tokens.css"; .app { color: green; }"#.to_string(),
+        },
+        OmenaQueryStyleSourceInputV0 {
+            style_path: "src/admin.css".to_string(),
+            style_source: r#"@import "./theme/tokens.css"; .admin { color: green; }"#.to_string(),
+        },
+        OmenaQueryStyleSourceInputV0 {
+            style_path: "src/theme/tokens.css".to_string(),
+            style_source: ".token { color: blue; }".to_string(),
+        },
+    ];
+    let plan = summarize_omena_query_bundle_code_split_workspace_plan(
+        "src/app.css",
+        &["src/admin.css".to_string()],
+        &sources,
+        &OmenaQueryStyleResolutionInputsV0::default(),
+    )?;
+    let output_for = |source_path: &str| {
+        plan.outputs
+            .iter()
+            .find(|output| output.source_path == source_path)
+            .ok_or_else(|| format!("missing output for {source_path}"))
+    };
+
+    assert_eq!(plan.product, "omena-query.bundle-code-split-workspace-plan");
+    assert_eq!(plan.configured_entry_count, 1);
+    assert_eq!(plan.shared_boundary_count, 1);
+    assert!(plan.ready_surfaces.contains(&"bundleCodeSplitPlan"));
+    assert!(plan.ready_surfaces.contains(&"bundleCodeSplitBoundaryPlan"));
+    assert!(plan.ready_surfaces.contains(&"bundleCodeSplitEntryConfig"));
+    assert!(
+        plan.ready_surfaces
+            .contains(&"bundleCodeSplitSharedChunkPlan")
+    );
+
+    assert_eq!(output_for("src/app.css")?.split_boundary, "entry");
+    assert!(output_for("src/app.css")?.is_entry);
+    assert_eq!(output_for("src/admin.css")?.split_boundary, "entryConfig");
+    assert!(output_for("src/admin.css")?.is_entry);
+    let shared = output_for("src/theme/tokens.css")?;
+    assert_eq!(shared.split_boundary, "shared");
+    assert!(!shared.is_entry);
+    assert_eq!(
+        shared.reachable_from_entries,
+        vec!["src/admin.css".to_string(), "src/app.css".to_string()]
+    );
     Ok(())
 }
 

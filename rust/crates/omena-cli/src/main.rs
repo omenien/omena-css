@@ -25,6 +25,7 @@ use omena_query::{
     resolve_omena_query_style_uri_for_specifier_with_resolution_inputs,
     rewrite_omena_transform_bundle_asset_urls_in_source,
     summarize_omena_query_bundle_code_split_source_map_v3,
+    summarize_omena_query_bundle_code_split_workspace_plan,
     summarize_omena_query_consumer_check_style_source,
     summarize_omena_query_dynamic_classname_m_tier_diagnostics_with_context_depth,
     summarize_omena_query_expression_domain_incremental_flow_analysis,
@@ -3432,32 +3433,31 @@ fn emit_bundle_code_split_outputs(
         })
         .collect::<BTreeMap<_, _>>();
     let source_path_lookup = bundle_split_source_path_lookup(sources);
-    let mut entry_style_paths = vec![entry_style_path.to_string()];
-    for configured_entry in bundle_entry_style_paths {
-        if configured_entry != entry_style_path && !entry_style_paths.contains(configured_entry) {
-            entry_style_paths.push(configured_entry.clone());
-        }
-    }
-    for configured_entry in &entry_style_paths {
-        if !source_by_path.contains_key(configured_entry.as_str()) {
-            return Err(format!(
-                "bundle entry source is not loaded: {configured_entry}"
-            ));
-        }
-    }
-    let entry_style_path_set = entry_style_paths.iter().cloned().collect::<BTreeSet<_>>();
-    let entry_reachability = collect_bundle_code_split_entry_reachability(
-        entry_style_paths.as_slice(),
+    let workspace_split_plan = summarize_omena_query_bundle_code_split_workspace_plan(
+        entry_style_path,
+        bundle_entry_style_paths,
         sources,
         resolution_inputs,
-        &source_path_lookup,
-    );
-    let reachable_paths = entry_reachability.keys().cloned().collect::<Vec<_>>();
+    )?;
+    let split_boundary_by_path = workspace_split_plan
+        .outputs
+        .iter()
+        .map(|output| (output.source_path.as_str(), output.split_boundary))
+        .collect::<BTreeMap<_, _>>();
+    let entry_style_path_set = workspace_split_plan
+        .outputs
+        .iter()
+        .filter(|output| output.is_entry)
+        .map(|output| output.source_path.clone())
+        .collect::<BTreeSet<_>>();
+    let reachable_paths = workspace_split_plan
+        .outputs
+        .iter()
+        .map(|output| output.source_path.clone())
+        .collect::<Vec<_>>();
 
     let mut manifest_outputs = Vec::new();
     let mut upstream_maps_applied = false;
-    let mut configured_entry_count = 0usize;
-    let mut shared_boundary_count = 0usize;
     for style_path in reachable_paths {
         let Some(source) = source_by_path.get(style_path.as_str()) else {
             continue;
@@ -3531,18 +3531,10 @@ fn emit_bundle_code_split_outputs(
                 path_string(&output_path)
             )
         })?;
-        let split_boundary = bundle_code_split_manifest_boundary(
-            style_path.as_str(),
-            entry_style_path,
-            &entry_style_path_set,
-            &entry_reachability,
-        );
-        if split_boundary == "entryConfig" {
-            configured_entry_count = configured_entry_count.saturating_add(1);
-        }
-        if split_boundary == "shared" {
-            shared_boundary_count = shared_boundary_count.saturating_add(1);
-        }
+        let split_boundary = split_boundary_by_path
+            .get(style_path.as_str())
+            .copied()
+            .unwrap_or("styleDependency");
         manifest_outputs.push(BundleCodeSplitManifestOutputV0 {
             source_path: style_path.clone(),
             file_name: file_name.clone(),
@@ -3575,91 +3567,9 @@ fn emit_bundle_code_split_outputs(
     })?;
     Ok(BundleCodeSplitEmissionSummaryV0 {
         upstream_maps_applied,
-        configured_entry_count,
-        shared_boundary_count,
+        configured_entry_count: workspace_split_plan.configured_entry_count,
+        shared_boundary_count: workspace_split_plan.shared_boundary_count,
     })
-}
-
-fn collect_bundle_code_split_entry_reachability(
-    entry_style_paths: &[String],
-    sources: &[OmenaQueryStyleSourceInputV0],
-    resolution_inputs: &OmenaQueryStyleResolutionInputsV0,
-    source_path_lookup: &BTreeMap<String, String>,
-) -> BTreeMap<String, BTreeSet<String>> {
-    let source_by_path = sources
-        .iter()
-        .map(|source| (source.style_path.as_str(), source.style_source.as_str()))
-        .collect::<BTreeMap<_, _>>();
-    let mut reachability = BTreeMap::<String, BTreeSet<String>>::new();
-
-    for entry_style_path in entry_style_paths {
-        let mut visited = BTreeSet::new();
-        let mut stack = vec![entry_style_path.clone()];
-
-        while let Some(style_path) = stack.pop() {
-            if !visited.insert(style_path.clone()) {
-                continue;
-            }
-            let Some(source) = source_by_path.get(style_path.as_str()) else {
-                continue;
-            };
-            reachability
-                .entry(style_path.clone())
-                .or_default()
-                .insert(entry_style_path.clone());
-            let bundle = summarize_omena_transform_bundle_from_source(
-                style_path.as_str(),
-                source,
-                infer_cli_style_dialect(style_path.as_str()),
-            );
-            for edge in bundle.bundle_edges {
-                if !matches!(
-                    edge.kind,
-                    TransformBundleEdgeKind::CssImport | TransformBundleEdgeKind::LessImport
-                ) {
-                    continue;
-                }
-                let Some(import_source) = edge.import_source.as_deref() else {
-                    continue;
-                };
-                let Some(target_path) = resolve_bundle_code_split_import_path(
-                    style_path.as_str(),
-                    import_source,
-                    resolution_inputs,
-                ) else {
-                    continue;
-                };
-                if let Some(source_path) = source_path_lookup.get(target_path.as_str())
-                    && source_by_path.contains_key(source_path.as_str())
-                {
-                    stack.push(source_path.clone());
-                }
-            }
-        }
-    }
-
-    reachability
-}
-
-fn bundle_code_split_manifest_boundary(
-    style_path: &str,
-    primary_entry_style_path: &str,
-    entry_style_paths: &BTreeSet<String>,
-    entry_reachability: &BTreeMap<String, BTreeSet<String>>,
-) -> &'static str {
-    if style_path == primary_entry_style_path {
-        return "entry";
-    }
-    if entry_style_paths.contains(style_path) {
-        return "entryConfig";
-    }
-    if entry_reachability
-        .get(style_path)
-        .is_some_and(|entries| entries.len() > 1)
-    {
-        return "shared";
-    }
-    "styleDependency"
 }
 
 fn rewrite_bundle_code_split_imports_for_source(
