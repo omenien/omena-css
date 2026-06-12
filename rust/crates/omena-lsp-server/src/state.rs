@@ -11,7 +11,7 @@ use omena_tsgo_client::TsgoWorkspaceProcessPoolV0;
 use serde::Serialize;
 use std::cell::RefCell;
 use std::collections::{BTreeMap, BTreeSet};
-use std::sync::Arc;
+use std::sync::{Arc, Mutex, MutexGuard};
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -192,12 +192,23 @@ pub struct LspShellState {
     pub(crate) cancelled_request_ids: IncrementalCancellationRegistryV0,
     pub(crate) workspace_style_index_exhausted_count: usize,
     pub(crate) configuration_change_count: usize,
-    pub(crate) documents: BTreeMap<String, LspTextDocumentState>,
+    /// RFC 0009 Pillar A (rfcs#67, slice A-min): documents are `Arc` entries so a
+    /// query snapshot clones pointers instead of the corpus; mutation paths go
+    /// through `document_mut`/`insert_document`, which copy-on-write via
+    /// `Arc::make_mut`/`Arc::new` (a worker holding a snapshot of a document
+    /// forces at most a one-document deep clone on that document's next edit).
+    pub(crate) documents: BTreeMap<String, Arc<LspTextDocumentState>>,
     pub(crate) open_document_uris: BTreeSet<String>,
     pub(crate) workspace_runtime_registry: WorkspaceRuntimeRegistry,
     pub(crate) tsgo_workspace_process_pool: TsgoWorkspaceProcessPoolV0,
     pub(crate) watched_file_changes: Vec<LspWatchedFileChangeState>,
-    pub(crate) cascade_narrowing_substrate_memo: RefCell<Option<LspCascadeNarrowingSubstrateMemo>>,
+    /// Shared (not per-state) since RFC 0009 Pillar A: the loop and dispatched
+    /// query snapshots reuse ONE memo slot so a substrate built on either side is
+    /// visible to both. The memo is self-validating by exact input compare, so
+    /// last-writer-wins is safe; lock only to compare and to store — never across
+    /// the substrate collection (see `cascade_narrowing_substrate_for_style_sources`).
+    pub(crate) cascade_narrowing_substrate_memo:
+        Arc<Mutex<Option<LspCascadeNarrowingSubstrateMemo>>>,
     /// RFC 0009 Pillar C (rfcs#66): fail-soft write breaker for the disk
     /// diagnostics shard cache. Interior mutability because the write-behind
     /// runs on the immutable resolve path; owned by the single loop thread.
@@ -220,25 +231,37 @@ impl LspShellState {
 
     pub fn document(&self, uri: &str) -> Option<&LspTextDocumentState> {
         let storage_uri = Self::document_storage_uri(uri);
-        self.documents.get(storage_uri.as_str()).or_else(|| {
-            self.documents
-                .iter()
-                .find(|(document_uri, _)| crate::protocol::file_uri_equivalent(document_uri, uri))
-                .map(|(_, document)| document)
-        })
+        self.documents
+            .get(storage_uri.as_str())
+            .map(Arc::as_ref)
+            .or_else(|| {
+                self.documents
+                    .iter()
+                    .find(|(document_uri, _)| {
+                        crate::protocol::file_uri_equivalent(document_uri, uri)
+                    })
+                    .map(|(_, document)| document.as_ref())
+            })
     }
 
     pub(crate) fn document_mut(&mut self, uri: &str) -> Option<&mut LspTextDocumentState> {
         let storage_uri = Self::document_storage_uri(uri);
         if self.documents.contains_key(storage_uri.as_str()) {
-            return self.documents.get_mut(storage_uri.as_str());
+            return self
+                .documents
+                .get_mut(storage_uri.as_str())
+                .map(Arc::make_mut);
         }
         let equivalent_uri = self
             .documents
             .keys()
             .find(|document_uri| crate::protocol::file_uri_equivalent(document_uri, uri))
             .cloned();
-        equivalent_uri.and_then(|document_uri| self.documents.get_mut(document_uri.as_str()))
+        equivalent_uri.and_then(|document_uri| {
+            self.documents
+                .get_mut(document_uri.as_str())
+                .map(Arc::make_mut)
+        })
     }
 
     pub(crate) fn document_storage_uri(uri: &str) -> String {
@@ -278,12 +301,15 @@ impl LspShellState {
     pub(crate) fn insert_document(&mut self, uri: &str, document: LspTextDocumentState) {
         let storage_uri = Self::document_storage_uri(uri);
         self.remove_document_uri(uri);
-        self.documents.insert(storage_uri, document);
+        self.documents.insert(storage_uri, Arc::new(document));
     }
 
     pub(crate) fn remove_document_uri(&mut self, uri: &str) -> Option<LspTextDocumentState> {
         let storage_uri = Self::document_storage_uri(uri);
-        let removed = self.documents.remove(storage_uri.as_str());
+        let removed = self
+            .documents
+            .remove(storage_uri.as_str())
+            .map(Arc::unwrap_or_clone);
         let equivalent_uris = self
             .documents
             .keys()
@@ -321,9 +347,76 @@ impl LspShellState {
                 .resolution
                 .workspace_style_resolution_inputs
                 .len(),
-            documents: self.documents.values().cloned().collect(),
+            documents: self
+                .documents
+                .values()
+                .map(|document| (**document).clone())
+                .collect(),
             workspace_folders: self.workspace_runtime_registry.folder_snapshots(),
             watched_file_changes: self.watched_file_changes.clone(),
         }
     }
+
+    pub(crate) fn cascade_narrowing_substrate_memo_lock(
+        &self,
+    ) -> MutexGuard<'_, Option<LspCascadeNarrowingSubstrateMemo>> {
+        self.cascade_narrowing_substrate_memo
+            .lock()
+            .unwrap_or_else(|error| error.into_inner())
+    }
+
+    /// RFC 0009 Pillar A (rfcs#67, slice A-min): build the copy-on-write read
+    /// model for the dispatched query lane. Called on the loop thread at
+    /// dispatch time; cost is O(documents) `Arc` pointer clones plus plain
+    /// clones of the small settings/registry values — never a corpus deep clone.
+    pub fn query_snapshot(&self) -> LspQuerySnapshotV0 {
+        LspQuerySnapshotV0 {
+            state: LspShellState {
+                features: self.features.clone(),
+                diagnostics: self.diagnostics.clone(),
+                resolution: self.resolution.clone(),
+                documents: self.documents.clone(),
+                open_document_uris: self.open_document_uris.clone(),
+                workspace_runtime_registry: self.workspace_runtime_registry.clone(),
+                cascade_narrowing_substrate_memo: Arc::clone(
+                    &self.cascade_narrowing_substrate_memo,
+                ),
+                ..LspShellState::default()
+            },
+        }
+    }
 }
+
+/// RFC 0009 Pillar A (rfcs#67, slice A-min): immutable-enough read model for the
+/// dispatched query lane (`textDocument/hover` + `textDocument/definition`).
+///
+/// Internally this is a partial [`LspShellState`] so the existing resolver chain
+/// (`resolve_lsp_hover`/`resolve_lsp_definition` and every `&LspShellState`
+/// callee under them) runs against it unchanged. Carried fields: the documents
+/// map (`Arc` entries — pointer clones), `open_document_uris`, `features`,
+/// `diagnostics` + `resolution` settings, `workspace_runtime_registry`, and the
+/// SHARED cascade-narrowing memo handle. Loop-owned machinery is deliberately
+/// left at `Default` and must stay loop-side: the tsgo process pool (touched
+/// only on didOpen/didChange/configuration mutation paths), the disk-cache
+/// breaker session and the salsa style-memo host (touched only on the
+/// style-diagnostics resolve path, `resolve_style_diagnostics`), and the
+/// cancellation registry (taken on the loop before dispatch). The
+/// hover/definition resolver chain reads none of them, so a worker holding this
+/// snapshot can never contend with a loop-side salsa `set_*`.
+#[derive(Debug)]
+pub struct LspQuerySnapshotV0 {
+    pub(crate) state: LspShellState,
+}
+
+impl LspQuerySnapshotV0 {
+    pub(crate) fn shell_state(&self) -> &LspShellState {
+        &self.state
+    }
+}
+
+// The dispatched query lane moves snapshots onto the worker thread; keep that
+// property checked at compile time independent of the worker code shape.
+const _: () = {
+    const fn assert_send<T: Send>() {}
+    assert_send::<LspQuerySnapshotV0>();
+};

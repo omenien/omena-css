@@ -2,7 +2,7 @@ use crate::diagnostics_scheduler::{diagnostics_schedule_event, run_diagnostics_s
 use crate::lsp_output::ScheduledLspOutput;
 use crate::{
     CANCEL_REQUEST_METHOD, CASCADE_AT_POSITION_REQUEST, DEBUG_STATE_REQUEST,
-    EXPLAIN_HOVER_TRACE_REQUEST, LspShellState, REQUEST_CANCELLED_ERROR_CODE,
+    EXPLAIN_HOVER_TRACE_REQUEST, LspQuerySnapshotV0, LspShellState, REQUEST_CANCELLED_ERROR_CODE,
     RUNTIME_LOOP_PROBE_REQUEST, SOURCE_DIAGNOSTICS_REQUEST, STYLE_CONTEXT_INDEX_REQUEST,
     STYLE_DIAGNOSTICS_REQUEST, STYLE_HOVER_CANDIDATES_REQUEST, apply_diagnostic_settings,
     apply_feature_settings, apply_resolution_settings, current_node_lsp_capability_contract,
@@ -245,6 +245,122 @@ pub fn handle_lsp_message_outputs(state: &mut LspShellState, message: Value) -> 
         .into_iter()
         .map(ScheduledLspOutput::into_value)
         .collect()
+}
+
+/// One loop turn for the stdio server (RFC 0009 Pillar A, rfcs#67 slice A-min).
+///
+/// `Outputs` is the synchronous path — every notification and every mutating or
+/// loop-owned request keeps its existing FIFO behaviour. `DispatchQuery` hands
+/// the heaviest read-only request class (`textDocument/hover` and
+/// `textDocument/definition`, the 75/95 of the runtime-loop burst) to a worker
+/// together with a copy-on-write snapshot taken HERE on the loop thread, so the
+/// loop turn for that class collapses to read + O(documents) pointer clones +
+/// channel send.
+#[derive(Debug)]
+pub enum LspLoopTurnV0 {
+    Outputs(Vec<ScheduledLspOutput>),
+    // Boxed: a dispatch carries the whole snapshot (settings + documents map),
+    // which would otherwise dominate the enum size for the common Outputs turn.
+    DispatchQuery(Box<LspQueryDispatchV0>),
+}
+
+/// A dispatched hover/definition request: the request message paired with the
+/// loop-consistent snapshot it must be answered from.
+#[derive(Debug)]
+pub struct LspQueryDispatchV0 {
+    pub snapshot: LspQuerySnapshotV0,
+    pub message: Value,
+}
+
+/// Loop-side turn handler for the stdio server. Mirrors
+/// [`handle_lsp_message_scheduled_outputs`] except that dispatchable query
+/// requests are returned as jobs instead of being resolved inline.
+///
+/// The `$/cancelRequest` gate stays loop-side: a request already cancelled when
+/// it arrives is answered with `REQUEST_CANCELLED_ERROR_CODE` here and never
+/// dispatched (the take happens exactly once — the dispatch path does not call
+/// [`handle_lsp_message`], so there is no double-take). A `$/cancelRequest` for
+/// a request that was ALREADY dispatched is a documented no-op in this slice:
+/// the response is still computed and sent, which the LSP allows; in-flight
+/// cancellation tokens are a follow-up slice.
+pub fn handle_lsp_message_scheduled_outputs_or_dispatch(
+    state: &mut LspShellState,
+    message: Value,
+) -> LspLoopTurnV0 {
+    if let Some(request_id) = dispatchable_query_request_id(&message) {
+        if take_cancelled_request(state, &request_id) {
+            return LspLoopTurnV0::Outputs(vec![ScheduledLspOutput::immediate(
+                cancelled_request_response(request_id),
+            )]);
+        }
+        return LspLoopTurnV0::DispatchQuery(Box::new(LspQueryDispatchV0 {
+            snapshot: state.query_snapshot(),
+            message,
+        }));
+    }
+    LspLoopTurnV0::Outputs(handle_lsp_message_scheduled_outputs(state, message))
+}
+
+/// The dispatched request class: hover/definition REQUESTS (an `id` is
+/// required — without one there is nothing to respond to). Notifications named
+/// like these methods fall through to the synchronous path unchanged.
+/// JSON-RPC internal-error response for a dispatched query whose resolver
+/// panicked on the worker: the request still gets exactly one response (a
+/// silent drop would hang the client), and the worker survives to serve the
+/// rest of its queue.
+pub fn dispatched_query_internal_error_response(dispatch: &LspQueryDispatchV0) -> Option<Value> {
+    let request_id = dispatchable_query_request_id(&dispatch.message)?;
+    Some(json!({
+        "jsonrpc": "2.0",
+        "id": request_id,
+        "error": {
+            "code": -32603,
+            "message": "internal error while resolving the dispatched query",
+        },
+    }))
+}
+
+fn dispatchable_query_request_id(message: &Value) -> Option<Value> {
+    let method = message.get("method").and_then(Value::as_str)?;
+    if method != "textDocument/hover" && method != "textDocument/definition" {
+        return None;
+    }
+    message.get("id").cloned()
+}
+
+/// Worker-side resolution of a dispatched query request. Mirrors the
+/// synchronous `handle_lsp_message` arms exactly, including the feature gating
+/// (evaluated against the snapshot, i.e. the settings in force at dispatch
+/// time). Returns the complete JSON-RPC response; `None` only for messages that
+/// were never dispatchable (defensive — the loop only dispatches
+/// hover/definition requests).
+pub fn resolve_dispatched_query_response(dispatch: &LspQueryDispatchV0) -> Option<Value> {
+    let request_id = dispatchable_query_request_id(&dispatch.message)?;
+    let method = dispatch.message.get("method").and_then(Value::as_str)?;
+    let params = dispatch.message.get("params");
+    let state = dispatch.snapshot.shell_state();
+    let result = match method {
+        "textDocument/hover" => {
+            if state.features.hover {
+                resolve_lsp_hover(state, params)
+            } else {
+                Value::Null
+            }
+        }
+        "textDocument/definition" => {
+            if state.features.definition {
+                resolve_lsp_definition(state, params)
+            } else {
+                Value::Null
+            }
+        }
+        _ => return None,
+    };
+    Some(json!({
+        "jsonrpc": "2.0",
+        "id": request_id,
+        "result": result,
+    }))
 }
 
 pub fn handle_lsp_message_scheduled_outputs(

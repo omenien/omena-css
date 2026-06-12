@@ -30,6 +30,8 @@ mod lifecycle_configuration;
 mod lifecycle_text_sync;
 #[path = "tests/narrowing_substrate.rs"]
 mod narrowing_substrate;
+#[path = "tests/query_dispatch.rs"]
+mod query_dispatch;
 #[path = "tests/sass_resolution_package.rs"]
 mod sass_resolution_package;
 #[path = "tests/sass_resolution_symlink.rs"]
@@ -265,7 +267,8 @@ fn codelens_keeps_references_when_workspace_owner_uri_encoding_differs() {
         }),
     );
     if let Some(document) = state.documents.get_mut(source_uri) {
-        document.workspace_folder_uri = Some(encoded_workspace_uri.to_string());
+        std::sync::Arc::make_mut(document).workspace_folder_uri =
+            Some(encoded_workspace_uri.to_string());
     }
 
     let code_lens_response = handle_lsp_message(

@@ -24,14 +24,19 @@ const PROBE_INTERVAL_MS = parsePositiveInteger(
   process.env.OMENA_LSP_RUNTIME_LOOP_PROBE_INTERVAL_MS,
   20,
 );
-// Budget calibration (2026-06-12): restored to the original tight values after RFC 0009
-// pillar E landed (rfcs#63 + E-ii) — the substrate.rs double-parse is gone and the
-// name-independent cascade-narrowing collection is memoized per workspace revision
-// (OmenaQueryStyleCascadeNarrowingSubstrateV0), so per-candidate hover/completion docs
-// no longer re-collect the corpus and the burst drain returns to its pre-12770056
-// profile. The loop is still synchronous FIFO: a probe issued behind the request burst
-// measures burst drain, and a 12770056-class depth regression trips MAX again. (The
-// 2026-06-10 interim values were 4s window / p95 1200 / max 2500.)
+// Budget calibration (2026-06-12, RFC 0009 Pillar A slice A-min, rfcs#67): hover and
+// definition requests now leave the loop — the server dispatches them to a query worker
+// with a copy-on-write snapshot, so the probe (which stays loop-side ON PURPOSE) no
+// longer measures their burst drain. What the probe measures now is the turn time of
+// everything still synchronous: didOpen/didChange + diagnostics scheduling, the tsgo
+// round trip, references/completion, and the O(documents) snapshot build at dispatch.
+// Budgets stay at the Pillar E values (1.2s window / p95 150 / max 400): they still
+// gate mutation/notification stalls, and a regression that drags hover/definition back
+// onto the loop (or makes the snapshot build deep-clone the corpus) trips them again.
+// Per-class request latency for the dispatched lane stays visible via the
+// requestLatency summary printed below. (History: pre-Pillar-E interim values were 4s
+// window / p95 1200 / max 2500; Pillar E restored the tight values; Pillar A keeps
+// them with the loop no longer serving the hover/definition class.)
 const PROBE_DURATION_MS = parsePositiveInteger(
   process.env.OMENA_LSP_RUNTIME_LOOP_PROBE_DURATION_MS,
   1_200,

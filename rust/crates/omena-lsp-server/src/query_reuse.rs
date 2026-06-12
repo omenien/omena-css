@@ -62,6 +62,12 @@ pub fn rust_query_reuse_contract() -> RustQueryReuseBoundaryV0 {
 /// (rfcs#63 E-ii). A hit returns the memoized substrate (zero re-collections); a miss
 /// rebuilds and replaces the memo. The compare is exact content equality — cheap next
 /// to the collection pass it avoids — so reuse can never serve stale narrowing inputs.
+///
+/// RFC 0009 Pillar A (rfcs#67): the memo slot is shared between the loop and
+/// dispatched query workers, so the mutex is held ONLY to compare and to store —
+/// never across the collection pass. Two threads racing the same miss both build
+/// (work duplicated, never wrong) and the last store wins; the next caller with
+/// the same inputs hits whichever copy landed last.
 pub(crate) fn cascade_narrowing_substrate_for_style_sources(
     state: &LspShellState,
     style_sources: &[OmenaQueryStyleSourceInputV0],
@@ -69,7 +75,7 @@ pub(crate) fn cascade_narrowing_substrate_for_style_sources(
 ) -> Arc<OmenaQueryStyleCascadeNarrowingSubstrateV0> {
     let package_manifests = state.resolution.package_manifests.as_slice();
     {
-        let memo = state.cascade_narrowing_substrate_memo.borrow();
+        let memo = state.cascade_narrowing_substrate_memo_lock();
         if let Some(memo) = memo.as_ref()
             && memo.style_sources.as_slice() == style_sources
             && memo.package_manifests.as_slice() == package_manifests
@@ -83,7 +89,7 @@ pub(crate) fn cascade_narrowing_substrate_for_style_sources(
         package_manifests,
         resolution_inputs,
     ));
-    *state.cascade_narrowing_substrate_memo.borrow_mut() = Some(LspCascadeNarrowingSubstrateMemo {
+    *state.cascade_narrowing_substrate_memo_lock() = Some(LspCascadeNarrowingSubstrateMemo {
         style_sources: style_sources.to_vec(),
         package_manifests: package_manifests.to_vec(),
         resolution_inputs: resolution_inputs.clone(),

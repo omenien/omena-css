@@ -20,7 +20,9 @@ pub use lsp_output::*;
 #[cfg(test)]
 pub(crate) use message_loop::current_time_millis;
 pub use message_loop::{
+    LspLoopTurnV0, LspQueryDispatchV0, dispatched_query_internal_error_response,
     handle_lsp_message, handle_lsp_message_outputs, handle_lsp_message_scheduled_outputs,
+    handle_lsp_message_scheduled_outputs_or_dispatch, resolve_dispatched_query_response,
 };
 use omena_query::{
     OmenaQueryCodeActionV0, OmenaQueryCompletionCandidateV0, OmenaQueryCompletionItemV0,
@@ -624,6 +626,7 @@ fn insert_workspace_folder(state: &mut LspShellState, folder: &Value) {
 fn refresh_document_workspace_owners(state: &mut LspShellState) {
     let workspace_runtime_registry = state.workspace_runtime_registry.clone();
     for document in state.documents.values_mut() {
+        let document = std::sync::Arc::make_mut(document);
         document.workspace_folder_uri =
             workspace_runtime_registry.resolve_owner_uri(document.uri.as_str());
     }
@@ -3699,7 +3702,7 @@ fn first_style_document_for_workspace<'a>(
         .values()
         .filter(|document| document_has_style_index(document))
         .filter(|document| workspace_folder_compatible(workspace_folder_uri, document))
-        .map(|document| (document.uri.clone(), document))
+        .map(|document| (document.uri.clone(), document.as_ref()))
         .next()
 }
 

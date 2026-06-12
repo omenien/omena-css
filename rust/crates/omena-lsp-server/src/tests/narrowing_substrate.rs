@@ -106,7 +106,7 @@ fn cascade_narrowing_substrate_memo_reuses_while_corpus_unchanged() -> TestResul
         hover_text.contains("Cascade narrowed values:") && hover_text.contains("`blue`"),
         "{hover_text}"
     );
-    assert!(state.cascade_narrowing_substrate_memo.borrow().is_some());
+    assert!(state.cascade_narrowing_substrate_memo_lock().is_some());
     Ok(())
 }
 
@@ -121,8 +121,7 @@ fn cascade_narrowing_substrate_memo_rebuilds_after_document_change() -> TestResu
         "imported module value should participate before the edit: {before_text}"
     );
     let before_substrate = state
-        .cascade_narrowing_substrate_memo
-        .borrow()
+        .cascade_narrowing_substrate_memo_lock()
         .as_ref()
         .map(|memo| Arc::clone(&memo.substrate))
         .ok_or_else(|| std::io::Error::other("hover must populate the narrowing substrate memo"))?;
@@ -152,8 +151,7 @@ fn cascade_narrowing_substrate_memo_rebuilds_after_document_change() -> TestResu
         "memoized narrowing must never serve the pre-edit corpus: {after_text}"
     );
     let after_substrate = state
-        .cascade_narrowing_substrate_memo
-        .borrow()
+        .cascade_narrowing_substrate_memo_lock()
         .as_ref()
         .map(|memo| Arc::clone(&memo.substrate))
         .ok_or_else(|| {
