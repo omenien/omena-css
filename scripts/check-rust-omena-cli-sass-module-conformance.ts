@@ -69,7 +69,11 @@ assert.equal(report.gapCount, rowsByStatus("gap").length);
 assert.equal(report.decidedOutCount, rowsByStatus("decidedOut").length);
 assert.equal(report.policyCount, rowsByStatus("policy").length);
 assert.ok(report.modeledCount >= 6, "expected modeled Sass module semantics rows");
-assert.equal(report.gapCount, 0, "S2 conformance gap rows should be closed or explicitly decided out");
+assert.equal(
+  report.gapCount,
+  0,
+  "S2 conformance gap rows should be closed or explicitly decided out",
+);
 assert.equal(report.policyCount, 2, "Q3 and Q5 policy rows are mandatory");
 
 for (const surface of [
