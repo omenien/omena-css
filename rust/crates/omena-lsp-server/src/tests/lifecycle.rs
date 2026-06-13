@@ -349,6 +349,50 @@ fn assert_work_done_progress_end(output: &Value) {
 }
 
 #[test]
+fn work_done_progress_end_reports_background_continuation_count()
+-> Result<(), Box<dyn std::error::Error>> {
+    let exhausted_result = LspWorkspaceIndexResultV0 {
+        revision: 1,
+        progress_token: Some("workspace-index-token".to_string()),
+        documents: Vec::new(),
+        pending_file_uris: vec![
+            "file:///workspace/src/A.module.scss".to_string(),
+            "file:///workspace/src/B.module.scss".to_string(),
+        ],
+        indexed_count: 512,
+        pending_file_count: 2,
+        exhausted: true,
+    };
+    let exhausted_output = workspace_index_progress_end_output(&exhausted_result)
+        .ok_or_else(|| std::io::Error::other("progress token should produce an End notification"))?
+        .into_value();
+    assert_eq!(
+        exhausted_output
+            .pointer("/params/value/message")
+            .and_then(Value::as_str),
+        Some("Workspace index updated; continuing with 2 remaining files in the background")
+    );
+
+    let completed_result = LspWorkspaceIndexResultV0 {
+        progress_token: Some("workspace-index-token".to_string()),
+        pending_file_uris: Vec::new(),
+        pending_file_count: 0,
+        exhausted: false,
+        ..exhausted_result
+    };
+    let completed_output = workspace_index_progress_end_output(&completed_result)
+        .ok_or_else(|| std::io::Error::other("progress token should produce an End notification"))?
+        .into_value();
+    assert_eq!(
+        completed_output
+            .pointer("/params/value/message")
+            .and_then(Value::as_str),
+        Some("Workspace index updated")
+    );
+    Ok(())
+}
+
+#[test]
 fn reports_unknown_requests_without_panicking() {
     let mut state = LspShellState::default();
     let response = handle_lsp_message(

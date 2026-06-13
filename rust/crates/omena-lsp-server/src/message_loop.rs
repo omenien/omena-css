@@ -532,10 +532,13 @@ pub fn workspace_index_progress_end_output(
     result: &LspWorkspaceIndexResultV0,
 ) -> Option<ScheduledLspOutput> {
     let token = result.progress_token.as_deref()?;
-    let message = if result.exhausted {
-        "Workspace index updated; additional files remain budgeted for later refreshes"
+    let message = if result.exhausted && result.pending_file_count > 0 {
+        format!(
+            "Workspace index updated; continuing with {} remaining files in the background",
+            result.pending_file_count
+        )
     } else {
-        "Workspace index updated"
+        "Workspace index updated".to_string()
     };
     Some(ScheduledLspOutput::immediate(json!({
         "jsonrpc": "2.0",
