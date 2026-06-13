@@ -241,9 +241,51 @@ pub fn summarize_omena_query_boundary(input: &EngineInputV2) -> OmenaQueryBounda
             "designSystemMinimumDescription",
             "polynomialProvenanceDiagnostics",
         ],
+        style_completion_consumer_decisions: style_completion_consumer_decisions(),
         cme_coupled_surfaces: vec!["EngineInputV2", "producerQueryFragments"],
         next_decoupling_targets: Vec::new(),
     }
+}
+
+fn style_completion_consumer_decisions() -> Vec<OmenaQueryStyleCompletionConsumerDecisionV0> {
+    vec![
+        OmenaQueryStyleCompletionConsumerDecisionV0 {
+            consumer: "omena-lsp-server",
+            surface: "textDocument/completion",
+            decision: "adoptWorkspaceVisibleSassSymbols",
+            rationale: "The Rust LSP owns workspace state and can route style completion through the memoized workspace substrate.",
+        },
+        OmenaQueryStyleCompletionConsumerDecisionV0 {
+            consumer: "engine-shadow-runner",
+            surface: "completion-at",
+            decision: "adoptWorkspaceVisibleSassSymbolsWhenStylesProvided",
+            rationale: "The selected-query runner already accepts a styles corpus for completion-at and now forwards it to the workspace entry.",
+        },
+        OmenaQueryStyleCompletionConsumerDecisionV0 {
+            consumer: "server/lsp-server",
+            surface: "style-completion-query",
+            decision: "staySingleFilePayload",
+            rationale: "The TypeScript host currently sends only the active style document to the runner; cross-file adoption belongs at the Rust LSP workspace owner.",
+        },
+        OmenaQueryStyleCompletionConsumerDecisionV0 {
+            consumer: "omena-napi",
+            surface: "read_style_completion_at_position_summary",
+            decision: "staySingleFileApi",
+            rationale: "The published NAPI facade exposes a stateless single-source API with no workspace resolution input contract.",
+        },
+        OmenaQueryStyleCompletionConsumerDecisionV0 {
+            consumer: "omena-wasm",
+            surface: "read_style_completion_at_position_summary",
+            decision: "staySingleFileApi",
+            rationale: "The published WASM facade exposes a stateless single-source API with no workspace resolution input contract.",
+        },
+        OmenaQueryStyleCompletionConsumerDecisionV0 {
+            consumer: "omena-cli",
+            surface: "omena style-completion",
+            decision: "staySingleFileCommand",
+            rationale: "The CLI command is a single-file inspection surface; workspace completion should use the selected-query runner or LSP.",
+        },
+    ]
 }
 
 pub fn summarize_omena_query_evaluation_runtime(

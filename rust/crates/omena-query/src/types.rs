@@ -87,8 +87,18 @@ pub struct OmenaQueryBoundarySummaryV0 {
     pub selector_usage_query_count: usize,
     pub total_query_count: usize,
     pub ready_surfaces: Vec<&'static str>,
+    pub style_completion_consumer_decisions: Vec<OmenaQueryStyleCompletionConsumerDecisionV0>,
     pub cme_coupled_surfaces: Vec<&'static str>,
     pub next_decoupling_targets: Vec<&'static str>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct OmenaQueryStyleCompletionConsumerDecisionV0 {
+    pub consumer: &'static str,
+    pub surface: &'static str,
+    pub decision: &'static str,
+    pub rationale: &'static str,
 }
 
 #[derive(Debug, Serialize)]

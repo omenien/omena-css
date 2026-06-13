@@ -11,7 +11,7 @@ use crate::{
 use omena_query::{
     OmenaQueryStyleCascadeNarrowingSubstrateV0, OmenaQueryStyleResolutionInputsV0,
     OmenaQueryStyleSourceInputV0, ParserByteSpanV0,
-    collect_omena_query_style_cascade_narrowing_substrate,
+    collect_omena_query_style_cascade_narrowing_substrate_with_external_sifs,
 };
 use omena_sif::compute_omena_sif_leaf_hash_v1;
 use serde::Serialize;
@@ -44,6 +44,7 @@ pub fn rust_query_reuse_contract() -> RustQueryReuseBoundaryV0 {
             "sourceDocumentIndexSidecar",
             "sourceSelectorOccurrenceSidecar",
             "cascadeNarrowingSubstrate",
+            "visibleSassSymbolCompletionSubstrate",
         ],
         invalidation_policy: vec![
             "refreshOnDocumentOpen",
@@ -82,24 +83,30 @@ pub(crate) fn cascade_narrowing_substrate_for_style_sources(
     resolution_inputs: &OmenaQueryStyleResolutionInputsV0,
 ) -> Arc<OmenaQueryStyleCascadeNarrowingSubstrateV0> {
     let package_manifests = state.resolution.package_manifests.as_slice();
+    let external_sifs = state.resolution.external_sifs.as_slice();
     {
         let memo = state.cascade_narrowing_substrate_memo_lock();
         if let Some(memo) = memo.as_ref()
             && memo.style_sources.as_slice() == style_sources
             && memo.package_manifests.as_slice() == package_manifests
+            && memo.external_sifs.as_slice() == external_sifs
             && &memo.resolution_inputs == resolution_inputs
         {
             return Arc::clone(&memo.substrate);
         }
     }
-    let substrate = Arc::new(collect_omena_query_style_cascade_narrowing_substrate(
-        style_sources,
-        package_manifests,
-        resolution_inputs,
-    ));
+    let substrate = Arc::new(
+        collect_omena_query_style_cascade_narrowing_substrate_with_external_sifs(
+            style_sources,
+            package_manifests,
+            external_sifs,
+            resolution_inputs,
+        ),
+    );
     *state.cascade_narrowing_substrate_memo_lock() = Some(LspCascadeNarrowingSubstrateMemo {
         style_sources: style_sources.to_vec(),
         package_manifests: package_manifests.to_vec(),
+        external_sifs: external_sifs.to_vec(),
         resolution_inputs: resolution_inputs.clone(),
         substrate: Arc::clone(&substrate),
     });

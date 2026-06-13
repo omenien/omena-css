@@ -1452,6 +1452,8 @@ assert.deepEqual(lspSourceConditionalRenameResponse.result, {
   },
 });
 
+const crossFileSassCompletionLabels = assertCrossFileSassCompletionParity(invocation);
+
 process.stdout.write(
   [
     "validated omena-lsp-server style provider parity:",
@@ -1510,6 +1512,7 @@ process.stdout.write(
     `line=${styleHoverResponse.result.candidates[0].range.start.line}`,
     `character=${styleHoverResponse.result.candidates[0].range.start.character}`,
     `nodeRangeParity=${JSON.stringify(styleHoverResponse.result.candidates[0].range)}`,
+    `crossFileSassCompletion=${crossFileSassCompletionLabels.join(",")}`,
   ].join(" "),
 );
 process.stdout.write("\n");
@@ -1517,6 +1520,96 @@ process.stdout.write("\n");
 function frame(value: unknown): string {
   const body = JSON.stringify(value);
   return `Content-Length: ${Buffer.byteLength(body, "utf8")}\r\n\r\n${body}`;
+}
+
+function assertCrossFileSassCompletionParity(invocation: {
+  readonly command: string;
+  readonly args: readonly string[];
+}): string[] {
+  const sassWorkspaceUri = "file:///tmp/omena-lsp-sass-completion-parity";
+  const sassAppUri = `${sassWorkspaceUri}/src/App.module.scss`;
+  const sassTokensUri = `${sassWorkspaceUri}/src/_tokens.scss`;
+  const sassAppText = '@use "./tokens" as t;\n.button { border-radius: t.$ }';
+  const result = spawnSync(invocation.command, [...invocation.args], {
+    cwd: process.cwd(),
+    input: [
+      {
+        jsonrpc: "2.0",
+        id: 1,
+        method: "initialize",
+        params: {
+          workspaceFolders: [{ uri: sassWorkspaceUri, name: "sass-completion-parity" }],
+        },
+      },
+      {
+        jsonrpc: "2.0",
+        method: "textDocument/didOpen",
+        params: {
+          textDocument: {
+            uri: sassAppUri,
+            languageId: "scss",
+            version: 1,
+            text: sassAppText,
+          },
+        },
+      },
+      {
+        jsonrpc: "2.0",
+        method: "textDocument/didOpen",
+        params: {
+          textDocument: {
+            uri: sassTokensUri,
+            languageId: "scss",
+            version: 1,
+            text: "$radius-small: 2px;",
+          },
+        },
+      },
+      {
+        jsonrpc: "2.0",
+        id: 2,
+        method: "textDocument/completion",
+        params: {
+          textDocument: { uri: sassAppUri },
+          position: { line: 1, character: 28 },
+        },
+      },
+      {
+        jsonrpc: "2.0",
+        id: 3,
+        method: "shutdown",
+      },
+      {
+        jsonrpc: "2.0",
+        method: "exit",
+      },
+    ]
+      .map(frame)
+      .join(""),
+    encoding: "utf8",
+    stdio: ["pipe", "pipe", "pipe"],
+  });
+  assert.equal(
+    result.status,
+    0,
+    [
+      "omena-lsp-server cross-file Sass completion parity failed",
+      result.error ? `error=${result.error.message}` : null,
+      result.stderr.trim() ? `stderr=${result.stderr.trim()}` : null,
+    ]
+      .filter(Boolean)
+      .join("\n"),
+  );
+  const responses = readFrames(result.stdout)
+    .filter((message) => "id" in message)
+    .sort((a, b) => Number(a.id) - Number(b.id));
+  const completionResponse = responses.find((message) => message.id === 2);
+  assert.ok(completionResponse, "cross-file Sass completion response should be present");
+  const labels = completionResponse.result.items.map(
+    (item: { readonly label: string }) => item.label,
+  );
+  assert.deepEqual(labels, ["t.$radius-small"]);
+  return labels;
 }
 
 function documentEndRange(text: string): {

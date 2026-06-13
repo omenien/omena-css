@@ -37,6 +37,8 @@ pub use cross_file_summary::{
     summarize_omena_query_source_selector_reference_cross_file_summary,
     summarize_omena_query_workspace_cross_file_summary,
 };
+#[cfg(test)]
+pub(crate) use diagnostics::collect_omena_query_visible_sass_symbol_keys_for_workspace_file;
 pub use diagnostics::*;
 pub use dynamic_classname::*;
 pub use insights::*;
@@ -415,6 +417,7 @@ pub struct OmenaQueryStyleCascadeNarrowingSubstrateV0 {
 #[derive(Debug, Clone, PartialEq, Eq)]
 struct StyleCascadeNarrowingSubstrateEntry {
     style_path: String,
+    facts: OmenaQueryOmenaParserStyleFactsV0,
     declarations: Vec<cascade_checker::QueryCheckerCascadeDeclaration>,
 }
 
@@ -428,6 +431,31 @@ impl OmenaQueryStyleCascadeNarrowingSubstrateV0 {
             .find(|entry| entry.style_path == style_path)
             .map(|entry| entry.declarations.as_slice())
     }
+
+    pub(crate) fn visible_sass_symbol_keys_for_workspace_file(
+        &self,
+        target_style_path: &str,
+        package_manifests: &[OmenaQueryStylePackageManifestV0],
+        external_sifs: &[OmenaQueryExternalSifInputV0],
+        resolution_inputs: &OmenaQueryStyleResolutionInputsV0,
+    ) -> BTreeSet<diagnostics::SassSymbolKey> {
+        let facts_by_path = self
+            .entries
+            .iter()
+            .map(|entry| (entry.style_path.as_str(), &entry.facts))
+            .collect::<BTreeMap<_, _>>();
+        diagnostics::collect_visible_sass_symbol_keys(
+            target_style_path,
+            &facts_by_path,
+            &self.resolution,
+            diagnostics::OmenaQueryExternalSifResolutionContext {
+                package_manifests,
+                bundler_path_mappings: resolution_inputs.bundler_path_mappings.as_slice(),
+                tsconfig_path_mappings: resolution_inputs.tsconfig_path_mappings.as_slice(),
+                external_sifs,
+            },
+        )
+    }
 }
 
 pub fn collect_omena_query_style_cascade_narrowing_substrate(
@@ -435,24 +463,54 @@ pub fn collect_omena_query_style_cascade_narrowing_substrate(
     package_manifests: &[OmenaQueryStylePackageManifestV0],
     resolution_inputs: &OmenaQueryStyleResolutionInputsV0,
 ) -> OmenaQueryStyleCascadeNarrowingSubstrateV0 {
+    collect_omena_query_style_cascade_narrowing_substrate_with_external_sifs(
+        style_sources,
+        package_manifests,
+        &[],
+        resolution_inputs,
+    )
+}
+
+pub fn collect_omena_query_style_cascade_narrowing_substrate_with_external_sifs(
+    style_sources: &[OmenaQueryStyleSourceInputV0],
+    package_manifests: &[OmenaQueryStylePackageManifestV0],
+    external_sifs: &[OmenaQueryExternalSifInputV0],
+    resolution_inputs: &OmenaQueryStyleResolutionInputsV0,
+) -> OmenaQueryStyleCascadeNarrowingSubstrateV0 {
     let style_source_refs = style_sources
         .iter()
         .map(|source| (source.style_path.as_str(), source.style_source.as_str()))
         .collect::<Vec<_>>();
     let style_fact_entries = collect_omena_query_style_fact_entries(style_source_refs.as_slice());
-    let resolution = summarize_sass_module_cross_file_resolution(
+    let mut resolution = summarize_sass_module_cross_file_resolution(
         &style_fact_entries,
         package_manifests,
         resolution_inputs.bundler_path_mappings.as_slice(),
         resolution_inputs.tsconfig_path_mappings.as_slice(),
     );
+    diagnostics::promote_sif_backed_external_edges(
+        &mut resolution,
+        diagnostics::OmenaQueryExternalSifResolutionContext {
+            package_manifests,
+            bundler_path_mappings: resolution_inputs.bundler_path_mappings.as_slice(),
+            tsconfig_path_mappings: resolution_inputs.tsconfig_path_mappings.as_slice(),
+            external_sifs,
+        },
+    );
     let entries = style_sources
         .iter()
-        .map(|source| StyleCascadeNarrowingSubstrateEntry {
-            style_path: source.style_path.clone(),
-            declarations: cascade_checker::collect_query_checker_cascade_declarations(
-                source.style_source.as_str(),
-            ),
+        .filter_map(|source| {
+            let facts = style_fact_entries
+                .iter()
+                .find(|entry| entry.style_path == source.style_path)
+                .map(|entry| entry.facts.clone())?;
+            Some(StyleCascadeNarrowingSubstrateEntry {
+                style_path: source.style_path.clone(),
+                facts,
+                declarations: cascade_checker::collect_query_checker_cascade_declarations(
+                    source.style_source.as_str(),
+                ),
+            })
         })
         .collect();
     OmenaQueryStyleCascadeNarrowingSubstrateV0 {
@@ -2711,8 +2769,70 @@ fn style_completion_context_at_position(
             return Some(("styleCustomPropertyReference", prefix));
         }
     }
+    if let Some(prefix) = sass_variable_completion_prefix(line_prefix) {
+        return Some(("sassVariableReference", Some(prefix)));
+    }
+    if let Some(prefix) = sass_mixin_completion_prefix(line_prefix) {
+        return Some(("sassMixinReference", prefix));
+    }
+    if let Some(prefix) = sass_member_completion_prefix(line_prefix) {
+        return Some(("sassMemberReference", Some(prefix)));
+    }
 
     Some(("styleDocument", None))
+}
+
+fn sass_variable_completion_prefix(line_prefix: &str) -> Option<String> {
+    let token = sass_completion_trailing_token(line_prefix)?;
+    let dollar_offset = token.rfind('$')?;
+    let suffix = token.get(dollar_offset + 1..)?;
+    if !suffix.chars().all(is_sass_completion_identifier_continue) {
+        return None;
+    }
+    let prefix = token.get(..)?;
+    (!prefix.is_empty()).then(|| prefix.to_string())
+}
+
+fn sass_mixin_completion_prefix(line_prefix: &str) -> Option<Option<String>> {
+    let include_offset = line_prefix.rfind("@include")?;
+    let after_include = line_prefix.get(include_offset + "@include".len()..)?;
+    if after_include.contains(';') || after_include.contains('{') || after_include.contains('}') {
+        return None;
+    }
+    let token = sass_completion_trailing_token(after_include.trim_start())?;
+    if token.contains('$') || !token.chars().all(is_sass_completion_member_continue) {
+        return None;
+    }
+    Some((!token.is_empty()).then(|| token.to_string()))
+}
+
+fn sass_member_completion_prefix(line_prefix: &str) -> Option<String> {
+    let token = sass_completion_trailing_token(line_prefix)?;
+    if token.starts_with('.') || token.contains('$') || !token.contains('.') {
+        return None;
+    }
+    if !token.chars().all(is_sass_completion_member_continue) {
+        return None;
+    }
+    let (namespace, _) = token.split_once('.')?;
+    (!namespace.is_empty()).then(|| token.to_string())
+}
+
+fn sass_completion_trailing_token(text: &str) -> Option<&str> {
+    text.rsplit(|ch: char| {
+        ch.is_ascii_whitespace()
+            || matches!(ch, ':' | ';' | '{' | '}' | '(' | ')' | ',' | '[' | ']')
+    })
+    .next()
+    .filter(|token| !token.is_empty())
+}
+
+fn is_sass_completion_identifier_continue(ch: char) -> bool {
+    is_css_identifier_continue(ch)
+}
+
+fn is_sass_completion_member_continue(ch: char) -> bool {
+    is_css_identifier_continue(ch) || ch == '.' || ch == '$'
 }
 
 fn trim_hover_snippet(snippet: &str) -> String {

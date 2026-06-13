@@ -69,6 +69,75 @@ pub fn summarize_omena_query_style_completion_at_position(
     }
 }
 
+#[allow(clippy::too_many_arguments)]
+pub fn summarize_omena_query_style_completion_for_workspace_file_with_resolution_inputs(
+    target_style_path: &str,
+    style_sources: &[OmenaQueryStyleSourceInputV0],
+    package_manifests: &[OmenaQueryStylePackageManifestV0],
+    external_sifs: &[OmenaQueryExternalSifInputV0],
+    resolution_inputs: &OmenaQueryStyleResolutionInputsV0,
+    position: ParserPositionV0,
+) -> OmenaQueryCompletionAtPositionV0 {
+    let substrate = collect_omena_query_style_cascade_narrowing_substrate_with_external_sifs(
+        style_sources,
+        package_manifests,
+        external_sifs,
+        resolution_inputs,
+    );
+    summarize_omena_query_style_completion_for_workspace_file_with_substrate(
+        target_style_path,
+        style_sources,
+        package_manifests,
+        external_sifs,
+        resolution_inputs,
+        &substrate,
+        position,
+    )
+}
+
+#[allow(clippy::too_many_arguments)]
+pub fn summarize_omena_query_style_completion_for_workspace_file_with_substrate(
+    target_style_path: &str,
+    style_sources: &[OmenaQueryStyleSourceInputV0],
+    package_manifests: &[OmenaQueryStylePackageManifestV0],
+    external_sifs: &[OmenaQueryExternalSifInputV0],
+    resolution_inputs: &OmenaQueryStyleResolutionInputsV0,
+    substrate: &OmenaQueryStyleCascadeNarrowingSubstrateV0,
+    position: ParserPositionV0,
+) -> OmenaQueryCompletionAtPositionV0 {
+    let Some(target) = style_sources
+        .iter()
+        .find(|source| source.style_path == target_style_path)
+    else {
+        return summarize_omena_query_style_completion_at_position(
+            target_style_path,
+            "",
+            position,
+            &[],
+        );
+    };
+    let candidates = summarize_omena_query_style_hover_candidates(
+        target.style_path.as_str(),
+        target.style_source.as_str(),
+    )
+    .map(|summary| summary.candidates)
+    .unwrap_or_default();
+    let mut completion = summarize_omena_query_style_completion_at_position(
+        target.style_path.as_str(),
+        target.style_source.as_str(),
+        position,
+        candidates.as_slice(),
+    );
+    let visible_symbols = substrate.visible_sass_symbol_keys_for_workspace_file(
+        target_style_path,
+        package_manifests,
+        external_sifs,
+        resolution_inputs,
+    );
+    extend_style_completion_with_visible_sass_symbols(&mut completion, &visible_symbols);
+    completion
+}
+
 pub fn summarize_omena_query_source_completion_at_position(
     source_uri: &str,
     position: ParserPositionV0,
@@ -167,6 +236,103 @@ fn style_completion_ranking(
     }
 
     (format!("50-{label}"), "label")
+}
+
+fn extend_style_completion_with_visible_sass_symbols(
+    completion: &mut OmenaQueryCompletionAtPositionV0,
+    visible_symbols: &BTreeSet<diagnostics::SassSymbolKey>,
+) {
+    let mut emitted_labels = completion
+        .items
+        .iter()
+        .map(|item| item.label.clone())
+        .collect::<BTreeSet<_>>();
+    let mut sass_items = visible_symbols
+        .iter()
+        .filter_map(|key| {
+            style_sass_symbol_completion_item(
+                completion.context_kind,
+                completion.prefix.as_deref(),
+                key,
+            )
+        })
+        .filter(|item| emitted_labels.insert(item.label.clone()))
+        .collect::<Vec<_>>();
+    sass_items.sort_by_key(|item| (item.sort_text.clone(), item.label.clone()));
+    if !sass_items.is_empty()
+        && !completion
+            .ready_surfaces
+            .contains(&"crossFileSassSymbolCompletion")
+    {
+        completion
+            .ready_surfaces
+            .push("crossFileSassSymbolCompletion");
+    }
+    completion.items.extend(sass_items);
+    completion
+        .items
+        .sort_by_key(|item| (item.sort_text.clone(), item.label.clone()));
+    completion.item_count = completion.items.len();
+}
+
+fn style_sass_symbol_completion_item(
+    context_kind: &str,
+    prefix: Option<&str>,
+    key: &diagnostics::SassSymbolKey,
+) -> Option<OmenaQueryCompletionItemV0> {
+    let (symbol_kind, namespace, name) = key;
+    if !sass_completion_context_allows_symbol(context_kind, symbol_kind, namespace.as_deref()) {
+        return None;
+    }
+    let label = render_sass_completion_label(symbol_kind, namespace.as_deref(), name.as_str())?;
+    if prefix.is_some_and(|prefix| !label.starts_with(prefix)) {
+        return None;
+    }
+    let (detail, item_kind) = match *symbol_kind {
+        "variable" => ("Sass variable", "sassVariable"),
+        "mixin" => ("Sass mixin", "sassMixin"),
+        "function" => ("Sass function", "sassFunction"),
+        _ => ("Sass symbol", "sassSymbol"),
+    };
+    Some(OmenaQueryCompletionItemV0 {
+        label: label.clone(),
+        insert_text: label.clone(),
+        sort_text: format!("30-{}-{label}", *symbol_kind),
+        detail,
+        documentation: None,
+        item_kind,
+        ranking_source: "visibleSassModuleGraph",
+        source: "omenaQueryVisibleSassSymbols",
+    })
+}
+
+fn sass_completion_context_allows_symbol(
+    context_kind: &str,
+    symbol_kind: &str,
+    namespace: Option<&str>,
+) -> bool {
+    match context_kind {
+        "sassVariableReference" => symbol_kind == "variable",
+        "sassMixinReference" => symbol_kind == "mixin",
+        "sassMemberReference" => namespace.is_some(),
+        _ => false,
+    }
+}
+
+fn render_sass_completion_label(
+    symbol_kind: &str,
+    namespace: Option<&str>,
+    name: &str,
+) -> Option<String> {
+    let symbol_name = match symbol_kind {
+        "variable" => format!("${name}"),
+        "mixin" | "function" | "symbol" => name.to_string(),
+        _ => return None,
+    };
+    Some(match namespace {
+        Some(namespace) => format!("{namespace}.{symbol_name}"),
+        None => symbol_name,
+    })
 }
 
 fn style_completion_documentation(

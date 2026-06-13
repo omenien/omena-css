@@ -1,5 +1,7 @@
 #[cfg(feature = "lawvere-trace")]
 use super::execute_omena_query_transform_passes_from_source_with_lawvere_trace;
+use std::collections::BTreeSet;
+
 use super::{
     EngineInputV2, IncrementalGraphInputV0, IncrementalNodeInputV0, IncrementalRevisionV0,
     OmenaQueryCanonicalFormInput, OmenaQueryExpressionDomainFlowRuntimeV0,
@@ -48,6 +50,7 @@ use crate::{
     summarize_omena_query_sass_module_cross_file_resolution_for_workspace,
     summarize_omena_query_style_completion_candidate_documentation_for_workspace_file,
     summarize_omena_query_style_completion_candidate_documentation_for_workspace_file_with_substrate,
+    summarize_omena_query_style_completion_for_workspace_file_with_substrate,
     summarize_omena_query_style_hover_render_parts_for_workspace_file,
     summarize_omena_query_style_hover_render_parts_for_workspace_file_hover_position,
     summarize_omena_query_style_hover_render_parts_for_workspace_file_hover_position_with_substrate,
@@ -141,6 +144,42 @@ fn summarizes_query_boundary_over_producer_fragments() {
             .ready_surfaces
             .contains(&"polynomialProvenanceDiagnostics")
     );
+    let style_completion_decisions = summary
+        .style_completion_consumer_decisions
+        .iter()
+        .map(|decision| (decision.consumer, decision.surface, decision.decision))
+        .collect::<BTreeSet<_>>();
+    assert_eq!(style_completion_decisions.len(), 6);
+    assert!(style_completion_decisions.contains(&(
+        "omena-lsp-server",
+        "textDocument/completion",
+        "adoptWorkspaceVisibleSassSymbols",
+    )));
+    assert!(style_completion_decisions.contains(&(
+        "engine-shadow-runner",
+        "completion-at",
+        "adoptWorkspaceVisibleSassSymbolsWhenStylesProvided",
+    )));
+    assert!(style_completion_decisions.contains(&(
+        "server/lsp-server",
+        "style-completion-query",
+        "staySingleFilePayload",
+    )));
+    assert!(style_completion_decisions.contains(&(
+        "omena-napi",
+        "read_style_completion_at_position_summary",
+        "staySingleFileApi",
+    )));
+    assert!(style_completion_decisions.contains(&(
+        "omena-wasm",
+        "read_style_completion_at_position_summary",
+        "staySingleFileApi",
+    )));
+    assert!(style_completion_decisions.contains(&(
+        "omena-cli",
+        "omena style-completion",
+        "staySingleFileCommand",
+    )));
     assert!(
         summary
             .abstract_value_domain
@@ -821,6 +860,91 @@ fn cascade_narrowing_substrate_candidates_run_zero_recollections() {
         crate::style::style_facts_collect_probe::count(),
         0,
         "substrate-backed narrowing must not re-collect style facts"
+    );
+}
+
+#[test]
+fn style_completion_uses_visible_sass_symbol_set_for_workspace_file() {
+    let app_source = "@use \"./tokens\" as t;\n.button { border-radius: t.$ }\n@import \"./forward\";\n.card { padding: $token- }";
+    let sources = vec![
+        OmenaQueryStyleSourceInputV0 {
+            style_path: "/tmp/_tokens.scss".to_string(),
+            style_source: "$radius-small: 2px; $secret: 4px; @mixin tone { color: red; }"
+                .to_string(),
+        },
+        OmenaQueryStyleSourceInputV0 {
+            style_path: "/tmp/_forward.scss".to_string(),
+            style_source: "@forward \"./tokens\" as token-* hide $token-secret;".to_string(),
+        },
+        OmenaQueryStyleSourceInputV0 {
+            style_path: "/tmp/App.module.scss".to_string(),
+            style_source: app_source.to_string(),
+        },
+    ];
+    let resolution_inputs = OmenaQueryStyleResolutionInputsV0::default();
+    let substrate =
+        collect_omena_query_style_cascade_narrowing_substrate(&sources, &[], &resolution_inputs);
+    let visible = crate::style::collect_omena_query_visible_sass_symbol_keys_for_workspace_file(
+        "/tmp/App.module.scss",
+        sources.as_slice(),
+        &[],
+        &[],
+        &resolution_inputs,
+    );
+    assert!(visible.contains(&(
+        "variable",
+        Some("t".to_string()),
+        "radius-small".to_string()
+    )));
+    assert!(visible.contains(&("variable", None, "token-radius-small".to_string())));
+    assert!(!visible.contains(&("variable", None, "token-secret".to_string())));
+
+    let namespace_completion =
+        summarize_omena_query_style_completion_for_workspace_file_with_substrate(
+            "/tmp/App.module.scss",
+            sources.as_slice(),
+            &[],
+            &[],
+            &resolution_inputs,
+            &substrate,
+            ParserPositionV0 {
+                line: 1,
+                character: 28,
+            },
+        );
+    let namespace_labels = namespace_completion
+        .items
+        .iter()
+        .map(|item| item.label.as_str())
+        .collect::<Vec<_>>();
+    assert!(namespace_labels.contains(&"t.$radius-small"));
+    assert!(!namespace_labels.contains(&"$radius-small"));
+
+    let import_completion =
+        summarize_omena_query_style_completion_for_workspace_file_with_substrate(
+            "/tmp/App.module.scss",
+            sources.as_slice(),
+            &[],
+            &[],
+            &resolution_inputs,
+            &substrate,
+            ParserPositionV0 {
+                line: 3,
+                character: 24,
+            },
+        );
+    let import_labels = import_completion
+        .items
+        .iter()
+        .map(|item| item.label.as_str())
+        .collect::<Vec<_>>();
+    assert!(import_labels.contains(&"$token-radius-small"));
+    assert!(!import_labels.contains(&"$token-secret"));
+    assert!(
+        import_completion
+            .items
+            .iter()
+            .all(|item| { !item.item_kind.starts_with("sass") || item.documentation.is_none() })
     );
 }
 

@@ -284,7 +284,12 @@ function toQuerySourceCompletionItem(
 function toQueryCompletionKind(itemKind: string): CompletionItemKind {
   switch (itemKind) {
     case "cssCustomProperty":
+    case "sassVariable":
       return CompletionItemKind.Variable;
+    case "sassMixin":
+    case "sassFunction":
+    case "sassSymbol":
+      return CompletionItemKind.Function;
     case "cssModuleSelector":
     default:
       return CompletionItemKind.Value;

@@ -3160,14 +3160,14 @@ fn external_boundary_remediation_hint(state: OmenaResolverBoundaryStateKindV0) -
     }
 }
 
-type SassSymbolKey = (&'static str, Option<String>, String);
+pub(crate) type SassSymbolKey = (&'static str, Option<String>, String);
 
 #[derive(Clone, Copy)]
-struct OmenaQueryExternalSifResolutionContext<'a> {
-    package_manifests: &'a [OmenaQueryStylePackageManifestV0],
-    bundler_path_mappings: &'a [OmenaResolverBundlerPathAliasMappingV0],
-    tsconfig_path_mappings: &'a [OmenaResolverTsconfigPathMappingV0],
-    external_sifs: &'a [OmenaQueryExternalSifInputV0],
+pub(super) struct OmenaQueryExternalSifResolutionContext<'a> {
+    pub(super) package_manifests: &'a [OmenaQueryStylePackageManifestV0],
+    pub(super) bundler_path_mappings: &'a [OmenaResolverBundlerPathAliasMappingV0],
+    pub(super) tsconfig_path_mappings: &'a [OmenaResolverTsconfigPathMappingV0],
+    pub(super) external_sifs: &'a [OmenaQueryExternalSifInputV0],
 }
 
 /// Fold the Sass-identifier name component so `_` and `-` compare equal.
@@ -3191,7 +3191,7 @@ fn sass_symbol_key(
     (symbol_kind, namespace, folded)
 }
 
-fn collect_visible_sass_symbol_keys(
+pub(super) fn collect_visible_sass_symbol_keys(
     target_style_path: &str,
     facts_by_path: &BTreeMap<&str, &OmenaQueryOmenaParserStyleFactsV0>,
     resolution: &OmenaQuerySassModuleCrossFileResolutionV0,
@@ -3270,6 +3270,43 @@ fn collect_visible_sass_symbol_keys(
     }
 
     visible
+}
+
+#[cfg(test)]
+pub(crate) fn collect_omena_query_visible_sass_symbol_keys_for_workspace_file(
+    target_style_path: &str,
+    style_sources: &[OmenaQueryStyleSourceInputV0],
+    package_manifests: &[OmenaQueryStylePackageManifestV0],
+    external_sifs: &[OmenaQueryExternalSifInputV0],
+    resolution_inputs: &OmenaQueryStyleResolutionInputsV0,
+) -> BTreeSet<SassSymbolKey> {
+    let style_source_refs = style_sources
+        .iter()
+        .map(|source| (source.style_path.as_str(), source.style_source.as_str()))
+        .collect::<Vec<_>>();
+    let style_fact_entries = collect_omena_query_style_fact_entries(style_source_refs.as_slice());
+    let facts_by_path = style_fact_entries
+        .iter()
+        .map(|entry| (entry.style_path.as_str(), &entry.facts))
+        .collect::<BTreeMap<_, _>>();
+    let resolution = summarize_sass_module_cross_file_resolution_with_external_sifs(
+        &style_fact_entries,
+        package_manifests,
+        resolution_inputs.bundler_path_mappings.as_slice(),
+        resolution_inputs.tsconfig_path_mappings.as_slice(),
+        external_sifs,
+    );
+    collect_visible_sass_symbol_keys(
+        target_style_path,
+        &facts_by_path,
+        &resolution,
+        OmenaQueryExternalSifResolutionContext {
+            package_manifests,
+            bundler_path_mappings: resolution_inputs.bundler_path_mappings.as_slice(),
+            tsconfig_path_mappings: resolution_inputs.tsconfig_path_mappings.as_slice(),
+            external_sifs,
+        },
+    )
 }
 
 fn collect_exported_sass_symbol_keys(
@@ -3376,7 +3413,7 @@ fn summarize_sass_module_cross_file_resolution_with_external_sifs(
     resolution
 }
 
-fn promote_sif_backed_external_edges(
+pub(super) fn promote_sif_backed_external_edges(
     resolution: &mut OmenaQuerySassModuleCrossFileResolutionV0,
     external_sif_context: OmenaQueryExternalSifResolutionContext<'_>,
 ) {

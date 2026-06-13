@@ -65,10 +65,11 @@ use omena_ensemble::{
 use omena_query::{
     OmenaParserStyleDialect, OmenaQueryCodeActionPlanV0, OmenaQueryExpressionDomainFlowRuntimeV0,
     OmenaQueryExternalModuleModeV0, OmenaQueryExternalSifInputV0, OmenaQuerySourceDocumentInputV0,
-    OmenaQueryStylePackageManifestV0, OmenaQueryStyleSourceInputV0,
-    OmenaQueryTargetFeatureSupportV0, OmenaQueryTargetTransformOptionsV0,
-    OmenaQueryTransformExecutionContextV0, ParserPositionV0, UnifiedHypergraphEdgeKindV0,
-    UnifiedHypergraphHyperedgeV0, default_omena_query_transform_print_options,
+    OmenaQueryStylePackageManifestV0, OmenaQueryStyleResolutionInputsV0,
+    OmenaQueryStyleSourceInputV0, OmenaQueryTargetFeatureSupportV0,
+    OmenaQueryTargetTransformOptionsV0, OmenaQueryTransformExecutionContextV0, ParserPositionV0,
+    UnifiedHypergraphEdgeKindV0, UnifiedHypergraphHyperedgeV0,
+    default_omena_query_transform_print_options,
     execute_omena_query_consumer_build_style_sources_for_target_query_with_context_and_options,
     execute_omena_query_consumer_build_style_sources_with_context,
     execute_omena_query_transform_passes_from_source_with_context,
@@ -98,7 +99,7 @@ use omena_query::{
     summarize_omena_query_source_resolution_canonical_producer_signal,
     summarize_omena_query_source_resolution_query_fragments,
     summarize_omena_query_source_resolution_runtime,
-    summarize_omena_query_style_completion_for_workspace_file,
+    summarize_omena_query_style_completion_for_workspace_file_with_resolution_inputs,
     summarize_omena_query_style_diagnostics_for_workspace_file_with_external_mode_and_sifs,
     summarize_omena_query_style_extract_code_actions,
     summarize_omena_query_style_inline_code_actions,
@@ -1632,9 +1633,22 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                                 .map(|source| source.style_source.clone())
                         })
                         .ok_or("missing style source for completion-at style request")?;
-                    summarize_omena_query_style_completion_for_workspace_file(
+                    let mut styles = input.styles;
+                    if !styles
+                        .iter()
+                        .any(|source| source.style_path == input.file_uri)
+                    {
+                        styles.push(OmenaQueryStyleSourceInputV0 {
+                            style_path: input.file_uri.clone(),
+                            style_source,
+                        });
+                    }
+                    summarize_omena_query_style_completion_for_workspace_file_with_resolution_inputs(
                         &input.file_uri,
-                        &style_source,
+                        styles.as_slice(),
+                        &[],
+                        &[],
+                        &OmenaQueryStyleResolutionInputsV0::default(),
                         position,
                     )
                 }

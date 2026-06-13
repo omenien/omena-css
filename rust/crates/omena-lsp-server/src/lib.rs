@@ -65,9 +65,9 @@ use omena_query::{
     summarize_omena_query_source_import_declarations_for_source_language,
     summarize_omena_query_source_selector_occurrence_index,
     summarize_omena_query_source_syntax_index_for_source_language,
-    summarize_omena_query_style_completion_at_position,
     summarize_omena_query_style_completion_candidate_documentation,
     summarize_omena_query_style_completion_candidate_documentation_for_workspace_file_with_substrate,
+    summarize_omena_query_style_completion_for_workspace_file_with_substrate,
     summarize_omena_query_style_diagnostics_for_file,
     summarize_omena_query_style_diagnostics_for_file_with_deep_analysis,
     summarize_omena_query_style_document,
@@ -907,19 +907,26 @@ fn resolve_lsp_completion(state: &LspShellState, params: Option<&Value>) -> Valu
     let Some(position) = lsp_position_from_params(params) else {
         return Value::Null;
     };
-    let Some((_, candidates)) = style_hover_candidates_for_document(document) else {
-        return Value::Null;
-    };
-
-    let query_candidates = candidates
-        .iter()
-        .map(query_style_hover_candidate_from_lsp)
-        .collect::<Vec<_>>();
-    let completion = summarize_omena_query_style_completion_at_position(
+    let style_sources = style_sources_from_open_documents(
+        state,
+        document.workspace_folder_uri.as_deref(),
+        Some(document.uri.as_str()),
+    );
+    let resolution_inputs =
+        resolution_inputs_for_workspace_uri(state, document.workspace_folder_uri.as_deref());
+    let narrowing_substrate = cascade_narrowing_substrate_for_style_sources(
+        state,
+        style_sources.as_slice(),
+        &resolution_inputs,
+    );
+    let completion = summarize_omena_query_style_completion_for_workspace_file_with_substrate(
         document.uri.as_str(),
-        document.text.as_str(),
+        style_sources.as_slice(),
+        state.resolution.package_manifests.as_slice(),
+        state.resolution.external_sifs.as_slice(),
+        &resolution_inputs,
+        &narrowing_substrate,
         position,
-        query_candidates.as_slice(),
     );
     let provider_feedback =
         current_provider_tier_feedback_data(document, "textDocument/completion");

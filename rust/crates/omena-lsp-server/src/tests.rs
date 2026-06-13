@@ -72,6 +72,8 @@ mod source_resolution_watch;
 mod source_text_offsets;
 #[path = "tests/source_type_facts.rs"]
 mod source_type_facts;
+#[path = "tests/style_completion.rs"]
+mod style_completion;
 #[path = "tests/style_context.rs"]
 mod style_context;
 #[path = "tests/style_indexing.rs"]
