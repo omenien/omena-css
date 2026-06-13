@@ -23,6 +23,33 @@ pub(in crate::style) struct OmenaQueryExternalSifResolutionContext<'a> {
     pub(in crate::style) external_sifs: &'a [OmenaQueryExternalSifInputV0],
 }
 
+#[derive(Clone, Copy)]
+enum OmenaQueryExternalEdgeClass<'a> {
+    SourceAvailable,
+    ExternalWithSif(&'a OmenaQueryExternalSifInputV0),
+    ExternalNoSif,
+    LocalUnresolved,
+}
+
+pub(super) fn target_has_auto_external_boundary_edges(
+    target_style_path: &str,
+    external_sif_context: OmenaQueryExternalSifResolutionContext<'_>,
+    substrate: &OmenaQueryWorkspaceDiagnosticsSubstrateV0,
+) -> bool {
+    substrate
+        .sass_resolution_with_external_sifs
+        .edges
+        .iter()
+        .filter(|edge| edge.from_style_path == target_style_path)
+        .any(|edge| {
+            matches!(
+                classify_omena_query_external_edge(edge, external_sif_context),
+                OmenaQueryExternalEdgeClass::ExternalWithSif(_)
+                    | OmenaQueryExternalEdgeClass::ExternalNoSif
+            )
+        })
+}
+
 #[allow(clippy::too_many_arguments)]
 pub(super) fn collect_omena_query_external_top_any_sass_symbol_ranges(
     target_style_path: &str,
@@ -48,17 +75,6 @@ pub(super) fn collect_omena_query_external_top_any_sass_symbol_ranges(
         tsconfig_path_mappings,
         external_sifs,
     };
-    let external_sources = resolution
-        .edges
-        .iter()
-        .filter(|edge| edge.from_style_path == target_style_path)
-        .filter(|edge| edge.status == "external")
-        .map(|edge| edge.source.as_str())
-        .collect::<BTreeSet<_>>();
-    if external_sources.is_empty() {
-        return BTreeSet::new();
-    }
-
     let facts = collect_omena_query_omena_parser_style_facts_raw(
         target.style_source.as_str(),
         omena_parser_dialect_for_style_path(target_style_path),
@@ -70,21 +86,18 @@ pub(super) fn collect_omena_query_external_top_any_sass_symbol_ranges(
     let top_any_namespaces = facts
         .sass_module_edges
         .iter()
-        .filter(|edge| external_sources.contains(edge.source.as_str()))
         .filter(|edge| {
-            let sif = resolution
-                .edges
-                .iter()
-                .find(|resolution_edge| {
-                    resolution_edge.from_style_path == target_style_path
-                        && resolution_edge.source == edge.source
-                        && resolution_edge.status == "external"
-                })
+            resolution_edge_for_parser_fact(resolution, target_style_path, edge)
                 .and_then(|resolution_edge| {
-                    find_omena_query_external_sif_for_edge(resolution_edge, external_sif_context)
-                });
-            classify_external_boundary_state(edge, sif, &facts, external_sifs).top
-                == OmenaResolverBoundaryTopV0::TopAny
+                    classify_external_boundary_state_for_edge(
+                        edge,
+                        resolution_edge,
+                        external_sif_context,
+                        &facts,
+                        external_sifs,
+                    )
+                })
+                .is_some_and(|state| state.top == OmenaResolverBoundaryTopV0::TopAny)
         })
         .filter_map(|edge| match edge.kind {
             ParsedSassModuleEdgeFactKind::Use
@@ -234,25 +247,6 @@ pub(super) fn summarize_omena_query_external_sif_boundary_diagnostics(
         tsconfig_path_mappings,
         external_sifs,
     };
-    let external_sources = resolution
-        .edges
-        .iter()
-        .filter(|edge| edge.from_style_path == target_style_path)
-        .filter(|edge| edge.status == "external")
-        .map(|edge| edge.source.as_str())
-        .collect::<BTreeSet<_>>();
-    let unresolved_sources = resolution
-        .edges
-        .iter()
-        .filter(|edge| edge.from_style_path == target_style_path)
-        .filter(|edge| edge.status == "unresolved")
-        .filter(|edge| !sass_module_source_is_workspace_local(edge.source.as_str()))
-        .map(|edge| edge.source.as_str())
-        .collect::<BTreeSet<_>>();
-    if external_sources.is_empty() && unresolved_sources.is_empty() {
-        return Vec::new();
-    }
-
     let facts = collect_omena_query_omena_parser_style_facts_raw(
         target.style_source.as_str(),
         omena_parser_dialect_for_style_path(target_style_path),
@@ -260,29 +254,21 @@ pub(super) fn summarize_omena_query_external_sif_boundary_diagnostics(
     let mut emitted = BTreeSet::new();
     let mut diagnostics = Vec::new();
     for edge in &facts.sass_module_edges {
-        let is_external = external_sources.contains(edge.source.as_str());
-        let is_unresolved = unresolved_sources.contains(edge.source.as_str());
-        if !is_external && !is_unresolved {
-            continue;
-        }
         if !emitted.insert((edge.kind, edge.source.clone())) {
             continue;
         }
-        let state = if is_unresolved {
-            omena_resolver_boundary_state_for_unresolved_reference_v0(edge.source.as_str())
-        } else {
-            let sif = resolution
-                .edges
-                .iter()
-                .find(|resolution_edge| {
-                    resolution_edge.from_style_path == target_style_path
-                        && resolution_edge.source == edge.source
-                        && resolution_edge.status == "external"
-                })
-                .and_then(|resolution_edge| {
-                    find_omena_query_external_sif_for_edge(resolution_edge, external_sif_context)
-                });
-            classify_external_boundary_state(edge, sif, &facts, external_sifs)
+        let Some(state) = resolution_edge_for_parser_fact(resolution, target_style_path, edge)
+            .and_then(|resolution_edge| {
+                classify_external_boundary_state_for_edge(
+                    edge,
+                    resolution_edge,
+                    external_sif_context,
+                    &facts,
+                    external_sifs,
+                )
+            })
+        else {
+            continue;
         };
         let (code, default_severity) = match state.state {
             OmenaResolverBoundaryStateKindV0::Resolved => continue,
@@ -375,10 +361,6 @@ pub(in crate::style) fn promote_sif_backed_external_edges(
     resolution: &mut OmenaQuerySassModuleCrossFileResolutionV0,
     external_sif_context: OmenaQueryExternalSifResolutionContext<'_>,
 ) {
-    let external_sifs = external_sif_context.external_sifs;
-    if external_sifs.is_empty() {
-        return;
-    }
     for edge in &mut resolution.edges {
         if edge.status == "unresolved"
             && !sass_module_source_is_workspace_local(edge.source.as_str())
@@ -401,6 +383,72 @@ pub(in crate::style) fn promote_sif_backed_external_edges(
     resolution.unresolved_module_edge_count = resolution.module_edge_count.saturating_sub(
         resolution.resolved_module_edge_count + resolution.external_module_edge_count,
     );
+}
+
+fn classify_omena_query_external_edge<'a>(
+    edge: &OmenaQuerySassModuleEdgeResolutionV0,
+    external_sif_context: OmenaQueryExternalSifResolutionContext<'a>,
+) -> OmenaQueryExternalEdgeClass<'a> {
+    if edge.status == "resolved" && edge.resolved_style_path.is_some() {
+        return OmenaQueryExternalEdgeClass::SourceAvailable;
+    }
+    if let Some(sif) = find_omena_query_external_sif_for_edge(edge, external_sif_context) {
+        return OmenaQueryExternalEdgeClass::ExternalWithSif(sif);
+    }
+    if edge.status == "external"
+        || (edge.status == "unresolved"
+            && !sass_module_source_is_workspace_local(edge.source.as_str()))
+    {
+        return OmenaQueryExternalEdgeClass::ExternalNoSif;
+    }
+    OmenaQueryExternalEdgeClass::LocalUnresolved
+}
+
+fn classify_external_boundary_state_for_edge(
+    parser_edge: &ParsedSassModuleEdgeFact,
+    resolution_edge: &OmenaQuerySassModuleEdgeResolutionV0,
+    external_sif_context: OmenaQueryExternalSifResolutionContext<'_>,
+    target_facts: &omena_parser::ParsedStyleFacts,
+    external_sifs: &[OmenaQueryExternalSifInputV0],
+) -> Option<OmenaResolverBoundaryStateV0> {
+    match classify_omena_query_external_edge(resolution_edge, external_sif_context) {
+        OmenaQueryExternalEdgeClass::SourceAvailable
+        | OmenaQueryExternalEdgeClass::LocalUnresolved => None,
+        OmenaQueryExternalEdgeClass::ExternalWithSif(sif) => Some(
+            classify_external_boundary_state(parser_edge, Some(sif), target_facts, external_sifs),
+        ),
+        OmenaQueryExternalEdgeClass::ExternalNoSif if resolution_edge.status == "unresolved" => {
+            Some(omena_resolver_boundary_state_for_unresolved_reference_v0(
+                parser_edge.source.as_str(),
+            ))
+        }
+        OmenaQueryExternalEdgeClass::ExternalNoSif => Some(classify_external_boundary_state(
+            parser_edge,
+            None,
+            target_facts,
+            external_sifs,
+        )),
+    }
+}
+
+fn resolution_edge_for_parser_fact<'a>(
+    resolution: &'a OmenaQuerySassModuleCrossFileResolutionV0,
+    target_style_path: &str,
+    parser_edge: &ParsedSassModuleEdgeFact,
+) -> Option<&'a OmenaQuerySassModuleEdgeResolutionV0> {
+    resolution.edges.iter().find(|resolution_edge| {
+        resolution_edge.from_style_path == target_style_path
+            && resolution_edge.source == parser_edge.source
+            && parser_sass_module_edge_kind_label(parser_edge.kind) == resolution_edge.edge_kind
+    })
+}
+
+fn parser_sass_module_edge_kind_label(kind: ParsedSassModuleEdgeFactKind) -> &'static str {
+    match kind {
+        ParsedSassModuleEdgeFactKind::Use => "sassUse",
+        ParsedSassModuleEdgeFactKind::Forward => "sassForward",
+        ParsedSassModuleEdgeFactKind::Import => "sassImport",
+    }
 }
 
 pub(super) fn find_omena_query_external_sif_for_edge<'a>(

@@ -130,18 +130,13 @@ fn memo_workspace_style_diagnostics(
         })
         .collect::<Vec<_>>();
     let external_sifs = workspace.external_sifs(db);
-    let external_mode = if external_sifs.is_empty() {
-        OmenaQueryExternalModuleModeV0::Ignored
-    } else {
-        OmenaQueryExternalModuleModeV0::Sif
-    };
     summarize_omena_query_style_diagnostics_for_workspace_file_with_external_mode_and_sifs_and_resolution_inputs(
         target.style_path(db).as_str(),
         corpus.as_slice(),
         workspace.source_documents(db).as_slice(),
         workspace.package_manifests(db).as_slice(),
         None,
-        external_mode,
+        OmenaQueryExternalModuleModeV0::Auto,
         external_sifs.as_slice(),
         workspace.resolution_inputs(db),
     )
@@ -210,18 +205,13 @@ impl OmenaQueryStyleMemoHostV0 {
             .iter()
             .any(|source| !seen_paths.insert(source.style_path.as_str()))
         {
-            let external_mode = if external_sifs.is_empty() {
-                OmenaQueryExternalModuleModeV0::Ignored
-            } else {
-                OmenaQueryExternalModuleModeV0::Sif
-            };
             return summarize_omena_query_style_diagnostics_for_workspace_file_with_external_mode_and_sifs_and_resolution_inputs(
                 target_style_path,
                 style_sources,
                 source_documents,
                 package_manifests,
                 None,
-                external_mode,
+                OmenaQueryExternalModuleModeV0::Auto,
                 external_sifs,
                 resolution_inputs,
             );

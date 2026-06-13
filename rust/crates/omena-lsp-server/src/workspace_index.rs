@@ -24,6 +24,8 @@ const WORKSPACE_STYLE_INDEX_TIME_BUDGET_MS: u128 = 50;
 pub(crate) fn index_workspace_style_files(state: &mut LspShellState) {
     let mut budget = WorkspaceStyleIndexBudget::with_defaults();
     index_workspace_style_files_with_budget(state, &mut budget);
+    crate::admit_foreign_style_dependencies_for_indexed_style_documents(state);
+    crate::refresh_external_sifs_for_state(state);
 }
 
 #[derive(Debug, Clone)]
@@ -123,6 +125,8 @@ pub fn apply_background_workspace_index_result(
         let uri = document.uri.clone();
         state.insert_document(uri.as_str(), document);
     }
+    crate::admit_foreign_style_dependencies_for_indexed_style_documents(state);
+    crate::refresh_external_sifs_for_state(state);
     if result.exhausted {
         state.workspace_style_index_exhausted_count += 1;
     }

@@ -1,6 +1,7 @@
 mod boundary;
 mod diagnostics_scheduler;
 mod disk_cache;
+mod external_sif_loader;
 mod frame_aware_refresh;
 mod lsp_output;
 mod message_loop;
@@ -22,6 +23,7 @@ mod workspace_runtime_registry;
 
 pub use boundary::*;
 use disk_cache::disk_diagnostics_cache_slot_for_resolve;
+pub(crate) use external_sif_loader::refresh_external_sifs_for_state;
 pub use frame_aware_refresh::*;
 pub use lsp_output::*;
 #[cfg(test)]
@@ -37,8 +39,9 @@ use omena_query::summarize_omena_query_source_baseline_diagnostics_for_workspace
 #[cfg(feature = "salsa-style-diagnostics")]
 use omena_query::summarize_omena_query_target_unresolved_sass_import_diagnostics_for_workspace_paths;
 use omena_query::{
-    OmenaQueryCodeActionV0, OmenaQueryCompletionCandidateV0, OmenaQueryCompletionItemV0,
-    OmenaQueryEngineInputV2, OmenaQuerySourceDiagnosticV0, OmenaQuerySourceDocumentInputV0,
+    OmenaParserStyleDialect, OmenaQueryCodeActionV0, OmenaQueryCompletionCandidateV0,
+    OmenaQueryCompletionItemV0, OmenaQueryEngineInputV2, OmenaQueryExternalSifInputV0,
+    OmenaQuerySourceDiagnosticV0, OmenaQuerySourceDocumentInputV0,
     OmenaQuerySourceDomainClassReferenceFactV0 as SourceDomainClassReferenceFact,
     OmenaQuerySourceImportedStyleBindingV0 as ImportedStyleBinding,
     OmenaQuerySourceMissingSelectorDiagnosticCandidateV0,
@@ -65,6 +68,7 @@ use omena_query::{
     resolve_omena_query_source_provider_candidates,
     resolve_omena_query_style_selector_definitions_for_source_candidate,
     resolve_omena_query_style_uri_for_specifier_with_resolution_inputs,
+    summarize_omena_query_omena_parser_style_facts,
     summarize_omena_query_refs_for_class_from_occurrence_index,
     summarize_omena_query_rename_plan_from_occurrence_index,
     summarize_omena_query_sass_module_sources, summarize_omena_query_source_completion_at_position,
@@ -107,11 +111,10 @@ use source_occurrence_cache::store_source_selector_occurrence_sidecar;
 pub(crate) use source_type_facts::apply_source_type_fact_results_to_document;
 pub(crate) use source_type_facts::refresh_source_type_fact_candidates_for_document;
 pub use state::*;
-#[cfg(test)]
-use std::path::Path;
 use std::{
-    collections::{BTreeMap, BTreeSet},
+    collections::{BTreeMap, BTreeSet, VecDeque},
     fs,
+    path::{Component, Path, PathBuf},
     sync::Arc,
 };
 use style_symbol_occurrence_cache::store_style_symbol_occurrence_sidecar;
@@ -165,6 +168,7 @@ fn initialize_workspace_folders(state: &mut LspShellState, params: Option<&Value
             insert_workspace_folder(state, folder);
         }
         refresh_workspace_resolution_inputs(state);
+        refresh_external_sifs_for_state(state);
         return;
     }
 
@@ -177,6 +181,7 @@ fn initialize_workspace_folders(state: &mut LspShellState, params: Option<&Value
             .insert(root_uri.to_string(), root_uri.to_string());
     }
     refresh_workspace_resolution_inputs(state);
+    refresh_external_sifs_for_state(state);
 }
 
 fn refresh_workspace_resolution_inputs(state: &mut LspShellState) {
@@ -243,8 +248,10 @@ fn lsp_text_document_state(
     text: String,
     resolution_inputs: &omena_query::OmenaQueryStyleResolutionInputsV0,
 ) -> LspTextDocumentState {
+    let origin = lsp_document_origin_for_uri(uri.as_str());
     let mut document = LspTextDocumentState {
         uri,
+        origin,
         workspace_folder_uri,
         language_id,
         version,
@@ -271,8 +278,10 @@ fn lsp_text_document_state_with_source_syntax_index(
     source_syntax_index: SourceSyntaxIndex,
     has_unresolved_style_import: bool,
 ) -> LspTextDocumentState {
+    let origin = lsp_document_origin_for_uri(uri.as_str());
     let mut document = LspTextDocumentState {
         uri,
+        origin,
         workspace_folder_uri,
         language_id,
         version,
@@ -293,6 +302,14 @@ fn lsp_text_document_state_with_source_syntax_index(
         source_selector_candidates_from_index(&document, &source_syntax_index);
     document.source_syntax_index = source_syntax_index;
     document
+}
+
+fn lsp_document_origin_for_uri(uri: &str) -> LspDocumentOrigin {
+    if is_foreign_style_document_uri(uri) {
+        LspDocumentOrigin::Foreign
+    } else {
+        LspDocumentOrigin::Local
+    }
 }
 
 fn did_open_text_document(state: &mut LspShellState, params: Option<&Value>) {
@@ -327,6 +344,8 @@ fn did_open_text_document(state: &mut LspShellState, params: Option<&Value>) {
         ),
     );
     if is_style_document_uri(uri) {
+        admit_foreign_style_dependencies_for_style_uri(state, uri);
+        refresh_external_sifs_for_state(state);
         refresh_source_indexes_for_style_document_change(state, uri);
     } else {
         refresh_source_type_fact_candidates_for_document(state, uri);
@@ -371,6 +390,8 @@ fn did_change_text_document(state: &mut LspShellState, params: Option<&Value>) {
     }
     if text_changed {
         if is_style_document_uri(uri) {
+            admit_foreign_style_dependencies_for_style_uri(state, uri);
+            refresh_external_sifs_for_state(state);
             refresh_source_indexes_for_style_document_change(state, uri);
         } else {
             refresh_source_type_fact_candidates_for_document(state, uri);
@@ -413,6 +434,8 @@ fn did_close_text_document(state: &mut LspShellState, params: Option<&Value>) {
     };
     state.remove_open_document_uri(uri);
     if is_style_document_uri(uri) && reload_indexed_style_document_from_disk(state, uri) {
+        admit_foreign_style_dependencies_for_style_uri(state, uri);
+        refresh_external_sifs_for_state(state);
         refresh_source_indexes_for_style_document_change(state, uri);
         return;
     }
@@ -452,6 +475,7 @@ fn did_change_workspace_folders(
     }
     reconcile_documents_after_workspace_folder_changes(state, removed_workspace_uris.as_slice());
     refresh_workspace_resolution_inputs(state);
+    refresh_external_sifs_for_state(state);
     if added_workspace_folder && index_added_workspace_folders {
         index_workspace_style_files(state);
     }
@@ -545,6 +569,8 @@ fn apply_watched_file_change_to_index(state: &mut LspShellState, uri: &str, chan
     }
 
     if reload_indexed_style_document_from_disk(state, uri) {
+        admit_foreign_style_dependencies_for_style_uri(state, uri);
+        refresh_external_sifs_for_state(state);
         refresh_source_indexes_for_style_document_change(state, uri);
     }
 }
@@ -554,6 +580,7 @@ fn refresh_source_indexes_for_resolution_config_change(
     config_uri: &str,
 ) {
     refresh_workspace_resolution_inputs_for_uri(state, config_uri);
+    refresh_external_sifs_for_state(state);
     let workspace_folder_uri = resolve_workspace_folder_uri(state, config_uri);
     let source_uris = state
         .documents
@@ -584,6 +611,7 @@ fn refresh_source_indexes_for_resolution_config_change(
 
 pub(crate) fn refresh_source_indexes_for_resolution_settings_change(state: &mut LspShellState) {
     refresh_workspace_resolution_inputs(state);
+    refresh_external_sifs_for_state(state);
     let source_uris = state
         .documents
         .values()
@@ -612,6 +640,8 @@ pub(crate) fn is_resolution_config_document_uri(uri: &str) -> bool {
         return false;
     };
     file_name == "package.json"
+        || file_name == "omena.lock"
+        || file_name.ends_with(".sif.json")
         || file_name == "jsconfig.json"
         || (file_name.starts_with("tsconfig") && file_name.ends_with(".json"))
         || matches!(
@@ -693,6 +723,88 @@ fn reload_indexed_source_document_from_disk(state: &mut LspShellState, uri: &str
         ),
     );
     true
+}
+
+const FOREIGN_STYLE_DEPENDENCY_ADMISSION_LIMIT: usize = 512;
+
+pub(crate) fn admit_foreign_style_dependencies_for_indexed_style_documents(
+    state: &mut LspShellState,
+) {
+    let style_uris = state
+        .documents
+        .values()
+        .filter(|document| is_style_document_uri(document.uri.as_str()))
+        .map(|document| document.uri.clone())
+        .collect::<Vec<_>>();
+    admit_foreign_style_dependencies_for_style_uris(state, style_uris);
+}
+
+fn admit_foreign_style_dependencies_for_style_uri(state: &mut LspShellState, uri: &str) {
+    admit_foreign_style_dependencies_for_style_uris(state, vec![uri.to_string()]);
+}
+
+fn admit_foreign_style_dependencies_for_style_uris(
+    state: &mut LspShellState,
+    style_uris: Vec<String>,
+) {
+    let mut queue = style_uris.into_iter().collect::<VecDeque<_>>();
+    let mut visited = BTreeSet::new();
+    let mut admitted = 0usize;
+    while let Some(current_uri) = queue.pop_front() {
+        if admitted >= FOREIGN_STYLE_DEPENDENCY_ADMISSION_LIMIT
+            || !visited.insert(current_uri.clone())
+        {
+            continue;
+        }
+        let dependency_uris = state
+            .document(current_uri.as_str())
+            .map(|document| style_module_dependency_target_uris(state, document))
+            .unwrap_or_default();
+        for dependency_uri in dependency_uris {
+            if admitted >= FOREIGN_STYLE_DEPENDENCY_ADMISSION_LIMIT {
+                break;
+            }
+            if !is_foreign_style_document_uri(dependency_uri.as_str()) {
+                continue;
+            }
+            if !state.contains_document_uri(dependency_uri.as_str())
+                && reload_indexed_style_document_from_disk(state, dependency_uri.as_str())
+            {
+                admitted += 1;
+            }
+            if state
+                .document(dependency_uri.as_str())
+                .is_some_and(|document| document.origin == LspDocumentOrigin::Foreign)
+            {
+                queue.push_back(dependency_uri);
+            }
+        }
+    }
+}
+
+fn style_module_dependency_target_uris(
+    state: &LspShellState,
+    document: &LspTextDocumentState,
+) -> Vec<String> {
+    let Some(sources) =
+        summarize_omena_query_sass_module_sources(document.uri.as_str(), document.text.as_str())
+    else {
+        return Vec::new();
+    };
+    let mut uris = Vec::new();
+    let module_sources = sources
+        .module_use_edges
+        .iter()
+        .map(|edge| edge.source.as_str())
+        .chain(sources.module_forward_sources.iter().map(String::as_str));
+    for source in module_sources {
+        if let Some(uri) = resolve_lsp_style_uri_for_specifier(state, document, source) {
+            uris.push(uri);
+        }
+    }
+    uris.sort();
+    uris.dedup();
+    uris
 }
 
 fn refresh_source_indexes_for_style_document_change(state: &mut LspShellState, style_uri: &str) {
@@ -1129,17 +1241,7 @@ fn resolve_style_diagnostics_for_uri(state: &LspShellState, document_uri: &str) 
     );
     let source_documents =
         source_documents_from_open_documents(state, document.workspace_folder_uri.as_deref());
-    // #35: drive the workspace path in `Sif` mode whenever external SIF artifacts are available
-    // (sourced from the lock/bridge per #32/#33). That branch is what classifies the external
-    // boundary lattice and parses the `@omena-strict:` sigil; with no SIFs present we fall back to
-    // `Ignored`, which is byte-for-byte the legacy behaviour.
     let external_sifs = state.resolution.external_sifs.as_slice();
-    #[cfg(not(feature = "salsa-style-diagnostics"))]
-    let external_mode = if external_sifs.is_empty() {
-        OmenaQueryExternalModuleModeV0::Ignored
-    } else {
-        OmenaQueryExternalModuleModeV0::Sif
-    };
     // RFC-0007-J (#50): pass the workspace's tsconfig/bundler path mappings so the unused-selector
     // usage collector resolves alias style imports (`@/styles/...`) the same way the reference/goto
     // path does — otherwise an alias import dims every selector as `unusedSelector`.
@@ -1170,8 +1272,7 @@ fn resolve_style_diagnostics_for_uri(state: &LspShellState, document_uri: &str) 
     // corpus revalidates instead of recomputing. `--no-default-features`
     // preserves the straight-line call; byte-identity between the two is
     // enforced by omena-diff-test's salsaMemoizedVsFromScratchEquivalence
-    // gate. The host derives the external mode from SIF presence exactly as
-    // the straight-line arm below does.
+    // gate. Both arms use query-level per-edge external classification.
     #[cfg(feature = "salsa-style-diagnostics")]
     let workspace_diagnostics_summary = {
         let mut host_slot = state.style_memo_host.borrow_mut();
@@ -1193,7 +1294,7 @@ fn resolve_style_diagnostics_for_uri(state: &LspShellState, document_uri: &str) 
             source_documents.as_slice(),
             state.resolution.package_manifests.as_slice(),
             None,
-            external_mode,
+            OmenaQueryExternalModuleModeV0::Auto,
             external_sifs,
             &resolution_inputs,
         );
@@ -2356,7 +2457,10 @@ fn workspace_occurrence_indexes_from_documents(
         .collect::<Vec<_>>();
     source_occurrences.sort();
     source_occurrences.dedup();
-    let style_dependency_digest = workspace_occurrence_dependency_digest(&style_document_keys);
+    let style_dependency_digest = workspace_occurrence_dependency_digest(&(
+        style_document_keys.as_slice(),
+        &state.resolution.external_sifs,
+    ));
     for document in state
         .documents
         .values()
@@ -2664,6 +2768,9 @@ fn resolve_style_symbol_rename(
     let mut seen = BTreeSet::new();
     let mut changes: BTreeMap<String, Vec<Value>> = BTreeMap::new();
     for occurrence in occurrences_for_monikers(&occurrence_index, &monikers) {
+        if !occurrence.rename_target {
+            continue;
+        }
         let key = (
             occurrence.uri.clone(),
             occurrence.range.start.line,
@@ -2738,7 +2845,7 @@ fn style_symbol_workspace_occurrences_for_document(
         }
         if is_sass_symbol_declaration_kind(candidate.kind) {
             style_occurrences.push(style_symbol_occurrence_for_candidate(
-                style_sass_symbol_moniker(document.uri.as_str(), &candidate),
+                style_sass_symbol_moniker_for_document(state, document, &candidate),
                 document.uri.as_str(),
                 &candidate,
                 sass_symbol_kind_from_candidate_kind(candidate.kind).unwrap_or("symbol"),
@@ -2748,8 +2855,15 @@ fn style_symbol_workspace_occurrences_for_document(
         }
         let definitions = sass_symbol_definitions_for_candidate(state, document, &candidate);
         if definitions.is_empty() {
+            let moniker = if let Some(target) =
+                external_sif_sass_symbol_target_for_candidate(state, document, &candidate)
+            {
+                style_external_sif_sass_symbol_moniker(&target)
+            } else {
+                style_unresolved_sass_symbol_moniker(workspace_folder_uri, &candidate)
+            };
             style_occurrences.push(style_symbol_occurrence_for_candidate(
-                style_unresolved_sass_symbol_moniker(workspace_folder_uri, &candidate),
+                moniker,
                 document.uri.as_str(),
                 &candidate,
                 sass_symbol_kind_from_candidate_kind(candidate.kind).unwrap_or("symbol"),
@@ -2759,7 +2873,7 @@ fn style_symbol_workspace_occurrences_for_document(
         }
         for (definition_uri, definition) in definitions {
             style_occurrences.push(style_symbol_occurrence_for_candidate(
-                style_sass_symbol_moniker(definition_uri.as_str(), &definition),
+                style_sass_symbol_moniker_for_uri(state, definition_uri.as_str(), &definition),
                 document.uri.as_str(),
                 &candidate,
                 sass_symbol_kind_from_candidate_kind(candidate.kind).unwrap_or("symbol"),
@@ -2771,7 +2885,7 @@ fn style_symbol_workspace_occurrences_for_document(
     style_occurrences.dedup();
     let workspace_occurrences = style_occurrences
         .iter()
-        .map(workspace_occurrence_from_style_symbol_occurrence)
+        .map(|occurrence| workspace_occurrence_from_style_symbol_occurrence(document, occurrence))
         .collect::<Vec<_>>();
     store_workspace_occurrence_shard(
         document.workspace_folder_uri.as_deref(),
@@ -2805,6 +2919,7 @@ fn style_symbol_occurrence_from_workspace_occurrence_for_lsp(
 }
 
 fn workspace_occurrence_from_style_symbol_occurrence(
+    document: &LspTextDocumentState,
     occurrence: &LspStyleSymbolOccurrenceV0,
 ) -> OmenaWorkspaceOccurrenceV0 {
     OmenaWorkspaceOccurrenceV0 {
@@ -2818,7 +2933,7 @@ fn workspace_occurrence_from_style_symbol_occurrence(
         family: Some(occurrence.family),
         namespace: occurrence.namespace.clone(),
         target_style_uri: None,
-        rename_target: true,
+        rename_target: document.origin == LspDocumentOrigin::Local,
     }
 }
 
@@ -2853,10 +2968,17 @@ fn style_symbol_monikers_for_candidate(
         )]);
     }
     if is_sass_symbol_declaration_kind(candidate.kind) {
-        return BTreeSet::from([style_sass_symbol_moniker(document.uri.as_str(), candidate)]);
+        return BTreeSet::from([style_sass_symbol_moniker_for_document(
+            state, document, candidate,
+        )]);
     }
     let definitions = sass_symbol_definitions_for_candidate(state, document, candidate);
     if definitions.is_empty() {
+        if let Some(target) =
+            external_sif_sass_symbol_target_for_candidate(state, document, candidate)
+        {
+            return BTreeSet::from([style_external_sif_sass_symbol_moniker(&target)]);
+        }
         return BTreeSet::from([style_unresolved_sass_symbol_moniker(
             document.workspace_folder_uri.as_deref(),
             candidate,
@@ -2864,7 +2986,9 @@ fn style_symbol_monikers_for_candidate(
     }
     definitions
         .into_iter()
-        .map(|(uri, definition)| style_sass_symbol_moniker(uri.as_str(), &definition))
+        .map(|(uri, definition)| {
+            style_sass_symbol_moniker_for_uri(state, uri.as_str(), &definition)
+        })
         .collect()
 }
 
@@ -2913,6 +3037,138 @@ fn style_sass_symbol_moniker(uri: &str, candidate: &LspStyleHoverCandidate) -> S
     })
 }
 
+fn style_sass_symbol_moniker_for_document(
+    state: &LspShellState,
+    document: &LspTextDocumentState,
+    candidate: &LspStyleHoverCandidate,
+) -> String {
+    style_sass_symbol_moniker_for_uri(state, document.uri.as_str(), candidate)
+}
+
+fn style_sass_symbol_moniker_for_uri(
+    state: &LspShellState,
+    uri: &str,
+    candidate: &LspStyleHoverCandidate,
+) -> String {
+    if let Some(moniker) = style_foreign_sass_symbol_moniker(state, uri, candidate) {
+        return moniker;
+    }
+    style_sass_symbol_moniker(uri, candidate)
+}
+
+fn style_foreign_sass_symbol_moniker(
+    state: &LspShellState,
+    uri: &str,
+    candidate: &LspStyleHoverCandidate,
+) -> Option<String> {
+    let identity = foreign_sass_package_identity_for_uri(state, uri)?;
+    let family = sass_symbol_kind_from_candidate_kind(candidate.kind).unwrap_or("symbol");
+    Some(format!(
+        "sass-symbol-foreign:pkg:{}@{}/{}#{}:{}",
+        identity.package_name, identity.version, identity.subpath, family, candidate.name
+    ))
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct ForeignSassPackageIdentity {
+    package_name: String,
+    version: String,
+    subpath: String,
+}
+
+fn foreign_sass_package_identity_for_uri(
+    state: &LspShellState,
+    uri: &str,
+) -> Option<ForeignSassPackageIdentity> {
+    let path = file_uri_to_path(uri)?;
+    let (package_name, package_root, subpath) = node_modules_package_for_path(path.as_path())?;
+    let version = package_version_for_root(package_root.as_path()).unwrap_or_else(|| {
+        state
+            .document(uri)
+            .map(|document| format!("leaf:{}", document.text_hash))
+            .or_else(|| {
+                fs::read(path.as_path()).ok().map(|bytes| {
+                    format!(
+                        "leaf:{}",
+                        compute_omena_sif_leaf_hash_v1(bytes.as_slice()).as_str()
+                    )
+                })
+            })
+            .unwrap_or_else(|| "leaf:unknown".to_string())
+    });
+    Some(ForeignSassPackageIdentity {
+        package_name,
+        version,
+        subpath,
+    })
+}
+
+fn package_version_for_root(package_root: &Path) -> Option<String> {
+    let source = fs::read_to_string(package_root.join("package.json")).ok()?;
+    serde_json::from_str::<Value>(source.as_str())
+        .ok()
+        .and_then(|json| {
+            json.get("version")
+                .and_then(Value::as_str)
+                .map(str::to_string)
+        })
+        .filter(|version| !version.is_empty())
+}
+
+fn is_foreign_style_document_uri(uri: &str) -> bool {
+    is_style_document_uri(uri)
+        && file_uri_to_path(uri)
+            .as_deref()
+            .and_then(node_modules_package_for_path)
+            .is_some()
+}
+
+fn node_modules_package_for_path(path: &Path) -> Option<(String, PathBuf, String)> {
+    let components = path.components().collect::<Vec<_>>();
+    for (index, component) in components.iter().enumerate() {
+        if !matches!(component, Component::Normal(name) if name.to_str() == Some("node_modules")) {
+            continue;
+        }
+        let package_start = index + 1;
+        let first = component_normal_str(components.get(package_start)?)?;
+        let (package_name, package_end) = if first.starts_with('@') {
+            let second = component_normal_str(components.get(package_start + 1)?)?;
+            (format!("{first}/{second}"), package_start + 2)
+        } else {
+            (first.to_string(), package_start + 1)
+        };
+        let package_root =
+            components[..package_end]
+                .iter()
+                .fold(PathBuf::new(), |mut root, component| {
+                    root.push(component.as_os_str());
+                    root
+                });
+        let subpath = components[package_end..]
+            .iter()
+            .filter_map(component_normal_str)
+            .collect::<Vec<_>>()
+            .join("/");
+        return Some((
+            package_name,
+            package_root,
+            if subpath.is_empty() {
+                ".".to_string()
+            } else {
+                subpath
+            },
+        ));
+    }
+    None
+}
+
+fn component_normal_str<'a>(component: &'a Component<'a>) -> Option<&'a str> {
+    match component {
+        Component::Normal(value) => value.to_str(),
+        _ => None,
+    }
+}
+
 fn style_unresolved_sass_symbol_moniker(
     workspace_folder_uri: Option<&str>,
     candidate: &LspStyleHoverCandidate,
@@ -2924,6 +3180,359 @@ fn style_unresolved_sass_symbol_moniker(
         namespace: candidate.namespace.as_deref(),
         name: candidate.name.as_str(),
     })
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct ExternalSifSassSymbolTarget {
+    canonical_url: String,
+    interface_hash: String,
+    family: &'static str,
+    name: String,
+    value_repr: Option<String>,
+}
+
+fn style_external_sif_sass_symbol_moniker(target: &ExternalSifSassSymbolTarget) -> String {
+    format!(
+        "sass-symbol-foreign:sif:{}@{}#{}:{}",
+        target.canonical_url, target.interface_hash, target.family, target.name
+    )
+}
+
+fn external_sif_sass_symbol_target_for_candidate(
+    state: &LspShellState,
+    document: &LspTextDocumentState,
+    candidate: &LspStyleHoverCandidate,
+) -> Option<ExternalSifSassSymbolTarget> {
+    if is_sass_symbol_declaration_kind(candidate.kind) {
+        return None;
+    }
+    let family = sass_symbol_kind_from_candidate_kind(candidate.kind)?;
+    let sources =
+        summarize_omena_query_sass_module_sources(document.uri.as_str(), document.text.as_str())?;
+    let mut visiting = BTreeSet::new();
+    for source in resolve_omena_query_sass_module_use_sources_for_candidate(
+        &sources,
+        candidate.namespace.as_deref(),
+    ) {
+        if let Some(target) = external_sif_sass_symbol_target_for_module_source(
+            state,
+            document,
+            source.as_str(),
+            family,
+            candidate.name.as_str(),
+            &mut visiting,
+        ) {
+            return Some(target);
+        }
+    }
+    if candidate.namespace.is_some() {
+        return None;
+    }
+    for forward_edge in sass_forward_edges_for_document(document) {
+        let Some(private_candidate) =
+            forward_edge.private_candidate_for_forwarded_public_candidate(candidate)
+        else {
+            continue;
+        };
+        if let Some(mut target) = external_sif_sass_symbol_target_for_module_source(
+            state,
+            document,
+            forward_edge.source.as_str(),
+            family,
+            private_candidate.name.as_str(),
+            &mut visiting,
+        ) {
+            target.name = candidate.name.clone();
+            return Some(target);
+        }
+    }
+    None
+}
+
+fn external_sif_sass_symbol_target_for_module_source(
+    state: &LspShellState,
+    document: &LspTextDocumentState,
+    source: &str,
+    family: &'static str,
+    name: &str,
+    visiting: &mut BTreeSet<String>,
+) -> Option<ExternalSifSassSymbolTarget> {
+    let external_sif = external_sif_for_module_source(state, document, source)?;
+    external_sif_exported_sass_symbol_target(
+        external_sif,
+        state.resolution.external_sifs.as_slice(),
+        family,
+        name,
+        visiting,
+    )
+}
+
+fn external_sif_for_module_source<'a>(
+    state: &'a LspShellState,
+    document: &LspTextDocumentState,
+    source: &str,
+) -> Option<&'a OmenaQueryExternalSifInputV0> {
+    let mut candidates = BTreeSet::from([source.to_string()]);
+    if let Some(uri) = resolve_lsp_style_uri_for_specifier(state, document, source) {
+        candidates.insert(uri);
+    }
+    state.resolution.external_sifs.iter().find(|external_sif| {
+        candidates.iter().any(|candidate| {
+            external_sif_canonical_urls_match(external_sif.canonical_url.as_str(), candidate)
+                || external_sif_canonical_urls_match(
+                    external_sif.sif.canonical_url.as_str(),
+                    candidate,
+                )
+        })
+    })
+}
+
+fn external_sif_exported_sass_symbol_target(
+    external_sif: &OmenaQueryExternalSifInputV0,
+    external_sifs: &[OmenaQueryExternalSifInputV0],
+    family: &'static str,
+    name: &str,
+    visiting: &mut BTreeSet<String>,
+) -> Option<ExternalSifSassSymbolTarget> {
+    if !visiting.insert(external_sif.sif.canonical_url.clone()) {
+        return None;
+    }
+    let direct = external_sif_direct_sass_symbol_target(external_sif, family, name);
+    if direct.is_some() {
+        visiting.remove(external_sif.sif.canonical_url.as_str());
+        return direct;
+    }
+    for forward in &external_sif.sif.exports.forwards {
+        let Some(private_name) = unapply_sass_forward_prefix(forward.prefix.as_deref(), name)
+        else {
+            continue;
+        };
+        if !external_sif_forward_visibility_allows(forward, family, private_name.as_str()) {
+            continue;
+        }
+        let Some(forwarded_sif) = external_sif_for_forward(external_sif, forward, external_sifs)
+        else {
+            continue;
+        };
+        if let Some(mut target) = external_sif_exported_sass_symbol_target(
+            forwarded_sif,
+            external_sifs,
+            family,
+            private_name.as_str(),
+            visiting,
+        ) {
+            target.name = name.to_string();
+            visiting.remove(external_sif.sif.canonical_url.as_str());
+            return Some(target);
+        }
+    }
+    visiting.remove(external_sif.sif.canonical_url.as_str());
+    None
+}
+
+fn external_sif_direct_sass_symbol_target(
+    external_sif: &OmenaQueryExternalSifInputV0,
+    family: &'static str,
+    name: &str,
+) -> Option<ExternalSifSassSymbolTarget> {
+    let (name, value_repr) = match family {
+        "variable" => external_sif
+            .sif
+            .exports
+            .variables
+            .iter()
+            .find(|variable| sass_symbol_names_match(variable.name.as_str(), name))
+            .map(|variable| {
+                (
+                    variable.name.trim_start_matches('$').to_string(),
+                    variable.value_repr.clone(),
+                )
+            })?,
+        "mixin" => external_sif
+            .sif
+            .exports
+            .mixins
+            .iter()
+            .find(|mixin| sass_symbol_names_match(mixin.name.as_str(), name))
+            .map(|mixin| (mixin.name.clone(), None))?,
+        "function" => external_sif
+            .sif
+            .exports
+            .functions
+            .iter()
+            .find(|function| sass_symbol_names_match(function.name.as_str(), name))
+            .map(|function| (function.name.clone(), None))?,
+        _ => return None,
+    };
+    Some(ExternalSifSassSymbolTarget {
+        canonical_url: external_sif.sif.canonical_url.clone(),
+        interface_hash: external_sif
+            .sif
+            .fingerprints
+            .interface_hash
+            .as_str()
+            .to_string(),
+        family,
+        name,
+        value_repr,
+    })
+}
+
+fn external_sif_for_forward<'a>(
+    external_sif: &OmenaQueryExternalSifInputV0,
+    forward: &omena_sif::OmenaSifForwardExportV1,
+    external_sifs: &'a [OmenaQueryExternalSifInputV0],
+) -> Option<&'a OmenaQueryExternalSifInputV0> {
+    external_sif_forward_canonical_url_candidates(
+        external_sif.sif.canonical_url.as_str(),
+        forward.canonical_url.as_str(),
+    )
+    .into_iter()
+    .find_map(|candidate| {
+        external_sifs.iter().find(|input| {
+            external_sif_canonical_urls_match(input.canonical_url.as_str(), candidate.as_str())
+                || external_sif_canonical_urls_match(
+                    input.sif.canonical_url.as_str(),
+                    candidate.as_str(),
+                )
+        })
+    })
+}
+
+fn external_sif_forward_canonical_url_candidates(
+    base_canonical_url: &str,
+    source: &str,
+) -> Vec<String> {
+    let mut candidates = BTreeSet::from([source.to_string()]);
+    if !source.starts_with("sass:")
+        && !source.starts_with("http://")
+        && !source.starts_with("https://")
+        && !source.starts_with("file://")
+        && !source.starts_with("pkg:")
+        && let Some(base_file_path) = base_canonical_url.strip_prefix("file://")
+    {
+        let base_path = Path::new(base_file_path);
+        let joined = if source.starts_with('/') {
+            PathBuf::from(source)
+        } else {
+            base_path
+                .parent()
+                .unwrap_or_else(|| Path::new(""))
+                .join(source)
+        };
+        push_external_sif_file_uri_candidates(&mut candidates, joined.as_path());
+    }
+    candidates.into_iter().collect()
+}
+
+fn push_external_sif_file_uri_candidates(candidates: &mut BTreeSet<String>, path: &Path) {
+    if path
+        .extension()
+        .and_then(|extension| extension.to_str())
+        .is_some()
+    {
+        candidates.insert(format!(
+            "file://{}",
+            normalize_path(path.to_path_buf()).to_string_lossy()
+        ));
+        return;
+    }
+    for extension in ["scss", "sass", "css"] {
+        let with_extension = path.with_extension(extension);
+        candidates.insert(format!(
+            "file://{}",
+            normalize_path(with_extension).to_string_lossy()
+        ));
+        if let Some(file_name) = path.file_name().and_then(|file_name| file_name.to_str()) {
+            let partial = path
+                .with_file_name(format!("_{file_name}"))
+                .with_extension(extension);
+            candidates.insert(format!(
+                "file://{}",
+                normalize_path(partial).to_string_lossy()
+            ));
+        }
+    }
+}
+
+fn external_sif_forward_visibility_allows(
+    forward: &omena_sif::OmenaSifForwardExportV1,
+    family: &'static str,
+    name: &str,
+) -> bool {
+    let matches_filter = |filter_name: &String| {
+        let exposed_name = apply_sass_forward_prefix(forward.prefix.as_deref(), name);
+        filter_name == &exposed_name
+            || filter_name.trim_start_matches('$') == exposed_name
+            || (family != "variable" && filter_name.trim_start_matches('@') == exposed_name)
+    };
+    if !forward.show.is_empty() {
+        return forward.show.iter().any(matches_filter);
+    }
+    !forward.hide.iter().any(matches_filter)
+}
+
+fn apply_sass_forward_prefix(prefix: Option<&str>, name: &str) -> String {
+    match prefix {
+        Some(prefix) if prefix.contains('*') => prefix.replace('*', name),
+        Some(prefix) => format!("{prefix}{name}"),
+        None => name.to_string(),
+    }
+}
+
+fn external_sif_canonical_urls_match(left: &str, right: &str) -> bool {
+    if left == right {
+        return true;
+    }
+    let Some(left_path) = external_sif_canonical_url_path(left) else {
+        return false;
+    };
+    let Some(right_path) = external_sif_canonical_url_path(right) else {
+        return false;
+    };
+    normalize_path(Path::new(left_path.as_str()).to_path_buf())
+        == normalize_path(Path::new(right_path.as_str()).to_path_buf())
+}
+
+fn external_sif_canonical_url_path(canonical_url: &str) -> Option<String> {
+    if let Some(path) = canonical_url.strip_prefix("file://") {
+        return Some(path.to_string());
+    }
+    Path::new(canonical_url)
+        .is_absolute()
+        .then(|| canonical_url.to_string())
+}
+
+fn sass_symbol_names_match(left: &str, right: &str) -> bool {
+    fold_sass_symbol_name(left.trim_start_matches('$')) == fold_sass_symbol_name(right)
+}
+
+fn fold_sass_symbol_name(name: &str) -> String {
+    name.replace('_', "-")
+}
+
+fn render_external_sif_sass_symbol_hover_markdown(target: &ExternalSifSassSymbolTarget) -> String {
+    let label = match target.family {
+        "variable" => format!("`${}`", format_args!("${}", target.name)),
+        "mixin" => format!("`@mixin {}`", target.name),
+        "function" => format!("`{}()`", target.name),
+        _ => format!("`{}`", target.name),
+    };
+    let mut lines = vec![
+        label,
+        String::new(),
+        format!("External Sass interface from `{}`.", target.canonical_url),
+        "Source location is unavailable for this SIF-backed symbol.".to_string(),
+    ];
+    if let Some(value_repr) = target
+        .value_repr
+        .as_deref()
+        .filter(|value| !value.is_empty())
+    {
+        lines.push(String::new());
+        lines.push(format!("Value: `{value_repr}`"));
+    }
+    lines.join("\n")
 }
 
 fn workspace_occurrence_kind_from_style_symbol_kind(
@@ -3130,25 +3739,30 @@ fn sass_symbol_declarations_with_forwards(
         return Vec::new();
     }
     let mut definitions = sass_symbol_declarations_in_document(document, symbol_kind, candidate);
-    let Some(sources) =
-        summarize_omena_query_sass_module_sources(document.uri.as_str(), document.text.as_str())
-    else {
+    if summarize_omena_query_sass_module_sources(document.uri.as_str(), document.text.as_str())
+        .is_none()
+    {
         return definitions;
-    };
-    for forward_source in resolve_omena_query_sass_forward_sources(&sources) {
+    }
+    for forward_edge in sass_forward_edges_for_document(document) {
         let Some(uri) =
-            resolve_lsp_style_uri_for_specifier(state, document, forward_source.as_str())
+            resolve_lsp_style_uri_for_specifier(state, document, forward_edge.source.as_str())
         else {
             continue;
         };
         let Some(target_document) = state.document(uri.as_str()) else {
             continue;
         };
+        let Some(target_candidate) =
+            forward_edge.private_candidate_for_forwarded_public_candidate(candidate)
+        else {
+            continue;
+        };
         definitions.extend(sass_symbol_declarations_with_forwards(
             state,
             target_document,
             symbol_kind,
-            candidate,
+            &target_candidate,
             visited,
         ));
     }
@@ -3179,6 +3793,78 @@ fn sass_forward_module_target_uris(
     uris.sort();
     uris.dedup();
     uris
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct SassForwardEdgeForLsp {
+    source: String,
+    forward_prefix: Option<String>,
+}
+
+impl SassForwardEdgeForLsp {
+    fn private_candidate_for_forwarded_public_candidate(
+        &self,
+        candidate: &LspStyleHoverCandidate,
+    ) -> Option<LspStyleHoverCandidate> {
+        let private_name =
+            unapply_sass_forward_prefix(self.forward_prefix.as_deref(), &candidate.name)?;
+        let mut target = candidate.clone();
+        target.name = private_name;
+        target.namespace = None;
+        Some(target)
+    }
+}
+
+fn sass_forward_edges_for_document(document: &LspTextDocumentState) -> Vec<SassForwardEdgeForLsp> {
+    let facts = summarize_omena_query_omena_parser_style_facts(
+        document.text.as_str(),
+        query_style_dialect_for_uri(document.uri.as_str()),
+    );
+    facts
+        .sass_module_edges
+        .into_iter()
+        .filter(|edge| edge.kind == "sassForward")
+        .map(|edge| SassForwardEdgeForLsp {
+            source: edge.source,
+            forward_prefix: edge.forward_prefix,
+        })
+        .collect()
+}
+
+fn unapply_sass_forward_prefix(prefix: Option<&str>, exposed_name: &str) -> Option<String> {
+    let Some(prefix) = prefix else {
+        return Some(exposed_name.to_string());
+    };
+    if let Some(star_offset) = prefix.find('*') {
+        let before = prefix.get(..star_offset).unwrap_or_default();
+        let after = prefix
+            .get(star_offset + '*'.len_utf8()..)
+            .unwrap_or_default();
+        let without_before = exposed_name.strip_prefix(before)?;
+        let without_after = if after.is_empty() {
+            without_before
+        } else {
+            without_before.strip_suffix(after)?
+        };
+        return Some(without_after.to_string());
+    }
+    exposed_name
+        .strip_prefix(prefix)
+        .map(str::to_string)
+        .filter(|name| !name.is_empty())
+}
+
+fn query_style_dialect_for_uri(uri: &str) -> OmenaParserStyleDialect {
+    let lower = uri.to_ascii_lowercase();
+    if lower.ends_with(".sass") || lower.ends_with(".sass?module") {
+        OmenaParserStyleDialect::Sass
+    } else if lower.ends_with(".scss") || lower.ends_with(".module.scss") {
+        OmenaParserStyleDialect::Scss
+    } else if lower.ends_with(".less") || lower.ends_with(".module.less") {
+        OmenaParserStyleDialect::Less
+    } else {
+        OmenaParserStyleDialect::Css
+    }
 }
 
 fn resolve_lsp_style_uri_for_specifier(
@@ -3348,6 +4034,18 @@ fn resolve_lsp_hover(state: &LspShellState, params: Option<&Value>) -> Value {
             attach_provider_tier_feedback(&mut response, provider_feedback.as_ref());
         }
         return response;
+    }
+    if is_sass_symbol_reference_kind(candidate.kind)
+        && let Some(target) =
+            external_sif_sass_symbol_target_for_candidate(state, document, candidate)
+    {
+        return json!({
+            "contents": {
+                "kind": "markdown",
+                "value": render_external_sif_sass_symbol_hover_markdown(&target),
+            },
+            "range": candidate.range,
+        });
     }
 
     let mut response = json!({

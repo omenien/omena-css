@@ -1988,6 +1988,133 @@ fn style_diagnostics_external_sif_mode_reports_missing_sif_boundary() -> Result<
 }
 
 #[test]
+fn style_diagnostics_auto_external_mode_preserves_source_available_zero_sif_output()
+-> Result<(), &'static str> {
+    let sources = vec![
+        OmenaQueryStyleSourceInputV0 {
+            style_path: "/tmp/App.module.scss".to_string(),
+            style_source: r#"@use "./tokens" as tokens;
+.button { color: tokens.$brand; }"#
+                .to_string(),
+        },
+        OmenaQueryStyleSourceInputV0 {
+            style_path: "/tmp/_tokens.scss".to_string(),
+            style_source: "$brand: red;\n".to_string(),
+        },
+    ];
+
+    let ignored =
+        crate::summarize_omena_query_style_diagnostics_for_workspace_file_with_external_mode_and_sifs(
+            "/tmp/App.module.scss",
+            sources.as_slice(),
+            &[],
+            &[],
+            None,
+            crate::OmenaQueryExternalModuleModeV0::Ignored,
+            &[],
+        )
+        .ok_or("ignored diagnostics")?;
+    let auto =
+        crate::summarize_omena_query_style_diagnostics_for_workspace_file_with_external_mode_and_sifs(
+            "/tmp/App.module.scss",
+            sources.as_slice(),
+            &[],
+            &[],
+            None,
+            crate::OmenaQueryExternalModuleModeV0::Auto,
+            &[],
+        )
+        .ok_or("auto diagnostics")?;
+
+    assert_eq!(
+        serde_json::to_value(&auto).map_err(|_| "auto json")?,
+        serde_json::to_value(&ignored).map_err(|_| "ignored json")?,
+        "auto mode must be byte-identical for source-available zero-SIF graphs",
+    );
+    Ok(())
+}
+
+#[test]
+fn style_diagnostics_auto_external_mode_classifies_partial_sif_edges_independently()
+-> Result<(), &'static str> {
+    let sources = vec![OmenaQueryStyleSourceInputV0 {
+        style_path: "/tmp/App.module.scss".to_string(),
+        style_source: r#"@use "https://cdn.example/tokens.scss" as tokens;
+@use "https://cdn.example/missing.scss" as missing;
+.button { color: tokens.$brand; border-color: missing.$accent; }"#
+            .to_string(),
+    }];
+    let sif = omena_sif::OmenaSifV1::from_static_exports(
+        "https://cdn.example/tokens.scss",
+        omena_sif::OmenaSifGeneratorV1 {
+            name: "fixture-sifgen".to_string(),
+            version: "0.1.0".to_string(),
+            toolchain_id: "fixture-sifgen@0.1.0".to_string(),
+        },
+        omena_sif::OmenaSifSourceV1 {
+            syntax: omena_sif::OmenaSifSourceSyntaxV1::Scss,
+        },
+        omena_sif::OmenaSifExportsV1 {
+            variables: vec![omena_sif::OmenaSifVariableExportV1 {
+                name: "$brand".to_string(),
+                defaulted: true,
+                value_repr: Some("red".to_string()),
+            }],
+            mixins: Vec::new(),
+            functions: Vec::new(),
+            placeholders: Vec::new(),
+            forwards: Vec::new(),
+        },
+        Vec::new(),
+        b"$brand: red !default;",
+    )
+    .map_err(|_| "sif fixture")?;
+    let external_sifs = vec![OmenaQueryExternalSifInputV0 {
+        canonical_url: "https://cdn.example/tokens.scss".to_string(),
+        sif,
+    }];
+
+    let auto =
+        crate::summarize_omena_query_style_diagnostics_for_workspace_file_with_external_mode_and_sifs(
+            "/tmp/App.module.scss",
+            sources.as_slice(),
+            &[],
+            &[],
+            None,
+            crate::OmenaQueryExternalModuleModeV0::Auto,
+            external_sifs.as_slice(),
+        )
+        .ok_or("auto diagnostics")?;
+
+    assert!(
+        auto.ready_surfaces
+            .contains(&"externalSifBoundaryDiagnostics"),
+        "auto mode should surface external boundary readiness when a target edge needs it",
+    );
+    assert!(
+        auto.diagnostics
+            .iter()
+            .all(|diagnostic| diagnostic.code != "missingSassSymbol"),
+        "TopAny external edges should not double-flag as missing Sass symbols: {:?}",
+        auto.diagnostics,
+    );
+    let boundary_messages = auto
+        .diagnostics
+        .iter()
+        .filter(|diagnostic| diagnostic.code == "missingExternalSif")
+        .map(|diagnostic| diagnostic.message.as_str())
+        .collect::<Vec<_>>();
+    assert_eq!(
+        boundary_messages,
+        vec![
+            "External Sass module 'https://cdn.example/missing.scss' is missing (topAny); generate or provide a SIF artifact, or use --external ignored.",
+        ],
+        "the SIF-backed edge should resolve while the unmatched edge remains an independent missing boundary",
+    );
+    Ok(())
+}
+
+#[test]
 fn style_diagnostics_external_sif_mode_resolves_symbols_from_sif_artifact()
 -> Result<(), &'static str> {
     let sources = vec![OmenaQueryStyleSourceInputV0 {

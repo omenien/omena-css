@@ -18,8 +18,17 @@ use std::sync::{Arc, Mutex, MutexGuard};
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
+pub enum LspDocumentOrigin {
+    Local,
+    Foreign,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct LspTextDocumentState {
     pub uri: String,
+    #[serde(skip)]
+    pub origin: LspDocumentOrigin,
     pub workspace_folder_uri: Option<String>,
     pub language_id: String,
     pub version: i64,
@@ -168,10 +177,9 @@ pub struct LspResolutionSettings {
     pub package_manifests: Vec<OmenaQueryStylePackageManifestV0>,
     #[serde(skip)]
     pub workspace_style_resolution_inputs: BTreeMap<String, OmenaQueryStyleResolutionInputsV0>,
-    /// External Sass-module SIF artifacts sourced from the lock/bridge (#32/#33). When non-empty
-    /// the style-diagnostics path runs in `ExternalModuleModeV0::Sif`, which surfaces the
-    /// boundary lattice and the `@omena-strict:` sigil (#35); empty preserves the legacy
-    /// `Ignored` behaviour.
+    /// External Sass-module SIF artifacts sourced from workspace locks and bridge generation.
+    /// The diagnostics path runs in Auto mode, so source-available edges stay local while
+    /// SIF-backed and unresolved foreign edges are classified per import edge.
     #[serde(skip)]
     pub external_sifs: Vec<OmenaQueryExternalSifInputV0>,
 }
@@ -316,10 +324,11 @@ impl LspShellState {
     pub(crate) fn document_mut(&mut self, uri: &str) -> Option<&mut LspTextDocumentState> {
         let storage_uri = Self::document_storage_uri(uri);
         if self.documents.contains_key(storage_uri.as_str()) {
-            return self
-                .documents
-                .get_mut(storage_uri.as_str())
-                .map(Arc::make_mut);
+            let document = self.documents.get_mut(storage_uri.as_str())?;
+            if document.origin == LspDocumentOrigin::Foreign {
+                return None;
+            }
+            return Some(Arc::make_mut(document));
         }
         let equivalent_uri = self
             .documents
@@ -327,9 +336,11 @@ impl LspShellState {
             .find(|document_uri| crate::protocol::file_uri_equivalent(document_uri, uri))
             .cloned();
         equivalent_uri.and_then(|document_uri| {
-            self.documents
-                .get_mut(document_uri.as_str())
-                .map(Arc::make_mut)
+            let document = self.documents.get_mut(document_uri.as_str())?;
+            if document.origin == LspDocumentOrigin::Foreign {
+                return None;
+            }
+            Some(Arc::make_mut(document))
         })
     }
 

@@ -240,8 +240,7 @@ pub struct OmenaDiffSalsaMemoEquivalenceReportV0 {
 }
 
 /// The from-scratch evaluation over the FULL input surface the memo host
-/// accepts; the external mode is derived from SIF presence exactly as the
-/// host and the LSP derive it.
+/// accepts; Auto external classification matches the memo host and LSP.
 pub fn evaluate_workspace_diagnostics_from_scratch_with_inputs_v0(
     target_style_path: &str,
     corpus: &[OmenaQueryStyleSourceInputV0],
@@ -250,18 +249,13 @@ pub fn evaluate_workspace_diagnostics_from_scratch_with_inputs_v0(
     external_sifs: &[OmenaQueryExternalSifInputV0],
     resolution_inputs: &OmenaQueryStyleResolutionInputsV0,
 ) -> Option<OmenaQueryStyleDiagnosticsForFileV0> {
-    let external_mode = if external_sifs.is_empty() {
-        OmenaQueryExternalModuleModeV0::Ignored
-    } else {
-        OmenaQueryExternalModuleModeV0::Sif
-    };
     summarize_omena_query_style_diagnostics_for_workspace_file_with_external_mode_and_sifs_and_resolution_inputs(
         target_style_path,
         corpus,
         source_documents,
         package_manifests,
         None,
-        external_mode,
+        OmenaQueryExternalModuleModeV0::Auto,
         external_sifs,
         resolution_inputs,
     )

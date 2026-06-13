@@ -5,4 +5,5 @@ pub(super) const LSP_DIAGNOSTIC_TAG_DEPRECATED: u8 = 2;
 pub enum OmenaQueryExternalModuleModeV0 {
     Ignored,
     Sif,
+    Auto,
 }

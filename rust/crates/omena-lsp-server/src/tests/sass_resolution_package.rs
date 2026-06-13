@@ -212,6 +212,195 @@ fn resolves_sass_definition_through_package_imports() -> TestResult {
 }
 
 #[test]
+fn indexes_foreign_package_forward_chain_for_references_without_opening_dependency() -> TestResult {
+    let root = std::env::temp_dir().join(format!(
+        "omena_lsp_foreign_package_reference_index_{}_{}",
+        std::process::id(),
+        current_time_millis()
+    ));
+    let source = root.join("src/App.module.scss");
+    let package_root = root.join("node_modules/@acme/tokens");
+    let index_style = package_root.join("_index.scss");
+    let primitives_style = package_root.join("_primitives.scss");
+    fs::create_dir_all(fixture_parent(source.as_path(), "source parent")?)?;
+    fs::create_dir_all(package_root.as_path())?;
+    fs::write(
+        package_root.join("package.json"),
+        r#"{"name":"@acme/tokens","version":"1.2.3","sass":"./_index.scss"}"#,
+    )?;
+    let source_text = r#"@use "@acme/tokens" as t;
+.button { border-radius: t.$token-radius-small; }
+"#;
+    let index_text = r#"@forward "primitives" as token-*;"#;
+    let primitives_text = "$radius-small: 4px;\n";
+    fs::write(source.as_path(), source_text)?;
+    fs::write(index_style.as_path(), index_text)?;
+    fs::write(primitives_style.as_path(), primitives_text)?;
+
+    let workspace_uri = path_to_file_uri(root.as_path());
+    let source_uri = path_to_file_uri(source.as_path());
+    let index_uri = path_to_file_uri(index_style.as_path());
+    let primitives_uri = path_to_file_uri(primitives_style.as_path());
+    let reference_position = parser_position_for_byte_offset(
+        source_text,
+        fixture_find(
+            source_text,
+            "$token-radius-small",
+            "source fixture contains forwarded Sass variable reference",
+        )? + 1,
+    );
+    let declaration_position = parser_position_for_byte_offset(
+        primitives_text,
+        fixture_find(
+            primitives_text,
+            "$radius-small",
+            "foreign primitive fixture contains Sass variable declaration",
+        )? + 1,
+    );
+
+    let mut state = LspShellState::default();
+    handle_lsp_message(
+        &mut state,
+        json!({
+            "jsonrpc": "2.0",
+            "id": 1,
+            "method": "initialize",
+            "params": {
+                "workspaceFolders": [
+                    {
+                        "uri": workspace_uri,
+                        "name": "workspace",
+                    },
+                ],
+            },
+        }),
+    );
+    handle_lsp_message(
+        &mut state,
+        json!({
+            "jsonrpc": "2.0",
+            "method": "textDocument/didOpen",
+            "params": {
+                "textDocument": {
+                    "uri": source_uri,
+                    "languageId": "scss",
+                    "version": 1,
+                    "text": source_text,
+                },
+            },
+        }),
+    );
+
+    assert_eq!(
+        state
+            .document(index_uri.as_str())
+            .map(|document| &document.origin),
+        Some(&LspDocumentOrigin::Foreign),
+        "package entrypoint should be admitted as a read-only foreign document"
+    );
+    assert_eq!(
+        state
+            .document(primitives_uri.as_str())
+            .map(|document| &document.origin),
+        Some(&LspDocumentOrigin::Foreign),
+        "forwarded package primitive should be admitted as a read-only foreign document"
+    );
+    assert!(
+        state.document_mut(primitives_uri.as_str()).is_none(),
+        "foreign package documents must not expose mutable edit handles"
+    );
+
+    let definition = handle_lsp_message(
+        &mut state,
+        json!({
+            "jsonrpc": "2.0",
+            "id": 2,
+            "method": "textDocument/definition",
+            "params": {
+                "textDocument": {
+                    "uri": source_uri,
+                },
+                "position": reference_position,
+            },
+        }),
+    );
+    assert_definition_response_single_target(&definition, primitives_uri.as_str());
+
+    let references = handle_lsp_message(
+        &mut state,
+        json!({
+            "jsonrpc": "2.0",
+            "id": 3,
+            "method": "textDocument/references",
+            "params": {
+                "textDocument": {
+                    "uri": primitives_uri,
+                },
+                "position": declaration_position,
+                "context": {
+                    "includeDeclaration": true,
+                },
+            },
+        }),
+    );
+    let locations = references
+        .as_ref()
+        .and_then(|response| response.pointer("/result"))
+        .and_then(Value::as_array)
+        .ok_or_else(|| std::io::Error::other("foreign references should return locations"))?;
+    assert!(
+        locations.iter().any(|location| location
+            .get("uri")
+            .and_then(Value::as_str)
+            .is_some_and(|uri| file_uri_equivalent(uri, source_uri.as_str()))),
+        "foreign declaration references should include the local consumer: {references:?}"
+    );
+    assert!(
+        locations.iter().any(|location| location
+            .get("uri")
+            .and_then(Value::as_str)
+            .is_some_and(|uri| file_uri_equivalent(uri, primitives_uri.as_str()))),
+        "foreign declaration references should include the read-only declaration: {references:?}"
+    );
+
+    let rename = handle_lsp_message(
+        &mut state,
+        json!({
+            "jsonrpc": "2.0",
+            "id": 4,
+            "method": "textDocument/rename",
+            "params": {
+                "textDocument": {
+                    "uri": source_uri,
+                },
+                "position": reference_position,
+                "newName": "$token-radius-large",
+            },
+        }),
+    );
+    let changes = rename
+        .as_ref()
+        .and_then(|response| response.pointer("/result/changes"))
+        .and_then(Value::as_object)
+        .ok_or_else(|| std::io::Error::other("rename should return local edits"))?;
+    assert!(
+        changes
+            .keys()
+            .any(|uri| file_uri_equivalent(uri.as_str(), source_uri.as_str())),
+        "rename should edit the local reference: {rename:?}"
+    );
+    assert!(
+        !changes
+            .keys()
+            .any(|uri| file_uri_equivalent(uri.as_str(), primitives_uri.as_str())),
+        "rename must not edit foreign package declarations: {rename:?}"
+    );
+
+    let _ = fs::remove_dir_all(root.as_path());
+    Ok(())
+}
+
+#[test]
 fn resolves_sass_definition_through_package_import_and_export_array_fallbacks() -> TestResult {
     let root = std::env::temp_dir().join(format!(
         "omena_lsp_package_array_fallbacks_{}_{}",
@@ -305,4 +494,492 @@ fn resolves_sass_definition_through_package_import_and_export_array_fallbacks() 
 
     let _ = fs::remove_dir_all(root.as_path());
     Ok(())
+}
+
+#[test]
+fn loads_workspace_lock_external_sifs_for_lsp_style_diagnostics() -> TestResult {
+    let root = std::env::temp_dir().join(format!(
+        "omena_lsp_lock_external_sifs_{}_{}",
+        std::process::id(),
+        current_time_millis()
+    ));
+    let source = root.join("src/App.module.scss");
+    let sif_path = root.join("sif/tokens.sif.json");
+    fs::create_dir_all(fixture_parent(source.as_path(), "source parent")?)?;
+    fs::create_dir_all(fixture_parent(sif_path.as_path(), "sif parent")?)?;
+
+    let source_text = r#"@use "https://cdn.example/tokens.scss" as tokens;
+.button { color: tokens.$brand; }"#;
+    fs::write(source.as_path(), source_text)?;
+
+    let sif = fixture_external_sif("https://cdn.example/tokens.scss")?;
+    fs::write(
+        sif_path.as_path(),
+        omena_sif::write_omena_sif_json_v1(&sif)?,
+    )?;
+    let lock = omena_sif::OmenaLockV1::new(vec![omena_sif::build_omena_lock_sif_entry_v1(
+        "sif/tokens.sif.json",
+        &sif,
+    )?]);
+    fs::write(
+        root.join("omena.lock"),
+        omena_sif::write_omena_lock_json_v1(&lock)?,
+    )?;
+
+    let workspace_uri = path_to_file_uri(root.as_path());
+    let source_uri = path_to_file_uri(source.as_path());
+    let mut state = LspShellState::default();
+    handle_lsp_message(
+        &mut state,
+        json!({
+            "jsonrpc": "2.0",
+            "id": 1,
+            "method": "initialize",
+            "params": {
+                "workspaceFolders": [
+                    {
+                        "uri": workspace_uri,
+                        "name": "workspace",
+                    },
+                ],
+            },
+        }),
+    );
+    assert!(
+        state.resolution.external_sifs.iter().any(|sif| {
+            sif.canonical_url == "https://cdn.example/tokens.scss"
+                && sif.sif.canonical_url == "https://cdn.example/tokens.scss"
+        }),
+        "initialize should load workspace omena.lock SIFs into the LSP diagnostics state"
+    );
+
+    open_style_document(&mut state, source_uri.as_str(), source_text);
+    let diagnostics = lsp_style_diagnostics(&mut state, source_uri.as_str())?;
+    assert!(
+        diagnostics.iter().all(|diagnostic| {
+            diagnostic.pointer("/code") != Some(&json!("missingSassSymbol"))
+                && diagnostic.pointer("/code") != Some(&json!("missingExternalSif"))
+        }),
+        "lock-backed external SIF should satisfy the foreign Sass reference: {diagnostics:?}"
+    );
+
+    let _ = fs::remove_dir_all(root.as_path());
+    Ok(())
+}
+
+#[test]
+fn source_absent_sif_exports_feed_hover_refs_and_completion_without_locations() -> TestResult {
+    let root = std::env::temp_dir().join(format!(
+        "omena_lsp_source_absent_sif_exports_{}_{}",
+        std::process::id(),
+        current_time_millis()
+    ));
+    let source = root.join("src/App.module.scss");
+    let sif_path = root.join("sif/tokens.sif.json");
+    fs::create_dir_all(fixture_parent(source.as_path(), "source parent")?)?;
+    fs::create_dir_all(fixture_parent(sif_path.as_path(), "sif parent")?)?;
+
+    let source_text = r#"@use "https://cdn.example/tokens.scss" as tokens;
+.button {
+  color: tokens.$brand;
+  border-color: tokens.$brand;
+  outline-color: tokens.;
+}"#;
+    fs::write(source.as_path(), source_text)?;
+    let sif = fixture_external_sif("https://cdn.example/tokens.scss")?;
+    fs::write(
+        sif_path.as_path(),
+        omena_sif::write_omena_sif_json_v1(&sif)?,
+    )?;
+    let lock = omena_sif::OmenaLockV1::new(vec![omena_sif::build_omena_lock_sif_entry_v1(
+        "sif/tokens.sif.json",
+        &sif,
+    )?]);
+    fs::write(
+        root.join("omena.lock"),
+        omena_sif::write_omena_lock_json_v1(&lock)?,
+    )?;
+
+    let workspace_uri = path_to_file_uri(root.as_path());
+    let source_uri = path_to_file_uri(source.as_path());
+    let reference_position = parser_position_for_byte_offset(
+        source_text,
+        fixture_find(
+            source_text,
+            "$brand",
+            "source fixture contains SIF-backed Sass variable reference",
+        )? + 1,
+    );
+    let completion_position = parser_position_for_byte_offset(
+        source_text,
+        fixture_find(
+            source_text,
+            "tokens.;",
+            "source fixture contains SIF-backed member completion point",
+        )? + "tokens.".len(),
+    );
+
+    let mut state = LspShellState::default();
+    handle_lsp_message(
+        &mut state,
+        json!({
+            "jsonrpc": "2.0",
+            "id": 1,
+            "method": "initialize",
+            "params": {
+                "workspaceFolders": [
+                    {
+                        "uri": workspace_uri,
+                        "name": "workspace",
+                    },
+                ],
+            },
+        }),
+    );
+    open_style_document(&mut state, source_uri.as_str(), source_text);
+
+    let hover = handle_lsp_message(
+        &mut state,
+        json!({
+            "jsonrpc": "2.0",
+            "id": 2,
+            "method": "textDocument/hover",
+            "params": {
+                "textDocument": {
+                    "uri": source_uri,
+                },
+                "position": reference_position,
+            },
+        }),
+    );
+    let hover_text = hover
+        .as_ref()
+        .and_then(|response| response.pointer("/result/contents/value"))
+        .and_then(Value::as_str)
+        .ok_or_else(|| std::io::Error::other("SIF-backed hover should render markdown"))?;
+    assert!(
+        hover_text.contains("External Sass interface"),
+        "{hover_text}"
+    );
+    assert!(
+        hover_text.contains("https://cdn.example/tokens.scss"),
+        "{hover_text}"
+    );
+    assert!(
+        hover_text.contains("Source location is unavailable"),
+        "{hover_text}"
+    );
+    assert!(hover_text.contains("Value: `red`"), "{hover_text}");
+
+    let definition = handle_lsp_message(
+        &mut state,
+        json!({
+            "jsonrpc": "2.0",
+            "id": 3,
+            "method": "textDocument/definition",
+            "params": {
+                "textDocument": {
+                    "uri": source_uri,
+                },
+                "position": reference_position,
+            },
+        }),
+    );
+    assert!(
+        definition
+            .as_ref()
+            .and_then(|response| response.pointer("/result"))
+            .is_some_and(Value::is_null),
+        "SIF-only symbols must not fabricate definition locations: {definition:?}"
+    );
+
+    let references = handle_lsp_message(
+        &mut state,
+        json!({
+            "jsonrpc": "2.0",
+            "id": 4,
+            "method": "textDocument/references",
+            "params": {
+                "textDocument": {
+                    "uri": source_uri,
+                },
+                "position": reference_position,
+                "context": {
+                    "includeDeclaration": true,
+                },
+            },
+        }),
+    );
+    let reference_locations = references
+        .as_ref()
+        .and_then(|response| response.pointer("/result"))
+        .and_then(Value::as_array)
+        .ok_or_else(|| std::io::Error::other("SIF-backed references should return locations"))?;
+    assert_eq!(
+        reference_locations.len(),
+        2,
+        "references should join local uses through the SIF external moniker without adding a fake declaration: {references:?}"
+    );
+    assert!(
+        reference_locations.iter().all(|location| location
+            .get("uri")
+            .and_then(Value::as_str)
+            .is_some_and(|uri| file_uri_equivalent(uri, source_uri.as_str()))),
+        "SIF-backed references should stay on source locations only: {references:?}"
+    );
+
+    let completion = handle_lsp_message(
+        &mut state,
+        json!({
+            "jsonrpc": "2.0",
+            "id": 5,
+            "method": "textDocument/completion",
+            "params": {
+                "textDocument": {
+                    "uri": source_uri,
+                },
+                "position": completion_position,
+            },
+        }),
+    );
+    let completion_items = completion
+        .as_ref()
+        .and_then(|response| response.pointer("/result/items"))
+        .and_then(Value::as_array)
+        .ok_or_else(|| std::io::Error::other("SIF-backed completion should return items"))?;
+    assert!(
+        completion_items.iter().any(|item| item
+            .get("label")
+            .and_then(Value::as_str)
+            .is_some_and(|label| label == "tokens.$brand")),
+        "completion should expose SIF-backed visible Sass symbols: {completion:?}"
+    );
+
+    let _ = fs::remove_dir_all(root.as_path());
+    Ok(())
+}
+
+#[test]
+fn refreshes_workspace_lock_external_sifs_from_watched_files() -> TestResult {
+    let root = std::env::temp_dir().join(format!(
+        "omena_lsp_lock_watch_external_sifs_{}_{}",
+        std::process::id(),
+        current_time_millis()
+    ));
+    let source = root.join("src/App.module.scss");
+    let sif_path = root.join("sif/tokens.sif.json");
+    let lock_path = root.join("omena.lock");
+    fs::create_dir_all(fixture_parent(source.as_path(), "source parent")?)?;
+    fs::create_dir_all(fixture_parent(sif_path.as_path(), "sif parent")?)?;
+
+    let source_text = r#"@use "https://cdn.example/tokens.scss" as tokens;
+.button { color: tokens.$brand; }"#;
+    fs::write(source.as_path(), source_text)?;
+
+    let workspace_uri = path_to_file_uri(root.as_path());
+    let source_uri = path_to_file_uri(source.as_path());
+    let lock_uri = path_to_file_uri(lock_path.as_path());
+    let mut state = LspShellState::default();
+    handle_lsp_message(
+        &mut state,
+        json!({
+            "jsonrpc": "2.0",
+            "id": 1,
+            "method": "initialize",
+            "params": {
+                "workspaceFolders": [
+                    {
+                        "uri": workspace_uri,
+                        "name": "workspace",
+                    },
+                ],
+            },
+        }),
+    );
+    open_style_document(&mut state, source_uri.as_str(), source_text);
+    assert!(
+        state.resolution.external_sifs.is_empty(),
+        "workspace starts without lock-backed external SIFs"
+    );
+
+    let sif = fixture_external_sif("https://cdn.example/tokens.scss")?;
+    fs::write(
+        sif_path.as_path(),
+        omena_sif::write_omena_sif_json_v1(&sif)?,
+    )?;
+    let lock = omena_sif::OmenaLockV1::new(vec![omena_sif::build_omena_lock_sif_entry_v1(
+        "sif/tokens.sif.json",
+        &sif,
+    )?]);
+    fs::write(
+        lock_path.as_path(),
+        omena_sif::write_omena_lock_json_v1(&lock)?,
+    )?;
+    handle_lsp_message(
+        &mut state,
+        json!({
+            "jsonrpc": "2.0",
+            "method": "workspace/didChangeWatchedFiles",
+            "params": {
+                "changes": [
+                    {
+                        "uri": lock_uri,
+                        "type": 2,
+                    },
+                ],
+            },
+        }),
+    );
+
+    assert!(
+        state
+            .resolution
+            .external_sifs
+            .iter()
+            .any(|sif| sif.canonical_url == "https://cdn.example/tokens.scss"),
+        "watched omena.lock changes should refresh external SIF state"
+    );
+    let diagnostics = lsp_style_diagnostics(&mut state, source_uri.as_str())?;
+    assert!(
+        diagnostics.iter().all(|diagnostic| {
+            diagnostic.pointer("/code") != Some(&json!("missingSassSymbol"))
+                && diagnostic.pointer("/code") != Some(&json!("missingExternalSif"))
+        }),
+        "watch-refreshed external SIF should satisfy the Sass reference: {diagnostics:?}"
+    );
+
+    let _ = fs::remove_dir_all(root.as_path());
+    Ok(())
+}
+
+#[test]
+fn bridges_file_external_sass_edges_for_lsp_style_diagnostics() -> TestResult {
+    let root = std::env::temp_dir().join(format!(
+        "omena_lsp_bridge_external_sifs_{}_{}",
+        std::process::id(),
+        current_time_millis()
+    ));
+    let source = root.join("src/App.module.scss");
+    let external = root.join("vendor/_tokens.scss");
+    fs::create_dir_all(fixture_parent(source.as_path(), "source parent")?)?;
+    fs::create_dir_all(fixture_parent(external.as_path(), "external parent")?)?;
+    fs::write(external.as_path(), "$brand: red !default;\n")?;
+
+    let external_uri = path_to_file_uri(external.as_path());
+    let source_text = format!(
+        "@use \"{}\" as tokens;\n.button {{ color: tokens.$brand; }}",
+        external_uri
+    );
+    fs::write(source.as_path(), source_text.as_str())?;
+
+    let workspace_uri = path_to_file_uri(root.as_path());
+    let source_uri = path_to_file_uri(source.as_path());
+    let mut state = LspShellState::default();
+    handle_lsp_message(
+        &mut state,
+        json!({
+            "jsonrpc": "2.0",
+            "id": 1,
+            "method": "initialize",
+            "params": {
+                "workspaceFolders": [
+                    {
+                        "uri": workspace_uri,
+                        "name": "workspace",
+                    },
+                ],
+            },
+        }),
+    );
+    open_style_document(&mut state, source_uri.as_str(), source_text.as_str());
+
+    assert!(
+        state
+            .resolution
+            .external_sifs
+            .iter()
+            .any(|sif| sif.canonical_url == external_uri),
+        "opening a style document should bridge readable file:// external Sass edges"
+    );
+    let diagnostics = lsp_style_diagnostics(&mut state, source_uri.as_str())?;
+    assert!(
+        diagnostics.iter().all(|diagnostic| {
+            diagnostic.pointer("/code") != Some(&json!("missingSassSymbol"))
+                && diagnostic.pointer("/code") != Some(&json!("missingExternalSif"))
+        }),
+        "bridge-generated external SIF should satisfy the file:// Sass reference: {diagnostics:?}"
+    );
+
+    let _ = fs::remove_dir_all(root.as_path());
+    Ok(())
+}
+
+fn fixture_external_sif(canonical_url: &str) -> Result<omena_sif::OmenaSifV1, serde_json::Error> {
+    omena_sif::OmenaSifV1::from_static_exports(
+        canonical_url,
+        omena_sif::OmenaSifGeneratorV1 {
+            name: "fixture-sifgen".to_string(),
+            version: "0.1.0".to_string(),
+            toolchain_id: "fixture-sifgen@0.1.0".to_string(),
+        },
+        omena_sif::OmenaSifSourceV1 {
+            syntax: omena_sif::OmenaSifSourceSyntaxV1::Scss,
+        },
+        omena_sif::OmenaSifExportsV1 {
+            variables: vec![omena_sif::OmenaSifVariableExportV1 {
+                name: "$brand".to_string(),
+                defaulted: true,
+                value_repr: Some("red".to_string()),
+            }],
+            mixins: Vec::new(),
+            functions: Vec::new(),
+            placeholders: Vec::new(),
+            forwards: Vec::new(),
+        },
+        Vec::new(),
+        b"$brand: red !default;",
+    )
+}
+
+fn open_style_document(state: &mut LspShellState, uri: &str, text: &str) {
+    handle_lsp_message(
+        state,
+        json!({
+            "jsonrpc": "2.0",
+            "method": "textDocument/didOpen",
+            "params": {
+                "textDocument": {
+                    "uri": uri,
+                    "languageId": "scss",
+                    "version": 1,
+                    "text": text,
+                },
+            },
+        }),
+    );
+}
+
+fn lsp_style_diagnostics(
+    state: &mut LspShellState,
+    uri: &str,
+) -> Result<Vec<Value>, Box<dyn std::error::Error>> {
+    let response = handle_lsp_message(
+        state,
+        json!({
+            "jsonrpc": "2.0",
+            "id": 2,
+            "method": STYLE_DIAGNOSTICS_REQUEST,
+            "params": {
+                "textDocument": {
+                    "uri": uri,
+                },
+            },
+        }),
+    );
+    response
+        .as_ref()
+        .and_then(|value| value.pointer("/result"))
+        .and_then(Value::as_array)
+        .cloned()
+        .ok_or_else(|| std::io::Error::other("style diagnostics response contains an array").into())
 }

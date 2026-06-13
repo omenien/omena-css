@@ -40,6 +40,7 @@ pub(super) use external_sif::{
 use external_sif::{
     collect_omena_query_external_top_any_sass_symbol_ranges,
     summarize_omena_query_external_sif_boundary_diagnostics,
+    target_has_auto_external_boundary_edges,
 };
 use replica_ensemble::summarize_omena_query_replica_ensemble_inconsistency_diagnostics_for_workspace;
 #[cfg(test)]
@@ -478,7 +479,22 @@ pub fn summarize_omena_query_style_diagnostics_for_workspace_file_with_external_
         &mut summary.ready_surfaces,
         "moduleGraphPropertyValueNarrowing",
     );
-    if external_mode == OmenaQueryExternalModuleModeV0::Sif {
+    let external_sif_context = OmenaQueryExternalSifResolutionContext {
+        package_manifests,
+        bundler_path_mappings: resolution_inputs.bundler_path_mappings.as_slice(),
+        tsconfig_path_mappings: resolution_inputs.tsconfig_path_mappings.as_slice(),
+        external_sifs,
+    };
+    let external_boundary_enabled = match external_mode {
+        OmenaQueryExternalModuleModeV0::Ignored => false,
+        OmenaQueryExternalModuleModeV0::Sif => true,
+        OmenaQueryExternalModuleModeV0::Auto => target_has_auto_external_boundary_edges(
+            target_style_path,
+            external_sif_context,
+            &substrate,
+        ),
+    };
+    if external_boundary_enabled {
         // RFC 0004 #28 / #35: the file-scoped `@omena-strict: <level>` sigil dials the
         // external-boundary lattice behaviour. Absent/malformed sigil => `Standard`, which
         // keeps every branch below a no-op (byte-for-byte identical to the un-sigiled flow).
