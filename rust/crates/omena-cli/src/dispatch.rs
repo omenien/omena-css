@@ -2,18 +2,18 @@ use omena_query::OmenaQueryTargetTransformOptionsV0;
 
 use crate::{
     build::{BuildFileOptions, build_file, list_passes},
-    cascade_at_position, check_file,
+    check_file,
     commands::{Cli, Command},
-    context_from_engine_input, context_index,
     diagnostics::{dynamic_classname_diagnostics, source_diagnostics, style_diagnostics},
-    expression_flow,
     lock::lock_command,
     perceptual::perceptual_check,
     provenance::provenance_command,
+    query::{
+        cascade_at_position, context_from_engine_input, context_index, expression_flow,
+        selector_projection, style_completion, style_hover_candidates,
+    },
     reports::report_command,
-    selector_projection,
     sif::sif_command,
-    style_completion, style_hover_candidates,
 };
 
 #[cfg(feature = "mdl")]
