@@ -25,6 +25,4 @@ serde.workspace = true
 serde_json.workspace = true
 
 [dev-dependencies]
-omena-lsp-server = { path = "../omena-lsp-server", version = "=0.2.0", features = [
-  "test-support",
-] }
+omena-lsp-server = { path = "../omena-lsp-server", version = "=0.2.0", features = ["test-support"] }

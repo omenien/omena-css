@@ -86,16 +86,17 @@ async function main(): Promise<void> {
   const stylePath = path.join(srcDir, "App.module.scss");
   const peerStylePath = path.join(srcDir, "Peer.module.scss");
   const sharedPartialPath = path.join(srcDir, "_shared.scss");
-  const importerStylePaths = Array.from(
-    { length: STYLE_IMPORTER_COUNT },
-    (_, index) => path.join(srcDir, `Importer${index}.module.scss`),
+  const importerStylePaths = Array.from({ length: STYLE_IMPORTER_COUNT }, (_, index) =>
+    path.join(srcDir, `Importer${index}.module.scss`),
   );
   const bridgePath = path.join(vendorDir, "_tokens.scss");
   const sourceUri = pathToFileURL(sourcePath).toString();
   const styleUri = pathToFileURL(stylePath).toString();
   const peerStyleUri = pathToFileURL(peerStylePath).toString();
   const sharedPartialUri = pathToFileURL(sharedPartialPath).toString();
-  const importerStyleUris = importerStylePaths.map((filePath) => pathToFileURL(filePath).toString());
+  const importerStyleUris = importerStylePaths.map((filePath) =>
+    pathToFileURL(filePath).toString(),
+  );
   const bridgeUri = pathToFileURL(bridgePath).toString();
   const sourceText = buildSourceText(SELECTOR_COUNT);
   const styleText = buildStyleText(SELECTOR_COUNT);
@@ -202,7 +203,10 @@ async function main(): Promise<void> {
       "warmup hover",
     );
 
-    const externalCountersBeforeChange = await readDebugState(connection, "debug-state:before-change");
+    const externalCountersBeforeChange = await readDebugState(
+      connection,
+      "debug-state:before-change",
+    );
     const probePromise = collectProbeLatencies(connection);
     connection.sendNotification(DidChangeTextDocumentNotification.type, {
       textDocument: {
