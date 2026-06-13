@@ -1380,6 +1380,7 @@ mod tests {
         Ok(())
     }
 
+    #[cfg(feature = "salsa-style-diagnostics")]
     #[test]
     fn style_change_deferred_fanout_counts_all_open_style_importers() -> Result<(), String> {
         let workspace_path = std::env::temp_dir().join(format!(
