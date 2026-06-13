@@ -82,13 +82,13 @@ pub(crate) fn cascade_narrowing_substrate_for_style_sources(
     style_sources: &[OmenaQueryStyleSourceInputV0],
     resolution_inputs: &OmenaQueryStyleResolutionInputsV0,
 ) -> Arc<OmenaQueryStyleCascadeNarrowingSubstrateV0> {
-    let package_manifests = state.resolution.package_manifests.as_slice();
+    let package_manifests = effective_style_package_manifests(state, resolution_inputs);
     let external_sifs = state.resolution.external_sifs.as_slice();
     {
         let memo = state.cascade_narrowing_substrate_memo_lock();
         if let Some(memo) = memo.as_ref()
             && memo.style_sources.as_slice() == style_sources
-            && memo.package_manifests.as_slice() == package_manifests
+            && memo.package_manifests == package_manifests
             && memo.external_sifs.as_slice() == external_sifs
             && &memo.resolution_inputs == resolution_inputs
         {
@@ -98,19 +98,39 @@ pub(crate) fn cascade_narrowing_substrate_for_style_sources(
     let substrate = Arc::new(
         collect_omena_query_style_cascade_narrowing_substrate_with_external_sifs(
             style_sources,
-            package_manifests,
+            package_manifests.as_slice(),
             external_sifs,
             resolution_inputs,
         ),
     );
     *state.cascade_narrowing_substrate_memo_lock() = Some(LspCascadeNarrowingSubstrateMemo {
         style_sources: style_sources.to_vec(),
-        package_manifests: package_manifests.to_vec(),
+        package_manifests,
         external_sifs: external_sifs.to_vec(),
         resolution_inputs: resolution_inputs.clone(),
         substrate: Arc::clone(&substrate),
     });
     substrate
+}
+
+pub(crate) fn effective_style_package_manifests(
+    state: &LspShellState,
+    resolution_inputs: &OmenaQueryStyleResolutionInputsV0,
+) -> Vec<omena_query::OmenaQueryStylePackageManifestV0> {
+    let mut package_manifests = state.resolution.package_manifests.clone();
+    package_manifests.extend(resolution_inputs.package_manifests.clone());
+    package_manifests.sort_by(|left, right| {
+        (
+            left.package_json_path.as_str(),
+            left.package_json_source.as_str(),
+        )
+            .cmp(&(
+                right.package_json_path.as_str(),
+                right.package_json_source.as_str(),
+            ))
+    });
+    package_manifests.dedup();
+    package_manifests
 }
 
 pub(crate) fn refresh_document_reusable_indexes(

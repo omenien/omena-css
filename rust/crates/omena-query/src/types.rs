@@ -1,5 +1,6 @@
 use super::*;
 use omena_sif::OmenaSifV1;
+use std::collections::BTreeMap;
 
 #[derive(Debug, Clone, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -1630,22 +1631,142 @@ pub struct OmenaQuerySourceSelectorOccurrenceIndexV0 {
     pub product: &'static str,
     pub moniker_count: usize,
     pub occurrence_count: usize,
+    pub workspace_index: OmenaWorkspaceOccurrenceIndexV0,
     pub occurrences: Vec<OmenaQuerySourceSelectorOccurrenceV0>,
     pub ready_surfaces: Vec<&'static str>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct OmenaQuerySourceSelectorOccurrenceV0 {
     pub moniker: String,
     pub uri: String,
     pub selector_name: String,
     pub range: ParserRangeV0,
-    pub kind: &'static str,
-    pub role: &'static str,
-    pub source: &'static str,
+    pub kind: OmenaWorkspaceOccurrenceKindV0,
+    pub role: OmenaWorkspaceOccurrenceRoleV0,
+    pub source: OmenaWorkspaceOccurrenceSurfaceV0,
     pub target_style_uri: Option<String>,
     pub rename_target: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct OmenaWorkspaceOccurrenceIndexV0 {
+    pub schema_version: &'static str,
+    pub product: &'static str,
+    pub moniker_count: usize,
+    pub occurrence_count: usize,
+    pub by_moniker: BTreeMap<String, Vec<OmenaWorkspaceOccurrenceV0>>,
+    pub by_file: BTreeMap<String, Vec<String>>,
+    pub ready_surfaces: Vec<&'static str>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct OmenaWorkspaceOccurrenceV0 {
+    pub moniker: String,
+    pub uri: String,
+    pub name: String,
+    pub range: ParserRangeV0,
+    pub kind: OmenaWorkspaceOccurrenceKindV0,
+    pub role: OmenaWorkspaceOccurrenceRoleV0,
+    pub surface: OmenaWorkspaceOccurrenceSurfaceV0,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub family: Option<OmenaWorkspaceOccurrenceFamilyV0>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub namespace: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub target_style_uri: Option<String>,
+    pub rename_target: bool,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub enum OmenaWorkspaceOccurrenceKindV0 {
+    SourceSelectorReference,
+    SourceSelectorPrefixReference,
+    CustomPropertyDeclaration,
+    CustomPropertyReference,
+    SassVariableDeclaration,
+    SassVariableReference,
+    SassMixinDeclaration,
+    SassMixinInclude,
+    SassFunctionDeclaration,
+    SassFunctionCall,
+}
+
+impl OmenaWorkspaceOccurrenceKindV0 {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::SourceSelectorReference => "sourceSelectorReference",
+            Self::SourceSelectorPrefixReference => "sourceSelectorPrefixReference",
+            Self::CustomPropertyDeclaration => "customPropertyDeclaration",
+            Self::CustomPropertyReference => "customPropertyReference",
+            Self::SassVariableDeclaration => "sassVariableDeclaration",
+            Self::SassVariableReference => "sassVariableReference",
+            Self::SassMixinDeclaration => "sassMixinDeclaration",
+            Self::SassMixinInclude => "sassMixinInclude",
+            Self::SassFunctionDeclaration => "sassFunctionDeclaration",
+            Self::SassFunctionCall => "sassFunctionCall",
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub enum OmenaWorkspaceOccurrenceRoleV0 {
+    Definition,
+    Reference,
+}
+
+impl OmenaWorkspaceOccurrenceRoleV0 {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Definition => "definition",
+            Self::Reference => "reference",
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub enum OmenaWorkspaceOccurrenceSurfaceV0 {
+    OmenaQuerySourceSyntaxIndex,
+    OmenaLspStyleIndex,
+}
+
+impl OmenaWorkspaceOccurrenceSurfaceV0 {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::OmenaQuerySourceSyntaxIndex => "omenaQuerySourceSyntaxIndex",
+            Self::OmenaLspStyleIndex => "omenaLspStyleIndex",
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub enum OmenaWorkspaceOccurrenceFamilyV0 {
+    CssModuleSelector,
+    CustomProperty,
+    Variable,
+    Mixin,
+    Function,
+    Symbol,
+}
+
+impl OmenaWorkspaceOccurrenceFamilyV0 {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::CssModuleSelector => "cssModuleSelector",
+            Self::CustomProperty => "customProperty",
+            Self::Variable => "variable",
+            Self::Mixin => "mixin",
+            Self::Function => "function",
+            Self::Symbol => "symbol",
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]

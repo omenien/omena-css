@@ -1,5 +1,6 @@
 use super::*;
 use omena_parser::{ParsedSassIncludeFact, ParsedSelectorFact, ParsedVariableFact};
+use std::path::{Path, PathBuf};
 
 mod cascade_position;
 mod code_actions;
@@ -1161,12 +1162,25 @@ fn summarize_sass_module_cross_file_resolution(
         .iter()
         .map(|entry| entry.style_path.as_str())
         .collect::<BTreeSet<_>>();
+    let resolver_available_style_paths = style_fact_entries
+        .iter()
+        .flat_map(|entry| {
+            [
+                entry.style_path.clone(),
+                resolver_style_path(entry.style_path.as_str()),
+            ]
+        })
+        .collect::<BTreeSet<_>>();
+    let resolver_available_style_path_refs = resolver_available_style_paths
+        .iter()
+        .map(String::as_str)
+        .collect::<BTreeSet<_>>();
     // Load-path roots are the ancestor directories of the in-graph style files. A
     // load-path-rooted `@use 'src/scss/design-system.scss'` (dart-sass `--load-path`) is joined
     // only when `<root>/src/scss/design-system.scss` is itself an in-graph file, so deriving
     // roots from `available_style_paths` keeps the join sound without new configuration input,
     // and never shadows the file-relative or bare-package routes. (RFC-0007-I, #49)
-    let load_path_roots = collect_load_path_roots(&available_style_paths);
+    let load_path_roots = collect_load_path_roots(&resolver_available_style_path_refs);
     let load_path_root_refs = load_path_roots
         .iter()
         .map(String::as_str)
@@ -1202,9 +1216,9 @@ fn summarize_sass_module_cross_file_resolution(
                 _ => 0,
             };
             let resolution = summarize_omena_resolver_style_module_resolution_with_load_path_roots(
-                entry.style_path.as_str(),
+                resolver_style_path(entry.style_path.as_str()).as_str(),
                 edge.source.as_str(),
-                &available_style_paths,
+                &resolver_available_style_path_refs,
                 &resolver_package_manifests,
                 bundler_path_mappings,
                 tsconfig_path_mappings,
@@ -1217,7 +1231,16 @@ fn summarize_sass_module_cross_file_resolution(
             } else {
                 "unresolved"
             };
-            let resolved_style_path = resolution.resolved_style_path;
+            let resolved_style_path =
+                resolution
+                    .resolved_style_path
+                    .and_then(|resolved_style_path| {
+                        canonical_available_style_path(
+                            resolved_style_path.as_str(),
+                            &available_style_paths,
+                        )
+                        .or(Some(resolved_style_path))
+                    });
             let symlink_chain_link_count = resolution.symlink_chain.link_count;
             let symlink_chain_links = resolution
                 .symlink_chain
@@ -1358,6 +1381,34 @@ fn summarize_sass_module_cross_file_resolution(
         },
         next_priorities: Vec::new(),
     }
+}
+
+fn canonical_available_style_path(
+    candidate: &str,
+    available_style_paths: &BTreeSet<&str>,
+) -> Option<String> {
+    if available_style_paths.contains(candidate) {
+        return Some(candidate.to_string());
+    }
+    let candidate_path = style_path_equivalence_key(candidate)?;
+    available_style_paths
+        .iter()
+        .find(|available| {
+            style_path_equivalence_key(available).as_deref() == Some(candidate_path.as_path())
+        })
+        .map(|available| (*available).to_string())
+}
+
+fn style_path_equivalence_key(path_or_uri: &str) -> Option<PathBuf> {
+    let path = path_or_uri.strip_prefix("file://").unwrap_or(path_or_uri);
+    Some(Path::new(path).components().collect())
+}
+
+fn resolver_style_path(path_or_uri: &str) -> String {
+    path_or_uri
+        .strip_prefix("file://")
+        .unwrap_or(path_or_uri)
+        .to_string()
 }
 
 fn summarize_sass_module_graph_closure(

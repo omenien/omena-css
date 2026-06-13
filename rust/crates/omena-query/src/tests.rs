@@ -987,6 +987,63 @@ fn style_completion_uses_visible_sass_symbol_set_for_workspace_file() {
 }
 
 #[test]
+fn style_completion_uses_package_alias_forward_chain_with_file_uris() {
+    let app_source = r##"@use "#theme" as tokens;
+.button { color: tokens.$ }
+"##;
+    let sources = vec![
+        OmenaQueryStyleSourceInputV0 {
+            style_path: "file:///workspace/node_modules/@design/tokens/dist/_tokens.scss"
+                .to_string(),
+            style_source: "$brand: green;".to_string(),
+        },
+        OmenaQueryStyleSourceInputV0 {
+            style_path: "file:///workspace/node_modules/@design/tokens/dist/index.scss".to_string(),
+            style_source: r#"@forward "./tokens";"#.to_string(),
+        },
+        OmenaQueryStyleSourceInputV0 {
+            style_path: "file:///workspace/src/App.module.scss".to_string(),
+            style_source: app_source.to_string(),
+        },
+    ];
+    let package_manifests = vec![
+        OmenaQueryStylePackageManifestV0 {
+            package_json_path: "/workspace/package.json".to_string(),
+            package_json_source: r##"{"imports":{"#theme":"@design/tokens/theme"}}"##.to_string(),
+        },
+        OmenaQueryStylePackageManifestV0 {
+            package_json_path: "/workspace/node_modules/@design/tokens/package.json".to_string(),
+            package_json_source: r#"{"exports":{"./theme":{"style":"./dist/index.scss"}}}"#
+                .to_string(),
+        },
+    ];
+    let resolution_inputs = OmenaQueryStyleResolutionInputsV0::default();
+    let substrate = collect_omena_query_style_cascade_narrowing_substrate(
+        &sources,
+        package_manifests.as_slice(),
+        &resolution_inputs,
+    );
+    let completion = summarize_omena_query_style_completion_for_workspace_file_with_substrate(
+        "file:///workspace/src/App.module.scss",
+        sources.as_slice(),
+        package_manifests.as_slice(),
+        &[],
+        &resolution_inputs,
+        &substrate,
+        ParserPositionV0 {
+            line: 1,
+            character: 25,
+        },
+    );
+    let labels = completion
+        .items
+        .iter()
+        .map(|item| item.label.as_str())
+        .collect::<Vec<_>>();
+    assert!(labels.contains(&"tokens.$brand"), "{labels:?}");
+}
+
+#[test]
 fn exposes_style_edit_distance_and_cascade_margin_bridge_witness() {
     let baseline = r#"
       .card { color: red; }

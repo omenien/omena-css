@@ -1050,11 +1050,8 @@ fn indexed_source_files_feed_references_and_rename() -> TestResult {
         "disk-indexed source occurrence should appear in references: {references_response:?}"
     );
     assert!(
-        state
-            .source_selector_occurrence_index_memo
-            .borrow()
-            .is_some(),
-        "references should populate source occurrence memo"
+        state.workspace_occurrence_index_memo.borrow().is_some(),
+        "references should populate the workspace occurrence memo"
     );
     let document_keys =
         source_selector_occurrence_document_keys(&state, Some(workspace_uri.as_str()));
@@ -1069,7 +1066,7 @@ fn indexed_source_files_feed_references_and_rename() -> TestResult {
         sidecar_path.exists(),
         "references should persist the source occurrence sidecar: {sidecar_path:?}"
     );
-    *state.source_selector_occurrence_index_memo.borrow_mut() = None;
+    *state.workspace_occurrence_index_memo.borrow_mut() = None;
     state
         .document_mut(source_uri.as_str())
         .ok_or_else(|| std::io::Error::other("source document should remain indexed"))?
@@ -1111,10 +1108,10 @@ fn indexed_source_files_feed_references_and_rename() -> TestResult {
         "disk sidecar should rehydrate source references without source candidate rescanning: {cached_references_response:?}"
     );
     let memo_after_cached_references = state
-        .source_selector_occurrence_index_memo
+        .workspace_occurrence_index_memo
         .borrow()
         .as_ref()
-        .map(|memo| std::sync::Arc::clone(&memo.index))
+        .map(|memo| std::sync::Arc::clone(&memo.source_selector_index))
         .ok_or_else(|| {
             std::io::Error::other("cached references should populate source occurrence memo")
         })?;
@@ -1155,15 +1152,283 @@ fn indexed_source_files_feed_references_and_rename() -> TestResult {
         "style definition should still receive rename edits: {rename_response:?}"
     );
     let memo_after_rename = state
-        .source_selector_occurrence_index_memo
+        .workspace_occurrence_index_memo
         .borrow()
         .as_ref()
-        .map(|memo| std::sync::Arc::clone(&memo.index))
+        .map(|memo| std::sync::Arc::clone(&memo.source_selector_index))
         .ok_or_else(|| std::io::Error::other("rename should retain source occurrence memo"))?;
     assert!(
         std::sync::Arc::ptr_eq(&memo_after_cached_references, &memo_after_rename),
         "rename should reuse the source occurrence index rehydrated for references"
     );
+    let _ = std::fs::remove_dir_all(&workspace_root);
+    Ok(())
+}
+
+#[test]
+fn background_workspace_index_resumes_past_already_indexed_source_files() -> TestResult {
+    let workspace_root = std::env::temp_dir().join(format!(
+        "omena-lsp-server-background-source-resume-{}",
+        std::process::id()
+    ));
+    let src_dir = workspace_root.join("src");
+    let style_path = src_dir.join("Button.module.scss");
+    let late_source_path = src_dir.join("ZTarget.tsx");
+    let _ = std::fs::remove_dir_all(&workspace_root);
+    std::fs::create_dir_all(&src_dir)?;
+    std::fs::write(&style_path, ".root { color: red; }")?;
+    for index in 0..520 {
+        std::fs::write(
+            src_dir.join(format!("A{index:04}.tsx")),
+            format!("export const value{index} = {index};"),
+        )?;
+    }
+    std::fs::write(
+        &late_source_path,
+        "import styles from \"./Button.module.scss\";\nconst view = <div className={styles.root} />;",
+    )?;
+
+    let workspace_uri = crate::protocol::path_to_file_uri(workspace_root.as_path());
+    let style_uri = crate::protocol::path_to_file_uri(style_path.as_path());
+    let late_source_uri = crate::protocol::path_to_file_uri(late_source_path.as_path());
+    let mut state = LspShellState::default();
+    handle_lsp_message(
+        &mut state,
+        json!({
+            "jsonrpc": "2.0",
+            "id": 1,
+            "method": "initialize",
+            "params": {
+                "workspaceFolders": [
+                    {
+                        "uri": workspace_uri,
+                        "name": "background-source-resume",
+                    },
+                ],
+            },
+        }),
+    );
+
+    for _ in 0..32 {
+        let turn = handle_lsp_message_scheduled_outputs_or_dispatch(
+            &mut state,
+            json!({
+                "jsonrpc": "2.0",
+                "method": "initialized",
+                "params": {},
+            }),
+        );
+        let job = match turn {
+            LspLoopTurnV0::OutputsAndDeferredDiagnostics {
+                mut workspace_index_jobs,
+                ..
+            } => workspace_index_jobs
+                .pop()
+                .ok_or_else(|| std::io::Error::other("missing resumable workspace index job"))?,
+            other => {
+                return Err(std::io::Error::other(format!(
+                    "initialized should schedule resumable workspace indexing: {other:?}"
+                ))
+                .into());
+            }
+        };
+        let result = collect_background_workspace_index(job);
+        apply_background_workspace_index_result(&mut state, result);
+        if state.document(late_source_uri.as_str()).is_some() {
+            break;
+        }
+    }
+
+    assert!(
+        state.document(late_source_uri.as_str()).is_some(),
+        "background workspace indexing should advance beyond the first file-budget window"
+    );
+    let references_response = handle_lsp_message(
+        &mut state,
+        json!({
+            "jsonrpc": "2.0",
+            "id": 2,
+            "method": "textDocument/references",
+            "params": {
+                "textDocument": {
+                    "uri": style_uri,
+                },
+                "position": {
+                    "line": 0,
+                    "character": 2,
+                },
+                "context": {
+                    "includeDeclaration": false,
+                },
+            },
+        }),
+    );
+    let reference_locations = references_response
+        .as_ref()
+        .and_then(|response| response.pointer("/result"))
+        .and_then(Value::as_array)
+        .ok_or_else(|| std::io::Error::other("references response should contain locations"))?;
+    assert!(
+        reference_locations.iter().any(|location| location
+            .get("uri")
+            .and_then(Value::as_str)
+            .is_some_and(|uri| file_uri_equivalent(uri, late_source_uri.as_str()))),
+        "late indexed source occurrence should appear in references: {references_response:?}"
+    );
+
+    let _ = std::fs::remove_dir_all(&workspace_root);
+    Ok(())
+}
+
+#[test]
+fn watched_source_file_change_refreshes_indexed_occurrences() -> TestResult {
+    let workspace_root = std::env::temp_dir().join(format!(
+        "omena-lsp-server-watched-source-occurrences-{}",
+        std::process::id()
+    ));
+    let src_dir = workspace_root.join("src");
+    let source_path = src_dir.join("App.tsx");
+    let style_path = src_dir.join("Button.module.scss");
+    let _ = std::fs::remove_dir_all(&workspace_root);
+    std::fs::create_dir_all(&src_dir)?;
+    std::fs::write(
+        &style_path,
+        ".root { color: red; }\n.other { color: blue; }",
+    )?;
+    std::fs::write(
+        &source_path,
+        "import styles from \"./Button.module.scss\";\nconst view = <div className={styles.root} />;",
+    )?;
+
+    let workspace_uri = crate::protocol::path_to_file_uri(workspace_root.as_path());
+    let source_uri = crate::protocol::path_to_file_uri(source_path.as_path());
+    let style_uri = crate::protocol::path_to_file_uri(style_path.as_path());
+    let mut state = LspShellState::default();
+    handle_lsp_message(
+        &mut state,
+        json!({
+            "jsonrpc": "2.0",
+            "id": 1,
+            "method": "initialize",
+            "params": {
+                "workspaceFolders": [
+                    {
+                        "uri": workspace_uri,
+                        "name": "watched-source-occurrences",
+                    },
+                ],
+            },
+        }),
+    );
+    let turn = handle_lsp_message_scheduled_outputs_or_dispatch(
+        &mut state,
+        json!({
+            "jsonrpc": "2.0",
+            "method": "initialized",
+            "params": {},
+        }),
+    );
+    let job = match turn {
+        LspLoopTurnV0::OutputsAndDeferredDiagnostics {
+            mut workspace_index_jobs,
+            ..
+        } => workspace_index_jobs
+            .pop()
+            .ok_or_else(|| std::io::Error::other("missing workspace index job"))?,
+        other => {
+            return Err(std::io::Error::other(format!(
+                "initialized should schedule workspace indexing: {other:?}"
+            ))
+            .into());
+        }
+    };
+    let result = collect_background_workspace_index(job);
+    apply_background_workspace_index_result(&mut state, result);
+
+    let first_references = handle_lsp_message(
+        &mut state,
+        json!({
+            "jsonrpc": "2.0",
+            "id": 2,
+            "method": "textDocument/references",
+            "params": {
+                "textDocument": {
+                    "uri": style_uri,
+                },
+                "position": {
+                    "line": 0,
+                    "character": 2,
+                },
+                "context": {
+                    "includeDeclaration": false,
+                },
+            },
+        }),
+    );
+    assert!(
+        first_references
+            .as_ref()
+            .and_then(|response| response.pointer("/result"))
+            .and_then(Value::as_array)
+            .is_some_and(|locations| locations.iter().any(|location| location
+                .get("uri")
+                .and_then(Value::as_str)
+                .is_some_and(|uri| file_uri_equivalent(uri, source_uri.as_str())))),
+        "initial indexed source reference should be visible: {first_references:?}"
+    );
+
+    std::fs::write(
+        &source_path,
+        "import styles from \"./Button.module.scss\";\nconst view = <div className={styles.other} />;",
+    )?;
+    handle_lsp_message(
+        &mut state,
+        json!({
+            "jsonrpc": "2.0",
+            "method": "workspace/didChangeWatchedFiles",
+            "params": {
+                "changes": [
+                    {
+                        "uri": source_uri,
+                        "type": 2,
+                    },
+                ],
+            },
+        }),
+    );
+
+    let refreshed_references = handle_lsp_message(
+        &mut state,
+        json!({
+            "jsonrpc": "2.0",
+            "id": 3,
+            "method": "textDocument/references",
+            "params": {
+                "textDocument": {
+                    "uri": style_uri,
+                },
+                "position": {
+                    "line": 0,
+                    "character": 2,
+                },
+                "context": {
+                    "includeDeclaration": false,
+                },
+            },
+        }),
+    );
+    assert!(
+        refreshed_references
+            .as_ref()
+            .and_then(|response| response.pointer("/result"))
+            .and_then(Value::as_array)
+            .is_some_and(|locations| locations.iter().all(|location| location
+                .get("uri")
+                .and_then(Value::as_str)
+                .is_none_or(|uri| !file_uri_equivalent(uri, source_uri.as_str())))),
+        "watched source change should remove stale root reference: {refreshed_references:?}"
+    );
+
     let _ = std::fs::remove_dir_all(&workspace_root);
     Ok(())
 }
@@ -1733,8 +1998,8 @@ fn indexed_style_files_feed_custom_property_references_and_rename() -> TestResul
         "custom property definition should resolve through the indexed style-symbol occurrence index: {definition_response:?}"
     );
     assert!(
-        state.style_symbol_occurrence_index_memo.borrow().is_some(),
-        "custom property definition should populate the style symbol occurrence memo"
+        state.workspace_occurrence_index_memo.borrow().is_some(),
+        "custom property definition should populate the workspace occurrence memo"
     );
     let document_keys = style_symbol_occurrence_document_keys(&state, Some(workspace_uri.as_str()));
     let sidecar_path =
@@ -1750,7 +2015,7 @@ fn indexed_style_files_feed_custom_property_references_and_rename() -> TestResul
         sidecar_path.exists(),
         "custom property lookup should persist the style symbol occurrence sidecar: {sidecar_path:?}"
     );
-    *state.style_symbol_occurrence_index_memo.borrow_mut() = None;
+    *state.workspace_occurrence_index_memo.borrow_mut() = None;
     state
         .document_mut(tokens_uri.as_str())
         .ok_or_else(|| std::io::Error::other("tokens style should remain indexed"))?
@@ -1920,8 +2185,8 @@ fn indexed_style_files_feed_sass_symbol_references_and_rename() -> TestResult {
         "Sass references should include the second indexed consumer style: {references_response:?}"
     );
     assert!(
-        state.style_symbol_occurrence_index_memo.borrow().is_some(),
-        "Sass references should populate the style symbol occurrence memo"
+        state.workspace_occurrence_index_memo.borrow().is_some(),
+        "Sass references should populate the workspace occurrence memo"
     );
     let document_keys = style_symbol_occurrence_document_keys(&state, Some(workspace_uri.as_str()));
     let sidecar_path =
@@ -1937,7 +2202,7 @@ fn indexed_style_files_feed_sass_symbol_references_and_rename() -> TestResult {
         sidecar_path.exists(),
         "Sass reference lookup should persist the style symbol occurrence sidecar: {sidecar_path:?}"
     );
-    *state.style_symbol_occurrence_index_memo.borrow_mut() = None;
+    *state.workspace_occurrence_index_memo.borrow_mut() = None;
     state
         .document_mut(app_uri.as_str())
         .ok_or_else(|| std::io::Error::other("app style should remain indexed"))?

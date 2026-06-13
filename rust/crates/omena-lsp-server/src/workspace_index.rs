@@ -10,7 +10,12 @@ use crate::{
     lsp_text_document_state_with_source_syntax_index,
 };
 use omena_query::{OmenaQueryStyleResolutionInputsV0, StyleLanguage};
-use std::{collections::BTreeMap, fs, path::Path, time::Instant};
+use std::{
+    collections::{BTreeMap, BTreeSet},
+    fs,
+    path::Path,
+    time::Instant,
+};
 
 const WORKSPACE_INDEX_FILE_LIMIT: usize = 512;
 const WORKSPACE_STYLE_INDEX_DIR_LIMIT: usize = 2048;
@@ -27,6 +32,8 @@ pub struct LspWorkspaceIndexJobV0 {
     pub progress_token: Option<String>,
     pub folders: Vec<LspWorkspaceFolderState>,
     pub resolution_inputs_by_workspace_uri: BTreeMap<String, OmenaQueryStyleResolutionInputsV0>,
+    pub indexed_document_hashes_by_uri: BTreeMap<String, String>,
+    pub open_document_uris: BTreeSet<String>,
 }
 
 #[derive(Debug, Clone)]
@@ -47,6 +54,21 @@ pub fn prepare_background_workspace_index_job(state: &mut LspShellState) -> LspW
             .resolution
             .workspace_style_resolution_inputs
             .clone(),
+        indexed_document_hashes_by_uri: state
+            .documents
+            .values()
+            .map(|document| (document.uri.clone(), document.text_hash.clone()))
+            .collect(),
+        open_document_uris: state
+            .open_document_uris
+            .iter()
+            .filter_map(|uri| {
+                state
+                    .document(uri.as_str())
+                    .map(|document| document.uri.clone())
+            })
+            .chain(state.open_document_uris.iter().cloned())
+            .collect(),
     }
 }
 
@@ -86,7 +108,7 @@ pub fn apply_background_workspace_index_result(
         return;
     }
     for document in result.documents {
-        if state.contains_document_uri(document.uri.as_str()) {
+        if state.has_open_document_uri(document.uri.as_str()) {
             continue;
         }
         let Some(current_owner_uri) = state
@@ -138,7 +160,9 @@ fn index_workspace_style_files_from_dir(
     let Ok(entries) = fs::read_dir(dir) else {
         return;
     };
-    for entry in entries.flatten() {
+    let mut entries = entries.flatten().collect::<Vec<_>>();
+    entries.sort_by_key(|entry| entry.path());
+    for entry in entries {
         if budget.should_stop() {
             return;
         }
@@ -201,7 +225,9 @@ fn collect_workspace_index_documents_from_dir(
     let Ok(entries) = fs::read_dir(dir) else {
         return;
     };
-    for entry in entries.flatten() {
+    let mut entries = entries.flatten().collect::<Vec<_>>();
+    entries.sort_by_key(|entry| entry.path());
+    for entry in entries {
         if budget.should_stop() {
             return;
         }
@@ -220,9 +246,19 @@ fn collect_workspace_index_documents_from_dir(
             continue;
         };
         let uri = path_to_file_uri(path.as_path());
+        if job.open_document_uris.contains(uri.as_str()) {
+            continue;
+        }
+        if job
+            .indexed_document_hashes_by_uri
+            .contains_key(uri.as_str())
+        {
+            continue;
+        }
         let Ok(text) = fs::read_to_string(path.as_path()) else {
             continue;
         };
+        let text_hash = source_document_text_hash(text.as_str());
         let workspace_owner_uri = resolve_background_workspace_owner_uri(job, uri.as_str())
             .unwrap_or_else(|| workspace_folder_uri.to_string());
         let resolution_inputs = job
@@ -230,7 +266,6 @@ fn collect_workspace_index_documents_from_dir(
             .get(workspace_owner_uri.as_str())
             .cloned()
             .unwrap_or_default();
-        let text_hash = source_document_text_hash(text.as_str());
         let document = if !is_style_document_uri(uri.as_str())
             && let Some(sidecar) = load_source_document_index_sidecar(
                 Some(workspace_owner_uri.as_str()),
@@ -390,6 +425,11 @@ fn workspace_index_language_id_for_path(path: &Path) -> Option<String> {
         return Some(style_language_label(language).to_string());
     }
     source_language_id_for_path(path).map(str::to_string)
+}
+
+pub(crate) fn workspace_index_language_id_for_uri(uri: &str) -> Option<String> {
+    let path = file_uri_to_path(uri)?;
+    workspace_index_language_id_for_path(path.as_path())
 }
 
 fn source_language_id_for_path(path: &Path) -> Option<&'static str> {

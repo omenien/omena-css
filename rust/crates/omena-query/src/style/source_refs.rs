@@ -7,6 +7,62 @@ use super::dynamic_classname::{
 };
 use super::*;
 
+pub enum OmenaWorkspaceMonikerInput<'a> {
+    CssModuleSelector {
+        target_style_uri: Option<&'a str>,
+        selector_name: &'a str,
+    },
+    CssCustomProperty {
+        workspace_folder_uri: Option<&'a str>,
+        name: &'a str,
+    },
+    SassSymbol {
+        definition_uri: &'a str,
+        family: &'a str,
+        name: &'a str,
+    },
+    SassUnresolvedSymbol {
+        workspace_folder_uri: Option<&'a str>,
+        family: &'a str,
+        namespace: Option<&'a str>,
+        name: &'a str,
+    },
+}
+
+pub fn omena_workspace_moniker(input: OmenaWorkspaceMonikerInput<'_>) -> String {
+    match input {
+        OmenaWorkspaceMonikerInput::CssModuleSelector {
+            target_style_uri,
+            selector_name,
+        } => {
+            let target = target_style_uri.unwrap_or("*");
+            format!("css-module-selector:{target}#.{selector_name}")
+        }
+        OmenaWorkspaceMonikerInput::CssCustomProperty {
+            workspace_folder_uri,
+            name,
+        } => {
+            let scope = workspace_folder_uri.unwrap_or("global");
+            format!("css-custom-property:{scope}#{name}")
+        }
+        OmenaWorkspaceMonikerInput::SassSymbol {
+            definition_uri,
+            family,
+            name,
+        } => format!("sass-symbol:{definition_uri}#{family}:{name}"),
+        OmenaWorkspaceMonikerInput::SassUnresolvedSymbol {
+            workspace_folder_uri,
+            family,
+            namespace,
+            name,
+        } => {
+            let scope = workspace_folder_uri.unwrap_or("global");
+            let namespace = namespace.unwrap_or("*");
+            format!("sass-symbol-unresolved:{scope}#{family}:{namespace}:{name}")
+        }
+    }
+}
+
 pub fn summarize_omena_query_refs_for_class(
     selector_name: &str,
     target_style_uri: Option<&str>,
@@ -129,17 +185,19 @@ pub fn summarize_omena_query_source_selector_occurrence_index(
             definitions,
             reference.target_style_uri.as_deref(),
         ) {
+            let moniker = source_selector_occurrence_moniker(
+                selector_name.as_str(),
+                reference.target_style_uri.as_deref(),
+            );
             occurrences.push(OmenaQuerySourceSelectorOccurrenceV0 {
-                moniker: source_selector_occurrence_moniker(
-                    selector_name.as_str(),
-                    reference.target_style_uri.as_deref(),
-                ),
+                moniker,
                 uri: reference.uri.clone(),
                 selector_name: selector_name.clone(),
                 range: reference.range,
-                kind: reference.kind,
-                role: "reference",
-                source: reference.source,
+                kind: workspace_occurrence_kind_from_source_reference_kind(reference.kind)
+                    .unwrap_or(OmenaWorkspaceOccurrenceKindV0::SourceSelectorReference),
+                role: OmenaWorkspaceOccurrenceRoleV0::Reference,
+                source: OmenaWorkspaceOccurrenceSurfaceV0::OmenaQuerySourceSyntaxIndex,
                 target_style_uri: reference.target_style_uri.clone(),
                 rename_target: reference.kind == "sourceSelectorReference"
                     && reference.name == selector_name,
@@ -154,11 +212,21 @@ pub fn summarize_omena_query_source_selector_occurrence_index(
         .map(|occurrence| occurrence.moniker.as_str())
         .collect::<BTreeSet<_>>()
         .len();
+    let workspace_index = summarize_omena_query_workspace_occurrence_index_from_source_occurrences(
+        occurrences.as_slice(),
+        vec![
+            "workspaceOccurrenceIndex",
+            "sourceSelectorOccurrenceIndex",
+            "workspaceWideSelectorReferences",
+            "workspaceWideSelectorRename",
+        ],
+    );
     OmenaQuerySourceSelectorOccurrenceIndexV0 {
         schema_version: "0",
         product: "omena-query.source-selector-occurrence-index",
         moniker_count,
         occurrence_count: occurrences.len(),
+        workspace_index,
         occurrences,
         ready_surfaces: vec![
             "sourceSelectorOccurrenceIndex",
@@ -198,18 +266,13 @@ pub fn summarize_omena_query_refs_for_class_from_occurrence_index(
     }
 
     locations.extend(
-        occurrence_index
-            .occurrences
-            .iter()
-            .filter(|occurrence| occurrence.selector_name == selector_name)
-            .filter(|occurrence| {
-                source_selector_occurrence_matches_target_uri(occurrence, target_style_uri)
-            })
+        source_selector_occurrences_for_query(occurrence_index, selector_name, target_style_uri)
+            .into_iter()
             .map(|occurrence| OmenaQueryReferenceLocationV0 {
                 uri: occurrence.uri.clone(),
                 range: occurrence.range,
                 name: occurrence.selector_name.clone(),
-                role: occurrence.role,
+                role: occurrence.role.as_str(),
                 source: "omenaQuerySourceSelectorOccurrenceIndex",
             }),
     );
@@ -247,17 +310,17 @@ pub fn summarize_omena_query_rename_plan_from_occurrence_index(
     definitions: &[OmenaQueryStyleSelectorDefinitionV0],
     occurrence_index: &OmenaQuerySourceSelectorOccurrenceIndexV0,
 ) -> OmenaQueryRenamePlanV0 {
-    let references = occurrence_index
-        .occurrences
-        .iter()
-        .filter(|occurrence| occurrence.rename_target)
-        .map(|occurrence| OmenaQuerySourceSelectorReferenceEditTargetV0 {
-            uri: occurrence.uri.clone(),
-            name: occurrence.selector_name.clone(),
-            range: occurrence.range,
-            target_style_uri: occurrence.target_style_uri.clone(),
-        })
-        .collect::<Vec<_>>();
+    let references =
+        source_selector_occurrences_for_query(occurrence_index, selector_name, target_style_uri)
+            .into_iter()
+            .filter(|occurrence| occurrence.rename_target)
+            .map(|occurrence| OmenaQuerySourceSelectorReferenceEditTargetV0 {
+                uri: occurrence.uri.clone(),
+                name: occurrence.selector_name.clone(),
+                range: occurrence.range,
+                target_style_uri: occurrence.target_style_uri.clone(),
+            })
+            .collect::<Vec<_>>();
     let mut plan = summarize_omena_query_rename_plan(
         selector_name,
         new_name,
@@ -267,6 +330,17 @@ pub fn summarize_omena_query_rename_plan_from_occurrence_index(
     );
     plan.ready_surfaces.push("sourceSelectorOccurrenceIndex");
     plan
+}
+
+pub fn occurrences_for_monikers<'a>(
+    index: &'a OmenaWorkspaceOccurrenceIndexV0,
+    monikers: &BTreeSet<String>,
+) -> Vec<&'a OmenaWorkspaceOccurrenceV0> {
+    monikers
+        .iter()
+        .filter_map(|moniker| index.by_moniker.get(moniker.as_str()))
+        .flat_map(|occurrences| occurrences.iter())
+        .collect()
 }
 
 pub fn summarize_omena_query_refs_for_workspace_class(
@@ -1226,18 +1300,130 @@ fn source_reference_matches_target_style(
     })
 }
 
-fn source_selector_occurrence_matches_target_uri(
-    occurrence: &OmenaQuerySourceSelectorOccurrenceV0,
+fn source_selector_occurrences_for_query(
+    occurrence_index: &OmenaQuerySourceSelectorOccurrenceIndexV0,
+    selector_name: &str,
     target_style_uri: Option<&str>,
-) -> bool {
-    target_style_uri.is_none_or(|target_uri| {
-        occurrence
-            .target_style_uri
-            .as_deref()
-            .is_none_or(|candidate_target_uri| {
-                file_uri_equivalent(candidate_target_uri, target_uri)
-            })
+) -> Vec<OmenaQuerySourceSelectorOccurrenceV0> {
+    let matching_monikers = if target_style_uri.is_some() {
+        BTreeSet::from([source_selector_occurrence_moniker(
+            selector_name,
+            target_style_uri,
+        )])
+    } else {
+        let suffix = format!("#.{selector_name}");
+        occurrence_index
+            .workspace_index
+            .by_moniker
+            .keys()
+            .filter(|moniker| moniker.ends_with(suffix.as_str()))
+            .cloned()
+            .collect()
+    };
+    occurrences_for_monikers(&occurrence_index.workspace_index, &matching_monikers)
+        .into_iter()
+        .filter_map(source_selector_occurrence_from_workspace_occurrence)
+        .collect()
+}
+
+pub fn summarize_omena_query_workspace_occurrence_index_from_source_occurrences(
+    occurrences: &[OmenaQuerySourceSelectorOccurrenceV0],
+    ready_surfaces: Vec<&'static str>,
+) -> OmenaWorkspaceOccurrenceIndexV0 {
+    let occurrences = occurrences
+        .iter()
+        .map(workspace_occurrence_from_source_occurrence)
+        .collect::<Vec<_>>();
+    summarize_omena_query_workspace_occurrence_index_from_occurrences(
+        occurrences.as_slice(),
+        ready_surfaces,
+    )
+}
+
+pub fn summarize_omena_query_workspace_occurrence_index_from_occurrences(
+    occurrences: &[OmenaWorkspaceOccurrenceV0],
+    ready_surfaces: Vec<&'static str>,
+) -> OmenaWorkspaceOccurrenceIndexV0 {
+    let mut by_moniker: BTreeMap<String, Vec<OmenaWorkspaceOccurrenceV0>> = BTreeMap::new();
+    let mut by_file: BTreeMap<String, BTreeSet<String>> = BTreeMap::new();
+    for occurrence in occurrences {
+        let workspace_occurrence = occurrence.clone();
+        by_file
+            .entry(workspace_occurrence.uri.clone())
+            .or_default()
+            .insert(workspace_occurrence.moniker.clone());
+        by_moniker
+            .entry(workspace_occurrence.moniker.clone())
+            .or_default()
+            .push(workspace_occurrence);
+    }
+    for occurrences in by_moniker.values_mut() {
+        occurrences.sort();
+        occurrences.dedup();
+    }
+    let by_file = by_file
+        .into_iter()
+        .map(|(uri, monikers)| (uri, monikers.into_iter().collect()))
+        .collect::<BTreeMap<_, _>>();
+    let moniker_count = by_moniker.len();
+    let occurrence_count = by_moniker.values().map(Vec::len).sum();
+    OmenaWorkspaceOccurrenceIndexV0 {
+        schema_version: "0",
+        product: "omena-query.workspace-occurrence-index",
+        moniker_count,
+        occurrence_count,
+        by_moniker,
+        by_file,
+        ready_surfaces,
+    }
+}
+
+fn workspace_occurrence_from_source_occurrence(
+    occurrence: &OmenaQuerySourceSelectorOccurrenceV0,
+) -> OmenaWorkspaceOccurrenceV0 {
+    OmenaWorkspaceOccurrenceV0 {
+        moniker: occurrence.moniker.clone(),
+        uri: occurrence.uri.clone(),
+        name: occurrence.selector_name.clone(),
+        range: occurrence.range,
+        kind: occurrence.kind,
+        role: occurrence.role,
+        surface: occurrence.source,
+        family: Some(OmenaWorkspaceOccurrenceFamilyV0::CssModuleSelector),
+        namespace: None,
+        target_style_uri: occurrence.target_style_uri.clone(),
+        rename_target: occurrence.rename_target,
+    }
+}
+
+fn source_selector_occurrence_from_workspace_occurrence(
+    occurrence: &OmenaWorkspaceOccurrenceV0,
+) -> Option<OmenaQuerySourceSelectorOccurrenceV0> {
+    (occurrence.family == Some(OmenaWorkspaceOccurrenceFamilyV0::CssModuleSelector)).then(|| {
+        OmenaQuerySourceSelectorOccurrenceV0 {
+            moniker: occurrence.moniker.clone(),
+            uri: occurrence.uri.clone(),
+            selector_name: occurrence.name.clone(),
+            range: occurrence.range,
+            kind: occurrence.kind,
+            role: occurrence.role,
+            source: occurrence.surface,
+            target_style_uri: occurrence.target_style_uri.clone(),
+            rename_target: occurrence.rename_target,
+        }
     })
+}
+
+fn workspace_occurrence_kind_from_source_reference_kind(
+    kind: &str,
+) -> Option<OmenaWorkspaceOccurrenceKindV0> {
+    match kind {
+        "sourceSelectorReference" => Some(OmenaWorkspaceOccurrenceKindV0::SourceSelectorReference),
+        "sourceSelectorPrefixReference" => {
+            Some(OmenaWorkspaceOccurrenceKindV0::SourceSelectorPrefixReference)
+        }
+        _ => None,
+    }
 }
 
 fn source_selector_candidate_matches_target_uri(
@@ -1258,8 +1444,10 @@ fn source_selector_occurrence_moniker(
     selector_name: &str,
     target_style_uri: Option<&str>,
 ) -> String {
-    let target = target_style_uri.unwrap_or("*");
-    format!("css-module-selector:{target}#.{selector_name}")
+    omena_workspace_moniker(OmenaWorkspaceMonikerInput::CssModuleSelector {
+        target_style_uri,
+        selector_name,
+    })
 }
 
 fn reference_location_role_rank(role: &str) -> u8 {

@@ -17,6 +17,7 @@ mod source_type_facts;
 mod state;
 mod style_symbol_occurrence_cache;
 mod workspace_index;
+mod workspace_occurrence_cache;
 mod workspace_runtime_registry;
 
 pub use boundary::*;
@@ -46,14 +47,17 @@ use omena_query::{
     OmenaQuerySourceSelectorReferenceMatchKindV0 as SourceSelectorReferenceMatchKind,
     OmenaQuerySourceSyntaxIndexV0 as SourceSyntaxIndex, OmenaQueryStyleDiagnosticV0,
     OmenaQueryStylePackageManifestV0, OmenaQueryStyleSelectorDefinitionV0,
-    OmenaQueryStyleSourceInputV0, ParserByteSpanV0, ParserPositionV0, ParserRangeV0, StyleLanguage,
+    OmenaQueryStyleSourceInputV0, OmenaWorkspaceMonikerInput, OmenaWorkspaceOccurrenceFamilyV0,
+    OmenaWorkspaceOccurrenceIndexV0, OmenaWorkspaceOccurrenceKindV0,
+    OmenaWorkspaceOccurrenceRoleV0, OmenaWorkspaceOccurrenceSurfaceV0, OmenaWorkspaceOccurrenceV0,
+    ParserByteSpanV0, ParserPositionV0, ParserRangeV0, StyleLanguage,
     collect_omena_query_vue_style_module_bindings,
     is_omena_query_sass_symbol_candidate_kind as is_sass_symbol_candidate_kind,
     is_omena_query_sass_symbol_declaration_kind as is_sass_symbol_declaration_kind,
     is_omena_query_sass_symbol_reference_kind as is_sass_symbol_reference_kind,
-    load_omena_query_workspace_style_resolution_inputs,
+    load_omena_query_workspace_style_resolution_inputs, occurrences_for_monikers,
     omena_query_sass_symbol_kind_from_candidate_kind as sass_symbol_kind_from_candidate_kind,
-    read_omena_query_cascade_at_position_with_categorical_evidence,
+    omena_workspace_moniker, read_omena_query_cascade_at_position_with_categorical_evidence,
     read_omena_query_style_context_index, resolve_omena_query_sass_forward_sources,
     resolve_omena_query_sass_module_use_sources_for_candidate,
     resolve_omena_query_sass_symbol_declarations,
@@ -67,7 +71,6 @@ use omena_query::{
     summarize_omena_query_source_diagnostics_for_file,
     summarize_omena_query_source_diagnostics_for_workspace_file_with_source_syntax_index_and_definitions,
     summarize_omena_query_source_import_declarations_for_source_language,
-    summarize_omena_query_source_selector_occurrence_index,
     summarize_omena_query_source_syntax_index_for_source_language,
     summarize_omena_query_style_completion_candidate_documentation,
     summarize_omena_query_style_completion_candidate_documentation_for_workspace_file_with_substrate,
@@ -78,6 +81,7 @@ use omena_query::{
     summarize_omena_query_style_hover_render_parts_for_hover_position,
     summarize_omena_query_style_hover_render_parts_for_workspace_file_hover_position_with_substrate,
     summarize_omena_query_style_refactor_code_actions,
+    summarize_omena_query_workspace_occurrence_index_from_occurrences,
 };
 #[cfg(not(feature = "salsa-style-diagnostics"))]
 use omena_query::{
@@ -91,15 +95,14 @@ pub(crate) use omena_tsgo_client::{TsgoResolvedTypeV0, TsgoTypeFactResultEntryV0
 use protocol::*;
 use query_adapter::*;
 use query_reuse::{
-    cascade_narrowing_substrate_for_style_sources, refresh_document_reusable_indexes,
+    cascade_narrowing_substrate_for_style_sources, effective_style_package_manifests,
+    refresh_document_reusable_indexes,
 };
 use serde_json::{Value, json};
 pub(crate) use settings::{
     apply_diagnostic_settings, apply_feature_settings, apply_resolution_settings,
 };
-use source_occurrence_cache::{
-    load_source_selector_occurrence_sidecar, store_source_selector_occurrence_sidecar,
-};
+use source_occurrence_cache::store_source_selector_occurrence_sidecar;
 #[cfg(test)]
 pub(crate) use source_type_facts::apply_source_type_fact_results_to_document;
 pub(crate) use source_type_facts::refresh_source_type_fact_candidates_for_document;
@@ -111,10 +114,9 @@ use std::{
     fs,
     sync::Arc,
 };
-use style_symbol_occurrence_cache::{
-    load_style_symbol_occurrence_sidecar, store_style_symbol_occurrence_sidecar,
-};
+use style_symbol_occurrence_cache::store_style_symbol_occurrence_sidecar;
 pub(crate) use workspace_index::index_workspace_style_files;
+pub(crate) use workspace_index::workspace_index_language_id_for_uri;
 pub use workspace_index::{
     LspWorkspaceIndexJobV0, LspWorkspaceIndexResultV0, apply_background_workspace_index_result,
     collect_background_workspace_index, prepare_background_workspace_index_job,
@@ -122,6 +124,10 @@ pub use workspace_index::{
 #[cfg(test)]
 pub(crate) use workspace_index::{
     WorkspaceStyleIndexBudget, index_workspace_style_files_with_budget,
+};
+use workspace_occurrence_cache::{
+    load_workspace_occurrence_shard, store_workspace_occurrence_shard,
+    workspace_occurrence_dependency_digest,
 };
 
 pub const NODE_TEXT_DOCUMENT_SYNC_KIND: u8 = 2;
@@ -517,7 +523,16 @@ fn apply_watched_file_change_to_index(state: &mut LspShellState, uri: &str, chan
     if !is_style_document_uri(uri) {
         if is_resolution_config_document_uri(uri) {
             refresh_source_indexes_for_resolution_config_change(state, uri);
+            return;
         }
+        if state.has_open_document_uri(uri) {
+            return;
+        }
+        if change_type == 3 {
+            state.remove_document_uri(uri);
+            return;
+        }
+        let _ = reload_indexed_source_document_from_disk(state, uri);
         return;
     }
     if state.has_open_document_uri(uri) {
@@ -642,6 +657,36 @@ fn reload_indexed_style_document_from_disk(state: &mut LspShellState, uri: &str)
                 .map(style_language_label)
                 .unwrap_or("unknown")
                 .to_string(),
+            0,
+            text,
+            &resolution_inputs,
+        ),
+    );
+    true
+}
+
+fn reload_indexed_source_document_from_disk(state: &mut LspShellState, uri: &str) -> bool {
+    let Some(path) = file_uri_to_path(uri) else {
+        return false;
+    };
+    let Some(language_id) = workspace_index_language_id_for_uri(uri) else {
+        return false;
+    };
+    if is_style_document_uri(uri) {
+        return false;
+    }
+    let Ok(text) = fs::read_to_string(path) else {
+        return false;
+    };
+    let workspace_folder_uri = resolve_workspace_folder_uri(state, uri);
+    let resolution_inputs =
+        resolution_inputs_for_workspace_uri(state, workspace_folder_uri.as_deref());
+    state.insert_document(
+        uri,
+        lsp_text_document_state(
+            uri.to_string(),
+            workspace_folder_uri,
+            language_id,
             0,
             text,
             &resolution_inputs,
@@ -918,6 +963,7 @@ fn resolve_lsp_completion(state: &LspShellState, params: Option<&Value>) -> Valu
     );
     let resolution_inputs =
         resolution_inputs_for_workspace_uri(state, document.workspace_folder_uri.as_deref());
+    let package_manifests = effective_style_package_manifests(state, &resolution_inputs);
     let narrowing_substrate = cascade_narrowing_substrate_for_style_sources(
         state,
         style_sources.as_slice(),
@@ -926,7 +972,7 @@ fn resolve_lsp_completion(state: &LspShellState, params: Option<&Value>) -> Valu
     let completion = summarize_omena_query_style_completion_for_workspace_file_with_substrate(
         document.uri.as_str(),
         style_sources.as_slice(),
-        state.resolution.package_manifests.as_slice(),
+        package_manifests.as_slice(),
         state.resolution.external_sifs.as_slice(),
         &resolution_inputs,
         &narrowing_substrate,
@@ -2209,7 +2255,7 @@ fn selector_reference_locations_from_open_documents(
         query_target_style_uri.as_deref(),
         false,
         occurrence_index.definitions.as_slice(),
-        &occurrence_index.index,
+        &occurrence_index.source_selector_index,
     )
     .locations
     .into_iter()
@@ -2226,15 +2272,22 @@ fn selector_reference_locations_by_name_from_open_documents(
     let occurrence_index =
         source_selector_occurrence_index_from_open_documents(state, workspace_folder_uri);
     let query_target_style_uri = query_target_style_uri_for_matching(target_style_uri);
-    for occurrence in &occurrence_index.index.occurrences {
-        if !source_selector_occurrence_matches_target_style(
-            occurrence,
-            query_target_style_uri.as_deref(),
-        ) {
+    for occurrence in occurrence_index
+        .workspace_index
+        .by_moniker
+        .values()
+        .flat_map(|occurrences| occurrences.iter())
+    {
+        if occurrence.family != Some(OmenaWorkspaceOccurrenceFamilyV0::CssModuleSelector)
+            || !workspace_occurrence_matches_target_style(
+                occurrence,
+                query_target_style_uri.as_deref(),
+            )
+        {
             continue;
         }
         locations_by_name
-            .entry(occurrence.selector_name.clone())
+            .entry(occurrence.name.clone())
             .or_default()
             .push(json!({
                 "uri": occurrence.uri,
@@ -2250,86 +2303,148 @@ fn selector_reference_locations_by_name_from_open_documents(
 }
 
 #[derive(Debug, Clone)]
-struct SourceSelectorOccurrenceWorkspaceIndex {
+struct WorkspaceOccurrenceIndexes {
     definitions: Vec<omena_query::OmenaQueryStyleSelectorDefinitionV0>,
-    index: Arc<OmenaQuerySourceSelectorOccurrenceIndexV0>,
+    source_selector_index: Arc<OmenaQuerySourceSelectorOccurrenceIndexV0>,
+    workspace_index: Arc<OmenaWorkspaceOccurrenceIndexV0>,
 }
 
-fn source_selector_occurrence_index_from_open_documents(
+fn workspace_occurrence_indexes_from_documents(
     state: &LspShellState,
     workspace_folder_uri: Option<&str>,
-) -> SourceSelectorOccurrenceWorkspaceIndex {
-    let document_keys = source_selector_occurrence_document_keys(state, workspace_folder_uri);
+) -> WorkspaceOccurrenceIndexes {
+    let source_document_keys =
+        source_selector_occurrence_document_keys(state, workspace_folder_uri);
+    let style_document_keys = style_symbol_occurrence_document_keys(state, workspace_folder_uri);
     let memo_workspace_folder_uri = workspace_folder_uri.map(str::to_string);
-    if let Some(memo) = state
-        .source_selector_occurrence_index_memo
-        .borrow()
-        .as_ref()
+    if let Some(memo) = state.workspace_occurrence_index_memo.borrow().as_ref()
         && memo.workspace_folder_uri == memo_workspace_folder_uri
-        && memo.document_keys == document_keys
+        && memo.source_document_keys == source_document_keys
+        && memo.style_document_keys == style_document_keys
     {
-        return SourceSelectorOccurrenceWorkspaceIndex {
+        return WorkspaceOccurrenceIndexes {
             definitions: memo.definitions.clone(),
-            index: Arc::clone(&memo.index),
+            source_selector_index: Arc::clone(&memo.source_selector_index),
+            workspace_index: Arc::clone(&memo.workspace_index),
         };
     }
-    if let Some(cached) = load_source_selector_occurrence_sidecar(
-        state,
-        workspace_folder_uri,
-        document_keys.as_slice(),
-    ) {
-        *state.source_selector_occurrence_index_memo.borrow_mut() =
-            Some(LspSourceSelectorOccurrenceIndexMemo {
-                workspace_folder_uri: memo_workspace_folder_uri,
-                document_keys,
-                definitions: cached.definitions.clone(),
-                index: Arc::clone(&cached.index),
-            });
-        return SourceSelectorOccurrenceWorkspaceIndex {
-            definitions: cached.definitions,
-            index: cached.index,
-        };
-    }
-
     let definitions =
         style_selector_definitions_from_open_documents(state, "", workspace_folder_uri)
             .iter()
             .map(|(uri, definition)| query_style_selector_definition_for_matching(uri, definition))
             .collect::<Vec<_>>();
-    let references = state
+    let definitions_digest = workspace_occurrence_dependency_digest(&definitions);
+    let mut workspace_occurrences = Vec::new();
+    let mut source_occurrences = state
         .documents
         .values()
         .filter(|document| !is_style_document_uri(document.uri.as_str()))
         .filter(|document| workspace_folder_compatible(workspace_folder_uri, document))
         .flat_map(|document| {
-            collect_source_selector_reference_candidates(state, document)
-                .iter()
-                .map(|candidate| {
-                    query_source_selector_reference_candidate_for_matching(document, candidate)
-                })
+            let document_occurrences = source_selector_workspace_occurrences_for_document(
+                state,
+                document,
+                definitions.as_slice(),
+                definitions_digest.as_deref(),
+            );
+            workspace_occurrences.extend(document_occurrences.clone());
+            document_occurrences
+                .into_iter()
+                .filter_map(source_selector_occurrence_from_workspace_occurrence_for_lsp)
                 .collect::<Vec<_>>()
         })
         .collect::<Vec<_>>();
-    let index = summarize_omena_query_source_selector_occurrence_index(
-        definitions.as_slice(),
-        references.as_slice(),
+    source_occurrences.sort();
+    source_occurrences.dedup();
+    let style_dependency_digest = workspace_occurrence_dependency_digest(&style_document_keys);
+    for document in state
+        .documents
+        .values()
+        .filter(|document| document_has_style_index(document))
+        .filter(|document| workspace_folder_compatible(workspace_folder_uri, document))
+    {
+        workspace_occurrences.extend(style_symbol_workspace_occurrences_for_document(
+            state,
+            document,
+            workspace_folder_uri,
+            style_dependency_digest.as_deref(),
+        ));
+    }
+    workspace_occurrences.sort();
+    workspace_occurrences.dedup();
+    let workspace_index = Arc::new(
+        summarize_omena_query_workspace_occurrence_index_from_occurrences(
+            workspace_occurrences.as_slice(),
+            vec![
+                "workspaceOccurrenceIndex",
+                "sourceSelectorOccurrenceIndex",
+                "workspaceWideSelectorReferences",
+                "workspaceWideSelectorRename",
+                "styleSymbolReferences",
+                "styleSymbolRename",
+                "workspaceOccurrencePerFileShard",
+            ],
+        ),
     );
+    let moniker_count = source_occurrences
+        .iter()
+        .map(|occurrence| occurrence.moniker.as_str())
+        .collect::<BTreeSet<_>>()
+        .len();
+    let index = OmenaQuerySourceSelectorOccurrenceIndexV0 {
+        schema_version: "0",
+        product: "omena-query.source-selector-occurrence-index",
+        moniker_count,
+        occurrence_count: source_occurrences.len(),
+        workspace_index: workspace_index.as_ref().clone(),
+        occurrences: source_occurrences,
+        ready_surfaces: vec![
+            "sourceSelectorOccurrenceIndex",
+            "workspaceWideSelectorReferences",
+            "workspaceWideSelectorRename",
+            "workspaceOccurrencePerFileShard",
+        ],
+    };
     let index = Arc::new(index);
     store_source_selector_occurrence_sidecar(
         state,
         workspace_folder_uri,
-        document_keys.as_slice(),
+        source_document_keys.as_slice(),
         definitions.as_slice(),
         &index,
     );
-    *state.source_selector_occurrence_index_memo.borrow_mut() =
-        Some(LspSourceSelectorOccurrenceIndexMemo {
-            workspace_folder_uri: memo_workspace_folder_uri,
-            document_keys,
-            definitions: definitions.clone(),
-            index: Arc::clone(&index),
-        });
-    SourceSelectorOccurrenceWorkspaceIndex { definitions, index }
+    let style_occurrences = workspace_index
+        .by_moniker
+        .values()
+        .flat_map(|occurrences| occurrences.iter())
+        .filter_map(style_symbol_occurrence_from_workspace_occurrence_for_lsp)
+        .collect::<Vec<_>>();
+    store_style_symbol_occurrence_sidecar(
+        state,
+        workspace_folder_uri,
+        style_document_keys.as_slice(),
+        style_occurrences.as_slice(),
+    );
+    *state.workspace_occurrence_index_memo.borrow_mut() = Some(LspWorkspaceOccurrenceIndexMemo {
+        workspace_folder_uri: memo_workspace_folder_uri,
+        source_document_keys,
+        style_document_keys,
+        definitions: definitions.clone(),
+        source_selector_index: Arc::clone(&index),
+        workspace_index: Arc::clone(&workspace_index),
+    });
+    WorkspaceOccurrenceIndexes {
+        definitions,
+        source_selector_index: index,
+        workspace_index,
+    }
+}
+
+fn source_selector_occurrence_index_from_open_documents(
+    state: &LspShellState,
+    workspace_folder_uri: Option<&str>,
+) -> WorkspaceOccurrenceIndexes {
+    workspace_occurrence_indexes_from_documents(state, workspace_folder_uri)
 }
 
 fn source_selector_occurrence_document_keys(
@@ -2350,8 +2465,124 @@ fn source_selector_occurrence_document_keys(
         .collect()
 }
 
-fn source_selector_occurrence_matches_target_style(
+fn source_selector_workspace_occurrences_for_document(
+    state: &LspShellState,
+    document: &LspTextDocumentState,
+    definitions: &[OmenaQueryStyleSelectorDefinitionV0],
+    dependency_digest: Option<&str>,
+) -> Vec<OmenaWorkspaceOccurrenceV0> {
+    let resolution_inputs =
+        resolution_inputs_for_workspace_uri(state, document.workspace_folder_uri.as_deref());
+    if let Some(shard) = load_workspace_occurrence_shard(
+        document.workspace_folder_uri.as_deref(),
+        document.uri.as_str(),
+        document.language_id.as_str(),
+        document.text_hash.as_str(),
+        dependency_digest,
+        &resolution_inputs,
+    ) {
+        return shard.occurrences;
+    }
+
+    let mut occurrences = Vec::new();
+    for candidate in collect_source_selector_reference_candidates(state, document) {
+        let reference =
+            query_source_selector_reference_candidate_for_matching(document, &candidate);
+        let reference_candidate = omena_query::OmenaQuerySourceSelectorCandidateV0 {
+            kind: reference.kind,
+            name: reference.name.clone(),
+            range: reference.range,
+            source: reference.source,
+            target_style_uri: reference.target_style_uri.clone(),
+        };
+        for selector_name in resolve_omena_query_source_candidate_selector_names(
+            &reference_candidate,
+            definitions,
+            reference.target_style_uri.as_deref(),
+        ) {
+            let source_occurrence = OmenaQuerySourceSelectorOccurrenceV0 {
+                moniker: omena_workspace_moniker(OmenaWorkspaceMonikerInput::CssModuleSelector {
+                    target_style_uri: reference.target_style_uri.as_deref(),
+                    selector_name: selector_name.as_str(),
+                }),
+                uri: reference.uri.clone(),
+                selector_name: selector_name.clone(),
+                range: reference.range,
+                kind: workspace_occurrence_kind_from_source_reference_kind_for_lsp(reference.kind),
+                role: OmenaWorkspaceOccurrenceRoleV0::Reference,
+                source: OmenaWorkspaceOccurrenceSurfaceV0::OmenaQuerySourceSyntaxIndex,
+                target_style_uri: reference.target_style_uri.clone(),
+                rename_target: reference.kind == "sourceSelectorReference"
+                    && reference.name == selector_name,
+            };
+            occurrences.push(
+                workspace_occurrence_from_source_selector_occurrence_for_lsp(&source_occurrence),
+            );
+        }
+    }
+    occurrences.sort();
+    occurrences.dedup();
+    store_workspace_occurrence_shard(
+        document.workspace_folder_uri.as_deref(),
+        document.uri.as_str(),
+        document.language_id.as_str(),
+        document.text_hash.as_str(),
+        dependency_digest,
+        &resolution_inputs,
+        occurrences.as_slice(),
+    );
+    occurrences
+}
+
+fn workspace_occurrence_from_source_selector_occurrence_for_lsp(
     occurrence: &OmenaQuerySourceSelectorOccurrenceV0,
+) -> OmenaWorkspaceOccurrenceV0 {
+    OmenaWorkspaceOccurrenceV0 {
+        moniker: occurrence.moniker.clone(),
+        uri: occurrence.uri.clone(),
+        name: occurrence.selector_name.clone(),
+        range: occurrence.range,
+        kind: occurrence.kind,
+        role: occurrence.role,
+        surface: occurrence.source,
+        family: Some(OmenaWorkspaceOccurrenceFamilyV0::CssModuleSelector),
+        namespace: None,
+        target_style_uri: occurrence.target_style_uri.clone(),
+        rename_target: occurrence.rename_target,
+    }
+}
+
+fn source_selector_occurrence_from_workspace_occurrence_for_lsp(
+    occurrence: OmenaWorkspaceOccurrenceV0,
+) -> Option<OmenaQuerySourceSelectorOccurrenceV0> {
+    (occurrence.family == Some(OmenaWorkspaceOccurrenceFamilyV0::CssModuleSelector)).then_some(
+        OmenaQuerySourceSelectorOccurrenceV0 {
+            moniker: occurrence.moniker,
+            uri: occurrence.uri,
+            selector_name: occurrence.name,
+            range: occurrence.range,
+            kind: occurrence.kind,
+            role: occurrence.role,
+            source: occurrence.surface,
+            target_style_uri: occurrence.target_style_uri,
+            rename_target: occurrence.rename_target,
+        },
+    )
+}
+
+fn workspace_occurrence_kind_from_source_reference_kind_for_lsp(
+    kind: &str,
+) -> OmenaWorkspaceOccurrenceKindV0 {
+    match kind {
+        "sourceSelectorPrefixReference" => {
+            OmenaWorkspaceOccurrenceKindV0::SourceSelectorPrefixReference
+        }
+        _ => OmenaWorkspaceOccurrenceKindV0::SourceSelectorReference,
+    }
+}
+
+fn workspace_occurrence_matches_target_style(
+    occurrence: &OmenaWorkspaceOccurrenceV0,
     target_style_uri: Option<&str>,
 ) -> bool {
     target_style_uri.is_none_or(|target_uri| {
@@ -2370,14 +2601,13 @@ fn style_symbol_definition_locations_from_documents(
     candidate: &LspStyleHoverCandidate,
 ) -> Vec<Value> {
     let monikers = style_symbol_monikers_for_candidate(state, document, candidate);
-    let occurrences = style_symbol_occurrence_index_from_documents(
+    let occurrence_index = style_symbol_occurrence_index_from_documents(
         state,
         document.workspace_folder_uri.as_deref(),
     );
-    let mut locations = occurrences
-        .iter()
-        .filter(|occurrence| monikers.contains(occurrence.moniker.as_str()))
-        .filter(|occurrence| occurrence.role == "definition")
+    let mut locations = occurrences_for_monikers(&occurrence_index, &monikers)
+        .into_iter()
+        .filter(|occurrence| occurrence.role == OmenaWorkspaceOccurrenceRoleV0::Definition)
         .map(|occurrence| {
             json!({
                 "uri": occurrence.uri,
@@ -2397,16 +2627,16 @@ fn style_symbol_reference_locations_from_documents(
     include_declaration: bool,
 ) -> Vec<Value> {
     let monikers = style_symbol_monikers_for_candidate(state, document, candidate);
-    let occurrences = style_symbol_occurrence_index_from_documents(
+    let occurrence_index = style_symbol_occurrence_index_from_documents(
         state,
         document.workspace_folder_uri.as_deref(),
     );
-    let mut locations = occurrences
-        .iter()
-        .filter(|occurrence| monikers.contains(occurrence.moniker.as_str()))
+    let mut locations = occurrences_for_monikers(&occurrence_index, &monikers)
+        .into_iter()
         .filter(|occurrence| {
-            occurrence.role == "reference"
-                || (include_declaration && occurrence.role == "definition")
+            occurrence.role == OmenaWorkspaceOccurrenceRoleV0::Reference
+                || (include_declaration
+                    && occurrence.role == OmenaWorkspaceOccurrenceRoleV0::Definition)
         })
         .map(|occurrence| {
             json!({
@@ -2427,16 +2657,13 @@ fn resolve_style_symbol_rename(
     new_name: &str,
 ) -> Value {
     let monikers = style_symbol_monikers_for_candidate(state, document, candidate);
-    let occurrences = style_symbol_occurrence_index_from_documents(
+    let occurrence_index = style_symbol_occurrence_index_from_documents(
         state,
         document.workspace_folder_uri.as_deref(),
     );
     let mut seen = BTreeSet::new();
     let mut changes: BTreeMap<String, Vec<Value>> = BTreeMap::new();
-    for occurrence in occurrences
-        .iter()
-        .filter(|occurrence| monikers.contains(occurrence.moniker.as_str()))
-    {
+    for occurrence in occurrences_for_monikers(&occurrence_index, &monikers) {
         let key = (
             occurrence.uri.clone(),
             occurrence.range.start.line,
@@ -2468,99 +2695,131 @@ fn resolve_style_symbol_rename(
 fn style_symbol_occurrence_index_from_documents(
     state: &LspShellState,
     workspace_folder_uri: Option<&str>,
-) -> Arc<Vec<LspStyleSymbolOccurrenceV0>> {
-    let document_keys = style_symbol_occurrence_document_keys(state, workspace_folder_uri);
-    let memo_workspace_folder_uri = workspace_folder_uri.map(str::to_string);
-    if let Some(memo) = state.style_symbol_occurrence_index_memo.borrow().as_ref()
-        && memo.workspace_folder_uri == memo_workspace_folder_uri
-        && memo.document_keys == document_keys
-    {
-        return Arc::clone(&memo.occurrences);
-    }
-    if let Some(cached) =
-        load_style_symbol_occurrence_sidecar(state, workspace_folder_uri, document_keys.as_slice())
-    {
-        *state.style_symbol_occurrence_index_memo.borrow_mut() =
-            Some(LspStyleSymbolOccurrenceIndexMemo {
-                workspace_folder_uri: memo_workspace_folder_uri,
-                document_keys,
-                occurrences: Arc::clone(&cached.occurrences),
-            });
-        return cached.occurrences;
+) -> Arc<OmenaWorkspaceOccurrenceIndexV0> {
+    workspace_occurrence_indexes_from_documents(state, workspace_folder_uri).workspace_index
+}
+
+fn style_symbol_workspace_occurrences_for_document(
+    state: &LspShellState,
+    document: &LspTextDocumentState,
+    workspace_folder_uri: Option<&str>,
+    dependency_digest: Option<&str>,
+) -> Vec<OmenaWorkspaceOccurrenceV0> {
+    let resolution_inputs =
+        resolution_inputs_for_workspace_uri(state, document.workspace_folder_uri.as_deref());
+    if let Some(shard) = load_workspace_occurrence_shard(
+        document.workspace_folder_uri.as_deref(),
+        document.uri.as_str(),
+        document.language_id.as_str(),
+        document.text_hash.as_str(),
+        dependency_digest,
+        &resolution_inputs,
+    ) {
+        return shard.occurrences;
     }
 
-    let mut occurrences = Vec::new();
-    for document in state
-        .documents
-        .values()
-        .filter(|document| document_has_style_index(document))
-        .filter(|document| workspace_folder_compatible(workspace_folder_uri, document))
-    {
-        let Some((_, candidates)) = style_hover_candidates_for_document(document) else {
+    let mut style_occurrences = Vec::new();
+    let Some((_, candidates)) = style_hover_candidates_for_document(document) else {
+        return Vec::new();
+    };
+    for candidate in candidates {
+        if candidate.kind.starts_with("customProperty") {
+            style_occurrences.push(style_symbol_occurrence_for_candidate(
+                style_custom_property_moniker(workspace_folder_uri, candidate.name.as_str()),
+                document.uri.as_str(),
+                &candidate,
+                "customProperty",
+                style_symbol_role_for_candidate(&candidate),
+            ));
             continue;
-        };
-        for candidate in candidates {
-            if candidate.kind.starts_with("customProperty") {
-                occurrences.push(style_symbol_occurrence_for_candidate(
-                    style_custom_property_moniker(workspace_folder_uri, candidate.name.as_str()),
-                    document.uri.as_str(),
-                    &candidate,
-                    "customProperty",
-                    style_symbol_role_for_candidate(&candidate),
-                ));
-                continue;
-            }
-            if !is_sass_symbol_candidate_kind(candidate.kind) {
-                continue;
-            }
-            if is_sass_symbol_declaration_kind(candidate.kind) {
-                occurrences.push(style_symbol_occurrence_for_candidate(
-                    style_sass_symbol_moniker(document.uri.as_str(), &candidate),
-                    document.uri.as_str(),
-                    &candidate,
-                    sass_symbol_kind_from_candidate_kind(candidate.kind).unwrap_or("symbol"),
-                    "definition",
-                ));
-                continue;
-            }
-            let definitions = sass_symbol_definitions_for_candidate(state, document, &candidate);
-            if definitions.is_empty() {
-                occurrences.push(style_symbol_occurrence_for_candidate(
-                    style_unresolved_sass_symbol_moniker(workspace_folder_uri, &candidate),
-                    document.uri.as_str(),
-                    &candidate,
-                    sass_symbol_kind_from_candidate_kind(candidate.kind).unwrap_or("symbol"),
-                    "reference",
-                ));
-                continue;
-            }
-            for (definition_uri, definition) in definitions {
-                occurrences.push(style_symbol_occurrence_for_candidate(
-                    style_sass_symbol_moniker(definition_uri.as_str(), &definition),
-                    document.uri.as_str(),
-                    &candidate,
-                    sass_symbol_kind_from_candidate_kind(candidate.kind).unwrap_or("symbol"),
-                    "reference",
-                ));
-            }
+        }
+        if !is_sass_symbol_candidate_kind(candidate.kind) {
+            continue;
+        }
+        if is_sass_symbol_declaration_kind(candidate.kind) {
+            style_occurrences.push(style_symbol_occurrence_for_candidate(
+                style_sass_symbol_moniker(document.uri.as_str(), &candidate),
+                document.uri.as_str(),
+                &candidate,
+                sass_symbol_kind_from_candidate_kind(candidate.kind).unwrap_or("symbol"),
+                "definition",
+            ));
+            continue;
+        }
+        let definitions = sass_symbol_definitions_for_candidate(state, document, &candidate);
+        if definitions.is_empty() {
+            style_occurrences.push(style_symbol_occurrence_for_candidate(
+                style_unresolved_sass_symbol_moniker(workspace_folder_uri, &candidate),
+                document.uri.as_str(),
+                &candidate,
+                sass_symbol_kind_from_candidate_kind(candidate.kind).unwrap_or("symbol"),
+                "reference",
+            ));
+            continue;
+        }
+        for (definition_uri, definition) in definitions {
+            style_occurrences.push(style_symbol_occurrence_for_candidate(
+                style_sass_symbol_moniker(definition_uri.as_str(), &definition),
+                document.uri.as_str(),
+                &candidate,
+                sass_symbol_kind_from_candidate_kind(candidate.kind).unwrap_or("symbol"),
+                "reference",
+            ));
         }
     }
-    occurrences.sort();
-    occurrences.dedup();
-    let occurrences = Arc::new(occurrences);
-    store_style_symbol_occurrence_sidecar(
-        state,
-        workspace_folder_uri,
-        document_keys.as_slice(),
-        &occurrences,
+    style_occurrences.sort();
+    style_occurrences.dedup();
+    let workspace_occurrences = style_occurrences
+        .iter()
+        .map(workspace_occurrence_from_style_symbol_occurrence)
+        .collect::<Vec<_>>();
+    store_workspace_occurrence_shard(
+        document.workspace_folder_uri.as_deref(),
+        document.uri.as_str(),
+        document.language_id.as_str(),
+        document.text_hash.as_str(),
+        dependency_digest,
+        &resolution_inputs,
+        workspace_occurrences.as_slice(),
     );
-    *state.style_symbol_occurrence_index_memo.borrow_mut() =
-        Some(LspStyleSymbolOccurrenceIndexMemo {
-            workspace_folder_uri: memo_workspace_folder_uri,
-            document_keys,
-            occurrences: Arc::clone(&occurrences),
-        });
-    occurrences
+    workspace_occurrences
+}
+
+fn style_symbol_occurrence_from_workspace_occurrence_for_lsp(
+    occurrence: &OmenaWorkspaceOccurrenceV0,
+) -> Option<LspStyleSymbolOccurrenceV0> {
+    let family = occurrence.family?;
+    if family == OmenaWorkspaceOccurrenceFamilyV0::CssModuleSelector {
+        return None;
+    }
+    Some(LspStyleSymbolOccurrenceV0 {
+        moniker: occurrence.moniker.clone(),
+        uri: occurrence.uri.clone(),
+        kind: occurrence.kind,
+        family,
+        name: occurrence.name.clone(),
+        range: occurrence.range,
+        role: occurrence.role,
+        namespace: occurrence.namespace.clone(),
+    })
+}
+
+fn workspace_occurrence_from_style_symbol_occurrence(
+    occurrence: &LspStyleSymbolOccurrenceV0,
+) -> OmenaWorkspaceOccurrenceV0 {
+    OmenaWorkspaceOccurrenceV0 {
+        moniker: occurrence.moniker.clone(),
+        uri: occurrence.uri.clone(),
+        name: occurrence.name.clone(),
+        range: occurrence.range,
+        kind: occurrence.kind,
+        role: occurrence.role,
+        surface: OmenaWorkspaceOccurrenceSurfaceV0::OmenaLspStyleIndex,
+        family: Some(occurrence.family),
+        namespace: occurrence.namespace.clone(),
+        target_style_uri: None,
+        rename_target: true,
+    }
 }
 
 fn style_symbol_occurrence_document_keys(
@@ -2619,11 +2878,13 @@ fn style_symbol_occurrence_for_candidate(
     LspStyleSymbolOccurrenceV0 {
         moniker,
         uri: uri.to_string(),
-        kind: candidate.kind,
-        family,
+        kind: workspace_occurrence_kind_from_style_symbol_kind(candidate.kind)
+            .unwrap_or(OmenaWorkspaceOccurrenceKindV0::CustomPropertyReference),
+        family: workspace_occurrence_family_from_style_symbol_family(family)
+            .unwrap_or(OmenaWorkspaceOccurrenceFamilyV0::Symbol),
         name: candidate.name.clone(),
         range: candidate.range,
-        role,
+        role: workspace_occurrence_role_from_style_symbol_role(role),
         namespace: candidate.namespace.clone(),
     }
 }
@@ -2637,15 +2898,19 @@ fn style_symbol_role_for_candidate(candidate: &LspStyleHoverCandidate) -> &'stat
 }
 
 fn style_custom_property_moniker(workspace_folder_uri: Option<&str>, name: &str) -> String {
-    format!(
-        "css-custom-property:{}#{name}",
-        workspace_folder_uri.unwrap_or("global")
-    )
+    omena_workspace_moniker(OmenaWorkspaceMonikerInput::CssCustomProperty {
+        workspace_folder_uri,
+        name,
+    })
 }
 
 fn style_sass_symbol_moniker(uri: &str, candidate: &LspStyleHoverCandidate) -> String {
     let family = sass_symbol_kind_from_candidate_kind(candidate.kind).unwrap_or("symbol");
-    format!("sass-symbol:{uri}#{family}:{}", candidate.name)
+    omena_workspace_moniker(OmenaWorkspaceMonikerInput::SassSymbol {
+        definition_uri: uri,
+        family,
+        name: candidate.name.as_str(),
+    })
 }
 
 fn style_unresolved_sass_symbol_moniker(
@@ -2653,12 +2918,51 @@ fn style_unresolved_sass_symbol_moniker(
     candidate: &LspStyleHoverCandidate,
 ) -> String {
     let family = sass_symbol_kind_from_candidate_kind(candidate.kind).unwrap_or("symbol");
-    let namespace = candidate.namespace.as_deref().unwrap_or("*");
-    format!(
-        "sass-symbol-unresolved:{}#{family}:{namespace}:{}",
-        workspace_folder_uri.unwrap_or("global"),
-        candidate.name
-    )
+    omena_workspace_moniker(OmenaWorkspaceMonikerInput::SassUnresolvedSymbol {
+        workspace_folder_uri,
+        family,
+        namespace: candidate.namespace.as_deref(),
+        name: candidate.name.as_str(),
+    })
+}
+
+fn workspace_occurrence_kind_from_style_symbol_kind(
+    kind: &str,
+) -> Option<OmenaWorkspaceOccurrenceKindV0> {
+    match kind {
+        "customPropertyDeclaration" => {
+            Some(OmenaWorkspaceOccurrenceKindV0::CustomPropertyDeclaration)
+        }
+        "customPropertyReference" => Some(OmenaWorkspaceOccurrenceKindV0::CustomPropertyReference),
+        "sassVariableDeclaration" => Some(OmenaWorkspaceOccurrenceKindV0::SassVariableDeclaration),
+        "sassVariableReference" => Some(OmenaWorkspaceOccurrenceKindV0::SassVariableReference),
+        "sassMixinDeclaration" => Some(OmenaWorkspaceOccurrenceKindV0::SassMixinDeclaration),
+        "sassMixinInclude" => Some(OmenaWorkspaceOccurrenceKindV0::SassMixinInclude),
+        "sassFunctionDeclaration" => Some(OmenaWorkspaceOccurrenceKindV0::SassFunctionDeclaration),
+        "sassFunctionCall" => Some(OmenaWorkspaceOccurrenceKindV0::SassFunctionCall),
+        _ => None,
+    }
+}
+
+fn workspace_occurrence_role_from_style_symbol_role(role: &str) -> OmenaWorkspaceOccurrenceRoleV0 {
+    if role == "definition" {
+        OmenaWorkspaceOccurrenceRoleV0::Definition
+    } else {
+        OmenaWorkspaceOccurrenceRoleV0::Reference
+    }
+}
+
+fn workspace_occurrence_family_from_style_symbol_family(
+    family: &str,
+) -> Option<OmenaWorkspaceOccurrenceFamilyV0> {
+    match family {
+        "customProperty" => Some(OmenaWorkspaceOccurrenceFamilyV0::CustomProperty),
+        "variable" => Some(OmenaWorkspaceOccurrenceFamilyV0::Variable),
+        "mixin" => Some(OmenaWorkspaceOccurrenceFamilyV0::Mixin),
+        "function" => Some(OmenaWorkspaceOccurrenceFamilyV0::Function),
+        "symbol" => Some(OmenaWorkspaceOccurrenceFamilyV0::Symbol),
+        _ => None,
+    }
 }
 
 fn source_candidate_selector_names(
@@ -4409,7 +4713,7 @@ fn resolve_selector_rename(
         new_name,
         query_target_style_uri.as_deref(),
         occurrence_index.definitions.as_slice(),
-        &occurrence_index.index,
+        &occurrence_index.source_selector_index,
     );
     if rename_plan.edits.is_empty() {
         return Value::Null;

@@ -5,7 +5,9 @@ use omena_query::{
     AnalyzedGraphV0, OmenaQueryExternalSifInputV0, OmenaQuerySourceSelectorOccurrenceIndexV0,
     OmenaQuerySourceSyntaxIndexV0 as SourceSyntaxIndex, OmenaQueryStyleCascadeNarrowingSubstrateV0,
     OmenaQueryStylePackageManifestV0, OmenaQueryStyleResolutionInputsV0,
-    OmenaQueryStyleSelectorDefinitionV0, OmenaQueryStyleSourceInputV0, ParserPositionV0,
+    OmenaQueryStyleSelectorDefinitionV0, OmenaQueryStyleSourceInputV0,
+    OmenaWorkspaceOccurrenceFamilyV0, OmenaWorkspaceOccurrenceIndexV0,
+    OmenaWorkspaceOccurrenceKindV0, OmenaWorkspaceOccurrenceRoleV0, ParserPositionV0,
     ParserRangeV0,
 };
 use omena_tsgo_client::{TsgoTypeFactResultEntryV0, TsgoWorkspaceProcessPoolV0};
@@ -199,11 +201,13 @@ pub(crate) struct LspSourceSelectorOccurrenceDocumentKey {
 }
 
 #[derive(Debug, Clone)]
-pub(crate) struct LspSourceSelectorOccurrenceIndexMemo {
+pub(crate) struct LspWorkspaceOccurrenceIndexMemo {
     pub(crate) workspace_folder_uri: Option<String>,
-    pub(crate) document_keys: Vec<LspSourceSelectorOccurrenceDocumentKey>,
+    pub(crate) source_document_keys: Vec<LspSourceSelectorOccurrenceDocumentKey>,
+    pub(crate) style_document_keys: Vec<LspSourceSelectorOccurrenceDocumentKey>,
     pub(crate) definitions: Vec<OmenaQueryStyleSelectorDefinitionV0>,
-    pub(crate) index: Arc<OmenaQuerySourceSelectorOccurrenceIndexV0>,
+    pub(crate) source_selector_index: Arc<OmenaQuerySourceSelectorOccurrenceIndexV0>,
+    pub(crate) workspace_index: Arc<OmenaWorkspaceOccurrenceIndexV0>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize)]
@@ -211,20 +215,13 @@ pub(crate) struct LspSourceSelectorOccurrenceIndexMemo {
 pub(crate) struct LspStyleSymbolOccurrenceV0 {
     pub(crate) moniker: String,
     pub(crate) uri: String,
-    pub(crate) kind: &'static str,
-    pub(crate) family: &'static str,
+    pub(crate) kind: OmenaWorkspaceOccurrenceKindV0,
+    pub(crate) family: OmenaWorkspaceOccurrenceFamilyV0,
     pub(crate) name: String,
     pub(crate) range: ParserRangeV0,
-    pub(crate) role: &'static str,
+    pub(crate) role: OmenaWorkspaceOccurrenceRoleV0,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub(crate) namespace: Option<String>,
-}
-
-#[derive(Debug, Clone)]
-pub(crate) struct LspStyleSymbolOccurrenceIndexMemo {
-    pub(crate) workspace_folder_uri: Option<String>,
-    pub(crate) document_keys: Vec<LspSourceSelectorOccurrenceDocumentKey>,
-    pub(crate) occurrences: Arc<Vec<LspStyleSymbolOccurrenceV0>>,
 }
 
 #[derive(Debug, Default)]
@@ -258,10 +255,7 @@ pub struct LspShellState {
     /// the substrate collection (see `cascade_narrowing_substrate_for_style_sources`).
     pub(crate) cascade_narrowing_substrate_memo:
         Arc<Mutex<Option<LspCascadeNarrowingSubstrateMemo>>>,
-    pub(crate) source_selector_occurrence_index_memo:
-        RefCell<Option<LspSourceSelectorOccurrenceIndexMemo>>,
-    pub(crate) style_symbol_occurrence_index_memo:
-        RefCell<Option<LspStyleSymbolOccurrenceIndexMemo>>,
+    pub(crate) workspace_occurrence_index_memo: RefCell<Option<LspWorkspaceOccurrenceIndexMemo>>,
     pub(crate) source_type_fact_cache: BTreeMap<String, Vec<TsgoTypeFactResultEntryV0>>,
     /// RFC 0009 Pillar C (rfcs#66): fail-soft write breaker for the disk
     /// diagnostics shard cache. Interior mutability because the write-behind

@@ -940,6 +940,29 @@ fn source_selector_occurrence_index_feeds_refs_and_rename() {
     assert_eq!(index.occurrence_count, 2);
     assert!(index.occurrences.iter().any(|occurrence| occurrence.moniker
         == "css-module-selector:file:///workspace/src/Component.module.scss#.root"));
+    assert_eq!(
+        index.workspace_index.product,
+        "omena-query.workspace-occurrence-index"
+    );
+    assert_eq!(index.workspace_index.moniker_count, 2);
+    assert_eq!(index.workspace_index.occurrence_count, 2);
+    assert_eq!(
+        index
+            .workspace_index
+            .by_moniker
+            .get("css-module-selector:file:///workspace/src/Component.module.scss#.root")
+            .map(Vec::len),
+        Some(1)
+    );
+    assert_eq!(
+        index
+            .workspace_index
+            .by_file
+            .get("file:///workspace/src/App.tsx")
+            .cloned()
+            .unwrap_or_default(),
+        vec!["css-module-selector:file:///workspace/src/Component.module.scss#.root"]
+    );
 
     let refs = summarize_omena_query_refs_for_class_from_occurrence_index(
         "root",
@@ -951,6 +974,14 @@ fn source_selector_occurrence_index_feeds_refs_and_rename() {
     assert_eq!(refs.location_count, 2);
     assert_eq!(refs.locations[0].role, "definition");
     assert_eq!(refs.locations[1].uri, "file:///workspace/src/App.tsx");
+    let workspace_refs = summarize_omena_query_refs_for_class_from_occurrence_index(
+        "root",
+        None,
+        false,
+        std::slice::from_ref(&definition),
+        &index,
+    );
+    assert_eq!(workspace_refs.location_count, 2);
 
     let rename = summarize_omena_query_rename_plan_from_occurrence_index(
         "root",
