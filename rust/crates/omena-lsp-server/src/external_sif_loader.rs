@@ -16,15 +16,21 @@ pub(crate) fn refresh_external_sifs_for_state(state: &mut LspShellState) {
     let mut covered = BTreeSet::new();
 
     for lockfile in workspace_lockfiles(state).iter() {
+        state.external_sif_lock_read_count = state.external_sif_lock_read_count.saturating_add(1);
         if let Ok(lock_sifs) = read_lock_external_sifs(lockfile.as_path()) {
             extend_unique_external_sifs(&mut external_sifs, &mut covered, lock_sifs);
         }
     }
 
+    let mut bridge_generation_count = 0usize;
     let bridge_sifs = resolve_in_process_external_sifs_for_lsp(
         state.documents.values().map(AsRef::as_ref),
         &covered,
+        &mut bridge_generation_count,
     );
+    state.external_sif_bridge_generation_count = state
+        .external_sif_bridge_generation_count
+        .saturating_add(bridge_generation_count);
     extend_unique_external_sifs(&mut external_sifs, &mut covered, bridge_sifs);
 
     if state.resolution.external_sifs != external_sifs {
@@ -119,6 +125,7 @@ fn extend_unique_external_sifs(
 fn resolve_in_process_external_sifs_for_lsp<'a>(
     documents: impl Iterator<Item = &'a LspTextDocumentState>,
     existing_covered: &BTreeSet<String>,
+    bridge_generation_count: &mut usize,
 ) -> Vec<OmenaQueryExternalSifInputV0> {
     let mut covered = existing_covered.clone();
     let mut resolved = Vec::new();
@@ -149,6 +156,7 @@ fn resolve_in_process_external_sifs_for_lsp<'a>(
                 continue;
             }
             if let Ok(sif) = generate_omena_bridge_sif_for_resolved_style_path(edge_source) {
+                *bridge_generation_count = (*bridge_generation_count).saturating_add(1);
                 covered.insert(sif.canonical_url.clone());
                 worklist.push_back(sif.clone());
                 resolved.push(OmenaQueryExternalSifInputV0 {
@@ -181,6 +189,7 @@ fn resolve_in_process_external_sifs_for_lsp<'a>(
             }
             if let Ok(child) = generate_omena_bridge_sif_for_resolved_style_path(child_url.as_str())
             {
+                *bridge_generation_count = (*bridge_generation_count).saturating_add(1);
                 worklist.push_back(child.clone());
                 resolved.push(OmenaQueryExternalSifInputV0 {
                     canonical_url: child_url,

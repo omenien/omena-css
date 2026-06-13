@@ -7,6 +7,7 @@ import { performance } from "node:perf_hooks";
 import { pathToFileURL } from "node:url";
 import {
   createProtocolConnection,
+  DidChangeTextDocumentNotification,
   DidOpenTextDocumentNotification,
   InitializedNotification,
   InitializeRequest,
@@ -18,6 +19,7 @@ import {
 import { StreamMessageReader, StreamMessageWriter } from "vscode-jsonrpc/node";
 import { resolveOmenaLspServerInvocation } from "./omena-lsp-server-invocation";
 
+const DEBUG_STATE_REQUEST = "omena/rustLspState";
 const RUNTIME_LOOP_PROBE_REQUEST = "omena/runtimeLoopProbe";
 const SELECTOR_COUNT = parsePositiveInteger(process.env.OMENA_LSP_RUNTIME_LOOP_SELECTORS, 50);
 const PROBE_INTERVAL_MS = parsePositiveInteger(
@@ -52,6 +54,11 @@ interface RuntimeProbeResponse {
   readonly now: number;
 }
 
+interface DebugStateResponse {
+  readonly externalSifLockReadCount?: number;
+  readonly externalSifBridgeGenerationCount?: number;
+}
+
 interface TimedHotRequestResult {
   readonly kind: string;
   readonly label: string;
@@ -70,18 +77,32 @@ interface RequestLatencySummary {
 async function main(): Promise<void> {
   const workspaceRoot = mkdtempSync(path.join(os.tmpdir(), "cme-rust-omena-lsp-runtime-loop-"));
   const srcDir = path.join(workspaceRoot, "src");
+  const vendorDir = path.join(workspaceRoot, "vendor");
   const sourcePath = path.join(srcDir, "App.tsx");
   const stylePath = path.join(srcDir, "App.module.scss");
+  const peerStylePath = path.join(srcDir, "Peer.module.scss");
+  const bridgePath = path.join(vendorDir, "_tokens.scss");
   const sourceUri = pathToFileURL(sourcePath).toString();
   const styleUri = pathToFileURL(stylePath).toString();
+  const peerStyleUri = pathToFileURL(peerStylePath).toString();
+  const bridgeUri = pathToFileURL(bridgePath).toString();
   const sourceText = buildSourceText(SELECTOR_COUNT);
   const styleText = buildStyleText(SELECTOR_COUNT);
+  const changedStyleText = buildChangedStyleText(SELECTOR_COUNT);
+  const peerStyleText = buildPeerStyleText(bridgeUri);
   const invocation = resolveOmenaLspServerInvocation();
   const diagnostics: unknown[] = [];
 
   mkdirSync(srcDir, { recursive: true });
+  mkdirSync(vendorDir, { recursive: true });
   writeFileSync(sourcePath, sourceText);
   writeFileSync(stylePath, styleText);
+  writeFileSync(peerStylePath, peerStyleText);
+  writeFileSync(bridgePath, "$brand: red !default;\n");
+  writeFileSync(
+    path.join(workspaceRoot, "omena.lock"),
+    JSON.stringify({ lockfileVersion: "1", entries: [] }) + "\n",
+  );
 
   const child = spawn(invocation.command, [...invocation.args], {
     cwd: process.cwd(),
@@ -121,6 +142,14 @@ async function main(): Promise<void> {
     });
     connection.sendNotification(DidOpenTextDocumentNotification.type, {
       textDocument: {
+        uri: peerStyleUri,
+        languageId: "scss",
+        version: 1,
+        text: peerStyleText,
+      },
+    });
+    connection.sendNotification(DidOpenTextDocumentNotification.type, {
+      textDocument: {
         uri: sourceUri,
         languageId: "typescriptreact",
         version: 1,
@@ -133,12 +162,29 @@ async function main(): Promise<void> {
       "warmup hover",
     );
 
+    const externalCountersBeforeChange = await readDebugState(connection, "debug-state:before-change");
     const probePromise = collectProbeLatencies(connection);
+    connection.sendNotification(DidChangeTextDocumentNotification.type, {
+      textDocument: {
+        uri: styleUri,
+        version: 2,
+      },
+      contentChanges: [{ text: changedStyleText }],
+    });
+    const externalCountersAfterChangePromise = readDebugState(
+      connection,
+      "debug-state:after-change",
+    );
     const loadResults = await Promise.all(
       buildHotRequestLoad(connection, sourceUri, sourceText, styleUri),
     );
+    const externalCountersAfterChange = await externalCountersAfterChangePromise;
     const probeLatencies = await probePromise;
 
+    assertExternalSifCountersStableOnPlainDidChange(
+      externalCountersBeforeChange,
+      externalCountersAfterChange,
+    );
     assertHotRequestResults(loadResults);
     assertProbeMetrics(probeLatencies);
 
@@ -368,6 +414,49 @@ function buildStyleText(count: number): string {
     { length: count },
     (_, index) => `.token${index} { color: rgb(${index % 255}, 0, 0); }`,
   ).join("\n");
+}
+
+function buildChangedStyleText(count: number): string {
+  return Array.from(
+    { length: count },
+    (_, index) => `.token${index} { color: rgb(0, ${index % 255}, 0); }`,
+  ).join("\n");
+}
+
+function buildPeerStyleText(bridgeUri: string): string {
+  return `@use "${bridgeUri}" as tokens;
+.peer { color: tokens.$brand; }
+`;
+}
+
+async function readDebugState(
+  connection: ProtocolConnection,
+  label: string,
+): Promise<DebugStateResponse> {
+  return requestWithTimeout(
+    connection.sendRequest<DebugStateResponse>(DEBUG_STATE_REQUEST, {}),
+    label,
+  );
+}
+
+function assertExternalSifCountersStableOnPlainDidChange(
+  before: DebugStateResponse,
+  after: DebugStateResponse,
+): void {
+  const lockReadsBefore = before.externalSifLockReadCount ?? 0;
+  const lockReadsAfter = after.externalSifLockReadCount ?? 0;
+  const bridgeGenerationsBefore = before.externalSifBridgeGenerationCount ?? 0;
+  const bridgeGenerationsAfter = after.externalSifBridgeGenerationCount ?? 0;
+  assert.equal(
+    lockReadsAfter - lockReadsBefore,
+    0,
+    "plain style didChange must not reread workspace lockfiles",
+  );
+  assert.equal(
+    bridgeGenerationsAfter - bridgeGenerationsBefore,
+    0,
+    "plain style didChange must not regenerate bridge SIFs",
+  );
 }
 
 async function requestWithTimeout<T>(promise: Promise<T>, label: string): Promise<T> {

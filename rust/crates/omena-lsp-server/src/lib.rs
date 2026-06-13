@@ -345,8 +345,7 @@ fn did_open_text_document(state: &mut LspShellState, params: Option<&Value>) {
         ),
     );
     if is_style_document_uri(uri) {
-        admit_foreign_style_dependencies_for_style_uri(state, uri);
-        refresh_external_sifs_for_state(state);
+        refresh_style_external_inputs_for_document_event(state, uri, None);
         refresh_source_indexes_for_style_document_change(state, uri);
     } else {
         refresh_source_type_fact_candidates_for_document(state, uri);
@@ -366,6 +365,11 @@ fn did_change_text_document(state: &mut LspShellState, params: Option<&Value>) {
             resolution_inputs_for_workspace_uri(state, document.workspace_folder_uri.as_deref())
         })
         .unwrap_or_else(|| resolution_inputs_for_workspace_uri(state, None));
+    let previous_external_inputs = if is_style_document_uri(uri) {
+        style_external_dependency_snapshot(state, uri)
+    } else {
+        StyleExternalDependencySnapshot::default()
+    };
     let Some(existing) = state.document_mut(uri) else {
         return;
     };
@@ -391,8 +395,11 @@ fn did_change_text_document(state: &mut LspShellState, params: Option<&Value>) {
     }
     if text_changed {
         if is_style_document_uri(uri) {
-            admit_foreign_style_dependencies_for_style_uri(state, uri);
-            refresh_external_sifs_for_state(state);
+            refresh_style_external_inputs_for_document_event(
+                state,
+                uri,
+                Some(previous_external_inputs),
+            );
             refresh_source_indexes_for_style_document_change(state, uri);
         } else {
             refresh_source_type_fact_candidates_for_document(state, uri);
@@ -434,14 +441,23 @@ fn did_close_text_document(state: &mut LspShellState, params: Option<&Value>) {
         return;
     };
     state.remove_open_document_uri(uri);
+    let previous_external_inputs = if is_style_document_uri(uri) {
+        style_external_dependency_snapshot(state, uri)
+    } else {
+        StyleExternalDependencySnapshot::default()
+    };
     if is_style_document_uri(uri) && reload_indexed_style_document_from_disk(state, uri) {
-        admit_foreign_style_dependencies_for_style_uri(state, uri);
-        refresh_external_sifs_for_state(state);
+        refresh_style_external_inputs_for_document_event(
+            state,
+            uri,
+            Some(previous_external_inputs),
+        );
         refresh_source_indexes_for_style_document_change(state, uri);
         return;
     }
     state.remove_document_uri(uri);
     if is_style_document_uri(uri) {
+        refresh_style_external_inputs_after_document_removal(state, previous_external_inputs);
         refresh_source_indexes_for_style_document_change(state, uri);
     }
 }
@@ -727,6 +743,81 @@ fn reload_indexed_source_document_from_disk(state: &mut LspShellState, uri: &str
 }
 
 const FOREIGN_STYLE_DEPENDENCY_ADMISSION_LIMIT: usize = 512;
+
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+struct StyleExternalDependencySnapshot {
+    bridge_sources: Vec<String>,
+    foreign_dependency_uris: Vec<String>,
+}
+
+fn style_external_dependency_snapshot(
+    state: &LspShellState,
+    uri: &str,
+) -> StyleExternalDependencySnapshot {
+    let Some(document) = state.document(uri) else {
+        return StyleExternalDependencySnapshot::default();
+    };
+    let Some(summary) = document.style_summary.as_ref() else {
+        return StyleExternalDependencySnapshot::default();
+    };
+
+    let mut bridge_sources = BTreeSet::new();
+    let mut foreign_dependency_uris = BTreeSet::new();
+    for source in summary
+        .sass_module_use_sources
+        .iter()
+        .map(String::as_str)
+        .chain(
+            summary
+                .sass_module_forward_sources
+                .iter()
+                .map(String::as_str),
+        )
+    {
+        if source.starts_with("file://") {
+            bridge_sources.insert(source.to_string());
+        }
+        if let Some(uri) = resolve_lsp_style_uri_for_specifier(state, document, source)
+            && is_foreign_style_document_uri(uri.as_str())
+        {
+            foreign_dependency_uris.insert(uri);
+        }
+    }
+
+    StyleExternalDependencySnapshot {
+        bridge_sources: bridge_sources.into_iter().collect(),
+        foreign_dependency_uris: foreign_dependency_uris.into_iter().collect(),
+    }
+}
+
+fn refresh_style_external_inputs_for_document_event(
+    state: &mut LspShellState,
+    uri: &str,
+    previous: Option<StyleExternalDependencySnapshot>,
+) {
+    let previous = previous.unwrap_or_default();
+    let next = style_external_dependency_snapshot(state, uri);
+    if previous == next {
+        return;
+    }
+
+    if !previous.foreign_dependency_uris.is_empty() || !next.foreign_dependency_uris.is_empty() {
+        admit_foreign_style_dependencies_for_style_uri(state, uri);
+    }
+
+    if previous.bridge_sources != next.bridge_sources {
+        refresh_external_sifs_for_state(state);
+    }
+}
+
+fn refresh_style_external_inputs_after_document_removal(
+    state: &mut LspShellState,
+    previous: StyleExternalDependencySnapshot,
+) {
+    if !previous.bridge_sources.is_empty() {
+        refresh_external_sifs_for_state(state);
+    }
+}
 
 pub(crate) fn admit_foreign_style_dependencies_for_indexed_style_documents(
     state: &mut LspShellState,
