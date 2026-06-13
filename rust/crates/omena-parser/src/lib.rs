@@ -17,23 +17,27 @@ use omena_interner::{
 };
 pub use omena_syntax::StyleDialect;
 use omena_syntax::SyntaxKind;
-use serde::{Deserialize, Serialize};
+use serde::Serialize;
 use std::{
     collections::{BTreeMap, BTreeSet},
     sync::Arc,
 };
 
+mod language;
 // R1 narrow public surface: `public_product` is private; only this curated set
 // of V0 contract types + summary fns is re-exported (no wildcard). Reuse of
 // omena-parser as a building block goes through these names — keep the list
 // explicit and minimal rather than widening to `pub use public_product::*`.
 mod public_product;
+mod spans;
+pub use language::StyleLanguage;
 pub use public_product::{
     ParserCanonicalCandidateBundleV0, ParserCanonicalProducerSignalV0, ParserEvaluatorCandidatesV0,
     ParserIndexSummaryV0, dialect_for_path, summarize_css_modules_intermediate,
     summarize_parser_canonical_candidate, summarize_parser_canonical_producer_signal,
     summarize_parser_evaluator_candidates,
 };
+pub use spans::{ParserByteSpanV0, ParserPositionV0, ParserRangeV0};
 
 const VALUES_L4_MATH_FUNCTION_NAMES: &[&str] = &[
     "min", "max", "clamp", "round", "mod", "rem", "sin", "cos", "tan", "asin", "acos", "atan",
@@ -108,48 +112,6 @@ const CSS_IMAGE_FUNCTION_NAMES: &[&str] = &["image", "image-set", "cross-fade", 
 const CSS_SHAPE_FUNCTION_NAMES: &[&str] = &[
     "path", "shape", "ray", "inset", "circle", "ellipse", "polygon",
 ];
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Default)]
-#[serde(rename_all = "camelCase")]
-pub struct ParserByteSpanV0 {
-    pub start: usize,
-    pub end: usize,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Deserialize, Serialize, Default)]
-#[serde(rename_all = "camelCase")]
-pub struct ParserPositionV0 {
-    pub line: usize,
-    pub character: usize,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Deserialize, Serialize, Default)]
-#[serde(rename_all = "camelCase")]
-pub struct ParserRangeV0 {
-    pub start: ParserPositionV0,
-    pub end: ParserPositionV0,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum StyleLanguage {
-    Css,
-    Scss,
-    Less,
-}
-
-impl StyleLanguage {
-    pub fn from_module_path(path: &str) -> Option<Self> {
-        if path.ends_with(".module.css") || path.ends_with(".css") {
-            Some(Self::Css)
-        } else if path.ends_with(".module.scss") || path.ends_with(".scss") {
-            Some(Self::Scss)
-        } else if path.ends_with(".module.less") || path.ends_with(".less") {
-            Some(Self::Less)
-        } else {
-            None
-        }
-    }
-}
 
 #[derive(Debug, Clone)]
 pub struct ParseResult {
