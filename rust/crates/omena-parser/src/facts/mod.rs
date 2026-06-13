@@ -13,8 +13,7 @@ use crate::{
     collect_css_module_composes_facts_from_tokens,
     collect_css_module_value_definition_edge_facts_from_tokens,
     collect_css_module_value_facts_from_tokens,
-    collect_css_module_value_import_edge_facts_from_tokens,
-    collect_extend_target_facts_from_tokens, collect_sass_include_facts_from_tokens,
+    collect_css_module_value_import_edge_facts_from_tokens, collect_sass_include_facts_from_tokens,
     collect_sass_module_edge_facts_from_tokens, collect_sass_symbol_facts_from_tokens,
     collect_selector_facts_from_tokens, tokenize,
 };
@@ -35,6 +34,7 @@ pub(crate) use icss::{
     collect_icss_export_edge_facts_from_tokens, collect_icss_facts_from_tokens,
     collect_icss_import_edge_facts_from_tokens,
 };
+pub(crate) use sass::collect_extend_target_facts_from_tokens;
 pub use sass::{
     ParsedExtendTargetFact, ParsedExtendTargetFactKind, ParsedSassIncludeFact,
     ParsedSassModuleEdgeFact, ParsedSassModuleEdgeFactKind, ParsedSassSymbolFact,
