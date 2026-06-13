@@ -18,8 +18,7 @@ use crate::{
     collect_extend_target_facts_from_tokens, collect_icss_export_edge_facts_from_tokens,
     collect_icss_facts_from_tokens, collect_icss_import_edge_facts_from_tokens,
     collect_sass_include_facts_from_tokens, collect_sass_module_edge_facts_from_tokens,
-    collect_sass_symbol_facts_from_tokens, collect_selector_facts_from_tokens,
-    collect_variable_facts_from_tokens, tokenize,
+    collect_sass_symbol_facts_from_tokens, collect_selector_facts_from_tokens, tokenize,
 };
 
 pub use animations::{ParsedAnimationFact, ParsedAnimationFactKind};
@@ -39,6 +38,9 @@ pub use sass::{
 };
 pub use selectors::{ParsedSelectorFact, ParsedSelectorFactKind};
 pub use variables::{ParsedVariableFact, ParsedVariableFactKind};
+pub(crate) use variables::{
+    collect_variable_facts_from_tokens, scss_variable_token_is_declaration,
+};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ParsedStyleFacts {
