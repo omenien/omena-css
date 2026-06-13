@@ -220,32 +220,15 @@ jobs:
             ' "$dir" "$EXPECTED_URL" "$AXIS_A"
           done
 
-      # 2c-bis. Configure npm registry auth. `npm publish` reads the token from an
-      #     .npmrc — NODE_AUTH_TOKEN in the env ALONE is not used (genesis ENEEDAUTH).
-      #     Write the env-var REFERENCE (npm substitutes at publish time, so the token
-      #     never lands on disk) and fail loudly if the secret is unset. Skipped on
-      #     dry-run (which packs without authenticating).
-      - name: Authenticate to npm
-        if: ${{ !inputs.dry_run && (inputs.publish_wasm || inputs.publish_napi) }}
-        shell: bash
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_AUTO_TOKEN }}
-        run: |
-          set -euo pipefail
-          if [ -z "${NODE_AUTH_TOKEN:-}" ]; then
-            echo "::error::NPM_AUTO_TOKEN is empty in the 'release' environment — set an npm automation token there before genesis" >&2
-            exit 1
-          fi
-          printf '//registry.npmjs.org/:_authToken=${NODE_AUTH_TOKEN}\n' > "$HOME/.npmrc"
-          echo "npm auth configured (~/.npmrc references NODE_AUTH_TOKEN; token not written to disk)"
-
-      # 2d. Publish with provenance (Sigstore via OIDC). dry_run packs only.
+      # 2d. Publish with provenance. The top-level packages use npm Trusted
+      #     Publishing/OIDC. The platform packages are first-published with the
+      #     release environment's NPM_AUTO_TOKEN until each package can establish
+      #     its own trusted publisher.
       - name: Publish @omena/wasm
         if: ${{ inputs.publish_wasm }}
         shell: bash
         working-directory: ${{ env.WASM_PKG_DIR }}
         env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_AUTO_TOKEN }}
           NPM_CONFIG_PROVENANCE: "true"
         run: |
           set -euo pipefail
@@ -270,6 +253,15 @@ jobs:
           NPM_CONFIG_PROVENANCE: "true"
         run: |
           set -euo pipefail
+          if [ "${{ inputs.dry_run }}" != "true" ]; then
+            if [ -z "${NODE_AUTH_TOKEN:-}" ]; then
+              echo "::error::NPM_AUTO_TOKEN is empty in the 'release' environment — platform package genesis publish needs an npm automation token" >&2
+              exit 1
+            fi
+            npm_userconfig="${RUNNER_TEMP:-/tmp}/omena-npm-token.npmrc"
+            printf '//registry.npmjs.org/:_authToken=${NODE_AUTH_TOKEN}\n' > "${npm_userconfig}"
+            export NPM_CONFIG_USERCONFIG="${npm_userconfig}"
+          fi
           publish_dir() {
             local dir="$1"
             local name version
@@ -295,7 +287,6 @@ jobs:
         shell: bash
         working-directory: ${{ env.NAPI_PKG_DIR }}
         env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_AUTO_TOKEN }}
           NPM_CONFIG_PROVENANCE: "true"
           OMENA_NAPI_REQUIRED_PACKAGES: "@omena/napi-linux-x64-gnu,@omena/napi-linux-arm64-gnu,@omena/napi-darwin-x64,@omena/napi-darwin-arm64,@omena/napi-win32-x64-msvc"
         run: |
