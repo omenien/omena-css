@@ -34,14 +34,10 @@ use omena_resolver::{
     collect_omena_resolver_style_module_source_candidates_with_load_path_roots,
 };
 
-const LSP_DIAGNOSTIC_TAG_UNNECESSARY: u8 = 1;
-const LSP_DIAGNOSTIC_TAG_DEPRECATED: u8 = 2;
+mod types;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum OmenaQueryExternalModuleModeV0 {
-    Ignored,
-    Sif,
-}
+pub use types::OmenaQueryExternalModuleModeV0;
+use types::{LSP_DIAGNOSTIC_TAG_DEPRECATED, LSP_DIAGNOSTIC_TAG_UNNECESSARY};
 
 pub fn summarize_omena_query_missing_custom_property_diagnostics(
     style_uri: &str,
