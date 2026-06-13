@@ -53,8 +53,9 @@ pub use facts::{
 pub use language::StyleLanguage;
 pub use lex::{LexResult, LexedToken};
 use lex::{
-    Token, is_css_at_rule_name, is_custom_property_name_text, is_name_continue, is_name_start,
-    is_non_printable_code_point, public_token_text,
+    Token, Tokenizer, is_css_at_rule_name, is_custom_property_name_text, is_name_continue,
+    is_name_start, is_non_printable_code_point, public_token_text, sass_token_can_end_statement,
+    text_range,
 };
 pub use parse::{ParseEntryPoint, ParseError, ParseErrorCode, ParseResult};
 pub use public_product::{
@@ -155,17 +156,6 @@ fn tokenize<'text>(
     let mut tokenizer = Tokenizer::new(text, extension);
     tokenizer.tokenize();
     (tokenizer.tokens, tokenizer.errors)
-}
-
-struct Tokenizer<'text, 'extension, E> {
-    text: &'text str,
-    extension: &'extension E,
-    offset: usize,
-    scss_interpolation_depth: usize,
-    less_interpolation_depth: usize,
-    sass_indent_stack: Vec<usize>,
-    tokens: Vec<Token<'text>>,
-    errors: Vec<ParseError>,
 }
 
 struct Parser<'text> {
@@ -8640,47 +8630,6 @@ fn is_statement_end(kind: SyntaxKind) -> bool {
     )
 }
 
-fn sass_token_can_end_statement(kind: SyntaxKind) -> bool {
-    !matches!(
-        kind,
-        SyntaxKind::Whitespace
-            | SyntaxKind::LineComment
-            | SyntaxKind::BlockComment
-            | SyntaxKind::SassIndentedNewline
-            | SyntaxKind::SassIndent
-            | SyntaxKind::SassDedent
-            | SyntaxKind::SassOptionalSemicolon
-            | SyntaxKind::Comma
-            | SyntaxKind::Colon
-            | SyntaxKind::DoubleColon
-            | SyntaxKind::LeftBrace
-            | SyntaxKind::LeftParen
-            | SyntaxKind::LeftBracket
-            | SyntaxKind::Plus
-            | SyntaxKind::Minus
-            | SyntaxKind::Star
-            | SyntaxKind::Slash
-            | SyntaxKind::GreaterThan
-            | SyntaxKind::LessThan
-            | SyntaxKind::Equals
-            | SyntaxKind::Arrow
-            | SyntaxKind::Pipe
-            | SyntaxKind::Tilde
-            | SyntaxKind::Caret
-            | SyntaxKind::Ampersand
-            | SyntaxKind::DoubleAmpersand
-            | SyntaxKind::ColumnCombinator
-            | SyntaxKind::IncludesMatch
-            | SyntaxKind::DashMatch
-            | SyntaxKind::PrefixMatch
-            | SyntaxKind::SuffixMatch
-            | SyntaxKind::SubstringMatch
-            | SyntaxKind::PlusEquals
-            | SyntaxKind::MinusEquals
-            | SyntaxKind::SlashEquals
-    )
-}
-
 fn function_argument_recovery(recovery: &[SyntaxKind]) -> Vec<SyntaxKind> {
     let mut kinds = vec![SyntaxKind::RightParen];
     for kind in recovery {
@@ -8971,10 +8920,6 @@ fn css_module_scope_function_kind(text: &str) -> Option<SyntaxKind> {
         "global" => Some(SyntaxKind::CssModuleGlobalBlock),
         _ => None,
     }
-}
-
-fn text_range(start: usize, end: usize) -> TextRange {
-    TextRange::new(TextSize::from(start as u32), TextSize::from(end as u32))
 }
 
 #[cfg(test)]

@@ -1,4 +1,4 @@
-use cstree::text::TextRange;
+use cstree::text::{TextRange, TextSize};
 use omena_syntax::{StyleDialect, SyntaxKind};
 
 use crate::{ParseError, matches_ignore_ascii_case};
@@ -8,6 +8,17 @@ pub(crate) struct Token<'text> {
     pub(crate) kind: SyntaxKind,
     pub(crate) text: &'text str,
     pub(crate) range: TextRange,
+}
+
+pub(crate) struct Tokenizer<'text, 'extension, E> {
+    pub(crate) text: &'text str,
+    pub(crate) extension: &'extension E,
+    pub(crate) offset: usize,
+    pub(crate) scss_interpolation_depth: usize,
+    pub(crate) less_interpolation_depth: usize,
+    pub(crate) sass_indent_stack: Vec<usize>,
+    pub(crate) tokens: Vec<Token<'text>>,
+    pub(crate) errors: Vec<ParseError>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -116,6 +127,51 @@ pub(crate) fn is_css_at_rule_name(text: &str) -> bool {
             "@else",
         ],
     )
+}
+
+pub(crate) fn sass_token_can_end_statement(kind: SyntaxKind) -> bool {
+    !matches!(
+        kind,
+        SyntaxKind::Whitespace
+            | SyntaxKind::LineComment
+            | SyntaxKind::BlockComment
+            | SyntaxKind::SassIndentedNewline
+            | SyntaxKind::SassIndent
+            | SyntaxKind::SassDedent
+            | SyntaxKind::SassOptionalSemicolon
+            | SyntaxKind::Comma
+            | SyntaxKind::Colon
+            | SyntaxKind::DoubleColon
+            | SyntaxKind::LeftBrace
+            | SyntaxKind::LeftParen
+            | SyntaxKind::LeftBracket
+            | SyntaxKind::Plus
+            | SyntaxKind::Minus
+            | SyntaxKind::Star
+            | SyntaxKind::Slash
+            | SyntaxKind::GreaterThan
+            | SyntaxKind::LessThan
+            | SyntaxKind::Equals
+            | SyntaxKind::Arrow
+            | SyntaxKind::Pipe
+            | SyntaxKind::Tilde
+            | SyntaxKind::Caret
+            | SyntaxKind::Ampersand
+            | SyntaxKind::DoubleAmpersand
+            | SyntaxKind::ColumnCombinator
+            | SyntaxKind::IncludesMatch
+            | SyntaxKind::DashMatch
+            | SyntaxKind::PrefixMatch
+            | SyntaxKind::SuffixMatch
+            | SyntaxKind::SubstringMatch
+            | SyntaxKind::PlusEquals
+            | SyntaxKind::MinusEquals
+            | SyntaxKind::SlashEquals
+    )
+}
+
+pub(crate) fn text_range(start: usize, end: usize) -> TextRange {
+    TextRange::new(TextSize::from(start as u32), TextSize::from(end as u32))
 }
 
 fn css_syntax_preprocessed_char(char: char) -> char {
