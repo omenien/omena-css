@@ -1134,6 +1134,115 @@ fn bridges_file_external_sass_edges_for_lsp_style_diagnostics() -> TestResult {
     Ok(())
 }
 
+#[test]
+fn style_document_bridge_changes_refresh_external_sifs_without_corpus_rebuild() -> TestResult {
+    let root = std::env::temp_dir().join(format!(
+        "omena_lsp_bridge_external_sifs_delta_{}_{}",
+        std::process::id(),
+        current_time_millis()
+    ));
+    let source = root.join("src/App.module.scss");
+    let peer = root.join("src/Peer.module.scss");
+    let external_a = root.join("vendor/_a.scss");
+    let external_b = root.join("vendor/_b.scss");
+    fs::create_dir_all(fixture_parent(source.as_path(), "source parent")?)?;
+    fs::create_dir_all(fixture_parent(peer.as_path(), "peer parent")?)?;
+    fs::create_dir_all(fixture_parent(external_a.as_path(), "external parent")?)?;
+    fs::write(
+        root.join("omena.lock"),
+        r#"{"lockfileVersion":"1","entries":[]}"#,
+    )?;
+    fs::write(source.as_path(), ".button { color: red; }\n")?;
+    fs::write(external_a.as_path(), "$brand-a: red !default;\n")?;
+    fs::write(external_b.as_path(), "$brand-b: blue !default;\n")?;
+
+    let workspace_uri = path_to_file_uri(root.as_path());
+    let source_uri = path_to_file_uri(source.as_path());
+    let peer_uri = path_to_file_uri(peer.as_path());
+    let external_a_uri = path_to_file_uri(external_a.as_path());
+    let external_b_uri = path_to_file_uri(external_b.as_path());
+    let peer_text = format!(
+        "@use \"{}\" as tokens;\n.peer {{ color: tokens.$brand-a; }}\n",
+        external_a_uri
+    );
+    let source_initial_text = ".button { color: red; }\n";
+    let source_changed_text = format!(
+        "@use \"{}\" as tokens;\n.button {{ color: tokens.$brand-b; }}\n",
+        external_b_uri
+    );
+
+    let mut state = LspShellState::default();
+    handle_lsp_message(
+        &mut state,
+        json!({
+            "jsonrpc": "2.0",
+            "id": 1,
+            "method": "initialize",
+            "params": {
+                "workspaceFolders": [
+                    {
+                        "uri": workspace_uri,
+                        "name": "workspace",
+                    },
+                ],
+            },
+        }),
+    );
+    open_style_document(&mut state, peer_uri.as_str(), peer_text.as_str());
+    open_style_document(&mut state, source_uri.as_str(), source_initial_text);
+
+    let lock_reads_before_change = state.external_sif_lock_read_count;
+    let bridge_generations_before_change = state.external_sif_bridge_generation_count;
+    handle_lsp_message(
+        &mut state,
+        json!({
+            "jsonrpc": "2.0",
+            "method": "textDocument/didChange",
+            "params": {
+                "textDocument": {
+                    "uri": source_uri,
+                    "version": 2,
+                },
+                "contentChanges": [
+                    {
+                        "text": source_changed_text,
+                    },
+                ],
+            },
+        }),
+    );
+
+    assert_eq!(
+        state.external_sif_lock_read_count - lock_reads_before_change,
+        0,
+        "bridge source didChange must not reread workspace lockfiles"
+    );
+    assert_eq!(
+        state.external_sif_bridge_generation_count - bridge_generations_before_change,
+        1,
+        "bridge source didChange should generate only the newly-added bridge SIF"
+    );
+    assert!(
+        state
+            .resolution
+            .external_sifs
+            .iter()
+            .any(|sif| sif.canonical_url == external_a_uri),
+        "existing bridge SIF from another document must remain active"
+    );
+    assert!(
+        state
+            .resolution
+            .external_sifs
+            .iter()
+            .any(|sif| sif.canonical_url == external_b_uri),
+        "new bridge SIF from the changed document must be added"
+    );
+
+    let _ = fs::remove_dir_all(root.as_path());
+    Ok(())
+}
+
 fn fixture_external_sif(canonical_url: &str) -> Result<omena_sif::OmenaSifV1, serde_json::Error> {
     omena_sif::OmenaSifV1::from_static_exports(
         canonical_url,

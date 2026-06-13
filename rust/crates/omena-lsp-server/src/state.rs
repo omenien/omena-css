@@ -185,6 +185,8 @@ pub struct LspResolutionSettings {
     /// SIF-backed and unresolved foreign edges are classified per import edge.
     #[serde(skip)]
     pub external_sifs: Vec<OmenaQueryExternalSifInputV0>,
+    #[serde(skip)]
+    pub(crate) bridge_external_sif_urls: BTreeSet<String>,
 }
 
 /// Workspace-revision memo for the cascade-narrowing substrate (rfcs#63 E-ii).

@@ -23,7 +23,9 @@ mod workspace_runtime_registry;
 
 pub use boundary::*;
 use disk_cache::disk_diagnostics_cache_slot_for_resolve;
-pub(crate) use external_sif_loader::refresh_external_sifs_for_state;
+pub(crate) use external_sif_loader::{
+    refresh_external_sifs_for_bridge_source_delta, refresh_external_sifs_for_state,
+};
 pub use frame_aware_refresh::*;
 pub use lsp_output::*;
 #[cfg(test)]
@@ -806,7 +808,11 @@ fn refresh_style_external_inputs_for_document_event(
     }
 
     if previous.bridge_sources != next.bridge_sources {
-        refresh_external_sifs_for_state(state);
+        refresh_external_sifs_for_bridge_source_delta(
+            state,
+            previous.bridge_sources.as_slice(),
+            next.bridge_sources.as_slice(),
+        );
     }
 }
 
@@ -815,7 +821,11 @@ fn refresh_style_external_inputs_after_document_removal(
     previous: StyleExternalDependencySnapshot,
 ) {
     if !previous.bridge_sources.is_empty() {
-        refresh_external_sifs_for_state(state);
+        refresh_external_sifs_for_bridge_source_delta(
+            state,
+            previous.bridge_sources.as_slice(),
+            &[],
+        );
     }
 }
 
