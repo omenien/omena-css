@@ -30,7 +30,8 @@ use omena_query::{
     summarize_omena_query_dynamic_classname_m_tier_diagnostics_with_context_depth,
     summarize_omena_query_expression_domain_incremental_flow_analysis,
     summarize_omena_query_expression_domain_selector_projection,
-    summarize_omena_query_sass_module_sources, summarize_omena_query_source_diagnostics_for_file,
+    summarize_omena_query_sass_module_conformance_v0, summarize_omena_query_sass_module_sources,
+    summarize_omena_query_source_diagnostics_for_file,
     summarize_omena_query_source_diagnostics_for_workspace_file,
     summarize_omena_query_style_completion_at_position,
     summarize_omena_query_style_diagnostics_for_file_with_local_composes_and_deep_analysis,
@@ -584,6 +585,12 @@ enum ReportCommand {
     },
     /// Report the ordered style-resolution policy used by resolver-backed product paths.
     ResolutionPolicy {
+        /// Print machine-readable JSON.
+        #[arg(long)]
+        json: bool,
+    },
+    /// Report bounded Sass module-system conformance coverage for static analysis.
+    SassModuleConformance {
         /// Print machine-readable JSON.
         #[arg(long)]
         json: bool,
@@ -2280,6 +2287,7 @@ fn report_command(command: ReportCommand) -> Result<(), String> {
             json,
         ),
         ReportCommand::ResolutionPolicy { json } => report_resolution_policy(json),
+        ReportCommand::SassModuleConformance { json } => report_sass_module_conformance(json),
     }
 }
 
@@ -2297,6 +2305,22 @@ fn report_resolution_policy(json: bool) -> Result<(), String> {
                 "{} {}: {} ({})",
                 step.order, step.key, step.precedence, step.candidate_semantics
             );
+        }
+    }
+    Ok(())
+}
+
+fn report_sass_module_conformance(json: bool) -> Result<(), String> {
+    let report = summarize_omena_query_sass_module_conformance_v0();
+    if json {
+        print_json(&report)?;
+    } else {
+        println!(
+            "{} claimLevel={} theoremClaimed={}",
+            report.product, report.claim_level, report.theorem_claimed
+        );
+        for row in &report.rows {
+            println!("{} [{}]: {}", row.key, row.status, row.decision);
         }
     }
     Ok(())
@@ -5648,6 +5672,17 @@ mod tests {
     }
 
     #[test]
+    fn report_sass_module_conformance_outputs_bounded_ledger() {
+        let result = run(Cli {
+            command: Command::Report {
+                command: ReportCommand::SassModuleConformance { json: true },
+            },
+        });
+
+        assert!(result.is_ok(), "{result:?}");
+    }
+
+    #[test]
     fn build_command_writes_query_owned_transform_output() -> Result<(), String> {
         let source_path = temp_path("input.css");
         let output_path = temp_path("output.css");
@@ -6202,6 +6237,74 @@ mod tests {
                 split_out_dir: None,
                 bundle_entry_paths: Vec::new(),
                 source_paths: vec![tokens_path.clone(), theme_path.clone()],
+                package_manifest_paths: Vec::new(),
+                source_map: false,
+                input_source_maps: Vec::new(),
+                json: false,
+            },
+        });
+
+        assert!(result.is_ok(), "{result:?}");
+        let output = fs::read_to_string(&output_path)
+            .map_err(|error| format!("build output should be readable: {error}"))?;
+        assert_eq!(output.matches(".base { color: red; }").count(), 1);
+        assert!(!output.contains(".base { color: blue; }"), "{output}");
+        assert!(
+            output.contains(".button { color: red; border-color: red; }"),
+            "{output}"
+        );
+
+        cleanup_dir(&root);
+        Ok(())
+    }
+
+    #[test]
+    fn build_scss_module_mode_shares_relative_and_load_path_module_identity() -> Result<(), String>
+    {
+        let root = temp_dir("scss-module-relative-load-path-identity");
+        let output_path = root.join("output.css");
+        let target_dir = root.join("components");
+        let tokens_dir = root.join("src/scss");
+        let target_path = target_dir.join("App.module.scss");
+        let tokens_path = tokens_dir.join("design-system.scss");
+        fs::create_dir_all(&target_dir)
+            .map_err(|error| format!("fixture target dir should be writable: {error}"))?;
+        fs::create_dir_all(&tokens_dir)
+            .map_err(|error| format!("fixture token dir should be writable: {error}"))?;
+
+        fs::write(
+            &tokens_path,
+            "$brand: blue !default; .base { color: $brand; }",
+        )
+        .map_err(|error| format!("fixture tokens source should be writable: {error}"))?;
+        fs::write(
+            &target_path,
+            r#"@use "../src/scss/design-system.scss" as rel with ($brand: red);
+@use "src/scss/design-system.scss" as lp;
+.button { color: rel.$brand; border-color: lp.$brand; }"#,
+        )
+        .map_err(|error| format!("fixture target source should be writable: {error}"))?;
+
+        let result = run(Cli {
+            command: Command::Build {
+                path: target_path.clone(),
+                output: Some(output_path.clone()),
+                passes: vec!["scss-module-evaluate".to_string(), "print-css".to_string()],
+                target_query: None,
+                allow_logical_to_physical: false,
+                allow_scope_flatten: false,
+                allow_layer_flatten: false,
+                enable_supports_static_eval: false,
+                enable_media_static_eval: false,
+                drop_dark_mode_media_queries: false,
+                context_json: None,
+                engine_input_json: None,
+                closed_style_world: false,
+                tree_shake: false,
+                bundle: false,
+                split_out_dir: None,
+                bundle_entry_paths: Vec::new(),
+                source_paths: vec![tokens_path.clone()],
                 package_manifest_paths: Vec::new(),
                 source_map: false,
                 input_source_maps: Vec::new(),

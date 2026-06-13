@@ -72,22 +72,29 @@ impl<'a> TransformResolutionContext<'a> {
         source: &str,
         available_style_paths: &BTreeSet<&str>,
     ) -> Option<String> {
-        if self.bundler_path_mappings.is_empty() && self.tsconfig_path_mappings.is_empty() {
-            return super::resolve_style_module_source(
-                from_style_path,
-                source,
-                available_style_paths,
-                self.package_manifests,
-            );
-        }
-        super::resolve_style_module_source_with_path_mappings(
+        let load_path_roots = super::collect_load_path_roots(available_style_paths);
+        let load_path_root_refs = load_path_roots
+            .iter()
+            .map(String::as_str)
+            .collect::<Vec<_>>();
+        let resolver_package_manifests = self
+            .package_manifests
+            .iter()
+            .map(|manifest| OmenaResolverStylePackageManifestV0 {
+                package_json_path: manifest.package_json_path.clone(),
+                package_json_source: manifest.package_json_source.clone(),
+            })
+            .collect::<Vec<_>>();
+        summarize_omena_resolver_style_module_resolution_with_load_path_roots(
             from_style_path,
             source,
             available_style_paths,
-            self.package_manifests,
+            &resolver_package_manifests,
             self.bundler_path_mappings,
             self.tsconfig_path_mappings,
+            &load_path_root_refs,
         )
+        .resolved_style_path
     }
 }
 

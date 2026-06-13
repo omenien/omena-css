@@ -101,6 +101,34 @@ pub struct OmenaQueryStyleCompletionConsumerDecisionV0 {
     pub rationale: &'static str,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct OmenaQuerySassModuleConformanceReportV0 {
+    pub schema_version: &'static str,
+    pub product: &'static str,
+    pub claim_level: &'static str,
+    pub theorem_claimed: bool,
+    pub normative_source: &'static str,
+    pub modeled_count: usize,
+    pub gap_count: usize,
+    pub decided_out_count: usize,
+    pub policy_count: usize,
+    pub rows: Vec<OmenaQuerySassModuleConformanceRowV0>,
+    pub ready_surfaces: Vec<&'static str>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct OmenaQuerySassModuleConformanceRowV0 {
+    pub key: &'static str,
+    pub category: &'static str,
+    pub status: &'static str,
+    pub normative_anchor: &'static str,
+    pub implementation: &'static str,
+    pub witness: &'static str,
+    pub decision: &'static str,
+}
+
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct OmenaQueryEvaluationRuntimeSummaryV0 {

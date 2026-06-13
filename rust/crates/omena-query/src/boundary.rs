@@ -247,6 +247,146 @@ pub fn summarize_omena_query_boundary(input: &EngineInputV2) -> OmenaQueryBounda
     }
 }
 
+pub fn summarize_omena_query_sass_module_conformance_v0() -> OmenaQuerySassModuleConformanceReportV0
+{
+    let rows = sass_module_conformance_rows();
+    let modeled_count = rows.iter().filter(|row| row.status == "modeled").count();
+    let gap_count = rows.iter().filter(|row| row.status == "gap").count();
+    let decided_out_count = rows.iter().filter(|row| row.status == "decidedOut").count();
+    let policy_count = rows.iter().filter(|row| row.status == "policy").count();
+    OmenaQuerySassModuleConformanceReportV0 {
+        schema_version: "0",
+        product: "omena-query.sass-module-conformance",
+        claim_level: "boundedStaticAnalysisCoverageLedger",
+        theorem_claimed: false,
+        normative_source: "https://github.com/sass/sass/blob/main/accepted/module-system.md",
+        modeled_count,
+        gap_count,
+        decided_out_count,
+        policy_count,
+        rows,
+        ready_surfaces: vec![
+            "sassModuleConformanceLedger",
+            "mandatoryPolicyRows",
+            "gapRowsExplicit",
+            "noSassRuntimeEquivalenceClaim",
+        ],
+    }
+}
+
+fn sass_module_conformance_rows() -> Vec<OmenaQuerySassModuleConformanceRowV0> {
+    vec![
+        OmenaQuerySassModuleConformanceRowV0 {
+            key: "useNamespaceVisibility",
+            category: "visibility",
+            status: "modeled",
+            normative_anchor: "module-system.md: @use makes members available through a namespace or as *; private members are not visible through @use",
+            implementation: "collect_visible_sass_symbol_keys + collect_exported_sass_symbol_keys",
+            witness: "style diagnostics and LSP completion witnesses for namespaced, wildcard, builtin, and hidden Sass symbols",
+            decision: "Static member-name visibility is modeled; value execution is not claimed.",
+        },
+        OmenaQuerySassModuleConformanceRowV0 {
+            key: "forwardPrefixShowHide",
+            category: "forwarding",
+            status: "modeled",
+            normative_anchor: "module-system.md: @forward exposes another module API; show/hide filters and as-prefix alter forwarded member names",
+            implementation: "apply_sass_forward_prefix + sass_forward_filter_allows_symbol",
+            witness: "style_diagnostics_respect_prefixed_forward_show_filters and cross-file Sass completion visible-set equality",
+            decision: "Forwarded public API names are modeled for static symbol consumers.",
+        },
+        OmenaQuerySassModuleConformanceRowV0 {
+            key: "configurationWithDefaultVariables",
+            category: "configuration",
+            status: "modeled",
+            normative_anchor: "module-system.md: with may configure variables defined by or forwarded by a module only when those variables are !default",
+            implementation: "derive_static_scss_module_rule_variable_overrides_at_ordinal + static_scss_module_configuration_variables_are_valid",
+            witness: "style_diagnostics_query_identity_reports_non_default_sass_module_configuration and build scss-module-mode fixtures",
+            decision: "Static configuration validity is modeled for known workspace module facts.",
+        },
+        OmenaQuerySassModuleConformanceRowV0 {
+            key: "forwardedConfigurationPropagation",
+            category: "configuration",
+            status: "modeled",
+            normative_anchor: "module-system.md: @forward can expose configurable variables and downstream configuration may flow through forwarded APIs",
+            implementation: "derive_static_scss_module_forward_effective_variable_override_values_for_resolution_at_ordinal",
+            witness: "style_diagnostics_query_identity_uses_downstream_forward_default_configuration and path-mapped forwarded configuration tests",
+            decision: "Forwarded !default configuration is modeled for static graph closure.",
+        },
+        OmenaQuerySassModuleConformanceRowV0 {
+            key: "canonicalModuleInstanceIdentity",
+            category: "identity",
+            status: "modeled",
+            normative_anchor: "module-system.md: a module is produced by executing the source file identified by canonical URL with a configuration",
+            implementation: "static_scss_module_instance_identity_key + canonicalize_omena_resolver_style_identity_path",
+            witness: "sassModuleInstanceIdentity and sassModuleSymlinkResolution diagnostics via omena style-diagnostics",
+            decision: "Canonical path plus static configuration signature is the product identity key.",
+        },
+        OmenaQuerySassModuleConformanceRowV0 {
+            key: "reconfigurationConflict",
+            category: "configuration",
+            status: "modeled",
+            normative_anchor: "module-system.md: loading an already-executed file with non-empty configuration is an error",
+            implementation: "resolve_static_scss_module_effective_variable_overrides + emitted_module_identity_keys conflict checks",
+            witness: "style_diagnostics_query_identity_reports_conflicting_sass_module_configurations and repeated-forward conflict tests",
+            decision: "Conflicting static configurations surface through existing Sass module identity diagnostics.",
+        },
+        OmenaQuerySassModuleConformanceRowV0 {
+            key: "importContextInterop",
+            category: "import",
+            status: "gap",
+            normative_anchor: "module-system.md: @import uses a mutable import context and can add imported public API members to the importing stylesheet",
+            implementation: "collect_visible_sass_symbol_keys handles imported public members, but static_stylesheet does not claim full import-context execution semantics",
+            witness: "deprecatedSassImport and missingSassSymbol tests cover diagnostics; no product witness yet for configured-module import-context execution",
+            decision: "Gap row: close only with query-level and omena build product witnesses if the static model expands.",
+        },
+        OmenaQuerySassModuleConformanceRowV0 {
+            key: "loadPathRelativeIdentityCoherence",
+            category: "identity",
+            status: "modeled",
+            normative_anchor: "module-system.md: module identity is based on canonical URL, not the syntactic route that reached it",
+            implementation: "resolve_static_scss_module_effective_variable_overrides + static_scss_module_instance_identity_key",
+            witness: "shares_scss_module_identity_across_relative_and_load_path_routes plus omena build product witness",
+            decision: "Relative and load-path routes share the canonical configured module instance and emit side-effect CSS once.",
+        },
+        OmenaQuerySassModuleConformanceRowV0 {
+            key: "metaLoadCssRuntimeConfiguration",
+            category: "runtime",
+            status: "decidedOut",
+            normative_anchor: "module-system.md: meta.load-css dynamically loads CSS and accepts a $with configuration map without exposing members",
+            implementation: "not evaluated by omena-query static Sass module semantics",
+            witness: "ledger row only",
+            decision: "Runtime CSS inclusion is outside the static member-visibility and identity diagnostic contract.",
+        },
+        OmenaQuerySassModuleConformanceRowV0 {
+            key: "yarnPnpImporterRuntime",
+            category: "resolver",
+            status: "decidedOut",
+            normative_anchor: "module-system.md: implementations load URLs through importer semantics; package manager runtime hooks are implementation-specific",
+            implementation: "resolver policy models package manifests, path mappings, local filesystem candidates, and explicit SIF boundaries",
+            witness: "resolution-policy report",
+            decision: "Yarn PnP runtime importer emulation is out of scope for this static analyzer.",
+        },
+        OmenaQuerySassModuleConformanceRowV0 {
+            key: "deprecatedSassImportPolicy",
+            category: "policy",
+            status: "policy",
+            normative_anchor: "module-system.md: @use/@forward are intended to replace @import; import compatibility remains transitional",
+            implementation: "deprecatedSassImport diagnostic",
+            witness: "style_diagnostics_for_file_suppresses_sass_builtins_and_hints_imports",
+            decision: "Keep the hint on by default at information severity; users can suppress diagnostics without opting into a new setting.",
+        },
+        OmenaQuerySassModuleConformanceRowV0 {
+            key: "aliasExtractionFallbackPolicy",
+            category: "policy",
+            status: "policy",
+            normative_anchor: "module-system.md: loading is importer-defined; omena's resolver policy fixes local precedence without network fetches",
+            implementation: "resolution-policy report plus source/style diagnostics for unresolved imports",
+            witness: "check-rust-omena-cli-resolution-policy",
+            decision: "Use explicit path-mapping/package-manifest settings as the primary fallback; surface graceful unresolved-import diagnostics rather than guessing.",
+        },
+    ]
+}
+
 fn style_completion_consumer_decisions() -> Vec<OmenaQueryStyleCompletionConsumerDecisionV0> {
     vec![
         OmenaQueryStyleCompletionConsumerDecisionV0 {

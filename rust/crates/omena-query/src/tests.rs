@@ -372,6 +372,39 @@ fn summarizes_query_boundary_over_producer_fragments() {
 }
 
 #[test]
+fn summarizes_sass_module_conformance_as_bounded_ledger() {
+    let report = crate::summarize_omena_query_sass_module_conformance_v0();
+    assert_eq!(report.product, "omena-query.sass-module-conformance");
+    assert_eq!(report.claim_level, "boundedStaticAnalysisCoverageLedger");
+    assert!(!report.theorem_claimed);
+    assert!(report.modeled_count >= 6);
+    assert_eq!(report.gap_count, 1);
+    assert_eq!(report.policy_count, 2);
+    assert!(report.decided_out_count >= 2);
+    assert!(
+        report
+            .ready_surfaces
+            .contains(&"noSassRuntimeEquivalenceClaim")
+    );
+
+    let rows = report
+        .rows
+        .iter()
+        .map(|row| (row.key, row.status, row.category))
+        .collect::<BTreeSet<_>>();
+    assert!(rows.contains(&("deprecatedSassImportPolicy", "policy", "policy")));
+    assert!(rows.contains(&("aliasExtractionFallbackPolicy", "policy", "policy")));
+    assert!(rows.contains(&("importContextInterop", "gap", "import")));
+    assert!(rows.contains(&("loadPathRelativeIdentityCoherence", "modeled", "identity")));
+    assert!(report.rows.iter().all(|row| {
+        !row.normative_anchor.is_empty()
+            && !row.implementation.is_empty()
+            && !row.witness.is_empty()
+            && !row.decision.is_empty()
+    }));
+}
+
+#[test]
 fn summarizes_design_system_minimum_description_in_bits() {
     let summary = summarize_omena_query_design_system_minimum_description(
         "file:///workspace/tokens.module.css",
@@ -2425,6 +2458,34 @@ fn shares_preconfigured_scss_module_instance_with_unconfigured_transitive_forwar
             (
                 "/tmp/App.module.scss",
                 r#"@use "./tokens" as tokens with ($brand: red); @use "./theme" as theme; .button { color: tokens.$brand; border-color: theme.$brand; }"#,
+            ),
+        ],
+        &[],
+    );
+
+    let evaluated_css = summary
+        .context
+        .scss_module_evaluation
+        .as_ref()
+        .map(|evaluation| evaluation.evaluated_css.as_str())
+        .unwrap_or_default();
+    assert_eq!(evaluated_css.matches(".base { color: red; }").count(), 1);
+    assert!(!evaluated_css.contains(".base { color: blue; }"));
+    assert!(evaluated_css.contains(".button { color: red; border-color: red; }"));
+}
+
+#[test]
+fn shares_scss_module_identity_across_relative_and_load_path_routes() {
+    let summary = summarize_omena_query_transform_context_from_sources(
+        "/pkg-root/components/App.module.scss",
+        [
+            (
+                "/pkg-root/src/scss/design-system.scss",
+                "$brand: blue !default; .base { color: $brand; }",
+            ),
+            (
+                "/pkg-root/components/App.module.scss",
+                r#"@use "../src/scss/design-system.scss" as rel with ($brand: red); @use "src/scss/design-system.scss" as lp; .button { color: rel.$brand; border-color: lp.$brand; }"#,
             ),
         ],
         &[],
