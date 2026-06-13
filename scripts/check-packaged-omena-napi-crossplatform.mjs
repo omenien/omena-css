@@ -176,7 +176,7 @@ function runPackedInstallSmoke(platformPackage) {
     `${JSON.stringify({ private: true, type: "commonjs" }, null, 2)}\n`,
   );
   run(
-    npmCommand(),
+    "npm",
     [
       "install",
       "--ignore-scripts",
@@ -217,7 +217,7 @@ if (
 }
 
 function packPackage(packageDir, packDir) {
-  const child = run(npmCommand(), ["pack", "--json", "--pack-destination", packDir], {
+  const child = run("npm", ["pack", "--json", "--pack-destination", packDir], {
     cwd: packageDir,
     encoding: "utf8",
   });
@@ -263,14 +263,11 @@ function currentPlatformPackage() {
   throw new Error(`No @omena/napi package mapping for ${process.platform}-${process.arch}`);
 }
 
-function npmCommand() {
-  return process.platform === "win32" ? "npm.cmd" : "npm";
-}
-
 function run(command, args, options) {
   const child = spawnSync(command, args, {
     cwd: options?.cwd ?? repoRoot,
     encoding: options?.encoding ?? "utf8",
+    shell: process.platform === "win32" && command === "npm",
     stdio: options?.encoding ? "pipe" : "inherit",
   });
   if (child.status !== 0) {
