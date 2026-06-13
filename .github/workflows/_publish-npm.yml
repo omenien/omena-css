@@ -229,7 +229,9 @@ jobs:
         run: |
           set -euo pipefail
           if [ "${{ inputs.dry_run }}" = "true" ]; then
-            npm publish --provenance --access public --dry-run
+            pack_dir="${RUNNER_TEMP:-/tmp}/npm-dry-run-packs"
+            mkdir -p "${pack_dir}"
+            npm pack --json --pack-destination "${pack_dir}"
           else
             name="$(node -e "const p=require('./package.json'); process.stdout.write(p.name)")"
             version="$(node -e "const p=require('./package.json'); process.stdout.write(p.version)")"
@@ -252,7 +254,9 @@ jobs:
             name="$(node -e "const p=require(process.argv[1]); process.stdout.write(p.name)" "${dir}/package.json")"
             version="$(node -e "const p=require(process.argv[1]); process.stdout.write(p.version)" "${dir}/package.json")"
             if [ "${{ inputs.dry_run }}" = "true" ]; then
-              (cd "${dir}" && npm publish --provenance --access public --dry-run)
+              local pack_dir="${RUNNER_TEMP:-/tmp}/npm-dry-run-packs"
+              mkdir -p "${pack_dir}"
+              (cd "${dir}" && npm pack --json --pack-destination "${pack_dir}")
               return
             fi
             if npm view "${name}@${version}" version >/dev/null 2>&1; then
@@ -274,7 +278,9 @@ jobs:
         run: |
           set -euo pipefail
           if [ "${{ inputs.dry_run }}" = "true" ]; then
-            npm publish --provenance --access public --dry-run
+            pack_dir="${RUNNER_TEMP:-/tmp}/npm-dry-run-packs"
+            mkdir -p "${pack_dir}"
+            npm pack --json --pack-destination "${pack_dir}"
           else
             name="$(node -e "const p=require('./package.json'); process.stdout.write(p.name)")"
             version="$(node -e "const p=require('./package.json'); process.stdout.write(p.version)")"
