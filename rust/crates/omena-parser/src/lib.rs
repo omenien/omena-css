@@ -30,6 +30,7 @@ mod language;
 // omena-parser as a building block goes through these names — keep the list
 // explicit and minimal rather than widening to `pub use public_product::*`.
 mod public_product;
+mod recovery;
 mod spans;
 pub use cst::{
     AtRuleCstNode, BogusCstNode, CommaSeparatedComponentValueListCstNode, ComponentValueCstNode,
@@ -44,6 +45,7 @@ pub use public_product::{
     summarize_parser_canonical_candidate, summarize_parser_canonical_producer_signal,
     summarize_parser_evaluator_candidates,
 };
+pub use recovery::{RECOVERY_DECLARATION, RECOVERY_SELECTOR, RECOVERY_TOP, TokenSet};
 pub use spans::{ParserByteSpanV0, ParserPositionV0, ParserRangeV0};
 
 const VALUES_L4_MATH_FUNCTION_NAMES: &[&str] = &[
@@ -765,46 +767,6 @@ pub struct OmenaParserDeclarationKindCountsV0 {
     pub animation_name: usize,
     pub generic: usize,
 }
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct TokenSet {
-    kinds: &'static [SyntaxKind],
-}
-
-impl TokenSet {
-    pub const fn new(kinds: &'static [SyntaxKind]) -> Self {
-        Self { kinds }
-    }
-
-    pub fn contains(self, kind: SyntaxKind) -> bool {
-        self.kinds.contains(&kind)
-    }
-
-    pub fn len(self) -> usize {
-        self.kinds.len()
-    }
-
-    pub fn is_empty(self) -> bool {
-        self.kinds.is_empty()
-    }
-}
-
-pub const RECOVERY_TOP: TokenSet = TokenSet::new(&[
-    SyntaxKind::AtKeyword,
-    SyntaxKind::Dot,
-    SyntaxKind::Hash,
-    SyntaxKind::RightBrace,
-    SyntaxKind::Semicolon,
-]);
-
-pub const RECOVERY_DECLARATION: TokenSet =
-    TokenSet::new(&[SyntaxKind::Semicolon, SyntaxKind::RightBrace]);
-
-pub const RECOVERY_SELECTOR: TokenSet = TokenSet::new(&[
-    SyntaxKind::Comma,
-    SyntaxKind::LeftBrace,
-    SyntaxKind::RightBrace,
-]);
 
 pub trait DialectExtension {
     fn dialect(&self) -> StyleDialect;
