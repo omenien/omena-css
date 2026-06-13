@@ -2,12 +2,13 @@ use omena_query::OmenaQueryTargetTransformOptionsV0;
 
 use crate::{
     BuildFileOptions, build_file, cascade_at_position, check_file, context_from_engine_input,
-    context_index, dynamic_classname_diagnostics, expression_flow, list_passes, lock_command,
+    context_index, dynamic_classname_diagnostics, expression_flow, list_passes,
     selector_projection, source_diagnostics, style_completion, style_diagnostics,
     style_hover_candidates,
 };
 use crate::{
     commands::{Cli, Command},
+    lock::lock_command,
     perceptual::perceptual_check,
     provenance::provenance_command,
     reports::report_command,
