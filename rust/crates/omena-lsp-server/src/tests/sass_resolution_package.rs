@@ -374,6 +374,11 @@ fn indexes_foreign_package_forward_chain_for_references_without_opening_dependen
             .and_then(|response| response.pointer("/result"))
             .ok_or_else(|| std::io::Error::other("warm references should include a result"))?,
     )?;
+    assert_foreign_occurrence_artifacts_are_workspace_cache_confined(
+        &state,
+        workspace_uri.as_str(),
+        package_root.as_path(),
+    )?;
 
     state.remove_document_uri(index_uri.as_str());
     state.remove_document_uri(primitives_uri.as_str());
@@ -1318,6 +1323,45 @@ fn assert_no_foreign_path_leak(label: &str, value: &Value) -> TestResult {
     assert!(
         !serialized.contains("node_modules"),
         "{label} must not expose node_modules-origin paths: {serialized}"
+    );
+    Ok(())
+}
+
+fn assert_foreign_occurrence_artifacts_are_workspace_cache_confined(
+    state: &LspShellState,
+    workspace_uri: &str,
+    package_root: &Path,
+) -> TestResult {
+    let workspace_root = file_uri_to_path(workspace_uri)
+        .ok_or_else(|| std::io::Error::other("workspace URI should map to a file path"))?;
+    let workspace_cache_root = workspace_root.join(".cache").join("omena");
+    let document_keys = style_symbol_occurrence_document_keys(state, Some(workspace_uri));
+    let sidecar_path =
+        crate::style_symbol_occurrence_cache::style_symbol_occurrence_sidecar_file_path_for_test(
+            state,
+            Some(workspace_uri),
+            document_keys.as_slice(),
+        )
+        .ok_or_else(|| {
+            std::io::Error::other("style symbol occurrence sidecar path should resolve")
+        })?;
+    assert!(
+        sidecar_path.starts_with(workspace_cache_root.as_path()),
+        "foreign occurrence sidecar must stay under the workspace cache root: {sidecar_path:?}"
+    );
+    assert!(
+        sidecar_path.exists(),
+        "foreign occurrence sidecar should be persisted: {sidecar_path:?}"
+    );
+    assert!(
+        workspace_cache_root
+            .join("workspace-occurrence-shards-v0")
+            .exists(),
+        "foreign occurrence shards should be persisted below the workspace cache root"
+    );
+    assert!(
+        !package_root.join(".cache").join("omena").exists(),
+        "foreign package directories must not receive omena cache artifacts"
     );
     Ok(())
 }
