@@ -674,6 +674,7 @@ pub fn summarize_omena_diff_test_boundary() -> OmenaDiffTestBoundarySummary {
             "diagnosticMetamorphicRelations",
             "cachedVsFromScratchEquivalenceOracle",
             "salsaMemoizedVsFromScratchEquivalence",
+            "externalSifsSalsaMemoizedVsFromScratchEquivalence",
             "parallelSalsaViewsVsFromScratchEquivalence",
         ],
         reports,
@@ -1781,6 +1782,11 @@ code: missingCustomProperty
             summary
                 .closed_gates
                 .contains(&"parallelSalsaViewsVsFromScratchEquivalence")
+        );
+        assert!(
+            summary
+                .closed_gates
+                .contains(&"externalSifsSalsaMemoizedVsFromScratchEquivalence")
         );
         assert!(summary.all_parallel_salsa_equivalence_phases_identical);
         assert_eq!(

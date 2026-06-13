@@ -249,15 +249,6 @@ fn indexes_foreign_package_forward_chain_for_references_without_opening_dependen
             "source fixture contains forwarded Sass variable reference",
         )? + 1,
     );
-    let declaration_position = parser_position_for_byte_offset(
-        primitives_text,
-        fixture_find(
-            primitives_text,
-            "$radius-small",
-            "foreign primitive fixture contains Sass variable declaration",
-        )? + 1,
-    );
-
     let mut state = LspShellState::default();
     handle_lsp_message(
         &mut state,
@@ -334,9 +325,9 @@ fn indexes_foreign_package_forward_chain_for_references_without_opening_dependen
             "method": "textDocument/references",
             "params": {
                 "textDocument": {
-                    "uri": primitives_uri,
+                    "uri": source_uri,
                 },
-                "position": declaration_position,
+                "position": reference_position,
                 "context": {
                     "includeDeclaration": true,
                 },
@@ -361,6 +352,80 @@ fn indexes_foreign_package_forward_chain_for_references_without_opening_dependen
             .and_then(Value::as_str)
             .is_some_and(|uri| file_uri_equivalent(uri, primitives_uri.as_str()))),
         "foreign declaration references should include the read-only declaration: {references:?}"
+    );
+    let warm_definition_json = serde_json::to_string(
+        definition
+            .as_ref()
+            .and_then(|response| response.pointer("/result"))
+            .ok_or_else(|| std::io::Error::other("warm definition should include a result"))?,
+    )?;
+    let warm_references_json = serde_json::to_string(
+        references
+            .as_ref()
+            .and_then(|response| response.pointer("/result"))
+            .ok_or_else(|| std::io::Error::other("warm references should include a result"))?,
+    )?;
+
+    state.remove_document_uri(index_uri.as_str());
+    state.remove_document_uri(primitives_uri.as_str());
+    *state.workspace_occurrence_index_memo.borrow_mut() = None;
+    assert!(
+        state.document(index_uri.as_str()).is_none()
+            && state.document(primitives_uri.as_str()).is_none(),
+        "evicted foreign package documents should force the cold disk-read path"
+    );
+
+    let cold_definition = handle_lsp_message(
+        &mut state,
+        json!({
+            "jsonrpc": "2.0",
+            "id": 30,
+            "method": "textDocument/definition",
+            "params": {
+                "textDocument": {
+                    "uri": source_uri,
+                },
+                "position": reference_position,
+            },
+        }),
+    );
+    assert_eq!(
+        warm_definition_json,
+        serde_json::to_string(
+            cold_definition
+                .as_ref()
+                .and_then(|response| response.pointer("/result"))
+                .ok_or_else(|| std::io::Error::other("cold definition should include a result"))?,
+        )?,
+        "foreign Sass definition should be byte-identical between warm indexed and cold disk-read paths"
+    );
+
+    let cold_references = handle_lsp_message(
+        &mut state,
+        json!({
+            "jsonrpc": "2.0",
+            "id": 31,
+            "method": "textDocument/references",
+            "params": {
+                "textDocument": {
+                    "uri": source_uri,
+                },
+                "position": reference_position,
+                "context": {
+                    "includeDeclaration": true,
+                },
+            },
+        }),
+    );
+    assert_eq!(
+        warm_references_json,
+        serde_json::to_string(
+            cold_references
+                .as_ref()
+                .and_then(|response| response.pointer("/result"))
+                .ok_or_else(|| std::io::Error::other("cold references should include a result"))?,
+        )?,
+        "foreign Sass references should be byte-identical between warm indexed and cold disk-read paths"
     );
 
     let rename = handle_lsp_message(
@@ -726,6 +791,80 @@ fn source_absent_sif_exports_feed_hover_refs_and_completion_without_locations() 
             .and_then(Value::as_str)
             .is_some_and(|uri| file_uri_equivalent(uri, source_uri.as_str()))),
         "SIF-backed references should stay on source locations only: {references:?}"
+    );
+    let sif_definition_json = serde_json::to_string(
+        definition
+            .as_ref()
+            .and_then(|response| response.pointer("/result"))
+            .ok_or_else(|| {
+                std::io::Error::other("SIF-backed definition should include a result")
+            })?,
+    )?;
+    let sif_references_json = serde_json::to_string(
+        references
+            .as_ref()
+            .and_then(|response| response.pointer("/result"))
+            .ok_or_else(|| {
+                std::io::Error::other("SIF-backed references should include a result")
+            })?,
+    )?;
+    *state.workspace_occurrence_index_memo.borrow_mut() = None;
+
+    let rebuilt_definition = handle_lsp_message(
+        &mut state,
+        json!({
+            "jsonrpc": "2.0",
+            "id": 40,
+            "method": "textDocument/definition",
+            "params": {
+                "textDocument": {
+                    "uri": source_uri,
+                },
+                "position": reference_position,
+            },
+        }),
+    );
+    assert_eq!(
+        sif_definition_json,
+        serde_json::to_string(
+            rebuilt_definition
+                .as_ref()
+                .and_then(|response| response.pointer("/result"))
+                .ok_or_else(|| std::io::Error::other(
+                    "rebuilt SIF definition should include a result"
+                ))?,
+        )?,
+        "SIF-only definitions should remain byte-identical without fabricating source locations"
+    );
+
+    let rebuilt_references = handle_lsp_message(
+        &mut state,
+        json!({
+            "jsonrpc": "2.0",
+            "id": 41,
+            "method": "textDocument/references",
+            "params": {
+                "textDocument": {
+                    "uri": source_uri,
+                },
+                "position": reference_position,
+                "context": {
+                    "includeDeclaration": true,
+                },
+            },
+        }),
+    );
+    assert_eq!(
+        sif_references_json,
+        serde_json::to_string(
+            rebuilt_references
+                .as_ref()
+                .and_then(|response| response.pointer("/result"))
+                .ok_or_else(|| std::io::Error::other(
+                    "rebuilt SIF references should include a result"
+                ))?,
+        )?,
+        "SIF-only references should remain byte-identical without adding a fake declaration"
     );
 
     let completion = handle_lsp_message(

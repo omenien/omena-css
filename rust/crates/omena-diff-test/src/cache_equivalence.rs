@@ -23,6 +23,10 @@ use omena_query::{
     OmenaQueryStyleSourceInputV0, resolve_memo_workspace_style_diagnostics_from_view,
     summarize_omena_query_style_diagnostics_for_workspace_file_with_external_mode_and_sifs_and_resolution_inputs,
 };
+use omena_sif::{
+    OmenaSifExportsV1, OmenaSifGeneratorV1, OmenaSifSourceSyntaxV1, OmenaSifSourceV1, OmenaSifV1,
+    OmenaSifVariableExportV1,
+};
 use serde::Serialize;
 use std::cell::RefCell;
 use std::collections::BTreeMap;
@@ -266,6 +270,7 @@ struct SalsaMemoPhaseInputsV0<'inputs> {
     corpus: &'inputs [OmenaQueryStyleSourceInputV0],
     source_documents: &'inputs [OmenaQuerySourceDocumentInputV0],
     package_manifests: &'inputs [OmenaQueryStylePackageManifestV0],
+    external_sifs: &'inputs [OmenaQueryExternalSifInputV0],
     resolution_inputs: &'inputs OmenaQueryStyleResolutionInputsV0,
 }
 
@@ -277,11 +282,9 @@ struct SalsaMemoPhaseInputsV0<'inputs> {
 /// evaluator. The change phases are what catch a stale memo: a cache that
 /// survives an input change diverges there and fails the gate.
 ///
-/// Known residual: `external_sifs` is exercised only as the constant empty
-/// set here (a valid `OmenaSifV1` is too heavy to fabricate in this corpus);
-/// its sync arm is shape-identical to the other plain-data fields and the
-/// SIF/sigil behaviour is covered end-to-end by the omena-lsp-server test
-/// suite, which runs with the memoized path as default.
+/// The lifecycle includes a non-empty `external_sifs` phase so the memo host's
+/// SIF input surface is compared against from-scratch evaluation, not assumed
+/// equivalent by shape alone.
 pub fn summarize_workspace_diagnostics_salsa_memo_equivalence_v0(
     corpus: &[OmenaQueryStyleSourceInputV0],
     resolution_inputs: &OmenaQueryStyleResolutionInputsV0,
@@ -299,7 +302,7 @@ pub fn summarize_workspace_diagnostics_salsa_memo_equivalence_v0(
                     inputs.corpus,
                     inputs.source_documents,
                     inputs.package_manifests,
-                    &[],
+                    inputs.external_sifs,
                     inputs.resolution_inputs,
                 )
             },
@@ -310,7 +313,7 @@ pub fn summarize_workspace_diagnostics_salsa_memo_equivalence_v0(
                     inputs.corpus,
                     inputs.source_documents,
                     inputs.package_manifests,
-                    &[],
+                    inputs.external_sifs,
                     inputs.resolution_inputs,
                 )
             },
@@ -343,11 +346,14 @@ pub fn summarize_workspace_diagnostics_salsa_memo_equivalence_v0(
         package_json_source: "{\"name\":\"@salsa-memo/probe\",\"style\":\"index.scss\"}"
             .to_string(),
     }];
+    let external_sif_corpus = salsa_memo_lifecycle_external_sif_corpus(corpus);
+    let external_sifs = salsa_memo_lifecycle_external_sif_inputs();
 
     let base = SalsaMemoPhaseInputsV0 {
         corpus,
         source_documents: &[],
         package_manifests: &[],
+        external_sifs: &[],
         resolution_inputs,
     };
     let phases = vec![
@@ -393,6 +399,15 @@ pub fn summarize_workspace_diagnostics_salsa_memo_equivalence_v0(
             },
         ),
         compare("afterPackageManifestsRevert", &base),
+        compare(
+            "afterExternalSifsAppear",
+            &SalsaMemoPhaseInputsV0 {
+                corpus: external_sif_corpus.as_slice(),
+                external_sifs: external_sifs.as_slice(),
+                ..base
+            },
+        ),
+        compare("afterExternalSifsRevert", &base),
     ];
     let comparison_count = phases.iter().map(|phase| phase.report.file_count).sum();
     let all_phases_identical = phases.iter().all(|phase| phase.report.all_files_identical);
@@ -584,6 +599,52 @@ fn salsa_memo_lifecycle_usage_source_document(
     })
 }
 
+fn salsa_memo_lifecycle_external_sif_corpus(
+    corpus: &[OmenaQueryStyleSourceInputV0],
+) -> Vec<OmenaQueryStyleSourceInputV0> {
+    let mut external_corpus = corpus.to_vec();
+    if let Some(entry) = external_corpus.first_mut() {
+        entry.style_source.push_str(
+            "\n@use \"https://cdn.example/salsa-memo/tokens.scss\" as externalTokens;\n\
+             .external { color: externalTokens.$brand; }\n",
+        );
+    }
+    external_corpus
+}
+
+fn salsa_memo_lifecycle_external_sif_inputs() -> Vec<OmenaQueryExternalSifInputV0> {
+    let Ok(sif) = OmenaSifV1::from_static_exports(
+        "https://cdn.example/salsa-memo/tokens.scss",
+        OmenaSifGeneratorV1 {
+            name: "omena-diff-test-fixture".to_string(),
+            version: "0.0.0".to_string(),
+            toolchain_id: "omena-diff-test-fixture@0.0.0".to_string(),
+        },
+        OmenaSifSourceV1 {
+            syntax: OmenaSifSourceSyntaxV1::Scss,
+        },
+        OmenaSifExportsV1 {
+            variables: vec![OmenaSifVariableExportV1 {
+                name: "$brand".to_string(),
+                defaulted: true,
+                value_repr: Some("red".to_string()),
+            }],
+            mixins: Vec::new(),
+            functions: Vec::new(),
+            placeholders: Vec::new(),
+            forwards: Vec::new(),
+        },
+        Vec::new(),
+        b"$brand: red !default;",
+    ) else {
+        return Vec::new();
+    };
+    vec![OmenaQueryExternalSifInputV0 {
+        canonical_url: sif.canonical_url.clone(),
+        sif,
+    }]
+}
+
 fn serialized_diagnostics(diagnostics: Option<OmenaQueryStyleDiagnosticsForFileV0>) -> String {
     serde_json::to_string(&diagnostics)
         .unwrap_or_else(|error| format!("unserializableDiagnostics:{error}"))
@@ -630,11 +691,62 @@ mod tests {
         let (corpus, resolution_inputs) = omena_diff_cache_equivalence_default_corpus_v0();
         let report =
             summarize_workspace_diagnostics_salsa_memo_equivalence_v0(&corpus, &resolution_inputs);
-        assert_eq!(report.phases.len(), 12);
+        assert_eq!(report.phases.len(), 14);
         assert!(
             report.all_phases_identical,
             "salsa-memoized diagnostics must be byte-identical to from-scratch in every lifecycle phase: {report:?}"
         );
+    }
+
+    #[test]
+    fn salsa_memo_lifecycle_exercises_nonempty_external_sifs() {
+        let (corpus, resolution_inputs) = omena_diff_cache_equivalence_default_corpus_v0();
+        let report =
+            summarize_workspace_diagnostics_salsa_memo_equivalence_v0(&corpus, &resolution_inputs);
+        assert!(
+            report
+                .phases
+                .iter()
+                .any(|phase| phase.phase == "afterExternalSifsAppear"),
+            "the salsa memo oracle must include a non-empty external_sifs phase: {report:?}"
+        );
+    }
+
+    #[test]
+    fn salsa_memo_lifecycle_external_sifs_phase_is_not_vacuous() -> Result<(), &'static str> {
+        let (corpus, resolution_inputs) = omena_diff_cache_equivalence_default_corpus_v0();
+        let external_corpus = salsa_memo_lifecycle_external_sif_corpus(&corpus);
+        let external_sifs = salsa_memo_lifecycle_external_sif_inputs();
+        let entry_path = external_corpus
+            .first()
+            .ok_or("non-empty external SIF corpus")?
+            .style_path
+            .clone();
+        let without =
+            serde_json::to_string(&evaluate_workspace_diagnostics_from_scratch_with_inputs_v0(
+                entry_path.as_str(),
+                &external_corpus,
+                &[],
+                &[],
+                &[],
+                &resolution_inputs,
+            ))
+            .map_err(|_| "serialize without")?;
+        let with =
+            serde_json::to_string(&evaluate_workspace_diagnostics_from_scratch_with_inputs_v0(
+                entry_path.as_str(),
+                &external_corpus,
+                &[],
+                &[],
+                external_sifs.as_slice(),
+                &resolution_inputs,
+            ))
+            .map_err(|_| "serialize with")?;
+        assert_ne!(
+            without, with,
+            "the external_sifs lifecycle phase must change from-scratch diagnostics"
+        );
+        Ok(())
     }
 
     #[test]

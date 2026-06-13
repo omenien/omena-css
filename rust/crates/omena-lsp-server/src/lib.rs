@@ -2749,6 +2749,18 @@ fn style_symbol_reference_locations_from_documents(
             })
         })
         .collect::<Vec<_>>();
+    if include_declaration && is_sass_symbol_candidate_kind(candidate.kind) {
+        locations.extend(
+            sass_symbol_definitions_for_candidate(state, document, candidate)
+                .into_iter()
+                .map(|(uri, definition)| {
+                    json!({
+                        "uri": uri,
+                        "range": definition.range,
+                    })
+                }),
+        );
+    }
     locations.sort_by_key(location_sort_key);
     locations.dedup_by(|left, right| location_identity_key(left) == location_identity_key(right));
     locations
@@ -3642,31 +3654,56 @@ fn sass_symbol_declarations_for_uri(
     symbol_kind: &str,
     candidate: &LspStyleHoverCandidate,
 ) -> Vec<(String, LspStyleHoverCandidate)> {
+    sass_symbol_declarations_for_uri_with_visited(
+        state,
+        target_uri,
+        symbol_kind,
+        candidate,
+        &mut BTreeSet::new(),
+    )
+}
+
+fn sass_symbol_declarations_for_uri_with_visited(
+    state: &LspShellState,
+    target_uri: &str,
+    symbol_kind: &str,
+    candidate: &LspStyleHoverCandidate,
+    visited: &mut BTreeSet<String>,
+) -> Vec<(String, LspStyleHoverCandidate)> {
     if let Some(target_document) = state.document(target_uri) {
         return sass_symbol_declarations_with_forwards(
             state,
             target_document,
             symbol_kind,
             candidate,
-            &mut BTreeSet::new(),
+            visited,
         );
     }
-    let Some((_, candidates)) = style_hover_candidates_for_uri(state, target_uri) else {
+    let Some(target_document) = style_document_from_disk_for_uri(state, target_uri) else {
         return Vec::new();
     };
-    let query_candidates = candidates
-        .iter()
-        .map(query_style_hover_candidate_from_lsp)
-        .collect::<Vec<_>>();
-    resolve_omena_query_sass_symbol_declarations(
-        query_candidates.as_slice(),
-        symbol_kind,
-        candidate.name.as_str(),
-    )
-    .into_iter()
-    .map(lsp_style_hover_candidate_from_query)
-    .map(|target| (target_uri.to_string(), target))
-    .collect()
+    sass_symbol_declarations_with_forwards(state, &target_document, symbol_kind, candidate, visited)
+}
+
+fn style_document_from_disk_for_uri(
+    state: &LspShellState,
+    uri: &str,
+) -> Option<LspTextDocumentState> {
+    let text = style_text_for_uri(state, uri)?;
+    let workspace_folder_uri = resolve_workspace_folder_uri(state, uri);
+    let resolution_inputs =
+        resolution_inputs_for_workspace_uri(state, workspace_folder_uri.as_deref());
+    Some(lsp_text_document_state(
+        uri.to_string(),
+        workspace_folder_uri,
+        StyleLanguage::from_module_path(uri)
+            .map(style_language_label)
+            .unwrap_or("unknown")
+            .to_string(),
+        0,
+        text,
+        &resolution_inputs,
+    ))
 }
 
 fn sass_symbol_declarations_in_document(
@@ -3750,17 +3787,14 @@ fn sass_symbol_declarations_with_forwards(
         else {
             continue;
         };
-        let Some(target_document) = state.document(uri.as_str()) else {
-            continue;
-        };
         let Some(target_candidate) =
             forward_edge.private_candidate_for_forwarded_public_candidate(candidate)
         else {
             continue;
         };
-        definitions.extend(sass_symbol_declarations_with_forwards(
+        definitions.extend(sass_symbol_declarations_for_uri_with_visited(
             state,
-            target_document,
+            uri.as_str(),
             symbol_kind,
             &target_candidate,
             visited,
