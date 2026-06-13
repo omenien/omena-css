@@ -1,0 +1,351 @@
+{
+  "schemaVersion": "0",
+  "product": "omena-css.product-path-matrix",
+  "entries": [
+    {
+      "crate": "engine-shadow-runner",
+      "role": "I",
+      "surface": "check-evidence",
+      "entrypoints": ["selected query shadow runner", "packaged shadow runner matrix"],
+      "evidence": [
+        "rust/crates/engine-shadow-runner/src/main.rs",
+        "scripts/check-packaged-engine-shadow-runner-matrix.mjs"
+      ],
+      "gates": ["release/check/packaged-engine-shadow-runner-matrix"]
+    },
+    {
+      "crate": "engine-style-parser",
+      "role": "I",
+      "surface": "legacy-oracle",
+      "entrypoints": ["differential parser oracle only"],
+      "evidence": ["rust/crates/engine-style-parser/src/lib.rs", "rust/crates/omena-diff-test/src/lib.rs"]
+    },
+    {
+      "crate": "omena-abstract-value",
+      "role": "R1",
+      "surface": "product-runtime",
+      "entrypoints": ["query/checker class-value and selector projection substrate"],
+      "evidence": ["rust/crates/omena-abstract-value/src/lib.rs", "rust/crates/omena-query-core/Cargo.toml"]
+    },
+    {
+      "crate": "omena-benchmarks",
+      "role": "I",
+      "surface": "check-evidence",
+      "entrypoints": ["performance baseline harness"],
+      "evidence": [
+        "rust/crates/omena-benchmarks/src/lib.rs",
+        "rust/crates/omena-benchmarks/benches/z5_performance_baseline.rs"
+      ],
+      "gates": ["rust/omena-benchmarks-boundary", "rust/z5-performance-baseline-readiness"]
+    },
+    {
+      "crate": "omena-bridge",
+      "role": "R2",
+      "surface": "product-runtime",
+      "entrypoints": ["semantic/source bridge consumed through omena-query"],
+      "evidence": ["rust/crates/omena-bridge/src/lib.rs", "rust/crates/omena-query/Cargo.toml"]
+    },
+    {
+      "crate": "omena-cascade",
+      "role": "R1",
+      "surface": "product-runtime",
+      "entrypoints": ["cascade-formal substrate consumed by query/checker/transform paths"],
+      "evidence": ["rust/crates/omena-cascade/src/lib.rs", "rust/crates/omena-query/Cargo.toml"]
+    },
+    {
+      "crate": "omena-categorical",
+      "role": "R1",
+      "surface": "product-runtime",
+      "entrypoints": ["product-wired additive evidence through checker/query path"],
+      "evidence": ["rust/crates/omena-categorical/src/lib.rs", "rust/crates/omena-checker/Cargo.toml"]
+    },
+    {
+      "crate": "omena-checker",
+      "role": "R2",
+      "surface": "product-runtime",
+      "entrypoints": ["checker rule engine consumed by query checker orchestrator"],
+      "evidence": [
+        "rust/crates/omena-checker/src/lib.rs",
+        "rust/crates/omena-query-checker-orchestrator/Cargo.toml"
+      ]
+    },
+    {
+      "crate": "omena-cli",
+      "role": "P",
+      "surface": "cli-runtime",
+      "entrypoints": ["shipped omena CLI command surface"],
+      "evidence": ["rust/crates/omena-cli/src/main.rs", "rust/crates/omena-cli/src/commands.rs"]
+    },
+    {
+      "crate": "omena-diff-test",
+      "role": "I",
+      "surface": "check-evidence",
+      "entrypoints": ["parser differential and regression oracle harness"],
+      "evidence": ["rust/crates/omena-diff-test/src/lib.rs", "scripts/check-rust-omena-diff-test-regressions.ts"],
+      "gates": ["rust/omena-diff-test-boundary"]
+    },
+    {
+      "crate": "omena-engine-input-producers",
+      "role": "R1",
+      "surface": "product-runtime",
+      "entrypoints": ["source-derived producer contracts used by resolver/bridge/query"],
+      "evidence": [
+        "rust/crates/omena-engine-input-producers/src/lib.rs",
+        "rust/crates/omena-resolver/Cargo.toml"
+      ]
+    },
+    {
+      "crate": "omena-ensemble",
+      "role": "R1",
+      "surface": "product-runtime",
+      "entrypoints": ["product-wired cross-file consistency hint substrate"],
+      "evidence": ["rust/crates/omena-ensemble/src/lib.rs", "rust/crates/omena-query-checker-orchestrator/Cargo.toml"]
+    },
+    {
+      "crate": "omena-incremental",
+      "role": "R1",
+      "surface": "product-runtime",
+      "entrypoints": ["incremental invalidation substrate used by query-core and LSP"],
+      "evidence": ["rust/crates/omena-incremental/src/lib.rs", "rust/crates/omena-query-core/Cargo.toml"]
+    },
+    {
+      "crate": "omena-interner",
+      "role": "R1",
+      "surface": "product-runtime",
+      "entrypoints": ["parser/semantic interning substrate"],
+      "evidence": ["rust/crates/omena-interner/src/lib.rs", "rust/crates/omena-parser/Cargo.toml"]
+    },
+    {
+      "crate": "omena-lawvere",
+      "role": "R1",
+      "surface": "research-fixture",
+      "entrypoints": ["differential commutativity witness crate not in default product dependency closure"],
+      "evidence": ["rust/crates/omena-lawvere/src/lib.rs", "rust/crates/omena-lawvere/Cargo.toml"]
+    },
+    {
+      "crate": "omena-lsp-server",
+      "role": "P",
+      "surface": "product-runtime",
+      "entrypoints": ["standalone Rust LSP server and VS Code thin-client backend"],
+      "evidence": ["rust/crates/omena-lsp-server/src/lib.rs", "client/src/lsp-server-runtime-config.ts"]
+    },
+    {
+      "crate": "omena-meta-macros",
+      "role": "S",
+      "surface": "support",
+      "entrypoints": ["metadata macro support for spec/audit surfaces"],
+      "evidence": ["rust/crates/omena-meta-macros/src/lib.rs", "rust/crates/omena-spec-audit/Cargo.toml"]
+    },
+    {
+      "crate": "omena-napi",
+      "role": "P",
+      "surface": "published-binding",
+      "entrypoints": ["N-API product binding"],
+      "evidence": ["rust/crates/omena-napi/src/lib.rs", "rust/crates/omena-napi/Cargo.toml"]
+    },
+    {
+      "crate": "omena-parser",
+      "role": "R1",
+      "surface": "product-runtime",
+      "entrypoints": ["product parser consumed by query/LSP/transform paths"],
+      "evidence": ["rust/crates/omena-parser/src/lib.rs", "rust/crates/omena-query/Cargo.toml"]
+    },
+    {
+      "crate": "omena-query",
+      "role": "R2",
+      "surface": "product-runtime",
+      "entrypoints": ["consumer-facing analysis facade"],
+      "evidence": ["rust/crates/omena-query/src/lib.rs", "rust/crates/omena-lsp-server/Cargo.toml"]
+    },
+    {
+      "crate": "omena-query-checker-orchestrator",
+      "role": "R2",
+      "surface": "product-runtime",
+      "entrypoints": ["query checker orchestration facade"],
+      "evidence": [
+        "rust/crates/omena-query-checker-orchestrator/src/lib.rs",
+        "rust/crates/omena-query/Cargo.toml"
+      ]
+    },
+    {
+      "crate": "omena-query-core",
+      "role": "R2",
+      "surface": "product-runtime",
+      "entrypoints": ["query core substrate consumed by omena-query facade"],
+      "evidence": ["rust/crates/omena-query-core/src/lib.rs", "rust/crates/omena-query/Cargo.toml"]
+    },
+    {
+      "crate": "omena-query-transform-runner",
+      "role": "R2",
+      "surface": "product-runtime",
+      "entrypoints": ["transform family facade consumed by omena-query"],
+      "evidence": ["rust/crates/omena-query-transform-runner/src/lib.rs", "rust/crates/omena-query/Cargo.toml"]
+    },
+    {
+      "crate": "omena-refinement",
+      "role": "R1",
+      "surface": "product-runtime",
+      "entrypoints": ["refinement bridge substrate consumed by query-core"],
+      "evidence": ["rust/crates/omena-refinement/src/lib.rs", "rust/crates/omena-query-core/Cargo.toml"]
+    },
+    {
+      "crate": "omena-refinement-trait",
+      "role": "R1",
+      "surface": "product-runtime",
+      "entrypoints": ["refinement trait substrate consumed by cascade/smt"],
+      "evidence": ["rust/crates/omena-refinement-trait/src/lib.rs", "rust/crates/omena-cascade/Cargo.toml"]
+    },
+    {
+      "crate": "omena-resolver",
+      "role": "R1",
+      "surface": "product-runtime",
+      "entrypoints": ["style/source resolver substrate consumed by query and bridge"],
+      "evidence": ["rust/crates/omena-resolver/src/lib.rs", "rust/crates/omena-query/Cargo.toml"]
+    },
+    {
+      "crate": "omena-rg-flow",
+      "role": "R1",
+      "surface": "product-runtime",
+      "entrypoints": ["opt-in deep-analysis RG evidence reachable through checker/query path"],
+      "evidence": ["rust/crates/omena-rg-flow/src/lib.rs", "rust/crates/omena-checker/Cargo.toml"]
+    },
+    {
+      "crate": "omena-semantic",
+      "role": "R2",
+      "surface": "product-runtime",
+      "entrypoints": ["semantic graph substrate consumed by query/bridge"],
+      "evidence": ["rust/crates/omena-semantic/src/lib.rs", "rust/crates/omena-query/Cargo.toml"]
+    },
+    {
+      "crate": "omena-sif",
+      "role": "R1",
+      "surface": "product-runtime",
+      "entrypoints": ["SIF generation/resolution contract consumed by CLI/query/LSP"],
+      "evidence": ["rust/crates/omena-sif/src/lib.rs", "rust/crates/omena-cli/Cargo.toml"]
+    },
+    {
+      "crate": "omena-smt",
+      "role": "R1",
+      "surface": "product-runtime",
+      "entrypoints": ["opt-in solver-backed cascade checking substrate reachable through checker/query"],
+      "evidence": ["rust/crates/omena-smt/src/lib.rs", "rust/crates/omena-checker/Cargo.toml"]
+    },
+    {
+      "crate": "omena-spec-audit",
+      "role": "R1",
+      "surface": "check-evidence",
+      "entrypoints": ["spec audit gate and metadata evidence"],
+      "evidence": [
+        "rust/crates/omena-spec-audit/src/lib.rs",
+        "rust/crates/omena-spec-audit/data/omena-spec-manifest.json"
+      ],
+      "gates": ["rust/omena-spec-audit-boundary"]
+    },
+    {
+      "crate": "omena-streaming-ifds",
+      "role": "R2",
+      "surface": "product-runtime",
+      "entrypoints": ["live cross-file reachability report used by CLI/LSP paths"],
+      "evidence": ["rust/crates/omena-streaming-ifds/src/lib.rs", "rust/crates/omena-lsp-server/Cargo.toml"]
+    },
+    {
+      "crate": "omena-syntax",
+      "role": "R1",
+      "surface": "product-runtime",
+      "entrypoints": ["syntax-kind substrate consumed by parser"],
+      "evidence": ["rust/crates/omena-syntax/src/lib.rs", "rust/crates/omena-parser/Cargo.toml"]
+    },
+    {
+      "crate": "omena-testkit",
+      "role": "S",
+      "surface": "check-evidence",
+      "entrypoints": ["fixture/testkit boundary for parser and differential gates"],
+      "evidence": ["rust/crates/omena-testkit/src/lib.rs", "rust/crates/omena-testkit/src/boundary.rs"],
+      "gates": ["rust/omena-testkit/boundary"]
+    },
+    {
+      "crate": "omena-transform-bundle",
+      "role": "R2",
+      "surface": "product-runtime",
+      "entrypoints": ["bundle/source-map transform runtime consumed through query transform runner"],
+      "evidence": ["rust/crates/omena-transform-bundle/src/lib.rs", "rust/crates/omena-query-transform-runner/Cargo.toml"]
+    },
+    {
+      "crate": "omena-transform-cst",
+      "role": "R1",
+      "surface": "product-runtime",
+      "entrypoints": ["transform CST substrate consumed by transform family"],
+      "evidence": ["rust/crates/omena-transform-cst/src/lib.rs", "rust/crates/omena-transform-passes/Cargo.toml"]
+    },
+    {
+      "crate": "omena-transform-egg",
+      "role": "R2",
+      "surface": "product-runtime",
+      "entrypoints": ["egg-backed transform witness surface consumed by query transform runner"],
+      "evidence": ["rust/crates/omena-transform-egg/src/lib.rs", "rust/crates/omena-query-transform-runner/Cargo.toml"]
+    },
+    {
+      "crate": "omena-transform-passes",
+      "role": "R2",
+      "surface": "product-runtime",
+      "entrypoints": ["core transform pass runtime consumed through query transform runner"],
+      "evidence": ["rust/crates/omena-transform-passes/src/lib.rs", "rust/crates/omena-query-transform-runner/Cargo.toml"]
+    },
+    {
+      "crate": "omena-transform-print",
+      "role": "R2",
+      "surface": "product-runtime",
+      "entrypoints": ["transform printer runtime consumed through query transform runner"],
+      "evidence": ["rust/crates/omena-transform-print/src/lib.rs", "rust/crates/omena-query-transform-runner/Cargo.toml"]
+    },
+    {
+      "crate": "omena-transform-target",
+      "role": "R2",
+      "surface": "product-runtime",
+      "entrypoints": ["target-sensitive transform planner consumed through query transform runner"],
+      "evidence": ["rust/crates/omena-transform-target/src/lib.rs", "rust/crates/omena-query-transform-runner/Cargo.toml"]
+    },
+    {
+      "crate": "omena-tsgo-client",
+      "role": "S",
+      "surface": "product-runtime",
+      "entrypoints": ["TypeScript/tsgo client support used by Rust LSP source facts"],
+      "evidence": ["rust/crates/omena-tsgo-client/src/lib.rs", "rust/crates/omena-lsp-server/Cargo.toml"]
+    },
+    {
+      "crate": "omena-umbrella",
+      "role": "U",
+      "surface": "umbrella",
+      "entrypoints": ["aggregate crate for published crate-family imports"],
+      "evidence": ["rust/crates/omena-umbrella/src/lib.rs", "rust/crates/omena-umbrella/Cargo.toml"]
+    },
+    {
+      "crate": "omena-variational",
+      "role": "R1",
+      "surface": "product-runtime",
+      "entrypoints": ["product-wired posterior inference substrate reachable through checker/query"],
+      "evidence": ["rust/crates/omena-variational/src/lib.rs", "rust/crates/omena-checker/Cargo.toml"]
+    },
+    {
+      "crate": "omena-wasm",
+      "role": "P",
+      "surface": "published-binding",
+      "entrypoints": ["Wasm product binding"],
+      "evidence": ["rust/crates/omena-wasm/src/lib.rs", "rust/crates/omena-wasm/Cargo.toml"]
+    },
+    {
+      "crate": "omena-zk-audit",
+      "role": "R1",
+      "surface": "cli-runtime",
+      "entrypoints": ["opt-in CLI ZK audit command surface"],
+      "evidence": ["rust/crates/omena-zk-audit/src/lib.rs", "rust/crates/omena-cli/Cargo.toml"]
+    },
+    {
+      "crate": "omena-zk-circuit",
+      "role": "R1",
+      "surface": "research-fixture",
+      "entrypoints": ["constraint-generation substrate behind opt-in ZK audit work"],
+      "evidence": ["rust/crates/omena-zk-circuit/src/lib.rs", "rust/crates/omena-zk-audit/Cargo.toml"]
+    }
+  ]
+}
