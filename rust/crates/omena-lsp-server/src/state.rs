@@ -329,6 +329,16 @@ impl LspShellState {
             })
     }
 
+    #[cfg(feature = "test-support")]
+    pub fn evict_document_for_test(&mut self, uri: &str) -> Option<LspTextDocumentState> {
+        self.remove_document_uri(uri)
+    }
+
+    #[cfg(feature = "test-support")]
+    pub fn clear_workspace_occurrence_index_memo_for_test(&self) {
+        *self.workspace_occurrence_index_memo.borrow_mut() = None;
+    }
+
     pub(crate) fn document_mut(&mut self, uri: &str) -> Option<&mut LspTextDocumentState> {
         let storage_uri = Self::document_storage_uri(uri);
         if self.documents.contains_key(storage_uri.as_str()) {

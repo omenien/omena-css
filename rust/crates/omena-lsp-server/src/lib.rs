@@ -151,6 +151,20 @@ const REQUEST_CANCELLED_ERROR_CODE: i32 = -32800;
 // top-ranked items an editor list actually shows get them, so completion latency
 // stays independent of the workspace selector count.
 const SOURCE_COMPLETION_DOCUMENTATION_BUDGET: usize = 12;
+
+#[cfg(feature = "test-support")]
+pub mod test_support {
+    use std::path::Path;
+
+    pub fn file_uri_equivalent(left: &str, right: &str) -> bool {
+        crate::protocol::file_uri_equivalent(left, right)
+    }
+
+    pub fn path_to_file_uri(path: &Path) -> String {
+        crate::protocol::path_to_file_uri(path)
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 struct SourceProviderCandidateResolution {
     matched: Vec<LspStyleHoverCandidate>,

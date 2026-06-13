@@ -16,6 +16,7 @@ workspace = true
 
 [features]
 default = ["salsa-style-diagnostics", "parallel-style-diagnostics"]
+test-support = []
 # RFC 0009 Pillar B (rfcs#65): route workspace style diagnostics through the
 # salsa-memoized query layer. `--no-default-features` preserves the
 # straight-line path; equivalence between the two is gated by
