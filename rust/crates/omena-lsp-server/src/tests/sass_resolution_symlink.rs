@@ -110,3 +110,139 @@ fn resolves_sass_definition_through_symlinked_package_canonical_identity() -> Te
     let _ = fs::remove_dir_all(root.as_path());
     Ok(())
 }
+
+#[cfg(unix)]
+#[test]
+fn joins_hoisted_and_nested_package_layout_sass_references() -> TestResult {
+    let root = std::env::temp_dir().join(format!(
+        "omena_lsp_symlinked_package_reference_join_{}_{}",
+        std::process::id(),
+        current_time_millis()
+    ));
+    let hoisted_source = root.join("src/Hoisted.module.scss");
+    let nested_source = root.join("packages/app/src/Nested.module.scss");
+    let real_package = root.join(".pnpm/@design+tokens@1.0.0/node_modules/@design/tokens");
+    let hoisted_scope = root.join("node_modules/@design");
+    let nested_scope = root.join("packages/app/node_modules/@design");
+    let real_style = real_package.join("src/index.scss");
+    fs::create_dir_all(fixture_parent(
+        hoisted_source.as_path(),
+        "hoisted source parent",
+    )?)?;
+    fs::create_dir_all(fixture_parent(
+        nested_source.as_path(),
+        "nested source parent",
+    )?)?;
+    fs::create_dir_all(fixture_parent(real_style.as_path(), "style parent")?)?;
+    fs::create_dir_all(hoisted_scope.as_path())?;
+    fs::create_dir_all(nested_scope.as_path())?;
+    fs::write(
+        real_package.join("package.json"),
+        r#"{"name":"@design/tokens","version":"1.0.0","sass":"src/index.scss"}"#,
+    )?;
+    let hoisted_text = r#"@use "@design/tokens" as tokens;
+.hoisted { color: tokens.$brand; }
+"#;
+    let nested_text = r#"@use "@design/tokens" as tokens;
+.nested { color: tokens.$brand; }
+"#;
+    let target_text = "$brand: #fff;\n";
+    fs::write(hoisted_source.as_path(), hoisted_text)?;
+    fs::write(nested_source.as_path(), nested_text)?;
+    fs::write(real_style.as_path(), target_text)?;
+    std::os::unix::fs::symlink(
+        real_package.as_path(),
+        hoisted_scope.join("tokens").as_path(),
+    )?;
+    std::os::unix::fs::symlink(
+        real_package.as_path(),
+        nested_scope.join("tokens").as_path(),
+    )?;
+
+    let workspace_uri = raw_test_file_uri(root.as_path());
+    let hoisted_source_uri = raw_test_file_uri(hoisted_source.as_path());
+    let nested_source_uri = raw_test_file_uri(nested_source.as_path());
+    let real_style_uri = raw_test_file_uri(real_style.as_path());
+    let brand_position = parser_position_for_byte_offset(
+        hoisted_text,
+        fixture_find(
+            hoisted_text,
+            "$brand",
+            "hoisted source fixture contains Sass variable reference",
+        )? + 1,
+    );
+    let mut state = LspShellState::default();
+    handle_lsp_message(
+        &mut state,
+        json!({
+            "jsonrpc": "2.0",
+            "id": 1,
+            "method": "initialize",
+            "params": {
+                "workspaceFolders": [
+                    {
+                        "uri": workspace_uri,
+                        "name": "workspace",
+                    },
+                ],
+            },
+        }),
+    );
+    for (uri, text) in [
+        (hoisted_source_uri.as_str(), hoisted_text),
+        (nested_source_uri.as_str(), nested_text),
+    ] {
+        handle_lsp_message(
+            &mut state,
+            json!({
+                "jsonrpc": "2.0",
+                "method": "textDocument/didOpen",
+                "params": {
+                    "textDocument": {
+                        "uri": uri,
+                        "languageId": "scss",
+                        "version": 1,
+                        "text": text,
+                    },
+                },
+            }),
+        );
+    }
+
+    let references = handle_lsp_message(
+        &mut state,
+        json!({
+            "jsonrpc": "2.0",
+            "id": 2,
+            "method": "textDocument/references",
+            "params": {
+                "textDocument": {
+                    "uri": hoisted_source_uri,
+                },
+                "position": brand_position,
+                "context": {
+                    "includeDeclaration": true,
+                },
+            },
+        }),
+    );
+    let locations = references
+        .as_ref()
+        .and_then(|response| response.pointer("/result"))
+        .and_then(Value::as_array)
+        .ok_or_else(|| {
+            std::io::Error::other(format!("expected references array, got {references:?}"))
+        })?;
+    for expected_uri in [&hoisted_source_uri, &nested_source_uri, &real_style_uri] {
+        assert!(
+            locations.iter().any(|location| location
+                .get("uri")
+                .and_then(Value::as_str)
+                .is_some_and(|uri| file_uri_equivalent(uri, expected_uri.as_str()))),
+            "references should join hoisted and nested package layouts through the canonical package identity for {expected_uri}: {references:?}"
+        );
+    }
+
+    let _ = fs::remove_dir_all(root.as_path());
+    Ok(())
+}
