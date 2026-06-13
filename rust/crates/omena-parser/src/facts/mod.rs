@@ -8,7 +8,7 @@ mod variables;
 
 use omena_syntax::StyleDialect;
 
-use crate::{DialectExtension, Parser, collect_selector_facts_from_tokens, tokenize};
+use crate::{DialectExtension, Parser, tokenize};
 
 pub(crate) use animations::collect_animation_facts_from_tokens;
 pub use animations::{ParsedAnimationFact, ParsedAnimationFactKind};
@@ -45,6 +45,11 @@ pub(crate) use sass::{
     collect_sass_module_edge_facts_from_tokens, collect_sass_symbol_facts_from_tokens,
 };
 pub use selectors::{ParsedSelectorFact, ParsedSelectorFactKind};
+pub(crate) use selectors::{
+    SelectorBranch, collect_class_selector_names_from_header, collect_selector_facts_from_tokens,
+    css_module_block_scope_marker_in_header, css_module_header_is_global_only,
+    resolve_selector_header, split_selector_groups,
+};
 pub use variables::{ParsedVariableFact, ParsedVariableFactKind};
 pub(crate) use variables::{
     collect_variable_facts_from_tokens, scss_variable_token_is_declaration,
