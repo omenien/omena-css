@@ -5,6 +5,17 @@ use serde::{Deserialize, Serialize};
 pub enum RegisteredPropertySyntaxV0 {
     Universal,
     Supported {
+        alternatives: Vec<RegisteredPropertySyntaxAlternativeV0>,
+    },
+    Unsupported {
+        source: String,
+    },
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub enum RegisteredPropertySyntaxAlternativeV0 {
+    Sequence {
         components: Vec<RegisteredPropertySyntaxComponentV0>,
     },
     Unsupported {
@@ -14,29 +25,64 @@ pub enum RegisteredPropertySyntaxV0 {
 
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
-pub enum RegisteredPropertySyntaxComponentV0 {
+pub struct RegisteredPropertySyntaxComponentV0 {
+    pub base: RegisteredPropertySyntaxBaseV0,
+    pub multiplier: RegisteredPropertySyntaxMultiplierV0,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub enum RegisteredPropertySyntaxBaseV0 {
     Length,
     Percentage,
     LengthPercentage,
     Number,
     Integer,
     Color,
+    Image,
+    Url,
     Angle,
     Time,
+    Resolution,
+    TransformFunction,
+    TransformList,
+    CustomIdent,
+    QuotedString,
     Ident(String),
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub enum RegisteredPropertySyntaxMultiplierV0 {
+    One,
+    Plus,
+    Hash,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub enum DeclaredNumericTypeV0 {
+    Length,
+    Percentage,
+    Angle,
+    Time,
+    Resolution,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub enum DeclaredValueKindV0 {
-    Length,
-    Percentage,
+    Dimension(DeclaredNumericTypeV0),
     Number,
     Integer,
-    Color,
-    Angle,
-    Time,
-    Ident(String),
+    HexColor,
+    ColorFunction,
+    ColorKeyword(String),
+    Url,
+    ImageFunction,
+    TransformFunction,
+    QuotedString,
+    BareIdent(String),
     CssWide,
     Unknown,
 }
@@ -49,38 +95,33 @@ pub enum RegisteredSyntaxMatchV0 {
     Unknown,
 }
 
-/// Parse the subset of CSS registered-property syntax descriptors that the
-/// product checker can classify lexically. Unsupported descriptor forms remain
-/// non-rejecting so the checker only warns on definite type mismatches.
+/// Parse the CSS Properties & Values Level 1 syntax descriptor subset used by
+/// the checker. Unsupported alternatives stay non-rejecting so diagnostics only
+/// fire for values proven disjoint from every accepting alternative.
 pub fn parse_registered_property_syntax_v0(source: &str) -> RegisteredPropertySyntaxV0 {
     let unquoted = strip_matching_quotes(source.trim());
     let syntax = unquoted.trim();
     if syntax == "*" {
         return RegisteredPropertySyntaxV0::Universal;
     }
-    if syntax.is_empty() {
+    if syntax.is_empty() || syntax.contains('*') {
         return RegisteredPropertySyntaxV0::Unsupported {
             source: source.to_string(),
         };
     }
 
-    let mut components = Vec::new();
-    for raw_component in syntax.split('|') {
-        let component = raw_component.trim();
-        if component.is_empty() || component_has_unsupported_multiplier(component) {
+    let mut alternatives = Vec::new();
+    for raw_alternative in syntax.split('|') {
+        let alternative = raw_alternative.trim();
+        if alternative.is_empty() {
             return RegisteredPropertySyntaxV0::Unsupported {
                 source: source.to_string(),
             };
         }
-        let Some(parsed) = parse_registered_property_syntax_component_v0(component) else {
-            return RegisteredPropertySyntaxV0::Unsupported {
-                source: source.to_string(),
-            };
-        };
-        components.push(parsed);
+        alternatives.push(parse_registered_property_syntax_alternative_v0(alternative));
     }
 
-    RegisteredPropertySyntaxV0::Supported { components }
+    RegisteredPropertySyntaxV0::Supported { alternatives }
 }
 
 pub fn registered_property_syntax_requires_initial_value_v0(source: &str) -> bool {
@@ -95,6 +136,10 @@ pub fn classify_registered_property_declared_value_v0(value: &str) -> DeclaredVa
     if trimmed.is_empty() {
         return DeclaredValueKindV0::Unknown;
     }
+    if is_quoted_string(trimmed) {
+        return DeclaredValueKindV0::QuotedString;
+    }
+
     let lower = trimmed.to_ascii_lowercase();
     let compact = lower
         .chars()
@@ -106,36 +151,53 @@ pub fn classify_registered_property_declared_value_v0(value: &str) -> DeclaredVa
     if is_css_wide_keyword(lower.as_str()) {
         return DeclaredValueKindV0::CssWide;
     }
-    if is_hex_color(trimmed) || is_named_color(lower.as_str()) {
-        return DeclaredValueKindV0::Color;
+    if is_hex_color(trimmed) {
+        return DeclaredValueKindV0::HexColor;
+    }
+    if is_named_color(lower.as_str()) {
+        return DeclaredValueKindV0::ColorKeyword(trimmed.to_string());
     }
     if let Some(open_index) = trimmed.find('(') {
         let head = trimmed[..open_index].trim().to_ascii_lowercase();
-        if trimmed.ends_with(')') && is_color_function_head(head.as_str()) {
-            return DeclaredValueKindV0::Color;
+        if is_single_function_call(trimmed, open_index) {
+            if is_color_function_head(head.as_str()) {
+                return DeclaredValueKindV0::ColorFunction;
+            }
+            if head == "url" {
+                return DeclaredValueKindV0::Url;
+            }
+            if is_image_function_head(head.as_str()) {
+                return DeclaredValueKindV0::ImageFunction;
+            }
+            if is_transform_function_head(head.as_str()) {
+                return DeclaredValueKindV0::TransformFunction;
+            }
         }
         return DeclaredValueKindV0::Unknown;
     }
     if parse_number_with_unit(lower.as_str(), &["%"]).is_some() {
-        return DeclaredValueKindV0::Percentage;
+        return DeclaredValueKindV0::Dimension(DeclaredNumericTypeV0::Percentage);
     }
     if parse_number_with_unit(lower.as_str(), TIME_UNITS).is_some() {
-        return DeclaredValueKindV0::Time;
+        return DeclaredValueKindV0::Dimension(DeclaredNumericTypeV0::Time);
     }
     if parse_number_with_unit(lower.as_str(), ANGLE_UNITS).is_some() {
-        return DeclaredValueKindV0::Angle;
+        return DeclaredValueKindV0::Dimension(DeclaredNumericTypeV0::Angle);
+    }
+    if parse_number_with_unit(lower.as_str(), RESOLUTION_UNITS).is_some() {
+        return DeclaredValueKindV0::Dimension(DeclaredNumericTypeV0::Resolution);
     }
     if parse_number_with_unit(lower.as_str(), LENGTH_UNITS).is_some() {
-        return DeclaredValueKindV0::Length;
+        return DeclaredValueKindV0::Dimension(DeclaredNumericTypeV0::Length);
     }
-    if lower.parse::<i64>().is_ok() {
+    if is_css_integer_token(lower.as_str()) {
         return DeclaredValueKindV0::Integer;
     }
-    if lower.parse::<f64>().is_ok() {
+    if is_css_number_token(lower.as_str()) {
         return DeclaredValueKindV0::Number;
     }
-    if is_literal_css_ident(lower.as_str()) {
-        return DeclaredValueKindV0::Ident(lower);
+    if is_literal_css_ident(trimmed) {
+        return DeclaredValueKindV0::BareIdent(trimmed.to_string());
     }
     DeclaredValueKindV0::Unknown
 }
@@ -145,66 +207,261 @@ pub fn registered_syntax_match(syntax: &str, value: &str) -> RegisteredSyntaxMat
     match syntax {
         RegisteredPropertySyntaxV0::Universal => RegisteredSyntaxMatchV0::Accepts,
         RegisteredPropertySyntaxV0::Unsupported { .. } => RegisteredSyntaxMatchV0::Unknown,
-        RegisteredPropertySyntaxV0::Supported { components } => {
+        RegisteredPropertySyntaxV0::Supported { alternatives } => {
             let value_kind = classify_registered_property_declared_value_v0(value);
             match value_kind {
                 DeclaredValueKindV0::CssWide => RegisteredSyntaxMatchV0::Accepts,
                 DeclaredValueKindV0::Unknown => RegisteredSyntaxMatchV0::Unknown,
-                _ if components
-                    .iter()
-                    .any(|component| component_accepts_value_kind(component, &value_kind)) =>
-                {
-                    RegisteredSyntaxMatchV0::Accepts
-                }
-                _ => RegisteredSyntaxMatchV0::Rejects,
+                _ => closed_keyword_match(&alternatives, &value_kind).unwrap_or_else(|| {
+                    alternatives
+                        .iter()
+                        .map(|alternative| alternative_match(alternative, &value_kind))
+                        .reduce(join_matches)
+                        .unwrap_or(RegisteredSyntaxMatchV0::Unknown)
+                }),
             }
         }
     }
 }
 
+fn parse_registered_property_syntax_alternative_v0(
+    alternative: &str,
+) -> RegisteredPropertySyntaxAlternativeV0 {
+    if alternative.contains('?') {
+        return RegisteredPropertySyntaxAlternativeV0::Unsupported {
+            source: alternative.to_string(),
+        };
+    }
+
+    let mut components = Vec::new();
+    for raw_component in alternative.split_whitespace() {
+        let Some(component) = parse_registered_property_syntax_component_v0(raw_component) else {
+            return RegisteredPropertySyntaxAlternativeV0::Unsupported {
+                source: alternative.to_string(),
+            };
+        };
+        components.push(component);
+    }
+
+    if components.is_empty() {
+        return RegisteredPropertySyntaxAlternativeV0::Unsupported {
+            source: alternative.to_string(),
+        };
+    }
+    RegisteredPropertySyntaxAlternativeV0::Sequence { components }
+}
+
 fn parse_registered_property_syntax_component_v0(
     component: &str,
 ) -> Option<RegisteredPropertySyntaxComponentV0> {
+    let (base_source, multiplier) = if let Some(base) = component.strip_suffix('+') {
+        (base, RegisteredPropertySyntaxMultiplierV0::Plus)
+    } else if let Some(base) = component.strip_suffix('#') {
+        (base, RegisteredPropertySyntaxMultiplierV0::Hash)
+    } else {
+        (component, RegisteredPropertySyntaxMultiplierV0::One)
+    };
+    if base_source.is_empty()
+        || base_source
+            .chars()
+            .any(|character| matches!(character, '+' | '#' | '?' | '*'))
+    {
+        return None;
+    }
+
+    let base = parse_registered_property_syntax_base_v0(base_source)?;
+    if base == RegisteredPropertySyntaxBaseV0::TransformList
+        && multiplier != RegisteredPropertySyntaxMultiplierV0::One
+    {
+        return None;
+    }
+    Some(RegisteredPropertySyntaxComponentV0 { base, multiplier })
+}
+
+fn parse_registered_property_syntax_base_v0(
+    component: &str,
+) -> Option<RegisteredPropertySyntaxBaseV0> {
     match component {
-        "<length>" => Some(RegisteredPropertySyntaxComponentV0::Length),
-        "<percentage>" => Some(RegisteredPropertySyntaxComponentV0::Percentage),
-        "<length-percentage>" => Some(RegisteredPropertySyntaxComponentV0::LengthPercentage),
-        "<number>" => Some(RegisteredPropertySyntaxComponentV0::Number),
-        "<integer>" => Some(RegisteredPropertySyntaxComponentV0::Integer),
-        "<color>" => Some(RegisteredPropertySyntaxComponentV0::Color),
-        "<angle>" => Some(RegisteredPropertySyntaxComponentV0::Angle),
-        "<time>" => Some(RegisteredPropertySyntaxComponentV0::Time),
-        _ if is_literal_css_ident(component) => Some(RegisteredPropertySyntaxComponentV0::Ident(
-            component.to_ascii_lowercase(),
-        )),
+        "<length>" => Some(RegisteredPropertySyntaxBaseV0::Length),
+        "<percentage>" => Some(RegisteredPropertySyntaxBaseV0::Percentage),
+        "<length-percentage>" => Some(RegisteredPropertySyntaxBaseV0::LengthPercentage),
+        "<number>" => Some(RegisteredPropertySyntaxBaseV0::Number),
+        "<integer>" => Some(RegisteredPropertySyntaxBaseV0::Integer),
+        "<color>" => Some(RegisteredPropertySyntaxBaseV0::Color),
+        "<image>" => Some(RegisteredPropertySyntaxBaseV0::Image),
+        "<url>" => Some(RegisteredPropertySyntaxBaseV0::Url),
+        "<angle>" => Some(RegisteredPropertySyntaxBaseV0::Angle),
+        "<time>" => Some(RegisteredPropertySyntaxBaseV0::Time),
+        "<resolution>" => Some(RegisteredPropertySyntaxBaseV0::Resolution),
+        "<transform-function>" => Some(RegisteredPropertySyntaxBaseV0::TransformFunction),
+        "<transform-list>" => Some(RegisteredPropertySyntaxBaseV0::TransformList),
+        "<custom-ident>" => Some(RegisteredPropertySyntaxBaseV0::CustomIdent),
+        "<string>" => Some(RegisteredPropertySyntaxBaseV0::QuotedString),
+        _ if is_literal_css_ident(component) => {
+            Some(RegisteredPropertySyntaxBaseV0::Ident(component.to_string()))
+        }
         _ => None,
     }
 }
 
-fn component_accepts_value_kind(
-    component: &RegisteredPropertySyntaxComponentV0,
+fn closed_keyword_match(
+    alternatives: &[RegisteredPropertySyntaxAlternativeV0],
     value_kind: &DeclaredValueKindV0,
-) -> bool {
-    match (component, value_kind) {
-        (RegisteredPropertySyntaxComponentV0::Length, DeclaredValueKindV0::Length) => true,
-        (RegisteredPropertySyntaxComponentV0::Percentage, DeclaredValueKindV0::Percentage) => true,
+) -> Option<RegisteredSyntaxMatchV0> {
+    let actual = ident_like_value_text(value_kind)?;
+    let mut has_keyword = false;
+    for alternative in alternatives {
+        let RegisteredPropertySyntaxAlternativeV0::Sequence { components } = alternative else {
+            return None;
+        };
+        let [component] = components.as_slice() else {
+            return None;
+        };
+        if component.multiplier != RegisteredPropertySyntaxMultiplierV0::One {
+            return None;
+        }
+        let RegisteredPropertySyntaxBaseV0::Ident(expected) = &component.base else {
+            return None;
+        };
+        has_keyword = true;
+        if expected == actual {
+            return Some(RegisteredSyntaxMatchV0::Accepts);
+        }
+    }
+    has_keyword.then_some(RegisteredSyntaxMatchV0::Rejects)
+}
+
+fn ident_like_value_text(value_kind: &DeclaredValueKindV0) -> Option<&str> {
+    match value_kind {
+        DeclaredValueKindV0::BareIdent(value) | DeclaredValueKindV0::ColorKeyword(value) => {
+            Some(value)
+        }
+        _ => None,
+    }
+}
+
+fn alternative_match(
+    alternative: &RegisteredPropertySyntaxAlternativeV0,
+    value_kind: &DeclaredValueKindV0,
+) -> RegisteredSyntaxMatchV0 {
+    let RegisteredPropertySyntaxAlternativeV0::Sequence { components } = alternative else {
+        return RegisteredSyntaxMatchV0::Unknown;
+    };
+    let [component] = components.as_slice() else {
+        return RegisteredSyntaxMatchV0::Unknown;
+    };
+    base_accepts(component.base.clone(), value_kind)
+}
+
+fn join_matches(
+    left: RegisteredSyntaxMatchV0,
+    right: RegisteredSyntaxMatchV0,
+) -> RegisteredSyntaxMatchV0 {
+    match (left, right) {
+        (RegisteredSyntaxMatchV0::Accepts, _) | (_, RegisteredSyntaxMatchV0::Accepts) => {
+            RegisteredSyntaxMatchV0::Accepts
+        }
+        (RegisteredSyntaxMatchV0::Unknown, _) | (_, RegisteredSyntaxMatchV0::Unknown) => {
+            RegisteredSyntaxMatchV0::Unknown
+        }
+        (RegisteredSyntaxMatchV0::Rejects, RegisteredSyntaxMatchV0::Rejects) => {
+            RegisteredSyntaxMatchV0::Rejects
+        }
+    }
+}
+
+fn base_accepts(
+    base: RegisteredPropertySyntaxBaseV0,
+    value_kind: &DeclaredValueKindV0,
+) -> RegisteredSyntaxMatchV0 {
+    match value_kind {
+        DeclaredValueKindV0::CssWide => RegisteredSyntaxMatchV0::Accepts,
+        DeclaredValueKindV0::Unknown => RegisteredSyntaxMatchV0::Unknown,
+        DeclaredValueKindV0::BareIdent(actual) => match base {
+            RegisteredPropertySyntaxBaseV0::CustomIdent => RegisteredSyntaxMatchV0::Accepts,
+            RegisteredPropertySyntaxBaseV0::Ident(expected) if expected == *actual => {
+                RegisteredSyntaxMatchV0::Accepts
+            }
+            RegisteredPropertySyntaxBaseV0::Ident(_) => RegisteredSyntaxMatchV0::Unknown,
+            _ => RegisteredSyntaxMatchV0::Unknown,
+        },
+        DeclaredValueKindV0::ColorKeyword(actual) => match base {
+            RegisteredPropertySyntaxBaseV0::Color | RegisteredPropertySyntaxBaseV0::CustomIdent => {
+                RegisteredSyntaxMatchV0::Accepts
+            }
+            RegisteredPropertySyntaxBaseV0::Ident(expected) if expected == *actual => {
+                RegisteredSyntaxMatchV0::Accepts
+            }
+            _ => RegisteredSyntaxMatchV0::Rejects,
+        },
+        DeclaredValueKindV0::HexColor | DeclaredValueKindV0::ColorFunction => match base {
+            RegisteredPropertySyntaxBaseV0::Color => RegisteredSyntaxMatchV0::Accepts,
+            _ => RegisteredSyntaxMatchV0::Rejects,
+        },
+        DeclaredValueKindV0::Url => match base {
+            RegisteredPropertySyntaxBaseV0::Url | RegisteredPropertySyntaxBaseV0::Image => {
+                RegisteredSyntaxMatchV0::Accepts
+            }
+            _ => RegisteredSyntaxMatchV0::Rejects,
+        },
+        DeclaredValueKindV0::ImageFunction => match base {
+            RegisteredPropertySyntaxBaseV0::Image => RegisteredSyntaxMatchV0::Accepts,
+            _ => RegisteredSyntaxMatchV0::Rejects,
+        },
+        DeclaredValueKindV0::TransformFunction => match base {
+            RegisteredPropertySyntaxBaseV0::TransformFunction
+            | RegisteredPropertySyntaxBaseV0::TransformList => RegisteredSyntaxMatchV0::Accepts,
+            _ => RegisteredSyntaxMatchV0::Rejects,
+        },
+        DeclaredValueKindV0::QuotedString => match base {
+            RegisteredPropertySyntaxBaseV0::QuotedString => RegisteredSyntaxMatchV0::Accepts,
+            _ => RegisteredSyntaxMatchV0::Rejects,
+        },
+        DeclaredValueKindV0::Integer => match base {
+            RegisteredPropertySyntaxBaseV0::Integer | RegisteredPropertySyntaxBaseV0::Number => {
+                RegisteredSyntaxMatchV0::Accepts
+            }
+            _ => RegisteredSyntaxMatchV0::Rejects,
+        },
+        DeclaredValueKindV0::Number => match base {
+            RegisteredPropertySyntaxBaseV0::Number => RegisteredSyntaxMatchV0::Accepts,
+            _ => RegisteredSyntaxMatchV0::Rejects,
+        },
+        DeclaredValueKindV0::Dimension(numeric_type) => {
+            dimension_accepts_base(*numeric_type, &base)
+        }
+    }
+}
+
+fn dimension_accepts_base(
+    numeric_type: DeclaredNumericTypeV0,
+    base: &RegisteredPropertySyntaxBaseV0,
+) -> RegisteredSyntaxMatchV0 {
+    let accepts = matches!(
+        (numeric_type, base),
         (
-            RegisteredPropertySyntaxComponentV0::LengthPercentage,
-            DeclaredValueKindV0::Length | DeclaredValueKindV0::Percentage,
-        ) => true,
-        (
-            RegisteredPropertySyntaxComponentV0::Number,
-            DeclaredValueKindV0::Number | DeclaredValueKindV0::Integer,
-        ) => true,
-        (RegisteredPropertySyntaxComponentV0::Integer, DeclaredValueKindV0::Integer) => true,
-        (RegisteredPropertySyntaxComponentV0::Color, DeclaredValueKindV0::Color) => true,
-        (RegisteredPropertySyntaxComponentV0::Angle, DeclaredValueKindV0::Angle) => true,
-        (RegisteredPropertySyntaxComponentV0::Time, DeclaredValueKindV0::Time) => true,
-        (
-            RegisteredPropertySyntaxComponentV0::Ident(expected),
-            DeclaredValueKindV0::Ident(actual),
-        ) => expected == actual,
-        _ => false,
+            DeclaredNumericTypeV0::Length,
+            RegisteredPropertySyntaxBaseV0::Length
+                | RegisteredPropertySyntaxBaseV0::LengthPercentage
+        ) | (
+            DeclaredNumericTypeV0::Percentage,
+            RegisteredPropertySyntaxBaseV0::Percentage
+                | RegisteredPropertySyntaxBaseV0::LengthPercentage
+        ) | (
+            DeclaredNumericTypeV0::Angle,
+            RegisteredPropertySyntaxBaseV0::Angle
+        ) | (
+            DeclaredNumericTypeV0::Time,
+            RegisteredPropertySyntaxBaseV0::Time
+        ) | (
+            DeclaredNumericTypeV0::Resolution,
+            RegisteredPropertySyntaxBaseV0::Resolution
+        )
+    );
+    if accepts {
+        RegisteredSyntaxMatchV0::Accepts
+    } else {
+        RegisteredSyntaxMatchV0::Rejects
     }
 }
 
@@ -220,10 +477,10 @@ fn strip_matching_quotes(source: &str) -> &str {
     source
 }
 
-fn component_has_unsupported_multiplier(component: &str) -> bool {
-    component
-        .chars()
-        .any(|character| matches!(character, '+' | '#' | '?' | '*'))
+fn is_quoted_string(value: &str) -> bool {
+    value.len() >= 2
+        && ((value.starts_with('"') && value.ends_with('"'))
+            || (value.starts_with('\'') && value.ends_with('\'')))
 }
 
 fn is_css_wide_keyword(value: &str) -> bool {
@@ -261,10 +518,76 @@ fn is_named_color(value: &str) -> bool {
     )
 }
 
+fn is_single_function_call(value: &str, open_index: usize) -> bool {
+    let mut depth = 0usize;
+    for (index, character) in value
+        .char_indices()
+        .skip_while(|(index, _)| *index < open_index)
+    {
+        match character {
+            '(' => depth += 1,
+            ')' => {
+                if depth == 0 {
+                    return false;
+                }
+                depth -= 1;
+                if depth == 0 && index != value.len() - 1 {
+                    return false;
+                }
+            }
+            _ => {}
+        }
+    }
+    depth == 0 && value.ends_with(')')
+}
+
 fn is_color_function_head(head: &str) -> bool {
     matches!(
         head,
         "rgb" | "rgba" | "hsl" | "hsla" | "hwb" | "lab" | "lch" | "oklab" | "oklch" | "color"
+    )
+}
+
+fn is_image_function_head(head: &str) -> bool {
+    matches!(
+        head,
+        "image"
+            | "image-set"
+            | "cross-fade"
+            | "element"
+            | "linear-gradient"
+            | "radial-gradient"
+            | "conic-gradient"
+            | "repeating-linear-gradient"
+            | "repeating-radial-gradient"
+            | "repeating-conic-gradient"
+    )
+}
+
+fn is_transform_function_head(head: &str) -> bool {
+    matches!(
+        head,
+        "matrix"
+            | "matrix3d"
+            | "perspective"
+            | "rotate"
+            | "rotate3d"
+            | "rotatex"
+            | "rotatey"
+            | "rotatez"
+            | "scale"
+            | "scale3d"
+            | "scalex"
+            | "scaley"
+            | "scalez"
+            | "skew"
+            | "skewx"
+            | "skewy"
+            | "translate"
+            | "translate3d"
+            | "translatex"
+            | "translatey"
+            | "translatez"
     )
 }
 
@@ -275,12 +598,66 @@ fn parse_number_with_unit<'value, 'unit>(
     for unit in units {
         if let Some(number) = value.strip_suffix(unit)
             && !number.is_empty()
-            && number.parse::<f64>().is_ok()
+            && is_css_number_token(number)
         {
             return Some((number, unit));
         }
     }
     None
+}
+
+fn is_css_integer_token(value: &str) -> bool {
+    let unsigned = strip_number_sign(value);
+    !unsigned.is_empty() && unsigned.chars().all(|character| character.is_ascii_digit())
+}
+
+fn is_css_number_token(value: &str) -> bool {
+    let unsigned = strip_number_sign(value);
+    if unsigned.is_empty() {
+        return false;
+    }
+    let (mantissa, exponent) = split_number_exponent(unsigned);
+    if let Some(exponent) = exponent {
+        let exponent = strip_number_sign(exponent);
+        if exponent.is_empty() || !exponent.chars().all(|character| character.is_ascii_digit()) {
+            return false;
+        }
+    }
+    is_css_number_mantissa(mantissa)
+}
+
+fn strip_number_sign(value: &str) -> &str {
+    value
+        .strip_prefix('+')
+        .or_else(|| value.strip_prefix('-'))
+        .unwrap_or(value)
+}
+
+fn split_number_exponent(value: &str) -> (&str, Option<&str>) {
+    for (index, character) in value.char_indices() {
+        if matches!(character, 'e' | 'E') {
+            return (
+                &value[..index],
+                Some(&value[index + character.len_utf8()..]),
+            );
+        }
+    }
+    (value, None)
+}
+
+fn is_css_number_mantissa(value: &str) -> bool {
+    let Some(dot_index) = value.find('.') else {
+        return !value.is_empty() && value.chars().all(|character| character.is_ascii_digit());
+    };
+    if value[dot_index + 1..].contains('.') {
+        return false;
+    }
+    let before = &value[..dot_index];
+    let after = &value[dot_index + 1..];
+    !after.is_empty()
+        && before.chars().all(|character| character.is_ascii_digit())
+        && after.chars().all(|character| character.is_ascii_digit())
+        && (!before.is_empty() || !after.is_empty())
 }
 
 fn is_literal_css_ident(value: &str) -> bool {
@@ -300,10 +677,167 @@ const LENGTH_UNITS: &[&str] = &[
 ];
 const ANGLE_UNITS: &[&str] = &["deg", "grad", "rad", "turn"];
 const TIME_UNITS: &[&str] = &["ms", "s"];
+const RESOLUTION_UNITS: &[&str] = &["dpcm", "dppx", "dpi", "x"];
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    const PVA_L1_COMPONENTS: &[&str] = &[
+        "<length>",
+        "<number>",
+        "<percentage>",
+        "<length-percentage>",
+        "<string>",
+        "<color>",
+        "<image>",
+        "<url>",
+        "<integer>",
+        "<angle>",
+        "<time>",
+        "<resolution>",
+        "<transform-function>",
+        "<custom-ident>",
+        "<transform-list>",
+    ];
+
+    const NON_FAST_PATH_NAMED_COLORS: &[&str] = &[
+        "antiquewhite",
+        "aqua",
+        "aquamarine",
+        "azure",
+        "beige",
+        "bisque",
+        "blanchedalmond",
+        "blueviolet",
+        "brown",
+        "burlywood",
+        "cadetblue",
+        "chartreuse",
+        "chocolate",
+        "coral",
+        "cornflowerblue",
+        "cornsilk",
+        "crimson",
+        "darkblue",
+        "darkcyan",
+        "darkgoldenrod",
+        "darkgray",
+        "darkgreen",
+        "darkgrey",
+        "darkkhaki",
+        "darkmagenta",
+        "darkolivegreen",
+        "darkorange",
+        "darkorchid",
+        "darkred",
+        "darksalmon",
+        "darkseagreen",
+        "darkslateblue",
+        "darkslategray",
+        "darkslategrey",
+        "darkturquoise",
+        "darkviolet",
+        "deeppink",
+        "deepskyblue",
+        "dimgray",
+        "dimgrey",
+        "dodgerblue",
+        "firebrick",
+        "floralwhite",
+        "forestgreen",
+        "fuchsia",
+        "gainsboro",
+        "ghostwhite",
+        "gold",
+        "goldenrod",
+        "greenyellow",
+        "honeydew",
+        "hotpink",
+        "indianred",
+        "indigo",
+        "ivory",
+        "khaki",
+        "lavender",
+        "lavenderblush",
+        "lawngreen",
+        "lemonchiffon",
+        "lightblue",
+        "lightcoral",
+        "lightcyan",
+        "lightgoldenrodyellow",
+        "lightgray",
+        "lightgreen",
+        "lightgrey",
+        "lightpink",
+        "lightsalmon",
+        "lightseagreen",
+        "lightskyblue",
+        "lightslategray",
+        "lightslategrey",
+        "lightsteelblue",
+        "lightyellow",
+        "lime",
+        "limegreen",
+        "linen",
+        "maroon",
+        "mediumaquamarine",
+        "mediumblue",
+        "mediumorchid",
+        "mediumpurple",
+        "mediumseagreen",
+        "mediumslateblue",
+        "mediumspringgreen",
+        "mediumturquoise",
+        "mediumvioletred",
+        "midnightblue",
+        "mintcream",
+        "mistyrose",
+        "moccasin",
+        "navajowhite",
+        "navy",
+        "oldlace",
+        "olive",
+        "olivedrab",
+        "orangered",
+        "orchid",
+        "palegoldenrod",
+        "palegreen",
+        "paleturquoise",
+        "palevioletred",
+        "papayawhip",
+        "peachpuff",
+        "peru",
+        "pink",
+        "plum",
+        "powderblue",
+        "rebeccapurple",
+        "rosybrown",
+        "royalblue",
+        "saddlebrown",
+        "salmon",
+        "sandybrown",
+        "seagreen",
+        "seashell",
+        "sienna",
+        "silver",
+        "skyblue",
+        "slateblue",
+        "slategray",
+        "slategrey",
+        "snow",
+        "springgreen",
+        "steelblue",
+        "tan",
+        "teal",
+        "thistle",
+        "tomato",
+        "turquoise",
+        "violet",
+        "wheat",
+        "whitesmoke",
+        "yellowgreen",
+    ];
 
     #[test]
     fn registered_property_syntax_accepts_supported_descriptor_matches() {
@@ -338,18 +872,380 @@ mod tests {
         for (syntax, value) in [
             ("'*'", "red"),
             ("'<length>'", "var(--x)"),
+            ("'<length>'", "env(safe-area-inset-top)"),
+            ("'<length>'", "attr(data-gap)"),
             ("'<length>'", "calc(100% - 8px)"),
-            ("'<length>+'", "8px"),
+            ("'<length>'", "tomato"),
+            ("'<length>'", "Canvas"),
+            ("'<color>'", "tomato"),
+            ("'<color>'", "crimson"),
+            ("'<color>'", "teal"),
+            ("'<color>'", "navy"),
             ("'<foo>'", "8px"),
+            ("'<transform-list>+'", "rotate(45deg)"),
+            ("'* | <length>'", "8px"),
         ] {
             assert_ne!(
                 registered_syntax_match(syntax, value),
-                RegisteredSyntaxMatchV0::Rejects
+                RegisteredSyntaxMatchV0::Rejects,
+                "{syntax} should stay silent for {value}"
             );
         }
         assert_eq!(
             registered_syntax_match("'<color>'", "inherit"),
             RegisteredSyntaxMatchV0::Accepts
         );
+    }
+
+    #[test]
+    fn registered_property_syntax_corpus_matches_expected_tri_state() {
+        for (syntax, value, expected) in [
+            ("'<color>'", "tomato", RegisteredSyntaxMatchV0::Unknown),
+            ("'<color>'", "red", RegisteredSyntaxMatchV0::Accepts),
+            ("'<color>'", "8px", RegisteredSyntaxMatchV0::Rejects),
+            ("'<length>'", "red", RegisteredSyntaxMatchV0::Rejects),
+            ("'<length>'", "tomato", RegisteredSyntaxMatchV0::Unknown),
+            (
+                "'<custom-ident>'",
+                "tomato",
+                RegisteredSyntaxMatchV0::Accepts,
+            ),
+            (
+                "'small | medium'",
+                "large",
+                RegisteredSyntaxMatchV0::Rejects,
+            ),
+            (
+                "'small | medium | large'",
+                "medium",
+                RegisteredSyntaxMatchV0::Accepts,
+            ),
+            (
+                "'small | <custom-ident>'",
+                "tomato",
+                RegisteredSyntaxMatchV0::Accepts,
+            ),
+            ("'<number>'", "infinity", RegisteredSyntaxMatchV0::Unknown),
+            ("'<number>'", "1e3", RegisteredSyntaxMatchV0::Accepts),
+            ("'<integer>'", "1e3", RegisteredSyntaxMatchV0::Rejects),
+            ("'<string>'", "\"hello\"", RegisteredSyntaxMatchV0::Accepts),
+            ("'<string>'", "hello", RegisteredSyntaxMatchV0::Unknown),
+            ("'<url>'", "url(a.png)", RegisteredSyntaxMatchV0::Accepts),
+            (
+                "'<image>'",
+                "linear-gradient(red, blue)",
+                RegisteredSyntaxMatchV0::Accepts,
+            ),
+            ("'<resolution>'", "2dppx", RegisteredSyntaxMatchV0::Accepts),
+            (
+                "'<transform-function>'",
+                "rotate(45deg)",
+                RegisteredSyntaxMatchV0::Accepts,
+            ),
+            (
+                "'<transform-list>'",
+                "rotate(45deg)",
+                RegisteredSyntaxMatchV0::Accepts,
+            ),
+            ("'<length>+'", "8px", RegisteredSyntaxMatchV0::Accepts),
+            ("'<color>#'", "8px", RegisteredSyntaxMatchV0::Rejects),
+            (
+                "'<length># | red'",
+                "30deg",
+                RegisteredSyntaxMatchV0::Rejects,
+            ),
+            (
+                "'<length># | red'",
+                "tomato",
+                RegisteredSyntaxMatchV0::Unknown,
+            ),
+        ] {
+            assert_eq!(
+                registered_syntax_match(syntax, value),
+                expected,
+                "{syntax} vs {value}"
+            );
+        }
+    }
+
+    #[test]
+    fn registered_property_syntax_covers_all_pva_l1_component_names() {
+        for component in PVA_L1_COMPONENTS {
+            assert!(
+                matches!(
+                    parse_registered_property_syntax_v0(component),
+                    RegisteredPropertySyntaxV0::Supported { .. }
+                ),
+                "{component} should parse"
+            );
+        }
+    }
+
+    #[test]
+    fn bare_idents_do_not_reject_typed_components() {
+        for component in PVA_L1_COMPONENTS {
+            assert_ne!(
+                registered_syntax_match(component, "tomato"),
+                RegisteredSyntaxMatchV0::Rejects,
+                "{component} must not reject an under-determined bare ident"
+            );
+        }
+    }
+
+    #[test]
+    fn non_fast_path_named_colors_never_reject_color_syntax() {
+        for color in NON_FAST_PATH_NAMED_COLORS {
+            assert_ne!(
+                registered_syntax_match("'<color>'", color),
+                RegisteredSyntaxMatchV0::Rejects,
+                "{color} must stay silent unless the fast path positively recognizes it"
+            );
+        }
+    }
+
+    #[test]
+    fn registered_property_syntax_has_component_accept_silent_reject_matrix() {
+        for (syntax, accepts, silent, rejects) in [
+            (
+                "'<length>'",
+                &["16px"][..],
+                &["tomato", "var(--x)", "calc(100% - 8px)"][..],
+                &["red", "50%"][..],
+            ),
+            (
+                "'<percentage>'",
+                &["50%"][..],
+                &["tomato", "var(--x)"][..],
+                &["16px", "red"][..],
+            ),
+            (
+                "'<length-percentage>'",
+                &["16px", "50%"][..],
+                &["tomato", "var(--x)"][..],
+                &["red", "30deg"][..],
+            ),
+            (
+                "'<number>'",
+                &["3", "1.5", "1e3"][..],
+                &["inf", "tomato"][..],
+                &["16px", "red"][..],
+            ),
+            (
+                "'<integer>'",
+                &["3", "+5"][..],
+                &["inf", "tomato"][..],
+                &["1.5", "16px"][..],
+            ),
+            (
+                "'<color>'",
+                &["#fff", "rgb(1 2 3)", "oklch(60% 0.1 120)", "red"][..],
+                &["tomato", "Canvas", "var(--x)"][..],
+                &["16px", "30deg"][..],
+            ),
+            (
+                "'<angle>'",
+                &["30deg", "1turn"][..],
+                &["tomato", "var(--x)"][..],
+                &["16px", "red"][..],
+            ),
+            (
+                "'<time>'",
+                &["200ms", "1s"][..],
+                &["tomato", "var(--x)"][..],
+                &["16px", "red"][..],
+            ),
+            (
+                "'<resolution>'",
+                &["2dppx", "96dpi"][..],
+                &["tomato", "var(--x)"][..],
+                &["16px", "red"][..],
+            ),
+            (
+                "'<image>'",
+                &["url(a.png)", "linear-gradient(red, blue)"][..],
+                &["tomato", "var(--x)"][..],
+                &["16px"][..],
+            ),
+            (
+                "'<url>'",
+                &["url(a.png)"][..],
+                &["tomato", "var(--x)"][..],
+                &["16px", "red"][..],
+            ),
+            (
+                "'<transform-function>'",
+                &["rotate(45deg)", "translateX(1px)"][..],
+                &["tomato", "var(--x)"][..],
+                &["16px", "red"][..],
+            ),
+            (
+                "'<transform-list>'",
+                &["rotate(45deg)"][..],
+                &["rotate(45deg) scale(2)", "tomato", "var(--x)"][..],
+                &["16px", "red"][..],
+            ),
+            (
+                "'<custom-ident>'",
+                &["tomato", "red"][..],
+                &["var(--x)", "0x10"][..],
+                &["16px", "50%"][..],
+            ),
+            (
+                "'<string>'",
+                &["\"hello\"", "'hello'"][..],
+                &["tomato", "var(--x)"][..],
+                &["16px", "red"][..],
+            ),
+        ] {
+            assert_matrix(syntax, accepts, RegisteredSyntaxMatchV0::Accepts);
+            assert_matrix(syntax, silent, RegisteredSyntaxMatchV0::Unknown);
+            assert_matrix(syntax, rejects, RegisteredSyntaxMatchV0::Rejects);
+        }
+    }
+
+    #[test]
+    fn multiplied_single_token_disjointness_matches_base_component() {
+        for (syntax, value) in [
+            ("'<length>+'", "red"),
+            ("'<length>#'", "red"),
+            ("'<color>+'", "8px"),
+            ("'<color>#'", "8px"),
+            ("'<resolution>+'", "1s"),
+            ("'<transform-function>#'", "16px"),
+        ] {
+            assert_eq!(
+                registered_syntax_match(syntax, value),
+                RegisteredSyntaxMatchV0::Rejects,
+                "{syntax} should preserve single-token disjointness for {value}"
+            );
+        }
+    }
+
+    #[test]
+    fn literal_keywords_are_case_sensitive_and_closed_lists_can_reject() {
+        assert_eq!(
+            registered_syntax_match("'FOO'", "FOO"),
+            RegisteredSyntaxMatchV0::Accepts
+        );
+        assert_eq!(
+            registered_syntax_match("'FOO'", "foo"),
+            RegisteredSyntaxMatchV0::Rejects
+        );
+        assert_eq!(
+            registered_syntax_match("'FOO | <custom-ident>'", "foo"),
+            RegisteredSyntaxMatchV0::Accepts
+        );
+        assert_eq!(
+            registered_syntax_match("'<color>'", "RED"),
+            RegisteredSyntaxMatchV0::Accepts
+        );
+        assert_eq!(
+            registered_syntax_match("'<length>'", "1PX"),
+            RegisteredSyntaxMatchV0::Accepts
+        );
+    }
+
+    #[test]
+    fn css_number_tokenization_rejects_rust_only_numbers() {
+        for value in ["inf", "infinity", "nan", "NaN", "1.", "0x10"] {
+            assert_ne!(
+                classify_registered_property_declared_value_v0(value),
+                DeclaredValueKindV0::Number,
+                "{value} must not classify as a CSS number"
+            );
+            assert_ne!(
+                registered_syntax_match("'<custom-ident>'", value),
+                RegisteredSyntaxMatchV0::Rejects,
+                "{value} should not create an unsound custom-ident reject"
+            );
+        }
+
+        assert_eq!(
+            classify_registered_property_declared_value_v0("+5"),
+            DeclaredValueKindV0::Integer
+        );
+        assert_eq!(
+            classify_registered_property_declared_value_v0(".5"),
+            DeclaredValueKindV0::Number
+        );
+        assert_eq!(
+            classify_registered_property_declared_value_v0("5e3"),
+            DeclaredValueKindV0::Number
+        );
+        assert_eq!(
+            registered_syntax_match("'<integer>'", "5.0"),
+            RegisteredSyntaxMatchV0::Rejects
+        );
+    }
+
+    #[test]
+    fn positive_leaf_cross_product_preserves_definite_rejects() {
+        for (syntax, value) in [
+            ("'<color>'", "8px"),
+            ("'<length>'", "red"),
+            ("'<string>'", "8px"),
+            ("'<url>'", "red"),
+            ("'<image>'", "16px"),
+            ("'<resolution>'", "1s"),
+            ("'<transform-function>'", "16px"),
+            ("'<integer>'", "1.5"),
+        ] {
+            assert_eq!(
+                registered_syntax_match(syntax, value),
+                RegisteredSyntaxMatchV0::Rejects,
+                "{syntax} should reject definite {value}"
+            );
+        }
+    }
+
+    #[test]
+    fn registered_property_syntax_no_panic_fuzz_scaffold() {
+        let alphabet = [
+            "",
+            "a",
+            "A",
+            "-",
+            "_",
+            "0",
+            "9",
+            ".",
+            "+",
+            "-",
+            "e",
+            "E",
+            "(",
+            ")",
+            "<",
+            ">",
+            "'",
+            "\"",
+            "|",
+            "#",
+            "%",
+            " var(--x)",
+            "calc(1px + 1%)",
+        ];
+        for left in alphabet {
+            for right in alphabet {
+                let value = format!("{left}{right}");
+                let syntax = format!("'{left}{right}'");
+                let _ = classify_registered_property_declared_value_v0(value.as_str());
+                let _ = registered_syntax_match(syntax.as_str(), value.as_str());
+                let _ = registered_syntax_match(
+                    "'<length> | <color># | <custom-ident>'",
+                    value.as_str(),
+                );
+            }
+        }
+    }
+
+    fn assert_matrix(syntax: &str, values: &[&str], expected: RegisteredSyntaxMatchV0) {
+        for value in values {
+            assert_eq!(
+                registered_syntax_match(syntax, value),
+                expected,
+                "{syntax} vs {value}"
+            );
+        }
     }
 }

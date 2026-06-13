@@ -3050,6 +3050,55 @@ mod tests {
     }
 
     #[test]
+    fn registered_property_type_mismatch_keeps_underdetermined_colors_silent() {
+        let evaluations = evaluate_omena_checker_cascade_rules(OmenaCheckerCascadeInputV0 {
+            declarations: vec![
+                cascade_declaration(CascadeDeclarationFixture {
+                    declaration_id: "valid-named-color",
+                    selector: ".valid",
+                    property: "--tone",
+                    value: "tomato",
+                    source_order: 1,
+                    condition_context: &[],
+                    layer_name: None,
+                    layer_order: None,
+                    important: false,
+                    var_references: &[],
+                }),
+                cascade_declaration(CascadeDeclarationFixture {
+                    declaration_id: "bad-color",
+                    selector: ".bad",
+                    property: "--tone",
+                    value: "8px",
+                    source_order: 2,
+                    condition_context: &[],
+                    layer_name: None,
+                    layer_order: None,
+                    important: false,
+                    var_references: &[],
+                }),
+            ],
+            custom_properties: Vec::new(),
+            custom_property_registrations: vec![OmenaCheckerCustomPropertyRegistrationInputV0 {
+                name: "--tone".to_string(),
+                syntax: Some("'<color>'".to_string()),
+                inherits: Some("false".to_string()),
+                initial_value: Some("red".to_string()),
+            }],
+        });
+        let mismatches = evaluations
+            .iter()
+            .filter(|evaluation| {
+                evaluation.rule_code == OmenaCheckerRuleCodeV0::RegisteredPropertyTypeMismatch
+            })
+            .collect::<Vec<_>>();
+
+        assert_eq!(mismatches.len(), 1);
+        assert_eq!(mismatches[0].declaration_ids, vec!["bad-color"]);
+        assert_eq!(mismatches[0].custom_property_names, vec!["--tone"]);
+    }
+
+    #[test]
     fn registered_property_type_mismatch_ignores_inactive_registrations_and_uses_last_wins() {
         let evaluations = evaluate_omena_checker_cascade_rules(OmenaCheckerCascadeInputV0 {
             declarations: vec![
