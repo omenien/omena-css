@@ -7110,35 +7110,6 @@ fn selector_component_can_end(kind: SyntaxKind) -> bool {
     )
 }
 
-fn collect_at_rule_facts_from_tokens(
-    tokens: &[Token<'_>],
-    dialect: StyleDialect,
-) -> Vec<ParsedAtRuleFact> {
-    tokens
-        .iter()
-        .filter(|token| token.kind == SyntaxKind::AtKeyword)
-        .map(|token| {
-            let css_spec = at_rule_spec(token.text);
-            let node_kind = css_spec
-                .or_else(|| match dialect {
-                    StyleDialect::Scss | StyleDialect::Sass => scss_at_rule_spec(token.text),
-                    StyleDialect::Css | StyleDialect::Less => None,
-                })
-                .map(|spec| spec.node_kind);
-            let name = if css_spec.is_some() {
-                token.text.to_ascii_lowercase()
-            } else {
-                token.text.to_string()
-            };
-            ParsedAtRuleFact {
-                name,
-                node_kind,
-                range: token.range,
-            }
-        })
-        .collect()
-}
-
 fn next_non_trivia_token<'text>(
     tokens: &'text [Token<'text>],
     mut index: usize,
