@@ -1,5 +1,5 @@
 import { strict as assert } from "node:assert";
-import { readFileSync } from "node:fs";
+import { readdirSync, readFileSync } from "node:fs";
 
 const lspManifest = read("rust/crates/omena-lsp-server/Cargo.toml");
 assert.ok(
@@ -77,12 +77,16 @@ assert.ok(
     queryStyle.includes("collect_custom_property_hover_candidates_from_omena_parser_facts"),
   "omena-query hover candidates must be derived from omena-parser facts",
 );
-for (const querySourcePath of [
+const querySourcePaths = [
   "rust/crates/omena-query/src/style.rs",
-  "rust/crates/omena-query/src/style/diagnostics.rs",
   "rust/crates/omena-query/src/style/stylesheet_evaluation.rs",
   "rust/crates/omena-query/src/style/transform.rs",
-] as const) {
+  ...readdirSync("rust/crates/omena-query/src/style/diagnostics")
+    .filter((entry) => entry.endsWith(".rs"))
+    .map((entry) => `rust/crates/omena-query/src/style/diagnostics/${entry}`),
+] as const;
+
+for (const querySourcePath of querySourcePaths) {
   const querySource = read(querySourcePath);
   assert.ok(
     !querySource.includes("collect_style_facts("),
