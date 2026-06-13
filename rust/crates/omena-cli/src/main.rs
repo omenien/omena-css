@@ -1,24 +1,26 @@
 use clap::Parser;
-#[cfg(feature = "mdl")]
-use omena_query::summarize_omena_query_design_system_minimum_description;
-use omena_query::{
-    OmenaQueryStyleSourceInputV0, summarize_omena_query_consumer_check_style_source,
-};
+#[cfg(test)]
+use omena_query::OmenaQueryStyleSourceInputV0;
+#[cfg(test)]
 use omena_sif::read_omena_lock_json_v1;
+use std::process::ExitCode;
+#[cfg(test)]
 use std::{
     fs,
     path::{Path, PathBuf},
-    process::ExitCode,
 };
 
 #[cfg(feature = "zk-audit")]
 mod audit;
 mod build;
+mod check;
 mod commands;
 mod diagnostics;
 mod dispatch;
 mod io;
 mod lock;
+#[cfg(feature = "mdl")]
+mod mdl;
 mod output;
 mod paths;
 mod perceptual;
@@ -46,6 +48,7 @@ use diagnostics::{
     source_diagnostics_summary, summarize_cross_file_streaming_reachability_diagnostics,
 };
 use dispatch::run;
+#[cfg(test)]
 use io::read_source;
 #[cfg(test)]
 use lock::{
@@ -56,7 +59,7 @@ use lock::{
 };
 #[cfg(test)]
 use omena_sif::OmenaSifAttestationSubjectDigestV1;
-use output::print_json;
+#[cfg(test)]
 use paths::path_string;
 #[cfg(test)]
 use perceptual::perceptual_check_summary;
@@ -69,94 +72,6 @@ fn main() -> ExitCode {
             ExitCode::FAILURE
         }
     }
-}
-
-fn check_file(path: PathBuf, json: bool) -> Result<(), String> {
-    let source = read_source(&path)?;
-    let summary = summarize_omena_query_consumer_check_style_source(&path_string(&path), &source);
-
-    if json {
-        print_json(&summary)?;
-        return Ok(());
-    }
-
-    println!("file: {}", summary.style_path);
-    println!("dialect: {}", summary.dialect);
-    println!("tokens: {}", summary.token_count);
-    println!("parse errors: {}", summary.parser_error_count);
-    println!("class selectors: {}", summary.class_selector_count);
-    println!("custom properties: {}", summary.custom_property_count);
-    println!("keyframes: {}", summary.keyframe_count);
-    Ok(())
-}
-
-#[cfg(feature = "mdl")]
-fn compress_file(path: PathBuf, budget_bits: Option<f64>, json: bool) -> Result<(), String> {
-    let source = read_source(&path)?;
-    let rule_count = source.matches('{').count();
-    let observation_count = source
-        .lines()
-        .filter(|line| !line.trim().is_empty())
-        .count();
-    let source_hash = format!(
-        "len{}-sum{}",
-        source.len(),
-        source.bytes().map(u64::from).sum::<u64>()
-    );
-    // Empirical value-symbol histogram: count how often each declaration value
-    // recurs across the design system. A token reused everywhere (a design token)
-    // peaks the distribution and compresses; many one-off values flatten it. This
-    // drives the real entropy term of the MDL residual.
-    let value_frequencies = css_declaration_value_histogram(&source);
-    let summary = summarize_omena_query_design_system_minimum_description(
-        path_string(&path),
-        source_hash,
-        rule_count,
-        observation_count,
-        &value_frequencies,
-    );
-    if let Some(budget_bits) = budget_bits
-        && summary.total_bits > budget_bits
-    {
-        return Err(format!(
-            "MDL budget exceeded: total_bits={} budget_bits={budget_bits}",
-            summary.total_bits
-        ));
-    }
-
-    if json {
-        print_json(&summary)?;
-        return Ok(());
-    }
-
-    println!("total bits: {}", summary.total_bits);
-    println!("model bits: {}", summary.model_bits);
-    println!("residual bits: {}", summary.residual_bits);
-    println!("unit: {}", summary.unit);
-    Ok(())
-}
-
-/// Build an empirical value-symbol frequency histogram from CSS declarations.
-///
-/// Each `prop: value;` declaration contributes its trimmed value string as a
-/// symbol; the returned vector is the per-symbol occurrence count. Recurring
-/// design-token values peak the histogram (low entropy / compressible); scattered
-/// one-off values flatten it. Deterministic and dependency-light.
-#[cfg(feature = "mdl")]
-fn css_declaration_value_histogram(source: &str) -> Vec<usize> {
-    let mut counts: std::collections::BTreeMap<String, usize> = std::collections::BTreeMap::new();
-    for line in source.lines() {
-        let line = line.trim();
-        let Some((_, rhs)) = line.split_once(':') else {
-            continue;
-        };
-        let value = rhs.trim().trim_end_matches([';', '}']).trim();
-        if value.is_empty() || value.contains('{') {
-            continue;
-        }
-        *counts.entry(value.to_string()).or_insert(0) += 1;
-    }
-    counts.into_values().collect()
 }
 
 #[cfg(test)]

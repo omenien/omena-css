@@ -2,7 +2,7 @@ use omena_query::OmenaQueryTargetTransformOptionsV0;
 
 use crate::{
     build::{BuildFileOptions, build_file, list_passes},
-    check_file,
+    check::check_file,
     commands::{Cli, Command},
     diagnostics::{dynamic_classname_diagnostics, source_diagnostics, style_diagnostics},
     lock::lock_command,
@@ -17,7 +17,7 @@ use crate::{
 };
 
 #[cfg(feature = "mdl")]
-use crate::compress_file;
+use crate::mdl::compress_file;
 
 #[cfg(feature = "zk-audit")]
 use crate::audit::audit_command;
