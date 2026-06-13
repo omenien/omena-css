@@ -176,7 +176,7 @@ function runPackedInstallSmoke(platformPackage) {
     `${JSON.stringify({ private: true, type: "commonjs" }, null, 2)}\n`,
   );
   run(
-    "npm",
+    npmCommand(),
     [
       "install",
       "--ignore-scripts",
@@ -217,7 +217,7 @@ if (
 }
 
 function packPackage(packageDir, packDir) {
-  const child = run("npm", ["pack", "--json", "--pack-destination", packDir], {
+  const child = run(npmCommand(), ["pack", "--json", "--pack-destination", packDir], {
     cwd: packageDir,
     encoding: "utf8",
   });
@@ -261,6 +261,10 @@ function currentPlatformPackage() {
     return packageByName.get("@omena/napi-win32-x64-msvc");
   }
   throw new Error(`No @omena/napi package mapping for ${process.platform}-${process.arch}`);
+}
+
+function npmCommand() {
+  return process.platform === "win32" ? "npm.cmd" : "npm";
 }
 
 function run(command, args, options) {
