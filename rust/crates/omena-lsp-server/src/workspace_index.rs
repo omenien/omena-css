@@ -24,6 +24,7 @@ pub(crate) fn index_workspace_style_files(state: &mut LspShellState) {
 #[derive(Debug, Clone)]
 pub struct LspWorkspaceIndexJobV0 {
     pub revision: u64,
+    pub progress_token: Option<String>,
     pub folders: Vec<LspWorkspaceFolderState>,
     pub resolution_inputs_by_workspace_uri: BTreeMap<String, OmenaQueryStyleResolutionInputsV0>,
 }
@@ -31,6 +32,7 @@ pub struct LspWorkspaceIndexJobV0 {
 #[derive(Debug, Clone)]
 pub struct LspWorkspaceIndexResultV0 {
     pub revision: u64,
+    pub progress_token: Option<String>,
     pub documents: Vec<LspTextDocumentState>,
     pub exhausted: bool,
 }
@@ -39,6 +41,7 @@ pub fn prepare_background_workspace_index_job(state: &mut LspShellState) -> LspW
     state.workspace_index_revision = state.workspace_index_revision.saturating_add(1);
     LspWorkspaceIndexJobV0 {
         revision: state.workspace_index_revision,
+        progress_token: None,
         folders: state.workspace_runtime_registry.folder_snapshots(),
         resolution_inputs_by_workspace_uri: state
             .resolution
@@ -69,6 +72,7 @@ pub fn collect_background_workspace_index(
     }
     LspWorkspaceIndexResultV0 {
         revision: job.revision,
+        progress_token: job.progress_token,
         documents,
         exhausted: budget.exhausted,
     }

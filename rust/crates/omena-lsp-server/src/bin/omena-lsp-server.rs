@@ -17,6 +17,7 @@ use omena_lsp_server::{
     LspWorkspaceIndexResultV0, ScheduledLspOutput, apply_background_workspace_index_result,
     collect_background_workspace_index, dispatched_query_internal_error_response,
     handle_lsp_message_scheduled_outputs_or_dispatch, resolve_dispatched_query_response,
+    workspace_index_progress_end_output,
 };
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -36,6 +37,9 @@ fn run_stdio_server<R: BufRead, W: Write + Send + 'static>(
     #[cfg(feature = "salsa-style-diagnostics")]
     let (diagnostics_sender, diagnostics_receiver) =
         mpsc::sync_channel::<DeferredDiagnosticsWorkV0>(256);
+    #[cfg(feature = "salsa-style-diagnostics")]
+    let (diagnostics_completion_sender, diagnostics_completion_receiver) =
+        mpsc::sync_channel::<DeferredDiagnosticsCompletionV0>(256);
     // RFC 0009 Pillar A (rfcs#67, slice A-min): one worker thread answers the
     // heaviest read-only request class (hover/definition) from loop-built
     // copy-on-write snapshots, so a heavy resolve no longer stalls every queued
@@ -91,12 +95,18 @@ fn run_stdio_server<R: BufRead, W: Write + Send + 'static>(
     let diagnostics_worker: JoinHandle<Result<(), String>> = {
         let writer = Arc::clone(&writer);
         let coalescer = Arc::clone(&coalescer);
+        let diagnostics_completion_sender = diagnostics_completion_sender.clone();
         thread::spawn(move || {
             let mut host = omena_query::OmenaQueryStyleMemoHostV0::new();
             while let Ok(work) = diagnostics_receiver.recv() {
                 if !lock_coalescer(&coalescer)
                     .is_current(work.dispatch.coalesce_key.as_str(), work.revision)
                 {
+                    send_deferred_diagnostics_completion(
+                        &diagnostics_completion_sender,
+                        &work.dispatch,
+                        work.revision,
+                    )?;
                     continue;
                 }
                 let started_at = Instant::now();
@@ -104,11 +114,21 @@ fn run_stdio_server<R: BufRead, W: Write + Send + 'static>(
                     resolve_deferred_diagnostics_notification(&mut host, &work.dispatch)
                 }));
                 let Ok(notification) = notification else {
+                    send_deferred_diagnostics_completion(
+                        &diagnostics_completion_sender,
+                        &work.dispatch,
+                        work.revision,
+                    )?;
                     continue;
                 };
                 if !lock_coalescer(&coalescer)
                     .is_current(work.dispatch.coalesce_key.as_str(), work.revision)
                 {
+                    send_deferred_diagnostics_completion(
+                        &diagnostics_completion_sender,
+                        &work.dispatch,
+                        work.revision,
+                    )?;
                     continue;
                 }
                 let elapsed_millis = started_at.elapsed().as_millis() as u64;
@@ -120,6 +140,11 @@ fn run_stdio_server<R: BufRead, W: Write + Send + 'static>(
                 if !lock_coalescer(&coalescer)
                     .is_current(work.dispatch.coalesce_key.as_str(), work.revision)
                 {
+                    send_deferred_diagnostics_completion(
+                        &diagnostics_completion_sender,
+                        &work.dispatch,
+                        work.revision,
+                    )?;
                     continue;
                 }
                 let mut writer = writer
@@ -127,6 +152,11 @@ fn run_stdio_server<R: BufRead, W: Write + Send + 'static>(
                     .map_err(|_| "stdout lock poisoned".to_string())?;
                 write_lsp_response(&mut *writer, &notification)
                     .map_err(|error| error.to_string())?;
+                send_deferred_diagnostics_completion(
+                    &diagnostics_completion_sender,
+                    &work.dispatch,
+                    work.revision,
+                )?;
             }
             Ok(())
         })
@@ -134,7 +164,15 @@ fn run_stdio_server<R: BufRead, W: Write + Send + 'static>(
 
     while let Some(payload) = read_lsp_payload(reader)? {
         let message: serde_json::Value = serde_json::from_str(&payload)?;
-        drain_workspace_index_results(&mut state, &workspace_index_result_receiver);
+        drain_workspace_index_results(
+            &mut state,
+            &workspace_index_result_receiver,
+            &writer,
+            &coalescer,
+            &mut delayed_outputs,
+        )?;
+        #[cfg(feature = "salsa-style-diagnostics")]
+        drain_deferred_diagnostics_completions(&diagnostics_completion_receiver);
         match handle_lsp_message_scheduled_outputs_or_dispatch(&mut state, message) {
             LspLoopTurnV0::DispatchQuery(dispatch) => {
                 query_sender
@@ -181,10 +219,19 @@ fn run_stdio_server<R: BufRead, W: Write + Send + 'static>(
     drop(workspace_index_sender);
     #[cfg(feature = "salsa-style-diagnostics")]
     drop(diagnostics_sender);
+    #[cfg(feature = "salsa-style-diagnostics")]
+    drop(diagnostics_completion_sender);
     workspace_index_worker
         .join()
         .map_err(|_| "workspace index worker panicked".to_string())?
         .map_err(|error| format!("workspace index worker failed: {error}"))?;
+    drain_workspace_index_results(
+        &mut state,
+        &workspace_index_result_receiver,
+        &writer,
+        &coalescer,
+        &mut delayed_outputs,
+    )?;
     query_worker
         .join()
         .map_err(|_| "query worker panicked".to_string())?
@@ -194,6 +241,8 @@ fn run_stdio_server<R: BufRead, W: Write + Send + 'static>(
         .join()
         .map_err(|_| "diagnostics worker panicked".to_string())?
         .map_err(|error| format!("diagnostics worker failed: {error}"))?;
+    #[cfg(feature = "salsa-style-diagnostics")]
+    drain_deferred_diagnostics_completions(&diagnostics_completion_receiver);
 
     for handle in delayed_outputs {
         handle
@@ -205,13 +254,21 @@ fn run_stdio_server<R: BufRead, W: Write + Send + 'static>(
     Ok(())
 }
 
-fn drain_workspace_index_results(
+fn drain_workspace_index_results<W: Write + Send + 'static>(
     state: &mut LspShellState,
     receiver: &mpsc::Receiver<LspWorkspaceIndexResultV0>,
-) {
+    writer: &Arc<Mutex<W>>,
+    coalescer: &Arc<Mutex<ScheduledOutputCoalescer>>,
+    delayed_outputs: &mut Vec<JoinHandle<Result<(), String>>>,
+) -> Result<(), Box<dyn std::error::Error>> {
     while let Ok(result) = receiver.try_recv() {
+        let progress_end = workspace_index_progress_end_output(&result);
         apply_background_workspace_index_result(state, result);
+        if let Some(output) = progress_end {
+            write_scheduled_lsp_output(writer, coalescer, output, delayed_outputs)?;
+        }
     }
+    Ok(())
 }
 
 #[cfg(feature = "salsa-style-diagnostics")]
@@ -219,6 +276,36 @@ fn drain_workspace_index_results(
 struct DeferredDiagnosticsWorkV0 {
     dispatch: LspDeferredDiagnosticsDispatchV0,
     revision: u64,
+}
+
+#[cfg(feature = "salsa-style-diagnostics")]
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct DeferredDiagnosticsCompletionV0 {
+    coalesce_key: String,
+    revision: u64,
+}
+
+#[cfg(feature = "salsa-style-diagnostics")]
+fn send_deferred_diagnostics_completion(
+    sender: &mpsc::SyncSender<DeferredDiagnosticsCompletionV0>,
+    dispatch: &LspDeferredDiagnosticsDispatchV0,
+    revision: u64,
+) -> Result<(), String> {
+    sender
+        .send(DeferredDiagnosticsCompletionV0 {
+            coalesce_key: dispatch.coalesce_key.clone(),
+            revision,
+        })
+        .map_err(|_| "diagnostics completion receiver dropped".to_string())
+}
+
+#[cfg(feature = "salsa-style-diagnostics")]
+fn drain_deferred_diagnostics_completions(
+    receiver: &mpsc::Receiver<DeferredDiagnosticsCompletionV0>,
+) {
+    while let Ok(completion) = receiver.try_recv() {
+        let _ = (completion.coalesce_key, completion.revision);
+    }
 }
 
 #[derive(Debug, Default)]
@@ -343,6 +430,7 @@ mod tests {
     use serde_json::{Value, json};
 
     const APP_STYLE_URI: &str = "file:///workspace-a/src/App.module.scss";
+    const DYNAMIC_SOURCE_URI: &str = "file:///workspace-a/src/Dynamic.tsx";
     const THEME_STYLE_URI: &str = "file:///workspace-a/src/_theme.scss";
     /// Distinct, non-substring color keywords: one per didChange generation so a
     /// hover response pins exactly which corpus generation it was computed from.
@@ -465,6 +553,55 @@ mod tests {
         })
     }
 
+    fn text_document_open_message(uri: &str, language_id: &str, version: u64, text: &str) -> Value {
+        json!({
+            "jsonrpc": "2.0",
+            "method": "textDocument/didOpen",
+            "params": {
+                "textDocument": {
+                    "uri": uri,
+                    "languageId": language_id,
+                    "version": version,
+                    "text": text,
+                },
+            },
+        })
+    }
+
+    fn text_document_change_message(uri: &str, version: u64, text: &str) -> Value {
+        json!({
+            "jsonrpc": "2.0",
+            "method": "textDocument/didChange",
+            "params": {
+                "textDocument": {
+                    "uri": uri,
+                    "version": version,
+                },
+                "contentChanges": [
+                    {
+                        "text": text,
+                    },
+                ],
+            },
+        })
+    }
+
+    fn initialize_workspace_message(workspace_uri: &str) -> Value {
+        json!({
+            "jsonrpc": "2.0",
+            "id": 1,
+            "method": "initialize",
+            "params": {
+                "workspaceFolders": [
+                    {
+                        "uri": workspace_uri,
+                        "name": "workspace",
+                    },
+                ],
+            },
+        })
+    }
+
     fn initialize_workspace_a_message() -> Value {
         json!({
             "jsonrpc": "2.0",
@@ -511,6 +648,118 @@ mod tests {
                                 == Some(APP_STYLE_URI)
                     })
                     .collect()
+            })
+            .collect()
+    }
+
+    struct FanoutDiagnosticsFixture {
+        workspace_root: std::path::PathBuf,
+        workspace_uri: String,
+        source_uri: String,
+        peer_uri: String,
+        theme_uri: String,
+        source_text: String,
+        peer_text: String,
+        theme_initial_text: String,
+        theme_changed_text: String,
+    }
+
+    impl FanoutDiagnosticsFixture {
+        fn new(label: &str) -> Result<Self, String> {
+            let requested_workspace_root = std::env::temp_dir()
+                .join(format!("omena-lsp-deferral-{label}-{}", std::process::id()));
+            let _ = std::fs::remove_dir_all(requested_workspace_root.as_path());
+            let src_dir = requested_workspace_root.join("src");
+            std::fs::create_dir_all(src_dir.as_path()).map_err(|error| error.to_string())?;
+            let workspace_root = std::fs::canonicalize(requested_workspace_root.as_path())
+                .map_err(|error| error.to_string())?;
+            let src_dir = workspace_root.join("src");
+            let theme_path = src_dir.join("theme.scss");
+            let peer_path = src_dir.join("Importer.module.scss");
+            let source_path = src_dir.join("App.tsx");
+            let theme_initial_text = ".shared { color: red; }".to_string();
+            let theme_changed_text = ".shared { color: green; }".to_string();
+            let peer_text =
+                "@use \"./theme\";\n.peer { width: var(--missing); color: red; color: blue; }"
+                    .to_string();
+            let source_text = "import styles from \"./Importer.module.scss\";\nconst view = <div className={styles.missing} />;".to_string();
+            std::fs::write(theme_path.as_path(), theme_initial_text.as_str())
+                .map_err(|error| error.to_string())?;
+            std::fs::write(peer_path.as_path(), peer_text.as_str())
+                .map_err(|error| error.to_string())?;
+            std::fs::write(source_path.as_path(), source_text.as_str())
+                .map_err(|error| error.to_string())?;
+            Ok(Self {
+                workspace_uri: format!("file://{}", workspace_root.display()),
+                source_uri: format!("file://{}", source_path.display()),
+                peer_uri: format!("file://{}", peer_path.display()),
+                theme_uri: format!("file://{}", theme_path.display()),
+                workspace_root,
+                source_text,
+                peer_text,
+                theme_initial_text,
+                theme_changed_text,
+            })
+        }
+
+        fn setup_messages(&self) -> Vec<Value> {
+            vec![
+                initialize_workspace_message(self.workspace_uri.as_str()),
+                text_document_open_message(
+                    self.theme_uri.as_str(),
+                    "scss",
+                    1,
+                    self.theme_initial_text.as_str(),
+                ),
+                text_document_open_message(
+                    self.peer_uri.as_str(),
+                    "scss",
+                    1,
+                    self.peer_text.as_str(),
+                ),
+                text_document_open_message(
+                    self.source_uri.as_str(),
+                    "typescriptreact",
+                    1,
+                    self.source_text.as_str(),
+                ),
+            ]
+        }
+
+        fn changed_theme_message(&self) -> Value {
+            text_document_change_message(
+                self.theme_uri.as_str(),
+                2,
+                self.theme_changed_text.as_str(),
+            )
+        }
+
+        fn cleanup(&self) {
+            let _ = std::fs::remove_dir_all(self.workspace_root.as_path());
+        }
+    }
+
+    fn synchronous_source_publishes(fixture: &FanoutDiagnosticsFixture) -> Vec<Value> {
+        synchronous_fanout_publishes(fixture, fixture.source_uri.as_str())
+    }
+
+    fn synchronous_peer_publishes(fixture: &FanoutDiagnosticsFixture) -> Vec<Value> {
+        synchronous_fanout_publishes(fixture, fixture.peer_uri.as_str())
+    }
+
+    fn synchronous_fanout_publishes(
+        fixture: &FanoutDiagnosticsFixture,
+        target_uri: &str,
+    ) -> Vec<Value> {
+        let mut state = LspShellState::default();
+        for message in fixture.setup_messages() {
+            let _ = omena_lsp_server::handle_lsp_message_outputs(&mut state, message);
+        }
+        omena_lsp_server::handle_lsp_message_outputs(&mut state, fixture.changed_theme_message())
+            .into_iter()
+            .filter(|message| {
+                message.get("method") == Some(&json!("textDocument/publishDiagnostics"))
+                    && message.pointer("/params/uri").and_then(Value::as_str) == Some(target_uri)
             })
             .collect()
     }
@@ -808,6 +1057,147 @@ mod tests {
                     .any(|diagnostic| diagnostic.pointer("/data/pipelineTier")
                         == Some(&json!("optimizing")))),
             "forced full publish must carry optimizing-tier annotations"
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn deferred_source_fanout_matches_synchronous_oracle() -> Result<(), String> {
+        let fixture = FanoutDiagnosticsFixture::new("source")?;
+        let synchronous_publishes = synchronous_source_publishes(&fixture);
+        assert!(
+            !synchronous_publishes.is_empty(),
+            "source fan-out oracle must publish at least a baseline set"
+        );
+        let mut script = fixture.setup_messages();
+        script.push(fixture.changed_theme_message());
+        script.push(json!({
+            "jsonrpc": "2.0",
+            "id": 2,
+            "method": "shutdown",
+        }));
+        script.push(json!({
+            "jsonrpc": "2.0",
+            "method": "exit",
+        }));
+        let messages = run_script(&script)?;
+        let publishes = publish_diagnostics_for_uri(&messages, fixture.source_uri.as_str());
+        fixture.cleanup();
+
+        assert!(
+            publishes.len() >= 2,
+            "source fan-out must publish an immediate baseline and a deferred full set: {publishes:?}"
+        );
+        assert_eq!(
+            publishes[publishes.len() - 2],
+            &synchronous_publishes[0],
+            "source fan-out immediate baseline must byte-match the synchronous Baseline subset"
+        );
+        assert_eq!(
+            publishes[publishes.len() - 1],
+            synchronous_publishes
+                .last()
+                .ok_or_else(|| "missing synchronous source publish".to_string())?,
+            "source fan-out deferred full publish must byte-match the synchronous full set"
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn deferred_style_peer_fanout_matches_synchronous_oracle() -> Result<(), String> {
+        let fixture = FanoutDiagnosticsFixture::new("peer")?;
+        let synchronous_publishes = synchronous_peer_publishes(&fixture);
+        assert!(
+            !synchronous_publishes.is_empty(),
+            "style peer fan-out oracle must publish at least a baseline set"
+        );
+        let mut script = fixture.setup_messages();
+        script.push(fixture.changed_theme_message());
+        script.push(json!({
+            "jsonrpc": "2.0",
+            "id": 2,
+            "method": "shutdown",
+        }));
+        script.push(json!({
+            "jsonrpc": "2.0",
+            "method": "exit",
+        }));
+        let messages = run_script(&script)?;
+        let publishes = publish_diagnostics_for_uri(&messages, fixture.peer_uri.as_str());
+        fixture.cleanup();
+
+        assert!(
+            publishes.len() >= synchronous_publishes.len(),
+            "style peer fan-out must publish the synchronous oracle tail: {publishes:?}"
+        );
+        let tail_start = publishes.len() - synchronous_publishes.len();
+        for (index, expected) in synchronous_publishes.iter().enumerate() {
+            assert_eq!(
+                publishes[tail_start + index],
+                expected,
+                "style peer deferred fan-out publish {index} must byte-match the synchronous oracle"
+            );
+        }
+        Ok(())
+    }
+
+    #[test]
+    fn deferred_source_fanout_does_not_clear_on_empty_baseline() -> Result<(), String> {
+        let source_text = r#"import { cva } from "class-variance-authority";
+const button = cva("btn", {
+  variants: {
+    intent: {
+      primary: "btn-primary",
+      secondary: "btn-secondary",
+    },
+  },
+});
+const view = button({ intent: "ghost" });
+"#;
+        let style_text = ".btn { color: red; }";
+        let changed_style_text = ".btn { color: blue; }";
+        let script = vec![
+            initialize_workspace_a_message(),
+            text_document_open_message(DYNAMIC_SOURCE_URI, "typescriptreact", 1, source_text),
+            app_style_open_message(1, style_text.to_string()),
+            app_style_change_message(2, changed_style_text.to_string()),
+            json!({
+                "jsonrpc": "2.0",
+                "id": 2,
+                "method": "shutdown",
+            }),
+            json!({
+                "jsonrpc": "2.0",
+                "method": "exit",
+            }),
+        ];
+        let messages = run_script(&script)?;
+        let publishes = publish_diagnostics_for_uri(&messages, DYNAMIC_SOURCE_URI);
+        assert!(
+            !publishes.is_empty(),
+            "source optimizing diagnostics should publish without an empty clear: {publishes:?}"
+        );
+        assert!(
+            publishes.iter().all(|publish| publish
+                .pointer("/params/diagnostics")
+                .and_then(Value::as_array)
+                .is_some_and(|diagnostics| !diagnostics.is_empty())),
+            "empty baseline publishes must be suppressed instead of clearing source diagnostics: {publishes:?}"
+        );
+        let last = publishes[publishes.len() - 1];
+        let last_codes = diagnostic_codes(last);
+        assert!(
+            last_codes.contains(&"missingClassValueOption"),
+            "final source publish must keep the optimizing-only diagnostic: {last_codes:?}"
+        );
+        assert!(
+            last.pointer("/params/diagnostics")
+                .and_then(Value::as_array)
+                .is_some_and(|diagnostics| diagnostics
+                    .iter()
+                    .all(|diagnostic| diagnostic.pointer("/data/pipelineTier")
+                        == Some(&json!("optimizing")))),
+            "optimizing-only source diagnostics must be annotated as optimizing tier"
         );
         Ok(())
     }

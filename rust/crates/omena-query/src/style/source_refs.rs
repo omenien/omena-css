@@ -475,14 +475,17 @@ pub fn summarize_omena_query_source_diagnostics_for_workspace_file_with_context_
             style_sources,
         },
         diagnostics,
-        max_context_depth,
-        vec![
-            "sourceMissingModuleDiagnostics",
-            "sourceMissingSelectorDiagnostics",
-            "sourceResolvedClassDiagnostics",
-            "crossLanguageDiagnostics",
-            "checkerProductDiagnosticGate",
-        ],
+        OmenaQuerySourceDiagnosticsAssemblyOptions {
+            max_context_depth,
+            ready_surfaces: vec![
+                "sourceMissingModuleDiagnostics",
+                "sourceMissingSelectorDiagnostics",
+                "sourceResolvedClassDiagnostics",
+                "crossLanguageDiagnostics",
+                "checkerProductDiagnosticGate",
+            ],
+            include_dynamic_classname_m_tier: true,
+        },
     )
 }
 
@@ -517,14 +520,47 @@ pub fn summarize_omena_query_source_diagnostics_for_workspace_file_with_source_s
             style_sources,
         },
         Vec::new(),
-        OMENA_QUERY_WORKSPACE_DYNAMIC_CLASSNAME_CONTEXT_DEPTH,
-        vec![
-            "sourceIndexedSyntaxDiagnostics",
-            "sourceMissingSelectorDiagnostics",
-            "sourceResolvedClassDiagnostics",
-            "crossLanguageDiagnostics",
-            "checkerProductDiagnosticGate",
-        ],
+        OmenaQuerySourceDiagnosticsAssemblyOptions {
+            max_context_depth: OMENA_QUERY_WORKSPACE_DYNAMIC_CLASSNAME_CONTEXT_DEPTH,
+            ready_surfaces: vec![
+                "sourceIndexedSyntaxDiagnostics",
+                "sourceMissingSelectorDiagnostics",
+                "sourceResolvedClassDiagnostics",
+                "crossLanguageDiagnostics",
+                "checkerProductDiagnosticGate",
+            ],
+            include_dynamic_classname_m_tier: true,
+        },
+    )
+}
+
+pub fn summarize_omena_query_source_baseline_diagnostics_for_workspace_file_with_source_syntax_index_and_definitions(
+    source_path: &str,
+    source_source: &str,
+    source_syntax_index: &OmenaQuerySourceSyntaxIndexV0,
+    definitions: &[OmenaQueryStyleSelectorDefinitionV0],
+    style_sources: &[OmenaQueryStyleSourceInputV0],
+) -> OmenaQuerySourceDiagnosticsForFileV0 {
+    summarize_omena_query_source_diagnostics_from_syntax_index(
+        source_path,
+        source_source,
+        source_syntax_index,
+        OmenaQuerySourceDiagnosticsWorkspaceFacts {
+            definitions,
+            style_sources,
+        },
+        Vec::new(),
+        OmenaQuerySourceDiagnosticsAssemblyOptions {
+            max_context_depth: OMENA_QUERY_WORKSPACE_DYNAMIC_CLASSNAME_CONTEXT_DEPTH,
+            ready_surfaces: vec![
+                "sourceIndexedSyntaxDiagnostics",
+                "sourceMissingSelectorDiagnostics",
+                "sourceBaselineDiagnostics",
+                "crossLanguageDiagnostics",
+                "checkerProductDiagnosticGate",
+            ],
+            include_dynamic_classname_m_tier: false,
+        },
     )
 }
 
@@ -545,14 +581,17 @@ pub fn summarize_omena_query_source_diagnostics_for_workspace_file_with_source_s
             style_sources,
         },
         Vec::new(),
-        max_context_depth,
-        vec![
-            "sourceIndexedSyntaxDiagnostics",
-            "sourceMissingSelectorDiagnostics",
-            "sourceResolvedClassDiagnostics",
-            "crossLanguageDiagnostics",
-            "checkerProductDiagnosticGate",
-        ],
+        OmenaQuerySourceDiagnosticsAssemblyOptions {
+            max_context_depth,
+            ready_surfaces: vec![
+                "sourceIndexedSyntaxDiagnostics",
+                "sourceMissingSelectorDiagnostics",
+                "sourceResolvedClassDiagnostics",
+                "crossLanguageDiagnostics",
+                "checkerProductDiagnosticGate",
+            ],
+            include_dynamic_classname_m_tier: true,
+        },
     )
 }
 
@@ -561,14 +600,19 @@ struct OmenaQuerySourceDiagnosticsWorkspaceFacts<'a> {
     style_sources: &'a [OmenaQueryStyleSourceInputV0],
 }
 
+struct OmenaQuerySourceDiagnosticsAssemblyOptions {
+    max_context_depth: usize,
+    ready_surfaces: Vec<&'static str>,
+    include_dynamic_classname_m_tier: bool,
+}
+
 fn summarize_omena_query_source_diagnostics_from_syntax_index(
     source_path: &str,
     source_source: &str,
     index: &OmenaQuerySourceSyntaxIndexV0,
     workspace_facts: OmenaQuerySourceDiagnosticsWorkspaceFacts<'_>,
     mut diagnostics: Vec<OmenaQuerySourceDiagnosticV0>,
-    max_context_depth: usize,
-    ready_surfaces: Vec<&'static str>,
+    options: OmenaQuerySourceDiagnosticsAssemblyOptions,
 ) -> OmenaQuerySourceDiagnosticsForFileV0 {
     let style_sources_by_path = workspace_facts
         .style_sources
@@ -581,43 +625,45 @@ fn summarize_omena_query_source_diagnostics_from_syntax_index(
     ));
 
     if !index.imported_style_bindings.is_empty() {
-        // Harvest dynamic-className call sites (template-interpolation projections)
-        // from the same syntax index and route them through the real k-limited
-        // (k-CFA) M-tier flow gate, so the LSP-consumed default path emits the
-        // context-sensitive no-unknown-dynamic-class / no-impossible-selector
-        // diagnostics without an external producer.
-        //
-        // `no-unknown-dynamic-class` is module-scoped: a target carrying a
-        // resolved `target_style_uri` is matched against ONLY that module's
-        // selectors (`selector_universe_by_uri`), so a `btn-` prefix is not
-        // cross-attributed to a `btn-*` selector in a different imported module.
-        // Targets with no resolved binding fall back to the union universe.
-        let selector_universe = workspace_facts
-            .definitions
-            .iter()
-            .map(|definition| definition.name.clone())
-            .collect::<BTreeSet<_>>()
-            .into_iter()
-            .collect::<Vec<_>>();
-        let mut selector_universe_by_uri: BTreeMap<String, Vec<String>> = BTreeMap::new();
-        for definition in workspace_facts.definitions {
-            selector_universe_by_uri
-                .entry(definition.uri.clone())
-                .or_default()
-                .push(definition.name.clone());
+        if options.include_dynamic_classname_m_tier {
+            // Harvest dynamic-className call sites (template-interpolation projections)
+            // from the same syntax index and route them through the real k-limited
+            // (k-CFA) M-tier flow gate, so the LSP-consumed default path emits the
+            // context-sensitive no-unknown-dynamic-class / no-impossible-selector
+            // diagnostics without an external producer.
+            //
+            // `no-unknown-dynamic-class` is module-scoped: a target carrying a
+            // resolved `target_style_uri` is matched against ONLY that module's
+            // selectors (`selector_universe_by_uri`), so a `btn-` prefix is not
+            // cross-attributed to a `btn-*` selector in a different imported module.
+            // Targets with no resolved binding fall back to the union universe.
+            let selector_universe = workspace_facts
+                .definitions
+                .iter()
+                .map(|definition| definition.name.clone())
+                .collect::<BTreeSet<_>>()
+                .into_iter()
+                .collect::<Vec<_>>();
+            let mut selector_universe_by_uri: BTreeMap<String, Vec<String>> = BTreeMap::new();
+            for definition in workspace_facts.definitions {
+                selector_universe_by_uri
+                    .entry(definition.uri.clone())
+                    .or_default()
+                    .push(definition.name.clone());
+            }
+            for names in selector_universe_by_uri.values_mut() {
+                names.sort();
+                names.dedup();
+            }
+            diagnostics.extend(harvest_omena_query_dynamic_classname_m_tier_diagnostics(
+                source_path,
+                source_source,
+                index.type_fact_targets.as_slice(),
+                selector_universe.as_slice(),
+                &selector_universe_by_uri,
+                options.max_context_depth,
+            ));
         }
-        for names in selector_universe_by_uri.values_mut() {
-            names.sort();
-            names.dedup();
-        }
-        diagnostics.extend(harvest_omena_query_dynamic_classname_m_tier_diagnostics(
-            source_path,
-            source_source,
-            index.type_fact_targets.as_slice(),
-            selector_universe.as_slice(),
-            &selector_universe_by_uri,
-            max_context_depth,
-        ));
 
         for reference in &index.selector_references {
             let Some(target_style_uri) = reference.target_style_uri.as_deref() else {
@@ -699,7 +745,7 @@ fn summarize_omena_query_source_diagnostics_from_syntax_index(
         file_kind: "source",
         diagnostic_count: diagnostics.len(),
         diagnostics,
-        ready_surfaces,
+        ready_surfaces: options.ready_surfaces,
     }
 }
 

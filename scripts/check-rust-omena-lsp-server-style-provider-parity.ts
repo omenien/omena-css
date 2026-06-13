@@ -850,14 +850,6 @@ const expectedDiagnosticNotifications = [
     jsonrpc: "2.0",
     method: "textDocument/publishDiagnostics",
     params: {
-      uri: sourceUri,
-      diagnostics: [],
-    },
-  },
-  {
-    jsonrpc: "2.0",
-    method: "textDocument/publishDiagnostics",
-    params: {
       uri: styleUri,
       diagnostics: [expectedPublishedMissingCustomPropertyDiagnostic],
     },
@@ -868,6 +860,14 @@ const expectedDiagnosticNotifications = [
     params: {
       uri: styleUri,
       diagnostics: expectedPublishedAppStyleDiagnostics,
+    },
+  },
+  {
+    jsonrpc: "2.0",
+    method: "textDocument/publishDiagnostics",
+    params: {
+      uri: sourceUri,
+      diagnostics: expectedPublishedSourceDiagnostics,
     },
   },
   {

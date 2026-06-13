@@ -3,7 +3,7 @@ use crate::lsp_output::ScheduledLspOutput;
 use crate::{
     CANCEL_REQUEST_METHOD, CASCADE_AT_POSITION_REQUEST, DEBUG_STATE_REQUEST,
     EXPLAIN_HOVER_TRACE_REQUEST, LspDeferredDiagnosticsDispatchV0, LspQuerySnapshotV0,
-    LspShellState, LspWorkspaceIndexJobV0, REQUEST_CANCELLED_ERROR_CODE,
+    LspShellState, LspWorkspaceIndexJobV0, LspWorkspaceIndexResultV0, REQUEST_CANCELLED_ERROR_CODE,
     RUNTIME_LOOP_PROBE_REQUEST, SOURCE_DIAGNOSTICS_REQUEST, STYLE_CONTEXT_INDEX_REQUEST,
     STYLE_DIAGNOSTICS_REQUEST, STYLE_HOVER_CANDIDATES_REQUEST, apply_diagnostic_settings,
     apply_feature_settings, apply_resolution_settings, current_node_lsp_capability_contract,
@@ -430,15 +430,6 @@ fn handle_lsp_message_scheduled_effects_with_deferral(
             .push(ScheduledLspOutput::immediate(response));
     }
 
-    if let Some(method_name) = method.as_deref() {
-        effects
-            .outputs
-            .extend(work_done_progress_outputs_for_index_event(
-                state,
-                method_name,
-            ));
-    }
-
     if let Some(event) = diagnostics_event {
         let diagnostics_effects = if enable_deferred_style_diagnostics {
             run_diagnostics_schedule_effects(state, event)
@@ -480,18 +471,22 @@ fn handle_lsp_message_for_background_workspace_index(
 ) -> Option<Value> {
     match message.get("method").and_then(Value::as_str) {
         Some("initialized") if message.get("id").is_none() => {
+            let mut job = prepare_background_workspace_index_job(state);
             effects
-                .workspace_index_jobs
-                .push(prepare_background_workspace_index_job(state));
+                .outputs
+                .extend(workspace_index_progress_begin_outputs(state, &mut job));
+            effects.workspace_index_jobs.push(job);
             None
         }
         Some("workspace/didChangeWorkspaceFolders") if message.get("id").is_none() => {
             let added_workspace_folder =
                 did_change_workspace_folders(state, message.get("params"), false);
             if added_workspace_folder {
+                let mut job = prepare_background_workspace_index_job(state);
                 effects
-                    .workspace_index_jobs
-                    .push(prepare_background_workspace_index_job(state));
+                    .outputs
+                    .extend(workspace_index_progress_begin_outputs(state, &mut job));
+                effects.workspace_index_jobs.push(job);
             }
             None
         }
@@ -499,24 +494,16 @@ fn handle_lsp_message_for_background_workspace_index(
     }
 }
 
-fn work_done_progress_outputs_for_index_event(
+fn workspace_index_progress_begin_outputs(
     state: &mut LspShellState,
-    method: &str,
+    job: &mut LspWorkspaceIndexJobV0,
 ) -> Vec<ScheduledLspOutput> {
-    if !matches!(
-        method,
-        "initialized" | "workspace/didChangeWorkspaceFolders"
-    ) || !state.client_supports_work_done_progress
-    {
+    if !state.client_supports_work_done_progress {
         return Vec::new();
     }
 
     let (id, token) = state.allocate_work_done_progress_request();
-    let end_message = if state.workspace_style_index_exhausted_count > 0 {
-        "Workspace index updated; additional files remain budgeted for later refreshes"
-    } else {
-        "Workspace index updated"
-    };
+    job.progress_token = Some(token.clone());
     vec![
         ScheduledLspOutput::immediate(json!({
             "jsonrpc": "2.0",
@@ -538,18 +525,29 @@ fn work_done_progress_outputs_for_index_event(
                 },
             },
         })),
-        ScheduledLspOutput::immediate(json!({
-            "jsonrpc": "2.0",
-            "method": "$/progress",
-            "params": {
-                "token": token,
-                "value": {
-                    "kind": "end",
-                    "message": end_message,
-                },
-            },
-        })),
     ]
+}
+
+pub fn workspace_index_progress_end_output(
+    result: &LspWorkspaceIndexResultV0,
+) -> Option<ScheduledLspOutput> {
+    let token = result.progress_token.as_deref()?;
+    let message = if result.exhausted {
+        "Workspace index updated; additional files remain budgeted for later refreshes"
+    } else {
+        "Workspace index updated"
+    };
+    Some(ScheduledLspOutput::immediate(json!({
+        "jsonrpc": "2.0",
+        "method": "$/progress",
+        "params": {
+            "token": token,
+            "value": {
+                "kind": "end",
+                "message": message,
+            },
+        },
+    })))
 }
 
 pub(crate) fn current_time_millis() -> u128 {

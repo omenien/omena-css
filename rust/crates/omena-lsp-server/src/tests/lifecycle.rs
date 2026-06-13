@@ -85,7 +85,8 @@ fn handles_minimal_lsp_lifecycle_requests() {
 }
 
 #[test]
-fn work_done_progress_uses_client_capability_and_sinks_create_response() {
+fn work_done_progress_uses_client_capability_and_sinks_create_response()
+-> Result<(), Box<dyn std::error::Error>> {
     let mut state = LspShellState::default();
     let initialize_outputs = handle_lsp_message_outputs(
         &mut state,
@@ -110,17 +111,44 @@ fn work_done_progress_uses_client_capability_and_sinks_create_response() {
     );
     assert_eq!(initialize_outputs.len(), 1);
 
-    let initialized_outputs = handle_lsp_message_outputs(
-        &mut state,
-        json!({
-            "jsonrpc": "2.0",
-            "method": "initialized",
-            "params": {},
-        }),
-    );
-    let Some(create_id) = assert_work_done_progress_triplet(&initialized_outputs) else {
-        return;
-    };
+    let (initialized_outputs, mut initialized_jobs) =
+        match handle_lsp_message_scheduled_outputs_or_dispatch(
+            &mut state,
+            json!({
+                "jsonrpc": "2.0",
+                "method": "initialized",
+                "params": {},
+            }),
+        ) {
+            LspLoopTurnV0::OutputsAndDeferredDiagnostics {
+                outputs,
+                workspace_index_jobs,
+                ..
+            } => (
+                outputs
+                    .into_iter()
+                    .map(ScheduledLspOutput::into_value)
+                    .collect::<Vec<_>>(),
+                workspace_index_jobs,
+            ),
+            other => {
+                return Err(std::io::Error::other(format!(
+                    "initialized should schedule background index: {other:?}"
+                ))
+                .into());
+            }
+        };
+    let create_id = assert_work_done_progress_begin(&initialized_outputs)
+        .ok_or_else(|| std::io::Error::other("missing initialized progress begin"))?;
+    let initialized_job = initialized_jobs.pop().ok_or_else(|| {
+        std::io::Error::other("initialized should enqueue one workspace index job")
+    })?;
+    let initialized_result = collect_background_workspace_index(initialized_job);
+    apply_background_workspace_index_result(&mut state, initialized_result.clone());
+    let initialized_end = workspace_index_progress_end_output(&initialized_result)
+        .ok_or_else(|| std::io::Error::other("workspace index result should end progress"))?
+        .into_value();
+    assert_work_done_progress_end(&initialized_end);
     assert!(
         handle_lsp_message(
             &mut state,
@@ -134,29 +162,54 @@ fn work_done_progress_uses_client_capability_and_sinks_create_response() {
         "client response to a server-created workDoneProgress request must be consumed"
     );
 
-    let workspace_change_outputs = handle_lsp_message_outputs(
-        &mut state,
-        json!({
-            "jsonrpc": "2.0",
-            "method": "workspace/didChangeWorkspaceFolders",
-            "params": {
-                "event": {
-                    "removed": [],
-                    "added": [
-                        {
-                            "uri": "file:///workspace-b",
-                            "name": "workspace-b",
-                        },
-                    ],
+    let (workspace_change_outputs, mut workspace_change_jobs) =
+        match handle_lsp_message_scheduled_outputs_or_dispatch(
+            &mut state,
+            json!({
+                "jsonrpc": "2.0",
+                "method": "workspace/didChangeWorkspaceFolders",
+                "params": {
+                    "event": {
+                        "removed": [],
+                        "added": [
+                            {
+                                "uri": "file:///workspace-b",
+                                "name": "workspace-b",
+                            },
+                        ],
+                    },
                 },
-            },
-        }),
-    );
-    let Some(workspace_change_create_id) =
-        assert_work_done_progress_triplet(&workspace_change_outputs)
-    else {
-        return;
-    };
+            }),
+        ) {
+            LspLoopTurnV0::OutputsAndDeferredDiagnostics {
+                outputs,
+                workspace_index_jobs,
+                ..
+            } => (
+                outputs
+                    .into_iter()
+                    .map(ScheduledLspOutput::into_value)
+                    .collect::<Vec<_>>(),
+                workspace_index_jobs,
+            ),
+            other => {
+                return Err(std::io::Error::other(format!(
+                    "workspace folder change should schedule background index: {other:?}"
+                ))
+                .into());
+            }
+        };
+    let workspace_change_create_id = assert_work_done_progress_begin(&workspace_change_outputs)
+        .ok_or_else(|| std::io::Error::other("missing workspace-change progress begin"))?;
+    let workspace_change_job = workspace_change_jobs.pop().ok_or_else(|| {
+        std::io::Error::other("workspace folder change should enqueue one workspace index job")
+    })?;
+    let workspace_change_result = collect_background_workspace_index(workspace_change_job);
+    apply_background_workspace_index_result(&mut state, workspace_change_result.clone());
+    let workspace_change_end = workspace_index_progress_end_output(&workspace_change_result)
+        .ok_or_else(|| std::io::Error::other("workspace folder index result should end progress"))?
+        .into_value();
+    assert_work_done_progress_end(&workspace_change_end);
     assert!(
         handle_lsp_message(
             &mut state,
@@ -185,10 +238,12 @@ fn work_done_progress_uses_client_capability_and_sinks_create_response() {
         Some(&json!(-32600)),
         "untracked id-only client messages should keep the existing invalid-request fallback"
     );
+    Ok(())
 }
 
 #[test]
-fn work_done_progress_is_silent_without_client_capability() {
+fn work_done_progress_is_silent_without_client_capability() -> Result<(), Box<dyn std::error::Error>>
+{
     let mut state = LspShellState::default();
     let _ = handle_lsp_message_outputs(
         &mut state,
@@ -207,23 +262,35 @@ fn work_done_progress_is_silent_without_client_capability() {
         }),
     );
 
-    let initialized_outputs = handle_lsp_message_outputs(
+    let initialized_outputs = match handle_lsp_message_scheduled_outputs_or_dispatch(
         &mut state,
         json!({
             "jsonrpc": "2.0",
             "method": "initialized",
             "params": {},
         }),
-    );
+    ) {
+        LspLoopTurnV0::OutputsAndDeferredDiagnostics { outputs, .. } => outputs
+            .into_iter()
+            .map(ScheduledLspOutput::into_value)
+            .collect::<Vec<_>>(),
+        other => {
+            return Err(std::io::Error::other(format!(
+                "initialized should schedule background index: {other:?}"
+            ))
+            .into());
+        }
+    };
     assert!(
         initialized_outputs.iter().all(|output| output.get("method")
             != Some(&json!("window/workDoneProgress/create"))
             && output.get("method") != Some(&json!("$/progress"))),
         "workDoneProgress must be gated by the client capability"
     );
+    Ok(())
 }
 
-fn assert_work_done_progress_triplet(outputs: &[Value]) -> Option<String> {
+fn assert_work_done_progress_begin(outputs: &[Value]) -> Option<String> {
     let create = outputs
         .iter()
         .find(|output| output.get("method") == Some(&json!("window/workDoneProgress/create")));
@@ -249,8 +316,8 @@ fn assert_work_done_progress_triplet(outputs: &[Value]) -> Option<String> {
         .collect::<Vec<_>>();
     assert_eq!(
         progress.len(),
-        2,
-        "progress output must be exactly Begin + End"
+        1,
+        "enqueue output must contain exactly one Begin progress notification"
     );
     assert_eq!(
         progress[0].pointer("/params/token").and_then(Value::as_str),
@@ -266,21 +333,19 @@ fn assert_work_done_progress_triplet(outputs: &[Value]) -> Option<String> {
         progress[0].pointer("/params/value/percentage").is_none(),
         "workspace-index progress has no stable denominator and must not report percentage"
     );
+    id.map(str::to_string)
+}
+
+fn assert_work_done_progress_end(output: &Value) {
+    assert_eq!(output.get("method"), Some(&json!("$/progress")));
     assert_eq!(
-        progress[1].pointer("/params/token").and_then(Value::as_str),
-        Some(token)
-    );
-    assert_eq!(
-        progress[1]
-            .pointer("/params/value/kind")
-            .and_then(Value::as_str),
+        output.pointer("/params/value/kind").and_then(Value::as_str),
         Some("end")
     );
     assert!(
-        progress[1].pointer("/params/value/percentage").is_none(),
-        "End notifications must also omit percentage"
+        output.pointer("/params/value/percentage").is_none(),
+        "End notifications must omit percentage"
     );
-    id.map(str::to_string)
 }
 
 #[test]

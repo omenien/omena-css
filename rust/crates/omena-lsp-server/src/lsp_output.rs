@@ -1,6 +1,9 @@
+use crate::LspStyleHoverCandidate;
 use omena_query::{
-    OmenaQueryExternalSifInputV0, OmenaQuerySourceDocumentInputV0, OmenaQueryStyleHoverCandidateV0,
-    OmenaQueryStylePackageManifestV0, OmenaQueryStyleResolutionInputsV0,
+    OmenaQueryExternalSifInputV0, OmenaQuerySourceDocumentInputV0,
+    OmenaQuerySourceMissingSelectorDiagnosticCandidateV0, OmenaQuerySourceSyntaxIndexV0,
+    OmenaQueryStyleHoverCandidateV0, OmenaQueryStylePackageManifestV0,
+    OmenaQueryStyleResolutionInputsV0, OmenaQueryStyleSelectorDefinitionV0,
     OmenaQueryStyleSourceInputV0,
 };
 use serde_json::Value;
@@ -74,9 +77,28 @@ pub struct LspOwnedStyleDiagnosticsRenderInputsV0 {
 }
 
 #[derive(Debug, Clone)]
+pub struct LspOwnedSourceDiagnosticsRenderInputsV0 {
+    pub document_uri: String,
+    pub document_text: String,
+    pub source_syntax_index: OmenaQuerySourceSyntaxIndexV0,
+    pub source_selector_candidates: Vec<LspStyleHoverCandidate>,
+    pub style_sources: Vec<OmenaQueryStyleSourceInputV0>,
+    pub query_definitions: Vec<OmenaQueryStyleSelectorDefinitionV0>,
+    pub source_selector_fallback_candidates:
+        Vec<OmenaQuerySourceMissingSelectorDiagnosticCandidateV0>,
+    pub configured_severity: u8,
+}
+
+#[derive(Debug, Clone)]
+pub enum DeferredDiagnosticsRenderInputsV0 {
+    Style(LspOwnedStyleDiagnosticsRenderInputsV0),
+    Source(LspOwnedSourceDiagnosticsRenderInputsV0),
+}
+
+#[derive(Debug, Clone)]
 pub struct LspDeferredDiagnosticsDispatchV0 {
     pub uri: String,
     pub coalesce_key: String,
     pub tier_plan: DiagnosticsPipelineTierPlanV0,
-    pub render_inputs: LspOwnedStyleDiagnosticsRenderInputsV0,
+    pub render_inputs: DeferredDiagnosticsRenderInputsV0,
 }

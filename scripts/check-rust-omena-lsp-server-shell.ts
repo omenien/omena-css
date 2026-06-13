@@ -184,13 +184,8 @@ assert.equal(responses.length, 4);
 assert.deepEqual(
   diagnosticNotifications.map((notification) => notification.params),
   [
-    "file:///tmp/cme-rust-lsp-shell/src/App.tsx",
-    "file:///tmp/cme-rust-lsp-shell/src/App.tsx",
     "file:///tmp/cme-rust-lsp-shell/src/App.module.scss",
-    "file:///tmp/cme-rust-lsp-shell/src/App.tsx",
     "file:///tmp/cme-rust-lsp-shell/src/App.module.scss",
-    "file:///tmp/cme-rust-lsp-shell/src/App.tsx",
-    "file:///tmp/cme-rust-lsp-shell/src/App.tsx",
     "file:///tmp/cme-rust-lsp-shell/src/App.module.scss",
     "file:///tmp/cme-rust-lsp-shell/src/App.tsx",
   ].map((uri) => ({ uri, diagnostics: [] })),

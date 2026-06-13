@@ -29,12 +29,15 @@ pub use message_loop::{
     LspLoopTurnV0, LspQueryDispatchV0, dispatched_query_internal_error_response,
     handle_lsp_message, handle_lsp_message_outputs, handle_lsp_message_scheduled_outputs,
     handle_lsp_message_scheduled_outputs_or_dispatch, resolve_dispatched_query_response,
+    workspace_index_progress_end_output,
 };
+#[cfg(feature = "salsa-style-diagnostics")]
+use omena_query::summarize_omena_query_source_baseline_diagnostics_for_workspace_file_with_source_syntax_index_and_definitions;
 #[cfg(feature = "salsa-style-diagnostics")]
 use omena_query::summarize_omena_query_target_unresolved_sass_import_diagnostics_for_workspace_paths;
 use omena_query::{
     OmenaQueryCodeActionV0, OmenaQueryCompletionCandidateV0, OmenaQueryCompletionItemV0,
-    OmenaQueryEngineInputV2, OmenaQuerySourceDocumentInputV0,
+    OmenaQueryEngineInputV2, OmenaQuerySourceDiagnosticV0, OmenaQuerySourceDocumentInputV0,
     OmenaQuerySourceDomainClassReferenceFactV0 as SourceDomainClassReferenceFact,
     OmenaQuerySourceImportedStyleBindingV0 as ImportedStyleBinding,
     OmenaQuerySourceMissingSelectorDiagnosticCandidateV0,
@@ -42,8 +45,9 @@ use omena_query::{
     OmenaQuerySourceSelectorReferenceFactV0 as SourceSelectorReferenceFact,
     OmenaQuerySourceSelectorReferenceMatchKindV0 as SourceSelectorReferenceMatchKind,
     OmenaQuerySourceSyntaxIndexV0 as SourceSyntaxIndex, OmenaQueryStyleDiagnosticV0,
-    OmenaQueryStylePackageManifestV0, OmenaQueryStyleSourceInputV0, ParserByteSpanV0,
-    ParserPositionV0, ParserRangeV0, StyleLanguage, collect_omena_query_vue_style_module_bindings,
+    OmenaQueryStylePackageManifestV0, OmenaQueryStyleSelectorDefinitionV0,
+    OmenaQueryStyleSourceInputV0, ParserByteSpanV0, ParserPositionV0, ParserRangeV0, StyleLanguage,
+    collect_omena_query_vue_style_module_bindings,
     is_omena_query_sass_symbol_candidate_kind as is_sass_symbol_candidate_kind,
     is_omena_query_sass_symbol_declaration_kind as is_sass_symbol_declaration_kind,
     is_omena_query_sass_symbol_reference_kind as is_sass_symbol_reference_kind,
@@ -1249,7 +1253,7 @@ pub(crate) fn prepare_deferred_style_diagnostics_for_uri(
             uri: document_uri.to_string(),
             coalesce_key: String::new(),
             tier_plan,
-            render_inputs,
+            render_inputs: DeferredDiagnosticsRenderInputsV0::Style(render_inputs),
         };
         Some((baseline_diagnostics, dispatch))
     }
@@ -1294,16 +1298,22 @@ pub fn resolve_deferred_diagnostics_notification(
     host: &mut omena_query::OmenaQueryStyleMemoHostV0,
     dispatch: &LspDeferredDiagnosticsDispatchV0,
 ) -> Value {
-    let inputs = &dispatch.render_inputs;
-    let workspace_summary = host.workspace_style_diagnostics(
-        inputs.document_uri.as_str(),
-        inputs.style_sources.as_slice(),
-        inputs.source_documents.as_slice(),
-        inputs.package_manifests.as_slice(),
-        inputs.external_sifs.as_slice(),
-        &inputs.resolution_inputs,
-    );
-    let diagnostics = finish_style_diagnostics_value(&inputs.borrowed(), workspace_summary);
+    let diagnostics = match &dispatch.render_inputs {
+        DeferredDiagnosticsRenderInputsV0::Style(inputs) => {
+            let workspace_summary = host.workspace_style_diagnostics(
+                inputs.document_uri.as_str(),
+                inputs.style_sources.as_slice(),
+                inputs.source_documents.as_slice(),
+                inputs.package_manifests.as_slice(),
+                inputs.external_sifs.as_slice(),
+                &inputs.resolution_inputs,
+            );
+            finish_style_diagnostics_value(&inputs.borrowed(), workspace_summary)
+        }
+        DeferredDiagnosticsRenderInputsV0::Source(inputs) => {
+            finish_source_diagnostics_value(&inputs.borrowed())
+        }
+    };
     diagnostics_scheduler::deferred_full_diagnostics_notification(
         dispatch.uri.as_str(),
         diagnostics,
@@ -1472,63 +1482,171 @@ fn summarize_lsp_opt_in_deep_analysis_diagnostics(
     .collect()
 }
 
+pub(crate) struct LspSourceDiagnosticsRenderInputsV0<'inputs> {
+    pub(crate) document_uri: &'inputs str,
+    pub(crate) document_text: &'inputs str,
+    pub(crate) source_syntax_index: &'inputs SourceSyntaxIndex,
+    pub(crate) source_selector_candidates: &'inputs [LspStyleHoverCandidate],
+    pub(crate) style_sources: &'inputs [OmenaQueryStyleSourceInputV0],
+    pub(crate) query_definitions: &'inputs [OmenaQueryStyleSelectorDefinitionV0],
+    pub(crate) source_selector_fallback_candidates:
+        &'inputs [OmenaQuerySourceMissingSelectorDiagnosticCandidateV0],
+    pub(crate) configured_severity: u8,
+}
+
+impl LspOwnedSourceDiagnosticsRenderInputsV0 {
+    fn borrowed(&self) -> LspSourceDiagnosticsRenderInputsV0<'_> {
+        LspSourceDiagnosticsRenderInputsV0 {
+            document_uri: self.document_uri.as_str(),
+            document_text: self.document_text.as_str(),
+            source_syntax_index: &self.source_syntax_index,
+            source_selector_candidates: self.source_selector_candidates.as_slice(),
+            style_sources: self.style_sources.as_slice(),
+            query_definitions: self.query_definitions.as_slice(),
+            source_selector_fallback_candidates: self
+                .source_selector_fallback_candidates
+                .as_slice(),
+            configured_severity: self.configured_severity,
+        }
+    }
+}
+
 fn resolve_source_diagnostics_for_uri(state: &LspShellState, document_uri: &str) -> Value {
-    let Some(document) = state.document(document_uri) else {
-        return json!([]);
+    gather_source_diagnostics_render_inputs(state, document_uri)
+        .map(|inputs| finish_source_diagnostics_value(&inputs.borrowed()))
+        .unwrap_or_else(|| json!([]))
+}
+
+#[cfg(feature = "salsa-style-diagnostics")]
+pub(crate) fn prepare_deferred_source_diagnostics_for_uri(
+    state: &LspShellState,
+    document_uri: &str,
+    tier_plan: DiagnosticsPipelineTierPlanV0,
+) -> Option<(Value, LspDeferredDiagnosticsDispatchV0)> {
+    let render_inputs = gather_source_diagnostics_render_inputs(state, document_uri)?;
+    let diagnostics = finish_source_baseline_diagnostics_value(&render_inputs.borrowed());
+    let dispatch = LspDeferredDiagnosticsDispatchV0 {
+        uri: document_uri.to_string(),
+        coalesce_key: String::new(),
+        tier_plan,
+        render_inputs: DeferredDiagnosticsRenderInputsV0::Source(render_inputs),
     };
+    Some((diagnostics, dispatch))
+}
+
+#[cfg(not(feature = "salsa-style-diagnostics"))]
+pub(crate) fn prepare_deferred_source_diagnostics_for_uri(
+    state: &LspShellState,
+    document_uri: &str,
+    tier_plan: DiagnosticsPipelineTierPlanV0,
+) -> Option<(Value, LspDeferredDiagnosticsDispatchV0)> {
+    let _ = (state, document_uri, tier_plan);
+    None
+}
+
+fn gather_source_diagnostics_render_inputs(
+    state: &LspShellState,
+    document_uri: &str,
+) -> Option<LspOwnedSourceDiagnosticsRenderInputsV0> {
+    let document = state.document(document_uri)?;
     if is_style_document_uri(document.uri.as_str()) {
-        return json!([]);
+        return None;
     }
 
     let style_sources =
         style_sources_from_open_documents(state, document.workspace_folder_uri.as_deref(), None);
     let query_definitions = source_diagnostic_selector_definitions(state, document);
-    let mut query_diagnostics =
-        summarize_omena_query_source_diagnostics_for_workspace_file_with_source_syntax_index_and_definitions(
-            document.uri.as_str(),
-            document.text.as_str(),
-            &document.source_syntax_index,
-            query_definitions.as_slice(),
-            style_sources.as_slice(),
-        )
-        .diagnostics
-        .into_iter()
-        .collect::<Vec<_>>();
+    let source_selector_candidates = document.source_selector_candidates.clone();
     let provider_candidates = resolve_source_provider_candidates(state, document)
         .unresolved
         .into_iter()
         .filter(|candidate| candidate.kind == "sourceSelectorReference")
         .collect::<Vec<_>>();
-    for candidate in provider_candidates {
-        let Some((target_style_uri, target_style_document)) = source_selector_diagnostic_target(
-            state,
-            &candidate,
-            document.workspace_folder_uri.as_deref(),
-        ) else {
-            continue;
-        };
-        let fallback_diagnostics = summarize_omena_query_source_diagnostics_for_file(
-            document.uri.as_str(),
-            &[OmenaQuerySourceMissingSelectorDiagnosticCandidateV0 {
+    let source_selector_fallback_candidates = provider_candidates
+        .into_iter()
+        .filter_map(|candidate| {
+            let (target_style_uri, target_style_document) = source_selector_diagnostic_target(
+                state,
+                &candidate,
+                document.workspace_folder_uri.as_deref(),
+            )?;
+            Some(OmenaQuerySourceMissingSelectorDiagnosticCandidateV0 {
                 target_style_uri,
                 target_style_source: target_style_document.text.clone(),
                 selector_name: candidate.name,
                 source_reference_range: candidate.range,
-            }],
+            })
+        })
+        .collect::<Vec<_>>();
+
+    Some(LspOwnedSourceDiagnosticsRenderInputsV0 {
+        document_uri: document.uri.clone(),
+        document_text: document.text.clone(),
+        source_syntax_index: document.source_syntax_index.clone(),
+        source_selector_candidates,
+        style_sources,
+        query_definitions,
+        source_selector_fallback_candidates,
+        configured_severity: state.diagnostics.severity,
+    })
+}
+
+pub(crate) fn finish_source_diagnostics_value(
+    inputs: &LspSourceDiagnosticsRenderInputsV0<'_>,
+) -> Value {
+    let query_diagnostics =
+        summarize_omena_query_source_diagnostics_for_workspace_file_with_source_syntax_index_and_definitions(
+            inputs.document_uri,
+            inputs.document_text,
+            inputs.source_syntax_index,
+            inputs.query_definitions,
+            inputs.style_sources,
         )
-        .diagnostics;
-        for fallback_diagnostic in fallback_diagnostics {
-            if let Some(existing) = query_diagnostics.iter_mut().find(|diagnostic| {
-                source_missing_selector_diagnostic_code(diagnostic.code)
-                    && diagnostic.range == fallback_diagnostic.range
-            }) {
-                if existing.create_selector.is_none() {
-                    existing.create_selector = fallback_diagnostic.create_selector;
-                }
-                continue;
+        .diagnostics
+        .into_iter()
+        .collect::<Vec<OmenaQuerySourceDiagnosticV0>>();
+    finish_source_diagnostics_from_query_diagnostics(inputs, query_diagnostics)
+}
+
+#[cfg(feature = "salsa-style-diagnostics")]
+fn finish_source_baseline_diagnostics_value(
+    inputs: &LspSourceDiagnosticsRenderInputsV0<'_>,
+) -> Value {
+    let query_diagnostics =
+        summarize_omena_query_source_baseline_diagnostics_for_workspace_file_with_source_syntax_index_and_definitions(
+            inputs.document_uri,
+            inputs.document_text,
+            inputs.source_syntax_index,
+            inputs.query_definitions,
+            inputs.style_sources,
+        )
+        .diagnostics
+        .into_iter()
+        .collect::<Vec<OmenaQuerySourceDiagnosticV0>>();
+    finish_source_diagnostics_from_query_diagnostics(inputs, query_diagnostics)
+}
+
+fn finish_source_diagnostics_from_query_diagnostics(
+    inputs: &LspSourceDiagnosticsRenderInputsV0<'_>,
+    mut query_diagnostics: Vec<OmenaQuerySourceDiagnosticV0>,
+) -> Value {
+    let _source_selector_candidate_count = inputs.source_selector_candidates.len();
+    let fallback_diagnostics = summarize_omena_query_source_diagnostics_for_file(
+        inputs.document_uri,
+        inputs.source_selector_fallback_candidates,
+    )
+    .diagnostics;
+    for fallback_diagnostic in fallback_diagnostics {
+        if let Some(existing) = query_diagnostics.iter_mut().find(|diagnostic| {
+            source_missing_selector_diagnostic_code(diagnostic.code)
+                && diagnostic.range == fallback_diagnostic.range
+        }) {
+            if existing.create_selector.is_none() {
+                existing.create_selector = fallback_diagnostic.create_selector;
             }
-            query_diagnostics.push(fallback_diagnostic);
+            continue;
         }
+        query_diagnostics.push(fallback_diagnostic);
     }
     query_diagnostics.sort_by_key(|diagnostic| {
         (
@@ -1555,7 +1673,7 @@ fn resolve_source_diagnostics_for_uri(state: &LspShellState, document_uri: &str)
 
             json!({
                 "range": diagnostic.range,
-                "severity": lsp_diagnostic_severity(query_severity, state.diagnostics.severity),
+                "severity": lsp_diagnostic_severity(query_severity, inputs.configured_severity),
                 "code": diagnostic.code,
                 "source": "omena-css",
                 "message": diagnostic.message,
