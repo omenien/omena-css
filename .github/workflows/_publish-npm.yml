@@ -27,6 +27,16 @@ on:
         type: boolean
         required: false
         default: true
+      publish_wasm:
+        description: Publish @omena/wasm when dry_run is false.
+        type: boolean
+        required: false
+        default: true
+      publish_napi:
+        description: Publish @omena/napi and its native optional packages when dry_run is false.
+        type: boolean
+        required: false
+        default: true
   workflow_dispatch:
     inputs:
       ref:
@@ -35,6 +45,16 @@ on:
         required: false
       dry_run:
         description: Build + pack only; do not publish to npm.
+        type: boolean
+        required: true
+        default: true
+      publish_wasm:
+        description: Publish @omena/wasm when dry_run is false.
+        type: boolean
+        required: true
+        default: true
+      publish_napi:
+        description: Publish @omena/napi and its native optional packages when dry_run is false.
         type: boolean
         required: true
         default: true
@@ -206,7 +226,7 @@ jobs:
       #     never lands on disk) and fail loudly if the secret is unset. Skipped on
       #     dry-run (which packs without authenticating).
       - name: Authenticate to npm
-        if: ${{ !inputs.dry_run }}
+        if: ${{ !inputs.dry_run && (inputs.publish_wasm || inputs.publish_napi) }}
         shell: bash
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_AUTO_TOKEN }}
@@ -221,6 +241,7 @@ jobs:
 
       # 2d. Publish with provenance (Sigstore via OIDC). dry_run packs only.
       - name: Publish @omena/wasm
+        if: ${{ inputs.publish_wasm }}
         shell: bash
         working-directory: ${{ env.WASM_PKG_DIR }}
         env:
@@ -242,6 +263,7 @@ jobs:
             fi
           fi
       - name: Publish @omena/napi platform packages
+        if: ${{ inputs.publish_napi }}
         shell: bash
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_AUTO_TOKEN }}
@@ -269,6 +291,7 @@ jobs:
             publish_dir "$(dirname "$manifest")"
           done < <(find "${NAPI_PKG_DIR}/npm" -mindepth 2 -maxdepth 2 -name package.json -print0 | sort -z)
       - name: Publish @omena/napi
+        if: ${{ inputs.publish_napi }}
         shell: bash
         working-directory: ${{ env.NAPI_PKG_DIR }}
         env:
