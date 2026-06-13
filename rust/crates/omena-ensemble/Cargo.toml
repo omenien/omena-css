@@ -22,7 +22,7 @@ replica-ensemble = ["sequential"]
 sequential = []
 
 [dependencies]
-omena-cascade = { path = "../omena-cascade", version = "=0.2.0" }
+omena-cascade = { path = "../omena-cascade", version = "=0.2.1" }
 serde.workspace = true
 
 [package.metadata.docs.rs]

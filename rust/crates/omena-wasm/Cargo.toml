@@ -19,7 +19,7 @@ crate-type = ["cdylib", "rlib"]
 workspace = true
 
 [dependencies]
-omena-query = { path = "../omena-query", version = "=0.2.0" }
+omena-query = { path = "../omena-query", version = "=0.2.1" }
 serde.workspace = true
 serde-wasm-bindgen.workspace = true
 wasm-bindgen.workspace = true

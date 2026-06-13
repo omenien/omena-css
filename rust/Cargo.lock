@@ -1079,7 +1079,7 @@ checksum = "edd0f118536f44f5ccd48bcb8b111bdc3de888b58c74639dfb034a357d0f206d"
 
 [[package]]
 name = "engine-shadow-runner"
-version = "0.2.0"
+version = "0.2.1"
 dependencies = [
  "omena-abstract-value",
  "omena-cascade",
@@ -1095,7 +1095,7 @@ dependencies = [
 
 [[package]]
 name = "engine-style-parser"
-version = "0.2.0"
+version = "0.2.1"
 dependencies = [
  "serde",
  "serde_json",
@@ -2062,7 +2062,7 @@ dependencies = [
 
 [[package]]
 name = "omena-abstract-value"
-version = "0.2.0"
+version = "0.2.1"
 dependencies = [
  "omena-incremental",
  "serde",
@@ -2070,7 +2070,7 @@ dependencies = [
 
 [[package]]
 name = "omena-benchmarks"
-version = "0.2.0"
+version = "0.2.1"
 dependencies = [
  "criterion",
  "engine-style-parser",
@@ -2083,7 +2083,7 @@ dependencies = [
 
 [[package]]
 name = "omena-bridge"
-version = "0.2.0"
+version = "0.2.1"
 dependencies = [
  "omena-engine-input-producers",
  "omena-parser",
@@ -2100,7 +2100,7 @@ dependencies = [
 
 [[package]]
 name = "omena-cascade"
-version = "0.2.0"
+version = "0.2.1"
 dependencies = [
  "omena-refinement-trait",
  "serde",
@@ -2108,7 +2108,7 @@ dependencies = [
 
 [[package]]
 name = "omena-categorical"
-version = "0.2.0"
+version = "0.2.1"
 dependencies = [
  "omena-cascade",
  "serde",
@@ -2116,7 +2116,7 @@ dependencies = [
 
 [[package]]
 name = "omena-checker"
-version = "0.2.0"
+version = "0.2.1"
 dependencies = [
  "omena-abstract-value",
  "omena-cascade",
@@ -2130,7 +2130,7 @@ dependencies = [
 
 [[package]]
 name = "omena-cli"
-version = "0.2.0"
+version = "0.2.1"
 dependencies = [
  "clap",
  "omena-query",
@@ -2146,7 +2146,7 @@ dependencies = [
 
 [[package]]
 name = "omena-diff-test"
-version = "0.2.0"
+version = "0.2.1"
 dependencies = [
  "engine-style-parser",
  "omena-lsp-server",
@@ -2160,7 +2160,7 @@ dependencies = [
 
 [[package]]
 name = "omena-engine-input-producers"
-version = "0.2.0"
+version = "0.2.1"
 dependencies = [
  "omena-abstract-value",
  "serde",
@@ -2169,7 +2169,7 @@ dependencies = [
 
 [[package]]
 name = "omena-ensemble"
-version = "0.2.0"
+version = "0.2.1"
 dependencies = [
  "omena-cascade",
  "serde",
@@ -2177,7 +2177,7 @@ dependencies = [
 
 [[package]]
 name = "omena-incremental"
-version = "0.2.0"
+version = "0.2.1"
 dependencies = [
  "omena-cascade",
  "salsa",
@@ -2186,7 +2186,7 @@ dependencies = [
 
 [[package]]
 name = "omena-interner"
-version = "0.2.0"
+version = "0.2.1"
 dependencies = [
  "omena-syntax",
  "salsa",
@@ -2195,7 +2195,7 @@ dependencies = [
 
 [[package]]
 name = "omena-lawvere"
-version = "0.2.0"
+version = "0.2.1"
 dependencies = [
  "omena-transform-cst",
  "serde",
@@ -2203,7 +2203,7 @@ dependencies = [
 
 [[package]]
 name = "omena-lsp-server"
-version = "0.2.0"
+version = "0.2.1"
 dependencies = [
  "omena-cascade",
  "omena-incremental",
@@ -2218,11 +2218,11 @@ dependencies = [
 
 [[package]]
 name = "omena-meta-macros"
-version = "0.2.0"
+version = "0.2.1"
 
 [[package]]
 name = "omena-napi"
-version = "0.2.0"
+version = "0.2.1"
 dependencies = [
  "napi",
  "napi-derive",
@@ -2233,7 +2233,7 @@ dependencies = [
 
 [[package]]
 name = "omena-parser"
-version = "0.2.0"
+version = "0.2.1"
 dependencies = [
  "cstree",
  "omena-interner",
@@ -2245,7 +2245,7 @@ dependencies = [
 
 [[package]]
 name = "omena-query"
-version = "0.2.0"
+version = "0.2.1"
 dependencies = [
  "omena-bridge",
  "omena-cascade",
@@ -2264,7 +2264,7 @@ dependencies = [
 
 [[package]]
 name = "omena-query-checker-orchestrator"
-version = "0.2.0"
+version = "0.2.1"
 dependencies = [
  "omena-abstract-value",
  "omena-categorical",
@@ -2275,7 +2275,7 @@ dependencies = [
 
 [[package]]
 name = "omena-query-core"
-version = "0.2.0"
+version = "0.2.1"
 dependencies = [
  "omena-abstract-value",
  "omena-engine-input-producers",
@@ -2287,7 +2287,7 @@ dependencies = [
 
 [[package]]
 name = "omena-query-transform-runner"
-version = "0.2.0"
+version = "0.2.1"
 dependencies = [
  "omena-transform-bundle",
  "omena-transform-cst",
@@ -2300,7 +2300,7 @@ dependencies = [
 
 [[package]]
 name = "omena-refinement"
-version = "0.2.0"
+version = "0.2.1"
 dependencies = [
  "omena-abstract-value",
  "omena-cascade",
@@ -2311,14 +2311,14 @@ dependencies = [
 
 [[package]]
 name = "omena-refinement-trait"
-version = "0.2.0"
+version = "0.2.1"
 dependencies = [
  "serde",
 ]
 
 [[package]]
 name = "omena-resolver"
-version = "0.2.0"
+version = "0.2.1"
 dependencies = [
  "omena-engine-input-producers",
  "serde",
@@ -2327,7 +2327,7 @@ dependencies = [
 
 [[package]]
 name = "omena-rg-flow"
-version = "0.2.0"
+version = "0.2.1"
 dependencies = [
  "omena-cascade",
  "serde",
@@ -2335,7 +2335,7 @@ dependencies = [
 
 [[package]]
 name = "omena-semantic"
-version = "0.2.0"
+version = "0.2.1"
 dependencies = [
  "omena-cascade",
  "omena-engine-input-producers",
@@ -2348,7 +2348,7 @@ dependencies = [
 
 [[package]]
 name = "omena-sif"
-version = "0.2.0"
+version = "0.2.1"
 dependencies = [
  "blake3",
  "serde",
@@ -2358,7 +2358,7 @@ dependencies = [
 
 [[package]]
 name = "omena-smt"
-version = "0.2.0"
+version = "0.2.1"
 dependencies = [
  "blake3",
  "omena-cascade",
@@ -2369,7 +2369,7 @@ dependencies = [
 
 [[package]]
 name = "omena-spec-audit"
-version = "0.2.0"
+version = "0.2.1"
 dependencies = [
  "omena-meta-macros",
  "serde",
@@ -2378,7 +2378,7 @@ dependencies = [
 
 [[package]]
 name = "omena-streaming-ifds"
-version = "0.2.0"
+version = "0.2.1"
 dependencies = [
  "omena-abstract-value",
  "omena-query",
@@ -2387,14 +2387,14 @@ dependencies = [
 
 [[package]]
 name = "omena-syntax"
-version = "0.2.0"
+version = "0.2.1"
 dependencies = [
  "cstree",
 ]
 
 [[package]]
 name = "omena-testkit"
-version = "0.2.0"
+version = "0.2.1"
 dependencies = [
  "omena-parser",
  "proptest",
@@ -2404,7 +2404,7 @@ dependencies = [
 
 [[package]]
 name = "omena-transform-bundle"
-version = "0.2.0"
+version = "0.2.1"
 dependencies = [
  "omena-parser",
  "omena-transform-cst",
@@ -2414,7 +2414,7 @@ dependencies = [
 
 [[package]]
 name = "omena-transform-cst"
-version = "0.2.0"
+version = "0.2.1"
 dependencies = [
  "omena-parser",
  "serde",
@@ -2422,7 +2422,7 @@ dependencies = [
 
 [[package]]
 name = "omena-transform-egg"
-version = "0.2.0"
+version = "0.2.1"
 dependencies = [
  "egg",
  "omena-lawvere",
@@ -2433,7 +2433,7 @@ dependencies = [
 
 [[package]]
 name = "omena-transform-passes"
-version = "0.2.0"
+version = "0.2.1"
 dependencies = [
  "omena-cascade",
  "omena-incremental",
@@ -2448,7 +2448,7 @@ dependencies = [
 
 [[package]]
 name = "omena-transform-print"
-version = "0.2.0"
+version = "0.2.1"
 dependencies = [
  "omena-transform-cst",
  "omena-transform-passes",
@@ -2458,7 +2458,7 @@ dependencies = [
 
 [[package]]
 name = "omena-transform-target"
-version = "0.2.0"
+version = "0.2.1"
 dependencies = [
  "omena-transform-cst",
  "omena-transform-passes",
@@ -2468,7 +2468,7 @@ dependencies = [
 
 [[package]]
 name = "omena-tsgo-client"
-version = "0.2.0"
+version = "0.2.1"
 dependencies = [
  "serde",
  "serde_json",
@@ -2476,7 +2476,7 @@ dependencies = [
 
 [[package]]
 name = "omena-umbrella"
-version = "0.2.0"
+version = "0.2.1"
 dependencies = [
  "omena-abstract-value",
  "omena-bridge",
@@ -2516,7 +2516,7 @@ dependencies = [
 
 [[package]]
 name = "omena-variational"
-version = "0.2.0"
+version = "0.2.1"
 dependencies = [
  "omena-abstract-value",
  "omena-cascade",
@@ -2525,7 +2525,7 @@ dependencies = [
 
 [[package]]
 name = "omena-wasm"
-version = "0.2.0"
+version = "0.2.1"
 dependencies = [
  "omena-query",
  "serde",
@@ -2536,7 +2536,7 @@ dependencies = [
 
 [[package]]
 name = "omena-zk-audit"
-version = "0.2.0"
+version = "0.2.1"
 dependencies = [
  "ark-bls12-381",
  "ark-ff",
@@ -2551,7 +2551,7 @@ dependencies = [
 
 [[package]]
 name = "omena-zk-circuit"
-version = "0.2.0"
+version = "0.2.1"
 dependencies = [
  "serde",
 ]

@@ -21,6 +21,6 @@ workspace = true
 [dependencies]
 napi.workspace = true
 napi-derive.workspace = true
-omena-query = { path = "../omena-query", version = "=0.2.0" }
+omena-query = { path = "../omena-query", version = "=0.2.1" }
 serde.workspace = true
 serde_json.workspace = true

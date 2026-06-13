@@ -17,6 +17,6 @@ pillar = "theoretical-rigor"
 workspace = true
 
 [dependencies]
-omena-meta-macros = { path = "../omena-meta-macros", version = "=0.2.0" }
+omena-meta-macros = { path = "../omena-meta-macros", version = "=0.2.1" }
 serde.workspace = true
 serde_json.workspace = true

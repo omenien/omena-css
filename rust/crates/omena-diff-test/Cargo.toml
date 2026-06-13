@@ -16,13 +16,13 @@ role = "I"
 workspace = true
 
 [dependencies]
-engine-style-parser = { path = "../engine-style-parser", version = "=0.2.0" }
-omena-parser = { path = "../omena-parser", version = "=0.2.0" }
-omena-query = { path = "../omena-query", version = "=0.2.0", features = ["salsa-memo"] }
-omena-sif = { path = "../omena-sif", version = "=0.2.0" }
-omena-testkit = { path = "../omena-testkit", version = "=0.2.0" }
+engine-style-parser = { path = "../engine-style-parser", version = "=0.2.1" }
+omena-parser = { path = "../omena-parser", version = "=0.2.1" }
+omena-query = { path = "../omena-query", version = "=0.2.1", features = ["salsa-memo"] }
+omena-sif = { path = "../omena-sif", version = "=0.2.1" }
+omena-testkit = { path = "../omena-testkit", version = "=0.2.1" }
 serde.workspace = true
 serde_json.workspace = true
 
 [dev-dependencies]
-omena-lsp-server = { path = "../omena-lsp-server", version = "=0.2.0", features = ["test-support"] }
+omena-lsp-server = { path = "../omena-lsp-server", version = "=0.2.1", features = ["test-support"] }

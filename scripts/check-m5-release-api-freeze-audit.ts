@@ -40,6 +40,7 @@ const unreleased = extractSection(changelog, "## [Unreleased]");
 const releaseNotes = extractSection(changelog, `## [${packageJson.version}]`);
 const releasing = read("RELEASING.md");
 const cargoToml = read("rust/Cargo.toml");
+const cargoWorkspaceVersion = cargoToml.match(/^version = "([^"]+)"/m)?.[1];
 const publishScript = read("scripts/publish-extension.sh");
 
 const M5_AUDIT_TARGET = "release/check/release-m5-api-freeze-audit";
@@ -143,7 +144,7 @@ assert.equal(
   "## [Unreleased]",
   "release-bound changes must be under the package version section",
 );
-assert.equal(cargoToml.match(/^version = "([^"]+)"/m)?.[1], "0.2.0");
+assertSemver(cargoWorkspaceVersion ?? "");
 // Model A direct-publish: the workspace is publishable (members publish to crates.io
 // directly); the non-published set overrides with explicit publish=false. Enforced in
 // detail by check:rust-publish-flags.
@@ -219,7 +220,7 @@ process.stdout.write(
       product: "release.m5-api-freeze-audit",
       packageVersion: packageJson.version,
       lastPublishedExtensionVersion: LAST_PUBLISHED_EXTENSION_VERSION,
-      cargoWorkspaceVersion: "0.2.0",
+      cargoWorkspaceVersion,
       releaseDisposition: dispositionTable,
       theoryClaimGuardSummary: theoryAudit.theoryClaimGuard.summary,
       publishPath: {

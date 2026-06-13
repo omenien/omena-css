@@ -20,8 +20,8 @@ default = []
 smt-z3 = ["omena-checker/smt-z3"]
 
 [dependencies]
-omena-abstract-value = { path = "../omena-abstract-value", version = "=0.2.0" }
-omena-categorical = { path = "../omena-categorical", version = "=0.2.0" }
-omena-checker = { path = "../omena-checker", version = "=0.2.0" }
-omena-ensemble = { path = "../omena-ensemble", version = "=0.2.0", features = ["replica-ensemble"] }
+omena-abstract-value = { path = "../omena-abstract-value", version = "=0.2.1" }
+omena-categorical = { path = "../omena-categorical", version = "=0.2.1" }
+omena-checker = { path = "../omena-checker", version = "=0.2.1" }
+omena-ensemble = { path = "../omena-ensemble", version = "=0.2.1", features = ["replica-ensemble"] }
 serde.workspace = true

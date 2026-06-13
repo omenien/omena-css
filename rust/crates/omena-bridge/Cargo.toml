@@ -16,11 +16,11 @@ role = "R2"
 workspace = true
 
 [dependencies]
-omena-engine-input-producers = { path = "../omena-engine-input-producers", version = "=0.2.0" }
-omena-parser = { path = "../omena-parser", version = "=0.2.0" }
-omena-resolver = { path = "../omena-resolver", version = "=0.2.0" }
-omena-semantic = { path = "../omena-semantic", version = "=0.2.0" }
-omena-sif = { path = "../omena-sif", version = "=0.2.0" }
+omena-engine-input-producers = { path = "../omena-engine-input-producers", version = "=0.2.1" }
+omena-parser = { path = "../omena-parser", version = "=0.2.1" }
+omena-resolver = { path = "../omena-resolver", version = "=0.2.1" }
+omena-semantic = { path = "../omena-semantic", version = "=0.2.1" }
+omena-sif = { path = "../omena-sif", version = "=0.2.1" }
 oxc_allocator = "0.135.0"
 oxc_ast = "0.135.0"
 oxc_parser = "0.135.0"
