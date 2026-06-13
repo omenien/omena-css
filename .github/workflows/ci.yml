@@ -114,6 +114,18 @@ jobs:
         name: Run role-boundaries
         run: pnpm omena-check run rust/role-boundaries
         continue-on-error: true
+      - id: layer_dependency_exceptions
+        name: Run layer-dependency-exceptions
+        run: pnpm omena-check run rust/layer-dependency-exceptions
+        continue-on-error: true
+      - id: product_path_matrix
+        name: Run product-path-matrix
+        run: pnpm omena-check run rust/product-path-matrix
+        continue-on-error: true
+      - id: core_layer_hygiene
+        name: Run core-layer-hygiene
+        run: pnpm omena-check run rust/core-layer-hygiene
+        continue-on-error: true
       - id: publish_flags
         name: Run publish-flags
         run: pnpm omena-check run rust/publish-flags
@@ -147,6 +159,9 @@ jobs:
           echo "train_closure=${{ steps.train_closure.outcome }}"
           echo "inter_crate_pin=${{ steps.inter_crate_pin.outcome }}"
           echo "role_boundaries=${{ steps.role_boundaries.outcome }}"
+          echo "layer_dependency_exceptions=${{ steps.layer_dependency_exceptions.outcome }}"
+          echo "product_path_matrix=${{ steps.product_path_matrix.outcome }}"
+          echo "core_layer_hygiene=${{ steps.core_layer_hygiene.outcome }}"
           echo "publish_flags=${{ steps.publish_flags.outcome }}"
           echo "naming_consistency=${{ steps.naming_consistency.outcome }}"
           echo "no_split_residue=${{ steps.no_split_residue.outcome }}"
@@ -164,6 +179,9 @@ jobs:
             "${{ steps.train_closure.outcome }}" \
             "${{ steps.inter_crate_pin.outcome }}" \
             "${{ steps.role_boundaries.outcome }}" \
+            "${{ steps.layer_dependency_exceptions.outcome }}" \
+            "${{ steps.product_path_matrix.outcome }}" \
+            "${{ steps.core_layer_hygiene.outcome }}" \
             "${{ steps.publish_flags.outcome }}" \
             "${{ steps.naming_consistency.outcome }}" \
             "${{ steps.no_split_residue.outcome }}" \
