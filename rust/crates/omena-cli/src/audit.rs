@@ -12,20 +12,20 @@ use serde::Serialize;
 
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
-struct ZkAuditCliResultV0 {
+pub(crate) struct ZkAuditCliResultV0 {
     schema_version: &'static str,
     product: &'static str,
     layer_marker: &'static str,
     feature_gate: &'static str,
-    mechanism_scope: &'static str,
-    default_proof_backend_enabled: bool,
-    active_proof_backend_scope: &'static str,
+    pub(crate) mechanism_scope: &'static str,
+    pub(crate) default_proof_backend_enabled: bool,
+    pub(crate) active_proof_backend_scope: &'static str,
     command: &'static str,
     audit: Option<CascadeZKAuditV0>,
     ci_matrix: Option<ZKAuditCiMatrixV0>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    groth16_roundtrip: Option<ArkworksGroth16RoundTripV0>,
-    verified: bool,
+    pub(crate) groth16_roundtrip: Option<ArkworksGroth16RoundTripV0>,
+    pub(crate) verified: bool,
 }
 
 pub(crate) fn audit_command(command: AuditCommand) -> Result<(), String> {
@@ -84,7 +84,7 @@ fn zk_audit_command(command: ZkAuditCommand) -> Result<(), String> {
     }
 }
 
-fn zk_audit_cli_result_v0(
+pub(crate) fn zk_audit_cli_result_v0(
     product: &'static str,
     command: &'static str,
     audit: Option<CascadeZKAuditV0>,

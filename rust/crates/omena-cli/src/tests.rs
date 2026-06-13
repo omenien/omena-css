@@ -1,4 +1,6 @@
 #[cfg(feature = "zk-audit")]
+use crate::audit::zk_audit_cli_result_v0;
+#[cfg(feature = "zk-audit")]
 use crate::commands::{AuditCommand, ZkAuditCommand};
 use crate::{
     build::{BUNDLE_CODE_SPLIT_MANIFEST_FILE_NAME, bundle_split_file_name},
@@ -21,6 +23,11 @@ use crate::{
 use clap::{CommandFactory, Parser};
 use omena_query::OmenaQueryStyleSourceInputV0;
 use omena_sif::{OmenaSifAttestationSubjectDigestV1, read_omena_lock_json_v1};
+#[cfg(feature = "zk-audit")]
+use omena_zk_audit::{
+    ZK_AUDIT_DEFAULT_PROOF_BACKEND_ENABLED_V0, ZK_AUDIT_MECHANISM_SCOPE_V0, cascade_zk_audit_v0,
+    prove_and_verify_canonical_margin_cascade_with_arkworks_v0, zk_audit_ci_matrix_v0,
+};
 #[cfg(unix)]
 use std::os::unix::fs as unix_fs;
 use std::{
