@@ -78,8 +78,10 @@ use std::{
     process::ExitCode,
 };
 
+mod output;
 mod paths;
 
+use output::print_json;
 use paths::{
     cli_file_uri_to_path, cli_path_to_file_uri, path_string,
     style_resolution_workspace_uri_for_path,
@@ -5099,13 +5101,6 @@ fn merge_cli_context_list(target: &mut Vec<String>, additional: &[String]) {
         }
     }
     target.sort();
-}
-
-fn print_json<T: Serialize>(value: &T) -> Result<(), String> {
-    let json = serde_json::to_string_pretty(value)
-        .map_err(|error| format!("failed to serialize JSON: {error}"))?;
-    println!("{json}");
-    Ok(())
 }
 
 #[cfg(test)]
