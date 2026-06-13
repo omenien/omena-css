@@ -1,9 +1,11 @@
 use crate::{
     commands::ReportCommand,
+    diagnostics::{
+        parse_external_module_mode, read_external_sifs, read_lock_external_sifs,
+        resolve_in_process_external_sifs,
+    },
     io::{read_package_manifests, read_source_documents, read_style_sources},
     output::print_json,
-    parse_external_module_mode, read_external_sifs, read_lock_external_sifs,
-    resolve_in_process_external_sifs,
 };
 use omena_query::{
     OmenaQueryDiagnosticSuppressionModeV0, OmenaQueryDiagnosticSuppressionReasonV0,

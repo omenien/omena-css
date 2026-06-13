@@ -4,14 +4,16 @@ use crate::{
     build::{BuildFileOptions, build_file, list_passes},
     cascade_at_position, check_file,
     commands::{Cli, Command},
-    context_from_engine_input, context_index, dynamic_classname_diagnostics, expression_flow,
+    context_from_engine_input, context_index,
+    diagnostics::{dynamic_classname_diagnostics, source_diagnostics, style_diagnostics},
+    expression_flow,
     lock::lock_command,
     perceptual::perceptual_check,
     provenance::provenance_command,
     reports::report_command,
     selector_projection,
     sif::sif_command,
-    source_diagnostics, style_completion, style_diagnostics, style_hover_candidates,
+    style_completion, style_hover_candidates,
 };
 
 #[cfg(feature = "mdl")]
