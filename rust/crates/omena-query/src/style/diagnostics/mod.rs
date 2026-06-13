@@ -1,21 +1,9 @@
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::BTreeSet;
 
 use omena_parser::{
     ParsedAnimationFactKind, ParsedCssModuleComposesEdgeKind, ParsedVariableFactKind,
 };
-use omena_query_checker_orchestrator::{
-    ModuleGraphEdgeV0, ModuleGraphV0, OutcomeMode,
-    REPLICA_ENSEMBLE_DEFAULT_PRODUCT_DECISION_MECHANISM_V0, REPLICA_ENSEMBLE_FEATURE_GATE_V0,
-    REPLICA_ENSEMBLE_LAYER_MARKER_V0, REPLICA_ENSEMBLE_MECHANISM_SCOPE_V0,
-    REPLICA_ENSEMBLE_PRODUCT_SURFACE_V0, REPLICA_ENSEMBLE_SCHEMA_VERSION_V0, ReplicaSnapshotV0,
-    ReportOptionsV0, ReportRecommendation, build_cross_file_inconsistency_report,
-};
-use omena_query_checker_orchestrator::{
-    OmenaCheckerReplicaEnsembleInputV0, OmenaCheckerReplicaEnsembleReportInputV0,
-    run_omena_query_checker_replica_ensemble_gate_v0,
-};
 
-use super::cascade_checker::collect_query_replica_ensemble_site_outcomes;
 use super::cascade_checker::query_runtime_state_confidence_tier;
 use super::cascade_checker::summarize_query_cascade_checker_diagnostics_with_deep_analysis;
 use super::diagnostic_suppressions::apply_omena_query_style_diagnostic_suppressions;
@@ -28,6 +16,7 @@ mod cascade_runtime;
 mod css_modules;
 mod external_sif;
 mod render;
+mod replica_ensemble;
 mod sass;
 mod sass_builtins;
 mod sass_resolution;
@@ -55,6 +44,7 @@ use external_sif::{
     collect_omena_query_external_top_any_sass_symbol_ranges,
     summarize_omena_query_external_sif_boundary_diagnostics,
 };
+use replica_ensemble::summarize_omena_query_replica_ensemble_inconsistency_diagnostics_for_workspace;
 #[cfg(test)]
 use sass::sass_import_is_plain_css;
 pub(super) use sass::{
@@ -97,222 +87,6 @@ use substrate::{
 };
 use types::LSP_DIAGNOSTIC_TAG_UNNECESSARY;
 pub use types::OmenaQueryExternalModuleModeV0;
-
-/// Surface the real cross-file replica-ensemble inconsistency diagnostic in the
-/// workspace style path (#33 / L0 / L2).
-///
-/// When the target file's resolved `@use`/`@forward`/`@import` graph closure spans
-/// two or more in-graph CSS modules, each module is treated as one *replica* of the
-/// shared design surface and its REAL per-`(selector, property)` cascade winners are
-/// extracted via `collect_query_replica_ensemble_site_outcomes` (genuine
-/// `cascade_property` ranking over the parsed declarations — no fabricated
-/// snapshots). `omena-ensemble`'s `build_cross_file_inconsistency_report` then
-/// computes the replica overlap-Q distribution over the modules' winners and the
-/// SBM detectability over the resolved module graph; the report's overlap statistics
-/// (recommendation, `meanQ`, genuine disagreement-pair count) drive the registered
-/// `replicaEnsembleInconsistency` checker rule through
-/// `run_omena_query_checker_replica_ensemble_gate_v0`.
-///
-/// The diagnostic depends entirely on the overlap statistics over the real winners:
-/// a workspace whose modules agree on every shared `(selector, property)` outcome
-/// has `meanQ == 1.0`, zero disagreement pairs, and a `noActionNeeded`
-/// recommendation, so the checker rule filters the report out and nothing is
-/// surfaced; a workspace where two modules resolve a shared site to different
-/// winning values drops `meanQ` below one and surfaces the diagnostic. The report is
-/// whole-graph, so the single emitted diagnostic is anchored on the target file's
-/// whole-file span.
-fn summarize_omena_query_replica_ensemble_inconsistency_diagnostics_for_workspace(
-    target_style_path: &str,
-    style_sources: &[OmenaQueryStyleSourceInputV0],
-    substrate: &OmenaQueryWorkspaceDiagnosticsSubstrateV0,
-) -> Vec<OmenaQueryStyleDiagnosticV0> {
-    let Some(target) = style_sources
-        .iter()
-        .find(|source| source.style_path == target_style_path)
-    else {
-        return Vec::new();
-    };
-
-    // Substrate RES-A slot: plain resolution with (package_manifests, bundler, tsconfig).
-    let resolution = &substrate.sass_resolution;
-    let reachable_paths =
-        collect_sass_module_graph_reachable_style_paths(target_style_path, resolution);
-
-    // A single-module closure is not an ensemble: there is no second replica to
-    // overlap against, so there is no cross-file inconsistency to surface.
-    if reachable_paths.len() < 2 {
-        return Vec::new();
-    }
-
-    // Build one replica per in-graph module from its REAL cascade winners. A module
-    // that declares no comparable definite cascade site contributes an empty replica
-    // (it cannot agree or disagree with anything), so drop it from the ensemble.
-    let replicas = style_sources
-        .iter()
-        .filter(|source| reachable_paths.contains(source.style_path.as_str()))
-        .filter_map(|source| {
-            let sites = collect_query_replica_ensemble_site_outcomes(source.style_source.as_str());
-            if sites.is_empty() {
-                return None;
-            }
-            Some(ReplicaSnapshotV0 {
-                schema_version: REPLICA_ENSEMBLE_SCHEMA_VERSION_V0,
-                product: "omena-ensemble.replica-snapshot",
-                layer_marker: REPLICA_ENSEMBLE_LAYER_MARKER_V0,
-                feature_gate: REPLICA_ENSEMBLE_FEATURE_GATE_V0,
-                path: source.style_path.clone(),
-                sites,
-            })
-        })
-        .collect::<Vec<_>>();
-
-    // Fewer than two non-empty replicas => no shared cascade surface to compare.
-    if replicas.len() < 2 {
-        return Vec::new();
-    }
-
-    let module_graph = replica_ensemble_module_graph_from_resolution(
-        target_style_path,
-        resolution,
-        &reachable_paths,
-        &replicas,
-    );
-    let report = build_cross_file_inconsistency_report(
-        target_style_path,
-        replicas.clone(),
-        &module_graph,
-        OutcomeMode::DefiniteOnly,
-        ReportOptionsV0::default(),
-        None,
-    );
-    debug_assert_eq!(report.mechanism_scope, REPLICA_ENSEMBLE_MECHANISM_SCOPE_V0);
-    debug_assert_eq!(report.product_surface, REPLICA_ENSEMBLE_PRODUCT_SURFACE_V0);
-    debug_assert_eq!(
-        report.default_product_decision_mechanism,
-        REPLICA_ENSEMBLE_DEFAULT_PRODUCT_DECISION_MECHANISM_V0
-    );
-
-    // Genuine disagreement count: only replica pairs whose computed overlap-Q is
-    // strictly below 1.0 actually disagree on a shared cascade outcome. (The report's
-    // `top_disagreement_pairs` keeps the lowest-Q pairs even when every pair fully
-    // agrees, so counting that list directly would fire on a consistent ensemble.)
-    let genuine_disagreement_pair_count = report
-        .top_disagreement_pairs
-        .iter()
-        .filter(|pair| pair.shared_site_count > 0 && pair.overlap_q < 1.0)
-        .count();
-    let recommendation = replica_ensemble_recommendation_name(report.recommendation);
-
-    let gate =
-        run_omena_query_checker_replica_ensemble_gate_v0(OmenaCheckerReplicaEnsembleInputV0 {
-            reports: vec![OmenaCheckerReplicaEnsembleReportInputV0 {
-                workspace_root: target_style_path.to_string(),
-                recommendation: recommendation.to_string(),
-                mean_q: report.distribution.mean_q,
-                variance_q: report.distribution.variance_q,
-                top_disagreement_pair_count: genuine_disagreement_pair_count,
-                mechanism_scope: report.mechanism_scope.to_string(),
-                product_surface: report.product_surface.to_string(),
-                default_product_decision_mechanism: report.default_product_decision_mechanism,
-            }],
-        });
-    if !gate.enforcement_passed {
-        return Vec::new();
-    }
-
-    let whole_file_range = parser_range_for_byte_span(
-        target.style_source.as_str(),
-        ParserByteSpanV0 {
-            start: 0,
-            end: target.style_source.len(),
-        },
-    );
-
-    gate.evaluations
-        .into_iter()
-        .map(|evaluation| {
-            let mut provenance = vec![
-                "omena-query-checker-orchestrator.replica-ensemble-gate",
-                "omena-checker.replica-ensemble-rules",
-                "omena-ensemble.cross-file-inconsistency-report",
-                "omena-query.cross-file-replica-ensemble",
-            ];
-            provenance.extend(evaluation.mechanism_products.iter().copied());
-            OmenaQueryStyleDiagnosticV0 {
-                code: "replicaEnsembleInconsistency",
-                severity: "hint",
-                provenance,
-                range: whole_file_range,
-                message: evaluation.message,
-                tags: Vec::new(),
-                create_custom_property: None,
-                cascade_narrowing: None,
-                cascade_confidence: None,
-                polynomial_provenance: None,
-                cross_file_scc: None,
-            }
-        })
-        .collect()
-}
-
-/// Build the replica-ensemble module graph from the target's resolved import graph:
-/// nodes are the in-graph modules that contributed a non-empty replica, and edges
-/// are the resolved `@use`/`@forward`/`@import` edges between those modules. This is
-/// the real dependency structure the SBM detectability reasons over — not a
-/// synthesized clique.
-fn replica_ensemble_module_graph_from_resolution(
-    workspace_root: &str,
-    resolution: &OmenaQuerySassModuleCrossFileResolutionV0,
-    reachable_paths: &BTreeSet<&str>,
-    replicas: &[ReplicaSnapshotV0],
-) -> ModuleGraphV0 {
-    let nodes = replicas
-        .iter()
-        .map(|replica| replica.path.clone())
-        .collect::<Vec<_>>();
-    let node_set = nodes.iter().map(String::as_str).collect::<BTreeSet<_>>();
-
-    let edges = resolution
-        .edges
-        .iter()
-        .filter(|edge| edge.status == "resolved")
-        .filter(|edge| reachable_paths.contains(edge.from_style_path.as_str()))
-        .filter_map(|edge| {
-            let to = edge.resolved_style_path.as_deref()?;
-            if node_set.contains(edge.from_style_path.as_str()) && node_set.contains(to) {
-                Some(ModuleGraphEdgeV0 {
-                    schema_version: REPLICA_ENSEMBLE_SCHEMA_VERSION_V0,
-                    product: "omena-ensemble.module-graph-edge",
-                    layer_marker: REPLICA_ENSEMBLE_LAYER_MARKER_V0,
-                    feature_gate: REPLICA_ENSEMBLE_FEATURE_GATE_V0,
-                    from_module: edge.from_style_path.clone(),
-                    to_module: to.to_string(),
-                    edge_kind: "resolvedModuleEdge",
-                })
-            } else {
-                None
-            }
-        })
-        .collect::<Vec<_>>();
-
-    ModuleGraphV0 {
-        schema_version: REPLICA_ENSEMBLE_SCHEMA_VERSION_V0,
-        product: "omena-ensemble.module-graph",
-        layer_marker: REPLICA_ENSEMBLE_LAYER_MARKER_V0,
-        feature_gate: REPLICA_ENSEMBLE_FEATURE_GATE_V0,
-        workspace_root: workspace_root.to_string(),
-        nodes,
-        edges,
-    }
-}
-
-fn replica_ensemble_recommendation_name(recommendation: ReportRecommendation) -> &'static str {
-    match recommendation {
-        ReportRecommendation::NoActionNeeded => "noActionNeeded",
-        ReportRecommendation::InvestigateRsbBroken => "investigateRsbBroken",
-        ReportRecommendation::UndetectablePhase => "undetectablePhase",
-    }
-}
 
 #[cfg(feature = "hypergraph-ifds")]
 fn summarize_omena_query_unified_cross_file_scc_diagnostics_for_workspace(
