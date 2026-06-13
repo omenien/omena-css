@@ -52,6 +52,10 @@ pub use facts::{
 };
 pub use language::StyleLanguage;
 pub use lex::{LexResult, LexedToken};
+use lex::{
+    Token, is_css_at_rule_name, is_custom_property_name_text, is_name_continue, is_name_start,
+    is_non_printable_code_point, public_token_text,
+};
 pub use parse::{ParseEntryPoint, ParseError, ParseErrorCode, ParseResult};
 pub use public_product::{
     ParserCanonicalCandidateBundleV0, ParserCanonicalProducerSignalV0, ParserEvaluatorCandidatesV0,
@@ -81,13 +85,6 @@ use value_names::{
     CSS_IMAGE_FUNCTION_NAMES, CSS_SHAPE_FUNCTION_NAMES, CSS_TRANSFORM_FUNCTION_NAMES,
     VALUES_L4_MATH_FUNCTION_NAMES,
 };
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-struct Token<'text> {
-    kind: SyntaxKind,
-    text: &'text str,
-    range: TextRange,
-}
 
 pub fn parse(text: &str, dialect: StyleDialect) -> ParseResult {
     parse_entry_point(text, dialect, ParseEntryPoint::Stylesheet)
@@ -5330,86 +5327,6 @@ where
     fn bump_char(&mut self, char: char) {
         self.offset += char.len_utf8();
     }
-}
-
-fn public_token_text(text: &str) -> String {
-    text.chars()
-        .map(css_syntax_preprocessed_char)
-        .collect::<String>()
-}
-
-fn css_syntax_preprocessed_char(char: char) -> char {
-    if char == '\0' { '\u{fffd}' } else { char }
-}
-
-fn is_name_start(char: char) -> bool {
-    let char = css_syntax_preprocessed_char(char);
-    char == '_' || char == '-' || char.is_alphabetic() || !char.is_ascii()
-}
-
-fn is_name_continue(char: char) -> bool {
-    is_name_start(char) || char.is_ascii_digit()
-}
-
-fn is_non_printable_code_point(char: char) -> bool {
-    let char = css_syntax_preprocessed_char(char);
-    matches!(char, '\u{0000}'..='\u{0008}' | '\u{000b}' | '\u{000e}'..='\u{001f}' | '\u{007f}')
-}
-
-fn is_custom_property_name_text(text: &str) -> bool {
-    let Some(rest) = text.strip_prefix("--") else {
-        return false;
-    };
-    let Some(first) = rest.chars().next() else {
-        return false;
-    };
-    first == '-' || is_name_start(first) || starts_valid_escape_text(rest)
-}
-
-fn starts_valid_escape_text(text: &str) -> bool {
-    text.starts_with('\\')
-        && text['\\'.len_utf8()..]
-            .chars()
-            .next()
-            .is_some_and(|char| !matches!(char, '\n' | '\r' | '\u{000c}'))
-}
-
-fn is_css_at_rule_name(text: &str) -> bool {
-    matches_ignore_ascii_case(
-        text,
-        &[
-            "@charset",
-            "@container",
-            "@font-face",
-            "@font-feature-values",
-            "@font-palette-values",
-            "@import",
-            "@keyframes",
-            "@layer",
-            "@media",
-            "@namespace",
-            "@page",
-            "@property",
-            "@scope",
-            "@starting-style",
-            "@supports",
-            "@counter-style",
-            "@custom-media",
-            "@color-profile",
-            "@nest",
-            "@position-try",
-            "@view-transition",
-            "@stylistic",
-            "@styleset",
-            "@character-variant",
-            "@swash",
-            "@ornaments",
-            "@annotation",
-            "@historical-forms",
-            "@when",
-            "@else",
-        ],
-    )
 }
 
 fn is_interpolation_start(kind: SyntaxKind) -> bool {
