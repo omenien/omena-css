@@ -312,13 +312,13 @@ fn drain_workspace_index_results<W: Write + Send + 'static>(
     while let Ok(result) = receiver.try_recv() {
         let progress_end = workspace_index_progress_end_output(&result);
         let continuation_file_uris = result.pending_file_uris.clone();
-        let should_continue = result.exhausted && !continuation_file_uris.is_empty();
-        apply_background_workspace_index_result(state, result);
+        let is_exhausted = result.exhausted;
+        let applied = apply_background_workspace_index_result(state, result);
         *in_flight = in_flight.saturating_sub(1);
         if let Some(output) = progress_end {
             write_scheduled_lsp_output(writer, coalescer, output, delayed_outputs)?;
         }
-        if should_continue && !state.should_exit {
+        if applied && is_exhausted && !continuation_file_uris.is_empty() && !state.should_exit {
             let job =
                 prepare_background_workspace_index_continuation_job(state, continuation_file_uris);
             sender
@@ -486,6 +486,7 @@ fn lock_coalescer(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use omena_lsp_server::prepare_background_workspace_index_job;
     use serde_json::{Value, json};
 
     const APP_STYLE_URI: &str = "file:///workspace-a/src/App.module.scss";
@@ -1006,6 +1007,93 @@ mod tests {
             "a single initialized notification should auto-advance the workspace index frontier until the late source is indexed: {messages:?}"
         );
         let _ = std::fs::remove_dir_all(workspace_root.as_path());
+        Ok(())
+    }
+
+    #[test]
+    fn stale_workspace_index_result_ends_progress_without_continuation() -> Result<(), String> {
+        let mut state = LspShellState::default();
+        let mut stale_job = prepare_background_workspace_index_job(&mut state);
+        stale_job.progress_token = Some("workspace-index-progress-stale".to_string());
+        let mut current_job = prepare_background_workspace_index_job(&mut state);
+        current_job.progress_token = Some("workspace-index-progress-current".to_string());
+
+        let (result_sender, result_receiver) = mpsc::channel();
+        let (job_sender, job_receiver) = mpsc::channel();
+        result_sender
+            .send(LspWorkspaceIndexResultV0 {
+                revision: stale_job.revision,
+                progress_token: stale_job.progress_token.clone(),
+                documents: Vec::new(),
+                pending_file_uris: vec!["file:///workspace/src/Late.module.scss".to_string()],
+                indexed_count: 0,
+                pending_file_count: 1,
+                exhausted: true,
+            })
+            .map_err(|error| error.to_string())?;
+        result_sender
+            .send(LspWorkspaceIndexResultV0 {
+                revision: current_job.revision,
+                progress_token: current_job.progress_token.clone(),
+                documents: Vec::new(),
+                pending_file_uris: Vec::new(),
+                indexed_count: 0,
+                pending_file_count: 0,
+                exhausted: false,
+            })
+            .map_err(|error| error.to_string())?;
+
+        let writer = Arc::new(Mutex::new(Vec::<u8>::new()));
+        let coalescer = Arc::new(Mutex::new(ScheduledOutputCoalescer::default()));
+        let mut delayed_outputs = Vec::new();
+        let mut in_flight = 2usize;
+        drain_workspace_index_results(
+            &mut state,
+            &result_receiver,
+            &job_sender,
+            &mut in_flight,
+            &writer,
+            &coalescer,
+            &mut delayed_outputs,
+        )
+        .map_err(|error| error.to_string())?;
+
+        assert_eq!(
+            in_flight, 0,
+            "both completed workspace index jobs must be accounted for"
+        );
+        assert!(
+            job_receiver.try_recv().is_err(),
+            "a stale exhausted result must not enqueue a continuation job"
+        );
+
+        let output = writer
+            .lock()
+            .map_err(|_| "writer lock poisoned".to_string())?
+            .clone();
+        let messages = parse_lsp_frames(output.as_slice())?;
+        let progress_ends: Vec<(&str, &str)> = messages
+            .iter()
+            .filter_map(|message| {
+                if message.get("method") != Some(&json!("$/progress")) {
+                    return None;
+                }
+                let token = message.pointer("/params/token").and_then(Value::as_str)?;
+                let kind = message
+                    .pointer("/params/value/kind")
+                    .and_then(Value::as_str)?;
+                Some((token, kind))
+            })
+            .collect();
+        assert_eq!(
+            progress_ends,
+            vec![
+                ("workspace-index-progress-stale", "end"),
+                ("workspace-index-progress-current", "end"),
+            ],
+            "stale workspace index results still have to close their progress token exactly once"
+        );
+
         Ok(())
     }
 

@@ -120,9 +120,9 @@ pub fn collect_background_workspace_index(
 pub fn apply_background_workspace_index_result(
     state: &mut LspShellState,
     result: LspWorkspaceIndexResultV0,
-) {
+) -> bool {
     if result.revision != state.workspace_index_revision {
-        return;
+        return false;
     }
     for document in result.documents {
         if state.has_open_document_uri(document.uri.as_str()) {
@@ -146,6 +146,7 @@ pub fn apply_background_workspace_index_result(
     if result.exhausted {
         state.workspace_style_index_exhausted_count += 1;
     }
+    true
 }
 
 pub(crate) fn index_workspace_style_files_with_budget(
