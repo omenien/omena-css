@@ -8,10 +8,7 @@ mod variables;
 
 use omena_syntax::StyleDialect;
 
-use crate::{
-    DialectExtension, Parser, collect_css_module_composes_edge_facts_from_tokens,
-    collect_css_module_composes_facts_from_tokens, collect_selector_facts_from_tokens, tokenize,
-};
+use crate::{DialectExtension, Parser, collect_selector_facts_from_tokens, tokenize};
 
 pub(crate) use animations::collect_animation_facts_from_tokens;
 pub use animations::{ParsedAnimationFact, ParsedAnimationFactKind};
@@ -23,6 +20,8 @@ pub use css_modules::{
     ParsedCssModuleValueFact, ParsedCssModuleValueFactKind, ParsedCssModuleValueImportEdgeFact,
 };
 pub(crate) use css_modules::{
+    collect_css_module_composes_edge_facts_from_tokens,
+    collect_css_module_composes_facts_from_tokens,
     collect_css_module_value_definition_edge_facts_from_tokens,
     collect_css_module_value_definition_edge_names, collect_css_module_value_facts_from_tokens,
     collect_css_module_value_import_edge_facts_from_tokens,
