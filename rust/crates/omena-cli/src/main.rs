@@ -72,6 +72,7 @@ use std::{
 };
 
 mod commands;
+mod dispatch;
 mod io;
 mod output;
 mod paths;
@@ -80,12 +81,15 @@ mod provenance;
 mod reports;
 
 #[cfg(test)]
+use commands::Command;
+#[cfg(test)]
 use commands::ProvenanceCommand;
 #[cfg(test)]
 use commands::ReportCommand;
 #[cfg(feature = "zk-audit")]
 use commands::{AuditCommand, ZkAuditCommand};
-use commands::{Cli, Command, LockCommand, SifCommand};
+use commands::{Cli, LockCommand, SifCommand};
+use dispatch::run;
 use io::{
     read_context_json, read_engine_input_json, read_package_manifests, read_source,
     read_source_diagnostic_candidates_json, read_source_documents, read_style_sources,
@@ -95,11 +99,8 @@ use paths::{
     cli_file_uri_to_path, cli_path_to_file_uri, path_string,
     style_resolution_workspace_uri_for_path,
 };
-use perceptual::perceptual_check;
 #[cfg(test)]
 use perceptual::perceptual_check_summary;
-use provenance::provenance_command;
-use reports::report_command;
 
 #[cfg(feature = "zk-audit")]
 #[derive(Debug, Serialize)]
@@ -127,159 +128,6 @@ fn main() -> ExitCode {
             eprintln!("{error}");
             ExitCode::FAILURE
         }
-    }
-}
-
-fn run(cli: Cli) -> Result<(), String> {
-    match cli.command {
-        Command::Check { path, json } => check_file(path, json),
-        Command::Build {
-            path,
-            output,
-            passes,
-            target_query,
-            allow_logical_to_physical,
-            allow_scope_flatten,
-            allow_layer_flatten,
-            enable_supports_static_eval,
-            enable_media_static_eval,
-            drop_dark_mode_media_queries,
-            context_json,
-            engine_input_json,
-            closed_style_world,
-            tree_shake,
-            bundle,
-            split_out_dir,
-            bundle_entry_paths,
-            source_paths,
-            package_manifest_paths,
-            source_map,
-            input_source_maps,
-            json,
-        } => build_file(BuildFileOptions {
-            path,
-            output,
-            pass_ids: passes,
-            target_query,
-            context_json,
-            engine_input_json,
-            closed_style_world,
-            tree_shake,
-            bundle,
-            split_out_dir,
-            bundle_entry_paths,
-            source_paths,
-            package_manifest_paths,
-            source_map,
-            input_source_maps,
-            target_options: OmenaQueryTargetTransformOptionsV0 {
-                allow_logical_to_physical,
-                allow_scope_flatten,
-                allow_layer_flatten,
-                enable_supports_static_eval,
-                enable_media_static_eval,
-                drop_dark_mode_media_queries,
-            },
-            json,
-        }),
-        Command::Passes { json } => list_passes(json),
-        #[cfg(feature = "mdl")]
-        Command::Compress {
-            path,
-            budget_bits,
-            json,
-        } => compress_file(path, budget_bits, json),
-        Command::Context {
-            path,
-            engine_input_json,
-            closed_style_world,
-            json,
-        } => context_from_engine_input(path, engine_input_json, closed_style_world, json),
-        Command::ExpressionFlow {
-            engine_input_json,
-            json,
-        } => expression_flow(engine_input_json, json),
-        Command::SelectorProjection {
-            engine_input_json,
-            json,
-        } => selector_projection(engine_input_json, json),
-        Command::Cascade {
-            path,
-            line,
-            character,
-            engine_input_json,
-            categorical_evidence,
-            json,
-        } => cascade_at_position(
-            path,
-            line,
-            character,
-            engine_input_json,
-            categorical_evidence,
-            json,
-        ),
-        Command::ContextIndex {
-            path,
-            engine_input_json,
-            json,
-        } => context_index(path, engine_input_json, json),
-        Command::StyleDiagnostics {
-            path,
-            source_paths,
-            source_document_paths,
-            package_manifest_paths,
-            sif_paths,
-            lockfile,
-            external,
-            deep_analysis,
-            json,
-        } => style_diagnostics(
-            path,
-            source_paths,
-            source_document_paths,
-            package_manifest_paths,
-            sif_paths,
-            lockfile,
-            external,
-            deep_analysis,
-            json,
-        ),
-        Command::StyleHoverCandidates { path, json } => style_hover_candidates(path, json),
-        Command::StyleCompletion {
-            path,
-            line,
-            character,
-            json,
-        } => style_completion(path, line, character, json),
-        Command::SourceDiagnostics {
-            source_uri,
-            candidates_json,
-            source_path,
-            source_paths,
-            package_manifest_paths,
-            json,
-        } => source_diagnostics(
-            source_uri,
-            candidates_json,
-            source_path,
-            source_paths,
-            package_manifest_paths,
-            json,
-        ),
-        Command::DynamicClassnameDiagnostics { input_json, json } => {
-            dynamic_classname_diagnostics(input_json, json)
-        }
-        Command::PerceptualCheck { path, json } => perceptual_check(path, json),
-        Command::Lock {
-            lockfile,
-            json,
-            command,
-        } => lock_command(lockfile, json, command),
-        Command::Sif { command } => sif_command(command),
-        Command::Provenance { command } => provenance_command(command),
-        Command::Report { command } => report_command(command),
-        #[cfg(feature = "zk-audit")]
-        Command::Audit { command } => audit_command(command),
     }
 }
 
