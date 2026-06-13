@@ -41,6 +41,31 @@ pub(crate) fn read_style_sources(
         .collect()
 }
 
+pub(crate) fn read_workspace_sources(
+    target_path: &Path,
+    target_source: &str,
+    additional_paths: &[PathBuf],
+) -> Result<Vec<OmenaQueryStyleSourceInputV0>, String> {
+    let target_path_string = path_string(target_path);
+    let mut sources = vec![OmenaQueryStyleSourceInputV0 {
+        style_path: target_path_string.clone(),
+        style_source: target_source.to_string(),
+    }];
+
+    for source_path in additional_paths {
+        let source_path_string = path_string(source_path);
+        if source_path_string == target_path_string {
+            continue;
+        }
+        sources.push(OmenaQueryStyleSourceInputV0 {
+            style_path: source_path_string,
+            style_source: read_source(source_path)?,
+        });
+    }
+
+    Ok(sources)
+}
+
 pub(crate) fn read_package_manifests(
     package_manifest_paths: &[PathBuf],
 ) -> Result<Vec<OmenaQueryStylePackageManifestV0>, String> {
