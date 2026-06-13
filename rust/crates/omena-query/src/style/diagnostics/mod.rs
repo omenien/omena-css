@@ -34,8 +34,12 @@ use omena_resolver::{
     collect_omena_resolver_style_module_source_candidates_with_load_path_roots,
 };
 
+mod render;
 mod types;
 
+use render::{
+    canonical_sass_module_cycle, render_sass_module_cycle_from, whole_file_omena_query_style_range,
+};
 pub use types::OmenaQueryExternalModuleModeV0;
 use types::{LSP_DIAGNOSTIC_TAG_DEPRECATED, LSP_DIAGNOSTIC_TAG_UNNECESSARY};
 
@@ -1439,47 +1443,6 @@ fn parsed_sass_module_edge_fact_kind_label(
     }
 }
 
-/// Reduce a cycle `path` (a node ring whose first and last entries repeat, e.g. `[a, b, a]`) to a
-/// rotation-invariant key: drop the repeated closing node, then return the lexicographically
-/// smallest rotation. Two rotations of the same loop (`[a, b, a]` / `[b, a, b]`) collapse to one
-/// key, so each distinct loop is surfaced exactly once per anchoring edge. A self-loop `[a, a]`
-/// reduces to `[a]`.
-fn canonical_sass_module_cycle(path: &[String]) -> Vec<String> {
-    let ring: &[String] = match path.split_last() {
-        Some((last, head)) if Some(last) == path.first() && !head.is_empty() => head,
-        _ => path,
-    };
-    if ring.is_empty() {
-        return path.to_vec();
-    }
-    let len = ring.len();
-    (0..len)
-        .map(|offset| {
-            (0..len)
-                .map(|index| ring[(offset + index) % len].clone())
-                .collect::<Vec<_>>()
-        })
-        .min()
-        .unwrap_or_else(|| ring.to_vec())
-}
-
-/// Render a canonical cycle ring as a closed `start -> … -> start` path beginning at `start`, so
-/// each participating file describes the loop from its own perspective. `start` is guaranteed to be
-/// in the ring by the caller (the target participates in the cycle).
-fn render_sass_module_cycle_from(canonical_cycle: &[String], start: &str) -> String {
-    let len = canonical_cycle.len();
-    let begin = canonical_cycle
-        .iter()
-        .position(|node| node == start)
-        .unwrap_or(0);
-    let mut ordered = (0..len)
-        .map(|index| canonical_cycle[(begin + index) % len].clone())
-        .collect::<Vec<_>>();
-    // Re-close the ring so the loop reads `a -> b -> a` (or `a -> a` for a self-loop).
-    ordered.push(canonical_cycle[begin].clone());
-    ordered.join(" -> ")
-}
-
 pub fn summarize_omena_query_style_diagnostics_for_file(
     style_uri: &str,
     source: &str,
@@ -2509,26 +2472,6 @@ fn is_platform_alias_omena_query_symlink_link(link: &OmenaQuerySymlinkChainLinkV
         (link.link_path.as_str(), link.target_path.as_str()),
         ("/var", "/private/var") | ("/tmp", "/private/tmp") | ("/etc", "/private/etc")
     )
-}
-
-fn whole_file_omena_query_style_range(source: &str) -> ParserRangeV0 {
-    let mut line = 0usize;
-    let mut character = 0usize;
-    for ch in source.chars() {
-        if ch == '\n' {
-            line += 1;
-            character = 0;
-        } else {
-            character += ch.len_utf16();
-        }
-    }
-    ParserRangeV0 {
-        start: ParserPositionV0 {
-            line: 0,
-            character: 0,
-        },
-        end: ParserPositionV0 { line, character },
-    }
 }
 
 fn attach_omena_query_module_graph_property_value_narrowing_for_workspace(
