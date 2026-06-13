@@ -18,7 +18,7 @@ use crate::{
 use crate::compress_file;
 
 #[cfg(feature = "zk-audit")]
-use crate::audit_command;
+use crate::audit::audit_command;
 
 pub(crate) fn run(cli: Cli) -> Result<(), String> {
     match cli.command {
