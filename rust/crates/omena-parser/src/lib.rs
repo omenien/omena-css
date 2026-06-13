@@ -25,6 +25,7 @@ use std::{
 
 mod cst;
 mod extension;
+mod facts;
 mod language;
 // R1 narrow public surface: `public_product` is private; only this curated set
 // of V0 contract types + summary fns is re-exported (no wildcard). Reuse of
@@ -41,6 +42,17 @@ pub use cst::{
 };
 use extension::{AtRuleBlockKind, AtRuleSpec, at_rule_spec, scss_at_rule_spec};
 pub use extension::{BuiltinDialectExtension, DialectExtension};
+pub use facts::{
+    ParsedAnimationFact, ParsedAnimationFactKind, ParsedAtRuleFact,
+    ParsedCssModuleComposesEdgeFact, ParsedCssModuleComposesEdgeKind, ParsedCssModuleComposesFact,
+    ParsedCssModuleComposesFactKind, ParsedCssModuleValueDefinitionEdgeFact,
+    ParsedCssModuleValueFact, ParsedCssModuleValueFactKind, ParsedCssModuleValueImportEdgeFact,
+    ParsedExtendTargetFact, ParsedExtendTargetFactKind, ParsedIcssExportEdgeFact, ParsedIcssFact,
+    ParsedIcssFactKind, ParsedIcssImportEdgeFact, ParsedSassIncludeFact, ParsedSassModuleEdgeFact,
+    ParsedSassModuleEdgeFactKind, ParsedSassSymbolFact, ParsedSassSymbolFactKind,
+    ParsedSelectorFact, ParsedSelectorFactKind, ParsedStyleFacts, ParsedVariableFact,
+    ParsedVariableFactKind,
+};
 pub use language::StyleLanguage;
 pub use public_product::{
     ParserCanonicalCandidateBundleV0, ParserCanonicalProducerSignalV0, ParserEvaluatorCandidatesV0,
@@ -316,264 +328,6 @@ pub struct ParserRecursiveDescentCoverageSummaryV0 {
 struct ParserSemanticNameCandidateV0 {
     kind: NameKind,
     text: String,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct ParsedStyleFacts {
-    pub product: &'static str,
-    pub dialect: StyleDialect,
-    pub selector_count: usize,
-    pub selectors: Vec<ParsedSelectorFact>,
-    pub variable_count: usize,
-    pub variables: Vec<ParsedVariableFact>,
-    pub sass_symbol_count: usize,
-    pub sass_symbols: Vec<ParsedSassSymbolFact>,
-    pub sass_include_count: usize,
-    pub sass_includes: Vec<ParsedSassIncludeFact>,
-    pub sass_module_edge_count: usize,
-    pub sass_module_edges: Vec<ParsedSassModuleEdgeFact>,
-    pub extend_target_count: usize,
-    pub extend_targets: Vec<ParsedExtendTargetFact>,
-    pub animation_count: usize,
-    pub animations: Vec<ParsedAnimationFact>,
-    pub css_module_value_count: usize,
-    pub css_module_values: Vec<ParsedCssModuleValueFact>,
-    pub css_module_value_import_edge_count: usize,
-    pub css_module_value_import_edges: Vec<ParsedCssModuleValueImportEdgeFact>,
-    pub css_module_value_definition_edge_count: usize,
-    pub css_module_value_definition_edges: Vec<ParsedCssModuleValueDefinitionEdgeFact>,
-    pub css_module_composes_count: usize,
-    pub css_module_composes: Vec<ParsedCssModuleComposesFact>,
-    pub css_module_composes_edge_count: usize,
-    pub css_module_composes_edges: Vec<ParsedCssModuleComposesEdgeFact>,
-    pub icss_count: usize,
-    pub icss: Vec<ParsedIcssFact>,
-    pub icss_import_edge_count: usize,
-    pub icss_import_edges: Vec<ParsedIcssImportEdgeFact>,
-    pub icss_export_edge_count: usize,
-    pub icss_export_edges: Vec<ParsedIcssExportEdgeFact>,
-    pub at_rule_count: usize,
-    pub at_rules: Vec<ParsedAtRuleFact>,
-    pub error_count: usize,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct ParsedSelectorFact {
-    pub kind: ParsedSelectorFactKind,
-    pub name: String,
-    pub range: TextRange,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-pub enum ParsedSelectorFactKind {
-    Class,
-    Id,
-    Placeholder,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct ParsedVariableFact {
-    pub kind: ParsedVariableFactKind,
-    pub name: String,
-    pub range: TextRange,
-    /// For a `CustomPropertyReference` written as `var(--x, fallback)`, records that a
-    /// top-level fallback argument is present. The reference cannot be "missing" in any
-    /// observable way — the fallback guarantees a value — so the `missingCustomProperty`
-    /// lint must skip it. `false` for declarations and fallback-less references.
-    pub has_fallback: bool,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum ParsedVariableFactKind {
-    ScssDeclaration,
-    ScssReference,
-    LessDeclaration,
-    LessReference,
-    CustomPropertyDeclaration,
-    CustomPropertyReference,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct ParsedSassSymbolFact {
-    pub kind: ParsedSassSymbolFactKind,
-    pub symbol_kind: &'static str,
-    pub name: String,
-    pub role: &'static str,
-    pub namespace: Option<String>,
-    pub range: TextRange,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-pub enum ParsedSassSymbolFactKind {
-    VariableDeclaration,
-    VariableReference,
-    MixinDeclaration,
-    MixinInclude,
-    FunctionDeclaration,
-    FunctionCall,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct ParsedSassIncludeFact {
-    pub name: String,
-    pub namespace: Option<String>,
-    pub params: String,
-    pub range: TextRange,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct ParsedSassModuleEdgeFact {
-    pub kind: ParsedSassModuleEdgeFactKind,
-    pub source: String,
-    pub namespace_kind: Option<&'static str>,
-    pub namespace: Option<String>,
-    pub forward_prefix: Option<String>,
-    pub visibility_filter_kind: Option<&'static str>,
-    pub visibility_filter_names: Vec<String>,
-    /// RFC-0007-D1 (#44): whether this `@import` target carries a trailing media
-    /// qualifier (`@import "foo" screen`, `@import "foo" (min-width: 100px)`). Sass
-    /// keeps media-qualified imports as plain CSS (NOT deprecated). Recoverable only
-    /// in the parser, where the target's comma-peer segment is still tokenized: a
-    /// non-`Comma` significant token after the target String marks the qualifier.
-    /// Always `false` for `Use`/`Forward` edges (media qualifiers are `@import`-only).
-    pub media_qualified: bool,
-    pub range: TextRange,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-pub enum ParsedSassModuleEdgeFactKind {
-    Use,
-    Forward,
-    Import,
-}
-
-/// RFC-0007-E1 (#45): the target of an `@extend` rule. The `ScssExtendRule` node previously
-/// parsed and then discarded its target, so an `@extend %nonexistent` / `@extend .missing`
-/// (a dart-sass hard error) went unreported. This fact captures the (simple) target selector,
-/// whether it carries the `!optional` flag (an optional extend must NOT be validated — dart-sass
-/// allows a missing optional target), and its source range for diagnostic anchoring.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct ParsedExtendTargetFact {
-    pub kind: ParsedExtendTargetFactKind,
-    pub name: String,
-    pub optional: bool,
-    pub range: TextRange,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-pub enum ParsedExtendTargetFactKind {
-    Class,
-    Placeholder,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct ParsedAnimationFact {
-    pub kind: ParsedAnimationFactKind,
-    pub name: String,
-    pub range: TextRange,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-pub enum ParsedAnimationFactKind {
-    KeyframesDeclaration,
-    AnimationNameReference,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct ParsedCssModuleValueFact {
-    pub kind: ParsedCssModuleValueFactKind,
-    pub name: String,
-    pub range: TextRange,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-pub enum ParsedCssModuleValueFactKind {
-    Definition,
-    Reference,
-    ImportSource,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct ParsedCssModuleValueImportEdgeFact {
-    pub remote_name: String,
-    pub local_name: String,
-    pub import_source: String,
-    pub local_range: TextRange,
-    pub remote_range: TextRange,
-    pub range: TextRange,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct ParsedCssModuleValueDefinitionEdgeFact {
-    pub definition_name: String,
-    pub reference_names: Vec<String>,
-    pub range: TextRange,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct ParsedCssModuleComposesFact {
-    pub kind: ParsedCssModuleComposesFactKind,
-    pub name: String,
-    pub range: TextRange,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-pub enum ParsedCssModuleComposesFactKind {
-    Target,
-    ImportSource,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct ParsedCssModuleComposesEdgeFact {
-    pub kind: ParsedCssModuleComposesEdgeKind,
-    pub owner_selector_names: Vec<String>,
-    pub target_names: Vec<String>,
-    pub import_source: Option<String>,
-    pub range: TextRange,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-pub enum ParsedCssModuleComposesEdgeKind {
-    Local,
-    Global,
-    External,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct ParsedIcssFact {
-    pub kind: ParsedIcssFactKind,
-    pub name: String,
-    pub range: TextRange,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-pub enum ParsedIcssFactKind {
-    ExportName,
-    ImportLocalName,
-    ImportRemoteName,
-    ImportSource,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct ParsedIcssImportEdgeFact {
-    pub local_name: String,
-    pub remote_name: String,
-    pub import_source: String,
-    pub range: TextRange,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct ParsedIcssExportEdgeFact {
-    pub export_name: String,
-    pub reference_names: Vec<String>,
-    pub range: TextRange,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct ParsedAtRuleFact {
-    pub name: String,
-    pub node_kind: Option<SyntaxKind>,
-    pub range: TextRange,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
