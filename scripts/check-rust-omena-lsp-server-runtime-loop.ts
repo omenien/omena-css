@@ -1,10 +1,10 @@
 import { spawn } from "node:child_process";
 import { strict as assert } from "node:assert";
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { performance } from "node:perf_hooks";
-import { pathToFileURL } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import {
   createProtocolConnection,
   DidChangeTextDocumentNotification,
@@ -22,6 +22,10 @@ import { resolveOmenaLspServerInvocation } from "./omena-lsp-server-invocation";
 const DEBUG_STATE_REQUEST = "omena/rustLspState";
 const RUNTIME_LOOP_PROBE_REQUEST = "omena/runtimeLoopProbe";
 const SELECTOR_COUNT = parsePositiveInteger(process.env.OMENA_LSP_RUNTIME_LOOP_SELECTORS, 50);
+const STYLE_IMPORTER_COUNT = parsePositiveInteger(
+  process.env.OMENA_LSP_RUNTIME_LOOP_STYLE_IMPORTERS,
+  4,
+);
 const PROBE_INTERVAL_MS = parsePositiveInteger(
   process.env.OMENA_LSP_RUNTIME_LOOP_PROBE_INTERVAL_MS,
   20,
@@ -81,15 +85,24 @@ async function main(): Promise<void> {
   const sourcePath = path.join(srcDir, "App.tsx");
   const stylePath = path.join(srcDir, "App.module.scss");
   const peerStylePath = path.join(srcDir, "Peer.module.scss");
+  const sharedPartialPath = path.join(srcDir, "_shared.scss");
+  const importerStylePaths = Array.from(
+    { length: STYLE_IMPORTER_COUNT },
+    (_, index) => path.join(srcDir, `Importer${index}.module.scss`),
+  );
   const bridgePath = path.join(vendorDir, "_tokens.scss");
   const sourceUri = pathToFileURL(sourcePath).toString();
   const styleUri = pathToFileURL(stylePath).toString();
   const peerStyleUri = pathToFileURL(peerStylePath).toString();
+  const sharedPartialUri = pathToFileURL(sharedPartialPath).toString();
+  const importerStyleUris = importerStylePaths.map((filePath) => pathToFileURL(filePath).toString());
   const bridgeUri = pathToFileURL(bridgePath).toString();
   const sourceText = buildSourceText(SELECTOR_COUNT);
   const styleText = buildStyleText(SELECTOR_COUNT);
   const changedStyleText = buildChangedStyleText(SELECTOR_COUNT);
   const peerStyleText = buildPeerStyleText(bridgeUri);
+  const sharedPartialText = buildSharedPartialText("red");
+  const changedSharedPartialText = buildSharedPartialText("green");
   const invocation = resolveOmenaLspServerInvocation();
   const diagnostics: unknown[] = [];
 
@@ -98,6 +111,10 @@ async function main(): Promise<void> {
   writeFileSync(sourcePath, sourceText);
   writeFileSync(stylePath, styleText);
   writeFileSync(peerStylePath, peerStyleText);
+  writeFileSync(sharedPartialPath, sharedPartialText);
+  for (const [index, filePath] of importerStylePaths.entries()) {
+    writeFileSync(filePath, buildImporterStyleText(index));
+  }
   writeFileSync(bridgePath, "$brand: red !default;\n");
   writeFileSync(
     path.join(workspaceRoot, "omena.lock"),
@@ -150,12 +167,35 @@ async function main(): Promise<void> {
     });
     connection.sendNotification(DidOpenTextDocumentNotification.type, {
       textDocument: {
+        uri: sharedPartialUri,
+        languageId: "scss",
+        version: 1,
+        text: sharedPartialText,
+      },
+    });
+    for (const [index, uri] of importerStyleUris.entries()) {
+      connection.sendNotification(DidOpenTextDocumentNotification.type, {
+        textDocument: {
+          uri,
+          languageId: "scss",
+          version: 1,
+          text: buildImporterStyleText(index),
+        },
+      });
+    }
+    connection.sendNotification(DidOpenTextDocumentNotification.type, {
+      textDocument: {
         uri: sourceUri,
         languageId: "typescriptreact",
         version: 1,
         text: sourceText,
       },
     });
+    await waitForDiagnosticsForUris(
+      () => diagnostics,
+      importerStyleUris,
+      "initial shared-style importer diagnostics",
+    );
 
     await requestWithTimeout(
       connection.sendRequest("textDocument/hover", sourceHoverParams(sourceUri, sourceText, 0)),
@@ -188,6 +228,23 @@ async function main(): Promise<void> {
     assertHotRequestResults(loadResults);
     assertProbeMetrics(probeLatencies);
 
+    const diagnosticsBeforeFanout = diagnostics.length;
+    const fanoutProbePromise = collectProbeLatencies(connection);
+    connection.sendNotification(DidChangeTextDocumentNotification.type, {
+      textDocument: {
+        uri: sharedPartialUri,
+        version: 2,
+      },
+      contentChanges: [{ text: changedSharedPartialText }],
+    });
+    await waitForDiagnosticsForUris(
+      () => diagnostics.slice(diagnosticsBeforeFanout),
+      importerStyleUris,
+      "shared style fan-out diagnostics",
+    );
+    const fanoutProbeLatencies = await fanoutProbePromise;
+    assertProbeMetrics(fanoutProbeLatencies);
+
     await requestWithTimeout(connection.sendRequest(ShutdownRequest.type), "shutdown");
     connection.sendNotification("exit");
     const exitCode = await waitForExit(child);
@@ -198,11 +255,15 @@ async function main(): Promise<void> {
         "omena-lsp-server runtime loop ok:",
         `command=${invocation.command}`,
         `selectors=${SELECTOR_COUNT}`,
+        `styleImporters=${STYLE_IMPORTER_COUNT}`,
         `requests=${loadResults.length}`,
         `probes=${probeLatencies.length}`,
+        `fanoutProbes=${fanoutProbeLatencies.length}`,
         `diagnosticNotifications=${diagnostics.length}`,
         `p95=${percentile(probeLatencies, 95).toFixed(2)}ms`,
         `max=${Math.max(...probeLatencies).toFixed(2)}ms`,
+        `fanoutP95=${percentile(fanoutProbeLatencies, 95).toFixed(2)}ms`,
+        `fanoutMax=${Math.max(...fanoutProbeLatencies).toFixed(2)}ms`,
         `requestLatency=[${formatRequestLatencySummaries(loadResults)}]`,
       ].join(" ") + "\n",
     );
@@ -429,6 +490,16 @@ function buildPeerStyleText(bridgeUri: string): string {
 `;
 }
 
+function buildSharedPartialText(color: string): string {
+  return `$tone: ${color};\n`;
+}
+
+function buildImporterStyleText(index: number): string {
+  return `@use "./shared";
+.importer${index} { width: var(--missing-importer-${index}); color: red; color: blue; }
+`;
+}
+
 async function readDebugState(
   connection: ProtocolConnection,
   label: string,
@@ -457,6 +528,58 @@ function assertExternalSifCountersStableOnPlainDidChange(
     0,
     "plain style didChange must not regenerate bridge SIFs",
   );
+}
+
+async function waitForDiagnosticsForUris(
+  diagnosticsSnapshot: () => readonly unknown[],
+  expectedUris: readonly string[],
+  label: string,
+): Promise<void> {
+  const deadline = performance.now() + REQUEST_TIMEOUT_MS;
+  const expectedCanonicalUris = expectedUris.map(canonicalFileUriForComparison);
+  while (performance.now() < deadline) {
+    const seen = new Set(
+      diagnosticsSnapshot()
+        .map((entry) => diagnosticUri(entry))
+        .filter((uri): uri is string => typeof uri === "string")
+        .map(canonicalFileUriForComparison),
+    );
+    if (expectedCanonicalUris.every((uri) => seen.has(uri))) {
+      return;
+    }
+    // oxlint-disable-next-line eslint/no-await-in-loop
+    await sleep(25);
+  }
+  const seenUris = [
+    ...new Set(
+      diagnosticsSnapshot()
+        .map((entry) => diagnosticUri(entry))
+        .filter((uri): uri is string => typeof uri === "string")
+        .map(canonicalFileUriForComparison),
+    ),
+  ].sort();
+  throw new Error(
+    `${label} timed out; missing=${expectedCanonicalUris
+      .filter((uri) => !seenUris.includes(uri))
+      .join(",")} seen=${seenUris.join(",")}`,
+  );
+}
+
+function diagnosticUri(value: unknown): string | undefined {
+  if (!value || typeof value !== "object" || !("uri" in value)) {
+    return undefined;
+  }
+  const uri = (value as { uri?: unknown }).uri;
+  return typeof uri === "string" ? uri : undefined;
+}
+
+function canonicalFileUriForComparison(uri: string): string {
+  if (!uri.startsWith("file:")) return uri;
+  try {
+    return pathToFileURL(realpathSync.native(fileURLToPath(uri))).toString();
+  } catch {
+    return uri;
+  }
 }
 
 async function requestWithTimeout<T>(promise: Promise<T>, label: string): Promise<T> {

@@ -1380,6 +1380,151 @@ mod tests {
         Ok(())
     }
 
+    #[test]
+    fn style_change_deferred_fanout_counts_all_open_style_importers() -> Result<(), String> {
+        let workspace_path = std::env::temp_dir().join(format!(
+            "omena-lsp-deferred-style-fanout-{}-{}",
+            std::process::id(),
+            crate::current_time_millis(),
+        ));
+        let src_path = workspace_path.join("src");
+        let shared_path = src_path.join("_shared.scss");
+        fs::create_dir_all(src_path.as_path()).map_err(|error| error.to_string())?;
+        fs::write(shared_path.as_path(), "$tone: red;\n").map_err(|error| error.to_string())?;
+        let importer_specs = [
+            (
+                src_path.join("Alpha.module.scss"),
+                "@use \"./shared\";\n.alpha { width: var(--missing-alpha); color: red; color: blue; }\n",
+            ),
+            (
+                src_path.join("Beta.module.scss"),
+                "@use \"./shared\";\n.beta { width: var(--missing-beta); color: red; color: blue; }\n",
+            ),
+            (
+                src_path.join("Gamma.module.scss"),
+                "@use \"./shared\";\n.gamma { width: var(--missing-gamma); color: red; color: blue; }\n",
+            ),
+        ];
+        for (path, text) in importer_specs.iter() {
+            fs::write(path.as_path(), text).map_err(|error| error.to_string())?;
+        }
+        let workspace_uri = crate::protocol::path_to_file_uri(workspace_path.as_path());
+        let shared_uri = crate::protocol::path_to_file_uri(shared_path.as_path());
+        let importer_uris = importer_specs
+            .iter()
+            .map(|(path, _)| crate::protocol::path_to_file_uri(path.as_path()))
+            .collect::<BTreeSet<_>>();
+
+        let mut state = LspShellState::default();
+        let _ = crate::handle_lsp_message_scheduled_outputs_or_dispatch(
+            &mut state,
+            json!({
+                "jsonrpc": "2.0",
+                "id": 1,
+                "method": "initialize",
+                "params": {
+                    "workspaceFolders": [
+                        { "uri": workspace_uri, "name": "deferred-style-fanout" },
+                    ],
+                },
+            }),
+        );
+        let _ = crate::handle_lsp_message_outputs(
+            &mut state,
+            json!({
+                "jsonrpc": "2.0",
+                "method": "textDocument/didOpen",
+                "params": {
+                    "textDocument": {
+                        "uri": shared_uri,
+                        "languageId": "scss",
+                        "version": 1,
+                        "text": "$tone: red;\n",
+                    },
+                },
+            }),
+        );
+        for (path, text) in importer_specs.iter() {
+            let uri = crate::protocol::path_to_file_uri(path.as_path());
+            let _ = crate::handle_lsp_message_scheduled_outputs_or_dispatch(
+                &mut state,
+                json!({
+                    "jsonrpc": "2.0",
+                    "method": "textDocument/didOpen",
+                    "params": {
+                        "textDocument": {
+                            "uri": uri,
+                            "languageId": "scss",
+                            "version": 1,
+                            "text": text,
+                        },
+                    },
+                }),
+            );
+        }
+
+        let effects = run_diagnostics_schedule_effects(
+            &mut state,
+            DiagnosticsScheduleEvent::TextDocument {
+                uri: shared_uri,
+                is_close: false,
+            },
+        );
+        let importer_outputs = effects
+            .outputs
+            .iter()
+            .filter(|output| {
+                output
+                    .value
+                    .pointer("/params/uri")
+                    .and_then(Value::as_str)
+                    .is_some_and(|uri| importer_uris.contains(uri))
+            })
+            .collect::<Vec<_>>();
+        assert_eq!(
+            importer_outputs.len(),
+            importer_uris.len(),
+            "each open style importer must receive exactly one immediate baseline publish"
+        );
+        assert!(
+            importer_outputs
+                .iter()
+                .all(|output| output.delay_millis.is_none()),
+            "style fan-out optimizing diagnostics must be deferred off the loop"
+        );
+        assert!(
+            importer_outputs.iter().all(|output| output
+                .value
+                .pointer("/params/diagnostics")
+                .and_then(Value::as_array)
+                .is_some_and(|diagnostics| diagnostics.iter().all(|diagnostic| {
+                    diagnostic.pointer("/data/pipelineTier") == Some(&json!("baseline"))
+                }))),
+            "loop-side fan-out publishes must only carry baseline diagnostics"
+        );
+
+        let importer_dispatches = effects
+            .deferred_diagnostics
+            .iter()
+            .filter(|dispatch| importer_uris.contains(dispatch.uri.as_str()))
+            .collect::<Vec<_>>();
+        assert_eq!(
+            importer_dispatches.len(),
+            importer_uris.len(),
+            "each open style importer must enqueue one deferred optimizing dispatch"
+        );
+        assert!(
+            importer_dispatches.iter().all(|dispatch| matches!(
+                dispatch.render_inputs,
+                crate::lsp_output::DeferredDiagnosticsRenderInputsV0::Style(_)
+            )),
+            "style fan-out dispatches must carry style render inputs"
+        );
+
+        let _ = fs::remove_dir_all(workspace_path.as_path());
+        Ok(())
+    }
+
     /// End-to-end through the scheduler event: a configuration change over
     /// multiple open style documents publishes immediate non-empty baseline
     /// notifications in canonical (BTreeSet) URI order. Optimizing-only
