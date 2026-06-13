@@ -1,4 +1,7 @@
-use super::*;
+use super::external_sif::{
+    OmenaQueryExternalSifResolutionContext, promote_sif_backed_external_edges,
+};
+use super::shared::*;
 
 /// RFC 0009 Pillar B stage-2 (#65): the per-call workspace diagnostics substrate.
 ///
@@ -102,4 +105,27 @@ pub(super) fn collect_omena_query_workspace_diagnostics_substrate(
         #[cfg(feature = "hypergraph-ifds")]
         css_modules_resolution,
     }
+}
+
+pub(in crate::style) fn collect_sass_module_graph_reachable_style_paths<'a>(
+    target_style_path: &'a str,
+    resolution: &'a OmenaQuerySassModuleCrossFileResolutionV0,
+) -> BTreeSet<&'a str> {
+    let mut reachable = BTreeSet::new();
+    let mut stack = vec![target_style_path];
+    while let Some(current) = stack.pop() {
+        if !reachable.insert(current) {
+            continue;
+        }
+        for edge in resolution
+            .edges
+            .iter()
+            .filter(|edge| edge.from_style_path == current && edge.status == "resolved")
+        {
+            if let Some(next) = edge.resolved_style_path.as_deref() {
+                stack.push(next);
+            }
+        }
+    }
+    reachable
 }

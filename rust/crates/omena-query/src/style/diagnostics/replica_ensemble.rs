@@ -13,9 +13,9 @@ use omena_query_checker_orchestrator::{
 };
 
 use super::super::cascade_checker::collect_query_replica_ensemble_site_outcomes;
-use super::sass::collect_sass_module_graph_reachable_style_paths;
+use super::shared::*;
 use super::substrate::OmenaQueryWorkspaceDiagnosticsSubstrateV0;
-use super::*;
+use super::substrate::collect_sass_module_graph_reachable_style_paths;
 
 pub(super) fn summarize_omena_query_replica_ensemble_inconsistency_diagnostics_for_workspace(
     target_style_path: &str,

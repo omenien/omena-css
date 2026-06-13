@@ -7,13 +7,13 @@ use omena_resolver::{
     collect_omena_resolver_style_module_source_candidates_with_load_path_roots,
 };
 
-use super::diagnostic_suppressions::OmenaStrictnessLevelV0;
-use super::parser_facade::collect_omena_query_omena_parser_style_facts_raw;
+use super::super::diagnostic_suppressions::OmenaStrictnessLevelV0;
+use super::super::parser_facade::collect_omena_query_omena_parser_style_facts_raw;
 use super::sass_symbols::{
     apply_sass_forward_prefix, fold_sass_symbol_name, sass_forward_filter_name_matches_symbol,
 };
+use super::shared::*;
 use super::substrate::OmenaQueryWorkspaceDiagnosticsSubstrateV0;
-use super::*;
 
 #[derive(Clone, Copy)]
 pub(in crate::style) struct OmenaQueryExternalSifResolutionContext<'a> {

@@ -1,4 +1,4 @@
-use super::*;
+use super::shared::*;
 
 pub fn summarize_omena_query_missing_custom_property_diagnostics(
     style_uri: &str,

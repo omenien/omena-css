@@ -108,6 +108,7 @@ for (const moduleName of [
   "render",
   "sass",
   "sass_resolution",
+  "shared",
   "single_file",
   "source_usage",
   "substrate",
@@ -134,6 +135,58 @@ assert.equal(
     .join("\n")}`,
 );
 
+const queryDiagnosticFamilyModules = new Set([
+  "cascade_runtime",
+  "cross_file_scc",
+  "css_modules",
+  "replica_ensemble",
+  "sass",
+  "sass_resolution",
+  "single_file",
+  "source_usage",
+]);
+const queryDiagnosticInfrastructureModules = new Set(["render", "shared", "substrate", "types"]);
+const queryDiagnosticSupportModules = new Set(["external_sif", "sass_builtins", "sass_symbols"]);
+const queryDiagnosticLeafModules = [...queryDiagnosticFamilyModules, ...queryDiagnosticSupportModules, "substrate"];
+const wildcardImportViolations: string[] = [];
+const disallowedFamilyImportViolations: string[] = [];
+for (const moduleName of queryDiagnosticLeafModules) {
+  const relativePath = `${queryDiagnosticsDirPath}/${moduleName}.rs`;
+  const source = read(relativePath);
+  const lines = source.split("\n");
+  lines.forEach((line, index) => {
+    if (/^\s*use\s+super::\*\s*;/u.test(line)) {
+      wildcardImportViolations.push(`${relativePath}:${index + 1}: ${line.trim()}`);
+    }
+    const match = /^\s*use\s+super::([a-z_][a-z0-9_]*)\b/u.exec(line);
+    if (!match) {
+      return;
+    }
+    const importedModule = match[1];
+    if (!queryModules.has(importedModule)) {
+      return;
+    }
+    const allowedImport =
+      queryDiagnosticInfrastructureModules.has(importedModule) ||
+      queryDiagnosticSupportModules.has(importedModule);
+    if (!allowedImport && queryDiagnosticFamilyModules.has(importedModule)) {
+      disallowedFamilyImportViolations.push(
+        `${relativePath}:${index + 1}: ${moduleName} imports diagnostic family ${importedModule}`,
+      );
+    }
+  });
+}
+assert.equal(
+  wildcardImportViolations.length,
+  0,
+  `diagnostic family/support modules must not use wildcard parent imports:\n${wildcardImportViolations.join("\n")}`,
+);
+assert.equal(
+  disallowedFamilyImportViolations.length,
+  0,
+  `diagnostic family modules must not import other diagnostic family modules directly:\n${disallowedFamilyImportViolations.join("\n")}`,
+);
+
 process.stdout.write(
   `${JSON.stringify(
     {
@@ -143,6 +196,8 @@ process.stdout.write(
       cliMainLines: lineCount(cliMain),
       queryDiagnosticsModules: queryModules.size,
       maxQueryDiagnosticFamilyLines: Math.max(...queryModuleLines.map(({ lines }) => lines)),
+      queryDiagnosticsWildcardImports: wildcardImportViolations.length,
+      queryDiagnosticsDisallowedFamilyImports: disallowedFamilyImportViolations.length,
       violations: 0,
     },
     null,

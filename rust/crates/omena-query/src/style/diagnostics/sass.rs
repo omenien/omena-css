@@ -4,17 +4,18 @@ use omena_parser::{
     ParsedExtendTargetFactKind, ParsedSassModuleEdgeFactKind, ParsedSelectorFactKind,
 };
 
+use super::super::parser_facade::collect_omena_query_omena_parser_style_facts_raw;
 use super::external_sif::{
     OmenaQueryExternalSifResolutionContext,
     summarize_sass_module_cross_file_resolution_with_external_sifs,
 };
-use super::parser_facade::collect_omena_query_omena_parser_style_facts_raw;
 use super::render::{canonical_sass_module_cycle, render_sass_module_cycle_from};
 use super::sass_builtins::is_omena_query_sass_builtin_symbol_reference_resolved;
 use super::sass_symbols::{SassSymbolKey, collect_visible_sass_symbol_keys, sass_symbol_key};
+use super::shared::*;
 use super::substrate::OmenaQueryWorkspaceDiagnosticsSubstrateV0;
+use super::substrate::collect_sass_module_graph_reachable_style_paths;
 use super::types::LSP_DIAGNOSTIC_TAG_DEPRECATED;
-use super::*;
 
 pub fn summarize_omena_query_missing_sass_symbol_diagnostics(
     style_uri: &str,
@@ -273,29 +274,6 @@ pub(super) fn summarize_omena_query_missing_extend_target_diagnostics_for_worksp
     }
 
     diagnostics
-}
-
-pub(in crate::style) fn collect_sass_module_graph_reachable_style_paths<'a>(
-    target_style_path: &'a str,
-    resolution: &'a OmenaQuerySassModuleCrossFileResolutionV0,
-) -> BTreeSet<&'a str> {
-    let mut reachable = BTreeSet::new();
-    let mut stack = vec![target_style_path];
-    while let Some(current) = stack.pop() {
-        if !reachable.insert(current) {
-            continue;
-        }
-        for edge in resolution
-            .edges
-            .iter()
-            .filter(|edge| edge.from_style_path == current && edge.status == "resolved")
-        {
-            if let Some(next) = edge.resolved_style_path.as_deref() {
-                stack.push(next);
-            }
-        }
-    }
-    reachable
 }
 
 pub fn summarize_omena_query_sass_import_deprecation_hints(

@@ -3,7 +3,7 @@ use std::ffi::OsString;
 use std::fs;
 use std::path::{Component, Path, PathBuf};
 
-use super::*;
+use super::shared::*;
 
 pub fn summarize_omena_query_unused_selector_style_diagnostics(
     target_style_path: &str,

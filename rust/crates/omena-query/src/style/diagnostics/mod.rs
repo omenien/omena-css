@@ -1,15 +1,9 @@
+#[cfg(test)]
 use std::collections::BTreeSet;
 
-use omena_parser::{
-    ParsedAnimationFactKind, ParsedCssModuleComposesEdgeKind, ParsedVariableFactKind,
-};
-
-use super::cascade_checker::query_runtime_state_confidence_tier;
-use super::cascade_checker::summarize_query_cascade_checker_diagnostics_with_deep_analysis;
 use super::diagnostic_suppressions::apply_omena_query_style_diagnostic_suppressions;
 use super::diagnostic_suppressions::parse_omena_query_style_strictness_level;
 use super::diagnostic_suppressions::report_omena_query_style_diagnostic_suppressions;
-use super::parser_facade::collect_omena_query_omena_parser_style_facts_raw;
 use super::*;
 
 mod cascade_runtime;
@@ -22,6 +16,7 @@ mod sass;
 mod sass_builtins;
 mod sass_resolution;
 mod sass_symbols;
+mod shared;
 mod single_file;
 mod source_usage;
 mod substrate;
@@ -49,9 +44,7 @@ use external_sif::{
 use replica_ensemble::summarize_omena_query_replica_ensemble_inconsistency_diagnostics_for_workspace;
 #[cfg(test)]
 use sass::sass_import_is_plain_css;
-pub(super) use sass::{
-    collect_sass_module_graph_reachable_style_paths, sass_module_source_is_workspace_local,
-};
+pub(super) use sass::sass_module_source_is_workspace_local;
 pub use sass::{
     summarize_omena_query_missing_extend_target_diagnostics,
     summarize_omena_query_missing_sass_symbol_diagnostics,
@@ -84,10 +77,8 @@ pub use source_usage::{
     summarize_omena_query_unused_selector_style_diagnostics,
     summarize_omena_query_unused_selector_style_diagnostics_with_path_mappings,
 };
-use substrate::{
-    OmenaQueryWorkspaceDiagnosticsSubstrateV0, collect_omena_query_workspace_diagnostics_substrate,
-};
-use types::LSP_DIAGNOSTIC_TAG_UNNECESSARY;
+use substrate::collect_omena_query_workspace_diagnostics_substrate;
+pub(super) use substrate::collect_sass_module_graph_reachable_style_paths;
 pub use types::OmenaQueryExternalModuleModeV0;
 
 pub fn summarize_omena_query_style_diagnostics_for_file(

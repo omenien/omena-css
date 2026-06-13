@@ -1,6 +1,6 @@
 use std::collections::{BTreeMap, BTreeSet};
 
-use super::*;
+use super::shared::*;
 
 pub(super) fn attach_omena_query_module_graph_property_value_narrowing_for_workspace(
     target_style_path: &str,

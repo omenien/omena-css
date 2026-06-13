@@ -1,4 +1,4 @@
-use super::*;
+use super::shared::*;
 
 /// RFC-0007-F (#46): composes-target validation restricted to outcomes that are fully resolvable
 /// from a single file with no cross-file `--source` context. Only `composes: x` / `composes: x, y`

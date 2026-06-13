@@ -7,7 +7,7 @@ use super::external_sif::{
     find_omena_query_external_sif_for_edge,
 };
 use super::sass_builtins::{builtin_sass_symbol_exports, sass_builtin_module_name};
-use super::*;
+use super::shared::*;
 
 pub(crate) type SassSymbolKey = (&'static str, Option<String>, String);
 

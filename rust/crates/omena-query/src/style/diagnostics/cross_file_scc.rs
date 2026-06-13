@@ -1,8 +1,8 @@
 #[cfg(feature = "hypergraph-ifds")]
 use std::collections::BTreeSet;
 
+use super::shared::*;
 use super::substrate::OmenaQueryWorkspaceDiagnosticsSubstrateV0;
-use super::*;
 
 #[cfg(feature = "hypergraph-ifds")]
 pub(super) fn summarize_omena_query_unified_cross_file_scc_diagnostics_for_workspace(

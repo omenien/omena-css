@@ -1,7 +1,7 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use super::render::whole_file_omena_query_style_range;
-use super::*;
+use super::shared::*;
 
 pub fn summarize_omena_query_sass_module_resolution_identity_diagnostics_for_workspace(
     target_style_path: &str,
