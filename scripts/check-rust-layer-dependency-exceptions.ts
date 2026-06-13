@@ -81,7 +81,10 @@ function edgeKey(from: string, to: string): string {
 
 const allowedByEdge = new Map<string, (typeof ALLOWED_EXCEPTIONS)[number]>();
 for (const exception of ALLOWED_EXCEPTIONS) {
-  assert.ok(exception.reason.trim().length > 0, `${edgeKey(exception.from, exception.to)} needs a reason`);
+  assert.ok(
+    exception.reason.trim().length > 0,
+    `${edgeKey(exception.from, exception.to)} needs a reason`,
+  );
   assert.ok(
     exception.retirementPath.trim().length > 0,
     `${edgeKey(exception.from, exception.to)} needs a retirement path`,

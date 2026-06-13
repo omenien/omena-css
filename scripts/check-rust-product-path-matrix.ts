@@ -80,10 +80,16 @@ const memberNames = new Set(packagesByName.keys());
 const entriesByCrate = new Map<string, ProductPathMatrixEntry>();
 
 for (const entry of matrix.entries) {
-  assert.ok(!entriesByCrate.has(entry.crate), `duplicate product-path matrix entry: ${entry.crate}`);
+  assert.ok(
+    !entriesByCrate.has(entry.crate),
+    `duplicate product-path matrix entry: ${entry.crate}`,
+  );
   entriesByCrate.set(entry.crate, entry);
   assert.ok(memberNames.has(entry.crate), `matrix entry names non-workspace crate: ${entry.crate}`);
-  assert.ok(VALID_SURFACES.has(entry.surface), `${entry.crate} has invalid surface ${entry.surface}`);
+  assert.ok(
+    VALID_SURFACES.has(entry.surface),
+    `${entry.crate} has invalid surface ${entry.surface}`,
+  );
   assert.ok(entry.entrypoints.length > 0, `${entry.crate} must list at least one entrypoint`);
   assert.ok(entry.evidence.length > 0, `${entry.crate} must list at least one evidence path`);
 

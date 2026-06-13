@@ -60,10 +60,17 @@ for (const snippet of [
   "parse_entry_point_with_extension",
   "pub(crate) use parse::{Parser, tokenize};",
 ]) {
-  assert.ok(parserLib.includes(snippet), `${parserLibPath} must keep parser facade snippet: ${snippet}`);
+  assert.ok(
+    parserLib.includes(snippet),
+    `${parserLibPath} must keep parser facade snippet: ${snippet}`,
+  );
 }
 
-for (const forbidden of ["struct Parser<'text>", "fn parse_stylesheet_items", "fn parse_rule_list_items"]) {
+for (const forbidden of [
+  "struct Parser<'text>",
+  "fn parse_stylesheet_items",
+  "fn parse_rule_list_items",
+]) {
   assert.ok(
     !parserLib.includes(forbidden),
     `${parserLibPath} must not contain parser engine implementation: ${forbidden}`,
@@ -75,7 +82,10 @@ assert.ok(
 );
 
 for (const forbidden of ["enum Command", "struct Cli", "fn build_file", "fn style_diagnostics"]) {
-  assert.ok(!cliMain.includes(forbidden), `${cliMainPath} must not contain command implementation: ${forbidden}`);
+  assert.ok(
+    !cliMain.includes(forbidden),
+    `${cliMainPath} must not contain command implementation: ${forbidden}`,
+  );
 }
 for (const moduleName of [
   "build",
@@ -93,7 +103,10 @@ for (const moduleName of [
   "reports",
   "sif",
 ]) {
-  assert.ok(cliMain.includes(`mod ${moduleName};`), `${cliMainPath} must declare CLI split module ${moduleName}`);
+  assert.ok(
+    cliMain.includes(`mod ${moduleName};`),
+    `${cliMainPath} must declare CLI split module ${moduleName}`,
+  );
 }
 
 const queryModules = new Set(
@@ -147,7 +160,11 @@ const queryDiagnosticFamilyModules = new Set([
 ]);
 const queryDiagnosticInfrastructureModules = new Set(["render", "shared", "substrate", "types"]);
 const queryDiagnosticSupportModules = new Set(["external_sif", "sass_builtins", "sass_symbols"]);
-const queryDiagnosticLeafModules = [...queryDiagnosticFamilyModules, ...queryDiagnosticSupportModules, "substrate"];
+const queryDiagnosticLeafModules = [
+  ...queryDiagnosticFamilyModules,
+  ...queryDiagnosticSupportModules,
+  "substrate",
+];
 const wildcardImportViolations: string[] = [];
 const disallowedFamilyImportViolations: string[] = [];
 for (const moduleName of queryDiagnosticLeafModules) {
