@@ -378,7 +378,7 @@ fn summarizes_sass_module_conformance_as_bounded_ledger() {
     assert_eq!(report.claim_level, "boundedStaticAnalysisCoverageLedger");
     assert!(!report.theorem_claimed);
     assert!(report.modeled_count >= 6);
-    assert_eq!(report.gap_count, 1);
+    assert_eq!(report.gap_count, 0);
     assert_eq!(report.policy_count, 2);
     assert!(report.decided_out_count >= 2);
     assert!(
@@ -394,8 +394,13 @@ fn summarizes_sass_module_conformance_as_bounded_ledger() {
         .collect::<BTreeSet<_>>();
     assert!(rows.contains(&("deprecatedSassImportPolicy", "policy", "policy")));
     assert!(rows.contains(&("aliasExtractionFallbackPolicy", "policy", "policy")));
-    assert!(rows.contains(&("importContextInterop", "gap", "import")));
+    assert!(rows.contains(&("importContextInterop", "modeled", "import")));
     assert!(rows.contains(&("loadPathRelativeIdentityCoherence", "modeled", "identity")));
+    assert!(rows.contains(&(
+        "importContextMixinFunctionExecution",
+        "decidedOut",
+        "runtime"
+    )));
     assert!(report.rows.iter().all(|row| {
         !row.normative_anchor.is_empty()
             && !row.implementation.is_empty()
@@ -2500,6 +2505,39 @@ fn shares_scss_module_identity_across_relative_and_load_path_routes() {
     assert_eq!(evaluated_css.matches(".base { color: red; }").count(), 1);
     assert!(!evaluated_css.contains(".base { color: blue; }"));
     assert!(evaluated_css.contains(".button { color: red; border-color: red; }"));
+}
+
+#[test]
+fn imports_scss_module_public_variables_from_used_imported_file() {
+    let summary = summarize_omena_query_transform_context_from_sources(
+        "/workspace/components/App.module.scss",
+        [
+            (
+                "/workspace/theme/_tokens.scss",
+                "$brand: blue !default; .base { color: $brand; }",
+            ),
+            (
+                "/workspace/theme/_api.scss",
+                r#"@use "./tokens" as tokens with ($brand: red); $brand: tokens.$brand; .api { color: $brand; }"#,
+            ),
+            (
+                "/workspace/components/App.module.scss",
+                r#"@import "../theme/api"; .button { color: $brand; }"#,
+            ),
+        ],
+        &[],
+    );
+
+    let evaluated_css = summary
+        .context
+        .scss_module_evaluation
+        .as_ref()
+        .map(|evaluation| evaluation.evaluated_css.as_str())
+        .unwrap_or_default();
+    assert_eq!(evaluated_css.matches(".base { color: red; }").count(), 1);
+    assert!(evaluated_css.contains(".api { color: red; }"));
+    assert!(evaluated_css.contains(".button { color: red; }"));
+    assert!(!evaluated_css.contains("tokens.$brand"), "{evaluated_css}");
 }
 
 #[test]

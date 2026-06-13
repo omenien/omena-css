@@ -69,7 +69,7 @@ assert.equal(report.gapCount, rowsByStatus("gap").length);
 assert.equal(report.decidedOutCount, rowsByStatus("decidedOut").length);
 assert.equal(report.policyCount, rowsByStatus("policy").length);
 assert.ok(report.modeledCount >= 6, "expected modeled Sass module semantics rows");
-assert.equal(report.gapCount, 1, "the remaining gap row must stay explicit until product witnesses close it");
+assert.equal(report.gapCount, 0, "S2 conformance gap rows should be closed or explicitly decided out");
 assert.equal(report.policyCount, 2, "Q3 and Q5 policy rows are mandatory");
 
 for (const surface of [
@@ -92,9 +92,10 @@ for (const key of [
   assertRow(key, "modeled");
 }
 
-assertRow("importContextInterop", "gap");
+assertRow("importContextInterop", "modeled");
 assertRow("loadPathRelativeIdentityCoherence", "modeled");
 assertRow("metaLoadCssRuntimeConfiguration", "decidedOut");
+assertRow("importContextMixinFunctionExecution", "decidedOut");
 assertRow("yarnPnpImporterRuntime", "decidedOut");
 assertRow("deprecatedSassImportPolicy", "policy");
 assertRow("aliasExtractionFallbackPolicy", "policy");

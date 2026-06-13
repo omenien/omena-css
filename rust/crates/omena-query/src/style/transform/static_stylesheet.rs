@@ -740,7 +740,7 @@ fn apply_static_scss_module_variable_overrides<'a>(
     Cow::Owned(source)
 }
 
-fn derive_scss_use_aware_static_stylesheet_module_evaluation_source<'a>(
+pub(super) fn derive_scss_use_aware_static_stylesheet_module_evaluation_source<'a>(
     style_source: &'a str,
     dialect: OmenaParserStyleDialect,
     scss_module_uses: &[StaticScssModuleUseEvaluation],

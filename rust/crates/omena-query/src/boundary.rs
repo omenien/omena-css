@@ -333,11 +333,11 @@ fn sass_module_conformance_rows() -> Vec<OmenaQuerySassModuleConformanceRowV0> {
         OmenaQuerySassModuleConformanceRowV0 {
             key: "importContextInterop",
             category: "import",
-            status: "gap",
+            status: "modeled",
             normative_anchor: "module-system.md: @import uses a mutable import context and can add imported public API members to the importing stylesheet",
-            implementation: "collect_visible_sass_symbol_keys handles imported public members, but static_stylesheet does not claim full import-context execution semantics",
-            witness: "deprecatedSassImport and missingSassSymbol tests cover diagnostics; no product witness yet for configured-module import-context execution",
-            decision: "Gap row: close only with query-level and omena build product witnesses if the static model expands.",
+            implementation: "resolve_import_inline_replacement_for_transform_context applies use-aware static module source before importer evaluation",
+            witness: "imports_scss_module_public_variables_from_used_imported_file plus omena build product witness",
+            decision: "Imported files that use configured modules contribute static public variables and CSS to the importing stylesheet.",
         },
         OmenaQuerySassModuleConformanceRowV0 {
             key: "loadPathRelativeIdentityCoherence",
@@ -356,6 +356,15 @@ fn sass_module_conformance_rows() -> Vec<OmenaQuerySassModuleConformanceRowV0> {
             implementation: "not evaluated by omena-query static Sass module semantics",
             witness: "ledger row only",
             decision: "Runtime CSS inclusion is outside the static member-visibility and identity diagnostic contract.",
+        },
+        OmenaQuerySassModuleConformanceRowV0 {
+            key: "importContextMixinFunctionExecution",
+            category: "runtime",
+            status: "decidedOut",
+            normative_anchor: "module-system.md: an imported stylesheet can expose mixins and functions through the import context",
+            implementation: "not evaluated by omena-query static stylesheet evaluation",
+            witness: "ledger row only",
+            decision: "Sass mixin/function execution remains outside the static variable/CSS evaluation contract.",
         },
         OmenaQuerySassModuleConformanceRowV0 {
             key: "yarnPnpImporterRuntime",

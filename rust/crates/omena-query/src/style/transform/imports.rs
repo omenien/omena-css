@@ -51,7 +51,7 @@ pub(super) fn resolve_import_inline_replacement_for_transform_context(
     resolution_context: TransformResolutionContext<'_>,
     visiting: &mut BTreeSet<String>,
 ) -> Option<String> {
-    let source = rewrite_omena_transform_bundle_asset_urls_in_source(
+    let mut source = rewrite_omena_transform_bundle_asset_urls_in_source(
         style_path,
         source_by_path.get(style_path)?,
     )
@@ -73,16 +73,28 @@ pub(super) fn resolve_import_inline_replacement_for_transform_context(
     );
     visiting.remove(style_path);
 
-    if nested_inlines.is_empty() {
-        return Some(source);
-    }
     let dialect = omena_parser_dialect_for_style_path(style_path);
-    let (inlined_source, mutation_count) = inline_css_imports(&source, dialect, &nested_inlines);
-    if mutation_count > 0 {
-        Some(inlined_source)
-    } else {
-        Some(source)
+    if !nested_inlines.is_empty() {
+        let (inlined_source, mutation_count) =
+            inline_css_imports(&source, dialect, &nested_inlines);
+        if mutation_count > 0 {
+            source = inlined_source;
+        }
     }
+    let scss_module_uses =
+        super::static_stylesheet::derive_static_scss_module_use_evaluations_for_transform_context(
+            entry,
+            available_style_paths,
+            source_by_path,
+            resolution_context,
+        );
+    let source =
+        super::static_stylesheet::derive_scss_use_aware_static_stylesheet_module_evaluation_source(
+            source.as_str(),
+            dialect,
+            &scss_module_uses,
+        );
+    Some(source.into_owned())
 }
 
 fn derive_import_inlines_for_transform_context_entry(

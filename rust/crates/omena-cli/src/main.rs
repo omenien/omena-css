@@ -6327,6 +6327,78 @@ mod tests {
     }
 
     #[test]
+    fn build_scss_module_mode_imports_used_module_public_variables() -> Result<(), String> {
+        let root = temp_dir("scss-module-import-context-used-module");
+        let output_path = root.join("output.css");
+        let target_dir = root.join("components");
+        let theme_dir = root.join("theme");
+        let target_path = target_dir.join("App.module.scss");
+        let tokens_path = theme_dir.join("_tokens.scss");
+        let api_path = theme_dir.join("_api.scss");
+        fs::create_dir_all(&target_dir)
+            .map_err(|error| format!("fixture target dir should be writable: {error}"))?;
+        fs::create_dir_all(&theme_dir)
+            .map_err(|error| format!("fixture theme dir should be writable: {error}"))?;
+
+        fs::write(
+            &tokens_path,
+            "$brand: blue !default; .base { color: $brand; }",
+        )
+        .map_err(|error| format!("fixture tokens source should be writable: {error}"))?;
+        fs::write(
+            &api_path,
+            r#"@use "./tokens" as tokens with ($brand: red);
+$brand: tokens.$brand;
+.api { color: $brand; }"#,
+        )
+        .map_err(|error| format!("fixture api source should be writable: {error}"))?;
+        fs::write(
+            &target_path,
+            r#"@import "../theme/api";
+.button { color: $brand; }"#,
+        )
+        .map_err(|error| format!("fixture target source should be writable: {error}"))?;
+
+        let result = run(Cli {
+            command: Command::Build {
+                path: target_path.clone(),
+                output: Some(output_path.clone()),
+                passes: vec!["scss-module-evaluate".to_string(), "print-css".to_string()],
+                target_query: None,
+                allow_logical_to_physical: false,
+                allow_scope_flatten: false,
+                allow_layer_flatten: false,
+                enable_supports_static_eval: false,
+                enable_media_static_eval: false,
+                drop_dark_mode_media_queries: false,
+                context_json: None,
+                engine_input_json: None,
+                closed_style_world: false,
+                tree_shake: false,
+                bundle: false,
+                split_out_dir: None,
+                bundle_entry_paths: Vec::new(),
+                source_paths: vec![tokens_path.clone(), api_path.clone()],
+                package_manifest_paths: Vec::new(),
+                source_map: false,
+                input_source_maps: Vec::new(),
+                json: false,
+            },
+        });
+
+        assert!(result.is_ok(), "{result:?}");
+        let output = fs::read_to_string(&output_path)
+            .map_err(|error| format!("build output should be readable: {error}"))?;
+        assert_eq!(output.matches(".base { color: red; }").count(), 1);
+        assert!(output.contains(".api { color: red; }"), "{output}");
+        assert!(output.contains(".button { color: red; }"), "{output}");
+        assert!(!output.contains("tokens.$brand"), "{output}");
+
+        cleanup_dir(&root);
+        Ok(())
+    }
+
+    #[test]
     fn build_scss_module_mode_configures_forwarded_module_instance() -> Result<(), String> {
         let root = temp_dir("scss-module-configured-forwarded-instance");
         let output_path = root.join("output.css");
