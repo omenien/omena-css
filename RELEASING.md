@@ -50,10 +50,13 @@ by the `rust/inter-crate-pin` gate.
 - crates.io publish is **non-atomic and irreversible** (yank ≠ delete). The `release` environment has no
   required reviewer, so a `dry_run=false` dispatch uploads immediately. Always `dry_run=true` first.
 
-## npm packages (`@omena/wasm`, `@omena/napi`) — Model A
+## npm packages (`@omena/wasm`, `@omena/napi`)
 
-`_publish-npm.yml` (dispatch / `release-v*`) builds the 5-OS napi matrix + the wasm package, stamps both
-from the workspace version, and publishes with `--provenance` (Sigstore via OIDC `id-token`).
+`_publish-npm.yml` (dispatch / `release-v*`) builds the 5-target napi matrix + the wasm package, stamps all npm
+packages from the workspace version, and publishes with `--provenance` (Sigstore via OIDC `id-token`). The native
+Node binding uses the standard optional package layout: `@omena/napi` ships the JS loader/types and declares
+`@omena/napi-linux-x64-gnu`, `@omena/napi-linux-arm64-gnu`, `@omena/napi-darwin-x64`,
+`@omena/napi-darwin-arm64`, and `@omena/napi-win32-x64-msvc` as optional native dependencies.
 
 - **Auth:** `npm publish` reads its token from an `.npmrc` (`//registry.npmjs.org/:_authToken=${NODE_AUTH_TOKEN}`)
   — `NODE_AUTH_TOKEN` in the env **alone is ignored** (→ `ENEEDAUTH`). The token MUST be an npm **Automation**
@@ -61,6 +64,11 @@ from the workspace version, and publishes with `--provenance` (Sigstore via OIDC
   `NPM_AUTO_TOKEN`.
 - **Steady state:** configure npm **Trusted Publishing** (OIDC) for both packages, then drop the token.
   Keep `id-token: write` at the **job** scope only; the workflow-level permission stays `contents: read`.
+- **Resume:** npm package publishes are idempotent in the workflow: an already-published package/version is skipped
+  after `npm view`, while dry-runs still pack every package.
+- **Immutable main package:** if `@omena/napi@<version>` already exists without the required native
+  `optionalDependencies`, the workflow fails instead of skipping it. Bump the crate-train version before publishing
+  the corrected layout.
 
 ## Branches
 

@@ -3,15 +3,15 @@ name: _Publish npm
 # Lane2 of the OMENA release fan-out (12 §8 / 14 §4): publish the two public
 # npm packages stamped from the crate-train axis (workspace.package.version):
 #   - @omena/wasm  (wasm-pack pkg/, name rewritten by finalize-omena-wasm-pkg.mjs)
-#   - @omena/napi  (single-package-bundles-the-.node form; .node files built
-#                   across the platform matrix and collected into pkg/)
+#   - @omena/napi  (JS loader + types)
+#   - @omena/napi-* platform native optionalDependencies built across the matrix
 #
 # DORMANT: manual workflow_dispatch only; never runs on per-push CI. Genesis
 # (first @omena/wasm + @omena/napi publish) needs a manual/2FA establish step
 # per package — see RELEASING.md. Steady state runs over OIDC provenance.
 #
-# Both packages publish with `npm publish --provenance --access public`
-# (Sigstore via id-token: write). The pre-publish guard fails if either
+# All packages publish with `npm publish --provenance --access public`
+# (Sigstore via id-token: write). The pre-publish guard fails if any
 # repository.url is not omenien/omena-css so a stale pre-rebrand URL can never
 # be baked into the provenance subject.
 
@@ -49,8 +49,8 @@ permissions:
 jobs:
   # --- 1. Build napi .node binaries across the 5-target genesis matrix --------
   # These match release-cli.yml's target set. Each host emits index.<triple>.node
-  # into rust/crates/omena-napi/pkg/; all are collected into the single @omena/napi
-  # package in the publish job (single-package-bundles-the-.node form).
+  # into rust/crates/omena-napi/pkg/; the publish job turns them into scoped
+  # @omena/napi-* optional native packages.
   napi-binaries:
     name: napi ${{ matrix.target }}
     strategy:
@@ -94,6 +94,7 @@ jobs:
           pnpm exec napi build
           --manifest-path rust/crates/omena-napi/Cargo.toml
           --platform --release
+          --js-package-name @omena/napi
           --target ${{ matrix.target }}
           -o rust/crates/omena-napi/pkg
       - name: Verify .node produced
@@ -140,36 +141,35 @@ jobs:
 
       # 2a. Build @omena/wasm + @omena/napi. Each build script self-finalizes its
       #     pkg/package.json (build:omena-wasm rewrites name->@omena/wasm + repository;
-      #     build:omena-napi writes the full @omena/napi manifest + the loader
-      #     index.js/index.d.ts + the host .node). pkg/ is a gitignored build dir, so
-      #     these MUST be regenerated here at publish time.
+      #     build:omena-napi writes the @omena/napi loader/types manifest plus the
+      #     host .node). pkg/ is a gitignored build dir, so these MUST be
+      #     regenerated here at publish time.
       - name: Build omena-wasm (pkg + finalized manifest)
         run: pnpm omena-check run core/build/omena-wasm
       - name: Build omena-napi (loader + manifest + host .node)
         run: pnpm omena-check run core/build/omena-napi
 
-      # 2b. Collect the napi matrix .node binaries into the single pkg
+      # 2b. Collect the napi matrix .node binaries, then regenerate the platform
+      #     optional package directories from the complete binary set.
       - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
           pattern: napi-node-*
           path: ${{ env.NAPI_PKG_DIR }}
           merge-multiple: true
-      - name: Verify bundled napi binaries
+      - name: Finalize omena-napi package layout
+        run: node ./scripts/finalize-omena-napi-pkg.mjs
+      - name: Verify omena-napi platform packages
         shell: bash
+        env:
+          OMENA_NAPI_REQUIRED_PACKAGES: "@omena/napi-linux-x64-gnu,@omena/napi-linux-arm64-gnu,@omena/napi-darwin-x64,@omena/napi-darwin-arm64,@omena/napi-win32-x64-msvc"
         run: |
           set -euo pipefail
-          cd "${NAPI_PKG_DIR}"
-          test -f index.js
-          test -f index.d.ts
-          test -f package.json
-          count="$(ls -1 *.node 2>/dev/null | wc -l | tr -d ' ')"
-          echo "bundled .node binaries: ${count}"
-          ls -1 *.node
-          test "${count}" -ge 1
+          pnpm omena-check run release/check/packaged-omena-napi-crossplatform
 
       # 2c. Coherence guard — repository.url must be omenien/omena-css on BOTH
-      #     packages (12 §8 stale-URL guard; blocks a stale provenance subject)
-      #     and the napi version must equal the crate-train axis A version.
+      #     top-level packages and on every napi platform package (stale-URL guard;
+      #     blocks a stale provenance subject). Package versions must equal the
+      #     crate-train axis A version.
       - name: Guard package metadata
         shell: bash
         run: |
@@ -177,7 +177,11 @@ jobs:
           EXPECTED_URL="https://github.com/omenien/omena-css"
           AXIS_A="$(node -e "const fs=require('node:fs');const t=fs.readFileSync('rust/Cargo.toml','utf8');const m=t.match(/\[workspace\.package\][\s\S]*?version\s*=\s*\"([^\"]+)\"/);if(!m)throw new Error('no workspace.package version');process.stdout.write(m[1])")"
           echo "axis-A (workspace) version = ${AXIS_A}"
-          for dir in "${WASM_PKG_DIR}" "${NAPI_PKG_DIR}"; do
+          package_dirs=("${WASM_PKG_DIR}" "${NAPI_PKG_DIR}")
+          while IFS= read -r -d '' manifest; do
+            package_dirs+=("$(dirname "$manifest")")
+          done < <(find "${NAPI_PKG_DIR}/npm" -mindepth 2 -maxdepth 2 -name package.json -print0 | sort -z)
+          for dir in "${package_dirs[@]}"; do
             node -e '
               const fs = require("node:fs");
               const path = require("node:path");
@@ -227,18 +231,69 @@ jobs:
           if [ "${{ inputs.dry_run }}" = "true" ]; then
             npm publish --provenance --access public --dry-run
           else
-            npm publish --provenance --access public
+            name="$(node -e "const p=require('./package.json'); process.stdout.write(p.name)")"
+            version="$(node -e "const p=require('./package.json'); process.stdout.write(p.version)")"
+            if npm view "${name}@${version}" version >/dev/null 2>&1; then
+              echo "${name}@${version} already published; skipping"
+            else
+              npm publish --provenance --access public
+            fi
           fi
+      - name: Publish @omena/napi platform packages
+        shell: bash
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_AUTO_TOKEN }}
+          NPM_CONFIG_PROVENANCE: "true"
+        run: |
+          set -euo pipefail
+          publish_dir() {
+            local dir="$1"
+            local name version
+            name="$(node -e "const p=require(process.argv[1]); process.stdout.write(p.name)" "${dir}/package.json")"
+            version="$(node -e "const p=require(process.argv[1]); process.stdout.write(p.version)" "${dir}/package.json")"
+            if [ "${{ inputs.dry_run }}" = "true" ]; then
+              (cd "${dir}" && npm publish --provenance --access public --dry-run)
+              return
+            fi
+            if npm view "${name}@${version}" version >/dev/null 2>&1; then
+              echo "${name}@${version} already published; skipping"
+              return
+            fi
+            (cd "${dir}" && npm publish --provenance --access public)
+          }
+          while IFS= read -r -d '' manifest; do
+            publish_dir "$(dirname "$manifest")"
+          done < <(find "${NAPI_PKG_DIR}/npm" -mindepth 2 -maxdepth 2 -name package.json -print0 | sort -z)
       - name: Publish @omena/napi
         shell: bash
         working-directory: ${{ env.NAPI_PKG_DIR }}
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_AUTO_TOKEN }}
           NPM_CONFIG_PROVENANCE: "true"
+          OMENA_NAPI_REQUIRED_PACKAGES: "@omena/napi-linux-x64-gnu,@omena/napi-linux-arm64-gnu,@omena/napi-darwin-x64,@omena/napi-darwin-arm64,@omena/napi-win32-x64-msvc"
         run: |
           set -euo pipefail
           if [ "${{ inputs.dry_run }}" = "true" ]; then
             npm publish --provenance --access public --dry-run
           else
-            npm publish --provenance --access public
+            name="$(node -e "const p=require('./package.json'); process.stdout.write(p.name)")"
+            version="$(node -e "const p=require('./package.json'); process.stdout.write(p.version)")"
+            if npm view "${name}@${version}" version >/dev/null 2>&1; then
+              optional_json="$(npm view "${name}@${version}" optionalDependencies --json || true)"
+              node -e '
+                const optional = JSON.parse(process.argv[1] || "{}");
+                const required = process.argv[2].split(",").filter(Boolean);
+                const version = process.argv[3];
+                const missing = required.filter((name) => optional[name] !== version);
+                if (missing.length > 0) {
+                  console.error(
+                    `Published @omena/napi@${version} is immutable and does not declare required optional native packages: ${missing.join(", ")}. Bump the crate-train version before publishing this layout.`
+                  );
+                  process.exit(1);
+                }
+              ' "${optional_json:-{}}" "${OMENA_NAPI_REQUIRED_PACKAGES}" "${version}"
+              echo "${name}@${version} already published with native optional dependencies; skipping"
+            else
+              npm publish --provenance --access public
+            fi
           fi
