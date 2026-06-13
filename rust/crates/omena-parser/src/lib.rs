@@ -8,7 +8,6 @@ use cstree::{
     build::GreenNodeBuilder,
     green::GreenNode,
     interning::TokenInterner,
-    syntax::SyntaxNode,
     text::{TextRange, TextSize},
 };
 use omena_interner::{
@@ -27,6 +26,8 @@ mod cst;
 mod extension;
 mod facts;
 mod language;
+mod lex;
+mod parse;
 // R1 narrow public surface: `public_product` is private; only this curated set
 // of V0 contract types + summary fns is re-exported (no wildcard). Reuse of
 // omena-parser as a building block goes through these names — keep the list
@@ -54,6 +55,8 @@ pub use facts::{
     ParsedVariableFactKind,
 };
 pub use language::StyleLanguage;
+pub use lex::{LexResult, LexedToken};
+pub use parse::{ParseEntryPoint, ParseError, ParseErrorCode, ParseResult};
 pub use public_product::{
     ParserCanonicalCandidateBundleV0, ParserCanonicalProducerSignalV0, ParserEvaluatorCandidatesV0,
     ParserIndexSummaryV0, dialect_for_path, summarize_css_modules_intermediate,
@@ -136,123 +139,6 @@ const CSS_IMAGE_FUNCTION_NAMES: &[&str] = &["image", "image-set", "cross-fade", 
 const CSS_SHAPE_FUNCTION_NAMES: &[&str] = &[
     "path", "shape", "ray", "inset", "circle", "ellipse", "polygon",
 ];
-
-#[derive(Debug, Clone)]
-pub struct ParseResult {
-    green: GreenNode,
-    interner: Option<Arc<TokenInterner>>,
-    errors: Vec<ParseError>,
-    token_count: usize,
-    dialect: StyleDialect,
-}
-
-impl PartialEq for ParseResult {
-    fn eq(&self, other: &Self) -> bool {
-        self.green == other.green
-            && self.errors == other.errors
-            && self.token_count == other.token_count
-            && self.dialect == other.dialect
-    }
-}
-
-impl Eq for ParseResult {}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct LexResult {
-    tokens: Vec<LexedToken>,
-    errors: Vec<ParseError>,
-    dialect: StyleDialect,
-}
-
-impl LexResult {
-    pub fn tokens(&self) -> &[LexedToken] {
-        &self.tokens
-    }
-
-    pub fn errors(&self) -> &[ParseError] {
-        &self.errors
-    }
-
-    pub fn dialect(&self) -> StyleDialect {
-        self.dialect
-    }
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct LexedToken {
-    pub kind: SyntaxKind,
-    pub range: TextRange,
-    pub text: String,
-}
-
-impl ParseResult {
-    pub fn green(&self) -> &GreenNode {
-        &self.green
-    }
-
-    pub fn syntax(&self) -> SyntaxNode<SyntaxKind> {
-        if let Some(interner) = &self.interner {
-            return SyntaxNode::new_root_with_resolver(self.green.clone(), Arc::clone(interner))
-                .syntax()
-                .clone();
-        }
-        SyntaxNode::new_root(self.green.clone())
-    }
-
-    pub fn source_text(&self) -> Option<String> {
-        let syntax = self.syntax();
-        syntax
-            .try_resolved()
-            .map(|resolved| resolved.text().to_string())
-    }
-
-    pub fn errors(&self) -> &[ParseError] {
-        &self.errors
-    }
-
-    pub fn token_count(&self) -> usize {
-        self.token_count
-    }
-
-    pub fn dialect(&self) -> StyleDialect {
-        self.dialect
-    }
-
-    pub fn cst(&self) -> ParsedCst {
-        ParsedCst::new(self.syntax())
-    }
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct ParseError {
-    pub code: ParseErrorCode,
-    pub range: TextRange,
-    pub message: &'static str,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum ParseErrorCode {
-    UnterminatedBlockComment,
-    UnterminatedString,
-    UnexpectedCharacter,
-    ExpectedSelectorName,
-    UnterminatedAttributeSelector,
-    ExpectedValue,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum ParseEntryPoint {
-    Stylesheet,
-    RuleList,
-    Rule,
-    DeclarationList,
-    Declaration,
-    Value,
-    ComponentValue,
-    ComponentValueList,
-    CommaSeparatedComponentValueList,
-    SimpleBlock,
-}
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ParserBoundarySummary {
@@ -552,8 +438,8 @@ pub fn lex(text: &str, dialect: StyleDialect) -> LexResult {
 
 pub fn lex_with_extension(text: &str, extension: &impl DialectExtension) -> LexResult {
     let (tokens, errors) = tokenize(text, extension);
-    LexResult {
-        tokens: tokens
+    LexResult::new(
+        tokens
             .into_iter()
             .map(|token| LexedToken {
                 kind: token.kind,
@@ -562,8 +448,8 @@ pub fn lex_with_extension(text: &str, extension: &impl DialectExtension) -> LexR
             })
             .collect(),
         errors,
-        dialect: extension.dialect(),
-    }
+        extension.dialect(),
+    )
 }
 
 pub fn parse_with_extension(text: &str, extension: &impl DialectExtension) -> ParseResult {
@@ -580,13 +466,13 @@ pub fn parse_entry_point_with_extension(
     let mut parser = Parser::new(tokens, errors, extension.dialect());
     let (green, interner) = parser.parse_entry_point(entry_point);
 
-    ParseResult {
+    ParseResult::new(
         green,
         interner,
-        errors: parser.into_errors(),
+        parser.into_errors(),
         token_count,
-        dialect: extension.dialect(),
-    }
+        extension.dialect(),
+    )
 }
 
 pub fn collect_style_facts(text: &str, dialect: StyleDialect) -> ParsedStyleFacts {

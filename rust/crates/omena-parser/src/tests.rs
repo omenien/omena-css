@@ -1,3 +1,5 @@
+use cstree::syntax::SyntaxNode;
+
 use super::*;
 
 #[test]
