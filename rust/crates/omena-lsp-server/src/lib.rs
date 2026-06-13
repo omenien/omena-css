@@ -1672,7 +1672,6 @@ fn summarize_cross_file_streaming_reachability_diagnostics_for_lsp(
         return Vec::new();
     }
 
-    let reachable_modules = report.reachable_foreign_paths.join(", ");
     vec![OmenaQueryStyleDiagnosticV0 {
         code: "crossFileStreamingReachability",
         severity: "hint",
@@ -1685,7 +1684,7 @@ fn summarize_cross_file_streaming_reachability_diagnostics_for_lsp(
         ],
         range: ParserRangeV0::default(),
         message: format!(
-            "cross-file dataflow reaches {} module(s) via resolved edges: {reachable_modules}",
+            "cross-file dataflow reaches {} module(s) via resolved edges; paths are omitted from diagnostics",
             report.reachable_foreign_path_count
         ),
         tags: Vec::new(),

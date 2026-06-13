@@ -371,8 +371,9 @@ fn style_diagnostics_surface_streaming_ifds_cross_file_reachability_from_lsp() {
         streaming
             .pointer("/message")
             .and_then(Value::as_str)
-            .is_some_and(|message| message.contains("file:///workspace-a/src/_tokens.scss")),
-        "streaming diagnostic should name the reached foreign module: {streaming:?}"
+            .is_some_and(|message| message
+                == "cross-file dataflow reaches 1 module(s) via resolved edges; paths are omitted from diagnostics"),
+        "streaming diagnostic should summarize reachability without publishing paths: {streaming:?}"
     );
 
     let leaf_response = handle_lsp_message(

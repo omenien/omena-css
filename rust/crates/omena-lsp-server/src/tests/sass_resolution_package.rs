@@ -300,6 +300,15 @@ fn indexes_foreign_package_forward_chain_for_references_without_opening_dependen
         state.document_mut(primitives_uri.as_str()).is_none(),
         "foreign package documents must not expose mutable edit handles"
     );
+    let diagnostics = lsp_style_diagnostics(&mut state, source_uri.as_str())?;
+    assert!(
+        diagnostics.iter().all(|diagnostic| {
+            diagnostic.pointer("/code") != Some(&json!("missingSassSymbol"))
+                && diagnostic.pointer("/code") != Some(&json!("missingExternalSif"))
+        }),
+        "forwarded foreign Sass variables should not surface missing-symbol diagnostics: {diagnostics:?}"
+    );
+    assert_no_foreign_path_leak("foreign Sass diagnostics", &json!(diagnostics))?;
 
     let definition = handle_lsp_message(
         &mut state,
@@ -428,6 +437,72 @@ fn indexes_foreign_package_forward_chain_for_references_without_opening_dependen
         "foreign Sass references should be byte-identical between warm indexed and cold disk-read paths"
     );
 
+    fs::write(primitives_style.as_path(), "\n$radius-small: 4px;\n")?;
+    state.remove_document_uri(index_uri.as_str());
+    state.remove_document_uri(primitives_uri.as_str());
+    *state.workspace_occurrence_index_memo.borrow_mut() = None;
+    let shifted_definition = handle_lsp_message(
+        &mut state,
+        json!({
+            "jsonrpc": "2.0",
+            "id": 32,
+            "method": "textDocument/definition",
+            "params": {
+                "textDocument": {
+                    "uri": source_uri,
+                },
+                "position": reference_position,
+            },
+        }),
+    );
+    assert_definition_response_single_target(&shifted_definition, primitives_uri.as_str());
+    assert_eq!(
+        shifted_definition
+            .as_ref()
+            .and_then(|response| response.pointer("/result/0/range/start/line"))
+            .and_then(Value::as_u64),
+        Some(1),
+        "evicted foreign definitions should re-read changed disk content: {shifted_definition:?}"
+    );
+
+    let shifted_references = handle_lsp_message(
+        &mut state,
+        json!({
+            "jsonrpc": "2.0",
+            "id": 33,
+            "method": "textDocument/references",
+            "params": {
+                "textDocument": {
+                    "uri": source_uri,
+                },
+                "position": reference_position,
+                "context": {
+                    "includeDeclaration": true,
+                },
+            },
+        }),
+    );
+    let shifted_reference_locations = shifted_references
+        .as_ref()
+        .and_then(|response| response.pointer("/result"))
+        .and_then(Value::as_array)
+        .ok_or_else(|| {
+            std::io::Error::other("shifted foreign references should return locations")
+        })?;
+    assert!(
+        shifted_reference_locations.iter().any(|location| {
+            location
+                .get("uri")
+                .and_then(Value::as_str)
+                .is_some_and(|uri| file_uri_equivalent(uri, primitives_uri.as_str()))
+                && location
+                    .pointer("/range/start/line")
+                    .and_then(Value::as_u64)
+                    == Some(1)
+        }),
+        "foreign references should re-derive declaration locations from changed disk content: {shifted_references:?}"
+    );
+
     let rename = handle_lsp_message(
         &mut state,
         json!({
@@ -460,6 +535,12 @@ fn indexes_foreign_package_forward_chain_for_references_without_opening_dependen
             .any(|uri| file_uri_equivalent(uri.as_str(), primitives_uri.as_str())),
         "rename must not edit foreign package declarations: {rename:?}"
     );
+    assert_no_foreign_path_leak(
+        "foreign Sass rename response",
+        rename
+            .as_ref()
+            .ok_or_else(|| std::io::Error::other("rename should return a response"))?,
+    )?;
 
     let _ = fs::remove_dir_all(root.as_path());
     Ok(())
@@ -1121,4 +1202,13 @@ fn lsp_style_diagnostics(
         .and_then(Value::as_array)
         .cloned()
         .ok_or_else(|| std::io::Error::other("style diagnostics response contains an array").into())
+}
+
+fn assert_no_foreign_path_leak(label: &str, value: &Value) -> TestResult {
+    let serialized = serde_json::to_string(value)?;
+    assert!(
+        !serialized.contains("node_modules"),
+        "{label} must not expose node_modules-origin paths: {serialized}"
+    );
+    Ok(())
 }
