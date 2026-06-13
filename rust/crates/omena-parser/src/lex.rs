@@ -178,6 +178,154 @@ impl<'text, 'extension, E> Tokenizer<'text, 'extension, E>
 where
     E: DialectExtension,
 {
+    pub(crate) fn new(text: &'text str, extension: &'extension E) -> Self {
+        Self {
+            text,
+            extension,
+            offset: 0,
+            scss_interpolation_depth: 0,
+            less_interpolation_depth: 0,
+            sass_indent_stack: vec![0],
+            tokens: Vec::new(),
+            errors: Vec::new(),
+        }
+    }
+
+    pub(crate) fn tokenize(&mut self) {
+        while let Some(current) = self.current_char() {
+            let start = self.offset;
+            match current {
+                '\u{feff}' if start == 0 => self.bump_current(),
+                '\r' | '\n' if self.extension.dialect() == StyleDialect::Sass => {
+                    self.consume_sass_indented_newline(start)
+                }
+                char if char.is_whitespace() => {
+                    self.consume_while(SyntaxKind::Whitespace, |c| c.is_whitespace())
+                }
+                '/' if self.starts_with("/*") => self.consume_block_comment(),
+                '/' if self.starts_with("//") && self.extension.dialect() != StyleDialect::Css => {
+                    self.consume_line_comment()
+                }
+                '#' if self.starts_with("#{") && self.supports_scss_interpolation() => {
+                    self.consume_scss_interpolation_start(start)
+                }
+                '@' if self.starts_with("@{") && self.supports_less_interpolation() => {
+                    self.consume_less_interpolation_start(start)
+                }
+                '!' if self.starts_with_ascii_keyword("!important") => {
+                    self.consume_static(SyntaxKind::Important, start, "!important".len())
+                }
+                '<' if self.starts_with("<!--") => {
+                    self.consume_static(SyntaxKind::Cdo, start, "<!--".len())
+                }
+                '-' if self.starts_with("-->") => {
+                    self.consume_static(SyntaxKind::Cdc, start, "-->".len())
+                }
+                '"' | '\'' => self.consume_string(current),
+                'u' | 'U' if self.starts_unicode_range() => self.consume_unicode_range(),
+                '0'..='9' => self.consume_number(),
+                '$' if matches!(
+                    self.extension.dialect(),
+                    StyleDialect::Scss | StyleDialect::Sass
+                ) =>
+                {
+                    self.consume_prefixed_name(SyntaxKind::ScssVariable)
+                }
+                '@' if self.extension.dialect() == StyleDialect::Less => {
+                    self.consume_less_at_name()
+                }
+                '@' => self.consume_at_keyword(),
+                '!' => self.consume_static(SyntaxKind::Delim, start, 1),
+                '.' if self.current_starts_number() => self.consume_number(),
+                '.' => self.consume_static(SyntaxKind::Dot, start, 1),
+                ',' => self.consume_static(SyntaxKind::Comma, start, 1),
+                ':' if self.starts_with("::") => {
+                    self.consume_static(SyntaxKind::DoubleColon, start, 2)
+                }
+                ':' => self.consume_static(SyntaxKind::Colon, start, 1),
+                ';' => self.consume_static(SyntaxKind::Semicolon, start, 1),
+                '{' => self.consume_static(SyntaxKind::LeftBrace, start, 1),
+                '}' if self.scss_interpolation_depth > 0 => {
+                    self.consume_scss_interpolation_end(start)
+                }
+                '}' if self.less_interpolation_depth > 0 => {
+                    self.consume_less_interpolation_end(start)
+                }
+                '}' => self.consume_static(SyntaxKind::RightBrace, start, 1),
+                '(' => self.consume_static(SyntaxKind::LeftParen, start, 1),
+                ')' => self.consume_static(SyntaxKind::RightParen, start, 1),
+                '[' => self.consume_static(SyntaxKind::LeftBracket, start, 1),
+                ']' => self.consume_static(SyntaxKind::RightBracket, start, 1),
+                '+' if self.starts_with("+=") => {
+                    self.consume_static(SyntaxKind::PlusEquals, start, 2)
+                }
+                '+' if self.current_starts_number() => self.consume_number(),
+                '+' => self.consume_static(SyntaxKind::Plus, start, 1),
+                '-' if self.starts_with("-=") => {
+                    self.consume_static(SyntaxKind::MinusEquals, start, 2)
+                }
+                '-' if self.current_starts_number() => self.consume_number(),
+                '-' if self.current_starts_ident_sequence() => self.consume_ident_like(),
+                '-' => self.consume_static(SyntaxKind::Minus, start, 1),
+                '*' if self.starts_with("*=") => {
+                    self.consume_static(SyntaxKind::SubstringMatch, start, 2)
+                }
+                '*' => self.consume_static(SyntaxKind::Star, start, 1),
+                '/' if self.starts_with("/=") => {
+                    self.consume_static(SyntaxKind::SlashEquals, start, 2)
+                }
+                '/' => self.consume_static(SyntaxKind::Slash, start, 1),
+                '%' if self.starts_scss_placeholder() => {
+                    self.consume_prefixed_name(SyntaxKind::ScssPlaceholder)
+                }
+                '%' => self.consume_static(SyntaxKind::Percent, start, 1),
+                '=' if self.starts_with("=>") => self.consume_static(SyntaxKind::Arrow, start, 2),
+                '=' => self.consume_static(SyntaxKind::Equals, start, 1),
+                '~' if self.starts_less_escaped_string() => self.consume_less_escaped_string(start),
+                '~' if self.starts_with("~=") => {
+                    self.consume_static(SyntaxKind::IncludesMatch, start, 2)
+                }
+                '~' => self.consume_static(SyntaxKind::Tilde, start, 1),
+                '|' if self.starts_with("|=") => {
+                    self.consume_static(SyntaxKind::DashMatch, start, 2)
+                }
+                '|' if self.starts_with("||") => {
+                    self.consume_static(SyntaxKind::ColumnCombinator, start, 2)
+                }
+                '|' => self.consume_static(SyntaxKind::Pipe, start, 1),
+                '^' if self.starts_with("^=") => {
+                    self.consume_static(SyntaxKind::PrefixMatch, start, 2)
+                }
+                '^' => self.consume_static(SyntaxKind::Caret, start, 1),
+                '$' if self.starts_with("$=") => {
+                    self.consume_static(SyntaxKind::SuffixMatch, start, 2)
+                }
+                '$' if self.starts_less_property_variable() => {
+                    self.consume_prefixed_name(SyntaxKind::LessPropertyVariableToken)
+                }
+                '&' if self.starts_with("&&") => {
+                    self.consume_static(SyntaxKind::DoubleAmpersand, start, 2)
+                }
+                '&' => self.consume_static(SyntaxKind::Ampersand, start, 1),
+                '>' => self.consume_static(SyntaxKind::GreaterThan, start, 1),
+                '<' => self.consume_static(SyntaxKind::LessThan, start, 1),
+                '#' if self.current_hash_starts_name() => self.consume_name_like(SyntaxKind::Hash),
+                '#' => self.consume_static(SyntaxKind::Delim, start, 1),
+                '\\' if self.current_starts_valid_escape() => {
+                    self.consume_name_like(SyntaxKind::Ident)
+                }
+                char if is_name_start(char) => self.consume_ident_like(),
+                char => self.consume_unexpected(char),
+            }
+        }
+        self.consume_pending_sass_dedents();
+    }
+}
+
+impl<'text, 'extension, E> Tokenizer<'text, 'extension, E>
+where
+    E: DialectExtension,
+{
     pub(crate) fn starts_with(&self, pattern: &str) -> bool {
         self.text[self.offset..].starts_with(pattern)
     }
