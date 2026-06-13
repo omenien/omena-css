@@ -3,7 +3,7 @@ use omena_query::OmenaQueryTargetTransformOptionsV0;
 use crate::{
     BuildFileOptions, build_file, cascade_at_position, check_file, context_from_engine_input,
     context_index, dynamic_classname_diagnostics, expression_flow, list_passes, lock_command,
-    selector_projection, sif_command, source_diagnostics, style_completion, style_diagnostics,
+    selector_projection, source_diagnostics, style_completion, style_diagnostics,
     style_hover_candidates,
 };
 use crate::{
@@ -11,6 +11,7 @@ use crate::{
     perceptual::perceptual_check,
     provenance::provenance_command,
     reports::report_command,
+    sif::sif_command,
 };
 
 #[cfg(feature = "mdl")]

@@ -46,13 +46,12 @@ use omena_sif::{
     OMENA_SIF_ATTESTATION_VERIFICATION_REPORT_SCHEMA_VERSION_V1, OmenaLockV1,
     OmenaLockVerificationIssueV1, OmenaSifAttestationStatementV1,
     OmenaSifAttestationSubjectDigestV1, OmenaSifAttestationVerificationReportV1,
-    OmenaSifSigstoreVerificationPolicyV1, OmenaSifSourceSyntaxV1, OmenaSifStaticGeneratorInputV1,
+    OmenaSifSigstoreVerificationPolicyV1,
     apply_omena_sif_attestation_verification_report_to_lock_entry_v1,
     apply_omena_sif_npm_provenance_references_to_lock_entry_v1, build_omena_lock_sif_entry_v1,
     collect_omena_sif_npm_provenance_attestation_references_v1, compute_omena_sif_artifact_hash_v1,
-    generate_static_omena_sif_v1, read_omena_lock_json_v1,
-    read_omena_sif_attestation_verification_report_json_v1, read_omena_sif_json_v1,
-    verify_omena_lock_frozen_v1, write_omena_lock_json_v1, write_omena_sif_json_v1,
+    read_omena_lock_json_v1, read_omena_sif_attestation_verification_report_json_v1,
+    read_omena_sif_json_v1, verify_omena_lock_frozen_v1, write_omena_lock_json_v1,
 };
 use omena_streaming_ifds::summarize_streaming_ifds_workspace_cross_file_reachability_v0;
 #[cfg(feature = "zk-audit")]
@@ -79,16 +78,17 @@ mod paths;
 mod perceptual;
 mod provenance;
 mod reports;
+mod sif;
 
-#[cfg(test)]
-use commands::Command;
 #[cfg(test)]
 use commands::ProvenanceCommand;
 #[cfg(test)]
 use commands::ReportCommand;
 #[cfg(feature = "zk-audit")]
 use commands::{AuditCommand, ZkAuditCommand};
-use commands::{Cli, LockCommand, SifCommand};
+use commands::{Cli, LockCommand};
+#[cfg(test)]
+use commands::{Command, SifCommand};
 use dispatch::run;
 use io::{
     read_context_json, read_engine_input_json, read_package_manifests, read_source,
@@ -1483,79 +1483,6 @@ fn resolve_lock_relative_path(lockfile: &Path, entry_path: &str) -> PathBuf {
         .parent()
         .unwrap_or_else(|| Path::new("."))
         .join(entry_path)
-}
-
-fn sif_command(command: SifCommand) -> Result<(), String> {
-    match command {
-        SifCommand::Generate {
-            path,
-            canonical_url,
-            output,
-            syntax,
-            json,
-        } => generate_sif(path, canonical_url, output, syntax, json),
-    }
-}
-
-fn generate_sif(
-    path: PathBuf,
-    canonical_url: Option<String>,
-    output: Option<PathBuf>,
-    syntax: Option<String>,
-    json: bool,
-) -> Result<(), String> {
-    let source = read_source(&path)?;
-    let syntax = match syntax {
-        Some(syntax) => parse_sif_source_syntax(&syntax)?,
-        None => infer_sif_source_syntax(&path),
-    };
-    let canonical_url = canonical_url.unwrap_or_else(|| path_string(&path));
-    let sif = generate_static_omena_sif_v1(OmenaSifStaticGeneratorInputV1 {
-        canonical_url: &canonical_url,
-        source: &source,
-        syntax,
-    })
-    .map_err(|error| format!("failed to generate SIF: {error}"))?;
-    let sif_json = write_omena_sif_json_v1(&sif)
-        .map_err(|error| format!("failed to serialize SIF: {error}"))?;
-    let wrote_output = output.is_some();
-
-    if let Some(output_path) = output {
-        fs::write(&output_path, &sif_json).map_err(|error| {
-            format!(
-                "failed to write SIF artifact to {}: {error}",
-                path_string(&output_path)
-            )
-        })?;
-        if !json {
-            println!("generated SIF: {}", path_string(&output_path));
-        }
-    }
-
-    if !wrote_output || json {
-        println!("{sif_json}");
-    }
-
-    Ok(())
-}
-
-fn parse_sif_source_syntax(syntax: &str) -> Result<OmenaSifSourceSyntaxV1, String> {
-    match syntax {
-        "css" => Ok(OmenaSifSourceSyntaxV1::Css),
-        "scss" => Ok(OmenaSifSourceSyntaxV1::Scss),
-        "sass" => Ok(OmenaSifSourceSyntaxV1::Sass),
-        _ => Err(format!(
-            "unsupported SIF source syntax '{syntax}'; expected css, scss, or sass"
-        )),
-    }
-}
-
-fn infer_sif_source_syntax(path: &Path) -> OmenaSifSourceSyntaxV1 {
-    match path.extension().and_then(|extension| extension.to_str()) {
-        Some("css") => OmenaSifSourceSyntaxV1::Css,
-        Some("sass") => OmenaSifSourceSyntaxV1::Sass,
-        _ => OmenaSifSourceSyntaxV1::Scss,
-    }
 }
 
 #[cfg(feature = "zk-audit")]
