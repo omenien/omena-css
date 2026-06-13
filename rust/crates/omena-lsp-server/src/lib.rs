@@ -122,7 +122,8 @@ pub(crate) use workspace_index::index_workspace_style_files;
 pub(crate) use workspace_index::workspace_index_language_id_for_uri;
 pub use workspace_index::{
     LspWorkspaceIndexJobV0, LspWorkspaceIndexResultV0, apply_background_workspace_index_result,
-    collect_background_workspace_index, prepare_background_workspace_index_job,
+    collect_background_workspace_index, prepare_background_workspace_index_continuation_job,
+    prepare_background_workspace_index_job,
 };
 #[cfg(test)]
 pub(crate) use workspace_index::{

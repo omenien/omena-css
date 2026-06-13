@@ -1209,39 +1209,64 @@ fn background_workspace_index_resumes_past_already_indexed_source_files() -> Tes
         }),
     );
 
-    for _ in 0..32 {
-        let turn = handle_lsp_message_scheduled_outputs_or_dispatch(
-            &mut state,
-            json!({
-                "jsonrpc": "2.0",
-                "method": "initialized",
-                "params": {},
-            }),
-        );
-        let job = match turn {
-            LspLoopTurnV0::OutputsAndDeferredDiagnostics {
-                mut workspace_index_jobs,
-                ..
-            } => workspace_index_jobs
-                .pop()
-                .ok_or_else(|| std::io::Error::other("missing resumable workspace index job"))?,
-            other => {
-                return Err(std::io::Error::other(format!(
-                    "initialized should schedule resumable workspace indexing: {other:?}"
-                ))
-                .into());
-            }
-        };
-        let result = collect_background_workspace_index(job);
-        apply_background_workspace_index_result(&mut state, result);
-        if state.document(late_source_uri.as_str()).is_some() {
-            break;
+    let turn = handle_lsp_message_scheduled_outputs_or_dispatch(
+        &mut state,
+        json!({
+            "jsonrpc": "2.0",
+            "method": "initialized",
+            "params": {},
+        }),
+    );
+    let job = match turn {
+        LspLoopTurnV0::OutputsAndDeferredDiagnostics {
+            mut workspace_index_jobs,
+            ..
+        } => workspace_index_jobs
+            .pop()
+            .ok_or_else(|| std::io::Error::other("missing resumable workspace index job"))?,
+        other => {
+            return Err(std::io::Error::other(format!(
+                "initialized should schedule resumable workspace indexing: {other:?}"
+            ))
+            .into());
         }
+    };
+    let first_result = collect_background_workspace_index(job);
+    assert!(
+        first_result.exhausted,
+        "first tick should hit the per-tick file budget"
+    );
+    assert!(
+        !first_result.pending_file_uris.is_empty(),
+        "exhausted workspace index results must carry a continuation frontier"
+    );
+    let mut pending_counts = vec![first_result.pending_file_count];
+    let mut pending_file_uris = first_result.pending_file_uris.clone();
+    apply_background_workspace_index_result(&mut state, first_result);
+
+    while !pending_file_uris.is_empty() {
+        let continuation =
+            prepare_background_workspace_index_continuation_job(&mut state, pending_file_uris);
+        let result = collect_background_workspace_index(continuation);
+        pending_file_uris = result.pending_file_uris.clone();
+        pending_counts.push(result.pending_file_count);
+        apply_background_workspace_index_result(&mut state, result);
     }
 
     assert!(
         state.document(late_source_uri.as_str()).is_some(),
         "background workspace indexing should advance beyond the first file-budget window"
+    );
+    assert_eq!(
+        state.snapshot().workspace_index_pending_file_count,
+        0,
+        "workspace index pending count should reach zero after continuation ticks"
+    );
+    assert!(
+        pending_counts
+            .windows(2)
+            .all(|window| window[1] < window[0]),
+        "workspace index pending count should strictly shrink per continuation tick: {pending_counts:?}"
     );
     let references_response = handle_lsp_message(
         &mut state,
@@ -1276,6 +1301,112 @@ fn background_workspace_index_resumes_past_already_indexed_source_files() -> Tes
         "late indexed source occurrence should appear in references: {references_response:?}"
     );
 
+    let _ = std::fs::remove_dir_all(&workspace_root);
+    Ok(())
+}
+
+#[test]
+fn background_workspace_index_reaches_sources_past_dir_budget() -> TestResult {
+    let workspace_root = std::env::temp_dir().join(format!(
+        "omena-lsp-server-background-dir-frontier-{}",
+        std::process::id()
+    ));
+    let _ = std::fs::remove_dir_all(&workspace_root);
+    std::fs::create_dir_all(workspace_root.as_path())?;
+    let style_path = workspace_root.join("Button.module.scss");
+    let late_dir = workspace_root.join("ZTargetDir");
+    let late_source_path = late_dir.join("Target.tsx");
+    std::fs::write(&style_path, ".root { color: red; }")?;
+    for index in 0..2050 {
+        std::fs::create_dir_all(workspace_root.join(format!("A{index:04}")))?;
+    }
+    std::fs::create_dir_all(late_dir.as_path())?;
+    std::fs::write(
+        &late_source_path,
+        "import styles from \"../Button.module.scss\";\nconst view = <div className={styles.root} />;",
+    )?;
+
+    let workspace_uri = crate::protocol::path_to_file_uri(workspace_root.as_path());
+    let style_uri = crate::protocol::path_to_file_uri(style_path.as_path());
+    let late_source_uri = crate::protocol::path_to_file_uri(late_source_path.as_path());
+    let mut state = LspShellState::default();
+    handle_lsp_message(
+        &mut state,
+        json!({
+            "jsonrpc": "2.0",
+            "id": 1,
+            "method": "initialize",
+            "params": {
+                "workspaceFolders": [
+                    {
+                        "uri": workspace_uri,
+                        "name": "background-dir-frontier",
+                    },
+                ],
+            },
+        }),
+    );
+    let turn = handle_lsp_message_scheduled_outputs_or_dispatch(
+        &mut state,
+        json!({
+            "jsonrpc": "2.0",
+            "method": "initialized",
+            "params": {},
+        }),
+    );
+    let job = match turn {
+        LspLoopTurnV0::OutputsAndDeferredDiagnostics {
+            mut workspace_index_jobs,
+            ..
+        } => workspace_index_jobs
+            .pop()
+            .ok_or_else(|| std::io::Error::other("missing workspace index job"))?,
+        other => {
+            return Err(std::io::Error::other(format!(
+                "initialized should schedule workspace indexing: {other:?}"
+            ))
+            .into());
+        }
+    };
+    let result = collect_background_workspace_index(job);
+    apply_background_workspace_index_result(&mut state, result);
+
+    assert!(
+        state.document(late_source_uri.as_str()).is_some(),
+        "background workspace indexing should reach sources beyond the former dir-budget frontier"
+    );
+    let references_response = handle_lsp_message(
+        &mut state,
+        json!({
+            "jsonrpc": "2.0",
+            "id": 2,
+            "method": "textDocument/references",
+            "params": {
+                "textDocument": {
+                    "uri": style_uri,
+                },
+                "position": {
+                    "line": 0,
+                    "character": 2,
+                },
+                "context": {
+                    "includeDeclaration": false,
+                },
+            },
+        }),
+    );
+    let reference_locations = references_response
+        .as_ref()
+        .and_then(|response| response.pointer("/result"))
+        .and_then(Value::as_array)
+        .ok_or_else(|| std::io::Error::other("references response should contain locations"))?;
+    assert!(
+        reference_locations.iter().any(|location| location
+            .get("uri")
+            .and_then(Value::as_str)
+            .is_some_and(|uri| file_uri_equivalent(uri, late_source_uri.as_str()))),
+        "dir-frontier source occurrence should appear in references: {references_response:?}"
+    );
     let _ = std::fs::remove_dir_all(&workspace_root);
     Ok(())
 }

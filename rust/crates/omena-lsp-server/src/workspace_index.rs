@@ -36,6 +36,7 @@ pub struct LspWorkspaceIndexJobV0 {
     pub resolution_inputs_by_workspace_uri: BTreeMap<String, OmenaQueryStyleResolutionInputsV0>,
     pub indexed_document_hashes_by_uri: BTreeMap<String, String>,
     pub open_document_uris: BTreeSet<String>,
+    pub pending_file_uris: Vec<String>,
 }
 
 #[derive(Debug, Clone)]
@@ -43,6 +44,9 @@ pub struct LspWorkspaceIndexResultV0 {
     pub revision: u64,
     pub progress_token: Option<String>,
     pub documents: Vec<LspTextDocumentState>,
+    pub pending_file_uris: Vec<String>,
+    pub indexed_count: usize,
+    pub pending_file_count: usize,
     pub exhausted: bool,
 }
 
@@ -71,33 +75,44 @@ pub fn prepare_background_workspace_index_job(state: &mut LspShellState) -> LspW
             })
             .chain(state.open_document_uris.iter().cloned())
             .collect(),
+        pending_file_uris: Vec::new(),
     }
+}
+
+pub fn prepare_background_workspace_index_continuation_job(
+    state: &mut LspShellState,
+    pending_file_uris: Vec<String>,
+) -> LspWorkspaceIndexJobV0 {
+    let mut job = prepare_background_workspace_index_job(state);
+    job.pending_file_uris = pending_file_uris;
+    job
 }
 
 pub fn collect_background_workspace_index(
     job: LspWorkspaceIndexJobV0,
 ) -> LspWorkspaceIndexResultV0 {
-    let mut budget = WorkspaceStyleIndexBudget::with_defaults();
     let mut documents = Vec::new();
-    for folder in &job.folders {
-        if budget.should_stop() {
-            break;
-        }
-        let Some(path) = file_uri_to_path(folder.uri.as_str()) else {
-            continue;
-        };
-        collect_workspace_index_documents_from_dir(
-            &job,
-            folder.uri.as_str(),
-            path.as_path(),
-            &mut budget,
-            &mut documents,
-        );
-    }
+    let candidate_uris = if job.pending_file_uris.is_empty() {
+        collect_workspace_index_candidate_uris(&job)
+    } else {
+        job.pending_file_uris.clone()
+    };
+    let mut budget = WorkspaceStyleIndexBudget::with_defaults();
+    let pending_file_uris = collect_workspace_index_documents_from_candidates(
+        &job,
+        candidate_uris,
+        &mut budget,
+        &mut documents,
+    );
+    let indexed_count = documents.len();
+    let pending_file_count = pending_file_uris.len();
     LspWorkspaceIndexResultV0 {
         revision: job.revision,
         progress_token: job.progress_token,
         documents,
+        pending_file_uris,
+        indexed_count,
+        pending_file_count,
         exhausted: budget.exhausted,
     }
 }
@@ -127,6 +142,7 @@ pub fn apply_background_workspace_index_result(
     }
     crate::admit_foreign_style_dependencies_for_indexed_style_documents(state);
     crate::refresh_external_sifs_for_state(state);
+    state.workspace_index_pending_file_count = result.pending_file_count;
     if result.exhausted {
         state.workspace_style_index_exhausted_count += 1;
     }
@@ -215,64 +231,100 @@ fn index_workspace_style_files_from_dir(
     }
 }
 
-fn collect_workspace_index_documents_from_dir(
+fn collect_workspace_index_candidate_uris(job: &LspWorkspaceIndexJobV0) -> Vec<String> {
+    let mut uris = Vec::new();
+    for folder in &job.folders {
+        let Some(path) = file_uri_to_path(folder.uri.as_str()) else {
+            continue;
+        };
+        collect_workspace_index_candidate_uris_from_dir(job, path.as_path(), uris.as_mut());
+    }
+    uris.sort();
+    uris.dedup();
+    uris
+}
+
+fn collect_workspace_index_candidate_uris_from_dir(
     job: &LspWorkspaceIndexJobV0,
-    workspace_folder_uri: &str,
     dir: &Path,
-    budget: &mut WorkspaceStyleIndexBudget,
-    documents: &mut Vec<LspTextDocumentState>,
+    uris: &mut Vec<String>,
 ) {
-    if budget.should_stop() || should_skip_workspace_index_dir(dir) {
+    if should_skip_workspace_index_dir(dir) {
         return;
     }
-    budget.consume_dir();
     let Ok(entries) = fs::read_dir(dir) else {
         return;
     };
     let mut entries = entries.flatten().collect::<Vec<_>>();
     entries.sort_by_key(|entry| entry.path());
     for entry in entries {
-        if budget.should_stop() {
-            return;
-        }
         let path = entry.path();
         if path.is_dir() {
-            collect_workspace_index_documents_from_dir(
-                job,
-                workspace_folder_uri,
-                path.as_path(),
-                budget,
-                documents,
-            );
+            collect_workspace_index_candidate_uris_from_dir(job, path.as_path(), uris);
             continue;
         }
-        let Some(language_id) = workspace_index_language_id_for_path(path.as_path()) else {
+        if workspace_index_language_id_for_path(path.as_path()).is_none() {
             continue;
-        };
+        }
         let uri = path_to_file_uri(path.as_path());
-        if job.open_document_uris.contains(uri.as_str()) {
-            continue;
-        }
-        if job
-            .indexed_document_hashes_by_uri
-            .contains_key(uri.as_str())
+        if job.open_document_uris.contains(uri.as_str())
+            || job
+                .indexed_document_hashes_by_uri
+                .contains_key(uri.as_str())
         {
             continue;
         }
+        uris.push(uri);
+    }
+}
+
+fn collect_workspace_index_documents_from_candidates(
+    job: &LspWorkspaceIndexJobV0,
+    candidate_uris: Vec<String>,
+    budget: &mut WorkspaceStyleIndexBudget,
+    documents: &mut Vec<LspTextDocumentState>,
+) -> Vec<String> {
+    let mut pending_file_uris = Vec::new();
+    for uri in candidate_uris {
+        if job.open_document_uris.contains(uri.as_str())
+            || job
+                .indexed_document_hashes_by_uri
+                .contains_key(uri.as_str())
+        {
+            continue;
+        }
+        if budget.should_stop() {
+            pending_file_uris.push(uri);
+            continue;
+        }
+        let Some(path) = file_uri_to_path(uri.as_str()) else {
+            continue;
+        };
+        let Some(language_id) = workspace_index_language_id_for_path(path.as_path()) else {
+            continue;
+        };
         let Ok(text) = fs::read_to_string(path.as_path()) else {
             continue;
         };
         let text_hash = source_document_text_hash(text.as_str());
         let workspace_owner_uri = resolve_background_workspace_owner_uri(job, uri.as_str())
-            .unwrap_or_else(|| workspace_folder_uri.to_string());
-        let resolution_inputs = job
-            .resolution_inputs_by_workspace_uri
-            .get(workspace_owner_uri.as_str())
+            .or_else(|| {
+                job.folders
+                    .iter()
+                    .find(|folder| uri.starts_with(folder.uri.as_str()))
+                    .map(|folder| folder.uri.clone())
+            });
+        let resolution_inputs = workspace_owner_uri
+            .as_ref()
+            .and_then(|owner_uri| {
+                job.resolution_inputs_by_workspace_uri
+                    .get(owner_uri.as_str())
+            })
             .cloned()
             .unwrap_or_default();
         let document = if !is_style_document_uri(uri.as_str())
             && let Some(sidecar) = load_source_document_index_sidecar(
-                Some(workspace_owner_uri.as_str()),
+                workspace_owner_uri.as_deref(),
                 uri.as_str(),
                 language_id.as_str(),
                 text_hash.as_str(),
@@ -280,7 +332,7 @@ fn collect_workspace_index_documents_from_dir(
             ) {
             lsp_text_document_state_with_source_syntax_index(
                 uri,
-                Some(workspace_owner_uri),
+                workspace_owner_uri,
                 language_id,
                 0,
                 text,
@@ -290,7 +342,7 @@ fn collect_workspace_index_documents_from_dir(
         } else {
             let document = lsp_text_document_state(
                 uri,
-                Some(workspace_owner_uri),
+                workspace_owner_uri,
                 language_id,
                 0,
                 text,
@@ -312,6 +364,7 @@ fn collect_workspace_index_documents_from_dir(
         documents.push(document);
         budget.consume_indexed_file();
     }
+    pending_file_uris
 }
 
 fn resolve_background_workspace_owner_uri(

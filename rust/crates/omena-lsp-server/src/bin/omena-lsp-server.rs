@@ -16,18 +16,18 @@ use omena_lsp_server::{
     LspLoopTurnV0, LspQueryDispatchV0, LspShellState, LspWorkspaceIndexJobV0,
     LspWorkspaceIndexResultV0, ScheduledLspOutput, apply_background_workspace_index_result,
     collect_background_workspace_index, dispatched_query_internal_error_response,
-    handle_lsp_message_scheduled_outputs_or_dispatch, resolve_dispatched_query_response,
+    handle_lsp_message_scheduled_outputs_or_dispatch,
+    prepare_background_workspace_index_continuation_job, resolve_dispatched_query_response,
     workspace_index_progress_end_output,
 };
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let stdin = io::stdin();
-    run_stdio_server(&mut stdin.lock(), io::stdout())?;
+    run_stdio_server(io::BufReader::new(io::stdin()), io::stdout())?;
     Ok(())
 }
 
-fn run_stdio_server<R: BufRead, W: Write + Send + 'static>(
-    reader: &mut R,
+fn run_stdio_server<R: BufRead + Send + 'static, W: Write + Send + 'static>(
+    mut reader: R,
     writer: W,
 ) -> Result<(), Box<dyn std::error::Error>> {
     let mut state = LspShellState::default();
@@ -68,6 +68,26 @@ fn run_stdio_server<R: BufRead, W: Write + Send + 'static>(
                 .map_err(|_| "workspace index result receiver dropped".to_string())?;
         }
         Ok(())
+    });
+    let (input_sender, input_receiver) = mpsc::channel::<Result<Option<String>, String>>();
+    let _input_reader = thread::spawn(move || {
+        loop {
+            match read_lsp_payload(&mut reader) {
+                Ok(Some(payload)) => {
+                    if input_sender.send(Ok(Some(payload))).is_err() {
+                        break;
+                    }
+                }
+                Ok(None) => {
+                    let _ = input_sender.send(Ok(None));
+                    break;
+                }
+                Err(error) => {
+                    let _ = input_sender.send(Err(error.to_string()));
+                    break;
+                }
+            }
+        }
     });
     let query_worker: JoinHandle<Result<(), String>> = {
         let writer = Arc::clone(&writer);
@@ -162,17 +182,41 @@ fn run_stdio_server<R: BufRead, W: Write + Send + 'static>(
         })
     };
 
-    while let Some(payload) = read_lsp_payload(reader)? {
-        let message: serde_json::Value = serde_json::from_str(&payload)?;
+    let mut input_closed = false;
+    let mut workspace_index_in_flight = 0usize;
+    loop {
         drain_workspace_index_results(
             &mut state,
             &workspace_index_result_receiver,
+            &workspace_index_sender,
+            &mut workspace_index_in_flight,
             &writer,
             &coalescer,
             &mut delayed_outputs,
         )?;
         #[cfg(feature = "salsa-style-diagnostics")]
         drain_deferred_diagnostics_completions(&diagnostics_completion_receiver);
+        if input_closed {
+            if workspace_index_in_flight == 0 {
+                break;
+            }
+            thread::sleep(Duration::from_millis(5));
+            continue;
+        }
+        let payload = match input_receiver.recv_timeout(Duration::from_millis(5)) {
+            Ok(Ok(Some(payload))) => payload,
+            Ok(Ok(None)) => {
+                input_closed = true;
+                continue;
+            }
+            Ok(Err(error)) => return Err(error.into()),
+            Err(mpsc::RecvTimeoutError::Timeout) => continue,
+            Err(mpsc::RecvTimeoutError::Disconnected) => {
+                input_closed = true;
+                continue;
+            }
+        };
+        let message: serde_json::Value = serde_json::from_str(&payload)?;
         match handle_lsp_message_scheduled_outputs_or_dispatch(&mut state, message) {
             LspLoopTurnV0::DispatchQuery(dispatch) => {
                 query_sender
@@ -196,6 +240,7 @@ fn run_stdio_server<R: BufRead, W: Write + Send + 'static>(
                     workspace_index_sender
                         .send(job)
                         .map_err(|_| "workspace index worker exited before shutdown")?;
+                    workspace_index_in_flight = workspace_index_in_flight.saturating_add(1);
                 }
                 for dispatch in deferred_diagnostics {
                     #[cfg(feature = "salsa-style-diagnostics")]
@@ -208,13 +253,22 @@ fn run_stdio_server<R: BufRead, W: Write + Send + 'static>(
             }
         }
         if state.should_exit {
-            break;
+            input_closed = true;
         }
     }
 
     // Drain exactly like delayed_outputs: closing the channel lets the worker
     // finish every dispatched request before exiting, so shutdown/exit never
     // drops an in-flight hover/definition response.
+    drain_workspace_index_results(
+        &mut state,
+        &workspace_index_result_receiver,
+        &workspace_index_sender,
+        &mut workspace_index_in_flight,
+        &writer,
+        &coalescer,
+        &mut delayed_outputs,
+    )?;
     drop(query_sender);
     drop(workspace_index_sender);
     #[cfg(feature = "salsa-style-diagnostics")]
@@ -225,13 +279,6 @@ fn run_stdio_server<R: BufRead, W: Write + Send + 'static>(
         .join()
         .map_err(|_| "workspace index worker panicked".to_string())?
         .map_err(|error| format!("workspace index worker failed: {error}"))?;
-    drain_workspace_index_results(
-        &mut state,
-        &workspace_index_result_receiver,
-        &writer,
-        &coalescer,
-        &mut delayed_outputs,
-    )?;
     query_worker
         .join()
         .map_err(|_| "query worker panicked".to_string())?
@@ -250,22 +297,34 @@ fn run_stdio_server<R: BufRead, W: Write + Send + 'static>(
             .map_err(|_| "delayed LSP writer panicked".to_string())?
             .map_err(|error| format!("delayed LSP writer failed: {error}"))?;
     }
-
     Ok(())
 }
 
 fn drain_workspace_index_results<W: Write + Send + 'static>(
     state: &mut LspShellState,
     receiver: &mpsc::Receiver<LspWorkspaceIndexResultV0>,
+    sender: &mpsc::Sender<LspWorkspaceIndexJobV0>,
+    in_flight: &mut usize,
     writer: &Arc<Mutex<W>>,
     coalescer: &Arc<Mutex<ScheduledOutputCoalescer>>,
     delayed_outputs: &mut Vec<JoinHandle<Result<(), String>>>,
 ) -> Result<(), Box<dyn std::error::Error>> {
     while let Ok(result) = receiver.try_recv() {
         let progress_end = workspace_index_progress_end_output(&result);
+        let continuation_file_uris = result.pending_file_uris.clone();
+        let should_continue = result.exhausted && !continuation_file_uris.is_empty();
         apply_background_workspace_index_result(state, result);
+        *in_flight = in_flight.saturating_sub(1);
         if let Some(output) = progress_end {
             write_scheduled_lsp_output(writer, coalescer, output, delayed_outputs)?;
+        }
+        if should_continue && !state.should_exit {
+            let job =
+                prepare_background_workspace_index_continuation_job(state, continuation_file_uris);
+            sender
+                .send(job)
+                .map_err(|_| "workspace index worker exited before continuation")?;
+            *in_flight = in_flight.saturating_add(1);
         }
     }
     Ok(())
@@ -770,14 +829,21 @@ mod tests {
             input.extend_from_slice(frame(message)?.as_slice());
         }
         let sink = SharedBufferWriter::default();
-        let mut reader: &[u8] = input.as_slice();
-        run_stdio_server(&mut reader, sink.clone()).map_err(|error| error.to_string())?;
+        let reader = io::Cursor::new(input);
+        run_stdio_server(reader, sink.clone()).map_err(|error| error.to_string())?;
         let output = sink
             .0
             .lock()
             .map_err(|_| "shared writer poisoned".to_string())?
             .clone();
         parse_lsp_frames(output.as_slice())
+    }
+
+    fn write_lsp_frame<W: Write>(writer: &mut W, message: &Value) -> Result<(), String> {
+        writer
+            .write_all(frame(message)?.as_slice())
+            .map_err(|error| error.to_string())?;
+        writer.flush().map_err(|error| error.to_string())
     }
 
     fn theme_text_for_generation(generation: usize) -> String {
@@ -807,6 +873,140 @@ mod tests {
                 ],
             },
         })
+    }
+
+    #[test]
+    fn workspace_index_auto_continues_after_single_initialized() -> Result<(), String> {
+        let workspace_root = std::env::temp_dir().join(format!(
+            "omena-lsp-stdio-index-frontier-{}",
+            std::process::id()
+        ));
+        let _ = std::fs::remove_dir_all(workspace_root.as_path());
+        let src_dir = workspace_root.join("src");
+        std::fs::create_dir_all(src_dir.as_path()).map_err(|error| error.to_string())?;
+        let style_path = src_dir.join("Button.module.scss");
+        let late_source_path = src_dir.join("ZTarget.tsx");
+        let style_text = ".root { color: red; }";
+        std::fs::write(style_path.as_path(), style_text).map_err(|error| error.to_string())?;
+        for index in 0..520 {
+            std::fs::write(
+                src_dir.join(format!("A{index:04}.tsx")),
+                format!("export const value{index} = {index};"),
+            )
+            .map_err(|error| error.to_string())?;
+        }
+        std::fs::write(
+            late_source_path.as_path(),
+            "import styles from \"./Button.module.scss\";\nconst view = <div className={styles.root} />;",
+        )
+        .map_err(|error| error.to_string())?;
+
+        let workspace_uri = format!("file://{}", workspace_root.display());
+        let style_uri = format!("file://{}", style_path.display());
+        let late_source_uri = format!(
+            "file://{}",
+            std::fs::canonicalize(late_source_path.as_path())
+                .map_err(|error| error.to_string())?
+                .display()
+        );
+        let (server_stream, mut client_stream) =
+            std::os::unix::net::UnixStream::pair().map_err(|error| error.to_string())?;
+        let sink = SharedBufferWriter::default();
+        let server_sink = sink.clone();
+        let server = thread::spawn(move || {
+            run_stdio_server(io::BufReader::new(server_stream), server_sink)
+                .map_err(|error| error.to_string())
+        });
+
+        write_lsp_frame(
+            &mut client_stream,
+            &initialize_workspace_message(workspace_uri.as_str()),
+        )?;
+        write_lsp_frame(
+            &mut client_stream,
+            &text_document_open_message(style_uri.as_str(), "scss", 1, style_text),
+        )?;
+        write_lsp_frame(
+            &mut client_stream,
+            &json!({
+                "jsonrpc": "2.0",
+                "method": "initialized",
+                "params": {},
+            }),
+        )?;
+        for request_index in 0..20 {
+            thread::sleep(Duration::from_millis(75));
+            write_lsp_frame(
+                &mut client_stream,
+                &json!({
+                    "jsonrpc": "2.0",
+                    "id": 20 + request_index,
+                    "method": "textDocument/references",
+                    "params": {
+                        "textDocument": {
+                            "uri": style_uri,
+                        },
+                        "position": {
+                            "line": 0,
+                            "character": 2,
+                        },
+                        "context": {
+                            "includeDeclaration": false,
+                        },
+                    },
+                }),
+            )?;
+        }
+        write_lsp_frame(
+            &mut client_stream,
+            &json!({
+                "jsonrpc": "2.0",
+                "id": 100,
+                "method": "shutdown",
+                "params": null,
+            }),
+        )?;
+        write_lsp_frame(
+            &mut client_stream,
+            &json!({
+                "jsonrpc": "2.0",
+                "method": "exit",
+                "params": null,
+            }),
+        )?;
+        drop(client_stream);
+        server
+            .join()
+            .map_err(|_| "stdio server panicked".to_string())??;
+
+        let output = sink
+            .0
+            .lock()
+            .map_err(|_| "shared writer poisoned".to_string())?
+            .clone();
+        let messages = parse_lsp_frames(output.as_slice())?;
+        assert!(
+            messages.iter().any(|message| {
+                message
+                    .get("id")
+                    .and_then(Value::as_u64)
+                    .is_some_and(|id| (20..40).contains(&id))
+                    && message
+                        .pointer("/result")
+                        .and_then(Value::as_array)
+                        .is_some_and(|references| {
+                            references.iter().any(|location| {
+                                location
+                                    .get("uri")
+                                    .and_then(Value::as_str)
+                                    .is_some_and(|uri| uri == late_source_uri)
+                            })
+                        })
+            }),
+            "a single initialized notification should auto-advance the workspace index frontier until the late source is indexed: {messages:?}"
+        );
+        let _ = std::fs::remove_dir_all(workspace_root.as_path());
+        Ok(())
     }
 
     fn hover_app_btn(id: u64) -> Value {

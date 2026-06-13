@@ -121,6 +121,7 @@ pub struct LspShellStateSnapshot {
     pub resolution: LspResolutionSettings,
     pub cancelled_request_count: usize,
     pub workspace_style_index_exhausted_count: usize,
+    pub workspace_index_pending_file_count: usize,
     pub document_count: usize,
     pub workspace_folder_count: usize,
     pub configuration_change_count: usize,
@@ -241,6 +242,7 @@ pub struct LspShellState {
     pub(crate) resolution: LspResolutionSettings,
     pub(crate) cancelled_request_ids: IncrementalCancellationRegistryV0,
     pub(crate) workspace_style_index_exhausted_count: usize,
+    pub(crate) workspace_index_pending_file_count: usize,
     pub(crate) workspace_index_revision: u64,
     pub(crate) configuration_change_count: usize,
     /// RFC 0009 Pillar A (rfcs#67, slice A-min): documents are `Arc` entries so a
@@ -419,6 +421,7 @@ impl LspShellState {
             resolution: self.resolution.clone(),
             cancelled_request_count: self.cancelled_request_ids.len(),
             workspace_style_index_exhausted_count: self.workspace_style_index_exhausted_count,
+            workspace_index_pending_file_count: self.workspace_index_pending_file_count,
             document_count: self.document_count(),
             workspace_folder_count: self.workspace_folder_count(),
             configuration_change_count: self.configuration_change_count,
