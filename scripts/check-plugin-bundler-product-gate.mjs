@@ -12,6 +12,7 @@ const VALID_ADOPTER_SURFACES = new Set([
   "omena-cli-build",
 ]);
 const PRODUCT_GITHUB_REPO = "omenien/omena-css";
+const ADOPTER_EVIDENCE_COMMIT_FIXTURE = "0123456789abcdef0123456789abcdef01234567";
 const MAINTAINER_GITHUB_OWNERS = new Set(["omenien", "yongsk0066"]);
 const REPO_SCAN_IGNORED_DIRS = new Set([
   ".cache",
@@ -414,8 +415,8 @@ function requireGitHubRepoBlobUrl(value, label, repo) {
   assert.equal(parsed.hostname, "github.com", `${label} must be a github.com URL`);
   assert.match(
     parsed.pathname.toLowerCase(),
-    new RegExp(`^/${escapeRegExp(repo)}/blob/[^/]+/.+`, "u"),
-    `${label} must point at a versioned file under ${repo}/blob/...`,
+    new RegExp(`^/${escapeRegExp(repo)}/blob/[a-f0-9]{40}/.+`, "u"),
+    `${label} must point at an immutable commit file under ${repo}/blob/{sha}/...`,
   );
   return url;
 }
@@ -631,8 +632,22 @@ function selfTest() {
         ],
         "externalNonMaintainerAdopters",
       ),
-    /versioned file/,
-    "self-test: evidence URL must point at a versioned file in the declared adopter repo",
+    /immutable commit file/,
+    "self-test: evidence URL must point at an immutable commit file in the declared adopter repo",
+  );
+  assert.throws(
+    () =>
+      validateExternalNonMaintainerAdopters(
+        [
+          {
+            ...externalAdopterFixture("one/project"),
+            evidenceUrl: "https://github.com/one/project/blob/main/package.json",
+          },
+        ],
+        "externalNonMaintainerAdopters",
+      ),
+    /immutable commit file/,
+    "self-test: branch evidence URLs cannot satisfy adopter code evidence",
   );
   assert.throws(
     () =>
@@ -645,7 +660,7 @@ function selfTest() {
         ],
         "externalNonMaintainerAdopters",
       ),
-    /versioned file/,
+    /immutable commit file/,
     "self-test: issue URLs cannot stand in for adopter code evidence",
   );
   assert.throws(
@@ -659,7 +674,7 @@ function selfTest() {
         ],
         "externalNonMaintainerAdopters",
       ),
-    /versioned file/,
+    /immutable commit file/,
     "self-test: tree URLs cannot stand in for adopter code evidence",
   );
   assert.throws(
@@ -876,7 +891,7 @@ function externalAdopterFixture(repo) {
     repo,
     maintainerRelation: "non-maintainer",
     surface: "postcss-plugin",
-    evidenceUrl: `https://github.com/${repo}/blob/main/package.json`,
+    evidenceUrl: `https://github.com/${repo}/blob/${ADOPTER_EVIDENCE_COMMIT_FIXTURE}/package.json`,
     buildUrl: `https://github.com/${repo}/actions/runs/1`,
   };
 }
@@ -886,7 +901,7 @@ function moatDetachedFixture(repo) {
     repo,
     usesEditorCheckerMoat: false,
     surface: "postcss-plugin",
-    evidenceUrl: `https://github.com/${repo}/blob/main/package.json`,
+    evidenceUrl: `https://github.com/${repo}/blob/${ADOPTER_EVIDENCE_COMMIT_FIXTURE}/package.json`,
     buildUrl: `https://github.com/${repo}/actions/runs/1`,
   };
 }
