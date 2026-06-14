@@ -44,6 +44,10 @@ for (const packageSpec of PACKAGES) {
   const packageRoot = path.join(stageRoot, packageSpec.dir);
   const manifestPath = path.join(packageRoot, "package.json");
   assert.ok(existsSync(manifestPath), `staged package must include ${manifestPath}`);
+  assert.ok(
+    existsSync(path.join(packageRoot, "README.md")),
+    `staged package must include README.md for ${packageSpec.name}`,
+  );
 
   const manifest = JSON.parse(readFileSync(manifestPath, "utf8"));
   assert.equal(manifest.name, packageSpec.name);
@@ -60,6 +64,11 @@ for (const packageSpec of PACKAGES) {
   const packReport = JSON.parse(packed.stdout);
   const fileName = packReport[0]?.filename;
   assert.ok(fileName, `npm pack must report a tarball for ${packageSpec.name}`);
+  const packedFiles = new Set(packReport[0]?.files?.map((file) => file.path) ?? []);
+  assert.ok(
+    packedFiles.has("README.md"),
+    `npm pack must include README.md for ${packageSpec.name}`,
+  );
   const tarball = path.join(packRoot, fileName);
   assert.ok(existsSync(tarball), `npm pack must write ${tarball}`);
   tarballs.push(tarball);

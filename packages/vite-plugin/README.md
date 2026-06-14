@@ -2,6 +2,18 @@
 
 Vite consumer surface for the in-process Omena CSS native/wasm build API.
 
+## Install
+
+```sh
+npm install -D @omena/vite-plugin @omena/napi vite
+```
+
+`@omena/napi` is the preferred runtime. The plugin can fall back to
+`@omena/wasm` when native bindings are unavailable and `wasmFallback` is not
+disabled.
+
+## Vite Config
+
 ```js
 import { omenaCss } from "@omena/vite-plugin";
 
@@ -17,6 +29,8 @@ export default {
   ],
 };
 ```
+
+## Scope
 
 Default scope is intentionally conservative:
 
