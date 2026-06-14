@@ -24,6 +24,26 @@ const REPO_SCAN_IGNORED_DIRS = new Set([
   "out",
   "target",
 ]);
+const REQUIRED_PRE_FREEZE_RUST_SYMBOLS = [
+  {
+    file: "rust/crates/omena-transform-bundle/src/lib.rs",
+    symbols: [
+      "TransformBundleEdgeV0",
+      "TransformBundleAssetUrlV0",
+      "TransformBundleAssetUrlRewriteSummaryV0",
+      "TransformBundleChunkV0",
+      "TransformBundleSourceSummaryV0",
+    ],
+  },
+  {
+    file: "rust/crates/omena-query-transform-runner/src/lib.rs",
+    symbols: [
+      "OmenaQueryTransformRunnerBoundaryV0",
+      "OMENA_QUERY_TRANSFORM_RUNNER_COLLAPSED_CRATES_V0",
+      "summarize_omena_query_transform_runner_boundary_v0",
+    ],
+  },
+];
 
 const gateEvidence = readGateEvidence(evidencePath);
 const gateStatus = summarizeGateStatus(gateEvidence);
@@ -31,6 +51,7 @@ const gateStatus = summarizeGateStatus(gateEvidence);
 const prohibited = [
   ...findStandaloneBundlerSurfaces(repoRoot),
   ...findPrematureStableRustAliases(repoRoot),
+  ...findPrematureRustBundlerV0Removal(repoRoot),
   ...findBundlerFreezeClaims(repoRoot),
 ];
 
@@ -157,6 +178,24 @@ function findPrematureStableRustAliases(rootDir) {
     const source = readFileSync(check.file, "utf8");
     for (const match of source.matchAll(check.pattern)) {
       hits.push(`${path.relative(rootDir, check.file)} exposes stable ${match[1]}`);
+    }
+  }
+  return hits;
+}
+
+function findPrematureRustBundlerV0Removal(rootDir) {
+  const hits = [];
+  for (const requirement of REQUIRED_PRE_FREEZE_RUST_SYMBOLS) {
+    const filePath = path.join(rootDir, requirement.file);
+    if (!existsSync(filePath)) {
+      hits.push(`${requirement.file} is missing before the bundler product gate fired`);
+      continue;
+    }
+    const source = readFileSync(filePath, "utf8");
+    for (const symbol of requirement.symbols) {
+      if (!sourceContainsRustSymbol(source, symbol)) {
+        hits.push(`${requirement.file} is missing pre-freeze V0 symbol ${symbol}`);
+      }
     }
   }
   return hits;
@@ -391,6 +430,16 @@ function selfTest() {
     "self-test: non-bundler freeze wording is not guarded",
   );
   assert.equal(
+    sourceContainsRustSymbol("pub struct TransformBundleEdgeV0 {}", "TransformBundleEdgeV0"),
+    true,
+    "self-test: Rust symbol scan finds a full identifier",
+  );
+  assert.equal(
+    sourceContainsRustSymbol("pub struct TransformBundleEdgeV01 {}", "TransformBundleEdgeV0"),
+    false,
+    "self-test: Rust symbol scan does not match identifier prefixes",
+  );
+  assert.equal(
     readCargoPackageName("[workspace]\nmembers = []\n"),
     null,
     "self-test: workspace-only Cargo manifest is not a package",
@@ -539,6 +588,14 @@ function readCargoPackageName(source) {
     if (match) return match[1];
   }
   return null;
+}
+
+function sourceContainsRustSymbol(source, symbol) {
+  return new RegExp(`\\b${escapeRegExp(symbol)}\\b`, "u").test(source);
+}
+
+function escapeRegExp(value) {
+  return value.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&");
 }
 
 function firedEvidence() {
