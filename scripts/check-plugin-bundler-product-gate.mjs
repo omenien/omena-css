@@ -285,7 +285,7 @@ function validateExternalNonMaintainerAdopters(entries, fieldName) {
       "non-maintainer",
       `${label}.maintainerRelation must be "non-maintainer"`,
     );
-    requireGitHubRepoUrl(entry.evidenceUrl, `${label}.evidenceUrl`, repo);
+    requireGitHubRepoBlobUrl(entry.evidenceUrl, `${label}.evidenceUrl`, repo);
     requireBuildUrl(entry.buildUrl, `${label}.buildUrl`, repo);
     requireAdopterSurface(entry.surface, `${label}.surface`);
   }
@@ -309,7 +309,7 @@ function validateMoatDetachedAdopters(entries, fieldName) {
       false,
       `${label}.usesEditorCheckerMoat must be false`,
     );
-    requireGitHubRepoUrl(entry.evidenceUrl, `${label}.evidenceUrl`, repo);
+    requireGitHubRepoBlobUrl(entry.evidenceUrl, `${label}.evidenceUrl`, repo);
     requireBuildUrl(entry.buildUrl, `${label}.buildUrl`, repo);
     requireAdopterSurface(entry.surface, `${label}.surface`);
   }
@@ -380,14 +380,14 @@ function requireHttpUrl(value, label) {
   return url;
 }
 
-function requireGitHubRepoUrl(value, label, repo) {
+function requireGitHubRepoBlobUrl(value, label, repo) {
   const url = requireHttpUrl(value, label);
   const parsed = parseUrl(url, label);
   assert.equal(parsed.hostname, "github.com", `${label} must be a github.com URL`);
-  assert.equal(
-    parsed.pathname.toLowerCase().startsWith(`/${repo}/`),
-    true,
-    `${label} must point inside the declared repository ${repo}`,
+  assert.match(
+    parsed.pathname.toLowerCase(),
+    new RegExp(`^/${escapeRegExp(repo)}/blob/[^/]+/.+`, "u"),
+    `${label} must point at a versioned file under ${repo}/blob/...`,
   );
   return url;
 }
@@ -396,10 +396,10 @@ function requireBuildUrl(value, label, repo) {
   const url = requireHttpUrl(value, label);
   const parsed = parseUrl(url, label);
   if (parsed.hostname === "github.com") {
-    assert.equal(
-      parsed.pathname.toLowerCase().startsWith(`/${repo}/actions/`),
-      true,
-      `${label} github.com build URL must point at ${repo}/actions`,
+    assert.match(
+      parsed.pathname.toLowerCase(),
+      new RegExp(`^/${escapeRegExp(repo)}/actions/runs/[0-9]+/?$`, "u"),
+      `${label} github.com build URL must point at ${repo}/actions/runs/{id}`,
     );
   }
   return url;
@@ -594,8 +594,36 @@ function selfTest() {
         ],
         "externalNonMaintainerAdopters",
       ),
-    /declared repository/,
-    "self-test: evidence URL must point inside the declared adopter repo",
+    /versioned file/,
+    "self-test: evidence URL must point at a versioned file in the declared adopter repo",
+  );
+  assert.throws(
+    () =>
+      validateExternalNonMaintainerAdopters(
+        [
+          {
+            ...externalAdopterFixture("one/project"),
+            evidenceUrl: "https://github.com/one/project/issues/1",
+          },
+        ],
+        "externalNonMaintainerAdopters",
+      ),
+    /versioned file/,
+    "self-test: issue URLs cannot stand in for adopter code evidence",
+  );
+  assert.throws(
+    () =>
+      validateExternalNonMaintainerAdopters(
+        [
+          {
+            ...externalAdopterFixture("one/project"),
+            evidenceUrl: "https://github.com/one/project/tree/main",
+          },
+        ],
+        "externalNonMaintainerAdopters",
+      ),
+    /versioned file/,
+    "self-test: tree URLs cannot stand in for adopter code evidence",
   );
   assert.throws(
     () =>
@@ -610,6 +638,20 @@ function selfTest() {
       ),
     /github.com build URL/,
     "self-test: GitHub build URL must point at the declared adopter repo",
+  );
+  assert.throws(
+    () =>
+      validateExternalNonMaintainerAdopters(
+        [
+          {
+            ...externalAdopterFixture("one/project"),
+            buildUrl: "https://github.com/one/project/actions/workflows/ci.yml",
+          },
+        ],
+        "externalNonMaintainerAdopters",
+      ),
+    /actions\/runs/,
+    "self-test: GitHub build evidence must point at a concrete run",
   );
   assert.throws(
     () =>
