@@ -22,11 +22,11 @@ which resolves to:
 
 Recent observed `rust-workspace` durations:
 
-| Source | Run | Cache state | Result | Duration |
-|---|---:|---|---|---:|
-| Latest successful master push | [`27503876492`](https://github.com/omenien/omena-css/actions/runs/27503876492) | restore-key hit, full match false | success | 134s |
-| Warm full-match sample | [`27500863062`](https://github.com/omenien/omena-css/actions/runs/27500863062) | full cache hit | success | 78s |
-| Last 60 completed master `CI` runs | `27413881619` through `27503876492` | all checked logs were cache hit or restore-key hit | mixed run conclusions, `rust-workspace` job present | min 58s / median 72s / avg 73s / max 134s |
+| Source                             |                                                                            Run | Cache state                                        | Result                                              |                                  Duration |
+| ---------------------------------- | -----------------------------------------------------------------------------: | -------------------------------------------------- | --------------------------------------------------- | ----------------------------------------: |
+| Latest successful master push      | [`27503876492`](https://github.com/omenien/omena-css/actions/runs/27503876492) | restore-key hit, full match false                  | success                                             |                                      134s |
+| Warm full-match sample             | [`27500863062`](https://github.com/omenien/omena-css/actions/runs/27500863062) | full cache hit                                     | success                                             |                                       78s |
+| Last 60 completed master `CI` runs |                                            `27413881619` through `27503876492` | all checked logs were cache hit or restore-key hit | mixed run conclusions, `rust-workspace` job present | min 58s / median 72s / avg 73s / max 134s |
 
 Targeted cache-log scan across the latest 60 completed master `CI` runs did not find a true
 `Cache not found` / cold-cache `rust-workspace` run. The available CI data therefore proves only
@@ -35,12 +35,12 @@ workspace test-execution tier.
 
 ## Local Workspace Test Timing
 
-| Command | Result | Tests | Wall time |
-|---|---|---:|---:|
-| `cargo test --manifest-path rust/Cargo.toml --workspace --no-fail-fast` | success | cargo runner output, default feature set | 46.90s |
-| `cargo nextest run --manifest-path rust/Cargo.toml --workspace --no-fail-fast` | success | 1665 passed | 9.96s |
-| `cargo test --manifest-path rust/Cargo.toml --workspace --all-features` | failed fast | stopped in `omena-cascade` | 1.36s |
-| `cargo nextest run --manifest-path rust/Cargo.toml --workspace --all-features --no-fail-fast` | failed | 1680 run, 1677 passed, 3 failed | 12.04s |
+| Command                                                                                       | Result      |                                    Tests | Wall time |
+| --------------------------------------------------------------------------------------------- | ----------- | ---------------------------------------: | --------: |
+| `cargo test --manifest-path rust/Cargo.toml --workspace --no-fail-fast`                       | success     | cargo runner output, default feature set |    46.90s |
+| `cargo nextest run --manifest-path rust/Cargo.toml --workspace --no-fail-fast`                | success     |                              1665 passed |     9.96s |
+| `cargo test --manifest-path rust/Cargo.toml --workspace --all-features`                       | failed fast |               stopped in `omena-cascade` |     1.36s |
+| `cargo nextest run --manifest-path rust/Cargo.toml --workspace --all-features --no-fail-fast` | failed      |          1680 run, 1677 passed, 3 failed |    12.04s |
 
 The default-feature workspace suite is currently runnable locally, and `nextest` is materially faster
 than the serial cargo test runner on this host. The `--all-features` workspace suite is not currently
