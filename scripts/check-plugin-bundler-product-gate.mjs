@@ -5,6 +5,12 @@ import path from "node:path";
 
 const repoRoot = process.cwd();
 const evidencePath = path.join(repoRoot, "docs", "bundler-product-gate.json");
+const VALID_ADOPTER_SURFACES = new Set([
+  "css-build-adapter",
+  "postcss-plugin",
+  "vite-plugin",
+  "omena-cli-build",
+]);
 
 const gateEvidence = readGateEvidence(evidencePath);
 const gateStatus = summarizeGateStatus(gateEvidence);
@@ -74,6 +80,12 @@ function readGateEvidence(filePath) {
     Array.isArray(parsed.releaseCadenceConflicts),
     `${filePath} must declare releaseCadenceConflicts`,
   );
+  validateExternalNonMaintainerAdopters(
+    parsed.externalNonMaintainerAdopters,
+    "externalNonMaintainerAdopters",
+  );
+  validateMoatDetachedAdopters(parsed.moatDetachedAdopters, "moatDetachedAdopters");
+  validateReleaseCadenceConflicts(parsed.releaseCadenceConflicts, "releaseCadenceConflicts");
   return parsed;
 }
 
@@ -152,6 +164,111 @@ function findBundlerFreezeClaims(rootDir) {
   return claims;
 }
 
+function validateExternalNonMaintainerAdopters(entries, fieldName) {
+  const repos = new Set();
+  for (const [index, entry] of entries.entries()) {
+    const label = `${fieldName}[${index}]`;
+    assertRecord(entry, label);
+    const repo = requireRepo(entry.repo, `${label}.repo`);
+    assert.equal(
+      repos.has(repo),
+      false,
+      `${label}.repo duplicates ${repo}; external adopter evidence must be counted by unique repository`,
+    );
+    repos.add(repo);
+    assert.equal(
+      entry.maintainerRelation,
+      "non-maintainer",
+      `${label}.maintainerRelation must be "non-maintainer"`,
+    );
+    requireHttpUrl(entry.evidenceUrl, `${label}.evidenceUrl`);
+    requireHttpUrl(entry.buildUrl, `${label}.buildUrl`);
+    requireAdopterSurface(entry.surface, `${label}.surface`);
+  }
+}
+
+function validateMoatDetachedAdopters(entries, fieldName) {
+  const repos = new Set();
+  for (const [index, entry] of entries.entries()) {
+    const label = `${fieldName}[${index}]`;
+    assertRecord(entry, label);
+    const repo = requireRepo(entry.repo, `${label}.repo`);
+    assert.equal(
+      repos.has(repo),
+      false,
+      `${label}.repo duplicates ${repo}; moat-detached evidence must be counted by unique repository`,
+    );
+    repos.add(repo);
+    assert.equal(
+      entry.usesEditorCheckerMoat,
+      false,
+      `${label}.usesEditorCheckerMoat must be false`,
+    );
+    requireHttpUrl(entry.evidenceUrl, `${label}.evidenceUrl`);
+    requireHttpUrl(entry.buildUrl, `${label}.buildUrl`);
+    requireAdopterSurface(entry.surface, `${label}.surface`);
+  }
+}
+
+function validateReleaseCadenceConflicts(entries, fieldName) {
+  const issueUrls = new Set();
+  for (const [index, entry] of entries.entries()) {
+    const label = `${fieldName}[${index}]`;
+    assertRecord(entry, label);
+    const issueUrl = requireHttpUrl(entry.issueUrl, `${label}.issueUrl`);
+    assert.equal(
+      issueUrls.has(issueUrl),
+      false,
+      `${label}.issueUrl duplicates ${issueUrl}; release-cadence conflicts must be unique`,
+    );
+    issueUrls.add(issueUrl);
+    assert.equal(
+      entry.conflictKind,
+      "release-cadence",
+      `${label}.conflictKind must be "release-cadence"`,
+    );
+    requireNonEmptyString(entry.summary, `${label}.summary`);
+  }
+}
+
+function assertRecord(value, label) {
+  assert.equal(typeof value, "object", `${label} must be an object`);
+  assert.notEqual(value, null, `${label} must not be null`);
+  assert.equal(Array.isArray(value), false, `${label} must not be an array`);
+}
+
+function requireRepo(value, label) {
+  const repo = requireNonEmptyString(value, label).toLowerCase();
+  assert.match(
+    repo,
+    /^[a-z0-9_.-]+\/[a-z0-9_.-]+$/,
+    `${label} must be a GitHub repository in owner/name form`,
+  );
+  return repo;
+}
+
+function requireAdopterSurface(value, label) {
+  const surface = requireNonEmptyString(value, label);
+  assert.equal(
+    VALID_ADOPTER_SURFACES.has(surface),
+    true,
+    `${label} must be one of: ${[...VALID_ADOPTER_SURFACES].join(", ")}`,
+  );
+  return surface;
+}
+
+function requireHttpUrl(value, label) {
+  const url = requireNonEmptyString(value, label);
+  assert.match(url, /^https:\/\/[^ ]+$/u, `${label} must be an https URL`);
+  return url;
+}
+
+function requireNonEmptyString(value, label) {
+  assert.equal(typeof value, "string", `${label} must be a string`);
+  assert.notEqual(value.trim(), "", `${label} must not be empty`);
+  return value.trim();
+}
+
 function isBundlerFreezeClaim(line) {
   const normalized = line.toLowerCase();
   return (
@@ -166,17 +283,25 @@ function isBundlerFreezeClaim(line) {
 }
 
 function selfTest() {
-  const fired = summarizeGateStatus({
-    externalNonMaintainerAdopters: [{ repo: "a" }, { repo: "b" }, { repo: "c" }],
-    moatDetachedAdopters: [{ repo: "a" }],
-    releaseCadenceConflicts: [{ issue: "x" }],
-  });
+  const evidence = firedEvidence();
+  const fired = summarizeGateStatus(evidence);
   assert.equal(fired.allFired, true, "self-test: all three product gates fire together");
+  validateExternalNonMaintainerAdopters(
+    evidence.externalNonMaintainerAdopters,
+    "externalNonMaintainerAdopters",
+  );
+  validateMoatDetachedAdopters(evidence.moatDetachedAdopters, "moatDetachedAdopters");
+  validateReleaseCadenceConflicts(evidence.releaseCadenceConflicts, "releaseCadenceConflicts");
 
   const notFired = summarizeGateStatus({
-    externalNonMaintainerAdopters: [{ repo: "a" }, { repo: "b" }],
-    moatDetachedAdopters: [{ repo: "a" }],
-    releaseCadenceConflicts: [{ issue: "x" }],
+    externalNonMaintainerAdopters: [
+      externalAdopterFixture("one/project"),
+      externalAdopterFixture("two/project"),
+    ],
+    moatDetachedAdopters: [moatDetachedFixture("one/project")],
+    releaseCadenceConflicts: [
+      releaseConflictFixture("https://github.com/omenien/omena-css/issues/1"),
+    ],
   });
   assert.equal(
     notFired.allFired,
@@ -194,4 +319,83 @@ function selfTest() {
     false,
     "self-test: non-bundler freeze wording is not guarded",
   );
+  assert.throws(
+    () =>
+      validateExternalNonMaintainerAdopters(
+        [
+          {
+            ...externalAdopterFixture("one/project"),
+            maintainerRelation: "same-maintainer",
+          },
+        ],
+        "externalNonMaintainerAdopters",
+      ),
+    /maintainerRelation/,
+    "self-test: same-maintainer evidence cannot satisfy the external adopter gate",
+  );
+  assert.throws(
+    () =>
+      validateMoatDetachedAdopters(
+        [{ ...moatDetachedFixture("one/project"), usesEditorCheckerMoat: true }],
+        "moatDetachedAdopters",
+      ),
+    /usesEditorCheckerMoat/,
+    "self-test: moat-attached evidence cannot satisfy the moat-detached gate",
+  );
+  assert.throws(
+    () =>
+      validateReleaseCadenceConflicts(
+        [
+          {
+            ...releaseConflictFixture("https://github.com/omenien/omena-css/issues/1"),
+            conflictKind: "feature-request",
+          },
+        ],
+        "releaseCadenceConflicts",
+      ),
+    /conflictKind/,
+    "self-test: non-release-cadence issues cannot satisfy the cadence gate",
+  );
+}
+
+function firedEvidence() {
+  return {
+    externalNonMaintainerAdopters: [
+      externalAdopterFixture("one/project"),
+      externalAdopterFixture("two/project"),
+      externalAdopterFixture("three/project"),
+    ],
+    moatDetachedAdopters: [moatDetachedFixture("one/project")],
+    releaseCadenceConflicts: [
+      releaseConflictFixture("https://github.com/omenien/omena-css/issues/1"),
+    ],
+  };
+}
+
+function externalAdopterFixture(repo) {
+  return {
+    repo,
+    maintainerRelation: "non-maintainer",
+    surface: "postcss-plugin",
+    evidenceUrl: `https://github.com/${repo}/blob/main/package.json`,
+    buildUrl: `https://github.com/${repo}/actions/runs/1`,
+  };
+}
+
+function moatDetachedFixture(repo) {
+  return {
+    repo,
+    usesEditorCheckerMoat: false,
+    surface: "postcss-plugin",
+    evidenceUrl: `https://github.com/${repo}/blob/main/package.json`,
+    buildUrl: `https://github.com/${repo}/actions/runs/1`,
+  };
+}
+
+function releaseConflictFixture(issueUrl) {
+  return {
+    issueUrl,
+    conflictKind: "release-cadence",
+    summary: "Bundler surface needs to ship independently of the lockstep train.",
+  };
 }
