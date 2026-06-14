@@ -85,6 +85,7 @@ jobs:
   # @omena/napi-* optional native packages.
   napi-binaries:
     name: napi ${{ matrix.target }}
+    if: ${{ inputs.publish_napi }}
     strategy:
       fail-fast: false
       matrix:
@@ -143,6 +144,7 @@ jobs:
   publish:
     name: publish npm packages
     needs: napi-binaries
+    if: ${{ always() && (inputs.publish_wasm || inputs.publish_napi) && (!inputs.publish_napi || needs.napi-binaries.result == 'success') }}
     runs-on: ubuntu-latest
     timeout-minutes: 30
     environment: release
@@ -152,7 +154,6 @@ jobs:
     env:
       WASM_PKG_DIR: rust/crates/omena-wasm/pkg
       NAPI_PKG_DIR: rust/crates/omena-napi/pkg
-      PLUGIN_PKG_DIR: dist/npm-plugin-packages
     steps:
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
         with:
@@ -178,20 +179,25 @@ jobs:
       #     host .node). pkg/ is a gitignored build dir, so these MUST be
       #     regenerated here at publish time.
       - name: Build omena-wasm (pkg + finalized manifest)
+        if: ${{ inputs.publish_wasm }}
         run: pnpm omena-check run core/build/omena-wasm
       - name: Build omena-napi (loader + manifest + host .node)
+        if: ${{ inputs.publish_napi }}
         run: pnpm omena-check run core/build/omena-napi
 
       # 2b. Collect the napi matrix .node binaries, then regenerate the platform
       #     optional package directories from the complete binary set.
       - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        if: ${{ inputs.publish_napi }}
         with:
           pattern: napi-node-*
           path: ${{ env.NAPI_PKG_DIR }}
           merge-multiple: true
       - name: Finalize omena-napi package layout
+        if: ${{ inputs.publish_napi }}
         run: node ./scripts/finalize-omena-napi-pkg.mjs
       - name: Verify omena-napi platform packages
+        if: ${{ inputs.publish_napi }}
         shell: bash
         env:
           OMENA_NAPI_REQUIRED_PACKAGES: "@omena/napi-linux-x64-gnu,@omena/napi-linux-arm64-gnu,@omena/napi-darwin-x64,@omena/napi-darwin-arm64,@omena/napi-win32-x64-msvc"
@@ -210,10 +216,16 @@ jobs:
           EXPECTED_URL="https://github.com/omenien/omena-css"
           AXIS_A="$(node -e "const fs=require('node:fs');const t=fs.readFileSync('rust/Cargo.toml','utf8');const m=t.match(/\[workspace\.package\][\s\S]*?version\s*=\s*\"([^\"]+)\"/);if(!m)throw new Error('no workspace.package version');process.stdout.write(m[1])")"
           echo "axis-A (workspace) version = ${AXIS_A}"
-          package_dirs=("${WASM_PKG_DIR}" "${NAPI_PKG_DIR}")
-          while IFS= read -r -d '' manifest; do
-            package_dirs+=("$(dirname "$manifest")")
-          done < <(find "${NAPI_PKG_DIR}/npm" -mindepth 2 -maxdepth 2 -name package.json -print0 | sort -z)
+          package_dirs=()
+          if [ "${{ inputs.publish_wasm }}" = "true" ]; then
+            package_dirs+=("${WASM_PKG_DIR}")
+          fi
+          if [ "${{ inputs.publish_napi }}" = "true" ]; then
+            package_dirs+=("${NAPI_PKG_DIR}")
+            while IFS= read -r -d '' manifest; do
+              package_dirs+=("$(dirname "$manifest")")
+            done < <(find "${NAPI_PKG_DIR}/npm" -mindepth 2 -maxdepth 2 -name package.json -print0 | sort -z)
+          fi
           for dir in "${package_dirs[@]}"; do
             node -e '
               const fs = require("node:fs");
@@ -330,11 +342,25 @@ jobs:
               npm publish --provenance --access public
             fi
           fi
+  publish-plugins:
+    name: publish build-tool packages
+    if: ${{ inputs.publish_plugins }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment: release
+    permissions:
+      contents: read
+      id-token: write
+    env:
+      PLUGIN_PKG_DIR: dist/npm-plugin-packages
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        with:
+          ref: ${{ inputs.ref }}
+      - uses: ./.github/actions/setup-pnpm
       - name: Stage @omena build-tool packages
-        if: ${{ inputs.publish_plugins }}
         run: pnpm omena-check run core/build/omena-plugin-packages -- --out "${PLUGIN_PKG_DIR}"
       - name: Publish @omena build-tool packages
-        if: ${{ inputs.publish_plugins }}
         shell: bash
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_AUTO_TOKEN }}
