@@ -396,16 +396,12 @@ fn planner_respects_semantic_tree_shaking_before_empty_rule_removal_edges() {
 }
 
 fn assert_before(pass_ids: &[&'static str], before: &'static str, after: &'static str) {
-    let before_index = pass_ids
-        .iter()
-        .position(|pass_id| *pass_id == before)
-        .unwrap_or_else(|| panic!("missing pass id {before}"));
-    let after_index = pass_ids
-        .iter()
-        .position(|pass_id| *pass_id == after)
-        .unwrap_or_else(|| panic!("missing pass id {after}"));
+    let before_index = pass_ids.iter().position(|pass_id| *pass_id == before);
+    let after_index = pass_ids.iter().position(|pass_id| *pass_id == after);
     assert!(
-        before_index < after_index,
+        before_index
+            .zip(after_index)
+            .is_some_and(|(before_index, after_index)| before_index < after_index),
         "expected {before} before {after}, got {pass_ids:?}"
     );
 }

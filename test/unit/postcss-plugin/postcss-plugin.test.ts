@@ -18,9 +18,7 @@ type BuildSource = {
 const require = createRequire(import.meta.url);
 const { omenaPostcss } =
   require("../../../packages/postcss-plugin/index.cjs") as OmenaPostcssExports;
-const packageRequire = createRequire(
-  path.join(process.cwd(), "packages/postcss-plugin/index.cjs"),
-);
+const packageRequire = createRequire(path.join(process.cwd(), "packages/postcss-plugin/index.cjs"));
 const { SourceMapGenerator } = packageRequire("source-map-js") as {
   readonly SourceMapGenerator: new (options: { readonly file: string }) => {
     setSourceContent(filePath: string, source: string): void;
@@ -96,7 +94,7 @@ describe("@omena/postcss-plugin", () => {
       upstreamMapApplied: false,
     });
     expect(
-      result.map?.toJSON().sources.some((source) => source.endsWith("Button.module.css")),
+      result.map?.toJSON().sources.some((mapSource) => mapSource.endsWith("Button.module.css")),
     ).toBe(true);
   });
 
@@ -153,12 +151,8 @@ describe("@omena/postcss-plugin", () => {
       upstreamMapApplied: true,
     });
     const map = result.map?.toJSON();
-    expect(map?.sources.some((source) => source.endsWith("UpstreamSource.module.scss"))).toBe(
-      true,
-    );
-    expect(map?.sources.some((source) => source.endsWith("Intermediate.module.scss"))).toBe(
-      false,
-    );
+    expect(map?.sources.some((source) => source.endsWith("UpstreamSource.module.scss"))).toBe(true);
+    expect(map?.sources.some((source) => source.endsWith("Intermediate.module.scss"))).toBe(false);
     expect(result.css).toBe(".upstream{color:green}");
   });
 });
