@@ -11,6 +11,7 @@ concurrency:
 
 permissions:
   contents: read
+  issues: write
 
 jobs:
   tsgo-operational:
@@ -25,6 +26,16 @@ jobs:
       - run: pnpm omena-check run tsgo/real-project-corpus
       - run: pnpm omena-check run tsgo/lsp-server-smoke
       - run: pnpm omena-check bundle tsgo/operational/lane
+      - name: Escalate scheduled failure
+        if: ${{ failure() }}
+        uses: ./.github/actions/escalate-ci-failure
+        with:
+          title: "CI failure: nightly-soak / tsgo-operational"
+          body: |
+            The scheduled TS Go operational lane failed.
+          workflow-name: Nightly Soak
+          job-name: tsgo-operational
+          run-url: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
 
   ts7-phase-a:
     runs-on: ubuntu-latest
@@ -37,6 +48,16 @@ jobs:
       - run: pnpm omena-check bundle ts7/phase-a/readiness
       - run: pnpm omena-check bundle ts7/phase-a/shadow
       - run: pnpm omena-check run ts7/phase-a/stability
+      - name: Escalate scheduled failure
+        if: ${{ failure() }}
+        uses: ./.github/actions/escalate-ci-failure
+        with:
+          title: "CI failure: nightly-soak / ts7-phase-a"
+          body: |
+            The scheduled TS7 phase-A lane failed.
+          workflow-name: Nightly Soak
+          job-name: ts7-phase-a
+          run-url: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
 
   selected-query-default:
     runs-on: ubuntu-latest
@@ -47,6 +68,16 @@ jobs:
       - uses: ./.github/actions/cache-rust
       - uses: ./.github/actions/sync-release-metadata
       - run: pnpm omena-check run rust/selected-query/default-candidate
+      - name: Escalate scheduled failure
+        if: ${{ failure() }}
+        uses: ./.github/actions/escalate-ci-failure
+        with:
+          title: "CI failure: nightly-soak / selected-query-default"
+          body: |
+            The scheduled selected-query default-candidate lane failed.
+          workflow-name: Nightly Soak
+          job-name: selected-query-default
+          run-url: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
 
   checker-release-gate:
     runs-on: ubuntu-latest
@@ -57,6 +88,16 @@ jobs:
       - uses: ./.github/actions/cache-rust
       - uses: ./.github/actions/sync-release-metadata
       - run: pnpm omena-check run rust/checker/release-gate-shadow
+      - name: Escalate scheduled failure
+        if: ${{ failure() }}
+        uses: ./.github/actions/escalate-ci-failure
+        with:
+          title: "CI failure: nightly-soak / checker-release-gate"
+          body: |
+            The scheduled checker release-gate shadow lane failed.
+          workflow-name: Nightly Soak
+          job-name: checker-release-gate
+          run-url: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
 
   # NOTE: rust/omena-css/h1-readiness runs once nightly in omena-css-drift.yml
   # (08:00, green there). The duplicate 90-min soft run that lived here was removed

@@ -1063,6 +1063,87 @@ describe("check orchestrator manifest", () => {
     );
   });
 
+  it("requires scheduled workflows to declare a failure escalation path", () => {
+    const root = mkdtempSync(path.join(os.tmpdir(), "omena-check-orchestrator-"));
+    mkdirSync(path.join(root, ".github/workflows"), { recursive: true });
+    writeFileSync(
+      path.join(root, "package.json"),
+      JSON.stringify({ name: "omena-css", scripts: { "omena-check": "node ./check.js" } }, null, 2),
+    );
+    writeFileSync(
+      path.join(root, ".github/workflows/nightly.yml"),
+      [
+        "name: Nightly",
+        "on:",
+        "  schedule:",
+        "    - cron: \"0 0 * * *\"",
+        "permissions:",
+        "  contents: read",
+        "jobs:",
+        "  nightly:",
+        "    runs-on: ubuntu-latest",
+        "    steps:",
+        "      - run: echo nightly",
+      ].join("\n"),
+    );
+
+    const diagnostics = runDoctor(loadCheckManifest(root));
+    expect(diagnostics).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          severity: "error",
+          code: "scheduled-workflow-missing-issue-permission",
+        }),
+        expect.objectContaining({
+          severity: "error",
+          code: "scheduled-workflow-missing-failure-condition",
+        }),
+        expect.objectContaining({
+          severity: "error",
+          code: "scheduled-workflow-missing-failure-escalation",
+        }),
+      ]),
+    );
+  });
+
+  it("accepts scheduled workflows with deduplicated issue escalation", () => {
+    const root = mkdtempSync(path.join(os.tmpdir(), "omena-check-orchestrator-"));
+    mkdirSync(path.join(root, ".github/workflows"), { recursive: true });
+    writeFileSync(
+      path.join(root, "package.json"),
+      JSON.stringify({ name: "omena-css", scripts: { "omena-check": "node ./check.js" } }, null, 2),
+    );
+    writeFileSync(
+      path.join(root, ".github/workflows/nightly.yml"),
+      [
+        "name: Nightly",
+        "on:",
+        "  schedule:",
+        "    - cron: \"0 0 * * *\"",
+        "permissions:",
+        "  contents: read",
+        "  issues: write",
+        "jobs:",
+        "  nightly:",
+        "    runs-on: ubuntu-latest",
+        "    steps:",
+        "      - run: echo nightly",
+        "      - name: Escalate scheduled failure",
+        "        if: ${{ failure() }}",
+        "        uses: ./.github/actions/escalate-ci-failure",
+      ].join("\n"),
+    );
+
+    const diagnostics = runDoctor(loadCheckManifest(root));
+    expect(diagnostics).not.toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          code: expect.stringMatching(/^scheduled-workflow-/),
+        }),
+      ]),
+    );
+  });
+
   it("reports invalid omena-check targets before CI reaches runtime", () => {
     const root = mkdtempSync(path.join(os.tmpdir(), "omena-check-orchestrator-"));
     mkdirSync(path.join(root, ".github/workflows"), { recursive: true });

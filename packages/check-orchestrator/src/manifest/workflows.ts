@@ -694,6 +694,49 @@ export function findWorkflowBypassDiagnostics(
   return diagnostics;
 }
 
+export function findScheduledWorkflowEscalationDiagnostics(
+  rootDir: string,
+): readonly CheckDiagnostic[] {
+  const workflowsDir = path.join(rootDir, ".github/workflows");
+  if (!existsSync(workflowsDir)) return [];
+
+  const diagnostics: CheckDiagnostic[] = [];
+  for (const fileName of readdirSync(workflowsDir).toSorted()) {
+    if (!fileName.endsWith(".yml") && !fileName.endsWith(".yaml")) continue;
+
+    const workflowPath = path.join(workflowsDir, fileName);
+    const relativePath = path.relative(rootDir, workflowPath);
+    const workflowText = readFileSync(workflowPath, "utf8");
+    if (!/^\s+schedule:\s*$/m.test(workflowText)) continue;
+
+    if (!/^\s*issues:\s*write\s*$/m.test(workflowText)) {
+      diagnostics.push({
+        severity: "error",
+        code: "scheduled-workflow-missing-issue-permission",
+        message: `${relativePath} is scheduled but does not grant issues: write for failure escalation.`,
+      });
+    }
+
+    if (!/if:\s*(?:\$\{\{\s*)?failure\(\)/.test(workflowText)) {
+      diagnostics.push({
+        severity: "error",
+        code: "scheduled-workflow-missing-failure-condition",
+        message: `${relativePath} is scheduled but has no failure() escalation condition.`,
+      });
+    }
+
+    if (!/uses:\s+\.\/\.github\/actions\/escalate-ci-failure/.test(workflowText)) {
+      diagnostics.push({
+        severity: "error",
+        code: "scheduled-workflow-missing-failure-escalation",
+        message: `${relativePath} is scheduled but does not use ./.github/actions/escalate-ci-failure.`,
+      });
+    }
+  }
+
+  return diagnostics;
+}
+
 export function findCiTierReachabilityDiagnostics(
   rootDir: string,
   gates: readonly CheckGate[],

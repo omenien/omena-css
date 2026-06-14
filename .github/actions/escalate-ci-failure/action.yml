@@ -1,0 +1,60 @@
+name: Escalate CI failure
+description: Open or update a deduplicated GitHub issue for scheduled CI failures.
+
+inputs:
+  title:
+    description: Issue title used as the dedupe key.
+    required: true
+  body:
+    description: Issue body prefix explaining the failing tier.
+    required: true
+  workflow-name:
+    description: Human-readable workflow name.
+    required: true
+  job-name:
+    description: Human-readable job name.
+    required: true
+  run-url:
+    description: GitHub Actions run URL.
+    required: true
+
+runs:
+  using: composite
+  steps:
+    - shell: bash
+      env:
+        GH_TOKEN: ${{ github.token }}
+        ESCALATION_TITLE: ${{ inputs.title }}
+        ESCALATION_BODY: ${{ inputs.body }}
+        ESCALATION_WORKFLOW: ${{ inputs.workflow-name }}
+        ESCALATION_JOB: ${{ inputs.job-name }}
+        ESCALATION_RUN_URL: ${{ inputs.run-url }}
+      run: |
+        set -euo pipefail
+
+        body_file="$(mktemp)"
+        {
+          printf '%s\n\n' "${ESCALATION_BODY}"
+          printf -- '- Workflow: `%s`\n' "${ESCALATION_WORKFLOW}"
+          printf -- '- Job: `%s`\n' "${ESCALATION_JOB}"
+          printf -- '- Trigger: `%s`\n' "${GITHUB_EVENT_NAME}"
+          printf -- '- Run: %s\n\n' "${ESCALATION_RUN_URL}"
+          printf 'This issue is the durable notification channel for a scheduled or manually-run CI tier failure. Persistent failures reuse this issue instead of opening duplicates.\n'
+        } > "${body_file}"
+
+        issues_json="$(gh issue list --state open --search "${ESCALATION_TITLE} in:title" --json number,title --limit 50)"
+        existing_number="$(
+          ISSUES_JSON="${issues_json}" node - <<'NODE'
+        const issues = JSON.parse(process.env.ISSUES_JSON ?? "[]");
+        const title = process.env.ESCALATION_TITLE;
+        const hit = issues.find((issue) => issue.title === title);
+        if (hit) console.log(hit.number);
+        NODE
+        )"
+
+        echo "::notice title=CI failure escalated::${ESCALATION_TITLE}"
+        if [ -n "${existing_number}" ]; then
+          gh issue comment "${existing_number}" --body-file "${body_file}"
+        else
+          gh issue create --title "${ESCALATION_TITLE}" --body-file "${body_file}"
+        fi

@@ -24,6 +24,7 @@ concurrency:
 
 permissions:
   contents: read
+  issues: write
 
 jobs:
   audit:
@@ -41,3 +42,13 @@ jobs:
       # in cargo-deny, so the gating is unchanged.
       - run: cargo install cargo-deny --locked
       - run: cargo deny --manifest-path rust/Cargo.toml check advisories bans sources licenses
+      - name: Escalate scheduled audit failure
+        if: ${{ failure() && (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch') }}
+        uses: ./.github/actions/escalate-ci-failure
+        with:
+          title: "CI failure: security-audit / audit"
+          body: |
+            The scheduled security audit failed.
+          workflow-name: Security Audit
+          job-name: audit
+          run-url: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
