@@ -12,6 +12,18 @@ const VALID_ADOPTER_SURFACES = new Set([
   "omena-cli-build",
 ]);
 const MAINTAINER_GITHUB_OWNERS = new Set(["omenien", "yongsk0066"]);
+const REPO_SCAN_IGNORED_DIRS = new Set([
+  ".cache",
+  ".git",
+  ".next",
+  ".personal_docs",
+  ".turbo",
+  "coverage",
+  "dist",
+  "node_modules",
+  "out",
+  "target",
+]);
 
 const gateEvidence = readGateEvidence(evidencePath);
 const gateStatus = summarizeGateStatus(gateEvidence);
@@ -107,20 +119,19 @@ function summarizeGateStatus(evidence) {
 
 function findStandaloneBundlerSurfaces(rootDir) {
   const hits = [];
-  const rustBundlerDir = path.join(rootDir, "rust", "crates", "omena-bundler");
-  if (existsSync(rustBundlerDir)) {
-    hits.push("rust/crates/omena-bundler exists");
+
+  for (const manifestPath of findRepoFiles(rootDir, "package.json")) {
+    const manifest = JSON.parse(readFileSync(manifestPath, "utf8"));
+    if (manifest.name === "@omena/bundler") {
+      hits.push(`${path.relative(rootDir, manifestPath)} declares @omena/bundler`);
+    }
   }
 
-  const packageRoot = path.join(rootDir, "packages");
-  if (existsSync(packageRoot)) {
-    for (const dirName of readdirSync(packageRoot).toSorted()) {
-      const manifestPath = path.join(packageRoot, dirName, "package.json");
-      if (!existsSync(manifestPath)) continue;
-      const manifest = JSON.parse(readFileSync(manifestPath, "utf8"));
-      if (manifest.name === "@omena/bundler") {
-        hits.push(`packages/${dirName}/package.json declares @omena/bundler`);
-      }
+  const rustRoot = path.join(rootDir, "rust");
+  for (const manifestPath of findRepoFiles(rustRoot, "Cargo.toml")) {
+    const source = readFileSync(manifestPath, "utf8");
+    if (readCargoPackageName(source) === "omena-bundler") {
+      hits.push(`${path.relative(rootDir, manifestPath)} declares package name omena-bundler`);
     }
   }
 
@@ -183,8 +194,8 @@ function validateExternalNonMaintainerAdopters(entries, fieldName) {
       "non-maintainer",
       `${label}.maintainerRelation must be "non-maintainer"`,
     );
-    requireHttpUrl(entry.evidenceUrl, `${label}.evidenceUrl`);
-    requireHttpUrl(entry.buildUrl, `${label}.buildUrl`);
+    requireGitHubRepoUrl(entry.evidenceUrl, `${label}.evidenceUrl`, repo);
+    requireBuildUrl(entry.buildUrl, `${label}.buildUrl`, repo);
     requireAdopterSurface(entry.surface, `${label}.surface`);
   }
 }
@@ -207,8 +218,8 @@ function validateMoatDetachedAdopters(entries, fieldName) {
       false,
       `${label}.usesEditorCheckerMoat must be false`,
     );
-    requireHttpUrl(entry.evidenceUrl, `${label}.evidenceUrl`);
-    requireHttpUrl(entry.buildUrl, `${label}.buildUrl`);
+    requireGitHubRepoUrl(entry.evidenceUrl, `${label}.evidenceUrl`, repo);
+    requireBuildUrl(entry.buildUrl, `${label}.buildUrl`, repo);
     requireAdopterSurface(entry.surface, `${label}.surface`);
   }
 }
@@ -218,7 +229,7 @@ function validateReleaseCadenceConflicts(entries, fieldName) {
   for (const [index, entry] of entries.entries()) {
     const label = `${fieldName}[${index}]`;
     assertRecord(entry, label);
-    const issueUrl = requireHttpUrl(entry.issueUrl, `${label}.issueUrl`);
+    const issueUrl = requireReleaseCadenceIssueUrl(entry.issueUrl, `${label}.issueUrl`);
     assert.equal(
       issueUrls.has(issueUrl),
       false,
@@ -273,8 +284,54 @@ function requireAdopterSurface(value, label) {
 
 function requireHttpUrl(value, label) {
   const url = requireNonEmptyString(value, label);
-  assert.match(url, /^https:\/\/[^ ]+$/u, `${label} must be an https URL`);
+  const parsed = parseUrl(url, label);
+  assert.equal(parsed.protocol, "https:", `${label} must be an https URL`);
   return url;
+}
+
+function requireGitHubRepoUrl(value, label, repo) {
+  const url = requireHttpUrl(value, label);
+  const parsed = parseUrl(url, label);
+  assert.equal(parsed.hostname, "github.com", `${label} must be a github.com URL`);
+  assert.equal(
+    parsed.pathname.toLowerCase().startsWith(`/${repo}/`),
+    true,
+    `${label} must point inside the declared repository ${repo}`,
+  );
+  return url;
+}
+
+function requireBuildUrl(value, label, repo) {
+  const url = requireHttpUrl(value, label);
+  const parsed = parseUrl(url, label);
+  if (parsed.hostname === "github.com") {
+    assert.equal(
+      parsed.pathname.toLowerCase().startsWith(`/${repo}/actions/`),
+      true,
+      `${label} github.com build URL must point at ${repo}/actions`,
+    );
+  }
+  return url;
+}
+
+function requireReleaseCadenceIssueUrl(value, label) {
+  const url = requireHttpUrl(value, label);
+  const parsed = parseUrl(url, label);
+  assert.equal(parsed.hostname, "github.com", `${label} must be a github.com issue URL`);
+  assert.match(
+    parsed.pathname.toLowerCase(),
+    /^\/[a-z0-9_.-]+\/[a-z0-9_.-]+\/issues\/[0-9]+\/?$/u,
+    `${label} must point at a GitHub issue`,
+  );
+  return url;
+}
+
+function parseUrl(value, label) {
+  try {
+    return new URL(value);
+  } catch (error) {
+    assert.fail(`${label} must be a valid URL: ${error.message}`);
+  }
 }
 
 function requireNonEmptyString(value, label) {
@@ -333,6 +390,16 @@ function selfTest() {
     false,
     "self-test: non-bundler freeze wording is not guarded",
   );
+  assert.equal(
+    readCargoPackageName("[workspace]\nmembers = []\n"),
+    null,
+    "self-test: workspace-only Cargo manifest is not a package",
+  );
+  assert.equal(
+    readCargoPackageName('[package]\nname = "omena-bundler"\nversion = "0.0.0"\n'),
+    "omena-bundler",
+    "self-test: Cargo package name is read from the package section",
+  );
   assert.throws(
     () =>
       validateExternalNonMaintainerAdopters(
@@ -358,6 +425,34 @@ function selfTest() {
   );
   assert.throws(
     () =>
+      validateExternalNonMaintainerAdopters(
+        [
+          {
+            ...externalAdopterFixture("one/project"),
+            evidenceUrl: "https://github.com/two/project/blob/main/package.json",
+          },
+        ],
+        "externalNonMaintainerAdopters",
+      ),
+    /declared repository/,
+    "self-test: evidence URL must point inside the declared adopter repo",
+  );
+  assert.throws(
+    () =>
+      validateExternalNonMaintainerAdopters(
+        [
+          {
+            ...externalAdopterFixture("one/project"),
+            buildUrl: "https://github.com/two/project/actions/runs/1",
+          },
+        ],
+        "externalNonMaintainerAdopters",
+      ),
+    /github.com build URL/,
+    "self-test: GitHub build URL must point at the declared adopter repo",
+  );
+  assert.throws(
+    () =>
       validateMoatDetachedAdopters(
         [{ ...moatDetachedFixture("one/project"), usesEditorCheckerMoat: true }],
         "moatDetachedAdopters",
@@ -379,6 +474,19 @@ function selfTest() {
       validateReleaseCadenceConflicts(
         [
           {
+            ...releaseConflictFixture("https://example.com/issues/1"),
+          },
+        ],
+        "releaseCadenceConflicts",
+      ),
+    /github.com issue URL/,
+    "self-test: release-cadence conflict evidence must point at a GitHub issue",
+  );
+  assert.throws(
+    () =>
+      validateReleaseCadenceConflicts(
+        [
+          {
             ...releaseConflictFixture("https://github.com/omenien/omena-css/issues/1"),
             conflictKind: "feature-request",
           },
@@ -388,6 +496,49 @@ function selfTest() {
     /conflictKind/,
     "self-test: non-release-cadence issues cannot satisfy the cadence gate",
   );
+}
+
+function findRepoFiles(rootDir, fileName) {
+  if (!existsSync(rootDir)) return [];
+  const files = [];
+  walkRepoFiles(rootDir, fileName, files);
+  return files.toSorted();
+}
+
+function walkRepoFiles(dir, fileName, files) {
+  for (const entry of readdirSync(dir, { withFileTypes: true })) {
+    if (entry.isDirectory()) {
+      if (shouldSkipScanDir(entry.name)) continue;
+      walkRepoFiles(path.join(dir, entry.name), fileName, files);
+      continue;
+    }
+    if (entry.isFile() && entry.name === fileName) {
+      files.push(path.join(dir, entry.name));
+    }
+  }
+}
+
+function shouldSkipScanDir(name) {
+  return REPO_SCAN_IGNORED_DIRS.has(name);
+}
+
+function readCargoPackageName(source) {
+  let inPackage = false;
+  for (const line of source.split(/\r?\n/u)) {
+    const trimmed = line.trim();
+    if (trimmed === "[package]") {
+      inPackage = true;
+      continue;
+    }
+    if (trimmed.startsWith("[") && trimmed.endsWith("]")) {
+      inPackage = false;
+      continue;
+    }
+    if (!inPackage) continue;
+    const match = /^name\s*=\s*"([^"]+)"$/u.exec(trimmed);
+    if (match) return match[1];
+  }
+  return null;
 }
 
 function firedEvidence() {
