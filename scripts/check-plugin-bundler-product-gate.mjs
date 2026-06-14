@@ -423,13 +423,12 @@ function requireGitHubRepoBlobUrl(value, label, repo) {
 function requireBuildUrl(value, label, repo) {
   const url = requireHttpUrl(value, label);
   const parsed = parseUrl(url, label);
-  if (parsed.hostname === "github.com") {
-    assert.match(
-      parsed.pathname.toLowerCase(),
-      new RegExp(`^/${escapeRegExp(repo)}/actions/runs/[0-9]+/?$`, "u"),
-      `${label} github.com build URL must point at ${repo}/actions/runs/{id}`,
-    );
-  }
+  assert.equal(parsed.hostname, "github.com", `${label} must be a github.com Actions run URL`);
+  assert.match(
+    parsed.pathname.toLowerCase(),
+    new RegExp(`^/${escapeRegExp(repo)}/actions/runs/[0-9]+/?$`, "u"),
+    `${label} github.com build URL must point at ${repo}/actions/runs/{id}`,
+  );
   return url;
 }
 
@@ -690,6 +689,20 @@ function selfTest() {
       ),
     /actions\/runs/,
     "self-test: GitHub build evidence must point at a concrete run",
+  );
+  assert.throws(
+    () =>
+      validateExternalNonMaintainerAdopters(
+        [
+          {
+            ...externalAdopterFixture("one/project"),
+            buildUrl: "https://ci.example.com/one/project/build/1",
+          },
+        ],
+        "externalNonMaintainerAdopters",
+      ),
+    /github.com Actions run/,
+    "self-test: non-GitHub build URLs cannot satisfy adopter build evidence",
   );
   assert.throws(
     () =>
