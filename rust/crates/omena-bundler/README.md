@@ -54,7 +54,7 @@ crate). Each entry is a decision record, not a stability promise — this crate 
 still 0.x and its surface may change.
 
 1. **Q1 — bundler crate boundary: SUPERSEDED.** Originally resolved
-   *evolve-in-place; do NOT split a new `omena-bundler` crate* (a split would
+   _evolve-in-place; do NOT split a new `omena-bundler` crate_ (a split would
    disturb internal `omena-query` call sites and expand the crates.io +
    Trusted-Publishing release set — a recurring publish obligation). **This was
    later superseded:** the standalone `omena-bundler` crate WAS extracted at
