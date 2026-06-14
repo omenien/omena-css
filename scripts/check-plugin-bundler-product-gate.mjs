@@ -210,14 +210,22 @@ function findPrematureRustBundlerV0Removal(rootDir) {
 
 function findBundlerFreezeClaims(rootDir) {
   const claims = [];
-  for (const markdownPath of findRepoFilesByExtension(rootDir, ".md")) {
-    if (!isPublicFreezeClaimSurface(rootDir, markdownPath)) continue;
-    const relativePath = path.relative(rootDir, markdownPath);
-    const lines = readFileSync(markdownPath, "utf8").split(/\r?\n/);
+  for (const textPath of findRepoFilesByExtensions(rootDir, [".md", ".d.ts"])) {
+    if (!isPublicFreezeClaimSurface(rootDir, textPath)) continue;
+    const relativePath = path.relative(rootDir, textPath);
+    const lines = readFileSync(textPath, "utf8").split(/\r?\n/);
     for (const [index, line] of lines.entries()) {
       if (isBundlerFreezeClaim(line)) {
         claims.push(`${relativePath}:${index + 1} claims bundler API freeze`);
       }
+    }
+  }
+  for (const manifestPath of findRepoFiles(rootDir, "package.json")) {
+    if (!isPublicPackageManifestSurface(rootDir, manifestPath)) continue;
+    const relativePath = path.relative(rootDir, manifestPath);
+    const manifest = JSON.parse(readFileSync(manifestPath, "utf8"));
+    for (const field of packageManifestFreezeClaimFields(manifest)) {
+      claims.push(`${relativePath}:${field} claims bundler API freeze`);
     }
   }
   return claims;
@@ -225,12 +233,38 @@ function findBundlerFreezeClaims(rootDir) {
 
 function isPublicFreezeClaimSurface(rootDir, filePath) {
   const relativePath = path.relative(rootDir, filePath);
+  const isMarkdown = relativePath.endsWith(".md");
+  const isDeclaration = relativePath.endsWith(".d.ts");
   return (
-    relativePath === "CHANGELOG.md" ||
-    relativePath === "README.md" ||
-    relativePath.startsWith(`docs${path.sep}`) ||
-    relativePath.startsWith(`packages${path.sep}`)
+    (isMarkdown &&
+      (relativePath === "CHANGELOG.md" ||
+        relativePath === "README.md" ||
+        relativePath.startsWith(`docs${path.sep}`) ||
+        relativePath.startsWith(`packages${path.sep}`))) ||
+    (isDeclaration && relativePath.startsWith(`packages${path.sep}`))
   );
+}
+
+function isPublicPackageManifestSurface(rootDir, filePath) {
+  const relativePath = path.relative(rootDir, filePath);
+  return (
+    relativePath.startsWith(`packages${path.sep}`) && path.basename(filePath) === "package.json"
+  );
+}
+
+function packageManifestFreezeClaimFields(manifest) {
+  const fields = [];
+  if (typeof manifest.description === "string" && isBundlerFreezeClaim(manifest.description)) {
+    fields.push("description");
+  }
+  if (
+    Array.isArray(manifest.keywords) &&
+    manifest.keywords.every((keyword) => typeof keyword === "string") &&
+    isBundlerFreezeClaim(manifest.keywords.join(" "))
+  ) {
+    fields.push("keywords");
+  }
+  return fields;
 }
 
 function validateExternalNonMaintainerAdopters(entries, fieldName) {
@@ -405,6 +439,10 @@ function isBundlerFreezeClaim(line) {
       normalized.includes("frozen api") ||
       normalized.includes("stable api") ||
       normalized.includes("stable contract") ||
+      /\bstable\b.*\bapi\b/.test(normalized) ||
+      /\bapi\b.*\bstable\b/.test(normalized) ||
+      /\bstable\b.*\bcontract\b/.test(normalized) ||
+      /\bcontract\b.*\bstable\b/.test(normalized) ||
       /\bv0\b.*\bremoved\b/.test(normalized) ||
       /\bremoved\b.*\bv0\b/.test(normalized))
   );
@@ -453,9 +491,30 @@ function selfTest() {
     "self-test: package READMEs are public freeze-claim surfaces",
   );
   assert.equal(
+    isPublicFreezeClaimSurface("/repo", "/repo/packages/postcss-plugin/index.d.ts"),
+    true,
+    "self-test: package declarations are public freeze-claim surfaces",
+  );
+  assert.equal(
     isPublicFreezeClaimSurface("/repo", "/repo/.personal_docs/local.md"),
     false,
     "self-test: local planning docs are not public freeze-claim surfaces",
+  );
+  assert.deepEqual(
+    packageManifestFreezeClaimFields({
+      description: "Stable bundler API for production builds.",
+      keywords: ["omena", "css"],
+    }),
+    ["description"],
+    "self-test: package descriptions are guarded against premature freeze claims",
+  );
+  assert.deepEqual(
+    packageManifestFreezeClaimFields({
+      description: "Omena CSS integration.",
+      keywords: ["bundler", "stable-api"],
+    }),
+    ["keywords"],
+    "self-test: package keywords are guarded against premature freeze claims",
   );
   assert.equal(
     sourceContainsRustSymbol("pub struct TransformBundleEdgeV0 {}", "TransformBundleEdgeV0"),
@@ -611,6 +670,12 @@ function findRepoFilesByExtension(rootDir, extension) {
   const files = [];
   walkRepoFilesByExtension(rootDir, extension, files);
   return files.toSorted();
+}
+
+function findRepoFilesByExtensions(rootDir, extensions) {
+  return [
+    ...new Set(extensions.flatMap((extension) => findRepoFilesByExtension(rootDir, extension))),
+  ].toSorted();
 }
 
 function walkRepoFiles(dir, fileName, files) {
