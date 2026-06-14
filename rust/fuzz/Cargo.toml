@@ -10,7 +10,7 @@ cargo-fuzz = true
 [workspace]
 
 [dependencies]
-libfuzzer-sys = "0.4"
+libfuzzer-sys = "0.4.13"
 omena-cascade = { path = "../crates/omena-cascade" }
 omena-incremental = { path = "../crates/omena-incremental" }
 omena-smt = { path = "../crates/omena-smt" }
