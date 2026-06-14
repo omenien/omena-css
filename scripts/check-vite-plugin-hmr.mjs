@@ -216,7 +216,10 @@ async function runBrowserDevHmrGate() {
     }
   } finally {
     page?.close();
-    if (chrome) await stopChrome(chrome.process);
+    if (chrome) {
+      await stopChrome(chrome.process);
+      fs.rmSync(chrome.userDataDir, { recursive: true, force: true });
+    }
     await server?.close();
     fs.rmSync(tempRoot, { recursive: true, force: true });
   }
@@ -282,6 +285,8 @@ async function launchChrome(chromePath, workspaceRoot) {
       "--disable-background-networking",
       "--disable-dev-shm-usage",
       "--disable-gpu",
+      "--disable-setuid-sandbox",
+      "--no-sandbox",
       "--no-default-browser-check",
       "--no-first-run",
       "--disable-extensions",
@@ -293,32 +298,75 @@ async function launchChrome(chromePath, workspaceRoot) {
     },
   );
 
-  const debugUrl = await new Promise((resolve, reject) => {
+  const debugUrl = await waitForChromeDebugUrl(chrome, userDataDir);
+
+  const debugPort = Number(new URL(debugUrl).port);
+  return { debugPort, process: chrome, userDataDir };
+}
+
+function waitForChromeDebugUrl(chrome, userDataDir) {
+  const activePortPath = path.join(userDataDir, "DevToolsActivePort");
+
+  return new Promise((resolve, reject) => {
     let stderr = "";
-    const timeout = setTimeout(() => {
-      reject(new Error(`Timed out waiting for Chrome DevTools endpoint. stderr=${stderr}`));
-    }, 10_000);
-    chrome.once("exit", (code, signal) => {
+    let settled = false;
+
+    const settle = (callback, value) => {
+      if (settled) return;
+      settled = true;
       clearTimeout(timeout);
-      reject(
+      clearInterval(pollActivePort);
+      chrome.off("exit", onExit);
+      chrome.stderr.off("data", onStderr);
+      callback(value);
+    };
+    const onExit = (code, signal) => {
+      settle(
+        reject,
         new Error(
           `Chrome exited before DevTools was ready: code=${code} signal=${signal} stderr=${stderr}`,
         ),
       );
-    });
-    chrome.stderr.setEncoding("utf8");
-    chrome.stderr.on("data", (chunk) => {
+    };
+    const onStderr = (chunk) => {
       stderr += chunk;
       const match = /DevTools listening on (ws:\/\/[^\s]+)/.exec(stderr);
       if (match) {
-        clearTimeout(timeout);
-        resolve(match[1]);
+        settle(resolve, match[1]);
       }
-    });
-  });
+    };
+    const pollActivePort = setInterval(() => {
+      const debugUrl = readChromeActivePortUrl(activePortPath);
+      if (debugUrl) {
+        settle(resolve, debugUrl);
+      }
+    }, 100);
+    const timeout = setTimeout(() => {
+      settle(
+        reject,
+        new Error(
+          `Timed out waiting for Chrome DevTools endpoint. activePortPath=${activePortPath} stderr=${stderr}`,
+        ),
+      );
+    }, 30_000);
 
-  const debugPort = Number(new URL(debugUrl).port);
-  return { debugPort, process: chrome, userDataDir };
+    chrome.once("exit", onExit);
+    chrome.stderr.setEncoding("utf8");
+    chrome.stderr.on("data", onStderr);
+  });
+}
+
+function readChromeActivePortUrl(activePortPath) {
+  try {
+    const [portLine, pathLine] = fs.readFileSync(activePortPath, "utf8").trim().split(/\r?\n/);
+    const port = Number(portLine);
+    if (!Number.isInteger(port) || port <= 0 || !pathLine) return null;
+    if (pathLine.startsWith("ws://")) return pathLine;
+    const browserPath = pathLine.startsWith("/") ? pathLine : `/${pathLine}`;
+    return `ws://127.0.0.1:${port}${browserPath}`;
+  } catch {
+    return null;
+  }
 }
 
 async function openCdpPage(debugPort, url) {
