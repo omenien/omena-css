@@ -79,6 +79,50 @@ jobs:
       - run: pnpm omena-check run core/build/omena-napi
       - run: pnpm omena-check run release/check/packaged-omena-napi-crossplatform
 
+  plugin-consumers:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+      - uses: ./.github/actions/setup-pnpm
+      - uses: ./.github/actions/sync-release-metadata
+      - name: Resolve Chrome for plugin browser gates
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          chrome=""
+          for candidate in \
+            /usr/bin/google-chrome-stable \
+            /usr/bin/google-chrome \
+            /usr/bin/chromium \
+            /usr/bin/chromium-browser; do
+            if [ -x "${candidate}" ]; then
+              chrome="${candidate}"
+              break
+            fi
+          done
+
+          if [ -z "${chrome}" ]; then
+            sudo apt-get update
+            sudo apt-get install -y chromium-browser || sudo apt-get install -y chromium
+            for candidate in /usr/bin/chromium-browser /usr/bin/chromium; do
+              if [ -x "${candidate}" ]; then
+                chrome="${candidate}"
+                break
+              fi
+            done
+          fi
+
+          if [ -z "${chrome}" ]; then
+            echo "::error::Unable to resolve Chrome/Chromium for plugin browser gates" >&2
+            exit 1
+          fi
+
+          echo "CHROME_BIN=${chrome}" >> "$GITHUB_ENV"
+          "${chrome}" --version
+      - run: pnpm omena-check run plugin/consumers
+
   closure-fast:
     runs-on: ubuntu-latest
     timeout-minutes: 30
