@@ -763,18 +763,31 @@ mod tests {
             snapshot
                 .samples
                 .iter()
-                .any(|sample| sample.name == "bootstrap-utility-subset" && sample.dialect == "css")
+                .any(|sample| sample.name == "bootstrap-reboot-v5.3.3"
+                    && sample.dialect == "css"
+                    && sample.source.contains("Bootstrap Reboot v5.3.3")
+                    && sample.line_count > 100)
         );
         assert!(
             snapshot
                 .samples
                 .iter()
-                .any(|sample| sample.name == "nextjs-app-router-dashboard-scss"
-                    && sample.dialect == "scss")
+                .any(|sample| sample.name == "next-with-sass-hello-world"
+                    && sample.dialect == "scss"
+                    && sample.source.contains("$color: red"))
         );
-        assert!(snapshot.samples.iter().any(|sample| sample.name
-            == "css-modules-heavy-product-grid"
-            && sample.dialect == "css"));
+        assert!(
+            snapshot
+                .samples
+                .iter()
+                .any(|sample| sample.name == "css-modules-product-grid"
+                    && sample.dialect == "css"
+                    && sample.source.contains("composes: filterButton")
+                    && sample.source.contains(":global(.is-keyboard-user)"))
+        );
+        assert!(snapshot.samples.iter().all(|sample| {
+            !sample.source.contains(".d-flex-159") && !sample.source.contains(".card191")
+        }));
         assert!(
             snapshot
                 .measured_operations

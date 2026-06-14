@@ -1,0 +1,175 @@
+/*
+ * Omena CSS benchmark fixture.
+ *
+ * This is a hand-maintained CSS Modules app fixture, not a synthetic generator.
+ * It mirrors a product-grid module shape used by real bundler consumers:
+ * local selectors, state variants, global hooks, custom properties, keyframes,
+ * responsive rules, and composition-heavy selector families.
+ */
+
+.grid {
+  --card-gap: clamp(0.75rem, 1vw, 1.25rem);
+  --card-bg: color-mix(in srgb, white 92%, #e0f2fe);
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(16rem, 1fr));
+  gap: var(--card-gap);
+  align-items: stretch;
+}
+
+.toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-block-end: 1rem;
+}
+
+.filterGroup {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.375rem;
+  border: 1px solid color-mix(in srgb, #0f172a 12%, transparent);
+  border-radius: 999px;
+  background: #f8fafc;
+}
+
+.filterButton {
+  appearance: none;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: #475569;
+  cursor: pointer;
+  font: inherit;
+  padding: 0.375rem 0.75rem;
+}
+
+.filterButtonActive {
+  composes: filterButton;
+  background: #0f172a;
+  color: white;
+}
+
+.card {
+  position: relative;
+  display: grid;
+  grid-template-rows: auto 1fr auto;
+  min-height: 18rem;
+  overflow: clip;
+  border: 1px solid color-mix(in srgb, #0f172a 10%, transparent);
+  border-radius: 1.25rem;
+  background:
+    radial-gradient(circle at top right, color-mix(in srgb, var(--accent) 22%, transparent), transparent 44%),
+    var(--card-bg);
+  box-shadow: 0 18px 50px rgb(15 23 42 / 0.08);
+  transition:
+    border-color 160ms ease,
+    box-shadow 160ms ease,
+    transform 160ms ease;
+}
+
+.card:hover {
+  transform: translateY(-2px);
+  border-color: color-mix(in srgb, var(--accent) 40%, #0f172a);
+  box-shadow: 0 24px 60px rgb(15 23 42 / 0.14);
+}
+
+.cardFeatured {
+  composes: card;
+  --card-bg: color-mix(in srgb, white 88%, var(--accent));
+}
+
+.cardMuted {
+  composes: card;
+  opacity: 0.72;
+}
+
+.media {
+  aspect-ratio: 4 / 3;
+  background:
+    linear-gradient(135deg, color-mix(in srgb, var(--accent) 70%, #0f172a), transparent),
+    repeating-linear-gradient(45deg, rgb(255 255 255 / 0.18) 0 8px, transparent 8px 16px);
+}
+
+.body {
+  display: grid;
+  gap: 0.75rem;
+  padding: 1rem;
+}
+
+.title {
+  margin: 0;
+  color: #0f172a;
+  font-size: clamp(1rem, 1.2vw, 1.25rem);
+  line-height: 1.2;
+}
+
+.description {
+  margin: 0;
+  color: #475569;
+  line-height: 1.55;
+}
+
+.priceRow {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0 1rem 1rem;
+}
+
+.price {
+  color: #0f172a;
+  font-weight: 700;
+  letter-spacing: -0.03em;
+}
+
+.badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 1.75rem;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--accent) 16%, white);
+  color: color-mix(in srgb, var(--accent) 72%, #0f172a);
+  font-size: 0.75rem;
+  font-weight: 700;
+  padding-inline: 0.625rem;
+}
+
+.badgeSale {
+  composes: badge;
+  animation: pulseBadge 1.8s ease-in-out infinite;
+}
+
+:global(.is-keyboard-user) .card:focus-within {
+  outline: 3px solid color-mix(in srgb, var(--accent) 60%, white);
+  outline-offset: 4px;
+}
+
+@media (max-width: 42rem) {
+  .toolbar {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .filterGroup {
+    overflow-x: auto;
+  }
+
+  .card {
+    min-height: 14rem;
+  }
+}
+
+@keyframes pulseBadge {
+  0%,
+  100% {
+    transform: scale(1);
+  }
+
+  50% {
+    transform: scale(1.04);
+  }
+}

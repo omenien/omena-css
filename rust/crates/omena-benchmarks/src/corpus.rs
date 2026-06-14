@@ -3,6 +3,13 @@ use serde::Serialize;
 
 use crate::Z5_PERFORMANCE_BASELINE;
 
+const BOOTSTRAP_REBOOT_V5_3_3: &str =
+    include_str!("../fixtures/bundler/bootstrap-reboot-v5.3.3.css");
+const NEXT_WITH_SASS_HELLO_WORLD: &str =
+    include_str!("../fixtures/bundler/next-with-sass-hello-world.module.scss");
+const CSS_MODULES_PRODUCT_GRID: &str =
+    include_str!("../fixtures/bundler/css-modules-product-grid.module.css");
+
 pub struct StyleSample {
     pub name: &'static str,
     pub path: &'static str,
@@ -99,22 +106,22 @@ pub fn style_corpus() -> Vec<StyleSample> {
 pub fn bundler_productization_corpus() -> Vec<StyleSample> {
     vec![
         StyleSample {
-            name: "bootstrap-utility-subset",
-            path: "BootstrapUtilities.module.css",
+            name: "bootstrap-reboot-v5.3.3",
+            path: "bootstrap-reboot-v5.3.3.css",
             dialect: StyleDialect::Css,
-            source: build_bootstrap_utility_subset(160),
+            source: BOOTSTRAP_REBOOT_V5_3_3.to_string(),
         },
         StyleSample {
-            name: "nextjs-app-router-dashboard-scss",
-            path: "DashboardRoute.module.scss",
+            name: "next-with-sass-hello-world",
+            path: "next-with-sass-hello-world.module.scss",
             dialect: StyleDialect::Scss,
-            source: build_nextjs14_dashboard_scss(128),
+            source: NEXT_WITH_SASS_HELLO_WORLD.to_string(),
         },
         StyleSample {
-            name: "css-modules-heavy-product-grid",
-            path: "ProductGrid.module.css",
+            name: "css-modules-product-grid",
+            path: "css-modules-product-grid.module.css",
             dialect: StyleDialect::Css,
-            source: build_css_modules_heavy_product_grid(192),
+            source: CSS_MODULES_PRODUCT_GRID.to_string(),
         },
     ]
 }
@@ -143,67 +150,6 @@ pub fn summarize_style_corpus_snapshot() -> StyleCorpusSnapshotV0 {
         corpus_sample_count: samples.len(),
         samples,
     }
-}
-
-fn build_bootstrap_utility_subset(count: usize) -> String {
-    let mut source = String::from(
-        r#"
-.container {
-  width: 100%;
-  margin-right: auto;
-  margin-left: auto;
-}
-"#,
-    );
-    for index in 0..count {
-        source.push_str(&format!(
-            r#"
-.d-flex-{index} {{ display: flex; }}
-.gap-{index} {{ gap: {gap}rem; }}
-.text-bg-{index} {{
-  color: #fff;
-  background-color: rgb({red}, {green}, {blue});
-}}
-.rounded-{index} {{ border-radius: {radius}rem; }}
-"#,
-            gap = (index % 6) + 1,
-            red = (index * 13) % 255,
-            green = (index * 17) % 255,
-            blue = (index * 19) % 255,
-            radius = (index % 4) + 1,
-        ));
-    }
-    source
-}
-
-fn build_css_modules_heavy_product_grid(count: usize) -> String {
-    let mut source = String::from(
-        r#"
-.grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr));
-  gap: 1rem;
-}
-"#,
-    );
-    for index in 0..count {
-        source.push_str(&format!(
-            r#"
-.card{index} {{
-  color: var(--card-fg-{slot});
-  background: linear-gradient(135deg, rgb({red}, {green}, {blue}), #fff);
-  border: 1px solid color-mix(in srgb, #111827 12%, transparent);
-}}
-.card{index}Primary {{ composes: card{index}; font-weight: 700; }}
-.card{index}Muted {{ composes: card{index}; opacity: .72; }}
-"#,
-            slot = index % 12,
-            red = (index * 5) % 255,
-            green = (index * 7) % 255,
-            blue = (index * 11) % 255,
-        ));
-    }
-    source
 }
 
 fn build_nextjs14_dashboard_scss(count: usize) -> String {
