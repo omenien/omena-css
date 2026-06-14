@@ -79,6 +79,23 @@ permissions:
   contents: read
 
 jobs:
+  release-integrity:
+    # omena-ci-tier: release
+    name: release integrity gate
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        with:
+          ref: ${{ inputs.ref }}
+      - uses: ./.github/actions/setup-pnpm
+      - name: Run release integrity gates
+        run: |
+          pnpm omena-check run release/check/release-m5-class-value-universe-matrix
+          pnpm omena-check run release/check/release-m5-api-freeze-audit
+          pnpm omena-check run core/check
+          pnpm omena-check run test/test
+
   # --- 1. Build napi .node binaries across the 5-target genesis matrix --------
   # These match release-cli.yml's target set. Each host emits index.<triple>.node
   # into rust/crates/omena-napi/pkg/; the publish job turns them into scoped
@@ -145,8 +162,8 @@ jobs:
   publish:
     # omena-ci-tier: release
     name: publish npm packages
-    needs: napi-binaries
-    if: ${{ always() && (inputs.publish_wasm || inputs.publish_napi) && (!inputs.publish_napi || needs.napi-binaries.result == 'success') }}
+    needs: [release-integrity, napi-binaries]
+    if: ${{ always() && needs.release-integrity.result == 'success' && (inputs.publish_wasm || inputs.publish_napi) && (!inputs.publish_napi || needs.napi-binaries.result == 'success') }}
     runs-on: ubuntu-latest
     timeout-minutes: 30
     environment: release
@@ -347,7 +364,8 @@ jobs:
   publish-plugins:
     # omena-ci-tier: release
     name: publish build-tool packages
-    if: ${{ inputs.publish_plugins }}
+    needs: release-integrity
+    if: ${{ always() && inputs.publish_plugins && needs.release-integrity.result == 'success' }}
     runs-on: ubuntu-latest
     timeout-minutes: 15
     environment: release

@@ -70,8 +70,27 @@ permissions:
   contents: read
 
 jobs:
+  release-integrity:
+    name: release integrity gate
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        with:
+          ref: ${{ github.ref }}
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: ./.github/actions/setup-pnpm
+      - name: Run release integrity gates
+        run: |
+          pnpm omena-check run release/check/release-m5-class-value-universe-matrix
+          pnpm omena-check run release/check/release-m5-api-freeze-audit
+          pnpm omena-check run core/check
+          pnpm omena-check run test/test
+
   publish:
     name: publish crate train
+    needs: release-integrity
     runs-on: ubuntu-latest
     timeout-minutes: 60
     # Protected environment: required reviewers + the CRATES_IO_TOKEN bootstrap secret
