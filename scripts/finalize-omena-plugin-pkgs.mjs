@@ -5,14 +5,7 @@
 // bundler is still an omena-css mode. This script creates publish-only manifests
 // with the crate-train version, public metadata, and concrete internal dependency
 // versions so npm never sees `workspace:*`.
-import {
-  copyFileSync,
-  existsSync,
-  mkdirSync,
-  readFileSync,
-  rmSync,
-  writeFileSync,
-} from "node:fs";
+import { copyFileSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { parseArgs } from "node:util";
 

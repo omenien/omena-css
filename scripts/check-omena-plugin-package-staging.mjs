@@ -69,17 +69,9 @@ writeFileSync(
   path.join(consumerRoot, "package.json"),
   `${JSON.stringify({ private: true, type: "commonjs" }, null, 2)}\n`,
 );
-run(
-  "npm",
-  [
-    "install",
-    "--ignore-scripts",
-    "--no-audit",
-    "--package-lock=false",
-    ...tarballs,
-  ],
-  { cwd: consumerRoot },
-);
+run("npm", ["install", "--ignore-scripts", "--no-audit", "--package-lock=false", ...tarballs], {
+  cwd: consumerRoot,
+});
 
 for (const packageSpec of PACKAGES) {
   const imported = requireFromConsumer(packageSpec.name);
@@ -129,7 +121,7 @@ function run(command, args, options = {}) {
   const child = spawnSync(command, args, {
     cwd: options.cwd ?? repoRoot,
     encoding: "utf8",
-    env: { ...process.env, ...(options.env ?? {}) },
+    env: { ...process.env, ...options.env },
   });
   if (child.status !== 0) {
     throw new Error(
