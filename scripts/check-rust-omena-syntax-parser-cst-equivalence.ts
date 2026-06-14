@@ -1,8 +1,17 @@
-import { readFileSync } from "node:fs";
+import { readdirSync, readFileSync } from "node:fs";
 import { strict as assert } from "node:assert";
 
 const syntaxSource = readFileSync("rust/crates/omena-syntax/src/lib.rs", "utf8");
-const parserSource = readFileSync("rust/crates/omena-parser/src/lib.rs", "utf8");
+
+// omena-parser's public surface is split across submodules (lib.rs re-export
+// facade + parse.rs + summaries.rs + ...). Scan the whole crate src tree so the
+// equivalence assertions track the symbols by content, not by file location —
+// otherwise an internal module split silently drifts this gate stale.
+const parserSrcDir = "rust/crates/omena-parser/src";
+const parserSource = readdirSync(parserSrcDir, { recursive: true })
+  .filter((entry): entry is string => typeof entry === "string" && entry.endsWith(".rs"))
+  .map((entry) => readFileSync(`${parserSrcDir}/${entry}`, "utf8"))
+  .join("\n");
 
 assert.match(
   syntaxSource,

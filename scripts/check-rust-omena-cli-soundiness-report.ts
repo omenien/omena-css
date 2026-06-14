@@ -32,13 +32,20 @@ const workspace = mkdtempSync(join(tmpdir(), "omena-cli-soundiness-report-"));
 
 try {
   const stylePath = join(workspace, "app.module.scss");
+  // The unresolved `@use` surfaces an `unresolvedExternalReference` boundary
+  // diagnostic; a genuinely-unresolvable module no longer also yields a
+  // speculative per-symbol `missingSassSymbol` (omena-cli #33: only on-disk
+  // readable edges get a bridge SIF, unreadable edges surface boundary state).
+  // The suppressible `missingSassSymbol` therefore comes from a LOCAL undefined
+  // Sass variable (`$brand`), so this fixture still exercises real suppression
+  // accounting (RED if suppression regresses) alongside the boundary diagnostic.
   writeFileSync(
     stylePath,
     [
       ".button { color: var(--missing); }",
       '@use "design-system/tokens" as tokens;',
       "/* omena-ignore-next-line missingSassSymbol [reason: 'awaiting upstream SIF'] */",
-      ".token { color: tokens.$brand; }",
+      ".token { color: $brand; }",
     ].join("\n"),
   );
 

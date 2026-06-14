@@ -61,5 +61,15 @@ jobs:
   # NOTE: rust/omena-css/h1-readiness runs once nightly in omena-css-drift.yml
   # (08:00, green there). The duplicate 90-min soft run that lived here was removed
   # to stop running the same composite twice an hour apart (CI-hardening N7 dedup).
-  # The chronic nightly-soak red is the checker-release-gate / cargo-fuzz flake, a
-  # separate deferred investigation — NOT this h1-readiness duplicate.
+  #
+  # The chronic nightly-soak red (~2026-06-01..06-14) was the checker-release-gate
+  # job, NOT a cargo-fuzz flake. It was a 3-check chain of drift that ONLY this
+  # nightly release bundle runs (not PR/push CI), so it sat red for ~2 weeks:
+  #   1. check-rust-omena-syntax-parser-cst-equivalence.ts — asserted parser symbols
+  #      (`syntax()`, ParserCstEquivalenceSummaryV0, ...) in omena-parser/src/lib.rs,
+  #      but a module split moved them to parse.rs/summaries.rs. Fixed: scan whole crate.
+  #   2. check-rust-omena-syntax-extraction-decision.ts — same lib.rs-only drift. Fixed: same.
+  #   3. check-rust-omena-cli-soundiness-report.ts — stale FIXTURE: it expected an
+  #      unresolved `@use` to yield a suppressible `missingSassSymbol`, but per omena-cli
+  #      #33 an unreadable external edge now surfaces only `unresolvedExternalReference`
+  #      (intended, not a regression). Fixed: suppress a LOCAL undefined Sass var instead.
