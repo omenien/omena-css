@@ -100,6 +100,9 @@ function formatStatus(gate: CheckGate): string {
   if (gate.ciGroup) {
     parts.push(`group ${formatCode(gate.ciGroup)}`);
   }
+  if (gate.ciReason) {
+    parts.push(`reason ${escapeMarkdown(gate.ciReason)}`);
+  }
   return parts.join("; ");
 }
 

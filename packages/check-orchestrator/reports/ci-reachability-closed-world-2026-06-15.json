@@ -1,0 +1,424 @@
+{
+  "head": "992206fa",
+  "capturedAt": "2026-06-15",
+  "methodology": {
+    "workflowReachable": "All gates in buildCheckPlan expansions rooted at every pnpm omena-check run/bundle target in .github/workflows/*.yml.",
+    "explicitActionableReachable": "All gates in buildCheckPlan expansions rooted at manifest gates with ciTier other than manual/none.",
+    "combinedClassified": "Workflow roots plus explicit non-none ciTier roots, used only to reconcile planning-denominator drift."
+  },
+  "totals": {
+    "allGates": 348,
+    "workflowOmenaCheckRefs": 47,
+    "workflowReachable": 224,
+    "workflowUnreachable": 124,
+    "explicitActionableRoots": 20,
+    "explicitActionableReachable": 125,
+    "explicitActionableUnreachable": 223,
+    "combinedReachable": 229,
+    "combinedUnreachable": 119
+  },
+  "origins": {
+    "package": 323,
+    "package+declared": 16,
+    "declared": 9
+  },
+  "tiers": {
+    "unset": 323,
+    "closure-fast": 18,
+    "rust-workspace": 1,
+    "manual": 4,
+    "scheduled": 1,
+    "none": 1
+  },
+  "workflowUnreachableByOrigin": {
+    "package": 120,
+    "declared": 4
+  },
+  "workflowUnreachableByTier": {
+    "unset": 120,
+    "manual": 3,
+    "none": 1
+  },
+  "combinedUnreachableByOrigin": {
+    "package": 118,
+    "declared": 1
+  },
+  "workflowRefs": [
+    {
+      "file": "_publish-npm.yml",
+      "line": 185,
+      "job": "publish",
+      "tier": "release",
+      "target": "core/build/omena-wasm",
+      "gateId": "core/build/omena-wasm"
+    },
+    {
+      "file": "_publish-npm.yml",
+      "line": 188,
+      "job": "publish",
+      "tier": "release",
+      "target": "core/build/omena-napi",
+      "gateId": "core/build/omena-napi"
+    },
+    {
+      "file": "_publish-npm.yml",
+      "line": 208,
+      "job": "publish",
+      "tier": "release",
+      "target": "release/check/packaged-omena-napi-crossplatform",
+      "gateId": "release/check/packaged-omena-napi-crossplatform"
+    },
+    {
+      "file": "_publish-npm.yml",
+      "line": 365,
+      "job": "publish-plugins",
+      "tier": "release",
+      "target": "core/build/omena-plugin-packages",
+      "gateId": "core/build/omena-plugin-packages"
+    },
+    {
+      "file": "ci.yml",
+      "line": 30,
+      "job": "verify",
+      "tier": "verify",
+      "target": "core/check",
+      "gateId": "core/check"
+    },
+    {
+      "file": "ci.yml",
+      "line": 32,
+      "job": "verify",
+      "tier": "verify",
+      "target": "tooling/orchestrator-inventory",
+      "gateId": "tooling/orchestrator-inventory"
+    },
+    {
+      "file": "ci.yml",
+      "line": 33,
+      "job": "verify",
+      "tier": "verify",
+      "target": "test/test",
+      "gateId": "test/test"
+    },
+    {
+      "file": "ci.yml",
+      "line": 34,
+      "job": "verify",
+      "tier": "verify",
+      "target": "core/build",
+      "gateId": "core/build"
+    },
+    {
+      "file": "ci.yml",
+      "line": 54,
+      "job": "protocol-matrix",
+      "tier": "protocol",
+      "target": "test/protocol",
+      "gateId": "test/protocol"
+    },
+    {
+      "file": "ci.yml",
+      "line": 69,
+      "job": "rust-workspace",
+      "tier": "rust-workspace",
+      "target": "rust/workspace",
+      "gateId": "rust/workspace"
+    },
+    {
+      "file": "ci.yml",
+      "line": 84,
+      "job": "omena-napi-install",
+      "tier": "native",
+      "target": "core/build/omena-napi",
+      "gateId": "core/build/omena-napi"
+    },
+    {
+      "file": "ci.yml",
+      "line": 85,
+      "job": "omena-napi-install",
+      "tier": "native",
+      "target": "release/check/packaged-omena-napi-crossplatform",
+      "gateId": "release/check/packaged-omena-napi-crossplatform"
+    },
+    {
+      "file": "ci.yml",
+      "line": 130,
+      "job": "plugin-consumers",
+      "tier": "plugin",
+      "target": "plugin/consumers",
+      "gateId": "plugin/consumers"
+    },
+    {
+      "file": "ci.yml",
+      "line": 145,
+      "job": "closure-fast",
+      "tier": "closure-fast",
+      "target": "rust/runtime-query-api-hardening",
+      "gateId": "rust/runtime-query-api-hardening"
+    },
+    {
+      "file": "ci.yml",
+      "line": 149,
+      "job": "closure-fast",
+      "tier": "closure-fast",
+      "target": "rust/product-facing-capability",
+      "gateId": "rust/product-facing-capability"
+    },
+    {
+      "file": "ci.yml",
+      "line": 153,
+      "job": "closure-fast",
+      "tier": "closure-fast",
+      "target": "rust/theory-generalization",
+      "gateId": "rust/theory-generalization"
+    },
+    {
+      "file": "ci.yml",
+      "line": 157,
+      "job": "closure-fast",
+      "tier": "closure-fast",
+      "target": "rust/omena-query/boundary",
+      "gateId": "rust/omena-query/boundary"
+    },
+    {
+      "file": "ci.yml",
+      "line": 161,
+      "job": "closure-fast",
+      "tier": "closure-fast",
+      "target": "rust/omena-lsp-server/boundary",
+      "gateId": "rust/omena-lsp-server/boundary"
+    },
+    {
+      "file": "ci.yml",
+      "line": 165,
+      "job": "closure-fast",
+      "tier": "closure-fast",
+      "target": "rust/omena-cascade/boundary",
+      "gateId": "rust/omena-cascade/boundary"
+    },
+    {
+      "file": "ci.yml",
+      "line": 169,
+      "job": "closure-fast",
+      "tier": "closure-fast",
+      "target": "rust/omena-diff-test-boundary",
+      "gateId": "rust/omena-diff-test-boundary"
+    },
+    {
+      "file": "ci.yml",
+      "line": 173,
+      "job": "closure-fast",
+      "tier": "closure-fast",
+      "target": "rust/publish-train-closure",
+      "gateId": "rust/publish-train-closure"
+    },
+    {
+      "file": "ci.yml",
+      "line": 177,
+      "job": "closure-fast",
+      "tier": "closure-fast",
+      "target": "rust/inter-crate-pin",
+      "gateId": "rust/inter-crate-pin"
+    },
+    {
+      "file": "ci.yml",
+      "line": 181,
+      "job": "closure-fast",
+      "tier": "closure-fast",
+      "target": "rust/role-boundaries",
+      "gateId": "rust/role-boundaries"
+    },
+    {
+      "file": "ci.yml",
+      "line": 185,
+      "job": "closure-fast",
+      "tier": "closure-fast",
+      "target": "rust/layer-dependency-exceptions",
+      "gateId": "rust/layer-dependency-exceptions"
+    },
+    {
+      "file": "ci.yml",
+      "line": 189,
+      "job": "closure-fast",
+      "tier": "closure-fast",
+      "target": "rust/product-path-matrix",
+      "gateId": "rust/product-path-matrix"
+    },
+    {
+      "file": "ci.yml",
+      "line": 193,
+      "job": "closure-fast",
+      "tier": "closure-fast",
+      "target": "rust/core-layer-hygiene",
+      "gateId": "rust/core-layer-hygiene"
+    },
+    {
+      "file": "ci.yml",
+      "line": 197,
+      "job": "closure-fast",
+      "tier": "closure-fast",
+      "target": "rust/publish-flags",
+      "gateId": "rust/publish-flags"
+    },
+    {
+      "file": "ci.yml",
+      "line": 201,
+      "job": "closure-fast",
+      "tier": "closure-fast",
+      "target": "rust/naming-consistency",
+      "gateId": "rust/naming-consistency"
+    },
+    {
+      "file": "ci.yml",
+      "line": 205,
+      "job": "closure-fast",
+      "tier": "closure-fast",
+      "target": "rust/no-split-repo-residue",
+      "gateId": "rust/no-split-repo-residue"
+    },
+    {
+      "file": "ci.yml",
+      "line": 209,
+      "job": "closure-fast",
+      "tier": "closure-fast",
+      "target": "release/check/release-tag-grammar",
+      "gateId": "release/check/release-tag-grammar"
+    },
+    {
+      "file": "ci.yml",
+      "line": 213,
+      "job": "closure-fast",
+      "tier": "closure-fast",
+      "target": "rust/closure-fast-aggregation-complete",
+      "gateId": "rust/closure-fast-aggregation-complete"
+    },
+    {
+      "file": "ci.yml",
+      "line": 275,
+      "job": "extension-host-smoke",
+      "tier": "extension-host",
+      "target": "test/extension-host",
+      "gateId": "test/extension-host"
+    },
+    {
+      "file": "ci.yml",
+      "line": 293,
+      "job": "package",
+      "tier": "package",
+      "target": "release/package/prepared",
+      "gateId": "release/package/prepared"
+    },
+    {
+      "file": "nightly-soak.yml",
+      "line": 23,
+      "job": "tsgo-operational",
+      "tier": "scheduled",
+      "target": "core/build",
+      "gateId": "core/build"
+    },
+    {
+      "file": "nightly-soak.yml",
+      "line": 24,
+      "job": "tsgo-operational",
+      "tier": "scheduled",
+      "target": "tsgo/release-batch",
+      "gateId": "tsgo/release-batch"
+    },
+    {
+      "file": "nightly-soak.yml",
+      "line": 25,
+      "job": "tsgo-operational",
+      "tier": "scheduled",
+      "target": "tsgo/real-project-corpus",
+      "gateId": "tsgo/real-project-corpus"
+    },
+    {
+      "file": "nightly-soak.yml",
+      "line": 26,
+      "job": "tsgo-operational",
+      "tier": "scheduled",
+      "target": "tsgo/lsp-server-smoke",
+      "gateId": "tsgo/lsp-server-smoke"
+    },
+    {
+      "file": "nightly-soak.yml",
+      "line": 27,
+      "job": "tsgo-operational",
+      "tier": "scheduled",
+      "target": "tsgo/operational/lane",
+      "gateId": "tsgo/operational/lane"
+    },
+    {
+      "file": "nightly-soak.yml",
+      "line": 36,
+      "job": "ts7-phase-a",
+      "tier": "scheduled",
+      "target": "core/build",
+      "gateId": "core/build"
+    },
+    {
+      "file": "nightly-soak.yml",
+      "line": 37,
+      "job": "ts7-phase-a",
+      "tier": "scheduled",
+      "target": "ts7/phase-a/readiness",
+      "gateId": "ts7/phase-a/readiness"
+    },
+    {
+      "file": "nightly-soak.yml",
+      "line": 38,
+      "job": "ts7-phase-a",
+      "tier": "scheduled",
+      "target": "ts7/phase-a/shadow",
+      "gateId": "ts7/phase-a/shadow"
+    },
+    {
+      "file": "nightly-soak.yml",
+      "line": 39,
+      "job": "ts7-phase-a",
+      "tier": "scheduled",
+      "target": "ts7/phase-a/stability",
+      "gateId": "ts7/phase-a/stability"
+    },
+    {
+      "file": "nightly-soak.yml",
+      "line": 49,
+      "job": "selected-query-default",
+      "tier": "scheduled",
+      "target": "rust/selected-query/default-candidate",
+      "gateId": "rust/selected-query/default-candidate"
+    },
+    {
+      "file": "nightly-soak.yml",
+      "line": 59,
+      "job": "checker-release-gate",
+      "tier": "scheduled",
+      "target": "rust/checker/release-gate-shadow",
+      "gateId": "rust/checker/release-gate-shadow"
+    },
+    {
+      "file": "omena-css-drift.yml",
+      "line": 26,
+      "job": "drift",
+      "tier": "scheduled",
+      "target": "rust/omena-css/rustdoc-coverage",
+      "gateId": "rust/omena-css/rustdoc-coverage"
+    },
+    {
+      "file": "omena-css-drift.yml",
+      "line": 27,
+      "job": "drift",
+      "tier": "scheduled",
+      "target": "rust/omena-css/h1-readiness",
+      "gateId": "rust/omena-css/h1-readiness"
+    },
+    {
+      "file": "release-plan.yml",
+      "line": 32,
+      "job": "release-plan",
+      "tier": "release",
+      "target": "release/version-packages",
+      "gateId": "release/version-packages"
+    }
+  ]
+}

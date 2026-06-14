@@ -94,6 +94,7 @@ function printList(json: boolean): void {
             referencedTargetSpecs,
             ciTier,
             ciGroup,
+            ciReason,
             deprecatedAliases,
             deprecatedBy,
           }) => ({
@@ -107,6 +108,7 @@ function printList(json: boolean): void {
             referencedTargetSpecs,
             ciTier,
             ciGroup,
+            ciReason,
             deprecatedAliases,
             deprecatedBy,
           }),

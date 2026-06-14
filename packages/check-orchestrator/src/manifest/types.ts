@@ -17,6 +17,12 @@ export type CheckCiTier =
   | "verify"
   | "closure-fast"
   | "rust-workspace"
+  | "package"
+  | "protocol"
+  | "native"
+  | "plugin"
+  | "extension-host"
+  | "release"
   | "scheduled"
   | "manual"
   | "none";
@@ -40,6 +46,7 @@ export interface DeclaredCheckGateV0 {
   readonly timeoutMinutes?: number;
   readonly ciTier?: CheckCiTier;
   readonly ciGroup?: string;
+  readonly ciReason?: string;
   readonly deprecatedAliases?: readonly string[];
 }
 
@@ -63,6 +70,7 @@ export interface CheckGate {
   readonly timeoutMinutes?: number;
   readonly ciTier?: CheckCiTier;
   readonly ciGroup?: string;
+  readonly ciReason?: string;
   readonly deprecatedAliases?: readonly string[];
   readonly deprecatedBy?: string;
 }

@@ -525,6 +525,7 @@ describe("check orchestrator manifest", () => {
           replacesPackageTarget: "rust/release/bundle",
           deps: [{ target: "rust/workspace", args: ["--release"] }],
           ciTier: "manual",
+          ciReason: "Synthetic replacement fixture is manually invoked.",
         },
       ],
     });
@@ -538,7 +539,9 @@ describe("check orchestrator manifest", () => {
       referencedScripts: ["check:rust-workspace"],
       referencedTargetSpecs: [{ target: "rust/workspace", args: ["--release"] }],
     });
-    expect(runDoctor(replacementManifest)).toEqual([]);
+    expect(
+      runDoctor(replacementManifest).filter((diagnostic) => diagnostic.severity === "error"),
+    ).toEqual([]);
   });
 
   it("builds valid declared command gates", () => {
@@ -669,9 +672,11 @@ describe("check orchestrator manifest", () => {
         "name: CI",
         "jobs:",
         "  closure-fast:",
+        "    # omena-ci-tier: closure-fast",
         "    steps:",
         "      - run: pnpm omena-check run tooling/wired-closure",
         "  verify:",
+        "    # omena-ci-tier: verify",
         "    steps:",
         "      - run: pnpm omena-check run core/check",
       ].join("\n"),
@@ -730,6 +735,56 @@ describe("check orchestrator manifest", () => {
     );
   });
 
+  it("reports package-origin gates that are outside every workflow tier and leaf classification", () => {
+    const root = mkdtempSync(path.join(os.tmpdir(), "omena-check-orchestrator-"));
+    mkdirSync(path.join(root, ".github/workflows"), { recursive: true });
+    writeFileSync(
+      path.join(root, "package.json"),
+      JSON.stringify(
+        {
+          name: "omena-css",
+          scripts: {
+            "omena-check": "node ./check.js",
+            "check:rust-parser-reachable": "echo reachable",
+            "check:rust-parser-orphan": "echo orphan",
+          },
+        },
+        null,
+        2,
+      ),
+    );
+    writeFileSync(
+      path.join(root, ".github/workflows/ci.yml"),
+      [
+        "name: CI",
+        "jobs:",
+        "  verify:",
+        "    # omena-ci-tier: verify",
+        "    steps:",
+        "      - run: pnpm omena-check run rust/parser/reachable",
+      ].join("\n"),
+    );
+
+    const diagnostics = runDoctor(loadCheckManifest(root));
+    expect(diagnostics).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          severity: "error",
+          code: "ci-tier-unclassified",
+          message:
+            'Package gate "rust/parser/orphan" is not reachable from any workflow tier and has no governed leaf classification.',
+        }),
+      ]),
+    );
+    expect(diagnostics).not.toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          message: expect.stringContaining("rust/parser/reachable"),
+        }),
+      ]),
+    );
+  });
+
   // rfcs#60: the per-PR rust-workspace job (the rfcs#56 strict clippy/fmt gate) is bound to
   // its own ci tier, so deleting the ci.yml job — or its `omena-check run rust/workspace`
   // step — must surface as ci-tier-unreachable instead of passing silently.
@@ -763,6 +818,7 @@ describe("check orchestrator manifest", () => {
         "name: CI",
         "jobs:",
         "  rust-workspace:",
+        "    # omena-ci-tier: rust-workspace",
         "    steps:",
         "      - run: pnpm omena-check run rust/workspace",
       ].join("\n"),
@@ -786,6 +842,7 @@ describe("check orchestrator manifest", () => {
         "name: CI",
         "jobs:",
         "  verify:",
+        "    # omena-ci-tier: verify",
         "    steps:",
         "      - run: pnpm omena-check run core/check",
       ].join("\n"),
@@ -844,6 +901,7 @@ describe("check orchestrator manifest", () => {
             command: ["node", "--version"],
             ciTier: "none",
             tags: ["ci-unreachable-allowed"],
+            ciReason: "Synthetic fixture for allowed none-tier handling.",
           },
         ],
       }),
@@ -984,6 +1042,7 @@ describe("check orchestrator manifest", () => {
         "name: CI",
         "jobs:",
         "  direct:",
+        "    # omena-ci-tier: verify",
         "    steps:",
         "      - run: pnpm check",
         "      - run: pnpm omena-check run test/test",
@@ -991,15 +1050,17 @@ describe("check orchestrator manifest", () => {
     );
 
     const diagnostics = runDoctor(loadCheckManifest(root));
-    expect(diagnostics).toEqual([
-      expect.objectContaining({
-        severity: "error",
-        code: "workflow-direct-script-call",
-        message: expect.stringContaining(
-          '.github/workflows/ci.yml:5 calls "check" directly; use "pnpm omena-check run core/check".',
-        ),
-      }),
-    ]);
+    expect(diagnostics).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          severity: "error",
+          code: "workflow-direct-script-call",
+          message: expect.stringContaining(
+            '.github/workflows/ci.yml:6 calls "check" directly; use "pnpm omena-check run core/check".',
+          ),
+        }),
+      ]),
+    );
   });
 
   it("reports invalid omena-check targets before CI reaches runtime", () => {
@@ -1072,14 +1133,16 @@ describe("check orchestrator manifest", () => {
     );
 
     const diagnostics = runDoctor(loadCheckManifest(root));
-    expect(diagnostics).toEqual([
-      expect.objectContaining({
-        severity: "warning",
-        code: "alias-chain",
-        message:
-          'Alias "check:rust-parser-index-producer" references alias "check:rust-checker-entrance"; point to "check:rust-checker-bounded-lanes" directly or keep only one public alias.',
-      }),
-    ]);
+    expect(diagnostics).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          severity: "warning",
+          code: "alias-chain",
+          message:
+            'Alias "check:rust-parser-index-producer" references alias "check:rust-checker-entrance"; point to "check:rust-checker-bounded-lanes" directly or keep only one public alias.',
+        }),
+      ]),
+    );
   });
 
   it("reports non-canonical omena-check targets in checked surfaces", () => {

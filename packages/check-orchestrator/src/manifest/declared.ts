@@ -11,6 +11,12 @@ const VALID_CI_TIERS = new Set<CheckCiTier>([
   "verify",
   "closure-fast",
   "rust-workspace",
+  "package",
+  "protocol",
+  "native",
+  "plugin",
+  "extension-host",
+  "release",
   "scheduled",
   "manual",
   "none",
@@ -25,6 +31,7 @@ export const DECLARED_CHECK_GATES = [
     tags: ["release"],
     ciTier: "manual",
     ciGroup: "release",
+    ciReason: "Release metadata synchronization is a local/manual preparation step.",
   },
   {
     id: "release/release/verify",
@@ -46,6 +53,7 @@ export const DECLARED_CHECK_GATES = [
     tags: ["release"],
     ciTier: "manual",
     ciGroup: "release",
+    ciReason: "Full release verification is intentionally invoked manually before publishing.",
   },
   {
     id: "rust/release/bundle",
@@ -92,6 +100,7 @@ export const DECLARED_CHECK_GATES = [
     tags: ["release"],
     ciTier: "manual",
     ciGroup: "release",
+    ciReason: "Full Rust release bundle is covered by manual release verification.",
   },
   {
     id: "rust/lane/bundle",
@@ -130,6 +139,7 @@ export const DECLARED_CHECK_GATES = [
     tags: ["rust", "lane"],
     ciTier: "manual",
     ciGroup: "rust",
+    ciReason: "Rust lane bundle is retained for targeted manual validation outside PR CI.",
   },
   {
     id: "rust/omena-css/h1-readiness",
@@ -196,6 +206,8 @@ export const DECLARED_CHECK_GATES = [
     tags: ["closure-fast", "ci-unreachable-allowed"],
     ciTier: "none",
     ciGroup: "closure-fast",
+    ciReason:
+      "Aggregator-only bundle: CI invokes its members directly and enforces them as a grouped job.",
   },
   {
     id: "rust/runtime-query-api-hardening",
@@ -429,6 +441,7 @@ function buildDeclaredGate(
       : {}),
     ...(declaration.ciTier ? { ciTier: declaration.ciTier } : {}),
     ...(declaration.ciGroup ? { ciGroup: declaration.ciGroup } : {}),
+    ...(declaration.ciReason ? { ciReason: declaration.ciReason } : {}),
     ...(declaration.deprecatedAliases ? { deprecatedAliases: declaration.deprecatedAliases } : {}),
   };
 }
@@ -540,6 +553,7 @@ function mergeDeclaredMetadata(gate: CheckGate, declaration: DeclaredCheckGateV0
       : {}),
     ...(declaration.ciTier ? { ciTier: declaration.ciTier } : {}),
     ...(declaration.ciGroup ? { ciGroup: declaration.ciGroup } : {}),
+    ...(declaration.ciReason ? { ciReason: declaration.ciReason } : {}),
     ...(declaration.deprecatedAliases
       ? {
           deprecatedAliases: mergeUnique(
