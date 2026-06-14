@@ -5,6 +5,8 @@ name: _Publish npm
 #   - @omena/wasm  (wasm-pack pkg/, name rewritten by finalize-omena-wasm-pkg.mjs)
 #   - @omena/napi  (JS loader + types)
 #   - @omena/napi-* platform native optionalDependencies built across the matrix
+#   - @omena/css-build-adapter, @omena/vite-plugin, @omena/postcss-plugin
+#     (optional build-tool integrations, staged from private workspace packages)
 #
 # DORMANT: manual workflow_dispatch only; never runs on per-push CI. Genesis
 # (first @omena/wasm + @omena/napi publish) needs a manual/2FA establish step
@@ -37,6 +39,11 @@ on:
         type: boolean
         required: false
         default: true
+      publish_plugins:
+        description: Publish build-tool integration packages when dry_run is false.
+        type: boolean
+        required: false
+        default: false
   workflow_dispatch:
     inputs:
       ref:
@@ -58,6 +65,11 @@ on:
         type: boolean
         required: true
         default: true
+      publish_plugins:
+        description: Publish build-tool integration packages when dry_run is false.
+        type: boolean
+        required: true
+        default: false
 
 concurrency:
   group: publish-npm-${{ inputs.ref || github.ref }}
@@ -140,6 +152,7 @@ jobs:
     env:
       WASM_PKG_DIR: rust/crates/omena-wasm/pkg
       NAPI_PKG_DIR: rust/crates/omena-napi/pkg
+      PLUGIN_PKG_DIR: dist/npm-plugin-packages
     steps:
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
         with:
@@ -317,3 +330,43 @@ jobs:
               npm publish --provenance --access public
             fi
           fi
+      - name: Stage @omena build-tool packages
+        if: ${{ inputs.publish_plugins }}
+        run: pnpm omena-check run core/build/omena-plugin-packages -- --out "${PLUGIN_PKG_DIR}"
+      - name: Publish @omena build-tool packages
+        if: ${{ inputs.publish_plugins }}
+        shell: bash
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_AUTO_TOKEN }}
+          NPM_CONFIG_PROVENANCE: "true"
+        run: |
+          set -euo pipefail
+          if [ "${{ inputs.dry_run }}" != "true" ]; then
+            if [ -z "${NODE_AUTH_TOKEN:-}" ]; then
+              echo "::error::NPM_AUTO_TOKEN is empty in the 'release' environment — first publish of build-tool packages needs an npm automation token" >&2
+              exit 1
+            fi
+            npm_userconfig="${RUNNER_TEMP:-/tmp}/omena-npm-token.npmrc"
+            printf '//registry.npmjs.org/:_authToken=${NODE_AUTH_TOKEN}\n' > "${npm_userconfig}"
+            export NPM_CONFIG_USERCONFIG="${npm_userconfig}"
+          fi
+          publish_dir() {
+            local dir="$1"
+            local name version
+            name="$(node -e "const fs=require('node:fs'); const p=JSON.parse(fs.readFileSync(process.argv[1], 'utf8')); process.stdout.write(p.name)" "${dir}/package.json")"
+            version="$(node -e "const fs=require('node:fs'); const p=JSON.parse(fs.readFileSync(process.argv[1], 'utf8')); process.stdout.write(p.version)" "${dir}/package.json")"
+            if [ "${{ inputs.dry_run }}" = "true" ]; then
+              local pack_dir="${RUNNER_TEMP:-/tmp}/npm-dry-run-packs"
+              mkdir -p "${pack_dir}"
+              (cd "${dir}" && npm pack --json --pack-destination "${pack_dir}")
+              return
+            fi
+            if npm view "${name}@${version}" version >/dev/null 2>&1; then
+              echo "${name}@${version} already published; skipping"
+              return
+            fi
+            (cd "${dir}" && npm publish --provenance --access public)
+          }
+          publish_dir "${PLUGIN_PKG_DIR}/css-build-adapter"
+          publish_dir "${PLUGIN_PKG_DIR}/vite-plugin"
+          publish_dir "${PLUGIN_PKG_DIR}/postcss-plugin"

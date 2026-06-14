@@ -104,6 +104,7 @@ export const SCOPE_DEFINITIONS: readonly ScopeDefinition[] = [
     matches: (scriptName) =>
       scriptName.includes("plugin-consumer") ||
       scriptName.includes("plugin-smoke") ||
+      scriptName === "check:plugin-package-staging" ||
       scriptName === "check:vite-plugin-hmr",
     toGateId: (scriptName) => `plugin/${stripCheckPrefix(scriptName).replace(/^plugin-/, "")}`,
   },
@@ -170,6 +171,7 @@ export const SCOPE_DEFINITIONS: readonly ScopeDefinition[] = [
         "build:engine-shadow-runner",
         "build:omena-lsp-server",
         "build:omena-napi",
+        "build:omena-plugin-packages",
         "build:omena-wasm",
         "build:tsgo-binary",
         "check",
