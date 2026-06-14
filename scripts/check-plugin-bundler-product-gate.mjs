@@ -163,12 +163,17 @@ function findPrematureStableRustAliases(rootDir) {
   const checks = [
     {
       file: path.join(rootDir, "rust", "crates", "omena-transform-bundle", "src", "lib.rs"),
-      pattern:
-        /\bpub\s+(?:struct|type)\s+(TransformBundle(?:Edge|AssetUrl|AssetUrlRewriteSummary|Chunk|SourceSummary))\b/g,
+      symbols: [
+        "TransformBundleEdge",
+        "TransformBundleAssetUrl",
+        "TransformBundleAssetUrlRewriteSummary",
+        "TransformBundleChunk",
+        "TransformBundleSourceSummary",
+      ],
     },
     {
       file: path.join(rootDir, "rust", "crates", "omena-query-transform-runner", "src", "lib.rs"),
-      pattern: /\bpub\s+(?:struct|type)\s+(OmenaQueryTransformRunnerBoundary)\b/g,
+      symbols: ["OmenaQueryTransformRunnerBoundary"],
     },
   ];
 
@@ -176,8 +181,10 @@ function findPrematureStableRustAliases(rootDir) {
   for (const check of checks) {
     if (!existsSync(check.file)) continue;
     const source = readFileSync(check.file, "utf8");
-    for (const match of source.matchAll(check.pattern)) {
-      hits.push(`${path.relative(rootDir, check.file)} exposes stable ${match[1]}`);
+    for (const symbol of check.symbols) {
+      if (sourceExposesPublicRustSymbol(source, symbol)) {
+        hits.push(`${path.relative(rootDir, check.file)} exposes stable ${symbol}`);
+      }
     }
   }
   return hits;
@@ -440,6 +447,30 @@ function selfTest() {
     "self-test: Rust symbol scan does not match identifier prefixes",
   );
   assert.equal(
+    sourceExposesPublicRustSymbol(
+      "pub use crate::internal::TransformBundleEdgeV0 as TransformBundleEdge;",
+      "TransformBundleEdge",
+    ),
+    true,
+    "self-test: stable Rust re-export aliases are guarded",
+  );
+  assert.equal(
+    sourceExposesPublicRustSymbol(
+      "pub use crate::internal::TransformBundleEdge;",
+      "TransformBundleEdge",
+    ),
+    true,
+    "self-test: stable Rust direct re-exports are guarded",
+  );
+  assert.equal(
+    sourceExposesPublicRustSymbol(
+      "pub use crate::internal::TransformBundleEdgeV0;",
+      "TransformBundleEdge",
+    ),
+    false,
+    "self-test: V0 re-exports are not mistaken for stable Rust symbols",
+  );
+  assert.equal(
     readCargoPackageName("[workspace]\nmembers = []\n"),
     null,
     "self-test: workspace-only Cargo manifest is not a package",
@@ -592,6 +623,15 @@ function readCargoPackageName(source) {
 
 function sourceContainsRustSymbol(source, symbol) {
   return new RegExp(`\\b${escapeRegExp(symbol)}\\b`, "u").test(source);
+}
+
+function sourceExposesPublicRustSymbol(source, symbol) {
+  const escapedSymbol = escapeRegExp(symbol);
+  return [
+    new RegExp(`\\bpub\\s+(?:struct|type|enum|trait)\\s+${escapedSymbol}\\b`, "u"),
+    new RegExp(`\\bpub\\s+use\\b[^;\\n]*\\bas\\s+${escapedSymbol}\\b`, "u"),
+    new RegExp(`\\bpub\\s+use\\b[^;\\n]*\\b${escapedSymbol}\\b\\s*;`, "u"),
+  ].some((pattern) => pattern.test(source));
 }
 
 function escapeRegExp(value) {
