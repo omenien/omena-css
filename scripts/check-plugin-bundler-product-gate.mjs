@@ -28,7 +28,7 @@ const REPO_SCAN_IGNORED_DIRS = new Set([
 ]);
 const REQUIRED_PRE_FREEZE_RUST_SYMBOLS = [
   {
-    file: "rust/crates/omena-transform-bundle/src/lib.rs",
+    file: "rust/crates/omena-bundler/src/lib.rs",
     symbols: [
       "TransformBundleEdgeV0",
       "TransformBundleAssetUrlV0",
@@ -50,12 +50,13 @@ const REQUIRED_PRE_FREEZE_RUST_SYMBOLS = [
 const gateEvidence = readGateEvidence(evidencePath);
 const gateStatus = summarizeGateStatus(gateEvidence);
 
-const prohibited = [
+const rawProhibited = [
   ...findStandaloneBundlerSurfaces(repoRoot),
   ...findPrematureStableRustAliases(repoRoot),
   ...findPrematureRustBundlerV0Removal(repoRoot),
   ...findBundlerFreezeClaims(repoRoot),
 ];
+const prohibited = filterProhibitedByMaintainerOverride(rawProhibited, gateEvidence);
 
 if (!gateStatus.allFired) {
   assert.equal(
@@ -85,6 +86,7 @@ process.stdout.write(
       moatDetachedAdopters: gateStatus.moatDetachedAdopters,
       releaseCadenceConflicts: gateStatus.releaseCadenceConflicts,
       allProductGatesFired: gateStatus.allFired,
+      maintainerOverrideScope: gateEvidence.maintainerOverride?.scope ?? null,
       prohibitedProductSurfaces: prohibited.length,
     },
     null,
@@ -99,6 +101,7 @@ function readGateEvidence(filePath) {
       externalNonMaintainerAdopters: [],
       moatDetachedAdopters: [],
       releaseCadenceConflicts: [],
+      maintainerOverride: null,
     };
   }
 
@@ -127,6 +130,7 @@ function readGateEvidence(filePath) {
     collectReleaseCadenceConflictRepos(parsed),
     "releaseCadenceConflicts",
   );
+  validateMaintainerOverride(parsed.maintainerOverride);
   return parsed;
 }
 
@@ -169,6 +173,16 @@ function findStandaloneBundlerSurfaces(rootDir) {
 function findPrematureStableRustAliases(rootDir) {
   const checks = [
     {
+      file: path.join(rootDir, "rust", "crates", "omena-bundler", "src", "lib.rs"),
+      symbols: [
+        "TransformBundleEdge",
+        "TransformBundleAssetUrl",
+        "TransformBundleAssetUrlRewriteSummary",
+        "TransformBundleChunk",
+        "TransformBundleSourceSummary",
+      ],
+    },
+    {
       file: path.join(rootDir, "rust", "crates", "omena-transform-bundle", "src", "lib.rs"),
       symbols: [
         "TransformBundleEdge",
@@ -199,6 +213,16 @@ function findPrematureStableRustAliases(rootDir) {
 
 function findPrematureRustBundlerV0Removal(rootDir) {
   const hits = [];
+  const compatibilityFile = "rust/crates/omena-transform-bundle/src/lib.rs";
+  const compatibilitySourcePath = path.join(rootDir, compatibilityFile);
+  if (!existsSync(compatibilitySourcePath)) {
+    hits.push(`${compatibilityFile} is missing before the bundler product gate fired`);
+  } else {
+    const compatibilitySource = readFileSync(compatibilitySourcePath, "utf8");
+    if (!compatibilitySource.includes("pub use omena_bundler::*;")) {
+      hits.push(`${compatibilityFile} must keep re-exporting omena_bundler::* during the 0.x line`);
+    }
+  }
   for (const requirement of REQUIRED_PRE_FREEZE_RUST_SYMBOLS) {
     const filePath = path.join(rootDir, requirement.file);
     if (!existsSync(filePath)) {
@@ -215,14 +239,26 @@ function findPrematureRustBundlerV0Removal(rootDir) {
   return hits;
 }
 
+function filterProhibitedByMaintainerOverride(items, evidence) {
+  if (!hasStandalone0xMaintainerOverride(evidence)) {
+    return items;
+  }
+  return items.filter((item) => !isStandalone0xCrateSurface(item));
+}
+
+function isStandalone0xCrateSurface(item) {
+  return item === "rust/crates/omena-bundler/Cargo.toml declares package name omena-bundler";
+}
+
 function findBundlerFreezeClaims(rootDir) {
   const claims = [];
   for (const textPath of findRepoFilesByExtensions(rootDir, [".md", ".d.ts"])) {
     if (!isPublicFreezeClaimSurface(rootDir, textPath)) continue;
+    const isBundlerScoped = isBundlerSpecificFreezeClaimSurface(rootDir, textPath);
     const relativePath = path.relative(rootDir, textPath);
     const lines = readFileSync(textPath, "utf8").split(/\r?\n/);
     for (const [index, line] of lines.entries()) {
-      if (isBundlerFreezeClaim(line)) {
+      if (isBundlerFreezeClaim(line, isBundlerScoped)) {
         claims.push(`${relativePath}:${index + 1} claims bundler API freeze`);
       }
     }
@@ -232,6 +268,14 @@ function findBundlerFreezeClaims(rootDir) {
     const relativePath = path.relative(rootDir, manifestPath);
     const manifest = JSON.parse(readFileSync(manifestPath, "utf8"));
     for (const field of packageManifestFreezeClaimFields(manifest)) {
+      claims.push(`${relativePath}:${field} claims bundler API freeze`);
+    }
+  }
+  for (const manifestPath of findRepoFiles(path.join(rootDir, "rust", "crates"), "Cargo.toml")) {
+    if (!isPublicCargoManifestSurface(rootDir, manifestPath)) continue;
+    const relativePath = path.relative(rootDir, manifestPath);
+    const source = readFileSync(manifestPath, "utf8");
+    for (const field of cargoManifestFreezeClaimFields(source)) {
       claims.push(`${relativePath}:${field} claims bundler API freeze`);
     }
   }
@@ -247,8 +291,18 @@ function isPublicFreezeClaimSurface(rootDir, filePath) {
       (relativePath === "CHANGELOG.md" ||
         relativePath === "README.md" ||
         relativePath.startsWith(`docs${path.sep}`) ||
-        relativePath.startsWith(`packages${path.sep}`))) ||
+        relativePath.startsWith(`packages${path.sep}`) ||
+        relativePath === path.join("rust", "crates", "omena-bundler", "README.md") ||
+        relativePath === path.join("rust", "crates", "omena-transform-bundle", "README.md"))) ||
     (isDeclaration && relativePath.startsWith(`packages${path.sep}`))
+  );
+}
+
+function isBundlerSpecificFreezeClaimSurface(rootDir, filePath) {
+  const relativePath = path.relative(rootDir, filePath);
+  return (
+    relativePath === path.join("rust", "crates", "omena-bundler", "README.md") ||
+    relativePath === path.join("rust", "crates", "omena-transform-bundle", "README.md")
   );
 }
 
@@ -256,6 +310,14 @@ function isPublicPackageManifestSurface(rootDir, filePath) {
   const relativePath = path.relative(rootDir, filePath);
   return (
     relativePath.startsWith(`packages${path.sep}`) && path.basename(filePath) === "package.json"
+  );
+}
+
+function isPublicCargoManifestSurface(rootDir, filePath) {
+  const relativePath = path.relative(rootDir, filePath);
+  return (
+    relativePath === path.join("rust", "crates", "omena-bundler", "Cargo.toml") ||
+    relativePath === path.join("rust", "crates", "omena-transform-bundle", "Cargo.toml")
   );
 }
 
@@ -270,6 +332,17 @@ function packageManifestFreezeClaimFields(manifest) {
     isBundlerFreezeClaim(manifest.keywords.join(" "))
   ) {
     fields.push("keywords");
+  }
+  return fields;
+}
+
+function cargoManifestFreezeClaimFields(source) {
+  const fields = [];
+  const name = readCargoPackageName(source);
+  const bundlerScoped = name === "omena-bundler" || name === "omena-transform-bundle";
+  const description = readCargoStringField(source, "description");
+  if (description !== null && isBundlerFreezeClaim(description, bundlerScoped)) {
+    fields.push("description");
   }
   return fields;
 }
@@ -363,6 +436,25 @@ function validateReleaseCadenceConflictScope(entries, allowedRepos, fieldName) {
       `${label} must belong to ${PRODUCT_GITHUB_REPO} or a validated adopter repository`,
     );
   }
+}
+
+function validateMaintainerOverride(override) {
+  if (override === undefined || override === null) {
+    return;
+  }
+  assertRecord(override, "maintainerOverride");
+  requireNonEmptyString(override.acceptedBy, "maintainerOverride.acceptedBy");
+  assert.match(
+    requireNonEmptyString(override.date, "maintainerOverride.date"),
+    /^[0-9]{4}-[0-9]{2}-[0-9]{2}$/u,
+    "maintainerOverride.date must use YYYY-MM-DD",
+  );
+  requireNonEmptyString(override.reason, "maintainerOverride.reason");
+  assert.equal(override.scope, "standalone-0x", 'maintainerOverride.scope must be "standalone-0x"');
+}
+
+function hasStandalone0xMaintainerOverride(evidence) {
+  return evidence.maintainerOverride?.scope === "standalone-0x";
 }
 
 function assertRecord(value, label) {
@@ -469,20 +561,23 @@ function requireNonEmptyString(value, label) {
   return value.trim();
 }
 
-function isBundlerFreezeClaim(line) {
+function isBundlerFreezeClaim(line, bundlerScoped = false) {
   const normalized = line.toLowerCase();
+  const lineIsBundlerScoped = bundlerScoped || normalized.includes("bundler");
+  if (!lineIsBundlerScoped) {
+    return false;
+  }
   return (
-    normalized.includes("bundler") &&
-    (normalized.includes("api freeze") ||
-      normalized.includes("frozen api") ||
-      normalized.includes("stable api") ||
-      normalized.includes("stable contract") ||
-      /\bstable\b.*\bapi\b/.test(normalized) ||
-      /\bapi\b.*\bstable\b/.test(normalized) ||
-      /\bstable\b.*\bcontract\b/.test(normalized) ||
-      /\bcontract\b.*\bstable\b/.test(normalized) ||
-      /\bv0\b.*\bremoved\b/.test(normalized) ||
-      /\bremoved\b.*\bv0\b/.test(normalized))
+    normalized.includes("api freeze") ||
+    normalized.includes("frozen api") ||
+    normalized.includes("stable api") ||
+    normalized.includes("stable contract") ||
+    /\bstable\b.*\bapi\b/.test(normalized) ||
+    /\bapi\b.*\bstable\b/.test(normalized) ||
+    /\bstable\b.*\bcontract\b/.test(normalized) ||
+    /\bcontract\b.*\bstable\b/.test(normalized) ||
+    /\bv0\b.*\bremoved\b/.test(normalized) ||
+    /\bremoved\b.*\bv0\b/.test(normalized)
   );
 }
 
@@ -524,9 +619,24 @@ function selfTest() {
     "self-test: non-bundler freeze wording is not guarded",
   );
   assert.equal(
+    isBundlerFreezeClaim("- This API is stable for the bundler line.", true),
+    true,
+    "self-test: bundler-scoped crate docs guard API stability wording without repeating the crate name",
+  );
+  assert.equal(
     isPublicFreezeClaimSurface("/repo", "/repo/packages/postcss-plugin/README.md"),
     true,
     "self-test: package READMEs are public freeze-claim surfaces",
+  );
+  assert.equal(
+    isPublicFreezeClaimSurface("/repo", "/repo/rust/crates/omena-bundler/README.md"),
+    true,
+    "self-test: bundler crate README is a public freeze-claim surface",
+  );
+  assert.equal(
+    isPublicCargoManifestSurface("/repo", "/repo/rust/crates/omena-bundler/Cargo.toml"),
+    true,
+    "self-test: bundler Cargo metadata is a public freeze-claim surface",
   );
   assert.equal(
     isPublicFreezeClaimSurface("/repo", "/repo/packages/postcss-plugin/index.d.ts"),
@@ -597,6 +707,13 @@ function selfTest() {
     readCargoPackageName('[package]\nname = "omena-bundler"\nversion = "0.0.0"\n'),
     "omena-bundler",
     "self-test: Cargo package name is read from the package section",
+  );
+  assert.deepEqual(
+    cargoManifestFreezeClaimFields(
+      '[package]\nname = "omena-bundler"\ndescription = "Stable API for bundle planning"\n',
+    ),
+    ["description"],
+    "self-test: bundler Cargo descriptions are guarded against premature freeze claims",
   );
   assert.throws(
     () =>
@@ -784,6 +901,43 @@ function selfTest() {
     /validated adopter repository/,
     "self-test: unrelated release-cadence issues cannot satisfy the cadence gate",
   );
+  const standaloneOverrideEvidence = {
+    schemaVersion: "0",
+    externalNonMaintainerAdopters: [],
+    moatDetachedAdopters: [],
+    releaseCadenceConflicts: [],
+    maintainerOverride: {
+      acceptedBy: "repo-owner",
+      date: "2026-06-14",
+      reason: "Expose the 0.x bundler crate without claiming API stability.",
+      scope: "standalone-0x",
+    },
+  };
+  validateMaintainerOverride(standaloneOverrideEvidence.maintainerOverride);
+  assert.deepEqual(
+    filterProhibitedByMaintainerOverride(
+      [
+        "rust/crates/omena-bundler/Cargo.toml declares package name omena-bundler",
+        "CHANGELOG.md:1 claims bundler API freeze",
+      ],
+      standaloneOverrideEvidence,
+    ),
+    ["CHANGELOG.md:1 claims bundler API freeze"],
+    "self-test: standalone-0x override permits only the crate package, not freeze claims",
+  );
+  assert.deepEqual(
+    filterProhibitedByMaintainerOverride(
+      ["packages/bundler/package.json declares @omena/bundler"],
+      standaloneOverrideEvidence,
+    ),
+    ["packages/bundler/package.json declares @omena/bundler"],
+    "self-test: standalone-0x override does not permit an npm bundler package",
+  );
+  assert.throws(
+    () => validateMaintainerOverride({ acceptedBy: "repo-owner", date: "2026-06-14", reason: "x" }),
+    /scope/,
+    "self-test: maintainer override scope is required",
+  );
 }
 
 function findRepoFiles(rootDir, fileName) {
@@ -837,6 +991,10 @@ function shouldSkipScanDir(name) {
 }
 
 function readCargoPackageName(source) {
+  return readCargoStringField(source, "name");
+}
+
+function readCargoStringField(source, fieldName) {
   let inPackage = false;
   for (const line of source.split(/\r?\n/u)) {
     const trimmed = line.trim();
@@ -849,7 +1007,7 @@ function readCargoPackageName(source) {
       continue;
     }
     if (!inPackage) continue;
-    const match = /^name\s*=\s*"([^"]+)"$/u.exec(trimmed);
+    const match = new RegExp(`^${escapeRegExp(fieldName)}\\s*=\\s*"([^"]+)"$`, "u").exec(trimmed);
     if (match) return match[1];
   }
   return null;

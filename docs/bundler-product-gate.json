@@ -1,0 +1,12 @@
+{
+  "schemaVersion": "0",
+  "maintainerOverride": {
+    "acceptedBy": "yongsk0066",
+    "date": "2026-06-14",
+    "reason": "Expose omena-bundler as a standalone 0.x Rust crate while retaining the V0 surface and pre-1.0 change policy.",
+    "scope": "standalone-0x"
+  },
+  "externalNonMaintainerAdopters": [],
+  "moatDetachedAdopters": [],
+  "releaseCadenceConflicts": []
+}
