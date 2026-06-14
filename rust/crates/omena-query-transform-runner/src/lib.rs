@@ -7,7 +7,7 @@
 
 use serde::Serialize;
 
-pub use omena_transform_bundle::{
+pub use omena_bundler::{
     TransformBundleAssetUrlRewriteSummaryV0, TransformBundleEdgeKind,
     TransformBundleSourceSummaryV0, rewrite_omena_transform_bundle_asset_urls_in_source,
     summarize_omena_transform_bundle_from_source,
@@ -52,7 +52,7 @@ pub use omena_transform_target::{
 };
 
 pub const OMENA_QUERY_TRANSFORM_RUNNER_COLLAPSED_CRATES_V0: [&str; 6] = [
-    "omena-transform-bundle",
+    "omena-bundler",
     "omena-transform-cst",
     "omena-transform-egg",
     "omena-transform-passes",

@@ -4,6 +4,7 @@ members = [
   "crates/engine-style-parser",
   "crates/omena-abstract-value",
   "crates/omena-benchmarks",
+  "crates/omena-bundler",
   "crates/omena-bridge",
   "crates/omena-cascade",
   "crates/omena-categorical",

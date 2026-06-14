@@ -10,6 +10,7 @@
 pub use engine_input_producers;
 pub use omena_abstract_value;
 pub use omena_bridge;
+pub use omena_bundler;
 pub use omena_cascade;
 pub use omena_categorical;
 pub use omena_checker;

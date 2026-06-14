@@ -9,7 +9,7 @@ const RUNNER_MANIFEST_PATH = "rust/crates/omena-query-transform-runner/Cargo.tom
 const WORKSPACE_MANIFEST_PATH = "rust/Cargo.toml";
 const QUERY_SRC_PATH = "rust/crates/omena-query/src";
 const TRANSFORM_CRATES = [
-  "omena-transform-bundle",
+  "omena-bundler",
   "omena-transform-cst",
   "omena-transform-egg",
   "omena-transform-passes",

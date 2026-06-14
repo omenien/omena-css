@@ -47,6 +47,7 @@ const R2_FAMILY = new Set([
   "omena-query-transform-runner",
   "omena-checker",
   "omena-transform-passes",
+  "omena-bundler",
   "omena-transform-bundle",
   "omena-transform-target",
   "omena-transform-print",

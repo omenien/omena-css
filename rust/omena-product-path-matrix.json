@@ -307,15 +307,26 @@
       "gates": ["rust/omena-testkit/boundary"]
     },
     {
-      "crate": "omena-transform-bundle",
+      "crate": "omena-bundler",
       "role": "R2",
       "surface": "product-runtime",
       "entrypoints": [
-        "bundle/source-map transform runtime consumed through query transform runner"
+        "standalone 0.x bundle/source-map planning surface consumed through query transform runner and compatibility crate"
       ],
       "evidence": [
+        "rust/crates/omena-bundler/src/lib.rs",
+        "rust/crates/omena-query-transform-runner/Cargo.toml",
+        "rust/crates/omena-transform-bundle/src/lib.rs"
+      ]
+    },
+    {
+      "crate": "omena-transform-bundle",
+      "role": "R2",
+      "surface": "support",
+      "entrypoints": ["historical compatibility re-export for the omena-bundler V0 surface"],
+      "evidence": [
         "rust/crates/omena-transform-bundle/src/lib.rs",
-        "rust/crates/omena-query-transform-runner/Cargo.toml"
+        "rust/crates/omena-transform-bundle/Cargo.toml"
       ]
     },
     {

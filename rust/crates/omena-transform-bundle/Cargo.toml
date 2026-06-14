@@ -5,7 +5,7 @@ edition.workspace = true
 rust-version.workspace = true
 license.workspace = true
 publish.workspace = true
-description = "Source-fact backed bundle planning for Omena CSS transforms"
+description = "Compatibility re-export for the Omena bundler V0 planning surface"
 repository = "https://github.com/omenien/omena-css"
 readme = "README.md"
 
@@ -16,7 +16,4 @@ role = "R2"
 workspace = true
 
 [dependencies]
-omena-parser = { path = "../omena-parser", version = "=0.2.1" }
-omena-transform-cst = { path = "../omena-transform-cst", version = "=0.2.1" }
-omena-transform-passes = { path = "../omena-transform-passes", version = "=0.2.1" }
-serde.workspace = true
+omena-bundler = { path = "../omena-bundler", version = "=0.2.1" }

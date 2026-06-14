@@ -186,6 +186,7 @@
     "check:rust-omena-cascade-frustration-measure": "cargo test --manifest-path rust/Cargo.toml -p omena-cascade frustration_measure_contract_is_advisory -- --nocapture",
     "check:rust-omena-cascade-stability-score": "cargo test --manifest-path rust/Cargo.toml -p omena-cascade stability_score_contract_keeps_deterministic_component -- --nocapture",
     "check:rust-omena-cascade-ultrametricity-test": "cargo test --manifest-path rust/Cargo.toml -p omena-cascade spin_glass_ultrametric_corpus_enforces_five_tier_strong_triangle -- --nocapture",
+    "check:rust-omena-bundler-boundary": "cargo test --manifest-path rust/Cargo.toml -p omena-bundler",
     "check:rust-omena-transform-bundle-boundary": "cargo test --manifest-path rust/Cargo.toml -p omena-transform-bundle",
     "check:rust-omena-transform-cst-boundary": "cargo test --manifest-path rust/Cargo.toml -p omena-transform-cst",
     "check:rust-omena-transform-egg-boundary": "cargo test --manifest-path rust/Cargo.toml -p omena-transform-egg",

@@ -18,6 +18,7 @@ workspace = true
 [dependencies]
 omena-engine-input-producers = { path = "../omena-engine-input-producers", version = "=0.2.1" }
 omena-abstract-value = { path = "../omena-abstract-value", version = "=0.2.1" }
+omena-bundler = { path = "../omena-bundler", version = "=0.2.1" }
 omena-bridge = { path = "../omena-bridge", version = "=0.2.1" }
 omena-cascade = { path = "../omena-cascade", version = "=0.2.1" }
 omena-categorical = { path = "../omena-categorical", version = "=0.2.1" }

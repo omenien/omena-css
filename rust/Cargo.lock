@@ -2099,6 +2099,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "omena-bundler"
+version = "0.2.1"
+dependencies = [
+ "omena-parser",
+ "omena-transform-cst",
+ "omena-transform-passes",
+ "serde",
+]
+
+[[package]]
 name = "omena-cascade"
 version = "0.2.1"
 dependencies = [
@@ -2289,7 +2299,7 @@ dependencies = [
 name = "omena-query-transform-runner"
 version = "0.2.1"
 dependencies = [
- "omena-transform-bundle",
+ "omena-bundler",
  "omena-transform-cst",
  "omena-transform-egg",
  "omena-transform-passes",
@@ -2406,10 +2416,7 @@ dependencies = [
 name = "omena-transform-bundle"
 version = "0.2.1"
 dependencies = [
- "omena-parser",
- "omena-transform-cst",
- "omena-transform-passes",
- "serde",
+ "omena-bundler",
 ]
 
 [[package]]
@@ -2480,6 +2487,7 @@ version = "0.2.1"
 dependencies = [
  "omena-abstract-value",
  "omena-bridge",
+ "omena-bundler",
  "omena-cascade",
  "omena-categorical",
  "omena-checker",

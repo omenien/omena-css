@@ -13,6 +13,7 @@ const CRATES = [
   "omena-cascade",
   "omena-diff-test",
   "omena-testkit",
+  "omena-bundler",
   "omena-transform-cst",
   "omena-transform-passes",
   "omena-transform-bundle",

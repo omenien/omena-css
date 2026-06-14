@@ -9,11 +9,11 @@ planning notes.
 
 The project ships on THREE independent version axes — they do **not** move together:
 
-| Axis                   | Line    | Source of truth                                   | Published to                                                                             | Tag              |
-| ---------------------- | ------- | ------------------------------------------------- | ---------------------------------------------------------------------------------------- | ---------------- |
-| **Crate train**        | `0.2.x` | `rust/Cargo.toml [workspace.package].version`     | crates.io (41 crates, lockstep) + `@omena/wasm`/`@omena/napi` on npm (stamped from this) | `release-v0.2.0` |
-| **VS Code extension**  | `5.x`   | root `package.json` `version`                     | VS Code Marketplace + Open VSX (`omena.omena-css`)                                       | `vscode-v5.2.0`  |
-| **Private TS tooling** | `0.0.x` | per-package `package.json` (changesets-`ignore`d) | not published                                                                            | —                |
+| Axis                   | Line    | Source of truth                                   | Published to                                                                  | Tag              |
+| ---------------------- | ------- | ------------------------------------------------- | ----------------------------------------------------------------------------- | ---------------- |
+| **Crate train**        | `0.2.x` | `rust/Cargo.toml [workspace.package].version`     | crates.io (lockstep) + `@omena/wasm`/`@omena/napi` on npm (stamped from this) | `release-v0.2.0` |
+| **VS Code extension**  | `5.x`   | root `package.json` `version`                     | VS Code Marketplace + Open VSX (`omena.omena-css`)                            | `vscode-v5.2.0`  |
+| **Private TS tooling** | `0.0.x` | per-package `package.json` (changesets-`ignore`d) | not published                                                                 | —                |
 
 Current published baseline: crate train `0.2.0`, npm `@omena/wasm`/`@omena/napi` `0.2.0`,
 extension `omena.omena-css 5.2.0`. The extension procedure is the bulk of this doc
@@ -33,8 +33,8 @@ by the `rust/inter-crate-pin` gate.
 2. Merge to `master`; full CI green.
 3. Push tag `release-v0.3.0` → `_publish-crate-train.yml` fires (default `mode=oidc`): closure gate →
    `cargo publish --workspace --locked` via crates.io **Trusted Publishing (OIDC, no stored token)** →
-   poll the sparse index → install-smoke → cut the GitHub release. All 41 crates are TP-registered
-   (`scripts/genesis-register-trusted-publishers.mjs`), so the bootstrap token is not needed.
+   poll the sparse index → install-smoke → cut the GitHub release. Existing crate names are TP-registered
+   (`scripts/genesis-register-trusted-publishers.mjs`), so the bootstrap token is not needed after first publish.
 4. `release-cli.yml` (same tag) builds the `omena-cli` 5-OS binaries onto the release.
 
 **Hard facts baked into the machinery (relevant if a fresh genesis / large new-crate batch recurs):**
@@ -46,7 +46,8 @@ by the `rust/inter-crate-pin` gate.
   with "no packages ready… awaiting confirmation" on index-propagation lag — a fresh re-run picks up.
   Existing-name version bumps are not new-crate-rate-limited.
 - The first-ever publish of a name needs a manual `CRATES_IO_TOKEN` (RFC-3691: TP cannot first-publish);
-  `mode=bootstrap` provides it. Steady state is `mode=oidc`.
+  `mode=bootstrap` provides it. New 0.x crate names such as `omena-bundler` must dry-run first, then publish through
+  bootstrap/resume once, and only then be registered for steady-state `mode=oidc`.
 - crates.io publish is **non-atomic and irreversible** (yank ≠ delete). The `release` environment has no
   required reviewer, so a `dry_run=false` dispatch uploads immediately. Always `dry_run=true` first.
 
