@@ -331,6 +331,46 @@ fn planner_respects_comment_strip_before_empty_rule_removal_edge() {
 }
 
 #[test]
+fn planner_respects_minify_structural_ordering_edges() {
+    let plan = plan_transform_passes(&[
+        TransformPassKind::PrintCss,
+        TransformPassKind::WhitespaceStrip,
+        TransformPassKind::EmptyRuleRemoval,
+        TransformPassKind::SelectorMerging,
+        TransformPassKind::RuleMerging,
+        TransformPassKind::RuleDeduplication,
+        TransformPassKind::ShorthandCombining,
+        TransformPassKind::ColorCompression,
+        TransformPassKind::NumberCompression,
+        TransformPassKind::CommentStrip,
+        TransformPassKind::CalcReduction,
+    ]);
+
+    assert_eq!(plan.violated_dag_edge_count, 0);
+    assert_before(
+        &plan.ordered_pass_ids,
+        "shorthand-combining",
+        "rule-merging",
+    );
+    assert_before(
+        &plan.ordered_pass_ids,
+        "shorthand-combining",
+        "selector-merging",
+    );
+    assert_before(
+        &plan.ordered_pass_ids,
+        "comment-strip",
+        "empty-rule-removal",
+    );
+    assert_before(
+        &plan.ordered_pass_ids,
+        "selector-merging",
+        "whitespace-strip",
+    );
+    assert_eq!(plan.ordered_pass_ids.last(), Some(&"print-css"));
+}
+
+#[test]
 fn planner_respects_semantic_tree_shaking_before_empty_rule_removal_edges() {
     let plan = plan_transform_passes(&[
         TransformPassKind::EmptyRuleRemoval,
@@ -352,5 +392,20 @@ fn planner_respects_semantic_tree_shaking_before_empty_rule_removal_edges() {
             "empty-rule-removal",
             "print-css"
         ]
+    );
+}
+
+fn assert_before(pass_ids: &[&'static str], before: &'static str, after: &'static str) {
+    let before_index = pass_ids
+        .iter()
+        .position(|pass_id| *pass_id == before)
+        .unwrap_or_else(|| panic!("missing pass id {before}"));
+    let after_index = pass_ids
+        .iter()
+        .position(|pass_id| *pass_id == after)
+        .unwrap_or_else(|| panic!("missing pass id {after}"));
+    assert!(
+        before_index < after_index,
+        "expected {before} before {after}, got {pass_ids:?}"
     );
 }

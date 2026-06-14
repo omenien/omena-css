@@ -10,24 +10,11 @@ import { transform as lightningTransform } from "lightningcss";
 
 const require = createRequire(import.meta.url);
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
+const { MINIFY_PASS_IDS } = require(path.join(repoRoot, "packages/css-build-adapter/index.cjs"));
 const dryRun = process.argv.includes("--dry-run");
 const iterations = parsePositiveInt(readArg("--iterations") ?? "3", "--iterations");
 const samples = runBundlerSurfaceSnapshot();
 const tempRoot = mkdtempSync(path.join(tmpdir(), "omena-bundler-productization-"));
-
-const MINIFY_PASS_IDS = [
-  "comment-strip",
-  "whitespace-strip",
-  "number-compression",
-  "color-compression",
-  "shorthand-combining",
-  "rule-deduplication",
-  "rule-merging",
-  "selector-merging",
-  "empty-rule-removal",
-  "calc-reduction",
-  "print-css",
-];
 
 try {
   const preparedSamples = samples.samples.map((sample) => {

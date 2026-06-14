@@ -1086,6 +1086,11 @@ pub fn default_transform_dag_edges() -> Vec<TransformDagEdgeV0> {
             reason: "selector merging must see canonical shorthand declaration blocks",
         },
         TransformDagEdgeV0 {
+            from: "shorthand-combining",
+            to: "rule-merging",
+            reason: "rule merging must see shorthand-combined declaration blocks before comparing adjacent rules",
+        },
+        TransformDagEdgeV0 {
             from: "calc-reduction",
             to: "selector-merging",
             reason: "selector merging must see reduced calc() declaration values",

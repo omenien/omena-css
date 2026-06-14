@@ -21,6 +21,7 @@ type BuildSource = {
 };
 
 type AdapterExports = {
+  readonly MINIFY_PASS_IDS: readonly string[];
   readonly createOmenaBuildState: (options?: Record<string, unknown>) => OmenaBuildState;
   readonly rebuildAndCache: (
     filePath: string,
@@ -33,10 +34,23 @@ type AdapterExports = {
 };
 
 const require = createRequire(import.meta.url);
-const { createOmenaBuildState, rebuildAndCache } =
+const { MINIFY_PASS_IDS, createOmenaBuildState, rebuildAndCache } =
   require("../../../packages/css-build-adapter/index.cjs") as AdapterExports;
 
 const tempRoots: string[] = [];
+const EXPECTED_MINIFY_PASS_IDS = [
+  "comment-strip",
+  "whitespace-strip",
+  "number-compression",
+  "color-compression",
+  "shorthand-combining",
+  "rule-deduplication",
+  "rule-merging",
+  "selector-merging",
+  "empty-rule-removal",
+  "calc-reduction",
+  "print-css",
+] as const;
 
 afterEach(() => {
   for (const root of tempRoots.splice(0)) {
@@ -45,6 +59,35 @@ afterEach(() => {
 });
 
 describe("@omena/css-build-adapter", () => {
+  it("keeps minify pass presets aligned across JS, CLI, and NAPI consumers", () => {
+    expect(MINIFY_PASS_IDS).toEqual(EXPECTED_MINIFY_PASS_IDS);
+
+    const benchmarkScript = fs.readFileSync(
+      path.join(process.cwd(), "scripts/benchmark-omena-vite-productization.mjs"),
+      "utf8",
+    );
+    expect(benchmarkScript).toContain("packages/css-build-adapter/index.cjs");
+    expect(benchmarkScript).not.toContain("const MINIFY_PASS_IDS = [");
+
+    const napiSource = fs.readFileSync(
+      path.join(process.cwd(), "rust/crates/omena-napi/src/lib.rs"),
+      "utf8",
+    );
+    const cliSource = fs.readFileSync(
+      path.join(process.cwd(), "rust/crates/omena-cli/src/build.rs"),
+      "utf8",
+    );
+    expect(
+      extractRustStringArray(napiSource, /fn minify_pass_ids\(\)[\s\S]*?\[([\s\S]*?)\]/),
+    ).toEqual(EXPECTED_MINIFY_PASS_IDS);
+    expect(
+      extractRustStringArray(
+        cliSource,
+        /fn append_minify_build_passes[\s\S]*?for pass_id in \[([\s\S]*?)\]/,
+      ),
+    ).toEqual(EXPECTED_MINIFY_PASS_IDS);
+  });
+
   it("keeps the latest Vite watcher generation in cache when earlier builds resolve last", async () => {
     const root = fs.mkdtempSync(path.join(os.tmpdir(), "omena-build-adapter-"));
     tempRoots.push(root);
@@ -87,6 +130,12 @@ describe("@omena/css-build-adapter", () => {
     expect(cacheEntry?.output.code).toBe(".button{color:blue}");
   });
 });
+
+function extractRustStringArray(source: string, pattern: RegExp) {
+  const match = pattern.exec(source);
+  if (!match) throw new Error(`unable to find Rust string array with ${pattern}`);
+  return [...match[1]!.matchAll(/"([^"]+)"/g)].map((entry) => entry[1]);
+}
 
 function deferred<T>() {
   let resolve!: (value: T | PromiseLike<T>) => void;
