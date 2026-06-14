@@ -11,6 +11,7 @@ const VALID_ADOPTER_SURFACES = new Set([
   "vite-plugin",
   "omena-cli-build",
 ]);
+const PRODUCT_GITHUB_REPO = "omenien/omena-css";
 const MAINTAINER_GITHUB_OWNERS = new Set(["omenien", "yongsk0066"]);
 const REPO_SCAN_IGNORED_DIRS = new Set([
   ".cache",
@@ -120,6 +121,11 @@ function readGateEvidence(filePath) {
   );
   validateMoatDetachedAdopters(parsed.moatDetachedAdopters, "moatDetachedAdopters");
   validateReleaseCadenceConflicts(parsed.releaseCadenceConflicts, "releaseCadenceConflicts");
+  validateReleaseCadenceConflictScope(
+    parsed.releaseCadenceConflicts,
+    collectReleaseCadenceConflictRepos(parsed),
+    "releaseCadenceConflicts",
+  );
   return parsed;
 }
 
@@ -336,6 +342,28 @@ function validateReleaseCadenceConflicts(entries, fieldName) {
   }
 }
 
+function collectReleaseCadenceConflictRepos(evidence) {
+  const repos = new Set([PRODUCT_GITHUB_REPO]);
+  for (const entries of [evidence.externalNonMaintainerAdopters, evidence.moatDetachedAdopters]) {
+    for (const entry of entries) {
+      repos.add(requireRepo(entry.repo, "releaseCadenceConflictScope.repo"));
+    }
+  }
+  return repos;
+}
+
+function validateReleaseCadenceConflictScope(entries, allowedRepos, fieldName) {
+  for (const [index, entry] of entries.entries()) {
+    const label = `${fieldName}[${index}].issueUrl`;
+    const repo = releaseCadenceIssueRepo(entry.issueUrl, label);
+    assert.equal(
+      allowedRepos.has(repo),
+      true,
+      `${label} must belong to ${PRODUCT_GITHUB_REPO} or a validated adopter repository`,
+    );
+  }
+}
+
 function assertRecord(value, label) {
   assert.equal(typeof value, "object", `${label} must be an object`);
   assert.notEqual(value, null, `${label} must not be null`);
@@ -415,6 +443,16 @@ function requireReleaseCadenceIssueUrl(value, label) {
     `${label} must point at a GitHub issue`,
   );
   return url;
+}
+
+function releaseCadenceIssueRepo(value, label) {
+  const url = requireReleaseCadenceIssueUrl(value, label);
+  const parsed = parseUrl(url, label);
+  const match = /^\/([a-z0-9_.-]+)\/([a-z0-9_.-]+)\/issues\/[0-9]+\/?$/u.exec(
+    parsed.pathname.toLowerCase(),
+  );
+  assert.ok(match, `${label} must point at a GitHub issue`);
+  return `${match[1]}/${match[2]}`;
 }
 
 function parseUrl(value, label) {
@@ -697,6 +735,26 @@ function selfTest() {
       ),
     /conflictKind/,
     "self-test: non-release-cadence issues cannot satisfy the cadence gate",
+  );
+  validateReleaseCadenceConflictScope(
+    [releaseConflictFixture("https://github.com/omenien/omena-css/issues/1")],
+    new Set([PRODUCT_GITHUB_REPO]),
+    "releaseCadenceConflicts",
+  );
+  validateReleaseCadenceConflictScope(
+    [releaseConflictFixture("https://github.com/one/project/issues/1")],
+    new Set([PRODUCT_GITHUB_REPO, "one/project"]),
+    "releaseCadenceConflicts",
+  );
+  assert.throws(
+    () =>
+      validateReleaseCadenceConflictScope(
+        [releaseConflictFixture("https://github.com/random/project/issues/1")],
+        new Set([PRODUCT_GITHUB_REPO, "one/project"]),
+        "releaseCadenceConflicts",
+      ),
+    /validated adopter repository/,
+    "self-test: unrelated release-cadence issues cannot satisfy the cadence gate",
   );
 }
 
