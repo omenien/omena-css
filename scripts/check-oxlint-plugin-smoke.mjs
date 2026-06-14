@@ -9,6 +9,7 @@ const sourcePath = path.join(workspaceRoot, "src/App.jsx");
 const pluginPath = path.join(repoRoot, "packages/oxlint-plugin/index.cjs");
 const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), "omena-oxlint-plugin-"));
 const configPath = path.join(tempRoot, ".oxlintrc.json");
+const omenaCliBin = ensureOmenaCliBin();
 
 try {
   fs.writeFileSync(
@@ -30,6 +31,7 @@ try {
             "error",
             {
               workspaceRoot,
+              omenaBin: omenaCliBin,
             },
           ],
         },
@@ -45,7 +47,10 @@ try {
     stdout = execFileSync("pnpm", ["exec", "oxlint", "-c", configPath, sourcePath, "-f", "json"], {
       cwd: repoRoot,
       encoding: "utf8",
-      env: process.env,
+      env: {
+        ...process.env,
+        OMENA_CLI_BIN: omenaCliBin,
+      },
     });
   } catch (error) {
     stdout = error.stdout?.toString() ?? "";
@@ -66,4 +71,20 @@ try {
   }
 } finally {
   fs.rmSync(tempRoot, { recursive: true, force: true });
+}
+
+function ensureOmenaCliBin() {
+  const executableName = process.platform === "win32" ? "omena-cli.exe" : "omena-cli";
+  const binPath = path.join(repoRoot, "rust/target/debug", executableName);
+  if (!fs.existsSync(binPath)) {
+    execFileSync(
+      "cargo",
+      ["build", "--manifest-path", path.join(repoRoot, "rust/Cargo.toml"), "-p", "omena-cli"],
+      {
+        cwd: repoRoot,
+        stdio: "inherit",
+      },
+    );
+  }
+  return binPath;
 }
