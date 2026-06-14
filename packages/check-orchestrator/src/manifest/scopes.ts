@@ -195,6 +195,7 @@ export const SCOPE_DEFINITIONS: readonly ScopeDefinition[] = [
       scriptName === "check:cme-checker-testkit-archetypes" ||
       scriptName === "check:orchestrator-doctor" ||
       scriptName === "check:orchestrator-inventory" ||
+      scriptName === "check:tool-pin-coherence" ||
       scriptName === "update:check-inventory",
     toGateId: (scriptName) => `tooling/${stripCheckPrefix(scriptName).replace(":", "/")}`,
   },

@@ -88,6 +88,18 @@ updates:
       # check-explain-expression-query-consumer.
       - dependency-name: "@typescript/native-preview"
     groups:
+      # Keep the JavaScript OXC toolchain exact-pinned in package manifests and
+      # update it as one PR so lock refreshes cannot reintroduce tool skew.
+      oxc-js-tools:
+        patterns:
+          - "oxlint"
+          - "oxfmt"
+          - "@oxc/*"
+          - "oxc-*"
+        update-types:
+          - major
+          - minor
+          - patch
       npm-minor-patch:
         update-types:
           - minor

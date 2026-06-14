@@ -929,6 +929,56 @@ describe("check orchestrator manifest", () => {
     );
   });
 
+  it("reports non-exact or skewed OXC tool pins", () => {
+    const root = mkdtempSync(path.join(os.tmpdir(), "omena-check-orchestrator-"));
+    mkdirSync(path.join(root, "packages/oxlint-plugin"), { recursive: true });
+    writeFileSync(
+      path.join(root, "package.json"),
+      JSON.stringify(
+        {
+          name: "omena-css",
+          scripts: { "omena-check": "node ./check.js" },
+          devDependencies: {
+            oxfmt: "^0.54.0",
+            oxlint: "^1.69.0",
+          },
+        },
+        null,
+        2,
+      ),
+    );
+    writeFileSync(
+      path.join(root, "packages/oxlint-plugin/package.json"),
+      JSON.stringify(
+        {
+          name: "@omena/oxlint-plugin",
+          peerDependencies: {
+            oxlint: "^1.60.0",
+          },
+        },
+        null,
+        2,
+      ),
+    );
+
+    const diagnostics = runDoctor(loadCheckManifest(root));
+    expect(diagnostics).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          severity: "error",
+          code: "tool-pin-not-exact",
+          message: 'package.json devDependencies.oxfmt must be exact-pinned, got "^0.54.0".',
+        }),
+        expect.objectContaining({
+          severity: "error",
+          code: "tool-pin-version-skew",
+          message:
+            "oxlint must use one exact version across package manifests: package.json=^1.69.0, packages/oxlint-plugin/package.json=^1.60.0.",
+        }),
+      ]),
+    );
+  });
+
   it("keeps selected-query consumer coverage on Rust graph host and provider surfaces", () => {
     const selectedQueryConsumers = resolveGateTarget(manifest, "rust/selected-query/consumers");
 
@@ -1076,7 +1126,7 @@ describe("check orchestrator manifest", () => {
         "name: Nightly",
         "on:",
         "  schedule:",
-        "    - cron: \"0 0 * * *\"",
+        '    - cron: "0 0 * * *"',
         "permissions:",
         "  contents: read",
         "jobs:",
@@ -1119,7 +1169,7 @@ describe("check orchestrator manifest", () => {
         "name: Nightly",
         "on:",
         "  schedule:",
-        "    - cron: \"0 0 * * *\"",
+        '    - cron: "0 0 * * *"',
         "permissions:",
         "  contents: read",
         "  issues: write",

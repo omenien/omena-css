@@ -12,6 +12,7 @@ import { renderCheckInventory } from "./inventory";
 import { buildCheckPlan, renderCheckPlan } from "./plan";
 import { classifyScript } from "./scopes";
 import { buildCheckSurfaceReport, findAliasChains, renderCheckSurfaceReport } from "./surface";
+import { findToolPinCoherenceDiagnostics } from "./tool-pins";
 import {
   findCiTierReachabilityDiagnostics,
   findScheduledWorkflowEscalationDiagnostics,
@@ -93,6 +94,7 @@ export function loadCheckManifest(
   diagnostics.push(...findAliasChainDiagnostics(gates));
   diagnostics.push(...findCheckOrchestratorTargetDiagnostics(gates));
   diagnostics.push(...findDocumentedPublicScriptDiagnostics(rootDir, gates));
+  diagnostics.push(...findToolPinCoherenceDiagnostics(rootDir));
   diagnostics.push(...findWorkflowBypassDiagnostics(rootDir, gates));
   diagnostics.push(...findScheduledWorkflowEscalationDiagnostics(rootDir));
   diagnostics.push(...findCiTierReachabilityDiagnostics(rootDir, gates));

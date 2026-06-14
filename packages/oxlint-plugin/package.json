@@ -7,6 +7,6 @@
     ".": "./index.cjs"
   },
   "peerDependencies": {
-    "oxlint": "^1.60.0"
+    "oxlint": "1.69.0"
   }
 }
