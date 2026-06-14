@@ -44,14 +44,18 @@ try {
 
   let stdout = "";
   try {
-    stdout = execFileSync("pnpm", ["exec", "oxlint", "-c", configPath, sourcePath, "-f", "json"], {
-      cwd: repoRoot,
-      encoding: "utf8",
-      env: {
-        ...process.env,
-        OMENA_CLI_BIN: omenaCliBin,
+    stdout = execFileSync(
+      "pnpm",
+      ["exec", "oxlint", "--threads=1", "-c", configPath, sourcePath, "-f", "json"],
+      {
+        cwd: repoRoot,
+        encoding: "utf8",
+        env: {
+          ...process.env,
+          OMENA_CLI_BIN: omenaCliBin,
+        },
       },
-    });
+    );
   } catch (error) {
     stdout = error.stdout?.toString() ?? "";
     if (!stdout) throw error;
