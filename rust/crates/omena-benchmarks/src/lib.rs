@@ -6,8 +6,8 @@ use omena_parser::StyleDialect;
 use serde::Serialize;
 
 pub use corpus::{
-    StyleCorpusSampleSnapshotV0, StyleCorpusSnapshotV0, StyleSample, style_corpus,
-    summarize_style_corpus_snapshot,
+    StyleCorpusSampleSnapshotV0, StyleCorpusSnapshotV0, StyleSample, bundler_productization_corpus,
+    style_corpus, summarize_style_corpus_snapshot,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -87,6 +87,50 @@ pub struct CriterionSurfaceSnapshotV0 {
     pub includes_abstract_value_lane: bool,
     pub m4_corpus_expansion_reflected: bool,
     pub symmetric_parser_product_boundary: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct BundlerProductizationBenchmarkSampleV0 {
+    pub name: &'static str,
+    pub path: &'static str,
+    pub dialect: &'static str,
+    pub byte_length: usize,
+    pub line_count: usize,
+    pub source: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct BundlerProductizationBenchmarkLaneV0 {
+    pub lane: &'static str,
+    pub runtime_boundary: &'static str,
+    pub runner: &'static str,
+    pub supports_scss: bool,
+    pub measures_process_startup: bool,
+    pub comparator: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct BundlerProductizationBenchmarkSurfaceSnapshotV0 {
+    pub schema_version: &'static str,
+    pub product: &'static str,
+    pub benchmark_family: &'static str,
+    pub status: &'static str,
+    pub corpus_sample_count: usize,
+    pub samples: Vec<BundlerProductizationBenchmarkSampleV0>,
+    pub lane_count: usize,
+    pub lanes: Vec<BundlerProductizationBenchmarkLaneV0>,
+    pub measured_operations: Vec<&'static str>,
+    pub includes_napi_in_process_lane: bool,
+    pub includes_cli_spawn_lane: bool,
+    pub includes_lightningcss_comparator_lane: bool,
+    pub includes_memory_rss_metric: bool,
+    pub includes_provenance_mode_split: bool,
+    pub speed_claim_ready: bool,
+    pub timing_policy: &'static str,
+    pub comparison_policy: &'static str,
 }
 
 pub fn parser_product_benchmark_boundaries() -> [ParserProductBenchmarkBoundaryV0; 2] {
@@ -276,6 +320,90 @@ pub fn summarize_criterion_surface_snapshot() -> CriterionSurfaceSnapshotV0 {
     }
 }
 
+pub fn summarize_bundler_productization_benchmark_surface()
+-> BundlerProductizationBenchmarkSurfaceSnapshotV0 {
+    let samples = bundler_productization_corpus()
+        .into_iter()
+        .map(|sample| BundlerProductizationBenchmarkSampleV0 {
+            name: sample.name,
+            path: sample.path,
+            dialect: benchmark_style_dialect_label(sample.dialect),
+            byte_length: sample.source.len(),
+            line_count: sample.source.lines().count(),
+            source: sample.source,
+        })
+        .collect::<Vec<_>>();
+
+    let lanes = vec![
+        BundlerProductizationBenchmarkLaneV0 {
+            lane: "omena-napi-in-process",
+            runtime_boundary: "node-process-native-binding",
+            runner: "scripts/benchmark-omena-vite-productization.mjs",
+            supports_scss: true,
+            measures_process_startup: false,
+            comparator: false,
+        },
+        BundlerProductizationBenchmarkLaneV0 {
+            lane: "omena-cli-spawn",
+            runtime_boundary: "node-child-process-cli",
+            runner: "scripts/benchmark-omena-vite-productization.mjs",
+            supports_scss: true,
+            measures_process_startup: true,
+            comparator: false,
+        },
+        BundlerProductizationBenchmarkLaneV0 {
+            lane: "lightningcss-node",
+            runtime_boundary: "node-library-comparator",
+            runner: "scripts/benchmark-omena-vite-productization.mjs",
+            supports_scss: false,
+            measures_process_startup: false,
+            comparator: true,
+        },
+    ];
+
+    let includes_napi_in_process_lane = lanes
+        .iter()
+        .any(|lane| lane.lane == "omena-napi-in-process");
+    let includes_cli_spawn_lane = lanes.iter().any(|lane| lane.lane == "omena-cli-spawn");
+    let includes_lightningcss_comparator_lane =
+        lanes.iter().any(|lane| lane.lane == "lightningcss-node");
+
+    BundlerProductizationBenchmarkSurfaceSnapshotV0 {
+        schema_version: "0",
+        product: "omena-benchmarks.bundler-productization-surface",
+        benchmark_family: "bundler-productization",
+        status: "measurementSurfaceReadyNoSpeedClaim",
+        corpus_sample_count: samples.len(),
+        samples,
+        lane_count: lanes.len(),
+        lanes,
+        measured_operations: vec![
+            "per-file-parse-transform-minify",
+            "multi-file-wall-clock",
+            "napi-vs-cli-spawn-process-model-delta",
+            "memory-rss",
+            "provenance-on-off",
+        ],
+        includes_napi_in_process_lane,
+        includes_cli_spawn_lane,
+        includes_lightningcss_comparator_lane,
+        includes_memory_rss_metric: true,
+        includes_provenance_mode_split: true,
+        speed_claim_ready: false,
+        timing_policy: "no-speed-claim-without-recorded-full-run-artifact",
+        comparison_policy: "compare-bundler-product-paths-by-boundary-and-publish-raw-measurements-only",
+    }
+}
+
+fn benchmark_style_dialect_label(dialect: StyleDialect) -> &'static str {
+    match dialect {
+        StyleDialect::Css => "css",
+        StyleDialect::Scss => "scss",
+        StyleDialect::Sass => "sass",
+        StyleDialect::Less => "less",
+    }
+}
+
 pub fn parse_legacy_style_sample(
     path: &str,
     source: &str,
@@ -360,8 +488,9 @@ pub fn validate_legacy_style_sample(path: &str, source: &str) -> Result<(), Stri
 #[cfg(test)]
 mod tests {
     use super::{
-        measure_legacy_parser_product_sample, measure_omena_parser_product_sample,
-        parser_product_benchmark_boundaries, style_corpus, summarize_criterion_surface_snapshot,
+        bundler_productization_corpus, measure_legacy_parser_product_sample,
+        measure_omena_parser_product_sample, parser_product_benchmark_boundaries, style_corpus,
+        summarize_bundler_productization_benchmark_surface, summarize_criterion_surface_snapshot,
         summarize_parser_product_benchmark_readiness, summarize_style_corpus_snapshot,
         validate_legacy_style_sample, validate_omena_style_sample,
         validate_parser_product_benchmark_boundary_symmetry,
@@ -602,6 +731,72 @@ mod tests {
                 .pointer("/timingPolicy")
                 .and_then(|value| value.as_str()),
             Some("no-local-timing-claim-without-full-criterion-run")
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn bundler_productization_surface_declares_corpus_lanes_and_no_speed_claim()
+    -> Result<(), String> {
+        let snapshot = summarize_bundler_productization_benchmark_surface();
+
+        assert_eq!(snapshot.schema_version, "0");
+        assert_eq!(
+            snapshot.product,
+            "omena-benchmarks.bundler-productization-surface"
+        );
+        assert_eq!(snapshot.benchmark_family, "bundler-productization");
+        assert_eq!(snapshot.status, "measurementSurfaceReadyNoSpeedClaim");
+        assert_eq!(
+            snapshot.corpus_sample_count,
+            bundler_productization_corpus().len()
+        );
+        assert_eq!(snapshot.corpus_sample_count, 3);
+        assert_eq!(snapshot.lane_count, 3);
+        assert!(snapshot.includes_napi_in_process_lane);
+        assert!(snapshot.includes_cli_spawn_lane);
+        assert!(snapshot.includes_lightningcss_comparator_lane);
+        assert!(snapshot.includes_memory_rss_metric);
+        assert!(snapshot.includes_provenance_mode_split);
+        assert!(!snapshot.speed_claim_ready);
+        assert!(
+            snapshot
+                .samples
+                .iter()
+                .any(|sample| sample.name == "bootstrap-utility-subset" && sample.dialect == "css")
+        );
+        assert!(
+            snapshot
+                .samples
+                .iter()
+                .any(|sample| sample.name == "nextjs-app-router-dashboard-scss"
+                    && sample.dialect == "scss")
+        );
+        assert!(snapshot.samples.iter().any(|sample| sample.name
+            == "css-modules-heavy-product-grid"
+            && sample.dialect == "css"));
+        assert!(
+            snapshot
+                .measured_operations
+                .contains(&"napi-vs-cli-spawn-process-model-delta")
+        );
+        assert_eq!(
+            snapshot.timing_policy,
+            "no-speed-claim-without-recorded-full-run-artifact"
+        );
+
+        let serialized = serde_json::to_value(&snapshot).map_err(|error| error.to_string())?;
+        assert_eq!(
+            serialized
+                .pointer("/speedClaimReady")
+                .and_then(|value| value.as_bool()),
+            Some(false)
+        );
+        assert_eq!(
+            serialized
+                .pointer("/lanes/0/lane")
+                .and_then(|value| value.as_str()),
+            Some("omena-napi-in-process")
         );
         Ok(())
     }

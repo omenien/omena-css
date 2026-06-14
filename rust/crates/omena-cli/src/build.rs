@@ -40,6 +40,7 @@ pub(crate) struct BuildFileOptions {
     pub(crate) path: PathBuf,
     pub(crate) output: Option<PathBuf>,
     pub(crate) pass_ids: Vec<String>,
+    pub(crate) minify: bool,
     pub(crate) target_query: Option<String>,
     pub(crate) context_json: Option<PathBuf>,
     pub(crate) engine_input_json: Option<PathBuf>,
@@ -61,6 +62,7 @@ pub(crate) fn build_file(options: BuildFileOptions) -> Result<(), String> {
         path,
         output,
         pass_ids,
+        minify,
         target_query,
         context_json,
         engine_input_json,
@@ -79,6 +81,12 @@ pub(crate) fn build_file(options: BuildFileOptions) -> Result<(), String> {
 
     if target_query.is_some() && !pass_ids.is_empty() {
         return Err("cannot combine --target-query with explicit --pass values".to_string());
+    }
+    if target_query.is_some() && minify {
+        return Err(
+            "cannot combine --target-query with --minify yet; use explicit --pass values for now"
+                .to_string(),
+        );
     }
     if target_query.is_some() && tree_shake {
         return Err(
@@ -128,6 +136,9 @@ pub(crate) fn build_file(options: BuildFileOptions) -> Result<(), String> {
     }
     if bundle {
         append_bundle_build_passes(&mut pass_ids, &style_path, &source);
+    }
+    if minify {
+        append_minify_build_passes(&mut pass_ids);
     }
     let used_engine_input = engine_input_json.is_some();
     if let Some(engine_input_path) = engine_input_json.as_deref() {
@@ -857,6 +868,26 @@ fn append_bundle_build_passes(pass_ids: &mut Vec<String>, style_path: &str, sour
         infer_cli_style_dialect(style_path),
     );
     for pass_id in bundle.planned_pass_ids {
+        if !pass_ids.iter().any(|existing| existing == pass_id) {
+            pass_ids.push(pass_id.to_string());
+        }
+    }
+}
+
+fn append_minify_build_passes(pass_ids: &mut Vec<String>) {
+    for pass_id in [
+        "comment-strip",
+        "whitespace-strip",
+        "number-compression",
+        "color-compression",
+        "shorthand-combining",
+        "rule-deduplication",
+        "rule-merging",
+        "selector-merging",
+        "empty-rule-removal",
+        "calc-reduction",
+        "print-css",
+    ] {
         if !pass_ids.iter().any(|existing| existing == pass_id) {
             pass_ids.push(pass_id.to_string());
         }

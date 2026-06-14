@@ -26,6 +26,9 @@ targetOptions, context)` combines target planning with explicit evaluator
 packageManifests)` derives import/composes context from an in-memory workspace
   source array, merges explicit evaluator/provenance context, and returns an
   execution summary plus output CSS.
+- `buildStyleSourcesMinifiedWithContext(targetPath, sources, context,
+packageManifests)` runs the built-in structural minify preset over the same
+  workspace source boundary.
 - `buildStyleSourcesForTargetQueryWithContext(targetPath, sources, targetQuery,
 targetOptions, context, packageManifests)` combines target planning with
   workspace-derived import/composes context.

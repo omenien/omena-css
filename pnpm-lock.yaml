@@ -117,6 +117,9 @@ importers:
         specifier: ^19.2.7
         version: 19.2.7(react@19.2.7)
     devDependencies:
+      '@omena/vite-plugin':
+        specifier: workspace:*
+        version: link:../packages/vite-plugin
       '@types/react':
         specifier: ^19.2.17
         version: 19.2.17
@@ -169,6 +172,13 @@ importers:
       vite:
         specifier: ^8.0.0
         version: 8.0.8(@types/node@25.9.2)(esbuild@0.28.0)(less@4.6.4)(sass@1.100.0)(tsx@4.22.4)
+    optionalDependencies:
+      '@omena/napi':
+        specifier: ^0.2.1
+        version: 0.2.1
+      '@omena/wasm':
+        specifier: ^0.2.1
+        version: 0.2.1
 
   packages/vitest-cme: {}
 
@@ -1315,6 +1325,45 @@ packages:
 
   '@octokit/types@16.0.0':
     resolution: {integrity: sha512-sKq+9r1Mm4efXW1FCk7hFSeJo4QKreL/tTbR0rz/qx/r1Oa2VV83LTA/H/MuCOX7uCIJmQVRKBcbmWoySjAnSg==}
+
+  '@omena/napi-darwin-arm64@0.2.1':
+    resolution: {integrity: sha512-kfNXrukVx4pLCr/x2Bx82COwENH2qbDkPQXfTZIIPC4wfASFVfwgT3sYz9Kt8tiF54Tu6RjwSAJl+YY7FEjddA==}
+    engines: {node: '>=22'}
+    cpu: [arm64]
+    os: [darwin]
+
+  '@omena/napi-darwin-x64@0.2.1':
+    resolution: {integrity: sha512-HPzy7eJO6lQHC2NTpX0p3PZdvrO5yI/XA8nwVz0Smxo40toAqI0+QaHEcHC19Io3qHnjENk/A/2Za7IbQQHv3Q==}
+    engines: {node: '>=22'}
+    cpu: [x64]
+    os: [darwin]
+
+  '@omena/napi-linux-arm64-gnu@0.2.1':
+    resolution: {integrity: sha512-1Q9CMsRCvoT7WFcxAw38KhlQjbT/QtcrMH3KvshkbF2ftCqN890hVrSwB3Ee7MjVvIj4KfrhD7uNeqKo93yDTw==}
+    engines: {node: '>=22'}
+    cpu: [arm64]
+    os: [linux]
+    libc: [glibc]
+
+  '@omena/napi-linux-x64-gnu@0.2.1':
+    resolution: {integrity: sha512-m/mD4zHwGQX65mDGe48oyUXNj49DmWlaEjM6w3hO+SXNPu616qHQr8GgeZgiVSKtvkFO/Guuos7tEBIkXm7z8g==}
+    engines: {node: '>=22'}
+    cpu: [x64]
+    os: [linux]
+    libc: [glibc]
+
+  '@omena/napi-win32-x64-msvc@0.2.1':
+    resolution: {integrity: sha512-PxBwiwrgW/sLM3Dx9Ab6N/Y/li/5k5e0E9z09T5OEl2lUp4vhBouPdhgd1/1jg+rupPSNcKvHekU+vgp9RtIgQ==}
+    engines: {node: '>=22'}
+    cpu: [x64]
+    os: [win32]
+
+  '@omena/napi@0.2.1':
+    resolution: {integrity: sha512-o6zb809zWHDggxDj7ofPllIZG9md6d3JiDDPG699oT7mfeLV8qNYaRyoktcYuMhbQOICbtmRSUIMWHdwW5IS9w==}
+    engines: {node: '>=22'}
+
+  '@omena/wasm@0.2.1':
+    resolution: {integrity: sha512-W/ZmsLKevF3ZBxTz28jyE4BhsFlZSxpJXS19GghEY1KQsDXHiIRuK+W68pbZNZgk95AFu/wQoezfkBaqsm+Iww==}
 
   '@oxc-project/runtime@0.133.0':
     resolution: {integrity: sha512-PkvjA1Lq5++V5S1E6Patr92ZVcieE6EalDr1VJTqv4BnjZdOUC4W3p8k1wMXSd5/2aFP4b/A6N5sg2Bkzcr9vQ==}
@@ -6063,6 +6112,33 @@ snapshots:
   '@octokit/types@16.0.0':
     dependencies:
       '@octokit/openapi-types': 27.0.0
+
+  '@omena/napi-darwin-arm64@0.2.1':
+    optional: true
+
+  '@omena/napi-darwin-x64@0.2.1':
+    optional: true
+
+  '@omena/napi-linux-arm64-gnu@0.2.1':
+    optional: true
+
+  '@omena/napi-linux-x64-gnu@0.2.1':
+    optional: true
+
+  '@omena/napi-win32-x64-msvc@0.2.1':
+    optional: true
+
+  '@omena/napi@0.2.1':
+    optionalDependencies:
+      '@omena/napi-darwin-arm64': 0.2.1
+      '@omena/napi-darwin-x64': 0.2.1
+      '@omena/napi-linux-arm64-gnu': 0.2.1
+      '@omena/napi-linux-x64-gnu': 0.2.1
+      '@omena/napi-win32-x64-msvc': 0.2.1
+    optional: true
+
+  '@omena/wasm@0.2.1':
+    optional: true
 
   '@oxc-project/runtime@0.133.0': {}
 

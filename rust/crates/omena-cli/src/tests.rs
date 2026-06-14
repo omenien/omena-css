@@ -53,6 +53,7 @@ fn build_command_exposes_source_map_flag() {
 
     assert!(build_argument_names.contains(&"source-map"));
     assert!(build_argument_names.contains(&"input-source-map"));
+    assert!(build_argument_names.contains(&"minify"));
     assert!(build_argument_names.contains(&"tree-shake"));
     assert!(build_argument_names.contains(&"bundle"));
     assert!(build_argument_names.contains(&"bundle-entry"));
@@ -590,6 +591,7 @@ fn build_command_writes_query_owned_transform_output() -> Result<(), String> {
                 "whitespace-strip".to_string(),
                 "color-compression".to_string(),
             ],
+            minify: false,
             target_query: None,
             allow_logical_to_physical: false,
             allow_scope_flatten: false,
@@ -634,6 +636,7 @@ fn build_source_map_requires_json_output() -> Result<(), String> {
             path: source_path.clone(),
             output: None,
             passes: vec!["print-css".to_string()],
+            minify: false,
             target_query: None,
             allow_logical_to_physical: false,
             allow_scope_flatten: false,
@@ -662,6 +665,89 @@ fn build_source_map_requires_json_output() -> Result<(), String> {
 }
 
 #[test]
+fn build_minify_preset_is_structural_not_only_trivia() -> Result<(), String> {
+    let source_path = temp_path("minify-input.css");
+    let trivia_output_path = temp_path("minify-trivia-output.css");
+    let minify_output_path = temp_path("minify-output.css");
+    fs::write(
+        &source_path,
+        "/* remove */\n.card {\n  color: #ffffff;\n  margin-top: 1px;\n  margin-right: 2px;\n  margin-bottom: 3px;\n  margin-left: 4px;\n}\n.empty { }\n",
+    )
+    .map_err(|error| format!("fixture source should be writable: {error}"))?;
+
+    let trivia_result = run(Cli {
+        command: Command::Build {
+            path: source_path.clone(),
+            output: Some(trivia_output_path.clone()),
+            passes: vec!["comment-strip".to_string(), "whitespace-strip".to_string()],
+            minify: false,
+            target_query: None,
+            allow_logical_to_physical: false,
+            allow_scope_flatten: false,
+            allow_layer_flatten: false,
+            enable_supports_static_eval: false,
+            enable_media_static_eval: false,
+            drop_dark_mode_media_queries: false,
+            context_json: None,
+            engine_input_json: None,
+            closed_style_world: false,
+            tree_shake: false,
+            bundle: false,
+            split_out_dir: None,
+            bundle_entry_paths: Vec::new(),
+            source_paths: Vec::new(),
+            package_manifest_paths: Vec::new(),
+            source_map: false,
+            input_source_maps: Vec::new(),
+            json: false,
+        },
+    });
+    assert!(trivia_result.is_ok(), "{trivia_result:?}");
+
+    let minify_result = run(Cli {
+        command: Command::Build {
+            path: source_path.clone(),
+            output: Some(minify_output_path.clone()),
+            passes: Vec::new(),
+            minify: true,
+            target_query: None,
+            allow_logical_to_physical: false,
+            allow_scope_flatten: false,
+            allow_layer_flatten: false,
+            enable_supports_static_eval: false,
+            enable_media_static_eval: false,
+            drop_dark_mode_media_queries: false,
+            context_json: None,
+            engine_input_json: None,
+            closed_style_world: false,
+            tree_shake: false,
+            bundle: false,
+            split_out_dir: None,
+            bundle_entry_paths: Vec::new(),
+            source_paths: Vec::new(),
+            package_manifest_paths: Vec::new(),
+            source_map: false,
+            input_source_maps: Vec::new(),
+            json: false,
+        },
+    });
+    assert!(minify_result.is_ok(), "{minify_result:?}");
+
+    let trivia_output = fs::read_to_string(&trivia_output_path)
+        .map_err(|error| format!("trivia output should be readable: {error}"))?;
+    let minify_output = fs::read_to_string(&minify_output_path)
+        .map_err(|error| format!("minify output should be readable: {error}"))?;
+    assert!(minify_output.len() < trivia_output.len());
+    assert!(minify_output.contains("#fff"));
+    assert!(!minify_output.contains(".empty"));
+
+    cleanup(&source_path);
+    cleanup(&trivia_output_path);
+    cleanup(&minify_output_path);
+    Ok(())
+}
+
+#[test]
 fn build_tree_shake_mode_rejects_target_query() -> Result<(), String> {
     let source_path = temp_path("tree-shake-target-query.css");
     fs::write(&source_path, ".used { color: blue; }")
@@ -672,6 +758,7 @@ fn build_tree_shake_mode_rejects_target_query() -> Result<(), String> {
             path: source_path.clone(),
             output: None,
             passes: Vec::new(),
+            minify: false,
             target_query: Some("ie 11".to_string()),
             allow_logical_to_physical: false,
             allow_scope_flatten: false,
@@ -725,6 +812,7 @@ fn build_tree_shake_mode_removes_unreachable_css_module_selectors() -> Result<()
             path: source_path.clone(),
             output: Some(output_path.clone()),
             passes: Vec::new(),
+            minify: false,
             target_query: None,
             allow_logical_to_physical: false,
             allow_scope_flatten: false,
@@ -792,6 +880,7 @@ fn build_bundle_mode_inlines_transitive_workspace_imports() -> Result<(), String
             path: target_path.clone(),
             output: Some(output_path.clone()),
             passes: Vec::new(),
+            minify: false,
             target_query: None,
             allow_logical_to_physical: false,
             allow_scope_flatten: false,
@@ -864,6 +953,7 @@ fn build_bundle_mode_emits_code_split_outputs() -> Result<(), String> {
             path: target_path.clone(),
             output: None,
             passes: Vec::new(),
+            minify: false,
             target_query: None,
             allow_logical_to_physical: false,
             allow_scope_flatten: false,
@@ -1040,6 +1130,7 @@ fn build_bundle_mode_tree_shakes_code_split_outputs() -> Result<(), String> {
             path: target_path.clone(),
             output: Some(output_path.clone()),
             passes: Vec::new(),
+            minify: false,
             target_query: None,
             allow_logical_to_physical: false,
             allow_scope_flatten: false,
@@ -1112,6 +1203,7 @@ fn build_scss_module_mode_shares_preconfigured_transitive_module_instance() -> R
             path: target_path.clone(),
             output: Some(output_path.clone()),
             passes: vec!["scss-module-evaluate".to_string(), "print-css".to_string()],
+            minify: false,
             target_query: None,
             allow_logical_to_physical: false,
             allow_scope_flatten: false,
@@ -1179,6 +1271,7 @@ fn build_scss_module_mode_shares_relative_and_load_path_module_identity() -> Res
             path: target_path.clone(),
             output: Some(output_path.clone()),
             passes: vec!["scss-module-evaluate".to_string(), "print-css".to_string()],
+            minify: false,
             target_query: None,
             allow_logical_to_physical: false,
             allow_scope_flatten: false,
@@ -1253,6 +1346,7 @@ $brand: tokens.$brand;
             path: target_path.clone(),
             output: Some(output_path.clone()),
             passes: vec!["scss-module-evaluate".to_string(), "print-css".to_string()],
+            minify: false,
             target_query: None,
             allow_logical_to_physical: false,
             allow_scope_flatten: false,
@@ -1316,6 +1410,7 @@ fn build_scss_module_mode_configures_forwarded_module_instance() -> Result<(), S
             path: target_path.clone(),
             output: Some(output_path.clone()),
             passes: vec!["scss-module-evaluate".to_string(), "print-css".to_string()],
+            minify: false,
             target_query: None,
             allow_logical_to_physical: false,
             allow_scope_flatten: false,
@@ -1376,6 +1471,7 @@ fn build_scss_module_mode_preserves_repeated_source_configuration_conflict() -> 
             path: target_path.clone(),
             output: Some(output_path.clone()),
             passes: vec!["scss-module-evaluate".to_string(), "print-css".to_string()],
+            minify: false,
             target_query: None,
             allow_logical_to_physical: false,
             allow_scope_flatten: false,
@@ -1449,6 +1545,7 @@ fn build_bundle_mode_rewrites_asset_urls_by_source_path() -> Result<(), String> 
             path: target_path.clone(),
             output: Some(output_path.clone()),
             passes: Vec::new(),
+            minify: false,
             target_query: None,
             allow_logical_to_physical: false,
             allow_scope_flatten: false,
@@ -1511,6 +1608,7 @@ fn build_bundle_mode_combines_json_source_map_origin_chain() -> Result<(), Strin
             path: target_path.clone(),
             output: None,
             passes: vec!["import-inline".to_string(), "print-css".to_string()],
+            minify: false,
             target_query: None,
             allow_logical_to_physical: false,
             allow_scope_flatten: false,

@@ -68,7 +68,8 @@ export const SCOPE_DEFINITIONS: readonly ScopeDefinition[] = [
     matches: (scriptName) =>
       scriptName.startsWith("check:rust-") ||
       scriptName.startsWith("update:rust-") ||
-      scriptName.startsWith("benchmark:z5:"),
+      scriptName.startsWith("benchmark:z5:") ||
+      scriptName === "benchmark:bundler-productization",
     toGateId: (scriptName) => {
       if (scriptName.startsWith("update:")) {
         return `rust/${toRustGatePath(scriptName.replace(/^update:rust-/, ""))}:update`;
@@ -101,7 +102,9 @@ export const SCOPE_DEFINITIONS: readonly ScopeDefinition[] = [
   {
     id: "plugin",
     matches: (scriptName) =>
-      scriptName.includes("plugin-consumer") || scriptName.includes("plugin-smoke"),
+      scriptName.includes("plugin-consumer") ||
+      scriptName.includes("plugin-smoke") ||
+      scriptName === "check:vite-plugin-hmr",
     toGateId: (scriptName) => `plugin/${stripCheckPrefix(scriptName).replace(/^plugin-/, "")}`,
   },
   {

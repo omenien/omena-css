@@ -3,10 +3,18 @@
   "version": "0.0.0",
   "private": true,
   "main": "./index.cjs",
+  "types": "./index.d.ts",
   "exports": {
-    ".": "./index.cjs"
+    ".": {
+      "types": "./index.d.ts",
+      "default": "./index.cjs"
+    }
   },
   "peerDependencies": {
     "vite": "^8.0.0"
+  },
+  "optionalDependencies": {
+    "@omena/napi": "^0.2.1",
+    "@omena/wasm": "^0.2.1"
   }
 }

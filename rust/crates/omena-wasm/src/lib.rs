@@ -22,6 +22,7 @@ use omena_query::{
     OmenaQueryTransformContextFromEngineInputSummaryV0 as OmenaWasmTransformContextFromEngineInputSummaryV0,
     OmenaQueryTransformExecutionContextV0 as OmenaWasmTransformExecutionContextV0,
     OmenaQueryTransformPassSummaryV0 as OmenaWasmPassSummaryV0, ParserPositionV0,
+    attach_omena_query_consumer_build_source_map_v3_with_sources,
     conservative_omena_query_target_options, execute_omena_query_consumer_build_style_source,
     execute_omena_query_consumer_build_style_source_for_target_query,
     execute_omena_query_consumer_build_style_source_for_target_query_with_context_and_options,
@@ -159,6 +160,26 @@ pub fn build_style_sources_with_context(
     to_js_value(&summary)
 }
 
+#[wasm_bindgen(js_name = buildStyleSourcesMinifiedWithContext)]
+pub fn build_style_sources_minified_with_context(
+    target_path: &str,
+    sources: JsValue,
+    context: JsValue,
+    package_manifests: JsValue,
+) -> Result<JsValue, JsValue> {
+    let sources = parse_style_sources_value(sources)?;
+    let context = parse_context_value(context)?;
+    let package_manifests = parse_package_manifests_value(package_manifests)?;
+    let summary = build_style_sources_with_context_summary(
+        target_path,
+        &sources,
+        &minify_pass_ids(),
+        &context,
+        &package_manifests,
+    )?;
+    to_js_value(&summary)
+}
+
 #[wasm_bindgen(js_name = buildStyleSourcesForTargetQueryWithContext)]
 pub fn build_style_sources_for_target_query_with_context(
     target_path: &str,
@@ -186,6 +207,25 @@ pub fn build_style_sources_for_target_query_with_context(
 #[wasm_bindgen(js_name = listTransformPasses)]
 pub fn list_transform_passes() -> Result<JsValue, JsValue> {
     to_js_value(&list_transform_pass_summaries())
+}
+
+fn minify_pass_ids() -> Vec<String> {
+    [
+        "comment-strip",
+        "whitespace-strip",
+        "number-compression",
+        "color-compression",
+        "shorthand-combining",
+        "rule-deduplication",
+        "rule-merging",
+        "selector-merging",
+        "empty-rule-removal",
+        "calc-reduction",
+        "print-css",
+    ]
+    .iter()
+    .map(|pass_id| (*pass_id).to_string())
+    .collect()
 }
 
 #[wasm_bindgen(js_name = expressionDomainSelectorProjection)]
@@ -445,14 +485,20 @@ pub fn build_style_sources_with_context_summary(
     context: &OmenaWasmTransformExecutionContextV0,
     package_manifests: &[OmenaWasmStylePackageManifestV0],
 ) -> Result<OmenaWasmBuildSummaryV0, JsValue> {
-    execute_omena_query_consumer_build_style_sources_with_context(
+    let mut summary = execute_omena_query_consumer_build_style_sources_with_context(
         target_path,
         sources,
         pass_ids,
         context,
         package_manifests,
     )
-    .map_err(|error| JsValue::from_str(&error))
+    .map_err(|error| JsValue::from_str(&error))?;
+    attach_omena_query_consumer_build_source_map_v3_with_sources(
+        &mut summary,
+        sources,
+        package_manifests,
+    );
+    Ok(summary)
 }
 
 pub fn build_style_sources_for_target_query_with_context_summary(
@@ -463,15 +509,22 @@ pub fn build_style_sources_for_target_query_with_context_summary(
     context: &OmenaWasmTransformExecutionContextV0,
     package_manifests: &[OmenaWasmStylePackageManifestV0],
 ) -> Result<OmenaWasmBuildSummaryV0, JsValue> {
-    execute_omena_query_consumer_build_style_sources_for_target_query_with_context_and_options(
-        target_path,
+    let mut summary =
+        execute_omena_query_consumer_build_style_sources_for_target_query_with_context_and_options(
+            target_path,
+            sources,
+            target_query,
+            context,
+            target_options,
+            package_manifests,
+        )
+        .map_err(|error| JsValue::from_str(&error))?;
+    attach_omena_query_consumer_build_source_map_v3_with_sources(
+        &mut summary,
         sources,
-        target_query,
-        context,
-        target_options,
         package_manifests,
-    )
-    .map_err(|error| JsValue::from_str(&error))
+    );
+    Ok(summary)
 }
 
 pub fn list_transform_pass_summaries() -> Vec<OmenaWasmPassSummaryV0> {
@@ -1194,8 +1247,47 @@ export function App() {
                 .ready_surfaces
                 .contains(&"multiSourceTransformContextProducer")
         );
+        assert!(summary.ready_surfaces.contains(&"sourceMapV3Serializer"));
+        assert!(summary.source_map_v3.is_some());
         assert!(!summary.execution.output_css.contains("@import"));
         assert!(!summary.execution.output_css.contains("composes:"));
+    }
+
+    #[test]
+    fn builds_minified_workspace_sources_for_browser_clients() {
+        let sources = vec![OmenaWasmStyleSourceInputV0 {
+            style_path: "Card.module.css".to_string(),
+            style_source:
+                ".card { color: #ffffff; margin-top: 1px; margin-right: 2px; margin-bottom: 3px; margin-left: 4px; } .empty {}"
+                    .to_string(),
+        }];
+        let summary_result = build_style_sources_with_context_summary(
+            "Card.module.css",
+            &sources,
+            &minify_pass_ids(),
+            &OmenaWasmTransformExecutionContextV0::default(),
+            &[],
+        );
+
+        assert!(summary_result.is_ok());
+        let Ok(summary) = summary_result else {
+            return;
+        };
+        assert!(
+            summary
+                .requested_pass_ids
+                .iter()
+                .any(|pass_id| pass_id == "number-compression")
+        );
+        assert!(
+            summary
+                .requested_pass_ids
+                .iter()
+                .any(|pass_id| pass_id == "color-compression")
+        );
+        assert!(summary.execution.output_css.contains("#fff"));
+        assert!(!summary.execution.output_css.contains(".empty"));
+        assert!(summary.ready_surfaces.contains(&"sourceMapV3Serializer"));
     }
 
     #[test]

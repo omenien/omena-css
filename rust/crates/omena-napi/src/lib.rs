@@ -23,6 +23,7 @@ use omena_query::{
     OmenaQueryTransformContextFromEngineInputSummaryV0 as OmenaNapiTransformContextFromEngineInputSummaryV0,
     OmenaQueryTransformExecutionContextV0 as OmenaNapiTransformExecutionContextV0,
     OmenaQueryTransformPassSummaryV0 as OmenaNapiPassSummaryV0, ParserPositionV0,
+    attach_omena_query_consumer_build_source_map_v3_with_sources,
     conservative_omena_query_target_options, execute_omena_query_consumer_build_style_source,
     execute_omena_query_consumer_build_style_source_for_target_query,
     execute_omena_query_consumer_build_style_source_for_target_query_with_context_and_options,
@@ -158,6 +159,25 @@ pub fn build_style_sources_with_context_json(
     )?)
 }
 
+#[napi(js_name = "buildStyleSourcesMinifiedWithContextJson")]
+pub fn build_style_sources_minified_with_context_json(
+    target_path: String,
+    sources_json: String,
+    context_json: String,
+    package_manifests_json: String,
+) -> napi::Result<String> {
+    let sources = parse_style_sources_json(&sources_json)?;
+    let context = parse_context_json(&context_json)?;
+    let package_manifests = parse_package_manifests_json(&package_manifests_json)?;
+    to_json_string(&build_style_sources_with_context_summary(
+        &target_path,
+        &sources,
+        &minify_pass_ids(),
+        &context,
+        &package_manifests,
+    )?)
+}
+
 #[napi(js_name = "buildStyleSourcesForTargetQueryWithContextJson")]
 pub fn build_style_sources_for_target_query_with_context_json(
     target_path: String,
@@ -184,6 +204,25 @@ pub fn build_style_sources_for_target_query_with_context_json(
 #[napi(js_name = "listTransformPassesJson")]
 pub fn list_transform_passes_json() -> napi::Result<String> {
     to_json_string(&list_transform_pass_summaries())
+}
+
+fn minify_pass_ids() -> Vec<String> {
+    [
+        "comment-strip",
+        "whitespace-strip",
+        "number-compression",
+        "color-compression",
+        "shorthand-combining",
+        "rule-deduplication",
+        "rule-merging",
+        "selector-merging",
+        "empty-rule-removal",
+        "calc-reduction",
+        "print-css",
+    ]
+    .iter()
+    .map(|pass_id| (*pass_id).to_string())
+    .collect()
 }
 
 #[napi(js_name = "expressionDomainSelectorProjectionJson")]
@@ -440,14 +479,20 @@ pub fn build_style_sources_with_context_summary(
     context: &OmenaNapiTransformExecutionContextV0,
     package_manifests: &[OmenaNapiStylePackageManifestV0],
 ) -> napi::Result<OmenaNapiBuildSummaryV0> {
-    execute_omena_query_consumer_build_style_sources_with_context(
+    let mut summary = execute_omena_query_consumer_build_style_sources_with_context(
         target_path,
         sources,
         pass_ids,
         context,
         package_manifests,
     )
-    .map_err(napi::Error::from_reason)
+    .map_err(napi::Error::from_reason)?;
+    attach_omena_query_consumer_build_source_map_v3_with_sources(
+        &mut summary,
+        sources,
+        package_manifests,
+    );
+    Ok(summary)
 }
 
 pub fn build_style_sources_for_target_query_with_context_summary(
@@ -458,15 +503,22 @@ pub fn build_style_sources_for_target_query_with_context_summary(
     context: &OmenaNapiTransformExecutionContextV0,
     package_manifests: &[OmenaNapiStylePackageManifestV0],
 ) -> napi::Result<OmenaNapiBuildSummaryV0> {
-    execute_omena_query_consumer_build_style_sources_for_target_query_with_context_and_options(
-        target_path,
+    let mut summary =
+        execute_omena_query_consumer_build_style_sources_for_target_query_with_context_and_options(
+            target_path,
+            sources,
+            target_query,
+            context,
+            target_options,
+            package_manifests,
+        )
+        .map_err(napi::Error::from_reason)?;
+    attach_omena_query_consumer_build_source_map_v3_with_sources(
+        &mut summary,
         sources,
-        target_query,
-        context,
-        target_options,
         package_manifests,
-    )
-    .map_err(napi::Error::from_reason)
+    );
+    Ok(summary)
 }
 
 pub fn list_transform_pass_summaries() -> Vec<OmenaNapiPassSummaryV0> {
@@ -1088,8 +1140,47 @@ mod tests {
                 .ready_surfaces
                 .contains(&"multiSourceTransformContextProducer")
         );
+        assert!(summary.ready_surfaces.contains(&"sourceMapV3Serializer"));
+        assert!(summary.source_map_v3.is_some());
         assert!(!summary.execution.output_css.contains("@import"));
         assert!(!summary.execution.output_css.contains("composes:"));
+    }
+
+    #[test]
+    fn builds_minified_workspace_sources_for_node_clients() {
+        let sources = vec![OmenaNapiStyleSourceInputV0 {
+            style_path: "Card.module.css".to_string(),
+            style_source:
+                ".card { color: #ffffff; margin-top: 1px; margin-right: 2px; margin-bottom: 3px; margin-left: 4px; } .empty {}"
+                    .to_string(),
+        }];
+        let summary_result = build_style_sources_with_context_summary(
+            "Card.module.css",
+            &sources,
+            &minify_pass_ids(),
+            &OmenaNapiTransformExecutionContextV0::default(),
+            &[],
+        );
+
+        assert!(summary_result.is_ok());
+        let Ok(summary) = summary_result else {
+            return;
+        };
+        assert!(
+            summary
+                .requested_pass_ids
+                .iter()
+                .any(|pass_id| pass_id == "number-compression")
+        );
+        assert!(
+            summary
+                .requested_pass_ids
+                .iter()
+                .any(|pass_id| pass_id == "color-compression")
+        );
+        assert!(summary.execution.output_css.contains("#fff"));
+        assert!(!summary.execution.output_css.contains(".empty"));
+        assert!(summary.ready_surfaces.contains(&"sourceMapV3Serializer"));
     }
 
     #[test]

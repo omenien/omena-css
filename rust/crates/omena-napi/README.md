@@ -27,6 +27,9 @@ targetOptionsJson, contextJson)` combines target planning with explicit
 contextJson, packageManifestsJson)` derives import/composes context from a
   workspace source array, merges explicit evaluator/provenance context, and
   returns an execution summary plus output CSS.
+- `buildStyleSourcesMinifiedWithContextJson(targetPath, sourcesJson,
+contextJson, packageManifestsJson)` runs the built-in structural minify preset
+  over the same workspace source boundary.
 - `buildStyleSourcesForTargetQueryWithContextJson(targetPath, sourcesJson,
 targetQuery, targetOptionsJson, contextJson, packageManifestsJson)` combines
   target planning with workspace-derived import/composes context.

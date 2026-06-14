@@ -32,6 +32,9 @@ pub(crate) enum Command {
         /// Transform pass id. Repeat to choose specific passes.
         #[arg(long = "pass")]
         passes: Vec<String>,
+        /// Enable the built-in structural minify preset.
+        #[arg(long)]
+        minify: bool,
         /// Browserslist query or named target profile used to plan target-sensitive passes.
         #[arg(long)]
         target_query: Option<String>,
