@@ -105,6 +105,7 @@ export const SCOPE_DEFINITIONS: readonly ScopeDefinition[] = [
       scriptName.includes("plugin-consumer") ||
       scriptName.includes("plugin-smoke") ||
       scriptName === "check:plugin-package-staging" ||
+      scriptName === "check:plugin-bundler-product-gate" ||
       scriptName === "check:vite-plugin-hmr",
     toGateId: (scriptName) => `plugin/${stripCheckPrefix(scriptName).replace(/^plugin-/, "")}`,
   },
