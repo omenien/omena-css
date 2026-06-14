@@ -1,5 +1,5 @@
 {
-  "name": "@omena/vite-plugin",
+  "name": "@omena/css-build-adapter",
   "version": "0.0.0",
   "private": true,
   "main": "./index.cjs",
@@ -11,10 +11,7 @@
     }
   },
   "dependencies": {
-    "@omena/css-build-adapter": "workspace:*"
-  },
-  "peerDependencies": {
-    "vite": "^8.0.0"
+    "source-map-js": "^1.2.1"
   },
   "optionalDependencies": {
     "@omena/napi": "^0.2.1",

@@ -1,5 +1,5 @@
 {
-  "name": "@omena/vite-plugin",
+  "name": "@omena/postcss-plugin",
   "version": "0.0.0",
   "private": true,
   "main": "./index.cjs",
@@ -11,10 +11,11 @@
     }
   },
   "dependencies": {
-    "@omena/css-build-adapter": "workspace:*"
+    "@omena/css-build-adapter": "workspace:*",
+    "source-map-js": "^1.2.1"
   },
   "peerDependencies": {
-    "vite": "^8.0.0"
+    "postcss": "^8.5.0"
   },
   "optionalDependencies": {
     "@omena/napi": "^0.2.1",

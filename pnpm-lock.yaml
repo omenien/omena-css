@@ -146,6 +146,19 @@ importers:
 
   packages/cme-checker: {}
 
+  packages/css-build-adapter:
+    dependencies:
+      source-map-js:
+        specifier: ^1.2.1
+        version: 1.2.1
+    optionalDependencies:
+      '@omena/napi':
+        specifier: ^0.2.1
+        version: 0.2.1
+      '@omena/wasm':
+        specifier: ^0.2.1
+        version: 0.2.1
+
   packages/eslint-plugin:
     dependencies:
       eslint:
@@ -161,6 +174,25 @@ importers:
         specifier: ^1.60.0
         version: 1.60.0(oxlint-tsgolint@0.23.0)
 
+  packages/postcss-plugin:
+    dependencies:
+      '@omena/css-build-adapter':
+        specifier: workspace:*
+        version: link:../css-build-adapter
+      postcss:
+        specifier: ^8.5.0
+        version: 8.5.15
+      source-map-js:
+        specifier: ^1.2.1
+        version: 1.2.1
+    optionalDependencies:
+      '@omena/napi':
+        specifier: ^0.2.1
+        version: 0.2.1
+      '@omena/wasm':
+        specifier: ^0.2.1
+        version: 0.2.1
+
   packages/stylelint-plugin:
     dependencies:
       stylelint:
@@ -169,6 +201,9 @@ importers:
 
   packages/vite-plugin:
     dependencies:
+      '@omena/css-build-adapter':
+        specifier: workspace:*
+        version: link:../css-build-adapter
       vite:
         specifier: ^8.0.0
         version: 8.0.8(@types/node@25.9.2)(esbuild@0.28.0)(less@4.6.4)(sass@1.100.0)(tsx@4.22.4)
