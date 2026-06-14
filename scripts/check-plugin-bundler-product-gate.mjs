@@ -209,17 +209,28 @@ function findPrematureRustBundlerV0Removal(rootDir) {
 }
 
 function findBundlerFreezeClaims(rootDir) {
-  const changelogPath = path.join(rootDir, "CHANGELOG.md");
-  if (!existsSync(changelogPath)) return [];
-
   const claims = [];
-  const lines = readFileSync(changelogPath, "utf8").split(/\r?\n/);
-  for (const [index, line] of lines.entries()) {
-    if (isBundlerFreezeClaim(line)) {
-      claims.push(`CHANGELOG.md:${index + 1} claims bundler API freeze`);
+  for (const markdownPath of findRepoFilesByExtension(rootDir, ".md")) {
+    if (!isPublicFreezeClaimSurface(rootDir, markdownPath)) continue;
+    const relativePath = path.relative(rootDir, markdownPath);
+    const lines = readFileSync(markdownPath, "utf8").split(/\r?\n/);
+    for (const [index, line] of lines.entries()) {
+      if (isBundlerFreezeClaim(line)) {
+        claims.push(`${relativePath}:${index + 1} claims bundler API freeze`);
+      }
     }
   }
   return claims;
+}
+
+function isPublicFreezeClaimSurface(rootDir, filePath) {
+  const relativePath = path.relative(rootDir, filePath);
+  return (
+    relativePath === "CHANGELOG.md" ||
+    relativePath === "README.md" ||
+    relativePath.startsWith(`docs${path.sep}`) ||
+    relativePath.startsWith(`packages${path.sep}`)
+  );
 }
 
 function validateExternalNonMaintainerAdopters(entries, fieldName) {
@@ -437,6 +448,16 @@ function selfTest() {
     "self-test: non-bundler freeze wording is not guarded",
   );
   assert.equal(
+    isPublicFreezeClaimSurface("/repo", "/repo/packages/postcss-plugin/README.md"),
+    true,
+    "self-test: package READMEs are public freeze-claim surfaces",
+  );
+  assert.equal(
+    isPublicFreezeClaimSurface("/repo", "/repo/.personal_docs/local.md"),
+    false,
+    "self-test: local planning docs are not public freeze-claim surfaces",
+  );
+  assert.equal(
     sourceContainsRustSymbol("pub struct TransformBundleEdgeV0 {}", "TransformBundleEdgeV0"),
     true,
     "self-test: Rust symbol scan finds a full identifier",
@@ -585,6 +606,13 @@ function findRepoFiles(rootDir, fileName) {
   return files.toSorted();
 }
 
+function findRepoFilesByExtension(rootDir, extension) {
+  if (!existsSync(rootDir)) return [];
+  const files = [];
+  walkRepoFilesByExtension(rootDir, extension, files);
+  return files.toSorted();
+}
+
 function walkRepoFiles(dir, fileName, files) {
   for (const entry of readdirSync(dir, { withFileTypes: true })) {
     if (entry.isDirectory()) {
@@ -593,6 +621,19 @@ function walkRepoFiles(dir, fileName, files) {
       continue;
     }
     if (entry.isFile() && entry.name === fileName) {
+      files.push(path.join(dir, entry.name));
+    }
+  }
+}
+
+function walkRepoFilesByExtension(dir, extension, files) {
+  for (const entry of readdirSync(dir, { withFileTypes: true })) {
+    if (entry.isDirectory()) {
+      if (shouldSkipScanDir(entry.name)) continue;
+      walkRepoFilesByExtension(path.join(dir, entry.name), extension, files);
+      continue;
+    }
+    if (entry.isFile() && entry.name.endsWith(extension)) {
       files.push(path.join(dir, entry.name));
     }
   }
