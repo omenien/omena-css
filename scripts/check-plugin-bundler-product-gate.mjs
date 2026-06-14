@@ -11,6 +11,7 @@ const VALID_ADOPTER_SURFACES = new Set([
   "vite-plugin",
   "omena-cli-build",
 ]);
+const MAINTAINER_GITHUB_OWNERS = new Set(["omenien", "yongsk0066"]);
 
 const gateEvidence = readGateEvidence(evidencePath);
 const gateStatus = summarizeGateStatus(gateEvidence);
@@ -170,6 +171,7 @@ function validateExternalNonMaintainerAdopters(entries, fieldName) {
     const label = `${fieldName}[${index}]`;
     assertRecord(entry, label);
     const repo = requireRepo(entry.repo, `${label}.repo`);
+    rejectMaintainerOwnedRepo(repo, `${label}.repo`);
     assert.equal(
       repos.has(repo),
       false,
@@ -193,6 +195,7 @@ function validateMoatDetachedAdopters(entries, fieldName) {
     const label = `${fieldName}[${index}]`;
     assertRecord(entry, label);
     const repo = requireRepo(entry.repo, `${label}.repo`);
+    rejectMaintainerOwnedRepo(repo, `${label}.repo`);
     assert.equal(
       repos.has(repo),
       false,
@@ -245,6 +248,17 @@ function requireRepo(value, label) {
     `${label} must be a GitHub repository in owner/name form`,
   );
   return repo;
+}
+
+function rejectMaintainerOwnedRepo(repo, label) {
+  const owner = repo.split("/")[0];
+  assert.equal(
+    MAINTAINER_GITHUB_OWNERS.has(owner),
+    false,
+    `${label} must not be under a known maintainer-owned GitHub owner: ${[
+      ...MAINTAINER_GITHUB_OWNERS,
+    ].join(", ")}`,
+  );
 }
 
 function requireAdopterSurface(value, label) {
@@ -335,12 +349,30 @@ function selfTest() {
   );
   assert.throws(
     () =>
+      validateExternalNonMaintainerAdopters(
+        [externalAdopterFixture("omenien/adopter-smoke")],
+        "externalNonMaintainerAdopters",
+      ),
+    /known maintainer-owned/,
+    "self-test: maintainer-owned repositories cannot satisfy the external adopter gate",
+  );
+  assert.throws(
+    () =>
       validateMoatDetachedAdopters(
         [{ ...moatDetachedFixture("one/project"), usesEditorCheckerMoat: true }],
         "moatDetachedAdopters",
       ),
     /usesEditorCheckerMoat/,
     "self-test: moat-attached evidence cannot satisfy the moat-detached gate",
+  );
+  assert.throws(
+    () =>
+      validateMoatDetachedAdopters(
+        [moatDetachedFixture("yongsk0066/adopter-smoke")],
+        "moatDetachedAdopters",
+      ),
+    /known maintainer-owned/,
+    "self-test: maintainer-owned repositories cannot satisfy the moat-detached gate",
   );
   assert.throws(
     () =>
