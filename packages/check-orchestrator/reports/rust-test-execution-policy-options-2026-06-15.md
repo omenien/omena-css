@@ -2,7 +2,9 @@
 
 ## Status
 
-This report is decision input only. It does not choose a policy and does not wire a new CI gate.
+Decision recorded: Candidate B was selected. PR/push should add a default-feature
+product/runtime Rust test-execution tier now, while keeping the current all-features failures as a
+separate follow-up before any all-features execution tier is attempted.
 
 Already committed evidence:
 
@@ -121,12 +123,11 @@ Tradeoff:
 - Strongest semantic coverage if completed.
 - Delays closing the current PR/push execution hole.
 
-## Decision Needed
-
-The next implementation step requires choosing one policy:
+## Decision
 
 - `A`: Keep PR/push compile+lint only.
-- `B`: Add the default-feature product test tier now.
+- `B`: Add the default-feature product test tier now. **Selected.**
 - `C`: Fix all-features failures first, then choose the execution tier.
 
-No CI wiring should be added until this decision is made explicitly.
+The selected implementation uses `cargo test -p ... --no-fail-fast` rather than `nextest` for the
+first PR-reachable tier, because that closes the execution gap without adding a new CI installer path.
