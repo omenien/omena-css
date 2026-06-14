@@ -1,9 +1,18 @@
 import { strict as assert } from "node:assert";
-import { readFileSync } from "node:fs";
+import { readdirSync, readFileSync } from "node:fs";
 
 const packageJson = readFileSync("package.json", "utf8");
 const syntaxSource = readFileSync("rust/crates/omena-syntax/src/lib.rs", "utf8");
-const parserSource = readFileSync("rust/crates/omena-parser/src/lib.rs", "utf8");
+
+// omena-parser's public surface is split across submodules (lib.rs facade +
+// parse.rs + summaries.rs + ...). Scan the whole crate src tree so these
+// assertions track symbols by content, not by file location — and so the
+// "no local SyntaxKind enum" guard also covers submodules, not just lib.rs.
+const parserSrcDir = "rust/crates/omena-parser/src";
+const parserSource = readdirSync(parserSrcDir, { recursive: true })
+  .filter((entry): entry is string => typeof entry === "string" && entry.endsWith(".rs"))
+  .map((entry) => readFileSync(`${parserSrcDir}/${entry}`, "utf8"))
+  .join("\n");
 const parserManifest = readFileSync("rust/crates/omena-parser/Cargo.toml", "utf8");
 const syntaxReadme = readFileSync("rust/crates/omena-syntax/README.md", "utf8");
 
