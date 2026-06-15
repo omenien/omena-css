@@ -1,17 +1,53 @@
+use crate::LspShellState;
 use crate::protocol::{file_uri_to_path, is_style_document_uri, normalize_path};
-use crate::{LspShellState, LspTextDocumentState};
 use omena_query::{
-    OmenaQueryExternalSifInputV0, generate_omena_bridge_sif_for_resolved_style_path,
-    resolve_omena_query_style_uri_for_specifier, summarize_omena_query_sass_module_sources,
+    OmenaQueryBridgeExternalSifResolutionV0, OmenaQueryExternalSifInputV0,
+    OmenaQueryStyleResolutionInputsV0, OmenaQueryStyleSourceInputV0,
+    resolve_omena_query_bridge_external_sifs_for_seed_pairs,
+    resolve_omena_query_bridge_external_sifs_for_style_sources,
 };
 use omena_sif::{read_omena_lock_json_v1, read_omena_sif_json_v1};
 use std::{
-    collections::{BTreeSet, VecDeque},
+    collections::BTreeSet,
     fs,
     path::{Path, PathBuf},
 };
 
+#[derive(Debug, Clone)]
+pub struct LspExternalSifRefreshDocumentV0 {
+    pub uri: String,
+    pub workspace_folder_uri: Option<String>,
+    pub text: String,
+}
+
+#[derive(Debug, Clone)]
+pub struct LspExternalSifRefreshJobV0 {
+    pub revision: u64,
+    pub lockfiles: Vec<PathBuf>,
+    pub documents: Vec<LspExternalSifRefreshDocumentV0>,
+    pub package_manifests: Vec<omena_query::OmenaQueryStylePackageManifestV0>,
+    pub resolution_inputs_by_workspace_uri:
+        std::collections::BTreeMap<String, OmenaQueryStyleResolutionInputsV0>,
+}
+
+#[derive(Debug, Clone)]
+pub struct LspExternalSifRefreshResultV0 {
+    pub revision: u64,
+    pub external_sifs: Vec<OmenaQueryExternalSifInputV0>,
+    pub bridge_external_sif_urls: BTreeSet<String>,
+    pub lock_read_count: usize,
+    pub bridge_generation_count: usize,
+}
+
 pub(crate) fn refresh_external_sifs_for_state(state: &mut LspShellState) {
+    if state.external_sif_refresh_deferred {
+        mark_external_sif_refresh_dirty(state);
+        return;
+    }
+    refresh_external_sifs_for_state_immediate(state);
+}
+
+fn refresh_external_sifs_for_state_immediate(state: &mut LspShellState) {
     let mut external_sifs = Vec::new();
     let mut covered = BTreeSet::new();
 
@@ -22,22 +58,21 @@ pub(crate) fn refresh_external_sifs_for_state(state: &mut LspShellState) {
         }
     }
 
-    let mut bridge_generation_count = 0usize;
-    let (bridge_sifs, bridge_urls) = resolve_in_process_external_sifs_for_lsp(
-        state.documents.values().map(AsRef::as_ref),
-        &covered,
-        &mut bridge_generation_count,
-    );
+    let bridge_result = resolve_in_process_external_sifs_for_lsp(state, &covered);
     state.external_sif_bridge_generation_count = state
         .external_sif_bridge_generation_count
-        .saturating_add(bridge_generation_count);
-    extend_unique_external_sifs(&mut external_sifs, &mut covered, bridge_sifs);
+        .saturating_add(bridge_result.generation_count);
+    extend_unique_external_sifs(
+        &mut external_sifs,
+        &mut covered,
+        bridge_result.external_sifs,
+    );
 
     if state.resolution.external_sifs != external_sifs {
         state.resolution.external_sifs = external_sifs;
         invalidate_external_sif_dependents(state);
     }
-    state.resolution.bridge_external_sif_urls = bridge_urls;
+    state.resolution.bridge_external_sif_urls = bridge_result.bridge_urls.into_iter().collect();
 }
 
 pub(crate) fn refresh_external_sifs_for_bridge_source_delta(
@@ -45,9 +80,21 @@ pub(crate) fn refresh_external_sifs_for_bridge_source_delta(
     previous_sources: &[String],
     next_sources: &[String],
 ) {
+    if state.external_sif_refresh_deferred {
+        mark_external_sif_refresh_dirty(state);
+        return;
+    }
     let previous_sources = previous_sources.iter().cloned().collect::<BTreeSet<_>>();
     let next_sources = next_sources.iter().cloned().collect::<BTreeSet<_>>();
     if previous_sources == next_sources {
+        return;
+    }
+    if previous_sources
+        .iter()
+        .chain(next_sources.iter())
+        .any(|source| !source.starts_with("file://"))
+    {
+        refresh_external_sifs_for_state(state);
         return;
     }
 
@@ -58,16 +105,11 @@ pub(crate) fn refresh_external_sifs_for_bridge_source_delta(
         if active_bridge_sources.contains(source) {
             continue;
         }
-        let mut ignored_generation_count = 0usize;
-        collect_bridge_sif_urls_for_sources(
-            std::iter::once(source.as_str()),
-            &BTreeSet::new(),
-            &mut ignored_generation_count,
-        )
-        .into_iter()
-        .for_each(|url| {
-            remove_urls.insert(url);
-        });
+        collect_bridge_sif_urls_for_sources(std::iter::once(source.as_str()), &BTreeSet::new())
+            .into_iter()
+            .for_each(|url| {
+                remove_urls.insert(url);
+            });
     }
 
     if !remove_urls.is_empty() {
@@ -87,7 +129,6 @@ pub(crate) fn refresh_external_sifs_for_bridge_source_delta(
     }
 
     let mut covered = covered_external_sif_urls(state.resolution.external_sifs.as_slice());
-    let mut bridge_generation_count = 0usize;
     for source in next_sources.difference(&previous_sources) {
         if state
             .resolution
@@ -96,30 +137,123 @@ pub(crate) fn refresh_external_sifs_for_bridge_source_delta(
         {
             continue;
         }
-        let (bridge_sifs, bridge_urls) = resolve_bridge_external_sifs_for_sources(
-            std::iter::once(source.as_str()),
-            &covered,
-            &mut bridge_generation_count,
-        );
+        let bridge_result =
+            resolve_bridge_external_sifs_for_sources(std::iter::once(source.as_str()), &covered);
         let before_len = state.resolution.external_sifs.len();
         extend_unique_external_sifs(
             &mut state.resolution.external_sifs,
             &mut covered,
-            bridge_sifs,
+            bridge_result.external_sifs,
         );
         state
             .resolution
             .bridge_external_sif_urls
-            .extend(bridge_urls);
+            .extend(bridge_result.bridge_urls);
         changed |= before_len != state.resolution.external_sifs.len();
+        state.external_sif_bridge_generation_count = state
+            .external_sif_bridge_generation_count
+            .saturating_add(bridge_result.generation_count);
     }
 
-    state.external_sif_bridge_generation_count = state
-        .external_sif_bridge_generation_count
-        .saturating_add(bridge_generation_count);
     if changed {
         invalidate_external_sif_dependents(state);
     }
+}
+
+pub fn enable_deferred_external_sif_refresh(state: &mut LspShellState) {
+    state.external_sif_refresh_deferred = true;
+    mark_external_sif_refresh_dirty(state);
+}
+
+pub fn prepare_deferred_external_sif_refresh_job(
+    state: &mut LspShellState,
+) -> Option<LspExternalSifRefreshJobV0> {
+    if !state.external_sif_refresh_deferred || !state.external_sif_refresh_dirty {
+        return None;
+    }
+    state.external_sif_refresh_dirty = false;
+    Some(LspExternalSifRefreshJobV0 {
+        revision: state.external_sif_refresh_revision,
+        lockfiles: workspace_lockfiles(state),
+        documents: state
+            .documents
+            .values()
+            .map(AsRef::as_ref)
+            .filter(|document| is_style_document_uri(document.uri.as_str()))
+            .map(|document| LspExternalSifRefreshDocumentV0 {
+                uri: document.uri.clone(),
+                workspace_folder_uri: document.workspace_folder_uri.clone(),
+                text: document.text.clone(),
+            })
+            .collect(),
+        package_manifests: state.resolution.package_manifests.clone(),
+        resolution_inputs_by_workspace_uri: state
+            .resolution
+            .workspace_style_resolution_inputs
+            .clone(),
+    })
+}
+
+pub fn collect_deferred_external_sif_refresh(
+    job: LspExternalSifRefreshJobV0,
+) -> LspExternalSifRefreshResultV0 {
+    let mut external_sifs = Vec::new();
+    let mut covered = BTreeSet::new();
+    let mut lock_read_count = 0usize;
+
+    for lockfile in job.lockfiles.iter() {
+        lock_read_count = lock_read_count.saturating_add(1);
+        if let Ok(lock_sifs) = read_lock_external_sifs(lockfile.as_path()) {
+            extend_unique_external_sifs(&mut external_sifs, &mut covered, lock_sifs);
+        }
+    }
+
+    let bridge_result = resolve_external_sifs_for_refresh_documents(
+        job.documents.as_slice(),
+        external_sifs.as_slice(),
+        job.package_manifests.as_slice(),
+        &job.resolution_inputs_by_workspace_uri,
+    );
+    extend_unique_external_sifs(
+        &mut external_sifs,
+        &mut covered,
+        bridge_result.external_sifs,
+    );
+
+    LspExternalSifRefreshResultV0 {
+        revision: job.revision,
+        external_sifs,
+        bridge_external_sif_urls: bridge_result.bridge_urls.into_iter().collect(),
+        lock_read_count,
+        bridge_generation_count: bridge_result.generation_count,
+    }
+}
+
+pub fn apply_deferred_external_sif_refresh_result(
+    state: &mut LspShellState,
+    result: LspExternalSifRefreshResultV0,
+) -> bool {
+    if result.revision != state.external_sif_refresh_revision {
+        return false;
+    }
+    state.external_sif_lock_read_count = state
+        .external_sif_lock_read_count
+        .saturating_add(result.lock_read_count);
+    state.external_sif_bridge_generation_count = state
+        .external_sif_bridge_generation_count
+        .saturating_add(result.bridge_generation_count);
+    let changed = state.resolution.external_sifs != result.external_sifs;
+    if changed {
+        state.resolution.external_sifs = result.external_sifs;
+        invalidate_external_sif_dependents(state);
+    }
+    state.resolution.bridge_external_sif_urls = result.bridge_external_sif_urls;
+    changed
+}
+
+fn mark_external_sif_refresh_dirty(state: &mut LspShellState) {
+    state.external_sif_refresh_revision = state.external_sif_refresh_revision.saturating_add(1);
+    state.external_sif_refresh_dirty = true;
 }
 
 fn workspace_lockfiles(state: &LspShellState) -> Vec<PathBuf> {
@@ -202,113 +336,137 @@ fn extend_unique_external_sifs(
     }
 }
 
-fn resolve_in_process_external_sifs_for_lsp<'a>(
-    documents: impl Iterator<Item = &'a LspTextDocumentState>,
+fn resolve_in_process_external_sifs_for_lsp(
+    state: &LspShellState,
     existing_covered: &BTreeSet<String>,
-    bridge_generation_count: &mut usize,
-) -> (Vec<OmenaQueryExternalSifInputV0>, BTreeSet<String>) {
-    let sources = documents
-        .flat_map(|document| {
-            if !is_style_document_uri(document.uri.as_str()) {
-                return Vec::new();
-            }
-            let Some(module_sources) = summarize_omena_query_sass_module_sources(
-                document.uri.as_str(),
-                document.text.as_str(),
-            ) else {
-                return Vec::new();
-            };
-            module_sources
-                .module_use_edges
-                .iter()
-                .map(|edge| edge.source.clone())
-                .chain(module_sources.module_forward_sources)
-                .filter(|source| source.starts_with("file://"))
-                .collect::<Vec<_>>()
+) -> OmenaQueryBridgeExternalSifResolutionV0 {
+    let mut existing_inputs = state
+        .resolution
+        .external_sifs
+        .iter()
+        .filter(|input| {
+            existing_covered.contains(input.canonical_url.as_str())
+                || existing_covered.contains(input.sif.canonical_url.as_str())
         })
+        .cloned()
         .collect::<Vec<_>>();
-    resolve_bridge_external_sifs_for_sources(
-        sources.iter().map(String::as_str),
-        existing_covered,
-        bridge_generation_count,
-    )
+    let mut combined = OmenaQueryBridgeExternalSifResolutionV0::default();
+    let mut bridge_urls = BTreeSet::new();
+
+    for document in state.documents.values().map(AsRef::as_ref) {
+        if !is_style_document_uri(document.uri.as_str()) {
+            continue;
+        }
+        let source = OmenaQueryStyleSourceInputV0 {
+            style_path: document.uri.clone(),
+            style_source: document.text.clone(),
+        };
+        let resolution_inputs =
+            resolution_inputs_for_document(state, document.workspace_folder_uri.as_deref());
+        let result = resolve_omena_query_bridge_external_sifs_for_style_sources(
+            std::slice::from_ref(&source),
+            existing_inputs.as_slice(),
+            &resolution_inputs,
+        );
+        combined.generation_count = combined
+            .generation_count
+            .saturating_add(result.generation_count);
+        bridge_urls.extend(result.bridge_urls);
+        for external_sif in result.external_sifs {
+            existing_inputs.push(external_sif.clone());
+            combined.external_sifs.push(external_sif);
+        }
+    }
+
+    combined.bridge_urls = bridge_urls.into_iter().collect();
+    combined
+}
+
+fn resolve_external_sifs_for_refresh_documents(
+    documents: &[LspExternalSifRefreshDocumentV0],
+    existing_external_sifs: &[OmenaQueryExternalSifInputV0],
+    package_manifests: &[omena_query::OmenaQueryStylePackageManifestV0],
+    resolution_inputs_by_workspace_uri: &std::collections::BTreeMap<
+        String,
+        OmenaQueryStyleResolutionInputsV0,
+    >,
+) -> OmenaQueryBridgeExternalSifResolutionV0 {
+    let mut existing_inputs = existing_external_sifs.to_vec();
+    let mut combined = OmenaQueryBridgeExternalSifResolutionV0::default();
+    let mut bridge_urls = BTreeSet::new();
+
+    for document in documents {
+        let source = OmenaQueryStyleSourceInputV0 {
+            style_path: document.uri.clone(),
+            style_source: document.text.clone(),
+        };
+        let resolution_inputs = document
+            .workspace_folder_uri
+            .as_deref()
+            .and_then(|uri| resolution_inputs_by_workspace_uri.get(uri))
+            .cloned()
+            .unwrap_or_else(|| OmenaQueryStyleResolutionInputsV0 {
+                package_manifests: package_manifests.to_vec(),
+                ..OmenaQueryStyleResolutionInputsV0::default()
+            });
+        let result = resolve_omena_query_bridge_external_sifs_for_style_sources(
+            std::slice::from_ref(&source),
+            existing_inputs.as_slice(),
+            &resolution_inputs,
+        );
+        combined.generation_count = combined
+            .generation_count
+            .saturating_add(result.generation_count);
+        bridge_urls.extend(result.bridge_urls);
+        for external_sif in result.external_sifs {
+            existing_inputs.push(external_sif.clone());
+            combined.external_sifs.push(external_sif);
+        }
+    }
+
+    combined.bridge_urls = bridge_urls.into_iter().collect();
+    combined
 }
 
 fn resolve_bridge_external_sifs_for_sources<'a>(
     sources: impl Iterator<Item = &'a str>,
     existing_covered: &BTreeSet<String>,
-    bridge_generation_count: &mut usize,
-) -> (Vec<OmenaQueryExternalSifInputV0>, BTreeSet<String>) {
-    let mut covered = existing_covered.clone();
-    let mut bridge_urls = BTreeSet::new();
-    let mut resolved = Vec::new();
-    let mut worklist = VecDeque::new();
-
-    for edge_source in sources {
-        if !edge_source.starts_with("file://") || !covered.insert(edge_source.to_string()) {
-            continue;
-        }
-        bridge_urls.insert(edge_source.to_string());
-        if let Ok(sif) = generate_omena_bridge_sif_for_resolved_style_path(edge_source) {
-            *bridge_generation_count = (*bridge_generation_count).saturating_add(1);
-            covered.insert(sif.canonical_url.clone());
-            bridge_urls.insert(sif.canonical_url.clone());
-            worklist.push_back(sif.clone());
-            resolved.push(OmenaQueryExternalSifInputV0 {
-                canonical_url: edge_source.to_string(),
-                sif,
-            });
-        }
-    }
-
-    while let Some(sif) = worklist.pop_front() {
-        let base_file_uri = sif.canonical_url.clone();
-        for forward in &sif.exports.forwards {
-            let specifier = forward.canonical_url.as_str();
-            if specifier.starts_with("sass:")
-                || specifier.starts_with("http://")
-                || specifier.starts_with("https://")
-            {
-                continue;
-            }
-            let Some(child_url) = resolve_omena_query_style_uri_for_specifier(
-                base_file_uri.as_str(),
-                None,
-                specifier,
-            ) else {
-                continue;
-            };
-            if !covered.insert(child_url.clone()) {
-                continue;
-            }
-            bridge_urls.insert(child_url.clone());
-            if let Ok(child) = generate_omena_bridge_sif_for_resolved_style_path(child_url.as_str())
-            {
-                *bridge_generation_count = (*bridge_generation_count).saturating_add(1);
-                bridge_urls.insert(child.canonical_url.clone());
-                worklist.push_back(child.clone());
-                resolved.push(OmenaQueryExternalSifInputV0 {
-                    canonical_url: child_url,
-                    sif: child,
-                });
-            }
-        }
-    }
-
-    (resolved, bridge_urls)
+) -> OmenaQueryBridgeExternalSifResolutionV0 {
+    resolve_omena_query_bridge_external_sifs_for_seed_pairs(
+        sources
+            .filter(|source| source.starts_with("file://") && !existing_covered.contains(*source))
+            .map(|source| (source.to_string(), source.to_string())),
+        &[],
+        &OmenaQueryStyleResolutionInputsV0::default(),
+    )
 }
 
 fn collect_bridge_sif_urls_for_sources<'a>(
     sources: impl Iterator<Item = &'a str>,
     existing_covered: &BTreeSet<String>,
-    bridge_generation_count: &mut usize,
 ) -> BTreeSet<String> {
-    let (_, bridge_urls) = resolve_bridge_external_sifs_for_sources(
-        sources,
-        existing_covered,
-        bridge_generation_count,
-    );
-    bridge_urls
+    resolve_bridge_external_sifs_for_sources(sources, existing_covered)
+        .bridge_urls
+        .into_iter()
+        .collect()
+}
+
+fn resolution_inputs_for_document(
+    state: &LspShellState,
+    workspace_folder_uri: Option<&str>,
+) -> OmenaQueryStyleResolutionInputsV0 {
+    workspace_folder_uri
+        .and_then(|uri| {
+            state
+                .resolution
+                .workspace_style_resolution_inputs
+                .get(uri)
+                .cloned()
+        })
+        .unwrap_or_else(|| OmenaQueryStyleResolutionInputsV0 {
+            package_manifests: state.resolution.package_manifests.clone(),
+            ..OmenaQueryStyleResolutionInputsV0::default()
+        })
 }
 
 fn active_bridge_sources_from_documents(state: &LspShellState) -> BTreeSet<String> {

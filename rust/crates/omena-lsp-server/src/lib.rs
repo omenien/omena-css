@@ -23,6 +23,11 @@ mod workspace_runtime_registry;
 
 pub use boundary::*;
 use disk_cache::disk_diagnostics_cache_slot_for_resolve;
+pub use external_sif_loader::{
+    LspExternalSifRefreshJobV0, LspExternalSifRefreshResultV0,
+    apply_deferred_external_sif_refresh_result, collect_deferred_external_sif_refresh,
+    enable_deferred_external_sif_refresh, prepare_deferred_external_sif_refresh_job,
+};
 pub(crate) use external_sif_loader::{
     refresh_external_sifs_for_bridge_source_delta, refresh_external_sifs_for_state,
 };
@@ -214,7 +219,7 @@ fn refresh_workspace_resolution_inputs(state: &mut LspShellState) {
         .workspace_style_resolution_inputs
         .retain(|workspace_uri, _| workspace_uris.contains(workspace_uri));
     for workspace_uri in workspace_uris {
-        let inputs = load_omena_query_workspace_style_resolution_inputs(
+        let inputs = load_lsp_workspace_style_resolution_inputs(
             Some(workspace_uri.as_str()),
             configured_package_manifests.as_slice(),
         );
@@ -229,7 +234,7 @@ fn refresh_workspace_resolution_inputs_for_uri(state: &mut LspShellState, uri: &
     let Some(workspace_uri) = resolve_workspace_folder_uri(state, uri) else {
         return;
     };
-    let inputs = load_omena_query_workspace_style_resolution_inputs(
+    let inputs = load_lsp_workspace_style_resolution_inputs(
         Some(workspace_uri.as_str()),
         state.resolution.package_manifests.as_slice(),
     );
@@ -237,6 +242,129 @@ fn refresh_workspace_resolution_inputs_for_uri(state: &mut LspShellState, uri: &
         .resolution
         .workspace_style_resolution_inputs
         .insert(workspace_uri, inputs);
+}
+
+fn load_lsp_workspace_style_resolution_inputs(
+    workspace_folder_uri: Option<&str>,
+    configured_package_manifests: &[omena_query::OmenaQueryStylePackageManifestV0],
+) -> omena_query::OmenaQueryStyleResolutionInputsV0 {
+    let mut inputs = load_omena_query_workspace_style_resolution_inputs(
+        workspace_folder_uri,
+        configured_package_manifests,
+    );
+    inputs.external_sif_cache_fingerprint =
+        workspace_folder_uri.and_then(external_sif_cache_fingerprint_for_workspace_uri);
+    inputs
+}
+
+fn external_sif_cache_fingerprint_for_workspace_uri(workspace_folder_uri: &str) -> Option<String> {
+    const METADATA_SCAN_LIMIT: usize = 2048;
+    let root = file_uri_to_path(workspace_folder_uri)?;
+    let root = normalize_path(root);
+    let mut identities = Vec::new();
+    for relative in [
+        "omena.lock",
+        "pnpm-lock.yaml",
+        "package-lock.json",
+        "yarn.lock",
+        "bun.lock",
+        "bun.lockb",
+        "node_modules/.modules.yaml",
+    ] {
+        push_file_identity(&mut identities, root.join(relative).as_path());
+    }
+    collect_node_modules_package_link_identities(
+        root.join("node_modules").as_path(),
+        &mut identities,
+        METADATA_SCAN_LIMIT,
+    );
+    if identities.is_empty() {
+        return None;
+    }
+    let value = json!({
+        "schemaVersion": "0",
+        "product": "omena-lsp.external-sif-cache-freshness",
+        "workspaceRoot": root.to_string_lossy(),
+        "identities": identities,
+    });
+    let bytes = serde_json::to_vec(&value).ok()?;
+    Some(
+        compute_omena_sif_leaf_hash_v1(bytes.as_slice())
+            .as_str()
+            .to_string(),
+    )
+}
+
+fn push_file_identity(output: &mut Vec<String>, path: &Path) {
+    let Ok(metadata) = fs::symlink_metadata(path) else {
+        return;
+    };
+    let modified = metadata
+        .modified()
+        .ok()
+        .and_then(|time| time.duration_since(std::time::UNIX_EPOCH).ok())
+        .map(|duration| format!("{}.{:09}", duration.as_secs(), duration.subsec_nanos()))
+        .unwrap_or_else(|| "unknownMtime".to_string());
+    let file_type = if metadata.file_type().is_symlink() {
+        "symlink"
+    } else if metadata.is_dir() {
+        "dir"
+    } else if metadata.is_file() {
+        "file"
+    } else {
+        "other"
+    };
+    let target = if metadata.file_type().is_symlink() {
+        fs::read_link(path)
+            .ok()
+            .map(|target| target.to_string_lossy().to_string())
+            .unwrap_or_else(|| "unknownTarget".to_string())
+    } else {
+        String::new()
+    };
+    output.push(format!(
+        "{}|{file_type}|len{}|mtime{modified}|target{target}",
+        normalize_path(path.to_path_buf()).to_string_lossy(),
+        metadata.len()
+    ));
+}
+
+fn collect_node_modules_package_link_identities(
+    node_modules: &Path,
+    output: &mut Vec<String>,
+    limit: usize,
+) {
+    let Ok(entries) = fs::read_dir(node_modules) else {
+        return;
+    };
+    let mut seen = 0usize;
+    for entry in entries.flatten() {
+        if seen >= limit {
+            break;
+        }
+        let path = entry.path();
+        let Some(name) = path.file_name().and_then(|name| name.to_str()) else {
+            continue;
+        };
+        if name.starts_with('.') {
+            continue;
+        }
+        if name.starts_with('@') && path.is_dir() {
+            let Ok(scoped_entries) = fs::read_dir(path.as_path()) else {
+                continue;
+            };
+            for scoped_entry in scoped_entries.flatten() {
+                if seen >= limit {
+                    break;
+                }
+                push_file_identity(output, scoped_entry.path().as_path());
+                seen = seen.saturating_add(1);
+            }
+            continue;
+        }
+        push_file_identity(output, path.as_path());
+        seen = seen.saturating_add(1);
+    }
 }
 
 fn resolution_inputs_for_workspace_uri(
@@ -251,9 +379,11 @@ fn resolution_inputs_for_workspace_uri(
                 .get(workspace_uri)
         })
         .cloned()
-        .unwrap_or_else(|| omena_query::OmenaQueryStyleResolutionInputsV0 {
-            package_manifests: state.resolution.package_manifests.clone(),
-            ..Default::default()
+        .unwrap_or_else(|| {
+            load_lsp_workspace_style_resolution_inputs(
+                workspace_folder_uri,
+                state.resolution.package_manifests.as_slice(),
+            )
         })
 }
 
@@ -669,11 +799,20 @@ pub(crate) fn is_resolution_config_document_uri(uri: &str) -> bool {
     let Some(path) = file_uri_to_path(uri) else {
         return false;
     };
+    if is_package_manager_install_state_path(path.as_path()) {
+        return true;
+    }
     let Some(file_name) = path.file_name().and_then(|value| value.to_str()) else {
         return false;
     };
     file_name == "package.json"
         || file_name == "omena.lock"
+        || file_name == "pnpm-lock.yaml"
+        || file_name == "package-lock.json"
+        || file_name == "yarn.lock"
+        || file_name == "bun.lock"
+        || file_name == "bun.lockb"
+        || file_name == ".modules.yaml"
         || file_name.ends_with(".sif.json")
         || file_name == "jsconfig.json"
         || (file_name.starts_with("tsconfig") && file_name.ends_with(".json"))
@@ -692,6 +831,10 @@ pub(crate) fn is_resolution_config_document_uri(uri: &str) -> bool {
                 | "webpack.config.mjs"
                 | "webpack.config.cjs"
         )
+}
+
+fn is_package_manager_install_state_path(path: &Path) -> bool {
+    node_modules_package_for_path(path).is_some_and(|(_, _, subpath)| subpath.is_empty())
 }
 
 pub(crate) fn ensure_style_document_loaded_from_disk(state: &mut LspShellState, uri: &str) -> bool {
@@ -796,6 +939,7 @@ fn style_external_dependency_snapshot(
         if let Some(uri) = resolve_lsp_style_uri_for_specifier(state, document, source)
             && is_foreign_style_document_uri(uri.as_str())
         {
+            bridge_sources.insert(source.to_string());
             foreign_dependency_uris.insert(uri);
         }
     }
@@ -1581,6 +1725,27 @@ pub fn resolve_deferred_diagnostics_notification(
         dispatch.uri.as_str(),
         diagnostics,
         dispatch.tier_plan,
+    )
+}
+
+pub fn external_sif_refresh_follow_up_diagnostics_outputs(
+    state: &mut LspShellState,
+) -> Vec<ScheduledLspOutput> {
+    let uris = state
+        .documents
+        .values()
+        .filter(|document| {
+            document.origin == LspDocumentOrigin::Local
+                && protocol::is_style_document_uri(document.uri.as_str())
+        })
+        .map(|document| document.uri.clone())
+        .collect::<Vec<_>>();
+    if uris.is_empty() {
+        return Vec::new();
+    }
+    diagnostics_scheduler::run_diagnostics_schedule(
+        state,
+        diagnostics_scheduler::DiagnosticsScheduleEvent::WatchedFiles { uris },
     )
 }
 

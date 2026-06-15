@@ -13,12 +13,15 @@ use omena_lsp_server::{
     resolve_deferred_diagnostics_notification,
 };
 use omena_lsp_server::{
-    LspLoopTurnV0, LspQueryDispatchV0, LspShellState, LspWorkspaceIndexJobV0,
-    LspWorkspaceIndexResultV0, ScheduledLspOutput, apply_background_workspace_index_result,
-    collect_background_workspace_index, dispatched_query_internal_error_response,
+    LspExternalSifRefreshJobV0, LspExternalSifRefreshResultV0, LspLoopTurnV0, LspQueryDispatchV0,
+    LspShellState, LspWorkspaceIndexJobV0, LspWorkspaceIndexResultV0, ScheduledLspOutput,
+    apply_background_workspace_index_result, apply_deferred_external_sif_refresh_result,
+    collect_background_workspace_index, collect_deferred_external_sif_refresh,
+    dispatched_query_internal_error_response, enable_deferred_external_sif_refresh,
+    external_sif_refresh_follow_up_diagnostics_outputs,
     handle_lsp_message_scheduled_outputs_or_dispatch,
-    prepare_background_workspace_index_continuation_job, resolve_dispatched_query_response,
-    workspace_index_progress_end_output,
+    prepare_background_workspace_index_continuation_job, prepare_deferred_external_sif_refresh_job,
+    resolve_dispatched_query_response, workspace_index_progress_end_output,
 };
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -31,6 +34,7 @@ fn run_stdio_server<R: BufRead + Send + 'static, W: Write + Send + 'static>(
     writer: W,
 ) -> Result<(), Box<dyn std::error::Error>> {
     let mut state = LspShellState::default();
+    enable_deferred_external_sif_refresh(&mut state);
     let writer = Arc::new(Mutex::new(writer));
     let coalescer = Arc::new(Mutex::new(ScheduledOutputCoalescer::default()));
     let mut delayed_outputs: Vec<JoinHandle<Result<(), String>>> = Vec::new();
@@ -60,12 +64,25 @@ fn run_stdio_server<R: BufRead + Send + 'static, W: Write + Send + 'static>(
         mpsc::channel::<LspWorkspaceIndexJobV0>();
     let (workspace_index_result_sender, workspace_index_result_receiver) =
         mpsc::channel::<LspWorkspaceIndexResultV0>();
+    let (external_sif_refresh_sender, external_sif_refresh_receiver) =
+        mpsc::channel::<LspExternalSifRefreshJobV0>();
+    let (external_sif_refresh_result_sender, external_sif_refresh_result_receiver) =
+        mpsc::channel::<LspExternalSifRefreshResultV0>();
     let workspace_index_worker: JoinHandle<Result<(), String>> = thread::spawn(move || {
         while let Ok(job) = workspace_index_receiver.recv() {
             let result = collect_background_workspace_index(job);
             workspace_index_result_sender
                 .send(result)
                 .map_err(|_| "workspace index result receiver dropped".to_string())?;
+        }
+        Ok(())
+    });
+    let external_sif_refresh_worker: JoinHandle<Result<(), String>> = thread::spawn(move || {
+        while let Ok(job) = external_sif_refresh_receiver.recv() {
+            let result = collect_deferred_external_sif_refresh(job);
+            external_sif_refresh_result_sender
+                .send(result)
+                .map_err(|_| "external SIF refresh result receiver dropped".to_string())?;
         }
         Ok(())
     });
@@ -184,6 +201,7 @@ fn run_stdio_server<R: BufRead + Send + 'static, W: Write + Send + 'static>(
 
     let mut input_closed = false;
     let mut workspace_index_in_flight = 0usize;
+    let mut external_sif_refresh_in_flight = 0usize;
     loop {
         drain_workspace_index_results(
             &mut state,
@@ -194,10 +212,23 @@ fn run_stdio_server<R: BufRead + Send + 'static, W: Write + Send + 'static>(
             &coalescer,
             &mut delayed_outputs,
         )?;
+        drain_external_sif_refresh_results(
+            &mut state,
+            &external_sif_refresh_result_receiver,
+            &mut external_sif_refresh_in_flight,
+            &writer,
+            &coalescer,
+            &mut delayed_outputs,
+        )?;
+        dispatch_external_sif_refresh_if_needed(
+            &mut state,
+            &external_sif_refresh_sender,
+            &mut external_sif_refresh_in_flight,
+        )?;
         #[cfg(feature = "salsa-style-diagnostics")]
         drain_deferred_diagnostics_completions(&diagnostics_completion_receiver);
         if input_closed {
-            if workspace_index_in_flight == 0 {
+            if workspace_index_in_flight == 0 && external_sif_refresh_in_flight == 0 {
                 break;
             }
             thread::sleep(Duration::from_millis(5));
@@ -242,6 +273,11 @@ fn run_stdio_server<R: BufRead + Send + 'static, W: Write + Send + 'static>(
                         .map_err(|_| "workspace index worker exited before shutdown")?;
                     workspace_index_in_flight = workspace_index_in_flight.saturating_add(1);
                 }
+                dispatch_external_sif_refresh_if_needed(
+                    &mut state,
+                    &external_sif_refresh_sender,
+                    &mut external_sif_refresh_in_flight,
+                )?;
                 for dispatch in deferred_diagnostics {
                     #[cfg(feature = "salsa-style-diagnostics")]
                     dispatch_deferred_diagnostics(&diagnostics_sender, &coalescer, dispatch)?;
@@ -269,8 +305,17 @@ fn run_stdio_server<R: BufRead + Send + 'static, W: Write + Send + 'static>(
         &coalescer,
         &mut delayed_outputs,
     )?;
+    drain_external_sif_refresh_results(
+        &mut state,
+        &external_sif_refresh_result_receiver,
+        &mut external_sif_refresh_in_flight,
+        &writer,
+        &coalescer,
+        &mut delayed_outputs,
+    )?;
     drop(query_sender);
     drop(workspace_index_sender);
+    drop(external_sif_refresh_sender);
     #[cfg(feature = "salsa-style-diagnostics")]
     drop(diagnostics_sender);
     #[cfg(feature = "salsa-style-diagnostics")]
@@ -279,6 +324,10 @@ fn run_stdio_server<R: BufRead + Send + 'static, W: Write + Send + 'static>(
         .join()
         .map_err(|_| "workspace index worker panicked".to_string())?
         .map_err(|error| format!("workspace index worker failed: {error}"))?;
+    external_sif_refresh_worker
+        .join()
+        .map_err(|_| "external SIF refresh worker panicked".to_string())?
+        .map_err(|error| format!("external SIF refresh worker failed: {error}"))?;
     query_worker
         .join()
         .map_err(|_| "query worker panicked".to_string())?
@@ -327,6 +376,43 @@ fn drain_workspace_index_results<W: Write + Send + 'static>(
             *in_flight = in_flight.saturating_add(1);
         }
     }
+    Ok(())
+}
+
+fn drain_external_sif_refresh_results<W: Write + Send + 'static>(
+    state: &mut LspShellState,
+    receiver: &mpsc::Receiver<LspExternalSifRefreshResultV0>,
+    in_flight: &mut usize,
+    writer: &Arc<Mutex<W>>,
+    coalescer: &Arc<Mutex<ScheduledOutputCoalescer>>,
+    delayed_outputs: &mut Vec<JoinHandle<Result<(), String>>>,
+) -> Result<(), Box<dyn std::error::Error>> {
+    while let Ok(result) = receiver.try_recv() {
+        *in_flight = in_flight.saturating_sub(1);
+        if apply_deferred_external_sif_refresh_result(state, result) {
+            for output in external_sif_refresh_follow_up_diagnostics_outputs(state) {
+                write_scheduled_lsp_output(writer, coalescer, output, delayed_outputs)?;
+            }
+        }
+    }
+    Ok(())
+}
+
+fn dispatch_external_sif_refresh_if_needed(
+    state: &mut LspShellState,
+    sender: &mpsc::Sender<LspExternalSifRefreshJobV0>,
+    in_flight: &mut usize,
+) -> Result<(), Box<dyn std::error::Error>> {
+    if *in_flight > 0 {
+        return Ok(());
+    }
+    let Some(job) = prepare_deferred_external_sif_refresh_job(state) else {
+        return Ok(());
+    };
+    sender
+        .send(job)
+        .map_err(|_| "external SIF refresh worker exited before shutdown")?;
+    *in_flight = in_flight.saturating_add(1);
     Ok(())
 }
 
@@ -838,6 +924,89 @@ mod tests {
             .map_err(|_| "shared writer poisoned".to_string())?
             .clone();
         parse_lsp_frames(output.as_slice())
+    }
+
+    #[test]
+    fn stdio_external_sif_refresh_worker_publishes_follow_up_diagnostics() -> Result<(), String> {
+        let root = std::env::temp_dir().join(format!(
+            "omena-lsp-stdio-external-sif-refresh-{}",
+            std::process::id()
+        ));
+        let _ = std::fs::remove_dir_all(root.as_path());
+        let source = root.join("src/App.module.scss");
+        let app_package = root.join("node_modules/@app/theme");
+        let design_package = root.join("node_modules/@design/tokens");
+        std::fs::create_dir_all(
+            source
+                .parent()
+                .ok_or_else(|| "source parent missing".to_string())?,
+        )
+        .map_err(|error| error.to_string())?;
+        std::fs::create_dir_all(app_package.as_path()).map_err(|error| error.to_string())?;
+        std::fs::create_dir_all(design_package.as_path()).map_err(|error| error.to_string())?;
+        std::fs::write(
+            app_package.join("package.json"),
+            r#"{"exports":{"./index":{"sass":"./index.scss"}}}"#,
+        )
+        .map_err(|error| error.to_string())?;
+        std::fs::write(
+            design_package.join("package.json"),
+            r#"{"exports":{"./colors":{"sass":"./colors.scss"}}}"#,
+        )
+        .map_err(|error| error.to_string())?;
+        std::fs::write(
+            app_package.join("index.scss"),
+            "@forward \"@design/tokens/colors\";\n@forward \"./radius\";\n",
+        )
+        .map_err(|error| error.to_string())?;
+        std::fs::write(app_package.join("_radius.scss"), "$ds_radius-card: 12px;\n")
+            .map_err(|error| error.to_string())?;
+        std::fs::write(design_package.join("colors.scss"), "$ds_gray-700: #333;\n")
+            .map_err(|error| error.to_string())?;
+        let source_text = "@use \"@app/theme/index\" as ds;\n.button { color: ds.$ds_gray-700; border-radius: ds.$ds_radius-card; }\n";
+        std::fs::write(source.as_path(), source_text).map_err(|error| error.to_string())?;
+
+        let workspace_uri = format!("file://{}", root.to_string_lossy());
+        let source_uri = format!("file://{}", source.to_string_lossy());
+        let messages = run_script(&[
+            json!({
+                "jsonrpc": "2.0",
+                "id": 1,
+                "method": "initialize",
+                "params": {
+                    "workspaceFolders": [
+                        {
+                            "uri": workspace_uri,
+                            "name": "workspace",
+                        },
+                    ],
+                },
+            }),
+            json!({
+                "jsonrpc": "2.0",
+                "method": "textDocument/didOpen",
+                "params": {
+                    "textDocument": {
+                        "uri": source_uri,
+                        "languageId": "scss",
+                        "version": 1,
+                        "text": source_text,
+                    },
+                },
+            }),
+        ])?;
+
+        let diagnostic_sets = publish_diagnostics_for_uri(messages.as_slice(), source_uri.as_str());
+        assert!(
+            diagnostic_sets.iter().any(|message| {
+                let codes = diagnostic_codes(message);
+                !codes.contains(&"missingSassSymbol") && !codes.contains(&"missingExternalSif")
+            }),
+            "external SIF refresh worker should publish a follow-up diagnostics set without external SIF misses: {diagnostic_sets:?}"
+        );
+
+        let _ = std::fs::remove_dir_all(root.as_path());
+        Ok(())
     }
 
     fn write_lsp_frame<W: Write>(writer: &mut W, message: &Value) -> Result<(), String> {

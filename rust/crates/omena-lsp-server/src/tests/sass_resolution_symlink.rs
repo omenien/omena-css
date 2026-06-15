@@ -113,6 +113,164 @@ fn resolves_sass_definition_through_symlinked_package_canonical_identity() -> Te
 
 #[cfg(unix)]
 #[test]
+fn refreshes_sass_resolution_after_package_symlink_retarget_watch() -> TestResult {
+    let root = std::env::temp_dir().join(format!(
+        "omena_lsp_symlinked_package_retarget_{}_{}",
+        std::process::id(),
+        current_time_millis()
+    ));
+    let source = root.join("src/App.module.scss");
+    let real_v1 = root.join(".pnpm/@design+tokens@1.0.0/node_modules/@design/tokens");
+    let real_v2 = root.join(".pnpm/@design+tokens@2.0.0/node_modules/@design/tokens");
+    let linked_scope = root.join("node_modules/@design");
+    let linked_package = linked_scope.join("tokens");
+    let real_v1_style = real_v1.join("src/index.scss");
+    let real_v2_style = real_v2.join("src/index.scss");
+    fs::create_dir_all(fixture_parent(source.as_path(), "source parent")?)?;
+    fs::create_dir_all(fixture_parent(real_v1_style.as_path(), "v1 style parent")?)?;
+    fs::create_dir_all(fixture_parent(real_v2_style.as_path(), "v2 style parent")?)?;
+    fs::create_dir_all(linked_scope.as_path())?;
+    fs::write(
+        real_v1.join("package.json"),
+        r#"{"name":"@design/tokens","version":"1.0.0","sass":"src/index.scss"}"#,
+    )?;
+    fs::write(
+        real_v2.join("package.json"),
+        r#"{"name":"@design/tokens","version":"2.0.0","sass":"src/index.scss"}"#,
+    )?;
+    fs::write(real_v1_style.as_path(), "$brand: red;\n")?;
+    fs::write(real_v2_style.as_path(), "$brand: green;\n")?;
+    std::os::unix::fs::symlink(real_v1.as_path(), linked_package.as_path())?;
+    let source_text = r#"@use "@design/tokens" as tokens;
+.button { color: tokens.$brand; }
+"#;
+    fs::write(source.as_path(), source_text)?;
+
+    let workspace_uri = raw_test_file_uri(root.as_path());
+    let source_uri = raw_test_file_uri(source.as_path());
+    let linked_package_uri = raw_test_file_uri(linked_package.as_path());
+    let real_v1_style_uri = raw_test_file_uri(real_v1_style.as_path());
+    let real_v2_style_uri = raw_test_file_uri(real_v2_style.as_path());
+    let brand_position = parser_position_for_byte_offset(
+        source_text,
+        fixture_find(
+            source_text,
+            "$brand",
+            "source fixture contains Sass variable reference",
+        )? + 1,
+    );
+    let mut state = LspShellState::default();
+    handle_lsp_message(
+        &mut state,
+        json!({
+            "jsonrpc": "2.0",
+            "id": 1,
+            "method": "initialize",
+            "params": {
+                "workspaceFolders": [
+                    {
+                        "uri": workspace_uri,
+                        "name": "workspace",
+                    },
+                ],
+            },
+        }),
+    );
+    handle_lsp_message(
+        &mut state,
+        json!({
+            "jsonrpc": "2.0",
+            "method": "textDocument/didOpen",
+            "params": {
+                "textDocument": {
+                    "uri": source_uri,
+                    "languageId": "scss",
+                    "version": 1,
+                    "text": source_text,
+                },
+            },
+        }),
+    );
+
+    let initial_definition = handle_lsp_message(
+        &mut state,
+        json!({
+            "jsonrpc": "2.0",
+            "id": 2,
+            "method": "textDocument/definition",
+            "params": {
+                "textDocument": {
+                    "uri": source_uri,
+                },
+                "position": brand_position,
+            },
+        }),
+    );
+    assert_single_definition_equivalent(&initial_definition, real_v1_style_uri.as_str())?;
+
+    fs::remove_file(linked_package.as_path())?;
+    std::os::unix::fs::symlink(real_v2.as_path(), linked_package.as_path())?;
+    handle_lsp_message(
+        &mut state,
+        json!({
+            "jsonrpc": "2.0",
+            "method": "workspace/didChangeWatchedFiles",
+            "params": {
+                "changes": [
+                    {
+                        "uri": linked_package_uri,
+                        "type": 2,
+                    },
+                ],
+            },
+        }),
+    );
+
+    let refreshed_definition = handle_lsp_message(
+        &mut state,
+        json!({
+            "jsonrpc": "2.0",
+            "id": 3,
+            "method": "textDocument/definition",
+            "params": {
+                "textDocument": {
+                    "uri": source_uri,
+                },
+                "position": brand_position,
+            },
+        }),
+    );
+    assert_single_definition_equivalent(&refreshed_definition, real_v2_style_uri.as_str())?;
+
+    let _ = fs::remove_dir_all(root.as_path());
+    Ok(())
+}
+
+fn assert_single_definition_equivalent(response: &Option<Value>, expected_uri: &str) -> TestResult {
+    let targets = response
+        .as_ref()
+        .and_then(|value| value.get("result"))
+        .and_then(Value::as_array)
+        .ok_or_else(|| {
+            std::io::Error::other(format!("expected definition array, got {response:?}"))
+        })?;
+    assert_eq!(
+        targets.len(),
+        1,
+        "expected one definition target: {targets:?}"
+    );
+    assert!(
+        targets[0]
+            .get("uri")
+            .and_then(Value::as_str)
+            .is_some_and(|uri| file_uri_equivalent(uri, expected_uri)),
+        "definition target should resolve to {expected_uri}: {targets:?}"
+    );
+    Ok(())
+}
+
+#[cfg(unix)]
+#[test]
 fn joins_hoisted_and_nested_package_layout_sass_references() -> TestResult {
     let root = std::env::temp_dir().join(format!(
         "omena_lsp_symlinked_package_reference_join_{}_{}",
