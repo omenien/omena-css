@@ -32,6 +32,65 @@ fn resolves_package_manifest_style_exports() {
     );
 }
 
+#[cfg(unix)]
+#[test]
+fn resolves_package_manifest_exports_when_node_modules_entry_is_symlink()
+-> Result<(), Box<dyn std::error::Error>> {
+    let root = temp_dir("omena_resolver_pnpm_package_manifest")?;
+    let source = root.join("src/App.module.scss");
+    let store_package =
+        root.join("node_modules/.pnpm/@design+tokens@1.0.0/node_modules/@design/tokens");
+    let linked_scope = root.join("node_modules/@design");
+    let linked_package = linked_scope.join("tokens");
+    let style = store_package.join("dist/theme.scss");
+    fs::create_dir_all(
+        source
+            .parent()
+            .ok_or_else(|| std::io::Error::other("source parent"))?,
+    )?;
+    fs::create_dir_all(
+        style
+            .parent()
+            .ok_or_else(|| std::io::Error::other("style parent"))?,
+    )?;
+    fs::create_dir_all(linked_scope.as_path())?;
+    fs::write(source.as_path(), "@use \"@design/tokens/theme\";\n")?;
+    fs::write(style.as_path(), "$brand: #0af;\n")?;
+    fs::write(
+        store_package.join("package.json"),
+        r#"{"exports":{"./theme":{"sass":"./dist/theme.scss"}}}"#,
+    )?;
+    std::os::unix::fs::symlink(store_package.as_path(), linked_package.as_path())?;
+
+    let style_text = style.to_string_lossy().to_string();
+    let available_style_paths = BTreeSet::from([style_text.as_str()]);
+    let resolution = summarize_omena_resolver_style_module_resolution(
+        source.to_string_lossy().as_ref(),
+        "@design/tokens/theme",
+        &available_style_paths,
+        &[OmenaResolverStylePackageManifestV0 {
+            package_json_path: store_package
+                .join("package.json")
+                .to_string_lossy()
+                .to_string(),
+            package_json_source: r#"{"exports":{"./theme":{"sass":"./dist/theme.scss"}}}"#
+                .to_string(),
+        }],
+    );
+
+    assert_eq!(
+        resolution.resolution_kind, "packageStyleModule",
+        "expected symlinked package manifest export to resolve; candidates={:?}",
+        resolution.candidates
+    );
+    assert_eq!(
+        resolution.resolved_style_path.as_deref(),
+        Some(style_text.as_str())
+    );
+    let _ = fs::remove_dir_all(root.as_path());
+    Ok(())
+}
+
 #[test]
 fn resolves_package_manifest_subpath_export_patterns() {
     let available_style_paths =

@@ -1,12 +1,16 @@
 use std::collections::{BTreeMap, BTreeSet};
 
-pub use omena_bridge::generate_omena_bridge_sif_for_resolved_style_path;
 use omena_bridge::{
     DesignTokenExternalDeclarationCandidateScopeV0, DesignTokenWorkspaceDeclarationFactV0,
     StyleSemanticGraphSummaryV0,
     collect_omena_bridge_design_token_workspace_declarations_from_source,
     summarize_omena_bridge_style_semantic_graph_from_source,
     summarize_omena_bridge_style_semantic_graph_from_source_with_scoped_workspace_declarations,
+};
+pub use omena_bridge::{
+    OmenaBridgeExternalSifCacheContextV0 as OmenaQueryExternalSifCacheContextV0,
+    generate_omena_bridge_sif_for_resolved_style_path,
+    generate_omena_bridge_sif_for_resolved_style_path_with_cache_context,
 };
 pub use omena_bridge::{
     SourceClassValueUniverseAxisV0 as OmenaQuerySourceClassValueUniverseAxisV0,

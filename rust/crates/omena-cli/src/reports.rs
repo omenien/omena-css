@@ -9,7 +9,8 @@ use crate::{
 };
 use omena_query::{
     OmenaQueryDiagnosticSuppressionModeV0, OmenaQueryDiagnosticSuppressionReasonV0,
-    OmenaQueryStyleDiagnosticsForFileV0, summarize_omena_query_sass_module_conformance_v0,
+    OmenaQueryStyleDiagnosticsForFileV0, OmenaQueryStyleResolutionInputsV0,
+    summarize_omena_query_sass_module_conformance_v0,
     summarize_omena_query_style_diagnostics_for_workspace_file_with_external_mode_and_sifs_and_suppression_mode,
     summarize_omena_query_style_resolution_policy_v0,
 };
@@ -216,8 +217,15 @@ fn summarize_soundiness_report(
     if let Some(lockfile) = lockfile.as_ref() {
         external_sifs.extend(read_lock_external_sifs(lockfile)?);
     }
-    let in_process_external_sifs =
-        resolve_in_process_external_sifs(style_sources.as_slice(), external_sifs.as_slice());
+    let resolution_inputs = OmenaQueryStyleResolutionInputsV0 {
+        package_manifests: package_manifests.clone(),
+        ..OmenaQueryStyleResolutionInputsV0::default()
+    };
+    let in_process_external_sifs = resolve_in_process_external_sifs(
+        style_sources.as_slice(),
+        external_sifs.as_slice(),
+        &resolution_inputs,
+    );
     external_sifs.extend(in_process_external_sifs);
     let external_mode = parse_external_module_mode(&external)?;
     let suppression_mode = if no_suppress {
