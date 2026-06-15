@@ -986,12 +986,6 @@ fn stable_omena_query_cross_file_summary_hash(
     format!("{hash:016x}")
 }
 
-impl OmenaQueryCrossFileSummaryV0 {
-    pub fn recompute_stable_summary_hash(&self) -> String {
-        stable_omena_query_cross_file_summary_hash(self.edges.as_slice())
-    }
-}
-
 fn summarize_omena_query_cross_file_summary_edge_kind_counts(
     edges: &[OmenaQueryCrossFileSummaryEdgeV0],
 ) -> Vec<OmenaQueryCrossFileSummaryEdgeKindCountV0> {

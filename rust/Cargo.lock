@@ -2153,6 +2153,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "omena-cross-file-summary"
+version = "0.2.1"
+dependencies = [
+ "omena-abstract-value",
+ "serde",
+]
+
+[[package]]
 name = "omena-diff-test"
 version = "0.2.1"
 dependencies = [
@@ -2257,6 +2265,7 @@ version = "0.2.1"
 dependencies = [
  "omena-bridge",
  "omena-cascade",
+ "omena-cross-file-summary",
  "omena-parser",
  "omena-query-checker-orchestrator",
  "omena-query-core",
@@ -2389,7 +2398,7 @@ name = "omena-streaming-ifds"
 version = "0.2.1"
 dependencies = [
  "omena-abstract-value",
- "omena-query",
+ "omena-cross-file-summary",
  "serde",
 ]
 
@@ -2489,6 +2498,7 @@ dependencies = [
  "omena-cascade",
  "omena-categorical",
  "omena-checker",
+ "omena-cross-file-summary",
  "omena-engine-input-producers",
  "omena-ensemble",
  "omena-incremental",

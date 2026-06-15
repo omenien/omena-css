@@ -9,12 +9,9 @@
 use std::collections::{BTreeMap, BTreeSet, VecDeque};
 
 use omena_abstract_value::AbstractClassValueV0;
-use omena_query::{
-    OmenaQuerySourceDocumentInputV0, OmenaQueryStylePackageManifestV0,
-    OmenaQueryStyleSourceInputV0, OmenaUnifiedHypergraphConnectivityOracle,
-    UnifiedHypergraphEdgeKindV0, UnifiedHypergraphHyperedgeV0,
-    summarize_omena_query_unified_cross_file_hypergraph,
-    summarize_omena_query_workspace_cross_file_summary,
+use omena_cross_file_summary::{
+    OmenaUnifiedHypergraphConnectivityOracle, UnifiedHypergraphEdgeKindV0,
+    UnifiedHypergraphHyperedgeV0,
 };
 use serde::Serialize;
 
@@ -455,7 +452,7 @@ where
 /// Compute cross-file reachability over the resolved unified hypergraph.
 ///
 /// This is the crate-owned mechanism behind the CLI/product diagnostic. The
-/// caller supplies real `omena-query` hyperedges; this function seeds each node
+/// caller supplies resolved cross-file hyperedges; this function seeds each node
 /// owned by the target style file, runs the exact streaming IFDS oracle, and
 /// reports the foreign module paths reached by propagated facts.
 pub fn summarize_streaming_ifds_cross_file_reachability_v0(
@@ -509,32 +506,6 @@ pub fn summarize_streaming_ifds_cross_file_reachability_v0(
         precision_parity_with_batch,
         exact_default: true,
     }
-}
-
-/// Compute the streaming-IFDS cross-file reachability report from real
-/// `omena-query` workspace facts.
-///
-/// This is the product-facing entry point for CLI/LSP consumers: callers pass
-/// the same resolved style/source/package inputs they already use for workspace
-/// diagnostics, and this crate owns the projection from query summary to exact
-/// streaming IFDS propagation. Consumers decide how to render the returned
-/// report, but they do not rebuild the hypergraph themselves.
-pub fn summarize_streaming_ifds_workspace_cross_file_reachability_v0(
-    target_style_path: &str,
-    style_sources: &[OmenaQueryStyleSourceInputV0],
-    source_documents: &[OmenaQuerySourceDocumentInputV0],
-    package_manifests: &[OmenaQueryStylePackageManifestV0],
-) -> StreamingIFDSCrossFileReachabilityReportV0 {
-    let summary = summarize_omena_query_workspace_cross_file_summary(
-        style_sources,
-        source_documents,
-        package_manifests,
-    );
-    let hypergraph = summarize_omena_query_unified_cross_file_hypergraph(&summary);
-    summarize_streaming_ifds_cross_file_reachability_v0(
-        target_style_path,
-        hypergraph.hyperedges.as_slice(),
-    )
 }
 
 pub fn streaming_ifds_transfer_functions_v0(
@@ -1259,43 +1230,6 @@ mod tests {
         assert_eq!(report.reachable_foreign_path_count, 0);
         assert!(report.reachable_foreign_paths.is_empty());
         assert!(report.precision_parity_with_batch);
-    }
-
-    #[test]
-    fn workspace_cross_file_reachability_uses_query_summary_edges() {
-        let tokens = OmenaQueryStyleSourceInputV0 {
-            style_path: "/workspace/_tokens.scss".to_string(),
-            style_source: "$brand: red;\n".to_string(),
-        };
-        let importer = OmenaQueryStyleSourceInputV0 {
-            style_path: "/workspace/Button.module.scss".to_string(),
-            style_source: "@use \"./tokens\" as tokens;\n.root { color: tokens.$brand; }\n"
-                .to_string(),
-        };
-        let sources = vec![tokens.clone(), importer.clone()];
-
-        let importer_report = summarize_streaming_ifds_workspace_cross_file_reachability_v0(
-            importer.style_path.as_str(),
-            sources.as_slice(),
-            &[],
-            &[],
-        );
-        assert_eq!(importer_report.start_node_count, 1);
-        assert!(importer_report.exact_default);
-        assert!(importer_report.precision_parity_with_batch);
-        assert_eq!(
-            importer_report.reachable_foreign_paths,
-            vec!["/workspace/_tokens.scss".to_string()]
-        );
-
-        let leaf_report = summarize_streaming_ifds_workspace_cross_file_reachability_v0(
-            tokens.style_path.as_str(),
-            sources.as_slice(),
-            &[],
-            &[],
-        );
-        assert_eq!(leaf_report.reachable_foreign_path_count, 0);
-        assert!(leaf_report.reachable_foreign_paths.is_empty());
     }
 
     #[cfg(feature = "with-frame-rule")]

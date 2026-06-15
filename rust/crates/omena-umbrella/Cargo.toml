@@ -21,6 +21,7 @@ omena-abstract-value = { path = "../omena-abstract-value", version = "=0.2.1" }
 omena-bundler = { path = "../omena-bundler", version = "=0.2.1" }
 omena-bridge = { path = "../omena-bridge", version = "=0.2.1" }
 omena-cascade = { path = "../omena-cascade", version = "=0.2.1" }
+omena-cross-file-summary = { path = "../omena-cross-file-summary", version = "=0.2.1" }
 omena-categorical = { path = "../omena-categorical", version = "=0.2.1" }
 omena-checker = { path = "../omena-checker", version = "=0.2.1" }
 omena-ensemble = { path = "../omena-ensemble", version = "=0.2.1" }

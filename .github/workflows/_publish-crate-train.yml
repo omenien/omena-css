@@ -167,9 +167,34 @@ jobs:
           echo "Canonical publish order (${count} crates, deps first):"
           cat canonical-publish-order.txt
 
-      # 4. cargo-semver-checks is SKIPPED at genesis (0.2.0 has no prior crates.io
-      #    baseline) and is wired in from the first steady-state bump (0.3.0+), when
-      #    a published baseline exists. Intentionally not a step here yet.
+      # 4. cargo-semver-checks is SKIPPED for 0.2.x genesis-line releases, which
+      #    may still introduce first-published train crates. From the first
+      #    steady-state bump (0.3.0+) every publishable train member must compare
+      #    against its crates.io baseline before publish proceeds.
+      - name: cargo-semver-checks steady-state gate
+        shell: bash
+        run: |
+          set -euo pipefail
+          workspace_version="$(node -e "const fs=require('node:fs');const t=fs.readFileSync('rust/Cargo.toml','utf8');const m=t.match(/\\[workspace\\.package\\][\\s\\S]*?version\\s*=\\s*\"([^\"]+)\"/);if(!m)throw new Error('no workspace.package version');process.stdout.write(m[1])")"
+          semver_required="$(node -e "const v=process.argv[1].split('.').map(Number);process.stdout.write((v[0] > 0 || v[1] >= 3) ? 'true' : 'false')" "${workspace_version}")"
+          echo "workspace version: ${workspace_version}"
+          if [ "${semver_required}" != "true" ]; then
+            echo "Skipping cargo-semver-checks for ${workspace_version}; 0.2.x is still the genesis-line publish train."
+            exit 0
+          fi
+          cargo install cargo-semver-checks --version 0.48.0 --locked
+          while IFS= read -r crate; do
+            if [ -z "${crate}" ]; then
+              continue
+            fi
+            echo "::group::cargo-semver-checks ${crate}"
+            cargo semver-checks check-release \
+              --manifest-path rust/Cargo.toml \
+              --package "${crate}" \
+              --all-features \
+              --color never
+            echo "::endgroup::"
+          done < canonical-publish-order.txt
 
       # 5. PUBLISH. `cargo publish --workspace --locked` (no exclude). RFC-3691:
       #    bootstrap = manual CRATES_IO_TOKEN (genesis, never-published crates);

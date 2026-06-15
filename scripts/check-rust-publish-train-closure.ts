@@ -9,8 +9,8 @@ import { fileURLToPath } from "node:url";
  *
  * Model A (direct publish): the monorepo IS the crates.io publish source, so the
  * publish train is simply the PUBLISHABLE set of workspace members — every member
- * whose resolved `publish` is not `[]` (publish-flags pins that set to exactly the
- * 41 non-[I] / non-npm-only crates). There is no longer a generated standalone
+ * whose resolved `publish` is not `[]` (publish-flags pins that set from Cargo
+ * metadata). There is no longer a generated standalone
  * workspace, and no hand-maintained `omenaCssCrates` / `omenaCssPublishOrder`
  * literal to keep in lock-step. This gate derives everything from `cargo metadata`.
  *
@@ -172,7 +172,7 @@ const edgeSetSha256 = createHash("sha256")
       .join("\n"),
   )
   .digest("hex");
-const EXPECTED_EDGE_SET_SHA256 = "f316179e51b3e2f18fc6fd172141209faeac5e127453dc4d5285e9c44fa05845";
+const EXPECTED_EDGE_SET_SHA256 = "94b6229beb529d905e142695bb1efd9815bfef1642d5d240b18eed162b05310b";
 assert.equal(
   edgeSetSha256,
   EXPECTED_EDGE_SET_SHA256,

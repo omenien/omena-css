@@ -92,6 +92,8 @@ use omena_query::{
     summarize_omena_query_style_hover_render_parts_for_hover_position,
     summarize_omena_query_style_hover_render_parts_for_workspace_file_hover_position_with_substrate,
     summarize_omena_query_style_refactor_code_actions,
+    summarize_omena_query_unified_cross_file_hypergraph,
+    summarize_omena_query_workspace_cross_file_summary,
     summarize_omena_query_workspace_occurrence_index_from_occurrences,
 };
 #[cfg(not(feature = "salsa-style-diagnostics"))]
@@ -100,7 +102,7 @@ use omena_query::{
     summarize_omena_query_style_diagnostics_for_workspace_file_with_external_mode_and_sifs_and_resolution_inputs,
 };
 use omena_sif::compute_omena_sif_leaf_hash_v1;
-use omena_streaming_ifds::summarize_streaming_ifds_workspace_cross_file_reachability_v0;
+use omena_streaming_ifds::summarize_streaming_ifds_cross_file_reachability_v0;
 #[cfg(test)]
 pub(crate) use omena_tsgo_client::{TsgoResolvedTypeV0, TsgoTypeFactResultEntryV0};
 use protocol::*;
@@ -1862,11 +1864,15 @@ fn summarize_cross_file_streaming_reachability_diagnostics_for_lsp(
     source_documents: &[OmenaQuerySourceDocumentInputV0],
     package_manifests: &[OmenaQueryStylePackageManifestV0],
 ) -> Vec<OmenaQueryStyleDiagnosticV0> {
-    let report = summarize_streaming_ifds_workspace_cross_file_reachability_v0(
-        target_style_path,
+    let summary = summarize_omena_query_workspace_cross_file_summary(
         style_sources,
         source_documents,
         package_manifests,
+    );
+    let hypergraph = summarize_omena_query_unified_cross_file_hypergraph(&summary);
+    let report = summarize_streaming_ifds_cross_file_reachability_v0(
+        target_style_path,
+        hypergraph.hyperedges.as_slice(),
     );
     if report.reachable_foreign_paths.is_empty() {
         return Vec::new();

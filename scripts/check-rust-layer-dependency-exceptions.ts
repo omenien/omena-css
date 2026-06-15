@@ -20,15 +20,18 @@ const FACADE_CRATES = new Set([
   "omena-query-transform-runner",
 ]);
 
-const ALLOWED_EXCEPTIONS = [
+const FACADE_WATCHED_PILLARS = new Set(["theoretical-rigor"]);
+
+const REQUIRED_WATCHED_CRATES = [
   {
-    from: "omena-streaming-ifds",
-    to: "omena-query",
-    reason: "Consumes hypergraph and cross-file summary APIs for live LSP reachability.",
-    retirementPath:
-      "Move hypergraph substrate types/functions into omena-query-core or a future lower crate, then make omena-query and omena-streaming-ifds siblings.",
+    name: "omena-streaming-ifds",
+    pillar: "theoretical-rigor",
+    reason:
+      "Keep streaming IFDS facade-dependency regressions visible after retiring its omena-query exception.",
   },
 ] as const;
+
+const ALLOWED_EXCEPTIONS = [] as const;
 
 interface CargoDependency {
   readonly name: string;
@@ -75,6 +78,15 @@ for (const pkg of metadata.packages) {
   internalDeps.set(pkg.name, deps);
 }
 
+for (const watchedCrate of REQUIRED_WATCHED_CRATES) {
+  const actualPillar = pillarOf.get(watchedCrate.name);
+  assert.equal(
+    actualPillar,
+    watchedCrate.pillar,
+    `${watchedCrate.name} must keep pillar=${watchedCrate.pillar}: ${watchedCrate.reason}`,
+  );
+}
+
 function edgeKey(from: string, to: string): string {
   return `${from}->${to}`;
 }
@@ -114,8 +126,9 @@ for (const [crate, deps] of internalDeps) {
   for (const dep of deps) {
     const depRole = roleOf.get(dep);
     const isR1ToR2 = role === "R1" && depRole === "R2";
-    const isTheoryToFacade = pillar === "theoretical-rigor" && FACADE_CRATES.has(dep);
-    if (!isR1ToR2 && !isTheoryToFacade) {
+    const isWatchedPillarToFacade =
+      pillar !== undefined && FACADE_WATCHED_PILLARS.has(pillar) && FACADE_CRATES.has(dep);
+    if (!isR1ToR2 && !isWatchedPillarToFacade) {
       continue;
     }
 
@@ -127,7 +140,7 @@ for (const [crate, deps] of internalDeps) {
 
     const reasons = [
       isR1ToR2 ? "R1 building block depends on R2 facade/engine" : undefined,
-      isTheoryToFacade ? "theoretical-rigor crate depends on facade crate" : undefined,
+      isWatchedPillarToFacade ? `${pillar} crate depends on facade crate` : undefined,
     ].filter(Boolean);
     violations.push(`${key}: ${reasons.join("; ")}`);
   }
@@ -152,9 +165,11 @@ process.stdout.write(
       schemaVersion: "0",
       product: "rust.layer-dependency-exceptions",
       members: metadata.packages.length,
-      facadeCrates: [...FACADE_CRATES].sort(),
+      facadeCrates: [...FACADE_CRATES].toSorted(),
+      facadeWatchedPillars: [...FACADE_WATCHED_PILLARS].toSorted(),
+      requiredWatchedCrates: REQUIRED_WATCHED_CRATES.map((crate) => crate.name).toSorted(),
       allowedExceptionCount: ALLOWED_EXCEPTIONS.length,
-      observedExceptions: [...observedExceptions].sort(),
+      observedExceptions: [...observedExceptions].toSorted(),
       unapprovedExceptions: 0,
       staleExceptions: 0,
     },

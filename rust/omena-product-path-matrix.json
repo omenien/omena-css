@@ -59,6 +59,16 @@
       "evidence": ["rust/crates/omena-cascade/src/lib.rs", "rust/crates/omena-query/Cargo.toml"]
     },
     {
+      "crate": "omena-cross-file-summary",
+      "role": "R1",
+      "surface": "product-runtime",
+      "entrypoints": ["cross-file hypergraph substrate consumed by query and streaming IFDS"],
+      "evidence": [
+        "rust/crates/omena-cross-file-summary/src/lib.rs",
+        "rust/crates/omena-streaming-ifds/Cargo.toml"
+      ]
+    },
+    {
       "crate": "omena-categorical",
       "role": "R1",
       "surface": "product-runtime",
@@ -280,7 +290,7 @@
     },
     {
       "crate": "omena-streaming-ifds",
-      "role": "R2",
+      "role": "R1",
       "surface": "product-runtime",
       "entrypoints": ["live cross-file reachability report used by CLI/LSP paths"],
       "evidence": [

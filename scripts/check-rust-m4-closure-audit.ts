@@ -288,7 +288,7 @@ function buildTheoryClaimGuard(): {
       status: "partialPropertyTest",
       framing: "partialMechanism",
       surface: "hypergraph IFDS projection seed",
-      evidencePath: "rust/crates/omena-query/src/style/cross_file_hypergraph/reachability.rs",
+      evidencePath: "rust/crates/omena-cross-file-summary/src/lib.rs",
       evidenceMarkers: [
         "OmenaUnifiedHypergraphConnectivityOracle",
         "tabulate_hypergraph_ifds_summary_edges",

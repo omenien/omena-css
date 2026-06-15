@@ -7,6 +7,7 @@ members = [
   "crates/omena-bundler",
   "crates/omena-bridge",
   "crates/omena-cascade",
+  "crates/omena-cross-file-summary",
   "crates/omena-categorical",
   "crates/omena-checker",
   "crates/omena-cli",

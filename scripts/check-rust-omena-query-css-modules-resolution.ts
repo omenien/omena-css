@@ -8,17 +8,21 @@ const crossFileSummarySource = readFileSync(
   path.join(root, "rust/crates/omena-query/src/style/cross_file_summary.rs"),
   "utf8",
 );
+const crossFileSubstrateSource = readFileSync(
+  path.join(root, "rust/crates/omena-cross-file-summary/src/lib.rs"),
+  "utf8",
+);
 const crossFileHypergraphSource = [
   readFileSync(
     path.join(root, "rust/crates/omena-query/src/style/cross_file_hypergraph/mod.rs"),
     "utf8",
   ),
-  readFileSync(
-    path.join(root, "rust/crates/omena-query/src/style/cross_file_hypergraph/scc.rs"),
-    "utf8",
-  ),
+  crossFileSubstrateSource,
 ].join("\n");
-const typeSource = readFileSync(path.join(root, "rust/crates/omena-query/src/types.rs"), "utf8");
+const typeSource = [
+  readFileSync(path.join(root, "rust/crates/omena-query/src/types.rs"), "utf8"),
+  crossFileSubstrateSource,
+].join("\n");
 const testSource = [
   readFileSync(path.join(root, "rust/crates/omena-query/src/tests.rs"), "utf8"),
   readFileSync(path.join(root, "rust/crates/omena-query/src/tests/cross_file_summary.rs"), "utf8"),

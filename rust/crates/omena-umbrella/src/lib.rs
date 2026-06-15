@@ -14,6 +14,7 @@ pub use omena_bundler;
 pub use omena_cascade;
 pub use omena_categorical;
 pub use omena_checker;
+pub use omena_cross_file_summary;
 pub use omena_ensemble;
 pub use omena_incremental;
 pub use omena_interner;

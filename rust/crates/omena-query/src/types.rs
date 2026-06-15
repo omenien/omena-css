@@ -225,83 +225,6 @@ pub struct OmenaQueryStyleSemanticGraphBatchOutputV0 {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
-pub struct OmenaQueryCrossFileSummaryV0 {
-    pub schema_version: &'static str,
-    pub product: &'static str,
-    pub status: &'static str,
-    pub summary_scope: &'static str,
-    pub style_count: usize,
-    pub summary_edge_count: usize,
-    pub edge_kind_counts: Vec<OmenaQueryCrossFileSummaryEdgeKindCountV0>,
-    pub summary_hash: String,
-    pub edges: Vec<OmenaQueryCrossFileSummaryEdgeV0>,
-    pub capabilities: OmenaQueryCrossFileSummaryCapabilitiesV0,
-    pub next_priorities: Vec<&'static str>,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct OmenaQueryCrossFileSummaryEdgeKindCountV0 {
-    pub edge_kind: &'static str,
-    pub count: usize,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct OmenaQueryCrossFileSummaryEdgeV0 {
-    pub edge_id: String,
-    pub edge_kind: &'static str,
-    pub from_kind: &'static str,
-    pub from_path: String,
-    pub target_kind: Option<&'static str>,
-    pub target_path: Option<String>,
-    pub source: Option<String>,
-    pub owner_selector_name: Option<String>,
-    pub local_name: Option<String>,
-    pub remote_name: Option<String>,
-    pub target_names: Vec<String>,
-    pub status: &'static str,
-    pub provenance: Vec<&'static str>,
-    pub linear_provenance: OmenaQueryLinearProvenanceV0,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct OmenaQueryCrossFileSummaryCapabilitiesV0 {
-    pub css_modules_composes_edges_ready: bool,
-    pub css_modules_value_edges_ready: bool,
-    pub css_modules_icss_edges_ready: bool,
-    pub sass_module_edges_ready: bool,
-    pub style_design_token_reference_edges_ready: bool,
-    pub source_selector_reference_edges_ready: bool,
-    pub stable_summary_hash_ready: bool,
-    pub linear_provenance_ready: bool,
-    pub linear_provenance_round_trip_ready: bool,
-    pub linear_provenance_semiring_laws_hold: bool,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct OmenaQueryCrossFileSccEvidenceV0 {
-    pub schema_version: &'static str,
-    pub product: &'static str,
-    pub feature_gate: &'static str,
-    pub claim_level: &'static str,
-    pub theorem_claimed: bool,
-    pub connectivity_backend: &'static str,
-    pub polylog_bound_scope: &'static str,
-    pub scc_id: String,
-    pub node_count: usize,
-    pub directed_edge_count: usize,
-    pub cross_file: bool,
-    pub node_ids: Vec<String>,
-    pub style_paths: Vec<String>,
-    pub edge_kinds: Vec<&'static str>,
-    pub summary_edge_ids: Vec<String>,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
-#[serde(rename_all = "camelCase")]
 pub struct OmenaQueryCategoricalDesignSystemCrossProjectSummaryV0 {
     pub schema_version: &'static str,
     pub product: &'static str,
@@ -1214,20 +1137,6 @@ pub fn round_trip_omena_query_linear_provenance_labels(
     linear_provenance: &OmenaQueryLinearProvenanceV0,
 ) -> Vec<&'static str> {
     linear_provenance.labels()
-}
-
-impl OmenaQueryCrossFileSummaryEdgeV0 {
-    pub fn linear_provenance_round_trips_legacy_labels(&self) -> bool {
-        round_trip_omena_query_linear_provenance_labels(&self.linear_provenance) == self.provenance
-    }
-}
-
-impl OmenaQueryCrossFileSummaryV0 {
-    pub fn linear_provenance_round_trips_legacy_labels(&self) -> bool {
-        self.edges
-            .iter()
-            .all(OmenaQueryCrossFileSummaryEdgeV0::linear_provenance_round_trips_legacy_labels)
-    }
 }
 
 impl OmenaQueryStyleDiagnosticV0 {
