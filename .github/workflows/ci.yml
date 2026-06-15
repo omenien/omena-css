@@ -193,6 +193,10 @@ jobs:
         name: Run core-layer-hygiene
         run: pnpm omena-check run rust/core-layer-hygiene
         continue-on-error: true
+      - id: feature_resolved_reachability
+        name: Run feature-resolved-product-reachability
+        run: pnpm omena-check run rust/feature-resolved-product-reachability
+        continue-on-error: true
       - id: publish_flags
         name: Run publish-flags
         run: pnpm omena-check run rust/publish-flags
@@ -229,6 +233,7 @@ jobs:
           echo "layer_dependency_exceptions=${{ steps.layer_dependency_exceptions.outcome }}"
           echo "product_path_matrix=${{ steps.product_path_matrix.outcome }}"
           echo "core_layer_hygiene=${{ steps.core_layer_hygiene.outcome }}"
+          echo "feature_resolved_reachability=${{ steps.feature_resolved_reachability.outcome }}"
           echo "publish_flags=${{ steps.publish_flags.outcome }}"
           echo "naming_consistency=${{ steps.naming_consistency.outcome }}"
           echo "no_split_residue=${{ steps.no_split_residue.outcome }}"
@@ -249,6 +254,7 @@ jobs:
             "${{ steps.layer_dependency_exceptions.outcome }}" \
             "${{ steps.product_path_matrix.outcome }}" \
             "${{ steps.core_layer_hygiene.outcome }}" \
+            "${{ steps.feature_resolved_reachability.outcome }}" \
             "${{ steps.publish_flags.outcome }}" \
             "${{ steps.naming_consistency.outcome }}" \
             "${{ steps.no_split_residue.outcome }}" \

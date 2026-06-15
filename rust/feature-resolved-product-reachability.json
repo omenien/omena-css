@@ -1,0 +1,34 @@
+{
+  "schemaVersion": "0",
+  "product": "omena-css.feature-resolved-product-reachability",
+  "queryCrate": "omena-query",
+  "note": "Per-product-root active-feature reachability for omena-query's THEORETICAL-RIGOR features, resolved via `cargo tree -e features -p <root> -i omena-query` (metadata-only, HOST target). Witnesses 'theory ships OFF': omena-categorical is a NON-optional R1 dep so no optional edge exists for the layer/matrix gates to flag — only feature resolution distinguishes 'crate linked' from 'analysis feature active'. theoryRigorFeatures are exactly omena-query's own theory features at HEAD; non-theory features (default, salsa-memo = RFC0009 perf) are intentionally NOT gated. Deeper dormant theory crates (omena-zk-circuit / omena-refinement / omena-variational) are NOT omena-query features and so are out of THIS gate's scope (they cannot leak via omena-query's feature set). REPORT-ONLY by default; the hard-fail variant is a surfaced, user-gated decision (deferral #79-90) — see the goal doc.",
+  "resolution": {
+    "command": "cargo tree -e features -p <root> -i omena-query",
+    "target": "host",
+    "rationale": "Host resolution is the safe upper bound: wasm32 (omena-wasm) can only DISABLE native features, never add them; z3 (smt-z3) is opt-in and confirmed NOT pulled on host for any root, so it does not perturb resolution."
+  },
+  "theoryRigorFeatures": ["hypergraph-ifds", "lawvere-trace", "smt-z3"],
+  "roots": [
+    {
+      "root": "omena-lsp-server",
+      "declaredReachable": ["hypergraph-ifds"],
+      "declaredDormant": ["lawvere-trace", "smt-z3"]
+    },
+    {
+      "root": "omena-cli",
+      "declaredReachable": ["hypergraph-ifds", "lawvere-trace"],
+      "declaredDormant": ["smt-z3"]
+    },
+    {
+      "root": "omena-napi",
+      "declaredReachable": [],
+      "declaredDormant": ["hypergraph-ifds", "lawvere-trace", "smt-z3"]
+    },
+    {
+      "root": "omena-wasm",
+      "declaredReachable": [],
+      "declaredDormant": ["hypergraph-ifds", "lawvere-trace", "smt-z3"]
+    }
+  ]
+}
