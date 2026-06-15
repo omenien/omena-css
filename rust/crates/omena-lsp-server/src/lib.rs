@@ -16,6 +16,7 @@ mod source_occurrence_cache;
 mod source_type_fact_cache;
 mod source_type_facts;
 mod state;
+mod streaming_ifds_diagnostics;
 mod style_symbol_occurrence_cache;
 mod workspace_index;
 mod workspace_occurrence_cache;
@@ -92,8 +93,6 @@ use omena_query::{
     summarize_omena_query_style_hover_render_parts_for_hover_position,
     summarize_omena_query_style_hover_render_parts_for_workspace_file_hover_position_with_substrate,
     summarize_omena_query_style_refactor_code_actions,
-    summarize_omena_query_unified_cross_file_hypergraph,
-    summarize_omena_query_workspace_cross_file_summary,
     summarize_omena_query_workspace_occurrence_index_from_occurrences,
 };
 #[cfg(not(feature = "salsa-style-diagnostics"))]
@@ -102,7 +101,6 @@ use omena_query::{
     summarize_omena_query_style_diagnostics_for_workspace_file_with_external_mode_and_sifs_and_resolution_inputs,
 };
 use omena_sif::compute_omena_sif_leaf_hash_v1;
-use omena_streaming_ifds::summarize_streaming_ifds_cross_file_reachability_v0;
 #[cfg(test)]
 pub(crate) use omena_tsgo_client::{TsgoResolvedTypeV0, TsgoTypeFactResultEntryV0};
 use protocol::*;
@@ -126,6 +124,7 @@ use std::{
     path::{Component, Path, PathBuf},
     sync::Arc,
 };
+use streaming_ifds_diagnostics::summarize_cross_file_streaming_reachability_diagnostics_for_lsp;
 use style_symbol_occurrence_cache::store_style_symbol_occurrence_sidecar;
 pub(crate) use workspace_index::index_workspace_style_files;
 pub(crate) use workspace_index::workspace_index_language_id_for_uri;
@@ -1853,53 +1852,6 @@ fn render_style_diagnostics_summary_value(
         .collect::<Vec<_>>();
 
     json!(diagnostics)
-}
-
-/// Surface streaming-IFDS cross-file reachability through the live LSP style
-/// diagnostics path. The mechanism remains owned by `omena-streaming-ifds`;
-/// LSP only renders the returned report as a product diagnostic.
-fn summarize_cross_file_streaming_reachability_diagnostics_for_lsp(
-    target_style_path: &str,
-    style_sources: &[OmenaQueryStyleSourceInputV0],
-    source_documents: &[OmenaQuerySourceDocumentInputV0],
-    package_manifests: &[OmenaQueryStylePackageManifestV0],
-) -> Vec<OmenaQueryStyleDiagnosticV0> {
-    let summary = summarize_omena_query_workspace_cross_file_summary(
-        style_sources,
-        source_documents,
-        package_manifests,
-    );
-    let hypergraph = summarize_omena_query_unified_cross_file_hypergraph(&summary);
-    let report = summarize_streaming_ifds_cross_file_reachability_v0(
-        target_style_path,
-        hypergraph.hyperedges.as_slice(),
-    );
-    if report.reachable_foreign_paths.is_empty() {
-        return Vec::new();
-    }
-
-    vec![OmenaQueryStyleDiagnosticV0 {
-        code: "crossFileStreamingReachability",
-        severity: "hint",
-        provenance: vec![
-            "omena-lsp-server.style-diagnostics",
-            "omena-streaming-ifds.cross-file-reachability-report",
-            "omena-streaming-ifds.analysis-report",
-            "omena-query.unified-cross-file-hypergraph",
-            "omena-query.cross-file-summary",
-        ],
-        range: ParserRangeV0::default(),
-        message: format!(
-            "cross-file dataflow reaches {} module(s) via resolved edges; paths are omitted from diagnostics",
-            report.reachable_foreign_path_count
-        ),
-        tags: Vec::new(),
-        create_custom_property: None,
-        cascade_narrowing: None,
-        cascade_confidence: None,
-        polynomial_provenance: None,
-        cross_file_scc: None,
-    }]
 }
 
 fn summarize_lsp_opt_in_deep_analysis_diagnostics(
