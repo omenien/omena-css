@@ -30,6 +30,12 @@ Validate the benchmark boundary contract without running timing loops:
 pnpm omena-check run rust/omena-benchmarks-boundary
 ```
 
+Validate emitted CSS bytes against the committed Omena golden snapshot:
+
+```bash
+pnpm omena-check run rust/benchmark/emitted-css-golden-gate
+```
+
 Emit the machine-readable Criterion surface snapshot:
 
 ```bash
@@ -60,6 +66,17 @@ Run the release-grade Z5 readiness check:
 ```bash
 pnpm omena-check bundle rust/z5-performance-baseline-readiness
 ```
+
+Run the advisory instruction-count regression probe:
+
+```bash
+pnpm omena-check run rust/benchmark/instruction-count-advisory
+```
+
+This probe compiles everywhere, but it only records real instruction-count
+benchmarks when Valgrind is available. It is a scheduled/manual advisory gate,
+not a PR-blocking gate, until Valgrind compatibility and runtime cost are
+recorded on the relevant hot paths.
 
 Run the parser-product cut-over ratio gate directly:
 
@@ -97,6 +114,7 @@ Until then, the committed benchmark surface is the contract:
 
 - benchmark code is versioned
 - corpus generation is versioned
+- emitted CSS golden bytes are versioned before speed numbers are considered
 - macro request mix is versioned
 - parser-product benchmark lanes expose a machine-readable readiness summary
   proving both lanes measure raw style source to product summary
@@ -107,6 +125,25 @@ Until then, the committed benchmark surface is the contract:
   is published
 - parser-product cut-over ratio is enforced by `check:rust-z5-parser-product-cutover`
 - thresholds are enforced by `check:rust-z5-performance-baseline-macro`
+
+## Result Disclosure Policy
+
+Benchmark results are publishable only when the command, corpus, artifact, host
+class, and comparison boundary are recorded. A green gate means the result is
+recorded, correct for the stated corpus, and reproducible by the stated command;
+it does not mean Omena is the fastest implementation.
+
+Publishable outcomes are:
+
+- Faster on a stated subset, with the artifact hash and corpus hash included.
+- Same order, with the multiplier and tolerance disclosed.
+- Slower, with the ratio and a decomposition of process startup, engine work,
+  and provenance or source-map emission cost when those components are relevant.
+
+Do not suppress slower results. If a result is not favorable, publish it with the
+same artifact requirements or do not publish the benchmark at all. Vendor
+numbers from other projects are treated as unverified on this machine unless the
+same corpus and host details are reproduced locally.
 
 ## Baseline Snapshot
 
@@ -138,8 +175,10 @@ Criterion timing run is captured with host details.
 The parser-product cut-over gate compares the actual CSS Modules intermediate
 producer path from raw style source to product summary, not full CST
 construction alone. The legacy parser is retained here as a benchmark/oracle
-baseline, not as a product parser lane dependency. The following numbers were
-captured on 2026-05-19 with:
+baseline, not as a product parser lane dependency. This is an internal parity
+guardrail against Omena's own legacy lane. It is not a competitive same-order
+floor and it cannot fail because another external tool is faster, which is
+intentional. The following numbers were captured on 2026-05-19 with:
 
 - Command: `pnpm omena-check run rust/z5-parser-product-cutover`
 - Iterations: 40 per sample

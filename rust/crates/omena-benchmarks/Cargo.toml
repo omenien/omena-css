@@ -26,7 +26,12 @@ sha2.workspace = true
 
 [dev-dependencies]
 criterion.workspace = true
+iai-callgrind.workspace = true
 
 [[bench]]
 name = "z5_performance_baseline"
+harness = false
+
+[[bench]]
+name = "z5_instruction_count_advisory"
 harness = false

@@ -10,6 +10,9 @@ const DEFAULT_MAX_RATIO: f64 = 1.10;
 const ITERATIONS: usize = 40;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
+    // This is an internal parity guardrail against Omena's own legacy parser
+    // product lane. External tool rankings belong to separately recorded
+    // artifacts with their own corpus and machine metadata.
     validate_parser_product_benchmark_boundary_symmetry()?;
     let max_ratio = std::env::var("OMENA_Z5_PARSER_PRODUCT_MAX_RATIO")
         .ok()

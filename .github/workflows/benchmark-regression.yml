@@ -1,0 +1,51 @@
+name: Benchmark Regression
+
+on:
+  schedule:
+    - cron: "30 7 * * 1"
+  workflow_dispatch:
+
+concurrency:
+  group: benchmark-regression-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  instruction-count-advisory:
+    # omena-ci-tier: scheduled
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+      - uses: ./.github/actions/setup-pnpm
+      - uses: ./.github/actions/cache-rust
+      - uses: ./.github/actions/sync-release-metadata
+      - name: Install Valgrind
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y valgrind
+          valgrind --version
+      - name: Run instruction-count advisory gate
+        run: pnpm omena-check run rust/benchmark/instruction-count-advisory
+        env:
+          OMENA_BENCHMARK_ARTIFACT_PATH: benchmark-artifacts/z5-instruction-count-advisory.json
+      - name: Require advisory artifact
+        run: test -s benchmark-artifacts/z5-instruction-count-advisory.json
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: z5-instruction-count-advisory
+          path: benchmark-artifacts/z5-instruction-count-advisory.json
+          if-no-files-found: error
+      - name: Escalate scheduled failure
+        if: ${{ failure() }}
+        uses: ./.github/actions/escalate-ci-failure
+        with:
+          title: "CI failure: benchmark-regression / instruction-count-advisory"
+          body: |
+            The scheduled benchmark instruction-count advisory lane failed.
+          workflow-name: Benchmark Regression
+          job-name: instruction-count-advisory
+          run-url: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
