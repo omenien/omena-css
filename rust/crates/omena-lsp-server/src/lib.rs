@@ -834,7 +834,13 @@ pub(crate) fn is_resolution_config_document_uri(uri: &str) -> bool {
 }
 
 fn is_package_manager_install_state_path(path: &Path) -> bool {
-    node_modules_package_for_path(path).is_some_and(|(_, _, subpath)| subpath.is_empty())
+    // The package-ROOT path (the `node_modules/<scope>/<pkg>` symlink itself) is what a
+    // pnpm install / symlink-retarget touches. `node_modules_package_for_path` normalizes
+    // that root case to subpath = "." (never ""), so matching `is_empty()` alone was dead
+    // code — the package-root watched event never fired an external-SIF refresh. Match the
+    // normalized "." sentinel (and "" defensively).
+    node_modules_package_for_path(path)
+        .is_some_and(|(_, _, subpath)| subpath.is_empty() || subpath == ".")
 }
 
 pub(crate) fn ensure_style_document_loaded_from_disk(state: &mut LspShellState, uri: &str) -> bool {
