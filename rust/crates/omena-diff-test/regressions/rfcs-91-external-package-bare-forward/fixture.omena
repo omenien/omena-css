@@ -30,3 +30,5 @@ $ds_gray-700: #374151;
 }
 --- expect: no-diagnostic missingSassSymbol
 --- expect: no-diagnostic missingExternalSif
+--- expect: no-diagnostic partialExternalSif
+--- expect: no-diagnostic unresolvedExternalReference
