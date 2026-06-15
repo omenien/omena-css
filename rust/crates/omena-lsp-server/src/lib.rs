@@ -1224,15 +1224,20 @@ fn resolve_lsp_definition(state: &LspShellState, params: Option<&Value>) -> Valu
     };
     if is_sass_symbol_reference_kind(candidate.kind) {
         let definitions = sass_symbol_definitions_for_candidate(state, document, candidate);
-        if definitions.is_empty() {
-            return Value::Null;
+        if !definitions.is_empty() {
+            return json!(
+                definitions
+                    .into_iter()
+                    .map(|(uri, definition)| json!({ "uri": uri, "range": definition.range }))
+                    .collect::<Vec<_>>()
+            );
         }
-        return json!(
-            definitions
-                .into_iter()
-                .map(|(uri, definition)| json!({ "uri": uri, "range": definition.range }))
-                .collect::<Vec<_>>()
-        );
+        if let Some(location) =
+            external_sif_sass_symbol_definition_location(state, document, candidate)
+        {
+            return json!([location]);
+        }
+        return Value::Null;
     }
     if candidate.kind == "customPropertyReference" {
         let definitions =
@@ -3825,6 +3830,63 @@ fn render_external_sif_sass_symbol_hover_markdown(target: &ExternalSifSassSymbol
         lines.push(format!("Value: `{value_repr}`"));
     }
     lines.join("\n")
+}
+
+fn external_sif_sass_symbol_definition_location(
+    state: &LspShellState,
+    document: &LspTextDocumentState,
+    candidate: &LspStyleHoverCandidate,
+) -> Option<Value> {
+    let family = sass_symbol_kind_from_candidate_kind(candidate.kind)?;
+    let sources =
+        summarize_omena_query_sass_module_sources(document.uri.as_str(), document.text.as_str())?;
+    let mut visiting = BTreeSet::new();
+    let mut target = None;
+    for source in resolve_omena_query_sass_module_use_sources_for_candidate(
+        &sources,
+        candidate.namespace.as_deref(),
+    ) {
+        target = external_sif_sass_symbol_target_for_module_source(
+            state,
+            document,
+            source.as_str(),
+            family,
+            candidate.name.as_str(),
+            &mut visiting,
+        );
+        if target.is_some() {
+            break;
+        }
+    }
+    let target = target?;
+    let range = external_sif_sass_symbol_definition_range(state, &target).or_else(|| {
+        style_text_for_uri(state, target.canonical_url.as_str()).map(|_| {
+            let start = ParserPositionV0 {
+                line: 0,
+                character: 0,
+            };
+            ParserRangeV0 { start, end: start }
+        })
+    })?;
+    Some(json!({
+        "uri": target.canonical_url,
+        "range": range,
+    }))
+}
+
+fn external_sif_sass_symbol_definition_range(
+    state: &LspShellState,
+    target: &ExternalSifSassSymbolTarget,
+) -> Option<ParserRangeV0> {
+    let (_, candidates) = style_hover_candidates_for_uri(state, target.canonical_url.as_str())?;
+    candidates
+        .into_iter()
+        .find(|candidate| {
+            is_sass_symbol_declaration_kind(candidate.kind)
+                && sass_symbol_kind_from_candidate_kind(candidate.kind) == Some(target.family)
+                && sass_symbol_names_match(candidate.name.as_str(), target.name.as_str())
+        })
+        .map(|candidate| candidate.range)
 }
 
 fn workspace_occurrence_kind_from_style_symbol_kind(
