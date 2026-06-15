@@ -14,7 +14,7 @@
     {
       "id": "rfcs-91-external-package-bare-forward",
       "path": "rfcs-91-external-package-bare-forward/fixture.omena",
-      "status": "implemented",
+      "status": "fixed",
       "issue": {
         "repository": "omenien/rfcs",
         "number": 91
