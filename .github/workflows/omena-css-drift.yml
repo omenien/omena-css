@@ -17,7 +17,6 @@ jobs:
   drift:
     runs-on: ubuntu-latest
     timeout-minutes: 90
-    continue-on-error: true
     steps:
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
       - uses: ./.github/actions/setup-pnpm
@@ -26,13 +25,13 @@ jobs:
       - uses: ./.github/actions/sync-release-metadata
       - run: pnpm omena-check run rust/omena-css/rustdoc-coverage
       - run: pnpm omena-check run rust/omena-css/h1-readiness
-      - name: Escalate advisory drift failure
+      - name: Escalate drift failure
         if: ${{ failure() }}
         uses: ./.github/actions/escalate-ci-failure
         with:
           title: "CI failure: omena-css-drift / drift"
           body: |
-            The advisory Omena CSS drift report failed. The job remains advisory by design, but failures must still create a visible tracking issue.
+            The scheduled Omena CSS drift report failed and needs investigation.
           workflow-name: Omena CSS Drift
           job-name: drift
           run-url: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}

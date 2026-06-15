@@ -98,6 +98,7 @@
     "check:rust-omena-parser-differential-corpus": "node --import tsx ./scripts/check-rust-omena-parser-differential-corpus.ts",
     "check:rust-omena-parser-forward-canary": "node --import tsx ./scripts/check-rust-omena-parser-forward-canary.ts",
     "check:rust-omena-benchmarks-boundary": "cargo test --manifest-path rust/Cargo.toml -p omena-benchmarks",
+    "check:rust-benchmark-ci-reachability": "node --import tsx ./scripts/check-rust-benchmark-ci-reachability.ts",
     "check:rust-benchmark-emitted-css-golden-gate": "cargo run --manifest-path rust/Cargo.toml -p omena-benchmarks --bin emitted_css_golden_gate --quiet",
     "check:rust-benchmark-instruction-count-advisory": "node --import tsx ./scripts/check-rust-benchmark-instruction-count-advisory.ts",
     "update:rust-benchmark-emitted-css-golden-gate": "cargo run --manifest-path rust/Cargo.toml -p omena-benchmarks --bin emitted_css_golden_gate --quiet -- --regen",

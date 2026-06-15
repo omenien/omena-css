@@ -133,6 +133,12 @@ class, and comparison boundary are recorded. A green gate means the result is
 recorded, correct for the stated corpus, and reproducible by the stated command;
 it does not mean Omena is the fastest implementation.
 
+`speed_claim_ready` is currently documentation of intent, not permission to
+publish a number. A future renderer may emit a speed claim only when that flag is
+true, the schema-versioned artifact validates, the emitted CSS golden gate is
+green, a rotating holdout fixture remains outside the gated benchmark set, and
+the output states the corpus and machine metadata used for the run.
+
 Publishable outcomes are:
 
 - Faster on a stated subset, with the artifact hash and corpus hash included.
