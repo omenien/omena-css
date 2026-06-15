@@ -249,6 +249,9 @@ pub struct LspShellState {
     pub(crate) workspace_index_pending_file_count: usize,
     pub(crate) external_sif_lock_read_count: usize,
     pub(crate) external_sif_bridge_generation_count: usize,
+    pub(crate) external_sif_refresh_deferred: bool,
+    pub(crate) external_sif_refresh_dirty: bool,
+    pub(crate) external_sif_refresh_revision: u64,
     pub(crate) workspace_index_revision: u64,
     pub(crate) configuration_change_count: usize,
     /// RFC 0009 Pillar A (rfcs#67, slice A-min): documents are `Arc` entries so a

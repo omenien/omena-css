@@ -10,6 +10,15 @@
         "repository": "omenien/rfcs",
         "number": 54
       }
+    },
+    {
+      "id": "rfcs-91-external-package-bare-forward",
+      "path": "rfcs-91-external-package-bare-forward/fixture.omena",
+      "status": "fixed",
+      "issue": {
+        "repository": "omenien/rfcs",
+        "number": 91
+      }
     }
   ]
 }

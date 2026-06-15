@@ -186,7 +186,7 @@ pub fn omena_diff_cache_equivalence_default_corpus_v0() -> (
     let corpus = vec![
         OmenaQueryStyleSourceInputV0 {
             style_path: "/workspace/src/App.module.scss".to_string(),
-            style_source: "@use \"@app/tokens\" as tokens;\n@use \"./mid\";\n\
+            style_source: "@use \"@workspace/tokens\" as tokens;\n@use \"./mid\";\n\
                            .app { color: tokens.$brand; background: tokens.$missing; }\n\
                            .extended { @extend %base; }\n"
                 .to_string(),
@@ -203,11 +203,43 @@ pub fn omena_diff_cache_equivalence_default_corpus_v0() -> (
             style_path: "/workspace/src/_leaf.scss".to_string(),
             style_source: ":root { --tone: green; }\n.leaf { color: var(--tone); }\n".to_string(),
         },
+        OmenaQueryStyleSourceInputV0 {
+            style_path: "/workspace/src/ExternalPackage.module.scss".to_string(),
+            style_source: "@use \"@app/theme/index\" as ds;\n\
+                           .external { color: ds.$ds_gray-700; border-radius: ds.$ds_radius-card; }\n"
+                .to_string(),
+        },
+        OmenaQueryStyleSourceInputV0 {
+            style_path: "/workspace/node_modules/@app/theme/index.scss".to_string(),
+            style_source: "@forward \"@design/tokens/colors\";\n@forward \"./radius\";\n"
+                .to_string(),
+        },
+        OmenaQueryStyleSourceInputV0 {
+            style_path: "/workspace/node_modules/@app/theme/_radius.scss".to_string(),
+            style_source: "$ds_radius-card: 12px;\n".to_string(),
+        },
+        OmenaQueryStyleSourceInputV0 {
+            style_path: "/workspace/node_modules/@design/tokens/colors.scss".to_string(),
+            style_source: "$ds_gray-700: #374151;\n".to_string(),
+        },
     ];
     let resolution_inputs = OmenaQueryStyleResolutionInputsV0 {
+        package_manifests: vec![
+            OmenaQueryStylePackageManifestV0 {
+                package_json_path: "/workspace/node_modules/@app/theme/package.json".to_string(),
+                package_json_source: "{\"exports\":{\"./index\":{\"sass\":\"./index.scss\"}}}"
+                    .to_string(),
+            },
+            OmenaQueryStylePackageManifestV0 {
+                package_json_path: "/workspace/node_modules/@design/tokens/package.json"
+                    .to_string(),
+                package_json_source: "{\"exports\":{\"./colors\":{\"sass\":\"./colors.scss\"}}}"
+                    .to_string(),
+            },
+        ],
         tsconfig_path_mappings: vec![omena_query::OmenaQueryTsconfigPathMappingV0 {
             base_path: "/workspace".to_string(),
-            pattern: "@app/*".to_string(),
+            pattern: "@workspace/*".to_string(),
             target_patterns: vec!["src/app/*".to_string()],
         }],
         ..Default::default()

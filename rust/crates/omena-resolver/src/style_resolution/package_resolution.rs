@@ -1,4 +1,5 @@
 use std::collections::BTreeMap;
+use std::fs;
 use std::path::{Path, PathBuf};
 
 use crate::types::OmenaResolverStylePackageManifestV0;
@@ -79,14 +80,14 @@ pub(super) fn package_manifest_style_module_base_candidates(
     let mut current_dir = Some(from_dir);
     while let Some(dir) = current_dir {
         let package_root = dir.join("node_modules").join(package_source.package_name);
-        let package_root_key = normalize_style_path(package_root.clone());
-        if let Some(package_json_source) = manifest_by_package_dir.get(&package_root_key)
-            && let Some(entry) = read_package_manifest_style_entry(
-                package_json_source,
-                package_source.subpath,
-                package_source.uses_sass_node_package_importer,
-            )
-        {
+        if let Some(package_json_source) = package_manifest_source_for_package_root(
+            package_root.as_path(),
+            &manifest_by_package_dir,
+        ) && let Some(entry) = read_package_manifest_style_entry(
+            package_json_source,
+            package_source.subpath,
+            package_source.uses_sass_node_package_importer,
+        ) {
             match entry {
                 PackageJsonEntryResolution::Resolved(entry) => {
                     push_unique_pathbuf(&mut candidates, package_root.join(entry));
@@ -99,6 +100,32 @@ pub(super) fn package_manifest_style_module_base_candidates(
         current_dir = dir.parent();
     }
     PackageStyleCandidateResolution::Candidates(candidates)
+}
+
+fn package_manifest_source_for_package_root<'a>(
+    package_root: &Path,
+    manifest_by_package_dir: &'a BTreeMap<String, &'a str>,
+) -> Option<&'a str> {
+    let lexical_key = normalize_style_path(package_root.to_path_buf());
+    if let Some(source) = manifest_by_package_dir.get(&lexical_key) {
+        return Some(*source);
+    }
+    let canonical_key = fs::canonicalize(package_root)
+        .ok()
+        .map(normalize_style_path)?;
+    manifest_by_package_dir
+        .get(&canonical_key)
+        .copied()
+        .or_else(|| {
+            manifest_by_package_dir
+                .iter()
+                .find_map(|(manifest_dir, source)| {
+                    let manifest_key = fs::canonicalize(manifest_dir)
+                        .ok()
+                        .map(normalize_style_path)?;
+                    (manifest_key == canonical_key).then_some(*source)
+                })
+        })
 }
 
 pub(super) fn package_import_style_module_base_candidates(

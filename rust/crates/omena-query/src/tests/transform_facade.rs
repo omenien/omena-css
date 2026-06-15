@@ -248,6 +248,7 @@ fn consumer_build_source_map_v3_preserves_alias_resolved_import_origins() -> Res
             target_patterns: vec!["src/styles/*".to_string()],
         }],
         bundler_path_mappings: vec![],
+        ..Default::default()
     };
     let mut summary =
         execute_omena_query_consumer_build_style_sources_with_context_and_resolution_inputs(

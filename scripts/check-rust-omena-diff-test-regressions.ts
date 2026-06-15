@@ -4,7 +4,7 @@ import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync
 import { tmpdir } from "node:os";
 import path from "node:path";
 
-type RegressionStatus = "fixed" | "todo";
+type RegressionStatus = "fixed" | "implemented" | "todo";
 type IssueState = "OPEN" | "CLOSED";
 // UNKNOWN = the gh probe itself failed (no gh binary, no network, or a token that
 // cannot read the issue's repository — the default CI token cannot view a private
@@ -78,6 +78,8 @@ process.stdout.write(
       product: "omena-diff-test.regression-corpus",
       fixtureCount: reports.length,
       fixedCount: reports.filter((fixtureReport) => fixtureReport.status === "fixed").length,
+      implementedCount: reports.filter((fixtureReport) => fixtureReport.status === "implemented")
+        .length,
       todoCount: reports.filter((fixtureReport) => fixtureReport.status === "todo").length,
       reports,
     },
@@ -110,6 +112,18 @@ function evaluateRegressionFixture(fixture: RegressionManifestFixtureV0): Fixtur
         );
       }
       assert.ok(allSatisfied, `${fixture.id} fixed regression expectations failed`);
+      return report(fixture, issueState, outcomes.length, satisfiedCount, "pass");
+    }
+
+    if (fixture.status === "implemented") {
+      if (issueState !== "UNKNOWN") {
+        assert.equal(
+          issueState,
+          "OPEN",
+          `${fixture.id} is implemented but ${issueKey} is ${issueState}; promote the fixture to fixed`,
+        );
+      }
+      assert.ok(allSatisfied, `${fixture.id} implemented regression expectations failed`);
       return report(fixture, issueState, outcomes.length, satisfiedCount, "pass");
     }
 

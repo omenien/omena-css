@@ -7,15 +7,15 @@ use crate::{
     output::print_json,
     paths::{path_string, style_resolution_workspace_uri_for_path},
 };
-use omena_query::generate_omena_bridge_sif_for_resolved_style_path;
 use omena_query::{
     OmenaQueryDynamicClassnameMTierInputV0, OmenaQueryExternalModuleModeV0,
     OmenaQueryExternalSifInputV0, OmenaQuerySourceDiagnosticsForFileV0,
     OmenaQuerySourceDocumentInputV0, OmenaQueryStyleDiagnosticV0, OmenaQueryStylePackageManifestV0,
-    OmenaQueryStyleSourceInputV0, ParserRangeV0,
+    OmenaQueryStyleResolutionInputsV0, OmenaQueryStyleSourceInputV0, ParserRangeV0,
     load_omena_query_workspace_style_resolution_inputs,
+    resolve_omena_query_bridge_external_sifs_for_style_sources,
     summarize_omena_query_dynamic_classname_m_tier_diagnostics_with_context_depth,
-    summarize_omena_query_sass_module_sources, summarize_omena_query_source_diagnostics_for_file,
+    summarize_omena_query_source_diagnostics_for_file,
     summarize_omena_query_source_diagnostics_for_workspace_file,
     summarize_omena_query_style_diagnostics_for_file_with_local_composes_and_deep_analysis,
     summarize_omena_query_style_diagnostics_for_workspace_file_with_external_mode_and_sifs_and_resolution_inputs,
@@ -87,16 +87,17 @@ pub(crate) fn style_diagnostics(
         // canonical URL) keep the user-provided artifact; unreadable edges (a genuinely-missing
         // module, or a `http(s)://`/`sass:` scheme the bridge cannot read) are skipped so they
         // still surface their boundary state.
-        let in_process_external_sifs = resolve_in_process_external_sifs(
-            workspace_sources.as_slice(),
-            external_sifs.as_slice(),
-        );
-        external_sifs.extend(in_process_external_sifs);
         let workspace_folder_uri = style_resolution_workspace_uri_for_path(&path);
         let resolution_inputs = load_omena_query_workspace_style_resolution_inputs(
             workspace_folder_uri.as_deref(),
             package_manifests.as_slice(),
         );
+        let in_process_external_sifs = resolve_in_process_external_sifs(
+            workspace_sources.as_slice(),
+            external_sifs.as_slice(),
+            &resolution_inputs,
+        );
+        external_sifs.extend(in_process_external_sifs);
         let mut summary =
             summarize_omena_query_style_diagnostics_for_workspace_file_with_external_mode_and_sifs_and_resolution_inputs(
                 &style_path,
@@ -260,17 +261,14 @@ pub(crate) fn read_lock_external_sifs(
         .collect()
 }
 
-/// Generate, in-process, the external SIFs for every on-disk (`file://`) external Sass module
-/// edge in the workspace — and, transitively, every module reachable through a generated SIF's
-/// `@forward` chain — so the existing SIF-mode query path can pair them against import targets
-/// without a manual `--sif`. (#33)
+/// Generate, in-process, the external SIFs for readable external Sass module
+/// edges in the workspace — both literal `file://` edges and package
+/// specifiers that resolve to disk — plus every reachable `@forward` hop.
 ///
-/// Each `file://` `@use`/`@forward`/`@import` source now classifies as an external edge
-/// (resolver `is_external_style_module_source`), so its symbols are otherwise invisible and every
-/// reference flags `missingSassSymbol`. The bridge reads the resolved on-disk module and produces an
-/// [`omena_sif::OmenaSifV1`]; we key the resulting `OmenaQueryExternalSifInputV0.canonical_url` to
-/// the *verbatim* edge source so it matches the import target 1:1 in
-/// `find_omena_query_external_sif` (the inner SIF still carries the bridge's normalized URL).
+/// The bridge reads the resolved on-disk module and produces an
+/// [`omena_sif::OmenaSifV1`]. The resulting
+/// `OmenaQueryExternalSifInputV0.canonical_url` keeps the verbatim edge source
+/// for package aliases, while the inner SIF carries the normalized file URL.
 ///
 /// After generating a SIF the walk recurses into that SIF's `exports.forwards[].canonical_url`
 /// (each a *raw* relative/bare specifier as written, e.g. `"./tokens"`), re-resolving every
@@ -296,110 +294,14 @@ pub(crate) fn read_lock_external_sifs(
 pub(crate) fn resolve_in_process_external_sifs(
     workspace_sources: &[OmenaQueryStyleSourceInputV0],
     existing_external_sifs: &[OmenaQueryExternalSifInputV0],
+    resolution_inputs: &OmenaQueryStyleResolutionInputsV0,
 ) -> Vec<OmenaQueryExternalSifInputV0> {
-    // A single `file://`-namespace dedup/cycle set: seeded with the verbatim canonical URLs of any
-    // explicit `--sif`, then extended with each generated SIF's resolved inner `file://` URI. A
-    // workspace `file://` edge source already *is* its resolved URI, so the two keying schemes
-    // coincide in that namespace.
-    let mut covered = existing_external_sifs
-        .iter()
-        .map(|input| input.canonical_url.clone())
-        .collect::<std::collections::BTreeSet<_>>();
-    let mut resolved = Vec::new();
-    // Worklist of generated SIFs whose `exports.forwards` still need to be walked.
-    let mut worklist: std::collections::VecDeque<omena_sif::OmenaSifV1> =
-        std::collections::VecDeque::new();
-
-    // Direct workspace pass: each `file://` `@use`/`@forward`/`@import` edge written in a workspace
-    // source. Key to the verbatim edge source (which already IS its resolved `file://` URI).
-    for source in workspace_sources {
-        let Some(module_sources) =
-            summarize_omena_query_sass_module_sources(&source.style_path, &source.style_source)
-        else {
-            continue;
-        };
-        let edge_sources = module_sources
-            .module_use_edges
-            .iter()
-            .map(|edge| edge.source.as_str())
-            .chain(
-                module_sources
-                    .module_forward_sources
-                    .iter()
-                    .map(String::as_str),
-            );
-        for edge_source in edge_sources {
-            // Only `file://` edges are on-disk external modules the bridge can read in-process.
-            if !edge_source.starts_with("file://") {
-                continue;
-            }
-            if !covered.insert(edge_source.to_string()) {
-                // Already covered by an explicit `--sif` or an earlier edge in this workspace.
-                continue;
-            }
-            // The bridge errors gracefully (never panics) on an unreadable/missing module; we
-            // simply skip it so the boundary state still surfaces — we never fabricate a SIF.
-            if let Ok(sif) = generate_omena_bridge_sif_for_resolved_style_path(edge_source) {
-                // The bridge normalizes the path (symlinks/`..`), so the inner `sif.canonical_url`
-                // can differ from the verbatim `file://` edge source. Record BOTH in `covered`:
-                // the verbatim key matches the workspace import 1:1 here, and the resolved key is
-                // what the transitive walk dedups on — without it a forward cycle that resolves
-                // back to this module would regenerate it.
-                covered.insert(sif.canonical_url.clone());
-                worklist.push_back(sif.clone());
-                resolved.push(OmenaQueryExternalSifInputV0 {
-                    canonical_url: edge_source.to_string(),
-                    sif,
-                });
-            }
-        }
-    }
-
-    // Transitive `@forward` walk: pop a generated SIF and resolve each forwarded specifier against
-    // that SIF's resolved inner `file://` base, generating the forwarded module's SIF and enqueueing
-    // it so the chain (and any diamond) is followed to a fixpoint.
-    while let Some(sif) = worklist.pop_front() {
-        let base_file_uri = sif.canonical_url.clone();
-        for forward in &sif.exports.forwards {
-            let specifier = forward.canonical_url.as_str();
-            // `sass:` builtins and `http(s)://` modules are not on-disk; the bridge cannot read
-            // them in-process, so they keep surfacing their boundary state.
-            if specifier.starts_with("sass:")
-                || specifier.starts_with("http://")
-                || specifier.starts_with("https://")
-            {
-                continue;
-            }
-            // Resolve the raw forwarded specifier (e.g. `"./tokens"`) relative to the forwarding
-            // module's resolved `file://` URI. `None` => genuinely unresolvable; never fabricate.
-            let Some(child_url) = omena_query::resolve_omena_query_style_uri_for_specifier(
-                base_file_uri.as_str(),
-                None,
-                specifier,
-            ) else {
-                continue;
-            };
-            // Cycle/diamond guard: dedup on the resolved `file://` identity. A relative specifier
-            // can reach the same physical module via different strings, so the verbatim string is
-            // not a sound key — the resolved URI is.
-            if !covered.insert(child_url.clone()) {
-                continue;
-            }
-            // Unreadable/missing forwarded module: skip so it keeps surfacing its boundary state.
-            if let Ok(child) = generate_omena_bridge_sif_for_resolved_style_path(child_url.as_str())
-            {
-                worklist.push_back(child.clone());
-                // Key the entry to the resolved `file://` URI; it equals `child.canonical_url`, so
-                // `find_omena_query_external_sif` matches on either field.
-                resolved.push(OmenaQueryExternalSifInputV0 {
-                    canonical_url: child_url,
-                    sif: child,
-                });
-            }
-        }
-    }
-
-    resolved
+    resolve_omena_query_bridge_external_sifs_for_style_sources(
+        workspace_sources,
+        existing_external_sifs,
+        resolution_inputs,
+    )
+    .external_sifs
 }
 
 pub(crate) fn parse_external_module_mode(

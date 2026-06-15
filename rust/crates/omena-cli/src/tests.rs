@@ -21,7 +21,10 @@ use crate::{
     perceptual::perceptual_check_summary,
 };
 use clap::{CommandFactory, Parser};
-use omena_query::OmenaQueryStyleSourceInputV0;
+use omena_query::{
+    OmenaQueryStylePackageManifestV0, OmenaQueryStyleResolutionInputsV0,
+    OmenaQueryStyleSourceInputV0,
+};
 use omena_sif::{OmenaSifAttestationSubjectDigestV1, read_omena_lock_json_v1};
 #[cfg(feature = "zk-audit")]
 use omena_zk_audit::{
@@ -1884,7 +1887,11 @@ fn in_process_external_sifs_walk_transitive_forward_chain() -> Result<(), String
         style_source: format!("@forward \"{a_file_uri}\";\n"),
     };
 
-    let resolved = resolve_in_process_external_sifs(std::slice::from_ref(&entry), &[]);
+    let resolved = resolve_in_process_external_sifs(
+        std::slice::from_ref(&entry),
+        &[],
+        &OmenaQueryStyleResolutionInputsV0::default(),
+    );
 
     // The directly-forwarded module a is present.
     assert!(
@@ -1940,7 +1947,11 @@ fn in_process_external_sifs_terminate_on_forward_cycle() -> Result<(), String> {
     };
 
     // Must not hang; the dedup set breaks the a<->b cycle.
-    let resolved = resolve_in_process_external_sifs(std::slice::from_ref(&entry), &[]);
+    let resolved = resolve_in_process_external_sifs(
+        std::slice::from_ref(&entry),
+        &[],
+        &OmenaQueryStyleResolutionInputsV0::default(),
+    );
 
     // Each physical module appears exactly once despite the cycle (dedup on resolved identity).
     let a_count = resolved
@@ -1983,7 +1994,11 @@ fn in_process_external_sifs_skip_missing_transitive_forward() -> Result<(), Stri
         style_source: format!("@forward \"{a_file_uri}\";\n"),
     };
 
-    let resolved = resolve_in_process_external_sifs(std::slice::from_ref(&entry), &[]);
+    let resolved = resolve_in_process_external_sifs(
+        std::slice::from_ref(&entry),
+        &[],
+        &OmenaQueryStyleResolutionInputsV0::default(),
+    );
 
     // a is generated, but no SIF is fabricated for the missing `./gone` target.
     assert!(
@@ -1998,6 +2013,260 @@ fn in_process_external_sifs_skip_missing_transitive_forward() -> Result<(), Stri
             .all(|input| !input.sif.canonical_url.ends_with("/gone.scss")
                 && !input.sif.canonical_url.ends_with("/_gone.scss")),
         "no SIF may be fabricated for the genuinely-missing forward: {resolved:?}"
+    );
+
+    cleanup_dir(&workspace);
+    Ok(())
+}
+
+#[test]
+fn in_process_external_sifs_resolve_bare_package_forward_aliases() -> Result<(), String> {
+    let workspace = temp_dir("bare-package-forward");
+    let app_package = workspace.join("node_modules/@app/theme");
+    let design_package = workspace.join("node_modules/@design/tokens");
+    fs::create_dir_all(&app_package)
+        .map_err(|error| format!("app package should be writable: {error}"))?;
+    fs::create_dir_all(&design_package)
+        .map_err(|error| format!("design package should be writable: {error}"))?;
+    fs::write(
+        app_package.join("package.json"),
+        r#"{"exports":{"./index":{"sass":"./index.scss"}}}"#,
+    )
+    .map_err(|error| format!("app package manifest should be writable: {error}"))?;
+    fs::write(
+        design_package.join("package.json"),
+        r#"{"exports":{"./colors":{"sass":"./colors.scss"}}}"#,
+    )
+    .map_err(|error| format!("design package manifest should be writable: {error}"))?;
+    fs::write(
+        app_package.join("index.scss"),
+        "@forward \"@design/tokens/colors\";\n@forward \"./radius\";\n",
+    )
+    .map_err(|error| format!("app barrel should be writable: {error}"))?;
+    fs::write(app_package.join("_radius.scss"), "$ds_radius-card: 12px;\n")
+        .map_err(|error| format!("app radius token should be writable: {error}"))?;
+    fs::write(design_package.join("colors.scss"), "$ds_gray-700: #333;\n")
+        .map_err(|error| format!("design tokens should be writable: {error}"))?;
+
+    let entry = OmenaQueryStyleSourceInputV0 {
+        style_path: workspace
+            .join("src/App.module.scss")
+            .to_string_lossy()
+            .into_owned(),
+        style_source: "@use \"@app/theme/index\" as ds;\n.button { color: ds.$ds_gray-700; }\n"
+            .to_string(),
+    };
+    let resolution_inputs = OmenaQueryStyleResolutionInputsV0 {
+        package_manifests: vec![
+            OmenaQueryStylePackageManifestV0 {
+                package_json_path: app_package
+                    .join("package.json")
+                    .to_string_lossy()
+                    .into_owned(),
+                package_json_source: r#"{"exports":{"./index":{"sass":"./index.scss"}}}"#
+                    .to_string(),
+            },
+            OmenaQueryStylePackageManifestV0 {
+                package_json_path: design_package
+                    .join("package.json")
+                    .to_string_lossy()
+                    .into_owned(),
+                package_json_source: r#"{"exports":{"./colors":{"sass":"./colors.scss"}}}"#
+                    .to_string(),
+            },
+        ],
+        ..OmenaQueryStyleResolutionInputsV0::default()
+    };
+
+    let resolved =
+        resolve_in_process_external_sifs(std::slice::from_ref(&entry), &[], &resolution_inputs);
+
+    assert!(
+        resolved
+            .iter()
+            .any(|input| input.canonical_url == "@app/theme/index"),
+        "root package edge should keep a verbatim alias entry: {resolved:?}"
+    );
+    let design = resolved
+        .iter()
+        .find(|input| input.canonical_url == "@design/tokens/colors")
+        .ok_or_else(|| {
+            format!("bare transitive forward should keep a verbatim alias entry: {resolved:?}")
+        })?;
+    assert!(
+        design
+            .sif
+            .exports
+            .variables
+            .iter()
+            .any(|variable| variable.name == "$ds_gray-700"),
+        "design SIF must expose the forwarded token: {:?}",
+        design.sif.exports.variables
+    );
+    assert!(
+        resolved.iter().any(|input| input
+            .sif
+            .exports
+            .variables
+            .iter()
+            .any(|variable| variable.name == "$ds_radius-card")),
+        "relative forward inside the package barrel should expose radius token: {resolved:?}"
+    );
+    let unknown_entry = OmenaQueryStyleSourceInputV0 {
+        style_path: workspace
+            .join("src/Unknown.module.scss")
+            .to_string_lossy()
+            .into_owned(),
+        style_source: "@use \"@app/theme/index\" as ds;\n.button { color: ds.$does-not-exist; }\n"
+            .to_string(),
+    };
+    let diagnostics =
+        omena_query::summarize_omena_query_style_diagnostics_for_workspace_file_with_external_mode_and_sifs_and_resolution_inputs(
+            unknown_entry.style_path.as_str(),
+            std::slice::from_ref(&unknown_entry),
+            &[],
+            resolution_inputs.package_manifests.as_slice(),
+            None,
+            omena_query::OmenaQueryExternalModuleModeV0::Auto,
+            resolved.as_slice(),
+            &resolution_inputs,
+        )
+        .ok_or_else(|| "SIF-backed negative control diagnostics should be available".to_string())?;
+    assert!(
+        diagnostics
+            .diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.code == "partialExternalSif"),
+        "unknown symbol on a SIF-backed package boundary should stay partialExternalSif: {:?}",
+        diagnostics.diagnostics
+    );
+    assert!(
+        diagnostics
+            .diagnostics
+            .iter()
+            .all(|diagnostic| diagnostic.code != "missingSassSymbol"),
+        "partial external SIF boundary must not double-report missingSassSymbol: {:?}",
+        diagnostics.diagnostics
+    );
+
+    cleanup_dir(&workspace);
+    Ok(())
+}
+
+#[cfg(unix)]
+#[test]
+fn in_process_external_sifs_resolve_bare_package_forward_aliases_through_pnpm_symlinks()
+-> Result<(), String> {
+    let workspace = temp_dir("bare-package-forward-pnpm-symlink");
+    let source = workspace.join("src/App.module.scss");
+    let real_app_package = workspace.join(".pnpm/@app+theme@1.0.0/node_modules/@app/theme");
+    let real_design_package =
+        workspace.join(".pnpm/@design+tokens@1.0.0/node_modules/@design/tokens");
+    let linked_app_scope = workspace.join("node_modules/@app");
+    let linked_design_scope = workspace.join("node_modules/@design");
+    let linked_app_package = linked_app_scope.join("theme");
+    let linked_design_package = linked_design_scope.join("tokens");
+
+    fs::create_dir_all(
+        source
+            .parent()
+            .ok_or_else(|| "source parent should exist".to_string())?,
+    )
+    .map_err(|error| format!("source parent should be writable: {error}"))?;
+    fs::create_dir_all(&real_app_package)
+        .map_err(|error| format!("real app package should be writable: {error}"))?;
+    fs::create_dir_all(&real_design_package)
+        .map_err(|error| format!("real design package should be writable: {error}"))?;
+    fs::create_dir_all(&linked_app_scope)
+        .map_err(|error| format!("linked app scope should be writable: {error}"))?;
+    fs::create_dir_all(&linked_design_scope)
+        .map_err(|error| format!("linked design scope should be writable: {error}"))?;
+    unix_fs::symlink(real_app_package.as_path(), linked_app_package.as_path())
+        .map_err(|error| format!("app package symlink should be creatable: {error}"))?;
+    unix_fs::symlink(
+        real_design_package.as_path(),
+        linked_design_package.as_path(),
+    )
+    .map_err(|error| format!("design package symlink should be creatable: {error}"))?;
+
+    let app_manifest = r#"{"exports":{"./index":{"sass":"./index.scss"}}}"#;
+    let design_manifest = r#"{"exports":{"./colors":{"sass":"./colors.scss"}}}"#;
+    fs::write(real_app_package.join("package.json"), app_manifest)
+        .map_err(|error| format!("app package manifest should be writable: {error}"))?;
+    fs::write(real_design_package.join("package.json"), design_manifest)
+        .map_err(|error| format!("design package manifest should be writable: {error}"))?;
+    fs::write(
+        real_app_package.join("index.scss"),
+        "@forward \"@design/tokens/colors\";\n@forward \"./radius\";\n",
+    )
+    .map_err(|error| format!("app barrel should be writable: {error}"))?;
+    fs::write(
+        real_app_package.join("_radius.scss"),
+        "$ds_radius-card: 12px;\n",
+    )
+    .map_err(|error| format!("app radius token should be writable: {error}"))?;
+    fs::write(
+        real_design_package.join("colors.scss"),
+        "$ds_gray-700: #374151;\n",
+    )
+    .map_err(|error| format!("design colors should be writable: {error}"))?;
+
+    let source_text = "@use \"@app/theme/index\" as ds;\n.button { color: ds.$ds_gray-700; border-radius: ds.$ds_radius-card; }\n";
+    fs::write(source.as_path(), source_text)
+        .map_err(|error| format!("source should be writable: {error}"))?;
+    let entry = OmenaQueryStyleSourceInputV0 {
+        style_path: source.to_string_lossy().into_owned(),
+        style_source: source_text.to_string(),
+    };
+    let resolution_inputs = OmenaQueryStyleResolutionInputsV0 {
+        package_manifests: vec![
+            OmenaQueryStylePackageManifestV0 {
+                package_json_path: real_app_package
+                    .join("package.json")
+                    .to_string_lossy()
+                    .into_owned(),
+                package_json_source: app_manifest.to_string(),
+            },
+            OmenaQueryStylePackageManifestV0 {
+                package_json_path: real_design_package
+                    .join("package.json")
+                    .to_string_lossy()
+                    .into_owned(),
+                package_json_source: design_manifest.to_string(),
+            },
+        ],
+        ..OmenaQueryStyleResolutionInputsV0::default()
+    };
+
+    let resolved =
+        resolve_in_process_external_sifs(std::slice::from_ref(&entry), &[], &resolution_inputs);
+
+    assert!(
+        resolved
+            .iter()
+            .any(|input| input.canonical_url == "@app/theme/index"),
+        "root package edge should keep a verbatim alias entry through pnpm symlinks: {resolved:?}"
+    );
+    assert!(
+        resolved
+            .iter()
+            .any(|input| input.canonical_url == "@design/tokens/colors"
+                && input
+                    .sif
+                    .exports
+                    .variables
+                    .iter()
+                    .any(|variable| variable.name == "$ds_gray-700")),
+        "bare transitive forward should keep a verbatim alias and exported token through pnpm symlinks: {resolved:?}"
+    );
+    assert!(
+        resolved.iter().any(|input| input
+            .sif
+            .exports
+            .variables
+            .iter()
+            .any(|variable| variable.name == "$ds_radius-card")),
+        "relative forward inside the symlinked package barrel should expose radius token: {resolved:?}"
     );
 
     cleanup_dir(&workspace);

@@ -1140,6 +1140,80 @@ fn bridges_file_external_sass_edges_for_lsp_style_diagnostics() -> TestResult {
 }
 
 #[test]
+fn bridges_bare_package_forward_chain_for_lsp_style_diagnostics() -> TestResult {
+    let root = std::env::temp_dir().join(format!(
+        "omena_lsp_bare_package_forward_sifs_{}_{}",
+        std::process::id(),
+        current_time_millis()
+    ));
+    let source = root.join("src/App.module.scss");
+    let app_package = root.join("node_modules/@app/theme");
+    let design_package = root.join("node_modules/@design/tokens");
+    fs::create_dir_all(fixture_parent(source.as_path(), "source parent")?)?;
+    fs::create_dir_all(app_package.as_path())?;
+    fs::create_dir_all(design_package.as_path())?;
+    fs::write(
+        app_package.join("package.json"),
+        r#"{"exports":{"./index":{"sass":"./index.scss"}}}"#,
+    )?;
+    fs::write(
+        design_package.join("package.json"),
+        r#"{"exports":{"./colors":{"sass":"./colors.scss"}}}"#,
+    )?;
+    fs::write(
+        app_package.join("index.scss"),
+        "@forward \"@design/tokens/colors\";\n@forward \"./radius\";\n",
+    )?;
+    fs::write(app_package.join("_radius.scss"), "$ds_radius-card: 12px;\n")?;
+    fs::write(design_package.join("colors.scss"), "$ds_gray-700: #333;\n")?;
+
+    let source_text = "@use \"@app/theme/index\" as ds;\n.button { color: ds.$ds_gray-700; border-radius: ds.$ds_radius-card; }\n";
+    fs::write(source.as_path(), source_text)?;
+
+    let workspace_uri = path_to_file_uri(root.as_path());
+    let source_uri = path_to_file_uri(source.as_path());
+    let mut state = LspShellState::default();
+    handle_lsp_message(
+        &mut state,
+        json!({
+            "jsonrpc": "2.0",
+            "id": 1,
+            "method": "initialize",
+            "params": {
+                "workspaceFolders": [
+                    {
+                        "uri": workspace_uri,
+                        "name": "workspace",
+                    },
+                ],
+            },
+        }),
+    );
+    open_style_document(&mut state, source_uri.as_str(), source_text);
+
+    assert!(
+        state
+            .resolution
+            .external_sifs
+            .iter()
+            .any(|sif| sif.canonical_url == "@design/tokens/colors"),
+        "bare transitive forward should be represented as a verbatim external SIF alias: {:?}",
+        state.resolution.external_sifs
+    );
+    let diagnostics = lsp_style_diagnostics(&mut state, source_uri.as_str())?;
+    assert!(
+        diagnostics.iter().all(|diagnostic| {
+            diagnostic.pointer("/code") != Some(&json!("missingSassSymbol"))
+                && diagnostic.pointer("/code") != Some(&json!("missingExternalSif"))
+        }),
+        "bare package forward chain should satisfy Sass references: {diagnostics:?}"
+    );
+
+    let _ = fs::remove_dir_all(root.as_path());
+    Ok(())
+}
+
+#[test]
 fn style_document_bridge_changes_refresh_external_sifs_without_corpus_rebuild() -> TestResult {
     let root = std::env::temp_dir().join(format!(
         "omena_lsp_bridge_external_sifs_delta_{}_{}",

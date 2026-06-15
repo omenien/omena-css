@@ -2426,6 +2426,7 @@ fn resolves_transform_context_style_references_through_tsconfig_aliases() {
             target_patterns: vec!["src/styles/*".to_string()],
         }],
         bundler_path_mappings: vec![],
+        ..Default::default()
     };
 
     let scss_summary = summarize_omena_query_transform_context_from_sources_with_resolution_inputs(
@@ -2878,6 +2879,7 @@ fn consumer_build_resolves_css_modules_values_through_tsconfig_aliases()
             target_patterns: vec!["src/styles/*".to_string()],
         }],
         bundler_path_mappings: vec![],
+        ..Default::default()
     };
     let summary = execute_omena_query_consumer_build_style_sources_with_context_and_resolution_inputs(
         "/workspace/src/components/App.module.css",

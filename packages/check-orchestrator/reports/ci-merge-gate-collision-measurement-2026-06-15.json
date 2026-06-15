@@ -1,0 +1,98 @@
+{
+  "schemaVersion": "0",
+  "generatedAt": "2026-06-15T10:59:13.541Z",
+  "source": {
+    "pullRequests": "gh pr list --state all --limit 100 --json number,state,createdAt,mergedAt,closedAt,headRefName,baseRefName,title",
+    "runs": "gh run list --limit 100 --json databaseId,headBranch,createdAt,updatedAt,status,conclusion,event,name,headSha"
+  },
+  "window": {
+    "pullRequests": {
+      "from": "2026-04-12T16:12:45Z",
+      "to": "2026-06-14T13:48:48Z",
+      "count": 34
+    },
+    "runs": {
+      "from": "2026-06-12T11:51:22Z",
+      "to": "2026-06-14T22:41:34Z",
+      "count": 100
+    }
+  },
+  "pullRequests": {
+    "base": "master",
+    "total": 34,
+    "merged": 17,
+    "closed": 17,
+    "open": 0,
+    "allPullRequests": {
+      "maxConcurrent": 9,
+      "maxConcurrentAt": "2026-06-10T11:37:43Z",
+      "maxConcurrentPullRequests": [81, 86, 88, 89, 90, 91, 92, 93, 94],
+      "overlappingOpenPairs": 89
+    },
+    "dependabotPullRequests": {
+      "count": 20,
+      "maxConcurrent": 9,
+      "maxConcurrentAt": "2026-06-10T11:37:43Z",
+      "overlappingOpenPairs": 89
+    },
+    "nonDependabotPullRequests": {
+      "count": 14,
+      "maxConcurrent": 1,
+      "overlappingOpenPairs": 0
+    },
+    "medianMinutesOpen": 1395.62,
+    "longest": {
+      "number": 81,
+      "minutesOpen": 11871.42,
+      "state": "CLOSED",
+      "merged": false,
+      "title": "build(deps-dev): bump @typescript/native-preview from 7.0.0-dev.20260527.2 to 7.0.0-dev.20260609.1"
+    }
+  },
+  "actions": {
+    "sampledRuns": 100,
+    "masterPushCiRuns": 63,
+    "masterPushCiOverlaps": 19,
+    "cancelledRuns": 19,
+    "cancelledByNameBranch": [
+      {
+        "key": "CI / master / push",
+        "count": 19
+      }
+    ],
+    "overlapExamples": [
+      {
+        "earlier": 27471821828,
+        "later": 27471887494,
+        "earlierConclusion": "cancelled",
+        "laterConclusion": "success",
+        "earlierStart": "2026-06-13T16:03:52Z",
+        "earlierEnd": "2026-06-13T16:06:48Z",
+        "laterStart": "2026-06-13T16:06:29Z"
+      },
+      {
+        "earlier": 27473962853,
+        "later": 27474112757,
+        "earlierConclusion": "cancelled",
+        "laterConclusion": "cancelled",
+        "earlierStart": "2026-06-13T17:32:18Z",
+        "earlierEnd": "2026-06-13T17:38:35Z",
+        "laterStart": "2026-06-13T17:38:29Z"
+      },
+      {
+        "earlier": 27512832001,
+        "later": 27512886983,
+        "earlierConclusion": "cancelled",
+        "laterConclusion": "success",
+        "earlierStart": "2026-06-14T21:38:15Z",
+        "earlierEnd": "2026-06-14T21:40:50Z",
+        "laterStart": "2026-06-14T21:40:29Z"
+      }
+    ]
+  },
+  "position": {
+    "mergeGroup": "defer",
+    "cancelScoping": "required-before-any-required-aggregator",
+    "rationale": "The measured non-dependabot PR collision rate is zero in the sampled PR set. The real observed concurrency problem is 19 same-branch master push CI cancellations in the sampled run set. That supports an aggregator-only design plus scoped cancel-in-progress before any required-check rollout; it does not yet justify adding merge_group machinery."
+  }
+}
