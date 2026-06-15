@@ -13,6 +13,7 @@ const OMENA_CHECK_TARGET_REF =
 
 const REQUIRED_BENCHMARK_GATES = [
   "rust/benchmark/emitted-css-golden-gate",
+  "rust/benchmark/headline-axis",
   "rust/benchmark/instruction-count-advisory",
   "rust/z5-parser-product-cutover",
   "rust/z5-performance-baseline-micro",
@@ -35,6 +36,10 @@ const ci = read(".github/workflows/ci.yml");
 assert.ok(
   ci.includes("pnpm omena-check run rust/benchmark/emitted-css-golden-gate"),
   "CI must hard-run the emitted CSS golden gate",
+);
+assert.ok(
+  ci.includes("pnpm omena-check run rust/benchmark/headline-axis"),
+  "CI must hard-run the headline-axis fidelity gate",
 );
 assert.ok(
   ci.includes("pnpm omena-check run rust/z5-parser-product-cutover"),

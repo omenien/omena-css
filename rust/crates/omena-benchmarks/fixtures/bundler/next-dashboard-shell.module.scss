@@ -1,0 +1,121 @@
+$surface: #ffffff;
+$ink: #0f172a;
+$muted: #64748b;
+$accent: #0f766e;
+$warning: #f97316;
+
+.dashboardShell {
+  --panel-gap: clamp(0.75rem, 1vw, 1.25rem);
+  display: grid;
+  gap: var(--panel-gap);
+  grid-template-columns: minmax(0, 1fr);
+  padding: clamp(1rem, 2vw, 2rem);
+  color: $ink;
+  background:
+    radial-gradient(circle at top right, color-mix(in srgb, $accent 18%, transparent), transparent 32rem),
+    linear-gradient(180deg, #f8fafc, #eef2ff);
+}
+
+.summaryGrid {
+  display: grid;
+  gap: var(--panel-gap);
+  grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr));
+}
+
+.metricCard {
+  display: grid;
+  gap: 0.5rem;
+  min-height: 9rem;
+  padding: 1rem;
+  border: 1px solid color-mix(in srgb, $ink 10%, transparent);
+  border-radius: 1.25rem;
+  background: $surface;
+  box-shadow: 0 18px 44px rgb(15 23 42 / 0.08);
+
+  &__label {
+    color: $muted;
+    font-size: 0.8125rem;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
+
+  &__value {
+    align-self: end;
+    color: $ink;
+    font-size: clamp(2rem, 4vw, 3.5rem);
+    font-weight: 800;
+    letter-spacing: -0.05em;
+  }
+
+  &--positive {
+    border-color: color-mix(in srgb, $accent 28%, transparent);
+  }
+
+  &--attention {
+    border-color: color-mix(in srgb, $warning 34%, transparent);
+  }
+}
+
+.activityPanel {
+  display: grid;
+  gap: 0.75rem;
+  padding: 1rem;
+  border-radius: 1.25rem;
+  background: color-mix(in srgb, $surface 92%, #dbeafe);
+}
+
+.activityRow {
+  display: grid;
+  gap: 0.25rem;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  padding-block: 0.625rem;
+
+  & + & {
+    border-block-start: 1px solid color-mix(in srgb, $ink 8%, transparent);
+  }
+}
+
+.statusDot {
+  width: 0.625rem;
+  height: 0.625rem;
+  border-radius: 999px;
+  background: $accent;
+}
+
+.actionButton {
+  appearance: none;
+  border: 1px solid color-mix(in srgb, $ink 12%, transparent);
+  border-radius: 999px;
+  background: $surface;
+  color: $ink;
+  cursor: pointer;
+  font: inherit;
+  font-weight: 700;
+  padding: 0.5rem 0.875rem;
+}
+
+.actionButtonPrimary {
+  composes: actionButton;
+  border-color: transparent;
+  background: $accent;
+  color: white;
+}
+
+:global(.theme-dark) .dashboardShell {
+  color: #e2e8f0;
+  background:
+    radial-gradient(circle at top right, color-mix(in srgb, $accent 20%, transparent), transparent 30rem),
+    #020617;
+}
+
+@media (min-width: 64rem) {
+  .dashboardShell {
+    grid-template-columns: minmax(0, 2fr) minmax(20rem, 0.9fr);
+  }
+
+  .summaryGrid {
+    grid-column: 1 / -1;
+  }
+}

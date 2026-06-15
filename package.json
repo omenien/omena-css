@@ -100,6 +100,7 @@
     "check:rust-omena-benchmarks-boundary": "cargo test --manifest-path rust/Cargo.toml -p omena-benchmarks",
     "check:rust-benchmark-ci-reachability": "node --import tsx ./scripts/check-rust-benchmark-ci-reachability.ts",
     "check:rust-benchmark-emitted-css-golden-gate": "cargo run --manifest-path rust/Cargo.toml -p omena-benchmarks --bin emitted_css_golden_gate --quiet",
+    "check:rust-benchmark-headline-axis": "cargo run --manifest-path rust/Cargo.toml -p omena-benchmarks --bin headline_axis_fidelity_snapshot --quiet",
     "check:rust-benchmark-instruction-count-advisory": "node --import tsx ./scripts/check-rust-benchmark-instruction-count-advisory.ts",
     "update:rust-benchmark-emitted-css-golden-gate": "cargo run --manifest-path rust/Cargo.toml -p omena-benchmarks --bin emitted_css_golden_gate --quiet -- --regen",
     "check:rust-z5-criterion-surface-snapshot": "cargo run --manifest-path rust/Cargo.toml -p omena-benchmarks --bin z5_criterion_surface_snapshot --quiet",

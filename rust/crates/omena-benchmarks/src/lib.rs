@@ -3,7 +3,10 @@ pub const Z5_PERFORMANCE_BASELINE: &str = "z5-performance-baseline";
 mod corpus;
 
 use omena_parser::StyleDialect;
-use omena_transform_print::{default_print_options, print_transform_cst_source_with_dialect};
+use omena_transform_print::{
+    TransformPrintMode, TransformPrintOptionsV0, default_print_options,
+    parse_transform_source_map_v3_json, print_transform_cst_source_with_dialect,
+};
 use serde::Serialize;
 use sha2::{Digest, Sha256};
 
@@ -170,6 +173,41 @@ pub struct EmittedCssGoldenGateSummaryV0 {
     pub dart_sass_advisory_sample_count: usize,
     pub speed_claim_ready: bool,
     pub samples: Vec<EmittedCssGoldenSampleSnapshotV0>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct HeadlineAxisFidelitySampleV0 {
+    pub name: &'static str,
+    pub path: &'static str,
+    pub dialect: &'static str,
+    pub source_byte_length: usize,
+    pub minified_css_byte_length: usize,
+    pub source_map_byte_length: usize,
+    pub decoded_source_map_segment_count: usize,
+    pub source_map_vlq_valid: bool,
+    pub all_decoded_segments_map_to_valid_positions: bool,
+    pub css_modules_moat_preserved_through_minify: bool,
+    pub provenance_overhead_basis_points: u64,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct HeadlineAxisFidelitySummaryV0 {
+    pub schema_version: &'static str,
+    pub product: &'static str,
+    pub benchmark_family: &'static str,
+    pub measured_axis: &'static str,
+    pub sample_count: usize,
+    pub source_map_vlq_valid: bool,
+    pub source_map_positions_valid: bool,
+    pub css_modules_moat_preserved_through_minify: bool,
+    pub max_provenance_overhead_basis_points: u64,
+    pub runtime_loop_headline_ready: bool,
+    pub runtime_loop_verdict: &'static str,
+    pub speed_claim_ready: bool,
+    pub publication_policy: &'static str,
+    pub samples: Vec<HeadlineAxisFidelitySampleV0>,
 }
 
 pub fn parser_product_benchmark_boundaries() -> [ParserProductBenchmarkBoundaryV0; 2] {
@@ -552,6 +590,125 @@ pub fn validate_emitted_css_golden_gate_snapshot(expected_json: &str) -> Result<
     }
 }
 
+pub fn summarize_headline_axis_fidelity() -> Result<HeadlineAxisFidelitySummaryV0, String> {
+    let samples = bundler_productization_corpus()
+        .into_iter()
+        .filter(|sample| sample.name == "css-modules-product-grid")
+        .collect::<Vec<_>>();
+    if samples.is_empty() {
+        return Err("headline fidelity suite requires css-modules-product-grid".to_string());
+    }
+
+    let mut sample_summaries = Vec::with_capacity(samples.len());
+    for sample in &samples {
+        let minified_with_map = print_transform_cst_source_with_dialect(
+            sample.path,
+            sample.source.as_str(),
+            sample.dialect,
+            "omena-benchmarks.headline-axis-fidelity",
+            &[],
+            TransformPrintOptionsV0 {
+                mode: TransformPrintMode::Minified,
+                include_source_map: true,
+            },
+        );
+        let minified_without_map = print_transform_cst_source_with_dialect(
+            sample.path,
+            sample.source.as_str(),
+            sample.dialect,
+            "omena-benchmarks.headline-axis-fidelity",
+            &[],
+            TransformPrintOptionsV0 {
+                mode: TransformPrintMode::Minified,
+                include_source_map: false,
+            },
+        );
+        let source_map = minified_with_map.source_map_v3.as_ref().ok_or_else(|| {
+            format!(
+                "headline fidelity sample missing Source Map V3 output: {}",
+                sample.name,
+            )
+        })?;
+        let source_map_json =
+            serde_json::to_string(source_map).map_err(|error| error.to_string())?;
+        let parsed_source_map =
+            parse_transform_source_map_v3_json(&source_map_json).map_err(|error| {
+                format!(
+                    "headline fidelity source map should parse for {}: {error:?}",
+                    sample.name,
+                )
+            })?;
+        let source_map_vlq_valid = !parsed_source_map.decoded_segments.is_empty();
+        let all_decoded_segments_map_to_valid_positions =
+            parsed_source_map.decoded_segments.iter().all(|segment| {
+                valid_utf16_position(
+                    sample.source.as_str(),
+                    segment.original_line,
+                    segment.original_utf16_column,
+                ) && valid_utf16_position(
+                    minified_with_map.css.as_str(),
+                    segment.generated_line,
+                    segment.generated_utf16_column,
+                )
+            });
+        let css_modules_moat_preserved_through_minify =
+            minified_with_map.css.contains("composes:filterButton")
+                && minified_with_map.css.contains(":global(.is-keyboard-user)");
+        let provenance_overhead_basis_points = if minified_without_map.css.is_empty() {
+            0
+        } else {
+            ((source_map_json.len() as u128 * 10_000) / minified_without_map.css.len() as u128)
+                as u64
+        };
+
+        sample_summaries.push(HeadlineAxisFidelitySampleV0 {
+            name: sample.name,
+            path: sample.path,
+            dialect: benchmark_style_dialect_label(sample.dialect),
+            source_byte_length: sample.source.len(),
+            minified_css_byte_length: minified_with_map.css.len(),
+            source_map_byte_length: source_map_json.len(),
+            decoded_source_map_segment_count: parsed_source_map.decoded_segments.len(),
+            source_map_vlq_valid,
+            all_decoded_segments_map_to_valid_positions,
+            css_modules_moat_preserved_through_minify,
+            provenance_overhead_basis_points,
+        });
+    }
+
+    let source_map_vlq_valid = sample_summaries
+        .iter()
+        .all(|sample| sample.source_map_vlq_valid);
+    let source_map_positions_valid = sample_summaries
+        .iter()
+        .all(|sample| sample.all_decoded_segments_map_to_valid_positions);
+    let css_modules_moat_preserved_through_minify = sample_summaries
+        .iter()
+        .all(|sample| sample.css_modules_moat_preserved_through_minify);
+    let max_provenance_overhead_basis_points = sample_summaries
+        .iter()
+        .map(|sample| sample.provenance_overhead_basis_points)
+        .max()
+        .unwrap_or(0);
+
+    Ok(HeadlineAxisFidelitySummaryV0 {
+        schema_version: "0",
+        product: "omena-benchmarks.headline-axis-fidelity",
+        benchmark_family: Z5_PERFORMANCE_BASELINE,
+        measured_axis: "fidelity-provenance-and-runtime-loop-readiness",
+        sample_count: sample_summaries.len(),
+        source_map_vlq_valid,
+        source_map_positions_valid,
+        css_modules_moat_preserved_through_minify,
+        max_provenance_overhead_basis_points,
+        runtime_loop_headline_ready: false,
+        runtime_loop_verdict: "not-ready-for-public-headline-until-schema-versioned-runtime-loop-artifact-exists",
+        speed_claim_ready: false,
+        publication_policy: "measurement-only-no-competitive-claim",
+        samples: sample_summaries,
+    })
+}
+
 fn emitted_css_golden_corpus() -> Vec<StyleSample> {
     let mut seen = std::collections::BTreeSet::new();
     style_corpus()
@@ -559,6 +716,13 @@ fn emitted_css_golden_corpus() -> Vec<StyleSample> {
         .chain(bundler_productization_corpus())
         .filter(|sample| seen.insert((sample.name, sample.path)))
         .collect()
+}
+
+fn valid_utf16_position(source: &str, line: usize, utf16_column: usize) -> bool {
+    source
+        .split('\n')
+        .nth(line)
+        .is_some_and(|text| utf16_column <= text.encode_utf16().count())
 }
 
 fn is_css_modules_moat_sample(sample: &StyleSample) -> bool {
@@ -682,10 +846,10 @@ mod tests {
         measure_omena_parser_product_sample, parser_product_benchmark_boundaries,
         render_emitted_css_golden_gate_snapshot_json, style_corpus,
         summarize_bundler_productization_benchmark_surface, summarize_criterion_surface_snapshot,
-        summarize_emitted_css_golden_gate, summarize_parser_product_benchmark_readiness,
-        summarize_style_corpus_snapshot, validate_emitted_css_golden_gate_snapshot,
-        validate_legacy_style_sample, validate_omena_style_sample,
-        validate_parser_product_benchmark_boundary_symmetry,
+        summarize_emitted_css_golden_gate, summarize_headline_axis_fidelity,
+        summarize_parser_product_benchmark_readiness, summarize_style_corpus_snapshot,
+        validate_emitted_css_golden_gate_snapshot, validate_legacy_style_sample,
+        validate_omena_style_sample, validate_parser_product_benchmark_boundary_symmetry,
     };
 
     const EMITTED_CSS_GOLDEN: &str = include_str!("../fixtures/emitted-css-golden-v0.json");
@@ -986,6 +1150,39 @@ mod tests {
     }
 
     #[test]
+    fn headline_axis_fidelity_measures_source_map_and_moat_preservation() -> Result<(), String> {
+        let snapshot = summarize_headline_axis_fidelity()?;
+
+        assert_eq!(snapshot.schema_version, "0");
+        assert_eq!(snapshot.product, "omena-benchmarks.headline-axis-fidelity");
+        assert_eq!(snapshot.benchmark_family, super::Z5_PERFORMANCE_BASELINE);
+        assert_eq!(
+            snapshot.measured_axis,
+            "fidelity-provenance-and-runtime-loop-readiness"
+        );
+        assert_eq!(snapshot.sample_count, 1);
+        assert!(snapshot.source_map_vlq_valid);
+        assert!(snapshot.source_map_positions_valid);
+        assert!(snapshot.css_modules_moat_preserved_through_minify);
+        assert!(snapshot.max_provenance_overhead_basis_points > 0);
+        assert!(!snapshot.runtime_loop_headline_ready);
+        assert!(!snapshot.speed_claim_ready);
+        assert_eq!(
+            snapshot.publication_policy,
+            "measurement-only-no-competitive-claim"
+        );
+        assert!(
+            snapshot
+                .samples
+                .iter()
+                .any(|sample| sample.name == "css-modules-product-grid"
+                    && sample.decoded_source_map_segment_count > 0
+                    && sample.css_modules_moat_preserved_through_minify)
+        );
+        Ok(())
+    }
+
+    #[test]
     fn bundler_productization_surface_declares_corpus_lanes_and_no_speed_claim()
     -> Result<(), String> {
         let snapshot = summarize_bundler_productization_benchmark_surface();
@@ -1022,9 +1219,12 @@ mod tests {
             snapshot
                 .samples
                 .iter()
-                .any(|sample| sample.name == "next-with-sass-hello-world"
+                .any(|sample| sample.name == "next-dashboard-shell-scss"
                     && sample.dialect == "scss"
-                    && sample.source.contains("$color: red"))
+                    && sample.source.contains(".dashboardShell")
+                    && sample.source.contains(".metricCard")
+                    && sample.source.contains("composes: actionButton")
+                    && sample.line_count > 80)
         );
         assert!(
             snapshot

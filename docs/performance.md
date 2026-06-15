@@ -36,6 +36,12 @@ Validate emitted CSS bytes against the committed Omena golden snapshot:
 pnpm omena-check run rust/benchmark/emitted-css-golden-gate
 ```
 
+Measure the headline-axis fidelity snapshot without publishing a speed claim:
+
+```bash
+pnpm omena-check run rust/benchmark/headline-axis
+```
+
 Emit the machine-readable Criterion surface snapshot:
 
 ```bash
@@ -115,6 +121,8 @@ Until then, the committed benchmark surface is the contract:
 - benchmark code is versioned
 - corpus generation is versioned
 - emitted CSS golden bytes are versioned before speed numbers are considered
+- source-map/provenance fidelity is measured by `rust/benchmark/headline-axis`
+  before any headline positioning is considered
 - macro request mix is versioned
 - parser-product benchmark lanes expose a machine-readable readiness summary
   proving both lanes measure raw style source to product summary
@@ -138,6 +146,12 @@ publish a number. A future renderer may emit a speed claim only when that flag i
 true, the schema-versioned artifact validates, the emitted CSS golden gate is
 green, a rotating holdout fixture remains outside the gated benchmark set, and
 the output states the corpus and machine metadata used for the run.
+
+The current headline-axis snapshot records fidelity/provenance evidence only:
+Source Map V3 decoding, decoded segment position validity, CSS Modules
+`composes`/`:global` preservation through minification, and provenance overhead.
+Runtime-loop headline readiness remains false until a schema-versioned runtime
+loop artifact proves the request-path budget in the same reporting model.
 
 Publishable outcomes are:
 

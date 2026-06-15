@@ -5,8 +5,8 @@ use crate::Z5_PERFORMANCE_BASELINE;
 
 const BOOTSTRAP_REBOOT_V5_3_3: &str =
     include_str!("../fixtures/bundler/bootstrap-reboot-v5.3.3.css");
-const NEXT_WITH_SASS_HELLO_WORLD: &str =
-    include_str!("../fixtures/bundler/next-with-sass-hello-world.module.scss");
+const NEXT_DASHBOARD_SHELL: &str =
+    include_str!("../fixtures/bundler/next-dashboard-shell.module.scss");
 const CSS_MODULES_PRODUCT_GRID: &str =
     include_str!("../fixtures/bundler/css-modules-product-grid.module.css");
 
@@ -112,10 +112,10 @@ pub fn bundler_productization_corpus() -> Vec<StyleSample> {
             source: BOOTSTRAP_REBOOT_V5_3_3.to_string(),
         },
         StyleSample {
-            name: "next-with-sass-hello-world",
-            path: "next-with-sass-hello-world.module.scss",
+            name: "next-dashboard-shell-scss",
+            path: "next-dashboard-shell.module.scss",
             dialect: StyleDialect::Scss,
-            source: NEXT_WITH_SASS_HELLO_WORLD.to_string(),
+            source: NEXT_DASHBOARD_SHELL.to_string(),
         },
         StyleSample {
             name: "css-modules-product-grid",
