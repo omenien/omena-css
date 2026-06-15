@@ -1,0 +1,32 @@
+--- file: node_modules/@app/theme/package.json
+{
+  "exports": {
+    "./index": {
+      "sass": "./index.scss"
+    }
+  }
+}
+--- file: node_modules/@app/theme/index.scss
+@forward "@design/tokens/colors";
+@forward "./radius";
+--- file: node_modules/@app/theme/_radius.scss
+$ds_radius-card: 12px;
+--- file: node_modules/@design/tokens/package.json
+{
+  "exports": {
+    "./colors": {
+      "sass": "./colors.scss"
+    }
+  }
+}
+--- file: node_modules/@design/tokens/colors.scss
+$ds_gray-700: #374151;
+--- file: src/App.module.scss
+@use "@app/theme/index" as ds;
+
+.button {
+  color: ds.$ds_gray-700;
+  border-radius: ds.$ds_radius-card;
+}
+--- expect: no-diagnostic missingSassSymbol
+--- expect: no-diagnostic missingExternalSif
