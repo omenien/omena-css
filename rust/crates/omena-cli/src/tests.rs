@@ -2153,6 +2153,126 @@ fn in_process_external_sifs_resolve_bare_package_forward_aliases() -> Result<(),
     Ok(())
 }
 
+#[cfg(unix)]
+#[test]
+fn in_process_external_sifs_resolve_bare_package_forward_aliases_through_pnpm_symlinks()
+-> Result<(), String> {
+    let workspace = temp_dir("bare-package-forward-pnpm-symlink");
+    let source = workspace.join("src/App.module.scss");
+    let real_app_package = workspace.join(".pnpm/@app+theme@1.0.0/node_modules/@app/theme");
+    let real_design_package =
+        workspace.join(".pnpm/@design+tokens@1.0.0/node_modules/@design/tokens");
+    let linked_app_scope = workspace.join("node_modules/@app");
+    let linked_design_scope = workspace.join("node_modules/@design");
+    let linked_app_package = linked_app_scope.join("theme");
+    let linked_design_package = linked_design_scope.join("tokens");
+
+    fs::create_dir_all(
+        source
+            .parent()
+            .ok_or_else(|| "source parent should exist".to_string())?,
+    )
+    .map_err(|error| format!("source parent should be writable: {error}"))?;
+    fs::create_dir_all(&real_app_package)
+        .map_err(|error| format!("real app package should be writable: {error}"))?;
+    fs::create_dir_all(&real_design_package)
+        .map_err(|error| format!("real design package should be writable: {error}"))?;
+    fs::create_dir_all(&linked_app_scope)
+        .map_err(|error| format!("linked app scope should be writable: {error}"))?;
+    fs::create_dir_all(&linked_design_scope)
+        .map_err(|error| format!("linked design scope should be writable: {error}"))?;
+    unix_fs::symlink(real_app_package.as_path(), linked_app_package.as_path())
+        .map_err(|error| format!("app package symlink should be creatable: {error}"))?;
+    unix_fs::symlink(
+        real_design_package.as_path(),
+        linked_design_package.as_path(),
+    )
+    .map_err(|error| format!("design package symlink should be creatable: {error}"))?;
+
+    let app_manifest = r#"{"exports":{"./index":{"sass":"./index.scss"}}}"#;
+    let design_manifest = r#"{"exports":{"./colors":{"sass":"./colors.scss"}}}"#;
+    fs::write(real_app_package.join("package.json"), app_manifest)
+        .map_err(|error| format!("app package manifest should be writable: {error}"))?;
+    fs::write(real_design_package.join("package.json"), design_manifest)
+        .map_err(|error| format!("design package manifest should be writable: {error}"))?;
+    fs::write(
+        real_app_package.join("index.scss"),
+        "@forward \"@design/tokens/colors\";\n@forward \"./radius\";\n",
+    )
+    .map_err(|error| format!("app barrel should be writable: {error}"))?;
+    fs::write(
+        real_app_package.join("_radius.scss"),
+        "$ds_radius-card: 12px;\n",
+    )
+    .map_err(|error| format!("app radius token should be writable: {error}"))?;
+    fs::write(
+        real_design_package.join("colors.scss"),
+        "$ds_gray-700: #374151;\n",
+    )
+    .map_err(|error| format!("design colors should be writable: {error}"))?;
+
+    let source_text = "@use \"@app/theme/index\" as ds;\n.button { color: ds.$ds_gray-700; border-radius: ds.$ds_radius-card; }\n";
+    fs::write(source.as_path(), source_text)
+        .map_err(|error| format!("source should be writable: {error}"))?;
+    let entry = OmenaQueryStyleSourceInputV0 {
+        style_path: source.to_string_lossy().into_owned(),
+        style_source: source_text.to_string(),
+    };
+    let resolution_inputs = OmenaQueryStyleResolutionInputsV0 {
+        package_manifests: vec![
+            OmenaQueryStylePackageManifestV0 {
+                package_json_path: real_app_package
+                    .join("package.json")
+                    .to_string_lossy()
+                    .into_owned(),
+                package_json_source: app_manifest.to_string(),
+            },
+            OmenaQueryStylePackageManifestV0 {
+                package_json_path: real_design_package
+                    .join("package.json")
+                    .to_string_lossy()
+                    .into_owned(),
+                package_json_source: design_manifest.to_string(),
+            },
+        ],
+        ..OmenaQueryStyleResolutionInputsV0::default()
+    };
+
+    let resolved =
+        resolve_in_process_external_sifs(std::slice::from_ref(&entry), &[], &resolution_inputs);
+
+    assert!(
+        resolved
+            .iter()
+            .any(|input| input.canonical_url == "@app/theme/index"),
+        "root package edge should keep a verbatim alias entry through pnpm symlinks: {resolved:?}"
+    );
+    assert!(
+        resolved
+            .iter()
+            .any(|input| input.canonical_url == "@design/tokens/colors"
+                && input
+                    .sif
+                    .exports
+                    .variables
+                    .iter()
+                    .any(|variable| variable.name == "$ds_gray-700")),
+        "bare transitive forward should keep a verbatim alias and exported token through pnpm symlinks: {resolved:?}"
+    );
+    assert!(
+        resolved.iter().any(|input| input
+            .sif
+            .exports
+            .variables
+            .iter()
+            .any(|variable| variable.name == "$ds_radius-card")),
+        "relative forward inside the symlinked package barrel should expose radius token: {resolved:?}"
+    );
+
+    cleanup_dir(&workspace);
+    Ok(())
+}
+
 #[test]
 fn style_hover_and_completion_commands_read_query_owned_surfaces() -> Result<(), String> {
     let source_path = temp_path("hover.module.css");
