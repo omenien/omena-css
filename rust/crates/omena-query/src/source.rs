@@ -152,34 +152,14 @@ pub fn resolve_omena_query_bridge_external_sifs_for_seed_pairs(
     existing_external_sifs: &[OmenaQueryExternalSifInputV0],
     resolution_inputs: &OmenaQueryStyleResolutionInputsV0,
 ) -> OmenaQueryBridgeExternalSifResolutionV0 {
-    let mut emitted_keys = existing_external_sifs
-        .iter()
-        .flat_map(|input| [input.canonical_url.clone(), input.sif.canonical_url.clone()])
-        .collect::<BTreeSet<_>>();
-    let mut generated_by_resolved_url = existing_external_sifs
-        .iter()
-        .map(|input| (input.sif.canonical_url.clone(), input.sif.clone()))
-        .collect::<BTreeMap<_, _>>();
-    let mut bridge_urls = BTreeSet::new();
-    let mut external_sifs = Vec::new();
-    let mut worklist = VecDeque::new();
-    let mut generation_count = 0usize;
+    let mut state =
+        BridgeExternalSifResolutionState::new(existing_external_sifs, resolution_inputs);
 
     for (verbatim_source, resolved_url) in seeds {
-        enqueue_bridge_external_sif_alias(
-            verbatim_source,
-            resolved_url,
-            resolution_inputs,
-            &mut emitted_keys,
-            &mut generated_by_resolved_url,
-            &mut bridge_urls,
-            &mut external_sifs,
-            &mut worklist,
-            &mut generation_count,
-        );
+        state.enqueue_alias(verbatim_source, resolved_url);
     }
 
-    while let Some(sif) = worklist.pop_front() {
+    while let Some(sif) = state.worklist.pop_front() {
         let base_file_uri = sif.canonical_url.clone();
         for forward in &sif.exports.forwards {
             let specifier = forward.canonical_url.as_str();
@@ -191,7 +171,7 @@ pub fn resolve_omena_query_bridge_external_sifs_for_seed_pairs(
                     base_file_uri.as_str(),
                     None,
                     specifier,
-                    resolution_inputs,
+                    state.resolution_inputs,
                 )
                 .filter(|uri| uri.starts_with("file://"))
             else {
@@ -202,24 +182,95 @@ pub fn resolve_omena_query_bridge_external_sifs_for_seed_pairs(
             } else {
                 specifier.to_string()
             };
-            enqueue_bridge_external_sif_alias(
-                alias_key,
-                child_url,
-                resolution_inputs,
-                &mut emitted_keys,
-                &mut generated_by_resolved_url,
-                &mut bridge_urls,
-                &mut external_sifs,
-                &mut worklist,
-                &mut generation_count,
-            );
+            state.enqueue_alias(alias_key, child_url);
         }
     }
 
-    OmenaQueryBridgeExternalSifResolutionV0 {
-        external_sifs,
-        bridge_urls: bridge_urls.into_iter().collect(),
-        generation_count,
+    state.into_resolution()
+}
+
+struct BridgeExternalSifResolutionState<'a> {
+    resolution_inputs: &'a OmenaQueryStyleResolutionInputsV0,
+    emitted_keys: BTreeSet<String>,
+    generated_by_resolved_url: BTreeMap<String, omena_sif::OmenaSifV1>,
+    bridge_urls: BTreeSet<String>,
+    external_sifs: Vec<OmenaQueryExternalSifInputV0>,
+    worklist: VecDeque<omena_sif::OmenaSifV1>,
+    generation_count: usize,
+}
+
+impl<'a> BridgeExternalSifResolutionState<'a> {
+    fn new(
+        existing_external_sifs: &[OmenaQueryExternalSifInputV0],
+        resolution_inputs: &'a OmenaQueryStyleResolutionInputsV0,
+    ) -> Self {
+        Self {
+            resolution_inputs,
+            emitted_keys: existing_external_sifs
+                .iter()
+                .flat_map(|input| [input.canonical_url.clone(), input.sif.canonical_url.clone()])
+                .collect(),
+            generated_by_resolved_url: existing_external_sifs
+                .iter()
+                .map(|input| (input.sif.canonical_url.clone(), input.sif.clone()))
+                .collect(),
+            bridge_urls: BTreeSet::new(),
+            external_sifs: Vec::new(),
+            worklist: VecDeque::new(),
+            generation_count: 0,
+        }
+    }
+
+    fn into_resolution(self) -> OmenaQueryBridgeExternalSifResolutionV0 {
+        OmenaQueryBridgeExternalSifResolutionV0 {
+            external_sifs: self.external_sifs,
+            bridge_urls: self.bridge_urls.into_iter().collect(),
+            generation_count: self.generation_count,
+        }
+    }
+
+    fn enqueue_alias(&mut self, alias_key: String, resolved_url: String) {
+        if self.emitted_keys.contains(alias_key.as_str()) {
+            return;
+        }
+        self.bridge_urls.insert(alias_key.clone());
+        self.bridge_urls.insert(resolved_url.clone());
+        if let Some(sif) = self
+            .generated_by_resolved_url
+            .get(resolved_url.as_str())
+            .cloned()
+        {
+            self.emitted_keys.insert(alias_key.clone());
+            self.emitted_keys.insert(sif.canonical_url.clone());
+            self.external_sifs.push(OmenaQueryExternalSifInputV0 {
+                canonical_url: alias_key,
+                sif,
+            });
+            return;
+        }
+        let cache_context = omena_bridge::OmenaBridgeExternalSifCacheContextV0 {
+            freshness_fingerprint: self
+                .resolution_inputs
+                .external_sif_cache_fingerprint
+                .clone(),
+        };
+        let Ok(sif) = generate_omena_bridge_sif_for_resolved_style_path_with_cache_context(
+            resolved_url.as_str(),
+            &cache_context,
+        ) else {
+            return;
+        };
+        self.generation_count = self.generation_count.saturating_add(1);
+        self.generated_by_resolved_url
+            .insert(sif.canonical_url.clone(), sif.clone());
+        self.emitted_keys.insert(alias_key.clone());
+        self.emitted_keys.insert(sif.canonical_url.clone());
+        self.bridge_urls.insert(sif.canonical_url.clone());
+        self.worklist.push_back(sif.clone());
+        self.external_sifs.push(OmenaQueryExternalSifInputV0 {
+            canonical_url: alias_key,
+            sif,
+        });
     }
 }
 
@@ -262,55 +313,6 @@ fn bridge_external_sif_seeds_for_style_source(
                 .then(|| (specifier.to_string(), resolved_url))
         })
         .collect()
-}
-
-fn enqueue_bridge_external_sif_alias(
-    alias_key: String,
-    resolved_url: String,
-    resolution_inputs: &OmenaQueryStyleResolutionInputsV0,
-    emitted_keys: &mut BTreeSet<String>,
-    generated_by_resolved_url: &mut BTreeMap<String, omena_sif::OmenaSifV1>,
-    bridge_urls: &mut BTreeSet<String>,
-    external_sifs: &mut Vec<OmenaQueryExternalSifInputV0>,
-    worklist: &mut VecDeque<omena_sif::OmenaSifV1>,
-    generation_count: &mut usize,
-) {
-    if emitted_keys.contains(alias_key.as_str()) {
-        return;
-    }
-    bridge_urls.insert(alias_key.clone());
-    bridge_urls.insert(resolved_url.clone());
-    if let Some(sif) = generated_by_resolved_url
-        .get(resolved_url.as_str())
-        .cloned()
-    {
-        emitted_keys.insert(alias_key.clone());
-        emitted_keys.insert(sif.canonical_url.clone());
-        external_sifs.push(OmenaQueryExternalSifInputV0 {
-            canonical_url: alias_key,
-            sif,
-        });
-        return;
-    }
-    let cache_context = omena_bridge::OmenaBridgeExternalSifCacheContextV0 {
-        freshness_fingerprint: resolution_inputs.external_sif_cache_fingerprint.clone(),
-    };
-    let Ok(sif) = generate_omena_bridge_sif_for_resolved_style_path_with_cache_context(
-        resolved_url.as_str(),
-        &cache_context,
-    ) else {
-        return;
-    };
-    *generation_count = generation_count.saturating_add(1);
-    generated_by_resolved_url.insert(sif.canonical_url.clone(), sif.clone());
-    emitted_keys.insert(alias_key.clone());
-    emitted_keys.insert(sif.canonical_url.clone());
-    bridge_urls.insert(sif.canonical_url.clone());
-    worklist.push_back(sif.clone());
-    external_sifs.push(OmenaQueryExternalSifInputV0 {
-        canonical_url: alias_key,
-        sif,
-    });
 }
 
 fn bridge_external_sif_specifier_is_readable(specifier: &str) -> bool {

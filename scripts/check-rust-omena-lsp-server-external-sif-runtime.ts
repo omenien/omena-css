@@ -246,7 +246,10 @@ function openStyleDocument(connection: ProtocolConnection, uri: string, text: st
 
 function cleanResolvedDiagnostics(diagnostics: readonly DiagnosticLike[]): boolean {
   const codes = diagnosticCodes(diagnostics);
-  return [...BLOCKING_EXTERNAL_CODES].every((code) => !codes.has(code)) && !codes.has("partialExternalSif");
+  return (
+    [...BLOCKING_EXTERNAL_CODES].every((code) => !codes.has(code)) &&
+    !codes.has("partialExternalSif")
+  );
 }
 
 function diagnosticCodes(diagnostics: readonly DiagnosticLike[]): Set<string> {
@@ -342,7 +345,10 @@ async function assertHoverContains(
   );
   const rendered = JSON.stringify(hover);
   for (const fragment of expected) {
-    assert.ok(rendered.includes(fragment), `hover for ${token} must include ${fragment}: ${rendered}`);
+    assert.ok(
+      rendered.includes(fragment),
+      `hover for ${token} must include ${fragment}: ${rendered}`,
+    );
   }
 }
 
