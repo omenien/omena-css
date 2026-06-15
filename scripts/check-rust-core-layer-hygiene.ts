@@ -18,13 +18,21 @@ const parserParsePath = "rust/crates/omena-parser/src/parse.rs";
 const cliMainPath = "rust/crates/omena-cli/src/main.rs";
 const queryDiagnosticsFilePath = "rust/crates/omena-query/src/style/diagnostics.rs";
 const queryDiagnosticsDirPath = "rust/crates/omena-query/src/style/diagnostics";
+const rustCratesDirPath = "rust/crates";
+const godFileCeilingsPath = "scripts/rust-godfile-ceilings.json";
+const retiringEngineStyleParserPath = "rust/crates/engine-style-parser/src/lib.rs";
+const retiringEngineStyleParserManifestPath = "rust/crates/engine-style-parser/Cargo.toml";
 
 const parserLib = read(parserLibPath);
 const parserParse = read(parserParsePath);
 const cliMain = read(cliMainPath);
+const godFileCeilings = readGodFileCeilings(godFileCeilingsPath);
 
 assertLineBudget(parserLibPath, parserLib, 220);
 assertLineBudget(cliMainPath, cliMain, 120);
+const godFileRatchetTargets = assertGodFileCeilings(godFileCeilings);
+assertRetiringEngineStyleParserExcluded(godFileCeilings);
+const lintInheritance = assertWorkspaceLintInheritance();
 assert.ok(
   !existsSync(path.join(root, queryDiagnosticsFilePath)),
   `${queryDiagnosticsFilePath} must not be recreated; use diagnostics/mod.rs and family modules`,
@@ -211,6 +219,8 @@ process.stdout.write(
       product: "rust.core-layer-hygiene",
       parserLibLines: lineCount(parserLib),
       cliMainLines: lineCount(cliMain),
+      godFileRatchetTargets,
+      workspaceLintInheritance: lintInheritance,
       queryDiagnosticsModules: queryModules.size,
       maxQueryDiagnosticFamilyLines: Math.max(...queryModuleLines.map(({ lines }) => lines)),
       queryDiagnosticsWildcardImports: wildcardImportViolations.length,
@@ -233,4 +243,134 @@ function lineCount(source: string): number {
 function assertLineBudget(relativePath: string, source: string, maxLines: number): void {
   const lines = lineCount(source);
   assert.ok(lines <= maxLines, `${relativePath} has ${lines} LOC; expected <= ${maxLines}`);
+}
+
+interface GodFileCeilingManifest {
+  readonly schemaVersion: string;
+  readonly ceilings: Record<string, number>;
+}
+
+interface GodFileRatchetTarget {
+  readonly path: string;
+  readonly lines: number;
+  readonly ceiling: number;
+}
+
+interface WorkspaceLintInheritanceSummary {
+  readonly crates: number;
+  readonly inherited: number;
+  readonly missing: readonly string[];
+}
+
+function readGodFileCeilings(relativePath: string): ReadonlyMap<string, number> {
+  const manifest = JSON.parse(read(relativePath)) as GodFileCeilingManifest;
+  assert.equal(manifest.schemaVersion, "0", `${relativePath} schemaVersion must be 0`);
+  assert.ok(
+    manifest.ceilings && typeof manifest.ceilings === "object" && !Array.isArray(manifest.ceilings),
+    `${relativePath} must contain a ceilings object`,
+  );
+
+  const entries = Object.entries(manifest.ceilings).toSorted(([left], [right]) =>
+    left.localeCompare(right),
+  );
+  assert.ok(entries.length > 0, `${relativePath} must contain at least one ratchet target`);
+
+  const ceilings = new Map<string, number>();
+  for (const [targetPath, ceiling] of entries) {
+    assert.ok(
+      targetPath.startsWith("rust/crates/") && targetPath.endsWith(".rs"),
+      `${relativePath} target must be a Rust crate source path: ${targetPath}`,
+    );
+    assert.ok(Number.isInteger(ceiling) && ceiling > 0, `${targetPath} ceiling must be positive`);
+    assert.ok(existsSync(path.join(root, targetPath)), `${targetPath} ratchet target must exist`);
+    ceilings.set(targetPath, ceiling);
+  }
+  return ceilings;
+}
+
+function assertGodFileCeilings(
+  ceilings: ReadonlyMap<string, number>,
+): readonly GodFileRatchetTarget[] {
+  const targets: GodFileRatchetTarget[] = [];
+  for (const [targetPath, ceiling] of ceilings) {
+    const lines = lineCount(read(targetPath));
+    assert.ok(
+      lines <= ceiling,
+      `${targetPath} has ${lines} LOC; expected <= ratchet ceiling ${ceiling}`,
+    );
+    targets.push({ path: targetPath, lines, ceiling });
+  }
+  return targets;
+}
+
+function assertRetiringEngineStyleParserExcluded(ceilings: ReadonlyMap<string, number>): void {
+  assert.ok(
+    !ceilings.has(retiringEngineStyleParserPath),
+    `${retiringEngineStyleParserPath} is a retiring legacy oracle and must not be a god-file ratchet target`,
+  );
+
+  const manifest = read(retiringEngineStyleParserManifestPath);
+  assert.ok(
+    /\[package\.metadata\.omena\][\s\S]*?\brole\s*=\s*"I"/u.test(manifest),
+    `${retiringEngineStyleParserManifestPath} must keep role = "I" for the ratchet exclusion`,
+  );
+  assert.ok(
+    /^\s*publish\s*=\s*false\s*$/mu.test(manifest),
+    `${retiringEngineStyleParserManifestPath} must keep publish = false for the ratchet exclusion`,
+  );
+}
+
+function assertWorkspaceLintInheritance(): WorkspaceLintInheritanceSummary {
+  const workspaceManifest = read("rust/Cargo.toml");
+  assert.ok(
+    workspaceManifest.includes("[workspace.lints.rust]"),
+    "rust/Cargo.toml must declare [workspace.lints.rust]",
+  );
+  assert.ok(
+    workspaceManifest.includes("[workspace.lints.clippy]"),
+    "rust/Cargo.toml must declare [workspace.lints.clippy]",
+  );
+
+  const crateManifestPaths = readdirSync(path.join(root, rustCratesDirPath))
+    .filter((entry) => statSync(path.join(root, rustCratesDirPath, entry)).isDirectory())
+    .map((entry) => `${rustCratesDirPath}/${entry}/Cargo.toml`)
+    .filter((relativePath) => existsSync(path.join(root, relativePath)))
+    .toSorted();
+
+  const missing: string[] = [];
+  for (const manifestPath of crateManifestPaths) {
+    const lintEntries = lintSectionEntries(read(manifestPath));
+    if (lintEntries.length !== 1 || lintEntries[0] !== "workspace = true") {
+      missing.push(manifestPath);
+    }
+  }
+
+  assert.equal(
+    missing.length,
+    0,
+    `workspace lint inheritance is incomplete; every crate must contain [lints] workspace = true:\n${missing.join("\n")}`,
+  );
+
+  return {
+    crates: crateManifestPaths.length,
+    inherited: crateManifestPaths.length - missing.length,
+    missing,
+  };
+}
+
+function lintSectionEntries(source: string): string[] {
+  const entries: string[] = [];
+  let inLintSection = false;
+  for (const line of source.split("\n")) {
+    const trimmed = line.trim();
+    if (/^\[.*\]$/u.test(trimmed)) {
+      inLintSection = trimmed === "[lints]";
+      continue;
+    }
+    if (!inLintSection || trimmed === "" || trimmed.startsWith("#")) {
+      continue;
+    }
+    entries.push(trimmed.replace(/\s*#.*$/u, ""));
+  }
+  return entries;
 }
