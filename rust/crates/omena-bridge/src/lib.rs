@@ -58,8 +58,9 @@ pub use source_syntax::{
     summarize_omena_bridge_source_syntax_index_for_source_language,
 };
 pub use style_resolution::{
-    OmenaBridgeStyleResolutionInputsV0, OmenaBridgeStyleResolutionSummaryV0,
-    generate_omena_bridge_sif_for_resolved_style_path,
+    OmenaBridgeExternalSifCacheContextV0, OmenaBridgeStyleResolutionInputsV0,
+    OmenaBridgeStyleResolutionSummaryV0, generate_omena_bridge_sif_for_resolved_style_path,
+    generate_omena_bridge_sif_for_resolved_style_path_with_cache_context,
     load_omena_bridge_workspace_style_resolution_inputs,
     resolve_omena_bridge_style_uri_for_specifier,
     resolve_omena_bridge_style_uri_for_specifier_with_package_manifests,
