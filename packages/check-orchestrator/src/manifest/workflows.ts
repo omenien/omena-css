@@ -42,6 +42,11 @@ const GOVERNED_CI_LEAF_CLASSIFICATIONS: readonly GovernedCiLeafClassification[] 
     reason: "Benchmark/profiling entrypoint; run manually when collecting performance evidence.",
   },
   {
+    id: "rust/benchmark/emitted-css-golden-gate:update",
+    reason:
+      "Golden snapshot regeneration command; the read-only emitted CSS gate is the CI validation surface.",
+  },
+  {
     id: "release/changeset",
     reason: "Release authoring command; not a CI validation gate.",
   },

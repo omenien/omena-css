@@ -19,8 +19,10 @@ engine-style-parser = { path = "../engine-style-parser", version = "=0.2.1" }
 omena-abstract-value = { path = "../omena-abstract-value", version = "=0.2.1" }
 omena-parser = { path = "../omena-parser", version = "=0.2.1" }
 omena-semantic = { path = "../omena-semantic", version = "=0.2.1" }
+omena-transform-print = { path = "../omena-transform-print", version = "=0.2.1" }
 serde.workspace = true
 serde_json.workspace = true
+sha2.workspace = true
 
 [dev-dependencies]
 criterion.workspace = true

@@ -3,7 +3,9 @@ pub const Z5_PERFORMANCE_BASELINE: &str = "z5-performance-baseline";
 mod corpus;
 
 use omena_parser::StyleDialect;
+use omena_transform_print::{default_print_options, print_transform_cst_source_with_dialect};
 use serde::Serialize;
+use sha2::{Digest, Sha256};
 
 pub use corpus::{
     StyleCorpusSampleSnapshotV0, StyleCorpusSnapshotV0, StyleSample, bundler_productization_corpus,
@@ -131,6 +133,43 @@ pub struct BundlerProductizationBenchmarkSurfaceSnapshotV0 {
     pub speed_claim_ready: bool,
     pub timing_policy: &'static str,
     pub comparison_policy: &'static str,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct EmittedCssGoldenSampleSnapshotV0 {
+    pub name: &'static str,
+    pub path: &'static str,
+    pub dialect: &'static str,
+    pub source_byte_length: usize,
+    pub output_byte_length: usize,
+    pub output_line_count: usize,
+    pub source_sha256: String,
+    pub output_sha256: String,
+    pub deterministic_output: bool,
+    pub source_map_v3_present: bool,
+    pub css_modules_moat: bool,
+    pub dart_sass_advisory_eligible: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct EmittedCssGoldenGateSummaryV0 {
+    pub schema_version: &'static str,
+    pub product: &'static str,
+    pub benchmark_family: &'static str,
+    pub emitter: &'static str,
+    pub check_id: &'static str,
+    pub update_check_id: &'static str,
+    pub fixture_count: usize,
+    pub corpus_sha256: String,
+    pub emitted_css_sha256: String,
+    pub all_outputs_byte_stable: bool,
+    pub includes_css_modules_moat_fixture: bool,
+    pub dart_sass_advisory_policy: &'static str,
+    pub dart_sass_advisory_sample_count: usize,
+    pub speed_claim_ready: bool,
+    pub samples: Vec<EmittedCssGoldenSampleSnapshotV0>,
 }
 
 pub fn parser_product_benchmark_boundaries() -> [ParserProductBenchmarkBoundaryV0; 2] {
@@ -395,6 +434,157 @@ pub fn summarize_bundler_productization_benchmark_surface()
     }
 }
 
+pub fn summarize_emitted_css_golden_gate() -> Result<EmittedCssGoldenGateSummaryV0, String> {
+    let samples = emitted_css_golden_corpus();
+    let mut sample_snapshots = Vec::with_capacity(samples.len());
+    let mut corpus_hasher = Sha256::new();
+    let mut emitted_hasher = Sha256::new();
+
+    for sample in &samples {
+        let first = print_transform_cst_source_with_dialect(
+            sample.path,
+            sample.source.as_str(),
+            sample.dialect,
+            "omena-benchmarks.emitted-css-golden-gate",
+            &[],
+            default_print_options(),
+        );
+        let second = print_transform_cst_source_with_dialect(
+            sample.path,
+            sample.source.as_str(),
+            sample.dialect,
+            "omena-benchmarks.emitted-css-golden-gate",
+            &[],
+            default_print_options(),
+        );
+        let deterministic_output = first.css == second.css;
+        if !deterministic_output {
+            return Err(format!(
+                "emitted CSS output is not byte-stable across two runs: {}",
+                sample.name,
+            ));
+        }
+
+        corpus_hasher.update(sample.name.as_bytes());
+        corpus_hasher.update([0]);
+        corpus_hasher.update(sample.path.as_bytes());
+        corpus_hasher.update([0]);
+        corpus_hasher.update(benchmark_style_dialect_label(sample.dialect).as_bytes());
+        corpus_hasher.update([0]);
+        corpus_hasher.update(sample.source.as_bytes());
+        corpus_hasher.update([0]);
+
+        emitted_hasher.update(sample.name.as_bytes());
+        emitted_hasher.update([0]);
+        emitted_hasher.update(sample.path.as_bytes());
+        emitted_hasher.update([0]);
+        emitted_hasher.update(first.css.as_bytes());
+        emitted_hasher.update([0]);
+
+        let css_modules_moat = is_css_modules_moat_sample(sample);
+        sample_snapshots.push(EmittedCssGoldenSampleSnapshotV0 {
+            name: sample.name,
+            path: sample.path,
+            dialect: benchmark_style_dialect_label(sample.dialect),
+            source_byte_length: sample.source.len(),
+            output_byte_length: first.css.len(),
+            output_line_count: first.css.lines().count(),
+            source_sha256: sha256_hex(sample.source.as_bytes()),
+            output_sha256: sha256_hex(first.css.as_bytes()),
+            deterministic_output,
+            source_map_v3_present: first.source_map_v3.is_some(),
+            css_modules_moat,
+            dart_sass_advisory_eligible: is_dart_sass_advisory_eligible(sample, css_modules_moat),
+        });
+    }
+
+    let includes_css_modules_moat_fixture = sample_snapshots
+        .iter()
+        .any(|sample| sample.css_modules_moat);
+    let dart_sass_advisory_sample_count = sample_snapshots
+        .iter()
+        .filter(|sample| sample.dart_sass_advisory_eligible)
+        .count();
+    let all_outputs_byte_stable = sample_snapshots
+        .iter()
+        .all(|sample| sample.deterministic_output);
+
+    Ok(EmittedCssGoldenGateSummaryV0 {
+        schema_version: "0",
+        product: "omena-benchmarks.emitted-css-golden-gate",
+        benchmark_family: Z5_PERFORMANCE_BASELINE,
+        emitter: "omena-transform-print.print_transform_cst_source_with_dialect",
+        check_id: "rust/benchmark/emitted-css-golden-gate",
+        update_check_id: "rust/benchmark/emitted-css-golden-gate:update",
+        fixture_count: sample_snapshots.len(),
+        corpus_sha256: hex_digest(corpus_hasher.finalize().as_slice()),
+        emitted_css_sha256: hex_digest(emitted_hasher.finalize().as_slice()),
+        all_outputs_byte_stable,
+        includes_css_modules_moat_fixture,
+        dart_sass_advisory_policy: "advisory-only-plain-sass-subset; css-modules-moat-never-external-gated",
+        dart_sass_advisory_sample_count,
+        speed_claim_ready: false,
+        samples: sample_snapshots,
+    })
+}
+
+pub fn render_emitted_css_golden_gate_snapshot_json() -> Result<String, String> {
+    let summary = summarize_emitted_css_golden_gate()?;
+    serde_json::to_string_pretty(&summary)
+        .map(|json| format!("{json}\n"))
+        .map_err(|error| error.to_string())
+}
+
+pub fn validate_emitted_css_golden_gate_snapshot(expected_json: &str) -> Result<(), String> {
+    let current_json = render_emitted_css_golden_gate_snapshot_json()?;
+    let current: serde_json::Value =
+        serde_json::from_str(&current_json).map_err(|error| error.to_string())?;
+    let expected: serde_json::Value =
+        serde_json::from_str(expected_json).map_err(|error| error.to_string())?;
+
+    if current == expected {
+        Ok(())
+    } else {
+        Err(
+            "emitted CSS golden snapshot drifted; run `pnpm omena-check run rust/benchmark/emitted-css-golden-gate:update` and review the diff"
+                .to_string(),
+        )
+    }
+}
+
+fn emitted_css_golden_corpus() -> Vec<StyleSample> {
+    let mut seen = std::collections::BTreeSet::new();
+    style_corpus()
+        .into_iter()
+        .chain(bundler_productization_corpus())
+        .filter(|sample| seen.insert((sample.name, sample.path)))
+        .collect()
+}
+
+fn is_css_modules_moat_sample(sample: &StyleSample) -> bool {
+    sample.path.contains(".module.")
+        || sample.source.contains("composes:")
+        || sample.source.contains(":global(")
+        || sample.source.contains("@value")
+}
+
+fn is_dart_sass_advisory_eligible(sample: &StyleSample, css_modules_moat: bool) -> bool {
+    matches!(sample.dialect, StyleDialect::Scss | StyleDialect::Sass) && !css_modules_moat
+}
+
+fn sha256_hex(bytes: &[u8]) -> String {
+    let mut hasher = Sha256::new();
+    hasher.update(bytes);
+    hex_digest(hasher.finalize().as_slice())
+}
+
+fn hex_digest(bytes: &[u8]) -> String {
+    bytes
+        .iter()
+        .map(|byte| format!("{byte:02x}"))
+        .collect::<String>()
+}
+
 fn benchmark_style_dialect_label(dialect: StyleDialect) -> &'static str {
     match dialect {
         StyleDialect::Css => "css",
@@ -489,12 +679,16 @@ pub fn validate_legacy_style_sample(path: &str, source: &str) -> Result<(), Stri
 mod tests {
     use super::{
         bundler_productization_corpus, measure_legacy_parser_product_sample,
-        measure_omena_parser_product_sample, parser_product_benchmark_boundaries, style_corpus,
+        measure_omena_parser_product_sample, parser_product_benchmark_boundaries,
+        render_emitted_css_golden_gate_snapshot_json, style_corpus,
         summarize_bundler_productization_benchmark_surface, summarize_criterion_surface_snapshot,
-        summarize_parser_product_benchmark_readiness, summarize_style_corpus_snapshot,
+        summarize_emitted_css_golden_gate, summarize_parser_product_benchmark_readiness,
+        summarize_style_corpus_snapshot, validate_emitted_css_golden_gate_snapshot,
         validate_legacy_style_sample, validate_omena_style_sample,
         validate_parser_product_benchmark_boundary_symmetry,
     };
+
+    const EMITTED_CSS_GOLDEN: &str = include_str!("../fixtures/emitted-css-golden-v0.json");
 
     #[test]
     fn parser_product_benchmarks_declare_symmetric_measurement_boundary() -> Result<(), String> {
@@ -732,6 +926,62 @@ mod tests {
                 .and_then(|value| value.as_str()),
             Some("no-local-timing-claim-without-full-criterion-run")
         );
+        Ok(())
+    }
+
+    #[test]
+    fn emitted_css_golden_gate_records_stable_product_output() -> Result<(), String> {
+        let snapshot = summarize_emitted_css_golden_gate()?;
+
+        assert_eq!(snapshot.schema_version, "0");
+        assert_eq!(snapshot.product, "omena-benchmarks.emitted-css-golden-gate");
+        assert_eq!(snapshot.benchmark_family, super::Z5_PERFORMANCE_BASELINE);
+        assert_eq!(
+            snapshot.emitter,
+            "omena-transform-print.print_transform_cst_source_with_dialect"
+        );
+        assert_eq!(snapshot.check_id, "rust/benchmark/emitted-css-golden-gate");
+        assert_eq!(
+            snapshot.update_check_id,
+            "rust/benchmark/emitted-css-golden-gate:update"
+        );
+        assert_eq!(
+            snapshot.fixture_count,
+            style_corpus().len() + bundler_productization_corpus().len()
+        );
+        assert!(snapshot.all_outputs_byte_stable);
+        assert!(snapshot.includes_css_modules_moat_fixture);
+        assert_eq!(
+            snapshot.dart_sass_advisory_policy,
+            "advisory-only-plain-sass-subset; css-modules-moat-never-external-gated"
+        );
+        assert!(!snapshot.speed_claim_ready);
+        assert!(
+            snapshot
+                .samples
+                .iter()
+                .any(|sample| sample.name == "css-modules-product-grid"
+                    && sample.css_modules_moat
+                    && !sample.dart_sass_advisory_eligible)
+        );
+        assert!(
+            snapshot
+                .samples
+                .iter()
+                .all(|sample| sample.deterministic_output && sample.source_map_v3_present)
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn emitted_css_golden_snapshot_is_byte_pinned() -> Result<(), String> {
+        validate_emitted_css_golden_gate_snapshot(EMITTED_CSS_GOLDEN)?;
+        let current = render_emitted_css_golden_gate_snapshot_json()?;
+        let expected: serde_json::Value =
+            serde_json::from_str(EMITTED_CSS_GOLDEN).map_err(|error| error.to_string())?;
+        let current: serde_json::Value =
+            serde_json::from_str(&current).map_err(|error| error.to_string())?;
+        assert_eq!(current, expected);
         Ok(())
     }
 

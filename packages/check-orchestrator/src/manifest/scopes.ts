@@ -10,6 +10,7 @@ const RUST_FAMILIES = [
   "checker-style-recovery",
   "checker-source-missing",
   "checker-style-unused",
+  "benchmark",
   "design-system",
   "expression-semantics",
   "expression-domain",
