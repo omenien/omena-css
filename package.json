@@ -146,7 +146,7 @@
     "check:rust-naming-consistency": "node --import tsx ./scripts/check-rust-naming-consistency.ts",
     "check:rust-closure-fast-aggregation-complete": "node --import tsx ./scripts/check-rust-closure-fast-aggregation-complete.ts",
     "check:rust-cross-file-reachability-diagnostic": "cargo test --manifest-path rust/Cargo.toml -p omena-streaming-ifds cross_file_reachability -- --nocapture",
-    "check:rust-streaming-ifds-solver-hygiene": "cargo test --manifest-path rust/Cargo.toml -p omena-streaming-ifds streaming_ifds_solver_transfer_index_growth -- --nocapture",
+    "check:rust-streaming-ifds-solver-hygiene": "cargo test --manifest-path rust/Cargo.toml -p omena-streaming-ifds streaming_ifds_solver -- --nocapture",
     "check:rust-theory-claim-levels": "node --import tsx ./scripts/check-rust-theory-claim-levels.ts",
     "check:rust-m8-query-fan-in": "cargo test --manifest-path rust/Cargo.toml -p omena-query-core && node --import tsx ./scripts/check-rust-m8-query-fan-in.ts",
     "check:rust-m8-dynamic-classname-deepening": "node --import tsx ./scripts/check-rust-m8-dynamic-classname-deepening.ts",

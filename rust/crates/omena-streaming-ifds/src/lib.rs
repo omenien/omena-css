@@ -1632,7 +1632,7 @@ mod tests {
     }
 
     #[test]
-    fn solver_hygiene_policy_keeps_cache_feedback_and_reference_values_explicit() {
+    fn streaming_ifds_solver_hygiene_policy_keeps_cache_feedback_and_reference_values_explicit() {
         let policy = streaming_ifds_solver_hygiene_policy_v0();
         assert_eq!(
             policy.summary_cache_feedback_policy,
