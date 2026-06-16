@@ -459,6 +459,105 @@ pub fn summarize_streaming_ifds_cross_file_reachability_v0(
     target_style_path: &str,
     hyperedges: &[UnifiedHypergraphHyperedgeV0],
 ) -> StreamingIFDSCrossFileReachabilityReportV0 {
+    summarize_streaming_ifds_cross_file_reachability_fast_v0(target_style_path, hyperedges).report
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct StreamingIfdsCrossFileReachabilityFastSummaryV0 {
+    report: StreamingIFDSCrossFileReachabilityReportV0,
+    traversal_step_count: usize,
+}
+
+fn summarize_streaming_ifds_cross_file_reachability_fast_v0(
+    target_style_path: &str,
+    hyperedges: &[UnifiedHypergraphHyperedgeV0],
+) -> StreamingIfdsCrossFileReachabilityFastSummaryV0 {
+    let start_node_ids = streaming_ifds_node_ids_for_path(target_style_path, hyperedges);
+    let adjacency = streaming_ifds_node_adjacency(hyperedges);
+    let sccs = collect_streaming_ifds_tarjan_sccs(&adjacency);
+    let mut scc_by_node = BTreeMap::<String, usize>::new();
+    for (index, scc) in sccs.iter().enumerate() {
+        for node_id in scc {
+            scc_by_node.insert(node_id.clone(), index);
+        }
+    }
+    let mut start_sccs = BTreeSet::<usize>::new();
+    for start_node_id in &start_node_ids {
+        if let Some(scc_index) = scc_by_node.get(start_node_id).copied() {
+            start_sccs.insert(scc_index);
+        }
+    }
+    let mut scc_adjacency = BTreeMap::<usize, BTreeSet<usize>>::new();
+    let mut traversal_step_count = 0usize;
+    for (tail, heads) in &adjacency {
+        let Some(tail_scc) = scc_by_node.get(tail).copied() else {
+            continue;
+        };
+        scc_adjacency.entry(tail_scc).or_default();
+        for head in heads {
+            traversal_step_count = traversal_step_count.saturating_add(1);
+            let Some(head_scc) = scc_by_node.get(head).copied() else {
+                continue;
+            };
+            if tail_scc != head_scc {
+                scc_adjacency.entry(tail_scc).or_default().insert(head_scc);
+            }
+        }
+    }
+    let mut seen_sccs = BTreeSet::<usize>::new();
+    let mut pending_sccs = VecDeque::<usize>::new();
+    for scc in start_sccs {
+        if seen_sccs.insert(scc) {
+            pending_sccs.push_back(scc);
+        }
+    }
+    while let Some(scc) = pending_sccs.pop_front() {
+        for next_scc in scc_adjacency.get(&scc).into_iter().flatten() {
+            traversal_step_count = traversal_step_count.saturating_add(1);
+            if seen_sccs.insert(*next_scc) {
+                pending_sccs.push_back(*next_scc);
+            }
+        }
+    }
+    let mut reachable_foreign_paths = BTreeSet::<String>::new();
+
+    for scc in seen_sccs {
+        let Some(node_ids) = sccs.get(scc) else {
+            continue;
+        };
+        for node_id in node_ids {
+            if let Some(path) = streaming_ifds_node_path(node_id)
+                && path != target_style_path
+            {
+                reachable_foreign_paths.insert(path.to_string());
+            }
+        }
+    }
+
+    let reachable_foreign_paths = reachable_foreign_paths.into_iter().collect::<Vec<_>>();
+    StreamingIfdsCrossFileReachabilityFastSummaryV0 {
+        report: StreamingIFDSCrossFileReachabilityReportV0 {
+            schema_version: STREAMING_IFDS_SCHEMA_VERSION_V0,
+            product: "omena-streaming-ifds.cross-file-reachability-report",
+            layer_marker: STREAMING_IFDS_LAYER_MARKER_V0,
+            feature_gate: STREAMING_IFDS_FEATURE_GATE_V0,
+            target_style_path: target_style_path.to_string(),
+            start_node_count: start_node_ids.len(),
+            reachable_foreign_path_count: reachable_foreign_paths.len(),
+            reachable_foreign_paths,
+            analysis_report_count: start_node_ids.len(),
+            precision_parity_with_batch: true,
+            exact_default: true,
+        },
+        traversal_step_count,
+    }
+}
+
+#[cfg(test)]
+fn summarize_streaming_ifds_cross_file_reachability_oracle_v0(
+    target_style_path: &str,
+    hyperedges: &[UnifiedHypergraphHyperedgeV0],
+) -> StreamingIFDSCrossFileReachabilityReportV0 {
     let start_node_ids = streaming_ifds_node_ids_for_path(target_style_path, hyperedges);
     let oracle = ExactStreamingConnectivityOracleV0::default();
     let mut reachable_foreign_paths = BTreeSet::<String>::new();
@@ -921,12 +1020,12 @@ fn streaming_ifds_node_path(node_id: &str) -> Option<&str> {
     parts.next()
 }
 
-fn exact_reachable_node_ids(
-    start_node_id: &str,
+fn streaming_ifds_node_adjacency(
     hyperedges: &[UnifiedHypergraphHyperedgeV0],
-) -> Vec<String> {
+) -> BTreeMap<String, BTreeSet<String>> {
     let mut adjacency = BTreeMap::<String, BTreeSet<String>>::new();
     for edge in hyperedges {
+        adjacency.entry(edge.head_node_id.clone()).or_default();
         for tail in &edge.tail_node_ids {
             adjacency
                 .entry(tail.clone())
@@ -934,6 +1033,84 @@ fn exact_reachable_node_ids(
                 .insert(edge.head_node_id.clone());
         }
     }
+    adjacency
+}
+
+fn collect_streaming_ifds_tarjan_sccs(
+    adjacency: &BTreeMap<String, BTreeSet<String>>,
+) -> Vec<Vec<String>> {
+    let mut state = StreamingIfdsTarjanStateV0::default();
+    for node_id in adjacency.keys() {
+        if !state.indices.contains_key(node_id) {
+            state.visit(node_id, adjacency);
+        }
+    }
+    state.components
+}
+
+#[derive(Debug, Default)]
+struct StreamingIfdsTarjanStateV0 {
+    next_index: usize,
+    stack: Vec<String>,
+    on_stack: BTreeSet<String>,
+    indices: BTreeMap<String, usize>,
+    lowlinks: BTreeMap<String, usize>,
+    components: Vec<Vec<String>>,
+}
+
+impl StreamingIfdsTarjanStateV0 {
+    fn visit(&mut self, node_id: &str, adjacency: &BTreeMap<String, BTreeSet<String>>) {
+        let index = self.next_index;
+        self.next_index = self.next_index.saturating_add(1);
+        self.indices.insert(node_id.to_string(), index);
+        self.lowlinks.insert(node_id.to_string(), index);
+        self.stack.push(node_id.to_string());
+        self.on_stack.insert(node_id.to_string());
+
+        if let Some(targets) = adjacency.get(node_id) {
+            for target in targets {
+                if !self.indices.contains_key(target.as_str()) {
+                    self.visit(target, adjacency);
+                    if let (Some(target_lowlink), Some(current_lowlink)) = (
+                        self.lowlinks.get(target.as_str()).copied(),
+                        self.lowlinks.get(node_id).copied(),
+                    ) {
+                        self.lowlinks
+                            .insert(node_id.to_string(), current_lowlink.min(target_lowlink));
+                    }
+                } else if self.on_stack.contains(target.as_str())
+                    && let (Some(target_index), Some(current_lowlink)) = (
+                        self.indices.get(target.as_str()).copied(),
+                        self.lowlinks.get(node_id).copied(),
+                    )
+                {
+                    self.lowlinks
+                        .insert(node_id.to_string(), current_lowlink.min(target_index));
+                }
+            }
+        }
+
+        if self.lowlinks.get(node_id) == self.indices.get(node_id) {
+            let mut component = Vec::new();
+            while let Some(stack_node) = self.stack.pop() {
+                self.on_stack.remove(stack_node.as_str());
+                let done = stack_node == node_id;
+                component.push(stack_node);
+                if done {
+                    break;
+                }
+            }
+            component.sort();
+            self.components.push(component);
+        }
+    }
+}
+
+fn exact_reachable_node_ids(
+    start_node_id: &str,
+    hyperedges: &[UnifiedHypergraphHyperedgeV0],
+) -> Vec<String> {
+    let adjacency = streaming_ifds_node_adjacency(hyperedges);
 
     let mut seen = BTreeSet::new();
     let mut pending = VecDeque::from([start_node_id.to_string()]);
@@ -1189,7 +1366,7 @@ mod tests {
     }
 
     #[test]
-    fn cross_file_reachability_report_uses_exact_streaming_ifds_facts() {
+    fn cross_file_reachability_report_preserves_public_contract() {
         let hyperedges = vec![hyperedge(
             "edge-button-base",
             "styleModule|/workspace/Button.module.scss|root",
@@ -1232,6 +1409,79 @@ mod tests {
         assert!(report.precision_parity_with_batch);
     }
 
+    #[test]
+    fn cross_file_reachability_fast_path_matches_ifds_oracle_for_mixed_edges() {
+        let target_style_path = "/workspace/Button.module.scss";
+        let hyperedges = vec![
+            hyperedge_with_kind(
+                "edge-root-theme",
+                "styleModule|/workspace/Button.module.scss|root",
+                "styleSymbol|/workspace/theme.module.scss|theme",
+                UnifiedHypergraphEdgeKindV0::SassForward,
+            ),
+            hyperedge_with_kind(
+                "edge-theme-token",
+                "styleSymbol|/workspace/theme.module.scss|theme",
+                "styleSymbol|/workspace/tokens.module.scss|token",
+                UnifiedHypergraphEdgeKindV0::Value,
+            ),
+            hyperedge_with_kind(
+                "edge-token-button",
+                "styleSymbol|/workspace/tokens.module.scss|token",
+                "styleModule|/workspace/Button.module.scss|root",
+                UnifiedHypergraphEdgeKindV0::Icss,
+            ),
+            hyperedge_with_kind(
+                "edge-theme-card",
+                "styleSymbol|/workspace/theme.module.scss|theme",
+                "styleSymbol|/workspace/Card.module.scss|card",
+                UnifiedHypergraphEdgeKindV0::ComposesExternal,
+            ),
+        ];
+
+        let fast =
+            summarize_streaming_ifds_cross_file_reachability_v0(target_style_path, &hyperedges);
+        let oracle = summarize_streaming_ifds_cross_file_reachability_oracle_v0(
+            target_style_path,
+            &hyperedges,
+        );
+
+        assert_eq!(fast.reachable_foreign_paths, oracle.reachable_foreign_paths);
+        assert_eq!(
+            fast.reachable_foreign_path_count,
+            oracle.reachable_foreign_path_count
+        );
+        assert_eq!(fast.start_node_count, oracle.start_node_count);
+        assert!(
+            fast.precision_parity_with_batch,
+            "fast reachability must retain exact default semantics"
+        );
+    }
+
+    #[test]
+    fn cross_file_reachability_fast_path_growth_stays_near_linear() {
+        let samples = [4usize, 8, 16]
+            .into_iter()
+            .map(|layer_count| {
+                let hyperedges = layered_reachability_hyperedges(layer_count);
+                let summary = summarize_streaming_ifds_cross_file_reachability_fast_v0(
+                    "/workspace/Entry.module.scss",
+                    &hyperedges,
+                );
+                assert!(
+                    summary.report.reachable_foreign_path_count >= layer_count,
+                    "fixture must keep cross-file reachability live: {summary:?}"
+                );
+                (hyperedges.len(), summary.traversal_step_count)
+            })
+            .collect::<Vec<_>>();
+        let exponent = fit_growth_exponent(samples.as_slice());
+        assert!(
+            exponent <= 1.2,
+            "cross-file reachability traversal should scale near-linearly; exponent={exponent:.3}, samples={samples:?}"
+        );
+    }
+
     #[cfg(feature = "with-frame-rule")]
     #[test]
     fn frame_rule_bridge_policy_is_feature_gated() {
@@ -1250,19 +1500,98 @@ mod tests {
     }
 
     fn hyperedge(id: &str, from: &str, to: &str) -> UnifiedHypergraphHyperedgeV0 {
+        hyperedge_with_kind(id, from, to, UnifiedHypergraphEdgeKindV0::ComposesLocal)
+    }
+
+    fn hyperedge_with_kind(
+        id: &str,
+        from: &str,
+        to: &str,
+        edge_kind: UnifiedHypergraphEdgeKindV0,
+    ) -> UnifiedHypergraphHyperedgeV0 {
+        let source_edge_kind = edge_kind.as_wire_label();
         UnifiedHypergraphHyperedgeV0 {
             schema_version: "0",
             product: "test.hyperedge",
             layer_marker: "hypergraph-ifds",
             feature_gate: "hypergraph-ifds",
             hyperedge_id: id.to_string(),
-            edge_kind: UnifiedHypergraphEdgeKindV0::ComposesLocal,
+            edge_kind,
             source_summary_edge_id: id.to_string(),
-            source_edge_kind: "composesLocal",
+            source_edge_kind,
             source_status: "known",
             tail_node_ids: vec![from.to_string()],
             head_node_id: to.to_string(),
             order_significant_tail: false,
+        }
+    }
+
+    fn layered_reachability_hyperedges(layer_count: usize) -> Vec<UnifiedHypergraphHyperedgeV0> {
+        let mut hyperedges = Vec::new();
+        let entry = "styleModule|/workspace/Entry.module.scss|root".to_string();
+        for branch in ["a", "b"] {
+            hyperedges.push(hyperedge_with_kind(
+                &format!("edge-entry-{branch}0"),
+                entry.as_str(),
+                layered_node(0, branch).as_str(),
+                UnifiedHypergraphEdgeKindV0::SassUse,
+            ));
+        }
+        for layer in 0..layer_count {
+            let next_layer = layer.saturating_add(1);
+            for branch in ["a", "b"] {
+                for next_branch in ["a", "b"] {
+                    let edge_kind = match (layer + branch.len() + next_branch.len()) % 4 {
+                        0 => UnifiedHypergraphEdgeKindV0::ComposesExternal,
+                        1 => UnifiedHypergraphEdgeKindV0::Icss,
+                        2 => UnifiedHypergraphEdgeKindV0::Value,
+                        _ => UnifiedHypergraphEdgeKindV0::SassForward,
+                    };
+                    hyperedges.push(hyperedge_with_kind(
+                        &format!("edge-{layer}-{branch}-{next_branch}"),
+                        layered_node(layer, branch).as_str(),
+                        layered_node(next_layer, next_branch).as_str(),
+                        edge_kind,
+                    ));
+                }
+            }
+        }
+        hyperedges
+    }
+
+    fn layered_node(layer: usize, branch: &str) -> String {
+        format!("styleSymbol|/workspace/layer-{layer}-{branch}.module.scss|token")
+    }
+
+    fn fit_growth_exponent(samples: &[(usize, usize)]) -> f64 {
+        let n = samples.len() as f64;
+        let log_x = samples
+            .iter()
+            .map(|(size, _)| (*size as f64).ln())
+            .collect::<Vec<_>>();
+        let log_y = samples
+            .iter()
+            .map(|(_, cost)| (*cost).max(1) as f64)
+            .map(f64::ln)
+            .collect::<Vec<_>>();
+        let mean_x = log_x.iter().sum::<f64>() / n;
+        let mean_y = log_y.iter().sum::<f64>() / n;
+        let numerator = log_x
+            .iter()
+            .zip(log_y.iter())
+            .map(|(x, y)| (x - mean_x) * (y - mean_y))
+            .sum::<f64>();
+        let denominator = log_x
+            .iter()
+            .map(|x| {
+                let centered = x - mean_x;
+                centered * centered
+            })
+            .sum::<f64>();
+        if denominator == 0.0 {
+            0.0
+        } else {
+            numerator / denominator
         }
     }
 }
