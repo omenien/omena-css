@@ -1,4 +1,5 @@
 mod boundary;
+mod diagnostics_follow_up;
 mod diagnostics_scheduler;
 mod disk_cache;
 mod external_sif_loader;
@@ -23,6 +24,7 @@ mod workspace_occurrence_cache;
 mod workspace_runtime_registry;
 
 pub use boundary::*;
+pub use diagnostics_follow_up::*;
 use disk_cache::disk_diagnostics_cache_slot_for_resolve;
 pub use external_sif_loader::{
     LspExternalSifRefreshJobV0, LspExternalSifRefreshResultV0,
@@ -1752,37 +1754,6 @@ pub fn resolve_deferred_diagnostics_notification(
         diagnostics,
         dispatch.tier_plan,
     )
-}
-
-#[derive(Debug, Default)]
-pub struct LspDiagnosticsFollowUpEffectsV0 {
-    pub outputs: Vec<ScheduledLspOutput>,
-    pub deferred_diagnostics: Vec<LspDeferredDiagnosticsDispatchV0>,
-}
-
-pub fn external_sif_refresh_follow_up_diagnostics_effects(
-    state: &mut LspShellState,
-) -> LspDiagnosticsFollowUpEffectsV0 {
-    let uris = state
-        .documents
-        .values()
-        .filter(|document| {
-            document.origin == LspDocumentOrigin::Local
-                && protocol::is_style_document_uri(document.uri.as_str())
-        })
-        .map(|document| document.uri.clone())
-        .collect::<Vec<_>>();
-    if uris.is_empty() {
-        return LspDiagnosticsFollowUpEffectsV0::default();
-    }
-    let effects = diagnostics_scheduler::run_diagnostics_schedule_effects(
-        state,
-        diagnostics_scheduler::DiagnosticsScheduleEvent::WatchedFiles { uris },
-    );
-    LspDiagnosticsFollowUpEffectsV0 {
-        outputs: effects.outputs,
-        deferred_diagnostics: effects.deferred_diagnostics,
-    }
 }
 
 /// RFC 0009 Pillar F (rfcs#68): the worker-safe tail of the style
