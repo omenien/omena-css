@@ -215,6 +215,10 @@ jobs:
         name: Run cross-file reachability diagnostic
         run: pnpm omena-check run rust/cross-file-reachability-diagnostic
         continue-on-error: true
+      - id: streaming_ifds_solver_hygiene
+        name: Run streaming IFDS solver hygiene
+        run: pnpm omena-check run rust/streaming-ifds-solver-hygiene
+        continue-on-error: true
       - id: publish_flags
         name: Run publish-flags
         run: pnpm omena-check run rust/publish-flags
@@ -253,6 +257,7 @@ jobs:
           echo "core_layer_hygiene=${{ steps.core_layer_hygiene.outcome }}"
           echo "feature_resolved_reachability=${{ steps.feature_resolved_reachability.outcome }}"
           echo "cross_file_reachability=${{ steps.cross_file_reachability.outcome }}"
+          echo "streaming_ifds_solver_hygiene=${{ steps.streaming_ifds_solver_hygiene.outcome }}"
           echo "publish_flags=${{ steps.publish_flags.outcome }}"
           echo "naming_consistency=${{ steps.naming_consistency.outcome }}"
           echo "no_split_residue=${{ steps.no_split_residue.outcome }}"
@@ -275,6 +280,7 @@ jobs:
             "${{ steps.core_layer_hygiene.outcome }}" \
             "${{ steps.feature_resolved_reachability.outcome }}" \
             "${{ steps.cross_file_reachability.outcome }}" \
+            "${{ steps.streaming_ifds_solver_hygiene.outcome }}" \
             "${{ steps.publish_flags.outcome }}" \
             "${{ steps.naming_consistency.outcome }}" \
             "${{ steps.no_split_residue.outcome }}" \
