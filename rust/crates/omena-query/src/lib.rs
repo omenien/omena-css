@@ -102,11 +102,12 @@ use omena_query_transform_runner::{
 use omena_resolver::{
     OmenaResolverBoundaryStateKindV0, OmenaResolverBoundaryStateV0, OmenaResolverBoundaryTopV0,
     OmenaResolverBundlerPathAliasMappingV0, OmenaResolverCanonicalUrlV0,
+    OmenaResolverStyleModuleConfirmationOptionsV0, OmenaResolverStyleModuleDiskCandidateIdentityV0,
     OmenaResolverStylePackageManifestV0, OmenaResolverTsconfigPathMappingV0,
     canonicalize_omena_resolver_style_identity_path,
     omena_resolver_boundary_state_for_unresolved_reference_v0,
     resolve_omena_resolver_style_module_source,
-    resolve_omena_resolver_style_module_source_with_path_mappings,
+    summarize_omena_resolver_style_module_resolution_with_confirmation_inputs,
     summarize_omena_resolver_style_module_resolution_with_load_path_roots,
 };
 pub use omena_resolver::{

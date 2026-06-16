@@ -131,6 +131,32 @@ pub fn summarize_omena_resolver_style_module_resolution_with_load_path_roots(
     tsconfig_path_mappings: &[OmenaResolverTsconfigPathMappingV0],
     load_path_roots: &[&str],
 ) -> OmenaResolverStyleModuleResolutionV0 {
+    summarize_omena_resolver_style_module_resolution_with_confirmation_inputs(
+        from_style_path,
+        source,
+        available_style_paths,
+        &[],
+        package_manifests,
+        bundler_path_mappings,
+        tsconfig_path_mappings,
+        load_path_roots,
+        OmenaResolverStyleModuleConfirmationOptionsV0::default(),
+    )
+}
+
+#[allow(clippy::too_many_arguments)]
+pub fn summarize_omena_resolver_style_module_resolution_with_confirmation_inputs(
+    from_style_path: &str,
+    source: &str,
+    available_style_paths: &BTreeSet<&str>,
+    disk_style_path_identities: &[OmenaResolverStyleModuleDiskCandidateIdentityV0],
+    package_manifests: &[OmenaResolverStylePackageManifestV0],
+    bundler_path_mappings: &[OmenaResolverBundlerPathAliasMappingV0],
+    tsconfig_path_mappings: &[OmenaResolverTsconfigPathMappingV0],
+    load_path_roots: &[&str],
+    confirmation_options: OmenaResolverStyleModuleConfirmationOptionsV0,
+) -> OmenaResolverStyleModuleResolutionV0 {
+    let routing_source = normalize_omena_resolver_style_module_source_for_routing(source);
     let candidates = collect_omena_resolver_style_module_source_candidates_with_load_path_roots(
         from_style_path,
         source,
@@ -139,18 +165,25 @@ pub fn summarize_omena_resolver_style_module_resolution_with_load_path_roots(
         tsconfig_path_mappings,
         load_path_roots,
     );
-    let resolved_style_path =
-        resolve_style_module_candidate_from_available_paths(&candidates, available_style_paths);
+    let confirmation = confirm_omena_resolver_style_module_candidate_with_options(
+        &candidates,
+        available_style_paths,
+        disk_style_path_identities,
+        confirmation_options,
+    );
+    let resolved_style_path = confirmation.resolved_style_path;
     let resolution_kind = if let Some(resolved_style_path) = resolved_style_path.as_deref() {
-        if source_matches_bundler_path_mapping(source, bundler_path_mappings) {
+        if source != routing_source {
+            "tildeStyleModule"
+        } else if source_matches_bundler_path_mapping(routing_source, bundler_path_mappings) {
             "bundlerPathStyleModule"
-        } else if source_matches_tsconfig_path_mapping(source, tsconfig_path_mappings) {
+        } else if source_matches_tsconfig_path_mapping(routing_source, tsconfig_path_mappings) {
             "tsconfigPathStyleModule"
-        } else if is_package_import_style_source(source) {
+        } else if is_package_import_style_source(routing_source) {
             "packageImportStyleModule"
         } else if resolved_via_load_path_root_candidate(
             from_style_path,
-            source,
+            routing_source,
             resolved_style_path,
             load_path_roots,
         ) {
@@ -158,12 +191,12 @@ pub fn summarize_omena_resolver_style_module_resolution_with_load_path_roots(
             // specifier like `src/scss/design-system.scss` reads as package `src`), so this
             // probe must precede the bare-package classification to avoid mislabeling. (#49)
             "loadPathStyleModule"
-        } else if parse_package_style_source(source).is_some() {
+        } else if parse_package_style_source(routing_source).is_some() {
             "packageStyleModule"
         } else {
             "relativeStyleModule"
         }
-    } else if is_external_style_module_source(source) {
+    } else if is_external_style_module_source(routing_source) {
         "externalIgnored"
     } else {
         "unresolved"
@@ -315,6 +348,7 @@ pub fn collect_omena_resolver_style_module_source_candidates_with_load_path_root
     tsconfig_path_mappings: &[OmenaResolverTsconfigPathMappingV0],
     load_path_roots: &[&str],
 ) -> Vec<String> {
+    let source = normalize_omena_resolver_style_module_source_for_routing(source);
     if is_external_style_module_source(source) {
         return Vec::new();
     }
@@ -383,6 +417,17 @@ pub fn collect_omena_resolver_style_module_source_candidates_with_load_path_root
     push_load_path_rooted_candidates(&mut candidates, source, load_path_roots);
 
     candidates
+}
+
+pub fn normalize_omena_resolver_style_module_source_for_routing(source: &str) -> &str {
+    source
+        .strip_prefix("~/")
+        .or_else(|| {
+            source
+                .strip_prefix('~')
+                .filter(|stripped| !stripped.is_empty())
+        })
+        .unwrap_or(source)
 }
 
 /// True iff a non-`./`-relative, non-package-import specifier is path-shaped, i.e. eligible for
@@ -668,13 +713,33 @@ fn summarize_omena_resolver_symlink_chain_for_style_resolution(
     inspect_omena_resolver_symlink_chain_v0(candidates.first().map(String::as_str).unwrap_or(""))
 }
 
-fn resolve_style_module_candidate_from_available_paths(
+pub fn resolve_omena_resolver_style_module_candidate_from_available_paths(
     candidates: &[String],
     available_style_paths: &BTreeSet<&str>,
 ) -> Option<String> {
+    confirm_omena_resolver_style_module_candidate_with_options(
+        candidates,
+        available_style_paths,
+        &[],
+        OmenaResolverStyleModuleConfirmationOptionsV0::default(),
+    )
+    .resolved_style_path
+}
+
+pub fn confirm_omena_resolver_style_module_candidate_with_options(
+    candidates: &[String],
+    available_style_paths: &BTreeSet<&str>,
+    disk_style_path_identities: &[OmenaResolverStyleModuleDiskCandidateIdentityV0],
+    options: OmenaResolverStyleModuleConfirmationOptionsV0,
+) -> OmenaResolverStyleModuleCandidateConfirmationV0 {
     for candidate in candidates {
         if available_style_paths.contains(candidate.as_str()) {
-            return Some(candidate.clone());
+            return OmenaResolverStyleModuleCandidateConfirmationV0 {
+                resolved_style_path: Some(candidate.clone()),
+                confirmation_kind: "inGraphExact",
+                disk_candidate_count: disk_style_path_identities.len(),
+                candidate_count: candidates.len(),
+            };
         }
     }
 
@@ -688,11 +753,96 @@ fn resolve_style_module_candidate_from_available_paths(
         })
         .collect::<BTreeMap<_, _>>();
 
-    candidates.iter().find_map(|candidate| {
-        available_by_identity
+    for candidate in candidates {
+        if let Some(path) = available_by_identity
             .get(canonicalize_omena_resolver_style_identity_path(candidate).as_str())
             .cloned()
-    })
+        {
+            return OmenaResolverStyleModuleCandidateConfirmationV0 {
+                resolved_style_path: Some(path),
+                confirmation_kind: "inGraphIdentity",
+                disk_candidate_count: disk_style_path_identities.len(),
+                candidate_count: candidates.len(),
+            };
+        }
+    }
+
+    if options.allow_disk_confirmation && !disk_style_path_identities.is_empty() {
+        let disk_by_identity = disk_style_path_identities
+            .iter()
+            .map(|identity| {
+                (
+                    canonicalize_omena_resolver_style_identity_path(&identity.style_path),
+                    identity.style_path.clone(),
+                )
+            })
+            .collect::<BTreeMap<_, _>>();
+        let candidate_limit = options.max_disk_candidate_count.max(1);
+        for candidate in candidates.iter().take(candidate_limit) {
+            if !is_omena_resolver_indexable_style_module_path(candidate) {
+                continue;
+            }
+            if let Some(path) = disk_by_identity
+                .get(canonicalize_omena_resolver_style_identity_path(candidate).as_str())
+                .cloned()
+            {
+                return OmenaResolverStyleModuleCandidateConfirmationV0 {
+                    resolved_style_path: Some(path),
+                    confirmation_kind: "diskIdentity",
+                    disk_candidate_count: disk_style_path_identities.len(),
+                    candidate_count: candidates.len(),
+                };
+            }
+        }
+    }
+
+    if options.allow_live_disk_confirmation {
+        let candidate_limit = options.max_disk_candidate_count.max(1);
+        for candidate in candidates.iter().take(candidate_limit) {
+            if !is_omena_resolver_indexable_style_module_path(candidate) {
+                continue;
+            }
+            if Path::new(candidate).exists() {
+                return OmenaResolverStyleModuleCandidateConfirmationV0 {
+                    resolved_style_path: Some(normalize_style_path(PathBuf::from(candidate))),
+                    confirmation_kind: "liveDisk",
+                    disk_candidate_count: disk_style_path_identities.len(),
+                    candidate_count: candidates.len(),
+                };
+            }
+        }
+    }
+
+    if options.allow_unconfirmed_indexable_candidate
+        && let Some(candidate) = candidates
+            .iter()
+            .find(|candidate| is_omena_resolver_indexable_style_module_path(candidate))
+    {
+        return OmenaResolverStyleModuleCandidateConfirmationV0 {
+            resolved_style_path: Some(candidate.clone()),
+            confirmation_kind: "unconfirmedIndexableCandidate",
+            disk_candidate_count: disk_style_path_identities.len(),
+            candidate_count: candidates.len(),
+        };
+    }
+
+    OmenaResolverStyleModuleCandidateConfirmationV0 {
+        resolved_style_path: None,
+        confirmation_kind: "unresolved",
+        disk_candidate_count: disk_style_path_identities.len(),
+        candidate_count: candidates.len(),
+    }
+}
+
+pub fn is_omena_resolver_indexable_style_module_path(path: &str) -> bool {
+    path.ends_with(".module.css")
+        || path.ends_with(".css")
+        || path.ends_with(".module.scss")
+        || path.ends_with(".scss")
+        || path.ends_with(".module.sass")
+        || path.ends_with(".sass")
+        || path.ends_with(".module.less")
+        || path.ends_with(".less")
 }
 
 fn push_style_module_path_candidates(

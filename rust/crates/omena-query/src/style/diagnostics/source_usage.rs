@@ -54,6 +54,7 @@ pub fn summarize_omena_query_unused_selector_style_diagnostics_with_path_mapping
         classname_transform,
         bundler_path_mappings,
         tsconfig_path_mappings,
+        &[],
     )
 }
 
@@ -71,6 +72,7 @@ pub(super) fn summarize_omena_query_unused_selector_style_diagnostics_with_path_
     classname_transform: Option<&str>,
     bundler_path_mappings: &[OmenaResolverBundlerPathAliasMappingV0],
     tsconfig_path_mappings: &[OmenaResolverTsconfigPathMappingV0],
+    disk_style_path_identities: &[OmenaResolverStyleModuleDiskCandidateIdentityV0],
 ) -> Vec<OmenaQueryStyleDiagnosticV0> {
     if source_documents.is_empty() {
         return Vec::new();
@@ -93,6 +95,7 @@ pub(super) fn summarize_omena_query_unused_selector_style_diagnostics_with_path_
             &aliases_by_path,
             bundler_path_mappings,
             tsconfig_path_mappings,
+            disk_style_path_identities,
         );
     if unresolved_dynamic_usage.contains(target_style_path) {
         return Vec::new();
@@ -167,6 +170,7 @@ fn collect_omena_query_source_selector_usage_by_style(
     aliases_by_path: &BTreeMap<String, BTreeMap<String, BTreeSet<String>>>,
     bundler_path_mappings: &[OmenaResolverBundlerPathAliasMappingV0],
     tsconfig_path_mappings: &[OmenaResolverTsconfigPathMappingV0],
+    disk_style_path_identities: &[OmenaResolverStyleModuleDiskCandidateIdentityV0],
 ) -> (BTreeMap<String, BTreeSet<String>>, BTreeSet<String>, bool) {
     let mut used_selectors = BTreeMap::<String, BTreeSet<String>>::new();
     let mut unresolved_dynamic_usage = BTreeSet::<String>::new();
@@ -219,6 +223,7 @@ fn collect_omena_query_source_selector_usage_by_style(
                 package_manifests,
                 bundler_path_mappings,
                 tsconfig_path_mappings,
+                disk_style_path_identities,
             ) else {
                 if specifier_targets_style_module(&import.specifier) {
                     has_unresolved_style_import = true;

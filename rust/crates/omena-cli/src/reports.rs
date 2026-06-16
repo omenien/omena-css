@@ -6,12 +6,13 @@ use crate::{
     },
     io::{read_package_manifests, read_source_documents, read_style_sources},
     output::print_json,
+    paths::style_resolution_workspace_uri_for_path,
 };
 use omena_query::{
     OmenaQueryDiagnosticSuppressionModeV0, OmenaQueryDiagnosticSuppressionReasonV0,
-    OmenaQueryStyleDiagnosticsForFileV0, OmenaQueryStyleResolutionInputsV0,
+    OmenaQueryStyleDiagnosticsForFileV0, load_omena_query_workspace_style_resolution_inputs,
     summarize_omena_query_sass_module_conformance_v0,
-    summarize_omena_query_style_diagnostics_for_workspace_file_with_external_mode_and_sifs_and_suppression_mode,
+    summarize_omena_query_style_diagnostics_for_workspace_file_with_external_mode_and_sifs_and_resolution_inputs_and_suppression_mode,
     summarize_omena_query_style_resolution_policy_v0,
 };
 use serde::Serialize;
@@ -217,10 +218,13 @@ fn summarize_soundiness_report(
     if let Some(lockfile) = lockfile.as_ref() {
         external_sifs.extend(read_lock_external_sifs(lockfile)?);
     }
-    let resolution_inputs = OmenaQueryStyleResolutionInputsV0 {
-        package_manifests: package_manifests.clone(),
-        ..OmenaQueryStyleResolutionInputsV0::default()
-    };
+    let workspace_folder_uri = source_paths
+        .first()
+        .and_then(|path| style_resolution_workspace_uri_for_path(path));
+    let resolution_inputs = load_omena_query_workspace_style_resolution_inputs(
+        workspace_folder_uri.as_deref(),
+        package_manifests.as_slice(),
+    );
     let in_process_external_sifs = resolve_in_process_external_sifs(
         style_sources.as_slice(),
         external_sifs.as_slice(),
@@ -246,7 +250,7 @@ fn summarize_soundiness_report(
 
     for source in &style_sources {
         let summary =
-            summarize_omena_query_style_diagnostics_for_workspace_file_with_external_mode_and_sifs_and_suppression_mode(
+            summarize_omena_query_style_diagnostics_for_workspace_file_with_external_mode_and_sifs_and_resolution_inputs_and_suppression_mode(
                 source.style_path.as_str(),
                 style_sources.as_slice(),
                 source_documents.as_slice(),
@@ -254,6 +258,7 @@ fn summarize_soundiness_report(
                 None,
                 external_mode,
                 external_sifs.as_slice(),
+                &resolution_inputs,
                 suppression_mode,
             )
             .ok_or_else(|| {

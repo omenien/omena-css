@@ -97,17 +97,13 @@ pub(super) fn attach_omena_query_runtime_state_inline_overrides_for_workspace(
     summary: &mut OmenaQueryStyleDiagnosticsForFileV0,
     style_sources: &[OmenaQueryStyleSourceInputV0],
     source_documents: &[OmenaQuerySourceDocumentInputV0],
-    package_manifests: &[OmenaQueryStylePackageManifestV0],
-    bundler_path_mappings: &[OmenaResolverBundlerPathAliasMappingV0],
-    tsconfig_path_mappings: &[OmenaResolverTsconfigPathMappingV0],
+    resolution_inputs: &OmenaQueryStyleResolutionInputsV0,
 ) {
     let inline_overrides = collect_omena_query_inline_style_runtime_overrides_for_style(
         target_style_path,
         style_sources,
         source_documents,
-        package_manifests,
-        bundler_path_mappings,
-        tsconfig_path_mappings,
+        resolution_inputs,
     );
     if inline_overrides.is_empty() {
         return;
@@ -195,9 +191,7 @@ fn collect_omena_query_inline_style_runtime_overrides_for_style(
     target_style_path: &str,
     style_sources: &[OmenaQueryStyleSourceInputV0],
     source_documents: &[OmenaQuerySourceDocumentInputV0],
-    package_manifests: &[OmenaQueryStylePackageManifestV0],
-    bundler_path_mappings: &[OmenaResolverBundlerPathAliasMappingV0],
-    tsconfig_path_mappings: &[OmenaResolverTsconfigPathMappingV0],
+    resolution_inputs: &OmenaQueryStyleResolutionInputsV0,
 ) -> Vec<OmenaQueryInlineStyleRuntimeOverrideV0> {
     let available_style_paths = style_sources
         .iter()
@@ -222,9 +216,10 @@ fn collect_omena_query_inline_style_runtime_overrides_for_style(
                 &document.source_path,
                 &import.specifier,
                 &available_style_paths,
-                package_manifests,
-                bundler_path_mappings,
-                tsconfig_path_mappings,
+                resolution_inputs.package_manifests.as_slice(),
+                resolution_inputs.bundler_path_mappings.as_slice(),
+                resolution_inputs.tsconfig_path_mappings.as_slice(),
+                resolution_inputs.disk_style_path_identities.as_slice(),
             ) else {
                 continue;
             };

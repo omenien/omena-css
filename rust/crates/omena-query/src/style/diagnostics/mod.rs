@@ -381,6 +381,7 @@ pub fn summarize_omena_query_style_diagnostics_for_workspace_file_with_external_
             &target.style_source,
             &substrate.style_fact_entries,
             package_manifests,
+            resolution_inputs,
         ),
     );
     summary.diagnostics.extend(
@@ -424,6 +425,7 @@ pub fn summarize_omena_query_style_diagnostics_for_workspace_file_with_external_
             classname_transform,
             resolution_inputs.bundler_path_mappings.as_slice(),
             resolution_inputs.tsconfig_path_mappings.as_slice(),
+            resolution_inputs.disk_style_path_identities.as_slice(),
         ),
     );
     summary.diagnostics.extend(
@@ -550,9 +552,7 @@ pub fn summarize_omena_query_style_diagnostics_for_workspace_file_with_external_
         &mut summary,
         style_sources,
         source_documents,
-        package_manifests,
-        resolution_inputs.bundler_path_mappings.as_slice(),
-        resolution_inputs.tsconfig_path_mappings.as_slice(),
+        resolution_inputs,
     );
     push_omena_query_ready_surface(
         &mut summary.ready_surfaces,

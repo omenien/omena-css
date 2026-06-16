@@ -8,7 +8,8 @@ use std::collections::BTreeSet;
 use std::{fs, path::PathBuf, time::SystemTime};
 
 use super::{
-    OmenaResolverBundlerPathAliasMappingV0, OmenaResolverStylePackageManifestV0,
+    OmenaResolverBundlerPathAliasMappingV0, OmenaResolverStyleModuleConfirmationOptionsV0,
+    OmenaResolverStyleModuleDiskCandidateIdentityV0, OmenaResolverStylePackageManifestV0,
     OmenaResolverTsconfigPathMappingV0, canonicalize_omena_resolver_style_identity_path,
     query_omena_resolver_runtime_module, query_omena_resolver_source_expression,
     summarize_omena_resolver_boundary, summarize_omena_resolver_canonical_producer_signal,
@@ -18,6 +19,7 @@ use super::{
     summarize_omena_resolver_specifier_resolution_runtime,
     summarize_omena_resolver_specifier_resolution_runtime_with_path_mappings,
     summarize_omena_resolver_style_module_resolution,
+    summarize_omena_resolver_style_module_resolution_with_confirmation_inputs,
     summarize_omena_resolver_style_module_resolution_with_load_path_roots,
     summarize_omena_resolver_style_module_resolution_with_path_mappings,
     summarize_omena_resolver_style_module_resolution_with_tsconfig_paths,

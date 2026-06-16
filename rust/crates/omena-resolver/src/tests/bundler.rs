@@ -151,3 +151,59 @@ fn summarizes_specifier_runtime_with_bundler_path_aliases() {
     assert_eq!(runtime.resolved_specifier_count, 1);
     assert_eq!(runtime.entries[0].resolution_kind, "bundlerPathStyleModule");
 }
+
+#[test]
+fn resolves_tilde_prefixed_package_style_modules() {
+    let available_style_paths = BTreeSet::from(["/workspace/node_modules/@scope/theme/index.scss"]);
+    let resolution = summarize_omena_resolver_style_module_resolution_with_confirmation_inputs(
+        "/workspace/src/App.module.scss",
+        "~@scope/theme",
+        &available_style_paths,
+        &[],
+        &[OmenaResolverStylePackageManifestV0 {
+            package_json_path: "/workspace/node_modules/@scope/theme/package.json".to_string(),
+            package_json_source: r#"{"sass":"./index.scss"}"#.to_string(),
+        }],
+        &[],
+        &[],
+        &[],
+        OmenaResolverStyleModuleConfirmationOptionsV0::default(),
+    );
+
+    assert_eq!(resolution.resolution_kind, "tildeStyleModule");
+    assert_eq!(
+        resolution.resolved_style_path.as_deref(),
+        Some("/workspace/node_modules/@scope/theme/index.scss")
+    );
+}
+
+#[test]
+fn confirms_candidates_against_disk_style_path_snapshot() {
+    let available_style_paths = BTreeSet::new();
+    let resolution = summarize_omena_resolver_style_module_resolution_with_confirmation_inputs(
+        "/workspace/src/App.module.scss",
+        "@styles/Button",
+        &available_style_paths,
+        &[OmenaResolverStyleModuleDiskCandidateIdentityV0 {
+            style_path: "/workspace/src/styles/Button.module.scss".to_string(),
+            metadata_identity: "file|len7|mtime1".to_string(),
+        }],
+        &[],
+        &[OmenaResolverBundlerPathAliasMappingV0 {
+            pattern: "@styles".to_string(),
+            target_path: "/workspace/src/styles".to_string(),
+        }],
+        &[],
+        &[],
+        OmenaResolverStyleModuleConfirmationOptionsV0 {
+            allow_disk_confirmation: true,
+            ..OmenaResolverStyleModuleConfirmationOptionsV0::default()
+        },
+    );
+
+    assert_eq!(resolution.resolution_kind, "bundlerPathStyleModule");
+    assert_eq!(
+        resolution.resolved_style_path.as_deref(),
+        Some("/workspace/src/styles/Button.module.scss")
+    );
+}

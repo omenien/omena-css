@@ -52,6 +52,7 @@ pub(super) fn derive_css_module_composes_resolutions_for_transform_context(
         resolution_context.package_manifests,
         resolution_context.bundler_path_mappings,
         resolution_context.tsconfig_path_mappings,
+        resolution_context.disk_style_path_identities,
     );
     let mut resolutions = BTreeMap::<String, BTreeSet<String>>::new();
 

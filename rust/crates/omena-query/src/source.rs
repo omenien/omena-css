@@ -5,6 +5,8 @@ use std::collections::{BTreeMap, BTreeSet, VecDeque};
 pub type OmenaQueryTsconfigPathMappingV0 = omena_resolver::OmenaResolverTsconfigPathMappingV0;
 pub type OmenaQueryBundlerPathAliasMappingV0 =
     omena_resolver::OmenaResolverBundlerPathAliasMappingV0;
+pub type OmenaQueryStyleModuleDiskCandidateIdentityV0 =
+    omena_resolver::OmenaResolverStyleModuleDiskCandidateIdentityV0;
 
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -12,6 +14,8 @@ pub struct OmenaQueryStyleResolutionInputsV0 {
     pub package_manifests: Vec<OmenaQueryStylePackageManifestV0>,
     pub tsconfig_path_mappings: Vec<OmenaQueryTsconfigPathMappingV0>,
     pub bundler_path_mappings: Vec<OmenaQueryBundlerPathAliasMappingV0>,
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub disk_style_path_identities: Vec<OmenaQueryStyleModuleDiskCandidateIdentityV0>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub external_sif_cache_fingerprint: Option<String>,
 }
@@ -84,6 +88,7 @@ pub fn resolve_omena_query_style_uri_for_specifier_with_resolution_inputs(
             .collect(),
         tsconfig_path_mappings: resolution_inputs.tsconfig_path_mappings.clone(),
         bundler_path_mappings: resolution_inputs.bundler_path_mappings.clone(),
+        disk_style_path_identities: resolution_inputs.disk_style_path_identities.clone(),
     };
     omena_bridge::resolve_omena_bridge_style_uri_for_specifier_with_resolution_inputs(
         base_document_uri,
@@ -119,6 +124,7 @@ pub fn load_omena_query_workspace_style_resolution_inputs(
             .collect(),
         tsconfig_path_mappings: bridge_inputs.tsconfig_path_mappings,
         bundler_path_mappings: bridge_inputs.bundler_path_mappings,
+        disk_style_path_identities: bridge_inputs.disk_style_path_identities,
         external_sif_cache_fingerprint: None,
     }
 }

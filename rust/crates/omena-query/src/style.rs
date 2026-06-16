@@ -1990,6 +1990,7 @@ fn collect_css_modules_composes_adjacency(
         package_manifests,
         &[],
         &[],
+        &[],
     )
 }
 
@@ -1999,6 +2000,7 @@ fn collect_css_modules_composes_adjacency_with_path_mappings(
     package_manifests: &[OmenaQueryStylePackageManifestV0],
     bundler_path_mappings: &[OmenaResolverBundlerPathAliasMappingV0],
     tsconfig_path_mappings: &[OmenaResolverTsconfigPathMappingV0],
+    disk_style_path_identities: &[OmenaResolverStyleModuleDiskCandidateIdentityV0],
 ) -> BTreeMap<CssModulesComposesNode, BTreeSet<CssModulesComposesNode>> {
     let mut graph = BTreeMap::new();
     for (style_path, facts) in facts_by_path {
@@ -2020,6 +2022,7 @@ fn collect_css_modules_composes_adjacency_with_path_mappings(
                         package_manifests,
                         bundler_path_mappings,
                         tsconfig_path_mappings,
+                        disk_style_path_identities,
                     )
                 })
             } else {
@@ -2469,6 +2472,7 @@ fn resolve_style_module_source_with_path_mappings(
     package_manifests: &[OmenaQueryStylePackageManifestV0],
     bundler_path_mappings: &[OmenaResolverBundlerPathAliasMappingV0],
     tsconfig_path_mappings: &[OmenaResolverTsconfigPathMappingV0],
+    disk_style_path_identities: &[OmenaResolverStyleModuleDiskCandidateIdentityV0],
 ) -> Option<String> {
     let resolver_package_manifests = package_manifests
         .iter()
@@ -2477,14 +2481,21 @@ fn resolve_style_module_source_with_path_mappings(
             package_json_source: manifest.package_json_source.clone(),
         })
         .collect::<Vec<_>>();
-    resolve_omena_resolver_style_module_source_with_path_mappings(
+    summarize_omena_resolver_style_module_resolution_with_confirmation_inputs(
         from_style_path,
         source,
         available_style_paths,
+        disk_style_path_identities,
         &resolver_package_manifests,
         bundler_path_mappings,
         tsconfig_path_mappings,
+        &[],
+        OmenaResolverStyleModuleConfirmationOptionsV0 {
+            allow_disk_confirmation: true,
+            ..OmenaResolverStyleModuleConfirmationOptionsV0::default()
+        },
     )
+    .resolved_style_path
 }
 
 fn collect_style_selector_hover_candidates_from_omena_parser_facts(

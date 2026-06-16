@@ -1,4 +1,5 @@
 use std::{
+    collections::VecDeque,
     fs,
     path::{Path, PathBuf},
 };
@@ -25,7 +26,13 @@ use literals::{
 use paths::{static_replacement_path, static_string};
 use syntax::{is_module_exports_target, property_key_text};
 
-const BUNDLER_CONFIG_NAMES: [&str; 12] = [
+const BUNDLER_CONFIG_NAMES: [&str; 18] = [
+    "next.config.ts",
+    "next.config.mts",
+    "next.config.cts",
+    "next.config.js",
+    "next.config.mjs",
+    "next.config.cjs",
     "vite.config.ts",
     "vite.config.mts",
     "vite.config.cts",
@@ -39,6 +46,9 @@ const BUNDLER_CONFIG_NAMES: [&str; 12] = [
     "webpack.config.mjs",
     "webpack.config.cjs",
 ];
+const BUNDLER_CONFIG_DISCOVERY_DIR_LIMIT: usize = 256;
+const BUNDLER_CONFIG_DISCOVERY_RESULT_LIMIT: usize = 32;
+const BUNDLER_CONFIG_DISCOVERY_MAX_DEPTH: usize = 3;
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -128,11 +138,59 @@ pub fn summarize_omena_bridge_bundler_path_aliases_for_config(
 }
 
 fn workspace_bundler_config_paths(workspace_path: &Path) -> Vec<PathBuf> {
-    BUNDLER_CONFIG_NAMES
-        .iter()
-        .map(|name| workspace_path.join(name))
-        .filter(|path| path.exists())
-        .collect()
+    let mut paths = Vec::new();
+    let mut queue = VecDeque::from([(workspace_path.to_path_buf(), 0usize)]);
+    let mut visited = 0usize;
+    while let Some((dir, depth)) = queue.pop_front() {
+        if visited >= BUNDLER_CONFIG_DISCOVERY_DIR_LIMIT
+            || paths.len() >= BUNDLER_CONFIG_DISCOVERY_RESULT_LIMIT
+        {
+            break;
+        }
+        visited += 1;
+        for name in BUNDLER_CONFIG_NAMES {
+            let path = dir.join(name);
+            if path.exists() {
+                paths.push(path);
+                if paths.len() >= BUNDLER_CONFIG_DISCOVERY_RESULT_LIMIT {
+                    break;
+                }
+            }
+        }
+        if depth >= BUNDLER_CONFIG_DISCOVERY_MAX_DEPTH {
+            continue;
+        }
+        let Ok(entries) = fs::read_dir(dir.as_path()) else {
+            continue;
+        };
+        for entry in entries.flatten() {
+            let path = entry.path();
+            let Some(name) = path.file_name().and_then(|name| name.to_str()) else {
+                continue;
+            };
+            if !path.is_dir() || should_skip_bundler_config_discovery_dir(name) {
+                continue;
+            }
+            queue.push_back((path, depth + 1));
+        }
+    }
+    paths.sort();
+    paths.dedup();
+    paths
+}
+
+fn should_skip_bundler_config_discovery_dir(name: &str) -> bool {
+    matches!(
+        name,
+        ".git"
+            | ".next"
+            | ".nuxt"
+            | ".svelte-kit"
+            | "coverage"
+            | "dist"
+            | "node_modules"
+            | "target"
+    )
 }
 
 fn collect_bundler_aliases_from_program<'a>(

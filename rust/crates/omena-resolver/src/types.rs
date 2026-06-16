@@ -140,6 +140,41 @@ pub struct OmenaResolverBundlerPathAliasMappingV0 {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
+pub struct OmenaResolverStyleModuleDiskCandidateIdentityV0 {
+    pub style_path: String,
+    pub metadata_identity: String,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct OmenaResolverStyleModuleConfirmationOptionsV0 {
+    pub allow_disk_confirmation: bool,
+    pub allow_live_disk_confirmation: bool,
+    pub max_disk_candidate_count: usize,
+    pub allow_unconfirmed_indexable_candidate: bool,
+}
+
+impl Default for OmenaResolverStyleModuleConfirmationOptionsV0 {
+    fn default() -> Self {
+        Self {
+            allow_disk_confirmation: false,
+            allow_live_disk_confirmation: false,
+            max_disk_candidate_count: 64,
+            allow_unconfirmed_indexable_candidate: false,
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct OmenaResolverStyleModuleCandidateConfirmationV0 {
+    pub resolved_style_path: Option<String>,
+    pub confirmation_kind: &'static str,
+    pub disk_candidate_count: usize,
+    pub candidate_count: usize,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct OmenaResolverStyleModuleResolutionV0 {
     pub schema_version: &'static str,
     pub product: &'static str,

@@ -343,6 +343,35 @@ fn marks_dynamic_module_exports_config_unrecognized() -> Result<(), Box<dyn std:
     Ok(())
 }
 
+#[test]
+fn loads_aliases_from_nested_next_config() -> TestResult {
+    let root = temp_dir("omena_bridge_nested_next_alias")?;
+    let app_dir = root.join("apps/web");
+    fs::create_dir_all(app_dir.as_path())?;
+    fs::write(
+        app_dir.join("next.config.mjs"),
+        r#"
+            export default {
+              resolve: {
+                alias: {
+                  "@app": "./src/app"
+                }
+              }
+            };
+        "#,
+    )?;
+
+    let mappings = load_omena_bridge_workspace_bundler_path_alias_mappings(Some(root.as_path()));
+
+    assert!(
+        mappings.iter().any(|mapping| mapping.pattern == "@app"
+            && mapping.target_path == app_dir.join("src/app").to_string_lossy()),
+        "nested next.config alias should be discovered: {mappings:?}"
+    );
+    let _ = fs::remove_dir_all(root);
+    Ok(())
+}
+
 fn temp_dir(prefix: &str) -> Result<PathBuf, Box<dyn std::error::Error>> {
     let suffix = SystemTime::now()
         .duration_since(SystemTime::UNIX_EPOCH)?

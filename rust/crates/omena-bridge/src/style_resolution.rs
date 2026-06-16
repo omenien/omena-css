@@ -1,5 +1,5 @@
 use std::{
-    collections::{BTreeMap, BTreeSet},
+    collections::{BTreeMap, BTreeSet, VecDeque},
     ffi::OsString,
     fs,
     path::{Component, Path, PathBuf},
@@ -8,9 +8,13 @@ use std::{
 
 use crate::bundler_config_alias::load_omena_bridge_workspace_bundler_path_alias_mappings;
 use omena_resolver::{
-    OmenaResolverBundlerPathAliasMappingV0, OmenaResolverStylePackageManifestV0,
+    OmenaResolverBundlerPathAliasMappingV0, OmenaResolverStyleModuleConfirmationOptionsV0,
+    OmenaResolverStyleModuleDiskCandidateIdentityV0, OmenaResolverStylePackageManifestV0,
     OmenaResolverTsconfigPathMappingV0,
     collect_omena_resolver_style_module_source_candidates_with_path_mappings,
+    confirm_omena_resolver_style_module_candidate_with_options,
+    is_omena_resolver_indexable_style_module_path,
+    normalize_omena_resolver_style_module_source_for_routing,
 };
 use omena_sif::{
     OmenaSifSourceSyntaxV1, OmenaSifStaticGeneratorInputV1, OmenaSifV1,
@@ -29,6 +33,8 @@ const EXTERNAL_SIF_CACHE_MAX_MEMORY_ENTRIES: usize = 256;
 const EXTERNAL_SIF_CACHE_MAX_SHARDS: usize = 2048;
 const EXTERNAL_SIF_CACHE_MAX_TOTAL_BYTES: u64 = 256 * 1024 * 1024;
 const EXTERNAL_SIF_CACHE_MAX_SHARD_BYTES: u64 = 8 * 1024 * 1024;
+const WORKSPACE_STYLE_PATH_IDENTITY_SCAN_LIMIT: usize = 4096;
+const WORKSPACE_STYLE_PATH_IDENTITY_MAX_DEPTH: usize = 8;
 
 static EXTERNAL_SIF_MEMORY_CACHE: OnceLock<Mutex<BTreeMap<String, OmenaSifV1>>> = OnceLock::new();
 
@@ -50,6 +56,8 @@ pub struct OmenaBridgeStyleResolutionInputsV0 {
     pub package_manifests: Vec<OmenaResolverStylePackageManifestV0>,
     pub tsconfig_path_mappings: Vec<OmenaResolverTsconfigPathMappingV0>,
     pub bundler_path_mappings: Vec<OmenaResolverBundlerPathAliasMappingV0>,
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub disk_style_path_identities: Vec<OmenaResolverStyleModuleDiskCandidateIdentityV0>,
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize)]
@@ -123,6 +131,10 @@ pub fn resolve_omena_bridge_style_uri_for_specifier_with_package_manifests(
         bundler_path_mappings: load_omena_bridge_workspace_bundler_path_alias_mappings(
             workspace_path.as_deref(),
         ),
+        disk_style_path_identities: workspace_path
+            .as_deref()
+            .map(workspace_style_path_identities)
+            .unwrap_or_default(),
     };
     resolve_omena_bridge_style_uri_for_specifier_with_resolution_inputs(
         source_uri,
@@ -140,16 +152,21 @@ pub fn resolve_omena_bridge_style_uri_for_specifier_with_resolution_inputs(
 ) -> Option<String> {
     let source_path = normalize_path(file_uri_to_path(source_uri)?);
     let source_path_text = source_path.to_string_lossy().to_string();
-    let requires_existing_candidate = (package_name_from_specifier(specifier).is_some()
-        || is_package_import_specifier(specifier))
+    let routing_specifier = normalize_omena_resolver_style_module_source_for_routing(specifier);
+    let requires_existing_candidate = (package_name_from_specifier(routing_specifier).is_some()
+        || is_package_import_specifier(routing_specifier))
         && !resolution_inputs
             .tsconfig_path_mappings
             .iter()
-            .any(|mapping| tsconfig_path_pattern_matches(mapping.pattern.as_str(), specifier))
+            .any(|mapping| {
+                tsconfig_path_pattern_matches(mapping.pattern.as_str(), routing_specifier)
+            })
         && !resolution_inputs
             .bundler_path_mappings
             .iter()
-            .any(|mapping| bundler_path_alias_pattern_matches(mapping.pattern.as_str(), specifier));
+            .any(|mapping| {
+                bundler_path_alias_pattern_matches(mapping.pattern.as_str(), routing_specifier)
+            });
     let candidates = collect_omena_resolver_style_module_source_candidates_with_path_mappings(
         source_path_text.as_str(),
         specifier,
@@ -158,7 +175,11 @@ pub fn resolve_omena_bridge_style_uri_for_specifier_with_resolution_inputs(
         resolution_inputs.tsconfig_path_mappings.as_slice(),
     );
 
-    style_uri_for_resolver_candidates(candidates.as_slice(), requires_existing_candidate)
+    style_uri_for_resolver_candidates(
+        candidates.as_slice(),
+        resolution_inputs.disk_style_path_identities.as_slice(),
+        requires_existing_candidate,
+    )
 }
 
 /// Bridges the resolver→generator hop in-process: takes a resolved external
@@ -552,7 +573,87 @@ fn load_omena_bridge_workspace_style_resolution_inputs_from_path(
         bundler_path_mappings: load_omena_bridge_workspace_bundler_path_alias_mappings(
             workspace_path,
         ),
+        disk_style_path_identities: workspace_path
+            .map(workspace_style_path_identities)
+            .unwrap_or_default(),
     }
+}
+
+fn workspace_style_path_identities(
+    workspace_path: &Path,
+) -> Vec<OmenaResolverStyleModuleDiskCandidateIdentityV0> {
+    let mut identities = Vec::new();
+    let mut queue = VecDeque::from([workspace_path.to_path_buf()]);
+    while let Some(dir) = queue.pop_front() {
+        if identities.len() >= WORKSPACE_STYLE_PATH_IDENTITY_SCAN_LIMIT {
+            break;
+        }
+        let Ok(entries) = fs::read_dir(dir.as_path()) else {
+            continue;
+        };
+        for entry in entries.flatten() {
+            if identities.len() >= WORKSPACE_STYLE_PATH_IDENTITY_SCAN_LIMIT {
+                break;
+            }
+            let path = entry.path();
+            let Some(file_name) = path.file_name().and_then(|name| name.to_str()) else {
+                continue;
+            };
+            if path.is_dir() {
+                let relative_depth = path
+                    .strip_prefix(workspace_path)
+                    .ok()
+                    .map(|relative| relative.components().count())
+                    .unwrap_or(usize::MAX);
+                if relative_depth > WORKSPACE_STYLE_PATH_IDENTITY_MAX_DEPTH {
+                    continue;
+                }
+                if should_skip_style_identity_scan_dir(file_name) {
+                    continue;
+                }
+                queue.push_back(path);
+                continue;
+            }
+            if !is_indexable_style_path(path.as_path()) {
+                continue;
+            }
+            let Some(metadata_identity) = file_metadata_identity(path.as_path()) else {
+                continue;
+            };
+            identities.push(OmenaResolverStyleModuleDiskCandidateIdentityV0 {
+                style_path: normalize_path(path).to_string_lossy().to_string(),
+                metadata_identity,
+            });
+        }
+    }
+    identities.sort_by(|left, right| left.style_path.cmp(&right.style_path));
+    identities.dedup_by(|left, right| left.style_path == right.style_path);
+    identities
+}
+
+fn should_skip_style_identity_scan_dir(name: &str) -> bool {
+    matches!(
+        name,
+        ".git" | ".next" | ".nuxt" | ".svelte-kit" | "coverage" | "target"
+    )
+}
+
+fn file_metadata_identity(path: &Path) -> Option<String> {
+    let metadata = fs::symlink_metadata(path).ok()?;
+    let modified = metadata
+        .modified()
+        .ok()
+        .and_then(|time| time.duration_since(std::time::UNIX_EPOCH).ok())
+        .map(|duration| format!("{}.{:09}", duration.as_secs(), duration.subsec_nanos()))
+        .unwrap_or_else(|| "unknownMtime".to_string());
+    let file_type = if metadata.file_type().is_symlink() {
+        "symlink"
+    } else if metadata.is_file() {
+        "file"
+    } else {
+        "other"
+    };
+    Some(format!("{file_type}|len{}|mtime{modified}", metadata.len()))
 }
 
 fn merge_package_manifest_lists(
@@ -875,34 +976,29 @@ fn is_external_style_specifier(specifier: &str) -> bool {
 
 fn style_uri_for_resolver_candidates(
     candidates: &[String],
+    disk_style_path_identities: &[OmenaResolverStyleModuleDiskCandidateIdentityV0],
     requires_existing_candidate: bool,
 ) -> Option<String> {
-    candidates
-        .iter()
+    let empty_available = BTreeSet::new();
+    let confirmation = confirm_omena_resolver_style_module_candidate_with_options(
+        candidates,
+        &empty_available,
+        disk_style_path_identities,
+        OmenaResolverStyleModuleConfirmationOptionsV0 {
+            allow_disk_confirmation: true,
+            allow_live_disk_confirmation: true,
+            allow_unconfirmed_indexable_candidate: !requires_existing_candidate,
+            ..OmenaResolverStyleModuleConfirmationOptionsV0::default()
+        },
+    );
+    confirmation
+        .resolved_style_path
         .map(PathBuf::from)
-        .find(|path| path.exists() && is_indexable_style_path(path.as_path()))
-        .or_else(|| {
-            if requires_existing_candidate {
-                return None;
-            }
-            candidates
-                .iter()
-                .map(PathBuf::from)
-                .find(|path| is_indexable_style_path(path.as_path()))
-        })
         .map(|path| path_to_file_uri(normalize_path(path).as_path()))
 }
 
 fn is_indexable_style_path(path: &Path) -> bool {
-    let path = path.to_string_lossy();
-    path.ends_with(".module.css")
-        || path.ends_with(".css")
-        || path.ends_with(".module.scss")
-        || path.ends_with(".scss")
-        || path.ends_with(".module.sass")
-        || path.ends_with(".sass")
-        || path.ends_with(".module.less")
-        || path.ends_with(".less")
+    is_omena_resolver_indexable_style_module_path(path.to_string_lossy().as_ref())
 }
 
 fn file_uri_to_path(uri: &str) -> Option<PathBuf> {
@@ -1656,6 +1752,72 @@ mod tests {
                 .request_path_policy
                 .contains(&"lspServerOwnsOnlyDocumentRoutingAndUriRangeMapping")
         );
+    }
+
+    #[test]
+    fn resolves_nested_next_config_alias_style_candidates() -> Result<(), Box<dyn std::error::Error>>
+    {
+        let root = temp_dir("omena_bridge_style_next_nested")?;
+        let app_dir = root.join("apps/web");
+        let source = app_dir.join("src/App.tsx");
+        let style = app_dir.join("src/styles/Button.module.scss");
+        fs::create_dir_all(
+            style
+                .parent()
+                .ok_or_else(|| std::io::Error::other("style parent"))?,
+        )?;
+        fs::write(&source, "")?;
+        fs::write(&style, ".root {}")?;
+        fs::write(
+            app_dir.join("next.config.mjs"),
+            r#"export default { resolve: { alias: { "@styles": "./src/styles" } } };"#,
+        )?;
+
+        let uri = resolve_omena_bridge_style_uri_for_specifier(
+            path_to_file_uri(source.as_path()).as_str(),
+            Some(path_to_file_uri(root.as_path()).as_str()),
+            "@styles/Button.module.scss",
+        );
+
+        assert_eq!(
+            uri.as_deref(),
+            Some(path_to_file_uri(style.as_path()).as_str())
+        );
+        let _ = fs::remove_dir_all(root);
+        Ok(())
+    }
+
+    #[test]
+    fn resolves_tilde_package_style_candidates() -> Result<(), Box<dyn std::error::Error>> {
+        let root = temp_dir("omena_bridge_style_tilde_package")?;
+        let source = root.join("src/App.module.scss");
+        let package_root = root.join("node_modules/@scope/theme");
+        let style = package_root.join("index.scss");
+        fs::create_dir_all(
+            source
+                .parent()
+                .ok_or_else(|| std::io::Error::other("source parent"))?,
+        )?;
+        fs::create_dir_all(package_root.as_path())?;
+        fs::write(&source, "@use \"~@scope/theme\";")?;
+        fs::write(
+            package_root.join("package.json"),
+            r#"{"sass":"./index.scss"}"#,
+        )?;
+        fs::write(&style, "$brand: red;")?;
+
+        let uri = resolve_omena_bridge_style_uri_for_specifier(
+            path_to_file_uri(source.as_path()).as_str(),
+            Some(path_to_file_uri(root.as_path()).as_str()),
+            "~@scope/theme",
+        );
+
+        assert_eq!(
+            uri.as_deref(),
+            Some(path_to_file_uri(style.as_path()).as_str())
+        );
+        let _ = fs::remove_dir_all(root);
+        Ok(())
     }
 
     fn temp_dir(prefix: &str) -> Result<PathBuf, Box<dyn std::error::Error>> {

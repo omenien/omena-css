@@ -8,6 +8,7 @@ use crate::{
     execute_omena_query_consumer_build_style_sources_with_context,
     summarize_omena_query_consumer_check_style_source,
 };
+use std::{fs, path::PathBuf, time::SystemTime};
 
 #[test]
 fn exposes_consumer_check_facade_from_query() {
@@ -387,4 +388,68 @@ fn consumer_build_derives_workspace_context_for_import_inline_and_composes() {
     );
     assert!(!summary.execution.output_css.contains("@import"));
     assert!(!summary.execution.output_css.contains("composes:"));
+}
+
+#[test]
+fn consumer_build_derives_nested_next_alias_context_for_composes()
+-> Result<(), Box<dyn std::error::Error>> {
+    let root = temp_dir("omena_query_transform_next_alias")?;
+    let app_dir = root.join("apps/web");
+    let source_path = app_dir.join("src/App.module.scss");
+    let base_path = app_dir.join("src/styles/base.module.scss");
+    fs::create_dir_all(
+        base_path
+            .parent()
+            .ok_or_else(|| std::io::Error::other("base style parent"))?,
+    )?;
+    fs::write(
+        app_dir.join("next.config.mjs"),
+        r#"export default { resolve: { alias: { "@styles": "./src/styles" } } };"#,
+    )?;
+    let sources = vec![
+        OmenaQueryStyleSourceInputV0 {
+            style_path: source_path.to_string_lossy().to_string(),
+            style_source:
+                r#".button { composes: base from "@styles/base.module.scss"; color: red; }"#
+                    .to_string(),
+        },
+        OmenaQueryStyleSourceInputV0 {
+            style_path: base_path.to_string_lossy().to_string(),
+            style_source: ".base { color: blue; }".to_string(),
+        },
+    ];
+    let pass_ids = vec!["composes-resolution".to_string()];
+
+    let summary = execute_omena_query_consumer_build_style_sources_with_context(
+        source_path.to_string_lossy().as_ref(),
+        &sources,
+        &pass_ids,
+        &OmenaQueryTransformExecutionContextV0::default(),
+        &[],
+    )?;
+
+    assert!(
+        summary
+            .execution
+            .executed_pass_ids
+            .contains(&"composes-resolution")
+    );
+    assert!(
+        !summary
+            .execution
+            .planned_only_pass_ids
+            .contains(&"composes-resolution")
+    );
+    assert!(!summary.execution.output_css.contains("composes:"));
+    let _ = fs::remove_dir_all(root);
+    Ok(())
+}
+
+fn temp_dir(prefix: &str) -> Result<PathBuf, Box<dyn std::error::Error>> {
+    let suffix = SystemTime::now()
+        .duration_since(SystemTime::UNIX_EPOCH)?
+        .as_nanos();
+    let path = std::env::temp_dir().join(format!("{prefix}-{suffix}"));
+    fs::create_dir_all(path.as_path())?;
+    Ok(path)
 }

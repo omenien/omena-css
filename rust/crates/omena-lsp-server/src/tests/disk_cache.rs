@@ -130,6 +130,54 @@ fn outputs_contain_diagnostic_code(outputs: &[ScheduledLspOutput], code: &str) -
 }
 
 #[test]
+fn disk_cache_key_includes_style_resolution_disk_identity_snapshot() {
+    let style_sources = vec![OmenaQueryStyleSourceInputV0 {
+        style_path: "file:///workspace/src/App.module.scss".to_string(),
+        style_source: "@use \"@styles/tokens\";".to_string(),
+    }];
+    let source_documents = Vec::<OmenaQuerySourceDocumentInputV0>::new();
+    let external_sifs = Vec::<OmenaQueryExternalSifInputV0>::new();
+    let package_manifests = Vec::<OmenaQueryStylePackageManifestV0>::new();
+    let base_inputs = omena_query::OmenaQueryStyleResolutionInputsV0::default();
+    let disk_backed_inputs = omena_query::OmenaQueryStyleResolutionInputsV0 {
+        disk_style_path_identities: vec![
+            omena_query::OmenaQueryStyleModuleDiskCandidateIdentityV0 {
+                style_path: "/workspace/src/tokens.scss".to_string(),
+                metadata_identity: "file|len12|mtime1".to_string(),
+            },
+        ],
+        ..Default::default()
+    };
+
+    let base_key = crate::disk_cache::disk_diagnostics_cache_key_v0(
+        &crate::disk_cache::DiskDiagnosticsCacheKeyComponentsV0 {
+            target_style_path: "file:///workspace/src/App.module.scss",
+            style_sources: style_sources.as_slice(),
+            source_documents: source_documents.as_slice(),
+            package_manifests: package_manifests.as_slice(),
+            external_sifs: external_sifs.as_slice(),
+            resolution_inputs: &base_inputs,
+            severity: 2,
+            deep_analysis: false,
+        },
+    );
+    let disk_backed_key = crate::disk_cache::disk_diagnostics_cache_key_v0(
+        &crate::disk_cache::DiskDiagnosticsCacheKeyComponentsV0 {
+            target_style_path: "file:///workspace/src/App.module.scss",
+            style_sources: style_sources.as_slice(),
+            source_documents: source_documents.as_slice(),
+            package_manifests: package_manifests.as_slice(),
+            external_sifs: external_sifs.as_slice(),
+            resolution_inputs: &disk_backed_inputs,
+            severity: 2,
+            deep_analysis: false,
+        },
+    );
+
+    assert_ne!(base_key, disk_backed_key);
+}
+
+#[test]
 fn first_resolve_writes_shard_and_fresh_state_replays_byte_identical_diagnostics() {
     let workspace_root = disk_cache_workspace_root("replay");
     let (workspace_uri, style_uri) =

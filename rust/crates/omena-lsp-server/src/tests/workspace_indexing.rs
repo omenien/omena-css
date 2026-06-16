@@ -774,7 +774,8 @@ fn background_source_index_uses_persisted_source_syntax_sidecar() -> TestResult 
     let workspace_uri = crate::protocol::path_to_file_uri(workspace_root.as_path());
     let source_uri = crate::protocol::path_to_file_uri(source_path.as_path());
     let style_uri = crate::protocol::path_to_file_uri(style_path.as_path());
-    let resolution_inputs = omena_query::OmenaQueryStyleResolutionInputsV0::default();
+    let resolution_inputs =
+        load_lsp_workspace_style_resolution_inputs(Some(workspace_uri.as_str()), &[]);
     let selector_start = source_text
         .find("styles")
         .ok_or_else(|| std::io::Error::other("fixture should contain styles binding"))?;
@@ -1746,7 +1747,8 @@ fn indexed_source_diagnostics_use_persisted_source_syntax_without_provider_candi
     let workspace_uri = crate::protocol::path_to_file_uri(workspace_root.as_path());
     let source_uri = crate::protocol::path_to_file_uri(source_path.as_path());
     let style_uri = crate::protocol::path_to_file_uri(style_path.as_path());
-    let resolution_inputs = omena_query::OmenaQueryStyleResolutionInputsV0::default();
+    let resolution_inputs =
+        load_lsp_workspace_style_resolution_inputs(Some(workspace_uri.as_str()), &[]);
     let cached_index = SourceSyntaxIndex {
         schema_version: "0",
         product: "omena-bridge.source-syntax-index",
@@ -1907,7 +1909,8 @@ fn persisted_source_syntax_sidecar_feeds_unused_selector_diagnostics_without_rep
     let workspace_uri = crate::protocol::path_to_file_uri(workspace_root.as_path());
     let source_uri = crate::protocol::path_to_file_uri(source_path.as_path());
     let style_uri = crate::protocol::path_to_file_uri(style_path.as_path());
-    let resolution_inputs = omena_query::OmenaQueryStyleResolutionInputsV0::default();
+    let resolution_inputs =
+        load_lsp_workspace_style_resolution_inputs(Some(workspace_uri.as_str()), &[]);
     let cached_index = SourceSyntaxIndex {
         schema_version: "0",
         product: "omena-bridge.source-syntax-index",
