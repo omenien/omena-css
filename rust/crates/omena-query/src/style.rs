@@ -1667,6 +1667,26 @@ fn apply_sass_module_graph_closure_step_configuration(
     metadata
 }
 
+// Test-only counter of ACTUAL configurable-name derivations (memo misses that run the parse +
+// disk-resolution work). With the L1 memo this is O(distinct modules); without it the same
+// derivation runs per enumerated closure path = O(paths) (super-polynomial). The end-to-end
+// growth gate (tests) asserts this stays ~linear, catching a regression of the L1 memo that the
+// output-only equivalence oracle cannot see. Compiled out of non-test builds (zero overhead).
+#[cfg(test)]
+thread_local! {
+    static CONFIGURABLE_NAMES_DERIVATIONS: std::cell::Cell<u64> = const { std::cell::Cell::new(0) };
+}
+
+#[cfg(test)]
+pub(crate) fn reset_configurable_names_derivation_count() {
+    CONFIGURABLE_NAMES_DERIVATIONS.with(|count| count.set(0));
+}
+
+#[cfg(test)]
+pub(crate) fn configurable_names_derivation_count() -> u64 {
+    CONFIGURABLE_NAMES_DERIVATIONS.with(|count| count.get())
+}
+
 fn memoized_configurable_names(
     target_style_path: &str,
     context: SassModuleGraphClosureContext<'_>,
@@ -1681,6 +1701,8 @@ fn memoized_configurable_names(
         .source_by_path
         .get(target_style_path)
         .map(|target_source| {
+            #[cfg(test)]
+            CONFIGURABLE_NAMES_DERIVATIONS.with(|count| count.set(count.get() + 1));
             transform::derive_static_scss_module_configurable_variable_names_for_resolution(
                 target_style_path,
                 target_source,

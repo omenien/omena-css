@@ -1045,3 +1045,91 @@ fn style_semantic_graph_batch_resolves_package_manifest_style_exports() {
     );
     assert_eq!(declaration_candidate.import_graph_distance, Some(1));
 }
+
+// Builds a cyclic @use/@forward SCSS corpus (mirrors the #93 reproduction): App @use barrel;
+// barrel @forwards N children; each child @forwards a grandchild AND @uses the next child in a
+// ring (i -> i%N+1) so the N children form one strongly-connected component. This is the shape
+// that makes naive all-paths enumeration super-polynomial.
+fn cyclic_sass_module_corpus(n: usize) -> Vec<(String, String)> {
+    let mut files = Vec::new();
+    let mut barrel = String::new();
+    for i in 1..=n {
+        barrel.push_str(&format!("@forward \"./child_{i}\";\n"));
+    }
+    files.push(("/cyc/_barrel.scss".to_string(), barrel));
+    for i in 1..=n {
+        let next = i % n + 1;
+        files.push((
+            format!("/cyc/_child_{i}.scss"),
+            format!(
+                "@forward \"./gc_{i}\";\n@use \"./child_{next}\" as n_{i};\n$ds_gray_{i}: {};\n.tok_{i} {{ padding: $ds_gray_{i}; }}\n",
+                100 + i
+            ),
+        ));
+        files.push((
+            format!("/cyc/_gc_{i}.scss"),
+            format!("$gc_tone_{i}: {i};\n.gc_{i} {{ margin: $gc_tone_{i}; }}\n"),
+        ));
+    }
+    files.push((
+        "/cyc/App.module.scss".to_string(),
+        "@use \"./barrel\" as ds;\n.app { color: red; }".to_string(),
+    ));
+    files
+}
+
+fn fit_growth_exponent(samples: &[(f64, f64)]) -> f64 {
+    let n = samples.len() as f64;
+    let xs: Vec<f64> = samples.iter().map(|(x, _)| x.ln()).collect();
+    let ys: Vec<f64> = samples.iter().map(|(_, y)| y.max(1.0).ln()).collect();
+    let sx: f64 = xs.iter().sum();
+    let sy: f64 = ys.iter().sum();
+    let sxx: f64 = xs.iter().map(|x| x * x).sum();
+    let sxy: f64 = xs.iter().zip(ys.iter()).map(|(x, y)| x * y).sum();
+    (n * sxy - sx * sy) / (n * sxx - sx * sx)
+}
+
+// End-to-end anti-recurrence gate (replaces the prior leg-isolated, tautological growth check):
+// drive the FULL cross-file resolution over a cyclic corpus at >=3 sizes and assert that the
+// number of configurable-name DERIVATIONS (the parse + disk-resolution work that the L1 run-scoped
+// memo collapses to O(distinct modules)) grows ~linearly. Removing the L1 memo makes the same
+// derivation run per enumerated closure path = O(paths) (super-polynomial, ~2.6 measured) and turns
+// this RED — a perf regression the output-only equivalence oracle would NOT catch. The path
+// enumeration itself (graph_closure_edge_count) stays super-polynomial by design and is reported
+// advisorily, not asserted (eliminating it is the deferred config-state-worklist work).
+#[test]
+fn cross_file_configurable_name_derivations_grow_near_linearly_end_to_end() {
+    let input = sample_input();
+    let mut derivation_samples: Vec<(f64, f64)> = Vec::new();
+    let mut edge_samples: Vec<(f64, f64)> = Vec::new();
+    for n in [4usize, 8, 16] {
+        let corpus = cyclic_sass_module_corpus(n);
+        let styles: Vec<(&str, &str)> = corpus
+            .iter()
+            .map(|(path, source)| (path.as_str(), source.as_str()))
+            .collect();
+        crate::style::reset_configurable_names_derivation_count();
+        let batch = summarize_omena_query_style_semantic_graph_batch_from_sources(styles, &input);
+        let derivations = crate::style::configurable_names_derivation_count();
+        let edges = batch.sass_module_resolution.graph_closure_edge_count;
+        // Sanity: the corpus must actually exercise the forward-config derivation path.
+        assert!(
+            derivations > 0,
+            "corpus N={n} did not exercise configurable-name derivation"
+        );
+        derivation_samples.push((n as f64, derivations as f64));
+        edge_samples.push((n as f64, edges as f64));
+    }
+    let derivation_exponent = fit_growth_exponent(&derivation_samples);
+    let edge_exponent = fit_growth_exponent(&edge_samples);
+    eprintln!(
+        "configurable-name derivations (L1-memo, asserted ~linear): {derivation_samples:?} exponent={derivation_exponent:.3}"
+    );
+    eprintln!(
+        "graph_closure_edge_count (path enumeration, advisory): {edge_samples:?} exponent={edge_exponent:.3}"
+    );
+    assert!(
+        derivation_exponent <= 1.3,
+        "cross-file configurable-name derivations must grow ~linearly in module count (L1 memo intact); exponent={derivation_exponent:.3}, samples={derivation_samples:?}"
+    );
+}
