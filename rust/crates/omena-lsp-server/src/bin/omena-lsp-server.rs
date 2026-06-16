@@ -18,7 +18,7 @@ use omena_lsp_server::{
     apply_background_workspace_index_result, apply_deferred_external_sif_refresh_result,
     collect_background_workspace_index, collect_deferred_external_sif_refresh,
     dispatched_query_internal_error_response, enable_deferred_external_sif_refresh,
-    external_sif_refresh_follow_up_diagnostics_outputs,
+    external_sif_refresh_follow_up_diagnostics_effects,
     handle_lsp_message_scheduled_outputs_or_dispatch,
     prepare_background_workspace_index_continuation_job, prepare_deferred_external_sif_refresh_job,
     resolve_dispatched_query_response, workspace_index_progress_end_output,
@@ -219,6 +219,8 @@ fn run_stdio_server<R: BufRead + Send + 'static, W: Write + Send + 'static>(
             &writer,
             &coalescer,
             &mut delayed_outputs,
+            #[cfg(feature = "salsa-style-diagnostics")]
+            &diagnostics_sender,
         )?;
         dispatch_external_sif_refresh_if_needed(
             &mut state,
@@ -312,6 +314,8 @@ fn run_stdio_server<R: BufRead + Send + 'static, W: Write + Send + 'static>(
         &writer,
         &coalescer,
         &mut delayed_outputs,
+        #[cfg(feature = "salsa-style-diagnostics")]
+        &diagnostics_sender,
     )?;
     drop(query_sender);
     drop(workspace_index_sender);
@@ -386,12 +390,24 @@ fn drain_external_sif_refresh_results<W: Write + Send + 'static>(
     writer: &Arc<Mutex<W>>,
     coalescer: &Arc<Mutex<ScheduledOutputCoalescer>>,
     delayed_outputs: &mut Vec<JoinHandle<Result<(), String>>>,
+    #[cfg(feature = "salsa-style-diagnostics")] diagnostics_sender: &mpsc::SyncSender<
+        DeferredDiagnosticsWorkV0,
+    >,
 ) -> Result<(), Box<dyn std::error::Error>> {
     while let Ok(result) = receiver.try_recv() {
         *in_flight = in_flight.saturating_sub(1);
         if apply_deferred_external_sif_refresh_result(state, result) {
-            for output in external_sif_refresh_follow_up_diagnostics_outputs(state) {
+            let effects = external_sif_refresh_follow_up_diagnostics_effects(state);
+            for output in effects.outputs {
                 write_scheduled_lsp_output(writer, coalescer, output, delayed_outputs)?;
+            }
+            for dispatch in effects.deferred_diagnostics {
+                #[cfg(feature = "salsa-style-diagnostics")]
+                dispatch_deferred_diagnostics(diagnostics_sender, coalescer, dispatch)?;
+                #[cfg(not(feature = "salsa-style-diagnostics"))]
+                {
+                    let _ = dispatch;
+                }
             }
         }
     }

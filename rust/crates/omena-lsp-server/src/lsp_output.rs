@@ -1,4 +1,4 @@
-use crate::LspStyleHoverCandidate;
+use crate::{LspQuerySnapshotV0, LspStyleHoverCandidate};
 use omena_query::{
     OmenaQueryExternalSifInputV0, OmenaQuerySourceDocumentInputV0,
     OmenaQuerySourceMissingSelectorDiagnosticCandidateV0, OmenaQuerySourceSyntaxIndexV0,
@@ -89,13 +89,13 @@ pub struct LspOwnedSourceDiagnosticsRenderInputsV0 {
     pub configured_severity: u8,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub enum DeferredDiagnosticsRenderInputsV0 {
-    Style(LspOwnedStyleDiagnosticsRenderInputsV0),
-    Source(LspOwnedSourceDiagnosticsRenderInputsV0),
+    StyleSnapshot(Box<LspQuerySnapshotV0>),
+    Source(Box<LspOwnedSourceDiagnosticsRenderInputsV0>),
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub struct LspDeferredDiagnosticsDispatchV0 {
     pub uri: String,
     pub coalesce_key: String,

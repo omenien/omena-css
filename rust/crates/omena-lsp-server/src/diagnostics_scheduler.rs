@@ -1517,9 +1517,9 @@ mod tests {
         assert!(
             importer_dispatches.iter().all(|dispatch| matches!(
                 dispatch.render_inputs,
-                crate::lsp_output::DeferredDiagnosticsRenderInputsV0::Style(_)
+                crate::lsp_output::DeferredDiagnosticsRenderInputsV0::StyleSnapshot(_)
             )),
-            "style fan-out dispatches must carry style render inputs"
+            "style fan-out dispatches must carry a snapshot for worker-side style input collection"
         );
 
         let _ = fs::remove_dir_all(workspace_path.as_path());
