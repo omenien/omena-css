@@ -193,6 +193,21 @@ pub struct StreamingIfdsFrameRuleBridgePolicyV0 {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
+pub struct StreamingIfdsSolverHygienePolicyV0 {
+    pub schema_version: &'static str,
+    pub product: &'static str,
+    pub layer_marker: &'static str,
+    pub feature_gate: &'static str,
+    pub summary_cache_feedback_policy: &'static str,
+    pub non_product_cache_feedback_scope: &'static str,
+    pub cache_feedback_activation: &'static str,
+    pub reference_edge_value_policy: &'static str,
+    pub concrete_value_owner: &'static str,
+    pub deferred_value_flow_candidates: Vec<&'static str>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct StreamingIfdsLatencyBudgetV0 {
     pub schema_version: &'static str,
     pub product: &'static str,
@@ -400,22 +415,33 @@ where
         .flatten()
         .flat_map(|entry| entry.fact_keys.iter().cloned())
         .collect::<BTreeSet<_>>();
+    let transfer_table = streaming_ifds_transfer_table_v0(hyperedges);
 
-    // Two independently-computed fact sets over the *current* graph:
-    //   * the incremental/streaming path only re-derives the dirty sub-graph
-    //     reachable from the changed (event) nodes and reuses prior facts that
-    //     fall outside that region, and
-    //   * the batch oracle recomputes every fact from scratch over all
-    //     hyperedges and events.
-    // They agree when the reused prior facts are still consistent with the
-    // current graph, and diverge when a prior fact survives in the reused
-    // region even though the current graph no longer produces it (stale fact
-    // not invalidated by the incremental dirty-set). Parity is therefore a real
-    // equality of two distinct computations, not f(x) == f(x).
-    let incremental_facts =
-        incremental_propagate_ifds_facts(hyperedges, events, &previous_fact_keys);
-    let output_fact_keys = incremental_fact_keys(hyperedges, events, &previous_fact_keys);
-    let batch_fact_keys = fact_keys(&propagate_ifds_facts(hyperedges, events));
+    let (incremental_facts, output_fact_keys, precision_parity_with_batch) = if previous_fact_keys
+        .is_empty()
+    {
+        let facts = propagate_ifds_facts_with_table(&transfer_table, events);
+        let keys = fact_keys(&facts);
+        (facts, keys, true)
+    } else {
+        // Warm runs compare two distinct computations over the current graph:
+        //   * the incremental/streaming path only re-derives the dirty
+        //     sub-graph reachable from changed event nodes and reuses prior
+        //     facts outside that region, and
+        //   * the batch oracle recomputes every fact from scratch over all
+        //     hyperedges and events.
+        // A divergence means a reused prior fact survived even though the
+        // current graph no longer produces it.
+        let incremental_facts =
+            incremental_propagate_ifds_facts(&transfer_table, events, &previous_fact_keys);
+        let output_fact_keys = incremental_fact_keys(&transfer_table, events, &previous_fact_keys);
+        let batch_fact_keys = fact_keys(&propagate_ifds_facts_with_table(&transfer_table, events));
+        (
+            incremental_facts,
+            output_fact_keys.clone(),
+            output_fact_keys == batch_fact_keys,
+        )
+    };
 
     let reused_fact_count = output_fact_keys
         .iter()
@@ -441,9 +467,9 @@ where
         output_fact_count: incremental_facts.len(),
         dirty_fact_count,
         reused_fact_count,
-        transfer_function_count: streaming_ifds_transfer_functions_v0(hyperedges).len(),
+        transfer_function_count: transfer_table.len(),
         fallback_to_batch: false,
-        precision_parity_with_batch: output_fact_keys == batch_fact_keys,
+        precision_parity_with_batch,
         output_facts: incremental_facts,
         summary_cache,
     }
@@ -610,7 +636,42 @@ fn summarize_streaming_ifds_cross_file_reachability_oracle_v0(
 pub fn streaming_ifds_transfer_functions_v0(
     hyperedges: &[UnifiedHypergraphHyperedgeV0],
 ) -> Vec<StreamingIFDSTransferFunctionV0> {
-    hyperedges
+    streaming_ifds_transfer_table_v0(hyperedges).transfers
+}
+
+#[derive(Debug, Clone)]
+struct StreamingIFDSTransferTableV0 {
+    transfers: Vec<StreamingIFDSTransferFunctionV0>,
+    transfers_by_tail_node_id: BTreeMap<String, Vec<usize>>,
+}
+
+impl StreamingIFDSTransferTableV0 {
+    fn len(&self) -> usize {
+        self.transfers.len()
+    }
+
+    fn transfers_for_tail<'a>(
+        &'a self,
+        node_id: &str,
+    ) -> impl Iterator<Item = &'a StreamingIFDSTransferFunctionV0> + 'a {
+        self.transfers_by_tail_node_id
+            .get(node_id)
+            .into_iter()
+            .flat_map(|indices| indices.iter())
+            .map(|index| &self.transfers[*index])
+    }
+}
+
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+struct StreamingIFDSPropagationStatsV0 {
+    popped_fact_count: usize,
+    transfer_visit_count: usize,
+}
+
+fn streaming_ifds_transfer_table_v0(
+    hyperedges: &[UnifiedHypergraphHyperedgeV0],
+) -> StreamingIFDSTransferTableV0 {
+    let transfers = hyperedges
         .iter()
         .map(|edge| StreamingIFDSTransferFunctionV0 {
             schema_version: STREAMING_IFDS_SCHEMA_VERSION_V0,
@@ -623,7 +684,20 @@ pub fn streaming_ifds_transfer_functions_v0(
             head_node_id: edge.head_node_id.clone(),
             transfer_kind: streaming_ifds_transfer_kind(edge.edge_kind),
         })
-        .collect()
+        .collect::<Vec<_>>();
+    let mut transfers_by_tail_node_id = BTreeMap::<String, Vec<usize>>::new();
+    for (index, transfer) in transfers.iter().enumerate() {
+        for tail_node_id in &transfer.tail_node_ids {
+            transfers_by_tail_node_id
+                .entry(tail_node_id.clone())
+                .or_default()
+                .push(index);
+        }
+    }
+    StreamingIFDSTransferTableV0 {
+        transfers,
+        transfers_by_tail_node_id,
+    }
 }
 
 pub fn streaming_ifds_summary_cache_entry_v0(
@@ -661,6 +735,24 @@ pub fn streaming_ifds_frame_rule_bridge_policy_v0() -> StreamingIfdsFrameRuleBri
     }
 }
 
+pub fn streaming_ifds_solver_hygiene_policy_v0() -> StreamingIfdsSolverHygienePolicyV0 {
+    StreamingIfdsSolverHygienePolicyV0 {
+        schema_version: STREAMING_IFDS_SCHEMA_VERSION_V0,
+        product: "omena-streaming-ifds.solver-hygiene-policy",
+        layer_marker: STREAMING_IFDS_LAYER_MARKER_V0,
+        feature_gate: STREAMING_IFDS_FEATURE_GATE_V0,
+        summary_cache_feedback_policy: "emitEvidenceCacheButDoNotFeedProductPaths",
+        non_product_cache_feedback_scope: "engineShadowRunnerPrecisionEvidenceOnly",
+        cache_feedback_activation: "requiresNonCountConsumerAndPrecisionParityFallback",
+        reference_edge_value_policy: "identityOnReferenceAndAliasEdges",
+        concrete_value_owner: "omena-sif.variable-export.value-repr",
+        deferred_value_flow_candidates: vec![
+            "composesFiniteSetConsumer",
+            "icssValueAliasReExportChain",
+        ],
+    }
+}
+
 pub fn streaming_ifds_latency_budget_v0() -> StreamingIfdsLatencyBudgetV0 {
     StreamingIfdsLatencyBudgetV0 {
         schema_version: STREAMING_IFDS_SCHEMA_VERSION_V0,
@@ -673,14 +765,30 @@ pub fn streaming_ifds_latency_budget_v0() -> StreamingIfdsLatencyBudgetV0 {
     }
 }
 
+#[cfg(test)]
 fn propagate_ifds_facts(
     hyperedges: &[UnifiedHypergraphHyperedgeV0],
     events: &[StreamingIfdsEventInputV0],
 ) -> Vec<StreamingIFDSFactV0> {
-    let transfer_functions = streaming_ifds_transfer_functions_v0(hyperedges);
+    let transfer_table = streaming_ifds_transfer_table_v0(hyperedges);
+    propagate_ifds_facts_with_table(&transfer_table, events)
+}
+
+fn propagate_ifds_facts_with_table(
+    transfer_table: &StreamingIFDSTransferTableV0,
+    events: &[StreamingIfdsEventInputV0],
+) -> Vec<StreamingIFDSFactV0> {
+    propagate_ifds_facts_with_table_and_stats(transfer_table, events).0
+}
+
+fn propagate_ifds_facts_with_table_and_stats(
+    transfer_table: &StreamingIFDSTransferTableV0,
+    events: &[StreamingIfdsEventInputV0],
+) -> (Vec<StreamingIFDSFactV0>, StreamingIFDSPropagationStatsV0) {
     let mut seen = BTreeSet::<String>::new();
     let mut pending = VecDeque::<StreamingIFDSFactV0>::new();
     let mut output = Vec::<StreamingIFDSFactV0>::new();
+    let mut stats = StreamingIFDSPropagationStatsV0::default();
 
     for event in events {
         let fact = streaming_ifds_fact_v0(
@@ -695,10 +803,9 @@ fn propagate_ifds_facts(
     }
 
     while let Some(fact) = pending.pop_front() {
-        for transfer in transfer_functions
-            .iter()
-            .filter(|transfer| transfer.tail_node_ids.contains(&fact.node_id))
-        {
+        stats.popped_fact_count = stats.popped_fact_count.saturating_add(1);
+        for transfer in transfer_table.transfers_for_tail(&fact.node_id) {
+            stats.transfer_visit_count = stats.transfer_visit_count.saturating_add(1);
             let mut provenance = fact.provenance.clone();
             provenance.push(format!("transfer:{}", transfer.hyperedge_id));
             let next_value = apply_streaming_ifds_transfer(transfer, &fact.value);
@@ -716,17 +823,17 @@ fn propagate_ifds_facts(
             .cmp(&right.node_id)
             .then(left.fact_id.cmp(&right.fact_id))
     });
-    output
+    (output, stats)
 }
 
 /// Nodes that the changed event nodes can still reach over the *current* graph.
 /// This is the incremental dirty sub-graph: facts at these nodes are re-derived
 /// from scratch, everything else may be reused from the prior fact set.
 fn incremental_dirty_nodes(
-    hyperedges: &[UnifiedHypergraphHyperedgeV0],
+    transfer_table: &StreamingIFDSTransferTableV0,
     events: &[StreamingIfdsEventInputV0],
 ) -> BTreeSet<String> {
-    propagate_ifds_facts(hyperedges, events)
+    propagate_ifds_facts_with_table(transfer_table, events)
         .into_iter()
         .map(|fact| fact.node_id)
         .collect()
@@ -743,18 +850,18 @@ fn incremental_dirty_nodes(
 /// no longer produces it because a supporting edge was removed — the incremental
 /// key set retains it while the batch key set drops it, so the two diverge.
 fn incremental_fact_keys(
-    hyperedges: &[UnifiedHypergraphHyperedgeV0],
+    transfer_table: &StreamingIFDSTransferTableV0,
     events: &[StreamingIfdsEventInputV0],
     previous_fact_keys: &BTreeSet<String>,
 ) -> Vec<String> {
     // Cold start (no prior facts): the dirty region is the whole reachable graph,
     // so the incremental path coincides with a full recompute.
     if previous_fact_keys.is_empty() {
-        return fact_keys(&propagate_ifds_facts(hyperedges, events));
+        return fact_keys(&propagate_ifds_facts_with_table(transfer_table, events));
     }
 
-    let dirty_nodes = incremental_dirty_nodes(hyperedges, events);
-    let mut keys = fact_keys(&propagate_ifds_facts(hyperedges, events))
+    let dirty_nodes = incremental_dirty_nodes(transfer_table, events);
+    let mut keys = fact_keys(&propagate_ifds_facts_with_table(transfer_table, events))
         .into_iter()
         .collect::<BTreeSet<_>>();
     for key in previous_fact_keys {
@@ -770,13 +877,13 @@ fn incremental_fact_keys(
 /// Dirty-region facts are re-derived with full provenance; reused prior facts
 /// outside the dirty region are carried forward verbatim from their key.
 fn incremental_propagate_ifds_facts(
-    hyperedges: &[UnifiedHypergraphHyperedgeV0],
+    transfer_table: &StreamingIFDSTransferTableV0,
     events: &[StreamingIfdsEventInputV0],
     previous_fact_keys: &BTreeSet<String>,
 ) -> Vec<StreamingIFDSFactV0> {
-    let mut output = propagate_ifds_facts(hyperedges, events);
+    let mut output = propagate_ifds_facts_with_table(transfer_table, events);
     if !previous_fact_keys.is_empty() {
-        let dirty_nodes = incremental_dirty_nodes(hyperedges, events);
+        let dirty_nodes = incremental_dirty_nodes(transfer_table, events);
         let mut seen = output
             .iter()
             .map(|fact| fact_key(&fact.node_id, &fact.value))
@@ -1482,6 +1589,94 @@ mod tests {
         );
     }
 
+    #[test]
+    fn streaming_ifds_solver_transfer_index_growth_stays_near_linear() {
+        let samples = [8usize, 16, 32]
+            .into_iter()
+            .map(|layer_count| {
+                let hyperedges = layered_identity_ifds_hyperedges(layer_count);
+                let transfer_table = streaming_ifds_transfer_table_v0(&hyperedges);
+                let events = vec![streaming_ifds_event_input_v0(
+                    "event-entry",
+                    1,
+                    "entry",
+                    AbstractClassValueV0::Exact {
+                        value: "button".to_string(),
+                    },
+                    None,
+                )];
+                let (facts, stats) =
+                    propagate_ifds_facts_with_table_and_stats(&transfer_table, &events);
+                assert!(
+                    facts.len() >= layer_count.saturating_mul(2),
+                    "fixture must keep IFDS propagation live: layer_count={layer_count}, facts={facts:?}"
+                );
+                assert_eq!(
+                    stats.transfer_visit_count,
+                    hyperedges.len(),
+                    "indexed dispatch should visit each reachable transfer once"
+                );
+                (
+                    hyperedges.len().saturating_add(facts.len()),
+                    stats
+                        .transfer_visit_count
+                        .saturating_add(stats.popped_fact_count),
+                )
+            })
+            .collect::<Vec<_>>();
+        let exponent = fit_growth_exponent(samples.as_slice());
+        assert!(
+            exponent <= 1.2,
+            "IFDS solver dispatch should scale near-linearly; exponent={exponent:.3}, samples={samples:?}"
+        );
+    }
+
+    #[test]
+    fn solver_hygiene_policy_keeps_cache_feedback_and_reference_values_explicit() {
+        let policy = streaming_ifds_solver_hygiene_policy_v0();
+        assert_eq!(
+            policy.summary_cache_feedback_policy,
+            "emitEvidenceCacheButDoNotFeedProductPaths"
+        );
+        assert_eq!(
+            policy.non_product_cache_feedback_scope,
+            "engineShadowRunnerPrecisionEvidenceOnly"
+        );
+        assert_eq!(
+            policy.cache_feedback_activation,
+            "requiresNonCountConsumerAndPrecisionParityFallback"
+        );
+        assert_eq!(
+            policy.reference_edge_value_policy,
+            "identityOnReferenceAndAliasEdges"
+        );
+        assert_eq!(
+            policy.concrete_value_owner,
+            "omena-sif.variable-export.value-repr"
+        );
+        assert_eq!(
+            apply_streaming_ifds_transfer(
+                &StreamingIFDSTransferFunctionV0 {
+                    schema_version: STREAMING_IFDS_SCHEMA_VERSION_V0,
+                    product: "test.transfer",
+                    layer_marker: STREAMING_IFDS_LAYER_MARKER_V0,
+                    feature_gate: STREAMING_IFDS_FEATURE_GATE_V0,
+                    hyperedge_id: "edge-sass-forward".to_string(),
+                    edge_kind: UnifiedHypergraphEdgeKindV0::SassForward,
+                    tail_node_ids: vec!["a".to_string()],
+                    head_node_id: "b".to_string(),
+                    transfer_kind: "semanticReferencePreserving",
+                },
+                &AbstractClassValueV0::Exact {
+                    value: "token".to_string()
+                },
+            ),
+            AbstractClassValueV0::Exact {
+                value: "token".to_string()
+            }
+        );
+    }
+
     #[cfg(feature = "with-frame-rule")]
     #[test]
     fn frame_rule_bridge_policy_is_feature_gated() {
@@ -1561,6 +1756,34 @@ mod tests {
 
     fn layered_node(layer: usize, branch: &str) -> String {
         format!("styleSymbol|/workspace/layer-{layer}-{branch}.module.scss|token")
+    }
+
+    fn layered_identity_ifds_hyperedges(layer_count: usize) -> Vec<UnifiedHypergraphHyperedgeV0> {
+        let mut hyperedges = Vec::new();
+        for branch in ["a", "b"] {
+            hyperedges.push(hyperedge_with_kind(
+                &format!("edge-entry-{branch}"),
+                "entry",
+                identity_ifds_node(0, branch).as_str(),
+                UnifiedHypergraphEdgeKindV0::SassUse,
+            ));
+        }
+        for layer in 0..layer_count {
+            let next_layer = layer.saturating_add(1);
+            for branch in ["a", "b"] {
+                hyperedges.push(hyperedge_with_kind(
+                    &format!("edge-{layer}-{branch}"),
+                    identity_ifds_node(layer, branch).as_str(),
+                    identity_ifds_node(next_layer, branch).as_str(),
+                    UnifiedHypergraphEdgeKindV0::SassForward,
+                ));
+            }
+        }
+        hyperedges
+    }
+
+    fn identity_ifds_node(layer: usize, branch: &str) -> String {
+        format!("identity:{layer}:{branch}")
     }
 
     fn fit_growth_exponent(samples: &[(usize, usize)]) -> f64 {
