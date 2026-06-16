@@ -1,5 +1,6 @@
 use super::*;
 use omena_parser::{ParsedSassIncludeFact, ParsedSelectorFact, ParsedVariableFact};
+use std::cell::RefCell;
 use std::path::{Path, PathBuf};
 
 mod cascade_position;
@@ -1325,6 +1326,8 @@ fn summarize_sass_module_cross_file_resolution(
     let unresolved_module_edge_count = edges
         .len()
         .saturating_sub(resolved_module_edge_count + external_module_edge_count);
+    let configurable_names_memo: RefCell<BTreeMap<String, BTreeSet<String>>> =
+        RefCell::new(BTreeMap::new());
     let (graph_closure_edges, cycles) = summarize_sass_module_graph_closure(
         &edges,
         SassModuleGraphClosureContext {
@@ -1333,6 +1336,7 @@ fn summarize_sass_module_cross_file_resolution(
             package_manifests,
             bundler_path_mappings,
             tsconfig_path_mappings,
+            configurable_names_memo: &configurable_names_memo,
         },
     );
     let visibility_filter_count = edges
@@ -1519,6 +1523,13 @@ struct SassModuleGraphClosureContext<'a> {
     package_manifests: &'a [OmenaQueryStylePackageManifestV0],
     bundler_path_mappings: &'a [OmenaResolverBundlerPathAliasMappingV0],
     tsconfig_path_mappings: &'a [OmenaResolverTsconfigPathMappingV0],
+    // Run-scoped memo of per-target configurable variable names. The derivation is a pure
+    // function of `target_style_path` within one closure computation (every other input is a
+    // fixed `context` field), but the same target recurs across super-polynomially many
+    // enumerated closure paths. Caching it per target collapses that to one derivation per
+    // module without changing any emitted value. Scoped to a single summary run (created at the
+    // call site, dropped when it returns) so a later revision re-reads disk — no stale resolution.
+    configurable_names_memo: &'a RefCell<BTreeMap<String, BTreeSet<String>>>,
 }
 
 #[derive(Debug, Clone)]
@@ -1613,21 +1624,7 @@ fn derive_sass_module_graph_closure_step_variable_overrides(
     };
     match metadata.edge_kind {
         "sassForward" => {
-            let configurable_names = context
-                .source_by_path
-                .get(target_style_path)
-                .map(|target_source| {
-                    transform::derive_static_scss_module_configurable_variable_names_for_resolution(
-                        target_style_path,
-                        target_source,
-                        context.available_style_paths,
-                        context.source_by_path,
-                        context.package_manifests,
-                        context.bundler_path_mappings,
-                        context.tsconfig_path_mappings,
-                    )
-                })
-                .unwrap_or_default();
+            let configurable_names = memoized_configurable_names(target_style_path, context);
             transform::derive_static_scss_forward_effective_configuration_for_resolution_at_ordinal(
                 style_source,
                 metadata.rule_ordinal,
@@ -1652,21 +1649,7 @@ fn apply_sass_module_graph_closure_step_configuration(
     variable_overrides: BTreeMap<String, String>,
     context: SassModuleGraphClosureContext<'_>,
 ) -> SassModuleGraphClosureStepMetadata {
-    let configurable_names = context
-        .source_by_path
-        .get(target_style_path)
-        .map(|target_source| {
-            transform::derive_static_scss_module_configurable_variable_names_for_resolution(
-                target_style_path,
-                target_source,
-                context.available_style_paths,
-                context.source_by_path,
-                context.package_manifests,
-                context.bundler_path_mappings,
-                context.tsconfig_path_mappings,
-            )
-        })
-        .unwrap_or_default();
+    let configurable_names = memoized_configurable_names(target_style_path, context);
     metadata.invalid_configuration_variable_names = variable_overrides
         .keys()
         .filter(|name| !configurable_names.contains(*name))
@@ -1682,6 +1665,38 @@ fn apply_sass_module_graph_closure_step_configuration(
         ),
     );
     metadata
+}
+
+fn memoized_configurable_names(
+    target_style_path: &str,
+    context: SassModuleGraphClosureContext<'_>,
+) -> BTreeSet<String> {
+    {
+        let cache = context.configurable_names_memo.borrow();
+        if let Some(cached) = cache.get(target_style_path) {
+            return cached.clone();
+        }
+    }
+    let computed = context
+        .source_by_path
+        .get(target_style_path)
+        .map(|target_source| {
+            transform::derive_static_scss_module_configurable_variable_names_for_resolution(
+                target_style_path,
+                target_source,
+                context.available_style_paths,
+                context.source_by_path,
+                context.package_manifests,
+                context.bundler_path_mappings,
+                context.tsconfig_path_mappings,
+            )
+        })
+        .unwrap_or_default();
+    context
+        .configurable_names_memo
+        .borrow_mut()
+        .insert(target_style_path.to_string(), computed.clone());
+    computed
 }
 
 fn summarize_css_modules_cross_file_resolution(
