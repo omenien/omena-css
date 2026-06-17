@@ -1,16 +1,18 @@
 use super::{
     ABSTRACT_VALUE_CASCADE_FAMILY_CLAIM_LEVEL_V0, AbstractClassValueProvenanceNodeV0,
-    AbstractClassValueProvenanceV0, AbstractClassValueV0, AbstractPropertyValueCandidateV0,
-    AbstractPropertyValueV0, CascadeContextV0, CascadeRestrictionMapV0, CascadeValueFamilyMemberV0,
-    ClassValueControlFlowBlockV0, ClassValueControlFlowGraphV0, ClassValueFlowGraphV0,
-    ClassValueFlowNodeV0, ClassValueFlowTransferV0, CompositeClassValueInputV0,
-    ExternalStringTypeFactsV0, KLimitedCallSiteFlowInputV0, Lin01ProvenanceSemiringV0,
-    LinearProvenancePathV0, LinearProvenanceV0, MAX_FINITE_CLASS_VALUES,
-    NaturalCountProvenanceSemiringV0, OneCfaCallSiteFlowInputV0, ProvenanceSemiringV0,
-    SecurityLabelProvenanceSemiringV0, SelectorProjectionCertaintyV0, TropicalProvenanceSemiringV0,
-    ViterbiProvenanceSemiringV0, abstract_class_value_from_facts, abstract_class_value_is_subset,
-    analyze_class_value_control_flow_graph, analyze_class_value_flow,
-    analyze_class_value_flow_incremental, analyze_class_value_flow_incremental_batch_with_reuse,
+    AbstractClassValueProvenanceV0, AbstractClassValueV0, AbstractCssValueV0,
+    AbstractPropertyValueCandidateV0, AbstractPropertyValueV0, CascadeContextV0,
+    CascadeRestrictionMapV0, CascadeValueFamilyMemberV0, ClassValueControlFlowBlockV0,
+    ClassValueControlFlowGraphV0, ClassValueFlowGraphV0, ClassValueFlowNodeV0,
+    ClassValueFlowTransferV0, CompositeClassValueInputV0, ExternalStringTypeFactsV0,
+    KLimitedCallSiteFlowInputV0, Lin01ProvenanceSemiringV0, LinearProvenancePathV0,
+    LinearProvenanceV0, MAX_FINITE_CLASS_VALUES, NaturalCountProvenanceSemiringV0,
+    OneCfaCallSiteFlowInputV0, ProvenanceSemiringV0, SecurityLabelProvenanceSemiringV0,
+    SelectorProjectionCertaintyV0, TropicalProvenanceSemiringV0, ViterbiProvenanceSemiringV0,
+    abstract_class_value_from_facts, abstract_class_value_is_subset, abstract_css_value_from_text,
+    abstract_css_values_canonically_equal, analyze_class_value_control_flow_graph,
+    analyze_class_value_flow, analyze_class_value_flow_incremental,
+    analyze_class_value_flow_incremental_batch_with_reuse,
     analyze_class_value_flow_incremental_with_database,
     analyze_class_value_flow_incremental_with_reuse, analyze_k_limited_call_site_flows,
     analyze_one_cfa_call_site_flows, bottom_class_value, cascade_context_refinement_morphism_v0,
@@ -20,7 +22,7 @@ use super::{
     derive_selector_projection_certainty, evaluate_cascade_stalk_v0, exact_class_value,
     finite_set_class_value, finite_values_from_facts, intersect_abstract_class_values,
     intersect_reduced_class_value_products, iterate_reduced_class_value_product_constraints,
-    join_abstract_class_values, join_reduced_class_value_products,
+    join_abstract_class_values, join_abstract_css_values, join_reduced_class_value_products,
     m4_alpha_provenance_semiring_law_reports_v0, narrow_abstract_property_value_for_cascade_branch,
     narrow_abstract_property_value_for_pseudo_state, prefix_class_value, prefix_suffix_class_value,
     project_abstract_value_selectors, reduce_class_value_product,
@@ -416,6 +418,53 @@ fn narrows_property_values_to_custom_property_reference_annotation_target() {
             property_name: "background".to_string(),
             custom_property_name: "--surface".to_string(),
             pseudo_state: Some("focus".to_string()),
+        }
+    );
+}
+
+#[test]
+fn abstracts_css_values_through_the_region_local_value_lattice() {
+    assert_eq!(
+        abstract_css_value_from_text("0px"),
+        AbstractCssValueV0::Exact {
+            value: "0".to_string(),
+        }
+    );
+    assert!(abstract_css_values_canonically_equal("0px", "0"));
+    assert!(!abstract_css_values_canonically_equal("0%", "0"));
+    assert_eq!(
+        abstract_css_value_from_text("var(--gap)"),
+        AbstractCssValueV0::Raw {
+            value: "var(--gap)".to_string(),
+        }
+    );
+    assert_eq!(
+        join_abstract_css_values(
+            &abstract_css_value_from_text("0px"),
+            &abstract_css_value_from_text("0")
+        ),
+        AbstractCssValueV0::Exact {
+            value: "0".to_string(),
+        }
+    );
+}
+
+#[test]
+fn narrows_property_values_with_canonical_css_value_equality() {
+    let candidates = vec![
+        property_candidate("margin-top", "0px", None),
+        property_candidate("margin-top", "0", None),
+        property_candidate("margin-top", "0%", None),
+    ];
+
+    let narrowed = narrow_abstract_property_value_for_pseudo_state("margin-top", None, &candidates);
+
+    assert_eq!(
+        narrowed.value,
+        AbstractPropertyValueV0::FiniteSet {
+            property_name: "margin-top".to_string(),
+            values: vec!["0".to_string(), "0%".to_string()],
+            pseudo_states: Vec::new(),
         }
     );
 }

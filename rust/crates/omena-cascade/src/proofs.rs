@@ -5,33 +5,31 @@
 //! scope/layer flattening so transform passes can remain proof-driven.
 
 use crate::{
-    BoxLonghandInputV0, LayerFlattenInputV0, LayerFlattenProofV0, ScopeFlattenInputV0,
-    ScopeFlattenProofV0, ShorthandCombinationProofV0, StaticSupportsAssumptionV0,
-    StaticSupportsEvalVerdictV0, StaticSupportsEvalWitnessV0,
+    BoxLonghandInputV0, LayerFlattenInputV0, LayerFlattenProofV0, LonghandMergeInputV0,
+    LonghandMergeProofV0, ScopeFlattenInputV0, ScopeFlattenProofV0, ShorthandCombinationProofV0,
+    StaticSupportsAssumptionV0, StaticSupportsEvalVerdictV0, StaticSupportsEvalWitnessV0,
 };
 
-pub fn prove_box_shorthand_combination(
+pub fn prove_longhand_merge(
     shorthand_property: &str,
-    longhands: &[BoxLonghandInputV0],
-) -> ShorthandCombinationProofV0 {
-    let expected = match box_shorthand_longhands(shorthand_property) {
-        Some(expected) => expected,
-        None => {
-            return shorthand_combination_proof(
-                shorthand_property,
-                false,
-                Some("unsupported shorthand property"),
-                longhands,
-                "",
-            );
-        }
-    };
-
-    if longhands.len() != expected.len() {
+    expected_longhands: &[&str],
+    longhands: &[LonghandMergeInputV0],
+) -> LonghandMergeProofV0 {
+    if expected_longhands.is_empty() {
         return shorthand_combination_proof(
             shorthand_property,
             false,
-            Some("incomplete longhand quartet"),
+            Some("unsupported shorthand property"),
+            longhands,
+            "",
+        );
+    }
+
+    if longhands.len() != expected_longhands.len() {
+        return shorthand_combination_proof(
+            shorthand_property,
+            false,
+            Some("incomplete longhand set"),
             longhands,
             "",
         );
@@ -39,13 +37,13 @@ pub fn prove_box_shorthand_combination(
 
     if longhands
         .iter()
-        .zip(expected.iter())
+        .zip(expected_longhands.iter())
         .any(|(actual, expected)| actual.property != *expected)
     {
         return shorthand_combination_proof(
             shorthand_property,
             false,
-            Some("longhands are not in canonical top/right/bottom/left order"),
+            Some("longhands are not in canonical merge order"),
             longhands,
             "",
         );
@@ -89,8 +87,27 @@ pub fn prove_box_shorthand_combination(
         true,
         None,
         longhands,
-        "all four longhands are adjacent, non-important, and in canonical order",
+        "longhands are adjacent, non-important, and in canonical merge order",
     )
+}
+
+pub fn prove_box_shorthand_combination(
+    shorthand_property: &str,
+    longhands: &[BoxLonghandInputV0],
+) -> ShorthandCombinationProofV0 {
+    let expected = match box_shorthand_longhands(shorthand_property) {
+        Some(expected) => expected,
+        None => {
+            return shorthand_combination_proof(
+                shorthand_property,
+                false,
+                Some("unsupported shorthand property"),
+                longhands,
+                "",
+            );
+        }
+    };
+    prove_longhand_merge(shorthand_property, &expected, longhands)
 }
 
 pub fn evaluate_static_supports_condition(

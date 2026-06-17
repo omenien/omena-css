@@ -7,6 +7,7 @@ use omena_query_transform_runner::{
     resolve_static_css_modules_local_value_resolutions_from_source,
 };
 use omena_syntax::SyntaxKind;
+use omena_value_lattice::canonicalize_css_value;
 use std::collections::{BTreeMap, BTreeSet, VecDeque};
 
 pub(super) fn derive_class_name_rewrites_for_transform_context(
@@ -202,7 +203,12 @@ fn resolve_css_module_value_for_transform_context_inner(
     let local_resolutions =
         resolve_static_css_modules_local_value_resolutions_from_source(source.as_str(), dialect)
             .into_iter()
-            .map(|resolution| (resolution.local_name, resolution.resolved_value))
+            .map(|resolution| {
+                (
+                    resolution.local_name,
+                    canonical_css_module_value_resolution_text(&resolution.resolved_value),
+                )
+            })
             .collect::<BTreeMap<_, _>>();
 
     let imported_resolutions = resolve_css_module_imported_values_for_transform_context(
@@ -219,14 +225,13 @@ fn resolve_css_module_value_for_transform_context_inner(
     }
 
     let local_value = local_resolutions.get(value_name)?;
-    Some(
-        substitute_css_module_value_resolution_references(
-            local_value.as_str(),
-            dialect,
-            &imported_resolutions,
-        )
-        .unwrap_or_else(|| local_value.clone()),
+    let resolved = substitute_css_module_value_resolution_references(
+        local_value.as_str(),
+        dialect,
+        &imported_resolutions,
     )
+    .unwrap_or_else(|| local_value.clone());
+    Some(canonical_css_module_value_resolution_text(&resolved))
 }
 
 fn resolve_css_module_imported_values_for_transform_context(
@@ -299,6 +304,12 @@ fn substitute_css_module_value_resolution_references(
     }
     let (output, mutation_count) = apply_transform_source_replacements(value, replacements);
     (mutation_count > 0).then_some(output)
+}
+
+fn canonical_css_module_value_resolution_text(value: &str) -> String {
+    canonicalize_css_value(value)
+        .map(|value| value.serialized)
+        .unwrap_or_else(|| value.trim().to_string())
 }
 
 fn css_module_composes_closure_for_context(

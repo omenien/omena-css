@@ -1,6 +1,4 @@
-use omena_cascade::{
-    BoxLonghandInputV0, ShorthandCombinationProofV0, prove_box_shorthand_combination,
-};
+use omena_cascade::{LonghandMergeInputV0, LonghandMergeProofV0, prove_longhand_merge};
 use omena_parser::{LexedToken, StyleDialect};
 use omena_syntax::SyntaxKind;
 use omena_value_lattice::{canonicalize_css_value, css_values_canonically_equal};
@@ -45,12 +43,13 @@ use crate::{
 };
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) struct BoxShorthandProofCandidateV0 {
+pub(crate) struct LonghandMergeProofCandidateV0 {
     pub(crate) source_span_start: usize,
     pub(crate) source_span_end: usize,
     pub(crate) shorthand_property: &'static str,
-    pub(crate) longhands: Vec<BoxLonghandInputV0>,
-    pub(crate) proof: ShorthandCombinationProofV0,
+    pub(crate) expected_longhands: Vec<&'static str>,
+    pub(crate) longhands: Vec<LonghandMergeInputV0>,
+    pub(crate) proof: LonghandMergeProofV0,
 }
 
 pub(crate) fn combine_css_shorthands_with_lexer(
@@ -81,10 +80,10 @@ pub(crate) fn combine_css_shorthands_with_lexer(
     (output, ranges.len())
 }
 
-pub(crate) fn collect_box_shorthand_proof_candidates_with_lexer(
+pub(crate) fn collect_longhand_merge_proof_candidates_with_lexer(
     source: &str,
     dialect: StyleDialect,
-) -> Vec<BoxShorthandProofCandidateV0> {
+) -> Vec<LonghandMergeProofCandidateV0> {
     let lexed = lex(source, dialect);
     let tokens = lexed.tokens();
     let mut candidates = Vec::new();
@@ -93,7 +92,7 @@ pub(crate) fn collect_box_shorthand_proof_candidates_with_lexer(
         if tokens[index].kind == SyntaxKind::LeftBrace
             && let Some(close_index) = matching_right_brace_index(tokens, index)
         {
-            candidates.extend(collect_box_shorthand_proof_candidates_in_block(
+            candidates.extend(collect_longhand_merge_proof_candidates_in_block(
                 tokens,
                 index,
                 close_index,
@@ -307,16 +306,17 @@ fn box_shorthand_replacement_for_declarations(
         return None;
     }
 
+    let expected_longhands = box_shorthand_longhands(shorthand_property)?;
     let proof_inputs = declarations
         .iter()
-        .map(|declaration| BoxLonghandInputV0 {
+        .map(|declaration| LonghandMergeInputV0 {
             property: declaration.property.clone(),
             value: declaration.value.clone(),
             important: declaration.important,
             source_order: declaration.source_order,
         })
         .collect::<Vec<_>>();
-    let proof = prove_box_shorthand_combination(shorthand_property, &proof_inputs);
+    let proof = prove_longhand_merge(shorthand_property, &expected_longhands, &proof_inputs);
     if !proof.accepted {
         return None;
     }
@@ -334,11 +334,11 @@ fn box_shorthand_replacement_for_declarations(
     ))
 }
 
-fn collect_box_shorthand_proof_candidates_in_block(
+fn collect_longhand_merge_proof_candidates_in_block(
     tokens: &[LexedToken],
     block_start: usize,
     block_end: usize,
-) -> Vec<BoxShorthandProofCandidateV0> {
+) -> Vec<LonghandMergeProofCandidateV0> {
     let declarations = collect_simple_declarations_in_block(tokens, block_start, block_end);
     let mut candidates = Vec::new();
 
@@ -348,20 +348,24 @@ fn collect_box_shorthand_proof_candidates_in_block(
         else {
             continue;
         };
+        let Some(expected_longhands) = box_shorthand_longhands(shorthand_property) else {
+            continue;
+        };
         let proof_inputs = window
             .iter()
-            .map(|declaration| BoxLonghandInputV0 {
+            .map(|declaration| LonghandMergeInputV0 {
                 property: declaration.property.clone(),
                 value: declaration.value.clone(),
                 important: declaration.important,
                 source_order: declaration.source_order,
             })
             .collect::<Vec<_>>();
-        let proof = prove_box_shorthand_combination(shorthand_property, &proof_inputs);
-        candidates.push(BoxShorthandProofCandidateV0 {
+        let proof = prove_longhand_merge(shorthand_property, &expected_longhands, &proof_inputs);
+        candidates.push(LonghandMergeProofCandidateV0 {
             source_span_start: window.first().map_or(0, |declaration| declaration.start),
             source_span_end: window.last().map_or(0, |declaration| declaration.end),
             shorthand_property,
+            expected_longhands,
             longhands: proof_inputs,
             proof,
         });
@@ -379,6 +383,54 @@ fn box_shorthand_property_for_first_longhand(property: &str) -> Option<&'static 
         "border-top-width" => Some("border-width"),
         "scroll-margin-top" => Some("scroll-margin"),
         "scroll-padding-top" => Some("scroll-padding"),
+        _ => None,
+    }
+}
+
+fn box_shorthand_longhands(shorthand_property: &str) -> Option<Vec<&'static str>> {
+    match shorthand_property {
+        "margin" => Some(vec![
+            "margin-top",
+            "margin-right",
+            "margin-bottom",
+            "margin-left",
+        ]),
+        "padding" => Some(vec![
+            "padding-top",
+            "padding-right",
+            "padding-bottom",
+            "padding-left",
+        ]),
+        "border-color" => Some(vec![
+            "border-top-color",
+            "border-right-color",
+            "border-bottom-color",
+            "border-left-color",
+        ]),
+        "border-style" => Some(vec![
+            "border-top-style",
+            "border-right-style",
+            "border-bottom-style",
+            "border-left-style",
+        ]),
+        "border-width" => Some(vec![
+            "border-top-width",
+            "border-right-width",
+            "border-bottom-width",
+            "border-left-width",
+        ]),
+        "scroll-margin" => Some(vec![
+            "scroll-margin-top",
+            "scroll-margin-right",
+            "scroll-margin-bottom",
+            "scroll-margin-left",
+        ]),
+        "scroll-padding" => Some(vec![
+            "scroll-padding-top",
+            "scroll-padding-right",
+            "scroll-padding-bottom",
+            "scroll-padding-left",
+        ]),
         _ => None,
     }
 }

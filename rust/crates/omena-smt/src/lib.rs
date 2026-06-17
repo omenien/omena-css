@@ -44,7 +44,8 @@ pub use layer_inversion::{
 };
 pub use obligations::{
     smt_evaluate_static_supports_condition_v0, smt_prove_box_shorthand_combination_v0,
-    smt_prove_layer_flatten_candidate_v0, smt_prove_scope_flatten_candidate_v0,
+    smt_prove_layer_flatten_candidate_v0, smt_prove_longhand_merge_v0,
+    smt_prove_scope_flatten_candidate_v0,
 };
 pub use proof::{
     CascadeSMTProofAuditLogV0, CascadeSMTProofV0, SmtVerdictV0, cascade_spec_digest_v0,
@@ -126,6 +127,39 @@ mod tests {
             *blake3::hash(crate::proof::CASCADE_SMT_SPEC_MATERIAL_V0.as_bytes()).as_bytes()
         );
         assert_ne!(digest, *b"omena-cascade-smt-spec-v0-------");
+    }
+
+    #[test]
+    fn default_stub_backend_accepts_generic_longhand_merge_obligation() {
+        let backend = StubSmtBackendV0::default();
+        let proof = smt_prove_longhand_merge_v0(
+            "place-content",
+            &["align-content", "justify-content"],
+            &[
+                BoxLonghandInputV0 {
+                    property: "align-content".to_string(),
+                    value: "center".to_string(),
+                    important: false,
+                    source_order: 1,
+                },
+                BoxLonghandInputV0 {
+                    property: "justify-content".to_string(),
+                    value: "space-between".to_string(),
+                    important: false,
+                    source_order: 2,
+                },
+            ],
+            &backend,
+        );
+
+        assert_eq!(proof.verdict, SmtVerdictV0::Accepted);
+        assert_eq!(proof.canonical_input.l1_primitive, "prove_longhand_merge");
+        assert!(
+            proof
+                .canonical_input
+                .canonical_terms
+                .contains(&"merge-family:place-content".to_string())
+        );
     }
 
     #[test]

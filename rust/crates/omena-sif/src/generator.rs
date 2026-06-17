@@ -1,3 +1,5 @@
+use omena_value_lattice::canonicalize_css_value;
+
 use crate::{
     OmenaSifCallableExportV1, OmenaSifExportsV1, OmenaSifForwardExportV1, OmenaSifGeneratorV1,
     OmenaSifParameterV1, OmenaSifPlaceholderExportV1, OmenaSifSourceSyntaxV1, OmenaSifSourceV1,
@@ -160,7 +162,7 @@ fn parse_static_sass_variable_export(statement: &str) -> Option<OmenaSifVariable
     }
     let raw_value = statement.get(colon_index + 1..)?.trim();
     let defaulted = raw_value.contains("!default");
-    let value_repr = raw_value.replace("!default", "").trim().to_string();
+    let value_repr = canonical_sif_value_repr(raw_value.replace("!default", "").trim());
 
     Some(OmenaSifVariableExportV1 {
         name: name.to_string(),
@@ -171,6 +173,12 @@ fn parse_static_sass_variable_export(statement: &str) -> Option<OmenaSifVariable
             Some(value_repr)
         },
     })
+}
+
+fn canonical_sif_value_repr(value: &str) -> String {
+    canonicalize_css_value(value)
+        .map(|value| value.serialized)
+        .unwrap_or_else(|| value.to_string())
 }
 
 fn parse_static_sass_callable_export(
@@ -279,7 +287,7 @@ fn parse_static_sass_parameters(raw_parameters: &str) -> Vec<OmenaSifParameterV1
                     if default_value.is_empty() {
                         None
                     } else {
-                        Some(default_value.to_string())
+                        Some(canonical_sif_value_repr(default_value))
                     },
                 )
             } else {
@@ -535,6 +543,31 @@ $gap: 1rem;
 
         assert!(json.contains(r#""toolchainId":"omena-sifgen-static@0.1.0""#));
         assert!(json.contains(r#""name":"$brand""#));
+        Ok(())
+    }
+
+    #[test]
+    fn static_generator_canonicalizes_value_representations() -> Result<(), serde_json::Error> {
+        let sif = generate_static_omena_sif_v1(OmenaSifStaticGeneratorInputV1 {
+            canonical_url: "file:///workspace/tokens.scss",
+            source: "$gap: 0px !default; $ratio: 0%; @mixin space($size: 0px, $ratio: 0%) {}",
+            syntax: OmenaSifSourceSyntaxV1::Scss,
+        })?;
+
+        assert_eq!(sif.exports.variables[0].value_repr.as_deref(), Some("0"));
+        assert_eq!(sif.exports.variables[1].value_repr.as_deref(), Some("0%"));
+        assert_eq!(
+            sif.exports.mixins[0].parameters[0]
+                .default_value_repr
+                .as_deref(),
+            Some("0")
+        );
+        assert_eq!(
+            sif.exports.mixins[0].parameters[1]
+                .default_value_repr
+                .as_deref(),
+            Some("0%")
+        );
         Ok(())
     }
 }

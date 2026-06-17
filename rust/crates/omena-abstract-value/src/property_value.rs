@@ -1,8 +1,55 @@
 use std::collections::BTreeSet;
 
+use omena_value_lattice::{canonicalize_css_value, css_values_canonically_equal};
+
 use crate::{
-    AbstractPropertyValueCandidateV0, AbstractPropertyValueNarrowingV0, AbstractPropertyValueV0,
+    AbstractCssValueV0, AbstractPropertyValueCandidateV0, AbstractPropertyValueNarrowingV0,
+    AbstractPropertyValueV0,
 };
+
+pub fn abstract_css_value_from_text(value: &str) -> AbstractCssValueV0 {
+    let value = value.trim();
+    if value.is_empty() {
+        return AbstractCssValueV0::Bottom;
+    }
+    match canonical_css_value_text(value) {
+        Some(value) => AbstractCssValueV0::Exact { value },
+        None => AbstractCssValueV0::Raw {
+            value: value.to_string(),
+        },
+    }
+}
+
+pub fn canonical_css_value_text(value: &str) -> Option<String> {
+    canonicalize_css_value(value).map(|value| value.serialized)
+}
+
+pub fn abstract_css_values_canonically_equal(left: &str, right: &str) -> bool {
+    css_values_canonically_equal(left, right)
+}
+
+pub fn join_abstract_css_values(
+    left: &AbstractCssValueV0,
+    right: &AbstractCssValueV0,
+) -> AbstractCssValueV0 {
+    match (left, right) {
+        (AbstractCssValueV0::Bottom, value) | (value, AbstractCssValueV0::Bottom) => value.clone(),
+        (AbstractCssValueV0::Top, _) | (_, AbstractCssValueV0::Top) => AbstractCssValueV0::Top,
+        (AbstractCssValueV0::Exact { value: left }, AbstractCssValueV0::Exact { value: right })
+            if left == right =>
+        {
+            left_css_value(left)
+        }
+        (AbstractCssValueV0::Raw { value: left }, AbstractCssValueV0::Raw { value: right })
+            if left == right =>
+        {
+            AbstractCssValueV0::Raw {
+                value: left.clone(),
+            }
+        }
+        _ => finite_css_value_set([left, right]),
+    }
+}
 
 pub fn narrow_abstract_property_value_for_pseudo_state(
     property_name: &str,
@@ -97,7 +144,7 @@ fn abstract_property_value_from_matched_candidates(
 
     let mut values = matched
         .iter()
-        .map(|candidate| candidate.value.trim())
+        .map(|candidate| canonical_property_value_text(candidate.value.trim()))
         .filter(|value| !value.is_empty())
         .collect::<BTreeSet<_>>();
     if values.is_empty() {
@@ -107,10 +154,11 @@ fn abstract_property_value_from_matched_candidates(
     }
 
     if values.len() == 1 {
+        let value = values.pop_first().unwrap_or_default();
         return abstract_property_value_from_single_candidate(
             property_name,
             requested_pseudo_state,
-            values.pop_first().unwrap_or_default(),
+            value.as_str(),
         );
     }
 
@@ -124,7 +172,7 @@ fn abstract_property_value_from_matched_candidates(
 
     AbstractPropertyValueV0::FiniteSet {
         property_name: property_name.to_string(),
-        values: values.into_iter().map(str::to_string).collect(),
+        values: values.into_iter().collect(),
         pseudo_states,
     }
 }
@@ -134,18 +182,57 @@ fn abstract_property_value_from_single_candidate(
     requested_pseudo_state: Option<&str>,
     value: &str,
 ) -> AbstractPropertyValueV0 {
-    let value = value.to_string();
-    if let Some(custom_property_name) = referenced_custom_property_name(value.as_str()) {
+    if let Some(custom_property_name) = referenced_custom_property_name(value) {
         return AbstractPropertyValueV0::CustomPropertyReference {
             property_name: property_name.to_string(),
             custom_property_name,
             pseudo_state: requested_pseudo_state.map(str::to_string),
         };
     }
+    let value = canonical_property_value_text(value);
     AbstractPropertyValueV0::Exact {
         property_name: property_name.to_string(),
         value,
         pseudo_state: requested_pseudo_state.map(str::to_string),
+    }
+}
+
+fn canonical_property_value_text(value: &str) -> String {
+    canonical_css_value_text(value).unwrap_or_else(|| value.trim().to_string())
+}
+
+fn left_css_value(value: &str) -> AbstractCssValueV0 {
+    AbstractCssValueV0::Exact {
+        value: value.to_string(),
+    }
+}
+
+fn finite_css_value_set<const N: usize>(values: [&AbstractCssValueV0; N]) -> AbstractCssValueV0 {
+    let values = values
+        .into_iter()
+        .flat_map(flatten_css_value_set)
+        .collect::<BTreeSet<_>>();
+    if values.is_empty() {
+        AbstractCssValueV0::Bottom
+    } else if values.len() == 1 {
+        AbstractCssValueV0::Exact {
+            value: values.into_iter().next().unwrap_or_default(),
+        }
+    } else {
+        AbstractCssValueV0::FiniteSet {
+            values: values.into_iter().collect(),
+        }
+    }
+}
+
+fn flatten_css_value_set(value: &AbstractCssValueV0) -> Vec<String> {
+    match value {
+        AbstractCssValueV0::Bottom => Vec::new(),
+        AbstractCssValueV0::Exact { value } | AbstractCssValueV0::Raw { value } => {
+            vec![value.clone()]
+        }
+        AbstractCssValueV0::FiniteSet { values } => values.clone(),
+        AbstractCssValueV0::Top => vec!["<top>".to_string()],
     }
 }
 

@@ -41,11 +41,11 @@ fn execution_runtime_combines_adjacent_box_longhands_with_cascade_proof() {
                         .as_ref()
                         .is_some_and(|input| {
                             input.product == "omena-smt.canonical-input"
-                                && input.l1_primitive == "prove_box_shorthand_combination"
+                                && input.l1_primitive == "prove_longhand_merge"
                         })
                     && obligation
                         .checked_obligations
-                        .contains(&"canonicalLonghandSet")
+                        .contains(&"canonicalLonghandMergeSet")
             })
     );
     assert!(
@@ -57,7 +57,7 @@ fn execution_runtime_combines_adjacent_box_longhands_with_cascade_proof() {
                 obligation.pass_id == "shorthand-combining"
                     && !obligation.accepted
                     && obligation.blocked_reason.as_deref()
-                        == Some("longhands are not in canonical top/right/bottom/left order")
+                        == Some("longhands are not in canonical merge order")
             })
     );
 }

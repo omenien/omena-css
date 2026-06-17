@@ -2129,6 +2129,7 @@ name = "omena-abstract-value"
 version = "0.2.1"
 dependencies = [
  "omena-incremental",
+ "omena-value-lattice",
  "serde",
 ]
 
@@ -2345,6 +2346,7 @@ dependencies = [
  "omena-semantic",
  "omena-sif",
  "omena-syntax",
+ "omena-value-lattice",
  "salsa",
  "serde",
  "serde_json",
@@ -2439,6 +2441,7 @@ name = "omena-sif"
 version = "0.2.1"
 dependencies = [
  "blake3",
+ "omena-value-lattice",
  "serde",
  "serde_json",
  "sha2 0.11.0",

@@ -1,7 +1,8 @@
 use omena_cascade::{
-    BoxLonghandInputV0, LayerFlattenInputV0, ScopeFlattenInputV0, StaticSupportsAssumptionV0,
-    StaticSupportsEvalVerdictV0, evaluate_static_supports_condition,
-    prove_box_shorthand_combination, prove_layer_flatten_candidate, prove_scope_flatten_candidate,
+    BoxLonghandInputV0, LayerFlattenInputV0, LonghandMergeInputV0, ScopeFlattenInputV0,
+    StaticSupportsAssumptionV0, StaticSupportsEvalVerdictV0, evaluate_static_supports_condition,
+    prove_box_shorthand_combination, prove_layer_flatten_candidate, prove_longhand_merge,
+    prove_scope_flatten_candidate,
 };
 
 use crate::{
@@ -21,6 +22,23 @@ pub fn smt_prove_box_shorthand_combination_v0<B: SmtBackendV0>(
         canonical_input,
         backend,
         "prove_box_shorthand_combination",
+        Some(proof.accepted),
+    )
+}
+
+pub fn smt_prove_longhand_merge_v0<B: SmtBackendV0>(
+    shorthand_property: &str,
+    expected_longhands: &[&str],
+    longhands: &[LonghandMergeInputV0],
+    backend: &B,
+) -> CascadeSMTProofV0 {
+    let proof = prove_longhand_merge(shorthand_property, expected_longhands, longhands);
+    let canonical_input =
+        canonical_longhand_merge_input_v0(shorthand_property, expected_longhands, longhands);
+    cascade_smt_proof_v0(
+        canonical_input,
+        backend,
+        "prove_longhand_merge",
         Some(proof.accepted),
     )
 }
@@ -104,6 +122,42 @@ fn canonical_box_shorthand_combination_input_v0(
                     .windows(2)
                     .all(|pair| pair[1].source_order == pair[0].source_order + 1),
             ),
+        ],
+    )
+}
+
+fn canonical_longhand_merge_input_v0(
+    shorthand_property: &str,
+    expected_longhands: &[&str],
+    longhands: &[LonghandMergeInputV0],
+) -> CanonicalSmtInputV0 {
+    let canonical_order = !expected_longhands.is_empty()
+        && longhands.len() == expected_longhands.len()
+        && longhands
+            .iter()
+            .zip(expected_longhands.iter())
+            .all(|(actual, expected)| actual.property == *expected);
+    canonical_smt_input_v0(
+        "longhand-merge",
+        "prove_longhand_merge",
+        vec![
+            smt_require_term_v0("supported-merge-family", !expected_longhands.is_empty()),
+            smt_require_term_v0("canonical-longhand-order", canonical_order),
+            smt_require_term_v0(
+                "no-important-longhand",
+                longhands.iter().all(|longhand| !longhand.important),
+            ),
+            smt_require_term_v0(
+                "no-empty-longhand-value",
+                longhands.iter().all(|longhand| !longhand.value.is_empty()),
+            ),
+            smt_require_term_v0(
+                "adjacent-source-order",
+                longhands
+                    .windows(2)
+                    .all(|pair| pair[1].source_order == pair[0].source_order + 1),
+            ),
+            format!("merge-family:{shorthand_property}"),
         ],
     )
 }

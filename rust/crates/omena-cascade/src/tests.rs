@@ -373,7 +373,7 @@ fn proves_adjacent_box_longhands_can_combine_to_shorthand() {
     assert!(proof.accepted);
     assert_eq!(proof.blocked_reason, None);
     assert!(proof.provenance_preserved);
-    assert!(proof.cascade_safe_witness.contains("canonical order"));
+    assert!(proof.cascade_safe_witness.contains("canonical merge order"));
 
     let border_proof = prove_box_shorthand_combination(
         "border-color",
@@ -438,6 +438,59 @@ fn proves_adjacent_box_longhands_can_combine_to_shorthand() {
     );
     assert!(scroll_proof.accepted);
     assert!(scroll_proof.provenance_preserved);
+}
+
+#[test]
+fn proves_generic_longhand_merge_with_canonical_order_contract() {
+    let proof = prove_longhand_merge(
+        "place-content",
+        &["align-content", "justify-content"],
+        &[
+            LonghandMergeInputV0 {
+                property: "align-content".to_string(),
+                value: "center".to_string(),
+                important: false,
+                source_order: 10,
+            },
+            LonghandMergeInputV0 {
+                property: "justify-content".to_string(),
+                value: "space-between".to_string(),
+                important: false,
+                source_order: 11,
+            },
+        ],
+    );
+
+    assert!(proof.accepted);
+    assert_eq!(
+        proof.ordered_longhand_properties,
+        vec!["align-content".to_string(), "justify-content".to_string()]
+    );
+
+    let rejected = prove_longhand_merge(
+        "place-content",
+        &["align-content", "justify-content"],
+        &[
+            LonghandMergeInputV0 {
+                property: "justify-content".to_string(),
+                value: "space-between".to_string(),
+                important: false,
+                source_order: 10,
+            },
+            LonghandMergeInputV0 {
+                property: "align-content".to_string(),
+                value: "center".to_string(),
+                important: false,
+                source_order: 11,
+            },
+        ],
+    );
+
+    assert!(!rejected.accepted);
+    assert_eq!(
+        rejected.blocked_reason,
+        Some("longhands are not in canonical merge order")
+    );
 }
 
 #[test]

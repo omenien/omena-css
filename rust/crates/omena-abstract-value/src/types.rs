@@ -275,6 +275,20 @@ pub enum AbstractClassValueV0 {
     rename_all = "camelCase",
     rename_all_fields = "camelCase"
 )]
+pub enum AbstractCssValueV0 {
+    Bottom,
+    Exact { value: String },
+    FiniteSet { values: Vec<String> },
+    Raw { value: String },
+    Top,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(
+    tag = "kind",
+    rename_all = "camelCase",
+    rename_all_fields = "camelCase"
+)]
 pub enum AbstractPropertyValueV0 {
     Bottom {
         property_name: String,

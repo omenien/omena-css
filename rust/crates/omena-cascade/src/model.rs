@@ -498,6 +498,8 @@ pub struct BoxLonghandInputV0 {
     pub source_order: u32,
 }
 
+pub type LonghandMergeInputV0 = BoxLonghandInputV0;
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ShorthandCombinationProofV0 {
@@ -510,6 +512,8 @@ pub struct ShorthandCombinationProofV0 {
     pub provenance_preserved: bool,
     pub cascade_safe_witness: String,
 }
+
+pub type LonghandMergeProofV0 = ShorthandCombinationProofV0;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]

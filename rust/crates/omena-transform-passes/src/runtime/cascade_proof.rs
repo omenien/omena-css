@@ -1,7 +1,7 @@
 use std::collections::BTreeSet;
 
 use omena_cascade::{
-    BoxLonghandInputV0, LayerFlattenInputV0, LayerFlattenProofV0, ScopeFlattenInputV0,
+    LayerFlattenInputV0, LayerFlattenProofV0, LonghandMergeInputV0, ScopeFlattenInputV0,
     ScopeFlattenProofV0, ShorthandCombinationProofV0, StaticSupportsEvalVerdictV0,
     StaticSupportsEvalWitnessV0,
 };
@@ -10,7 +10,7 @@ use omena_smt::{
     CanonicalSmtInputV0, LayerFlattenInversionVerdictV0, LayerInversionDeclarationV0,
     SmtBackendSatResultV0, SmtBackendV0, SmtVerdictV0, StubSmtBackendV0, canonical_smt_input_v0,
     smt_check_layer_flatten_inversion_v0, smt_evaluate_static_supports_condition_v0,
-    smt_prove_box_shorthand_combination_v0, smt_prove_layer_flatten_candidate_v0,
+    smt_prove_layer_flatten_candidate_v0, smt_prove_longhand_merge_v0,
     smt_prove_scope_flatten_candidate_v0,
 };
 use omena_transform_cst::TransformPassKind;
@@ -24,7 +24,7 @@ use crate::{
             collect_layer_inversion_declarations_with_lexer,
             collect_scope_flatten_proof_candidates_with_lexer,
         },
-        shorthand::collect_box_shorthand_proof_candidates_with_lexer,
+        shorthand::collect_longhand_merge_proof_candidates_with_lexer,
         static_eval::collect_static_supports_proof_candidates_with_lexer,
     },
     model::{
@@ -42,7 +42,7 @@ pub(crate) fn collect_cascade_proof_obligations_for_pass_input(
 ) -> Vec<TransformCascadeProofObligationV0> {
     match pass {
         Some(TransformPassKind::ShorthandCombining) => {
-            collect_box_shorthand_proof_candidates_with_lexer(source, dialect)
+            collect_longhand_merge_proof_candidates_with_lexer(source, dialect)
                 .into_iter()
                 .map(|candidate| {
                     shorthand_obligation(
@@ -50,6 +50,7 @@ pub(crate) fn collect_cascade_proof_obligations_for_pass_input(
                         candidate.source_span_start,
                         candidate.source_span_end,
                         candidate.shorthand_property,
+                        &candidate.expected_longhands,
                         &candidate.longhands,
                         candidate.proof,
                     )
@@ -197,11 +198,13 @@ fn shorthand_obligation(
     source_span_start: usize,
     source_span_end: usize,
     shorthand_property: &str,
-    longhands: &[BoxLonghandInputV0],
+    expected_longhands: &[&str],
+    longhands: &[LonghandMergeInputV0],
     proof: ShorthandCombinationProofV0,
 ) -> TransformCascadeProofObligationV0 {
-    let smt_proof = smt_prove_box_shorthand_combination_v0(
+    let smt_proof = smt_prove_longhand_merge_v0(
         shorthand_property,
+        expected_longhands,
         longhands,
         &StubSmtBackendV0::default(),
     );
@@ -221,7 +224,7 @@ fn shorthand_obligation(
         Some(source_span_start),
         Some(source_span_end),
         vec![
-            "canonicalLonghandSet",
+            "canonicalLonghandMergeSet",
             "adjacentSourceOrder",
             "nonImportantDeclarations",
             "provenancePreservation",

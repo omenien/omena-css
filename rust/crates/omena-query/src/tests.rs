@@ -2869,6 +2869,34 @@ fn consumer_build_resolves_cross_file_css_modules_values_through_query_context()
 }
 
 #[test]
+fn consumer_build_resolves_css_modules_values_through_canonical_value_lattice()
+-> Result<(), Box<dyn std::error::Error>> {
+    let summary = execute_omena_query_consumer_build_style_sources(
+        "/tmp/App.module.css",
+        &[
+            OmenaQueryStyleSourceInputV0 {
+                style_path: "/tmp/tokens.module.css".to_string(),
+                style_source: "@value gap: 0px; @value ratio: 0%;".to_string(),
+            },
+            OmenaQueryStyleSourceInputV0 {
+                style_path: "/tmp/App.module.css".to_string(),
+                style_source:
+                    r#"@value gap, ratio from "./tokens.module.css"; .btn { margin: gap; padding: ratio; }"#
+                        .to_string(),
+            },
+        ],
+        &["value-resolution".to_string(), "print-css".to_string()],
+        &[],
+    )?;
+
+    assert_eq!(
+        summary.execution.output_css,
+        r#" .btn { margin: 0; padding: 0%; }"#
+    );
+    Ok(())
+}
+
+#[test]
 fn consumer_build_resolves_css_modules_values_through_tsconfig_aliases()
 -> Result<(), Box<dyn std::error::Error>> {
     let resolution_inputs = OmenaQueryStyleResolutionInputsV0 {

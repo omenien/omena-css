@@ -20,4 +20,5 @@ default = []
 
 [dependencies]
 omena-incremental = { path = "../omena-incremental", version = "=0.2.1" }
+omena-value-lattice = { path = "../omena-value-lattice", version = "=0.2.1" }
 serde.workspace = true
