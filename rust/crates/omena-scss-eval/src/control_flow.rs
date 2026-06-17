@@ -1528,13 +1528,30 @@ fn parse_static_for_loop_range(header: &str) -> Option<AbstractCssValueV0> {
     let to_index = parts
         .iter()
         .position(|part| part.eq_ignore_ascii_case("to") || part.eq_ignore_ascii_case("through"))?;
+    let includes_end = parts[to_index].eq_ignore_ascii_case("through");
     let start = parts.get(from_index + 1)?.parse::<i32>().ok()?;
     let end = parts.get(to_index + 1)?.parse::<i32>().ok()?;
-    if start > end || end.saturating_sub(start) > 64 {
+    if start > end {
         return Some(AbstractCssValueV0::Top);
     }
+    let value_count = if includes_end {
+        i64::from(end) - i64::from(start) + 1
+    } else {
+        i64::from(end) - i64::from(start)
+    };
+    if !(0..=64).contains(&value_count) {
+        return Some(AbstractCssValueV0::Top);
+    }
+    if value_count == 0 {
+        return Some(AbstractCssValueV0::Bottom);
+    }
+    let last = if includes_end {
+        end
+    } else {
+        end.saturating_sub(1)
+    };
     Some(
-        (start..=end).fold(AbstractCssValueV0::Bottom, |acc, value| {
+        (start..=last).fold(AbstractCssValueV0::Bottom, |acc, value| {
             let value = abstract_css_value_from_text(value.to_string().as_str());
             join_abstract_css_values(&acc, &value)
         }),
@@ -2029,6 +2046,25 @@ mod tests {
             "finiteSet"
         );
         assert_eq!(report.blocks[0].output_value_kind, "finiteSet");
+    }
+
+    #[test]
+    fn control_flow_value_analysis_models_for_to_as_end_exclusive() {
+        let source = "@for $i from 1 to 3 { .n { order: $i; } }";
+        let report = analyze_scss_control_flow_values(source, StyleDialect::Scss);
+        assert!(report.is_some());
+        let Some(report) = report else {
+            return;
+        };
+
+        assert_eq!(report.block_count, 1);
+        assert_eq!(report.blocks[0].loop_carried_bindings, vec!["$i"]);
+        assert_eq!(
+            report.blocks[0].loop_carried_binding_values[0].value,
+            AbstractCssValueV0::FiniteSet {
+                values: vec!["1".to_string(), "2".to_string()]
+            }
+        );
     }
 
     #[test]
