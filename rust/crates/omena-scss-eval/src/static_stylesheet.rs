@@ -2285,6 +2285,9 @@ fn reduce_static_numeric_value(value: String) -> String {
     ) {
         return reduced;
     }
+    if let Some(reduced) = reduce_static_numeric_expression(trimmed) {
+        return reduced;
+    }
     let Some(inner) = trimmed
         .strip_prefix('(')
         .and_then(|without_left| without_left.strip_suffix(')'))
@@ -2740,6 +2743,27 @@ mod tests {
     }
 
     #[test]
+    fn static_scss_evaluation_reduces_bare_numeric_expressions() {
+        let report = derive_static_stylesheet_module_evaluation(
+            "$gap: 1px + 2px; .button { margin: $gap; }",
+            StyleDialect::Scss,
+        );
+        assert!(report.is_some());
+        let Some(report) = report else {
+            return;
+        };
+
+        assert_eq!(report.resolved_replacements[0].text, "3px");
+        assert_eq!(report.resolved_replacements[0].abstract_value_kind, "exact");
+        assert_eq!(
+            report.value_resolution.values[0].rendered_value.as_deref(),
+            Some("3px")
+        );
+        assert!(report.evaluated_css.contains("margin: 3px"));
+        assert!(report.oracle.all_legacy_declaration_values_preserved);
+    }
+
+    #[test]
     fn static_scss_evaluation_reduces_static_calc_values() {
         let report = derive_static_stylesheet_module_evaluation(
             "$gap: calc(1px + 2px); .button { margin: $gap; }",
@@ -2857,6 +2881,28 @@ mod tests {
     fn static_scss_evaluation_reduces_function_numeric_returns() {
         let report = derive_static_stylesheet_module_evaluation(
             "@function double($value) { @return ($value + $value); } .button { margin: double(2px); }",
+            StyleDialect::Scss,
+        );
+        assert!(report.is_some());
+        let Some(report) = report else {
+            return;
+        };
+
+        assert_eq!(report.replacement_count, 1);
+        assert_eq!(report.resolved_replacements[0].name, "function:double");
+        assert_eq!(report.resolved_replacements[0].text, "4px");
+        assert_eq!(report.resolved_replacements[0].abstract_value_kind, "exact");
+        assert!(report.evaluated_css.contains(".button { margin: 4px; }"));
+        assert_eq!(
+            report.value_resolution.values[0].rendered_value.as_deref(),
+            Some("4px")
+        );
+    }
+
+    #[test]
+    fn static_scss_evaluation_reduces_function_bare_numeric_returns() {
+        let report = derive_static_stylesheet_module_evaluation(
+            "@function double($value) { @return $value * 2; } .button { margin: double(2px); }",
             StyleDialect::Scss,
         );
         assert!(report.is_some());
