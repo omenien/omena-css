@@ -3001,6 +3001,37 @@ mod tests {
     }
 
     #[test]
+    fn static_scss_evaluation_reduces_static_if_boolean_conditions() {
+        let and_report = derive_static_stylesheet_module_evaluation(
+            "$gap: if(false and true, 1px, 2px); .button { margin: $gap; }",
+            StyleDialect::Scss,
+        );
+        assert!(and_report.is_some());
+        let Some(and_report) = and_report else {
+            return;
+        };
+        assert_eq!(and_report.resolved_replacements[0].text, "2px");
+        assert!(
+            and_report
+                .evaluated_css
+                .contains(".button { margin: 2px; }")
+        );
+        assert!(and_report.oracle.all_legacy_declaration_values_preserved);
+
+        let or_report = derive_static_stylesheet_module_evaluation(
+            "$gap: if(false or true, 1px, 2px); .button { margin: $gap; }",
+            StyleDialect::Scss,
+        );
+        assert!(or_report.is_some());
+        let Some(or_report) = or_report else {
+            return;
+        };
+        assert_eq!(or_report.resolved_replacements[0].text, "1px");
+        assert!(or_report.evaluated_css.contains(".button { margin: 1px; }"));
+        assert!(or_report.oracle.all_legacy_declaration_values_preserved);
+    }
+
+    #[test]
     fn static_less_evaluation_reduces_numeric_builtin_values() {
         let report = derive_static_stylesheet_module_evaluation(
             "@gap: max(1px, 2px); .button { margin: @gap; }",
@@ -3229,6 +3260,25 @@ mod tests {
     fn static_scss_evaluation_reduces_function_if_not_returns() {
         let report = derive_static_stylesheet_module_evaluation(
             "@function choose($condition) { @return if(not $condition, 1px, 2px); } .button { margin: choose(true); }",
+            StyleDialect::Scss,
+        );
+        assert!(report.is_some());
+        let Some(report) = report else {
+            return;
+        };
+
+        assert_eq!(report.replacement_count, 1);
+        assert_eq!(report.resolved_replacements[0].name, "function:choose");
+        assert_eq!(report.resolved_replacements[0].text, "2px");
+        assert_eq!(report.resolved_replacements[0].abstract_value_kind, "exact");
+        assert!(report.evaluated_css.contains(".button { margin: 2px; }"));
+        assert!(report.oracle.all_legacy_declaration_values_preserved);
+    }
+
+    #[test]
+    fn static_scss_evaluation_reduces_function_boolean_returns() {
+        let report = derive_static_stylesheet_module_evaluation(
+            "@function choose($condition) { @return if($condition and false, 1px, 2px); } .button { margin: choose(true); }",
             StyleDialect::Scss,
         );
         assert!(report.is_some());
