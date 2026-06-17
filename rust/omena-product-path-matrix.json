@@ -306,6 +306,18 @@
       "evidence": ["rust/crates/omena-syntax/src/lib.rs", "rust/crates/omena-parser/Cargo.toml"]
     },
     {
+      "crate": "omena-value-lattice",
+      "role": "R1",
+      "surface": "product-runtime",
+      "entrypoints": [
+        "region-local CSS value lens and canonicalizer consumed by transform/query/SIF paths"
+      ],
+      "evidence": [
+        "rust/crates/omena-value-lattice/src/lib.rs",
+        "rust/crates/omena-query-core/Cargo.toml"
+      ]
+    },
+    {
       "crate": "omena-testkit",
       "role": "S",
       "surface": "check-evidence",

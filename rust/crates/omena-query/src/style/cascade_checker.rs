@@ -28,10 +28,10 @@ use omena_query_core::{
     AbstractClassValueV0, AbstractPropertyValueCandidateV0,
     iterate_reduced_class_value_product_constraints,
     narrow_abstract_property_value_for_cascade_branch, prefix_suffix_class_value,
+    split_top_level_value_arguments as split_lattice_top_level_value_arguments,
 };
 use omena_query_transform_runner::expand_css_nested_selector;
 use omena_syntax::SyntaxKind;
-use omena_value_lattice::split_top_level_value_arguments as split_lattice_top_level_value_arguments;
 
 use super::{
     OmenaQueryCascadeConfidenceV0, OmenaQueryCascadeNarrowingEvidenceV0,

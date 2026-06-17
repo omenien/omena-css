@@ -61,6 +61,10 @@ use omena_resolver::{
     summarize_omena_resolver_canonical_producer_signal, summarize_omena_resolver_query_fragments,
     summarize_omena_resolver_source_resolution_runtime,
 };
+pub use omena_value_lattice::{
+    canonicalize_css_value, split_top_level_value_arguments,
+    split_top_level_whitespace_value_components,
+};
 use serde::Serialize;
 
 pub const OMENA_QUERY_CURRENT_SCHEMA_VERSION: &str = "0";

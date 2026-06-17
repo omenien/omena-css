@@ -2346,7 +2346,6 @@ dependencies = [
  "omena-semantic",
  "omena-sif",
  "omena-syntax",
- "omena-value-lattice",
  "salsa",
  "serde",
  "serde_json",
@@ -2372,6 +2371,7 @@ dependencies = [
  "omena-incremental",
  "omena-refinement",
  "omena-resolver",
+ "omena-value-lattice",
  "serde",
 ]
 
