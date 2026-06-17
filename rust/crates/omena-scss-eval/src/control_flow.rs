@@ -1500,6 +1500,9 @@ fn loop_carried_binding_values(
     header: &str,
     lexical_bindings: &BTreeMap<String, AbstractCssValueV0>,
 ) -> Vec<ScssControlFlowBindingValue> {
+    if let Some(values) = static_each_map_loop_binding_values(header, lexical_bindings) {
+        return values;
+    }
     let value = loop_carried_value(header, lexical_bindings);
     loop_carried_bindings(header)
         .into_iter()
@@ -1508,6 +1511,46 @@ fn loop_carried_binding_values(
             value: value.clone(),
         })
         .collect()
+}
+
+fn static_each_map_loop_binding_values(
+    header: &str,
+    lexical_bindings: &BTreeMap<String, AbstractCssValueV0>,
+) -> Option<Vec<ScssControlFlowBindingValue>> {
+    let bindings = loop_carried_bindings(header);
+    if bindings.len() != 2 {
+        return None;
+    }
+    let (_, source) = split_header_at_keyword(header, "in")?;
+    let source = static_each_source_text(source.trim(), lexical_bindings)?;
+    let entries = parse_static_each_map_entries(source)?;
+    if entries.len() > 64 {
+        return None;
+    }
+
+    let key_value = entries
+        .iter()
+        .map(|(key, _)| abstract_css_value_from_text(key.as_str()))
+        .fold(AbstractCssValueV0::Bottom, |acc, value| {
+            join_abstract_css_values(&acc, &value)
+        });
+    let item_value = entries
+        .iter()
+        .map(|(_, value)| abstract_css_value_from_text(value.as_str()))
+        .fold(AbstractCssValueV0::Bottom, |acc, value| {
+            join_abstract_css_values(&acc, &value)
+        });
+
+    Some(vec![
+        ScssControlFlowBindingValue {
+            name: bindings[0].clone(),
+            value: key_value,
+        },
+        ScssControlFlowBindingValue {
+            name: bindings[1].clone(),
+            value: item_value,
+        },
+    ])
 }
 
 fn while_loop_carried_binding_values(header: &str) -> Vec<ScssControlFlowBindingValue> {
@@ -1617,6 +1660,141 @@ fn parse_static_each_loop_source_value(
     )
 }
 
+fn static_each_source_text<'a>(
+    source: &'a str,
+    lexical_bindings: &'a BTreeMap<String, AbstractCssValueV0>,
+) -> Option<&'a str> {
+    if source.starts_with('$') && variable_name_end(source, '$'.len_utf8()) == source.len() {
+        return lexical_bindings
+            .get(source)
+            .and_then(single_static_scss_header_value_text);
+    }
+    Some(source)
+}
+
+fn parse_static_each_map_entries(source: &str) -> Option<Vec<(String, String)>> {
+    let inner = source
+        .strip_prefix('(')
+        .and_then(|source| source.strip_suffix(')'))?
+        .trim();
+    if inner.is_empty() {
+        return None;
+    }
+    let entries = split_static_scss_top_level(inner, ',')?;
+    if entries.len() <= 1 {
+        return None;
+    }
+
+    let mut pairs = Vec::with_capacity(entries.len());
+    for entry in entries {
+        let (key, value) = split_static_scss_key_value(entry.as_str())?;
+        pairs.push((key.to_string(), value.to_string()));
+    }
+    Some(pairs)
+}
+
+fn split_static_scss_key_value(entry: &str) -> Option<(&str, &str)> {
+    let colon_index = static_scss_top_level_separator_index(entry, ':')??;
+    let key = entry.get(..colon_index)?.trim();
+    let value = entry.get(colon_index + ':'.len_utf8()..)?.trim();
+    if key.is_empty() || value.is_empty() || key.contains('$') || value.contains('$') {
+        return None;
+    }
+    Some((key, value))
+}
+
+fn split_static_scss_top_level(source: &str, separator: char) -> Option<Vec<String>> {
+    let mut values = Vec::new();
+    let mut cursor = 0usize;
+    let mut index = 0usize;
+    while index < source.len() {
+        let ch = source[index..].chars().next()?;
+        if ch == separator {
+            let value = source.get(cursor..index)?.trim();
+            if value.is_empty() {
+                return None;
+            }
+            values.push(value.to_string());
+            cursor = index + ch.len_utf8();
+        }
+        index = static_scss_next_value_index(source, index)?;
+    }
+    let value = source.get(cursor..)?.trim();
+    if value.is_empty() {
+        return None;
+    }
+    values.push(value.to_string());
+    Some(values)
+}
+
+fn static_scss_top_level_separator_index(source: &str, separator: char) -> Option<Option<usize>> {
+    let mut index = 0usize;
+    while index < source.len() {
+        let ch = source[index..].chars().next()?;
+        if ch == separator {
+            return Some(Some(index));
+        }
+        index = static_scss_next_value_index(source, index)?;
+    }
+    Some(None)
+}
+
+fn static_scss_next_value_index(source: &str, index: usize) -> Option<usize> {
+    let ch = source[index..].chars().next()?;
+    match ch {
+        '"' | '\'' => static_scss_quoted_value_end(source, index, ch),
+        '(' => static_scss_balanced_value_end(source, index, '(', ')'),
+        '[' => static_scss_balanced_value_end(source, index, '[', ']'),
+        ')' | ']' => None,
+        _ => Some(index + ch.len_utf8()),
+    }
+}
+
+fn static_scss_quoted_value_end(source: &str, start: usize, quote: char) -> Option<usize> {
+    let mut index = start + quote.len_utf8();
+    while index < source.len() {
+        let ch = source[index..].chars().next()?;
+        index += ch.len_utf8();
+        if ch == '\\' {
+            if let Some(escaped) = source[index..].chars().next() {
+                index += escaped.len_utf8();
+            }
+        } else if ch == quote {
+            return Some(index);
+        }
+    }
+    None
+}
+
+fn static_scss_balanced_value_end(
+    source: &str,
+    start: usize,
+    open: char,
+    close: char,
+) -> Option<usize> {
+    let mut depth = 0usize;
+    let mut index = start;
+    while index < source.len() {
+        let ch = source[index..].chars().next()?;
+        match ch {
+            '"' | '\'' => {
+                index = static_scss_quoted_value_end(source, index, ch)?;
+                continue;
+            }
+            _ if ch == open => depth += 1,
+            _ if ch == close => {
+                depth = depth.checked_sub(1)?;
+                if depth == 0 {
+                    return Some(index + ch.len_utf8());
+                }
+            }
+            _ => {}
+        }
+        index += ch.len_utf8();
+    }
+    None
+}
+
 fn loop_carried_bindings(header: &str) -> Vec<String> {
     let separator = if header
         .split_whitespace()
@@ -1629,7 +1807,7 @@ fn loop_carried_bindings(header: &str) -> Vec<String> {
     let before_separator = split_header_at_keyword(header, separator)
         .map(|(left, _)| left)
         .unwrap_or(header);
-    variable_names_in_text(before_separator)
+    variable_names_in_text_preserving_order(before_separator)
 }
 
 fn split_header_at_keyword<'a>(header: &'a str, keyword: &str) -> Option<(&'a str, &'a str)> {
@@ -1667,6 +1845,13 @@ fn header_keyword_has_boundaries(header: &str, start: usize, end: usize) -> bool
 }
 
 fn variable_names_in_text(text: &str) -> Vec<String> {
+    let mut names = variable_names_in_text_preserving_order(text);
+    names.sort();
+    names.dedup();
+    names
+}
+
+fn variable_names_in_text_preserving_order(text: &str) -> Vec<String> {
     let mut names = Vec::new();
     let mut index = 0usize;
     while index < text.len() {
@@ -1679,13 +1864,14 @@ fn variable_names_in_text(text: &str) -> Vec<String> {
         }
         let name_start = index + ch.len_utf8();
         let name_end = variable_name_end(text, name_start);
-        if name_end > name_start {
-            names.push(text[index..name_end].to_string());
+        if name_end > name_start
+            && let Some(name) = text.get(index..name_end)
+            && !names.iter().any(|candidate| candidate == name)
+        {
+            names.push(name.to_string());
         }
         index = name_end.max(index + ch.len_utf8());
     }
-    names.sort();
-    names.dedup();
     names
 }
 
@@ -2062,6 +2248,71 @@ mod tests {
             "finiteSet"
         );
         assert_eq!(report.blocks[0].output_value_kind, "finiteSet");
+    }
+
+    #[test]
+    fn control_flow_value_analysis_tracks_static_each_map_pair_values() {
+        let source = "@each $name, $color in (primary: red, secondary: blue) { .#{$name} { color: $color; } }";
+        let report = analyze_scss_control_flow_values(source, StyleDialect::Scss);
+        assert!(report.is_some());
+        let Some(report) = report else {
+            return;
+        };
+
+        assert_eq!(report.block_count, 1);
+        assert_eq!(
+            report.blocks[0].loop_carried_bindings,
+            vec!["$name", "$color"]
+        );
+        assert_eq!(report.blocks[0].loop_carried_binding_values.len(), 2);
+        assert_eq!(
+            report.blocks[0].loop_carried_binding_values[0].name,
+            "$name"
+        );
+        assert_eq!(
+            report.blocks[0].loop_carried_binding_values[0].value,
+            AbstractCssValueV0::FiniteSet {
+                values: vec!["primary".to_string(), "secondary".to_string()]
+            }
+        );
+        assert_eq!(
+            report.blocks[0].loop_carried_binding_values[1].name,
+            "$color"
+        );
+        assert_eq!(
+            report.blocks[0].loop_carried_binding_values[1].value,
+            AbstractCssValueV0::FiniteSet {
+                values: vec!["#00f".to_string(), "red".to_string()]
+            }
+        );
+    }
+
+    #[test]
+    fn control_flow_value_analysis_tracks_static_each_map_variable_pair_values() {
+        let source = "$tones: (primary: red, secondary: blue); @each $name, $color in $tones { .#{$name} { color: $color; } }";
+        let report = analyze_scss_control_flow_values(source, StyleDialect::Scss);
+        assert!(report.is_some());
+        let Some(report) = report else {
+            return;
+        };
+
+        assert_eq!(report.block_count, 1);
+        assert_eq!(
+            report.blocks[0].loop_carried_bindings,
+            vec!["$name", "$color"]
+        );
+        assert_eq!(
+            report.blocks[0].loop_carried_binding_values[0].value,
+            AbstractCssValueV0::FiniteSet {
+                values: vec!["primary".to_string(), "secondary".to_string()]
+            }
+        );
+        assert_eq!(
+            report.blocks[0].loop_carried_binding_values[1].value,
+            AbstractCssValueV0::FiniteSet {
+                values: vec!["#00f".to_string(), "red".to_string()]
+            }
+        );
     }
 
     #[test]
