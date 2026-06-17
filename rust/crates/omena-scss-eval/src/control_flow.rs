@@ -113,6 +113,12 @@ pub struct OmenaScssEvalCallReturnIrSummaryV0 {
     pub raw_return_value_count: usize,
     pub top_return_value_count: usize,
     pub bottom_return_value_count: usize,
+    pub call_argument_value_count: usize,
+    pub exact_call_argument_value_count: usize,
+    pub finite_set_call_argument_value_count: usize,
+    pub raw_call_argument_value_count: usize,
+    pub top_call_argument_value_count: usize,
+    pub bottom_call_argument_value_count: usize,
     pub edge_count: usize,
     pub recursive_edge_count: usize,
     pub capped_recursive_call_count: usize,
@@ -130,12 +136,21 @@ pub struct OmenaScssEvalCallReturnNodeV0 {
     pub role: &'static str,
     pub name: Option<String>,
     pub namespace: Option<String>,
+    pub argument_values: Vec<OmenaScssEvalCallArgumentValueV0>,
     pub return_text: Option<String>,
     pub return_value: Option<AbstractCssValueV0>,
     pub return_value_kind: Option<&'static str>,
     pub source_span_start: usize,
     pub source_span_end: usize,
     pub containing_declaration_node_key: Option<StableNodeKeyV0>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct OmenaScssEvalCallArgumentValueV0 {
+    pub text: String,
+    pub value: AbstractCssValueV0,
+    pub value_kind: &'static str,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -199,7 +214,7 @@ pub fn summarize_scss_call_return_ir(
     let mut candidates = facts
         .sass_symbols
         .iter()
-        .filter_map(call_return_candidate_from_sass_symbol)
+        .filter_map(|symbol| call_return_candidate_from_sass_symbol(source, lexed.tokens(), symbol))
         .chain(collect_scss_return_candidates(source, lexed.tokens()))
         .collect::<Vec<_>>();
     candidates.sort_by(|left, right| {
@@ -258,6 +273,31 @@ pub fn summarize_scss_call_return_ir(
         .iter()
         .filter(|node| matches!(node.return_value, Some(AbstractCssValueV0::Bottom)))
         .count();
+    let call_argument_values = nodes
+        .iter()
+        .flat_map(|node| node.argument_values.iter())
+        .collect::<Vec<_>>();
+    let call_argument_value_count = call_argument_values.len();
+    let exact_call_argument_value_count = call_argument_values
+        .iter()
+        .filter(|argument| matches!(&argument.value, AbstractCssValueV0::Exact { .. }))
+        .count();
+    let finite_set_call_argument_value_count = call_argument_values
+        .iter()
+        .filter(|argument| matches!(&argument.value, AbstractCssValueV0::FiniteSet { .. }))
+        .count();
+    let raw_call_argument_value_count = call_argument_values
+        .iter()
+        .filter(|argument| matches!(&argument.value, AbstractCssValueV0::Raw { .. }))
+        .count();
+    let top_call_argument_value_count = call_argument_values
+        .iter()
+        .filter(|argument| matches!(&argument.value, AbstractCssValueV0::Top))
+        .count();
+    let bottom_call_argument_value_count = call_argument_values
+        .iter()
+        .filter(|argument| matches!(&argument.value, AbstractCssValueV0::Bottom))
+        .count();
     let recursive_edge_count = edges.iter().filter(|edge| edge.recursive).count();
     let capped_recursive_call_count = edges
         .iter()
@@ -284,6 +324,12 @@ pub fn summarize_scss_call_return_ir(
         raw_return_value_count,
         top_return_value_count,
         bottom_return_value_count,
+        call_argument_value_count,
+        exact_call_argument_value_count,
+        finite_set_call_argument_value_count,
+        raw_call_argument_value_count,
+        top_call_argument_value_count,
+        bottom_call_argument_value_count,
         edge_count: edges.len(),
         recursive_edge_count,
         capped_recursive_call_count,
@@ -374,6 +420,7 @@ struct ScssCallReturnCandidate {
     role: &'static str,
     name: Option<String>,
     namespace: Option<String>,
+    argument_values: Vec<OmenaScssEvalCallArgumentValueV0>,
     return_text: Option<String>,
     return_value: Option<AbstractCssValueV0>,
     source_span_start: usize,
@@ -381,6 +428,8 @@ struct ScssCallReturnCandidate {
 }
 
 fn call_return_candidate_from_sass_symbol(
+    source: &str,
+    tokens: &[LexedToken],
     symbol: &ParsedSassSymbolFact,
 ) -> Option<ScssCallReturnCandidate> {
     let (kind, symbol_kind, role) = match symbol.kind {
@@ -399,6 +448,7 @@ fn call_return_candidate_from_sass_symbol(
         role,
         name: Some(symbol.name.clone()),
         namespace: symbol.namespace.clone(),
+        argument_values: scss_call_argument_values_from_symbol(source, tokens, symbol),
         return_text: None,
         return_value: None,
         source_span_start: symbol.range.start().into(),
@@ -427,6 +477,7 @@ fn collect_scss_return_candidates(
                 role: "return",
                 name: None,
                 namespace: None,
+                argument_values: Vec::new(),
                 return_text,
                 return_value,
                 source_span_start: token.range.start().into(),
@@ -468,6 +519,209 @@ fn static_scss_return_abstract_value(value: &str) -> AbstractCssValueV0 {
     abstract_css_value_from_text(reduce_static_numeric_value(value.to_string()).as_str())
 }
 
+fn scss_call_argument_values_from_symbol(
+    source: &str,
+    tokens: &[LexedToken],
+    symbol: &ParsedSassSymbolFact,
+) -> Vec<OmenaScssEvalCallArgumentValueV0> {
+    if !matches!(
+        symbol.kind,
+        ParsedSassSymbolFactKind::FunctionCall | ParsedSassSymbolFactKind::MixinInclude
+    ) {
+        return Vec::new();
+    }
+    let Some(arguments) = scss_call_argument_texts_from_symbol(source, tokens, symbol) else {
+        return Vec::new();
+    };
+    arguments
+        .into_iter()
+        .map(|text| {
+            let value = static_scss_argument_abstract_value(text.as_str());
+            OmenaScssEvalCallArgumentValueV0 {
+                value_kind: abstract_css_value_kind(&value),
+                text,
+                value,
+            }
+        })
+        .collect()
+}
+
+fn scss_call_argument_texts_from_symbol(
+    source: &str,
+    tokens: &[LexedToken],
+    symbol: &ParsedSassSymbolFact,
+) -> Option<Vec<String>> {
+    let token_index = token_index_for_symbol_range(tokens, symbol)?;
+    match symbol.kind {
+        ParsedSassSymbolFactKind::FunctionCall => {
+            let left_paren_index = next_non_trivia_token_index(tokens, token_index + 1)?;
+            if tokens.get(left_paren_index)?.kind != SyntaxKind::LeftParen {
+                return None;
+            }
+            let right_paren_index = matching_right_paren_token_index(tokens, left_paren_index)?;
+            split_scss_call_arguments(source.get(
+                token_range_end(&tokens[left_paren_index])
+                    ..token_range_start(&tokens[right_paren_index]),
+            )?)
+        }
+        ParsedSassSymbolFactKind::MixinInclude => {
+            let next_index = next_non_trivia_token_index(tokens, token_index + 1)?;
+            if tokens.get(next_index)?.kind == SyntaxKind::LeftParen {
+                let right_paren_index = matching_right_paren_token_index(tokens, next_index)?;
+                return split_scss_call_arguments(source.get(
+                    token_range_end(&tokens[next_index])
+                        ..token_range_start(&tokens[right_paren_index]),
+                )?);
+            }
+            let argument_start = token_range_end(&tokens[token_index]);
+            let argument_end = tokens
+                .iter()
+                .skip(token_index + 1)
+                .find(|candidate| {
+                    matches!(
+                        candidate.kind,
+                        SyntaxKind::Semicolon
+                            | SyntaxKind::SassOptionalSemicolon
+                            | SyntaxKind::SassIndentedNewline
+                            | SyntaxKind::LeftBrace
+                            | SyntaxKind::RightBrace
+                    )
+                })
+                .map(token_range_start)
+                .unwrap_or(argument_start);
+            split_scss_call_arguments(source.get(argument_start..argument_end)?)
+        }
+        _ => None,
+    }
+}
+
+fn token_index_for_symbol_range(
+    tokens: &[LexedToken],
+    symbol: &ParsedSassSymbolFact,
+) -> Option<usize> {
+    let start: usize = symbol.range.start().into();
+    let end: usize = symbol.range.end().into();
+    tokens
+        .iter()
+        .enumerate()
+        .find_map(|(index, token)| {
+            (token_range_start(token) == start && token_range_end(token) == end).then_some(index)
+        })
+        .or_else(|| {
+            tokens.iter().enumerate().find_map(|(index, token)| {
+                (token_range_start(token) <= start
+                    && start < token_range_end(token)
+                    && token.text.ends_with(symbol.name.as_str()))
+                .then_some(index)
+            })
+        })
+        .or_else(|| {
+            tokens.iter().enumerate().find_map(|(index, token)| {
+                (token_range_start(token) >= start
+                    && token_range_end(token) <= end
+                    && token.text.ends_with(symbol.name.as_str()))
+                .then_some(index)
+            })
+        })
+}
+
+fn token_range_start(token: &LexedToken) -> usize {
+    token.range.start().into()
+}
+
+fn token_range_end(token: &LexedToken) -> usize {
+    token.range.end().into()
+}
+
+fn matching_right_paren_token_index(
+    tokens: &[LexedToken],
+    left_paren_index: usize,
+) -> Option<usize> {
+    let mut depth = 0usize;
+    for (index, token) in tokens.iter().enumerate().skip(left_paren_index) {
+        match token.kind {
+            SyntaxKind::LeftParen => depth += 1,
+            SyntaxKind::RightParen => {
+                depth = depth.checked_sub(1)?;
+                if depth == 0 {
+                    return Some(index);
+                }
+            }
+            _ => {}
+        }
+    }
+    None
+}
+
+fn split_scss_call_arguments(arguments: &str) -> Option<Vec<String>> {
+    let arguments = arguments.trim();
+    if arguments.is_empty() {
+        return Some(Vec::new());
+    }
+
+    let mut values = Vec::new();
+    let mut cursor = 0usize;
+    let mut index = 0usize;
+    let mut paren_depth = 0usize;
+    let mut bracket_depth = 0usize;
+    let mut quote: Option<char> = None;
+    while index < arguments.len() {
+        let ch = arguments[index..].chars().next()?;
+        if let Some(quote_ch) = quote {
+            index += ch.len_utf8();
+            if ch == '\\' {
+                if let Some(escaped) = arguments[index..].chars().next() {
+                    index += escaped.len_utf8();
+                }
+            } else if ch == quote_ch {
+                quote = None;
+            }
+            continue;
+        }
+        if matches!(ch, '"' | '\'') {
+            quote = Some(ch);
+            index += ch.len_utf8();
+            continue;
+        }
+        match ch {
+            '(' => paren_depth += 1,
+            ')' => paren_depth = paren_depth.checked_sub(1)?,
+            '[' => bracket_depth += 1,
+            ']' => bracket_depth = bracket_depth.checked_sub(1)?,
+            ',' if paren_depth == 0 && bracket_depth == 0 => {
+                let value = arguments.get(cursor..index)?.trim();
+                if !scss_call_argument_is_safe(value) {
+                    return None;
+                }
+                values.push(value.to_string());
+                cursor = index + ch.len_utf8();
+            }
+            _ => {}
+        }
+        index += ch.len_utf8();
+    }
+
+    if quote.is_some() || paren_depth != 0 || bracket_depth != 0 {
+        return None;
+    }
+    let value = arguments.get(cursor..)?.trim();
+    if !scss_call_argument_is_safe(value) {
+        return None;
+    }
+    values.push(value.to_string());
+    Some(values)
+}
+
+fn scss_call_argument_is_safe(value: &str) -> bool {
+    !value.is_empty()
+        && !value.contains("...")
+        && !value.chars().any(|ch| matches!(ch, '{' | '}' | ';' | '!'))
+}
+
+fn static_scss_argument_abstract_value(value: &str) -> AbstractCssValueV0 {
+    abstract_css_value_from_text(reduce_static_numeric_value(value.to_string()).as_str())
+}
+
 fn call_return_node_from_candidate(
     candidate: ScssCallReturnCandidate,
 ) -> OmenaScssEvalCallReturnNodeV0 {
@@ -483,6 +737,7 @@ fn call_return_node_from_candidate(
         role: candidate.role,
         name: candidate.name,
         namespace: candidate.namespace,
+        argument_values: candidate.argument_values,
         return_value_kind: candidate.return_value.as_ref().map(abstract_css_value_kind),
         return_text: candidate.return_text,
         return_value: candidate.return_value,
@@ -1397,6 +1652,9 @@ mod tests {
         assert_eq!(report.call_node_count, 2);
         assert_eq!(report.return_node_count, 1);
         assert_eq!(report.return_value_count, 1);
+        assert_eq!(report.call_argument_value_count, 2);
+        assert_eq!(report.exact_call_argument_value_count, 2);
+        assert_eq!(report.raw_call_argument_value_count, 0);
         assert!(
             report
                 .edges
@@ -1426,7 +1684,7 @@ mod tests {
 
     #[test]
     fn call_return_ir_reports_function_return_values_in_abstract_domain() {
-        let source = "@function gap() { @return calc(1px + 2px); } .a { width: gap(); }";
+        let source = "@function gap($value) { @return calc(1px + 2px); } .a { width: gap(2px); }";
         let report = summarize_scss_call_return_ir(source, StyleDialect::Scss);
         assert!(report.is_some());
         let Some(report) = report else {
@@ -1442,8 +1700,19 @@ mod tests {
         };
 
         assert_eq!(return_node.return_text.as_deref(), Some("calc(1px + 2px)"));
+        let function_call = report.nodes.iter().find(|node| node.kind == "functionCall");
+        assert!(function_call.is_some());
+        let Some(function_call) = function_call else {
+            return;
+        };
+
+        assert_eq!(function_call.argument_values.len(), 1);
+        assert_eq!(function_call.argument_values[0].text, "2px");
+        assert_eq!(function_call.argument_values[0].value_kind, "exact");
         assert_eq!(report.return_value_count, 1);
+        assert_eq!(report.call_argument_value_count, 1);
         assert_eq!(report.exact_return_value_count, 1);
+        assert_eq!(report.exact_call_argument_value_count, 1);
         assert_eq!(report.raw_return_value_count, 0);
         assert_eq!(report.top_return_value_count, 0);
         assert_eq!(return_node.return_value_kind, Some("exact"));
