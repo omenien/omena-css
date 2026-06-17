@@ -11,6 +11,7 @@ use omena_parser::{
     collect_style_facts,
 };
 use serde::Serialize;
+use std::collections::BTreeMap;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -470,10 +471,22 @@ impl StableTransformIrNodeKindV0 {
     }
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize)]
+#[serde(transparent)]
+pub struct StableNodeKeyV0(pub String);
+
+impl StableNodeKeyV0 {
+    pub fn as_str(&self) -> &str {
+        self.0.as_str()
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct StableTransformIrNodeV0 {
     pub node_id: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub node_key: Option<StableNodeKeyV0>,
     pub kind: StableTransformIrNodeKindV0,
     pub kind_id: &'static str,
     pub label: String,
@@ -711,8 +724,17 @@ pub fn build_stable_transform_ir_from_source(
     });
 
     let mut provenance_anchors = Vec::with_capacity(nodes.len());
+    let mut semantic_key_ordinals = BTreeMap::new();
     for (index, node) in nodes.iter_mut().enumerate() {
+        let ordinal = semantic_key_ordinals
+            .entry(node.semantic_key.clone())
+            .and_modify(|count| *count += 1)
+            .or_insert(0);
         node.node_id = format!("ir:{index}");
+        node.node_key = Some(StableNodeKeyV0(format!(
+            "{}#{}",
+            node.semantic_key, *ordinal
+        )));
         node.provenance_anchor_index = index;
         provenance_anchors.push(TransformCstProvenanceAnchorV0 {
             anchor_index: index,
@@ -908,6 +930,7 @@ fn push_ir_node(
     let kind_id = kind.id();
     nodes.push(StableTransformIrNodeV0 {
         node_id: String::new(),
+        node_key: None,
         kind,
         kind_id,
         semantic_key: format!("{kind_id}:{label}"),
@@ -1348,5 +1371,37 @@ mod tests {
                 .windows(2)
                 .all(|pair| pair[0].source_span_start <= pair[1].source_span_start)
         );
+    }
+
+    #[test]
+    fn stable_transform_ir_mints_additive_source_order_node_keys() {
+        let ir = build_stable_transform_ir_from_source(
+            ".button { color: red; }\n.button { color: blue; }",
+            StyleDialect::Css,
+            "semantic:duplicate-button",
+        );
+
+        let button_nodes = ir
+            .nodes
+            .iter()
+            .filter(|node| {
+                node.kind == StableTransformIrNodeKindV0::ClassSelector && node.label == "button"
+            })
+            .collect::<Vec<_>>();
+
+        assert_eq!(button_nodes.len(), 2);
+        assert_eq!(button_nodes[0].node_id, "ir:0");
+        assert_eq!(button_nodes[1].node_id, "ir:1");
+        assert_eq!(
+            button_nodes[0].node_key.as_ref().map(|key| key.as_str()),
+            Some("class-selector:button#0")
+        );
+        assert_eq!(
+            button_nodes[1].node_key.as_ref().map(|key| key.as_str()),
+            Some("class-selector:button#1")
+        );
+        assert!(ir.nodes.iter().enumerate().all(|(index, node)| {
+            node.node_id == format!("ir:{index}") && node.node_key.is_some()
+        }));
     }
 }
