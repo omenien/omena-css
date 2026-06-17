@@ -21,6 +21,20 @@ pub use omena_lawvere::{
     LawvereDifferentialCommutativityWitnessV0, LawvereModelTraceV0, ReorderabilityCertificateV0,
     TransformPassParallelPlanV0,
 };
+pub use omena_value_lattice::{
+    StaticSrgbColorWithAlpha, can_shorten_hex_pairs, compress_hex_color_token_text,
+    compress_number_prefix, compress_numeric_token_text, format_css_number, numeric_prefix_end,
+    parse_basic_named_static_color_with_alpha, parse_color_function_value, parse_color_mix_value,
+    parse_numeric_value_with_unit, parse_oklab_oklch_value, parse_reducible_abs_value,
+    parse_reducible_calc_value, parse_reducible_clamp_value, parse_reducible_exp_value,
+    parse_reducible_hypot_value, parse_reducible_log_value, parse_reducible_max_value,
+    parse_reducible_min_value, parse_reducible_mod_value, parse_reducible_pow_value,
+    parse_reducible_rem_value, parse_reducible_round_value, parse_reducible_sign_value,
+    parse_reducible_sqrt_value, parse_static_hsl_function_color_with_alpha,
+    parse_static_hwb_function_color_with_alpha, parse_static_rgb_function_color_with_alpha,
+    parse_static_srgb_color, parse_static_srgb_color_with_alpha, shorten_hex_pairs,
+    shortest_static_srgb_color_with_alpha_text,
+};
 pub use registry::{
     inline_css_imports, inline_css_imports_for_static_module_evaluation,
     parse_static_css_cascade_value, restore_less_inline_literal_placeholders,

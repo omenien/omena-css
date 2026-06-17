@@ -1,6 +1,3 @@
-#[path = "color_names.rs"]
-mod color_names;
-
 use omena_parser::StyleDialect;
 use omena_syntax::SyntaxKind;
 
@@ -969,7 +966,12 @@ fn parse_repeated_hex_digit(ch: char) -> Option<u8> {
 }
 
 fn parse_basic_named_srgb_color(text: &str) -> Option<SrgbColor> {
-    color_names::parse_basic_named_srgb_color(text)
+    let color = omena_value_lattice::parse_basic_named_srgb_color(text)?;
+    Some(SrgbColor {
+        red: color.red,
+        green: color.green,
+        blue: color.blue,
+    })
 }
 
 pub(crate) fn parse_basic_named_static_color_with_alpha(
@@ -1430,7 +1432,11 @@ pub(crate) fn shortest_static_srgb_color_with_alpha_text(
 }
 
 fn shortest_named_srgb_color(color: SrgbColor) -> Option<&'static str> {
-    color_names::shortest_named_srgb_color(color)
+    omena_value_lattice::shortest_named_srgb_color(omena_value_lattice::SrgbColor {
+        red: color.red,
+        green: color.green,
+        blue: color.blue,
+    })
 }
 
 fn compressed_hex_color_for_srgb(color: SrgbColor) -> String {

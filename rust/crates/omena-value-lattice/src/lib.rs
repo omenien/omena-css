@@ -6,6 +6,37 @@
 
 use omena_parser::StyleDialect;
 
+pub mod color;
+mod color_names;
+mod functions;
+pub mod number;
+
+pub use color::{
+    StaticSrgbColorWithAlpha, can_shorten_hex_pairs, compress_hex_color_token_text,
+    parse_basic_named_static_color_with_alpha, parse_color_function_value, parse_color_mix_value,
+    parse_oklab_oklch_value, parse_static_hsl_function_color_with_alpha,
+    parse_static_hwb_function_color_with_alpha, parse_static_rgb_function_color_with_alpha,
+    parse_static_srgb_color, parse_static_srgb_color_with_alpha, shorten_hex_pairs,
+    shortest_static_srgb_color_with_alpha_text,
+};
+pub use functions::{
+    StaticCssFunctionParser, StaticCssFunctionSpec, matching_function_call_end,
+    parse_whole_function_value_arguments, parse_whole_function_value_inner,
+    split_top_level_value_arguments as split_top_level_value_arguments_owned,
+    split_top_level_whitespace_value_components as split_top_level_whitespace_value_components_owned,
+    substitute_static_css_function_references_in_value,
+    substitute_static_css_function_references_in_value_until_stable,
+};
+pub use number::{
+    compress_number_prefix, compress_numeric_token_text, format_css_number, numeric_prefix_end,
+    parse_numeric_value_with_unit, parse_reducible_abs_value, parse_reducible_calc_value,
+    parse_reducible_clamp_value, parse_reducible_exp_value, parse_reducible_hypot_value,
+    parse_reducible_log_value, parse_reducible_max_value, parse_reducible_min_value,
+    parse_reducible_mod_value, parse_reducible_pow_value, parse_reducible_rem_value,
+    parse_reducible_round_value, parse_reducible_sign_value, parse_reducible_sqrt_value,
+    reduce_static_numeric_expression,
+};
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct ValueByteSpanV0 {
     pub start: usize,
@@ -28,6 +59,21 @@ pub struct ValueSegmentV0<'a> {
 pub struct NumericValueV0<'a> {
     pub value: f64,
     pub unit: &'a str,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct SrgbColor {
+    pub red: u8,
+    pub green: u8,
+    pub blue: u8,
+}
+
+pub fn parse_basic_named_srgb_color(text: &str) -> Option<SrgbColor> {
+    color_names::parse_basic_named_srgb_color(text)
+}
+
+pub fn shortest_named_srgb_color(color: SrgbColor) -> Option<&'static str> {
+    color_names::shortest_named_srgb_color(color)
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -124,7 +170,7 @@ pub fn css_values_canonically_equal(left: &str, right: &str) -> bool {
 }
 
 pub fn css_number_is_zero(number: &str) -> bool {
-    parse_numeric_value(number).is_some_and(|value| value.unit.is_empty() && value.value == 0.0)
+    number::css_number_is_zero(number)
 }
 
 pub fn canonicalize_css_value(value: &str) -> Option<CanonicalCssValueV0> {
@@ -215,79 +261,7 @@ fn canonicalize_numeric_value(value: NumericValueV0<'_>) -> Option<CanonicalCssV
 }
 
 fn parse_numeric_value(text: &str) -> Option<NumericValueV0<'_>> {
-    let text = text.trim();
-    let split = numeric_prefix_end(text)?;
-    if split == 0 {
-        return None;
-    }
-    let number = &text[..split];
-    let unit = &text[split..];
-    if unit
-        .chars()
-        .any(|ch| !(ch == '%' || ch.is_ascii_alphabetic()))
-    {
-        return None;
-    }
-    let value = number.parse::<f64>().ok()?;
-    value.is_finite().then_some(NumericValueV0 { value, unit })
-}
-
-fn numeric_prefix_end(text: &str) -> Option<usize> {
-    let bytes = text.as_bytes();
-    let mut index = 0;
-
-    if matches!(bytes.get(index), Some(b'+') | Some(b'-')) {
-        index += 1;
-    }
-
-    let integer_start = index;
-    while matches!(bytes.get(index), Some(b'0'..=b'9')) {
-        index += 1;
-    }
-    let saw_integer_digit = index > integer_start;
-
-    if bytes.get(index) == Some(&b'.') {
-        index += 1;
-        let fraction_start = index;
-        while matches!(bytes.get(index), Some(b'0'..=b'9')) {
-            index += 1;
-        }
-        if !saw_integer_digit && index == fraction_start {
-            return None;
-        }
-    } else if !saw_integer_digit {
-        return None;
-    }
-
-    if matches!(bytes.get(index), Some(b'e') | Some(b'E')) {
-        let exponent_marker = index;
-        let mut exponent_index = index + 1;
-        if matches!(bytes.get(exponent_index), Some(b'+') | Some(b'-')) {
-            exponent_index += 1;
-        }
-        let exponent_digit_start = exponent_index;
-        while matches!(bytes.get(exponent_index), Some(b'0'..=b'9')) {
-            exponent_index += 1;
-        }
-        if exponent_index > exponent_digit_start {
-            index = exponent_index;
-        } else {
-            index = exponent_marker;
-        }
-    }
-
-    Some(index)
-}
-
-fn format_css_number(value: f64) -> String {
-    if value.fract() == 0.0 {
-        return format!("{value:.0}");
-    }
-    let formatted = format!("{value:.6}");
-    formatted
-        .trim_end_matches('0')
-        .trim_end_matches('.')
-        .to_string()
+    number::parse_numeric_value_with_unit(text)
 }
 
 fn is_absolute_zero_collapsible_unit(unit: &str) -> bool {
@@ -532,6 +506,51 @@ mod tests {
         assert_eq!(
             parts.iter().map(|segment| segment.text).collect::<Vec<_>>(),
             vec!["1px", "minmax(0, 1fr)", "\"a b\"", "[line name]"]
+        );
+    }
+
+    #[test]
+    fn numeric_kernel_reduces_static_css_expressions() {
+        assert_eq!(
+            reduce_static_numeric_expression("1px + 2px").as_deref(),
+            Some("3px")
+        );
+        assert_eq!(
+            parse_reducible_calc_value("calc((2px + 4px) / 2)").as_deref(),
+            Some("3px")
+        );
+        assert_eq!(
+            parse_reducible_sign_value("sign(-2px)").as_deref(),
+            Some("-1")
+        );
+        assert_eq!(
+            parse_reducible_clamp_value("clamp(1px, 3px, 2px)").as_deref(),
+            Some("2px")
+        );
+        assert_eq!(
+            compress_numeric_token_text("+001.5000px").as_deref(),
+            Some("1.5px")
+        );
+    }
+
+    #[test]
+    fn color_kernel_parses_static_color_values() {
+        assert!(parse_static_srgb_color("rebeccapurple").is_some());
+        assert_eq!(
+            compress_hex_color_token_text("#ff0000").as_deref(),
+            Some("red")
+        );
+        assert_eq!(
+            parse_color_function_value("color(srgb 1 0 0 / .5)").as_deref(),
+            Some("rgb(255 0 0 / .5)")
+        );
+        assert_eq!(
+            parse_color_mix_value("color-mix(in srgb, red 50%, blue 50%)").as_deref(),
+            Some("rgb(128 0 128)")
+        );
+        assert_eq!(
+            parse_oklab_oklch_value("oklab(1 0 0)").as_deref(),
+            Some("rgb(255 255 255)")
         );
     }
 }
