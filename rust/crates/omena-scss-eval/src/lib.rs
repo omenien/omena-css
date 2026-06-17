@@ -8,6 +8,7 @@
 
 mod control_flow;
 mod static_stylesheet;
+mod value_eval;
 
 use omena_abstract_value::{
     AbstractCssValueV0, abstract_css_value_from_text, abstract_css_values_canonically_equal,

@@ -12,7 +12,7 @@ use omena_syntax::SyntaxKind;
 use omena_transform_cst::StableNodeKeyV0;
 use serde::Serialize;
 
-use crate::abstract_css_value_kind;
+use crate::{abstract_css_value_kind, value_eval::reduce_static_numeric_value};
 
 const SCSS_CALL_RETURN_RECURSION_LIMIT: usize = 32;
 
@@ -124,6 +124,9 @@ pub struct OmenaScssEvalCallReturnNodeV0 {
     pub role: &'static str,
     pub name: Option<String>,
     pub namespace: Option<String>,
+    pub return_text: Option<String>,
+    pub return_value: Option<AbstractCssValueV0>,
+    pub return_value_kind: Option<&'static str>,
     pub source_span_start: usize,
     pub source_span_end: usize,
     pub containing_declaration_node_key: Option<StableNodeKeyV0>,
@@ -191,7 +194,7 @@ pub fn summarize_scss_call_return_ir(
         .sass_symbols
         .iter()
         .filter_map(call_return_candidate_from_sass_symbol)
-        .chain(collect_scss_return_candidates(lexed.tokens()))
+        .chain(collect_scss_return_candidates(source, lexed.tokens()))
         .collect::<Vec<_>>();
     candidates.sort_by(|left, right| {
         left.source_span_start
@@ -330,6 +333,8 @@ struct ScssCallReturnCandidate {
     role: &'static str,
     name: Option<String>,
     namespace: Option<String>,
+    return_text: Option<String>,
+    return_value: Option<AbstractCssValueV0>,
     source_span_start: usize,
     source_span_end: usize,
 }
@@ -353,27 +358,73 @@ fn call_return_candidate_from_sass_symbol(
         role,
         name: Some(symbol.name.clone()),
         namespace: symbol.namespace.clone(),
+        return_text: None,
+        return_value: None,
         source_span_start: symbol.range.start().into(),
         source_span_end: symbol.range.end().into(),
     })
 }
 
-fn collect_scss_return_candidates(tokens: &[LexedToken]) -> Vec<ScssCallReturnCandidate> {
+fn collect_scss_return_candidates(
+    source: &str,
+    tokens: &[LexedToken],
+) -> Vec<ScssCallReturnCandidate> {
     tokens
         .iter()
-        .filter(|token| {
+        .enumerate()
+        .filter(|(_, token)| {
             token.kind == SyntaxKind::AtKeyword && token.text.eq_ignore_ascii_case("@return")
         })
-        .map(|token| ScssCallReturnCandidate {
-            kind: "functionReturn",
-            symbol_kind: "return",
-            role: "return",
-            name: None,
-            namespace: None,
-            source_span_start: token.range.start().into(),
-            source_span_end: token.range.end().into(),
+        .map(|(index, token)| {
+            let return_text = scss_return_text_from_token(source, tokens, index);
+            let return_value = return_text
+                .as_deref()
+                .map(static_scss_return_abstract_value);
+            ScssCallReturnCandidate {
+                kind: "functionReturn",
+                symbol_kind: "return",
+                role: "return",
+                name: None,
+                namespace: None,
+                return_text,
+                return_value,
+                source_span_start: token.range.start().into(),
+                source_span_end: token.range.end().into(),
+            }
         })
         .collect()
+}
+
+fn scss_return_text_from_token(
+    source: &str,
+    tokens: &[LexedToken],
+    token_index: usize,
+) -> Option<String> {
+    let token = tokens.get(token_index)?;
+    let value_start = token.range.end().into();
+    let value_end = tokens
+        .iter()
+        .skip(token_index + 1)
+        .find(|candidate| {
+            matches!(
+                candidate.kind,
+                SyntaxKind::Semicolon
+                    | SyntaxKind::SassOptionalSemicolon
+                    | SyntaxKind::SassIndentedNewline
+                    | SyntaxKind::RightBrace
+            )
+        })
+        .map(|candidate| candidate.range.start().into())
+        .unwrap_or(value_start);
+    source
+        .get(value_start..value_end)
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .map(ToString::to_string)
+}
+
+fn static_scss_return_abstract_value(value: &str) -> AbstractCssValueV0 {
+    abstract_css_value_from_text(reduce_static_numeric_value(value.to_string()).as_str())
 }
 
 fn call_return_node_from_candidate(
@@ -391,6 +442,9 @@ fn call_return_node_from_candidate(
         role: candidate.role,
         name: candidate.name,
         namespace: candidate.namespace,
+        return_value_kind: candidate.return_value.as_ref().map(abstract_css_value_kind),
+        return_text: candidate.return_text,
+        return_value: candidate.return_value,
         source_span_start: candidate.source_span_start,
         source_span_end: candidate.source_span_end,
         containing_declaration_node_key: None,
@@ -1325,6 +1379,33 @@ mod tests {
                 .nodes
                 .iter()
                 .all(|node| node.node_key.as_str().contains('@'))
+        );
+    }
+
+    #[test]
+    fn call_return_ir_reports_function_return_values_in_abstract_domain() {
+        let source = "@function gap() { @return calc(1px + 2px); } .a { width: gap(); }";
+        let report = summarize_scss_call_return_ir(source, StyleDialect::Scss);
+        assert!(report.is_some());
+        let Some(report) = report else {
+            return;
+        };
+        let return_node = report
+            .nodes
+            .iter()
+            .find(|node| node.kind == "functionReturn");
+        assert!(return_node.is_some());
+        let Some(return_node) = return_node else {
+            return;
+        };
+
+        assert_eq!(return_node.return_text.as_deref(), Some("calc(1px + 2px)"));
+        assert_eq!(return_node.return_value_kind, Some("exact"));
+        assert_eq!(
+            return_node.return_value,
+            Some(AbstractCssValueV0::Exact {
+                value: "3px".to_string()
+            })
         );
     }
 
