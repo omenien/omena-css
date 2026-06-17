@@ -18,6 +18,7 @@ pub struct OmenaScssEvalStaticStylesheetEvaluationV0 {
     pub evaluated_css: String,
     pub replacement_count: usize,
     pub resolved_replacements: Vec<OmenaScssEvalResolvedReplacementV0>,
+    pub value_resolution: OmenaScssEvalStaticValueResolutionReportV0,
     pub oracle: crate::OmenaScssEvalOracleReportV0,
 }
 
@@ -31,6 +32,41 @@ pub struct OmenaScssEvalResolvedReplacementV0 {
     pub abstract_value: AbstractCssValueV0,
     pub abstract_value_kind: &'static str,
 }
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct OmenaScssEvalStaticValueResolutionReportV0 {
+    pub schema_version: &'static str,
+    pub product: &'static str,
+    pub mode: &'static str,
+    pub dialect: &'static str,
+    pub fuel_limit: usize,
+    pub reference_count: usize,
+    pub resolved_count: usize,
+    pub raw_count: usize,
+    pub top_count: usize,
+    pub cycle_count: usize,
+    pub fuel_exhausted_count: usize,
+    pub unresolved_reference_count: usize,
+    pub unsupported_dynamic_count: usize,
+    pub values: Vec<OmenaScssEvalStaticValueResolutionV0>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct OmenaScssEvalStaticValueResolutionV0 {
+    pub name: String,
+    pub start: usize,
+    pub end: usize,
+    pub source_text: String,
+    pub rendered_value: Option<String>,
+    pub abstract_value: AbstractCssValueV0,
+    pub abstract_value_kind: &'static str,
+    pub outcome: &'static str,
+    pub reason: &'static str,
+}
+
+const STATIC_STYLESHEET_VALUE_RESOLUTION_FUEL_LIMIT: usize = 128;
 
 pub fn derive_static_stylesheet_module_evaluation(
     style_source: &str,
@@ -47,6 +83,27 @@ pub fn derive_static_stylesheet_module_evaluation(
             derive_static_less_stylesheet_module_evaluation(style_source, variable_facts)
         }
     }
+}
+
+pub fn summarize_static_stylesheet_value_resolution(
+    style_source: &str,
+    dialect: StyleDialect,
+) -> Option<OmenaScssEvalStaticValueResolutionReportV0> {
+    let variable_kind = StaticStylesheetVariableKind::for_dialect(dialect)?;
+    let facts = omena_parser::collect_style_facts(style_source, dialect);
+    let scopes = collect_static_stylesheet_scopes(style_source)?;
+    let values = match variable_kind {
+        StaticStylesheetVariableKind::Scss => {
+            summarize_static_scss_value_resolution_values(style_source, &facts.variables, &scopes)?
+        }
+        StaticStylesheetVariableKind::Less => {
+            summarize_static_less_value_resolution_values(style_source, &facts.variables, &scopes)?
+        }
+    };
+    Some(build_static_value_resolution_report(
+        dialect_label(dialect),
+        values,
+    ))
 }
 
 pub fn derive_static_scss_stylesheet_module_variable_exports(
@@ -283,6 +340,7 @@ fn build_static_stylesheet_evaluation_report(
     evaluated_css: String,
     resolved_replacements: Vec<OmenaScssEvalResolvedReplacementV0>,
 ) -> Option<OmenaScssEvalStaticStylesheetEvaluationV0> {
+    let value_resolution = summarize_static_stylesheet_value_resolution(style_source, dialect)?;
     let oracle = summarize_omena_scss_eval_oracle(style_source, dialect, evaluated_css.as_str());
     if !oracle.all_legacy_declaration_values_preserved {
         return None;
@@ -294,6 +352,7 @@ fn build_static_stylesheet_evaluation_report(
         dialect: dialect_label(dialect),
         replacement_count: resolved_replacements.len(),
         resolved_replacements,
+        value_resolution,
         evaluated_css,
         oracle,
     })
@@ -313,6 +372,288 @@ fn resolved_replacement_value(
         text: text.to_string(),
         abstract_value_kind: abstract_css_value_kind(&abstract_value),
         abstract_value,
+    }
+}
+
+fn build_static_value_resolution_report(
+    dialect: &'static str,
+    values: Vec<OmenaScssEvalStaticValueResolutionV0>,
+) -> OmenaScssEvalStaticValueResolutionReportV0 {
+    let resolved_count = values
+        .iter()
+        .filter(|value| value.outcome == "resolved")
+        .count();
+    let raw_count = values
+        .iter()
+        .filter(|value| matches!(value.abstract_value, AbstractCssValueV0::Raw { .. }))
+        .count();
+    let top_count = values
+        .iter()
+        .filter(|value| matches!(value.abstract_value, AbstractCssValueV0::Top))
+        .count();
+    let cycle_count = values
+        .iter()
+        .filter(|value| value.reason == "cycle")
+        .count();
+    let fuel_exhausted_count = values
+        .iter()
+        .filter(|value| value.reason == "fuelExhausted")
+        .count();
+    let unresolved_reference_count = values
+        .iter()
+        .filter(|value| value.reason == "unresolvedReference")
+        .count();
+    let unsupported_dynamic_count = values
+        .iter()
+        .filter(|value| value.reason == "unsupportedDynamic")
+        .count();
+    OmenaScssEvalStaticValueResolutionReportV0 {
+        schema_version: "0",
+        product: "omena-scss-eval.static-value-resolution",
+        mode: "oracleOnly",
+        dialect,
+        fuel_limit: STATIC_STYLESHEET_VALUE_RESOLUTION_FUEL_LIMIT,
+        reference_count: values.len(),
+        resolved_count,
+        raw_count,
+        top_count,
+        cycle_count,
+        fuel_exhausted_count,
+        unresolved_reference_count,
+        unsupported_dynamic_count,
+        values,
+    }
+}
+
+fn summarize_static_scss_value_resolution_values(
+    style_source: &str,
+    variable_facts: &[ParsedVariableFact],
+    scopes: &[StaticStylesheetScope],
+) -> Option<Vec<OmenaScssEvalStaticValueResolutionV0>> {
+    let declarations =
+        collect_static_scss_variable_declarations(style_source, variable_facts, scopes)?;
+    let mut values = Vec::new();
+    for fact in variable_facts {
+        if fact.kind != ParsedVariableFactKind::ScssReference {
+            continue;
+        }
+        let reference_start = parser_text_size_to_usize(fact.range.start().into());
+        if static_stylesheet_position_is_inside_scss_declaration(&declarations, reference_start) {
+            continue;
+        }
+        let reference_end = parser_text_size_to_usize(fact.range.end().into());
+        let mut stack = BTreeSet::new();
+        let resolution = resolve_static_scss_variable_abstract_value_at_position(
+            fact.name.as_str(),
+            reference_start,
+            scopes,
+            &declarations,
+            &mut stack,
+            STATIC_STYLESHEET_VALUE_RESOLUTION_FUEL_LIMIT,
+        );
+        values.push(static_value_resolution_record(
+            fact.name.as_str(),
+            reference_start,
+            reference_end,
+            style_source
+                .get(reference_start..reference_end)
+                .unwrap_or(""),
+            resolution,
+        ));
+    }
+    Some(values)
+}
+
+fn summarize_static_less_value_resolution_values(
+    style_source: &str,
+    variable_facts: &[ParsedVariableFact],
+    scopes: &[StaticStylesheetScope],
+) -> Option<Vec<OmenaScssEvalStaticValueResolutionV0>> {
+    let lexed = lex(style_source, StyleDialect::Less);
+    let tokens = lexed.tokens();
+    let declarations =
+        collect_static_less_variable_declarations(style_source, variable_facts, scopes)?;
+    let property_declarations =
+        collect_static_less_property_declarations(style_source, tokens, scopes)?;
+    let mut values = Vec::new();
+    for fact in variable_facts {
+        if fact.kind != ParsedVariableFactKind::LessReference {
+            continue;
+        }
+        let reference_start = parser_text_size_to_usize(fact.range.start().into());
+        if static_stylesheet_position_is_inside_scoped_declaration(&declarations, reference_start) {
+            continue;
+        }
+        let reference_scope_id = static_stylesheet_scope_for_position(scopes, reference_start)?;
+        let reference_end = parser_text_size_to_usize(fact.range.end().into());
+        let mut stack = BTreeSet::new();
+        let resolution = resolve_static_less_variable_abstract_value_in_scope(
+            fact.name.as_str(),
+            reference_scope_id,
+            scopes,
+            &declarations,
+            &mut stack,
+            STATIC_STYLESHEET_VALUE_RESOLUTION_FUEL_LIMIT,
+        );
+        values.push(static_value_resolution_record(
+            fact.name.as_str(),
+            reference_start,
+            reference_end,
+            style_source
+                .get(reference_start..reference_end)
+                .unwrap_or(""),
+            resolution,
+        ));
+    }
+    for token in tokens {
+        if token.kind != SyntaxKind::LessPropertyVariableToken {
+            continue;
+        }
+        let reference_start = static_stylesheet_token_start(token);
+        if static_stylesheet_position_is_inside_scoped_declaration(&declarations, reference_start) {
+            continue;
+        }
+        let reference_scope_id = static_stylesheet_scope_for_position(scopes, reference_start)?;
+        let mut stack = BTreeSet::new();
+        let resolution = resolve_static_less_property_abstract_value_in_scope(
+            token.text.as_str(),
+            reference_scope_id,
+            scopes,
+            &property_declarations,
+            &mut stack,
+            STATIC_STYLESHEET_VALUE_RESOLUTION_FUEL_LIMIT,
+        );
+        values.push(static_value_resolution_record(
+            token.text.as_str(),
+            reference_start,
+            static_stylesheet_token_end(token),
+            token.text.as_str(),
+            resolution,
+        ));
+    }
+    Some(values)
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum StaticStylesheetResolutionOutcome {
+    Resolved,
+    Raw,
+    Top,
+}
+
+impl StaticStylesheetResolutionOutcome {
+    fn label(self) -> &'static str {
+        match self {
+            Self::Resolved => "resolved",
+            Self::Raw => "raw",
+            Self::Top => "top",
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum StaticStylesheetResolutionReason {
+    Resolved,
+    Cycle,
+    FuelExhausted,
+    UnresolvedReference,
+    UnsupportedDynamic,
+}
+
+impl StaticStylesheetResolutionReason {
+    fn label(self) -> &'static str {
+        match self {
+            Self::Resolved => "resolved",
+            Self::Cycle => "cycle",
+            Self::FuelExhausted => "fuelExhausted",
+            Self::UnresolvedReference => "unresolvedReference",
+            Self::UnsupportedDynamic => "unsupportedDynamic",
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct StaticStylesheetAbstractResolution {
+    rendered_value: Option<String>,
+    abstract_value: AbstractCssValueV0,
+    outcome: StaticStylesheetResolutionOutcome,
+    reason: StaticStylesheetResolutionReason,
+}
+
+fn static_value_resolution_record(
+    name: &str,
+    start: usize,
+    end: usize,
+    source_text: &str,
+    resolution: StaticStylesheetAbstractResolution,
+) -> OmenaScssEvalStaticValueResolutionV0 {
+    OmenaScssEvalStaticValueResolutionV0 {
+        name: name.to_string(),
+        start,
+        end,
+        source_text: source_text.to_string(),
+        rendered_value: resolution.rendered_value,
+        abstract_value_kind: abstract_css_value_kind(&resolution.abstract_value),
+        abstract_value: resolution.abstract_value,
+        outcome: resolution.outcome.label(),
+        reason: resolution.reason.label(),
+    }
+}
+
+fn resolved_static_abstract_value(text: &str) -> StaticStylesheetAbstractResolution {
+    let abstract_value = abstract_css_value_from_text(text);
+    let rendered_value = render_static_abstract_value(&abstract_value);
+    let outcome = if matches!(abstract_value, AbstractCssValueV0::Raw { .. }) {
+        StaticStylesheetResolutionOutcome::Raw
+    } else {
+        StaticStylesheetResolutionOutcome::Resolved
+    };
+    let reason = if outcome == StaticStylesheetResolutionOutcome::Raw {
+        StaticStylesheetResolutionReason::UnsupportedDynamic
+    } else {
+        StaticStylesheetResolutionReason::Resolved
+    };
+    StaticStylesheetAbstractResolution {
+        rendered_value,
+        abstract_value,
+        outcome,
+        reason,
+    }
+}
+
+fn raw_static_abstract_value(
+    text: &str,
+    reason: StaticStylesheetResolutionReason,
+) -> StaticStylesheetAbstractResolution {
+    StaticStylesheetAbstractResolution {
+        rendered_value: Some(text.to_string()),
+        abstract_value: AbstractCssValueV0::Raw {
+            value: text.to_string(),
+        },
+        outcome: StaticStylesheetResolutionOutcome::Raw,
+        reason,
+    }
+}
+
+fn top_static_abstract_value(
+    reason: StaticStylesheetResolutionReason,
+) -> StaticStylesheetAbstractResolution {
+    StaticStylesheetAbstractResolution {
+        rendered_value: None,
+        abstract_value: AbstractCssValueV0::Top,
+        outcome: StaticStylesheetResolutionOutcome::Top,
+        reason,
+    }
+}
+
+fn render_static_abstract_value(value: &AbstractCssValueV0) -> Option<String> {
+    match value {
+        AbstractCssValueV0::Bottom => Some(String::new()),
+        AbstractCssValueV0::Exact { value } | AbstractCssValueV0::Raw { value } => {
+            Some(value.clone())
+        }
+        AbstractCssValueV0::FiniteSet { values } => values.first().cloned(),
+        AbstractCssValueV0::Top => None,
     }
 }
 
@@ -649,6 +990,119 @@ fn static_stylesheet_scope_for_position(
         })
 }
 
+fn resolve_static_scss_variable_abstract_value_at_position(
+    name: &str,
+    position: usize,
+    scopes: &[StaticStylesheetScope],
+    declarations: &[StaticStylesheetScopedVariableDeclaration],
+    stack: &mut BTreeSet<(usize, String, usize)>,
+    fuel: usize,
+) -> StaticStylesheetAbstractResolution {
+    let Some(scope_id) = static_stylesheet_scope_for_position(scopes, position) else {
+        return top_static_abstract_value(StaticStylesheetResolutionReason::UnresolvedReference);
+    };
+    resolve_static_scss_variable_abstract_value_in_scope(
+        name,
+        scope_id,
+        position,
+        scopes,
+        declarations,
+        stack,
+        fuel,
+    )
+}
+
+fn resolve_static_scss_variable_abstract_value_in_scope(
+    name: &str,
+    scope_id: usize,
+    position: usize,
+    scopes: &[StaticStylesheetScope],
+    declarations: &[StaticStylesheetScopedVariableDeclaration],
+    stack: &mut BTreeSet<(usize, String, usize)>,
+    fuel: usize,
+) -> StaticStylesheetAbstractResolution {
+    if fuel == 0 {
+        return top_static_abstract_value(StaticStylesheetResolutionReason::FuelExhausted);
+    }
+    let Some(declaration) =
+        find_static_scss_variable_declaration(name, scope_id, position, scopes, declarations)
+    else {
+        return top_static_abstract_value(StaticStylesheetResolutionReason::UnresolvedReference);
+    };
+    let stack_key = (
+        declaration.scope_id,
+        canonical_static_scss_variable_name(name),
+        declaration.declaration.span_start,
+    );
+    if !stack.insert(stack_key.clone()) {
+        return top_static_abstract_value(StaticStylesheetResolutionReason::Cycle);
+    }
+    let resolved = resolve_static_scss_variable_abstract_value_text(
+        declaration.declaration.value.trim(),
+        declaration.declaration.span_start,
+        scopes,
+        declarations,
+        stack,
+        fuel - 1,
+    );
+    stack.remove(&stack_key);
+    resolved
+}
+
+fn resolve_static_scss_variable_abstract_value_text(
+    value: &str,
+    position: usize,
+    scopes: &[StaticStylesheetScope],
+    declarations: &[StaticStylesheetScopedVariableDeclaration],
+    stack: &mut BTreeSet<(usize, String, usize)>,
+    fuel: usize,
+) -> StaticStylesheetAbstractResolution {
+    let Some(references) =
+        collect_static_stylesheet_variable_references(value, StaticStylesheetVariableKind::Scss)
+    else {
+        return raw_static_abstract_value(
+            value,
+            StaticStylesheetResolutionReason::UnsupportedDynamic,
+        );
+    };
+    if references.is_empty() {
+        if static_stylesheet_literal_value_is_safe(value) {
+            return resolved_static_abstract_value(value);
+        }
+        return raw_static_abstract_value(
+            value,
+            StaticStylesheetResolutionReason::UnsupportedDynamic,
+        );
+    }
+    if !static_stylesheet_composite_value_is_safe(value) {
+        return raw_static_abstract_value(
+            value,
+            StaticStylesheetResolutionReason::UnsupportedDynamic,
+        );
+    }
+
+    let mut output = String::with_capacity(value.len());
+    let mut cursor = 0usize;
+    for reference in references {
+        let resolved = resolve_static_scss_variable_abstract_value_at_position(
+            reference.name.as_str(),
+            position,
+            scopes,
+            declarations,
+            stack,
+            fuel,
+        );
+        let Some(rendered_value) = resolved.rendered_value else {
+            return top_static_abstract_value(resolved.reason);
+        };
+        output.push_str(&value[cursor..reference.start]);
+        output.push_str(&rendered_value);
+        cursor = reference.end;
+    }
+    output.push_str(&value[cursor..]);
+    resolved_static_abstract_value(output.as_str())
+}
+
 fn resolve_static_scss_variable_value_at_position(
     name: &str,
     position: usize,
@@ -789,6 +1243,97 @@ fn resolve_static_scss_variable_value_text(
     Some(output)
 }
 
+fn resolve_static_less_variable_abstract_value_in_scope(
+    name: &str,
+    scope_id: usize,
+    scopes: &[StaticStylesheetScope],
+    declarations: &BTreeMap<(usize, String), StaticStylesheetVariableDeclaration>,
+    stack: &mut BTreeSet<(usize, String)>,
+    fuel: usize,
+) -> StaticStylesheetAbstractResolution {
+    if fuel == 0 {
+        return top_static_abstract_value(StaticStylesheetResolutionReason::FuelExhausted);
+    }
+    let Some(declaration) =
+        find_static_less_variable_declaration(name, scope_id, scopes, declarations)
+    else {
+        return top_static_abstract_value(StaticStylesheetResolutionReason::UnresolvedReference);
+    };
+    let stack_key = (scope_id, name.to_string());
+    if !stack.insert(stack_key.clone()) {
+        return top_static_abstract_value(StaticStylesheetResolutionReason::Cycle);
+    }
+    let resolved = resolve_static_less_variable_abstract_value_text(
+        declaration.value.trim(),
+        scope_id,
+        scopes,
+        declarations,
+        stack,
+        fuel - 1,
+    );
+    stack.remove(&stack_key);
+    if let Some(rendered_value) = resolved.rendered_value.as_deref() {
+        return resolved_static_abstract_value(
+            reduce_static_less_parenthesized_numeric_value(rendered_value.to_string()).as_str(),
+        );
+    }
+    resolved
+}
+
+fn resolve_static_less_variable_abstract_value_text(
+    value: &str,
+    scope_id: usize,
+    scopes: &[StaticStylesheetScope],
+    declarations: &BTreeMap<(usize, String), StaticStylesheetVariableDeclaration>,
+    stack: &mut BTreeSet<(usize, String)>,
+    fuel: usize,
+) -> StaticStylesheetAbstractResolution {
+    let Some(references) =
+        collect_static_stylesheet_variable_references(value, StaticStylesheetVariableKind::Less)
+    else {
+        return raw_static_abstract_value(
+            value,
+            StaticStylesheetResolutionReason::UnsupportedDynamic,
+        );
+    };
+    if references.is_empty() {
+        if static_stylesheet_literal_value_is_safe(value) {
+            return resolved_static_abstract_value(value);
+        }
+        return raw_static_abstract_value(
+            value,
+            StaticStylesheetResolutionReason::UnsupportedDynamic,
+        );
+    }
+    if !static_stylesheet_composite_value_is_safe(value) {
+        return raw_static_abstract_value(
+            value,
+            StaticStylesheetResolutionReason::UnsupportedDynamic,
+        );
+    }
+
+    let mut output = String::with_capacity(value.len());
+    let mut cursor = 0usize;
+    for reference in references {
+        let resolved = resolve_static_less_variable_abstract_value_in_scope(
+            reference.name.as_str(),
+            scope_id,
+            scopes,
+            declarations,
+            stack,
+            fuel,
+        );
+        let Some(rendered_value) = resolved.rendered_value else {
+            return top_static_abstract_value(resolved.reason);
+        };
+        output.push_str(&value[cursor..reference.start]);
+        output.push_str(&rendered_value);
+        cursor = reference.end;
+    }
+    output.push_str(&value[cursor..]);
+    resolved_static_abstract_value(output.as_str())
+}
+
 fn resolve_static_less_variable_value_in_scope(
     name: &str,
     scope_id: usize,
@@ -858,6 +1403,92 @@ fn resolve_static_less_variable_value_text(
     }
     output.push_str(&value[cursor..]);
     Some(output)
+}
+
+fn resolve_static_less_property_abstract_value_in_scope(
+    name: &str,
+    scope_id: usize,
+    scopes: &[StaticStylesheetScope],
+    declarations: &BTreeMap<(usize, String), StaticStylesheetPropertyDeclaration>,
+    stack: &mut BTreeSet<(usize, String)>,
+    fuel: usize,
+) -> StaticStylesheetAbstractResolution {
+    if fuel == 0 {
+        return top_static_abstract_value(StaticStylesheetResolutionReason::FuelExhausted);
+    }
+    let Some(declaration) =
+        find_static_less_property_declaration(name, scope_id, scopes, declarations)
+    else {
+        return top_static_abstract_value(StaticStylesheetResolutionReason::UnresolvedReference);
+    };
+    let stack_key = (scope_id, name.to_string());
+    if !stack.insert(stack_key.clone()) {
+        return top_static_abstract_value(StaticStylesheetResolutionReason::Cycle);
+    }
+    let resolved = resolve_static_less_property_abstract_value_text(
+        declaration.value.trim(),
+        scope_id,
+        scopes,
+        declarations,
+        stack,
+        fuel - 1,
+    );
+    stack.remove(&stack_key);
+    resolved
+}
+
+fn resolve_static_less_property_abstract_value_text(
+    value: &str,
+    scope_id: usize,
+    scopes: &[StaticStylesheetScope],
+    declarations: &BTreeMap<(usize, String), StaticStylesheetPropertyDeclaration>,
+    stack: &mut BTreeSet<(usize, String)>,
+    fuel: usize,
+) -> StaticStylesheetAbstractResolution {
+    let Some(references) =
+        collect_static_stylesheet_variable_references(value, StaticStylesheetVariableKind::Scss)
+    else {
+        return raw_static_abstract_value(
+            value,
+            StaticStylesheetResolutionReason::UnsupportedDynamic,
+        );
+    };
+    if references.is_empty() {
+        if static_stylesheet_literal_value_is_safe(value) {
+            return resolved_static_abstract_value(value);
+        }
+        return raw_static_abstract_value(
+            value,
+            StaticStylesheetResolutionReason::UnsupportedDynamic,
+        );
+    }
+    if !static_stylesheet_composite_value_is_safe(value) {
+        return raw_static_abstract_value(
+            value,
+            StaticStylesheetResolutionReason::UnsupportedDynamic,
+        );
+    }
+
+    let mut output = String::with_capacity(value.len());
+    let mut cursor = 0usize;
+    for reference in references {
+        let resolved = resolve_static_less_property_abstract_value_in_scope(
+            reference.name.as_str(),
+            scope_id,
+            scopes,
+            declarations,
+            stack,
+            fuel,
+        );
+        let Some(rendered_value) = resolved.rendered_value else {
+            return top_static_abstract_value(resolved.reason);
+        };
+        output.push_str(&value[cursor..reference.start]);
+        output.push_str(&rendered_value);
+        cursor = reference.end;
+    }
+    output.push_str(&value[cursor..]);
+    resolved_static_abstract_value(output.as_str())
 }
 
 fn resolve_static_less_property_value_in_scope(
@@ -1316,6 +1947,7 @@ mod tests {
         assert_eq!(report.replacement_count, 1);
         assert_eq!(report.resolved_replacements[0].abstract_value_kind, "exact");
         assert_eq!(report.resolved_replacements[0].text, "0px");
+        assert_eq!(report.value_resolution.resolved_count, 1);
         assert!(report.evaluated_css.contains("margin: 0px"));
         assert!(report.oracle.all_legacy_declaration_values_preserved);
     }
@@ -1333,6 +1965,69 @@ mod tests {
 
         assert_eq!(report.resolved_replacements[0].text, "3px");
         assert_eq!(report.resolved_replacements[0].abstract_value_kind, "exact");
+        assert_eq!(
+            report.value_resolution.values[0].rendered_value.as_deref(),
+            Some("3px")
+        );
         assert!(report.evaluated_css.contains("margin: 3px"));
+    }
+
+    #[test]
+    fn static_value_resolution_reports_unresolved_references_as_top() {
+        let report = summarize_static_stylesheet_value_resolution(
+            ".button { color: $missing; }",
+            StyleDialect::Scss,
+        );
+        assert!(report.is_some());
+        let Some(report) = report else {
+            return;
+        };
+
+        assert_eq!(report.reference_count, 1);
+        assert_eq!(report.top_count, 1);
+        assert_eq!(report.unresolved_reference_count, 1);
+        assert_eq!(report.values[0].outcome, "top");
+        assert_eq!(report.values[0].reason, "unresolvedReference");
+        assert_eq!(report.values[0].rendered_value, None);
+    }
+
+    #[test]
+    fn static_value_resolution_reports_cycles_as_top() {
+        let report = summarize_static_stylesheet_value_resolution(
+            "@a: @b; @b: @a; .button { color: @a; }",
+            StyleDialect::Less,
+        );
+        assert!(report.is_some());
+        let Some(report) = report else {
+            return;
+        };
+
+        assert_eq!(report.reference_count, 1);
+        assert_eq!(report.top_count, 1);
+        assert_eq!(report.cycle_count, 1);
+        assert_eq!(report.values[0].outcome, "top");
+        assert_eq!(report.values[0].reason, "cycle");
+    }
+
+    #[test]
+    fn static_value_resolution_keeps_dynamic_values_raw() {
+        let report = summarize_static_stylesheet_value_resolution(
+            "$tone: color.mix(red, blue); .button { color: $tone; }",
+            StyleDialect::Scss,
+        );
+        assert!(report.is_some());
+        let Some(report) = report else {
+            return;
+        };
+
+        assert_eq!(report.reference_count, 1);
+        assert_eq!(report.raw_count, 1);
+        assert_eq!(report.unsupported_dynamic_count, 1);
+        assert_eq!(report.values[0].outcome, "raw");
+        assert_eq!(report.values[0].reason, "unsupportedDynamic");
+        assert_eq!(
+            report.values[0].rendered_value.as_deref(),
+            Some("color.mix(red, blue)")
+        );
     }
 }
