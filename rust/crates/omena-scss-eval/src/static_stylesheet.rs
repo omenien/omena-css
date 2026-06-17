@@ -1756,7 +1756,9 @@ fn resolve_static_scss_variable_abstract_value_text(
     };
     if references.is_empty() {
         if static_stylesheet_literal_value_is_safe(value) {
-            return resolved_static_abstract_value(value);
+            return resolved_static_abstract_value(
+                reduce_static_parenthesized_numeric_value(value.to_string()).as_str(),
+            );
         }
         return raw_static_abstract_value(
             value,
@@ -1789,7 +1791,7 @@ fn resolve_static_scss_variable_abstract_value_text(
         cursor = reference.end;
     }
     output.push_str(&value[cursor..]);
-    resolved_static_abstract_value(output.as_str())
+    resolved_static_abstract_value(reduce_static_parenthesized_numeric_value(output).as_str())
 }
 
 fn resolve_static_scss_variable_value_at_position(
@@ -1836,7 +1838,7 @@ fn resolve_static_scss_variable_value_in_scope(
         stack,
     );
     stack.remove(&stack_key);
-    resolved
+    resolved.map(reduce_static_parenthesized_numeric_value)
 }
 
 fn find_static_scss_variable_declaration<'a>(
@@ -2684,6 +2686,27 @@ mod tests {
             Some("3px")
         );
         assert!(report.evaluated_css.contains("margin: 3px"));
+    }
+
+    #[test]
+    fn static_scss_evaluation_uses_value_lattice_numeric_reduction() {
+        let report = derive_static_stylesheet_module_evaluation(
+            "$gap: (1px + 2px); .button { margin: $gap; }",
+            StyleDialect::Scss,
+        );
+        assert!(report.is_some());
+        let Some(report) = report else {
+            return;
+        };
+
+        assert_eq!(report.resolved_replacements[0].text, "3px");
+        assert_eq!(report.resolved_replacements[0].abstract_value_kind, "exact");
+        assert_eq!(
+            report.value_resolution.values[0].rendered_value.as_deref(),
+            Some("3px")
+        );
+        assert!(report.evaluated_css.contains("margin: 3px"));
+        assert!(report.oracle.all_legacy_declaration_values_preserved);
     }
 
     #[test]
