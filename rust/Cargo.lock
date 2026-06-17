@@ -2612,7 +2612,6 @@ version = "0.2.1"
 dependencies = [
  "omena-parser",
  "omena-syntax",
- "serde",
 ]
 
 [[package]]

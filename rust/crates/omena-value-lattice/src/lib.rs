@@ -5,10 +5,8 @@
 //! property analysis stays unrepresentable at this layer.
 
 use omena_parser::StyleDialect;
-use serde::Serialize;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
-#[serde(rename_all = "camelCase")]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct ValueByteSpanV0 {
     pub start: usize,
     pub end: usize,
@@ -95,8 +93,7 @@ impl<'a> DeclarationValueLensV0<'a> {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize)]
-#[serde(rename_all = "camelCase")]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub struct CanonicalCssValueV0 {
     pub serialized: String,
 }
