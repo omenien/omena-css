@@ -40,6 +40,28 @@ fn consumer_build_derives_static_scss_evaluator_context() {
 }
 
 #[test]
+fn consumer_build_derives_static_scss_evaluator_context_for_not_conditions() {
+    let summary = execute_omena_query_consumer_build_style_source(
+        "Button.module.scss",
+        "$gap: if(not true, 1px, 2px); .button { margin: $gap; }",
+        &[
+            "scss-module-evaluate".to_string(),
+            "css-modules-class-hashing".to_string(),
+            "print-css".to_string(),
+        ],
+    );
+
+    assert!(
+        summary
+            .execution
+            .executed_pass_ids
+            .contains(&"scss-module-evaluate")
+    );
+    assert!(summary.execution.output_css.contains("margin: 2px"));
+    assert!(!summary.execution.output_css.contains("$gap"));
+}
+
+#[test]
 fn consumer_build_derives_static_less_evaluator_context() {
     let summary = execute_omena_query_consumer_build_style_source(
         "Button.module.less",
