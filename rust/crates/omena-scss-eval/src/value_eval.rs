@@ -70,6 +70,9 @@ fn parse_static_scss_if_value(value: &str) -> Option<String> {
 
 pub(crate) fn static_scss_literal_truthiness(value: &str) -> Option<bool> {
     let normalized = value.trim().to_ascii_lowercase();
+    if let Some(inner) = strip_static_scss_outer_parens(normalized.as_str()) {
+        return static_scss_literal_truthiness(inner);
+    }
     match split_static_scss_boolean_operands(normalized.as_str(), "or") {
         Ok(Some(operands)) => return static_scss_or_truthiness(operands),
         Ok(None) => {}
@@ -91,6 +94,49 @@ pub(crate) fn static_scss_literal_truthiness(value: &str) -> Option<bool> {
         _ if normalized.starts_with('$') || normalized.contains('(') => None,
         _ => Some(true),
     }
+}
+
+fn strip_static_scss_outer_parens(value: &str) -> Option<&str> {
+    let inner_start = value.strip_prefix('(')?;
+    value.strip_suffix(')')?;
+    let mut paren_depth = 0usize;
+    let mut bracket_depth = 0usize;
+    let mut quote: Option<char> = None;
+    let mut index = 0usize;
+    while index < value.len() {
+        let ch = value[index..].chars().next()?;
+        if let Some(quote_ch) = quote {
+            index += ch.len_utf8();
+            if ch == '\\' {
+                if let Some(escaped) = value[index..].chars().next() {
+                    index += escaped.len_utf8();
+                }
+            } else if ch == quote_ch {
+                quote = None;
+            }
+            continue;
+        }
+        if matches!(ch, '"' | '\'') {
+            quote = Some(ch);
+            index += ch.len_utf8();
+            continue;
+        }
+        match ch {
+            '(' => paren_depth += 1,
+            ')' => {
+                paren_depth = paren_depth.checked_sub(1)?;
+                if paren_depth == 0 && index + ch.len_utf8() != value.len() {
+                    return None;
+                }
+            }
+            '[' => bracket_depth += 1,
+            ']' => bracket_depth = bracket_depth.checked_sub(1)?,
+            _ => {}
+        }
+        index += ch.len_utf8();
+    }
+    (quote.is_none() && paren_depth == 0 && bracket_depth == 0)
+        .then(|| inner_start.strip_suffix(')').unwrap_or(inner_start).trim())
 }
 
 fn static_scss_or_truthiness(operands: Vec<&str>) -> Option<bool> {

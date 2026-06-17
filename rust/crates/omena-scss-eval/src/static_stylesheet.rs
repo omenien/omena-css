@@ -3032,6 +3032,23 @@ mod tests {
     }
 
     #[test]
+    fn static_scss_evaluation_reduces_parenthesized_if_conditions() {
+        let report = derive_static_stylesheet_module_evaluation(
+            "$gap: if((false or true), 1px, 2px); .button { margin: $gap; }",
+            StyleDialect::Scss,
+        );
+        assert!(report.is_some());
+        let Some(report) = report else {
+            return;
+        };
+
+        assert_eq!(report.resolved_replacements[0].text, "1px");
+        assert_eq!(report.resolved_replacements[0].abstract_value_kind, "exact");
+        assert!(report.evaluated_css.contains(".button { margin: 1px; }"));
+        assert!(report.oracle.all_legacy_declaration_values_preserved);
+    }
+
+    #[test]
     fn static_less_evaluation_reduces_numeric_builtin_values() {
         let report = derive_static_stylesheet_module_evaluation(
             "@gap: max(1px, 2px); .button { margin: @gap; }",

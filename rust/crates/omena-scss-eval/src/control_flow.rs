@@ -1735,6 +1735,20 @@ mod tests {
     }
 
     #[test]
+    fn control_flow_value_analysis_reports_parenthesized_branch_truthiness() {
+        let source = "$enabled: false; @if ($enabled) { .off { color: red; } }";
+        let report = analyze_scss_control_flow_values(source, StyleDialect::Scss);
+        assert!(report.is_some());
+        let Some(report) = report else {
+            return;
+        };
+
+        assert_eq!(report.block_count, 1);
+        assert_eq!(report.blocks[0].transfer_kind, "branchCondition");
+        assert_eq!(report.blocks[0].transfer_truthiness, Some("falsey"));
+    }
+
+    #[test]
     fn control_flow_value_analysis_tracks_static_each_binding_values() {
         let source = "@each $tone in red, blue { .item { color: $tone; } }";
         let report = analyze_scss_control_flow_values(source, StyleDialect::Scss);
