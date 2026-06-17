@@ -1112,7 +1112,29 @@ pub fn render_transform_relex_baseline_snapshot_json() -> Result<String, String>
 }
 
 pub fn validate_transform_relex_baseline_snapshot(expected_json: &str) -> Result<(), String> {
-    let current_json = render_transform_relex_baseline_snapshot_json()?;
+    let summary = summarize_transform_relex_baseline();
+
+    // Intrinsic gate: refuse a degraded re-baseline REGARDLESS of the committed fixture.
+    // Snapshot byte-equality alone would let a coordinated `--regen` re-pin an
+    // `asserted:false` / non-RED-witness snapshot and still pass green. These two checks
+    // recompute the assertion live, so the wired gate fails on a real regression even if
+    // the fixture were re-pinned to match it.
+    if !summary.executor_spine.asserted {
+        return Err(
+            "transform re-lex spine regressed: executor_spine.asserted=false — the cached-spine lane no longer meets the lex-token growth-exponent and tokens-per-edited-byte bounds"
+                .to_string(),
+        );
+    }
+    if !summary.executor_spine.red_on_full_relex_witness {
+        return Err(
+            "transform re-lex gate became tautological: executor_spine.red_on_full_relex_witness=false — the cache-disabled full-relex witness lane no longer exceeds the tokens-per-edited-byte bound"
+                .to_string(),
+        );
+    }
+
+    let current_json = serde_json::to_string_pretty(&summary)
+        .map(|json| format!("{json}\n"))
+        .map_err(|error| error.to_string())?;
     let current: serde_json::Value =
         serde_json::from_str(&current_json).map_err(|error| error.to_string())?;
     let expected: serde_json::Value =
