@@ -6,6 +6,7 @@
 //! checks that resolved declaration values can be represented as
 //! `AbstractCssValueV0`.
 
+mod control_flow;
 mod static_stylesheet;
 
 use omena_abstract_value::{
@@ -15,6 +16,10 @@ use omena_parser::{LexedToken, ParsedVariableFactKind, StyleDialect, collect_sty
 use omena_syntax::SyntaxKind;
 use serde::Serialize;
 
+pub use control_flow::{
+    OmenaScssEvalControlFlowBlockV0, OmenaScssEvalControlFlowIrSummaryV0,
+    summarize_scss_control_flow_ir,
+};
 pub use static_stylesheet::{
     OmenaScssEvalResolvedReplacementV0, OmenaScssEvalStaticStylesheetEvaluationV0,
     OmenaScssEvalStaticValueResolutionReportV0, OmenaScssEvalStaticValueResolutionV0,
