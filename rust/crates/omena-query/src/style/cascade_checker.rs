@@ -31,6 +31,7 @@ use omena_query_core::{
 };
 use omena_query_transform_runner::expand_css_nested_selector;
 use omena_syntax::SyntaxKind;
+use omena_value_lattice::split_top_level_value_arguments as split_lattice_top_level_value_arguments;
 
 use super::{
     OmenaQueryCascadeConfidenceV0, OmenaQueryCascadeNarrowingEvidenceV0,
@@ -2676,53 +2677,9 @@ fn collect_query_var_references_from_arguments(arguments: &str, refs: &mut BTree
 }
 
 fn split_query_top_level_arguments(arguments: &str) -> Vec<&str> {
-    let mut parts = Vec::new();
-    let mut start = 0usize;
-    let mut index = 0usize;
-    let mut quote: Option<char> = None;
-    let mut paren_depth = 0usize;
-
-    while index < arguments.len() {
-        let Some(ch) = arguments[index..].chars().next() else {
-            break;
-        };
-        if let Some(quote_ch) = quote {
-            index += ch.len_utf8();
-            if ch == '\\' {
-                if let Some(escaped) = arguments[index..].chars().next() {
-                    index += escaped.len_utf8();
-                }
-            } else if ch == quote_ch {
-                quote = None;
-            }
-            continue;
-        }
-
-        match ch {
-            '"' | '\'' => {
-                quote = Some(ch);
-                index += ch.len_utf8();
-            }
-            '(' => {
-                paren_depth += 1;
-                index += ch.len_utf8();
-            }
-            ')' => {
-                paren_depth = paren_depth.saturating_sub(1);
-                index += ch.len_utf8();
-            }
-            ',' if paren_depth == 0 => {
-                parts.push(&arguments[start..index]);
-                index += ch.len_utf8();
-                start = index;
-            }
-            _ => {
-                index += ch.len_utf8();
-            }
-        }
-    }
-    parts.push(&arguments[start..]);
-    parts
+    split_lattice_top_level_value_arguments(arguments, 0)
+        .map(|segments| segments.into_iter().map(|segment| segment.text).collect())
+        .unwrap_or_else(|| vec![arguments])
 }
 
 fn query_function_name_starts_at(value: &str, index: usize, function_name: &str) -> bool {

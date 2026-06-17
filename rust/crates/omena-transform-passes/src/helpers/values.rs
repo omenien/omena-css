@@ -1,3 +1,8 @@
+use omena_value_lattice::{
+    split_top_level_value_arguments as split_lattice_top_level_value_arguments,
+    split_top_level_whitespace_value_components as split_lattice_top_level_whitespace_value_components,
+};
+
 pub(crate) fn matching_function_call_end(value: &str, left_paren_index: usize) -> Option<usize> {
     if value[left_paren_index..].chars().next()? != '(' {
         return None;
@@ -111,130 +116,21 @@ pub(crate) fn parse_whole_function_value_inner<'a>(
 }
 
 pub(crate) fn split_top_level_value_arguments(inner: &str) -> Option<Vec<String>> {
-    let mut arguments = Vec::new();
-    let mut current = String::new();
-    let mut depth = 0usize;
-    let mut bracket_depth = 0usize;
-    let mut quote: Option<char> = None;
-    let mut escaped = false;
-
-    for ch in inner.chars() {
-        if let Some(active_quote) = quote {
-            current.push(ch);
-            if escaped {
-                escaped = false;
-            } else if ch == '\\' {
-                escaped = true;
-            } else if ch == active_quote {
-                quote = None;
-            }
-            continue;
-        }
-
-        match ch {
-            '"' | '\'' => {
-                quote = Some(ch);
-                current.push(ch);
-            }
-            '(' => {
-                depth += 1;
-                current.push(ch);
-            }
-            ')' => {
-                depth = depth.checked_sub(1)?;
-                current.push(ch);
-            }
-            '[' => {
-                bracket_depth += 1;
-                current.push(ch);
-            }
-            ']' => {
-                bracket_depth = bracket_depth.checked_sub(1)?;
-                current.push(ch);
-            }
-            ',' if depth == 0 && bracket_depth == 0 => {
-                let argument = current.trim().to_string();
-                if argument.is_empty() {
-                    return None;
-                }
-                arguments.push(argument);
-                current.clear();
-            }
-            _ => current.push(ch),
-        }
-    }
-
-    if quote.is_some() || depth != 0 || bracket_depth != 0 {
-        return None;
-    }
-
-    let argument = current.trim().to_string();
-    if argument.is_empty() {
-        return None;
-    }
-    arguments.push(argument);
-    Some(arguments)
+    split_lattice_top_level_value_arguments(inner, 0).map(|segments| {
+        segments
+            .into_iter()
+            .map(|segment| segment.text.to_string())
+            .collect()
+    })
 }
 
 pub(crate) fn split_top_level_whitespace_value_components(value: &str) -> Option<Vec<String>> {
-    let mut components = Vec::new();
-    let mut current = String::new();
-    let mut depth = 0usize;
-    let mut bracket_depth = 0usize;
-    let mut quote: Option<char> = None;
-    let mut escaped = false;
-
-    for ch in value.chars() {
-        if let Some(active_quote) = quote {
-            current.push(ch);
-            if escaped {
-                escaped = false;
-            } else if ch == '\\' {
-                escaped = true;
-            } else if ch == active_quote {
-                quote = None;
-            }
-            continue;
-        }
-
-        match ch {
-            '"' | '\'' => {
-                quote = Some(ch);
-                current.push(ch);
-            }
-            '(' => {
-                depth += 1;
-                current.push(ch);
-            }
-            ')' => {
-                depth = depth.checked_sub(1)?;
-                current.push(ch);
-            }
-            '[' => {
-                bracket_depth += 1;
-                current.push(ch);
-            }
-            ']' => {
-                bracket_depth = bracket_depth.checked_sub(1)?;
-                current.push(ch);
-            }
-            ch if ch.is_ascii_whitespace() && depth == 0 && bracket_depth == 0 => {
-                if !current.trim().is_empty() {
-                    components.push(current.trim().to_string());
-                    current.clear();
-                }
-            }
-            _ => current.push(ch),
-        }
-    }
-
-    if quote.is_some() || depth != 0 || bracket_depth != 0 {
-        return None;
-    }
-    if !current.trim().is_empty() {
-        components.push(current.trim().to_string());
-    }
-    (!components.is_empty()).then_some(components)
+    split_lattice_top_level_whitespace_value_components(value, 0).map(|segments| {
+        segments
+            .into_iter()
+            .map(|segment| segment.text.to_string())
+            .collect()
+    })
 }
 
 pub(crate) type StaticCssFunctionParser = fn(&str) -> Option<String>;
