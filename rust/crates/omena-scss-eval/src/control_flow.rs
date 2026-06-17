@@ -1,8 +1,8 @@
 use std::collections::BTreeMap;
 
 use omena_abstract_value::{
-    AbstractCssValueV0, BoundedJoinFixpointNodeV0, abstract_css_value_from_text,
-    analyze_bounded_join_fixpoint, join_abstract_css_values,
+    AbstractCssValueV0, BoundedJoinFixpointNodeV0, MAX_FLOW_ANALYSIS_ITERATIONS,
+    abstract_css_value_from_text, analyze_bounded_join_fixpoint, join_abstract_css_values,
 };
 use omena_parser::{
     LexedToken, ParsedSassSymbolFact, ParsedSassSymbolFactKind, StyleDialect, collect_style_facts,
@@ -14,7 +14,6 @@ use serde::Serialize;
 
 use crate::abstract_css_value_kind;
 
-const SCSS_CONTROL_FLOW_FIXPOINT_ITERATION_LIMIT: usize = 32;
 const SCSS_CALL_RETURN_RECURSION_LIMIT: usize = 32;
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -74,6 +73,8 @@ pub struct OmenaScssEvalControlFlowValueBlockV0 {
     pub node_key: StableNodeKeyV0,
     pub kind: &'static str,
     pub transfer_kind: &'static str,
+    pub transfer_value: Option<AbstractCssValueV0>,
+    pub transfer_value_kind: Option<&'static str>,
     pub predecessor_node_keys: Vec<StableNodeKeyV0>,
     pub loop_carried_bindings: Vec<String>,
     pub loop_carried_binding_values: Vec<OmenaScssEvalControlFlowBindingValueV0>,
@@ -284,11 +285,15 @@ pub fn analyze_scss_control_flow_values(
         .iter()
         .zip(fixpoint.input_values.iter())
         .zip(fixpoint.output_values.iter())
-        .map(
-            |((node, input_value), output_value)| OmenaScssEvalControlFlowValueBlockV0 {
+        .map(|((node, input_value), output_value)| {
+            let transfer_value = node.transfer.transfer_value();
+            let transfer_value_kind = transfer_value.as_ref().map(abstract_css_value_kind);
+            OmenaScssEvalControlFlowValueBlockV0 {
                 node_key: node.block.node_key.clone(),
                 kind: node.block.kind,
                 transfer_kind: node.transfer.kind_label(),
+                transfer_value,
+                transfer_value_kind,
                 predecessor_node_keys: node
                     .predecessor_indices
                     .iter()
@@ -300,8 +305,8 @@ pub fn analyze_scss_control_flow_values(
                 input_value: input_value.clone(),
                 output_value_kind: abstract_css_value_kind(output_value),
                 output_value: output_value.clone(),
-            },
-        )
+            }
+        })
         .collect::<Vec<_>>();
     Some(OmenaScssEvalControlFlowValueAnalysisV0 {
         schema_version: "0",
@@ -309,7 +314,7 @@ pub fn analyze_scss_control_flow_values(
         mode: "oracleOnly",
         dialect: dialect_label(dialect),
         value_type: "AbstractCssValueV0",
-        max_iterations: SCSS_CONTROL_FLOW_FIXPOINT_ITERATION_LIMIT,
+        max_iterations: MAX_FLOW_ANALYSIS_ITERATIONS,
         converged: fixpoint.converged,
         iteration_count: fixpoint.iteration_count,
         block_count: nodes.len(),
@@ -777,6 +782,15 @@ impl ScssControlFlowTransfer {
         }
     }
 
+    fn transfer_value(&self) -> Option<AbstractCssValueV0> {
+        match self {
+            Self::BranchCondition { value } | Self::LoopCarried { value, .. } => {
+                Some(value.clone())
+            }
+            Self::PassThrough => None,
+        }
+    }
+
     fn apply(&self, input_value: &AbstractCssValueV0) -> AbstractCssValueV0 {
         match self {
             Self::BranchCondition { value } | Self::LoopCarried { value, .. } => {
@@ -813,7 +827,7 @@ fn run_scss_control_flow_fixpoint(
         .collect::<Vec<_>>();
     let fixpoint = analyze_bounded_join_fixpoint(
         &flow_nodes,
-        SCSS_CONTROL_FLOW_FIXPOINT_ITERATION_LIMIT,
+        MAX_FLOW_ANALYSIS_ITERATIONS,
         AbstractCssValueV0::Bottom,
         AbstractCssValueV0::Top,
         join_abstract_css_values,
@@ -1201,7 +1215,9 @@ mod tests {
         assert_eq!(report.loop_carried_binding_count, 1);
         assert_eq!(report.widened_to_top_count, 0);
         assert_eq!(report.blocks[0].transfer_kind, "branchCondition");
+        assert_eq!(report.blocks[0].transfer_value_kind, Some("exact"));
         assert_eq!(report.blocks[1].transfer_kind, "loopCarriedBindings");
+        assert_eq!(report.blocks[1].transfer_value_kind, Some("finiteSet"));
         assert_eq!(report.blocks[1].loop_carried_bindings, vec!["$i"]);
         assert_eq!(report.blocks[1].loop_carried_binding_values.len(), 1);
         assert_eq!(report.blocks[1].loop_carried_binding_values[0].name, "$i");
