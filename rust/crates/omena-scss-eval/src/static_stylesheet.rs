@@ -3101,6 +3101,23 @@ mod tests {
     }
 
     #[test]
+    fn static_scss_evaluation_reduces_static_if_zero_numeric_ordering_conditions() {
+        let report = derive_static_stylesheet_module_evaluation(
+            "$gap: if(0px >= 0, 1px, 2px); .button { margin: $gap; }",
+            StyleDialect::Scss,
+        );
+        assert!(report.is_some());
+        let Some(report) = report else {
+            return;
+        };
+
+        assert_eq!(report.resolved_replacements[0].text, "1px");
+        assert_eq!(report.resolved_replacements[0].abstract_value_kind, "exact");
+        assert!(report.evaluated_css.contains(".button { margin: 1px; }"));
+        assert!(report.oracle.all_legacy_declaration_values_preserved);
+    }
+
+    #[test]
     fn static_stylesheet_bang_safety_only_allows_comparisons() {
         assert!(static_stylesheet_bang_usage_is_comparison_only(
             "if(1px != 2px, 1px, 2px)"

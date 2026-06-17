@@ -141,20 +141,38 @@ fn static_scss_numeric_ordering_truthiness(
     operator: StaticScssComparisonOperator,
     right: &str,
 ) -> Option<bool> {
-    let left = parse_numeric_value_with_unit(left)?;
-    let right = parse_numeric_value_with_unit(right)?;
-    if !left.unit.eq_ignore_ascii_case(right.unit) {
+    let left_value = parse_numeric_value_with_unit(left)?;
+    let right_value = parse_numeric_value_with_unit(right)?;
+    if !left_value.unit.eq_ignore_ascii_case(right_value.unit)
+        && !static_scss_zero_values_share_unitless_canonical_form(left, right)
+    {
         return None;
     }
     Some(match operator {
-        StaticScssComparisonOperator::LessThan => left.value < right.value,
-        StaticScssComparisonOperator::LessThanOrEqual => left.value <= right.value,
-        StaticScssComparisonOperator::GreaterThan => left.value > right.value,
-        StaticScssComparisonOperator::GreaterThanOrEqual => left.value >= right.value,
+        StaticScssComparisonOperator::LessThan => left_value.value < right_value.value,
+        StaticScssComparisonOperator::LessThanOrEqual => left_value.value <= right_value.value,
+        StaticScssComparisonOperator::GreaterThan => left_value.value > right_value.value,
+        StaticScssComparisonOperator::GreaterThanOrEqual => left_value.value >= right_value.value,
         StaticScssComparisonOperator::Equal | StaticScssComparisonOperator::NotEqual => {
             return None;
         }
     })
+}
+
+fn static_scss_zero_values_share_unitless_canonical_form(left: &str, right: &str) -> bool {
+    let Some(left_value) = parse_numeric_value_with_unit(left) else {
+        return false;
+    };
+    let Some(right_value) = parse_numeric_value_with_unit(right) else {
+        return false;
+    };
+    if left_value.value != 0.0 || right_value.value != 0.0 {
+        return false;
+    }
+    if !left_value.unit.is_empty() && !right_value.unit.is_empty() {
+        return false;
+    }
+    css_values_canonically_equal(left, right)
 }
 
 fn static_scss_comparable_operand(value: &str) -> Option<String> {
