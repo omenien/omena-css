@@ -241,6 +241,28 @@ fn consumer_build_derives_static_less_evaluator_context_for_property_variables()
 }
 
 #[test]
+fn consumer_build_derives_static_less_evaluator_context_for_numeric_property_variables() {
+    let summary = execute_omena_query_consumer_build_style_source(
+        "Button.module.less",
+        ".card { margin: (1px + 2px); padding: $margin; }",
+        &[
+            "less-module-evaluate".to_string(),
+            "css-modules-class-hashing".to_string(),
+            "print-css".to_string(),
+        ],
+    );
+
+    assert!(
+        summary
+            .execution
+            .executed_pass_ids
+            .contains(&"less-module-evaluate")
+    );
+    assert!(summary.execution.output_css.contains("padding: 3px"));
+    assert!(!summary.execution.output_css.contains("$margin"));
+}
+
+#[test]
 fn consumer_build_derives_static_less_evaluator_context_for_parenthesized_arithmetic() {
     let summary = execute_omena_query_consumer_build_style_source(
         "Button.module.less",

@@ -2317,6 +2317,11 @@ fn resolve_static_less_property_abstract_value_in_scope(
         fuel - 1,
     );
     stack.remove(&stack_key);
+    if let Some(rendered_value) = resolved.rendered_value.as_deref() {
+        return resolved_static_abstract_value(
+            reduce_static_numeric_value(rendered_value.to_string()).as_str(),
+        );
+    }
     resolved
 }
 
@@ -2371,7 +2376,7 @@ fn resolve_static_less_property_abstract_value_text(
         cursor = reference.end;
     }
     output.push_str(&value[cursor..]);
-    resolved_static_abstract_value(output.as_str())
+    resolved_static_abstract_value(reduce_static_numeric_value(output).as_str())
 }
 
 fn resolve_static_less_property_value_in_scope(
@@ -2394,7 +2399,7 @@ fn resolve_static_less_property_value_in_scope(
         stack,
     );
     stack.remove(&stack_key);
-    resolved
+    resolved.map(reduce_static_numeric_value)
 }
 
 fn find_static_less_property_declaration<'a>(
@@ -2996,6 +3001,28 @@ mod tests {
             Some("2px")
         );
         assert!(report.evaluated_css.contains("margin: 2px"));
+    }
+
+    #[test]
+    fn static_less_evaluation_reduces_property_variable_numeric_values() {
+        let report = derive_static_stylesheet_module_evaluation(
+            ".button { margin: (1px + 2px); padding: $margin; }",
+            StyleDialect::Less,
+        );
+        assert!(report.is_some());
+        let Some(report) = report else {
+            return;
+        };
+
+        assert_eq!(report.replacement_count, 1);
+        assert_eq!(report.resolved_replacements[0].name, "$margin");
+        assert_eq!(report.resolved_replacements[0].text, "3px");
+        assert_eq!(report.resolved_replacements[0].abstract_value_kind, "exact");
+        assert_eq!(
+            report.value_resolution.values[0].rendered_value.as_deref(),
+            Some("3px")
+        );
+        assert!(report.evaluated_css.contains("padding: 3px"));
     }
 
     #[test]
