@@ -1468,13 +1468,13 @@ fn evaluate_static_scss_function_output_value(value: &str) -> StaticStylesheetAb
             StaticStylesheetResolutionReason::UnsupportedDynamic,
         );
     }
-    if static_scss_function_value_contains_any_callable(value) {
+    let rendered_value = reduce_static_scss_value(value.to_string());
+    if static_scss_function_value_contains_any_callable(rendered_value.as_str()) {
         return raw_static_abstract_value(
             value,
             StaticStylesheetResolutionReason::UnsupportedDynamic,
         );
     }
-    let rendered_value = reduce_static_scss_value(value.to_string());
     let abstract_value = abstract_css_value_from_text(rendered_value.as_str());
     let outcome = if matches!(abstract_value, AbstractCssValueV0::Raw { .. }) {
         StaticStylesheetResolutionOutcome::Raw
@@ -3178,6 +3178,25 @@ mod tests {
         assert_eq!(report.resolved_replacements[0].text, "2px");
         assert_eq!(report.resolved_replacements[0].abstract_value_kind, "exact");
         assert!(report.evaluated_css.contains(".button { margin: 2px; }"));
+        assert!(report.oracle.all_legacy_declaration_values_preserved);
+    }
+
+    #[test]
+    fn static_scss_evaluation_ignores_inactive_if_branch_callables() {
+        let report = derive_static_stylesheet_module_evaluation(
+            "@function choose() { @return if(false, min(1px, 2px), 3px) + 1px; } .button { margin: choose(); }",
+            StyleDialect::Scss,
+        );
+        assert!(report.is_some());
+        let Some(report) = report else {
+            return;
+        };
+
+        assert_eq!(report.replacement_count, 1);
+        assert_eq!(report.resolved_replacements[0].name, "function:choose");
+        assert_eq!(report.resolved_replacements[0].text, "4px");
+        assert_eq!(report.resolved_replacements[0].abstract_value_kind, "exact");
+        assert!(report.evaluated_css.contains(".button { margin: 4px; }"));
         assert!(report.oracle.all_legacy_declaration_values_preserved);
     }
 
