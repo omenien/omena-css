@@ -2455,7 +2455,8 @@ fn static_stylesheet_less_declaration_value_is_removal_safe(value: &str) -> bool
 }
 
 fn static_stylesheet_scss_declaration_value_is_removal_safe(value: &str) -> bool {
-    !value.chars().any(|ch| matches!(ch, '{' | '}' | ';' | '!'))
+    !value.chars().any(|ch| matches!(ch, '{' | '}' | ';'))
+        && static_stylesheet_bang_usage_is_comparison_only(value)
 }
 
 fn static_stylesheet_property_name_is_safe(name: &str) -> bool {
@@ -2631,7 +2632,8 @@ fn static_stylesheet_literal_value_is_safe(value: &str) -> bool {
     !value.is_empty()
         && !value
             .chars()
-            .any(|ch| matches!(ch, '{' | '}' | ';' | '$' | '@' | '!'))
+            .any(|ch| matches!(ch, '{' | '}' | ';' | '$' | '@'))
+        && static_stylesheet_bang_usage_is_comparison_only(value)
 }
 
 fn static_stylesheet_variable_name_is_safe(name: &str) -> bool {
@@ -2648,9 +2650,8 @@ fn static_scss_callable_name_is_safe(name: &str) -> bool {
 fn static_scss_function_argument_is_safe(value: &str) -> bool {
     !value.is_empty()
         && !value.contains("...")
-        && !value
-            .chars()
-            .any(|ch| matches!(ch, '{' | '}' | ';' | '!' | ':'))
+        && !value.chars().any(|ch| matches!(ch, '{' | '}' | ';' | ':'))
+        && static_stylesheet_bang_usage_is_comparison_only(value)
 }
 
 fn static_scss_public_module_variable_name(name: &str) -> Option<String> {
@@ -2678,7 +2679,24 @@ pub fn static_scss_variable_names_equal(left: &str, right: &str) -> bool {
 
 fn static_stylesheet_composite_value_is_safe(value: &str) -> bool {
     let value = value.trim();
-    !value.is_empty() && !value.chars().any(|ch| matches!(ch, '{' | '}' | ';' | '!'))
+    !value.is_empty()
+        && !value.chars().any(|ch| matches!(ch, '{' | '}' | ';'))
+        && static_stylesheet_bang_usage_is_comparison_only(value)
+}
+
+fn static_stylesheet_bang_usage_is_comparison_only(value: &str) -> bool {
+    let mut index = 0usize;
+    while let Some(relative_index) = value[index..].find('!') {
+        let bang_index = index + relative_index;
+        if !value
+            .get(bang_index + '!'.len_utf8()..)
+            .is_some_and(|suffix| suffix.starts_with('='))
+        {
+            return false;
+        }
+        index = bang_index + '!'.len_utf8();
+    }
+    true
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -3049,6 +3067,33 @@ mod tests {
     }
 
     #[test]
+    fn static_scss_evaluation_reduces_static_if_inequality_conditions() {
+        let report = derive_static_stylesheet_module_evaluation(
+            "$gap: if(1px != 2px, 1px, 2px); .button { margin: $gap; }",
+            StyleDialect::Scss,
+        );
+        assert!(report.is_some());
+        let Some(report) = report else {
+            return;
+        };
+
+        assert_eq!(report.resolved_replacements[0].text, "1px");
+        assert_eq!(report.resolved_replacements[0].abstract_value_kind, "exact");
+        assert!(report.evaluated_css.contains(".button { margin: 1px; }"));
+        assert!(report.oracle.all_legacy_declaration_values_preserved);
+    }
+
+    #[test]
+    fn static_stylesheet_bang_safety_only_allows_comparisons() {
+        assert!(static_stylesheet_bang_usage_is_comparison_only(
+            "if(1px != 2px, 1px, 2px)"
+        ));
+        assert!(!static_stylesheet_bang_usage_is_comparison_only(
+            "1px !important"
+        ));
+    }
+
+    #[test]
     fn static_scss_evaluation_reduces_parenthesized_if_conditions() {
         let report = derive_static_stylesheet_module_evaluation(
             "$gap: if((false or true), 1px, 2px); .button { margin: $gap; }",
@@ -3332,6 +3377,25 @@ mod tests {
     fn static_scss_evaluation_reduces_function_equality_returns() {
         let report = derive_static_stylesheet_module_evaluation(
             "@function choose($value) { @return if($value == 2px, 1px, 2px); } .button { margin: choose(2px); }",
+            StyleDialect::Scss,
+        );
+        assert!(report.is_some());
+        let Some(report) = report else {
+            return;
+        };
+
+        assert_eq!(report.replacement_count, 1);
+        assert_eq!(report.resolved_replacements[0].name, "function:choose");
+        assert_eq!(report.resolved_replacements[0].text, "1px");
+        assert_eq!(report.resolved_replacements[0].abstract_value_kind, "exact");
+        assert!(report.evaluated_css.contains(".button { margin: 1px; }"));
+        assert!(report.oracle.all_legacy_declaration_values_preserved);
+    }
+
+    #[test]
+    fn static_scss_evaluation_reduces_function_inequality_returns() {
+        let report = derive_static_stylesheet_module_evaluation(
+            "@function choose($value) { @return if($value != 2px, 1px, 2px); } .button { margin: choose(3px); }",
             StyleDialect::Scss,
         );
         assert!(report.is_some());
