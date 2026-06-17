@@ -20,8 +20,8 @@
     "@types/react": "^19.2.17",
     "@types/react-dom": "^19.2.0",
     "@vitejs/plugin-react": "^6.0.2",
-    "less": "^4.4.2",
-    "sass": "^1.100.0",
+    "less": "^4.6.6",
+    "sass": "^1.101.0",
     "vite": "^8.0.16",
     "vite-plus": "^0.1.24"
   }
