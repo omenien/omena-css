@@ -3,7 +3,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use omena_abstract_value::{AbstractCssValueV0, abstract_css_value_from_text};
 use omena_parser::{LexedToken, ParsedVariableFact, ParsedVariableFactKind, StyleDialect, lex};
 use omena_syntax::SyntaxKind;
-use omena_value_lattice::number::reduce_static_numeric_expression;
+use omena_value_lattice::number::{parse_reducible_calc_value, reduce_static_numeric_expression};
 use serde::Serialize;
 
 use crate::{abstract_css_value_kind, summarize_omena_scss_eval_oracle};
@@ -1283,7 +1283,7 @@ fn evaluate_static_scss_function_output_value(value: &str) -> StaticStylesheetAb
             StaticStylesheetResolutionReason::UnsupportedDynamic,
         );
     }
-    let rendered_value = reduce_static_parenthesized_numeric_value(value.to_string());
+    let rendered_value = reduce_static_numeric_value(value.to_string());
     let abstract_value = abstract_css_value_from_text(rendered_value.as_str());
     let outcome = if matches!(abstract_value, AbstractCssValueV0::Raw { .. }) {
         StaticStylesheetResolutionOutcome::Raw
@@ -1757,7 +1757,7 @@ fn resolve_static_scss_variable_abstract_value_text(
     if references.is_empty() {
         if static_stylesheet_literal_value_is_safe(value) {
             return resolved_static_abstract_value(
-                reduce_static_parenthesized_numeric_value(value.to_string()).as_str(),
+                reduce_static_numeric_value(value.to_string()).as_str(),
             );
         }
         return raw_static_abstract_value(
@@ -1791,7 +1791,7 @@ fn resolve_static_scss_variable_abstract_value_text(
         cursor = reference.end;
     }
     output.push_str(&value[cursor..]);
-    resolved_static_abstract_value(reduce_static_parenthesized_numeric_value(output).as_str())
+    resolved_static_abstract_value(reduce_static_numeric_value(output).as_str())
 }
 
 fn resolve_static_scss_variable_value_at_position(
@@ -1838,7 +1838,7 @@ fn resolve_static_scss_variable_value_in_scope(
         stack,
     );
     stack.remove(&stack_key);
-    resolved.map(reduce_static_parenthesized_numeric_value)
+    resolved.map(reduce_static_numeric_value)
 }
 
 fn find_static_scss_variable_declaration<'a>(
@@ -1965,7 +1965,7 @@ fn resolve_static_less_variable_abstract_value_in_scope(
     stack.remove(&stack_key);
     if let Some(rendered_value) = resolved.rendered_value.as_deref() {
         return resolved_static_abstract_value(
-            reduce_static_parenthesized_numeric_value(rendered_value.to_string()).as_str(),
+            reduce_static_numeric_value(rendered_value.to_string()).as_str(),
         );
     }
     resolved
@@ -2045,7 +2045,7 @@ fn resolve_static_less_variable_value_in_scope(
         stack,
     );
     stack.remove(&stack_key);
-    resolved.map(reduce_static_parenthesized_numeric_value)
+    resolved.map(reduce_static_numeric_value)
 }
 
 fn find_static_less_variable_declaration<'a>(
@@ -2253,8 +2253,11 @@ fn resolve_static_less_property_value_text(
     Some(output)
 }
 
-fn reduce_static_parenthesized_numeric_value(value: String) -> String {
+fn reduce_static_numeric_value(value: String) -> String {
     let trimmed = value.trim();
+    if let Some(reduced) = parse_reducible_calc_value(trimmed) {
+        return reduced;
+    }
     let Some(inner) = trimmed
         .strip_prefix('(')
         .and_then(|without_left| without_left.strip_suffix(')'))
@@ -2692,6 +2695,27 @@ mod tests {
     fn static_scss_evaluation_uses_value_lattice_numeric_reduction() {
         let report = derive_static_stylesheet_module_evaluation(
             "$gap: (1px + 2px); .button { margin: $gap; }",
+            StyleDialect::Scss,
+        );
+        assert!(report.is_some());
+        let Some(report) = report else {
+            return;
+        };
+
+        assert_eq!(report.resolved_replacements[0].text, "3px");
+        assert_eq!(report.resolved_replacements[0].abstract_value_kind, "exact");
+        assert_eq!(
+            report.value_resolution.values[0].rendered_value.as_deref(),
+            Some("3px")
+        );
+        assert!(report.evaluated_css.contains("margin: 3px"));
+        assert!(report.oracle.all_legacy_declaration_values_preserved);
+    }
+
+    #[test]
+    fn static_scss_evaluation_reduces_static_calc_values() {
+        let report = derive_static_stylesheet_module_evaluation(
+            "$gap: calc(1px + 2px); .button { margin: $gap; }",
             StyleDialect::Scss,
         );
         assert!(report.is_some());
