@@ -1299,6 +1299,7 @@ fn resolve_static_scss_function_call_abstract_value(
     for (parameter, argument) in bound_arguments {
         let resolution = resolve_static_scss_function_argument_abstract_value(
             argument.as_str(),
+            &argument_values,
             call.start,
             scopes,
             variable_declarations,
@@ -1379,34 +1380,20 @@ fn bind_static_scss_function_arguments(
 
 fn resolve_static_scss_function_argument_abstract_value(
     argument: &str,
+    argument_values: &BTreeMap<String, String>,
     call_position: usize,
     scopes: &[StaticStylesheetScope],
     variable_declarations: &[StaticStylesheetScopedVariableDeclaration],
     fuel: usize,
 ) -> StaticStylesheetAbstractResolution {
-    let mut abstract_stack = BTreeSet::new();
-    let mut resolution = resolve_static_scss_variable_abstract_value_text(
+    resolve_static_scss_function_value_with_bindings(
         argument,
+        argument_values,
         call_position,
         scopes,
         variable_declarations,
-        &mut abstract_stack,
         fuel,
-    );
-    if resolution.outcome == StaticStylesheetResolutionOutcome::Top {
-        return resolution;
-    }
-    let mut text_stack = BTreeSet::new();
-    if let Some(rendered_value) = resolve_static_scss_variable_value_text(
-        argument,
-        call_position,
-        scopes,
-        variable_declarations,
-        &mut text_stack,
-    ) {
-        resolution.rendered_value = Some(rendered_value);
-    }
-    resolution
+    )
 }
 
 fn resolve_static_scss_function_return_abstract_value(
@@ -1416,20 +1403,37 @@ fn resolve_static_scss_function_return_abstract_value(
     variable_declarations: &[StaticStylesheetScopedVariableDeclaration],
     fuel: usize,
 ) -> StaticStylesheetAbstractResolution {
-    let Some(references) = collect_static_stylesheet_variable_references(
+    resolve_static_scss_function_value_with_bindings(
         declaration.return_value.as_str(),
-        StaticStylesheetVariableKind::Scss,
-    ) else {
+        argument_values,
+        declaration.span_start,
+        scopes,
+        variable_declarations,
+        fuel,
+    )
+}
+
+fn resolve_static_scss_function_value_with_bindings(
+    value: &str,
+    argument_values: &BTreeMap<String, String>,
+    fallback_position: usize,
+    scopes: &[StaticStylesheetScope],
+    variable_declarations: &[StaticStylesheetScopedVariableDeclaration],
+    fuel: usize,
+) -> StaticStylesheetAbstractResolution {
+    let Some(references) =
+        collect_static_stylesheet_variable_references(value, StaticStylesheetVariableKind::Scss)
+    else {
         return raw_static_abstract_value(
-            declaration.return_value.as_str(),
+            value,
             StaticStylesheetResolutionReason::UnsupportedDynamic,
         );
     };
     if references.is_empty() {
-        return evaluate_static_scss_function_output_value(declaration.return_value.as_str());
+        return evaluate_static_scss_function_output_value(value);
     }
 
-    let mut output = String::with_capacity(declaration.return_value.len());
+    let mut output = String::with_capacity(value.len());
     let mut cursor = 0usize;
     let mut stack = BTreeSet::new();
     for reference in references {
@@ -1439,7 +1443,7 @@ fn resolve_static_scss_function_return_abstract_value(
         } else {
             resolve_static_scss_variable_abstract_value_at_position(
                 reference.name.as_str(),
-                declaration.span_start,
+                fallback_position,
                 scopes,
                 variable_declarations,
                 &mut stack,
@@ -1449,11 +1453,11 @@ fn resolve_static_scss_function_return_abstract_value(
         let Some(rendered_value) = resolved.rendered_value else {
             return top_static_abstract_value(resolved.reason);
         };
-        output.push_str(&declaration.return_value[cursor..reference.start]);
+        output.push_str(&value[cursor..reference.start]);
         output.push_str(&rendered_value);
         cursor = reference.end;
     }
-    output.push_str(&declaration.return_value[cursor..]);
+    output.push_str(&value[cursor..]);
     evaluate_static_scss_function_output_value(output.as_str())
 }
 
@@ -3115,6 +3119,25 @@ mod tests {
 
         assert_eq!(report.replacement_count, 1);
         assert_eq!(report.resolved_replacements[0].name, "function:pair");
+        assert_eq!(report.resolved_replacements[0].text, "3px");
+        assert_eq!(report.resolved_replacements[0].abstract_value_kind, "exact");
+        assert!(report.evaluated_css.contains(".button { margin: 3px; }"));
+        assert!(report.oracle.all_legacy_declaration_values_preserved);
+    }
+
+    #[test]
+    fn static_scss_evaluation_resolves_default_arguments_from_prior_parameters() {
+        let report = derive_static_stylesheet_module_evaluation(
+            "@function offset($value, $extra: $value + 1px) { @return $extra; } .button { margin: offset(2px); }",
+            StyleDialect::Scss,
+        );
+        assert!(report.is_some());
+        let Some(report) = report else {
+            return;
+        };
+
+        assert_eq!(report.replacement_count, 1);
+        assert_eq!(report.resolved_replacements[0].name, "function:offset");
         assert_eq!(report.resolved_replacements[0].text, "3px");
         assert_eq!(report.resolved_replacements[0].abstract_value_kind, "exact");
         assert!(report.evaluated_css.contains(".button { margin: 3px; }"));
