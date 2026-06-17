@@ -4,7 +4,10 @@ use omena_abstract_value::{
     AbstractCssValueV0, BoundedJoinFixpointNodeV0, abstract_css_value_from_text,
     analyze_bounded_join_fixpoint, join_abstract_css_values,
 };
-use omena_parser::{LexedToken, StyleDialect, lex};
+use omena_parser::{
+    LexedToken, ParsedSassSymbolFact, ParsedSassSymbolFactKind, StyleDialect, collect_style_facts,
+    lex,
+};
 use omena_syntax::SyntaxKind;
 use omena_transform_cst::StableNodeKeyV0;
 use serde::Serialize;
@@ -12,6 +15,7 @@ use serde::Serialize;
 use crate::abstract_css_value_kind;
 
 const SCSS_CONTROL_FLOW_FIXPOINT_ITERATION_LIMIT: usize = 32;
+const SCSS_CALL_RETURN_RECURSION_LIMIT: usize = 32;
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -87,6 +91,53 @@ pub struct OmenaScssEvalControlFlowBindingValueV0 {
     pub value_kind: &'static str,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct OmenaScssEvalCallReturnIrSummaryV0 {
+    pub schema_version: &'static str,
+    pub product: &'static str,
+    pub mode: &'static str,
+    pub dialect: &'static str,
+    pub node_key_type: &'static str,
+    pub recursion_cap: usize,
+    pub flat_css_cfg_built: bool,
+    pub merged_cross_file_graph: bool,
+    pub node_count: usize,
+    pub declaration_node_count: usize,
+    pub call_node_count: usize,
+    pub return_node_count: usize,
+    pub edge_count: usize,
+    pub recursive_edge_count: usize,
+    pub capped_recursive_call_count: usize,
+    pub max_stack_depth_observed: usize,
+    pub nodes: Vec<OmenaScssEvalCallReturnNodeV0>,
+    pub edges: Vec<OmenaScssEvalCallReturnEdgeV0>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct OmenaScssEvalCallReturnNodeV0 {
+    pub node_key: StableNodeKeyV0,
+    pub kind: &'static str,
+    pub symbol_kind: &'static str,
+    pub role: &'static str,
+    pub name: Option<String>,
+    pub namespace: Option<String>,
+    pub source_span_start: usize,
+    pub source_span_end: usize,
+    pub containing_declaration_node_key: Option<StableNodeKeyV0>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct OmenaScssEvalCallReturnEdgeV0 {
+    pub source_node_key: StableNodeKeyV0,
+    pub target_node_key: StableNodeKeyV0,
+    pub kind: &'static str,
+    pub recursive: bool,
+    pub capped_by_recursion_cap: bool,
+}
+
 pub fn summarize_scss_control_flow_ir(
     source: &str,
     dialect: StyleDialect,
@@ -125,6 +176,79 @@ pub fn summarize_scss_control_flow_ir(
         back_edge_count,
         edge_count,
         blocks,
+    })
+}
+
+pub fn summarize_scss_call_return_ir(
+    source: &str,
+    dialect: StyleDialect,
+) -> Option<OmenaScssEvalCallReturnIrSummaryV0> {
+    if !matches!(dialect, StyleDialect::Scss | StyleDialect::Sass) {
+        return None;
+    }
+
+    let facts = collect_style_facts(source, dialect);
+    let lexed = lex(source, dialect);
+    let mut candidates = facts
+        .sass_symbols
+        .iter()
+        .filter_map(call_return_candidate_from_sass_symbol)
+        .chain(collect_scss_return_candidates(lexed.tokens()))
+        .collect::<Vec<_>>();
+    candidates.sort_by(|left, right| {
+        left.source_span_start
+            .cmp(&right.source_span_start)
+            .then(left.source_span_end.cmp(&right.source_span_end))
+            .then(left.kind.cmp(right.kind))
+            .then(left.name.cmp(&right.name))
+    });
+
+    let mut ordinals = BTreeMap::<&'static str, usize>::new();
+    let mut nodes = candidates
+        .into_iter()
+        .map(|candidate| call_return_node_from_candidate(candidate, &mut ordinals))
+        .collect::<Vec<_>>();
+    stamp_containing_declarations(&mut nodes, lexed.tokens());
+
+    let edges = build_call_return_edges(&nodes);
+    let declaration_node_count = nodes
+        .iter()
+        .filter(|node| call_return_node_is_declaration(node))
+        .count();
+    let call_node_count = nodes
+        .iter()
+        .filter(|node| call_return_node_is_call(node))
+        .count();
+    let return_node_count = nodes
+        .iter()
+        .filter(|node| node.kind == "functionReturn")
+        .count();
+    let recursive_edge_count = edges.iter().filter(|edge| edge.recursive).count();
+    let capped_recursive_call_count = edges
+        .iter()
+        .filter(|edge| edge.capped_by_recursion_cap)
+        .count();
+    let max_stack_depth_observed = max_call_stack_depth_observed(&nodes, &edges);
+
+    Some(OmenaScssEvalCallReturnIrSummaryV0 {
+        schema_version: "0",
+        product: "omena-scss-eval.call-return-ir",
+        mode: "oracleOnly",
+        dialect: dialect_label(dialect),
+        node_key_type: "StableNodeKeyV0",
+        recursion_cap: SCSS_CALL_RETURN_RECURSION_LIMIT,
+        flat_css_cfg_built: false,
+        merged_cross_file_graph: false,
+        node_count: nodes.len(),
+        declaration_node_count,
+        call_node_count,
+        return_node_count,
+        edge_count: edges.len(),
+        recursive_edge_count,
+        capped_recursive_call_count,
+        max_stack_depth_observed,
+        nodes,
+        edges,
     })
 }
 
@@ -196,6 +320,299 @@ pub fn analyze_scss_control_flow_values(
         merged_cross_file_graph: false,
         blocks,
     })
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct ScssCallReturnCandidate {
+    kind: &'static str,
+    symbol_kind: &'static str,
+    role: &'static str,
+    name: Option<String>,
+    namespace: Option<String>,
+    source_span_start: usize,
+    source_span_end: usize,
+}
+
+fn call_return_candidate_from_sass_symbol(
+    symbol: &ParsedSassSymbolFact,
+) -> Option<ScssCallReturnCandidate> {
+    let (kind, symbol_kind, role) = match symbol.kind {
+        ParsedSassSymbolFactKind::MixinDeclaration => ("mixinDeclaration", "mixin", "declaration"),
+        ParsedSassSymbolFactKind::MixinInclude => ("mixinInclude", "mixin", "call"),
+        ParsedSassSymbolFactKind::FunctionDeclaration => {
+            ("functionDeclaration", "function", "declaration")
+        }
+        ParsedSassSymbolFactKind::FunctionCall => ("functionCall", "function", "call"),
+        ParsedSassSymbolFactKind::VariableDeclaration
+        | ParsedSassSymbolFactKind::VariableReference => return None,
+    };
+    Some(ScssCallReturnCandidate {
+        kind,
+        symbol_kind,
+        role,
+        name: Some(symbol.name.clone()),
+        namespace: symbol.namespace.clone(),
+        source_span_start: symbol.range.start().into(),
+        source_span_end: symbol.range.end().into(),
+    })
+}
+
+fn collect_scss_return_candidates(tokens: &[LexedToken]) -> Vec<ScssCallReturnCandidate> {
+    tokens
+        .iter()
+        .filter(|token| {
+            token.kind == SyntaxKind::AtKeyword && token.text.eq_ignore_ascii_case("@return")
+        })
+        .map(|token| ScssCallReturnCandidate {
+            kind: "functionReturn",
+            symbol_kind: "return",
+            role: "return",
+            name: None,
+            namespace: None,
+            source_span_start: token.range.start().into(),
+            source_span_end: token.range.end().into(),
+        })
+        .collect()
+}
+
+fn call_return_node_from_candidate(
+    candidate: ScssCallReturnCandidate,
+    ordinals: &mut BTreeMap<&'static str, usize>,
+) -> OmenaScssEvalCallReturnNodeV0 {
+    let ordinal = ordinals
+        .entry(candidate.kind)
+        .and_modify(|value| *value += 1)
+        .or_insert(0);
+    OmenaScssEvalCallReturnNodeV0 {
+        node_key: StableNodeKeyV0(format!("scss-call-return:{}#{}", candidate.kind, *ordinal)),
+        kind: candidate.kind,
+        symbol_kind: candidate.symbol_kind,
+        role: candidate.role,
+        name: candidate.name,
+        namespace: candidate.namespace,
+        source_span_start: candidate.source_span_start,
+        source_span_end: candidate.source_span_end,
+        containing_declaration_node_key: None,
+    }
+}
+
+fn stamp_containing_declarations(
+    nodes: &mut [OmenaScssEvalCallReturnNodeV0],
+    tokens: &[LexedToken],
+) {
+    let declaration_ranges = nodes
+        .iter()
+        .enumerate()
+        .filter(|(_, node)| call_return_node_is_declaration(node))
+        .map(|(index, node)| {
+            let next_declaration_start = nodes
+                .iter()
+                .skip(index + 1)
+                .find(|candidate| call_return_node_is_declaration(candidate))
+                .map(|candidate| candidate.source_span_start)
+                .unwrap_or(usize::MAX);
+            let body_end = call_return_declaration_body_end(tokens, node)
+                .unwrap_or(next_declaration_start)
+                .min(next_declaration_start);
+            (node.node_key.clone(), node.source_span_start, body_end)
+        })
+        .collect::<Vec<_>>();
+
+    for node in nodes {
+        if call_return_node_is_declaration(node) {
+            continue;
+        }
+        node.containing_declaration_node_key = declaration_ranges
+            .iter()
+            .rev()
+            .find(|(_, start, end)| {
+                node.source_span_start >= *start && node.source_span_start < *end
+            })
+            .map(|(node_key, _, _)| node_key.clone());
+    }
+}
+
+fn call_return_declaration_body_end(
+    tokens: &[LexedToken],
+    node: &OmenaScssEvalCallReturnNodeV0,
+) -> Option<usize> {
+    let at_rule_name = match node.kind {
+        "mixinDeclaration" => "@mixin",
+        "functionDeclaration" => "@function",
+        _ => return None,
+    };
+    let declaration_name_start = node.source_span_start;
+    let at_rule_index = tokens
+        .iter()
+        .enumerate()
+        .rev()
+        .find(|(_, token)| {
+            let token_start: usize = token.range.start().into();
+            token.kind == SyntaxKind::AtKeyword
+                && token.text.eq_ignore_ascii_case(at_rule_name)
+                && token_start <= declaration_name_start
+        })
+        .map(|(index, _)| index)?;
+    let left_brace_index = tokens
+        .iter()
+        .enumerate()
+        .skip(at_rule_index + 1)
+        .find(|(_, token)| token.kind == SyntaxKind::LeftBrace)
+        .map(|(index, _)| index)?;
+    let right_brace_index = matching_right_brace_token_index(tokens, left_brace_index)?;
+    Some(tokens[right_brace_index].range.end().into())
+}
+
+fn matching_right_brace_token_index(
+    tokens: &[LexedToken],
+    left_brace_index: usize,
+) -> Option<usize> {
+    let mut depth = 0usize;
+    for (index, token) in tokens.iter().enumerate().skip(left_brace_index) {
+        match token.kind {
+            SyntaxKind::LeftBrace => depth += 1,
+            SyntaxKind::RightBrace => {
+                depth = depth.checked_sub(1)?;
+                if depth == 0 {
+                    return Some(index);
+                }
+            }
+            _ => {}
+        }
+    }
+    None
+}
+
+fn build_call_return_edges(
+    nodes: &[OmenaScssEvalCallReturnNodeV0],
+) -> Vec<OmenaScssEvalCallReturnEdgeV0> {
+    let declarations = nodes
+        .iter()
+        .filter(|node| call_return_node_is_declaration(node))
+        .filter_map(|node| {
+            Some((
+                (node.symbol_kind, node.name.as_deref()?),
+                node.node_key.clone(),
+            ))
+        })
+        .collect::<BTreeMap<_, _>>();
+    let mut edges = Vec::new();
+
+    for node in nodes {
+        match node.kind {
+            "mixinInclude" | "functionCall" if node.namespace.is_none() => {
+                if let Some(name) = node.name.as_deref()
+                    && let Some(target_node_key) = declarations.get(&(node.symbol_kind, name))
+                {
+                    let recursive =
+                        node.containing_declaration_node_key.as_ref() == Some(target_node_key);
+                    edges.push(OmenaScssEvalCallReturnEdgeV0 {
+                        source_node_key: node.node_key.clone(),
+                        target_node_key: target_node_key.clone(),
+                        kind: if node.kind == "mixinInclude" {
+                            "mixinCall"
+                        } else {
+                            "functionCall"
+                        },
+                        recursive,
+                        capped_by_recursion_cap: recursive,
+                    });
+                }
+            }
+            "functionReturn" => {
+                if let Some(target_node_key) = node.containing_declaration_node_key.clone()
+                    && nodes.iter().any(|candidate| {
+                        candidate.node_key == target_node_key
+                            && candidate.kind == "functionDeclaration"
+                    })
+                {
+                    edges.push(OmenaScssEvalCallReturnEdgeV0 {
+                        source_node_key: target_node_key,
+                        target_node_key: node.node_key.clone(),
+                        kind: "functionReturn",
+                        recursive: false,
+                        capped_by_recursion_cap: false,
+                    });
+                }
+            }
+            _ => {}
+        }
+    }
+
+    edges
+}
+
+fn max_call_stack_depth_observed(
+    nodes: &[OmenaScssEvalCallReturnNodeV0],
+    edges: &[OmenaScssEvalCallReturnEdgeV0],
+) -> usize {
+    let call_graph = declaration_call_graph(nodes, edges);
+    let mut max_depth = 0usize;
+    for node_key in call_graph.keys() {
+        let mut stack = Vec::new();
+        max_depth = max_depth.max(call_stack_depth_from(node_key, &call_graph, &mut stack));
+    }
+    max_depth
+}
+
+fn declaration_call_graph(
+    nodes: &[OmenaScssEvalCallReturnNodeV0],
+    edges: &[OmenaScssEvalCallReturnEdgeV0],
+) -> BTreeMap<String, Vec<String>> {
+    let containing_declarations = nodes
+        .iter()
+        .filter_map(|node| {
+            Some((
+                node.node_key.0.clone(),
+                node.containing_declaration_node_key.as_ref()?.0.clone(),
+            ))
+        })
+        .collect::<BTreeMap<_, _>>();
+    let mut graph = BTreeMap::<String, Vec<String>>::new();
+    for edge in edges {
+        if !matches!(edge.kind, "mixinCall" | "functionCall") {
+            continue;
+        }
+        let Some(source_declaration) = containing_declarations.get(&edge.source_node_key.0) else {
+            continue;
+        };
+        graph
+            .entry(source_declaration.clone())
+            .or_default()
+            .push(edge.target_node_key.0.clone());
+    }
+    graph
+}
+
+fn call_stack_depth_from(
+    node_key: &str,
+    graph: &BTreeMap<String, Vec<String>>,
+    stack: &mut Vec<String>,
+) -> usize {
+    if stack.iter().any(|entry| entry == node_key) {
+        return SCSS_CALL_RETURN_RECURSION_LIMIT;
+    }
+    if stack.len() >= SCSS_CALL_RETURN_RECURSION_LIMIT {
+        return SCSS_CALL_RETURN_RECURSION_LIMIT;
+    }
+    stack.push(node_key.to_string());
+    let depth = graph
+        .get(node_key)
+        .into_iter()
+        .flat_map(|targets| targets.iter())
+        .map(|target| call_stack_depth_from(target, graph, stack))
+        .max()
+        .unwrap_or(stack.len());
+    stack.pop();
+    depth.min(SCSS_CALL_RETURN_RECURSION_LIMIT)
+}
+
+fn call_return_node_is_declaration(node: &OmenaScssEvalCallReturnNodeV0) -> bool {
+    matches!(node.kind, "mixinDeclaration" | "functionDeclaration")
+}
+
+fn call_return_node_is_call(node: &OmenaScssEvalCallReturnNodeV0) -> bool {
+    matches!(node.kind, "mixinInclude" | "functionCall")
 }
 
 fn control_flow_block_from_token(
@@ -836,6 +1253,75 @@ mod tests {
             "finiteSet"
         );
         assert_eq!(report.blocks[0].output_value_kind, "finiteSet");
+    }
+
+    #[test]
+    fn call_return_ir_summarizes_mixin_and_function_edges() {
+        let source = r#"
+@mixin tone($color) { color: $color; }
+@function double($n) { @return $n * 2; }
+.a { @include tone(red); width: double(2px); }
+"#;
+        let report = summarize_scss_call_return_ir(source, StyleDialect::Scss);
+        assert!(report.is_some());
+        let Some(report) = report else {
+            return;
+        };
+
+        assert_eq!(report.mode, "oracleOnly");
+        assert_eq!(report.node_key_type, "StableNodeKeyV0");
+        assert_eq!(report.recursion_cap, SCSS_CALL_RETURN_RECURSION_LIMIT);
+        assert!(!report.flat_css_cfg_built);
+        assert!(!report.merged_cross_file_graph);
+        assert_eq!(report.declaration_node_count, 2);
+        assert_eq!(report.call_node_count, 2);
+        assert_eq!(report.return_node_count, 1);
+        assert!(
+            report
+                .edges
+                .iter()
+                .any(|edge| edge.kind == "mixinCall" && !edge.recursive)
+        );
+        assert!(
+            report
+                .edges
+                .iter()
+                .any(|edge| edge.kind == "functionCall" && !edge.recursive)
+        );
+        assert!(
+            report
+                .edges
+                .iter()
+                .any(|edge| edge.kind == "functionReturn")
+        );
+        assert_eq!(report.recursive_edge_count, 0);
+    }
+
+    #[test]
+    fn call_return_ir_reports_recursion_cap_for_recursive_mixin() {
+        let source = "@mixin again { @include again; }";
+        let report = summarize_scss_call_return_ir(source, StyleDialect::Scss);
+        assert!(report.is_some());
+        let Some(report) = report else {
+            return;
+        };
+
+        assert_eq!(report.declaration_node_count, 1);
+        assert_eq!(report.call_node_count, 1);
+        assert_eq!(report.recursive_edge_count, 1);
+        assert_eq!(report.capped_recursive_call_count, 1);
+        assert_eq!(
+            report.max_stack_depth_observed,
+            SCSS_CALL_RETURN_RECURSION_LIMIT
+        );
+        assert!(report.edges.iter().any(|edge| edge.capped_by_recursion_cap));
+    }
+
+    #[test]
+    fn call_return_ir_does_not_build_flat_css_cfg() {
+        assert!(
+            summarize_scss_call_return_ir(".button { color: red; }", StyleDialect::Css).is_none()
+        );
     }
 
     #[test]
