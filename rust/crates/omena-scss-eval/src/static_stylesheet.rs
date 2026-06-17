@@ -789,11 +789,19 @@ struct StaticStylesheetPropertyDeclaration {
 struct StaticScssFunctionDeclaration {
     name: String,
     parameters: Vec<StaticScssFunctionParameter>,
+    local_variables: Vec<StaticScssFunctionLocalVariable>,
     return_value: String,
     span_start: usize,
     span_end: usize,
     body_start: usize,
     body_end: usize,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct StaticScssFunctionLocalVariable {
+    name: String,
+    value: String,
+    span_start: usize,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -977,6 +985,12 @@ fn collect_static_scss_function_declarations(
             body_open_index + 1,
             body_close_index,
         )?;
+        let local_variables = collect_static_scss_function_local_variables(
+            source,
+            tokens,
+            body_open_index + 1,
+            body_close_index,
+        )?;
         if !static_stylesheet_composite_value_is_safe(return_value.as_str()) {
             index = body_close_index + 1;
             continue;
@@ -985,6 +999,7 @@ fn collect_static_scss_function_declarations(
         declarations.push(StaticScssFunctionDeclaration {
             name: name_token.text.clone(),
             parameters,
+            local_variables,
             return_value,
             span_start: static_stylesheet_token_start(&tokens[index]),
             span_end: static_stylesheet_token_end(&tokens[body_close_index]),
@@ -994,6 +1009,67 @@ fn collect_static_scss_function_declarations(
         index = body_close_index + 1;
     }
     Some(declarations)
+}
+
+fn collect_static_scss_function_local_variables(
+    source: &str,
+    tokens: &[LexedToken],
+    start: usize,
+    end: usize,
+) -> Option<Vec<StaticScssFunctionLocalVariable>> {
+    let mut variables = Vec::new();
+    let mut nested_block_depth = 0usize;
+    let mut index = start;
+    while index < end {
+        match tokens[index].kind {
+            SyntaxKind::AtKeyword
+                if nested_block_depth == 0
+                    && tokens[index].text.eq_ignore_ascii_case("@return") =>
+            {
+                break;
+            }
+            SyntaxKind::LeftBrace => {
+                nested_block_depth += 1;
+                index += 1;
+            }
+            SyntaxKind::RightBrace => {
+                nested_block_depth = nested_block_depth.checked_sub(1)?;
+                index += 1;
+            }
+            SyntaxKind::ScssVariable if nested_block_depth == 0 => {
+                let colon_index = static_stylesheet_skip_trivia_tokens(tokens, index + 1);
+                if tokens
+                    .get(colon_index)
+                    .is_none_or(|token| token.kind != SyntaxKind::Colon)
+                {
+                    index += 1;
+                    continue;
+                }
+                let value_end_index =
+                    static_stylesheet_value_end_token_until(tokens, colon_index + 1, end)?;
+                let name = canonical_static_scss_variable_name(tokens[index].text.as_str());
+                if !static_stylesheet_variable_name_is_safe(name.as_str()) {
+                    return None;
+                }
+                let value_start = static_stylesheet_token_end(&tokens[colon_index]);
+                let value_end = static_stylesheet_token_start(&tokens[value_end_index]);
+                let value = source.get(value_start..value_end)?.trim();
+                if !static_stylesheet_scss_declaration_value_is_removal_safe(value) {
+                    return None;
+                }
+                variables.push(StaticScssFunctionLocalVariable {
+                    name,
+                    value: value.to_string(),
+                    span_start: static_stylesheet_token_start(&tokens[index]),
+                });
+                index = value_end_index + 1;
+            }
+            _ => {
+                index += 1;
+            }
+        }
+    }
+    Some(variables)
 }
 
 fn collect_static_scss_function_parameters(
@@ -1316,6 +1392,31 @@ fn resolve_static_scss_function_call_abstract_value(
         }
         argument_values.insert(parameter, rendered_value);
     }
+
+    for local_variable in &declaration.local_variables {
+        if static_scss_function_value_contains_callable_to(
+            local_variable.value.as_str(),
+            declaration.name.as_str(),
+        ) {
+            return top_static_abstract_value(StaticStylesheetResolutionReason::Cycle);
+        }
+        let resolution = resolve_static_scss_function_value_with_bindings(
+            local_variable.value.as_str(),
+            &argument_values,
+            local_variable.span_start,
+            scopes,
+            variable_declarations,
+            fuel - 1,
+        );
+        if resolution.outcome == StaticStylesheetResolutionOutcome::Top {
+            return top_static_abstract_value(resolution.reason);
+        }
+        let Some(rendered_value) = resolution.rendered_value else {
+            return top_static_abstract_value(resolution.reason);
+        };
+        argument_values.insert(local_variable.name.clone(), rendered_value);
+    }
+
     resolve_static_scss_function_return_abstract_value(
         declaration,
         &argument_values,
@@ -3488,6 +3589,47 @@ mod tests {
         assert_eq!(
             report.value_resolution.values[0].rendered_value.as_deref(),
             Some("4px")
+        );
+    }
+
+    #[test]
+    fn static_scss_evaluation_resolves_function_local_variables() {
+        let report = derive_static_stylesheet_module_evaluation(
+            "@function offset($base) { $next: $base + 1px; @return $next + 1px; } .button { margin: offset(2px); }",
+            StyleDialect::Scss,
+        );
+        assert!(report.is_some());
+        let Some(report) = report else {
+            return;
+        };
+
+        assert_eq!(report.replacement_count, 1);
+        assert_eq!(report.resolved_replacements[0].name, "function:offset");
+        assert_eq!(report.resolved_replacements[0].text, "4px");
+        assert_eq!(report.resolved_replacements[0].abstract_value_kind, "exact");
+        assert!(report.evaluated_css.contains(".button { margin: 4px; }"));
+        assert!(report.oracle.all_legacy_declaration_values_preserved);
+    }
+
+    #[test]
+    fn static_scss_evaluation_resolves_function_local_variable_chains() {
+        let report = derive_static_stylesheet_module_evaluation(
+            "@function scale($base) { $next: $base + 1px; $double: $next * 2; @return $double; } .button { margin: scale(2px); }",
+            StyleDialect::Scss,
+        );
+        assert!(report.is_some());
+        let Some(report) = report else {
+            return;
+        };
+
+        assert_eq!(report.replacement_count, 1);
+        assert_eq!(report.resolved_replacements[0].name, "function:scale");
+        assert_eq!(report.resolved_replacements[0].text, "6px");
+        assert_eq!(report.resolved_replacements[0].abstract_value_kind, "exact");
+        assert!(report.evaluated_css.contains(".button { margin: 6px; }"));
+        assert_eq!(
+            report.value_resolution.values[0].rendered_value.as_deref(),
+            Some("6px")
         );
     }
 
