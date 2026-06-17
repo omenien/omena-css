@@ -183,12 +183,29 @@ pub fn canonicalize_css_value(value: &str) -> Option<CanonicalCssValueV0> {
     {
         return None;
     }
+    if let Some(serialized) = canonicalize_static_color_value(value) {
+        return Some(CanonicalCssValueV0 { serialized });
+    }
     if value.contains('(') || value.contains(')') {
         return None;
     }
 
     let numeric = parse_numeric_value(value)?;
     canonicalize_numeric_value(numeric)
+}
+
+fn canonicalize_static_color_value(value: &str) -> Option<String> {
+    parse_static_srgb_color_with_alpha(value)
+        .or_else(|| parse_static_rgb_function_color_with_alpha(value))
+        .or_else(|| parse_static_hsl_function_color_with_alpha(value))
+        .or_else(|| parse_static_hwb_function_color_with_alpha(value))
+        .map(shortest_static_srgb_color_with_alpha_text)
+        .or_else(|| {
+            parse_color_function_value(value)
+                .or_else(|| parse_color_mix_value(value))
+                .or_else(|| parse_oklab_oklch_value(value))
+                .and_then(|value| canonicalize_static_color_value(value.as_str()))
+        })
 }
 
 pub fn split_top_level_value_arguments<'a>(
@@ -472,6 +489,24 @@ mod tests {
         assert!(!css_values_canonically_equal("var(--x)", "0"));
         assert!(!css_values_canonically_equal("calc(0px)", "0"));
         assert_eq!(canonicalize_css_value("env(safe-area-inset-top)"), None);
+    }
+
+    #[test]
+    fn canonical_equality_tracks_static_color_values() {
+        assert_eq!(
+            canonicalize_css_value("#ff0000").map(|value| value.serialized),
+            Some("red".to_string())
+        );
+        assert!(css_values_canonically_equal("#f00", "rgb(255 0 0)"));
+        assert_eq!(
+            canonicalize_css_value("color-mix(in srgb, red 50%, blue 50%)")
+                .map(|value| value.serialized),
+            Some("purple".to_string())
+        );
+        assert_eq!(
+            canonicalize_css_value("color(srgb 1 0 0 / .5)").map(|value| value.serialized),
+            Some("#ff000080".to_string())
+        );
     }
 
     #[test]

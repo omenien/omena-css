@@ -433,6 +433,16 @@ fn abstracts_css_values_through_the_region_local_value_lattice() {
     assert!(abstract_css_values_canonically_equal("0px", "0"));
     assert!(!abstract_css_values_canonically_equal("0%", "0"));
     assert_eq!(
+        abstract_css_value_from_text("#ff0000"),
+        AbstractCssValueV0::Exact {
+            value: "red".to_string(),
+        }
+    );
+    assert!(abstract_css_values_canonically_equal(
+        "color-mix(in srgb, red 50%, blue 50%)",
+        "purple"
+    ));
+    assert_eq!(
         abstract_css_value_from_text("var(--gap)"),
         AbstractCssValueV0::Raw {
             value: "var(--gap)".to_string(),

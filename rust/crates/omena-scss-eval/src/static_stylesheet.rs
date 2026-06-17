@@ -2963,6 +2963,25 @@ mod tests {
     }
 
     #[test]
+    fn static_value_resolution_emits_exact_static_color_values() {
+        let report = summarize_static_stylesheet_value_resolution(
+            "$tone: color-mix(in srgb, red 50%, blue 50%); .button { color: $tone; }",
+            StyleDialect::Scss,
+        );
+        assert!(report.is_some());
+        let Some(report) = report else {
+            return;
+        };
+
+        assert_eq!(report.reference_count, 1);
+        assert_eq!(report.resolved_count, 1);
+        assert_eq!(report.raw_count, 0);
+        assert_eq!(report.values[0].outcome, "resolved");
+        assert_eq!(report.values[0].abstract_value_kind, "exact");
+        assert_eq!(report.values[0].rendered_value.as_deref(), Some("purple"));
+    }
+
+    #[test]
     fn static_value_resolution_reports_fuel_exhaustion_as_top() {
         let mut source = String::new();
         for index in 0..130 {
