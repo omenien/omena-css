@@ -9,7 +9,7 @@ use crate::{
     abstract_css_value_kind, summarize_omena_scss_eval_oracle,
     value_eval::{
         reduce_static_numeric_value, reduce_static_scss_value,
-        static_scss_bang_usage_is_comparison_only,
+        static_scss_bang_usage_is_comparison_only, static_scss_literal_truthiness,
     },
 };
 
@@ -790,7 +790,7 @@ struct StaticScssFunctionDeclaration {
     name: String,
     parameters: Vec<StaticScssFunctionParameter>,
     local_variables: Vec<StaticScssFunctionLocalVariable>,
-    return_value: String,
+    return_clauses: Vec<StaticScssFunctionReturnClause>,
     span_start: usize,
     span_end: usize,
     body_start: usize,
@@ -802,6 +802,12 @@ struct StaticScssFunctionLocalVariable {
     name: String,
     value: String,
     span_start: usize,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct StaticScssFunctionReturnClause {
+    condition: Option<String>,
+    value: String,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -992,7 +998,7 @@ fn collect_static_scss_function_declarations(
             SyntaxKind::LeftBrace,
             SyntaxKind::RightBrace,
         )?;
-        let return_value = collect_static_scss_function_return_value(
+        let return_clauses = collect_static_scss_function_return_clauses(
             source,
             tokens,
             body_open_index + 1,
@@ -1004,7 +1010,7 @@ fn collect_static_scss_function_declarations(
             body_open_index + 1,
             body_close_index,
         )?;
-        if !static_stylesheet_composite_value_is_safe(return_value.as_str()) {
+        if !static_scss_function_return_clauses_are_safe(return_clauses.as_slice()) {
             index = body_close_index + 1;
             continue;
         }
@@ -1013,7 +1019,7 @@ fn collect_static_scss_function_declarations(
             name: name_token.text.clone(),
             parameters,
             local_variables,
-            return_value,
+            return_clauses,
             span_start: static_stylesheet_token_start(&tokens[index]),
             span_end: static_stylesheet_token_end(&tokens[body_close_index]),
             body_start: static_stylesheet_token_end(&tokens[body_open_index]),
@@ -1140,32 +1146,202 @@ fn parse_static_scss_function_parameter(
     })
 }
 
-fn collect_static_scss_function_return_value(
+fn collect_static_scss_function_return_clauses(
+    source: &str,
+    tokens: &[LexedToken],
+    start: usize,
+    end: usize,
+) -> Option<Vec<StaticScssFunctionReturnClause>> {
+    let mut clauses = Vec::new();
+    let mut branch_conditions = Vec::<String>::new();
+    let mut nested_block_depth = 0usize;
+    let mut index = start;
+    while index < end {
+        let token = &tokens[index];
+        match token.kind {
+            SyntaxKind::LeftBrace => {
+                nested_block_depth += 1;
+                index += 1;
+                continue;
+            }
+            SyntaxKind::RightBrace => {
+                nested_block_depth = nested_block_depth.checked_sub(1)?;
+                index += 1;
+                continue;
+            }
+            _ => {}
+        }
+        if nested_block_depth != 0 {
+            index += 1;
+            continue;
+        }
+        if token.kind != SyntaxKind::AtKeyword {
+            index += 1;
+            continue;
+        }
+        if token.text.eq_ignore_ascii_case("@return") {
+            let value_end_index = static_stylesheet_value_end_token_until(tokens, index + 1, end)?;
+            let value = static_scss_return_value_text(source, tokens, index, value_end_index)?;
+            clauses.push(StaticScssFunctionReturnClause {
+                condition: None,
+                value,
+            });
+            index = value_end_index + 1;
+            branch_conditions.clear();
+            continue;
+        }
+        if token.text.eq_ignore_ascii_case("@if") {
+            let (condition, body_open_index, body_close_index) =
+                static_scss_control_block_header_and_body(source, tokens, index, end)?;
+            let value = collect_static_scss_single_top_level_return_value(
+                source,
+                tokens,
+                body_open_index + 1,
+                body_close_index,
+            )?;
+            clauses.push(StaticScssFunctionReturnClause {
+                condition: Some(condition.clone()),
+                value,
+            });
+            branch_conditions.clear();
+            branch_conditions.push(condition);
+            index = body_close_index + 1;
+            continue;
+        }
+        if token.text.eq_ignore_ascii_case("@else") {
+            let (condition, body_open_index, body_close_index) =
+                static_scss_control_block_header_and_body(source, tokens, index, end)?;
+            let value = collect_static_scss_single_top_level_return_value(
+                source,
+                tokens,
+                body_open_index + 1,
+                body_close_index,
+            )?;
+            let branch_condition = if let Some(else_if_condition) =
+                static_scss_else_if_condition(condition.as_str())
+            {
+                static_scss_branch_chain_condition(branch_conditions.as_slice(), else_if_condition)
+            } else {
+                static_scss_branch_chain_else_condition(branch_conditions.as_slice())?
+            };
+            clauses.push(StaticScssFunctionReturnClause {
+                condition: Some(branch_condition),
+                value,
+            });
+            if let Some(else_if_condition) = static_scss_else_if_condition(condition.as_str()) {
+                branch_conditions.push(else_if_condition.to_string());
+            } else {
+                branch_conditions.clear();
+            }
+            index = body_close_index + 1;
+            continue;
+        }
+        index += 1;
+    }
+    (!clauses.is_empty()).then_some(clauses)
+}
+
+fn collect_static_scss_single_top_level_return_value(
     source: &str,
     tokens: &[LexedToken],
     start: usize,
     end: usize,
 ) -> Option<String> {
     let mut values = Vec::new();
+    let mut nested_block_depth = 0usize;
     let mut index = start;
     while index < end {
-        if tokens[index].kind != SyntaxKind::AtKeyword
-            || !tokens[index].text.eq_ignore_ascii_case("@return")
-        {
-            index += 1;
-            continue;
+        match tokens[index].kind {
+            SyntaxKind::LeftBrace => {
+                nested_block_depth += 1;
+                index += 1;
+            }
+            SyntaxKind::RightBrace => {
+                nested_block_depth = nested_block_depth.checked_sub(1)?;
+                index += 1;
+            }
+            SyntaxKind::AtKeyword
+                if nested_block_depth == 0
+                    && tokens[index].text.eq_ignore_ascii_case("@return") =>
+            {
+                let value_end_index =
+                    static_stylesheet_value_end_token_until(tokens, index + 1, end)?;
+                values.push(static_scss_return_value_text(
+                    source,
+                    tokens,
+                    index,
+                    value_end_index,
+                )?);
+                index = value_end_index + 1;
+            }
+            _ => index += 1,
         }
-        let value_end_index = static_stylesheet_value_end_token_until(tokens, index + 1, end)?;
-        let value_start = static_stylesheet_token_end(&tokens[index]);
-        let value_end = static_stylesheet_token_start(&tokens[value_end_index]);
-        let value = source.get(value_start..value_end)?.trim();
-        if value.is_empty() {
-            return None;
-        }
-        values.push(value.to_string());
-        index = value_end_index + 1;
     }
     (values.len() == 1).then(|| values.remove(0))
+}
+
+fn static_scss_return_value_text(
+    source: &str,
+    tokens: &[LexedToken],
+    return_index: usize,
+    value_end_index: usize,
+) -> Option<String> {
+    let value_start = static_stylesheet_token_end(&tokens[return_index]);
+    let value_end = static_stylesheet_token_start(&tokens[value_end_index]);
+    let value = source.get(value_start..value_end)?.trim();
+    (!value.is_empty()).then(|| value.to_string())
+}
+
+fn static_scss_control_block_header_and_body(
+    source: &str,
+    tokens: &[LexedToken],
+    control_index: usize,
+    end: usize,
+) -> Option<(String, usize, usize)> {
+    let body_open_index =
+        (control_index + 1..end).find(|index| tokens[*index].kind == SyntaxKind::LeftBrace)?;
+    let body_close_index = static_stylesheet_matching_token_index(
+        tokens,
+        body_open_index,
+        SyntaxKind::LeftBrace,
+        SyntaxKind::RightBrace,
+    )?;
+    if body_close_index >= end {
+        return None;
+    }
+    let header_start = static_stylesheet_token_end(&tokens[control_index]);
+    let header_end = static_stylesheet_token_start(&tokens[body_open_index]);
+    let header = source.get(header_start..header_end)?.trim().to_string();
+    Some((header, body_open_index, body_close_index))
+}
+
+fn static_scss_else_if_condition(header: &str) -> Option<&str> {
+    let trimmed = header.trim();
+    let prefix = trimmed.get(..2)?;
+    let rest = trimmed.get(2..)?;
+    if !prefix.eq_ignore_ascii_case("if") || !rest.chars().next().is_some_and(char::is_whitespace) {
+        return None;
+    }
+    Some(rest.trim()).filter(|condition| !condition.is_empty())
+}
+
+fn static_scss_branch_chain_condition(previous: &[String], current: &str) -> String {
+    previous
+        .iter()
+        .map(|condition| format!("not ({condition})"))
+        .chain(std::iter::once(current.to_string()))
+        .collect::<Vec<_>>()
+        .join(" and ")
+}
+
+fn static_scss_branch_chain_else_condition(previous: &[String]) -> Option<String> {
+    (!previous.is_empty()).then(|| {
+        previous
+            .iter()
+            .map(|condition| format!("not ({condition})"))
+            .collect::<Vec<_>>()
+            .join(" and ")
+    })
 }
 
 fn collect_static_scss_function_calls(
@@ -1266,7 +1442,12 @@ fn static_scss_function_dependency_names(
     declaration: &StaticScssFunctionDeclaration,
     declaration_names: &BTreeSet<String>,
 ) -> Vec<String> {
-    std::iter::once(declaration.return_value.as_str())
+    declaration
+        .return_clauses
+        .iter()
+        .flat_map(|clause| {
+            std::iter::once(clause.value.as_str()).chain(clause.condition.as_deref())
+        })
         .chain(
             declaration
                 .local_variables
@@ -1484,13 +1665,6 @@ fn resolve_static_scss_function_call_abstract_value_with_stack(
             StaticStylesheetResolutionReason::UnsupportedDynamic,
         );
     };
-    if static_scss_function_value_contains_callable_to(
-        declaration.return_value.as_str(),
-        declaration.name.as_str(),
-    ) {
-        return top_static_abstract_value(StaticStylesheetResolutionReason::Cycle);
-    }
-
     let mut argument_values = BTreeMap::new();
     for (parameter, argument) in bound_arguments {
         let resolution = resolve_static_scss_function_argument_abstract_value(
@@ -1618,13 +1792,56 @@ fn resolve_static_scss_function_return_abstract_value(
     fuel: usize,
     context: StaticScssFunctionResolutionContext<'_>,
 ) -> StaticStylesheetAbstractResolution {
-    resolve_static_scss_function_value_with_bindings(
-        declaration.return_value.as_str(),
-        argument_values,
-        declaration.span_start,
-        fuel,
-        context,
-    )
+    for clause in &declaration.return_clauses {
+        let Some(condition) = clause.condition.as_ref() else {
+            return resolve_static_scss_function_value_with_bindings(
+                clause.value.as_str(),
+                argument_values,
+                declaration.span_start,
+                fuel,
+                context,
+            );
+        };
+        let condition_resolution = resolve_static_scss_function_value_with_bindings(
+            condition.as_str(),
+            argument_values,
+            declaration.span_start,
+            fuel,
+            context,
+        );
+        if condition_resolution.outcome == StaticStylesheetResolutionOutcome::Top {
+            return top_static_abstract_value(condition_resolution.reason);
+        }
+        let Some(condition_value) = condition_resolution.rendered_value else {
+            return top_static_abstract_value(condition_resolution.reason);
+        };
+        let Some(truthy) = static_scss_literal_truthiness(condition_value.as_str()) else {
+            return top_static_abstract_value(StaticStylesheetResolutionReason::UnsupportedDynamic);
+        };
+        if truthy {
+            return resolve_static_scss_function_value_with_bindings(
+                clause.value.as_str(),
+                argument_values,
+                declaration.span_start,
+                fuel,
+                context,
+            );
+        }
+    }
+    top_static_abstract_value(StaticStylesheetResolutionReason::UnsupportedDynamic)
+}
+
+fn static_scss_function_return_clauses_are_safe(
+    clauses: &[StaticScssFunctionReturnClause],
+) -> bool {
+    !clauses.is_empty()
+        && clauses.iter().all(|clause| {
+            static_stylesheet_composite_value_is_safe(clause.value.as_str())
+                && clause
+                    .condition
+                    .as_deref()
+                    .is_none_or(static_stylesheet_composite_value_is_safe)
+        })
 }
 
 fn resolve_static_scss_function_value_with_bindings(
@@ -3884,6 +4101,88 @@ mod tests {
         assert!(!report.evaluated_css.contains("@function"));
         assert!(report.evaluated_css.contains(".button { margin: 4px; }"));
         assert!(report.oracle.all_legacy_declaration_values_preserved);
+    }
+
+    #[test]
+    fn static_scss_evaluation_resolves_static_if_function_returns() {
+        let report = derive_static_stylesheet_module_evaluation(
+            "@function tone($enabled) { @if $enabled { @return red; } @return blue; } .button { color: tone(true); }",
+            StyleDialect::Scss,
+        );
+        assert!(report.is_some());
+        let Some(report) = report else {
+            return;
+        };
+
+        assert_eq!(report.replacement_count, 1);
+        assert_eq!(report.resolved_replacements[0].name, "function:tone");
+        assert_eq!(report.resolved_replacements[0].text, "red");
+        assert_eq!(report.resolved_replacements[0].abstract_value_kind, "exact");
+        assert!(!report.evaluated_css.contains("@function"));
+        assert!(report.evaluated_css.contains(".button { color: red; }"));
+        assert!(report.oracle.all_legacy_declaration_values_preserved);
+    }
+
+    #[test]
+    fn static_scss_evaluation_resolves_static_else_function_returns() {
+        let report = derive_static_stylesheet_module_evaluation(
+            "@function tone($enabled) { @if $enabled { @return red; } @else { @return blue; } } .button { color: tone(false); }",
+            StyleDialect::Scss,
+        );
+        assert!(report.is_some());
+        let Some(report) = report else {
+            return;
+        };
+
+        assert_eq!(report.replacement_count, 1);
+        assert_eq!(report.resolved_replacements[0].name, "function:tone");
+        assert_eq!(report.resolved_replacements[0].text, "blue");
+        assert_eq!(report.resolved_replacements[0].abstract_value_kind, "exact");
+        assert!(report.evaluated_css.contains(".button { color: blue; }"));
+        assert!(report.oracle.all_legacy_declaration_values_preserved);
+    }
+
+    #[test]
+    fn static_scss_evaluation_resolves_static_else_if_function_returns() {
+        let report = derive_static_stylesheet_module_evaluation(
+            "@function tone($first, $second) { @if $first { @return red; } @else if $second { @return green; } @else { @return blue; } } .button { color: tone(false, true); }",
+            StyleDialect::Scss,
+        );
+        assert!(report.is_some());
+        let Some(report) = report else {
+            return;
+        };
+
+        assert_eq!(report.replacement_count, 1);
+        assert_eq!(report.resolved_replacements[0].name, "function:tone");
+        assert_eq!(report.resolved_replacements[0].text, "green");
+        assert_eq!(report.resolved_replacements[0].abstract_value_kind, "exact");
+        assert!(report.evaluated_css.contains(".button { color: green; }"));
+        assert!(report.oracle.all_legacy_declaration_values_preserved);
+    }
+
+    #[test]
+    fn static_scss_evaluation_keeps_dynamic_if_function_returns_top() {
+        let report = derive_static_stylesheet_module_evaluation(
+            "@function tone($enabled) { @if $enabled { @return red; } @else { @return blue; } } .button { color: tone(var(--enabled)); }",
+            StyleDialect::Scss,
+        );
+        assert!(report.is_none());
+
+        let resolution = summarize_static_stylesheet_value_resolution(
+            "@function tone($enabled) { @if $enabled { @return red; } @else { @return blue; } } .button { color: tone(var(--enabled)); }",
+            StyleDialect::Scss,
+        );
+        assert!(resolution.is_some());
+        let Some(resolution) = resolution else {
+            return;
+        };
+
+        assert_eq!(resolution.reference_count, 1);
+        assert_eq!(resolution.top_count, 1);
+        assert_eq!(resolution.unsupported_dynamic_count, 1);
+        assert_eq!(resolution.values[0].outcome, "top");
+        assert_eq!(resolution.values[0].reason, "unsupportedDynamic");
     }
 
     #[test]
