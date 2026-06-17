@@ -159,21 +159,32 @@ pub fn execute_transform_passes_on_source_with_dialect_and_context(
                 mutation_count,
                 $detail,
             );
-            output_css = next_css;
-            outcome
+            (Some(next_css), outcome)
         }};
     }
 
     macro_rules! planned_only_pass {
         ($pass_id:expr, $input_byte_len:expr, $detail:literal) => {
-            planned_only_outcome($pass_id, $input_byte_len, output_css.len(), $detail)
+            (
+                None,
+                planned_only_outcome($pass_id, $input_byte_len, $input_byte_len, $detail),
+            )
+        };
+    }
+
+    macro_rules! no_change_pass {
+        ($pass_id:expr, $input_byte_len:expr, $detail:literal) => {
+            (
+                None,
+                no_change_outcome($pass_id, $input_byte_len, $input_byte_len, $detail),
+            )
         };
     }
 
     for pass_id in &ordered_pass_ids {
         let pass = transform_pass_kind_from_id(pass_id);
-        let pass_input_css = output_css.clone();
-        let input_byte_len = output_css.len();
+        let pass_input_css = output_css;
+        let input_byte_len = pass_input_css.len();
         cascade_proof_obligations.extend(collect_cascade_proof_obligations_for_pass_input(
             pass_id,
             pass,
@@ -181,12 +192,12 @@ pub fn execute_transform_passes_on_source_with_dialect_and_context(
             dialect,
             context,
         ));
-        let outcome = match pass {
+        let (next_output_css, outcome) = match pass {
             Some(TransformPassKind::WhitespaceStrip) => {
                 apply_mutation_pass!(
                     pass_id,
                     input_byte_len,
-                    normalize_css_whitespace(&output_css, dialect),
+                    normalize_css_whitespace(&pass_input_css, dialect),
                     "normalized lexer trivia where adjacent token boundaries remain unambiguous"
                 )
             }
@@ -194,7 +205,7 @@ pub fn execute_transform_passes_on_source_with_dialect_and_context(
                 apply_mutation_pass!(
                     pass_id,
                     input_byte_len,
-                    strip_css_comments(&output_css, dialect),
+                    strip_css_comments(&pass_input_css, dialect),
                     "removed CSS block comments outside string literals"
                 )
             }
@@ -202,7 +213,7 @@ pub fn execute_transform_passes_on_source_with_dialect_and_context(
                 apply_mutation_pass!(
                     pass_id,
                     input_byte_len,
-                    compress_css_numbers(&output_css, dialect),
+                    compress_css_numbers(&pass_input_css, dialect),
                     "compressed lexer numeric tokens without touching identifiers or strings"
                 )
             }
@@ -210,7 +221,7 @@ pub fn execute_transform_passes_on_source_with_dialect_and_context(
                 apply_mutation_pass!(
                     pass_id,
                     input_byte_len,
-                    normalize_css_units(&output_css, dialect),
+                    normalize_css_units(&pass_input_css, dialect),
                     "normalized zero length units and known CSS unit casing inside declaration contexts"
                 )
             }
@@ -218,7 +229,7 @@ pub fn execute_transform_passes_on_source_with_dialect_and_context(
                 apply_mutation_pass!(
                     pass_id,
                     input_byte_len,
-                    compress_css_colors(&output_css, dialect),
+                    compress_css_colors(&pass_input_css, dialect),
                     "compressed static declaration color values and hex color tokens"
                 )
             }
@@ -226,7 +237,7 @@ pub fn execute_transform_passes_on_source_with_dialect_and_context(
                 apply_mutation_pass!(
                     pass_id,
                     input_byte_len,
-                    strip_css_url_quotes(&output_css, dialect),
+                    strip_css_url_quotes(&pass_input_css, dialect),
                     "stripped quotes from safe url() string arguments"
                 )
             }
@@ -234,7 +245,7 @@ pub fn execute_transform_passes_on_source_with_dialect_and_context(
                 apply_mutation_pass!(
                     pass_id,
                     input_byte_len,
-                    normalize_css_string_quotes(&output_css, dialect),
+                    normalize_css_string_quotes(&pass_input_css, dialect),
                     "normalized safe CSS string tokens, declaration-scoped font family strings, and static font keyword aliases"
                 )
             }
@@ -242,7 +253,7 @@ pub fn execute_transform_passes_on_source_with_dialect_and_context(
                 apply_mutation_pass!(
                     pass_id,
                     input_byte_len,
-                    compress_css_is_where_selectors(&output_css, dialect),
+                    compress_css_is_where_selectors(&pass_input_css, dialect),
                     "compressed :is/:where selector functions and keyframe selector aliases only when matching semantics are preserved"
                 )
             }
@@ -250,7 +261,7 @@ pub fn execute_transform_passes_on_source_with_dialect_and_context(
                 apply_mutation_pass!(
                     pass_id,
                     input_byte_len,
-                    combine_css_shorthands(&output_css, dialect),
+                    combine_css_shorthands(&pass_input_css, dialect),
                     "combined safe shorthand declarations and adjacent longhands only with cascade-preserving proofs"
                 )
             }
@@ -258,7 +269,7 @@ pub fn execute_transform_passes_on_source_with_dialect_and_context(
                 apply_mutation_pass!(
                     pass_id,
                     input_byte_len,
-                    dedupe_exact_css_rules(&output_css, dialect),
+                    dedupe_exact_css_rules(&pass_input_css, dialect),
                     "removed cascade-safe duplicate ordinary rules while preserving the final occurrence"
                 )
             }
@@ -266,7 +277,7 @@ pub fn execute_transform_passes_on_source_with_dialect_and_context(
                 apply_mutation_pass!(
                     pass_id,
                     input_byte_len,
-                    merge_adjacent_same_selector_css_rules(&output_css, dialect),
+                    merge_adjacent_same_selector_css_rules(&pass_input_css, dialect),
                     "merged adjacent same-selector ordinary rule runs without reordering declarations"
                 )
             }
@@ -274,7 +285,7 @@ pub fn execute_transform_passes_on_source_with_dialect_and_context(
                 apply_mutation_pass!(
                     pass_id,
                     input_byte_len,
-                    merge_adjacent_same_block_css_selectors(&output_css, dialect),
+                    merge_adjacent_same_block_css_selectors(&pass_input_css, dialect),
                     "merged adjacent ordinary rule runs with identical declaration blocks"
                 )
             }
@@ -282,7 +293,7 @@ pub fn execute_transform_passes_on_source_with_dialect_and_context(
                 apply_mutation_pass!(
                     pass_id,
                     input_byte_len,
-                    add_css_vendor_prefixes(&output_css, dialect),
+                    add_css_vendor_prefixes(&pass_input_css, dialect),
                     "inserted conservative vendor-prefixed declaration synonyms when absent"
                 )
             }
@@ -290,7 +301,7 @@ pub fn execute_transform_passes_on_source_with_dialect_and_context(
                 apply_mutation_pass!(
                     pass_id,
                     input_byte_len,
-                    lower_css_light_dark(&output_css, dialect),
+                    lower_css_light_dark(&pass_input_css, dialect),
                     "lowered light-dark() color references into dark media branches"
                 )
             }
@@ -298,7 +309,7 @@ pub fn execute_transform_passes_on_source_with_dialect_and_context(
                 apply_mutation_pass!(
                     pass_id,
                     input_byte_len,
-                    lower_css_color_mix(&output_css, dialect),
+                    lower_css_color_mix(&pass_input_css, dialect),
                     "lowered static srgb color-mix() references with static color operands"
                 )
             }
@@ -306,7 +317,7 @@ pub fn execute_transform_passes_on_source_with_dialect_and_context(
                 apply_mutation_pass!(
                     pass_id,
                     input_byte_len,
-                    lower_css_oklab_oklch(&output_css, dialect),
+                    lower_css_oklab_oklch(&pass_input_css, dialect),
                     "lowered in-gamut oklab()/oklch() color references to srgb"
                 )
             }
@@ -314,7 +325,7 @@ pub fn execute_transform_passes_on_source_with_dialect_and_context(
                 apply_mutation_pass!(
                     pass_id,
                     input_byte_len,
-                    lower_css_color_function(&output_css, dialect),
+                    lower_css_color_function(&pass_input_css, dialect),
                     "lowered static color(...) references with static channels"
                 )
             }
@@ -322,7 +333,7 @@ pub fn execute_transform_passes_on_source_with_dialect_and_context(
                 apply_mutation_pass!(
                     pass_id,
                     input_byte_len,
-                    lower_css_logical_to_physical(&output_css, dialect),
+                    lower_css_logical_to_physical(&pass_input_css, dialect),
                     "lowered logical properties only under static horizontal writing direction"
                 )
             }
@@ -330,7 +341,7 @@ pub fn execute_transform_passes_on_source_with_dialect_and_context(
                 apply_mutation_pass!(
                     pass_id,
                     input_byte_len,
-                    unwrap_css_nesting(&output_css, dialect),
+                    unwrap_css_nesting(&pass_input_css, dialect),
                     "unwrapped nested ordinary rules and conditional group rules"
                 )
             }
@@ -338,7 +349,7 @@ pub fn execute_transform_passes_on_source_with_dialect_and_context(
                 apply_mutation_pass!(
                     pass_id,
                     input_byte_len,
-                    flatten_css_scopes(&output_css, dialect),
+                    flatten_css_scopes(&pass_input_css, dialect),
                     "flattened only @scope candidates accepted by the cascade scope-flatten proof"
                 )
             }
@@ -346,7 +357,7 @@ pub fn execute_transform_passes_on_source_with_dialect_and_context(
                 apply_mutation_pass!(
                     pass_id,
                     input_byte_len,
-                    flatten_css_layers(&output_css, dialect, true),
+                    flatten_css_layers(&pass_input_css, dialect, true),
                     "flattened only @layer candidates accepted by the closed-bundle cascade proof"
                 )
             }
@@ -361,7 +372,7 @@ pub fn execute_transform_passes_on_source_with_dialect_and_context(
                 apply_mutation_pass!(
                     pass_id,
                     input_byte_len,
-                    evaluate_static_supports_rules(&output_css, dialect),
+                    evaluate_static_supports_rules(&pass_input_css, dialect),
                     "evaluated simple @supports branches with cascade supports-static witness"
                 )
             }
@@ -369,7 +380,7 @@ pub fn execute_transform_passes_on_source_with_dialect_and_context(
                 apply_mutation_pass!(
                     pass_id,
                     input_byte_len,
-                    evaluate_static_media_rules(&output_css, dialect),
+                    evaluate_static_media_rules(&pass_input_css, dialect),
                     "evaluated literal @media all/not all branches and normalized simple min/max media ranges"
                 )
             }
@@ -377,7 +388,7 @@ pub fn execute_transform_passes_on_source_with_dialect_and_context(
                 apply_mutation_pass!(
                     pass_id,
                     input_byte_len,
-                    evaluate_dead_media_branch_rules(&output_css, dialect, context),
+                    evaluate_dead_media_branch_rules(&pass_input_css, dialect, context),
                     "removed dead @media branches through the static cascade witness evaluator"
                 )
             }
@@ -385,7 +396,7 @@ pub fn execute_transform_passes_on_source_with_dialect_and_context(
                 apply_mutation_pass!(
                     pass_id,
                     input_byte_len,
-                    evaluate_static_supports_rules(&output_css, dialect),
+                    evaluate_static_supports_rules(&pass_input_css, dialect),
                     "removed dead @supports branches through the static cascade witness evaluator"
                 )
             }
@@ -393,7 +404,7 @@ pub fn execute_transform_passes_on_source_with_dialect_and_context(
                 if matches!(dialect, StyleDialect::Scss | StyleDialect::Sass) =>
             {
                 if let Some(evaluation) = context.scss_module_evaluation.as_ref() {
-                    let mutation_count = usize::from(output_css != evaluation.evaluated_css);
+                    let mutation_count = usize::from(pass_input_css != evaluation.evaluated_css);
                     let next_css = evaluation.evaluated_css.clone();
                     let outcome = mutation_outcome(
                         pass_id,
@@ -402,9 +413,8 @@ pub fn execute_transform_passes_on_source_with_dialect_and_context(
                         mutation_count,
                         "applied explicit SCSS module evaluation output from the evaluator boundary",
                     );
-                    output_css = next_css;
                     css_module_evaluation = Some(evaluation.clone());
-                    outcome
+                    (Some(next_css), outcome)
                 } else {
                     planned_only_pass!(
                         pass_id,
@@ -422,7 +432,7 @@ pub fn execute_transform_passes_on_source_with_dialect_and_context(
             }
             Some(TransformPassKind::LessModuleEvaluate) if dialect == StyleDialect::Less => {
                 if let Some(evaluation) = context.less_module_evaluation.as_ref() {
-                    let mutation_count = usize::from(output_css != evaluation.evaluated_css);
+                    let mutation_count = usize::from(pass_input_css != evaluation.evaluated_css);
                     let next_css = evaluation.evaluated_css.clone();
                     let outcome = mutation_outcome(
                         pass_id,
@@ -431,9 +441,8 @@ pub fn execute_transform_passes_on_source_with_dialect_and_context(
                         mutation_count,
                         "applied explicit Less module evaluation output from the evaluator boundary",
                     );
-                    output_css = next_css;
                     css_module_evaluation = Some(evaluation.clone());
-                    outcome
+                    (Some(next_css), outcome)
                 } else {
                     planned_only_pass!(
                         pass_id,
@@ -453,7 +462,7 @@ pub fn execute_transform_passes_on_source_with_dialect_and_context(
                 if dialect == StyleDialect::Less || !context.import_inlines.is_empty() =>
             {
                 let (next_css, mutation_count) =
-                    inline_css_imports(&output_css, dialect, &context.import_inlines);
+                    inline_css_imports(&pass_input_css, dialect, &context.import_inlines);
                 let outcome = mutation_outcome(
                     pass_id,
                     input_byte_len,
@@ -461,9 +470,8 @@ pub fn execute_transform_passes_on_source_with_dialect_and_context(
                     mutation_count,
                     "replaced resolved @import directives and optional Less imports",
                 );
-                output_css = next_css;
                 css_import_inlines = context.import_inlines.clone();
-                outcome
+                (Some(next_css), outcome)
             }
             Some(TransformPassKind::ImportInline) => {
                 planned_only_pass!(
@@ -474,7 +482,7 @@ pub fn execute_transform_passes_on_source_with_dialect_and_context(
             }
             Some(TransformPassKind::ResolveCssModulesComposes) => {
                 let resolutions = css_module_composes_resolutions_for_source(
-                    &output_css,
+                    &pass_input_css,
                     dialect,
                     &context.css_module_composes_resolutions,
                 );
@@ -486,7 +494,7 @@ pub fn execute_transform_passes_on_source_with_dialect_and_context(
                     )
                 } else {
                     let (next_css, mutation_count) =
-                        resolve_css_module_composes(&output_css, dialect, &resolutions);
+                        resolve_css_module_composes(&pass_input_css, dialect, &resolutions);
                     let outcome = mutation_outcome(
                         pass_id,
                         input_byte_len,
@@ -494,16 +502,18 @@ pub fn execute_transform_passes_on_source_with_dialect_and_context(
                         mutation_count,
                         "removed resolved CSS Modules composes declarations using an explicit export set",
                     );
-                    output_css = next_css;
                     css_module_composes_exports = resolutions;
-                    outcome
+                    (Some(next_css), outcome)
                 }
             }
             Some(TransformPassKind::DesignTokenRouting)
                 if !context.design_token_routes.is_empty() =>
             {
-                let (next_css, mutation_count) =
-                    route_design_token_values(&output_css, dialect, &context.design_token_routes);
+                let (next_css, mutation_count) = route_design_token_values(
+                    &pass_input_css,
+                    dialect,
+                    &context.design_token_routes,
+                );
                 let outcome = mutation_outcome(
                     pass_id,
                     input_byte_len,
@@ -511,9 +521,8 @@ pub fn execute_transform_passes_on_source_with_dialect_and_context(
                     mutation_count,
                     "routed whole-value design-token references through explicit bridge token routes",
                 );
-                output_css = next_css;
                 design_token_routes = context.design_token_routes.clone();
-                outcome
+                (Some(next_css), outcome)
             }
             Some(TransformPassKind::DesignTokenRouting) => {
                 planned_only_pass!(
@@ -526,7 +535,7 @@ pub fn execute_transform_passes_on_source_with_dialect_and_context(
                 if !context.class_name_rewrites.is_empty() =>
             {
                 let (next_css, mutation_count) = rewrite_css_module_class_names(
-                    &output_css,
+                    &pass_input_css,
                     dialect,
                     &context.class_name_rewrites,
                 );
@@ -537,8 +546,7 @@ pub fn execute_transform_passes_on_source_with_dialect_and_context(
                     mutation_count,
                     "rewrote CSS Modules class selectors through an explicit selector identity map",
                 );
-                output_css = next_css;
-                outcome
+                (Some(next_css), outcome)
             }
             Some(TransformPassKind::HashCssModuleClassNames) => {
                 planned_only_pass!(
@@ -549,7 +557,7 @@ pub fn execute_transform_passes_on_source_with_dialect_and_context(
             }
             Some(TransformPassKind::TreeShakeClass) if context.closed_style_world => {
                 let (next_css, removals) = tree_shake_css_class_rules_with_removals(
-                    &output_css,
+                    &pass_input_css,
                     dialect,
                     &reachable_class_names,
                 );
@@ -561,13 +569,12 @@ pub fn execute_transform_passes_on_source_with_dialect_and_context(
                     mutation_count,
                     "removed unreachable class-owned selector rules under an explicit closed-style-world reachability context",
                 );
-                output_css = next_css;
                 semantic_removals.extend(
                     removals
                         .into_iter()
                         .map(|removal| removal.into_public(pass_id)),
                 );
-                outcome
+                (Some(next_css), outcome)
             }
             Some(TransformPassKind::TreeShakeClass) => {
                 planned_only_pass!(
@@ -578,7 +585,7 @@ pub fn execute_transform_passes_on_source_with_dialect_and_context(
             }
             Some(TransformPassKind::TreeShakeKeyframes) if context.closed_style_world => {
                 let (next_css, removals) = tree_shake_css_keyframes_with_removals(
-                    &output_css,
+                    &pass_input_css,
                     dialect,
                     &context.reachable_keyframe_names,
                     &reachable_class_names,
@@ -591,13 +598,12 @@ pub fn execute_transform_passes_on_source_with_dialect_and_context(
                     mutation_count,
                     "removed unreferenced @keyframes under an explicit closed-style-world reachability context",
                 );
-                output_css = next_css;
                 semantic_removals.extend(
                     removals
                         .into_iter()
                         .map(|removal| removal.into_public(pass_id)),
                 );
-                outcome
+                (Some(next_css), outcome)
             }
             Some(TransformPassKind::TreeShakeKeyframes) => {
                 planned_only_pass!(
@@ -608,7 +614,7 @@ pub fn execute_transform_passes_on_source_with_dialect_and_context(
             }
             Some(TransformPassKind::TreeShakeValue) if context.closed_style_world => {
                 let (next_css, removals) = tree_shake_css_modules_values_with_removals(
-                    &output_css,
+                    &pass_input_css,
                     dialect,
                     &context.reachable_value_names,
                     &context.reachable_keyframe_names,
@@ -622,13 +628,12 @@ pub fn execute_transform_passes_on_source_with_dialect_and_context(
                     mutation_count,
                     "removed unreachable local CSS Modules @value declarations under an explicit closed-style-world reachability context",
                 );
-                output_css = next_css;
                 semantic_removals.extend(
                     removals
                         .into_iter()
                         .map(|removal| removal.into_public(pass_id)),
                 );
-                outcome
+                (Some(next_css), outcome)
             }
             Some(TransformPassKind::TreeShakeValue) => {
                 planned_only_pass!(
@@ -639,7 +644,7 @@ pub fn execute_transform_passes_on_source_with_dialect_and_context(
             }
             Some(TransformPassKind::TreeShakeCustomProperty) if context.closed_style_world => {
                 let (next_css, removals) = tree_shake_css_custom_properties_with_removals(
-                    &output_css,
+                    &pass_input_css,
                     dialect,
                     &context.reachable_custom_property_names,
                     &context.reachable_keyframe_names,
@@ -653,13 +658,12 @@ pub fn execute_transform_passes_on_source_with_dialect_and_context(
                     mutation_count,
                     "removed unreachable custom-property declarations under an explicit closed-style-world reachability context",
                 );
-                output_css = next_css;
                 semantic_removals.extend(
                     removals
                         .into_iter()
                         .map(|removal| removal.into_public(pass_id)),
                 );
-                outcome
+                (Some(next_css), outcome)
             }
             Some(TransformPassKind::TreeShakeCustomProperty) => {
                 planned_only_pass!(
@@ -673,7 +677,7 @@ pub fn execute_transform_passes_on_source_with_dialect_and_context(
                     pass_id,
                     input_byte_len,
                     resolve_static_css_modules_values(
-                        &output_css,
+                        &pass_input_css,
                         dialect,
                         &context.css_module_value_resolutions,
                     ),
@@ -684,7 +688,7 @@ pub fn execute_transform_passes_on_source_with_dialect_and_context(
                 apply_mutation_pass!(
                     pass_id,
                     input_byte_len,
-                    substitute_static_css_custom_properties(&output_css, dialect),
+                    substitute_static_css_custom_properties(&pass_input_css, dialect),
                     "resolved whole-value var() references from unique static :root custom properties"
                 )
             }
@@ -692,7 +696,7 @@ pub fn execute_transform_passes_on_source_with_dialect_and_context(
                 apply_mutation_pass!(
                     pass_id,
                     input_byte_len,
-                    reduce_css_calc(&output_css, dialect),
+                    reduce_css_calc(&pass_input_css, dialect),
                     "reduced whole-value CSS math functions with static same-unit arithmetic and identity operations"
                 )
             }
@@ -700,24 +704,31 @@ pub fn execute_transform_passes_on_source_with_dialect_and_context(
                 apply_mutation_pass!(
                     pass_id,
                     input_byte_len,
-                    remove_empty_css_rules(&output_css, dialect),
+                    remove_empty_css_rules(&pass_input_css, dialect),
                     "removed ordinary empty rules with no comments or at-rule semantics"
                 )
             }
-            Some(TransformPassKind::PrintCss) => no_change_outcome(
-                pass_id,
-                input_byte_len,
-                output_css.len(),
-                "observed final emission boundary",
-            ),
+            Some(TransformPassKind::PrintCss) => {
+                no_change_pass!(pass_id, input_byte_len, "observed final emission boundary")
+            }
             None => {
                 planned_only_pass!(pass_id, input_byte_len, "unknown pass id in execution plan")
             }
         };
-        outcome_mutation_spans.push(derive_transform_mutation_spans(
-            &pass_input_css,
-            &output_css,
-        ));
+        match next_output_css {
+            Some(next_css) => {
+                outcome_mutation_spans
+                    .push(derive_transform_mutation_spans(&pass_input_css, &next_css));
+                output_css = next_css;
+            }
+            None => {
+                outcome_mutation_spans.push(derive_transform_mutation_spans(
+                    &pass_input_css,
+                    &pass_input_css,
+                ));
+                output_css = pass_input_css;
+            }
+        }
         outcomes.push(outcome);
     }
 
