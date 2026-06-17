@@ -3,7 +3,16 @@ use std::collections::{BTreeMap, BTreeSet};
 use omena_abstract_value::{AbstractCssValueV0, abstract_css_value_from_text};
 use omena_parser::{LexedToken, ParsedVariableFact, ParsedVariableFactKind, StyleDialect, lex};
 use omena_syntax::SyntaxKind;
-use omena_value_lattice::number::{parse_reducible_calc_value, reduce_static_numeric_expression};
+use omena_value_lattice::{
+    number::{
+        parse_reducible_abs_value, parse_reducible_calc_value, parse_reducible_clamp_value,
+        parse_reducible_exp_value, parse_reducible_hypot_value, parse_reducible_log_value,
+        parse_reducible_max_value, parse_reducible_min_value, parse_reducible_mod_value,
+        parse_reducible_pow_value, parse_reducible_rem_value, parse_reducible_round_value,
+        parse_reducible_sign_value, parse_reducible_sqrt_value, reduce_static_numeric_expression,
+    },
+    substitute_static_css_function_references_in_value_until_stable,
+};
 use serde::Serialize;
 
 use crate::{abstract_css_value_kind, summarize_omena_scss_eval_oracle};
@@ -2255,7 +2264,25 @@ fn resolve_static_less_property_value_text(
 
 fn reduce_static_numeric_value(value: String) -> String {
     let trimmed = value.trim();
-    if let Some(reduced) = parse_reducible_calc_value(trimmed) {
+    if let Some(reduced) = substitute_static_css_function_references_in_value_until_stable(
+        trimmed,
+        &[
+            ("calc", parse_reducible_calc_value),
+            ("min", parse_reducible_min_value),
+            ("max", parse_reducible_max_value),
+            ("clamp", parse_reducible_clamp_value),
+            ("abs", parse_reducible_abs_value),
+            ("sign", parse_reducible_sign_value),
+            ("round", parse_reducible_round_value),
+            ("mod", parse_reducible_mod_value),
+            ("rem", parse_reducible_rem_value),
+            ("hypot", parse_reducible_hypot_value),
+            ("sqrt", parse_reducible_sqrt_value),
+            ("pow", parse_reducible_pow_value),
+            ("exp", parse_reducible_exp_value),
+            ("log", parse_reducible_log_value),
+        ],
+    ) {
         return reduced;
     }
     let Some(inner) = trimmed
@@ -2731,6 +2758,77 @@ mod tests {
         );
         assert!(report.evaluated_css.contains("margin: 3px"));
         assert!(report.oracle.all_legacy_declaration_values_preserved);
+    }
+
+    #[test]
+    fn static_scss_evaluation_reduces_numeric_builtin_values() {
+        let report = derive_static_stylesheet_module_evaluation(
+            "$gap: min(10px, 4px); $offset: clamp(1px, 3px, 2px); .button { margin: $gap; padding: $offset; }",
+            StyleDialect::Scss,
+        );
+        assert!(report.is_some());
+        let Some(report) = report else {
+            return;
+        };
+
+        let replacements = report
+            .resolved_replacements
+            .iter()
+            .map(|replacement| replacement.text.as_str())
+            .collect::<Vec<_>>();
+        assert!(replacements.contains(&"4px"));
+        assert!(replacements.contains(&"2px"));
+        assert!(
+            report
+                .resolved_replacements
+                .iter()
+                .all(|replacement| replacement.abstract_value_kind == "exact")
+        );
+        assert!(report.evaluated_css.contains("margin: 4px"));
+        assert!(report.evaluated_css.contains("padding: 2px"));
+        assert!(report.oracle.all_legacy_declaration_values_preserved);
+    }
+
+    #[test]
+    fn static_less_evaluation_reduces_numeric_builtin_values() {
+        let report = derive_static_stylesheet_module_evaluation(
+            "@gap: max(1px, 2px); .button { margin: @gap; }",
+            StyleDialect::Less,
+        );
+        assert!(report.is_some());
+        let Some(report) = report else {
+            return;
+        };
+
+        assert_eq!(report.resolved_replacements[0].text, "2px");
+        assert_eq!(report.resolved_replacements[0].abstract_value_kind, "exact");
+        assert_eq!(
+            report.value_resolution.values[0].rendered_value.as_deref(),
+            Some("2px")
+        );
+        assert!(report.evaluated_css.contains("margin: 2px"));
+    }
+
+    #[test]
+    fn static_value_resolution_keeps_irreducible_numeric_functions_raw() {
+        let report = summarize_static_stylesheet_value_resolution(
+            "$gap: min(1px, 2rem); .button { margin: $gap; }",
+            StyleDialect::Scss,
+        );
+        assert!(report.is_some());
+        let Some(report) = report else {
+            return;
+        };
+
+        assert_eq!(report.reference_count, 1);
+        assert_eq!(report.raw_count, 1);
+        assert_eq!(report.unsupported_dynamic_count, 1);
+        assert_eq!(report.values[0].outcome, "raw");
+        assert_eq!(report.values[0].reason, "unsupportedDynamic");
+        assert_eq!(
+            report.values[0].rendered_value.as_deref(),
+            Some("min(1px, 2rem)")
+        );
     }
 
     #[test]
