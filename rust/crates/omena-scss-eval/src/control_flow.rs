@@ -1491,7 +1491,7 @@ fn loop_carried_value(
     header: &str,
     lexical_bindings: &BTreeMap<String, AbstractCssValueV0>,
 ) -> AbstractCssValueV0 {
-    parse_static_for_loop_range(header)
+    parse_static_for_loop_range(header, lexical_bindings)
         .or_else(|| parse_static_each_loop_source_value(header, lexical_bindings))
         .unwrap_or_else(|| scss_header_value(header, lexical_bindings))
 }
@@ -1520,7 +1520,10 @@ fn while_loop_carried_binding_values(header: &str) -> Vec<ScssControlFlowBinding
         .collect()
 }
 
-fn parse_static_for_loop_range(header: &str) -> Option<AbstractCssValueV0> {
+fn parse_static_for_loop_range(
+    header: &str,
+    lexical_bindings: &BTreeMap<String, AbstractCssValueV0>,
+) -> Option<AbstractCssValueV0> {
     let parts = header.split_whitespace().collect::<Vec<_>>();
     let from_index = parts
         .iter()
@@ -1529,8 +1532,8 @@ fn parse_static_for_loop_range(header: &str) -> Option<AbstractCssValueV0> {
         .iter()
         .position(|part| part.eq_ignore_ascii_case("to") || part.eq_ignore_ascii_case("through"))?;
     let includes_end = parts[to_index].eq_ignore_ascii_case("through");
-    let start = parts.get(from_index + 1)?.parse::<i32>().ok()?;
-    let end = parts.get(to_index + 1)?.parse::<i32>().ok()?;
+    let start = parse_static_for_loop_bound(parts.get(from_index + 1)?, lexical_bindings)?;
+    let end = parse_static_for_loop_bound(parts.get(to_index + 1)?, lexical_bindings)?;
     if start > end {
         return Some(AbstractCssValueV0::Top);
     }
@@ -1556,6 +1559,19 @@ fn parse_static_for_loop_range(header: &str) -> Option<AbstractCssValueV0> {
             join_abstract_css_values(&acc, &value)
         }),
     )
+}
+
+fn parse_static_for_loop_bound(
+    value: &str,
+    lexical_bindings: &BTreeMap<String, AbstractCssValueV0>,
+) -> Option<i32> {
+    let reduced = match scss_header_value(value, lexical_bindings) {
+        AbstractCssValueV0::Exact { value } | AbstractCssValueV0::Raw { value } => value,
+        AbstractCssValueV0::Bottom
+        | AbstractCssValueV0::Top
+        | AbstractCssValueV0::FiniteSet { .. } => return None,
+    };
+    reduced.parse::<i32>().ok()
 }
 
 fn parse_static_each_loop_source_value(
@@ -2063,6 +2079,25 @@ mod tests {
             report.blocks[0].loop_carried_binding_values[0].value,
             AbstractCssValueV0::FiniteSet {
                 values: vec!["1".to_string(), "2".to_string()]
+            }
+        );
+    }
+
+    #[test]
+    fn control_flow_value_analysis_resolves_static_for_loop_bounds() {
+        let source = "$start: 1; $end: 3; @for $i from $start through $end { .n { order: $i; } }";
+        let report = analyze_scss_control_flow_values(source, StyleDialect::Scss);
+        assert!(report.is_some());
+        let Some(report) = report else {
+            return;
+        };
+
+        assert_eq!(report.block_count, 1);
+        assert_eq!(report.blocks[0].loop_carried_bindings, vec!["$i"]);
+        assert_eq!(
+            report.blocks[0].loop_carried_binding_values[0].value,
+            AbstractCssValueV0::FiniteSet {
+                values: vec!["1".to_string(), "2".to_string(), "3".to_string()]
             }
         );
     }
