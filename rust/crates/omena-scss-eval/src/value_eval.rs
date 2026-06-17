@@ -56,6 +56,21 @@ pub(crate) fn reduce_static_numeric_value(value: String) -> String {
     reduce_static_numeric_expression(inner.trim()).unwrap_or(value)
 }
 
+pub(crate) fn static_scss_bang_usage_is_comparison_only(value: &str) -> bool {
+    let mut index = 0usize;
+    while let Some(relative_index) = value[index..].find('!') {
+        let bang_index = index + relative_index;
+        if !value
+            .get(bang_index + '!'.len_utf8()..)
+            .is_some_and(|suffix| suffix.starts_with('='))
+        {
+            return false;
+        }
+        index = bang_index + '!'.len_utf8();
+    }
+    true
+}
+
 fn parse_static_scss_if_value(value: &str) -> Option<String> {
     let arguments = parse_whole_function_value_arguments(value, "if")?;
     let [condition, truthy, falsey] = arguments.as_slice() else {
