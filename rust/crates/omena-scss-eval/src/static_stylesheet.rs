@@ -38,6 +38,7 @@ pub struct OmenaScssEvalResolvedReplacementV0 {
     pub start: usize,
     pub end: usize,
     pub text: String,
+    pub rendered_value: Option<String>,
     pub abstract_value: AbstractCssValueV0,
     pub abstract_value_kind: &'static str,
 }
@@ -402,6 +403,7 @@ fn resolved_replacement_value(
         start,
         end,
         text: text.to_string(),
+        rendered_value: render_static_abstract_value(&abstract_value),
         abstract_value_kind: abstract_css_value_kind(&abstract_value),
         abstract_value,
     }
@@ -3025,6 +3027,36 @@ mod tests {
         assert_eq!(report.values[0].outcome, "resolved");
         assert_eq!(report.values[0].abstract_value_kind, "exact");
         assert_eq!(report.values[0].rendered_value.as_deref(), Some("purple"));
+    }
+
+    #[test]
+    fn static_scss_evaluation_reports_exact_color_replacements_without_cutover() {
+        let report = derive_static_stylesheet_module_evaluation(
+            "$tone: color-mix(in srgb, red 50%, blue 50%); .button { color: $tone; }",
+            StyleDialect::Scss,
+        );
+        assert!(report.is_some());
+        let Some(report) = report else {
+            return;
+        };
+
+        assert_eq!(report.replacement_count, 1);
+        assert_eq!(
+            report.resolved_replacements[0].text,
+            "color-mix(in srgb, red 50%, blue 50%)"
+        );
+        assert_eq!(
+            report.resolved_replacements[0].rendered_value.as_deref(),
+            Some("purple")
+        );
+        assert_eq!(report.resolved_replacements[0].abstract_value_kind, "exact");
+        assert!(
+            report
+                .evaluated_css
+                .contains("color-mix(in srgb, red 50%, blue 50%)")
+        );
+        assert!(!report.evaluated_css.contains("color: purple"));
+        assert!(report.oracle.all_legacy_declaration_values_preserved);
     }
 
     #[test]
