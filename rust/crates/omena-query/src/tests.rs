@@ -2896,6 +2896,39 @@ fn consumer_build_resolves_css_modules_values_through_canonical_value_lattice()
     Ok(())
 }
 
+// Fence for the NON-ZERO cross-file value canonicalization (#2 keep-and-fence, B). A
+// cross-file-resolved @value is a TOUCHED region; canonicalizing it through the same sound
+// allowlist normalizes the emitted bytes. Under [value-resolution, print-css] each resolved
+// token is canonicalized independently (no shorthand-combining in the pass list), so
+// `1.0px`->`1px` per token; a `%`/`var()` value stays byte-faithful.
+#[test]
+fn consumer_build_canonicalizes_nonzero_cross_file_values() -> Result<(), Box<dyn std::error::Error>>
+{
+    let summary = execute_omena_query_consumer_build_style_sources(
+        "/tmp/App.module.css",
+        &[
+            OmenaQueryStyleSourceInputV0 {
+                style_path: "/tmp/tokens.module.css".to_string(),
+                style_source: "@value pad: 1.0px; @value frac: 50.0%;".to_string(),
+            },
+            OmenaQueryStyleSourceInputV0 {
+                style_path: "/tmp/App.module.css".to_string(),
+                style_source:
+                    r#"@value pad, frac from "./tokens.module.css"; .btn { padding: pad pad pad pad; width: frac; }"#
+                        .to_string(),
+            },
+        ],
+        &["value-resolution".to_string(), "print-css".to_string()],
+        &[],
+    )?;
+
+    assert_eq!(
+        summary.execution.output_css,
+        r#" .btn { padding: 1px 1px 1px 1px; width: 50.0%; }"#
+    );
+    Ok(())
+}
+
 #[test]
 fn consumer_build_resolves_css_modules_values_through_tsconfig_aliases()
 -> Result<(), Box<dyn std::error::Error>> {
