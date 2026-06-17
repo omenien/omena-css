@@ -187,10 +187,27 @@ fn derive_static_scss_stylesheet_module_evaluation(
         return None;
     }
     let scopes = collect_static_stylesheet_scopes(style_source)?;
-    let declarations =
-        collect_static_scss_variable_declarations(style_source, variable_facts, &scopes)?;
     let function_declaration_ranges =
         static_scss_function_declaration_ranges_from_declarations(function_declarations.as_slice());
+    let function_call_ranges =
+        collect_static_scss_function_calls(style_source, tokens, function_declarations.as_slice())
+            .map(|calls| {
+                calls
+                    .into_iter()
+                    .map(|call| (call.start, call.end))
+                    .collect::<Vec<_>>()
+            })
+            .unwrap_or_default();
+    let declarations =
+        collect_static_scss_variable_declarations(style_source, variable_facts, &scopes)?
+            .into_iter()
+            .filter(|declaration| {
+                !static_stylesheet_position_is_inside_ranges(
+                    declaration.declaration.span_start,
+                    &function_call_ranges,
+                )
+            })
+            .collect::<Vec<_>>();
 
     let mut edits = Vec::new();
     let mut resolved_replacements = Vec::new();
@@ -213,6 +230,7 @@ fn derive_static_scss_stylesheet_module_evaluation(
                 reference_start,
                 &function_declaration_ranges,
             )
+            || static_stylesheet_position_is_inside_ranges(reference_start, &function_call_ranges)
         {
             continue;
         }
@@ -777,7 +795,13 @@ struct StaticScssFunctionCall {
     name: String,
     start: usize,
     end: usize,
-    arguments: Vec<String>,
+    arguments: Vec<StaticScssFunctionArgument>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct StaticScssFunctionArgument {
+    name: Option<String>,
+    value: String,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -1077,7 +1101,9 @@ fn static_scss_function_position_is_inside_declaration_header(
         .any(|declaration| position >= declaration.span_start && position < declaration.body_start)
 }
 
-fn split_static_scss_function_arguments(arguments: &str) -> Option<Vec<String>> {
+fn split_static_scss_function_arguments(
+    arguments: &str,
+) -> Option<Vec<StaticScssFunctionArgument>> {
     let arguments = arguments.trim();
     if arguments.is_empty() {
         return Some(Vec::new());
@@ -1113,11 +1139,9 @@ fn split_static_scss_function_arguments(arguments: &str) -> Option<Vec<String>> 
             '[' => bracket_depth += 1,
             ']' => bracket_depth = bracket_depth.checked_sub(1)?,
             ',' if paren_depth == 0 && bracket_depth == 0 => {
-                let value = arguments.get(cursor..index)?.trim();
-                if !static_scss_function_argument_is_safe(value) {
-                    return None;
-                }
-                values.push(value.to_string());
+                values.push(parse_static_scss_function_argument(
+                    arguments.get(cursor..index)?.trim(),
+                )?);
                 cursor = index + ch.len_utf8();
             }
             _ => {}
@@ -1129,11 +1153,81 @@ fn split_static_scss_function_arguments(arguments: &str) -> Option<Vec<String>> 
         return None;
     }
     let value = arguments.get(cursor..)?.trim();
+    values.push(parse_static_scss_function_argument(value)?);
+    Some(values)
+}
+
+fn parse_static_scss_function_argument(value: &str) -> Option<StaticScssFunctionArgument> {
+    let value = value.trim();
+    if value.is_empty() {
+        return None;
+    }
+    if let Some((name, argument_value)) = split_static_scss_named_function_argument(value)? {
+        if !static_stylesheet_variable_name_is_safe(name.as_str())
+            || !static_scss_function_argument_is_safe(argument_value.as_str())
+        {
+            return None;
+        }
+        return Some(StaticScssFunctionArgument {
+            name: Some(canonical_static_scss_variable_name(name.as_str())),
+            value: argument_value,
+        });
+    }
     if !static_scss_function_argument_is_safe(value) {
         return None;
     }
-    values.push(value.to_string());
-    Some(values)
+    Some(StaticScssFunctionArgument {
+        name: None,
+        value: value.to_string(),
+    })
+}
+
+fn split_static_scss_named_function_argument(value: &str) -> Option<Option<(String, String)>> {
+    let colon_index = static_scss_top_level_colon_index(value)?;
+    let Some(colon_index) = colon_index else {
+        return Some(None);
+    };
+    let name = value.get(..colon_index)?.trim();
+    let argument_value = value.get(colon_index + ':'.len_utf8()..)?.trim();
+    let name = name.strip_prefix('$')?.trim();
+    (!name.is_empty() && !argument_value.is_empty())
+        .then(|| Some((name.to_string(), argument_value.to_string())))
+}
+
+fn static_scss_top_level_colon_index(value: &str) -> Option<Option<usize>> {
+    let mut index = 0usize;
+    let mut paren_depth = 0usize;
+    let mut bracket_depth = 0usize;
+    let mut quote: Option<char> = None;
+    while index < value.len() {
+        let ch = value[index..].chars().next()?;
+        if let Some(quote_ch) = quote {
+            index += ch.len_utf8();
+            if ch == '\\' {
+                if let Some(escaped) = value[index..].chars().next() {
+                    index += escaped.len_utf8();
+                }
+            } else if ch == quote_ch {
+                quote = None;
+            }
+            continue;
+        }
+        if matches!(ch, '"' | '\'') {
+            quote = Some(ch);
+            index += ch.len_utf8();
+            continue;
+        }
+        match ch {
+            '(' => paren_depth += 1,
+            ')' => paren_depth = paren_depth.checked_sub(1)?,
+            '[' => bracket_depth += 1,
+            ']' => bracket_depth = bracket_depth.checked_sub(1)?,
+            ':' if paren_depth == 0 && bracket_depth == 0 => return Some(Some(index)),
+            _ => {}
+        }
+        index += ch.len_utf8();
+    }
+    (quote.is_none() && paren_depth == 0 && bracket_depth == 0).then_some(None)
 }
 
 fn resolve_static_scss_function_call_abstract_value(
@@ -1155,12 +1249,12 @@ fn resolve_static_scss_function_call_abstract_value(
     if call.start >= declaration.body_start && call.start < declaration.body_end {
         return top_static_abstract_value(StaticStylesheetResolutionReason::Cycle);
     }
-    if declaration.parameters.len() != call.arguments.len() {
+    let Some(bound_arguments) = bind_static_scss_function_arguments(declaration, call) else {
         return raw_static_abstract_value(
             call.name.as_str(),
             StaticStylesheetResolutionReason::UnsupportedDynamic,
         );
-    }
+    };
     if static_scss_function_value_contains_callable_to(
         declaration.return_value.as_str(),
         declaration.name.as_str(),
@@ -1169,7 +1263,7 @@ fn resolve_static_scss_function_call_abstract_value(
     }
 
     let mut argument_values = BTreeMap::new();
-    for (parameter, argument) in declaration.parameters.iter().zip(&call.arguments) {
+    for (parameter, argument) in bound_arguments {
         let resolution = resolve_static_scss_function_argument_abstract_value(
             argument.as_str(),
             call.start,
@@ -1183,7 +1277,7 @@ fn resolve_static_scss_function_call_abstract_value(
         if resolution.outcome == StaticStylesheetResolutionOutcome::Top {
             return top_static_abstract_value(resolution.reason);
         }
-        argument_values.insert(parameter.clone(), rendered_value);
+        argument_values.insert(parameter, rendered_value);
     }
     resolve_static_scss_function_return_abstract_value(
         declaration,
@@ -1192,6 +1286,56 @@ fn resolve_static_scss_function_call_abstract_value(
         variable_declarations,
         fuel - 1,
     )
+}
+
+fn bind_static_scss_function_arguments(
+    declaration: &StaticScssFunctionDeclaration,
+    call: &StaticScssFunctionCall,
+) -> Option<Vec<(String, String)>> {
+    let mut bindings = BTreeMap::<String, String>::new();
+    let mut positional_index = 0usize;
+    let mut saw_named_argument = false;
+
+    for argument in &call.arguments {
+        if let Some(argument_name) = argument.name.as_ref() {
+            saw_named_argument = true;
+            if !declaration
+                .parameters
+                .iter()
+                .any(|parameter| parameter == argument_name)
+                || bindings
+                    .insert(argument_name.clone(), argument.value.clone())
+                    .is_some()
+            {
+                return None;
+            }
+            continue;
+        }
+
+        if saw_named_argument {
+            return None;
+        }
+        let parameter = declaration.parameters.get(positional_index)?;
+        if bindings
+            .insert(parameter.clone(), argument.value.clone())
+            .is_some()
+        {
+            return None;
+        }
+        positional_index += 1;
+    }
+
+    (bindings.len() == declaration.parameters.len()).then(|| {
+        declaration
+            .parameters
+            .iter()
+            .map(|parameter| {
+                bindings
+                    .remove(parameter)
+                    .map(|value| (parameter.clone(), value))
+            })
+            .collect::<Option<Vec<_>>>()
+    })?
 }
 
 fn resolve_static_scss_function_argument_abstract_value(
@@ -2857,6 +3001,46 @@ mod tests {
             report.value_resolution.values[0].rendered_value.as_deref(),
             Some("4px")
         );
+    }
+
+    #[test]
+    fn static_scss_evaluation_resolves_named_function_arguments() {
+        let report = derive_static_stylesheet_module_evaluation(
+            "@function pair($left, $right) { @return $left + $right; } .button { margin: pair($right: 2px, $left: 1px); }",
+            StyleDialect::Scss,
+        );
+        assert!(report.is_some());
+        let Some(report) = report else {
+            return;
+        };
+
+        assert_eq!(report.replacement_count, 1);
+        assert_eq!(report.resolved_replacements[0].name, "function:pair");
+        assert_eq!(report.resolved_replacements[0].text, "3px");
+        assert_eq!(report.resolved_replacements[0].abstract_value_kind, "exact");
+        assert!(report.evaluated_css.contains(".button { margin: 3px; }"));
+        assert!(report.oracle.all_legacy_declaration_values_preserved);
+    }
+
+    #[test]
+    fn static_scss_evaluation_rejects_positional_arguments_after_named_arguments() {
+        let report = derive_static_stylesheet_module_evaluation(
+            "@function pair($left, $right) { @return $left + $right; } .button { margin: pair($left: 1px, 2px); }",
+            StyleDialect::Scss,
+        );
+        assert!(report.is_none());
+
+        let resolution = summarize_static_stylesheet_value_resolution(
+            "@function pair($left, $right) { @return $left + $right; } .button { margin: pair($left: 1px, 2px); }",
+            StyleDialect::Scss,
+        );
+        assert!(resolution.is_some());
+        let Some(resolution) = resolution else {
+            return;
+        };
+
+        assert_eq!(resolution.raw_count, 1);
+        assert_eq!(resolution.unsupported_dynamic_count, 1);
     }
 
     #[test]
