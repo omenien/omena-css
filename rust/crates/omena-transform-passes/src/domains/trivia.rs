@@ -1,5 +1,7 @@
-use omena_parser::{LexedToken, StyleDialect, lex};
+use omena_parser::{LexedToken, StyleDialect};
 use omena_syntax::SyntaxKind;
+
+use crate::runtime::lex_cache::lex_cached as lex;
 
 use crate::helpers::tokens::{
     is_comment_token, next_non_comment_token_kind, previous_non_comment_token_kind,

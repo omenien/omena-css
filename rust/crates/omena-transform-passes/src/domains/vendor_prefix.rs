@@ -1,5 +1,7 @@
-use omena_parser::{LexedToken, StyleDialect, lex};
+use omena_parser::{LexedToken, StyleDialect};
 use omena_syntax::SyntaxKind;
+
+use crate::runtime::lex_cache::lex_cached as lex;
 
 use crate::helpers::{
     blocks::at_rule_block_start,

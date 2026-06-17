@@ -4,8 +4,10 @@ use omena_cascade::{
     StaticSupportsAssumptionV0, StaticSupportsEvalVerdictV0, StaticSupportsEvalWitnessV0,
     evaluate_static_supports_condition,
 };
-use omena_parser::{StyleDialect, lex};
+use omena_parser::StyleDialect;
 use omena_syntax::SyntaxKind;
+
+use crate::runtime::lex_cache::lex_cached as lex;
 
 use crate::{
     domains::number::{

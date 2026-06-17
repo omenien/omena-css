@@ -130,6 +130,19 @@ pub fn execute_transform_passes_on_source_with_dialect_and_context(
     requested: &[TransformPassKind],
     context: &TransformExecutionContextV0,
 ) -> TransformExecutionSummaryV0 {
+    super::lex_cache::with_transform_lex_cache(|| {
+        execute_transform_passes_on_source_with_active_lex_cache(
+            source, dialect, requested, context,
+        )
+    })
+}
+
+fn execute_transform_passes_on_source_with_active_lex_cache(
+    source: &str,
+    dialect: StyleDialect,
+    requested: &[TransformPassKind],
+    context: &TransformExecutionContextV0,
+) -> TransformExecutionSummaryV0 {
     let pass_plan = plan_transform_passes(requested);
     let requested_pass_ids = requested.iter().map(|pass| pass.id()).collect::<Vec<_>>();
     let ordered_pass_ids = pass_plan.ordered_pass_ids.clone();

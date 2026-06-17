@@ -4,8 +4,10 @@ use omena_cascade::{
     CascadeValue, CustomPropertyEnv, resolve_custom_property_env_least_fixed_point,
     substitute_custom_properties,
 };
-use omena_parser::{StyleDialect, lex};
+use omena_parser::StyleDialect;
 use omena_syntax::SyntaxKind;
+
+use crate::runtime::lex_cache::lex_cached as lex;
 
 use crate::domains::{
     css_module_global::{CssModuleScopeBlock, collect_css_module_scope_blocks},

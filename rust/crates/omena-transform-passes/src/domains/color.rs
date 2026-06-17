@@ -1,8 +1,10 @@
 #[path = "color_names.rs"]
 mod color_names;
 
-use omena_parser::{StyleDialect, lex};
+use omena_parser::StyleDialect;
 use omena_syntax::SyntaxKind;
+
+use crate::runtime::lex_cache::lex_cached as lex;
 
 use crate::{
     domains::number::{compress_number_prefix, format_css_number},

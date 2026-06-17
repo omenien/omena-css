@@ -3,9 +3,11 @@ use omena_cascade::{
     SelectorMatchVerdict, prove_layer_flatten_candidate, prove_scope_flatten_candidate,
     selector_co_match_verdict,
 };
-use omena_parser::{StyleDialect, lex};
+use omena_parser::StyleDialect;
 use omena_smt::{LayerInversionDeclarationV0, layer_inversion_declaration_v0};
 use omena_syntax::SyntaxKind;
+
+use crate::runtime::lex_cache::lex_cached as lex;
 
 use crate::helpers::{
     blocks::{at_rule_block_indexes, at_rule_prelude_end_index, rule_block_token_indexes},

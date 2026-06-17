@@ -2,7 +2,7 @@ use omena_cascade::{
     CascadeValue, CustomPropertyLeastFixedPointSummaryV0,
     summarize_custom_property_least_fixed_point,
 };
-use omena_parser::{StyleDialect, lex};
+use omena_parser::StyleDialect;
 
 use crate::domains::{
     calc::reduce_css_calc_with_lexer,
@@ -61,6 +61,7 @@ use crate::model::{
     TransformImportInlineV0, TransformLessInlineLiteralPlaceholderV0,
     TransformSemanticRemovalCandidate,
 };
+use crate::runtime::lex_cache::lex_cached as lex;
 
 pub(crate) fn strip_css_comments(source: &str, dialect: StyleDialect) -> (String, usize) {
     strip_css_comments_with_lexer(source, dialect)

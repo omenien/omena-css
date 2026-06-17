@@ -1,7 +1,9 @@
 use std::collections::BTreeSet;
 
-use omena_parser::{StyleDialect, lex};
+use omena_parser::StyleDialect;
 use omena_syntax::SyntaxKind;
+
+use crate::runtime::lex_cache::lex_cached as lex;
 
 use crate::{
     TransformImportInlineV0, TransformLessInlineLiteralPlaceholderV0,

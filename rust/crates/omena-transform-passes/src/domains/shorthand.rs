@@ -1,8 +1,10 @@
 use omena_cascade::{
     BoxLonghandInputV0, ShorthandCombinationProofV0, prove_box_shorthand_combination,
 };
-use omena_parser::{LexedToken, StyleDialect, lex};
+use omena_parser::{LexedToken, StyleDialect};
 use omena_syntax::SyntaxKind;
+
+use crate::runtime::lex_cache::lex_cached as lex;
 
 use crate::{
     domains::{

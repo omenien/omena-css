@@ -1,7 +1,9 @@
 use std::collections::{BTreeMap, BTreeSet, VecDeque};
 
-use omena_parser::{StyleDialect, lex};
+use omena_parser::StyleDialect;
 use omena_syntax::SyntaxKind;
+
+use crate::runtime::lex_cache::lex_cached as lex;
 
 use crate::domains::{
     css_module_global::{
