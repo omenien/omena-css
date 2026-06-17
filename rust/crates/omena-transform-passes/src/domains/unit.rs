@@ -1,5 +1,6 @@
 use omena_parser::StyleDialect;
 use omena_syntax::SyntaxKind;
+use omena_value_lattice::css_number_is_zero;
 
 use crate::runtime::lex_cache::lex_cached as lex;
 
@@ -555,7 +556,7 @@ fn format_css_time_number(value: f64) -> String {
 }
 
 fn is_zero_number_prefix(number: &str) -> bool {
-    number.parse::<f64>().is_ok_and(|value| value == 0.0)
+    css_number_is_zero(number)
 }
 
 fn normalize_known_css_unit_case(number: &str, unit: &str) -> Option<String> {

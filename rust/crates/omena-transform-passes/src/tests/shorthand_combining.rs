@@ -85,6 +85,28 @@ fn execution_runtime_compresses_box_shorthand_values() {
 }
 
 #[test]
+fn execution_runtime_compresses_box_shorthand_values_with_typed_zero_equality() {
+    let source = r#".a { margin: 0px 0 0 0; padding: 0% 0 0 0; inset: 0deg 0 0 0; scroll-margin: 0em 0 0 0; }"#;
+    let execution = execute_transform_passes_on_source(
+        source,
+        &[
+            TransformPassKind::ShorthandCombining,
+            TransformPassKind::PrintCss,
+        ],
+    );
+
+    assert_eq!(execution.mutation_count, 4);
+    assert_eq!(
+        execution.output_css,
+        r#".a { margin: 0; padding: 0% 0 0; inset: 0; scroll-margin: 0em 0 0; }"#
+    );
+    assert_eq!(
+        execution.executed_pass_ids,
+        vec!["shorthand-combining", "print-css"]
+    );
+}
+
+#[test]
 fn execution_runtime_compresses_border_image_longhands() {
     let source = r#".a { border-image-source: url(a.png); border-image-slice: 10; border-image-width: 1; border-image-outset: 0; border-image-repeat: stretch; } .b { border-image-source: linear-gradient(red,#00f); border-image-slice: 10 20; border-image-width: auto; border-image-outset: 1; border-image-repeat: round; } .c { border-image-source: none; border-image-slice: 10; border-image-width: 1; border-image-outset: 0; border-image-repeat: stretch; } .d { border-image-source: url(a.png); border-image-slice: 10 fill; border-image-width: 2; border-image-outset: 0; border-image-repeat: round space; } .invalid { border-image-source: url(a.png); border-image-slice: 10; border-image-width: fill; border-image-outset: 0; border-image-repeat: stretch; } .default { border-image-source: none; border-image-slice: 100%; border-image-width: 1; border-image-outset: 0; border-image-repeat: stretch; }"#;
     let execution = execute_transform_passes_on_source(

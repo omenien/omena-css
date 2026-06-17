@@ -1,3 +1,5 @@
+use omena_value_lattice::css_number_is_zero;
+
 use crate::{
     domains::{
         number::{compress_number_prefix, format_css_number, numeric_prefix_end},
@@ -408,5 +410,5 @@ fn is_zero_transform_numeric_unit_argument(value: &str, is_unit: fn(&str) -> boo
 }
 
 fn is_zero_number_prefix(number: &str) -> bool {
-    number.parse::<f64>().is_ok_and(|value| value == 0.0)
+    css_number_is_zero(number)
 }

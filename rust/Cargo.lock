@@ -2528,6 +2528,7 @@ dependencies = [
  "omena-smt",
  "omena-syntax",
  "omena-transform-cst",
+ "omena-value-lattice",
  "serde",
  "serde_json",
 ]
@@ -2600,6 +2601,15 @@ dependencies = [
  "omena-variational",
  "omena-zk-audit",
  "omena-zk-circuit",
+]
+
+[[package]]
+name = "omena-value-lattice"
+version = "0.2.1"
+dependencies = [
+ "omena-parser",
+ "omena-syntax",
+ "serde",
 ]
 
 [[package]]

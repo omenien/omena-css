@@ -3,6 +3,7 @@ use omena_cascade::{
 };
 use omena_parser::{LexedToken, StyleDialect};
 use omena_syntax::SyntaxKind;
+use omena_value_lattice::{canonicalize_css_value, css_values_canonically_equal};
 
 use crate::runtime::lex_cache::lex_cached as lex;
 
@@ -1500,16 +1501,46 @@ pub(crate) fn compress_box_shorthand_values(values: &[&str]) -> Option<String> {
         return None;
     };
 
-    let parts = if top == right && top == bottom && top == left {
-        vec![*top]
-    } else if top == bottom && right == left {
-        vec![*top, *right]
-    } else if right == left {
-        vec![*top, *right, *bottom]
+    let top_right_equal = css_values_canonically_equal(top, right);
+    let top_bottom_equal = css_values_canonically_equal(top, bottom);
+    let right_left_equal = css_values_canonically_equal(right, left);
+
+    let parts = if top_right_equal && top_bottom_equal && right_left_equal {
+        vec![box_component_output(top, &[right, bottom, left])]
+    } else if top_bottom_equal && right_left_equal {
+        vec![
+            box_component_output(top, &[bottom]),
+            box_component_output(right, &[left]),
+        ]
+    } else if right_left_equal {
+        vec![
+            box_component_output(top, &[]),
+            box_component_output(right, &[left]),
+            box_component_output(bottom, &[]),
+        ]
     } else {
-        vec![*top, *right, *bottom, *left]
+        vec![
+            box_component_output(top, &[]),
+            box_component_output(right, &[]),
+            box_component_output(bottom, &[]),
+            box_component_output(left, &[]),
+        ]
     };
     Some(parts.join(" "))
+}
+
+fn box_component_output(value: &str, equal_peers: &[&str]) -> String {
+    let Some(canonical) = canonicalize_css_value(value) else {
+        return value.to_string();
+    };
+    if equal_peers
+        .iter()
+        .any(|peer| value.trim() != peer.trim() && css_values_canonically_equal(value, peer))
+    {
+        canonical.serialized
+    } else {
+        value.to_string()
+    }
 }
 
 fn normalize_border_image_source_value(value: &str) -> Option<String> {

@@ -29,6 +29,7 @@ omena-incremental = { path = "../omena-incremental", version = "=0.2.1" }
 omena-lawvere = { path = "../omena-lawvere", version = "=0.2.1", optional = true }
 omena-smt = { path = "../omena-smt", version = "=0.2.1" }
 omena-transform-cst = { path = "../omena-transform-cst", version = "=0.2.1" }
+omena-value-lattice = { path = "../omena-value-lattice", version = "=0.2.1" }
 omena-parser = { path = "../omena-parser", version = "=0.2.1" }
 omena-syntax = { path = "../omena-syntax", version = "=0.2.1" }
 serde.workspace = true

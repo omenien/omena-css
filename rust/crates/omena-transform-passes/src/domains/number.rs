@@ -1,5 +1,6 @@
 use omena_parser::StyleDialect;
 use omena_syntax::SyntaxKind;
+use omena_value_lattice::css_number_is_zero;
 
 use crate::helpers::source_rewrite::rewrite_lexer_tokens;
 use crate::helpers::values::{
@@ -585,5 +586,5 @@ fn normalize_exponent_suffix(exponent: &str) -> String {
 }
 
 fn is_zero_number_prefix(number: &str) -> bool {
-    number.chars().all(|ch| matches!(ch, '0' | '.' | '+' | '-'))
+    css_number_is_zero(number)
 }
