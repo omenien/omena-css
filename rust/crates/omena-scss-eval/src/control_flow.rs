@@ -107,6 +107,12 @@ pub struct OmenaScssEvalCallReturnIrSummaryV0 {
     pub declaration_node_count: usize,
     pub call_node_count: usize,
     pub return_node_count: usize,
+    pub return_value_count: usize,
+    pub exact_return_value_count: usize,
+    pub finite_set_return_value_count: usize,
+    pub raw_return_value_count: usize,
+    pub top_return_value_count: usize,
+    pub bottom_return_value_count: usize,
     pub edge_count: usize,
     pub recursive_edge_count: usize,
     pub capped_recursive_call_count: usize,
@@ -223,6 +229,35 @@ pub fn summarize_scss_call_return_ir(
         .iter()
         .filter(|node| node.kind == "functionReturn")
         .count();
+    let return_value_count = nodes
+        .iter()
+        .filter(|node| node.return_value.is_some())
+        .count();
+    let exact_return_value_count = nodes
+        .iter()
+        .filter(|node| matches!(node.return_value, Some(AbstractCssValueV0::Exact { .. })))
+        .count();
+    let finite_set_return_value_count = nodes
+        .iter()
+        .filter(|node| {
+            matches!(
+                node.return_value,
+                Some(AbstractCssValueV0::FiniteSet { .. })
+            )
+        })
+        .count();
+    let raw_return_value_count = nodes
+        .iter()
+        .filter(|node| matches!(node.return_value, Some(AbstractCssValueV0::Raw { .. })))
+        .count();
+    let top_return_value_count = nodes
+        .iter()
+        .filter(|node| matches!(node.return_value, Some(AbstractCssValueV0::Top)))
+        .count();
+    let bottom_return_value_count = nodes
+        .iter()
+        .filter(|node| matches!(node.return_value, Some(AbstractCssValueV0::Bottom)))
+        .count();
     let recursive_edge_count = edges.iter().filter(|edge| edge.recursive).count();
     let capped_recursive_call_count = edges
         .iter()
@@ -243,6 +278,12 @@ pub fn summarize_scss_call_return_ir(
         declaration_node_count,
         call_node_count,
         return_node_count,
+        return_value_count,
+        exact_return_value_count,
+        finite_set_return_value_count,
+        raw_return_value_count,
+        top_return_value_count,
+        bottom_return_value_count,
         edge_count: edges.len(),
         recursive_edge_count,
         capped_recursive_call_count,
@@ -1355,6 +1396,7 @@ mod tests {
         assert_eq!(report.declaration_node_count, 2);
         assert_eq!(report.call_node_count, 2);
         assert_eq!(report.return_node_count, 1);
+        assert_eq!(report.return_value_count, 1);
         assert!(
             report
                 .edges
@@ -1400,6 +1442,10 @@ mod tests {
         };
 
         assert_eq!(return_node.return_text.as_deref(), Some("calc(1px + 2px)"));
+        assert_eq!(report.return_value_count, 1);
+        assert_eq!(report.exact_return_value_count, 1);
+        assert_eq!(report.raw_return_value_count, 0);
+        assert_eq!(report.top_return_value_count, 0);
         assert_eq!(return_node.return_value_kind, Some("exact"));
         assert_eq!(
             return_node.return_value,
