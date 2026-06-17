@@ -17,9 +17,10 @@ use omena_syntax::SyntaxKind;
 use serde::Serialize;
 
 pub use control_flow::{
-    OmenaScssEvalControlFlowBlockV0, OmenaScssEvalControlFlowIrSummaryV0,
-    OmenaScssEvalControlFlowValueAnalysisV0, OmenaScssEvalControlFlowValueBlockV0,
-    analyze_scss_control_flow_values, summarize_scss_control_flow_ir,
+    OmenaScssEvalControlFlowBindingValueV0, OmenaScssEvalControlFlowBlockV0,
+    OmenaScssEvalControlFlowIrSummaryV0, OmenaScssEvalControlFlowValueAnalysisV0,
+    OmenaScssEvalControlFlowValueBlockV0, analyze_scss_control_flow_values,
+    summarize_scss_control_flow_ir,
 };
 pub use static_stylesheet::{
     OmenaScssEvalResolvedReplacementV0, OmenaScssEvalStaticStylesheetEvaluationV0,

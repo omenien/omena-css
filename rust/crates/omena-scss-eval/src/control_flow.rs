@@ -72,10 +72,19 @@ pub struct OmenaScssEvalControlFlowValueBlockV0 {
     pub transfer_kind: &'static str,
     pub predecessor_node_keys: Vec<StableNodeKeyV0>,
     pub loop_carried_bindings: Vec<String>,
+    pub loop_carried_binding_values: Vec<OmenaScssEvalControlFlowBindingValueV0>,
     pub input_value: AbstractCssValueV0,
     pub input_value_kind: &'static str,
     pub output_value: AbstractCssValueV0,
     pub output_value_kind: &'static str,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct OmenaScssEvalControlFlowBindingValueV0 {
+    pub name: String,
+    pub value: AbstractCssValueV0,
+    pub value_kind: &'static str,
 }
 
 pub fn summarize_scss_control_flow_ir(
@@ -162,6 +171,7 @@ pub fn analyze_scss_control_flow_values(
                     .filter_map(|index| nodes.get(*index).map(|node| node.block.node_key.clone()))
                     .collect(),
                 loop_carried_bindings: node.transfer.loop_carried_bindings(),
+                loop_carried_binding_values: node.transfer.loop_carried_binding_values(),
                 input_value_kind: abstract_css_value_kind(input_value),
                 input_value: input_value.clone(),
                 output_value_kind: abstract_css_value_kind(output_value),
@@ -305,10 +315,16 @@ enum ScssControlFlowTransfer {
         value: AbstractCssValueV0,
     },
     LoopCarried {
-        bindings: Vec<String>,
+        bindings: Vec<ScssControlFlowBindingValue>,
         value: AbstractCssValueV0,
     },
     PassThrough,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct ScssControlFlowBindingValue {
+    name: String,
+    value: AbstractCssValueV0,
 }
 
 impl ScssControlFlowTransfer {
@@ -322,7 +338,24 @@ impl ScssControlFlowTransfer {
 
     fn loop_carried_bindings(&self) -> Vec<String> {
         match self {
-            Self::LoopCarried { bindings, .. } => bindings.clone(),
+            Self::LoopCarried { bindings, .. } => bindings
+                .iter()
+                .map(|binding| binding.name.clone())
+                .collect(),
+            Self::BranchCondition { .. } | Self::PassThrough => Vec::new(),
+        }
+    }
+
+    fn loop_carried_binding_values(&self) -> Vec<OmenaScssEvalControlFlowBindingValueV0> {
+        match self {
+            Self::LoopCarried { bindings, .. } => bindings
+                .iter()
+                .map(|binding| OmenaScssEvalControlFlowBindingValueV0 {
+                    name: binding.name.clone(),
+                    value_kind: abstract_css_value_kind(&binding.value),
+                    value: binding.value.clone(),
+                })
+                .collect(),
             Self::BranchCondition { .. } | Self::PassThrough => Vec::new(),
         }
     }
@@ -423,7 +456,8 @@ fn control_flow_transfer_for_block(
             value: scss_header_value(block.header_text.as_str(), lexical_bindings),
         },
         "@for" | "@each" => {
-            let bindings = loop_carried_bindings(block.header_text.as_str());
+            let bindings =
+                loop_carried_binding_values(block.header_text.as_str(), lexical_bindings);
             ScssControlFlowTransfer::LoopCarried {
                 bindings,
                 value: loop_carried_value(block.header_text.as_str(), lexical_bindings),
@@ -491,7 +525,22 @@ fn loop_carried_value(
     lexical_bindings: &BTreeMap<String, AbstractCssValueV0>,
 ) -> AbstractCssValueV0 {
     parse_static_for_loop_range(header)
+        .or_else(|| parse_static_each_loop_source_value(header, lexical_bindings))
         .unwrap_or_else(|| scss_header_value(header, lexical_bindings))
+}
+
+fn loop_carried_binding_values(
+    header: &str,
+    lexical_bindings: &BTreeMap<String, AbstractCssValueV0>,
+) -> Vec<ScssControlFlowBindingValue> {
+    let value = loop_carried_value(header, lexical_bindings);
+    loop_carried_bindings(header)
+        .into_iter()
+        .map(|name| ScssControlFlowBindingValue {
+            name,
+            value: value.clone(),
+        })
+        .collect()
 }
 
 fn parse_static_for_loop_range(header: &str) -> Option<AbstractCssValueV0> {
@@ -515,6 +564,49 @@ fn parse_static_for_loop_range(header: &str) -> Option<AbstractCssValueV0> {
     )
 }
 
+fn parse_static_each_loop_source_value(
+    header: &str,
+    lexical_bindings: &BTreeMap<String, AbstractCssValueV0>,
+) -> Option<AbstractCssValueV0> {
+    let (_, source) = split_header_at_keyword(header, "in")?;
+    let source = source.trim();
+    if source.is_empty() {
+        return None;
+    }
+    let source_variables = variable_names_in_text(source);
+    if !source_variables.is_empty() {
+        return Some(
+            source_variables
+                .iter()
+                .map(|name| {
+                    lexical_bindings
+                        .get(name)
+                        .cloned()
+                        .unwrap_or(AbstractCssValueV0::Top)
+                })
+                .fold(AbstractCssValueV0::Bottom, |acc, value| {
+                    join_abstract_css_values(&acc, &value)
+                }),
+        );
+    }
+    let values = source
+        .split(',')
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .collect::<Vec<_>>();
+    if values.len() <= 1 || values.len() > 64 {
+        return None;
+    }
+    Some(
+        values
+            .into_iter()
+            .fold(AbstractCssValueV0::Bottom, |acc, value| {
+                let value = abstract_css_value_from_text(value);
+                join_abstract_css_values(&acc, &value)
+            }),
+    )
+}
+
 fn loop_carried_bindings(header: &str) -> Vec<String> {
     let separator = if header
         .split_whitespace()
@@ -524,11 +616,44 @@ fn loop_carried_bindings(header: &str) -> Vec<String> {
     } else {
         "in"
     };
-    let before_separator = header
-        .split_once(separator)
+    let before_separator = split_header_at_keyword(header, separator)
         .map(|(left, _)| left)
         .unwrap_or(header);
     variable_names_in_text(before_separator)
+}
+
+fn split_header_at_keyword<'a>(header: &'a str, keyword: &str) -> Option<(&'a str, &'a str)> {
+    let lower_header = header.to_ascii_lowercase();
+    let lower_keyword = keyword.to_ascii_lowercase();
+    let mut search_start = 0usize;
+    while search_start < lower_header.len() {
+        let relative_index = lower_header
+            .get(search_start..)?
+            .find(lower_keyword.as_str())?;
+        let index = search_start + relative_index;
+        let right_start = index + keyword.len();
+        if header_keyword_has_boundaries(header, index, right_start) {
+            let left = header.get(..index)?;
+            let right = header.get(right_start..)?;
+            return Some((left, right));
+        }
+        search_start = right_start;
+    }
+    None
+}
+
+fn header_keyword_has_boundaries(header: &str, start: usize, end: usize) -> bool {
+    let before_ok = header.get(..start).is_none_or(|text| {
+        text.chars()
+            .next_back()
+            .is_none_or(|ch| ch.is_ascii_whitespace())
+    });
+    let after_ok = header.get(end..).is_none_or(|text| {
+        text.chars()
+            .next()
+            .is_none_or(|ch| ch.is_ascii_whitespace())
+    });
+    before_ok && after_ok
 }
 
 fn variable_names_in_text(text: &str) -> Vec<String> {
@@ -661,6 +786,12 @@ mod tests {
         assert_eq!(report.blocks[0].transfer_kind, "branchCondition");
         assert_eq!(report.blocks[1].transfer_kind, "loopCarriedBindings");
         assert_eq!(report.blocks[1].loop_carried_bindings, vec!["$i"]);
+        assert_eq!(report.blocks[1].loop_carried_binding_values.len(), 1);
+        assert_eq!(report.blocks[1].loop_carried_binding_values[0].name, "$i");
+        assert_eq!(
+            report.blocks[1].loop_carried_binding_values[0].value_kind,
+            "finiteSet"
+        );
         assert_eq!(report.blocks[1].output_value_kind, "finiteSet");
     }
 
@@ -679,7 +810,32 @@ mod tests {
             report.blocks[0].loop_carried_bindings,
             vec!["$key", "$value"]
         );
+        assert!(
+            report.blocks[0]
+                .loop_carried_binding_values
+                .iter()
+                .all(|binding| binding.value_kind == "top")
+        );
         assert_eq!(report.blocks[0].output_value_kind, "top");
+    }
+
+    #[test]
+    fn control_flow_value_analysis_tracks_static_each_binding_values() {
+        let source = "@each $tone in red, blue { .item { color: $tone; } }";
+        let report = analyze_scss_control_flow_values(source, StyleDialect::Scss);
+        assert!(report.is_some());
+        let Some(report) = report else {
+            return;
+        };
+
+        assert_eq!(report.block_count, 1);
+        assert_eq!(report.blocks[0].loop_carried_bindings, vec!["$tone"]);
+        assert_eq!(report.blocks[0].loop_carried_binding_values.len(), 1);
+        assert_eq!(
+            report.blocks[0].loop_carried_binding_values[0].value_kind,
+            "finiteSet"
+        );
+        assert_eq!(report.blocks[0].output_value_kind, "finiteSet");
     }
 
     #[test]
