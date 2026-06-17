@@ -1,4 +1,5 @@
 use omena_value_lattice::{
+    css_values_canonically_equal,
     number::{
         parse_reducible_abs_value, parse_reducible_calc_value, parse_reducible_clamp_value,
         parse_reducible_exp_value, parse_reducible_hypot_value, parse_reducible_log_value,
@@ -69,24 +70,33 @@ fn parse_static_scss_if_value(value: &str) -> Option<String> {
 }
 
 pub(crate) fn static_scss_literal_truthiness(value: &str) -> Option<bool> {
-    let normalized = value.trim().to_ascii_lowercase();
-    if let Some(inner) = strip_static_scss_outer_parens(normalized.as_str()) {
+    let trimmed = value.trim();
+    let normalized = trimmed.to_ascii_lowercase();
+    if let Some(inner) = strip_static_scss_outer_parens(trimmed) {
         return static_scss_literal_truthiness(inner);
     }
-    match split_static_scss_boolean_operands(normalized.as_str(), "or") {
+    match split_static_scss_boolean_operands(trimmed, "or") {
         Ok(Some(operands)) => return static_scss_or_truthiness(operands),
         Ok(None) => {}
         Err(()) => return None,
     }
-    match split_static_scss_boolean_operands(normalized.as_str(), "and") {
+    match split_static_scss_boolean_operands(trimmed, "and") {
         Ok(Some(operands)) => return static_scss_and_truthiness(operands),
         Ok(None) => {}
         Err(()) => return None,
     }
-    if let Some(operand) = normalized.strip_prefix("not")
+    if trimmed
+        .get(..3)
+        .is_some_and(|prefix| prefix.eq_ignore_ascii_case("not"))
+        && let Some(operand) = trimmed.get(3..)
         && operand.chars().next().is_some_and(char::is_whitespace)
     {
         return static_scss_literal_truthiness(operand.trim()).map(|truthy| !truthy);
+    }
+    match static_scss_comparison_truthiness(trimmed) {
+        Ok(Some(truthy)) => return Some(truthy),
+        Ok(None) => {}
+        Err(()) => return None,
     }
     match normalized.as_str() {
         "false" | "null" => Some(false),
@@ -94,6 +104,107 @@ pub(crate) fn static_scss_literal_truthiness(value: &str) -> Option<bool> {
         _ if normalized.starts_with('$') || normalized.contains('(') => None,
         _ => Some(true),
     }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum StaticScssComparisonOperator {
+    Equal,
+    NotEqual,
+}
+
+fn static_scss_comparison_truthiness(value: &str) -> Result<Option<bool>, ()> {
+    let Some((left, operator, right)) = split_static_scss_comparison(value)? else {
+        return Ok(None);
+    };
+    let left = static_scss_comparable_operand(left).ok_or(())?;
+    let right = static_scss_comparable_operand(right).ok_or(())?;
+    let equal = left == right || css_values_canonically_equal(left.as_str(), right.as_str());
+    Ok(Some(match operator {
+        StaticScssComparisonOperator::Equal => equal,
+        StaticScssComparisonOperator::NotEqual => !equal,
+    }))
+}
+
+fn static_scss_comparable_operand(value: &str) -> Option<String> {
+    let reduced = reduce_static_numeric_value(value.trim().to_string());
+    let normalized = reduced.to_ascii_lowercase();
+    if reduced.is_empty()
+        || reduced.contains('$')
+        || normalized.contains("var(")
+        || normalized.contains("env(")
+        || normalized.contains('(')
+        || normalized.contains(')')
+    {
+        return None;
+    }
+    Some(reduced)
+}
+
+fn split_static_scss_comparison(
+    value: &str,
+) -> Result<Option<(&str, StaticScssComparisonOperator, &str)>, ()> {
+    let mut comparison = None;
+    let mut paren_depth = 0usize;
+    let mut bracket_depth = 0usize;
+    let mut quote: Option<char> = None;
+    let mut index = 0usize;
+
+    while index < value.len() {
+        let ch = value[index..].chars().next().ok_or(())?;
+        if let Some(quote_ch) = quote {
+            index += ch.len_utf8();
+            if ch == '\\' {
+                if let Some(escaped) = value[index..].chars().next() {
+                    index += escaped.len_utf8();
+                }
+            } else if ch == quote_ch {
+                quote = None;
+            }
+            continue;
+        }
+        if matches!(ch, '"' | '\'') {
+            quote = Some(ch);
+            index += ch.len_utf8();
+            continue;
+        }
+        match ch {
+            '(' => paren_depth += 1,
+            ')' => paren_depth = paren_depth.checked_sub(1).ok_or(())?,
+            '[' => bracket_depth += 1,
+            ']' => bracket_depth = bracket_depth.checked_sub(1).ok_or(())?,
+            '=' | '!' | '<' | '>' if paren_depth == 0 && bracket_depth == 0 => {
+                let (operator, width) = static_scss_comparison_operator_at(value, index)?;
+                let left = value.get(..index).ok_or(())?.trim();
+                let right = value.get(index + width..).ok_or(())?.trim();
+                if left.is_empty() || right.is_empty() || comparison.is_some() {
+                    return Err(());
+                }
+                comparison = Some((left, operator, right));
+                index += width;
+                continue;
+            }
+            _ => {}
+        }
+        index += ch.len_utf8();
+    }
+    if quote.is_some() || paren_depth != 0 || bracket_depth != 0 {
+        return Err(());
+    }
+    Ok(comparison)
+}
+
+fn static_scss_comparison_operator_at(
+    value: &str,
+    index: usize,
+) -> Result<(StaticScssComparisonOperator, usize), ()> {
+    let suffix = value.get(index..).ok_or(())?;
+    if suffix.starts_with("==") {
+        return Ok((StaticScssComparisonOperator::Equal, 2));
+    }
+    if suffix.starts_with("!=") {
+        return Ok((StaticScssComparisonOperator::NotEqual, 2));
+    }
+    Err(())
 }
 
 fn strip_static_scss_outer_parens(value: &str) -> Option<&str> {
