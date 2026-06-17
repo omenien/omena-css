@@ -75,6 +75,7 @@ pub struct OmenaScssEvalControlFlowValueBlockV0 {
     pub transfer_kind: &'static str,
     pub transfer_value: Option<AbstractCssValueV0>,
     pub transfer_value_kind: Option<&'static str>,
+    pub transfer_truthiness: Option<&'static str>,
     pub predecessor_node_keys: Vec<StableNodeKeyV0>,
     pub loop_carried_bindings: Vec<String>,
     pub loop_carried_binding_values: Vec<OmenaScssEvalControlFlowBindingValueV0>,
@@ -374,12 +375,14 @@ pub fn analyze_scss_control_flow_values(
         .map(|((node, input_value), output_value)| {
             let transfer_value = node.transfer.transfer_value();
             let transfer_value_kind = transfer_value.as_ref().map(abstract_css_value_kind);
+            let transfer_truthiness = node.transfer.transfer_truthiness();
             OmenaScssEvalControlFlowValueBlockV0 {
                 node_key: node.block.node_key.clone(),
                 kind: node.block.kind,
                 transfer_kind: node.transfer.kind_label(),
                 transfer_value,
                 transfer_value_kind,
+                transfer_truthiness,
                 predecessor_node_keys: node
                     .predecessor_indices
                     .iter()
@@ -1150,6 +1153,13 @@ impl ScssControlFlowTransfer {
         }
     }
 
+    fn transfer_truthiness(&self) -> Option<&'static str> {
+        match self {
+            Self::BranchCondition { value } => scss_static_truthiness_label(value),
+            Self::LoopCarried { .. } | Self::PassThrough => None,
+        }
+    }
+
     fn apply(&self, input_value: &AbstractCssValueV0) -> AbstractCssValueV0 {
         match self {
             Self::BranchCondition { value } | Self::LoopCarried { value, .. } => {
@@ -1157,6 +1167,37 @@ impl ScssControlFlowTransfer {
             }
             Self::PassThrough => input_value.clone(),
         }
+    }
+}
+
+fn scss_static_truthiness_label(value: &AbstractCssValueV0) -> Option<&'static str> {
+    match value {
+        AbstractCssValueV0::Exact { value } => {
+            let normalized = value.trim().to_ascii_lowercase();
+            if matches!(normalized.as_str(), "false" | "null") {
+                Some("falsey")
+            } else {
+                Some("truthy")
+            }
+        }
+        AbstractCssValueV0::FiniteSet { values } => {
+            let mut truthiness = values
+                .iter()
+                .filter_map(|value| {
+                    scss_static_truthiness_label(&AbstractCssValueV0::Exact {
+                        value: value.clone(),
+                    })
+                })
+                .collect::<Vec<_>>();
+            truthiness.sort_unstable();
+            truthiness.dedup();
+            (truthiness.len() == 1).then_some(truthiness[0])
+        }
+        AbstractCssValueV0::Raw { value } => {
+            let normalized = value.trim().to_ascii_lowercase();
+            matches!(normalized.as_str(), "false" | "null").then_some("falsey")
+        }
+        AbstractCssValueV0::Bottom | AbstractCssValueV0::Top => None,
     }
 }
 
@@ -1575,6 +1616,7 @@ mod tests {
         assert_eq!(report.widened_to_top_count, 0);
         assert_eq!(report.blocks[0].transfer_kind, "branchCondition");
         assert_eq!(report.blocks[0].transfer_value_kind, Some("exact"));
+        assert_eq!(report.blocks[0].transfer_truthiness, Some("truthy"));
         assert_eq!(report.blocks[1].transfer_kind, "loopCarriedBindings");
         assert_eq!(report.blocks[1].transfer_value_kind, Some("finiteSet"));
         assert_eq!(report.blocks[1].loop_carried_bindings, vec!["$i"]);
@@ -1609,6 +1651,21 @@ mod tests {
                 .all(|binding| binding.value_kind == "top")
         );
         assert_eq!(report.blocks[0].output_value_kind, "top");
+    }
+
+    #[test]
+    fn control_flow_value_analysis_reports_sass_branch_truthiness() {
+        let source = "$enabled: false; @if $enabled { .on { color: green; } }";
+        let report = analyze_scss_control_flow_values(source, StyleDialect::Scss);
+        assert!(report.is_some());
+        let Some(report) = report else {
+            return;
+        };
+
+        assert_eq!(report.block_count, 1);
+        assert_eq!(report.blocks[0].transfer_kind, "branchCondition");
+        assert_eq!(report.blocks[0].transfer_value_kind, Some("raw"));
+        assert_eq!(report.blocks[0].transfer_truthiness, Some("falsey"));
     }
 
     #[test]
