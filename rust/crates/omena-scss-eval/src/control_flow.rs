@@ -12,7 +12,10 @@ use omena_syntax::SyntaxKind;
 use omena_transform_cst::StableNodeKeyV0;
 use serde::Serialize;
 
-use crate::{abstract_css_value_kind, value_eval::reduce_static_numeric_value};
+use crate::{
+    abstract_css_value_kind,
+    value_eval::{reduce_static_numeric_value, static_scss_literal_truthiness},
+};
 
 const SCSS_CALL_RETURN_RECURSION_LIMIT: usize = 32;
 
@@ -1172,14 +1175,7 @@ impl ScssControlFlowTransfer {
 
 fn scss_static_truthiness_label(value: &AbstractCssValueV0) -> Option<&'static str> {
     match value {
-        AbstractCssValueV0::Exact { value } => {
-            let normalized = value.trim().to_ascii_lowercase();
-            if matches!(normalized.as_str(), "false" | "null") {
-                Some("falsey")
-            } else {
-                Some("truthy")
-            }
-        }
+        AbstractCssValueV0::Exact { value } => scss_static_truthiness_label_from_text(value),
         AbstractCssValueV0::FiniteSet { values } => {
             let mut truthiness = values
                 .iter()
@@ -1193,12 +1189,13 @@ fn scss_static_truthiness_label(value: &AbstractCssValueV0) -> Option<&'static s
             truthiness.dedup();
             (truthiness.len() == 1).then_some(truthiness[0])
         }
-        AbstractCssValueV0::Raw { value } => {
-            let normalized = value.trim().to_ascii_lowercase();
-            matches!(normalized.as_str(), "false" | "null").then_some("falsey")
-        }
+        AbstractCssValueV0::Raw { value } => scss_static_truthiness_label_from_text(value),
         AbstractCssValueV0::Bottom | AbstractCssValueV0::Top => None,
     }
+}
+
+fn scss_static_truthiness_label_from_text(value: &str) -> Option<&'static str> {
+    static_scss_literal_truthiness(value).map(|truthy| if truthy { "truthy" } else { "falsey" })
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -1338,6 +1335,9 @@ fn scss_header_value(
     if variables.is_empty() {
         return abstract_css_value_from_text(header);
     }
+    if let Some(substituted) = substitute_static_scss_header_variables(header, lexical_bindings) {
+        return abstract_css_value_from_text(substituted.as_str());
+    }
     variables
         .iter()
         .map(|name| {
@@ -1349,6 +1349,44 @@ fn scss_header_value(
         .fold(AbstractCssValueV0::Bottom, |acc, value| {
             join_abstract_css_values(&acc, &value)
         })
+}
+
+fn substitute_static_scss_header_variables(
+    header: &str,
+    lexical_bindings: &BTreeMap<String, AbstractCssValueV0>,
+) -> Option<String> {
+    let mut output = String::with_capacity(header.len());
+    let mut index = 0usize;
+    while index < header.len() {
+        let ch = header[index..].chars().next()?;
+        if ch != '$' {
+            output.push(ch);
+            index += ch.len_utf8();
+            continue;
+        }
+        let name_end = variable_name_end(header, index + ch.len_utf8());
+        let name = header.get(index..name_end)?;
+        let value = lexical_bindings
+            .get(name)
+            .and_then(single_static_scss_header_value_text)?;
+        output.push_str(value);
+        index = name_end.max(index + ch.len_utf8());
+    }
+    Some(output)
+}
+
+fn single_static_scss_header_value_text(value: &AbstractCssValueV0) -> Option<&str> {
+    match value {
+        AbstractCssValueV0::Exact { value } | AbstractCssValueV0::Raw { value } => {
+            Some(value.as_str())
+        }
+        AbstractCssValueV0::FiniteSet { values } if values.len() == 1 => {
+            values.first().map(String::as_str)
+        }
+        AbstractCssValueV0::Bottom
+        | AbstractCssValueV0::Top
+        | AbstractCssValueV0::FiniteSet { .. } => None,
+    }
 }
 
 fn loop_carried_value(
@@ -1665,6 +1703,20 @@ mod tests {
         assert_eq!(report.block_count, 1);
         assert_eq!(report.blocks[0].transfer_kind, "branchCondition");
         assert_eq!(report.blocks[0].transfer_value_kind, Some("raw"));
+        assert_eq!(report.blocks[0].transfer_truthiness, Some("falsey"));
+    }
+
+    #[test]
+    fn control_flow_value_analysis_reports_sass_not_branch_truthiness() {
+        let source = "$enabled: true; @if not $enabled { .off { color: red; } }";
+        let report = analyze_scss_control_flow_values(source, StyleDialect::Scss);
+        assert!(report.is_some());
+        let Some(report) = report else {
+            return;
+        };
+
+        assert_eq!(report.block_count, 1);
+        assert_eq!(report.blocks[0].transfer_kind, "branchCondition");
         assert_eq!(report.blocks[0].transfer_truthiness, Some("falsey"));
     }
 

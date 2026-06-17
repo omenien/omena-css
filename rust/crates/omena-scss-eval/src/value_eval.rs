@@ -68,8 +68,13 @@ fn parse_static_scss_if_value(value: &str) -> Option<String> {
     })
 }
 
-fn static_scss_literal_truthiness(value: &str) -> Option<bool> {
+pub(crate) fn static_scss_literal_truthiness(value: &str) -> Option<bool> {
     let normalized = value.trim().to_ascii_lowercase();
+    if let Some(operand) = normalized.strip_prefix("not")
+        && operand.chars().next().is_some_and(char::is_whitespace)
+    {
+        return static_scss_literal_truthiness(operand.trim()).map(|truthy| !truthy);
+    }
     match normalized.as_str() {
         "false" | "null" => Some(false),
         "" => None,

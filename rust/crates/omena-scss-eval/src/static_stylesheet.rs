@@ -2984,6 +2984,23 @@ mod tests {
     }
 
     #[test]
+    fn static_scss_evaluation_reduces_static_if_not_conditions() {
+        let report = derive_static_stylesheet_module_evaluation(
+            "$gap: if(not true, 1px, 2px); .button { margin: $gap; }",
+            StyleDialect::Scss,
+        );
+        assert!(report.is_some());
+        let Some(report) = report else {
+            return;
+        };
+
+        assert_eq!(report.resolved_replacements[0].text, "2px");
+        assert_eq!(report.resolved_replacements[0].abstract_value_kind, "exact");
+        assert!(report.evaluated_css.contains(".button { margin: 2px; }"));
+        assert!(report.oracle.all_legacy_declaration_values_preserved);
+    }
+
+    #[test]
     fn static_less_evaluation_reduces_numeric_builtin_values() {
         let report = derive_static_stylesheet_module_evaluation(
             "@gap: max(1px, 2px); .button { margin: @gap; }",
@@ -3193,6 +3210,25 @@ mod tests {
     fn static_scss_evaluation_reduces_static_if_function_returns() {
         let report = derive_static_stylesheet_module_evaluation(
             "@function choose($condition) { @return if($condition, 1px, 2px) + 1px; } .button { margin: choose(true); }",
+            StyleDialect::Scss,
+        );
+        assert!(report.is_some());
+        let Some(report) = report else {
+            return;
+        };
+
+        assert_eq!(report.replacement_count, 1);
+        assert_eq!(report.resolved_replacements[0].name, "function:choose");
+        assert_eq!(report.resolved_replacements[0].text, "2px");
+        assert_eq!(report.resolved_replacements[0].abstract_value_kind, "exact");
+        assert!(report.evaluated_css.contains(".button { margin: 2px; }"));
+        assert!(report.oracle.all_legacy_declaration_values_preserved);
+    }
+
+    #[test]
+    fn static_scss_evaluation_reduces_function_if_not_returns() {
+        let report = derive_static_stylesheet_module_evaluation(
+            "@function choose($condition) { @return if(not $condition, 1px, 2px); } .button { margin: choose(true); }",
             StyleDialect::Scss,
         );
         assert!(report.is_some());
