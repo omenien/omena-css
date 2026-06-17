@@ -1310,17 +1310,25 @@ fn control_flow_transfer_for_else_block(
             value: scss_header_value(condition, lexical_bindings),
         };
     }
-    if previous_block.is_some_and(|block| block.at_rule_name.eq_ignore_ascii_case("@if")) {
+    if let Some(condition) = previous_scss_branch_condition_header(previous_block) {
         return ScssControlFlowTransfer::BranchCondition {
-            value: inverted_scss_branch_condition_value(
-                previous_block
-                    .map(|block| block.header_text.as_str())
-                    .unwrap_or(""),
-                lexical_bindings,
-            ),
+            value: inverted_scss_branch_condition_value(condition, lexical_bindings),
         };
     }
     ScssControlFlowTransfer::PassThrough
+}
+
+fn previous_scss_branch_condition_header(
+    previous_block: Option<&OmenaScssEvalControlFlowBlockV0>,
+) -> Option<&str> {
+    let block = previous_block?;
+    if block.at_rule_name.eq_ignore_ascii_case("@if") {
+        return Some(block.header_text.as_str());
+    }
+    if block.at_rule_name.eq_ignore_ascii_case("@else") {
+        return scss_else_if_header_condition(block.header_text.as_str());
+    }
+    None
 }
 
 fn scss_else_if_header_condition(header: &str) -> Option<&str> {
@@ -1870,6 +1878,21 @@ mod tests {
         assert_eq!(report.blocks[1].kind, "branchElse");
         assert_eq!(report.blocks[1].transfer_kind, "branchCondition");
         assert_eq!(report.blocks[1].transfer_truthiness, Some("truthy"));
+    }
+
+    #[test]
+    fn control_flow_value_analysis_reports_sass_final_else_after_else_if_truthiness() {
+        let source = "$enabled: false; $fallback: false; @if $enabled { .on { color: green; } } @else if $fallback { .fallback { color: yellow; } } @else { .off { color: red; } }";
+        let report = analyze_scss_control_flow_values(source, StyleDialect::Scss);
+        assert!(report.is_some());
+        let Some(report) = report else {
+            return;
+        };
+
+        assert_eq!(report.block_count, 3);
+        assert_eq!(report.blocks[2].kind, "branchElse");
+        assert_eq!(report.blocks[2].transfer_kind, "branchCondition");
+        assert_eq!(report.blocks[2].transfer_truthiness, Some("truthy"));
     }
 
     #[test]
