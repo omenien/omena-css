@@ -194,7 +194,12 @@ fn execute_transform_passes_on_source_with_active_lex_cache(
         };
     }
 
-    for pass_id in &ordered_pass_ids {
+    for (pass_index, pass_id) in ordered_pass_ids.iter().enumerate() {
+        let has_remaining_lex_consumers = ordered_pass_ids
+            .iter()
+            .skip(pass_index + 1)
+            .filter_map(|pass_id| transform_pass_kind_from_id(pass_id))
+            .any(transform_pass_may_consume_lex_cache);
         let pass = transform_pass_kind_from_id(pass_id);
         let pass_input_css = output_css;
         let input_byte_len = pass_input_css.len();
@@ -730,8 +735,16 @@ fn execute_transform_passes_on_source_with_active_lex_cache(
         };
         match next_output_css {
             Some(next_css) => {
-                outcome_mutation_spans
-                    .push(derive_transform_mutation_spans(&pass_input_css, &next_css));
+                let mutation_spans = derive_transform_mutation_spans(&pass_input_css, &next_css);
+                if has_remaining_lex_consumers {
+                    super::lex_cache::update_cached_lex_from_splice(
+                        &pass_input_css,
+                        &next_css,
+                        dialect,
+                        mutation_spans.as_slice(),
+                    );
+                }
+                outcome_mutation_spans.push(mutation_spans);
                 output_css = next_css;
             }
             None => {
@@ -787,4 +800,8 @@ fn execute_transform_passes_on_source_with_active_lex_cache(
         outcomes,
         pass_plan,
     }
+}
+
+fn transform_pass_may_consume_lex_cache(pass: TransformPassKind) -> bool {
+    !matches!(pass, TransformPassKind::PrintCss)
 }

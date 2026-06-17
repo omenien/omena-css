@@ -2518,6 +2518,7 @@ dependencies = [
 name = "omena-transform-passes"
 version = "0.2.1"
 dependencies = [
+ "cstree",
  "omena-cascade",
  "omena-incremental",
  "omena-lawvere",
