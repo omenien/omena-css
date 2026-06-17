@@ -173,15 +173,21 @@ fn derive_static_scss_stylesheet_module_evaluation(
     dialect: StyleDialect,
     variable_facts: &[ParsedVariableFact],
 ) -> Option<OmenaScssEvalStaticStylesheetEvaluationV0> {
+    let lexed = lex(style_source, dialect);
+    let tokens = lexed.tokens();
+    let function_declarations = collect_static_scss_function_declarations(style_source, tokens)?;
     if !variable_facts
         .iter()
         .any(|fact| fact.kind == ParsedVariableFactKind::ScssDeclaration)
+        && function_declarations.is_empty()
     {
         return None;
     }
     let scopes = collect_static_stylesheet_scopes(style_source)?;
     let declarations =
         collect_static_scss_variable_declarations(style_source, variable_facts, &scopes)?;
+    let function_declaration_ranges =
+        static_scss_function_declaration_ranges_from_declarations(function_declarations.as_slice());
 
     let mut edits = Vec::new();
     let mut resolved_replacements = Vec::new();
@@ -199,7 +205,12 @@ fn derive_static_scss_stylesheet_module_evaluation(
             continue;
         }
         let reference_start = parser_text_size_to_usize(fact.range.start().into());
-        if static_stylesheet_position_is_inside_scss_declaration(&declarations, reference_start) {
+        if static_stylesheet_position_is_inside_scss_declaration(&declarations, reference_start)
+            || static_stylesheet_position_is_inside_ranges(
+                reference_start,
+                &function_declaration_ranges,
+            )
+        {
             continue;
         }
         let mut stack = BTreeSet::new();
@@ -222,6 +233,18 @@ fn derive_static_scss_stylesheet_module_evaluation(
             end: reference_end,
             replacement,
         });
+    }
+    if let Some((function_edits, function_replacements)) =
+        collect_static_scss_function_evaluation_edits(
+            style_source,
+            tokens,
+            &function_declarations,
+            &scopes,
+            &declarations,
+        )
+    {
+        edits.extend(function_edits);
+        resolved_replacements.extend(function_replacements);
     }
 
     let evaluated_css = apply_static_stylesheet_evaluation_edits(style_source, edits)?;
@@ -432,13 +455,23 @@ fn summarize_static_scss_value_resolution_values(
 ) -> Option<Vec<OmenaScssEvalStaticValueResolutionV0>> {
     let declarations =
         collect_static_scss_variable_declarations(style_source, variable_facts, scopes)?;
+    let lexed = lex(style_source, StyleDialect::Scss);
+    let tokens = lexed.tokens();
+    let function_declarations = collect_static_scss_function_declarations(style_source, tokens)?;
+    let function_declaration_ranges =
+        static_scss_function_declaration_ranges_from_declarations(function_declarations.as_slice());
     let mut values = Vec::new();
     for fact in variable_facts {
         if fact.kind != ParsedVariableFactKind::ScssReference {
             continue;
         }
         let reference_start = parser_text_size_to_usize(fact.range.start().into());
-        if static_stylesheet_position_is_inside_scss_declaration(&declarations, reference_start) {
+        if static_stylesheet_position_is_inside_scss_declaration(&declarations, reference_start)
+            || static_stylesheet_position_is_inside_ranges(
+                reference_start,
+                &function_declaration_ranges,
+            )
+        {
             continue;
         }
         let reference_end = parser_text_size_to_usize(fact.range.end().into());
@@ -461,6 +494,13 @@ fn summarize_static_scss_value_resolution_values(
             resolution,
         ));
     }
+    values.extend(collect_static_scss_function_value_resolution_values(
+        style_source,
+        tokens,
+        &function_declarations,
+        scopes,
+        &declarations,
+    )?);
     Some(values)
 }
 
@@ -717,11 +757,596 @@ struct StaticStylesheetPropertyDeclaration {
     value: String,
 }
 
+#[derive(Debug, Clone)]
+struct StaticScssFunctionDeclaration {
+    name: String,
+    parameters: Vec<String>,
+    return_value: String,
+    span_start: usize,
+    span_end: usize,
+    body_start: usize,
+    body_end: usize,
+}
+
+#[derive(Debug, Clone)]
+struct StaticScssFunctionCall {
+    name: String,
+    start: usize,
+    end: usize,
+    arguments: Vec<String>,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 struct StaticStylesheetScope {
     parent_id: Option<usize>,
     body_start: usize,
     end: usize,
+}
+
+fn collect_static_scss_function_evaluation_edits(
+    source: &str,
+    tokens: &[LexedToken],
+    declarations: &[StaticScssFunctionDeclaration],
+    scopes: &[StaticStylesheetScope],
+    variable_declarations: &[StaticStylesheetScopedVariableDeclaration],
+) -> Option<(
+    Vec<StaticStylesheetEvaluationEdit>,
+    Vec<OmenaScssEvalResolvedReplacementV0>,
+)> {
+    let calls = collect_static_scss_function_calls(source, tokens, declarations)?;
+    if calls.is_empty() {
+        return Some((Vec::new(), Vec::new()));
+    }
+
+    let mut edits = Vec::new();
+    let mut replacements = Vec::new();
+    let mut used_declaration_names = BTreeSet::new();
+    for call in &calls {
+        let resolution = resolve_static_scss_function_call_abstract_value(
+            call,
+            declarations,
+            scopes,
+            variable_declarations,
+            STATIC_STYLESHEET_VALUE_RESOLUTION_FUEL_LIMIT,
+        );
+        if resolution.outcome != StaticStylesheetResolutionOutcome::Resolved {
+            return None;
+        }
+        let rendered_value = resolution.rendered_value?;
+        used_declaration_names.insert(canonical_static_scss_function_name(call.name.as_str()));
+        replacements.push(resolved_replacement_value(
+            format!("function:{}", call.name).as_str(),
+            call.start,
+            call.end,
+            rendered_value.as_str(),
+        ));
+        edits.push(StaticStylesheetEvaluationEdit {
+            start: call.start,
+            end: call.end,
+            replacement: rendered_value,
+        });
+    }
+
+    for declaration in declarations.iter().filter(|declaration| {
+        used_declaration_names.contains(&canonical_static_scss_function_name(
+            declaration.name.as_str(),
+        ))
+    }) {
+        edits.push(StaticStylesheetEvaluationEdit {
+            start: declaration.span_start,
+            end: declaration.span_end,
+            replacement: String::new(),
+        });
+    }
+
+    Some((edits, replacements))
+}
+
+fn collect_static_scss_function_value_resolution_values(
+    source: &str,
+    tokens: &[LexedToken],
+    declarations: &[StaticScssFunctionDeclaration],
+    scopes: &[StaticStylesheetScope],
+    variable_declarations: &[StaticStylesheetScopedVariableDeclaration],
+) -> Option<Vec<OmenaScssEvalStaticValueResolutionV0>> {
+    let calls = collect_static_scss_function_calls(source, tokens, declarations)?;
+    let values = calls
+        .into_iter()
+        .map(|call| {
+            let resolution = resolve_static_scss_function_call_abstract_value(
+                &call,
+                declarations,
+                scopes,
+                variable_declarations,
+                STATIC_STYLESHEET_VALUE_RESOLUTION_FUEL_LIMIT,
+            );
+            static_value_resolution_record(
+                format!("function:{}", call.name).as_str(),
+                call.start,
+                call.end,
+                source.get(call.start..call.end).unwrap_or(""),
+                resolution,
+            )
+        })
+        .collect();
+    Some(values)
+}
+
+fn collect_static_scss_function_declarations(
+    source: &str,
+    tokens: &[LexedToken],
+) -> Option<Vec<StaticScssFunctionDeclaration>> {
+    let mut declarations = Vec::new();
+    let mut index = 0usize;
+    while index < tokens.len() {
+        if tokens[index].kind != SyntaxKind::AtKeyword
+            || !tokens[index].text.eq_ignore_ascii_case("@function")
+        {
+            index += 1;
+            continue;
+        }
+
+        let name_index = static_stylesheet_skip_trivia_tokens(tokens, index + 1);
+        let name_token = tokens.get(name_index)?;
+        if name_token.kind != SyntaxKind::Ident
+            || !static_scss_callable_name_is_safe(name_token.text.as_str())
+        {
+            index += 1;
+            continue;
+        }
+
+        let parameter_open_index = static_stylesheet_skip_trivia_tokens(tokens, name_index + 1);
+        if tokens
+            .get(parameter_open_index)
+            .is_none_or(|token| token.kind != SyntaxKind::LeftParen)
+        {
+            index += 1;
+            continue;
+        }
+        let parameter_close_index = static_stylesheet_matching_token_index(
+            tokens,
+            parameter_open_index,
+            SyntaxKind::LeftParen,
+            SyntaxKind::RightParen,
+        )?;
+        let parameters = collect_static_scss_function_parameters(
+            tokens,
+            parameter_open_index + 1,
+            parameter_close_index,
+        )?;
+
+        let body_open_index =
+            static_stylesheet_skip_trivia_tokens(tokens, parameter_close_index + 1);
+        if tokens
+            .get(body_open_index)
+            .is_none_or(|token| token.kind != SyntaxKind::LeftBrace)
+        {
+            index += 1;
+            continue;
+        }
+        let body_close_index = static_stylesheet_matching_token_index(
+            tokens,
+            body_open_index,
+            SyntaxKind::LeftBrace,
+            SyntaxKind::RightBrace,
+        )?;
+        let return_value = collect_static_scss_function_return_value(
+            source,
+            tokens,
+            body_open_index + 1,
+            body_close_index,
+        )?;
+        if !static_stylesheet_composite_value_is_safe(return_value.as_str()) {
+            index = body_close_index + 1;
+            continue;
+        }
+
+        declarations.push(StaticScssFunctionDeclaration {
+            name: name_token.text.clone(),
+            parameters,
+            return_value,
+            span_start: static_stylesheet_token_start(&tokens[index]),
+            span_end: static_stylesheet_token_end(&tokens[body_close_index]),
+            body_start: static_stylesheet_token_end(&tokens[body_open_index]),
+            body_end: static_stylesheet_token_start(&tokens[body_close_index]),
+        });
+        index = body_close_index + 1;
+    }
+    Some(declarations)
+}
+
+fn collect_static_scss_function_parameters(
+    tokens: &[LexedToken],
+    start: usize,
+    end: usize,
+) -> Option<Vec<String>> {
+    let mut parameters = Vec::new();
+    let mut expect_parameter = true;
+    let mut saw_token = false;
+    for token in &tokens[start..end] {
+        if static_stylesheet_token_is_trivia(token.kind) {
+            continue;
+        }
+        saw_token = true;
+        if expect_parameter {
+            if token.kind != SyntaxKind::ScssVariable {
+                return None;
+            }
+            parameters.push(canonical_static_scss_variable_name(token.text.as_str()));
+            expect_parameter = false;
+            continue;
+        }
+        if token.kind != SyntaxKind::Comma {
+            return None;
+        }
+        expect_parameter = true;
+    }
+    if saw_token && expect_parameter {
+        return None;
+    }
+    Some(parameters)
+}
+
+fn collect_static_scss_function_return_value(
+    source: &str,
+    tokens: &[LexedToken],
+    start: usize,
+    end: usize,
+) -> Option<String> {
+    let mut values = Vec::new();
+    let mut index = start;
+    while index < end {
+        if tokens[index].kind != SyntaxKind::AtKeyword
+            || !tokens[index].text.eq_ignore_ascii_case("@return")
+        {
+            index += 1;
+            continue;
+        }
+        let value_end_index = static_stylesheet_value_end_token_until(tokens, index + 1, end)?;
+        let value_start = static_stylesheet_token_end(&tokens[index]);
+        let value_end = static_stylesheet_token_start(&tokens[value_end_index]);
+        let value = source.get(value_start..value_end)?.trim();
+        if value.is_empty() {
+            return None;
+        }
+        values.push(value.to_string());
+        index = value_end_index + 1;
+    }
+    (values.len() == 1).then(|| values.remove(0))
+}
+
+fn collect_static_scss_function_calls(
+    source: &str,
+    tokens: &[LexedToken],
+    declarations: &[StaticScssFunctionDeclaration],
+) -> Option<Vec<StaticScssFunctionCall>> {
+    let declaration_names = declarations
+        .iter()
+        .map(|declaration| canonical_static_scss_function_name(declaration.name.as_str()))
+        .collect::<BTreeSet<_>>();
+    let mut calls = Vec::new();
+    for (name_index, token) in tokens.iter().enumerate() {
+        if token.kind != SyntaxKind::Ident
+            || !declaration_names
+                .contains(&canonical_static_scss_function_name(token.text.as_str()))
+            || static_scss_function_position_is_inside_declaration_header(
+                declarations,
+                static_stylesheet_token_start(token),
+            )
+        {
+            continue;
+        }
+        let open_index = static_stylesheet_skip_trivia_tokens(tokens, name_index + 1);
+        if tokens
+            .get(open_index)
+            .is_none_or(|token| token.kind != SyntaxKind::LeftParen)
+        {
+            continue;
+        }
+        let close_index = static_stylesheet_matching_token_index(
+            tokens,
+            open_index,
+            SyntaxKind::LeftParen,
+            SyntaxKind::RightParen,
+        )?;
+        let arguments = split_static_scss_function_arguments(source.get(
+            static_stylesheet_token_end(&tokens[open_index])
+                ..static_stylesheet_token_start(&tokens[close_index]),
+        )?)?;
+        calls.push(StaticScssFunctionCall {
+            name: token.text.clone(),
+            start: static_stylesheet_token_start(token),
+            end: static_stylesheet_token_end(&tokens[close_index]),
+            arguments,
+        });
+    }
+    calls.sort_by_key(|call| (call.start, call.end));
+    Some(calls)
+}
+
+fn static_scss_function_position_is_inside_declaration_header(
+    declarations: &[StaticScssFunctionDeclaration],
+    position: usize,
+) -> bool {
+    declarations
+        .iter()
+        .any(|declaration| position >= declaration.span_start && position < declaration.body_start)
+}
+
+fn split_static_scss_function_arguments(arguments: &str) -> Option<Vec<String>> {
+    let arguments = arguments.trim();
+    if arguments.is_empty() {
+        return Some(Vec::new());
+    }
+
+    let mut values = Vec::new();
+    let mut cursor = 0usize;
+    let mut index = 0usize;
+    let mut paren_depth = 0usize;
+    let mut bracket_depth = 0usize;
+    let mut quote: Option<char> = None;
+    while index < arguments.len() {
+        let ch = arguments[index..].chars().next()?;
+        if let Some(quote_ch) = quote {
+            index += ch.len_utf8();
+            if ch == '\\' {
+                if let Some(escaped) = arguments[index..].chars().next() {
+                    index += escaped.len_utf8();
+                }
+            } else if ch == quote_ch {
+                quote = None;
+            }
+            continue;
+        }
+        if matches!(ch, '"' | '\'') {
+            quote = Some(ch);
+            index += ch.len_utf8();
+            continue;
+        }
+        match ch {
+            '(' => paren_depth += 1,
+            ')' => paren_depth = paren_depth.checked_sub(1)?,
+            '[' => bracket_depth += 1,
+            ']' => bracket_depth = bracket_depth.checked_sub(1)?,
+            ',' if paren_depth == 0 && bracket_depth == 0 => {
+                let value = arguments.get(cursor..index)?.trim();
+                if !static_scss_function_argument_is_safe(value) {
+                    return None;
+                }
+                values.push(value.to_string());
+                cursor = index + ch.len_utf8();
+            }
+            _ => {}
+        }
+        index += ch.len_utf8();
+    }
+
+    if quote.is_some() || paren_depth != 0 || bracket_depth != 0 {
+        return None;
+    }
+    let value = arguments.get(cursor..)?.trim();
+    if !static_scss_function_argument_is_safe(value) {
+        return None;
+    }
+    values.push(value.to_string());
+    Some(values)
+}
+
+fn resolve_static_scss_function_call_abstract_value(
+    call: &StaticScssFunctionCall,
+    declarations: &[StaticScssFunctionDeclaration],
+    scopes: &[StaticStylesheetScope],
+    variable_declarations: &[StaticStylesheetScopedVariableDeclaration],
+    fuel: usize,
+) -> StaticStylesheetAbstractResolution {
+    if fuel == 0 {
+        return top_static_abstract_value(StaticStylesheetResolutionReason::FuelExhausted);
+    }
+    let Some(declaration) = declarations.iter().find(|declaration| {
+        canonical_static_scss_function_name(declaration.name.as_str())
+            == canonical_static_scss_function_name(call.name.as_str())
+    }) else {
+        return top_static_abstract_value(StaticStylesheetResolutionReason::UnresolvedReference);
+    };
+    if call.start >= declaration.body_start && call.start < declaration.body_end {
+        return top_static_abstract_value(StaticStylesheetResolutionReason::Cycle);
+    }
+    if declaration.parameters.len() != call.arguments.len() {
+        return raw_static_abstract_value(
+            call.name.as_str(),
+            StaticStylesheetResolutionReason::UnsupportedDynamic,
+        );
+    }
+    if static_scss_function_value_contains_callable_to(
+        declaration.return_value.as_str(),
+        declaration.name.as_str(),
+    ) {
+        return top_static_abstract_value(StaticStylesheetResolutionReason::Cycle);
+    }
+
+    let mut argument_values = BTreeMap::new();
+    for (parameter, argument) in declaration.parameters.iter().zip(&call.arguments) {
+        let resolution = resolve_static_scss_function_argument_abstract_value(
+            argument.as_str(),
+            call.start,
+            scopes,
+            variable_declarations,
+            fuel - 1,
+        );
+        let Some(rendered_value) = resolution.rendered_value else {
+            return top_static_abstract_value(resolution.reason);
+        };
+        if resolution.outcome == StaticStylesheetResolutionOutcome::Top {
+            return top_static_abstract_value(resolution.reason);
+        }
+        argument_values.insert(parameter.clone(), rendered_value);
+    }
+    resolve_static_scss_function_return_abstract_value(
+        declaration,
+        &argument_values,
+        scopes,
+        variable_declarations,
+        fuel - 1,
+    )
+}
+
+fn resolve_static_scss_function_argument_abstract_value(
+    argument: &str,
+    call_position: usize,
+    scopes: &[StaticStylesheetScope],
+    variable_declarations: &[StaticStylesheetScopedVariableDeclaration],
+    fuel: usize,
+) -> StaticStylesheetAbstractResolution {
+    let mut abstract_stack = BTreeSet::new();
+    let mut resolution = resolve_static_scss_variable_abstract_value_text(
+        argument,
+        call_position,
+        scopes,
+        variable_declarations,
+        &mut abstract_stack,
+        fuel,
+    );
+    if resolution.outcome == StaticStylesheetResolutionOutcome::Top {
+        return resolution;
+    }
+    let mut text_stack = BTreeSet::new();
+    if let Some(rendered_value) = resolve_static_scss_variable_value_text(
+        argument,
+        call_position,
+        scopes,
+        variable_declarations,
+        &mut text_stack,
+    ) {
+        resolution.rendered_value = Some(rendered_value);
+    }
+    resolution
+}
+
+fn resolve_static_scss_function_return_abstract_value(
+    declaration: &StaticScssFunctionDeclaration,
+    argument_values: &BTreeMap<String, String>,
+    scopes: &[StaticStylesheetScope],
+    variable_declarations: &[StaticStylesheetScopedVariableDeclaration],
+    fuel: usize,
+) -> StaticStylesheetAbstractResolution {
+    let Some(references) = collect_static_stylesheet_variable_references(
+        declaration.return_value.as_str(),
+        StaticStylesheetVariableKind::Scss,
+    ) else {
+        return raw_static_abstract_value(
+            declaration.return_value.as_str(),
+            StaticStylesheetResolutionReason::UnsupportedDynamic,
+        );
+    };
+    if references.is_empty() {
+        return evaluate_static_scss_function_output_value(declaration.return_value.as_str());
+    }
+
+    let mut output = String::with_capacity(declaration.return_value.len());
+    let mut cursor = 0usize;
+    let mut stack = BTreeSet::new();
+    for reference in references {
+        let canonical_name = canonical_static_scss_variable_name(reference.name.as_str());
+        let resolved = if let Some(argument_value) = argument_values.get(&canonical_name) {
+            evaluate_static_scss_function_output_value(argument_value.as_str())
+        } else {
+            resolve_static_scss_variable_abstract_value_at_position(
+                reference.name.as_str(),
+                declaration.span_start,
+                scopes,
+                variable_declarations,
+                &mut stack,
+                fuel,
+            )
+        };
+        let Some(rendered_value) = resolved.rendered_value else {
+            return top_static_abstract_value(resolved.reason);
+        };
+        output.push_str(&declaration.return_value[cursor..reference.start]);
+        output.push_str(&rendered_value);
+        cursor = reference.end;
+    }
+    output.push_str(&declaration.return_value[cursor..]);
+    evaluate_static_scss_function_output_value(output.as_str())
+}
+
+fn evaluate_static_scss_function_output_value(value: &str) -> StaticStylesheetAbstractResolution {
+    if !static_stylesheet_composite_value_is_safe(value) {
+        return raw_static_abstract_value(
+            value,
+            StaticStylesheetResolutionReason::UnsupportedDynamic,
+        );
+    }
+    if static_scss_function_value_contains_any_callable(value) {
+        return raw_static_abstract_value(
+            value,
+            StaticStylesheetResolutionReason::UnsupportedDynamic,
+        );
+    }
+    let abstract_value = abstract_css_value_from_text(value);
+    let outcome = if matches!(abstract_value, AbstractCssValueV0::Raw { .. }) {
+        StaticStylesheetResolutionOutcome::Raw
+    } else {
+        StaticStylesheetResolutionOutcome::Resolved
+    };
+    let reason = if outcome == StaticStylesheetResolutionOutcome::Raw {
+        StaticStylesheetResolutionReason::UnsupportedDynamic
+    } else {
+        StaticStylesheetResolutionReason::Resolved
+    };
+    StaticStylesheetAbstractResolution {
+        rendered_value: Some(value.to_string()),
+        abstract_value,
+        outcome,
+        reason,
+    }
+}
+
+fn static_scss_function_value_contains_any_callable(value: &str) -> bool {
+    let lexed = lex(value, StyleDialect::Scss);
+    let tokens = lexed.tokens();
+    tokens.iter().enumerate().any(|(index, token)| {
+        token.kind == SyntaxKind::Ident
+            && tokens
+                .get(static_stylesheet_skip_trivia_tokens(tokens, index + 1))
+                .is_some_and(|candidate| candidate.kind == SyntaxKind::LeftParen)
+    })
+}
+
+fn static_scss_function_value_contains_callable_to(value: &str, name: &str) -> bool {
+    let canonical_name = canonical_static_scss_function_name(name);
+    let lexed = lex(value, StyleDialect::Scss);
+    let tokens = lexed.tokens();
+    tokens.iter().enumerate().any(|(index, token)| {
+        token.kind == SyntaxKind::Ident
+            && canonical_static_scss_function_name(token.text.as_str()) == canonical_name
+            && tokens
+                .get(static_stylesheet_skip_trivia_tokens(tokens, index + 1))
+                .is_some_and(|candidate| candidate.kind == SyntaxKind::LeftParen)
+    })
+}
+
+fn static_stylesheet_matching_token_index(
+    tokens: &[LexedToken],
+    start: usize,
+    left: SyntaxKind,
+    right: SyntaxKind,
+) -> Option<usize> {
+    if tokens.get(start)?.kind != left {
+        return None;
+    }
+    let mut depth = 0usize;
+    for (index, token) in tokens.iter().enumerate().skip(start) {
+        if token.kind == left {
+            depth += 1;
+        } else if token.kind == right {
+            depth = depth.checked_sub(1)?;
+            if depth == 0 {
+                return Some(index);
+            }
+        }
+    }
+    None
 }
 
 fn collect_static_scss_variable_declarations(
@@ -731,13 +1356,16 @@ fn collect_static_scss_variable_declarations(
 ) -> Option<Vec<StaticStylesheetScopedVariableDeclaration>> {
     let mut declarations = Vec::new();
     let module_rule_ranges = collect_static_scss_module_rule_ranges(source);
+    let function_declaration_ranges = collect_static_scss_function_declaration_ranges(source);
     for fact in variable_facts {
         if fact.kind != ParsedVariableFactKind::ScssDeclaration {
             continue;
         }
         let start = parser_text_size_to_usize(fact.range.start().into());
         let end = parser_text_size_to_usize(fact.range.end().into());
-        if static_stylesheet_position_is_inside_ranges(start, &module_rule_ranges) {
+        if static_stylesheet_position_is_inside_ranges(start, &module_rule_ranges)
+            || static_stylesheet_position_is_inside_ranges(start, &function_declaration_ranges)
+        {
             continue;
         }
         let scope_id = static_stylesheet_scope_for_position(scopes, start)?;
@@ -759,6 +1387,51 @@ fn collect_static_scss_variable_declarations(
     }
     declarations.sort_by_key(|declaration| declaration.declaration.span_start);
     Some(declarations)
+}
+
+fn collect_static_scss_function_declaration_ranges(source: &str) -> Vec<(usize, usize)> {
+    let lexed = lex(source, StyleDialect::Scss);
+    let tokens = lexed.tokens();
+    let mut ranges = Vec::new();
+    let mut index = 0usize;
+    while index < tokens.len() {
+        if tokens[index].kind != SyntaxKind::AtKeyword
+            || !tokens[index].text.eq_ignore_ascii_case("@function")
+        {
+            index += 1;
+            continue;
+        }
+        let Some(body_open_index) =
+            static_stylesheet_next_token_kind_index(tokens, index + 1, SyntaxKind::LeftBrace)
+        else {
+            index += 1;
+            continue;
+        };
+        let Some(body_close_index) = static_stylesheet_matching_token_index(
+            tokens,
+            body_open_index,
+            SyntaxKind::LeftBrace,
+            SyntaxKind::RightBrace,
+        ) else {
+            index += 1;
+            continue;
+        };
+        ranges.push((
+            static_stylesheet_token_start(&tokens[index]),
+            static_stylesheet_token_end(&tokens[body_close_index]),
+        ));
+        index = body_close_index + 1;
+    }
+    ranges
+}
+
+fn static_scss_function_declaration_ranges_from_declarations(
+    declarations: &[StaticScssFunctionDeclaration],
+) -> Vec<(usize, usize)> {
+    declarations
+        .iter()
+        .map(|declaration| (declaration.span_start, declaration.span_end))
+        .collect()
 }
 
 fn collect_static_scss_module_rule_ranges(source: &str) -> Vec<(usize, usize)> {
@@ -797,6 +1470,21 @@ fn collect_static_scss_module_rule_ranges(source: &str) -> Vec<(usize, usize)> {
     }
 
     ranges
+}
+
+fn static_stylesheet_next_token_kind_index(
+    tokens: &[LexedToken],
+    mut index: usize,
+    kind: SyntaxKind,
+) -> Option<usize> {
+    while index < tokens.len() {
+        match tokens[index].kind {
+            candidate if candidate == kind => return Some(index),
+            SyntaxKind::Semicolon | SyntaxKind::RightBrace => return None,
+            _ => index += 1,
+        }
+    }
+    None
 }
 
 fn static_stylesheet_scss_module_rule_semicolon(
@@ -1605,11 +2293,19 @@ fn static_stylesheet_previous_token_starts_declaration(
 
 fn static_stylesheet_declaration_value_end_token(
     tokens: &[LexedToken],
+    index: usize,
+) -> Option<usize> {
+    static_stylesheet_value_end_token_until(tokens, index, tokens.len())
+}
+
+fn static_stylesheet_value_end_token_until(
+    tokens: &[LexedToken],
     mut index: usize,
+    end: usize,
 ) -> Option<usize> {
     let mut paren_depth = 0usize;
     let mut bracket_depth = 0usize;
-    while index < tokens.len() {
+    while index < end {
         match tokens[index].kind {
             SyntaxKind::LeftParen => paren_depth += 1,
             SyntaxKind::RightParen => paren_depth = paren_depth.checked_sub(1)?,
@@ -1756,6 +2452,18 @@ fn static_stylesheet_variable_name_is_safe(name: &str) -> bool {
             .all(|ch| ch.is_ascii_alphanumeric() || ch == '_' || ch == '-')
 }
 
+fn static_scss_callable_name_is_safe(name: &str) -> bool {
+    static_stylesheet_variable_name_is_safe(name)
+}
+
+fn static_scss_function_argument_is_safe(value: &str) -> bool {
+    !value.is_empty()
+        && !value.contains("...")
+        && !value
+            .chars()
+            .any(|ch| matches!(ch, '{' | '}' | ';' | '!' | ':'))
+}
+
 fn static_scss_public_module_variable_name(name: &str) -> Option<String> {
     let bare_name = name.strip_prefix('$')?;
     if bare_name.starts_with('-') || bare_name.starts_with('_') || bare_name.is_empty() {
@@ -1769,6 +2477,10 @@ pub fn canonical_static_scss_variable_name(name: &str) -> String {
         .strip_prefix('$')
         .unwrap_or_else(|| name.trim())
         .replace('_', "-")
+}
+
+fn canonical_static_scss_function_name(name: &str) -> String {
+    name.trim().replace('_', "-")
 }
 
 pub fn static_scss_variable_names_equal(left: &str, right: &str) -> bool {
@@ -1971,6 +2683,56 @@ mod tests {
             Some("3px")
         );
         assert!(report.evaluated_css.contains("margin: 3px"));
+    }
+
+    #[test]
+    fn static_scss_evaluation_resolves_same_file_function_calls() {
+        let report = derive_static_stylesheet_module_evaluation(
+            "@function gap($value) { @return $value; } .button { margin: gap(0px); }",
+            StyleDialect::Scss,
+        );
+        assert!(report.is_some());
+        let Some(report) = report else {
+            return;
+        };
+
+        assert_eq!(report.replacement_count, 1);
+        assert_eq!(report.resolved_replacements[0].name, "function:gap");
+        assert_eq!(report.resolved_replacements[0].text, "0px");
+        assert_eq!(report.resolved_replacements[0].abstract_value_kind, "exact");
+        assert!(!report.evaluated_css.contains("@function"));
+        assert!(report.evaluated_css.contains(".button { margin: 0px; }"));
+        assert_eq!(report.value_resolution.reference_count, 1);
+        assert_eq!(report.value_resolution.resolved_count, 1);
+        assert!(report.oracle.all_legacy_declaration_values_preserved);
+    }
+
+    #[test]
+    fn static_scss_evaluation_skips_recursive_function_calls() {
+        let report = derive_static_stylesheet_module_evaluation(
+            "@function loop($value) { @return loop($value); } .button { color: loop(red); }",
+            StyleDialect::Scss,
+        );
+        assert!(report.is_none());
+
+        let resolution = summarize_static_stylesheet_value_resolution(
+            "@function loop($value) { @return loop($value); } .button { color: loop(red); }",
+            StyleDialect::Scss,
+        );
+        assert!(resolution.is_some());
+        let Some(resolution) = resolution else {
+            return;
+        };
+
+        assert_eq!(resolution.reference_count, 2);
+        assert_eq!(resolution.top_count, 2);
+        assert_eq!(resolution.cycle_count, 2);
+        assert!(
+            resolution
+                .values
+                .iter()
+                .all(|value| value.outcome == "top" && value.reason == "cycle")
+        );
     }
 
     #[test]
