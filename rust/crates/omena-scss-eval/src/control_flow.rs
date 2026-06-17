@@ -361,13 +361,15 @@ pub fn analyze_scss_control_flow_values(
         .enumerate()
         .map(|(index, block)| {
             let predecessor_indices = control_flow_predecessor_indices(index, block);
-            let previous_block = index
-                .checked_sub(1)
-                .and_then(|index| summary.blocks.get(index));
+            let previous_blocks = &summary.blocks[..index];
             ScssControlFlowAnalysisNode {
                 block: block.clone(),
                 predecessor_indices,
-                transfer: control_flow_transfer_for_block(block, previous_block, &lexical_bindings),
+                transfer: control_flow_transfer_for_block(
+                    block,
+                    previous_blocks,
+                    &lexical_bindings,
+                ),
             }
         })
         .collect::<Vec<_>>();
@@ -1287,7 +1289,7 @@ fn control_flow_predecessor_indices(
 
 fn control_flow_transfer_for_block(
     block: &OmenaScssEvalControlFlowBlockV0,
-    previous_block: Option<&OmenaScssEvalControlFlowBlockV0>,
+    previous_blocks: &[OmenaScssEvalControlFlowBlockV0],
     lexical_bindings: &BTreeMap<String, AbstractCssValueV0>,
 ) -> ScssControlFlowTransfer {
     match block.at_rule_name.to_ascii_lowercase().as_str() {
@@ -1302,14 +1304,14 @@ fn control_flow_transfer_for_block(
                 value: loop_carried_value(block.header_text.as_str(), lexical_bindings),
             }
         }
-        "@else" => control_flow_transfer_for_else_block(block, previous_block, lexical_bindings),
+        "@else" => control_flow_transfer_for_else_block(block, previous_blocks, lexical_bindings),
         _ => ScssControlFlowTransfer::PassThrough,
     }
 }
 
 fn control_flow_transfer_for_else_block(
     block: &OmenaScssEvalControlFlowBlockV0,
-    previous_block: Option<&OmenaScssEvalControlFlowBlockV0>,
+    previous_blocks: &[OmenaScssEvalControlFlowBlockV0],
     lexical_bindings: &BTreeMap<String, AbstractCssValueV0>,
 ) -> ScssControlFlowTransfer {
     if let Some(condition) = scss_else_if_header_condition(block.header_text.as_str()) {
@@ -1317,25 +1319,34 @@ fn control_flow_transfer_for_else_block(
             value: scss_header_value(condition, lexical_bindings),
         };
     }
-    if let Some(condition) = previous_scss_branch_condition_header(previous_block) {
+    let conditions = previous_scss_branch_condition_headers(previous_blocks);
+    if !conditions.is_empty() {
         return ScssControlFlowTransfer::BranchCondition {
-            value: inverted_scss_branch_condition_value(condition, lexical_bindings),
+            value: inverted_scss_branch_chain_value(conditions.as_slice(), lexical_bindings),
         };
     }
     ScssControlFlowTransfer::PassThrough
 }
 
-fn previous_scss_branch_condition_header(
-    previous_block: Option<&OmenaScssEvalControlFlowBlockV0>,
-) -> Option<&str> {
-    let block = previous_block?;
-    if block.at_rule_name.eq_ignore_ascii_case("@if") {
-        return Some(block.header_text.as_str());
+fn previous_scss_branch_condition_headers(
+    previous_blocks: &[OmenaScssEvalControlFlowBlockV0],
+) -> Vec<&str> {
+    let mut headers = Vec::new();
+    for block in previous_blocks.iter().rev() {
+        if block.at_rule_name.eq_ignore_ascii_case("@else") {
+            let Some(condition) = scss_else_if_header_condition(block.header_text.as_str()) else {
+                break;
+            };
+            headers.push(condition);
+            continue;
+        }
+        if block.at_rule_name.eq_ignore_ascii_case("@if") {
+            headers.push(block.header_text.as_str());
+        }
+        break;
     }
-    if block.at_rule_name.eq_ignore_ascii_case("@else") {
-        return scss_else_if_header_condition(block.header_text.as_str());
-    }
-    None
+    headers.reverse();
+    headers
 }
 
 fn scss_else_if_header_condition(header: &str) -> Option<&str> {
@@ -1348,15 +1359,23 @@ fn scss_else_if_header_condition(header: &str) -> Option<&str> {
     Some(rest.trim()).filter(|condition| !condition.is_empty())
 }
 
-fn inverted_scss_branch_condition_value(
-    header: &str,
+fn inverted_scss_branch_chain_value(
+    headers: &[&str],
     lexical_bindings: &BTreeMap<String, AbstractCssValueV0>,
 ) -> AbstractCssValueV0 {
-    let value = scss_header_value(header, lexical_bindings);
-    match scss_static_truthiness_label(&value) {
-        Some("truthy") => abstract_css_value_from_text("false"),
-        Some("falsey") => abstract_css_value_from_text("true"),
-        _ => AbstractCssValueV0::Top,
+    let mut saw_unknown = false;
+    for header in headers {
+        let value = scss_header_value(header, lexical_bindings);
+        match scss_static_truthiness_label(&value) {
+            Some("truthy") => return abstract_css_value_from_text("false"),
+            Some("falsey") => {}
+            _ => saw_unknown = true,
+        }
+    }
+    if saw_unknown {
+        AbstractCssValueV0::Top
+    } else {
+        abstract_css_value_from_text("true")
     }
 }
 
@@ -1921,6 +1940,21 @@ mod tests {
         assert_eq!(report.blocks[2].kind, "branchElse");
         assert_eq!(report.blocks[2].transfer_kind, "branchCondition");
         assert_eq!(report.blocks[2].transfer_truthiness, Some("truthy"));
+    }
+
+    #[test]
+    fn control_flow_value_analysis_final_else_observes_full_else_if_chain() {
+        let source = "$enabled: true; $fallback: false; @if $enabled { .on { color: green; } } @else if $fallback { .fallback { color: yellow; } } @else { .off { color: red; } }";
+        let report = analyze_scss_control_flow_values(source, StyleDialect::Scss);
+        assert!(report.is_some());
+        let Some(report) = report else {
+            return;
+        };
+
+        assert_eq!(report.block_count, 3);
+        assert_eq!(report.blocks[2].kind, "branchElse");
+        assert_eq!(report.blocks[2].transfer_kind, "branchCondition");
+        assert_eq!(report.blocks[2].transfer_truthiness, Some("falsey"));
     }
 
     #[test]
