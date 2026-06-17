@@ -6,12 +6,22 @@
 //! checks that resolved declaration values can be represented as
 //! `AbstractCssValueV0`.
 
+mod static_stylesheet;
+
 use omena_abstract_value::{
     AbstractCssValueV0, abstract_css_value_from_text, abstract_css_values_canonically_equal,
 };
 use omena_parser::{LexedToken, ParsedVariableFactKind, StyleDialect, collect_style_facts, lex};
 use omena_syntax::SyntaxKind;
 use serde::Serialize;
+
+pub use static_stylesheet::{
+    OmenaScssEvalResolvedReplacementV0, OmenaScssEvalStaticStylesheetEvaluationV0,
+    canonical_static_scss_variable_name,
+    derive_static_scss_stylesheet_module_configurable_variable_names,
+    derive_static_scss_stylesheet_module_variable_exports,
+    derive_static_stylesheet_module_evaluation, static_scss_variable_names_equal,
+};
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -146,7 +156,7 @@ fn abstract_css_value_matches_legacy(
     }
 }
 
-fn abstract_css_value_kind(value: &AbstractCssValueV0) -> &'static str {
+pub(crate) fn abstract_css_value_kind(value: &AbstractCssValueV0) -> &'static str {
     match value {
         AbstractCssValueV0::Bottom => "bottom",
         AbstractCssValueV0::Exact { .. } => "exact",

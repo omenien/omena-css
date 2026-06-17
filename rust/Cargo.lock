@@ -2431,6 +2431,7 @@ dependencies = [
  "omena-abstract-value",
  "omena-parser",
  "omena-syntax",
+ "omena-value-lattice",
  "serde",
 ]
 
