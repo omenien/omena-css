@@ -131,6 +131,62 @@ fn execution_runtime_compresses_box_shorthand_values_with_typed_zero_equality() 
     );
 }
 
+// Fence for the NON-ZERO box canonicalization (INV-2c). The emitted-CSS golden gate prints
+// in Identity mode and never runs ShorthandCombining, so it cannot witness this; this
+// pass-driven test exercises the real emit path (box_component_output -> canonicalize_*).
+// Canonically-equal-but-byte-differ absolute peers (1.0px/+1px/1PX/01px == 1px) collapse to
+// the canonical shorthand; context-relative (em), distinct (2px), and var() stay byte-faithful.
+#[test]
+fn execution_runtime_compresses_box_shorthand_values_with_typed_nonzero_equality() {
+    let source = r#".a { margin: 1.0px 1px 1px 1px; padding: +1px 1px 1px 1px; inset: 1PX 1px 1px 1px; scroll-margin: 01px 1px 1px 1px; } .keep { margin: 1em 1px 2px 1px; padding: var(--x) 1px 1px 1px; }"#;
+    let execution = execute_transform_passes_on_source(
+        source,
+        &[
+            TransformPassKind::ShorthandCombining,
+            TransformPassKind::PrintCss,
+        ],
+    );
+
+    assert_eq!(
+        execution.output_css,
+        r#".a { margin: 1px; padding: 1px; inset: 1px; scroll-margin: 1px; } .keep { margin: 1em 1px 2px; padding: var(--x) 1px 1px; }"#
+    );
+    assert_eq!(
+        execution.executed_pass_ids,
+        vec!["shorthand-combining", "print-css"]
+    );
+}
+
+// Unit guard directly on the box collapser: canonically-equal non-zero absolute peers
+// collapse to the canonical single value; unsound merges (context-relative / var) do not.
+#[test]
+fn compress_box_shorthand_values_collapses_canonically_equal_nonzero_peers() {
+    use crate::domains::shorthand::compress_box_shorthand_values;
+    assert_eq!(
+        compress_box_shorthand_values(&["1.0px", "1px", "1px", "1px"]),
+        Some("1px".to_string())
+    );
+    assert_eq!(
+        compress_box_shorthand_values(&["+1px", "1px", "1px", "1px"]),
+        Some("1px".to_string())
+    );
+    assert_eq!(
+        compress_box_shorthand_values(&["1PX", "1px", "1px", "1px"]),
+        Some("1px".to_string())
+    );
+    // context-relative + var must NOT canonically merge to a single value (allowlist
+    // soundness): the standard left==right box rule may still 4->3 collapse, but the
+    // first component stays distinct, so the result is never the all-equal "1px".
+    assert_ne!(
+        compress_box_shorthand_values(&["1em", "1px", "1px", "1px"]),
+        Some("1px".to_string())
+    );
+    assert_ne!(
+        compress_box_shorthand_values(&["var(--x)", "1px", "1px", "1px"]),
+        Some("1px".to_string())
+    );
+}
+
 #[test]
 fn execution_runtime_compresses_border_image_longhands() {
     let source = r#".a { border-image-source: url(a.png); border-image-slice: 10; border-image-width: 1; border-image-outset: 0; border-image-repeat: stretch; } .b { border-image-source: linear-gradient(red,#00f); border-image-slice: 10 20; border-image-width: auto; border-image-outset: 1; border-image-repeat: round; } .c { border-image-source: none; border-image-slice: 10; border-image-width: 1; border-image-outset: 0; border-image-repeat: stretch; } .d { border-image-source: url(a.png); border-image-slice: 10 fill; border-image-width: 2; border-image-outset: 0; border-image-repeat: round space; } .invalid { border-image-source: url(a.png); border-image-slice: 10; border-image-width: fill; border-image-outset: 0; border-image-repeat: stretch; } .default { border-image-source: none; border-image-slice: 100%; border-image-width: 1; border-image-outset: 0; border-image-repeat: stretch; }"#;
