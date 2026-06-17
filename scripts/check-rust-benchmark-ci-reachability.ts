@@ -15,6 +15,7 @@ const REQUIRED_BENCHMARK_GATES = [
   "rust/benchmark/emitted-css-golden-gate",
   "rust/benchmark/headline-axis",
   "rust/benchmark/instruction-count-advisory",
+  "rust/benchmark/transform-relex-baseline",
   "rust/z5-parser-product-cutover",
   "rust/z5-performance-baseline-micro",
   "rust/z5-performance-baseline-macro",
@@ -40,6 +41,10 @@ assert.ok(
 assert.ok(
   ci.includes("pnpm omena-check run rust/benchmark/headline-axis"),
   "CI must hard-run the headline-axis fidelity gate",
+);
+assert.ok(
+  ci.includes("pnpm omena-check run rust/benchmark/transform-relex-baseline"),
+  "CI must hard-run the transform re-lex baseline gate",
 );
 assert.ok(
   ci.includes("pnpm omena-check run rust/z5-parser-product-cutover"),

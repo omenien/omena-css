@@ -158,6 +158,8 @@ pub fn lex(text: &str, dialect: StyleDialect) -> LexResult {
 
 pub fn lex_with_extension(text: &str, extension: &impl DialectExtension) -> LexResult {
     let (tokens, errors) = tokenize(text, extension);
+    let token_count = tokens.len();
+    crate::record_omena_parser_lex_materialization(token_count);
     LexResult::new(
         tokens
             .into_iter()

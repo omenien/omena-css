@@ -210,6 +210,55 @@ pub struct HeadlineAxisFidelitySummaryV0 {
     pub samples: Vec<HeadlineAxisFidelitySampleV0>,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TransformRelexBaselineSampleSnapshotV0 {
+    pub name: String,
+    pub base_sample_name: &'static str,
+    pub path: &'static str,
+    pub dialect: &'static str,
+    pub scale: usize,
+    pub source_byte_length: usize,
+    pub output_byte_length: usize,
+    pub source_sha256: String,
+    pub output_sha256: String,
+    pub lex_invocation_count: u64,
+    pub lex_token_count: u64,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TransformRelexBaselineScaleSnapshotV0 {
+    pub scale: usize,
+    pub source_byte_length: usize,
+    pub lex_invocation_count: u64,
+    pub lex_token_count: u64,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TransformRelexBaselineSummaryV0 {
+    pub schema_version: &'static str,
+    pub product: &'static str,
+    pub benchmark_family: &'static str,
+    pub measured_operation: &'static str,
+    pub timing_policy: &'static str,
+    pub check_id: &'static str,
+    pub update_check_id: &'static str,
+    pub speed_claim_ready: bool,
+    pub corpus_kind: &'static str,
+    pub base_sample_count: usize,
+    pub scale_count: usize,
+    pub sample_count: usize,
+    pub total_source_byte_length: usize,
+    pub total_lex_invocation_count: u64,
+    pub total_lex_token_count: u64,
+    pub lex_invocation_growth_exponent_milli: i64,
+    pub lex_token_growth_exponent_milli: i64,
+    pub scales: Vec<TransformRelexBaselineScaleSnapshotV0>,
+    pub samples: Vec<TransformRelexBaselineSampleSnapshotV0>,
+}
+
 pub fn parser_product_benchmark_boundaries() -> [ParserProductBenchmarkBoundaryV0; 2] {
     [
         ParserProductBenchmarkBoundaryV0 {
@@ -709,6 +758,169 @@ pub fn summarize_headline_axis_fidelity() -> Result<HeadlineAxisFidelitySummaryV
     })
 }
 
+pub fn fit_log_log_growth_exponent(samples: &[(usize, usize)]) -> Option<f64> {
+    if samples.len() < 3
+        || samples
+            .iter()
+            .any(|(input_size, output_size)| *input_size == 0 || *output_size == 0)
+    {
+        return None;
+    }
+
+    let count = samples.len() as f64;
+    let (sum_x, sum_y, sum_xy, sum_x2) = samples.iter().fold(
+        (0.0_f64, 0.0_f64, 0.0_f64, 0.0_f64),
+        |(sum_x, sum_y, sum_xy, sum_x2), (input_size, output_size)| {
+            let x = (*input_size as f64).ln();
+            let y = (*output_size as f64).ln();
+            (sum_x + x, sum_y + y, sum_xy + x * y, sum_x2 + x * x)
+        },
+    );
+    let denominator = count * sum_x2 - sum_x * sum_x;
+    if denominator.abs() <= f64::EPSILON {
+        return None;
+    }
+
+    let exponent = (count * sum_xy - sum_x * sum_y) / denominator;
+    exponent.is_finite().then_some(exponent)
+}
+
+pub fn summarize_transform_relex_baseline() -> TransformRelexBaselineSummaryV0 {
+    let base_samples = bundler_productization_corpus();
+    let scales = [1_usize, 2, 4];
+    let mut samples = Vec::with_capacity(base_samples.len() * scales.len());
+    let mut by_scale = std::collections::BTreeMap::<usize, (usize, u64, u64)>::new();
+
+    for base_sample in &base_samples {
+        for scale in scales {
+            let source = repeated_style_source(base_sample.source.as_str(), scale);
+            let (artifact, instrumentation) =
+                omena_parser::with_omena_parser_lex_instrumentation(|| {
+                    print_transform_cst_source_with_dialect(
+                        base_sample.path,
+                        source.as_str(),
+                        base_sample.dialect,
+                        "omena-benchmarks.transform-relex-baseline",
+                        &[],
+                        TransformPrintOptionsV0 {
+                            mode: TransformPrintMode::Minified,
+                            include_source_map: true,
+                        },
+                    )
+                });
+            let source_byte_length = source.len();
+            let scale_entry = by_scale.entry(scale).or_insert((0, 0, 0));
+            scale_entry.0 += source_byte_length;
+            scale_entry.1 += instrumentation.lex_invocation_count;
+            scale_entry.2 += instrumentation.lex_token_count;
+
+            samples.push(TransformRelexBaselineSampleSnapshotV0 {
+                name: format!("{}-x{scale}", base_sample.name),
+                base_sample_name: base_sample.name,
+                path: base_sample.path,
+                dialect: benchmark_style_dialect_label(base_sample.dialect),
+                scale,
+                source_byte_length,
+                output_byte_length: artifact.css.len(),
+                source_sha256: sha256_hex(source.as_bytes()),
+                output_sha256: sha256_hex(artifact.css.as_bytes()),
+                lex_invocation_count: instrumentation.lex_invocation_count,
+                lex_token_count: instrumentation.lex_token_count,
+            });
+        }
+    }
+
+    let scales = by_scale
+        .iter()
+        .map(
+            |(scale, (source_byte_length, lex_invocation_count, lex_token_count))| {
+                TransformRelexBaselineScaleSnapshotV0 {
+                    scale: *scale,
+                    source_byte_length: *source_byte_length,
+                    lex_invocation_count: *lex_invocation_count,
+                    lex_token_count: *lex_token_count,
+                }
+            },
+        )
+        .collect::<Vec<_>>();
+    let total_source_byte_length = samples
+        .iter()
+        .map(|sample| sample.source_byte_length)
+        .sum::<usize>();
+    let total_lex_invocation_count = samples
+        .iter()
+        .map(|sample| sample.lex_invocation_count)
+        .sum::<u64>();
+    let total_lex_token_count = samples
+        .iter()
+        .map(|sample| sample.lex_token_count)
+        .sum::<u64>();
+    let invocation_growth_samples = scales
+        .iter()
+        .map(|scale| {
+            (
+                scale.source_byte_length,
+                usize::try_from(scale.lex_invocation_count).unwrap_or(usize::MAX),
+            )
+        })
+        .collect::<Vec<_>>();
+    let token_growth_samples = scales
+        .iter()
+        .map(|scale| {
+            (
+                scale.source_byte_length,
+                usize::try_from(scale.lex_token_count).unwrap_or(usize::MAX),
+            )
+        })
+        .collect::<Vec<_>>();
+
+    TransformRelexBaselineSummaryV0 {
+        schema_version: "0",
+        product: "omena-benchmarks.transform-relex-baseline",
+        benchmark_family: Z5_PERFORMANCE_BASELINE,
+        measured_operation: "minified-print-path-lex-materialization-op-count",
+        timing_policy: "deterministic-operation-count-no-wall-clock",
+        check_id: "rust/benchmark/transform-relex-baseline",
+        update_check_id: "rust/benchmark/transform-relex-baseline:update",
+        speed_claim_ready: false,
+        corpus_kind: "file-backed-bundler-productization-corpus-size-sweep",
+        base_sample_count: base_samples.len(),
+        scale_count: scales.len(),
+        sample_count: samples.len(),
+        total_source_byte_length,
+        total_lex_invocation_count,
+        total_lex_token_count,
+        lex_invocation_growth_exponent_milli: exponent_milli(invocation_growth_samples.as_slice()),
+        lex_token_growth_exponent_milli: exponent_milli(token_growth_samples.as_slice()),
+        scales,
+        samples,
+    }
+}
+
+pub fn render_transform_relex_baseline_snapshot_json() -> Result<String, String> {
+    let summary = summarize_transform_relex_baseline();
+    serde_json::to_string_pretty(&summary)
+        .map(|json| format!("{json}\n"))
+        .map_err(|error| error.to_string())
+}
+
+pub fn validate_transform_relex_baseline_snapshot(expected_json: &str) -> Result<(), String> {
+    let current_json = render_transform_relex_baseline_snapshot_json()?;
+    let current: serde_json::Value =
+        serde_json::from_str(&current_json).map_err(|error| error.to_string())?;
+    let expected: serde_json::Value =
+        serde_json::from_str(expected_json).map_err(|error| error.to_string())?;
+
+    if current == expected {
+        Ok(())
+    } else {
+        Err(
+            "transform re-lex baseline snapshot drifted; run `pnpm omena-check run rust/benchmark/transform-relex-baseline:update` and review the diff"
+                .to_string(),
+        )
+    }
+}
+
 fn emitted_css_golden_corpus() -> Vec<StyleSample> {
     let mut seen = std::collections::BTreeSet::new();
     style_corpus()
@@ -716,6 +928,18 @@ fn emitted_css_golden_corpus() -> Vec<StyleSample> {
         .chain(bundler_productization_corpus())
         .filter(|sample| seen.insert((sample.name, sample.path)))
         .collect()
+}
+
+fn repeated_style_source(source: &str, scale: usize) -> String {
+    let mut repeated = String::new();
+    for index in 0..scale {
+        repeated.push_str("/* omena benchmark scale ");
+        repeated.push_str(index.to_string().as_str());
+        repeated.push_str(" */\n");
+        repeated.push_str(source);
+        repeated.push('\n');
+    }
+    repeated
 }
 
 fn valid_utf16_position(source: &str, line: usize, utf16_column: usize) -> bool {
@@ -756,6 +980,12 @@ fn benchmark_style_dialect_label(dialect: StyleDialect) -> &'static str {
         StyleDialect::Sass => "sass",
         StyleDialect::Less => "less",
     }
+}
+
+fn exponent_milli(samples: &[(usize, usize)]) -> i64 {
+    fit_log_log_growth_exponent(samples)
+        .map(|exponent| (exponent * 1000.0).round() as i64)
+        .unwrap_or(0)
 }
 
 pub fn parse_legacy_style_sample(
@@ -848,11 +1078,15 @@ mod tests {
         summarize_bundler_productization_benchmark_surface, summarize_criterion_surface_snapshot,
         summarize_emitted_css_golden_gate, summarize_headline_axis_fidelity,
         summarize_parser_product_benchmark_readiness, summarize_style_corpus_snapshot,
-        validate_emitted_css_golden_gate_snapshot, validate_legacy_style_sample,
-        validate_omena_style_sample, validate_parser_product_benchmark_boundary_symmetry,
+        summarize_transform_relex_baseline, validate_emitted_css_golden_gate_snapshot,
+        validate_legacy_style_sample, validate_omena_style_sample,
+        validate_parser_product_benchmark_boundary_symmetry,
+        validate_transform_relex_baseline_snapshot,
     };
 
     const EMITTED_CSS_GOLDEN: &str = include_str!("../fixtures/emitted-css-golden-v0.json");
+    const TRANSFORM_RELEX_BASELINE: &str =
+        include_str!("../fixtures/transform-relex-baseline-v0.json");
 
     #[test]
     fn parser_product_benchmarks_declare_symmetric_measurement_boundary() -> Result<(), String> {
@@ -1179,6 +1413,62 @@ mod tests {
                     && sample.decoded_source_map_segment_count > 0
                     && sample.css_modules_moat_preserved_through_minify)
         );
+        Ok(())
+    }
+
+    #[test]
+    fn transform_relex_baseline_records_size_swept_op_counts() -> Result<(), String> {
+        let snapshot = summarize_transform_relex_baseline();
+
+        assert_eq!(
+            snapshot.product,
+            "omena-benchmarks.transform-relex-baseline"
+        );
+        assert_eq!(snapshot.benchmark_family, super::Z5_PERFORMANCE_BASELINE);
+        assert_eq!(
+            snapshot.measured_operation,
+            "minified-print-path-lex-materialization-op-count"
+        );
+        assert_eq!(snapshot.check_id, "rust/benchmark/transform-relex-baseline");
+        assert_eq!(
+            snapshot.update_check_id,
+            "rust/benchmark/transform-relex-baseline:update"
+        );
+        assert!(!snapshot.speed_claim_ready);
+        assert_eq!(snapshot.scale_count, 3);
+        assert_eq!(
+            snapshot.sample_count,
+            snapshot.base_sample_count * snapshot.scale_count
+        );
+        assert!(snapshot.total_source_byte_length > 0);
+        assert!(snapshot.total_lex_invocation_count > 0);
+        assert!(snapshot.total_lex_token_count > 0);
+        assert!(snapshot.lex_token_growth_exponent_milli > 0);
+        assert!(
+            snapshot
+                .samples
+                .iter()
+                .all(|sample| sample.lex_invocation_count > 0 && sample.lex_token_count > 0)
+        );
+        assert!(
+            snapshot
+                .scales
+                .windows(2)
+                .all(|pair| pair[0].source_byte_length < pair[1].source_byte_length)
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn growth_exponent_fitter_is_public_and_deterministic() {
+        let linear = super::fit_log_log_growth_exponent(&[(100, 300), (200, 600), (400, 1200)]);
+        assert!(linear.is_some_and(|linear| (linear - 1.0).abs() < 0.000_001));
+        assert!(super::fit_log_log_growth_exponent(&[(100, 300), (200, 600)]).is_none());
+    }
+
+    #[test]
+    fn transform_relex_baseline_snapshot_is_byte_pinned() -> Result<(), String> {
+        validate_transform_relex_baseline_snapshot(TRANSFORM_RELEX_BASELINE)?;
         Ok(())
     }
 

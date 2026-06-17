@@ -81,6 +81,7 @@ jobs:
       - run: pnpm omena-check run rust/benchmark/ci-reachability
       - run: pnpm omena-check run rust/benchmark/emitted-css-golden-gate
       - run: pnpm omena-check run rust/benchmark/headline-axis
+      - run: pnpm omena-check run rust/benchmark/transform-relex-baseline
       - run: pnpm omena-check run rust/z5-parser-product-cutover
 
   omena-napi-install:

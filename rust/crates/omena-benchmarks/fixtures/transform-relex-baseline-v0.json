@@ -1,0 +1,158 @@
+{
+  "schemaVersion": "0",
+  "product": "omena-benchmarks.transform-relex-baseline",
+  "benchmarkFamily": "z5-performance-baseline",
+  "measuredOperation": "minified-print-path-lex-materialization-op-count",
+  "timingPolicy": "deterministic-operation-count-no-wall-clock",
+  "checkId": "rust/benchmark/transform-relex-baseline",
+  "updateCheckId": "rust/benchmark/transform-relex-baseline:update",
+  "speedClaimReady": false,
+  "corpusKind": "file-backed-bundler-productization-corpus-size-sweep",
+  "baseSampleCount": 3,
+  "scaleCount": 3,
+  "sampleCount": 9,
+  "totalSourceByteLength": 127379,
+  "totalLexInvocationCount": 27,
+  "totalLexTokenCount": 96950,
+  "lexInvocationGrowthExponentMilli": 0,
+  "lexTokenGrowthExponentMilli": 1000,
+  "scales": [
+    {
+      "scale": 1,
+      "sourceByteLength": 18197,
+      "lexInvocationCount": 9,
+      "lexTokenCount": 13850
+    },
+    {
+      "scale": 2,
+      "sourceByteLength": 36394,
+      "lexInvocationCount": 9,
+      "lexTokenCount": 27700
+    },
+    {
+      "scale": 4,
+      "sourceByteLength": 72788,
+      "lexInvocationCount": 9,
+      "lexTokenCount": 55400
+    }
+  ],
+  "samples": [
+    {
+      "name": "bootstrap-reboot-v5.3.3-x1",
+      "baseSampleName": "bootstrap-reboot-v5.3.3",
+      "path": "bootstrap-reboot-v5.3.3.css",
+      "dialect": "css",
+      "scale": 1,
+      "sourceByteLength": 12096,
+      "outputByteLength": 9878,
+      "sourceSha256": "dfa602dd87176bee125c885fc34846660b2583833b773fdd93a4fcfeebee47b7",
+      "outputSha256": "e598529d89e11289dd8e4a3394be2cad566e2eeaa372f43398af37e4f911df61",
+      "lexInvocationCount": 3,
+      "lexTokenCount": 8829
+    },
+    {
+      "name": "bootstrap-reboot-v5.3.3-x2",
+      "baseSampleName": "bootstrap-reboot-v5.3.3",
+      "path": "bootstrap-reboot-v5.3.3.css",
+      "dialect": "css",
+      "scale": 2,
+      "sourceByteLength": 24192,
+      "outputByteLength": 19756,
+      "sourceSha256": "b26098eddf6c312d12067c97c92dfed6e4b7fe6f7dae73f34cd631c4d6ec2dae",
+      "outputSha256": "54c3e54e247d18093941d2c8f8d4bcb4d5ff170570b40a8202ebe4140cc4f635",
+      "lexInvocationCount": 3,
+      "lexTokenCount": 17658
+    },
+    {
+      "name": "bootstrap-reboot-v5.3.3-x4",
+      "baseSampleName": "bootstrap-reboot-v5.3.3",
+      "path": "bootstrap-reboot-v5.3.3.css",
+      "dialect": "css",
+      "scale": 4,
+      "sourceByteLength": 48384,
+      "outputByteLength": 39512,
+      "sourceSha256": "e2118766ca19c693b09ac9b6ebf2787fda9ec676f94fea522eb3f58ecfeaa92b",
+      "outputSha256": "e65b2a9f0c28b0e90a67ab4e3f6366ecb549bf54ec40c8a4cf0e38e0531044bf",
+      "lexInvocationCount": 3,
+      "lexTokenCount": 35316
+    },
+    {
+      "name": "next-dashboard-shell-scss-x1",
+      "baseSampleName": "next-dashboard-shell-scss",
+      "path": "next-dashboard-shell.module.scss",
+      "dialect": "scss",
+      "scale": 1,
+      "sourceByteLength": 2547,
+      "outputByteLength": 2066,
+      "sourceSha256": "ee63293d29a00dce42d689da02c6cafd37621abf0973faee14d0649e01555079",
+      "outputSha256": "5730fff052fb5fe5fed0a6703ec10741d05af93164c304f52a363ef5210ca1d7",
+      "lexInvocationCount": 3,
+      "lexTokenCount": 2169
+    },
+    {
+      "name": "next-dashboard-shell-scss-x2",
+      "baseSampleName": "next-dashboard-shell-scss",
+      "path": "next-dashboard-shell.module.scss",
+      "dialect": "scss",
+      "scale": 2,
+      "sourceByteLength": 5094,
+      "outputByteLength": 4132,
+      "sourceSha256": "3574d72669889002d8e67d1168e791f83d851da2a22fc5b7ee2e66f3904ec2af",
+      "outputSha256": "63d4528c294c589d23365f4679951e81536f1aaa03922aa494e03dd3980e5858",
+      "lexInvocationCount": 3,
+      "lexTokenCount": 4338
+    },
+    {
+      "name": "next-dashboard-shell-scss-x4",
+      "baseSampleName": "next-dashboard-shell-scss",
+      "path": "next-dashboard-shell.module.scss",
+      "dialect": "scss",
+      "scale": 4,
+      "sourceByteLength": 10188,
+      "outputByteLength": 8264,
+      "sourceSha256": "2cd4a7df6f2ccc394b3f684a75e3f09ad51d748cc981eb9ace5dd084c1845784",
+      "outputSha256": "1571d63244702ec591d0a2ed9ab2ec1109e203176174d1a1973c1fecc729daf0",
+      "lexInvocationCount": 3,
+      "lexTokenCount": 8676
+    },
+    {
+      "name": "css-modules-product-grid-x1",
+      "baseSampleName": "css-modules-product-grid",
+      "path": "css-modules-product-grid.module.css",
+      "dialect": "css",
+      "scale": 1,
+      "sourceByteLength": 3554,
+      "outputByteLength": 2619,
+      "sourceSha256": "d6c508e5aef065b4527b53e1b3b0ced47bdd4b5ac19695fac19d500ec9110a01",
+      "outputSha256": "628227d3a23fcd3e47f851e7eef003f6af911d4cc0becc0e60b86979f8eea377",
+      "lexInvocationCount": 3,
+      "lexTokenCount": 2852
+    },
+    {
+      "name": "css-modules-product-grid-x2",
+      "baseSampleName": "css-modules-product-grid",
+      "path": "css-modules-product-grid.module.css",
+      "dialect": "css",
+      "scale": 2,
+      "sourceByteLength": 7108,
+      "outputByteLength": 5238,
+      "sourceSha256": "632cd856f08b94a00ee355545b85880419fed3eee711fbd9573cb639fe709788",
+      "outputSha256": "ea7ddafb91ed4820e74fa80dbe9dd91f1928b326f626c25b773a72b594cf15e3",
+      "lexInvocationCount": 3,
+      "lexTokenCount": 5704
+    },
+    {
+      "name": "css-modules-product-grid-x4",
+      "baseSampleName": "css-modules-product-grid",
+      "path": "css-modules-product-grid.module.css",
+      "dialect": "css",
+      "scale": 4,
+      "sourceByteLength": 14216,
+      "outputByteLength": 10476,
+      "sourceSha256": "dd2b56154cf7de2064787cff060c6365d530566b47757db9180c635917dc5fa7",
+      "outputSha256": "16283fa3fe0b0f40802931fcfbf18755a6b321e58b317800553047d261bc7aa6",
+      "lexInvocationCount": 3,
+      "lexTokenCount": 11408
+    }
+  ]
+}
