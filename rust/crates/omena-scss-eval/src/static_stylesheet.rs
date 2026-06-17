@@ -204,6 +204,9 @@ fn derive_static_scss_stylesheet_module_evaluation(
             .filter(|declaration| {
                 !static_stylesheet_position_is_inside_ranges(
                     declaration.declaration.span_start,
+                    &function_declaration_ranges,
+                ) && !static_stylesheet_position_is_inside_ranges(
+                    declaration.declaration.span_start,
                     &function_call_ranges,
                 )
             })
@@ -782,12 +785,18 @@ struct StaticStylesheetPropertyDeclaration {
 #[derive(Debug, Clone)]
 struct StaticScssFunctionDeclaration {
     name: String,
-    parameters: Vec<String>,
+    parameters: Vec<StaticScssFunctionParameter>,
     return_value: String,
     span_start: usize,
     span_end: usize,
     body_start: usize,
     body_end: usize,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct StaticScssFunctionParameter {
+    name: String,
+    default_value: Option<String>,
 }
 
 #[derive(Debug, Clone)]
@@ -938,6 +947,7 @@ fn collect_static_scss_function_declarations(
             SyntaxKind::RightParen,
         )?;
         let parameters = collect_static_scss_function_parameters(
+            source,
             tokens,
             parameter_open_index + 1,
             parameter_close_index,
@@ -984,35 +994,58 @@ fn collect_static_scss_function_declarations(
 }
 
 fn collect_static_scss_function_parameters(
+    source: &str,
     tokens: &[LexedToken],
     start: usize,
     end: usize,
-) -> Option<Vec<String>> {
+) -> Option<Vec<StaticScssFunctionParameter>> {
+    let parameter_start = tokens.get(start).map(static_stylesheet_token_start)?;
+    let parameter_end = tokens
+        .get(end)
+        .map(static_stylesheet_token_start)
+        .unwrap_or(parameter_start);
+    let parameter_text = source.get(parameter_start..parameter_end)?.trim();
+    if parameter_text.is_empty() {
+        return Some(Vec::new());
+    }
+
     let mut parameters = Vec::new();
-    let mut expect_parameter = true;
-    let mut saw_token = false;
-    for token in &tokens[start..end] {
-        if static_stylesheet_token_is_trivia(token.kind) {
-            continue;
-        }
-        saw_token = true;
-        if expect_parameter {
-            if token.kind != SyntaxKind::ScssVariable {
-                return None;
-            }
-            parameters.push(canonical_static_scss_variable_name(token.text.as_str()));
-            expect_parameter = false;
-            continue;
-        }
-        if token.kind != SyntaxKind::Comma {
+    let mut names = BTreeSet::new();
+    let mut saw_default = false;
+    for argument in split_static_scss_function_arguments(parameter_text)? {
+        let parameter = parse_static_scss_function_parameter(argument)?;
+        if parameter.default_value.is_some() {
+            saw_default = true;
+        } else if saw_default {
             return None;
         }
-        expect_parameter = true;
-    }
-    if saw_token && expect_parameter {
-        return None;
+        if !names.insert(parameter.name.clone()) {
+            return None;
+        }
+        parameters.push(parameter);
     }
     Some(parameters)
+}
+
+fn parse_static_scss_function_parameter(
+    argument: StaticScssFunctionArgument,
+) -> Option<StaticScssFunctionParameter> {
+    if let Some(name) = argument.name {
+        return Some(StaticScssFunctionParameter {
+            name,
+            default_value: Some(argument.value),
+        });
+    }
+
+    let name = argument.value.trim();
+    let name = name.strip_prefix('$')?.trim();
+    if !static_stylesheet_variable_name_is_safe(name) {
+        return None;
+    }
+    Some(StaticScssFunctionParameter {
+        name: canonical_static_scss_variable_name(name),
+        default_value: None,
+    })
 }
 
 fn collect_static_scss_function_return_value(
@@ -1302,7 +1335,7 @@ fn bind_static_scss_function_arguments(
             if !declaration
                 .parameters
                 .iter()
-                .any(|parameter| parameter == argument_name)
+                .any(|parameter| parameter.name == *argument_name)
                 || bindings
                     .insert(argument_name.clone(), argument.value.clone())
                     .is_some()
@@ -1317,7 +1350,7 @@ fn bind_static_scss_function_arguments(
         }
         let parameter = declaration.parameters.get(positional_index)?;
         if bindings
-            .insert(parameter.clone(), argument.value.clone())
+            .insert(parameter.name.clone(), argument.value.clone())
             .is_some()
         {
             return None;
@@ -1325,17 +1358,23 @@ fn bind_static_scss_function_arguments(
         positional_index += 1;
     }
 
-    (bindings.len() == declaration.parameters.len()).then(|| {
-        declaration
-            .parameters
-            .iter()
-            .map(|parameter| {
-                bindings
-                    .remove(parameter)
-                    .map(|value| (parameter.clone(), value))
-            })
-            .collect::<Option<Vec<_>>>()
-    })?
+    for parameter in &declaration.parameters {
+        if bindings.contains_key(parameter.name.as_str()) {
+            continue;
+        }
+        let default_value = parameter.default_value.as_ref()?;
+        bindings.insert(parameter.name.clone(), default_value.clone());
+    }
+
+    declaration
+        .parameters
+        .iter()
+        .map(|parameter| {
+            bindings
+                .remove(parameter.name.as_str())
+                .map(|value| (parameter.name.clone(), value))
+        })
+        .collect::<Option<Vec<_>>>()
 }
 
 fn resolve_static_scss_function_argument_abstract_value(
@@ -3041,6 +3080,45 @@ mod tests {
 
         assert_eq!(resolution.raw_count, 1);
         assert_eq!(resolution.unsupported_dynamic_count, 1);
+    }
+
+    #[test]
+    fn static_scss_evaluation_resolves_function_default_arguments() {
+        let report = derive_static_stylesheet_module_evaluation(
+            "@function offset($value: 1px, $extra: 2px) { @return $value + $extra; } .button { margin: offset(); }",
+            StyleDialect::Scss,
+        );
+        assert!(report.is_some());
+        let Some(report) = report else {
+            return;
+        };
+
+        assert_eq!(report.replacement_count, 1);
+        assert_eq!(report.resolved_replacements[0].name, "function:offset");
+        assert_eq!(report.resolved_replacements[0].text, "3px");
+        assert_eq!(report.resolved_replacements[0].abstract_value_kind, "exact");
+        assert!(!report.evaluated_css.contains("@function"));
+        assert!(report.evaluated_css.contains(".button { margin: 3px; }"));
+        assert!(report.oracle.all_legacy_declaration_values_preserved);
+    }
+
+    #[test]
+    fn static_scss_evaluation_resolves_named_arguments_with_default_tail() {
+        let report = derive_static_stylesheet_module_evaluation(
+            "@function pair($left, $right: 2px) { @return $left + $right; } .button { margin: pair($left: 1px); }",
+            StyleDialect::Scss,
+        );
+        assert!(report.is_some());
+        let Some(report) = report else {
+            return;
+        };
+
+        assert_eq!(report.replacement_count, 1);
+        assert_eq!(report.resolved_replacements[0].name, "function:pair");
+        assert_eq!(report.resolved_replacements[0].text, "3px");
+        assert_eq!(report.resolved_replacements[0].abstract_value_kind, "exact");
+        assert!(report.evaluated_css.contains(".button { margin: 3px; }"));
+        assert!(report.oracle.all_legacy_declaration_values_preserved);
     }
 
     #[test]
