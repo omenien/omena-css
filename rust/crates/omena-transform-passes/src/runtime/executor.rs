@@ -140,6 +140,16 @@ pub fn execute_transform_passes_on_source_with_dialect_and_context(
     })
 }
 
+#[doc(hidden)]
+pub fn execute_transform_passes_on_source_with_dialect_and_context_without_lex_cache_for_measurement(
+    source: &str,
+    dialect: StyleDialect,
+    requested: &[TransformPassKind],
+    context: &TransformExecutionContextV0,
+) -> TransformExecutionSummaryV0 {
+    execute_transform_passes_on_source_with_active_lex_cache(source, dialect, requested, context)
+}
+
 fn execute_transform_passes_on_source_with_active_lex_cache(
     source: &str,
     dialect: StyleDialect,

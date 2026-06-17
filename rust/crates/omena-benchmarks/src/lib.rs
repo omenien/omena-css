@@ -3,6 +3,12 @@ pub const Z5_PERFORMANCE_BASELINE: &str = "z5-performance-baseline";
 mod corpus;
 
 use omena_parser::StyleDialect;
+use omena_transform_cst::TransformPassKind;
+use omena_transform_passes::{
+    TransformExecutionContextV0, TransformExecutionSummaryV0,
+    execute_transform_passes_on_source_with_dialect_and_context,
+    execute_transform_passes_on_source_with_dialect_and_context_without_lex_cache_for_measurement,
+};
 use omena_transform_print::{
     TransformPrintMode, TransformPrintOptionsV0, default_print_options,
     parse_transform_source_map_v3_json, print_transform_cst_source_with_dialect,
@@ -237,6 +243,52 @@ pub struct TransformRelexBaselineScaleSnapshotV0 {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
+pub struct TransformExecutorSpineSampleSnapshotV0 {
+    pub name: String,
+    pub lane: &'static str,
+    pub dialect: &'static str,
+    pub scale: usize,
+    pub source_byte_length: usize,
+    pub output_byte_length: usize,
+    pub edited_byte_count: usize,
+    pub mutation_count: usize,
+    pub source_sha256: String,
+    pub output_sha256: String,
+    pub lex_invocation_count: u64,
+    pub lex_token_count: u64,
+    pub lex_tokens_per_edited_byte_milli: u64,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TransformExecutorSpineLaneSnapshotV0 {
+    pub lane: &'static str,
+    pub lex_policy: &'static str,
+    pub total_source_byte_length: usize,
+    pub total_edited_byte_count: usize,
+    pub total_lex_invocation_count: u64,
+    pub total_lex_token_count: u64,
+    pub lex_token_growth_exponent_milli: i64,
+    pub max_lex_tokens_per_edited_byte_milli: u64,
+    pub samples: Vec<TransformExecutorSpineSampleSnapshotV0>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TransformExecutorSpineAssertionSnapshotV0 {
+    pub asserted: bool,
+    pub measured_operation: &'static str,
+    pub corpus_kind: &'static str,
+    pub check_id: &'static str,
+    pub current_lane: TransformExecutorSpineLaneSnapshotV0,
+    pub full_relex_witness_lane: TransformExecutorSpineLaneSnapshotV0,
+    pub lex_token_growth_exponent_bound_milli: i64,
+    pub lex_tokens_per_edited_byte_bound_milli: u64,
+    pub red_on_full_relex_witness: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct TransformRelexBaselineSummaryV0 {
     pub schema_version: &'static str,
     pub product: &'static str,
@@ -255,6 +307,7 @@ pub struct TransformRelexBaselineSummaryV0 {
     pub total_lex_token_count: u64,
     pub lex_invocation_growth_exponent_milli: i64,
     pub lex_token_growth_exponent_milli: i64,
+    pub executor_spine: TransformExecutorSpineAssertionSnapshotV0,
     pub scales: Vec<TransformRelexBaselineScaleSnapshotV0>,
     pub samples: Vec<TransformRelexBaselineSampleSnapshotV0>,
 }
@@ -785,6 +838,159 @@ pub fn fit_log_log_growth_exponent(samples: &[(usize, usize)]) -> Option<f64> {
     exponent.is_finite().then_some(exponent)
 }
 
+const TRANSFORM_EXECUTOR_SPINE_LEX_TOKEN_GROWTH_BOUND_MILLI: i64 = 1100;
+const TRANSFORM_EXECUTOR_SPINE_TOKENS_PER_EDITED_BYTE_BOUND_MILLI: u64 = 600;
+
+pub fn summarize_transform_executor_spine_assertion() -> TransformExecutorSpineAssertionSnapshotV0 {
+    let current_lane = summarize_transform_executor_spine_lane(
+        "cached-spine",
+        "per-execution-cache-with-incremental-splice",
+        execute_transform_passes_on_source_with_dialect_and_context,
+    );
+    let full_relex_witness_lane = summarize_transform_executor_spine_lane(
+        "full-relex-witness",
+        "cache-disabled-full-relex",
+        execute_transform_passes_on_source_with_dialect_and_context_without_lex_cache_for_measurement,
+    );
+    let current_under_growth_bound = current_lane.lex_token_growth_exponent_milli
+        <= TRANSFORM_EXECUTOR_SPINE_LEX_TOKEN_GROWTH_BOUND_MILLI;
+    let current_under_edited_byte_bound = current_lane.max_lex_tokens_per_edited_byte_milli
+        <= TRANSFORM_EXECUTOR_SPINE_TOKENS_PER_EDITED_BYTE_BOUND_MILLI;
+    let witness_over_edited_byte_bound = full_relex_witness_lane
+        .max_lex_tokens_per_edited_byte_milli
+        > TRANSFORM_EXECUTOR_SPINE_TOKENS_PER_EDITED_BYTE_BOUND_MILLI;
+
+    TransformExecutorSpineAssertionSnapshotV0 {
+        asserted: current_under_growth_bound
+            && current_under_edited_byte_bound
+            && witness_over_edited_byte_bound,
+        measured_operation: "transform-executor-lex-materialization-op-count",
+        corpus_kind: "synthetic-mutating-transform-executor-size-sweep",
+        check_id: "rust/benchmark/transform-relex-baseline",
+        current_lane,
+        full_relex_witness_lane,
+        lex_token_growth_exponent_bound_milli:
+            TRANSFORM_EXECUTOR_SPINE_LEX_TOKEN_GROWTH_BOUND_MILLI,
+        lex_tokens_per_edited_byte_bound_milli:
+            TRANSFORM_EXECUTOR_SPINE_TOKENS_PER_EDITED_BYTE_BOUND_MILLI,
+        red_on_full_relex_witness: witness_over_edited_byte_bound,
+    }
+}
+
+fn summarize_transform_executor_spine_lane(
+    lane: &'static str,
+    lex_policy: &'static str,
+    execute: fn(
+        &str,
+        StyleDialect,
+        &[TransformPassKind],
+        &TransformExecutionContextV0,
+    ) -> TransformExecutionSummaryV0,
+) -> TransformExecutorSpineLaneSnapshotV0 {
+    let scales = [1_usize, 2, 4];
+    let mut samples = Vec::with_capacity(scales.len());
+    let mut growth_samples = Vec::with_capacity(scales.len());
+    let mut total_source_byte_length = 0usize;
+    let mut total_edited_byte_count = 0usize;
+    let mut total_lex_invocation_count = 0u64;
+    let mut total_lex_token_count = 0u64;
+    let mut max_lex_tokens_per_edited_byte_milli = 0u64;
+    let requested = transform_executor_spine_passes();
+    let context = TransformExecutionContextV0::default();
+
+    for scale in scales {
+        let source = transform_executor_spine_source(scale);
+        let (execution, instrumentation) =
+            omena_parser::with_omena_parser_lex_instrumentation(|| {
+                execute(
+                    source.as_str(),
+                    StyleDialect::Css,
+                    requested.as_slice(),
+                    &context,
+                )
+            });
+        let edited_byte_count = transform_execution_edited_byte_count(&execution).max(1);
+        let lex_tokens_per_edited_byte_milli =
+            instrumentation.lex_token_count.saturating_mul(1000) / edited_byte_count as u64;
+        max_lex_tokens_per_edited_byte_milli =
+            max_lex_tokens_per_edited_byte_milli.max(lex_tokens_per_edited_byte_milli);
+        total_source_byte_length += source.len();
+        total_edited_byte_count += edited_byte_count;
+        total_lex_invocation_count += instrumentation.lex_invocation_count;
+        total_lex_token_count += instrumentation.lex_token_count;
+        growth_samples.push((
+            source.len(),
+            usize::try_from(instrumentation.lex_token_count).unwrap_or(usize::MAX),
+        ));
+        samples.push(TransformExecutorSpineSampleSnapshotV0 {
+            name: format!("executor-spine-mutating-corpus-x{scale}"),
+            lane,
+            dialect: "css",
+            scale,
+            source_byte_length: source.len(),
+            output_byte_length: execution.output_css.len(),
+            edited_byte_count,
+            mutation_count: execution.mutation_count,
+            source_sha256: sha256_hex(source.as_bytes()),
+            output_sha256: sha256_hex(execution.output_css.as_bytes()),
+            lex_invocation_count: instrumentation.lex_invocation_count,
+            lex_token_count: instrumentation.lex_token_count,
+            lex_tokens_per_edited_byte_milli,
+        });
+    }
+
+    TransformExecutorSpineLaneSnapshotV0 {
+        lane,
+        lex_policy,
+        total_source_byte_length,
+        total_edited_byte_count,
+        total_lex_invocation_count,
+        total_lex_token_count,
+        lex_token_growth_exponent_milli: exponent_milli(growth_samples.as_slice()),
+        max_lex_tokens_per_edited_byte_milli,
+        samples,
+    }
+}
+
+fn transform_executor_spine_passes() -> Vec<TransformPassKind> {
+    vec![
+        TransformPassKind::CommentStrip,
+        TransformPassKind::NumberCompression,
+        TransformPassKind::UnitNormalization,
+        TransformPassKind::ColorCompression,
+        TransformPassKind::CalcReduction,
+        TransformPassKind::EmptyRuleRemoval,
+        TransformPassKind::WhitespaceStrip,
+        TransformPassKind::PrintCss,
+    ]
+}
+
+fn transform_executor_spine_source(scale: usize) -> String {
+    let mut source = String::new();
+    for index in 0..(scale * 96) {
+        source.push_str(&format!(
+            "/* executor spine {index} */ .card-{index} {{ color: #ffffff; margin: 0.0px; padding: calc(1px + 1px); width: 10.0px; }} .empty-{index} {{ }}\n"
+        ));
+    }
+    source
+}
+
+fn transform_execution_edited_byte_count(execution: &TransformExecutionSummaryV0) -> usize {
+    execution
+        .provenance_derivation_forest
+        .nodes
+        .iter()
+        .flat_map(|node| node.mutation_spans.iter())
+        .map(|span| {
+            let source_len = span.source_span_end.saturating_sub(span.source_span_start);
+            let generated_len = span
+                .generated_span_end
+                .saturating_sub(span.generated_span_start);
+            source_len.max(generated_len)
+        })
+        .sum()
+}
+
 pub fn summarize_transform_relex_baseline() -> TransformRelexBaselineSummaryV0 {
     let base_samples = bundler_productization_corpus();
     let scales = [1_usize, 2, 4];
@@ -892,6 +1098,7 @@ pub fn summarize_transform_relex_baseline() -> TransformRelexBaselineSummaryV0 {
         total_lex_token_count,
         lex_invocation_growth_exponent_milli: exponent_milli(invocation_growth_samples.as_slice()),
         lex_token_growth_exponent_milli: exponent_milli(token_growth_samples.as_slice()),
+        executor_spine: summarize_transform_executor_spine_assertion(),
         scales,
         samples,
     }
@@ -1444,6 +1651,33 @@ mod tests {
         assert!(snapshot.total_lex_invocation_count > 0);
         assert!(snapshot.total_lex_token_count > 0);
         assert!(snapshot.lex_token_growth_exponent_milli > 0);
+        assert!(snapshot.executor_spine.asserted);
+        assert!(snapshot.executor_spine.red_on_full_relex_witness);
+        assert!(
+            snapshot
+                .executor_spine
+                .current_lane
+                .max_lex_tokens_per_edited_byte_milli
+                <= snapshot
+                    .executor_spine
+                    .lex_tokens_per_edited_byte_bound_milli
+        );
+        assert!(
+            snapshot
+                .executor_spine
+                .full_relex_witness_lane
+                .max_lex_tokens_per_edited_byte_milli
+                > snapshot
+                    .executor_spine
+                    .lex_tokens_per_edited_byte_bound_milli
+        );
+        assert!(
+            snapshot.executor_spine.current_lane.total_lex_token_count
+                < snapshot
+                    .executor_spine
+                    .full_relex_witness_lane
+                    .total_lex_token_count
+        );
         assert!(
             snapshot
                 .samples

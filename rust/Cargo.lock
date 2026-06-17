@@ -2142,6 +2142,8 @@ dependencies = [
  "omena-abstract-value",
  "omena-parser",
  "omena-semantic",
+ "omena-transform-cst",
+ "omena-transform-passes",
  "omena-transform-print",
  "serde",
  "serde_json",
