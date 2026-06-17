@@ -972,6 +972,12 @@ fn apply_position_delta(position: usize, delta: isize) -> Option<usize> {
     }
 }
 
+/// Stamp each mutation span with the stable node key of the innermost original-source
+/// node it maps back to. `node_key` is **best-effort, additive metadata** (it never affects
+/// emitted CSS): a span in a later pass whose current coordinates straddle a prior-pass
+/// mutation boundary matches no single surviving segment, so it maps to `None` and the key
+/// is omitted rather than mis-attributed. The common case (a span fully inside one surviving
+/// region) maps through the composed coordinate map to the correct original interval.
 fn stamp_mutation_span_node_keys(
     mutation_spans: &mut [TransformProvenanceMutationSpanV0],
     coordinate_map: &TransformSpanCoordinateMapV0,
@@ -1009,4 +1015,62 @@ fn innermost_stable_node_key_for_span(
             )
         })
         .and_then(|node| node.node_key.clone())
+}
+
+#[cfg(test)]
+mod coordinate_map_tests {
+    use super::*;
+
+    fn mutation_span(
+        source_span_start: usize,
+        source_span_end: usize,
+        generated_span_start: usize,
+        generated_span_end: usize,
+    ) -> TransformProvenanceMutationSpanV0 {
+        TransformProvenanceMutationSpanV0 {
+            source_span_start,
+            source_span_end,
+            generated_span_start,
+            generated_span_end,
+            node_key: None,
+        }
+    }
+
+    // After a length-changing pass, a span in the drifted (post-pass) coordinate space must
+    // map back to the correct ORIGINAL-source interval. This is the multi-pass remap the
+    // node_key coordinate caveat exists to solve; it is RED if `apply_mutation_spans` were
+    // identity-only (it would return the un-remapped (5,7) instead of the original (3,5)).
+    #[test]
+    fn coordinate_map_remaps_post_mutation_span_to_original_after_one_pass() {
+        // original "abcdef" (len 6); pass replaces current [1,3) ("bc") with 4 bytes -> generated [1,5).
+        let mut map = TransformSpanCoordinateMapV0::new(6);
+        map.apply_mutation_spans(&[mutation_span(1, 3, 1, 5)]);
+        // post-pass output "a????def" (len 8); current [5,7) ("de") -> original [3,5) ("de").
+        assert_eq!(map.map_current_span_to_original(5, 7), Some((3, 5)));
+        // the surviving prefix still maps to itself.
+        assert_eq!(map.map_current_span_to_original(0, 1), Some((0, 1)));
+    }
+
+    // The remap composes across two stacked mutating passes (the case with zero prior coverage).
+    #[test]
+    fn coordinate_map_composes_across_two_mutating_passes() {
+        let mut map = TransformSpanCoordinateMapV0::new(6); // "abcdef"
+        // pass 1: current [1,3) -> 4 bytes (generated [1,5)); output len 8.
+        map.apply_mutation_spans(&[mutation_span(1, 3, 1, 5)]);
+        // pass 2 (coords in pass-1 output space, len 8): current [6,7) -> 3 bytes (generated [6,9)); output len 10.
+        map.apply_mutation_spans(&[mutation_span(6, 7, 6, 9)]);
+        // pass-2 output current [9,10) is the trailing original "f" at original [5,6).
+        assert_eq!(map.map_current_span_to_original(9, 10), Some((5, 6)));
+        assert_eq!(map.map_current_span_to_original(0, 1), Some((0, 1)));
+    }
+
+    // node_key is best-effort: a post-mutation span straddling a prior mutation boundary
+    // matches no single surviving segment and maps to None (omitted, never mis-attributed).
+    #[test]
+    fn coordinate_map_returns_none_for_post_mutation_straddling_span() {
+        let mut map = TransformSpanCoordinateMapV0::new(6);
+        map.apply_mutation_spans(&[mutation_span(1, 3, 1, 5)]);
+        // current [0,7) straddles the surviving prefix [0,1) and the shifted suffix [5,8).
+        assert_eq!(map.map_current_span_to_original(0, 7), None);
+    }
 }
