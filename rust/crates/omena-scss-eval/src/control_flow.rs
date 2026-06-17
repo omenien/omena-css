@@ -14,7 +14,7 @@ use serde::Serialize;
 
 use crate::{
     abstract_css_value_kind,
-    value_eval::{reduce_static_numeric_value, static_scss_literal_truthiness},
+    value_eval::{reduce_static_scss_value, static_scss_literal_truthiness},
 };
 
 const SCSS_CALL_RETURN_RECURSION_LIMIT: usize = 32;
@@ -525,7 +525,7 @@ fn scss_return_text_from_token(
 }
 
 fn static_scss_return_abstract_value(value: &str) -> AbstractCssValueV0 {
-    abstract_css_value_from_text(reduce_static_numeric_value(value.to_string()).as_str())
+    abstract_css_value_from_text(reduce_static_scss_value(value.to_string()).as_str())
 }
 
 fn scss_call_argument_values_from_symbol(
@@ -728,7 +728,7 @@ fn scss_call_argument_is_safe(value: &str) -> bool {
 }
 
 fn static_scss_argument_abstract_value(value: &str) -> AbstractCssValueV0 {
-    abstract_css_value_from_text(reduce_static_numeric_value(value.to_string()).as_str())
+    abstract_css_value_from_text(reduce_static_scss_value(value.to_string()).as_str())
 }
 
 fn call_return_node_from_candidate(
@@ -1996,6 +1996,68 @@ mod tests {
             Some(AbstractCssValueV0::Exact {
                 value: "3px".to_string()
             })
+        );
+    }
+
+    #[test]
+    fn call_return_ir_reports_static_scss_if_return_values_in_abstract_domain() {
+        let source = "@function gap() { @return if(false, 1px, 2px); } .a { width: gap(); }";
+        let report = summarize_scss_call_return_ir(source, StyleDialect::Scss);
+        assert!(report.is_some());
+        let Some(report) = report else {
+            return;
+        };
+        let return_node = report
+            .nodes
+            .iter()
+            .find(|node| node.kind == "functionReturn");
+        assert!(return_node.is_some());
+        let Some(return_node) = return_node else {
+            return;
+        };
+
+        assert_eq!(
+            return_node.return_text.as_deref(),
+            Some("if(false, 1px, 2px)")
+        );
+        assert_eq!(report.return_value_count, 1);
+        assert_eq!(report.exact_return_value_count, 1);
+        assert_eq!(report.raw_return_value_count, 0);
+        assert_eq!(return_node.return_value_kind, Some("exact"));
+        assert_eq!(
+            return_node.return_value,
+            Some(AbstractCssValueV0::Exact {
+                value: "2px".to_string()
+            })
+        );
+    }
+
+    #[test]
+    fn call_return_ir_reports_static_scss_if_argument_values_in_abstract_domain() {
+        let source =
+            "@function gap($value) { @return $value; } .a { width: gap(if(false, 1px, 2px)); }";
+        let report = summarize_scss_call_return_ir(source, StyleDialect::Scss);
+        assert!(report.is_some());
+        let Some(report) = report else {
+            return;
+        };
+        let function_call = report
+            .nodes
+            .iter()
+            .find(|node| node.kind == "functionCall" && node.name.as_deref() == Some("gap"));
+        assert!(function_call.is_some());
+        let Some(function_call) = function_call else {
+            return;
+        };
+
+        assert_eq!(function_call.argument_values.len(), 1);
+        assert_eq!(function_call.argument_values[0].text, "if(false, 1px, 2px)");
+        assert_eq!(function_call.argument_values[0].value_kind, "exact");
+        assert_eq!(
+            function_call.argument_values[0].value,
+            AbstractCssValueV0::Exact {
+                value: "2px".to_string()
+            }
         );
     }
 
