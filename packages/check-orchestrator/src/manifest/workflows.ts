@@ -47,6 +47,11 @@ const GOVERNED_CI_LEAF_CLASSIFICATIONS: readonly GovernedCiLeafClassification[] 
       "Golden snapshot regeneration command; the read-only emitted CSS gate is the CI validation surface.",
   },
   {
+    id: "rust/benchmark/transform-relex-baseline:update",
+    reason:
+      "Benchmark snapshot regeneration command; the read-only transform re-lex baseline gate is the CI validation surface.",
+  },
+  {
     id: "release/changeset",
     reason: "Release authoring command; not a CI validation gate.",
   },
