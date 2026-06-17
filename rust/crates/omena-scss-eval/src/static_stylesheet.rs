@@ -7,7 +7,7 @@ use serde::Serialize;
 
 use crate::{
     abstract_css_value_kind, summarize_omena_scss_eval_oracle,
-    value_eval::reduce_static_numeric_value,
+    value_eval::{reduce_static_numeric_value, reduce_static_scss_value},
 };
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -1474,7 +1474,7 @@ fn evaluate_static_scss_function_output_value(value: &str) -> StaticStylesheetAb
             StaticStylesheetResolutionReason::UnsupportedDynamic,
         );
     }
-    let rendered_value = reduce_static_numeric_value(value.to_string());
+    let rendered_value = reduce_static_scss_value(value.to_string());
     let abstract_value = abstract_css_value_from_text(rendered_value.as_str());
     let outcome = if matches!(abstract_value, AbstractCssValueV0::Raw { .. }) {
         StaticStylesheetResolutionOutcome::Raw
@@ -1499,6 +1499,7 @@ fn static_scss_function_value_contains_any_callable(value: &str) -> bool {
     let tokens = lexed.tokens();
     tokens.iter().enumerate().any(|(index, token)| {
         token.kind == SyntaxKind::Ident
+            && !token.text.eq_ignore_ascii_case("if")
             && tokens
                 .get(static_stylesheet_skip_trivia_tokens(tokens, index + 1))
                 .is_some_and(|candidate| candidate.kind == SyntaxKind::LeftParen)
@@ -1948,7 +1949,7 @@ fn resolve_static_scss_variable_abstract_value_text(
     if references.is_empty() {
         if static_stylesheet_literal_value_is_safe(value) {
             return resolved_static_abstract_value(
-                reduce_static_numeric_value(value.to_string()).as_str(),
+                reduce_static_scss_value(value.to_string()).as_str(),
             );
         }
         return raw_static_abstract_value(
@@ -1982,7 +1983,7 @@ fn resolve_static_scss_variable_abstract_value_text(
         cursor = reference.end;
     }
     output.push_str(&value[cursor..]);
-    resolved_static_abstract_value(reduce_static_numeric_value(output).as_str())
+    resolved_static_abstract_value(reduce_static_scss_value(output).as_str())
 }
 
 fn resolve_static_scss_variable_value_at_position(
@@ -2029,7 +2030,7 @@ fn resolve_static_scss_variable_value_in_scope(
         stack,
     );
     stack.remove(&stack_key);
-    resolved.map(reduce_static_numeric_value)
+    resolved.map(reduce_static_scss_value)
 }
 
 fn find_static_scss_variable_declaration<'a>(
@@ -2961,6 +2962,23 @@ mod tests {
     }
 
     #[test]
+    fn static_scss_evaluation_reduces_static_if_function_values() {
+        let report = derive_static_stylesheet_module_evaluation(
+            "$gap: if(false, 1px, 2px); .button { margin: $gap; }",
+            StyleDialect::Scss,
+        );
+        assert!(report.is_some());
+        let Some(report) = report else {
+            return;
+        };
+
+        assert_eq!(report.resolved_replacements[0].text, "2px");
+        assert_eq!(report.resolved_replacements[0].abstract_value_kind, "exact");
+        assert!(report.evaluated_css.contains(".button { margin: 2px; }"));
+        assert!(report.oracle.all_legacy_declaration_values_preserved);
+    }
+
+    #[test]
     fn static_less_evaluation_reduces_numeric_builtin_values() {
         let report = derive_static_stylesheet_module_evaluation(
             "@gap: max(1px, 2px); .button { margin: @gap; }",
@@ -3141,6 +3159,25 @@ mod tests {
         assert_eq!(report.resolved_replacements[0].text, "3px");
         assert_eq!(report.resolved_replacements[0].abstract_value_kind, "exact");
         assert!(report.evaluated_css.contains(".button { margin: 3px; }"));
+        assert!(report.oracle.all_legacy_declaration_values_preserved);
+    }
+
+    #[test]
+    fn static_scss_evaluation_reduces_static_if_function_returns() {
+        let report = derive_static_stylesheet_module_evaluation(
+            "@function choose($condition) { @return if($condition, 1px, 2px) + 1px; } .button { margin: choose(true); }",
+            StyleDialect::Scss,
+        );
+        assert!(report.is_some());
+        let Some(report) = report else {
+            return;
+        };
+
+        assert_eq!(report.replacement_count, 1);
+        assert_eq!(report.resolved_replacements[0].name, "function:choose");
+        assert_eq!(report.resolved_replacements[0].text, "2px");
+        assert_eq!(report.resolved_replacements[0].abstract_value_kind, "exact");
+        assert!(report.evaluated_css.contains(".button { margin: 2px; }"));
         assert!(report.oracle.all_legacy_declaration_values_preserved);
     }
 
