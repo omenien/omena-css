@@ -147,14 +147,11 @@ pub fn summarize_scss_control_flow_ir(
         return None;
     }
     let lexed = lex(source, dialect);
-    let mut ordinals = BTreeMap::<&'static str, usize>::new();
     let tokens = lexed.tokens();
     let blocks = tokens
         .iter()
         .enumerate()
-        .filter_map(|(index, token)| {
-            control_flow_block_from_token(source, tokens, index, token, &mut ordinals)
-        })
+        .filter_map(|(index, token)| control_flow_block_from_token(source, tokens, index, token))
         .collect::<Vec<_>>();
     let branch_block_count = blocks
         .iter()
@@ -204,10 +201,9 @@ pub fn summarize_scss_call_return_ir(
             .then(left.name.cmp(&right.name))
     });
 
-    let mut ordinals = BTreeMap::<&'static str, usize>::new();
     let mut nodes = candidates
         .into_iter()
-        .map(|candidate| call_return_node_from_candidate(candidate, &mut ordinals))
+        .map(call_return_node_from_candidate)
         .collect::<Vec<_>>();
     stamp_containing_declarations(&mut nodes, lexed.tokens());
 
@@ -382,14 +378,14 @@ fn collect_scss_return_candidates(tokens: &[LexedToken]) -> Vec<ScssCallReturnCa
 
 fn call_return_node_from_candidate(
     candidate: ScssCallReturnCandidate,
-    ordinals: &mut BTreeMap<&'static str, usize>,
 ) -> OmenaScssEvalCallReturnNodeV0 {
-    let ordinal = ordinals
-        .entry(candidate.kind)
-        .and_modify(|value| *value += 1)
-        .or_insert(0);
     OmenaScssEvalCallReturnNodeV0 {
-        node_key: StableNodeKeyV0(format!("scss-call-return:{}#{}", candidate.kind, *ordinal)),
+        node_key: scss_eval_stable_node_key(
+            "scss-call-return",
+            candidate.kind,
+            candidate.source_span_start,
+            candidate.source_span_end,
+        ),
         kind: candidate.kind,
         symbol_kind: candidate.symbol_kind,
         role: candidate.role,
@@ -625,28 +621,41 @@ fn control_flow_block_from_token(
     tokens: &[LexedToken],
     token_index: usize,
     token: &LexedToken,
-    ordinals: &mut BTreeMap<&'static str, usize>,
 ) -> Option<OmenaScssEvalControlFlowBlockV0> {
     if token.kind != SyntaxKind::AtKeyword {
         return None;
     }
     let node_kind = scss_control_node_kind_from_name(token.text.as_str())?;
     let kind = scss_control_block_kind(node_kind)?;
-    let ordinal = ordinals
-        .entry(kind)
-        .and_modify(|value| *value += 1)
-        .or_insert(0);
     let has_back_edge = scss_control_block_has_back_edge(node_kind);
+    let source_span_start = token.range.start().into();
+    let source_span_end = token.range.end().into();
     Some(OmenaScssEvalControlFlowBlockV0 {
-        node_key: StableNodeKeyV0(format!("scss-control:{kind}#{}", *ordinal)),
+        node_key: scss_eval_stable_node_key(
+            "scss-control",
+            kind,
+            source_span_start,
+            source_span_end,
+        ),
         kind,
         at_rule_name: token.text.to_string(),
         header_text: control_flow_header_text(source, tokens, token_index),
-        source_span_start: token.range.start().into(),
-        source_span_end: token.range.end().into(),
+        source_span_start,
+        source_span_end,
         successor_count: scss_control_block_successor_count(node_kind),
         has_back_edge,
     })
+}
+
+fn scss_eval_stable_node_key(
+    prefix: &str,
+    kind: &str,
+    source_span_start: usize,
+    source_span_end: usize,
+) -> StableNodeKeyV0 {
+    StableNodeKeyV0(format!(
+        "{prefix}:{kind}@{source_span_start}..{source_span_end}"
+    ))
 }
 
 fn control_flow_header_text(source: &str, tokens: &[LexedToken], token_index: usize) -> String {
@@ -1181,12 +1190,12 @@ mod tests {
         assert_eq!(report.branch_block_count, 2);
         assert_eq!(report.loop_block_count, 3);
         assert_eq!(report.back_edge_count, 3);
-        assert!(
-            report
-                .blocks
-                .iter()
-                .any(|block| block.node_key.as_str() == "scss-control:branchIf#0")
-        );
+        assert!(report.blocks.iter().any(|block| {
+            block
+                .node_key
+                .as_str()
+                .starts_with("scss-control:branchIf@")
+        }));
     }
 
     #[test]
@@ -1311,6 +1320,12 @@ mod tests {
                 .any(|edge| edge.kind == "functionReturn")
         );
         assert_eq!(report.recursive_edge_count, 0);
+        assert!(
+            report
+                .nodes
+                .iter()
+                .all(|node| node.node_key.as_str().contains('@'))
+        );
     }
 
     #[test]
