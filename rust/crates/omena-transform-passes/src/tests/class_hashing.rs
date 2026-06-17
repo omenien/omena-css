@@ -97,6 +97,24 @@ fn execution_runtime_preserves_global_composes_during_css_module_class_hashing()
         execution.executed_pass_ids,
         vec!["css-modules-class-hashing", "print-css"]
     );
+    let hash_node = execution
+        .provenance_derivation_forest
+        .nodes
+        .iter()
+        .find(|node| node.pass_id == "css-modules-class-hashing");
+    assert!(
+        hash_node.is_some(),
+        "missing css-modules-class-hashing provenance node"
+    );
+    if let Some(hash_node) = hash_node {
+        assert!(
+            hash_node.mutation_spans.iter().any(|span| {
+                span.node_key.as_ref().map(|key| key.as_str()) == Some("class-selector:button#0")
+            }),
+            "{:?}",
+            hash_node.mutation_spans
+        );
+    }
 }
 
 #[test]

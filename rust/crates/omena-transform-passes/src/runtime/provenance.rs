@@ -127,6 +127,7 @@ pub(crate) fn derive_transform_mutation_spans(
         source_span_end: input.len().saturating_sub(suffix),
         generated_span_start: prefix,
         generated_span_end: output.len().saturating_sub(suffix),
+        node_key: None,
     }]
 }
 
@@ -153,6 +154,7 @@ fn derive_changed_slice_mutation_span(
         source_span_end: source_end.saturating_sub(suffix),
         generated_span_start: generated_start + prefix,
         generated_span_end: generated_end.saturating_sub(suffix),
+        node_key: None,
     })
 }
 

@@ -8,7 +8,7 @@
 
 use omena_incremental::{IncrementalComputationPlanV0, IncrementalSnapshotV0};
 use omena_smt::CanonicalSmtInputV0;
-use omena_transform_cst::{TransformDagEdgeV0, TransformPassContractV0};
+use omena_transform_cst::{StableNodeKeyV0, TransformDagEdgeV0, TransformPassContractV0};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
@@ -113,6 +113,8 @@ pub struct TransformProvenanceMutationSpanV0 {
     pub source_span_end: usize,
     pub generated_span_start: usize,
     pub generated_span_end: usize,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub node_key: Option<StableNodeKeyV0>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]

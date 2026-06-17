@@ -5,7 +5,9 @@
 //! removal evidence for downstream query and consumer surfaces.
 
 use omena_parser::StyleDialect;
-use omena_transform_cst::TransformPassKind;
+use omena_transform_cst::{
+    StableTransformIrNodeV0, TransformPassKind, build_stable_transform_ir_from_source,
+};
 
 use super::{
     cascade_proof::{
@@ -17,6 +19,7 @@ use super::{
 };
 use crate::model::{
     TransformExecutionContextV0, TransformExecutionSummaryV0, TransformPassRuntimeStatus,
+    TransformProvenanceMutationSpanV0,
 };
 use crate::registry::{
     add_css_vendor_prefixes, combine_css_shorthands, compress_css_colors,
@@ -144,6 +147,10 @@ fn execute_transform_passes_on_source_with_active_lex_cache(
     context: &TransformExecutionContextV0,
 ) -> TransformExecutionSummaryV0 {
     let pass_plan = plan_transform_passes(requested);
+    let stable_ir =
+        build_stable_transform_ir_from_source(source, dialect, "omena-transform-passes.execution");
+    let stable_ir_nodes = stable_ir.nodes;
+    let mut coordinate_map = TransformSpanCoordinateMapV0::new(source.len());
     let requested_pass_ids = requested.iter().map(|pass| pass.id()).collect::<Vec<_>>();
     let ordered_pass_ids = pass_plan.ordered_pass_ids.clone();
     let reachable_class_names = reachable_class_names_with_composes_exports(
@@ -735,7 +742,13 @@ fn execute_transform_passes_on_source_with_active_lex_cache(
         };
         match next_output_css {
             Some(next_css) => {
-                let mutation_spans = derive_transform_mutation_spans(&pass_input_css, &next_css);
+                let mut mutation_spans =
+                    derive_transform_mutation_spans(&pass_input_css, &next_css);
+                stamp_mutation_span_node_keys(
+                    mutation_spans.as_mut_slice(),
+                    &coordinate_map,
+                    stable_ir_nodes.as_slice(),
+                );
                 if has_remaining_lex_consumers {
                     super::lex_cache::update_cached_lex_from_splice(
                         &pass_input_css,
@@ -744,6 +757,7 @@ fn execute_transform_passes_on_source_with_active_lex_cache(
                         mutation_spans.as_slice(),
                     );
                 }
+                coordinate_map.apply_mutation_spans(mutation_spans.as_slice());
                 outcome_mutation_spans.push(mutation_spans);
                 output_css = next_css;
             }
@@ -804,4 +818,185 @@ fn execute_transform_passes_on_source_with_active_lex_cache(
 
 fn transform_pass_may_consume_lex_cache(pass: TransformPassKind) -> bool {
     !matches!(pass, TransformPassKind::PrintCss)
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+struct TransformSpanMapSegmentV0 {
+    current_start: usize,
+    current_end: usize,
+    original_start: usize,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct TransformSpanCoordinateMapV0 {
+    segments: Vec<TransformSpanMapSegmentV0>,
+}
+
+impl TransformSpanCoordinateMapV0 {
+    fn new(source_len: usize) -> Self {
+        Self {
+            segments: vec![TransformSpanMapSegmentV0 {
+                current_start: 0,
+                current_end: source_len,
+                original_start: 0,
+            }],
+        }
+    }
+
+    fn map_current_span_to_original(
+        &self,
+        current_start: usize,
+        current_end: usize,
+    ) -> Option<(usize, usize)> {
+        let segment = self.segments.iter().find(|segment| {
+            segment.current_start <= current_start && current_end <= segment.current_end
+        })?;
+        let original_start = segment.original_start + current_start - segment.current_start;
+        let original_end = original_start + current_end.saturating_sub(current_start);
+        Some((original_start, original_end))
+    }
+
+    fn apply_mutation_spans(&mut self, mutation_spans: &[TransformProvenanceMutationSpanV0]) {
+        if mutation_spans.is_empty() {
+            return;
+        }
+
+        let mut sorted_spans = mutation_spans.to_vec();
+        sorted_spans.sort_by(|left, right| {
+            left.source_span_start
+                .cmp(&right.source_span_start)
+                .then_with(|| left.source_span_end.cmp(&right.source_span_end))
+        });
+
+        let mut next_segments = Vec::new();
+        for segment in &self.segments {
+            let mut cursor = segment.current_start;
+            for span in &sorted_spans {
+                if span.source_span_end <= cursor {
+                    continue;
+                }
+                if span.source_span_start >= segment.current_end {
+                    break;
+                }
+                let unchanged_end = span.source_span_start.min(segment.current_end);
+                self.push_mapped_piece(
+                    segment,
+                    cursor,
+                    unchanged_end,
+                    &sorted_spans,
+                    &mut next_segments,
+                );
+                cursor = cursor.max(span.source_span_end.min(segment.current_end));
+            }
+            self.push_mapped_piece(
+                segment,
+                cursor,
+                segment.current_end,
+                &sorted_spans,
+                &mut next_segments,
+            );
+        }
+        self.segments = next_segments;
+    }
+
+    fn push_mapped_piece(
+        &self,
+        segment: &TransformSpanMapSegmentV0,
+        current_start: usize,
+        current_end: usize,
+        mutation_spans: &[TransformProvenanceMutationSpanV0],
+        next_segments: &mut Vec<TransformSpanMapSegmentV0>,
+    ) {
+        if current_start >= current_end {
+            return;
+        }
+        let Some(next_start) =
+            map_current_position_through_mutations(current_start, mutation_spans)
+        else {
+            return;
+        };
+        let Some(next_end) = map_current_position_through_mutations(current_end, mutation_spans)
+        else {
+            return;
+        };
+        if next_start >= next_end {
+            return;
+        }
+        next_segments.push(TransformSpanMapSegmentV0 {
+            current_start: next_start,
+            current_end: next_end,
+            original_start: segment.original_start + current_start - segment.current_start,
+        });
+    }
+}
+
+fn map_current_position_through_mutations(
+    position: usize,
+    mutation_spans: &[TransformProvenanceMutationSpanV0],
+) -> Option<usize> {
+    let mut delta = 0isize;
+    for span in mutation_spans {
+        if position < span.source_span_start {
+            return apply_position_delta(position, delta);
+        }
+        if position <= span.source_span_end {
+            return (position == span.source_span_start)
+                .then(|| apply_position_delta(span.generated_span_start, 0))
+                .flatten()
+                .or_else(|| {
+                    (position == span.source_span_end)
+                        .then(|| apply_position_delta(span.generated_span_end, 0))
+                        .flatten()
+                });
+        }
+        delta = span.generated_span_end as isize - span.source_span_end as isize;
+    }
+    apply_position_delta(position, delta)
+}
+
+fn apply_position_delta(position: usize, delta: isize) -> Option<usize> {
+    if delta >= 0 {
+        position.checked_add(delta as usize)
+    } else {
+        position.checked_sub((-delta) as usize)
+    }
+}
+
+fn stamp_mutation_span_node_keys(
+    mutation_spans: &mut [TransformProvenanceMutationSpanV0],
+    coordinate_map: &TransformSpanCoordinateMapV0,
+    stable_ir_nodes: &[StableTransformIrNodeV0],
+) {
+    for span in mutation_spans {
+        let Some((original_start, original_end)) = coordinate_map
+            .map_current_span_to_original(span.source_span_start, span.source_span_end)
+        else {
+            continue;
+        };
+        span.node_key =
+            innermost_stable_node_key_for_span(original_start, original_end, stable_ir_nodes);
+    }
+}
+
+fn innermost_stable_node_key_for_span(
+    original_start: usize,
+    original_end: usize,
+    stable_ir_nodes: &[StableTransformIrNodeV0],
+) -> Option<omena_transform_cst::StableNodeKeyV0> {
+    stable_ir_nodes
+        .iter()
+        .filter(|node| {
+            let overlap_start = node.source_span_start.max(original_start);
+            let overlap_end = node.source_span_end.min(original_end);
+            overlap_start < overlap_end
+        })
+        .min_by_key(|node| {
+            let contains =
+                node.source_span_start <= original_start && original_end <= node.source_span_end;
+            (
+                usize::from(!contains),
+                node.source_span_end.saturating_sub(node.source_span_start),
+            )
+        })
+        .and_then(|node| node.node_key.clone())
 }
