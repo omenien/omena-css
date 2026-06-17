@@ -993,6 +993,8 @@ fn control_flow_block_from_token(
     let has_back_edge = scss_control_block_has_back_edge(node_kind);
     let source_span_start = token.range.start().into();
     let source_span_end = token.range.end().into();
+    let header_text = control_flow_header_text(source, tokens, token_index);
+    let successor_count = scss_control_block_successor_count(node_kind, header_text.as_str());
     Some(OmenaScssEvalControlFlowBlockV0 {
         node_key: scss_eval_stable_node_key(
             "scss-control",
@@ -1002,10 +1004,10 @@ fn control_flow_block_from_token(
         ),
         kind,
         at_rule_name: token.text.to_string(),
-        header_text: control_flow_header_text(source, tokens, token_index),
+        header_text,
         source_span_start,
         source_span_end,
-        successor_count: scss_control_block_successor_count(node_kind),
+        successor_count,
         has_back_edge,
     })
 }
@@ -1076,9 +1078,10 @@ const fn scss_control_block_has_back_edge(kind: SyntaxKind) -> bool {
     )
 }
 
-const fn scss_control_block_successor_count(kind: SyntaxKind) -> usize {
+fn scss_control_block_successor_count(kind: SyntaxKind, header: &str) -> usize {
     match kind {
         SyntaxKind::ScssControlIf => 2,
+        SyntaxKind::ScssControlElse if scss_else_if_header_condition(header).is_some() => 2,
         SyntaxKind::ScssControlElse => 1,
         SyntaxKind::ScssControlFor | SyntaxKind::ScssControlEach | SyntaxKind::ScssControlWhile => {
             2
@@ -1686,6 +1689,27 @@ mod tests {
                 .as_str()
                 .starts_with("scss-control:branchIf@")
         }));
+    }
+
+    #[test]
+    fn scss_control_flow_ir_counts_else_if_as_conditional_branch() {
+        let source = "$enabled: false; $fallback: true; @if $enabled { .on { color: green; } } @else if $fallback { .fallback { color: yellow; } } @else { .off { color: red; } }";
+        let report = summarize_scss_control_flow_ir(source, StyleDialect::Scss);
+        assert!(report.is_some());
+        let Some(report) = report else {
+            return;
+        };
+
+        assert_eq!(report.block_count, 3);
+        assert_eq!(report.branch_block_count, 3);
+        assert_eq!(report.edge_count, 5);
+        assert_eq!(report.blocks[0].kind, "branchIf");
+        assert_eq!(report.blocks[0].successor_count, 2);
+        assert_eq!(report.blocks[1].kind, "branchElse");
+        assert_eq!(report.blocks[1].header_text, "if $fallback");
+        assert_eq!(report.blocks[1].successor_count, 2);
+        assert_eq!(report.blocks[2].kind, "branchElse");
+        assert_eq!(report.blocks[2].successor_count, 1);
     }
 
     #[test]
