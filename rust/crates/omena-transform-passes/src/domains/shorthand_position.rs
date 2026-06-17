@@ -20,7 +20,7 @@ pub(crate) fn collect_background_position_axis_replacements(
     ranges
 }
 
-fn background_position_axis_replacement_for_declarations(
+pub(crate) fn background_position_axis_replacement_for_declarations(
     tokens: &[LexedToken],
     declarations: &[SimpleDeclarationSlice],
 ) -> Option<(usize, usize, String)> {

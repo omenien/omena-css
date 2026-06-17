@@ -26,12 +26,16 @@ pub fn smt_prove_box_shorthand_combination_v0<B: SmtBackendV0>(
     )
 }
 
-pub fn smt_prove_longhand_merge_v0<B: SmtBackendV0>(
+pub fn smt_prove_longhand_merge_v0<B, S>(
     shorthand_property: &str,
-    expected_longhands: &[&str],
+    expected_longhands: &[S],
     longhands: &[LonghandMergeInputV0],
     backend: &B,
-) -> CascadeSMTProofV0 {
+) -> CascadeSMTProofV0
+where
+    B: SmtBackendV0,
+    S: AsRef<str>,
+{
     let proof = prove_longhand_merge(shorthand_property, expected_longhands, longhands);
     let canonical_input =
         canonical_longhand_merge_input_v0(shorthand_property, expected_longhands, longhands);
@@ -126,17 +130,20 @@ fn canonical_box_shorthand_combination_input_v0(
     )
 }
 
-fn canonical_longhand_merge_input_v0(
+fn canonical_longhand_merge_input_v0<S>(
     shorthand_property: &str,
-    expected_longhands: &[&str],
+    expected_longhands: &[S],
     longhands: &[LonghandMergeInputV0],
-) -> CanonicalSmtInputV0 {
+) -> CanonicalSmtInputV0
+where
+    S: AsRef<str>,
+{
     let canonical_order = !expected_longhands.is_empty()
         && longhands.len() == expected_longhands.len()
         && longhands
             .iter()
             .zip(expected_longhands.iter())
-            .all(|(actual, expected)| actual.property == *expected);
+            .all(|(actual, expected)| actual.property == expected.as_ref());
     canonical_smt_input_v0(
         "longhand-merge",
         "prove_longhand_merge",

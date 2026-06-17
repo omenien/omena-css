@@ -10,11 +10,14 @@ use crate::{
     StaticSupportsAssumptionV0, StaticSupportsEvalVerdictV0, StaticSupportsEvalWitnessV0,
 };
 
-pub fn prove_longhand_merge(
+pub fn prove_longhand_merge<S>(
     shorthand_property: &str,
-    expected_longhands: &[&str],
+    expected_longhands: &[S],
     longhands: &[LonghandMergeInputV0],
-) -> LonghandMergeProofV0 {
+) -> LonghandMergeProofV0
+where
+    S: AsRef<str>,
+{
     if expected_longhands.is_empty() {
         return shorthand_combination_proof(
             shorthand_property,
@@ -38,7 +41,7 @@ pub fn prove_longhand_merge(
     if longhands
         .iter()
         .zip(expected_longhands.iter())
-        .any(|(actual, expected)| actual.property != *expected)
+        .any(|(actual, expected)| actual.property != expected.as_ref())
     {
         return shorthand_combination_proof(
             shorthand_property,

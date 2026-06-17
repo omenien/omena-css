@@ -25,7 +25,7 @@ fn execution_runtime_combines_adjacent_box_longhands_with_cascade_proof() {
         execution.cascade_proof_obligations.product,
         "omena-transform-passes.cascade-proof-obligations"
     );
-    assert_eq!(execution.cascade_proof_obligations.obligation_count, 4);
+    assert_eq!(execution.cascade_proof_obligations.obligation_count, 3);
     assert_eq!(execution.cascade_proof_obligations.accepted_count, 3);
     assert!(
         execution
@@ -48,17 +48,42 @@ fn execution_runtime_combines_adjacent_box_longhands_with_cascade_proof() {
                         .contains(&"canonicalLonghandMergeSet")
             })
     );
-    assert!(
-        execution
-            .cascade_proof_obligations
-            .obligations
-            .iter()
-            .any(|obligation| {
-                obligation.pass_id == "shorthand-combining"
-                    && !obligation.accepted
-                    && obligation.blocked_reason.as_deref()
-                        == Some("longhands are not in canonical merge order")
-            })
+}
+
+#[test]
+fn execution_runtime_emits_longhand_merge_witnesses_for_multiple_shorthand_families() {
+    let source = r#".a { row-gap: 1px; column-gap: 2px; align-items: center; justify-items: stretch; flex-direction: row; flex-wrap: wrap; list-style-type: none; list-style-position: outside; list-style-image: none; background-image: url(hero.png); background-repeat: repeat no-repeat; background-color: red; }"#;
+    let execution = execute_transform_passes_on_source(
+        source,
+        &[
+            TransformPassKind::ShorthandCombining,
+            TransformPassKind::PrintCss,
+        ],
+    );
+
+    assert_eq!(
+        execution.output_css,
+        r#".a { gap: 1px 2px; place-items: center stretch; flex-flow: wrap; list-style: none; background: url(hero.png) repeat-x red; }"#
+    );
+    let families = execution
+        .cascade_proof_obligations
+        .obligations
+        .iter()
+        .filter(|obligation| obligation.accepted)
+        .filter_map(|obligation| obligation.canonical_smt_input.as_ref())
+        .flat_map(|input| input.canonical_terms.iter())
+        .filter_map(|term| term.strip_prefix("merge-family:"))
+        .collect::<std::collections::BTreeSet<_>>();
+
+    assert_eq!(
+        families,
+        std::collections::BTreeSet::from([
+            "background",
+            "flex-flow",
+            "gap",
+            "list-style",
+            "place-items"
+        ])
     );
 }
 

@@ -1,6 +1,6 @@
 //! Optional e-graph rewrite boundary for Omena CSS transforms.
 //!
-//! Selector and computed-value rewrites are the current e-graph candidates.
+//! Selector, shorthand, and computed-value rewrites are the current e-graph candidates.
 //! This crate keeps their proof requirements explicit without forcing an
 //! e-graph dependency into the core transform path.
 
@@ -32,6 +32,10 @@ define_language! {
         "is" = Is(Id),
         "where" = Where(Id),
         "list" = List([Id; 2]),
+        "box1" = Box1(Id),
+        "box2" = Box2([Id; 2]),
+        "box3" = Box3([Id; 3]),
+        "box4" = Box4([Id; 4]),
     }
 }
 
@@ -219,6 +223,7 @@ pub fn summarize_omena_transform_egg_boundary() -> TransformEggBoundarySummaryV0
         proof_obligations: vec![
             "selector rewrites preserve specificity",
             "calc rewrites preserve computed value",
+            "shorthand rewrites preserve computed value",
             "all rewrites preserve provenance",
             "all accepted rewrites carry a cascade-safe witness",
         ],
@@ -280,7 +285,7 @@ pub fn summarize_contextual_eqsat_scaffold_v0() -> ContextualEqSatScaffoldV0 {
         ],
         supported_claims: vec![
             "optional egg equality-saturation rewrite boundary",
-            "selector and calc rewrite proof obligations",
+            "selector, calc, and shorthand rewrite proof obligations",
             "contextual equality-saturation scaffold for M6 positioning",
             "modal witness dependency declaration for #66/#73 paper substrate",
         ],
@@ -309,6 +314,10 @@ pub fn decide_egg_rewrite(candidate: EggRewriteCandidateV0) -> EggRewriteDecisio
         && !candidate.proof.computed_value_preserved
     {
         Some("calc rewrite does not preserve computed value")
+    } else if candidate.pass_id == TransformPassKind::ShorthandCombining.id()
+        && !candidate.proof.computed_value_preserved
+    {
+        Some("shorthand rewrite does not preserve computed value")
     } else {
         None
     };
@@ -387,10 +396,11 @@ pub fn execute_egg_rewrite_witnesses_for_css_source(
     witnesses
 }
 
-fn managed_egg_passes() -> [TransformPassKind; 2] {
+fn managed_egg_passes() -> [TransformPassKind; 3] {
     [
         TransformPassKind::SelectorIsWhereCompression,
         TransformPassKind::CalcReduction,
+        TransformPassKind::ShorthandCombining,
     ]
 }
 
@@ -801,6 +811,13 @@ where
         }
         return Some(rules);
     }
+    if pass_id == TransformPassKind::ShorthandCombining.id() {
+        return Some(vec![
+            egg_rewrite!("box4-all-equal"; "(box4 ?a ?a ?a ?a)" => "(box1 ?a)"),
+            egg_rewrite!("box4-vertical-horizontal"; "(box4 ?a ?b ?a ?b)" => "(box2 ?a ?b)"),
+            egg_rewrite!("box4-horizontal-pair"; "(box4 ?a ?b ?c ?b)" => "(box3 ?a ?b ?c)"),
+        ]);
+    }
     None
 }
 
@@ -834,21 +851,26 @@ mod tests {
     use super::{
         EggRewriteCandidateV0, EggRewriteProofV0, decide_egg_rewrite, execute_egg_rewrite,
         execute_egg_rewrite_witnesses_for_css_source, plan_egg_rewrite_passes,
-        plan_egg_rewrite_passes_for_source, summarize_contextual_eqsat_scaffold_v0,
-        summarize_mdl_extraction_mode, summarize_omena_transform_egg_boundary,
+        plan_egg_rewrite_passes_for_source, rewrite_rules_for_pass,
+        summarize_contextual_eqsat_scaffold_v0, summarize_mdl_extraction_mode,
+        summarize_omena_transform_egg_boundary,
     };
     use omena_transform_cst::TransformPassKind;
 
     #[test]
-    fn exposes_selector_and_calc_optional_egg_boundary() {
+    fn exposes_selector_calc_and_shorthand_optional_egg_boundary() {
         let boundary = summarize_omena_transform_egg_boundary();
 
         assert_eq!(boundary.product, "omena-transform-egg.boundary");
         assert_eq!(
             boundary.managed_pass_ids,
-            vec!["selector-is-where-compression", "calc-reduction"]
+            vec![
+                "selector-is-where-compression",
+                "calc-reduction",
+                "shorthand-combining"
+            ]
         );
-        assert_eq!(boundary.proof_obligations.len(), 4);
+        assert_eq!(boundary.proof_obligations.len(), 5);
     }
 
     #[test]
@@ -910,7 +932,11 @@ mod tests {
         assert_eq!(scaffold.paper_substrate_claim_level, "draftScaffoldOnly");
         assert_eq!(
             scaffold.managed_pass_ids,
-            vec!["selector-is-where-compression", "calc-reduction"]
+            vec![
+                "selector-is-where-compression",
+                "calc-reduction",
+                "shorthand-combining"
+            ]
         );
         assert!(
             scaffold
@@ -957,6 +983,27 @@ mod tests {
         assert_eq!(
             decision.blocked_reason,
             Some("calc rewrite does not preserve computed value")
+        );
+    }
+
+    #[test]
+    fn rejects_shorthand_rewrite_without_computed_value_witness() {
+        let decision = decide_egg_rewrite(EggRewriteCandidateV0 {
+            pass_id: TransformPassKind::ShorthandCombining.id(),
+            before: "(box4 0 0 0 0)".to_string(),
+            after: "(box1 0)".to_string(),
+            proof: EggRewriteProofV0 {
+                specificity_preserved: false,
+                computed_value_preserved: false,
+                provenance_preserved: true,
+                cascade_safe_witness: "candidate generated".to_string(),
+            },
+        });
+
+        assert!(!decision.accepted);
+        assert_eq!(
+            decision.blocked_reason,
+            Some("shorthand rewrite does not preserve computed value")
         );
     }
 
@@ -1084,6 +1131,38 @@ mod tests {
             assert!(execution.accepted, "{before} -> {after}");
             assert_eq!(execution.after, after);
         }
+    }
+
+    #[test]
+    fn executes_box_shorthand_rewrites_through_egg_engine() {
+        for (before, after) in [
+            ("(box4 0 0 0 0)", "(box1 0)"),
+            ("(box4 1 2 1 2)", "(box2 1 2)"),
+            ("(box4 1 2 3 2)", "(box3 1 2 3)"),
+        ] {
+            let execution = execute_egg_rewrite(EggRewriteCandidateV0 {
+                pass_id: TransformPassKind::ShorthandCombining.id(),
+                before: before.to_string(),
+                after: after.to_string(),
+                proof: EggRewriteProofV0 {
+                    specificity_preserved: false,
+                    computed_value_preserved: true,
+                    provenance_preserved: true,
+                    cascade_safe_witness: "box shorthand expansion preserves computed value"
+                        .to_string(),
+                },
+            });
+
+            assert!(execution.accepted, "{before} -> {after}");
+            assert_eq!(execution.after, after);
+        }
+    }
+
+    #[test]
+    fn exposes_shorthand_rewrite_rules_for_managed_pass() {
+        let rules = rewrite_rules_for_pass::<()>(TransformPassKind::ShorthandCombining.id());
+
+        assert!(rules.is_some_and(|rules| rules.len() == 3));
     }
 
     #[test]

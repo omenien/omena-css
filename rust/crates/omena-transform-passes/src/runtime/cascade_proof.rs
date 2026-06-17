@@ -198,7 +198,7 @@ fn shorthand_obligation(
     source_span_start: usize,
     source_span_end: usize,
     shorthand_property: &str,
-    expected_longhands: &[&str],
+    expected_longhands: &[String],
     longhands: &[LonghandMergeInputV0],
     proof: ShorthandCombinationProofV0,
 ) -> TransformCascadeProofObligationV0 {

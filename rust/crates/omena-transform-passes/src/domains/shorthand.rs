@@ -23,6 +23,7 @@ use crate::{
             animation_shorthand_replacement_for_declarations, compress_animation_value,
             compress_transition_value, transition_shorthand_replacement_for_declarations,
         },
+        shorthand_position::background_position_axis_replacement_for_declarations,
         shorthand_position::collect_background_position_axis_replacements,
         shorthand_text::{
             collect_text_emphasis_replacements, compress_text_decoration_value,
@@ -47,7 +48,7 @@ pub(crate) struct LonghandMergeProofCandidateV0 {
     pub(crate) source_span_start: usize,
     pub(crate) source_span_end: usize,
     pub(crate) shorthand_property: &'static str,
-    pub(crate) expected_longhands: Vec<&'static str>,
+    pub(crate) expected_longhands: Vec<String>,
     pub(crate) longhands: Vec<LonghandMergeInputV0>,
     pub(crate) proof: LonghandMergeProofV0,
 }
@@ -342,47 +343,242 @@ fn collect_longhand_merge_proof_candidates_in_block(
     let declarations = collect_simple_declarations_in_block(tokens, block_start, block_end);
     let mut candidates = Vec::new();
 
+    let mut index = 0;
+    while index + 7 < declarations.len() {
+        let window = &declarations[index..index + 8];
+        if let Some((start, end, replacement)) =
+            animation_shorthand_replacement_for_declarations(tokens, window)
+            && let Some(shorthand_property) = shorthand_property_from_replacement(&replacement)
+            && let Some(candidate) =
+                longhand_merge_proof_candidate(shorthand_property, window, start, end)
+        {
+            candidates.push(candidate);
+            index += 8;
+            continue;
+        }
+        index += 1;
+    }
+
+    let mut index = 0;
+    while index + 6 < declarations.len() {
+        let window = &declarations[index..index + 7];
+        if let Some((start, end, replacement)) =
+            font_shorthand_replacement_for_declarations(tokens, window)
+            && let Some(shorthand_property) = shorthand_property_from_replacement(&replacement)
+            && let Some(candidate) =
+                longhand_merge_proof_candidate(shorthand_property, window, start, end)
+        {
+            candidates.push(candidate);
+            index += 7;
+            continue;
+        }
+        index += 1;
+    }
+
+    let mut index = 0;
+    while index + 5 < declarations.len() {
+        let window = &declarations[index..index + 6];
+        if let Some((start, end, replacement)) =
+            logical_line_axis_shorthand_replacement_for_longhand_declarations(tokens, window)
+            && let Some(shorthand_property) = shorthand_property_from_replacement(&replacement)
+            && let Some(candidate) =
+                longhand_merge_proof_candidate(shorthand_property, window, start, end)
+        {
+            candidates.push(candidate);
+            index += 6;
+            continue;
+        }
+        index += 1;
+    }
+
+    let mut index = 0;
+    while index + 4 < declarations.len() {
+        let window = &declarations[index..index + 5];
+        if let Some((start, end, replacement)) =
+            border_image_shorthand_replacement_for_declarations(tokens, window)
+            && let Some(shorthand_property) = shorthand_property_from_replacement(&replacement)
+            && let Some(candidate) =
+                longhand_merge_proof_candidate(shorthand_property, window, start, end)
+        {
+            candidates.push(candidate);
+            index += 5;
+            continue;
+        }
+        index += 1;
+    }
+
     for window in declarations.windows(4) {
-        let Some(shorthand_property) =
-            box_shorthand_property_for_first_longhand(&window[0].property)
-        else {
-            continue;
-        };
-        let Some(expected_longhands) = box_shorthand_longhands(shorthand_property) else {
-            continue;
-        };
-        let proof_inputs = window
-            .iter()
-            .map(|declaration| LonghandMergeInputV0 {
-                property: declaration.property.clone(),
-                value: declaration.value.clone(),
-                important: declaration.important,
-                source_order: declaration.source_order,
-            })
-            .collect::<Vec<_>>();
-        let proof = prove_longhand_merge(shorthand_property, &expected_longhands, &proof_inputs);
-        candidates.push(LonghandMergeProofCandidateV0 {
-            source_span_start: window.first().map_or(0, |declaration| declaration.start),
-            source_span_end: window.last().map_or(0, |declaration| declaration.end),
-            shorthand_property,
-            expected_longhands,
-            longhands: proof_inputs,
-            proof,
-        });
+        collect_four_longhand_merge_proof_candidates(tokens, window, &mut candidates);
+    }
+
+    for window in declarations.windows(3) {
+        collect_three_longhand_merge_proof_candidates(
+            tokens,
+            &declarations,
+            window,
+            &mut candidates,
+        );
+    }
+
+    for window in declarations.windows(2) {
+        collect_two_longhand_merge_proof_candidates(tokens, window, &mut candidates);
     }
 
     candidates
 }
 
-fn box_shorthand_property_for_first_longhand(property: &str) -> Option<&'static str> {
+fn collect_four_longhand_merge_proof_candidates(
+    tokens: &[LexedToken],
+    window: &[SimpleDeclarationSlice],
+    candidates: &mut Vec<LonghandMergeProofCandidateV0>,
+) {
+    let replacements = [
+        border_side_shorthand_replacement_for_declarations(tokens, window),
+        box_shorthand_replacement_for_declarations(tokens, window),
+        border_radius_shorthand_replacement_for_declarations(tokens, window),
+        inset_shorthand_replacement_for_declarations(tokens, window),
+        text_decoration_shorthand_replacement_for_declarations(tokens, window),
+        transition_shorthand_replacement_for_declarations(tokens, window),
+    ];
+    for replacement in replacements.into_iter().flatten() {
+        push_longhand_merge_candidate_for_replacement(window, replacement, candidates);
+    }
+}
+
+fn collect_three_longhand_merge_proof_candidates(
+    tokens: &[LexedToken],
+    block_declarations: &[SimpleDeclarationSlice],
+    window: &[SimpleDeclarationSlice],
+    candidates: &mut Vec<LonghandMergeProofCandidateV0>,
+) {
+    let replacements = [
+        list_style_shorthand_replacement_for_declarations(tokens, window),
+        line_shorthand_replacement_for_declarations(tokens, window),
+        background_component_shorthand_replacement_for_declarations(
+            tokens,
+            block_declarations,
+            window,
+        ),
+        flex_longhand_replacement_for_declarations(tokens, window),
+    ];
+    for replacement in replacements.into_iter().flatten() {
+        push_longhand_merge_candidate_for_replacement(window, replacement, candidates);
+    }
+}
+
+fn collect_two_longhand_merge_proof_candidates(
+    tokens: &[LexedToken],
+    window: &[SimpleDeclarationSlice],
+    candidates: &mut Vec<LonghandMergeProofCandidateV0>,
+) {
+    let replacements = [
+        logical_line_axis_shorthand_replacement_for_declarations(tokens, window),
+        overflow_axis_replacement_for_declarations(tokens, window),
+        place_axis_replacement_for_declarations(tokens, window),
+        gap_axis_replacement_for_declarations(tokens, window),
+        flex_flow_replacement_for_declarations(tokens, window),
+        background_position_axis_replacement_for_declarations(tokens, window),
+    ];
+    for replacement in replacements.into_iter().flatten() {
+        push_longhand_merge_candidate_for_replacement(window, replacement, candidates);
+    }
+}
+
+fn push_longhand_merge_candidate_for_replacement(
+    declarations: &[SimpleDeclarationSlice],
+    replacement: (usize, usize, String),
+    candidates: &mut Vec<LonghandMergeProofCandidateV0>,
+) {
+    let (start, end, replacement) = replacement;
+    let Some(shorthand_property) = shorthand_property_from_replacement(&replacement) else {
+        return;
+    };
+    let Some(candidate) =
+        longhand_merge_proof_candidate(shorthand_property, declarations, start, end)
+    else {
+        return;
+    };
+    if candidates.iter().any(|existing| {
+        existing.source_span_start == candidate.source_span_start
+            && existing.source_span_end == candidate.source_span_end
+            && existing.shorthand_property == candidate.shorthand_property
+    }) {
+        return;
+    }
+    candidates.push(candidate);
+}
+
+fn longhand_merge_proof_candidate(
+    shorthand_property: &'static str,
+    declarations: &[SimpleDeclarationSlice],
+    source_span_start: usize,
+    source_span_end: usize,
+) -> Option<LonghandMergeProofCandidateV0> {
+    let expected_longhands = declarations
+        .iter()
+        .map(|declaration| declaration.property.clone())
+        .collect::<Vec<_>>();
+    let proof_inputs = declarations
+        .iter()
+        .map(|declaration| LonghandMergeInputV0 {
+            property: declaration.property.clone(),
+            value: declaration.value.clone(),
+            important: declaration.important,
+            source_order: declaration.source_order,
+        })
+        .collect::<Vec<_>>();
+    let proof = prove_longhand_merge(shorthand_property, &expected_longhands, &proof_inputs);
+    Some(LonghandMergeProofCandidateV0 {
+        source_span_start,
+        source_span_end,
+        shorthand_property,
+        expected_longhands,
+        longhands: proof_inputs,
+        proof,
+    })
+}
+
+fn shorthand_property_from_replacement(replacement: &str) -> Option<&'static str> {
+    let property = replacement.split_once(':')?.0.trim();
     match property {
-        "margin-top" => Some("margin"),
-        "padding-top" => Some("padding"),
-        "border-top-color" => Some("border-color"),
-        "border-top-style" => Some("border-style"),
-        "border-top-width" => Some("border-width"),
-        "scroll-margin-top" => Some("scroll-margin"),
-        "scroll-padding-top" => Some("scroll-padding"),
+        "animation" => Some("animation"),
+        "background" => Some("background"),
+        "background-position" => Some("background-position"),
+        "border" => Some("border"),
+        "border-block" => Some("border-block"),
+        "border-block-end" => Some("border-block-end"),
+        "border-block-start" => Some("border-block-start"),
+        "border-bottom" => Some("border-bottom"),
+        "border-color" => Some("border-color"),
+        "border-image" => Some("border-image"),
+        "border-inline" => Some("border-inline"),
+        "border-inline-end" => Some("border-inline-end"),
+        "border-inline-start" => Some("border-inline-start"),
+        "border-left" => Some("border-left"),
+        "border-radius" => Some("border-radius"),
+        "border-right" => Some("border-right"),
+        "border-style" => Some("border-style"),
+        "border-top" => Some("border-top"),
+        "border-width" => Some("border-width"),
+        "column-rule" => Some("column-rule"),
+        "flex" => Some("flex"),
+        "flex-flow" => Some("flex-flow"),
+        "font" => Some("font"),
+        "gap" => Some("gap"),
+        "inset" => Some("inset"),
+        "list-style" => Some("list-style"),
+        "margin" => Some("margin"),
+        "outline" => Some("outline"),
+        "overflow" => Some("overflow"),
+        "padding" => Some("padding"),
+        "place-content" => Some("place-content"),
+        "place-items" => Some("place-items"),
+        "place-self" => Some("place-self"),
+        "scroll-margin" => Some("scroll-margin"),
+        "scroll-padding" => Some("scroll-padding"),
+        "text-decoration" => Some("text-decoration"),
+        "text-emphasis" => Some("text-emphasis"),
+        "transition" => Some("transition"),
         _ => None,
     }
 }

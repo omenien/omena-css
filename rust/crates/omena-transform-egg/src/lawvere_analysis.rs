@@ -160,6 +160,16 @@ impl LawvereComputedValueCarrierV0 {
                 computed_value_obligation_ready: true,
                 expression_kinds: vec!["divExpression"],
             },
+            CssRewriteLanguage::Box1(_)
+            | CssRewriteLanguage::Box2(_)
+            | CssRewriteLanguage::Box3(_)
+            | CssRewriteLanguage::Box4(_) => Self {
+                exact_numeric_value: None,
+                exact_unit: None,
+                exact_value_candidates: Vec::new(),
+                computed_value_obligation_ready: true,
+                expression_kinds: vec!["boxShorthandExpression"],
+            },
             _ => Self::default(),
         }
     }
@@ -268,7 +278,11 @@ impl Analysis<CssRewriteLanguage> for LawvereAnalysis {
             | CssRewriteLanguage::Mul(_)
             | CssRewriteLanguage::Div(_)
             | CssRewriteLanguage::Calc(_)
-            | CssRewriteLanguage::Unit(_) => AbstractDomainTagV0::TokenValue,
+            | CssRewriteLanguage::Unit(_)
+            | CssRewriteLanguage::Box1(_)
+            | CssRewriteLanguage::Box2(_)
+            | CssRewriteLanguage::Box3(_)
+            | CssRewriteLanguage::Box4(_) => AbstractDomainTagV0::TokenValue,
             CssRewriteLanguage::Is(_)
             | CssRewriteLanguage::Where(_)
             | CssRewriteLanguage::List(_) => AbstractDomainTagV0::SelectorShape,
@@ -349,6 +363,10 @@ fn lawvere_enode_kind(enode: &CssRewriteLanguage) -> &'static str {
         CssRewriteLanguage::Div(_) => "div",
         CssRewriteLanguage::Calc(_) => "calc",
         CssRewriteLanguage::Unit(_) => "unit",
+        CssRewriteLanguage::Box1(_) => "box1",
+        CssRewriteLanguage::Box2(_) => "box2",
+        CssRewriteLanguage::Box3(_) => "box3",
+        CssRewriteLanguage::Box4(_) => "box4",
         CssRewriteLanguage::Is(_) => "is",
         CssRewriteLanguage::Where(_) => "where",
         CssRewriteLanguage::List(_) => "list",
