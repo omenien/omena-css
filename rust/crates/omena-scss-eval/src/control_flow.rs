@@ -1503,6 +1503,9 @@ fn loop_carried_binding_values(
     if let Some(values) = static_each_map_loop_binding_values(header, lexical_bindings) {
         return values;
     }
+    if let Some(values) = static_each_tuple_loop_binding_values(header, lexical_bindings) {
+        return values;
+    }
     let value = loop_carried_value(header, lexical_bindings);
     loop_carried_bindings(header)
         .into_iter()
@@ -1551,6 +1554,38 @@ fn static_each_map_loop_binding_values(
             value: item_value,
         },
     ])
+}
+
+fn static_each_tuple_loop_binding_values(
+    header: &str,
+    lexical_bindings: &BTreeMap<String, AbstractCssValueV0>,
+) -> Option<Vec<ScssControlFlowBindingValue>> {
+    let bindings = loop_carried_bindings(header);
+    if bindings.len() <= 1 {
+        return None;
+    }
+    let (_, source) = split_header_at_keyword(header, "in")?;
+    let source = static_each_source_text(source.trim(), lexical_bindings)?;
+    let entries = parse_static_each_tuple_entries(source, bindings.len())?;
+    if entries.len() > 64 {
+        return None;
+    }
+
+    Some(
+        bindings
+            .into_iter()
+            .enumerate()
+            .map(|(index, name)| {
+                let value = entries
+                    .iter()
+                    .map(|entry| abstract_css_value_from_text(entry[index].as_str()))
+                    .fold(AbstractCssValueV0::Bottom, |acc, value| {
+                        join_abstract_css_values(&acc, &value)
+                    });
+                ScssControlFlowBindingValue { name, value }
+            })
+            .collect(),
+    )
 }
 
 fn while_loop_carried_binding_values(header: &str) -> Vec<ScssControlFlowBindingValue> {
@@ -1627,7 +1662,12 @@ fn parse_static_each_loop_source_value(
         return None;
     }
     let source_variables = variable_names_in_text(source);
-    if !source_variables.is_empty() {
+    let source_text = if source_is_single_static_variable(source) {
+        lexical_bindings
+            .get(source)
+            .and_then(single_static_scss_header_value_text)
+            .unwrap_or(source)
+    } else if !source_variables.is_empty() {
         return Some(
             source_variables
                 .iter()
@@ -1641,12 +1681,10 @@ fn parse_static_each_loop_source_value(
                     join_abstract_css_values(&acc, &value)
                 }),
         );
-    }
-    let values = source
-        .split(',')
-        .map(str::trim)
-        .filter(|value| !value.is_empty())
-        .collect::<Vec<_>>();
+    } else {
+        source
+    };
+    let values = split_static_scss_top_level(source_text, ',')?;
     if values.len() <= 1 || values.len() > 64 {
         return None;
     }
@@ -1654,17 +1692,21 @@ fn parse_static_each_loop_source_value(
         values
             .into_iter()
             .fold(AbstractCssValueV0::Bottom, |acc, value| {
-                let value = abstract_css_value_from_text(value);
+                let value = abstract_css_value_from_text(value.as_str());
                 join_abstract_css_values(&acc, &value)
             }),
     )
+}
+
+fn source_is_single_static_variable(source: &str) -> bool {
+    source.starts_with('$') && variable_name_end(source, '$'.len_utf8()) == source.len()
 }
 
 fn static_each_source_text<'a>(
     source: &'a str,
     lexical_bindings: &'a BTreeMap<String, AbstractCssValueV0>,
 ) -> Option<&'a str> {
-    if source.starts_with('$') && variable_name_end(source, '$'.len_utf8()) == source.len() {
+    if source_is_single_static_variable(source) {
         return lexical_bindings
             .get(source)
             .and_then(single_static_scss_header_value_text);
@@ -1703,6 +1745,63 @@ fn split_static_scss_key_value(entry: &str) -> Option<(&str, &str)> {
     Some((key, value))
 }
 
+fn parse_static_each_tuple_entries(source: &str, arity: usize) -> Option<Vec<Vec<String>>> {
+    let entries = split_static_scss_top_level(source.trim(), ',')?;
+    if entries.len() <= 1 {
+        return None;
+    }
+
+    let mut tuples = Vec::with_capacity(entries.len());
+    for entry in entries {
+        let values = parse_static_each_tuple_entry_values(entry.as_str(), arity)?;
+        tuples.push(values);
+    }
+    Some(tuples)
+}
+
+fn parse_static_each_tuple_entry_values(entry: &str, arity: usize) -> Option<Vec<String>> {
+    let entry = strip_static_scss_outer_container(entry.trim()).unwrap_or_else(|| entry.trim());
+    let comma_values = split_static_scss_top_level(entry, ',')?;
+    let values = if comma_values.len() == arity {
+        comma_values
+    } else {
+        split_static_scss_top_level_whitespace(entry)?
+    };
+    if values.len() != arity
+        || values
+            .iter()
+            .any(|value| !static_each_tuple_value_is_static(value))
+    {
+        return None;
+    }
+    Some(values)
+}
+
+fn static_each_tuple_value_is_static(value: &str) -> bool {
+    !value.is_empty()
+        && !value.contains('$')
+        && static_scss_top_level_separator_index(value, ':').is_some_and(|index| index.is_none())
+}
+
+fn strip_static_scss_outer_container(value: &str) -> Option<&str> {
+    let trimmed = value.trim();
+    if trimmed.len() < 2 {
+        return None;
+    }
+    let (open, close) = match trimmed.chars().next()? {
+        '(' => ('(', ')'),
+        '[' => ('[', ']'),
+        _ => return None,
+    };
+    let end = static_scss_balanced_value_end(trimmed, 0, open, close)?;
+    if end != trimmed.len() {
+        return None;
+    }
+    trimmed
+        .get(open.len_utf8()..trimmed.len().saturating_sub(close.len_utf8()))
+        .map(str::trim)
+}
+
 fn split_static_scss_top_level(source: &str, separator: char) -> Option<Vec<String>> {
     let mut values = Vec::new();
     let mut cursor = 0usize;
@@ -1724,6 +1823,39 @@ fn split_static_scss_top_level(source: &str, separator: char) -> Option<Vec<Stri
         return None;
     }
     values.push(value.to_string());
+    Some(values)
+}
+
+fn split_static_scss_top_level_whitespace(source: &str) -> Option<Vec<String>> {
+    let mut values = Vec::new();
+    let mut cursor = 0usize;
+    let mut index = 0usize;
+    while index < source.len() {
+        let ch = source[index..].chars().next()?;
+        if ch.is_ascii_whitespace() {
+            let value = source.get(cursor..index)?.trim();
+            if !value.is_empty() {
+                values.push(value.to_string());
+            }
+            index += ch.len_utf8();
+            while index < source.len() {
+                let Some(next_ch) = source[index..].chars().next() else {
+                    break;
+                };
+                if !next_ch.is_ascii_whitespace() {
+                    break;
+                }
+                index += next_ch.len_utf8();
+            }
+            cursor = index;
+            continue;
+        }
+        index = static_scss_next_value_index(source, index)?;
+    }
+    let value = source.get(cursor..)?.trim();
+    if !value.is_empty() {
+        values.push(value.to_string());
+    }
     Some(values)
 }
 
@@ -2311,6 +2443,91 @@ mod tests {
             report.blocks[0].loop_carried_binding_values[1].value,
             AbstractCssValueV0::FiniteSet {
                 values: vec!["#00f".to_string(), "red".to_string()]
+            }
+        );
+    }
+
+    #[test]
+    fn control_flow_value_analysis_tracks_static_each_tuple_pair_values() {
+        let source =
+            "@each $icon, $size in (save, 16px), (cancel, 24px) { .#{$icon} { width: $size; } }";
+        let report = analyze_scss_control_flow_values(source, StyleDialect::Scss);
+        assert!(report.is_some());
+        let Some(report) = report else {
+            return;
+        };
+
+        assert_eq!(report.block_count, 1);
+        assert_eq!(
+            report.blocks[0].loop_carried_bindings,
+            vec!["$icon", "$size"]
+        );
+        assert_eq!(
+            report.blocks[0].loop_carried_binding_values[0].value,
+            AbstractCssValueV0::FiniteSet {
+                values: vec!["cancel".to_string(), "save".to_string()]
+            }
+        );
+        assert_eq!(
+            report.blocks[0].loop_carried_binding_values[1].value,
+            AbstractCssValueV0::FiniteSet {
+                values: vec!["16px".to_string(), "24px".to_string()]
+            }
+        );
+        assert_eq!(report.blocks[0].output_value_kind, "finiteSet");
+    }
+
+    #[test]
+    fn control_flow_value_analysis_tracks_static_each_tuple_variable_pair_values() {
+        let source = "$pairs: (save, 16px), (cancel, 24px); @each $icon, $size in $pairs { .#{$icon} { width: $size; } }";
+        let report = analyze_scss_control_flow_values(source, StyleDialect::Scss);
+        assert!(report.is_some());
+        let Some(report) = report else {
+            return;
+        };
+
+        assert_eq!(report.block_count, 1);
+        assert_eq!(
+            report.blocks[0].loop_carried_bindings,
+            vec!["$icon", "$size"]
+        );
+        assert_eq!(
+            report.blocks[0].loop_carried_binding_values[0].value,
+            AbstractCssValueV0::FiniteSet {
+                values: vec!["cancel".to_string(), "save".to_string()]
+            }
+        );
+        assert_eq!(
+            report.blocks[0].loop_carried_binding_values[1].value,
+            AbstractCssValueV0::FiniteSet {
+                values: vec!["16px".to_string(), "24px".to_string()]
+            }
+        );
+    }
+
+    #[test]
+    fn control_flow_value_analysis_tracks_static_each_space_tuple_pair_values() {
+        let source = "@each $icon, $size in save 16px, cancel 24px { .#{$icon} { width: $size; } }";
+        let report = analyze_scss_control_flow_values(source, StyleDialect::Scss);
+        assert!(report.is_some());
+        let Some(report) = report else {
+            return;
+        };
+
+        assert_eq!(
+            report.blocks[0].loop_carried_bindings,
+            vec!["$icon", "$size"]
+        );
+        assert_eq!(
+            report.blocks[0].loop_carried_binding_values[0].value,
+            AbstractCssValueV0::FiniteSet {
+                values: vec!["cancel".to_string(), "save".to_string()]
+            }
+        );
+        assert_eq!(
+            report.blocks[0].loop_carried_binding_values[1].value,
+            AbstractCssValueV0::FiniteSet {
+                values: vec!["16px".to_string(), "24px".to_string()]
             }
         );
     }
