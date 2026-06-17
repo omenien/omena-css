@@ -1283,7 +1283,8 @@ fn evaluate_static_scss_function_output_value(value: &str) -> StaticStylesheetAb
             StaticStylesheetResolutionReason::UnsupportedDynamic,
         );
     }
-    let abstract_value = abstract_css_value_from_text(value);
+    let rendered_value = reduce_static_parenthesized_numeric_value(value.to_string());
+    let abstract_value = abstract_css_value_from_text(rendered_value.as_str());
     let outcome = if matches!(abstract_value, AbstractCssValueV0::Raw { .. }) {
         StaticStylesheetResolutionOutcome::Raw
     } else {
@@ -1295,7 +1296,7 @@ fn evaluate_static_scss_function_output_value(value: &str) -> StaticStylesheetAb
         StaticStylesheetResolutionReason::Resolved
     };
     StaticStylesheetAbstractResolution {
-        rendered_value: Some(value.to_string()),
+        rendered_value: Some(rendered_value),
         abstract_value,
         outcome,
         reason,
@@ -1962,7 +1963,7 @@ fn resolve_static_less_variable_abstract_value_in_scope(
     stack.remove(&stack_key);
     if let Some(rendered_value) = resolved.rendered_value.as_deref() {
         return resolved_static_abstract_value(
-            reduce_static_less_parenthesized_numeric_value(rendered_value.to_string()).as_str(),
+            reduce_static_parenthesized_numeric_value(rendered_value.to_string()).as_str(),
         );
     }
     resolved
@@ -2042,7 +2043,7 @@ fn resolve_static_less_variable_value_in_scope(
         stack,
     );
     stack.remove(&stack_key);
-    resolved.map(reduce_static_less_parenthesized_numeric_value)
+    resolved.map(reduce_static_parenthesized_numeric_value)
 }
 
 fn find_static_less_variable_declaration<'a>(
@@ -2250,7 +2251,7 @@ fn resolve_static_less_property_value_text(
     Some(output)
 }
 
-fn reduce_static_less_parenthesized_numeric_value(value: String) -> String {
+fn reduce_static_parenthesized_numeric_value(value: String) -> String {
     let trimmed = value.trim();
     let Some(inner) = trimmed
         .strip_prefix('(')
@@ -2705,6 +2706,28 @@ mod tests {
         assert_eq!(report.value_resolution.reference_count, 1);
         assert_eq!(report.value_resolution.resolved_count, 1);
         assert!(report.oracle.all_legacy_declaration_values_preserved);
+    }
+
+    #[test]
+    fn static_scss_evaluation_reduces_function_numeric_returns() {
+        let report = derive_static_stylesheet_module_evaluation(
+            "@function double($value) { @return ($value + $value); } .button { margin: double(2px); }",
+            StyleDialect::Scss,
+        );
+        assert!(report.is_some());
+        let Some(report) = report else {
+            return;
+        };
+
+        assert_eq!(report.replacement_count, 1);
+        assert_eq!(report.resolved_replacements[0].name, "function:double");
+        assert_eq!(report.resolved_replacements[0].text, "4px");
+        assert_eq!(report.resolved_replacements[0].abstract_value_kind, "exact");
+        assert!(report.evaluated_css.contains(".button { margin: 4px; }"));
+        assert_eq!(
+            report.value_resolution.values[0].rendered_value.as_deref(),
+            Some("4px")
+        );
     }
 
     #[test]
