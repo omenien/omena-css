@@ -1928,6 +1928,7 @@ fn dialect_label(dialect: StyleDialect) -> &'static str {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::fmt::Write as _;
 
     #[test]
     fn static_scss_evaluation_emits_abstract_replacement_values() {
@@ -2029,5 +2030,26 @@ mod tests {
             report.values[0].rendered_value.as_deref(),
             Some("color.mix(red, blue)")
         );
+    }
+
+    #[test]
+    fn static_value_resolution_reports_fuel_exhaustion_as_top() {
+        let mut source = String::new();
+        for index in 0..130 {
+            let _ = write!(source, "@v{index}: @v{}; ", index + 1);
+        }
+        source.push_str("@v130: 1px; .button { width: @v0; }");
+
+        let report = summarize_static_stylesheet_value_resolution(&source, StyleDialect::Less);
+        assert!(report.is_some());
+        let Some(report) = report else {
+            return;
+        };
+
+        assert_eq!(report.reference_count, 1);
+        assert_eq!(report.top_count, 1);
+        assert_eq!(report.fuel_exhausted_count, 1);
+        assert_eq!(report.values[0].outcome, "top");
+        assert_eq!(report.values[0].reason, "fuelExhausted");
     }
 }
