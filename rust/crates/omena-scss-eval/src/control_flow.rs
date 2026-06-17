@@ -358,10 +358,13 @@ pub fn analyze_scss_control_flow_values(
         .enumerate()
         .map(|(index, block)| {
             let predecessor_indices = control_flow_predecessor_indices(index, block);
+            let previous_block = index
+                .checked_sub(1)
+                .and_then(|index| summary.blocks.get(index));
             ScssControlFlowAnalysisNode {
                 block: block.clone(),
                 predecessor_indices,
-                transfer: control_flow_transfer_for_block(block, &lexical_bindings),
+                transfer: control_flow_transfer_for_block(block, previous_block, &lexical_bindings),
             }
         })
         .collect::<Vec<_>>();
@@ -1277,6 +1280,7 @@ fn control_flow_predecessor_indices(
 
 fn control_flow_transfer_for_block(
     block: &OmenaScssEvalControlFlowBlockV0,
+    previous_block: Option<&OmenaScssEvalControlFlowBlockV0>,
     lexical_bindings: &BTreeMap<String, AbstractCssValueV0>,
 ) -> ScssControlFlowTransfer {
     match block.at_rule_name.to_ascii_lowercase().as_str() {
@@ -1291,8 +1295,53 @@ fn control_flow_transfer_for_block(
                 value: loop_carried_value(block.header_text.as_str(), lexical_bindings),
             }
         }
-        "@else" => ScssControlFlowTransfer::PassThrough,
+        "@else" => control_flow_transfer_for_else_block(block, previous_block, lexical_bindings),
         _ => ScssControlFlowTransfer::PassThrough,
+    }
+}
+
+fn control_flow_transfer_for_else_block(
+    block: &OmenaScssEvalControlFlowBlockV0,
+    previous_block: Option<&OmenaScssEvalControlFlowBlockV0>,
+    lexical_bindings: &BTreeMap<String, AbstractCssValueV0>,
+) -> ScssControlFlowTransfer {
+    if let Some(condition) = scss_else_if_header_condition(block.header_text.as_str()) {
+        return ScssControlFlowTransfer::BranchCondition {
+            value: scss_header_value(condition, lexical_bindings),
+        };
+    }
+    if previous_block.is_some_and(|block| block.at_rule_name.eq_ignore_ascii_case("@if")) {
+        return ScssControlFlowTransfer::BranchCondition {
+            value: inverted_scss_branch_condition_value(
+                previous_block
+                    .map(|block| block.header_text.as_str())
+                    .unwrap_or(""),
+                lexical_bindings,
+            ),
+        };
+    }
+    ScssControlFlowTransfer::PassThrough
+}
+
+fn scss_else_if_header_condition(header: &str) -> Option<&str> {
+    let trimmed = header.trim();
+    let prefix = trimmed.get(..2)?;
+    let rest = trimmed.get(2..)?;
+    if !prefix.eq_ignore_ascii_case("if") || !rest.chars().next().is_some_and(char::is_whitespace) {
+        return None;
+    }
+    Some(rest.trim()).filter(|condition| !condition.is_empty())
+}
+
+fn inverted_scss_branch_condition_value(
+    header: &str,
+    lexical_bindings: &BTreeMap<String, AbstractCssValueV0>,
+) -> AbstractCssValueV0 {
+    let value = scss_header_value(header, lexical_bindings);
+    match scss_static_truthiness_label(&value) {
+        Some("truthy") => abstract_css_value_from_text("false"),
+        Some("falsey") => abstract_css_value_from_text("true"),
+        _ => AbstractCssValueV0::Top,
     }
 }
 
@@ -1788,6 +1837,39 @@ mod tests {
         assert_eq!(report.block_count, 1);
         assert_eq!(report.blocks[0].transfer_kind, "branchCondition");
         assert_eq!(report.blocks[0].transfer_truthiness, Some("truthy"));
+    }
+
+    #[test]
+    fn control_flow_value_analysis_reports_sass_else_branch_truthiness() {
+        let source = "$enabled: false; @if $enabled { .on { color: green; } } @else { .off { color: red; } }";
+        let report = analyze_scss_control_flow_values(source, StyleDialect::Scss);
+        assert!(report.is_some());
+        let Some(report) = report else {
+            return;
+        };
+
+        assert_eq!(report.block_count, 2);
+        assert_eq!(report.blocks[0].kind, "branchIf");
+        assert_eq!(report.blocks[0].transfer_kind, "branchCondition");
+        assert_eq!(report.blocks[0].transfer_truthiness, Some("falsey"));
+        assert_eq!(report.blocks[1].kind, "branchElse");
+        assert_eq!(report.blocks[1].transfer_kind, "branchCondition");
+        assert_eq!(report.blocks[1].transfer_truthiness, Some("truthy"));
+    }
+
+    #[test]
+    fn control_flow_value_analysis_reports_sass_else_if_branch_truthiness() {
+        let source = "$enabled: false; @if $enabled { .on { color: green; } } @else if not $enabled { .off { color: red; } }";
+        let report = analyze_scss_control_flow_values(source, StyleDialect::Scss);
+        assert!(report.is_some());
+        let Some(report) = report else {
+            return;
+        };
+
+        assert_eq!(report.block_count, 2);
+        assert_eq!(report.blocks[1].kind, "branchElse");
+        assert_eq!(report.blocks[1].transfer_kind, "branchCondition");
+        assert_eq!(report.blocks[1].transfer_truthiness, Some("truthy"));
     }
 
     #[test]
