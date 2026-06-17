@@ -818,6 +818,14 @@ struct StaticScssFunctionCall {
     arguments: Vec<StaticScssFunctionArgument>,
 }
 
+#[derive(Debug, Clone, Copy)]
+struct StaticScssFunctionResolutionContext<'a> {
+    declarations: &'a [StaticScssFunctionDeclaration],
+    scopes: &'a [StaticStylesheetScope],
+    variable_declarations: &'a [StaticStylesheetScopedVariableDeclaration],
+    active_functions: &'a BTreeSet<String>,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 struct StaticScssFunctionArgument {
     name: Option<String>,
@@ -849,7 +857,10 @@ fn collect_static_scss_function_evaluation_edits(
     let mut edits = Vec::new();
     let mut replacements = Vec::new();
     let mut used_declaration_names = BTreeSet::new();
-    for call in &calls {
+    for call in calls
+        .iter()
+        .filter(|call| !static_scss_function_call_is_inside_declaration_body(call, declarations))
+    {
         let resolution = resolve_static_scss_function_call_abstract_value(
             call,
             declarations,
@@ -874,6 +885,7 @@ fn collect_static_scss_function_evaluation_edits(
             replacement: rendered_value,
         });
     }
+    extend_static_scss_used_function_dependencies(&mut used_declaration_names, declarations);
 
     for declaration in declarations.iter().filter(|declaration| {
         used_declaration_names.contains(&canonical_static_scss_function_name(
@@ -900,6 +912,7 @@ fn collect_static_scss_function_value_resolution_values(
     let calls = collect_static_scss_function_calls(source, tokens, declarations)?;
     let values = calls
         .into_iter()
+        .filter(|call| !static_scss_function_call_is_inside_declaration_body(call, declarations))
         .map(|call| {
             let resolution = resolve_static_scss_function_call_abstract_value(
                 &call,
@@ -1213,6 +1226,80 @@ fn static_scss_function_position_is_inside_declaration_header(
         .any(|declaration| position >= declaration.span_start && position < declaration.body_start)
 }
 
+fn static_scss_function_call_is_inside_declaration_body(
+    call: &StaticScssFunctionCall,
+    declarations: &[StaticScssFunctionDeclaration],
+) -> bool {
+    declarations.iter().any(|declaration| {
+        call.start >= declaration.body_start && call.start < declaration.body_end
+    })
+}
+
+fn extend_static_scss_used_function_dependencies(
+    used_declaration_names: &mut BTreeSet<String>,
+    declarations: &[StaticScssFunctionDeclaration],
+) {
+    let declaration_names = declarations
+        .iter()
+        .map(|declaration| canonical_static_scss_function_name(declaration.name.as_str()))
+        .collect::<BTreeSet<_>>();
+    let mut changed = true;
+    while changed {
+        changed = false;
+        for declaration in declarations {
+            let declaration_name = canonical_static_scss_function_name(declaration.name.as_str());
+            if !used_declaration_names.contains(&declaration_name) {
+                continue;
+            }
+            for dependency_name in
+                static_scss_function_dependency_names(declaration, &declaration_names)
+            {
+                if used_declaration_names.insert(dependency_name) {
+                    changed = true;
+                }
+            }
+        }
+    }
+}
+
+fn static_scss_function_dependency_names(
+    declaration: &StaticScssFunctionDeclaration,
+    declaration_names: &BTreeSet<String>,
+) -> Vec<String> {
+    std::iter::once(declaration.return_value.as_str())
+        .chain(
+            declaration
+                .local_variables
+                .iter()
+                .map(|local_variable| local_variable.value.as_str()),
+        )
+        .flat_map(|value| static_scss_callable_names_in_value(value, declaration_names))
+        .collect()
+}
+
+fn static_scss_callable_names_in_value(
+    value: &str,
+    declaration_names: &BTreeSet<String>,
+) -> Vec<String> {
+    let lexed = lex(value, StyleDialect::Scss);
+    let tokens = lexed.tokens();
+    tokens
+        .iter()
+        .enumerate()
+        .filter_map(|(index, token)| {
+            if token.kind != SyntaxKind::Ident || token.text.eq_ignore_ascii_case("if") {
+                return None;
+            }
+            let canonical_name = canonical_static_scss_function_name(token.text.as_str());
+            (declaration_names.contains(&canonical_name)
+                && tokens
+                    .get(static_stylesheet_skip_trivia_tokens(tokens, index + 1))
+                    .is_some_and(|candidate| candidate.kind == SyntaxKind::LeftParen))
+            .then_some(canonical_name)
+        })
+        .collect()
+}
+
 fn split_static_scss_function_arguments(
     arguments: &str,
 ) -> Option<Vec<StaticScssFunctionArgument>> {
@@ -1349,6 +1436,24 @@ fn resolve_static_scss_function_call_abstract_value(
     variable_declarations: &[StaticStylesheetScopedVariableDeclaration],
     fuel: usize,
 ) -> StaticStylesheetAbstractResolution {
+    resolve_static_scss_function_call_abstract_value_with_stack(
+        call,
+        declarations,
+        scopes,
+        variable_declarations,
+        fuel,
+        &BTreeSet::new(),
+    )
+}
+
+fn resolve_static_scss_function_call_abstract_value_with_stack(
+    call: &StaticScssFunctionCall,
+    declarations: &[StaticScssFunctionDeclaration],
+    scopes: &[StaticStylesheetScope],
+    variable_declarations: &[StaticStylesheetScopedVariableDeclaration],
+    fuel: usize,
+    active_functions: &BTreeSet<String>,
+) -> StaticStylesheetAbstractResolution {
     if fuel == 0 {
         return top_static_abstract_value(StaticStylesheetResolutionReason::FuelExhausted);
     }
@@ -1361,6 +1466,18 @@ fn resolve_static_scss_function_call_abstract_value(
     if call.start >= declaration.body_start && call.start < declaration.body_end {
         return top_static_abstract_value(StaticStylesheetResolutionReason::Cycle);
     }
+    let canonical_declaration_name = canonical_static_scss_function_name(declaration.name.as_str());
+    if active_functions.contains(&canonical_declaration_name) {
+        return top_static_abstract_value(StaticStylesheetResolutionReason::Cycle);
+    }
+    let mut next_active_functions = active_functions.clone();
+    next_active_functions.insert(canonical_declaration_name);
+    let context = StaticScssFunctionResolutionContext {
+        declarations,
+        scopes,
+        variable_declarations,
+        active_functions: &next_active_functions,
+    };
     let Some(bound_arguments) = bind_static_scss_function_arguments(declaration, call) else {
         return raw_static_abstract_value(
             call.name.as_str(),
@@ -1380,9 +1497,8 @@ fn resolve_static_scss_function_call_abstract_value(
             argument.as_str(),
             &argument_values,
             call.start,
-            scopes,
-            variable_declarations,
             fuel - 1,
+            context,
         );
         let Some(rendered_value) = resolution.rendered_value else {
             return top_static_abstract_value(resolution.reason);
@@ -1404,9 +1520,8 @@ fn resolve_static_scss_function_call_abstract_value(
             local_variable.value.as_str(),
             &argument_values,
             local_variable.span_start,
-            scopes,
-            variable_declarations,
             fuel - 1,
+            context,
         );
         if resolution.outcome == StaticStylesheetResolutionOutcome::Top {
             return top_static_abstract_value(resolution.reason);
@@ -1420,9 +1535,8 @@ fn resolve_static_scss_function_call_abstract_value(
     resolve_static_scss_function_return_abstract_value(
         declaration,
         &argument_values,
-        scopes,
-        variable_declarations,
         fuel - 1,
+        context,
     )
 }
 
@@ -1486,34 +1600,30 @@ fn resolve_static_scss_function_argument_abstract_value(
     argument: &str,
     argument_values: &BTreeMap<String, String>,
     call_position: usize,
-    scopes: &[StaticStylesheetScope],
-    variable_declarations: &[StaticStylesheetScopedVariableDeclaration],
     fuel: usize,
+    context: StaticScssFunctionResolutionContext<'_>,
 ) -> StaticStylesheetAbstractResolution {
     resolve_static_scss_function_value_with_bindings(
         argument,
         argument_values,
         call_position,
-        scopes,
-        variable_declarations,
         fuel,
+        context,
     )
 }
 
 fn resolve_static_scss_function_return_abstract_value(
     declaration: &StaticScssFunctionDeclaration,
     argument_values: &BTreeMap<String, String>,
-    scopes: &[StaticStylesheetScope],
-    variable_declarations: &[StaticStylesheetScopedVariableDeclaration],
     fuel: usize,
+    context: StaticScssFunctionResolutionContext<'_>,
 ) -> StaticStylesheetAbstractResolution {
     resolve_static_scss_function_value_with_bindings(
         declaration.return_value.as_str(),
         argument_values,
         declaration.span_start,
-        scopes,
-        variable_declarations,
         fuel,
+        context,
     )
 }
 
@@ -1521,9 +1631,8 @@ fn resolve_static_scss_function_value_with_bindings(
     value: &str,
     argument_values: &BTreeMap<String, String>,
     fallback_position: usize,
-    scopes: &[StaticStylesheetScope],
-    variable_declarations: &[StaticStylesheetScopedVariableDeclaration],
     fuel: usize,
+    context: StaticScssFunctionResolutionContext<'_>,
 ) -> StaticStylesheetAbstractResolution {
     let Some(references) =
         collect_static_stylesheet_variable_references(value, StaticStylesheetVariableKind::Scss)
@@ -1534,7 +1643,7 @@ fn resolve_static_scss_function_value_with_bindings(
         );
     };
     if references.is_empty() {
-        return evaluate_static_scss_function_output_value(value);
+        return resolve_static_scss_known_function_calls_in_value(value, fuel, context);
     }
 
     let mut output = String::with_capacity(value.len());
@@ -1548,8 +1657,8 @@ fn resolve_static_scss_function_value_with_bindings(
             resolve_static_scss_variable_abstract_value_at_position(
                 reference.name.as_str(),
                 fallback_position,
-                scopes,
-                variable_declarations,
+                context.scopes,
+                context.variable_declarations,
                 &mut stack,
                 fuel,
             )
@@ -1560,6 +1669,110 @@ fn resolve_static_scss_function_value_with_bindings(
         output.push_str(&value[cursor..reference.start]);
         output.push_str(&rendered_value);
         cursor = reference.end;
+    }
+    output.push_str(&value[cursor..]);
+    resolve_static_scss_known_function_calls_in_value(output.as_str(), fuel, context)
+}
+
+fn resolve_static_scss_known_function_calls_in_value(
+    value: &str,
+    fuel: usize,
+    context: StaticScssFunctionResolutionContext<'_>,
+) -> StaticStylesheetAbstractResolution {
+    if fuel == 0 {
+        return top_static_abstract_value(StaticStylesheetResolutionReason::FuelExhausted);
+    }
+    let declaration_names = context
+        .declarations
+        .iter()
+        .map(|declaration| canonical_static_scss_function_name(declaration.name.as_str()))
+        .collect::<BTreeSet<_>>();
+    let lexed = lex(value, StyleDialect::Scss);
+    let tokens = lexed.tokens();
+    let mut output = String::with_capacity(value.len());
+    let mut cursor = 0usize;
+    let mut index = 0usize;
+    let mut replaced_any = false;
+
+    while index < tokens.len() {
+        let token = &tokens[index];
+        if token.kind != SyntaxKind::Ident || token.text.eq_ignore_ascii_case("if") {
+            index += 1;
+            continue;
+        }
+        let canonical_name = canonical_static_scss_function_name(token.text.as_str());
+        if !declaration_names.contains(&canonical_name) {
+            index += 1;
+            continue;
+        }
+        let open_index = static_stylesheet_skip_trivia_tokens(tokens, index + 1);
+        if tokens
+            .get(open_index)
+            .is_none_or(|candidate| candidate.kind != SyntaxKind::LeftParen)
+        {
+            index += 1;
+            continue;
+        }
+        let Some(close_index) = static_stylesheet_matching_token_index(
+            tokens,
+            open_index,
+            SyntaxKind::LeftParen,
+            SyntaxKind::RightParen,
+        ) else {
+            return raw_static_abstract_value(
+                value,
+                StaticStylesheetResolutionReason::UnsupportedDynamic,
+            );
+        };
+        let call_start = static_stylesheet_token_start(token);
+        let call_end = static_stylesheet_token_end(&tokens[close_index]);
+        let Some(argument_text) = value.get(
+            static_stylesheet_token_end(&tokens[open_index])
+                ..static_stylesheet_token_start(&tokens[close_index]),
+        ) else {
+            return raw_static_abstract_value(
+                value,
+                StaticStylesheetResolutionReason::UnsupportedDynamic,
+            );
+        };
+        let Some(arguments) = split_static_scss_function_arguments(argument_text) else {
+            return raw_static_abstract_value(
+                value,
+                StaticStylesheetResolutionReason::UnsupportedDynamic,
+            );
+        };
+        let nested_call = StaticScssFunctionCall {
+            name: token.text.clone(),
+            start: usize::MAX,
+            end: usize::MAX,
+            arguments,
+        };
+        let resolution = resolve_static_scss_function_call_abstract_value_with_stack(
+            &nested_call,
+            context.declarations,
+            context.scopes,
+            context.variable_declarations,
+            fuel - 1,
+            context.active_functions,
+        );
+        if resolution.outcome == StaticStylesheetResolutionOutcome::Top {
+            return top_static_abstract_value(resolution.reason);
+        }
+        if resolution.outcome == StaticStylesheetResolutionOutcome::Raw {
+            return raw_static_abstract_value(value, resolution.reason);
+        }
+        let Some(rendered_value) = resolution.rendered_value else {
+            return top_static_abstract_value(resolution.reason);
+        };
+        output.push_str(&value[cursor..call_start]);
+        output.push_str(rendered_value.as_str());
+        cursor = call_end;
+        replaced_any = true;
+        index = close_index + 1;
+    }
+
+    if !replaced_any {
+        return evaluate_static_scss_function_output_value(value);
     }
     output.push_str(&value[cursor..]);
     evaluate_static_scss_function_output_value(output.as_str())
@@ -3634,6 +3847,70 @@ mod tests {
     }
 
     #[test]
+    fn static_scss_evaluation_resolves_composed_same_file_function_calls() {
+        let report = derive_static_stylesheet_module_evaluation(
+            "@function inc($value) { @return $value + 1px; } @function gap($value) { @return inc($value) + 1px; } .button { margin: gap(2px); }",
+            StyleDialect::Scss,
+        );
+        assert!(report.is_some());
+        let Some(report) = report else {
+            return;
+        };
+
+        assert_eq!(report.replacement_count, 1);
+        assert_eq!(report.resolved_replacements[0].name, "function:gap");
+        assert_eq!(report.resolved_replacements[0].text, "4px");
+        assert_eq!(report.resolved_replacements[0].abstract_value_kind, "exact");
+        assert!(!report.evaluated_css.contains("@function"));
+        assert!(report.evaluated_css.contains(".button { margin: 4px; }"));
+        assert!(report.oracle.all_legacy_declaration_values_preserved);
+    }
+
+    #[test]
+    fn static_scss_evaluation_resolves_local_values_with_same_file_function_calls() {
+        let report = derive_static_stylesheet_module_evaluation(
+            "@function inc($value) { @return $value + 1px; } @function gap($value) { $next: inc($value); @return $next + 1px; } .button { margin: gap(2px); }",
+            StyleDialect::Scss,
+        );
+        assert!(report.is_some());
+        let Some(report) = report else {
+            return;
+        };
+
+        assert_eq!(report.replacement_count, 1);
+        assert_eq!(report.resolved_replacements[0].name, "function:gap");
+        assert_eq!(report.resolved_replacements[0].text, "4px");
+        assert_eq!(report.resolved_replacements[0].abstract_value_kind, "exact");
+        assert!(!report.evaluated_css.contains("@function"));
+        assert!(report.evaluated_css.contains(".button { margin: 4px; }"));
+        assert!(report.oracle.all_legacy_declaration_values_preserved);
+    }
+
+    #[test]
+    fn static_scss_evaluation_reports_indirect_recursive_function_calls_as_top() {
+        let report = derive_static_stylesheet_module_evaluation(
+            "@function a($value) { @return b($value); } @function b($value) { @return a($value); } .button { color: a(red); }",
+            StyleDialect::Scss,
+        );
+        assert!(report.is_none());
+
+        let resolution = summarize_static_stylesheet_value_resolution(
+            "@function a($value) { @return b($value); } @function b($value) { @return a($value); } .button { color: a(red); }",
+            StyleDialect::Scss,
+        );
+        assert!(resolution.is_some());
+        let Some(resolution) = resolution else {
+            return;
+        };
+
+        assert_eq!(resolution.reference_count, 1);
+        assert_eq!(resolution.top_count, 1);
+        assert_eq!(resolution.cycle_count, 1);
+        assert_eq!(resolution.values[0].outcome, "top");
+        assert_eq!(resolution.values[0].reason, "cycle");
+    }
+
+    #[test]
     fn static_scss_evaluation_skips_recursive_function_calls() {
         let report = derive_static_stylesheet_module_evaluation(
             "@function loop($value) { @return loop($value); } .button { color: loop(red); }",
@@ -3650,9 +3927,9 @@ mod tests {
             return;
         };
 
-        assert_eq!(resolution.reference_count, 2);
-        assert_eq!(resolution.top_count, 2);
-        assert_eq!(resolution.cycle_count, 2);
+        assert_eq!(resolution.reference_count, 1);
+        assert_eq!(resolution.top_count, 1);
+        assert_eq!(resolution.cycle_count, 1);
         assert!(
             resolution
                 .values
