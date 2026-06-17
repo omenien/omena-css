@@ -1113,6 +1113,10 @@ enum ScssControlFlowTransfer {
     BranchCondition {
         value: AbstractCssValueV0,
     },
+    LoopCondition {
+        bindings: Vec<ScssControlFlowBindingValue>,
+        value: AbstractCssValueV0,
+    },
     LoopCarried {
         bindings: Vec<ScssControlFlowBindingValue>,
         value: AbstractCssValueV0,
@@ -1130,6 +1134,7 @@ impl ScssControlFlowTransfer {
     const fn kind_label(&self) -> &'static str {
         match self {
             Self::BranchCondition { .. } => "branchCondition",
+            Self::LoopCondition { .. } => "loopCondition",
             Self::LoopCarried { .. } => "loopCarriedBindings",
             Self::PassThrough => "passThrough",
         }
@@ -1137,7 +1142,7 @@ impl ScssControlFlowTransfer {
 
     fn loop_carried_bindings(&self) -> Vec<String> {
         match self {
-            Self::LoopCarried { bindings, .. } => bindings
+            Self::LoopCondition { bindings, .. } | Self::LoopCarried { bindings, .. } => bindings
                 .iter()
                 .map(|binding| binding.name.clone())
                 .collect(),
@@ -1147,7 +1152,7 @@ impl ScssControlFlowTransfer {
 
     fn loop_carried_binding_values(&self) -> Vec<OmenaScssEvalControlFlowBindingValueV0> {
         match self {
-            Self::LoopCarried { bindings, .. } => bindings
+            Self::LoopCondition { bindings, .. } | Self::LoopCarried { bindings, .. } => bindings
                 .iter()
                 .map(|binding| OmenaScssEvalControlFlowBindingValueV0 {
                     name: binding.name.clone(),
@@ -1161,25 +1166,27 @@ impl ScssControlFlowTransfer {
 
     fn transfer_value(&self) -> Option<AbstractCssValueV0> {
         match self {
-            Self::BranchCondition { value } | Self::LoopCarried { value, .. } => {
-                Some(value.clone())
-            }
+            Self::BranchCondition { value }
+            | Self::LoopCondition { value, .. }
+            | Self::LoopCarried { value, .. } => Some(value.clone()),
             Self::PassThrough => None,
         }
     }
 
     fn transfer_truthiness(&self) -> Option<&'static str> {
         match self {
-            Self::BranchCondition { value } => scss_static_truthiness_label(value),
+            Self::BranchCondition { value } | Self::LoopCondition { value, .. } => {
+                scss_static_truthiness_label(value)
+            }
             Self::LoopCarried { .. } | Self::PassThrough => None,
         }
     }
 
     fn apply(&self, input_value: &AbstractCssValueV0) -> AbstractCssValueV0 {
         match self {
-            Self::BranchCondition { value } | Self::LoopCarried { value, .. } => {
-                join_abstract_css_values(input_value, value)
-            }
+            Self::BranchCondition { value }
+            | Self::LoopCondition { value, .. }
+            | Self::LoopCarried { value, .. } => join_abstract_css_values(input_value, value),
             Self::PassThrough => input_value.clone(),
         }
     }
@@ -1293,7 +1300,11 @@ fn control_flow_transfer_for_block(
     lexical_bindings: &BTreeMap<String, AbstractCssValueV0>,
 ) -> ScssControlFlowTransfer {
     match block.at_rule_name.to_ascii_lowercase().as_str() {
-        "@if" | "@while" => ScssControlFlowTransfer::BranchCondition {
+        "@if" => ScssControlFlowTransfer::BranchCondition {
+            value: scss_header_value(block.header_text.as_str(), lexical_bindings),
+        },
+        "@while" => ScssControlFlowTransfer::LoopCondition {
+            bindings: while_loop_carried_binding_values(block.header_text.as_str()),
             value: scss_header_value(block.header_text.as_str(), lexical_bindings),
         },
         "@for" | "@each" => {
@@ -1495,6 +1506,16 @@ fn loop_carried_binding_values(
         .map(|name| ScssControlFlowBindingValue {
             name,
             value: value.clone(),
+        })
+        .collect()
+}
+
+fn while_loop_carried_binding_values(header: &str) -> Vec<ScssControlFlowBindingValue> {
+    loop_carried_bindings(header)
+        .into_iter()
+        .map(|name| ScssControlFlowBindingValue {
+            name,
+            value: AbstractCssValueV0::Top,
         })
         .collect()
 }
@@ -2008,6 +2029,28 @@ mod tests {
             "finiteSet"
         );
         assert_eq!(report.blocks[0].output_value_kind, "finiteSet");
+    }
+
+    #[test]
+    fn control_flow_value_analysis_tracks_while_condition_loop_bindings() {
+        let source = "$i: 0; @while $i < 3 { $i: $i + 1; .n { order: $i; } }";
+        let report = analyze_scss_control_flow_values(source, StyleDialect::Scss);
+        assert!(report.is_some());
+        let Some(report) = report else {
+            return;
+        };
+
+        assert_eq!(report.block_count, 1);
+        assert_eq!(report.back_edge_count, 1);
+        assert_eq!(report.loop_carried_binding_count, 1);
+        assert_eq!(report.blocks[0].kind, "loop");
+        assert_eq!(report.blocks[0].transfer_kind, "loopCondition");
+        assert_eq!(report.blocks[0].transfer_truthiness, None);
+        assert_eq!(report.blocks[0].loop_carried_bindings, vec!["$i"]);
+        assert_eq!(
+            report.blocks[0].loop_carried_binding_values[0].value_kind,
+            "top"
+        );
     }
 
     #[test]
