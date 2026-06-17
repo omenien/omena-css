@@ -18,7 +18,8 @@ use serde::Serialize;
 
 pub use control_flow::{
     OmenaScssEvalControlFlowBlockV0, OmenaScssEvalControlFlowIrSummaryV0,
-    summarize_scss_control_flow_ir,
+    OmenaScssEvalControlFlowValueAnalysisV0, OmenaScssEvalControlFlowValueBlockV0,
+    analyze_scss_control_flow_values, summarize_scss_control_flow_ir,
 };
 pub use static_stylesheet::{
     OmenaScssEvalResolvedReplacementV0, OmenaScssEvalStaticStylesheetEvaluationV0,

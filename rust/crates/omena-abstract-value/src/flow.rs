@@ -27,6 +27,100 @@ pub fn summarize_omena_abstract_value_flow_analysis() -> AbstractValueFlowAnalys
     }
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct BoundedJoinFixpointNodeV0<TTransfer> {
+    pub id: String,
+    pub predecessor_ids: Vec<String>,
+    pub transfer: TTransfer,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct BoundedJoinFixpointNodeResultV0<TValue> {
+    pub id: String,
+    pub input_value: TValue,
+    pub output_value: TValue,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct BoundedJoinFixpointResultV0<TValue> {
+    pub converged: bool,
+    pub iteration_count: usize,
+    pub nodes: Vec<BoundedJoinFixpointNodeResultV0<TValue>>,
+}
+
+pub fn analyze_bounded_join_fixpoint<TValue, TTransfer>(
+    nodes: &[BoundedJoinFixpointNodeV0<TTransfer>],
+    max_iterations: usize,
+    bottom_value: TValue,
+    top_value: TValue,
+    mut join_values: impl FnMut(&TValue, &TValue) -> TValue,
+    mut apply_transfer: impl FnMut(&TValue, &TTransfer) -> TValue,
+) -> BoundedJoinFixpointResultV0<TValue>
+where
+    TValue: Clone + PartialEq,
+{
+    let mut input_values = nodes
+        .iter()
+        .map(|node| (node.id.clone(), bottom_value.clone()))
+        .collect::<BTreeMap<_, _>>();
+    let mut output_values = input_values.clone();
+    let mut converged = nodes.is_empty();
+    let mut iteration_count = 0usize;
+
+    for iteration in 1..=max_iterations {
+        iteration_count = iteration;
+        let mut changed = false;
+
+        for node in nodes {
+            let input_value = node
+                .predecessor_ids
+                .iter()
+                .map(|id| {
+                    output_values
+                        .get(id)
+                        .cloned()
+                        .unwrap_or_else(|| top_value.clone())
+                })
+                .reduce(|left, right| join_values(&left, &right))
+                .unwrap_or_else(|| bottom_value.clone());
+            let output_value = apply_transfer(&input_value, &node.transfer);
+
+            if input_values.get(&node.id) != Some(&input_value) {
+                input_values.insert(node.id.clone(), input_value);
+                changed = true;
+            }
+            if output_values.get(&node.id) != Some(&output_value) {
+                output_values.insert(node.id.clone(), output_value);
+                changed = true;
+            }
+        }
+
+        if !changed {
+            converged = true;
+            break;
+        }
+    }
+
+    BoundedJoinFixpointResultV0 {
+        converged,
+        iteration_count,
+        nodes: nodes
+            .iter()
+            .map(|node| BoundedJoinFixpointNodeResultV0 {
+                id: node.id.clone(),
+                input_value: input_values
+                    .get(&node.id)
+                    .cloned()
+                    .unwrap_or_else(|| bottom_value.clone()),
+                output_value: output_values
+                    .get(&node.id)
+                    .cloned()
+                    .unwrap_or_else(|| bottom_value.clone()),
+            })
+            .collect(),
+    }
+}
+
 pub fn analyze_class_value_flow(graph: &ClassValueFlowGraphV0) -> ClassValueFlowAnalysisV0 {
     let mut values = graph
         .nodes
