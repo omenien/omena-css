@@ -28,6 +28,7 @@ pub use omena_refinement;
 pub use omena_refinement_trait;
 pub use omena_resolver;
 pub use omena_rg_flow;
+pub use omena_scss_eval;
 pub use omena_semantic;
 pub use omena_sif;
 pub use omena_smt;

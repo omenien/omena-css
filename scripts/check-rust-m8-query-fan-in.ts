@@ -4,6 +4,7 @@ import { strict as assert } from "node:assert";
 const QUERY_MANIFEST_PATH = "rust/crates/omena-query/Cargo.toml";
 const CORE_MANIFEST_PATH = "rust/crates/omena-query-core/Cargo.toml";
 const CROSS_FILE_SUMMARY_MANIFEST_PATH = "rust/crates/omena-cross-file-summary/Cargo.toml";
+const SCSS_EVAL_MANIFEST_PATH = "rust/crates/omena-scss-eval/Cargo.toml";
 const CHECKER_ORCHESTRATOR_MANIFEST_PATH =
   "rust/crates/omena-query-checker-orchestrator/Cargo.toml";
 const RUNNER_MANIFEST_PATH = "rust/crates/omena-query-transform-runner/Cargo.toml";
@@ -21,6 +22,7 @@ const TRANSFORM_CRATES = [
 const queryManifest = readFileSync(QUERY_MANIFEST_PATH, "utf8");
 const coreManifest = readFileSync(CORE_MANIFEST_PATH, "utf8");
 const crossFileSummaryManifest = readFileSync(CROSS_FILE_SUMMARY_MANIFEST_PATH, "utf8");
+const scssEvalManifest = readFileSync(SCSS_EVAL_MANIFEST_PATH, "utf8");
 const checkerOrchestratorManifest = readFileSync(CHECKER_ORCHESTRATOR_MANIFEST_PATH, "utf8");
 const runnerManifest = readFileSync(RUNNER_MANIFEST_PATH, "utf8");
 const workspaceManifest = readFileSync(WORKSPACE_MANIFEST_PATH, "utf8");
@@ -32,7 +34,10 @@ const runnerDeps = dependencyNames(runnerManifest);
 const queryInternalDeps = queryDeps.filter(
   (dependency) => dependency.startsWith("omena-") || dependency.startsWith("engine-"),
 );
-const EXTRACTED_QUERY_SUBSTRATE_DEPS: readonly string[] = ["omena-cross-file-summary"] as const;
+const EXTRACTED_QUERY_SUBSTRATE_DEPS: readonly string[] = [
+  "omena-cross-file-summary",
+  "omena-scss-eval",
+] as const;
 const queryFacadeFanInDeps = queryInternalDeps.filter(
   (dependency) => !EXTRACTED_QUERY_SUBSTRATE_DEPS.includes(dependency),
 );
@@ -65,8 +70,16 @@ assert.ok(
   "workspace must include the cross-file summary substrate split crate",
 );
 assert.ok(
+  workspaceManifest.includes('"crates/omena-scss-eval"'),
+  "workspace must include the SCSS evaluator substrate split crate",
+);
+assert.ok(
   /\[package\.metadata\.omena\][\s\S]*?\brole\s*=\s*"R1"/u.test(crossFileSummaryManifest),
   "omena-cross-file-summary must stay an R1 substrate, not a query facade expansion",
+);
+assert.ok(
+  /\[package\.metadata\.omena\][\s\S]*?\brole\s*=\s*"R1"/u.test(scssEvalManifest),
+  "omena-scss-eval must stay an R1 substrate, not a query facade expansion",
 );
 assert.ok(
   queryDeps.includes("omena-query-core"),

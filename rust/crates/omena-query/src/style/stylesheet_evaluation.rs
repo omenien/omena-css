@@ -4,6 +4,7 @@ use omena_parser::{
     LexedToken, ParsedVariableFact, ParsedVariableFactKind, StyleDialect as OmenaParserStyleDialect,
 };
 use omena_query_transform_runner::{TransformModuleEvaluationV0, reduce_static_numeric_expression};
+use omena_scss_eval::summarize_omena_scss_eval_oracle;
 use omena_syntax::SyntaxKind;
 
 use super::parser_facade::{
@@ -20,7 +21,7 @@ pub(super) fn derive_static_stylesheet_module_evaluation(
     if variable_kind == StaticStylesheetVariableKind::Less {
         return derive_static_less_stylesheet_module_evaluation(style_source, variable_facts);
     }
-    derive_static_scss_stylesheet_module_evaluation(style_source, variable_facts)
+    derive_static_scss_stylesheet_module_evaluation(style_source, dialect, variable_facts)
 }
 
 pub(super) fn derive_static_scss_stylesheet_module_variable_exports(
@@ -93,6 +94,7 @@ pub(super) fn derive_static_scss_stylesheet_module_configurable_variable_names(
 
 fn derive_static_scss_stylesheet_module_evaluation(
     style_source: &str,
+    dialect: OmenaParserStyleDialect,
     variable_facts: &[ParsedVariableFact],
 ) -> Option<TransformModuleEvaluationV0> {
     if !variable_facts
@@ -142,6 +144,7 @@ fn derive_static_scss_stylesheet_module_evaluation(
     if evaluated_css == style_source {
         return None;
     }
+    assert_static_stylesheet_evaluation_oracle(style_source, dialect, evaluated_css.as_str());
 
     Some(TransformModuleEvaluationV0 {
         evaluator: StaticStylesheetVariableKind::Scss
@@ -388,6 +391,11 @@ fn derive_static_less_stylesheet_module_evaluation(
     if evaluated_css == style_source {
         return None;
     }
+    assert_static_stylesheet_evaluation_oracle(
+        style_source,
+        OmenaParserStyleDialect::Less,
+        evaluated_css.as_str(),
+    );
 
     Some(TransformModuleEvaluationV0 {
         evaluator: StaticStylesheetVariableKind::Less
@@ -395,6 +403,18 @@ fn derive_static_less_stylesheet_module_evaluation(
             .to_string(),
         evaluated_css,
     })
+}
+
+fn assert_static_stylesheet_evaluation_oracle(
+    style_source: &str,
+    dialect: OmenaParserStyleDialect,
+    evaluated_css: &str,
+) {
+    let oracle = summarize_omena_scss_eval_oracle(style_source, dialect, evaluated_css);
+    debug_assert!(
+        oracle.all_legacy_declaration_values_preserved,
+        "native SCSS/Less value oracle diverged from legacy evaluated_css"
+    );
 }
 
 fn collect_static_less_variable_declarations(

@@ -2343,6 +2343,7 @@ dependencies = [
  "omena-query-core",
  "omena-query-transform-runner",
  "omena-resolver",
+ "omena-scss-eval",
  "omena-semantic",
  "omena-sif",
  "omena-syntax",
@@ -2420,6 +2421,16 @@ name = "omena-rg-flow"
 version = "0.2.1"
 dependencies = [
  "omena-cascade",
+ "serde",
+]
+
+[[package]]
+name = "omena-scss-eval"
+version = "0.2.1"
+dependencies = [
+ "omena-abstract-value",
+ "omena-parser",
+ "omena-syntax",
  "serde",
 ]
 
@@ -2589,6 +2600,7 @@ dependencies = [
  "omena-refinement-trait",
  "omena-resolver",
  "omena-rg-flow",
+ "omena-scss-eval",
  "omena-semantic",
  "omena-sif",
  "omena-smt",

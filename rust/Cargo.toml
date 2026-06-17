@@ -33,6 +33,7 @@ members = [
   "crates/omena-resolver",
   "crates/omena-semantic",
   "crates/omena-sif",
+  "crates/omena-scss-eval",
   "crates/omena-smt",
   "crates/omena-spec-audit",
   "crates/omena-streaming-ifds",

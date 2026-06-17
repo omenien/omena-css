@@ -37,6 +37,7 @@ omena-refinement = { path = "../omena-refinement", version = "=0.2.1" }
 omena-refinement-trait = { path = "../omena-refinement-trait", version = "=0.2.1" }
 omena-resolver = { path = "../omena-resolver", version = "=0.2.1" }
 omena-rg-flow = { path = "../omena-rg-flow", version = "=0.2.1" }
+omena-scss-eval = { path = "../omena-scss-eval", version = "=0.2.1" }
 omena-semantic = { path = "../omena-semantic", version = "=0.2.1" }
 omena-sif = { path = "../omena-sif", version = "=0.2.1" }
 omena-smt = { path = "../omena-smt", version = "=0.2.1" }

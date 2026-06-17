@@ -31,6 +31,7 @@ omena-query-checker-orchestrator = { path = "../omena-query-checker-orchestrator
 omena-query-core = { path = "../omena-query-core", version = "=0.2.1" }
 omena-query-transform-runner = { path = "../omena-query-transform-runner", version = "=0.2.1" }
 omena-resolver = { path = "../omena-resolver", version = "=0.2.1" }
+omena-scss-eval = { path = "../omena-scss-eval", version = "=0.2.1" }
 omena-semantic = { path = "../omena-semantic", version = "=0.2.1" }
 omena-sif = { path = "../omena-sif", version = "=0.2.1" }
 omena-syntax = { path = "../omena-syntax", version = "=0.2.1" }

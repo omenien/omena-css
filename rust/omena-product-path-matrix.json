@@ -34,6 +34,16 @@
       ]
     },
     {
+      "crate": "omena-scss-eval",
+      "role": "R1",
+      "surface": "product-runtime",
+      "entrypoints": ["oracle-first SCSS and Less value evaluator rail consumed by omena-query"],
+      "evidence": [
+        "rust/crates/omena-scss-eval/src/lib.rs",
+        "rust/crates/omena-query/Cargo.toml"
+      ]
+    },
+    {
       "crate": "omena-benchmarks",
       "role": "I",
       "surface": "check-evidence",
