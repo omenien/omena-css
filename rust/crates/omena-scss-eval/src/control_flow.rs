@@ -1416,10 +1416,10 @@ fn scss_header_value(
 ) -> AbstractCssValueV0 {
     let variables = variable_names_in_text(header);
     if variables.is_empty() {
-        return abstract_css_value_from_text(header);
+        return static_scss_header_abstract_value(header);
     }
     if let Some(substituted) = substitute_static_scss_header_variables(header, lexical_bindings) {
-        return abstract_css_value_from_text(substituted.as_str());
+        return static_scss_header_abstract_value(substituted.as_str());
     }
     variables
         .iter()
@@ -1432,6 +1432,10 @@ fn scss_header_value(
         .fold(AbstractCssValueV0::Bottom, |acc, value| {
             join_abstract_css_values(&acc, &value)
         })
+}
+
+fn static_scss_header_abstract_value(value: &str) -> AbstractCssValueV0 {
+    abstract_css_value_from_text(reduce_static_scss_value(value.to_string()).as_str())
 }
 
 fn substitute_static_scss_header_variables(
@@ -1892,6 +1896,22 @@ mod tests {
         assert_eq!(report.block_count, 1);
         assert_eq!(report.blocks[0].transfer_kind, "branchCondition");
         assert_eq!(report.blocks[0].transfer_truthiness, Some("truthy"));
+    }
+
+    #[test]
+    fn control_flow_value_analysis_reduces_static_if_header_values() {
+        let source = "$enabled: if(false, false, true); @if $enabled { .on { color: green; } } @else { .off { color: red; } }";
+        let report = analyze_scss_control_flow_values(source, StyleDialect::Scss);
+        assert!(report.is_some());
+        let Some(report) = report else {
+            return;
+        };
+
+        assert_eq!(report.block_count, 2);
+        assert_eq!(report.blocks[0].transfer_kind, "branchCondition");
+        assert_eq!(report.blocks[0].transfer_truthiness, Some("truthy"));
+        assert_eq!(report.blocks[1].transfer_kind, "branchCondition");
+        assert_eq!(report.blocks[1].transfer_truthiness, Some("falsey"));
     }
 
     #[test]
