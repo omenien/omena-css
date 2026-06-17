@@ -7,7 +7,7 @@ use omena_value_lattice::{
         parse_reducible_pow_value, parse_reducible_rem_value, parse_reducible_round_value,
         parse_reducible_sign_value, parse_reducible_sqrt_value, reduce_static_numeric_expression,
     },
-    parse_whole_function_value_arguments,
+    parse_numeric_value_with_unit, parse_whole_function_value_arguments,
     substitute_static_css_function_references_in_value_until_stable,
 };
 
@@ -110,6 +110,10 @@ pub(crate) fn static_scss_literal_truthiness(value: &str) -> Option<bool> {
 enum StaticScssComparisonOperator {
     Equal,
     NotEqual,
+    LessThan,
+    LessThanOrEqual,
+    GreaterThan,
+    GreaterThanOrEqual,
 }
 
 fn static_scss_comparison_truthiness(value: &str) -> Result<Option<bool>, ()> {
@@ -122,7 +126,35 @@ fn static_scss_comparison_truthiness(value: &str) -> Result<Option<bool>, ()> {
     Ok(Some(match operator {
         StaticScssComparisonOperator::Equal => equal,
         StaticScssComparisonOperator::NotEqual => !equal,
+        StaticScssComparisonOperator::LessThan
+        | StaticScssComparisonOperator::LessThanOrEqual
+        | StaticScssComparisonOperator::GreaterThan
+        | StaticScssComparisonOperator::GreaterThanOrEqual => {
+            static_scss_numeric_ordering_truthiness(left.as_str(), operator, right.as_str())
+                .ok_or(())?
+        }
     }))
+}
+
+fn static_scss_numeric_ordering_truthiness(
+    left: &str,
+    operator: StaticScssComparisonOperator,
+    right: &str,
+) -> Option<bool> {
+    let left = parse_numeric_value_with_unit(left)?;
+    let right = parse_numeric_value_with_unit(right)?;
+    if !left.unit.eq_ignore_ascii_case(right.unit) {
+        return None;
+    }
+    Some(match operator {
+        StaticScssComparisonOperator::LessThan => left.value < right.value,
+        StaticScssComparisonOperator::LessThanOrEqual => left.value <= right.value,
+        StaticScssComparisonOperator::GreaterThan => left.value > right.value,
+        StaticScssComparisonOperator::GreaterThanOrEqual => left.value >= right.value,
+        StaticScssComparisonOperator::Equal | StaticScssComparisonOperator::NotEqual => {
+            return None;
+        }
+    })
 }
 
 fn static_scss_comparable_operand(value: &str) -> Option<String> {
@@ -203,6 +235,18 @@ fn static_scss_comparison_operator_at(
     }
     if suffix.starts_with("!=") {
         return Ok((StaticScssComparisonOperator::NotEqual, 2));
+    }
+    if suffix.starts_with("<=") {
+        return Ok((StaticScssComparisonOperator::LessThanOrEqual, 2));
+    }
+    if suffix.starts_with(">=") {
+        return Ok((StaticScssComparisonOperator::GreaterThanOrEqual, 2));
+    }
+    if suffix.starts_with('<') {
+        return Ok((StaticScssComparisonOperator::LessThan, 1));
+    }
+    if suffix.starts_with('>') {
+        return Ok((StaticScssComparisonOperator::GreaterThan, 1));
     }
     Err(())
 }

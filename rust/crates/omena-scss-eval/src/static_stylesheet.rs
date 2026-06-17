@@ -3084,6 +3084,23 @@ mod tests {
     }
 
     #[test]
+    fn static_scss_evaluation_reduces_static_if_numeric_ordering_conditions() {
+        let report = derive_static_stylesheet_module_evaluation(
+            "$gap: if(3px > 2px, 1px, 2px); .button { margin: $gap; }",
+            StyleDialect::Scss,
+        );
+        assert!(report.is_some());
+        let Some(report) = report else {
+            return;
+        };
+
+        assert_eq!(report.resolved_replacements[0].text, "1px");
+        assert_eq!(report.resolved_replacements[0].abstract_value_kind, "exact");
+        assert!(report.evaluated_css.contains(".button { margin: 1px; }"));
+        assert!(report.oracle.all_legacy_declaration_values_preserved);
+    }
+
+    #[test]
     fn static_stylesheet_bang_safety_only_allows_comparisons() {
         assert!(static_stylesheet_bang_usage_is_comparison_only(
             "if(1px != 2px, 1px, 2px)"
@@ -3396,6 +3413,25 @@ mod tests {
     fn static_scss_evaluation_reduces_function_inequality_returns() {
         let report = derive_static_stylesheet_module_evaluation(
             "@function choose($value) { @return if($value != 2px, 1px, 2px); } .button { margin: choose(3px); }",
+            StyleDialect::Scss,
+        );
+        assert!(report.is_some());
+        let Some(report) = report else {
+            return;
+        };
+
+        assert_eq!(report.replacement_count, 1);
+        assert_eq!(report.resolved_replacements[0].name, "function:choose");
+        assert_eq!(report.resolved_replacements[0].text, "1px");
+        assert_eq!(report.resolved_replacements[0].abstract_value_kind, "exact");
+        assert!(report.evaluated_css.contains(".button { margin: 1px; }"));
+        assert!(report.oracle.all_legacy_declaration_values_preserved);
+    }
+
+    #[test]
+    fn static_scss_evaluation_reduces_function_numeric_ordering_returns() {
+        let report = derive_static_stylesheet_module_evaluation(
+            "@function choose($value) { @return if($value <= 2px, 1px, 2px); } .button { margin: choose(2px); }",
             StyleDialect::Scss,
         );
         assert!(report.is_some());
