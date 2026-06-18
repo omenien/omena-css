@@ -701,7 +701,8 @@ fn consumer_build_derives_static_less_evaluator_context_for_type_guarded_mixin_c
 .font(@family) when (isstring(@family)) { font-family: @family; }
 .display(@value) when (iskeyword(@value)) { display: @value; }
 .asset(@value) when (isurl(@value)) { background-image: @value; }
-.button { .space(2px); .ratio(50%); .font("Roboto"); .display(block); .asset(url("./icon.svg")); }"#,
+.unit(@gap) when (isunit(@gap, "rem")) { padding: @gap; }
+.button { .space(2px); .ratio(50%); .font("Roboto"); .display(block); .asset(url("./icon.svg")); .unit(1rem); }"#,
         &[
             "less-module-evaluate".to_string(),
             "css-modules-class-hashing".to_string(),
@@ -724,6 +725,7 @@ fn consumer_build_derives_static_less_evaluator_context_for_type_guarded_mixin_c
             .contains(r#"font-family: "Roboto""#)
     );
     assert!(summary.execution.output_css.contains("display: block"));
+    assert!(summary.execution.output_css.contains("padding: 1rem"));
     assert!(
         summary
             .execution
@@ -819,6 +821,27 @@ fn consumer_build_keeps_false_unit_guarded_less_mixins_planned_only() {
     let summary = execute_omena_query_consumer_build_style_source(
         "Button.module.less",
         ".space(@gap) when (ispixel(@gap)) { margin: @gap; } .button { .space(2em); }",
+        &[
+            "less-module-evaluate".to_string(),
+            "css-modules-class-hashing".to_string(),
+            "print-css".to_string(),
+        ],
+    );
+
+    assert!(
+        summary
+            .execution
+            .planned_only_pass_ids
+            .contains(&"less-module-evaluate")
+    );
+    assert!(summary.execution.output_css.contains(".space(2em)"));
+}
+
+#[test]
+fn consumer_build_keeps_false_isunit_guarded_less_mixins_planned_only() {
+    let summary = execute_omena_query_consumer_build_style_source(
+        "Button.module.less",
+        r#".space(@gap) when (isunit(@gap, "px")) { margin: @gap; } .button { .space(2em); }"#,
         &[
             "less-module-evaluate".to_string(),
             "css-modules-class-hashing".to_string(),

@@ -3062,6 +3062,7 @@ fn static_less_guard_predicate_expression_matches(
             static_less_guard_value_has_unit(value, "em")
         })
     })
+    .or_else(|| static_less_mixin_guard_isunit_predicate_matches(predicate, context))
     .or_else(|| {
         static_less_mixin_guard_predicate_matches(
             predicate,
@@ -3106,6 +3107,35 @@ fn static_less_mixin_guard_predicate_matches(
         context.variable_declarations,
     )?;
     Some(matches_value(resolved.trim()))
+}
+
+fn static_less_mixin_guard_isunit_predicate_matches(
+    predicate: &str,
+    context: StaticLessGuardContext<'_>,
+) -> Option<bool> {
+    let arguments = parse_whole_function_value_arguments(predicate, "isunit")?;
+    let [value, unit] = arguments.as_slice() else {
+        return None;
+    };
+    let resolved_value = resolve_static_less_mixin_value_with_bindings(
+        value.trim(),
+        context.argument_values,
+        context.call_scope_id,
+        context.scopes,
+        context.variable_declarations,
+    )?;
+    let resolved_unit = resolve_static_less_mixin_value_with_bindings(
+        unit.trim(),
+        context.argument_values,
+        context.call_scope_id,
+        context.scopes,
+        context.variable_declarations,
+    )?;
+    let expected_unit = static_less_guard_unit_text(resolved_unit.trim())?;
+    Some(static_less_guard_value_has_unit(
+        resolved_value.trim(),
+        expected_unit,
+    ))
 }
 
 fn static_less_guard_comparison_matches(
@@ -3454,6 +3484,17 @@ fn static_less_guard_value_has_unit(value: &str, expected_unit: &str) -> bool {
         .is_some_and(|value| value.unit.eq_ignore_ascii_case(expected_unit))
 }
 
+fn static_less_guard_unit_text(value: &str) -> Option<&str> {
+    let value = value.trim();
+    if matches!(value, "%") {
+        return Some(value);
+    }
+    if static_less_guard_value_is_string(value) {
+        return static_less_guard_quoted_string_inner(value);
+    }
+    static_stylesheet_property_name_is_safe(value).then_some(value)
+}
+
 fn static_less_guard_value_is_url(value: &str) -> bool {
     parse_whole_function_value_arguments(value.trim(), "url")
         .is_some_and(|arguments| arguments.len() == 1)
@@ -3462,6 +3503,19 @@ fn static_less_guard_value_is_url(value: &str) -> bool {
 fn static_less_guard_value_is_string(value: &str) -> bool {
     static_less_guard_quoted_string_end(value.trim(), 0)
         .is_some_and(|end| end == value.trim().len())
+}
+
+fn static_less_guard_quoted_string_inner(value: &str) -> Option<&str> {
+    let value = value.trim();
+    let quote = value.chars().next()?;
+    if !matches!(quote, '"' | '\'') {
+        return None;
+    }
+    let end = static_less_guard_quoted_string_end(value, 0)?;
+    if end != value.len() {
+        return None;
+    }
+    value.get(quote.len_utf8()..value.len().checked_sub(quote.len_utf8())?)
 }
 
 fn static_less_guard_value_is_keyword(value: &str) -> bool {
@@ -6346,7 +6400,8 @@ mod tests {
 .font(@family) when (isstring(@family)) { font-family: @family; }
 .display(@value) when (iskeyword(@value)) { display: @value; }
 .asset(@value) when (isurl(@value)) { background-image: @value; }
-.button { .space(2px); .ratio(50%); .font("Roboto"); .display(block); .asset(url("./icon.svg")); }"#,
+.unit(@gap) when (isunit(@gap, "rem")) { padding: @gap; }
+.button { .space(2px); .ratio(50%); .font("Roboto"); .display(block); .asset(url("./icon.svg")); .unit(1rem); }"#,
             StyleDialect::Less,
         );
 
@@ -6359,6 +6414,7 @@ mod tests {
         assert!(report.evaluated_css.contains("width: 50%"));
         assert!(report.evaluated_css.contains(r#"font-family: "Roboto""#));
         assert!(report.evaluated_css.contains("display: block"));
+        assert!(report.evaluated_css.contains("padding: 1rem"));
         assert!(
             report
                 .evaluated_css
@@ -6421,6 +6477,16 @@ mod tests {
     fn static_less_evaluation_keeps_false_unit_guarded_mixins_planned_only() {
         let report = derive_static_stylesheet_module_evaluation(
             ".space(@gap) when (ispixel(@gap)) { margin: @gap; } .button { .space(2em); }",
+            StyleDialect::Less,
+        );
+
+        assert!(report.is_none());
+    }
+
+    #[test]
+    fn static_less_evaluation_keeps_false_isunit_guarded_mixins_planned_only() {
+        let report = derive_static_stylesheet_module_evaluation(
+            r#".space(@gap) when (isunit(@gap, "px")) { margin: @gap; } .button { .space(2em); }"#,
             StyleDialect::Less,
         );
 
