@@ -1,21 +1,27 @@
 use omena_value_lattice::{matching_function_call_end, split_top_level_value_arguments_owned};
 
-pub(crate) fn reduce_static_scss_callable_metadata_with_context<F, M>(
+pub(crate) fn reduce_static_scss_metadata_with_context<F, M, V, G>(
     value: &str,
     mut function_exists: F,
     mut mixin_exists: M,
+    mut variable_exists: V,
+    mut global_variable_exists: G,
 ) -> Option<String>
 where
     F: FnMut(&str) -> Option<bool>,
     M: FnMut(&str) -> Option<bool>,
+    V: FnMut(&str) -> Option<bool>,
+    G: FnMut(&str) -> Option<bool>,
 {
     let mut current = value.to_string();
     let mut changed = false;
     for _ in 0..8 {
-        let Some(next) = reduce_static_scss_callable_exists_calls(
+        let Some(next) = reduce_static_scss_metadata_calls(
             current.as_str(),
             &mut function_exists,
             &mut mixin_exists,
+            &mut variable_exists,
+            &mut global_variable_exists,
         ) else {
             break;
         };
@@ -28,14 +34,18 @@ where
     changed.then_some(current)
 }
 
-fn reduce_static_scss_callable_exists_calls<F, M>(
+fn reduce_static_scss_metadata_calls<F, M, V, G>(
     value: &str,
     function_exists: &mut F,
     mixin_exists: &mut M,
+    variable_exists: &mut V,
+    global_variable_exists: &mut G,
 ) -> Option<String>
 where
     F: FnMut(&str) -> Option<bool>,
     M: FnMut(&str) -> Option<bool>,
+    V: FnMut(&str) -> Option<bool>,
+    G: FnMut(&str) -> Option<bool>,
 {
     let mut output = String::with_capacity(value.len());
     let mut cursor = 0usize;
@@ -63,7 +73,7 @@ where
             continue;
         }
 
-        let Some(call) = static_scss_callable_exists_call_at(value, index) else {
+        let Some(call) = static_scss_metadata_call_at(value, index) else {
             index += ch.len_utf8();
             continue;
         };
@@ -76,11 +86,13 @@ where
             index += ch.len_utf8();
             continue;
         };
-        let Some(exists) = resolve_static_scss_callable_exists_call(
+        let Some(exists) = resolve_static_scss_metadata_call(
             call_value,
             call.kind,
             function_exists,
             mixin_exists,
+            variable_exists,
+            global_variable_exists,
         ) else {
             index += ch.len_utf8();
             continue;
@@ -100,29 +112,35 @@ where
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum StaticScssCallableMetadataKind {
+enum StaticScssMetadataKind {
     Function,
     Mixin,
+    Variable,
+    GlobalVariable,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-struct StaticScssCallableMetadataCall<'a> {
+struct StaticScssMetadataCall<'a> {
     name: &'a str,
-    kind: StaticScssCallableMetadataKind,
+    kind: StaticScssMetadataKind,
 }
 
-fn static_scss_callable_exists_call_at(
-    value: &str,
-    index: usize,
-) -> Option<StaticScssCallableMetadataCall<'_>> {
-    const NAMES: [(&str, StaticScssCallableMetadataKind); 4] = [
+fn static_scss_metadata_call_at(value: &str, index: usize) -> Option<StaticScssMetadataCall<'_>> {
+    const NAMES: [(&str, StaticScssMetadataKind); 8] = [
+        ("meta.function-exists", StaticScssMetadataKind::Function),
+        ("function-exists", StaticScssMetadataKind::Function),
+        ("meta.mixin-exists", StaticScssMetadataKind::Mixin),
+        ("mixin-exists", StaticScssMetadataKind::Mixin),
+        ("meta.variable-exists", StaticScssMetadataKind::Variable),
+        ("variable-exists", StaticScssMetadataKind::Variable),
         (
-            "meta.function-exists",
-            StaticScssCallableMetadataKind::Function,
+            "meta.global-variable-exists",
+            StaticScssMetadataKind::GlobalVariable,
         ),
-        ("function-exists", StaticScssCallableMetadataKind::Function),
-        ("meta.mixin-exists", StaticScssCallableMetadataKind::Mixin),
-        ("mixin-exists", StaticScssCallableMetadataKind::Mixin),
+        (
+            "global-variable-exists",
+            StaticScssMetadataKind::GlobalVariable,
+        ),
     ];
     let tail = value.get(index..)?;
     NAMES.iter().find_map(|(name, kind)| {
@@ -130,7 +148,7 @@ fn static_scss_callable_exists_call_at(
             && tail.len() > name.len()
             && tail[..name.len()].eq_ignore_ascii_case(name)
             && tail[name.len()..].starts_with('('))
-        .then_some(StaticScssCallableMetadataCall { name, kind: *kind })
+        .then_some(StaticScssMetadataCall { name, kind: *kind })
     })
 }
 
@@ -144,26 +162,22 @@ fn static_scss_metadata_function_left_boundary(value: &str, index: usize) -> boo
         .is_none_or(|ch| !ch.is_ascii_alphanumeric() && !matches!(ch, '_' | '-' | '.'))
 }
 
-fn resolve_static_scss_callable_exists_call<F, M>(
+fn resolve_static_scss_metadata_call<F, M, V, G>(
     value: &str,
-    kind: StaticScssCallableMetadataKind,
+    kind: StaticScssMetadataKind,
     function_exists: &mut F,
     mixin_exists: &mut M,
+    variable_exists: &mut V,
+    global_variable_exists: &mut G,
 ) -> Option<bool>
 where
     F: FnMut(&str) -> Option<bool>,
     M: FnMut(&str) -> Option<bool>,
+    V: FnMut(&str) -> Option<bool>,
+    G: FnMut(&str) -> Option<bool>,
 {
     let trimmed = value.trim();
-    let function_name = if static_scss_value_starts_with_name(trimmed, "meta.function-exists") {
-        "meta.function-exists"
-    } else if static_scss_value_starts_with_name(trimmed, "meta.mixin-exists") {
-        "meta.mixin-exists"
-    } else if kind == StaticScssCallableMetadataKind::Mixin {
-        "mixin-exists"
-    } else {
-        "function-exists"
-    };
+    let function_name = static_scss_metadata_function_name(trimmed, kind)?;
     let arguments = split_top_level_value_arguments_owned(
         trimmed
             .get(function_name.len()..)?
@@ -175,7 +189,7 @@ where
     }
     let queried_name = parse_static_scss_metadata_name_argument(arguments[0].as_str())?;
     match kind {
-        StaticScssCallableMetadataKind::Function => {
+        StaticScssMetadataKind::Function => {
             if let Some(exists) = function_exists(queried_name.as_str()) {
                 return Some(exists);
             }
@@ -183,13 +197,55 @@ where
                 return Some(true);
             }
         }
-        StaticScssCallableMetadataKind::Mixin => {
+        StaticScssMetadataKind::Mixin => {
             if let Some(exists) = mixin_exists(queried_name.as_str()) {
                 return Some(exists);
             }
         }
+        StaticScssMetadataKind::Variable => {
+            return variable_exists(queried_name.as_str());
+        }
+        StaticScssMetadataKind::GlobalVariable => {
+            return global_variable_exists(queried_name.as_str());
+        }
     }
-    static_scss_callable_name_is_safe(queried_name.as_str()).then_some(false)
+    static_scss_metadata_name_is_safe(queried_name.as_str()).then_some(false)
+}
+
+fn static_scss_metadata_function_name(
+    value: &str,
+    kind: StaticScssMetadataKind,
+) -> Option<&'static str> {
+    [
+        "meta.function-exists",
+        "function-exists",
+        "meta.mixin-exists",
+        "mixin-exists",
+        "meta.variable-exists",
+        "variable-exists",
+        "meta.global-variable-exists",
+        "global-variable-exists",
+    ]
+    .into_iter()
+    .find(|name| static_scss_value_starts_with_name(value, name))
+    .filter(|name| {
+        matches!(
+            (kind, *name),
+            (
+                StaticScssMetadataKind::Function,
+                "meta.function-exists" | "function-exists"
+            ) | (
+                StaticScssMetadataKind::Mixin,
+                "meta.mixin-exists" | "mixin-exists"
+            ) | (
+                StaticScssMetadataKind::Variable,
+                "meta.variable-exists" | "variable-exists"
+            ) | (
+                StaticScssMetadataKind::GlobalVariable,
+                "meta.global-variable-exists" | "global-variable-exists"
+            )
+        )
+    })
 }
 
 fn static_scss_value_starts_with_name(value: &str, name: &str) -> bool {
@@ -211,18 +267,22 @@ fn parse_static_scss_metadata_name_argument(value: &str) -> Option<String> {
             value.get(1..value.len() - 1)?,
         ));
     }
-    static_scss_callable_name_is_safe(value).then(|| canonical_static_scss_function_name(value))
+    static_scss_metadata_name_is_safe(value).then(|| canonical_static_scss_metadata_name(value))
 }
 
-fn static_scss_callable_name_is_safe(name: &str) -> bool {
+fn static_scss_metadata_name_is_safe(name: &str) -> bool {
     !name.is_empty()
         && name
             .chars()
             .all(|ch| ch.is_ascii_alphanumeric() || ch == '_' || ch == '-')
 }
 
-fn canonical_static_scss_function_name(name: &str) -> String {
+fn canonical_static_scss_metadata_name(name: &str) -> String {
     name.trim().replace('_', "-")
+}
+
+fn canonical_static_scss_function_name(name: &str) -> String {
+    canonical_static_scss_metadata_name(name)
 }
 
 fn static_scss_known_global_builtin_function_exists(name: &str) -> bool {

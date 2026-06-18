@@ -14,7 +14,7 @@ use serde::Serialize;
 
 use crate::{
     abstract_css_value_kind,
-    scss_metadata::reduce_static_scss_callable_metadata_with_context,
+    scss_metadata::reduce_static_scss_metadata_with_context,
     value_eval::{
         reduce_static_scss_value, static_scss_bang_usage_is_comparison_only,
         static_scss_literal_truthiness,
@@ -632,11 +632,17 @@ fn static_scss_return_abstract_value_with_context(
     value: &str,
     position: usize,
     nodes: &[OmenaScssEvalCallReturnNodeV0],
+    bindings: Option<&BTreeMap<String, AbstractCssValueV0>>,
 ) -> AbstractCssValueV0 {
-    let value = reduce_static_scss_callable_metadata_with_context(
+    let value = reduce_static_scss_metadata_with_context(
         value,
         |name| scss_visible_function_declaration_exists(name, position, nodes).then_some(true),
         |name| scss_visible_mixin_declaration_exists(name, position, nodes).then_some(true),
+        |name| {
+            bindings
+                .map(|bindings| bindings.contains_key(canonical_scss_variable_name(name).as_str()))
+        },
+        |_| None,
     )
     .unwrap_or_else(|| value.to_string());
     static_scss_return_abstract_value(value.as_str())
@@ -1316,6 +1322,7 @@ fn stamp_contextual_return_values(nodes: &mut [OmenaScssEvalCallReturnNodeV0]) {
                     node.return_text.as_deref()?,
                     node.source_span_start,
                     nodes,
+                    None,
                 ),
             ))
         })
@@ -1711,7 +1718,7 @@ fn call_bound_condition_truthiness(
         substitute_static_scss_header_variables(condition, bindings)?
     };
     let condition = match context {
-        Some(context) => reduce_static_scss_callable_metadata_with_context(
+        Some(context) => reduce_static_scss_metadata_with_context(
             condition.as_str(),
             |name| {
                 scss_visible_function_declaration_exists(name, position, context.nodes)
@@ -1720,6 +1727,8 @@ fn call_bound_condition_truthiness(
             |name| {
                 scss_visible_mixin_declaration_exists(name, position, context.nodes).then_some(true)
             },
+            |name| Some(bindings.contains_key(canonical_scss_variable_name(name).as_str())),
+            |_| None,
         )
         .unwrap_or(condition),
         None => condition,
@@ -1767,6 +1776,7 @@ fn call_bound_return_value(
             value_text.as_str(),
             position,
             context.nodes,
+            Some(bindings),
         ),
         _ => static_scss_return_abstract_value(value_text.as_str()),
     }
@@ -4814,6 +4824,32 @@ mod tests {
             function_call.call_resolved_return_value,
             Some(AbstractCssValueV0::Exact {
                 value: "1px".to_string()
+            })
+        );
+    }
+
+    #[test]
+    fn call_return_ir_reports_static_scss_variable_metadata_values() {
+        let source = "@function metadata($input) { $local: 1px; @return if(meta.variable-exists(\"input\") and variable-exists(\"local\") and not variable-exists(\"missing\"), 3px, 4px); } .a { margin: metadata(2px); }";
+        let report = summarize_scss_call_return_ir(source, StyleDialect::Scss);
+        assert!(report.is_some());
+        let Some(report) = report else {
+            return;
+        };
+        let function_call = report
+            .nodes
+            .iter()
+            .find(|node| node.kind == "functionCall" && node.name.as_deref() == Some("metadata"));
+        assert!(function_call.is_some());
+        let Some(function_call) = function_call else {
+            return;
+        };
+
+        assert_eq!(function_call.call_resolved_return_value_kind, Some("exact"));
+        assert_eq!(
+            function_call.call_resolved_return_value,
+            Some(AbstractCssValueV0::Exact {
+                value: "3px".to_string()
             })
         );
     }

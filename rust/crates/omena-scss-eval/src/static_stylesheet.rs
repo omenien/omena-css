@@ -7,7 +7,7 @@ use serde::Serialize;
 
 use crate::{
     abstract_css_value_kind,
-    scss_metadata::reduce_static_scss_callable_metadata_with_context,
+    scss_metadata::reduce_static_scss_metadata_with_context,
     summarize_omena_scss_eval_oracle,
     value_eval::{
         reduce_static_numeric_value, reduce_static_scss_value,
@@ -1928,6 +1928,7 @@ fn resolve_static_scss_function_value_with_bindings(
     if references.is_empty() {
         return resolve_static_scss_known_function_calls_in_value(
             value,
+            argument_values,
             fallback_position,
             fuel,
             context,
@@ -1961,6 +1962,7 @@ fn resolve_static_scss_function_value_with_bindings(
     output.push_str(&value[cursor..]);
     resolve_static_scss_known_function_calls_in_value(
         output.as_str(),
+        argument_values,
         fallback_position,
         fuel,
         context,
@@ -1969,6 +1971,7 @@ fn resolve_static_scss_function_value_with_bindings(
 
 fn resolve_static_scss_known_function_calls_in_value(
     value: &str,
+    argument_values: &BTreeMap<String, String>,
     position: usize,
     fuel: usize,
     context: StaticScssFunctionResolutionContext<'_>,
@@ -2067,20 +2070,35 @@ fn resolve_static_scss_known_function_calls_in_value(
     }
 
     if !replaced_any {
-        return evaluate_static_scss_function_output_value_with_context(value, position, context);
+        return evaluate_static_scss_function_output_value_with_context(
+            value,
+            argument_values,
+            position,
+            context,
+        );
     }
     output.push_str(&value[cursor..]);
-    evaluate_static_scss_function_output_value_with_context(output.as_str(), position, context)
+    evaluate_static_scss_function_output_value_with_context(
+        output.as_str(),
+        argument_values,
+        position,
+        context,
+    )
 }
 
 fn evaluate_static_scss_function_output_value_with_context(
     value: &str,
+    argument_values: &BTreeMap<String, String>,
     position: usize,
     context: StaticScssFunctionResolutionContext<'_>,
 ) -> StaticStylesheetAbstractResolution {
-    let reduced_context_value =
-        reduce_static_scss_metadata_with_function_context(value, position, context)
-            .unwrap_or_else(|| value.to_string());
+    let reduced_context_value = reduce_static_scss_metadata_with_function_context(
+        value,
+        argument_values,
+        position,
+        context,
+    )
+    .unwrap_or_else(|| value.to_string());
     evaluate_static_scss_function_output_value(reduced_context_value.as_str())
 }
 
@@ -2119,16 +2137,30 @@ fn evaluate_static_scss_function_output_value(value: &str) -> StaticStylesheetAb
 
 fn reduce_static_scss_metadata_with_function_context(
     value: &str,
+    argument_values: &BTreeMap<String, String>,
     position: usize,
     context: StaticScssFunctionResolutionContext<'_>,
 ) -> Option<String> {
-    reduce_static_scss_callable_metadata_with_context(
+    reduce_static_scss_metadata_with_context(
         value,
         |name| {
             static_scss_visible_function_declaration_exists(name, position, context).then_some(true)
         },
         |name| {
             static_scss_visible_mixin_declaration_exists(name, position, context).then_some(true)
+        },
+        |name| {
+            Some(static_scss_visible_variable_exists(
+                name,
+                position,
+                argument_values,
+                context,
+            ))
+        },
+        |name| {
+            Some(static_scss_visible_global_variable_exists(
+                name, position, context,
+            ))
         },
     )
 }
@@ -2153,6 +2185,41 @@ fn static_scss_visible_mixin_declaration_exists(
         declaration.span_start <= position
             && canonical_static_scss_function_name(declaration.name.as_str()) == name
     })
+}
+
+fn static_scss_visible_variable_exists(
+    name: &str,
+    position: usize,
+    argument_values: &BTreeMap<String, String>,
+    context: StaticScssFunctionResolutionContext<'_>,
+) -> bool {
+    argument_values.contains_key(canonical_static_scss_variable_name(name).as_str())
+        || static_stylesheet_scope_for_position(context.scopes, position)
+            .and_then(|scope_id| {
+                find_static_scss_variable_declaration(
+                    name,
+                    scope_id,
+                    position,
+                    context.scopes,
+                    context.variable_declarations,
+                )
+            })
+            .is_some()
+}
+
+fn static_scss_visible_global_variable_exists(
+    name: &str,
+    position: usize,
+    context: StaticScssFunctionResolutionContext<'_>,
+) -> bool {
+    find_static_scss_variable_declaration_in_scope(
+        name,
+        0,
+        position,
+        context.scopes,
+        context.variable_declarations,
+    )
+    .is_some()
 }
 
 fn static_scss_function_value_contains_any_callable(value: &str) -> bool {
@@ -2611,12 +2678,19 @@ fn resolve_static_scss_variable_abstract_value_text(
         );
     };
     if references.is_empty() {
-        let reduced = reduce_static_scss_value(value.to_string());
+        let value = reduce_static_scss_metadata_with_variable_context(
+            value,
+            position,
+            scopes,
+            declarations,
+        )
+        .unwrap_or_else(|| value.to_string());
+        let reduced = reduce_static_scss_value(value.clone());
         if static_stylesheet_literal_value_is_safe(reduced.as_str()) {
             return resolved_static_abstract_value(reduced.as_str());
         }
         return raw_static_abstract_value(
-            value,
+            value.as_str(),
             StaticStylesheetResolutionReason::UnsupportedDynamic,
         );
     }
@@ -2646,6 +2720,13 @@ fn resolve_static_scss_variable_abstract_value_text(
         cursor = reference.end;
     }
     output.push_str(&value[cursor..]);
+    let output = reduce_static_scss_metadata_with_variable_context(
+        output.as_str(),
+        position,
+        scopes,
+        declarations,
+    )
+    .unwrap_or(output);
     resolved_static_abstract_value(reduce_static_scss_value(output).as_str())
 }
 
@@ -2755,6 +2836,46 @@ fn find_static_scss_variable_declaration_in_scope<'a>(
     active
 }
 
+fn reduce_static_scss_metadata_with_variable_context(
+    value: &str,
+    position: usize,
+    scopes: &[StaticStylesheetScope],
+    declarations: &[StaticStylesheetScopedVariableDeclaration],
+) -> Option<String> {
+    reduce_static_scss_metadata_with_context(
+        value,
+        |_| None,
+        |_| None,
+        |name| {
+            Some(
+                static_stylesheet_scope_for_position(scopes, position)
+                    .and_then(|scope_id| {
+                        find_static_scss_variable_declaration(
+                            name,
+                            scope_id,
+                            position,
+                            scopes,
+                            declarations,
+                        )
+                    })
+                    .is_some(),
+            )
+        },
+        |name| {
+            Some(
+                find_static_scss_variable_declaration_in_scope(
+                    name,
+                    0,
+                    position,
+                    scopes,
+                    declarations,
+                )
+                .is_some(),
+            )
+        },
+    )
+}
+
 fn resolve_static_scss_variable_value_text(
     value: &str,
     position: usize,
@@ -2765,7 +2886,14 @@ fn resolve_static_scss_variable_value_text(
     let references =
         collect_static_stylesheet_variable_references(value, StaticStylesheetVariableKind::Scss)?;
     if references.is_empty() {
-        let reduced = reduce_static_scss_value(value.to_string());
+        let value = reduce_static_scss_metadata_with_variable_context(
+            value,
+            position,
+            scopes,
+            declarations,
+        )
+        .unwrap_or_else(|| value.to_string());
+        let reduced = reduce_static_scss_value(value);
         return static_stylesheet_literal_value_is_safe(reduced.as_str()).then_some(reduced);
     }
     if !static_stylesheet_composite_value_is_safe(value) {
@@ -2787,7 +2915,15 @@ fn resolve_static_scss_variable_value_text(
         cursor = reference.end;
     }
     output.push_str(&value[cursor..]);
-    Some(output)
+    Some(
+        reduce_static_scss_metadata_with_variable_context(
+            output.as_str(),
+            position,
+            scopes,
+            declarations,
+        )
+        .unwrap_or(output),
+    )
 }
 
 fn resolve_static_less_variable_abstract_value_in_scope(
@@ -5007,6 +5143,22 @@ mod tests {
         };
 
         assert!(report.evaluated_css.contains("margin: 1px"));
+        assert!(report.oracle.all_legacy_declaration_values_preserved);
+    }
+
+    #[test]
+    fn static_scss_evaluation_reduces_static_variable_metadata_values() {
+        let report = derive_static_stylesheet_module_evaluation(
+            "$global-gap: 1px; $kind: if(variable-exists(\"global-gap\") and meta.global-variable-exists(\"global-gap\") and not global-variable-exists(\"missing\"), 1px, 2px); @function gate($local-gap) { $inner-gap: 2px; @return if(meta.variable-exists(\"local-gap\") and variable-exists(\"inner-gap\") and global-variable-exists(\"global-gap\") and not global-variable-exists(\"inner-gap\"), $global-gap, 4px); } .button { margin: $kind; padding: gate(3px); }",
+            StyleDialect::Scss,
+        );
+        assert!(report.is_some());
+        let Some(report) = report else {
+            return;
+        };
+
+        assert!(report.evaluated_css.contains("margin: 1px"));
+        assert!(report.evaluated_css.contains("padding: 1px"));
         assert!(report.oracle.all_legacy_declaration_values_preserved);
     }
 
