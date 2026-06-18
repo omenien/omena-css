@@ -161,6 +161,7 @@ pub struct OmenaScssEvalCallReturnNodeV0 {
     pub call_resolved_return_value_kind: Option<&'static str>,
     pub body_has_control_flow: bool,
     pub body_has_loop_control_flow: bool,
+    pub return_inside_loop_control_flow: bool,
     pub return_condition_text: Option<String>,
     pub return_negated_condition_texts: Vec<String>,
     pub source_span_start: usize,
@@ -517,6 +518,7 @@ struct ScssCallReturnCandidate {
     return_value: Option<AbstractCssValueV0>,
     body_has_control_flow: bool,
     body_has_loop_control_flow: bool,
+    return_inside_loop_control_flow: bool,
     return_condition_text: Option<String>,
     return_negated_condition_texts: Vec<String>,
     source_span_start: usize,
@@ -559,6 +561,7 @@ fn call_return_candidate_from_sass_symbol(
         return_value: None,
         body_has_control_flow: scss_declaration_body_has_control_flow(tokens, symbol),
         body_has_loop_control_flow: scss_declaration_body_has_loop_control_flow(tokens, symbol),
+        return_inside_loop_control_flow: false,
         return_condition_text: None,
         return_negated_condition_texts: Vec::new(),
         source_span_start: symbol.range.start().into(),
@@ -578,9 +581,15 @@ fn collect_scss_return_candidates(
         })
         .map(|(index, token)| {
             let return_text = scss_return_text_from_token(source, tokens, index);
-            let return_value = return_text
-                .as_deref()
-                .map(static_scss_return_abstract_value);
+            let return_inside_loop_control_flow =
+                scss_return_is_inside_loop_control_flow(tokens, index);
+            let return_value = if return_inside_loop_control_flow {
+                Some(AbstractCssValueV0::Top)
+            } else {
+                return_text
+                    .as_deref()
+                    .map(static_scss_return_abstract_value)
+            };
             let return_condition = scss_return_condition_from_token(source, tokens, index);
             ScssCallReturnCandidate {
                 kind: "functionReturn",
@@ -596,6 +605,7 @@ fn collect_scss_return_candidates(
                 return_value,
                 body_has_control_flow: false,
                 body_has_loop_control_flow: false,
+                return_inside_loop_control_flow,
                 return_condition_text: return_condition
                     .as_ref()
                     .and_then(|condition| condition.condition_text.clone()),
@@ -607,6 +617,32 @@ fn collect_scss_return_candidates(
             }
         })
         .collect()
+}
+
+fn scss_return_is_inside_loop_control_flow(tokens: &[LexedToken], return_index: usize) -> bool {
+    tokens
+        .iter()
+        .enumerate()
+        .filter(|(_, token)| {
+            token.kind == SyntaxKind::AtKeyword
+                && matches!(
+                    token.text.to_ascii_lowercase().as_str(),
+                    "@for" | "@each" | "@while"
+                )
+        })
+        .filter_map(|(index, _)| {
+            let body_start_index = tokens
+                .iter()
+                .enumerate()
+                .skip(index + 1)
+                .find(|(_, candidate)| candidate.kind == SyntaxKind::LeftBrace)
+                .map(|(candidate_index, _)| candidate_index)?;
+            let body_end_index = matching_right_brace_token_index(tokens, body_start_index)?;
+            Some((body_start_index, body_end_index))
+        })
+        .any(|(body_start_index, body_end_index)| {
+            body_start_index < return_index && return_index < body_end_index
+        })
 }
 
 fn scss_return_text_from_token(
@@ -1316,6 +1352,7 @@ fn call_return_node_from_candidate(
         call_resolved_return_value_kind: None,
         body_has_control_flow: candidate.body_has_control_flow,
         body_has_loop_control_flow: candidate.body_has_loop_control_flow,
+        return_inside_loop_control_flow: candidate.return_inside_loop_control_flow,
         return_condition_text: candidate.return_condition_text,
         return_negated_condition_texts: candidate.return_negated_condition_texts,
         source_span_start: candidate.source_span_start,
@@ -1573,9 +1610,6 @@ fn call_resolved_return_value_for_call(
     if declaration_node.kind != "functionDeclaration" {
         return None;
     }
-    if declaration_node.body_has_loop_control_flow {
-        return Some(AbstractCssValueV0::Top);
-    }
     if active_stack
         .iter()
         .any(|entry| entry == declaration_node.node_key.as_str())
@@ -1627,6 +1661,9 @@ fn call_resolved_return_value_for_call(
             ScssCallBoundReturnActivity::Active => {}
             ScssCallBoundReturnActivity::Inactive => continue,
             ScssCallBoundReturnActivity::Unknown => return Some(AbstractCssValueV0::Top),
+        }
+        if node.return_inside_loop_control_flow {
+            return Some(AbstractCssValueV0::Top);
         }
         return Some(
             node.return_text
@@ -5378,6 +5415,34 @@ mod tests {
         assert_eq!(
             function_call.call_resolved_return_value,
             Some(AbstractCssValueV0::Top)
+        );
+    }
+
+    #[test]
+    fn call_return_ir_resolves_return_after_static_loop() {
+        let source = "@function collect() { @for $i from 1 through 3 { $seen: $i; } @return 2px; } .a { width: collect(); }";
+        let report = summarize_scss_call_return_ir(source, StyleDialect::Scss);
+        assert!(report.is_some());
+        let Some(report) = report else {
+            return;
+        };
+        let function_call = report
+            .nodes
+            .iter()
+            .find(|node| node.kind == "functionCall" && node.name.as_deref() == Some("collect"));
+        assert!(function_call.is_some());
+        let Some(function_call) = function_call else {
+            return;
+        };
+
+        assert_eq!(report.call_resolved_return_value_count, 1);
+        assert_eq!(report.exact_call_resolved_return_value_count, 1);
+        assert_eq!(function_call.call_resolved_return_value_kind, Some("exact"));
+        assert_eq!(
+            function_call.call_resolved_return_value,
+            Some(AbstractCssValueV0::Exact {
+                value: "2px".to_string()
+            })
         );
     }
 
