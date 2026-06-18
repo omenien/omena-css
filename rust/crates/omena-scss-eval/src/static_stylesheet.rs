@@ -5,8 +5,8 @@ use omena_parser::{LexedToken, ParsedVariableFact, ParsedVariableFactKind, Style
 use omena_syntax::SyntaxKind;
 use omena_value_lattice::{
     parse_color_function_value, parse_color_mix_value, parse_numeric_value_with_unit,
-    parse_static_srgb_color_with_alpha, parse_whole_function_value_arguments,
-    parse_whole_function_value_inner,
+    parse_oklab_oklch_value, parse_static_srgb_color_with_alpha,
+    parse_whole_function_value_arguments, parse_whole_function_value_inner,
 };
 use serde::Serialize;
 
@@ -4918,6 +4918,7 @@ fn static_less_guard_value_is_color(value: &str) -> bool {
     parse_static_srgb_color_with_alpha(value).is_some()
         || parse_color_function_value(value).is_some()
         || parse_color_mix_value(value).is_some()
+        || parse_oklab_oklch_value(value).is_some()
 }
 
 fn static_less_guard_value_is_number(value: &str) -> bool {
@@ -8422,6 +8423,23 @@ mod tests {
     }
 
     #[test]
+    fn static_less_evaluation_treats_oklab_values_as_static_colors() {
+        let report = derive_static_stylesheet_module_evaluation(
+            ".tone(@color) when (iscolor(@color)) { color: @color; } .button { .tone(oklab(1 0 0)); }",
+            StyleDialect::Less,
+        );
+        assert!(report.is_some());
+        let Some(report) = report else {
+            return;
+        };
+
+        assert!(!report.evaluated_css.contains(".tone(@color"));
+        assert!(!report.evaluated_css.contains(".tone(oklab"));
+        assert!(report.evaluated_css.contains("color: oklab(1 0 0)"));
+        assert!(report.oracle.all_legacy_declaration_values_preserved);
+    }
+
+    #[test]
     fn static_less_evaluation_expands_numeric_guarded_mixin_calls() {
         let report = derive_static_stylesheet_module_evaluation(
             ".space(@gap) when (isnumber(@gap)) { margin: @gap; } .button { .space(2px); }",
@@ -10228,7 +10246,7 @@ mod tests {
     #[test]
     fn static_scss_evaluation_reduces_static_type_metadata_values() {
         let report = derive_static_stylesheet_module_evaluation(
-            "$gap: 2px; $tone: red; $items: 1px 2px; $config: (dense: true); $kind: if(meta.type-of($gap) == number and type-of($tone) == color and meta.type-of($items) == list and type-of($config) == map and feature-exists(\"at-error\") and meta.feature-exists(custom-property) and not meta.feature-exists(\"unknown\"), 1px, 2px); .button { margin: $kind; }",
+            "$gap: 2px; $tone: red; $relative-tone: oklab(1 0 0); $items: 1px 2px; $config: (dense: true); $kind: if(meta.type-of($gap) == number and type-of($tone) == color and meta.type-of($relative-tone) == color and meta.type-of($items) == list and type-of($config) == map and feature-exists(\"at-error\") and meta.feature-exists(custom-property) and not meta.feature-exists(\"unknown\"), 1px, 2px); .button { margin: $kind; }",
             StyleDialect::Scss,
         );
         assert!(report.is_some());

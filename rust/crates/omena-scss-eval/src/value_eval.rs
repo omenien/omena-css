@@ -10,7 +10,8 @@ use omena_value_lattice::{
         parse_reducible_sign_value, parse_reducible_sqrt_value, reduce_static_numeric_expression,
     },
     parse_color_function_value, parse_color_mix_value, parse_numeric_value_with_unit,
-    parse_static_srgb_color_with_alpha, parse_whole_function_value_arguments,
+    parse_oklab_oklch_value, parse_static_srgb_color_with_alpha,
+    parse_whole_function_value_arguments,
     substitute_static_css_function_references_in_value_until_stable,
 };
 
@@ -1298,6 +1299,7 @@ fn static_scss_value_is_color(value: &str) -> bool {
     parse_static_srgb_color_with_alpha(value).is_some()
         || parse_color_function_value(value).is_some()
         || parse_color_mix_value(value).is_some()
+        || parse_oklab_oklch_value(value).is_some()
 }
 
 fn static_scss_value_is_calculation(value: &str) -> bool {
