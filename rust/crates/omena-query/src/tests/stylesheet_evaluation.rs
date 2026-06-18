@@ -857,6 +857,55 @@ fn consumer_build_derives_static_less_evaluator_context_for_multiple_matching_gu
 }
 
 #[test]
+fn consumer_build_derives_static_less_evaluator_context_for_default_guarded_mixins() {
+    let red_summary = execute_omena_query_consumer_build_style_source(
+        "Button.module.less",
+        r#".tone(@color) when (@color = red) { color: @color; }
+.tone(@color) when (default()) and (iscolor(@color)) { color: gray; }
+.button { .tone(red); }"#,
+        &[
+            "less-module-evaluate".to_string(),
+            "css-modules-class-hashing".to_string(),
+            "print-css".to_string(),
+        ],
+    );
+
+    assert!(
+        red_summary
+            .execution
+            .executed_pass_ids
+            .contains(&"less-module-evaluate")
+    );
+    assert!(red_summary.execution.output_css.contains("color: red"));
+    assert!(!red_summary.execution.output_css.contains("color: gray"));
+    assert!(!red_summary.execution.output_css.contains(".tone(@color"));
+    assert!(!red_summary.execution.output_css.contains(".tone(red)"));
+
+    let blue_summary = execute_omena_query_consumer_build_style_source(
+        "Button.module.less",
+        r#".tone(@color) when (@color = red) { color: @color; }
+.tone(@color) when (default()) and (iscolor(@color)) { color: gray; }
+.button { .tone(blue); }"#,
+        &[
+            "less-module-evaluate".to_string(),
+            "css-modules-class-hashing".to_string(),
+            "print-css".to_string(),
+        ],
+    );
+
+    assert!(
+        blue_summary
+            .execution
+            .executed_pass_ids
+            .contains(&"less-module-evaluate")
+    );
+    assert!(blue_summary.execution.output_css.contains("color: gray"));
+    assert!(!blue_summary.execution.output_css.contains("color: blue"));
+    assert!(!blue_summary.execution.output_css.contains(".tone(@color"));
+    assert!(!blue_summary.execution.output_css.contains(".tone(blue)"));
+}
+
+#[test]
 fn consumer_build_keeps_false_guarded_less_mixins_planned_only() {
     let summary = execute_omena_query_consumer_build_style_source(
         "Button.module.less",

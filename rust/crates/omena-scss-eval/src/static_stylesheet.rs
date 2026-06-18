@@ -6,6 +6,7 @@ use omena_syntax::SyntaxKind;
 use omena_value_lattice::{
     parse_color_function_value, parse_color_mix_value, parse_numeric_value_with_unit,
     parse_static_srgb_color_with_alpha, parse_whole_function_value_arguments,
+    parse_whole_function_value_inner,
 };
 use serde::Serialize;
 
@@ -2936,6 +2937,7 @@ fn render_static_less_mixin_body(
     call_scope_id: usize,
     context: StaticLessMixinRenderContext<'_>,
     active_mixins: &mut BTreeSet<String>,
+    default_matches: Option<bool>,
 ) -> Option<StaticLessMixinRenderOutcome> {
     let canonical_name = canonical_static_less_mixin_name(declaration.name.as_str());
     if !active_mixins.insert(canonical_name.clone()) {
@@ -2967,6 +2969,7 @@ fn render_static_less_mixin_body(
             call_scope_id,
             context.scopes,
             context.variable_declarations,
+            default_matches,
         )?
     {
         active_mixins.remove(&canonical_name);
@@ -3007,16 +3010,51 @@ fn render_static_less_mixin_call(
     let mut saw_declaration = false;
     let mut rendered_bodies = Vec::new();
     let mut used_declaration_names = BTreeSet::new();
-    for declaration in context.declarations.iter().filter(|declaration| {
-        canonical_static_less_mixin_name(declaration.name.as_str()) == canonical_call_name
-    }) {
+    let declarations = context
+        .declarations
+        .iter()
+        .filter(|declaration| {
+            canonical_static_less_mixin_name(declaration.name.as_str()) == canonical_call_name
+        })
+        .collect::<Vec<_>>();
+    for declaration in &declarations {
         saw_declaration = true;
+        if declaration
+            .guard
+            .as_deref()
+            .is_some_and(static_less_mixin_guard_depends_on_default)
+        {
+            continue;
+        }
         match render_static_less_mixin_body(
             declaration,
             call,
             call_scope_id,
             context,
             active_mixins,
+            None,
+        )? {
+            StaticLessMixinRenderOutcome::Rendered(rendered) => {
+                used_declaration_names.extend(rendered.used_declaration_names);
+                rendered_bodies.push(rendered.body);
+            }
+            StaticLessMixinRenderOutcome::GuardNotMatched => {}
+        }
+    }
+    let default_matches = Some(rendered_bodies.is_empty());
+    for declaration in declarations.iter().filter(|declaration| {
+        declaration
+            .guard
+            .as_deref()
+            .is_some_and(static_less_mixin_guard_depends_on_default)
+    }) {
+        match render_static_less_mixin_body(
+            declaration,
+            call,
+            call_scope_id,
+            context,
+            active_mixins,
+            default_matches,
         )? {
             StaticLessMixinRenderOutcome::Rendered(rendered) => {
                 used_declaration_names.extend(rendered.used_declaration_names);
@@ -3043,6 +3081,7 @@ fn static_less_mixin_guard_matches(
     call_scope_id: usize,
     scopes: &[StaticStylesheetScope],
     variable_declarations: &BTreeMap<(usize, String), StaticStylesheetVariableDeclaration>,
+    default_matches: Option<bool>,
 ) -> Option<bool> {
     let guard = guard.trim();
     let when = guard.get(.."when".len())?;
@@ -3055,6 +3094,7 @@ fn static_less_mixin_guard_matches(
         call_scope_id,
         scopes,
         variable_declarations,
+        default_matches,
     };
     static_less_guard_expression_matches(expression, context)
 }
@@ -3065,6 +3105,7 @@ struct StaticLessGuardContext<'a> {
     call_scope_id: usize,
     scopes: &'a [StaticStylesheetScope],
     variable_declarations: &'a BTreeMap<(usize, String), StaticStylesheetVariableDeclaration>,
+    default_matches: Option<bool>,
 }
 
 fn static_less_guard_expression_matches(
@@ -3093,7 +3134,16 @@ fn static_less_guard_expression_matches(
         return static_less_guard_expression_matches(operand.trim(), context).map(|truthy| !truthy);
     }
     static_less_guard_predicate_expression_matches(expression, context)
+        .or_else(|| static_less_guard_default_matches(expression, context))
         .or_else(|| static_less_guard_comparison_matches(expression, context))
+}
+
+fn static_less_mixin_guard_depends_on_default(guard: &str) -> bool {
+    guard
+        .to_ascii_lowercase()
+        .split("when")
+        .nth(1)
+        .is_some_and(|expression| expression.contains("default("))
 }
 
 fn static_less_guard_or_matches(
@@ -3184,6 +3234,15 @@ fn static_less_guard_predicate_expression_matches(
             static_less_guard_value_is_keyword,
         )
     })
+}
+
+fn static_less_guard_default_matches(
+    predicate: &str,
+    context: StaticLessGuardContext<'_>,
+) -> Option<bool> {
+    parse_whole_function_value_inner(predicate, "default")
+        .filter(|inner| inner.trim().is_empty())
+        .and(context.default_matches)
 }
 
 fn static_less_mixin_guard_predicate_matches(
@@ -6604,6 +6663,43 @@ mod tests {
         assert!(!report.evaluated_css.contains(".tone(@color"));
         assert!(!report.evaluated_css.contains(".tone(red"));
         assert!(report.oracle.all_legacy_declaration_values_preserved);
+    }
+
+    #[test]
+    fn static_less_evaluation_expands_default_guarded_mixins() {
+        let red_report = derive_static_stylesheet_module_evaluation(
+            r#".tone(@color) when (@color = red) { color: @color; }
+.tone(@color) when (default()) and (iscolor(@color)) { color: gray; }
+.button { .tone(red); }"#,
+            StyleDialect::Less,
+        );
+        assert!(red_report.is_some());
+        let Some(red_report) = red_report else {
+            return;
+        };
+
+        assert!(red_report.evaluated_css.contains("color: red"));
+        assert!(!red_report.evaluated_css.contains("color: gray"));
+        assert!(!red_report.evaluated_css.contains(".tone(@color"));
+        assert!(!red_report.evaluated_css.contains(".tone(red"));
+        assert!(red_report.oracle.all_legacy_declaration_values_preserved);
+
+        let blue_report = derive_static_stylesheet_module_evaluation(
+            r#".tone(@color) when (@color = red) { color: @color; }
+.tone(@color) when (default()) and (iscolor(@color)) { color: gray; }
+.button { .tone(blue); }"#,
+            StyleDialect::Less,
+        );
+        assert!(blue_report.is_some());
+        let Some(blue_report) = blue_report else {
+            return;
+        };
+
+        assert!(blue_report.evaluated_css.contains("color: gray"));
+        assert!(!blue_report.evaluated_css.contains("color: blue"));
+        assert!(!blue_report.evaluated_css.contains(".tone(@color"));
+        assert!(!blue_report.evaluated_css.contains(".tone(blue"));
+        assert!(blue_report.oracle.all_legacy_declaration_values_preserved);
     }
 
     #[test]
