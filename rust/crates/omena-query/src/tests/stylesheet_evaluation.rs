@@ -89,6 +89,51 @@ fn consumer_build_derives_static_scss_evaluator_context_for_mixin_function_value
 }
 
 #[test]
+fn consumer_build_derives_static_scss_evaluator_context_for_nested_mixin_includes() {
+    let summary = execute_omena_query_consumer_build_style_source(
+        "Button.module.scss",
+        "@mixin spacing($gap) { margin: $gap; } @mixin tone($gap, $color: red) { @include spacing($gap); color: $color; } .button { @include tone(2px, blue); }",
+        &[
+            "scss-module-evaluate".to_string(),
+            "css-modules-class-hashing".to_string(),
+            "print-css".to_string(),
+        ],
+    );
+
+    assert!(
+        summary
+            .execution
+            .executed_pass_ids
+            .contains(&"scss-module-evaluate")
+    );
+    assert!(summary.execution.output_css.contains("margin: 2px"));
+    assert!(summary.execution.output_css.contains("color: blue"));
+    assert!(!summary.execution.output_css.contains("@mixin"));
+    assert!(!summary.execution.output_css.contains("@include"));
+}
+
+#[test]
+fn consumer_build_keeps_recursive_nested_mixin_includes_planned_only() {
+    let summary = execute_omena_query_consumer_build_style_source(
+        "Button.module.scss",
+        "@mixin a { @include b; } @mixin b { @include a; } .button { @include a; }",
+        &[
+            "scss-module-evaluate".to_string(),
+            "css-modules-class-hashing".to_string(),
+            "print-css".to_string(),
+        ],
+    );
+
+    assert!(
+        summary
+            .execution
+            .planned_only_pass_ids
+            .contains(&"scss-module-evaluate")
+    );
+    assert!(summary.execution.output_css.contains("@include a"));
+}
+
+#[test]
 fn consumer_build_derives_static_scss_evaluator_context_for_not_conditions() {
     let summary = execute_omena_query_consumer_build_style_source(
         "Button.module.scss",
