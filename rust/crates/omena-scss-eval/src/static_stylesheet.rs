@@ -968,6 +968,7 @@ struct StaticLessMixinDeclaration {
 
 #[derive(Debug, Clone)]
 struct StaticLessMixinCall {
+    namespace: Option<String>,
     name: String,
     start: usize,
     end: usize,
@@ -2671,6 +2672,14 @@ fn collect_static_less_mixin_calls(
     let mut calls = Vec::new();
     let mut index = 0usize;
     while index < tokens.len() {
+        if static_less_mixin_call_context_is_plain(tokens, index)
+            && let Some((call, semicolon_index)) =
+                static_less_namespace_mixin_call_at(source, tokens, index)
+        {
+            calls.push(call);
+            index = semicolon_index + 1;
+            continue;
+        }
         let Some((name, open_index)) = static_less_mixin_signature_at(tokens, index) else {
             index += 1;
             continue;
@@ -2696,6 +2705,7 @@ fn collect_static_less_mixin_calls(
                 ..static_stylesheet_token_start(&tokens[close_index]),
         )?)?;
         calls.push(StaticLessMixinCall {
+            namespace: None,
             name,
             start: static_stylesheet_token_start(&tokens[index]),
             end: static_stylesheet_token_end(&tokens[semicolon_index]),
@@ -2706,6 +2716,69 @@ fn collect_static_less_mixin_calls(
     }
     calls.sort_by_key(|call| (call.start, call.end));
     Some(calls)
+}
+
+fn static_less_namespace_mixin_call_at(
+    source: &str,
+    tokens: &[LexedToken],
+    index: usize,
+) -> Option<(StaticLessMixinCall, usize)> {
+    let (namespace, after_namespace_index) = static_less_namespace_name_at(tokens, index)?;
+    let separator_index = static_stylesheet_skip_trivia_tokens(tokens, after_namespace_index);
+    if tokens
+        .get(separator_index)
+        .is_none_or(|token| token.kind != SyntaxKind::GreaterThan)
+    {
+        return None;
+    }
+    let call_index = static_stylesheet_skip_trivia_tokens(tokens, separator_index + 1);
+    let (name, open_index) = static_less_mixin_signature_at(tokens, call_index)?;
+    let close_index = static_stylesheet_matching_token_index(
+        tokens,
+        open_index,
+        SyntaxKind::LeftParen,
+        SyntaxKind::RightParen,
+    )?;
+    let (semicolon_index, important) =
+        static_less_mixin_call_semicolon_and_importance(source, tokens, close_index)?;
+    let arguments = split_static_less_mixin_arguments(source.get(
+        static_stylesheet_token_end(&tokens[open_index])
+            ..static_stylesheet_token_start(&tokens[close_index]),
+    )?)?;
+    Some((
+        StaticLessMixinCall {
+            namespace: Some(namespace),
+            name,
+            start: static_stylesheet_token_start(&tokens[index]),
+            end: static_stylesheet_token_end(&tokens[semicolon_index]),
+            important,
+            arguments,
+        },
+        semicolon_index,
+    ))
+}
+
+fn static_less_namespace_name_at(tokens: &[LexedToken], index: usize) -> Option<(String, usize)> {
+    let token = tokens.get(index)?;
+    if token.kind == SyntaxKind::Hash {
+        if !static_less_mixin_hash_name_is_safe(token.text.as_str()) {
+            return None;
+        }
+        return Some((token.text.clone(), index + 1));
+    }
+    if token.kind != SyntaxKind::Dot {
+        return None;
+    }
+    let name_index = static_stylesheet_skip_trivia_tokens(tokens, index + 1);
+    let name_token = tokens.get(name_index)?;
+    if !matches!(
+        name_token.kind,
+        SyntaxKind::Ident | SyntaxKind::CustomPropertyName
+    ) || !static_less_mixin_name_part_is_safe(name_token.text.as_str())
+    {
+        return None;
+    }
+    Some((format!(".{}", name_token.text), name_index + 1))
 }
 
 fn static_less_mixin_call_semicolon_and_importance(
@@ -3114,6 +3187,14 @@ fn render_static_less_mixin_call(
     context: StaticLessMixinRenderContext<'_>,
     active_mixins: &mut BTreeSet<String>,
 ) -> Option<Option<StaticLessMixinRenderResult>> {
+    if call.namespace.is_some() {
+        return render_static_less_namespace_mixin_call(
+            call,
+            call_scope_id,
+            context,
+            active_mixins,
+        );
+    }
     let canonical_call_name = canonical_static_less_mixin_name(call.name.as_str());
     let mut saw_declaration = false;
     let mut rendered_bodies = Vec::new();
@@ -3186,6 +3267,70 @@ fn render_static_less_mixin_call(
     Some(Some(StaticLessMixinRenderResult {
         body: rendered_bodies.join(" "),
         used_declaration_names,
+    }))
+}
+
+fn render_static_less_namespace_mixin_call(
+    call: &StaticLessMixinCall,
+    call_scope_id: usize,
+    context: StaticLessMixinRenderContext<'_>,
+    active_mixins: &mut BTreeSet<String>,
+) -> Option<Option<StaticLessMixinRenderResult>> {
+    let namespace = call.namespace.as_ref()?;
+    let canonical_namespace = canonical_static_less_mixin_name(namespace.as_str());
+    let mut saw_namespace = false;
+    let mut rendered_bodies = Vec::new();
+
+    for declaration in context.declarations.iter().filter(|declaration| {
+        canonical_static_less_mixin_name(declaration.name.as_str()) == canonical_namespace
+    }) {
+        saw_namespace = true;
+        if !declaration.parameters.is_empty() || declaration.guard.is_some() {
+            continue;
+        }
+        if !active_mixins.insert(canonical_namespace.clone()) {
+            return None;
+        }
+        let body = context
+            .source
+            .get(declaration.body_start..declaration.body_end)?;
+        let body_lexed = lex(body, StyleDialect::Less);
+        let nested_declarations =
+            collect_static_less_mixin_declarations(body, body_lexed.tokens())?;
+        let nested_context = StaticLessMixinRenderContext {
+            source: body,
+            declarations: nested_declarations.as_slice(),
+            scopes: context.scopes,
+            variable_declarations: context.variable_declarations,
+        };
+        let nested_call = StaticLessMixinCall {
+            namespace: None,
+            name: call.name.clone(),
+            start: call.start,
+            end: call.end,
+            important: call.important,
+            arguments: call.arguments.clone(),
+        };
+        if let Some(rendered) = render_static_less_mixin_call(
+            &nested_call,
+            call_scope_id,
+            nested_context,
+            active_mixins,
+        )? {
+            rendered_bodies.push(rendered.body);
+        }
+        active_mixins.remove(&canonical_namespace);
+    }
+
+    if !saw_namespace {
+        return Some(None);
+    }
+    if rendered_bodies.is_empty() {
+        return None;
+    }
+    Some(Some(StaticLessMixinRenderResult {
+        body: rendered_bodies.join(" "),
+        used_declaration_names: BTreeSet::from([canonical_namespace]),
     }))
 }
 
@@ -6820,6 +6965,33 @@ mod tests {
         assert!(report.evaluated_css.contains("color: red"));
         assert!(report.evaluated_css.contains("margin: 2px"));
         assert!(report.oracle.all_legacy_declaration_values_preserved);
+    }
+
+    #[test]
+    fn static_less_evaluation_expands_namespace_mixin_access() {
+        let report = derive_static_stylesheet_module_evaluation(
+            "#bundle() { .rounded(@radius) { border-radius: @radius; } } .button { #bundle > .rounded(2px); }",
+            StyleDialect::Less,
+        );
+        assert!(report.is_some());
+        let Some(report) = report else {
+            return;
+        };
+
+        assert!(!report.evaluated_css.contains("#bundle()"));
+        assert!(!report.evaluated_css.contains("#bundle > .rounded"));
+        assert!(report.evaluated_css.contains("border-radius: 2px"));
+        assert!(report.oracle.all_legacy_declaration_values_preserved);
+    }
+
+    #[test]
+    fn static_less_evaluation_keeps_parameterized_namespace_mixin_access_planned_only() {
+        let report = derive_static_stylesheet_module_evaluation(
+            "#bundle(@color) { .tone() { color: @color; } } .button { #bundle > .tone(); }",
+            StyleDialect::Less,
+        );
+
+        assert!(report.is_none());
     }
 
     #[test]

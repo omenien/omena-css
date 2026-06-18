@@ -700,6 +700,57 @@ fn consumer_build_derives_static_less_evaluator_context_for_hash_mixin_calls() {
 }
 
 #[test]
+fn consumer_build_derives_static_less_evaluator_context_for_namespace_mixin_access() {
+    let summary = execute_omena_query_consumer_build_style_source(
+        "Button.module.less",
+        "#bundle() { .rounded(@radius) { border-radius: @radius; } } .button { #bundle > .rounded(2px); }",
+        &[
+            "less-module-evaluate".to_string(),
+            "css-modules-class-hashing".to_string(),
+            "print-css".to_string(),
+        ],
+    );
+
+    assert!(
+        summary
+            .execution
+            .executed_pass_ids
+            .contains(&"less-module-evaluate")
+    );
+    assert!(
+        !summary
+            .execution
+            .planned_only_pass_ids
+            .contains(&"less-module-evaluate")
+    );
+    assert!(summary.execution.output_css.contains("border-radius: 2px"));
+    assert!(!summary.execution.output_css.contains("#bundle()"));
+    assert!(!summary.execution.output_css.contains("#bundle > .rounded"));
+}
+
+#[test]
+fn consumer_build_keeps_parameterized_less_namespace_mixin_access_planned_only() {
+    let summary = execute_omena_query_consumer_build_style_source(
+        "Button.module.less",
+        "#bundle(@color) { .tone() { color: @color; } } .button { #bundle > .tone(); }",
+        &[
+            "less-module-evaluate".to_string(),
+            "css-modules-class-hashing".to_string(),
+            "print-css".to_string(),
+        ],
+    );
+
+    assert!(
+        summary
+            .execution
+            .planned_only_pass_ids
+            .contains(&"less-module-evaluate")
+    );
+    assert!(summary.execution.output_css.contains("#bundle > .tone()"));
+    assert!(!summary.execution.output_css.contains(".button { color:"));
+}
+
+#[test]
 fn consumer_build_derives_static_less_evaluator_context_for_escaped_string_mixin_arguments() {
     let summary = execute_omena_query_consumer_build_style_source(
         "Button.module.less",
