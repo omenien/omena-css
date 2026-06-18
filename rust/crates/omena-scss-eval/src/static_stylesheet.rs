@@ -4841,7 +4841,7 @@ mod tests {
     #[test]
     fn static_scss_evaluation_reduces_static_calculation_metadata_values() {
         let report = derive_static_stylesheet_module_evaluation(
-            "$name: meta.calc-name(clamp(1px, 2px, 3px)); $kind: meta.type-of(calc(100% - 1px)); $gap: if($name == \"clamp\" and $kind == calculation, 1px, 2px); .button { margin: $gap; }",
+            "$name: meta.calc-name(clamp(1px, 2px, 3px)); $args: meta.calc-args(clamp(1px, 2px, 3px)); $kind: meta.type-of(calc(100% - 1px)); $gap: if($name == \"clamp\" and $kind == calculation and list.length($args) == 3 and list.nth($args, 2) == 2px, 1px, 2px); .button { margin: $gap; }",
             StyleDialect::Scss,
         );
         assert!(report.is_some());

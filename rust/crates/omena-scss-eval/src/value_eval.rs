@@ -22,6 +22,7 @@ pub(crate) fn reduce_static_scss_value(value: String) -> String {
             ("if", parse_static_scss_if_value),
             ("type-of", parse_static_scss_type_of_value),
             ("meta.type-of", parse_static_scss_meta_type_of_value),
+            ("meta.calc-args", parse_static_scss_meta_calc_args_value),
             ("meta.calc-name", parse_static_scss_meta_calc_name_value),
             ("nth", parse_static_scss_nth_value),
             ("list.nth", parse_static_scss_list_nth_value),
@@ -202,6 +203,14 @@ fn parse_static_scss_meta_calc_name_value(value: &str) -> Option<String> {
         return None;
     };
     static_scss_quote_string(static_scss_calculation_name(calculation)?)
+}
+
+fn parse_static_scss_meta_calc_args_value(value: &str) -> Option<String> {
+    let arguments = parse_whole_function_value_arguments(value, "meta.calc-args")?;
+    let [calculation] = arguments.as_slice() else {
+        return None;
+    };
+    static_scss_calculation_args(calculation)
 }
 
 fn parse_static_scss_nth_value(value: &str) -> Option<String> {
@@ -1274,6 +1283,35 @@ fn static_scss_calculation_name(value: &str) -> Option<&'static str> {
     ["calc", "clamp", "min", "max"]
         .into_iter()
         .find(|name| omena_value_lattice::parse_whole_function_value_inner(value, name).is_some())
+}
+
+fn static_scss_calculation_args(value: &str) -> Option<String> {
+    let calculation_name = static_scss_calculation_name(value)?;
+    let inner = omena_value_lattice::parse_whole_function_value_inner(value, calculation_name)?;
+    let items = match calculation_name {
+        "calc" => return None,
+        "clamp" | "min" | "max" => split_static_scss_top_level(inner, ',')?,
+        _ => return None,
+    };
+    if items.len() < 2
+        || !items
+            .iter()
+            .all(|item| static_scss_calculation_arg_is_static(item))
+    {
+        return None;
+    }
+    static_scss_render_list_value(&StaticScssListValue {
+        items,
+        separator: StaticScssListSeparator::Comma,
+        bracketed: false,
+    })
+}
+
+fn static_scss_calculation_arg_is_static(value: &str) -> bool {
+    let value = value.trim();
+    !value.is_empty()
+        && !value.contains('$')
+        && static_scss_top_level_separator_index(value, ':').is_some_and(|index| index.is_none())
 }
 
 fn static_scss_non_empty_map_value_is_static(value: &str) -> bool {

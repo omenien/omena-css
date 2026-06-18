@@ -4617,7 +4617,7 @@ mod tests {
 
     #[test]
     fn call_return_ir_reports_static_scss_calculation_metadata_values() {
-        let source = "@function metadata() { @return if(meta.calc-name(clamp(1px, 2px, 3px)) == \"clamp\" and meta.type-of(calc(100% - 1px)) == calculation, 3px, 4px); } .a { margin: metadata(); }";
+        let source = "@function metadata() { @return if(meta.calc-name(clamp(1px, 2px, 3px)) == \"clamp\" and meta.type-of(calc(100% - 1px)) == calculation and list.nth(meta.calc-args(clamp(1px, 2px, 3px)), 2) == 2px and list.length(meta.calc-args(min(4px, 5px))) == 2, 3px, 4px); } .a { margin: metadata(); }";
         let report = summarize_scss_call_return_ir(source, StyleDialect::Scss);
         assert!(report.is_some());
         let Some(report) = report else {
