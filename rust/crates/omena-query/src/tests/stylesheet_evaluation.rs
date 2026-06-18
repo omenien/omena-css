@@ -679,6 +679,58 @@ fn consumer_build_derives_static_less_evaluator_context_for_variadic_mixin_argum
 }
 
 #[test]
+fn consumer_build_derives_static_less_evaluator_context_for_literal_pattern_mixins() {
+    let summary = execute_omena_query_consumer_build_style_source(
+        "Button.module.less",
+        ".tone(dark, @color) { color: @color; background: black; } .tone(light, @color) { color: @color; background: white; } .button { .tone(dark, red); }",
+        &[
+            "less-module-evaluate".to_string(),
+            "css-modules-class-hashing".to_string(),
+            "print-css".to_string(),
+        ],
+    );
+
+    assert!(
+        summary
+            .execution
+            .executed_pass_ids
+            .contains(&"less-module-evaluate")
+    );
+    assert!(summary.execution.output_css.contains("color: red"));
+    assert!(summary.execution.output_css.contains("background: black"));
+    assert!(!summary.execution.output_css.contains("background: white"));
+    assert!(!summary.execution.output_css.contains(".tone(dark"));
+    assert!(!summary.execution.output_css.contains(".tone(light"));
+}
+
+#[test]
+fn consumer_build_keeps_unmatched_literal_pattern_mixins_planned_only() {
+    let summary = execute_omena_query_consumer_build_style_source(
+        "Button.module.less",
+        ".tone(dark, @color) { color: @color; background: black; } .button { .tone(light, red); }",
+        &[
+            "less-module-evaluate".to_string(),
+            "css-modules-class-hashing".to_string(),
+            "print-css".to_string(),
+        ],
+    );
+
+    assert!(
+        summary
+            .execution
+            .planned_only_pass_ids
+            .contains(&"less-module-evaluate")
+    );
+    assert!(summary.execution.output_css.contains(".tone(light, red)"));
+    assert!(
+        !summary
+            .execution
+            .output_css
+            .contains(".button { color: red")
+    );
+}
+
+#[test]
 fn consumer_build_does_not_expand_variadic_tokens_in_less_calls() {
     let summary = execute_omena_query_consumer_build_style_source(
         "Button.module.less",

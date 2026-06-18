@@ -917,6 +917,7 @@ struct StaticScssFunctionParameter {
     name: String,
     default_value: Option<String>,
     variadic: bool,
+    pattern_value: Option<String>,
 }
 
 #[derive(Debug, Clone)]
@@ -1507,7 +1508,7 @@ fn collect_static_scss_function_parameters(
         } else if saw_default {
             return None;
         }
-        if !names.insert(parameter.name.clone()) {
+        if parameter.pattern_value.is_none() && !names.insert(parameter.name.clone()) {
             return None;
         }
         parameters.push(parameter);
@@ -1523,6 +1524,7 @@ fn parse_static_scss_function_parameter(
             name,
             default_value: Some(argument.value),
             variadic: false,
+            pattern_value: None,
         });
     }
 
@@ -1535,6 +1537,7 @@ fn parse_static_scss_function_parameter(
         name: canonical_static_scss_variable_name(name),
         default_value: None,
         variadic: false,
+        pattern_value: None,
     })
 }
 
@@ -2808,7 +2811,7 @@ fn collect_static_less_mixin_parameters(
         } else if saw_default && !parameter.variadic {
             return None;
         }
-        if !names.insert(parameter.name.clone()) {
+        if parameter.pattern_value.is_none() && !names.insert(parameter.name.clone()) {
             return None;
         }
         parameters.push(parameter);
@@ -2824,6 +2827,7 @@ fn parse_static_less_mixin_parameter(
             name,
             default_value: Some(argument.value),
             variadic: false,
+            pattern_value: None,
         });
     }
     let (name, variadic) = if let Some(name) = argument.value.strip_suffix("...") {
@@ -2831,10 +2835,21 @@ fn parse_static_less_mixin_parameter(
     } else {
         (argument.value.as_str(), false)
     };
-    static_less_variable_name_is_safe(name).then_some(StaticScssFunctionParameter {
-        name: name.to_string(),
-        default_value: None,
-        variadic,
+    if static_less_variable_name_is_safe(name) {
+        return Some(StaticScssFunctionParameter {
+            name: name.to_string(),
+            default_value: None,
+            variadic,
+            pattern_value: None,
+        });
+    }
+    (!variadic && static_less_mixin_argument_value_is_safe(argument.value.as_str())).then(|| {
+        StaticScssFunctionParameter {
+            name: String::new(),
+            default_value: None,
+            variadic: false,
+            pattern_value: Some(argument.value),
+        }
     })
 }
 
@@ -3098,6 +3113,9 @@ fn render_static_less_mixin_call(
         {
             continue;
         }
+        if !static_less_mixin_parameter_patterns_match(&declaration.parameters, &call.arguments) {
+            continue;
+        }
         match render_static_less_mixin_body(
             declaration,
             call,
@@ -3120,6 +3138,9 @@ fn render_static_less_mixin_call(
             .as_deref()
             .is_some_and(static_less_mixin_guard_depends_on_default)
     }) {
+        if !static_less_mixin_parameter_patterns_match(&declaration.parameters, &call.arguments) {
+            continue;
+        }
         match render_static_less_mixin_body(
             declaration,
             call,
@@ -4142,12 +4163,11 @@ fn bind_static_scss_callable_arguments(
     for argument in arguments {
         if let Some(argument_name) = argument.name.as_ref() {
             saw_named_argument = true;
-            if !parameters
-                .iter()
-                .any(|parameter| parameter.name == *argument_name)
-                || bindings
-                    .insert(argument_name.clone(), argument.value.clone())
-                    .is_some()
+            if !parameters.iter().any(|parameter| {
+                parameter.pattern_value.is_none() && parameter.name == *argument_name
+            }) || bindings
+                .insert(argument_name.clone(), argument.value.clone())
+                .is_some()
             {
                 return None;
             }
@@ -4158,6 +4178,13 @@ fn bind_static_scss_callable_arguments(
             return None;
         }
         let parameter = parameters.get(positional_index)?;
+        if let Some(pattern_value) = parameter.pattern_value.as_deref() {
+            if !static_less_mixin_pattern_argument_matches(pattern_value, argument.value.as_str()) {
+                return None;
+            }
+            positional_index += 1;
+            continue;
+        }
         if parameter.variadic {
             bindings
                 .entry(parameter.name.clone())
@@ -4177,7 +4204,13 @@ fn bind_static_scss_callable_arguments(
         positional_index += 1;
     }
 
-    for parameter in parameters {
+    for (index, parameter) in parameters.iter().enumerate() {
+        if parameter.pattern_value.is_some() {
+            if index >= positional_index {
+                return None;
+            }
+            continue;
+        }
         if bindings.contains_key(parameter.name.as_str()) {
             continue;
         }
@@ -4190,12 +4223,50 @@ fn bind_static_scss_callable_arguments(
 
     parameters
         .iter()
+        .filter(|parameter| parameter.pattern_value.is_none())
         .map(|parameter| {
             bindings
                 .remove(parameter.name.as_str())
                 .map(|value| (parameter.name.clone(), value))
         })
         .collect::<Option<Vec<_>>>()
+}
+
+fn static_less_mixin_pattern_argument_matches(pattern_value: &str, argument_value: &str) -> bool {
+    pattern_value.trim() == argument_value.trim()
+}
+
+fn static_less_mixin_parameter_patterns_match(
+    parameters: &[StaticScssFunctionParameter],
+    arguments: &[StaticScssFunctionArgument],
+) -> bool {
+    let mut positional_index = 0usize;
+    let mut saw_named_argument = false;
+    for argument in arguments {
+        if argument.name.is_some() {
+            saw_named_argument = true;
+            continue;
+        }
+        if saw_named_argument {
+            return true;
+        }
+        let Some(parameter) = parameters.get(positional_index) else {
+            return true;
+        };
+        if let Some(pattern_value) = parameter.pattern_value.as_deref()
+            && !static_less_mixin_pattern_argument_matches(pattern_value, argument.value.as_str())
+        {
+            return false;
+        }
+        positional_index += 1;
+        if parameter.variadic {
+            return true;
+        }
+    }
+    parameters
+        .iter()
+        .enumerate()
+        .all(|(index, parameter)| parameter.pattern_value.is_none() || index < positional_index)
 }
 
 fn resolve_static_scss_function_argument_abstract_value(
@@ -6616,6 +6687,35 @@ mod tests {
         assert!(report.evaluated_css.contains("box-shadow: 1px, 2px, 3px"));
         assert!(report.evaluated_css.contains("trace: red, 1px, 2px, 3px"));
         assert!(report.oracle.all_legacy_declaration_values_preserved);
+    }
+
+    #[test]
+    fn static_less_evaluation_expands_literal_pattern_mixins() {
+        let report = derive_static_stylesheet_module_evaluation(
+            ".tone(dark, @color) { color: @color; background: black; } .tone(light, @color) { color: @color; background: white; } .button { .tone(dark, red); }",
+            StyleDialect::Less,
+        );
+        assert!(report.is_some());
+        let Some(report) = report else {
+            return;
+        };
+
+        assert!(!report.evaluated_css.contains(".tone(dark"));
+        assert!(!report.evaluated_css.contains(".tone(light"));
+        assert!(report.evaluated_css.contains("color: red"));
+        assert!(report.evaluated_css.contains("background: black"));
+        assert!(!report.evaluated_css.contains("background: white"));
+        assert!(report.oracle.all_legacy_declaration_values_preserved);
+    }
+
+    #[test]
+    fn static_less_evaluation_keeps_unmatched_literal_pattern_mixins_planned_only() {
+        let report = derive_static_stylesheet_module_evaluation(
+            ".tone(dark, @color) { color: @color; background: black; } .button { .tone(light, red); }",
+            StyleDialect::Less,
+        );
+
+        assert!(report.is_none());
     }
 
     #[test]
