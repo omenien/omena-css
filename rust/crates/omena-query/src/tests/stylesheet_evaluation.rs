@@ -700,6 +700,73 @@ fn consumer_build_derives_static_less_evaluator_context_for_hash_mixin_calls() {
 }
 
 #[test]
+fn consumer_build_derives_static_less_evaluator_context_for_mixin_declaration_accessors() {
+    let summary = execute_omena_query_consumer_build_style_source(
+        "Button.module.less",
+        ".tokens(@color, @gap: 1px) { @result: @color; width: @gap; } .button { color: .tokens(red)[@result]; margin: .tokens(red, 2px)[width]; }",
+        &[
+            "less-module-evaluate".to_string(),
+            "css-modules-class-hashing".to_string(),
+            "print-css".to_string(),
+        ],
+    );
+
+    assert!(
+        summary
+            .execution
+            .executed_pass_ids
+            .contains(&"less-module-evaluate")
+    );
+    assert!(
+        !summary
+            .execution
+            .planned_only_pass_ids
+            .contains(&"less-module-evaluate")
+    );
+    assert!(summary.execution.output_css.contains("color: red"));
+    assert!(summary.execution.output_css.contains("margin: 2px"));
+    assert!(!summary.execution.output_css.contains(".tokens(@color"));
+    assert!(
+        !summary
+            .execution
+            .output_css
+            .contains(".tokens(red)[@result]")
+    );
+    assert!(
+        !summary
+            .execution
+            .output_css
+            .contains(".tokens(red, 2px)[width]")
+    );
+}
+
+#[test]
+fn consumer_build_keeps_unknown_less_mixin_accessor_members_planned_only() {
+    let summary = execute_omena_query_consumer_build_style_source(
+        "Button.module.less",
+        ".tokens(@color) { @result: @color; } .button { color: .tokens(red)[@missing]; }",
+        &[
+            "less-module-evaluate".to_string(),
+            "css-modules-class-hashing".to_string(),
+            "print-css".to_string(),
+        ],
+    );
+
+    assert!(
+        summary
+            .execution
+            .planned_only_pass_ids
+            .contains(&"less-module-evaluate")
+    );
+    assert!(
+        summary
+            .execution
+            .output_css
+            .contains(".tokens(red)[@missing]")
+    );
+}
+
+#[test]
 fn consumer_build_derives_static_less_evaluator_context_for_namespace_mixin_access() {
     let summary = execute_omena_query_consumer_build_style_source(
         "Button.module.less",
