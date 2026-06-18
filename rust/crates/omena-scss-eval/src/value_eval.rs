@@ -3237,7 +3237,7 @@ fn static_scss_zero_values_share_unitless_canonical_form(left: &str, right: &str
 }
 
 fn static_scss_comparable_operand(value: &str) -> Option<String> {
-    let reduced = reduce_static_numeric_value(value.trim().to_string());
+    let reduced = reduce_static_scss_value(value.trim().to_string());
     let normalized = reduced.to_ascii_lowercase();
     if reduced.is_empty()
         || reduced.contains('$')
