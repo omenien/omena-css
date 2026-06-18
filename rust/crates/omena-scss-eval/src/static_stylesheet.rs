@@ -3589,6 +3589,31 @@ mod tests {
     }
 
     #[test]
+    fn static_scss_evaluation_reduces_static_list_metadata_values() {
+        let report = derive_static_stylesheet_module_evaluation(
+            "$separator: list.separator((1px, 2px)); $space: if(list.separator(1px 2px) == \"space\", 1px, 2px); $bracketed: if(list.is-bracketed([1px 2px]), 3px, 4px); .button { content: $separator; margin: $space; padding: $bracketed; }",
+            StyleDialect::Scss,
+        );
+        assert!(report.is_some());
+        let Some(report) = report else {
+            return;
+        };
+
+        let replacements = report
+            .resolved_replacements
+            .iter()
+            .map(|replacement| replacement.text.as_str())
+            .collect::<Vec<_>>();
+        assert!(replacements.contains(&"\"comma\""));
+        assert!(replacements.contains(&"1px"));
+        assert!(replacements.contains(&"3px"));
+        assert!(report.evaluated_css.contains("content: \"comma\""));
+        assert!(report.evaluated_css.contains("margin: 1px"));
+        assert!(report.evaluated_css.contains("padding: 3px"));
+        assert!(report.oracle.all_legacy_declaration_values_preserved);
+    }
+
+    #[test]
     fn static_scss_evaluation_reduces_static_map_has_key_conditions() {
         let report = derive_static_stylesheet_module_evaluation(
             "$gap: if(map.has-key((default: 2px, dense: 1px), dense), 1px, 2px); $pad: if(map-has-key((default: 2px), missing), 3px, 4px); .button { margin: $gap; padding: $pad; }",

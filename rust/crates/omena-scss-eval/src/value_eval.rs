@@ -25,6 +25,11 @@ pub(crate) fn reduce_static_scss_value(value: String) -> String {
             ("list.length", parse_static_scss_list_length_value),
             ("index", parse_static_scss_index_value),
             ("list.index", parse_static_scss_list_index_value),
+            ("list.separator", parse_static_scss_list_separator_value),
+            (
+                "list.is-bracketed",
+                parse_static_scss_list_is_bracketed_value,
+            ),
             ("map-get", parse_static_scss_map_get_value),
             ("map.get", parse_static_scss_map_get_namespaced_value),
             ("map-has-key", parse_static_scss_map_has_key_value),
@@ -146,6 +151,24 @@ fn parse_static_scss_index_value(value: &str) -> Option<String> {
 
 fn parse_static_scss_list_index_value(value: &str) -> Option<String> {
     parse_static_scss_index_value_with_name(value, "list.index")
+}
+
+fn parse_static_scss_list_separator_value(value: &str) -> Option<String> {
+    let arguments = parse_whole_function_value_arguments(value, "list.separator")?;
+    let [list] = arguments.as_slice() else {
+        return None;
+    };
+    Some(format!("\"{}\"", static_scss_list_separator(list)?))
+}
+
+fn parse_static_scss_list_is_bracketed_value(value: &str) -> Option<String> {
+    let arguments = parse_whole_function_value_arguments(value, "list.is-bracketed")?;
+    let [list] = arguments.as_slice() else {
+        return None;
+    };
+    let list = list.trim();
+    let bracketed = list.starts_with('[') && strip_static_scss_outer_container(list).is_some();
+    Some(bracketed.to_string())
 }
 
 fn parse_static_scss_nth_value_with_name(value: &str, function_name: &str) -> Option<String> {
@@ -414,6 +437,20 @@ fn parse_static_scss_list_items(value: &str) -> Option<Vec<String>> {
         return None;
     }
     Some(items)
+}
+
+fn static_scss_list_separator(value: &str) -> Option<&'static str> {
+    let source = strip_static_scss_outer_container(value.trim()).unwrap_or_else(|| value.trim());
+    if source.is_empty() {
+        return None;
+    }
+    if split_static_scss_top_level(source, ',').is_some_and(|items| items.len() > 1) {
+        return Some("comma");
+    }
+    if split_static_scss_top_level_whitespace(source).is_some_and(|items| items.len() > 1) {
+        return Some("space");
+    }
+    static_scss_collection_member_is_static(source).then_some("space")
 }
 
 fn parse_static_scss_map_entries(value: &str) -> Option<Vec<(String, String)>> {
