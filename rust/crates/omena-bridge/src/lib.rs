@@ -59,7 +59,8 @@ pub use source_syntax::{
 };
 pub use style_resolution::{
     OmenaBridgeExternalSifCacheContextV0, OmenaBridgeStyleResolutionInputsV0,
-    OmenaBridgeStyleResolutionSummaryV0, generate_omena_bridge_sif_for_resolved_style_path,
+    OmenaBridgeStyleResolutionSummaryV0, generate_omena_bridge_lif_exports_for_resolved_style_path,
+    generate_omena_bridge_sif_for_resolved_style_path,
     generate_omena_bridge_sif_for_resolved_style_path_with_cache_context,
     load_omena_bridge_workspace_style_resolution_inputs,
     resolve_omena_bridge_style_uri_for_specifier,

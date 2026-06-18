@@ -1,9 +1,10 @@
 use omena_value_lattice::canonicalize_css_value;
 
 use crate::{
-    OmenaSifCallableExportV1, OmenaSifExportsV1, OmenaSifForwardExportV1, OmenaSifGeneratorV1,
-    OmenaSifParameterV1, OmenaSifPlaceholderExportV1, OmenaSifSourceSyntaxV1, OmenaSifSourceV1,
-    OmenaSifV1, OmenaSifVariableExportV1,
+    OmenaLifExportsV1, OmenaLifLessDetachedRulesetExportV1, OmenaLifLessMixinExportV1,
+    OmenaLifLessVariableExportV1, OmenaSifCallableExportV1, OmenaSifExportsV1,
+    OmenaSifForwardExportV1, OmenaSifGeneratorV1, OmenaSifParameterV1, OmenaSifPlaceholderExportV1,
+    OmenaSifSourceSyntaxV1, OmenaSifSourceV1, OmenaSifV1, OmenaSifVariableExportV1,
 };
 
 pub const OMENA_STATIC_SIF_GENERATOR_NAME_V1: &str = "omena-sifgen-static";
@@ -33,11 +34,30 @@ pub fn generate_static_omena_sif_v1(
     )
 }
 
+pub fn generate_static_omena_lif_exports_v1(
+    input: OmenaSifStaticGeneratorInputV1<'_>,
+) -> OmenaLifExportsV1 {
+    parse_static_lif_exports_v1(input.source, input.syntax)
+}
+
 pub fn default_static_omena_sif_generator_v1() -> OmenaSifGeneratorV1 {
     OmenaSifGeneratorV1 {
         name: OMENA_STATIC_SIF_GENERATOR_NAME_V1.to_string(),
         version: OMENA_STATIC_SIF_GENERATOR_VERSION_V1.to_string(),
         toolchain_id: OMENA_STATIC_SIF_GENERATOR_TOOLCHAIN_ID_V1.to_string(),
+    }
+}
+
+pub fn parse_static_lif_exports_v1(
+    source: &str,
+    syntax: OmenaSifSourceSyntaxV1,
+) -> OmenaLifExportsV1 {
+    match syntax {
+        OmenaSifSourceSyntaxV1::Css => OmenaLifExportsV1::default(),
+        OmenaSifSourceSyntaxV1::Scss | OmenaSifSourceSyntaxV1::Sass => {
+            OmenaLifExportsV1::from_sif_exports(parse_static_sass_exports_v1(source))
+        }
+        OmenaSifSourceSyntaxV1::Less => parse_static_less_lif_exports_v1(source),
     }
 }
 
@@ -85,6 +105,41 @@ pub fn parse_static_sass_exports_v1(source: &str) -> OmenaSifExportsV1 {
     exports
         .forwards
         .sort_by(|left, right| left.canonical_url.cmp(&right.canonical_url));
+    exports
+}
+
+pub fn parse_static_less_lif_exports_v1(source: &str) -> OmenaLifExportsV1 {
+    let mut exports = OmenaLifExportsV1::default();
+
+    for statement in split_top_level_sass_statements(source) {
+        let statement = statement.trim();
+        if statement.is_empty() {
+            continue;
+        }
+        if let Some(detached_ruleset) = parse_static_less_detached_ruleset_export(statement) {
+            exports.less_detached_rulesets.push(detached_ruleset);
+            continue;
+        }
+        if let Some(variable) = parse_static_less_variable_export(statement) {
+            exports.less_variables.push(variable);
+            continue;
+        }
+        if let Some(mixin) = parse_static_less_mixin_export(statement) {
+            exports.less_mixins.push(mixin);
+        }
+    }
+
+    exports
+        .less_variables
+        .sort_by(|left, right| left.name.cmp(&right.name));
+    exports
+        .less_mixins
+        .sort_by(|left, right| left.name.cmp(&right.name));
+    exports.less_detached_rulesets.sort_by(|left, right| {
+        left.name
+            .cmp(&right.name)
+            .then(left.member_names.cmp(&right.member_names))
+    });
     exports
 }
 
@@ -172,6 +227,95 @@ fn parse_static_sass_variable_export(statement: &str) -> Option<OmenaSifVariable
         } else {
             Some(value_repr)
         },
+    })
+}
+
+fn parse_static_less_variable_export(statement: &str) -> Option<OmenaLifLessVariableExportV1> {
+    let statement = strip_statement_semicolon(statement);
+    let colon_index = top_level_character_index(statement, ':')?;
+    let name = statement.get(..colon_index)?.trim();
+    if !is_static_less_variable_name(name) {
+        return None;
+    }
+    let raw_value = statement.get(colon_index + 1..)?.trim();
+    if raw_value.starts_with('{') {
+        return None;
+    }
+    let value_repr = canonical_sif_value_repr(raw_value);
+
+    Some(OmenaLifLessVariableExportV1 {
+        name: name.to_string(),
+        value_repr: if value_repr.is_empty() {
+            None
+        } else {
+            Some(value_repr)
+        },
+    })
+}
+
+fn parse_static_less_detached_ruleset_export(
+    statement: &str,
+) -> Option<OmenaLifLessDetachedRulesetExportV1> {
+    let statement = strip_statement_semicolon(statement);
+    let colon_index = top_level_character_index(statement, ':')?;
+    let name = statement.get(..colon_index)?.trim();
+    if !is_static_less_variable_name(name) {
+        return None;
+    }
+    let raw_value = statement.get(colon_index + 1..)?.trim();
+    let body = raw_value.strip_prefix('{')?.trim();
+    let body = body.strip_suffix('}')?.trim();
+    let mut member_names = split_top_level_sass_statements(body)
+        .into_iter()
+        .filter_map(|member| {
+            let member = strip_statement_semicolon(member.trim());
+            let colon_index = top_level_character_index(member, ':')?;
+            let name = member.get(..colon_index)?.trim();
+            if is_static_less_map_member_name(name) {
+                Some(name.to_string())
+            } else {
+                None
+            }
+        })
+        .collect::<Vec<_>>();
+    member_names.sort();
+    member_names.dedup();
+
+    Some(OmenaLifLessDetachedRulesetExportV1 {
+        name: name.to_string(),
+        member_names,
+    })
+}
+
+fn parse_static_less_mixin_export(statement: &str) -> Option<OmenaLifLessMixinExportV1> {
+    let statement = statement.trim_start();
+    let header_end = statement.find('{').unwrap_or(statement.len());
+    let header = statement.get(..header_end)?.trim();
+    let guarded = header.contains(" when ");
+    let header_before_guard = header.split(" when ").next()?.trim();
+    let open_paren = header_before_guard.find('(');
+    let (name, parameters) = if let Some(open_paren) = open_paren {
+        let close_paren = matching_close_paren_index(header_before_guard, open_paren)?;
+        let name = header_before_guard.get(..open_paren)?.trim();
+        let raw_parameters = header_before_guard.get(open_paren + 1..close_paren)?;
+        (name, parse_static_less_parameters(raw_parameters))
+    } else {
+        (
+            header_before_guard
+                .split_whitespace()
+                .next()
+                .unwrap_or(header_before_guard),
+            Vec::new(),
+        )
+    };
+    if !is_static_less_mixin_name(name) {
+        return None;
+    }
+
+    Some(OmenaLifLessMixinExportV1 {
+        name: name.to_string(),
+        parameters,
+        guarded,
     })
 }
 
@@ -294,6 +438,43 @@ fn parse_static_sass_parameters(raw_parameters: &str) -> Vec<OmenaSifParameterV1
                 (parameter, None)
             };
             if !is_static_sass_variable_name(name) {
+                return None;
+            }
+            Some(OmenaSifParameterV1 {
+                name: name.to_string(),
+                default_value_repr,
+                variadic,
+            })
+        })
+        .collect()
+}
+
+fn parse_static_less_parameters(raw_parameters: &str) -> Vec<OmenaSifParameterV1> {
+    split_top_level_commas(raw_parameters)
+        .into_iter()
+        .filter_map(|parameter| {
+            let parameter = parameter.trim();
+            if parameter.is_empty() {
+                return None;
+            }
+            let variadic = parameter.ends_with("...");
+            let parameter = parameter.trim_end_matches("...").trim();
+            let colon_index = top_level_character_index(parameter, ':');
+            let (name, default_value_repr) = if let Some(colon_index) = colon_index {
+                let name = parameter.get(..colon_index)?.trim();
+                let default_value = parameter.get(colon_index + 1..)?.trim();
+                (
+                    name,
+                    if default_value.is_empty() {
+                        None
+                    } else {
+                        Some(canonical_sif_value_repr(default_value))
+                    },
+                )
+            } else {
+                (parameter, None)
+            };
+            if !is_static_less_variable_name(name) {
                 return None;
             }
             Some(OmenaSifParameterV1 {
@@ -473,11 +654,31 @@ fn is_static_sass_variable_name(value: &str) -> bool {
         })
 }
 
+fn is_static_less_variable_name(value: &str) -> bool {
+    value.starts_with('@')
+        && value.len() > 1
+        && value.chars().skip(1).all(|character| {
+            character.is_ascii_alphanumeric() || character == '-' || character == '_'
+        })
+}
+
 fn is_static_sass_identifier(value: &str) -> bool {
     !value.is_empty()
         && value.chars().all(|character| {
             character.is_ascii_alphanumeric() || character == '-' || character == '_'
         })
+}
+
+fn is_static_less_mixin_name(value: &str) -> bool {
+    value
+        .strip_prefix(['.', '#'])
+        .is_some_and(is_static_sass_identifier)
+}
+
+fn is_static_less_map_member_name(value: &str) -> bool {
+    is_static_sass_identifier(value)
+        || is_static_less_variable_name(value)
+        || (value.starts_with('$') && is_static_sass_identifier(value.trim_start_matches('$')))
 }
 
 #[cfg(test)]
@@ -529,6 +730,46 @@ $gap: 1rem;
         assert_eq!(sif.fingerprints.hash_algorithm, OMENA_SIF_HASH_ALGORITHM_V1);
         assert!(sif.fingerprints.leaf_hash.as_str().starts_with("blake3:"));
         Ok(())
+    }
+
+    #[test]
+    fn static_generator_extracts_less_lif_exports_without_evaluation() {
+        let source = r#"
+@brand: #fff;
+@tokens: { primary: @brand; @gap: 2px; };
+.button(@gap: 1rem, @rest...) when (@gap > 0) { color: @brand; }
+"#;
+
+        let lif_exports = generate_static_omena_lif_exports_v1(OmenaSifStaticGeneratorInputV1 {
+            canonical_url: "pkg:design-system/tokens.less",
+            source,
+            syntax: OmenaSifSourceSyntaxV1::Less,
+        });
+
+        assert!(lif_exports.sif_exports.variables.is_empty());
+        assert_eq!(lif_exports.less_variables.len(), 1);
+        assert_eq!(lif_exports.less_variables[0].name, "@brand");
+        assert_eq!(
+            lif_exports.less_variables[0].value_repr.as_deref(),
+            Some("#fff")
+        );
+        assert_eq!(lif_exports.less_detached_rulesets.len(), 1);
+        assert_eq!(lif_exports.less_detached_rulesets[0].name, "@tokens");
+        assert_eq!(
+            lif_exports.less_detached_rulesets[0].member_names,
+            vec!["@gap", "primary"]
+        );
+        assert_eq!(lif_exports.less_mixins.len(), 1);
+        assert_eq!(lif_exports.less_mixins[0].name, ".button");
+        assert!(lif_exports.less_mixins[0].guarded);
+        assert_eq!(lif_exports.less_mixins[0].parameters[0].name, "@gap");
+        assert_eq!(
+            lif_exports.less_mixins[0].parameters[0]
+                .default_value_repr
+                .as_deref(),
+            Some("1rem")
+        );
+        assert!(lif_exports.less_mixins[0].parameters[1].variadic);
     }
 
     #[test]

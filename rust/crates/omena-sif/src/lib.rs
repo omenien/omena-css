@@ -117,6 +117,47 @@ pub struct OmenaSifExportsV1 {
     pub forwards: Vec<OmenaSifForwardExportV1>,
 }
 
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct OmenaLifExportsV1 {
+    #[serde(flatten)]
+    pub sif_exports: OmenaSifExportsV1,
+    pub less_variables: Vec<OmenaLifLessVariableExportV1>,
+    pub less_mixins: Vec<OmenaLifLessMixinExportV1>,
+    pub less_detached_rulesets: Vec<OmenaLifLessDetachedRulesetExportV1>,
+}
+
+impl OmenaLifExportsV1 {
+    pub fn from_sif_exports(sif_exports: OmenaSifExportsV1) -> Self {
+        Self {
+            sif_exports,
+            ..Self::default()
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct OmenaLifLessVariableExportV1 {
+    pub name: String,
+    pub value_repr: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct OmenaLifLessMixinExportV1 {
+    pub name: String,
+    pub parameters: Vec<OmenaSifParameterV1>,
+    pub guarded: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct OmenaLifLessDetachedRulesetExportV1 {
+    pub name: String,
+    pub member_names: Vec<String>,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct OmenaSifVariableExportV1 {

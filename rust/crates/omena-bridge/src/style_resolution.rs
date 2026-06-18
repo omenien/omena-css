@@ -17,9 +17,10 @@ use omena_resolver::{
     normalize_omena_resolver_style_module_source_for_routing,
 };
 use omena_sif::{
-    OmenaSifSourceSyntaxV1, OmenaSifStaticGeneratorInputV1, OmenaSifV1,
-    compute_omena_sif_leaf_hash_v1, generate_static_omena_sif_v1, read_omena_sif_json_v1,
-    write_omena_canonical_json_bytes_v1, write_omena_sif_json_v1,
+    OmenaLifExportsV1, OmenaSifSourceSyntaxV1, OmenaSifStaticGeneratorInputV1, OmenaSifV1,
+    compute_omena_sif_leaf_hash_v1, generate_static_omena_lif_exports_v1,
+    generate_static_omena_sif_v1, read_omena_sif_json_v1, write_omena_canonical_json_bytes_v1,
+    write_omena_sif_json_v1,
 };
 use serde::Serialize;
 use serde_json::{Value, json};
@@ -201,6 +202,28 @@ pub fn generate_omena_bridge_sif_for_resolved_style_path(
         resolved_path,
         &OmenaBridgeExternalSifCacheContextV0::default(),
     )
+}
+
+pub fn generate_omena_bridge_lif_exports_for_resolved_style_path(
+    resolved_path: &str,
+) -> Result<OmenaLifExportsV1, String> {
+    let raw_path = raw_resolved_style_entry_path(resolved_path)
+        .ok_or_else(|| format!("unresolvable style module entry path: {resolved_path}"))?;
+    let path = normalize_path(raw_path);
+    let source = fs::read_to_string(path.as_path()).map_err(|error| {
+        format!(
+            "failed to read resolved style module {}: {error}",
+            path.to_string_lossy()
+        )
+    })?;
+    let syntax = infer_omena_bridge_sif_source_syntax(path.as_path());
+    Ok(generate_static_omena_lif_exports_v1(
+        OmenaSifStaticGeneratorInputV1 {
+            canonical_url: path_to_file_uri(path.as_path()).as_str(),
+            source: source.as_str(),
+            syntax,
+        },
+    ))
 }
 
 pub fn generate_omena_bridge_sif_for_resolved_style_path_with_cache_context(
@@ -1225,6 +1248,30 @@ mod tests {
         assert_eq!(sif.source.syntax, OmenaSifSourceSyntaxV1::Less);
         let json = omena_sif::write_omena_sif_json_v1(&sif)?;
         assert!(json.contains(r#""syntax":"less""#));
+        let _ = fs::remove_dir_all(root);
+        Ok(())
+    }
+
+    #[test]
+    fn generates_lif_exports_for_resolved_less_path() -> Result<(), Box<dyn std::error::Error>> {
+        let root = temp_dir("omena_bridge_lif_less")?;
+        let style = root.join("tokens.less");
+        fs::write(
+            &style,
+            "@brand: red;\n@tokens: { primary: @brand; };\n.button(@gap: 1rem) { color: @brand; }\n",
+        )?;
+
+        let exports = generate_omena_bridge_lif_exports_for_resolved_style_path(
+            style.to_string_lossy().as_ref(),
+        )?;
+
+        assert_eq!(exports.less_variables[0].name, "@brand");
+        assert_eq!(exports.less_mixins[0].name, ".button");
+        assert_eq!(exports.less_detached_rulesets[0].name, "@tokens");
+        assert_eq!(
+            exports.less_detached_rulesets[0].member_names,
+            vec!["primary"]
+        );
         let _ = fs::remove_dir_all(root);
         Ok(())
     }
