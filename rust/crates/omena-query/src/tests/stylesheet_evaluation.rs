@@ -64,6 +64,31 @@ fn consumer_build_derives_static_scss_evaluator_context_for_mixin_includes() {
 }
 
 #[test]
+fn consumer_build_derives_static_scss_evaluator_context_for_mixin_function_values() {
+    let summary = execute_omena_query_consumer_build_style_source(
+        "Button.module.scss",
+        "@function double($value) { @return $value * 2; } @mixin tone($gap) { margin: double($gap); color: red; } .button { @include tone(2px); }",
+        &[
+            "scss-module-evaluate".to_string(),
+            "css-modules-class-hashing".to_string(),
+            "print-css".to_string(),
+        ],
+    );
+
+    assert!(
+        summary
+            .execution
+            .executed_pass_ids
+            .contains(&"scss-module-evaluate")
+    );
+    assert!(summary.execution.output_css.contains("margin: 4px"));
+    assert!(summary.execution.output_css.contains("color: red"));
+    assert!(!summary.execution.output_css.contains("@function"));
+    assert!(!summary.execution.output_css.contains("@mixin"));
+    assert!(!summary.execution.output_css.contains("@include"));
+}
+
+#[test]
 fn consumer_build_derives_static_scss_evaluator_context_for_not_conditions() {
     let summary = execute_omena_query_consumer_build_style_source(
         "Button.module.scss",
