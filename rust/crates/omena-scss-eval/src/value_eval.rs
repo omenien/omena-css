@@ -13,6 +13,8 @@ use omena_value_lattice::{
     parse_oklab_oklch_value, parse_static_hsl_function_color_with_alpha,
     parse_static_hwb_function_color_with_alpha, parse_static_rgb_function_color_with_alpha,
     parse_static_srgb_color_with_alpha, parse_whole_function_value_arguments,
+    parse_whole_function_value_inner, split_top_level_value_arguments_owned,
+    split_top_level_whitespace_value_components_owned,
     substitute_static_css_function_references_in_value_until_stable,
 };
 
@@ -113,6 +115,11 @@ pub(crate) fn reduce_static_scss_value(value: String) -> String {
             ("math.exp", parse_static_scss_math_exp_value),
             ("math.log", parse_static_scss_math_log_value),
             ("color.mix", parse_static_scss_color_mix_value),
+            ("color.channel", parse_static_scss_color_channel_value),
+            ("color.red", parse_static_scss_color_red_value),
+            ("color.green", parse_static_scss_color_green_value),
+            ("color.blue", parse_static_scss_color_blue_value),
+            ("color.alpha", parse_static_scss_color_alpha_value),
             ("percentage", parse_static_scss_percentage_value),
             ("unit", parse_static_scss_unit_value),
             ("math.unit", parse_static_scss_math_unit_value),
@@ -916,8 +923,8 @@ fn parse_static_scss_numeric_alias_value(
 fn parse_static_scss_color_mix_value(value: &str) -> Option<String> {
     let arguments = parse_whole_function_value_arguments(value, "color.mix")?;
     let arguments = parse_static_scss_color_mix_arguments(arguments.as_slice())?;
-    let first = parse_static_scss_opaque_color_mix_argument(arguments.first_color)?;
-    let second = parse_static_scss_opaque_color_mix_argument(arguments.second_color)?;
+    let first = parse_static_scss_opaque_srgb_color_argument(arguments.first_color)?;
+    let second = parse_static_scss_opaque_srgb_color_argument(arguments.second_color)?;
     let weight = match arguments.weight {
         Some(weight) => parse_static_scss_color_mix_weight(weight)?,
         None => 50.0,
@@ -926,17 +933,16 @@ fn parse_static_scss_color_mix_value(value: &str) -> Option<String> {
     let second_weight = 1.0 - first_weight;
     Some(format!(
         "rgb({}, {}, {})",
+        format_css_number(first.red.mul_add(first_weight, second.red * second_weight)),
         format_css_number(
-            f64::from(first.color.red)
-                .mul_add(first_weight, f64::from(second.color.red) * second_weight)
+            first
+                .green
+                .mul_add(first_weight, second.green * second_weight)
         ),
         format_css_number(
-            f64::from(first.color.green)
-                .mul_add(first_weight, f64::from(second.color.green) * second_weight)
-        ),
-        format_css_number(
-            f64::from(first.color.blue)
-                .mul_add(first_weight, f64::from(second.color.blue) * second_weight)
+            first
+                .blue
+                .mul_add(first_weight, second.blue * second_weight)
         )
     ))
 }
@@ -996,29 +1002,264 @@ fn parse_static_scss_color_mix_weight(value: &str) -> Option<f64> {
         .filter(|weight| (0.0..=100.0).contains(weight))
 }
 
-fn parse_static_scss_opaque_color_mix_argument(value: &str) -> Option<StaticSrgbColorWithAlpha> {
-    let color = parse_static_scss_color_mix_argument(value)?;
-    color.alpha.is_none().then_some(color)
+fn parse_static_scss_color_channel_value(value: &str) -> Option<String> {
+    let arguments = parse_whole_function_value_arguments(value, "color.channel")?;
+    let arguments = parse_static_scss_color_channel_arguments(arguments.as_slice())?;
+    if let Some(space) = arguments.space
+        && !space.trim().eq_ignore_ascii_case("rgb")
+    {
+        return None;
+    }
+    let color_text = reduce_static_scss_value(arguments.color.to_string());
+    let color = parse_static_scss_srgb_color_argument(color_text.as_str())?;
+    let channel = parse_static_scss_color_channel_name(arguments.channel)?;
+    Some(render_static_scss_color_channel(color, channel))
 }
 
-fn parse_static_scss_color_mix_argument(value: &str) -> Option<StaticSrgbColorWithAlpha> {
+fn parse_static_scss_color_red_value(value: &str) -> Option<String> {
+    parse_static_scss_legacy_color_channel_value(value, "color.red", StaticScssColorChannel::Red)
+}
+
+fn parse_static_scss_color_green_value(value: &str) -> Option<String> {
+    parse_static_scss_legacy_color_channel_value(
+        value,
+        "color.green",
+        StaticScssColorChannel::Green,
+    )
+}
+
+fn parse_static_scss_color_blue_value(value: &str) -> Option<String> {
+    parse_static_scss_legacy_color_channel_value(value, "color.blue", StaticScssColorChannel::Blue)
+}
+
+fn parse_static_scss_color_alpha_value(value: &str) -> Option<String> {
+    parse_static_scss_legacy_color_channel_value(
+        value,
+        "color.alpha",
+        StaticScssColorChannel::Alpha,
+    )
+}
+
+fn parse_static_scss_legacy_color_channel_value(
+    value: &str,
+    function_name: &str,
+    channel: StaticScssColorChannel,
+) -> Option<String> {
+    let arguments = parse_whole_function_value_arguments(value, function_name)?;
+    let [color] = arguments.as_slice() else {
+        return None;
+    };
+    Some(render_static_scss_color_channel(
+        parse_static_scss_srgb_color_argument(
+            reduce_static_scss_value(color.to_string()).as_str(),
+        )?,
+        channel,
+    ))
+}
+
+struct StaticScssColorChannelArguments<'a> {
+    color: &'a str,
+    channel: &'a str,
+    space: Option<&'a str>,
+}
+
+fn parse_static_scss_color_channel_arguments(
+    arguments: &[String],
+) -> Option<StaticScssColorChannelArguments<'_>> {
+    let mut positional = Vec::<&str>::new();
+    let mut color = None;
+    let mut channel = None;
+    let mut space = None;
+
+    for argument in arguments {
+        match static_scss_named_argument(argument)? {
+            Some(("color", value)) => color = Some(value),
+            Some(("channel", value)) => channel = Some(value),
+            Some(("space", value)) => space = Some(value),
+            Some(_) => return None,
+            None => positional.push(argument.as_str()),
+        }
+    }
+
+    if color.is_none()
+        && let Some(value) = positional.first()
+    {
+        color = Some(*value);
+    }
+    if channel.is_none()
+        && let Some(value) = positional.get(1)
+    {
+        channel = Some(*value);
+    }
+    if space.is_none()
+        && let Some(value) = positional.get(2)
+    {
+        space = Some(*value);
+    }
+    (positional.len() <= 3).then_some(StaticScssColorChannelArguments {
+        color: color?,
+        channel: channel?,
+        space,
+    })
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+struct StaticScssSrgbColorValue {
+    red: f64,
+    green: f64,
+    blue: f64,
+    alpha: f64,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum StaticScssColorChannel {
+    Red,
+    Green,
+    Blue,
+    Alpha,
+}
+
+fn parse_static_scss_color_channel_name(value: &str) -> Option<StaticScssColorChannel> {
+    let channel = parse_static_scss_string_argument(value)?;
+    if !channel.quoted {
+        return None;
+    }
+    match channel.text.to_ascii_lowercase().as_str() {
+        "red" => Some(StaticScssColorChannel::Red),
+        "green" => Some(StaticScssColorChannel::Green),
+        "blue" => Some(StaticScssColorChannel::Blue),
+        "alpha" => Some(StaticScssColorChannel::Alpha),
+        _ => None,
+    }
+}
+
+fn render_static_scss_color_channel(
+    color: StaticScssSrgbColorValue,
+    channel: StaticScssColorChannel,
+) -> String {
+    format_css_number(match channel {
+        StaticScssColorChannel::Red => color.red,
+        StaticScssColorChannel::Green => color.green,
+        StaticScssColorChannel::Blue => color.blue,
+        StaticScssColorChannel::Alpha => color.alpha,
+    })
+}
+
+fn parse_static_scss_opaque_srgb_color_argument(value: &str) -> Option<StaticScssSrgbColorValue> {
+    let reduced = reduce_static_scss_value(value.to_string());
+    let color = parse_static_scss_srgb_color_argument(reduced.as_str())?;
+    ((color.alpha - 1.0).abs() <= f64::EPSILON).then_some(color)
+}
+
+fn parse_static_scss_srgb_color_argument(value: &str) -> Option<StaticScssSrgbColorValue> {
     let value = value.trim();
-    parse_static_srgb_color_with_alpha(value)
-        .or_else(|| parse_static_rgb_function_color_with_alpha(value))
-        .or_else(|| parse_static_hsl_function_color_with_alpha(value))
-        .or_else(|| parse_static_hwb_function_color_with_alpha(value))
+    parse_static_scss_rgb_function_color(value)
+        .or_else(|| parse_static_scss_basic_srgb_color(value))
         .or_else(|| {
             parse_color_function_value(value)
-                .and_then(|value| parse_static_rgb_function_color_with_alpha(value.as_str()))
+                .and_then(|value| parse_static_scss_rgb_function_color(value.as_str()))
         })
         .or_else(|| {
             parse_color_mix_value(value)
-                .and_then(|value| parse_static_rgb_function_color_with_alpha(value.as_str()))
+                .and_then(|value| parse_static_scss_rgb_function_color(value.as_str()))
         })
         .or_else(|| {
             parse_oklab_oklch_value(value)
-                .and_then(|value| parse_static_rgb_function_color_with_alpha(value.as_str()))
+                .and_then(|value| parse_static_scss_rgb_function_color(value.as_str()))
         })
+}
+
+fn parse_static_scss_basic_srgb_color(value: &str) -> Option<StaticScssSrgbColorValue> {
+    parse_static_srgb_color_with_alpha(value)
+        .or_else(|| parse_static_hsl_function_color_with_alpha(value))
+        .or_else(|| parse_static_hwb_function_color_with_alpha(value))
+        .map(static_srgb_with_alpha_to_scss_value)
+}
+
+fn static_srgb_with_alpha_to_scss_value(
+    color: StaticSrgbColorWithAlpha,
+) -> StaticScssSrgbColorValue {
+    StaticScssSrgbColorValue {
+        red: f64::from(color.color.red),
+        green: f64::from(color.color.green),
+        blue: f64::from(color.color.blue),
+        alpha: color.alpha.unwrap_or(1.0),
+    }
+}
+
+fn parse_static_scss_rgb_function_color(value: &str) -> Option<StaticScssSrgbColorValue> {
+    let inner = parse_whole_function_value_inner(value, "rgb")
+        .or_else(|| parse_whole_function_value_inner(value, "rgba"))?;
+    let (channels, alpha) = split_static_scss_rgb_channels_with_optional_alpha(inner)?;
+    let [red, green, blue] = channels.as_slice() else {
+        return None;
+    };
+    Some(StaticScssSrgbColorValue {
+        red: parse_static_scss_rgb_channel(red)?,
+        green: parse_static_scss_rgb_channel(green)?,
+        blue: parse_static_scss_rgb_channel(blue)?,
+        alpha: match alpha {
+            Some(value) => parse_static_scss_alpha_channel(value.as_str())?,
+            None => 1.0,
+        },
+    })
+}
+
+fn split_static_scss_rgb_channels_with_optional_alpha(
+    inner: &str,
+) -> Option<(Vec<String>, Option<String>)> {
+    if inner.contains(',') {
+        let arguments = split_top_level_value_arguments_owned(inner)?;
+        return match arguments.as_slice() {
+            [red, green, blue] => Some((vec![red.clone(), green.clone(), blue.clone()], None)),
+            [red, green, blue, alpha] => Some((
+                vec![red.clone(), green.clone(), blue.clone()],
+                Some(alpha.clone()),
+            )),
+            _ => None,
+        };
+    }
+
+    let arguments = split_top_level_whitespace_value_components_owned(inner)?;
+    match arguments.as_slice() {
+        [red, green, blue] => Some((vec![red.clone(), green.clone(), blue.clone()], None)),
+        [red, green, blue, slash, alpha] if slash == "/" => Some((
+            vec![red.clone(), green.clone(), blue.clone()],
+            Some(alpha.clone()),
+        )),
+        _ => None,
+    }
+}
+
+fn parse_static_scss_rgb_channel(value: &str) -> Option<f64> {
+    let value = if let Some(percent) = value.trim().strip_suffix('%') {
+        parse_static_scss_plain_f64(percent)? * 255.0 / 100.0
+    } else {
+        parse_static_scss_plain_f64(value.trim())?
+    };
+    value
+        .is_finite()
+        .then_some(value)
+        .filter(|value| (0.0..=255.0).contains(value))
+}
+
+fn parse_static_scss_alpha_channel(value: &str) -> Option<f64> {
+    let value = if let Some(percent) = value.trim().strip_suffix('%') {
+        parse_static_scss_plain_f64(percent)? / 100.0
+    } else {
+        parse_static_scss_plain_f64(value.trim())?
+    };
+    value
+        .is_finite()
+        .then_some(value)
+        .filter(|value| (0.0..=1.0).contains(value))
+}
+
+fn parse_static_scss_plain_f64(value: &str) -> Option<f64> {
+    if value.contains('%') {
+        return None;
+    }
+    value.parse::<f64>().ok().filter(|value| value.is_finite())
 }
 
 fn parse_static_scss_percentage_value(value: &str) -> Option<String> {
