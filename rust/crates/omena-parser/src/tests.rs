@@ -2614,6 +2614,26 @@ fn extracts_sass_symbol_style_facts() {
 }
 
 #[test]
+fn extracts_sass_function_calls_with_hyphen_underscore_equivalent_names() {
+    let facts = collect_style_facts(
+        "@function gap_value($x) { @return $x; } .card { width: gap-value(2px); }",
+        StyleDialect::Scss,
+    );
+    let symbol_kinds = facts
+        .sass_symbols
+        .iter()
+        .map(|symbol| (symbol.kind, symbol.name.as_str(), symbol.role))
+        .collect::<Vec<_>>();
+
+    assert!(symbol_kinds.contains(&(
+        ParsedSassSymbolFactKind::FunctionDeclaration,
+        "gap_value",
+        "declaration"
+    )));
+    assert!(symbol_kinds.contains(&(ParsedSassSymbolFactKind::FunctionCall, "gap-value", "call")));
+}
+
+#[test]
 fn each_loop_bindings_are_declarations_not_references() {
     // RFC-0007 #41 FP: `@each $k, $v in $map` -> $k/$v must be declarations
     // (bindings), and the iterable `$map` after `in` stays a reference.

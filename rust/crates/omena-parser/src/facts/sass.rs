@@ -97,7 +97,7 @@ pub(crate) fn collect_sass_symbol_facts_from_tokens(
                 }
             }
             SyntaxKind::Ident
-                if (declared_functions.contains(token.text)
+                if (declared_functions.contains(&canonical_sass_callable_name(token.text))
                     || sass_member_namespace_before(tokens, index).is_some())
                     && next_non_trivia_token(tokens, index + 1)
                         .is_some_and(|candidate| candidate.kind == SyntaxKind::LeftParen)
@@ -145,9 +145,13 @@ fn collect_sass_callable_declaration_names(
             (token.kind == SyntaxKind::AtKeyword && token.text.eq_ignore_ascii_case(at_keyword))
                 .then(|| sass_callable_name_after_at_rule(tokens, index))
                 .flatten()
-                .map(|name| name.text.to_string())
+                .map(|name| canonical_sass_callable_name(name.text))
         })
         .collect()
+}
+
+fn canonical_sass_callable_name(name: &str) -> String {
+    name.trim().replace('_', "-")
 }
 
 fn sass_callable_name_after_at_rule<'text>(

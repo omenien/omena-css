@@ -1348,7 +1348,10 @@ fn build_call_return_edges(
         .filter(|node| call_return_node_is_declaration(node))
         .filter_map(|node| {
             Some((
-                (node.symbol_kind, node.name.as_deref()?),
+                (
+                    node.symbol_kind,
+                    canonical_scss_callable_name(node.name.as_deref()?),
+                ),
                 node.node_key.clone(),
             ))
         })
@@ -1359,7 +1362,8 @@ fn build_call_return_edges(
         match node.kind {
             "mixinInclude" | "functionCall" if node.namespace.is_none() => {
                 if let Some(name) = node.name.as_deref()
-                    && let Some(target_node_key) = declarations.get(&(node.symbol_kind, name))
+                    && let Some(target_node_key) =
+                        declarations.get(&(node.symbol_kind, canonical_scss_callable_name(name)))
                 {
                     let recursive =
                         node.containing_declaration_node_key.as_ref() == Some(target_node_key);
@@ -1707,8 +1711,13 @@ fn substitute_call_bound_function_calls(
             index += 1;
             continue;
         }
+        let canonical_call_name = canonical_scss_callable_name(token.text.as_str());
         let Some(declaration_node) = context.nodes.iter().find(|node| {
-            node.kind == "functionDeclaration" && node.name.as_deref() == Some(token.text.as_str())
+            node.kind == "functionDeclaration"
+                && node
+                    .name
+                    .as_deref()
+                    .is_some_and(|name| canonical_scss_callable_name(name) == canonical_call_name)
         }) else {
             index += 1;
             continue;
@@ -1755,29 +1764,30 @@ fn substitute_call_bound_function_calls(
 }
 
 fn static_scss_value_contains_function_call(value: &str, function_name: &str) -> bool {
-    let mut search_start = 0usize;
-    while search_start < value.len() {
-        let Some(relative_index) = value
-            .get(search_start..)
-            .and_then(|suffix| suffix.find(function_name))
-        else {
-            return false;
+    let canonical_function_name = canonical_scss_callable_name(function_name);
+    let lexed = lex(value, StyleDialect::Scss);
+    let tokens = lexed.tokens();
+    for (index, token) in tokens.iter().enumerate() {
+        if token.kind != SyntaxKind::Ident
+            || canonical_scss_callable_name(token.text.as_str()) != canonical_function_name
+        {
+            continue;
+        }
+        let Some(left_paren_index) = next_non_trivia_token_index(tokens, index + 1) else {
+            continue;
         };
-        let index = search_start + relative_index;
-        let name_end = index + function_name.len();
-        let before_ok = value
-            .get(..index)
-            .and_then(|prefix| prefix.chars().next_back())
-            .is_none_or(|ch| !(ch.is_ascii_alphanumeric() || matches!(ch, '_' | '-')));
-        let after_paren = value
-            .get(name_end..)
-            .is_some_and(|suffix| suffix.trim_start().starts_with('('));
-        if before_ok && after_paren {
+        if tokens
+            .get(left_paren_index)
+            .is_some_and(|candidate| candidate.kind == SyntaxKind::LeftParen)
+        {
             return true;
         }
-        search_start = name_end;
     }
     false
+}
+
+fn canonical_scss_callable_name(name: &str) -> String {
+    name.trim().replace('_', "-")
 }
 
 fn max_call_stack_depth_observed(
@@ -3849,6 +3859,33 @@ mod tests {
     }
 
     #[test]
+    fn call_return_ir_resolves_hyphen_underscore_equivalent_function_calls() {
+        let source = "@function inc_value($value) { @return $value + 1px; } @function gap_value($value) { @return inc-value($value) + 1px; } .a { width: gap-value(2px); }";
+        let report = summarize_scss_call_return_ir(source, StyleDialect::Scss);
+        assert!(report.is_some());
+        let Some(report) = report else {
+            return;
+        };
+        let function_call = report.nodes.iter().find(|node| {
+            node.kind == "functionCall"
+                && node.name.as_deref() == Some("gap-value")
+                && node.containing_declaration_node_key.is_none()
+        });
+        assert!(function_call.is_some());
+        let Some(function_call) = function_call else {
+            return;
+        };
+
+        assert_eq!(function_call.call_resolved_return_value_kind, Some("exact"));
+        assert_eq!(
+            function_call.call_resolved_return_value,
+            Some(AbstractCssValueV0::Exact {
+                value: "4px".to_string()
+            })
+        );
+    }
+
+    #[test]
     fn call_return_ir_resolves_local_values_with_same_file_function_calls() {
         let source = "@function inc($value) { @return $value + 1px; } @function gap($value) { $next: inc($value); @return $next + 1px; } .a { width: gap(2px); }";
         let report = summarize_scss_call_return_ir(source, StyleDialect::Scss);
@@ -3886,6 +3923,31 @@ mod tests {
         let function_call = report.nodes.iter().find(|node| {
             node.kind == "functionCall"
                 && node.name.as_deref() == Some("a")
+                && node.containing_declaration_node_key.is_none()
+        });
+        assert!(function_call.is_some());
+        let Some(function_call) = function_call else {
+            return;
+        };
+
+        assert_eq!(function_call.call_resolved_return_value_kind, Some("top"));
+        assert_eq!(
+            function_call.call_resolved_return_value,
+            Some(AbstractCssValueV0::Top)
+        );
+    }
+
+    #[test]
+    fn call_return_ir_caps_hyphen_underscore_recursive_function_calls() {
+        let source = "@function again_value($value) { @return again-value($value); } .a { width: again-value(1px); }";
+        let report = summarize_scss_call_return_ir(source, StyleDialect::Scss);
+        assert!(report.is_some());
+        let Some(report) = report else {
+            return;
+        };
+        let function_call = report.nodes.iter().find(|node| {
+            node.kind == "functionCall"
+                && node.name.as_deref() == Some("again-value")
                 && node.containing_declaration_node_key.is_none()
         });
         assert!(function_call.is_some());
@@ -4342,6 +4404,23 @@ mod tests {
             SCSS_CALL_RETURN_RECURSION_LIMIT
         );
         assert!(report.edges.iter().any(|edge| edge.capped_by_recursion_cap));
+    }
+
+    #[test]
+    fn call_return_ir_resolves_hyphen_underscore_equivalent_mixin_edges() {
+        let source =
+            "@mixin tone_color($color) { color: $color; } .a { @include tone-color(red); }";
+        let report = summarize_scss_call_return_ir(source, StyleDialect::Scss);
+        assert!(report.is_some());
+        let Some(report) = report else {
+            return;
+        };
+
+        assert_eq!(report.declaration_node_count, 1);
+        assert_eq!(report.call_node_count, 1);
+        assert!(report.edges.iter().any(|edge| {
+            edge.kind == "mixinCall" && !edge.recursive && !edge.capped_by_recursion_cap
+        }));
     }
 
     #[test]
