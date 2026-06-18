@@ -4588,6 +4588,34 @@ mod tests {
     }
 
     #[test]
+    fn call_return_ir_reports_static_scss_map_key_and_value_lists() {
+        let source = "@function map-value() { @return list.nth(map.values((default: 1px, dense: 2px)), list.length(map.keys((default: 1px, dense: 2px)))); } .a { margin: map-value(); }";
+        let report = summarize_scss_call_return_ir(source, StyleDialect::Scss);
+        assert!(report.is_some());
+        let Some(report) = report else {
+            return;
+        };
+        let return_node = report
+            .nodes
+            .iter()
+            .find(|node| node.kind == "functionReturn");
+        assert!(return_node.is_some());
+        let Some(return_node) = return_node else {
+            return;
+        };
+
+        assert_eq!(report.return_value_count, 1);
+        assert_eq!(report.exact_return_value_count, 1);
+        assert_eq!(return_node.return_value_kind, Some("exact"));
+        assert_eq!(
+            return_node.return_value,
+            Some(AbstractCssValueV0::Exact {
+                value: "2px".to_string()
+            })
+        );
+    }
+
+    #[test]
     fn call_return_ir_reports_static_scss_math_return_values_in_abstract_domain() {
         let source = "@function gap() { @return math.div(6px, 3); } .a { margin: gap(); }";
         let report = summarize_scss_call_return_ir(source, StyleDialect::Scss);

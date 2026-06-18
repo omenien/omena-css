@@ -37,6 +37,10 @@ pub(crate) fn reduce_static_scss_value(value: String) -> String {
                 "map.has-key",
                 parse_static_scss_map_has_key_namespaced_value,
             ),
+            ("map-keys", parse_static_scss_map_keys_value),
+            ("map.keys", parse_static_scss_map_keys_namespaced_value),
+            ("map-values", parse_static_scss_map_values_value),
+            ("map.values", parse_static_scss_map_values_namespaced_value),
             ("math.div", parse_static_scss_math_div_value),
             ("math.min", parse_static_scss_math_min_value),
             ("math.max", parse_static_scss_math_max_value),
@@ -229,6 +233,22 @@ fn parse_static_scss_map_has_key_namespaced_value(value: &str) -> Option<String>
     parse_static_scss_map_has_key_value_with_name(value, "map.has-key")
 }
 
+fn parse_static_scss_map_keys_value(value: &str) -> Option<String> {
+    parse_static_scss_map_keys_value_with_name(value, "map-keys")
+}
+
+fn parse_static_scss_map_keys_namespaced_value(value: &str) -> Option<String> {
+    parse_static_scss_map_keys_value_with_name(value, "map.keys")
+}
+
+fn parse_static_scss_map_values_value(value: &str) -> Option<String> {
+    parse_static_scss_map_values_value_with_name(value, "map-values")
+}
+
+fn parse_static_scss_map_values_namespaced_value(value: &str) -> Option<String> {
+    parse_static_scss_map_values_value_with_name(value, "map.values")
+}
+
 fn parse_static_scss_math_div_value(value: &str) -> Option<String> {
     let arguments = parse_whole_function_value_arguments(value, "math.div")?;
     let [left, right] = arguments.as_slice() else {
@@ -417,6 +437,33 @@ fn parse_static_scss_map_has_key_value_with_name(
     Some(has_key.to_string())
 }
 
+fn parse_static_scss_map_keys_value_with_name(value: &str, function_name: &str) -> Option<String> {
+    let arguments = parse_whole_function_value_arguments(value, function_name)?;
+    let [map] = arguments.as_slice() else {
+        return None;
+    };
+    let keys = parse_static_scss_map_entries(map)?
+        .into_iter()
+        .map(|(key, _)| key)
+        .collect::<Vec<_>>();
+    static_scss_render_comma_list(keys)
+}
+
+fn parse_static_scss_map_values_value_with_name(
+    value: &str,
+    function_name: &str,
+) -> Option<String> {
+    let arguments = parse_whole_function_value_arguments(value, function_name)?;
+    let [map] = arguments.as_slice() else {
+        return None;
+    };
+    let values = parse_static_scss_map_entries(map)?
+        .into_iter()
+        .map(|(_, value)| value)
+        .collect::<Vec<_>>();
+    static_scss_render_comma_list(values)
+}
+
 fn parse_static_scss_list_index(value: &str) -> Option<isize> {
     let reduced = reduce_static_numeric_value(value.trim().to_string());
     let index = reduced.trim().parse::<isize>().ok()?;
@@ -437,6 +484,10 @@ fn parse_static_scss_list_items(value: &str) -> Option<Vec<String>> {
         return None;
     }
     Some(items)
+}
+
+fn static_scss_render_comma_list(items: Vec<String>) -> Option<String> {
+    (!items.is_empty()).then(|| format!("({})", items.join(", ")))
 }
 
 fn static_scss_list_separator(value: &str) -> Option<&'static str> {
