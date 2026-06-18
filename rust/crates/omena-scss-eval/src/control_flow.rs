@@ -1552,14 +1552,13 @@ fn call_bound_argument_bindings(
     let mut saw_named_argument = false;
     for argument in argument_values {
         if let Some(argument_name) = argument.name.as_ref() {
+            let argument_key = canonical_scss_variable_name(argument_name);
             saw_named_argument = true;
-            if !declaration_node
-                .parameter_values
-                .iter()
-                .any(|parameter| parameter.name == *argument_name)
-                || argument_texts
-                    .insert(argument_name.clone(), argument.text.clone())
-                    .is_some()
+            if !declaration_node.parameter_values.iter().any(|parameter| {
+                canonical_scss_variable_name(parameter.name.as_str()) == argument_key
+            }) || argument_texts
+                .insert(argument_key, argument.text.clone())
+                .is_some()
             {
                 return None;
             }
@@ -1571,7 +1570,10 @@ fn call_bound_argument_bindings(
         }
         let parameter = declaration_node.parameter_values.get(positional_index)?;
         if argument_texts
-            .insert(parameter.name.clone(), argument.text.clone())
+            .insert(
+                canonical_scss_variable_name(parameter.name.as_str()),
+                argument.text.clone(),
+            )
             .is_some()
         {
             return None;
@@ -1582,10 +1584,10 @@ fn call_bound_argument_bindings(
     let mut bindings = BTreeMap::new();
     for parameter in &declaration_node.parameter_values {
         let value_text = argument_texts
-            .remove(parameter.name.as_str())
+            .remove(canonical_scss_variable_name(parameter.name.as_str()).as_str())
             .or_else(|| parameter.default_value_text.clone())?;
         let value = call_bound_return_value(value_text.as_str(), &bindings, function_name, context);
-        bindings.insert(parameter.name.clone(), value);
+        insert_static_scss_binding(&mut bindings, parameter.name.as_str(), value);
     }
     if argument_texts.is_empty() {
         Some(bindings)
@@ -1607,7 +1609,7 @@ fn apply_call_bound_local_bindings(
             function_name,
             context,
         );
-        bindings.insert(local_binding.name.clone(), value);
+        insert_static_scss_binding(bindings, local_binding.name.as_str(), value);
     }
 }
 
@@ -2297,7 +2299,11 @@ fn collect_lexical_scss_bindings(
         if let Some(value) = source.get(value_start..value_end).map(str::trim)
             && !value.is_empty()
         {
-            bindings.insert(token.text.to_string(), abstract_css_value_from_text(value));
+            insert_static_scss_binding(
+                &mut bindings,
+                token.text.as_str(),
+                abstract_css_value_from_text(value),
+            );
         }
     }
     bindings
@@ -2317,8 +2323,7 @@ fn scss_header_value(
     variables
         .iter()
         .map(|name| {
-            lexical_bindings
-                .get(name)
+            static_scss_binding_value(lexical_bindings, name)
                 .cloned()
                 .unwrap_or(AbstractCssValueV0::Top)
         })
@@ -2346,8 +2351,7 @@ fn substitute_static_scss_header_variables(
         }
         let name_end = variable_name_end(header, index + ch.len_utf8());
         let name = header.get(index..name_end)?;
-        let value = lexical_bindings
-            .get(name)
+        let value = static_scss_binding_value(lexical_bindings, name)
             .and_then(single_static_scss_header_value_text)?;
         output.push_str(value);
         index = name_end.max(index + ch.len_utf8());
@@ -2545,8 +2549,7 @@ fn parse_static_each_loop_source_value(
     }
     let source_variables = variable_names_in_text(source);
     let source_text = if source_is_single_static_variable(source) {
-        lexical_bindings
-            .get(source)
+        static_scss_binding_value(lexical_bindings, source)
             .and_then(single_static_scss_header_value_text)
             .unwrap_or(source)
     } else if !source_variables.is_empty() {
@@ -2554,8 +2557,7 @@ fn parse_static_each_loop_source_value(
             source_variables
                 .iter()
                 .map(|name| {
-                    lexical_bindings
-                        .get(name)
+                    static_scss_binding_value(lexical_bindings, name)
                         .cloned()
                         .unwrap_or(AbstractCssValueV0::Top)
                 })
@@ -2589,8 +2591,7 @@ fn static_each_source_text<'a>(
     lexical_bindings: &'a BTreeMap<String, AbstractCssValueV0>,
 ) -> Option<&'a str> {
     if source_is_single_static_variable(source) {
-        return lexical_bindings
-            .get(source)
+        return static_scss_binding_value(lexical_bindings, source)
             .and_then(single_static_scss_header_value_text);
     }
     Some(source)
@@ -2887,6 +2888,27 @@ fn variable_names_in_text_preserving_order(text: &str) -> Vec<String> {
         index = name_end.max(index + ch.len_utf8());
     }
     names
+}
+
+fn canonical_scss_variable_name(name: &str) -> String {
+    let trimmed = name.trim();
+    let bare = trimmed.strip_prefix('$').unwrap_or(trimmed);
+    format!("${}", bare.replace('_', "-"))
+}
+
+fn insert_static_scss_binding(
+    bindings: &mut BTreeMap<String, AbstractCssValueV0>,
+    name: &str,
+    value: AbstractCssValueV0,
+) {
+    bindings.insert(canonical_scss_variable_name(name), value);
+}
+
+fn static_scss_binding_value<'a>(
+    bindings: &'a BTreeMap<String, AbstractCssValueV0>,
+    name: &str,
+) -> Option<&'a AbstractCssValueV0> {
+    bindings.get(canonical_scss_variable_name(name).as_str())
 }
 
 fn variable_name_end(text: &str, mut index: usize) -> usize {
@@ -3453,6 +3475,24 @@ mod tests {
     }
 
     #[test]
+    fn control_flow_value_analysis_resolves_hyphen_underscore_equivalent_loop_bounds() {
+        let source = "$start_value: 1; $end_value: 3; @for $i from $start-value through $end-value { .n { order: $i; } }";
+        let report = analyze_scss_control_flow_values(source, StyleDialect::Scss);
+        assert!(report.is_some());
+        let Some(report) = report else {
+            return;
+        };
+
+        assert_eq!(report.blocks[0].loop_carried_bindings, vec!["$i"]);
+        assert_eq!(
+            report.blocks[0].loop_carried_binding_values[0].value,
+            AbstractCssValueV0::FiniteSet {
+                values: vec!["1".to_string(), "2".to_string(), "3".to_string()]
+            }
+        );
+    }
+
+    #[test]
     fn control_flow_value_analysis_tracks_while_condition_loop_bindings() {
         let source = "$i: 0; @while $i < 3 { $i: $i + 1; .n { order: $i; } }";
         let report = analyze_scss_control_flow_values(source, StyleDialect::Scss);
@@ -3677,6 +3717,32 @@ mod tests {
     }
 
     #[test]
+    fn call_return_ir_resolves_hyphen_underscore_equivalent_local_bindings() {
+        let source = "@function offset($base) { $next_value: $base + 1px; @return $next-value + 1px; } .a { width: offset(2px); }";
+        let report = summarize_scss_call_return_ir(source, StyleDialect::Scss);
+        assert!(report.is_some());
+        let Some(report) = report else {
+            return;
+        };
+        let function_call = report
+            .nodes
+            .iter()
+            .find(|node| node.kind == "functionCall" && node.name.as_deref() == Some("offset"));
+        assert!(function_call.is_some());
+        let Some(function_call) = function_call else {
+            return;
+        };
+
+        assert_eq!(function_call.call_resolved_return_value_kind, Some("exact"));
+        assert_eq!(
+            function_call.call_resolved_return_value,
+            Some(AbstractCssValueV0::Exact {
+                value: "4px".to_string()
+            })
+        );
+    }
+
+    #[test]
     fn call_return_ir_resolves_call_bound_local_variable_chains() {
         let source = "@function scale($base) { $next: $base + 1px; $double: $next * 2; @return $double; } .a { width: scale(2px); }";
         let report = summarize_scss_call_return_ir(source, StyleDialect::Scss);
@@ -3745,6 +3811,59 @@ mod tests {
         assert_eq!(function_call.argument_values[1].text, "1px");
         assert_eq!(report.call_resolved_return_value_count, 1);
         assert_eq!(report.exact_call_resolved_return_value_count, 1);
+        assert_eq!(function_call.call_resolved_return_value_kind, Some("exact"));
+        assert_eq!(
+            function_call.call_resolved_return_value,
+            Some(AbstractCssValueV0::Exact {
+                value: "3px".to_string()
+            })
+        );
+    }
+
+    #[test]
+    fn call_return_ir_resolves_hyphen_underscore_equivalent_parameter_references() {
+        let source =
+            "@function gap($base_value) { @return $base-value + 1px; } .a { width: gap(2px); }";
+        let report = summarize_scss_call_return_ir(source, StyleDialect::Scss);
+        assert!(report.is_some());
+        let Some(report) = report else {
+            return;
+        };
+        let function_call = report
+            .nodes
+            .iter()
+            .find(|node| node.kind == "functionCall" && node.name.as_deref() == Some("gap"));
+        assert!(function_call.is_some());
+        let Some(function_call) = function_call else {
+            return;
+        };
+
+        assert_eq!(function_call.call_resolved_return_value_kind, Some("exact"));
+        assert_eq!(
+            function_call.call_resolved_return_value,
+            Some(AbstractCssValueV0::Exact {
+                value: "3px".to_string()
+            })
+        );
+    }
+
+    #[test]
+    fn call_return_ir_resolves_hyphen_underscore_equivalent_named_arguments() {
+        let source = "@function gap($base_value) { @return $base-value + 1px; } .a { width: gap($base-value: 2px); }";
+        let report = summarize_scss_call_return_ir(source, StyleDialect::Scss);
+        assert!(report.is_some());
+        let Some(report) = report else {
+            return;
+        };
+        let function_call = report
+            .nodes
+            .iter()
+            .find(|node| node.kind == "functionCall" && node.name.as_deref() == Some("gap"));
+        assert!(function_call.is_some());
+        let Some(function_call) = function_call else {
+            return;
+        };
+
         assert_eq!(function_call.call_resolved_return_value_kind, Some("exact"));
         assert_eq!(
             function_call.call_resolved_return_value,
