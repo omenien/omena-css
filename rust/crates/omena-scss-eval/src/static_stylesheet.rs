@@ -3,6 +3,9 @@ use std::collections::{BTreeMap, BTreeSet};
 use omena_abstract_value::{AbstractCssValueV0, abstract_css_value_from_text};
 use omena_parser::{LexedToken, ParsedVariableFact, ParsedVariableFactKind, StyleDialect, lex};
 use omena_syntax::SyntaxKind;
+use omena_value_lattice::{
+    parse_static_srgb_color_with_alpha, parse_whole_function_value_arguments,
+};
 use serde::Serialize;
 
 use crate::{
@@ -939,6 +942,7 @@ struct StaticScssMixinBodyLocalDeclaration {
 struct StaticLessMixinDeclaration {
     name: String,
     parameters: Vec<StaticScssFunctionParameter>,
+    guard: Option<String>,
     span_start: usize,
     span_end: usize,
     body_start: usize,
@@ -2614,10 +2618,8 @@ fn collect_static_less_mixin_declarations(
             index += 1;
             continue;
         };
-        if static_less_mixin_header_has_guard(tokens, close_index + 1, body_open_index) {
-            index += 1;
-            continue;
-        }
+        let guard =
+            static_less_mixin_header_guard_text(source, tokens, close_index + 1, body_open_index)?;
         let Some(body_close_index) = static_stylesheet_matching_token_index(
             tokens,
             body_open_index,
@@ -2632,6 +2634,7 @@ fn collect_static_less_mixin_declarations(
         declarations.push(StaticLessMixinDeclaration {
             name,
             parameters,
+            guard,
             span_start: static_stylesheet_token_start(&tokens[index]),
             span_end: static_stylesheet_token_end(&tokens[body_close_index]),
             body_start: static_stylesheet_token_end(&tokens[body_open_index]),
@@ -2722,10 +2725,27 @@ fn static_less_mixin_call_context_is_plain(tokens: &[LexedToken], index: usize) 
         .is_none_or(|token| matches!(token.kind, SyntaxKind::LeftBrace | SyntaxKind::Semicolon))
 }
 
-fn static_less_mixin_header_has_guard(tokens: &[LexedToken], start: usize, end: usize) -> bool {
-    tokens[start..end]
-        .iter()
-        .any(|token| token.kind == SyntaxKind::Ident && token.text.eq_ignore_ascii_case("when"))
+fn static_less_mixin_header_guard_text(
+    source: &str,
+    tokens: &[LexedToken],
+    start: usize,
+    end: usize,
+) -> Option<Option<String>> {
+    let first = static_stylesheet_skip_trivia_tokens(tokens, start);
+    if first >= end {
+        return Some(None);
+    }
+    let first_token = tokens.get(first)?;
+    if first_token.kind != SyntaxKind::Ident || !first_token.text.eq_ignore_ascii_case("when") {
+        return None;
+    }
+    let guard_start = static_stylesheet_token_start(first_token);
+    let guard_end = tokens.get(end).map(static_stylesheet_token_start)?;
+    source
+        .get(guard_start..guard_end)
+        .map(str::trim)
+        .map(ToOwned::to_owned)
+        .map(Some)
 }
 
 fn collect_static_less_mixin_parameters(
@@ -2885,6 +2905,17 @@ fn render_static_less_mixin_body(
         )?;
         argument_values.insert(parameter, rendered_value);
     }
+    if let Some(guard) = &declaration.guard
+        && !static_less_mixin_guard_matches(
+            guard,
+            &argument_values,
+            call_scope_id,
+            context.scopes,
+            context.variable_declarations,
+        )?
+    {
+        return None;
+    }
     let body = render_static_less_mixin_body_variables(
         body,
         call_scope_id,
@@ -2906,6 +2937,34 @@ fn render_static_less_mixin_body(
         body,
         used_declaration_names,
     })
+}
+
+fn static_less_mixin_guard_matches(
+    guard: &str,
+    argument_values: &BTreeMap<String, String>,
+    call_scope_id: usize,
+    scopes: &[StaticStylesheetScope],
+    variable_declarations: &BTreeMap<(usize, String), StaticStylesheetVariableDeclaration>,
+) -> Option<bool> {
+    let guard = guard.trim();
+    let when = guard.get(.."when".len())?;
+    if !when.eq_ignore_ascii_case("when") {
+        return None;
+    }
+    let predicate = guard.get("when".len()..)?.trim();
+    let predicate = predicate.strip_prefix('(')?.strip_suffix(')')?.trim();
+    let arguments = parse_whole_function_value_arguments(predicate, "iscolor")?;
+    let [value] = arguments.as_slice() else {
+        return None;
+    };
+    let resolved = resolve_static_less_mixin_value_with_bindings(
+        value.trim(),
+        argument_values,
+        call_scope_id,
+        scopes,
+        variable_declarations,
+    )?;
+    Some(parse_static_srgb_color_with_alpha(resolved.trim()).is_some())
 }
 
 fn render_static_less_mixin_body_nested_calls(
@@ -5713,9 +5772,27 @@ mod tests {
     }
 
     #[test]
-    fn static_less_evaluation_keeps_guarded_mixins_planned_only() {
+    fn static_less_evaluation_expands_static_guarded_mixin_calls() {
         let report = derive_static_stylesheet_module_evaluation(
             ".tone(@color) when (iscolor(@color)) { color: @color; } .button { .tone(red); }",
+            StyleDialect::Less,
+        );
+
+        assert!(report.is_some());
+        let Some(report) = report else {
+            return;
+        };
+
+        assert!(!report.evaluated_css.contains(".tone(@color"));
+        assert!(!report.evaluated_css.contains(".tone(red"));
+        assert!(report.evaluated_css.contains("color: red"));
+        assert!(report.oracle.all_legacy_declaration_values_preserved);
+    }
+
+    #[test]
+    fn static_less_evaluation_keeps_false_guarded_mixins_planned_only() {
+        let report = derive_static_stylesheet_module_evaluation(
+            ".tone(@value) when (iscolor(@value)) { color: @value; } .button { .tone(1px); }",
             StyleDialect::Less,
         );
 
