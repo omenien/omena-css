@@ -45,6 +45,10 @@ pub(crate) fn reduce_static_scss_value(value: String) -> String {
             ("map.merge", parse_static_scss_map_merge_namespaced_value),
             ("map-remove", parse_static_scss_map_remove_value),
             ("map.remove", parse_static_scss_map_remove_namespaced_value),
+            (
+                "map.deep-remove",
+                parse_static_scss_map_deep_remove_namespaced_value,
+            ),
             ("map.set", parse_static_scss_map_set_value),
             ("math.div", parse_static_scss_math_div_value),
             ("math.min", parse_static_scss_math_min_value),
@@ -268,6 +272,10 @@ fn parse_static_scss_map_remove_value(value: &str) -> Option<String> {
 
 fn parse_static_scss_map_remove_namespaced_value(value: &str) -> Option<String> {
     parse_static_scss_map_remove_value_with_name(value, "map.remove")
+}
+
+fn parse_static_scss_map_deep_remove_namespaced_value(value: &str) -> Option<String> {
+    parse_static_scss_map_deep_remove_value_with_name(value, "map.deep-remove")
 }
 
 fn parse_static_scss_map_set_value(value: &str) -> Option<String> {
@@ -550,17 +558,22 @@ fn parse_static_scss_map_remove_value_with_name(
     if keys.is_empty() {
         return None;
     }
-    let remove_keys = keys
-        .iter()
-        .map(|key| canonical_static_scss_map_key(key))
-        .collect::<Option<Vec<_>>>()?;
-    let mut entries = Vec::new();
-    for (key, value) in parse_static_scss_map_entries(map)? {
-        let candidate_key = canonical_static_scss_map_key(key.as_str())?;
-        if !remove_keys.contains(&candidate_key) {
-            entries.push((key, value));
-        }
+    let entries = static_scss_remove_map_entries(parse_static_scss_map_entries(map)?, keys)?;
+    static_scss_render_map_entries(entries)
+}
+
+fn parse_static_scss_map_deep_remove_value_with_name(
+    value: &str,
+    function_name: &str,
+) -> Option<String> {
+    let arguments = parse_whole_function_value_arguments(value, function_name)?;
+    let [map, path @ ..] = arguments.as_slice() else {
+        return None;
+    };
+    if path.is_empty() {
+        return None;
     }
+    let entries = static_scss_deep_remove_map_entries(parse_static_scss_map_entries(map)?, path)?;
     static_scss_render_map_entries(entries)
 }
 
@@ -598,6 +611,54 @@ fn static_scss_set_map_entry(
     } else {
         entries.push((key.trim().to_string(), value.trim().to_string()));
     }
+    Some(entries)
+}
+
+fn static_scss_remove_map_entries(
+    entries: Vec<(String, String)>,
+    keys: &[String],
+) -> Option<Vec<(String, String)>> {
+    let remove_keys = keys
+        .iter()
+        .map(|key| canonical_static_scss_map_key(key))
+        .collect::<Option<Vec<_>>>()?;
+    let mut retained_entries = Vec::new();
+    for (key, value) in entries {
+        let candidate_key = canonical_static_scss_map_key(key.as_str())?;
+        if !remove_keys.contains(&candidate_key) {
+            retained_entries.push((key, value));
+        }
+    }
+    Some(retained_entries)
+}
+
+fn static_scss_deep_remove_map_entries(
+    mut entries: Vec<(String, String)>,
+    path: &[String],
+) -> Option<Vec<(String, String)>> {
+    let Some((key, remaining_path)) = path.split_first() else {
+        return Some(entries);
+    };
+    let canonical_key = canonical_static_scss_map_key(key)?;
+    if remaining_path.is_empty() {
+        if let Some(index) =
+            static_scss_map_entry_index(entries.as_slice(), canonical_key.as_str())?
+        {
+            entries.remove(index);
+        }
+        return Some(entries);
+    }
+    let Some(index) = static_scss_map_entry_index(entries.as_slice(), canonical_key.as_str())?
+    else {
+        return Some(entries);
+    };
+    let Some(child_entries) =
+        static_scss_existing_nested_map_child_entries(entries[index].1.as_str())?
+    else {
+        return Some(entries);
+    };
+    let updated_child_entries = static_scss_deep_remove_map_entries(child_entries, remaining_path)?;
+    entries[index].1 = static_scss_render_map_entries(updated_child_entries)?;
     Some(entries)
 }
 
@@ -716,6 +777,15 @@ fn static_scss_nested_map_child_entries(value: &str) -> Option<Vec<(String, Stri
         return Some(entries);
     }
     static_scss_collection_member_is_static(value).then(Vec::new)
+}
+
+fn static_scss_existing_nested_map_child_entries(
+    value: &str,
+) -> Option<Option<Vec<(String, String)>>> {
+    if let Some(entries) = parse_static_scss_map_entries(value) {
+        return Some(Some(entries));
+    }
+    static_scss_collection_member_is_static(value).then_some(None)
 }
 
 fn static_scss_map_entry_index(

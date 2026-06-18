@@ -4728,6 +4728,34 @@ mod tests {
     }
 
     #[test]
+    fn call_return_ir_reports_nested_static_scss_map_deep_remove_values() {
+        let source = "@function gap() { @return map.get(map.deep-remove((theme: (spacing: (sm: 4px, md: 8px))), theme, spacing, sm), theme, spacing, md); } .a { margin: gap(); }";
+        let report = summarize_scss_call_return_ir(source, StyleDialect::Scss);
+        assert!(report.is_some());
+        let Some(report) = report else {
+            return;
+        };
+        let return_node = report
+            .nodes
+            .iter()
+            .find(|node| node.kind == "functionReturn");
+        assert!(return_node.is_some());
+        let Some(return_node) = return_node else {
+            return;
+        };
+
+        assert_eq!(report.return_value_count, 1);
+        assert_eq!(report.exact_return_value_count, 1);
+        assert_eq!(return_node.return_value_kind, Some("exact"));
+        assert_eq!(
+            return_node.return_value,
+            Some(AbstractCssValueV0::Exact {
+                value: "8px".to_string()
+            })
+        );
+    }
+
+    #[test]
     fn call_return_ir_reports_static_scss_map_set_values() {
         let source = "@function weight() { @return map.get(map.set((regular: 400), bold, 700), bold); } .a { font-weight: weight(); }";
         let report = summarize_scss_call_return_ir(source, StyleDialect::Scss);
