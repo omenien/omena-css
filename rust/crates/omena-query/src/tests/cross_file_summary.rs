@@ -991,6 +991,83 @@ fn workspace_cross_file_summary_reports_edge_kind_counts_for_m4_vocabulary() {
 }
 
 #[test]
+fn workspace_cross_file_summary_reports_less_module_edges_with_less_vocabulary() {
+    let summary = summarize_omena_query_workspace_cross_file_summary(
+        &[
+            OmenaQueryStyleSourceInputV0 {
+                style_path: "/tmp/tokens.less".to_string(),
+                style_source: "@brand: red;".to_string(),
+            },
+            OmenaQueryStyleSourceInputV0 {
+                style_path: "/tmp/Button.module.less".to_string(),
+                style_source: r#"@import "./tokens.less"; .button { color: @brand; }"#.to_string(),
+            },
+        ],
+        &[],
+        &[],
+    );
+
+    let declared_counts = summary
+        .edge_kind_counts
+        .iter()
+        .map(|entry| (entry.edge_kind, entry.count))
+        .collect::<BTreeMap<_, _>>();
+
+    assert!(summary.capabilities.sass_module_edges_ready);
+    assert_eq!(declared_counts.get("lessImport").copied(), Some(1));
+    assert_eq!(
+        declared_counts
+            .get("lessModuleGraphClosure")
+            .copied()
+            .unwrap_or(0),
+        1
+    );
+    assert!(!declared_counts.contains_key("sassImport"));
+    assert!(summary.edges.iter().any(|edge| {
+        edge.edge_kind == "lessImport"
+            && edge.from_path == "/tmp/Button.module.less"
+            && edge.source.as_deref() == Some("./tokens.less")
+            && edge.target_path.as_deref() == Some("/tmp/tokens.less")
+            && edge.status == "resolved"
+    }));
+    assert!(summary.edges.iter().any(|edge| {
+        edge.edge_kind == "lessModuleGraphClosure"
+            && edge.from_path == "/tmp/Button.module.less"
+            && edge.target_path.as_deref() == Some("/tmp/tokens.less")
+            && edge.status == "reachable"
+    }));
+}
+
+#[cfg(feature = "hypergraph-ifds")]
+#[test]
+fn cross_file_hypergraph_projects_less_module_edges_to_less_edge_kinds() {
+    let summary = summarize_omena_query_workspace_cross_file_summary(
+        &[
+            OmenaQueryStyleSourceInputV0 {
+                style_path: "/tmp/tokens.less".to_string(),
+                style_source: "@brand: red;".to_string(),
+            },
+            OmenaQueryStyleSourceInputV0 {
+                style_path: "/tmp/Button.module.less".to_string(),
+                style_source: r#"@import "./tokens.less"; .button { color: @brand; }"#.to_string(),
+            },
+        ],
+        &[],
+        &[],
+    );
+    let hypergraph = summarize_omena_query_unified_cross_file_hypergraph(&summary);
+
+    assert!(hypergraph.hyperedges.iter().any(|edge| {
+        edge.edge_kind == UnifiedHypergraphEdgeKindV0::LessImport
+            && edge.source_edge_kind == "lessImport"
+    }));
+    assert!(hypergraph.hyperedges.iter().any(|edge| {
+        edge.edge_kind == UnifiedHypergraphEdgeKindV0::LessModuleGraphClosure
+            && edge.source_edge_kind == "lessModuleGraphClosure"
+    }));
+}
+
+#[test]
 fn cross_file_summary_edges_are_equivalent_to_resolution_products() {
     let input = sample_input();
     let style_sources = [

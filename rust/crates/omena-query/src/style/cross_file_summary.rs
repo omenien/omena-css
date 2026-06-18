@@ -114,9 +114,13 @@ pub(super) fn summarize_omena_query_cross_file_summary(
     }
 
     for edge in &sass_module_resolution.edges {
+        let edge_kind = cross_file_summary_module_edge_kind_for_style_path(
+            edge.edge_kind,
+            &edge.from_style_path,
+        );
         edges.push(build_omena_query_cross_file_summary_edge(
             OmenaQueryCrossFileSummaryEdgeInput {
-                edge_kind: edge.edge_kind,
+                edge_kind,
                 from_kind: "style",
                 from_path: edge.from_style_path.clone(),
                 target_kind: edge.resolved_style_path.as_ref().map(|_| "style"),
@@ -136,9 +140,11 @@ pub(super) fn summarize_omena_query_cross_file_summary(
     }
 
     for edge in &sass_module_resolution.graph_closure_edges {
+        let edge_kind =
+            cross_file_summary_module_graph_closure_edge_kind_for_style_path(&edge.from_style_path);
         edges.push(build_omena_query_cross_file_summary_edge(
             OmenaQueryCrossFileSummaryEdgeInput {
-                edge_kind: "sassModuleGraphClosure",
+                edge_kind,
                 from_kind: "style",
                 from_path: edge.from_style_path.clone(),
                 target_kind: Some("style"),
@@ -819,6 +825,28 @@ fn m4_axis_c_merged_edge_id_count(
         .map(|edge| edge.edge_id.as_str())
         .collect::<BTreeSet<_>>()
         .len()
+}
+
+fn cross_file_summary_module_edge_kind_for_style_path(
+    edge_kind: &'static str,
+    style_path: &str,
+) -> &'static str {
+    if edge_kind == "sassImport"
+        && omena_parser_dialect_for_style_path(style_path) == omena_parser::StyleDialect::Less
+    {
+        return "lessImport";
+    }
+    edge_kind
+}
+
+fn cross_file_summary_module_graph_closure_edge_kind_for_style_path(
+    style_path: &str,
+) -> &'static str {
+    if omena_parser_dialect_for_style_path(style_path) == omena_parser::StyleDialect::Less {
+        "lessModuleGraphClosure"
+    } else {
+        "sassModuleGraphClosure"
+    }
 }
 
 fn merge_omena_query_cross_file_summaries(

@@ -92,6 +92,8 @@ pub enum UnifiedHypergraphEdgeKindV0 {
     SassUse,
     SassForward,
     SassImport,
+    LessImport,
+    LessModuleGraphClosure,
     Value,
     Icss,
     ForeignReference,
@@ -106,6 +108,8 @@ impl UnifiedHypergraphEdgeKindV0 {
             Self::SassUse => "sassUse",
             Self::SassForward => "sassForward",
             Self::SassImport => "sassImport",
+            Self::LessImport => "lessImport",
+            Self::LessModuleGraphClosure => "lessModuleGraphClosure",
             Self::Value => "value",
             Self::Icss => "icss",
             Self::ForeignReference => "foreignReference",
@@ -577,6 +581,8 @@ fn unified_edge_kind_for_summary_edge(
         "sassUse" => UnifiedHypergraphEdgeKindV0::SassUse,
         "sassForward" => UnifiedHypergraphEdgeKindV0::SassForward,
         "sassImport" => UnifiedHypergraphEdgeKindV0::SassImport,
+        "lessImport" => UnifiedHypergraphEdgeKindV0::LessImport,
+        "lessModuleGraphClosure" => UnifiedHypergraphEdgeKindV0::LessModuleGraphClosure,
         "cssModulesValueImport" | "cssModulesValueClosure" | "value" => {
             UnifiedHypergraphEdgeKindV0::Value
         }
