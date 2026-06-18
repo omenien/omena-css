@@ -4446,6 +4446,63 @@ mod tests {
     }
 
     #[test]
+    fn call_return_ir_reports_static_scss_nth_return_values_in_abstract_domain() {
+        let source =
+            "@function gap() { @return list.nth((1px, 2px, 3px), 2); } .a { width: gap(); }";
+        let report = summarize_scss_call_return_ir(source, StyleDialect::Scss);
+        assert!(report.is_some());
+        let Some(report) = report else {
+            return;
+        };
+        let return_node = report
+            .nodes
+            .iter()
+            .find(|node| node.kind == "functionReturn");
+        assert!(return_node.is_some());
+        let Some(return_node) = return_node else {
+            return;
+        };
+
+        assert_eq!(report.return_value_count, 1);
+        assert_eq!(report.exact_return_value_count, 1);
+        assert_eq!(return_node.return_value_kind, Some("exact"));
+        assert_eq!(
+            return_node.return_value,
+            Some(AbstractCssValueV0::Exact {
+                value: "2px".to_string()
+            })
+        );
+    }
+
+    #[test]
+    fn call_return_ir_reports_static_scss_map_get_return_values_in_abstract_domain() {
+        let source = "@function gap() { @return map-get((default: 2px, dense: 1px), dense); } .a { margin: gap(); }";
+        let report = summarize_scss_call_return_ir(source, StyleDialect::Scss);
+        assert!(report.is_some());
+        let Some(report) = report else {
+            return;
+        };
+        let return_node = report
+            .nodes
+            .iter()
+            .find(|node| node.kind == "functionReturn");
+        assert!(return_node.is_some());
+        let Some(return_node) = return_node else {
+            return;
+        };
+
+        assert_eq!(report.return_value_count, 1);
+        assert_eq!(report.exact_return_value_count, 1);
+        assert_eq!(return_node.return_value_kind, Some("exact"));
+        assert_eq!(
+            return_node.return_value,
+            Some(AbstractCssValueV0::Exact {
+                value: "1px".to_string()
+            })
+        );
+    }
+
+    #[test]
     fn call_return_ir_reports_static_scss_if_argument_values_in_abstract_domain() {
         let source =
             "@function gap($value) { @return $value; } .a { width: gap(if(false, 1px, 2px)); }";

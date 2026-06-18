@@ -15,7 +15,13 @@ pub(crate) fn reduce_static_scss_value(value: String) -> String {
     let trimmed = value.trim();
     let value = substitute_static_css_function_references_in_value_until_stable(
         trimmed,
-        &[("if", parse_static_scss_if_value)],
+        &[
+            ("if", parse_static_scss_if_value),
+            ("nth", parse_static_scss_nth_value),
+            ("list.nth", parse_static_scss_list_nth_value),
+            ("map-get", parse_static_scss_map_get_value),
+            ("map.get", parse_static_scss_map_get_namespaced_value),
+        ],
     )
     .unwrap_or_else(|| trimmed.to_string());
     reduce_static_numeric_value(value)
@@ -82,6 +88,267 @@ fn parse_static_scss_if_value(value: &str) -> Option<String> {
     } else {
         falsey.trim().to_string()
     })
+}
+
+fn parse_static_scss_nth_value(value: &str) -> Option<String> {
+    parse_static_scss_nth_value_with_name(value, "nth")
+}
+
+fn parse_static_scss_list_nth_value(value: &str) -> Option<String> {
+    parse_static_scss_nth_value_with_name(value, "list.nth")
+}
+
+fn parse_static_scss_nth_value_with_name(value: &str, function_name: &str) -> Option<String> {
+    let arguments = parse_whole_function_value_arguments(value, function_name)?;
+    let [list, index] = arguments.as_slice() else {
+        return None;
+    };
+    let items = parse_static_scss_list_items(list)?;
+    let index = parse_static_scss_list_index(index)?;
+    let resolved_index = if index > 0 {
+        index.checked_sub(1)? as usize
+    } else {
+        items.len().checked_sub(index.unsigned_abs())?
+    };
+    items.get(resolved_index).cloned()
+}
+
+fn parse_static_scss_map_get_value(value: &str) -> Option<String> {
+    parse_static_scss_map_get_value_with_name(value, "map-get")
+}
+
+fn parse_static_scss_map_get_namespaced_value(value: &str) -> Option<String> {
+    parse_static_scss_map_get_value_with_name(value, "map.get")
+}
+
+fn parse_static_scss_map_get_value_with_name(value: &str, function_name: &str) -> Option<String> {
+    let arguments = parse_whole_function_value_arguments(value, function_name)?;
+    let [map, key] = arguments.as_slice() else {
+        return None;
+    };
+    let key = canonical_static_scss_map_key(key)?;
+    for (candidate_key, candidate_value) in parse_static_scss_map_entries(map)? {
+        if canonical_static_scss_map_key(candidate_key.as_str())? == key {
+            return Some(candidate_value);
+        }
+    }
+    None
+}
+
+fn parse_static_scss_list_index(value: &str) -> Option<isize> {
+    let reduced = reduce_static_numeric_value(value.trim().to_string());
+    let index = reduced.trim().parse::<isize>().ok()?;
+    (index != 0).then_some(index)
+}
+
+fn parse_static_scss_list_items(value: &str) -> Option<Vec<String>> {
+    let source = strip_static_scss_outer_container(value.trim()).unwrap_or_else(|| value.trim());
+    let items = match split_static_scss_top_level(source, ',') {
+        Some(items) if items.len() > 1 => items,
+        _ => split_static_scss_top_level_whitespace(source)?,
+    };
+    if items.is_empty()
+        || items
+            .iter()
+            .any(|item| !static_scss_collection_member_is_static(item))
+    {
+        return None;
+    }
+    Some(items)
+}
+
+fn parse_static_scss_map_entries(value: &str) -> Option<Vec<(String, String)>> {
+    let source = strip_static_scss_outer_container(value.trim())?;
+    let entries = split_static_scss_top_level(source, ',')?;
+    if entries.is_empty() {
+        return None;
+    }
+    let mut pairs = Vec::with_capacity(entries.len());
+    for entry in entries {
+        let colon_index = static_scss_top_level_separator_index(entry.as_str(), ':')??;
+        let key = entry.get(..colon_index)?.trim();
+        let value = entry.get(colon_index + ':'.len_utf8()..)?.trim();
+        if key.is_empty()
+            || value.is_empty()
+            || key.contains('$')
+            || !static_scss_collection_member_is_static(value)
+        {
+            return None;
+        }
+        pairs.push((key.to_string(), value.to_string()));
+    }
+    Some(pairs)
+}
+
+fn canonical_static_scss_map_key(value: &str) -> Option<String> {
+    let value = value.trim();
+    if value.is_empty()
+        || value.contains('$')
+        || static_scss_top_level_separator_index(value, ':')?.is_some()
+    {
+        return None;
+    }
+    Some(strip_static_scss_quotes(value).unwrap_or(value).to_string())
+}
+
+fn static_scss_collection_member_is_static(value: &str) -> bool {
+    !value.trim().is_empty()
+        && !value.contains('$')
+        && static_scss_top_level_separator_index(value, ':').is_some_and(|index| index.is_none())
+}
+
+fn strip_static_scss_quotes(value: &str) -> Option<&str> {
+    let quote = value.chars().next()?;
+    if !matches!(quote, '"' | '\'') || !value.ends_with(quote) || value.len() < 2 {
+        return None;
+    }
+    value.get(quote.len_utf8()..value.len().saturating_sub(quote.len_utf8()))
+}
+
+fn strip_static_scss_outer_container(value: &str) -> Option<&str> {
+    let trimmed = value.trim();
+    if trimmed.len() < 2 {
+        return None;
+    }
+    let (open, close) = match trimmed.chars().next()? {
+        '(' => ('(', ')'),
+        '[' => ('[', ']'),
+        _ => return None,
+    };
+    let end = static_scss_balanced_value_end(trimmed, 0, open, close)?;
+    if end != trimmed.len() {
+        return None;
+    }
+    trimmed
+        .get(open.len_utf8()..trimmed.len().saturating_sub(close.len_utf8()))
+        .map(str::trim)
+}
+
+fn split_static_scss_top_level(source: &str, separator: char) -> Option<Vec<String>> {
+    let mut values = Vec::new();
+    let mut cursor = 0usize;
+    let mut index = 0usize;
+    while index < source.len() {
+        let ch = source[index..].chars().next()?;
+        if ch == separator {
+            let value = source.get(cursor..index)?.trim();
+            if value.is_empty() {
+                return None;
+            }
+            values.push(value.to_string());
+            cursor = index + ch.len_utf8();
+        }
+        index = static_scss_next_value_index(source, index)?;
+    }
+    let value = source.get(cursor..)?.trim();
+    if value.is_empty() {
+        return None;
+    }
+    values.push(value.to_string());
+    Some(values)
+}
+
+fn split_static_scss_top_level_whitespace(source: &str) -> Option<Vec<String>> {
+    let mut values = Vec::new();
+    let mut cursor = 0usize;
+    let mut index = 0usize;
+    while index < source.len() {
+        let ch = source[index..].chars().next()?;
+        if ch.is_ascii_whitespace() {
+            let value = source.get(cursor..index)?.trim();
+            if !value.is_empty() {
+                values.push(value.to_string());
+            }
+            index += ch.len_utf8();
+            while index < source.len() {
+                let Some(next_ch) = source[index..].chars().next() else {
+                    break;
+                };
+                if !next_ch.is_ascii_whitespace() {
+                    break;
+                }
+                index += next_ch.len_utf8();
+            }
+            cursor = index;
+            continue;
+        }
+        index = static_scss_next_value_index(source, index)?;
+    }
+    let value = source.get(cursor..)?.trim();
+    if !value.is_empty() {
+        values.push(value.to_string());
+    }
+    Some(values)
+}
+
+fn static_scss_top_level_separator_index(source: &str, separator: char) -> Option<Option<usize>> {
+    let mut index = 0usize;
+    while index < source.len() {
+        let ch = source[index..].chars().next()?;
+        if ch == separator {
+            return Some(Some(index));
+        }
+        index = static_scss_next_value_index(source, index)?;
+    }
+    Some(None)
+}
+
+fn static_scss_next_value_index(source: &str, index: usize) -> Option<usize> {
+    let ch = source[index..].chars().next()?;
+    match ch {
+        '"' | '\'' => static_scss_quoted_value_end(source, index, ch),
+        '(' => static_scss_balanced_value_end(source, index, '(', ')'),
+        '[' => static_scss_balanced_value_end(source, index, '[', ']'),
+        ')' | ']' => None,
+        _ => Some(index + ch.len_utf8()),
+    }
+}
+
+fn static_scss_quoted_value_end(source: &str, start: usize, quote: char) -> Option<usize> {
+    let mut index = start + quote.len_utf8();
+    while index < source.len() {
+        let ch = source[index..].chars().next()?;
+        index += ch.len_utf8();
+        if ch == '\\' {
+            if let Some(escaped) = source[index..].chars().next() {
+                index += escaped.len_utf8();
+            }
+        } else if ch == quote {
+            return Some(index);
+        }
+    }
+    None
+}
+
+fn static_scss_balanced_value_end(
+    source: &str,
+    start: usize,
+    open: char,
+    close: char,
+) -> Option<usize> {
+    let mut depth = 0usize;
+    let mut index = start;
+    while index < source.len() {
+        let ch = source[index..].chars().next()?;
+        match ch {
+            '"' | '\'' => index = static_scss_quoted_value_end(source, index, ch)?,
+            _ if ch == open => {
+                depth += 1;
+                index += ch.len_utf8();
+                continue;
+            }
+            _ if ch == close => {
+                depth = depth.checked_sub(1)?;
+                index += ch.len_utf8();
+                if depth == 0 {
+                    return Some(index);
+                }
+                continue;
+            }
+            _ => index += ch.len_utf8(),
+        }
+    }
+    None
 }
 
 pub(crate) fn static_scss_literal_truthiness(value: &str) -> Option<bool> {

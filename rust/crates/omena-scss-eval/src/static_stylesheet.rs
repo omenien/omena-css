@@ -3521,6 +3521,52 @@ mod tests {
     }
 
     #[test]
+    fn static_scss_evaluation_reduces_static_nth_function_values() {
+        let report = derive_static_stylesheet_module_evaluation(
+            "$gap: nth(1px 2px 3px, 2); $pad: list.nth((4px, 5px, 6px), -1); .button { margin: $gap; padding: $pad; }",
+            StyleDialect::Scss,
+        );
+        assert!(report.is_some());
+        let Some(report) = report else {
+            return;
+        };
+
+        let replacements = report
+            .resolved_replacements
+            .iter()
+            .map(|replacement| replacement.text.as_str())
+            .collect::<Vec<_>>();
+        assert!(replacements.contains(&"2px"));
+        assert!(replacements.contains(&"6px"));
+        assert!(report.evaluated_css.contains("margin: 2px"));
+        assert!(report.evaluated_css.contains("padding: 6px"));
+        assert!(report.oracle.all_legacy_declaration_values_preserved);
+    }
+
+    #[test]
+    fn static_scss_evaluation_reduces_static_map_get_function_values() {
+        let report = derive_static_stylesheet_module_evaluation(
+            "$gap: map-get((default: 2px, dense: 1px), default); $tone: map.get((primary: red, secondary: blue), secondary); .button { margin: $gap; color: $tone; }",
+            StyleDialect::Scss,
+        );
+        assert!(report.is_some());
+        let Some(report) = report else {
+            return;
+        };
+
+        let replacements = report
+            .resolved_replacements
+            .iter()
+            .map(|replacement| replacement.text.as_str())
+            .collect::<Vec<_>>();
+        assert!(replacements.contains(&"2px"));
+        assert!(replacements.contains(&"blue"));
+        assert!(report.evaluated_css.contains("margin: 2px"));
+        assert!(report.evaluated_css.contains("color: blue"));
+        assert!(report.oracle.all_legacy_declaration_values_preserved);
+    }
+
+    #[test]
     fn static_scss_evaluation_reduces_static_if_not_conditions() {
         let report = derive_static_stylesheet_module_evaluation(
             "$gap: if(not true, 1px, 2px); .button { margin: $gap; }",
