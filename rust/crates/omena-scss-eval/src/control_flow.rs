@@ -157,6 +157,9 @@ pub struct OmenaScssEvalCallReturnNodeV0 {
     pub call_resolved_return_value: Option<AbstractCssValueV0>,
     pub call_resolved_return_value_kind: Option<&'static str>,
     pub body_has_control_flow: bool,
+    pub body_has_loop_control_flow: bool,
+    pub return_condition_text: Option<String>,
+    pub return_negated_condition_texts: Vec<String>,
     pub source_span_start: usize,
     pub source_span_end: usize,
     pub containing_declaration_node_key: Option<StableNodeKeyV0>,
@@ -482,6 +485,9 @@ struct ScssCallReturnCandidate {
     return_text: Option<String>,
     return_value: Option<AbstractCssValueV0>,
     body_has_control_flow: bool,
+    body_has_loop_control_flow: bool,
+    return_condition_text: Option<String>,
+    return_negated_condition_texts: Vec<String>,
     source_span_start: usize,
     source_span_end: usize,
 }
@@ -512,6 +518,9 @@ fn call_return_candidate_from_sass_symbol(
         return_text: None,
         return_value: None,
         body_has_control_flow: scss_declaration_body_has_control_flow(tokens, symbol),
+        body_has_loop_control_flow: scss_declaration_body_has_loop_control_flow(tokens, symbol),
+        return_condition_text: None,
+        return_negated_condition_texts: Vec::new(),
         source_span_start: symbol.range.start().into(),
         source_span_end: symbol.range.end().into(),
     })
@@ -532,6 +541,7 @@ fn collect_scss_return_candidates(
             let return_value = return_text
                 .as_deref()
                 .map(static_scss_return_abstract_value);
+            let return_condition = scss_return_condition_from_token(source, tokens, index);
             ScssCallReturnCandidate {
                 kind: "functionReturn",
                 symbol_kind: "return",
@@ -543,6 +553,13 @@ fn collect_scss_return_candidates(
                 return_text,
                 return_value,
                 body_has_control_flow: false,
+                body_has_loop_control_flow: false,
+                return_condition_text: return_condition
+                    .as_ref()
+                    .and_then(|condition| condition.condition_text.clone()),
+                return_negated_condition_texts: return_condition
+                    .map(|condition| condition.negated_condition_texts)
+                    .unwrap_or_default(),
                 source_span_start: token.range.start().into(),
                 source_span_end: token.range.end().into(),
             }
@@ -580,6 +597,118 @@ fn scss_return_text_from_token(
 
 fn static_scss_return_abstract_value(value: &str) -> AbstractCssValueV0 {
     abstract_css_value_from_text(reduce_static_scss_value(value.to_string()).as_str())
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct ScssReturnCondition {
+    condition_text: Option<String>,
+    negated_condition_texts: Vec<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct ScssBranchBlock {
+    at_rule_index: usize,
+    at_rule_name: String,
+    condition_text: Option<String>,
+    body_start_index: usize,
+    body_end_index: usize,
+}
+
+fn scss_return_condition_from_token(
+    source: &str,
+    tokens: &[LexedToken],
+    return_index: usize,
+) -> Option<ScssReturnCondition> {
+    let branch_blocks = collect_scss_branch_blocks(source, tokens);
+    let (block_index, block) = branch_blocks
+        .iter()
+        .enumerate()
+        .filter(|(_, block)| {
+            block.body_start_index < return_index && return_index < block.body_end_index
+        })
+        .min_by_key(|(_, block)| block.body_end_index.saturating_sub(block.body_start_index))?;
+    let negated_condition_texts =
+        previous_scss_branch_condition_texts(tokens, &branch_blocks, block_index);
+    Some(ScssReturnCondition {
+        condition_text: block.condition_text.clone(),
+        negated_condition_texts,
+    })
+}
+
+fn collect_scss_branch_blocks(source: &str, tokens: &[LexedToken]) -> Vec<ScssBranchBlock> {
+    tokens
+        .iter()
+        .enumerate()
+        .filter_map(|(index, token)| {
+            if token.kind != SyntaxKind::AtKeyword {
+                return None;
+            }
+            let at_rule_name = token.text.to_ascii_lowercase();
+            if !matches!(at_rule_name.as_str(), "@if" | "@else") {
+                return None;
+            }
+            let body_start_index = tokens
+                .iter()
+                .enumerate()
+                .skip(index + 1)
+                .find(|(_, candidate)| candidate.kind == SyntaxKind::LeftBrace)
+                .map(|(candidate_index, _)| candidate_index)?;
+            let body_end_index = matching_right_brace_token_index(tokens, body_start_index)?;
+            let header_text = control_flow_header_text(source, tokens, index);
+            let condition_text = if at_rule_name == "@if" {
+                Some(header_text).filter(|header| !header.is_empty())
+            } else {
+                scss_else_if_header_condition(header_text.as_str()).map(ToString::to_string)
+            };
+            Some(ScssBranchBlock {
+                at_rule_index: index,
+                at_rule_name,
+                condition_text,
+                body_start_index,
+                body_end_index,
+            })
+        })
+        .collect()
+}
+
+fn previous_scss_branch_condition_texts(
+    tokens: &[LexedToken],
+    branch_blocks: &[ScssBranchBlock],
+    block_index: usize,
+) -> Vec<String> {
+    let Some(current_block) = branch_blocks.get(block_index) else {
+        return Vec::new();
+    };
+    if current_block.at_rule_name != "@else" {
+        return Vec::new();
+    }
+
+    let mut conditions = Vec::new();
+    let mut cursor = current_block.at_rule_index;
+    for candidate in branch_blocks[..block_index].iter().rev() {
+        if candidate.body_end_index >= cursor
+            || !tokens_between_are_trivia(tokens, candidate.body_end_index + 1, cursor)
+        {
+            continue;
+        }
+        if let Some(condition) = candidate.condition_text.clone() {
+            conditions.push(condition);
+        }
+        if candidate.at_rule_name == "@if" {
+            conditions.reverse();
+            return conditions;
+        }
+        cursor = candidate.at_rule_index;
+    }
+    Vec::new()
+}
+
+fn tokens_between_are_trivia(tokens: &[LexedToken], start: usize, end: usize) -> bool {
+    start <= end
+        && end <= tokens.len()
+        && tokens[start..end]
+            .iter()
+            .all(|token| is_trivia_token(token.kind))
 }
 
 fn scss_call_argument_values_from_symbol(
@@ -683,6 +812,25 @@ fn scss_declaration_body_has_control_flow(
     tokens: &[LexedToken],
     symbol: &ParsedSassSymbolFact,
 ) -> bool {
+    scss_declaration_body_has_matching_control_flow(tokens, symbol, |name| {
+        matches!(name, "@if" | "@else" | "@for" | "@each" | "@while")
+    })
+}
+
+fn scss_declaration_body_has_loop_control_flow(
+    tokens: &[LexedToken],
+    symbol: &ParsedSassSymbolFact,
+) -> bool {
+    scss_declaration_body_has_matching_control_flow(tokens, symbol, |name| {
+        matches!(name, "@for" | "@each" | "@while")
+    })
+}
+
+fn scss_declaration_body_has_matching_control_flow(
+    tokens: &[LexedToken],
+    symbol: &ParsedSassSymbolFact,
+    matches_name: impl Fn(&str) -> bool,
+) -> bool {
     if !matches!(
         symbol.kind,
         ParsedSassSymbolFactKind::FunctionDeclaration | ParsedSassSymbolFactKind::MixinDeclaration
@@ -710,10 +858,7 @@ fn scss_declaration_body_has_control_flow(
         .take(right_brace_index.saturating_sub(left_brace_index + 1))
         .any(|token| {
             token.kind == SyntaxKind::AtKeyword
-                && matches!(
-                    token.text.to_ascii_lowercase().as_str(),
-                    "@if" | "@else" | "@for" | "@each" | "@while"
-                )
+                && matches_name(token.text.to_ascii_lowercase().as_str())
         })
 }
 
@@ -895,6 +1040,9 @@ fn call_return_node_from_candidate(
         call_resolved_return_value: None,
         call_resolved_return_value_kind: None,
         body_has_control_flow: candidate.body_has_control_flow,
+        body_has_loop_control_flow: candidate.body_has_loop_control_flow,
+        return_condition_text: candidate.return_condition_text,
+        return_negated_condition_texts: candidate.return_negated_condition_texts,
         source_span_start: candidate.source_span_start,
         source_span_end: candidate.source_span_end,
         containing_declaration_node_key: None,
@@ -1088,7 +1236,7 @@ fn call_resolved_return_value_for_edge(
     if declaration_node.kind != "functionDeclaration" || call_node.kind != "functionCall" {
         return None;
     }
-    if declaration_node.body_has_control_flow {
+    if declaration_node.body_has_loop_control_flow {
         return Some(AbstractCssValueV0::Top);
     }
     let call_graph = declaration_call_graph(nodes, edges);
@@ -1122,21 +1270,69 @@ fn call_resolved_return_value_for_edge(
         return None;
     }
 
-    Some(
-        return_nodes
-            .into_iter()
-            .map(|node| {
-                node.return_text
-                    .as_deref()
-                    .map(|text| {
-                        call_bound_return_value(text, &bindings, declaration_node.name.as_deref())
-                    })
-                    .unwrap_or(AbstractCssValueV0::Top)
-            })
-            .fold(AbstractCssValueV0::Bottom, |acc, value| {
-                join_abstract_css_values(&acc, &value)
-            }),
-    )
+    let mut resolved = AbstractCssValueV0::Bottom;
+    let mut active_return_count = 0usize;
+    for node in return_nodes {
+        match call_bound_return_activity(node, &bindings) {
+            ScssCallBoundReturnActivity::Active => {}
+            ScssCallBoundReturnActivity::Inactive => continue,
+            ScssCallBoundReturnActivity::Unknown => return Some(AbstractCssValueV0::Top),
+        }
+        let value = node
+            .return_text
+            .as_deref()
+            .map(|text| call_bound_return_value(text, &bindings, declaration_node.name.as_deref()))
+            .unwrap_or(AbstractCssValueV0::Top);
+        resolved = join_abstract_css_values(&resolved, &value);
+        active_return_count += 1;
+    }
+
+    if active_return_count == 0 {
+        Some(AbstractCssValueV0::Top)
+    } else {
+        Some(resolved)
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum ScssCallBoundReturnActivity {
+    Active,
+    Inactive,
+    Unknown,
+}
+
+fn call_bound_return_activity(
+    node: &OmenaScssEvalCallReturnNodeV0,
+    bindings: &BTreeMap<String, AbstractCssValueV0>,
+) -> ScssCallBoundReturnActivity {
+    for condition in &node.return_negated_condition_texts {
+        match call_bound_condition_truthiness(condition, bindings) {
+            Some(true) => return ScssCallBoundReturnActivity::Inactive,
+            Some(false) => {}
+            None => return ScssCallBoundReturnActivity::Unknown,
+        }
+    }
+    match node.return_condition_text.as_deref() {
+        Some(condition) => match call_bound_condition_truthiness(condition, bindings) {
+            Some(true) => ScssCallBoundReturnActivity::Active,
+            Some(false) => ScssCallBoundReturnActivity::Inactive,
+            None => ScssCallBoundReturnActivity::Unknown,
+        },
+        None => ScssCallBoundReturnActivity::Active,
+    }
+}
+
+fn call_bound_condition_truthiness(
+    condition: &str,
+    bindings: &BTreeMap<String, AbstractCssValueV0>,
+) -> Option<bool> {
+    let condition = if variable_names_in_text(condition).is_empty() {
+        condition.to_string()
+    } else {
+        substitute_static_scss_header_variables(condition, bindings)?
+    };
+    let reduced = reduce_static_scss_value(condition);
+    static_scss_literal_truthiness(reduced.as_str())
 }
 
 fn call_bound_return_value(
@@ -3033,7 +3229,7 @@ mod tests {
     }
 
     #[test]
-    fn call_return_ir_keeps_at_rule_branch_return_values_top() {
+    fn call_return_ir_resolves_call_bound_if_branch_returns() {
         let source = "@function tone($enabled) { @if $enabled { @return red; } @else { @return blue; } } .a { color: tone(true); }";
         let report = summarize_scss_call_return_ir(source, StyleDialect::Scss);
         assert!(report.is_some());
@@ -3044,6 +3240,126 @@ mod tests {
             .nodes
             .iter()
             .find(|node| node.kind == "functionCall" && node.name.as_deref() == Some("tone"));
+        assert!(function_call.is_some());
+        let Some(function_call) = function_call else {
+            return;
+        };
+
+        assert_eq!(report.call_resolved_return_value_count, 1);
+        assert_eq!(report.exact_call_resolved_return_value_count, 1);
+        assert_eq!(function_call.call_resolved_return_value_kind, Some("exact"));
+        assert!(report.nodes.iter().any(|node| {
+            node.kind == "functionReturn"
+                && node.return_condition_text.as_deref() == Some("$enabled")
+        }));
+        assert_eq!(
+            function_call.call_resolved_return_value,
+            Some(AbstractCssValueV0::Exact {
+                value: "red".to_string()
+            })
+        );
+    }
+
+    #[test]
+    fn call_return_ir_resolves_call_bound_else_branch_returns() {
+        let source = "@function tone($enabled) { @if $enabled { @return red; } @else { @return blue; } } .a { color: tone(false); }";
+        let report = summarize_scss_call_return_ir(source, StyleDialect::Scss);
+        assert!(report.is_some());
+        let Some(report) = report else {
+            return;
+        };
+        let function_call = report
+            .nodes
+            .iter()
+            .find(|node| node.kind == "functionCall" && node.name.as_deref() == Some("tone"));
+        assert!(function_call.is_some());
+        let Some(function_call) = function_call else {
+            return;
+        };
+
+        assert_eq!(report.call_resolved_return_value_count, 1);
+        assert_eq!(report.exact_call_resolved_return_value_count, 1);
+        assert_eq!(function_call.call_resolved_return_value_kind, Some("exact"));
+        assert!(report.nodes.iter().any(|node| {
+            node.kind == "functionReturn"
+                && node.return_text.as_deref() == Some("blue")
+                && node.return_condition_text.is_none()
+                && node.return_negated_condition_texts == vec!["$enabled".to_string()]
+        }));
+        assert_eq!(
+            function_call.call_resolved_return_value,
+            Some(AbstractCssValueV0::Exact {
+                value: "#00f".to_string()
+            })
+        );
+    }
+
+    #[test]
+    fn call_return_ir_resolves_call_bound_else_if_branch_returns() {
+        let source = "@function tone($first, $second) { @if $first { @return red; } @else if $second { @return green; } @else { @return blue; } } .a { color: tone(false, true); }";
+        let report = summarize_scss_call_return_ir(source, StyleDialect::Scss);
+        assert!(report.is_some());
+        let Some(report) = report else {
+            return;
+        };
+        let function_call = report
+            .nodes
+            .iter()
+            .find(|node| node.kind == "functionCall" && node.name.as_deref() == Some("tone"));
+        assert!(function_call.is_some());
+        let Some(function_call) = function_call else {
+            return;
+        };
+
+        assert_eq!(report.call_resolved_return_value_count, 1);
+        assert_eq!(report.exact_call_resolved_return_value_count, 1);
+        assert_eq!(function_call.call_resolved_return_value_kind, Some("exact"));
+        assert_eq!(
+            function_call.call_resolved_return_value,
+            Some(AbstractCssValueV0::Exact {
+                value: "green".to_string()
+            })
+        );
+    }
+
+    #[test]
+    fn call_return_ir_keeps_dynamic_branch_returns_top() {
+        let source = "@function tone($enabled) { @if $enabled { @return red; } @else { @return blue; } } .a { color: tone(var(--enabled)); }";
+        let report = summarize_scss_call_return_ir(source, StyleDialect::Scss);
+        assert!(report.is_some());
+        let Some(report) = report else {
+            return;
+        };
+        let function_call = report
+            .nodes
+            .iter()
+            .find(|node| node.kind == "functionCall" && node.name.as_deref() == Some("tone"));
+        assert!(function_call.is_some());
+        let Some(function_call) = function_call else {
+            return;
+        };
+
+        assert_eq!(report.call_resolved_return_value_count, 1);
+        assert_eq!(report.top_call_resolved_return_value_count, 1);
+        assert_eq!(function_call.call_resolved_return_value_kind, Some("top"));
+        assert_eq!(
+            function_call.call_resolved_return_value,
+            Some(AbstractCssValueV0::Top)
+        );
+    }
+
+    #[test]
+    fn call_return_ir_keeps_loop_body_returns_top() {
+        let source = "@function collect($count) { @for $i from 1 through $count { @return $i; } } .a { width: collect(3); }";
+        let report = summarize_scss_call_return_ir(source, StyleDialect::Scss);
+        assert!(report.is_some());
+        let Some(report) = report else {
+            return;
+        };
+        let function_call = report
+            .nodes
+            .iter()
+            .find(|node| node.kind == "functionCall" && node.name.as_deref() == Some("collect"));
         assert!(function_call.is_some());
         let Some(function_call) = function_call else {
             return;
