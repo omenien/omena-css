@@ -7,6 +7,7 @@
 //! `AbstractCssValueV0`.
 
 mod control_flow;
+mod scss_metadata;
 mod static_stylesheet;
 mod value_eval;
 
