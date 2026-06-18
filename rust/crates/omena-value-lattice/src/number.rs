@@ -44,6 +44,18 @@ pub fn parse_reducible_sign_value(value: &str) -> Option<String> {
     Some(format_css_number(value))
 }
 
+pub fn parse_reducible_ceil_value(value: &str) -> Option<String> {
+    parse_reducible_unary_numeric_transform_value(value, "ceil", f64::ceil)
+}
+
+pub fn parse_reducible_floor_value(value: &str) -> Option<String> {
+    parse_reducible_unary_numeric_transform_value(value, "floor", f64::floor)
+}
+
+pub fn parse_reducible_round_to_integer_value(value: &str) -> Option<String> {
+    parse_reducible_unary_numeric_transform_value(value, "round", f64::round)
+}
+
 pub fn parse_reducible_round_value(value: &str) -> Option<String> {
     let arguments = parse_whole_function_value_arguments(value, "round")?;
     let (strategy, value, interval) = match arguments.as_slice() {
@@ -217,6 +229,22 @@ fn parse_reducible_positive_remainder_value(value: &str, function_name: &str) ->
         value: dividend.value % divisor.value,
         unit: dividend.unit,
     }))
+}
+
+fn parse_reducible_unary_numeric_transform_value(
+    value: &str,
+    function_name: &str,
+    transform: fn(f64) -> f64,
+) -> Option<String> {
+    let inner = parse_whole_function_value_inner(value, function_name)?;
+    let parsed = parse_reducible_numeric_expression(inner)?;
+    let value = transform(parsed.value);
+    value.is_finite().then(|| {
+        format_numeric_value_with_unit(NumericValueV0 {
+            value,
+            unit: parsed.unit,
+        })
+    })
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

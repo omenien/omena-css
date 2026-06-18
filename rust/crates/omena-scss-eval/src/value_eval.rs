@@ -2,11 +2,12 @@ use omena_value_lattice::{
     css_values_canonically_equal,
     number::{
         format_css_number, parse_reducible_abs_value, parse_reducible_calc_value,
-        parse_reducible_clamp_value, parse_reducible_exp_value, parse_reducible_hypot_value,
-        parse_reducible_log_value, parse_reducible_max_value, parse_reducible_min_value,
-        parse_reducible_mod_value, parse_reducible_pow_value, parse_reducible_rem_value,
-        parse_reducible_round_value, parse_reducible_sign_value, parse_reducible_sqrt_value,
-        reduce_static_numeric_expression,
+        parse_reducible_ceil_value, parse_reducible_clamp_value, parse_reducible_exp_value,
+        parse_reducible_floor_value, parse_reducible_hypot_value, parse_reducible_log_value,
+        parse_reducible_max_value, parse_reducible_min_value, parse_reducible_mod_value,
+        parse_reducible_pow_value, parse_reducible_rem_value,
+        parse_reducible_round_to_integer_value, parse_reducible_round_value,
+        parse_reducible_sign_value, parse_reducible_sqrt_value, reduce_static_numeric_expression,
     },
     parse_numeric_value_with_unit, parse_whole_function_value_arguments,
     substitute_static_css_function_references_in_value_until_stable,
@@ -36,6 +37,9 @@ pub(crate) fn reduce_static_scss_value(value: String) -> String {
             ("math.max", parse_static_scss_math_max_value),
             ("math.abs", parse_static_scss_math_abs_value),
             ("math.sign", parse_static_scss_math_sign_value),
+            ("math.ceil", parse_static_scss_math_ceil_value),
+            ("math.floor", parse_static_scss_math_floor_value),
+            ("math.round", parse_static_scss_math_round_value),
             ("math.clamp", parse_static_scss_math_clamp_value),
             ("math.mod", parse_static_scss_math_mod_value),
             ("math.rem", parse_static_scss_math_rem_value),
@@ -220,6 +224,23 @@ fn parse_static_scss_math_abs_value(value: &str) -> Option<String> {
 
 fn parse_static_scss_math_sign_value(value: &str) -> Option<String> {
     parse_static_scss_numeric_alias_value(value, "math.sign", "sign", parse_reducible_sign_value)
+}
+
+fn parse_static_scss_math_ceil_value(value: &str) -> Option<String> {
+    parse_static_scss_numeric_alias_value(value, "math.ceil", "ceil", parse_reducible_ceil_value)
+}
+
+fn parse_static_scss_math_floor_value(value: &str) -> Option<String> {
+    parse_static_scss_numeric_alias_value(value, "math.floor", "floor", parse_reducible_floor_value)
+}
+
+fn parse_static_scss_math_round_value(value: &str) -> Option<String> {
+    parse_static_scss_numeric_alias_value(
+        value,
+        "math.round",
+        "round",
+        parse_reducible_round_to_integer_value,
+    )
 }
 
 fn parse_static_scss_math_clamp_value(value: &str) -> Option<String> {

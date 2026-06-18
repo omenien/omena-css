@@ -30,9 +30,10 @@ pub use functions::{
 pub use number::{
     compress_number_prefix, compress_numeric_token_text, format_css_number, numeric_prefix_end,
     parse_numeric_value_with_unit, parse_reducible_abs_value, parse_reducible_calc_value,
-    parse_reducible_clamp_value, parse_reducible_exp_value, parse_reducible_hypot_value,
-    parse_reducible_log_value, parse_reducible_max_value, parse_reducible_min_value,
-    parse_reducible_mod_value, parse_reducible_pow_value, parse_reducible_rem_value,
+    parse_reducible_ceil_value, parse_reducible_clamp_value, parse_reducible_exp_value,
+    parse_reducible_floor_value, parse_reducible_hypot_value, parse_reducible_log_value,
+    parse_reducible_max_value, parse_reducible_min_value, parse_reducible_mod_value,
+    parse_reducible_pow_value, parse_reducible_rem_value, parse_reducible_round_to_integer_value,
     parse_reducible_round_value, parse_reducible_sign_value, parse_reducible_sqrt_value,
     reduce_static_numeric_expression,
 };
@@ -557,6 +558,18 @@ mod tests {
         assert_eq!(
             parse_reducible_sign_value("sign(-2px)").as_deref(),
             Some("-1")
+        );
+        assert_eq!(
+            parse_reducible_ceil_value("ceil(1.2px)").as_deref(),
+            Some("2px")
+        );
+        assert_eq!(
+            parse_reducible_floor_value("floor(1.8px)").as_deref(),
+            Some("1px")
+        );
+        assert_eq!(
+            parse_reducible_round_to_integer_value("round(1.5px)").as_deref(),
+            Some("2px")
         );
         assert_eq!(
             parse_reducible_clamp_value("clamp(1px, 3px, 2px)").as_deref(),

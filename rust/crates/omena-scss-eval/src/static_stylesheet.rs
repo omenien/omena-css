@@ -3666,7 +3666,7 @@ mod tests {
     #[test]
     fn static_scss_evaluation_reduces_extended_namespaced_math_aliases() {
         let report = derive_static_stylesheet_module_evaluation(
-            "$sign: math.sign(-2px); $mod: math.mod(7px, 3px); $rem: math.rem(8px, 3px); $hypot: math.hypot(3px, 4px); $sqrt: math.sqrt(9); $pow: math.pow(2, 3); $exp: math.exp(0); $log: math.log(8, 2); .button { z-index: $sign; margin: $mod; padding: $rem; width: $hypot; opacity: $sqrt; order: $pow; flex-grow: $exp; flex-shrink: $log; }",
+            "$sign: math.sign(-2px); $ceil: math.ceil(1.2px); $floor: math.floor(1.8px); $round: math.round(1.5px); $mod: math.mod(7px, 3px); $rem: math.rem(8px, 3px); $hypot: math.hypot(3px, 4px); $sqrt: math.sqrt(9); $pow: math.pow(2, 3); $exp: math.exp(0); $log: math.log(8, 2); .button { z-index: $sign; margin: $mod; padding: $rem; width: $hypot; opacity: $sqrt; order: $pow; flex-grow: $exp; flex-shrink: $log; top: $ceil; bottom: $floor; left: $round; }",
             StyleDialect::Scss,
         );
         assert!(report.is_some());
@@ -3693,13 +3693,16 @@ mod tests {
         assert!(report.evaluated_css.contains("order: 8"));
         assert!(report.evaluated_css.contains("flex-grow: 1"));
         assert!(report.evaluated_css.contains("flex-shrink: 3"));
+        assert!(report.evaluated_css.contains("top: 2px"));
+        assert!(report.evaluated_css.contains("bottom: 1px"));
+        assert!(report.evaluated_css.contains("left: 2px"));
         assert!(report.oracle.all_legacy_declaration_values_preserved);
     }
 
     #[test]
     fn static_scss_evaluation_keeps_unsupported_namespaced_math_raw() {
         let report = derive_static_stylesheet_module_evaluation(
-            "$gap: math.round(1.2); .button { margin: $gap; }",
+            "$gap: math.random(); .button { margin: $gap; }",
             StyleDialect::Scss,
         );
         assert!(report.is_some());
@@ -3707,12 +3710,12 @@ mod tests {
             return;
         };
         assert_eq!(report.replacement_count, 1);
-        assert_eq!(report.resolved_replacements[0].text, "math.round(1.2)");
+        assert_eq!(report.resolved_replacements[0].text, "math.random()");
         assert_eq!(report.resolved_replacements[0].abstract_value_kind, "raw");
-        assert!(report.evaluated_css.contains("margin: math.round(1.2)"));
+        assert!(report.evaluated_css.contains("margin: math.random()"));
 
         let resolution = summarize_static_stylesheet_value_resolution(
-            "$gap: math.round(1.2); .button { margin: $gap; }",
+            "$gap: math.random(); .button { margin: $gap; }",
             StyleDialect::Scss,
         );
         assert!(resolution.is_some());
@@ -3725,7 +3728,7 @@ mod tests {
         assert_eq!(resolution.values[0].source_text, "$gap");
         assert_eq!(
             resolution.values[0].rendered_value.as_deref(),
-            Some("math.round(1.2)")
+            Some("math.random()")
         );
         assert_eq!(resolution.values[0].outcome, "raw");
         assert_eq!(resolution.values[0].reason, "unsupportedDynamic");
