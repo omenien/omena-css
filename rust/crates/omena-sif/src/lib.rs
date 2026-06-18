@@ -104,6 +104,7 @@ pub enum OmenaSifSourceSyntaxV1 {
     Css,
     Scss,
     Sass,
+    Less,
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
@@ -1477,6 +1478,10 @@ mod tests {
             schema.get("title").and_then(Value::as_str),
             Some("Omena Sass Interface File v1")
         );
+        assert_eq!(
+            schema.pointer("/$defs/source/properties/syntax/enum"),
+            Some(&json!(["css", "scss", "sass", "less"]))
+        );
         Ok(())
     }
 
@@ -1920,6 +1925,19 @@ mod tests {
 
         assert_eq!(decoded, sif);
         assert!(json.starts_with(r#"{"canonicalUrl":"pkg:design-system/_tokens.scss","#));
+        Ok(())
+    }
+
+    #[test]
+    fn sif_json_round_trips_less_source_syntax() -> Result<(), serde_json::Error> {
+        let mut sif = fixture_sif("pkg:design-system/tokens.less", b"@color: red;")?;
+        sif.source.syntax = OmenaSifSourceSyntaxV1::Less;
+
+        let json = write_omena_sif_json_v1(&sif)?;
+        let decoded = read_omena_sif_json_v1(&json)?;
+
+        assert_eq!(decoded.source.syntax, OmenaSifSourceSyntaxV1::Less);
+        assert!(json.contains(r#""syntax":"less""#));
         Ok(())
     }
 

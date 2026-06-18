@@ -67,8 +67,9 @@ fn parse_sif_source_syntax(syntax: &str) -> Result<OmenaSifSourceSyntaxV1, Strin
         "css" => Ok(OmenaSifSourceSyntaxV1::Css),
         "scss" => Ok(OmenaSifSourceSyntaxV1::Scss),
         "sass" => Ok(OmenaSifSourceSyntaxV1::Sass),
+        "less" => Ok(OmenaSifSourceSyntaxV1::Less),
         _ => Err(format!(
-            "unsupported SIF source syntax '{syntax}'; expected css, scss, or sass"
+            "unsupported SIF source syntax '{syntax}'; expected css, scss, sass, or less"
         )),
     }
 }
@@ -77,6 +78,7 @@ fn infer_sif_source_syntax(path: &Path) -> OmenaSifSourceSyntaxV1 {
     match path.extension().and_then(|extension| extension.to_str()) {
         Some("css") => OmenaSifSourceSyntaxV1::Css,
         Some("sass") => OmenaSifSourceSyntaxV1::Sass,
+        Some("less") => OmenaSifSourceSyntaxV1::Less,
         _ => OmenaSifSourceSyntaxV1::Scss,
     }
 }

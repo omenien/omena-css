@@ -4291,6 +4291,36 @@ fn sif_generate_command_writes_static_sif_artifact() -> Result<(), String> {
     Ok(())
 }
 
+#[test]
+fn sif_generate_command_accepts_less_source_syntax() -> Result<(), String> {
+    let source_path = temp_path("tokens.css");
+    let output_path = temp_path("tokens-less.sif.json");
+    fs::write(&source_path, r#"@brand: red; .button { color: @brand; }"#)
+        .map_err(|error| format!("fixture source should be writable: {error}"))?;
+
+    let result = run(Cli {
+        command: Command::Sif {
+            command: SifCommand::Generate {
+                path: source_path.clone(),
+                canonical_url: Some("pkg:design-system/tokens.less".to_string()),
+                output: Some(output_path.clone()),
+                syntax: Some("less".to_string()),
+                json: false,
+            },
+        },
+    });
+
+    assert!(result.is_ok(), "{result:?}");
+    let sif_json = fs::read_to_string(&output_path)
+        .map_err(|error| format!("generated SIF should be readable: {error}"))?;
+    assert!(sif_json.contains(r#""canonicalUrl":"pkg:design-system/tokens.less""#));
+    assert!(sif_json.contains(r#""syntax":"less""#));
+
+    cleanup(&source_path);
+    cleanup(&output_path);
+    Ok(())
+}
+
 #[cfg(feature = "zk-audit")]
 #[test]
 fn audit_zk_commands_are_feature_gated_surfaces() {

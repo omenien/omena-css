@@ -542,6 +542,7 @@ fn infer_omena_bridge_sif_source_syntax(path: &Path) -> OmenaSifSourceSyntaxV1 {
     {
         Some("css") => OmenaSifSourceSyntaxV1::Css,
         Some("sass") => OmenaSifSourceSyntaxV1::Sass,
+        Some("less") => OmenaSifSourceSyntaxV1::Less,
         _ => OmenaSifSourceSyntaxV1::Scss,
     }
 }
@@ -1208,6 +1209,22 @@ mod tests {
             generate_omena_bridge_sif_for_resolved_style_path(style.to_string_lossy().as_ref())?;
 
         assert_eq!(sif.source.syntax, OmenaSifSourceSyntaxV1::Sass);
+        let _ = fs::remove_dir_all(root);
+        Ok(())
+    }
+
+    #[test]
+    fn generates_sif_with_less_source_syntax() -> Result<(), Box<dyn std::error::Error>> {
+        let root = temp_dir("omena_bridge_sif_less")?;
+        let style = root.join("tokens.less");
+        fs::write(&style, "@gap: 8px;\n.button { margin: @gap; }\n")?;
+
+        let sif =
+            generate_omena_bridge_sif_for_resolved_style_path(style.to_string_lossy().as_ref())?;
+
+        assert_eq!(sif.source.syntax, OmenaSifSourceSyntaxV1::Less);
+        let json = omena_sif::write_omena_sif_json_v1(&sif)?;
+        assert!(json.contains(r#""syntax":"less""#));
         let _ = fs::remove_dir_all(root);
         Ok(())
     }

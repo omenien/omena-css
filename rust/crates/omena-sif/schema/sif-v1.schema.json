@@ -70,7 +70,7 @@
       "required": ["syntax"],
       "properties": {
         "syntax": {
-          "enum": ["css", "scss", "sass"]
+          "enum": ["css", "scss", "sass", "less"]
         }
       }
     },

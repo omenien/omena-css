@@ -442,9 +442,9 @@ pub(crate) enum LockCommand {
 
 #[derive(Debug, Subcommand)]
 pub(crate) enum SifCommand {
-    /// Generate a SIF v1 artifact from a Sass-family source without evaluating Sass.
+    /// Generate a SIF v1 artifact from a Sass-family source without evaluating Sass or Less.
     Generate {
-        /// CSS, SCSS, or Sass source to scan.
+        /// CSS, SCSS, Sass, or Less source to scan.
         path: PathBuf,
         /// Stable canonical URL stored in the generated SIF. Defaults to the input path.
         #[arg(long)]
@@ -452,7 +452,7 @@ pub(crate) enum SifCommand {
         /// Output path. Prints SIF JSON to stdout when omitted.
         #[arg(short, long)]
         output: Option<PathBuf>,
-        /// Source syntax: css, scss, or sass. Defaults from extension.
+        /// Source syntax: css, scss, sass, or less. Defaults from extension.
         #[arg(long)]
         syntax: Option<String>,
         /// Print generated SIF JSON even when --output is provided.
