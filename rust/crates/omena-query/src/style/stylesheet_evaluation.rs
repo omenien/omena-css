@@ -49,6 +49,15 @@ fn transform_module_evaluation_oracle(
         all_legacy_declaration_values_preserved: evaluation
             .oracle
             .all_legacy_declaration_values_preserved,
+        native_replacement_count: evaluation.replacement_count,
+        native_value_reference_count: evaluation.value_resolution.reference_count,
+        native_resolved_value_count: evaluation.value_resolution.resolved_count,
+        native_raw_value_count: evaluation.value_resolution.raw_count,
+        native_top_value_count: evaluation.value_resolution.top_count,
+        native_cycle_count: evaluation.value_resolution.cycle_count,
+        native_fuel_exhausted_count: evaluation.value_resolution.fuel_exhausted_count,
+        native_unresolved_reference_count: evaluation.value_resolution.unresolved_reference_count,
+        native_unsupported_dynamic_count: evaluation.value_resolution.unsupported_dynamic_count,
     }
 }
 

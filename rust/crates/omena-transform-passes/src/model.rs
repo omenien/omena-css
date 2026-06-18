@@ -287,8 +287,8 @@ pub struct TransformModuleEvaluationV0 {
     pub oracle: Option<TransformModuleEvaluationOracleV0>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize)]
-#[serde(rename_all = "camelCase")]
+#[derive(Debug, Clone, Default, PartialEq, Eq, Deserialize, Serialize)]
+#[serde(default, rename_all = "camelCase")]
 pub struct TransformModuleEvaluationOracleV0 {
     pub mode: String,
     pub product_output_source: String,
@@ -300,6 +300,15 @@ pub struct TransformModuleEvaluationOracleV0 {
     pub top_value_count: usize,
     pub divergence_count: usize,
     pub all_legacy_declaration_values_preserved: bool,
+    pub native_replacement_count: usize,
+    pub native_value_reference_count: usize,
+    pub native_resolved_value_count: usize,
+    pub native_raw_value_count: usize,
+    pub native_top_value_count: usize,
+    pub native_cycle_count: usize,
+    pub native_fuel_exhausted_count: usize,
+    pub native_unresolved_reference_count: usize,
+    pub native_unsupported_dynamic_count: usize,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize)]

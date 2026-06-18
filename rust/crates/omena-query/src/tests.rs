@@ -1765,9 +1765,14 @@ fn derives_transform_context_with_static_stylesheet_module_evaluation() {
             .map(|oracle| (
                 oracle.mode.as_str(),
                 oracle.divergence_count,
-                oracle.all_legacy_declaration_values_preserved
+                oracle.all_legacy_declaration_values_preserved,
+                oracle.native_replacement_count,
+                oracle.native_value_reference_count,
+                oracle.native_resolved_value_count,
+                oracle.native_raw_value_count,
+                oracle.native_top_value_count,
             )),
-        Some(("oracleOnly", 0, true))
+        Some(("oracleOnly", 0, true, 1, 1, 1, 0, 0))
     );
     assert_eq!(
         less_summary
@@ -1786,9 +1791,14 @@ fn derives_transform_context_with_static_stylesheet_module_evaluation() {
             .map(|oracle| (
                 oracle.mode.as_str(),
                 oracle.divergence_count,
-                oracle.all_legacy_declaration_values_preserved
+                oracle.all_legacy_declaration_values_preserved,
+                oracle.native_replacement_count,
+                oracle.native_value_reference_count,
+                oracle.native_resolved_value_count,
+                oracle.native_raw_value_count,
+                oracle.native_top_value_count,
             )),
-        Some(("oracleOnly", 0, true))
+        Some(("oracleOnly", 0, true, 1, 1, 1, 0, 0))
     );
     assert!(
         scss_summary

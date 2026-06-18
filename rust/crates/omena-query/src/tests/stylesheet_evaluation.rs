@@ -379,9 +379,14 @@ fn consumer_build_derives_static_less_evaluator_context() {
                 oracle.mode.as_str(),
                 oracle.product_output_source.as_str(),
                 oracle.divergence_count,
-                oracle.all_legacy_declaration_values_preserved
+                oracle.all_legacy_declaration_values_preserved,
+                oracle.native_replacement_count,
+                oracle.native_value_reference_count,
+                oracle.native_resolved_value_count,
+                oracle.native_raw_value_count,
+                oracle.native_top_value_count,
             )),
-        Some(("oracleOnly", "legacyEvaluatedCss", 0, true))
+        Some(("oracleOnly", "legacyEvaluatedCss", 0, true, 1, 1, 1, 0, 0))
     );
 }
 
