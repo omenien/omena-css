@@ -2413,7 +2413,10 @@ fn inverted_scss_branch_chain_value(
 fn collect_lexical_scss_bindings(source: &str, dialect: StyleDialect) -> LexicalScssBindings {
     let lexed = lex(source, dialect);
     let tokens = lexed.tokens();
-    let mut bindings = LexicalScssBindings::default();
+    let Some(scopes) = collect_lexical_scss_scopes(source) else {
+        return LexicalScssBindings::new(Vec::new());
+    };
+    let mut bindings = LexicalScssBindings::new(scopes);
     for (index, token) in tokens.iter().enumerate() {
         if token.kind != SyntaxKind::ScssVariable {
             continue;
@@ -2432,9 +2435,16 @@ fn collect_lexical_scss_bindings(source: &str, dialect: StyleDialect) -> Lexical
         if let Some(value) = source.get(value_start..value_end).map(str::trim)
             && !value.is_empty()
         {
+            let declaration_start = token.range.start().into();
+            let Some(scope_id) =
+                lexical_scss_scope_for_position(&bindings.scopes, declaration_start)
+            else {
+                continue;
+            };
             bindings.push(
                 token.text.as_str(),
-                token.range.start().into(),
+                declaration_start,
+                scope_id,
                 abstract_css_value_from_text(value),
             );
         }
@@ -2442,37 +2452,163 @@ fn collect_lexical_scss_bindings(source: &str, dialect: StyleDialect) -> Lexical
     bindings
 }
 
+fn collect_lexical_scss_scopes(source: &str) -> Option<Vec<LexicalScssScope>> {
+    let mut scopes = vec![LexicalScssScope {
+        parent_id: None,
+        body_start: 0,
+        end: source.len(),
+    }];
+    let mut stack = vec![0usize];
+    let mut index = 0usize;
+    let mut quote: Option<char> = None;
+    let bytes = source.as_bytes();
+
+    while index < source.len() {
+        let ch = source[index..].chars().next()?;
+        if let Some(quote_ch) = quote {
+            index += ch.len_utf8();
+            if ch == '\\' {
+                if let Some(escaped) = source[index..].chars().next() {
+                    index += escaped.len_utf8();
+                }
+            } else if ch == quote_ch {
+                quote = None;
+            }
+            continue;
+        }
+
+        if matches!(ch, '"' | '\'') {
+            quote = Some(ch);
+            index += ch.len_utf8();
+            continue;
+        }
+        if bytes.get(index..index + 2) == Some(b"/*") {
+            let end = source.get(index + 2..)?.find("*/")?;
+            index += end + 4;
+            continue;
+        }
+        if bytes.get(index..index + 2) == Some(b"//") {
+            let line_end = source
+                .get(index + 2..)?
+                .find('\n')
+                .map(|offset| index + 2 + offset)
+                .unwrap_or(source.len());
+            index = line_end;
+            continue;
+        }
+
+        match ch {
+            '{' => {
+                let parent_id = *stack.last()?;
+                let scope_id = scopes.len();
+                scopes.push(LexicalScssScope {
+                    parent_id: Some(parent_id),
+                    body_start: index + ch.len_utf8(),
+                    end: source.len(),
+                });
+                stack.push(scope_id);
+            }
+            '}' => {
+                let scope_id = stack.pop()?;
+                if scope_id == 0 {
+                    return None;
+                }
+                scopes.get_mut(scope_id)?.end = index;
+            }
+            _ => {}
+        }
+        index += ch.len_utf8();
+    }
+
+    (stack.len() == 1).then_some(scopes)
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 struct LexicalScssBindings {
     bindings: Vec<LexicalScssBinding>,
+    scopes: Vec<LexicalScssScope>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 struct LexicalScssBinding {
     name: String,
     declaration_start: usize,
+    scope_id: usize,
     value: AbstractCssValueV0,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct LexicalScssScope {
+    parent_id: Option<usize>,
+    body_start: usize,
+    end: usize,
+}
+
 impl LexicalScssBindings {
-    fn push(&mut self, name: &str, declaration_start: usize, value: AbstractCssValueV0) {
+    fn new(scopes: Vec<LexicalScssScope>) -> Self {
+        Self {
+            bindings: Vec::new(),
+            scopes,
+        }
+    }
+
+    fn push(
+        &mut self,
+        name: &str,
+        declaration_start: usize,
+        scope_id: usize,
+        value: AbstractCssValueV0,
+    ) {
         self.bindings.push(LexicalScssBinding {
             name: canonical_scss_variable_name(name),
             declaration_start,
+            scope_id,
             value,
         });
     }
 
     fn visible_at(&self, position: usize) -> BTreeMap<String, AbstractCssValueV0> {
+        let Some(scope_id) = lexical_scss_scope_for_position(&self.scopes, position) else {
+            return BTreeMap::new();
+        };
         let mut visible = BTreeMap::new();
-        for binding in self
-            .bindings
-            .iter()
-            .filter(|binding| binding.declaration_start <= position)
-        {
-            visible.insert(binding.name.clone(), binding.value.clone());
+        for binding in self.bindings.iter() {
+            if binding.declaration_start > position {
+                continue;
+            }
+            if lexical_scss_scope_is_ancestor_or_self(&self.scopes, binding.scope_id, scope_id) {
+                visible.insert(binding.name.clone(), binding.value.clone());
+            } else {
+                visible.insert(binding.name.clone(), AbstractCssValueV0::Top);
+            }
         }
         visible
+    }
+}
+
+fn lexical_scss_scope_for_position(scopes: &[LexicalScssScope], position: usize) -> Option<usize> {
+    scopes
+        .iter()
+        .enumerate()
+        .rev()
+        .find_map(|(scope_id, scope)| {
+            (position >= scope.body_start && position < scope.end).then_some(scope_id)
+        })
+}
+
+fn lexical_scss_scope_is_ancestor_or_self(
+    scopes: &[LexicalScssScope],
+    ancestor_id: usize,
+    mut scope_id: usize,
+) -> bool {
+    loop {
+        if scope_id == ancestor_id {
+            return true;
+        }
+        let Some(parent_id) = scopes.get(scope_id).and_then(|scope| scope.parent_id) else {
+            return false;
+        };
+        scope_id = parent_id;
     }
 }
 
@@ -3370,6 +3506,52 @@ mod tests {
         assert_eq!(report.blocks[0].transfer_kind, "branchCondition");
         assert_eq!(report.blocks[0].transfer_value_kind, Some("top"));
         assert_eq!(report.blocks[0].transfer_truthiness, None);
+    }
+
+    #[test]
+    fn control_flow_value_analysis_does_not_leak_sibling_block_bindings() {
+        let source = "@if true { $enabled: true; } @if $enabled { .on { color: green; } }";
+        let report = analyze_scss_control_flow_values(source, StyleDialect::Scss);
+        assert!(report.is_some());
+        let Some(report) = report else {
+            return;
+        };
+
+        assert_eq!(report.block_count, 2);
+        assert_eq!(report.blocks[1].transfer_kind, "branchCondition");
+        assert_eq!(report.blocks[1].transfer_value_kind, Some("top"));
+        assert_eq!(report.blocks[1].transfer_truthiness, None);
+    }
+
+    #[test]
+    fn control_flow_value_analysis_marks_sibling_block_reassignment_top() {
+        let source =
+            "$enabled: false; @if true { $enabled: true; } @if $enabled { .on { color: green; } }";
+        let report = analyze_scss_control_flow_values(source, StyleDialect::Scss);
+        assert!(report.is_some());
+        let Some(report) = report else {
+            return;
+        };
+
+        assert_eq!(report.block_count, 2);
+        assert_eq!(report.blocks[1].transfer_kind, "branchCondition");
+        assert_eq!(report.blocks[1].transfer_value_kind, Some("top"));
+        assert_eq!(report.blocks[1].transfer_truthiness, None);
+    }
+
+    #[test]
+    fn control_flow_value_analysis_uses_enclosing_scope_bindings() {
+        let source = "$enabled: true; .scope { @if $enabled { .on { color: green; } } }";
+        let report = analyze_scss_control_flow_values(source, StyleDialect::Scss);
+        assert!(report.is_some());
+        let Some(report) = report else {
+            return;
+        };
+
+        assert_eq!(report.block_count, 1);
+        assert_eq!(report.blocks[0].transfer_kind, "branchCondition");
+        assert_eq!(report.blocks[0].transfer_value_kind, Some("raw"));
+        assert_eq!(report.blocks[0].transfer_truthiness, Some("truthy"));
     }
 
     #[test]
