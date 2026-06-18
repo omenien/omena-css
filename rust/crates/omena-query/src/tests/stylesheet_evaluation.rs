@@ -911,6 +911,58 @@ fn consumer_build_derives_static_less_evaluator_context_for_detached_rulesets() 
 }
 
 #[test]
+fn consumer_build_derives_static_less_evaluator_context_for_detached_ruleset_accessors() {
+    let summary = execute_omena_query_consumer_build_style_source(
+        "Button.module.less",
+        "@brand: red; @tokens: { primary: @brand; @gap: 2px; }; .button { color: @tokens[primary]; margin: @tokens[@gap]; }",
+        &[
+            "less-module-evaluate".to_string(),
+            "css-modules-class-hashing".to_string(),
+            "print-css".to_string(),
+        ],
+    );
+
+    assert!(
+        summary
+            .execution
+            .executed_pass_ids
+            .contains(&"less-module-evaluate")
+    );
+    assert!(
+        !summary
+            .execution
+            .planned_only_pass_ids
+            .contains(&"less-module-evaluate")
+    );
+    assert!(summary.execution.output_css.contains("color: red"));
+    assert!(summary.execution.output_css.contains("margin: 2px"));
+    assert!(!summary.execution.output_css.contains("@tokens:"));
+    assert!(!summary.execution.output_css.contains("@tokens[primary]"));
+    assert!(!summary.execution.output_css.contains("@tokens[@gap]"));
+}
+
+#[test]
+fn consumer_build_keeps_unknown_less_detached_ruleset_accessor_members_planned_only() {
+    let summary = execute_omena_query_consumer_build_style_source(
+        "Button.module.less",
+        "@tokens: { primary: red; }; .button { color: @tokens[missing]; }",
+        &[
+            "less-module-evaluate".to_string(),
+            "css-modules-class-hashing".to_string(),
+            "print-css".to_string(),
+        ],
+    );
+
+    assert!(
+        summary
+            .execution
+            .planned_only_pass_ids
+            .contains(&"less-module-evaluate")
+    );
+    assert!(summary.execution.output_css.contains("@tokens[missing]"));
+}
+
+#[test]
 fn consumer_build_derives_static_less_evaluator_context_for_detached_ruleset_mixin_calls() {
     let summary = execute_omena_query_consumer_build_style_source(
         "Button.module.less",
