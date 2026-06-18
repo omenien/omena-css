@@ -180,7 +180,8 @@ fn static_css_function_at<'a>(
 ) -> Option<StaticCssFunctionSpec<'a>> {
     let tail = value.get(index..)?;
     for (function_name, parse_function_value) in functions {
-        if tail.len() > function_name.len()
+        if static_css_function_left_boundary(value, index)
+            && tail.len() > function_name.len()
             && tail[..function_name.len()].eq_ignore_ascii_case(function_name)
             && tail[function_name.len()..].starts_with('(')
         {
@@ -188,4 +189,14 @@ fn static_css_function_at<'a>(
         }
     }
     None
+}
+
+fn static_css_function_left_boundary(value: &str, index: usize) -> bool {
+    if index == 0 {
+        return true;
+    }
+    value
+        .get(..index)
+        .and_then(|prefix| prefix.chars().next_back())
+        .is_none_or(|ch| !ch.is_ascii_alphanumeric() && !matches!(ch, '_' | '-' | '.'))
 }

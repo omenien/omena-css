@@ -569,6 +569,44 @@ mod tests {
     }
 
     #[test]
+    fn static_function_substitution_respects_function_name_boundaries() {
+        fn parse_static_max(value: &str) -> Option<String> {
+            parse_reducible_max_value(value)
+        }
+
+        assert_eq!(
+            substitute_static_css_function_references_in_value(
+                "max(1px, 2px)",
+                &[("max", parse_static_max)]
+            )
+            .as_deref(),
+            Some("2px")
+        );
+        assert_eq!(
+            substitute_static_css_function_references_in_value(
+                "calc(max(1px, 2px) + 1px)",
+                &[("max", parse_static_max)]
+            )
+            .as_deref(),
+            Some("calc(2px + 1px)")
+        );
+        assert_eq!(
+            substitute_static_css_function_references_in_value(
+                "math.max(1px, 2px)",
+                &[("max", parse_static_max)]
+            ),
+            None
+        );
+        assert_eq!(
+            substitute_static_css_function_references_in_value(
+                "mymax(1px, 2px)",
+                &[("max", parse_static_max)]
+            ),
+            None
+        );
+    }
+
+    #[test]
     fn color_kernel_parses_static_color_values() {
         assert!(parse_static_srgb_color("rebeccapurple").is_some());
         assert_eq!(
