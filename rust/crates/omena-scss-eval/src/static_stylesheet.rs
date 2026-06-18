@@ -1130,9 +1130,6 @@ fn collect_static_scss_function_local_variables(
                 let value_start = static_stylesheet_token_end(&tokens[colon_index]);
                 let value_end = static_stylesheet_token_start(&tokens[value_end_index]);
                 let value = source.get(value_start..value_end)?.trim();
-                if !static_stylesheet_scss_declaration_value_is_removal_safe(value) {
-                    return None;
-                }
                 variables.push(StaticScssFunctionLocalVariable {
                     name,
                     value: value.to_string(),
@@ -4942,6 +4939,25 @@ mod tests {
             StyleDialect::Scss,
         );
         assert!(report.is_none());
+    }
+
+    #[test]
+    fn static_scss_evaluation_ignores_future_unsafe_local_variables() {
+        let report = derive_static_stylesheet_module_evaluation(
+            "@function pick($enabled) { @if $enabled { @return 2px; } $after: 1px !global; @return $after; } .button { margin: pick(true); }",
+            StyleDialect::Scss,
+        );
+        assert!(report.is_some());
+        let Some(report) = report else {
+            return;
+        };
+
+        assert_eq!(report.replacement_count, 1);
+        assert_eq!(report.resolved_replacements[0].name, "function:pick");
+        assert_eq!(report.resolved_replacements[0].text, "2px");
+        assert_eq!(report.resolved_replacements[0].abstract_value_kind, "exact");
+        assert!(report.evaluated_css.contains(".button { margin: 2px; }"));
+        assert!(report.oracle.all_legacy_declaration_values_preserved);
     }
 
     #[test]
