@@ -1818,7 +1818,7 @@ fn consumer_build_derives_static_stylesheet_evaluator_context_for_composite_valu
 fn consumer_build_derives_static_scss_evaluator_context_for_opacity_colors() {
     let summary = execute_omena_query_consumer_build_style_source(
         "Button.module.scss",
-        "$tone: transparentize(red, .25); .button { color: $tone; }",
+        "$tone: transparentize(red, .25); $hue: hue(#808000); .button { color: $tone; --hue: $hue; }",
         &[
             "scss-module-evaluate".to_string(),
             "css-modules-class-hashing".to_string(),
@@ -1834,7 +1834,13 @@ fn consumer_build_derives_static_scss_evaluator_context_for_opacity_colors() {
         "{}",
         summary.execution.output_css
     );
+    assert!(
+        summary.execution.output_css.contains("--hue: 60deg"),
+        "{}",
+        summary.execution.output_css
+    );
     assert!(!summary.execution.output_css.contains("$tone:"));
+    assert!(!summary.execution.output_css.contains("$hue:"));
 }
 
 #[test]

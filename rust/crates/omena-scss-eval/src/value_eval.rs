@@ -137,6 +137,7 @@ pub(crate) fn reduce_static_scss_value(value: String) -> String {
     .unwrap_or_else(|| trimmed.to_string());
     let value = parse_static_scss_sass_color_constructor_value(value.as_str()).unwrap_or(value);
     let value = parse_static_scss_sass_color_opacity_value(value.as_str()).unwrap_or(value);
+    let value = parse_static_scss_sass_color_channel_value(value.as_str()).unwrap_or(value);
     reduce_static_numeric_value(value)
 }
 
@@ -953,6 +954,55 @@ fn parse_static_scss_sass_color_opacity_value(value: &str) -> Option<String> {
         .or_else(|| parse_static_scss_color_scale_alpha_value(value, "scale-color"))
 }
 
+fn parse_static_scss_sass_color_channel_value(value: &str) -> Option<String> {
+    parse_static_scss_legacy_color_channel_value(value, "opacity", StaticScssColorChannel::Alpha)
+        .or_else(|| {
+            parse_static_scss_legacy_color_channel_value(
+                value,
+                "color.opacity",
+                StaticScssColorChannel::Alpha,
+            )
+        })
+        .or_else(|| {
+            parse_static_scss_legacy_color_channel_value(value, "hue", StaticScssColorChannel::Hue)
+        })
+        .or_else(|| {
+            parse_static_scss_legacy_color_channel_value(
+                value,
+                "color.hue",
+                StaticScssColorChannel::Hue,
+            )
+        })
+        .or_else(|| {
+            parse_static_scss_legacy_color_channel_value(
+                value,
+                "saturation",
+                StaticScssColorChannel::Saturation,
+            )
+        })
+        .or_else(|| {
+            parse_static_scss_legacy_color_channel_value(
+                value,
+                "color.saturation",
+                StaticScssColorChannel::Saturation,
+            )
+        })
+        .or_else(|| {
+            parse_static_scss_legacy_color_channel_value(
+                value,
+                "lightness",
+                StaticScssColorChannel::Lightness,
+            )
+        })
+        .or_else(|| {
+            parse_static_scss_legacy_color_channel_value(
+                value,
+                "color.lightness",
+                StaticScssColorChannel::Lightness,
+            )
+        })
+}
+
 fn parse_static_scss_sass_color_constructor_value_with_name(
     value: &str,
     function_name: &str,
@@ -1258,14 +1308,13 @@ fn parse_static_scss_color_mix_weight(value: &str) -> Option<f64> {
 fn parse_static_scss_color_channel_value(value: &str) -> Option<String> {
     let arguments = parse_whole_function_value_arguments(value, "color.channel")?;
     let arguments = parse_static_scss_color_channel_arguments(arguments.as_slice())?;
-    if let Some(space) = arguments.space
-        && !space.trim().eq_ignore_ascii_case("rgb")
-    {
-        return None;
-    }
+    let space = match arguments.space {
+        Some(space) => parse_static_scss_color_channel_space(space)?,
+        None => StaticScssColorSpace::Rgb,
+    };
     let color_text = reduce_static_scss_value(arguments.color.to_string());
     let color = parse_static_scss_srgb_color_argument(color_text.as_str())?;
-    let channel = parse_static_scss_color_channel_name(arguments.channel)?;
+    let channel = parse_static_scss_color_channel_name(arguments.channel, space)?;
     Some(render_static_scss_color_channel(color, channel))
 }
 
@@ -1386,18 +1435,41 @@ enum StaticScssColorChannel {
     Green,
     Blue,
     Alpha,
+    Hue,
+    Saturation,
+    Lightness,
 }
 
-fn parse_static_scss_color_channel_name(value: &str) -> Option<StaticScssColorChannel> {
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum StaticScssColorSpace {
+    Rgb,
+    Hsl,
+}
+
+fn parse_static_scss_color_channel_space(value: &str) -> Option<StaticScssColorSpace> {
+    match value.trim().to_ascii_lowercase().as_str() {
+        "rgb" => Some(StaticScssColorSpace::Rgb),
+        "hsl" => Some(StaticScssColorSpace::Hsl),
+        _ => None,
+    }
+}
+
+fn parse_static_scss_color_channel_name(
+    value: &str,
+    space: StaticScssColorSpace,
+) -> Option<StaticScssColorChannel> {
     let channel = parse_static_scss_string_argument(value)?;
     if !channel.quoted {
         return None;
     }
-    match channel.text.to_ascii_lowercase().as_str() {
-        "red" => Some(StaticScssColorChannel::Red),
-        "green" => Some(StaticScssColorChannel::Green),
-        "blue" => Some(StaticScssColorChannel::Blue),
-        "alpha" => Some(StaticScssColorChannel::Alpha),
+    match (space, channel.text.to_ascii_lowercase().as_str()) {
+        (StaticScssColorSpace::Rgb, "red") => Some(StaticScssColorChannel::Red),
+        (StaticScssColorSpace::Rgb, "green") => Some(StaticScssColorChannel::Green),
+        (StaticScssColorSpace::Rgb, "blue") => Some(StaticScssColorChannel::Blue),
+        (StaticScssColorSpace::Rgb, "alpha") => Some(StaticScssColorChannel::Alpha),
+        (StaticScssColorSpace::Hsl, "hue") => Some(StaticScssColorChannel::Hue),
+        (StaticScssColorSpace::Hsl, "saturation") => Some(StaticScssColorChannel::Saturation),
+        (StaticScssColorSpace::Hsl, "lightness") => Some(StaticScssColorChannel::Lightness),
         _ => None,
     }
 }
@@ -1406,12 +1478,66 @@ fn render_static_scss_color_channel(
     color: StaticScssSrgbColorValue,
     channel: StaticScssColorChannel,
 ) -> String {
-    format_css_number(match channel {
-        StaticScssColorChannel::Red => color.red,
-        StaticScssColorChannel::Green => color.green,
-        StaticScssColorChannel::Blue => color.blue,
-        StaticScssColorChannel::Alpha => color.alpha,
-    })
+    match channel {
+        StaticScssColorChannel::Red => format_css_number(color.red),
+        StaticScssColorChannel::Green => format_css_number(color.green),
+        StaticScssColorChannel::Blue => format_css_number(color.blue),
+        StaticScssColorChannel::Alpha => format_css_number(color.alpha),
+        StaticScssColorChannel::Hue => {
+            format!("{}deg", format_css_number(static_scss_srgb_hue(color)))
+        }
+        StaticScssColorChannel::Saturation => {
+            format!(
+                "{}%",
+                format_css_number(static_scss_srgb_saturation(color) * 100.0)
+            )
+        }
+        StaticScssColorChannel::Lightness => {
+            format!(
+                "{}%",
+                format_css_number(static_scss_srgb_lightness(color) * 100.0)
+            )
+        }
+    }
+}
+
+fn static_scss_srgb_hue(color: StaticScssSrgbColorValue) -> f64 {
+    let (red, green, blue) = static_scss_normalized_rgb(color);
+    let max = red.max(green).max(blue);
+    let min = red.min(green).min(blue);
+    let delta = max - min;
+    if delta.abs() <= f64::EPSILON {
+        return 0.0;
+    }
+    let hue_sector = if (max - red).abs() <= f64::EPSILON {
+        ((green - blue) / delta).rem_euclid(6.0)
+    } else if (max - green).abs() <= f64::EPSILON {
+        (blue - red) / delta + 2.0
+    } else {
+        (red - green) / delta + 4.0
+    };
+    (hue_sector * 60.0).rem_euclid(360.0)
+}
+
+fn static_scss_srgb_saturation(color: StaticScssSrgbColorValue) -> f64 {
+    let (red, green, blue) = static_scss_normalized_rgb(color);
+    let max = red.max(green).max(blue);
+    let min = red.min(green).min(blue);
+    let delta = max - min;
+    if delta.abs() <= f64::EPSILON {
+        return 0.0;
+    }
+    let lightness = (max + min) / 2.0;
+    delta / (1.0 - (2.0 * lightness - 1.0).abs())
+}
+
+fn static_scss_srgb_lightness(color: StaticScssSrgbColorValue) -> f64 {
+    let (red, green, blue) = static_scss_normalized_rgb(color);
+    (red.max(green).max(blue) + red.min(green).min(blue)) / 2.0
+}
+
+fn static_scss_normalized_rgb(color: StaticScssSrgbColorValue) -> (f64, f64, f64) {
+    (color.red / 255.0, color.green / 255.0, color.blue / 255.0)
 }
 
 fn parse_static_scss_opaque_srgb_color_argument(value: &str) -> Option<StaticScssSrgbColorValue> {

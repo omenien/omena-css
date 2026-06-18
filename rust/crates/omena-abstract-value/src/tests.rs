@@ -395,7 +395,7 @@ fn narrows_property_values_to_single_stylesheet_pseudo_state() {
         narrowed.value,
         AbstractPropertyValueV0::FiniteSet {
             property_name: "color".to_string(),
-            values: vec!["black".to_string(), "white".to_string()],
+            values: vec!["#000".to_string(), "#fff".to_string()],
             pseudo_states: vec!["hover".to_string()],
         }
     );
@@ -432,6 +432,12 @@ fn abstracts_css_values_through_the_region_local_value_lattice() {
     );
     assert!(abstract_css_values_canonically_equal("0px", "0"));
     assert!(!abstract_css_values_canonically_equal("0%", "0"));
+    assert_eq!(
+        abstract_css_value_from_text("50%"),
+        AbstractCssValueV0::Exact {
+            value: "50%".to_string(),
+        }
+    );
     assert_eq!(
         abstract_css_value_from_text("#ff0000"),
         AbstractCssValueV0::Exact {
@@ -538,7 +544,7 @@ fn narrows_property_values_to_requested_cascade_branch() {
         narrowed.value,
         AbstractPropertyValueV0::Exact {
             property_name: "color".to_string(),
-            value: "blue".to_string(),
+            value: "#00f".to_string(),
             pseudo_state: None,
         }
     );
@@ -585,7 +591,7 @@ fn narrows_same_selector_property_values_to_latest_source_order() {
         narrowed.value,
         AbstractPropertyValueV0::Exact {
             property_name: "color".to_string(),
-            value: "blue".to_string(),
+            value: "#00f".to_string(),
             pseudo_state: None,
         }
     );
@@ -632,7 +638,7 @@ fn keeps_property_value_set_when_selector_ordering_is_unknown() {
         narrowed.value,
         AbstractPropertyValueV0::FiniteSet {
             property_name: "color".to_string(),
-            values: vec!["blue".to_string(), "red".to_string()],
+            values: vec!["#00f".to_string(), "red".to_string()],
             pseudo_states: Vec::new(),
         }
     );

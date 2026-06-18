@@ -270,6 +270,11 @@ fn canonicalize_numeric_value(value: NumericValueV0<'_>) -> Option<CanonicalCssV
         }
         return None;
     }
+    if normalized_unit == "%" {
+        return Some(CanonicalCssValueV0 {
+            serialized: format!("{}%", format_css_number(value.value)),
+        });
+    }
     if unit.is_empty() || is_absolute_zero_collapsible_unit(&normalized_unit) {
         return Some(CanonicalCssValueV0 {
             serialized: format!("{}{}", format_css_number(value.value), normalized_unit),
@@ -479,6 +484,7 @@ mod tests {
         assert!(css_values_canonically_equal("0px", "0"));
         assert!(css_values_canonically_equal("0deg", "0"));
         assert!(css_values_canonically_equal("+0.000PX", "-0"));
+        assert!(css_values_canonically_equal("050%", "50%"));
         assert!(!css_values_canonically_equal("0%", "0"));
         assert!(!css_values_canonically_equal("0em", "0"));
         assert!(!css_values_canonically_equal("0cqw", "0"));

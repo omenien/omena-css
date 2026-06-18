@@ -10300,7 +10300,7 @@ mod tests {
     #[test]
     fn static_scss_evaluation_reduces_static_function_metadata_values() {
         let report = derive_static_stylesheet_module_evaluation(
-            "@function present() { @return 1px; } @function gate() { @return if(meta.function-exists(\"present\") and function-exists(\"scale-color\") and not function-exists(\"not-defined-here\"), present(), 2px); } .button { margin: gate(); }",
+            "@function present() { @return 1px; } @function gate() { @return if(meta.function-exists(\"present\") and function-exists(\"scale-color\") and function-exists(\"hue\") and not function-exists(\"not-defined-here\"), present(), 2px); } .button { margin: gate(); }",
             StyleDialect::Scss,
         );
         assert!(report.is_some());
@@ -10556,6 +10556,31 @@ mod tests {
     }
 
     #[test]
+    fn static_scss_evaluation_reduces_static_hsl_color_channel_returns() {
+        let report = derive_static_stylesheet_module_evaluation(
+            "@function tone-channel() { @return hue(#808000); } .button { --hue: tone-channel(); }",
+            StyleDialect::Scss,
+        );
+        assert!(report.is_some());
+        let Some(report) = report else {
+            return;
+        };
+
+        assert_eq!(
+            report.resolved_replacements[0].name,
+            "function:tone-channel"
+        );
+        assert_eq!(report.resolved_replacements[0].text, "60deg");
+        assert_eq!(
+            report.resolved_replacements[0].rendered_value.as_deref(),
+            Some("60deg")
+        );
+        assert_eq!(report.resolved_replacements[0].abstract_value_kind, "exact");
+        assert!(report.evaluated_css.contains(".button { --hue: 60deg; }"));
+        assert!(report.oracle.all_legacy_declaration_values_preserved);
+    }
+
+    #[test]
     fn static_scss_evaluation_reduces_legacy_global_color_function_returns() {
         let report = derive_static_stylesheet_module_evaluation(
             "@function tone-channel() { @return red(mix(red, blue)); } .button { z-index: tone-channel(); }",
@@ -10762,7 +10787,7 @@ mod tests {
     #[test]
     fn static_value_resolution_emits_exact_static_color_channel_values() {
         let report = summarize_static_stylesheet_value_resolution(
-            "$red: color.channel(color.mix(red, blue), \"red\", $space: rgb); $alpha: color.alpha(rgba(255, 0, 0, .5)); .button { z-index: $red; opacity: $alpha; }",
+            "$red: color.channel(color.mix(red, blue), \"red\", $space: rgb); $alpha: color.alpha(rgba(255, 0, 0, .5)); $opacity: color.opacity(rgba(red, .5)); $hue: color.channel(#808000, \"hue\", $space: hsl); $saturation: saturation(#808000); $lightness: color.lightness(#808000); .button { z-index: $red; opacity: $alpha; flex-grow: $opacity; width: $hue; height: $saturation; margin: $lightness; }",
             StyleDialect::Scss,
         );
         assert!(report.is_some());
@@ -10770,8 +10795,8 @@ mod tests {
             return;
         };
 
-        assert_eq!(report.reference_count, 2);
-        assert_eq!(report.resolved_count, 2);
+        assert_eq!(report.reference_count, 6);
+        assert_eq!(report.resolved_count, 6);
         assert_eq!(report.raw_count, 0);
         let rendered_values = report
             .values
@@ -10780,6 +10805,9 @@ mod tests {
             .collect::<Vec<_>>();
         assert!(rendered_values.contains(&"127.5"));
         assert!(rendered_values.contains(&"0.5"));
+        assert!(rendered_values.contains(&"60deg"));
+        assert!(rendered_values.contains(&"100%"));
+        assert!(rendered_values.contains(&"25.098039%"));
     }
 
     #[test]
@@ -10908,9 +10936,9 @@ mod tests {
     }
 
     #[test]
-    fn static_value_resolution_keeps_unsupported_color_channels_raw() {
+    fn static_value_resolution_keeps_unspecified_hsl_color_channels_raw() {
         let report = summarize_static_stylesheet_value_resolution(
-            "$hue: color.channel(red, \"hue\", $space: hsl); .button { z-index: $hue; }",
+            "$hue: color.channel(red, \"hue\"); .button { z-index: $hue; }",
             StyleDialect::Scss,
         );
         assert!(report.is_some());
@@ -10925,7 +10953,7 @@ mod tests {
         assert_eq!(report.values[0].reason, "unsupportedDynamic");
         assert_eq!(
             report.values[0].rendered_value.as_deref(),
-            Some("color.channel(red, \"hue\", $space: hsl)")
+            Some("color.channel(red, \"hue\")")
         );
     }
 
