@@ -4,7 +4,8 @@ use omena_abstract_value::{AbstractCssValueV0, abstract_css_value_from_text};
 use omena_parser::{LexedToken, ParsedVariableFact, ParsedVariableFactKind, StyleDialect, lex};
 use omena_syntax::SyntaxKind;
 use omena_value_lattice::{
-    parse_static_srgb_color_with_alpha, parse_whole_function_value_arguments,
+    parse_numeric_value_with_unit, parse_static_srgb_color_with_alpha,
+    parse_whole_function_value_arguments,
 };
 use serde::Serialize;
 
@@ -2953,7 +2954,38 @@ fn static_less_mixin_guard_matches(
     }
     let predicate = guard.get("when".len()..)?.trim();
     let predicate = predicate.strip_prefix('(')?.strip_suffix(')')?.trim();
-    let arguments = parse_whole_function_value_arguments(predicate, "iscolor")?;
+    static_less_mixin_guard_predicate_matches(
+        predicate,
+        "iscolor",
+        argument_values,
+        call_scope_id,
+        scopes,
+        variable_declarations,
+        |value| parse_static_srgb_color_with_alpha(value).is_some(),
+    )
+    .or_else(|| {
+        static_less_mixin_guard_predicate_matches(
+            predicate,
+            "isnumber",
+            argument_values,
+            call_scope_id,
+            scopes,
+            variable_declarations,
+            |value| parse_numeric_value_with_unit(value).is_some(),
+        )
+    })
+}
+
+fn static_less_mixin_guard_predicate_matches(
+    predicate: &str,
+    function_name: &str,
+    argument_values: &BTreeMap<String, String>,
+    call_scope_id: usize,
+    scopes: &[StaticStylesheetScope],
+    variable_declarations: &BTreeMap<(usize, String), StaticStylesheetVariableDeclaration>,
+    matches_value: impl FnOnce(&str) -> bool,
+) -> Option<bool> {
+    let arguments = parse_whole_function_value_arguments(predicate, function_name)?;
     let [value] = arguments.as_slice() else {
         return None;
     };
@@ -2964,7 +2996,7 @@ fn static_less_mixin_guard_matches(
         scopes,
         variable_declarations,
     )?;
-    Some(parse_static_srgb_color_with_alpha(resolved.trim()).is_some())
+    Some(matches_value(resolved.trim()))
 }
 
 fn render_static_less_mixin_body_nested_calls(
@@ -5786,6 +5818,24 @@ mod tests {
         assert!(!report.evaluated_css.contains(".tone(@color"));
         assert!(!report.evaluated_css.contains(".tone(red"));
         assert!(report.evaluated_css.contains("color: red"));
+        assert!(report.oracle.all_legacy_declaration_values_preserved);
+    }
+
+    #[test]
+    fn static_less_evaluation_expands_numeric_guarded_mixin_calls() {
+        let report = derive_static_stylesheet_module_evaluation(
+            ".space(@gap) when (isnumber(@gap)) { margin: @gap; } .button { .space(2px); }",
+            StyleDialect::Less,
+        );
+
+        assert!(report.is_some());
+        let Some(report) = report else {
+            return;
+        };
+
+        assert!(!report.evaluated_css.contains(".space(@gap"));
+        assert!(!report.evaluated_css.contains(".space(2px"));
+        assert!(report.evaluated_css.contains("margin: 2px"));
         assert!(report.oracle.all_legacy_declaration_values_preserved);
     }
 
