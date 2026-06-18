@@ -168,7 +168,7 @@ fn style_hover_render_parts_narrow_same_selector_values_by_source_order() {
         color.map(|narrowing| &narrowing.value),
         Some(&AbstractPropertyValueV0::Exact {
             property_name: "color".to_string(),
-            value: "blue".to_string(),
+            value: "#00f".to_string(),
             pseudo_state: None,
         })
     );
@@ -209,7 +209,7 @@ fn style_hover_render_parts_for_hover_position_prefers_active_condition_layer_br
         color.value,
         AbstractPropertyValueV0::Exact {
             property_name: "color".to_string(),
-            value: "blue".to_string(),
+            value: "#00f".to_string(),
             pseudo_state: None,
         }
     );
@@ -245,7 +245,7 @@ fn style_selector_completion_includes_cascade_narrowed_values() -> Result<(), &'
     assert!(documentation.contains("Cascade narrowed values:"));
     assert!(documentation.contains("- `color`: `var(--brand)`"));
     assert!(documentation.contains("@layer theme"));
-    assert!(documentation.contains("`blue`"));
+    assert!(documentation.contains("`#00f`"));
     Ok(())
 }
 
