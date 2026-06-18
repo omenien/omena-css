@@ -1,18 +1,22 @@
 use omena_value_lattice::{matching_function_call_end, split_top_level_value_arguments_owned};
 
-pub(crate) fn reduce_static_scss_function_metadata_with_context<F>(
+pub(crate) fn reduce_static_scss_callable_metadata_with_context<F, M>(
     value: &str,
     mut function_exists: F,
+    mut mixin_exists: M,
 ) -> Option<String>
 where
     F: FnMut(&str) -> Option<bool>,
+    M: FnMut(&str) -> Option<bool>,
 {
     let mut current = value.to_string();
     let mut changed = false;
     for _ in 0..8 {
-        let Some(next) =
-            reduce_static_scss_function_exists_calls(current.as_str(), &mut function_exists)
-        else {
+        let Some(next) = reduce_static_scss_callable_exists_calls(
+            current.as_str(),
+            &mut function_exists,
+            &mut mixin_exists,
+        ) else {
             break;
         };
         if next == current {
@@ -24,12 +28,14 @@ where
     changed.then_some(current)
 }
 
-fn reduce_static_scss_function_exists_calls<F>(
+fn reduce_static_scss_callable_exists_calls<F, M>(
     value: &str,
     function_exists: &mut F,
+    mixin_exists: &mut M,
 ) -> Option<String>
 where
     F: FnMut(&str) -> Option<bool>,
+    M: FnMut(&str) -> Option<bool>,
 {
     let mut output = String::with_capacity(value.len());
     let mut cursor = 0usize;
@@ -57,11 +63,11 @@ where
             continue;
         }
 
-        let Some(function_name) = static_scss_function_exists_call_name_at(value, index) else {
+        let Some(call) = static_scss_callable_exists_call_at(value, index) else {
             index += ch.len_utf8();
             continue;
         };
-        let left_paren_index = index + function_name.len();
+        let left_paren_index = index + call.name.len();
         let Some(close_index) = matching_function_call_end(value, left_paren_index) else {
             index += ch.len_utf8();
             continue;
@@ -70,8 +76,12 @@ where
             index += ch.len_utf8();
             continue;
         };
-        let Some(exists) = resolve_static_scss_function_exists_call(call_value, function_exists)
-        else {
+        let Some(exists) = resolve_static_scss_callable_exists_call(
+            call_value,
+            call.kind,
+            function_exists,
+            mixin_exists,
+        ) else {
             index += ch.len_utf8();
             continue;
         };
@@ -89,15 +99,38 @@ where
     Some(output)
 }
 
-fn static_scss_function_exists_call_name_at(value: &str, index: usize) -> Option<&str> {
-    const NAMES: [&str; 2] = ["meta.function-exists", "function-exists"];
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum StaticScssCallableMetadataKind {
+    Function,
+    Mixin,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+struct StaticScssCallableMetadataCall<'a> {
+    name: &'a str,
+    kind: StaticScssCallableMetadataKind,
+}
+
+fn static_scss_callable_exists_call_at(
+    value: &str,
+    index: usize,
+) -> Option<StaticScssCallableMetadataCall<'_>> {
+    const NAMES: [(&str, StaticScssCallableMetadataKind); 4] = [
+        (
+            "meta.function-exists",
+            StaticScssCallableMetadataKind::Function,
+        ),
+        ("function-exists", StaticScssCallableMetadataKind::Function),
+        ("meta.mixin-exists", StaticScssCallableMetadataKind::Mixin),
+        ("mixin-exists", StaticScssCallableMetadataKind::Mixin),
+    ];
     let tail = value.get(index..)?;
-    NAMES.iter().find_map(|name| {
+    NAMES.iter().find_map(|(name, kind)| {
         (static_scss_metadata_function_left_boundary(value, index)
             && tail.len() > name.len()
             && tail[..name.len()].eq_ignore_ascii_case(name)
             && tail[name.len()..].starts_with('('))
-        .then_some(*name)
+        .then_some(StaticScssCallableMetadataCall { name, kind: *kind })
     })
 }
 
@@ -111,22 +144,28 @@ fn static_scss_metadata_function_left_boundary(value: &str, index: usize) -> boo
         .is_none_or(|ch| !ch.is_ascii_alphanumeric() && !matches!(ch, '_' | '-' | '.'))
 }
 
-fn resolve_static_scss_function_exists_call<F>(value: &str, function_exists: &mut F) -> Option<bool>
+fn resolve_static_scss_callable_exists_call<F, M>(
+    value: &str,
+    kind: StaticScssCallableMetadataKind,
+    function_exists: &mut F,
+    mixin_exists: &mut M,
+) -> Option<bool>
 where
     F: FnMut(&str) -> Option<bool>,
+    M: FnMut(&str) -> Option<bool>,
 {
-    let function_name = if value
-        .trim_start()
-        .get(.."meta.function-exists".len())?
-        .eq_ignore_ascii_case("meta.function-exists")
-    {
+    let trimmed = value.trim();
+    let function_name = if static_scss_value_starts_with_name(trimmed, "meta.function-exists") {
         "meta.function-exists"
+    } else if static_scss_value_starts_with_name(trimmed, "meta.mixin-exists") {
+        "meta.mixin-exists"
+    } else if kind == StaticScssCallableMetadataKind::Mixin {
+        "mixin-exists"
     } else {
         "function-exists"
     };
     let arguments = split_top_level_value_arguments_owned(
-        value
-            .trim()
+        trimmed
             .get(function_name.len()..)?
             .strip_prefix('(')?
             .strip_suffix(')')?,
@@ -135,13 +174,28 @@ where
         return None;
     }
     let queried_name = parse_static_scss_metadata_name_argument(arguments[0].as_str())?;
-    if let Some(exists) = function_exists(queried_name.as_str()) {
-        return Some(exists);
-    }
-    if static_scss_known_global_builtin_function_exists(queried_name.as_str()) {
-        return Some(true);
+    match kind {
+        StaticScssCallableMetadataKind::Function => {
+            if let Some(exists) = function_exists(queried_name.as_str()) {
+                return Some(exists);
+            }
+            if static_scss_known_global_builtin_function_exists(queried_name.as_str()) {
+                return Some(true);
+            }
+        }
+        StaticScssCallableMetadataKind::Mixin => {
+            if let Some(exists) = mixin_exists(queried_name.as_str()) {
+                return Some(exists);
+            }
+        }
     }
     static_scss_callable_name_is_safe(queried_name.as_str()).then_some(false)
+}
+
+fn static_scss_value_starts_with_name(value: &str, name: &str) -> bool {
+    value.len() > name.len()
+        && value[..name.len()].eq_ignore_ascii_case(name)
+        && value[name.len()..].starts_with('(')
 }
 
 fn parse_static_scss_metadata_name_argument(value: &str) -> Option<String> {

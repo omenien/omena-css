@@ -7,7 +7,7 @@ use serde::Serialize;
 
 use crate::{
     abstract_css_value_kind,
-    scss_metadata::reduce_static_scss_function_metadata_with_context,
+    scss_metadata::reduce_static_scss_callable_metadata_with_context,
     summarize_omena_scss_eval_oracle,
     value_eval::{
         reduce_static_numeric_value, reduce_static_scss_value,
@@ -184,6 +184,7 @@ fn derive_static_scss_stylesheet_module_evaluation(
     let lexed = lex(style_source, dialect);
     let tokens = lexed.tokens();
     let function_declarations = collect_static_scss_function_declarations(style_source, tokens)?;
+    let mixin_declarations = collect_static_scss_mixin_declarations(tokens)?;
     if !variable_facts
         .iter()
         .any(|fact| fact.kind == ParsedVariableFactKind::ScssDeclaration)
@@ -268,6 +269,7 @@ fn derive_static_scss_stylesheet_module_evaluation(
             style_source,
             tokens,
             &function_declarations,
+            &mixin_declarations,
             &scopes,
             &declarations,
         )
@@ -488,6 +490,7 @@ fn summarize_static_scss_value_resolution_values(
     let lexed = lex(style_source, StyleDialect::Scss);
     let tokens = lexed.tokens();
     let function_declarations = collect_static_scss_function_declarations(style_source, tokens)?;
+    let mixin_declarations = collect_static_scss_mixin_declarations(tokens)?;
     let function_declaration_ranges =
         static_scss_function_declaration_ranges_from_declarations(function_declarations.as_slice());
     let mut values = Vec::new();
@@ -528,6 +531,7 @@ fn summarize_static_scss_value_resolution_values(
         style_source,
         tokens,
         &function_declarations,
+        &mixin_declarations,
         scopes,
         &declarations,
     )?);
@@ -799,6 +803,12 @@ struct StaticScssFunctionDeclaration {
     body_end: usize,
 }
 
+#[derive(Debug, Clone)]
+struct StaticScssMixinDeclaration {
+    name: String,
+    span_start: usize,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 struct StaticScssFunctionLocalVariable {
     name: String,
@@ -829,6 +839,7 @@ struct StaticScssFunctionCall {
 #[derive(Debug, Clone, Copy)]
 struct StaticScssFunctionResolutionContext<'a> {
     declarations: &'a [StaticScssFunctionDeclaration],
+    mixin_declarations: &'a [StaticScssMixinDeclaration],
     scopes: &'a [StaticStylesheetScope],
     variable_declarations: &'a [StaticStylesheetScopedVariableDeclaration],
     active_functions: &'a BTreeSet<String>,
@@ -851,6 +862,7 @@ fn collect_static_scss_function_evaluation_edits(
     source: &str,
     tokens: &[LexedToken],
     declarations: &[StaticScssFunctionDeclaration],
+    mixin_declarations: &[StaticScssMixinDeclaration],
     scopes: &[StaticStylesheetScope],
     variable_declarations: &[StaticStylesheetScopedVariableDeclaration],
 ) -> Option<(
@@ -872,6 +884,7 @@ fn collect_static_scss_function_evaluation_edits(
         let resolution = resolve_static_scss_function_call_abstract_value(
             call,
             declarations,
+            mixin_declarations,
             scopes,
             variable_declarations,
             STATIC_STYLESHEET_VALUE_RESOLUTION_FUEL_LIMIT,
@@ -914,6 +927,7 @@ fn collect_static_scss_function_value_resolution_values(
     source: &str,
     tokens: &[LexedToken],
     declarations: &[StaticScssFunctionDeclaration],
+    mixin_declarations: &[StaticScssMixinDeclaration],
     scopes: &[StaticStylesheetScope],
     variable_declarations: &[StaticStylesheetScopedVariableDeclaration],
 ) -> Option<Vec<OmenaScssEvalStaticValueResolutionV0>> {
@@ -925,6 +939,7 @@ fn collect_static_scss_function_value_resolution_values(
             let resolution = resolve_static_scss_function_call_abstract_value(
                 &call,
                 declarations,
+                mixin_declarations,
                 scopes,
                 variable_declarations,
                 STATIC_STYLESHEET_VALUE_RESOLUTION_FUEL_LIMIT,
@@ -1026,6 +1041,51 @@ fn collect_static_scss_function_declarations(
             span_end: static_stylesheet_token_end(&tokens[body_close_index]),
             body_start: static_stylesheet_token_end(&tokens[body_open_index]),
             body_end: static_stylesheet_token_start(&tokens[body_close_index]),
+        });
+        index = body_close_index + 1;
+    }
+    Some(declarations)
+}
+
+fn collect_static_scss_mixin_declarations(
+    tokens: &[LexedToken],
+) -> Option<Vec<StaticScssMixinDeclaration>> {
+    let mut declarations = Vec::new();
+    let mut index = 0usize;
+    while index < tokens.len() {
+        if tokens[index].kind != SyntaxKind::AtKeyword
+            || !tokens[index].text.eq_ignore_ascii_case("@mixin")
+        {
+            index += 1;
+            continue;
+        }
+
+        let name_index = static_stylesheet_skip_trivia_tokens(tokens, index + 1);
+        let name_token = tokens.get(name_index)?;
+        if name_token.kind != SyntaxKind::Ident
+            || !static_scss_callable_name_is_safe(name_token.text.as_str())
+        {
+            index += 1;
+            continue;
+        }
+        let Some(body_open_index) =
+            static_stylesheet_next_token_kind_index(tokens, name_index + 1, SyntaxKind::LeftBrace)
+        else {
+            index += 1;
+            continue;
+        };
+        let Some(body_close_index) = static_stylesheet_matching_token_index(
+            tokens,
+            body_open_index,
+            SyntaxKind::LeftBrace,
+            SyntaxKind::RightBrace,
+        ) else {
+            index += 1;
+            continue;
+        };
+        declarations.push(StaticScssMixinDeclaration {
+            name: name_token.text.clone(),
+            span_start: static_stylesheet_token_start(&tokens[index]),
         });
         index = body_close_index + 1;
     }
@@ -1615,6 +1675,7 @@ fn static_scss_top_level_colon_index(value: &str) -> Option<Option<usize>> {
 fn resolve_static_scss_function_call_abstract_value(
     call: &StaticScssFunctionCall,
     declarations: &[StaticScssFunctionDeclaration],
+    mixin_declarations: &[StaticScssMixinDeclaration],
     scopes: &[StaticStylesheetScope],
     variable_declarations: &[StaticStylesheetScopedVariableDeclaration],
     fuel: usize,
@@ -1622,6 +1683,7 @@ fn resolve_static_scss_function_call_abstract_value(
     resolve_static_scss_function_call_abstract_value_with_stack(
         call,
         declarations,
+        mixin_declarations,
         scopes,
         variable_declarations,
         fuel,
@@ -1632,6 +1694,7 @@ fn resolve_static_scss_function_call_abstract_value(
 fn resolve_static_scss_function_call_abstract_value_with_stack(
     call: &StaticScssFunctionCall,
     declarations: &[StaticScssFunctionDeclaration],
+    mixin_declarations: &[StaticScssMixinDeclaration],
     scopes: &[StaticStylesheetScope],
     variable_declarations: &[StaticStylesheetScopedVariableDeclaration],
     fuel: usize,
@@ -1657,6 +1720,7 @@ fn resolve_static_scss_function_call_abstract_value_with_stack(
     next_active_functions.insert(canonical_declaration_name);
     let context = StaticScssFunctionResolutionContext {
         declarations,
+        mixin_declarations,
         scopes,
         variable_declarations,
         active_functions: &next_active_functions,
@@ -1980,6 +2044,7 @@ fn resolve_static_scss_known_function_calls_in_value(
         let resolution = resolve_static_scss_function_call_abstract_value_with_stack(
             &nested_call,
             context.declarations,
+            context.mixin_declarations,
             context.scopes,
             context.variable_declarations,
             fuel - 1,
@@ -2057,9 +2122,15 @@ fn reduce_static_scss_metadata_with_function_context(
     position: usize,
     context: StaticScssFunctionResolutionContext<'_>,
 ) -> Option<String> {
-    reduce_static_scss_function_metadata_with_context(value, |name| {
-        static_scss_visible_function_declaration_exists(name, position, context).then_some(true)
-    })
+    reduce_static_scss_callable_metadata_with_context(
+        value,
+        |name| {
+            static_scss_visible_function_declaration_exists(name, position, context).then_some(true)
+        },
+        |name| {
+            static_scss_visible_mixin_declaration_exists(name, position, context).then_some(true)
+        },
+    )
 }
 
 fn static_scss_visible_function_declaration_exists(
@@ -2068,6 +2139,17 @@ fn static_scss_visible_function_declaration_exists(
     context: StaticScssFunctionResolutionContext<'_>,
 ) -> bool {
     context.declarations.iter().any(|declaration| {
+        declaration.span_start <= position
+            && canonical_static_scss_function_name(declaration.name.as_str()) == name
+    })
+}
+
+fn static_scss_visible_mixin_declaration_exists(
+    name: &str,
+    position: usize,
+    context: StaticScssFunctionResolutionContext<'_>,
+) -> bool {
+    context.mixin_declarations.iter().any(|declaration| {
         declaration.span_start <= position
             && canonical_static_scss_function_name(declaration.name.as_str()) == name
     })
@@ -4917,6 +4999,36 @@ mod tests {
     fn static_scss_evaluation_preserves_function_exists_declaration_order() {
         let report = derive_static_stylesheet_module_evaluation(
             "@function gate() { @return if(function-exists(\"later\"), 2px, 1px); } @function later() { @return 2px; } .button { margin: gate(); }",
+            StyleDialect::Scss,
+        );
+        assert!(report.is_some());
+        let Some(report) = report else {
+            return;
+        };
+
+        assert!(report.evaluated_css.contains("margin: 1px"));
+        assert!(report.oracle.all_legacy_declaration_values_preserved);
+    }
+
+    #[test]
+    fn static_scss_evaluation_reduces_static_mixin_metadata_values() {
+        let report = derive_static_stylesheet_module_evaluation(
+            "@mixin present { color: red; } @function gate() { @return if(meta.mixin-exists(\"present\") and not mixin-exists(\"not-defined-here\"), 1px, 2px); } .button { margin: gate(); }",
+            StyleDialect::Scss,
+        );
+        assert!(report.is_some());
+        let Some(report) = report else {
+            return;
+        };
+
+        assert!(report.evaluated_css.contains("margin: 1px"));
+        assert!(report.oracle.all_legacy_declaration_values_preserved);
+    }
+
+    #[test]
+    fn static_scss_evaluation_preserves_mixin_exists_declaration_order() {
+        let report = derive_static_stylesheet_module_evaluation(
+            "@function gate() { @return if(mixin-exists(\"later\"), 2px, 1px); } @mixin later { color: red; } .button { margin: gate(); }",
             StyleDialect::Scss,
         );
         assert!(report.is_some());
