@@ -136,6 +136,7 @@ pub(crate) fn reduce_static_scss_value(value: String) -> String {
     )
     .unwrap_or_else(|| trimmed.to_string());
     let value = parse_static_scss_sass_color_constructor_value(value.as_str()).unwrap_or(value);
+    let value = parse_static_scss_sass_color_opacity_value(value.as_str()).unwrap_or(value);
     reduce_static_numeric_value(value)
 }
 
@@ -939,6 +940,19 @@ fn parse_static_scss_sass_color_constructor_value(value: &str) -> Option<String>
         .or_else(|| parse_static_scss_rgba_color_constructor_value(value))
 }
 
+fn parse_static_scss_sass_color_opacity_value(value: &str) -> Option<String> {
+    parse_static_scss_color_alpha_delta_value(value, "transparentize", -1.0)
+        .or_else(|| parse_static_scss_color_alpha_delta_value(value, "fade-out", -1.0))
+        .or_else(|| parse_static_scss_color_alpha_delta_value(value, "opacify", 1.0))
+        .or_else(|| parse_static_scss_color_alpha_delta_value(value, "fade-in", 1.0))
+        .or_else(|| parse_static_scss_color_adjust_alpha_value(value, "color.adjust"))
+        .or_else(|| parse_static_scss_color_adjust_alpha_value(value, "adjust-color"))
+        .or_else(|| parse_static_scss_color_change_alpha_value(value, "color.change"))
+        .or_else(|| parse_static_scss_color_change_alpha_value(value, "change-color"))
+        .or_else(|| parse_static_scss_color_scale_alpha_value(value, "color.scale"))
+        .or_else(|| parse_static_scss_color_scale_alpha_value(value, "scale-color"))
+}
+
 fn parse_static_scss_sass_color_constructor_value_with_name(
     value: &str,
     function_name: &str,
@@ -952,6 +966,160 @@ fn parse_static_scss_sass_color_constructor_value_with_name(
     )?;
     let alpha = parse_static_scss_alpha_channel(alpha)?;
     Some(render_static_scss_sass_color_constructor(color, alpha))
+}
+
+fn parse_static_scss_color_alpha_delta_value(
+    value: &str,
+    function_name: &str,
+    direction: f64,
+) -> Option<String> {
+    let arguments = parse_whole_function_value_arguments(value, function_name)?;
+    let arguments = parse_static_scss_color_alpha_amount_arguments(arguments.as_slice())?;
+    let color = parse_static_scss_srgb_color_argument(
+        reduce_static_scss_value(arguments.color.to_string()).as_str(),
+    )?;
+    let amount = parse_static_scss_unitless_alpha_amount(arguments.amount)?;
+    let alpha = static_scss_clamp_alpha(color.alpha + direction * amount);
+    Some(render_static_scss_sass_color_constructor(color, alpha))
+}
+
+fn parse_static_scss_color_adjust_alpha_value(value: &str, function_name: &str) -> Option<String> {
+    let arguments = parse_whole_function_value_arguments(value, function_name)?;
+    let arguments = parse_static_scss_color_named_alpha_arguments(arguments.as_slice())?;
+    let color = parse_static_scss_srgb_color_argument(
+        reduce_static_scss_value(arguments.color.to_string()).as_str(),
+    )?;
+    let alpha_delta = parse_static_scss_alpha_adjustment(arguments.alpha)?;
+    Some(render_static_scss_sass_color_constructor(
+        color,
+        static_scss_clamp_alpha(color.alpha + alpha_delta),
+    ))
+}
+
+fn parse_static_scss_color_change_alpha_value(value: &str, function_name: &str) -> Option<String> {
+    let arguments = parse_whole_function_value_arguments(value, function_name)?;
+    let arguments = parse_static_scss_color_named_alpha_arguments(arguments.as_slice())?;
+    let color = parse_static_scss_srgb_color_argument(
+        reduce_static_scss_value(arguments.color.to_string()).as_str(),
+    )?;
+    let alpha = parse_static_scss_alpha_channel(arguments.alpha)?;
+    Some(render_static_scss_sass_color_constructor(color, alpha))
+}
+
+fn parse_static_scss_color_scale_alpha_value(value: &str, function_name: &str) -> Option<String> {
+    let arguments = parse_whole_function_value_arguments(value, function_name)?;
+    let arguments = parse_static_scss_color_named_alpha_arguments(arguments.as_slice())?;
+    let color = parse_static_scss_srgb_color_argument(
+        reduce_static_scss_value(arguments.color.to_string()).as_str(),
+    )?;
+    let scale = parse_static_scss_alpha_scale_percent(arguments.alpha)?;
+    let alpha = if scale >= 0.0 {
+        color.alpha + (1.0 - color.alpha) * scale
+    } else {
+        color.alpha + color.alpha * scale
+    };
+    Some(render_static_scss_sass_color_constructor(
+        color,
+        static_scss_clamp_alpha(alpha),
+    ))
+}
+
+struct StaticScssColorAlphaAmountArguments<'a> {
+    color: &'a str,
+    amount: &'a str,
+}
+
+fn parse_static_scss_color_alpha_amount_arguments(
+    arguments: &[String],
+) -> Option<StaticScssColorAlphaAmountArguments<'_>> {
+    let mut positional = Vec::<&str>::new();
+    let mut color = None;
+    let mut amount = None;
+
+    for argument in arguments {
+        match static_scss_named_argument(argument)? {
+            Some(("color", value)) => color = Some(value),
+            Some(("amount", value)) => amount = Some(value),
+            Some(_) => return None,
+            None => positional.push(argument.as_str()),
+        }
+    }
+
+    if color.is_none()
+        && let Some(value) = positional.first()
+    {
+        color = Some(*value);
+    }
+    if amount.is_none()
+        && let Some(value) = positional.get(1)
+    {
+        amount = Some(*value);
+    }
+    (positional.len() <= 2).then_some(StaticScssColorAlphaAmountArguments {
+        color: color?,
+        amount: amount?,
+    })
+}
+
+struct StaticScssColorNamedAlphaArguments<'a> {
+    color: &'a str,
+    alpha: &'a str,
+}
+
+fn parse_static_scss_color_named_alpha_arguments(
+    arguments: &[String],
+) -> Option<StaticScssColorNamedAlphaArguments<'_>> {
+    let mut positional = Vec::<&str>::new();
+    let mut color = None;
+    let mut alpha = None;
+
+    for argument in arguments {
+        match static_scss_named_argument(argument)? {
+            Some(("color", value)) => color = Some(value),
+            Some(("alpha", value)) => alpha = Some(value),
+            Some(_) => return None,
+            None => positional.push(argument.as_str()),
+        }
+    }
+
+    if color.is_none()
+        && let Some(value) = positional.first()
+    {
+        color = Some(*value);
+    }
+    (positional.len() <= 1).then_some(StaticScssColorNamedAlphaArguments {
+        color: color?,
+        alpha: alpha?,
+    })
+}
+
+fn parse_static_scss_alpha_adjustment(value: &str) -> Option<f64> {
+    let value = parse_static_scss_plain_f64(value.trim())?;
+    value
+        .is_finite()
+        .then_some(value)
+        .filter(|value| (-1.0..=1.0).contains(value))
+}
+
+fn parse_static_scss_unitless_alpha_amount(value: &str) -> Option<f64> {
+    let value = parse_static_scss_plain_f64(value.trim())?;
+    value
+        .is_finite()
+        .then_some(value)
+        .filter(|value| (0.0..=1.0).contains(value))
+}
+
+fn parse_static_scss_alpha_scale_percent(value: &str) -> Option<f64> {
+    let percent = value.trim().strip_suffix('%')?;
+    let value = parse_static_scss_plain_f64(percent)? / 100.0;
+    value
+        .is_finite()
+        .then_some(value)
+        .filter(|value| (-1.0..=1.0).contains(value))
+}
+
+fn static_scss_clamp_alpha(value: f64) -> f64 {
+    value.clamp(0.0, 1.0)
 }
 
 fn render_static_scss_sass_color_constructor(

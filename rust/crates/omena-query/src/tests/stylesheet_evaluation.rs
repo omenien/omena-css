@@ -1815,6 +1815,29 @@ fn consumer_build_derives_static_stylesheet_evaluator_context_for_composite_valu
 }
 
 #[test]
+fn consumer_build_derives_static_scss_evaluator_context_for_opacity_colors() {
+    let summary = execute_omena_query_consumer_build_style_source(
+        "Button.module.scss",
+        "$tone: transparentize(red, .25); .button { color: $tone; }",
+        &[
+            "scss-module-evaluate".to_string(),
+            "css-modules-class-hashing".to_string(),
+            "print-css".to_string(),
+        ],
+    );
+
+    assert!(
+        summary
+            .execution
+            .output_css
+            .contains("color: rgba(255, 0, 0, 0.75)"),
+        "{}",
+        summary.execution.output_css
+    );
+    assert!(!summary.execution.output_css.contains("$tone:"));
+}
+
+#[test]
 fn consumer_build_keeps_static_scss_evaluator_planned_for_forward_composite_values() {
     let summary = execute_omena_query_consumer_build_style_source(
         "Button.module.scss",

@@ -10603,6 +10603,31 @@ mod tests {
     }
 
     #[test]
+    fn static_scss_evaluation_reduces_sass_opacity_color_returns() {
+        let report = derive_static_stylesheet_module_evaluation(
+            "@function tone() { @return transparentize(red, .25); } .button { color: tone(); }",
+            StyleDialect::Scss,
+        );
+        assert!(report.is_some());
+        let Some(report) = report else {
+            return;
+        };
+
+        assert_eq!(report.resolved_replacements[0].name, "function:tone");
+        assert_eq!(
+            report.resolved_replacements[0].text,
+            "rgba(255, 0, 0, 0.75)"
+        );
+        assert_eq!(report.resolved_replacements[0].abstract_value_kind, "exact");
+        assert!(
+            report
+                .evaluated_css
+                .contains(".button { color: rgba(255, 0, 0, 0.75); }")
+        );
+        assert!(report.oracle.all_legacy_declaration_values_preserved);
+    }
+
+    #[test]
     fn static_value_resolution_reports_unresolved_references_as_top() {
         let report = summarize_static_stylesheet_value_resolution(
             ".button { color: $missing; }",
@@ -10658,6 +10683,50 @@ mod tests {
         assert_eq!(
             report.values[0].rendered_value.as_deref(),
             Some("color.mix(rgba(red, .5), blue)")
+        );
+    }
+
+    #[test]
+    fn static_value_resolution_keeps_nested_opacity_helpers_raw() {
+        let report = summarize_static_stylesheet_value_resolution(
+            "$tone: color.mix(transparentize(red, .25), blue); .button { color: $tone; }",
+            StyleDialect::Scss,
+        );
+        assert!(report.is_some());
+        let Some(report) = report else {
+            return;
+        };
+
+        assert_eq!(report.reference_count, 1);
+        assert_eq!(report.raw_count, 1);
+        assert_eq!(report.unsupported_dynamic_count, 1);
+        assert_eq!(report.values[0].outcome, "raw");
+        assert_eq!(report.values[0].reason, "unsupportedDynamic");
+        assert_eq!(
+            report.values[0].rendered_value.as_deref(),
+            Some("color.mix(transparentize(red, .25), blue)")
+        );
+    }
+
+    #[test]
+    fn static_value_resolution_keeps_percent_opacity_amounts_raw() {
+        let report = summarize_static_stylesheet_value_resolution(
+            "$tone: transparentize(red, 25%); .button { color: $tone; }",
+            StyleDialect::Scss,
+        );
+        assert!(report.is_some());
+        let Some(report) = report else {
+            return;
+        };
+
+        assert_eq!(report.reference_count, 1);
+        assert_eq!(report.raw_count, 1);
+        assert_eq!(report.unsupported_dynamic_count, 1);
+        assert_eq!(report.values[0].outcome, "raw");
+        assert_eq!(report.values[0].reason, "unsupportedDynamic");
+        assert_eq!(
+            report.values[0].rendered_value.as_deref(),
+            Some("transparentize(red, 25%)")
         );
     }
 
@@ -10759,6 +10828,42 @@ mod tests {
             .collect::<Vec<_>>();
         assert!(rendered_values.contains(&"#ff000080"));
         assert!(rendered_values.contains(&"red"));
+    }
+
+    #[test]
+    fn static_value_resolution_emits_exact_sass_opacity_color_values() {
+        let report = summarize_static_stylesheet_value_resolution(
+            "$transparent: transparentize(red, .25); $faded: fade-in(rgba(red, .5), .25); $opaque: opacify(rgba(red, .5), .25); $adjusted: color.adjust(red, $alpha: -.25); $changed: color.change(red, $alpha: .5); $scaled: color.scale(rgba(red, .5), $alpha: -50%); .button { color: $transparent; background: $faded; border-color: $opaque; outline-color: $adjusted; caret-color: $changed; text-decoration-color: $scaled; }",
+            StyleDialect::Scss,
+        );
+        assert!(report.is_some());
+        let Some(report) = report else {
+            return;
+        };
+
+        assert_eq!(report.reference_count, 6);
+        assert_eq!(report.resolved_count, 6);
+        assert_eq!(report.raw_count, 0);
+        assert!(
+            report
+                .values
+                .iter()
+                .all(|value| value.abstract_value_kind == "exact")
+        );
+        let rendered_values = report
+            .values
+            .iter()
+            .filter_map(|value| value.rendered_value.as_deref())
+            .collect::<Vec<_>>();
+        assert_eq!(
+            rendered_values
+                .iter()
+                .filter(|value| **value == "#ff0000bf")
+                .count(),
+            4
+        );
+        assert!(rendered_values.contains(&"#ff000080"));
+        assert!(rendered_values.contains(&"#ff000040"));
     }
 
     #[test]
