@@ -644,6 +644,63 @@ fn consumer_build_derives_static_less_evaluator_context_for_semicolon_mixin_call
 }
 
 #[test]
+fn consumer_build_derives_static_less_evaluator_context_for_variadic_mixin_arguments() {
+    let summary = execute_omena_query_consumer_build_style_source(
+        "Button.module.less",
+        ".shadow(@color; @rest...) { color: @color; box-shadow: @rest; trace: @arguments; } .button { .shadow(red; 1px, 2px, 3px); }",
+        &[
+            "less-module-evaluate".to_string(),
+            "css-modules-class-hashing".to_string(),
+            "print-css".to_string(),
+        ],
+    );
+
+    assert!(
+        summary
+            .execution
+            .executed_pass_ids
+            .contains(&"less-module-evaluate")
+    );
+    assert!(summary.execution.output_css.contains("color: red"));
+    assert!(
+        summary
+            .execution
+            .output_css
+            .contains("box-shadow: 1px, 2px, 3px")
+    );
+    assert!(
+        summary
+            .execution
+            .output_css
+            .contains("trace: red, 1px, 2px, 3px")
+    );
+    assert!(!summary.execution.output_css.contains(".shadow(@color"));
+    assert!(!summary.execution.output_css.contains(".shadow(red"));
+}
+
+#[test]
+fn consumer_build_does_not_expand_variadic_tokens_in_less_calls() {
+    let summary = execute_omena_query_consumer_build_style_source(
+        "Button.module.less",
+        "@gap: 1px; .space(@value) { margin: @value; } .button { .space(@gap...); }",
+        &[
+            "less-module-evaluate".to_string(),
+            "css-modules-class-hashing".to_string(),
+            "print-css".to_string(),
+        ],
+    );
+
+    assert!(
+        summary
+            .execution
+            .executed_pass_ids
+            .contains(&"less-module-evaluate")
+    );
+    assert!(summary.execution.output_css.contains(".space(1px...)"));
+    assert!(!summary.execution.output_css.contains("margin: 1px"));
+}
+
+#[test]
 fn consumer_build_derives_static_less_evaluator_context_for_named_and_default_mixin_arguments() {
     let summary = execute_omena_query_consumer_build_style_source(
         "Button.module.less",

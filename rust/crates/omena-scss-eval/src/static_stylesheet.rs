@@ -916,6 +916,7 @@ struct StaticScssLoopHeader {
 struct StaticScssFunctionParameter {
     name: String,
     default_value: Option<String>,
+    variadic: bool,
 }
 
 #[derive(Debug, Clone)]
@@ -1520,6 +1521,7 @@ fn parse_static_scss_function_parameter(
         return Some(StaticScssFunctionParameter {
             name,
             default_value: Some(argument.value),
+            variadic: false,
         });
     }
 
@@ -1531,6 +1533,7 @@ fn parse_static_scss_function_parameter(
     Some(StaticScssFunctionParameter {
         name: canonical_static_scss_variable_name(name),
         default_value: None,
+        variadic: false,
     })
 }
 
@@ -2766,15 +2769,19 @@ fn collect_static_less_mixin_parameters(
         .map(static_stylesheet_token_start)
         .unwrap_or(parameter_start);
     let parameter_text = source.get(parameter_start..parameter_end)?.trim();
-    let arguments = split_static_less_mixin_arguments(parameter_text)?;
+    let arguments = split_static_less_mixin_parameter_arguments(parameter_text)?;
     let mut parameters = Vec::new();
     let mut names = BTreeSet::new();
     let mut saw_default = false;
-    for argument in arguments {
+    let argument_count = arguments.len();
+    for (index, argument) in arguments.into_iter().enumerate() {
         let parameter = parse_static_less_mixin_parameter(argument)?;
+        if parameter.variadic && index + 1 != argument_count {
+            return None;
+        }
         if parameter.default_value.is_some() {
             saw_default = true;
-        } else if saw_default {
+        } else if saw_default && !parameter.variadic {
             return None;
         }
         if !names.insert(parameter.name.clone()) {
@@ -2792,17 +2799,35 @@ fn parse_static_less_mixin_parameter(
         return Some(StaticScssFunctionParameter {
             name,
             default_value: Some(argument.value),
+            variadic: false,
         });
     }
-    static_less_variable_name_is_safe(argument.value.as_str()).then_some(
-        StaticScssFunctionParameter {
-            name: argument.value,
-            default_value: None,
-        },
-    )
+    let (name, variadic) = if let Some(name) = argument.value.strip_suffix("...") {
+        (name.trim(), true)
+    } else {
+        (argument.value.as_str(), false)
+    };
+    static_less_variable_name_is_safe(name).then_some(StaticScssFunctionParameter {
+        name: name.to_string(),
+        default_value: None,
+        variadic,
+    })
 }
 
 fn split_static_less_mixin_arguments(arguments: &str) -> Option<Vec<StaticScssFunctionArgument>> {
+    split_static_less_mixin_arguments_with_options(arguments, false)
+}
+
+fn split_static_less_mixin_parameter_arguments(
+    arguments: &str,
+) -> Option<Vec<StaticScssFunctionArgument>> {
+    split_static_less_mixin_arguments_with_options(arguments, true)
+}
+
+fn split_static_less_mixin_arguments_with_options(
+    arguments: &str,
+    allow_rest_parameter: bool,
+) -> Option<Vec<StaticScssFunctionArgument>> {
     let arguments = arguments.trim();
     if arguments.is_empty() {
         return Some(Vec::new());
@@ -2812,12 +2837,13 @@ fn split_static_less_mixin_arguments(arguments: &str) -> Option<Vec<StaticScssFu
     } else {
         ','
     };
-    split_static_less_mixin_arguments_with_separator(arguments, separator)
+    split_static_less_mixin_arguments_with_separator(arguments, separator, allow_rest_parameter)
 }
 
 fn split_static_less_mixin_arguments_with_separator(
     arguments: &str,
     separator: char,
+    allow_rest_parameter: bool,
 ) -> Option<Vec<StaticScssFunctionArgument>> {
     let mut values = Vec::new();
     let mut cursor = 0usize;
@@ -2851,6 +2877,7 @@ fn split_static_less_mixin_arguments_with_separator(
             ch if ch == separator && paren_depth == 0 && bracket_depth == 0 => {
                 values.push(parse_static_less_mixin_argument(
                     arguments.get(cursor..index)?.trim(),
+                    allow_rest_parameter,
                 )?);
                 cursor = index + ch.len_utf8();
             }
@@ -2864,6 +2891,7 @@ fn split_static_less_mixin_arguments_with_separator(
     }
     values.push(parse_static_less_mixin_argument(
         arguments.get(cursor..)?.trim(),
+        allow_rest_parameter,
     )?);
     Some(values)
 }
@@ -2907,7 +2935,10 @@ fn static_less_mixin_arguments_have_top_level_separator(
     (quote.is_none() && paren_depth == 0 && bracket_depth == 0).then_some(false)
 }
 
-fn parse_static_less_mixin_argument(value: &str) -> Option<StaticScssFunctionArgument> {
+fn parse_static_less_mixin_argument(
+    value: &str,
+    allow_rest_parameter: bool,
+) -> Option<StaticScssFunctionArgument> {
     let value = value.trim();
     if value.is_empty() {
         return None;
@@ -2923,6 +2954,15 @@ fn parse_static_less_mixin_argument(value: &str) -> Option<StaticScssFunctionArg
         return Some(StaticScssFunctionArgument {
             name: Some(name.to_string()),
             value: argument_value.to_string(),
+        });
+    }
+    if allow_rest_parameter
+        && let Some(rest_name) = value.strip_suffix("...")
+        && static_less_variable_name_is_safe(rest_name.trim())
+    {
+        return Some(StaticScssFunctionArgument {
+            name: None,
+            value: value.to_string(),
         });
     }
     static_less_mixin_argument_value_is_safe(value).then_some(StaticScssFunctionArgument {
@@ -2961,6 +3001,9 @@ fn render_static_less_mixin_body(
             context.variable_declarations,
         )?;
         argument_values.insert(parameter, rendered_value);
+    }
+    if let Some(arguments_value) = static_less_mixin_arguments_value(call.arguments.as_slice()) {
+        argument_values.insert("@arguments".to_string(), arguments_value);
     }
     if let Some(guard) = &declaration.guard
         && !static_less_mixin_guard_matches(
@@ -3243,6 +3286,17 @@ fn static_less_guard_default_matches(
     parse_whole_function_value_inner(predicate, "default")
         .filter(|inner| inner.trim().is_empty())
         .and(context.default_matches)
+}
+
+fn static_less_mixin_arguments_value(arguments: &[StaticScssFunctionArgument]) -> Option<String> {
+    arguments
+        .iter()
+        .map(|argument| {
+            static_less_mixin_argument_value_is_safe(argument.value.as_str())
+                .then(|| argument.value.clone())
+        })
+        .collect::<Option<Vec<_>>>()
+        .map(|values| values.join(", "))
 }
 
 fn static_less_mixin_guard_predicate_matches(
@@ -4050,6 +4104,16 @@ fn bind_static_scss_callable_arguments(
             return None;
         }
         let parameter = parameters.get(positional_index)?;
+        if parameter.variadic {
+            bindings
+                .entry(parameter.name.clone())
+                .and_modify(|value| {
+                    value.push_str(", ");
+                    value.push_str(argument.value.as_str());
+                })
+                .or_insert_with(|| argument.value.clone());
+            continue;
+        }
         if bindings
             .insert(parameter.name.clone(), argument.value.clone())
             .is_some()
@@ -4062,6 +4126,9 @@ fn bind_static_scss_callable_arguments(
     for parameter in parameters {
         if bindings.contains_key(parameter.name.as_str()) {
             continue;
+        }
+        if parameter.variadic {
+            return None;
         }
         let default_value = parameter.default_value.as_ref()?;
         bindings.insert(parameter.name.clone(), default_value.clone());
@@ -6475,6 +6542,41 @@ mod tests {
         assert!(!report.evaluated_css.contains(".shadow(1px"));
         assert!(report.evaluated_css.contains("box-shadow: 1px, 2px, 3px"));
         assert!(report.evaluated_css.contains("color: blue"));
+        assert!(report.oracle.all_legacy_declaration_values_preserved);
+    }
+
+    #[test]
+    fn static_less_evaluation_expands_variadic_mixin_arguments() {
+        let report = derive_static_stylesheet_module_evaluation(
+            ".shadow(@color; @rest...) { color: @color; box-shadow: @rest; trace: @arguments; } .button { .shadow(red; 1px, 2px, 3px); }",
+            StyleDialect::Less,
+        );
+        assert!(report.is_some());
+        let Some(report) = report else {
+            return;
+        };
+
+        assert!(!report.evaluated_css.contains(".shadow(@color"));
+        assert!(!report.evaluated_css.contains(".shadow(red"));
+        assert!(report.evaluated_css.contains("color: red"));
+        assert!(report.evaluated_css.contains("box-shadow: 1px, 2px, 3px"));
+        assert!(report.evaluated_css.contains("trace: red, 1px, 2px, 3px"));
+        assert!(report.oracle.all_legacy_declaration_values_preserved);
+    }
+
+    #[test]
+    fn static_less_evaluation_does_not_expand_variadic_tokens_in_calls() {
+        let report = derive_static_stylesheet_module_evaluation(
+            "@gap: 1px; .space(@value) { margin: @value; } .button { .space(@gap...); }",
+            StyleDialect::Less,
+        );
+        assert!(report.is_some());
+        let Some(report) = report else {
+            return;
+        };
+
+        assert!(report.evaluated_css.contains(".space(1px...)"));
+        assert!(!report.evaluated_css.contains("margin: 1px"));
         assert!(report.oracle.all_legacy_declaration_values_preserved);
     }
 
