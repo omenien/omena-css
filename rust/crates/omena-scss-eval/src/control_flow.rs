@@ -1614,8 +1614,6 @@ fn call_resolved_return_value_for_call(
         return None;
     }
 
-    let mut resolved = AbstractCssValueV0::Bottom;
-    let mut active_return_count = 0usize;
     for node in return_nodes {
         let mut bindings = argument_bindings.clone();
         apply_call_bound_local_bindings_before(
@@ -1630,28 +1628,22 @@ fn call_resolved_return_value_for_call(
             ScssCallBoundReturnActivity::Inactive => continue,
             ScssCallBoundReturnActivity::Unknown => return Some(AbstractCssValueV0::Top),
         }
-        let value = node
-            .return_text
-            .as_deref()
-            .map(|text| {
-                call_bound_return_value(
-                    text,
-                    &bindings,
-                    declaration_node.name.as_deref(),
-                    Some(&context),
-                    Some(node.source_span_start),
-                )
-            })
-            .unwrap_or(AbstractCssValueV0::Top);
-        resolved = join_abstract_css_values(&resolved, &value);
-        active_return_count += 1;
+        return Some(
+            node.return_text
+                .as_deref()
+                .map(|text| {
+                    call_bound_return_value(
+                        text,
+                        &bindings,
+                        declaration_node.name.as_deref(),
+                        Some(&context),
+                        Some(node.source_span_start),
+                    )
+                })
+                .unwrap_or(AbstractCssValueV0::Top),
+        );
     }
-
-    if active_return_count == 0 {
-        Some(AbstractCssValueV0::Top)
-    } else {
-        Some(resolved)
-    }
+    Some(AbstractCssValueV0::Top)
 }
 
 fn call_bound_argument_bindings(
@@ -4653,7 +4645,7 @@ mod tests {
 
     #[test]
     fn call_return_ir_resolves_branch_local_bindings() {
-        let source = "@function pick($enabled) { @if $enabled { $inside: 1px + 1px; @return $inside; } @else { @return 1px; } } .a { width: pick(true); }";
+        let source = "@function pick($enabled) { @if $enabled { $inside: 1px + 1px; @return $inside; } @return 1px; } .a { width: pick(true); }";
         let report = summarize_scss_call_return_ir(source, StyleDialect::Scss);
         assert!(report.is_some());
         let Some(report) = report else {
@@ -5239,6 +5231,34 @@ mod tests {
             node.kind == "functionReturn"
                 && node.return_condition_text.as_deref() == Some("$enabled")
         }));
+        assert_eq!(
+            function_call.call_resolved_return_value,
+            Some(AbstractCssValueV0::Exact {
+                value: "red".to_string()
+            })
+        );
+    }
+
+    #[test]
+    fn call_return_ir_respects_first_active_return_before_fallback() {
+        let source = "@function tone($enabled) { @if $enabled { @return red; } @return blue; } .a { color: tone(true); }";
+        let report = summarize_scss_call_return_ir(source, StyleDialect::Scss);
+        assert!(report.is_some());
+        let Some(report) = report else {
+            return;
+        };
+        let function_call = report
+            .nodes
+            .iter()
+            .find(|node| node.kind == "functionCall" && node.name.as_deref() == Some("tone"));
+        assert!(function_call.is_some());
+        let Some(function_call) = function_call else {
+            return;
+        };
+
+        assert_eq!(report.call_resolved_return_value_count, 1);
+        assert_eq!(report.exact_call_resolved_return_value_count, 1);
+        assert_eq!(function_call.call_resolved_return_value_kind, Some("exact"));
         assert_eq!(
             function_call.call_resolved_return_value,
             Some(AbstractCssValueV0::Exact {
