@@ -823,6 +823,7 @@ struct StaticScssFunctionReturnClause {
     condition: Option<String>,
     value: String,
     span_start: usize,
+    loop_headers: Vec<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -1250,29 +1251,28 @@ fn collect_static_scss_function_return_clauses(
     start: usize,
     end: usize,
 ) -> Option<Vec<StaticScssFunctionReturnClause>> {
+    let clauses = collect_static_scss_function_return_clauses_in_range(
+        source,
+        tokens,
+        start,
+        end,
+        &Vec::new(),
+    )?;
+    (!clauses.is_empty()).then_some(clauses)
+}
+
+fn collect_static_scss_function_return_clauses_in_range(
+    source: &str,
+    tokens: &[LexedToken],
+    start: usize,
+    end: usize,
+    loop_headers: &[String],
+) -> Option<Vec<StaticScssFunctionReturnClause>> {
     let mut clauses = Vec::new();
     let mut branch_conditions = Vec::<String>::new();
-    let mut nested_block_depth = 0usize;
     let mut index = start;
     while index < end {
         let token = &tokens[index];
-        match token.kind {
-            SyntaxKind::LeftBrace => {
-                nested_block_depth += 1;
-                index += 1;
-                continue;
-            }
-            SyntaxKind::RightBrace => {
-                nested_block_depth = nested_block_depth.checked_sub(1)?;
-                index += 1;
-                continue;
-            }
-            _ => {}
-        }
-        if nested_block_depth != 0 {
-            index += 1;
-            continue;
-        }
         if token.kind != SyntaxKind::AtKeyword {
             index += 1;
             continue;
@@ -1284,6 +1284,7 @@ fn collect_static_scss_function_return_clauses(
                 condition: None,
                 value,
                 span_start: static_stylesheet_token_start(token),
+                loop_headers: loop_headers.to_vec(),
             });
             index = value_end_index + 1;
             branch_conditions.clear();
@@ -1292,17 +1293,21 @@ fn collect_static_scss_function_return_clauses(
         if token.text.eq_ignore_ascii_case("@if") {
             let (condition, body_open_index, body_close_index) =
                 static_scss_control_block_header_and_body(source, tokens, index, end)?;
-            let return_clause = collect_static_scss_single_top_level_return_clause(
+            let return_clauses = collect_static_scss_function_return_clauses_in_range(
                 source,
                 tokens,
                 body_open_index + 1,
                 body_close_index,
+                loop_headers,
             )?;
-            clauses.push(StaticScssFunctionReturnClause {
-                condition: Some(condition.clone()),
-                value: return_clause.value,
-                span_start: return_clause.span_start,
-            });
+            clauses.extend(
+                return_clauses
+                    .into_iter()
+                    .map(|return_clause| {
+                        static_scss_return_clause_with_condition(return_clause, condition.as_str())
+                    })
+                    .collect::<Vec<_>>(),
+            );
             branch_conditions.clear();
             branch_conditions.push(condition);
             index = body_close_index + 1;
@@ -1311,11 +1316,12 @@ fn collect_static_scss_function_return_clauses(
         if token.text.eq_ignore_ascii_case("@else") {
             let (condition, body_open_index, body_close_index) =
                 static_scss_control_block_header_and_body(source, tokens, index, end)?;
-            let return_clause = collect_static_scss_single_top_level_return_clause(
+            let return_clauses = collect_static_scss_function_return_clauses_in_range(
                 source,
                 tokens,
                 body_open_index + 1,
                 body_close_index,
+                loop_headers,
             )?;
             let branch_condition = if let Some(else_if_condition) =
                 static_scss_else_if_condition(condition.as_str())
@@ -1324,11 +1330,17 @@ fn collect_static_scss_function_return_clauses(
             } else {
                 static_scss_branch_chain_else_condition(branch_conditions.as_slice())?
             };
-            clauses.push(StaticScssFunctionReturnClause {
-                condition: Some(branch_condition),
-                value: return_clause.value,
-                span_start: return_clause.span_start,
-            });
+            clauses.extend(
+                return_clauses
+                    .into_iter()
+                    .map(|return_clause| {
+                        static_scss_return_clause_with_condition(
+                            return_clause,
+                            branch_condition.as_str(),
+                        )
+                    })
+                    .collect::<Vec<_>>(),
+            );
             if let Some(else_if_condition) = static_scss_else_if_condition(condition.as_str()) {
                 branch_conditions.push(else_if_condition.to_string());
             } else {
@@ -1337,47 +1349,48 @@ fn collect_static_scss_function_return_clauses(
             index = body_close_index + 1;
             continue;
         }
+        if static_scss_loop_at_keyword(token.text.as_str()).is_some() {
+            let (header, body_open_index, body_close_index) =
+                static_scss_control_block_header_and_body(source, tokens, index, end)?;
+            let mut nested_loop_headers = loop_headers.to_vec();
+            nested_loop_headers.push(format!("{} {}", token.text.trim(), header.trim()));
+            clauses.extend(collect_static_scss_function_return_clauses_in_range(
+                source,
+                tokens,
+                body_open_index + 1,
+                body_close_index,
+                nested_loop_headers.as_slice(),
+            )?);
+            branch_conditions.clear();
+            index = body_close_index + 1;
+            continue;
+        }
         index += 1;
     }
-    (!clauses.is_empty()).then_some(clauses)
+    Some(clauses)
 }
 
-fn collect_static_scss_single_top_level_return_clause(
-    source: &str,
-    tokens: &[LexedToken],
-    start: usize,
-    end: usize,
-) -> Option<StaticScssFunctionReturnClause> {
-    let mut values = Vec::new();
-    let mut nested_block_depth = 0usize;
-    let mut index = start;
-    while index < end {
-        match tokens[index].kind {
-            SyntaxKind::LeftBrace => {
-                nested_block_depth += 1;
-                index += 1;
-            }
-            SyntaxKind::RightBrace => {
-                nested_block_depth = nested_block_depth.checked_sub(1)?;
-                index += 1;
-            }
-            SyntaxKind::AtKeyword
-                if nested_block_depth == 0
-                    && tokens[index].text.eq_ignore_ascii_case("@return") =>
-            {
-                let value_end_index =
-                    static_stylesheet_value_end_token_until(tokens, index + 1, end)?;
-                values.push(StaticScssFunctionReturnClause {
-                    condition: None,
-                    value: static_scss_return_value_text(source, tokens, index, value_end_index)?,
-                    span_start: static_stylesheet_token_start(&tokens[index]),
-                });
-                index = value_end_index + 1;
-            }
-            _ => index += 1,
-        }
+fn static_scss_loop_at_keyword(keyword: &str) -> Option<&'static str> {
+    if keyword.eq_ignore_ascii_case("@for") {
+        Some("@for")
+    } else if keyword.eq_ignore_ascii_case("@each") {
+        Some("@each")
+    } else if keyword.eq_ignore_ascii_case("@while") {
+        Some("@while")
+    } else {
+        None
     }
-    (values.len() == 1).then(|| values.remove(0))
+}
+
+fn static_scss_return_clause_with_condition(
+    mut clause: StaticScssFunctionReturnClause,
+    condition: &str,
+) -> StaticScssFunctionReturnClause {
+    clause.condition = Some(match clause.condition {
+        Some(inner_condition) => format!("({condition}) and ({inner_condition})"),
+        None => condition.to_string(),
+    });
+    clause
 }
 
 fn static_scss_return_value_text(
@@ -1913,6 +1926,21 @@ fn resolve_static_scss_function_return_abstract_value(
     context: StaticScssFunctionResolutionContext<'_>,
 ) -> StaticStylesheetAbstractResolution {
     for clause in &declaration.return_clauses {
+        if !clause.loop_headers.is_empty() {
+            match resolve_static_scss_loop_return_clause(
+                declaration,
+                clause,
+                argument_values,
+                fuel,
+                context,
+            ) {
+                StaticScssLoopReturnResolution::Active(resolution) => return resolution,
+                StaticScssLoopReturnResolution::Inactive => continue,
+                StaticScssLoopReturnResolution::Unknown(reason) => {
+                    return top_static_abstract_value(reason);
+                }
+            }
+        }
         let argument_values = match bind_static_scss_function_local_variables_before(
             declaration,
             argument_values,
@@ -1961,6 +1989,237 @@ fn resolve_static_scss_function_return_abstract_value(
     top_static_abstract_value(StaticStylesheetResolutionReason::UnsupportedDynamic)
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+enum StaticScssLoopReturnResolution {
+    Active(StaticStylesheetAbstractResolution),
+    Inactive,
+    Unknown(StaticStylesheetResolutionReason),
+}
+
+fn resolve_static_scss_loop_return_clause(
+    declaration: &StaticScssFunctionDeclaration,
+    clause: &StaticScssFunctionReturnClause,
+    argument_values: &BTreeMap<String, String>,
+    fuel: usize,
+    context: StaticScssFunctionResolutionContext<'_>,
+) -> StaticScssLoopReturnResolution {
+    let Some(frames) = static_scss_loop_binding_frames_for_headers(
+        clause.loop_headers.as_slice(),
+        argument_values,
+        fuel,
+        context,
+        clause.span_start,
+    ) else {
+        return StaticScssLoopReturnResolution::Unknown(
+            StaticStylesheetResolutionReason::UnsupportedDynamic,
+        );
+    };
+    if frames.is_empty() {
+        return StaticScssLoopReturnResolution::Inactive;
+    }
+
+    for frame in frames {
+        let mut frame_values = argument_values.clone();
+        for (name, value) in frame {
+            frame_values.insert(canonical_static_scss_variable_name(name.as_str()), value);
+        }
+        let frame_values = match bind_static_scss_function_local_variables_before(
+            declaration,
+            &frame_values,
+            clause.span_start,
+            fuel,
+            context,
+        ) {
+            Ok(frame_values) => frame_values,
+            Err(resolution) => return StaticScssLoopReturnResolution::Unknown(resolution.reason),
+        };
+        let active = match static_scss_return_clause_is_active(clause, &frame_values, fuel, context)
+        {
+            Ok(active) => active,
+            Err(resolution) => return StaticScssLoopReturnResolution::Unknown(resolution.reason),
+        };
+        if !active {
+            continue;
+        }
+        return StaticScssLoopReturnResolution::Active(
+            resolve_static_scss_function_value_with_bindings(
+                clause.value.as_str(),
+                &frame_values,
+                clause.span_start,
+                fuel,
+                context,
+            ),
+        );
+    }
+
+    StaticScssLoopReturnResolution::Inactive
+}
+
+fn static_scss_return_clause_is_active(
+    clause: &StaticScssFunctionReturnClause,
+    argument_values: &BTreeMap<String, String>,
+    fuel: usize,
+    context: StaticScssFunctionResolutionContext<'_>,
+) -> Result<bool, StaticStylesheetAbstractResolution> {
+    let Some(condition) = clause.condition.as_ref() else {
+        return Ok(true);
+    };
+    let condition_resolution = resolve_static_scss_function_value_with_bindings(
+        condition.as_str(),
+        argument_values,
+        clause.span_start,
+        fuel,
+        context,
+    );
+    if condition_resolution.outcome == StaticStylesheetResolutionOutcome::Top {
+        return Err(top_static_abstract_value(condition_resolution.reason));
+    }
+    let Some(condition_value) = condition_resolution.rendered_value else {
+        return Err(top_static_abstract_value(condition_resolution.reason));
+    };
+    let Some(truthy) = static_scss_literal_truthiness(condition_value.as_str()) else {
+        return Err(top_static_abstract_value(
+            StaticStylesheetResolutionReason::UnsupportedDynamic,
+        ));
+    };
+    Ok(truthy)
+}
+
+fn static_scss_loop_binding_frames_for_headers(
+    headers: &[String],
+    argument_values: &BTreeMap<String, String>,
+    fuel: usize,
+    context: StaticScssFunctionResolutionContext<'_>,
+    position: usize,
+) -> Option<Vec<Vec<(String, String)>>> {
+    if headers.is_empty() {
+        return None;
+    }
+
+    let mut frames = vec![Vec::<(String, String)>::new()];
+    for header in headers {
+        let mut next_frames = Vec::new();
+        for frame in frames {
+            let mut frame_values = argument_values.clone();
+            for (name, value) in &frame {
+                frame_values.insert(
+                    canonical_static_scss_variable_name(name.as_str()),
+                    value.clone(),
+                );
+            }
+            let header_frames =
+                static_scss_loop_binding_frames(header, &frame_values, fuel, context, position)?;
+            for header_frame in header_frames {
+                let mut combined = frame.clone();
+                combined.extend(header_frame);
+                next_frames.push(combined);
+                if next_frames.len() > 64 {
+                    return None;
+                }
+            }
+        }
+        frames = next_frames;
+    }
+
+    Some(frames)
+}
+
+fn static_scss_loop_binding_frames(
+    header: &str,
+    argument_values: &BTreeMap<String, String>,
+    fuel: usize,
+    context: StaticScssFunctionResolutionContext<'_>,
+    position: usize,
+) -> Option<Vec<Vec<(String, String)>>> {
+    let trimmed = header.trim_start();
+    if trimmed.to_ascii_lowercase().starts_with("@for") {
+        return static_scss_for_loop_binding_frames(
+            trimmed,
+            argument_values,
+            fuel,
+            context,
+            position,
+        );
+    }
+    None
+}
+
+fn static_scss_for_loop_binding_frames(
+    header: &str,
+    argument_values: &BTreeMap<String, String>,
+    fuel: usize,
+    context: StaticScssFunctionResolutionContext<'_>,
+    position: usize,
+) -> Option<Vec<Vec<(String, String)>>> {
+    let parts = header.split_whitespace().collect::<Vec<_>>();
+    let binding = parts.get(1)?.trim();
+    if !binding.starts_with('$') {
+        return None;
+    }
+    let from_index = parts
+        .iter()
+        .position(|part| part.eq_ignore_ascii_case("from"))?;
+    let to_index = parts
+        .iter()
+        .position(|part| part.eq_ignore_ascii_case("to") || part.eq_ignore_ascii_case("through"))?;
+    let includes_end = parts[to_index].eq_ignore_ascii_case("through");
+    let start = parse_static_scss_for_loop_bound(
+        parts.get(from_index + 1)?,
+        argument_values,
+        fuel,
+        context,
+        position,
+    )?;
+    let end = parse_static_scss_for_loop_bound(
+        parts.get(to_index + 1)?,
+        argument_values,
+        fuel,
+        context,
+        position,
+    )?;
+    if start > end {
+        return None;
+    }
+    let value_count = if includes_end {
+        i64::from(end) - i64::from(start) + 1
+    } else {
+        i64::from(end) - i64::from(start)
+    };
+    if !(0..=64).contains(&value_count) {
+        return None;
+    }
+    if value_count == 0 {
+        return Some(Vec::new());
+    }
+    let last = if includes_end {
+        end
+    } else {
+        end.saturating_sub(1)
+    };
+    Some(
+        (start..=last)
+            .map(|value| vec![(binding.to_string(), value.to_string())])
+            .collect(),
+    )
+}
+
+fn parse_static_scss_for_loop_bound(
+    value: &str,
+    argument_values: &BTreeMap<String, String>,
+    fuel: usize,
+    context: StaticScssFunctionResolutionContext<'_>,
+    position: usize,
+) -> Option<i32> {
+    let resolution = resolve_static_scss_function_value_with_bindings(
+        value,
+        argument_values,
+        position,
+        fuel,
+        context,
+    );
+    resolution.rendered_value?.parse::<i32>().ok()
+}
+
 fn static_scss_function_return_clauses_are_safe(
     clauses: &[StaticScssFunctionReturnClause],
 ) -> bool {
@@ -1971,6 +2230,10 @@ fn static_scss_function_return_clauses_are_safe(
                     .condition
                     .as_deref()
                     .is_none_or(static_stylesheet_composite_value_is_safe)
+                && clause
+                    .loop_headers
+                    .iter()
+                    .all(|header| static_stylesheet_composite_value_is_safe(header))
         })
 }
 
@@ -5127,6 +5390,63 @@ mod tests {
         assert_eq!(report.resolved_replacements[0].text, "green");
         assert_eq!(report.resolved_replacements[0].abstract_value_kind, "exact");
         assert!(report.evaluated_css.contains(".button { color: green; }"));
+        assert!(report.oracle.all_legacy_declaration_values_preserved);
+    }
+
+    #[test]
+    fn static_scss_evaluation_resolves_static_for_loop_function_returns() {
+        let report = derive_static_stylesheet_module_evaluation(
+            "@function pick($target) { @for $i from 1 through 3 { @if $i == $target { @return $i + 1; } } @return 0; } .button { z-index: pick(2); }",
+            StyleDialect::Scss,
+        );
+        assert!(report.is_some());
+        let Some(report) = report else {
+            return;
+        };
+
+        assert_eq!(report.replacement_count, 1);
+        assert_eq!(report.resolved_replacements[0].name, "function:pick");
+        assert_eq!(report.resolved_replacements[0].text, "3");
+        assert_eq!(report.resolved_replacements[0].abstract_value_kind, "exact");
+        assert!(report.evaluated_css.contains(".button { z-index: 3; }"));
+        assert!(report.oracle.all_legacy_declaration_values_preserved);
+    }
+
+    #[test]
+    fn static_scss_evaluation_resolves_nested_static_for_loop_function_returns() {
+        let report = derive_static_stylesheet_module_evaluation(
+            "@function collect($target) { @for $i from 1 through 2 { @for $j from 1 through 2 { @if $i == $target { @return $i + $j; } } } @return 0; } .button { z-index: collect(2); }",
+            StyleDialect::Scss,
+        );
+        assert!(report.is_some());
+        let Some(report) = report else {
+            return;
+        };
+
+        assert_eq!(report.replacement_count, 1);
+        assert_eq!(report.resolved_replacements[0].name, "function:collect");
+        assert_eq!(report.resolved_replacements[0].text, "3");
+        assert_eq!(report.resolved_replacements[0].abstract_value_kind, "exact");
+        assert!(report.evaluated_css.contains(".button { z-index: 3; }"));
+        assert!(report.oracle.all_legacy_declaration_values_preserved);
+    }
+
+    #[test]
+    fn static_scss_evaluation_continues_after_inactive_static_for_loop_returns() {
+        let report = derive_static_stylesheet_module_evaluation(
+            "@function pick($target) { @for $i from 1 through 3 { @if $i == $target { @return $i + 1px; } } @return 0px; } .button { margin: pick(4); }",
+            StyleDialect::Scss,
+        );
+        assert!(report.is_some());
+        let Some(report) = report else {
+            return;
+        };
+
+        assert_eq!(report.replacement_count, 1);
+        assert_eq!(report.resolved_replacements[0].name, "function:pick");
+        assert_eq!(report.resolved_replacements[0].text, "0px");
+        assert_eq!(report.resolved_replacements[0].abstract_value_kind, "exact");
+        assert!(report.evaluated_css.contains(".button { margin: 0px; }"));
         assert!(report.oracle.all_legacy_declaration_values_preserved);
     }
 
