@@ -4,8 +4,8 @@ use omena_abstract_value::{AbstractCssValueV0, abstract_css_value_from_text};
 use omena_parser::{LexedToken, ParsedVariableFact, ParsedVariableFactKind, StyleDialect, lex};
 use omena_syntax::SyntaxKind;
 use omena_value_lattice::{
-    parse_numeric_value_with_unit, parse_static_srgb_color_with_alpha,
-    parse_whole_function_value_arguments,
+    parse_color_function_value, parse_color_mix_value, parse_numeric_value_with_unit,
+    parse_static_srgb_color_with_alpha, parse_whole_function_value_arguments,
 };
 use serde::Serialize;
 
@@ -2961,7 +2961,7 @@ fn static_less_mixin_guard_matches(
         call_scope_id,
         scopes,
         variable_declarations,
-        |value| parse_static_srgb_color_with_alpha(value).is_some(),
+        static_less_guard_value_is_color,
     )
     .or_else(|| {
         static_less_mixin_guard_predicate_matches(
@@ -2971,7 +2971,73 @@ fn static_less_mixin_guard_matches(
             call_scope_id,
             scopes,
             variable_declarations,
-            |value| parse_numeric_value_with_unit(value).is_some(),
+            static_less_guard_value_is_number,
+        )
+    })
+    .or_else(|| {
+        static_less_mixin_guard_predicate_matches(
+            predicate,
+            "ispixel",
+            argument_values,
+            call_scope_id,
+            scopes,
+            variable_declarations,
+            |value| static_less_guard_value_has_unit(value, "px"),
+        )
+    })
+    .or_else(|| {
+        static_less_mixin_guard_predicate_matches(
+            predicate,
+            "ispercentage",
+            argument_values,
+            call_scope_id,
+            scopes,
+            variable_declarations,
+            |value| static_less_guard_value_has_unit(value, "%"),
+        )
+    })
+    .or_else(|| {
+        static_less_mixin_guard_predicate_matches(
+            predicate,
+            "isem",
+            argument_values,
+            call_scope_id,
+            scopes,
+            variable_declarations,
+            |value| static_less_guard_value_has_unit(value, "em"),
+        )
+    })
+    .or_else(|| {
+        static_less_mixin_guard_predicate_matches(
+            predicate,
+            "isurl",
+            argument_values,
+            call_scope_id,
+            scopes,
+            variable_declarations,
+            static_less_guard_value_is_url,
+        )
+    })
+    .or_else(|| {
+        static_less_mixin_guard_predicate_matches(
+            predicate,
+            "isstring",
+            argument_values,
+            call_scope_id,
+            scopes,
+            variable_declarations,
+            static_less_guard_value_is_string,
+        )
+    })
+    .or_else(|| {
+        static_less_mixin_guard_predicate_matches(
+            predicate,
+            "iskeyword",
+            argument_values,
+            call_scope_id,
+            scopes,
+            variable_declarations,
+            static_less_guard_value_is_keyword,
         )
     })
 }
@@ -2997,6 +3063,65 @@ fn static_less_mixin_guard_predicate_matches(
         variable_declarations,
     )?;
     Some(matches_value(resolved.trim()))
+}
+
+fn static_less_guard_value_is_color(value: &str) -> bool {
+    parse_static_srgb_color_with_alpha(value).is_some()
+        || parse_color_function_value(value).is_some()
+        || parse_color_mix_value(value).is_some()
+}
+
+fn static_less_guard_value_is_number(value: &str) -> bool {
+    parse_numeric_value_with_unit(value).is_some()
+}
+
+fn static_less_guard_value_has_unit(value: &str, expected_unit: &str) -> bool {
+    parse_numeric_value_with_unit(value)
+        .is_some_and(|value| value.unit.eq_ignore_ascii_case(expected_unit))
+}
+
+fn static_less_guard_value_is_url(value: &str) -> bool {
+    parse_whole_function_value_arguments(value.trim(), "url")
+        .is_some_and(|arguments| arguments.len() == 1)
+}
+
+fn static_less_guard_value_is_string(value: &str) -> bool {
+    static_less_guard_quoted_string_end(value.trim(), 0)
+        .is_some_and(|end| end == value.trim().len())
+}
+
+fn static_less_guard_value_is_keyword(value: &str) -> bool {
+    let value = value.trim();
+    if !static_stylesheet_property_name_is_safe(value)
+        || static_less_guard_value_is_color(value)
+        || static_less_guard_value_is_number(value)
+    {
+        return false;
+    }
+    !matches!(
+        value.to_ascii_lowercase().as_str(),
+        "false" | "null" | "true"
+    )
+}
+
+fn static_less_guard_quoted_string_end(source: &str, start: usize) -> Option<usize> {
+    let quote = source.get(start..)?.chars().next()?;
+    if !matches!(quote, '"' | '\'') {
+        return None;
+    }
+    let mut index = start + quote.len_utf8();
+    while index < source.len() {
+        let ch = source.get(index..)?.chars().next()?;
+        index += ch.len_utf8();
+        if ch == '\\' {
+            if let Some(escaped) = source.get(index..).and_then(|rest| rest.chars().next()) {
+                index += escaped.len_utf8();
+            }
+        } else if ch == quote {
+            return Some(index);
+        }
+    }
+    None
 }
 
 fn render_static_less_mixin_body_nested_calls(
@@ -5840,9 +5965,50 @@ mod tests {
     }
 
     #[test]
+    fn static_less_evaluation_expands_type_guarded_mixin_calls() {
+        let report = derive_static_stylesheet_module_evaluation(
+            r#".space(@gap) when (ispixel(@gap)) { margin: @gap; }
+.ratio(@value) when (ispercentage(@value)) { width: @value; }
+.font(@family) when (isstring(@family)) { font-family: @family; }
+.display(@value) when (iskeyword(@value)) { display: @value; }
+.asset(@value) when (isurl(@value)) { background-image: @value; }
+.button { .space(2px); .ratio(50%); .font("Roboto"); .display(block); .asset(url("./icon.svg")); }"#,
+            StyleDialect::Less,
+        );
+
+        assert!(report.is_some());
+        let Some(report) = report else {
+            return;
+        };
+
+        assert!(report.evaluated_css.contains("margin: 2px"));
+        assert!(report.evaluated_css.contains("width: 50%"));
+        assert!(report.evaluated_css.contains(r#"font-family: "Roboto""#));
+        assert!(report.evaluated_css.contains("display: block"));
+        assert!(
+            report
+                .evaluated_css
+                .contains(r#"background-image: url("./icon.svg")"#)
+        );
+        assert!(!report.evaluated_css.contains(".space(2px"));
+        assert!(!report.evaluated_css.contains(".asset(url"));
+        assert!(report.oracle.all_legacy_declaration_values_preserved);
+    }
+
+    #[test]
     fn static_less_evaluation_keeps_false_guarded_mixins_planned_only() {
         let report = derive_static_stylesheet_module_evaluation(
             ".tone(@value) when (iscolor(@value)) { color: @value; } .button { .tone(1px); }",
+            StyleDialect::Less,
+        );
+
+        assert!(report.is_none());
+    }
+
+    #[test]
+    fn static_less_evaluation_keeps_false_unit_guarded_mixins_planned_only() {
+        let report = derive_static_stylesheet_module_evaluation(
+            ".space(@gap) when (ispixel(@gap)) { margin: @gap; } .button { .space(2em); }",
             StyleDialect::Less,
         );
 
