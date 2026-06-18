@@ -4839,6 +4839,21 @@ mod tests {
     }
 
     #[test]
+    fn static_scss_evaluation_reduces_static_calculation_metadata_values() {
+        let report = derive_static_stylesheet_module_evaluation(
+            "$name: meta.calc-name(clamp(1px, 2px, 3px)); $kind: meta.type-of(calc(100% - 1px)); $gap: if($name == \"clamp\" and $kind == calculation, 1px, 2px); .button { margin: $gap; }",
+            StyleDialect::Scss,
+        );
+        assert!(report.is_some());
+        let Some(report) = report else {
+            return;
+        };
+
+        assert!(report.evaluated_css.contains("margin: 1px"));
+        assert!(report.oracle.all_legacy_declaration_values_preserved);
+    }
+
+    #[test]
     fn static_scss_evaluation_reduces_function_list_constructor_returns() {
         let report = derive_static_stylesheet_module_evaluation(
             "@function tail($list) { @return list.nth(list.append($list, 3px), 3); } .button { margin: tail(1px 2px); }",

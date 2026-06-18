@@ -22,6 +22,7 @@ pub(crate) fn reduce_static_scss_value(value: String) -> String {
             ("if", parse_static_scss_if_value),
             ("type-of", parse_static_scss_type_of_value),
             ("meta.type-of", parse_static_scss_meta_type_of_value),
+            ("meta.calc-name", parse_static_scss_meta_calc_name_value),
             ("nth", parse_static_scss_nth_value),
             ("list.nth", parse_static_scss_list_nth_value),
             ("length", parse_static_scss_length_value),
@@ -193,6 +194,14 @@ fn parse_static_scss_type_of_value_with_name(value: &str, function_name: &str) -
         return None;
     };
     Some(static_scss_value_type(value)?.to_string())
+}
+
+fn parse_static_scss_meta_calc_name_value(value: &str) -> Option<String> {
+    let arguments = parse_whole_function_value_arguments(value, "meta.calc-name")?;
+    let [calculation] = arguments.as_slice() else {
+        return None;
+    };
+    static_scss_quote_string(static_scss_calculation_name(calculation)?)
 }
 
 fn parse_static_scss_nth_value(value: &str) -> Option<String> {
@@ -1258,9 +1267,13 @@ fn static_scss_value_is_color(value: &str) -> bool {
 }
 
 fn static_scss_value_is_calculation(value: &str) -> bool {
+    static_scss_calculation_name(value).is_some()
+}
+
+fn static_scss_calculation_name(value: &str) -> Option<&'static str> {
     ["calc", "clamp", "min", "max"]
         .into_iter()
-        .any(|name| omena_value_lattice::parse_whole_function_value_inner(value, name).is_some())
+        .find(|name| omena_value_lattice::parse_whole_function_value_inner(value, name).is_some())
 }
 
 fn static_scss_non_empty_map_value_is_static(value: &str) -> bool {
