@@ -30,6 +30,14 @@ pub(crate) fn reduce_static_scss_value(value: String) -> String {
                 "list.is-bracketed",
                 parse_static_scss_list_is_bracketed_value,
             ),
+            ("append", parse_static_scss_append_value),
+            ("list.append", parse_static_scss_list_append_value),
+            ("join", parse_static_scss_join_value),
+            ("list.join", parse_static_scss_list_join_value),
+            ("set-nth", parse_static_scss_set_nth_value),
+            ("list.set-nth", parse_static_scss_list_set_nth_value),
+            ("zip", parse_static_scss_zip_value),
+            ("list.zip", parse_static_scss_list_zip_value),
             ("quote", parse_static_scss_quote_value),
             ("string.quote", parse_static_scss_string_quote_value),
             ("unquote", parse_static_scss_unquote_value),
@@ -208,6 +216,146 @@ fn parse_static_scss_list_is_bracketed_value(value: &str) -> Option<String> {
     let list = list.trim();
     let bracketed = list.starts_with('[') && strip_static_scss_outer_container(list).is_some();
     Some(bracketed.to_string())
+}
+
+fn parse_static_scss_append_value(value: &str) -> Option<String> {
+    parse_static_scss_append_value_with_name(value, "append")
+}
+
+fn parse_static_scss_list_append_value(value: &str) -> Option<String> {
+    parse_static_scss_append_value_with_name(value, "list.append")
+}
+
+fn parse_static_scss_join_value(value: &str) -> Option<String> {
+    parse_static_scss_join_value_with_name(value, "join")
+}
+
+fn parse_static_scss_list_join_value(value: &str) -> Option<String> {
+    parse_static_scss_join_value_with_name(value, "list.join")
+}
+
+fn parse_static_scss_set_nth_value(value: &str) -> Option<String> {
+    parse_static_scss_set_nth_value_with_name(value, "set-nth")
+}
+
+fn parse_static_scss_list_set_nth_value(value: &str) -> Option<String> {
+    parse_static_scss_set_nth_value_with_name(value, "list.set-nth")
+}
+
+fn parse_static_scss_zip_value(value: &str) -> Option<String> {
+    parse_static_scss_zip_value_with_name(value, "zip")
+}
+
+fn parse_static_scss_list_zip_value(value: &str) -> Option<String> {
+    parse_static_scss_zip_value_with_name(value, "list.zip")
+}
+
+fn parse_static_scss_append_value_with_name(value: &str, function_name: &str) -> Option<String> {
+    let arguments = parse_whole_function_value_arguments(value, function_name)?;
+    let [list, value, options @ ..] = arguments.as_slice() else {
+        return None;
+    };
+    if options.len() > 1 {
+        return None;
+    }
+    let mut list = parse_static_scss_list_value(list)?;
+    let separator = match options {
+        [] => list.separator,
+        [option] => {
+            let option = static_scss_named_argument_value(option, "separator")?.unwrap_or(option);
+            parse_static_scss_list_separator_option(option, list.separator)?
+        }
+        _ => return None,
+    };
+    list.separator = separator;
+    list.items.push(static_scss_list_append_item_text(value)?);
+    static_scss_render_list_value(&list)
+}
+
+fn parse_static_scss_join_value_with_name(value: &str, function_name: &str) -> Option<String> {
+    let arguments = parse_whole_function_value_arguments(value, function_name)?;
+    let [left, right, options @ ..] = arguments.as_slice() else {
+        return None;
+    };
+    if options.len() > 2 {
+        return None;
+    }
+    let left = parse_static_scss_list_value(left)?;
+    let right = parse_static_scss_list_value(right)?;
+    let mut separator = if left.items.len() > 1 {
+        left.separator
+    } else if right.items.len() > 1 {
+        right.separator
+    } else {
+        StaticScssListSeparator::Space
+    };
+    let mut bracketed = left.bracketed;
+    for (index, option) in options.iter().enumerate() {
+        match static_scss_named_argument(option)? {
+            Some(("separator", value)) => {
+                separator = parse_static_scss_list_separator_option(value, separator)?;
+            }
+            Some(("bracketed", value)) => {
+                bracketed = parse_static_scss_list_bracketed_option(value, left.bracketed)?;
+            }
+            Some(_) => return None,
+            None if index == 0 => {
+                separator = parse_static_scss_list_separator_option(option, separator)?;
+            }
+            None if index == 1 => {
+                bracketed = parse_static_scss_list_bracketed_option(option, left.bracketed)?;
+            }
+            None => return None,
+        }
+    }
+    let items = left
+        .items
+        .into_iter()
+        .chain(right.items)
+        .collect::<Vec<_>>();
+    static_scss_render_list_value(&StaticScssListValue {
+        items,
+        separator,
+        bracketed,
+    })
+}
+
+fn parse_static_scss_set_nth_value_with_name(value: &str, function_name: &str) -> Option<String> {
+    let arguments = parse_whole_function_value_arguments(value, function_name)?;
+    let [list, index, replacement] = arguments.as_slice() else {
+        return None;
+    };
+    let mut list = parse_static_scss_list_value(list)?;
+    let index = parse_static_scss_list_index(index)?;
+    let resolved_index = static_scss_resolved_list_index(index, list.items.len())?;
+    list.items[resolved_index] = static_scss_list_append_item_text(replacement)?;
+    static_scss_render_list_value(&list)
+}
+
+fn parse_static_scss_zip_value_with_name(value: &str, function_name: &str) -> Option<String> {
+    let lists = parse_whole_function_value_arguments(value, function_name)?;
+    if lists.is_empty() {
+        return None;
+    }
+    let lists = lists
+        .iter()
+        .map(|list| parse_static_scss_list_value(list))
+        .collect::<Option<Vec<_>>>()?;
+    let len = lists.iter().map(|list| list.items.len()).min()?;
+    let items = (0..len)
+        .map(|index| {
+            lists
+                .iter()
+                .map(|list| list.items[index].clone())
+                .collect::<Vec<_>>()
+                .join(" ")
+        })
+        .collect::<Vec<_>>();
+    static_scss_render_list_value(&StaticScssListValue {
+        items,
+        separator: StaticScssListSeparator::Comma,
+        bracketed: false,
+    })
 }
 
 fn parse_static_scss_quote_value(value: &str) -> Option<String> {
@@ -526,11 +674,7 @@ fn parse_static_scss_nth_value_with_name(value: &str, function_name: &str) -> Op
     };
     let items = parse_static_scss_list_items(list)?;
     let index = parse_static_scss_list_index(index)?;
-    let resolved_index = if index > 0 {
-        index.checked_sub(1)? as usize
-    } else {
-        items.len().checked_sub(index.unsigned_abs())?
-    };
+    let resolved_index = static_scss_resolved_list_index(index, items.len())?;
     items.get(resolved_index).cloned()
 }
 
@@ -1054,14 +1198,40 @@ fn parse_static_scss_list_index(value: &str) -> Option<isize> {
     (index != 0).then_some(index)
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct StaticScssListValue {
+    items: Vec<String>,
+    separator: StaticScssListSeparator,
+    bracketed: bool,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum StaticScssListSeparator {
+    Space,
+    Comma,
+}
+
 fn parse_static_scss_list_items(value: &str) -> Option<Vec<String>> {
-    let source = strip_static_scss_outer_container(value.trim()).unwrap_or_else(|| value.trim());
+    Some(parse_static_scss_list_value(value)?.items)
+}
+
+fn parse_static_scss_list_value(value: &str) -> Option<StaticScssListValue> {
+    let value = value.trim();
+    let bracketed = value.starts_with('[') && strip_static_scss_outer_container(value).is_some();
+    let source = strip_static_scss_outer_container(value).unwrap_or(value);
     if source.is_empty() {
-        return Some(Vec::new());
+        return Some(StaticScssListValue {
+            items: Vec::new(),
+            separator: StaticScssListSeparator::Space,
+            bracketed,
+        });
     }
-    let items = match split_static_scss_top_level(source, ',') {
-        Some(items) if items.len() > 1 => items,
-        _ => split_static_scss_top_level_whitespace(source)?,
+    let (items, separator) = match split_static_scss_top_level(source, ',') {
+        Some(items) if items.len() > 1 => (items, StaticScssListSeparator::Comma),
+        _ => (
+            split_static_scss_top_level_whitespace(source)?,
+            StaticScssListSeparator::Space,
+        ),
     };
     if items.is_empty()
         || items
@@ -1070,7 +1240,101 @@ fn parse_static_scss_list_items(value: &str) -> Option<Vec<String>> {
     {
         return None;
     }
-    Some(items)
+    Some(StaticScssListValue {
+        items,
+        separator,
+        bracketed,
+    })
+}
+
+fn static_scss_resolved_list_index(index: isize, len: usize) -> Option<usize> {
+    if index > 0 {
+        Some(index.checked_sub(1)? as usize).filter(|index| *index < len)
+    } else {
+        len.checked_sub(index.unsigned_abs())
+    }
+}
+
+fn static_scss_list_append_item_text(value: &str) -> Option<String> {
+    let value = value.trim();
+    if !static_scss_collection_member_is_static(value) {
+        return None;
+    }
+    if strip_static_scss_outer_container(value).is_some() {
+        return Some(value.to_string());
+    }
+    let list = parse_static_scss_list_value(value)?;
+    if list.items.len() > 1 {
+        Some(format!("({value})"))
+    } else {
+        Some(value.to_string())
+    }
+}
+
+fn static_scss_render_list_value(list: &StaticScssListValue) -> Option<String> {
+    if list.bracketed {
+        return Some(format!("[{}]", static_scss_join_list_items(list)));
+    }
+    if list.items.is_empty() {
+        return Some("()".to_string());
+    }
+    match list.separator {
+        StaticScssListSeparator::Space => Some(static_scss_join_list_items(list)),
+        StaticScssListSeparator::Comma => Some(format!("({})", static_scss_join_list_items(list))),
+    }
+}
+
+fn static_scss_join_list_items(list: &StaticScssListValue) -> String {
+    match list.separator {
+        StaticScssListSeparator::Space => list.items.join(" "),
+        StaticScssListSeparator::Comma => list.items.join(", "),
+    }
+}
+
+fn parse_static_scss_list_separator_option(
+    value: &str,
+    auto_separator: StaticScssListSeparator,
+) -> Option<StaticScssListSeparator> {
+    match strip_static_scss_quotes(value.trim())
+        .unwrap_or_else(|| value.trim())
+        .to_ascii_lowercase()
+        .as_str()
+    {
+        "auto" => Some(auto_separator),
+        "space" => Some(StaticScssListSeparator::Space),
+        "comma" => Some(StaticScssListSeparator::Comma),
+        _ => None,
+    }
+}
+
+fn parse_static_scss_list_bracketed_option(value: &str, auto_bracketed: bool) -> Option<bool> {
+    let value = strip_static_scss_quotes(value.trim()).unwrap_or_else(|| value.trim());
+    if value.eq_ignore_ascii_case("auto") {
+        return Some(auto_bracketed);
+    }
+    static_scss_literal_truthiness(value)
+}
+
+fn static_scss_named_argument(value: &str) -> Option<Option<(&str, &str)>> {
+    let Some(index) = static_scss_top_level_separator_index(value, ':')? else {
+        return Some(None);
+    };
+    let name = value.get(..index)?.trim().strip_prefix('$')?;
+    let argument_value = value.get(index + ':'.len_utf8()..)?.trim();
+    if name.is_empty() || argument_value.is_empty() {
+        return None;
+    }
+    Some(Some((name, argument_value)))
+}
+
+fn static_scss_named_argument_value<'a>(value: &'a str, name: &str) -> Option<Option<&'a str>> {
+    match static_scss_named_argument(value)? {
+        Some((argument_name, argument_value)) if argument_name == name => {
+            Some(Some(argument_value))
+        }
+        Some(_) => None,
+        None => Some(None),
+    }
 }
 
 fn static_scss_render_comma_list(items: Vec<String>) -> Option<String> {

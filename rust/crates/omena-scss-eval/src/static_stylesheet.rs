@@ -4764,6 +4764,43 @@ mod tests {
     }
 
     #[test]
+    fn static_scss_evaluation_reduces_static_list_constructor_values() {
+        let report = derive_static_stylesheet_module_evaluation(
+            "$items: list.append(1px 2px, 3px); $item-count: list.length($items); $third-item: list.nth($items, 3); $joined: list.join((red, blue), (green, yellow), comma); $joined-third: list.nth($joined, 3); $set: list.set-nth(4px 5px 6px, -1, 8px); $set-tail: list.nth($set, -1); $zipped: list.zip(1px 2px, solid dashed); $second-pair: list.nth($zipped, 2); .button { z-index: $item-count; margin: $third-item; color: $joined-third; padding: $set-tail; border: $second-pair; }",
+            StyleDialect::Scss,
+        );
+        assert!(report.is_some());
+        let Some(report) = report else {
+            return;
+        };
+
+        assert!(report.evaluated_css.contains("z-index: 3"));
+        assert!(report.evaluated_css.contains("margin: 3px"));
+        assert!(report.evaluated_css.contains("color: green"));
+        assert!(report.evaluated_css.contains("padding: 8px"));
+        assert!(report.evaluated_css.contains("border: 2px dashed"));
+        assert!(report.oracle.all_legacy_declaration_values_preserved);
+    }
+
+    #[test]
+    fn static_scss_evaluation_reduces_function_list_constructor_returns() {
+        let report = derive_static_stylesheet_module_evaluation(
+            "@function tail($list) { @return list.nth(list.append($list, 3px), 3); } .button { margin: tail(1px 2px); }",
+            StyleDialect::Scss,
+        );
+        assert!(report.is_some());
+        let Some(report) = report else {
+            return;
+        };
+
+        assert_eq!(report.resolved_replacements[0].name, "function:tail");
+        assert_eq!(report.resolved_replacements[0].text, "3px");
+        assert_eq!(report.resolved_replacements[0].abstract_value_kind, "exact");
+        assert!(report.evaluated_css.contains(".button { margin: 3px; }"));
+        assert!(report.oracle.all_legacy_declaration_values_preserved);
+    }
+
+    #[test]
     fn static_value_resolution_reports_unresolved_references_as_top() {
         let report = summarize_static_stylesheet_value_resolution(
             ".button { color: $missing; }",
