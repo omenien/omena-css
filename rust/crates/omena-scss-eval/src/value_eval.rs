@@ -45,6 +45,7 @@ pub(crate) fn reduce_static_scss_value(value: String) -> String {
             ("map.merge", parse_static_scss_map_merge_namespaced_value),
             ("map-remove", parse_static_scss_map_remove_value),
             ("map.remove", parse_static_scss_map_remove_namespaced_value),
+            ("map.set", parse_static_scss_map_set_value),
             ("math.div", parse_static_scss_math_div_value),
             ("math.min", parse_static_scss_math_min_value),
             ("math.max", parse_static_scss_math_max_value),
@@ -267,6 +268,10 @@ fn parse_static_scss_map_remove_value(value: &str) -> Option<String> {
 
 fn parse_static_scss_map_remove_namespaced_value(value: &str) -> Option<String> {
     parse_static_scss_map_remove_value_with_name(value, "map.remove")
+}
+
+fn parse_static_scss_map_set_value(value: &str) -> Option<String> {
+    parse_static_scss_map_set_value_with_name(value, "map.set")
 }
 
 fn parse_static_scss_math_div_value(value: &str) -> Option<String> {
@@ -540,6 +545,27 @@ fn parse_static_scss_map_remove_value_with_name(
         if !remove_keys.contains(&candidate_key) {
             entries.push((key, value));
         }
+    }
+    static_scss_render_map_entries(entries)
+}
+
+fn parse_static_scss_map_set_value_with_name(value: &str, function_name: &str) -> Option<String> {
+    let arguments = parse_whole_function_value_arguments(value, function_name)?;
+    let [map, key, value] = arguments.as_slice() else {
+        return None;
+    };
+    let set_key = canonical_static_scss_map_key(key)?;
+    if !static_scss_collection_member_is_static(value) {
+        return None;
+    }
+    let mut entries = parse_static_scss_map_entries(map)?;
+    if let Some((_, existing_value)) = entries.iter_mut().find(|(candidate_key, _)| {
+        canonical_static_scss_map_key(candidate_key.as_str())
+            .is_some_and(|candidate_key| candidate_key == set_key)
+    }) {
+        *existing_value = value.trim().to_string();
+    } else {
+        entries.push((key.trim().to_string(), value.trim().to_string()));
     }
     static_scss_render_map_entries(entries)
 }
