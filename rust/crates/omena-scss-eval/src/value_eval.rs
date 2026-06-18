@@ -43,6 +43,8 @@ pub(crate) fn reduce_static_scss_value(value: String) -> String {
             ("map.values", parse_static_scss_map_values_namespaced_value),
             ("map-merge", parse_static_scss_map_merge_value),
             ("map.merge", parse_static_scss_map_merge_namespaced_value),
+            ("map-remove", parse_static_scss_map_remove_value),
+            ("map.remove", parse_static_scss_map_remove_namespaced_value),
             ("math.div", parse_static_scss_math_div_value),
             ("math.min", parse_static_scss_math_min_value),
             ("math.max", parse_static_scss_math_max_value),
@@ -257,6 +259,14 @@ fn parse_static_scss_map_merge_value(value: &str) -> Option<String> {
 
 fn parse_static_scss_map_merge_namespaced_value(value: &str) -> Option<String> {
     parse_static_scss_map_merge_value_with_name(value, "map.merge")
+}
+
+fn parse_static_scss_map_remove_value(value: &str) -> Option<String> {
+    parse_static_scss_map_remove_value_with_name(value, "map-remove")
+}
+
+fn parse_static_scss_map_remove_namespaced_value(value: &str) -> Option<String> {
+    parse_static_scss_map_remove_value_with_name(value, "map.remove")
 }
 
 fn parse_static_scss_math_div_value(value: &str) -> Option<String> {
@@ -509,6 +519,31 @@ fn parse_static_scss_map_merge_value_with_name(value: &str, function_name: &str)
     static_scss_render_map_entries(merged)
 }
 
+fn parse_static_scss_map_remove_value_with_name(
+    value: &str,
+    function_name: &str,
+) -> Option<String> {
+    let arguments = parse_whole_function_value_arguments(value, function_name)?;
+    let [map, keys @ ..] = arguments.as_slice() else {
+        return None;
+    };
+    if keys.is_empty() {
+        return None;
+    }
+    let remove_keys = keys
+        .iter()
+        .map(|key| canonical_static_scss_map_key(key))
+        .collect::<Option<Vec<_>>>()?;
+    let mut entries = Vec::new();
+    for (key, value) in parse_static_scss_map_entries(map)? {
+        let candidate_key = canonical_static_scss_map_key(key.as_str())?;
+        if !remove_keys.contains(&candidate_key) {
+            entries.push((key, value));
+        }
+    }
+    static_scss_render_map_entries(entries)
+}
+
 fn parse_static_scss_list_index(value: &str) -> Option<isize> {
     let reduced = reduce_static_numeric_value(value.trim().to_string());
     let index = reduced.trim().parse::<isize>().ok()?;
@@ -517,6 +552,9 @@ fn parse_static_scss_list_index(value: &str) -> Option<isize> {
 
 fn parse_static_scss_list_items(value: &str) -> Option<Vec<String>> {
     let source = strip_static_scss_outer_container(value.trim()).unwrap_or_else(|| value.trim());
+    if source.is_empty() {
+        return Some(Vec::new());
+    }
     let items = match split_static_scss_top_level(source, ',') {
         Some(items) if items.len() > 1 => items,
         _ => split_static_scss_top_level_whitespace(source)?,
@@ -532,11 +570,17 @@ fn parse_static_scss_list_items(value: &str) -> Option<Vec<String>> {
 }
 
 fn static_scss_render_comma_list(items: Vec<String>) -> Option<String> {
-    (!items.is_empty()).then(|| format!("({})", items.join(", ")))
+    Some(if items.is_empty() {
+        "()".to_string()
+    } else {
+        format!("({})", items.join(", "))
+    })
 }
 
 fn static_scss_render_map_entries(entries: Vec<(String, String)>) -> Option<String> {
-    (!entries.is_empty()).then(|| {
+    Some(if entries.is_empty() {
+        "()".to_string()
+    } else {
         let entries = entries
             .into_iter()
             .map(|(key, value)| format!("{key}: {value}"))
@@ -561,10 +605,10 @@ fn static_scss_list_separator(value: &str) -> Option<&'static str> {
 
 fn parse_static_scss_map_entries(value: &str) -> Option<Vec<(String, String)>> {
     let source = strip_static_scss_outer_container(value.trim())?;
-    let entries = split_static_scss_top_level(source, ',')?;
-    if entries.is_empty() {
-        return None;
+    if source.is_empty() {
+        return Some(Vec::new());
     }
+    let entries = split_static_scss_top_level(source, ',')?;
     let mut pairs = Vec::with_capacity(entries.len());
     for entry in entries {
         let colon_index = static_scss_top_level_separator_index(entry.as_str(), ':')??;
