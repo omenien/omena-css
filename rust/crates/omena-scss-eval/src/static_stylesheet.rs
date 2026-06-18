@@ -2733,7 +2733,22 @@ fn static_less_mixin_call_semicolon_and_importance(
 }
 
 fn static_less_mixin_signature_at(tokens: &[LexedToken], index: usize) -> Option<(String, usize)> {
-    if tokens.get(index)?.kind != SyntaxKind::Dot {
+    let token = tokens.get(index)?;
+    if token.kind == SyntaxKind::Hash {
+        if !static_less_mixin_hash_name_is_safe(token.text.as_str()) {
+            return None;
+        }
+        let open_index = static_stylesheet_skip_trivia_tokens(tokens, index + 1);
+        if tokens
+            .get(open_index)
+            .is_none_or(|token| token.kind != SyntaxKind::LeftParen)
+        {
+            return None;
+        }
+        return Some((token.text.clone(), open_index));
+    }
+
+    if token.kind != SyntaxKind::Dot {
         return None;
     }
     let name_index = static_stylesheet_skip_trivia_tokens(tokens, index + 1);
@@ -6412,6 +6427,11 @@ fn static_less_mixin_name_part_is_safe(name: &str) -> bool {
     static_stylesheet_property_name_is_safe(name)
 }
 
+fn static_less_mixin_hash_name_is_safe(name: &str) -> bool {
+    name.strip_prefix('#')
+        .is_some_and(static_stylesheet_property_name_is_safe)
+}
+
 fn static_less_variable_name_is_safe(name: &str) -> bool {
     name.strip_prefix('@')
         .is_some_and(static_stylesheet_variable_name_is_safe)
@@ -6781,6 +6801,24 @@ mod tests {
         assert!(report.evaluated_css.contains("color: blue"));
         assert!(report.evaluated_css.contains("margin: 2px"));
         assert!(report.evaluated_css.contains("padding: red"));
+        assert!(report.oracle.all_legacy_declaration_values_preserved);
+    }
+
+    #[test]
+    fn static_less_evaluation_expands_hash_mixin_calls() {
+        let report = derive_static_stylesheet_module_evaluation(
+            "#tone(@color, @gap: 1px) { color: @color; margin: @gap; } .button { #tone(red, 2px); }",
+            StyleDialect::Less,
+        );
+        assert!(report.is_some());
+        let Some(report) = report else {
+            return;
+        };
+
+        assert!(!report.evaluated_css.contains("#tone(@color"));
+        assert!(!report.evaluated_css.contains("#tone(red"));
+        assert!(report.evaluated_css.contains("color: red"));
+        assert!(report.evaluated_css.contains("margin: 2px"));
         assert!(report.oracle.all_legacy_declaration_values_preserved);
     }
 
