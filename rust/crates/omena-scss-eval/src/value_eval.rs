@@ -1,11 +1,12 @@
 use omena_value_lattice::{
     css_values_canonically_equal,
     number::{
-        parse_reducible_abs_value, parse_reducible_calc_value, parse_reducible_clamp_value,
-        parse_reducible_exp_value, parse_reducible_hypot_value, parse_reducible_log_value,
-        parse_reducible_max_value, parse_reducible_min_value, parse_reducible_mod_value,
-        parse_reducible_pow_value, parse_reducible_rem_value, parse_reducible_round_value,
-        parse_reducible_sign_value, parse_reducible_sqrt_value, reduce_static_numeric_expression,
+        format_css_number, parse_reducible_abs_value, parse_reducible_calc_value,
+        parse_reducible_clamp_value, parse_reducible_exp_value, parse_reducible_hypot_value,
+        parse_reducible_log_value, parse_reducible_max_value, parse_reducible_min_value,
+        parse_reducible_mod_value, parse_reducible_pow_value, parse_reducible_rem_value,
+        parse_reducible_round_value, parse_reducible_sign_value, parse_reducible_sqrt_value,
+        reduce_static_numeric_expression,
     },
     parse_numeric_value_with_unit, parse_whole_function_value_arguments,
     substitute_static_css_function_references_in_value_until_stable,
@@ -30,6 +31,10 @@ pub(crate) fn reduce_static_scss_value(value: String) -> String {
                 "map.has-key",
                 parse_static_scss_map_has_key_namespaced_value,
             ),
+            ("math.div", parse_static_scss_math_div_value),
+            ("percentage", parse_static_scss_percentage_value),
+            ("unitless", parse_static_scss_unitless_value),
+            ("math.is-unitless", parse_static_scss_math_is_unitless_value),
         ],
     )
     .unwrap_or_else(|| trimmed.to_string());
@@ -179,6 +184,43 @@ fn parse_static_scss_map_has_key_value(value: &str) -> Option<String> {
 
 fn parse_static_scss_map_has_key_namespaced_value(value: &str) -> Option<String> {
     parse_static_scss_map_has_key_value_with_name(value, "map.has-key")
+}
+
+fn parse_static_scss_math_div_value(value: &str) -> Option<String> {
+    let arguments = parse_whole_function_value_arguments(value, "math.div")?;
+    let [left, right] = arguments.as_slice() else {
+        return None;
+    };
+    reduce_static_numeric_expression(format!("{} / {}", left.trim(), right.trim()).as_str())
+}
+
+fn parse_static_scss_percentage_value(value: &str) -> Option<String> {
+    let arguments = parse_whole_function_value_arguments(value, "percentage")?;
+    let [number] = arguments.as_slice() else {
+        return None;
+    };
+    let number = parse_numeric_value_with_unit(number.trim())?;
+    if !number.unit.is_empty() {
+        return None;
+    }
+    Some(format!("{}%", format_css_number(number.value * 100.0)))
+}
+
+fn parse_static_scss_unitless_value(value: &str) -> Option<String> {
+    parse_static_scss_unitless_value_with_name(value, "unitless")
+}
+
+fn parse_static_scss_math_is_unitless_value(value: &str) -> Option<String> {
+    parse_static_scss_unitless_value_with_name(value, "math.is-unitless")
+}
+
+fn parse_static_scss_unitless_value_with_name(value: &str, function_name: &str) -> Option<String> {
+    let arguments = parse_whole_function_value_arguments(value, function_name)?;
+    let [number] = arguments.as_slice() else {
+        return None;
+    };
+    let number = parse_numeric_value_with_unit(number.trim())?;
+    Some(number.unit.is_empty().to_string())
 }
 
 fn parse_static_scss_map_get_value_with_name(value: &str, function_name: &str) -> Option<String> {
