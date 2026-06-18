@@ -185,17 +185,20 @@ fn derive_static_scss_stylesheet_module_evaluation(
     let lexed = lex(style_source, dialect);
     let tokens = lexed.tokens();
     let function_declarations = collect_static_scss_function_declarations(style_source, tokens)?;
-    let mixin_declarations = collect_static_scss_mixin_declarations(tokens)?;
+    let mixin_declarations = collect_static_scss_mixin_declarations(style_source, tokens)?;
     if !variable_facts
         .iter()
         .any(|fact| fact.kind == ParsedVariableFactKind::ScssDeclaration)
         && function_declarations.is_empty()
+        && mixin_declarations.is_empty()
     {
         return None;
     }
     let scopes = collect_static_stylesheet_scopes(style_source)?;
     let function_declaration_ranges =
         static_scss_function_declaration_ranges_from_declarations(function_declarations.as_slice());
+    let mixin_declaration_ranges =
+        static_scss_mixin_declaration_ranges_from_declarations(mixin_declarations.as_slice());
     let function_call_ranges =
         collect_static_scss_function_calls(style_source, tokens, function_declarations.as_slice())
             .map(|calls| {
@@ -212,6 +215,9 @@ fn derive_static_scss_stylesheet_module_evaluation(
                 !static_stylesheet_position_is_inside_ranges(
                     declaration.declaration.span_start,
                     &function_declaration_ranges,
+                ) && !static_stylesheet_position_is_inside_ranges(
+                    declaration.declaration.span_start,
+                    &mixin_declaration_ranges,
                 ) && !static_stylesheet_position_is_inside_ranges(
                     declaration.declaration.span_start,
                     &function_call_ranges,
@@ -239,6 +245,10 @@ fn derive_static_scss_stylesheet_module_evaluation(
             || static_stylesheet_position_is_inside_ranges(
                 reference_start,
                 &function_declaration_ranges,
+            )
+            || static_stylesheet_position_is_inside_ranges(
+                reference_start,
+                &mixin_declaration_ranges,
             )
             || static_stylesheet_position_is_inside_ranges(reference_start, &function_call_ranges)
         {
@@ -277,6 +287,16 @@ fn derive_static_scss_stylesheet_module_evaluation(
     {
         edits.extend(function_edits);
         resolved_replacements.extend(function_replacements);
+    }
+    if let Some(mixin_edits) = collect_static_scss_mixin_evaluation_edits(
+        style_source,
+        tokens,
+        &function_declarations,
+        &mixin_declarations,
+        &scopes,
+        &declarations,
+    ) {
+        edits.extend(mixin_edits);
     }
 
     let evaluated_css = apply_static_stylesheet_evaluation_edits(style_source, edits)?;
@@ -491,9 +511,11 @@ fn summarize_static_scss_value_resolution_values(
     let lexed = lex(style_source, StyleDialect::Scss);
     let tokens = lexed.tokens();
     let function_declarations = collect_static_scss_function_declarations(style_source, tokens)?;
-    let mixin_declarations = collect_static_scss_mixin_declarations(tokens)?;
+    let mixin_declarations = collect_static_scss_mixin_declarations(style_source, tokens)?;
     let function_declaration_ranges =
         static_scss_function_declaration_ranges_from_declarations(function_declarations.as_slice());
+    let mixin_declaration_ranges =
+        static_scss_mixin_declaration_ranges_from_declarations(mixin_declarations.as_slice());
     let mut values = Vec::new();
     for fact in variable_facts {
         if fact.kind != ParsedVariableFactKind::ScssReference {
@@ -504,6 +526,10 @@ fn summarize_static_scss_value_resolution_values(
             || static_stylesheet_position_is_inside_ranges(
                 reference_start,
                 &function_declaration_ranges,
+            )
+            || static_stylesheet_position_is_inside_ranges(
+                reference_start,
+                &mixin_declaration_ranges,
             )
         {
             continue;
@@ -807,7 +833,11 @@ struct StaticScssFunctionDeclaration {
 #[derive(Debug, Clone)]
 struct StaticScssMixinDeclaration {
     name: String,
+    parameters: Vec<StaticScssFunctionParameter>,
     span_start: usize,
+    span_end: usize,
+    body_start: usize,
+    body_end: usize,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -843,6 +873,14 @@ struct StaticScssFunctionParameter {
 
 #[derive(Debug, Clone)]
 struct StaticScssFunctionCall {
+    name: String,
+    start: usize,
+    end: usize,
+    arguments: Vec<StaticScssFunctionArgument>,
+}
+
+#[derive(Debug, Clone)]
+struct StaticScssMixinIncludeCall {
     name: String,
     start: usize,
     end: usize,
@@ -976,6 +1014,66 @@ fn collect_static_scss_function_value_resolution_values(
     Some(values)
 }
 
+fn collect_static_scss_mixin_evaluation_edits(
+    source: &str,
+    tokens: &[LexedToken],
+    function_declarations: &[StaticScssFunctionDeclaration],
+    mixin_declarations: &[StaticScssMixinDeclaration],
+    scopes: &[StaticStylesheetScope],
+    variable_declarations: &[StaticStylesheetScopedVariableDeclaration],
+) -> Option<Vec<StaticStylesheetEvaluationEdit>> {
+    let calls = collect_static_scss_mixin_include_calls(source, tokens, mixin_declarations)?;
+    if calls.is_empty() {
+        return Some(Vec::new());
+    }
+
+    let context = StaticScssFunctionResolutionContext {
+        declarations: function_declarations,
+        mixin_declarations,
+        scopes,
+        variable_declarations,
+        active_functions: &BTreeSet::new(),
+    };
+    let mut edits = Vec::new();
+    let mut used_declaration_names = BTreeSet::new();
+    for call in calls.iter().filter(|call| {
+        !static_scss_mixin_include_is_inside_declaration_body(call, mixin_declarations)
+            && !static_scss_mixin_include_is_inside_function_declaration_body(
+                call,
+                function_declarations,
+            )
+    }) {
+        let Some(declaration) = mixin_declarations.iter().find(|declaration| {
+            canonical_static_scss_function_name(declaration.name.as_str())
+                == canonical_static_scss_function_name(call.name.as_str())
+        }) else {
+            continue;
+        };
+        let rendered_body =
+            render_static_scss_mixin_include_body(source, declaration, call, context)?;
+        used_declaration_names.insert(canonical_static_scss_function_name(call.name.as_str()));
+        edits.push(StaticStylesheetEvaluationEdit {
+            start: call.start,
+            end: call.end,
+            replacement: rendered_body,
+        });
+    }
+
+    for declaration in mixin_declarations.iter().filter(|declaration| {
+        used_declaration_names.contains(&canonical_static_scss_function_name(
+            declaration.name.as_str(),
+        ))
+    }) {
+        edits.push(StaticStylesheetEvaluationEdit {
+            start: declaration.span_start,
+            end: declaration.span_end,
+            replacement: String::new(),
+        });
+    }
+
+    Some(edits)
+}
+
 fn collect_static_scss_function_declarations(
     source: &str,
     tokens: &[LexedToken],
@@ -1068,6 +1166,7 @@ fn collect_static_scss_function_declarations(
 }
 
 fn collect_static_scss_mixin_declarations(
+    source: &str,
     tokens: &[LexedToken],
 ) -> Option<Vec<StaticScssMixinDeclaration>> {
     let mut declarations = Vec::new();
@@ -1088,9 +1187,32 @@ fn collect_static_scss_mixin_declarations(
             index += 1;
             continue;
         }
-        let Some(body_open_index) =
-            static_stylesheet_next_token_kind_index(tokens, name_index + 1, SyntaxKind::LeftBrace)
-        else {
+        let after_name_index = static_stylesheet_skip_trivia_tokens(tokens, name_index + 1);
+        let (parameters, body_search_index) = if tokens
+            .get(after_name_index)
+            .is_some_and(|token| token.kind == SyntaxKind::LeftParen)
+        {
+            let parameter_close_index = static_stylesheet_matching_token_index(
+                tokens,
+                after_name_index,
+                SyntaxKind::LeftParen,
+                SyntaxKind::RightParen,
+            )?;
+            let parameters = collect_static_scss_function_parameters(
+                source,
+                tokens,
+                after_name_index + 1,
+                parameter_close_index,
+            )?;
+            (parameters, parameter_close_index + 1)
+        } else {
+            (Vec::new(), name_index + 1)
+        };
+        let Some(body_open_index) = static_stylesheet_next_token_kind_index(
+            tokens,
+            body_search_index,
+            SyntaxKind::LeftBrace,
+        ) else {
             index += 1;
             continue;
         };
@@ -1105,7 +1227,11 @@ fn collect_static_scss_mixin_declarations(
         };
         declarations.push(StaticScssMixinDeclaration {
             name: name_token.text.clone(),
+            parameters,
             span_start: static_stylesheet_token_start(&tokens[index]),
+            span_end: static_stylesheet_token_end(&tokens[body_close_index]),
+            body_start: static_stylesheet_token_end(&tokens[body_open_index]),
+            body_end: static_stylesheet_token_start(&tokens[body_close_index]),
         });
         index = body_close_index + 1;
     }
@@ -1520,6 +1646,76 @@ fn collect_static_scss_function_calls(
     Some(calls)
 }
 
+fn collect_static_scss_mixin_include_calls(
+    source: &str,
+    tokens: &[LexedToken],
+    declarations: &[StaticScssMixinDeclaration],
+) -> Option<Vec<StaticScssMixinIncludeCall>> {
+    let declaration_names = declarations
+        .iter()
+        .map(|declaration| canonical_static_scss_function_name(declaration.name.as_str()))
+        .collect::<BTreeSet<_>>();
+    let mut calls = Vec::new();
+    let mut index = 0usize;
+    while index < tokens.len() {
+        let token = &tokens[index];
+        if token.kind != SyntaxKind::AtKeyword || !token.text.eq_ignore_ascii_case("@include") {
+            index += 1;
+            continue;
+        }
+        let name_index = static_stylesheet_skip_trivia_tokens(tokens, index + 1);
+        let name_token = tokens.get(name_index)?;
+        if name_token.kind != SyntaxKind::Ident
+            || !declaration_names.contains(&canonical_static_scss_function_name(
+                name_token.text.as_str(),
+            ))
+        {
+            index += 1;
+            continue;
+        }
+
+        let after_name_index = static_stylesheet_skip_trivia_tokens(tokens, name_index + 1);
+        let (arguments, after_arguments_index) = if tokens
+            .get(after_name_index)
+            .is_some_and(|candidate| candidate.kind == SyntaxKind::LeftParen)
+        {
+            let close_index = static_stylesheet_matching_token_index(
+                tokens,
+                after_name_index,
+                SyntaxKind::LeftParen,
+                SyntaxKind::RightParen,
+            )?;
+            let argument_text = source.get(
+                static_stylesheet_token_end(&tokens[after_name_index])
+                    ..static_stylesheet_token_start(&tokens[close_index]),
+            )?;
+            (
+                split_static_scss_function_arguments(argument_text)?,
+                static_stylesheet_skip_trivia_tokens(tokens, close_index + 1),
+            )
+        } else {
+            (
+                Vec::new(),
+                static_stylesheet_skip_trivia_tokens(tokens, name_index + 1),
+            )
+        };
+        let end_token = tokens.get(after_arguments_index)?;
+        if end_token.kind != SyntaxKind::Semicolon {
+            index += 1;
+            continue;
+        }
+        calls.push(StaticScssMixinIncludeCall {
+            name: name_token.text.clone(),
+            start: static_stylesheet_token_start(token),
+            end: static_stylesheet_token_end(end_token),
+            arguments,
+        });
+        index = after_arguments_index + 1;
+    }
+    calls.sort_by_key(|call| (call.start, call.end));
+    Some(calls)
+}
+
 fn static_scss_function_position_is_inside_declaration_header(
     declarations: &[StaticScssFunctionDeclaration],
     position: usize,
@@ -1531,6 +1727,24 @@ fn static_scss_function_position_is_inside_declaration_header(
 
 fn static_scss_function_call_is_inside_declaration_body(
     call: &StaticScssFunctionCall,
+    declarations: &[StaticScssFunctionDeclaration],
+) -> bool {
+    declarations.iter().any(|declaration| {
+        call.start >= declaration.body_start && call.start < declaration.body_end
+    })
+}
+
+fn static_scss_mixin_include_is_inside_declaration_body(
+    call: &StaticScssMixinIncludeCall,
+    declarations: &[StaticScssMixinDeclaration],
+) -> bool {
+    declarations.iter().any(|declaration| {
+        call.start >= declaration.body_start && call.start < declaration.body_end
+    })
+}
+
+fn static_scss_mixin_include_is_inside_function_declaration_body(
+    call: &StaticScssMixinIncludeCall,
     declarations: &[StaticScssFunctionDeclaration],
 ) -> bool {
     declarations.iter().any(|declaration| {
@@ -1906,15 +2120,80 @@ fn bind_static_scss_function_arguments(
     declaration: &StaticScssFunctionDeclaration,
     call: &StaticScssFunctionCall,
 ) -> Option<Vec<(String, String)>> {
+    bind_static_scss_callable_arguments(&declaration.parameters, &call.arguments)
+}
+
+fn bind_static_scss_mixin_arguments(
+    declaration: &StaticScssMixinDeclaration,
+    call: &StaticScssMixinIncludeCall,
+) -> Option<Vec<(String, String)>> {
+    bind_static_scss_callable_arguments(&declaration.parameters, &call.arguments)
+}
+
+fn render_static_scss_mixin_include_body(
+    source: &str,
+    declaration: &StaticScssMixinDeclaration,
+    call: &StaticScssMixinIncludeCall,
+    context: StaticScssFunctionResolutionContext<'_>,
+) -> Option<String> {
+    let body = source.get(declaration.body_start..declaration.body_end)?;
+    if !static_scss_mixin_body_is_static_declaration_subset(body) {
+        return None;
+    }
+    let mut argument_values = BTreeMap::new();
+    for (parameter, argument) in bind_static_scss_mixin_arguments(declaration, call)? {
+        let resolution = resolve_static_scss_function_argument_abstract_value(
+            argument.as_str(),
+            &argument_values,
+            call.start,
+            STATIC_STYLESHEET_VALUE_RESOLUTION_FUEL_LIMIT,
+            context,
+        );
+        if resolution.outcome != StaticStylesheetResolutionOutcome::Resolved {
+            return None;
+        }
+        let rendered_value = resolution.rendered_value?;
+        argument_values.insert(parameter, rendered_value);
+    }
+
+    let references =
+        collect_static_stylesheet_variable_references(body, StaticStylesheetVariableKind::Scss)?;
+    let mut replacements = Vec::<StaticStylesheetEvaluationEdit>::new();
+    for reference in references {
+        let canonical_name = canonical_static_scss_variable_name(reference.name.as_str());
+        let replacement = if let Some(value) = argument_values.get(canonical_name.as_str()) {
+            value.clone()
+        } else {
+            let mut stack = BTreeSet::new();
+            resolve_static_scss_variable_value_at_position(
+                reference.name.as_str(),
+                call.start,
+                context.scopes,
+                context.variable_declarations,
+                &mut stack,
+            )?
+        };
+        replacements.push(StaticStylesheetEvaluationEdit {
+            start: reference.start,
+            end: reference.end,
+            replacement,
+        });
+    }
+    apply_static_stylesheet_evaluation_edits(body, replacements)
+}
+
+fn bind_static_scss_callable_arguments(
+    parameters: &[StaticScssFunctionParameter],
+    arguments: &[StaticScssFunctionArgument],
+) -> Option<Vec<(String, String)>> {
     let mut bindings = BTreeMap::<String, String>::new();
     let mut positional_index = 0usize;
     let mut saw_named_argument = false;
 
-    for argument in &call.arguments {
+    for argument in arguments {
         if let Some(argument_name) = argument.name.as_ref() {
             saw_named_argument = true;
-            if !declaration
-                .parameters
+            if !parameters
                 .iter()
                 .any(|parameter| parameter.name == *argument_name)
                 || bindings
@@ -1929,7 +2208,7 @@ fn bind_static_scss_function_arguments(
         if saw_named_argument {
             return None;
         }
-        let parameter = declaration.parameters.get(positional_index)?;
+        let parameter = parameters.get(positional_index)?;
         if bindings
             .insert(parameter.name.clone(), argument.value.clone())
             .is_some()
@@ -1939,7 +2218,7 @@ fn bind_static_scss_function_arguments(
         positional_index += 1;
     }
 
-    for parameter in &declaration.parameters {
+    for parameter in parameters {
         if bindings.contains_key(parameter.name.as_str()) {
             continue;
         }
@@ -1947,8 +2226,7 @@ fn bind_static_scss_function_arguments(
         bindings.insert(parameter.name.clone(), default_value.clone());
     }
 
-    declaration
-        .parameters
+    parameters
         .iter()
         .map(|parameter| {
             bindings
@@ -2780,6 +3058,7 @@ fn collect_static_scss_variable_declarations(
     let mut declarations = Vec::new();
     let module_rule_ranges = collect_static_scss_module_rule_ranges(source);
     let function_declaration_ranges = collect_static_scss_function_declaration_ranges(source);
+    let mixin_declaration_ranges = collect_static_scss_mixin_declaration_ranges(source);
     for fact in variable_facts {
         if fact.kind != ParsedVariableFactKind::ScssDeclaration {
             continue;
@@ -2791,6 +3070,7 @@ fn collect_static_scss_variable_declarations(
         }
         if static_stylesheet_position_is_inside_ranges(start, &module_rule_ranges)
             || static_stylesheet_position_is_inside_ranges(start, &function_declaration_ranges)
+            || static_stylesheet_position_is_inside_ranges(start, &mixin_declaration_ranges)
         {
             continue;
         }
@@ -2816,13 +3096,24 @@ fn collect_static_scss_variable_declarations(
 }
 
 fn collect_static_scss_function_declaration_ranges(source: &str) -> Vec<(usize, usize)> {
+    collect_static_scss_block_at_rule_ranges(source, "@function")
+}
+
+fn collect_static_scss_mixin_declaration_ranges(source: &str) -> Vec<(usize, usize)> {
+    collect_static_scss_block_at_rule_ranges(source, "@mixin")
+}
+
+fn collect_static_scss_block_at_rule_ranges(
+    source: &str,
+    at_rule_name: &str,
+) -> Vec<(usize, usize)> {
     let lexed = lex(source, StyleDialect::Scss);
     let tokens = lexed.tokens();
     let mut ranges = Vec::new();
     let mut index = 0usize;
     while index < tokens.len() {
         if tokens[index].kind != SyntaxKind::AtKeyword
-            || !tokens[index].text.eq_ignore_ascii_case("@function")
+            || !tokens[index].text.eq_ignore_ascii_case(at_rule_name)
         {
             index += 1;
             continue;
@@ -2853,6 +3144,15 @@ fn collect_static_scss_function_declaration_ranges(source: &str) -> Vec<(usize, 
 
 fn static_scss_function_declaration_ranges_from_declarations(
     declarations: &[StaticScssFunctionDeclaration],
+) -> Vec<(usize, usize)> {
+    declarations
+        .iter()
+        .map(|declaration| (declaration.span_start, declaration.span_end))
+        .collect()
+}
+
+fn static_scss_mixin_declaration_ranges_from_declarations(
+    declarations: &[StaticScssMixinDeclaration],
 ) -> Vec<(usize, usize)> {
     declarations
         .iter()
@@ -3954,6 +4254,25 @@ fn static_scss_function_argument_is_safe(value: &str) -> bool {
         && !value.contains("...")
         && !value.chars().any(|ch| matches!(ch, '{' | '}' | ';' | ':'))
         && static_scss_bang_usage_is_comparison_only(value)
+}
+
+fn static_scss_mixin_body_is_static_declaration_subset(body: &str) -> bool {
+    let lower = body.to_ascii_lowercase();
+    !body.chars().any(|ch| matches!(ch, '{' | '}'))
+        && !lower.contains("@content")
+        && !lower.contains("@include")
+        && !lower.contains("@mixin")
+        && !lower.contains("@function")
+        && !lower.contains("@return")
+        && !lower.contains("@if")
+        && !lower.contains("@for")
+        && !lower.contains("@each")
+        && !lower.contains("@while")
+        && !static_scss_function_value_contains_any_callable(body)
+        && !omena_parser::collect_style_facts(body, StyleDialect::Scss)
+            .variables
+            .iter()
+            .any(|fact| fact.kind == ParsedVariableFactKind::ScssDeclaration)
 }
 
 fn static_scss_public_module_variable_name(name: &str) -> Option<String> {
@@ -5918,6 +6237,42 @@ mod tests {
         };
 
         assert!(report.evaluated_css.contains("margin: 1px"));
+        assert!(report.oracle.all_legacy_declaration_values_preserved);
+    }
+
+    #[test]
+    fn static_scss_evaluation_expands_static_mixin_includes() {
+        let report = derive_static_stylesheet_module_evaluation(
+            "$brand: red; @mixin tone($color, $gap: 1px) { color: $color; margin: $gap; padding: $brand; } .button { @include tone(blue, 2px); }",
+            StyleDialect::Scss,
+        );
+        assert!(report.is_some());
+        let Some(report) = report else {
+            return;
+        };
+
+        assert!(!report.evaluated_css.contains("@mixin"));
+        assert!(!report.evaluated_css.contains("@include"));
+        assert!(report.evaluated_css.contains("color: blue"));
+        assert!(report.evaluated_css.contains("margin: 2px"));
+        assert!(report.evaluated_css.contains("padding: red"));
+        assert!(report.oracle.all_legacy_declaration_values_preserved);
+    }
+
+    #[test]
+    fn static_scss_evaluation_expands_hyphen_underscore_mixin_includes() {
+        let report = derive_static_stylesheet_module_evaluation(
+            "@mixin tone_color($color) { color: $color; } .button { @include tone-color(green); }",
+            StyleDialect::Scss,
+        );
+        assert!(report.is_some());
+        let Some(report) = report else {
+            return;
+        };
+
+        assert!(!report.evaluated_css.contains("@mixin"));
+        assert!(!report.evaluated_css.contains("@include"));
+        assert!(report.evaluated_css.contains("color: green"));
         assert!(report.oracle.all_legacy_declaration_values_preserved);
     }
 
