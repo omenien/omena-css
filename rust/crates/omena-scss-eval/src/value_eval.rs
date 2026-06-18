@@ -1,5 +1,5 @@
 use omena_value_lattice::{
-    StaticSrgbColorWithAlpha, css_values_canonically_equal,
+    SrgbColor, StaticSrgbColorWithAlpha, css_values_canonically_equal,
     number::{
         format_css_number, parse_reducible_abs_value, parse_reducible_calc_value,
         parse_reducible_ceil_value, parse_reducible_clamp_value, parse_reducible_exp_value,
@@ -13,8 +13,8 @@ use omena_value_lattice::{
     parse_oklab_oklch_value, parse_static_hsl_function_color_with_alpha,
     parse_static_hwb_function_color_with_alpha, parse_static_rgb_function_color_with_alpha,
     parse_static_srgb_color_with_alpha, parse_whole_function_value_arguments,
-    parse_whole_function_value_inner, split_top_level_value_arguments_owned,
-    split_top_level_whitespace_value_components_owned,
+    parse_whole_function_value_inner, shortest_static_srgb_color_with_alpha_text,
+    split_top_level_value_arguments_owned, split_top_level_whitespace_value_components_owned,
     substitute_static_css_function_references_in_value_until_stable,
 };
 
@@ -135,6 +135,7 @@ pub(crate) fn reduce_static_scss_value(value: String) -> String {
         ],
     )
     .unwrap_or_else(|| trimmed.to_string());
+    let value = parse_static_scss_sass_color_constructor_value(value.as_str()).unwrap_or(value);
     reduce_static_numeric_value(value)
 }
 
@@ -923,6 +924,77 @@ fn parse_static_scss_numeric_alias_value(
 ) -> Option<String> {
     let inner = omena_value_lattice::parse_whole_function_value_inner(value, alias_name)?;
     parse_kernel_value(format!("{kernel_name}({inner})").as_str())
+}
+
+fn parse_static_scss_rgb_color_constructor_value(value: &str) -> Option<String> {
+    parse_static_scss_sass_color_constructor_value_with_name(value, "rgb")
+}
+
+fn parse_static_scss_rgba_color_constructor_value(value: &str) -> Option<String> {
+    parse_static_scss_sass_color_constructor_value_with_name(value, "rgba")
+}
+
+fn parse_static_scss_sass_color_constructor_value(value: &str) -> Option<String> {
+    parse_static_scss_rgb_color_constructor_value(value)
+        .or_else(|| parse_static_scss_rgba_color_constructor_value(value))
+}
+
+fn parse_static_scss_sass_color_constructor_value_with_name(
+    value: &str,
+    function_name: &str,
+) -> Option<String> {
+    let arguments = parse_whole_function_value_arguments(value, function_name)?;
+    let [color, alpha] = arguments.as_slice() else {
+        return None;
+    };
+    let color = parse_static_scss_srgb_color_argument(
+        reduce_static_scss_value(color.to_string()).as_str(),
+    )?;
+    let alpha = parse_static_scss_alpha_channel(alpha)?;
+    Some(render_static_scss_sass_color_constructor(color, alpha))
+}
+
+fn render_static_scss_sass_color_constructor(
+    color: StaticScssSrgbColorValue,
+    alpha: f64,
+) -> String {
+    if (alpha - 1.0).abs() <= f64::EPSILON {
+        if let Some(color) = static_scss_integral_srgb_color(color) {
+            return shortest_static_srgb_color_with_alpha_text(StaticSrgbColorWithAlpha {
+                color,
+                alpha: None,
+            });
+        }
+        return format!(
+            "rgb({}, {}, {})",
+            format_css_number(color.red),
+            format_css_number(color.green),
+            format_css_number(color.blue)
+        );
+    }
+    format!(
+        "rgba({}, {}, {}, {})",
+        format_css_number(color.red),
+        format_css_number(color.green),
+        format_css_number(color.blue),
+        format_css_number(alpha)
+    )
+}
+
+fn static_scss_integral_srgb_color(color: StaticScssSrgbColorValue) -> Option<SrgbColor> {
+    Some(SrgbColor {
+        red: static_scss_u8_color_channel(color.red)?,
+        green: static_scss_u8_color_channel(color.green)?,
+        blue: static_scss_u8_color_channel(color.blue)?,
+    })
+}
+
+fn static_scss_u8_color_channel(value: f64) -> Option<u8> {
+    if !value.is_finite() || (value.round() - value).abs() > f64::EPSILON {
+        return None;
+    }
+    let value = value.round();
+    (0.0..=255.0).contains(&value).then_some(value as u8)
 }
 
 fn parse_static_scss_color_mix_value(value: &str) -> Option<String> {
