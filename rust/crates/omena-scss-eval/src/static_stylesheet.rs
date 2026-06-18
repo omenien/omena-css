@@ -9186,6 +9186,31 @@ mod tests {
     }
 
     #[test]
+    fn static_scss_evaluation_reduces_legacy_rounding_aliases() {
+        let report = derive_static_stylesheet_module_evaluation(
+            "$ceil: ceil(1.2px); $floor: floor(1.8px); .button { top: $ceil; bottom: $floor; }",
+            StyleDialect::Scss,
+        );
+        assert!(report.is_some());
+        let Some(report) = report else {
+            return;
+        };
+
+        let replacements = report
+            .resolved_replacements
+            .iter()
+            .map(|replacement| replacement.text.as_str())
+            .collect::<Vec<_>>();
+        assert!(replacements.contains(&"2px"));
+        assert!(replacements.contains(&"1px"));
+        assert!(report.evaluated_css.contains("top: 2px"));
+        assert!(report.evaluated_css.contains("bottom: 1px"));
+        assert_eq!(report.value_resolution.reference_count, 2);
+        assert_eq!(report.value_resolution.resolved_count, 2);
+        assert!(report.oracle.all_legacy_declaration_values_preserved);
+    }
+
+    #[test]
     fn static_scss_evaluation_reduces_extended_namespaced_math_aliases() {
         let report = derive_static_stylesheet_module_evaluation(
             "$sign: math.sign(-2px); $ceil: math.ceil(1.2px); $floor: math.floor(1.8px); $round: math.round(1.5px); $mod: math.mod(7px, 3px); $rem: math.rem(8px, 3px); $hypot: math.hypot(3px, 4px); $sqrt: math.sqrt(9); $pow: math.pow(2, 3); $exp: math.exp(0); $log: math.log(8, 2); .button { z-index: $sign; margin: $mod; padding: $rem; width: $hypot; opacity: $sqrt; order: $pow; flex-grow: $exp; flex-shrink: $log; top: $ceil; bottom: $floor; left: $round; }",

@@ -98,6 +98,8 @@ pub(crate) fn reduce_static_scss_value(value: String) -> String {
                 parse_static_scss_map_deep_remove_namespaced_value,
             ),
             ("map.set", parse_static_scss_map_set_value),
+            ("ceil", parse_static_scss_ceil_value),
+            ("floor", parse_static_scss_floor_value),
             ("math.div", parse_static_scss_math_div_value),
             ("math.min", parse_static_scss_math_min_value),
             ("math.max", parse_static_scss_math_max_value),
@@ -881,8 +883,16 @@ fn parse_static_scss_math_sign_value(value: &str) -> Option<String> {
     parse_static_scss_numeric_alias_value(value, "math.sign", "sign", parse_reducible_sign_value)
 }
 
+fn parse_static_scss_ceil_value(value: &str) -> Option<String> {
+    parse_static_scss_numeric_alias_value(value, "ceil", "ceil", parse_reducible_ceil_value)
+}
+
 fn parse_static_scss_math_ceil_value(value: &str) -> Option<String> {
     parse_static_scss_numeric_alias_value(value, "math.ceil", "ceil", parse_reducible_ceil_value)
+}
+
+fn parse_static_scss_floor_value(value: &str) -> Option<String> {
+    parse_static_scss_numeric_alias_value(value, "floor", "floor", parse_reducible_floor_value)
 }
 
 fn parse_static_scss_math_floor_value(value: &str) -> Option<String> {
