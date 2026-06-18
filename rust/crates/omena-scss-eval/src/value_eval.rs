@@ -407,14 +407,20 @@ fn parse_static_scss_compatible_value_with_name(
 
 fn parse_static_scss_map_get_value_with_name(value: &str, function_name: &str) -> Option<String> {
     let arguments = parse_whole_function_value_arguments(value, function_name)?;
-    let [map, key] = arguments.as_slice() else {
+    let [map, keys @ ..] = arguments.as_slice() else {
         return None;
     };
-    let key = canonical_static_scss_map_key(key)?;
-    for (candidate_key, candidate_value) in parse_static_scss_map_entries(map)? {
-        if canonical_static_scss_map_key(candidate_key.as_str())? == key {
-            return Some(candidate_value);
+    if keys.is_empty() {
+        return None;
+    }
+    let mut current_map = map.trim().to_string();
+    for (index, key) in keys.iter().enumerate() {
+        let key = canonical_static_scss_map_key(key)?;
+        let value = static_scss_map_entry_value(current_map.as_str(), key.as_str())?;
+        if index + 1 == keys.len() {
+            return Some(value);
         }
+        current_map = value;
     }
     None
 }
@@ -424,17 +430,26 @@ fn parse_static_scss_map_has_key_value_with_name(
     function_name: &str,
 ) -> Option<String> {
     let arguments = parse_whole_function_value_arguments(value, function_name)?;
-    let [map, key] = arguments.as_slice() else {
+    let [map, keys @ ..] = arguments.as_slice() else {
         return None;
     };
-    let key = canonical_static_scss_map_key(key)?;
-    let has_key = parse_static_scss_map_entries(map)?
-        .into_iter()
-        .any(|(candidate_key, _)| {
-            canonical_static_scss_map_key(candidate_key.as_str())
-                .is_some_and(|candidate| candidate == key)
-        });
-    Some(has_key.to_string())
+    if keys.is_empty() {
+        return None;
+    }
+    let mut current_map = map.trim().to_string();
+    for (index, key) in keys.iter().enumerate() {
+        let key = canonical_static_scss_map_key(key)?;
+        if index + 1 == keys.len() {
+            return Some(
+                static_scss_map_contains_key(current_map.as_str(), key.as_str()).to_string(),
+            );
+        }
+        let Some(value) = static_scss_map_entry_value(current_map.as_str(), key.as_str()) else {
+            return Some("false".to_string());
+        };
+        current_map = value;
+    }
+    None
 }
 
 fn parse_static_scss_map_keys_value_with_name(value: &str, function_name: &str) -> Option<String> {
@@ -525,6 +540,25 @@ fn parse_static_scss_map_entries(value: &str) -> Option<Vec<(String, String)>> {
         pairs.push((key.to_string(), value.to_string()));
     }
     Some(pairs)
+}
+
+fn static_scss_map_entry_value(map: &str, key: &str) -> Option<String> {
+    parse_static_scss_map_entries(map)?
+        .into_iter()
+        .find_map(|(candidate_key, candidate_value)| {
+            canonical_static_scss_map_key(candidate_key.as_str())
+                .is_some_and(|candidate| candidate == key)
+                .then_some(candidate_value)
+        })
+}
+
+fn static_scss_map_contains_key(map: &str, key: &str) -> bool {
+    parse_static_scss_map_entries(map).is_some_and(|entries| {
+        entries.into_iter().any(|(candidate_key, _)| {
+            canonical_static_scss_map_key(candidate_key.as_str())
+                .is_some_and(|candidate| candidate == key)
+        })
+    })
 }
 
 fn canonical_static_scss_map_key(value: &str) -> Option<String> {

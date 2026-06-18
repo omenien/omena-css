@@ -3567,6 +3567,33 @@ mod tests {
     }
 
     #[test]
+    fn static_scss_evaluation_reduces_nested_static_map_get_and_has_key_values() {
+        let report = derive_static_stylesheet_module_evaluation(
+            "$weight: map.get((font: (weights: (regular: 400, medium: 500))), font, weights, medium); $tone: map-get((theme: (primary: red)), theme, primary); $has: if(map.has-key((theme: (primary: red)), theme, primary), 1px, 2px); $missing: if(map-has-key((theme: (primary: red)), theme, missing), 3px, 4px); .button { font-weight: $weight; color: $tone; margin: $has; padding: $missing; }",
+            StyleDialect::Scss,
+        );
+        assert!(report.is_some());
+        let Some(report) = report else {
+            return;
+        };
+
+        let replacements = report
+            .resolved_replacements
+            .iter()
+            .map(|replacement| replacement.text.as_str())
+            .collect::<Vec<_>>();
+        assert!(replacements.contains(&"500"));
+        assert!(replacements.contains(&"red"));
+        assert!(replacements.contains(&"1px"));
+        assert!(replacements.contains(&"4px"));
+        assert!(report.evaluated_css.contains("font-weight: 500"));
+        assert!(report.evaluated_css.contains("color: red"));
+        assert!(report.evaluated_css.contains("margin: 1px"));
+        assert!(report.evaluated_css.contains("padding: 4px"));
+        assert!(report.oracle.all_legacy_declaration_values_preserved);
+    }
+
+    #[test]
     fn static_scss_evaluation_reduces_static_collection_size_and_search_values() {
         let report = derive_static_stylesheet_module_evaluation(
             "$count: list.length((1px, 2px, 3px)); $position: index(red blue green, green); .button { z-index: $count; order: $position; }",
