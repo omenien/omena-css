@@ -3641,6 +3641,44 @@ mod tests {
     }
 
     #[test]
+    fn static_scss_evaluation_reduces_static_string_values() {
+        let report = derive_static_stylesheet_module_evaluation(
+            "$family: string.quote(Demo); $style: unquote(\"serif\"); $length: string.length(\"Helvetica Neue\"); $position: str-index(\"Helvetica Neue\", \"Neue\"); $slice: string.slice(\"Helvetica Neue\", 1, -6); $inserted: string.insert(\"Roboto Bold\", \" Mono\", 7); $upper: to-upper-case(sans-serif); $lower: string.to-lower-case(\"BOLD\"); .button { font-family: $family, $style; z-index: $length; order: $position; content: $slice; src: $inserted; text-transform: $upper; font-style: $lower; }",
+            StyleDialect::Scss,
+        );
+        assert!(report.is_some());
+        let Some(report) = report else {
+            return;
+        };
+
+        let rendered_values = report
+            .resolved_replacements
+            .iter()
+            .filter_map(|replacement| replacement.rendered_value.as_deref())
+            .collect::<Vec<_>>();
+        assert!(rendered_values.contains(&"\"Demo\""));
+        assert!(rendered_values.contains(&"serif"));
+        assert!(rendered_values.contains(&"14"));
+        assert!(rendered_values.contains(&"11"));
+        assert!(rendered_values.contains(&"\"Helvetica\""));
+        assert!(rendered_values.contains(&"\"Roboto Mono Bold\""));
+        assert!(rendered_values.contains(&"SANS-SERIF"));
+        assert!(rendered_values.contains(&"\"bold\""));
+        assert!(
+            report
+                .evaluated_css
+                .contains("font-family: \"Demo\", serif")
+        );
+        assert!(report.evaluated_css.contains("z-index: 14"));
+        assert!(report.evaluated_css.contains("order: 11"));
+        assert!(report.evaluated_css.contains("content: \"Helvetica\""));
+        assert!(report.evaluated_css.contains("src: \"Roboto Mono Bold\""));
+        assert!(report.evaluated_css.contains("text-transform: SANS-SERIF"));
+        assert!(report.evaluated_css.contains("font-style: \"bold\""));
+        assert!(report.oracle.all_legacy_declaration_values_preserved);
+    }
+
+    #[test]
     fn static_scss_evaluation_reduces_static_map_has_key_conditions() {
         let report = derive_static_stylesheet_module_evaluation(
             "$gap: if(map.has-key((default: 2px, dense: 1px), dense), 1px, 2px); $pad: if(map-has-key((default: 2px), missing), 3px, 4px); .button { margin: $gap; padding: $pad; }",

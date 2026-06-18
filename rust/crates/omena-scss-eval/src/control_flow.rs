@@ -4588,6 +4588,34 @@ mod tests {
     }
 
     #[test]
+    fn call_return_ir_reports_static_scss_string_metadata_values() {
+        let source = "@function index() { @return if(string.index(\"Helvetica Neue\", \"Neue\") == 11, string.length(\"Helvetica Neue\"), 0); } .a { z-index: index(); }";
+        let report = summarize_scss_call_return_ir(source, StyleDialect::Scss);
+        assert!(report.is_some());
+        let Some(report) = report else {
+            return;
+        };
+        let return_node = report
+            .nodes
+            .iter()
+            .find(|node| node.kind == "functionReturn");
+        assert!(return_node.is_some());
+        let Some(return_node) = return_node else {
+            return;
+        };
+
+        assert_eq!(report.return_value_count, 1);
+        assert_eq!(report.exact_return_value_count, 1);
+        assert_eq!(return_node.return_value_kind, Some("exact"));
+        assert_eq!(
+            return_node.return_value,
+            Some(AbstractCssValueV0::Exact {
+                value: "14".to_string()
+            })
+        );
+    }
+
+    #[test]
     fn call_return_ir_reports_static_scss_map_has_key_conditions_in_abstract_domain() {
         let source = "@function gap() { @return if(map.has-key((default: 2px, dense: 1px), dense), list.length((1px, 2px)), 0); } .a { margin: gap(); }";
         let report = summarize_scss_call_return_ir(source, StyleDialect::Scss);
