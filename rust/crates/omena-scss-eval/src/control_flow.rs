@@ -2472,7 +2472,26 @@ fn collect_lexical_scss_bindings(source: &str, dialect: StyleDialect) -> Lexical
     let Some(scopes) = collect_lexical_scss_scopes(source) else {
         return LexicalScssBindings::new(Vec::new());
     };
+    let facts = collect_style_facts(source, dialect);
     let mut bindings = LexicalScssBindings::new(scopes);
+    for symbol in &facts.sass_symbols {
+        match symbol.kind {
+            ParsedSassSymbolFactKind::FunctionDeclaration => bindings.push_callable(
+                LexicalScssCallableKind::Function,
+                symbol.name.as_str(),
+                symbol.range.start().into(),
+            ),
+            ParsedSassSymbolFactKind::MixinDeclaration => bindings.push_callable(
+                LexicalScssCallableKind::Mixin,
+                symbol.name.as_str(),
+                symbol.range.start().into(),
+            ),
+            ParsedSassSymbolFactKind::FunctionCall
+            | ParsedSassSymbolFactKind::MixinInclude
+            | ParsedSassSymbolFactKind::VariableDeclaration
+            | ParsedSassSymbolFactKind::VariableReference => {}
+        }
+    }
     for (index, token) in tokens.iter().enumerate() {
         if token.kind != SyntaxKind::ScssVariable {
             continue;
@@ -2637,6 +2656,7 @@ fn collect_lexical_scss_scopes(source: &str) -> Option<Vec<LexicalScssScope>> {
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 struct LexicalScssBindings {
     bindings: Vec<LexicalScssBinding>,
+    callables: Vec<LexicalScssCallableDeclaration>,
     scopes: Vec<LexicalScssScope>,
 }
 
@@ -2646,6 +2666,19 @@ struct LexicalScssBinding {
     declaration_start: usize,
     scope_id: usize,
     value: AbstractCssValueV0,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum LexicalScssCallableKind {
+    Function,
+    Mixin,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct LexicalScssCallableDeclaration {
+    kind: LexicalScssCallableKind,
+    name: String,
+    declaration_start: usize,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -2659,6 +2692,7 @@ impl LexicalScssBindings {
     fn new(scopes: Vec<LexicalScssScope>) -> Self {
         Self {
             bindings: Vec::new(),
+            callables: Vec::new(),
             scopes,
         }
     }
@@ -2676,6 +2710,44 @@ impl LexicalScssBindings {
             scope_id,
             value,
         });
+    }
+
+    fn push_callable(
+        &mut self,
+        kind: LexicalScssCallableKind,
+        name: &str,
+        declaration_start: usize,
+    ) {
+        self.callables.push(LexicalScssCallableDeclaration {
+            kind,
+            name: canonical_scss_callable_name(name),
+            declaration_start,
+        });
+    }
+
+    fn visible_function_metadata_exists(&self, name: &str, position: usize) -> Option<bool> {
+        self.visible_callable_metadata_exists(LexicalScssCallableKind::Function, name, position)
+    }
+
+    fn visible_mixin_metadata_exists(&self, name: &str, position: usize) -> Option<bool> {
+        self.visible_callable_metadata_exists(LexicalScssCallableKind::Mixin, name, position)
+    }
+
+    fn visible_callable_metadata_exists(
+        &self,
+        kind: LexicalScssCallableKind,
+        name: &str,
+        position: usize,
+    ) -> Option<bool> {
+        let canonical_name = canonical_scss_callable_name(name);
+        self.callables
+            .iter()
+            .any(|callable| {
+                callable.kind == kind
+                    && callable.name == canonical_name
+                    && callable.declaration_start <= position
+            })
+            .then_some(true)
     }
 
     fn visible_at(&self, position: usize) -> BTreeMap<String, AbstractCssValueV0> {
@@ -2770,8 +2842,8 @@ fn scss_header_value(
     let visible_bindings = lexical_bindings.visible_at(position);
     let reduced_header = reduce_static_scss_metadata_with_context(
         header,
-        |_| None,
-        |_| None,
+        |name| lexical_bindings.visible_function_metadata_exists(name, position),
+        |name| lexical_bindings.visible_mixin_metadata_exists(name, position),
         |name| lexical_bindings.visible_variable_metadata_exists(name, position),
         |name| lexical_bindings.global_variable_metadata_exists(name, position),
     );
@@ -3619,6 +3691,77 @@ mod tests {
         assert_eq!(report.block_count, 1);
         assert_eq!(report.blocks[0].transfer_kind, "branchCondition");
         assert_eq!(report.blocks[0].transfer_truthiness, Some("truthy"));
+    }
+
+    #[test]
+    fn control_flow_value_analysis_reports_sass_function_metadata_branch_truthiness() {
+        let source = "@function present() { @return 1px; } @if function-exists(\"present\") and not function-exists(\"missing\") { .on { color: green; } }";
+        let report = analyze_scss_control_flow_values(source, StyleDialect::Scss);
+        assert!(report.is_some());
+        let Some(report) = report else {
+            return;
+        };
+
+        assert_eq!(report.block_count, 1);
+        assert_eq!(report.blocks[0].transfer_kind, "branchCondition");
+        assert_eq!(report.blocks[0].transfer_truthiness, Some("truthy"));
+    }
+
+    #[test]
+    fn control_flow_value_analysis_reports_sass_builtin_function_metadata_branch_truthiness() {
+        let source = "@if meta.function-exists(\"scale-color\") { .on { color: green; } }";
+        let report = analyze_scss_control_flow_values(source, StyleDialect::Scss);
+        assert!(report.is_some());
+        let Some(report) = report else {
+            return;
+        };
+
+        assert_eq!(report.block_count, 1);
+        assert_eq!(report.blocks[0].transfer_kind, "branchCondition");
+        assert_eq!(report.blocks[0].transfer_truthiness, Some("truthy"));
+    }
+
+    #[test]
+    fn control_flow_value_analysis_preserves_function_exists_declaration_order() {
+        let source = "@if function-exists(\"later\") { .on { color: green; } } @function later() { @return 1px; }";
+        let report = analyze_scss_control_flow_values(source, StyleDialect::Scss);
+        assert!(report.is_some());
+        let Some(report) = report else {
+            return;
+        };
+
+        assert_eq!(report.block_count, 1);
+        assert_eq!(report.blocks[0].transfer_kind, "branchCondition");
+        assert_eq!(report.blocks[0].transfer_truthiness, Some("falsey"));
+    }
+
+    #[test]
+    fn control_flow_value_analysis_reports_sass_mixin_metadata_branch_truthiness() {
+        let source = "@mixin present { color: red; } @if mixin-exists(\"present\") and not meta.mixin-exists(\"missing\") { .on { color: green; } }";
+        let report = analyze_scss_control_flow_values(source, StyleDialect::Scss);
+        assert!(report.is_some());
+        let Some(report) = report else {
+            return;
+        };
+
+        assert_eq!(report.block_count, 1);
+        assert_eq!(report.blocks[0].transfer_kind, "branchCondition");
+        assert_eq!(report.blocks[0].transfer_truthiness, Some("truthy"));
+    }
+
+    #[test]
+    fn control_flow_value_analysis_preserves_mixin_exists_declaration_order() {
+        let source =
+            "@if mixin-exists(\"later\") { .on { color: green; } } @mixin later { color: red; }";
+        let report = analyze_scss_control_flow_values(source, StyleDialect::Scss);
+        assert!(report.is_some());
+        let Some(report) = report else {
+            return;
+        };
+
+        assert_eq!(report.block_count, 1);
+        assert_eq!(report.blocks[0].transfer_kind, "branchCondition");
+        assert_eq!(report.blocks[0].transfer_truthiness, Some("falsey"));
     }
 
     #[test]
