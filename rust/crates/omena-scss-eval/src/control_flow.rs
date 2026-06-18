@@ -162,6 +162,7 @@ pub struct OmenaScssEvalCallReturnNodeV0 {
     pub body_has_control_flow: bool,
     pub body_has_loop_control_flow: bool,
     pub return_inside_loop_control_flow: bool,
+    pub return_loop_header_text: Option<String>,
     pub return_condition_text: Option<String>,
     pub return_negated_condition_texts: Vec<String>,
     pub source_span_start: usize,
@@ -519,6 +520,7 @@ struct ScssCallReturnCandidate {
     body_has_control_flow: bool,
     body_has_loop_control_flow: bool,
     return_inside_loop_control_flow: bool,
+    return_loop_header_text: Option<String>,
     return_condition_text: Option<String>,
     return_negated_condition_texts: Vec<String>,
     source_span_start: usize,
@@ -562,6 +564,7 @@ fn call_return_candidate_from_sass_symbol(
         body_has_control_flow: scss_declaration_body_has_control_flow(tokens, symbol),
         body_has_loop_control_flow: scss_declaration_body_has_loop_control_flow(tokens, symbol),
         return_inside_loop_control_flow: false,
+        return_loop_header_text: None,
         return_condition_text: None,
         return_negated_condition_texts: Vec::new(),
         source_span_start: symbol.range.start().into(),
@@ -583,6 +586,7 @@ fn collect_scss_return_candidates(
             let return_text = scss_return_text_from_token(source, tokens, index);
             let return_inside_loop_control_flow =
                 scss_return_is_inside_loop_control_flow(tokens, index);
+            let return_loop_header_text = scss_return_loop_header_text(source, tokens, index);
             let return_value = if return_inside_loop_control_flow {
                 Some(AbstractCssValueV0::Top)
             } else {
@@ -606,6 +610,7 @@ fn collect_scss_return_candidates(
                 body_has_control_flow: false,
                 body_has_loop_control_flow: false,
                 return_inside_loop_control_flow,
+                return_loop_header_text,
                 return_condition_text: return_condition
                     .as_ref()
                     .and_then(|condition| condition.condition_text.clone()),
@@ -620,17 +625,35 @@ fn collect_scss_return_candidates(
 }
 
 fn scss_return_is_inside_loop_control_flow(tokens: &[LexedToken], return_index: usize) -> bool {
+    enclosing_scss_loop_block(tokens, return_index).is_some()
+}
+
+fn scss_return_loop_header_text(
+    source: &str,
+    tokens: &[LexedToken],
+    return_index: usize,
+) -> Option<String> {
+    enclosing_scss_loop_block(tokens, return_index)
+        .map(|block| control_flow_header_text(source, tokens, block.at_rule_index))
+        .filter(|header| !header.is_empty())
+}
+
+fn enclosing_scss_loop_block(
+    tokens: &[LexedToken],
+    return_index: usize,
+) -> Option<ScssBranchBlock> {
     tokens
         .iter()
         .enumerate()
-        .filter(|(_, token)| {
-            token.kind == SyntaxKind::AtKeyword
-                && matches!(
+        .filter_map(|(index, token)| {
+            if token.kind != SyntaxKind::AtKeyword
+                || !matches!(
                     token.text.to_ascii_lowercase().as_str(),
                     "@for" | "@each" | "@while"
                 )
-        })
-        .filter_map(|(index, _)| {
+            {
+                return None;
+            }
             let body_start_index = tokens
                 .iter()
                 .enumerate()
@@ -638,11 +661,17 @@ fn scss_return_is_inside_loop_control_flow(tokens: &[LexedToken], return_index: 
                 .find(|(_, candidate)| candidate.kind == SyntaxKind::LeftBrace)
                 .map(|(candidate_index, _)| candidate_index)?;
             let body_end_index = matching_right_brace_token_index(tokens, body_start_index)?;
-            Some((body_start_index, body_end_index))
+            (body_start_index < return_index && return_index < body_end_index).then(|| {
+                ScssBranchBlock {
+                    at_rule_index: index,
+                    at_rule_name: token.text.to_ascii_lowercase(),
+                    condition_text: None,
+                    body_start_index,
+                    body_end_index,
+                }
+            })
         })
-        .any(|(body_start_index, body_end_index)| {
-            body_start_index < return_index && return_index < body_end_index
-        })
+        .min_by_key(|block| block.body_end_index.saturating_sub(block.body_start_index))
 }
 
 fn scss_return_text_from_token(
@@ -1353,6 +1382,7 @@ fn call_return_node_from_candidate(
         body_has_control_flow: candidate.body_has_control_flow,
         body_has_loop_control_flow: candidate.body_has_loop_control_flow,
         return_inside_loop_control_flow: candidate.return_inside_loop_control_flow,
+        return_loop_header_text: candidate.return_loop_header_text,
         return_condition_text: candidate.return_condition_text,
         return_negated_condition_texts: candidate.return_negated_condition_texts,
         source_span_start: candidate.source_span_start,
@@ -1663,7 +1693,12 @@ fn call_resolved_return_value_for_call(
             ScssCallBoundReturnActivity::Unknown => return Some(AbstractCssValueV0::Top),
         }
         if node.return_inside_loop_control_flow {
-            return Some(AbstractCssValueV0::Top);
+            return Some(call_bound_loop_return_value(
+                node,
+                bindings,
+                declaration_node.name.as_deref(),
+                Some(&context),
+            ));
         }
         return Some(
             node.return_text
@@ -1681,6 +1716,60 @@ fn call_resolved_return_value_for_call(
         );
     }
     Some(AbstractCssValueV0::Top)
+}
+
+fn call_bound_loop_return_value(
+    node: &OmenaScssEvalCallReturnNodeV0,
+    mut bindings: BTreeMap<String, AbstractCssValueV0>,
+    function_name: Option<&str>,
+    context: Option<&ScssCallReturnResolutionContext<'_>>,
+) -> AbstractCssValueV0 {
+    let Some(header) = node.return_loop_header_text.as_deref() else {
+        return AbstractCssValueV0::Top;
+    };
+    if header
+        .trim_start()
+        .to_ascii_lowercase()
+        .starts_with("@while")
+    {
+        return AbstractCssValueV0::Top;
+    }
+    let loop_bindings = loop_carried_binding_values(header, &bindings);
+    if loop_bindings.is_empty()
+        || loop_bindings
+            .iter()
+            .any(|binding| matches!(binding.value, AbstractCssValueV0::Top))
+    {
+        return AbstractCssValueV0::Top;
+    }
+    for binding in loop_bindings {
+        insert_static_scss_binding(&mut bindings, binding.name.as_str(), binding.value);
+    }
+    let Some(return_text) = node.return_text.as_deref() else {
+        return AbstractCssValueV0::Top;
+    };
+    if let Some(value) = single_variable_return_value(return_text, &bindings) {
+        return value;
+    }
+    call_bound_return_value(
+        return_text,
+        &bindings,
+        function_name,
+        context,
+        Some(node.source_span_start),
+    )
+}
+
+fn single_variable_return_value(
+    return_text: &str,
+    bindings: &BTreeMap<String, AbstractCssValueV0>,
+) -> Option<AbstractCssValueV0> {
+    let return_text = return_text.trim();
+    let names = variable_names_in_text(return_text);
+    if names.len() != 1 || names.first().is_none_or(|name| name != return_text) {
+        return None;
+    }
+    static_scss_binding_value(bindings, return_text).cloned()
 }
 
 fn call_bound_argument_bindings(
@@ -5393,8 +5482,70 @@ mod tests {
     }
 
     #[test]
-    fn call_return_ir_keeps_loop_body_returns_top() {
+    fn call_return_ir_resolves_static_for_loop_body_returns() {
         let source = "@function collect($count) { @for $i from 1 through $count { @return $i; } } .a { width: collect(3); }";
+        let report = summarize_scss_call_return_ir(source, StyleDialect::Scss);
+        assert!(report.is_some());
+        let Some(report) = report else {
+            return;
+        };
+        let function_call = report
+            .nodes
+            .iter()
+            .find(|node| node.kind == "functionCall" && node.name.as_deref() == Some("collect"));
+        assert!(function_call.is_some());
+        let Some(function_call) = function_call else {
+            return;
+        };
+
+        assert_eq!(report.call_resolved_return_value_count, 1);
+        assert_eq!(report.finite_set_call_resolved_return_value_count, 1);
+        assert_eq!(
+            function_call.call_resolved_return_value_kind,
+            Some("finiteSet")
+        );
+        assert_eq!(
+            function_call.call_resolved_return_value,
+            Some(AbstractCssValueV0::FiniteSet {
+                values: vec!["1".to_string(), "2".to_string(), "3".to_string()]
+            })
+        );
+    }
+
+    #[test]
+    fn call_return_ir_resolves_static_each_loop_body_returns() {
+        let source = "@function tones() { @each $tone in red, blue { @return $tone; } } .a { color: tones(); }";
+        let report = summarize_scss_call_return_ir(source, StyleDialect::Scss);
+        assert!(report.is_some());
+        let Some(report) = report else {
+            return;
+        };
+        let function_call = report
+            .nodes
+            .iter()
+            .find(|node| node.kind == "functionCall" && node.name.as_deref() == Some("tones"));
+        assert!(function_call.is_some());
+        let Some(function_call) = function_call else {
+            return;
+        };
+
+        assert_eq!(report.call_resolved_return_value_count, 1);
+        assert_eq!(report.finite_set_call_resolved_return_value_count, 1);
+        assert_eq!(
+            function_call.call_resolved_return_value_kind,
+            Some("finiteSet")
+        );
+        assert_eq!(
+            function_call.call_resolved_return_value,
+            Some(AbstractCssValueV0::FiniteSet {
+                values: vec!["#00f".to_string(), "red".to_string()]
+            })
+        );
+    }
+
+    #[test]
+    fn call_return_ir_keeps_dynamic_loop_body_returns_top() {
+        let source = "@function collect($count) { @for $i from 1 through $count { @return $i; } } .a { width: collect(var(--count)); }";
         let report = summarize_scss_call_return_ir(source, StyleDialect::Scss);
         assert!(report.is_some());
         let Some(report) = report else {
