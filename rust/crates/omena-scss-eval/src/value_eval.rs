@@ -9,7 +9,8 @@ use omena_value_lattice::{
         parse_reducible_round_to_integer_value, parse_reducible_round_value,
         parse_reducible_sign_value, parse_reducible_sqrt_value, reduce_static_numeric_expression,
     },
-    parse_numeric_value_with_unit, parse_whole_function_value_arguments,
+    parse_color_function_value, parse_color_mix_value, parse_numeric_value_with_unit,
+    parse_static_srgb_color_with_alpha, parse_whole_function_value_arguments,
     substitute_static_css_function_references_in_value_until_stable,
 };
 
@@ -19,6 +20,8 @@ pub(crate) fn reduce_static_scss_value(value: String) -> String {
         trimmed,
         &[
             ("if", parse_static_scss_if_value),
+            ("type-of", parse_static_scss_type_of_value),
+            ("meta.type-of", parse_static_scss_meta_type_of_value),
             ("nth", parse_static_scss_nth_value),
             ("list.nth", parse_static_scss_list_nth_value),
             ("length", parse_static_scss_length_value),
@@ -174,6 +177,22 @@ fn parse_static_scss_if_value(value: &str) -> Option<String> {
     } else {
         falsey.trim().to_string()
     })
+}
+
+fn parse_static_scss_type_of_value(value: &str) -> Option<String> {
+    parse_static_scss_type_of_value_with_name(value, "type-of")
+}
+
+fn parse_static_scss_meta_type_of_value(value: &str) -> Option<String> {
+    parse_static_scss_type_of_value_with_name(value, "meta.type-of")
+}
+
+fn parse_static_scss_type_of_value_with_name(value: &str, function_name: &str) -> Option<String> {
+    let arguments = parse_whole_function_value_arguments(value, function_name)?;
+    let [value] = arguments.as_slice() else {
+        return None;
+    };
+    Some(static_scss_value_type(value)?.to_string())
 }
 
 fn parse_static_scss_nth_value(value: &str) -> Option<String> {
@@ -1196,6 +1215,69 @@ fn parse_static_scss_list_index(value: &str) -> Option<isize> {
     let reduced = reduce_static_numeric_value(value.trim().to_string());
     let index = reduced.trim().parse::<isize>().ok()?;
     (index != 0).then_some(index)
+}
+
+fn static_scss_value_type(value: &str) -> Option<&'static str> {
+    let value = value.trim();
+    if value.is_empty() || value.contains('$') {
+        return None;
+    }
+    let reduced = reduce_static_scss_value(value.to_string());
+    let value = reduced.trim();
+    let normalized = value.to_ascii_lowercase();
+    match normalized.as_str() {
+        "true" | "false" => return Some("bool"),
+        "null" => return Some("null"),
+        _ => {}
+    }
+    if static_scss_quoted_string_text(value).is_some() {
+        return Some("string");
+    }
+    if static_scss_non_empty_map_value_is_static(value) {
+        return Some("map");
+    }
+    if static_scss_value_is_list(value) {
+        return Some("list");
+    }
+    if static_scss_value_is_color(value) {
+        return Some("color");
+    }
+    if parse_numeric_value_with_unit(value).is_some() {
+        return Some("number");
+    }
+    if static_scss_value_is_calculation(value) {
+        return Some("calculation");
+    }
+    static_scss_collection_member_is_static(value).then_some("string")
+}
+
+fn static_scss_value_is_color(value: &str) -> bool {
+    parse_static_srgb_color_with_alpha(value).is_some()
+        || parse_color_function_value(value).is_some()
+        || parse_color_mix_value(value).is_some()
+}
+
+fn static_scss_value_is_calculation(value: &str) -> bool {
+    ["calc", "clamp", "min", "max"]
+        .into_iter()
+        .any(|name| omena_value_lattice::parse_whole_function_value_inner(value, name).is_some())
+}
+
+fn static_scss_non_empty_map_value_is_static(value: &str) -> bool {
+    parse_static_scss_map_entries(value).is_some_and(|entries| !entries.is_empty())
+}
+
+fn static_scss_value_is_list(value: &str) -> bool {
+    let value = value.trim();
+    if value == "()" {
+        return true;
+    }
+    if value.starts_with('[') && strip_static_scss_outer_container(value).is_some() {
+        return true;
+    }
+    let source = strip_static_scss_outer_container(value).unwrap_or(value);
+    split_static_scss_top_level(source, ',').is_some_and(|items| items.len() > 1)
+        || split_static_scss_top_level_whitespace(source).is_some_and(|items| items.len() > 1)
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

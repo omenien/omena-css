@@ -4824,6 +4824,21 @@ mod tests {
     }
 
     #[test]
+    fn static_scss_evaluation_reduces_static_type_metadata_values() {
+        let report = derive_static_stylesheet_module_evaluation(
+            "$gap: 2px; $tone: red; $items: 1px 2px; $config: (dense: true); $kind: if(meta.type-of($gap) == number and type-of($tone) == color and meta.type-of($items) == list and type-of($config) == map, 1px, 2px); .button { margin: $kind; }",
+            StyleDialect::Scss,
+        );
+        assert!(report.is_some());
+        let Some(report) = report else {
+            return;
+        };
+
+        assert!(report.evaluated_css.contains("margin: 1px"));
+        assert!(report.oracle.all_legacy_declaration_values_preserved);
+    }
+
+    #[test]
     fn static_scss_evaluation_reduces_function_list_constructor_returns() {
         let report = derive_static_stylesheet_module_evaluation(
             "@function tail($list) { @return list.nth(list.append($list, 3px), 3); } .button { margin: tail(1px 2px); }",
