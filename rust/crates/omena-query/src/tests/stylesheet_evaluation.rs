@@ -729,6 +729,57 @@ fn consumer_build_derives_static_less_evaluator_context_for_namespace_mixin_acce
 }
 
 #[test]
+fn consumer_build_derives_static_less_evaluator_context_for_guarded_namespace_mixin_access() {
+    let summary = execute_omena_query_consumer_build_style_source(
+        "Button.module.less",
+        "#bundle() when (iscolor(red)) { .tone() { color: red; } } .button { #bundle > .tone(); }",
+        &[
+            "less-module-evaluate".to_string(),
+            "css-modules-class-hashing".to_string(),
+            "print-css".to_string(),
+        ],
+    );
+
+    assert!(
+        summary
+            .execution
+            .executed_pass_ids
+            .contains(&"less-module-evaluate")
+    );
+    assert!(
+        !summary
+            .execution
+            .planned_only_pass_ids
+            .contains(&"less-module-evaluate")
+    );
+    assert!(summary.execution.output_css.contains("color: red"));
+    assert!(!summary.execution.output_css.contains("#bundle()"));
+    assert!(!summary.execution.output_css.contains("#bundle > .tone"));
+}
+
+#[test]
+fn consumer_build_keeps_false_guarded_less_namespace_mixin_access_planned_only() {
+    let summary = execute_omena_query_consumer_build_style_source(
+        "Button.module.less",
+        "#bundle() when (iscolor(1px)) { .tone() { color: red; } } .button { #bundle > .tone(); }",
+        &[
+            "less-module-evaluate".to_string(),
+            "css-modules-class-hashing".to_string(),
+            "print-css".to_string(),
+        ],
+    );
+
+    assert!(
+        summary
+            .execution
+            .planned_only_pass_ids
+            .contains(&"less-module-evaluate")
+    );
+    assert!(summary.execution.output_css.contains("#bundle > .tone()"));
+    assert!(!summary.execution.output_css.contains(".button { color:"));
+}
+
+#[test]
 fn consumer_build_derives_static_less_evaluator_context_for_detached_rulesets() {
     let summary = execute_omena_query_consumer_build_style_source(
         "Button.module.less",

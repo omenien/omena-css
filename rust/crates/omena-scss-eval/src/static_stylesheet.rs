@@ -3632,7 +3632,19 @@ fn render_static_less_namespace_mixin_call(
         canonical_static_less_mixin_name(declaration.name.as_str()) == canonical_namespace
     }) {
         saw_namespace = true;
-        if !declaration.parameters.is_empty() || declaration.guard.is_some() {
+        if !declaration.parameters.is_empty() {
+            continue;
+        }
+        if let Some(guard) = &declaration.guard
+            && !static_less_mixin_guard_matches(
+                guard,
+                &BTreeMap::new(),
+                call_scope_id,
+                context.scopes,
+                context.variable_declarations,
+                None,
+            )?
+        {
             continue;
         }
         if !active_mixins.insert(canonical_namespace.clone()) {
@@ -7332,6 +7344,33 @@ mod tests {
         assert!(!report.evaluated_css.contains("#bundle > .rounded"));
         assert!(report.evaluated_css.contains("border-radius: 2px"));
         assert!(report.oracle.all_legacy_declaration_values_preserved);
+    }
+
+    #[test]
+    fn static_less_evaluation_expands_guarded_namespace_mixin_access() {
+        let report = derive_static_stylesheet_module_evaluation(
+            "#bundle() when (iscolor(red)) { .tone() { color: red; } } .button { #bundle > .tone(); }",
+            StyleDialect::Less,
+        );
+        assert!(report.is_some());
+        let Some(report) = report else {
+            return;
+        };
+
+        assert!(!report.evaluated_css.contains("#bundle()"));
+        assert!(!report.evaluated_css.contains("#bundle > .tone"));
+        assert!(report.evaluated_css.contains("color: red"));
+        assert!(report.oracle.all_legacy_declaration_values_preserved);
+    }
+
+    #[test]
+    fn static_less_evaluation_keeps_false_guarded_namespace_mixin_access_planned_only() {
+        let report = derive_static_stylesheet_module_evaluation(
+            "#bundle() when (iscolor(1px)) { .tone() { color: red; } } .button { #bundle > .tone(); }",
+            StyleDialect::Less,
+        );
+
+        assert!(report.is_none());
     }
 
     #[test]
