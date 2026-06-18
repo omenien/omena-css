@@ -10270,7 +10270,7 @@ mod tests {
     #[test]
     fn static_scss_evaluation_reduces_static_type_metadata_values() {
         let report = derive_static_stylesheet_module_evaluation(
-            "$gap: 2px; $tone: red; $mixed-tone: color.mix(red, blue); $red-channel: color.channel($mixed-tone, \"red\", $space: rgb); $relative-tone: oklab(1 0 0); $items: 1px 2px; $config: (dense: true); $kind: if(meta.type-of($gap) == number and type-of($tone) == color and meta.type-of($mixed-tone) == color and meta.type-of($red-channel) == number and meta.type-of($relative-tone) == color and meta.type-of($items) == list and type-of($config) == map and feature-exists(\"at-error\") and meta.feature-exists(custom-property) and not meta.feature-exists(\"unknown\"), 1px, 2px); .button { margin: $kind; }",
+            "$gap: 2px; $tone: red; $mixed-tone: color.mix(red, blue); $red-channel: color.channel($mixed-tone, \"red\", $space: rgb); $legacy-red-channel: red($tone); $relative-tone: oklab(1 0 0); $items: 1px 2px; $config: (dense: true); $kind: if(meta.type-of($gap) == number and type-of($tone) == color and meta.type-of($mixed-tone) == color and meta.type-of($red-channel) == number and meta.type-of($legacy-red-channel) == number and meta.type-of($relative-tone) == color and meta.type-of($items) == list and type-of($config) == map and feature-exists(\"at-error\") and meta.feature-exists(custom-property) and not meta.feature-exists(\"unknown\"), 1px, 2px); .button { margin: $kind; }",
             StyleDialect::Scss,
         );
         assert!(report.is_some());
@@ -10556,6 +10556,31 @@ mod tests {
     }
 
     #[test]
+    fn static_scss_evaluation_reduces_legacy_global_color_function_returns() {
+        let report = derive_static_stylesheet_module_evaluation(
+            "@function tone-channel() { @return red(mix(red, blue)); } .button { z-index: tone-channel(); }",
+            StyleDialect::Scss,
+        );
+        assert!(report.is_some());
+        let Some(report) = report else {
+            return;
+        };
+
+        assert_eq!(
+            report.resolved_replacements[0].name,
+            "function:tone-channel"
+        );
+        assert_eq!(report.resolved_replacements[0].text, "127.5");
+        assert_eq!(
+            report.resolved_replacements[0].rendered_value.as_deref(),
+            Some("127.5")
+        );
+        assert_eq!(report.resolved_replacements[0].abstract_value_kind, "exact");
+        assert!(report.evaluated_css.contains(".button { z-index: 127.5; }"));
+        assert!(report.oracle.all_legacy_declaration_values_preserved);
+    }
+
+    #[test]
     fn static_value_resolution_reports_unresolved_references_as_top() {
         let report = summarize_static_stylesheet_value_resolution(
             ".button { color: $missing; }",
@@ -10664,6 +10689,53 @@ mod tests {
             .collect::<Vec<_>>();
         assert!(rendered_values.contains(&"127.5"));
         assert!(rendered_values.contains(&"0.5"));
+    }
+
+    #[test]
+    fn static_value_resolution_emits_exact_legacy_global_color_values() {
+        let report = summarize_static_stylesheet_value_resolution(
+            "$red: red(mix(red, blue)); $green: green(rgb(127.5, 10, 20)); $blue: blue(blue); $alpha: alpha(rgba(255, 0, 0, .5)); .button { z-index: $red; --g: $green; --b: $blue; opacity: $alpha; }",
+            StyleDialect::Scss,
+        );
+        assert!(report.is_some());
+        let Some(report) = report else {
+            return;
+        };
+
+        assert_eq!(report.reference_count, 4);
+        assert_eq!(report.resolved_count, 4);
+        assert_eq!(report.raw_count, 0);
+        let rendered_values = report
+            .values
+            .iter()
+            .filter_map(|value| value.rendered_value.as_deref())
+            .collect::<Vec<_>>();
+        assert!(rendered_values.contains(&"127.5"));
+        assert!(rendered_values.contains(&"10"));
+        assert!(rendered_values.contains(&"255"));
+        assert!(rendered_values.contains(&"0.5"));
+    }
+
+    #[test]
+    fn static_value_resolution_keeps_css_filter_alpha_raw() {
+        let report = summarize_static_stylesheet_value_resolution(
+            "$filter: alpha(opacity=50); .button { filter: $filter; }",
+            StyleDialect::Scss,
+        );
+        assert!(report.is_some());
+        let Some(report) = report else {
+            return;
+        };
+
+        assert_eq!(report.reference_count, 1);
+        assert_eq!(report.raw_count, 1);
+        assert_eq!(report.unsupported_dynamic_count, 1);
+        assert_eq!(report.values[0].outcome, "raw");
+        assert_eq!(report.values[0].reason, "unsupportedDynamic");
+        assert_eq!(
+            report.values[0].rendered_value.as_deref(),
+            Some("alpha(opacity=50)")
+        );
     }
 
     #[test]

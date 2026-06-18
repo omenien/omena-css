@@ -114,8 +114,13 @@ pub(crate) fn reduce_static_scss_value(value: String) -> String {
             ("math.pow", parse_static_scss_math_pow_value),
             ("math.exp", parse_static_scss_math_exp_value),
             ("math.log", parse_static_scss_math_log_value),
+            ("mix", parse_static_scss_global_mix_value),
             ("color.mix", parse_static_scss_color_mix_value),
             ("color.channel", parse_static_scss_color_channel_value),
+            ("red", parse_static_scss_global_red_value),
+            ("green", parse_static_scss_global_green_value),
+            ("blue", parse_static_scss_global_blue_value),
+            ("alpha", parse_static_scss_global_alpha_value),
             ("color.red", parse_static_scss_color_red_value),
             ("color.green", parse_static_scss_color_green_value),
             ("color.blue", parse_static_scss_color_blue_value),
@@ -921,7 +926,15 @@ fn parse_static_scss_numeric_alias_value(
 }
 
 fn parse_static_scss_color_mix_value(value: &str) -> Option<String> {
-    let arguments = parse_whole_function_value_arguments(value, "color.mix")?;
+    parse_static_scss_color_mix_value_with_name(value, "color.mix")
+}
+
+fn parse_static_scss_global_mix_value(value: &str) -> Option<String> {
+    parse_static_scss_color_mix_value_with_name(value, "mix")
+}
+
+fn parse_static_scss_color_mix_value_with_name(value: &str, function_name: &str) -> Option<String> {
+    let arguments = parse_whole_function_value_arguments(value, function_name)?;
     let arguments = parse_static_scss_color_mix_arguments(arguments.as_slice())?;
     let first = parse_static_scss_opaque_srgb_color_argument(arguments.first_color)?;
     let second = parse_static_scss_opaque_srgb_color_argument(arguments.second_color)?;
@@ -1020,6 +1033,10 @@ fn parse_static_scss_color_red_value(value: &str) -> Option<String> {
     parse_static_scss_legacy_color_channel_value(value, "color.red", StaticScssColorChannel::Red)
 }
 
+fn parse_static_scss_global_red_value(value: &str) -> Option<String> {
+    parse_static_scss_legacy_color_channel_value(value, "red", StaticScssColorChannel::Red)
+}
+
 fn parse_static_scss_color_green_value(value: &str) -> Option<String> {
     parse_static_scss_legacy_color_channel_value(
         value,
@@ -1028,8 +1045,16 @@ fn parse_static_scss_color_green_value(value: &str) -> Option<String> {
     )
 }
 
+fn parse_static_scss_global_green_value(value: &str) -> Option<String> {
+    parse_static_scss_legacy_color_channel_value(value, "green", StaticScssColorChannel::Green)
+}
+
 fn parse_static_scss_color_blue_value(value: &str) -> Option<String> {
     parse_static_scss_legacy_color_channel_value(value, "color.blue", StaticScssColorChannel::Blue)
+}
+
+fn parse_static_scss_global_blue_value(value: &str) -> Option<String> {
+    parse_static_scss_legacy_color_channel_value(value, "blue", StaticScssColorChannel::Blue)
 }
 
 fn parse_static_scss_color_alpha_value(value: &str) -> Option<String> {
@@ -1038,6 +1063,10 @@ fn parse_static_scss_color_alpha_value(value: &str) -> Option<String> {
         "color.alpha",
         StaticScssColorChannel::Alpha,
     )
+}
+
+fn parse_static_scss_global_alpha_value(value: &str) -> Option<String> {
+    parse_static_scss_legacy_color_channel_value(value, "alpha", StaticScssColorChannel::Alpha)
 }
 
 fn parse_static_scss_legacy_color_channel_value(
