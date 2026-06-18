@@ -10680,6 +10680,31 @@ mod tests {
     }
 
     #[test]
+    fn static_scss_evaluation_reduces_sass_hsl_color_constructor_returns() {
+        let report = derive_static_stylesheet_module_evaluation(
+            "@function tone() { @return hsl(180, 100%, 50%); } @function overlay() { @return hsla(120, 100%, 50%, .5); } .button { color: tone(); background: overlay(); }",
+            StyleDialect::Scss,
+        );
+        assert!(report.is_some());
+        let Some(report) = report else {
+            return;
+        };
+
+        assert_eq!(report.resolved_replacements[0].name, "function:tone");
+        assert_eq!(report.resolved_replacements[0].text, "#0ff");
+        assert_eq!(report.resolved_replacements[0].abstract_value_kind, "exact");
+        assert_eq!(report.resolved_replacements[1].name, "function:overlay");
+        assert_eq!(report.resolved_replacements[1].text, "rgba(0, 255, 0, 0.5)");
+        assert_eq!(report.resolved_replacements[1].abstract_value_kind, "exact");
+        assert!(
+            report
+                .evaluated_css
+                .contains(".button { color: #0ff; background: rgba(0, 255, 0, 0.5); }")
+        );
+        assert!(report.oracle.all_legacy_declaration_values_preserved);
+    }
+
+    #[test]
     fn static_scss_evaluation_reduces_sass_opacity_color_returns() {
         let report = derive_static_stylesheet_module_evaluation(
             "@function tone() { @return transparentize(red, .25); } .button { color: tone(); }",
@@ -10951,6 +10976,29 @@ mod tests {
             .collect::<Vec<_>>();
         assert!(rendered_values.contains(&"#ff000080"));
         assert!(rendered_values.contains(&"red"));
+    }
+
+    #[test]
+    fn static_value_resolution_emits_exact_sass_hsl_color_constructor_values() {
+        let report = summarize_static_stylesheet_value_resolution(
+            "$tone: hsl(180, 100%, 50%); $overlay: hsla(120, 100%, 50%, .5); .button { color: $tone; background: $overlay; }",
+            StyleDialect::Scss,
+        );
+        assert!(report.is_some());
+        let Some(report) = report else {
+            return;
+        };
+
+        assert_eq!(report.reference_count, 2);
+        assert_eq!(report.resolved_count, 2);
+        assert_eq!(report.raw_count, 0);
+        let rendered_values = report
+            .values
+            .iter()
+            .filter_map(|value| value.rendered_value.as_deref())
+            .collect::<Vec<_>>();
+        assert!(rendered_values.contains(&"#0ff"));
+        assert!(rendered_values.contains(&"#00ff0080"));
     }
 
     #[test]

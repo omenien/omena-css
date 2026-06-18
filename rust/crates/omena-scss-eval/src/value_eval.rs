@@ -998,9 +998,19 @@ fn parse_static_scss_rgba_color_constructor_value(value: &str) -> Option<String>
     parse_static_scss_sass_color_constructor_value_with_name(value, "rgba")
 }
 
+fn parse_static_scss_hsl_color_constructor_value(value: &str) -> Option<String> {
+    parse_static_scss_sass_hsl_color_constructor_value_with_name(value, "hsl")
+}
+
+fn parse_static_scss_hsla_color_constructor_value(value: &str) -> Option<String> {
+    parse_static_scss_sass_hsl_color_constructor_value_with_name(value, "hsla")
+}
+
 fn parse_static_scss_sass_color_constructor_value(value: &str) -> Option<String> {
     parse_static_scss_rgb_color_constructor_value(value)
         .or_else(|| parse_static_scss_rgba_color_constructor_value(value))
+        .or_else(|| parse_static_scss_hsl_color_constructor_value(value))
+        .or_else(|| parse_static_scss_hsla_color_constructor_value(value))
 }
 
 fn parse_static_scss_sass_color_opacity_value(value: &str) -> Option<String> {
@@ -1081,6 +1091,19 @@ fn parse_static_scss_sass_color_constructor_value_with_name(
     )?;
     let alpha = parse_static_scss_alpha_channel(alpha)?;
     Some(render_static_scss_sass_color_constructor(color, alpha))
+}
+
+fn parse_static_scss_sass_hsl_color_constructor_value_with_name(
+    value: &str,
+    function_name: &str,
+) -> Option<String> {
+    let inner = parse_whole_function_value_inner(value, function_name)?;
+    let color =
+        parse_static_hsl_function_color_with_alpha(format!("{function_name}({inner})").as_str())?;
+    Some(render_static_scss_sass_color_constructor(
+        static_srgb_with_alpha_to_scss_value(color),
+        color.alpha.unwrap_or(1.0),
+    ))
 }
 
 fn parse_static_scss_color_alpha_delta_value(
