@@ -35,7 +35,15 @@ pub(crate) fn reduce_static_scss_value(value: String) -> String {
             ("math.min", parse_static_scss_math_min_value),
             ("math.max", parse_static_scss_math_max_value),
             ("math.abs", parse_static_scss_math_abs_value),
+            ("math.sign", parse_static_scss_math_sign_value),
             ("math.clamp", parse_static_scss_math_clamp_value),
+            ("math.mod", parse_static_scss_math_mod_value),
+            ("math.rem", parse_static_scss_math_rem_value),
+            ("math.hypot", parse_static_scss_math_hypot_value),
+            ("math.sqrt", parse_static_scss_math_sqrt_value),
+            ("math.pow", parse_static_scss_math_pow_value),
+            ("math.exp", parse_static_scss_math_exp_value),
+            ("math.log", parse_static_scss_math_log_value),
             ("percentage", parse_static_scss_percentage_value),
             ("unitless", parse_static_scss_unitless_value),
             ("math.is-unitless", parse_static_scss_math_is_unitless_value),
@@ -210,8 +218,40 @@ fn parse_static_scss_math_abs_value(value: &str) -> Option<String> {
     parse_static_scss_numeric_alias_value(value, "math.abs", "abs", parse_reducible_abs_value)
 }
 
+fn parse_static_scss_math_sign_value(value: &str) -> Option<String> {
+    parse_static_scss_numeric_alias_value(value, "math.sign", "sign", parse_reducible_sign_value)
+}
+
 fn parse_static_scss_math_clamp_value(value: &str) -> Option<String> {
     parse_static_scss_numeric_alias_value(value, "math.clamp", "clamp", parse_reducible_clamp_value)
+}
+
+fn parse_static_scss_math_mod_value(value: &str) -> Option<String> {
+    parse_static_scss_numeric_alias_value(value, "math.mod", "mod", parse_reducible_mod_value)
+}
+
+fn parse_static_scss_math_rem_value(value: &str) -> Option<String> {
+    parse_static_scss_numeric_alias_value(value, "math.rem", "rem", parse_reducible_rem_value)
+}
+
+fn parse_static_scss_math_hypot_value(value: &str) -> Option<String> {
+    parse_static_scss_numeric_alias_value(value, "math.hypot", "hypot", parse_reducible_hypot_value)
+}
+
+fn parse_static_scss_math_sqrt_value(value: &str) -> Option<String> {
+    parse_static_scss_numeric_alias_value(value, "math.sqrt", "sqrt", parse_reducible_sqrt_value)
+}
+
+fn parse_static_scss_math_pow_value(value: &str) -> Option<String> {
+    parse_static_scss_numeric_alias_value(value, "math.pow", "pow", parse_reducible_pow_value)
+}
+
+fn parse_static_scss_math_exp_value(value: &str) -> Option<String> {
+    parse_static_scss_numeric_alias_value(value, "math.exp", "exp", parse_reducible_exp_value)
+}
+
+fn parse_static_scss_math_log_value(value: &str) -> Option<String> {
+    parse_static_scss_numeric_alias_value(value, "math.log", "log", parse_reducible_log_value)
 }
 
 fn parse_static_scss_numeric_alias_value(
