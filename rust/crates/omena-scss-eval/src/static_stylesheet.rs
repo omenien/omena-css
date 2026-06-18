@@ -351,6 +351,14 @@ fn derive_static_less_stylesheet_module_evaluation(
             continue;
         }
         let reference_start = parser_text_size_to_usize(fact.range.start().into());
+        let reference_end = parser_text_size_to_usize(fact.range.end().into());
+        if static_stylesheet_variable_reference_is_named_argument_label(
+            style_source,
+            reference_start,
+            reference_end,
+        ) {
+            continue;
+        }
         if static_stylesheet_position_is_inside_scoped_declaration(&declarations, reference_start) {
             continue;
         }
@@ -366,7 +374,6 @@ fn derive_static_less_stylesheet_module_evaluation(
             &declarations,
             &mut stack,
         )?;
-        let reference_end = parser_text_size_to_usize(fact.range.end().into());
         resolved_replacements.push(resolved_replacement_value(
             fact.name.as_str(),
             reference_start,
@@ -3758,6 +3765,9 @@ fn collect_static_less_mixin_body_local_declarations(
     {
         let start = parser_text_size_to_usize(fact.range.start().into());
         let end = parser_text_size_to_usize(fact.range.end().into());
+        if static_stylesheet_variable_reference_is_named_argument_label(body, start, end) {
+            continue;
+        }
         let declaration = extract_static_stylesheet_variable_declaration(
             body,
             start,
@@ -5028,6 +5038,9 @@ fn collect_static_less_variable_declarations(
         }
         let start = parser_text_size_to_usize(fact.range.start().into());
         let end = parser_text_size_to_usize(fact.range.end().into());
+        if static_stylesheet_variable_reference_is_named_argument_label(source, start, end) {
+            continue;
+        }
         if static_stylesheet_position_is_inside_ranges(start, excluded_ranges) {
             continue;
         }
@@ -6183,9 +6196,7 @@ fn collect_static_stylesheet_variable_references_with_options(
         if !static_stylesheet_variable_name_is_safe(bare_name) {
             return None;
         }
-        if variable_kind == StaticStylesheetVariableKind::Scss
-            && static_stylesheet_variable_reference_is_named_argument_label(value, index, name_end)
-        {
+        if static_stylesheet_variable_reference_is_named_argument_label(value, index, name_end) {
             index = name_end;
             continue;
         }
@@ -6405,6 +6416,25 @@ mod tests {
         assert!(!report.evaluated_css.contains(".shadow(1px"));
         assert!(report.evaluated_css.contains("box-shadow: 1px, 2px, 3px"));
         assert!(report.evaluated_css.contains("color: blue"));
+        assert!(report.oracle.all_legacy_declaration_values_preserved);
+    }
+
+    #[test]
+    fn static_less_evaluation_expands_named_and_default_mixin_arguments() {
+        let report = derive_static_stylesheet_module_evaluation(
+            ".tone(@color: red, @gap: 1px, @double: 4px) { color: @color; margin: @gap; padding: @double; } .button { .tone(@gap: 2px, @color: blue); }",
+            StyleDialect::Less,
+        );
+        assert!(report.is_some());
+        let Some(report) = report else {
+            return;
+        };
+
+        assert!(!report.evaluated_css.contains(".tone(@color"));
+        assert!(!report.evaluated_css.contains(".tone(@gap"));
+        assert!(report.evaluated_css.contains("color: blue"));
+        assert!(report.evaluated_css.contains("margin: 2px"));
+        assert!(report.evaluated_css.contains("padding: 4px"));
         assert!(report.oracle.all_legacy_declaration_values_preserved);
     }
 

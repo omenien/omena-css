@@ -644,6 +644,31 @@ fn consumer_build_derives_static_less_evaluator_context_for_semicolon_mixin_call
 }
 
 #[test]
+fn consumer_build_derives_static_less_evaluator_context_for_named_and_default_mixin_arguments() {
+    let summary = execute_omena_query_consumer_build_style_source(
+        "Button.module.less",
+        ".tone(@color: red, @gap: 1px, @double: 4px) { color: @color; margin: @gap; padding: @double; } .button { .tone(@gap: 2px, @color: blue); }",
+        &[
+            "less-module-evaluate".to_string(),
+            "css-modules-class-hashing".to_string(),
+            "print-css".to_string(),
+        ],
+    );
+
+    assert!(
+        summary
+            .execution
+            .executed_pass_ids
+            .contains(&"less-module-evaluate")
+    );
+    assert!(summary.execution.output_css.contains("color: blue"));
+    assert!(summary.execution.output_css.contains("margin: 2px"));
+    assert!(summary.execution.output_css.contains("padding: 4px"));
+    assert!(!summary.execution.output_css.contains(".tone(@color"));
+    assert!(!summary.execution.output_css.contains(".tone(@gap"));
+}
+
+#[test]
 fn consumer_build_derives_static_less_evaluator_context_for_nested_mixin_calls() {
     let summary = execute_omena_query_consumer_build_style_source(
         "Button.module.less",
