@@ -163,6 +163,7 @@ pub struct OmenaScssEvalCallReturnNodeV0 {
     pub body_has_loop_control_flow: bool,
     pub return_inside_loop_control_flow: bool,
     pub return_loop_header_text: Option<String>,
+    pub return_loop_header_texts: Vec<String>,
     pub return_condition_text: Option<String>,
     pub return_negated_condition_texts: Vec<String>,
     pub source_span_start: usize,
@@ -521,6 +522,7 @@ struct ScssCallReturnCandidate {
     body_has_loop_control_flow: bool,
     return_inside_loop_control_flow: bool,
     return_loop_header_text: Option<String>,
+    return_loop_header_texts: Vec<String>,
     return_condition_text: Option<String>,
     return_negated_condition_texts: Vec<String>,
     source_span_start: usize,
@@ -565,6 +567,7 @@ fn call_return_candidate_from_sass_symbol(
         body_has_loop_control_flow: scss_declaration_body_has_loop_control_flow(tokens, symbol),
         return_inside_loop_control_flow: false,
         return_loop_header_text: None,
+        return_loop_header_texts: Vec::new(),
         return_condition_text: None,
         return_negated_condition_texts: Vec::new(),
         source_span_start: symbol.range.start().into(),
@@ -586,7 +589,8 @@ fn collect_scss_return_candidates(
             let return_text = scss_return_text_from_token(source, tokens, index);
             let return_inside_loop_control_flow =
                 scss_return_is_inside_loop_control_flow(tokens, index);
-            let return_loop_header_text = scss_return_loop_header_text(source, tokens, index);
+            let return_loop_header_texts = scss_return_loop_header_texts(source, tokens, index);
+            let return_loop_header_text = return_loop_header_texts.last().cloned();
             let return_value = if return_inside_loop_control_flow {
                 Some(AbstractCssValueV0::Top)
             } else {
@@ -611,6 +615,7 @@ fn collect_scss_return_candidates(
                 body_has_loop_control_flow: false,
                 return_inside_loop_control_flow,
                 return_loop_header_text,
+                return_loop_header_texts,
                 return_condition_text: return_condition
                     .as_ref()
                     .and_then(|condition| condition.condition_text.clone()),
@@ -625,24 +630,23 @@ fn collect_scss_return_candidates(
 }
 
 fn scss_return_is_inside_loop_control_flow(tokens: &[LexedToken], return_index: usize) -> bool {
-    enclosing_scss_loop_block(tokens, return_index).is_some()
+    !enclosing_scss_loop_blocks(tokens, return_index).is_empty()
 }
 
-fn scss_return_loop_header_text(
+fn scss_return_loop_header_texts(
     source: &str,
     tokens: &[LexedToken],
     return_index: usize,
-) -> Option<String> {
-    enclosing_scss_loop_block(tokens, return_index)
+) -> Vec<String> {
+    enclosing_scss_loop_blocks(tokens, return_index)
+        .into_iter()
         .map(|block| control_flow_header_text(source, tokens, block.at_rule_index))
         .filter(|header| !header.is_empty())
+        .collect()
 }
 
-fn enclosing_scss_loop_block(
-    tokens: &[LexedToken],
-    return_index: usize,
-) -> Option<ScssBranchBlock> {
-    tokens
+fn enclosing_scss_loop_blocks(tokens: &[LexedToken], return_index: usize) -> Vec<ScssBranchBlock> {
+    let mut blocks = tokens
         .iter()
         .enumerate()
         .filter_map(|(index, token)| {
@@ -671,7 +675,13 @@ fn enclosing_scss_loop_block(
                 }
             })
         })
-        .min_by_key(|block| block.body_end_index.saturating_sub(block.body_start_index))
+        .collect::<Vec<_>>();
+    blocks.sort_by(|left, right| {
+        let left_span = left.body_end_index.saturating_sub(left.body_start_index);
+        let right_span = right.body_end_index.saturating_sub(right.body_start_index);
+        right_span.cmp(&left_span)
+    });
+    blocks
 }
 
 fn scss_return_text_from_token(
@@ -1383,6 +1393,7 @@ fn call_return_node_from_candidate(
         body_has_loop_control_flow: candidate.body_has_loop_control_flow,
         return_inside_loop_control_flow: candidate.return_inside_loop_control_flow,
         return_loop_header_text: candidate.return_loop_header_text,
+        return_loop_header_texts: candidate.return_loop_header_texts,
         return_condition_text: candidate.return_condition_text,
         return_negated_condition_texts: candidate.return_negated_condition_texts,
         source_span_start: candidate.source_span_start,
@@ -1735,20 +1746,27 @@ fn call_bound_loop_return_resolution(
     function_name: Option<&str>,
     context: Option<&ScssCallReturnResolutionContext<'_>>,
 ) -> ScssLoopReturnResolution {
-    let Some(header) = node.return_loop_header_text.as_deref() else {
-        return ScssLoopReturnResolution::Unknown;
+    let header_texts = if node.return_loop_header_texts.is_empty() {
+        match node.return_loop_header_text.as_deref() {
+            Some(header) => vec![header.to_string()],
+            None => return ScssLoopReturnResolution::Unknown,
+        }
+    } else {
+        node.return_loop_header_texts.clone()
     };
-    if header
-        .trim_start()
-        .to_ascii_lowercase()
-        .starts_with("@while")
-    {
+    if header_texts.iter().any(|header| {
+        header
+            .trim_start()
+            .to_ascii_lowercase()
+            .starts_with("@while")
+    }) {
         return ScssLoopReturnResolution::Unknown;
     }
     let Some(return_text) = node.return_text.as_deref() else {
         return ScssLoopReturnResolution::Unknown;
     };
-    let Some(frames) = loop_carried_binding_frames(header, &bindings) else {
+    let Some(frames) = loop_carried_binding_frames_for_headers(header_texts.as_slice(), &bindings)
+    else {
         return ScssLoopReturnResolution::Unknown;
     };
     if frames.is_empty() {
@@ -3161,6 +3179,42 @@ fn loop_carried_binding_frames(
         .or_else(|| static_each_map_loop_binding_frames(header, lexical_bindings))
         .or_else(|| static_each_tuple_loop_binding_frames(header, lexical_bindings))
         .or_else(|| static_each_single_loop_binding_frames(header, lexical_bindings))
+}
+
+fn loop_carried_binding_frames_for_headers(
+    headers: &[String],
+    lexical_bindings: &BTreeMap<String, AbstractCssValueV0>,
+) -> Option<Vec<Vec<ScssControlFlowBindingValue>>> {
+    if headers.is_empty() {
+        return None;
+    }
+
+    let mut frames = vec![Vec::<ScssControlFlowBindingValue>::new()];
+    for header in headers {
+        let mut next_frames = Vec::new();
+        for frame in frames {
+            let mut frame_bindings = lexical_bindings.clone();
+            for binding in &frame {
+                insert_static_scss_binding(
+                    &mut frame_bindings,
+                    binding.name.as_str(),
+                    binding.value.clone(),
+                );
+            }
+            let header_frames = loop_carried_binding_frames(header, &frame_bindings)?;
+            for header_frame in header_frames {
+                let mut combined = frame.clone();
+                combined.extend(header_frame);
+                next_frames.push(combined);
+                if next_frames.len() > 64 {
+                    return None;
+                }
+            }
+        }
+        frames = next_frames;
+    }
+
+    Some(frames)
 }
 
 fn static_for_loop_binding_frames(
@@ -5761,6 +5815,68 @@ mod tests {
     #[test]
     fn call_return_ir_continues_after_inactive_static_loop_returns() {
         let source = "@function collect($target) { @for $i from 1 through 3 { @if $i == $target { @return $i; } } @return 0; } .a { width: collect(4); }";
+        let report = summarize_scss_call_return_ir(source, StyleDialect::Scss);
+        assert!(report.is_some());
+        let Some(report) = report else {
+            return;
+        };
+        let function_call = report
+            .nodes
+            .iter()
+            .find(|node| node.kind == "functionCall" && node.name.as_deref() == Some("collect"));
+        assert!(function_call.is_some());
+        let Some(function_call) = function_call else {
+            return;
+        };
+
+        assert_eq!(report.call_resolved_return_value_count, 1);
+        assert_eq!(report.exact_call_resolved_return_value_count, 1);
+        assert_eq!(function_call.call_resolved_return_value_kind, Some("exact"));
+        assert_eq!(
+            function_call.call_resolved_return_value,
+            Some(AbstractCssValueV0::Exact {
+                value: "0".to_string()
+            })
+        );
+    }
+
+    #[test]
+    fn call_return_ir_resolves_nested_static_loop_body_returns() {
+        let source = "@function collect($target) { @for $i from 1 through 2 { @for $j from 1 through 2 { @if $i == $target { @return $i + $j; } } } @return 0; } .a { width: collect(2); }";
+        let report = summarize_scss_call_return_ir(source, StyleDialect::Scss);
+        assert!(report.is_some());
+        let Some(report) = report else {
+            return;
+        };
+        let function_call = report
+            .nodes
+            .iter()
+            .find(|node| node.kind == "functionCall" && node.name.as_deref() == Some("collect"));
+        assert!(function_call.is_some());
+        let Some(function_call) = function_call else {
+            return;
+        };
+
+        assert!(report.nodes.iter().any(|node| {
+            node.kind == "functionReturn" && node.return_loop_header_texts.len() == 2
+        }));
+        assert_eq!(report.call_resolved_return_value_count, 1);
+        assert_eq!(report.finite_set_call_resolved_return_value_count, 1);
+        assert_eq!(
+            function_call.call_resolved_return_value_kind,
+            Some("finiteSet")
+        );
+        assert_eq!(
+            function_call.call_resolved_return_value,
+            Some(AbstractCssValueV0::FiniteSet {
+                values: vec!["3".to_string(), "4".to_string()]
+            })
+        );
+    }
+
+    #[test]
+    fn call_return_ir_continues_after_inactive_nested_static_loop_returns() {
+        let source = "@function collect($target) { @for $i from 1 through 2 { @for $j from 1 through 2 { @if $i == $target { @return $i + $j; } } } @return 0; } .a { width: collect(3); }";
         let report = summarize_scss_call_return_ir(source, StyleDialect::Scss);
         assert!(report.is_some());
         let Some(report) = report else {
