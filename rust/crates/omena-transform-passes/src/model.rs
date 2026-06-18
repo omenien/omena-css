@@ -283,6 +283,23 @@ pub struct TransformExecutionContextV0 {
 pub struct TransformModuleEvaluationV0 {
     pub evaluator: String,
     pub evaluated_css: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub oracle: Option<TransformModuleEvaluationOracleV0>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TransformModuleEvaluationOracleV0 {
+    pub mode: String,
+    pub product_output_source: String,
+    pub legacy_declaration_value_count: usize,
+    pub abstract_value_count: usize,
+    pub exact_value_count: usize,
+    pub raw_value_count: usize,
+    pub bottom_value_count: usize,
+    pub top_value_count: usize,
+    pub divergence_count: usize,
+    pub all_legacy_declaration_values_preserved: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize)]

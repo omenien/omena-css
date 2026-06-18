@@ -1,8 +1,11 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use omena_parser::StyleDialect as OmenaParserStyleDialect;
-use omena_query_transform_runner::TransformModuleEvaluationV0;
+use omena_query_transform_runner::{
+    TransformModuleEvaluationOracleV0, TransformModuleEvaluationV0,
+};
 use omena_scss_eval::{
+    OmenaScssEvalStaticStylesheetEvaluationV0,
     derive_static_scss_stylesheet_module_configurable_variable_names as derive_omena_scss_eval_static_scss_stylesheet_module_configurable_variable_names,
     derive_static_scss_stylesheet_module_variable_exports as derive_omena_scss_eval_static_scss_stylesheet_module_variable_exports,
     derive_static_stylesheet_module_evaluation as derive_omena_scss_eval_static_stylesheet_module_evaluation,
@@ -22,10 +25,31 @@ pub(super) fn derive_static_stylesheet_module_evaluation(
         evaluation.oracle.all_legacy_declaration_values_preserved,
         "native SCSS/Less value oracle diverged from legacy evaluated_css"
     );
+    let oracle = transform_module_evaluation_oracle(&evaluation);
     Some(TransformModuleEvaluationV0 {
         evaluator: evaluation.evaluator.to_string(),
         evaluated_css: evaluation.evaluated_css,
+        oracle: Some(oracle),
     })
+}
+
+fn transform_module_evaluation_oracle(
+    evaluation: &OmenaScssEvalStaticStylesheetEvaluationV0,
+) -> TransformModuleEvaluationOracleV0 {
+    TransformModuleEvaluationOracleV0 {
+        mode: evaluation.oracle.mode.to_string(),
+        product_output_source: evaluation.oracle.product_output_source.to_string(),
+        legacy_declaration_value_count: evaluation.oracle.legacy_declaration_value_count,
+        abstract_value_count: evaluation.oracle.values.len(),
+        exact_value_count: evaluation.oracle.exact_value_count,
+        raw_value_count: evaluation.oracle.raw_value_count,
+        bottom_value_count: evaluation.oracle.bottom_value_count,
+        top_value_count: evaluation.oracle.top_value_count,
+        divergence_count: evaluation.oracle.divergence_count,
+        all_legacy_declaration_values_preserved: evaluation
+            .oracle
+            .all_legacy_declaration_values_preserved,
+    }
 }
 
 pub(super) fn derive_static_scss_stylesheet_module_variable_exports(

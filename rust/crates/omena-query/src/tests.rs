@@ -1757,12 +1757,38 @@ fn derives_transform_context_with_static_stylesheet_module_evaluation() {
         Some("  .button { color: red; }")
     );
     assert_eq!(
+        scss_summary
+            .context
+            .scss_module_evaluation
+            .as_ref()
+            .and_then(|evaluation| evaluation.oracle.as_ref())
+            .map(|oracle| (
+                oracle.mode.as_str(),
+                oracle.divergence_count,
+                oracle.all_legacy_declaration_values_preserved
+            )),
+        Some(("oracleOnly", 0, true))
+    );
+    assert_eq!(
         less_summary
             .context
             .less_module_evaluation
             .as_ref()
             .map(|evaluation| evaluation.evaluated_css.as_str()),
         Some("  .button { color: red; }")
+    );
+    assert_eq!(
+        less_summary
+            .context
+            .less_module_evaluation
+            .as_ref()
+            .and_then(|evaluation| evaluation.oracle.as_ref())
+            .map(|oracle| (
+                oracle.mode.as_str(),
+                oracle.divergence_count,
+                oracle.all_legacy_declaration_values_preserved
+            )),
+        Some(("oracleOnly", 0, true))
     );
     assert!(
         scss_summary

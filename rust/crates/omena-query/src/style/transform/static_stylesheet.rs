@@ -40,12 +40,14 @@ pub(super) fn derive_static_stylesheet_module_evaluation_for_transform_context(
     if let Some(evaluation) =
         derive_static_stylesheet_module_evaluation(evaluation_source.as_ref(), dialect)
     {
+        let oracle = evaluation.oracle;
         return Some(TransformModuleEvaluationV0 {
             evaluator: evaluation.evaluator,
             evaluated_css: restore_less_inline_literal_placeholders(
                 evaluation.evaluated_css.as_str(),
                 &import_aware_source.less_inline_literal_placeholders,
             ),
+            oracle,
         });
     }
     (evaluation_source.as_ref() != style_source).then(|| TransformModuleEvaluationV0 {
@@ -54,6 +56,7 @@ pub(super) fn derive_static_stylesheet_module_evaluation_for_transform_context(
             evaluation_source.as_ref(),
             &import_aware_source.less_inline_literal_placeholders,
         ),
+        oracle: None,
     })
 }
 

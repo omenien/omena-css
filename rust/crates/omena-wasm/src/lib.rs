@@ -1185,6 +1185,7 @@ export function App() {
             scss_module_evaluation: Some(omena_query::OmenaQueryTransformModuleEvaluationV0 {
                 evaluator: "dart-sass-compatible".to_string(),
                 evaluated_css: ".card { color: red; }".to_string(),
+                oracle: None,
             }),
             ..OmenaWasmTransformExecutionContextV0::default()
         };

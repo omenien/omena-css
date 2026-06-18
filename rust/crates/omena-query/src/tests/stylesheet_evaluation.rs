@@ -369,6 +369,20 @@ fn consumer_build_derives_static_less_evaluator_context() {
             .map(|evaluation| evaluation.evaluator.as_str()),
         Some("omena-query-static-less-variable-evaluator")
     );
+    assert_eq!(
+        summary
+            .execution
+            .css_module_evaluation
+            .as_ref()
+            .and_then(|evaluation| evaluation.oracle.as_ref())
+            .map(|oracle| (
+                oracle.mode.as_str(),
+                oracle.product_output_source.as_str(),
+                oracle.divergence_count,
+                oracle.all_legacy_declaration_values_preserved
+            )),
+        Some(("oracleOnly", "legacyEvaluatedCss", 0, true))
+    );
 }
 
 #[test]

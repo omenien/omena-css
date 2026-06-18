@@ -285,6 +285,7 @@ fn consumer_build_accepts_explicit_scss_evaluator_context() {
         scss_module_evaluation: Some(OmenaQueryTransformModuleEvaluationV0 {
             evaluator: "dart-sass-compatible".to_string(),
             evaluated_css: ".button { color: red; }".to_string(),
+            oracle: None,
         }),
         ..OmenaQueryTransformExecutionContextV0::default()
     };

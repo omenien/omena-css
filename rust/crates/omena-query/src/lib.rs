@@ -62,6 +62,7 @@ pub use omena_query_transform_runner::{
     TransformExecutionContextV0 as OmenaQueryTransformExecutionContextV0,
     TransformExecutionSummaryV0 as OmenaQueryTransformExecutionSummaryV0,
     TransformImportInlineV0 as OmenaQueryTransformImportInlineV0,
+    TransformModuleEvaluationOracleV0 as OmenaQueryTransformModuleEvaluationOracleV0,
     TransformModuleEvaluationV0 as OmenaQueryTransformModuleEvaluationV0, TransformPrintArtifactV0,
     TransformPrintMode as OmenaQueryTransformPrintMode,
     TransformPrintOptionsV0 as OmenaQueryTransformPrintOptionsV0,
