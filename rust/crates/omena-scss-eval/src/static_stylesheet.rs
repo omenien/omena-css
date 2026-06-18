@@ -450,6 +450,7 @@ fn derive_static_less_stylesheet_module_evaluation(
         style_source,
         &detached_rulesets,
         &detached_ruleset_calls,
+        &mixin_declarations,
         &mixin_declaration_ranges,
         &scopes,
         &declarations,
@@ -2689,6 +2690,7 @@ fn collect_static_less_detached_ruleset_evaluation_edits(
     source: &str,
     declarations: &[StaticLessDetachedRulesetDeclaration],
     calls: &[StaticLessDetachedRulesetCall],
+    mixin_declarations: &[StaticLessMixinDeclaration],
     mixin_declaration_ranges: &[(usize, usize)],
     scopes: &[StaticStylesheetScope],
     variable_declarations: &BTreeMap<(usize, String), StaticStylesheetVariableDeclaration>,
@@ -2702,6 +2704,7 @@ fn collect_static_less_detached_ruleset_evaluation_edits(
             replacement: String::new(),
         })
         .collect::<Vec<_>>();
+    let mut used_mixin_declaration_names = BTreeSet::new();
 
     for call in calls.iter().filter(|call| {
         !static_stylesheet_position_is_inside_ranges(call.start, &declaration_ranges)
@@ -2720,11 +2723,23 @@ fn collect_static_less_detached_ruleset_evaluation_edits(
             call_scope_id,
             scopes,
             variable_declarations,
+            mixin_declarations,
         )?;
+        used_mixin_declaration_names.extend(replacement.used_declaration_names);
         edits.push(StaticStylesheetEvaluationEdit {
             start: call.start,
             end: call.end,
-            replacement,
+            replacement: replacement.body,
+        });
+    }
+    for declaration in mixin_declarations.iter().filter(|declaration| {
+        used_mixin_declaration_names
+            .contains(&canonical_static_less_mixin_name(declaration.name.as_str()))
+    }) {
+        edits.push(StaticStylesheetEvaluationEdit {
+            start: declaration.span_start,
+            end: declaration.span_end,
+            replacement: String::new(),
         });
     }
     Some(edits)
@@ -2736,15 +2751,14 @@ fn render_static_less_detached_ruleset_body(
     call_scope_id: usize,
     scopes: &[StaticStylesheetScope],
     variable_declarations: &BTreeMap<(usize, String), StaticStylesheetVariableDeclaration>,
-) -> Option<String> {
+    mixin_declarations: &[StaticLessMixinDeclaration],
+) -> Option<StaticLessMixinRenderResult> {
     let body = source.get(declaration.body_start..declaration.body_end)?;
     if !static_less_mixin_body_is_static_declaration_subset(body) {
         return None;
     }
     let body_lexed = lex(body, StyleDialect::Less);
-    if !collect_static_less_detached_ruleset_calls(body, body_lexed.tokens())?.is_empty()
-        || !collect_static_less_mixin_calls(body, body_lexed.tokens())?.is_empty()
-    {
+    if !collect_static_less_detached_ruleset_calls(body, body_lexed.tokens())?.is_empty() {
         return None;
     }
     let empty_arguments = BTreeMap::new();
@@ -2755,7 +2769,30 @@ fn render_static_less_detached_ruleset_body(
         scopes,
         variable_declarations,
     )?;
-    resolve_static_less_mixin_body_declaration_values(body.as_str())
+    let context = StaticLessMixinRenderContext {
+        source,
+        declarations: mixin_declarations,
+        scopes,
+        variable_declarations,
+    };
+    let mut active_mixins = BTreeSet::new();
+    let nested = render_static_less_mixin_body_nested_calls(
+        body.as_str(),
+        call_scope_id,
+        context,
+        &mut active_mixins,
+    )?;
+    let nested_lexed = lex(nested.body.as_str(), StyleDialect::Less);
+    if !collect_static_less_mixin_calls(nested.body.as_str(), nested_lexed.tokens())?.is_empty()
+        || !collect_static_less_detached_ruleset_calls(nested.body.as_str(), nested_lexed.tokens())?
+            .is_empty()
+    {
+        return None;
+    }
+    Some(StaticLessMixinRenderResult {
+        body: resolve_static_less_mixin_body_declaration_values(nested.body.as_str())?,
+        used_declaration_names: nested.used_declaration_names,
+    })
 }
 
 fn find_static_less_detached_ruleset_declaration<'a>(
@@ -7134,6 +7171,9 @@ fn apply_static_stylesheet_evaluation_edits(
     mut edits: Vec<StaticStylesheetEvaluationEdit>,
 ) -> Option<String> {
     edits.sort_by_key(|edit| edit.start);
+    edits.dedup_by(|left, right| {
+        left.start == right.start && left.end == right.end && left.replacement == right.replacement
+    });
     let mut previous_end = 0usize;
     for edit in &edits {
         if edit.start < previous_end || edit.start > edit.end || edit.end > source.len() {
@@ -7330,9 +7370,27 @@ mod tests {
     }
 
     #[test]
-    fn static_less_evaluation_keeps_detached_rulesets_with_mixin_calls_planned_only() {
+    fn static_less_evaluation_expands_detached_rulesets_with_mixin_calls() {
         let report = derive_static_stylesheet_module_evaluation(
             ".rounded() { border-radius: 2px; } @rules: { .rounded(); }; .button { @rules(); }",
+            StyleDialect::Less,
+        );
+        assert!(report.is_some());
+        let Some(report) = report else {
+            return;
+        };
+
+        assert!(!report.evaluated_css.contains(".rounded()"));
+        assert!(!report.evaluated_css.contains("@rules:"));
+        assert!(!report.evaluated_css.contains("@rules();"));
+        assert!(report.evaluated_css.contains("border-radius: 2px"));
+        assert!(report.oracle.all_legacy_declaration_values_preserved);
+    }
+
+    #[test]
+    fn static_less_evaluation_keeps_unknown_detached_ruleset_mixin_calls_planned_only() {
+        let report = derive_static_stylesheet_module_evaluation(
+            "@rules: { .unknown(); }; .button { @rules(); }",
             StyleDialect::Less,
         );
 

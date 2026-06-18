@@ -759,10 +759,40 @@ fn consumer_build_derives_static_less_evaluator_context_for_detached_rulesets() 
 }
 
 #[test]
-fn consumer_build_keeps_nested_mixin_less_detached_rulesets_planned_only() {
+fn consumer_build_derives_static_less_evaluator_context_for_detached_ruleset_mixin_calls() {
     let summary = execute_omena_query_consumer_build_style_source(
         "Button.module.less",
         ".rounded() { border-radius: 2px; } @rules: { .rounded(); }; .button { @rules(); }",
+        &[
+            "less-module-evaluate".to_string(),
+            "css-modules-class-hashing".to_string(),
+            "print-css".to_string(),
+        ],
+    );
+
+    assert!(
+        summary
+            .execution
+            .executed_pass_ids
+            .contains(&"less-module-evaluate")
+    );
+    assert!(
+        !summary
+            .execution
+            .planned_only_pass_ids
+            .contains(&"less-module-evaluate")
+    );
+    assert!(summary.execution.output_css.contains("border-radius: 2px"));
+    assert!(!summary.execution.output_css.contains(".rounded()"));
+    assert!(!summary.execution.output_css.contains("@rules:"));
+    assert!(!summary.execution.output_css.contains("@rules();"));
+}
+
+#[test]
+fn consumer_build_keeps_unknown_detached_ruleset_mixin_calls_planned_only() {
+    let summary = execute_omena_query_consumer_build_style_source(
+        "Button.module.less",
+        "@rules: { .unknown(); }; .button { @rules(); }",
         &[
             "less-module-evaluate".to_string(),
             "css-modules-class-hashing".to_string(),
