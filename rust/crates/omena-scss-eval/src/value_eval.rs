@@ -41,6 +41,8 @@ pub(crate) fn reduce_static_scss_value(value: String) -> String {
             ("map.keys", parse_static_scss_map_keys_namespaced_value),
             ("map-values", parse_static_scss_map_values_value),
             ("map.values", parse_static_scss_map_values_namespaced_value),
+            ("map-merge", parse_static_scss_map_merge_value),
+            ("map.merge", parse_static_scss_map_merge_namespaced_value),
             ("math.div", parse_static_scss_math_div_value),
             ("math.min", parse_static_scss_math_min_value),
             ("math.max", parse_static_scss_math_max_value),
@@ -247,6 +249,14 @@ fn parse_static_scss_map_values_value(value: &str) -> Option<String> {
 
 fn parse_static_scss_map_values_namespaced_value(value: &str) -> Option<String> {
     parse_static_scss_map_values_value_with_name(value, "map.values")
+}
+
+fn parse_static_scss_map_merge_value(value: &str) -> Option<String> {
+    parse_static_scss_map_merge_value_with_name(value, "map-merge")
+}
+
+fn parse_static_scss_map_merge_namespaced_value(value: &str) -> Option<String> {
+    parse_static_scss_map_merge_value_with_name(value, "map.merge")
 }
 
 fn parse_static_scss_math_div_value(value: &str) -> Option<String> {
@@ -479,6 +489,26 @@ fn parse_static_scss_map_values_value_with_name(
     static_scss_render_comma_list(values)
 }
 
+fn parse_static_scss_map_merge_value_with_name(value: &str, function_name: &str) -> Option<String> {
+    let arguments = parse_whole_function_value_arguments(value, function_name)?;
+    let [left_map, right_map] = arguments.as_slice() else {
+        return None;
+    };
+    let mut merged = parse_static_scss_map_entries(left_map)?;
+    for (right_key, right_value) in parse_static_scss_map_entries(right_map)? {
+        let right_canonical_key = canonical_static_scss_map_key(right_key.as_str())?;
+        if let Some((_, existing_value)) = merged.iter_mut().find(|(left_key, _)| {
+            canonical_static_scss_map_key(left_key.as_str())
+                .is_some_and(|left_canonical_key| left_canonical_key == right_canonical_key)
+        }) {
+            *existing_value = right_value;
+        } else {
+            merged.push((right_key, right_value));
+        }
+    }
+    static_scss_render_map_entries(merged)
+}
+
 fn parse_static_scss_list_index(value: &str) -> Option<isize> {
     let reduced = reduce_static_numeric_value(value.trim().to_string());
     let index = reduced.trim().parse::<isize>().ok()?;
@@ -503,6 +533,16 @@ fn parse_static_scss_list_items(value: &str) -> Option<Vec<String>> {
 
 fn static_scss_render_comma_list(items: Vec<String>) -> Option<String> {
     (!items.is_empty()).then(|| format!("({})", items.join(", ")))
+}
+
+fn static_scss_render_map_entries(entries: Vec<(String, String)>) -> Option<String> {
+    (!entries.is_empty()).then(|| {
+        let entries = entries
+            .into_iter()
+            .map(|(key, value)| format!("{key}: {value}"))
+            .collect::<Vec<_>>();
+        format!("({})", entries.join(", "))
+    })
 }
 
 fn static_scss_list_separator(value: &str) -> Option<&'static str> {

@@ -3690,6 +3690,29 @@ mod tests {
     }
 
     #[test]
+    fn static_scss_evaluation_reduces_static_map_merge_values() {
+        let report = derive_static_stylesheet_module_evaluation(
+            "$gap: map.get(map.merge((default: 1px, dense: 2px), (dense: 3px, compact: 4px)), dense); $count: list.length(map.keys(map-merge((default: 1px), (compact: 4px)))); .button { margin: $gap; z-index: $count; }",
+            StyleDialect::Scss,
+        );
+        assert!(report.is_some());
+        let Some(report) = report else {
+            return;
+        };
+
+        let replacements = report
+            .resolved_replacements
+            .iter()
+            .map(|replacement| replacement.text.as_str())
+            .collect::<Vec<_>>();
+        assert!(replacements.contains(&"3px"));
+        assert!(replacements.contains(&"2"));
+        assert!(report.evaluated_css.contains("margin: 3px"));
+        assert!(report.evaluated_css.contains("z-index: 2"));
+        assert!(report.oracle.all_legacy_declaration_values_preserved);
+    }
+
+    #[test]
     fn static_scss_evaluation_reduces_static_math_numeric_values() {
         let report = derive_static_stylesheet_module_evaluation(
             "$gap: math.div(6px, 3); $ratio: percentage(.25); $pad: if(math.is-unitless(2), 1px, 2px); $border: if(unitless(2px), 3px, 4px); $unit: math.unit(2px); $unitless-name: unit(2); $compatible: if(math.compatible(1px, 2px), 5px, 6px); $global-compatible: if(comparable(1, 1px), 7px, 8px); .button { margin: $gap; width: $ratio; padding: $pad; border-width: $border; content: $unit; quotes: $unitless-name; outline-width: $compatible; min-width: $global-compatible; }",
