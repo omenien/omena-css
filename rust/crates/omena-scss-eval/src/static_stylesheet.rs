@@ -9188,7 +9188,7 @@ mod tests {
     #[test]
     fn static_scss_evaluation_reduces_legacy_rounding_aliases() {
         let report = derive_static_stylesheet_module_evaluation(
-            "$ceil: ceil(1.2px); $floor: floor(1.8px); .button { top: $ceil; bottom: $floor; }",
+            "$ceil: ceil(1.2px); $floor: floor(1.8px); $round: round(1.5px); .button { top: $ceil; bottom: $floor; left: $round; }",
             StyleDialect::Scss,
         );
         assert!(report.is_some());
@@ -9205,8 +9205,9 @@ mod tests {
         assert!(replacements.contains(&"1px"));
         assert!(report.evaluated_css.contains("top: 2px"));
         assert!(report.evaluated_css.contains("bottom: 1px"));
-        assert_eq!(report.value_resolution.reference_count, 2);
-        assert_eq!(report.value_resolution.resolved_count, 2);
+        assert!(report.evaluated_css.contains("left: 2px"));
+        assert_eq!(report.value_resolution.reference_count, 3);
+        assert_eq!(report.value_resolution.resolved_count, 3);
         assert!(report.oracle.all_legacy_declaration_values_preserved);
     }
 

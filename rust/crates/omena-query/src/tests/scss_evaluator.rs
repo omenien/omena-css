@@ -38,7 +38,7 @@ fn exposes_static_stylesheet_evaluator_oracle_through_query_boundary() {
 #[test]
 fn exposes_static_scss_legacy_rounding_aliases_through_query_boundary() {
     let summary = summarize_omena_query_static_stylesheet_evaluator_from_source(
-        "$ceil: ceil(1.2px); $floor: floor(1.8px); .card { top: $ceil; bottom: $floor; }",
+        "$ceil: ceil(1.2px); $floor: floor(1.8px); $round: round(1.5px); .card { top: $ceil; bottom: $floor; left: $round; }",
         OmenaParserStyleDialect::Scss,
     );
 
@@ -48,8 +48,8 @@ fn exposes_static_scss_legacy_rounding_aliases_through_query_boundary() {
     assert!(summary.legacy_output_consumed_until_cutover);
     assert_eq!(summary.divergence_count, 0);
     assert!(summary.all_legacy_declaration_values_preserved);
-    assert_eq!(summary.native_value_reference_count, 2);
-    assert_eq!(summary.native_resolved_value_count, 2);
+    assert_eq!(summary.native_value_reference_count, 3);
+    assert_eq!(summary.native_resolved_value_count, 3);
     assert!(
         summary
             .evaluation
@@ -61,6 +61,12 @@ fn exposes_static_scss_legacy_rounding_aliases_through_query_boundary() {
             .evaluation
             .as_ref()
             .is_some_and(|evaluation| evaluation.evaluated_css.contains("bottom: 1px"))
+    );
+    assert!(
+        summary
+            .evaluation
+            .as_ref()
+            .is_some_and(|evaluation| evaluation.evaluated_css.contains("left: 2px"))
     );
 }
 

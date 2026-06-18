@@ -100,6 +100,7 @@ pub(crate) fn reduce_static_scss_value(value: String) -> String {
             ("map.set", parse_static_scss_map_set_value),
             ("ceil", parse_static_scss_ceil_value),
             ("floor", parse_static_scss_floor_value),
+            ("round", parse_static_scss_round_value),
             ("math.div", parse_static_scss_math_div_value),
             ("math.min", parse_static_scss_math_min_value),
             ("math.max", parse_static_scss_math_max_value),
@@ -897,6 +898,15 @@ fn parse_static_scss_floor_value(value: &str) -> Option<String> {
 
 fn parse_static_scss_math_floor_value(value: &str) -> Option<String> {
     parse_static_scss_numeric_alias_value(value, "math.floor", "floor", parse_reducible_floor_value)
+}
+
+fn parse_static_scss_round_value(value: &str) -> Option<String> {
+    parse_static_scss_numeric_alias_value(
+        value,
+        "round",
+        "round",
+        parse_reducible_round_to_integer_value,
+    )
 }
 
 fn parse_static_scss_math_round_value(value: &str) -> Option<String> {
