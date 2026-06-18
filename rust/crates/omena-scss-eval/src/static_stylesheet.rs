@@ -8,6 +8,7 @@ use serde::Serialize;
 use crate::{
     abstract_css_value_kind,
     scss_metadata::reduce_static_scss_metadata_with_context,
+    static_loop_frames::parse_static_scss_each_loop_binding_frames,
     summarize_omena_scss_eval_oracle,
     value_eval::{
         reduce_static_numeric_value, reduce_static_scss_value,
@@ -823,7 +824,13 @@ struct StaticScssFunctionReturnClause {
     condition: Option<String>,
     value: String,
     span_start: usize,
-    loop_headers: Vec<String>,
+    loop_headers: Vec<StaticScssLoopHeader>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct StaticScssLoopHeader {
+    text: String,
+    span_start: usize,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -1266,7 +1273,7 @@ fn collect_static_scss_function_return_clauses_in_range(
     tokens: &[LexedToken],
     start: usize,
     end: usize,
-    loop_headers: &[String],
+    loop_headers: &[StaticScssLoopHeader],
 ) -> Option<Vec<StaticScssFunctionReturnClause>> {
     let mut clauses = Vec::new();
     let mut branch_conditions = Vec::<String>::new();
@@ -1353,7 +1360,10 @@ fn collect_static_scss_function_return_clauses_in_range(
             let (header, body_open_index, body_close_index) =
                 static_scss_control_block_header_and_body(source, tokens, index, end)?;
             let mut nested_loop_headers = loop_headers.to_vec();
-            nested_loop_headers.push(format!("{} {}", token.text.trim(), header.trim()));
+            nested_loop_headers.push(StaticScssLoopHeader {
+                text: format!("{} {}", token.text.trim(), header.trim()),
+                span_start: static_stylesheet_token_start(token),
+            });
             clauses.extend(collect_static_scss_function_return_clauses_in_range(
                 source,
                 tokens,
@@ -2004,11 +2014,11 @@ fn resolve_static_scss_loop_return_clause(
     context: StaticScssFunctionResolutionContext<'_>,
 ) -> StaticScssLoopReturnResolution {
     let Some(frames) = static_scss_loop_binding_frames_for_headers(
+        declaration,
         clause.loop_headers.as_slice(),
         argument_values,
         fuel,
         context,
-        clause.span_start,
     ) else {
         return StaticScssLoopReturnResolution::Unknown(
             StaticStylesheetResolutionReason::UnsupportedDynamic,
@@ -2086,11 +2096,11 @@ fn static_scss_return_clause_is_active(
 }
 
 fn static_scss_loop_binding_frames_for_headers(
-    headers: &[String],
+    declaration: &StaticScssFunctionDeclaration,
+    headers: &[StaticScssLoopHeader],
     argument_values: &BTreeMap<String, String>,
     fuel: usize,
     context: StaticScssFunctionResolutionContext<'_>,
-    position: usize,
 ) -> Option<Vec<Vec<(String, String)>>> {
     if headers.is_empty() {
         return None;
@@ -2107,8 +2117,21 @@ fn static_scss_loop_binding_frames_for_headers(
                     value.clone(),
                 );
             }
-            let header_frames =
-                static_scss_loop_binding_frames(header, &frame_values, fuel, context, position)?;
+            let frame_values = bind_static_scss_function_local_variables_before(
+                declaration,
+                &frame_values,
+                header.span_start,
+                fuel,
+                context,
+            )
+            .ok()?;
+            let header_frames = static_scss_loop_binding_frames(
+                header.text.as_str(),
+                &frame_values,
+                fuel,
+                context,
+                header.span_start,
+            )?;
             for header_frame in header_frames {
                 let mut combined = frame.clone();
                 combined.extend(header_frame);
@@ -2140,6 +2163,21 @@ fn static_scss_loop_binding_frames(
             context,
             position,
         );
+    }
+    if trimmed.to_ascii_lowercase().starts_with("@each") {
+        return parse_static_scss_each_loop_binding_frames(trimmed, |source| {
+            let resolution = resolve_static_scss_function_value_with_bindings(
+                source,
+                argument_values,
+                position,
+                fuel,
+                context,
+            );
+            if resolution.outcome == StaticStylesheetResolutionOutcome::Top {
+                return None;
+            }
+            resolution.rendered_value
+        });
     }
     None
 }
@@ -2233,7 +2271,7 @@ fn static_scss_function_return_clauses_are_safe(
                 && clause
                     .loop_headers
                     .iter()
-                    .all(|header| static_stylesheet_composite_value_is_safe(header))
+                    .all(|header| static_stylesheet_composite_value_is_safe(header.text.as_str()))
         })
 }
 
@@ -5447,6 +5485,63 @@ mod tests {
         assert_eq!(report.resolved_replacements[0].text, "0px");
         assert_eq!(report.resolved_replacements[0].abstract_value_kind, "exact");
         assert!(report.evaluated_css.contains(".button { margin: 0px; }"));
+        assert!(report.oracle.all_legacy_declaration_values_preserved);
+    }
+
+    #[test]
+    fn static_scss_evaluation_resolves_static_each_single_loop_function_returns() {
+        let report = derive_static_stylesheet_module_evaluation(
+            "@function first-tone() { @each $tone in red, blue { @return $tone; } } .button { color: first-tone(); }",
+            StyleDialect::Scss,
+        );
+        assert!(report.is_some());
+        let Some(report) = report else {
+            return;
+        };
+
+        assert_eq!(report.replacement_count, 1);
+        assert_eq!(report.resolved_replacements[0].name, "function:first-tone");
+        assert_eq!(report.resolved_replacements[0].text, "red");
+        assert_eq!(report.resolved_replacements[0].abstract_value_kind, "exact");
+        assert!(report.evaluated_css.contains(".button { color: red; }"));
+        assert!(report.oracle.all_legacy_declaration_values_preserved);
+    }
+
+    #[test]
+    fn static_scss_evaluation_resolves_static_each_map_loop_function_returns() {
+        let report = derive_static_stylesheet_module_evaluation(
+            "@function tone($target) { @each $name, $tone in (primary: red, secondary: blue) { @if $name == $target { @return $tone; } } @return black; } .button { color: tone(secondary); }",
+            StyleDialect::Scss,
+        );
+        assert!(report.is_some());
+        let Some(report) = report else {
+            return;
+        };
+
+        assert_eq!(report.replacement_count, 1);
+        assert_eq!(report.resolved_replacements[0].name, "function:tone");
+        assert_eq!(report.resolved_replacements[0].text, "blue");
+        assert_eq!(report.resolved_replacements[0].abstract_value_kind, "exact");
+        assert!(report.evaluated_css.contains(".button { color: blue; }"));
+        assert!(report.oracle.all_legacy_declaration_values_preserved);
+    }
+
+    #[test]
+    fn static_scss_evaluation_resolves_static_each_tuple_loop_function_returns() {
+        let report = derive_static_stylesheet_module_evaluation(
+            "@function icon-size($target) { $pairs: (save, 16px), (cancel, 24px); @each $icon, $size in $pairs { @if $icon == $target { @return $size; } } @return 0px; } .button { width: icon-size(cancel); }",
+            StyleDialect::Scss,
+        );
+        assert!(report.is_some());
+        let Some(report) = report else {
+            return;
+        };
+
+        assert_eq!(report.replacement_count, 1);
+        assert_eq!(report.resolved_replacements[0].name, "function:icon-size");
+        assert_eq!(report.resolved_replacements[0].text, "24px");
+        assert_eq!(report.resolved_replacements[0].abstract_value_kind, "exact");
+        assert!(report.evaluated_css.contains(".button { width: 24px; }"));
         assert!(report.oracle.all_legacy_declaration_values_preserved);
     }
 

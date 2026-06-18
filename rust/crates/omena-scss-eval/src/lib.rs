@@ -8,6 +8,7 @@
 
 mod control_flow;
 mod scss_metadata;
+mod static_loop_frames;
 mod static_stylesheet;
 mod value_eval;
 
