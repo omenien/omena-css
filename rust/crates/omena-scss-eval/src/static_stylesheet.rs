@@ -10581,6 +10581,28 @@ mod tests {
     }
 
     #[test]
+    fn static_scss_evaluation_reduces_static_hsl_color_transform_returns() {
+        let report = derive_static_stylesheet_module_evaluation(
+            "@function tone() { @return adjust-hue(red, 120deg); } .button { color: tone(); }",
+            StyleDialect::Scss,
+        );
+        assert!(report.is_some());
+        let Some(report) = report else {
+            return;
+        };
+
+        assert_eq!(report.resolved_replacements[0].name, "function:tone");
+        assert_eq!(report.resolved_replacements[0].text, "#0f0");
+        assert_eq!(
+            report.resolved_replacements[0].rendered_value.as_deref(),
+            Some("#0f0")
+        );
+        assert_eq!(report.resolved_replacements[0].abstract_value_kind, "exact");
+        assert!(report.evaluated_css.contains(".button { color: #0f0; }"));
+        assert!(report.oracle.all_legacy_declaration_values_preserved);
+    }
+
+    #[test]
     fn static_scss_evaluation_reduces_legacy_global_color_function_returns() {
         let report = derive_static_stylesheet_module_evaluation(
             "@function tone-channel() { @return red(mix(red, blue)); } .button { z-index: tone-channel(); }",
@@ -10808,6 +10830,49 @@ mod tests {
         assert!(rendered_values.contains(&"60deg"));
         assert!(rendered_values.contains(&"100%"));
         assert!(rendered_values.contains(&"25.098039%"));
+    }
+
+    #[test]
+    fn static_value_resolution_emits_exact_static_hsl_color_transform_values() {
+        let report = summarize_static_stylesheet_value_resolution(
+            "$adjusted: adjust-hue(red, 120deg); $complement: color.complement(red); $light: lighten(#808000, 10%); $dark: darken(#808000, 10%); $sat: saturate(#808000, 10%); $desat: desaturate(#808000, 10%); $gray: grayscale(red); $invert: color.invert(red, $weight: 25%); $scaled: color.scale(#808000, $lightness: 50%); $changed: color.change(#808000, $lightness: 50%); .button { color: $adjusted; background: $complement; border-color: $light; outline-color: $dark; caret-color: $sat; text-decoration-color: $desat; column-rule-color: $gray; accent-color: $invert; fill: $scaled; stroke: $changed; }",
+            StyleDialect::Scss,
+        );
+        assert!(report.is_some());
+        let Some(report) = report else {
+            return;
+        };
+
+        assert_eq!(report.reference_count, 10);
+        assert_eq!(report.resolved_count, 10);
+        assert_eq!(report.raw_count, 0);
+        assert!(
+            report
+                .values
+                .iter()
+                .all(|value| value.abstract_value_kind == "exact")
+        );
+        let rendered_values = report
+            .values
+            .iter()
+            .filter_map(|value| value.rendered_value.as_deref())
+            .collect::<Vec<_>>();
+        assert_eq!(
+            rendered_values
+                .iter()
+                .filter(|value| **value == "#0ff")
+                .count(),
+            1
+        );
+        assert!(rendered_values.contains(&"#0f0"));
+        assert!(rendered_values.contains(&"#b3b300"));
+        assert!(rendered_values.contains(&"#4d4d00"));
+        assert!(rendered_values.contains(&"olive"));
+        assert!(rendered_values.contains(&"#7a7a06"));
+        assert!(rendered_values.contains(&"gray"));
+        assert!(rendered_values.contains(&"#bf4040"));
+        assert!(rendered_values.contains(&"#ffff40"));
+        assert!(rendered_values.contains(&"#ff0"));
     }
 
     #[test]

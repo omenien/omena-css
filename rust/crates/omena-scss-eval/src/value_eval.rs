@@ -117,6 +117,17 @@ pub(crate) fn reduce_static_scss_value(value: String) -> String {
             ("mix", parse_static_scss_global_mix_value),
             ("color.mix", parse_static_scss_color_mix_value),
             ("color.channel", parse_static_scss_color_channel_value),
+            ("adjust-hue", parse_static_scss_adjust_hue_value),
+            ("complement", parse_static_scss_complement_value),
+            ("color.complement", parse_static_scss_color_complement_value),
+            ("lighten", parse_static_scss_lighten_value),
+            ("darken", parse_static_scss_darken_value),
+            ("saturate", parse_static_scss_saturate_value),
+            ("desaturate", parse_static_scss_desaturate_value),
+            ("grayscale", parse_static_scss_grayscale_value),
+            ("color.grayscale", parse_static_scss_color_grayscale_value),
+            ("invert", parse_static_scss_invert_value),
+            ("color.invert", parse_static_scss_color_invert_value),
             ("red", parse_static_scss_global_red_value),
             ("green", parse_static_scss_global_green_value),
             ("blue", parse_static_scss_global_blue_value),
@@ -137,6 +148,7 @@ pub(crate) fn reduce_static_scss_value(value: String) -> String {
     .unwrap_or_else(|| trimmed.to_string());
     let value = parse_static_scss_sass_color_constructor_value(value.as_str()).unwrap_or(value);
     let value = parse_static_scss_sass_color_opacity_value(value.as_str()).unwrap_or(value);
+    let value = parse_static_scss_sass_color_transform_value(value.as_str()).unwrap_or(value);
     let value = parse_static_scss_sass_color_channel_value(value.as_str()).unwrap_or(value);
     reduce_static_numeric_value(value)
 }
@@ -946,12 +958,15 @@ fn parse_static_scss_sass_color_opacity_value(value: &str) -> Option<String> {
         .or_else(|| parse_static_scss_color_alpha_delta_value(value, "fade-out", -1.0))
         .or_else(|| parse_static_scss_color_alpha_delta_value(value, "opacify", 1.0))
         .or_else(|| parse_static_scss_color_alpha_delta_value(value, "fade-in", 1.0))
-        .or_else(|| parse_static_scss_color_adjust_alpha_value(value, "color.adjust"))
-        .or_else(|| parse_static_scss_color_adjust_alpha_value(value, "adjust-color"))
-        .or_else(|| parse_static_scss_color_change_alpha_value(value, "color.change"))
-        .or_else(|| parse_static_scss_color_change_alpha_value(value, "change-color"))
-        .or_else(|| parse_static_scss_color_scale_alpha_value(value, "color.scale"))
-        .or_else(|| parse_static_scss_color_scale_alpha_value(value, "scale-color"))
+}
+
+fn parse_static_scss_sass_color_transform_value(value: &str) -> Option<String> {
+    parse_static_scss_color_adjust_value(value, "color.adjust")
+        .or_else(|| parse_static_scss_color_adjust_value(value, "adjust-color"))
+        .or_else(|| parse_static_scss_color_change_value(value, "color.change"))
+        .or_else(|| parse_static_scss_color_change_value(value, "change-color"))
+        .or_else(|| parse_static_scss_color_scale_value(value, "color.scale"))
+        .or_else(|| parse_static_scss_color_scale_value(value, "scale-color"))
 }
 
 fn parse_static_scss_sass_color_channel_value(value: &str) -> Option<String> {
@@ -1033,44 +1048,243 @@ fn parse_static_scss_color_alpha_delta_value(
     Some(render_static_scss_sass_color_constructor(color, alpha))
 }
 
-fn parse_static_scss_color_adjust_alpha_value(value: &str, function_name: &str) -> Option<String> {
+fn parse_static_scss_color_adjust_value(value: &str, function_name: &str) -> Option<String> {
     let arguments = parse_whole_function_value_arguments(value, function_name)?;
-    let arguments = parse_static_scss_color_named_alpha_arguments(arguments.as_slice())?;
+    let arguments = parse_static_scss_color_named_channel_arguments(arguments.as_slice())?;
+    if !arguments.has_any_adjustment() {
+        return None;
+    }
     let color = parse_static_scss_srgb_color_argument(
         reduce_static_scss_value(arguments.color.to_string()).as_str(),
     )?;
-    let alpha_delta = parse_static_scss_alpha_adjustment(arguments.alpha)?;
+    let mut hsl = StaticScssHslColorValue::from_srgb(color);
+    if let Some(hue) = arguments.hue {
+        hsl.hue = (hsl.hue + parse_static_scss_hue_degrees(hue)?).rem_euclid(360.0);
+    }
+    if let Some(saturation) = arguments.saturation {
+        hsl.saturation =
+            (hsl.saturation + parse_static_scss_percent_adjustment(saturation)?).clamp(0.0, 1.0);
+    }
+    if let Some(lightness) = arguments.lightness {
+        hsl.lightness =
+            (hsl.lightness + parse_static_scss_percent_adjustment(lightness)?).clamp(0.0, 1.0);
+    }
+    if let Some(alpha) = arguments.alpha {
+        hsl.alpha = static_scss_clamp_alpha(hsl.alpha + parse_static_scss_alpha_adjustment(alpha)?);
+    }
     Some(render_static_scss_sass_color_constructor(
-        color,
-        static_scss_clamp_alpha(color.alpha + alpha_delta),
+        hsl.to_srgb(),
+        hsl.alpha,
     ))
 }
 
-fn parse_static_scss_color_change_alpha_value(value: &str, function_name: &str) -> Option<String> {
-    let arguments = parse_whole_function_value_arguments(value, function_name)?;
-    let arguments = parse_static_scss_color_named_alpha_arguments(arguments.as_slice())?;
+fn parse_static_scss_adjust_hue_value(value: &str) -> Option<String> {
+    let arguments = parse_whole_function_value_arguments(value, "adjust-hue")?;
+    let arguments = parse_static_scss_color_alpha_amount_arguments(arguments.as_slice())?;
     let color = parse_static_scss_srgb_color_argument(
         reduce_static_scss_value(arguments.color.to_string()).as_str(),
     )?;
-    let alpha = parse_static_scss_alpha_channel(arguments.alpha)?;
-    Some(render_static_scss_sass_color_constructor(color, alpha))
+    let mut hsl = StaticScssHslColorValue::from_srgb(color);
+    hsl.hue = (hsl.hue + parse_static_scss_hue_degrees(arguments.amount)?).rem_euclid(360.0);
+    Some(render_static_scss_sass_color_constructor(
+        hsl.to_srgb(),
+        hsl.alpha,
+    ))
 }
 
-fn parse_static_scss_color_scale_alpha_value(value: &str, function_name: &str) -> Option<String> {
+fn parse_static_scss_complement_value(value: &str) -> Option<String> {
+    parse_static_scss_complement_value_with_name(value, "complement")
+}
+
+fn parse_static_scss_color_complement_value(value: &str) -> Option<String> {
+    parse_static_scss_complement_value_with_name(value, "color.complement")
+}
+
+fn parse_static_scss_complement_value_with_name(
+    value: &str,
+    function_name: &str,
+) -> Option<String> {
+    let color = parse_static_scss_single_color_function_argument(value, function_name)?;
+    let mut hsl = StaticScssHslColorValue::from_srgb(color);
+    hsl.hue = (hsl.hue + 180.0).rem_euclid(360.0);
+    Some(render_static_scss_sass_color_constructor(
+        hsl.to_srgb(),
+        hsl.alpha,
+    ))
+}
+
+fn parse_static_scss_lighten_value(value: &str) -> Option<String> {
+    parse_static_scss_lightness_delta_value(value, "lighten", 1.0)
+}
+
+fn parse_static_scss_darken_value(value: &str) -> Option<String> {
+    parse_static_scss_lightness_delta_value(value, "darken", -1.0)
+}
+
+fn parse_static_scss_lightness_delta_value(
+    value: &str,
+    function_name: &str,
+    direction: f64,
+) -> Option<String> {
     let arguments = parse_whole_function_value_arguments(value, function_name)?;
-    let arguments = parse_static_scss_color_named_alpha_arguments(arguments.as_slice())?;
+    let arguments = parse_static_scss_color_alpha_amount_arguments(arguments.as_slice())?;
     let color = parse_static_scss_srgb_color_argument(
         reduce_static_scss_value(arguments.color.to_string()).as_str(),
     )?;
-    let scale = parse_static_scss_alpha_scale_percent(arguments.alpha)?;
-    let alpha = if scale >= 0.0 {
-        color.alpha + (1.0 - color.alpha) * scale
-    } else {
-        color.alpha + color.alpha * scale
+    let amount = parse_static_scss_percent_adjustment(arguments.amount)?;
+    if !(0.0..=1.0).contains(&amount) {
+        return None;
+    }
+    let mut hsl = StaticScssHslColorValue::from_srgb(color);
+    hsl.lightness = (hsl.lightness + direction * amount).clamp(0.0, 1.0);
+    Some(render_static_scss_sass_color_constructor(
+        hsl.to_srgb(),
+        hsl.alpha,
+    ))
+}
+
+fn parse_static_scss_saturate_value(value: &str) -> Option<String> {
+    parse_static_scss_saturation_delta_value(value, "saturate", 1.0)
+}
+
+fn parse_static_scss_desaturate_value(value: &str) -> Option<String> {
+    parse_static_scss_saturation_delta_value(value, "desaturate", -1.0)
+}
+
+fn parse_static_scss_saturation_delta_value(
+    value: &str,
+    function_name: &str,
+    direction: f64,
+) -> Option<String> {
+    let arguments = parse_whole_function_value_arguments(value, function_name)?;
+    let arguments = parse_static_scss_color_alpha_amount_arguments(arguments.as_slice())?;
+    let color = parse_static_scss_srgb_color_argument(
+        reduce_static_scss_value(arguments.color.to_string()).as_str(),
+    )?;
+    let amount = parse_static_scss_percent_adjustment(arguments.amount)?;
+    if !(0.0..=1.0).contains(&amount) {
+        return None;
+    }
+    let mut hsl = StaticScssHslColorValue::from_srgb(color);
+    hsl.saturation = (hsl.saturation + direction * amount).clamp(0.0, 1.0);
+    Some(render_static_scss_sass_color_constructor(
+        hsl.to_srgb(),
+        hsl.alpha,
+    ))
+}
+
+fn parse_static_scss_grayscale_value(value: &str) -> Option<String> {
+    parse_static_scss_grayscale_value_with_name(value, "grayscale")
+}
+
+fn parse_static_scss_color_grayscale_value(value: &str) -> Option<String> {
+    parse_static_scss_grayscale_value_with_name(value, "color.grayscale")
+}
+
+fn parse_static_scss_grayscale_value_with_name(value: &str, function_name: &str) -> Option<String> {
+    let color = parse_static_scss_single_color_function_argument(value, function_name)?;
+    let mut hsl = StaticScssHslColorValue::from_srgb(color);
+    hsl.saturation = 0.0;
+    Some(render_static_scss_sass_color_constructor(
+        hsl.to_srgb(),
+        hsl.alpha,
+    ))
+}
+
+fn parse_static_scss_invert_value(value: &str) -> Option<String> {
+    parse_static_scss_invert_value_with_name(value, "invert")
+}
+
+fn parse_static_scss_color_invert_value(value: &str) -> Option<String> {
+    parse_static_scss_invert_value_with_name(value, "color.invert")
+}
+
+fn parse_static_scss_invert_value_with_name(value: &str, function_name: &str) -> Option<String> {
+    let arguments = parse_whole_function_value_arguments(value, function_name)?;
+    let arguments = parse_static_scss_color_invert_arguments(arguments.as_slice())?;
+    let color = parse_static_scss_srgb_color_argument(
+        reduce_static_scss_value(arguments.color.to_string()).as_str(),
+    )?;
+    let weight = match arguments.weight {
+        Some(weight) => parse_static_scss_invert_weight(weight)?,
+        None => 1.0,
     };
     Some(render_static_scss_sass_color_constructor(
-        color,
-        static_scss_clamp_alpha(alpha),
+        StaticScssSrgbColorValue {
+            red: color
+                .red
+                .mul_add(1.0 - weight, (255.0 - color.red) * weight),
+            green: color
+                .green
+                .mul_add(1.0 - weight, (255.0 - color.green) * weight),
+            blue: color
+                .blue
+                .mul_add(1.0 - weight, (255.0 - color.blue) * weight),
+            alpha: color.alpha,
+        },
+        color.alpha,
+    ))
+}
+
+fn parse_static_scss_color_change_value(value: &str, function_name: &str) -> Option<String> {
+    let arguments = parse_whole_function_value_arguments(value, function_name)?;
+    let arguments = parse_static_scss_color_named_channel_arguments(arguments.as_slice())?;
+    if !arguments.has_any_adjustment() {
+        return None;
+    }
+    let color = parse_static_scss_srgb_color_argument(
+        reduce_static_scss_value(arguments.color.to_string()).as_str(),
+    )?;
+    let mut hsl = StaticScssHslColorValue::from_srgb(color);
+    if let Some(hue) = arguments.hue {
+        hsl.hue = parse_static_scss_hue_degrees(hue)?.rem_euclid(360.0);
+    }
+    if let Some(saturation) = arguments.saturation {
+        hsl.saturation = parse_static_scss_percent_adjustment(saturation)?.clamp(0.0, 1.0);
+    }
+    if let Some(lightness) = arguments.lightness {
+        hsl.lightness = parse_static_scss_percent_adjustment(lightness)?.clamp(0.0, 1.0);
+    }
+    if let Some(alpha) = arguments.alpha {
+        hsl.alpha = parse_static_scss_alpha_channel(alpha)?;
+    }
+    Some(render_static_scss_sass_color_constructor(
+        hsl.to_srgb(),
+        hsl.alpha,
+    ))
+}
+
+fn parse_static_scss_color_scale_value(value: &str, function_name: &str) -> Option<String> {
+    let arguments = parse_whole_function_value_arguments(value, function_name)?;
+    let arguments = parse_static_scss_color_named_channel_arguments(arguments.as_slice())?;
+    if arguments.hue.is_some() || !arguments.has_any_adjustment() {
+        return None;
+    }
+    let color = parse_static_scss_srgb_color_argument(
+        reduce_static_scss_value(arguments.color.to_string()).as_str(),
+    )?;
+    let mut hsl = StaticScssHslColorValue::from_srgb(color);
+    if let Some(saturation) = arguments.saturation {
+        hsl.saturation = static_scss_scale_unit_interval(
+            hsl.saturation,
+            parse_static_scss_percent_adjustment(saturation)?,
+        );
+    }
+    if let Some(lightness) = arguments.lightness {
+        hsl.lightness = static_scss_scale_unit_interval(
+            hsl.lightness,
+            parse_static_scss_percent_adjustment(lightness)?,
+        );
+    }
+    if let Some(alpha) = arguments.alpha {
+        hsl.alpha = static_scss_scale_unit_interval(
+            hsl.alpha,
+            parse_static_scss_alpha_scale_percent(alpha)?,
+        );
+    }
+    Some(render_static_scss_sass_color_constructor(
+        hsl.to_srgb(),
+        hsl.alpha,
     ))
 }
 
@@ -1111,21 +1325,39 @@ fn parse_static_scss_color_alpha_amount_arguments(
     })
 }
 
-struct StaticScssColorNamedAlphaArguments<'a> {
+struct StaticScssColorNamedChannelArguments<'a> {
     color: &'a str,
-    alpha: &'a str,
+    hue: Option<&'a str>,
+    saturation: Option<&'a str>,
+    lightness: Option<&'a str>,
+    alpha: Option<&'a str>,
 }
 
-fn parse_static_scss_color_named_alpha_arguments(
+impl StaticScssColorNamedChannelArguments<'_> {
+    fn has_any_adjustment(&self) -> bool {
+        self.hue.is_some()
+            || self.saturation.is_some()
+            || self.lightness.is_some()
+            || self.alpha.is_some()
+    }
+}
+
+fn parse_static_scss_color_named_channel_arguments(
     arguments: &[String],
-) -> Option<StaticScssColorNamedAlphaArguments<'_>> {
+) -> Option<StaticScssColorNamedChannelArguments<'_>> {
     let mut positional = Vec::<&str>::new();
     let mut color = None;
+    let mut hue = None;
+    let mut saturation = None;
+    let mut lightness = None;
     let mut alpha = None;
 
     for argument in arguments {
         match static_scss_named_argument(argument)? {
             Some(("color", value)) => color = Some(value),
+            Some(("hue", value)) => hue = Some(value),
+            Some(("saturation", value)) => saturation = Some(value),
+            Some(("lightness", value)) => lightness = Some(value),
             Some(("alpha", value)) => alpha = Some(value),
             Some(_) => return None,
             None => positional.push(argument.as_str()),
@@ -1137,10 +1369,75 @@ fn parse_static_scss_color_named_alpha_arguments(
     {
         color = Some(*value);
     }
-    (positional.len() <= 1).then_some(StaticScssColorNamedAlphaArguments {
+    (positional.len() <= 1).then_some(StaticScssColorNamedChannelArguments {
         color: color?,
-        alpha: alpha?,
+        hue,
+        saturation,
+        lightness,
+        alpha,
     })
+}
+
+struct StaticScssColorInvertArguments<'a> {
+    color: &'a str,
+    weight: Option<&'a str>,
+}
+
+fn parse_static_scss_color_invert_arguments(
+    arguments: &[String],
+) -> Option<StaticScssColorInvertArguments<'_>> {
+    let mut positional = Vec::<&str>::new();
+    let mut color = None;
+    let mut weight = None;
+
+    for argument in arguments {
+        match static_scss_named_argument(argument)? {
+            Some(("color", value)) => color = Some(value),
+            Some(("weight", value)) => weight = Some(value),
+            Some(_) => return None,
+            None => positional.push(argument.as_str()),
+        }
+    }
+
+    if color.is_none()
+        && let Some(value) = positional.first()
+    {
+        color = Some(*value);
+    }
+    if weight.is_none()
+        && let Some(value) = positional.get(1)
+    {
+        weight = Some(*value);
+    }
+    (positional.len() <= 2).then_some(StaticScssColorInvertArguments {
+        color: color?,
+        weight,
+    })
+}
+
+fn parse_static_scss_single_color_function_argument(
+    value: &str,
+    function_name: &str,
+) -> Option<StaticScssSrgbColorValue> {
+    let arguments = parse_whole_function_value_arguments(value, function_name)?;
+    let mut positional = Vec::<&str>::new();
+    let mut color = None;
+    for argument in &arguments {
+        match static_scss_named_argument(argument.as_str())? {
+            Some(("color", value)) => color = Some(value),
+            Some(_) => return None,
+            None => positional.push(argument.as_str()),
+        }
+    }
+    if color.is_none()
+        && let Some(value) = positional.first()
+    {
+        color = Some(*value);
+    }
+    let color = color?;
+    (positional.len() <= 1).then(|| {
+        parse_static_scss_srgb_color_argument(reduce_static_scss_value(color.to_string()).as_str())
+    })?
 }
 
 fn parse_static_scss_alpha_adjustment(value: &str) -> Option<f64> {
@@ -1168,8 +1465,38 @@ fn parse_static_scss_alpha_scale_percent(value: &str) -> Option<f64> {
         .filter(|value| (-1.0..=1.0).contains(value))
 }
 
+fn parse_static_scss_hue_degrees(value: &str) -> Option<f64> {
+    let value = value.trim();
+    let value = value.strip_suffix("deg").unwrap_or(value);
+    let value = parse_static_scss_plain_f64(value.trim())?;
+    value.is_finite().then_some(value)
+}
+
+fn parse_static_scss_percent_adjustment(value: &str) -> Option<f64> {
+    let value = value.trim();
+    let value = value.strip_suffix('%').unwrap_or(value);
+    let value = parse_static_scss_plain_f64(value.trim())? / 100.0;
+    value
+        .is_finite()
+        .then_some(value)
+        .filter(|value| (-1.0..=1.0).contains(value))
+}
+
+fn parse_static_scss_invert_weight(value: &str) -> Option<f64> {
+    parse_static_scss_percent_adjustment(value).filter(|value| (0.0..=1.0).contains(value))
+}
+
 fn static_scss_clamp_alpha(value: f64) -> f64 {
     value.clamp(0.0, 1.0)
+}
+
+fn static_scss_scale_unit_interval(value: f64, scale: f64) -> f64 {
+    if scale >= 0.0 {
+        value + (1.0 - value) * scale
+    } else {
+        value + value * scale
+    }
+    .clamp(0.0, 1.0)
 }
 
 fn render_static_scss_sass_color_constructor(
@@ -1208,7 +1535,7 @@ fn static_scss_integral_srgb_color(color: StaticScssSrgbColorValue) -> Option<Sr
 }
 
 fn static_scss_u8_color_channel(value: f64) -> Option<u8> {
-    if !value.is_finite() || (value.round() - value).abs() > f64::EPSILON {
+    if !value.is_finite() || (value.round() - value).abs() > 1e-9 {
         return None;
     }
     let value = value.round();
@@ -1427,6 +1754,53 @@ struct StaticScssSrgbColorValue {
     green: f64,
     blue: f64,
     alpha: f64,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+struct StaticScssHslColorValue {
+    hue: f64,
+    saturation: f64,
+    lightness: f64,
+    alpha: f64,
+}
+
+impl StaticScssHslColorValue {
+    fn from_srgb(color: StaticScssSrgbColorValue) -> Self {
+        Self {
+            hue: static_scss_srgb_hue(color),
+            saturation: static_scss_srgb_saturation(color),
+            lightness: static_scss_srgb_lightness(color),
+            alpha: color.alpha,
+        }
+    }
+
+    fn to_srgb(self) -> StaticScssSrgbColorValue {
+        let hue = (self.hue / 60.0).rem_euclid(6.0);
+        let saturation = self.saturation.clamp(0.0, 1.0);
+        let lightness = self.lightness.clamp(0.0, 1.0);
+        let chroma = (1.0 - (2.0 * lightness - 1.0).abs()) * saturation;
+        let secondary = chroma * (1.0 - (hue.rem_euclid(2.0) - 1.0).abs());
+        let (red1, green1, blue1) = if hue < 1.0 {
+            (chroma, secondary, 0.0)
+        } else if hue < 2.0 {
+            (secondary, chroma, 0.0)
+        } else if hue < 3.0 {
+            (0.0, chroma, secondary)
+        } else if hue < 4.0 {
+            (0.0, secondary, chroma)
+        } else if hue < 5.0 {
+            (secondary, 0.0, chroma)
+        } else {
+            (chroma, 0.0, secondary)
+        };
+        let match_value = lightness - chroma / 2.0;
+        StaticScssSrgbColorValue {
+            red: (red1 + match_value) * 255.0,
+            green: (green1 + match_value) * 255.0,
+            blue: (blue1 + match_value) * 255.0,
+            alpha: self.alpha,
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
