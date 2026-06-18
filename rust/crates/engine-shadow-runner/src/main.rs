@@ -100,6 +100,7 @@ use omena_query::{
     summarize_omena_query_source_resolution_canonical_producer_signal,
     summarize_omena_query_source_resolution_query_fragments,
     summarize_omena_query_source_resolution_runtime,
+    summarize_omena_query_static_stylesheet_evaluator_from_source,
     summarize_omena_query_style_completion_for_workspace_file_with_resolution_inputs,
     summarize_omena_query_style_diagnostics_for_workspace_file_with_external_mode_and_sifs,
     summarize_omena_query_style_extract_code_actions,
@@ -1576,6 +1577,15 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             );
             serde_json::to_writer_pretty(io::stdout(), &summary)?;
         }
+        Some("input-static-stylesheet-evaluator") => {
+            let input: OmenaParserStyleFactsInputV0 = serde_json::from_str(&stdin)?;
+            let dialect = parse_omena_parser_style_dialect(input.dialect.as_str())?;
+            let summary = summarize_omena_query_static_stylesheet_evaluator_from_source(
+                &input.style_source,
+                dialect,
+            );
+            serde_json::to_writer_pretty(io::stdout(), &summary)?;
+        }
         Some("style-semantic-graph") => {
             let input: StyleSemanticGraphInputV0 = serde_json::from_str(&stdin)?;
             let Some(summary) = summarize_omena_query_style_semantic_graph_from_source(
@@ -2288,6 +2298,16 @@ fn run_daemon_selected_query_command(
             let dialect = parse_omena_parser_style_dialect(input.dialect.as_str())?;
             Ok(serde_json::to_value(
                 summarize_omena_query_scss_evaluator_control_flow_from_source(
+                    &input.style_source,
+                    dialect,
+                ),
+            )?)
+        }
+        "input-static-stylesheet-evaluator" => {
+            let input: OmenaParserStyleFactsInputV0 = serde_json::from_value(input)?;
+            let dialect = parse_omena_parser_style_dialect(input.dialect.as_str())?;
+            Ok(serde_json::to_value(
+                summarize_omena_query_static_stylesheet_evaluator_from_source(
                     &input.style_source,
                     dialect,
                 ),

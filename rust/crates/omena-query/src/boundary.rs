@@ -1,4 +1,8 @@
 use super::*;
+use omena_scss_eval::{
+    OmenaScssEvalStaticStylesheetEvaluationV0, OmenaScssEvalStaticValueResolutionReportV0,
+    derive_static_stylesheet_module_evaluation, summarize_static_stylesheet_value_resolution,
+};
 
 /// Shannon entropy (in bits) of an empirical value-frequency histogram.
 ///
@@ -158,6 +162,82 @@ pub struct OmenaQueryScssEvaluatorControlFlowSummaryV0 {
     pub control_flow_ir: Option<OmenaQueryScssEvalControlFlowIrSummaryV0>,
     pub value_analysis: Option<OmenaQueryScssEvalControlFlowValueAnalysisV0>,
     pub call_return_ir: Option<OmenaQueryScssEvalCallReturnIrSummaryV0>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct OmenaQueryStaticStylesheetEvaluatorSummaryV0 {
+    pub schema_version: &'static str,
+    pub product: &'static str,
+    pub mode: &'static str,
+    pub dialect: &'static str,
+    pub value_type: &'static str,
+    pub supported_dialect: bool,
+    pub product_output_source: &'static str,
+    pub legacy_output_consumed_until_cutover: bool,
+    pub evaluation_available: bool,
+    pub value_resolution_available: bool,
+    pub divergence_count: usize,
+    pub all_legacy_declaration_values_preserved: bool,
+    pub native_replacement_count: usize,
+    pub native_value_reference_count: usize,
+    pub native_resolved_value_count: usize,
+    pub native_raw_value_count: usize,
+    pub native_top_value_count: usize,
+    pub evaluation: Option<OmenaScssEvalStaticStylesheetEvaluationV0>,
+    pub value_resolution: Option<OmenaScssEvalStaticValueResolutionReportV0>,
+}
+
+pub fn summarize_omena_query_static_stylesheet_evaluator_from_source(
+    source: &str,
+    dialect: OmenaParserStyleDialect,
+) -> OmenaQueryStaticStylesheetEvaluatorSummaryV0 {
+    let evaluation = derive_static_stylesheet_module_evaluation(source, dialect);
+    let value_resolution = evaluation
+        .as_ref()
+        .map(|evaluation| evaluation.value_resolution.clone())
+        .or_else(|| summarize_static_stylesheet_value_resolution(source, dialect));
+    let oracle = evaluation.as_ref().map(|evaluation| &evaluation.oracle);
+    let supported_dialect = matches!(
+        dialect,
+        OmenaParserStyleDialect::Scss
+            | OmenaParserStyleDialect::Sass
+            | OmenaParserStyleDialect::Less
+    );
+
+    OmenaQueryStaticStylesheetEvaluatorSummaryV0 {
+        schema_version: OMENA_QUERY_CURRENT_SCHEMA_VERSION,
+        product: "omena-query.static-stylesheet-evaluator",
+        mode: "oracleOnly",
+        dialect: omena_query_boundary_style_dialect_label(dialect),
+        value_type: "AbstractCssValueV0",
+        supported_dialect,
+        product_output_source: oracle.map_or("none", |oracle| oracle.product_output_source),
+        legacy_output_consumed_until_cutover: oracle
+            .is_some_and(|oracle| oracle.product_output_source == "legacyEvaluatedCss"),
+        evaluation_available: evaluation.is_some(),
+        value_resolution_available: value_resolution.is_some(),
+        divergence_count: oracle.map_or(0, |oracle| oracle.divergence_count),
+        all_legacy_declaration_values_preserved: oracle
+            .is_some_and(|oracle| oracle.all_legacy_declaration_values_preserved),
+        native_replacement_count: evaluation
+            .as_ref()
+            .map_or(0, |evaluation| evaluation.replacement_count),
+        native_value_reference_count: value_resolution
+            .as_ref()
+            .map_or(0, |resolution| resolution.reference_count),
+        native_resolved_value_count: value_resolution
+            .as_ref()
+            .map_or(0, |resolution| resolution.resolved_count),
+        native_raw_value_count: value_resolution
+            .as_ref()
+            .map_or(0, |resolution| resolution.raw_count),
+        native_top_value_count: value_resolution
+            .as_ref()
+            .map_or(0, |resolution| resolution.top_count),
+        evaluation,
+        value_resolution,
+    }
 }
 
 pub fn summarize_omena_query_scss_evaluator_control_flow_from_source(
@@ -715,6 +795,12 @@ pub fn summarize_omena_query_selected_query_adapter_capabilities()
                 output_product: "omena-query.scss-evaluator-control-flow",
             },
             SelectedQueryRunnerCommandV0 {
+                surface: "staticStylesheetEvaluator",
+                command: "input-static-stylesheet-evaluator",
+                input_contract: "OmenaParserStyleFactsInputV0",
+                output_product: "omena-query.static-stylesheet-evaluator",
+            },
+            SelectedQueryRunnerCommandV0 {
                 surface: "selectorUsage",
                 command: "input-selector-usage-canonical-producer",
                 input_contract: "EngineInputV2",
@@ -893,6 +979,7 @@ pub fn summarize_omena_query_selected_query_adapter_capabilities()
             "consumerCheckFacade",
             "consumerBuildFacade",
             "consumerTransformPassListFacade",
+            "staticStylesheetEvaluatorFacade",
             "scssEvaluatorControlFlowFacade",
             "queryEvaluationRuntime",
         ],

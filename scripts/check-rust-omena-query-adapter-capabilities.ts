@@ -115,6 +115,14 @@ const EXPECTED_RUNNER_COMMANDS = new Map([
     },
   ],
   [
+    "staticStylesheetEvaluator",
+    {
+      command: SELECTED_QUERY_RUNNER_COMMANDS.staticStylesheetEvaluator,
+      inputContract: "OmenaParserStyleFactsInputV0",
+      outputProduct: "omena-query.static-stylesheet-evaluator",
+    },
+  ],
+  [
     "selectorUsage",
     {
       command: SELECTED_QUERY_RUNNER_COMMANDS.selectorUsageCanonicalProducer,
@@ -387,6 +395,7 @@ void (async () => {
     "semanticReachabilityTransformContext",
     "sourceDiagnosticsForFileRunner",
     "sourceResolutionRuntimeIndex",
+    "staticStylesheetEvaluatorFacade",
     "styleCodeActionsRunner",
     "styleDiagnosticsForFileRunner",
     "styleSemanticGraphBridgeBoundary",
