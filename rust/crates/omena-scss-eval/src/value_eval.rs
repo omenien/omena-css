@@ -62,6 +62,7 @@ pub(crate) fn reduce_static_scss_value(value: String) -> String {
             ("list.set-nth", parse_static_scss_list_set_nth_value),
             ("zip", parse_static_scss_zip_value),
             ("list.zip", parse_static_scss_list_zip_value),
+            ("list.slash", parse_static_scss_list_slash_value),
             ("quote", parse_static_scss_quote_value),
             ("string.quote", parse_static_scss_string_quote_value),
             ("unquote", parse_static_scss_unquote_value),
@@ -396,6 +397,22 @@ fn parse_static_scss_zip_value(value: &str) -> Option<String> {
 
 fn parse_static_scss_list_zip_value(value: &str) -> Option<String> {
     parse_static_scss_zip_value_with_name(value, "list.zip")
+}
+
+fn parse_static_scss_list_slash_value(value: &str) -> Option<String> {
+    let arguments = parse_whole_function_value_arguments(value, "list.slash")?;
+    if arguments.is_empty() {
+        return None;
+    }
+    let items = arguments
+        .iter()
+        .map(|argument| static_scss_list_append_item_text(argument))
+        .collect::<Option<Vec<_>>>()?;
+    static_scss_render_list_value(&StaticScssListValue {
+        items,
+        separator: StaticScssListSeparator::Slash,
+        bracketed: false,
+    })
 }
 
 fn parse_static_scss_append_value_with_name(value: &str, function_name: &str) -> Option<String> {
@@ -2645,6 +2662,7 @@ fn static_scss_value_is_list(value: &str) -> bool {
     }
     let source = strip_static_scss_outer_container(value).unwrap_or(value);
     split_static_scss_top_level(source, ',').is_some_and(|items| items.len() > 1)
+        || split_static_scss_top_level(source, '/').is_some_and(|items| items.len() > 1)
         || split_static_scss_top_level_whitespace(source).is_some_and(|items| items.len() > 1)
 }
 
@@ -2659,6 +2677,7 @@ struct StaticScssListValue {
 enum StaticScssListSeparator {
     Space,
     Comma,
+    Slash,
 }
 
 fn parse_static_scss_list_items(value: &str) -> Option<Vec<String>> {
@@ -2678,10 +2697,13 @@ fn parse_static_scss_list_value(value: &str) -> Option<StaticScssListValue> {
     }
     let (items, separator) = match split_static_scss_top_level(source, ',') {
         Some(items) if items.len() > 1 => (items, StaticScssListSeparator::Comma),
-        _ => (
-            split_static_scss_top_level_whitespace(source)?,
-            StaticScssListSeparator::Space,
-        ),
+        _ => match split_static_scss_top_level(source, '/') {
+            Some(items) if items.len() > 1 => (items, StaticScssListSeparator::Slash),
+            _ => (
+                split_static_scss_top_level_whitespace(source)?,
+                StaticScssListSeparator::Space,
+            ),
+        },
     };
     if items.is_empty()
         || items
@@ -2731,6 +2753,7 @@ fn static_scss_render_list_value(list: &StaticScssListValue) -> Option<String> {
     match list.separator {
         StaticScssListSeparator::Space => Some(static_scss_join_list_items(list)),
         StaticScssListSeparator::Comma => Some(format!("({})", static_scss_join_list_items(list))),
+        StaticScssListSeparator::Slash => Some(static_scss_join_list_items(list)),
     }
 }
 
@@ -2738,6 +2761,7 @@ fn static_scss_join_list_items(list: &StaticScssListValue) -> String {
     match list.separator {
         StaticScssListSeparator::Space => list.items.join(" "),
         StaticScssListSeparator::Comma => list.items.join(", "),
+        StaticScssListSeparator::Slash => list.items.join(" / "),
     }
 }
 
@@ -2753,6 +2777,7 @@ fn parse_static_scss_list_separator_option(
         "auto" => Some(auto_separator),
         "space" => Some(StaticScssListSeparator::Space),
         "comma" => Some(StaticScssListSeparator::Comma),
+        "slash" => Some(StaticScssListSeparator::Slash),
         _ => None,
     }
 }
@@ -2814,6 +2839,9 @@ fn static_scss_list_separator(value: &str) -> Option<&'static str> {
     }
     if split_static_scss_top_level(source, ',').is_some_and(|items| items.len() > 1) {
         return Some("comma");
+    }
+    if split_static_scss_top_level(source, '/').is_some_and(|items| items.len() > 1) {
+        return Some("slash");
     }
     if split_static_scss_top_level_whitespace(source).is_some_and(|items| items.len() > 1) {
         return Some("space");
