@@ -2520,7 +2520,7 @@ fn collect_lexical_scss_bindings(source: &str, dialect: StyleDialect) -> Lexical
                 token.text.as_str(),
                 declaration_start,
                 scope_id,
-                abstract_css_value_from_text(value),
+                static_scss_header_abstract_value(value),
             );
         }
     }
@@ -3663,6 +3663,35 @@ mod tests {
         assert_eq!(report.block_count, 1);
         assert_eq!(report.blocks[0].transfer_kind, "branchCondition");
         assert_eq!(report.blocks[0].transfer_truthiness, Some("falsey"));
+    }
+
+    #[test]
+    fn control_flow_value_analysis_reduces_static_if_variable_bindings() {
+        let source = "$enabled: if(true, true, false); @if $enabled { .on { color: green; } }";
+        let report = analyze_scss_control_flow_values(source, StyleDialect::Scss);
+        assert!(report.is_some());
+        let Some(report) = report else {
+            return;
+        };
+
+        assert_eq!(report.block_count, 1);
+        assert_eq!(report.blocks[0].transfer_kind, "branchCondition");
+        assert_eq!(report.blocks[0].transfer_value_kind, Some("raw"));
+        assert_eq!(report.blocks[0].transfer_truthiness, Some("truthy"));
+    }
+
+    #[test]
+    fn control_flow_value_analysis_reduces_numeric_variable_bindings() {
+        let source = "$gap: 1px + 2px; @if $gap == 3px { .on { color: green; } }";
+        let report = analyze_scss_control_flow_values(source, StyleDialect::Scss);
+        assert!(report.is_some());
+        let Some(report) = report else {
+            return;
+        };
+
+        assert_eq!(report.block_count, 1);
+        assert_eq!(report.blocks[0].transfer_kind, "branchCondition");
+        assert_eq!(report.blocks[0].transfer_truthiness, Some("truthy"));
     }
 
     #[test]
