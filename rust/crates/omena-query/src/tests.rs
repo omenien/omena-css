@@ -284,6 +284,21 @@ fn summarizes_query_boundary_over_producer_fragments() {
     );
     assert!(
         summary
+            .delegated_fragment_products
+            .contains(&"omena-query.static-stylesheet-evaluator")
+    );
+    assert!(
+        summary
+            .delegated_fragment_products
+            .contains(&"omena-scss-eval.oracle")
+    );
+    assert!(
+        summary
+            .delegated_fragment_products
+            .contains(&"omena-scss-eval.static-value-resolution")
+    );
+    assert!(
+        summary
             .ready_surfaces
             .contains(&"expressionDomainFlowAnalysisBoundary")
     );
@@ -339,6 +354,11 @@ fn summarizes_query_boundary_over_producer_fragments() {
         summary
             .ready_surfaces
             .contains(&"consumerTransformPassListFacade")
+    );
+    assert!(
+        summary
+            .ready_surfaces
+            .contains(&"staticStylesheetEvaluatorOracle")
     );
     assert!(summary.ready_surfaces.contains(&"readCascadeAtPosition"));
     assert!(
