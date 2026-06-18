@@ -130,6 +130,17 @@ pub fn substitute_static_css_function_references_in_value(
                     index += ch.len_utf8();
                     continue;
                 };
+                if static_css_function_contains_nested_static_call(
+                    value,
+                    left_paren_index + '('.len_utf8(),
+                    close_index,
+                    functions,
+                )
+                .unwrap_or(true)
+                {
+                    index += ch.len_utf8();
+                    continue;
+                }
                 let function_value = &value[index..close_index + ')'.len_utf8()];
                 let Some(replacement_value) = parse_function_value(function_value) else {
                     index += ch.len_utf8();
@@ -189,6 +200,51 @@ fn static_css_function_at<'a>(
         }
     }
     None
+}
+
+fn static_css_function_contains_nested_static_call(
+    value: &str,
+    start: usize,
+    end: usize,
+    functions: &[StaticCssFunctionSpec<'_>],
+) -> Option<bool> {
+    let mut index = start;
+    let mut quote: Option<char> = None;
+
+    while index < end {
+        let ch = value[index..].chars().next()?;
+
+        if let Some(quote_ch) = quote {
+            index += ch.len_utf8();
+            if ch == '\\' {
+                let escaped = value[index..].chars().next()?;
+                index += escaped.len_utf8();
+            } else if ch == quote_ch {
+                quote = None;
+            }
+            continue;
+        }
+
+        match ch {
+            '"' | '\'' => {
+                quote = Some(ch);
+                index += ch.len_utf8();
+            }
+            _ => {
+                if let Some((function_name, _)) = static_css_function_at(value, index, functions) {
+                    let left_paren_index = index + function_name.len();
+                    if matching_function_call_end(value, left_paren_index)
+                        .is_some_and(|close_index| close_index < end)
+                    {
+                        return Some(true);
+                    }
+                }
+                index += ch.len_utf8();
+            }
+        }
+    }
+
+    Some(false)
 }
 
 fn static_css_function_left_boundary(value: &str, index: usize) -> bool {

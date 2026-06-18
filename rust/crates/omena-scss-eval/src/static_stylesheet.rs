@@ -3735,6 +3735,27 @@ mod tests {
     }
 
     #[test]
+    fn static_scss_evaluation_reduces_nested_static_list_conditions_in_order() {
+        let report = derive_static_stylesheet_module_evaluation(
+            "$count: list.length(if(false, 1px 2px, 3px 4px 5px)); .button { z-index: $count; }",
+            StyleDialect::Scss,
+        );
+        assert!(report.is_some());
+        let Some(report) = report else {
+            return;
+        };
+
+        assert!(
+            report
+                .resolved_replacements
+                .iter()
+                .any(|replacement| { replacement.name == "$count" && replacement.text == "3" })
+        );
+        assert!(report.evaluated_css.contains("z-index: 3"));
+        assert!(report.oracle.all_legacy_declaration_values_preserved);
+    }
+
+    #[test]
     fn static_scss_evaluation_reduces_static_if_not_conditions() {
         let report = derive_static_stylesheet_module_evaluation(
             "$gap: if(not true, 1px, 2px); .button { margin: $gap; }",

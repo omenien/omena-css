@@ -620,6 +620,27 @@ mod tests {
     }
 
     #[test]
+    fn static_function_substitution_reduces_nested_calls_before_outer_calls() {
+        fn parse_static_outer(value: &str) -> Option<String> {
+            let inner = parse_whole_function_value_inner(value, "outer")?.trim();
+            Some(if inner == "ok" { "good" } else { "bad" }.to_string())
+        }
+
+        fn parse_static_inner(value: &str) -> Option<String> {
+            (value.trim() == "inner()").then(|| "ok".to_string())
+        }
+
+        assert_eq!(
+            substitute_static_css_function_references_in_value_until_stable(
+                "outer(inner())",
+                &[("outer", parse_static_outer), ("inner", parse_static_inner),],
+            )
+            .as_deref(),
+            Some("good")
+        );
+    }
+
+    #[test]
     fn color_kernel_parses_static_color_values() {
         assert!(parse_static_srgb_color("rebeccapurple").is_some());
         assert_eq!(
