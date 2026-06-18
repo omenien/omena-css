@@ -319,8 +319,15 @@ fn derive_static_less_stylesheet_module_evaluation(
     let scopes = collect_static_stylesheet_scopes(style_source)?;
     let lexed = lex(style_source, StyleDialect::Less);
     let tokens = lexed.tokens();
-    let declarations =
-        collect_static_less_variable_declarations(style_source, variable_facts, &scopes)?;
+    let mixin_declarations = collect_static_less_mixin_declarations(style_source, tokens)?;
+    let mixin_declaration_ranges =
+        static_less_mixin_declaration_ranges_from_declarations(mixin_declarations.as_slice());
+    let declarations = collect_static_less_variable_declarations(
+        style_source,
+        variable_facts,
+        &scopes,
+        &mixin_declaration_ranges,
+    )?;
     let property_declarations =
         collect_static_less_property_declarations(style_source, tokens, &scopes)?;
 
@@ -341,6 +348,9 @@ fn derive_static_less_stylesheet_module_evaluation(
         }
         let reference_start = parser_text_size_to_usize(fact.range.start().into());
         if static_stylesheet_position_is_inside_scoped_declaration(&declarations, reference_start) {
+            continue;
+        }
+        if static_stylesheet_position_is_inside_ranges(reference_start, &mixin_declaration_ranges) {
             continue;
         }
         let reference_scope_id = static_stylesheet_scope_for_position(&scopes, reference_start)?;
@@ -373,6 +383,9 @@ fn derive_static_less_stylesheet_module_evaluation(
         if static_stylesheet_position_is_inside_scoped_declaration(&declarations, reference_start) {
             continue;
         }
+        if static_stylesheet_position_is_inside_ranges(reference_start, &mixin_declaration_ranges) {
+            continue;
+        }
         let reference_scope_id = static_stylesheet_scope_for_position(&scopes, reference_start)?;
         let mut stack = BTreeSet::new();
         let replacement = resolve_static_less_property_value_in_scope(
@@ -393,6 +406,15 @@ fn derive_static_less_stylesheet_module_evaluation(
             end: static_stylesheet_token_end(token),
             replacement,
         });
+    }
+    if let Some(mixin_edits) = collect_static_less_mixin_evaluation_edits(
+        style_source,
+        tokens,
+        &mixin_declarations,
+        &scopes,
+        &declarations,
+    ) {
+        edits.extend(mixin_edits);
     }
 
     let evaluated_css = apply_static_stylesheet_evaluation_edits(style_source, edits)?;
@@ -572,8 +594,15 @@ fn summarize_static_less_value_resolution_values(
 ) -> Option<Vec<OmenaScssEvalStaticValueResolutionV0>> {
     let lexed = lex(style_source, StyleDialect::Less);
     let tokens = lexed.tokens();
-    let declarations =
-        collect_static_less_variable_declarations(style_source, variable_facts, scopes)?;
+    let mixin_declarations = collect_static_less_mixin_declarations(style_source, tokens)?;
+    let mixin_declaration_ranges =
+        static_less_mixin_declaration_ranges_from_declarations(mixin_declarations.as_slice());
+    let declarations = collect_static_less_variable_declarations(
+        style_source,
+        variable_facts,
+        scopes,
+        &mixin_declaration_ranges,
+    )?;
     let property_declarations =
         collect_static_less_property_declarations(style_source, tokens, scopes)?;
     let mut values = Vec::new();
@@ -583,6 +612,9 @@ fn summarize_static_less_value_resolution_values(
         }
         let reference_start = parser_text_size_to_usize(fact.range.start().into());
         if static_stylesheet_position_is_inside_scoped_declaration(&declarations, reference_start) {
+            continue;
+        }
+        if static_stylesheet_position_is_inside_ranges(reference_start, &mixin_declaration_ranges) {
             continue;
         }
         let reference_scope_id = static_stylesheet_scope_for_position(scopes, reference_start)?;
@@ -612,6 +644,9 @@ fn summarize_static_less_value_resolution_values(
         }
         let reference_start = static_stylesheet_token_start(token);
         if static_stylesheet_position_is_inside_scoped_declaration(&declarations, reference_start) {
+            continue;
+        }
+        if static_stylesheet_position_is_inside_ranges(reference_start, &mixin_declaration_ranges) {
             continue;
         }
         let reference_scope_id = static_stylesheet_scope_for_position(scopes, reference_start)?;
@@ -896,6 +931,30 @@ struct StaticScssMixinRenderResult {
 
 #[derive(Debug, Clone)]
 struct StaticScssMixinBodyLocalDeclaration {
+    name: String,
+    declaration: StaticStylesheetVariableDeclaration,
+}
+
+#[derive(Debug, Clone)]
+struct StaticLessMixinDeclaration {
+    name: String,
+    parameters: Vec<StaticScssFunctionParameter>,
+    span_start: usize,
+    span_end: usize,
+    body_start: usize,
+    body_end: usize,
+}
+
+#[derive(Debug, Clone)]
+struct StaticLessMixinCall {
+    name: String,
+    start: usize,
+    end: usize,
+    arguments: Vec<StaticScssFunctionArgument>,
+}
+
+#[derive(Debug, Clone)]
+struct StaticLessMixinBodyLocalDeclaration {
     name: String,
     declaration: StaticStylesheetVariableDeclaration,
 }
@@ -2458,6 +2517,513 @@ fn collect_static_scss_mixin_body_local_declarations(
     Some(declarations)
 }
 
+fn collect_static_less_mixin_evaluation_edits(
+    source: &str,
+    tokens: &[LexedToken],
+    declarations: &[StaticLessMixinDeclaration],
+    scopes: &[StaticStylesheetScope],
+    variable_declarations: &BTreeMap<(usize, String), StaticStylesheetVariableDeclaration>,
+) -> Option<Vec<StaticStylesheetEvaluationEdit>> {
+    let calls = collect_static_less_mixin_calls(source, tokens)?;
+    if calls.is_empty() {
+        return Some(Vec::new());
+    }
+
+    let declaration_ranges = static_less_mixin_declaration_ranges_from_declarations(declarations);
+    let mut edits = Vec::new();
+    let mut used_declaration_names = BTreeSet::new();
+    for call in calls.iter().filter(|call| {
+        !static_stylesheet_position_is_inside_ranges(call.start, &declaration_ranges)
+    }) {
+        let Some(declaration) = declarations.iter().find(|declaration| {
+            canonical_static_less_mixin_name(declaration.name.as_str())
+                == canonical_static_less_mixin_name(call.name.as_str())
+        }) else {
+            continue;
+        };
+        let call_scope_id = static_stylesheet_scope_for_position(scopes, call.start)?;
+        let rendered = render_static_less_mixin_body(
+            source,
+            declaration,
+            call,
+            call_scope_id,
+            scopes,
+            variable_declarations,
+        )?;
+        used_declaration_names.insert(canonical_static_less_mixin_name(declaration.name.as_str()));
+        edits.push(StaticStylesheetEvaluationEdit {
+            start: call.start,
+            end: call.end,
+            replacement: rendered,
+        });
+    }
+
+    for declaration in declarations.iter().filter(|declaration| {
+        used_declaration_names
+            .contains(&canonical_static_less_mixin_name(declaration.name.as_str()))
+    }) {
+        edits.push(StaticStylesheetEvaluationEdit {
+            start: declaration.span_start,
+            end: declaration.span_end,
+            replacement: String::new(),
+        });
+    }
+    Some(edits)
+}
+
+fn collect_static_less_mixin_declarations(
+    source: &str,
+    tokens: &[LexedToken],
+) -> Option<Vec<StaticLessMixinDeclaration>> {
+    let mut declarations = Vec::new();
+    let mut index = 0usize;
+    while index < tokens.len() {
+        let Some((name, open_index)) = static_less_mixin_signature_at(tokens, index) else {
+            index += 1;
+            continue;
+        };
+        let close_index = static_stylesheet_matching_token_index(
+            tokens,
+            open_index,
+            SyntaxKind::LeftParen,
+            SyntaxKind::RightParen,
+        )?;
+        let Some(body_open_index) =
+            static_stylesheet_next_token_kind_index(tokens, close_index + 1, SyntaxKind::LeftBrace)
+        else {
+            index += 1;
+            continue;
+        };
+        if static_less_mixin_header_has_guard(tokens, close_index + 1, body_open_index) {
+            index += 1;
+            continue;
+        }
+        let Some(body_close_index) = static_stylesheet_matching_token_index(
+            tokens,
+            body_open_index,
+            SyntaxKind::LeftBrace,
+            SyntaxKind::RightBrace,
+        ) else {
+            index += 1;
+            continue;
+        };
+        let parameters =
+            collect_static_less_mixin_parameters(source, tokens, open_index + 1, close_index)?;
+        declarations.push(StaticLessMixinDeclaration {
+            name,
+            parameters,
+            span_start: static_stylesheet_token_start(&tokens[index]),
+            span_end: static_stylesheet_token_end(&tokens[body_close_index]),
+            body_start: static_stylesheet_token_end(&tokens[body_open_index]),
+            body_end: static_stylesheet_token_start(&tokens[body_close_index]),
+        });
+        index = body_close_index + 1;
+    }
+    Some(declarations)
+}
+
+fn collect_static_less_mixin_calls(
+    source: &str,
+    tokens: &[LexedToken],
+) -> Option<Vec<StaticLessMixinCall>> {
+    let mut calls = Vec::new();
+    let mut index = 0usize;
+    while index < tokens.len() {
+        let Some((name, open_index)) = static_less_mixin_signature_at(tokens, index) else {
+            index += 1;
+            continue;
+        };
+        if !static_less_mixin_call_context_is_plain(tokens, index) {
+            index += 1;
+            continue;
+        }
+        let close_index = static_stylesheet_matching_token_index(
+            tokens,
+            open_index,
+            SyntaxKind::LeftParen,
+            SyntaxKind::RightParen,
+        )?;
+        let after_close_index = static_stylesheet_skip_trivia_tokens(tokens, close_index + 1);
+        if tokens
+            .get(after_close_index)
+            .is_none_or(|token| token.kind != SyntaxKind::Semicolon)
+        {
+            index += 1;
+            continue;
+        }
+        let arguments = split_static_less_mixin_arguments(source.get(
+            static_stylesheet_token_end(&tokens[open_index])
+                ..static_stylesheet_token_start(&tokens[close_index]),
+        )?)?;
+        calls.push(StaticLessMixinCall {
+            name,
+            start: static_stylesheet_token_start(&tokens[index]),
+            end: static_stylesheet_token_end(&tokens[after_close_index]),
+            arguments,
+        });
+        index = after_close_index + 1;
+    }
+    calls.sort_by_key(|call| (call.start, call.end));
+    Some(calls)
+}
+
+fn static_less_mixin_signature_at(tokens: &[LexedToken], index: usize) -> Option<(String, usize)> {
+    if tokens.get(index)?.kind != SyntaxKind::Dot {
+        return None;
+    }
+    let name_index = static_stylesheet_skip_trivia_tokens(tokens, index + 1);
+    let name_token = tokens.get(name_index)?;
+    if !matches!(
+        name_token.kind,
+        SyntaxKind::Ident | SyntaxKind::CustomPropertyName
+    ) || !static_less_mixin_name_part_is_safe(name_token.text.as_str())
+    {
+        return None;
+    }
+    let open_index = static_stylesheet_skip_trivia_tokens(tokens, name_index + 1);
+    if tokens
+        .get(open_index)
+        .is_none_or(|token| token.kind != SyntaxKind::LeftParen)
+    {
+        return None;
+    }
+    Some((format!(".{}", name_token.text), open_index))
+}
+
+fn static_less_mixin_call_context_is_plain(tokens: &[LexedToken], index: usize) -> bool {
+    tokens
+        .get(..index)
+        .and_then(|prefix| {
+            prefix
+                .iter()
+                .rev()
+                .find(|token| !static_stylesheet_token_is_trivia(token.kind))
+        })
+        .is_none_or(|token| matches!(token.kind, SyntaxKind::LeftBrace | SyntaxKind::Semicolon))
+}
+
+fn static_less_mixin_header_has_guard(tokens: &[LexedToken], start: usize, end: usize) -> bool {
+    tokens[start..end]
+        .iter()
+        .any(|token| token.kind == SyntaxKind::Ident && token.text.eq_ignore_ascii_case("when"))
+}
+
+fn collect_static_less_mixin_parameters(
+    source: &str,
+    tokens: &[LexedToken],
+    start: usize,
+    end: usize,
+) -> Option<Vec<StaticScssFunctionParameter>> {
+    let parameter_start = tokens.get(start).map(static_stylesheet_token_start)?;
+    let parameter_end = tokens
+        .get(end)
+        .map(static_stylesheet_token_start)
+        .unwrap_or(parameter_start);
+    let parameter_text = source.get(parameter_start..parameter_end)?.trim();
+    let arguments = split_static_less_mixin_arguments(parameter_text)?;
+    let mut parameters = Vec::new();
+    let mut names = BTreeSet::new();
+    let mut saw_default = false;
+    for argument in arguments {
+        let parameter = parse_static_less_mixin_parameter(argument)?;
+        if parameter.default_value.is_some() {
+            saw_default = true;
+        } else if saw_default {
+            return None;
+        }
+        if !names.insert(parameter.name.clone()) {
+            return None;
+        }
+        parameters.push(parameter);
+    }
+    Some(parameters)
+}
+
+fn parse_static_less_mixin_parameter(
+    argument: StaticScssFunctionArgument,
+) -> Option<StaticScssFunctionParameter> {
+    if let Some(name) = argument.name {
+        return Some(StaticScssFunctionParameter {
+            name,
+            default_value: Some(argument.value),
+        });
+    }
+    static_less_variable_name_is_safe(argument.value.as_str()).then_some(
+        StaticScssFunctionParameter {
+            name: argument.value,
+            default_value: None,
+        },
+    )
+}
+
+fn split_static_less_mixin_arguments(arguments: &str) -> Option<Vec<StaticScssFunctionArgument>> {
+    let arguments = arguments.trim();
+    if arguments.is_empty() {
+        return Some(Vec::new());
+    }
+
+    let mut values = Vec::new();
+    let mut cursor = 0usize;
+    let mut index = 0usize;
+    let mut paren_depth = 0usize;
+    let mut bracket_depth = 0usize;
+    let mut quote: Option<char> = None;
+    while index < arguments.len() {
+        let ch = arguments[index..].chars().next()?;
+        if let Some(quote_ch) = quote {
+            index += ch.len_utf8();
+            if ch == '\\' {
+                if let Some(escaped) = arguments[index..].chars().next() {
+                    index += escaped.len_utf8();
+                }
+            } else if ch == quote_ch {
+                quote = None;
+            }
+            continue;
+        }
+        if matches!(ch, '"' | '\'') {
+            quote = Some(ch);
+            index += ch.len_utf8();
+            continue;
+        }
+        match ch {
+            '(' => paren_depth += 1,
+            ')' => paren_depth = paren_depth.checked_sub(1)?,
+            '[' => bracket_depth += 1,
+            ']' => bracket_depth = bracket_depth.checked_sub(1)?,
+            ',' if paren_depth == 0 && bracket_depth == 0 => {
+                values.push(parse_static_less_mixin_argument(
+                    arguments.get(cursor..index)?.trim(),
+                )?);
+                cursor = index + ch.len_utf8();
+            }
+            _ => {}
+        }
+        index += ch.len_utf8();
+    }
+
+    if quote.is_some() || paren_depth != 0 || bracket_depth != 0 {
+        return None;
+    }
+    values.push(parse_static_less_mixin_argument(
+        arguments.get(cursor..)?.trim(),
+    )?);
+    Some(values)
+}
+
+fn parse_static_less_mixin_argument(value: &str) -> Option<StaticScssFunctionArgument> {
+    let value = value.trim();
+    if value.is_empty() {
+        return None;
+    }
+    if let Some(colon_index) = static_scss_top_level_colon_index(value)? {
+        let name = value.get(..colon_index)?.trim();
+        let argument_value = value.get(colon_index + ':'.len_utf8()..)?.trim();
+        if !static_less_variable_name_is_safe(name)
+            || !static_less_mixin_argument_value_is_safe(argument_value)
+        {
+            return None;
+        }
+        return Some(StaticScssFunctionArgument {
+            name: Some(name.to_string()),
+            value: argument_value.to_string(),
+        });
+    }
+    static_less_mixin_argument_value_is_safe(value).then_some(StaticScssFunctionArgument {
+        name: None,
+        value: value.to_string(),
+    })
+}
+
+fn render_static_less_mixin_body(
+    source: &str,
+    declaration: &StaticLessMixinDeclaration,
+    call: &StaticLessMixinCall,
+    call_scope_id: usize,
+    scopes: &[StaticStylesheetScope],
+    variable_declarations: &BTreeMap<(usize, String), StaticStylesheetVariableDeclaration>,
+) -> Option<String> {
+    let body = source.get(declaration.body_start..declaration.body_end)?;
+    if !static_less_mixin_body_is_static_declaration_subset(body) {
+        return None;
+    }
+    let mut argument_values = BTreeMap::new();
+    for (parameter, argument) in
+        bind_static_scss_callable_arguments(&declaration.parameters, &call.arguments)?
+    {
+        let rendered_value = resolve_static_less_mixin_value_with_bindings(
+            argument.as_str(),
+            &argument_values,
+            call_scope_id,
+            scopes,
+            variable_declarations,
+        )?;
+        argument_values.insert(parameter, rendered_value);
+    }
+    let body = render_static_less_mixin_body_variables(
+        body,
+        call_scope_id,
+        &argument_values,
+        scopes,
+        variable_declarations,
+    )?;
+    resolve_static_less_mixin_body_declaration_values(body.as_str())
+}
+
+fn render_static_less_mixin_body_variables(
+    body: &str,
+    call_scope_id: usize,
+    argument_values: &BTreeMap<String, String>,
+    scopes: &[StaticStylesheetScope],
+    variable_declarations: &BTreeMap<(usize, String), StaticStylesheetVariableDeclaration>,
+) -> Option<String> {
+    let local_declarations = collect_static_less_mixin_body_local_declarations(body)?;
+    let local_declaration_ranges = local_declarations
+        .iter()
+        .flat_map(|declaration| declaration.declaration.removal_spans.iter().copied())
+        .collect::<Vec<_>>();
+    let mut scoped_values = argument_values.clone();
+    let mut edits = local_declarations
+        .iter()
+        .flat_map(|declaration| {
+            declaration
+                .declaration
+                .removal_spans
+                .iter()
+                .map(|(start, end)| StaticStylesheetEvaluationEdit {
+                    start: *start,
+                    end: *end,
+                    replacement: String::new(),
+                })
+        })
+        .collect::<Vec<_>>();
+
+    for local in &local_declarations {
+        let rendered_value = resolve_static_less_mixin_value_with_bindings(
+            local.declaration.value.as_str(),
+            &scoped_values,
+            call_scope_id,
+            scopes,
+            variable_declarations,
+        )?;
+        scoped_values.insert(local.name.clone(), rendered_value);
+    }
+
+    let references =
+        collect_static_stylesheet_variable_references(body, StaticStylesheetVariableKind::Less)?;
+    for reference in references {
+        if static_stylesheet_position_is_inside_ranges(reference.start, &local_declaration_ranges) {
+            continue;
+        }
+        let replacement = if let Some(value) = scoped_values.get(reference.name.as_str()) {
+            value.clone()
+        } else {
+            let mut stack = BTreeSet::new();
+            resolve_static_less_variable_value_in_scope(
+                reference.name.as_str(),
+                call_scope_id,
+                scopes,
+                variable_declarations,
+                &mut stack,
+            )?
+        };
+        edits.push(StaticStylesheetEvaluationEdit {
+            start: reference.start,
+            end: reference.end,
+            replacement,
+        });
+    }
+    apply_static_stylesheet_evaluation_edits(body, edits)
+}
+
+fn collect_static_less_mixin_body_local_declarations(
+    body: &str,
+) -> Option<Vec<StaticLessMixinBodyLocalDeclaration>> {
+    let facts = omena_parser::collect_style_facts(body, StyleDialect::Less);
+    let mut declarations = Vec::new();
+    for fact in facts
+        .variables
+        .iter()
+        .filter(|fact| fact.kind == ParsedVariableFactKind::LessDeclaration)
+    {
+        let start = parser_text_size_to_usize(fact.range.start().into());
+        let end = parser_text_size_to_usize(fact.range.end().into());
+        let declaration = extract_static_stylesheet_variable_declaration(
+            body,
+            start,
+            end,
+            StaticStylesheetVariableKind::Less,
+        )?;
+        if !static_stylesheet_less_declaration_value_is_removal_safe(&declaration.value) {
+            return None;
+        }
+        declarations.push(StaticLessMixinBodyLocalDeclaration {
+            name: fact.name.clone(),
+            declaration,
+        });
+    }
+    declarations.sort_by_key(|declaration| declaration.declaration.span_start);
+    Some(declarations)
+}
+
+fn resolve_static_less_mixin_value_with_bindings(
+    value: &str,
+    argument_values: &BTreeMap<String, String>,
+    call_scope_id: usize,
+    scopes: &[StaticStylesheetScope],
+    variable_declarations: &BTreeMap<(usize, String), StaticStylesheetVariableDeclaration>,
+) -> Option<String> {
+    let references =
+        collect_static_stylesheet_variable_references(value, StaticStylesheetVariableKind::Less)?;
+    if references.is_empty() {
+        return static_stylesheet_literal_value_is_safe(value)
+            .then(|| reduce_static_numeric_value(value.to_string()));
+    }
+    if !static_stylesheet_composite_value_is_safe(value) {
+        return None;
+    }
+
+    let mut output = String::with_capacity(value.len());
+    let mut cursor = 0usize;
+    for reference in references {
+        let replacement = if let Some(value) = argument_values.get(reference.name.as_str()) {
+            value.clone()
+        } else {
+            let mut stack = BTreeSet::new();
+            resolve_static_less_variable_value_in_scope(
+                reference.name.as_str(),
+                call_scope_id,
+                scopes,
+                variable_declarations,
+                &mut stack,
+            )?
+        };
+        output.push_str(&value[cursor..reference.start]);
+        output.push_str(&replacement);
+        cursor = reference.end;
+    }
+    output.push_str(&value[cursor..]);
+    static_stylesheet_literal_value_is_safe(output.as_str())
+        .then(|| reduce_static_numeric_value(output))
+}
+
+fn resolve_static_less_mixin_body_declaration_values(body: &str) -> Option<String> {
+    let value_ranges = collect_static_scss_mixin_body_declaration_value_ranges(body)?;
+    let mut edits = Vec::new();
+    for (start, end) in value_ranges {
+        let value = body.get(start..end)?;
+        let rendered_value = reduce_static_numeric_value(value.to_string());
+        if rendered_value != value {
+            edits.push(StaticStylesheetEvaluationEdit {
+                start,
+                end,
+                replacement: rendered_value,
+            });
+        }
+    }
+    apply_static_stylesheet_evaluation_edits(body, edits)
+}
+
 fn resolve_static_scss_mixin_body_declaration_values(
     body: &str,
     call_position: usize,
@@ -3556,6 +4122,15 @@ fn static_scss_mixin_declaration_ranges_from_declarations(
         .collect()
 }
 
+fn static_less_mixin_declaration_ranges_from_declarations(
+    declarations: &[StaticLessMixinDeclaration],
+) -> Vec<(usize, usize)> {
+    declarations
+        .iter()
+        .map(|declaration| (declaration.span_start, declaration.span_end))
+        .collect()
+}
+
 fn collect_static_scss_module_rule_ranges(source: &str) -> Vec<(usize, usize)> {
     let lexed = lex(source, StyleDialect::Scss);
     let tokens = lexed.tokens();
@@ -3634,6 +4209,7 @@ fn collect_static_less_variable_declarations(
     source: &str,
     variable_facts: &[ParsedVariableFact],
     scopes: &[StaticStylesheetScope],
+    excluded_ranges: &[(usize, usize)],
 ) -> Option<BTreeMap<(usize, String), StaticStylesheetVariableDeclaration>> {
     let mut declarations = BTreeMap::<(usize, String), StaticStylesheetVariableDeclaration>::new();
     for fact in variable_facts {
@@ -3642,6 +4218,9 @@ fn collect_static_less_variable_declarations(
         }
         let start = parser_text_size_to_usize(fact.range.start().into());
         let end = parser_text_size_to_usize(fact.range.end().into());
+        if static_stylesheet_position_is_inside_ranges(start, excluded_ranges) {
+            continue;
+        }
         let scope_id = static_stylesheet_scope_for_position(scopes, start)?;
         let declaration = extract_static_stylesheet_variable_declaration(
             source,
@@ -4645,11 +5224,26 @@ fn static_scss_callable_name_is_safe(name: &str) -> bool {
     static_stylesheet_variable_name_is_safe(name)
 }
 
+fn static_less_mixin_name_part_is_safe(name: &str) -> bool {
+    static_stylesheet_property_name_is_safe(name)
+}
+
+fn static_less_variable_name_is_safe(name: &str) -> bool {
+    name.strip_prefix('@')
+        .is_some_and(static_stylesheet_variable_name_is_safe)
+}
+
 fn static_scss_function_argument_is_safe(value: &str) -> bool {
     !value.is_empty()
         && !value.contains("...")
         && !value.chars().any(|ch| matches!(ch, '{' | '}' | ';' | ':'))
         && static_scss_bang_usage_is_comparison_only(value)
+}
+
+fn static_less_mixin_argument_value_is_safe(value: &str) -> bool {
+    !value.is_empty()
+        && !value.contains("...")
+        && !value.chars().any(|ch| matches!(ch, '{' | '}' | ';'))
 }
 
 fn static_scss_mixin_body_is_static_declaration_subset(body: &str) -> bool {
@@ -4663,6 +5257,15 @@ fn static_scss_mixin_body_is_static_declaration_subset(body: &str) -> bool {
         && !lower.contains("@for")
         && !lower.contains("@each")
         && !lower.contains("@while")
+}
+
+fn static_less_mixin_body_is_static_declaration_subset(body: &str) -> bool {
+    let lower = body.to_ascii_lowercase();
+    !body.chars().any(|ch| matches!(ch, '{' | '}'))
+        && !lower.contains("when")
+        && !lower.contains(":extend")
+        && !lower.contains("@plugin")
+        && !lower.contains("@import")
 }
 
 fn static_scss_public_module_variable_name(name: &str) -> Option<String> {
@@ -4682,6 +5285,10 @@ pub fn canonical_static_scss_variable_name(name: &str) -> String {
 
 fn canonical_static_scss_function_name(name: &str) -> String {
     name.trim().replace('_', "-")
+}
+
+fn canonical_static_less_mixin_name(name: &str) -> String {
+    name.trim().to_string()
 }
 
 pub fn static_scss_variable_names_equal(left: &str, right: &str) -> bool {
@@ -4952,6 +5559,53 @@ mod tests {
             Some("3px")
         );
         assert!(report.evaluated_css.contains("margin: 3px"));
+    }
+
+    #[test]
+    fn static_less_evaluation_expands_static_mixin_calls() {
+        let report = derive_static_stylesheet_module_evaluation(
+            "@brand: red; .tone(@color, @gap: 1px) { color: @color; margin: @gap; padding: @brand; } .button { .tone(blue, 2px); }",
+            StyleDialect::Less,
+        );
+        assert!(report.is_some());
+        let Some(report) = report else {
+            return;
+        };
+
+        assert!(!report.evaluated_css.contains(".tone(@color"));
+        assert!(!report.evaluated_css.contains(".tone(blue"));
+        assert!(report.evaluated_css.contains("color: blue"));
+        assert!(report.evaluated_css.contains("margin: 2px"));
+        assert!(report.evaluated_css.contains("padding: red"));
+        assert!(report.oracle.all_legacy_declaration_values_preserved);
+    }
+
+    #[test]
+    fn static_less_evaluation_expands_mixin_local_variables() {
+        let report = derive_static_stylesheet_module_evaluation(
+            ".tone(@gap) { @space: (@gap * 2); margin: @space; } .button { .tone(2px); }",
+            StyleDialect::Less,
+        );
+        assert!(report.is_some());
+        let Some(report) = report else {
+            return;
+        };
+
+        assert!(!report.evaluated_css.contains("@space"));
+        assert!(!report.evaluated_css.contains(".tone(@gap"));
+        assert!(!report.evaluated_css.contains(".tone(2px"));
+        assert!(report.evaluated_css.contains("margin: 4px"));
+        assert!(report.oracle.all_legacy_declaration_values_preserved);
+    }
+
+    #[test]
+    fn static_less_evaluation_keeps_guarded_mixins_planned_only() {
+        let report = derive_static_stylesheet_module_evaluation(
+            ".tone(@color) when (iscolor(@color)) { color: @color; } .button { .tone(red); }",
+            StyleDialect::Less,
+        );
+
+        assert!(report.is_none());
     }
 
     #[test]

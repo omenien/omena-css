@@ -584,6 +584,58 @@ fn consumer_build_derives_static_less_evaluator_context_for_parenthesized_arithm
 }
 
 #[test]
+fn consumer_build_derives_static_less_evaluator_context_for_mixin_calls() {
+    let summary = execute_omena_query_consumer_build_style_source(
+        "Button.module.less",
+        "@brand: red; .tone(@color, @gap: 1px) { color: @color; margin: @gap; padding: @brand; } .button { .tone(blue, 2px); }",
+        &[
+            "less-module-evaluate".to_string(),
+            "css-modules-class-hashing".to_string(),
+            "print-css".to_string(),
+        ],
+    );
+
+    assert!(
+        summary
+            .execution
+            .executed_pass_ids
+            .contains(&"less-module-evaluate")
+    );
+    assert!(
+        !summary
+            .execution
+            .planned_only_pass_ids
+            .contains(&"less-module-evaluate")
+    );
+    assert!(summary.execution.output_css.contains("color: blue"));
+    assert!(summary.execution.output_css.contains("margin: 2px"));
+    assert!(summary.execution.output_css.contains("padding: red"));
+    assert!(!summary.execution.output_css.contains(".tone(@color"));
+    assert!(!summary.execution.output_css.contains(".tone(blue"));
+}
+
+#[test]
+fn consumer_build_keeps_guarded_less_mixins_planned_only() {
+    let summary = execute_omena_query_consumer_build_style_source(
+        "Button.module.less",
+        ".tone(@color) when (iscolor(@color)) { color: @color; } .button { .tone(red); }",
+        &[
+            "less-module-evaluate".to_string(),
+            "css-modules-class-hashing".to_string(),
+            "print-css".to_string(),
+        ],
+    );
+
+    assert!(
+        summary
+            .execution
+            .planned_only_pass_ids
+            .contains(&"less-module-evaluate")
+    );
+    assert!(summary.execution.output_css.contains(".tone(red)"));
+}
+
+#[test]
 fn consumer_build_derives_static_scss_evaluator_context_with_default_declarations() {
     let first_default_summary = execute_omena_query_consumer_build_style_source(
         "Button.module.scss",
