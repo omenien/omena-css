@@ -2297,22 +2297,28 @@ fn control_flow_predecessor_indices(
 fn control_flow_transfer_for_block(
     block: &OmenaScssEvalControlFlowBlockV0,
     previous_blocks: &[OmenaScssEvalControlFlowBlockV0],
-    lexical_bindings: &BTreeMap<String, AbstractCssValueV0>,
+    lexical_bindings: &LexicalScssBindings,
 ) -> ScssControlFlowTransfer {
+    let visible_bindings = lexical_bindings.visible_at(block.source_span_start);
     match block.at_rule_name.to_ascii_lowercase().as_str() {
         "@if" => ScssControlFlowTransfer::BranchCondition {
-            value: scss_header_value(block.header_text.as_str(), lexical_bindings),
+            value: scss_header_value(block.header_text.as_str(), &visible_bindings),
         },
-        "@while" => ScssControlFlowTransfer::LoopCondition {
-            bindings: while_loop_carried_binding_values(block.header_text.as_str()),
-            value: scss_header_value(block.header_text.as_str(), lexical_bindings),
-        },
+        "@while" => {
+            let bindings = while_loop_carried_binding_values(block.header_text.as_str());
+            let value = if bindings.is_empty() {
+                scss_header_value(block.header_text.as_str(), &visible_bindings)
+            } else {
+                AbstractCssValueV0::Top
+            };
+            ScssControlFlowTransfer::LoopCondition { bindings, value }
+        }
         "@for" | "@each" => {
             let bindings =
-                loop_carried_binding_values(block.header_text.as_str(), lexical_bindings);
+                loop_carried_binding_values(block.header_text.as_str(), &visible_bindings);
             ScssControlFlowTransfer::LoopCarried {
                 bindings,
-                value: loop_carried_value(block.header_text.as_str(), lexical_bindings),
+                value: loop_carried_value(block.header_text.as_str(), &visible_bindings),
             }
         }
         "@else" => control_flow_transfer_for_else_block(block, previous_blocks, lexical_bindings),
@@ -2323,11 +2329,12 @@ fn control_flow_transfer_for_block(
 fn control_flow_transfer_for_else_block(
     block: &OmenaScssEvalControlFlowBlockV0,
     previous_blocks: &[OmenaScssEvalControlFlowBlockV0],
-    lexical_bindings: &BTreeMap<String, AbstractCssValueV0>,
+    lexical_bindings: &LexicalScssBindings,
 ) -> ScssControlFlowTransfer {
+    let visible_bindings = lexical_bindings.visible_at(block.source_span_start);
     if let Some(condition) = scss_else_if_header_condition(block.header_text.as_str()) {
         return ScssControlFlowTransfer::BranchCondition {
-            value: scss_header_value(condition, lexical_bindings),
+            value: scss_header_value(condition, &visible_bindings),
         };
     }
     let conditions = previous_scss_branch_condition_headers(previous_blocks);
@@ -2339,20 +2346,32 @@ fn control_flow_transfer_for_else_block(
     ScssControlFlowTransfer::PassThrough
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+struct ScssBranchConditionHeader<'a> {
+    header: &'a str,
+    source_span_start: usize,
+}
+
 fn previous_scss_branch_condition_headers(
     previous_blocks: &[OmenaScssEvalControlFlowBlockV0],
-) -> Vec<&str> {
+) -> Vec<ScssBranchConditionHeader<'_>> {
     let mut headers = Vec::new();
     for block in previous_blocks.iter().rev() {
         if block.at_rule_name.eq_ignore_ascii_case("@else") {
             let Some(condition) = scss_else_if_header_condition(block.header_text.as_str()) else {
                 break;
             };
-            headers.push(condition);
+            headers.push(ScssBranchConditionHeader {
+                header: condition,
+                source_span_start: block.source_span_start,
+            });
             continue;
         }
         if block.at_rule_name.eq_ignore_ascii_case("@if") {
-            headers.push(block.header_text.as_str());
+            headers.push(ScssBranchConditionHeader {
+                header: block.header_text.as_str(),
+                source_span_start: block.source_span_start,
+            });
         }
         break;
     }
@@ -2371,12 +2390,13 @@ fn scss_else_if_header_condition(header: &str) -> Option<&str> {
 }
 
 fn inverted_scss_branch_chain_value(
-    headers: &[&str],
-    lexical_bindings: &BTreeMap<String, AbstractCssValueV0>,
+    headers: &[ScssBranchConditionHeader<'_>],
+    lexical_bindings: &LexicalScssBindings,
 ) -> AbstractCssValueV0 {
     let mut saw_unknown = false;
     for header in headers {
-        let value = scss_header_value(header, lexical_bindings);
+        let visible_bindings = lexical_bindings.visible_at(header.source_span_start);
+        let value = scss_header_value(header.header, &visible_bindings);
         match scss_static_truthiness_label(&value) {
             Some("truthy") => return abstract_css_value_from_text("false"),
             Some("falsey") => {}
@@ -2390,13 +2410,10 @@ fn inverted_scss_branch_chain_value(
     }
 }
 
-fn collect_lexical_scss_bindings(
-    source: &str,
-    dialect: StyleDialect,
-) -> BTreeMap<String, AbstractCssValueV0> {
+fn collect_lexical_scss_bindings(source: &str, dialect: StyleDialect) -> LexicalScssBindings {
     let lexed = lex(source, dialect);
     let tokens = lexed.tokens();
-    let mut bindings = BTreeMap::new();
+    let mut bindings = LexicalScssBindings::default();
     for (index, token) in tokens.iter().enumerate() {
         if token.kind != SyntaxKind::ScssVariable {
             continue;
@@ -2415,14 +2432,48 @@ fn collect_lexical_scss_bindings(
         if let Some(value) = source.get(value_start..value_end).map(str::trim)
             && !value.is_empty()
         {
-            insert_static_scss_binding(
-                &mut bindings,
+            bindings.push(
                 token.text.as_str(),
+                token.range.start().into(),
                 abstract_css_value_from_text(value),
             );
         }
     }
     bindings
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+struct LexicalScssBindings {
+    bindings: Vec<LexicalScssBinding>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct LexicalScssBinding {
+    name: String,
+    declaration_start: usize,
+    value: AbstractCssValueV0,
+}
+
+impl LexicalScssBindings {
+    fn push(&mut self, name: &str, declaration_start: usize, value: AbstractCssValueV0) {
+        self.bindings.push(LexicalScssBinding {
+            name: canonical_scss_variable_name(name),
+            declaration_start,
+            value,
+        });
+    }
+
+    fn visible_at(&self, position: usize) -> BTreeMap<String, AbstractCssValueV0> {
+        let mut visible = BTreeMap::new();
+        for binding in self
+            .bindings
+            .iter()
+            .filter(|binding| binding.declaration_start <= position)
+        {
+            visible.insert(binding.name.clone(), binding.value.clone());
+        }
+        visible
+    }
 }
 
 fn scss_header_value(
@@ -3307,6 +3358,21 @@ mod tests {
     }
 
     #[test]
+    fn control_flow_value_analysis_respects_declaration_order_for_branch_headers() {
+        let source = "@if $enabled { .on { color: green; } } $enabled: true;";
+        let report = analyze_scss_control_flow_values(source, StyleDialect::Scss);
+        assert!(report.is_some());
+        let Some(report) = report else {
+            return;
+        };
+
+        assert_eq!(report.block_count, 1);
+        assert_eq!(report.blocks[0].transfer_kind, "branchCondition");
+        assert_eq!(report.blocks[0].transfer_value_kind, Some("top"));
+        assert_eq!(report.blocks[0].transfer_truthiness, None);
+    }
+
+    #[test]
     fn control_flow_value_analysis_reports_sass_else_branch_truthiness() {
         let source = "$enabled: false; @if $enabled { .on { color: green; } } @else { .off { color: red; } }";
         let report = analyze_scss_control_flow_values(source, StyleDialect::Scss);
@@ -3587,6 +3653,25 @@ mod tests {
             AbstractCssValueV0::FiniteSet {
                 values: vec!["1".to_string(), "2".to_string(), "3".to_string()]
             }
+        );
+    }
+
+    #[test]
+    fn control_flow_value_analysis_respects_declaration_order_for_loop_bounds() {
+        let source = "@for $i from $start through $end { .n { order: $i; } } $start: 1; $end: 3;";
+        let report = analyze_scss_control_flow_values(source, StyleDialect::Scss);
+        assert!(report.is_some());
+        let Some(report) = report else {
+            return;
+        };
+
+        assert_eq!(report.block_count, 1);
+        assert_eq!(report.blocks[0].transfer_kind, "loopCarriedBindings");
+        assert_eq!(report.blocks[0].transfer_value_kind, Some("top"));
+        assert_eq!(report.blocks[0].loop_carried_bindings, vec!["$i"]);
+        assert_eq!(
+            report.blocks[0].loop_carried_binding_values[0].value_kind,
+            "top"
         );
     }
 
