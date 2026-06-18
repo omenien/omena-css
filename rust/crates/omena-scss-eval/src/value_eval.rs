@@ -24,6 +24,11 @@ pub(crate) fn reduce_static_scss_value(value: String) -> String {
             ("meta.type-of", parse_static_scss_meta_type_of_value),
             ("meta.calc-args", parse_static_scss_meta_calc_args_value),
             ("meta.calc-name", parse_static_scss_meta_calc_name_value),
+            ("feature-exists", parse_static_scss_feature_exists_value),
+            (
+                "meta.feature-exists",
+                parse_static_scss_meta_feature_exists_value,
+            ),
             ("nth", parse_static_scss_nth_value),
             ("list.nth", parse_static_scss_list_nth_value),
             ("length", parse_static_scss_length_value),
@@ -211,6 +216,26 @@ fn parse_static_scss_meta_calc_args_value(value: &str) -> Option<String> {
         return None;
     };
     static_scss_calculation_args(calculation)
+}
+
+fn parse_static_scss_feature_exists_value(value: &str) -> Option<String> {
+    parse_static_scss_feature_exists_value_with_name(value, "feature-exists")
+}
+
+fn parse_static_scss_meta_feature_exists_value(value: &str) -> Option<String> {
+    parse_static_scss_feature_exists_value_with_name(value, "meta.feature-exists")
+}
+
+fn parse_static_scss_feature_exists_value_with_name(
+    value: &str,
+    function_name: &str,
+) -> Option<String> {
+    let arguments = parse_whole_function_value_arguments(value, function_name)?;
+    let [feature] = arguments.as_slice() else {
+        return None;
+    };
+    let feature = parse_static_scss_string_argument(feature)?;
+    Some(static_scss_feature_exists(feature.text.as_str()).to_string())
 }
 
 fn parse_static_scss_nth_value(value: &str) -> Option<String> {
@@ -1312,6 +1337,17 @@ fn static_scss_calculation_arg_is_static(value: &str) -> bool {
     !value.is_empty()
         && !value.contains('$')
         && static_scss_top_level_separator_index(value, ':').is_some_and(|index| index.is_none())
+}
+
+fn static_scss_feature_exists(feature: &str) -> bool {
+    matches!(
+        feature,
+        "global-variable-shadowing"
+            | "extend-selector-pseudoclass"
+            | "units-level3"
+            | "at-error"
+            | "custom-property"
+    )
 }
 
 fn static_scss_non_empty_map_value_is_static(value: &str) -> bool {

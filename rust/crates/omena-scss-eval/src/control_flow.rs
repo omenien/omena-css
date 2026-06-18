@@ -4589,7 +4589,7 @@ mod tests {
 
     #[test]
     fn call_return_ir_reports_static_scss_type_metadata_values() {
-        let source = "@function metadata() { @return if(meta.type-of(1px) == number and type-of(red) == color and meta.type-of((dense: true)) == map, 3px, 4px); } .a { margin: metadata(); }";
+        let source = "@function metadata() { @return if(meta.type-of(1px) == number and type-of(red) == color and meta.type-of((dense: true)) == map and feature-exists(\"at-error\") and meta.feature-exists(custom-property) and not meta.feature-exists(\"unknown\"), 3px, 4px); } .a { margin: metadata(); }";
         let report = summarize_scss_call_return_ir(source, StyleDialect::Scss);
         assert!(report.is_some());
         let Some(report) = report else {
