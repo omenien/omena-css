@@ -113,6 +113,54 @@ fn consumer_build_derives_static_scss_evaluator_context_for_nested_mixin_include
 }
 
 #[test]
+fn consumer_build_derives_static_scss_evaluator_context_for_mixin_local_variables() {
+    let summary = execute_omena_query_consumer_build_style_source(
+        "Button.module.scss",
+        "@mixin tone($gap) { $space: $gap * 2; $color: if($space == 4px, blue, red); margin: $space; color: $color; } .button { @include tone(2px); }",
+        &[
+            "scss-module-evaluate".to_string(),
+            "css-modules-class-hashing".to_string(),
+            "print-css".to_string(),
+        ],
+    );
+
+    assert!(
+        summary
+            .execution
+            .executed_pass_ids
+            .contains(&"scss-module-evaluate")
+    );
+    assert!(summary.execution.output_css.contains("margin: 4px"));
+    assert!(summary.execution.output_css.contains("color: blue"));
+    assert!(!summary.execution.output_css.contains("$space"));
+    assert!(!summary.execution.output_css.contains("$color"));
+    assert!(!summary.execution.output_css.contains("@mixin"));
+    assert!(!summary.execution.output_css.contains("@include"));
+}
+
+#[test]
+fn consumer_build_keeps_dynamic_mixin_local_variables_planned_only() {
+    let summary = execute_omena_query_consumer_build_style_source(
+        "Button.module.scss",
+        "@mixin tone { $space: meta.inspect((a: b)); margin: $space; } .button { @include tone; }",
+        &[
+            "scss-module-evaluate".to_string(),
+            "css-modules-class-hashing".to_string(),
+            "print-css".to_string(),
+        ],
+    );
+
+    assert!(
+        summary
+            .execution
+            .planned_only_pass_ids
+            .contains(&"scss-module-evaluate")
+    );
+    assert!(summary.execution.output_css.contains("$space"));
+    assert!(summary.execution.output_css.contains("@include tone"));
+}
+
+#[test]
 fn consumer_build_keeps_recursive_nested_mixin_includes_planned_only() {
     let summary = execute_omena_query_consumer_build_style_source(
         "Button.module.scss",

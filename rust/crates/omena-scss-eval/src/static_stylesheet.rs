@@ -894,6 +894,12 @@ struct StaticScssMixinRenderResult {
     used_function_declaration_names: BTreeSet<String>,
 }
 
+#[derive(Debug, Clone)]
+struct StaticScssMixinBodyLocalDeclaration {
+    name: String,
+    declaration: StaticStylesheetVariableDeclaration,
+}
+
 #[derive(Debug, Clone, Copy)]
 struct StaticScssFunctionResolutionContext<'a> {
     declarations: &'a [StaticScssFunctionDeclaration],
@@ -2249,12 +2255,8 @@ fn render_static_scss_mixin_include_body_with_active(
         argument_values.insert(parameter, rendered_value);
     }
 
-    let body = render_static_scss_mixin_body_variable_references(
-        body,
-        call_position,
-        &argument_values,
-        context,
-    )?;
+    let body =
+        render_static_scss_mixin_body_variables(body, call_position, &argument_values, context)?;
     let nested = render_static_scss_mixin_body_nested_includes(
         body.as_str(),
         source,
@@ -2345,21 +2347,64 @@ fn render_static_scss_mixin_body_nested_includes(
     })
 }
 
-fn render_static_scss_mixin_body_variable_references(
+fn render_static_scss_mixin_body_variables(
     body: &str,
     call_position: usize,
     argument_values: &BTreeMap<String, String>,
     context: StaticScssFunctionResolutionContext<'_>,
 ) -> Option<String> {
+    let local_declarations = collect_static_scss_mixin_body_local_declarations(body)?;
+    let local_declaration_ranges = local_declarations
+        .iter()
+        .flat_map(|declaration| declaration.declaration.removal_spans.iter().copied())
+        .collect::<Vec<_>>();
+    let mut scoped_values = argument_values.clone();
+    let mut edits = local_declarations
+        .iter()
+        .flat_map(|declaration| {
+            declaration
+                .declaration
+                .removal_spans
+                .iter()
+                .map(|(start, end)| StaticStylesheetEvaluationEdit {
+                    start: *start,
+                    end: *end,
+                    replacement: String::new(),
+                })
+        })
+        .collect::<Vec<_>>();
+
+    for local in &local_declarations {
+        if local.declaration.is_default || local.declaration.is_global {
+            return None;
+        }
+        let resolution = resolve_static_scss_function_value_with_bindings(
+            local.declaration.value.as_str(),
+            &scoped_values,
+            call_position,
+            STATIC_STYLESHEET_VALUE_RESOLUTION_FUEL_LIMIT,
+            context,
+        );
+        if resolution.outcome != StaticStylesheetResolutionOutcome::Resolved {
+            return None;
+        }
+        scoped_values.insert(
+            canonical_static_scss_variable_name(local.name.as_str()),
+            resolution.rendered_value?,
+        );
+    }
+
     let references = collect_static_stylesheet_variable_references_with_options(
         body,
         StaticStylesheetVariableKind::Scss,
         true,
     )?;
-    let mut replacements = Vec::<StaticStylesheetEvaluationEdit>::new();
     for reference in references {
+        if static_stylesheet_position_is_inside_ranges(reference.start, &local_declaration_ranges) {
+            continue;
+        }
         let canonical_name = canonical_static_scss_variable_name(reference.name.as_str());
-        let replacement = if let Some(value) = argument_values.get(canonical_name.as_str()) {
+        let replacement = if let Some(value) = scoped_values.get(canonical_name.as_str()) {
             value.clone()
         } else {
             let mut stack = BTreeSet::new();
@@ -2371,13 +2416,46 @@ fn render_static_scss_mixin_body_variable_references(
                 &mut stack,
             )?
         };
-        replacements.push(StaticStylesheetEvaluationEdit {
+        edits.push(StaticStylesheetEvaluationEdit {
             start: reference.start,
             end: reference.end,
             replacement,
         });
     }
-    apply_static_stylesheet_evaluation_edits(body, replacements)
+    apply_static_stylesheet_evaluation_edits(body, edits)
+}
+
+fn collect_static_scss_mixin_body_local_declarations(
+    body: &str,
+) -> Option<Vec<StaticScssMixinBodyLocalDeclaration>> {
+    let facts = omena_parser::collect_style_facts(body, StyleDialect::Scss);
+    let mut declarations = Vec::new();
+    for fact in facts
+        .variables
+        .iter()
+        .filter(|fact| fact.kind == ParsedVariableFactKind::ScssDeclaration)
+    {
+        let start = parser_text_size_to_usize(fact.range.start().into());
+        let end = parser_text_size_to_usize(fact.range.end().into());
+        if static_stylesheet_variable_reference_is_named_argument_label(body, start, end) {
+            continue;
+        }
+        let declaration = extract_static_stylesheet_variable_declaration(
+            body,
+            start,
+            end,
+            StaticStylesheetVariableKind::Scss,
+        )?;
+        if !static_stylesheet_scss_declaration_value_is_removal_safe(&declaration.value) {
+            return None;
+        }
+        declarations.push(StaticScssMixinBodyLocalDeclaration {
+            name: fact.name.clone(),
+            declaration,
+        });
+    }
+    declarations.sort_by_key(|declaration| declaration.declaration.span_start);
+    Some(declarations)
 }
 
 fn resolve_static_scss_mixin_body_declaration_values(
@@ -4585,10 +4663,6 @@ fn static_scss_mixin_body_is_static_declaration_subset(body: &str) -> bool {
         && !lower.contains("@for")
         && !lower.contains("@each")
         && !lower.contains("@while")
-        && !omena_parser::collect_style_facts(body, StyleDialect::Scss)
-            .variables
-            .iter()
-            .any(|fact| fact.kind == ParsedVariableFactKind::ScssDeclaration)
 }
 
 fn static_scss_public_module_variable_name(name: &str) -> Option<String> {
@@ -6638,6 +6712,36 @@ mod tests {
         assert!(report.evaluated_css.contains("margin: 2px"));
         assert!(report.evaluated_css.contains("color: blue"));
         assert!(report.oracle.all_legacy_declaration_values_preserved);
+    }
+
+    #[test]
+    fn static_scss_evaluation_expands_mixin_local_variables() {
+        let report = derive_static_stylesheet_module_evaluation(
+            "@mixin tone($gap) { $space: $gap * 2; $color: if($space == 4px, blue, red); margin: $space; color: $color; } .button { @include tone(2px); }",
+            StyleDialect::Scss,
+        );
+        assert!(report.is_some());
+        let Some(report) = report else {
+            return;
+        };
+
+        assert!(!report.evaluated_css.contains("$space"));
+        assert!(!report.evaluated_css.contains("$color"));
+        assert!(!report.evaluated_css.contains("@mixin"));
+        assert!(!report.evaluated_css.contains("@include"));
+        assert!(report.evaluated_css.contains("margin: 4px"));
+        assert!(report.evaluated_css.contains("color: blue"));
+        assert!(report.oracle.all_legacy_declaration_values_preserved);
+    }
+
+    #[test]
+    fn static_scss_evaluation_skips_dynamic_mixin_local_variables() {
+        let report = derive_static_stylesheet_module_evaluation(
+            "@mixin tone { $space: meta.inspect((a: b)); margin: $space; } .button { @include tone; }",
+            StyleDialect::Scss,
+        );
+
+        assert!(report.is_none());
     }
 
     #[test]
