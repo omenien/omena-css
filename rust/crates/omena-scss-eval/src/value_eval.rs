@@ -19,8 +19,17 @@ pub(crate) fn reduce_static_scss_value(value: String) -> String {
             ("if", parse_static_scss_if_value),
             ("nth", parse_static_scss_nth_value),
             ("list.nth", parse_static_scss_list_nth_value),
+            ("length", parse_static_scss_length_value),
+            ("list.length", parse_static_scss_list_length_value),
+            ("index", parse_static_scss_index_value),
+            ("list.index", parse_static_scss_list_index_value),
             ("map-get", parse_static_scss_map_get_value),
             ("map.get", parse_static_scss_map_get_namespaced_value),
+            ("map-has-key", parse_static_scss_map_has_key_value),
+            (
+                "map.has-key",
+                parse_static_scss_map_has_key_namespaced_value,
+            ),
         ],
     )
     .unwrap_or_else(|| trimmed.to_string());
@@ -98,6 +107,22 @@ fn parse_static_scss_list_nth_value(value: &str) -> Option<String> {
     parse_static_scss_nth_value_with_name(value, "list.nth")
 }
 
+fn parse_static_scss_length_value(value: &str) -> Option<String> {
+    parse_static_scss_length_value_with_name(value, "length")
+}
+
+fn parse_static_scss_list_length_value(value: &str) -> Option<String> {
+    parse_static_scss_length_value_with_name(value, "list.length")
+}
+
+fn parse_static_scss_index_value(value: &str) -> Option<String> {
+    parse_static_scss_index_value_with_name(value, "index")
+}
+
+fn parse_static_scss_list_index_value(value: &str) -> Option<String> {
+    parse_static_scss_index_value_with_name(value, "list.index")
+}
+
 fn parse_static_scss_nth_value_with_name(value: &str, function_name: &str) -> Option<String> {
     let arguments = parse_whole_function_value_arguments(value, function_name)?;
     let [list, index] = arguments.as_slice() else {
@@ -113,12 +138,47 @@ fn parse_static_scss_nth_value_with_name(value: &str, function_name: &str) -> Op
     items.get(resolved_index).cloned()
 }
 
+fn parse_static_scss_length_value_with_name(value: &str, function_name: &str) -> Option<String> {
+    let arguments = parse_whole_function_value_arguments(value, function_name)?;
+    let [list] = arguments.as_slice() else {
+        return None;
+    };
+    if let Some(entries) = parse_static_scss_map_entries(list) {
+        return Some(entries.len().to_string());
+    }
+    Some(parse_static_scss_list_items(list)?.len().to_string())
+}
+
+fn parse_static_scss_index_value_with_name(value: &str, function_name: &str) -> Option<String> {
+    let arguments = parse_whole_function_value_arguments(value, function_name)?;
+    let [list, needle] = arguments.as_slice() else {
+        return None;
+    };
+    let needle = static_scss_comparable_collection_value(needle)?;
+    parse_static_scss_list_items(list)?
+        .into_iter()
+        .position(|item| {
+            static_scss_comparable_collection_value(item.as_str()).is_some_and(|item| {
+                static_scss_collection_values_equal(item.as_str(), needle.as_str())
+            })
+        })
+        .map(|index| (index + 1).to_string())
+}
+
 fn parse_static_scss_map_get_value(value: &str) -> Option<String> {
     parse_static_scss_map_get_value_with_name(value, "map-get")
 }
 
 fn parse_static_scss_map_get_namespaced_value(value: &str) -> Option<String> {
     parse_static_scss_map_get_value_with_name(value, "map.get")
+}
+
+fn parse_static_scss_map_has_key_value(value: &str) -> Option<String> {
+    parse_static_scss_map_has_key_value_with_name(value, "map-has-key")
+}
+
+fn parse_static_scss_map_has_key_namespaced_value(value: &str) -> Option<String> {
+    parse_static_scss_map_has_key_value_with_name(value, "map.has-key")
 }
 
 fn parse_static_scss_map_get_value_with_name(value: &str, function_name: &str) -> Option<String> {
@@ -133,6 +193,24 @@ fn parse_static_scss_map_get_value_with_name(value: &str, function_name: &str) -
         }
     }
     None
+}
+
+fn parse_static_scss_map_has_key_value_with_name(
+    value: &str,
+    function_name: &str,
+) -> Option<String> {
+    let arguments = parse_whole_function_value_arguments(value, function_name)?;
+    let [map, key] = arguments.as_slice() else {
+        return None;
+    };
+    let key = canonical_static_scss_map_key(key)?;
+    let has_key = parse_static_scss_map_entries(map)?
+        .into_iter()
+        .any(|(candidate_key, _)| {
+            canonical_static_scss_map_key(candidate_key.as_str())
+                .is_some_and(|candidate| candidate == key)
+        });
+    Some(has_key.to_string())
 }
 
 fn parse_static_scss_list_index(value: &str) -> Option<isize> {
@@ -189,6 +267,18 @@ fn canonical_static_scss_map_key(value: &str) -> Option<String> {
         return None;
     }
     Some(strip_static_scss_quotes(value).unwrap_or(value).to_string())
+}
+
+fn static_scss_comparable_collection_value(value: &str) -> Option<String> {
+    let value = value.trim();
+    if !static_scss_collection_member_is_static(value) {
+        return None;
+    }
+    Some(strip_static_scss_quotes(value).unwrap_or(value).to_string())
+}
+
+fn static_scss_collection_values_equal(left: &str, right: &str) -> bool {
+    left == right || css_values_canonically_equal(left, right)
 }
 
 fn static_scss_collection_member_is_static(value: &str) -> bool {

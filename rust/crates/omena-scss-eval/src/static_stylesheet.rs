@@ -3567,6 +3567,51 @@ mod tests {
     }
 
     #[test]
+    fn static_scss_evaluation_reduces_static_collection_size_and_search_values() {
+        let report = derive_static_stylesheet_module_evaluation(
+            "$count: list.length((1px, 2px, 3px)); $position: index(red blue green, green); .button { z-index: $count; order: $position; }",
+            StyleDialect::Scss,
+        );
+        assert!(report.is_some());
+        let Some(report) = report else {
+            return;
+        };
+
+        let replacements = report
+            .resolved_replacements
+            .iter()
+            .map(|replacement| replacement.text.as_str())
+            .collect::<Vec<_>>();
+        assert!(replacements.contains(&"3"));
+        assert!(report.evaluated_css.contains("z-index: 3"));
+        assert!(report.evaluated_css.contains("order: 3"));
+        assert!(report.oracle.all_legacy_declaration_values_preserved);
+    }
+
+    #[test]
+    fn static_scss_evaluation_reduces_static_map_has_key_conditions() {
+        let report = derive_static_stylesheet_module_evaluation(
+            "$gap: if(map.has-key((default: 2px, dense: 1px), dense), 1px, 2px); $pad: if(map-has-key((default: 2px), missing), 3px, 4px); .button { margin: $gap; padding: $pad; }",
+            StyleDialect::Scss,
+        );
+        assert!(report.is_some());
+        let Some(report) = report else {
+            return;
+        };
+
+        let replacements = report
+            .resolved_replacements
+            .iter()
+            .map(|replacement| replacement.text.as_str())
+            .collect::<Vec<_>>();
+        assert!(replacements.contains(&"1px"));
+        assert!(replacements.contains(&"4px"));
+        assert!(report.evaluated_css.contains("margin: 1px"));
+        assert!(report.evaluated_css.contains("padding: 4px"));
+        assert!(report.oracle.all_legacy_declaration_values_preserved);
+    }
+
+    #[test]
     fn static_scss_evaluation_reduces_static_if_not_conditions() {
         let report = derive_static_stylesheet_module_evaluation(
             "$gap: if(not true, 1px, 2px); .button { margin: $gap; }",
