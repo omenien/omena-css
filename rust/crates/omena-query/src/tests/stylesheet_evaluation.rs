@@ -584,6 +584,61 @@ fn consumer_build_derives_static_less_evaluator_context_for_parenthesized_arithm
 }
 
 #[test]
+fn consumer_build_derives_static_less_evaluator_context_for_escaped_strings() {
+    let summary = execute_omena_query_consumer_build_style_source(
+        "Button.module.less",
+        "@filter: ~\"alpha(opacity=50)\"; .card { filter: @filter; }",
+        &[
+            "less-module-evaluate".to_string(),
+            "css-modules-class-hashing".to_string(),
+            "print-css".to_string(),
+        ],
+    );
+
+    assert!(
+        summary
+            .execution
+            .executed_pass_ids
+            .contains(&"less-module-evaluate")
+    );
+    assert!(
+        !summary
+            .execution
+            .planned_only_pass_ids
+            .contains(&"less-module-evaluate")
+    );
+    assert!(
+        summary
+            .execution
+            .output_css
+            .contains("filter: alpha(opacity=50)")
+    );
+    assert!(!summary.execution.output_css.contains("~\"alpha"));
+    assert!(!summary.execution.output_css.contains("@filter:"));
+}
+
+#[test]
+fn consumer_build_keeps_dynamic_less_escaped_strings_planned_only() {
+    let summary = execute_omena_query_consumer_build_style_source(
+        "Button.module.less",
+        "@filter: ~\"@{name}\"; .card { filter: @filter; }",
+        &[
+            "less-module-evaluate".to_string(),
+            "css-modules-class-hashing".to_string(),
+            "print-css".to_string(),
+        ],
+    );
+
+    assert!(
+        summary
+            .execution
+            .planned_only_pass_ids
+            .contains(&"less-module-evaluate")
+    );
+    assert!(summary.execution.output_css.contains("~\"@{name}\""));
+}
+
+#[test]
 fn consumer_build_derives_static_less_evaluator_context_for_mixin_calls() {
     let summary = execute_omena_query_consumer_build_style_source(
         "Button.module.less",
@@ -612,6 +667,34 @@ fn consumer_build_derives_static_less_evaluator_context_for_mixin_calls() {
     assert!(summary.execution.output_css.contains("padding: red"));
     assert!(!summary.execution.output_css.contains(".tone(@color"));
     assert!(!summary.execution.output_css.contains(".tone(blue"));
+}
+
+#[test]
+fn consumer_build_derives_static_less_evaluator_context_for_escaped_string_mixin_arguments() {
+    let summary = execute_omena_query_consumer_build_style_source(
+        "Button.module.less",
+        ".legacy(@value) { filter: @value; } .card { .legacy(~\"alpha(opacity=50)\"); }",
+        &[
+            "less-module-evaluate".to_string(),
+            "css-modules-class-hashing".to_string(),
+            "print-css".to_string(),
+        ],
+    );
+
+    assert!(
+        summary
+            .execution
+            .executed_pass_ids
+            .contains(&"less-module-evaluate")
+    );
+    assert!(
+        summary
+            .execution
+            .output_css
+            .contains("filter: alpha(opacity=50)")
+    );
+    assert!(!summary.execution.output_css.contains(".legacy(@value"));
+    assert!(!summary.execution.output_css.contains(".legacy(~\"alpha"));
 }
 
 #[test]

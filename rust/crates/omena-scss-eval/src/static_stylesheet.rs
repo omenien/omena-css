@@ -419,6 +419,12 @@ fn derive_static_less_stylesheet_module_evaluation(
             replacement,
         });
     }
+    edits.extend(collect_static_less_literal_value_edits(
+        style_source,
+        tokens,
+        &declarations,
+        &mixin_declaration_ranges,
+    )?);
     if let Some(mixin_edits) = collect_static_less_mixin_evaluation_edits(
         style_source,
         tokens,
@@ -3960,7 +3966,7 @@ fn resolve_static_less_mixin_value_with_bindings(
         collect_static_stylesheet_variable_references(value, StaticStylesheetVariableKind::Less)?;
     if references.is_empty() {
         return static_stylesheet_literal_value_is_safe(value)
-            .then(|| reduce_static_numeric_value(value.to_string()));
+            .then(|| reduce_static_less_value(value.to_string()));
     }
     if !static_stylesheet_composite_value_is_safe(value) {
         return None;
@@ -3987,7 +3993,7 @@ fn resolve_static_less_mixin_value_with_bindings(
     }
     output.push_str(&value[cursor..]);
     static_stylesheet_literal_value_is_safe(output.as_str())
-        .then(|| reduce_static_numeric_value(output))
+        .then(|| reduce_static_less_value(output))
 }
 
 fn resolve_static_less_mixin_body_declaration_values(body: &str) -> Option<String> {
@@ -3995,7 +4001,7 @@ fn resolve_static_less_mixin_body_declaration_values(body: &str) -> Option<Strin
     let mut edits = Vec::new();
     for (start, end) in value_ranges {
         let value = body.get(start..end)?;
-        let rendered_value = reduce_static_numeric_value(value.to_string());
+        let rendered_value = reduce_static_less_value(value.to_string());
         if rendered_value != value {
             edits.push(StaticStylesheetEvaluationEdit {
                 start,
@@ -5808,7 +5814,7 @@ fn resolve_static_less_variable_abstract_value_in_scope(
     stack.remove(&stack_key);
     if let Some(rendered_value) = resolved.rendered_value.as_deref() {
         return resolved_static_abstract_value(
-            reduce_static_numeric_value(rendered_value.to_string()).as_str(),
+            reduce_static_less_value(rendered_value.to_string()).as_str(),
         );
     }
     resolved
@@ -5832,7 +5838,9 @@ fn resolve_static_less_variable_abstract_value_text(
     };
     if references.is_empty() {
         if static_stylesheet_literal_value_is_safe(value) {
-            return resolved_static_abstract_value(value);
+            return resolved_static_abstract_value(
+                reduce_static_less_value(value.to_string()).as_str(),
+            );
         }
         return raw_static_abstract_value(
             value,
@@ -5865,7 +5873,7 @@ fn resolve_static_less_variable_abstract_value_text(
         cursor = reference.end;
     }
     output.push_str(&value[cursor..]);
-    resolved_static_abstract_value(output.as_str())
+    resolved_static_abstract_value(reduce_static_less_value(output).as_str())
 }
 
 fn resolve_static_less_variable_value_in_scope(
@@ -5888,7 +5896,7 @@ fn resolve_static_less_variable_value_in_scope(
         stack,
     );
     stack.remove(&stack_key);
-    resolved.map(reduce_static_numeric_value)
+    resolved.map(reduce_static_less_value)
 }
 
 fn find_static_less_variable_declaration<'a>(
@@ -5915,7 +5923,8 @@ fn resolve_static_less_variable_value_text(
     let references =
         collect_static_stylesheet_variable_references(value, StaticStylesheetVariableKind::Less)?;
     if references.is_empty() {
-        return static_stylesheet_literal_value_is_safe(value).then(|| value.to_string());
+        return static_stylesheet_literal_value_is_safe(value)
+            .then(|| reduce_static_less_value(value.to_string()));
     }
     if !static_stylesheet_composite_value_is_safe(value) {
         return None;
@@ -5936,7 +5945,7 @@ fn resolve_static_less_variable_value_text(
         cursor = reference.end;
     }
     output.push_str(&value[cursor..]);
-    Some(output)
+    Some(reduce_static_less_value(output))
 }
 
 fn resolve_static_less_property_abstract_value_in_scope(
@@ -5970,7 +5979,7 @@ fn resolve_static_less_property_abstract_value_in_scope(
     stack.remove(&stack_key);
     if let Some(rendered_value) = resolved.rendered_value.as_deref() {
         return resolved_static_abstract_value(
-            reduce_static_numeric_value(rendered_value.to_string()).as_str(),
+            reduce_static_less_value(rendered_value.to_string()).as_str(),
         );
     }
     resolved
@@ -5994,7 +6003,9 @@ fn resolve_static_less_property_abstract_value_text(
     };
     if references.is_empty() {
         if static_stylesheet_literal_value_is_safe(value) {
-            return resolved_static_abstract_value(value);
+            return resolved_static_abstract_value(
+                reduce_static_less_value(value.to_string()).as_str(),
+            );
         }
         return raw_static_abstract_value(
             value,
@@ -6027,7 +6038,7 @@ fn resolve_static_less_property_abstract_value_text(
         cursor = reference.end;
     }
     output.push_str(&value[cursor..]);
-    resolved_static_abstract_value(reduce_static_numeric_value(output).as_str())
+    resolved_static_abstract_value(reduce_static_less_value(output).as_str())
 }
 
 fn resolve_static_less_property_value_in_scope(
@@ -6050,7 +6061,7 @@ fn resolve_static_less_property_value_in_scope(
         stack,
     );
     stack.remove(&stack_key);
-    resolved.map(reduce_static_numeric_value)
+    resolved.map(reduce_static_less_value)
 }
 
 fn find_static_less_property_declaration<'a>(
@@ -6077,7 +6088,8 @@ fn resolve_static_less_property_value_text(
     let references =
         collect_static_stylesheet_variable_references(value, StaticStylesheetVariableKind::Scss)?;
     if references.is_empty() {
-        return static_stylesheet_literal_value_is_safe(value).then(|| value.to_string());
+        return static_stylesheet_literal_value_is_safe(value)
+            .then(|| reduce_static_less_value(value.to_string()));
     }
     if !static_stylesheet_composite_value_is_safe(value) {
         return None;
@@ -6098,7 +6110,105 @@ fn resolve_static_less_property_value_text(
         cursor = reference.end;
     }
     output.push_str(&value[cursor..]);
-    Some(output)
+    Some(reduce_static_less_value(output))
+}
+
+fn collect_static_less_literal_value_edits(
+    style_source: &str,
+    tokens: &[LexedToken],
+    declarations: &BTreeMap<(usize, String), StaticStylesheetVariableDeclaration>,
+    mixin_declaration_ranges: &[(usize, usize)],
+) -> Option<Vec<StaticStylesheetEvaluationEdit>> {
+    let declaration_removal_ranges = declarations
+        .values()
+        .flat_map(|declaration| declaration.removal_spans.iter().copied())
+        .collect::<Vec<_>>();
+    let mut edits = Vec::new();
+    for (index, token) in tokens.iter().enumerate() {
+        if token.kind != SyntaxKind::LessEscapedString {
+            continue;
+        }
+        let start = static_stylesheet_token_start(token);
+        if static_stylesheet_position_is_inside_ranges(start, &declaration_removal_ranges)
+            || static_stylesheet_position_is_inside_ranges(start, mixin_declaration_ranges)
+            || !static_less_escaped_string_token_is_declaration_value(tokens, index)
+        {
+            continue;
+        }
+        let end = static_stylesheet_token_end(token);
+        let value = style_source.get(start..end)?;
+        if !static_stylesheet_literal_value_is_safe(value) {
+            continue;
+        }
+        let replacement = reduce_static_less_value(value.to_string());
+        if replacement != value {
+            edits.push(StaticStylesheetEvaluationEdit {
+                start,
+                end,
+                replacement,
+            });
+        }
+    }
+    Some(edits)
+}
+
+fn static_less_escaped_string_token_is_declaration_value(
+    tokens: &[LexedToken],
+    token_index: usize,
+) -> bool {
+    let mut index = token_index;
+    while index > 0 {
+        index -= 1;
+        let kind = tokens[index].kind;
+        if static_stylesheet_token_is_trivia(kind) {
+            continue;
+        }
+        match kind {
+            SyntaxKind::Colon => return true,
+            SyntaxKind::LeftBrace | SyntaxKind::RightBrace | SyntaxKind::Semicolon => return false,
+            _ => {}
+        }
+    }
+    false
+}
+
+fn reduce_static_less_value(value: String) -> String {
+    let value = reduce_static_numeric_value(value);
+    reduce_static_less_escaped_string_value(value.as_str()).unwrap_or(value)
+}
+
+fn reduce_static_less_escaped_string_value(value: &str) -> Option<String> {
+    let trimmed = value.trim();
+    let rest = trimmed.strip_prefix('~')?;
+    let quote = rest.chars().next()?;
+    if !matches!(quote, '"' | '\'') {
+        return None;
+    }
+
+    let mut output = String::new();
+    let mut index = quote.len_utf8();
+    while index < rest.len() {
+        let ch = rest[index..].chars().next()?;
+        if matches!(ch, '\n' | '\r' | '\u{000c}') {
+            return None;
+        }
+        if ch == quote {
+            return (index + ch.len_utf8() == rest.len()).then_some(output);
+        }
+        if ch == '\\' {
+            index += ch.len_utf8();
+            let escaped = rest[index..].chars().next()?;
+            if matches!(escaped, '\n' | '\r' | '\u{000c}') {
+                return None;
+            }
+            output.push(escaped);
+            index += escaped.len_utf8();
+            continue;
+        }
+        output.push(ch);
+        index += ch.len_utf8();
+    }
+    None
 }
 
 fn static_stylesheet_less_declaration_value_is_removal_safe(value: &str) -> bool {
@@ -6634,6 +6744,28 @@ mod tests {
     }
 
     #[test]
+    fn static_less_evaluation_reduces_escaped_string_variable_values() {
+        let report = derive_static_stylesheet_module_evaluation(
+            "@filter: ~\"alpha(opacity=50)\"; .button { filter: @filter; }",
+            StyleDialect::Less,
+        );
+        assert!(report.is_some());
+        let Some(report) = report else {
+            return;
+        };
+
+        assert_eq!(report.resolved_replacements[0].text, "alpha(opacity=50)");
+        assert_eq!(report.resolved_replacements[0].abstract_value_kind, "raw");
+        assert_eq!(
+            report.value_resolution.values[0].rendered_value.as_deref(),
+            Some("alpha(opacity=50)")
+        );
+        assert!(report.evaluated_css.contains("filter: alpha(opacity=50)"));
+        assert!(!report.evaluated_css.contains("~\"alpha"));
+        assert!(report.oracle.all_legacy_declaration_values_preserved);
+    }
+
+    #[test]
     fn static_less_evaluation_expands_static_mixin_calls() {
         let report = derive_static_stylesheet_module_evaluation(
             "@brand: red; .tone(@color, @gap: 1px) { color: @color; margin: @gap; padding: @brand; } .button { .tone(blue, 2px); }",
@@ -6649,6 +6781,23 @@ mod tests {
         assert!(report.evaluated_css.contains("color: blue"));
         assert!(report.evaluated_css.contains("margin: 2px"));
         assert!(report.evaluated_css.contains("padding: red"));
+        assert!(report.oracle.all_legacy_declaration_values_preserved);
+    }
+
+    #[test]
+    fn static_less_evaluation_reduces_escaped_string_mixin_arguments() {
+        let report = derive_static_stylesheet_module_evaluation(
+            ".legacy(@value) { filter: @value; } .button { .legacy(~\"alpha(opacity=50)\"); }",
+            StyleDialect::Less,
+        );
+        assert!(report.is_some());
+        let Some(report) = report else {
+            return;
+        };
+
+        assert!(!report.evaluated_css.contains(".legacy(@value"));
+        assert!(!report.evaluated_css.contains(".legacy(~\"alpha"));
+        assert!(report.evaluated_css.contains("filter: alpha(opacity=50)"));
         assert!(report.oracle.all_legacy_declaration_values_preserved);
     }
 
@@ -7842,6 +7991,33 @@ mod tests {
             Some("3px")
         );
         assert!(report.evaluated_css.contains("padding: 3px"));
+    }
+
+    #[test]
+    fn static_less_evaluation_reduces_property_variable_escaped_string_values() {
+        let report = derive_static_stylesheet_module_evaluation(
+            ".button { filter: ~\"alpha(opacity=50)\"; background: $filter; }",
+            StyleDialect::Less,
+        );
+        assert!(report.is_some());
+        let Some(report) = report else {
+            return;
+        };
+
+        assert_eq!(report.replacement_count, 1);
+        assert_eq!(report.resolved_replacements[0].name, "$filter");
+        assert_eq!(report.resolved_replacements[0].text, "alpha(opacity=50)");
+        assert_eq!(report.resolved_replacements[0].abstract_value_kind, "raw");
+        assert_eq!(
+            report.value_resolution.values[0].rendered_value.as_deref(),
+            Some("alpha(opacity=50)")
+        );
+        assert!(
+            report
+                .evaluated_css
+                .contains("background: alpha(opacity=50)")
+        );
+        assert!(!report.evaluated_css.contains("~\"alpha"));
     }
 
     #[test]
