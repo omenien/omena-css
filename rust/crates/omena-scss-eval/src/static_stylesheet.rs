@@ -5,8 +5,10 @@ use omena_parser::{LexedToken, ParsedVariableFact, ParsedVariableFactKind, Style
 use omena_syntax::SyntaxKind;
 use omena_value_lattice::{
     parse_color_function_value, parse_color_mix_value, parse_numeric_value_with_unit,
-    parse_oklab_oklch_value, parse_static_srgb_color_with_alpha,
-    parse_whole_function_value_arguments, parse_whole_function_value_inner,
+    parse_oklab_oklch_value, parse_static_hsl_function_color_with_alpha,
+    parse_static_hwb_function_color_with_alpha, parse_static_rgb_function_color_with_alpha,
+    parse_static_srgb_color_with_alpha, parse_whole_function_value_arguments,
+    parse_whole_function_value_inner,
 };
 use serde::Serialize;
 
@@ -4916,6 +4918,9 @@ fn static_less_guard_keyword_at(expression: &str, index: usize, keyword: &str) -
 
 fn static_less_guard_value_is_color(value: &str) -> bool {
     parse_static_srgb_color_with_alpha(value).is_some()
+        || parse_static_rgb_function_color_with_alpha(value).is_some()
+        || parse_static_hsl_function_color_with_alpha(value).is_some()
+        || parse_static_hwb_function_color_with_alpha(value).is_some()
         || parse_color_function_value(value).is_some()
         || parse_color_mix_value(value).is_some()
         || parse_oklab_oklch_value(value).is_some()
@@ -6111,13 +6116,15 @@ fn evaluate_static_scss_function_output_value(value: &str) -> StaticStylesheetAb
         );
     }
     let rendered_value = reduce_static_scss_value(value.to_string());
-    if static_scss_function_value_contains_any_callable(rendered_value.as_str()) {
+    let abstract_value = abstract_css_value_from_text(rendered_value.as_str());
+    if matches!(abstract_value, AbstractCssValueV0::Raw { .. })
+        && static_scss_function_value_contains_any_callable(rendered_value.as_str())
+    {
         return raw_static_abstract_value(
             value,
             StaticStylesheetResolutionReason::UnsupportedDynamic,
         );
     }
-    let abstract_value = abstract_css_value_from_text(rendered_value.as_str());
     let outcome = if matches!(abstract_value, AbstractCssValueV0::Raw { .. }) {
         StaticStylesheetResolutionOutcome::Raw
     } else {
@@ -8440,6 +8447,23 @@ mod tests {
     }
 
     #[test]
+    fn static_less_evaluation_treats_rgb_values_as_static_colors() {
+        let report = derive_static_stylesheet_module_evaluation(
+            ".tone(@color) when (iscolor(@color)) { color: @color; } .button { .tone(rgb(127.5, 0, 127.5)); }",
+            StyleDialect::Less,
+        );
+        assert!(report.is_some());
+        let Some(report) = report else {
+            return;
+        };
+
+        assert!(!report.evaluated_css.contains(".tone(@color"));
+        assert!(!report.evaluated_css.contains(".tone(rgb"));
+        assert!(report.evaluated_css.contains("color: rgb(127.5, 0, 127.5)"));
+        assert!(report.oracle.all_legacy_declaration_values_preserved);
+    }
+
+    #[test]
     fn static_less_evaluation_expands_numeric_guarded_mixin_calls() {
         let report = derive_static_stylesheet_module_evaluation(
             ".space(@gap) when (isnumber(@gap)) { margin: @gap; } .button { .space(2px); }",
@@ -10246,7 +10270,7 @@ mod tests {
     #[test]
     fn static_scss_evaluation_reduces_static_type_metadata_values() {
         let report = derive_static_stylesheet_module_evaluation(
-            "$gap: 2px; $tone: red; $relative-tone: oklab(1 0 0); $items: 1px 2px; $config: (dense: true); $kind: if(meta.type-of($gap) == number and type-of($tone) == color and meta.type-of($relative-tone) == color and meta.type-of($items) == list and type-of($config) == map and feature-exists(\"at-error\") and meta.feature-exists(custom-property) and not meta.feature-exists(\"unknown\"), 1px, 2px); .button { margin: $kind; }",
+            "$gap: 2px; $tone: red; $mixed-tone: color.mix(red, blue); $relative-tone: oklab(1 0 0); $items: 1px 2px; $config: (dense: true); $kind: if(meta.type-of($gap) == number and type-of($tone) == color and meta.type-of($mixed-tone) == color and meta.type-of($relative-tone) == color and meta.type-of($items) == list and type-of($config) == map and feature-exists(\"at-error\") and meta.feature-exists(custom-property) and not meta.feature-exists(\"unknown\"), 1px, 2px); .button { margin: $kind; }",
             StyleDialect::Scss,
         );
         assert!(report.is_some());
@@ -10481,6 +10505,32 @@ mod tests {
     }
 
     #[test]
+    fn static_scss_evaluation_reduces_static_sass_color_mix_returns() {
+        let report = derive_static_stylesheet_module_evaluation(
+            "@function tone() { @return color.mix(red, blue); } .button { color: tone(); }",
+            StyleDialect::Scss,
+        );
+        assert!(report.is_some());
+        let Some(report) = report else {
+            return;
+        };
+
+        assert_eq!(report.resolved_replacements[0].name, "function:tone");
+        assert_eq!(report.resolved_replacements[0].text, "rgb(127.5, 0, 127.5)");
+        assert_eq!(
+            report.resolved_replacements[0].rendered_value.as_deref(),
+            Some("purple")
+        );
+        assert_eq!(report.resolved_replacements[0].abstract_value_kind, "exact");
+        assert!(
+            report
+                .evaluated_css
+                .contains(".button { color: rgb(127.5, 0, 127.5); }")
+        );
+        assert!(report.oracle.all_legacy_declaration_values_preserved);
+    }
+
+    #[test]
     fn static_value_resolution_reports_unresolved_references_as_top() {
         let report = summarize_static_stylesheet_value_resolution(
             ".button { color: $missing; }",
@@ -10520,7 +10570,7 @@ mod tests {
     #[test]
     fn static_value_resolution_keeps_dynamic_values_raw() {
         let report = summarize_static_stylesheet_value_resolution(
-            "$tone: color.mix(red, blue); .button { color: $tone; }",
+            "$tone: color.mix(rgba(red, .5), blue); .button { color: $tone; }",
             StyleDialect::Scss,
         );
         assert!(report.is_some());
@@ -10535,8 +10585,37 @@ mod tests {
         assert_eq!(report.values[0].reason, "unsupportedDynamic");
         assert_eq!(
             report.values[0].rendered_value.as_deref(),
-            Some("color.mix(red, blue)")
+            Some("color.mix(rgba(red, .5), blue)")
         );
+    }
+
+    #[test]
+    fn static_value_resolution_emits_exact_static_sass_color_mix_values() {
+        let report = summarize_static_stylesheet_value_resolution(
+            "$tone: color.mix(red, blue); $weighted: color.mix(rgb(255 0 0), blue, $weight: 25%); .button { color: $tone; border-color: $weighted; }",
+            StyleDialect::Scss,
+        );
+        assert!(report.is_some());
+        let Some(report) = report else {
+            return;
+        };
+
+        assert_eq!(report.reference_count, 2);
+        assert_eq!(report.resolved_count, 2);
+        assert_eq!(report.raw_count, 0);
+        assert!(
+            report
+                .values
+                .iter()
+                .all(|value| value.abstract_value_kind == "exact")
+        );
+        let rendered_values = report
+            .values
+            .iter()
+            .filter_map(|value| value.rendered_value.as_deref())
+            .collect::<Vec<_>>();
+        assert!(rendered_values.contains(&"purple"));
+        assert!(rendered_values.contains(&"#4000bf"));
     }
 
     #[test]
@@ -10585,6 +10664,28 @@ mod tests {
                 .contains("color-mix(in srgb, red 50%, blue 50%)")
         );
         assert!(!report.evaluated_css.contains("color: purple"));
+        assert!(report.oracle.all_legacy_declaration_values_preserved);
+    }
+
+    #[test]
+    fn static_scss_evaluation_reports_exact_sass_color_mix_replacements() {
+        let report = derive_static_stylesheet_module_evaluation(
+            "$tone: color.mix(red, blue); .button { color: $tone; }",
+            StyleDialect::Scss,
+        );
+        assert!(report.is_some());
+        let Some(report) = report else {
+            return;
+        };
+
+        assert_eq!(report.replacement_count, 1);
+        assert_eq!(report.resolved_replacements[0].text, "rgb(127.5, 0, 127.5)");
+        assert_eq!(
+            report.resolved_replacements[0].rendered_value.as_deref(),
+            Some("purple")
+        );
+        assert_eq!(report.resolved_replacements[0].abstract_value_kind, "exact");
+        assert!(report.evaluated_css.contains("color: rgb(127.5, 0, 127.5)"));
         assert!(report.oracle.all_legacy_declaration_values_preserved);
     }
 

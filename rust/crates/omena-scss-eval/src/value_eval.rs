@@ -1,5 +1,5 @@
 use omena_value_lattice::{
-    css_values_canonically_equal,
+    StaticSrgbColorWithAlpha, css_values_canonically_equal,
     number::{
         format_css_number, parse_reducible_abs_value, parse_reducible_calc_value,
         parse_reducible_ceil_value, parse_reducible_clamp_value, parse_reducible_exp_value,
@@ -10,8 +10,9 @@ use omena_value_lattice::{
         parse_reducible_sign_value, parse_reducible_sqrt_value, reduce_static_numeric_expression,
     },
     parse_color_function_value, parse_color_mix_value, parse_numeric_value_with_unit,
-    parse_oklab_oklch_value, parse_static_srgb_color_with_alpha,
-    parse_whole_function_value_arguments,
+    parse_oklab_oklch_value, parse_static_hsl_function_color_with_alpha,
+    parse_static_hwb_function_color_with_alpha, parse_static_rgb_function_color_with_alpha,
+    parse_static_srgb_color_with_alpha, parse_whole_function_value_arguments,
     substitute_static_css_function_references_in_value_until_stable,
 };
 
@@ -111,6 +112,7 @@ pub(crate) fn reduce_static_scss_value(value: String) -> String {
             ("math.pow", parse_static_scss_math_pow_value),
             ("math.exp", parse_static_scss_math_exp_value),
             ("math.log", parse_static_scss_math_log_value),
+            ("color.mix", parse_static_scss_color_mix_value),
             ("percentage", parse_static_scss_percentage_value),
             ("unit", parse_static_scss_unit_value),
             ("math.unit", parse_static_scss_math_unit_value),
@@ -911,6 +913,114 @@ fn parse_static_scss_numeric_alias_value(
     parse_kernel_value(format!("{kernel_name}({inner})").as_str())
 }
 
+fn parse_static_scss_color_mix_value(value: &str) -> Option<String> {
+    let arguments = parse_whole_function_value_arguments(value, "color.mix")?;
+    let arguments = parse_static_scss_color_mix_arguments(arguments.as_slice())?;
+    let first = parse_static_scss_opaque_color_mix_argument(arguments.first_color)?;
+    let second = parse_static_scss_opaque_color_mix_argument(arguments.second_color)?;
+    let weight = match arguments.weight {
+        Some(weight) => parse_static_scss_color_mix_weight(weight)?,
+        None => 50.0,
+    };
+    let first_weight = weight / 100.0;
+    let second_weight = 1.0 - first_weight;
+    Some(format!(
+        "rgb({}, {}, {})",
+        format_css_number(
+            f64::from(first.color.red)
+                .mul_add(first_weight, f64::from(second.color.red) * second_weight)
+        ),
+        format_css_number(
+            f64::from(first.color.green)
+                .mul_add(first_weight, f64::from(second.color.green) * second_weight)
+        ),
+        format_css_number(
+            f64::from(first.color.blue)
+                .mul_add(first_weight, f64::from(second.color.blue) * second_weight)
+        )
+    ))
+}
+
+struct StaticScssColorMixArguments<'a> {
+    first_color: &'a str,
+    second_color: &'a str,
+    weight: Option<&'a str>,
+}
+
+fn parse_static_scss_color_mix_arguments(
+    arguments: &[String],
+) -> Option<StaticScssColorMixArguments<'_>> {
+    let mut positional = Vec::<&str>::new();
+    let mut first_color = None;
+    let mut second_color = None;
+    let mut weight = None;
+
+    for argument in arguments {
+        match static_scss_named_argument(argument)? {
+            Some(("color1", value)) => first_color = Some(value),
+            Some(("color2", value)) => second_color = Some(value),
+            Some(("weight", value)) => weight = Some(value),
+            Some(_) => return None,
+            None => positional.push(argument.as_str()),
+        }
+    }
+
+    if first_color.is_none()
+        && let Some(value) = positional.first()
+    {
+        first_color = Some(*value);
+    }
+    if second_color.is_none()
+        && let Some(value) = positional.get(1)
+    {
+        second_color = Some(*value);
+    }
+    if weight.is_none()
+        && let Some(value) = positional.get(2)
+    {
+        weight = Some(*value);
+    }
+    (positional.len() <= 3).then_some(StaticScssColorMixArguments {
+        first_color: first_color?,
+        second_color: second_color?,
+        weight,
+    })
+}
+
+fn parse_static_scss_color_mix_weight(value: &str) -> Option<f64> {
+    let percent = value.trim().strip_suffix('%')?;
+    let weight = percent.trim().parse::<f64>().ok()?;
+    weight
+        .is_finite()
+        .then_some(weight)
+        .filter(|weight| (0.0..=100.0).contains(weight))
+}
+
+fn parse_static_scss_opaque_color_mix_argument(value: &str) -> Option<StaticSrgbColorWithAlpha> {
+    let color = parse_static_scss_color_mix_argument(value)?;
+    color.alpha.is_none().then_some(color)
+}
+
+fn parse_static_scss_color_mix_argument(value: &str) -> Option<StaticSrgbColorWithAlpha> {
+    let value = value.trim();
+    parse_static_srgb_color_with_alpha(value)
+        .or_else(|| parse_static_rgb_function_color_with_alpha(value))
+        .or_else(|| parse_static_hsl_function_color_with_alpha(value))
+        .or_else(|| parse_static_hwb_function_color_with_alpha(value))
+        .or_else(|| {
+            parse_color_function_value(value)
+                .and_then(|value| parse_static_rgb_function_color_with_alpha(value.as_str()))
+        })
+        .or_else(|| {
+            parse_color_mix_value(value)
+                .and_then(|value| parse_static_rgb_function_color_with_alpha(value.as_str()))
+        })
+        .or_else(|| {
+            parse_oklab_oklch_value(value)
+                .and_then(|value| parse_static_rgb_function_color_with_alpha(value.as_str()))
+        })
+}
+
 fn parse_static_scss_percentage_value(value: &str) -> Option<String> {
     let arguments = parse_whole_function_value_arguments(value, "percentage")?;
     let [number] = arguments.as_slice() else {
@@ -1297,6 +1407,9 @@ fn static_scss_value_type(value: &str) -> Option<&'static str> {
 
 fn static_scss_value_is_color(value: &str) -> bool {
     parse_static_srgb_color_with_alpha(value).is_some()
+        || parse_static_rgb_function_color_with_alpha(value).is_some()
+        || parse_static_hsl_function_color_with_alpha(value).is_some()
+        || parse_static_hwb_function_color_with_alpha(value).is_some()
         || parse_color_function_value(value).is_some()
         || parse_color_mix_value(value).is_some()
         || parse_oklab_oklch_value(value).is_some()
