@@ -8849,7 +8849,7 @@ mod tests {
     #[test]
     fn static_scss_evaluation_reduces_static_list_metadata_values() {
         let report = derive_static_stylesheet_module_evaluation(
-            "$separator: list.separator((1px, 2px)); $space: if(list.separator(1px 2px) == \"space\", 1px, 2px); $bracketed: if(list.is-bracketed([1px 2px]), 3px, 4px); .button { content: $separator; margin: $space; padding: $bracketed; }",
+            "$separator: list.separator((1px, 2px)); $legacy-separator: list-separator(1px 2px); $space: if(list-separator(1px 2px) == \"space\", 1px, 2px); $bracketed: if(list.is-bracketed([1px 2px]), 3px, 4px); $legacy-bracketed: if(is-bracketed([1px 2px]), 5px, 6px); .button { content: $separator; quotes: $legacy-separator; margin: $space; padding: $bracketed; inset: $legacy-bracketed; }",
             StyleDialect::Scss,
         );
         assert!(report.is_some());
@@ -8863,11 +8863,15 @@ mod tests {
             .map(|replacement| replacement.text.as_str())
             .collect::<Vec<_>>();
         assert!(replacements.contains(&"\"comma\""));
+        assert!(replacements.contains(&"\"space\""));
         assert!(replacements.contains(&"1px"));
         assert!(replacements.contains(&"3px"));
+        assert!(replacements.contains(&"5px"));
         assert!(report.evaluated_css.contains("content: \"comma\""));
+        assert!(report.evaluated_css.contains("quotes: \"space\""));
         assert!(report.evaluated_css.contains("margin: 1px"));
         assert!(report.evaluated_css.contains("padding: 3px"));
+        assert!(report.evaluated_css.contains("inset: 5px"));
         assert!(report.oracle.all_legacy_declaration_values_preserved);
     }
 

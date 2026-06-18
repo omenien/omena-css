@@ -39,7 +39,15 @@ pub(crate) fn reduce_static_scss_value(value: String) -> String {
             ("list.length", parse_static_scss_list_length_value),
             ("index", parse_static_scss_index_value),
             ("list.index", parse_static_scss_list_index_value),
+            (
+                "list-separator",
+                parse_static_scss_list_separator_legacy_value,
+            ),
             ("list.separator", parse_static_scss_list_separator_value),
+            (
+                "is-bracketed",
+                parse_static_scss_list_is_bracketed_legacy_value,
+            ),
             (
                 "list.is-bracketed",
                 parse_static_scss_list_is_bracketed_value,
@@ -296,7 +304,18 @@ fn parse_static_scss_list_index_value(value: &str) -> Option<String> {
 }
 
 fn parse_static_scss_list_separator_value(value: &str) -> Option<String> {
-    let arguments = parse_whole_function_value_arguments(value, "list.separator")?;
+    parse_static_scss_list_separator_value_with_name(value, "list.separator")
+}
+
+fn parse_static_scss_list_separator_legacy_value(value: &str) -> Option<String> {
+    parse_static_scss_list_separator_value_with_name(value, "list-separator")
+}
+
+fn parse_static_scss_list_separator_value_with_name(
+    value: &str,
+    function_name: &str,
+) -> Option<String> {
+    let arguments = parse_whole_function_value_arguments(value, function_name)?;
     let [list] = arguments.as_slice() else {
         return None;
     };
@@ -304,7 +323,18 @@ fn parse_static_scss_list_separator_value(value: &str) -> Option<String> {
 }
 
 fn parse_static_scss_list_is_bracketed_value(value: &str) -> Option<String> {
-    let arguments = parse_whole_function_value_arguments(value, "list.is-bracketed")?;
+    parse_static_scss_list_is_bracketed_value_with_name(value, "list.is-bracketed")
+}
+
+fn parse_static_scss_list_is_bracketed_legacy_value(value: &str) -> Option<String> {
+    parse_static_scss_list_is_bracketed_value_with_name(value, "is-bracketed")
+}
+
+fn parse_static_scss_list_is_bracketed_value_with_name(
+    value: &str,
+    function_name: &str,
+) -> Option<String> {
+    let arguments = parse_whole_function_value_arguments(value, function_name)?;
     let [list] = arguments.as_slice() else {
         return None;
     };
