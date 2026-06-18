@@ -964,6 +964,7 @@ struct StaticLessMixinCall {
     name: String,
     start: usize,
     end: usize,
+    important: bool,
     arguments: Vec<StaticScssFunctionArgument>,
 }
 
@@ -2675,14 +2676,12 @@ fn collect_static_less_mixin_calls(
             SyntaxKind::LeftParen,
             SyntaxKind::RightParen,
         )?;
-        let after_close_index = static_stylesheet_skip_trivia_tokens(tokens, close_index + 1);
-        if tokens
-            .get(after_close_index)
-            .is_none_or(|token| token.kind != SyntaxKind::Semicolon)
-        {
+        let Some((semicolon_index, important)) =
+            static_less_mixin_call_semicolon_and_importance(source, tokens, close_index)
+        else {
             index += 1;
             continue;
-        }
+        };
         let arguments = split_static_less_mixin_arguments(source.get(
             static_stylesheet_token_end(&tokens[open_index])
                 ..static_stylesheet_token_start(&tokens[close_index]),
@@ -2690,13 +2689,38 @@ fn collect_static_less_mixin_calls(
         calls.push(StaticLessMixinCall {
             name,
             start: static_stylesheet_token_start(&tokens[index]),
-            end: static_stylesheet_token_end(&tokens[after_close_index]),
+            end: static_stylesheet_token_end(&tokens[semicolon_index]),
+            important,
             arguments,
         });
-        index = after_close_index + 1;
+        index = semicolon_index + 1;
     }
     calls.sort_by_key(|call| (call.start, call.end));
     Some(calls)
+}
+
+fn static_less_mixin_call_semicolon_and_importance(
+    source: &str,
+    tokens: &[LexedToken],
+    close_index: usize,
+) -> Option<(usize, bool)> {
+    let suffix_start = static_stylesheet_token_end(tokens.get(close_index)?);
+    for (index, token) in tokens.iter().enumerate().skip(close_index + 1) {
+        if token.kind != SyntaxKind::Semicolon {
+            continue;
+        }
+        let suffix = source
+            .get(suffix_start..static_stylesheet_token_start(token))?
+            .trim();
+        if suffix.is_empty() {
+            return Some((index, false));
+        }
+        if suffix.eq_ignore_ascii_case("!important") {
+            return Some((index, true));
+        }
+        return None;
+    }
+    None
 }
 
 fn static_less_mixin_signature_at(tokens: &[LexedToken], index: usize) -> Option<(String, usize)> {
@@ -3032,6 +3056,11 @@ fn render_static_less_mixin_body(
         active_mixins,
     )?;
     let body = resolve_static_less_mixin_body_declaration_values(nested.body.as_str())?;
+    let body = if call.important {
+        apply_static_less_mixin_call_importance(body.as_str())?
+    } else {
+        body
+    };
     let mut used_declaration_names = nested.used_declaration_names;
     used_declaration_names.insert(canonical_name.clone());
     active_mixins.remove(&canonical_name);
@@ -3955,6 +3984,31 @@ fn resolve_static_less_mixin_body_declaration_values(body: &str) -> Option<Strin
         }
     }
     apply_static_stylesheet_evaluation_edits(body, edits)
+}
+
+fn apply_static_less_mixin_call_importance(body: &str) -> Option<String> {
+    let mut output = String::new();
+    let mut cursor = 0usize;
+    for (index, ch) in body.char_indices() {
+        if ch != ';' {
+            continue;
+        }
+        let declaration = body.get(cursor..index)?.trim();
+        if !declaration.is_empty() {
+            if !output.is_empty() {
+                output.push(' ');
+            }
+            if !static_scss_bang_usage_is_comparison_only(declaration) {
+                return None;
+            }
+            output.push_str(declaration);
+            output.push_str(" !important;");
+        }
+        cursor = index + ch.len_utf8();
+    }
+    body.get(cursor..)
+        .is_some_and(|tail| tail.trim().is_empty())
+        .then_some(output)
 }
 
 fn resolve_static_scss_mixin_body_declaration_values(
@@ -6578,6 +6632,34 @@ mod tests {
         assert!(report.evaluated_css.contains(".space(1px...)"));
         assert!(!report.evaluated_css.contains("margin: 1px"));
         assert!(report.oracle.all_legacy_declaration_values_preserved);
+    }
+
+    #[test]
+    fn static_less_evaluation_expands_important_mixin_calls() {
+        let report = derive_static_stylesheet_module_evaluation(
+            ".tone(@color, @gap: 1px) { color: @color; margin: @gap; } .button { .tone(red, 2px) !important; }",
+            StyleDialect::Less,
+        );
+        assert!(report.is_some());
+        let Some(report) = report else {
+            return;
+        };
+
+        assert!(!report.evaluated_css.contains(".tone(@color"));
+        assert!(!report.evaluated_css.contains(".tone(red"));
+        assert!(report.evaluated_css.contains("color: red !important"));
+        assert!(report.evaluated_css.contains("margin: 2px !important"));
+        assert!(report.oracle.all_legacy_declaration_values_preserved);
+    }
+
+    #[test]
+    fn static_less_evaluation_does_not_expand_unknown_mixin_call_suffixes() {
+        let report = derive_static_stylesheet_module_evaluation(
+            ".tone(@color) { color: @color; } .button { .tone(red) !default; }",
+            StyleDialect::Less,
+        );
+
+        assert!(report.is_none());
     }
 
     #[test]

@@ -701,6 +701,61 @@ fn consumer_build_does_not_expand_variadic_tokens_in_less_calls() {
 }
 
 #[test]
+fn consumer_build_derives_static_less_evaluator_context_for_important_mixin_calls() {
+    let summary = execute_omena_query_consumer_build_style_source(
+        "Button.module.less",
+        ".tone(@color, @gap: 1px) { color: @color; margin: @gap; } .button { .tone(red, 2px) !important; }",
+        &[
+            "less-module-evaluate".to_string(),
+            "css-modules-class-hashing".to_string(),
+            "print-css".to_string(),
+        ],
+    );
+
+    assert!(
+        summary
+            .execution
+            .executed_pass_ids
+            .contains(&"less-module-evaluate")
+    );
+    assert!(
+        summary
+            .execution
+            .output_css
+            .contains("color: red !important")
+    );
+    assert!(
+        summary
+            .execution
+            .output_css
+            .contains("margin: 2px !important")
+    );
+    assert!(!summary.execution.output_css.contains(".tone(@color"));
+    assert!(!summary.execution.output_css.contains(".tone(red"));
+}
+
+#[test]
+fn consumer_build_keeps_unknown_less_mixin_call_suffixes_planned_only() {
+    let summary = execute_omena_query_consumer_build_style_source(
+        "Button.module.less",
+        ".tone(@color) { color: @color; } .button { .tone(red) !default; }",
+        &[
+            "less-module-evaluate".to_string(),
+            "css-modules-class-hashing".to_string(),
+            "print-css".to_string(),
+        ],
+    );
+
+    assert!(
+        summary
+            .execution
+            .planned_only_pass_ids
+            .contains(&"less-module-evaluate")
+    );
+    assert!(summary.execution.output_css.contains(".tone(red) !default"));
+}
+
+#[test]
 fn consumer_build_derives_static_less_evaluator_context_for_named_and_default_mixin_arguments() {
     let summary = execute_omena_query_consumer_build_style_source(
         "Button.module.less",
