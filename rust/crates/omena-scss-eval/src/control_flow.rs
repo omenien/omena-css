@@ -5,8 +5,8 @@ use omena_abstract_value::{
     abstract_css_value_from_text, analyze_bounded_join_fixpoint, join_abstract_css_values,
 };
 use omena_parser::{
-    LexedToken, ParsedSassSymbolFact, ParsedSassSymbolFactKind, StyleDialect, collect_style_facts,
-    lex,
+    LexedToken, ParsedSassSymbolFact, ParsedSassSymbolFactKind, ParsedVariableFact,
+    ParsedVariableFactKind, StyleDialect, collect_style_facts, lex,
 };
 use omena_syntax::SyntaxKind;
 use omena_transform_cst::StableNodeKeyV0;
@@ -253,6 +253,8 @@ pub fn summarize_scss_call_return_ir(
 
     let facts = collect_style_facts(source, dialect);
     let lexed = lex(source, dialect);
+    let global_variable_declarations =
+        collect_scss_global_variable_declarations(source, &facts.variables);
     let mut candidates = facts
         .sass_symbols
         .iter()
@@ -272,10 +274,10 @@ pub fn summarize_scss_call_return_ir(
         .map(call_return_node_from_candidate)
         .collect::<Vec<_>>();
     stamp_containing_declarations(&mut nodes, lexed.tokens());
-    stamp_contextual_return_values(&mut nodes);
+    stamp_contextual_return_values(&mut nodes, &global_variable_declarations);
 
     let edges = build_call_return_edges(&nodes);
-    stamp_call_resolved_return_values(&mut nodes, &edges);
+    stamp_call_resolved_return_values(&mut nodes, &edges, &global_variable_declarations);
     let declaration_node_count = nodes
         .iter()
         .filter(|node| call_return_node_is_declaration(node))
@@ -633,8 +635,9 @@ fn static_scss_return_abstract_value_with_context(
     position: usize,
     nodes: &[OmenaScssEvalCallReturnNodeV0],
     bindings: Option<&BTreeMap<String, AbstractCssValueV0>>,
+    global_variable_declarations: &[ScssGlobalVariableDeclaration],
 ) -> AbstractCssValueV0 {
-    let value = reduce_static_scss_metadata_with_context(
+    let reduced = reduce_static_scss_metadata_with_context(
         value,
         |name| scss_visible_function_declaration_exists(name, position, nodes).then_some(true),
         |name| scss_visible_mixin_declaration_exists(name, position, nodes).then_some(true),
@@ -642,9 +645,15 @@ fn static_scss_return_abstract_value_with_context(
             bindings
                 .map(|bindings| bindings.contains_key(canonical_scss_variable_name(name).as_str()))
         },
-        |_| None,
-    )
-    .unwrap_or_else(|| value.to_string());
+        |name| scss_global_variable_metadata_exists(name, position, global_variable_declarations),
+    );
+    let value = match reduced {
+        Some(reduced) => reduced,
+        None if static_scss_metadata_exists_call_may_need_resolution(value) => {
+            return AbstractCssValueV0::Top;
+        }
+        None => value.to_string(),
+    };
     static_scss_return_abstract_value(value.as_str())
 }
 
@@ -1311,7 +1320,10 @@ fn stamp_containing_declarations(
     }
 }
 
-fn stamp_contextual_return_values(nodes: &mut [OmenaScssEvalCallReturnNodeV0]) {
+fn stamp_contextual_return_values(
+    nodes: &mut [OmenaScssEvalCallReturnNodeV0],
+    global_variable_declarations: &[ScssGlobalVariableDeclaration],
+) {
     let values = nodes
         .iter()
         .enumerate()
@@ -1323,6 +1335,7 @@ fn stamp_contextual_return_values(nodes: &mut [OmenaScssEvalCallReturnNodeV0]) {
                     node.source_span_start,
                     nodes,
                     None,
+                    global_variable_declarations,
                 ),
             ))
         })
@@ -1453,6 +1466,7 @@ fn build_call_return_edges(
 fn stamp_call_resolved_return_values(
     nodes: &mut [OmenaScssEvalCallReturnNodeV0],
     edges: &[OmenaScssEvalCallReturnEdgeV0],
+    global_variable_declarations: &[ScssGlobalVariableDeclaration],
 ) {
     let call_graph = declaration_call_graph(nodes, edges);
     let resolutions = edges
@@ -1462,7 +1476,12 @@ fn stamp_call_resolved_return_values(
             let call_index = nodes
                 .iter()
                 .position(|node| node.node_key == edge.source_node_key)?;
-            let value = call_resolved_return_value_for_edge(nodes, &call_graph, edge)?;
+            let value = call_resolved_return_value_for_edge(
+                nodes,
+                &call_graph,
+                edge,
+                global_variable_declarations,
+            )?;
             Some((call_index, value))
         })
         .collect::<Vec<_>>();
@@ -1479,6 +1498,7 @@ fn call_resolved_return_value_for_edge(
     nodes: &[OmenaScssEvalCallReturnNodeV0],
     call_graph: &BTreeMap<String, Vec<String>>,
     edge: &OmenaScssEvalCallReturnEdgeV0,
+    global_variable_declarations: &[ScssGlobalVariableDeclaration],
 ) -> Option<AbstractCssValueV0> {
     if edge.capped_by_recursion_cap {
         return Some(AbstractCssValueV0::Top);
@@ -1498,6 +1518,7 @@ fn call_resolved_return_value_for_edge(
         declaration_node,
         &call_node.argument_values,
         &[],
+        global_variable_declarations,
     )
 }
 
@@ -1507,6 +1528,7 @@ fn call_resolved_return_value_for_call(
     declaration_node: &OmenaScssEvalCallReturnNodeV0,
     argument_values: &[OmenaScssEvalCallArgumentValueV0],
     active_stack: &[String],
+    global_variable_declarations: &[ScssGlobalVariableDeclaration],
 ) -> Option<AbstractCssValueV0> {
     if declaration_node.kind != "functionDeclaration" {
         return None;
@@ -1531,6 +1553,7 @@ fn call_resolved_return_value_for_call(
         nodes,
         call_graph,
         active_stack: &next_stack,
+        global_variable_declarations,
     };
     let Some(mut bindings) = call_bound_argument_bindings(
         declaration_node,
@@ -1667,6 +1690,7 @@ struct ScssCallReturnResolutionContext<'a> {
     nodes: &'a [OmenaScssEvalCallReturnNodeV0],
     call_graph: &'a BTreeMap<String, Vec<String>>,
     active_stack: &'a [String],
+    global_variable_declarations: &'a [ScssGlobalVariableDeclaration],
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -1718,19 +1742,37 @@ fn call_bound_condition_truthiness(
         substitute_static_scss_header_variables(condition, bindings)?
     };
     let condition = match context {
-        Some(context) => reduce_static_scss_metadata_with_context(
-            condition.as_str(),
-            |name| {
-                scss_visible_function_declaration_exists(name, position, context.nodes)
-                    .then_some(true)
-            },
-            |name| {
-                scss_visible_mixin_declaration_exists(name, position, context.nodes).then_some(true)
-            },
-            |name| Some(bindings.contains_key(canonical_scss_variable_name(name).as_str())),
-            |_| None,
-        )
-        .unwrap_or(condition),
+        Some(context) => {
+            let reduced = reduce_static_scss_metadata_with_context(
+                condition.as_str(),
+                |name| {
+                    scss_visible_function_declaration_exists(name, position, context.nodes)
+                        .then_some(true)
+                },
+                |name| {
+                    scss_visible_mixin_declaration_exists(name, position, context.nodes)
+                        .then_some(true)
+                },
+                |name| Some(bindings.contains_key(canonical_scss_variable_name(name).as_str())),
+                |name| {
+                    scss_global_variable_metadata_exists(
+                        name,
+                        position,
+                        context.global_variable_declarations,
+                    )
+                },
+            );
+            match reduced {
+                Some(reduced) => reduced,
+                None if static_scss_metadata_exists_call_may_need_resolution(
+                    condition.as_str(),
+                ) =>
+                {
+                    return None;
+                }
+                None => condition,
+            }
+        }
         None => condition,
     };
     let reduced = reduce_static_scss_value(condition);
@@ -1777,6 +1819,7 @@ fn call_bound_return_value(
             position,
             context.nodes,
             Some(bindings),
+            context.global_variable_declarations,
         ),
         _ => static_scss_return_abstract_value(value_text.as_str()),
     }
@@ -1835,6 +1878,7 @@ fn substitute_call_bound_function_calls(
             declaration_node,
             &argument_values,
             context.active_stack,
+            context.global_variable_declarations,
         )?;
         let replacement = single_static_scss_header_value_text(&resolved)?;
         output.push_str(value.get(cursor..call_start)?);
@@ -2352,6 +2396,12 @@ struct ScssBranchConditionHeader<'a> {
     source_span_start: usize,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct ScssGlobalVariableDeclaration {
+    name: String,
+    declaration_start: usize,
+}
+
 fn previous_scss_branch_condition_headers(
     previous_blocks: &[OmenaScssEvalControlFlowBlockV0],
 ) -> Vec<ScssBranchConditionHeader<'_>> {
@@ -2450,6 +2500,61 @@ fn collect_lexical_scss_bindings(source: &str, dialect: StyleDialect) -> Lexical
         }
     }
     bindings
+}
+
+fn collect_scss_global_variable_declarations(
+    source: &str,
+    variable_facts: &[ParsedVariableFact],
+) -> Vec<ScssGlobalVariableDeclaration> {
+    let Some(scopes) = collect_lexical_scss_scopes(source) else {
+        return Vec::new();
+    };
+    variable_facts
+        .iter()
+        .filter(|fact| fact.kind == ParsedVariableFactKind::ScssDeclaration)
+        .filter_map(|fact| {
+            let declaration_start = fact.range.start().into();
+            let scope_id = lexical_scss_scope_for_position(&scopes, declaration_start)?;
+            (scope_id == 0).then(|| ScssGlobalVariableDeclaration {
+                name: canonical_scss_variable_name(fact.name.as_str()),
+                declaration_start,
+            })
+        })
+        .collect()
+}
+
+fn scss_global_variable_metadata_exists(
+    name: &str,
+    position: usize,
+    declarations: &[ScssGlobalVariableDeclaration],
+) -> Option<bool> {
+    let canonical_name = canonical_scss_variable_name(name);
+    if declarations.iter().any(|declaration| {
+        declaration.name == canonical_name && declaration.declaration_start <= position
+    }) {
+        return Some(true);
+    }
+    if declarations.iter().any(|declaration| {
+        declaration.name == canonical_name && declaration.declaration_start > position
+    }) {
+        return None;
+    }
+    Some(false)
+}
+
+fn static_scss_metadata_exists_call_may_need_resolution(value: &str) -> bool {
+    const NAMES: [&str; 8] = [
+        "meta.function-exists(",
+        "function-exists(",
+        "meta.mixin-exists(",
+        "mixin-exists(",
+        "meta.variable-exists(",
+        "variable-exists(",
+        "meta.global-variable-exists(",
+        "global-variable-exists(",
+    ];
+    let lower = value.to_ascii_lowercase();
+    NAMES.iter().any(|name| lower.contains(name))
 }
 
 fn collect_lexical_scss_scopes(source: &str) -> Option<Vec<LexicalScssScope>> {
@@ -5117,6 +5222,82 @@ mod tests {
             function_call.call_resolved_return_value,
             Some(AbstractCssValueV0::Exact {
                 value: "3px".to_string()
+            })
+        );
+    }
+
+    #[test]
+    fn call_return_ir_reports_static_scss_global_variable_metadata_values() {
+        let source = "$theme: dark; @function metadata() { @return if(global-variable-exists(\"theme\") and not meta.global-variable-exists(\"missing\"), 3px, 4px); } .a { margin: metadata(); }";
+        let report = summarize_scss_call_return_ir(source, StyleDialect::Scss);
+        assert!(report.is_some());
+        let Some(report) = report else {
+            return;
+        };
+        let function_call = report
+            .nodes
+            .iter()
+            .find(|node| node.kind == "functionCall" && node.name.as_deref() == Some("metadata"));
+        assert!(function_call.is_some());
+        let Some(function_call) = function_call else {
+            return;
+        };
+
+        assert_eq!(function_call.call_resolved_return_value_kind, Some("exact"));
+        assert_eq!(
+            function_call.call_resolved_return_value,
+            Some(AbstractCssValueV0::Exact {
+                value: "3px".to_string()
+            })
+        );
+    }
+
+    #[test]
+    fn call_return_ir_keeps_future_global_variable_metadata_unknown() {
+        let source = "@function metadata() { @return if(global-variable-exists(\"theme\"), 3px, 4px); } $theme: dark; .a { margin: metadata(); }";
+        let report = summarize_scss_call_return_ir(source, StyleDialect::Scss);
+        assert!(report.is_some());
+        let Some(report) = report else {
+            return;
+        };
+        let function_call = report
+            .nodes
+            .iter()
+            .find(|node| node.kind == "functionCall" && node.name.as_deref() == Some("metadata"));
+        assert!(function_call.is_some());
+        let Some(function_call) = function_call else {
+            return;
+        };
+
+        assert_eq!(function_call.call_resolved_return_value_kind, Some("top"));
+        assert_eq!(
+            function_call.call_resolved_return_value,
+            Some(AbstractCssValueV0::Top)
+        );
+    }
+
+    #[test]
+    fn call_return_ir_does_not_treat_local_binding_as_global_metadata() {
+        let source = "@function metadata() { $theme: dark; @return if(global-variable-exists(\"theme\"), 3px, 4px); } .a { margin: metadata(); }";
+        let report = summarize_scss_call_return_ir(source, StyleDialect::Scss);
+        assert!(report.is_some());
+        let Some(report) = report else {
+            return;
+        };
+        let function_call = report
+            .nodes
+            .iter()
+            .find(|node| node.kind == "functionCall" && node.name.as_deref() == Some("metadata"));
+        assert!(function_call.is_some());
+        let Some(function_call) = function_call else {
+            return;
+        };
+
+        assert_eq!(function_call.call_resolved_return_value_kind, Some("exact"));
+        assert_eq!(
+            function_call.call_resolved_return_value,
+            Some(AbstractCssValueV0::Exact {
+                value: "4px".to_string()
             })
         );
     }
