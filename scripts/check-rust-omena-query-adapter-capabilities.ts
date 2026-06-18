@@ -107,6 +107,14 @@ const EXPECTED_RUNNER_COMMANDS = new Map([
     },
   ],
   [
+    "scssEvaluatorControlFlow",
+    {
+      command: SELECTED_QUERY_RUNNER_COMMANDS.scssEvaluatorControlFlow,
+      inputContract: "OmenaParserStyleFactsInputV0",
+      outputProduct: "omena-query.scss-evaluator-control-flow",
+    },
+  ],
+  [
     "selectorUsage",
     {
       command: SELECTED_QUERY_RUNNER_COMMANDS.selectorUsageCanonicalProducer,

@@ -37,6 +37,7 @@ export const SELECTED_QUERY_RUNNER_COMMANDS = {
   expressionDomainReducedProductIteration: "input-expression-domain-reduced-product-iteration",
   expressionDomainIncrementalFlowAnalysis: "input-expression-domain-incremental-flow-analysis",
   expressionDomainSelectorProjection: "input-expression-domain-selector-projection",
+  scssEvaluatorControlFlow: "input-scss-evaluator-control-flow",
   selectorUsageCanonicalProducer: "input-selector-usage-canonical-producer",
   omenaParserStyleFacts: "omena-parser-style-facts",
   omenaParserCssModulesIntermediate: "omena-parser-css-modules-intermediate",

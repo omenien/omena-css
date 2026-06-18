@@ -709,6 +709,12 @@ pub fn summarize_omena_query_selected_query_adapter_capabilities()
                 output_product: "omena-query.expression-domain-selector-projection",
             },
             SelectedQueryRunnerCommandV0 {
+                surface: "scssEvaluatorControlFlow",
+                command: "input-scss-evaluator-control-flow",
+                input_contract: "OmenaParserStyleFactsInputV0",
+                output_product: "omena-query.scss-evaluator-control-flow",
+            },
+            SelectedQueryRunnerCommandV0 {
                 surface: "selectorUsage",
                 command: "input-selector-usage-canonical-producer",
                 input_contract: "EngineInputV2",
