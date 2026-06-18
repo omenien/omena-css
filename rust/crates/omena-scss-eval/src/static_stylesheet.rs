@@ -2090,6 +2090,9 @@ fn collect_static_scss_variable_declarations(
         }
         let start = parser_text_size_to_usize(fact.range.start().into());
         let end = parser_text_size_to_usize(fact.range.end().into());
+        if static_stylesheet_variable_reference_is_named_argument_label(source, start, end) {
+            continue;
+        }
         if static_stylesheet_position_is_inside_ranges(start, &module_rule_ranges)
             || static_stylesheet_position_is_inside_ranges(start, &function_declaration_ranges)
         {
@@ -2481,10 +2484,9 @@ fn resolve_static_scss_variable_abstract_value_text(
         );
     };
     if references.is_empty() {
-        if static_stylesheet_literal_value_is_safe(value) {
-            return resolved_static_abstract_value(
-                reduce_static_scss_value(value.to_string()).as_str(),
-            );
+        let reduced = reduce_static_scss_value(value.to_string());
+        if static_stylesheet_literal_value_is_safe(reduced.as_str()) {
+            return resolved_static_abstract_value(reduced.as_str());
         }
         return raw_static_abstract_value(
             value,
@@ -2636,7 +2638,8 @@ fn resolve_static_scss_variable_value_text(
     let references =
         collect_static_stylesheet_variable_references(value, StaticStylesheetVariableKind::Scss)?;
     if references.is_empty() {
-        return static_stylesheet_literal_value_is_safe(value).then(|| value.to_string());
+        let reduced = reduce_static_scss_value(value.to_string());
+        return static_stylesheet_literal_value_is_safe(reduced.as_str()).then_some(reduced);
     }
     if !static_stylesheet_composite_value_is_safe(value) {
         return None;
@@ -3274,6 +3277,12 @@ fn collect_static_stylesheet_variable_references(
         if !static_stylesheet_variable_name_is_safe(bare_name) {
             return None;
         }
+        if variable_kind == StaticStylesheetVariableKind::Scss
+            && static_stylesheet_variable_reference_is_named_argument_label(value, index, name_end)
+        {
+            index = name_end;
+            continue;
+        }
         references.push(StaticStylesheetVariableReference {
             name: value[index..name_end].to_string(),
             start: index,
@@ -3296,6 +3305,38 @@ fn static_stylesheet_variable_name_end(value: &str, mut index: usize) -> usize {
         index += ch.len_utf8();
     }
     index
+}
+
+fn static_stylesheet_variable_reference_is_named_argument_label(
+    value: &str,
+    start: usize,
+    mut index: usize,
+) -> bool {
+    if !value
+        .get(..start)
+        .and_then(|prefix| {
+            prefix
+                .chars()
+                .rev()
+                .find(|candidate| !candidate.is_ascii_whitespace())
+        })
+        .is_some_and(|ch| matches!(ch, '(' | ','))
+    {
+        return false;
+    }
+    while index < value.len() {
+        let Some(ch) = value[index..].chars().next() else {
+            return false;
+        };
+        if ch == ':' {
+            return true;
+        }
+        if !ch.is_ascii_whitespace() {
+            return false;
+        }
+        index += ch.len_utf8();
+    }
+    false
 }
 
 fn static_stylesheet_position_is_inside_scoped_declaration(
@@ -4766,7 +4807,7 @@ mod tests {
     #[test]
     fn static_scss_evaluation_reduces_static_list_constructor_values() {
         let report = derive_static_stylesheet_module_evaluation(
-            "$items: list.append(1px 2px, 3px); $item-count: list.length($items); $third-item: list.nth($items, 3); $joined: list.join((red, blue), (green, yellow), comma); $joined-third: list.nth($joined, 3); $set: list.set-nth(4px 5px 6px, -1, 8px); $set-tail: list.nth($set, -1); $zipped: list.zip(1px 2px, solid dashed); $second-pair: list.nth($zipped, 2); .button { z-index: $item-count; margin: $third-item; color: $joined-third; padding: $set-tail; border: $second-pair; }",
+            "$items: list.append(1px 2px, 3px); $item-count: list.length($items); $third-item: list.nth($items, 3); $joined: list.join((red, blue), (green, yellow), $separator: comma); $joined-third: list.nth($joined, 3); $set: list.set-nth(4px 5px 6px, -1, 8px); $set-tail: list.nth($set, -1); $zipped: list.zip(1px 2px, solid dashed); $second-pair: list.nth($zipped, 2); .button { z-index: $item-count; margin: $third-item; color: $joined-third; padding: $set-tail; border: $second-pair; }",
             StyleDialect::Scss,
         );
         assert!(report.is_some());
