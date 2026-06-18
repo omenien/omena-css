@@ -1080,7 +1080,7 @@ fn parse_static_scss_color_adjust_value(value: &str, function_name: &str) -> Opt
 
 fn parse_static_scss_adjust_hue_value(value: &str) -> Option<String> {
     let arguments = parse_whole_function_value_arguments(value, "adjust-hue")?;
-    let arguments = parse_static_scss_color_alpha_amount_arguments(arguments.as_slice())?;
+    let arguments = parse_static_scss_color_hue_amount_arguments(arguments.as_slice())?;
     let color = parse_static_scss_srgb_color_argument(
         reduce_static_scss_value(arguments.color.to_string()).as_str(),
     )?;
@@ -1320,6 +1320,43 @@ fn parse_static_scss_color_alpha_amount_arguments(
         amount = Some(*value);
     }
     (positional.len() <= 2).then_some(StaticScssColorAlphaAmountArguments {
+        color: color?,
+        amount: amount?,
+    })
+}
+
+struct StaticScssColorHueAmountArguments<'a> {
+    color: &'a str,
+    amount: &'a str,
+}
+
+fn parse_static_scss_color_hue_amount_arguments(
+    arguments: &[String],
+) -> Option<StaticScssColorHueAmountArguments<'_>> {
+    let mut positional = Vec::<&str>::new();
+    let mut color = None;
+    let mut amount = None;
+
+    for argument in arguments {
+        match static_scss_named_argument(argument)? {
+            Some(("color", value)) => color = Some(value),
+            Some(("degrees", value)) => amount = Some(value),
+            Some(_) => return None,
+            None => positional.push(argument.as_str()),
+        }
+    }
+
+    if color.is_none()
+        && let Some(value) = positional.first()
+    {
+        color = Some(*value);
+    }
+    if amount.is_none()
+        && let Some(value) = positional.get(1)
+    {
+        amount = Some(*value);
+    }
+    (positional.len() <= 2).then_some(StaticScssColorHueAmountArguments {
         color: color?,
         amount: amount?,
     })

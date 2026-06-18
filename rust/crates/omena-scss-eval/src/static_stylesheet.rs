@@ -10835,7 +10835,7 @@ mod tests {
     #[test]
     fn static_value_resolution_emits_exact_static_hsl_color_transform_values() {
         let report = summarize_static_stylesheet_value_resolution(
-            "$adjusted: adjust-hue(red, 120deg); $complement: color.complement(red); $light: lighten(#808000, 10%); $dark: darken(#808000, 10%); $sat: saturate(#808000, 10%); $desat: desaturate(#808000, 10%); $gray: grayscale(red); $invert: color.invert(red, $weight: 25%); $scaled: color.scale(#808000, $lightness: 50%); $changed: color.change(#808000, $lightness: 50%); .button { color: $adjusted; background: $complement; border-color: $light; outline-color: $dark; caret-color: $sat; text-decoration-color: $desat; column-rule-color: $gray; accent-color: $invert; fill: $scaled; stroke: $changed; }",
+            "$adjusted: adjust-hue($color: red, $degrees: 120deg); $complement: color.complement(red); $light: lighten(#808000, 10%); $dark: darken(#808000, 10%); $sat: saturate(#808000, 10%); $desat: desaturate(#808000, 10%); $gray: grayscale(red); $invert: color.invert(red, $weight: 25%); $scaled: color.scale(#808000, $lightness: 50%); $changed: color.change(#808000, $lightness: 50%); .button { color: $adjusted; background: $complement; border-color: $light; outline-color: $dark; caret-color: $sat; text-decoration-color: $desat; column-rule-color: $gray; accent-color: $invert; fill: $scaled; stroke: $changed; }",
             StyleDialect::Scss,
         );
         assert!(report.is_some());
@@ -11019,6 +11019,28 @@ mod tests {
         assert_eq!(
             report.values[0].rendered_value.as_deref(),
             Some("color.channel(red, \"hue\")")
+        );
+    }
+
+    #[test]
+    fn static_value_resolution_keeps_ie_hex_str_raw() {
+        let report = summarize_static_stylesheet_value_resolution(
+            "$legacy: ie-hex-str(rgba(red, .5)); .button { color: $legacy; }",
+            StyleDialect::Scss,
+        );
+        assert!(report.is_some());
+        let Some(report) = report else {
+            return;
+        };
+
+        assert_eq!(report.reference_count, 1);
+        assert_eq!(report.raw_count, 1);
+        assert_eq!(report.unsupported_dynamic_count, 1);
+        assert_eq!(report.values[0].outcome, "raw");
+        assert_eq!(report.values[0].reason, "unsupportedDynamic");
+        assert_eq!(
+            report.values[0].rendered_value.as_deref(),
+            Some("ie-hex-str(rgba(red, .5))")
         );
     }
 
