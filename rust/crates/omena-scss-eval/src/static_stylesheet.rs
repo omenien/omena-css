@@ -11101,7 +11101,7 @@ mod tests {
     }
 
     #[test]
-    fn static_value_resolution_keeps_ie_hex_str_raw() {
+    fn static_value_resolution_emits_exact_ie_hex_str_values() {
         let report = summarize_static_stylesheet_value_resolution(
             "$legacy: ie-hex-str(rgba(red, .5)); .button { color: $legacy; }",
             StyleDialect::Scss,
@@ -11112,13 +11112,14 @@ mod tests {
         };
 
         assert_eq!(report.reference_count, 1);
-        assert_eq!(report.raw_count, 1);
-        assert_eq!(report.unsupported_dynamic_count, 1);
-        assert_eq!(report.values[0].outcome, "raw");
-        assert_eq!(report.values[0].reason, "unsupportedDynamic");
+        assert_eq!(report.resolved_count, 1);
+        assert_eq!(report.raw_count, 0);
+        assert_eq!(report.unsupported_dynamic_count, 0);
+        assert_eq!(report.values[0].outcome, "resolved");
+        assert_eq!(report.values[0].reason, "resolved");
         assert_eq!(
             report.values[0].rendered_value.as_deref(),
-            Some("ie-hex-str(rgba(red, .5))")
+            Some("#80ff0000")
         );
     }
 

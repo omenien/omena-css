@@ -147,6 +147,7 @@ pub(crate) fn reduce_static_scss_value(value: String) -> String {
             ("color.green", parse_static_scss_color_green_value),
             ("color.blue", parse_static_scss_color_blue_value),
             ("color.alpha", parse_static_scss_color_alpha_value),
+            ("ie-hex-str", parse_static_scss_ie_hex_str_value),
             ("percentage", parse_static_scss_percentage_value),
             ("unit", parse_static_scss_unit_value),
             ("math.unit", parse_static_scss_math_unit_value),
@@ -1650,6 +1651,29 @@ fn static_scss_u8_color_channel(value: f64) -> Option<u8> {
     }
     let value = value.round();
     (0.0..=255.0).contains(&value).then_some(value as u8)
+}
+
+fn parse_static_scss_ie_hex_str_value(value: &str) -> Option<String> {
+    let arguments = parse_whole_function_value_arguments(value, "ie-hex-str")?;
+    let [color] = arguments.as_slice() else {
+        return None;
+    };
+    let color = parse_static_scss_srgb_color_argument(
+        reduce_static_scss_value(color.to_string()).as_str(),
+    )?;
+    let red = static_scss_u8_color_channel(color.red)?;
+    let green = static_scss_u8_color_channel(color.green)?;
+    let blue = static_scss_u8_color_channel(color.blue)?;
+    let alpha = static_scss_ie_hex_alpha_channel(color.alpha)?;
+    Some(format!("#{alpha:02X}{red:02X}{green:02X}{blue:02X}"))
+}
+
+fn static_scss_ie_hex_alpha_channel(alpha: f64) -> Option<u8> {
+    if !alpha.is_finite() {
+        return None;
+    }
+    let channel = (static_scss_clamp_alpha(alpha) * 255.0).round();
+    (0.0..=255.0).contains(&channel).then_some(channel as u8)
 }
 
 fn parse_static_scss_color_mix_value(value: &str) -> Option<String> {
