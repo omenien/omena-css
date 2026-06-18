@@ -2802,7 +2802,18 @@ fn split_static_less_mixin_arguments(arguments: &str) -> Option<Vec<StaticScssFu
     if arguments.is_empty() {
         return Some(Vec::new());
     }
+    let separator = if static_less_mixin_arguments_have_top_level_separator(arguments, ';')? {
+        ';'
+    } else {
+        ','
+    };
+    split_static_less_mixin_arguments_with_separator(arguments, separator)
+}
 
+fn split_static_less_mixin_arguments_with_separator(
+    arguments: &str,
+    separator: char,
+) -> Option<Vec<StaticScssFunctionArgument>> {
     let mut values = Vec::new();
     let mut cursor = 0usize;
     let mut index = 0usize;
@@ -2832,7 +2843,7 @@ fn split_static_less_mixin_arguments(arguments: &str) -> Option<Vec<StaticScssFu
             ')' => paren_depth = paren_depth.checked_sub(1)?,
             '[' => bracket_depth += 1,
             ']' => bracket_depth = bracket_depth.checked_sub(1)?,
-            ',' if paren_depth == 0 && bracket_depth == 0 => {
+            ch if ch == separator && paren_depth == 0 && bracket_depth == 0 => {
                 values.push(parse_static_less_mixin_argument(
                     arguments.get(cursor..index)?.trim(),
                 )?);
@@ -2850,6 +2861,45 @@ fn split_static_less_mixin_arguments(arguments: &str) -> Option<Vec<StaticScssFu
         arguments.get(cursor..)?.trim(),
     )?);
     Some(values)
+}
+
+fn static_less_mixin_arguments_have_top_level_separator(
+    arguments: &str,
+    separator: char,
+) -> Option<bool> {
+    let mut index = 0usize;
+    let mut paren_depth = 0usize;
+    let mut bracket_depth = 0usize;
+    let mut quote: Option<char> = None;
+    while index < arguments.len() {
+        let ch = arguments[index..].chars().next()?;
+        if let Some(quote_ch) = quote {
+            index += ch.len_utf8();
+            if ch == '\\' {
+                if let Some(escaped) = arguments[index..].chars().next() {
+                    index += escaped.len_utf8();
+                }
+            } else if ch == quote_ch {
+                quote = None;
+            }
+            continue;
+        }
+        if matches!(ch, '"' | '\'') {
+            quote = Some(ch);
+            index += ch.len_utf8();
+            continue;
+        }
+        match ch {
+            '(' => paren_depth += 1,
+            ')' => paren_depth = paren_depth.checked_sub(1)?,
+            '[' => bracket_depth += 1,
+            ']' => bracket_depth = bracket_depth.checked_sub(1)?,
+            ch if ch == separator && paren_depth == 0 && bracket_depth == 0 => return Some(true),
+            _ => {}
+        }
+        index += ch.len_utf8();
+    }
+    (quote.is_none() && paren_depth == 0 && bracket_depth == 0).then_some(false)
 }
 
 fn parse_static_less_mixin_argument(value: &str) -> Option<StaticScssFunctionArgument> {
@@ -6305,6 +6355,24 @@ mod tests {
         assert!(report.evaluated_css.contains("color: blue"));
         assert!(report.evaluated_css.contains("margin: 2px"));
         assert!(report.evaluated_css.contains("padding: red"));
+        assert!(report.oracle.all_legacy_declaration_values_preserved);
+    }
+
+    #[test]
+    fn static_less_evaluation_expands_semicolon_separated_mixin_calls() {
+        let report = derive_static_stylesheet_module_evaluation(
+            ".shadow(@value; @color: red) { box-shadow: @value; color: @color; } .button { .shadow(1px, 2px, 3px; blue); }",
+            StyleDialect::Less,
+        );
+        assert!(report.is_some());
+        let Some(report) = report else {
+            return;
+        };
+
+        assert!(!report.evaluated_css.contains(".shadow(@value"));
+        assert!(!report.evaluated_css.contains(".shadow(1px"));
+        assert!(report.evaluated_css.contains("box-shadow: 1px, 2px, 3px"));
+        assert!(report.evaluated_css.contains("color: blue"));
         assert!(report.oracle.all_legacy_declaration_values_preserved);
     }
 

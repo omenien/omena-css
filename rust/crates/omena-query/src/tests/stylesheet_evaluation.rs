@@ -615,6 +615,35 @@ fn consumer_build_derives_static_less_evaluator_context_for_mixin_calls() {
 }
 
 #[test]
+fn consumer_build_derives_static_less_evaluator_context_for_semicolon_mixin_calls() {
+    let summary = execute_omena_query_consumer_build_style_source(
+        "Button.module.less",
+        ".shadow(@value; @color: red) { box-shadow: @value; color: @color; } .button { .shadow(1px, 2px, 3px; blue); }",
+        &[
+            "less-module-evaluate".to_string(),
+            "css-modules-class-hashing".to_string(),
+            "print-css".to_string(),
+        ],
+    );
+
+    assert!(
+        summary
+            .execution
+            .executed_pass_ids
+            .contains(&"less-module-evaluate")
+    );
+    assert!(
+        summary
+            .execution
+            .output_css
+            .contains("box-shadow: 1px, 2px, 3px")
+    );
+    assert!(summary.execution.output_css.contains("color: blue"));
+    assert!(!summary.execution.output_css.contains(".shadow(@value"));
+    assert!(!summary.execution.output_css.contains(".shadow(1px"));
+}
+
+#[test]
 fn consumer_build_derives_static_less_evaluator_context_for_nested_mixin_calls() {
     let summary = execute_omena_query_consumer_build_style_source(
         "Button.module.less",
