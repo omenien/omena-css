@@ -3736,6 +3736,33 @@ mod tests {
     }
 
     #[test]
+    fn static_scss_evaluation_reduces_static_map_deep_merge_values() {
+        let report = derive_static_stylesheet_module_evaluation(
+            "$merged: map.deep-merge((theme: (spacing: (sm: 4px), tone: blue)), (theme: (spacing: (md: 8px), tone: red))); $gap: map.get($merged, theme, spacing, md); $old: map.get($merged, theme, spacing, sm); $tone: map.get($merged, theme, tone); $count: list.length(map.keys(map.get($merged, theme, spacing))); .button { margin: $gap; padding: $old; color: $tone; z-index: $count; }",
+            StyleDialect::Scss,
+        );
+        assert!(report.is_some());
+        let Some(report) = report else {
+            return;
+        };
+
+        let replacements = report
+            .resolved_replacements
+            .iter()
+            .map(|replacement| replacement.text.as_str())
+            .collect::<Vec<_>>();
+        assert!(replacements.contains(&"8px"));
+        assert!(replacements.contains(&"4px"));
+        assert!(replacements.contains(&"red"));
+        assert!(replacements.contains(&"2"));
+        assert!(report.evaluated_css.contains("margin: 8px"));
+        assert!(report.evaluated_css.contains("padding: 4px"));
+        assert!(report.evaluated_css.contains("color: red"));
+        assert!(report.evaluated_css.contains("z-index: 2"));
+        assert!(report.oracle.all_legacy_declaration_values_preserved);
+    }
+
+    #[test]
     fn static_scss_evaluation_reduces_static_map_remove_values() {
         let report = derive_static_stylesheet_module_evaluation(
             "$gap: map.get(map.remove((default: 1px, dense: 2px, compact: 4px), dense, missing), compact); $count: list.length(map.keys(map-remove((default: 1px, dense: 2px), default, dense))); .button { margin: $gap; z-index: $count; }",

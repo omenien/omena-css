@@ -43,6 +43,10 @@ pub(crate) fn reduce_static_scss_value(value: String) -> String {
             ("map.values", parse_static_scss_map_values_namespaced_value),
             ("map-merge", parse_static_scss_map_merge_value),
             ("map.merge", parse_static_scss_map_merge_namespaced_value),
+            (
+                "map.deep-merge",
+                parse_static_scss_map_deep_merge_namespaced_value,
+            ),
             ("map-remove", parse_static_scss_map_remove_value),
             ("map.remove", parse_static_scss_map_remove_namespaced_value),
             (
@@ -264,6 +268,10 @@ fn parse_static_scss_map_merge_value(value: &str) -> Option<String> {
 
 fn parse_static_scss_map_merge_namespaced_value(value: &str) -> Option<String> {
     parse_static_scss_map_merge_value_with_name(value, "map.merge")
+}
+
+fn parse_static_scss_map_deep_merge_namespaced_value(value: &str) -> Option<String> {
+    parse_static_scss_map_deep_merge_value_with_name(value, "map.deep-merge")
 }
 
 fn parse_static_scss_map_remove_value(value: &str) -> Option<String> {
@@ -542,6 +550,53 @@ fn static_scss_merge_map_entries(
             left_entries[index].1 = right_value;
         } else {
             left_entries.push((right_key, right_value));
+        }
+    }
+    Some(left_entries)
+}
+
+fn parse_static_scss_map_deep_merge_value_with_name(
+    value: &str,
+    function_name: &str,
+) -> Option<String> {
+    let arguments = parse_whole_function_value_arguments(value, function_name)?;
+    let [left_map, right_map] = arguments.as_slice() else {
+        return None;
+    };
+    let merged = static_scss_deep_merge_map_entries(
+        parse_static_scss_map_entries(left_map)?,
+        parse_static_scss_map_entries(right_map)?,
+    )?;
+    static_scss_render_map_entries(merged)
+}
+
+fn static_scss_deep_merge_map_entries(
+    mut left_entries: Vec<(String, String)>,
+    right_entries: Vec<(String, String)>,
+) -> Option<Vec<(String, String)>> {
+    for (right_key, right_value) in right_entries {
+        let right_canonical_key = canonical_static_scss_map_key(right_key.as_str())?;
+        let merged_value = if let Some(index) =
+            static_scss_map_entry_index(left_entries.as_slice(), right_canonical_key.as_str())?
+        {
+            match (
+                parse_static_scss_map_entries(left_entries[index].1.as_str()),
+                parse_static_scss_map_entries(right_value.as_str()),
+            ) {
+                (Some(left_child), Some(right_child)) => static_scss_render_map_entries(
+                    static_scss_deep_merge_map_entries(left_child, right_child)?,
+                )?,
+                _ => right_value,
+            }
+        } else {
+            right_value
+        };
+        if let Some(index) =
+            static_scss_map_entry_index(left_entries.as_slice(), right_canonical_key.as_str())?
+        {
+            left_entries[index].1 = merged_value;
+        } else {
+            left_entries.push((right_key, merged_value));
         }
     }
     Some(left_entries)
