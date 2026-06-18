@@ -32,6 +32,10 @@ pub(crate) fn reduce_static_scss_value(value: String) -> String {
                 parse_static_scss_map_has_key_namespaced_value,
             ),
             ("math.div", parse_static_scss_math_div_value),
+            ("math.min", parse_static_scss_math_min_value),
+            ("math.max", parse_static_scss_math_max_value),
+            ("math.abs", parse_static_scss_math_abs_value),
+            ("math.clamp", parse_static_scss_math_clamp_value),
             ("percentage", parse_static_scss_percentage_value),
             ("unitless", parse_static_scss_unitless_value),
             ("math.is-unitless", parse_static_scss_math_is_unitless_value),
@@ -192,6 +196,32 @@ fn parse_static_scss_math_div_value(value: &str) -> Option<String> {
         return None;
     };
     reduce_static_numeric_expression(format!("{} / {}", left.trim(), right.trim()).as_str())
+}
+
+fn parse_static_scss_math_min_value(value: &str) -> Option<String> {
+    parse_static_scss_numeric_alias_value(value, "math.min", "min", parse_reducible_min_value)
+}
+
+fn parse_static_scss_math_max_value(value: &str) -> Option<String> {
+    parse_static_scss_numeric_alias_value(value, "math.max", "max", parse_reducible_max_value)
+}
+
+fn parse_static_scss_math_abs_value(value: &str) -> Option<String> {
+    parse_static_scss_numeric_alias_value(value, "math.abs", "abs", parse_reducible_abs_value)
+}
+
+fn parse_static_scss_math_clamp_value(value: &str) -> Option<String> {
+    parse_static_scss_numeric_alias_value(value, "math.clamp", "clamp", parse_reducible_clamp_value)
+}
+
+fn parse_static_scss_numeric_alias_value(
+    value: &str,
+    alias_name: &str,
+    kernel_name: &str,
+    parse_kernel_value: fn(&str) -> Option<String>,
+) -> Option<String> {
+    let inner = omena_value_lattice::parse_whole_function_value_inner(value, alias_name)?;
+    parse_kernel_value(format!("{kernel_name}({inner})").as_str())
 }
 
 fn parse_static_scss_percentage_value(value: &str) -> Option<String> {

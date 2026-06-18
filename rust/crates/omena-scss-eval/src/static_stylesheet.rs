@@ -3639,6 +3639,31 @@ mod tests {
     }
 
     #[test]
+    fn static_scss_evaluation_reduces_namespaced_math_aliases() {
+        let report = derive_static_stylesheet_module_evaluation(
+            "$gap: math.max(1px, 3px); $pad: math.min(4px, 2px); $offset: math.abs(-2px); $width: math.clamp(1px, 5px, 3px); .button { margin: $gap; padding: $pad; inset: $offset; width: $width; }",
+            StyleDialect::Scss,
+        );
+        assert!(report.is_some());
+        let Some(report) = report else {
+            return;
+        };
+
+        let replacements = report
+            .resolved_replacements
+            .iter()
+            .map(|replacement| replacement.text.as_str())
+            .collect::<Vec<_>>();
+        assert!(replacements.contains(&"3px"));
+        assert!(replacements.contains(&"2px"));
+        assert!(report.evaluated_css.contains("margin: 3px"));
+        assert!(report.evaluated_css.contains("padding: 2px"));
+        assert!(report.evaluated_css.contains("inset: 2px"));
+        assert!(report.evaluated_css.contains("width: 3px"));
+        assert!(report.oracle.all_legacy_declaration_values_preserved);
+    }
+
+    #[test]
     fn static_scss_evaluation_reduces_static_if_not_conditions() {
         let report = derive_static_stylesheet_module_evaluation(
             "$gap: if(not true, 1px, 2px); .button { margin: $gap; }",
