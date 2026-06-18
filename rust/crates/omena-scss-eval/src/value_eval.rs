@@ -26,6 +26,8 @@ pub(crate) fn reduce_static_scss_value(value: String) -> String {
             ("if", parse_static_scss_if_value),
             ("type-of", parse_static_scss_type_of_value),
             ("meta.type-of", parse_static_scss_meta_type_of_value),
+            ("inspect", parse_static_scss_inspect_value),
+            ("meta.inspect", parse_static_scss_meta_inspect_value),
             ("meta.calc-args", parse_static_scss_meta_calc_args_value),
             ("meta.calc-name", parse_static_scss_meta_calc_name_value),
             ("feature-exists", parse_static_scss_feature_exists_value),
@@ -242,6 +244,26 @@ fn parse_static_scss_type_of_value_with_name(value: &str, function_name: &str) -
         return None;
     };
     Some(static_scss_value_type(value)?.to_string())
+}
+
+fn parse_static_scss_inspect_value(value: &str) -> Option<String> {
+    parse_static_scss_inspect_value_with_name(value, "inspect")
+}
+
+fn parse_static_scss_meta_inspect_value(value: &str) -> Option<String> {
+    parse_static_scss_inspect_value_with_name(value, "meta.inspect")
+}
+
+fn parse_static_scss_inspect_value_with_name(value: &str, function_name: &str) -> Option<String> {
+    let arguments = parse_whole_function_value_arguments(value, function_name)?;
+    let [value] = arguments.as_slice() else {
+        return None;
+    };
+    let reduced = reduce_static_scss_value(value.to_string());
+    match static_scss_value_type(reduced.as_str())? {
+        "map" => None,
+        _ => Some(reduced.trim().to_string()),
+    }
 }
 
 fn parse_static_scss_meta_calc_name_value(value: &str) -> Option<String> {

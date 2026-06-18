@@ -10313,6 +10313,22 @@ mod tests {
     }
 
     #[test]
+    fn static_scss_evaluation_reduces_static_inspect_values() {
+        let report = derive_static_stylesheet_module_evaluation(
+            "$tone: meta.inspect(red); $gap: inspect(2px); .button { color: $tone; margin: $gap; }",
+            StyleDialect::Scss,
+        );
+        assert!(report.is_some());
+        let Some(report) = report else {
+            return;
+        };
+
+        assert!(report.evaluated_css.contains("color: red"));
+        assert!(report.evaluated_css.contains("margin: 2px"));
+        assert!(report.oracle.all_legacy_declaration_values_preserved);
+    }
+
+    #[test]
     fn static_scss_evaluation_reduces_static_calculation_metadata_values() {
         let report = derive_static_stylesheet_module_evaluation(
             "$name: meta.calc-name(clamp(1px, 2px, 3px)); $args: meta.calc-args(clamp(1px, 2px, 3px)); $kind: meta.type-of(calc(100% - 1px)); $gap: if($name == \"clamp\" and $kind == calculation and list.length($args) == 3 and list.nth($args, 2) == 2px, 1px, 2px); .button { margin: $gap; }",
@@ -11121,6 +11137,30 @@ mod tests {
             report.values[0].rendered_value.as_deref(),
             Some("#80ff0000")
         );
+    }
+
+    #[test]
+    fn static_value_resolution_emits_exact_static_inspect_values() {
+        let report = summarize_static_stylesheet_value_resolution(
+            "$tone: meta.inspect(red); $gap: inspect(2px); .button { color: $tone; margin: $gap; }",
+            StyleDialect::Scss,
+        );
+        assert!(report.is_some());
+        let Some(report) = report else {
+            return;
+        };
+
+        assert_eq!(report.reference_count, 2);
+        assert_eq!(report.resolved_count, 2);
+        assert_eq!(report.raw_count, 0);
+        assert_eq!(report.unsupported_dynamic_count, 0);
+        let rendered_values = report
+            .values
+            .iter()
+            .filter_map(|value| value.rendered_value.as_deref())
+            .collect::<Vec<_>>();
+        assert!(rendered_values.contains(&"red"));
+        assert!(rendered_values.contains(&"2px"));
     }
 
     #[test]
