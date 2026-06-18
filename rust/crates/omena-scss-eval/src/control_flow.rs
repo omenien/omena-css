@@ -192,6 +192,8 @@ pub struct OmenaScssEvalCallLocalBindingV0 {
     pub name: String,
     pub source_span_start: usize,
     pub source_span_end: usize,
+    pub scope_span_start: usize,
+    pub scope_span_end: usize,
     pub value_text: String,
     pub value: AbstractCssValueV0,
     pub value_kind: &'static str,
@@ -519,6 +521,13 @@ struct ScssCallReturnCandidate {
     return_negated_condition_texts: Vec<String>,
     source_span_start: usize,
     source_span_end: usize,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct ScssCallLocalBindingScope {
+    end_index: usize,
+    span_start: usize,
+    span_end: usize,
 }
 
 fn call_return_candidate_from_sass_symbol(
@@ -925,24 +934,54 @@ fn scss_declaration_local_bindings_from_symbol(
         return Vec::new();
     };
     let mut bindings = Vec::new();
+    let mut scope_stack = Vec::<ScssCallLocalBindingScope>::new();
+    let Some(function_scope_start) = tokens
+        .get(body_start)
+        .map(token_range_start)
+        .or_else(|| tokens.get(body_end).map(token_range_start))
+    else {
+        return Vec::new();
+    };
+    let function_scope_end = tokens
+        .get(body_end)
+        .map(token_range_start)
+        .unwrap_or(function_scope_start);
     let mut index = body_start;
-    let mut nested_brace_depth = 0usize;
     while index < body_end {
+        while scope_stack
+            .last()
+            .is_some_and(|scope| index > scope.end_index)
+        {
+            scope_stack.pop();
+        }
         let Some(token) = tokens.get(index) else {
             break;
         };
         match token.kind {
             SyntaxKind::LeftBrace => {
-                nested_brace_depth += 1;
+                let Some(scope_end_index) = matching_right_brace_token_index(tokens, index) else {
+                    index += 1;
+                    continue;
+                };
+                scope_stack.push(ScssCallLocalBindingScope {
+                    end_index: scope_end_index,
+                    span_start: token_range_end(token),
+                    span_end: token_range_start(&tokens[scope_end_index]),
+                });
                 index += 1;
                 continue;
             }
             SyntaxKind::RightBrace => {
-                nested_brace_depth = nested_brace_depth.saturating_sub(1);
+                if scope_stack
+                    .last()
+                    .is_some_and(|scope| scope.end_index == index)
+                {
+                    scope_stack.pop();
+                }
                 index += 1;
                 continue;
             }
-            SyntaxKind::ScssVariable if nested_brace_depth == 0 => {
+            SyntaxKind::ScssVariable => {
                 let Some(colon_index) = next_non_trivia_token_index(tokens, index + 1) else {
                     index += 1;
                     continue;
@@ -964,10 +1003,16 @@ fn scss_declaration_local_bindings_from_symbol(
                     && !value_text.is_empty()
                 {
                     let value = static_scss_return_abstract_value(value_text);
+                    let (scope_span_start, scope_span_end) = scope_stack
+                        .last()
+                        .map(|scope| (scope.span_start, scope.span_end))
+                        .unwrap_or((function_scope_start, function_scope_end));
                     bindings.push(OmenaScssEvalCallLocalBindingV0 {
                         name: token.text.clone(),
                         source_span_start: token.range.start().into(),
                         source_span_end: token.range.end().into(),
+                        scope_span_start,
+                        scope_span_end,
                         value_text: value_text.to_string(),
                         value_kind: abstract_css_value_kind(&value),
                         value,
@@ -1673,7 +1718,10 @@ fn apply_call_bound_local_bindings_before(
     context: Option<&ScssCallReturnResolutionContext<'_>>,
 ) {
     for local_binding in &declaration_node.local_binding_values {
-        if local_binding.source_span_start >= position {
+        if local_binding.source_span_start >= position
+            || position < local_binding.scope_span_start
+            || position >= local_binding.scope_span_end
+        {
             continue;
         }
         let value = call_bound_return_value(
@@ -4600,6 +4648,76 @@ mod tests {
             Some(AbstractCssValueV0::Exact {
                 value: "2px".to_string()
             })
+        );
+    }
+
+    #[test]
+    fn call_return_ir_resolves_branch_local_bindings() {
+        let source = "@function pick($enabled) { @if $enabled { $inside: 1px + 1px; @return $inside; } @else { @return 1px; } } .a { width: pick(true); }";
+        let report = summarize_scss_call_return_ir(source, StyleDialect::Scss);
+        assert!(report.is_some());
+        let Some(report) = report else {
+            return;
+        };
+        let declaration = report.nodes.iter().find(|node| {
+            node.kind == "functionDeclaration" && node.name.as_deref() == Some("pick")
+        });
+        assert!(declaration.is_some());
+        let Some(declaration) = declaration else {
+            return;
+        };
+        assert_eq!(declaration.local_binding_values.len(), 1);
+        assert_eq!(declaration.local_binding_values[0].name, "$inside");
+
+        let function_call = report
+            .nodes
+            .iter()
+            .find(|node| node.kind == "functionCall" && node.name.as_deref() == Some("pick"));
+        assert!(function_call.is_some());
+        let Some(function_call) = function_call else {
+            return;
+        };
+
+        assert_eq!(function_call.call_resolved_return_value_kind, Some("exact"));
+        assert_eq!(
+            function_call.call_resolved_return_value,
+            Some(AbstractCssValueV0::Exact {
+                value: "2px".to_string()
+            })
+        );
+    }
+
+    #[test]
+    fn call_return_ir_does_not_leak_sibling_branch_local_bindings() {
+        let source = "@function pick($enabled) { @if $enabled { @return $other; } @else { $other: 1px; @return $other; } } .a { width: pick(true); }";
+        let report = summarize_scss_call_return_ir(source, StyleDialect::Scss);
+        assert!(report.is_some());
+        let Some(report) = report else {
+            return;
+        };
+        let declaration = report.nodes.iter().find(|node| {
+            node.kind == "functionDeclaration" && node.name.as_deref() == Some("pick")
+        });
+        assert!(declaration.is_some());
+        let Some(declaration) = declaration else {
+            return;
+        };
+        assert_eq!(declaration.local_binding_values.len(), 1);
+        assert_eq!(declaration.local_binding_values[0].name, "$other");
+
+        let function_call = report
+            .nodes
+            .iter()
+            .find(|node| node.kind == "functionCall" && node.name.as_deref() == Some("pick"));
+        assert!(function_call.is_some());
+        let Some(function_call) = function_call else {
+            return;
+        };
+
+        assert_eq!(function_call.call_resolved_return_value_kind, Some("top"));
+        assert_eq!(
+            function_call.call_resolved_return_value,
+            Some(AbstractCssValueV0::Top)
         );
     }
 

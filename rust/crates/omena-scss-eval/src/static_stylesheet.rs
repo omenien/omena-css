@@ -814,6 +814,8 @@ struct StaticScssFunctionLocalVariable {
     name: String,
     value: String,
     span_start: usize,
+    scope_start: usize,
+    scope_end: usize,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -850,6 +852,13 @@ struct StaticScssFunctionResolutionContext<'a> {
 struct StaticScssFunctionArgument {
     name: Option<String>,
     value: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct StaticScssFunctionLocalScope {
+    end_index: usize,
+    span_start: usize,
+    span_end: usize,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -1100,19 +1109,48 @@ fn collect_static_scss_function_local_variables(
     end: usize,
 ) -> Option<Vec<StaticScssFunctionLocalVariable>> {
     let mut variables = Vec::new();
-    let mut nested_block_depth = 0usize;
+    let mut scope_stack = Vec::<StaticScssFunctionLocalScope>::new();
+    let function_scope_start = tokens
+        .get(start)
+        .map(static_stylesheet_token_start)
+        .or_else(|| tokens.get(end).map(static_stylesheet_token_start))?;
+    let function_scope_end = tokens
+        .get(end)
+        .map(static_stylesheet_token_start)
+        .unwrap_or(function_scope_start);
     let mut index = start;
     while index < end {
+        while scope_stack
+            .last()
+            .is_some_and(|scope| index > scope.end_index)
+        {
+            scope_stack.pop();
+        }
         match tokens[index].kind {
             SyntaxKind::LeftBrace => {
-                nested_block_depth += 1;
+                let scope_end_index = static_stylesheet_matching_token_index(
+                    tokens,
+                    index,
+                    SyntaxKind::LeftBrace,
+                    SyntaxKind::RightBrace,
+                )?;
+                scope_stack.push(StaticScssFunctionLocalScope {
+                    end_index: scope_end_index,
+                    span_start: static_stylesheet_token_end(&tokens[index]),
+                    span_end: static_stylesheet_token_start(&tokens[scope_end_index]),
+                });
                 index += 1;
             }
             SyntaxKind::RightBrace => {
-                nested_block_depth = nested_block_depth.checked_sub(1)?;
+                if scope_stack
+                    .last()
+                    .is_some_and(|scope| scope.end_index == index)
+                {
+                    scope_stack.pop();
+                }
                 index += 1;
             }
-            SyntaxKind::ScssVariable if nested_block_depth == 0 => {
+            SyntaxKind::ScssVariable => {
                 let colon_index = static_stylesheet_skip_trivia_tokens(tokens, index + 1);
                 if tokens
                     .get(colon_index)
@@ -1130,10 +1168,16 @@ fn collect_static_scss_function_local_variables(
                 let value_start = static_stylesheet_token_end(&tokens[colon_index]);
                 let value_end = static_stylesheet_token_start(&tokens[value_end_index]);
                 let value = source.get(value_start..value_end)?.trim();
+                let (scope_start, scope_end) = scope_stack
+                    .last()
+                    .map(|scope| (scope.span_start, scope.span_end))
+                    .unwrap_or((function_scope_start, function_scope_end));
                 variables.push(StaticScssFunctionLocalVariable {
                     name,
                     value: value.to_string(),
                     span_start: static_stylesheet_token_start(&tokens[index]),
+                    scope_start,
+                    scope_end,
                 });
                 index = value_end_index + 1;
             }
@@ -1759,11 +1803,11 @@ fn bind_static_scss_function_local_variables_before(
     context: StaticScssFunctionResolutionContext<'_>,
 ) -> Result<BTreeMap<String, String>, StaticStylesheetAbstractResolution> {
     let mut bound_values = argument_values.clone();
-    for local_variable in declaration
-        .local_variables
-        .iter()
-        .filter(|local_variable| local_variable.span_start < position)
-    {
+    for local_variable in declaration.local_variables.iter().filter(|local_variable| {
+        local_variable.span_start < position
+            && local_variable.scope_start <= position
+            && position < local_variable.scope_end
+    }) {
         if static_scss_function_value_contains_callable_to(
             local_variable.value.as_str(),
             declaration.name.as_str(),
@@ -4930,6 +4974,34 @@ mod tests {
         assert_eq!(report.resolved_replacements[0].abstract_value_kind, "exact");
         assert!(report.evaluated_css.contains(".button { margin: 2px; }"));
         assert!(report.oracle.all_legacy_declaration_values_preserved);
+    }
+
+    #[test]
+    fn static_scss_evaluation_resolves_branch_local_variables() {
+        let report = derive_static_stylesheet_module_evaluation(
+            "@function pick($enabled) { @if $enabled { $inside: 1px + 1px; @return $inside; } @return 1px; } .button { margin: pick(true); }",
+            StyleDialect::Scss,
+        );
+        assert!(report.is_some());
+        let Some(report) = report else {
+            return;
+        };
+
+        assert_eq!(report.replacement_count, 1);
+        assert_eq!(report.resolved_replacements[0].name, "function:pick");
+        assert_eq!(report.resolved_replacements[0].text, "2px");
+        assert_eq!(report.resolved_replacements[0].abstract_value_kind, "exact");
+        assert!(report.evaluated_css.contains(".button { margin: 2px; }"));
+        assert!(report.oracle.all_legacy_declaration_values_preserved);
+    }
+
+    #[test]
+    fn static_scss_evaluation_does_not_leak_sibling_branch_local_variables() {
+        let report = derive_static_stylesheet_module_evaluation(
+            "@function pick($enabled) { @if $enabled { @return $other; } @else { $other: 1px; @return $other; } } .button { margin: pick(true); }",
+            StyleDialect::Scss,
+        );
+        assert!(report.is_none());
     }
 
     #[test]
