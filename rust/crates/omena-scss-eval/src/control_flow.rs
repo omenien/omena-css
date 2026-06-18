@@ -4729,6 +4729,34 @@ mod tests {
     }
 
     #[test]
+    fn call_return_ir_reports_static_scss_unit_compatibility_returns() {
+        let source = "@function unit-name() { @return if(math.compatible(1px, 2px) and not comparable(1, 1px), math.unit(4px), \"bad\"); } .a { content: unit-name(); }";
+        let report = summarize_scss_call_return_ir(source, StyleDialect::Scss);
+        assert!(report.is_some());
+        let Some(report) = report else {
+            return;
+        };
+        let return_node = report
+            .nodes
+            .iter()
+            .find(|node| node.kind == "functionReturn");
+        assert!(return_node.is_some());
+        let Some(return_node) = return_node else {
+            return;
+        };
+
+        assert_eq!(report.return_value_count, 1);
+        assert_eq!(report.raw_return_value_count, 1);
+        assert_eq!(return_node.return_value_kind, Some("raw"));
+        assert_eq!(
+            return_node.return_value,
+            Some(AbstractCssValueV0::Raw {
+                value: "\"px\"".to_string()
+            })
+        );
+    }
+
+    #[test]
     fn call_return_ir_reports_static_scss_if_argument_values_in_abstract_domain() {
         let source =
             "@function gap($value) { @return $value; } .a { width: gap(if(false, 1px, 2px)); }";
