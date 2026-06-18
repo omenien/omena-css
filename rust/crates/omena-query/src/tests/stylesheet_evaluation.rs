@@ -735,6 +735,44 @@ fn consumer_build_derives_static_less_evaluator_context_for_type_guarded_mixin_c
 }
 
 #[test]
+fn consumer_build_derives_static_less_evaluator_context_for_comparison_guarded_mixin_calls() {
+    let summary = execute_omena_query_consumer_build_style_source(
+        "Button.module.less",
+        r#".space(@gap) when (@gap > 1px) { margin: @gap; }
+.tone(@color) when (@color = red) { color: @color; }
+.combo(@gap, @color) when (@gap >= 2px) and (iscolor(@color)) { padding: @gap; border-color: @color; }
+.inverse(@gap) when not (@gap < 2px) { inset: @gap; }
+.fallback(@name) when (@name = primary), (@name = secondary) { content: @name; }
+.button { .space(2px); .tone(red); .combo(2px, blue); .inverse(2px); .fallback(secondary); }"#,
+        &[
+            "less-module-evaluate".to_string(),
+            "css-modules-class-hashing".to_string(),
+            "print-css".to_string(),
+        ],
+    );
+
+    assert!(
+        summary
+            .execution
+            .executed_pass_ids
+            .contains(&"less-module-evaluate")
+    );
+    assert!(summary.execution.output_css.contains("margin: 2px"));
+    assert!(summary.execution.output_css.contains("color: red"));
+    assert!(summary.execution.output_css.contains("padding: 2px"));
+    assert!(summary.execution.output_css.contains("border-color: blue"));
+    assert!(summary.execution.output_css.contains("inset: 2px"));
+    assert!(summary.execution.output_css.contains("content: secondary"));
+    assert!(!summary.execution.output_css.contains(".space(2px)"));
+    assert!(
+        !summary
+            .execution
+            .output_css
+            .contains(".fallback(secondary)")
+    );
+}
+
+#[test]
 fn consumer_build_keeps_false_guarded_less_mixins_planned_only() {
     let summary = execute_omena_query_consumer_build_style_source(
         "Button.module.less",
@@ -753,6 +791,27 @@ fn consumer_build_keeps_false_guarded_less_mixins_planned_only() {
             .contains(&"less-module-evaluate")
     );
     assert!(summary.execution.output_css.contains(".tone(1px)"));
+}
+
+#[test]
+fn consumer_build_keeps_false_comparison_guarded_less_mixins_planned_only() {
+    let summary = execute_omena_query_consumer_build_style_source(
+        "Button.module.less",
+        ".space(@gap) when (@gap > 2px) { margin: @gap; } .button { .space(1px); }",
+        &[
+            "less-module-evaluate".to_string(),
+            "css-modules-class-hashing".to_string(),
+            "print-css".to_string(),
+        ],
+    );
+
+    assert!(
+        summary
+            .execution
+            .planned_only_pass_ids
+            .contains(&"less-module-evaluate")
+    );
+    assert!(summary.execution.output_css.contains(".space(1px)"));
 }
 
 #[test]

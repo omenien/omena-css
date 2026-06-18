@@ -2952,69 +2952,121 @@ fn static_less_mixin_guard_matches(
     if !when.eq_ignore_ascii_case("when") {
         return None;
     }
-    let predicate = guard.get("when".len()..)?.trim();
-    let predicate = predicate.strip_prefix('(')?.strip_suffix(')')?.trim();
-    static_less_mixin_guard_predicate_matches(
-        predicate,
-        "iscolor",
+    let expression = guard.get("when".len()..)?.trim();
+    let context = StaticLessGuardContext {
         argument_values,
         call_scope_id,
         scopes,
         variable_declarations,
+    };
+    static_less_guard_expression_matches(expression, context)
+}
+
+#[derive(Clone, Copy)]
+struct StaticLessGuardContext<'a> {
+    argument_values: &'a BTreeMap<String, String>,
+    call_scope_id: usize,
+    scopes: &'a [StaticStylesheetScope],
+    variable_declarations: &'a BTreeMap<(usize, String), StaticStylesheetVariableDeclaration>,
+}
+
+fn static_less_guard_expression_matches(
+    expression: &str,
+    context: StaticLessGuardContext<'_>,
+) -> Option<bool> {
+    let expression = expression.trim();
+    if expression.is_empty() {
+        return None;
+    }
+    if let Some(inner) = static_less_guard_strip_outer_parens(expression) {
+        return static_less_guard_expression_matches(inner, context);
+    }
+    if let Some(operands) = split_static_less_guard_top_level_separator(expression, ',')? {
+        return static_less_guard_or_matches(operands, context);
+    }
+    if let Some(operands) = split_static_less_guard_top_level_keyword(expression, "and")? {
+        return static_less_guard_and_matches(operands, context);
+    }
+    if expression
+        .get(..3)
+        .is_some_and(|prefix| prefix.eq_ignore_ascii_case("not"))
+        && let Some(operand) = expression.get(3..)
+        && operand.chars().next().is_some_and(char::is_whitespace)
+    {
+        return static_less_guard_expression_matches(operand.trim(), context).map(|truthy| !truthy);
+    }
+    static_less_guard_predicate_expression_matches(expression, context)
+        .or_else(|| static_less_guard_comparison_matches(expression, context))
+}
+
+fn static_less_guard_or_matches(
+    operands: Vec<&str>,
+    context: StaticLessGuardContext<'_>,
+) -> Option<bool> {
+    let mut saw_unknown = false;
+    for operand in operands {
+        match static_less_guard_expression_matches(operand, context) {
+            Some(true) => return Some(true),
+            Some(false) => {}
+            None => saw_unknown = true,
+        }
+    }
+    (!saw_unknown).then_some(false)
+}
+
+fn static_less_guard_and_matches(
+    operands: Vec<&str>,
+    context: StaticLessGuardContext<'_>,
+) -> Option<bool> {
+    let mut saw_unknown = false;
+    for operand in operands {
+        match static_less_guard_expression_matches(operand, context) {
+            Some(true) => {}
+            Some(false) => return Some(false),
+            None => saw_unknown = true,
+        }
+    }
+    (!saw_unknown).then_some(true)
+}
+
+fn static_less_guard_predicate_expression_matches(
+    predicate: &str,
+    context: StaticLessGuardContext<'_>,
+) -> Option<bool> {
+    static_less_mixin_guard_predicate_matches(
+        predicate,
+        "iscolor",
+        context,
         static_less_guard_value_is_color,
     )
     .or_else(|| {
         static_less_mixin_guard_predicate_matches(
             predicate,
             "isnumber",
-            argument_values,
-            call_scope_id,
-            scopes,
-            variable_declarations,
+            context,
             static_less_guard_value_is_number,
         )
     })
     .or_else(|| {
-        static_less_mixin_guard_predicate_matches(
-            predicate,
-            "ispixel",
-            argument_values,
-            call_scope_id,
-            scopes,
-            variable_declarations,
-            |value| static_less_guard_value_has_unit(value, "px"),
-        )
+        static_less_mixin_guard_predicate_matches(predicate, "ispixel", context, |value| {
+            static_less_guard_value_has_unit(value, "px")
+        })
     })
     .or_else(|| {
-        static_less_mixin_guard_predicate_matches(
-            predicate,
-            "ispercentage",
-            argument_values,
-            call_scope_id,
-            scopes,
-            variable_declarations,
-            |value| static_less_guard_value_has_unit(value, "%"),
-        )
+        static_less_mixin_guard_predicate_matches(predicate, "ispercentage", context, |value| {
+            static_less_guard_value_has_unit(value, "%")
+        })
     })
     .or_else(|| {
-        static_less_mixin_guard_predicate_matches(
-            predicate,
-            "isem",
-            argument_values,
-            call_scope_id,
-            scopes,
-            variable_declarations,
-            |value| static_less_guard_value_has_unit(value, "em"),
-        )
+        static_less_mixin_guard_predicate_matches(predicate, "isem", context, |value| {
+            static_less_guard_value_has_unit(value, "em")
+        })
     })
     .or_else(|| {
         static_less_mixin_guard_predicate_matches(
             predicate,
             "isurl",
-            argument_values,
-            call_scope_id,
-            scopes,
-            variable_declarations,
+            context,
             static_less_guard_value_is_url,
         )
     })
@@ -3022,10 +3074,7 @@ fn static_less_mixin_guard_matches(
         static_less_mixin_guard_predicate_matches(
             predicate,
             "isstring",
-            argument_values,
-            call_scope_id,
-            scopes,
-            variable_declarations,
+            context,
             static_less_guard_value_is_string,
         )
     })
@@ -3033,10 +3082,7 @@ fn static_less_mixin_guard_matches(
         static_less_mixin_guard_predicate_matches(
             predicate,
             "iskeyword",
-            argument_values,
-            call_scope_id,
-            scopes,
-            variable_declarations,
+            context,
             static_less_guard_value_is_keyword,
         )
     })
@@ -3045,10 +3091,7 @@ fn static_less_mixin_guard_matches(
 fn static_less_mixin_guard_predicate_matches(
     predicate: &str,
     function_name: &str,
-    argument_values: &BTreeMap<String, String>,
-    call_scope_id: usize,
-    scopes: &[StaticStylesheetScope],
-    variable_declarations: &BTreeMap<(usize, String), StaticStylesheetVariableDeclaration>,
+    context: StaticLessGuardContext<'_>,
     matches_value: impl FnOnce(&str) -> bool,
 ) -> Option<bool> {
     let arguments = parse_whole_function_value_arguments(predicate, function_name)?;
@@ -3057,12 +3100,343 @@ fn static_less_mixin_guard_predicate_matches(
     };
     let resolved = resolve_static_less_mixin_value_with_bindings(
         value.trim(),
-        argument_values,
-        call_scope_id,
-        scopes,
-        variable_declarations,
+        context.argument_values,
+        context.call_scope_id,
+        context.scopes,
+        context.variable_declarations,
     )?;
     Some(matches_value(resolved.trim()))
+}
+
+fn static_less_guard_comparison_matches(
+    expression: &str,
+    context: StaticLessGuardContext<'_>,
+) -> Option<bool> {
+    let (left, operator, right) = split_static_less_guard_comparison(expression)?;
+    let left = resolve_static_less_mixin_value_with_bindings(
+        left,
+        context.argument_values,
+        context.call_scope_id,
+        context.scopes,
+        context.variable_declarations,
+    )?;
+    let right = resolve_static_less_mixin_value_with_bindings(
+        right,
+        context.argument_values,
+        context.call_scope_id,
+        context.scopes,
+        context.variable_declarations,
+    )?;
+    static_scss_literal_truthiness(
+        format!(
+            "{} {} {}",
+            left.trim(),
+            operator.scss_operator(),
+            right.trim()
+        )
+        .as_str(),
+    )
+}
+
+#[derive(Clone, Copy)]
+enum StaticLessGuardComparisonOperator {
+    Equal,
+    NotEqual,
+    LessThan,
+    LessThanOrEqual,
+    GreaterThan,
+    GreaterThanOrEqual,
+}
+
+impl StaticLessGuardComparisonOperator {
+    fn scss_operator(self) -> &'static str {
+        match self {
+            Self::Equal => "==",
+            Self::NotEqual => "!=",
+            Self::LessThan => "<",
+            Self::LessThanOrEqual => "<=",
+            Self::GreaterThan => ">",
+            Self::GreaterThanOrEqual => ">=",
+        }
+    }
+}
+
+fn split_static_less_guard_comparison(
+    expression: &str,
+) -> Option<(&str, StaticLessGuardComparisonOperator, &str)> {
+    let mut comparison = None;
+    let mut index = 0usize;
+    let mut paren_depth = 0usize;
+    let mut bracket_depth = 0usize;
+    let mut quote: Option<char> = None;
+    while index < expression.len() {
+        let ch = expression.get(index..)?.chars().next()?;
+        if let Some(quote_ch) = quote {
+            index += ch.len_utf8();
+            if ch == '\\' {
+                if let Some(escaped) = expression.get(index..).and_then(|rest| rest.chars().next())
+                {
+                    index += escaped.len_utf8();
+                }
+            } else if ch == quote_ch {
+                quote = None;
+            }
+            continue;
+        }
+        if matches!(ch, '"' | '\'') {
+            quote = Some(ch);
+            index += ch.len_utf8();
+            continue;
+        }
+        match ch {
+            '(' => paren_depth += 1,
+            ')' => paren_depth = paren_depth.checked_sub(1)?,
+            '[' => bracket_depth += 1,
+            ']' => bracket_depth = bracket_depth.checked_sub(1)?,
+            '=' | '!' | '<' | '>' if paren_depth == 0 && bracket_depth == 0 => {
+                let (operator, width) =
+                    static_less_guard_comparison_operator_at(expression, index)?;
+                let left = expression.get(..index)?.trim();
+                let right = expression.get(index + width..)?.trim();
+                if left.is_empty() || right.is_empty() || comparison.is_some() {
+                    return None;
+                }
+                comparison = Some((left, operator, right));
+                index += width;
+                continue;
+            }
+            _ => {}
+        }
+        index += ch.len_utf8();
+    }
+    if quote.is_some() || paren_depth != 0 || bracket_depth != 0 {
+        return None;
+    }
+    comparison
+}
+
+fn static_less_guard_comparison_operator_at(
+    expression: &str,
+    index: usize,
+) -> Option<(StaticLessGuardComparisonOperator, usize)> {
+    let suffix = expression.get(index..)?;
+    if suffix.starts_with("!=") {
+        return Some((StaticLessGuardComparisonOperator::NotEqual, 2));
+    }
+    if suffix.starts_with("==") {
+        return Some((StaticLessGuardComparisonOperator::Equal, 2));
+    }
+    if suffix.starts_with("<=") || suffix.starts_with("=<") {
+        return Some((StaticLessGuardComparisonOperator::LessThanOrEqual, 2));
+    }
+    if suffix.starts_with(">=") || suffix.starts_with("=>") {
+        return Some((StaticLessGuardComparisonOperator::GreaterThanOrEqual, 2));
+    }
+    if suffix.starts_with('=') {
+        return Some((StaticLessGuardComparisonOperator::Equal, 1));
+    }
+    if suffix.starts_with('<') {
+        return Some((StaticLessGuardComparisonOperator::LessThan, 1));
+    }
+    if suffix.starts_with('>') {
+        return Some((StaticLessGuardComparisonOperator::GreaterThan, 1));
+    }
+    None
+}
+
+fn static_less_guard_strip_outer_parens(value: &str) -> Option<&str> {
+    value.strip_prefix('(')?;
+    value.strip_suffix(')')?;
+    let mut index = 0usize;
+    let mut paren_depth = 0usize;
+    let mut bracket_depth = 0usize;
+    let mut quote: Option<char> = None;
+    while index < value.len() {
+        let ch = value.get(index..)?.chars().next()?;
+        if let Some(quote_ch) = quote {
+            index += ch.len_utf8();
+            if ch == '\\' {
+                if let Some(escaped) = value.get(index..).and_then(|rest| rest.chars().next()) {
+                    index += escaped.len_utf8();
+                }
+            } else if ch == quote_ch {
+                quote = None;
+            }
+            continue;
+        }
+        if matches!(ch, '"' | '\'') {
+            quote = Some(ch);
+            index += ch.len_utf8();
+            continue;
+        }
+        match ch {
+            '(' => paren_depth += 1,
+            ')' => {
+                paren_depth = paren_depth.checked_sub(1)?;
+                if paren_depth == 0 && index + ch.len_utf8() != value.len() {
+                    return None;
+                }
+            }
+            '[' => bracket_depth += 1,
+            ']' => bracket_depth = bracket_depth.checked_sub(1)?,
+            _ => {}
+        }
+        index += ch.len_utf8();
+    }
+    if quote.is_some() || paren_depth != 0 || bracket_depth != 0 {
+        return None;
+    }
+    Some(value.strip_prefix('(')?.strip_suffix(')')?.trim())
+}
+
+fn split_static_less_guard_top_level_separator(
+    expression: &str,
+    separator: char,
+) -> Option<Option<Vec<&str>>> {
+    let mut operands = Vec::new();
+    let mut cursor = 0usize;
+    let mut index = 0usize;
+    let mut paren_depth = 0usize;
+    let mut bracket_depth = 0usize;
+    let mut quote: Option<char> = None;
+    while index < expression.len() {
+        let ch = expression.get(index..)?.chars().next()?;
+        if let Some(quote_ch) = quote {
+            index += ch.len_utf8();
+            if ch == '\\' {
+                if let Some(escaped) = expression.get(index..).and_then(|rest| rest.chars().next())
+                {
+                    index += escaped.len_utf8();
+                }
+            } else if ch == quote_ch {
+                quote = None;
+            }
+            continue;
+        }
+        if matches!(ch, '"' | '\'') {
+            quote = Some(ch);
+            index += ch.len_utf8();
+            continue;
+        }
+        match ch {
+            '(' => paren_depth += 1,
+            ')' => paren_depth = paren_depth.checked_sub(1)?,
+            '[' => bracket_depth += 1,
+            ']' => bracket_depth = bracket_depth.checked_sub(1)?,
+            _ => {}
+        }
+        if ch == separator && paren_depth == 0 && bracket_depth == 0 {
+            let operand = expression.get(cursor..index)?.trim();
+            if operand.is_empty() {
+                return None;
+            }
+            operands.push(operand);
+            cursor = index + ch.len_utf8();
+        }
+        index += ch.len_utf8();
+    }
+    if quote.is_some() || paren_depth != 0 || bracket_depth != 0 {
+        return None;
+    }
+    if operands.is_empty() {
+        return Some(None);
+    }
+    let operand = expression.get(cursor..)?.trim();
+    if operand.is_empty() {
+        return None;
+    }
+    operands.push(operand);
+    Some(Some(operands))
+}
+
+fn split_static_less_guard_top_level_keyword<'a>(
+    expression: &'a str,
+    keyword: &str,
+) -> Option<Option<Vec<&'a str>>> {
+    let mut operands = Vec::new();
+    let mut cursor = 0usize;
+    let mut index = 0usize;
+    let mut paren_depth = 0usize;
+    let mut bracket_depth = 0usize;
+    let mut quote: Option<char> = None;
+    while index < expression.len() {
+        let ch = expression.get(index..)?.chars().next()?;
+        if let Some(quote_ch) = quote {
+            index += ch.len_utf8();
+            if ch == '\\' {
+                if let Some(escaped) = expression.get(index..).and_then(|rest| rest.chars().next())
+                {
+                    index += escaped.len_utf8();
+                }
+            } else if ch == quote_ch {
+                quote = None;
+            }
+            continue;
+        }
+        if matches!(ch, '"' | '\'') {
+            quote = Some(ch);
+            index += ch.len_utf8();
+            continue;
+        }
+        match ch {
+            '(' => paren_depth += 1,
+            ')' => paren_depth = paren_depth.checked_sub(1)?,
+            '[' => bracket_depth += 1,
+            ']' => bracket_depth = bracket_depth.checked_sub(1)?,
+            _ => {}
+        }
+        if paren_depth == 0
+            && bracket_depth == 0
+            && static_less_guard_keyword_at(expression, index, keyword)
+        {
+            let operand = expression.get(cursor..index)?.trim();
+            if operand.is_empty() {
+                return None;
+            }
+            operands.push(operand);
+            index += keyword.len();
+            cursor = index;
+            continue;
+        }
+        index += ch.len_utf8();
+    }
+    if quote.is_some() || paren_depth != 0 || bracket_depth != 0 {
+        return None;
+    }
+    if operands.is_empty() {
+        return Some(None);
+    }
+    let operand = expression.get(cursor..)?.trim();
+    if operand.is_empty() {
+        return None;
+    }
+    operands.push(operand);
+    Some(Some(operands))
+}
+
+fn static_less_guard_keyword_at(expression: &str, index: usize, keyword: &str) -> bool {
+    if expression
+        .get(index..)
+        .is_none_or(|suffix| suffix.len() < keyword.len())
+    {
+        return false;
+    }
+    if !expression
+        .get(index..index + keyword.len())
+        .is_some_and(|candidate| candidate.eq_ignore_ascii_case(keyword))
+    {
+        return false;
+    }
+    let before_ok = expression
+        .get(..index)
+        .and_then(|prefix| prefix.chars().next_back())
+        .is_some_and(char::is_whitespace);
+    let after_index = index + keyword.len();
+    let after_ok = expression
+        .get(after_index..)
+        .and_then(|suffix| suffix.chars().next())
+        .is_some_and(char::is_whitespace);
+    before_ok && after_ok
 }
 
 fn static_less_guard_value_is_color(value: &str) -> bool {
@@ -5996,9 +6370,47 @@ mod tests {
     }
 
     #[test]
+    fn static_less_evaluation_expands_comparison_guarded_mixin_calls() {
+        let report = derive_static_stylesheet_module_evaluation(
+            r#".space(@gap) when (@gap > 1px) { margin: @gap; }
+.tone(@color) when (@color = red) { color: @color; }
+.combo(@gap, @color) when (@gap >= 2px) and (iscolor(@color)) { padding: @gap; border-color: @color; }
+.inverse(@gap) when not (@gap < 2px) { inset: @gap; }
+.fallback(@name) when (@name = primary), (@name = secondary) { content: @name; }
+.button { .space(2px); .tone(red); .combo(2px, blue); .inverse(2px); .fallback(secondary); }"#,
+            StyleDialect::Less,
+        );
+
+        assert!(report.is_some());
+        let Some(report) = report else {
+            return;
+        };
+
+        assert!(report.evaluated_css.contains("margin: 2px"));
+        assert!(report.evaluated_css.contains("color: red"));
+        assert!(report.evaluated_css.contains("padding: 2px"));
+        assert!(report.evaluated_css.contains("border-color: blue"));
+        assert!(report.evaluated_css.contains("inset: 2px"));
+        assert!(report.evaluated_css.contains("content: secondary"));
+        assert!(!report.evaluated_css.contains(".space(2px"));
+        assert!(!report.evaluated_css.contains(".fallback(secondary"));
+        assert!(report.oracle.all_legacy_declaration_values_preserved);
+    }
+
+    #[test]
     fn static_less_evaluation_keeps_false_guarded_mixins_planned_only() {
         let report = derive_static_stylesheet_module_evaluation(
             ".tone(@value) when (iscolor(@value)) { color: @value; } .button { .tone(1px); }",
+            StyleDialect::Less,
+        );
+
+        assert!(report.is_none());
+    }
+
+    #[test]
+    fn static_less_evaluation_keeps_false_comparison_guarded_mixins_planned_only() {
+        let report = derive_static_stylesheet_module_evaluation(
+            ".space(@gap) when (@gap > 2px) { margin: @gap; } .button { .space(1px); }",
             StyleDialect::Less,
         );
 
