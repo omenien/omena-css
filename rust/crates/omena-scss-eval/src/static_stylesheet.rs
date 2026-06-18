@@ -1021,6 +1021,7 @@ struct StaticLessMixinDeclaration {
 #[derive(Debug, Clone)]
 struct StaticLessMixinCall {
     namespace: Option<String>,
+    namespace_arguments: Vec<StaticScssFunctionArgument>,
     name: String,
     start: usize,
     end: usize,
@@ -1068,6 +1069,7 @@ struct StaticLessMixinRenderContext<'a> {
     declarations: &'a [StaticLessMixinDeclaration],
     scopes: &'a [StaticStylesheetScope],
     variable_declarations: &'a BTreeMap<(usize, String), StaticStylesheetVariableDeclaration>,
+    captured_values: &'a BTreeMap<String, String>,
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -2646,11 +2648,13 @@ fn collect_static_less_mixin_evaluation_edits(
     }
 
     let declaration_ranges = static_less_mixin_declaration_ranges_from_declarations(declarations);
+    let empty_captured_values = BTreeMap::new();
     let context = StaticLessMixinRenderContext {
         source,
         declarations,
         scopes,
         variable_declarations,
+        captured_values: &empty_captured_values,
     };
     let mut edits = Vec::new();
     let mut used_declaration_names = BTreeSet::new();
@@ -2762,10 +2766,12 @@ fn render_static_less_detached_ruleset_body(
         return None;
     }
     let empty_arguments = BTreeMap::new();
+    let empty_captured_values = BTreeMap::new();
     let body = render_static_less_mixin_body_variables(
         body,
         call_scope_id,
         &empty_arguments,
+        &empty_captured_values,
         scopes,
         variable_declarations,
     )?;
@@ -2774,6 +2780,7 @@ fn render_static_less_detached_ruleset_body(
         declarations: mixin_declarations,
         scopes,
         variable_declarations,
+        captured_values: &empty_captured_values,
     };
     let mut active_mixins = BTreeSet::new();
     let nested = render_static_less_mixin_body_nested_calls(
@@ -2919,6 +2926,7 @@ fn collect_static_less_mixin_calls(
         )?)?;
         calls.push(StaticLessMixinCall {
             namespace: None,
+            namespace_arguments: Vec::new(),
             name,
             start: static_stylesheet_token_start(&tokens[index]),
             end: static_stylesheet_token_end(&tokens[semicolon_index]),
@@ -3071,7 +3079,29 @@ fn static_less_namespace_mixin_call_at(
     index: usize,
 ) -> Option<(StaticLessMixinCall, usize)> {
     let (namespace, after_namespace_index) = static_less_namespace_name_at(tokens, index)?;
-    let separator_index = static_stylesheet_skip_trivia_tokens(tokens, after_namespace_index);
+    let namespace_arguments_index =
+        static_stylesheet_skip_trivia_tokens(tokens, after_namespace_index);
+    let (namespace_arguments, separator_index) = if tokens
+        .get(namespace_arguments_index)
+        .is_some_and(|token| token.kind == SyntaxKind::LeftParen)
+    {
+        let namespace_arguments_close_index = static_stylesheet_matching_token_index(
+            tokens,
+            namespace_arguments_index,
+            SyntaxKind::LeftParen,
+            SyntaxKind::RightParen,
+        )?;
+        let arguments = split_static_less_mixin_arguments(source.get(
+            static_stylesheet_token_end(&tokens[namespace_arguments_index])
+                ..static_stylesheet_token_start(&tokens[namespace_arguments_close_index]),
+        )?)?;
+        (
+            arguments,
+            static_stylesheet_skip_trivia_tokens(tokens, namespace_arguments_close_index + 1),
+        )
+    } else {
+        (Vec::new(), namespace_arguments_index)
+    };
     if tokens
         .get(separator_index)
         .is_none_or(|token| token.kind != SyntaxKind::GreaterThan)
@@ -3095,6 +3125,7 @@ fn static_less_namespace_mixin_call_at(
     Some((
         StaticLessMixinCall {
             namespace: Some(namespace),
+            namespace_arguments,
             name,
             start: static_stylesheet_token_start(&tokens[index]),
             end: static_stylesheet_token_end(&tokens[semicolon_index]),
@@ -3476,6 +3507,7 @@ fn render_static_less_mixin_body(
         let rendered_value = resolve_static_less_mixin_value_with_bindings(
             argument.as_str(),
             &argument_values,
+            context.captured_values,
             call_scope_id,
             context.scopes,
             context.variable_declarations,
@@ -3489,6 +3521,7 @@ fn render_static_less_mixin_body(
         && !static_less_mixin_guard_matches(
             guard,
             &argument_values,
+            context.captured_values,
             call_scope_id,
             context.scopes,
             context.variable_declarations,
@@ -3502,6 +3535,7 @@ fn render_static_less_mixin_body(
         body,
         call_scope_id,
         &argument_values,
+        context.captured_values,
         context.scopes,
         context.variable_declarations,
     )?;
@@ -3632,13 +3666,32 @@ fn render_static_less_namespace_mixin_call(
         canonical_static_less_mixin_name(declaration.name.as_str()) == canonical_namespace
     }) {
         saw_namespace = true;
-        if !declaration.parameters.is_empty() {
+        if declaration.parameters.is_empty() && !call.namespace_arguments.is_empty() {
             continue;
+        }
+        let mut namespace_argument_values = BTreeMap::new();
+        let Some(bound_namespace_arguments) = bind_static_scss_callable_arguments(
+            &declaration.parameters,
+            call.namespace_arguments.as_slice(),
+        ) else {
+            continue;
+        };
+        for (parameter, argument) in bound_namespace_arguments {
+            let rendered_value = resolve_static_less_mixin_value_with_bindings(
+                argument.as_str(),
+                &namespace_argument_values,
+                context.captured_values,
+                call_scope_id,
+                context.scopes,
+                context.variable_declarations,
+            )?;
+            namespace_argument_values.insert(parameter, rendered_value);
         }
         if let Some(guard) = &declaration.guard
             && !static_less_mixin_guard_matches(
                 guard,
-                &BTreeMap::new(),
+                &namespace_argument_values,
+                context.captured_values,
                 call_scope_id,
                 context.scopes,
                 context.variable_declarations,
@@ -3661,9 +3714,11 @@ fn render_static_less_namespace_mixin_call(
             declarations: nested_declarations.as_slice(),
             scopes: context.scopes,
             variable_declarations: context.variable_declarations,
+            captured_values: &namespace_argument_values,
         };
         let nested_call = StaticLessMixinCall {
             namespace: None,
+            namespace_arguments: Vec::new(),
             name: call.name.clone(),
             start: call.start,
             end: call.end,
@@ -3696,6 +3751,7 @@ fn render_static_less_namespace_mixin_call(
 fn static_less_mixin_guard_matches(
     guard: &str,
     argument_values: &BTreeMap<String, String>,
+    captured_values: &BTreeMap<String, String>,
     call_scope_id: usize,
     scopes: &[StaticStylesheetScope],
     variable_declarations: &BTreeMap<(usize, String), StaticStylesheetVariableDeclaration>,
@@ -3709,6 +3765,7 @@ fn static_less_mixin_guard_matches(
     let expression = guard.get("when".len()..)?.trim();
     let context = StaticLessGuardContext {
         argument_values,
+        captured_values,
         call_scope_id,
         scopes,
         variable_declarations,
@@ -3720,6 +3777,7 @@ fn static_less_mixin_guard_matches(
 #[derive(Clone, Copy)]
 struct StaticLessGuardContext<'a> {
     argument_values: &'a BTreeMap<String, String>,
+    captured_values: &'a BTreeMap<String, String>,
     call_scope_id: usize,
     scopes: &'a [StaticStylesheetScope],
     variable_declarations: &'a BTreeMap<(usize, String), StaticStylesheetVariableDeclaration>,
@@ -3887,6 +3945,7 @@ fn static_less_mixin_guard_predicate_matches(
     let resolved = resolve_static_less_mixin_value_with_bindings(
         value.trim(),
         context.argument_values,
+        context.captured_values,
         context.call_scope_id,
         context.scopes,
         context.variable_declarations,
@@ -3905,6 +3964,7 @@ fn static_less_mixin_guard_isunit_predicate_matches(
     let resolved_value = resolve_static_less_mixin_value_with_bindings(
         value.trim(),
         context.argument_values,
+        context.captured_values,
         context.call_scope_id,
         context.scopes,
         context.variable_declarations,
@@ -3912,6 +3972,7 @@ fn static_less_mixin_guard_isunit_predicate_matches(
     let resolved_unit = resolve_static_less_mixin_value_with_bindings(
         unit.trim(),
         context.argument_values,
+        context.captured_values,
         context.call_scope_id,
         context.scopes,
         context.variable_declarations,
@@ -3931,6 +3992,7 @@ fn static_less_guard_comparison_matches(
     let left = resolve_static_less_mixin_value_with_bindings(
         left,
         context.argument_values,
+        context.captured_values,
         context.call_scope_id,
         context.scopes,
         context.variable_declarations,
@@ -3938,6 +4000,7 @@ fn static_less_guard_comparison_matches(
     let right = resolve_static_less_mixin_value_with_bindings(
         right,
         context.argument_values,
+        context.captured_values,
         context.call_scope_id,
         context.scopes,
         context.variable_declarations,
@@ -4379,6 +4442,7 @@ fn render_static_less_mixin_body_variables(
     body: &str,
     call_scope_id: usize,
     argument_values: &BTreeMap<String, String>,
+    captured_values: &BTreeMap<String, String>,
     scopes: &[StaticStylesheetScope],
     variable_declarations: &BTreeMap<(usize, String), StaticStylesheetVariableDeclaration>,
 ) -> Option<String> {
@@ -4407,6 +4471,7 @@ fn render_static_less_mixin_body_variables(
         let rendered_value = resolve_static_less_mixin_value_with_bindings(
             local.declaration.value.as_str(),
             &scoped_values,
+            captured_values,
             call_scope_id,
             scopes,
             variable_declarations,
@@ -4421,6 +4486,8 @@ fn render_static_less_mixin_body_variables(
             continue;
         }
         let replacement = if let Some(value) = scoped_values.get(reference.name.as_str()) {
+            value.clone()
+        } else if let Some(value) = captured_values.get(reference.name.as_str()) {
             value.clone()
         } else {
             let mut stack = BTreeSet::new();
@@ -4477,6 +4544,7 @@ fn collect_static_less_mixin_body_local_declarations(
 fn resolve_static_less_mixin_value_with_bindings(
     value: &str,
     argument_values: &BTreeMap<String, String>,
+    captured_values: &BTreeMap<String, String>,
     call_scope_id: usize,
     scopes: &[StaticStylesheetScope],
     variable_declarations: &BTreeMap<(usize, String), StaticStylesheetVariableDeclaration>,
@@ -4495,6 +4563,8 @@ fn resolve_static_less_mixin_value_with_bindings(
     let mut cursor = 0usize;
     for reference in references {
         let replacement = if let Some(value) = argument_values.get(reference.name.as_str()) {
+            value.clone()
+        } else if let Some(value) = captured_values.get(reference.name.as_str()) {
             value.clone()
         } else {
             let mut stack = BTreeSet::new();
@@ -7347,6 +7417,23 @@ mod tests {
     }
 
     #[test]
+    fn static_less_evaluation_expands_parameterized_namespace_mixin_access() {
+        let report = derive_static_stylesheet_module_evaluation(
+            "#bundle(@color) { .tone() { color: @color; } } .button { #bundle(red) > .tone(); }",
+            StyleDialect::Less,
+        );
+        assert!(report.is_some());
+        let Some(report) = report else {
+            return;
+        };
+
+        assert!(!report.evaluated_css.contains("#bundle(@color"));
+        assert!(!report.evaluated_css.contains("#bundle(red) > .tone"));
+        assert!(report.evaluated_css.contains("color: red"));
+        assert!(report.oracle.all_legacy_declaration_values_preserved);
+    }
+
+    #[test]
     fn static_less_evaluation_expands_guarded_namespace_mixin_access() {
         let report = derive_static_stylesheet_module_evaluation(
             "#bundle() when (iscolor(red)) { .tone() { color: red; } } .button { #bundle > .tone(); }",
@@ -7437,7 +7524,7 @@ mod tests {
     }
 
     #[test]
-    fn static_less_evaluation_keeps_parameterized_namespace_mixin_access_planned_only() {
+    fn static_less_evaluation_keeps_unbound_parameterized_namespace_mixin_access_planned_only() {
         let report = derive_static_stylesheet_module_evaluation(
             "#bundle(@color) { .tone() { color: @color; } } .button { #bundle > .tone(); }",
             StyleDialect::Less,

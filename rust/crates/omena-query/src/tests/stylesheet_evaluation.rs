@@ -729,6 +729,40 @@ fn consumer_build_derives_static_less_evaluator_context_for_namespace_mixin_acce
 }
 
 #[test]
+fn consumer_build_derives_static_less_evaluator_context_for_parameterized_namespace_mixin_access() {
+    let summary = execute_omena_query_consumer_build_style_source(
+        "Button.module.less",
+        "#bundle(@color) { .tone() { color: @color; } } .button { #bundle(red) > .tone(); }",
+        &[
+            "less-module-evaluate".to_string(),
+            "css-modules-class-hashing".to_string(),
+            "print-css".to_string(),
+        ],
+    );
+
+    assert!(
+        summary
+            .execution
+            .executed_pass_ids
+            .contains(&"less-module-evaluate")
+    );
+    assert!(
+        !summary
+            .execution
+            .planned_only_pass_ids
+            .contains(&"less-module-evaluate")
+    );
+    assert!(summary.execution.output_css.contains("color: red"));
+    assert!(!summary.execution.output_css.contains("#bundle(@color"));
+    assert!(
+        !summary
+            .execution
+            .output_css
+            .contains("#bundle(red) > .tone")
+    );
+}
+
+#[test]
 fn consumer_build_derives_static_less_evaluator_context_for_guarded_namespace_mixin_access() {
     let summary = execute_omena_query_consumer_build_style_source(
         "Button.module.less",
@@ -861,7 +895,7 @@ fn consumer_build_keeps_unknown_detached_ruleset_mixin_calls_planned_only() {
 }
 
 #[test]
-fn consumer_build_keeps_parameterized_less_namespace_mixin_access_planned_only() {
+fn consumer_build_keeps_unbound_parameterized_less_namespace_mixin_access_planned_only() {
     let summary = execute_omena_query_consumer_build_style_source(
         "Button.module.less",
         "#bundle(@color) { .tone() { color: @color; } } .button { #bundle > .tone(); }",
