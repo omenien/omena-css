@@ -804,6 +804,34 @@ fn consumer_build_derives_static_less_evaluator_context_for_comparison_guarded_m
 }
 
 #[test]
+fn consumer_build_derives_static_less_evaluator_context_for_multiple_matching_guarded_mixins() {
+    let summary = execute_omena_query_consumer_build_style_source(
+        "Button.module.less",
+        r#".tone(@color) when (@color = blue) { outline-color: blue; }
+.tone(@color) when (@color = red) { color: @color; }
+.tone(@color) when (iscolor(@color)) { border-color: @color; }
+.button { .tone(red); }"#,
+        &[
+            "less-module-evaluate".to_string(),
+            "css-modules-class-hashing".to_string(),
+            "print-css".to_string(),
+        ],
+    );
+
+    assert!(
+        summary
+            .execution
+            .executed_pass_ids
+            .contains(&"less-module-evaluate")
+    );
+    assert!(!summary.execution.output_css.contains("outline-color: blue"));
+    assert!(summary.execution.output_css.contains("color: red"));
+    assert!(summary.execution.output_css.contains("border-color: red"));
+    assert!(!summary.execution.output_css.contains(".tone(@color"));
+    assert!(!summary.execution.output_css.contains(".tone(red)"));
+}
+
+#[test]
 fn consumer_build_keeps_false_guarded_less_mixins_planned_only() {
     let summary = execute_omena_query_consumer_build_style_source(
         "Button.module.less",

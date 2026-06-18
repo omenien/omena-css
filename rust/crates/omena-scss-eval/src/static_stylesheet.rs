@@ -970,6 +970,11 @@ struct StaticLessMixinRenderResult {
     used_declaration_names: BTreeSet<String>,
 }
 
+enum StaticLessMixinRenderOutcome {
+    Rendered(StaticLessMixinRenderResult),
+    GuardNotMatched,
+}
+
 #[derive(Debug, Clone, Copy)]
 struct StaticLessMixinRenderContext<'a> {
     source: &'a str,
@@ -2560,21 +2565,13 @@ fn collect_static_less_mixin_evaluation_edits(
     for call in calls.iter().filter(|call| {
         !static_stylesheet_position_is_inside_ranges(call.start, &declaration_ranges)
     }) {
-        let Some(declaration) = declarations.iter().find(|declaration| {
-            canonical_static_less_mixin_name(declaration.name.as_str())
-                == canonical_static_less_mixin_name(call.name.as_str())
-        }) else {
-            continue;
-        };
         let call_scope_id = static_stylesheet_scope_for_position(scopes, call.start)?;
         let mut active_mixins = BTreeSet::new();
-        let rendered = render_static_less_mixin_body(
-            declaration,
-            call,
-            call_scope_id,
-            context,
-            &mut active_mixins,
-        )?;
+        let Some(rendered) =
+            render_static_less_mixin_call(call, call_scope_id, context, &mut active_mixins)?
+        else {
+            continue;
+        };
         used_declaration_names.extend(rendered.used_declaration_names);
         edits.push(StaticStylesheetEvaluationEdit {
             start: call.start,
@@ -2932,7 +2929,7 @@ fn render_static_less_mixin_body(
     call_scope_id: usize,
     context: StaticLessMixinRenderContext<'_>,
     active_mixins: &mut BTreeSet<String>,
-) -> Option<StaticLessMixinRenderResult> {
+) -> Option<StaticLessMixinRenderOutcome> {
     let canonical_name = canonical_static_less_mixin_name(declaration.name.as_str());
     if !active_mixins.insert(canonical_name.clone()) {
         return None;
@@ -2965,7 +2962,8 @@ fn render_static_less_mixin_body(
             context.variable_declarations,
         )?
     {
-        return None;
+        active_mixins.remove(&canonical_name);
+        return Some(StaticLessMixinRenderOutcome::GuardNotMatched);
     }
     let body = render_static_less_mixin_body_variables(
         body,
@@ -2984,10 +2982,52 @@ fn render_static_less_mixin_body(
     let mut used_declaration_names = nested.used_declaration_names;
     used_declaration_names.insert(canonical_name.clone());
     active_mixins.remove(&canonical_name);
-    Some(StaticLessMixinRenderResult {
-        body,
+    Some(StaticLessMixinRenderOutcome::Rendered(
+        StaticLessMixinRenderResult {
+            body,
+            used_declaration_names,
+        },
+    ))
+}
+
+fn render_static_less_mixin_call(
+    call: &StaticLessMixinCall,
+    call_scope_id: usize,
+    context: StaticLessMixinRenderContext<'_>,
+    active_mixins: &mut BTreeSet<String>,
+) -> Option<Option<StaticLessMixinRenderResult>> {
+    let canonical_call_name = canonical_static_less_mixin_name(call.name.as_str());
+    let mut saw_declaration = false;
+    let mut rendered_bodies = Vec::new();
+    let mut used_declaration_names = BTreeSet::new();
+    for declaration in context.declarations.iter().filter(|declaration| {
+        canonical_static_less_mixin_name(declaration.name.as_str()) == canonical_call_name
+    }) {
+        saw_declaration = true;
+        match render_static_less_mixin_body(
+            declaration,
+            call,
+            call_scope_id,
+            context,
+            active_mixins,
+        )? {
+            StaticLessMixinRenderOutcome::Rendered(rendered) => {
+                used_declaration_names.extend(rendered.used_declaration_names);
+                rendered_bodies.push(rendered.body);
+            }
+            StaticLessMixinRenderOutcome::GuardNotMatched => {}
+        }
+    }
+    if !saw_declaration {
+        return Some(None);
+    }
+    if rendered_bodies.is_empty() {
+        return None;
+    }
+    Some(Some(StaticLessMixinRenderResult {
+        body: rendered_bodies.join(" "),
         used_declaration_names,
-    })
+    }))
 }
 
 fn static_less_mixin_guard_matches(
@@ -3621,19 +3661,11 @@ fn render_static_less_mixin_body_nested_calls(
     let mut edits = Vec::new();
     let mut used_declaration_names = BTreeSet::new();
     for call in calls {
-        let Some(declaration) = context.declarations.iter().find(|declaration| {
-            canonical_static_less_mixin_name(declaration.name.as_str())
-                == canonical_static_less_mixin_name(call.name.as_str())
-        }) else {
+        let Some(rendered) =
+            render_static_less_mixin_call(&call, call_scope_id, context, active_mixins)?
+        else {
             continue;
         };
-        let rendered = render_static_less_mixin_body(
-            declaration,
-            &call,
-            call_scope_id,
-            context,
-            active_mixins,
-        )?;
         used_declaration_names.extend(rendered.used_declaration_names);
         edits.push(StaticStylesheetEvaluationEdit {
             start: call.start,
@@ -6518,6 +6550,29 @@ mod tests {
         assert!(report.evaluated_css.contains("content: secondary"));
         assert!(!report.evaluated_css.contains(".space(2px"));
         assert!(!report.evaluated_css.contains(".fallback(secondary"));
+        assert!(report.oracle.all_legacy_declaration_values_preserved);
+    }
+
+    #[test]
+    fn static_less_evaluation_expands_multiple_matching_guarded_mixins() {
+        let report = derive_static_stylesheet_module_evaluation(
+            r#".tone(@color) when (@color = blue) { outline-color: blue; }
+.tone(@color) when (@color = red) { color: @color; }
+.tone(@color) when (iscolor(@color)) { border-color: @color; }
+.button { .tone(red); }"#,
+            StyleDialect::Less,
+        );
+
+        assert!(report.is_some());
+        let Some(report) = report else {
+            return;
+        };
+
+        assert!(!report.evaluated_css.contains("outline-color: blue"));
+        assert!(report.evaluated_css.contains("color: red"));
+        assert!(report.evaluated_css.contains("border-color: red"));
+        assert!(!report.evaluated_css.contains(".tone(@color"));
+        assert!(!report.evaluated_css.contains(".tone(red"));
         assert!(report.oracle.all_legacy_declaration_values_preserved);
     }
 
