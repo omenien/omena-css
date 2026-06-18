@@ -506,22 +506,37 @@ fn parse_static_scss_map_values_value_with_name(
 
 fn parse_static_scss_map_merge_value_with_name(value: &str, function_name: &str) -> Option<String> {
     let arguments = parse_whole_function_value_arguments(value, function_name)?;
-    let [left_map, right_map] = arguments.as_slice() else {
+    let [left_map, merge_args @ ..] = arguments.as_slice() else {
         return None;
     };
-    let mut merged = parse_static_scss_map_entries(left_map)?;
-    for (right_key, right_value) in parse_static_scss_map_entries(right_map)? {
+    let (right_map, merge_path) = merge_args.split_last()?;
+    let left_entries = parse_static_scss_map_entries(left_map)?;
+    let right_entries = parse_static_scss_map_entries(right_map)?;
+    let merged = if merge_path.is_empty() {
+        static_scss_merge_map_entries(left_entries, right_entries)?
+    } else {
+        static_scss_update_nested_map_entries(left_entries, merge_path, |target_entries| {
+            static_scss_merge_map_entries(target_entries, right_entries)
+        })?
+    };
+    static_scss_render_map_entries(merged)
+}
+
+fn static_scss_merge_map_entries(
+    mut left_entries: Vec<(String, String)>,
+    right_entries: Vec<(String, String)>,
+) -> Option<Vec<(String, String)>> {
+    for (right_key, right_value) in right_entries {
         let right_canonical_key = canonical_static_scss_map_key(right_key.as_str())?;
-        if let Some((_, existing_value)) = merged.iter_mut().find(|(left_key, _)| {
-            canonical_static_scss_map_key(left_key.as_str())
-                .is_some_and(|left_canonical_key| left_canonical_key == right_canonical_key)
-        }) {
-            *existing_value = right_value;
+        if let Some(index) =
+            static_scss_map_entry_index(left_entries.as_slice(), right_canonical_key.as_str())?
+        {
+            left_entries[index].1 = right_value;
         } else {
-            merged.push((right_key, right_value));
+            left_entries.push((right_key, right_value));
         }
     }
-    static_scss_render_map_entries(merged)
+    Some(left_entries)
 }
 
 fn parse_static_scss_map_remove_value_with_name(
@@ -551,23 +566,39 @@ fn parse_static_scss_map_remove_value_with_name(
 
 fn parse_static_scss_map_set_value_with_name(value: &str, function_name: &str) -> Option<String> {
     let arguments = parse_whole_function_value_arguments(value, function_name)?;
-    let [map, key, value] = arguments.as_slice() else {
+    let [map, set_args @ ..] = arguments.as_slice() else {
         return None;
     };
+    let [path_and_key @ .., value] = set_args else {
+        return None;
+    };
+    let (key, set_path) = path_and_key.split_last()?;
+    let mut entries = parse_static_scss_map_entries(map)?;
+    if set_path.is_empty() {
+        entries = static_scss_set_map_entry(entries, key, value)?;
+    } else {
+        entries = static_scss_update_nested_map_entries(entries, set_path, |target_entries| {
+            static_scss_set_map_entry(target_entries, key, value)
+        })?;
+    }
+    static_scss_render_map_entries(entries)
+}
+
+fn static_scss_set_map_entry(
+    mut entries: Vec<(String, String)>,
+    key: &str,
+    value: &str,
+) -> Option<Vec<(String, String)>> {
     let set_key = canonical_static_scss_map_key(key)?;
     if !static_scss_collection_member_is_static(value) {
         return None;
     }
-    let mut entries = parse_static_scss_map_entries(map)?;
-    if let Some((_, existing_value)) = entries.iter_mut().find(|(candidate_key, _)| {
-        canonical_static_scss_map_key(candidate_key.as_str())
-            .is_some_and(|candidate_key| candidate_key == set_key)
-    }) {
-        *existing_value = value.trim().to_string();
+    if let Some(index) = static_scss_map_entry_index(entries.as_slice(), set_key.as_str())? {
+        entries[index].1 = value.trim().to_string();
     } else {
         entries.push((key.trim().to_string(), value.trim().to_string()));
     }
-    static_scss_render_map_entries(entries)
+    Some(entries)
 }
 
 fn parse_static_scss_list_index(value: &str) -> Option<isize> {
@@ -650,6 +681,53 @@ fn parse_static_scss_map_entries(value: &str) -> Option<Vec<(String, String)>> {
         pairs.push((key.to_string(), value.to_string()));
     }
     Some(pairs)
+}
+
+fn static_scss_update_nested_map_entries<F>(
+    mut entries: Vec<(String, String)>,
+    path: &[String],
+    update: F,
+) -> Option<Vec<(String, String)>>
+where
+    F: FnOnce(Vec<(String, String)>) -> Option<Vec<(String, String)>>,
+{
+    let Some((key, remaining_path)) = path.split_first() else {
+        return update(entries);
+    };
+    let canonical_key = canonical_static_scss_map_key(key)?;
+    let existing_index = static_scss_map_entry_index(entries.as_slice(), canonical_key.as_str())?;
+    let child_entries = match existing_index {
+        Some(index) => static_scss_nested_map_child_entries(entries[index].1.as_str())?,
+        None => Vec::new(),
+    };
+    let updated_child_entries =
+        static_scss_update_nested_map_entries(child_entries, remaining_path, update)?;
+    let updated_child_value = static_scss_render_map_entries(updated_child_entries)?;
+    if let Some(index) = existing_index {
+        entries[index].1 = updated_child_value;
+    } else {
+        entries.push((key.trim().to_string(), updated_child_value));
+    }
+    Some(entries)
+}
+
+fn static_scss_nested_map_child_entries(value: &str) -> Option<Vec<(String, String)>> {
+    if let Some(entries) = parse_static_scss_map_entries(value) {
+        return Some(entries);
+    }
+    static_scss_collection_member_is_static(value).then(Vec::new)
+}
+
+fn static_scss_map_entry_index(
+    entries: &[(String, String)],
+    canonical_key: &str,
+) -> Option<Option<usize>> {
+    for (index, (key, _)) in entries.iter().enumerate() {
+        if canonical_static_scss_map_key(key.as_str())? == canonical_key {
+            return Some(Some(index));
+        }
+    }
+    Some(None)
 }
 
 fn static_scss_map_entry_value(map: &str, key: &str) -> Option<String> {

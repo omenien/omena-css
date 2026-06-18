@@ -3713,6 +3713,29 @@ mod tests {
     }
 
     #[test]
+    fn static_scss_evaluation_reduces_nested_static_map_merge_values() {
+        let report = derive_static_stylesheet_module_evaluation(
+            "$gap: map.get(map.merge((theme: (spacing: (sm: 4px))), theme, spacing, (md: 8px)), theme, spacing, md); $count: list.length(map.keys(map.merge((), theme, colors, (primary: red, secondary: blue)))); .button { margin: $gap; z-index: $count; }",
+            StyleDialect::Scss,
+        );
+        assert!(report.is_some());
+        let Some(report) = report else {
+            return;
+        };
+
+        let replacements = report
+            .resolved_replacements
+            .iter()
+            .map(|replacement| replacement.text.as_str())
+            .collect::<Vec<_>>();
+        assert!(replacements.contains(&"8px"));
+        assert!(replacements.contains(&"1"));
+        assert!(report.evaluated_css.contains("margin: 8px"));
+        assert!(report.evaluated_css.contains("z-index: 1"));
+        assert!(report.oracle.all_legacy_declaration_values_preserved);
+    }
+
+    #[test]
     fn static_scss_evaluation_reduces_static_map_remove_values() {
         let report = derive_static_stylesheet_module_evaluation(
             "$gap: map.get(map.remove((default: 1px, dense: 2px, compact: 4px), dense, missing), compact); $count: list.length(map.keys(map-remove((default: 1px, dense: 2px), default, dense))); .button { margin: $gap; z-index: $count; }",
@@ -3755,6 +3778,29 @@ mod tests {
         assert!(replacements.contains(&"1"));
         assert!(report.evaluated_css.contains("font-weight: 300"));
         assert!(report.evaluated_css.contains("z-index: 1"));
+        assert!(report.oracle.all_legacy_declaration_values_preserved);
+    }
+
+    #[test]
+    fn static_scss_evaluation_reduces_nested_static_map_set_values() {
+        let report = derive_static_stylesheet_module_evaluation(
+            "$tone: map.get(map.set((theme: blue), theme, colors, primary, red), theme, colors, primary); $gap: map.get(map.set((theme: (spacing: (sm: 4px))), theme, spacing, md, 8px), theme, spacing, md); .button { color: $tone; margin: $gap; }",
+            StyleDialect::Scss,
+        );
+        assert!(report.is_some());
+        let Some(report) = report else {
+            return;
+        };
+
+        let replacements = report
+            .resolved_replacements
+            .iter()
+            .map(|replacement| replacement.text.as_str())
+            .collect::<Vec<_>>();
+        assert!(replacements.contains(&"red"));
+        assert!(replacements.contains(&"8px"));
+        assert!(report.evaluated_css.contains("color: red"));
+        assert!(report.evaluated_css.contains("margin: 8px"));
         assert!(report.oracle.all_legacy_declaration_values_preserved);
     }
 
