@@ -85,6 +85,7 @@ mod dynamic_classname;
 mod expression_domain;
 mod provider_queries;
 mod runtime_contracts;
+mod scss_evaluator;
 mod source_surfaces;
 mod style_diagnostics;
 mod style_semantic_graph;

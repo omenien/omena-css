@@ -132,6 +132,112 @@ pub fn summarize_omena_query_canonical_form(
     }
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct OmenaQueryScssEvaluatorControlFlowSummaryV0 {
+    pub schema_version: &'static str,
+    pub product: &'static str,
+    pub mode: &'static str,
+    pub dialect: &'static str,
+    pub value_type: &'static str,
+    pub supported_dialect: bool,
+    pub flat_css_cfg_built: bool,
+    pub merged_cross_file_graph: bool,
+    pub control_flow_block_count: usize,
+    pub control_flow_branch_block_count: usize,
+    pub control_flow_loop_block_count: usize,
+    pub control_flow_back_edge_count: usize,
+    pub call_return_node_count: usize,
+    pub call_return_edge_count: usize,
+    pub call_resolved_return_value_count: usize,
+    pub exact_call_resolved_return_value_count: usize,
+    pub value_analysis_converged: bool,
+    pub value_analysis_iteration_count: usize,
+    pub value_analysis_widened_to_top_count: usize,
+    pub ready_surfaces: Vec<&'static str>,
+    pub control_flow_ir: Option<OmenaQueryScssEvalControlFlowIrSummaryV0>,
+    pub value_analysis: Option<OmenaQueryScssEvalControlFlowValueAnalysisV0>,
+    pub call_return_ir: Option<OmenaQueryScssEvalCallReturnIrSummaryV0>,
+}
+
+pub fn summarize_omena_query_scss_evaluator_control_flow_from_source(
+    source: &str,
+    dialect: OmenaParserStyleDialect,
+) -> OmenaQueryScssEvaluatorControlFlowSummaryV0 {
+    let control_flow_ir = summarize_omena_scss_eval_control_flow_ir(source, dialect);
+    let value_analysis = analyze_omena_scss_eval_control_flow_values(source, dialect);
+    let call_return_ir = summarize_omena_scss_eval_call_return_ir(source, dialect);
+    let supported_dialect = matches!(
+        dialect,
+        OmenaParserStyleDialect::Scss | OmenaParserStyleDialect::Sass
+    );
+
+    OmenaQueryScssEvaluatorControlFlowSummaryV0 {
+        schema_version: OMENA_QUERY_CURRENT_SCHEMA_VERSION,
+        product: "omena-query.scss-evaluator-control-flow",
+        mode: "oracleOnly",
+        dialect: omena_query_boundary_style_dialect_label(dialect),
+        value_type: "AbstractCssValueV0",
+        supported_dialect,
+        flat_css_cfg_built: control_flow_ir
+            .as_ref()
+            .is_some_and(|summary| summary.flat_css_cfg_built),
+        merged_cross_file_graph: control_flow_ir
+            .as_ref()
+            .is_some_and(|summary| summary.merged_cross_file_graph),
+        control_flow_block_count: control_flow_ir
+            .as_ref()
+            .map_or(0, |summary| summary.block_count),
+        control_flow_branch_block_count: control_flow_ir
+            .as_ref()
+            .map_or(0, |summary| summary.branch_block_count),
+        control_flow_loop_block_count: control_flow_ir
+            .as_ref()
+            .map_or(0, |summary| summary.loop_block_count),
+        control_flow_back_edge_count: control_flow_ir
+            .as_ref()
+            .map_or(0, |summary| summary.back_edge_count),
+        call_return_node_count: call_return_ir
+            .as_ref()
+            .map_or(0, |summary| summary.node_count),
+        call_return_edge_count: call_return_ir
+            .as_ref()
+            .map_or(0, |summary| summary.edge_count),
+        call_resolved_return_value_count: call_return_ir
+            .as_ref()
+            .map_or(0, |summary| summary.call_resolved_return_value_count),
+        exact_call_resolved_return_value_count: call_return_ir
+            .as_ref()
+            .map_or(0, |summary| summary.exact_call_resolved_return_value_count),
+        value_analysis_converged: value_analysis
+            .as_ref()
+            .is_some_and(|summary| summary.converged),
+        value_analysis_iteration_count: value_analysis
+            .as_ref()
+            .map_or(0, |summary| summary.iteration_count),
+        value_analysis_widened_to_top_count: value_analysis
+            .as_ref()
+            .map_or(0, |summary| summary.widened_to_top_count),
+        ready_surfaces: vec![
+            "scssEvaluatorControlFlowIr",
+            "scssEvaluatorControlFlowValueAnalysis",
+            "scssEvaluatorCallReturnIr",
+        ],
+        control_flow_ir,
+        value_analysis,
+        call_return_ir,
+    }
+}
+
+fn omena_query_boundary_style_dialect_label(dialect: OmenaParserStyleDialect) -> &'static str {
+    match dialect {
+        OmenaParserStyleDialect::Css => "css",
+        OmenaParserStyleDialect::Scss => "scss",
+        OmenaParserStyleDialect::Sass => "sass",
+        OmenaParserStyleDialect::Less => "less",
+    }
+}
+
 pub fn summarize_omena_query_boundary(input: &EngineInputV2) -> OmenaQueryBoundarySummaryV0 {
     let fragment_bundle = summarize_omena_query_fragment_bundle(input);
     let expression_semantics_query_count = fragment_bundle.expression_semantics.fragments.len();
@@ -176,6 +282,10 @@ pub fn summarize_omena_query_boundary(input: &EngineInputV2) -> OmenaQueryBounda
             "omena-query.transform-context-from-engine-input",
             "omena-query.consumer-check-style-source",
             "omena-query.consumer-build-style-source",
+            "omena-query.scss-evaluator-control-flow",
+            "omena-scss-eval.control-flow-ir",
+            "omena-scss-eval.control-flow-value-analysis",
+            "omena-scss-eval.call-return-ir",
             "omena-query.evaluation-runtime",
             "omena-query.fast-facts",
             "omena-query.analyzed-graph",
@@ -218,6 +328,7 @@ pub fn summarize_omena_query_boundary(input: &EngineInputV2) -> OmenaQueryBounda
             "sourceProviderCandidateResolution",
             "selectorRenameEditPlanning",
             "sassSymbolResolutionPrimitives",
+            "scssEvaluatorControlFlowOracle",
             "sassModuleSourceSelection",
             "omenaParserStyleFactExtraction",
             "queryCheckerOrchestratorBoundary",
@@ -776,6 +887,7 @@ pub fn summarize_omena_query_selected_query_adapter_capabilities()
             "consumerCheckFacade",
             "consumerBuildFacade",
             "consumerTransformPassListFacade",
+            "scssEvaluatorControlFlowFacade",
             "queryEvaluationRuntime",
         ],
         routing_status: "runtimeBacked",

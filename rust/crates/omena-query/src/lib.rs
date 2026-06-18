@@ -116,6 +116,16 @@ pub use omena_resolver::{
     OmenaResolverStyleResolutionPolicyV0 as OmenaQueryStyleResolutionPolicyV0,
     summarize_omena_resolver_style_resolution_policy_v0 as summarize_omena_query_style_resolution_policy_v0,
 };
+pub use omena_scss_eval::{
+    OmenaScssEvalCallReturnIrSummaryV0 as OmenaQueryScssEvalCallReturnIrSummaryV0,
+    OmenaScssEvalControlFlowIrSummaryV0 as OmenaQueryScssEvalControlFlowIrSummaryV0,
+    OmenaScssEvalControlFlowValueAnalysisV0 as OmenaQueryScssEvalControlFlowValueAnalysisV0,
+};
+use omena_scss_eval::{
+    analyze_scss_control_flow_values as analyze_omena_scss_eval_control_flow_values,
+    summarize_scss_call_return_ir as summarize_omena_scss_eval_call_return_ir,
+    summarize_scss_control_flow_ir as summarize_omena_scss_eval_control_flow_ir,
+};
 use omena_semantic::StyleContextIndexV0;
 use serde::{Deserialize, Serialize};
 

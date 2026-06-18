@@ -375,6 +375,7 @@ void (async () => {
     "refsForClassRunner",
     "renamePlanRunner",
     "runnerCommandContract",
+    "scssEvaluatorControlFlowFacade",
     "semanticReachabilityTransformContext",
     "sourceDiagnosticsForFileRunner",
     "sourceResolutionRuntimeIndex",
