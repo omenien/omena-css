@@ -21,6 +21,7 @@ use crate::{
     },
 };
 
+mod edits;
 mod less_colors;
 mod less_detached_ruleset_edits;
 mod less_detached_ruleset_render;
@@ -47,6 +48,10 @@ mod tokens;
 mod value_resolution_model;
 mod variable_references;
 
+use edits::{
+    apply_normalized_static_stylesheet_evaluation_edits, apply_static_stylesheet_evaluation_edits,
+    normalize_static_stylesheet_evaluation_edits,
+};
 use less_colors::{
     parse_static_less_alpha_value, parse_static_less_argb_value, parse_static_less_average_value,
     parse_static_less_blue_value, parse_static_less_color_value, parse_static_less_contrast_value,
@@ -4776,45 +4781,6 @@ fn static_stylesheet_position_is_inside_scss_declaration(
             .iter()
             .any(|(start, end)| position >= *start && position < *end)
     })
-}
-
-fn apply_static_stylesheet_evaluation_edits(
-    source: &str,
-    edits: Vec<StaticStylesheetEvaluationEdit>,
-) -> Option<String> {
-    let edits = normalize_static_stylesheet_evaluation_edits(source, edits)?;
-    Some(apply_normalized_static_stylesheet_evaluation_edits(
-        source, &edits,
-    ))
-}
-
-fn normalize_static_stylesheet_evaluation_edits(
-    source: &str,
-    mut edits: Vec<StaticStylesheetEvaluationEdit>,
-) -> Option<Vec<StaticStylesheetEvaluationEdit>> {
-    edits.sort_by_key(|edit| edit.start);
-    edits.dedup_by(|left, right| {
-        left.start == right.start && left.end == right.end && left.replacement == right.replacement
-    });
-    let mut previous_end = 0usize;
-    for edit in &edits {
-        if edit.start < previous_end || edit.start > edit.end || edit.end > source.len() {
-            return None;
-        }
-        previous_end = edit.end;
-    }
-    Some(edits)
-}
-
-fn apply_normalized_static_stylesheet_evaluation_edits(
-    source: &str,
-    edits: &[StaticStylesheetEvaluationEdit],
-) -> String {
-    let mut output = source.to_string();
-    for edit in edits.iter().rev() {
-        output.replace_range(edit.start..edit.end, edit.replacement.as_str());
-    }
-    output
 }
 
 fn dialect_label(dialect: StyleDialect) -> &'static str {
