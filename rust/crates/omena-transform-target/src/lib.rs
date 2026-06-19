@@ -507,9 +507,9 @@ fn feature_support_for_resolved_targets(distribs: &[Distrib]) -> TargetFeatureSu
             distribs,
             "css-cascade-scope",
         ),
-        supports_cascade_layers: target_set_is_subset_of_fully_supported_feature(
+        supports_cascade_layers: target_set_is_subset_of_browser_threshold_table(
             distribs,
-            "css-cascade-layers",
+            "cascade_layers",
         ),
     }
 }
@@ -1026,9 +1026,9 @@ mod tests {
             boundary.target_data_source,
             "oxcBrowserslistV3+browserThresholdsTomlV0+staticTargetProfileV0+explicitFeatureMatrixV0"
         );
-        assert_eq!(boundary.browser_threshold_table_count, 3);
-        assert_eq!(boundary.browser_threshold_entry_count, 33);
-        assert_eq!(boundary.pass_feature_binding_count, 3);
+        assert_eq!(boundary.browser_threshold_table_count, 4);
+        assert_eq!(boundary.browser_threshold_entry_count, 44);
+        assert_eq!(boundary.pass_feature_binding_count, 4);
         assert_eq!(boundary.browser_data_parse_error_count, 0);
         assert!(boundary.browser_data_quorum_valid);
         assert!(boundary.browser_data_bindings_valid);
@@ -1238,7 +1238,7 @@ mod tests {
             plan.target_data_snapshot_id,
             "omena-transform-target-data-v0:thresholds-2026-05-22:bindings-2026-05-22"
         );
-        assert_eq!(plan.target_data_evidence.len(), 3);
+        assert_eq!(plan.target_data_evidence.len(), 4);
         assert!(
             plan.target_data_evidence
                 .iter()
@@ -1257,6 +1257,13 @@ mod tests {
                 .iter()
                 .any(|evidence| evidence.support_table == "css_nesting"
                     && evidence.caniuse_keys == vec!["css-nesting".to_string()]
+                    && !evidence.all_resolved_targets_supported)
+        );
+        assert!(
+            plan.target_data_evidence
+                .iter()
+                .any(|evidence| evidence.support_table == "cascade_layers"
+                    && evidence.caniuse_keys == vec!["css-cascade-layers".to_string()]
                     && !evidence.all_resolved_targets_supported)
         );
         assert!(plan.support.vendor_prefix_required);
@@ -1298,6 +1305,14 @@ mod tests {
                 .required_pass_ids
                 .contains(&"nesting-unwrap")
         );
+
+        let chrome_98 =
+            plan_target_transforms_from_query("chrome 98", conservative_target_options());
+        assert!(!chrome_98.support.supports_cascade_layers);
+
+        let chrome_99 =
+            plan_target_transforms_from_query("chrome 99", conservative_target_options());
+        assert!(chrome_99.support.supports_cascade_layers);
 
         let chrome_122 =
             plan_target_transforms_from_query("chrome 122", conservative_target_options());
@@ -1474,6 +1489,46 @@ mod tests {
         };
         assert_eq!(css_nesting_threshold.min_version, "112.0");
         assert_eq!(css_nesting_threshold.caniuse_key, "css-nesting");
+
+        let cascade_layers = chrome_122
+            .target_data_evidence
+            .iter()
+            .find(|evidence| evidence.support_table == "cascade_layers");
+        assert!(
+            cascade_layers.is_some(),
+            "cascade layers target data evidence should be present"
+        );
+        let Some(cascade_layers) = cascade_layers else {
+            return;
+        };
+        assert_eq!(cascade_layers.pass_id, "layer-flatten");
+        assert_eq!(
+            cascade_layers.caniuse_keys,
+            vec!["css-cascade-layers".to_string()]
+        );
+        assert!(cascade_layers.all_resolved_targets_supported);
+        let chrome_cascade_layers = cascade_layers
+            .resolved_targets
+            .iter()
+            .find(|target| target.browser == "chrome");
+        assert!(
+            chrome_cascade_layers.is_some(),
+            "chrome cascade layers target evidence should be present"
+        );
+        let Some(chrome_cascade_layers) = chrome_cascade_layers else {
+            return;
+        };
+        assert!(chrome_cascade_layers.supported);
+        let cascade_layers_threshold = chrome_cascade_layers.matched_threshold.as_ref();
+        assert!(
+            cascade_layers_threshold.is_some(),
+            "chrome cascade layers threshold should be present"
+        );
+        let Some(cascade_layers_threshold) = cascade_layers_threshold else {
+            return;
+        };
+        assert_eq!(cascade_layers_threshold.min_version, "99.0");
+        assert_eq!(cascade_layers_threshold.caniuse_key, "css-cascade-layers");
     }
 
     #[test]

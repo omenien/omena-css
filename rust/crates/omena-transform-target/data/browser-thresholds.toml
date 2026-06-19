@@ -301,3 +301,102 @@ min_minor = 0
 caniuse_key = "css-nesting"
 source_quorum = ["caniuse", "web-features", "mdn-bcd"]
 last_verified = "2026-05-22"
+
+[[threshold]]
+table = "cascade_layers"
+browser = "chrome"
+min_major = 99
+min_minor = 0
+caniuse_key = "css-cascade-layers"
+source_quorum = ["caniuse", "web-features", "mdn-bcd"]
+last_verified = "2026-05-22"
+
+[[threshold]]
+table = "cascade_layers"
+browser = "edge"
+min_major = 99
+min_minor = 0
+caniuse_key = "css-cascade-layers"
+source_quorum = ["caniuse", "web-features", "mdn-bcd"]
+last_verified = "2026-05-22"
+
+[[threshold]]
+table = "cascade_layers"
+browser = "firefox"
+min_major = 97
+min_minor = 0
+caniuse_key = "css-cascade-layers"
+source_quorum = ["caniuse", "web-features", "mdn-bcd"]
+last_verified = "2026-05-22"
+
+[[threshold]]
+table = "cascade_layers"
+browser = "safari"
+min_major = 15
+min_minor = 4
+caniuse_key = "css-cascade-layers"
+source_quorum = ["caniuse", "web-features", "mdn-bcd"]
+last_verified = "2026-05-22"
+
+[[threshold]]
+table = "cascade_layers"
+browser = "ios_saf"
+min_major = 15
+min_minor = 4
+caniuse_key = "css-cascade-layers"
+source_quorum = ["caniuse", "web-features", "mdn-bcd"]
+last_verified = "2026-05-22"
+
+[[threshold]]
+table = "cascade_layers"
+browser = "opera"
+min_major = 86
+min_minor = 0
+caniuse_key = "css-cascade-layers"
+source_quorum = ["caniuse", "web-features", "mdn-bcd"]
+last_verified = "2026-05-22"
+
+[[threshold]]
+table = "cascade_layers"
+browser = "op_mob"
+min_major = 80
+min_minor = 0
+caniuse_key = "css-cascade-layers"
+source_quorum = ["caniuse", "web-features", "mdn-bcd"]
+last_verified = "2026-05-22"
+
+[[threshold]]
+table = "cascade_layers"
+browser = "and_chr"
+min_major = 149
+min_minor = 0
+caniuse_key = "css-cascade-layers"
+source_quorum = ["caniuse", "web-features", "mdn-bcd"]
+last_verified = "2026-05-22"
+
+[[threshold]]
+table = "cascade_layers"
+browser = "and_ff"
+min_major = 151
+min_minor = 0
+caniuse_key = "css-cascade-layers"
+source_quorum = ["caniuse", "web-features", "mdn-bcd"]
+last_verified = "2026-05-22"
+
+[[threshold]]
+table = "cascade_layers"
+browser = "samsung"
+min_major = 18
+min_minor = 0
+caniuse_key = "css-cascade-layers"
+source_quorum = ["caniuse", "web-features", "mdn-bcd"]
+last_verified = "2026-05-22"
+
+[[threshold]]
+table = "cascade_layers"
+browser = "android"
+min_major = 149
+min_minor = 0
+caniuse_key = "css-cascade-layers"
+source_quorum = ["caniuse", "web-features", "mdn-bcd"]
+last_verified = "2026-05-22"

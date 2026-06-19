@@ -82,6 +82,30 @@
         { "browser": "samsung", "minMajor": 23, "minMinor": 0 },
         { "browser": "android", "minMajor": 149, "minMinor": 0 }
       ]
+    },
+    {
+      "table": "cascade_layers",
+      "passId": "layer-flatten",
+      "caniuseKeys": ["css-cascade-layers"],
+      "sourceKeys": {
+        "caniuse": "css-cascade-layers",
+        "web-features": "cascade-layers",
+        "mdn-bcd": "css.at-rules.layer"
+      },
+      "sourceQuorum": ["caniuse", "web-features", "mdn-bcd"],
+      "thresholds": [
+        { "browser": "chrome", "minMajor": 99, "minMinor": 0 },
+        { "browser": "edge", "minMajor": 99, "minMinor": 0 },
+        { "browser": "firefox", "minMajor": 97, "minMinor": 0 },
+        { "browser": "safari", "minMajor": 15, "minMinor": 4 },
+        { "browser": "ios_saf", "minMajor": 15, "minMinor": 4 },
+        { "browser": "opera", "minMajor": 86, "minMinor": 0 },
+        { "browser": "op_mob", "minMajor": 80, "minMinor": 0 },
+        { "browser": "and_chr", "minMajor": 149, "minMinor": 0 },
+        { "browser": "and_ff", "minMajor": 151, "minMinor": 0 },
+        { "browser": "samsung", "minMajor": 18, "minMinor": 0 },
+        { "browser": "android", "minMajor": 149, "minMinor": 0 }
+      ]
     }
   ]
 }
