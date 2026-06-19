@@ -221,6 +221,11 @@ fn static_stylesheet_oracle_corpus_fixtures() -> &'static [StaticStylesheetOracl
             source: "@brand: red; .tone(@color, @gap: 1px) { color: @color; margin: @gap; padding: @brand; } .button { .tone(blue, 2px); }",
         },
         StaticStylesheetOracleCorpusFixtureV0 {
+            id: "less.recursive-nested-mixin-call",
+            dialect: StyleDialect::Less,
+            source: ".again() { .again(); } .button { .again(); }",
+        },
+        StaticStylesheetOracleCorpusFixtureV0 {
             id: "less.named-mixin-arguments",
             dialect: StyleDialect::Less,
             source: ".tone(@color, @gap: 1px) { color: @color; margin: @gap; } .button { .tone(@gap: 2px, @color: blue); }",
