@@ -1755,14 +1755,6 @@ fn call_bound_loop_return_resolution(
     } else {
         node.return_loop_header_texts.clone()
     };
-    if header_texts.iter().any(|header| {
-        header
-            .trim_start()
-            .to_ascii_lowercase()
-            .starts_with("@while")
-    }) {
-        return ScssLoopReturnResolution::Unknown;
-    }
     let Some(return_text) = node.return_text.as_deref() else {
         return ScssLoopReturnResolution::Unknown;
     };
@@ -3364,12 +3356,13 @@ fn loop_carried_binding_frames(
         .to_ascii_lowercase()
         .starts_with("@while")
     {
-        return None;
+        return static_while_loop_binding_frames(header, lexical_bindings);
     }
     static_for_loop_binding_frames(header, lexical_bindings)
         .or_else(|| static_each_map_loop_binding_frames(header, lexical_bindings))
         .or_else(|| static_each_tuple_loop_binding_frames(header, lexical_bindings))
         .or_else(|| static_each_single_loop_binding_frames(header, lexical_bindings))
+        .or_else(|| static_while_loop_binding_frames(header, lexical_bindings))
 }
 
 fn loop_carried_binding_frames_for_headers(
@@ -3455,6 +3448,39 @@ fn static_for_loop_binding_frames(
             .collect()
     };
     Some(frames)
+}
+
+fn static_while_loop_binding_frames(
+    header: &str,
+    lexical_bindings: &BTreeMap<String, AbstractCssValueV0>,
+) -> Option<Vec<Vec<ScssControlFlowBindingValue>>> {
+    let bindings = loop_carried_bindings(header);
+    if bindings.len() != 1 {
+        return None;
+    }
+    let values =
+        static_while_condition_loop_binding_values(header, lexical_bindings, bindings.as_slice())?;
+    if values.len() != 1 {
+        return None;
+    }
+    let binding = values.into_iter().next()?;
+    match binding.value {
+        AbstractCssValueV0::Bottom => Some(Vec::new()),
+        AbstractCssValueV0::FiniteSet { values } => Some(
+            values
+                .into_iter()
+                .map(|value| {
+                    vec![ScssControlFlowBindingValue {
+                        name: binding.name.clone(),
+                        value: abstract_css_value_from_text(value.as_str()),
+                    }]
+                })
+                .collect(),
+        ),
+        AbstractCssValueV0::Exact { .. }
+        | AbstractCssValueV0::Raw { .. }
+        | AbstractCssValueV0::Top => None,
+    }
 }
 
 fn static_each_map_loop_binding_frames(
@@ -6332,6 +6358,37 @@ mod tests {
             function_call.call_resolved_return_value,
             Some(AbstractCssValueV0::FiniteSet {
                 values: vec!["#00f".to_string(), "red".to_string()]
+            })
+        );
+    }
+
+    #[test]
+    fn call_return_ir_resolves_static_while_loop_body_returns() {
+        let source = "@function collect() { $i: 0; @while $i < 3 { @return $i; $i: $i + 1; } } .a { width: collect(); }";
+        let report = summarize_scss_call_return_ir(source, StyleDialect::Scss);
+        assert!(report.is_some());
+        let Some(report) = report else {
+            return;
+        };
+        let function_call = report
+            .nodes
+            .iter()
+            .find(|node| node.kind == "functionCall" && node.name.as_deref() == Some("collect"));
+        assert!(function_call.is_some());
+        let Some(function_call) = function_call else {
+            return;
+        };
+
+        assert_eq!(report.call_resolved_return_value_count, 1);
+        assert_eq!(report.finite_set_call_resolved_return_value_count, 1);
+        assert_eq!(
+            function_call.call_resolved_return_value_kind,
+            Some("finiteSet")
+        );
+        assert_eq!(
+            function_call.call_resolved_return_value,
+            Some(AbstractCssValueV0::FiniteSet {
+                values: vec!["0".to_string(), "1".to_string(), "2".to_string()]
             })
         );
     }
