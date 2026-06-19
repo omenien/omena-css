@@ -73,9 +73,9 @@ fn exposes_static_stylesheet_oracle_corpus_through_query_boundary() {
     assert_eq!(summary.mode, "oracleOnly");
     assert_eq!(summary.value_type, "AbstractCssValueV0");
     assert_eq!(summary.product_output_source, "nativeEditOutput");
-    assert_eq!(summary.fixture_count, 62);
-    assert_eq!(summary.scss_fixture_count, 10);
-    assert_eq!(summary.sass_fixture_count, 7);
+    assert_eq!(summary.fixture_count, 64);
+    assert_eq!(summary.scss_fixture_count, 11);
+    assert_eq!(summary.sass_fixture_count, 8);
     assert_eq!(summary.less_fixture_count, 45);
     assert_eq!(summary.evaluated_fixture_count, summary.fixture_count);
     assert_eq!(
@@ -119,6 +119,19 @@ fn exposes_static_stylesheet_oracle_corpus_through_query_boundary() {
             .iter()
             .any(|fixture| fixture.id == "scss.static-for-return")
     );
+    assert!(summary.corpus.fixtures.iter().any(|fixture| {
+        fixture.id == "scss.descending-static-for-return"
+            && fixture.evaluation_available
+            && fixture.native_edit_output_matches_evaluated_css
+            && fixture.divergence_count == 0
+    }));
+    assert!(summary.corpus.fixtures.iter().any(|fixture| {
+        fixture.id == "sass.descending-static-for-return"
+            && fixture.dialect == "sass"
+            && fixture.evaluation_available
+            && fixture.native_edit_output_matches_evaluated_css
+            && fixture.divergence_count == 0
+    }));
     assert!(summary.corpus.fixtures.iter().any(|fixture| {
         fixture.id == "sass.variable-basic"
             && fixture.dialect == "sass"
@@ -421,10 +434,10 @@ fn exposes_scss_control_flow_oracle_corpus_through_query_boundary() {
     assert_eq!(summary.mode, "oracleOnly");
     assert_eq!(summary.value_type, "AbstractCssValueV0");
     assert_eq!(summary.node_key_type, "StableNodeKeyV0");
-    assert_eq!(summary.fixture_count, 11);
-    assert_eq!(summary.scss_fixture_count, 7);
-    assert_eq!(summary.sass_fixture_count, 3);
-    assert_eq!(summary.supported_fixture_count, 10);
+    assert_eq!(summary.fixture_count, 13);
+    assert_eq!(summary.scss_fixture_count, 8);
+    assert_eq!(summary.sass_fixture_count, 4);
+    assert_eq!(summary.supported_fixture_count, 12);
     assert_eq!(summary.rejected_flat_css_fixture_count, 1);
     assert!(summary.branch_fixture_count >= 5);
     assert!(summary.loop_fixture_count >= 6);
@@ -473,6 +486,20 @@ fn exposes_scss_control_flow_oracle_corpus_through_query_boundary() {
     assert!(sass_return.loop_block_count >= 1);
     assert!(sass_return.back_edge_count >= 1);
     assert!(sass_return.call_resolved_return_value_count >= 1);
+    assert!(
+        summary
+            .corpus
+            .fixtures
+            .iter()
+            .any(|fixture| fixture.id == "scss.descending-static-for-return"
+                && fixture.call_resolved_return_value_count == 1
+                && fixture.value_analysis_converged)
+    );
+    assert!(summary.corpus.fixtures.iter().any(|fixture| fixture.id
+        == "sass.descending-static-for-return"
+        && fixture.dialect == "sass"
+        && fixture.call_resolved_return_value_count == 1
+        && fixture.value_analysis_converged));
     assert!(
         summary
             .corpus
