@@ -56,6 +56,8 @@ interface ScssEvaluatorControlFlowOracleCorpusSummaryV0 {
   readonly nodeKeyType: string;
   readonly recursionCap: number;
   readonly fixtureCount: number;
+  readonly scssFixtureCount: number;
+  readonly sassFixtureCount: number;
   readonly supportedFixtureCount: number;
   readonly rejectedFlatCssFixtureCount: number;
   readonly controlFlowFixtureCount: number;
@@ -687,17 +689,19 @@ function assertScssEvaluatorControlFlowOracleCorpus(
   assert.equal(summary.valueType, "AbstractCssValueV0");
   assert.equal(summary.nodeKeyType, "StableNodeKeyV0");
   assert.ok(summary.recursionCap > 0, "SCSS call-return recursion cap must stay explicit");
-  assert.ok(summary.fixtureCount >= 8, "SCSS control-flow oracle corpus must not shrink");
+  assert.ok(summary.fixtureCount >= 11, "SCSS control-flow oracle corpus must not shrink");
+  assert.ok(summary.scssFixtureCount >= 7, "SCSS control-flow fixture coverage must not shrink");
+  assert.ok(summary.sassFixtureCount >= 3, "Sass control-flow fixture coverage must not shrink");
   assert.ok(
-    summary.supportedFixtureCount >= 7,
+    summary.supportedFixtureCount >= 10,
     "supported SCSS control-flow fixtures must not shrink",
   );
   assert.equal(summary.rejectedFlatCssFixtureCount, 1);
-  assert.ok(summary.branchFixtureCount >= 3);
-  assert.ok(summary.loopFixtureCount >= 4);
-  assert.ok(summary.backEdgeFixtureCount >= 4);
-  assert.ok(summary.callReturnFixtureCount >= 4);
-  assert.ok(summary.resolvedCallReturnFixtureCount >= 3);
+  assert.ok(summary.branchFixtureCount >= 5);
+  assert.ok(summary.loopFixtureCount >= 6);
+  assert.ok(summary.backEdgeFixtureCount >= 6);
+  assert.ok(summary.callReturnFixtureCount >= 5);
+  assert.ok(summary.resolvedCallReturnFixtureCount >= 4);
   assert.ok(summary.topCallReturnFixtureCount >= 1);
   assert.ok(summary.recursiveCallFixtureCount >= 1);
   assert.equal(summary.convergedValueAnalysisFixtureCount, summary.supportedFixtureCount);

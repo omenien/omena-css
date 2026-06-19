@@ -305,6 +305,16 @@ fn scss_control_flow_oracle_corpus_fixtures() -> &'static [ScssControlFlowOracle
             source: "$enabled: true\n@if $enabled\n  .on\n    color: green\n@else\n  .off\n    color: gray",
         },
         ScssControlFlowOracleCorpusFixtureV0 {
+            id: "sass.static-while-loop",
+            dialect: StyleDialect::Sass,
+            source: "$i: 0\n@while $i < 3\n  $i: $i + 1\n  .n\n    order: $i",
+        },
+        ScssControlFlowOracleCorpusFixtureV0 {
+            id: "sass.static-for-return",
+            dialect: StyleDialect::Sass,
+            source: "@function pick($target)\n  @for $i from 1 through 3\n    @if $i == $target\n      @return $i\n  @return 0\n.button\n  z-index: pick(2)",
+        },
+        ScssControlFlowOracleCorpusFixtureV0 {
             id: "css.flat-rejected",
             dialect: StyleDialect::Css,
             source: ".button { color: red; }",
@@ -326,16 +336,16 @@ mod tests {
         assert_eq!(report.value_type, "AbstractCssValueV0");
         assert_eq!(report.node_key_type, "StableNodeKeyV0");
         assert_eq!(report.recursion_cap, SCSS_CALL_RETURN_RECURSION_LIMIT);
-        assert_eq!(report.fixture_count, 9);
+        assert_eq!(report.fixture_count, 11);
         assert_eq!(report.scss_fixture_count, 7);
-        assert_eq!(report.sass_fixture_count, 1);
-        assert_eq!(report.supported_fixture_count, 8);
+        assert_eq!(report.sass_fixture_count, 3);
+        assert_eq!(report.supported_fixture_count, 10);
         assert_eq!(report.rejected_flat_css_fixture_count, 1);
-        assert!(report.branch_fixture_count >= 4);
-        assert!(report.loop_fixture_count >= 4);
-        assert!(report.back_edge_fixture_count >= 4);
-        assert!(report.call_return_fixture_count >= 4);
-        assert!(report.resolved_call_return_fixture_count >= 3);
+        assert!(report.branch_fixture_count >= 5);
+        assert!(report.loop_fixture_count >= 6);
+        assert!(report.back_edge_fixture_count >= 6);
+        assert!(report.call_return_fixture_count >= 5);
+        assert!(report.resolved_call_return_fixture_count >= 4);
         assert!(report.top_call_return_fixture_count >= 1);
         assert!(report.recursive_call_fixture_count >= 1);
         assert_eq!(
@@ -347,5 +357,31 @@ mod tests {
         assert!(report.all_supported_fixtures_converged);
         assert!(report.no_flat_css_cfg_built);
         assert!(report.no_merged_cross_file_graph);
+
+        let Some(sass_while) = report
+            .fixtures
+            .iter()
+            .find(|fixture| fixture.id == "sass.static-while-loop")
+        else {
+            panic!("Sass while-loop fixture must stay in the U3 oracle corpus");
+        };
+        assert!(sass_while.control_flow_available);
+        assert!(sass_while.value_analysis_converged);
+        assert!(sass_while.loop_block_count >= 1);
+        assert!(sass_while.back_edge_count >= 1);
+
+        let Some(sass_return) = report
+            .fixtures
+            .iter()
+            .find(|fixture| fixture.id == "sass.static-for-return")
+        else {
+            panic!("Sass function-return fixture must stay in the U3 oracle corpus");
+        };
+        assert!(sass_return.control_flow_available);
+        assert!(sass_return.call_return_available);
+        assert!(sass_return.value_analysis_converged);
+        assert!(sass_return.loop_block_count >= 1);
+        assert!(sass_return.back_edge_count >= 1);
+        assert!(sass_return.call_resolved_return_value_count >= 1);
     }
 }

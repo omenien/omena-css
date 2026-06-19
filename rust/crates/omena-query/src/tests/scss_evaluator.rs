@@ -374,16 +374,16 @@ fn exposes_scss_control_flow_oracle_corpus_through_query_boundary() {
     assert_eq!(summary.mode, "oracleOnly");
     assert_eq!(summary.value_type, "AbstractCssValueV0");
     assert_eq!(summary.node_key_type, "StableNodeKeyV0");
-    assert_eq!(summary.fixture_count, 9);
+    assert_eq!(summary.fixture_count, 11);
     assert_eq!(summary.scss_fixture_count, 7);
-    assert_eq!(summary.sass_fixture_count, 1);
-    assert_eq!(summary.supported_fixture_count, 8);
+    assert_eq!(summary.sass_fixture_count, 3);
+    assert_eq!(summary.supported_fixture_count, 10);
     assert_eq!(summary.rejected_flat_css_fixture_count, 1);
-    assert!(summary.branch_fixture_count >= 4);
-    assert!(summary.loop_fixture_count >= 4);
-    assert!(summary.back_edge_fixture_count >= 4);
-    assert!(summary.call_return_fixture_count >= 4);
-    assert!(summary.resolved_call_return_fixture_count >= 3);
+    assert!(summary.branch_fixture_count >= 5);
+    assert!(summary.loop_fixture_count >= 6);
+    assert!(summary.back_edge_fixture_count >= 6);
+    assert!(summary.call_return_fixture_count >= 5);
+    assert!(summary.resolved_call_return_fixture_count >= 4);
     assert!(summary.top_call_return_fixture_count >= 1);
     assert!(summary.recursive_call_fixture_count >= 1);
     assert_eq!(
@@ -399,6 +399,33 @@ fn exposes_scss_control_flow_oracle_corpus_through_query_boundary() {
         summary.corpus.product,
         "omena-scss-eval.control-flow-oracle-corpus"
     );
+    let Some(sass_while) = summary
+        .corpus
+        .fixtures
+        .iter()
+        .find(|fixture| fixture.id == "sass.static-while-loop")
+    else {
+        panic!("query boundary must expose the Sass while-loop oracle fixture");
+    };
+    assert!(sass_while.control_flow_available);
+    assert!(sass_while.value_analysis_converged);
+    assert!(sass_while.loop_block_count >= 1);
+    assert!(sass_while.back_edge_count >= 1);
+
+    let Some(sass_return) = summary
+        .corpus
+        .fixtures
+        .iter()
+        .find(|fixture| fixture.id == "sass.static-for-return")
+    else {
+        panic!("query boundary must expose the Sass function-return oracle fixture");
+    };
+    assert!(sass_return.control_flow_available);
+    assert!(sass_return.call_return_available);
+    assert!(sass_return.value_analysis_converged);
+    assert!(sass_return.loop_block_count >= 1);
+    assert!(sass_return.back_edge_count >= 1);
+    assert!(sass_return.call_resolved_return_value_count >= 1);
     assert!(
         summary
             .corpus
