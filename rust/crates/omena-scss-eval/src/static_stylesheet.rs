@@ -162,6 +162,9 @@ pub struct OmenaScssEvalStaticStylesheetEvaluationV0 {
     pub product: &'static str,
     pub evaluator: &'static str,
     pub dialect: &'static str,
+    pub product_output_source: &'static str,
+    pub legacy_output_retained_as_oracle: bool,
+    pub legacy_output_consumed_until_cutover: bool,
     pub evaluated_css: String,
     pub native_edit_output: String,
     pub replacement_count: usize,
@@ -826,6 +829,9 @@ fn build_static_stylesheet_evaluation_report_with_value_resolution(
         product: "omena-scss-eval.static-stylesheet-evaluation",
         evaluator: variable_kind.evaluator_label(),
         dialect: dialect_label(dialect),
+        product_output_source: "nativeEditOutput",
+        legacy_output_retained_as_oracle: true,
+        legacy_output_consumed_until_cutover: false,
         replacement_count: resolved_replacements.len(),
         native_replacement_legacy_reflection_count,
         native_replacement_legacy_unreflected_count,
@@ -5418,7 +5424,7 @@ mod tests {
     use std::fmt::Write as _;
 
     #[test]
-    fn static_stylesheet_oracle_corpus_preserves_legacy_output() {
+    fn static_stylesheet_oracle_corpus_reports_native_product_output_with_legacy_oracle() {
         let report = summarize_static_stylesheet_oracle_corpus();
 
         assert_eq!(
@@ -5427,7 +5433,12 @@ mod tests {
         );
         assert_eq!(report.mode, "oracleOnly");
         assert_eq!(report.value_type, "AbstractCssValueV0");
-        assert_eq!(report.product_output_source, "legacyEvaluatedCss");
+        assert_eq!(report.product_output_source, "nativeEditOutput");
+        assert_eq!(
+            report.legacy_output_retained_as_oracle_count,
+            report.evaluated_fixture_count
+        );
+        assert!(report.all_legacy_outputs_retained_as_oracle);
         assert_eq!(report.fixture_count, 62);
         assert_eq!(report.scss_fixture_count, 10);
         assert_eq!(report.sass_fixture_count, 7);
@@ -5517,7 +5528,8 @@ mod tests {
             report
                 .fixtures
                 .iter()
-                .all(|fixture| fixture.legacy_output_consumed_until_cutover)
+                .all(|fixture| fixture.legacy_output_retained_as_oracle
+                    && !fixture.legacy_output_consumed_until_cutover)
         );
     }
 
@@ -5536,6 +5548,9 @@ mod tests {
             report.evaluator,
             "omena-query-static-scss-variable-evaluator"
         );
+        assert_eq!(report.product_output_source, "nativeEditOutput");
+        assert!(report.legacy_output_retained_as_oracle);
+        assert!(!report.legacy_output_consumed_until_cutover);
         assert_eq!(report.replacement_count, 1);
         assert_eq!(report.native_replacement_legacy_reflection_count, 1);
         assert_eq!(report.native_replacement_legacy_unreflected_count, 0);

@@ -1,10 +1,10 @@
 //! Oracle-first SCSS/Less value evaluator rail.
 //!
 //! This crate is the native evaluator entry point above parser facts and the
-//! shared abstract value vocabulary. It does not mutate CSS output; the current
-//! product path still consumes the legacy `evaluated_css` string while this rail
-//! checks that resolved declaration values can be represented as
-//! `AbstractCssValueV0`.
+//! shared abstract value vocabulary. Product runtime paths consume the native
+//! edit output when available, while the legacy `evaluated_css` string stays in
+//! the model as a differential oracle until the native rail has complete corpus
+//! coverage.
 
 mod control_flow;
 mod scss_metadata;

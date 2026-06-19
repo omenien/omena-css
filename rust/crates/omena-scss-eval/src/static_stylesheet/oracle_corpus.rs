@@ -11,6 +11,8 @@ pub struct OmenaScssEvalStaticStylesheetOracleCorpusReportV0 {
     pub mode: &'static str,
     pub value_type: &'static str,
     pub product_output_source: &'static str,
+    pub legacy_output_retained_as_oracle_count: usize,
+    pub all_legacy_outputs_retained_as_oracle: bool,
     pub fixture_count: usize,
     pub scss_fixture_count: usize,
     pub sass_fixture_count: usize,
@@ -41,6 +43,7 @@ pub struct OmenaScssEvalStaticStylesheetOracleCorpusFixtureReportV0 {
     pub dialect: &'static str,
     pub evaluator: &'static str,
     pub product_output_source: &'static str,
+    pub legacy_output_retained_as_oracle: bool,
     pub legacy_output_consumed_until_cutover: bool,
     pub evaluation_available: bool,
     pub native_edit_output: Option<String>,
@@ -121,6 +124,10 @@ pub fn summarize_static_stylesheet_oracle_corpus()
         .iter()
         .filter(|fixture| fixture.native_edit_output_matches_evaluated_css)
         .count();
+    let legacy_output_retained_as_oracle_count = fixtures
+        .iter()
+        .filter(|fixture| fixture.legacy_output_retained_as_oracle)
+        .count();
     let native_value_reference_count = fixtures
         .iter()
         .map(|fixture| fixture.native_value_reference_count)
@@ -145,13 +152,19 @@ pub fn summarize_static_stylesheet_oracle_corpus()
         && fixtures
             .iter()
             .all(|fixture| fixture.native_edit_output_matches_evaluated_css);
+    let all_legacy_outputs_retained_as_oracle = missing_evaluation_count == 0
+        && fixtures
+            .iter()
+            .all(|fixture| fixture.legacy_output_retained_as_oracle);
 
     OmenaScssEvalStaticStylesheetOracleCorpusReportV0 {
         schema_version: "0",
         product: "omena-scss-eval.static-stylesheet-oracle-corpus",
         mode: "oracleOnly",
         value_type: "AbstractCssValueV0",
-        product_output_source: "legacyEvaluatedCss",
+        product_output_source: "nativeEditOutput",
+        legacy_output_retained_as_oracle_count,
+        all_legacy_outputs_retained_as_oracle,
         fixture_count,
         scss_fixture_count,
         sass_fixture_count,
@@ -186,6 +199,7 @@ fn static_stylesheet_oracle_corpus_fixture_report(
             dialect: dialect_label(fixture.dialect),
             evaluator: "none",
             product_output_source: "none",
+            legacy_output_retained_as_oracle: false,
             legacy_output_consumed_until_cutover: false,
             evaluation_available: false,
             native_edit_output: None,
@@ -209,9 +223,9 @@ fn static_stylesheet_oracle_corpus_fixture_report(
         id: fixture.id,
         dialect: evaluation.dialect,
         evaluator: evaluation.evaluator,
-        product_output_source: evaluation.oracle.product_output_source,
-        legacy_output_consumed_until_cutover: evaluation.oracle.product_output_source
-            == "legacyEvaluatedCss",
+        product_output_source: evaluation.product_output_source,
+        legacy_output_retained_as_oracle: evaluation.legacy_output_retained_as_oracle,
+        legacy_output_consumed_until_cutover: evaluation.legacy_output_consumed_until_cutover,
         evaluation_available: true,
         native_edit_output: Some(evaluation.native_edit_output.clone()),
         divergence_count: evaluation.oracle.divergence_count,

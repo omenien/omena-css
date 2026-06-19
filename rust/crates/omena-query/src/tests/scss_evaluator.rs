@@ -72,12 +72,17 @@ fn exposes_static_stylesheet_oracle_corpus_through_query_boundary() {
     );
     assert_eq!(summary.mode, "oracleOnly");
     assert_eq!(summary.value_type, "AbstractCssValueV0");
-    assert_eq!(summary.product_output_source, "legacyEvaluatedCss");
+    assert_eq!(summary.product_output_source, "nativeEditOutput");
     assert_eq!(summary.fixture_count, 62);
     assert_eq!(summary.scss_fixture_count, 10);
     assert_eq!(summary.sass_fixture_count, 7);
     assert_eq!(summary.less_fixture_count, 45);
     assert_eq!(summary.evaluated_fixture_count, summary.fixture_count);
+    assert_eq!(
+        summary.legacy_output_retained_as_oracle_count,
+        summary.evaluated_fixture_count
+    );
+    assert!(summary.all_legacy_outputs_retained_as_oracle);
     assert_eq!(summary.missing_evaluation_count, 0);
     assert_eq!(summary.divergence_count, 0);
     assert!(summary.native_replacement_count > 0);
@@ -521,8 +526,9 @@ fn exposes_static_stylesheet_evaluator_oracle_through_query_boundary() {
     assert_eq!(summary.dialect, "scss");
     assert_eq!(summary.value_type, "AbstractCssValueV0");
     assert!(summary.supported_dialect);
-    assert_eq!(summary.product_output_source, "legacyEvaluatedCss");
-    assert!(summary.legacy_output_consumed_until_cutover);
+    assert_eq!(summary.product_output_source, "nativeEditOutput");
+    assert!(summary.legacy_output_retained_as_oracle);
+    assert!(!summary.legacy_output_consumed_until_cutover);
     assert!(summary.evaluation_available);
     assert!(summary.value_resolution_available);
     assert!(summary.native_edit_output.as_ref().is_some_and(|output| {
@@ -577,8 +583,9 @@ fn exposes_sass_static_stylesheet_evaluator_through_query_boundary() {
     assert_eq!(summary.dialect, "sass");
     assert_eq!(summary.value_type, "AbstractCssValueV0");
     assert!(summary.supported_dialect);
-    assert_eq!(summary.product_output_source, "legacyEvaluatedCss");
-    assert!(summary.legacy_output_consumed_until_cutover);
+    assert_eq!(summary.product_output_source, "nativeEditOutput");
+    assert!(summary.legacy_output_retained_as_oracle);
+    assert!(!summary.legacy_output_consumed_until_cutover);
     assert!(summary.evaluation_available);
     assert!(summary.value_resolution_available);
     assert_eq!(summary.divergence_count, 0);
@@ -618,7 +625,7 @@ fn exposes_unresolved_forward_scss_composite_as_preserved_oracle_output() {
     assert_eq!(summary.product, "omena-query.static-stylesheet-evaluator");
     assert_eq!(summary.mode, "oracleOnly");
     assert_eq!(summary.value_type, "AbstractCssValueV0");
-    assert!(summary.legacy_output_consumed_until_cutover);
+    assert!(!summary.legacy_output_consumed_until_cutover);
     assert!(summary.evaluation_available);
     assert!(summary.value_resolution_available);
     assert_eq!(summary.divergence_count, 0);
@@ -652,7 +659,7 @@ fn exposes_dynamic_scss_function_calls_as_preserved_oracle_output() {
     assert_eq!(summary.product, "omena-query.static-stylesheet-evaluator");
     assert_eq!(summary.mode, "oracleOnly");
     assert_eq!(summary.value_type, "AbstractCssValueV0");
-    assert!(summary.legacy_output_consumed_until_cutover);
+    assert!(!summary.legacy_output_consumed_until_cutover);
     assert!(summary.evaluation_available);
     assert!(summary.value_resolution_available);
     assert_eq!(summary.divergence_count, 0);
@@ -685,7 +692,7 @@ fn exposes_static_scss_legacy_rounding_aliases_through_query_boundary() {
     assert_eq!(summary.product, "omena-query.static-stylesheet-evaluator");
     assert_eq!(summary.mode, "oracleOnly");
     assert_eq!(summary.value_type, "AbstractCssValueV0");
-    assert!(summary.legacy_output_consumed_until_cutover);
+    assert!(!summary.legacy_output_consumed_until_cutover);
     assert_eq!(summary.divergence_count, 0);
     assert!(summary.all_legacy_declaration_values_preserved);
     assert_eq!(summary.native_value_reference_count, 3);
@@ -720,7 +727,7 @@ fn exposes_static_scss_math_percentage_through_query_boundary() {
     assert_eq!(summary.product, "omena-query.static-stylesheet-evaluator");
     assert_eq!(summary.mode, "oracleOnly");
     assert_eq!(summary.value_type, "AbstractCssValueV0");
-    assert!(summary.legacy_output_consumed_until_cutover);
+    assert!(!summary.legacy_output_consumed_until_cutover);
     assert_eq!(summary.divergence_count, 0);
     assert!(summary.all_legacy_declaration_values_preserved);
     assert_eq!(summary.native_value_reference_count, 1);
@@ -744,7 +751,7 @@ fn exposes_static_scss_math_trig_through_query_boundary() {
     assert_eq!(summary.product, "omena-query.static-stylesheet-evaluator");
     assert_eq!(summary.mode, "oracleOnly");
     assert_eq!(summary.value_type, "AbstractCssValueV0");
-    assert!(summary.legacy_output_consumed_until_cutover);
+    assert!(!summary.legacy_output_consumed_until_cutover);
     assert_eq!(summary.divergence_count, 0);
     assert!(summary.all_legacy_declaration_values_preserved);
     assert_eq!(summary.native_value_reference_count, 2);
@@ -774,7 +781,7 @@ fn exposes_static_scss_math_constants_through_query_boundary() {
     assert_eq!(summary.product, "omena-query.static-stylesheet-evaluator");
     assert_eq!(summary.mode, "oracleOnly");
     assert_eq!(summary.value_type, "AbstractCssValueV0");
-    assert!(summary.legacy_output_consumed_until_cutover);
+    assert!(!summary.legacy_output_consumed_until_cutover);
     assert_eq!(summary.divergence_count, 0);
     assert!(summary.all_legacy_declaration_values_preserved);
     assert_eq!(summary.native_value_reference_count, 2);
@@ -804,7 +811,7 @@ fn exposes_static_scss_math_constant_arguments_through_query_boundary() {
     assert_eq!(summary.product, "omena-query.static-stylesheet-evaluator");
     assert_eq!(summary.mode, "oracleOnly");
     assert_eq!(summary.value_type, "AbstractCssValueV0");
-    assert!(summary.legacy_output_consumed_until_cutover);
+    assert!(!summary.legacy_output_consumed_until_cutover);
     assert_eq!(summary.divergence_count, 0);
     assert!(summary.all_legacy_declaration_values_preserved);
     assert_eq!(summary.native_value_reference_count, 2);
@@ -834,7 +841,7 @@ fn exposes_static_scss_legacy_list_metadata_aliases_through_query_boundary() {
     assert_eq!(summary.product, "omena-query.static-stylesheet-evaluator");
     assert_eq!(summary.mode, "oracleOnly");
     assert_eq!(summary.value_type, "AbstractCssValueV0");
-    assert!(summary.legacy_output_consumed_until_cutover);
+    assert!(!summary.legacy_output_consumed_until_cutover);
     assert_eq!(summary.divergence_count, 0);
     assert!(summary.all_legacy_declaration_values_preserved);
     assert_eq!(summary.native_value_reference_count, 2);
@@ -864,7 +871,7 @@ fn exposes_static_scss_slash_lists_through_query_boundary() {
     assert_eq!(summary.product, "omena-query.static-stylesheet-evaluator");
     assert_eq!(summary.mode, "oracleOnly");
     assert_eq!(summary.value_type, "AbstractCssValueV0");
-    assert!(summary.legacy_output_consumed_until_cutover);
+    assert!(!summary.legacy_output_consumed_until_cutover);
     assert_eq!(summary.divergence_count, 0);
     assert!(summary.all_legacy_declaration_values_preserved);
     assert_eq!(summary.native_value_reference_count, 2);
@@ -894,7 +901,7 @@ fn exposes_static_scss_function_comparison_operands_through_query_boundary() {
     assert_eq!(summary.product, "omena-query.static-stylesheet-evaluator");
     assert_eq!(summary.mode, "oracleOnly");
     assert_eq!(summary.value_type, "AbstractCssValueV0");
-    assert!(summary.legacy_output_consumed_until_cutover);
+    assert!(!summary.legacy_output_consumed_until_cutover);
     assert_eq!(summary.divergence_count, 0);
     assert!(summary.all_legacy_declaration_values_preserved);
     assert_eq!(summary.native_value_reference_count, 2);
@@ -924,7 +931,7 @@ fn exposes_static_scss_hsl_color_constructors_through_query_boundary() {
     assert_eq!(summary.product, "omena-query.static-stylesheet-evaluator");
     assert_eq!(summary.mode, "oracleOnly");
     assert_eq!(summary.value_type, "AbstractCssValueV0");
-    assert!(summary.legacy_output_consumed_until_cutover);
+    assert!(!summary.legacy_output_consumed_until_cutover);
     assert_eq!(summary.divergence_count, 0);
     assert!(summary.all_legacy_declaration_values_preserved);
     assert_eq!(summary.native_value_reference_count, 2);
@@ -953,7 +960,7 @@ fn exposes_static_scss_ie_hex_str_through_query_boundary() {
     assert_eq!(summary.product, "omena-query.static-stylesheet-evaluator");
     assert_eq!(summary.mode, "oracleOnly");
     assert_eq!(summary.value_type, "AbstractCssValueV0");
-    assert!(summary.legacy_output_consumed_until_cutover);
+    assert!(!summary.legacy_output_consumed_until_cutover);
     assert_eq!(summary.divergence_count, 0);
     assert!(summary.all_legacy_declaration_values_preserved);
     assert_eq!(summary.native_value_reference_count, 1);
@@ -977,7 +984,7 @@ fn exposes_static_scss_inspect_values_through_query_boundary() {
     assert_eq!(summary.product, "omena-query.static-stylesheet-evaluator");
     assert_eq!(summary.mode, "oracleOnly");
     assert_eq!(summary.value_type, "AbstractCssValueV0");
-    assert!(summary.legacy_output_consumed_until_cutover);
+    assert!(!summary.legacy_output_consumed_until_cutover);
     assert_eq!(summary.divergence_count, 0);
     assert!(summary.all_legacy_declaration_values_preserved);
     assert_eq!(summary.native_value_reference_count, 2);
@@ -1007,7 +1014,7 @@ fn exposes_static_scss_dynamic_mixin_locals_as_preserved_oracle_output_through_q
     assert_eq!(summary.product, "omena-query.static-stylesheet-evaluator");
     assert_eq!(summary.mode, "oracleOnly");
     assert_eq!(summary.value_type, "AbstractCssValueV0");
-    assert!(summary.legacy_output_consumed_until_cutover);
+    assert!(!summary.legacy_output_consumed_until_cutover);
     assert!(summary.evaluation_available);
     assert_eq!(summary.divergence_count, 0);
     assert!(summary.all_legacy_declaration_values_preserved);
@@ -1031,7 +1038,7 @@ fn exposes_static_scss_recursive_nested_mixin_includes_as_preserved_oracle_outpu
     assert_eq!(summary.product, "omena-query.static-stylesheet-evaluator");
     assert_eq!(summary.mode, "oracleOnly");
     assert_eq!(summary.value_type, "AbstractCssValueV0");
-    assert!(summary.legacy_output_consumed_until_cutover);
+    assert!(!summary.legacy_output_consumed_until_cutover);
     assert!(summary.evaluation_available);
     assert_eq!(summary.divergence_count, 0);
     assert!(summary.all_legacy_declaration_values_preserved);
@@ -1054,7 +1061,7 @@ fn exposes_nested_static_scss_color_helpers_through_query_boundary() {
     assert_eq!(summary.product, "omena-query.static-stylesheet-evaluator");
     assert_eq!(summary.mode, "oracleOnly");
     assert_eq!(summary.value_type, "AbstractCssValueV0");
-    assert!(summary.legacy_output_consumed_until_cutover);
+    assert!(!summary.legacy_output_consumed_until_cutover);
     assert_eq!(summary.divergence_count, 0);
     assert!(summary.all_legacy_declaration_values_preserved);
     assert_eq!(summary.native_value_reference_count, 3);
@@ -1089,7 +1096,7 @@ fn exposes_alpha_aware_scss_color_mix_through_query_boundary() {
     assert_eq!(summary.product, "omena-query.static-stylesheet-evaluator");
     assert_eq!(summary.mode, "oracleOnly");
     assert_eq!(summary.value_type, "AbstractCssValueV0");
-    assert!(summary.legacy_output_consumed_until_cutover);
+    assert!(!summary.legacy_output_consumed_until_cutover);
     assert_eq!(summary.divergence_count, 0);
     assert!(summary.all_legacy_declaration_values_preserved);
     assert_eq!(summary.native_value_reference_count, 2);
@@ -1119,8 +1126,9 @@ fn exposes_less_static_stylesheet_evaluator_oracle_through_query_boundary() {
     assert_eq!(summary.dialect, "less");
     assert_eq!(summary.value_type, "AbstractCssValueV0");
     assert!(summary.supported_dialect);
-    assert_eq!(summary.product_output_source, "legacyEvaluatedCss");
-    assert!(summary.legacy_output_consumed_until_cutover);
+    assert_eq!(summary.product_output_source, "nativeEditOutput");
+    assert!(summary.legacy_output_retained_as_oracle);
+    assert!(!summary.legacy_output_consumed_until_cutover);
     assert!(summary.evaluation_available);
     assert_eq!(summary.divergence_count, 0);
     assert!(summary.all_legacy_declaration_values_preserved);
@@ -1146,8 +1154,9 @@ fn exposes_less_dynamic_escaped_strings_as_preserved_raw_oracle_output_through_q
     assert_eq!(summary.dialect, "less");
     assert_eq!(summary.value_type, "AbstractCssValueV0");
     assert!(summary.supported_dialect);
-    assert_eq!(summary.product_output_source, "legacyEvaluatedCss");
-    assert!(summary.legacy_output_consumed_until_cutover);
+    assert_eq!(summary.product_output_source, "nativeEditOutput");
+    assert!(summary.legacy_output_retained_as_oracle);
+    assert!(!summary.legacy_output_consumed_until_cutover);
     assert!(summary.evaluation_available);
     assert_eq!(summary.divergence_count, 0);
     assert!(summary.all_legacy_declaration_values_preserved);
@@ -1174,8 +1183,9 @@ fn exposes_less_recursive_nested_mixin_calls_as_preserved_oracle_output_through_
     assert_eq!(summary.dialect, "less");
     assert_eq!(summary.value_type, "AbstractCssValueV0");
     assert!(summary.supported_dialect);
-    assert_eq!(summary.product_output_source, "legacyEvaluatedCss");
-    assert!(summary.legacy_output_consumed_until_cutover);
+    assert_eq!(summary.product_output_source, "nativeEditOutput");
+    assert!(summary.legacy_output_retained_as_oracle);
+    assert!(!summary.legacy_output_consumed_until_cutover);
     assert!(summary.evaluation_available);
     assert_eq!(summary.divergence_count, 0);
     assert!(summary.all_legacy_declaration_values_preserved);
@@ -1199,8 +1209,9 @@ fn exposes_less_unit_builtin_evaluator_oracle_through_query_boundary() {
     assert_eq!(summary.dialect, "less");
     assert_eq!(summary.value_type, "AbstractCssValueV0");
     assert!(summary.supported_dialect);
-    assert_eq!(summary.product_output_source, "legacyEvaluatedCss");
-    assert!(summary.legacy_output_consumed_until_cutover);
+    assert_eq!(summary.product_output_source, "nativeEditOutput");
+    assert!(summary.legacy_output_retained_as_oracle);
+    assert!(!summary.legacy_output_consumed_until_cutover);
     assert!(summary.evaluation_available);
     assert_eq!(summary.divergence_count, 0);
     assert!(summary.all_legacy_declaration_values_preserved);
@@ -1227,8 +1238,9 @@ fn exposes_less_convert_builtin_through_query_boundary() {
     assert_eq!(summary.dialect, "less");
     assert_eq!(summary.value_type, "AbstractCssValueV0");
     assert!(summary.supported_dialect);
-    assert_eq!(summary.product_output_source, "legacyEvaluatedCss");
-    assert!(summary.legacy_output_consumed_until_cutover);
+    assert_eq!(summary.product_output_source, "nativeEditOutput");
+    assert!(summary.legacy_output_retained_as_oracle);
+    assert!(!summary.legacy_output_consumed_until_cutover);
     assert!(summary.evaluation_available);
     assert_eq!(summary.divergence_count, 0);
     assert!(summary.all_legacy_declaration_values_preserved);
@@ -1260,8 +1272,9 @@ fn exposes_less_trig_builtins_through_query_boundary() {
     assert_eq!(summary.dialect, "less");
     assert_eq!(summary.value_type, "AbstractCssValueV0");
     assert!(summary.supported_dialect);
-    assert_eq!(summary.product_output_source, "legacyEvaluatedCss");
-    assert!(summary.legacy_output_consumed_until_cutover);
+    assert_eq!(summary.product_output_source, "nativeEditOutput");
+    assert!(summary.legacy_output_retained_as_oracle);
+    assert!(!summary.legacy_output_consumed_until_cutover);
     assert!(summary.evaluation_available);
     assert_eq!(summary.divergence_count, 0);
     assert!(summary.all_legacy_declaration_values_preserved);
@@ -1296,8 +1309,9 @@ fn exposes_less_percentage_and_rounding_builtins_through_query_boundary() {
     assert_eq!(summary.dialect, "less");
     assert_eq!(summary.value_type, "AbstractCssValueV0");
     assert!(summary.supported_dialect);
-    assert_eq!(summary.product_output_source, "legacyEvaluatedCss");
-    assert!(summary.legacy_output_consumed_until_cutover);
+    assert_eq!(summary.product_output_source, "nativeEditOutput");
+    assert!(summary.legacy_output_retained_as_oracle);
+    assert!(!summary.legacy_output_consumed_until_cutover);
     assert!(summary.evaluation_available);
     assert_eq!(summary.divergence_count, 0);
     assert!(summary.all_legacy_declaration_values_preserved);
@@ -1324,8 +1338,9 @@ fn exposes_less_numeric_builtins_through_query_boundary() {
     assert_eq!(summary.dialect, "less");
     assert_eq!(summary.value_type, "AbstractCssValueV0");
     assert!(summary.supported_dialect);
-    assert_eq!(summary.product_output_source, "legacyEvaluatedCss");
-    assert!(summary.legacy_output_consumed_until_cutover);
+    assert_eq!(summary.product_output_source, "nativeEditOutput");
+    assert!(summary.legacy_output_retained_as_oracle);
+    assert!(!summary.legacy_output_consumed_until_cutover);
     assert!(summary.evaluation_available);
     assert_eq!(summary.divergence_count, 0);
     assert!(summary.all_legacy_declaration_values_preserved);
@@ -1357,8 +1372,9 @@ fn preserves_less_unsupported_css_math_builtins_through_query_boundary() {
     assert_eq!(summary.dialect, "less");
     assert_eq!(summary.value_type, "AbstractCssValueV0");
     assert!(summary.supported_dialect);
-    assert_eq!(summary.product_output_source, "legacyEvaluatedCss");
-    assert!(summary.legacy_output_consumed_until_cutover);
+    assert_eq!(summary.product_output_source, "nativeEditOutput");
+    assert!(summary.legacy_output_retained_as_oracle);
+    assert!(!summary.legacy_output_consumed_until_cutover);
     assert!(summary.evaluation_available);
     assert_eq!(summary.divergence_count, 0);
     assert!(summary.all_legacy_declaration_values_preserved);
@@ -1390,8 +1406,9 @@ fn exposes_less_escape_builtin_without_reentry_through_query_boundary() {
     assert_eq!(summary.dialect, "less");
     assert_eq!(summary.value_type, "AbstractCssValueV0");
     assert!(summary.supported_dialect);
-    assert_eq!(summary.product_output_source, "legacyEvaluatedCss");
-    assert!(summary.legacy_output_consumed_until_cutover);
+    assert_eq!(summary.product_output_source, "nativeEditOutput");
+    assert!(summary.legacy_output_retained_as_oracle);
+    assert!(!summary.legacy_output_consumed_until_cutover);
     assert!(summary.evaluation_available);
     assert_eq!(summary.divergence_count, 0);
     assert!(summary.all_legacy_declaration_values_preserved);
@@ -1419,8 +1436,9 @@ fn exposes_less_url_escape_builtin_through_query_boundary() {
     assert_eq!(summary.dialect, "less");
     assert_eq!(summary.value_type, "AbstractCssValueV0");
     assert!(summary.supported_dialect);
-    assert_eq!(summary.product_output_source, "legacyEvaluatedCss");
-    assert!(summary.legacy_output_consumed_until_cutover);
+    assert_eq!(summary.product_output_source, "nativeEditOutput");
+    assert!(summary.legacy_output_retained_as_oracle);
+    assert!(!summary.legacy_output_consumed_until_cutover);
     assert!(summary.evaluation_available);
     assert_eq!(summary.divergence_count, 0);
     assert!(summary.all_legacy_declaration_values_preserved);
@@ -1449,8 +1467,9 @@ fn exposes_less_type_predicate_builtins_through_query_boundary() {
     assert_eq!(summary.dialect, "less");
     assert_eq!(summary.value_type, "AbstractCssValueV0");
     assert!(summary.supported_dialect);
-    assert_eq!(summary.product_output_source, "legacyEvaluatedCss");
-    assert!(summary.legacy_output_consumed_until_cutover);
+    assert_eq!(summary.product_output_source, "nativeEditOutput");
+    assert!(summary.legacy_output_retained_as_oracle);
+    assert!(!summary.legacy_output_consumed_until_cutover);
     assert!(summary.evaluation_available);
     assert_eq!(summary.divergence_count, 0);
     assert!(summary.all_legacy_declaration_values_preserved);
@@ -1481,8 +1500,9 @@ fn exposes_less_property_isdefined_builtins_through_query_boundary() {
     assert_eq!(summary.dialect, "less");
     assert_eq!(summary.value_type, "AbstractCssValueV0");
     assert!(summary.supported_dialect);
-    assert_eq!(summary.product_output_source, "legacyEvaluatedCss");
-    assert!(summary.legacy_output_consumed_until_cutover);
+    assert_eq!(summary.product_output_source, "nativeEditOutput");
+    assert!(summary.legacy_output_retained_as_oracle);
+    assert!(!summary.legacy_output_consumed_until_cutover);
     assert!(summary.evaluation_available);
     assert_eq!(summary.divergence_count, 0);
     assert!(summary.all_legacy_declaration_values_preserved);
@@ -1509,8 +1529,9 @@ fn exposes_less_property_variable_aliases_through_query_boundary() {
     assert_eq!(summary.dialect, "less");
     assert_eq!(summary.value_type, "AbstractCssValueV0");
     assert!(summary.supported_dialect);
-    assert_eq!(summary.product_output_source, "legacyEvaluatedCss");
-    assert!(summary.legacy_output_consumed_until_cutover);
+    assert_eq!(summary.product_output_source, "nativeEditOutput");
+    assert!(summary.legacy_output_retained_as_oracle);
+    assert!(!summary.legacy_output_consumed_until_cutover);
     assert!(summary.evaluation_available);
     assert_eq!(summary.divergence_count, 0);
     assert!(summary.all_legacy_declaration_values_preserved);
@@ -1546,8 +1567,9 @@ fn exposes_less_conditional_builtins_through_query_boundary() {
     assert_eq!(summary.dialect, "less");
     assert_eq!(summary.value_type, "AbstractCssValueV0");
     assert!(summary.supported_dialect);
-    assert_eq!(summary.product_output_source, "legacyEvaluatedCss");
-    assert!(summary.legacy_output_consumed_until_cutover);
+    assert_eq!(summary.product_output_source, "nativeEditOutput");
+    assert!(summary.legacy_output_retained_as_oracle);
+    assert!(!summary.legacy_output_consumed_until_cutover);
     assert!(summary.evaluation_available);
     assert_eq!(summary.divergence_count, 0);
     assert!(summary.all_legacy_declaration_values_preserved);
@@ -1576,8 +1598,9 @@ fn exposes_less_color_channel_builtins_through_query_boundary() {
     assert_eq!(summary.dialect, "less");
     assert_eq!(summary.value_type, "AbstractCssValueV0");
     assert!(summary.supported_dialect);
-    assert_eq!(summary.product_output_source, "legacyEvaluatedCss");
-    assert!(summary.legacy_output_consumed_until_cutover);
+    assert_eq!(summary.product_output_source, "nativeEditOutput");
+    assert!(summary.legacy_output_retained_as_oracle);
+    assert!(!summary.legacy_output_consumed_until_cutover);
     assert!(summary.evaluation_available);
     assert_eq!(summary.divergence_count, 0);
     assert!(summary.all_legacy_declaration_values_preserved);
@@ -1605,8 +1628,9 @@ fn exposes_less_rgb_color_constructors_through_query_boundary() {
     assert_eq!(summary.dialect, "less");
     assert_eq!(summary.value_type, "AbstractCssValueV0");
     assert!(summary.supported_dialect);
-    assert_eq!(summary.product_output_source, "legacyEvaluatedCss");
-    assert!(summary.legacy_output_consumed_until_cutover);
+    assert_eq!(summary.product_output_source, "nativeEditOutput");
+    assert!(summary.legacy_output_retained_as_oracle);
+    assert!(!summary.legacy_output_consumed_until_cutover);
     assert!(summary.evaluation_available);
     assert_eq!(summary.divergence_count, 0);
     assert!(summary.all_legacy_declaration_values_preserved);
@@ -1640,8 +1664,9 @@ fn exposes_less_color_metadata_builtins_through_query_boundary() {
     assert_eq!(summary.dialect, "less");
     assert_eq!(summary.value_type, "AbstractCssValueV0");
     assert!(summary.supported_dialect);
-    assert_eq!(summary.product_output_source, "legacyEvaluatedCss");
-    assert!(summary.legacy_output_consumed_until_cutover);
+    assert_eq!(summary.product_output_source, "nativeEditOutput");
+    assert!(summary.legacy_output_retained_as_oracle);
+    assert!(!summary.legacy_output_consumed_until_cutover);
     assert!(summary.evaluation_available);
     assert_eq!(summary.divergence_count, 0);
     assert!(summary.all_legacy_declaration_values_preserved);
@@ -1669,8 +1694,9 @@ fn exposes_less_hsv_color_metadata_builtins_through_query_boundary() {
     assert_eq!(summary.dialect, "less");
     assert_eq!(summary.value_type, "AbstractCssValueV0");
     assert!(summary.supported_dialect);
-    assert_eq!(summary.product_output_source, "legacyEvaluatedCss");
-    assert!(summary.legacy_output_consumed_until_cutover);
+    assert_eq!(summary.product_output_source, "nativeEditOutput");
+    assert!(summary.legacy_output_retained_as_oracle);
+    assert!(!summary.legacy_output_consumed_until_cutover);
     assert!(summary.evaluation_available);
     assert_eq!(summary.divergence_count, 0);
     assert!(summary.all_legacy_declaration_values_preserved);
@@ -1704,8 +1730,9 @@ fn exposes_less_contrast_and_color_builtins_through_query_boundary() {
     assert_eq!(summary.dialect, "less");
     assert_eq!(summary.value_type, "AbstractCssValueV0");
     assert!(summary.supported_dialect);
-    assert_eq!(summary.product_output_source, "legacyEvaluatedCss");
-    assert!(summary.legacy_output_consumed_until_cutover);
+    assert_eq!(summary.product_output_source, "nativeEditOutput");
+    assert!(summary.legacy_output_retained_as_oracle);
+    assert!(!summary.legacy_output_consumed_until_cutover);
     assert!(summary.evaluation_available);
     assert_eq!(summary.divergence_count, 0);
     assert!(summary.all_legacy_declaration_values_preserved);
@@ -1737,8 +1764,9 @@ fn exposes_less_alpha_transform_builtins_through_query_boundary() {
     assert_eq!(summary.dialect, "less");
     assert_eq!(summary.value_type, "AbstractCssValueV0");
     assert!(summary.supported_dialect);
-    assert_eq!(summary.product_output_source, "legacyEvaluatedCss");
-    assert!(summary.legacy_output_consumed_until_cutover);
+    assert_eq!(summary.product_output_source, "nativeEditOutput");
+    assert!(summary.legacy_output_retained_as_oracle);
+    assert!(!summary.legacy_output_consumed_until_cutover);
     assert!(summary.evaluation_available);
     assert_eq!(summary.divergence_count, 0);
     assert!(summary.all_legacy_declaration_values_preserved);
@@ -1778,8 +1806,9 @@ fn exposes_less_hsl_color_transform_builtins_through_query_boundary() {
     assert_eq!(summary.dialect, "less");
     assert_eq!(summary.value_type, "AbstractCssValueV0");
     assert!(summary.supported_dialect);
-    assert_eq!(summary.product_output_source, "legacyEvaluatedCss");
-    assert!(summary.legacy_output_consumed_until_cutover);
+    assert_eq!(summary.product_output_source, "nativeEditOutput");
+    assert!(summary.legacy_output_retained_as_oracle);
+    assert!(!summary.legacy_output_consumed_until_cutover);
     assert!(summary.evaluation_available);
     assert_eq!(summary.divergence_count, 0);
     assert!(summary.all_legacy_declaration_values_preserved);
@@ -1816,8 +1845,9 @@ fn exposes_less_color_mix_builtins_through_query_boundary() {
     assert_eq!(summary.dialect, "less");
     assert_eq!(summary.value_type, "AbstractCssValueV0");
     assert!(summary.supported_dialect);
-    assert_eq!(summary.product_output_source, "legacyEvaluatedCss");
-    assert!(summary.legacy_output_consumed_until_cutover);
+    assert_eq!(summary.product_output_source, "nativeEditOutput");
+    assert!(summary.legacy_output_retained_as_oracle);
+    assert!(!summary.legacy_output_consumed_until_cutover);
     assert!(summary.evaluation_available);
     assert_eq!(summary.divergence_count, 0);
     assert!(summary.all_legacy_declaration_values_preserved);
@@ -1851,8 +1881,9 @@ fn exposes_less_color_blend_builtins_through_query_boundary() {
     assert_eq!(summary.dialect, "less");
     assert_eq!(summary.value_type, "AbstractCssValueV0");
     assert!(summary.supported_dialect);
-    assert_eq!(summary.product_output_source, "legacyEvaluatedCss");
-    assert!(summary.legacy_output_consumed_until_cutover);
+    assert_eq!(summary.product_output_source, "nativeEditOutput");
+    assert!(summary.legacy_output_retained_as_oracle);
+    assert!(!summary.legacy_output_consumed_until_cutover);
     assert!(summary.evaluation_available);
     assert_eq!(summary.divergence_count, 0);
     assert!(summary.all_legacy_declaration_values_preserved);
@@ -1885,8 +1916,9 @@ fn exposes_less_alpha_color_blend_builtins_through_query_boundary() {
     assert_eq!(summary.dialect, "less");
     assert_eq!(summary.value_type, "AbstractCssValueV0");
     assert!(summary.supported_dialect);
-    assert_eq!(summary.product_output_source, "legacyEvaluatedCss");
-    assert!(summary.legacy_output_consumed_until_cutover);
+    assert_eq!(summary.product_output_source, "nativeEditOutput");
+    assert!(summary.legacy_output_retained_as_oracle);
+    assert!(!summary.legacy_output_consumed_until_cutover);
     assert!(summary.evaluation_available);
     assert_eq!(summary.divergence_count, 0);
     assert!(summary.all_legacy_declaration_values_preserved);
@@ -1943,8 +1975,9 @@ fn exposes_less_list_builtins_through_query_boundary() {
     assert_eq!(summary.dialect, "less");
     assert_eq!(summary.value_type, "AbstractCssValueV0");
     assert!(summary.supported_dialect);
-    assert_eq!(summary.product_output_source, "legacyEvaluatedCss");
-    assert!(summary.legacy_output_consumed_until_cutover);
+    assert_eq!(summary.product_output_source, "nativeEditOutput");
+    assert!(summary.legacy_output_retained_as_oracle);
+    assert!(!summary.legacy_output_consumed_until_cutover);
     assert!(summary.evaluation_available);
     assert_eq!(summary.divergence_count, 0);
     assert!(summary.all_legacy_declaration_values_preserved);
@@ -1972,8 +2005,9 @@ fn exposes_less_range_builtin_through_query_boundary() {
     assert_eq!(summary.dialect, "less");
     assert_eq!(summary.value_type, "AbstractCssValueV0");
     assert!(summary.supported_dialect);
-    assert_eq!(summary.product_output_source, "legacyEvaluatedCss");
-    assert!(summary.legacy_output_consumed_until_cutover);
+    assert_eq!(summary.product_output_source, "nativeEditOutput");
+    assert!(summary.legacy_output_retained_as_oracle);
+    assert!(!summary.legacy_output_consumed_until_cutover);
     assert!(summary.evaluation_available);
     assert_eq!(summary.divergence_count, 0);
     assert!(summary.all_legacy_declaration_values_preserved);
@@ -2000,8 +2034,9 @@ fn exposes_less_replace_builtin_through_query_boundary() {
     assert_eq!(summary.dialect, "less");
     assert_eq!(summary.value_type, "AbstractCssValueV0");
     assert!(summary.supported_dialect);
-    assert_eq!(summary.product_output_source, "legacyEvaluatedCss");
-    assert!(summary.legacy_output_consumed_until_cutover);
+    assert_eq!(summary.product_output_source, "nativeEditOutput");
+    assert!(summary.legacy_output_retained_as_oracle);
+    assert!(!summary.legacy_output_consumed_until_cutover);
     assert!(summary.evaluation_available);
     assert_eq!(summary.divergence_count, 0);
     assert!(summary.all_legacy_declaration_values_preserved);
@@ -2029,8 +2064,9 @@ fn exposes_less_format_builtin_through_query_boundary() {
     assert_eq!(summary.dialect, "less");
     assert_eq!(summary.value_type, "AbstractCssValueV0");
     assert!(summary.supported_dialect);
-    assert_eq!(summary.product_output_source, "legacyEvaluatedCss");
-    assert!(summary.legacy_output_consumed_until_cutover);
+    assert_eq!(summary.product_output_source, "nativeEditOutput");
+    assert!(summary.legacy_output_retained_as_oracle);
+    assert!(!summary.legacy_output_consumed_until_cutover);
     assert!(summary.evaluation_available);
     assert_eq!(summary.divergence_count, 0);
     assert!(summary.all_legacy_declaration_values_preserved);
@@ -2060,8 +2096,9 @@ fn exposes_less_isruleset_builtin_through_query_boundary() {
     assert_eq!(summary.dialect, "less");
     assert_eq!(summary.value_type, "AbstractCssValueV0");
     assert!(summary.supported_dialect);
-    assert_eq!(summary.product_output_source, "legacyEvaluatedCss");
-    assert!(summary.legacy_output_consumed_until_cutover);
+    assert_eq!(summary.product_output_source, "nativeEditOutput");
+    assert!(summary.legacy_output_retained_as_oracle);
+    assert!(!summary.legacy_output_consumed_until_cutover);
     assert!(summary.evaluation_available);
     assert_eq!(summary.divergence_count, 0);
     assert!(summary.all_legacy_declaration_values_preserved);
@@ -2086,8 +2123,9 @@ fn exposes_less_static_mixin_evaluator_oracle_through_query_boundary() {
     assert_eq!(summary.dialect, "less");
     assert_eq!(summary.value_type, "AbstractCssValueV0");
     assert!(summary.supported_dialect);
-    assert_eq!(summary.product_output_source, "legacyEvaluatedCss");
-    assert!(summary.legacy_output_consumed_until_cutover);
+    assert_eq!(summary.product_output_source, "nativeEditOutput");
+    assert!(summary.legacy_output_retained_as_oracle);
+    assert!(!summary.legacy_output_consumed_until_cutover);
     assert!(summary.evaluation_available);
     assert_eq!(summary.divergence_count, 0);
     assert!(summary.all_legacy_declaration_values_preserved);
@@ -2111,7 +2149,7 @@ fn exposes_less_named_mixin_arguments_through_query_boundary() {
     assert_eq!(summary.mode, "oracleOnly");
     assert_eq!(summary.dialect, "less");
     assert_eq!(summary.value_type, "AbstractCssValueV0");
-    assert!(summary.legacy_output_consumed_until_cutover);
+    assert!(!summary.legacy_output_consumed_until_cutover);
     assert!(summary.evaluation_available);
     assert_eq!(summary.divergence_count, 0);
     assert!(summary.all_legacy_declaration_values_preserved);
@@ -2134,7 +2172,7 @@ fn exposes_less_semicolon_named_mixin_arguments_through_query_boundary() {
     assert_eq!(summary.mode, "oracleOnly");
     assert_eq!(summary.dialect, "less");
     assert_eq!(summary.value_type, "AbstractCssValueV0");
-    assert!(summary.legacy_output_consumed_until_cutover);
+    assert!(!summary.legacy_output_consumed_until_cutover);
     assert!(summary.evaluation_available);
     assert_eq!(summary.divergence_count, 0);
     assert!(summary.all_legacy_declaration_values_preserved);
@@ -2157,7 +2195,7 @@ fn exposes_less_variadic_mixin_arguments_through_query_boundary() {
     assert_eq!(summary.mode, "oracleOnly");
     assert_eq!(summary.dialect, "less");
     assert_eq!(summary.value_type, "AbstractCssValueV0");
-    assert!(summary.legacy_output_consumed_until_cutover);
+    assert!(!summary.legacy_output_consumed_until_cutover);
     assert!(summary.evaluation_available);
     assert_eq!(summary.divergence_count, 0);
     assert!(summary.all_legacy_declaration_values_preserved);
@@ -2185,7 +2223,7 @@ fn exposes_less_mixin_accessors_through_query_boundary() {
     assert_eq!(summary.mode, "oracleOnly");
     assert_eq!(summary.dialect, "less");
     assert_eq!(summary.value_type, "AbstractCssValueV0");
-    assert!(summary.legacy_output_consumed_until_cutover);
+    assert!(!summary.legacy_output_consumed_until_cutover);
     assert!(summary.evaluation_available);
     assert_eq!(summary.divergence_count, 0);
     assert!(summary.all_legacy_declaration_values_preserved);
@@ -2210,7 +2248,7 @@ fn exposes_less_unknown_mixin_accessor_members_as_preserved_oracle_output_throug
     assert_eq!(summary.product, "omena-query.static-stylesheet-evaluator");
     assert_eq!(summary.mode, "oracleOnly");
     assert_eq!(summary.value_type, "AbstractCssValueV0");
-    assert!(summary.legacy_output_consumed_until_cutover);
+    assert!(!summary.legacy_output_consumed_until_cutover);
     assert!(summary.evaluation_available);
     assert_eq!(summary.divergence_count, 0);
     assert!(summary.all_legacy_declaration_values_preserved);
@@ -2232,7 +2270,7 @@ fn exposes_less_unknown_mixin_accessor_property_members_as_preserved_oracle_outp
     assert_eq!(summary.product, "omena-query.static-stylesheet-evaluator");
     assert_eq!(summary.mode, "oracleOnly");
     assert_eq!(summary.value_type, "AbstractCssValueV0");
-    assert!(summary.legacy_output_consumed_until_cutover);
+    assert!(!summary.legacy_output_consumed_until_cutover);
     assert!(summary.evaluation_available);
     assert_eq!(summary.divergence_count, 0);
     assert!(summary.all_legacy_declaration_values_preserved);
@@ -2254,7 +2292,7 @@ fn exposes_less_unknown_detached_ruleset_accessor_members_as_preserved_oracle_ou
     assert_eq!(summary.product, "omena-query.static-stylesheet-evaluator");
     assert_eq!(summary.mode, "oracleOnly");
     assert_eq!(summary.value_type, "AbstractCssValueV0");
-    assert!(summary.legacy_output_consumed_until_cutover);
+    assert!(!summary.legacy_output_consumed_until_cutover);
     assert!(summary.evaluation_available);
     assert_eq!(summary.divergence_count, 0);
     assert!(summary.all_legacy_declaration_values_preserved);
@@ -2278,7 +2316,7 @@ fn exposes_less_unknown_detached_ruleset_mixin_calls_as_preserved_oracle_output_
     assert_eq!(summary.product, "omena-query.static-stylesheet-evaluator");
     assert_eq!(summary.mode, "oracleOnly");
     assert_eq!(summary.value_type, "AbstractCssValueV0");
-    assert!(summary.legacy_output_consumed_until_cutover);
+    assert!(!summary.legacy_output_consumed_until_cutover);
     assert!(summary.evaluation_available);
     assert_eq!(summary.divergence_count, 0);
     assert!(summary.all_legacy_declaration_values_preserved);
@@ -2302,7 +2340,7 @@ fn exposes_less_namespace_mixins_through_query_boundary() {
     assert_eq!(summary.mode, "oracleOnly");
     assert_eq!(summary.dialect, "less");
     assert_eq!(summary.value_type, "AbstractCssValueV0");
-    assert!(summary.legacy_output_consumed_until_cutover);
+    assert!(!summary.legacy_output_consumed_until_cutover);
     assert!(summary.evaluation_available);
     assert_eq!(summary.divergence_count, 0);
     assert!(summary.all_legacy_declaration_values_preserved);
@@ -2324,7 +2362,7 @@ fn exposes_less_parameterized_namespace_mixins_through_query_boundary() {
     assert_eq!(summary.mode, "oracleOnly");
     assert_eq!(summary.dialect, "less");
     assert_eq!(summary.value_type, "AbstractCssValueV0");
-    assert!(summary.legacy_output_consumed_until_cutover);
+    assert!(!summary.legacy_output_consumed_until_cutover);
     assert!(summary.evaluation_available);
     assert_eq!(summary.divergence_count, 0);
     assert!(summary.all_legacy_declaration_values_preserved);
@@ -2347,7 +2385,7 @@ fn exposes_less_unbound_parameterized_namespace_mixins_as_preserved_oracle_outpu
     assert_eq!(summary.mode, "oracleOnly");
     assert_eq!(summary.dialect, "less");
     assert_eq!(summary.value_type, "AbstractCssValueV0");
-    assert!(summary.legacy_output_consumed_until_cutover);
+    assert!(!summary.legacy_output_consumed_until_cutover);
     assert!(summary.evaluation_available);
     assert_eq!(summary.divergence_count, 0);
     assert!(summary.all_legacy_declaration_values_preserved);
@@ -2370,7 +2408,7 @@ fn exposes_less_literal_pattern_mixins_through_query_boundary() {
     assert_eq!(summary.mode, "oracleOnly");
     assert_eq!(summary.dialect, "less");
     assert_eq!(summary.value_type, "AbstractCssValueV0");
-    assert!(summary.legacy_output_consumed_until_cutover);
+    assert!(!summary.legacy_output_consumed_until_cutover);
     assert!(summary.evaluation_available);
     assert_eq!(summary.divergence_count, 0);
     assert!(summary.all_legacy_declaration_values_preserved);
@@ -2395,7 +2433,7 @@ fn exposes_less_unmatched_literal_pattern_mixins_as_preserved_oracle_output_thro
     assert_eq!(summary.mode, "oracleOnly");
     assert_eq!(summary.dialect, "less");
     assert_eq!(summary.value_type, "AbstractCssValueV0");
-    assert!(summary.legacy_output_consumed_until_cutover);
+    assert!(!summary.legacy_output_consumed_until_cutover);
     assert!(summary.evaluation_available);
     assert_eq!(summary.divergence_count, 0);
     assert!(summary.all_legacy_declaration_values_preserved);
@@ -2418,7 +2456,7 @@ fn exposes_less_important_mixins_through_query_boundary() {
     assert_eq!(summary.mode, "oracleOnly");
     assert_eq!(summary.dialect, "less");
     assert_eq!(summary.value_type, "AbstractCssValueV0");
-    assert!(summary.legacy_output_consumed_until_cutover);
+    assert!(!summary.legacy_output_consumed_until_cutover);
     assert!(summary.evaluation_available);
     assert_eq!(summary.divergence_count, 0);
     assert!(summary.all_legacy_declaration_values_preserved);
@@ -2441,7 +2479,7 @@ fn exposes_less_unknown_mixin_call_suffixes_as_preserved_oracle_output_through_q
     assert_eq!(summary.mode, "oracleOnly");
     assert_eq!(summary.dialect, "less");
     assert_eq!(summary.value_type, "AbstractCssValueV0");
-    assert!(summary.legacy_output_consumed_until_cutover);
+    assert!(!summary.legacy_output_consumed_until_cutover);
     assert!(summary.evaluation_available);
     assert_eq!(summary.divergence_count, 0);
     assert!(summary.all_legacy_declaration_values_preserved);
@@ -2464,7 +2502,7 @@ fn exposes_less_default_guarded_mixins_through_query_boundary() {
     assert_eq!(summary.mode, "oracleOnly");
     assert_eq!(summary.dialect, "less");
     assert_eq!(summary.value_type, "AbstractCssValueV0");
-    assert!(summary.legacy_output_consumed_until_cutover);
+    assert!(!summary.legacy_output_consumed_until_cutover);
     assert!(summary.evaluation_available);
     assert_eq!(summary.divergence_count, 0);
     assert!(summary.all_legacy_declaration_values_preserved);
@@ -2487,7 +2525,7 @@ fn exposes_less_ruleset_guarded_mixin_oracle_through_query_boundary() {
     assert_eq!(summary.mode, "oracleOnly");
     assert_eq!(summary.dialect, "less");
     assert_eq!(summary.value_type, "AbstractCssValueV0");
-    assert!(summary.legacy_output_consumed_until_cutover);
+    assert!(!summary.legacy_output_consumed_until_cutover);
     assert!(summary.evaluation_available);
     assert_eq!(summary.divergence_count, 0);
     assert!(summary.all_legacy_declaration_values_preserved);
@@ -2511,7 +2549,7 @@ fn exposes_less_isdefined_guarded_mixin_oracle_through_query_boundary() {
     assert_eq!(summary.mode, "oracleOnly");
     assert_eq!(summary.dialect, "less");
     assert_eq!(summary.value_type, "AbstractCssValueV0");
-    assert!(summary.legacy_output_consumed_until_cutover);
+    assert!(!summary.legacy_output_consumed_until_cutover);
     assert!(summary.evaluation_available);
     assert_eq!(summary.divergence_count, 0);
     assert!(summary.all_legacy_declaration_values_preserved);
@@ -2534,7 +2572,7 @@ fn exposes_less_property_isdefined_guarded_mixin_through_query_boundary() {
     assert_eq!(summary.mode, "oracleOnly");
     assert_eq!(summary.dialect, "less");
     assert_eq!(summary.value_type, "AbstractCssValueV0");
-    assert!(summary.legacy_output_consumed_until_cutover);
+    assert!(!summary.legacy_output_consumed_until_cutover);
     assert!(summary.evaluation_available);
     assert_eq!(summary.divergence_count, 0);
     assert!(summary.all_legacy_declaration_values_preserved);
@@ -2555,7 +2593,7 @@ fn exposes_static_scss_while_argument_returns_through_query_boundary() {
     assert_eq!(summary.product, "omena-query.static-stylesheet-evaluator");
     assert_eq!(summary.mode, "oracleOnly");
     assert_eq!(summary.value_type, "AbstractCssValueV0");
-    assert!(summary.legacy_output_consumed_until_cutover);
+    assert!(!summary.legacy_output_consumed_until_cutover);
     assert_eq!(summary.divergence_count, 0);
     assert!(summary.all_legacy_declaration_values_preserved);
     assert_eq!(summary.native_replacement_count, 1);
@@ -2583,7 +2621,7 @@ fn exposes_less_property_guarded_mixins_through_query_boundary() {
     assert_eq!(summary.mode, "oracleOnly");
     assert_eq!(summary.dialect, "less");
     assert_eq!(summary.value_type, "AbstractCssValueV0");
-    assert!(summary.legacy_output_consumed_until_cutover);
+    assert!(!summary.legacy_output_consumed_until_cutover);
     assert!(summary.evaluation_available);
     assert_eq!(summary.divergence_count, 0);
     assert!(summary.all_legacy_declaration_values_preserved);
@@ -2608,7 +2646,7 @@ fn exposes_less_future_property_guarded_mixins_as_preserved_oracle_output_throug
     assert_eq!(summary.mode, "oracleOnly");
     assert_eq!(summary.dialect, "less");
     assert_eq!(summary.value_type, "AbstractCssValueV0");
-    assert!(summary.legacy_output_consumed_until_cutover);
+    assert!(!summary.legacy_output_consumed_until_cutover);
     assert!(summary.evaluation_available);
     assert_eq!(summary.divergence_count, 0);
     assert!(summary.all_legacy_declaration_values_preserved);
@@ -2634,7 +2672,7 @@ fn exposes_less_false_guarded_mixins_as_preserved_oracle_output_through_query_bo
     assert_eq!(summary.product, "omena-query.static-stylesheet-evaluator");
     assert_eq!(summary.mode, "oracleOnly");
     assert_eq!(summary.value_type, "AbstractCssValueV0");
-    assert!(summary.legacy_output_consumed_until_cutover);
+    assert!(!summary.legacy_output_consumed_until_cutover);
     assert!(summary.evaluation_available);
     assert_eq!(summary.divergence_count, 0);
     assert!(summary.all_legacy_declaration_values_preserved);
@@ -2656,7 +2694,7 @@ fn exposes_less_false_guarded_namespace_mixins_as_preserved_oracle_output_throug
     assert_eq!(summary.product, "omena-query.static-stylesheet-evaluator");
     assert_eq!(summary.mode, "oracleOnly");
     assert_eq!(summary.value_type, "AbstractCssValueV0");
-    assert!(summary.legacy_output_consumed_until_cutover);
+    assert!(!summary.legacy_output_consumed_until_cutover);
     assert!(summary.evaluation_available);
     assert_eq!(summary.divergence_count, 0);
     assert!(summary.all_legacy_declaration_values_preserved);
@@ -2678,7 +2716,7 @@ fn exposes_static_scss_for_loop_returns_through_query_boundary() {
     assert_eq!(summary.product, "omena-query.static-stylesheet-evaluator");
     assert_eq!(summary.mode, "oracleOnly");
     assert_eq!(summary.value_type, "AbstractCssValueV0");
-    assert!(summary.legacy_output_consumed_until_cutover);
+    assert!(!summary.legacy_output_consumed_until_cutover);
     assert_eq!(summary.divergence_count, 0);
     assert!(summary.all_legacy_declaration_values_preserved);
     assert_eq!(summary.native_replacement_count, 1);
@@ -2705,7 +2743,7 @@ fn exposes_static_scss_each_loop_returns_through_query_boundary() {
     assert_eq!(summary.product, "omena-query.static-stylesheet-evaluator");
     assert_eq!(summary.mode, "oracleOnly");
     assert_eq!(summary.value_type, "AbstractCssValueV0");
-    assert!(summary.legacy_output_consumed_until_cutover);
+    assert!(!summary.legacy_output_consumed_until_cutover);
     assert_eq!(summary.divergence_count, 0);
     assert!(summary.all_legacy_declaration_values_preserved);
     assert_eq!(summary.native_replacement_count, 1);

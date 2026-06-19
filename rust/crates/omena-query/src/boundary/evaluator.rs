@@ -84,6 +84,7 @@ pub struct OmenaQueryStaticStylesheetEvaluatorSummaryV0 {
     pub value_type: &'static str,
     pub supported_dialect: bool,
     pub product_output_source: &'static str,
+    pub legacy_output_retained_as_oracle: bool,
     pub legacy_output_consumed_until_cutover: bool,
     pub evaluation_available: bool,
     pub value_resolution_available: bool,
@@ -113,6 +114,8 @@ pub struct OmenaQueryStaticStylesheetEvaluatorOracleCorpusSummaryV0 {
     pub mode: &'static str,
     pub value_type: &'static str,
     pub product_output_source: &'static str,
+    pub legacy_output_retained_as_oracle_count: usize,
+    pub all_legacy_outputs_retained_as_oracle: bool,
     pub fixture_count: usize,
     pub scss_fixture_count: usize,
     pub sass_fixture_count: usize,
@@ -184,9 +187,15 @@ pub fn summarize_omena_query_static_stylesheet_evaluator_from_source(
         dialect: omena_query_boundary_style_dialect_label(dialect),
         value_type: "AbstractCssValueV0",
         supported_dialect,
-        product_output_source: oracle.map_or("none", |oracle| oracle.product_output_source),
-        legacy_output_consumed_until_cutover: oracle
-            .is_some_and(|oracle| oracle.product_output_source == "legacyEvaluatedCss"),
+        product_output_source: evaluation
+            .as_ref()
+            .map_or("none", |evaluation| evaluation.product_output_source),
+        legacy_output_retained_as_oracle: evaluation
+            .as_ref()
+            .is_some_and(|evaluation| evaluation.legacy_output_retained_as_oracle),
+        legacy_output_consumed_until_cutover: evaluation
+            .as_ref()
+            .is_some_and(|evaluation| evaluation.legacy_output_consumed_until_cutover),
         evaluation_available: evaluation.is_some(),
         value_resolution_available: value_resolution.is_some(),
         native_edit_output: evaluation
@@ -295,6 +304,8 @@ pub fn summarize_omena_query_static_stylesheet_evaluator_oracle_corpus()
         mode: corpus.mode,
         value_type: corpus.value_type,
         product_output_source: corpus.product_output_source,
+        legacy_output_retained_as_oracle_count: corpus.legacy_output_retained_as_oracle_count,
+        all_legacy_outputs_retained_as_oracle: corpus.all_legacy_outputs_retained_as_oracle,
         fixture_count: corpus.fixture_count,
         scss_fixture_count: corpus.scss_fixture_count,
         sass_fixture_count: corpus.sass_fixture_count,

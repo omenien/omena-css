@@ -23,6 +23,8 @@ interface StaticStylesheetEvaluatorOracleCorpusSummaryV0 {
   readonly mode: string;
   readonly valueType: string;
   readonly productOutputSource: string;
+  readonly legacyOutputRetainedAsOracleCount: number;
+  readonly allLegacyOutputsRetainedAsOracle: boolean;
   readonly fixtureCount: number;
   readonly scssFixtureCount: number;
   readonly sassFixtureCount: number;
@@ -631,12 +633,14 @@ function assertStaticStylesheetEvaluatorOracleCorpus(
   assert.equal(summary.product, "omena-query.static-stylesheet-evaluator-oracle-corpus");
   assert.equal(summary.mode, "oracleOnly");
   assert.equal(summary.valueType, "AbstractCssValueV0");
-  assert.equal(summary.productOutputSource, "legacyEvaluatedCss");
+  assert.equal(summary.productOutputSource, "nativeEditOutput");
   assert.ok(summary.fixtureCount >= 55, "static stylesheet oracle corpus must not shrink");
   assert.ok(summary.scssFixtureCount >= 10, "SCSS oracle fixture coverage must not shrink");
   assert.ok(summary.sassFixtureCount >= 7, "Sass oracle fixture coverage must not shrink");
   assert.ok(summary.lessFixtureCount >= 45, "Less oracle fixture coverage must not shrink");
   assert.equal(summary.evaluatedFixtureCount, summary.fixtureCount);
+  assert.equal(summary.legacyOutputRetainedAsOracleCount, summary.evaluatedFixtureCount);
+  assert.equal(summary.allLegacyOutputsRetainedAsOracle, true);
   assert.equal(summary.missingEvaluationCount, 0);
   assert.equal(summary.divergenceCount, 0);
   assert.equal(summary.nativeEditOutputMatchCount, summary.fixtureCount);
