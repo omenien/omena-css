@@ -231,9 +231,15 @@ pub(super) struct StaticLessMixinAccessorRenderResult {
     pub(super) used_declaration_name: String,
 }
 
+pub(super) enum StaticLessMixinAccessorCallRenderOutcome {
+    Rendered(StaticLessMixinAccessorRenderResult),
+    PreservedRaw,
+}
+
 pub(super) enum StaticLessMixinAccessorRenderOutcome {
     Rendered(StaticLessMixinAccessorRenderResult),
     GuardNotMatched,
+    MemberNotFound,
 }
 
 #[derive(Debug, Clone, Copy)]

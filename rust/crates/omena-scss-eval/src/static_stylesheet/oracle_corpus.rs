@@ -226,6 +226,11 @@ fn static_stylesheet_oracle_corpus_fixtures() -> &'static [StaticStylesheetOracl
             source: ".tokens(@color, @gap: 1px) { @result: @color; width: @gap; } .button { color: .tokens(red)[@result]; margin: .tokens(red, 2px)[width]; }",
         },
         StaticStylesheetOracleCorpusFixtureV0 {
+            id: "less.unknown-mixin-accessor-member",
+            dialect: StyleDialect::Less,
+            source: ".tokens(@color) { @result: @color; } .button { color: .tokens(red)[@missing]; }",
+        },
+        StaticStylesheetOracleCorpusFixtureV0 {
             id: "less.namespace-mixin",
             dialect: StyleDialect::Less,
             source: "#bundle() { .rounded(@radius) { border-radius: @radius; } } .button { #bundle > .rounded(2px); }",

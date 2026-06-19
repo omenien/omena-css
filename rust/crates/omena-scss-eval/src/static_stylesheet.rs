@@ -41,15 +41,16 @@ use less_guard::{
 use model::{
     StaticLessDetachedRulesetAccessor, StaticLessDetachedRulesetCall,
     StaticLessDetachedRulesetDeclaration, StaticLessMixinAccessor,
-    StaticLessMixinAccessorRenderOutcome, StaticLessMixinAccessorRenderResult,
-    StaticLessMixinBodyLocalDeclaration, StaticLessMixinCall, StaticLessMixinCallRenderOutcome,
-    StaticLessMixinDeclaration, StaticLessMixinRenderContext, StaticLessMixinRenderOutcome,
-    StaticLessMixinRenderResult, StaticScssFunctionArgument, StaticScssFunctionCall,
-    StaticScssFunctionDeclaration, StaticScssFunctionLocalScope, StaticScssFunctionLocalVariable,
-    StaticScssFunctionParameter, StaticScssFunctionResolutionContext,
-    StaticScssFunctionReturnClause, StaticScssLoopHeader, StaticScssMixinBodyLocalDeclaration,
-    StaticScssMixinDeclaration, StaticScssMixinIncludeCall, StaticScssMixinRenderResult,
-    StaticStylesheetEvaluationEdit, StaticStylesheetPropertyDeclaration, StaticStylesheetScope,
+    StaticLessMixinAccessorCallRenderOutcome, StaticLessMixinAccessorRenderOutcome,
+    StaticLessMixinAccessorRenderResult, StaticLessMixinBodyLocalDeclaration, StaticLessMixinCall,
+    StaticLessMixinCallRenderOutcome, StaticLessMixinDeclaration, StaticLessMixinRenderContext,
+    StaticLessMixinRenderOutcome, StaticLessMixinRenderResult, StaticScssFunctionArgument,
+    StaticScssFunctionCall, StaticScssFunctionDeclaration, StaticScssFunctionLocalScope,
+    StaticScssFunctionLocalVariable, StaticScssFunctionParameter,
+    StaticScssFunctionResolutionContext, StaticScssFunctionReturnClause, StaticScssLoopHeader,
+    StaticScssMixinBodyLocalDeclaration, StaticScssMixinDeclaration, StaticScssMixinIncludeCall,
+    StaticScssMixinRenderResult, StaticStylesheetEvaluationEdit,
+    StaticStylesheetPropertyDeclaration, StaticStylesheetScope,
     StaticStylesheetScopedVariableDeclaration, StaticStylesheetVariableDeclaration,
     StaticStylesheetVariableKind,
 };
@@ -128,6 +129,11 @@ const STATIC_STYLESHEET_VALUE_RESOLUTION_FUEL_LIMIT: usize = 128;
 struct StaticLessMixinEvaluationEdits {
     edits: Vec<StaticStylesheetEvaluationEdit>,
     preserved_non_rendering_call_count: usize,
+}
+
+struct StaticLessMixinAccessorEvaluationEdits {
+    edits: Vec<StaticStylesheetEvaluationEdit>,
+    preserved_raw_accessor_count: usize,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -414,7 +420,7 @@ fn derive_static_less_stylesheet_module_evaluation(
         collect_static_less_property_declarations(style_source, tokens, &scopes)?;
 
     let mut edits = Vec::new();
-    let mut preserved_non_rendering_less_mixin_call_count = 0usize;
+    let mut preserved_less_evaluation_count = 0usize;
     let mut resolved_replacements = Vec::new();
     for declaration in declarations.values() {
         for (start, end) in &declaration.removal_spans {
@@ -568,7 +574,7 @@ fn derive_static_less_stylesheet_module_evaluation(
             &property_declarations,
         )?,
     );
-    edits.extend(collect_static_less_mixin_accessor_evaluation_edits(
+    let accessor_evaluation_edits = collect_static_less_mixin_accessor_evaluation_edits(
         style_source,
         tokens,
         &mixin_declarations,
@@ -577,7 +583,9 @@ fn derive_static_less_stylesheet_module_evaluation(
         &declarations,
         &property_declarations,
         &detached_ruleset_ranges,
-    )?);
+    )?;
+    preserved_less_evaluation_count += accessor_evaluation_edits.preserved_raw_accessor_count;
+    edits.extend(accessor_evaluation_edits.edits);
     if let Some(mixin_evaluation_edits) = collect_static_less_mixin_evaluation_edits(
         style_source,
         tokens,
@@ -588,13 +596,13 @@ fn derive_static_less_stylesheet_module_evaluation(
         &property_declarations,
         &detached_ruleset_ranges,
     ) {
-        preserved_non_rendering_less_mixin_call_count +=
+        preserved_less_evaluation_count +=
             mixin_evaluation_edits.preserved_non_rendering_call_count;
         edits.extend(mixin_evaluation_edits.edits);
     }
 
     let evaluated_css = apply_static_stylesheet_evaluation_edits(style_source, edits)?;
-    if evaluated_css == style_source && preserved_non_rendering_less_mixin_call_count == 0 {
+    if evaluated_css == style_source && preserved_less_evaluation_count == 0 {
         return None;
     }
     build_static_stylesheet_evaluation_report(
@@ -2537,10 +2545,13 @@ fn collect_static_less_mixin_accessor_evaluation_edits(
     variable_declarations: &BTreeMap<(usize, String), StaticStylesheetVariableDeclaration>,
     property_declarations: &BTreeMap<(usize, String), StaticStylesheetPropertyDeclaration>,
     excluded_ranges: &[(usize, usize)],
-) -> Option<Vec<StaticStylesheetEvaluationEdit>> {
+) -> Option<StaticLessMixinAccessorEvaluationEdits> {
     let accessors = collect_static_less_mixin_accessors(source, tokens)?;
     if accessors.is_empty() {
-        return Some(Vec::new());
+        return Some(StaticLessMixinAccessorEvaluationEdits {
+            edits: Vec::new(),
+            preserved_raw_accessor_count: 0,
+        });
     }
 
     let declaration_ranges = static_less_mixin_declaration_ranges_from_declarations(declarations);
@@ -2555,6 +2566,7 @@ fn collect_static_less_mixin_accessor_evaluation_edits(
         captured_values: &empty_captured_values,
     };
     let mut edits = Vec::new();
+    let mut preserved_raw_accessor_count = 0usize;
     let mut used_declaration_names = BTreeSet::new();
     for accessor in accessors.iter().filter(|accessor| {
         !static_stylesheet_position_is_inside_ranges(accessor.start, &declaration_ranges)
@@ -2562,13 +2574,22 @@ fn collect_static_less_mixin_accessor_evaluation_edits(
     }) {
         let call_scope_id = static_stylesheet_scope_for_position(scopes, accessor.start)?;
         let rendered = render_static_less_mixin_accessor(accessor, call_scope_id, context)?;
-        let rendered = rendered?;
-        used_declaration_names.insert(rendered.used_declaration_name);
-        edits.push(StaticStylesheetEvaluationEdit {
-            start: accessor.start,
-            end: accessor.end,
-            replacement: rendered.value,
-        });
+        let Some(rendered) = rendered else {
+            continue;
+        };
+        match rendered {
+            StaticLessMixinAccessorCallRenderOutcome::Rendered(rendered) => {
+                used_declaration_names.insert(rendered.used_declaration_name);
+                edits.push(StaticStylesheetEvaluationEdit {
+                    start: accessor.start,
+                    end: accessor.end,
+                    replacement: rendered.value,
+                });
+            }
+            StaticLessMixinAccessorCallRenderOutcome::PreservedRaw => {
+                preserved_raw_accessor_count += 1;
+            }
+        }
     }
 
     for declaration in declarations.iter().filter(|declaration| {
@@ -2581,7 +2602,10 @@ fn collect_static_less_mixin_accessor_evaluation_edits(
             replacement: String::new(),
         });
     }
-    Some(edits)
+    Some(StaticLessMixinAccessorEvaluationEdits {
+        edits,
+        preserved_raw_accessor_count,
+    })
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -3699,7 +3723,7 @@ fn render_static_less_mixin_accessor(
     accessor: &StaticLessMixinAccessor,
     call_scope_id: usize,
     context: StaticLessMixinRenderContext<'_>,
-) -> Option<Option<StaticLessMixinAccessorRenderResult>> {
+) -> Option<Option<StaticLessMixinAccessorCallRenderOutcome>> {
     let canonical_accessor_name = canonical_static_less_mixin_name(accessor.name.as_str());
     let declarations = context
         .declarations
@@ -3722,6 +3746,9 @@ fn render_static_less_mixin_accessor(
         arguments: accessor.arguments.clone(),
     };
     let mut rendered_values = Vec::new();
+    let mut saw_parameter_match = false;
+    let mut saw_guard_not_matched = false;
+    let mut saw_member_not_found = false;
     for declaration in &declarations {
         if declaration
             .guard
@@ -3733,6 +3760,7 @@ fn render_static_less_mixin_accessor(
         if !static_less_mixin_parameter_patterns_match(&declaration.parameters, &call.arguments) {
             continue;
         }
+        saw_parameter_match = true;
         match render_static_less_mixin_accessor_declaration(
             declaration,
             &call,
@@ -3744,7 +3772,12 @@ fn render_static_less_mixin_accessor(
             StaticLessMixinAccessorRenderOutcome::Rendered(rendered) => {
                 rendered_values.push(rendered)
             }
-            StaticLessMixinAccessorRenderOutcome::GuardNotMatched => {}
+            StaticLessMixinAccessorRenderOutcome::GuardNotMatched => {
+                saw_guard_not_matched = true;
+            }
+            StaticLessMixinAccessorRenderOutcome::MemberNotFound => {
+                saw_member_not_found = true;
+            }
         }
     }
 
@@ -3758,6 +3791,7 @@ fn render_static_less_mixin_accessor(
         if !static_less_mixin_parameter_patterns_match(&declaration.parameters, &call.arguments) {
             continue;
         }
+        saw_parameter_match = true;
         match render_static_less_mixin_accessor_declaration(
             declaration,
             &call,
@@ -3769,13 +3803,25 @@ fn render_static_less_mixin_accessor(
             StaticLessMixinAccessorRenderOutcome::Rendered(rendered) => {
                 rendered_values.push(rendered)
             }
-            StaticLessMixinAccessorRenderOutcome::GuardNotMatched => {}
+            StaticLessMixinAccessorRenderOutcome::GuardNotMatched => {
+                saw_guard_not_matched = true;
+            }
+            StaticLessMixinAccessorRenderOutcome::MemberNotFound => {
+                saw_member_not_found = true;
+            }
         }
     }
 
     let mut rendered_values = rendered_values.into_iter();
-    let rendered = rendered_values.next()?;
-    rendered_values.next().is_none().then_some(Some(rendered))
+    let Some(rendered) = rendered_values.next() else {
+        if saw_parameter_match && (saw_member_not_found || saw_guard_not_matched) {
+            return Some(Some(StaticLessMixinAccessorCallRenderOutcome::PreservedRaw));
+        }
+        return Some(None);
+    };
+    rendered_values.next().is_none().then_some(Some(
+        StaticLessMixinAccessorCallRenderOutcome::Rendered(rendered),
+    ))
 }
 
 fn render_static_less_mixin_accessor_declaration(
@@ -3844,7 +3890,10 @@ fn render_static_less_mixin_accessor_declaration(
         context.detached_ruleset_declarations,
     )?;
     let value = if static_less_variable_name_is_safe(member) {
-        scoped_values.get(member)?.clone()
+        let Some(value) = scoped_values.get(member) else {
+            return Some(StaticLessMixinAccessorRenderOutcome::MemberNotFound);
+        };
+        value.clone()
     } else {
         static_less_mixin_accessor_property_value(
             body,
@@ -9488,9 +9537,9 @@ mod tests {
         assert_eq!(report.mode, "oracleOnly");
         assert_eq!(report.value_type, "AbstractCssValueV0");
         assert_eq!(report.product_output_source, "legacyEvaluatedCss");
-        assert_eq!(report.fixture_count, 41);
+        assert_eq!(report.fixture_count, 42);
         assert_eq!(report.scss_fixture_count, 6);
-        assert_eq!(report.less_fixture_count, 35);
+        assert_eq!(report.less_fixture_count, 36);
         assert_eq!(report.evaluated_fixture_count, report.fixture_count);
         assert_eq!(report.missing_evaluation_count, 0);
         assert_eq!(report.divergence_count, 0);
@@ -9672,13 +9721,21 @@ mod tests {
     }
 
     #[test]
-    fn static_less_evaluation_keeps_unknown_mixin_accessor_members_planned_only() {
+    fn static_less_evaluation_preserves_unknown_mixin_accessor_members_as_oracle_report() {
         let report = derive_static_stylesheet_module_evaluation(
             ".tokens(@color) { @result: @color; } .button { color: .tokens(red)[@missing]; }",
             StyleDialect::Less,
         );
 
-        assert!(report.is_none());
+        assert!(report.is_some());
+        let Some(report) = report else {
+            return;
+        };
+
+        assert!(report.evaluated_css.contains(".tokens(red)[@missing]"));
+        assert!(report.evaluated_css.contains("@result: @color"));
+        assert_eq!(report.replacement_count, 0);
+        assert!(report.oracle.all_legacy_declaration_values_preserved);
     }
 
     #[test]

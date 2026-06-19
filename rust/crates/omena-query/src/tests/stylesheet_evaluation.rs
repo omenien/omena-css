@@ -760,7 +760,7 @@ fn consumer_build_derives_static_less_evaluator_context_for_mixin_declaration_ac
 }
 
 #[test]
-fn consumer_build_keeps_unknown_less_mixin_accessor_members_planned_only() {
+fn consumer_build_executes_unknown_less_mixin_accessor_members_as_preserved_oracle_output() {
     let summary = execute_omena_query_consumer_build_style_source(
         "Button.module.less",
         ".tokens(@color) { @result: @color; } .button { color: .tokens(red)[@missing]; }",
@@ -773,6 +773,12 @@ fn consumer_build_keeps_unknown_less_mixin_accessor_members_planned_only() {
 
     assert!(
         summary
+            .execution
+            .executed_pass_ids
+            .contains(&"less-module-evaluate")
+    );
+    assert!(
+        !summary
             .execution
             .planned_only_pass_ids
             .contains(&"less-module-evaluate")
