@@ -6157,6 +6157,15 @@ fn resolve_static_less_variable_abstract_value_text(
     stack: &mut BTreeSet<(usize, String)>,
     fuel: usize,
 ) -> StaticStylesheetAbstractResolution {
+    if let Some(value) = parse_static_less_isdefined_value_with_context(
+        value,
+        scope_id,
+        scopes,
+        declarations,
+        detached_ruleset_declarations,
+    ) {
+        return resolved_static_abstract_value(value.as_str());
+    }
     if let Some(value) = parse_static_less_isruleset_value_with_context(
         value,
         scope_id,
@@ -6267,6 +6276,18 @@ fn resolve_static_less_variable_value_text(
     detached_ruleset_declarations: &[StaticLessDetachedRulesetDeclaration],
     stack: &mut BTreeSet<(usize, String)>,
 ) -> Option<StaticLessResolvedValue> {
+    if let Some(value) = parse_static_less_isdefined_value_with_context(
+        value,
+        scope_id,
+        scopes,
+        declarations,
+        detached_ruleset_declarations,
+    ) {
+        return Some(StaticLessResolvedValue {
+            text: value,
+            escaped: false,
+        });
+    }
     if let Some(value) = parse_static_less_isruleset_value_with_context(
         value,
         scope_id,
@@ -6632,6 +6653,7 @@ fn reduce_static_less_value_with_escape_flag(value: String) -> StaticLessResolve
             ("isstring", parse_static_less_isstring_value),
             ("iskeyword", parse_static_less_iskeyword_value),
             ("isurl", parse_static_less_isurl_value),
+            ("isdefined", parse_static_less_isdefined_value),
             ("isruleset", parse_static_less_isruleset_value),
             ("ispixel", parse_static_less_ispixel_value),
             ("ispercentage", parse_static_less_ispercentage_value),
@@ -7735,6 +7757,65 @@ fn parse_static_less_iskeyword_value(value: &str) -> Option<String> {
 
 fn parse_static_less_isurl_value(value: &str) -> Option<String> {
     parse_static_less_unary_predicate_value(value, "isurl", static_less_guard_value_is_url)
+}
+
+fn parse_static_less_isdefined_value(value: &str) -> Option<String> {
+    let arguments = parse_whole_function_value_arguments(value, "isdefined")?;
+    let [value] = arguments.as_slice() else {
+        return None;
+    };
+    (!value.trim().starts_with('@')).then_some(true.to_string())
+}
+
+fn parse_static_less_isdefined_value_with_context(
+    value: &str,
+    scope_id: usize,
+    scopes: &[StaticStylesheetScope],
+    variable_declarations: &BTreeMap<(usize, String), StaticStylesheetVariableDeclaration>,
+    detached_ruleset_declarations: &[StaticLessDetachedRulesetDeclaration],
+) -> Option<String> {
+    let arguments = parse_whole_function_value_arguments(value, "isdefined")?;
+    let [value] = arguments.as_slice() else {
+        return None;
+    };
+    static_less_isdefined_argument_matches(
+        value,
+        scope_id,
+        scopes,
+        variable_declarations,
+        detached_ruleset_declarations,
+    )
+    .map(|defined| defined.to_string())
+}
+
+fn static_less_isdefined_argument_matches(
+    value: &str,
+    scope_id: usize,
+    scopes: &[StaticStylesheetScope],
+    variable_declarations: &BTreeMap<(usize, String), StaticStylesheetVariableDeclaration>,
+    detached_ruleset_declarations: &[StaticLessDetachedRulesetDeclaration],
+) -> Option<bool> {
+    let value = value.trim();
+    if value.is_empty() {
+        return None;
+    }
+    if !value.starts_with('@') {
+        return Some(true);
+    }
+    if value.starts_with("@@") || !static_less_variable_name_is_safe(value) {
+        return None;
+    }
+    Some(
+        find_static_less_variable_declaration(value, scope_id, scopes, variable_declarations)
+            .is_some()
+            || find_static_less_detached_ruleset_declaration(
+                value,
+                scope_id,
+                scopes,
+                detached_ruleset_declarations,
+            )
+            .is_some(),
+    )
 }
 
 fn parse_static_less_isruleset_value(value: &str) -> Option<String> {
@@ -8950,9 +9031,9 @@ mod tests {
         assert_eq!(report.mode, "oracleOnly");
         assert_eq!(report.value_type, "AbstractCssValueV0");
         assert_eq!(report.product_output_source, "legacyEvaluatedCss");
-        assert_eq!(report.fixture_count, 25);
+        assert_eq!(report.fixture_count, 26);
         assert_eq!(report.scss_fixture_count, 6);
-        assert_eq!(report.less_fixture_count, 19);
+        assert_eq!(report.less_fixture_count, 20);
         assert_eq!(report.evaluated_fixture_count, report.fixture_count);
         assert_eq!(report.missing_evaluation_count, 0);
         assert_eq!(report.divergence_count, 0);
@@ -10873,7 +10954,7 @@ mod tests {
     #[test]
     fn static_less_evaluation_reduces_type_predicate_builtin_values() {
         let report = derive_static_stylesheet_module_evaluation(
-            "@number: isnumber(2px); @color: iscolor(red); @string: isstring(\"Roboto\"); @keyword: iskeyword(block); @url: isurl(url(\"a.png\")); @px: ispixel(2px); @pct: ispercentage(50%); @em: isem(1em); @unit-ok: isunit(1rem, rem); @unit-bad: isunit(1rem, px); .button { --number: @number; --color: @color; --string: @string; --keyword: @keyword; --url: @url; --px: @px; --pct: @pct; --em: @em; --unit-ok: @unit-ok; --unit-bad: @unit-bad; }",
+            "@number: isnumber(2px); @color: iscolor(red); @string: isstring(\"Roboto\"); @keyword: iskeyword(block); @url: isurl(url(\"a.png\")); @defined: isdefined(@color); @missing: isdefined(@absent); @literal: isdefined(red); @future-defined: isdefined(@future); @future: blue; @px: ispixel(2px); @pct: ispercentage(50%); @em: isem(1em); @unit-ok: isunit(1rem, rem); @unit-bad: isunit(1rem, px); .button { --number: @number; --color: @color; --string: @string; --keyword: @keyword; --url: @url; --defined: @defined; --missing: @missing; --literal: @literal; --future-defined: @future-defined; --px: @px; --pct: @pct; --em: @em; --unit-ok: @unit-ok; --unit-bad: @unit-bad; }",
             StyleDialect::Less,
         );
         assert!(report.is_some());
@@ -10881,9 +10962,9 @@ mod tests {
             return;
         };
 
-        assert_eq!(report.replacement_count, 10);
+        assert_eq!(report.replacement_count, 14);
         assert_eq!(report.value_resolution.resolved_count, 0);
-        assert_eq!(report.value_resolution.raw_count, 10);
+        assert_eq!(report.value_resolution.raw_count, 14);
         assert!(
             report
                 .resolved_replacements
@@ -10891,6 +10972,10 @@ mod tests {
                 .all(|replacement| replacement.abstract_value_kind == "raw")
         );
         assert!(report.evaluated_css.contains("--number: true"));
+        assert!(report.evaluated_css.contains("--defined: true"));
+        assert!(report.evaluated_css.contains("--missing: false"));
+        assert!(report.evaluated_css.contains("--literal: true"));
+        assert!(report.evaluated_css.contains("--future-defined: true"));
         assert!(report.evaluated_css.contains("--unit-ok: true"));
         assert!(report.evaluated_css.contains("--unit-bad: false"));
         assert!(report.oracle.all_legacy_declaration_values_preserved);

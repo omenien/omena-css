@@ -16,9 +16,9 @@ fn exposes_static_stylesheet_oracle_corpus_through_query_boundary() {
     assert_eq!(summary.mode, "oracleOnly");
     assert_eq!(summary.value_type, "AbstractCssValueV0");
     assert_eq!(summary.product_output_source, "legacyEvaluatedCss");
-    assert_eq!(summary.fixture_count, 25);
+    assert_eq!(summary.fixture_count, 26);
     assert_eq!(summary.scss_fixture_count, 6);
-    assert_eq!(summary.less_fixture_count, 19);
+    assert_eq!(summary.less_fixture_count, 20);
     assert_eq!(summary.evaluated_fixture_count, summary.fixture_count);
     assert_eq!(summary.missing_evaluation_count, 0);
     assert_eq!(summary.divergence_count, 0);
@@ -58,6 +58,13 @@ fn exposes_static_stylesheet_oracle_corpus_through_query_boundary() {
             .fixtures
             .iter()
             .any(|fixture| fixture.id == "less.isruleset-predicate")
+    );
+    assert!(
+        summary
+            .corpus
+            .fixtures
+            .iter()
+            .any(|fixture| fixture.id == "less.isdefined-predicate")
     );
     assert!(
         summary
@@ -772,7 +779,7 @@ fn exposes_less_url_escape_builtin_through_query_boundary() {
 #[test]
 fn exposes_less_type_predicate_builtins_through_query_boundary() {
     let summary = summarize_omena_query_static_stylesheet_evaluator_from_source(
-        "@number: isnumber(2px); @color: iscolor(red); @string: isstring(\"Roboto\"); @keyword: iskeyword(block); @url: isurl(url(\"a.png\")); @px: ispixel(2px); @pct: ispercentage(50%); @em: isem(1em); @unit-ok: isunit(1rem, rem); @unit-bad: isunit(1rem, px); .button { --number: @number; --color: @color; --string: @string; --keyword: @keyword; --url: @url; --px: @px; --pct: @pct; --em: @em; --unit-ok: @unit-ok; --unit-bad: @unit-bad; }",
+        "@number: isnumber(2px); @color: iscolor(red); @string: isstring(\"Roboto\"); @keyword: iskeyword(block); @url: isurl(url(\"a.png\")); @defined: isdefined(@color); @missing: isdefined(@absent); @literal: isdefined(red); @future-defined: isdefined(@future); @future: blue; @px: ispixel(2px); @pct: ispercentage(50%); @em: isem(1em); @unit-ok: isunit(1rem, rem); @unit-bad: isunit(1rem, px); .button { --number: @number; --color: @color; --string: @string; --keyword: @keyword; --url: @url; --defined: @defined; --missing: @missing; --literal: @literal; --future-defined: @future-defined; --px: @px; --pct: @pct; --em: @em; --unit-ok: @unit-ok; --unit-bad: @unit-bad; }",
         OmenaParserStyleDialect::Less,
     );
 
@@ -786,12 +793,16 @@ fn exposes_less_type_predicate_builtins_through_query_boundary() {
     assert!(summary.evaluation_available);
     assert_eq!(summary.divergence_count, 0);
     assert!(summary.all_legacy_declaration_values_preserved);
-    assert_eq!(summary.native_replacement_count, 10);
+    assert_eq!(summary.native_replacement_count, 14);
     assert_eq!(summary.native_resolved_value_count, 0);
-    assert_eq!(summary.native_raw_value_count, 10);
+    assert_eq!(summary.native_raw_value_count, 14);
     assert_eq!(summary.native_top_value_count, 0);
     assert!(summary.evaluation.as_ref().is_some_and(|evaluation| {
         evaluation.evaluated_css.contains("--number: true")
+            && evaluation.evaluated_css.contains("--defined: true")
+            && evaluation.evaluated_css.contains("--missing: false")
+            && evaluation.evaluated_css.contains("--literal: true")
+            && evaluation.evaluated_css.contains("--future-defined: true")
             && evaluation.evaluated_css.contains("--unit-ok: true")
             && evaluation.evaluated_css.contains("--unit-bad: false")
     }));
