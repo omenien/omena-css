@@ -9882,8 +9882,8 @@ mod tests {
         assert_eq!(report.mode, "oracleOnly");
         assert_eq!(report.value_type, "AbstractCssValueV0");
         assert_eq!(report.product_output_source, "legacyEvaluatedCss");
-        assert_eq!(report.fixture_count, 53);
-        assert_eq!(report.scss_fixture_count, 8);
+        assert_eq!(report.fixture_count, 55);
+        assert_eq!(report.scss_fixture_count, 10);
         assert_eq!(report.less_fixture_count, 45);
         assert_eq!(report.evaluated_fixture_count, report.fixture_count);
         assert_eq!(report.missing_evaluation_count, 0);
@@ -9891,8 +9891,22 @@ mod tests {
         assert!(report.native_replacement_count > 0);
         assert!(report.native_value_reference_count > 0);
         assert!(report.native_resolved_value_count > 0);
-        assert_eq!(report.native_top_value_count, 0);
+        assert!(report.native_top_value_count > 0);
         assert!(report.all_legacy_declaration_values_preserved);
+        assert!(
+            report
+                .fixtures
+                .iter()
+                .any(|fixture| fixture.id == "scss.dynamic-function-return"
+                    && fixture.native_top_value_count == 1)
+        );
+        assert!(
+            report
+                .fixtures
+                .iter()
+                .any(|fixture| fixture.id == "scss.recursive-function-return"
+                    && fixture.native_top_value_count == 1)
+        );
         assert!(
             report
                 .fixtures

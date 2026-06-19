@@ -191,6 +191,16 @@ fn static_stylesheet_oracle_corpus_fixtures() -> &'static [StaticStylesheetOracl
             source: "@function pick($target) { $i: 0; @while $i < 3 { @if $i == $target { @return $i + 1; } $i: $i + 1; } @return 0; } .button { z-index: pick(2); }",
         },
         StaticStylesheetOracleCorpusFixtureV0 {
+            id: "scss.dynamic-function-return",
+            dialect: StyleDialect::Scss,
+            source: "@function tone($enabled) { @if $enabled { @return red; } @else { @return blue; } } .button { color: tone(var(--enabled)); }",
+        },
+        StaticStylesheetOracleCorpusFixtureV0 {
+            id: "scss.recursive-function-return",
+            dialect: StyleDialect::Scss,
+            source: "@function loop($value) { @return loop($value); } .button { color: loop(red); }",
+        },
+        StaticStylesheetOracleCorpusFixtureV0 {
             id: "scss.static-mixin-include",
             dialect: StyleDialect::Scss,
             source: "@mixin tone($color, $gap: 1px) { color: $color; margin: $gap; } .button { @include tone(red, 2px); }",
