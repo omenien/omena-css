@@ -48,6 +48,57 @@ interface StaticStylesheetEvaluatorOracleFixtureSummaryV0 {
   readonly nativeEditOutputMatchesEvaluatedCss: boolean;
 }
 
+interface ScssEvaluatorControlFlowOracleCorpusSummaryV0 {
+  readonly product: string;
+  readonly mode: string;
+  readonly valueType: string;
+  readonly nodeKeyType: string;
+  readonly recursionCap: number;
+  readonly fixtureCount: number;
+  readonly supportedFixtureCount: number;
+  readonly rejectedFlatCssFixtureCount: number;
+  readonly controlFlowFixtureCount: number;
+  readonly branchFixtureCount: number;
+  readonly loopFixtureCount: number;
+  readonly backEdgeFixtureCount: number;
+  readonly callReturnFixtureCount: number;
+  readonly resolvedCallReturnFixtureCount: number;
+  readonly topCallReturnFixtureCount: number;
+  readonly recursiveCallFixtureCount: number;
+  readonly convergedValueAnalysisFixtureCount: number;
+  readonly widenedToTopFixtureCount: number;
+  readonly flatCssCfgBuiltCount: number;
+  readonly mergedCrossFileGraphCount: number;
+  readonly allSupportedFixturesConverged: boolean;
+  readonly noFlatCssCfgBuilt: boolean;
+  readonly noMergedCrossFileGraph: boolean;
+  readonly corpus?: ScssEvaluatorControlFlowOracleCorpusSummaryV0 & {
+    readonly fixtures: readonly ScssEvaluatorControlFlowOracleFixtureSummaryV0[];
+  };
+}
+
+interface ScssEvaluatorControlFlowOracleFixtureSummaryV0 {
+  readonly id: string;
+  readonly dialect: string;
+  readonly supportedDialect: boolean;
+  readonly controlFlowAvailable: boolean;
+  readonly valueAnalysisAvailable: boolean;
+  readonly callReturnAvailable: boolean;
+  readonly branchBlockCount: number;
+  readonly loopBlockCount: number;
+  readonly backEdgeCount: number;
+  readonly callResolvedReturnValueCount: number;
+  readonly exactCallResolvedReturnValueCount: number;
+  readonly topCallResolvedReturnValueCount: number;
+  readonly recursiveEdgeCount: number;
+  readonly cappedRecursiveCallCount: number;
+  readonly valueAnalysisConverged: boolean;
+  readonly valueAnalysisIterationCount: number;
+  readonly widenedToTopCount: number;
+  readonly flatCssCfgBuilt: boolean;
+  readonly mergedCrossFileGraph: boolean;
+}
+
 const EXPECTED_RUNNER_COMMANDS = new Map([
   [
     "queryEvaluationRuntime",
@@ -500,6 +551,8 @@ void (async () => {
 
   const staticStylesheetOracleCorpus = runStaticStylesheetEvaluatorOracleCorpus();
   assertStaticStylesheetEvaluatorOracleCorpus(staticStylesheetOracleCorpus);
+  const scssControlFlowOracleCorpus = runScssEvaluatorControlFlowOracleCorpus();
+  assertScssEvaluatorControlFlowOracleCorpus(scssControlFlowOracleCorpus);
 
   process.stdout.write(
     [
@@ -507,6 +560,7 @@ void (async () => {
       `backends=${summary.backendKinds.length}`,
       `runnerCommands=${summary.runnerCommands.length}`,
       `staticStylesheetOracleFixtures=${staticStylesheetOracleCorpus.fixtureCount}`,
+      `scssControlFlowOracleFixtures=${scssControlFlowOracleCorpus.fixtureCount}`,
       `routing=${summary.routingStatus}`,
     ].join(" "),
   );
@@ -538,6 +592,33 @@ function runStaticStylesheetEvaluatorOracleCorpus(): StaticStylesheetEvaluatorOr
     `static stylesheet evaluator oracle corpus command failed\nstdout=${result.stdout}\nstderr=${result.stderr}`,
   );
   return JSON.parse(result.stdout) as StaticStylesheetEvaluatorOracleCorpusSummaryV0;
+}
+
+function runScssEvaluatorControlFlowOracleCorpus(): ScssEvaluatorControlFlowOracleCorpusSummaryV0 {
+  const result = spawnSync(
+    "cargo",
+    [
+      "run",
+      "--manifest-path",
+      "rust/Cargo.toml",
+      "-p",
+      "engine-shadow-runner",
+      "--quiet",
+      "--",
+      SELECTED_QUERY_RUNNER_COMMANDS.scssEvaluatorControlFlowOracleCorpus,
+    ],
+    {
+      cwd: process.cwd(),
+      encoding: "utf8",
+      maxBuffer: 8 * 1024 * 1024,
+    },
+  );
+  assert.equal(
+    result.status,
+    0,
+    `SCSS control-flow oracle corpus command failed\nstdout=${result.stdout}\nstderr=${result.stderr}`,
+  );
+  return JSON.parse(result.stdout) as ScssEvaluatorControlFlowOracleCorpusSummaryV0;
 }
 
 function assertStaticStylesheetEvaluatorOracleCorpus(
@@ -586,4 +667,85 @@ function assertStaticStylesheetEvaluatorOracleCorpus(
       `oracle fixture ${id} native edits must match legacy output`,
     );
   }
+}
+
+function assertScssEvaluatorControlFlowOracleCorpus(
+  summary: ScssEvaluatorControlFlowOracleCorpusSummaryV0,
+): void {
+  assert.equal(summary.product, "omena-query.scss-evaluator-control-flow-oracle-corpus");
+  assert.equal(summary.mode, "oracleOnly");
+  assert.equal(summary.valueType, "AbstractCssValueV0");
+  assert.equal(summary.nodeKeyType, "StableNodeKeyV0");
+  assert.ok(summary.recursionCap > 0, "SCSS call-return recursion cap must stay explicit");
+  assert.ok(summary.fixtureCount >= 8, "SCSS control-flow oracle corpus must not shrink");
+  assert.ok(
+    summary.supportedFixtureCount >= 7,
+    "supported SCSS control-flow fixtures must not shrink",
+  );
+  assert.equal(summary.rejectedFlatCssFixtureCount, 1);
+  assert.ok(summary.branchFixtureCount >= 3);
+  assert.ok(summary.loopFixtureCount >= 4);
+  assert.ok(summary.backEdgeFixtureCount >= 4);
+  assert.ok(summary.callReturnFixtureCount >= 4);
+  assert.ok(summary.resolvedCallReturnFixtureCount >= 3);
+  assert.ok(summary.topCallReturnFixtureCount >= 1);
+  assert.ok(summary.recursiveCallFixtureCount >= 1);
+  assert.equal(summary.convergedValueAnalysisFixtureCount, summary.supportedFixtureCount);
+  assert.equal(summary.flatCssCfgBuiltCount, 0);
+  assert.equal(summary.mergedCrossFileGraphCount, 0);
+  assert.equal(summary.allSupportedFixturesConverged, true);
+  assert.equal(summary.noFlatCssCfgBuilt, true);
+  assert.equal(summary.noMergedCrossFileGraph, true);
+
+  const corpus = summary.corpus;
+  assert.ok(corpus, "selected-query facade must expose the underlying control-flow corpus");
+  assert.equal(corpus.product, "omena-scss-eval.control-flow-oracle-corpus");
+  assert.equal(corpus.fixtureCount, summary.fixtureCount);
+  assert.equal(corpus.noFlatCssCfgBuilt, true);
+  assert.equal(corpus.noMergedCrossFileGraph, true);
+
+  const fixtures = new Map(corpus.fixtures.map((fixture) => [fixture.id, fixture]));
+  assertControlFlowFixture(fixtures, "scss.branch-if-else", (fixture) => {
+    assert.equal(fixture.supportedDialect, true);
+    assert.ok(fixture.branchBlockCount > 0);
+    assert.equal(fixture.valueAnalysisConverged, true);
+  });
+  assertControlFlowFixture(fixtures, "scss.static-while-loop", (fixture) => {
+    assert.ok(fixture.loopBlockCount > 0);
+    assert.ok(fixture.backEdgeCount > 0);
+    assert.ok(fixture.valueAnalysisIterationCount > 0);
+  });
+  assertControlFlowFixture(fixtures, "scss.static-for-return", (fixture) => {
+    assert.ok(fixture.callResolvedReturnValueCount > 0);
+    assert.ok(fixture.exactCallResolvedReturnValueCount > 0);
+  });
+  assertControlFlowFixture(fixtures, "scss.dynamic-loop-top", (fixture) => {
+    assert.ok(fixture.topCallResolvedReturnValueCount > 0);
+  });
+  assertControlFlowFixture(fixtures, "scss.recursive-mixin-cap", (fixture) => {
+    assert.ok(fixture.recursiveEdgeCount > 0);
+    assert.ok(fixture.cappedRecursiveCallCount > 0);
+  });
+  assertControlFlowFixture(fixtures, "css.flat-rejected", (fixture) => {
+    assert.equal(fixture.supportedDialect, false);
+    assert.equal(fixture.controlFlowAvailable, false);
+    assert.equal(fixture.valueAnalysisAvailable, false);
+    assert.equal(fixture.callReturnAvailable, false);
+  });
+}
+
+function assertControlFlowFixture(
+  fixtures: Map<string, ScssEvaluatorControlFlowOracleFixtureSummaryV0>,
+  id: string,
+  assertFixture: (fixture: ScssEvaluatorControlFlowOracleFixtureSummaryV0) => void,
+): void {
+  const fixture = fixtures.get(id);
+  assert.ok(fixture, `missing SCSS control-flow oracle fixture ${id}`);
+  assert.equal(fixture.flatCssCfgBuilt, false, `fixture ${id} must not build a flat CSS CFG`);
+  assert.equal(
+    fixture.mergedCrossFileGraph,
+    false,
+    `fixture ${id} must not merge cross-file and in-file graphs`,
+  );
+  assertFixture(fixture);
 }
