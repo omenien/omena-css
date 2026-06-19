@@ -60,6 +60,19 @@ fn consumer_build_derives_static_scss_evaluator_context() {
                         && replacement.abstract_value_kind == "exact")
             )
     );
+    assert_eq!(
+        summary
+            .execution
+            .css_module_evaluation
+            .as_ref()
+            .and_then(|evaluation| evaluation.oracle.as_ref())
+            .map(|oracle| (
+                oracle.native_replacement_count,
+                oracle.native_replacement_legacy_reflection_count,
+                oracle.native_replacement_legacy_unreflected_count,
+            )),
+        Some((1, 1, 0))
+    );
 }
 
 #[test]
@@ -427,12 +440,26 @@ fn consumer_build_derives_static_less_evaluator_context() {
                 oracle.divergence_count,
                 oracle.all_legacy_declaration_values_preserved,
                 oracle.native_replacement_count,
+                oracle.native_replacement_legacy_reflection_count,
+                oracle.native_replacement_legacy_unreflected_count,
                 oracle.native_value_reference_count,
                 oracle.native_resolved_value_count,
                 oracle.native_raw_value_count,
                 oracle.native_top_value_count,
             )),
-        Some(("oracleOnly", "legacyEvaluatedCss", 0, true, 1, 1, 1, 0, 0))
+        Some((
+            "oracleOnly",
+            "legacyEvaluatedCss",
+            0,
+            true,
+            1,
+            1,
+            0,
+            1,
+            1,
+            0,
+            0
+        ))
     );
 }
 

@@ -16,7 +16,7 @@ use omena_value_lattice::{
 use serde::Serialize;
 
 use crate::{
-    abstract_css_value_kind,
+    abstract_css_value_kind, abstract_css_value_reflected_in_legacy_css,
     scss_metadata::reduce_static_scss_metadata_with_context,
     static_loop_frames::parse_static_scss_each_loop_binding_frames,
     summarize_omena_scss_eval_oracle,
@@ -75,6 +75,8 @@ pub struct OmenaScssEvalStaticStylesheetEvaluationV0 {
     pub dialect: &'static str,
     pub evaluated_css: String,
     pub replacement_count: usize,
+    pub native_replacement_legacy_reflection_count: usize,
+    pub native_replacement_legacy_unreflected_count: usize,
     pub resolved_replacements: Vec<OmenaScssEvalResolvedReplacementV0>,
     pub value_resolution: OmenaScssEvalStaticValueResolutionReportV0,
     pub oracle: crate::OmenaScssEvalOracleReportV0,
@@ -709,17 +711,51 @@ fn build_static_stylesheet_evaluation_report_with_value_resolution(
     if !oracle.all_legacy_declaration_values_preserved {
         return None;
     }
+    let native_replacement_legacy_reflection_count =
+        count_native_replacements_reflected_in_legacy_css(
+            resolved_replacements.as_slice(),
+            evaluated_css.as_str(),
+            dialect,
+        );
+    let native_replacement_legacy_unreflected_count = resolved_replacements
+        .len()
+        .saturating_sub(native_replacement_legacy_reflection_count);
     Some(OmenaScssEvalStaticStylesheetEvaluationV0 {
         schema_version: "0",
         product: "omena-scss-eval.static-stylesheet-evaluation",
         evaluator: variable_kind.evaluator_label(),
         dialect: dialect_label(dialect),
         replacement_count: resolved_replacements.len(),
+        native_replacement_legacy_reflection_count,
+        native_replacement_legacy_unreflected_count,
         resolved_replacements,
         value_resolution,
         evaluated_css,
         oracle,
     })
+}
+
+fn count_native_replacements_reflected_in_legacy_css(
+    replacements: &[OmenaScssEvalResolvedReplacementV0],
+    evaluated_css: &str,
+    dialect: StyleDialect,
+) -> usize {
+    replacements
+        .iter()
+        .filter(|replacement| {
+            replacement
+                .rendered_value
+                .as_deref()
+                .is_some_and(|rendered| {
+                    abstract_css_value_reflected_in_legacy_css(
+                        evaluated_css,
+                        dialect,
+                        rendered,
+                        &replacement.abstract_value,
+                    )
+                })
+        })
+        .count()
 }
 
 fn resolved_replacement_value(
@@ -9889,6 +9925,12 @@ mod tests {
         assert_eq!(report.missing_evaluation_count, 0);
         assert_eq!(report.divergence_count, 0);
         assert!(report.native_replacement_count > 0);
+        assert!(report.native_replacement_legacy_reflection_count > 0);
+        assert_eq!(
+            report.native_replacement_legacy_reflection_count
+                + report.native_replacement_legacy_unreflected_count,
+            report.native_replacement_count
+        );
         assert!(report.native_value_reference_count > 0);
         assert!(report.native_resolved_value_count > 0);
         assert!(report.native_top_value_count > 0);
@@ -9931,6 +9973,8 @@ mod tests {
             "omena-query-static-scss-variable-evaluator"
         );
         assert_eq!(report.replacement_count, 1);
+        assert_eq!(report.native_replacement_legacy_reflection_count, 1);
+        assert_eq!(report.native_replacement_legacy_unreflected_count, 0);
         assert_eq!(report.resolved_replacements[0].abstract_value_kind, "exact");
         assert_eq!(report.resolved_replacements[0].text, "0px");
         assert_eq!(report.value_resolution.resolved_count, 1);
@@ -10513,6 +10557,9 @@ mod tests {
 
         assert!(report.evaluated_css.contains(".space(1px...)"));
         assert!(!report.evaluated_css.contains("margin: 1px"));
+        assert_eq!(report.replacement_count, 1);
+        assert_eq!(report.native_replacement_legacy_reflection_count, 0);
+        assert_eq!(report.native_replacement_legacy_unreflected_count, 1);
         assert!(report.oracle.all_legacy_declaration_values_preserved);
     }
 

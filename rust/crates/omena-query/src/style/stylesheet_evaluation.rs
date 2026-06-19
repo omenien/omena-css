@@ -70,6 +70,10 @@ fn transform_module_evaluation_oracle(
             .oracle
             .all_legacy_declaration_values_preserved,
         native_replacement_count: evaluation.replacement_count,
+        native_replacement_legacy_reflection_count: evaluation
+            .native_replacement_legacy_reflection_count,
+        native_replacement_legacy_unreflected_count: evaluation
+            .native_replacement_legacy_unreflected_count,
         native_value_reference_count: evaluation.value_resolution.reference_count,
         native_resolved_value_count: evaluation.value_resolution.resolved_count,
         native_raw_value_count: evaluation.value_resolution.raw_count,

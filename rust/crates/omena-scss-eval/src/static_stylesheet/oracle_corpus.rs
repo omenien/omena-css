@@ -18,6 +18,8 @@ pub struct OmenaScssEvalStaticStylesheetOracleCorpusReportV0 {
     pub missing_evaluation_count: usize,
     pub divergence_count: usize,
     pub native_replacement_count: usize,
+    pub native_replacement_legacy_reflection_count: usize,
+    pub native_replacement_legacy_unreflected_count: usize,
     pub native_value_reference_count: usize,
     pub native_resolved_value_count: usize,
     pub native_raw_value_count: usize,
@@ -38,6 +40,8 @@ pub struct OmenaScssEvalStaticStylesheetOracleCorpusFixtureReportV0 {
     pub divergence_count: usize,
     pub all_legacy_declaration_values_preserved: bool,
     pub native_replacement_count: usize,
+    pub native_replacement_legacy_reflection_count: usize,
+    pub native_replacement_legacy_unreflected_count: usize,
     pub native_value_reference_count: usize,
     pub native_resolved_value_count: usize,
     pub native_raw_value_count: usize,
@@ -78,6 +82,14 @@ pub fn summarize_static_stylesheet_oracle_corpus()
         .iter()
         .map(|fixture| fixture.native_replacement_count)
         .sum();
+    let native_replacement_legacy_reflection_count = fixtures
+        .iter()
+        .map(|fixture| fixture.native_replacement_legacy_reflection_count)
+        .sum();
+    let native_replacement_legacy_unreflected_count = fixtures
+        .iter()
+        .map(|fixture| fixture.native_replacement_legacy_unreflected_count)
+        .sum();
     let native_value_reference_count = fixtures
         .iter()
         .map(|fixture| fixture.native_value_reference_count)
@@ -112,6 +124,8 @@ pub fn summarize_static_stylesheet_oracle_corpus()
         missing_evaluation_count,
         divergence_count,
         native_replacement_count,
+        native_replacement_legacy_reflection_count,
+        native_replacement_legacy_unreflected_count,
         native_value_reference_count,
         native_resolved_value_count,
         native_raw_value_count,
@@ -136,6 +150,8 @@ fn static_stylesheet_oracle_corpus_fixture_report(
             divergence_count: 0,
             all_legacy_declaration_values_preserved: false,
             native_replacement_count: 0,
+            native_replacement_legacy_reflection_count: 0,
+            native_replacement_legacy_unreflected_count: 0,
             native_value_reference_count: 0,
             native_resolved_value_count: 0,
             native_raw_value_count: 0,
@@ -156,6 +172,10 @@ fn static_stylesheet_oracle_corpus_fixture_report(
             .oracle
             .all_legacy_declaration_values_preserved,
         native_replacement_count: evaluation.replacement_count,
+        native_replacement_legacy_reflection_count: evaluation
+            .native_replacement_legacy_reflection_count,
+        native_replacement_legacy_unreflected_count: evaluation
+            .native_replacement_legacy_unreflected_count,
         native_value_reference_count: evaluation.value_resolution.reference_count,
         native_resolved_value_count: evaluation.value_resolution.resolved_count,
         native_raw_value_count: evaluation.value_resolution.raw_count,

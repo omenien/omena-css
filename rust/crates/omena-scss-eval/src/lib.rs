@@ -171,6 +171,62 @@ fn abstract_css_value_matches_legacy(
     }
 }
 
+pub(crate) fn abstract_css_value_reflected_in_legacy_css(
+    legacy_evaluated_css: &str,
+    dialect: StyleDialect,
+    rendered_value: &str,
+    abstract_value: &AbstractCssValueV0,
+) -> bool {
+    collect_legacy_declaration_values(legacy_evaluated_css, dialect)
+        .into_iter()
+        .any(|declaration| {
+            let legacy_value = declaration.value.trim();
+            abstract_css_value_matches_legacy(legacy_value, rendered_value, abstract_value)
+                || legacy_declaration_value_contains_rendered_value(legacy_value, rendered_value)
+        })
+}
+
+fn legacy_declaration_value_contains_rendered_value(
+    legacy_value: &str,
+    rendered_value: &str,
+) -> bool {
+    let rendered_value = rendered_value.trim();
+    if rendered_value.is_empty() {
+        return legacy_value.trim().is_empty();
+    }
+    legacy_value
+        .match_indices(rendered_value)
+        .any(|(start, _)| {
+            let end = start + rendered_value.len();
+            css_value_fragment_left_boundary(legacy_value, start)
+                && css_value_fragment_right_boundary(legacy_value, end)
+        })
+}
+
+fn css_value_fragment_left_boundary(source: &str, byte_index: usize) -> bool {
+    if byte_index == 0 {
+        return true;
+    }
+    source
+        .get(..byte_index)
+        .and_then(|text| text.chars().next_back())
+        .is_some_and(|character| !css_value_fragment_char_is_ident_like(character))
+}
+
+fn css_value_fragment_right_boundary(source: &str, byte_index: usize) -> bool {
+    if byte_index == source.len() {
+        return true;
+    }
+    source
+        .get(byte_index..)
+        .and_then(|text| text.chars().next())
+        .is_some_and(|character| !css_value_fragment_char_is_ident_like(character))
+}
+
+fn css_value_fragment_char_is_ident_like(character: char) -> bool {
+    character.is_ascii_alphanumeric() || matches!(character, '-' | '_' | '%' | '.' | '#')
+}
+
 pub(crate) fn abstract_css_value_kind(value: &AbstractCssValueV0) -> &'static str {
     match value {
         AbstractCssValueV0::Bottom => "bottom",

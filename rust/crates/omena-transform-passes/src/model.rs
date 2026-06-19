@@ -317,6 +317,8 @@ pub struct TransformModuleEvaluationOracleV0 {
     pub divergence_count: usize,
     pub all_legacy_declaration_values_preserved: bool,
     pub native_replacement_count: usize,
+    pub native_replacement_legacy_reflection_count: usize,
+    pub native_replacement_legacy_unreflected_count: usize,
     pub native_value_reference_count: usize,
     pub native_resolved_value_count: usize,
     pub native_raw_value_count: usize,
