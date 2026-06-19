@@ -1,7 +1,51 @@
 use crate::{
     OmenaParserStyleDialect, summarize_omena_query_scss_evaluator_control_flow_from_source,
     summarize_omena_query_static_stylesheet_evaluator_from_source,
+    summarize_omena_query_static_stylesheet_evaluator_oracle_corpus,
 };
+
+#[test]
+fn exposes_static_stylesheet_oracle_corpus_through_query_boundary() {
+    let summary = summarize_omena_query_static_stylesheet_evaluator_oracle_corpus();
+
+    assert_eq!(summary.schema_version, "0");
+    assert_eq!(
+        summary.product,
+        "omena-query.static-stylesheet-evaluator-oracle-corpus"
+    );
+    assert_eq!(summary.mode, "oracleOnly");
+    assert_eq!(summary.value_type, "AbstractCssValueV0");
+    assert_eq!(summary.product_output_source, "legacyEvaluatedCss");
+    assert_eq!(summary.fixture_count, 8);
+    assert_eq!(summary.scss_fixture_count, 5);
+    assert_eq!(summary.less_fixture_count, 3);
+    assert_eq!(summary.evaluated_fixture_count, summary.fixture_count);
+    assert_eq!(summary.missing_evaluation_count, 0);
+    assert_eq!(summary.divergence_count, 0);
+    assert!(summary.native_replacement_count > 0);
+    assert!(summary.native_value_reference_count > 0);
+    assert!(summary.native_resolved_value_count > 0);
+    assert_eq!(summary.native_top_value_count, 0);
+    assert!(summary.all_legacy_declaration_values_preserved);
+    assert_eq!(
+        summary.corpus.product,
+        "omena-scss-eval.static-stylesheet-oracle-corpus"
+    );
+    assert!(
+        summary
+            .corpus
+            .fixtures
+            .iter()
+            .any(|fixture| fixture.id == "scss.static-for-return")
+    );
+    assert!(
+        summary
+            .corpus
+            .fixtures
+            .iter()
+            .any(|fixture| fixture.id == "less.detached-ruleset")
+    );
+}
 
 #[test]
 fn exposes_static_stylesheet_evaluator_oracle_through_query_boundary() {

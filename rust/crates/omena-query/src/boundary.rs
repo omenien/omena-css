@@ -1,7 +1,8 @@
 use super::*;
 use omena_scss_eval::{
-    OmenaScssEvalStaticStylesheetEvaluationV0, OmenaScssEvalStaticValueResolutionReportV0,
-    derive_static_stylesheet_module_evaluation, summarize_static_stylesheet_value_resolution,
+    OmenaScssEvalStaticStylesheetEvaluationV0, OmenaScssEvalStaticStylesheetOracleCorpusReportV0,
+    OmenaScssEvalStaticValueResolutionReportV0, derive_static_stylesheet_module_evaluation,
+    summarize_static_stylesheet_oracle_corpus, summarize_static_stylesheet_value_resolution,
 };
 
 /// Shannon entropy (in bits) of an empirical value-frequency histogram.
@@ -188,6 +189,29 @@ pub struct OmenaQueryStaticStylesheetEvaluatorSummaryV0 {
     pub value_resolution: Option<OmenaScssEvalStaticValueResolutionReportV0>,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct OmenaQueryStaticStylesheetEvaluatorOracleCorpusSummaryV0 {
+    pub schema_version: &'static str,
+    pub product: &'static str,
+    pub mode: &'static str,
+    pub value_type: &'static str,
+    pub product_output_source: &'static str,
+    pub fixture_count: usize,
+    pub scss_fixture_count: usize,
+    pub less_fixture_count: usize,
+    pub evaluated_fixture_count: usize,
+    pub missing_evaluation_count: usize,
+    pub divergence_count: usize,
+    pub native_replacement_count: usize,
+    pub native_value_reference_count: usize,
+    pub native_resolved_value_count: usize,
+    pub native_raw_value_count: usize,
+    pub native_top_value_count: usize,
+    pub all_legacy_declaration_values_preserved: bool,
+    pub corpus: OmenaScssEvalStaticStylesheetOracleCorpusReportV0,
+}
+
 pub fn summarize_omena_query_static_stylesheet_evaluator_from_source(
     source: &str,
     dialect: OmenaParserStyleDialect,
@@ -237,6 +261,31 @@ pub fn summarize_omena_query_static_stylesheet_evaluator_from_source(
             .map_or(0, |resolution| resolution.top_count),
         evaluation,
         value_resolution,
+    }
+}
+
+pub fn summarize_omena_query_static_stylesheet_evaluator_oracle_corpus()
+-> OmenaQueryStaticStylesheetEvaluatorOracleCorpusSummaryV0 {
+    let corpus = summarize_static_stylesheet_oracle_corpus();
+    OmenaQueryStaticStylesheetEvaluatorOracleCorpusSummaryV0 {
+        schema_version: OMENA_QUERY_CURRENT_SCHEMA_VERSION,
+        product: "omena-query.static-stylesheet-evaluator-oracle-corpus",
+        mode: corpus.mode,
+        value_type: corpus.value_type,
+        product_output_source: corpus.product_output_source,
+        fixture_count: corpus.fixture_count,
+        scss_fixture_count: corpus.scss_fixture_count,
+        less_fixture_count: corpus.less_fixture_count,
+        evaluated_fixture_count: corpus.evaluated_fixture_count,
+        missing_evaluation_count: corpus.missing_evaluation_count,
+        divergence_count: corpus.divergence_count,
+        native_replacement_count: corpus.native_replacement_count,
+        native_value_reference_count: corpus.native_value_reference_count,
+        native_resolved_value_count: corpus.native_resolved_value_count,
+        native_raw_value_count: corpus.native_raw_value_count,
+        native_top_value_count: corpus.native_top_value_count,
+        all_legacy_declaration_values_preserved: corpus.all_legacy_declaration_values_preserved,
+        corpus,
     }
 }
 

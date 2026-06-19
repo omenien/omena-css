@@ -29,12 +29,13 @@ pub use control_flow::{
 };
 pub use static_stylesheet::{
     OmenaScssEvalResolvedReplacementV0, OmenaScssEvalStaticStylesheetEvaluationV0,
-    OmenaScssEvalStaticValueResolutionReportV0, OmenaScssEvalStaticValueResolutionV0,
-    canonical_static_scss_variable_name,
+    OmenaScssEvalStaticStylesheetOracleCorpusFixtureReportV0,
+    OmenaScssEvalStaticStylesheetOracleCorpusReportV0, OmenaScssEvalStaticValueResolutionReportV0,
+    OmenaScssEvalStaticValueResolutionV0, canonical_static_scss_variable_name,
     derive_static_scss_stylesheet_module_configurable_variable_names,
     derive_static_scss_stylesheet_module_variable_exports,
     derive_static_stylesheet_module_evaluation, static_scss_variable_names_equal,
-    summarize_static_stylesheet_value_resolution,
+    summarize_static_stylesheet_oracle_corpus, summarize_static_stylesheet_value_resolution,
 };
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]

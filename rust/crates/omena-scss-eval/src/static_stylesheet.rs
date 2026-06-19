@@ -82,7 +82,54 @@ pub struct OmenaScssEvalStaticValueResolutionV0 {
     pub reason: &'static str,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct OmenaScssEvalStaticStylesheetOracleCorpusReportV0 {
+    pub schema_version: &'static str,
+    pub product: &'static str,
+    pub mode: &'static str,
+    pub value_type: &'static str,
+    pub product_output_source: &'static str,
+    pub fixture_count: usize,
+    pub scss_fixture_count: usize,
+    pub less_fixture_count: usize,
+    pub evaluated_fixture_count: usize,
+    pub missing_evaluation_count: usize,
+    pub divergence_count: usize,
+    pub native_replacement_count: usize,
+    pub native_value_reference_count: usize,
+    pub native_resolved_value_count: usize,
+    pub native_raw_value_count: usize,
+    pub native_top_value_count: usize,
+    pub all_legacy_declaration_values_preserved: bool,
+    pub fixtures: Vec<OmenaScssEvalStaticStylesheetOracleCorpusFixtureReportV0>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct OmenaScssEvalStaticStylesheetOracleCorpusFixtureReportV0 {
+    pub id: &'static str,
+    pub dialect: &'static str,
+    pub evaluator: &'static str,
+    pub product_output_source: &'static str,
+    pub legacy_output_consumed_until_cutover: bool,
+    pub evaluation_available: bool,
+    pub divergence_count: usize,
+    pub all_legacy_declaration_values_preserved: bool,
+    pub native_replacement_count: usize,
+    pub native_value_reference_count: usize,
+    pub native_resolved_value_count: usize,
+    pub native_raw_value_count: usize,
+    pub native_top_value_count: usize,
+}
+
 const STATIC_STYLESHEET_VALUE_RESOLUTION_FUEL_LIMIT: usize = 128;
+
+struct StaticStylesheetOracleCorpusFixtureV0 {
+    id: &'static str,
+    dialect: StyleDialect,
+    source: &'static str,
+}
 
 pub fn derive_static_stylesheet_module_evaluation(
     style_source: &str,
@@ -120,6 +167,164 @@ pub fn summarize_static_stylesheet_value_resolution(
         dialect_label(dialect),
         values,
     ))
+}
+
+pub fn summarize_static_stylesheet_oracle_corpus()
+-> OmenaScssEvalStaticStylesheetOracleCorpusReportV0 {
+    let fixtures = static_stylesheet_oracle_corpus_fixtures()
+        .iter()
+        .map(static_stylesheet_oracle_corpus_fixture_report)
+        .collect::<Vec<_>>();
+    let fixture_count = fixtures.len();
+    let scss_fixture_count = fixtures
+        .iter()
+        .filter(|fixture| fixture.dialect == "scss")
+        .count();
+    let less_fixture_count = fixtures
+        .iter()
+        .filter(|fixture| fixture.dialect == "less")
+        .count();
+    let evaluated_fixture_count = fixtures
+        .iter()
+        .filter(|fixture| fixture.evaluation_available)
+        .count();
+    let missing_evaluation_count = fixture_count.saturating_sub(evaluated_fixture_count);
+    let divergence_count = fixtures
+        .iter()
+        .map(|fixture| fixture.divergence_count)
+        .sum();
+    let native_replacement_count = fixtures
+        .iter()
+        .map(|fixture| fixture.native_replacement_count)
+        .sum();
+    let native_value_reference_count = fixtures
+        .iter()
+        .map(|fixture| fixture.native_value_reference_count)
+        .sum();
+    let native_resolved_value_count = fixtures
+        .iter()
+        .map(|fixture| fixture.native_resolved_value_count)
+        .sum();
+    let native_raw_value_count = fixtures
+        .iter()
+        .map(|fixture| fixture.native_raw_value_count)
+        .sum();
+    let native_top_value_count = fixtures
+        .iter()
+        .map(|fixture| fixture.native_top_value_count)
+        .sum();
+    let all_legacy_declaration_values_preserved = missing_evaluation_count == 0
+        && fixtures
+            .iter()
+            .all(|fixture| fixture.all_legacy_declaration_values_preserved);
+
+    OmenaScssEvalStaticStylesheetOracleCorpusReportV0 {
+        schema_version: "0",
+        product: "omena-scss-eval.static-stylesheet-oracle-corpus",
+        mode: "oracleOnly",
+        value_type: "AbstractCssValueV0",
+        product_output_source: "legacyEvaluatedCss",
+        fixture_count,
+        scss_fixture_count,
+        less_fixture_count,
+        evaluated_fixture_count,
+        missing_evaluation_count,
+        divergence_count,
+        native_replacement_count,
+        native_value_reference_count,
+        native_resolved_value_count,
+        native_raw_value_count,
+        native_top_value_count,
+        all_legacy_declaration_values_preserved,
+        fixtures,
+    }
+}
+
+fn static_stylesheet_oracle_corpus_fixture_report(
+    fixture: &StaticStylesheetOracleCorpusFixtureV0,
+) -> OmenaScssEvalStaticStylesheetOracleCorpusFixtureReportV0 {
+    let evaluation = derive_static_stylesheet_module_evaluation(fixture.source, fixture.dialect);
+    let Some(evaluation) = evaluation else {
+        return OmenaScssEvalStaticStylesheetOracleCorpusFixtureReportV0 {
+            id: fixture.id,
+            dialect: dialect_label(fixture.dialect),
+            evaluator: "none",
+            product_output_source: "none",
+            legacy_output_consumed_until_cutover: false,
+            evaluation_available: false,
+            divergence_count: 0,
+            all_legacy_declaration_values_preserved: false,
+            native_replacement_count: 0,
+            native_value_reference_count: 0,
+            native_resolved_value_count: 0,
+            native_raw_value_count: 0,
+            native_top_value_count: 0,
+        };
+    };
+
+    OmenaScssEvalStaticStylesheetOracleCorpusFixtureReportV0 {
+        id: fixture.id,
+        dialect: evaluation.dialect,
+        evaluator: evaluation.evaluator,
+        product_output_source: evaluation.oracle.product_output_source,
+        legacy_output_consumed_until_cutover: evaluation.oracle.product_output_source
+            == "legacyEvaluatedCss",
+        evaluation_available: true,
+        divergence_count: evaluation.oracle.divergence_count,
+        all_legacy_declaration_values_preserved: evaluation
+            .oracle
+            .all_legacy_declaration_values_preserved,
+        native_replacement_count: evaluation.replacement_count,
+        native_value_reference_count: evaluation.value_resolution.reference_count,
+        native_resolved_value_count: evaluation.value_resolution.resolved_count,
+        native_raw_value_count: evaluation.value_resolution.raw_count,
+        native_top_value_count: evaluation.value_resolution.top_count,
+    }
+}
+
+fn static_stylesheet_oracle_corpus_fixtures() -> &'static [StaticStylesheetOracleCorpusFixtureV0] {
+    &[
+        StaticStylesheetOracleCorpusFixtureV0 {
+            id: "scss.variable-basic",
+            dialect: StyleDialect::Scss,
+            source: "$gap: 1px; .card { margin: $gap; }",
+        },
+        StaticStylesheetOracleCorpusFixtureV0 {
+            id: "scss.color-helpers",
+            dialect: StyleDialect::Scss,
+            source: "$tone: list.nth(list.append(1px, transparentize(red, .25)), 2); .card { color: $tone; }",
+        },
+        StaticStylesheetOracleCorpusFixtureV0 {
+            id: "scss.static-for-return",
+            dialect: StyleDialect::Scss,
+            source: "@function pick($target) { @for $i from 1 through 3 { @if $i == $target { @return $i; } } @return 0; } .button { z-index: pick(2); }",
+        },
+        StaticStylesheetOracleCorpusFixtureV0 {
+            id: "scss.static-each-return",
+            dialect: StyleDialect::Scss,
+            source: "@function tone($target) { @each $name, $tone in (primary: red, secondary: blue) { @if $name == $target { @return $tone; } } @return black; } .button { color: tone(secondary); }",
+        },
+        StaticStylesheetOracleCorpusFixtureV0 {
+            id: "scss.static-while-return",
+            dialect: StyleDialect::Scss,
+            source: "@function pick($target) { $i: 0; @while $i < 3 { @if $i == $target { @return $i + 1; } $i: $i + 1; } @return 0; } .button { z-index: pick(2); }",
+        },
+        StaticStylesheetOracleCorpusFixtureV0 {
+            id: "less.variable-basic",
+            dialect: StyleDialect::Less,
+            source: "@gap: 2px; .card { margin: @gap; }",
+        },
+        StaticStylesheetOracleCorpusFixtureV0 {
+            id: "less.static-mixin",
+            dialect: StyleDialect::Less,
+            source: "@brand: red; .tone(@color, @gap: 1px) { color: @color; margin: @gap; padding: @brand; } .button { .tone(blue, 2px); }",
+        },
+        StaticStylesheetOracleCorpusFixtureV0 {
+            id: "less.detached-ruleset",
+            dialect: StyleDialect::Less,
+            source: "@brand: red; @rules: { color: @brand; margin: 1px; }; .button { @rules(); }",
+        },
+    ]
 }
 
 pub fn derive_static_scss_stylesheet_module_variable_exports(
@@ -7959,6 +8164,36 @@ fn dialect_label(dialect: StyleDialect) -> &'static str {
 mod tests {
     use super::*;
     use std::fmt::Write as _;
+
+    #[test]
+    fn static_stylesheet_oracle_corpus_preserves_legacy_output() {
+        let report = summarize_static_stylesheet_oracle_corpus();
+
+        assert_eq!(
+            report.product,
+            "omena-scss-eval.static-stylesheet-oracle-corpus"
+        );
+        assert_eq!(report.mode, "oracleOnly");
+        assert_eq!(report.value_type, "AbstractCssValueV0");
+        assert_eq!(report.product_output_source, "legacyEvaluatedCss");
+        assert_eq!(report.fixture_count, 8);
+        assert_eq!(report.scss_fixture_count, 5);
+        assert_eq!(report.less_fixture_count, 3);
+        assert_eq!(report.evaluated_fixture_count, report.fixture_count);
+        assert_eq!(report.missing_evaluation_count, 0);
+        assert_eq!(report.divergence_count, 0);
+        assert!(report.native_replacement_count > 0);
+        assert!(report.native_value_reference_count > 0);
+        assert!(report.native_resolved_value_count > 0);
+        assert_eq!(report.native_top_value_count, 0);
+        assert!(report.all_legacy_declaration_values_preserved);
+        assert!(
+            report
+                .fixtures
+                .iter()
+                .all(|fixture| fixture.legacy_output_consumed_until_cutover)
+        );
+    }
 
     #[test]
     fn static_scss_evaluation_emits_abstract_replacement_values() {
