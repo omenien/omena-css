@@ -16,9 +16,9 @@ fn exposes_static_stylesheet_oracle_corpus_through_query_boundary() {
     assert_eq!(summary.mode, "oracleOnly");
     assert_eq!(summary.value_type, "AbstractCssValueV0");
     assert_eq!(summary.product_output_source, "legacyEvaluatedCss");
-    assert_eq!(summary.fixture_count, 19);
+    assert_eq!(summary.fixture_count, 20);
     assert_eq!(summary.scss_fixture_count, 6);
-    assert_eq!(summary.less_fixture_count, 13);
+    assert_eq!(summary.less_fixture_count, 14);
     assert_eq!(summary.evaluated_fixture_count, summary.fixture_count);
     assert_eq!(summary.missing_evaluation_count, 0);
     assert_eq!(summary.divergence_count, 0);
@@ -556,6 +556,42 @@ fn exposes_less_convert_builtin_through_query_boundary() {
             && evaluation.evaluated_css.contains("deg: 57.29577951deg")
             && evaluation.evaluated_css.contains("turn: 180deg")
             && evaluation.evaluated_css.contains("same: 1in")
+    }));
+}
+
+#[test]
+fn exposes_less_trig_builtins_through_query_boundary() {
+    let summary = summarize_omena_query_static_stylesheet_evaluator_from_source(
+        "@pi: pi(); @sin: sin(30deg); @sinRad: sin(1rad); @sinUnitless: sin(1); @cos: cos(60deg); @tan: tan(45deg); @asin: asin(.5); @acos: acos(.5); @atan: atan(1); .button { pi: @pi; sin: @sin; sin-rad: @sinRad; sin-unitless: @sinUnitless; cos: @cos; tan: @tan; asin: @asin; acos: @acos; atan: @atan; }",
+        OmenaParserStyleDialect::Less,
+    );
+
+    assert_eq!(summary.product, "omena-query.static-stylesheet-evaluator");
+    assert_eq!(summary.mode, "oracleOnly");
+    assert_eq!(summary.dialect, "less");
+    assert_eq!(summary.value_type, "AbstractCssValueV0");
+    assert!(summary.supported_dialect);
+    assert_eq!(summary.product_output_source, "legacyEvaluatedCss");
+    assert!(summary.legacy_output_consumed_until_cutover);
+    assert!(summary.evaluation_available);
+    assert_eq!(summary.divergence_count, 0);
+    assert!(summary.all_legacy_declaration_values_preserved);
+    assert_eq!(summary.native_replacement_count, 9);
+    assert_eq!(summary.native_resolved_value_count, 9);
+    assert_eq!(summary.native_raw_value_count, 0);
+    assert_eq!(summary.native_top_value_count, 0);
+    assert!(summary.evaluation.as_ref().is_some_and(|evaluation| {
+        evaluation.evaluated_css.contains("pi: 3.14159265")
+            && evaluation.evaluated_css.contains("sin: 0.5")
+            && evaluation.evaluated_css.contains("sin-rad: 0.84147098")
+            && evaluation
+                .evaluated_css
+                .contains("sin-unitless: 0.84147098")
+            && evaluation.evaluated_css.contains("cos: 0.5")
+            && evaluation.evaluated_css.contains("tan: 1")
+            && evaluation.evaluated_css.contains("asin: 0.52359878rad")
+            && evaluation.evaluated_css.contains("acos: 1.04719755rad")
+            && evaluation.evaluated_css.contains("atan: 0.78539816rad")
     }));
 }
 

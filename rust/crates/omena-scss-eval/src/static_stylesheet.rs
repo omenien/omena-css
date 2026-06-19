@@ -6589,6 +6589,13 @@ fn reduce_static_less_value_with_escape_flag(value: String) -> StaticLessResolve
             ("ceil", parse_reducible_ceil_value),
             ("floor", parse_reducible_floor_value),
             ("round", parse_static_less_round_value),
+            ("pi", parse_static_less_pi_value),
+            ("sin", parse_static_less_sin_value),
+            ("cos", parse_static_less_cos_value),
+            ("tan", parse_static_less_tan_value),
+            ("asin", parse_static_less_asin_value),
+            ("acos", parse_static_less_acos_value),
+            ("atan", parse_static_less_atan_value),
             ("isnumber", parse_static_less_isnumber_value),
             ("iscolor", parse_static_less_iscolor_value),
             ("isstring", parse_static_less_isstring_value),
@@ -7529,6 +7536,94 @@ fn parse_static_less_round_value(value: &str) -> Option<String> {
     ))
 }
 
+fn parse_static_less_pi_value(value: &str) -> Option<String> {
+    value
+        .trim()
+        .eq_ignore_ascii_case("pi()")
+        .then(|| format_static_less_math_number(std::f64::consts::PI))
+        .flatten()
+}
+
+fn parse_static_less_sin_value(value: &str) -> Option<String> {
+    parse_static_less_trig_value(value, "sin", f64::sin)
+}
+
+fn parse_static_less_cos_value(value: &str) -> Option<String> {
+    parse_static_less_trig_value(value, "cos", f64::cos)
+}
+
+fn parse_static_less_tan_value(value: &str) -> Option<String> {
+    parse_static_less_trig_value(value, "tan", f64::tan)
+}
+
+fn parse_static_less_asin_value(value: &str) -> Option<String> {
+    parse_static_less_inverse_trig_value(value, "asin", f64::asin, true)
+}
+
+fn parse_static_less_acos_value(value: &str) -> Option<String> {
+    parse_static_less_inverse_trig_value(value, "acos", f64::acos, true)
+}
+
+fn parse_static_less_atan_value(value: &str) -> Option<String> {
+    parse_static_less_inverse_trig_value(value, "atan", f64::atan, false)
+}
+
+fn parse_static_less_trig_value(
+    value: &str,
+    function_name: &str,
+    evaluate: fn(f64) -> f64,
+) -> Option<String> {
+    let arguments = parse_whole_function_value_arguments(value, function_name)?;
+    let [angle] = arguments.as_slice() else {
+        return None;
+    };
+    format_static_less_math_number(evaluate(parse_static_less_angle_radians(angle.trim())?))
+}
+
+fn parse_static_less_inverse_trig_value(
+    value: &str,
+    function_name: &str,
+    evaluate: fn(f64) -> f64,
+    requires_unit_interval: bool,
+) -> Option<String> {
+    let arguments = parse_whole_function_value_arguments(value, function_name)?;
+    let [number] = arguments.as_slice() else {
+        return None;
+    };
+    let parsed = parse_numeric_value_with_unit(number.trim())?;
+    if !parsed.unit.is_empty() {
+        return None;
+    }
+    if requires_unit_interval && !(-1.0..=1.0).contains(&parsed.value) {
+        return None;
+    }
+    let radians = evaluate(parsed.value);
+    if !radians.is_finite() {
+        return None;
+    }
+    Some(format!("{}rad", format_static_less_math_number(radians)?))
+}
+
+fn parse_static_less_angle_radians(value: &str) -> Option<f64> {
+    let parsed = parse_numeric_value_with_unit(value)?;
+    if !parsed.value.is_finite() {
+        return None;
+    }
+    match parsed.unit {
+        "" | "rad" => Some(parsed.value),
+        "deg" => Some(parsed.value.to_radians()),
+        "grad" => Some(parsed.value * std::f64::consts::PI / 200.0),
+        "turn" => Some(parsed.value * std::f64::consts::TAU),
+        _ => None,
+    }
+}
+
+fn format_static_less_math_number(value: f64) -> Option<String> {
+    value
+        .is_finite()
+        .then(|| format_static_less_channel_number(if value.abs() < 1e-10 { 0.0 } else { value }))
+}
+
 fn format_static_less_number(value: f64) -> String {
     let formatted = format_css_number(value);
     if let Some(suffix) = formatted.strip_prefix('.') {
@@ -8459,9 +8554,9 @@ mod tests {
         assert_eq!(report.mode, "oracleOnly");
         assert_eq!(report.value_type, "AbstractCssValueV0");
         assert_eq!(report.product_output_source, "legacyEvaluatedCss");
-        assert_eq!(report.fixture_count, 19);
+        assert_eq!(report.fixture_count, 20);
         assert_eq!(report.scss_fixture_count, 6);
-        assert_eq!(report.less_fixture_count, 13);
+        assert_eq!(report.less_fixture_count, 14);
         assert_eq!(report.evaluated_fixture_count, report.fixture_count);
         assert_eq!(report.missing_evaluation_count, 0);
         assert_eq!(report.divergence_count, 0);
@@ -10273,6 +10368,32 @@ mod tests {
         assert!(report.evaluated_css.contains("deg: 57.29577951deg"));
         assert!(report.evaluated_css.contains("turn: 180deg"));
         assert!(report.evaluated_css.contains("same: 1in"));
+        assert!(report.oracle.all_legacy_declaration_values_preserved);
+    }
+
+    #[test]
+    fn static_less_evaluation_reduces_trig_builtin_values() {
+        let report = derive_static_stylesheet_module_evaluation(
+            "@pi: pi(); @sin: sin(30deg); @sinRad: sin(1rad); @sinUnitless: sin(1); @cos: cos(60deg); @tan: tan(45deg); @asin: asin(.5); @acos: acos(.5); @atan: atan(1); .button { pi: @pi; sin: @sin; sin-rad: @sinRad; sin-unitless: @sinUnitless; cos: @cos; tan: @tan; asin: @asin; acos: @acos; atan: @atan; }",
+            StyleDialect::Less,
+        );
+        assert!(report.is_some());
+        let Some(report) = report else {
+            return;
+        };
+
+        assert_eq!(report.replacement_count, 9);
+        assert_eq!(report.value_resolution.resolved_count, 9);
+        assert_eq!(report.value_resolution.raw_count, 0);
+        assert!(report.evaluated_css.contains("pi: 3.14159265"));
+        assert!(report.evaluated_css.contains("sin: 0.5"));
+        assert!(report.evaluated_css.contains("sin-rad: 0.84147098"));
+        assert!(report.evaluated_css.contains("sin-unitless: 0.84147098"));
+        assert!(report.evaluated_css.contains("cos: 0.5"));
+        assert!(report.evaluated_css.contains("tan: 1"));
+        assert!(report.evaluated_css.contains("asin: 0.52359878rad"));
+        assert!(report.evaluated_css.contains("acos: 1.04719755rad"));
+        assert!(report.evaluated_css.contains("atan: 0.78539816rad"));
         assert!(report.oracle.all_legacy_declaration_values_preserved);
     }
 
