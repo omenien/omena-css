@@ -32,6 +32,16 @@ fn consumer_build_derives_static_scss_evaluator_context() {
     assert_eq!(
         summary
             .execution
+            .outcomes
+            .first()
+            .map(|outcome| outcome.detail),
+        Some(
+            "applied explicit SCSS module evaluation native edit output from the evaluator boundary"
+        )
+    );
+    assert_eq!(
+        summary
+            .execution
             .css_module_evaluation
             .as_ref()
             .map(|evaluation| evaluation.evaluator.as_str()),
@@ -428,6 +438,16 @@ fn consumer_build_derives_static_less_evaluator_context() {
     );
     assert!(summary.execution.output_css.contains("color: red"));
     assert!(summary.execution.output_css.contains("._button_0"));
+    assert_eq!(
+        summary
+            .execution
+            .outcomes
+            .first()
+            .map(|outcome| outcome.detail),
+        Some(
+            "applied explicit Less module evaluation native edit output from the evaluator boundary"
+        )
+    );
     assert_eq!(
         summary
             .execution

@@ -18,7 +18,8 @@ use super::{
     provenance::{derive_transform_mutation_spans, provenance_derivation_forest_from_outcomes},
 };
 use crate::model::{
-    TransformExecutionContextV0, TransformExecutionSummaryV0, TransformPassRuntimeStatus,
+    TransformExecutionContextV0, TransformExecutionSummaryV0,
+    TransformModuleEvaluationNativeEditV0, TransformModuleEvaluationV0, TransformPassRuntimeStatus,
     TransformProvenanceMutationSpanV0,
 };
 use crate::registry::{
@@ -447,17 +448,22 @@ fn execute_transform_passes_on_source_with_active_lex_cache(
                 if matches!(dialect, StyleDialect::Scss | StyleDialect::Sass) =>
             {
                 if let Some(evaluation) = context.scss_module_evaluation.as_ref() {
-                    let mutation_count = usize::from(pass_input_css != evaluation.evaluated_css);
-                    let next_css = evaluation.evaluated_css.clone();
+                    let materialized = materialize_transform_module_evaluation_output(
+                        &pass_input_css,
+                        evaluation,
+                        "applied explicit SCSS module evaluation native edit output from the evaluator boundary",
+                        "applied explicit SCSS module evaluation legacy oracle output from the evaluator boundary",
+                    );
+                    let mutation_count = usize::from(pass_input_css != materialized.css);
                     let outcome = mutation_outcome(
                         pass_id,
                         input_byte_len,
-                        next_css.len(),
+                        materialized.css.len(),
                         mutation_count,
-                        "applied explicit SCSS module evaluation output from the evaluator boundary",
+                        materialized.detail,
                     );
                     css_module_evaluation = Some(evaluation.clone());
-                    (Some(next_css), outcome)
+                    (Some(materialized.css), outcome)
                 } else {
                     planned_only_pass!(
                         pass_id,
@@ -475,17 +481,22 @@ fn execute_transform_passes_on_source_with_active_lex_cache(
             }
             Some(TransformPassKind::LessModuleEvaluate) if dialect == StyleDialect::Less => {
                 if let Some(evaluation) = context.less_module_evaluation.as_ref() {
-                    let mutation_count = usize::from(pass_input_css != evaluation.evaluated_css);
-                    let next_css = evaluation.evaluated_css.clone();
+                    let materialized = materialize_transform_module_evaluation_output(
+                        &pass_input_css,
+                        evaluation,
+                        "applied explicit Less module evaluation native edit output from the evaluator boundary",
+                        "applied explicit Less module evaluation legacy oracle output from the evaluator boundary",
+                    );
+                    let mutation_count = usize::from(pass_input_css != materialized.css);
                     let outcome = mutation_outcome(
                         pass_id,
                         input_byte_len,
-                        next_css.len(),
+                        materialized.css.len(),
                         mutation_count,
-                        "applied explicit Less module evaluation output from the evaluator boundary",
+                        materialized.detail,
                     );
                     css_module_evaluation = Some(evaluation.clone());
-                    (Some(next_css), outcome)
+                    (Some(materialized.css), outcome)
                 } else {
                     planned_only_pass!(
                         pass_id,
@@ -836,6 +847,65 @@ fn execute_transform_passes_on_source_with_active_lex_cache(
 
 fn transform_pass_may_consume_lex_cache(pass: TransformPassKind) -> bool {
     !matches!(pass, TransformPassKind::PrintCss)
+}
+
+struct TransformModuleEvaluationMaterializedOutput {
+    css: String,
+    detail: &'static str,
+}
+
+fn materialize_transform_module_evaluation_output(
+    input_css: &str,
+    evaluation: &TransformModuleEvaluationV0,
+    native_detail: &'static str,
+    legacy_detail: &'static str,
+) -> TransformModuleEvaluationMaterializedOutput {
+    if let Some(native_css) =
+        apply_transform_module_evaluation_native_edits(input_css, &evaluation.native_edits)
+    {
+        if native_css == evaluation.evaluated_css {
+            return TransformModuleEvaluationMaterializedOutput {
+                css: native_css,
+                detail: native_detail,
+            };
+        }
+    }
+
+    TransformModuleEvaluationMaterializedOutput {
+        css: evaluation.evaluated_css.clone(),
+        detail: legacy_detail,
+    }
+}
+
+fn apply_transform_module_evaluation_native_edits(
+    input_css: &str,
+    native_edits: &[TransformModuleEvaluationNativeEditV0],
+) -> Option<String> {
+    if native_edits.is_empty() {
+        return None;
+    }
+
+    let mut edits = native_edits.to_vec();
+    edits.sort_by_key(|edit| edit.start);
+
+    let mut previous_end = 0usize;
+    for edit in &edits {
+        if edit.start < previous_end
+            || edit.start > edit.end
+            || edit.end > input_css.len()
+            || !input_css.is_char_boundary(edit.start)
+            || !input_css.is_char_boundary(edit.end)
+        {
+            return None;
+        }
+        previous_end = edit.end;
+    }
+
+    let mut output = input_css.to_string();
+    for edit in edits.iter().rev() {
+        output.replace_range(edit.start..edit.end, edit.replacement.as_str());
+    }
+    Some(output)
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

@@ -1,6 +1,7 @@
 use crate::{
     TransformCssModuleComposesResolutionV0, TransformExecutionContextV0,
-    TransformModuleEvaluationV0, execute_transform_passes_on_source_with_dialect,
+    TransformModuleEvaluationNativeEditV0, TransformModuleEvaluationV0,
+    execute_transform_passes_on_source_with_dialect,
     execute_transform_passes_on_source_with_dialect_and_context,
 };
 use omena_parser::StyleDialect;
@@ -8,13 +9,14 @@ use omena_transform_cst::TransformPassKind;
 
 #[test]
 fn execution_runtime_applies_explicit_scss_module_evaluation() {
-    let source = r#"$brand: red; .button { color: $brand; }"#;
+    let source = r#".button { color: $brand; }"#;
+    let evaluated_css = ".button { color: red; }";
     let context = TransformExecutionContextV0 {
         scss_module_evaluation: Some(TransformModuleEvaluationV0 {
             evaluator: "dart-sass-compatible".to_string(),
-            evaluated_css: ".button { color: red; }".to_string(),
+            evaluated_css: evaluated_css.to_string(),
             native_replacements: Vec::new(),
-            native_edits: Vec::new(),
+            native_edits: vec![native_module_evaluation_edit(source, "$brand", "red")],
             oracle: None,
         }),
         ..TransformExecutionContextV0::default()
@@ -32,12 +34,18 @@ fn execution_runtime_applies_explicit_scss_module_evaluation() {
     assert_eq!(execution.mutation_count, 1);
     assert_eq!(execution.output_css, ".button { color: red; }");
     assert_eq!(
+        execution.outcomes.first().map(|outcome| outcome.detail),
+        Some(
+            "applied explicit SCSS module evaluation native edit output from the evaluator boundary"
+        )
+    );
+    assert_eq!(
         execution.css_module_evaluation,
         Some(TransformModuleEvaluationV0 {
             evaluator: "dart-sass-compatible".to_string(),
-            evaluated_css: ".button { color: red; }".to_string(),
+            evaluated_css: evaluated_css.to_string(),
             native_replacements: Vec::new(),
-            native_edits: Vec::new(),
+            native_edits: vec![native_module_evaluation_edit(source, "$brand", "red")],
             oracle: None,
         })
     );
@@ -49,13 +57,14 @@ fn execution_runtime_applies_explicit_scss_module_evaluation() {
 
 #[test]
 fn execution_runtime_applies_explicit_less_module_evaluation() {
-    let source = r#"@brand: red; .button { color: @brand; }"#;
+    let source = r#".button { color: @brand; }"#;
+    let evaluated_css = ".button { color: red; }";
     let context = TransformExecutionContextV0 {
         less_module_evaluation: Some(TransformModuleEvaluationV0 {
             evaluator: "less-js-compatible".to_string(),
-            evaluated_css: ".button { color: red; }".to_string(),
+            evaluated_css: evaluated_css.to_string(),
             native_replacements: Vec::new(),
-            native_edits: Vec::new(),
+            native_edits: vec![native_module_evaluation_edit(source, "@brand", "red")],
             oracle: None,
         }),
         ..TransformExecutionContextV0::default()
@@ -73,12 +82,18 @@ fn execution_runtime_applies_explicit_less_module_evaluation() {
     assert_eq!(execution.mutation_count, 1);
     assert_eq!(execution.output_css, ".button { color: red; }");
     assert_eq!(
+        execution.outcomes.first().map(|outcome| outcome.detail),
+        Some(
+            "applied explicit Less module evaluation native edit output from the evaluator boundary"
+        )
+    );
+    assert_eq!(
         execution.css_module_evaluation,
         Some(TransformModuleEvaluationV0 {
             evaluator: "less-js-compatible".to_string(),
-            evaluated_css: ".button { color: red; }".to_string(),
+            evaluated_css: evaluated_css.to_string(),
             native_replacements: Vec::new(),
-            native_edits: Vec::new(),
+            native_edits: vec![native_module_evaluation_edit(source, "@brand", "red")],
             oracle: None,
         })
     );
@@ -86,6 +101,56 @@ fn execution_runtime_applies_explicit_less_module_evaluation() {
         execution.executed_pass_ids,
         vec!["less-module-evaluate", "print-css"]
     );
+}
+
+#[test]
+fn execution_runtime_falls_back_to_legacy_scss_evaluation_when_native_edits_diverge() {
+    let source = r#".button { color: $brand; }"#;
+    let context = TransformExecutionContextV0 {
+        scss_module_evaluation: Some(TransformModuleEvaluationV0 {
+            evaluator: "dart-sass-compatible".to_string(),
+            evaluated_css: ".button { color: red; }".to_string(),
+            native_replacements: Vec::new(),
+            native_edits: vec![native_module_evaluation_edit(source, "$brand", "blue")],
+            oracle: None,
+        }),
+        ..TransformExecutionContextV0::default()
+    };
+    let execution = execute_transform_passes_on_source_with_dialect_and_context(
+        source,
+        StyleDialect::Scss,
+        &[
+            TransformPassKind::ScssModuleEvaluate,
+            TransformPassKind::PrintCss,
+        ],
+        &context,
+    );
+
+    assert_eq!(execution.output_css, ".button { color: red; }");
+    assert_eq!(
+        execution.outcomes.first().map(|outcome| outcome.detail),
+        Some(
+            "applied explicit SCSS module evaluation legacy oracle output from the evaluator boundary"
+        )
+    );
+}
+
+fn native_module_evaluation_edit(
+    source: &str,
+    needle: &str,
+    replacement: &str,
+) -> TransformModuleEvaluationNativeEditV0 {
+    let Some(start) = source.find(needle) else {
+        panic!("test fixture missing native edit needle: {needle}");
+    };
+    TransformModuleEvaluationNativeEditV0 {
+        start,
+        end: start + needle.len(),
+        replacement: replacement.to_string(),
+        edit_kind: "valueReplacement".to_string(),
+        abstract_value: None,
+        abstract_value_kind: None,
+    }
 }
 
 #[test]
