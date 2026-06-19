@@ -21,6 +21,7 @@ use crate::{
 };
 
 mod less_colors;
+mod less_detached_ruleset_render;
 mod less_detached_rulesets;
 mod less_guard;
 mod less_mixin_arguments;
@@ -53,6 +54,9 @@ use less_colors::{
     parse_static_less_shade_value, parse_static_less_softlight_value, parse_static_less_spin_value,
     parse_static_less_tint_value,
 };
+use less_detached_ruleset_render::{
+    render_static_less_detached_ruleset_accessor, render_static_less_detached_ruleset_body,
+};
 use less_detached_rulesets::{
     collect_static_less_detached_ruleset_accessors, collect_static_less_detached_ruleset_calls,
     collect_static_less_detached_ruleset_declarations,
@@ -65,15 +69,11 @@ use less_guard::{static_less_mixin_guard_depends_on_default, static_less_mixin_g
 use less_mixin_arguments::{
     static_less_mixin_parameter_patterns_match, static_less_mixin_pattern_argument_matches,
 };
-use less_mixin_render::{
-    render_static_less_mixin_body_nested_calls, render_static_less_mixin_body_variables,
-    render_static_less_mixin_call,
-};
+use less_mixin_render::render_static_less_mixin_call;
 use less_mixin_values::{
-    resolve_static_less_mixin_body_declaration_values,
-    resolve_static_less_mixin_value_with_bindings, static_less_body_property_value,
-    static_less_mixin_accessor_property_value, static_less_mixin_arguments_value,
-    static_less_mixin_body_scoped_values, static_less_value_is_detached_ruleset_reference,
+    resolve_static_less_mixin_value_with_bindings, static_less_mixin_accessor_property_value,
+    static_less_mixin_arguments_value, static_less_mixin_body_scoped_values,
+    static_less_value_is_detached_ruleset_reference,
 };
 use less_mixins::{
     collect_static_less_mixin_accessors, collect_static_less_mixin_calls,
@@ -3023,130 +3023,6 @@ fn collect_static_less_detached_ruleset_accessor_evaluation_edits(
         preserved_raw_accessor_count,
         preserved_declaration_keys,
     })
-}
-
-#[allow(clippy::too_many_arguments)]
-fn render_static_less_detached_ruleset_body(
-    source: &str,
-    declaration: &StaticLessDetachedRulesetDeclaration,
-    call_scope_id: usize,
-    scopes: &[StaticStylesheetScope],
-    variable_declarations: &BTreeMap<(usize, String), StaticStylesheetVariableDeclaration>,
-    property_declarations: &BTreeMap<(usize, String), StaticStylesheetPropertyDeclaration>,
-    mixin_declarations: &[StaticLessMixinDeclaration],
-    detached_ruleset_declarations: &[StaticLessDetachedRulesetDeclaration],
-) -> Option<StaticLessDetachedRulesetCallRenderOutcome> {
-    let body = source.get(declaration.body_start..declaration.body_end)?;
-    if !static_less_mixin_body_is_static_declaration_subset(body) {
-        return None;
-    }
-    let body_lexed = lex(body, StyleDialect::Less);
-    if !collect_static_less_detached_ruleset_calls(body, body_lexed.tokens())?.is_empty() {
-        return None;
-    }
-    let empty_arguments = BTreeMap::new();
-    let empty_captured_values = BTreeMap::new();
-    let body = render_static_less_mixin_body_variables(
-        body,
-        call_scope_id,
-        &empty_arguments,
-        &empty_captured_values,
-        scopes,
-        variable_declarations,
-        property_declarations,
-        detached_ruleset_declarations,
-    )?;
-    let context = StaticLessMixinRenderContext {
-        source,
-        declarations: mixin_declarations,
-        detached_ruleset_declarations,
-        scopes,
-        variable_declarations,
-        property_declarations,
-        captured_values: &empty_captured_values,
-    };
-    let mut active_mixins = BTreeSet::new();
-    let nested = render_static_less_mixin_body_nested_calls(
-        body.as_str(),
-        call_scope_id,
-        context,
-        &mut active_mixins,
-    )?;
-    let nested_lexed = lex(nested.body.as_str(), StyleDialect::Less);
-    if !collect_static_less_mixin_calls(nested.body.as_str(), nested_lexed.tokens())?.is_empty()
-        || !collect_static_less_detached_ruleset_calls(nested.body.as_str(), nested_lexed.tokens())?
-            .is_empty()
-    {
-        return Some(StaticLessDetachedRulesetCallRenderOutcome::PreservedRaw);
-    }
-    Some(StaticLessDetachedRulesetCallRenderOutcome::Rendered(
-        StaticLessMixinRenderResult {
-            body: resolve_static_less_mixin_body_declaration_values(nested.body.as_str())?,
-            used_declaration_names: nested.used_declaration_names,
-        },
-    ))
-}
-
-#[allow(clippy::too_many_arguments)]
-fn render_static_less_detached_ruleset_accessor(
-    source: &str,
-    declaration: &StaticLessDetachedRulesetDeclaration,
-    member: &str,
-    call_scope_id: usize,
-    scopes: &[StaticStylesheetScope],
-    variable_declarations: &BTreeMap<(usize, String), StaticStylesheetVariableDeclaration>,
-    property_declarations: &BTreeMap<(usize, String), StaticStylesheetPropertyDeclaration>,
-    detached_ruleset_declarations: &[StaticLessDetachedRulesetDeclaration],
-) -> Option<StaticLessDetachedRulesetAccessorRenderOutcome> {
-    let body = source.get(declaration.body_start..declaration.body_end)?;
-    if !static_less_mixin_body_is_static_declaration_subset(body) {
-        return None;
-    }
-    let body_lexed = lex(body, StyleDialect::Less);
-    if !collect_static_less_mixin_calls(body, body_lexed.tokens())?.is_empty()
-        || !collect_static_less_detached_ruleset_calls(body, body_lexed.tokens())?.is_empty()
-    {
-        return None;
-    }
-
-    let empty_values = BTreeMap::new();
-    let empty_mixin_declarations = [];
-    let context = StaticLessMixinRenderContext {
-        source,
-        declarations: &empty_mixin_declarations,
-        detached_ruleset_declarations,
-        scopes,
-        variable_declarations,
-        property_declarations,
-        captured_values: &empty_values,
-    };
-    let scoped_values = static_less_mixin_body_scoped_values(
-        body,
-        call_scope_id,
-        &empty_values,
-        &empty_values,
-        scopes,
-        variable_declarations,
-        property_declarations,
-        detached_ruleset_declarations,
-    )?;
-    if static_less_variable_name_is_safe(member) {
-        return Some(match scoped_values.get(member) {
-            Some(value) => StaticLessDetachedRulesetAccessorRenderOutcome::Rendered(value.clone()),
-            None => StaticLessDetachedRulesetAccessorRenderOutcome::PreservedRaw,
-        });
-    }
-    Some(
-        match static_less_body_property_value(body, member, &scoped_values, call_scope_id, context)?
-        {
-            StaticLessBodyPropertyValueOutcome::Resolved(value) => {
-                StaticLessDetachedRulesetAccessorRenderOutcome::Rendered(value)
-            }
-            StaticLessBodyPropertyValueOutcome::MemberNotFound => {
-                StaticLessDetachedRulesetAccessorRenderOutcome::PreservedRaw
-            }
-        },
-    )
 }
 
 fn render_static_less_mixin_accessor(
