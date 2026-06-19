@@ -57,6 +57,51 @@ pub(super) fn matching_right_brace_token_index(
     None
 }
 
+pub(super) fn matching_block_end_token_index(
+    tokens: &[LexedToken],
+    block_start_index: usize,
+) -> Option<usize> {
+    match tokens.get(block_start_index)?.kind {
+        SyntaxKind::LeftBrace => matching_right_brace_token_index(tokens, block_start_index),
+        SyntaxKind::SassIndent => matching_sass_dedent_token_index(tokens, block_start_index),
+        _ => None,
+    }
+}
+
+pub(super) fn next_block_start_token_index(
+    tokens: &[LexedToken],
+    mut index: usize,
+) -> Option<usize> {
+    while index < tokens.len() {
+        match tokens[index].kind {
+            SyntaxKind::LeftBrace | SyntaxKind::SassIndent => return Some(index),
+            SyntaxKind::Semicolon | SyntaxKind::SassOptionalSemicolon => return None,
+            _ => index += 1,
+        }
+    }
+    None
+}
+
+fn matching_sass_dedent_token_index(
+    tokens: &[LexedToken],
+    sass_indent_index: usize,
+) -> Option<usize> {
+    let mut depth = 0usize;
+    for (index, token) in tokens.iter().enumerate().skip(sass_indent_index) {
+        match token.kind {
+            SyntaxKind::SassIndent => depth += 1,
+            SyntaxKind::SassDedent => {
+                depth = depth.checked_sub(1)?;
+                if depth == 0 {
+                    return Some(index);
+                }
+            }
+            _ => {}
+        }
+    }
+    None
+}
+
 pub(super) fn next_non_trivia_token_index(
     tokens: &[LexedToken],
     mut index: usize,

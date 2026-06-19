@@ -57,9 +57,9 @@ use loop_values::{
     loop_carried_binding_values, loop_carried_value, while_loop_carried_binding_values,
 };
 use tokens::{
-    declaration_end_token_index, matching_right_brace_token_index,
-    matching_right_paren_token_index, next_non_trivia_token_index, token_range_end,
-    token_range_start, tokens_between_are_trivia,
+    declaration_end_token_index, matching_block_end_token_index, matching_right_paren_token_index,
+    next_block_start_token_index, next_non_trivia_token_index, token_range_end, token_range_start,
+    tokens_between_are_trivia,
 };
 use transfer::{
     ScssControlFlowBindingValue, ScssControlFlowTransfer, run_scss_control_flow_fixpoint,
@@ -522,13 +522,8 @@ fn enclosing_scss_loop_blocks(tokens: &[LexedToken], return_index: usize) -> Vec
             {
                 return None;
             }
-            let body_start_index = tokens
-                .iter()
-                .enumerate()
-                .skip(index + 1)
-                .find(|(_, candidate)| candidate.kind == SyntaxKind::LeftBrace)
-                .map(|(candidate_index, _)| candidate_index)?;
-            let body_end_index = matching_right_brace_token_index(tokens, body_start_index)?;
+            let body_start_index = next_block_start_token_index(tokens, index + 1)?;
+            let body_end_index = matching_block_end_token_index(tokens, body_start_index)?;
             (body_start_index < return_index && return_index < body_end_index).then(|| {
                 ScssBranchBlock {
                     at_rule_index: index,
@@ -640,13 +635,8 @@ fn collect_scss_branch_blocks(source: &str, tokens: &[LexedToken]) -> Vec<ScssBr
             if !matches!(at_rule_name.as_str(), "@if" | "@else") {
                 return None;
             }
-            let body_start_index = tokens
-                .iter()
-                .enumerate()
-                .skip(index + 1)
-                .find(|(_, candidate)| candidate.kind == SyntaxKind::LeftBrace)
-                .map(|(candidate_index, _)| candidate_index)?;
-            let body_end_index = matching_right_brace_token_index(tokens, body_start_index)?;
+            let body_start_index = next_block_start_token_index(tokens, index + 1)?;
+            let body_end_index = matching_block_end_token_index(tokens, body_start_index)?;
             let header_text = control_flow_header_text(source, tokens, index);
             let condition_text = if at_rule_name == "@if" {
                 Some(header_text).filter(|header| !header.is_empty())
@@ -874,8 +864,8 @@ fn scss_declaration_local_bindings_from_symbol(
             break;
         };
         match token.kind {
-            SyntaxKind::LeftBrace => {
-                let Some(scope_end_index) = matching_right_brace_token_index(tokens, index) else {
+            SyntaxKind::LeftBrace | SyntaxKind::SassIndent => {
+                let Some(scope_end_index) = matching_block_end_token_index(tokens, index) else {
                     index += 1;
                     continue;
                 };
@@ -887,7 +877,7 @@ fn scss_declaration_local_bindings_from_symbol(
                 index += 1;
                 continue;
             }
-            SyntaxKind::RightBrace => {
+            SyntaxKind::RightBrace | SyntaxKind::SassDedent => {
                 if scope_stack
                     .last()
                     .is_some_and(|scope| scope.end_index == index)
@@ -949,14 +939,9 @@ fn scss_declaration_body_token_range(
     symbol: &ParsedSassSymbolFact,
 ) -> Option<(usize, usize)> {
     let token_index = token_index_for_symbol_range(tokens, symbol)?;
-    let left_brace_index = tokens
-        .iter()
-        .enumerate()
-        .skip(token_index + 1)
-        .find(|(_, token)| token.kind == SyntaxKind::LeftBrace)
-        .map(|(index, _)| index)?;
-    let right_brace_index = matching_right_brace_token_index(tokens, left_brace_index)?;
-    Some((left_brace_index + 1, right_brace_index))
+    let block_start_index = next_block_start_token_index(tokens, token_index + 1)?;
+    let block_end_index = matching_block_end_token_index(tokens, block_start_index)?;
+    Some((block_start_index + 1, block_end_index))
 }
 
 fn scss_declaration_body_has_control_flow(
@@ -3142,6 +3127,64 @@ mod tests {
             function_call.call_resolved_return_value,
             Some(AbstractCssValueV0::Exact {
                 value: "6px".to_string()
+            })
+        );
+    }
+
+    #[test]
+    fn call_return_ir_resolves_sass_indented_function_returns() {
+        let source = "@function pick($target)\n  @for $i from 1 through 3\n    @if $i == $target\n      @return $i\n  @return 0\n.button\n  z-index: pick(2)";
+        let report = summarize_scss_call_return_ir(source, StyleDialect::Sass);
+        assert!(report.is_some());
+        let Some(report) = report else {
+            return;
+        };
+        let declaration = report.nodes.iter().find(|node| {
+            node.kind == "functionDeclaration" && node.name.as_deref() == Some("pick")
+        });
+        assert!(declaration.is_some());
+        let Some(declaration) = declaration else {
+            return;
+        };
+        assert!(declaration.body_has_control_flow);
+        assert!(declaration.body_has_loop_control_flow);
+
+        let loop_return = report.nodes.iter().find(|node| {
+            node.kind == "functionReturn" && node.return_text.as_deref() == Some("$i")
+        });
+        assert!(loop_return.is_some());
+        let Some(loop_return) = loop_return else {
+            return;
+        };
+        assert!(loop_return.return_inside_loop_control_flow);
+        assert_eq!(
+            loop_return.return_loop_header_text.as_deref(),
+            Some("$i from 1 through 3")
+        );
+        assert_eq!(
+            loop_return.return_condition_text.as_deref(),
+            Some("$i == $target")
+        );
+
+        let function_call = report
+            .nodes
+            .iter()
+            .find(|node| node.kind == "functionCall" && node.name.as_deref() == Some("pick"));
+        assert!(function_call.is_some());
+        let Some(function_call) = function_call else {
+            return;
+        };
+
+        assert!(function_call.containing_declaration_node_key.is_none());
+        assert_eq!(report.recursive_edge_count, 0);
+        assert_eq!(report.capped_recursive_call_count, 0);
+        assert_eq!(report.call_resolved_return_value_count, 1);
+        assert_eq!(report.exact_call_resolved_return_value_count, 1);
+        assert_eq!(function_call.call_resolved_return_value_kind, Some("exact"));
+        assert_eq!(
+            function_call.call_resolved_return_value,
+            Some(AbstractCssValueV0::Exact {
+                value: "2".to_string()
             })
         );
     }

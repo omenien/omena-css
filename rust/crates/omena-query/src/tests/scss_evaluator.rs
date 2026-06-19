@@ -2699,6 +2699,71 @@ $enabled: true;
 }
 
 #[test]
+fn exposes_sass_while_control_flow_through_query_boundary() {
+    let source = r#"
+$i: 0
+@while $i < 3
+  $i: $i + 1
+  .n
+    order: $i
+"#;
+
+    let summary = summarize_omena_query_scss_evaluator_control_flow_from_source(
+        source,
+        OmenaParserStyleDialect::Sass,
+    );
+
+    assert_eq!(summary.schema_version, "0");
+    assert_eq!(summary.product, "omena-query.scss-evaluator-control-flow");
+    assert_eq!(summary.mode, "oracleOnly");
+    assert_eq!(summary.dialect, "sass");
+    assert_eq!(summary.value_type, "AbstractCssValueV0");
+    assert!(summary.supported_dialect);
+    assert!(!summary.flat_css_cfg_built);
+    assert!(!summary.merged_cross_file_graph);
+    assert!(summary.control_flow_ir.is_some());
+    assert!(summary.value_analysis.is_some());
+    assert_eq!(summary.control_flow_loop_block_count, 1);
+    assert_eq!(summary.control_flow_back_edge_count, 1);
+    assert!(summary.value_analysis_converged);
+}
+
+#[test]
+fn exposes_sass_function_return_control_flow_through_query_boundary() {
+    let source = r#"
+@function pick($target)
+  @for $i from 1 through 3
+    @if $i == $target
+      @return $i
+  @return 0
+.button
+  z-index: pick(2)
+"#;
+
+    let summary = summarize_omena_query_scss_evaluator_control_flow_from_source(
+        source,
+        OmenaParserStyleDialect::Sass,
+    );
+
+    assert_eq!(summary.schema_version, "0");
+    assert_eq!(summary.product, "omena-query.scss-evaluator-control-flow");
+    assert_eq!(summary.mode, "oracleOnly");
+    assert_eq!(summary.dialect, "sass");
+    assert_eq!(summary.value_type, "AbstractCssValueV0");
+    assert!(summary.supported_dialect);
+    assert!(!summary.flat_css_cfg_built);
+    assert!(!summary.merged_cross_file_graph);
+    assert!(summary.control_flow_ir.is_some());
+    assert!(summary.value_analysis.is_some());
+    assert!(summary.call_return_ir.is_some());
+    assert_eq!(summary.control_flow_loop_block_count, 1);
+    assert_eq!(summary.control_flow_back_edge_count, 1);
+    assert_eq!(summary.call_resolved_return_value_count, 1);
+    assert_eq!(summary.exact_call_resolved_return_value_count, 1);
+    assert!(summary.value_analysis_converged);
+}
+
+#[test]
 fn exposes_static_while_bindings_through_query_boundary() -> Result<(), serde_json::Error> {
     let source = "$i: 0; @while $i < 3 { $i: $i + 1; .n { order: $i; } }";
 

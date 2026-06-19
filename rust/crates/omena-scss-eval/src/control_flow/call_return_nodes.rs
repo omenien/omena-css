@@ -6,7 +6,7 @@ use crate::abstract_css_value_kind;
 use super::analysis_model::ScssCallReturnCandidate;
 use super::blocks::scss_eval_stable_node_key;
 use super::model::OmenaScssEvalCallReturnNodeV0;
-use super::tokens::matching_right_brace_token_index;
+use super::tokens::{matching_block_end_token_index, next_block_start_token_index};
 
 pub(super) fn call_return_node_from_candidate(
     candidate: ScssCallReturnCandidate,
@@ -103,14 +103,9 @@ fn call_return_declaration_body_end(
                 && token_start <= declaration_name_start
         })
         .map(|(index, _)| index)?;
-    let left_brace_index = tokens
-        .iter()
-        .enumerate()
-        .skip(at_rule_index + 1)
-        .find(|(_, token)| token.kind == SyntaxKind::LeftBrace)
-        .map(|(index, _)| index)?;
-    let right_brace_index = matching_right_brace_token_index(tokens, left_brace_index)?;
-    Some(tokens[right_brace_index].range.end().into())
+    let block_start_index = next_block_start_token_index(tokens, at_rule_index + 1)?;
+    let block_end_index = matching_block_end_token_index(tokens, block_start_index)?;
+    Some(tokens[block_end_index].range.end().into())
 }
 
 pub(super) fn call_return_node_is_declaration(node: &OmenaScssEvalCallReturnNodeV0) -> bool {

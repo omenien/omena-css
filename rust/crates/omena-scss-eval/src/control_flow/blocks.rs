@@ -3,7 +3,7 @@ use omena_syntax::SyntaxKind;
 use omena_transform_cst::StableNodeKeyV0;
 
 use super::model::OmenaScssEvalControlFlowBlockV0;
-use super::tokens::matching_right_brace_token_index;
+use super::tokens::{matching_block_end_token_index, next_block_start_token_index};
 
 pub(super) fn control_flow_block_from_token(
     source: &str,
@@ -40,21 +40,10 @@ pub(super) fn control_flow_block_from_token(
 }
 
 fn control_flow_body_span_end(tokens: &[LexedToken], token_index: usize) -> Option<usize> {
-    let mut left_brace_index = None;
-    for (index, token) in tokens.iter().enumerate().skip(token_index + 1) {
-        match token.kind {
-            SyntaxKind::LeftBrace => {
-                left_brace_index = Some(index);
-                break;
-            }
-            SyntaxKind::Semicolon | SyntaxKind::SassOptionalSemicolon => return None,
-            _ => {}
-        }
-    }
-    let left_brace_index = left_brace_index?;
-    let right_brace_index = matching_right_brace_token_index(tokens, left_brace_index)?;
+    let block_start_index = next_block_start_token_index(tokens, token_index + 1)?;
+    let block_end_index = matching_block_end_token_index(tokens, block_start_index)?;
     tokens
-        .get(right_brace_index)
+        .get(block_end_index)
         .map(|token| token.range.end().into())
 }
 
