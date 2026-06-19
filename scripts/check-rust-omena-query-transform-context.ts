@@ -25,11 +25,13 @@ interface TransformContextSummaryV0 {
       readonly evaluator: string;
       readonly productOutputSource?: string;
       readonly evaluatedCss: string;
+      readonly nativeEditOutput?: string;
     } | null;
     readonly lessModuleEvaluation?: {
       readonly evaluator: string;
       readonly productOutputSource?: string;
       readonly evaluatedCss: string;
+      readonly nativeEditOutput?: string;
     } | null;
     readonly importInlines: readonly {
       readonly importSource: string;
@@ -265,6 +267,10 @@ assert.equal(
 );
 assert.equal(
   stylesheetEvaluationContextSummary.context.scssModuleEvaluation?.evaluatedCss,
+  " .button { color: red; }",
+);
+assert.equal(
+  stylesheetEvaluationContextSummary.context.scssModuleEvaluation?.nativeEditOutput,
   " .button { color: red; }",
 );
 assert.equal(stylesheetEvaluationContextSummary.context.lessModuleEvaluation, null);

@@ -84,6 +84,7 @@ interface ConsumerBuildSummaryV0 {
       readonly evaluator: string;
       readonly productOutputSource?: string;
       readonly evaluatedCss: string;
+      readonly nativeEditOutput?: string;
     } | null;
     readonly semanticRemovals: readonly {
       readonly passId: string;
@@ -3485,6 +3486,10 @@ assert.equal(
   staticScssEvaluationSummary.execution.cssModuleEvaluation?.evaluatedCss,
   "  .button { color: red; }",
 );
+assert.equal(
+  staticScssEvaluationSummary.execution.cssModuleEvaluation?.nativeEditOutput,
+  "  .button { color: red; }",
+);
 assert.equal(staticScssEvaluationSummary.execution.outputCss, "  ._button_0{ color: red; }");
 
 const importAwareScssEvaluationResult = spawnSync(
@@ -4431,6 +4436,10 @@ assert.equal(
 );
 assert.equal(
   staticLessEvaluationSummary.execution.cssModuleEvaluation?.evaluatedCss,
+  "  .button { color: red; }",
+);
+assert.equal(
+  staticLessEvaluationSummary.execution.cssModuleEvaluation?.nativeEditOutput,
   "  .button { color: red; }",
 );
 assert.equal(staticLessEvaluationSummary.execution.outputCss, "  ._button_0{ color: red; }");
