@@ -1,17 +1,23 @@
 use std::collections::{BTreeMap, BTreeSet};
 
-use omena_parser::StyleDialect;
+use omena_parser::{StyleDialect, lex};
 use omena_syntax::SyntaxKind;
 
 use super::{
-    StaticLessDetachedRulesetDeclaration, StaticStylesheetEvaluationEdit,
-    StaticStylesheetPropertyDeclaration, StaticStylesheetScope,
+    StaticLessDetachedRulesetCallRenderOutcome, StaticLessDetachedRulesetDeclaration,
+    StaticLessMixinCallRenderOutcome, StaticLessMixinRenderContext, StaticLessMixinRenderResult,
+    StaticStylesheetEvaluationEdit, StaticStylesheetPropertyDeclaration, StaticStylesheetScope,
     StaticStylesheetVariableDeclaration, StaticStylesheetVariableKind,
     apply_static_stylesheet_evaluation_edits,
     collect_static_stylesheet_variable_references_with_options,
+    less_detached_rulesets::{
+        collect_static_less_detached_ruleset_calls, find_static_less_detached_ruleset_declaration,
+    },
     less_mixin_values::{
         collect_static_less_mixin_body_local_declarations, static_less_mixin_body_scoped_values,
     },
+    less_mixins::collect_static_less_mixin_calls,
+    render_static_less_detached_ruleset_body, render_static_less_mixin_call,
     resolve_static_less_property_value_in_scope, resolve_static_less_variable_value_in_scope,
     static_stylesheet_position_is_inside_ranges, static_stylesheet_token_end,
     static_stylesheet_token_start,
@@ -113,4 +119,77 @@ pub(super) fn render_static_less_mixin_body_variables(
         });
     }
     apply_static_stylesheet_evaluation_edits(body, edits)
+}
+
+pub(super) fn render_static_less_mixin_body_nested_calls(
+    body: &str,
+    call_scope_id: usize,
+    context: StaticLessMixinRenderContext<'_>,
+    active_mixins: &mut BTreeSet<String>,
+) -> Option<StaticLessMixinRenderResult> {
+    let body_lexed = lex(body, StyleDialect::Less);
+    let body_tokens = body_lexed.tokens();
+    let calls = collect_static_less_mixin_calls(body, body_tokens)?;
+    let detached_calls = collect_static_less_detached_ruleset_calls(body, body_tokens)?;
+    if calls.is_empty() && detached_calls.is_empty() {
+        return Some(StaticLessMixinRenderResult {
+            body: body.to_string(),
+            used_declaration_names: BTreeSet::new(),
+        });
+    }
+
+    let mut edits = Vec::new();
+    let mut used_declaration_names = BTreeSet::new();
+    for call in calls {
+        let Some(rendered) =
+            render_static_less_mixin_call(&call, call_scope_id, context, active_mixins)?
+        else {
+            continue;
+        };
+        match rendered {
+            StaticLessMixinCallRenderOutcome::Rendered(rendered) => {
+                used_declaration_names.extend(rendered.used_declaration_names);
+                edits.push(StaticStylesheetEvaluationEdit {
+                    start: call.start,
+                    end: call.end,
+                    replacement: rendered.body,
+                });
+            }
+            StaticLessMixinCallRenderOutcome::PreservedNoOutput => {}
+        }
+    }
+    for call in detached_calls {
+        let declaration = find_static_less_detached_ruleset_declaration(
+            call.name.as_str(),
+            call_scope_id,
+            context.scopes,
+            context.detached_ruleset_declarations,
+        )?;
+        let rendered = render_static_less_detached_ruleset_body(
+            context.source,
+            declaration,
+            call_scope_id,
+            context.scopes,
+            context.variable_declarations,
+            context.property_declarations,
+            context.declarations,
+            context.detached_ruleset_declarations,
+        )?;
+        match rendered {
+            StaticLessDetachedRulesetCallRenderOutcome::Rendered(rendered) => {
+                used_declaration_names.extend(rendered.used_declaration_names);
+                edits.push(StaticStylesheetEvaluationEdit {
+                    start: call.start,
+                    end: call.end,
+                    replacement: rendered.body,
+                });
+            }
+            StaticLessDetachedRulesetCallRenderOutcome::PreservedRaw => {}
+        }
+    }
+
+    Some(StaticLessMixinRenderResult {
+        body: apply_static_stylesheet_evaluation_edits(body, edits)?,
+        used_declaration_names,
+    })
 }

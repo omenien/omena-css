@@ -65,7 +65,9 @@ use less_guard::{static_less_mixin_guard_depends_on_default, static_less_mixin_g
 use less_mixin_arguments::{
     static_less_mixin_parameter_patterns_match, static_less_mixin_pattern_argument_matches,
 };
-use less_mixin_render::render_static_less_mixin_body_variables;
+use less_mixin_render::{
+    render_static_less_mixin_body_nested_calls, render_static_less_mixin_body_variables,
+};
 use less_mixin_values::{
     apply_static_less_mixin_call_importance, resolve_static_less_mixin_body_declaration_values,
     resolve_static_less_mixin_value_with_bindings, static_less_body_property_value,
@@ -3674,79 +3676,6 @@ fn render_static_less_namespace_mixin_call(
             used_declaration_names: BTreeSet::from([canonical_namespace]),
         },
     )))
-}
-
-fn render_static_less_mixin_body_nested_calls(
-    body: &str,
-    call_scope_id: usize,
-    context: StaticLessMixinRenderContext<'_>,
-    active_mixins: &mut BTreeSet<String>,
-) -> Option<StaticLessMixinRenderResult> {
-    let body_lexed = lex(body, StyleDialect::Less);
-    let body_tokens = body_lexed.tokens();
-    let calls = collect_static_less_mixin_calls(body, body_tokens)?;
-    let detached_calls = collect_static_less_detached_ruleset_calls(body, body_tokens)?;
-    if calls.is_empty() && detached_calls.is_empty() {
-        return Some(StaticLessMixinRenderResult {
-            body: body.to_string(),
-            used_declaration_names: BTreeSet::new(),
-        });
-    }
-
-    let mut edits = Vec::new();
-    let mut used_declaration_names = BTreeSet::new();
-    for call in calls {
-        let Some(rendered) =
-            render_static_less_mixin_call(&call, call_scope_id, context, active_mixins)?
-        else {
-            continue;
-        };
-        match rendered {
-            StaticLessMixinCallRenderOutcome::Rendered(rendered) => {
-                used_declaration_names.extend(rendered.used_declaration_names);
-                edits.push(StaticStylesheetEvaluationEdit {
-                    start: call.start,
-                    end: call.end,
-                    replacement: rendered.body,
-                });
-            }
-            StaticLessMixinCallRenderOutcome::PreservedNoOutput => {}
-        }
-    }
-    for call in detached_calls {
-        let declaration = find_static_less_detached_ruleset_declaration(
-            call.name.as_str(),
-            call_scope_id,
-            context.scopes,
-            context.detached_ruleset_declarations,
-        )?;
-        let rendered = render_static_less_detached_ruleset_body(
-            context.source,
-            declaration,
-            call_scope_id,
-            context.scopes,
-            context.variable_declarations,
-            context.property_declarations,
-            context.declarations,
-            context.detached_ruleset_declarations,
-        )?;
-        match rendered {
-            StaticLessDetachedRulesetCallRenderOutcome::Rendered(rendered) => {
-                used_declaration_names.extend(rendered.used_declaration_names);
-                edits.push(StaticStylesheetEvaluationEdit {
-                    start: call.start,
-                    end: call.end,
-                    replacement: rendered.body,
-                });
-            }
-            StaticLessDetachedRulesetCallRenderOutcome::PreservedRaw => {}
-        }
-    }
-
-    Some(StaticLessMixinRenderResult {
-        body: apply_static_stylesheet_evaluation_edits(body, edits)?,
-        used_declaration_names,
-    })
 }
 
 fn resolve_static_scss_mixin_body_declaration_values(
