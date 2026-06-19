@@ -49,6 +49,7 @@ pub(super) fn derive_static_stylesheet_module_evaluation_for_transform_context(
         let oracle = evaluation.oracle;
         return Some(TransformModuleEvaluationV0 {
             evaluator: evaluation.evaluator,
+            product_output_source: evaluation.product_output_source,
             evaluated_css: restore_less_inline_literal_placeholders(
                 evaluation.evaluated_css.as_str(),
                 &import_aware_source.less_inline_literal_placeholders,
@@ -61,6 +62,7 @@ pub(super) fn derive_static_stylesheet_module_evaluation_for_transform_context(
     }
     (evaluation_source.as_ref() != style_source).then(|| TransformModuleEvaluationV0 {
         evaluator: static_stylesheet_module_system_evaluator_label(dialect).to_string(),
+        product_output_source: Some("evaluatedCss".to_string()),
         evaluated_css: restore_less_inline_literal_placeholders(
             evaluation_source.as_ref(),
             &import_aware_source.less_inline_literal_placeholders,

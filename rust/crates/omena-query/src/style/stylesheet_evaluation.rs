@@ -29,6 +29,7 @@ pub(super) fn derive_static_stylesheet_module_evaluation(
     let oracle = transform_module_evaluation_oracle(&evaluation);
     Some(TransformModuleEvaluationV0 {
         evaluator: evaluation.evaluator.to_string(),
+        product_output_source: Some(evaluation.product_output_source.to_string()),
         evaluated_css: evaluation.evaluated_css,
         native_edit_output: Some(evaluation.native_edit_output),
         native_replacements: evaluation

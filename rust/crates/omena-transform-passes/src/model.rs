@@ -283,6 +283,8 @@ pub struct TransformExecutionContextV0 {
 #[serde(rename_all = "camelCase")]
 pub struct TransformModuleEvaluationV0 {
     pub evaluator: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub product_output_source: Option<String>,
     pub evaluated_css: String,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub native_edit_output: Option<String>,

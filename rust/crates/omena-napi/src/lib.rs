@@ -1077,6 +1077,7 @@ mod tests {
         let context = OmenaNapiTransformExecutionContextV0 {
             scss_module_evaluation: Some(omena_query::OmenaQueryTransformModuleEvaluationV0 {
                 evaluator: "dart-sass-compatible".to_string(),
+                product_output_source: Some("nativeEditOutput".to_string()),
                 evaluated_css: ".card { color: red; }".to_string(),
                 native_edit_output: Some(".card { color: red; }".to_string()),
                 native_replacements: Vec::new(),

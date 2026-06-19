@@ -14,6 +14,7 @@ fn execution_runtime_applies_explicit_scss_module_evaluation() {
     let context = TransformExecutionContextV0 {
         scss_module_evaluation: Some(TransformModuleEvaluationV0 {
             evaluator: "dart-sass-compatible".to_string(),
+            product_output_source: Some("nativeEditOutput".to_string()),
             evaluated_css: evaluated_css.to_string(),
             native_edit_output: Some(evaluated_css.to_string()),
             native_replacements: Vec::new(),
@@ -44,6 +45,7 @@ fn execution_runtime_applies_explicit_scss_module_evaluation() {
         execution.css_module_evaluation,
         Some(TransformModuleEvaluationV0 {
             evaluator: "dart-sass-compatible".to_string(),
+            product_output_source: Some("nativeEditOutput".to_string()),
             evaluated_css: evaluated_css.to_string(),
             native_edit_output: Some(evaluated_css.to_string()),
             native_replacements: Vec::new(),
@@ -65,6 +67,7 @@ fn execution_runtime_prefers_native_output_over_legacy_evaluated_css() {
     let context = TransformExecutionContextV0 {
         scss_module_evaluation: Some(TransformModuleEvaluationV0 {
             evaluator: "dart-sass-compatible".to_string(),
+            product_output_source: Some("nativeEditOutput".to_string()),
             evaluated_css: legacy_css.to_string(),
             native_edit_output: Some(native_css.to_string()),
             native_replacements: Vec::new(),
@@ -102,6 +105,7 @@ fn execution_runtime_consumes_native_output_without_native_edits() {
     let context = TransformExecutionContextV0 {
         scss_module_evaluation: Some(TransformModuleEvaluationV0 {
             evaluator: "dart-sass-compatible".to_string(),
+            product_output_source: Some("nativeEditOutput".to_string()),
             evaluated_css: legacy_css.to_string(),
             native_edit_output: Some(native_css.to_string()),
             native_replacements: Vec::new(),
@@ -138,6 +142,7 @@ fn execution_runtime_applies_explicit_less_module_evaluation() {
     let context = TransformExecutionContextV0 {
         less_module_evaluation: Some(TransformModuleEvaluationV0 {
             evaluator: "less-js-compatible".to_string(),
+            product_output_source: Some("nativeEditOutput".to_string()),
             evaluated_css: evaluated_css.to_string(),
             native_edit_output: Some(evaluated_css.to_string()),
             native_replacements: Vec::new(),
@@ -168,6 +173,7 @@ fn execution_runtime_applies_explicit_less_module_evaluation() {
         execution.css_module_evaluation,
         Some(TransformModuleEvaluationV0 {
             evaluator: "less-js-compatible".to_string(),
+            product_output_source: Some("nativeEditOutput".to_string()),
             evaluated_css: evaluated_css.to_string(),
             native_edit_output: Some(evaluated_css.to_string()),
             native_replacements: Vec::new(),
@@ -189,6 +195,7 @@ fn execution_runtime_prefers_less_native_output_over_legacy_evaluated_css() {
     let context = TransformExecutionContextV0 {
         less_module_evaluation: Some(TransformModuleEvaluationV0 {
             evaluator: "less-js-compatible".to_string(),
+            product_output_source: Some("nativeEditOutput".to_string()),
             evaluated_css: legacy_css.to_string(),
             native_edit_output: Some(native_css.to_string()),
             native_replacements: Vec::new(),
@@ -225,6 +232,7 @@ fn execution_runtime_consumes_scss_oracle_output_without_native_edits() {
     let context = TransformExecutionContextV0 {
         scss_module_evaluation: Some(TransformModuleEvaluationV0 {
             evaluator: "omena-query-static-scss-module-system-evaluator".to_string(),
+            product_output_source: Some("legacyEvaluatedCss".to_string()),
             evaluated_css: evaluated_css.to_string(),
             native_edit_output: None,
             native_replacements: Vec::new(),
@@ -258,6 +266,7 @@ fn execution_runtime_consumes_less_oracle_output_without_native_edits() {
     let context = TransformExecutionContextV0 {
         less_module_evaluation: Some(TransformModuleEvaluationV0 {
             evaluator: "omena-query-static-less-module-system-evaluator".to_string(),
+            product_output_source: Some("legacyEvaluatedCss".to_string()),
             evaluated_css: evaluated_css.to_string(),
             native_edit_output: None,
             native_replacements: Vec::new(),
@@ -292,6 +301,7 @@ fn execution_runtime_consumes_oracle_output_when_native_edits_are_stale_but_orac
     let context = TransformExecutionContextV0 {
         less_module_evaluation: Some(TransformModuleEvaluationV0 {
             evaluator: "omena-query-static-less-variable-evaluator".to_string(),
+            product_output_source: Some("legacyEvaluatedCss".to_string()),
             evaluated_css: evaluated_css.to_string(),
             native_edit_output: None,
             native_replacements: Vec::new(),
@@ -353,6 +363,7 @@ fn execution_runtime_preserves_scss_source_when_native_edits_diverge_from_oracle
     let context = TransformExecutionContextV0 {
         scss_module_evaluation: Some(TransformModuleEvaluationV0 {
             evaluator: "dart-sass-compatible".to_string(),
+            product_output_source: None,
             evaluated_css: ".button { color: red; }".to_string(),
             native_edit_output: None,
             native_replacements: Vec::new(),
@@ -387,6 +398,7 @@ fn execution_runtime_preserves_less_source_when_native_edits_diverge_from_oracle
     let context = TransformExecutionContextV0 {
         less_module_evaluation: Some(TransformModuleEvaluationV0 {
             evaluator: "less-js-compatible".to_string(),
+            product_output_source: None,
             evaluated_css: ".button { color: red; }".to_string(),
             native_edit_output: None,
             native_replacements: Vec::new(),

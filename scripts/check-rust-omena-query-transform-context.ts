@@ -23,10 +23,12 @@ interface TransformContextSummaryV0 {
     readonly reachableCustomPropertyNames: readonly string[];
     readonly scssModuleEvaluation?: {
       readonly evaluator: string;
+      readonly productOutputSource?: string;
       readonly evaluatedCss: string;
     } | null;
     readonly lessModuleEvaluation?: {
       readonly evaluator: string;
+      readonly productOutputSource?: string;
       readonly evaluatedCss: string;
     } | null;
     readonly importInlines: readonly {
@@ -256,6 +258,10 @@ assert.equal(stylesheetEvaluationContextSummary.targetStylePath, "src/Button.mod
 assert.equal(
   stylesheetEvaluationContextSummary.context.scssModuleEvaluation?.evaluator,
   "omena-query-static-scss-variable-evaluator",
+);
+assert.equal(
+  stylesheetEvaluationContextSummary.context.scssModuleEvaluation?.productOutputSource,
+  "nativeEditOutput",
 );
 assert.equal(
   stylesheetEvaluationContextSummary.context.scssModuleEvaluation?.evaluatedCss,

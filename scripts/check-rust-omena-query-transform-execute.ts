@@ -82,6 +82,7 @@ interface ConsumerBuildSummaryV0 {
     }[];
     readonly cssModuleEvaluation?: {
       readonly evaluator: string;
+      readonly productOutputSource?: string;
       readonly evaluatedCss: string;
     } | null;
     readonly semanticRemovals: readonly {
@@ -3477,6 +3478,10 @@ assert.equal(
   "omena-query-static-scss-variable-evaluator",
 );
 assert.equal(
+  staticScssEvaluationSummary.execution.cssModuleEvaluation?.productOutputSource,
+  "nativeEditOutput",
+);
+assert.equal(
   staticScssEvaluationSummary.execution.cssModuleEvaluation?.evaluatedCss,
   "  .button { color: red; }",
 );
@@ -4419,6 +4424,10 @@ assert.deepEqual(staticLessEvaluationSummary.execution.executedPassIds, [
 assert.equal(
   staticLessEvaluationSummary.execution.cssModuleEvaluation?.evaluator,
   "omena-query-static-less-variable-evaluator",
+);
+assert.equal(
+  staticLessEvaluationSummary.execution.cssModuleEvaluation?.productOutputSource,
+  "nativeEditOutput",
 );
 assert.equal(
   staticLessEvaluationSummary.execution.cssModuleEvaluation?.evaluatedCss,

@@ -285,6 +285,7 @@ fn consumer_build_accepts_explicit_scss_evaluator_context() {
     let context = OmenaQueryTransformExecutionContextV0 {
         scss_module_evaluation: Some(OmenaQueryTransformModuleEvaluationV0 {
             evaluator: "dart-sass-compatible".to_string(),
+            product_output_source: Some("nativeEditOutput".to_string()),
             evaluated_css: ".button { color: red; }".to_string(),
             native_edit_output: Some(".button { color: red; }".to_string()),
             native_replacements: Vec::new(),
@@ -331,6 +332,7 @@ fn consumer_build_preserves_source_when_scss_evaluator_native_edits_diverge() {
     let context = OmenaQueryTransformExecutionContextV0 {
         scss_module_evaluation: Some(OmenaQueryTransformModuleEvaluationV0 {
             evaluator: "dart-sass-compatible".to_string(),
+            product_output_source: None,
             evaluated_css: ".button { color: red; }".to_string(),
             native_edit_output: None,
             native_replacements: Vec::new(),
