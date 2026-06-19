@@ -92,6 +92,7 @@ use omena_query::{
     summarize_omena_query_refs_for_workspace_class,
     summarize_omena_query_rename_plan_for_workspace_class,
     summarize_omena_query_scss_evaluator_control_flow_from_source,
+    summarize_omena_query_scss_evaluator_control_flow_oracle_corpus,
     summarize_omena_query_selected_query_adapter_capabilities,
     summarize_omena_query_selector_usage_canonical_producer_signal,
     summarize_omena_query_selector_usage_query_fragments,
@@ -1577,6 +1578,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             );
             serde_json::to_writer_pretty(io::stdout(), &summary)?;
         }
+        Some("input-scss-evaluator-control-flow-oracle-corpus") => {
+            let summary = summarize_omena_query_scss_evaluator_control_flow_oracle_corpus();
+            serde_json::to_writer_pretty(io::stdout(), &summary)?;
+        }
         Some("input-static-stylesheet-evaluator") => {
             let input: OmenaParserStyleFactsInputV0 = serde_json::from_str(&stdin)?;
             let dialect = parse_omena_parser_style_dialect(input.dialect.as_str())?;
@@ -2303,6 +2308,9 @@ fn run_daemon_selected_query_command(
                 ),
             )?)
         }
+        "input-scss-evaluator-control-flow-oracle-corpus" => Ok(serde_json::to_value(
+            summarize_omena_query_scss_evaluator_control_flow_oracle_corpus(),
+        )?),
         "input-static-stylesheet-evaluator" => {
             let input: OmenaParserStyleFactsInputV0 = serde_json::from_value(input)?;
             let dialect = parse_omena_parser_style_dialect(input.dialect.as_str())?;

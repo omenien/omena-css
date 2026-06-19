@@ -115,6 +115,14 @@ const EXPECTED_RUNNER_COMMANDS = new Map([
     },
   ],
   [
+    "scssEvaluatorControlFlowOracleCorpus",
+    {
+      command: SELECTED_QUERY_RUNNER_COMMANDS.scssEvaluatorControlFlowOracleCorpus,
+      inputContract: "none",
+      outputProduct: "omena-query.scss-evaluator-control-flow-oracle-corpus",
+    },
+  ],
+  [
     "staticStylesheetEvaluator",
     {
       command: SELECTED_QUERY_RUNNER_COMMANDS.staticStylesheetEvaluator,
@@ -392,6 +400,7 @@ void (async () => {
     "renamePlanRunner",
     "runnerCommandContract",
     "scssEvaluatorControlFlowFacade",
+    "scssEvaluatorControlFlowOracleCorpusFacade",
     "semanticReachabilityTransformContext",
     "sourceDiagnosticsForFileRunner",
     "sourceResolutionRuntimeIndex",

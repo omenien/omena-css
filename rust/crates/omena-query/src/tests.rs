@@ -360,6 +360,11 @@ fn summarizes_query_boundary_over_producer_fragments() {
             .ready_surfaces
             .contains(&"staticStylesheetEvaluatorOracle")
     );
+    assert!(
+        summary
+            .ready_surfaces
+            .contains(&"scssEvaluatorControlFlowOracleCorpus")
+    );
     assert!(summary.ready_surfaces.contains(&"readCascadeAtPosition"));
     assert!(
         summary

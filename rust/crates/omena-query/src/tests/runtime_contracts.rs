@@ -130,6 +130,12 @@ fn declares_runtime_backed_selected_query_adapter_capabilities() {
         summary
             .runner_commands
             .iter()
+            .any(|command| command.command == "input-scss-evaluator-control-flow-oracle-corpus")
+    );
+    assert!(
+        summary
+            .runner_commands
+            .iter()
             .any(|command| command.command == "input-static-stylesheet-evaluator")
     );
     assert!(
