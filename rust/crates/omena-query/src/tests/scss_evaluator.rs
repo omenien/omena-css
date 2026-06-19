@@ -1,5 +1,6 @@
 use crate::{
     OmenaParserStyleDialect, summarize_omena_query_scss_evaluator_control_flow_from_source,
+    summarize_omena_query_scss_evaluator_control_flow_oracle_corpus,
     summarize_omena_query_static_stylesheet_evaluator_from_source,
     summarize_omena_query_static_stylesheet_evaluator_oracle_corpus,
 };
@@ -290,6 +291,62 @@ fn exposes_static_stylesheet_oracle_corpus_through_query_boundary() {
             .fixtures
             .iter()
             .any(|fixture| fixture.id == "less.format-string")
+    );
+}
+
+#[test]
+fn exposes_scss_control_flow_oracle_corpus_through_query_boundary() {
+    let summary = summarize_omena_query_scss_evaluator_control_flow_oracle_corpus();
+
+    assert_eq!(summary.schema_version, "0");
+    assert_eq!(
+        summary.product,
+        "omena-query.scss-evaluator-control-flow-oracle-corpus"
+    );
+    assert_eq!(summary.mode, "oracleOnly");
+    assert_eq!(summary.value_type, "AbstractCssValueV0");
+    assert_eq!(summary.node_key_type, "StableNodeKeyV0");
+    assert_eq!(summary.fixture_count, 7);
+    assert_eq!(summary.supported_fixture_count, 6);
+    assert_eq!(summary.rejected_flat_css_fixture_count, 1);
+    assert!(summary.branch_fixture_count >= 3);
+    assert!(summary.loop_fixture_count >= 4);
+    assert!(summary.back_edge_fixture_count >= 4);
+    assert!(summary.call_return_fixture_count >= 4);
+    assert!(summary.resolved_call_return_fixture_count >= 3);
+    assert!(summary.top_call_return_fixture_count >= 1);
+    assert!(summary.recursive_call_fixture_count >= 1);
+    assert_eq!(
+        summary.converged_value_analysis_fixture_count,
+        summary.supported_fixture_count
+    );
+    assert_eq!(summary.flat_css_cfg_built_count, 0);
+    assert_eq!(summary.merged_cross_file_graph_count, 0);
+    assert!(summary.all_supported_fixtures_converged);
+    assert!(summary.no_flat_css_cfg_built);
+    assert!(summary.no_merged_cross_file_graph);
+    assert_eq!(
+        summary.corpus.product,
+        "omena-scss-eval.control-flow-oracle-corpus"
+    );
+    assert!(
+        summary
+            .corpus
+            .fixtures
+            .iter()
+            .any(|fixture| fixture.id == "scss.recursive-mixin-cap"
+                && fixture.capped_recursive_call_count == 1)
+    );
+    assert!(
+        summary
+            .corpus
+            .fixtures
+            .iter()
+            .any(|fixture| fixture.id == "css.flat-rejected"
+                && !fixture.supported_dialect
+                && !fixture.control_flow_available
+                && !fixture.value_analysis_available
+                && !fixture.call_return_available)
     );
 }
 

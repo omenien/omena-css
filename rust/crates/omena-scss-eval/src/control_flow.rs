@@ -22,6 +22,7 @@ use crate::{
 
 mod analysis_model;
 mod model;
+mod oracle_corpus;
 
 use analysis_model::{
     ScssBranchBlock, ScssCallBoundReturnActivity, ScssCallLocalBindingScope,
@@ -36,6 +37,10 @@ pub use model::{
     OmenaScssEvalControlFlowBindingValueV0, OmenaScssEvalControlFlowBlockV0,
     OmenaScssEvalControlFlowIrSummaryV0, OmenaScssEvalControlFlowValueAnalysisV0,
     OmenaScssEvalControlFlowValueBlockV0,
+};
+pub use oracle_corpus::{
+    OmenaScssEvalControlFlowOracleCorpusFixtureReportV0,
+    OmenaScssEvalControlFlowOracleCorpusReportV0, summarize_scss_control_flow_oracle_corpus,
 };
 
 const SCSS_CALL_RETURN_RECURSION_LIMIT: usize = 32;

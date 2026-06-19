@@ -1,7 +1,8 @@
 use super::*;
 use omena_scss_eval::{
-    OmenaScssEvalStaticStylesheetEvaluationV0, OmenaScssEvalStaticStylesheetOracleCorpusReportV0,
-    OmenaScssEvalStaticValueResolutionReportV0, derive_static_stylesheet_module_evaluation,
+    OmenaScssEvalControlFlowOracleCorpusReportV0, OmenaScssEvalStaticStylesheetEvaluationV0,
+    OmenaScssEvalStaticStylesheetOracleCorpusReportV0, OmenaScssEvalStaticValueResolutionReportV0,
+    derive_static_stylesheet_module_evaluation, summarize_scss_control_flow_oracle_corpus,
     summarize_static_stylesheet_oracle_corpus, summarize_static_stylesheet_value_resolution,
 };
 
@@ -163,6 +164,36 @@ pub struct OmenaQueryScssEvaluatorControlFlowSummaryV0 {
     pub control_flow_ir: Option<OmenaQueryScssEvalControlFlowIrSummaryV0>,
     pub value_analysis: Option<OmenaQueryScssEvalControlFlowValueAnalysisV0>,
     pub call_return_ir: Option<OmenaQueryScssEvalCallReturnIrSummaryV0>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct OmenaQueryScssEvaluatorControlFlowOracleCorpusSummaryV0 {
+    pub schema_version: &'static str,
+    pub product: &'static str,
+    pub mode: &'static str,
+    pub value_type: &'static str,
+    pub node_key_type: &'static str,
+    pub recursion_cap: usize,
+    pub fixture_count: usize,
+    pub supported_fixture_count: usize,
+    pub rejected_flat_css_fixture_count: usize,
+    pub control_flow_fixture_count: usize,
+    pub branch_fixture_count: usize,
+    pub loop_fixture_count: usize,
+    pub back_edge_fixture_count: usize,
+    pub call_return_fixture_count: usize,
+    pub resolved_call_return_fixture_count: usize,
+    pub top_call_return_fixture_count: usize,
+    pub recursive_call_fixture_count: usize,
+    pub converged_value_analysis_fixture_count: usize,
+    pub widened_to_top_fixture_count: usize,
+    pub flat_css_cfg_built_count: usize,
+    pub merged_cross_file_graph_count: usize,
+    pub all_supported_fixtures_converged: bool,
+    pub no_flat_css_cfg_built: bool,
+    pub no_merged_cross_file_graph: bool,
+    pub corpus: OmenaScssEvalControlFlowOracleCorpusReportV0,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -369,6 +400,38 @@ pub fn summarize_omena_query_scss_evaluator_control_flow_from_source(
         control_flow_ir,
         value_analysis,
         call_return_ir,
+    }
+}
+
+pub fn summarize_omena_query_scss_evaluator_control_flow_oracle_corpus()
+-> OmenaQueryScssEvaluatorControlFlowOracleCorpusSummaryV0 {
+    let corpus = summarize_scss_control_flow_oracle_corpus();
+    OmenaQueryScssEvaluatorControlFlowOracleCorpusSummaryV0 {
+        schema_version: OMENA_QUERY_CURRENT_SCHEMA_VERSION,
+        product: "omena-query.scss-evaluator-control-flow-oracle-corpus",
+        mode: corpus.mode,
+        value_type: corpus.value_type,
+        node_key_type: corpus.node_key_type,
+        recursion_cap: corpus.recursion_cap,
+        fixture_count: corpus.fixture_count,
+        supported_fixture_count: corpus.supported_fixture_count,
+        rejected_flat_css_fixture_count: corpus.rejected_flat_css_fixture_count,
+        control_flow_fixture_count: corpus.control_flow_fixture_count,
+        branch_fixture_count: corpus.branch_fixture_count,
+        loop_fixture_count: corpus.loop_fixture_count,
+        back_edge_fixture_count: corpus.back_edge_fixture_count,
+        call_return_fixture_count: corpus.call_return_fixture_count,
+        resolved_call_return_fixture_count: corpus.resolved_call_return_fixture_count,
+        top_call_return_fixture_count: corpus.top_call_return_fixture_count,
+        recursive_call_fixture_count: corpus.recursive_call_fixture_count,
+        converged_value_analysis_fixture_count: corpus.converged_value_analysis_fixture_count,
+        widened_to_top_fixture_count: corpus.widened_to_top_fixture_count,
+        flat_css_cfg_built_count: corpus.flat_css_cfg_built_count,
+        merged_cross_file_graph_count: corpus.merged_cross_file_graph_count,
+        all_supported_fixtures_converged: corpus.all_supported_fixtures_converged,
+        no_flat_css_cfg_built: corpus.no_flat_css_cfg_built,
+        no_merged_cross_file_graph: corpus.no_merged_cross_file_graph,
+        corpus,
     }
 }
 
