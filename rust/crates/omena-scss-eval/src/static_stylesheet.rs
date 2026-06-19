@@ -6561,6 +6561,15 @@ fn reduce_static_less_value_with_escape_flag(value: String) -> StaticLessResolve
             ("mix", parse_static_less_mix_value),
             ("tint", parse_static_less_tint_value),
             ("shade", parse_static_less_shade_value),
+            ("multiply", parse_static_less_multiply_value),
+            ("screen", parse_static_less_screen_value),
+            ("overlay", parse_static_less_overlay_value),
+            ("softlight", parse_static_less_softlight_value),
+            ("hardlight", parse_static_less_hardlight_value),
+            ("difference", parse_static_less_difference_value),
+            ("exclusion", parse_static_less_exclusion_value),
+            ("average", parse_static_less_average_value),
+            ("negation", parse_static_less_negation_value),
             ("lighten", parse_static_less_lighten_value),
             ("darken", parse_static_less_darken_value),
             ("saturate", parse_static_less_saturate_value),
@@ -6749,6 +6758,62 @@ fn parse_static_less_tone_mix_value(
     let color = parse_static_less_color_argument(color.trim())?;
     let weight = parse_static_less_percentage_points(weight.trim())?;
     Some(format_static_less_mixed_color(base_color, color, weight))
+}
+
+fn parse_static_less_multiply_value(value: &str) -> Option<String> {
+    parse_static_less_blend_value(value, "multiply", static_less_multiply_channel)
+}
+
+fn parse_static_less_screen_value(value: &str) -> Option<String> {
+    parse_static_less_blend_value(value, "screen", static_less_screen_channel)
+}
+
+fn parse_static_less_overlay_value(value: &str) -> Option<String> {
+    parse_static_less_blend_value(value, "overlay", static_less_overlay_channel)
+}
+
+fn parse_static_less_softlight_value(value: &str) -> Option<String> {
+    parse_static_less_blend_value(value, "softlight", static_less_softlight_channel)
+}
+
+fn parse_static_less_hardlight_value(value: &str) -> Option<String> {
+    parse_static_less_blend_value(value, "hardlight", |first, second| {
+        static_less_overlay_channel(second, first)
+    })
+}
+
+fn parse_static_less_difference_value(value: &str) -> Option<String> {
+    parse_static_less_blend_value(value, "difference", u8::abs_diff)
+}
+
+fn parse_static_less_exclusion_value(value: &str) -> Option<String> {
+    parse_static_less_blend_value(value, "exclusion", static_less_exclusion_channel)
+}
+
+fn parse_static_less_average_value(value: &str) -> Option<String> {
+    parse_static_less_blend_value(value, "average", static_less_average_channel)
+}
+
+fn parse_static_less_negation_value(value: &str) -> Option<String> {
+    parse_static_less_blend_value(value, "negation", static_less_negation_channel)
+}
+
+fn parse_static_less_blend_value(
+    value: &str,
+    function_name: &str,
+    blend_channel: impl Fn(u8, u8) -> u8,
+) -> Option<String> {
+    let arguments = parse_whole_function_value_arguments(value, function_name)?;
+    let [first, second] = arguments.as_slice() else {
+        return None;
+    };
+    let first = parse_static_less_opaque_color_argument(first.trim())?;
+    let second = parse_static_less_opaque_color_argument(second.trim())?;
+    Some(format_static_less_blended_color(
+        first,
+        second,
+        blend_channel,
+    ))
 }
 
 fn parse_static_less_lighten_value(value: &str) -> Option<String> {
@@ -6972,6 +7037,75 @@ fn static_less_mix_channel(first: u8, second: u8, first_weight: f64, second_weig
         .clamp(0.0, 255.0) as u8
 }
 
+fn format_static_less_blended_color(
+    first: SrgbColor,
+    second: SrgbColor,
+    blend_channel: impl Fn(u8, u8) -> u8,
+) -> String {
+    format_static_less_color_with_alpha(
+        StaticSrgbColorWithAlpha {
+            color: SrgbColor {
+                red: blend_channel(first.red, second.red),
+                green: blend_channel(first.green, second.green),
+                blue: blend_channel(first.blue, second.blue),
+            },
+            alpha: None,
+        },
+        1.0,
+    )
+}
+
+fn static_less_multiply_channel(first: u8, second: u8) -> u8 {
+    static_less_blend_channel(f64::from(first) * f64::from(second) / 255.0)
+}
+
+fn static_less_screen_channel(first: u8, second: u8) -> u8 {
+    static_less_blend_channel(255.0 - (f64::from(255 - first) * f64::from(255 - second) / 255.0))
+}
+
+fn static_less_overlay_channel(first: u8, second: u8) -> u8 {
+    if first < 128 {
+        return static_less_blend_channel(2.0 * f64::from(first) * f64::from(second) / 255.0);
+    }
+    static_less_blend_channel(
+        255.0 - 2.0 * f64::from(255 - first) * f64::from(255 - second) / 255.0,
+    )
+}
+
+fn static_less_softlight_channel(first: u8, second: u8) -> u8 {
+    let base = f64::from(first) / 255.0;
+    let blend = f64::from(second) / 255.0;
+    let result = if blend > 0.5 {
+        let d = if base > 0.25 {
+            base.sqrt()
+        } else {
+            ((16.0 * base - 12.0) * base + 4.0) * base
+        };
+        base + (2.0 * blend - 1.0) * (d - base)
+    } else {
+        base - (1.0 - 2.0 * blend) * base * (1.0 - base)
+    };
+    static_less_blend_channel(result * 255.0)
+}
+
+fn static_less_exclusion_channel(first: u8, second: u8) -> u8 {
+    static_less_blend_channel(
+        f64::from(first) + f64::from(second) - 2.0 * f64::from(first) * f64::from(second) / 255.0,
+    )
+}
+
+fn static_less_average_channel(first: u8, second: u8) -> u8 {
+    static_less_blend_channel((f64::from(first) + f64::from(second)) / 2.0)
+}
+
+fn static_less_negation_channel(first: u8, second: u8) -> u8 {
+    (255 - (255 - i16::from(first) - i16::from(second)).abs()).clamp(0, 255) as u8
+}
+
+fn static_less_blend_channel(value: f64) -> u8 {
+    value.round().clamp(0.0, 255.0) as u8
+}
+
 fn parse_static_less_color_argument(value: &str) -> Option<StaticSrgbColorWithAlpha> {
     parse_static_srgb_color_with_alpha(value)
         .or_else(|| parse_static_rgb_function_color_with_alpha(value))
@@ -6983,6 +7117,11 @@ fn parse_static_less_color_argument(value: &str) -> Option<StaticSrgbColorWithAl
                 .or_else(|| parse_oklab_oklch_value(value))
                 .and_then(|value| parse_static_less_color_argument(value.as_str()))
         })
+}
+
+fn parse_static_less_opaque_color_argument(value: &str) -> Option<SrgbColor> {
+    let color = parse_static_less_color_argument(value)?;
+    ((color.alpha.unwrap_or(1.0) - 1.0).abs() < f64::EPSILON).then_some(color.color)
 }
 
 fn parse_static_less_round_value(value: &str) -> Option<String> {
@@ -7818,9 +7957,9 @@ mod tests {
         assert_eq!(report.mode, "oracleOnly");
         assert_eq!(report.value_type, "AbstractCssValueV0");
         assert_eq!(report.product_output_source, "legacyEvaluatedCss");
-        assert_eq!(report.fixture_count, 14);
+        assert_eq!(report.fixture_count, 15);
         assert_eq!(report.scss_fixture_count, 6);
-        assert_eq!(report.less_fixture_count, 8);
+        assert_eq!(report.less_fixture_count, 9);
         assert_eq!(report.evaluated_fixture_count, report.fixture_count);
         assert_eq!(report.missing_evaluation_count, 0);
         assert_eq!(report.divergence_count, 0);
@@ -9854,6 +9993,32 @@ mod tests {
                 .evaluated_css
                 .contains("transparent: rgba(255, 0, 0, 0.5)")
         );
+        assert!(report.oracle.all_legacy_declaration_values_preserved);
+    }
+
+    #[test]
+    fn static_less_evaluation_reduces_color_blend_builtin_values() {
+        let report = derive_static_stylesheet_module_evaluation(
+            "@multiply: multiply(red, blue); @screen: screen(red, blue); @overlay: overlay(#123456, #abcdef); @softlight: softlight(#123456, #abcdef); @hardlight: hardlight(#123456, #abcdef); @difference: difference(#123456, #abcdef); @exclusion: exclusion(#123456, #abcdef); @average: average(#123456, #abcdef); @negation: negation(#123456, #abcdef); .button { multiply: @multiply; screen: @screen; overlay: @overlay; softlight: @softlight; hardlight: @hardlight; difference: @difference; exclusion: @exclusion; average: @average; negation: @negation; }",
+            StyleDialect::Less,
+        );
+        assert!(report.is_some());
+        let Some(report) = report else {
+            return;
+        };
+
+        assert_eq!(report.replacement_count, 9);
+        assert_eq!(report.value_resolution.resolved_count, 9);
+        assert_eq!(report.value_resolution.raw_count, 0);
+        assert!(report.evaluated_css.contains("multiply: #000000"));
+        assert!(report.evaluated_css.contains("screen: #ff00ff"));
+        assert!(report.evaluated_css.contains("overlay: #1854a1"));
+        assert!(report.evaluated_css.contains("softlight: #205b8c"));
+        assert!(report.evaluated_css.contains("hardlight: #63afea"));
+        assert!(report.evaluated_css.contains("difference: #999999"));
+        assert!(report.evaluated_css.contains("exclusion: #a5ada4"));
+        assert!(report.evaluated_css.contains("average: #5f81a3"));
+        assert!(report.evaluated_css.contains("negation: #bdfdb9"));
         assert!(report.oracle.all_legacy_declaration_values_preserved);
     }
 

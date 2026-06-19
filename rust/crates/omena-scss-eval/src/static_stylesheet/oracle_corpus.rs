@@ -235,5 +235,10 @@ fn static_stylesheet_oracle_corpus_fixtures() -> &'static [StaticStylesheetOracl
             dialect: StyleDialect::Less,
             source: "@tone: mix(red, blue, 25%); @surface: tint(#123456, 10%); .button { color: @tone; background: @surface; }",
         },
+        StaticStylesheetOracleCorpusFixtureV0 {
+            id: "less.color-blend",
+            dialect: StyleDialect::Less,
+            source: "@tone: overlay(#123456, #abcdef); @surface: screen(red, blue); .button { color: @tone; background: @surface; }",
+        },
     ]
 }

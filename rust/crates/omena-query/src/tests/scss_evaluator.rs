@@ -16,9 +16,9 @@ fn exposes_static_stylesheet_oracle_corpus_through_query_boundary() {
     assert_eq!(summary.mode, "oracleOnly");
     assert_eq!(summary.value_type, "AbstractCssValueV0");
     assert_eq!(summary.product_output_source, "legacyEvaluatedCss");
-    assert_eq!(summary.fixture_count, 14);
+    assert_eq!(summary.fixture_count, 15);
     assert_eq!(summary.scss_fixture_count, 6);
-    assert_eq!(summary.less_fixture_count, 8);
+    assert_eq!(summary.less_fixture_count, 9);
     assert_eq!(summary.evaluated_fixture_count, summary.fixture_count);
     assert_eq!(summary.missing_evaluation_count, 0);
     assert_eq!(summary.divergence_count, 0);
@@ -896,6 +896,40 @@ fn exposes_less_color_mix_builtins_through_query_boundary() {
             && evaluation
                 .evaluated_css
                 .contains("transparent: rgba(255, 0, 0, 0.5)")
+    }));
+}
+
+#[test]
+fn exposes_less_color_blend_builtins_through_query_boundary() {
+    let summary = summarize_omena_query_static_stylesheet_evaluator_from_source(
+        "@multiply: multiply(red, blue); @screen: screen(red, blue); @overlay: overlay(#123456, #abcdef); @softlight: softlight(#123456, #abcdef); @hardlight: hardlight(#123456, #abcdef); @difference: difference(#123456, #abcdef); @exclusion: exclusion(#123456, #abcdef); @average: average(#123456, #abcdef); @negation: negation(#123456, #abcdef); .button { multiply: @multiply; screen: @screen; overlay: @overlay; softlight: @softlight; hardlight: @hardlight; difference: @difference; exclusion: @exclusion; average: @average; negation: @negation; }",
+        OmenaParserStyleDialect::Less,
+    );
+
+    assert_eq!(summary.product, "omena-query.static-stylesheet-evaluator");
+    assert_eq!(summary.mode, "oracleOnly");
+    assert_eq!(summary.dialect, "less");
+    assert_eq!(summary.value_type, "AbstractCssValueV0");
+    assert!(summary.supported_dialect);
+    assert_eq!(summary.product_output_source, "legacyEvaluatedCss");
+    assert!(summary.legacy_output_consumed_until_cutover);
+    assert!(summary.evaluation_available);
+    assert_eq!(summary.divergence_count, 0);
+    assert!(summary.all_legacy_declaration_values_preserved);
+    assert_eq!(summary.native_replacement_count, 9);
+    assert_eq!(summary.native_resolved_value_count, 9);
+    assert_eq!(summary.native_raw_value_count, 0);
+    assert_eq!(summary.native_top_value_count, 0);
+    assert!(summary.evaluation.as_ref().is_some_and(|evaluation| {
+        evaluation.evaluated_css.contains("multiply: #000000")
+            && evaluation.evaluated_css.contains("screen: #ff00ff")
+            && evaluation.evaluated_css.contains("overlay: #1854a1")
+            && evaluation.evaluated_css.contains("softlight: #205b8c")
+            && evaluation.evaluated_css.contains("hardlight: #63afea")
+            && evaluation.evaluated_css.contains("difference: #999999")
+            && evaluation.evaluated_css.contains("exclusion: #a5ada4")
+            && evaluation.evaluated_css.contains("average: #5f81a3")
+            && evaluation.evaluated_css.contains("negation: #bdfdb9")
     }));
 }
 
