@@ -180,6 +180,9 @@ pub(crate) fn rewrite_css_module_class_names_with_lexer(
         {
             continue;
         }
+        if dialect == StyleDialect::Less && less_rule_selector_is_mixin_definition(&rule.selector) {
+            continue;
+        }
         let Some(rewritten_selector) =
             rewrite_class_selectors_in_selector(&rule.selector, rewrites)
         else {
@@ -310,6 +313,37 @@ fn css_module_composes_resolution_exists(
                 .iter()
                 .all(|name| normalize_reachable_class_name(name).is_some())
     })
+}
+
+fn less_rule_selector_is_mixin_definition(selector: &str) -> bool {
+    let selector = selector.trim();
+    let Some(prefix) = selector.chars().next() else {
+        return false;
+    };
+    if !matches!(prefix, '.' | '#') {
+        return false;
+    }
+
+    let name_start = prefix.len_utf8();
+    let name_end = css_class_selector_name_end(selector, name_start);
+    if name_end == name_start {
+        return false;
+    }
+
+    let after_name = selector[name_end..].trim_start();
+    let open_paren_index = name_end + selector[name_end..].len() - after_name.len();
+    if !after_name.starts_with('(') {
+        return false;
+    }
+
+    let Some(function_end) = matching_function_end(selector, open_paren_index) else {
+        return false;
+    };
+    let suffix = selector[function_end..].trim();
+    suffix.is_empty()
+        || suffix
+            .get(.."when".len())
+            .is_some_and(|prefix| prefix.eq_ignore_ascii_case("when"))
 }
 
 fn rewrite_class_selectors_in_selector(

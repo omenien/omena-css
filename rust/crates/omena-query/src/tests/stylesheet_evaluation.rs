@@ -556,6 +556,46 @@ fn consumer_build_derives_static_less_evaluator_context_for_property_variables()
 }
 
 #[test]
+fn consumer_build_executes_future_property_guarded_less_mixins_as_preserved_oracle_output() {
+    let summary = execute_omena_query_consumer_build_style_source(
+        "Button.module.less",
+        ".space() when (isnumber($margin)) { padding: $margin; } .button { .space(); margin: 2px; }",
+        &[
+            "less-module-evaluate".to_string(),
+            "css-modules-class-hashing".to_string(),
+            "print-css".to_string(),
+        ],
+    );
+
+    assert!(
+        summary
+            .execution
+            .executed_pass_ids
+            .contains(&"less-module-evaluate")
+    );
+    assert!(
+        !summary
+            .execution
+            .planned_only_pass_ids
+            .contains(&"less-module-evaluate")
+    );
+    assert!(
+        summary
+            .execution
+            .output_css
+            .contains(".space() when (isnumber($margin))")
+    );
+    assert!(
+        summary
+            .execution
+            .output_css
+            .contains("{ .space(); margin: 2px; }")
+    );
+    assert!(!summary.execution.output_css.contains("_space"));
+    assert!(!summary.execution.output_css.contains("padding: 2px"));
+}
+
+#[test]
 fn consumer_build_derives_static_less_evaluator_context_for_numeric_property_variables() {
     let summary = execute_omena_query_consumer_build_style_source(
         "Button.module.less",

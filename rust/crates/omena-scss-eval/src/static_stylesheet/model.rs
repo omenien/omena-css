@@ -233,6 +233,7 @@ pub(super) enum StaticLessMixinCallRenderOutcome {
 pub(super) enum StaticLessMixinRenderOutcome {
     Rendered(StaticLessMixinRenderResult),
     GuardNotMatched,
+    GuardUnknown,
 }
 
 #[derive(Debug, Clone)]
@@ -249,6 +250,7 @@ pub(super) enum StaticLessMixinAccessorCallRenderOutcome {
 pub(super) enum StaticLessMixinAccessorRenderOutcome {
     Rendered(StaticLessMixinAccessorRenderResult),
     GuardNotMatched,
+    GuardUnknown,
     MemberNotFound,
 }
 

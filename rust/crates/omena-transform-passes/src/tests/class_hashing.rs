@@ -118,6 +118,42 @@ fn execution_runtime_preserves_global_composes_during_css_module_class_hashing()
 }
 
 #[test]
+fn execution_runtime_does_not_hash_less_mixin_definitions() {
+    let source = r#".space() when (isnumber($margin)) { padding: $margin; } .button { .space(); margin: 2px; }"#;
+    let context = TransformExecutionContextV0 {
+        class_name_rewrites: vec![
+            TransformClassNameRewriteV0 {
+                original_name: "space".to_string(),
+                rewritten_name: "_space_should_not_apply".to_string(),
+            },
+            TransformClassNameRewriteV0 {
+                original_name: "button".to_string(),
+                rewritten_name: "_button_x".to_string(),
+            },
+        ],
+        ..TransformExecutionContextV0::default()
+    };
+    let execution = execute_transform_passes_on_source_with_dialect_and_context(
+        source,
+        StyleDialect::Less,
+        &[
+            TransformPassKind::HashCssModuleClassNames,
+            TransformPassKind::PrintCss,
+        ],
+        &context,
+    );
+
+    assert_eq!(
+        execution.output_css,
+        r#".space() when (isnumber($margin)) { padding: $margin; } ._button_x{ .space(); margin: 2px; }"#
+    );
+    assert_eq!(
+        execution.executed_pass_ids,
+        vec!["css-modules-class-hashing", "print-css"]
+    );
+}
+
+#[test]
 fn execution_runtime_rewrites_css_module_scope_prelude_class_names() {
     let source = r#"@scope (.card) to (:global(.footer)) { .title { color: red; } }"#;
     let context = TransformExecutionContextV0 {

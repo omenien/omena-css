@@ -3863,18 +3863,25 @@ fn render_static_less_mixin_body(
     if let Some(arguments_value) = static_less_mixin_arguments_value(call.arguments.as_slice()) {
         argument_values.insert("@arguments".to_string(), arguments_value);
     }
-    if let Some(guard) = &declaration.guard
-        && !static_less_mixin_guard_matches(
+    if let Some(guard) = &declaration.guard {
+        match static_less_mixin_guard_matches(
             guard,
             &argument_values,
             call_scope_id,
             call.start,
             context,
             default_matches,
-        )?
-    {
-        active_mixins.remove(&canonical_name);
-        return Some(StaticLessMixinRenderOutcome::GuardNotMatched);
+        ) {
+            Some(true) => {}
+            Some(false) => {
+                active_mixins.remove(&canonical_name);
+                return Some(StaticLessMixinRenderOutcome::GuardNotMatched);
+            }
+            None => {
+                active_mixins.remove(&canonical_name);
+                return Some(StaticLessMixinRenderOutcome::GuardUnknown);
+            }
+        }
     }
     let body = render_static_less_mixin_body_variables(
         body,
@@ -3965,6 +3972,9 @@ fn render_static_less_mixin_accessor(
             StaticLessMixinAccessorRenderOutcome::GuardNotMatched => {
                 saw_guard_not_matched = true;
             }
+            StaticLessMixinAccessorRenderOutcome::GuardUnknown => {
+                saw_guard_not_matched = true;
+            }
             StaticLessMixinAccessorRenderOutcome::MemberNotFound => {
                 saw_member_not_found = true;
             }
@@ -3994,6 +4004,9 @@ fn render_static_less_mixin_accessor(
                 rendered_values.push(rendered)
             }
             StaticLessMixinAccessorRenderOutcome::GuardNotMatched => {
+                saw_guard_not_matched = true;
+            }
+            StaticLessMixinAccessorRenderOutcome::GuardUnknown => {
                 saw_guard_not_matched = true;
             }
             StaticLessMixinAccessorRenderOutcome::MemberNotFound => {
@@ -4056,17 +4069,19 @@ fn render_static_less_mixin_accessor_declaration(
     if let Some(arguments_value) = static_less_mixin_arguments_value(call.arguments.as_slice()) {
         argument_values.insert("@arguments".to_string(), arguments_value);
     }
-    if let Some(guard) = &declaration.guard
-        && !static_less_mixin_guard_matches(
+    if let Some(guard) = &declaration.guard {
+        match static_less_mixin_guard_matches(
             guard,
             &argument_values,
             call_scope_id,
             call.start,
             context,
             default_matches,
-        )?
-    {
-        return Some(StaticLessMixinAccessorRenderOutcome::GuardNotMatched);
+        ) {
+            Some(true) => {}
+            Some(false) => return Some(StaticLessMixinAccessorRenderOutcome::GuardNotMatched),
+            None => return Some(StaticLessMixinAccessorRenderOutcome::GuardUnknown),
+        }
     }
 
     let scoped_values = static_less_mixin_body_scoped_values(
@@ -4237,6 +4252,9 @@ fn render_static_less_mixin_call(
             StaticLessMixinRenderOutcome::GuardNotMatched => {
                 saw_guard_not_matched = true;
             }
+            StaticLessMixinRenderOutcome::GuardUnknown => {
+                saw_guard_not_matched = true;
+            }
         }
     }
     let default_matches = Some(rendered_bodies.is_empty());
@@ -4263,6 +4281,9 @@ fn render_static_less_mixin_call(
                 rendered_bodies.push(rendered.body);
             }
             StaticLessMixinRenderOutcome::GuardNotMatched => {
+                saw_guard_not_matched = true;
+            }
+            StaticLessMixinRenderOutcome::GuardUnknown => {
                 saw_guard_not_matched = true;
             }
         }
@@ -4326,18 +4347,21 @@ fn render_static_less_namespace_mixin_call(
             )?;
             namespace_argument_values.insert(parameter, rendered_value);
         }
-        if let Some(guard) = &declaration.guard
-            && !static_less_mixin_guard_matches(
+        if let Some(guard) = &declaration.guard {
+            match static_less_mixin_guard_matches(
                 guard,
                 &namespace_argument_values,
                 call_scope_id,
                 call.start,
                 context,
                 None,
-            )?
-        {
-            saw_guard_not_matched = true;
-            continue;
+            ) {
+                Some(true) => {}
+                Some(false) | None => {
+                    saw_guard_not_matched = true;
+                    continue;
+                }
+            }
         }
         if !active_mixins.insert(canonical_namespace.clone()) {
             return None;
@@ -9761,9 +9785,9 @@ mod tests {
         assert_eq!(report.mode, "oracleOnly");
         assert_eq!(report.value_type, "AbstractCssValueV0");
         assert_eq!(report.product_output_source, "legacyEvaluatedCss");
-        assert_eq!(report.fixture_count, 49);
+        assert_eq!(report.fixture_count, 50);
         assert_eq!(report.scss_fixture_count, 6);
-        assert_eq!(report.less_fixture_count, 43);
+        assert_eq!(report.less_fixture_count, 44);
         assert_eq!(report.evaluated_fixture_count, report.fixture_count);
         assert_eq!(report.missing_evaluation_count, 0);
         assert_eq!(report.divergence_count, 0);
@@ -10650,13 +10674,30 @@ mod tests {
     }
 
     #[test]
-    fn static_less_evaluation_keeps_future_property_guarded_mixins_planned_only() {
+    fn static_less_evaluation_preserves_future_property_guarded_mixins_as_oracle_report() {
         let report = derive_static_stylesheet_module_evaluation(
             ".space() when (isnumber($margin)) { padding: $margin; } .button { .space(); margin: 2px; }",
             StyleDialect::Less,
         );
 
-        assert!(report.is_none());
+        assert!(report.is_some());
+        let Some(report) = report else {
+            return;
+        };
+
+        assert_eq!(report.replacement_count, 0);
+        assert!(
+            report
+                .evaluated_css
+                .contains(".space() when (isnumber($margin))")
+        );
+        assert!(
+            report
+                .evaluated_css
+                .contains(".button { .space(); margin: 2px; }")
+        );
+        assert!(!report.evaluated_css.contains("padding: 2px"));
+        assert!(report.oracle.all_legacy_declaration_values_preserved);
     }
 
     #[test]

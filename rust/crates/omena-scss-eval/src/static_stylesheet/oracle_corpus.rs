@@ -386,6 +386,11 @@ fn static_stylesheet_oracle_corpus_fixtures() -> &'static [StaticStylesheetOracl
             source: ".space() when (isnumber($margin)) { padding: $margin; } .tone() when (iscolor($color)) { border-color: $color; } .button { margin: (1px + 2px); color: red; .space(); .tone(); }",
         },
         StaticStylesheetOracleCorpusFixtureV0 {
+            id: "less.future-property-guarded-mixin",
+            dialect: StyleDialect::Less,
+            source: ".space() when (isnumber($margin)) { padding: $margin; } .button { .space(); margin: 2px; }",
+        },
+        StaticStylesheetOracleCorpusFixtureV0 {
             id: "less.rgb-color-constructors",
             dialect: StyleDialect::Less,
             source: "@rgb: rgb(18, 52, 86); @rgba: rgba(18, 52, 86, .5); .button { color: @rgb; background: @rgba; }",
