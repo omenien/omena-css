@@ -491,9 +491,9 @@ fn feature_support_for_resolved_targets(distribs: &[Distrib]) -> TargetFeatureSu
             distribs,
             "css-lch-lab",
         ),
-        supports_color_function: target_set_is_subset_of_fully_supported_feature(
+        supports_color_function: target_set_is_subset_of_browser_threshold_table(
             distribs,
-            "css-color-function",
+            "color_function",
         ),
         supports_logical_properties: target_set_is_subset_of_fully_supported_feature(
             distribs,
@@ -1023,9 +1023,9 @@ mod tests {
             boundary.target_data_source,
             "oxcBrowserslistV3+browserThresholdsTomlV0+staticTargetProfileV0+explicitFeatureMatrixV0"
         );
-        assert_eq!(boundary.browser_threshold_table_count, 5);
-        assert_eq!(boundary.browser_threshold_entry_count, 55);
-        assert_eq!(boundary.pass_feature_binding_count, 5);
+        assert_eq!(boundary.browser_threshold_table_count, 6);
+        assert_eq!(boundary.browser_threshold_entry_count, 66);
+        assert_eq!(boundary.pass_feature_binding_count, 6);
         assert_eq!(boundary.browser_data_parse_error_count, 0);
         assert!(boundary.browser_data_quorum_valid);
         assert!(boundary.browser_data_bindings_valid);
@@ -1235,7 +1235,7 @@ mod tests {
             plan.target_data_snapshot_id,
             "omena-transform-target-data-v0:thresholds-2026-05-22:bindings-2026-05-22"
         );
-        assert_eq!(plan.target_data_evidence.len(), 5);
+        assert_eq!(plan.target_data_evidence.len(), 6);
         assert!(
             plan.target_data_evidence
                 .iter()
@@ -1266,6 +1266,13 @@ mod tests {
         assert!(
             plan.target_data_evidence
                 .iter()
+                .any(|evidence| evidence.support_table == "color_function"
+                    && evidence.caniuse_keys == vec!["css-color-function".to_string()]
+                    && !evidence.all_resolved_targets_supported)
+        );
+        assert!(
+            plan.target_data_evidence
+                .iter()
                 .any(|evidence| evidence.support_table == "css_scope"
                     && evidence.caniuse_keys == vec!["css-cascade-scope".to_string()]
                     && !evidence.all_resolved_targets_supported)
@@ -1290,9 +1297,26 @@ mod tests {
 
     #[test]
     fn resolves_target_features_from_static_compatibility_matrix() {
+        let chrome_110 =
+            plan_target_transforms_from_query("chrome 110", conservative_target_options());
+        assert!(!chrome_110.support.supports_color_function);
+        assert!(
+            chrome_110
+                .transform_plan
+                .required_pass_ids
+                .contains(&"color-function-lowering")
+        );
+
         let chrome_111 =
             plan_target_transforms_from_query("chrome 111", conservative_target_options());
+        assert!(chrome_111.support.supports_color_function);
         assert!(!chrome_111.support.supports_css_nesting);
+        assert!(
+            !chrome_111
+                .transform_plan
+                .required_pass_ids
+                .contains(&"color-function-lowering")
+        );
         assert!(
             chrome_111
                 .transform_plan
@@ -1464,6 +1488,46 @@ mod tests {
         };
         assert_eq!(color_mix_threshold.min_version, "111.0");
         assert_eq!(color_mix_threshold.caniuse_key, "css-color-mix");
+
+        let color_function = chrome_122
+            .target_data_evidence
+            .iter()
+            .find(|evidence| evidence.support_table == "color_function");
+        assert!(
+            color_function.is_some(),
+            "color() target data evidence should be present"
+        );
+        let Some(color_function) = color_function else {
+            return;
+        };
+        assert_eq!(color_function.pass_id, "color-function-lowering");
+        assert_eq!(
+            color_function.caniuse_keys,
+            vec!["css-color-function".to_string()]
+        );
+        assert!(color_function.all_resolved_targets_supported);
+        let chrome_color_function = color_function
+            .resolved_targets
+            .iter()
+            .find(|target| target.browser == "chrome");
+        assert!(
+            chrome_color_function.is_some(),
+            "chrome color() target evidence should be present"
+        );
+        let Some(chrome_color_function) = chrome_color_function else {
+            return;
+        };
+        assert!(chrome_color_function.supported);
+        let color_function_threshold = chrome_color_function.matched_threshold.as_ref();
+        assert!(
+            color_function_threshold.is_some(),
+            "chrome color() threshold should be present"
+        );
+        let Some(color_function_threshold) = color_function_threshold else {
+            return;
+        };
+        assert_eq!(color_function_threshold.min_version, "111.0");
+        assert_eq!(color_function_threshold.caniuse_key, "css-color-function");
 
         let css_nesting = chrome_122
             .target_data_evidence

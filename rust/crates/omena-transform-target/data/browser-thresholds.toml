@@ -204,6 +204,105 @@ source_quorum = ["caniuse", "web-features", "mdn-bcd"]
 last_verified = "2026-05-22"
 
 [[threshold]]
+table = "color_function"
+browser = "chrome"
+min_major = 111
+min_minor = 0
+caniuse_key = "css-color-function"
+source_quorum = ["caniuse", "web-features", "mdn-bcd"]
+last_verified = "2026-05-22"
+
+[[threshold]]
+table = "color_function"
+browser = "edge"
+min_major = 111
+min_minor = 0
+caniuse_key = "css-color-function"
+source_quorum = ["caniuse", "web-features", "mdn-bcd"]
+last_verified = "2026-05-22"
+
+[[threshold]]
+table = "color_function"
+browser = "firefox"
+min_major = 113
+min_minor = 0
+caniuse_key = "css-color-function"
+source_quorum = ["caniuse", "web-features", "mdn-bcd"]
+last_verified = "2026-05-22"
+
+[[threshold]]
+table = "color_function"
+browser = "safari"
+min_major = 15
+min_minor = 0
+caniuse_key = "css-color-function"
+source_quorum = ["caniuse", "web-features", "mdn-bcd"]
+last_verified = "2026-05-22"
+
+[[threshold]]
+table = "color_function"
+browser = "ios_saf"
+min_major = 15
+min_minor = 0
+caniuse_key = "css-color-function"
+source_quorum = ["caniuse", "web-features", "mdn-bcd"]
+last_verified = "2026-05-22"
+
+[[threshold]]
+table = "color_function"
+browser = "opera"
+min_major = 98
+min_minor = 0
+caniuse_key = "css-color-function"
+source_quorum = ["caniuse", "web-features", "mdn-bcd"]
+last_verified = "2026-05-22"
+
+[[threshold]]
+table = "color_function"
+browser = "op_mob"
+min_major = 80
+min_minor = 0
+caniuse_key = "css-color-function"
+source_quorum = ["caniuse", "web-features", "mdn-bcd"]
+last_verified = "2026-05-22"
+
+[[threshold]]
+table = "color_function"
+browser = "and_chr"
+min_major = 149
+min_minor = 0
+caniuse_key = "css-color-function"
+source_quorum = ["caniuse", "web-features", "mdn-bcd"]
+last_verified = "2026-05-22"
+
+[[threshold]]
+table = "color_function"
+browser = "and_ff"
+min_major = 151
+min_minor = 0
+caniuse_key = "css-color-function"
+source_quorum = ["caniuse", "web-features", "mdn-bcd"]
+last_verified = "2026-05-22"
+
+[[threshold]]
+table = "color_function"
+browser = "samsung"
+min_major = 22
+min_minor = 0
+caniuse_key = "css-color-function"
+source_quorum = ["caniuse", "web-features", "mdn-bcd"]
+last_verified = "2026-05-22"
+
+[[threshold]]
+table = "color_function"
+browser = "android"
+min_major = 149
+min_minor = 0
+caniuse_key = "css-color-function"
+source_quorum = ["caniuse", "web-features", "mdn-bcd"]
+last_verified = "2026-05-22"
+
+[[threshold]]
 table = "css_nesting"
 browser = "chrome"
 min_major = 112

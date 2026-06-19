@@ -60,6 +60,30 @@
       ]
     },
     {
+      "table": "color_function",
+      "passId": "color-function-lowering",
+      "caniuseKeys": ["css-color-function"],
+      "sourceKeys": {
+        "caniuse": "css-color-function",
+        "web-features": "color-function",
+        "mdn-bcd": "css.types.color.color"
+      },
+      "sourceQuorum": ["caniuse", "web-features", "mdn-bcd"],
+      "thresholds": [
+        { "browser": "chrome", "minMajor": 111, "minMinor": 0 },
+        { "browser": "edge", "minMajor": 111, "minMinor": 0 },
+        { "browser": "firefox", "minMajor": 113, "minMinor": 0 },
+        { "browser": "safari", "minMajor": 15, "minMinor": 0 },
+        { "browser": "ios_saf", "minMajor": 15, "minMinor": 0 },
+        { "browser": "opera", "minMajor": 98, "minMinor": 0 },
+        { "browser": "op_mob", "minMajor": 80, "minMinor": 0 },
+        { "browser": "and_chr", "minMajor": 149, "minMinor": 0 },
+        { "browser": "and_ff", "minMajor": 151, "minMinor": 0 },
+        { "browser": "samsung", "minMajor": 22, "minMinor": 0 },
+        { "browser": "android", "minMajor": 149, "minMinor": 0 }
+      ]
+    },
+    {
       "table": "css_nesting",
       "passId": "nesting-unwrap",
       "caniuseKeys": ["css-nesting"],
