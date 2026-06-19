@@ -191,6 +191,11 @@ fn static_stylesheet_oracle_corpus_fixtures() -> &'static [StaticStylesheetOracl
             source: "@function pick($target) { $i: 0; @while $i < 3 { @if $i == $target { @return $i + 1; } $i: $i + 1; } @return 0; } .button { z-index: pick(2); }",
         },
         StaticStylesheetOracleCorpusFixtureV0 {
+            id: "scss.static-mixin-include",
+            dialect: StyleDialect::Scss,
+            source: "@mixin tone($color, $gap: 1px) { color: $color; margin: $gap; } .button { @include tone(red, 2px); }",
+        },
+        StaticStylesheetOracleCorpusFixtureV0 {
             id: "less.variable-basic",
             dialect: StyleDialect::Less,
             source: "@gap: 2px; .card { margin: @gap; }",
@@ -201,9 +206,19 @@ fn static_stylesheet_oracle_corpus_fixtures() -> &'static [StaticStylesheetOracl
             source: "@brand: red; .tone(@color, @gap: 1px) { color: @color; margin: @gap; padding: @brand; } .button { .tone(blue, 2px); }",
         },
         StaticStylesheetOracleCorpusFixtureV0 {
+            id: "less.guarded-namespace-mixin",
+            dialect: StyleDialect::Less,
+            source: "#bundle() when (iscolor(red)) { .tone() { color: red; } } .button { #bundle > .tone(); }",
+        },
+        StaticStylesheetOracleCorpusFixtureV0 {
             id: "less.detached-ruleset",
             dialect: StyleDialect::Less,
             source: "@brand: red; @rules: { color: @brand; margin: 1px; }; .button { @rules(); }",
+        },
+        StaticStylesheetOracleCorpusFixtureV0 {
+            id: "less.detached-ruleset-accessor",
+            dialect: StyleDialect::Less,
+            source: "@brand: red; @tokens: { primary: @brand; @gap: 2px; }; .button { color: @tokens[primary]; margin: @tokens[@gap]; }",
         },
     ]
 }
