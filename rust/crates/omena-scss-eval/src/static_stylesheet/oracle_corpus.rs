@@ -34,6 +34,7 @@ pub struct OmenaScssEvalStaticStylesheetOracleCorpusReportV0 {
     pub native_top_value_count: usize,
     pub all_legacy_declaration_values_preserved: bool,
     pub all_native_edit_outputs_match_evaluated_css: bool,
+    pub native_product_output_corpus_ready: bool,
     pub fixtures: Vec<OmenaScssEvalStaticStylesheetOracleCorpusFixtureReportV0>,
 }
 
@@ -161,6 +162,15 @@ pub fn summarize_static_stylesheet_oracle_corpus()
         && fixtures
             .iter()
             .all(|fixture| fixture.legacy_output_retained_as_oracle);
+    let native_product_output_corpus_ready = missing_evaluation_count == 0
+        && divergence_count == 0
+        && legacy_output_consumed_until_cutover_count == 0
+        && all_legacy_outputs_retained_as_oracle
+        && all_legacy_declaration_values_preserved
+        && all_native_edit_outputs_match_evaluated_css
+        && fixtures
+            .iter()
+            .all(|fixture| fixture.product_output_source == "nativeEditOutput");
 
     OmenaScssEvalStaticStylesheetOracleCorpusReportV0 {
         schema_version: "0",
@@ -191,6 +201,7 @@ pub fn summarize_static_stylesheet_oracle_corpus()
         native_top_value_count,
         all_legacy_declaration_values_preserved,
         all_native_edit_outputs_match_evaluated_css,
+        native_product_output_corpus_ready,
         fixtures,
     }
 }

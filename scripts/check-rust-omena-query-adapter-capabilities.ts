@@ -39,6 +39,7 @@ interface StaticStylesheetEvaluatorOracleCorpusSummaryV0 {
   readonly nativeTopValueCount: number;
   readonly allLegacyDeclarationValuesPreserved: boolean;
   readonly allNativeEditOutputsMatchEvaluatedCss: boolean;
+  readonly nativeProductOutputCorpusReady: boolean;
   readonly corpus?: StaticStylesheetEvaluatorOracleCorpusSummaryV0 & {
     readonly fixtures: readonly StaticStylesheetEvaluatorOracleFixtureSummaryV0[];
   };
@@ -765,6 +766,7 @@ function assertStaticStylesheetEvaluatorOracleCorpus(
   assert.ok(summary.nativeTopValueCount > 0);
   assert.equal(summary.allLegacyDeclarationValuesPreserved, true);
   assert.equal(summary.allNativeEditOutputsMatchEvaluatedCss, true);
+  assert.equal(summary.nativeProductOutputCorpusReady, true);
 
   const corpus = summary.corpus;
   assert.ok(corpus, "selected-query facade must expose the underlying evaluator corpus");
@@ -775,6 +777,7 @@ function assertStaticStylesheetEvaluatorOracleCorpus(
   assert.equal(corpus.legacyOutputConsumedUntilCutoverCount, 0);
   assert.equal(corpus.allLegacyDeclarationValuesPreserved, true);
   assert.equal(corpus.allNativeEditOutputsMatchEvaluatedCss, true);
+  assert.equal(corpus.nativeProductOutputCorpusReady, true);
   assert.ok(
     corpus.fixtures.every(
       (fixture) =>

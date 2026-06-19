@@ -140,6 +140,7 @@ pub struct OmenaQueryStaticStylesheetEvaluatorOracleCorpusSummaryV0 {
     pub native_top_value_count: usize,
     pub all_legacy_declaration_values_preserved: bool,
     pub all_native_edit_outputs_match_evaluated_css: bool,
+    pub native_product_output_corpus_ready: bool,
     pub corpus: OmenaScssEvalStaticStylesheetOracleCorpusReportV0,
 }
 
@@ -335,6 +336,7 @@ pub fn summarize_omena_query_static_stylesheet_evaluator_oracle_corpus()
         all_legacy_declaration_values_preserved: corpus.all_legacy_declaration_values_preserved,
         all_native_edit_outputs_match_evaluated_css: corpus
             .all_native_edit_outputs_match_evaluated_css,
+        native_product_output_corpus_ready: corpus.native_product_output_corpus_ready,
         corpus,
     }
 }

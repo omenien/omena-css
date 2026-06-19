@@ -109,10 +109,12 @@ fn exposes_static_stylesheet_oracle_corpus_through_query_boundary() {
     assert!(summary.native_top_value_count > 0);
     assert!(summary.all_legacy_declaration_values_preserved);
     assert!(summary.all_native_edit_outputs_match_evaluated_css);
+    assert!(summary.native_product_output_corpus_ready);
     assert_eq!(
         summary.corpus.product,
         "omena-scss-eval.static-stylesheet-oracle-corpus"
     );
+    assert!(summary.corpus.native_product_output_corpus_ready);
     assert!(
         summary
             .corpus

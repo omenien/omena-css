@@ -4956,6 +4956,7 @@ mod tests {
         assert!(report.native_top_value_count > 0);
         assert!(report.all_legacy_declaration_values_preserved);
         assert!(report.all_native_edit_outputs_match_evaluated_css);
+        assert!(report.native_product_output_corpus_ready);
         assert!(report.fixtures.iter().any(|fixture| {
             fixture.id == "sass.variable-basic"
                 && fixture.dialect == "sass"
