@@ -444,6 +444,7 @@ pub fn analyze_scss_control_flow_values(
                 block: block.clone(),
                 predecessor_indices,
                 transfer: control_flow_transfer_for_block(
+                    source,
                     block,
                     previous_blocks,
                     &lexical_bindings,
@@ -2574,12 +2575,13 @@ fn control_flow_predecessor_indices(
 }
 
 fn control_flow_transfer_for_block(
+    source: &str,
     block: &OmenaScssEvalControlFlowBlockV0,
     previous_blocks: &[OmenaScssEvalControlFlowBlockV0],
     lexical_bindings: &LexicalScssBindings,
 ) -> ScssControlFlowTransfer {
     let contextual_bindings =
-        contextual_control_flow_bindings(block, previous_blocks, lexical_bindings);
+        contextual_control_flow_bindings(source, block, previous_blocks, lexical_bindings);
     match block.at_rule_name.to_ascii_lowercase().as_str() {
         "@if" => ScssControlFlowTransfer::BranchCondition {
             value: scss_header_value_with_bindings(
@@ -2590,8 +2592,12 @@ fn control_flow_transfer_for_block(
             ),
         },
         "@while" => {
-            let bindings =
-                while_loop_carried_binding_values(block.header_text.as_str(), &contextual_bindings);
+            let assigned_bindings = while_loop_body_assignment_names(source, block);
+            let bindings = while_loop_carried_binding_values(
+                block.header_text.as_str(),
+                &contextual_bindings,
+                assigned_bindings.as_slice(),
+            );
             let value = if bindings.is_empty() {
                 scss_header_value_with_bindings(
                     block.header_text.as_str(),
@@ -2612,12 +2618,15 @@ fn control_flow_transfer_for_block(
                 value: loop_carried_value(block.header_text.as_str(), &contextual_bindings),
             }
         }
-        "@else" => control_flow_transfer_for_else_block(block, previous_blocks, lexical_bindings),
+        "@else" => {
+            control_flow_transfer_for_else_block(source, block, previous_blocks, lexical_bindings)
+        }
         _ => ScssControlFlowTransfer::PassThrough,
     }
 }
 
 fn contextual_control_flow_bindings(
+    source: &str,
     block: &OmenaScssEvalControlFlowBlockV0,
     previous_blocks: &[OmenaScssEvalControlFlowBlockV0],
     lexical_bindings: &LexicalScssBindings,
@@ -2628,7 +2637,8 @@ fn contextual_control_flow_bindings(
             && previous.source_span_start < block.source_span_start
             && block.source_span_start < previous.source_span_end
     }) {
-        for binding in control_flow_loop_carried_binding_values(previous, &visible_bindings) {
+        for binding in control_flow_loop_carried_binding_values(source, previous, &visible_bindings)
+        {
             insert_static_scss_binding(
                 &mut visible_bindings,
                 binding.name.as_str(),
@@ -2640,24 +2650,31 @@ fn contextual_control_flow_bindings(
 }
 
 fn control_flow_loop_carried_binding_values(
+    source: &str,
     block: &OmenaScssEvalControlFlowBlockV0,
     lexical_bindings: &BTreeMap<String, AbstractCssValueV0>,
 ) -> Vec<ScssControlFlowBindingValue> {
     if block.at_rule_name.eq_ignore_ascii_case("@while") {
-        while_loop_carried_binding_values(block.header_text.as_str(), lexical_bindings)
+        let assigned_bindings = while_loop_body_assignment_names(source, block);
+        while_loop_carried_binding_values(
+            block.header_text.as_str(),
+            lexical_bindings,
+            assigned_bindings.as_slice(),
+        )
     } else {
         loop_carried_binding_values(block.header_text.as_str(), lexical_bindings)
     }
 }
 
 fn control_flow_transfer_for_else_block(
+    source: &str,
     block: &OmenaScssEvalControlFlowBlockV0,
     previous_blocks: &[OmenaScssEvalControlFlowBlockV0],
     lexical_bindings: &LexicalScssBindings,
 ) -> ScssControlFlowTransfer {
     if let Some(condition) = scss_else_if_header_condition(block.header_text.as_str()) {
         let contextual_bindings =
-            contextual_control_flow_bindings(block, previous_blocks, lexical_bindings);
+            contextual_control_flow_bindings(source, block, previous_blocks, lexical_bindings);
         return ScssControlFlowTransfer::BranchCondition {
             value: scss_header_value_with_bindings(
                 condition,
@@ -3606,11 +3623,17 @@ fn static_each_tuple_loop_binding_values(
 fn while_loop_carried_binding_values(
     header: &str,
     lexical_bindings: &BTreeMap<String, AbstractCssValueV0>,
+    assigned_bindings: &[String],
 ) -> Vec<ScssControlFlowBindingValue> {
-    if let Some(values) = static_while_condition_loop_binding_values(header, lexical_bindings) {
+    let binding_names = while_loop_binding_names(header, assigned_bindings);
+    if let Some(values) = static_while_condition_loop_binding_values(
+        header,
+        lexical_bindings,
+        binding_names.as_slice(),
+    ) {
         return values;
     }
-    loop_carried_bindings(header)
+    binding_names
         .into_iter()
         .map(|name| ScssControlFlowBindingValue {
             name,
@@ -3619,15 +3642,79 @@ fn while_loop_carried_binding_values(
         .collect()
 }
 
+fn while_loop_binding_names(header: &str, assigned_bindings: &[String]) -> Vec<String> {
+    let header_bindings = loop_carried_bindings(header);
+    if assigned_bindings.is_empty() {
+        return header_bindings;
+    }
+    let filtered = header_bindings
+        .iter()
+        .filter(|name| {
+            assigned_bindings.iter().any(|assigned| {
+                canonical_scss_variable_name(name) == canonical_scss_variable_name(assigned)
+            })
+        })
+        .cloned()
+        .collect::<Vec<_>>();
+    if filtered.is_empty() {
+        header_bindings
+    } else {
+        filtered
+    }
+}
+
+fn while_loop_body_assignment_names(
+    source: &str,
+    block: &OmenaScssEvalControlFlowBlockV0,
+) -> Vec<String> {
+    let Some(body) = control_flow_block_body_text(source, block) else {
+        return Vec::new();
+    };
+    let lexed = lex(body, StyleDialect::Scss);
+    let tokens = lexed.tokens();
+    let mut names: Vec<String> = Vec::new();
+    for (index, token) in tokens.iter().enumerate() {
+        if token.kind != SyntaxKind::ScssVariable {
+            continue;
+        }
+        let Some(colon_index) = next_non_trivia_token_index(tokens, index + 1) else {
+            continue;
+        };
+        if tokens[colon_index].kind != SyntaxKind::Colon {
+            continue;
+        }
+        let name = token.text.to_string();
+        if !names.iter().any(|existing| {
+            canonical_scss_variable_name(existing.as_str())
+                == canonical_scss_variable_name(name.as_str())
+        }) {
+            names.push(name);
+        }
+    }
+    names
+}
+
+fn control_flow_block_body_text<'a>(
+    source: &'a str,
+    block: &OmenaScssEvalControlFlowBlockV0,
+) -> Option<&'a str> {
+    let block_text = source.get(block.source_span_start..block.source_span_end)?;
+    let open = block_text.find('{')?;
+    let close = block_text.rfind('}')?;
+    (open < close)
+        .then(|| block_text.get(open + '{'.len_utf8()..close))
+        .flatten()
+}
+
 fn static_while_condition_loop_binding_values(
     header: &str,
     lexical_bindings: &BTreeMap<String, AbstractCssValueV0>,
+    binding_names: &[String],
 ) -> Option<Vec<ScssControlFlowBindingValue>> {
-    let bindings = loop_carried_bindings(header);
-    if bindings.len() != 1 {
+    if binding_names.len() != 1 {
         return None;
     }
-    let binding_name = bindings[0].as_str();
+    let binding_name = binding_names[0].as_str();
     let (left, operator, right) = split_static_while_inequality(header)?;
     let start = static_while_integer_binding_value(binding_name, lexical_bindings)?;
 
@@ -3647,7 +3734,7 @@ fn static_while_condition_loop_binding_values(
     let value = static_while_integer_domain(start, operator, bound)?;
 
     Some(vec![ScssControlFlowBindingValue {
-        name: bindings[0].clone(),
+        name: binding_names[0].clone(),
         value,
     }])
 }
@@ -5145,6 +5232,29 @@ mod tests {
             report.blocks[0].loop_carried_binding_values[0].value,
             AbstractCssValueV0::FiniteSet {
                 values: vec!["1".to_string(), "2".to_string(), "3".to_string()]
+            }
+        );
+    }
+
+    #[test]
+    fn control_flow_value_analysis_tracks_while_bound_variable_bindings() {
+        let source = "$end: 3; $i: 0; @while $i < $end { $i: $i + 1; .n { order: $i; } }";
+        let report = analyze_scss_control_flow_values(source, StyleDialect::Scss);
+        assert!(report.is_some());
+        let Some(report) = report else {
+            return;
+        };
+
+        assert_eq!(report.block_count, 1);
+        assert_eq!(report.back_edge_count, 1);
+        assert_eq!(report.loop_carried_binding_count, 1);
+        assert_eq!(report.blocks[0].kind, "loop");
+        assert_eq!(report.blocks[0].transfer_kind, "loopCondition");
+        assert_eq!(report.blocks[0].loop_carried_bindings, vec!["$i"]);
+        assert_eq!(
+            report.blocks[0].loop_carried_binding_values[0].value,
+            AbstractCssValueV0::FiniteSet {
+                values: vec!["0".to_string(), "1".to_string(), "2".to_string()]
             }
         );
     }
