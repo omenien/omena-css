@@ -16,9 +16,9 @@ fn exposes_static_stylesheet_oracle_corpus_through_query_boundary() {
     assert_eq!(summary.mode, "oracleOnly");
     assert_eq!(summary.value_type, "AbstractCssValueV0");
     assert_eq!(summary.product_output_source, "legacyEvaluatedCss");
-    assert_eq!(summary.fixture_count, 17);
+    assert_eq!(summary.fixture_count, 18);
     assert_eq!(summary.scss_fixture_count, 6);
-    assert_eq!(summary.less_fixture_count, 11);
+    assert_eq!(summary.less_fixture_count, 12);
     assert_eq!(summary.evaluated_fixture_count, summary.fixture_count);
     assert_eq!(summary.missing_evaluation_count, 0);
     assert_eq!(summary.divergence_count, 0);
@@ -866,7 +866,7 @@ fn exposes_less_contrast_and_color_builtins_through_query_boundary() {
 #[test]
 fn exposes_less_alpha_transform_builtins_through_query_boundary() {
     let summary = summarize_omena_query_static_stylesheet_evaluator_from_source(
-        "@faded: fade(#123456, 50%); @raised: fadein(rgba(18, 52, 86, .5), 10%); @lowered: fadeout(rgba(18, 52, 86, .5), 10%); @opaque: fadein(red, 10%); .button { a: @faded; b: @raised; c: @lowered; d: @opaque; }",
+        "@faded: fade(#123456, 50%); @raised: fadein(rgba(18, 52, 86, .5), 10%); @lowered: fadeout(rgba(18, 52, 86, .5), 10%); @raisedRel: fadein(rgba(18, 52, 86, .5), 10%, relative); @loweredRel: fadeout(rgba(18, 52, 86, .5), 10%, relative); @opaque: fadein(red, 10%); .button { a: @faded; b: @raised; c: @lowered; d: @opaque; e: @raisedRel; f: @loweredRel; }",
         OmenaParserStyleDialect::Less,
     );
 
@@ -880,8 +880,8 @@ fn exposes_less_alpha_transform_builtins_through_query_boundary() {
     assert!(summary.evaluation_available);
     assert_eq!(summary.divergence_count, 0);
     assert!(summary.all_legacy_declaration_values_preserved);
-    assert_eq!(summary.native_replacement_count, 4);
-    assert_eq!(summary.native_resolved_value_count, 4);
+    assert_eq!(summary.native_replacement_count, 6);
+    assert_eq!(summary.native_resolved_value_count, 6);
     assert_eq!(summary.native_raw_value_count, 0);
     assert_eq!(summary.native_top_value_count, 0);
     assert!(summary.evaluation.as_ref().is_some_and(|evaluation| {
@@ -895,13 +895,19 @@ fn exposes_less_alpha_transform_builtins_through_query_boundary() {
                 .evaluated_css
                 .contains("c: rgba(18, 52, 86, 0.4)")
             && evaluation.evaluated_css.contains("d: #ff0000")
+            && evaluation
+                .evaluated_css
+                .contains("e: rgba(18, 52, 86, 0.55)")
+            && evaluation
+                .evaluated_css
+                .contains("f: rgba(18, 52, 86, 0.45)")
     }));
 }
 
 #[test]
 fn exposes_less_hsl_color_transform_builtins_through_query_boundary() {
     let summary = summarize_omena_query_static_stylesheet_evaluator_from_source(
-        "@light: lighten(#123456, 10%); @dark: darken(#123456, 10%); @sat: saturate(#123456, 10%); @desat: desaturate(#123456, 10%); @spin: spin(#123456, 10); @gray: greyscale(#123456); @alpha: lighten(rgba(18, 52, 86, .5), 10%); .button { light: @light; dark: @dark; sat: @sat; desat: @desat; spin: @spin; gray: @gray; alpha: @alpha; }",
+        "@light: lighten(#123456, 10%); @dark: darken(#123456, 10%); @sat: saturate(#123456, 10%); @desat: desaturate(#123456, 10%); @lightRel: lighten(#123456, 10%, relative); @darkRel: darken(#123456, 10%, relative); @satRel: saturate(#123456, 10%, relative); @desatRel: desaturate(#123456, 10%, relative); @spin: spin(#123456, 10); @gray: greyscale(#123456); @alpha: lighten(rgba(18, 52, 86, .5), 10%); .button { light: @light; dark: @dark; sat: @sat; desat: @desat; light-rel: @lightRel; dark-rel: @darkRel; sat-rel: @satRel; desat-rel: @desatRel; spin: @spin; gray: @gray; alpha: @alpha; }",
         OmenaParserStyleDialect::Less,
     );
 
@@ -915,8 +921,8 @@ fn exposes_less_hsl_color_transform_builtins_through_query_boundary() {
     assert!(summary.evaluation_available);
     assert_eq!(summary.divergence_count, 0);
     assert!(summary.all_legacy_declaration_values_preserved);
-    assert_eq!(summary.native_replacement_count, 7);
-    assert_eq!(summary.native_resolved_value_count, 7);
+    assert_eq!(summary.native_replacement_count, 11);
+    assert_eq!(summary.native_resolved_value_count, 11);
     assert_eq!(summary.native_raw_value_count, 0);
     assert_eq!(summary.native_top_value_count, 0);
     assert!(summary.evaluation.as_ref().is_some_and(|evaluation| {
@@ -924,6 +930,10 @@ fn exposes_less_hsl_color_transform_builtins_through_query_boundary() {
             && evaluation.evaluated_css.contains("dark: #091a2c")
             && evaluation.evaluated_css.contains("sat: #0d345b")
             && evaluation.evaluated_css.contains("desat: #173451")
+            && evaluation.evaluated_css.contains("light-rel: #14395f")
+            && evaluation.evaluated_css.contains("dark-rel: #102f4d")
+            && evaluation.evaluated_css.contains("sat-rel: #0f3459")
+            && evaluation.evaluated_css.contains("desat-rel: #153453")
             && evaluation.evaluated_css.contains("spin: #122956")
             && evaluation.evaluated_css.contains("gray: #343434")
             && evaluation

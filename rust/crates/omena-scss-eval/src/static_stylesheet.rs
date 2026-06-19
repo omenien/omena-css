@@ -6830,15 +6830,19 @@ fn parse_static_less_argb_value(value: &str) -> Option<String> {
 }
 
 fn parse_static_less_fade_value(value: &str) -> Option<String> {
-    parse_static_less_alpha_transform_value(value, "fade", |_, amount| amount)
+    parse_static_less_alpha_transform_value(value, "fade", |_, amount, _| amount)
 }
 
 fn parse_static_less_fadein_value(value: &str) -> Option<String> {
-    parse_static_less_alpha_transform_value(value, "fadein", |current, amount| current + amount)
+    parse_static_less_alpha_transform_value(value, "fadein", |current, amount, mode| {
+        current + static_less_unit_interval_delta(current, amount, mode)
+    })
 }
 
 fn parse_static_less_fadeout_value(value: &str) -> Option<String> {
-    parse_static_less_alpha_transform_value(value, "fadeout", |current, amount| current - amount)
+    parse_static_less_alpha_transform_value(value, "fadeout", |current, amount, mode| {
+        current - static_less_unit_interval_delta(current, amount, mode)
+    })
 }
 
 fn parse_static_less_mix_value(value: &str) -> Option<String> {
@@ -6939,31 +6943,87 @@ fn parse_static_less_blend_value(
 }
 
 fn parse_static_less_lighten_value(value: &str) -> Option<String> {
-    parse_static_less_hsl_amount_transform_value(value, "lighten", |mut channels, amount| {
-        channels.lightness = (channels.lightness + amount).clamp(0.0, 100.0);
+    parse_static_less_hsl_amount_transform_value(value, "lighten", |mut channels, amount, mode| {
+        channels.lightness = (channels.lightness
+            + static_less_channel_delta(channels.lightness, amount, mode))
+        .clamp(0.0, 100.0);
         channels
     })
 }
 
 fn parse_static_less_darken_value(value: &str) -> Option<String> {
-    parse_static_less_hsl_amount_transform_value(value, "darken", |mut channels, amount| {
-        channels.lightness = (channels.lightness - amount).clamp(0.0, 100.0);
+    parse_static_less_hsl_amount_transform_value(value, "darken", |mut channels, amount, mode| {
+        channels.lightness = (channels.lightness
+            - static_less_channel_delta(channels.lightness, amount, mode))
+        .clamp(0.0, 100.0);
         channels
     })
 }
 
 fn parse_static_less_saturate_value(value: &str) -> Option<String> {
-    parse_static_less_hsl_amount_transform_value(value, "saturate", |mut channels, amount| {
-        channels.saturation = (channels.saturation + amount).clamp(0.0, 100.0);
+    parse_static_less_hsl_amount_transform_value(value, "saturate", |mut channels, amount, mode| {
+        channels.saturation = (channels.saturation
+            + static_less_channel_delta(channels.saturation, amount, mode))
+        .clamp(0.0, 100.0);
         channels
     })
 }
 
 fn parse_static_less_desaturate_value(value: &str) -> Option<String> {
-    parse_static_less_hsl_amount_transform_value(value, "desaturate", |mut channels, amount| {
-        channels.saturation = (channels.saturation - amount).clamp(0.0, 100.0);
-        channels
-    })
+    parse_static_less_hsl_amount_transform_value(
+        value,
+        "desaturate",
+        |mut channels, amount, mode| {
+            channels.saturation = (channels.saturation
+                - static_less_channel_delta(channels.saturation, amount, mode))
+            .clamp(0.0, 100.0);
+            channels
+        },
+    )
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum StaticLessColorTransformMode {
+    Absolute,
+    Relative,
+}
+
+fn static_less_channel_delta(current: f64, amount: f64, mode: StaticLessColorTransformMode) -> f64 {
+    match mode {
+        StaticLessColorTransformMode::Absolute => amount,
+        StaticLessColorTransformMode::Relative => current * amount / 100.0,
+    }
+}
+
+fn static_less_unit_interval_delta(
+    current: f64,
+    amount: f64,
+    mode: StaticLessColorTransformMode,
+) -> f64 {
+    match mode {
+        StaticLessColorTransformMode::Absolute => amount,
+        StaticLessColorTransformMode::Relative => current * amount,
+    }
+}
+
+fn parse_static_less_color_transform_arguments(
+    value: &str,
+    function_name: &str,
+) -> Option<(String, String, StaticLessColorTransformMode)> {
+    let arguments = parse_whole_function_value_arguments(value, function_name)?;
+    match arguments.as_slice() {
+        [color, amount] => Some((
+            color.trim().to_string(),
+            amount.trim().to_string(),
+            StaticLessColorTransformMode::Absolute,
+        )),
+        [color, amount, method] if method.trim().eq_ignore_ascii_case("relative") => Some((
+            color.trim().to_string(),
+            amount.trim().to_string(),
+            StaticLessColorTransformMode::Relative,
+        )),
+        _ => None,
+    }
 }
 
 fn parse_static_less_spin_value(value: &str) -> Option<String> {
@@ -6992,32 +7052,30 @@ fn parse_static_less_greyscale_value(value: &str) -> Option<String> {
 fn parse_static_less_hsl_amount_transform_value(
     value: &str,
     function_name: &str,
-    transform: impl FnOnce(StaticLessHslChannels, f64) -> StaticLessHslChannels,
+    transform: impl FnOnce(
+        StaticLessHslChannels,
+        f64,
+        StaticLessColorTransformMode,
+    ) -> StaticLessHslChannels,
 ) -> Option<String> {
-    let arguments = parse_whole_function_value_arguments(value, function_name)?;
-    let [color, amount] = arguments.as_slice() else {
-        return None;
-    };
-    let color = parse_static_less_color_argument(color.trim())?;
-    let amount = parse_static_less_percentage_points(amount.trim())?;
+    let (color, amount, mode) = parse_static_less_color_transform_arguments(value, function_name)?;
+    let color = parse_static_less_color_argument(color.as_str())?;
+    let amount = parse_static_less_percentage_points(amount.as_str())?;
     format_static_less_color_from_hsl_channels(
         color,
-        transform(static_less_hsl_channels(color), amount),
+        transform(static_less_hsl_channels(color), amount, mode),
     )
 }
 
 fn parse_static_less_alpha_transform_value(
     value: &str,
     function_name: &str,
-    transform: impl FnOnce(f64, f64) -> f64,
+    transform: impl FnOnce(f64, f64, StaticLessColorTransformMode) -> f64,
 ) -> Option<String> {
-    let arguments = parse_whole_function_value_arguments(value, function_name)?;
-    let [color, amount] = arguments.as_slice() else {
-        return None;
-    };
-    let color = parse_static_less_color_argument(color.trim())?;
-    let amount = parse_static_less_alpha_amount(amount.trim())?;
-    let alpha = transform(color.alpha.unwrap_or(1.0), amount).clamp(0.0, 1.0);
+    let (color, amount, mode) = parse_static_less_color_transform_arguments(value, function_name)?;
+    let color = parse_static_less_color_argument(color.as_str())?;
+    let amount = parse_static_less_alpha_amount(amount.as_str())?;
+    let alpha = transform(color.alpha.unwrap_or(1.0), amount, mode).clamp(0.0, 1.0);
     Some(format_static_less_color_with_alpha(color, alpha))
 }
 
@@ -8296,9 +8354,9 @@ mod tests {
         assert_eq!(report.mode, "oracleOnly");
         assert_eq!(report.value_type, "AbstractCssValueV0");
         assert_eq!(report.product_output_source, "legacyEvaluatedCss");
-        assert_eq!(report.fixture_count, 17);
+        assert_eq!(report.fixture_count, 18);
         assert_eq!(report.scss_fixture_count, 6);
-        assert_eq!(report.less_fixture_count, 11);
+        assert_eq!(report.less_fixture_count, 12);
         assert_eq!(report.evaluated_fixture_count, report.fixture_count);
         assert_eq!(report.missing_evaluation_count, 0);
         assert_eq!(report.divergence_count, 0);
@@ -10312,7 +10370,7 @@ mod tests {
     #[test]
     fn static_less_evaluation_reduces_alpha_transform_builtin_values() {
         let report = derive_static_stylesheet_module_evaluation(
-            "@faded: fade(#123456, 50%); @raised: fadein(rgba(18, 52, 86, .5), 10%); @lowered: fadeout(rgba(18, 52, 86, .5), 10%); @opaque: fadein(red, 10%); .button { a: @faded; b: @raised; c: @lowered; d: @opaque; }",
+            "@faded: fade(#123456, 50%); @raised: fadein(rgba(18, 52, 86, .5), 10%); @lowered: fadeout(rgba(18, 52, 86, .5), 10%); @raisedRel: fadein(rgba(18, 52, 86, .5), 10%, relative); @loweredRel: fadeout(rgba(18, 52, 86, .5), 10%, relative); @opaque: fadein(red, 10%); .button { a: @faded; b: @raised; c: @lowered; d: @opaque; e: @raisedRel; f: @loweredRel; }",
             StyleDialect::Less,
         );
         assert!(report.is_some());
@@ -10320,20 +10378,22 @@ mod tests {
             return;
         };
 
-        assert_eq!(report.replacement_count, 4);
-        assert_eq!(report.value_resolution.resolved_count, 4);
+        assert_eq!(report.replacement_count, 6);
+        assert_eq!(report.value_resolution.resolved_count, 6);
         assert_eq!(report.value_resolution.raw_count, 0);
         assert!(report.evaluated_css.contains("a: rgba(18, 52, 86, 0.5)"));
         assert!(report.evaluated_css.contains("b: rgba(18, 52, 86, 0.6)"));
         assert!(report.evaluated_css.contains("c: rgba(18, 52, 86, 0.4)"));
         assert!(report.evaluated_css.contains("d: #ff0000"));
+        assert!(report.evaluated_css.contains("e: rgba(18, 52, 86, 0.55)"));
+        assert!(report.evaluated_css.contains("f: rgba(18, 52, 86, 0.45)"));
         assert!(report.oracle.all_legacy_declaration_values_preserved);
     }
 
     #[test]
     fn static_less_evaluation_reduces_hsl_color_transform_builtin_values() {
         let report = derive_static_stylesheet_module_evaluation(
-            "@light: lighten(#123456, 10%); @dark: darken(#123456, 10%); @sat: saturate(#123456, 10%); @desat: desaturate(#123456, 10%); @spin: spin(#123456, 10); @gray: greyscale(#123456); @alpha: lighten(rgba(18, 52, 86, .5), 10%); .button { light: @light; dark: @dark; sat: @sat; desat: @desat; spin: @spin; gray: @gray; alpha: @alpha; }",
+            "@light: lighten(#123456, 10%); @dark: darken(#123456, 10%); @sat: saturate(#123456, 10%); @desat: desaturate(#123456, 10%); @lightRel: lighten(#123456, 10%, relative); @darkRel: darken(#123456, 10%, relative); @satRel: saturate(#123456, 10%, relative); @desatRel: desaturate(#123456, 10%, relative); @spin: spin(#123456, 10); @gray: greyscale(#123456); @alpha: lighten(rgba(18, 52, 86, .5), 10%); .button { light: @light; dark: @dark; sat: @sat; desat: @desat; light-rel: @lightRel; dark-rel: @darkRel; sat-rel: @satRel; desat-rel: @desatRel; spin: @spin; gray: @gray; alpha: @alpha; }",
             StyleDialect::Less,
         );
         assert!(report.is_some());
@@ -10341,13 +10401,17 @@ mod tests {
             return;
         };
 
-        assert_eq!(report.replacement_count, 7);
-        assert_eq!(report.value_resolution.resolved_count, 7);
+        assert_eq!(report.replacement_count, 11);
+        assert_eq!(report.value_resolution.resolved_count, 11);
         assert_eq!(report.value_resolution.raw_count, 0);
         assert!(report.evaluated_css.contains("light: #1b4d80"));
         assert!(report.evaluated_css.contains("dark: #091a2c"));
         assert!(report.evaluated_css.contains("sat: #0d345b"));
         assert!(report.evaluated_css.contains("desat: #173451"));
+        assert!(report.evaluated_css.contains("light-rel: #14395f"));
+        assert!(report.evaluated_css.contains("dark-rel: #102f4d"));
+        assert!(report.evaluated_css.contains("sat-rel: #0f3459"));
+        assert!(report.evaluated_css.contains("desat-rel: #153453"));
         assert!(report.evaluated_css.contains("spin: #122956"));
         assert!(report.evaluated_css.contains("gray: #343434"));
         assert!(
