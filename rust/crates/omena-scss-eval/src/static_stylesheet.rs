@@ -802,6 +802,14 @@ fn summarize_static_less_value_resolution_values(
             continue;
         }
         let reference_start = parser_text_size_to_usize(fact.range.start().into());
+        let reference_end = parser_text_size_to_usize(fact.range.end().into());
+        if static_stylesheet_variable_reference_is_named_argument_label(
+            style_source,
+            reference_start,
+            reference_end,
+        ) {
+            continue;
+        }
         if static_stylesheet_position_is_inside_scoped_declaration(&declarations, reference_start) {
             continue;
         }
@@ -837,7 +845,6 @@ fn summarize_static_less_value_resolution_values(
         {
             continue;
         }
-        let reference_end = parser_text_size_to_usize(fact.range.end().into());
         let mut stack = BTreeSet::new();
         let resolution = resolve_static_less_variable_abstract_value_in_scope(
             fact.name.as_str(),
@@ -9391,9 +9398,9 @@ mod tests {
         assert_eq!(report.mode, "oracleOnly");
         assert_eq!(report.value_type, "AbstractCssValueV0");
         assert_eq!(report.product_output_source, "legacyEvaluatedCss");
-        assert_eq!(report.fixture_count, 30);
+        assert_eq!(report.fixture_count, 32);
         assert_eq!(report.scss_fixture_count, 6);
-        assert_eq!(report.less_fixture_count, 24);
+        assert_eq!(report.less_fixture_count, 26);
         assert_eq!(report.evaluated_fixture_count, report.fixture_count);
         assert_eq!(report.missing_evaluation_count, 0);
         assert_eq!(report.divergence_count, 0);
@@ -9828,6 +9835,24 @@ mod tests {
         assert!(report.evaluated_css.contains("color: red"));
         assert!(report.evaluated_css.contains("box-shadow: 1px, 2px, 3px"));
         assert!(report.evaluated_css.contains("trace: red, 1px, 2px, 3px"));
+        assert!(report.oracle.all_legacy_declaration_values_preserved);
+    }
+
+    #[test]
+    fn static_less_evaluation_expands_named_mixin_arguments() {
+        let report = derive_static_stylesheet_module_evaluation(
+            ".tone(@color, @gap: 1px) { color: @color; margin: @gap; } .button { .tone(@gap: 2px, @color: blue); }",
+            StyleDialect::Less,
+        );
+        assert!(report.is_some());
+        let Some(report) = report else {
+            return;
+        };
+
+        assert!(!report.evaluated_css.contains(".tone(@color"));
+        assert!(!report.evaluated_css.contains(".tone(@gap"));
+        assert!(report.evaluated_css.contains("color: blue"));
+        assert!(report.evaluated_css.contains("margin: 2px"));
         assert!(report.oracle.all_legacy_declaration_values_preserved);
     }
 

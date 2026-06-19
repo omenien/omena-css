@@ -206,6 +206,16 @@ fn static_stylesheet_oracle_corpus_fixtures() -> &'static [StaticStylesheetOracl
             source: "@brand: red; .tone(@color, @gap: 1px) { color: @color; margin: @gap; padding: @brand; } .button { .tone(blue, 2px); }",
         },
         StaticStylesheetOracleCorpusFixtureV0 {
+            id: "less.named-mixin-arguments",
+            dialect: StyleDialect::Less,
+            source: ".tone(@color, @gap: 1px) { color: @color; margin: @gap; } .button { .tone(@gap: 2px, @color: blue); }",
+        },
+        StaticStylesheetOracleCorpusFixtureV0 {
+            id: "less.variadic-mixin-arguments",
+            dialect: StyleDialect::Less,
+            source: ".shadow(@color; @rest...) { color: @color; box-shadow: @rest; trace: @arguments; } .button { .shadow(red; 1px, 2px, 3px); }",
+        },
+        StaticStylesheetOracleCorpusFixtureV0 {
             id: "less.guarded-namespace-mixin",
             dialect: StyleDialect::Less,
             source: "#bundle() when (iscolor(red)) { .tone() { color: red; } } .button { #bundle > .tone(); }",
