@@ -14,6 +14,7 @@ fn execution_runtime_applies_explicit_scss_module_evaluation() {
             evaluator: "dart-sass-compatible".to_string(),
             evaluated_css: ".button { color: red; }".to_string(),
             native_replacements: Vec::new(),
+            native_edits: Vec::new(),
             oracle: None,
         }),
         ..TransformExecutionContextV0::default()
@@ -36,6 +37,7 @@ fn execution_runtime_applies_explicit_scss_module_evaluation() {
             evaluator: "dart-sass-compatible".to_string(),
             evaluated_css: ".button { color: red; }".to_string(),
             native_replacements: Vec::new(),
+            native_edits: Vec::new(),
             oracle: None,
         })
     );
@@ -53,6 +55,7 @@ fn execution_runtime_applies_explicit_less_module_evaluation() {
             evaluator: "less-js-compatible".to_string(),
             evaluated_css: ".button { color: red; }".to_string(),
             native_replacements: Vec::new(),
+            native_edits: Vec::new(),
             oracle: None,
         }),
         ..TransformExecutionContextV0::default()
@@ -75,6 +78,7 @@ fn execution_runtime_applies_explicit_less_module_evaluation() {
             evaluator: "less-js-compatible".to_string(),
             evaluated_css: ".button { color: red; }".to_string(),
             native_replacements: Vec::new(),
+            native_edits: Vec::new(),
             oracle: None,
         })
     );

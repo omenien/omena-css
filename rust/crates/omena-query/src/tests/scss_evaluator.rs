@@ -30,10 +30,22 @@ fn exposes_static_stylesheet_oracle_corpus_through_query_boundary() {
             + summary.native_replacement_legacy_unreflected_count,
         summary.native_replacement_count
     );
+    assert!(summary.native_edit_count > 0);
+    assert!(summary.native_value_edit_count > 0);
+    assert!(summary.native_structural_edit_count > 0);
+    assert_eq!(
+        summary.native_value_edit_count + summary.native_structural_edit_count,
+        summary.native_edit_count
+    );
+    assert_eq!(
+        summary.native_edit_output_match_count,
+        summary.evaluated_fixture_count
+    );
     assert!(summary.native_value_reference_count > 0);
     assert!(summary.native_resolved_value_count > 0);
     assert!(summary.native_top_value_count > 0);
     assert!(summary.all_legacy_declaration_values_preserved);
+    assert!(summary.all_native_edit_outputs_match_evaluated_css);
     assert_eq!(
         summary.corpus.product,
         "omena-scss-eval.static-stylesheet-oracle-corpus"
@@ -372,6 +384,10 @@ fn exposes_static_stylesheet_evaluator_oracle_through_query_boundary() {
     assert_eq!(summary.native_replacement_count, 1);
     assert_eq!(summary.native_replacement_legacy_reflection_count, 1);
     assert_eq!(summary.native_replacement_legacy_unreflected_count, 0);
+    assert_eq!(summary.native_edit_count, 2);
+    assert_eq!(summary.native_value_edit_count, 1);
+    assert_eq!(summary.native_structural_edit_count, 1);
+    assert!(summary.native_edit_output_matches_evaluated_css);
     assert_eq!(summary.native_value_reference_count, 1);
     assert_eq!(summary.native_resolved_value_count, 1);
     assert_eq!(summary.native_raw_value_count, 0);
@@ -382,6 +398,13 @@ fn exposes_static_stylesheet_evaluator_oracle_through_query_boundary() {
             .as_ref()
             .is_some_and(|evaluation| evaluation.evaluated_css.contains("margin: 1px"))
     );
+    assert!(summary.evaluation.as_ref().is_some_and(|evaluation| {
+        evaluation.native_edits.iter().any(|edit| {
+            edit.edit_kind == "valueReplacement"
+                && edit.replacement == "1px"
+                && edit.abstract_value_kind == Some("exact")
+        })
+    }));
 }
 
 #[test]

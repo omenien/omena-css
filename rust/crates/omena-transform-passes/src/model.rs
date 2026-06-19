@@ -286,6 +286,8 @@ pub struct TransformModuleEvaluationV0 {
     pub evaluated_css: String,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub native_replacements: Vec<TransformModuleEvaluationNativeReplacementV0>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub native_edits: Vec<TransformModuleEvaluationNativeEditV0>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub oracle: Option<TransformModuleEvaluationOracleV0>,
 }
@@ -301,6 +303,19 @@ pub struct TransformModuleEvaluationNativeReplacementV0 {
     pub rendered_value: Option<String>,
     pub abstract_value: AbstractCssValueV0,
     pub abstract_value_kind: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TransformModuleEvaluationNativeEditV0 {
+    pub start: usize,
+    pub end: usize,
+    pub replacement: String,
+    pub edit_kind: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub abstract_value: Option<AbstractCssValueV0>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub abstract_value_kind: Option<String>,
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq, Deserialize, Serialize)]

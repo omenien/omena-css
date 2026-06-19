@@ -45,6 +45,14 @@ fn consumer_build_derives_static_scss_evaluator_context() {
             .map(|evaluation| evaluation.native_replacements.len()),
         Some(1)
     );
+    assert_eq!(
+        summary
+            .execution
+            .css_module_evaluation
+            .as_ref()
+            .map(|evaluation| evaluation.native_edits.len()),
+        Some(2)
+    );
     assert!(
         summary
             .execution

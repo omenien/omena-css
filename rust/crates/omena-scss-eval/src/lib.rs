@@ -31,6 +31,7 @@ pub use control_flow::{
 };
 pub use static_stylesheet::{
     OmenaScssEvalResolvedReplacementV0, OmenaScssEvalStaticStylesheetEvaluationV0,
+    OmenaScssEvalStaticStylesheetNativeEditV0,
     OmenaScssEvalStaticStylesheetOracleCorpusFixtureReportV0,
     OmenaScssEvalStaticStylesheetOracleCorpusReportV0, OmenaScssEvalStaticValueResolutionReportV0,
     OmenaScssEvalStaticValueResolutionV0, canonical_static_scss_variable_name,

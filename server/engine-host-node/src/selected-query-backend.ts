@@ -40,6 +40,7 @@ export const SELECTED_QUERY_RUNNER_COMMANDS = {
   scssEvaluatorControlFlow: "input-scss-evaluator-control-flow",
   scssEvaluatorControlFlowOracleCorpus: "input-scss-evaluator-control-flow-oracle-corpus",
   staticStylesheetEvaluator: "input-static-stylesheet-evaluator",
+  staticStylesheetEvaluatorOracleCorpus: "input-static-stylesheet-evaluator-oracle-corpus",
   selectorUsageCanonicalProducer: "input-selector-usage-canonical-producer",
   omenaParserStyleFacts: "omena-parser-style-facts",
   omenaParserCssModulesIntermediate: "omena-parser-css-modules-intermediate",

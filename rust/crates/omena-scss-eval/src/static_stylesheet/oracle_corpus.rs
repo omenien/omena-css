@@ -20,11 +20,16 @@ pub struct OmenaScssEvalStaticStylesheetOracleCorpusReportV0 {
     pub native_replacement_count: usize,
     pub native_replacement_legacy_reflection_count: usize,
     pub native_replacement_legacy_unreflected_count: usize,
+    pub native_edit_count: usize,
+    pub native_value_edit_count: usize,
+    pub native_structural_edit_count: usize,
+    pub native_edit_output_match_count: usize,
     pub native_value_reference_count: usize,
     pub native_resolved_value_count: usize,
     pub native_raw_value_count: usize,
     pub native_top_value_count: usize,
     pub all_legacy_declaration_values_preserved: bool,
+    pub all_native_edit_outputs_match_evaluated_css: bool,
     pub fixtures: Vec<OmenaScssEvalStaticStylesheetOracleCorpusFixtureReportV0>,
 }
 
@@ -42,6 +47,10 @@ pub struct OmenaScssEvalStaticStylesheetOracleCorpusFixtureReportV0 {
     pub native_replacement_count: usize,
     pub native_replacement_legacy_reflection_count: usize,
     pub native_replacement_legacy_unreflected_count: usize,
+    pub native_edit_count: usize,
+    pub native_value_edit_count: usize,
+    pub native_structural_edit_count: usize,
+    pub native_edit_output_matches_evaluated_css: bool,
     pub native_value_reference_count: usize,
     pub native_resolved_value_count: usize,
     pub native_raw_value_count: usize,
@@ -90,6 +99,22 @@ pub fn summarize_static_stylesheet_oracle_corpus()
         .iter()
         .map(|fixture| fixture.native_replacement_legacy_unreflected_count)
         .sum();
+    let native_edit_count = fixtures
+        .iter()
+        .map(|fixture| fixture.native_edit_count)
+        .sum();
+    let native_value_edit_count = fixtures
+        .iter()
+        .map(|fixture| fixture.native_value_edit_count)
+        .sum();
+    let native_structural_edit_count = fixtures
+        .iter()
+        .map(|fixture| fixture.native_structural_edit_count)
+        .sum();
+    let native_edit_output_match_count = fixtures
+        .iter()
+        .filter(|fixture| fixture.native_edit_output_matches_evaluated_css)
+        .count();
     let native_value_reference_count = fixtures
         .iter()
         .map(|fixture| fixture.native_value_reference_count)
@@ -110,6 +135,10 @@ pub fn summarize_static_stylesheet_oracle_corpus()
         && fixtures
             .iter()
             .all(|fixture| fixture.all_legacy_declaration_values_preserved);
+    let all_native_edit_outputs_match_evaluated_css = missing_evaluation_count == 0
+        && fixtures
+            .iter()
+            .all(|fixture| fixture.native_edit_output_matches_evaluated_css);
 
     OmenaScssEvalStaticStylesheetOracleCorpusReportV0 {
         schema_version: "0",
@@ -126,11 +155,16 @@ pub fn summarize_static_stylesheet_oracle_corpus()
         native_replacement_count,
         native_replacement_legacy_reflection_count,
         native_replacement_legacy_unreflected_count,
+        native_edit_count,
+        native_value_edit_count,
+        native_structural_edit_count,
+        native_edit_output_match_count,
         native_value_reference_count,
         native_resolved_value_count,
         native_raw_value_count,
         native_top_value_count,
         all_legacy_declaration_values_preserved,
+        all_native_edit_outputs_match_evaluated_css,
         fixtures,
     }
 }
@@ -152,6 +186,10 @@ fn static_stylesheet_oracle_corpus_fixture_report(
             native_replacement_count: 0,
             native_replacement_legacy_reflection_count: 0,
             native_replacement_legacy_unreflected_count: 0,
+            native_edit_count: 0,
+            native_value_edit_count: 0,
+            native_structural_edit_count: 0,
+            native_edit_output_matches_evaluated_css: false,
             native_value_reference_count: 0,
             native_resolved_value_count: 0,
             native_raw_value_count: 0,
@@ -176,6 +214,11 @@ fn static_stylesheet_oracle_corpus_fixture_report(
             .native_replacement_legacy_reflection_count,
         native_replacement_legacy_unreflected_count: evaluation
             .native_replacement_legacy_unreflected_count,
+        native_edit_count: evaluation.native_edit_count,
+        native_value_edit_count: evaluation.native_value_edit_count,
+        native_structural_edit_count: evaluation.native_structural_edit_count,
+        native_edit_output_matches_evaluated_css: evaluation
+            .native_edit_output_matches_evaluated_css,
         native_value_reference_count: evaluation.value_resolution.reference_count,
         native_resolved_value_count: evaluation.value_resolution.resolved_count,
         native_raw_value_count: evaluation.value_resolution.raw_count,

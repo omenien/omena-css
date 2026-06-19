@@ -131,6 +131,14 @@ const EXPECTED_RUNNER_COMMANDS = new Map([
     },
   ],
   [
+    "staticStylesheetEvaluatorOracleCorpus",
+    {
+      command: SELECTED_QUERY_RUNNER_COMMANDS.staticStylesheetEvaluatorOracleCorpus,
+      inputContract: "none",
+      outputProduct: "omena-query.static-stylesheet-evaluator-oracle-corpus",
+    },
+  ],
+  [
     "selectorUsage",
     {
       command: SELECTED_QUERY_RUNNER_COMMANDS.selectorUsageCanonicalProducer,
@@ -405,6 +413,7 @@ void (async () => {
     "sourceDiagnosticsForFileRunner",
     "sourceResolutionRuntimeIndex",
     "staticStylesheetEvaluatorFacade",
+    "staticStylesheetEvaluatorOracleCorpusFacade",
     "styleCodeActionsRunner",
     "styleDiagnosticsForFileRunner",
     "styleSemanticGraphBridgeBoundary",

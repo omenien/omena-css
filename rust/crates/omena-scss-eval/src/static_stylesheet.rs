@@ -77,7 +77,12 @@ pub struct OmenaScssEvalStaticStylesheetEvaluationV0 {
     pub replacement_count: usize,
     pub native_replacement_legacy_reflection_count: usize,
     pub native_replacement_legacy_unreflected_count: usize,
+    pub native_edit_count: usize,
+    pub native_value_edit_count: usize,
+    pub native_structural_edit_count: usize,
+    pub native_edit_output_matches_evaluated_css: bool,
     pub resolved_replacements: Vec<OmenaScssEvalResolvedReplacementV0>,
+    pub native_edits: Vec<OmenaScssEvalStaticStylesheetNativeEditV0>,
     pub value_resolution: OmenaScssEvalStaticValueResolutionReportV0,
     pub oracle: crate::OmenaScssEvalOracleReportV0,
 }
@@ -92,6 +97,17 @@ pub struct OmenaScssEvalResolvedReplacementV0 {
     pub rendered_value: Option<String>,
     pub abstract_value: AbstractCssValueV0,
     pub abstract_value_kind: &'static str,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct OmenaScssEvalStaticStylesheetNativeEditV0 {
+    pub start: usize,
+    pub end: usize,
+    pub replacement: String,
+    pub edit_kind: &'static str,
+    pub abstract_value: Option<AbstractCssValueV0>,
+    pub abstract_value_kind: Option<&'static str>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -411,7 +427,7 @@ fn derive_static_scss_stylesheet_module_evaluation(
         edits.extend(mixin_edits.edits);
     }
 
-    let evaluated_css = apply_static_stylesheet_evaluation_edits(style_source, edits)?;
+    let evaluated_css = apply_static_stylesheet_evaluation_edits(style_source, edits.clone())?;
     if evaluated_css == style_source && preserved_scss_evaluation_count == 0 {
         return None;
     }
@@ -420,6 +436,7 @@ fn derive_static_scss_stylesheet_module_evaluation(
         dialect,
         StaticStylesheetVariableKind::Scss,
         evaluated_css,
+        edits,
         resolved_replacements,
     )
 }
@@ -649,7 +666,7 @@ fn derive_static_less_stylesheet_module_evaluation(
         edits.extend(mixin_evaluation_edits.edits);
     }
 
-    let evaluated_css = apply_static_stylesheet_evaluation_edits(style_source, edits)?;
+    let evaluated_css = apply_static_stylesheet_evaluation_edits(style_source, edits.clone())?;
     if evaluated_css == style_source && preserved_less_evaluation_count == 0 {
         return None;
     }
@@ -658,6 +675,7 @@ fn derive_static_less_stylesheet_module_evaluation(
         StyleDialect::Less,
         StaticStylesheetVariableKind::Less,
         evaluated_css,
+        edits,
         resolved_replacements,
     )
 }
@@ -667,6 +685,7 @@ fn build_static_stylesheet_evaluation_report(
     dialect: StyleDialect,
     variable_kind: StaticStylesheetVariableKind,
     evaluated_css: String,
+    native_edit_source: Vec<StaticStylesheetEvaluationEdit>,
     resolved_replacements: Vec<OmenaScssEvalResolvedReplacementV0>,
 ) -> Option<OmenaScssEvalStaticStylesheetEvaluationV0> {
     let value_resolution = summarize_static_stylesheet_value_resolution(style_source, dialect)?;
@@ -675,6 +694,7 @@ fn build_static_stylesheet_evaluation_report(
         dialect,
         variable_kind,
         evaluated_css,
+        native_edit_source,
         resolved_replacements,
         value_resolution,
     )
@@ -695,6 +715,7 @@ fn build_static_stylesheet_preserved_evaluation_report_if_explained(
         variable_kind,
         style_source.to_string(),
         Vec::new(),
+        Vec::new(),
         value_resolution,
     )
 }
@@ -704,6 +725,7 @@ fn build_static_stylesheet_evaluation_report_with_value_resolution(
     dialect: StyleDialect,
     variable_kind: StaticStylesheetVariableKind,
     evaluated_css: String,
+    native_edit_source: Vec<StaticStylesheetEvaluationEdit>,
     resolved_replacements: Vec<OmenaScssEvalResolvedReplacementV0>,
     value_resolution: OmenaScssEvalStaticValueResolutionReportV0,
 ) -> Option<OmenaScssEvalStaticStylesheetEvaluationV0> {
@@ -720,6 +742,22 @@ fn build_static_stylesheet_evaluation_report_with_value_resolution(
     let native_replacement_legacy_unreflected_count = resolved_replacements
         .len()
         .saturating_sub(native_replacement_legacy_reflection_count);
+    let normalized_native_edit_source =
+        normalize_static_stylesheet_evaluation_edits(style_source, native_edit_source)?;
+    let native_edit_output = apply_normalized_static_stylesheet_evaluation_edits(
+        style_source,
+        &normalized_native_edit_source,
+    );
+    let native_edit_output_matches_evaluated_css = native_edit_output == evaluated_css;
+    let native_edits = build_static_stylesheet_native_edits(
+        normalized_native_edit_source,
+        resolved_replacements.as_slice(),
+    );
+    let native_value_edit_count = native_edits
+        .iter()
+        .filter(|edit| edit.edit_kind == "valueReplacement")
+        .count();
+    let native_structural_edit_count = native_edits.len().saturating_sub(native_value_edit_count);
     Some(OmenaScssEvalStaticStylesheetEvaluationV0 {
         schema_version: "0",
         product: "omena-scss-eval.static-stylesheet-evaluation",
@@ -728,7 +766,12 @@ fn build_static_stylesheet_evaluation_report_with_value_resolution(
         replacement_count: resolved_replacements.len(),
         native_replacement_legacy_reflection_count,
         native_replacement_legacy_unreflected_count,
+        native_edit_count: native_edits.len(),
+        native_value_edit_count,
+        native_structural_edit_count,
+        native_edit_output_matches_evaluated_css,
         resolved_replacements,
+        native_edits,
         value_resolution,
         evaluated_css,
         oracle,
@@ -756,6 +799,50 @@ fn count_native_replacements_reflected_in_legacy_css(
                 })
         })
         .count()
+}
+
+fn build_static_stylesheet_native_edits(
+    edits: Vec<StaticStylesheetEvaluationEdit>,
+    replacements: &[OmenaScssEvalResolvedReplacementV0],
+) -> Vec<OmenaScssEvalStaticStylesheetNativeEditV0> {
+    edits
+        .into_iter()
+        .map(|edit| {
+            let value_replacement =
+                native_edit_value_replacement_for_static_edit(&edit, replacements);
+            let edit_kind = value_replacement
+                .map(|_| "valueReplacement")
+                .unwrap_or_else(|| {
+                    if edit.replacement.is_empty() {
+                        "structuralRemoval"
+                    } else {
+                        "structuralReplacement"
+                    }
+                });
+            OmenaScssEvalStaticStylesheetNativeEditV0 {
+                start: edit.start,
+                end: edit.end,
+                replacement: edit.replacement,
+                edit_kind,
+                abstract_value: value_replacement
+                    .map(|replacement| replacement.abstract_value.clone()),
+                abstract_value_kind: value_replacement
+                    .map(|replacement| replacement.abstract_value_kind),
+            }
+        })
+        .collect()
+}
+
+fn native_edit_value_replacement_for_static_edit<'a>(
+    edit: &StaticStylesheetEvaluationEdit,
+    replacements: &'a [OmenaScssEvalResolvedReplacementV0],
+) -> Option<&'a OmenaScssEvalResolvedReplacementV0> {
+    replacements.iter().find(|replacement| {
+        replacement.start == edit.start
+            && replacement.end == edit.end
+            && (replacement.text == edit.replacement
+                || replacement.rendered_value.as_deref() == Some(edit.replacement.as_str()))
+    })
 }
 
 fn resolved_replacement_value(
@@ -9860,8 +9947,18 @@ fn static_stylesheet_position_is_inside_scss_declaration(
 
 fn apply_static_stylesheet_evaluation_edits(
     source: &str,
-    mut edits: Vec<StaticStylesheetEvaluationEdit>,
+    edits: Vec<StaticStylesheetEvaluationEdit>,
 ) -> Option<String> {
+    let edits = normalize_static_stylesheet_evaluation_edits(source, edits)?;
+    Some(apply_normalized_static_stylesheet_evaluation_edits(
+        source, &edits,
+    ))
+}
+
+fn normalize_static_stylesheet_evaluation_edits(
+    source: &str,
+    mut edits: Vec<StaticStylesheetEvaluationEdit>,
+) -> Option<Vec<StaticStylesheetEvaluationEdit>> {
     edits.sort_by_key(|edit| edit.start);
     edits.dedup_by(|left, right| {
         left.start == right.start && left.end == right.end && left.replacement == right.replacement
@@ -9873,12 +9970,18 @@ fn apply_static_stylesheet_evaluation_edits(
         }
         previous_end = edit.end;
     }
+    Some(edits)
+}
 
+fn apply_normalized_static_stylesheet_evaluation_edits(
+    source: &str,
+    edits: &[StaticStylesheetEvaluationEdit],
+) -> String {
     let mut output = source.to_string();
-    for edit in edits.into_iter().rev() {
+    for edit in edits.iter().rev() {
         output.replace_range(edit.start..edit.end, edit.replacement.as_str());
     }
-    Some(output)
+    output
 }
 
 fn parser_text_size_to_usize(value: u32) -> usize {
@@ -9931,10 +10034,22 @@ mod tests {
                 + report.native_replacement_legacy_unreflected_count,
             report.native_replacement_count
         );
+        assert!(report.native_edit_count > 0);
+        assert!(report.native_value_edit_count > 0);
+        assert!(report.native_structural_edit_count > 0);
+        assert_eq!(
+            report.native_value_edit_count + report.native_structural_edit_count,
+            report.native_edit_count
+        );
+        assert_eq!(
+            report.native_edit_output_match_count,
+            report.evaluated_fixture_count
+        );
         assert!(report.native_value_reference_count > 0);
         assert!(report.native_resolved_value_count > 0);
         assert!(report.native_top_value_count > 0);
         assert!(report.all_legacy_declaration_values_preserved);
+        assert!(report.all_native_edit_outputs_match_evaluated_css);
         assert!(
             report
                 .fixtures
@@ -9977,6 +10092,26 @@ mod tests {
         assert_eq!(report.native_replacement_legacy_unreflected_count, 0);
         assert_eq!(report.resolved_replacements[0].abstract_value_kind, "exact");
         assert_eq!(report.resolved_replacements[0].text, "0px");
+        assert_eq!(report.native_edit_count, 2);
+        assert_eq!(report.native_value_edit_count, 1);
+        assert_eq!(report.native_structural_edit_count, 1);
+        assert!(report.native_edit_output_matches_evaluated_css);
+        assert!(
+            report
+                .native_edits
+                .iter()
+                .any(|edit| edit.edit_kind == "valueReplacement"
+                    && edit.replacement == "0px"
+                    && edit.abstract_value_kind == Some("exact"))
+        );
+        assert!(
+            report
+                .native_edits
+                .iter()
+                .any(|edit| edit.edit_kind == "structuralRemoval"
+                    && edit.replacement.is_empty()
+                    && edit.abstract_value.is_none())
+        );
         assert_eq!(report.value_resolution.resolved_count, 1);
         assert!(report.evaluated_css.contains("margin: 0px"));
         assert!(report.oracle.all_legacy_declaration_values_preserved);

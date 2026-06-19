@@ -2,8 +2,8 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use omena_parser::StyleDialect as OmenaParserStyleDialect;
 use omena_query_transform_runner::{
-    TransformModuleEvaluationNativeReplacementV0, TransformModuleEvaluationOracleV0,
-    TransformModuleEvaluationV0,
+    TransformModuleEvaluationNativeEditV0, TransformModuleEvaluationNativeReplacementV0,
+    TransformModuleEvaluationOracleV0, TransformModuleEvaluationV0,
 };
 use omena_scss_eval::{
     OmenaScssEvalStaticStylesheetEvaluationV0,
@@ -35,6 +35,11 @@ pub(super) fn derive_static_stylesheet_module_evaluation(
             .into_iter()
             .map(transform_module_evaluation_native_replacement)
             .collect(),
+        native_edits: evaluation
+            .native_edits
+            .into_iter()
+            .map(transform_module_evaluation_native_edit)
+            .collect(),
         oracle: Some(oracle),
     })
 }
@@ -50,6 +55,19 @@ fn transform_module_evaluation_native_replacement(
         rendered_value: replacement.rendered_value,
         abstract_value: replacement.abstract_value,
         abstract_value_kind: replacement.abstract_value_kind.to_string(),
+    }
+}
+
+fn transform_module_evaluation_native_edit(
+    edit: omena_scss_eval::OmenaScssEvalStaticStylesheetNativeEditV0,
+) -> TransformModuleEvaluationNativeEditV0 {
+    TransformModuleEvaluationNativeEditV0 {
+        start: edit.start,
+        end: edit.end,
+        replacement: edit.replacement,
+        edit_kind: edit.edit_kind.to_string(),
+        abstract_value: edit.abstract_value,
+        abstract_value_kind: edit.abstract_value_kind.map(str::to_string),
     }
 }
 

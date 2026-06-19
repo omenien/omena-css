@@ -48,6 +48,7 @@ pub(super) fn derive_static_stylesheet_module_evaluation_for_transform_context(
                 &import_aware_source.less_inline_literal_placeholders,
             ),
             native_replacements: evaluation.native_replacements,
+            native_edits: evaluation.native_edits,
             oracle,
         });
     }
@@ -58,6 +59,7 @@ pub(super) fn derive_static_stylesheet_module_evaluation_for_transform_context(
             &import_aware_source.less_inline_literal_placeholders,
         ),
         native_replacements: Vec::new(),
+        native_edits: Vec::new(),
         oracle: None,
     })
 }

@@ -214,6 +214,10 @@ pub struct OmenaQueryStaticStylesheetEvaluatorSummaryV0 {
     pub native_replacement_count: usize,
     pub native_replacement_legacy_reflection_count: usize,
     pub native_replacement_legacy_unreflected_count: usize,
+    pub native_edit_count: usize,
+    pub native_value_edit_count: usize,
+    pub native_structural_edit_count: usize,
+    pub native_edit_output_matches_evaluated_css: bool,
     pub native_value_reference_count: usize,
     pub native_resolved_value_count: usize,
     pub native_raw_value_count: usize,
@@ -239,11 +243,16 @@ pub struct OmenaQueryStaticStylesheetEvaluatorOracleCorpusSummaryV0 {
     pub native_replacement_count: usize,
     pub native_replacement_legacy_reflection_count: usize,
     pub native_replacement_legacy_unreflected_count: usize,
+    pub native_edit_count: usize,
+    pub native_value_edit_count: usize,
+    pub native_structural_edit_count: usize,
+    pub native_edit_output_match_count: usize,
     pub native_value_reference_count: usize,
     pub native_resolved_value_count: usize,
     pub native_raw_value_count: usize,
     pub native_top_value_count: usize,
     pub all_legacy_declaration_values_preserved: bool,
+    pub all_native_edit_outputs_match_evaluated_css: bool,
     pub corpus: OmenaScssEvalStaticStylesheetOracleCorpusReportV0,
 }
 
@@ -288,6 +297,18 @@ pub fn summarize_omena_query_static_stylesheet_evaluator_from_source(
         native_replacement_legacy_unreflected_count: evaluation.as_ref().map_or(0, |evaluation| {
             evaluation.native_replacement_legacy_unreflected_count
         }),
+        native_edit_count: evaluation
+            .as_ref()
+            .map_or(0, |evaluation| evaluation.native_edit_count),
+        native_value_edit_count: evaluation
+            .as_ref()
+            .map_or(0, |evaluation| evaluation.native_value_edit_count),
+        native_structural_edit_count: evaluation
+            .as_ref()
+            .map_or(0, |evaluation| evaluation.native_structural_edit_count),
+        native_edit_output_matches_evaluated_css: evaluation
+            .as_ref()
+            .is_some_and(|evaluation| evaluation.native_edit_output_matches_evaluated_css),
         native_value_reference_count: value_resolution
             .as_ref()
             .map_or(0, |resolution| resolution.reference_count),
@@ -325,11 +346,17 @@ pub fn summarize_omena_query_static_stylesheet_evaluator_oracle_corpus()
             .native_replacement_legacy_reflection_count,
         native_replacement_legacy_unreflected_count: corpus
             .native_replacement_legacy_unreflected_count,
+        native_edit_count: corpus.native_edit_count,
+        native_value_edit_count: corpus.native_value_edit_count,
+        native_structural_edit_count: corpus.native_structural_edit_count,
+        native_edit_output_match_count: corpus.native_edit_output_match_count,
         native_value_reference_count: corpus.native_value_reference_count,
         native_resolved_value_count: corpus.native_resolved_value_count,
         native_raw_value_count: corpus.native_raw_value_count,
         native_top_value_count: corpus.native_top_value_count,
         all_legacy_declaration_values_preserved: corpus.all_legacy_declaration_values_preserved,
+        all_native_edit_outputs_match_evaluated_css: corpus
+            .all_native_edit_outputs_match_evaluated_css,
         corpus,
     }
 }
@@ -540,6 +567,7 @@ pub fn summarize_omena_query_boundary(input: &EngineInputV2) -> OmenaQueryBounda
             "selectorRenameEditPlanning",
             "sassSymbolResolutionPrimitives",
             "staticStylesheetEvaluatorOracle",
+            "staticStylesheetEvaluatorOracleCorpus",
             "scssEvaluatorControlFlowOracle",
             "scssEvaluatorControlFlowOracleCorpus",
             "sassModuleSourceSelection",
@@ -940,6 +968,12 @@ pub fn summarize_omena_query_selected_query_adapter_capabilities()
                 output_product: "omena-query.static-stylesheet-evaluator",
             },
             SelectedQueryRunnerCommandV0 {
+                surface: "staticStylesheetEvaluatorOracleCorpus",
+                command: "input-static-stylesheet-evaluator-oracle-corpus",
+                input_contract: "none",
+                output_product: "omena-query.static-stylesheet-evaluator-oracle-corpus",
+            },
+            SelectedQueryRunnerCommandV0 {
                 surface: "selectorUsage",
                 command: "input-selector-usage-canonical-producer",
                 input_contract: "EngineInputV2",
@@ -1119,6 +1153,7 @@ pub fn summarize_omena_query_selected_query_adapter_capabilities()
             "consumerBuildFacade",
             "consumerTransformPassListFacade",
             "staticStylesheetEvaluatorFacade",
+            "staticStylesheetEvaluatorOracleCorpusFacade",
             "scssEvaluatorControlFlowFacade",
             "scssEvaluatorControlFlowOracleCorpusFacade",
             "queryEvaluationRuntime",

@@ -139,6 +139,11 @@ fn declares_runtime_backed_selected_query_adapter_capabilities() {
             .any(|command| command.command == "input-static-stylesheet-evaluator")
     );
     assert!(
+        summary.runner_commands.iter().any(|command| {
+            command.command == "input-static-stylesheet-evaluator-oracle-corpus"
+        })
+    );
+    assert!(
         summary
             .runner_commands
             .iter()
