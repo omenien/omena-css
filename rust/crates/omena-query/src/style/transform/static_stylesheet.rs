@@ -438,11 +438,7 @@ fn derive_static_scss_module_context_for_transform_context(
         evaluation_source.as_str(),
         OmenaParserStyleDialect::Scss,
     )
-    .map(|evaluation| {
-        evaluation
-            .native_edit_output
-            .unwrap_or(evaluation.evaluated_css)
-    })
+    .and_then(static_stylesheet_module_output_css_from_evaluation)
     .unwrap_or_else(|| {
         if forward_mutation_count > 0 {
             evaluation_source
@@ -467,6 +463,39 @@ struct StaticScssModuleForwardEvaluation {
     module_output_css: String,
     variable_exports: BTreeMap<String, String>,
     configurable_variable_names: BTreeSet<String>,
+}
+
+fn static_stylesheet_module_output_css_from_evaluation(
+    evaluation: TransformModuleEvaluationV0,
+) -> Option<String> {
+    if let Some(native_edit_output) = evaluation.native_edit_output {
+        return Some(native_edit_output);
+    }
+    if static_stylesheet_module_product_source_allows_evaluated_css(&evaluation)
+        || static_stylesheet_module_oracle_allows_legacy_output(&evaluation)
+    {
+        return Some(evaluation.evaluated_css);
+    }
+    None
+}
+
+fn static_stylesheet_module_product_source_allows_evaluated_css(
+    evaluation: &TransformModuleEvaluationV0,
+) -> bool {
+    matches!(
+        evaluation.product_output_source.as_deref(),
+        Some("evaluatedCss" | "legacyEvaluatedCss")
+    )
+}
+
+fn static_stylesheet_module_oracle_allows_legacy_output(
+    evaluation: &TransformModuleEvaluationV0,
+) -> bool {
+    evaluation.oracle.as_ref().is_some_and(|oracle| {
+        oracle.mode == "oracleOnly"
+            && oracle.product_output_source == "legacyEvaluatedCss"
+            && oracle.all_legacy_declaration_values_preserved
+    })
 }
 
 fn derive_static_scss_module_forward_evaluations_for_transform_context(
@@ -1280,4 +1309,80 @@ fn parse_static_scss_forward_variable_overrides_from_rule(
         .get(start..end)
         .map(scss_variable_overrides::parse_static_scss_forward_variable_override_list)
         .unwrap_or_default()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn static_module_output_rejects_blind_legacy_css_for_native_product_source() {
+        let evaluation = test_transform_module_evaluation(Some("nativeEditOutput"), None, None);
+
+        assert_eq!(
+            static_stylesheet_module_output_css_from_evaluation(evaluation),
+            None
+        );
+    }
+
+    #[test]
+    fn static_module_output_allows_declared_legacy_product_source() {
+        let evaluation = test_transform_module_evaluation(Some("evaluatedCss"), None, None);
+
+        assert_eq!(
+            static_stylesheet_module_output_css_from_evaluation(evaluation),
+            Some(".legacy { color: red; }".to_string())
+        );
+    }
+
+    #[test]
+    fn static_module_output_allows_preserved_oracle_legacy_output() {
+        let evaluation = test_transform_module_evaluation(
+            Some("nativeEditOutput"),
+            None,
+            Some(
+                omena_query_transform_runner::TransformModuleEvaluationOracleV0 {
+                    mode: "oracleOnly".to_string(),
+                    product_output_source: "legacyEvaluatedCss".to_string(),
+                    all_legacy_declaration_values_preserved: true,
+                    ..omena_query_transform_runner::TransformModuleEvaluationOracleV0::default()
+                },
+            ),
+        );
+
+        assert_eq!(
+            static_stylesheet_module_output_css_from_evaluation(evaluation),
+            Some(".legacy { color: red; }".to_string())
+        );
+    }
+
+    #[test]
+    fn static_module_output_prefers_native_edit_output() {
+        let evaluation = test_transform_module_evaluation(
+            Some("nativeEditOutput"),
+            Some(".native { color: red; }".to_string()),
+            None,
+        );
+
+        assert_eq!(
+            static_stylesheet_module_output_css_from_evaluation(evaluation),
+            Some(".native { color: red; }".to_string())
+        );
+    }
+
+    fn test_transform_module_evaluation(
+        product_output_source: Option<&str>,
+        native_edit_output: Option<String>,
+        oracle: Option<omena_query_transform_runner::TransformModuleEvaluationOracleV0>,
+    ) -> TransformModuleEvaluationV0 {
+        TransformModuleEvaluationV0 {
+            evaluator: "test".to_string(),
+            product_output_source: product_output_source.map(str::to_string),
+            evaluated_css: ".legacy { color: red; }".to_string(),
+            native_edit_output,
+            native_replacements: Vec::new(),
+            native_edits: Vec::new(),
+            oracle,
+        }
+    }
 }
