@@ -851,6 +851,32 @@ fn exposes_less_dynamic_escaped_strings_as_preserved_raw_oracle_output_through_q
 }
 
 #[test]
+fn exposes_less_recursive_nested_mixin_calls_as_preserved_oracle_output_through_query_boundary() {
+    let source = ".again() { .again(); } .button { .again(); }";
+    let summary = summarize_omena_query_static_stylesheet_evaluator_from_source(
+        source,
+        OmenaParserStyleDialect::Less,
+    );
+
+    assert_eq!(summary.product, "omena-query.static-stylesheet-evaluator");
+    assert_eq!(summary.mode, "oracleOnly");
+    assert_eq!(summary.dialect, "less");
+    assert_eq!(summary.value_type, "AbstractCssValueV0");
+    assert!(summary.supported_dialect);
+    assert_eq!(summary.product_output_source, "legacyEvaluatedCss");
+    assert!(summary.legacy_output_consumed_until_cutover);
+    assert!(summary.evaluation_available);
+    assert_eq!(summary.divergence_count, 0);
+    assert!(summary.all_legacy_declaration_values_preserved);
+    assert_eq!(summary.native_replacement_count, 0);
+    assert!(summary.evaluation.as_ref().is_some_and(|evaluation| {
+        evaluation.evaluated_css == source
+            && evaluation.replacement_count == 0
+            && evaluation.oracle.all_legacy_declaration_values_preserved
+    }));
+}
+
+#[test]
 fn exposes_less_unit_builtin_evaluator_oracle_through_query_boundary() {
     let summary = summarize_omena_query_static_stylesheet_evaluator_from_source(
         "@gap: unit(5, px); @plain: unit(5px); @unit-name: get-unit(1.5rem); .button { margin: @gap; padding: @plain; --unit: @unit-name; }",

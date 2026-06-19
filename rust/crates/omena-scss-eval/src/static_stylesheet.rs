@@ -3924,7 +3924,7 @@ fn render_static_less_mixin_body(
 ) -> Option<StaticLessMixinRenderOutcome> {
     let canonical_name = canonical_static_less_mixin_name(declaration.name.as_str());
     if !active_mixins.insert(canonical_name.clone()) {
-        return None;
+        return Some(StaticLessMixinRenderOutcome::GuardUnknown);
     }
     let body = context
         .source
@@ -3988,6 +3988,14 @@ fn render_static_less_mixin_body(
         context,
         active_mixins,
     )?;
+    let nested_lexed = lex(nested.body.as_str(), StyleDialect::Less);
+    if !collect_static_less_mixin_calls(nested.body.as_str(), nested_lexed.tokens())?.is_empty()
+        || !collect_static_less_detached_ruleset_calls(nested.body.as_str(), nested_lexed.tokens())?
+            .is_empty()
+    {
+        active_mixins.remove(&canonical_name);
+        return Some(StaticLessMixinRenderOutcome::GuardUnknown);
+    }
     let body = resolve_static_less_mixin_body_declaration_values(nested.body.as_str())?;
     let body = if call.important {
         apply_static_less_mixin_call_importance(body.as_str())?
@@ -10589,13 +10597,18 @@ mod tests {
     }
 
     #[test]
-    fn static_less_evaluation_skips_recursive_nested_mixin_calls() {
-        let report = derive_static_stylesheet_module_evaluation(
-            ".again() { .again(); } .button { .again(); }",
-            StyleDialect::Less,
-        );
+    fn static_less_evaluation_preserves_recursive_nested_mixin_calls_as_oracle_report() {
+        let source = ".again() { .again(); } .button { .again(); }";
+        let report = derive_static_stylesheet_module_evaluation(source, StyleDialect::Less);
 
-        assert!(report.is_none());
+        assert!(report.is_some());
+        let Some(report) = report else {
+            return;
+        };
+
+        assert_eq!(report.evaluated_css, source);
+        assert_eq!(report.replacement_count, 0);
+        assert!(report.oracle.all_legacy_declaration_values_preserved);
     }
 
     #[test]
