@@ -473,6 +473,7 @@ fn derive_static_less_stylesheet_module_evaluation(
             reference_scope_id,
             &scopes,
             &declarations,
+            detached_rulesets.as_slice(),
             &mut stack,
         )?;
         let replacement = replacement.text;
@@ -838,6 +839,7 @@ fn summarize_static_less_value_resolution_values(
             reference_scope_id,
             scopes,
             &declarations,
+            detached_rulesets.as_slice(),
             &mut stack,
             STATIC_STYLESHEET_VALUE_RESOLUTION_FUEL_LIMIT,
         );
@@ -4178,6 +4180,7 @@ fn render_static_less_mixin_body_variables(
                 call_scope_id,
                 scopes,
                 variable_declarations,
+                detached_ruleset_declarations,
                 &mut stack,
             )?
             .text
@@ -4264,6 +4267,7 @@ fn resolve_static_less_mixin_value_with_bindings(
                 call_scope_id,
                 scopes,
                 variable_declarations,
+                detached_ruleset_declarations,
                 &mut stack,
             )?
             .text
@@ -6115,6 +6119,7 @@ fn resolve_static_less_variable_abstract_value_in_scope(
     scope_id: usize,
     scopes: &[StaticStylesheetScope],
     declarations: &BTreeMap<(usize, String), StaticStylesheetVariableDeclaration>,
+    detached_ruleset_declarations: &[StaticLessDetachedRulesetDeclaration],
     stack: &mut BTreeSet<(usize, String)>,
     fuel: usize,
 ) -> StaticStylesheetAbstractResolution {
@@ -6135,6 +6140,7 @@ fn resolve_static_less_variable_abstract_value_in_scope(
         scope_id,
         scopes,
         declarations,
+        detached_ruleset_declarations,
         stack,
         fuel - 1,
     );
@@ -6147,9 +6153,18 @@ fn resolve_static_less_variable_abstract_value_text(
     scope_id: usize,
     scopes: &[StaticStylesheetScope],
     declarations: &BTreeMap<(usize, String), StaticStylesheetVariableDeclaration>,
+    detached_ruleset_declarations: &[StaticLessDetachedRulesetDeclaration],
     stack: &mut BTreeSet<(usize, String)>,
     fuel: usize,
 ) -> StaticStylesheetAbstractResolution {
+    if let Some(value) = parse_static_less_isruleset_value_with_context(
+        value,
+        scope_id,
+        scopes,
+        detached_ruleset_declarations,
+    ) {
+        return resolved_static_abstract_value(value.as_str());
+    }
     let Some(references) =
         collect_static_stylesheet_variable_references(value, StaticStylesheetVariableKind::Less)
     else {
@@ -6184,6 +6199,7 @@ fn resolve_static_less_variable_abstract_value_text(
             scope_id,
             scopes,
             declarations,
+            detached_ruleset_declarations,
             stack,
             fuel,
         );
@@ -6203,6 +6219,7 @@ fn resolve_static_less_variable_value_in_scope(
     scope_id: usize,
     scopes: &[StaticStylesheetScope],
     declarations: &BTreeMap<(usize, String), StaticStylesheetVariableDeclaration>,
+    detached_ruleset_declarations: &[StaticLessDetachedRulesetDeclaration],
     stack: &mut BTreeSet<(usize, String)>,
 ) -> Option<StaticLessResolvedValue> {
     let stack_key = (scope_id, name.to_string());
@@ -6215,6 +6232,7 @@ fn resolve_static_less_variable_value_in_scope(
         scope_id,
         scopes,
         declarations,
+        detached_ruleset_declarations,
         stack,
     );
     stack.remove(&stack_key);
@@ -6246,8 +6264,20 @@ fn resolve_static_less_variable_value_text(
     scope_id: usize,
     scopes: &[StaticStylesheetScope],
     declarations: &BTreeMap<(usize, String), StaticStylesheetVariableDeclaration>,
+    detached_ruleset_declarations: &[StaticLessDetachedRulesetDeclaration],
     stack: &mut BTreeSet<(usize, String)>,
 ) -> Option<StaticLessResolvedValue> {
+    if let Some(value) = parse_static_less_isruleset_value_with_context(
+        value,
+        scope_id,
+        scopes,
+        detached_ruleset_declarations,
+    ) {
+        return Some(StaticLessResolvedValue {
+            text: value,
+            escaped: false,
+        });
+    }
     let references =
         collect_static_stylesheet_variable_references(value, StaticStylesheetVariableKind::Less)?;
     if references.is_empty() {
@@ -6267,6 +6297,7 @@ fn resolve_static_less_variable_value_text(
             scope_id,
             scopes,
             declarations,
+            detached_ruleset_declarations,
             stack,
         )?;
         escaped |= resolved.escaped;
@@ -6601,6 +6632,7 @@ fn reduce_static_less_value_with_escape_flag(value: String) -> StaticLessResolve
             ("isstring", parse_static_less_isstring_value),
             ("iskeyword", parse_static_less_iskeyword_value),
             ("isurl", parse_static_less_isurl_value),
+            ("isruleset", parse_static_less_isruleset_value),
             ("ispixel", parse_static_less_ispixel_value),
             ("ispercentage", parse_static_less_ispercentage_value),
             ("isem", parse_static_less_isem_value),
@@ -7693,6 +7725,39 @@ fn parse_static_less_iskeyword_value(value: &str) -> Option<String> {
 
 fn parse_static_less_isurl_value(value: &str) -> Option<String> {
     parse_static_less_unary_predicate_value(value, "isurl", static_less_guard_value_is_url)
+}
+
+fn parse_static_less_isruleset_value(value: &str) -> Option<String> {
+    let arguments = parse_whole_function_value_arguments(value, "isruleset")?;
+    let [value] = arguments.as_slice() else {
+        return None;
+    };
+    let value = value.trim();
+    (!value.starts_with('@') && static_stylesheet_literal_value_is_safe(value))
+        .then(|| false.to_string())
+}
+
+fn parse_static_less_isruleset_value_with_context(
+    value: &str,
+    scope_id: usize,
+    scopes: &[StaticStylesheetScope],
+    detached_ruleset_declarations: &[StaticLessDetachedRulesetDeclaration],
+) -> Option<String> {
+    let arguments = parse_whole_function_value_arguments(value, "isruleset")?;
+    let [value] = arguments.as_slice() else {
+        return None;
+    };
+    let value = value.trim();
+    if static_less_value_is_detached_ruleset_reference(
+        value,
+        scope_id,
+        scopes,
+        detached_ruleset_declarations,
+    ) {
+        return Some(true.to_string());
+    }
+    (!value.starts_with('@') && static_stylesheet_literal_value_is_safe(value))
+        .then(|| false.to_string())
 }
 
 fn parse_static_less_ispixel_value(value: &str) -> Option<String> {
@@ -8819,9 +8884,9 @@ mod tests {
         assert_eq!(report.mode, "oracleOnly");
         assert_eq!(report.value_type, "AbstractCssValueV0");
         assert_eq!(report.product_output_source, "legacyEvaluatedCss");
-        assert_eq!(report.fixture_count, 22);
+        assert_eq!(report.fixture_count, 23);
         assert_eq!(report.scss_fixture_count, 6);
-        assert_eq!(report.less_fixture_count, 16);
+        assert_eq!(report.less_fixture_count, 17);
         assert_eq!(report.evaluated_fixture_count, report.fixture_count);
         assert_eq!(report.missing_evaluation_count, 0);
         assert_eq!(report.divergence_count, 0);
@@ -10762,6 +10827,31 @@ mod tests {
         assert!(report.evaluated_css.contains("--number: true"));
         assert!(report.evaluated_css.contains("--unit-ok: true"));
         assert!(report.evaluated_css.contains("--unit-bad: false"));
+        assert!(report.oracle.all_legacy_declaration_values_preserved);
+    }
+
+    #[test]
+    fn static_less_evaluation_reduces_isruleset_builtin_values() {
+        let report = derive_static_stylesheet_module_evaluation(
+            "@rules: { color: red; }; @ok: isruleset(@rules); @bad: isruleset(red); .button { ok: @ok; bad: @bad; }",
+            StyleDialect::Less,
+        );
+        assert!(report.is_some());
+        let Some(report) = report else {
+            return;
+        };
+
+        assert_eq!(report.replacement_count, 2);
+        assert_eq!(report.value_resolution.raw_count, 2);
+        assert_eq!(report.value_resolution.top_count, 0);
+        assert!(
+            report
+                .resolved_replacements
+                .iter()
+                .all(|replacement| replacement.abstract_value_kind == "raw")
+        );
+        assert!(report.evaluated_css.contains("ok: true"));
+        assert!(report.evaluated_css.contains("bad: false"));
         assert!(report.oracle.all_legacy_declaration_values_preserved);
     }
 

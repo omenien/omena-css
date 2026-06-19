@@ -256,6 +256,11 @@ fn static_stylesheet_oracle_corpus_fixtures() -> &'static [StaticStylesheetOracl
             source: "@name: replace(\"hello world\", \"world\", \"less\"); @all: replace(\"hello\", \"l\", \"L\", \"g\"); .button { content: @name; alt: @all; }",
         },
         StaticStylesheetOracleCorpusFixtureV0 {
+            id: "less.isruleset-predicate",
+            dialect: StyleDialect::Less,
+            source: "@rules: { color: red; }; @ok: isruleset(@rules); @bad: isruleset(red); .button { ok: @ok; bad: @bad; }",
+        },
+        StaticStylesheetOracleCorpusFixtureV0 {
             id: "less.color-mix",
             dialect: StyleDialect::Less,
             source: "@tone: mix(red, blue, 25%); @surface: tint(#123456, 10%); .button { color: @tone; background: @surface; }",

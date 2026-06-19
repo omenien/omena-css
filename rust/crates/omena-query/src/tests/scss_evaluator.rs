@@ -16,9 +16,9 @@ fn exposes_static_stylesheet_oracle_corpus_through_query_boundary() {
     assert_eq!(summary.mode, "oracleOnly");
     assert_eq!(summary.value_type, "AbstractCssValueV0");
     assert_eq!(summary.product_output_source, "legacyEvaluatedCss");
-    assert_eq!(summary.fixture_count, 22);
+    assert_eq!(summary.fixture_count, 23);
     assert_eq!(summary.scss_fixture_count, 6);
-    assert_eq!(summary.less_fixture_count, 16);
+    assert_eq!(summary.less_fixture_count, 17);
     assert_eq!(summary.evaluated_fixture_count, summary.fixture_count);
     assert_eq!(summary.missing_evaluation_count, 0);
     assert_eq!(summary.divergence_count, 0);
@@ -51,6 +51,13 @@ fn exposes_static_stylesheet_oracle_corpus_through_query_boundary() {
             .fixtures
             .iter()
             .any(|fixture| fixture.id == "less.ruleset-guarded-mixin")
+    );
+    assert!(
+        summary
+            .corpus
+            .fixtures
+            .iter()
+            .any(|fixture| fixture.id == "less.isruleset-predicate")
     );
 }
 
@@ -1221,6 +1228,32 @@ fn exposes_less_replace_builtin_through_query_boundary() {
             && evaluation.evaluated_css.contains("all: \"heLLo\"")
             && evaluation.evaluated_css.contains("fold: \"xx\"")
             && evaluation.evaluated_css.contains("bare: heXlo")
+    }));
+}
+
+#[test]
+fn exposes_less_isruleset_builtin_through_query_boundary() {
+    let summary = summarize_omena_query_static_stylesheet_evaluator_from_source(
+        "@rules: { color: red; }; @ok: isruleset(@rules); @bad: isruleset(red); .button { ok: @ok; bad: @bad; }",
+        OmenaParserStyleDialect::Less,
+    );
+
+    assert_eq!(summary.product, "omena-query.static-stylesheet-evaluator");
+    assert_eq!(summary.mode, "oracleOnly");
+    assert_eq!(summary.dialect, "less");
+    assert_eq!(summary.value_type, "AbstractCssValueV0");
+    assert!(summary.supported_dialect);
+    assert_eq!(summary.product_output_source, "legacyEvaluatedCss");
+    assert!(summary.legacy_output_consumed_until_cutover);
+    assert!(summary.evaluation_available);
+    assert_eq!(summary.divergence_count, 0);
+    assert!(summary.all_legacy_declaration_values_preserved);
+    assert_eq!(summary.native_replacement_count, 2);
+    assert_eq!(summary.native_raw_value_count, 2);
+    assert_eq!(summary.native_top_value_count, 0);
+    assert!(summary.evaluation.as_ref().is_some_and(|evaluation| {
+        evaluation.evaluated_css.contains("ok: true")
+            && evaluation.evaluated_css.contains("bad: false")
     }));
 }
 
