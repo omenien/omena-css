@@ -1,4 +1,5 @@
 import { strict as assert } from "node:assert";
+import { spawnSync } from "node:child_process";
 import {
   SELECTED_QUERY_RUNNER_COMMANDS,
   usesRustExpressionSemanticsBackend,
@@ -16,6 +17,36 @@ const BACKEND_KINDS: readonly SelectedQueryBackendKind[] = [
   "rust-selector-usage",
   "rust-selected-query",
 ];
+
+interface StaticStylesheetEvaluatorOracleCorpusSummaryV0 {
+  readonly product: string;
+  readonly mode: string;
+  readonly valueType: string;
+  readonly productOutputSource: string;
+  readonly fixtureCount: number;
+  readonly scssFixtureCount: number;
+  readonly lessFixtureCount: number;
+  readonly evaluatedFixtureCount: number;
+  readonly missingEvaluationCount: number;
+  readonly divergenceCount: number;
+  readonly nativeEditOutputMatchCount: number;
+  readonly nativeValueEditCount: number;
+  readonly nativeStructuralEditCount: number;
+  readonly nativeTopValueCount: number;
+  readonly allLegacyDeclarationValuesPreserved: boolean;
+  readonly allNativeEditOutputsMatchEvaluatedCss: boolean;
+  readonly corpus?: StaticStylesheetEvaluatorOracleCorpusSummaryV0 & {
+    readonly fixtures: readonly StaticStylesheetEvaluatorOracleFixtureSummaryV0[];
+  };
+}
+
+interface StaticStylesheetEvaluatorOracleFixtureSummaryV0 {
+  readonly id: string;
+  readonly dialect: string;
+  readonly evaluationAvailable: boolean;
+  readonly divergenceCount: number;
+  readonly nativeEditOutputMatchesEvaluatedCss: boolean;
+}
 
 const EXPECTED_RUNNER_COMMANDS = new Map([
   [
@@ -467,13 +498,92 @@ void (async () => {
     [...EXPECTED_RUNNER_COMMANDS.keys()].toSorted(),
   );
 
+  const staticStylesheetOracleCorpus = runStaticStylesheetEvaluatorOracleCorpus();
+  assertStaticStylesheetEvaluatorOracleCorpus(staticStylesheetOracleCorpus);
+
   process.stdout.write(
     [
       "validated omena-query selected-query adapter capabilities:",
       `backends=${summary.backendKinds.length}`,
       `runnerCommands=${summary.runnerCommands.length}`,
+      `staticStylesheetOracleFixtures=${staticStylesheetOracleCorpus.fixtureCount}`,
       `routing=${summary.routingStatus}`,
     ].join(" "),
   );
   process.stdout.write("\n");
 })();
+
+function runStaticStylesheetEvaluatorOracleCorpus(): StaticStylesheetEvaluatorOracleCorpusSummaryV0 {
+  const result = spawnSync(
+    "cargo",
+    [
+      "run",
+      "--manifest-path",
+      "rust/Cargo.toml",
+      "-p",
+      "engine-shadow-runner",
+      "--quiet",
+      "--",
+      SELECTED_QUERY_RUNNER_COMMANDS.staticStylesheetEvaluatorOracleCorpus,
+    ],
+    {
+      cwd: process.cwd(),
+      encoding: "utf8",
+      maxBuffer: 8 * 1024 * 1024,
+    },
+  );
+  assert.equal(
+    result.status,
+    0,
+    `static stylesheet evaluator oracle corpus command failed\nstdout=${result.stdout}\nstderr=${result.stderr}`,
+  );
+  return JSON.parse(result.stdout) as StaticStylesheetEvaluatorOracleCorpusSummaryV0;
+}
+
+function assertStaticStylesheetEvaluatorOracleCorpus(
+  summary: StaticStylesheetEvaluatorOracleCorpusSummaryV0,
+): void {
+  assert.equal(summary.product, "omena-query.static-stylesheet-evaluator-oracle-corpus");
+  assert.equal(summary.mode, "oracleOnly");
+  assert.equal(summary.valueType, "AbstractCssValueV0");
+  assert.equal(summary.productOutputSource, "legacyEvaluatedCss");
+  assert.ok(summary.fixtureCount >= 55, "static stylesheet oracle corpus must not shrink");
+  assert.ok(summary.scssFixtureCount >= 10, "SCSS oracle fixture coverage must not shrink");
+  assert.ok(summary.lessFixtureCount >= 45, "Less oracle fixture coverage must not shrink");
+  assert.equal(summary.evaluatedFixtureCount, summary.fixtureCount);
+  assert.equal(summary.missingEvaluationCount, 0);
+  assert.equal(summary.divergenceCount, 0);
+  assert.equal(summary.nativeEditOutputMatchCount, summary.fixtureCount);
+  assert.ok(summary.nativeValueEditCount > 0);
+  assert.ok(summary.nativeStructuralEditCount > 0);
+  assert.ok(summary.nativeTopValueCount > 0);
+  assert.equal(summary.allLegacyDeclarationValuesPreserved, true);
+  assert.equal(summary.allNativeEditOutputsMatchEvaluatedCss, true);
+
+  const corpus = summary.corpus;
+  assert.ok(corpus, "selected-query facade must expose the underlying evaluator corpus");
+  assert.equal(corpus.product, "omena-scss-eval.static-stylesheet-oracle-corpus");
+  assert.equal(corpus.fixtureCount, summary.fixtureCount);
+  assert.equal(corpus.divergenceCount, 0);
+  assert.equal(corpus.nativeEditOutputMatchCount, corpus.fixtureCount);
+  assert.equal(corpus.allLegacyDeclarationValuesPreserved, true);
+  assert.equal(corpus.allNativeEditOutputsMatchEvaluatedCss, true);
+
+  const fixtures = new Map(corpus.fixtures.map((fixture) => [fixture.id, fixture]));
+  for (const id of [
+    "scss.dynamic-function-return",
+    "scss.recursive-function-return",
+    "less.variable-basic",
+    "less.dynamic-escaped-string",
+  ]) {
+    const fixture = fixtures.get(id);
+    assert.ok(fixture, `missing oracle fixture ${id}`);
+    assert.equal(fixture.evaluationAvailable, true, `oracle fixture ${id} must evaluate`);
+    assert.equal(fixture.divergenceCount, 0, `oracle fixture ${id} must not diverge`);
+    assert.equal(
+      fixture.nativeEditOutputMatchesEvaluatedCss,
+      true,
+      `oracle fixture ${id} native edits must match legacy output`,
+    );
+  }
+}
