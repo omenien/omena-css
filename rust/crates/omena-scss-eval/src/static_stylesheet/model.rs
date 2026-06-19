@@ -215,6 +215,11 @@ pub(super) struct StaticLessMixinRenderResult {
     pub(super) used_declaration_names: BTreeSet<String>,
 }
 
+pub(super) enum StaticLessMixinCallRenderOutcome {
+    Rendered(StaticLessMixinRenderResult),
+    PreservedNoOutput,
+}
+
 pub(super) enum StaticLessMixinRenderOutcome {
     Rendered(StaticLessMixinRenderResult),
     GuardNotMatched,

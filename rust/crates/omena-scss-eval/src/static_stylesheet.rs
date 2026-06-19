@@ -42,14 +42,14 @@ use model::{
     StaticLessDetachedRulesetAccessor, StaticLessDetachedRulesetCall,
     StaticLessDetachedRulesetDeclaration, StaticLessMixinAccessor,
     StaticLessMixinAccessorRenderOutcome, StaticLessMixinAccessorRenderResult,
-    StaticLessMixinBodyLocalDeclaration, StaticLessMixinCall, StaticLessMixinDeclaration,
-    StaticLessMixinRenderContext, StaticLessMixinRenderOutcome, StaticLessMixinRenderResult,
-    StaticScssFunctionArgument, StaticScssFunctionCall, StaticScssFunctionDeclaration,
-    StaticScssFunctionLocalScope, StaticScssFunctionLocalVariable, StaticScssFunctionParameter,
-    StaticScssFunctionResolutionContext, StaticScssFunctionReturnClause, StaticScssLoopHeader,
-    StaticScssMixinBodyLocalDeclaration, StaticScssMixinDeclaration, StaticScssMixinIncludeCall,
-    StaticScssMixinRenderResult, StaticStylesheetEvaluationEdit,
-    StaticStylesheetPropertyDeclaration, StaticStylesheetScope,
+    StaticLessMixinBodyLocalDeclaration, StaticLessMixinCall, StaticLessMixinCallRenderOutcome,
+    StaticLessMixinDeclaration, StaticLessMixinRenderContext, StaticLessMixinRenderOutcome,
+    StaticLessMixinRenderResult, StaticScssFunctionArgument, StaticScssFunctionCall,
+    StaticScssFunctionDeclaration, StaticScssFunctionLocalScope, StaticScssFunctionLocalVariable,
+    StaticScssFunctionParameter, StaticScssFunctionResolutionContext,
+    StaticScssFunctionReturnClause, StaticScssLoopHeader, StaticScssMixinBodyLocalDeclaration,
+    StaticScssMixinDeclaration, StaticScssMixinIncludeCall, StaticScssMixinRenderResult,
+    StaticStylesheetEvaluationEdit, StaticStylesheetPropertyDeclaration, StaticStylesheetScope,
     StaticStylesheetScopedVariableDeclaration, StaticStylesheetVariableDeclaration,
     StaticStylesheetVariableKind,
 };
@@ -124,6 +124,11 @@ pub struct OmenaScssEvalStaticValueResolutionV0 {
 }
 
 const STATIC_STYLESHEET_VALUE_RESOLUTION_FUEL_LIMIT: usize = 128;
+
+struct StaticLessMixinEvaluationEdits {
+    edits: Vec<StaticStylesheetEvaluationEdit>,
+    preserved_non_rendering_call_count: usize,
+}
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 struct StaticLessResolvedValue {
@@ -409,6 +414,7 @@ fn derive_static_less_stylesheet_module_evaluation(
         collect_static_less_property_declarations(style_source, tokens, &scopes)?;
 
     let mut edits = Vec::new();
+    let mut preserved_non_rendering_less_mixin_call_count = 0usize;
     let mut resolved_replacements = Vec::new();
     for declaration in declarations.values() {
         for (start, end) in &declaration.removal_spans {
@@ -572,7 +578,7 @@ fn derive_static_less_stylesheet_module_evaluation(
         &property_declarations,
         &detached_ruleset_ranges,
     )?);
-    if let Some(mixin_edits) = collect_static_less_mixin_evaluation_edits(
+    if let Some(mixin_evaluation_edits) = collect_static_less_mixin_evaluation_edits(
         style_source,
         tokens,
         &mixin_declarations,
@@ -582,11 +588,13 @@ fn derive_static_less_stylesheet_module_evaluation(
         &property_declarations,
         &detached_ruleset_ranges,
     ) {
-        edits.extend(mixin_edits);
+        preserved_non_rendering_less_mixin_call_count +=
+            mixin_evaluation_edits.preserved_non_rendering_call_count;
+        edits.extend(mixin_evaluation_edits.edits);
     }
 
     let evaluated_css = apply_static_stylesheet_evaluation_edits(style_source, edits)?;
-    if evaluated_css == style_source {
+    if evaluated_css == style_source && preserved_non_rendering_less_mixin_call_count == 0 {
         return None;
     }
     build_static_stylesheet_evaluation_report(
@@ -2454,10 +2462,13 @@ fn collect_static_less_mixin_evaluation_edits(
     variable_declarations: &BTreeMap<(usize, String), StaticStylesheetVariableDeclaration>,
     property_declarations: &BTreeMap<(usize, String), StaticStylesheetPropertyDeclaration>,
     excluded_call_ranges: &[(usize, usize)],
-) -> Option<Vec<StaticStylesheetEvaluationEdit>> {
+) -> Option<StaticLessMixinEvaluationEdits> {
     let calls = collect_static_less_mixin_calls(source, tokens)?;
     if calls.is_empty() {
-        return Some(Vec::new());
+        return Some(StaticLessMixinEvaluationEdits {
+            edits: Vec::new(),
+            preserved_non_rendering_call_count: 0,
+        });
     }
 
     let declaration_ranges = static_less_mixin_declaration_ranges_from_declarations(declarations);
@@ -2472,6 +2483,7 @@ fn collect_static_less_mixin_evaluation_edits(
         captured_values: &empty_captured_values,
     };
     let mut edits = Vec::new();
+    let mut preserved_non_rendering_call_count = 0usize;
     let mut used_declaration_names = BTreeSet::new();
     for call in calls.iter().filter(|call| {
         !static_stylesheet_position_is_inside_ranges(call.start, &declaration_ranges)
@@ -2484,12 +2496,19 @@ fn collect_static_less_mixin_evaluation_edits(
         else {
             continue;
         };
-        used_declaration_names.extend(rendered.used_declaration_names);
-        edits.push(StaticStylesheetEvaluationEdit {
-            start: call.start,
-            end: call.end,
-            replacement: rendered.body,
-        });
+        match rendered {
+            StaticLessMixinCallRenderOutcome::Rendered(rendered) => {
+                used_declaration_names.extend(rendered.used_declaration_names);
+                edits.push(StaticStylesheetEvaluationEdit {
+                    start: call.start,
+                    end: call.end,
+                    replacement: rendered.body,
+                });
+            }
+            StaticLessMixinCallRenderOutcome::PreservedNoOutput => {
+                preserved_non_rendering_call_count += 1;
+            }
+        }
     }
 
     for declaration in declarations.iter().filter(|declaration| {
@@ -2502,7 +2521,10 @@ fn collect_static_less_mixin_evaluation_edits(
             replacement: String::new(),
         });
     }
-    Some(edits)
+    Some(StaticLessMixinEvaluationEdits {
+        edits,
+        preserved_non_rendering_call_count,
+    })
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -3918,7 +3940,7 @@ fn render_static_less_mixin_call(
     call_scope_id: usize,
     context: StaticLessMixinRenderContext<'_>,
     active_mixins: &mut BTreeSet<String>,
-) -> Option<Option<StaticLessMixinRenderResult>> {
+) -> Option<Option<StaticLessMixinCallRenderOutcome>> {
     if call.namespace.is_some() {
         return render_static_less_namespace_mixin_call(
             call,
@@ -3929,6 +3951,8 @@ fn render_static_less_mixin_call(
     }
     let canonical_call_name = canonical_static_less_mixin_name(call.name.as_str());
     let mut saw_declaration = false;
+    let mut saw_parameter_match = false;
+    let mut saw_guard_not_matched = false;
     let mut rendered_bodies = Vec::new();
     let mut used_declaration_names = BTreeSet::new();
     let declarations = context
@@ -3950,6 +3974,7 @@ fn render_static_less_mixin_call(
         if !static_less_mixin_parameter_patterns_match(&declaration.parameters, &call.arguments) {
             continue;
         }
+        saw_parameter_match = true;
         match render_static_less_mixin_body(
             declaration,
             call,
@@ -3962,7 +3987,9 @@ fn render_static_less_mixin_call(
                 used_declaration_names.extend(rendered.used_declaration_names);
                 rendered_bodies.push(rendered.body);
             }
-            StaticLessMixinRenderOutcome::GuardNotMatched => {}
+            StaticLessMixinRenderOutcome::GuardNotMatched => {
+                saw_guard_not_matched = true;
+            }
         }
     }
     let default_matches = Some(rendered_bodies.is_empty());
@@ -3975,6 +4002,7 @@ fn render_static_less_mixin_call(
         if !static_less_mixin_parameter_patterns_match(&declaration.parameters, &call.arguments) {
             continue;
         }
+        saw_parameter_match = true;
         match render_static_less_mixin_body(
             declaration,
             call,
@@ -3987,19 +4015,26 @@ fn render_static_less_mixin_call(
                 used_declaration_names.extend(rendered.used_declaration_names);
                 rendered_bodies.push(rendered.body);
             }
-            StaticLessMixinRenderOutcome::GuardNotMatched => {}
+            StaticLessMixinRenderOutcome::GuardNotMatched => {
+                saw_guard_not_matched = true;
+            }
         }
     }
     if !saw_declaration {
         return Some(None);
     }
     if rendered_bodies.is_empty() {
+        if saw_parameter_match && saw_guard_not_matched {
+            return Some(Some(StaticLessMixinCallRenderOutcome::PreservedNoOutput));
+        }
         return None;
     }
-    Some(Some(StaticLessMixinRenderResult {
-        body: rendered_bodies.join(" "),
-        used_declaration_names,
-    }))
+    Some(Some(StaticLessMixinCallRenderOutcome::Rendered(
+        StaticLessMixinRenderResult {
+            body: rendered_bodies.join(" "),
+            used_declaration_names,
+        },
+    )))
 }
 
 fn render_static_less_namespace_mixin_call(
@@ -4007,7 +4042,7 @@ fn render_static_less_namespace_mixin_call(
     call_scope_id: usize,
     context: StaticLessMixinRenderContext<'_>,
     active_mixins: &mut BTreeSet<String>,
-) -> Option<Option<StaticLessMixinRenderResult>> {
+) -> Option<Option<StaticLessMixinCallRenderOutcome>> {
     let namespace = call.namespace.as_ref()?;
     let canonical_namespace = canonical_static_less_mixin_name(namespace.as_str());
     let mut saw_namespace = false;
@@ -4086,7 +4121,12 @@ fn render_static_less_namespace_mixin_call(
             nested_context,
             active_mixins,
         )? {
-            rendered_bodies.push(rendered.body);
+            match rendered {
+                StaticLessMixinCallRenderOutcome::Rendered(rendered) => {
+                    rendered_bodies.push(rendered.body);
+                }
+                StaticLessMixinCallRenderOutcome::PreservedNoOutput => {}
+            }
         }
         active_mixins.remove(&canonical_namespace);
     }
@@ -4097,10 +4137,12 @@ fn render_static_less_namespace_mixin_call(
     if rendered_bodies.is_empty() {
         return None;
     }
-    Some(Some(StaticLessMixinRenderResult {
-        body: rendered_bodies.join(" "),
-        used_declaration_names: BTreeSet::from([canonical_namespace]),
-    }))
+    Some(Some(StaticLessMixinCallRenderOutcome::Rendered(
+        StaticLessMixinRenderResult {
+            body: rendered_bodies.join(" "),
+            used_declaration_names: BTreeSet::from([canonical_namespace]),
+        },
+    )))
 }
 
 fn static_less_mixin_arguments_value(arguments: &[StaticScssFunctionArgument]) -> Option<String> {
@@ -4139,12 +4181,17 @@ fn render_static_less_mixin_body_nested_calls(
         else {
             continue;
         };
-        used_declaration_names.extend(rendered.used_declaration_names);
-        edits.push(StaticStylesheetEvaluationEdit {
-            start: call.start,
-            end: call.end,
-            replacement: rendered.body,
-        });
+        match rendered {
+            StaticLessMixinCallRenderOutcome::Rendered(rendered) => {
+                used_declaration_names.extend(rendered.used_declaration_names);
+                edits.push(StaticStylesheetEvaluationEdit {
+                    start: call.start,
+                    end: call.end,
+                    replacement: rendered.body,
+                });
+            }
+            StaticLessMixinCallRenderOutcome::PreservedNoOutput => {}
+        }
     }
     for call in detached_calls {
         let declaration = find_static_less_detached_ruleset_declaration(
@@ -9434,9 +9481,9 @@ mod tests {
         assert_eq!(report.mode, "oracleOnly");
         assert_eq!(report.value_type, "AbstractCssValueV0");
         assert_eq!(report.product_output_source, "legacyEvaluatedCss");
-        assert_eq!(report.fixture_count, 39);
+        assert_eq!(report.fixture_count, 40);
         assert_eq!(report.scss_fixture_count, 6);
-        assert_eq!(report.less_fixture_count, 33);
+        assert_eq!(report.less_fixture_count, 34);
         assert_eq!(report.evaluated_fixture_count, report.fixture_count);
         assert_eq!(report.missing_evaluation_count, 0);
         assert_eq!(report.divergence_count, 0);
@@ -9727,13 +9774,21 @@ mod tests {
     }
 
     #[test]
-    fn static_less_evaluation_keeps_false_ruleset_guarded_mixins_planned_only() {
+    fn static_less_evaluation_preserves_false_ruleset_guarded_mixins_as_oracle_report() {
         let report = derive_static_stylesheet_module_evaluation(
             ".apply(@block) when (isruleset(@block)) { @block(); } .button { .apply(red); }",
             StyleDialect::Less,
         );
 
-        assert!(report.is_none());
+        assert!(report.is_some());
+        let Some(report) = report else {
+            return;
+        };
+
+        assert!(report.evaluated_css.contains(".apply(red);"));
+        assert!(report.evaluated_css.contains("when (isruleset(@block))"));
+        assert_eq!(report.replacement_count, 0);
+        assert!(report.oracle.all_legacy_declaration_values_preserved);
     }
 
     #[test]
@@ -10313,63 +10368,111 @@ mod tests {
     }
 
     #[test]
-    fn static_less_evaluation_keeps_false_guarded_mixins_planned_only() {
+    fn static_less_evaluation_preserves_false_guarded_mixins_as_oracle_report() {
         let report = derive_static_stylesheet_module_evaluation(
             ".tone(@value) when (iscolor(@value)) { color: @value; } .button { .tone(1px); }",
             StyleDialect::Less,
         );
 
-        assert!(report.is_none());
+        assert!(report.is_some());
+        let Some(report) = report else {
+            return;
+        };
+
+        assert!(report.evaluated_css.contains(".tone(1px)"));
+        assert!(!report.evaluated_css.contains("color: 1px"));
+        assert_eq!(report.replacement_count, 0);
+        assert!(report.oracle.all_legacy_declaration_values_preserved);
     }
 
     #[test]
-    fn static_less_evaluation_keeps_false_comparison_guarded_mixins_planned_only() {
+    fn static_less_evaluation_preserves_false_comparison_guarded_mixins_as_oracle_report() {
         let report = derive_static_stylesheet_module_evaluation(
             ".space(@gap) when (@gap > 2px) { margin: @gap; } .button { .space(1px); }",
             StyleDialect::Less,
         );
 
-        assert!(report.is_none());
+        assert!(report.is_some());
+        let Some(report) = report else {
+            return;
+        };
+
+        assert!(report.evaluated_css.contains(".space(1px)"));
+        assert!(!report.evaluated_css.contains("margin: 1px"));
+        assert_eq!(report.replacement_count, 0);
+        assert!(report.oracle.all_legacy_declaration_values_preserved);
     }
 
     #[test]
-    fn static_less_evaluation_keeps_false_unit_guarded_mixins_planned_only() {
+    fn static_less_evaluation_preserves_false_unit_guarded_mixins_as_oracle_report() {
         let report = derive_static_stylesheet_module_evaluation(
             ".space(@gap) when (ispixel(@gap)) { margin: @gap; } .button { .space(2em); }",
             StyleDialect::Less,
         );
 
-        assert!(report.is_none());
+        assert!(report.is_some());
+        let Some(report) = report else {
+            return;
+        };
+
+        assert!(report.evaluated_css.contains(".space(2em)"));
+        assert!(!report.evaluated_css.contains("margin: 2em"));
+        assert_eq!(report.replacement_count, 0);
+        assert!(report.oracle.all_legacy_declaration_values_preserved);
     }
 
     #[test]
-    fn static_less_evaluation_keeps_false_isunit_guarded_mixins_planned_only() {
+    fn static_less_evaluation_preserves_false_isunit_guarded_mixins_as_oracle_report() {
         let report = derive_static_stylesheet_module_evaluation(
             r#".space(@gap) when (isunit(@gap, "px")) { margin: @gap; } .button { .space(2em); }"#,
             StyleDialect::Less,
         );
 
-        assert!(report.is_none());
+        assert!(report.is_some());
+        let Some(report) = report else {
+            return;
+        };
+
+        assert!(report.evaluated_css.contains(".space(2em)"));
+        assert!(!report.evaluated_css.contains("margin: 2em"));
+        assert_eq!(report.replacement_count, 0);
+        assert!(report.oracle.all_legacy_declaration_values_preserved);
     }
 
     #[test]
-    fn static_less_evaluation_keeps_false_isdefined_guarded_mixins_planned_only() {
+    fn static_less_evaluation_preserves_false_isdefined_guarded_mixins_as_oracle_report() {
         let report = derive_static_stylesheet_module_evaluation(
             ".missing() when (isdefined(@missing)) { color: blue; } .button { .missing(); }",
             StyleDialect::Less,
         );
 
-        assert!(report.is_none());
+        assert!(report.is_some());
+        let Some(report) = report else {
+            return;
+        };
+
+        assert!(report.evaluated_css.contains(".missing();"));
+        assert!(!report.evaluated_css.contains(".button { color: blue"));
+        assert_eq!(report.replacement_count, 0);
+        assert!(report.oracle.all_legacy_declaration_values_preserved);
     }
 
     #[test]
-    fn static_less_evaluation_keeps_false_property_isdefined_guarded_mixins_planned_only() {
+    fn static_less_evaluation_preserves_false_property_isdefined_guarded_mixins_as_oracle_report() {
         let report = derive_static_stylesheet_module_evaluation(
             ".missing() when (isdefined($missing)) { color: blue; } .button { .missing(); }",
             StyleDialect::Less,
         );
 
-        assert!(report.is_none());
+        assert!(report.is_some());
+        let Some(report) = report else {
+            return;
+        };
+
+        assert!(report.evaluated_css.contains(".missing();"));
+        assert!(!report.evaluated_css.contains(".button { color: blue"));
+        assert_eq!(report.replacement_count, 0);
+        assert!(report.oracle.all_legacy_declaration_values_preserved);
     }
 
     #[test]

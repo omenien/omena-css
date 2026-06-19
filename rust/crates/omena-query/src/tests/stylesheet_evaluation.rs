@@ -1569,7 +1569,7 @@ fn consumer_build_derives_static_less_evaluator_context_for_default_guarded_mixi
 }
 
 #[test]
-fn consumer_build_keeps_false_guarded_less_mixins_planned_only() {
+fn consumer_build_executes_false_guarded_less_mixins_as_preserved_oracle_output() {
     let summary = execute_omena_query_consumer_build_style_source(
         "Button.module.less",
         ".tone(@value) when (iscolor(@value)) { color: @value; } .button { .tone(1px); }",
@@ -1583,14 +1583,21 @@ fn consumer_build_keeps_false_guarded_less_mixins_planned_only() {
     assert!(
         summary
             .execution
+            .executed_pass_ids
+            .contains(&"less-module-evaluate")
+    );
+    assert!(
+        !summary
+            .execution
             .planned_only_pass_ids
             .contains(&"less-module-evaluate")
     );
     assert!(summary.execution.output_css.contains(".tone(1px)"));
+    assert!(!summary.execution.output_css.contains("color: 1px"));
 }
 
 #[test]
-fn consumer_build_keeps_false_comparison_guarded_less_mixins_planned_only() {
+fn consumer_build_executes_false_comparison_guarded_less_mixins_as_preserved_oracle_output() {
     let summary = execute_omena_query_consumer_build_style_source(
         "Button.module.less",
         ".space(@gap) when (@gap > 2px) { margin: @gap; } .button { .space(1px); }",
@@ -1604,14 +1611,21 @@ fn consumer_build_keeps_false_comparison_guarded_less_mixins_planned_only() {
     assert!(
         summary
             .execution
+            .executed_pass_ids
+            .contains(&"less-module-evaluate")
+    );
+    assert!(
+        !summary
+            .execution
             .planned_only_pass_ids
             .contains(&"less-module-evaluate")
     );
     assert!(summary.execution.output_css.contains(".space(1px)"));
+    assert!(!summary.execution.output_css.contains("margin: 1px"));
 }
 
 #[test]
-fn consumer_build_keeps_false_unit_guarded_less_mixins_planned_only() {
+fn consumer_build_executes_false_unit_guarded_less_mixins_as_preserved_oracle_output() {
     let summary = execute_omena_query_consumer_build_style_source(
         "Button.module.less",
         ".space(@gap) when (ispixel(@gap)) { margin: @gap; } .button { .space(2em); }",
@@ -1625,14 +1639,21 @@ fn consumer_build_keeps_false_unit_guarded_less_mixins_planned_only() {
     assert!(
         summary
             .execution
+            .executed_pass_ids
+            .contains(&"less-module-evaluate")
+    );
+    assert!(
+        !summary
+            .execution
             .planned_only_pass_ids
             .contains(&"less-module-evaluate")
     );
     assert!(summary.execution.output_css.contains(".space(2em)"));
+    assert!(!summary.execution.output_css.contains("margin: 2em"));
 }
 
 #[test]
-fn consumer_build_keeps_false_isunit_guarded_less_mixins_planned_only() {
+fn consumer_build_executes_false_isunit_guarded_less_mixins_as_preserved_oracle_output() {
     let summary = execute_omena_query_consumer_build_style_source(
         "Button.module.less",
         r#".space(@gap) when (isunit(@gap, "px")) { margin: @gap; } .button { .space(2em); }"#,
@@ -1646,10 +1667,17 @@ fn consumer_build_keeps_false_isunit_guarded_less_mixins_planned_only() {
     assert!(
         summary
             .execution
+            .executed_pass_ids
+            .contains(&"less-module-evaluate")
+    );
+    assert!(
+        !summary
+            .execution
             .planned_only_pass_ids
             .contains(&"less-module-evaluate")
     );
     assert!(summary.execution.output_css.contains(".space(2em)"));
+    assert!(!summary.execution.output_css.contains("margin: 2em"));
 }
 
 #[test]
