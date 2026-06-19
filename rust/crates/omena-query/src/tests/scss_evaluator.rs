@@ -16,9 +16,9 @@ fn exposes_static_stylesheet_oracle_corpus_through_query_boundary() {
     assert_eq!(summary.mode, "oracleOnly");
     assert_eq!(summary.value_type, "AbstractCssValueV0");
     assert_eq!(summary.product_output_source, "legacyEvaluatedCss");
-    assert_eq!(summary.fixture_count, 29);
+    assert_eq!(summary.fixture_count, 30);
     assert_eq!(summary.scss_fixture_count, 6);
-    assert_eq!(summary.less_fixture_count, 23);
+    assert_eq!(summary.less_fixture_count, 24);
     assert_eq!(summary.evaluated_fixture_count, summary.fixture_count);
     assert_eq!(summary.missing_evaluation_count, 0);
     assert_eq!(summary.divergence_count, 0);
@@ -86,6 +86,13 @@ fn exposes_static_stylesheet_oracle_corpus_through_query_boundary() {
             .fixtures
             .iter()
             .any(|fixture| fixture.id == "less.isdefined-guarded-mixin")
+    );
+    assert!(
+        summary
+            .corpus
+            .fixtures
+            .iter()
+            .any(|fixture| fixture.id == "less.property-guarded-mixin")
     );
     assert!(
         summary
@@ -1553,6 +1560,31 @@ fn exposes_static_scss_while_argument_returns_through_query_boundary() {
                     && replacement.text == "3"
                     && replacement.abstract_value_kind == "exact"
             })
+    }));
+}
+
+#[test]
+fn exposes_less_property_guarded_mixins_through_query_boundary() {
+    let summary = summarize_omena_query_static_stylesheet_evaluator_from_source(
+        ".space() when (isnumber($margin)) { padding: $margin; } .tone() when (iscolor($color)) { border-color: $color; } .unit() when (isunit($gap, px)) { inset: $gap; } .button { margin: (1px + 2px); color: red; gap: 4px; .space(); .tone(); .unit(); }",
+        OmenaParserStyleDialect::Less,
+    );
+
+    assert_eq!(summary.product, "omena-query.static-stylesheet-evaluator");
+    assert_eq!(summary.mode, "oracleOnly");
+    assert_eq!(summary.dialect, "less");
+    assert_eq!(summary.value_type, "AbstractCssValueV0");
+    assert!(summary.legacy_output_consumed_until_cutover);
+    assert!(summary.evaluation_available);
+    assert_eq!(summary.divergence_count, 0);
+    assert!(summary.all_legacy_declaration_values_preserved);
+    assert!(summary.evaluation.as_ref().is_some_and(|evaluation| {
+        !evaluation.evaluated_css.contains(".space()")
+            && !evaluation.evaluated_css.contains(".tone()")
+            && !evaluation.evaluated_css.contains(".unit()")
+            && evaluation.evaluated_css.contains("padding: 3px")
+            && evaluation.evaluated_css.contains("border-color: red")
+            && evaluation.evaluated_css.contains("inset: 4px")
     }));
 }
 

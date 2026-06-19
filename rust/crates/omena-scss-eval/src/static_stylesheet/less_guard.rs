@@ -242,6 +242,7 @@ fn static_less_mixin_guard_predicate_matches(
         context.scopes,
         context.variable_declarations,
         context.property_declarations,
+        Some(context.call_position),
         context.detached_ruleset_declarations,
     )?;
     Some(matches_value(resolved.trim()))
@@ -263,6 +264,7 @@ fn static_less_mixin_guard_isunit_predicate_matches(
         context.scopes,
         context.variable_declarations,
         context.property_declarations,
+        Some(context.call_position),
         context.detached_ruleset_declarations,
     )?;
     let resolved_unit = resolve_static_less_mixin_value_with_bindings(
@@ -273,6 +275,7 @@ fn static_less_mixin_guard_isunit_predicate_matches(
         context.scopes,
         context.variable_declarations,
         context.property_declarations,
+        Some(context.call_position),
         context.detached_ruleset_declarations,
     )?;
     let expected_unit = static_less_guard_unit_text(resolved_unit.trim())?;
@@ -354,6 +357,7 @@ fn static_less_mixin_guard_isruleset_predicate_matches(
         context.scopes,
         context.variable_declarations,
         context.property_declarations,
+        Some(context.call_position),
         context.detached_ruleset_declarations,
     )?;
     Some(static_less_guard_value_is_ruleset(
@@ -377,6 +381,7 @@ fn static_less_guard_comparison_matches(
         context.scopes,
         context.variable_declarations,
         context.property_declarations,
+        Some(context.call_position),
         context.detached_ruleset_declarations,
     )?;
     let right = resolve_static_less_mixin_value_with_bindings(
@@ -387,6 +392,7 @@ fn static_less_guard_comparison_matches(
         context.scopes,
         context.variable_declarations,
         context.property_declarations,
+        Some(context.call_position),
         context.detached_ruleset_declarations,
     )?;
     static_scss_literal_truthiness(

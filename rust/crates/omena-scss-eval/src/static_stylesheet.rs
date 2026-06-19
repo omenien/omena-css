@@ -3612,6 +3612,7 @@ fn render_static_less_mixin_body(
             context.scopes,
             context.variable_declarations,
             context.property_declarations,
+            None,
             context.detached_ruleset_declarations,
         )?;
         argument_values.insert(parameter, rendered_value);
@@ -3782,6 +3783,7 @@ fn render_static_less_mixin_accessor_declaration(
             context.scopes,
             context.variable_declarations,
             context.property_declarations,
+            None,
             context.detached_ruleset_declarations,
         )?;
         argument_values.insert(parameter, rendered_value);
@@ -3853,6 +3855,7 @@ fn static_less_mixin_body_scoped_values(
             scopes,
             variable_declarations,
             property_declarations,
+            None,
             detached_ruleset_declarations,
         )?;
         scoped_values.insert(local.name.clone(), rendered_value);
@@ -3898,6 +3901,7 @@ fn static_less_body_property_value(
         context.scopes,
         context.variable_declarations,
         context.property_declarations,
+        None,
         context.detached_ruleset_declarations,
     )
 }
@@ -4025,6 +4029,7 @@ fn render_static_less_namespace_mixin_call(
                 context.scopes,
                 context.variable_declarations,
                 context.property_declarations,
+                None,
                 context.detached_ruleset_declarations,
             )?;
             namespace_argument_values.insert(parameter, rendered_value);
@@ -4305,11 +4310,17 @@ fn resolve_static_less_mixin_value_with_bindings(
     scopes: &[StaticStylesheetScope],
     variable_declarations: &BTreeMap<(usize, String), StaticStylesheetVariableDeclaration>,
     property_declarations: &BTreeMap<(usize, String), StaticStylesheetPropertyDeclaration>,
+    property_reference_position: Option<usize>,
     detached_ruleset_declarations: &[StaticLessDetachedRulesetDeclaration],
 ) -> Option<String> {
-    let references =
-        collect_static_stylesheet_variable_references(value, StaticStylesheetVariableKind::Less)?;
-    if references.is_empty() {
+    let references = collect_static_stylesheet_variable_references_with_options(
+        value,
+        StaticStylesheetVariableKind::Less,
+        false,
+        true,
+    )?;
+    let property_references = collect_static_less_property_variable_references(value)?;
+    if references.is_empty() && property_references.is_empty() {
         return static_stylesheet_literal_value_is_safe(value)
             .then(|| reduce_static_less_value(value.to_string()));
     }
@@ -4349,6 +4360,19 @@ fn resolve_static_less_mixin_value_with_bindings(
         cursor = reference.end;
     }
     output.push_str(&value[cursor..]);
+    let property_references = collect_static_less_property_variable_references(output.as_str())?;
+    if !property_references.is_empty() {
+        let mut property_stack = BTreeSet::new();
+        output = resolve_static_less_property_value_text_with_position(
+            output.as_str(),
+            call_scope_id,
+            scopes,
+            property_declarations,
+            &mut property_stack,
+            property_reference_position,
+        )?
+        .text;
+    }
     if static_less_value_is_detached_ruleset_reference(
         output.trim(),
         call_scope_id,
@@ -6566,17 +6590,45 @@ fn resolve_static_less_property_value_in_scope(
     declarations: &BTreeMap<(usize, String), StaticStylesheetPropertyDeclaration>,
     stack: &mut BTreeSet<(usize, String)>,
 ) -> Option<StaticLessResolvedValue> {
+    resolve_static_less_property_value_in_scope_with_position(
+        name,
+        scope_id,
+        scopes,
+        declarations,
+        stack,
+        None,
+    )
+}
+
+fn resolve_static_less_property_value_in_scope_with_position(
+    name: &str,
+    scope_id: usize,
+    scopes: &[StaticStylesheetScope],
+    declarations: &BTreeMap<(usize, String), StaticStylesheetPropertyDeclaration>,
+    stack: &mut BTreeSet<(usize, String)>,
+    reference_position: Option<usize>,
+) -> Option<StaticLessResolvedValue> {
     let stack_key = (scope_id, name.to_string());
     if !stack.insert(stack_key.clone()) {
         return None;
     }
-    let declaration = find_static_less_property_declaration(name, scope_id, scopes, declarations)?;
-    let resolved = resolve_static_less_property_value_text(
+    let declaration = match reference_position {
+        Some(position) => find_static_less_property_declaration_before(
+            name,
+            scope_id,
+            scopes,
+            declarations,
+            position,
+        ),
+        None => find_static_less_property_declaration(name, scope_id, scopes, declarations),
+    }?;
+    let resolved = resolve_static_less_property_value_text_with_position(
         declaration.value.trim(),
         scope_id,
         scopes,
         declarations,
         stack,
+        reference_position,
     );
     stack.remove(&stack_key);
     resolved.map(|resolved| {
@@ -6620,6 +6672,24 @@ fn resolve_static_less_property_value_text(
     declarations: &BTreeMap<(usize, String), StaticStylesheetPropertyDeclaration>,
     stack: &mut BTreeSet<(usize, String)>,
 ) -> Option<StaticLessResolvedValue> {
+    resolve_static_less_property_value_text_with_position(
+        value,
+        scope_id,
+        scopes,
+        declarations,
+        stack,
+        None,
+    )
+}
+
+fn resolve_static_less_property_value_text_with_position(
+    value: &str,
+    scope_id: usize,
+    scopes: &[StaticStylesheetScope],
+    declarations: &BTreeMap<(usize, String), StaticStylesheetPropertyDeclaration>,
+    stack: &mut BTreeSet<(usize, String)>,
+    reference_position: Option<usize>,
+) -> Option<StaticLessResolvedValue> {
     let references =
         collect_static_stylesheet_variable_references(value, StaticStylesheetVariableKind::Scss)?;
     if references.is_empty() {
@@ -6634,12 +6704,13 @@ fn resolve_static_less_property_value_text(
     let mut cursor = 0usize;
     let mut escaped = false;
     for reference in references {
-        let resolved = resolve_static_less_property_value_in_scope(
+        let resolved = resolve_static_less_property_value_in_scope_with_position(
             reference.name.as_str(),
             scope_id,
             scopes,
             declarations,
             stack,
+            reference_position,
         )?;
         escaped |= resolved.escaped;
         output.push_str(&value[cursor..reference.start]);
@@ -9320,9 +9391,9 @@ mod tests {
         assert_eq!(report.mode, "oracleOnly");
         assert_eq!(report.value_type, "AbstractCssValueV0");
         assert_eq!(report.product_output_source, "legacyEvaluatedCss");
-        assert_eq!(report.fixture_count, 29);
+        assert_eq!(report.fixture_count, 30);
         assert_eq!(report.scss_fixture_count, 6);
-        assert_eq!(report.less_fixture_count, 23);
+        assert_eq!(report.less_fixture_count, 24);
         assert_eq!(report.evaluated_fixture_count, report.fixture_count);
         assert_eq!(report.missing_evaluation_count, 0);
         assert_eq!(report.divergence_count, 0);
@@ -10024,6 +10095,54 @@ mod tests {
         assert!(report.evaluated_css.contains("color: red"));
         assert!(report.evaluated_css.contains("border-color: red"));
         assert!(report.oracle.all_legacy_declaration_values_preserved);
+    }
+
+    #[test]
+    fn static_less_evaluation_expands_property_predicate_guarded_mixin_calls() {
+        let report = derive_static_stylesheet_module_evaluation(
+            ".space() when (isnumber($margin)) { padding: $margin; } .tone() when (iscolor($color)) { border-color: $color; } .unit() when (isunit($gap, px)) { inset: $gap; } .button { margin: (1px + 2px); color: red; gap: 4px; .space(); .tone(); .unit(); }",
+            StyleDialect::Less,
+        );
+
+        assert!(report.is_some());
+        let Some(report) = report else {
+            return;
+        };
+
+        assert!(!report.evaluated_css.contains(".space()"));
+        assert!(!report.evaluated_css.contains(".tone()"));
+        assert!(!report.evaluated_css.contains(".unit()"));
+        assert!(report.evaluated_css.contains("padding: 3px"));
+        assert!(report.evaluated_css.contains("border-color: red"));
+        assert!(report.evaluated_css.contains("inset: 4px"));
+        assert!(report.oracle.all_legacy_declaration_values_preserved);
+    }
+
+    #[test]
+    fn static_less_evaluation_expands_property_comparison_guarded_mixin_calls() {
+        let report = derive_static_stylesheet_module_evaluation(
+            ".space() when ($margin > 1px) { padding: $margin; } .button { margin: 2px; .space(); }",
+            StyleDialect::Less,
+        );
+
+        assert!(report.is_some());
+        let Some(report) = report else {
+            return;
+        };
+
+        assert!(!report.evaluated_css.contains(".space()"));
+        assert!(report.evaluated_css.contains("padding: 2px"));
+        assert!(report.oracle.all_legacy_declaration_values_preserved);
+    }
+
+    #[test]
+    fn static_less_evaluation_keeps_future_property_guarded_mixins_planned_only() {
+        let report = derive_static_stylesheet_module_evaluation(
+            ".space() when (isnumber($margin)) { padding: $margin; } .button { .space(); margin: 2px; }",
+            StyleDialect::Less,
+        );
+
+        assert!(report.is_none());
     }
 
     #[test]
