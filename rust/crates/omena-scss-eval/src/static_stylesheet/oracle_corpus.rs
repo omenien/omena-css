@@ -216,6 +216,11 @@ fn static_stylesheet_oracle_corpus_fixtures() -> &'static [StaticStylesheetOracl
             source: "@brand: red; @rules: { color: @brand; margin: 1px; }; .button { @rules(); }",
         },
         StaticStylesheetOracleCorpusFixtureV0 {
+            id: "less.ruleset-guarded-mixin",
+            dialect: StyleDialect::Less,
+            source: ".apply(@block) when (isruleset(@block)) { @block(); } @rules: { color: red; margin: 1px; }; .button { .apply(@rules); }",
+        },
+        StaticStylesheetOracleCorpusFixtureV0 {
             id: "less.detached-ruleset-accessor",
             dialect: StyleDialect::Less,
             source: "@brand: red; @tokens: { primary: @brand; @gap: 2px; }; .button { color: @tokens[primary]; margin: @tokens[@gap]; }",

@@ -1356,6 +1356,37 @@ fn consumer_build_derives_static_less_evaluator_context_for_static_guarded_mixin
 }
 
 #[test]
+fn consumer_build_derives_static_less_evaluator_context_for_ruleset_guarded_mixin_arguments() {
+    let summary = execute_omena_query_consumer_build_style_source(
+        "Button.module.less",
+        ".apply(@block) when (isruleset(@block)) { @block(); } @rules: { color: red; margin: 1px; }; .button { .apply(@rules); }",
+        &[
+            "less-module-evaluate".to_string(),
+            "css-modules-class-hashing".to_string(),
+            "print-css".to_string(),
+        ],
+    );
+
+    assert!(
+        summary
+            .execution
+            .executed_pass_ids
+            .contains(&"less-module-evaluate")
+    );
+    assert!(
+        !summary
+            .execution
+            .planned_only_pass_ids
+            .contains(&"less-module-evaluate")
+    );
+    assert!(summary.execution.output_css.contains("color: red"));
+    assert!(summary.execution.output_css.contains("margin: 1px"));
+    assert!(!summary.execution.output_css.contains(".apply(@block"));
+    assert!(!summary.execution.output_css.contains(".apply(@rules"));
+    assert!(!summary.execution.output_css.contains("@rules:"));
+}
+
+#[test]
 fn consumer_build_derives_static_less_evaluator_context_for_numeric_guarded_mixin_calls() {
     let summary = execute_omena_query_consumer_build_style_source(
         "Button.module.less",

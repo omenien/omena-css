@@ -11,17 +11,16 @@ use omena_value_lattice::{
 use crate::value_eval::static_scss_literal_truthiness;
 
 use super::{
-    StaticStylesheetScope, StaticStylesheetVariableDeclaration,
+    StaticLessDetachedRulesetDeclaration, StaticLessMixinRenderContext, StaticStylesheetScope,
+    StaticStylesheetVariableDeclaration, find_static_less_detached_ruleset_declaration,
     resolve_static_less_mixin_value_with_bindings, static_stylesheet_property_name_is_safe,
 };
 
 pub(super) fn static_less_mixin_guard_matches(
     guard: &str,
     argument_values: &BTreeMap<String, String>,
-    captured_values: &BTreeMap<String, String>,
     call_scope_id: usize,
-    scopes: &[StaticStylesheetScope],
-    variable_declarations: &BTreeMap<(usize, String), StaticStylesheetVariableDeclaration>,
+    render_context: StaticLessMixinRenderContext<'_>,
     default_matches: Option<bool>,
 ) -> Option<bool> {
     let guard = guard.trim();
@@ -32,10 +31,11 @@ pub(super) fn static_less_mixin_guard_matches(
     let expression = guard.get("when".len()..)?.trim();
     let context = StaticLessGuardContext {
         argument_values,
-        captured_values,
+        captured_values: render_context.captured_values,
         call_scope_id,
-        scopes,
-        variable_declarations,
+        scopes: render_context.scopes,
+        variable_declarations: render_context.variable_declarations,
+        detached_ruleset_declarations: render_context.detached_ruleset_declarations,
         default_matches,
     };
     static_less_guard_expression_matches(expression, context)
@@ -48,6 +48,7 @@ struct StaticLessGuardContext<'a> {
     call_scope_id: usize,
     scopes: &'a [StaticStylesheetScope],
     variable_declarations: &'a BTreeMap<(usize, String), StaticStylesheetVariableDeclaration>,
+    detached_ruleset_declarations: &'a [StaticLessDetachedRulesetDeclaration],
     default_matches: Option<bool>,
 }
 
@@ -153,6 +154,7 @@ fn static_less_guard_predicate_expression_matches(
         })
     })
     .or_else(|| static_less_mixin_guard_isunit_predicate_matches(predicate, context))
+    .or_else(|| static_less_mixin_guard_isruleset_predicate_matches(predicate, context))
     .or_else(|| {
         static_less_mixin_guard_predicate_matches(
             predicate,
@@ -205,6 +207,7 @@ fn static_less_mixin_guard_predicate_matches(
         context.call_scope_id,
         context.scopes,
         context.variable_declarations,
+        context.detached_ruleset_declarations,
     )?;
     Some(matches_value(resolved.trim()))
 }
@@ -224,6 +227,7 @@ fn static_less_mixin_guard_isunit_predicate_matches(
         context.call_scope_id,
         context.scopes,
         context.variable_declarations,
+        context.detached_ruleset_declarations,
     )?;
     let resolved_unit = resolve_static_less_mixin_value_with_bindings(
         unit.trim(),
@@ -232,11 +236,37 @@ fn static_less_mixin_guard_isunit_predicate_matches(
         context.call_scope_id,
         context.scopes,
         context.variable_declarations,
+        context.detached_ruleset_declarations,
     )?;
     let expected_unit = static_less_guard_unit_text(resolved_unit.trim())?;
     Some(static_less_guard_value_has_unit(
         resolved_value.trim(),
         expected_unit,
+    ))
+}
+
+fn static_less_mixin_guard_isruleset_predicate_matches(
+    predicate: &str,
+    context: StaticLessGuardContext<'_>,
+) -> Option<bool> {
+    let arguments = parse_whole_function_value_arguments(predicate, "isruleset")?;
+    let [value] = arguments.as_slice() else {
+        return None;
+    };
+    let resolved = resolve_static_less_mixin_value_with_bindings(
+        value.trim(),
+        context.argument_values,
+        context.captured_values,
+        context.call_scope_id,
+        context.scopes,
+        context.variable_declarations,
+        context.detached_ruleset_declarations,
+    )?;
+    Some(static_less_guard_value_is_ruleset(
+        resolved.trim(),
+        context.call_scope_id,
+        context.scopes,
+        context.detached_ruleset_declarations,
     ))
 }
 
@@ -252,6 +282,7 @@ fn static_less_guard_comparison_matches(
         context.call_scope_id,
         context.scopes,
         context.variable_declarations,
+        context.detached_ruleset_declarations,
     )?;
     let right = resolve_static_less_mixin_value_with_bindings(
         right,
@@ -260,6 +291,7 @@ fn static_less_guard_comparison_matches(
         context.call_scope_id,
         context.scopes,
         context.variable_declarations,
+        context.detached_ruleset_declarations,
     )?;
     static_scss_literal_truthiness(
         format!(
@@ -638,6 +670,23 @@ fn static_less_guard_value_is_keyword(value: &str) -> bool {
         value.to_ascii_lowercase().as_str(),
         "false" | "null" | "true"
     )
+}
+
+fn static_less_guard_value_is_ruleset(
+    value: &str,
+    call_scope_id: usize,
+    scopes: &[StaticStylesheetScope],
+    detached_ruleset_declarations: &[StaticLessDetachedRulesetDeclaration],
+) -> bool {
+    let value = value.trim();
+    value.starts_with('@')
+        && find_static_less_detached_ruleset_declaration(
+            value,
+            call_scope_id,
+            scopes,
+            detached_ruleset_declarations,
+        )
+        .is_some()
 }
 
 fn static_less_guard_quoted_string_end(source: &str, start: usize) -> Option<usize> {
