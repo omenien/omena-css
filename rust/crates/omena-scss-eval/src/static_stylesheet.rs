@@ -4155,7 +4155,7 @@ fn render_static_less_mixin_call(
         return Some(None);
     }
     if rendered_bodies.is_empty() {
-        if saw_parameter_match && saw_guard_not_matched {
+        if !saw_parameter_match || saw_guard_not_matched {
             return Some(Some(StaticLessMixinCallRenderOutcome::PreservedNoOutput));
         }
         return None;
@@ -9624,9 +9624,9 @@ mod tests {
         assert_eq!(report.mode, "oracleOnly");
         assert_eq!(report.value_type, "AbstractCssValueV0");
         assert_eq!(report.product_output_source, "legacyEvaluatedCss");
-        assert_eq!(report.fixture_count, 45);
+        assert_eq!(report.fixture_count, 46);
         assert_eq!(report.scss_fixture_count, 6);
-        assert_eq!(report.less_fixture_count, 39);
+        assert_eq!(report.less_fixture_count, 40);
         assert_eq!(report.evaluated_fixture_count, report.fixture_count);
         assert_eq!(report.missing_evaluation_count, 0);
         assert_eq!(report.divergence_count, 0);
@@ -10180,13 +10180,22 @@ mod tests {
     }
 
     #[test]
-    fn static_less_evaluation_keeps_unmatched_literal_pattern_mixins_planned_only() {
+    fn static_less_evaluation_preserves_unmatched_literal_pattern_mixins_as_oracle_report() {
         let report = derive_static_stylesheet_module_evaluation(
             ".tone(dark, @color) { color: @color; background: black; } .button { .tone(light, red); }",
             StyleDialect::Less,
         );
 
-        assert!(report.is_none());
+        assert!(report.is_some());
+        let Some(report) = report else {
+            return;
+        };
+
+        assert!(report.evaluated_css.contains(".tone(light, red);"));
+        assert!(report.evaluated_css.contains(".tone(dark, @color)"));
+        assert!(!report.evaluated_css.contains(".button { color: red"));
+        assert_eq!(report.replacement_count, 0);
+        assert!(report.oracle.all_legacy_declaration_values_preserved);
     }
 
     #[test]

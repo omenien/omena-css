@@ -251,6 +251,11 @@ fn static_stylesheet_oracle_corpus_fixtures() -> &'static [StaticStylesheetOracl
             source: ".tone(dark, @color) { color: @color; background: black; } .tone(light, @color) { color: @color; background: white; } .button { .tone(dark, red); }",
         },
         StaticStylesheetOracleCorpusFixtureV0 {
+            id: "less.unmatched-literal-pattern-mixin",
+            dialect: StyleDialect::Less,
+            source: ".tone(dark, @color) { color: @color; background: black; } .button { .tone(light, red); }",
+        },
+        StaticStylesheetOracleCorpusFixtureV0 {
             id: "less.important-mixin",
             dialect: StyleDialect::Less,
             source: ".tone(@color, @gap: 1px) { color: @color; margin: @gap; } .button { .tone(red, 2px) !important; }",

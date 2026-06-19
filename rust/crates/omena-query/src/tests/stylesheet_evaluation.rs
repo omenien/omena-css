@@ -1242,7 +1242,7 @@ fn consumer_build_derives_static_less_evaluator_context_for_literal_pattern_mixi
 }
 
 #[test]
-fn consumer_build_keeps_unmatched_literal_pattern_mixins_planned_only() {
+fn consumer_build_executes_unmatched_literal_pattern_mixins_as_preserved_oracle_output() {
     let summary = execute_omena_query_consumer_build_style_source(
         "Button.module.less",
         ".tone(dark, @color) { color: @color; background: black; } .button { .tone(light, red); }",
@@ -1255,6 +1255,12 @@ fn consumer_build_keeps_unmatched_literal_pattern_mixins_planned_only() {
 
     assert!(
         summary
+            .execution
+            .executed_pass_ids
+            .contains(&"less-module-evaluate")
+    );
+    assert!(
+        !summary
             .execution
             .planned_only_pass_ids
             .contains(&"less-module-evaluate")
