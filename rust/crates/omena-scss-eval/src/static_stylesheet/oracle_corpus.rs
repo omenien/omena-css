@@ -201,6 +201,11 @@ fn static_stylesheet_oracle_corpus_fixtures() -> &'static [StaticStylesheetOracl
             source: "@gap: 2px; .card { margin: @gap; }",
         },
         StaticStylesheetOracleCorpusFixtureV0 {
+            id: "less.dynamic-escaped-string",
+            dialect: StyleDialect::Less,
+            source: "@filter: ~\"@{name}\"; .card { filter: @filter; }",
+        },
+        StaticStylesheetOracleCorpusFixtureV0 {
             id: "less.static-mixin",
             dialect: StyleDialect::Less,
             source: "@brand: red; .tone(@color, @gap: 1px) { color: @color; margin: @gap; padding: @brand; } .button { .tone(blue, 2px); }",

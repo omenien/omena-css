@@ -637,7 +637,7 @@ fn consumer_build_derives_static_less_evaluator_context_for_escaped_strings() {
 }
 
 #[test]
-fn consumer_build_keeps_dynamic_less_escaped_strings_planned_only() {
+fn consumer_build_executes_dynamic_less_escaped_strings_as_preserved_raw_output() {
     let summary = execute_omena_query_consumer_build_style_source(
         "Button.module.less",
         "@filter: ~\"@{name}\"; .card { filter: @filter; }",
@@ -651,10 +651,22 @@ fn consumer_build_keeps_dynamic_less_escaped_strings_planned_only() {
     assert!(
         summary
             .execution
+            .executed_pass_ids
+            .contains(&"less-module-evaluate")
+    );
+    assert!(
+        !summary
+            .execution
             .planned_only_pass_ids
             .contains(&"less-module-evaluate")
     );
-    assert!(summary.execution.output_css.contains("~\"@{name}\""));
+    assert!(
+        summary
+            .execution
+            .output_css
+            .contains("filter: ~\"@{name}\"")
+    );
+    assert!(!summary.execution.output_css.contains("@filter:"));
 }
 
 #[test]

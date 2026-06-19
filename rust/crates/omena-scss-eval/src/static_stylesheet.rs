@@ -6760,6 +6760,9 @@ fn resolve_static_less_variable_value_text(
     )?;
     let property_references = collect_static_less_property_variable_references(value)?;
     if references.is_empty() && property_references.is_empty() {
+        if let Some(preserved) = preserve_static_less_dynamic_escaped_string_value(value) {
+            return Some(preserved);
+        }
         return static_stylesheet_literal_value_is_safe(value)
             .then(|| reduce_static_less_value_with_escape_flag(value.to_string()));
     }
@@ -7006,6 +7009,9 @@ fn resolve_static_less_property_value_text_with_position(
     let references =
         collect_static_stylesheet_variable_references(value, StaticStylesheetVariableKind::Scss)?;
     if references.is_empty() {
+        if let Some(preserved) = preserve_static_less_dynamic_escaped_string_value(value) {
+            return Some(preserved);
+        }
         return static_stylesheet_literal_value_is_safe(value)
             .then(|| reduce_static_less_value_with_escape_flag(value.to_string()));
     }
@@ -9063,6 +9069,18 @@ fn reduce_static_less_escaped_string_value(value: &str) -> Option<String> {
     static_less_quoted_string_contents(rest)
 }
 
+fn preserve_static_less_dynamic_escaped_string_value(
+    value: &str,
+) -> Option<StaticLessResolvedValue> {
+    let trimmed = value.trim();
+    let rest = trimmed.strip_prefix('~')?;
+    let contents = static_less_quoted_string_contents(rest)?;
+    contents.contains("@{").then(|| StaticLessResolvedValue {
+        text: trimmed.to_string(),
+        escaped: true,
+    })
+}
+
 fn static_less_quoted_string_contents(value: &str) -> Option<String> {
     static_less_quoted_string(value).map(|(_, text)| text)
 }
@@ -9111,6 +9129,9 @@ fn parse_static_less_quoted_hex_color_literal(value: &str) -> Option<String> {
 }
 
 fn static_stylesheet_less_declaration_value_is_removal_safe(value: &str) -> bool {
+    if preserve_static_less_dynamic_escaped_string_value(value).is_some() {
+        return true;
+    }
     !value.chars().any(|ch| matches!(ch, '{' | '}' | ';' | '!'))
 }
 
@@ -9740,9 +9761,9 @@ mod tests {
         assert_eq!(report.mode, "oracleOnly");
         assert_eq!(report.value_type, "AbstractCssValueV0");
         assert_eq!(report.product_output_source, "legacyEvaluatedCss");
-        assert_eq!(report.fixture_count, 48);
+        assert_eq!(report.fixture_count, 49);
         assert_eq!(report.scss_fixture_count, 6);
-        assert_eq!(report.less_fixture_count, 42);
+        assert_eq!(report.less_fixture_count, 43);
         assert_eq!(report.evaluated_fixture_count, report.fixture_count);
         assert_eq!(report.missing_evaluation_count, 0);
         assert_eq!(report.divergence_count, 0);
@@ -9821,6 +9842,26 @@ mod tests {
         );
         assert!(report.evaluated_css.contains("filter: alpha(opacity=50)"));
         assert!(!report.evaluated_css.contains("~\"alpha"));
+        assert!(report.oracle.all_legacy_declaration_values_preserved);
+    }
+
+    #[test]
+    fn static_less_evaluation_preserves_dynamic_escaped_string_variable_values_as_raw() {
+        let report = derive_static_stylesheet_module_evaluation(
+            "@filter: ~\"@{name}\"; .button { filter: @filter; }",
+            StyleDialect::Less,
+        );
+        assert!(report.is_some());
+        let Some(report) = report else {
+            return;
+        };
+
+        assert_eq!(report.resolved_replacements[0].text, "~\"@{name}\"");
+        assert_eq!(report.resolved_replacements[0].abstract_value_kind, "raw");
+        assert_eq!(report.value_resolution.raw_count, 1);
+        assert_eq!(report.value_resolution.top_count, 0);
+        assert!(report.evaluated_css.contains("filter: ~\"@{name}\""));
+        assert!(!report.evaluated_css.contains("@filter:"));
         assert!(report.oracle.all_legacy_declaration_values_preserved);
     }
 
