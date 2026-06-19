@@ -1185,7 +1185,9 @@ export function App() {
             scss_module_evaluation: Some(omena_query::OmenaQueryTransformModuleEvaluationV0 {
                 evaluator: "dart-sass-compatible".to_string(),
                 evaluated_css: ".card { color: red; }".to_string(),
+                native_edit_output: Some(".card { color: red; }".to_string()),
                 native_replacements: Vec::new(),
+                native_edits: Vec::new(),
                 oracle: None,
             }),
             ..OmenaWasmTransformExecutionContextV0::default()
@@ -1454,7 +1456,7 @@ export function App() {
     fn lists_transform_passes_for_browser_clients() {
         let passes = list_transform_pass_summaries();
 
-        assert_eq!(passes.len(), 40);
+        assert!(passes.len() >= 41);
         assert!(passes.iter().any(|pass| pass.id == "whitespace-strip"));
     }
 

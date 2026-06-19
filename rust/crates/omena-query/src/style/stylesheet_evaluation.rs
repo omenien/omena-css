@@ -30,6 +30,7 @@ pub(super) fn derive_static_stylesheet_module_evaluation(
     Some(TransformModuleEvaluationV0 {
         evaluator: evaluation.evaluator.to_string(),
         evaluated_css: evaluation.evaluated_css,
+        native_edit_output: Some(evaluation.native_edit_output),
         native_replacements: evaluation
             .resolved_replacements
             .into_iter()

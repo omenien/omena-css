@@ -284,6 +284,8 @@ pub struct TransformExecutionContextV0 {
 pub struct TransformModuleEvaluationV0 {
     pub evaluator: String,
     pub evaluated_css: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub native_edit_output: Option<String>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub native_replacements: Vec<TransformModuleEvaluationNativeReplacementV0>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]

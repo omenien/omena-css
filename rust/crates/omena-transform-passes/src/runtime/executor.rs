@@ -866,7 +866,11 @@ fn materialize_transform_module_evaluation_output(
     if let Some(native_css) =
         apply_transform_module_evaluation_native_edits(input_css, &evaluation.native_edits)
     {
-        if native_css == evaluation.evaluated_css {
+        let expected_native_css = evaluation
+            .native_edit_output
+            .as_deref()
+            .unwrap_or(evaluation.evaluated_css.as_str());
+        if native_css == expected_native_css {
             return TransformModuleEvaluationMaterializedOutput {
                 css: native_css,
                 detail: native_detail,

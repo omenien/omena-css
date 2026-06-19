@@ -68,6 +68,14 @@ fn consumer_build_derives_static_scss_evaluator_context() {
             .execution
             .css_module_evaluation
             .as_ref()
+            .and_then(|evaluation| evaluation.native_edit_output.as_deref())
+            .is_some_and(|output| output.contains(".button { color: red; }"))
+    );
+    assert!(
+        summary
+            .execution
+            .css_module_evaluation
+            .as_ref()
             .is_some_and(
                 |evaluation| evaluation
                     .native_replacements
@@ -557,6 +565,14 @@ fn consumer_build_uses_native_less_evaluation_after_import_inlining() -> Result<
         Some(
             "applied explicit Less module evaluation native edit output from the evaluator boundary"
         )
+    );
+    assert!(
+        summary
+            .execution
+            .css_module_evaluation
+            .as_ref()
+            .and_then(|evaluation| evaluation.native_edit_output.as_deref())
+            .is_some_and(|output| output.contains(".button { color: red; }"))
     );
     Ok(())
 }

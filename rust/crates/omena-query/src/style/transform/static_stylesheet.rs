@@ -40,6 +40,12 @@ pub(super) fn derive_static_stylesheet_module_evaluation_for_transform_context(
     if let Some(evaluation) =
         derive_static_stylesheet_module_evaluation(evaluation_source.as_ref(), dialect)
     {
+        let native_edit_output = evaluation.native_edit_output.as_deref().map(|output| {
+            restore_less_inline_literal_placeholders(
+                output,
+                &import_aware_source.less_inline_literal_placeholders,
+            )
+        });
         let oracle = evaluation.oracle;
         return Some(TransformModuleEvaluationV0 {
             evaluator: evaluation.evaluator,
@@ -47,6 +53,7 @@ pub(super) fn derive_static_stylesheet_module_evaluation_for_transform_context(
                 evaluation.evaluated_css.as_str(),
                 &import_aware_source.less_inline_literal_placeholders,
             ),
+            native_edit_output,
             native_replacements: evaluation.native_replacements,
             native_edits: evaluation.native_edits,
             oracle,
@@ -58,6 +65,7 @@ pub(super) fn derive_static_stylesheet_module_evaluation_for_transform_context(
             evaluation_source.as_ref(),
             &import_aware_source.less_inline_literal_placeholders,
         ),
+        native_edit_output: None,
         native_replacements: Vec::new(),
         native_edits: Vec::new(),
         oracle: None,
@@ -428,7 +436,11 @@ fn derive_static_scss_module_context_for_transform_context(
         evaluation_source.as_str(),
         OmenaParserStyleDialect::Scss,
     )
-    .map(|evaluation| evaluation.evaluated_css)
+    .map(|evaluation| {
+        evaluation
+            .native_edit_output
+            .unwrap_or(evaluation.evaluated_css)
+    })
     .unwrap_or_else(|| {
         if forward_mutation_count > 0 {
             evaluation_source
