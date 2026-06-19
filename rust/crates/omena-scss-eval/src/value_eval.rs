@@ -128,6 +128,13 @@ pub(crate) fn reduce_static_scss_value(value: String) -> String {
             ("math.pow", parse_static_scss_math_pow_value),
             ("math.exp", parse_static_scss_math_exp_value),
             ("math.log", parse_static_scss_math_log_value),
+            ("math.sin", parse_static_scss_math_sin_value),
+            ("math.cos", parse_static_scss_math_cos_value),
+            ("math.tan", parse_static_scss_math_tan_value),
+            ("math.asin", parse_static_scss_math_asin_value),
+            ("math.acos", parse_static_scss_math_acos_value),
+            ("math.atan", parse_static_scss_math_atan_value),
+            ("math.atan2", parse_static_scss_math_atan2_value),
             ("mix", parse_static_scss_global_mix_value),
             ("color.mix", parse_static_scss_color_mix_value),
             ("color.channel", parse_static_scss_color_channel_value),
@@ -1037,6 +1044,103 @@ fn parse_static_scss_math_exp_value(value: &str) -> Option<String> {
 
 fn parse_static_scss_math_log_value(value: &str) -> Option<String> {
     parse_static_scss_numeric_alias_value(value, "math.log", "log", parse_reducible_log_value)
+}
+
+fn parse_static_scss_math_sin_value(value: &str) -> Option<String> {
+    parse_static_scss_math_trig_value(value, "math.sin", f64::sin)
+}
+
+fn parse_static_scss_math_cos_value(value: &str) -> Option<String> {
+    parse_static_scss_math_trig_value(value, "math.cos", f64::cos)
+}
+
+fn parse_static_scss_math_tan_value(value: &str) -> Option<String> {
+    parse_static_scss_math_trig_value(value, "math.tan", f64::tan)
+}
+
+fn parse_static_scss_math_asin_value(value: &str) -> Option<String> {
+    parse_static_scss_math_inverse_trig_value(value, "math.asin", f64::asin, true)
+}
+
+fn parse_static_scss_math_acos_value(value: &str) -> Option<String> {
+    parse_static_scss_math_inverse_trig_value(value, "math.acos", f64::acos, true)
+}
+
+fn parse_static_scss_math_atan_value(value: &str) -> Option<String> {
+    parse_static_scss_math_inverse_trig_value(value, "math.atan", f64::atan, false)
+}
+
+fn parse_static_scss_math_atan2_value(value: &str) -> Option<String> {
+    let arguments = parse_whole_function_value_arguments(value, "math.atan2")?;
+    let [y, x] = arguments.as_slice() else {
+        return None;
+    };
+    let y = parse_numeric_value_with_unit(y.trim())?;
+    let x = parse_numeric_value_with_unit(x.trim())?;
+    if !y.unit.eq_ignore_ascii_case(x.unit) {
+        return None;
+    }
+    let degrees = y.value.atan2(x.value).to_degrees();
+    Some(format!(
+        "{}deg",
+        format_static_scss_math_trig_number(degrees)?
+    ))
+}
+
+fn parse_static_scss_math_trig_value(
+    value: &str,
+    function_name: &str,
+    evaluate: fn(f64) -> f64,
+) -> Option<String> {
+    let arguments = parse_whole_function_value_arguments(value, function_name)?;
+    let [angle] = arguments.as_slice() else {
+        return None;
+    };
+    let radians = parse_static_scss_angle_radians(angle.trim())?;
+    format_static_scss_math_trig_number(evaluate(radians))
+}
+
+fn parse_static_scss_math_inverse_trig_value(
+    value: &str,
+    function_name: &str,
+    evaluate: fn(f64) -> f64,
+    requires_unit_interval: bool,
+) -> Option<String> {
+    let arguments = parse_whole_function_value_arguments(value, function_name)?;
+    let [number] = arguments.as_slice() else {
+        return None;
+    };
+    let number = parse_numeric_value_with_unit(number.trim())?;
+    if !number.unit.is_empty() {
+        return None;
+    }
+    if requires_unit_interval && !(-1.0..=1.0).contains(&number.value) {
+        return None;
+    }
+    Some(format!(
+        "{}deg",
+        format_static_scss_math_trig_number(evaluate(number.value).to_degrees())?
+    ))
+}
+
+fn parse_static_scss_angle_radians(value: &str) -> Option<f64> {
+    let angle = parse_numeric_value_with_unit(value)?;
+    let radians = match angle.unit.to_ascii_lowercase().as_str() {
+        "" | "rad" => angle.value,
+        "deg" => angle.value.to_radians(),
+        "grad" => angle.value * std::f64::consts::PI / 200.0,
+        "turn" => angle.value * std::f64::consts::TAU,
+        _ => return None,
+    };
+    radians.is_finite().then_some(radians)
+}
+
+fn format_static_scss_math_trig_number(value: f64) -> Option<String> {
+    if !value.is_finite() {
+        return None;
+    }
+    let value = if value.abs() < 1e-10 { 0.0 } else { value };
+    Some(format_css_number(value))
 }
 
 fn parse_static_scss_numeric_alias_value(

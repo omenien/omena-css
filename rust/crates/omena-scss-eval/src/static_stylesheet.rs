@@ -9271,6 +9271,63 @@ mod tests {
     }
 
     #[test]
+    fn static_scss_evaluation_reduces_namespaced_math_trig_aliases() {
+        let report = derive_static_stylesheet_module_evaluation(
+            "$sin: math.sin(30deg); $cos: math.cos(60deg); $tan: math.tan(45deg); $asin: math.asin(.5); $acos: math.acos(.5); $atan: math.atan(1); $atan2: math.atan2(1px, 1px); .button { opacity: $sin; flex-grow: $cos; flex-shrink: $tan; rotate: $asin; offset-rotate: $acos; --atan: $atan; --atan2: $atan2; }",
+            StyleDialect::Scss,
+        );
+        assert!(report.is_some());
+        let Some(report) = report else {
+            return;
+        };
+
+        let replacements = report
+            .resolved_replacements
+            .iter()
+            .map(|replacement| replacement.text.as_str())
+            .collect::<Vec<_>>();
+        assert!(replacements.contains(&"0.5"));
+        assert!(replacements.contains(&"1"));
+        assert!(replacements.contains(&"30deg"));
+        assert!(replacements.contains(&"60deg"));
+        assert!(replacements.contains(&"45deg"));
+        assert!(report.evaluated_css.contains("opacity: 0.5"));
+        assert!(report.evaluated_css.contains("flex-grow: 0.5"));
+        assert!(report.evaluated_css.contains("flex-shrink: 1"));
+        assert!(report.evaluated_css.contains("rotate: 30deg"));
+        assert!(report.evaluated_css.contains("offset-rotate: 60deg"));
+        assert!(report.evaluated_css.contains("--atan: 45deg"));
+        assert!(report.evaluated_css.contains("--atan2: 45deg"));
+        assert_eq!(report.value_resolution.reference_count, 7);
+        assert_eq!(report.value_resolution.resolved_count, 7);
+        assert_eq!(report.value_resolution.raw_count, 0);
+        assert!(report.oracle.all_legacy_declaration_values_preserved);
+    }
+
+    #[test]
+    fn static_scss_evaluation_keeps_unsupported_namespaced_math_trig_raw() {
+        let report = derive_static_stylesheet_module_evaluation(
+            "$bad-angle: math.sin(1px); $bad-inverse: math.asin(2); .button { width: $bad-angle; height: $bad-inverse; }",
+            StyleDialect::Scss,
+        );
+        assert!(report.is_some());
+        let Some(report) = report else {
+            return;
+        };
+        assert_eq!(report.replacement_count, 2);
+        let replacements = report
+            .resolved_replacements
+            .iter()
+            .map(|replacement| replacement.text.as_str())
+            .collect::<Vec<_>>();
+        assert!(replacements.contains(&"math.sin(1px)"));
+        assert!(replacements.contains(&"math.asin(2)"));
+        assert_eq!(report.value_resolution.raw_count, 2);
+        assert!(report.evaluated_css.contains("width: math.sin(1px)"));
+        assert!(report.evaluated_css.contains("height: math.asin(2)"));
+    }
+
+    #[test]
     fn static_scss_evaluation_keeps_unsupported_namespaced_math_raw() {
         let report = derive_static_stylesheet_module_evaluation(
             "$gap: math.random(); .button { margin: $gap; }",
