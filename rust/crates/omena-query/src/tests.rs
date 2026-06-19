@@ -1857,11 +1857,31 @@ fn derives_transform_context_with_static_stylesheet_module_evaluation() {
         )],
         &[],
     );
-    assert!(
+    assert_eq!(
         forward_reference_summary
             .context
             .scss_module_evaluation
-            .is_none()
+            .as_ref()
+            .map(|evaluation| evaluation.evaluated_css.as_str()),
+        Some("$accent: $brand; $brand: red; .button { color: $accent; }")
+    );
+    assert_eq!(
+        forward_reference_summary
+            .context
+            .scss_module_evaluation
+            .as_ref()
+            .and_then(|evaluation| evaluation.oracle.as_ref())
+            .map(|oracle| (
+                oracle.mode.as_str(),
+                oracle.divergence_count,
+                oracle.all_legacy_declaration_values_preserved,
+                oracle.native_replacement_count,
+                oracle.native_value_reference_count,
+                oracle.native_resolved_value_count,
+                oracle.native_raw_value_count,
+                oracle.native_top_value_count,
+            )),
+        Some(("oracleOnly", 0, true, 0, 1, 0, 0, 1))
     );
 }
 

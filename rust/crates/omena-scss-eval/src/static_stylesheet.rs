@@ -346,13 +346,19 @@ fn derive_static_scss_stylesheet_module_evaluation(
             continue;
         }
         let mut stack = BTreeSet::new();
-        let replacement = resolve_static_scss_variable_value_at_position(
+        let Some(replacement) = resolve_static_scss_variable_value_at_position(
             fact.name.as_str(),
             reference_start,
             &scopes,
             &declarations,
             &mut stack,
-        )?;
+        ) else {
+            return build_static_stylesheet_preserved_evaluation_report_if_explained(
+                style_source,
+                dialect,
+                StaticStylesheetVariableKind::Scss,
+            );
+        };
         let reference_end = parser_text_size_to_usize(fact.range.end().into());
         resolved_replacements.push(resolved_replacement_value(
             fact.name.as_str(),
@@ -651,6 +657,43 @@ fn build_static_stylesheet_evaluation_report(
     resolved_replacements: Vec<OmenaScssEvalResolvedReplacementV0>,
 ) -> Option<OmenaScssEvalStaticStylesheetEvaluationV0> {
     let value_resolution = summarize_static_stylesheet_value_resolution(style_source, dialect)?;
+    build_static_stylesheet_evaluation_report_with_value_resolution(
+        style_source,
+        dialect,
+        variable_kind,
+        evaluated_css,
+        resolved_replacements,
+        value_resolution,
+    )
+}
+
+fn build_static_stylesheet_preserved_evaluation_report_if_explained(
+    style_source: &str,
+    dialect: StyleDialect,
+    variable_kind: StaticStylesheetVariableKind,
+) -> Option<OmenaScssEvalStaticStylesheetEvaluationV0> {
+    let value_resolution = summarize_static_stylesheet_value_resolution(style_source, dialect)?;
+    if value_resolution.raw_count == 0 && value_resolution.top_count == 0 {
+        return None;
+    }
+    build_static_stylesheet_evaluation_report_with_value_resolution(
+        style_source,
+        dialect,
+        variable_kind,
+        style_source.to_string(),
+        Vec::new(),
+        value_resolution,
+    )
+}
+
+fn build_static_stylesheet_evaluation_report_with_value_resolution(
+    style_source: &str,
+    dialect: StyleDialect,
+    variable_kind: StaticStylesheetVariableKind,
+    evaluated_css: String,
+    resolved_replacements: Vec<OmenaScssEvalResolvedReplacementV0>,
+    value_resolution: OmenaScssEvalStaticValueResolutionReportV0,
+) -> Option<OmenaScssEvalStaticStylesheetEvaluationV0> {
     let oracle = summarize_omena_scss_eval_oracle(style_source, dialect, evaluated_css.as_str());
     if !oracle.all_legacy_declaration_values_preserved {
         return None;
@@ -13971,6 +14014,28 @@ mod tests {
         assert_eq!(report.values[0].outcome, "top");
         assert_eq!(report.values[0].reason, "unresolvedReference");
         assert_eq!(report.values[0].rendered_value, None);
+    }
+
+    #[test]
+    fn static_scss_evaluation_preserves_forward_composite_as_top_oracle_report() {
+        let source = "$border: 1px solid $brand; $brand: red; .button { border: $border; }";
+        let report = derive_static_stylesheet_module_evaluation(source, StyleDialect::Scss);
+        assert!(report.is_some());
+        let Some(report) = report else {
+            return;
+        };
+
+        assert_eq!(report.replacement_count, 0);
+        assert_eq!(report.evaluated_css, source);
+        assert_eq!(report.value_resolution.reference_count, 1);
+        assert_eq!(report.value_resolution.top_count, 1);
+        assert_eq!(report.value_resolution.unresolved_reference_count, 1);
+        assert_eq!(report.value_resolution.values[0].outcome, "top");
+        assert_eq!(
+            report.value_resolution.values[0].reason,
+            "unresolvedReference"
+        );
+        assert!(report.oracle.all_legacy_declaration_values_preserved);
     }
 
     #[test]

@@ -2082,7 +2082,7 @@ fn consumer_build_derives_static_scss_evaluator_context_for_opacity_colors() {
 }
 
 #[test]
-fn consumer_build_keeps_static_scss_evaluator_planned_for_forward_composite_values() {
+fn consumer_build_preserves_forward_scss_composite_values_through_oracle_evaluator() {
     let summary = execute_omena_query_consumer_build_style_source(
         "Button.module.scss",
         "$border: 1px solid $brand; $brand: red; .button { border: $border; }",
@@ -2095,6 +2095,12 @@ fn consumer_build_keeps_static_scss_evaluator_planned_for_forward_composite_valu
 
     assert!(
         summary
+            .execution
+            .executed_pass_ids
+            .contains(&"scss-module-evaluate")
+    );
+    assert!(
+        !summary
             .execution
             .planned_only_pass_ids
             .contains(&"scss-module-evaluate")
