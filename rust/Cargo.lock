@@ -2527,6 +2527,7 @@ version = "0.2.1"
 dependencies = [
  "egg",
  "omena-lawvere",
+ "omena-parser",
  "omena-transform-cst",
  "omena-transform-passes",
  "serde",

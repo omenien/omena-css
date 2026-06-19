@@ -482,6 +482,54 @@ fn exposes_transform_plan_egg_witnesses_from_source_execution() {
 }
 
 #[test]
+fn exposes_target_stale_prefix_removal_egg_witnesses_from_source_execution() {
+    let source = ".a { -webkit-user-select: none; user-select: none; }";
+    let summary = summarize_omena_query_transform_plan_from_source(
+        "Button.css",
+        source,
+        "modern",
+        OmenaQueryTargetFeatureSupportV0 {
+            vendor_prefix_required: false,
+            supports_light_dark: true,
+            supports_color_mix: true,
+            supports_oklch_oklab: true,
+            supports_color_function: true,
+            supports_logical_properties: true,
+            supports_css_nesting: true,
+            supports_css_scope: true,
+            supports_cascade_layers: true,
+        },
+        OmenaQueryTargetTransformOptionsV0 {
+            allow_logical_to_physical: false,
+            allow_scope_flatten: false,
+            allow_layer_flatten: false,
+            enable_supports_static_eval: false,
+            enable_media_static_eval: false,
+            drop_dark_mode_media_queries: false,
+        },
+        default_omena_query_transform_print_options(),
+    );
+
+    assert!(
+        summary
+            .target
+            .planned_pass_ids
+            .contains(&"stale-prefix-removal")
+    );
+    assert!(summary.combined_pass_ids.contains(&"stale-prefix-removal"));
+    assert!(!summary.execution.output_css.contains("-webkit-user-select"));
+    assert!(summary.execution.output_css.contains("user-select: none"));
+    assert!(summary.egg.planned_pass_ids.is_empty());
+    assert!(summary.egg_witnesses.iter().any(|witness| {
+        witness.pass_id == "stale-prefix-removal"
+            && witness.source_kind == "stalePrefixExactPeer"
+            && witness.css_before == "-webkit-user-select: none;"
+            && witness.css_after == "user-select: none;"
+            && witness.execution.accepted
+    }));
+}
+
+#[test]
 fn exposes_transform_plan_custom_property_fixed_point() {
     let source = r#":root { --brand: red; --alias: var(--brand); --shadow: 0 0 var(--alias); --cycle-a: var(--cycle-b); --cycle-b: var(--cycle-a); } .card { color: var(--alias); box-shadow: var(--shadow); }"#;
     let summary = summarize_omena_query_transform_plan_from_source(

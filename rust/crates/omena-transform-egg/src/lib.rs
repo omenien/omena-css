@@ -4,12 +4,18 @@
 //! This crate keeps their proof requirements explicit without forcing an
 //! e-graph dependency into the core transform path.
 
+use std::fmt::Write as _;
+
 use egg::{
     Analysis, Applier, EGraph, Extractor, Id, Pattern, PatternAst, RecExpr, Rewrite, Runner, Subst,
     Symbol, Var, define_language, rewrite as egg_rewrite,
 };
+use omena_parser::StyleDialect;
 use omena_transform_cst::TransformPassKind;
-use omena_transform_passes::{TransformPassPlanV0, plan_transform_passes};
+use omena_transform_passes::{
+    TransformPassPlanV0, collect_stale_vendor_prefix_removal_proof_candidates_from_source,
+    plan_transform_passes,
+};
 use serde::Serialize;
 
 mod mdl_cost;
@@ -32,6 +38,8 @@ define_language! {
         "is" = Is(Id),
         "where" = Where(Id),
         "list" = List([Id; 2]),
+        "decl" = Declaration([Id; 3]),
+        "stale-prefix-decl" = StalePrefixDeclaration([Id; 4]),
         "box1" = Box1(Id),
         "box2" = Box2([Id; 2]),
         "box3" = Box3([Id; 3]),
@@ -224,6 +232,7 @@ pub fn summarize_omena_transform_egg_boundary() -> TransformEggBoundarySummaryV0
             "selector rewrites preserve specificity",
             "calc rewrites preserve computed value",
             "shorthand rewrites preserve computed value",
+            "stale-prefix removals preserve an exact unprefixed declaration peer",
             "all rewrites preserve provenance",
             "all accepted rewrites carry a cascade-safe witness",
         ],
@@ -318,6 +327,10 @@ pub fn decide_egg_rewrite(candidate: EggRewriteCandidateV0) -> EggRewriteDecisio
         && !candidate.proof.computed_value_preserved
     {
         Some("shorthand rewrite does not preserve computed value")
+    } else if candidate.pass_id == TransformPassKind::StalePrefixRemoval.id()
+        && !candidate.proof.computed_value_preserved
+    {
+        Some("stale-prefix removal does not preserve computed value")
     } else {
         None
     };
@@ -383,6 +396,7 @@ pub fn execute_egg_rewrite(candidate: EggRewriteCandidateV0) -> EggRewriteExecut
 
 pub fn execute_egg_rewrite_witnesses_for_css_source(
     source: &str,
+    dialect: StyleDialect,
     transformed_source: &str,
     planned_pass_ids: &[&'static str],
 ) -> Vec<EggRewriteSourceWitnessV0> {
@@ -393,14 +407,22 @@ pub fn execute_egg_rewrite_witnesses_for_css_source(
     if planned_pass_ids.contains(&TransformPassKind::CalcReduction.id()) {
         witnesses.extend(calc_rewrite_witnesses(source, transformed_source));
     }
+    if planned_pass_ids.contains(&TransformPassKind::StalePrefixRemoval.id()) {
+        witnesses.extend(stale_prefix_removal_witnesses(
+            source,
+            dialect,
+            transformed_source,
+        ));
+    }
     witnesses
 }
 
-fn managed_egg_passes() -> [TransformPassKind; 3] {
+fn managed_egg_passes() -> [TransformPassKind; 4] {
     [
         TransformPassKind::SelectorIsWhereCompression,
         TransformPassKind::CalcReduction,
         TransformPassKind::ShorthandCombining,
+        TransformPassKind::StalePrefixRemoval,
     ]
 }
 
@@ -510,6 +532,62 @@ fn calc_rewrite_witnesses(
     witnesses
 }
 
+fn stale_prefix_removal_witnesses(
+    source: &str,
+    dialect: StyleDialect,
+    transformed_source: &str,
+) -> Vec<EggRewriteSourceWitnessV0> {
+    collect_stale_vendor_prefix_removal_proof_candidates_from_source(source, dialect)
+        .into_iter()
+        .filter_map(|candidate| {
+            let css_before =
+                source[candidate.source_span_start..candidate.source_span_end].to_string();
+            if transformed_source.contains(&css_before) {
+                return None;
+            }
+            let css_after = source
+                [candidate.unprefixed_peer_span_start..candidate.unprefixed_peer_span_end]
+                .to_string();
+            if !transformed_source.contains(&css_after) {
+                return None;
+            }
+
+            let prefixed_property = egg_safe_symbol(candidate.prefixed_property.as_str());
+            let unprefixed_property = egg_safe_symbol(candidate.unprefixed_property);
+            let value = egg_safe_symbol(candidate.value.as_str());
+            let importance = if candidate.important {
+                "important"
+            } else {
+                "normal"
+            };
+            let execution = execute_egg_rewrite(EggRewriteCandidateV0 {
+                pass_id: TransformPassKind::StalePrefixRemoval.id(),
+                before: format!(
+                    "(stale-prefix-decl {prefixed_property} {unprefixed_property} {value} {importance})"
+                ),
+                after: format!("(decl {unprefixed_property} {value} {importance})"),
+                proof: EggRewriteProofV0 {
+                    specificity_preserved: false,
+                    computed_value_preserved: true,
+                    provenance_preserved: true,
+                    cascade_safe_witness: format!(
+                        "{} has exact unprefixed declaration peer {} with the same value and importance",
+                        candidate.prefixed_property, candidate.unprefixed_property
+                    ),
+                },
+            });
+            Some(EggRewriteSourceWitnessV0 {
+                pass_id: TransformPassKind::StalePrefixRemoval.id(),
+                source_kind: "stalePrefixExactPeer",
+                byte_offset: candidate.source_span_start,
+                css_before,
+                css_after,
+                execution,
+            })
+        })
+        .collect()
+}
+
 fn selector_witness_candidate(
     pseudo_name: &str,
     source_kind: &'static str,
@@ -551,6 +629,29 @@ fn selector_witness_candidate(
             "actual CSS selectorWhere duplicate-argument rewrite".to_string(),
         )),
         _ => None,
+    }
+}
+
+fn egg_safe_symbol(value: &str) -> String {
+    let mut symbol = String::with_capacity(value.len().max(1));
+    for byte in value.bytes() {
+        let character = byte as char;
+        if character.is_ascii_alphanumeric() {
+            symbol.push(character.to_ascii_lowercase());
+        } else {
+            let _ = write!(&mut symbol, "_{byte:02x}");
+        }
+    }
+    if symbol.is_empty() {
+        "empty".to_string()
+    } else if symbol
+        .as_bytes()
+        .first()
+        .is_some_and(|byte| byte.is_ascii_digit())
+    {
+        format!("v_{symbol}")
+    } else {
+        symbol
     }
 }
 
@@ -818,6 +919,11 @@ where
             egg_rewrite!("box4-horizontal-pair"; "(box4 ?a ?b ?c ?b)" => "(box3 ?a ?b ?c)"),
         ]);
     }
+    if pass_id == TransformPassKind::StalePrefixRemoval.id() {
+        return Some(vec![
+            egg_rewrite!("stale-prefix-exact-peer"; "(stale-prefix-decl ?p ?u ?v ?i)" => "(decl ?u ?v ?i)"),
+        ]);
+    }
     None
 }
 
@@ -855,6 +961,7 @@ mod tests {
         summarize_contextual_eqsat_scaffold_v0, summarize_mdl_extraction_mode,
         summarize_omena_transform_egg_boundary,
     };
+    use omena_parser::StyleDialect;
     use omena_transform_cst::TransformPassKind;
 
     #[test]
@@ -867,10 +974,11 @@ mod tests {
             vec![
                 "selector-is-where-compression",
                 "calc-reduction",
-                "shorthand-combining"
+                "shorthand-combining",
+                "stale-prefix-removal"
             ]
         );
-        assert_eq!(boundary.proof_obligations.len(), 5);
+        assert_eq!(boundary.proof_obligations.len(), 6);
     }
 
     #[test]
@@ -935,7 +1043,8 @@ mod tests {
             vec![
                 "selector-is-where-compression",
                 "calc-reduction",
-                "shorthand-combining"
+                "shorthand-combining",
+                "stale-prefix-removal"
             ]
         );
         assert!(
@@ -1173,6 +1282,7 @@ mod tests {
         let plan = plan_egg_rewrite_passes_for_source(source);
         let witnesses = execute_egg_rewrite_witnesses_for_css_source(
             source,
+            StyleDialect::Css,
             transformed,
             &plan.planned_pass_ids,
         );
@@ -1200,6 +1310,28 @@ mod tests {
                 && witness.css_after == "3px"
                 && witness.execution.after == "(unit 3 px)"
         }));
+    }
+
+    #[test]
+    fn executes_stale_prefix_removal_source_witness_through_egg_engine() {
+        let source = ".a { -webkit-user-select: none; user-select: none; }";
+        let transformed = ".a {  user-select: none; }";
+        let witnesses = execute_egg_rewrite_witnesses_for_css_source(
+            source,
+            StyleDialect::Css,
+            transformed,
+            &[TransformPassKind::StalePrefixRemoval.id()],
+        );
+
+        assert_eq!(witnesses.len(), 1);
+        let witness = &witnesses[0];
+        assert_eq!(witness.pass_id, "stale-prefix-removal");
+        assert_eq!(witness.source_kind, "stalePrefixExactPeer");
+        assert_eq!(witness.css_before, "-webkit-user-select: none;");
+        assert_eq!(witness.css_after, "user-select: none;");
+        assert!(witness.execution.accepted);
+        assert_eq!(witness.execution.engine, "egg");
+        assert_eq!(witness.execution.after, witness.execution.expected_after);
     }
 
     #[test]

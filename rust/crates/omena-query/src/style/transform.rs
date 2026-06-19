@@ -336,13 +336,14 @@ fn summarize_omena_query_transform_plan_from_parts(
         parts.print_options,
         &execution,
     );
+    let combined_pass_ids = combined_plan.ordered_pass_ids.clone();
     let egg_witnesses = execute_egg_rewrite_witnesses_for_css_source(
         parts.style_source,
+        parts.dialect,
         &execution.output_css,
-        &egg.planned_pass_ids,
+        &combined_pass_ids,
     );
     let semantic_removal_count = execution.semantic_removals.len();
-    let combined_pass_ids = combined_plan.ordered_pass_ids.clone();
     let combined_violated_dag_edge_count = combined_plan.violated_dag_edge_count;
 
     OmenaQueryTransformPlanSummaryV0 {

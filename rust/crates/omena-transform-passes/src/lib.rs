@@ -15,6 +15,7 @@ mod runtime;
 
 pub use domains::css_modules_values::resolve_static_css_modules_local_value_resolutions_from_source;
 pub use domains::number::reduce_static_numeric_expression;
+pub use domains::vendor_prefix::StaleVendorPrefixRemovalProofCandidateV0;
 pub use model::*;
 #[cfg(feature = "lawvere-trace")]
 pub use omena_lawvere::{
@@ -67,6 +68,19 @@ pub use runtime::planner::{
 /// their resolved form without running the full transform pipeline.
 pub fn expand_css_nested_selector(parent_selector: &str, nested_selector: &str) -> Option<String> {
     domains::nesting::expand_nested_selector(parent_selector, nested_selector)
+}
+
+/// Return proof candidates for stale vendor-prefix removals.
+///
+/// Each candidate identifies both the removable prefixed declaration and the
+/// exact unprefixed peer that must survive for the rewrite to be considered.
+pub fn collect_stale_vendor_prefix_removal_proof_candidates_from_source(
+    source: &str,
+    dialect: omena_parser::StyleDialect,
+) -> Vec<StaleVendorPrefixRemovalProofCandidateV0> {
+    domains::vendor_prefix::collect_stale_vendor_prefix_removal_proof_candidates_with_lexer(
+        source, dialect,
+    )
 }
 
 #[cfg(test)]

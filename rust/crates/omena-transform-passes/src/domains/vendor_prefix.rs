@@ -10,13 +10,15 @@ use crate::helpers::{
 };
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) struct StaleVendorPrefixRemovalProofCandidateV0 {
-    pub(crate) source_span_start: usize,
-    pub(crate) source_span_end: usize,
-    pub(crate) prefixed_property: String,
-    pub(crate) unprefixed_property: &'static str,
-    pub(crate) value: String,
-    pub(crate) important: bool,
+pub struct StaleVendorPrefixRemovalProofCandidateV0 {
+    pub source_span_start: usize,
+    pub source_span_end: usize,
+    pub unprefixed_peer_span_start: usize,
+    pub unprefixed_peer_span_end: usize,
+    pub prefixed_property: String,
+    pub unprefixed_property: &'static str,
+    pub value: String,
+    pub important: bool,
 }
 
 pub(crate) fn add_css_vendor_prefixes_with_lexer(
@@ -116,6 +118,8 @@ fn collect_stale_vendor_prefix_removal_proof_candidates(
                 candidates.push(StaleVendorPrefixRemovalProofCandidateV0 {
                     source_span_start: declaration.start,
                     source_span_end: declaration.end,
+                    unprefixed_peer_span_start: _peer.start,
+                    unprefixed_peer_span_end: _peer.end,
                     prefixed_property: declaration.property.clone(),
                     unprefixed_property,
                     value: declaration.value.clone(),
