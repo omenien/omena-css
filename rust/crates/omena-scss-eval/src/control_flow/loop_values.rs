@@ -1,4 +1,4 @@
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 
 use omena_abstract_value::{
     AbstractCssValueV0, abstract_css_value_from_text, join_abstract_css_values,
@@ -404,10 +404,11 @@ fn static_for_loop_binding_frames(
     lexical_bindings: &BTreeMap<String, AbstractCssValueV0>,
 ) -> Option<Vec<Vec<ScssControlFlowBindingValue>>> {
     let for_header = parse_static_scss_for_loop_header(header)?;
-    let start = parse_static_for_loop_bound(for_header.start_bound, lexical_bindings)?;
-    let end = parse_static_for_loop_bound(for_header.end_bound, lexical_bindings)?;
+    let start_values =
+        parse_static_for_loop_bound_values(for_header.start_bound, lexical_bindings)?;
+    let end_values = parse_static_for_loop_bound_values(for_header.end_bound, lexical_bindings)?;
     Some(
-        static_scss_for_loop_values(start, end, for_header.includes_end)?
+        static_for_loop_value_set(start_values, end_values, for_header.includes_end)?
             .into_iter()
             .map(|value| {
                 vec![ScssControlFlowBindingValue {
@@ -798,9 +799,11 @@ fn parse_static_for_loop_range(
     lexical_bindings: &BTreeMap<String, AbstractCssValueV0>,
 ) -> Option<AbstractCssValueV0> {
     let for_header = parse_static_scss_for_loop_header(header)?;
-    let start = parse_static_for_loop_bound(for_header.start_bound, lexical_bindings)?;
-    let end = parse_static_for_loop_bound(for_header.end_bound, lexical_bindings)?;
-    let Some(values) = static_scss_for_loop_values(start, end, for_header.includes_end) else {
+    let start_values =
+        parse_static_for_loop_bound_values(for_header.start_bound, lexical_bindings)?;
+    let end_values = parse_static_for_loop_bound_values(for_header.end_bound, lexical_bindings)?;
+    let Some(values) = static_for_loop_value_set(start_values, end_values, for_header.includes_end)
+    else {
         return Some(AbstractCssValueV0::Top);
     };
     if values.is_empty() {
@@ -816,17 +819,46 @@ fn parse_static_for_loop_range(
     )
 }
 
-fn parse_static_for_loop_bound(
+fn parse_static_for_loop_bound_values(
     value: &str,
     lexical_bindings: &BTreeMap<String, AbstractCssValueV0>,
-) -> Option<i32> {
-    let reduced = match scss_header_value_from_bindings(value, lexical_bindings) {
-        AbstractCssValueV0::Exact { value } | AbstractCssValueV0::Raw { value } => value,
-        AbstractCssValueV0::Bottom
-        | AbstractCssValueV0::Top
-        | AbstractCssValueV0::FiniteSet { .. } => return None,
-    };
-    reduced.parse::<i32>().ok()
+) -> Option<Vec<i32>> {
+    match scss_header_value_from_bindings(value, lexical_bindings) {
+        AbstractCssValueV0::Exact { value } | AbstractCssValueV0::Raw { value } => {
+            Some(vec![parse_static_for_loop_integer(value.as_str())?])
+        }
+        AbstractCssValueV0::FiniteSet { values } => values
+            .into_iter()
+            .map(|value| parse_static_for_loop_integer(value.as_str()))
+            .collect(),
+        AbstractCssValueV0::Bottom | AbstractCssValueV0::Top => None,
+    }
+}
+
+fn parse_static_for_loop_integer(value: &str) -> Option<i32> {
+    value.parse::<i32>().ok()
+}
+
+fn static_for_loop_value_set(
+    start_values: Vec<i32>,
+    end_values: Vec<i32>,
+    includes_end: bool,
+) -> Option<Vec<i32>> {
+    if start_values.is_empty() || end_values.is_empty() {
+        return Some(Vec::new());
+    }
+    let mut values = BTreeSet::new();
+    for start in start_values {
+        for end in &end_values {
+            for value in static_scss_for_loop_values(start, *end, includes_end)? {
+                values.insert(value);
+                if values.len() > 64 {
+                    return None;
+                }
+            }
+        }
+    }
+    Some(values.into_iter().collect())
 }
 
 fn parse_static_each_loop_source_value(
@@ -886,4 +918,70 @@ fn static_each_source_text(
     }
     let reduced = scss_header_value_from_bindings(source, lexical_bindings);
     single_static_scss_header_value_text(&reduced).map(str::to_string)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn static_for_loop_range_resolves_finite_set_bounds() {
+        let bindings = finite_end_bindings();
+        let value = parse_static_for_loop_range("@for $i from 1 through $end", &bindings);
+
+        assert_eq!(
+            value,
+            Some(AbstractCssValueV0::FiniteSet {
+                values: vec![
+                    "1".to_string(),
+                    "2".to_string(),
+                    "3".to_string(),
+                    "4".to_string(),
+                ],
+            })
+        );
+    }
+
+    #[test]
+    fn static_for_loop_binding_frames_resolve_finite_set_bounds() {
+        let bindings = finite_end_bindings();
+        let frames = static_for_loop_binding_frames("@for $i from 1 through $end", &bindings);
+        assert!(frames.is_some());
+        let Some(frames) = frames else {
+            return;
+        };
+
+        let values = frames
+            .into_iter()
+            .filter_map(|frame| frame.into_iter().next())
+            .map(|binding| binding.value)
+            .collect::<Vec<_>>();
+
+        assert_eq!(
+            values,
+            vec![
+                AbstractCssValueV0::Exact {
+                    value: "1".to_string(),
+                },
+                AbstractCssValueV0::Exact {
+                    value: "2".to_string(),
+                },
+                AbstractCssValueV0::Exact {
+                    value: "3".to_string(),
+                },
+                AbstractCssValueV0::Exact {
+                    value: "4".to_string(),
+                },
+            ]
+        );
+    }
+
+    fn finite_end_bindings() -> BTreeMap<String, AbstractCssValueV0> {
+        BTreeMap::from([(
+            "$end".to_string(),
+            AbstractCssValueV0::FiniteSet {
+                values: vec!["2".to_string(), "4".to_string()],
+            },
+        )])
+    }
 }
