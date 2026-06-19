@@ -2548,6 +2548,26 @@ mod tests {
     }
 
     #[test]
+    fn control_flow_value_analysis_tracks_static_each_function_source_values() {
+        let source = "@each $item in list.append(1px 2px, 3px) { .item { margin: $item; } }";
+        let report = analyze_scss_control_flow_values(source, StyleDialect::Scss);
+        assert!(report.is_some());
+        let Some(report) = report else {
+            return;
+        };
+
+        assert_eq!(report.block_count, 1);
+        assert_eq!(report.blocks[0].loop_carried_bindings, vec!["$item"]);
+        assert_eq!(
+            report.blocks[0].loop_carried_binding_values[0].value,
+            AbstractCssValueV0::FiniteSet {
+                values: vec!["1px".to_string(), "2px".to_string(), "3px".to_string()]
+            }
+        );
+        assert_eq!(report.blocks[0].output_value_kind, "finiteSet");
+    }
+
+    #[test]
     fn control_flow_value_analysis_tracks_static_each_map_pair_values() {
         let source = "@each $name, $color in (primary: red, secondary: blue) { .#{$name} { color: $color; } }";
         let report = analyze_scss_control_flow_values(source, StyleDialect::Scss);
@@ -4056,6 +4076,34 @@ mod tests {
             function_call.call_resolved_return_value,
             Some(AbstractCssValueV0::FiniteSet {
                 values: vec!["#00f".to_string(), "red".to_string()]
+            })
+        );
+    }
+
+    #[test]
+    fn call_return_ir_resolves_static_each_function_source_returns() {
+        let source = "@function pick($target) { @each $item in list.append(1px 2px, 3px) { @if $item == $target { @return $item; } } @return 0px; } .a { margin: pick(3px); }";
+        let report = summarize_scss_call_return_ir(source, StyleDialect::Scss);
+        assert!(report.is_some());
+        let Some(report) = report else {
+            return;
+        };
+        let function_call = report
+            .nodes
+            .iter()
+            .find(|node| node.kind == "functionCall" && node.name.as_deref() == Some("pick"));
+        assert!(function_call.is_some());
+        let Some(function_call) = function_call else {
+            return;
+        };
+
+        assert_eq!(report.call_resolved_return_value_count, 1);
+        assert_eq!(report.exact_call_resolved_return_value_count, 1);
+        assert_eq!(function_call.call_resolved_return_value_kind, Some("exact"));
+        assert_eq!(
+            function_call.call_resolved_return_value,
+            Some(AbstractCssValueV0::Exact {
+                value: "3px".to_string()
             })
         );
     }

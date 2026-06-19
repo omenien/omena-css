@@ -158,7 +158,7 @@ where
 {
     let (_, source) = static_scss_split_header_at_keyword(header, "in")?;
     let source = resolve_source(source.trim())?;
-    let values = split_static_scss_top_level(source.as_str(), ',')?;
+    let values = parse_static_scss_each_single_values(source.as_str())?;
     if values.is_empty() || values.len() > 64 {
         return None;
     }
@@ -177,10 +177,14 @@ fn resolve_static_scss_each_source_text<F>(
 where
     F: FnMut(&str) -> Option<String>,
 {
-    if source.contains('$') {
-        return resolve_dynamic_source(source);
+    resolve_dynamic_source(source).or_else(|| Some(source.to_string()))
+}
+
+pub(crate) fn parse_static_scss_each_single_values(source: &str) -> Option<Vec<String>> {
+    match split_static_scss_top_level(source, ',') {
+        Some(values) if values.len() > 1 => Some(values),
+        _ => split_static_scss_top_level_whitespace(source),
     }
-    Some(source.to_string())
 }
 
 fn parse_static_scss_each_map_entries(source: &str) -> Option<Vec<(String, String)>> {

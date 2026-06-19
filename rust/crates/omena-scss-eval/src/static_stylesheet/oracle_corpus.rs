@@ -307,6 +307,11 @@ fn static_stylesheet_oracle_corpus_fixtures() -> &'static [StaticStylesheetOracl
             source: "@function tone($target)\n  @each $name, $tone in (primary: red, secondary: blue)\n    @if $name == $target\n      @return $tone\n  @return black\n.card\n  color: tone(secondary)",
         },
         StaticStylesheetOracleCorpusFixtureV0 {
+            id: "sass.static-each-function-source-return",
+            dialect: StyleDialect::Sass,
+            source: "@function pick($target)\n  @each $item in append(1px 2px, 3px)\n    @if $item == $target\n      @return $item\n  @return 0px\n.card\n  margin: pick(3px)",
+        },
+        StaticStylesheetOracleCorpusFixtureV0 {
             id: "scss.color-helpers",
             dialect: StyleDialect::Scss,
             source: "$tone: list.nth(list.append(1px, transparentize(red, .25)), 2); .card { color: $tone; }",
@@ -330,6 +335,11 @@ fn static_stylesheet_oracle_corpus_fixtures() -> &'static [StaticStylesheetOracl
             id: "scss.static-each-return",
             dialect: StyleDialect::Scss,
             source: "@function tone($target) { @each $name, $tone in (primary: red, secondary: blue) { @if $name == $target { @return $tone; } } @return black; } .button { color: tone(secondary); }",
+        },
+        StaticStylesheetOracleCorpusFixtureV0 {
+            id: "scss.static-each-function-source-return",
+            dialect: StyleDialect::Scss,
+            source: "@function pick($target) { @each $item in list.append(1px 2px, 3px) { @if $item == $target { @return $item; } } @return 0px; } .button { margin: pick(3px); }",
         },
         StaticStylesheetOracleCorpusFixtureV0 {
             id: "scss.static-while-return",

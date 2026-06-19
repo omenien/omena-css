@@ -8,8 +8,8 @@ use omena_syntax::SyntaxKind;
 
 use crate::{
     static_loop_frames::{
-        parse_static_scss_each_loop_binding_frames, parse_static_scss_for_loop_header,
-        static_scss_for_loop_values,
+        parse_static_scss_each_loop_binding_frames, parse_static_scss_each_single_values,
+        parse_static_scss_for_loop_header, static_scss_for_loop_values,
     },
     value_eval::reduce_static_scss_value,
 };
@@ -463,7 +463,7 @@ fn static_each_loop_binding_frames(
     lexical_bindings: &BTreeMap<String, AbstractCssValueV0>,
 ) -> Option<Vec<Vec<ScssControlFlowBindingValue>>> {
     parse_static_scss_each_loop_binding_frames(header, |source| {
-        static_each_source_text(source.trim(), lexical_bindings).map(str::to_string)
+        static_each_source_text(source.trim(), lexical_bindings)
     })
     .map(|frames| {
         frames
@@ -839,11 +839,11 @@ fn parse_static_each_loop_source_value(
         return None;
     }
     let source_variables = variable_names_in_text(source);
-    let source_text = if source_is_single_static_variable(source) {
-        static_scss_binding_value(lexical_bindings, source)
-            .and_then(single_static_scss_header_value_text)
-            .unwrap_or(source)
-    } else if !source_variables.is_empty() {
+    let source_text = static_each_source_text(source, lexical_bindings);
+    let Some(source_text) = source_text else {
+        if source_variables.is_empty() {
+            return None;
+        }
         return Some(
             source_variables
                 .iter()
@@ -856,10 +856,8 @@ fn parse_static_each_loop_source_value(
                     join_abstract_css_values(&acc, &value)
                 }),
         );
-    } else {
-        source
     };
-    let values = split_static_scss_top_level(source_text, ',')?;
+    let values = parse_static_scss_each_single_values(source_text.as_str())?;
     if values.len() <= 1 || values.len() > 64 {
         return None;
     }
@@ -877,93 +875,15 @@ fn source_is_single_static_variable(source: &str) -> bool {
     source.starts_with('$') && variable_name_end(source, '$'.len_utf8()) == source.len()
 }
 
-fn static_each_source_text<'a>(
-    source: &'a str,
-    lexical_bindings: &'a BTreeMap<String, AbstractCssValueV0>,
-) -> Option<&'a str> {
+fn static_each_source_text(
+    source: &str,
+    lexical_bindings: &BTreeMap<String, AbstractCssValueV0>,
+) -> Option<String> {
     if source_is_single_static_variable(source) {
         return static_scss_binding_value(lexical_bindings, source)
-            .and_then(single_static_scss_header_value_text);
+            .and_then(single_static_scss_header_value_text)
+            .map(str::to_string);
     }
-    Some(source)
-}
-
-fn split_static_scss_top_level(source: &str, separator: char) -> Option<Vec<String>> {
-    let mut values = Vec::new();
-    let mut cursor = 0usize;
-    let mut index = 0usize;
-    while index < source.len() {
-        let ch = source[index..].chars().next()?;
-        if ch == separator {
-            let value = source.get(cursor..index)?.trim();
-            if value.is_empty() {
-                return None;
-            }
-            values.push(value.to_string());
-            cursor = index + ch.len_utf8();
-        }
-        index = static_scss_next_value_index(source, index)?;
-    }
-    let value = source.get(cursor..)?.trim();
-    if value.is_empty() {
-        return None;
-    }
-    values.push(value.to_string());
-    Some(values)
-}
-
-fn static_scss_next_value_index(source: &str, index: usize) -> Option<usize> {
-    let ch = source[index..].chars().next()?;
-    match ch {
-        '"' | '\'' => static_scss_quoted_value_end(source, index, ch),
-        '(' => static_scss_balanced_value_end(source, index, '(', ')'),
-        '[' => static_scss_balanced_value_end(source, index, '[', ']'),
-        ')' | ']' => None,
-        _ => Some(index + ch.len_utf8()),
-    }
-}
-
-fn static_scss_quoted_value_end(source: &str, start: usize, quote: char) -> Option<usize> {
-    let mut index = start + quote.len_utf8();
-    while index < source.len() {
-        let ch = source[index..].chars().next()?;
-        index += ch.len_utf8();
-        if ch == '\\' {
-            if let Some(escaped) = source[index..].chars().next() {
-                index += escaped.len_utf8();
-            }
-        } else if ch == quote {
-            return Some(index);
-        }
-    }
-    None
-}
-
-fn static_scss_balanced_value_end(
-    source: &str,
-    start: usize,
-    open: char,
-    close: char,
-) -> Option<usize> {
-    let mut depth = 0usize;
-    let mut index = start;
-    while index < source.len() {
-        let ch = source[index..].chars().next()?;
-        match ch {
-            '"' | '\'' => {
-                index = static_scss_quoted_value_end(source, index, ch)?;
-                continue;
-            }
-            _ if ch == open => depth += 1,
-            _ if ch == close => {
-                depth = depth.checked_sub(1)?;
-                if depth == 0 {
-                    return Some(index + ch.len_utf8());
-                }
-            }
-            _ => {}
-        }
-        index += ch.len_utf8();
-    }
-    None
+    let reduced = scss_header_value_from_bindings(source, lexical_bindings);
+    single_static_scss_header_value_text(&reduced).map(str::to_string)
 }

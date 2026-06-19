@@ -4925,9 +4925,9 @@ mod tests {
             report.evaluated_fixture_count
         );
         assert!(report.all_legacy_outputs_retained_as_oracle);
-        assert_eq!(report.fixture_count, 68);
-        assert_eq!(report.scss_fixture_count, 13);
-        assert_eq!(report.sass_fixture_count, 10);
+        assert_eq!(report.fixture_count, 70);
+        assert_eq!(report.scss_fixture_count, 14);
+        assert_eq!(report.sass_fixture_count, 11);
         assert_eq!(report.less_fixture_count, 45);
         assert_eq!(report.evaluated_fixture_count, report.fixture_count);
         assert_eq!(report.missing_evaluation_count, 0);
@@ -8547,6 +8547,25 @@ mod tests {
         assert_eq!(report.resolved_replacements[0].text, "red");
         assert_eq!(report.resolved_replacements[0].abstract_value_kind, "exact");
         assert!(report.evaluated_css.contains(".button { color: red; }"));
+        assert!(report.oracle.all_legacy_declaration_values_preserved);
+    }
+
+    #[test]
+    fn static_scss_evaluation_resolves_static_each_function_source_returns() {
+        let report = derive_static_stylesheet_module_evaluation(
+            "@function pick($target) { @each $item in list.append(1px 2px, 3px) { @if $item == $target { @return $item; } } @return 0px; } .button { margin: pick(3px); }",
+            StyleDialect::Scss,
+        );
+        assert!(report.is_some());
+        let Some(report) = report else {
+            return;
+        };
+
+        assert_eq!(report.replacement_count, 1);
+        assert_eq!(report.resolved_replacements[0].name, "function:pick");
+        assert_eq!(report.resolved_replacements[0].text, "3px");
+        assert_eq!(report.resolved_replacements[0].abstract_value_kind, "exact");
+        assert!(report.evaluated_css.contains(".button { margin: 3px; }"));
         assert!(report.oracle.all_legacy_declaration_values_preserved);
     }
 

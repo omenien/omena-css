@@ -73,9 +73,9 @@ fn exposes_static_stylesheet_oracle_corpus_through_query_boundary() {
     assert_eq!(summary.mode, "oracleOnly");
     assert_eq!(summary.value_type, "AbstractCssValueV0");
     assert_eq!(summary.product_output_source, "nativeEditOutput");
-    assert_eq!(summary.fixture_count, 68);
-    assert_eq!(summary.scss_fixture_count, 13);
-    assert_eq!(summary.sass_fixture_count, 10);
+    assert_eq!(summary.fixture_count, 70);
+    assert_eq!(summary.scss_fixture_count, 14);
+    assert_eq!(summary.sass_fixture_count, 11);
     assert_eq!(summary.less_fixture_count, 45);
     assert_eq!(summary.evaluated_fixture_count, summary.fixture_count);
     assert_eq!(
@@ -461,10 +461,10 @@ fn exposes_scss_control_flow_oracle_corpus_through_query_boundary() {
     assert_eq!(summary.mode, "oracleOnly");
     assert_eq!(summary.value_type, "AbstractCssValueV0");
     assert_eq!(summary.node_key_type, "StableNodeKeyV0");
-    assert_eq!(summary.fixture_count, 17);
-    assert_eq!(summary.scss_fixture_count, 10);
-    assert_eq!(summary.sass_fixture_count, 6);
-    assert_eq!(summary.supported_fixture_count, 16);
+    assert_eq!(summary.fixture_count, 19);
+    assert_eq!(summary.scss_fixture_count, 11);
+    assert_eq!(summary.sass_fixture_count, 7);
+    assert_eq!(summary.supported_fixture_count, 18);
     assert_eq!(summary.rejected_flat_css_fixture_count, 1);
     assert!(summary.branch_fixture_count >= 5);
     assert!(summary.loop_fixture_count >= 6);
@@ -2845,6 +2845,35 @@ fn exposes_static_scss_each_loop_returns_through_query_boundary() {
 }
 
 #[test]
+fn exposes_static_scss_each_function_source_returns_through_query_boundary() {
+    let summary = summarize_omena_query_static_stylesheet_evaluator_from_source(
+        "@function pick($target) { @each $item in list.append(1px 2px, 3px) { @if $item == $target { @return $item; } } @return 0px; } .button { margin: pick(3px); }",
+        OmenaParserStyleDialect::Scss,
+    );
+
+    assert_eq!(summary.product, "omena-query.static-stylesheet-evaluator");
+    assert_eq!(summary.mode, "oracleOnly");
+    assert_eq!(summary.value_type, "AbstractCssValueV0");
+    assert!(!summary.legacy_output_consumed_until_cutover);
+    assert_eq!(summary.divergence_count, 0);
+    assert!(summary.all_legacy_declaration_values_preserved);
+    assert_eq!(summary.native_replacement_count, 1);
+    assert_eq!(summary.native_resolved_value_count, 1);
+    assert_eq!(summary.native_raw_value_count, 0);
+    assert_eq!(summary.native_top_value_count, 0);
+    assert!(summary.evaluation.as_ref().is_some_and(|evaluation| {
+        evaluation
+            .evaluated_css
+            .contains(".button { margin: 3px; }")
+            && evaluation.resolved_replacements.iter().any(|replacement| {
+                replacement.name == "function:pick"
+                    && replacement.text == "3px"
+                    && replacement.abstract_value_kind == "exact"
+            })
+    }));
+}
+
+#[test]
 fn exposes_scss_evaluator_control_flow_oracle_through_query_boundary() {
     let source = r#"
 $enabled: true;
@@ -3334,6 +3363,49 @@ fn exposes_static_each_conditional_call_return_values_through_query_boundary()
         serde_json::json!({
             "kind": "exact",
             "value": "#00f",
+        })
+    );
+    Ok(())
+}
+
+#[test]
+fn exposes_static_each_function_source_call_return_values_through_query_boundary()
+-> Result<(), serde_json::Error> {
+    let source = "@function pick($target) { @each $item in list.append(1px 2px, 3px) { @if $item == $target { @return $item; } } @return 0px; } .a { margin: pick(3px); }";
+
+    let summary = summarize_omena_query_scss_evaluator_control_flow_from_source(
+        source,
+        OmenaParserStyleDialect::Scss,
+    );
+
+    assert_eq!(summary.schema_version, "0");
+    assert_eq!(summary.product, "omena-query.scss-evaluator-control-flow");
+    assert_eq!(summary.mode, "oracleOnly");
+    assert_eq!(summary.value_type, "AbstractCssValueV0");
+    assert!(summary.supported_dialect);
+    assert_eq!(summary.control_flow_loop_block_count, 1);
+    assert_eq!(summary.control_flow_back_edge_count, 1);
+    assert_eq!(summary.call_resolved_return_value_count, 1);
+    assert_eq!(summary.exact_call_resolved_return_value_count, 1);
+
+    assert!(summary.call_return_ir.is_some());
+    let Some(call_return) = summary.call_return_ir.as_ref() else {
+        return Ok(());
+    };
+    let function_call = call_return
+        .nodes
+        .iter()
+        .find(|node| node.kind == "functionCall" && node.name.as_deref() == Some("pick"));
+    assert!(function_call.is_some());
+    let Some(function_call) = function_call else {
+        return Ok(());
+    };
+    assert_eq!(function_call.call_resolved_return_value_kind, Some("exact"));
+    assert_eq!(
+        serde_json::to_value(function_call.call_resolved_return_value.as_ref())?,
+        serde_json::json!({
+            "kind": "exact",
+            "value": "3px",
         })
     );
     Ok(())

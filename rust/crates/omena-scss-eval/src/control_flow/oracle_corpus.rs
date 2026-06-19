@@ -300,6 +300,11 @@ fn scss_control_flow_oracle_corpus_fixtures() -> &'static [ScssControlFlowOracle
             source: "@function tone($target) { @each $name, $tone in (primary: red, secondary: blue) { @if $name == $target { @return $tone; } } @return black; } .button { color: tone(secondary); }",
         },
         ScssControlFlowOracleCorpusFixtureV0 {
+            id: "scss.static-each-function-source-return",
+            dialect: StyleDialect::Scss,
+            source: "@function pick($target) { @each $item in list.append(1px 2px, 3px) { @if $item == $target { @return $item; } } @return 0px; } .button { margin: pick(3px); }",
+        },
+        ScssControlFlowOracleCorpusFixtureV0 {
             id: "scss.nested-static-loop-return",
             dialect: StyleDialect::Scss,
             source: "@function collect($target) { @for $i from 1 through 2 { @for $j from 1 through 2 { @if $i == $target { @return $i + $j; } } } @return 0; } .button { z-index: collect(2); }",
@@ -345,6 +350,11 @@ fn scss_control_flow_oracle_corpus_fixtures() -> &'static [ScssControlFlowOracle
             source: "@function pick($target)\n  $step: 1 + 1\n  $i: 0\n  @while $i < 6\n    @if $i == $target\n      @return $i\n    $i: $i + $step\n  @return 0\n.button\n  z-index: pick(4)",
         },
         ScssControlFlowOracleCorpusFixtureV0 {
+            id: "sass.static-each-function-source-return",
+            dialect: StyleDialect::Sass,
+            source: "@function pick($target)\n  @each $item in append(1px 2px, 3px)\n    @if $item == $target\n      @return $item\n  @return 0px\n.button\n  margin: pick(3px)",
+        },
+        ScssControlFlowOracleCorpusFixtureV0 {
             id: "css.flat-rejected",
             dialect: StyleDialect::Css,
             source: ".button { color: red; }",
@@ -366,10 +376,10 @@ mod tests {
         assert_eq!(report.value_type, "AbstractCssValueV0");
         assert_eq!(report.node_key_type, "StableNodeKeyV0");
         assert_eq!(report.recursion_cap, SCSS_CALL_RETURN_RECURSION_LIMIT);
-        assert_eq!(report.fixture_count, 17);
-        assert_eq!(report.scss_fixture_count, 10);
-        assert_eq!(report.sass_fixture_count, 6);
-        assert_eq!(report.supported_fixture_count, 16);
+        assert_eq!(report.fixture_count, 19);
+        assert_eq!(report.scss_fixture_count, 11);
+        assert_eq!(report.sass_fixture_count, 7);
+        assert_eq!(report.supported_fixture_count, 18);
         assert_eq!(report.rejected_flat_css_fixture_count, 1);
         assert!(report.branch_fixture_count >= 5);
         assert!(report.loop_fixture_count >= 6);
