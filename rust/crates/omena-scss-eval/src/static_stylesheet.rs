@@ -899,6 +899,22 @@ fn resolved_static_abstract_value(text: &str) -> StaticStylesheetAbstractResolut
     }
 }
 
+fn resolved_static_abstract_value_preserving_callable_raw(
+    original_text: &str,
+    reduced_text: &str,
+) -> StaticStylesheetAbstractResolution {
+    let abstract_value = abstract_css_value_from_text(reduced_text);
+    if matches!(abstract_value, AbstractCssValueV0::Raw { .. })
+        && static_scss_function_value_contains_any_callable(reduced_text)
+    {
+        return raw_static_abstract_value(
+            original_text,
+            StaticStylesheetResolutionReason::UnsupportedDynamic,
+        );
+    }
+    resolved_static_abstract_value(reduced_text)
+}
+
 fn raw_static_abstract_value(
     text: &str,
     reason: StaticStylesheetResolutionReason,
@@ -6743,19 +6759,19 @@ fn resolve_static_scss_variable_abstract_value_text(
         );
     };
     if references.is_empty() {
-        let value = reduce_static_scss_metadata_with_variable_context(
+        let metadata_reduced_value = reduce_static_scss_metadata_with_variable_context(
             value,
             position,
             scopes,
             declarations,
         )
         .unwrap_or_else(|| value.to_string());
-        let reduced = reduce_static_scss_value(value.clone());
+        let reduced = reduce_static_scss_value(metadata_reduced_value.clone());
         if static_stylesheet_literal_value_is_safe(reduced.as_str()) {
-            return resolved_static_abstract_value(reduced.as_str());
+            return resolved_static_abstract_value_preserving_callable_raw(value, reduced.as_str());
         }
         return raw_static_abstract_value(
-            value.as_str(),
+            metadata_reduced_value.as_str(),
             StaticStylesheetResolutionReason::UnsupportedDynamic,
         );
     }
@@ -6792,7 +6808,8 @@ fn resolve_static_scss_variable_abstract_value_text(
         declarations,
     )
     .unwrap_or(output);
-    resolved_static_abstract_value(reduce_static_scss_value(output).as_str())
+    let reduced_output = reduce_static_scss_value(output.clone());
+    resolved_static_abstract_value_preserving_callable_raw(output.as_str(), reduced_output.as_str())
 }
 
 fn resolve_static_scss_variable_value_at_position(
@@ -11083,6 +11100,36 @@ mod tests {
         );
         assert!(rendered_values.contains(&"#ff000080"));
         assert!(rendered_values.contains(&"#ff000040"));
+    }
+
+    #[test]
+    fn static_value_resolution_emits_exact_nested_sass_color_helper_values() {
+        let report = summarize_static_stylesheet_value_resolution(
+            "$tone: list.nth(list.append(1px, transparentize(red, .25)), 2); $scaled: list.nth(list.append(1px, color.scale(#808000, $lightness: 50%)), 2); $opacity: list.nth(list.append(1px, color.opacity(rgba(red, .5))), 2); .button { color: $tone; background: $scaled; opacity: $opacity; }",
+            StyleDialect::Scss,
+        );
+        assert!(report.is_some());
+        let Some(report) = report else {
+            return;
+        };
+
+        assert_eq!(report.reference_count, 3);
+        assert_eq!(report.resolved_count, 3);
+        assert_eq!(report.raw_count, 0);
+        assert!(
+            report
+                .values
+                .iter()
+                .all(|value| value.abstract_value_kind == "exact")
+        );
+        let rendered_values = report
+            .values
+            .iter()
+            .filter_map(|value| value.rendered_value.as_deref())
+            .collect::<Vec<_>>();
+        assert!(rendered_values.contains(&"#ff0000bf"));
+        assert!(rendered_values.contains(&"#ffff40"));
+        assert!(rendered_values.contains(&"0.5"));
     }
 
     #[test]

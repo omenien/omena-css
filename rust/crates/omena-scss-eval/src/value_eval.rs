@@ -131,6 +131,16 @@ pub(crate) fn reduce_static_scss_value(value: String) -> String {
             ("mix", parse_static_scss_global_mix_value),
             ("color.mix", parse_static_scss_color_mix_value),
             ("color.channel", parse_static_scss_color_channel_value),
+            ("transparentize", parse_static_scss_transparentize_value),
+            ("fade-out", parse_static_scss_fade_out_value),
+            ("opacify", parse_static_scss_opacify_value),
+            ("fade-in", parse_static_scss_fade_in_value),
+            ("color.adjust", parse_static_scss_color_adjust_alias_value),
+            ("adjust-color", parse_static_scss_adjust_color_value),
+            ("color.change", parse_static_scss_color_change_alias_value),
+            ("change-color", parse_static_scss_change_color_value),
+            ("color.scale", parse_static_scss_color_scale_alias_value),
+            ("scale-color", parse_static_scss_scale_color_value),
             ("adjust-hue", parse_static_scss_adjust_hue_value),
             ("complement", parse_static_scss_complement_value),
             ("color.complement", parse_static_scss_color_complement_value),
@@ -146,10 +156,18 @@ pub(crate) fn reduce_static_scss_value(value: String) -> String {
             ("green", parse_static_scss_global_green_value),
             ("blue", parse_static_scss_global_blue_value),
             ("alpha", parse_static_scss_global_alpha_value),
+            ("opacity", parse_static_scss_global_opacity_value),
             ("color.red", parse_static_scss_color_red_value),
             ("color.green", parse_static_scss_color_green_value),
             ("color.blue", parse_static_scss_color_blue_value),
             ("color.alpha", parse_static_scss_color_alpha_value),
+            ("color.opacity", parse_static_scss_color_opacity_alias_value),
+            ("hue", parse_static_scss_global_hue_value),
+            ("color.hue", parse_static_scss_color_hue_value),
+            ("saturation", parse_static_scss_global_saturation_value),
+            ("color.saturation", parse_static_scss_color_saturation_value),
+            ("lightness", parse_static_scss_global_lightness_value),
+            ("color.lightness", parse_static_scss_color_lightness_value),
             ("ie-hex-str", parse_static_scss_ie_hex_str_value),
             ("percentage", parse_static_scss_percentage_value),
             ("unit", parse_static_scss_unit_value),
@@ -1060,6 +1078,22 @@ fn parse_static_scss_sass_color_opacity_value(value: &str) -> Option<String> {
         .or_else(|| parse_static_scss_color_alpha_delta_value(value, "fade-in", 1.0))
 }
 
+fn parse_static_scss_transparentize_value(value: &str) -> Option<String> {
+    parse_static_scss_color_alpha_delta_value(value, "transparentize", -1.0)
+}
+
+fn parse_static_scss_fade_out_value(value: &str) -> Option<String> {
+    parse_static_scss_color_alpha_delta_value(value, "fade-out", -1.0)
+}
+
+fn parse_static_scss_opacify_value(value: &str) -> Option<String> {
+    parse_static_scss_color_alpha_delta_value(value, "opacify", 1.0)
+}
+
+fn parse_static_scss_fade_in_value(value: &str) -> Option<String> {
+    parse_static_scss_color_alpha_delta_value(value, "fade-in", 1.0)
+}
+
 fn parse_static_scss_sass_color_transform_value(value: &str) -> Option<String> {
     parse_static_scss_color_adjust_value(value, "color.adjust")
         .or_else(|| parse_static_scss_color_adjust_value(value, "adjust-color"))
@@ -1067,6 +1101,30 @@ fn parse_static_scss_sass_color_transform_value(value: &str) -> Option<String> {
         .or_else(|| parse_static_scss_color_change_value(value, "change-color"))
         .or_else(|| parse_static_scss_color_scale_value(value, "color.scale"))
         .or_else(|| parse_static_scss_color_scale_value(value, "scale-color"))
+}
+
+fn parse_static_scss_color_adjust_alias_value(value: &str) -> Option<String> {
+    parse_static_scss_color_adjust_value(value, "color.adjust")
+}
+
+fn parse_static_scss_adjust_color_value(value: &str) -> Option<String> {
+    parse_static_scss_color_adjust_value(value, "adjust-color")
+}
+
+fn parse_static_scss_color_change_alias_value(value: &str) -> Option<String> {
+    parse_static_scss_color_change_value(value, "color.change")
+}
+
+fn parse_static_scss_change_color_value(value: &str) -> Option<String> {
+    parse_static_scss_color_change_value(value, "change-color")
+}
+
+fn parse_static_scss_color_scale_alias_value(value: &str) -> Option<String> {
+    parse_static_scss_color_scale_value(value, "color.scale")
+}
+
+fn parse_static_scss_scale_color_value(value: &str) -> Option<String> {
+    parse_static_scss_color_scale_value(value, "scale-color")
 }
 
 fn parse_static_scss_sass_color_channel_value(value: &str) -> Option<String> {
@@ -1116,6 +1174,58 @@ fn parse_static_scss_sass_color_channel_value(value: &str) -> Option<String> {
                 StaticScssColorChannel::Lightness,
             )
         })
+}
+
+fn parse_static_scss_global_opacity_value(value: &str) -> Option<String> {
+    parse_static_scss_legacy_color_channel_value(value, "opacity", StaticScssColorChannel::Alpha)
+}
+
+fn parse_static_scss_color_opacity_alias_value(value: &str) -> Option<String> {
+    parse_static_scss_legacy_color_channel_value(
+        value,
+        "color.opacity",
+        StaticScssColorChannel::Alpha,
+    )
+}
+
+fn parse_static_scss_global_hue_value(value: &str) -> Option<String> {
+    parse_static_scss_legacy_color_channel_value(value, "hue", StaticScssColorChannel::Hue)
+}
+
+fn parse_static_scss_color_hue_value(value: &str) -> Option<String> {
+    parse_static_scss_legacy_color_channel_value(value, "color.hue", StaticScssColorChannel::Hue)
+}
+
+fn parse_static_scss_global_saturation_value(value: &str) -> Option<String> {
+    parse_static_scss_legacy_color_channel_value(
+        value,
+        "saturation",
+        StaticScssColorChannel::Saturation,
+    )
+}
+
+fn parse_static_scss_color_saturation_value(value: &str) -> Option<String> {
+    parse_static_scss_legacy_color_channel_value(
+        value,
+        "color.saturation",
+        StaticScssColorChannel::Saturation,
+    )
+}
+
+fn parse_static_scss_global_lightness_value(value: &str) -> Option<String> {
+    parse_static_scss_legacy_color_channel_value(
+        value,
+        "lightness",
+        StaticScssColorChannel::Lightness,
+    )
+}
+
+fn parse_static_scss_color_lightness_value(value: &str) -> Option<String> {
+    parse_static_scss_legacy_color_channel_value(
+        value,
+        "color.lightness",
+        StaticScssColorChannel::Lightness,
+    )
 }
 
 fn parse_static_scss_sass_color_constructor_value_with_name(
