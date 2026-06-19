@@ -1,7 +1,7 @@
 use crate::{
     TransformCssModuleComposesResolutionV0, TransformExecutionContextV0,
-    TransformModuleEvaluationNativeEditV0, TransformModuleEvaluationV0,
-    execute_transform_passes_on_source_with_dialect,
+    TransformModuleEvaluationNativeEditV0, TransformModuleEvaluationOracleV0,
+    TransformModuleEvaluationV0, execute_transform_passes_on_source_with_dialect,
     execute_transform_passes_on_source_with_dialect_and_context,
 };
 use omena_parser::StyleDialect;
@@ -100,6 +100,132 @@ fn execution_runtime_applies_explicit_less_module_evaluation() {
     assert_eq!(
         execution.executed_pass_ids,
         vec!["less-module-evaluate", "print-css"]
+    );
+}
+
+#[test]
+fn execution_runtime_consumes_scss_oracle_output_without_native_edits() {
+    let source = r#"@use "./tokens" as tokens; .button { color: tokens.$brand; }"#;
+    let evaluated_css = ".base { color: blue; } .button { color: red; }";
+    let context = TransformExecutionContextV0 {
+        scss_module_evaluation: Some(TransformModuleEvaluationV0 {
+            evaluator: "omena-query-static-scss-module-system-evaluator".to_string(),
+            evaluated_css: evaluated_css.to_string(),
+            native_replacements: Vec::new(),
+            native_edits: Vec::new(),
+            oracle: None,
+        }),
+        ..TransformExecutionContextV0::default()
+    };
+    let execution = execute_transform_passes_on_source_with_dialect_and_context(
+        source,
+        StyleDialect::Scss,
+        &[
+            TransformPassKind::ScssModuleEvaluate,
+            TransformPassKind::PrintCss,
+        ],
+        &context,
+    );
+
+    assert_eq!(execution.mutation_count, 1);
+    assert_eq!(execution.output_css, evaluated_css);
+    assert_eq!(
+        execution.outcomes.first().map(|outcome| outcome.detail),
+        Some("applied SCSS module evaluation oracle output from the evaluator boundary")
+    );
+}
+
+#[test]
+fn execution_runtime_consumes_less_oracle_output_without_native_edits() {
+    let source = r#"@import "./tokens.less"; .button { color: @brand; }"#;
+    let evaluated_css = ".base { color: blue; } .button { color: red; }";
+    let context = TransformExecutionContextV0 {
+        less_module_evaluation: Some(TransformModuleEvaluationV0 {
+            evaluator: "omena-query-static-less-module-system-evaluator".to_string(),
+            evaluated_css: evaluated_css.to_string(),
+            native_replacements: Vec::new(),
+            native_edits: Vec::new(),
+            oracle: None,
+        }),
+        ..TransformExecutionContextV0::default()
+    };
+    let execution = execute_transform_passes_on_source_with_dialect_and_context(
+        source,
+        StyleDialect::Less,
+        &[
+            TransformPassKind::LessModuleEvaluate,
+            TransformPassKind::PrintCss,
+        ],
+        &context,
+    );
+
+    assert_eq!(execution.mutation_count, 1);
+    assert_eq!(execution.output_css, evaluated_css);
+    assert_eq!(
+        execution.outcomes.first().map(|outcome| outcome.detail),
+        Some("applied Less module evaluation oracle output from the evaluator boundary")
+    );
+}
+
+#[test]
+fn execution_runtime_consumes_oracle_output_when_native_edits_are_stale_but_oracle_matches() {
+    let source =
+        r#"@brand: red; .base { color: @brand; } @local: blue; .button { color: @local; }"#;
+    let evaluated_css = "@brand: red; .base { color: @brand; }  .button { color: blue; }";
+    let context = TransformExecutionContextV0 {
+        less_module_evaluation: Some(TransformModuleEvaluationV0 {
+            evaluator: "omena-query-static-less-variable-evaluator".to_string(),
+            evaluated_css: evaluated_css.to_string(),
+            native_replacements: Vec::new(),
+            native_edits: vec![TransformModuleEvaluationNativeEditV0 {
+                start: 67,
+                end: 73,
+                replacement: "blue".to_string(),
+                edit_kind: "valueReplacement".to_string(),
+                abstract_value: None,
+                abstract_value_kind: None,
+            }],
+            oracle: Some(TransformModuleEvaluationOracleV0 {
+                mode: "oracleOnly".to_string(),
+                product_output_source: "legacyEvaluatedCss".to_string(),
+                legacy_declaration_value_count: 1,
+                abstract_value_count: 1,
+                exact_value_count: 1,
+                raw_value_count: 0,
+                bottom_value_count: 0,
+                top_value_count: 0,
+                divergence_count: 0,
+                all_legacy_declaration_values_preserved: true,
+                native_replacement_count: 1,
+                native_replacement_legacy_reflection_count: 1,
+                native_replacement_legacy_unreflected_count: 0,
+                native_value_reference_count: 1,
+                native_resolved_value_count: 1,
+                native_raw_value_count: 0,
+                native_top_value_count: 0,
+                native_cycle_count: 0,
+                native_fuel_exhausted_count: 0,
+                native_unresolved_reference_count: 0,
+                native_unsupported_dynamic_count: 0,
+            }),
+        }),
+        ..TransformExecutionContextV0::default()
+    };
+    let execution = execute_transform_passes_on_source_with_dialect_and_context(
+        source,
+        StyleDialect::Less,
+        &[
+            TransformPassKind::LessModuleEvaluate,
+            TransformPassKind::PrintCss,
+        ],
+        &context,
+    );
+
+    assert_eq!(execution.mutation_count, 1);
+    assert_eq!(execution.output_css, evaluated_css);
+    assert_eq!(
+        execution.outcomes.first().map(|outcome| outcome.detail),
+        Some("applied Less module evaluation oracle output from the evaluator boundary")
     );
 }
 
