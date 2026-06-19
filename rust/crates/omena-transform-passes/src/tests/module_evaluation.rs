@@ -58,6 +58,43 @@ fn execution_runtime_applies_explicit_scss_module_evaluation() {
 }
 
 #[test]
+fn execution_runtime_prefers_native_output_over_legacy_evaluated_css() {
+    let source = r#".button { color: $brand; }"#;
+    let native_css = ".button { color: red; }";
+    let legacy_css = ".button { color: legacy; }";
+    let context = TransformExecutionContextV0 {
+        scss_module_evaluation: Some(TransformModuleEvaluationV0 {
+            evaluator: "dart-sass-compatible".to_string(),
+            evaluated_css: legacy_css.to_string(),
+            native_edit_output: Some(native_css.to_string()),
+            native_replacements: Vec::new(),
+            native_edits: vec![native_module_evaluation_edit(source, "$brand", "red")],
+            oracle: None,
+        }),
+        ..TransformExecutionContextV0::default()
+    };
+    let execution = execute_transform_passes_on_source_with_dialect_and_context(
+        source,
+        StyleDialect::Scss,
+        &[
+            TransformPassKind::ScssModuleEvaluate,
+            TransformPassKind::PrintCss,
+        ],
+        &context,
+    );
+
+    assert_eq!(execution.mutation_count, 1);
+    assert_eq!(execution.output_css, native_css);
+    assert!(!execution.output_css.contains("legacy"));
+    assert_eq!(
+        execution.outcomes.first().map(|outcome| outcome.detail),
+        Some(
+            "applied explicit SCSS module evaluation native edit output from the evaluator boundary"
+        )
+    );
+}
+
+#[test]
 fn execution_runtime_applies_explicit_less_module_evaluation() {
     let source = r#".button { color: @brand; }"#;
     let evaluated_css = ".button { color: red; }";
@@ -104,6 +141,43 @@ fn execution_runtime_applies_explicit_less_module_evaluation() {
     assert_eq!(
         execution.executed_pass_ids,
         vec!["less-module-evaluate", "print-css"]
+    );
+}
+
+#[test]
+fn execution_runtime_prefers_less_native_output_over_legacy_evaluated_css() {
+    let source = r#".button { color: @brand; }"#;
+    let native_css = ".button { color: red; }";
+    let legacy_css = ".button { color: legacy; }";
+    let context = TransformExecutionContextV0 {
+        less_module_evaluation: Some(TransformModuleEvaluationV0 {
+            evaluator: "less-js-compatible".to_string(),
+            evaluated_css: legacy_css.to_string(),
+            native_edit_output: Some(native_css.to_string()),
+            native_replacements: Vec::new(),
+            native_edits: vec![native_module_evaluation_edit(source, "@brand", "red")],
+            oracle: None,
+        }),
+        ..TransformExecutionContextV0::default()
+    };
+    let execution = execute_transform_passes_on_source_with_dialect_and_context(
+        source,
+        StyleDialect::Less,
+        &[
+            TransformPassKind::LessModuleEvaluate,
+            TransformPassKind::PrintCss,
+        ],
+        &context,
+    );
+
+    assert_eq!(execution.mutation_count, 1);
+    assert_eq!(execution.output_css, native_css);
+    assert!(!execution.output_css.contains("legacy"));
+    assert_eq!(
+        execution.outcomes.first().map(|outcome| outcome.detail),
+        Some(
+            "applied explicit Less module evaluation native edit output from the evaluator boundary"
+        )
     );
 }
 
