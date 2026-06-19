@@ -13,3 +13,8 @@ support_table = "light_dark"
 pass_id = "color-mix-lowering"
 caniuse_keys = ["css-color-mix"]
 support_table = "color_mix"
+
+[[binding]]
+pass_id = "nesting-unwrap"
+caniuse_keys = ["css-nesting"]
+support_table = "css_nesting"

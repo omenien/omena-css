@@ -499,9 +499,9 @@ fn feature_support_for_resolved_targets(distribs: &[Distrib]) -> TargetFeatureSu
             distribs,
             "css-logical-props",
         ),
-        supports_css_nesting: target_set_is_subset_of_fully_supported_feature(
+        supports_css_nesting: target_set_is_subset_of_browser_threshold_table(
             distribs,
-            "css-nesting",
+            "css_nesting",
         ),
         supports_css_scope: target_set_is_subset_of_fully_supported_feature(
             distribs,
@@ -1026,9 +1026,9 @@ mod tests {
             boundary.target_data_source,
             "oxcBrowserslistV3+browserThresholdsTomlV0+staticTargetProfileV0+explicitFeatureMatrixV0"
         );
-        assert_eq!(boundary.browser_threshold_table_count, 2);
-        assert_eq!(boundary.browser_threshold_entry_count, 22);
-        assert_eq!(boundary.pass_feature_binding_count, 2);
+        assert_eq!(boundary.browser_threshold_table_count, 3);
+        assert_eq!(boundary.browser_threshold_entry_count, 33);
+        assert_eq!(boundary.pass_feature_binding_count, 3);
         assert_eq!(boundary.browser_data_parse_error_count, 0);
         assert!(boundary.browser_data_quorum_valid);
         assert!(boundary.browser_data_bindings_valid);
@@ -1238,7 +1238,7 @@ mod tests {
             plan.target_data_snapshot_id,
             "omena-transform-target-data-v0:thresholds-2026-05-22:bindings-2026-05-22"
         );
-        assert_eq!(plan.target_data_evidence.len(), 2);
+        assert_eq!(plan.target_data_evidence.len(), 3);
         assert!(
             plan.target_data_evidence
                 .iter()
@@ -1251,6 +1251,13 @@ mod tests {
                             "mdn-bcd".to_string()
                         ]
                     && evidence.last_verified == vec!["2026-05-22".to_string()])
+        );
+        assert!(
+            plan.target_data_evidence
+                .iter()
+                .any(|evidence| evidence.support_table == "css_nesting"
+                    && evidence.caniuse_keys == vec!["css-nesting".to_string()]
+                    && !evidence.all_resolved_targets_supported)
         );
         assert!(plan.support.vendor_prefix_required);
         assert!(
@@ -1271,7 +1278,27 @@ mod tests {
     }
 
     #[test]
-    fn resolves_light_dark_and_color_mix_from_static_compatibility_matrix() {
+    fn resolves_target_features_from_static_compatibility_matrix() {
+        let chrome_111 =
+            plan_target_transforms_from_query("chrome 111", conservative_target_options());
+        assert!(!chrome_111.support.supports_css_nesting);
+        assert!(
+            chrome_111
+                .transform_plan
+                .required_pass_ids
+                .contains(&"nesting-unwrap")
+        );
+
+        let chrome_112 =
+            plan_target_transforms_from_query("chrome 112", conservative_target_options());
+        assert!(chrome_112.support.supports_css_nesting);
+        assert!(
+            !chrome_112
+                .transform_plan
+                .required_pass_ids
+                .contains(&"nesting-unwrap")
+        );
+
         let chrome_122 =
             plan_target_transforms_from_query("chrome 122", conservative_target_options());
         assert_eq!(chrome_122.profile_id, "browserslist-resolved");
@@ -1311,11 +1338,13 @@ mod tests {
             plan_target_transforms_from_query("safari 16.2", conservative_target_options());
         assert!(!safari_16_2.support.supports_light_dark);
         assert!(safari_16_2.support.supports_color_mix);
+        assert!(!safari_16_2.support.supports_css_nesting);
 
         let safari_17_5 =
             plan_target_transforms_from_query("safari 17.5", conservative_target_options());
         assert!(safari_17_5.support.supports_light_dark);
         assert!(safari_17_5.support.supports_color_mix);
+        assert!(safari_17_5.support.supports_css_nesting);
     }
 
     #[test]
@@ -1408,6 +1437,43 @@ mod tests {
         };
         assert_eq!(color_mix_threshold.min_version, "111.0");
         assert_eq!(color_mix_threshold.caniuse_key, "css-color-mix");
+
+        let css_nesting = chrome_122
+            .target_data_evidence
+            .iter()
+            .find(|evidence| evidence.support_table == "css_nesting");
+        assert!(
+            css_nesting.is_some(),
+            "css nesting target data evidence should be present"
+        );
+        let Some(css_nesting) = css_nesting else {
+            return;
+        };
+        assert_eq!(css_nesting.pass_id, "nesting-unwrap");
+        assert_eq!(css_nesting.caniuse_keys, vec!["css-nesting".to_string()]);
+        assert!(css_nesting.all_resolved_targets_supported);
+        let chrome_css_nesting = css_nesting
+            .resolved_targets
+            .iter()
+            .find(|target| target.browser == "chrome");
+        assert!(
+            chrome_css_nesting.is_some(),
+            "chrome nesting target evidence should be present"
+        );
+        let Some(chrome_css_nesting) = chrome_css_nesting else {
+            return;
+        };
+        assert!(chrome_css_nesting.supported);
+        let css_nesting_threshold = chrome_css_nesting.matched_threshold.as_ref();
+        assert!(
+            css_nesting_threshold.is_some(),
+            "chrome nesting threshold should be present"
+        );
+        let Some(css_nesting_threshold) = css_nesting_threshold else {
+            return;
+        };
+        assert_eq!(css_nesting_threshold.min_version, "112.0");
+        assert_eq!(css_nesting_threshold.caniuse_key, "css-nesting");
     }
 
     #[test]
@@ -1427,6 +1493,7 @@ mod tests {
             "safari 16.2 keeps the multi-target set below the light-dark threshold"
         );
         assert!(mixed_targets.support.supports_color_mix);
+        assert!(!mixed_targets.support.supports_css_nesting);
         assert!(
             mixed_targets
                 .transform_plan
@@ -1438,6 +1505,12 @@ mod tests {
                 .transform_plan
                 .required_pass_ids
                 .contains(&"color-mix-lowering")
+        );
+        assert!(
+            mixed_targets
+                .transform_plan
+                .required_pass_ids
+                .contains(&"nesting-unwrap")
         );
     }
 
