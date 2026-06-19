@@ -6531,6 +6531,12 @@ fn reduce_static_less_value_with_escape_flag(value: String) -> StaticLessResolve
             escaped: true,
         };
     }
+    if let Some(encoded) = parse_static_less_url_escape_value(value.as_str()) {
+        return StaticLessResolvedValue {
+            text: encoded,
+            escaped: false,
+        };
+    }
     let value = reduce_static_less_numeric_value(value);
     let text = substitute_static_css_function_references_in_value_until_stable(
         value.as_str(),
@@ -6945,6 +6951,50 @@ fn parse_static_less_escape_value(value: &str) -> Option<String> {
                 .all(|ch| ch.is_ascii_alphanumeric() || matches!(ch, '_' | '-')))
         .then(|| argument.to_string())
     })
+}
+
+fn parse_static_less_url_escape_value(value: &str) -> Option<String> {
+    let argument = parse_whole_function_value_inner(value, "escape")?.trim();
+    let text = static_less_quoted_string_contents(argument).unwrap_or_else(|| argument.to_string());
+    Some(percent_encode_static_less_escape_value(text.as_str()))
+}
+
+fn percent_encode_static_less_escape_value(value: &str) -> String {
+    const HEX: &[u8; 16] = b"0123456789ABCDEF";
+    let mut output = String::new();
+    for byte in value.bytes() {
+        if static_less_escape_byte_is_safe(byte) {
+            output.push(char::from(byte));
+        } else {
+            output.push('%');
+            output.push(char::from(HEX[usize::from(byte >> 4)]));
+            output.push(char::from(HEX[usize::from(byte & 0x0f)]));
+        }
+    }
+    output
+}
+
+fn static_less_escape_byte_is_safe(byte: u8) -> bool {
+    matches!(
+        byte,
+        b'A'..=b'Z'
+            | b'a'..=b'z'
+            | b'0'..=b'9'
+            | b'-'
+            | b'_'
+            | b'.'
+            | b'!'
+            | b'~'
+            | b'*'
+            | b'\''
+            | b'/'
+            | b'?'
+            | b'&'
+            | b'@'
+            | b'+'
+            | b','
+            | b'$'
+    )
 }
 
 fn static_less_list_items_from_arguments(arguments: &[String]) -> Option<Vec<String>> {
@@ -7661,6 +7711,28 @@ mod tests {
         assert!(report.evaluated_css.contains("b: calc(1px + 2px)"));
         assert!(report.evaluated_css.contains("c: min(1px, 2px)"));
         assert!(report.evaluated_css.contains("d: sign(-2px)"));
+        assert!(report.oracle.all_legacy_declaration_values_preserved);
+    }
+
+    #[test]
+    fn static_less_evaluation_reduces_url_escape_builtin_values() {
+        let report = derive_static_stylesheet_module_evaluation(
+            "@query: escape(\"a=1\"); @space: escape(\"hello world\"); @hash: escape(\"#fff\"); @unicode: escape(\"ä\"); @fn: escape(\"min(1px, 2px)\"); .button { a: @query; b: @space; c: @hash; d: @unicode; e: @fn; }",
+            StyleDialect::Less,
+        );
+        assert!(report.is_some());
+        let Some(report) = report else {
+            return;
+        };
+
+        assert_eq!(report.replacement_count, 5);
+        assert_eq!(report.value_resolution.raw_count, 5);
+        assert_eq!(report.value_resolution.top_count, 0);
+        assert!(report.evaluated_css.contains("a: a%3D1"));
+        assert!(report.evaluated_css.contains("b: hello%20world"));
+        assert!(report.evaluated_css.contains("c: %23fff"));
+        assert!(report.evaluated_css.contains("d: %C3%A4"));
+        assert!(report.evaluated_css.contains("e: min%281px,%202px%29"));
         assert!(report.oracle.all_legacy_declaration_values_preserved);
     }
 
