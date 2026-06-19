@@ -9594,9 +9594,9 @@ mod tests {
         assert_eq!(report.mode, "oracleOnly");
         assert_eq!(report.value_type, "AbstractCssValueV0");
         assert_eq!(report.product_output_source, "legacyEvaluatedCss");
-        assert_eq!(report.fixture_count, 43);
+        assert_eq!(report.fixture_count, 44);
         assert_eq!(report.scss_fixture_count, 6);
-        assert_eq!(report.less_fixture_count, 37);
+        assert_eq!(report.less_fixture_count, 38);
         assert_eq!(report.evaluated_fixture_count, report.fixture_count);
         assert_eq!(report.missing_evaluation_count, 0);
         assert_eq!(report.divergence_count, 0);
@@ -9791,6 +9791,24 @@ mod tests {
 
         assert!(report.evaluated_css.contains(".tokens(red)[@missing]"));
         assert!(report.evaluated_css.contains("@result: @color"));
+        assert_eq!(report.replacement_count, 0);
+        assert!(report.oracle.all_legacy_declaration_values_preserved);
+    }
+
+    #[test]
+    fn static_less_evaluation_preserves_unknown_mixin_accessor_property_members_as_oracle_report() {
+        let report = derive_static_stylesheet_module_evaluation(
+            ".tokens(@color) { result: @color; } .button { color: .tokens(red)[missing]; }",
+            StyleDialect::Less,
+        );
+
+        assert!(report.is_some());
+        let Some(report) = report else {
+            return;
+        };
+
+        assert!(report.evaluated_css.contains(".tokens(red)[missing]"));
+        assert!(report.evaluated_css.contains("result: @color"));
         assert_eq!(report.replacement_count, 0);
         assert!(report.oracle.all_legacy_declaration_values_preserved);
     }
