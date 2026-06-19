@@ -641,6 +641,12 @@ pub fn summarize_omena_query_selected_query_adapter_capabilities()
                 output_product: "omena-query.static-stylesheet-evaluator-oracle-corpus",
             },
             SelectedQueryRunnerCommandV0 {
+                surface: "staticLifExports",
+                command: "input-static-lif-exports",
+                input_contract: "OmenaParserStyleFactsInputV0",
+                output_product: "omena-query.static-lif-exports",
+            },
+            SelectedQueryRunnerCommandV0 {
                 surface: "selectorUsage",
                 command: "input-selector-usage-canonical-producer",
                 input_contract: "EngineInputV2",

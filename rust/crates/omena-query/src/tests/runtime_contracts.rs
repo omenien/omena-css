@@ -147,6 +147,12 @@ fn declares_runtime_backed_selected_query_adapter_capabilities() {
         summary
             .runner_commands
             .iter()
+            .any(|command| command.command == "input-static-lif-exports")
+    );
+    assert!(
+        summary
+            .runner_commands
+            .iter()
             .any(|command| command.command == "style-semantic-graph-batch")
     );
     assert!(
