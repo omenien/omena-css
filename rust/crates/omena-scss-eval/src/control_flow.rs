@@ -20,7 +20,14 @@ use crate::{
     },
 };
 
+mod analysis_model;
 mod model;
+
+use analysis_model::{
+    ScssBranchBlock, ScssCallBoundReturnActivity, ScssCallLocalBindingScope,
+    ScssCallReturnCandidate, ScssCallReturnResolutionContext, ScssGlobalVariableDeclaration,
+    ScssLoopReturnResolution, ScssReturnCondition,
+};
 
 pub use model::{
     OmenaScssEvalCallArgumentValueV0, OmenaScssEvalCallLocalBindingV0,
@@ -327,37 +334,6 @@ pub fn analyze_scss_control_flow_values(
     })
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
-struct ScssCallReturnCandidate {
-    kind: &'static str,
-    symbol_kind: &'static str,
-    role: &'static str,
-    name: Option<String>,
-    namespace: Option<String>,
-    parameter_names: Vec<String>,
-    parameter_values: Vec<OmenaScssEvalCallParameterValueV0>,
-    local_binding_values: Vec<OmenaScssEvalCallLocalBindingV0>,
-    argument_values: Vec<OmenaScssEvalCallArgumentValueV0>,
-    return_text: Option<String>,
-    return_value: Option<AbstractCssValueV0>,
-    body_has_control_flow: bool,
-    body_has_loop_control_flow: bool,
-    return_inside_loop_control_flow: bool,
-    return_loop_header_text: Option<String>,
-    return_loop_header_texts: Vec<String>,
-    return_condition_text: Option<String>,
-    return_negated_condition_texts: Vec<String>,
-    source_span_start: usize,
-    source_span_end: usize,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-struct ScssCallLocalBindingScope {
-    end_index: usize,
-    span_start: usize,
-    span_end: usize,
-}
-
 fn call_return_candidate_from_sass_symbol(
     source: &str,
     tokens: &[LexedToken],
@@ -563,21 +539,6 @@ fn static_scss_return_abstract_value_with_context(
         None => value.to_string(),
     };
     static_scss_return_abstract_value(value.as_str())
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-struct ScssReturnCondition {
-    condition_text: Option<String>,
-    negated_condition_texts: Vec<String>,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-struct ScssBranchBlock {
-    at_rule_index: usize,
-    at_rule_name: String,
-    condition_text: Option<String>,
-    body_start_index: usize,
-    body_end_index: usize,
 }
 
 fn scss_return_condition_from_token(
@@ -1555,13 +1516,6 @@ fn call_resolved_return_value_for_call(
     Some(AbstractCssValueV0::Top)
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
-enum ScssLoopReturnResolution {
-    Active(AbstractCssValueV0),
-    Inactive,
-    Unknown,
-}
-
 fn call_bound_loop_return_resolution(
     node: &OmenaScssEvalCallReturnNodeV0,
     bindings: BTreeMap<String, AbstractCssValueV0>,
@@ -1713,20 +1667,6 @@ fn apply_call_bound_local_bindings_before(
         );
         insert_static_scss_binding(bindings, local_binding.name.as_str(), value);
     }
-}
-
-struct ScssCallReturnResolutionContext<'a> {
-    nodes: &'a [OmenaScssEvalCallReturnNodeV0],
-    call_graph: &'a BTreeMap<String, Vec<String>>,
-    active_stack: &'a [String],
-    global_variable_declarations: &'a [ScssGlobalVariableDeclaration],
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum ScssCallBoundReturnActivity {
-    Active,
-    Inactive,
-    Unknown,
 }
 
 fn call_bound_return_activity(
@@ -2510,12 +2450,6 @@ fn control_flow_transfer_for_else_block(
 struct ScssBranchConditionHeader<'a> {
     header: &'a str,
     source_span_start: usize,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-struct ScssGlobalVariableDeclaration {
-    name: String,
-    declaration_start: usize,
 }
 
 fn previous_scss_branch_condition_headers(
