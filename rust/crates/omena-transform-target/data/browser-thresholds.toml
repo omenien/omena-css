@@ -1,7 +1,7 @@
 schema_version = "0"
 product = "omena-transform-target.browser-thresholds"
 refreshed_at = "2026-05-22"
-quorum_min_sources = 2
+quorum_min_sources = 3
 
 [[threshold]]
 table = "light_dark"
