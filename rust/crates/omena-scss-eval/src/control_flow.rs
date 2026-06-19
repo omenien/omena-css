@@ -52,7 +52,9 @@ use lexical::{
     LexicalScssBindings, collect_lexical_scss_bindings, collect_scss_global_variable_declarations,
     scss_global_variable_metadata_exists, static_scss_metadata_exists_call_may_need_resolution,
 };
-use loop_values::while_loop_body_assignment_names;
+use loop_values::{
+    loop_carried_bindings, split_header_at_keyword, while_loop_body_assignment_names,
+};
 use tokens::{
     declaration_end_token_index, matching_right_brace_token_index,
     matching_right_paren_token_index, next_non_trivia_token_index, token_range_end,
@@ -60,7 +62,7 @@ use tokens::{
 };
 use variables::{
     canonical_scss_variable_name, insert_static_scss_binding, static_scss_binding_value,
-    variable_name_end, variable_names_in_text, variable_names_in_text_preserving_order,
+    variable_name_end, variable_names_in_text,
 };
 
 pub use model::{
@@ -2757,55 +2759,6 @@ fn static_scss_balanced_value_end(
         index += ch.len_utf8();
     }
     None
-}
-
-fn loop_carried_bindings(header: &str) -> Vec<String> {
-    let separator = if header
-        .split_whitespace()
-        .any(|part| part.eq_ignore_ascii_case("from"))
-    {
-        "from"
-    } else {
-        "in"
-    };
-    let before_separator = split_header_at_keyword(header, separator)
-        .map(|(left, _)| left)
-        .unwrap_or(header);
-    variable_names_in_text_preserving_order(before_separator)
-}
-
-fn split_header_at_keyword<'a>(header: &'a str, keyword: &str) -> Option<(&'a str, &'a str)> {
-    let lower_header = header.to_ascii_lowercase();
-    let lower_keyword = keyword.to_ascii_lowercase();
-    let mut search_start = 0usize;
-    while search_start < lower_header.len() {
-        let relative_index = lower_header
-            .get(search_start..)?
-            .find(lower_keyword.as_str())?;
-        let index = search_start + relative_index;
-        let right_start = index + keyword.len();
-        if header_keyword_has_boundaries(header, index, right_start) {
-            let left = header.get(..index)?;
-            let right = header.get(right_start..)?;
-            return Some((left, right));
-        }
-        search_start = right_start;
-    }
-    None
-}
-
-fn header_keyword_has_boundaries(header: &str, start: usize, end: usize) -> bool {
-    let before_ok = header.get(..start).is_none_or(|text| {
-        text.chars()
-            .next_back()
-            .is_none_or(|ch| ch.is_ascii_whitespace())
-    });
-    let after_ok = header.get(end..).is_none_or(|text| {
-        text.chars()
-            .next()
-            .is_none_or(|ch| ch.is_ascii_whitespace())
-    });
-    before_ok && after_ok
 }
 
 #[cfg(test)]
