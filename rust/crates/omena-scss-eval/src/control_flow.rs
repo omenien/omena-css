@@ -24,6 +24,7 @@ mod call_return_nodes;
 mod model;
 mod oracle_corpus;
 mod tokens;
+mod variables;
 
 use analysis_model::{
     ScssBranchBlock, ScssCallBoundReturnActivity, ScssCallLocalBindingScope,
@@ -44,6 +45,10 @@ use tokens::{
     declaration_end_token_index, matching_right_brace_token_index,
     matching_right_paren_token_index, next_non_trivia_token_index, token_range_end,
     token_range_start, tokens_between_are_trivia,
+};
+use variables::{
+    canonical_scss_variable_name, insert_static_scss_binding, static_scss_binding_value,
+    variable_name_end, variable_names_in_text, variable_names_in_text_preserving_order,
 };
 
 pub use model::{
@@ -3396,71 +3401,6 @@ fn header_keyword_has_boundaries(header: &str, start: usize, end: usize) -> bool
             .is_none_or(|ch| ch.is_ascii_whitespace())
     });
     before_ok && after_ok
-}
-
-fn variable_names_in_text(text: &str) -> Vec<String> {
-    let mut names = variable_names_in_text_preserving_order(text);
-    names.sort();
-    names.dedup();
-    names
-}
-
-fn variable_names_in_text_preserving_order(text: &str) -> Vec<String> {
-    let mut names = Vec::new();
-    let mut index = 0usize;
-    while index < text.len() {
-        let Some(ch) = text[index..].chars().next() else {
-            break;
-        };
-        if ch != '$' {
-            index += ch.len_utf8();
-            continue;
-        }
-        let name_start = index + ch.len_utf8();
-        let name_end = variable_name_end(text, name_start);
-        if name_end > name_start
-            && let Some(name) = text.get(index..name_end)
-            && !names.iter().any(|candidate| candidate == name)
-        {
-            names.push(name.to_string());
-        }
-        index = name_end.max(index + ch.len_utf8());
-    }
-    names
-}
-
-fn canonical_scss_variable_name(name: &str) -> String {
-    let trimmed = name.trim();
-    let bare = trimmed.strip_prefix('$').unwrap_or(trimmed);
-    format!("${}", bare.replace('_', "-"))
-}
-
-fn insert_static_scss_binding(
-    bindings: &mut BTreeMap<String, AbstractCssValueV0>,
-    name: &str,
-    value: AbstractCssValueV0,
-) {
-    bindings.insert(canonical_scss_variable_name(name), value);
-}
-
-fn static_scss_binding_value<'a>(
-    bindings: &'a BTreeMap<String, AbstractCssValueV0>,
-    name: &str,
-) -> Option<&'a AbstractCssValueV0> {
-    bindings.get(canonical_scss_variable_name(name).as_str())
-}
-
-fn variable_name_end(text: &str, mut index: usize) -> usize {
-    while index < text.len() {
-        let Some(ch) = text[index..].chars().next() else {
-            break;
-        };
-        if !(ch.is_ascii_alphanumeric() || matches!(ch, '_' | '-')) {
-            break;
-        }
-        index += ch.len_utf8();
-    }
-    index
 }
 
 #[cfg(test)]

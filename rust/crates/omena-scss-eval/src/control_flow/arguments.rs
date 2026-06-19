@@ -2,7 +2,7 @@ use omena_abstract_value::{AbstractCssValueV0, abstract_css_value_from_text};
 
 use crate::value_eval::{reduce_static_scss_value, static_scss_bang_usage_is_comparison_only};
 
-use super::variable_name_end;
+use super::variables::variable_name_end;
 
 pub(super) fn split_scss_call_arguments(arguments: &str) -> Option<Vec<String>> {
     let arguments = arguments.trim();
