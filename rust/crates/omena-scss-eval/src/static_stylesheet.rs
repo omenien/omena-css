@@ -4,7 +4,8 @@ use omena_abstract_value::{AbstractCssValueV0, abstract_css_value_from_text};
 use omena_parser::{LexedToken, ParsedVariableFact, ParsedVariableFactKind, StyleDialect, lex};
 use omena_syntax::SyntaxKind;
 use omena_value_lattice::{
-    format_css_number, parse_numeric_value_with_unit, parse_whole_function_value_arguments,
+    format_css_number, parse_numeric_value_with_unit, parse_reducible_ceil_value,
+    parse_reducible_floor_value, parse_whole_function_value_arguments,
     substitute_static_css_function_references_in_value_until_stable,
 };
 use serde::Serialize;
@@ -6484,6 +6485,9 @@ fn reduce_static_less_value(value: String) -> String {
         &[
             ("unit", parse_static_less_unit_value),
             ("get-unit", parse_static_less_get_unit_value),
+            ("percentage", parse_static_less_percentage_value),
+            ("ceil", parse_reducible_ceil_value),
+            ("floor", parse_reducible_floor_value),
         ],
     )
     .unwrap_or(value);
@@ -6513,6 +6517,15 @@ fn parse_static_less_get_unit_value(value: &str) -> Option<String> {
     };
     let parsed = parse_numeric_value_with_unit(number.trim())?;
     Some(parsed.unit.to_string())
+}
+
+fn parse_static_less_percentage_value(value: &str) -> Option<String> {
+    let arguments = parse_whole_function_value_arguments(value, "percentage")?;
+    let [number] = arguments.as_slice() else {
+        return None;
+    };
+    let parsed = parse_numeric_value_with_unit(number.trim())?;
+    Some(format!("{}%", format_css_number(parsed.value * 100.0)))
 }
 
 fn parse_static_less_unit_argument(unit: &str) -> Option<&str> {
@@ -8837,6 +8850,35 @@ mod tests {
         assert!(report.evaluated_css.contains("margin: 5px"));
         assert!(report.evaluated_css.contains("padding: 5"));
         assert!(report.evaluated_css.contains("--unit: rem"));
+        assert!(report.oracle.all_legacy_declaration_values_preserved);
+    }
+
+    #[test]
+    fn static_less_evaluation_reduces_percentage_and_rounding_builtin_values() {
+        let report = derive_static_stylesheet_module_evaluation(
+            "@ratio: percentage(.5); @ceil: ceil(1.2px); @floor: floor(1.8px); .button { width: @ratio; top: @ceil; bottom: @floor; }",
+            StyleDialect::Less,
+        );
+        assert!(report.is_some());
+        let Some(report) = report else {
+            return;
+        };
+
+        assert_eq!(report.replacement_count, 3);
+        assert_eq!(report.resolved_replacements[0].text, "50%");
+        assert_eq!(report.resolved_replacements[1].text, "2px");
+        assert_eq!(report.resolved_replacements[2].text, "1px");
+        assert!(
+            report
+                .resolved_replacements
+                .iter()
+                .all(|replacement| replacement.abstract_value_kind == "exact")
+        );
+        assert_eq!(report.value_resolution.resolved_count, 3);
+        assert_eq!(report.value_resolution.raw_count, 0);
+        assert!(report.evaluated_css.contains("width: 50%"));
+        assert!(report.evaluated_css.contains("top: 2px"));
+        assert!(report.evaluated_css.contains("bottom: 1px"));
         assert!(report.oracle.all_legacy_declaration_values_preserved);
     }
 
