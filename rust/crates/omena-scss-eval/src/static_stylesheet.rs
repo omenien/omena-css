@@ -9,7 +9,7 @@ use omena_value_lattice::{
     parse_reducible_floor_value, parse_static_hsl_function_color_with_alpha,
     parse_static_hwb_function_color_with_alpha, parse_static_rgb_function_color_with_alpha,
     parse_static_srgb_color_with_alpha, parse_whole_function_value_arguments,
-    split_top_level_whitespace_value_components_owned,
+    parse_whole_function_value_inner, split_top_level_whitespace_value_components_owned,
     substitute_static_css_function_references_in_value_until_stable,
 };
 use serde::Serialize;
@@ -123,6 +123,12 @@ pub struct OmenaScssEvalStaticValueResolutionV0 {
 }
 
 const STATIC_STYLESHEET_VALUE_RESOLUTION_FUEL_LIMIT: usize = 128;
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct StaticLessResolvedValue {
+    text: String,
+    escaped: bool,
+}
 
 pub fn derive_static_stylesheet_module_evaluation(
     style_source: &str,
@@ -468,6 +474,7 @@ fn derive_static_less_stylesheet_module_evaluation(
             &declarations,
             &mut stack,
         )?;
+        let replacement = replacement.text;
         resolved_replacements.push(resolved_replacement_value(
             fact.name.as_str(),
             reference_start,
@@ -512,6 +519,7 @@ fn derive_static_less_stylesheet_module_evaluation(
             &property_declarations,
             &mut stack,
         )?;
+        let replacement = replacement.text;
         resolved_replacements.push(resolved_replacement_value(
             token.text.as_str(),
             reference_start,
@@ -4171,6 +4179,7 @@ fn render_static_less_mixin_body_variables(
                 variable_declarations,
                 &mut stack,
             )?
+            .text
         };
         edits.push(StaticStylesheetEvaluationEdit {
             start: reference.start,
@@ -4256,6 +4265,7 @@ fn resolve_static_less_mixin_value_with_bindings(
                 variable_declarations,
                 &mut stack,
             )?
+            .text
         };
         output.push_str(&value[cursor..reference.start]);
         output.push_str(&replacement);
@@ -6128,11 +6138,6 @@ fn resolve_static_less_variable_abstract_value_in_scope(
         fuel - 1,
     );
     stack.remove(&stack_key);
-    if let Some(rendered_value) = resolved.rendered_value.as_deref() {
-        return resolved_static_abstract_value(
-            reduce_static_less_value(rendered_value.to_string()).as_str(),
-        );
-    }
     resolved
 }
 
@@ -6198,7 +6203,7 @@ fn resolve_static_less_variable_value_in_scope(
     scopes: &[StaticStylesheetScope],
     declarations: &BTreeMap<(usize, String), StaticStylesheetVariableDeclaration>,
     stack: &mut BTreeSet<(usize, String)>,
-) -> Option<String> {
+) -> Option<StaticLessResolvedValue> {
     let stack_key = (scope_id, name.to_string());
     if !stack.insert(stack_key.clone()) {
         return None;
@@ -6212,7 +6217,13 @@ fn resolve_static_less_variable_value_in_scope(
         stack,
     );
     stack.remove(&stack_key);
-    resolved.map(reduce_static_less_value)
+    resolved.map(|resolved| {
+        if resolved.escaped {
+            resolved
+        } else {
+            reduce_static_less_value_with_escape_flag(resolved.text)
+        }
+    })
 }
 
 fn find_static_less_variable_declaration<'a>(
@@ -6235,12 +6246,12 @@ fn resolve_static_less_variable_value_text(
     scopes: &[StaticStylesheetScope],
     declarations: &BTreeMap<(usize, String), StaticStylesheetVariableDeclaration>,
     stack: &mut BTreeSet<(usize, String)>,
-) -> Option<String> {
+) -> Option<StaticLessResolvedValue> {
     let references =
         collect_static_stylesheet_variable_references(value, StaticStylesheetVariableKind::Less)?;
     if references.is_empty() {
         return static_stylesheet_literal_value_is_safe(value)
-            .then(|| reduce_static_less_value(value.to_string()));
+            .then(|| reduce_static_less_value_with_escape_flag(value.to_string()));
     }
     if !static_stylesheet_composite_value_is_safe(value) {
         return None;
@@ -6248,6 +6259,7 @@ fn resolve_static_less_variable_value_text(
 
     let mut output = String::with_capacity(value.len());
     let mut cursor = 0usize;
+    let mut escaped = false;
     for reference in references {
         let resolved = resolve_static_less_variable_value_in_scope(
             reference.name.as_str(),
@@ -6256,12 +6268,20 @@ fn resolve_static_less_variable_value_text(
             declarations,
             stack,
         )?;
+        escaped |= resolved.escaped;
         output.push_str(&value[cursor..reference.start]);
-        output.push_str(&resolved);
+        output.push_str(&resolved.text);
         cursor = reference.end;
     }
     output.push_str(&value[cursor..]);
-    Some(reduce_static_less_value(output))
+    Some(if escaped {
+        StaticLessResolvedValue {
+            text: output,
+            escaped,
+        }
+    } else {
+        reduce_static_less_value_with_escape_flag(output)
+    })
 }
 
 fn resolve_static_less_property_abstract_value_in_scope(
@@ -6293,11 +6313,6 @@ fn resolve_static_less_property_abstract_value_in_scope(
         fuel - 1,
     );
     stack.remove(&stack_key);
-    if let Some(rendered_value) = resolved.rendered_value.as_deref() {
-        return resolved_static_abstract_value(
-            reduce_static_less_value(rendered_value.to_string()).as_str(),
-        );
-    }
     resolved
 }
 
@@ -6363,7 +6378,7 @@ fn resolve_static_less_property_value_in_scope(
     scopes: &[StaticStylesheetScope],
     declarations: &BTreeMap<(usize, String), StaticStylesheetPropertyDeclaration>,
     stack: &mut BTreeSet<(usize, String)>,
-) -> Option<String> {
+) -> Option<StaticLessResolvedValue> {
     let stack_key = (scope_id, name.to_string());
     if !stack.insert(stack_key.clone()) {
         return None;
@@ -6377,7 +6392,13 @@ fn resolve_static_less_property_value_in_scope(
         stack,
     );
     stack.remove(&stack_key);
-    resolved.map(reduce_static_less_value)
+    resolved.map(|resolved| {
+        if resolved.escaped {
+            resolved
+        } else {
+            reduce_static_less_value_with_escape_flag(resolved.text)
+        }
+    })
 }
 
 fn find_static_less_property_declaration<'a>(
@@ -6400,12 +6421,12 @@ fn resolve_static_less_property_value_text(
     scopes: &[StaticStylesheetScope],
     declarations: &BTreeMap<(usize, String), StaticStylesheetPropertyDeclaration>,
     stack: &mut BTreeSet<(usize, String)>,
-) -> Option<String> {
+) -> Option<StaticLessResolvedValue> {
     let references =
         collect_static_stylesheet_variable_references(value, StaticStylesheetVariableKind::Scss)?;
     if references.is_empty() {
         return static_stylesheet_literal_value_is_safe(value)
-            .then(|| reduce_static_less_value(value.to_string()));
+            .then(|| reduce_static_less_value_with_escape_flag(value.to_string()));
     }
     if !static_stylesheet_composite_value_is_safe(value) {
         return None;
@@ -6413,6 +6434,7 @@ fn resolve_static_less_property_value_text(
 
     let mut output = String::with_capacity(value.len());
     let mut cursor = 0usize;
+    let mut escaped = false;
     for reference in references {
         let resolved = resolve_static_less_property_value_in_scope(
             reference.name.as_str(),
@@ -6421,12 +6443,20 @@ fn resolve_static_less_property_value_text(
             declarations,
             stack,
         )?;
+        escaped |= resolved.escaped;
         output.push_str(&value[cursor..reference.start]);
-        output.push_str(&resolved);
+        output.push_str(&resolved.text);
         cursor = reference.end;
     }
     output.push_str(&value[cursor..]);
-    Some(reduce_static_less_value(output))
+    Some(if escaped {
+        StaticLessResolvedValue {
+            text: output,
+            escaped,
+        }
+    } else {
+        reduce_static_less_value_with_escape_flag(output)
+    })
 }
 
 fn collect_static_less_literal_value_edits(
@@ -6489,8 +6519,20 @@ fn static_less_escaped_string_token_is_declaration_value(
 }
 
 fn reduce_static_less_value(value: String) -> String {
+    reduce_static_less_value_with_escape_flag(value).text
+}
+
+fn reduce_static_less_value_with_escape_flag(value: String) -> StaticLessResolvedValue {
+    if let Some(escaped) = parse_static_less_escape_value(value.as_str())
+        .or_else(|| reduce_static_less_escaped_string_value(value.as_str()))
+    {
+        return StaticLessResolvedValue {
+            text: escaped,
+            escaped: true,
+        };
+    }
     let value = reduce_static_less_numeric_value(value);
-    let value = substitute_static_css_function_references_in_value_until_stable(
+    let text = substitute_static_css_function_references_in_value_until_stable(
         value.as_str(),
         &[
             ("unit", parse_static_less_unit_value),
@@ -6526,7 +6568,10 @@ fn reduce_static_less_value(value: String) -> String {
         ],
     )
     .unwrap_or(value);
-    reduce_static_less_escaped_string_value(value.as_str()).unwrap_or(value)
+    StaticLessResolvedValue {
+        text,
+        escaped: false,
+    }
 }
 
 fn parse_static_less_unit_value(value: &str) -> Option<String> {
@@ -6891,6 +6936,17 @@ fn parse_static_less_extract_value(value: &str) -> Option<String> {
     items.get(index.checked_sub(1)?).cloned()
 }
 
+fn parse_static_less_escape_value(value: &str) -> Option<String> {
+    let argument = parse_whole_function_value_inner(value, "e")?.trim();
+    static_less_quoted_string_contents(argument).or_else(|| {
+        (!argument.is_empty()
+            && argument
+                .chars()
+                .all(|ch| ch.is_ascii_alphanumeric() || matches!(ch, '_' | '-')))
+        .then(|| argument.to_string())
+    })
+}
+
 fn static_less_list_items_from_arguments(arguments: &[String]) -> Option<Vec<String>> {
     if arguments.len() == 1 {
         return split_top_level_whitespace_value_components_owned(arguments[0].as_str())
@@ -6939,6 +6995,11 @@ fn parse_static_less_unit_argument(unit: &str) -> Option<&str> {
 fn reduce_static_less_escaped_string_value(value: &str) -> Option<String> {
     let trimmed = value.trim();
     let rest = trimmed.strip_prefix('~')?;
+    static_less_quoted_string_contents(rest)
+}
+
+fn static_less_quoted_string_contents(value: &str) -> Option<String> {
+    let rest = value.trim();
     let quote = rest.chars().next()?;
     if !matches!(quote, '"' | '\'') {
         return None;
@@ -7579,6 +7640,27 @@ mod tests {
         );
         assert!(report.evaluated_css.contains("filter: alpha(opacity=50)"));
         assert!(!report.evaluated_css.contains("~\"alpha"));
+        assert!(report.oracle.all_legacy_declaration_values_preserved);
+    }
+
+    #[test]
+    fn static_less_evaluation_reduces_escape_builtin_values_without_reentry() {
+        let report = derive_static_stylesheet_module_evaluation(
+            "@name: e(\"hello\"); @calc: e(\"calc(1px + 2px)\"); @min: e(\"min(1px, 2px)\"); @sign: e(\"sign(-2px)\"); .button { a: @name; b: @calc; c: @min; d: @sign; }",
+            StyleDialect::Less,
+        );
+        assert!(report.is_some());
+        let Some(report) = report else {
+            return;
+        };
+
+        assert_eq!(report.replacement_count, 4);
+        assert_eq!(report.value_resolution.raw_count, 4);
+        assert_eq!(report.value_resolution.top_count, 0);
+        assert!(report.evaluated_css.contains("a: hello"));
+        assert!(report.evaluated_css.contains("b: calc(1px + 2px)"));
+        assert!(report.evaluated_css.contains("c: min(1px, 2px)"));
+        assert!(report.evaluated_css.contains("d: sign(-2px)"));
         assert!(report.oracle.all_legacy_declaration_values_preserved);
     }
 
