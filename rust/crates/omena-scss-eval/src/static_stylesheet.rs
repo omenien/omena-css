@@ -4815,10 +4815,10 @@ mod tests {
         );
         assert_eq!(report.legacy_output_consumed_until_cutover_count, 0);
         assert!(report.all_legacy_outputs_retained_as_oracle);
-        assert_eq!(report.fixture_count, 72);
+        assert_eq!(report.fixture_count, 73);
         assert_eq!(report.scss_fixture_count, 16);
         assert_eq!(report.sass_fixture_count, 11);
-        assert_eq!(report.less_fixture_count, 45);
+        assert_eq!(report.less_fixture_count, 46);
         assert_eq!(report.evaluated_fixture_count, report.fixture_count);
         assert_eq!(report.missing_evaluation_count, 0);
         assert_eq!(report.divergence_count, 0);
@@ -4845,6 +4845,7 @@ mod tests {
         assert!(report.native_raw_value_count > 0);
         assert!(report.native_top_value_count > 0);
         assert!(report.native_cycle_value_count > 0);
+        assert!(report.native_fuel_exhausted_value_count > 0);
         assert!(report.native_unresolved_reference_value_count > 0);
         assert!(report.native_unsupported_dynamic_value_count > 0);
         assert!(report.all_legacy_declaration_values_preserved);
@@ -4912,6 +4913,14 @@ mod tests {
                 .any(|fixture| fixture.id == "scss.recursive-function-return"
                     && fixture.native_top_value_count == 1
                     && fixture.native_cycle_value_count == 1)
+        );
+        assert!(
+            report
+                .fixtures
+                .iter()
+                .any(|fixture| fixture.id == "less.fuel-exhausted-variable-chain"
+                    && fixture.native_top_value_count == 1
+                    && fixture.native_fuel_exhausted_value_count == 1)
         );
         assert!(
             report

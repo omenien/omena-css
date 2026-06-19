@@ -764,7 +764,7 @@ function assertStaticStylesheetEvaluatorOracleCorpus(
   assert.ok(summary.fixtureCount >= 55, "static stylesheet oracle corpus must not shrink");
   assert.ok(summary.scssFixtureCount >= 10, "SCSS oracle fixture coverage must not shrink");
   assert.ok(summary.sassFixtureCount >= 7, "Sass oracle fixture coverage must not shrink");
-  assert.ok(summary.lessFixtureCount >= 45, "Less oracle fixture coverage must not shrink");
+  assert.ok(summary.lessFixtureCount >= 46, "Less oracle fixture coverage must not shrink");
   assert.equal(summary.evaluatedFixtureCount, summary.fixtureCount);
   assert.equal(summary.legacyOutputRetainedAsOracleCount, summary.evaluatedFixtureCount);
   assert.equal(summary.legacyOutputConsumedUntilCutoverCount, 0);
@@ -777,7 +777,7 @@ function assertStaticStylesheetEvaluatorOracleCorpus(
   assert.ok(summary.nativeRawValueCount > 0);
   assert.ok(summary.nativeTopValueCount > 0);
   assert.ok(summary.nativeCycleValueCount > 0);
-  assert.equal(summary.nativeFuelExhaustedValueCount, 0);
+  assert.ok(summary.nativeFuelExhaustedValueCount > 0);
   assert.ok(summary.nativeUnresolvedReferenceValueCount > 0);
   assert.ok(summary.nativeUnsupportedDynamicValueCount > 0);
   assert.equal(summary.allLegacyDeclarationValuesPreserved, true);
@@ -818,6 +818,7 @@ function assertStaticStylesheetEvaluatorOracleCorpus(
     "sass.static-each-return",
     "less.variable-basic",
     "less.dynamic-escaped-string",
+    "less.fuel-exhausted-variable-chain",
   ]) {
     const fixture = fixtures.get(id);
     assert.ok(fixture, `missing oracle fixture ${id}`);
@@ -848,6 +849,9 @@ function assertStaticStylesheetEvaluatorOracleCorpus(
   const recursiveFunction = fixtures.get("scss.recursive-function-return");
   assert.equal(recursiveFunction?.nativeTopValueCount, 1);
   assert.equal(recursiveFunction?.nativeCycleValueCount, 1);
+  const fuelExhaustedLess = fixtures.get("less.fuel-exhausted-variable-chain");
+  assert.equal(fuelExhaustedLess?.nativeTopValueCount, 1);
+  assert.equal(fuelExhaustedLess?.nativeFuelExhaustedValueCount, 1);
   const dynamicLess = fixtures.get("less.dynamic-escaped-string");
   assert.equal(dynamicLess?.nativeRawValueCount, 1);
   assert.equal(dynamicLess?.nativeUnsupportedDynamicValueCount, 1);

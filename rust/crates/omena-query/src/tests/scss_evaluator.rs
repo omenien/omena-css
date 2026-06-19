@@ -73,10 +73,10 @@ fn exposes_static_stylesheet_oracle_corpus_through_query_boundary() {
     assert_eq!(summary.mode, "oracleOnly");
     assert_eq!(summary.value_type, "AbstractCssValueV0");
     assert_eq!(summary.product_output_source, "nativeEditOutput");
-    assert_eq!(summary.fixture_count, 72);
+    assert_eq!(summary.fixture_count, 73);
     assert_eq!(summary.scss_fixture_count, 16);
     assert_eq!(summary.sass_fixture_count, 11);
-    assert_eq!(summary.less_fixture_count, 45);
+    assert_eq!(summary.less_fixture_count, 46);
     assert_eq!(summary.evaluated_fixture_count, summary.fixture_count);
     assert_eq!(
         summary.legacy_output_retained_as_oracle_count,
@@ -109,6 +109,7 @@ fn exposes_static_stylesheet_oracle_corpus_through_query_boundary() {
     assert!(summary.native_raw_value_count > 0);
     assert!(summary.native_top_value_count > 0);
     assert!(summary.native_cycle_value_count > 0);
+    assert!(summary.native_fuel_exhausted_value_count > 0);
     assert!(summary.native_unresolved_reference_value_count > 0);
     assert!(summary.native_unsupported_dynamic_value_count > 0);
     assert!(summary.all_legacy_declaration_values_preserved);
@@ -229,6 +230,15 @@ fn exposes_static_stylesheet_oracle_corpus_through_query_boundary() {
             .any(|fixture| fixture.id == "scss.recursive-function-return"
                 && fixture.native_top_value_count == 1
                 && fixture.native_cycle_value_count == 1)
+    );
+    assert!(
+        summary
+            .corpus
+            .fixtures
+            .iter()
+            .any(|fixture| fixture.id == "less.fuel-exhausted-variable-chain"
+                && fixture.native_top_value_count == 1
+                && fixture.native_fuel_exhausted_value_count == 1)
     );
     assert!(
         summary
