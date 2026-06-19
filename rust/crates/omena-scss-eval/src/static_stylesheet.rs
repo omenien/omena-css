@@ -9287,16 +9287,18 @@ fn static_stylesheet_variable_reference_is_named_argument_label(
     start: usize,
     mut index: usize,
 ) -> bool {
-    if !value
-        .get(..start)
-        .and_then(|prefix| {
-            prefix
-                .chars()
-                .rev()
-                .find(|candidate| !candidate.is_ascii_whitespace())
-        })
-        .is_some_and(|ch| matches!(ch, '(' | ','))
-    {
+    let Some(previous) = value.get(..start).and_then(|prefix| {
+        prefix
+            .chars()
+            .rev()
+            .find(|candidate| !candidate.is_ascii_whitespace())
+    }) else {
+        return false;
+    };
+    if !matches!(previous, '(' | ',' | ';') {
+        return false;
+    }
+    if previous == ';' && !static_stylesheet_position_is_inside_parentheses(value, start) {
         return false;
     }
     while index < value.len() {
@@ -9312,6 +9314,40 @@ fn static_stylesheet_variable_reference_is_named_argument_label(
         index += ch.len_utf8();
     }
     false
+}
+
+fn static_stylesheet_position_is_inside_parentheses(value: &str, end: usize) -> bool {
+    let mut index = 0usize;
+    let mut paren_depth = 0usize;
+    let mut quote: Option<char> = None;
+    while index < end && index < value.len() {
+        let Some(ch) = value[index..].chars().next() else {
+            break;
+        };
+        if let Some(quote_ch) = quote {
+            index += ch.len_utf8();
+            if ch == '\\' {
+                if let Some(escaped) = value[index..].chars().next() {
+                    index += escaped.len_utf8();
+                }
+            } else if ch == quote_ch {
+                quote = None;
+            }
+            continue;
+        }
+        if matches!(ch, '"' | '\'') {
+            quote = Some(ch);
+            index += ch.len_utf8();
+            continue;
+        }
+        match ch {
+            '(' => paren_depth += 1,
+            ')' => paren_depth = paren_depth.saturating_sub(1),
+            _ => {}
+        }
+        index += ch.len_utf8();
+    }
+    paren_depth > 0
 }
 
 fn static_stylesheet_position_is_inside_scoped_declaration(
@@ -9398,9 +9434,9 @@ mod tests {
         assert_eq!(report.mode, "oracleOnly");
         assert_eq!(report.value_type, "AbstractCssValueV0");
         assert_eq!(report.product_output_source, "legacyEvaluatedCss");
-        assert_eq!(report.fixture_count, 32);
+        assert_eq!(report.fixture_count, 33);
         assert_eq!(report.scss_fixture_count, 6);
-        assert_eq!(report.less_fixture_count, 26);
+        assert_eq!(report.less_fixture_count, 27);
         assert_eq!(report.evaluated_fixture_count, report.fixture_count);
         assert_eq!(report.missing_evaluation_count, 0);
         assert_eq!(report.divergence_count, 0);
@@ -9842,6 +9878,24 @@ mod tests {
     fn static_less_evaluation_expands_named_mixin_arguments() {
         let report = derive_static_stylesheet_module_evaluation(
             ".tone(@color, @gap: 1px) { color: @color; margin: @gap; } .button { .tone(@gap: 2px, @color: blue); }",
+            StyleDialect::Less,
+        );
+        assert!(report.is_some());
+        let Some(report) = report else {
+            return;
+        };
+
+        assert!(!report.evaluated_css.contains(".tone(@color"));
+        assert!(!report.evaluated_css.contains(".tone(@gap"));
+        assert!(report.evaluated_css.contains("color: blue"));
+        assert!(report.evaluated_css.contains("margin: 2px"));
+        assert!(report.oracle.all_legacy_declaration_values_preserved);
+    }
+
+    #[test]
+    fn static_less_evaluation_expands_semicolon_named_mixin_arguments() {
+        let report = derive_static_stylesheet_module_evaluation(
+            ".tone(@color; @gap: 1px) { color: @color; margin: @gap; } .button { .tone(@gap: 2px; @color: blue); }",
             StyleDialect::Less,
         );
         assert!(report.is_some());
