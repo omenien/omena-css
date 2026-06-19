@@ -332,7 +332,7 @@ fn consumer_build_preserves_source_when_scss_evaluator_native_edits_diverge() {
         scss_module_evaluation: Some(OmenaQueryTransformModuleEvaluationV0 {
             evaluator: "dart-sass-compatible".to_string(),
             evaluated_css: ".button { color: red; }".to_string(),
-            native_edit_output: Some(".button { color: red; }".to_string()),
+            native_edit_output: None,
             native_replacements: Vec::new(),
             native_edits: vec![native_module_evaluation_edit(source, "$brand", "blue")],
             oracle: None,

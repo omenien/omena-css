@@ -95,6 +95,43 @@ fn execution_runtime_prefers_native_output_over_legacy_evaluated_css() {
 }
 
 #[test]
+fn execution_runtime_consumes_native_output_without_native_edits() {
+    let source = r#".button { color: $brand; }"#;
+    let native_css = ".button { color: red; }";
+    let legacy_css = ".button { color: legacy; }";
+    let context = TransformExecutionContextV0 {
+        scss_module_evaluation: Some(TransformModuleEvaluationV0 {
+            evaluator: "dart-sass-compatible".to_string(),
+            evaluated_css: legacy_css.to_string(),
+            native_edit_output: Some(native_css.to_string()),
+            native_replacements: Vec::new(),
+            native_edits: Vec::new(),
+            oracle: None,
+        }),
+        ..TransformExecutionContextV0::default()
+    };
+    let execution = execute_transform_passes_on_source_with_dialect_and_context(
+        source,
+        StyleDialect::Scss,
+        &[
+            TransformPassKind::ScssModuleEvaluate,
+            TransformPassKind::PrintCss,
+        ],
+        &context,
+    );
+
+    assert_eq!(execution.mutation_count, 1);
+    assert_eq!(execution.output_css, native_css);
+    assert!(!execution.output_css.contains("legacy"));
+    assert_eq!(
+        execution.outcomes.first().map(|outcome| outcome.detail),
+        Some(
+            "applied explicit SCSS module evaluation native edit output from the evaluator boundary"
+        )
+    );
+}
+
+#[test]
 fn execution_runtime_applies_explicit_less_module_evaluation() {
     let source = r#".button { color: @brand; }"#;
     let evaluated_css = ".button { color: red; }";
@@ -256,7 +293,7 @@ fn execution_runtime_consumes_oracle_output_when_native_edits_are_stale_but_orac
         less_module_evaluation: Some(TransformModuleEvaluationV0 {
             evaluator: "omena-query-static-less-variable-evaluator".to_string(),
             evaluated_css: evaluated_css.to_string(),
-            native_edit_output: Some(evaluated_css.to_string()),
+            native_edit_output: None,
             native_replacements: Vec::new(),
             native_edits: vec![TransformModuleEvaluationNativeEditV0 {
                 start: 67,
@@ -317,7 +354,7 @@ fn execution_runtime_preserves_scss_source_when_native_edits_diverge_from_oracle
         scss_module_evaluation: Some(TransformModuleEvaluationV0 {
             evaluator: "dart-sass-compatible".to_string(),
             evaluated_css: ".button { color: red; }".to_string(),
-            native_edit_output: Some(".button { color: red; }".to_string()),
+            native_edit_output: None,
             native_replacements: Vec::new(),
             native_edits: vec![native_module_evaluation_edit(source, "$brand", "blue")],
             oracle: None,
@@ -351,7 +388,7 @@ fn execution_runtime_preserves_less_source_when_native_edits_diverge_from_oracle
         less_module_evaluation: Some(TransformModuleEvaluationV0 {
             evaluator: "less-js-compatible".to_string(),
             evaluated_css: ".button { color: red; }".to_string(),
-            native_edit_output: Some(".button { color: red; }".to_string()),
+            native_edit_output: None,
             native_replacements: Vec::new(),
             native_edits: vec![native_module_evaluation_edit(source, "@brand", "blue")],
             oracle: None,

@@ -863,14 +863,17 @@ fn materialize_transform_module_evaluation_output(
     oracle_detail: &'static str,
     preserve_detail: &'static str,
 ) -> TransformModuleEvaluationMaterializedOutput {
+    if let Some(native_edit_output) = evaluation.native_edit_output.as_ref() {
+        return TransformModuleEvaluationMaterializedOutput {
+            css: native_edit_output.clone(),
+            detail: native_detail,
+        };
+    }
+
     if let Some(native_css) =
         apply_transform_module_evaluation_native_edits(input_css, &evaluation.native_edits)
     {
-        let expected_native_css = evaluation
-            .native_edit_output
-            .as_deref()
-            .unwrap_or(evaluation.evaluated_css.as_str());
-        if native_css == expected_native_css {
+        if native_css == evaluation.evaluated_css {
             return TransformModuleEvaluationMaterializedOutput {
                 css: native_css,
                 detail: native_detail,
