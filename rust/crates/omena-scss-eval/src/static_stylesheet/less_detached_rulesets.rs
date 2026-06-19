@@ -2,15 +2,15 @@ use omena_parser::LexedToken;
 use omena_syntax::SyntaxKind;
 
 use super::{
+    less_mixins::static_less_mixin_call_context_is_plain,
     model::{
         StaticLessDetachedRulesetAccessor, StaticLessDetachedRulesetCall,
         StaticLessDetachedRulesetDeclaration, StaticStylesheetScope,
     },
-    static_less_mixin_body_is_static_declaration_subset, static_less_mixin_call_context_is_plain,
-    static_less_variable_name_is_safe, static_stylesheet_matching_token_index,
-    static_stylesheet_property_name_is_safe, static_stylesheet_scope_for_position,
-    static_stylesheet_skip_trivia_tokens, static_stylesheet_token_end,
-    static_stylesheet_token_start,
+    static_less_mixin_body_is_static_declaration_subset, static_less_variable_name_is_safe,
+    static_stylesheet_matching_token_index, static_stylesheet_property_name_is_safe,
+    static_stylesheet_scope_for_position, static_stylesheet_skip_trivia_tokens,
+    static_stylesheet_token_end, static_stylesheet_token_start,
 };
 
 pub(super) fn collect_static_less_detached_ruleset_declarations(
