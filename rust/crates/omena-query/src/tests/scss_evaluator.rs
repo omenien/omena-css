@@ -16,8 +16,8 @@ fn exposes_static_stylesheet_oracle_corpus_through_query_boundary() {
     assert_eq!(summary.mode, "oracleOnly");
     assert_eq!(summary.value_type, "AbstractCssValueV0");
     assert_eq!(summary.product_output_source, "legacyEvaluatedCss");
-    assert_eq!(summary.fixture_count, 50);
-    assert_eq!(summary.scss_fixture_count, 6);
+    assert_eq!(summary.fixture_count, 52);
+    assert_eq!(summary.scss_fixture_count, 8);
     assert_eq!(summary.less_fixture_count, 44);
     assert_eq!(summary.evaluated_fixture_count, summary.fixture_count);
     assert_eq!(summary.missing_evaluation_count, 0);
@@ -37,6 +37,20 @@ fn exposes_static_stylesheet_oracle_corpus_through_query_boundary() {
             .fixtures
             .iter()
             .any(|fixture| fixture.id == "scss.static-for-return")
+    );
+    assert!(
+        summary
+            .corpus
+            .fixtures
+            .iter()
+            .any(|fixture| fixture.id == "scss.dynamic-mixin-local")
+    );
+    assert!(
+        summary
+            .corpus
+            .fixtures
+            .iter()
+            .any(|fixture| fixture.id == "scss.recursive-nested-mixin-include")
     );
     assert!(
         summary
@@ -602,6 +616,53 @@ fn exposes_static_scss_inspect_values_through_query_boundary() {
             .as_ref()
             .is_some_and(|evaluation| evaluation.evaluated_css.contains("margin: 2px"))
     );
+}
+
+#[test]
+fn exposes_static_scss_dynamic_mixin_locals_as_preserved_oracle_output_through_query_boundary() {
+    let summary = summarize_omena_query_static_stylesheet_evaluator_from_source(
+        "@mixin tone { $space: meta.inspect((a: b)); margin: $space; } .button { @include tone; }",
+        OmenaParserStyleDialect::Scss,
+    );
+
+    assert_eq!(summary.product, "omena-query.static-stylesheet-evaluator");
+    assert_eq!(summary.mode, "oracleOnly");
+    assert_eq!(summary.value_type, "AbstractCssValueV0");
+    assert!(summary.legacy_output_consumed_until_cutover);
+    assert!(summary.evaluation_available);
+    assert_eq!(summary.divergence_count, 0);
+    assert!(summary.all_legacy_declaration_values_preserved);
+    assert_eq!(summary.native_replacement_count, 0);
+    assert!(summary.evaluation.as_ref().is_some_and(|evaluation| {
+        evaluation.evaluated_css.contains("@mixin tone")
+            && evaluation.evaluated_css.contains("meta.inspect((a: b))")
+            && evaluation.evaluated_css.contains("@include tone")
+            && !evaluation.evaluated_css.contains("margin: (a: b)")
+    }));
+}
+
+#[test]
+fn exposes_static_scss_recursive_nested_mixin_includes_as_preserved_oracle_output_through_query_boundary()
+ {
+    let summary = summarize_omena_query_static_stylesheet_evaluator_from_source(
+        "@mixin a { @include b; } @mixin b { @include a; } .button { @include a; }",
+        OmenaParserStyleDialect::Scss,
+    );
+
+    assert_eq!(summary.product, "omena-query.static-stylesheet-evaluator");
+    assert_eq!(summary.mode, "oracleOnly");
+    assert_eq!(summary.value_type, "AbstractCssValueV0");
+    assert!(summary.legacy_output_consumed_until_cutover);
+    assert!(summary.evaluation_available);
+    assert_eq!(summary.divergence_count, 0);
+    assert!(summary.all_legacy_declaration_values_preserved);
+    assert_eq!(summary.native_replacement_count, 0);
+    assert!(summary.evaluation.as_ref().is_some_and(|evaluation| {
+        evaluation.evaluated_css.contains("@mixin a")
+            && evaluation.evaluated_css.contains("@mixin b")
+            && evaluation.evaluated_css.contains("@include a")
+            && evaluation.evaluated_css.contains("@include b")
+    }));
 }
 
 #[test]

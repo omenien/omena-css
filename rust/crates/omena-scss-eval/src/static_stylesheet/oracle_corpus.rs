@@ -196,6 +196,16 @@ fn static_stylesheet_oracle_corpus_fixtures() -> &'static [StaticStylesheetOracl
             source: "@mixin tone($color, $gap: 1px) { color: $color; margin: $gap; } .button { @include tone(red, 2px); }",
         },
         StaticStylesheetOracleCorpusFixtureV0 {
+            id: "scss.dynamic-mixin-local",
+            dialect: StyleDialect::Scss,
+            source: "@mixin tone { $space: meta.inspect((a: b)); margin: $space; } .button { @include tone; }",
+        },
+        StaticStylesheetOracleCorpusFixtureV0 {
+            id: "scss.recursive-nested-mixin-include",
+            dialect: StyleDialect::Scss,
+            source: "@mixin a { @include b; } @mixin b { @include a; } .button { @include a; }",
+        },
+        StaticStylesheetOracleCorpusFixtureV0 {
             id: "less.variable-basic",
             dialect: StyleDialect::Less,
             source: "@gap: 2px; .card { margin: @gap; }",

@@ -127,6 +127,11 @@ pub struct OmenaScssEvalStaticValueResolutionV0 {
 
 const STATIC_STYLESHEET_VALUE_RESOLUTION_FUEL_LIMIT: usize = 128;
 
+struct StaticScssMixinEvaluationEdits {
+    edits: Vec<StaticStylesheetEvaluationEdit>,
+    preserved_raw_include_count: usize,
+}
+
 struct StaticLessMixinEvaluationEdits {
     edits: Vec<StaticStylesheetEvaluationEdit>,
     preserved_non_rendering_call_count: usize,
@@ -374,6 +379,7 @@ fn derive_static_scss_stylesheet_module_evaluation(
         edits.extend(function_edits);
         resolved_replacements.extend(function_replacements);
     }
+    let mut preserved_scss_evaluation_count = 0usize;
     if let Some(mixin_edits) = collect_static_scss_mixin_evaluation_edits(
         style_source,
         tokens,
@@ -382,11 +388,12 @@ fn derive_static_scss_stylesheet_module_evaluation(
         &scopes,
         &declarations,
     ) {
-        edits.extend(mixin_edits);
+        preserved_scss_evaluation_count += mixin_edits.preserved_raw_include_count;
+        edits.extend(mixin_edits.edits);
     }
 
     let evaluated_css = apply_static_stylesheet_evaluation_edits(style_source, edits)?;
-    if evaluated_css == style_source {
+    if evaluated_css == style_source && preserved_scss_evaluation_count == 0 {
         return None;
     }
     build_static_stylesheet_evaluation_report(
@@ -1059,10 +1066,13 @@ fn collect_static_scss_mixin_evaluation_edits(
     mixin_declarations: &[StaticScssMixinDeclaration],
     scopes: &[StaticStylesheetScope],
     variable_declarations: &[StaticStylesheetScopedVariableDeclaration],
-) -> Option<Vec<StaticStylesheetEvaluationEdit>> {
+) -> Option<StaticScssMixinEvaluationEdits> {
     let calls = collect_static_scss_mixin_include_calls(source, tokens, mixin_declarations)?;
     if calls.is_empty() {
-        return Some(Vec::new());
+        return Some(StaticScssMixinEvaluationEdits {
+            edits: Vec::new(),
+            preserved_raw_include_count: 0,
+        });
     }
 
     let context = StaticScssFunctionResolutionContext {
@@ -1074,7 +1084,9 @@ fn collect_static_scss_mixin_evaluation_edits(
     };
     let mut edits = Vec::new();
     let mut used_declaration_names = BTreeSet::new();
+    let mut preserved_declaration_names = BTreeSet::new();
     let mut used_function_declaration_names = BTreeSet::new();
+    let mut preserved_raw_include_count = 0usize;
     for call in calls.iter().filter(|call| {
         !static_scss_mixin_include_is_inside_declaration_body(call, mixin_declarations)
             && !static_scss_mixin_include_is_inside_function_declaration_body(
@@ -1088,14 +1100,20 @@ fn collect_static_scss_mixin_evaluation_edits(
         }) else {
             continue;
         };
-        let rendered = render_static_scss_mixin_include_body(
+        let Some(rendered) = render_static_scss_mixin_include_body(
             source,
             tokens,
             declaration,
             call,
             call.start,
             context,
-        )?;
+        ) else {
+            preserved_raw_include_count += 1;
+            preserved_declaration_names.insert(canonical_static_scss_function_name(
+                declaration.name.as_str(),
+            ));
+            continue;
+        };
         used_declaration_names.extend(rendered.used_mixin_declaration_names);
         used_function_declaration_names.extend(rendered.used_function_declaration_names);
         edits.push(StaticStylesheetEvaluationEdit {
@@ -1106,9 +1124,9 @@ fn collect_static_scss_mixin_evaluation_edits(
     }
 
     for declaration in mixin_declarations.iter().filter(|declaration| {
-        used_declaration_names.contains(&canonical_static_scss_function_name(
-            declaration.name.as_str(),
-        ))
+        let canonical_name = canonical_static_scss_function_name(declaration.name.as_str());
+        used_declaration_names.contains(&canonical_name)
+            && !preserved_declaration_names.contains(&canonical_name)
     }) {
         edits.push(StaticStylesheetEvaluationEdit {
             start: declaration.span_start,
@@ -1132,7 +1150,10 @@ fn collect_static_scss_mixin_evaluation_edits(
         });
     }
 
-    Some(edits)
+    Some(StaticScssMixinEvaluationEdits {
+        edits,
+        preserved_raw_include_count,
+    })
 }
 
 fn collect_static_scss_resolved_function_names_in_mixin_body(
@@ -9785,8 +9806,8 @@ mod tests {
         assert_eq!(report.mode, "oracleOnly");
         assert_eq!(report.value_type, "AbstractCssValueV0");
         assert_eq!(report.product_output_source, "legacyEvaluatedCss");
-        assert_eq!(report.fixture_count, 50);
-        assert_eq!(report.scss_fixture_count, 6);
+        assert_eq!(report.fixture_count, 52);
+        assert_eq!(report.scss_fixture_count, 8);
         assert_eq!(report.less_fixture_count, 44);
         assert_eq!(report.evaluated_fixture_count, report.fixture_count);
         assert_eq!(report.missing_evaluation_count, 0);
@@ -13664,23 +13685,43 @@ mod tests {
     }
 
     #[test]
-    fn static_scss_evaluation_skips_dynamic_mixin_local_variables() {
+    fn static_scss_evaluation_preserves_dynamic_mixin_local_variables_as_oracle_report() {
         let report = derive_static_stylesheet_module_evaluation(
             "@mixin tone { $space: meta.inspect((a: b)); margin: $space; } .button { @include tone; }",
             StyleDialect::Scss,
         );
 
-        assert!(report.is_none());
+        assert!(report.is_some());
+        let Some(report) = report else {
+            return;
+        };
+
+        assert_eq!(report.replacement_count, 0);
+        assert!(report.evaluated_css.contains("@mixin tone"));
+        assert!(report.evaluated_css.contains("meta.inspect((a: b))"));
+        assert!(report.evaluated_css.contains("@include tone"));
+        assert!(!report.evaluated_css.contains("margin: (a: b)"));
+        assert!(report.oracle.all_legacy_declaration_values_preserved);
     }
 
     #[test]
-    fn static_scss_evaluation_skips_recursive_nested_mixin_includes() {
+    fn static_scss_evaluation_preserves_recursive_nested_mixin_includes_as_oracle_report() {
         let report = derive_static_stylesheet_module_evaluation(
             "@mixin a { @include b; } @mixin b { @include a; } .button { @include a; }",
             StyleDialect::Scss,
         );
 
-        assert!(report.is_none());
+        assert!(report.is_some());
+        let Some(report) = report else {
+            return;
+        };
+
+        assert_eq!(report.replacement_count, 0);
+        assert!(report.evaluated_css.contains("@mixin a"));
+        assert!(report.evaluated_css.contains("@mixin b"));
+        assert!(report.evaluated_css.contains("@include a"));
+        assert!(report.evaluated_css.contains("@include b"));
+        assert!(report.oracle.all_legacy_declaration_values_preserved);
     }
 
     #[test]

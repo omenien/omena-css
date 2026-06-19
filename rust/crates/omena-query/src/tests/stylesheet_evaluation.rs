@@ -139,7 +139,7 @@ fn consumer_build_derives_static_scss_evaluator_context_for_mixin_local_variable
 }
 
 #[test]
-fn consumer_build_keeps_dynamic_mixin_local_variables_planned_only() {
+fn consumer_build_executes_dynamic_mixin_local_variables_as_preserved_oracle_output() {
     let summary = execute_omena_query_consumer_build_style_source(
         "Button.module.scss",
         "@mixin tone { $space: meta.inspect((a: b)); margin: $space; } .button { @include tone; }",
@@ -153,15 +153,29 @@ fn consumer_build_keeps_dynamic_mixin_local_variables_planned_only() {
     assert!(
         summary
             .execution
+            .executed_pass_ids
+            .contains(&"scss-module-evaluate")
+    );
+    assert!(
+        !summary
+            .execution
             .planned_only_pass_ids
             .contains(&"scss-module-evaluate")
     );
+    assert!(summary.execution.output_css.contains("@mixin tone"));
     assert!(summary.execution.output_css.contains("$space"));
+    assert!(
+        summary
+            .execution
+            .output_css
+            .contains("meta.inspect((a: b))")
+    );
     assert!(summary.execution.output_css.contains("@include tone"));
+    assert!(!summary.execution.output_css.contains("margin: (a: b)"));
 }
 
 #[test]
-fn consumer_build_keeps_recursive_nested_mixin_includes_planned_only() {
+fn consumer_build_executes_recursive_nested_mixin_includes_as_preserved_oracle_output() {
     let summary = execute_omena_query_consumer_build_style_source(
         "Button.module.scss",
         "@mixin a { @include b; } @mixin b { @include a; } .button { @include a; }",
@@ -175,10 +189,19 @@ fn consumer_build_keeps_recursive_nested_mixin_includes_planned_only() {
     assert!(
         summary
             .execution
+            .executed_pass_ids
+            .contains(&"scss-module-evaluate")
+    );
+    assert!(
+        !summary
+            .execution
             .planned_only_pass_ids
             .contains(&"scss-module-evaluate")
     );
+    assert!(summary.execution.output_css.contains("@mixin a"));
+    assert!(summary.execution.output_css.contains("@mixin b"));
     assert!(summary.execution.output_css.contains("@include a"));
+    assert!(summary.execution.output_css.contains("@include b"));
 }
 
 #[test]
