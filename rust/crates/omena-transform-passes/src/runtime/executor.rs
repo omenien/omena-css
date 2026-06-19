@@ -452,7 +452,7 @@ fn execute_transform_passes_on_source_with_active_lex_cache(
                         &pass_input_css,
                         evaluation,
                         "applied explicit SCSS module evaluation native edit output from the evaluator boundary",
-                        "applied explicit SCSS module evaluation legacy oracle output from the evaluator boundary",
+                        "preserved SCSS source because native evaluator edits did not match the oracle boundary",
                     );
                     let mutation_count = usize::from(pass_input_css != materialized.css);
                     let outcome = mutation_outcome(
@@ -485,7 +485,7 @@ fn execute_transform_passes_on_source_with_active_lex_cache(
                         &pass_input_css,
                         evaluation,
                         "applied explicit Less module evaluation native edit output from the evaluator boundary",
-                        "applied explicit Less module evaluation legacy oracle output from the evaluator boundary",
+                        "preserved Less source because native evaluator edits did not match the oracle boundary",
                     );
                     let mutation_count = usize::from(pass_input_css != materialized.css);
                     let outcome = mutation_outcome(
@@ -858,7 +858,7 @@ fn materialize_transform_module_evaluation_output(
     input_css: &str,
     evaluation: &TransformModuleEvaluationV0,
     native_detail: &'static str,
-    legacy_detail: &'static str,
+    preserve_detail: &'static str,
 ) -> TransformModuleEvaluationMaterializedOutput {
     if let Some(native_css) =
         apply_transform_module_evaluation_native_edits(input_css, &evaluation.native_edits)
@@ -872,8 +872,8 @@ fn materialize_transform_module_evaluation_output(
     }
 
     TransformModuleEvaluationMaterializedOutput {
-        css: evaluation.evaluated_css.clone(),
-        detail: legacy_detail,
+        css: input_css.to_string(),
+        detail: preserve_detail,
     }
 }
 

@@ -104,7 +104,7 @@ fn execution_runtime_applies_explicit_less_module_evaluation() {
 }
 
 #[test]
-fn execution_runtime_falls_back_to_legacy_scss_evaluation_when_native_edits_diverge() {
+fn execution_runtime_preserves_scss_source_when_native_edits_diverge_from_oracle() {
     let source = r#".button { color: $brand; }"#;
     let context = TransformExecutionContextV0 {
         scss_module_evaluation: Some(TransformModuleEvaluationV0 {
@@ -126,11 +126,45 @@ fn execution_runtime_falls_back_to_legacy_scss_evaluation_when_native_edits_dive
         &context,
     );
 
-    assert_eq!(execution.output_css, ".button { color: red; }");
+    assert_eq!(execution.mutation_count, 0);
+    assert_eq!(execution.output_css, source);
     assert_eq!(
         execution.outcomes.first().map(|outcome| outcome.detail),
         Some(
-            "applied explicit SCSS module evaluation legacy oracle output from the evaluator boundary"
+            "preserved SCSS source because native evaluator edits did not match the oracle boundary"
+        )
+    );
+}
+
+#[test]
+fn execution_runtime_preserves_less_source_when_native_edits_diverge_from_oracle() {
+    let source = r#".button { color: @brand; }"#;
+    let context = TransformExecutionContextV0 {
+        less_module_evaluation: Some(TransformModuleEvaluationV0 {
+            evaluator: "less-js-compatible".to_string(),
+            evaluated_css: ".button { color: red; }".to_string(),
+            native_replacements: Vec::new(),
+            native_edits: vec![native_module_evaluation_edit(source, "@brand", "blue")],
+            oracle: None,
+        }),
+        ..TransformExecutionContextV0::default()
+    };
+    let execution = execute_transform_passes_on_source_with_dialect_and_context(
+        source,
+        StyleDialect::Less,
+        &[
+            TransformPassKind::LessModuleEvaluate,
+            TransformPassKind::PrintCss,
+        ],
+        &context,
+    );
+
+    assert_eq!(execution.mutation_count, 0);
+    assert_eq!(execution.output_css, source);
+    assert_eq!(
+        execution.outcomes.first().map(|outcome| outcome.detail),
+        Some(
+            "preserved Less source because native evaluator edits did not match the oracle boundary"
         )
     );
 }
