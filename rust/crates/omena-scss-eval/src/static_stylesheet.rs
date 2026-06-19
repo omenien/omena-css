@@ -4,8 +4,11 @@ use omena_abstract_value::{AbstractCssValueV0, abstract_css_value_from_text};
 use omena_parser::{LexedToken, ParsedVariableFact, ParsedVariableFactKind, StyleDialect, lex};
 use omena_syntax::SyntaxKind;
 use omena_value_lattice::{
-    format_css_number, parse_numeric_value_with_unit, parse_reducible_ceil_value,
-    parse_reducible_floor_value, parse_whole_function_value_arguments,
+    StaticSrgbColorWithAlpha, format_css_number, parse_color_function_value, parse_color_mix_value,
+    parse_numeric_value_with_unit, parse_oklab_oklch_value, parse_reducible_ceil_value,
+    parse_reducible_floor_value, parse_static_hsl_function_color_with_alpha,
+    parse_static_hwb_function_color_with_alpha, parse_static_rgb_function_color_with_alpha,
+    parse_static_srgb_color_with_alpha, parse_whole_function_value_arguments,
     split_top_level_whitespace_value_components_owned,
     substitute_static_css_function_references_in_value_until_stable,
 };
@@ -6495,6 +6498,10 @@ fn reduce_static_less_value(value: String) -> String {
             ("if", parse_static_less_if_value),
             ("boolean", parse_static_less_boolean_value),
             ("percentage", parse_static_less_percentage_value),
+            ("red", parse_static_less_red_value),
+            ("green", parse_static_less_green_value),
+            ("blue", parse_static_less_blue_value),
+            ("alpha", parse_static_less_alpha_value),
             ("ceil", parse_reducible_ceil_value),
             ("floor", parse_reducible_floor_value),
             ("round", parse_static_less_round_value),
@@ -6520,12 +6527,16 @@ fn parse_static_less_unit_value(value: &str) -> Option<String> {
     match arguments.as_slice() {
         [number] => {
             let parsed = parse_numeric_value_with_unit(number.trim())?;
-            Some(format_css_number(parsed.value))
+            Some(format_static_less_number(parsed.value))
         }
         [number, unit] => {
             let parsed = parse_numeric_value_with_unit(number.trim())?;
             let unit = parse_static_less_unit_argument(unit.trim())?;
-            Some(format!("{}{}", format_css_number(parsed.value), unit))
+            Some(format!(
+                "{}{}",
+                format_static_less_number(parsed.value),
+                unit
+            ))
         }
         _ => None,
     }
@@ -6546,7 +6557,10 @@ fn parse_static_less_percentage_value(value: &str) -> Option<String> {
         return None;
     };
     let parsed = parse_numeric_value_with_unit(number.trim())?;
-    Some(format!("{}%", format_css_number(parsed.value * 100.0)))
+    Some(format!(
+        "{}%",
+        format_static_less_number(parsed.value * 100.0)
+    ))
 }
 
 fn parse_static_less_if_value(value: &str) -> Option<String> {
@@ -6573,6 +6587,48 @@ fn parse_static_less_boolean_value(value: &str) -> Option<String> {
     Some(static_less_value_condition_matches(condition.trim())?.to_string())
 }
 
+fn parse_static_less_red_value(value: &str) -> Option<String> {
+    parse_static_less_color_channel_value(value, "red", |color| f64::from(color.color.red))
+}
+
+fn parse_static_less_green_value(value: &str) -> Option<String> {
+    parse_static_less_color_channel_value(value, "green", |color| f64::from(color.color.green))
+}
+
+fn parse_static_less_blue_value(value: &str) -> Option<String> {
+    parse_static_less_color_channel_value(value, "blue", |color| f64::from(color.color.blue))
+}
+
+fn parse_static_less_alpha_value(value: &str) -> Option<String> {
+    parse_static_less_color_channel_value(value, "alpha", |color| color.alpha.unwrap_or(1.0))
+}
+
+fn parse_static_less_color_channel_value(
+    value: &str,
+    function_name: &str,
+    channel: impl FnOnce(StaticSrgbColorWithAlpha) -> f64,
+) -> Option<String> {
+    let arguments = parse_whole_function_value_arguments(value, function_name)?;
+    let [color] = arguments.as_slice() else {
+        return None;
+    };
+    let color = parse_static_less_color_argument(color.trim())?;
+    Some(format_static_less_number(channel(color)))
+}
+
+fn parse_static_less_color_argument(value: &str) -> Option<StaticSrgbColorWithAlpha> {
+    parse_static_srgb_color_with_alpha(value)
+        .or_else(|| parse_static_rgb_function_color_with_alpha(value))
+        .or_else(|| parse_static_hsl_function_color_with_alpha(value))
+        .or_else(|| parse_static_hwb_function_color_with_alpha(value))
+        .or_else(|| {
+            parse_color_function_value(value)
+                .or_else(|| parse_color_mix_value(value))
+                .or_else(|| parse_oklab_oklch_value(value))
+                .and_then(|value| parse_static_less_color_argument(value.as_str()))
+        })
+}
+
 fn parse_static_less_round_value(value: &str) -> Option<String> {
     let arguments = parse_whole_function_value_arguments(value, "round")?;
     let (number, decimal_places) = match arguments.as_slice() {
@@ -6586,7 +6642,22 @@ fn parse_static_less_round_value(value: &str) -> Option<String> {
     let parsed = parse_numeric_value_with_unit(number.trim())?;
     let factor = 10_f64.powi(i32::try_from(decimal_places).ok()?);
     let rounded = (parsed.value * factor).round() / factor;
-    Some(format!("{}{}", format_css_number(rounded), parsed.unit))
+    Some(format!(
+        "{}{}",
+        format_static_less_number(rounded),
+        parsed.unit
+    ))
+}
+
+fn format_static_less_number(value: f64) -> String {
+    let formatted = format_css_number(value);
+    if let Some(suffix) = formatted.strip_prefix('.') {
+        return format!("0.{suffix}");
+    }
+    if let Some(suffix) = formatted.strip_prefix("-.") {
+        return format!("-0.{suffix}");
+    }
+    formatted
 }
 
 fn parse_static_less_isnumber_value(value: &str) -> Option<String> {
@@ -9111,6 +9182,27 @@ mod tests {
         assert!(report.evaluated_css.contains("c: yes"));
         assert!(report.evaluated_css.contains("d: true"));
         assert!(report.evaluated_css.contains("e: blue"));
+        assert!(report.oracle.all_legacy_declaration_values_preserved);
+    }
+
+    #[test]
+    fn static_less_evaluation_reduces_color_channel_builtin_values() {
+        let report = derive_static_stylesheet_module_evaluation(
+            "@color: #123456; @r: red(@color); @g: green(@color); @b: blue(@color); @a: alpha(rgba(10, 20, 30, .5)); .button { r: @r; g: @g; b: @b; a: @a; }",
+            StyleDialect::Less,
+        );
+        assert!(report.is_some());
+        let Some(report) = report else {
+            return;
+        };
+
+        assert_eq!(report.replacement_count, 4);
+        assert_eq!(report.value_resolution.resolved_count, 4);
+        assert_eq!(report.value_resolution.raw_count, 0);
+        assert!(report.evaluated_css.contains("r: 18"));
+        assert!(report.evaluated_css.contains("g: 52"));
+        assert!(report.evaluated_css.contains("b: 86"));
+        assert!(report.evaluated_css.contains("a: 0.5"));
         assert!(report.oracle.all_legacy_declaration_values_preserved);
     }
 
