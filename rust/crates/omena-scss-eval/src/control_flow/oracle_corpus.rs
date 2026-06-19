@@ -390,6 +390,21 @@ fn scss_control_flow_oracle_corpus_fixtures() -> &'static [ScssControlFlowOracle
             source: "@function width-for($target)\n  @each $width, $style in zip(1px 2px, solid dashed)\n    @if $style == $target\n      @return $width\n  @return 0px\n.button\n  margin: width-for(dashed)",
         },
         ScssControlFlowOracleCorpusFixtureV0 {
+            id: "sass.nested-static-loop-return",
+            dialect: StyleDialect::Sass,
+            source: "@function collect($target)\n  @for $i from 1 through 2\n    @for $j from 1 through 2\n      @if $i == $target\n        @return $i + $j\n  @return 0\n.button\n  z-index: collect(2)",
+        },
+        ScssControlFlowOracleCorpusFixtureV0 {
+            id: "sass.dynamic-loop-top",
+            dialect: StyleDialect::Sass,
+            source: "@function collect($count)\n  @for $i from 1 through $count\n    @return $i\n.button\n  z-index: collect(var(--count))",
+        },
+        ScssControlFlowOracleCorpusFixtureV0 {
+            id: "sass.recursive-mixin-cap",
+            dialect: StyleDialect::Sass,
+            source: "@mixin again\n  @include again\n.button\n  @include again",
+        },
+        ScssControlFlowOracleCorpusFixtureV0 {
             id: "css.flat-rejected",
             dialect: StyleDialect::Css,
             source: ".button { color: red; }",
@@ -411,10 +426,10 @@ mod tests {
         assert_eq!(report.value_type, "AbstractCssValueV0");
         assert_eq!(report.node_key_type, "StableNodeKeyV0");
         assert_eq!(report.recursion_cap, SCSS_CALL_RETURN_RECURSION_LIMIT);
-        assert_eq!(report.fixture_count, 26);
+        assert_eq!(report.fixture_count, 29);
         assert_eq!(report.scss_fixture_count, 14);
-        assert_eq!(report.sass_fixture_count, 11);
-        assert_eq!(report.supported_fixture_count, 25);
+        assert_eq!(report.sass_fixture_count, 14);
+        assert_eq!(report.supported_fixture_count, 28);
         assert_eq!(report.rejected_flat_css_fixture_count, 1);
         assert!(report.branch_fixture_count >= 5);
         assert!(report.loop_fixture_count >= 6);
@@ -528,6 +543,24 @@ mod tests {
             fixture.id == "sass.static-each-tuple-function-source-return"
                 && fixture.dialect == "sass"
                 && fixture.call_resolved_return_value_count == 1
+                && fixture.value_analysis_converged
+        }));
+        assert!(report.fixtures.iter().any(|fixture| {
+            fixture.id == "sass.nested-static-loop-return"
+                && fixture.dialect == "sass"
+                && fixture.call_resolved_return_value_count == 1
+                && fixture.value_analysis_converged
+        }));
+        assert!(report.fixtures.iter().any(|fixture| {
+            fixture.id == "sass.dynamic-loop-top"
+                && fixture.dialect == "sass"
+                && fixture.top_call_resolved_return_value_count == 1
+                && fixture.value_analysis_converged
+        }));
+        assert!(report.fixtures.iter().any(|fixture| {
+            fixture.id == "sass.recursive-mixin-cap"
+                && fixture.dialect == "sass"
+                && fixture.capped_recursive_call_count == 1
                 && fixture.value_analysis_converged
         }));
     }

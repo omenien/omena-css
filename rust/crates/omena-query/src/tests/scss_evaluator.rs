@@ -461,10 +461,10 @@ fn exposes_scss_control_flow_oracle_corpus_through_query_boundary() {
     assert_eq!(summary.mode, "oracleOnly");
     assert_eq!(summary.value_type, "AbstractCssValueV0");
     assert_eq!(summary.node_key_type, "StableNodeKeyV0");
-    assert_eq!(summary.fixture_count, 26);
+    assert_eq!(summary.fixture_count, 29);
     assert_eq!(summary.scss_fixture_count, 14);
-    assert_eq!(summary.sass_fixture_count, 11);
-    assert_eq!(summary.supported_fixture_count, 25);
+    assert_eq!(summary.sass_fixture_count, 14);
+    assert_eq!(summary.supported_fixture_count, 28);
     assert_eq!(summary.rejected_flat_css_fixture_count, 1);
     assert!(summary.branch_fixture_count >= 5);
     assert!(summary.loop_fixture_count >= 6);
@@ -592,6 +592,31 @@ fn exposes_scss_control_flow_oracle_corpus_through_query_boundary() {
         && fixture.dialect == "sass"
         && fixture.call_resolved_return_value_count == 1
         && fixture.value_analysis_converged));
+    assert!(summary.corpus.fixtures.iter().any(|fixture| fixture.id
+        == "sass.nested-static-loop-return"
+        && fixture.dialect == "sass"
+        && fixture.call_resolved_return_value_count == 1
+        && fixture.value_analysis_converged));
+    assert!(
+        summary
+            .corpus
+            .fixtures
+            .iter()
+            .any(|fixture| fixture.id == "sass.dynamic-loop-top"
+                && fixture.dialect == "sass"
+                && fixture.top_call_resolved_return_value_count == 1
+                && fixture.value_analysis_converged)
+    );
+    assert!(
+        summary
+            .corpus
+            .fixtures
+            .iter()
+            .any(|fixture| fixture.id == "sass.recursive-mixin-cap"
+                && fixture.dialect == "sass"
+                && fixture.capped_recursive_call_count == 1
+                && fixture.value_analysis_converged)
+    );
     assert!(
         summary
             .corpus
