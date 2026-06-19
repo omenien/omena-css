@@ -37,6 +37,29 @@ fn consumer_build_derives_static_scss_evaluator_context() {
             .map(|evaluation| evaluation.evaluator.as_str()),
         Some("omena-query-static-scss-variable-evaluator")
     );
+    assert_eq!(
+        summary
+            .execution
+            .css_module_evaluation
+            .as_ref()
+            .map(|evaluation| evaluation.native_replacements.len()),
+        Some(1)
+    );
+    assert!(
+        summary
+            .execution
+            .css_module_evaluation
+            .as_ref()
+            .is_some_and(
+                |evaluation| evaluation
+                    .native_replacements
+                    .iter()
+                    .any(|replacement| replacement.name == "$brand"
+                        && replacement.text == "red"
+                        && replacement.rendered_value.as_deref() == Some("red")
+                        && replacement.abstract_value_kind == "exact")
+            )
+    );
 }
 
 #[test]

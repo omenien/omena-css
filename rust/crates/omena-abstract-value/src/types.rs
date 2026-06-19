@@ -1,6 +1,6 @@
 use crate::{Lin01ProvenanceSemiringV0, NaturalCountProvenanceSemiringV0, ProvenanceSemiringV0};
 use omena_incremental::{IncrementalComputationPlanV0, IncrementalSnapshotV0};
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 
 pub const MAX_FINITE_CLASS_VALUES: usize = 8;
 pub const MAX_FLOW_ANALYSIS_ITERATIONS: usize = 32;
@@ -269,7 +269,7 @@ pub enum AbstractClassValueV0 {
     Top,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize)]
 #[serde(
     tag = "kind",
     rename_all = "camelCase",

@@ -6,6 +6,7 @@
 //! and cross-file transform context shapes serializable for `omena-query`,
 //! bindings, CLI runners, and release gates.
 
+use omena_abstract_value::AbstractCssValueV0;
 use omena_incremental::{IncrementalComputationPlanV0, IncrementalSnapshotV0};
 use omena_smt::CanonicalSmtInputV0;
 use omena_transform_cst::{StableNodeKeyV0, TransformDagEdgeV0, TransformPassContractV0};
@@ -283,8 +284,23 @@ pub struct TransformExecutionContextV0 {
 pub struct TransformModuleEvaluationV0 {
     pub evaluator: String,
     pub evaluated_css: String,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub native_replacements: Vec<TransformModuleEvaluationNativeReplacementV0>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub oracle: Option<TransformModuleEvaluationOracleV0>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TransformModuleEvaluationNativeReplacementV0 {
+    pub name: String,
+    pub start: usize,
+    pub end: usize,
+    pub text: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub rendered_value: Option<String>,
+    pub abstract_value: AbstractCssValueV0,
+    pub abstract_value_kind: String,
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq, Deserialize, Serialize)]

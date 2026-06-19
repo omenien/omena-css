@@ -47,6 +47,7 @@ pub(super) fn derive_static_stylesheet_module_evaluation_for_transform_context(
                 evaluation.evaluated_css.as_str(),
                 &import_aware_source.less_inline_literal_placeholders,
             ),
+            native_replacements: evaluation.native_replacements,
             oracle,
         });
     }
@@ -56,6 +57,7 @@ pub(super) fn derive_static_stylesheet_module_evaluation_for_transform_context(
             evaluation_source.as_ref(),
             &import_aware_source.less_inline_literal_placeholders,
         ),
+        native_replacements: Vec::new(),
         oracle: None,
     })
 }

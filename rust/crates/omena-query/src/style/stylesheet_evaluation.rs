@@ -2,7 +2,8 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use omena_parser::StyleDialect as OmenaParserStyleDialect;
 use omena_query_transform_runner::{
-    TransformModuleEvaluationOracleV0, TransformModuleEvaluationV0,
+    TransformModuleEvaluationNativeReplacementV0, TransformModuleEvaluationOracleV0,
+    TransformModuleEvaluationV0,
 };
 use omena_scss_eval::{
     OmenaScssEvalStaticStylesheetEvaluationV0,
@@ -29,8 +30,27 @@ pub(super) fn derive_static_stylesheet_module_evaluation(
     Some(TransformModuleEvaluationV0 {
         evaluator: evaluation.evaluator.to_string(),
         evaluated_css: evaluation.evaluated_css,
+        native_replacements: evaluation
+            .resolved_replacements
+            .into_iter()
+            .map(transform_module_evaluation_native_replacement)
+            .collect(),
         oracle: Some(oracle),
     })
+}
+
+fn transform_module_evaluation_native_replacement(
+    replacement: omena_scss_eval::OmenaScssEvalResolvedReplacementV0,
+) -> TransformModuleEvaluationNativeReplacementV0 {
+    TransformModuleEvaluationNativeReplacementV0 {
+        name: replacement.name,
+        start: replacement.start,
+        end: replacement.end,
+        text: replacement.text,
+        rendered_value: replacement.rendered_value,
+        abstract_value: replacement.abstract_value,
+        abstract_value_kind: replacement.abstract_value_kind.to_string(),
+    }
 }
 
 fn transform_module_evaluation_oracle(

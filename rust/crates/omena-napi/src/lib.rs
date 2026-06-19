@@ -1078,6 +1078,7 @@ mod tests {
             scss_module_evaluation: Some(omena_query::OmenaQueryTransformModuleEvaluationV0 {
                 evaluator: "dart-sass-compatible".to_string(),
                 evaluated_css: ".card { color: red; }".to_string(),
+                native_replacements: Vec::new(),
                 oracle: None,
             }),
             ..OmenaNapiTransformExecutionContextV0::default()
