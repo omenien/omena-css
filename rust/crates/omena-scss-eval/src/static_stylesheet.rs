@@ -8900,6 +8900,25 @@ mod tests {
     }
 
     #[test]
+    fn static_scss_evaluation_resolves_static_while_cumulative_step_function_returns() {
+        let report = derive_static_stylesheet_module_evaluation(
+            "@function pick() { $i: 0; @while $i < 7 { @if $i == 3 { @return $i + 1; } $i: $i + 1; $i: $i + 2; } @return 9; } .button { z-index: pick(); }",
+            StyleDialect::Scss,
+        );
+        assert!(report.is_some());
+        let Some(report) = report else {
+            return;
+        };
+
+        assert_eq!(report.replacement_count, 1);
+        assert_eq!(report.resolved_replacements[0].name, "function:pick");
+        assert_eq!(report.resolved_replacements[0].text, "4");
+        assert_eq!(report.resolved_replacements[0].abstract_value_kind, "exact");
+        assert!(report.evaluated_css.contains(".button { z-index: 4; }"));
+        assert!(report.oracle.all_legacy_declaration_values_preserved);
+    }
+
+    #[test]
     fn static_scss_evaluation_keeps_dynamic_if_function_returns_top() {
         let source = "@function tone($enabled) { @if $enabled { @return red; } @else { @return blue; } } .button { color: tone(var(--enabled)); }";
         let report = derive_static_stylesheet_module_evaluation(source, StyleDialect::Scss);

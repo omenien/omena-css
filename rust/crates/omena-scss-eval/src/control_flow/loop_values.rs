@@ -28,6 +28,13 @@ pub(super) struct ScssControlFlowLoopContext {
     pub(super) body_text: Option<String>,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum StaticWhileAssignmentStep {
+    Known(i32),
+    Unknown,
+    Unspecified,
+}
+
 pub(super) fn loop_carried_bindings(header: &str) -> Vec<String> {
     let separator = if header
         .split_whitespace()
@@ -188,9 +195,11 @@ fn while_loop_carried_binding_values_from_parts(
     body_text: Option<&str>,
 ) -> Vec<ScssControlFlowBindingValue> {
     let binding_names = while_loop_binding_names(header, assigned_bindings);
-    let step = binding_names.first().and_then(|binding_name| {
-        body_text.and_then(|body| while_loop_body_assignment_step(body, binding_name))
-    });
+    let step = binding_names
+        .first()
+        .map_or(StaticWhileAssignmentStep::Unspecified, |binding_name| {
+            static_while_assignment_step(body_text, binding_name)
+        });
     if let Some(values) = static_while_condition_loop_binding_values(
         header,
         lexical_bindings,
@@ -234,11 +243,21 @@ fn control_flow_block_body_text<'a>(
         .flatten()
 }
 
-fn while_loop_body_assignment_step(body: &str, binding_name: &str) -> Option<i32> {
+fn static_while_assignment_step(
+    body_text: Option<&str>,
+    binding_name: &str,
+) -> StaticWhileAssignmentStep {
+    body_text.map_or(StaticWhileAssignmentStep::Unspecified, |body| {
+        while_loop_body_assignment_step(body, binding_name)
+    })
+}
+
+fn while_loop_body_assignment_step(body: &str, binding_name: &str) -> StaticWhileAssignmentStep {
     let lexed = lex(body, StyleDialect::Scss);
     let tokens = lexed.tokens();
     let mut brace_depth = 0usize;
-    let mut step = None;
+    let mut total_step = 0i32;
+    let mut saw_assignment = false;
     for (index, token) in tokens.iter().enumerate() {
         match token.kind {
             SyntaxKind::LeftBrace => {
@@ -246,13 +265,15 @@ fn while_loop_body_assignment_step(body: &str, binding_name: &str) -> Option<i32
                 continue;
             }
             SyntaxKind::RightBrace => {
-                brace_depth = brace_depth.checked_sub(1)?;
+                let Some(next_depth) = brace_depth.checked_sub(1) else {
+                    return StaticWhileAssignmentStep::Unknown;
+                };
+                brace_depth = next_depth;
                 continue;
             }
             _ => {}
         }
-        if brace_depth != 0
-            || token.kind != SyntaxKind::ScssVariable
+        if token.kind != SyntaxKind::ScssVariable
             || canonical_scss_variable_name(token.text.as_str())
                 != canonical_scss_variable_name(binding_name)
         {
@@ -261,20 +282,33 @@ fn while_loop_body_assignment_step(body: &str, binding_name: &str) -> Option<i32
         let Some(operator_index) = next_non_trivia_token_index(tokens, index + 1) else {
             continue;
         };
-        step = match tokens[operator_index].kind {
-            SyntaxKind::PlusEquals => {
-                static_while_integer_token_after(tokens, operator_index).or(step)
+        let delta = match tokens[operator_index].kind {
+            SyntaxKind::PlusEquals => static_while_integer_token_after(tokens, operator_index),
+            SyntaxKind::MinusEquals => {
+                static_while_integer_token_after(tokens, operator_index).map(i32::saturating_neg)
             }
-            SyntaxKind::MinusEquals => static_while_integer_token_after(tokens, operator_index)
-                .map(i32::saturating_neg)
-                .or(step),
             SyntaxKind::Colon => {
-                static_while_self_assignment_step(tokens, operator_index, binding_name).or(step)
+                static_while_self_assignment_step(tokens, operator_index, binding_name)
             }
-            _ => step,
+            _ => continue,
         };
+        saw_assignment = true;
+        if brace_depth != 0 {
+            return StaticWhileAssignmentStep::Unknown;
+        }
+        let Some(delta) = delta else {
+            return StaticWhileAssignmentStep::Unknown;
+        };
+        let Some(next_step) = total_step.checked_add(delta) else {
+            return StaticWhileAssignmentStep::Unknown;
+        };
+        total_step = next_step;
     }
-    step
+    if saw_assignment {
+        StaticWhileAssignmentStep::Known(total_step)
+    } else {
+        StaticWhileAssignmentStep::Unknown
+    }
 }
 
 fn static_while_self_assignment_step(
@@ -383,8 +417,7 @@ fn static_while_loop_binding_frames(
     if bindings.len() != 1 {
         return None;
     }
-    let step =
-        body_text.and_then(|body| while_loop_body_assignment_step(body, bindings[0].as_str()));
+    let step = static_while_assignment_step(body_text, bindings[0].as_str());
     let values = static_while_condition_loop_binding_values(
         header,
         lexical_bindings,
@@ -487,7 +520,7 @@ fn static_while_condition_loop_binding_values(
     header: &str,
     lexical_bindings: &BTreeMap<String, AbstractCssValueV0>,
     binding_names: &[String],
-    step: Option<i32>,
+    step: StaticWhileAssignmentStep,
 ) -> Option<Vec<ScssControlFlowBindingValue>> {
     if binding_names.len() != 1 {
         return None;
@@ -642,10 +675,17 @@ fn static_while_integer_domain(
     start: i32,
     operator: StaticWhileInequalityOperator,
     bound: i32,
-    step: Option<i32>,
+    step: StaticWhileAssignmentStep,
 ) -> Option<AbstractCssValueV0> {
-    if let Some(step) = step {
-        return static_while_integer_progression_domain(start, operator, bound, step);
+    match step {
+        StaticWhileAssignmentStep::Known(step) => {
+            return static_while_integer_progression_domain(start, operator, bound, step);
+        }
+        StaticWhileAssignmentStep::Unknown => {
+            return (!static_while_integer_condition_holds(start, operator, bound))
+                .then_some(AbstractCssValueV0::Bottom);
+        }
+        StaticWhileAssignmentStep::Unspecified => {}
     }
 
     let (first, last) = match operator {
