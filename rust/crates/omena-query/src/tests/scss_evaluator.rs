@@ -16,9 +16,9 @@ fn exposes_static_stylesheet_oracle_corpus_through_query_boundary() {
     assert_eq!(summary.mode, "oracleOnly");
     assert_eq!(summary.value_type, "AbstractCssValueV0");
     assert_eq!(summary.product_output_source, "legacyEvaluatedCss");
-    assert_eq!(summary.fixture_count, 13);
+    assert_eq!(summary.fixture_count, 14);
     assert_eq!(summary.scss_fixture_count, 6);
-    assert_eq!(summary.less_fixture_count, 7);
+    assert_eq!(summary.less_fixture_count, 8);
     assert_eq!(summary.evaluated_fixture_count, summary.fixture_count);
     assert_eq!(summary.missing_evaluation_count, 0);
     assert_eq!(summary.divergence_count, 0);
@@ -861,6 +861,41 @@ fn exposes_less_hsl_color_transform_builtins_through_query_boundary() {
             && evaluation
                 .evaluated_css
                 .contains("alpha: rgba(27, 77, 128, 0.5)")
+    }));
+}
+
+#[test]
+fn exposes_less_color_mix_builtins_through_query_boundary() {
+    let summary = summarize_omena_query_static_stylesheet_evaluator_from_source(
+        "@default: mix(red, blue); @weighted: mix(red, blue, 25%); @tinted: tint(#123456, 10%); @shaded: shade(#123456, 10%); @alpha: mix(rgba(255, 0, 0, .5), blue, 50%); @transparent: mix(transparent, red, 50%); .button { default: @default; weighted: @weighted; tinted: @tinted; shaded: @shaded; alpha: @alpha; transparent: @transparent; }",
+        OmenaParserStyleDialect::Less,
+    );
+
+    assert_eq!(summary.product, "omena-query.static-stylesheet-evaluator");
+    assert_eq!(summary.mode, "oracleOnly");
+    assert_eq!(summary.dialect, "less");
+    assert_eq!(summary.value_type, "AbstractCssValueV0");
+    assert!(summary.supported_dialect);
+    assert_eq!(summary.product_output_source, "legacyEvaluatedCss");
+    assert!(summary.legacy_output_consumed_until_cutover);
+    assert!(summary.evaluation_available);
+    assert_eq!(summary.divergence_count, 0);
+    assert!(summary.all_legacy_declaration_values_preserved);
+    assert_eq!(summary.native_replacement_count, 6);
+    assert_eq!(summary.native_resolved_value_count, 6);
+    assert_eq!(summary.native_raw_value_count, 0);
+    assert_eq!(summary.native_top_value_count, 0);
+    assert!(summary.evaluation.as_ref().is_some_and(|evaluation| {
+        evaluation.evaluated_css.contains("default: #800080")
+            && evaluation.evaluated_css.contains("weighted: #4000bf")
+            && evaluation.evaluated_css.contains("tinted: #2a4867")
+            && evaluation.evaluated_css.contains("shaded: #102f4d")
+            && evaluation
+                .evaluated_css
+                .contains("alpha: rgba(64, 0, 191, 0.75)")
+            && evaluation
+                .evaluated_css
+                .contains("transparent: rgba(255, 0, 0, 0.5)")
     }));
 }
 

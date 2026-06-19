@@ -4,12 +4,13 @@ use omena_abstract_value::{AbstractCssValueV0, abstract_css_value_from_text};
 use omena_parser::{LexedToken, ParsedVariableFact, ParsedVariableFactKind, StyleDialect, lex};
 use omena_syntax::SyntaxKind;
 use omena_value_lattice::{
-    StaticSrgbColorWithAlpha, format_css_number, parse_color_function_value, parse_color_mix_value,
-    parse_numeric_value_with_unit, parse_oklab_oklch_value, parse_reducible_ceil_value,
-    parse_reducible_floor_value, parse_static_hsl_function_color_with_alpha,
-    parse_static_hwb_function_color_with_alpha, parse_static_rgb_function_color_with_alpha,
-    parse_static_srgb_color_with_alpha, parse_whole_function_value_arguments,
-    parse_whole_function_value_inner, split_top_level_whitespace_value_components_owned,
+    SrgbColor, StaticSrgbColorWithAlpha, format_css_number, parse_color_function_value,
+    parse_color_mix_value, parse_numeric_value_with_unit, parse_oklab_oklch_value,
+    parse_reducible_ceil_value, parse_reducible_floor_value,
+    parse_static_hsl_function_color_with_alpha, parse_static_hwb_function_color_with_alpha,
+    parse_static_rgb_function_color_with_alpha, parse_static_srgb_color_with_alpha,
+    parse_whole_function_value_arguments, parse_whole_function_value_inner,
+    split_top_level_whitespace_value_components_owned,
     substitute_static_css_function_references_in_value_until_stable,
 };
 use serde::Serialize;
@@ -6557,6 +6558,9 @@ fn reduce_static_less_value_with_escape_flag(value: String) -> StaticLessResolve
             ("fade", parse_static_less_fade_value),
             ("fadein", parse_static_less_fadein_value),
             ("fadeout", parse_static_less_fadeout_value),
+            ("mix", parse_static_less_mix_value),
+            ("tint", parse_static_less_tint_value),
+            ("shade", parse_static_less_shade_value),
             ("lighten", parse_static_less_lighten_value),
             ("darken", parse_static_less_darken_value),
             ("saturate", parse_static_less_saturate_value),
@@ -6706,6 +6710,45 @@ fn parse_static_less_fadein_value(value: &str) -> Option<String> {
 
 fn parse_static_less_fadeout_value(value: &str) -> Option<String> {
     parse_static_less_alpha_transform_value(value, "fadeout", |current, amount| current - amount)
+}
+
+fn parse_static_less_mix_value(value: &str) -> Option<String> {
+    let arguments = parse_whole_function_value_arguments(value, "mix")?;
+    let (first, second, weight) = match arguments.as_slice() {
+        [first, second] => (first.as_str(), second.as_str(), 50.0),
+        [first, second, weight] => (
+            first.as_str(),
+            second.as_str(),
+            parse_static_less_percentage_points(weight.trim())?,
+        ),
+        _ => return None,
+    };
+    let first = parse_static_less_color_argument(first.trim())?;
+    let second = parse_static_less_color_argument(second.trim())?;
+    Some(format_static_less_mixed_color(first, second, weight))
+}
+
+fn parse_static_less_tint_value(value: &str) -> Option<String> {
+    parse_static_less_tone_mix_value(value, "tint", "white")
+}
+
+fn parse_static_less_shade_value(value: &str) -> Option<String> {
+    parse_static_less_tone_mix_value(value, "shade", "black")
+}
+
+fn parse_static_less_tone_mix_value(
+    value: &str,
+    function_name: &str,
+    base_color: &str,
+) -> Option<String> {
+    let arguments = parse_whole_function_value_arguments(value, function_name)?;
+    let [color, weight] = arguments.as_slice() else {
+        return None;
+    };
+    let base_color = parse_static_less_color_argument(base_color)?;
+    let color = parse_static_less_color_argument(color.trim())?;
+    let weight = parse_static_less_percentage_points(weight.trim())?;
+    Some(format_static_less_mixed_color(base_color, color, weight))
 }
 
 fn parse_static_less_lighten_value(value: &str) -> Option<String> {
@@ -6872,6 +6915,61 @@ fn format_static_less_color_from_hsl_channels(
         color,
         original_color.alpha.unwrap_or(1.0),
     ))
+}
+
+fn format_static_less_mixed_color(
+    first: StaticSrgbColorWithAlpha,
+    second: StaticSrgbColorWithAlpha,
+    weight_percentage: f64,
+) -> String {
+    let first_alpha = first.alpha.unwrap_or(1.0);
+    let second_alpha = second.alpha.unwrap_or(1.0);
+    let first_stop = (weight_percentage.clamp(0.0, 100.0)) / 100.0;
+    let channel_weight = static_less_mix_channel_weight(first_stop, first_alpha, second_alpha);
+    let inverse_channel_weight = 1.0 - channel_weight;
+    let alpha = first_alpha * first_stop + second_alpha * (1.0 - first_stop);
+    let color = StaticSrgbColorWithAlpha {
+        color: SrgbColor {
+            red: static_less_mix_channel(
+                first.color.red,
+                second.color.red,
+                channel_weight,
+                inverse_channel_weight,
+            ),
+            green: static_less_mix_channel(
+                first.color.green,
+                second.color.green,
+                channel_weight,
+                inverse_channel_weight,
+            ),
+            blue: static_less_mix_channel(
+                first.color.blue,
+                second.color.blue,
+                channel_weight,
+                inverse_channel_weight,
+            ),
+        },
+        alpha: None,
+    };
+    format_static_less_color_with_alpha(color, alpha)
+}
+
+fn static_less_mix_channel_weight(first_stop: f64, first_alpha: f64, second_alpha: f64) -> f64 {
+    let raw_weight = first_stop * 2.0 - 1.0;
+    let alpha_delta = first_alpha - second_alpha;
+    let weighted_alpha_delta = raw_weight * alpha_delta;
+    let adjusted = if (weighted_alpha_delta + 1.0).abs() < f64::EPSILON {
+        raw_weight
+    } else {
+        (raw_weight + alpha_delta) / (1.0 + weighted_alpha_delta)
+    };
+    (adjusted + 1.0) / 2.0
+}
+
+fn static_less_mix_channel(first: u8, second: u8, first_weight: f64, second_weight: f64) -> u8 {
+    (f64::from(first) * first_weight + f64::from(second) * second_weight)
+        .round()
+        .clamp(0.0, 255.0) as u8
 }
 
 fn parse_static_less_color_argument(value: &str) -> Option<StaticSrgbColorWithAlpha> {
@@ -7720,9 +7818,9 @@ mod tests {
         assert_eq!(report.mode, "oracleOnly");
         assert_eq!(report.value_type, "AbstractCssValueV0");
         assert_eq!(report.product_output_source, "legacyEvaluatedCss");
-        assert_eq!(report.fixture_count, 13);
+        assert_eq!(report.fixture_count, 14);
         assert_eq!(report.scss_fixture_count, 6);
-        assert_eq!(report.less_fixture_count, 7);
+        assert_eq!(report.less_fixture_count, 8);
         assert_eq!(report.evaluated_fixture_count, report.fixture_count);
         assert_eq!(report.missing_evaluation_count, 0);
         assert_eq!(report.divergence_count, 0);
@@ -9724,6 +9822,37 @@ mod tests {
             report
                 .evaluated_css
                 .contains("alpha: rgba(27, 77, 128, 0.5)")
+        );
+        assert!(report.oracle.all_legacy_declaration_values_preserved);
+    }
+
+    #[test]
+    fn static_less_evaluation_reduces_color_mix_builtin_values() {
+        let report = derive_static_stylesheet_module_evaluation(
+            "@default: mix(red, blue); @weighted: mix(red, blue, 25%); @tinted: tint(#123456, 10%); @shaded: shade(#123456, 10%); @alpha: mix(rgba(255, 0, 0, .5), blue, 50%); @transparent: mix(transparent, red, 50%); .button { default: @default; weighted: @weighted; tinted: @tinted; shaded: @shaded; alpha: @alpha; transparent: @transparent; }",
+            StyleDialect::Less,
+        );
+        assert!(report.is_some());
+        let Some(report) = report else {
+            return;
+        };
+
+        assert_eq!(report.replacement_count, 6);
+        assert_eq!(report.value_resolution.resolved_count, 6);
+        assert_eq!(report.value_resolution.raw_count, 0);
+        assert!(report.evaluated_css.contains("default: #800080"));
+        assert!(report.evaluated_css.contains("weighted: #4000bf"));
+        assert!(report.evaluated_css.contains("tinted: #2a4867"));
+        assert!(report.evaluated_css.contains("shaded: #102f4d"));
+        assert!(
+            report
+                .evaluated_css
+                .contains("alpha: rgba(64, 0, 191, 0.75)")
+        );
+        assert!(
+            report
+                .evaluated_css
+                .contains("transparent: rgba(255, 0, 0, 0.5)")
         );
         assert!(report.oracle.all_legacy_declaration_values_preserved);
     }
