@@ -12,10 +12,10 @@ use crate::{
 };
 
 use super::{
-    ScssControlFlowBindingValue,
     header_values::{scss_header_value_from_bindings, single_static_scss_header_value_text},
     model::OmenaScssEvalControlFlowBlockV0,
     tokens::next_non_trivia_token_index,
+    transfer::ScssControlFlowBindingValue,
     variables::{
         canonical_scss_variable_name, insert_static_scss_binding, static_scss_binding_value,
         variable_name_end, variable_names_in_text, variable_names_in_text_preserving_order,
