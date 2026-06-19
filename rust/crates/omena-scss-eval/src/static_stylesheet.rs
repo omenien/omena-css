@@ -163,6 +163,7 @@ pub struct OmenaScssEvalStaticStylesheetEvaluationV0 {
     pub evaluator: &'static str,
     pub dialect: &'static str,
     pub evaluated_css: String,
+    pub native_edit_output: String,
     pub replacement_count: usize,
     pub native_replacement_legacy_reflection_count: usize,
     pub native_replacement_legacy_unreflected_count: usize,
@@ -821,6 +822,7 @@ fn build_static_stylesheet_evaluation_report_with_value_resolution(
         resolved_replacements,
         native_edits,
         value_resolution,
+        native_edit_output,
         evaluated_css,
         oracle,
     })
@@ -5358,6 +5360,7 @@ mod tests {
         assert_eq!(report.native_edit_count, 2);
         assert_eq!(report.native_value_edit_count, 1);
         assert_eq!(report.native_structural_edit_count, 1);
+        assert_eq!(report.native_edit_output, report.evaluated_css);
         assert!(report.native_edit_output_matches_evaluated_css);
         assert!(
             report

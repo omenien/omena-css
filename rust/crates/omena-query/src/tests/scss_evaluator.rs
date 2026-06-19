@@ -387,6 +387,12 @@ fn exposes_static_stylesheet_evaluator_oracle_through_query_boundary() {
     assert!(summary.legacy_output_consumed_until_cutover);
     assert!(summary.evaluation_available);
     assert!(summary.value_resolution_available);
+    assert!(summary.native_edit_output.as_ref().is_some_and(|output| {
+        summary
+            .evaluation
+            .as_ref()
+            .is_some_and(|evaluation| output == &evaluation.evaluated_css)
+    }));
     assert_eq!(summary.divergence_count, 0);
     assert!(summary.all_legacy_declaration_values_preserved);
     assert_eq!(summary.native_replacement_count, 1);
@@ -405,6 +411,11 @@ fn exposes_static_stylesheet_evaluator_oracle_through_query_boundary() {
             .evaluation
             .as_ref()
             .is_some_and(|evaluation| evaluation.evaluated_css.contains("margin: 1px"))
+    );
+    assert!(
+        summary.evaluation.as_ref().is_some_and(|evaluation| {
+            evaluation.native_edit_output == evaluation.evaluated_css
+        })
     );
     assert!(summary.evaluation.as_ref().is_some_and(|evaluation| {
         evaluation.native_edits.iter().any(|edit| {

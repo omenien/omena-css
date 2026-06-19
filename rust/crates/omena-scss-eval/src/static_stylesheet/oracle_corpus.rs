@@ -42,6 +42,7 @@ pub struct OmenaScssEvalStaticStylesheetOracleCorpusFixtureReportV0 {
     pub product_output_source: &'static str,
     pub legacy_output_consumed_until_cutover: bool,
     pub evaluation_available: bool,
+    pub native_edit_output: Option<String>,
     pub divergence_count: usize,
     pub all_legacy_declaration_values_preserved: bool,
     pub native_replacement_count: usize,
@@ -181,6 +182,7 @@ fn static_stylesheet_oracle_corpus_fixture_report(
             product_output_source: "none",
             legacy_output_consumed_until_cutover: false,
             evaluation_available: false,
+            native_edit_output: None,
             divergence_count: 0,
             all_legacy_declaration_values_preserved: false,
             native_replacement_count: 0,
@@ -205,6 +207,7 @@ fn static_stylesheet_oracle_corpus_fixture_report(
         legacy_output_consumed_until_cutover: evaluation.oracle.product_output_source
             == "legacyEvaluatedCss",
         evaluation_available: true,
+        native_edit_output: Some(evaluation.native_edit_output.clone()),
         divergence_count: evaluation.oracle.divergence_count,
         all_legacy_declaration_values_preserved: evaluation
             .oracle

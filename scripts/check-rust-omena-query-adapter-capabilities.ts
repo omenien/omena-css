@@ -44,6 +44,7 @@ interface StaticStylesheetEvaluatorOracleFixtureSummaryV0 {
   readonly id: string;
   readonly dialect: string;
   readonly evaluationAvailable: boolean;
+  readonly nativeEditOutput?: string;
   readonly divergenceCount: number;
   readonly nativeEditOutputMatchesEvaluatedCss: boolean;
 }
@@ -660,6 +661,15 @@ function assertStaticStylesheetEvaluatorOracleCorpus(
     const fixture = fixtures.get(id);
     assert.ok(fixture, `missing oracle fixture ${id}`);
     assert.equal(fixture.evaluationAvailable, true, `oracle fixture ${id} must evaluate`);
+    assert.equal(
+      typeof fixture.nativeEditOutput,
+      "string",
+      `oracle fixture ${id} must expose native edit output bytes`,
+    );
+    assert.ok(
+      fixture.nativeEditOutput.length > 0,
+      `oracle fixture ${id} native edit output must not be empty`,
+    );
     assert.equal(fixture.divergenceCount, 0, `oracle fixture ${id} must not diverge`);
     assert.equal(
       fixture.nativeEditOutputMatchesEvaluatedCss,

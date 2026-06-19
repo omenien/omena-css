@@ -209,6 +209,7 @@ pub struct OmenaQueryStaticStylesheetEvaluatorSummaryV0 {
     pub legacy_output_consumed_until_cutover: bool,
     pub evaluation_available: bool,
     pub value_resolution_available: bool,
+    pub native_edit_output: Option<String>,
     pub divergence_count: usize,
     pub all_legacy_declaration_values_preserved: bool,
     pub native_replacement_count: usize,
@@ -285,6 +286,9 @@ pub fn summarize_omena_query_static_stylesheet_evaluator_from_source(
             .is_some_and(|oracle| oracle.product_output_source == "legacyEvaluatedCss"),
         evaluation_available: evaluation.is_some(),
         value_resolution_available: value_resolution.is_some(),
+        native_edit_output: evaluation
+            .as_ref()
+            .map(|evaluation| evaluation.native_edit_output.clone()),
         divergence_count: oracle.map_or(0, |oracle| oracle.divergence_count),
         all_legacy_declaration_values_preserved: oracle
             .is_some_and(|oracle| oracle.all_legacy_declaration_values_preserved),
