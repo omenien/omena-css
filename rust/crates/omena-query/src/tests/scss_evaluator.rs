@@ -71,6 +71,30 @@ fn exposes_static_scss_legacy_rounding_aliases_through_query_boundary() {
 }
 
 #[test]
+fn exposes_static_scss_math_percentage_through_query_boundary() {
+    let summary = summarize_omena_query_static_stylesheet_evaluator_from_source(
+        "$ratio: math.percentage(.25); .card { width: $ratio; }",
+        OmenaParserStyleDialect::Scss,
+    );
+
+    assert_eq!(summary.product, "omena-query.static-stylesheet-evaluator");
+    assert_eq!(summary.mode, "oracleOnly");
+    assert_eq!(summary.value_type, "AbstractCssValueV0");
+    assert!(summary.legacy_output_consumed_until_cutover);
+    assert_eq!(summary.divergence_count, 0);
+    assert!(summary.all_legacy_declaration_values_preserved);
+    assert_eq!(summary.native_value_reference_count, 1);
+    assert_eq!(summary.native_resolved_value_count, 1);
+    assert_eq!(summary.native_raw_value_count, 0);
+    assert!(
+        summary
+            .evaluation
+            .as_ref()
+            .is_some_and(|evaluation| evaluation.evaluated_css.contains("width: 25%"))
+    );
+}
+
+#[test]
 fn exposes_static_scss_legacy_list_metadata_aliases_through_query_boundary() {
     let summary = summarize_omena_query_static_stylesheet_evaluator_from_source(
         "$separator: list-separator((1px, 2px)); $bracketed: if(is-bracketed([1px]), 1px, 2px); .card { content: $separator; margin: $bracketed; }",

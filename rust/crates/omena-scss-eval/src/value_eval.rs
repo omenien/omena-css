@@ -170,6 +170,7 @@ pub(crate) fn reduce_static_scss_value(value: String) -> String {
             ("color.lightness", parse_static_scss_color_lightness_value),
             ("ie-hex-str", parse_static_scss_ie_hex_str_value),
             ("percentage", parse_static_scss_percentage_value),
+            ("math.percentage", parse_static_scss_math_percentage_value),
             ("unit", parse_static_scss_unit_value),
             ("math.unit", parse_static_scss_math_unit_value),
             ("unitless", parse_static_scss_unitless_value),
@@ -2315,7 +2316,18 @@ fn parse_static_scss_plain_f64(value: &str) -> Option<f64> {
 }
 
 fn parse_static_scss_percentage_value(value: &str) -> Option<String> {
-    let arguments = parse_whole_function_value_arguments(value, "percentage")?;
+    parse_static_scss_percentage_value_with_name(value, "percentage")
+}
+
+fn parse_static_scss_math_percentage_value(value: &str) -> Option<String> {
+    parse_static_scss_percentage_value_with_name(value, "math.percentage")
+}
+
+fn parse_static_scss_percentage_value_with_name(
+    value: &str,
+    function_name: &str,
+) -> Option<String> {
+    let arguments = parse_whole_function_value_arguments(value, function_name)?;
     let [number] = arguments.as_slice() else {
         return None;
     };

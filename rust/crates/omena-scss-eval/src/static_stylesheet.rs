@@ -9149,7 +9149,7 @@ mod tests {
     #[test]
     fn static_scss_evaluation_reduces_static_math_numeric_values() {
         let report = derive_static_stylesheet_module_evaluation(
-            "$gap: math.div(6px, 3); $ratio: percentage(.25); $pad: if(math.is-unitless(2), 1px, 2px); $border: if(unitless(2px), 3px, 4px); $unit: math.unit(2px); $unitless-name: unit(2); $compatible: if(math.compatible(1px, 2px), 5px, 6px); $global-compatible: if(comparable(1, 1px), 7px, 8px); .button { margin: $gap; width: $ratio; padding: $pad; border-width: $border; content: $unit; quotes: $unitless-name; outline-width: $compatible; min-width: $global-compatible; }",
+            "$gap: math.div(6px, 3); $ratio: percentage(.25); $math-ratio: math.percentage(.5); $pad: if(math.is-unitless(2), 1px, 2px); $border: if(unitless(2px), 3px, 4px); $unit: math.unit(2px); $unitless-name: unit(2); $compatible: if(math.compatible(1px, 2px), 5px, 6px); $global-compatible: if(comparable(1, 1px), 7px, 8px); .button { margin: $gap; width: $ratio; max-width: $math-ratio; padding: $pad; border-width: $border; content: $unit; quotes: $unitless-name; outline-width: $compatible; min-width: $global-compatible; }",
             StyleDialect::Scss,
         );
         assert!(report.is_some());
@@ -9164,6 +9164,7 @@ mod tests {
             .collect::<Vec<_>>();
         assert!(replacements.contains(&"2px"));
         assert!(replacements.contains(&"25%"));
+        assert!(replacements.contains(&"50%"));
         assert!(replacements.contains(&"1px"));
         assert!(replacements.contains(&"4px"));
         assert!(replacements.contains(&"\"px\""));
@@ -9172,6 +9173,7 @@ mod tests {
         assert!(replacements.contains(&"8px"));
         assert!(report.evaluated_css.contains("margin: 2px"));
         assert!(report.evaluated_css.contains("width: 25%"));
+        assert!(report.evaluated_css.contains("max-width: 50%"));
         assert!(report.evaluated_css.contains("padding: 1px"));
         assert!(report.evaluated_css.contains("border-width: 4px"));
         assert!(report.evaluated_css.contains("content: \"px\""));
