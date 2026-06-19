@@ -583,6 +583,35 @@ fn exposes_less_type_predicate_builtins_through_query_boundary() {
 }
 
 #[test]
+fn exposes_less_list_builtins_through_query_boundary() {
+    let summary = summarize_omena_query_static_stylesheet_evaluator_from_source(
+        "@items: a b c; @comma: a, b, c; @len1: length(@items); @len2: length(@comma); @x1: extract(@items, 2); @x2: extract(@comma, 3); .button { len1: @len1; len2: @len2; x1: @x1; x2: @x2; }",
+        OmenaParserStyleDialect::Less,
+    );
+
+    assert_eq!(summary.product, "omena-query.static-stylesheet-evaluator");
+    assert_eq!(summary.mode, "oracleOnly");
+    assert_eq!(summary.dialect, "less");
+    assert_eq!(summary.value_type, "AbstractCssValueV0");
+    assert!(summary.supported_dialect);
+    assert_eq!(summary.product_output_source, "legacyEvaluatedCss");
+    assert!(summary.legacy_output_consumed_until_cutover);
+    assert!(summary.evaluation_available);
+    assert_eq!(summary.divergence_count, 0);
+    assert!(summary.all_legacy_declaration_values_preserved);
+    assert_eq!(summary.native_replacement_count, 4);
+    assert_eq!(summary.native_resolved_value_count, 2);
+    assert_eq!(summary.native_raw_value_count, 2);
+    assert_eq!(summary.native_top_value_count, 0);
+    assert!(summary.evaluation.as_ref().is_some_and(|evaluation| {
+        evaluation.evaluated_css.contains("len1: 3")
+            && evaluation.evaluated_css.contains("len2: 3")
+            && evaluation.evaluated_css.contains("x1: b")
+            && evaluation.evaluated_css.contains("x2: c")
+    }));
+}
+
+#[test]
 fn exposes_less_static_mixin_evaluator_oracle_through_query_boundary() {
     let summary = summarize_omena_query_static_stylesheet_evaluator_from_source(
         "@brand: red; .tone(@color, @gap: 1px) { color: @color; margin: @gap; padding: @brand; } .button { .tone(blue, 2px); }",

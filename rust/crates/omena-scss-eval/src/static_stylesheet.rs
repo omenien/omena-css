@@ -6,6 +6,7 @@ use omena_syntax::SyntaxKind;
 use omena_value_lattice::{
     format_css_number, parse_numeric_value_with_unit, parse_reducible_ceil_value,
     parse_reducible_floor_value, parse_whole_function_value_arguments,
+    split_top_level_whitespace_value_components_owned,
     substitute_static_css_function_references_in_value_until_stable,
 };
 use serde::Serialize;
@@ -6503,6 +6504,8 @@ fn reduce_static_less_value(value: String) -> String {
             ("ispercentage", parse_static_less_ispercentage_value),
             ("isem", parse_static_less_isem_value),
             ("isunit", parse_static_less_isunit_value),
+            ("length", parse_static_less_length_value),
+            ("extract", parse_static_less_extract_value),
         ],
     )
     .unwrap_or(value);
@@ -6600,6 +6603,46 @@ fn parse_static_less_unary_predicate_value(
         return None;
     };
     Some(predicate(value.trim()).to_string())
+}
+
+fn parse_static_less_length_value(value: &str) -> Option<String> {
+    let arguments = parse_whole_function_value_arguments(value, "length")?;
+    let items = static_less_list_items_from_arguments(arguments.as_slice())?;
+    Some(items.len().to_string())
+}
+
+fn parse_static_less_extract_value(value: &str) -> Option<String> {
+    let arguments = parse_whole_function_value_arguments(value, "extract")?;
+    if arguments.len() < 2 {
+        return None;
+    }
+    let (index, list_arguments) = arguments.split_last()?;
+    let index = parse_static_less_list_index(index.trim())?;
+    let items = static_less_list_items_from_arguments(list_arguments)?;
+    items.get(index.checked_sub(1)?).cloned()
+}
+
+fn static_less_list_items_from_arguments(arguments: &[String]) -> Option<Vec<String>> {
+    if arguments.len() == 1 {
+        return split_top_level_whitespace_value_components_owned(arguments[0].as_str())
+            .filter(|items| !items.is_empty());
+    }
+    Some(
+        arguments
+            .iter()
+            .map(|argument| argument.trim().to_string())
+            .filter(|argument| !argument.is_empty())
+            .collect::<Vec<_>>(),
+    )
+    .filter(|items| !items.is_empty())
+}
+
+fn parse_static_less_list_index(index: &str) -> Option<usize> {
+    let parsed = parse_numeric_value_with_unit(index)?;
+    if !parsed.unit.is_empty() || !parsed.value.is_finite() || parsed.value.fract() != 0.0 {
+        return None;
+    }
+    usize::try_from(parsed.value as i64).ok()
 }
 
 fn parse_static_less_unit_argument(unit: &str) -> Option<&str> {
@@ -8979,6 +9022,44 @@ mod tests {
         assert!(report.evaluated_css.contains("--number: true"));
         assert!(report.evaluated_css.contains("--unit-ok: true"));
         assert!(report.evaluated_css.contains("--unit-bad: false"));
+        assert!(report.oracle.all_legacy_declaration_values_preserved);
+    }
+
+    #[test]
+    fn static_less_evaluation_reduces_list_builtin_values() {
+        let report = derive_static_stylesheet_module_evaluation(
+            "@items: a b c; @comma: a, b, c; @len1: length(@items); @len2: length(@comma); @x1: extract(@items, 2); @x2: extract(@comma, 3); .button { len1: @len1; len2: @len2; x1: @x1; x2: @x2; }",
+            StyleDialect::Less,
+        );
+        assert!(report.is_some());
+        let Some(report) = report else {
+            return;
+        };
+
+        assert_eq!(report.replacement_count, 4);
+        assert_eq!(report.value_resolution.resolved_count, 2);
+        assert_eq!(report.value_resolution.raw_count, 2);
+        assert!(report.evaluated_css.contains("len1: 3"));
+        assert!(report.evaluated_css.contains("len2: 3"));
+        assert!(report.evaluated_css.contains("x1: b"));
+        assert!(report.evaluated_css.contains("x2: c"));
+        assert!(report.oracle.all_legacy_declaration_values_preserved);
+    }
+
+    #[test]
+    fn static_less_evaluation_keeps_out_of_range_extract_raw() {
+        let report = derive_static_stylesheet_module_evaluation(
+            "@items: a b c; @bad: extract(@items, 4); .button { bad: @bad; }",
+            StyleDialect::Less,
+        );
+        assert!(report.is_some());
+        let Some(report) = report else {
+            return;
+        };
+
+        assert_eq!(report.replacement_count, 1);
+        assert_eq!(report.value_resolution.raw_count, 1);
+        assert!(report.evaluated_css.contains("bad: extract(a b c, 4)"));
         assert!(report.oracle.all_legacy_declaration_values_preserved);
     }
 
