@@ -17,6 +17,7 @@ const BROWSER_THRESHOLDS_SOURCE: &str = include_str!("../data/browser-thresholds
 const PASS_FEATURE_BINDINGS_SOURCE: &str = include_str!("../data/pass-feature-bindings.toml");
 const TARGET_DATA_CONTRACT_ID: &str = "omena-transform-target-data-v0";
 const TARGET_DATA_SOURCE_FILES: &[&str] = &[
+    "data/compat-feature-selections.json",
     "data/browser-thresholds.toml",
     "data/pass-feature-bindings.toml",
 ];

@@ -1,0 +1,53 @@
+{
+  "schemaVersion": "0",
+  "product": "omena-transform-target.compat-feature-selections",
+  "sourcePolicy": {
+    "sourcePinProduct": "omena-spec-audit.source-pins",
+    "refreshedAtSource": "rust/crates/omena-spec-audit/data/spec-sources.json",
+    "caniuseResolver": {
+      "workspaceDependency": "browserslist",
+      "cargoPackage": "oxc-browserslist"
+    },
+    "requiredSourceQuorum": ["caniuse", "web-features", "mdn-bcd"]
+  },
+  "features": [
+    {
+      "table": "light_dark",
+      "passId": "light-dark-lowering",
+      "caniuseKeys": ["css-light-dark-function"],
+      "sourceQuorum": ["caniuse", "web-features", "mdn-bcd"],
+      "thresholds": [
+        { "browser": "chrome", "minMajor": 123, "minMinor": 0 },
+        { "browser": "edge", "minMajor": 123, "minMinor": 0 },
+        { "browser": "firefox", "minMajor": 120, "minMinor": 0 },
+        { "browser": "safari", "minMajor": 17, "minMinor": 5 },
+        { "browser": "ios_saf", "minMajor": 17, "minMinor": 5 },
+        { "browser": "opera", "minMajor": 109, "minMinor": 0 },
+        { "browser": "op_mob", "minMajor": 109, "minMinor": 0 },
+        { "browser": "and_chr", "minMajor": 123, "minMinor": 0 },
+        { "browser": "and_ff", "minMajor": 120, "minMinor": 0 },
+        { "browser": "samsung", "minMajor": 27, "minMinor": 0 },
+        { "browser": "android", "minMajor": 148, "minMinor": 0 }
+      ]
+    },
+    {
+      "table": "color_mix",
+      "passId": "color-mix-lowering",
+      "caniuseKeys": ["css-color-mix"],
+      "sourceQuorum": ["caniuse", "web-features", "mdn-bcd"],
+      "thresholds": [
+        { "browser": "chrome", "minMajor": 111, "minMinor": 0 },
+        { "browser": "edge", "minMajor": 111, "minMinor": 0 },
+        { "browser": "firefox", "minMajor": 113, "minMinor": 0 },
+        { "browser": "safari", "minMajor": 16, "minMinor": 2 },
+        { "browser": "ios_saf", "minMajor": 16, "minMinor": 2 },
+        { "browser": "opera", "minMajor": 97, "minMinor": 0 },
+        { "browser": "op_mob", "minMajor": 80, "minMinor": 0 },
+        { "browser": "and_chr", "minMajor": 111, "minMinor": 0 },
+        { "browser": "and_ff", "minMajor": 113, "minMinor": 0 },
+        { "browser": "samsung", "minMajor": 22, "minMinor": 0 },
+        { "browser": "android", "minMajor": 148, "minMinor": 0 }
+      ]
+    }
+  ]
+}
