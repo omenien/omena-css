@@ -7,7 +7,10 @@ use omena_parser::{LexedToken, StyleDialect, lex};
 use omena_syntax::SyntaxKind;
 
 use crate::{
-    static_loop_frames::{parse_static_scss_each_loop_binding_frames, static_scss_for_loop_values},
+    static_loop_frames::{
+        parse_static_scss_each_loop_binding_frames, parse_static_scss_for_loop_header,
+        static_scss_for_loop_values,
+    },
     value_eval::reduce_static_scss_value,
 };
 
@@ -363,26 +366,15 @@ fn static_for_loop_binding_frames(
     header: &str,
     lexical_bindings: &BTreeMap<String, AbstractCssValueV0>,
 ) -> Option<Vec<Vec<ScssControlFlowBindingValue>>> {
-    let bindings = loop_carried_bindings(header);
-    if bindings.len() != 1 {
-        return None;
-    }
-    let parts = header.split_whitespace().collect::<Vec<_>>();
-    let from_index = parts
-        .iter()
-        .position(|part| part.eq_ignore_ascii_case("from"))?;
-    let to_index = parts
-        .iter()
-        .position(|part| part.eq_ignore_ascii_case("to") || part.eq_ignore_ascii_case("through"))?;
-    let includes_end = parts[to_index].eq_ignore_ascii_case("through");
-    let start = parse_static_for_loop_bound(parts.get(from_index + 1)?, lexical_bindings)?;
-    let end = parse_static_for_loop_bound(parts.get(to_index + 1)?, lexical_bindings)?;
+    let for_header = parse_static_scss_for_loop_header(header)?;
+    let start = parse_static_for_loop_bound(for_header.start_bound, lexical_bindings)?;
+    let end = parse_static_for_loop_bound(for_header.end_bound, lexical_bindings)?;
     Some(
-        static_scss_for_loop_values(start, end, includes_end)?
+        static_scss_for_loop_values(start, end, for_header.includes_end)?
             .into_iter()
             .map(|value| {
                 vec![ScssControlFlowBindingValue {
-                    name: bindings[0].clone(),
+                    name: for_header.binding.clone(),
                     value: abstract_css_value_from_text(value.to_string().as_str()),
                 }]
             })
@@ -768,17 +760,10 @@ fn parse_static_for_loop_range(
     header: &str,
     lexical_bindings: &BTreeMap<String, AbstractCssValueV0>,
 ) -> Option<AbstractCssValueV0> {
-    let parts = header.split_whitespace().collect::<Vec<_>>();
-    let from_index = parts
-        .iter()
-        .position(|part| part.eq_ignore_ascii_case("from"))?;
-    let to_index = parts
-        .iter()
-        .position(|part| part.eq_ignore_ascii_case("to") || part.eq_ignore_ascii_case("through"))?;
-    let includes_end = parts[to_index].eq_ignore_ascii_case("through");
-    let start = parse_static_for_loop_bound(parts.get(from_index + 1)?, lexical_bindings)?;
-    let end = parse_static_for_loop_bound(parts.get(to_index + 1)?, lexical_bindings)?;
-    let Some(values) = static_scss_for_loop_values(start, end, includes_end) else {
+    let for_header = parse_static_scss_for_loop_header(header)?;
+    let start = parse_static_for_loop_bound(for_header.start_bound, lexical_bindings)?;
+    let end = parse_static_for_loop_bound(for_header.end_bound, lexical_bindings)?;
+    let Some(values) = static_scss_for_loop_values(start, end, for_header.includes_end) else {
         return Some(AbstractCssValueV0::Top);
     };
     if values.is_empty() {

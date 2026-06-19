@@ -61,6 +61,49 @@ pub(crate) fn static_scss_for_loop_values(
     Some(values)
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct StaticScssForLoopHeader<'a> {
+    pub(crate) binding: String,
+    pub(crate) start_bound: &'a str,
+    pub(crate) end_bound: &'a str,
+    pub(crate) includes_end: bool,
+}
+
+pub(crate) fn parse_static_scss_for_loop_header(
+    header: &str,
+) -> Option<StaticScssForLoopHeader<'_>> {
+    let (binding_source, after_from) = static_scss_split_header_at_keyword(header, "from")?;
+    let bindings = static_scss_variable_names_in_text_preserving_order(binding_source);
+    if bindings.len() != 1 {
+        return None;
+    }
+
+    let to_split = static_scss_split_header_at_keyword(after_from, "to")
+        .map(|(start, end)| (start, end, false));
+    let through_split = static_scss_split_header_at_keyword(after_from, "through")
+        .map(|(start, end)| (start, end, true));
+    let (start_bound, end_bound, includes_end) = match (to_split, through_split) {
+        (Some(to), Some(through)) if to.0.len() <= through.0.len() => to,
+        (Some(_), Some(through)) => through,
+        (Some(to), None) => to,
+        (None, Some(through)) => through,
+        (None, None) => return None,
+    };
+
+    let start_bound = start_bound.trim();
+    let end_bound = end_bound.trim();
+    if bindings[0].is_empty() || start_bound.is_empty() || end_bound.is_empty() {
+        return None;
+    }
+
+    Some(StaticScssForLoopHeader {
+        binding: bindings[0].clone(),
+        start_bound,
+        end_bound,
+        includes_end,
+    })
+}
+
 fn static_scss_each_map_loop_binding_frames<F>(
     header: &str,
     bindings: &[String],

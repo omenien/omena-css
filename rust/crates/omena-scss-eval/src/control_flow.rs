@@ -2736,6 +2736,25 @@ mod tests {
     }
 
     #[test]
+    fn control_flow_value_analysis_resolves_static_for_loop_expression_bounds() {
+        let source = "@for $i from 1 + 1 through 1 + 2 { .n { order: $i; } }";
+        let report = analyze_scss_control_flow_values(source, StyleDialect::Scss);
+        assert!(report.is_some());
+        let Some(report) = report else {
+            return;
+        };
+
+        assert_eq!(report.block_count, 1);
+        assert_eq!(report.blocks[0].loop_carried_bindings, vec!["$i"]);
+        assert_eq!(
+            report.blocks[0].loop_carried_binding_values[0].value,
+            AbstractCssValueV0::FiniteSet {
+                values: vec!["2".to_string(), "3".to_string()]
+            }
+        );
+    }
+
+    #[test]
     fn control_flow_value_analysis_respects_declaration_order_for_loop_bounds() {
         let source = "@for $i from $start through $end { .n { order: $i; } } $start: 1; $end: 3;";
         let report = analyze_scss_control_flow_values(source, StyleDialect::Scss);
@@ -4220,6 +4239,34 @@ mod tests {
             function_call.call_resolved_return_value,
             Some(AbstractCssValueV0::Exact {
                 value: "2".to_string()
+            })
+        );
+    }
+
+    #[test]
+    fn call_return_ir_filters_static_for_loop_expression_bound_returns() {
+        let source = "@function collect($target) { @for $i from 1 + 1 through 1 + 2 { @if $i == $target { @return $i; } } @return 0; } .a { width: collect(1); }";
+        let report = summarize_scss_call_return_ir(source, StyleDialect::Scss);
+        assert!(report.is_some());
+        let Some(report) = report else {
+            return;
+        };
+        let function_call = report
+            .nodes
+            .iter()
+            .find(|node| node.kind == "functionCall" && node.name.as_deref() == Some("collect"));
+        assert!(function_call.is_some());
+        let Some(function_call) = function_call else {
+            return;
+        };
+
+        assert_eq!(report.call_resolved_return_value_count, 1);
+        assert_eq!(report.exact_call_resolved_return_value_count, 1);
+        assert_eq!(function_call.call_resolved_return_value_kind, Some("exact"));
+        assert_eq!(
+            function_call.call_resolved_return_value,
+            Some(AbstractCssValueV0::Exact {
+                value: "0".to_string()
             })
         );
     }

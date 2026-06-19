@@ -287,6 +287,11 @@ fn static_stylesheet_oracle_corpus_fixtures() -> &'static [StaticStylesheetOracl
             source: "@function pick($target)\n  @for $i from 3 through 1\n    @if $i == $target\n      @return $i\n  @return 0\n.card\n  z-index: pick(2)",
         },
         StaticStylesheetOracleCorpusFixtureV0 {
+            id: "sass.static-for-expression-bounds",
+            dialect: StyleDialect::Sass,
+            source: "@function pick($target)\n  @for $i from 1 + 1 through 1 + 2\n    @if $i == $target\n      @return $i\n  @return 0\n.card\n  z-index: pick(1)",
+        },
+        StaticStylesheetOracleCorpusFixtureV0 {
             id: "sass.static-while-return",
             dialect: StyleDialect::Sass,
             source: "@function pick($target)\n  $i: 0\n  @while $i < 3\n    @if $i == $target\n      @return $i + 1\n    $i: $i + 1\n  @return 0\n.card\n  z-index: pick(2)",
@@ -310,6 +315,11 @@ fn static_stylesheet_oracle_corpus_fixtures() -> &'static [StaticStylesheetOracl
             id: "scss.descending-static-for-return",
             dialect: StyleDialect::Scss,
             source: "@function pick($target) { @for $i from 3 through 1 { @if $i == $target { @return $i; } } @return 0; } .button { z-index: pick(2); }",
+        },
+        StaticStylesheetOracleCorpusFixtureV0 {
+            id: "scss.static-for-expression-bounds",
+            dialect: StyleDialect::Scss,
+            source: "@function pick($target) { @for $i from 1 + 1 through 1 + 2 { @if $i == $target { @return $i; } } @return 0; } .button { z-index: pick(1); }",
         },
         StaticStylesheetOracleCorpusFixtureV0 {
             id: "scss.static-each-return",

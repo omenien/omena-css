@@ -12,7 +12,10 @@ use serde::Serialize;
 use crate::{
     abstract_css_value_kind, abstract_css_value_reflected_in_legacy_css,
     scss_metadata::reduce_static_scss_metadata_with_context,
-    static_loop_frames::{parse_static_scss_each_loop_binding_frames, static_scss_for_loop_values},
+    static_loop_frames::{
+        parse_static_scss_each_loop_binding_frames, parse_static_scss_for_loop_header,
+        static_scss_for_loop_values,
+    },
     summarize_omena_scss_eval_oracle,
     value_eval::{
         reduce_static_less_numeric_value, reduce_static_scss_value, static_scss_literal_truthiness,
@@ -2768,37 +2771,26 @@ fn static_scss_for_loop_binding_frames(
     context: StaticScssFunctionResolutionContext<'_>,
     position: usize,
 ) -> Option<Vec<Vec<(String, String)>>> {
-    let parts = header.split_whitespace().collect::<Vec<_>>();
-    let binding = parts.get(1)?.trim();
-    if !binding.starts_with('$') {
-        return None;
-    }
-    let from_index = parts
-        .iter()
-        .position(|part| part.eq_ignore_ascii_case("from"))?;
-    let to_index = parts
-        .iter()
-        .position(|part| part.eq_ignore_ascii_case("to") || part.eq_ignore_ascii_case("through"))?;
-    let includes_end = parts[to_index].eq_ignore_ascii_case("through");
+    let for_header = parse_static_scss_for_loop_header(header)?;
     let start = parse_static_scss_for_loop_bound(
-        parts.get(from_index + 1)?,
+        for_header.start_bound,
         argument_values,
         fuel,
         context,
         position,
     )?;
     let end = parse_static_scss_for_loop_bound(
-        parts.get(to_index + 1)?,
+        for_header.end_bound,
         argument_values,
         fuel,
         context,
         position,
     )?;
-    let values = static_scss_for_loop_values(start, end, includes_end)?;
+    let values = static_scss_for_loop_values(start, end, for_header.includes_end)?;
     Some(
         values
             .into_iter()
-            .map(|value| vec![(binding.to_string(), value.to_string())])
+            .map(|value| vec![(for_header.binding.clone(), value.to_string())])
             .collect(),
     )
 }
@@ -4933,9 +4925,9 @@ mod tests {
             report.evaluated_fixture_count
         );
         assert!(report.all_legacy_outputs_retained_as_oracle);
-        assert_eq!(report.fixture_count, 64);
-        assert_eq!(report.scss_fixture_count, 11);
-        assert_eq!(report.sass_fixture_count, 8);
+        assert_eq!(report.fixture_count, 66);
+        assert_eq!(report.scss_fixture_count, 12);
+        assert_eq!(report.sass_fixture_count, 9);
         assert_eq!(report.less_fixture_count, 45);
         assert_eq!(report.evaluated_fixture_count, report.fixture_count);
         assert_eq!(report.missing_evaluation_count, 0);
@@ -8478,6 +8470,25 @@ mod tests {
         assert_eq!(report.resolved_replacements[0].text, "2");
         assert_eq!(report.resolved_replacements[0].abstract_value_kind, "exact");
         assert!(report.evaluated_css.contains(".button { z-index: 2; }"));
+        assert!(report.oracle.all_legacy_declaration_values_preserved);
+    }
+
+    #[test]
+    fn static_scss_evaluation_resolves_static_for_loop_expression_bounds() {
+        let report = derive_static_stylesheet_module_evaluation(
+            "@function pick($target) { @for $i from 1 + 1 through 1 + 2 { @if $i == $target { @return $i; } } @return 0; } .button { z-index: pick(1); }",
+            StyleDialect::Scss,
+        );
+        assert!(report.is_some());
+        let Some(report) = report else {
+            return;
+        };
+
+        assert_eq!(report.replacement_count, 1);
+        assert_eq!(report.resolved_replacements[0].name, "function:pick");
+        assert_eq!(report.resolved_replacements[0].text, "0");
+        assert_eq!(report.resolved_replacements[0].abstract_value_kind, "exact");
+        assert!(report.evaluated_css.contains(".button { z-index: 0; }"));
         assert!(report.oracle.all_legacy_declaration_values_preserved);
     }
 
