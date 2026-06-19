@@ -16,6 +16,8 @@ pub struct OmenaScssEvalControlFlowOracleCorpusReportV0 {
     pub node_key_type: &'static str,
     pub recursion_cap: usize,
     pub fixture_count: usize,
+    pub scss_fixture_count: usize,
+    pub sass_fixture_count: usize,
     pub supported_fixture_count: usize,
     pub rejected_flat_css_fixture_count: usize,
     pub control_flow_fixture_count: usize,
@@ -75,6 +77,14 @@ pub fn summarize_scss_control_flow_oracle_corpus() -> OmenaScssEvalControlFlowOr
         .map(scss_control_flow_oracle_corpus_fixture_report)
         .collect::<Vec<_>>();
     let fixture_count = fixtures.len();
+    let scss_fixture_count = fixtures
+        .iter()
+        .filter(|fixture| fixture.dialect == "scss")
+        .count();
+    let sass_fixture_count = fixtures
+        .iter()
+        .filter(|fixture| fixture.dialect == "sass")
+        .count();
     let supported_fixture_count = fixtures
         .iter()
         .filter(|fixture| fixture.supported_dialect)
@@ -149,6 +159,8 @@ pub fn summarize_scss_control_flow_oracle_corpus() -> OmenaScssEvalControlFlowOr
         node_key_type: "StableNodeKeyV0",
         recursion_cap: SCSS_CALL_RETURN_RECURSION_LIMIT,
         fixture_count,
+        scss_fixture_count,
+        sass_fixture_count,
         supported_fixture_count,
         rejected_flat_css_fixture_count,
         control_flow_fixture_count,
@@ -288,6 +300,11 @@ fn scss_control_flow_oracle_corpus_fixtures() -> &'static [ScssControlFlowOracle
             source: "@mixin again { @include again; } .button { @include again; }",
         },
         ScssControlFlowOracleCorpusFixtureV0 {
+            id: "sass.branch-if-else",
+            dialect: StyleDialect::Sass,
+            source: "$enabled: true\n@if $enabled\n  .on\n    color: green\n@else\n  .off\n    color: gray",
+        },
+        ScssControlFlowOracleCorpusFixtureV0 {
             id: "css.flat-rejected",
             dialect: StyleDialect::Css,
             source: ".button { color: red; }",
@@ -309,10 +326,12 @@ mod tests {
         assert_eq!(report.value_type, "AbstractCssValueV0");
         assert_eq!(report.node_key_type, "StableNodeKeyV0");
         assert_eq!(report.recursion_cap, SCSS_CALL_RETURN_RECURSION_LIMIT);
-        assert_eq!(report.fixture_count, 8);
-        assert_eq!(report.supported_fixture_count, 7);
+        assert_eq!(report.fixture_count, 9);
+        assert_eq!(report.scss_fixture_count, 7);
+        assert_eq!(report.sass_fixture_count, 1);
+        assert_eq!(report.supported_fixture_count, 8);
         assert_eq!(report.rejected_flat_css_fixture_count, 1);
-        assert!(report.branch_fixture_count >= 3);
+        assert!(report.branch_fixture_count >= 4);
         assert!(report.loop_fixture_count >= 4);
         assert!(report.back_edge_fixture_count >= 4);
         assert!(report.call_return_fixture_count >= 4);

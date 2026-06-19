@@ -374,10 +374,12 @@ fn exposes_scss_control_flow_oracle_corpus_through_query_boundary() {
     assert_eq!(summary.mode, "oracleOnly");
     assert_eq!(summary.value_type, "AbstractCssValueV0");
     assert_eq!(summary.node_key_type, "StableNodeKeyV0");
-    assert_eq!(summary.fixture_count, 8);
-    assert_eq!(summary.supported_fixture_count, 7);
+    assert_eq!(summary.fixture_count, 9);
+    assert_eq!(summary.scss_fixture_count, 7);
+    assert_eq!(summary.sass_fixture_count, 1);
+    assert_eq!(summary.supported_fixture_count, 8);
     assert_eq!(summary.rejected_flat_css_fixture_count, 1);
-    assert!(summary.branch_fixture_count >= 3);
+    assert!(summary.branch_fixture_count >= 4);
     assert!(summary.loop_fixture_count >= 4);
     assert!(summary.back_edge_fixture_count >= 4);
     assert!(summary.call_return_fixture_count >= 4);
@@ -412,6 +414,17 @@ fn exposes_scss_control_flow_oracle_corpus_through_query_boundary() {
             .iter()
             .any(|fixture| fixture.id == "scss.recursive-mixin-cap"
                 && fixture.capped_recursive_call_count == 1)
+    );
+    assert!(
+        summary
+            .corpus
+            .fixtures
+            .iter()
+            .any(|fixture| fixture.id == "sass.branch-if-else"
+                && fixture.dialect == "sass"
+                && fixture.supported_dialect
+                && fixture.branch_block_count == 2
+                && fixture.value_analysis_converged)
     );
     assert!(
         summary
