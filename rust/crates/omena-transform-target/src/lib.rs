@@ -503,10 +503,7 @@ fn feature_support_for_resolved_targets(distribs: &[Distrib]) -> TargetFeatureSu
             distribs,
             "css_nesting",
         ),
-        supports_css_scope: target_set_is_subset_of_fully_supported_feature(
-            distribs,
-            "css-cascade-scope",
-        ),
+        supports_css_scope: target_set_is_subset_of_browser_threshold_table(distribs, "css_scope"),
         supports_cascade_layers: target_set_is_subset_of_browser_threshold_table(
             distribs,
             "cascade_layers",
@@ -1026,9 +1023,9 @@ mod tests {
             boundary.target_data_source,
             "oxcBrowserslistV3+browserThresholdsTomlV0+staticTargetProfileV0+explicitFeatureMatrixV0"
         );
-        assert_eq!(boundary.browser_threshold_table_count, 4);
-        assert_eq!(boundary.browser_threshold_entry_count, 44);
-        assert_eq!(boundary.pass_feature_binding_count, 4);
+        assert_eq!(boundary.browser_threshold_table_count, 5);
+        assert_eq!(boundary.browser_threshold_entry_count, 55);
+        assert_eq!(boundary.pass_feature_binding_count, 5);
         assert_eq!(boundary.browser_data_parse_error_count, 0);
         assert!(boundary.browser_data_quorum_valid);
         assert!(boundary.browser_data_bindings_valid);
@@ -1238,7 +1235,7 @@ mod tests {
             plan.target_data_snapshot_id,
             "omena-transform-target-data-v0:thresholds-2026-05-22:bindings-2026-05-22"
         );
-        assert_eq!(plan.target_data_evidence.len(), 4);
+        assert_eq!(plan.target_data_evidence.len(), 5);
         assert!(
             plan.target_data_evidence
                 .iter()
@@ -1264,6 +1261,13 @@ mod tests {
                 .iter()
                 .any(|evidence| evidence.support_table == "cascade_layers"
                     && evidence.caniuse_keys == vec!["css-cascade-layers".to_string()]
+                    && !evidence.all_resolved_targets_supported)
+        );
+        assert!(
+            plan.target_data_evidence
+                .iter()
+                .any(|evidence| evidence.support_table == "css_scope"
+                    && evidence.caniuse_keys == vec!["css-cascade-scope".to_string()]
                     && !evidence.all_resolved_targets_supported)
         );
         assert!(plan.support.vendor_prefix_required);
@@ -1313,6 +1317,14 @@ mod tests {
         let chrome_99 =
             plan_target_transforms_from_query("chrome 99", conservative_target_options());
         assert!(chrome_99.support.supports_cascade_layers);
+
+        let chrome_117 =
+            plan_target_transforms_from_query("chrome 117", conservative_target_options());
+        assert!(!chrome_117.support.supports_css_scope);
+
+        let chrome_118 =
+            plan_target_transforms_from_query("chrome 118", conservative_target_options());
+        assert!(chrome_118.support.supports_css_scope);
 
         let chrome_122 =
             plan_target_transforms_from_query("chrome 122", conservative_target_options());
@@ -1529,6 +1541,46 @@ mod tests {
         };
         assert_eq!(cascade_layers_threshold.min_version, "99.0");
         assert_eq!(cascade_layers_threshold.caniuse_key, "css-cascade-layers");
+
+        let css_scope = chrome_122
+            .target_data_evidence
+            .iter()
+            .find(|evidence| evidence.support_table == "css_scope");
+        assert!(
+            css_scope.is_some(),
+            "css scope target data evidence should be present"
+        );
+        let Some(css_scope) = css_scope else {
+            return;
+        };
+        assert_eq!(css_scope.pass_id, "scope-flatten");
+        assert_eq!(
+            css_scope.caniuse_keys,
+            vec!["css-cascade-scope".to_string()]
+        );
+        assert!(css_scope.all_resolved_targets_supported);
+        let chrome_css_scope = css_scope
+            .resolved_targets
+            .iter()
+            .find(|target| target.browser == "chrome");
+        assert!(
+            chrome_css_scope.is_some(),
+            "chrome scope target evidence should be present"
+        );
+        let Some(chrome_css_scope) = chrome_css_scope else {
+            return;
+        };
+        assert!(chrome_css_scope.supported);
+        let css_scope_threshold = chrome_css_scope.matched_threshold.as_ref();
+        assert!(
+            css_scope_threshold.is_some(),
+            "chrome scope threshold should be present"
+        );
+        let Some(css_scope_threshold) = css_scope_threshold else {
+            return;
+        };
+        assert_eq!(css_scope_threshold.min_version, "118.0");
+        assert_eq!(css_scope_threshold.caniuse_key, "css-cascade-scope");
     }
 
     #[test]

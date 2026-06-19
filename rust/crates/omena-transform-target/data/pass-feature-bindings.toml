@@ -23,3 +23,8 @@ support_table = "css_nesting"
 pass_id = "layer-flatten"
 caniuse_keys = ["css-cascade-layers"]
 support_table = "cascade_layers"
+
+[[binding]]
+pass_id = "scope-flatten"
+caniuse_keys = ["css-cascade-scope"]
+support_table = "css_scope"

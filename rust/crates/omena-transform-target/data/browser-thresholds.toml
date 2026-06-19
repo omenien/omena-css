@@ -400,3 +400,102 @@ min_minor = 0
 caniuse_key = "css-cascade-layers"
 source_quorum = ["caniuse", "web-features", "mdn-bcd"]
 last_verified = "2026-05-22"
+
+[[threshold]]
+table = "css_scope"
+browser = "chrome"
+min_major = 118
+min_minor = 0
+caniuse_key = "css-cascade-scope"
+source_quorum = ["caniuse", "web-features", "mdn-bcd"]
+last_verified = "2026-05-22"
+
+[[threshold]]
+table = "css_scope"
+browser = "edge"
+min_major = 118
+min_minor = 0
+caniuse_key = "css-cascade-scope"
+source_quorum = ["caniuse", "web-features", "mdn-bcd"]
+last_verified = "2026-05-22"
+
+[[threshold]]
+table = "css_scope"
+browser = "firefox"
+min_major = 146
+min_minor = 0
+caniuse_key = "css-cascade-scope"
+source_quorum = ["caniuse", "web-features", "mdn-bcd"]
+last_verified = "2026-05-22"
+
+[[threshold]]
+table = "css_scope"
+browser = "safari"
+min_major = 17
+min_minor = 4
+caniuse_key = "css-cascade-scope"
+source_quorum = ["caniuse", "web-features", "mdn-bcd"]
+last_verified = "2026-05-22"
+
+[[threshold]]
+table = "css_scope"
+browser = "ios_saf"
+min_major = 17
+min_minor = 4
+caniuse_key = "css-cascade-scope"
+source_quorum = ["caniuse", "web-features", "mdn-bcd"]
+last_verified = "2026-05-22"
+
+[[threshold]]
+table = "css_scope"
+browser = "opera"
+min_major = 106
+min_minor = 0
+caniuse_key = "css-cascade-scope"
+source_quorum = ["caniuse", "web-features", "mdn-bcd"]
+last_verified = "2026-05-22"
+
+[[threshold]]
+table = "css_scope"
+browser = "op_mob"
+min_major = 80
+min_minor = 0
+caniuse_key = "css-cascade-scope"
+source_quorum = ["caniuse", "web-features", "mdn-bcd"]
+last_verified = "2026-05-22"
+
+[[threshold]]
+table = "css_scope"
+browser = "and_chr"
+min_major = 149
+min_minor = 0
+caniuse_key = "css-cascade-scope"
+source_quorum = ["caniuse", "web-features", "mdn-bcd"]
+last_verified = "2026-05-22"
+
+[[threshold]]
+table = "css_scope"
+browser = "and_ff"
+min_major = 151
+min_minor = 0
+caniuse_key = "css-cascade-scope"
+source_quorum = ["caniuse", "web-features", "mdn-bcd"]
+last_verified = "2026-05-22"
+
+[[threshold]]
+table = "css_scope"
+browser = "samsung"
+min_major = 25
+min_minor = 0
+caniuse_key = "css-cascade-scope"
+source_quorum = ["caniuse", "web-features", "mdn-bcd"]
+last_verified = "2026-05-22"
+
+[[threshold]]
+table = "css_scope"
+browser = "android"
+min_major = 149
+min_minor = 0
+caniuse_key = "css-cascade-scope"
+source_quorum = ["caniuse", "web-features", "mdn-bcd"]
+last_verified = "2026-05-22"

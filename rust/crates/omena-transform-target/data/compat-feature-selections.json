@@ -106,6 +106,30 @@
         { "browser": "samsung", "minMajor": 18, "minMinor": 0 },
         { "browser": "android", "minMajor": 149, "minMinor": 0 }
       ]
+    },
+    {
+      "table": "css_scope",
+      "passId": "scope-flatten",
+      "caniuseKeys": ["css-cascade-scope"],
+      "sourceKeys": {
+        "caniuse": "css-cascade-scope",
+        "web-features": "scope",
+        "mdn-bcd": "css.at-rules.scope"
+      },
+      "sourceQuorum": ["caniuse", "web-features", "mdn-bcd"],
+      "thresholds": [
+        { "browser": "chrome", "minMajor": 118, "minMinor": 0 },
+        { "browser": "edge", "minMajor": 118, "minMinor": 0 },
+        { "browser": "firefox", "minMajor": 146, "minMinor": 0 },
+        { "browser": "safari", "minMajor": 17, "minMinor": 4 },
+        { "browser": "ios_saf", "minMajor": 17, "minMinor": 4 },
+        { "browser": "opera", "minMajor": 106, "minMinor": 0 },
+        { "browser": "op_mob", "minMajor": 80, "minMinor": 0 },
+        { "browser": "and_chr", "minMajor": 149, "minMinor": 0 },
+        { "browser": "and_ff", "minMajor": 151, "minMinor": 0 },
+        { "browser": "samsung", "minMajor": 25, "minMinor": 0 },
+        { "browser": "android", "minMajor": 149, "minMinor": 0 }
+      ]
     }
   ]
 }
