@@ -248,6 +248,10 @@ fn derive_static_scss_stylesheet_module_evaluation(
             continue;
         }
         let reference_start = parser_text_size_to_usize(fact.range.start().into());
+        if static_stylesheet_position_is_scss_module_member_reference(style_source, reference_start)
+        {
+            continue;
+        }
         if static_stylesheet_position_is_inside_scss_declaration(&declarations, reference_start)
             || static_stylesheet_position_is_inside_ranges(
                 reference_start,
@@ -639,6 +643,10 @@ fn summarize_static_scss_value_resolution_values(
             continue;
         }
         let reference_start = parser_text_size_to_usize(fact.range.start().into());
+        if static_stylesheet_position_is_scss_module_member_reference(style_source, reference_start)
+        {
+            continue;
+        }
         if static_stylesheet_position_is_inside_scss_declaration(&declarations, reference_start)
             || static_stylesheet_position_is_inside_ranges(
                 reference_start,
@@ -6856,7 +6864,7 @@ fn resolve_static_scss_variable_value_in_scope(
         stack,
     );
     stack.remove(&stack_key);
-    resolved.map(reduce_static_scss_value)
+    resolved
 }
 
 fn find_static_scss_variable_declaration<'a>(
@@ -6997,15 +7005,14 @@ fn resolve_static_scss_variable_value_text(
         cursor = reference.end;
     }
     output.push_str(&value[cursor..]);
-    Some(
-        reduce_static_scss_metadata_with_variable_context(
-            output.as_str(),
-            position,
-            scopes,
-            declarations,
-        )
-        .unwrap_or(output),
+    let output = reduce_static_scss_metadata_with_variable_context(
+        output.as_str(),
+        position,
+        scopes,
+        declarations,
     )
+    .unwrap_or(output);
+    Some(reduce_static_scss_value(output))
 }
 
 fn resolve_static_less_variable_abstract_value_in_scope(
@@ -7798,6 +7805,12 @@ fn collect_static_stylesheet_variable_references_with_options(
             index = name_end;
             continue;
         }
+        if variable_kind == StaticStylesheetVariableKind::Scss
+            && static_stylesheet_position_is_scss_module_member_reference(value, index)
+        {
+            index = name_end;
+            continue;
+        }
         references.push(StaticStylesheetVariableReference {
             name: value[index..name_end].to_string(),
             start: index,
@@ -7807,6 +7820,13 @@ fn collect_static_stylesheet_variable_references_with_options(
     }
 
     Some(references)
+}
+
+fn static_stylesheet_position_is_scss_module_member_reference(value: &str, start: usize) -> bool {
+    value
+        .get(..start)
+        .and_then(|prefix| prefix.chars().next_back())
+        .is_some_and(|ch| ch == '.')
 }
 
 fn static_scss_at_keyword_prefix_is_include(value: &str, index: usize) -> bool {
@@ -9302,6 +9322,55 @@ mod tests {
         assert_eq!(report.value_resolution.resolved_count, 7);
         assert_eq!(report.value_resolution.raw_count, 0);
         assert!(report.oracle.all_legacy_declaration_values_preserved);
+    }
+
+    #[test]
+    fn static_scss_evaluation_reduces_namespaced_math_constants() {
+        let report = derive_static_stylesheet_module_evaluation(
+            "$pi: math.$pi; $e: math.$e; $epsilon: math.$epsilon; $max-safe: math.$max-safe-integer; $min-safe: math.$min-safe-integer; .button { --pi: $pi; --e: $e; --epsilon: $epsilon; z-index: $max-safe; order: $min-safe; }",
+            StyleDialect::Scss,
+        );
+        assert!(report.is_some());
+        let Some(report) = report else {
+            return;
+        };
+
+        let replacements = report
+            .resolved_replacements
+            .iter()
+            .map(|replacement| replacement.text.as_str())
+            .collect::<Vec<_>>();
+        assert!(replacements.contains(&"3.1415926536"));
+        assert!(replacements.contains(&"2.7182818285"));
+        assert!(replacements.contains(&"0"));
+        assert!(replacements.contains(&"9007199254740991"));
+        assert!(replacements.contains(&"-9007199254740991"));
+        assert!(report.evaluated_css.contains("--pi: 3.1415926536"));
+        assert!(report.evaluated_css.contains("--e: 2.7182818285"));
+        assert!(report.evaluated_css.contains("--epsilon: 0"));
+        assert!(report.evaluated_css.contains("z-index: 9007199254740991"));
+        assert!(report.evaluated_css.contains("order: -9007199254740991"));
+        assert_eq!(report.value_resolution.reference_count, 5);
+        assert_eq!(report.value_resolution.resolved_count, 5);
+        assert_eq!(report.value_resolution.raw_count, 0);
+        assert!(report.oracle.all_legacy_declaration_values_preserved);
+    }
+
+    #[test]
+    fn static_scss_evaluation_does_not_treat_math_constants_as_variable_dependencies() {
+        let report = summarize_static_stylesheet_value_resolution(
+            "$pi: math.$pi; .button { --pi: $pi; }",
+            StyleDialect::Scss,
+        );
+        assert!(report.is_some());
+        let Some(report) = report else {
+            return;
+        };
+
+        assert_eq!(report.reference_count, 1);
+        assert_eq!(report.resolved_count, 1);
+        assert_eq!(report.values[0].source_text, "$pi");
+        assert_eq!(report.values[0].rendered_value.as_deref(), Some("3.141593"));
     }
 
     #[test]

@@ -20,6 +20,9 @@ use omena_value_lattice::{
 
 pub(crate) fn reduce_static_scss_value(value: String) -> String {
     let trimmed = value.trim();
+    if let Some(value) = parse_static_scss_math_constant_value(trimmed) {
+        return value;
+    }
     let value = substitute_static_css_function_references_in_value_until_stable(
         trimmed,
         &[
@@ -1044,6 +1047,17 @@ fn parse_static_scss_math_exp_value(value: &str) -> Option<String> {
 
 fn parse_static_scss_math_log_value(value: &str) -> Option<String> {
     parse_static_scss_numeric_alias_value(value, "math.log", "log", parse_reducible_log_value)
+}
+
+fn parse_static_scss_math_constant_value(value: &str) -> Option<String> {
+    match value.trim() {
+        "math.$pi" => Some("3.1415926536".to_string()),
+        "math.$e" => Some("2.7182818285".to_string()),
+        "math.$epsilon" | "math.$min-number" => Some("0".to_string()),
+        "math.$max-safe-integer" => Some("9007199254740991".to_string()),
+        "math.$min-safe-integer" => Some("-9007199254740991".to_string()),
+        _ => None,
+    }
 }
 
 fn parse_static_scss_math_sin_value(value: &str) -> Option<String> {
