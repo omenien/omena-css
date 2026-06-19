@@ -1,19 +1,15 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use omena_query_checker_orchestrator::{
-    CanonicalSelector, OmenaCheckerCascadeDeclarationInputV0, OmenaCheckerCascadeEvaluationV0,
-    OmenaCheckerCascadeInputV0, OmenaCheckerCustomPropertyInputV0,
-    run_omena_query_checker_cascade_gate_v0,
+    CanonicalSelector, OmenaCheckerCascadeDeclarationInputV0, OmenaCheckerCascadeInputV0,
+    OmenaCheckerCustomPropertyInputV0, run_omena_query_checker_cascade_gate_v0,
 };
-use omena_query_core::{
-    AbstractPropertyValueCandidateV0, iterate_reduced_class_value_product_constraints,
-    narrow_abstract_property_value_for_cascade_branch,
-    split_top_level_value_arguments as split_lattice_top_level_value_arguments,
-};
+use omena_query_core::split_top_level_value_arguments as split_lattice_top_level_value_arguments;
 use omena_query_transform_runner::expand_css_nested_selector;
 
 mod confidence;
 mod custom_property_registration;
+mod diagnostic_render;
 mod replica_ensemble;
 mod runtime_state;
 mod smt;
@@ -21,15 +17,15 @@ mod theory_hints;
 
 use confidence::summarize_query_cascade_confidence_for_evaluation;
 use custom_property_registration::collect_query_checker_custom_property_registrations;
+use diagnostic_render::{
+    query_cascade_checker_code, query_cascade_checker_diagnostic_severity,
+    query_cascade_checker_diagnostic_tags, summarize_query_cascade_narrowing_for_evaluation,
+};
 pub(super) use replica_ensemble::collect_query_replica_ensemble_site_outcomes;
 pub(crate) use runtime_state::query_condition_context_static_supports_pruning_evidence;
 #[cfg(test)]
 use runtime_state::query_runtime_selector_matches_anchor_classes;
 pub(super) use runtime_state::query_runtime_state_confidence_tier;
-use runtime_state::{
-    query_element_class_signature_constraints, query_selector_class_names,
-    summarize_query_runtime_state_for_evaluation,
-};
 pub(super) use smt::query_smt_box_shorthand_longhand_quartets;
 use smt::summarize_query_smt_cascade_obligation_diagnostics;
 #[cfg(test)]
@@ -42,12 +38,10 @@ use theory_hints::{
 };
 
 use super::{
-    OmenaQueryCascadeNarrowingEvidenceV0, OmenaQueryStyleDiagnosticV0, ParserByteSpanV0,
-    ParserRangeV0, omena_parser_dialect_for_style_path, parser_range_for_byte_span,
+    OmenaQueryStyleDiagnosticV0, ParserByteSpanV0, ParserRangeV0,
+    omena_parser_dialect_for_style_path, parser_range_for_byte_span,
     summarize_static_css_custom_property_fixed_point_from_source,
 };
-
-const LSP_DIAGNOSTIC_TAG_UNNECESSARY: u8 = 1;
 
 /// Cascade checker surface with an explicit deep-analysis switch.
 ///
@@ -207,104 +201,6 @@ pub(super) fn summarize_query_cascade_checker_diagnostics_with_deep_analysis(
     }
 
     diagnostics
-}
-
-fn query_cascade_checker_code(code: &'static str) -> &'static str {
-    match code {
-        "unreachable-declaration" => "unreachableDeclaration",
-        "dead-cascade-layer" => "deadCascadeLayer",
-        "iacvt-prone" => "iacvtProne",
-        "circular-var" => "circularVar",
-        "registered-property-type-mismatch" => "registeredPropertyTypeMismatch",
-        "unspecified-cascade-tie" => "unspecifiedCascadeTie",
-        "designer-intent-inconsistency" => "designerIntentInconsistency",
-        _ => "cascadeAware",
-    }
-}
-
-fn query_cascade_checker_diagnostic_severity(code: &'static str) -> &'static str {
-    match code {
-        "unreachable-declaration" | "dead-cascade-layer" | "designer-intent-inconsistency" => {
-            "hint"
-        }
-        _ => "warning",
-    }
-}
-
-fn query_cascade_checker_diagnostic_tags(code: &'static str) -> Vec<u8> {
-    match code {
-        "unreachable-declaration" | "dead-cascade-layer" => {
-            vec![LSP_DIAGNOSTIC_TAG_UNNECESSARY]
-        }
-        _ => Vec::new(),
-    }
-}
-
-fn summarize_query_cascade_narrowing_for_evaluation(
-    evaluation: &OmenaCheckerCascadeEvaluationV0,
-    declarations: &[OmenaCheckerCascadeDeclarationInputV0],
-) -> Option<OmenaQueryCascadeNarrowingEvidenceV0> {
-    let anchor_id = evaluation.declaration_ids.first()?;
-    let anchor = declarations
-        .iter()
-        .find(|declaration| declaration.declaration_id == *anchor_id)?;
-    let site_declarations = declarations
-        .iter()
-        .filter(|declaration| {
-            declaration.selector == anchor.selector
-                && declaration.property == anchor.property
-                && declaration.condition_context == anchor.condition_context
-        })
-        .collect::<Vec<_>>();
-    if site_declarations.is_empty() {
-        return None;
-    }
-
-    let property_candidates = site_declarations
-        .iter()
-        .map(|declaration| AbstractPropertyValueCandidateV0 {
-            property_name: declaration.property.clone(),
-            value: declaration.value.clone(),
-            pseudo_state: None,
-            condition_context: declaration.condition_context.clone(),
-            layer_name: declaration.layer_name.clone(),
-            layer_order: declaration.layer_order,
-            source_order: Some(declaration.source_order),
-            important: declaration.important,
-            same_selector_ordering: true,
-        })
-        .collect::<Vec<_>>();
-    let property_value_narrowing = narrow_abstract_property_value_for_cascade_branch(
-        anchor.property.as_str(),
-        None,
-        anchor.condition_context.as_slice(),
-        anchor.layer_name.as_deref(),
-        anchor.layer_order,
-        true,
-        property_candidates.as_slice(),
-    );
-
-    let selector_class_names = query_selector_class_names(anchor.selector.as_str());
-    let element_class_constraints =
-        query_element_class_signature_constraints(selector_class_names.as_slice());
-    let element_class_iteration =
-        iterate_reduced_class_value_product_constraints(element_class_constraints.as_slice());
-
-    Some(OmenaQueryCascadeNarrowingEvidenceV0 {
-        schema_version: "0",
-        product: "omena-query.cascade-narrowing-evidence",
-        selector: anchor.selector.as_str().to_string(),
-        selector_class_names,
-        property_name: anchor.property.clone(),
-        condition_context: anchor.condition_context.clone(),
-        declaration_ids: site_declarations
-            .into_iter()
-            .map(|declaration| declaration.declaration_id.clone())
-            .collect(),
-        element_class_iteration,
-        property_value_narrowing,
-        runtime_state: summarize_query_runtime_state_for_evaluation(evaluation, declarations),
-    })
 }
 
 fn collect_query_checker_cascade_input(
