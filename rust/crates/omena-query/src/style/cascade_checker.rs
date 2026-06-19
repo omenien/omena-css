@@ -1,17 +1,9 @@
 use std::collections::{BTreeMap, BTreeSet};
 
-use omena_cascade::{
-    CascadeDeclaration, CascadeKey, CascadeLevel, CascadeValue, LayerRank, Specificity,
-    cascade_property, parse_simple_selector_signature,
-};
 use omena_query_checker_orchestrator::{
     CanonicalSelector, OmenaCheckerCascadeDeclarationInputV0, OmenaCheckerCascadeEvaluationV0,
     OmenaCheckerCascadeInputV0, OmenaCheckerCustomPropertyInputV0,
     run_omena_query_checker_cascade_gate_v0,
-};
-use omena_query_checker_orchestrator::{
-    REPLICA_ENSEMBLE_FEATURE_GATE_V0, REPLICA_ENSEMBLE_LAYER_MARKER_V0,
-    REPLICA_ENSEMBLE_SCHEMA_VERSION_V0, ReplicaSiteOutcomeV0, site as replica_ensemble_site,
 };
 use omena_query_core::{
     AbstractPropertyValueCandidateV0, iterate_reduced_class_value_product_constraints,
@@ -22,12 +14,14 @@ use omena_query_transform_runner::expand_css_nested_selector;
 
 mod confidence;
 mod custom_property_registration;
+mod replica_ensemble;
 mod runtime_state;
 mod smt;
 mod theory_hints;
 
 use confidence::summarize_query_cascade_confidence_for_evaluation;
 use custom_property_registration::collect_query_checker_custom_property_registrations;
+pub(super) use replica_ensemble::collect_query_replica_ensemble_site_outcomes;
 pub(crate) use runtime_state::query_condition_context_static_supports_pruning_evidence;
 #[cfg(test)]
 use runtime_state::query_runtime_selector_matches_anchor_classes;
@@ -392,96 +386,6 @@ fn collect_query_checker_cascade_input(
         declaration_ranges,
         custom_property_ranges,
     )
-}
-
-/// Compute the REAL per-`(selector, property)` cascade winners a parsed
-/// stylesheet produces, projected as replica-ensemble site outcomes.
-///
-/// This is the cross-file replica-ensemble's per-file input: each in-graph CSS
-/// module is one replica, and its "site outcomes" are the winning value of every
-/// `(selector, property)` it declares. The winners are not literals — they are
-/// computed by the genuine `cascade_property` ranking over the parsed
-/// declarations: declarations are grouped by `(selector, property)`, each is
-/// assigned a real `CascadeKey` (author-important vs author-normal level, real
-/// `@layer` rank, real selector specificity from `parse_simple_selector_signature`,
-/// and source order), and the lexicographic cascade key picks the winner. The
-/// winning declaration's value is carried as the outcome identity (via the
-/// `CascadeDeclaration.id`), so two replicas *agree* on a site iff their winning
-/// value for that `(selector, property)` is identical, and *disagree* iff their
-/// cascades resolve to different values. No replica snapshot is fabricated.
-///
-/// Custom-property declarations (`--*`) are excluded: their winner is a token
-/// whose meaning depends on the whole-graph fixed point, not a directly
-/// comparable per-file value.
-pub(super) fn collect_query_replica_ensemble_site_outcomes(
-    source: &str,
-) -> Vec<ReplicaSiteOutcomeV0> {
-    let declarations = collect_query_checker_cascade_declarations(source);
-
-    // Group the parsed declarations by their `(selector, property)` cascade site.
-    let mut by_site: BTreeMap<(String, String), Vec<CascadeDeclaration>> = BTreeMap::new();
-    for declaration in &declarations {
-        let property = declaration.input.property.as_str();
-        if property.starts_with("--") {
-            continue;
-        }
-        let cascade_declaration = query_cascade_declaration_from_input(&declaration.input);
-        by_site
-            .entry((
-                declaration.input.selector.as_str().to_string(),
-                declaration.input.property.clone(),
-            ))
-            .or_default()
-            .push(cascade_declaration);
-    }
-
-    by_site
-        .into_iter()
-        .filter_map(|((selector, property), site_declarations)| {
-            let outcome = cascade_property(site_declarations, &property);
-            // Only definite winners are comparable across replicas; an
-            // `Inherit`/`Top`/`RankedSet` site carries no concrete per-file value to
-            // overlap on, and `DefiniteOnly` projection would drop it anyway.
-            if !matches!(outcome, omena_cascade::CascadeOutcome::Definite { .. }) {
-                return None;
-            }
-            Some(ReplicaSiteOutcomeV0 {
-                schema_version: REPLICA_ENSEMBLE_SCHEMA_VERSION_V0,
-                product: "omena-ensemble.replica-site-outcome",
-                layer_marker: REPLICA_ENSEMBLE_LAYER_MARKER_V0,
-                feature_gate: REPLICA_ENSEMBLE_FEATURE_GATE_V0,
-                site: replica_ensemble_site(selector, property),
-                outcome,
-                provenance: None,
-            })
-        })
-        .collect()
-}
-
-/// Lift a parsed cascade declaration onto an `omena-cascade` `CascadeDeclaration`
-/// with a real cascade key. The winning value is carried as the declaration `id`
-/// so the replica-overlap projection (`definite:<id>`) keys agreement on the
-/// resolved value rather than a per-file synthetic identifier.
-fn query_cascade_declaration_from_input(
-    input: &OmenaCheckerCascadeDeclarationInputV0,
-) -> CascadeDeclaration {
-    let level = if input.important {
-        CascadeLevel::AuthorImportant
-    } else {
-        CascadeLevel::AuthorNormal
-    };
-    let layer_rank = LayerRank(input.layer_order.unwrap_or(0));
-    let specificity = parse_simple_selector_signature(input.selector.as_str())
-        .map(|signature| signature.specificity)
-        .unwrap_or(Specificity::ZERO);
-    let value = input.value.trim().to_string();
-
-    CascadeDeclaration {
-        id: value.clone(),
-        property: input.property.clone(),
-        value: CascadeValue::Literal(value),
-        key: CascadeKey::new(level, layer_rank, 0, specificity, input.source_order),
-    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
