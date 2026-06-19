@@ -258,6 +258,26 @@ fn static_stylesheet_oracle_corpus_fixtures() -> &'static [StaticStylesheetOracl
             source: "@mixin card($gap)\n  margin: $gap\n.card\n  @include card(1px)",
         },
         StaticStylesheetOracleCorpusFixtureV0 {
+            id: "sass.static-if-return",
+            dialect: StyleDialect::Sass,
+            source: "@function pick($enabled)\n  @if $enabled\n    @return 1px\n  @else\n    @return 2px\n.card\n  margin: pick(true)",
+        },
+        StaticStylesheetOracleCorpusFixtureV0 {
+            id: "sass.static-for-return",
+            dialect: StyleDialect::Sass,
+            source: "@function pick($target)\n  @for $i from 1 through 3\n    @if $i == $target\n      @return $i\n  @return 0\n.card\n  z-index: pick(2)",
+        },
+        StaticStylesheetOracleCorpusFixtureV0 {
+            id: "sass.static-while-return",
+            dialect: StyleDialect::Sass,
+            source: "@function pick($target)\n  $i: 0\n  @while $i < 3\n    @if $i == $target\n      @return $i + 1\n    $i: $i + 1\n  @return 0\n.card\n  z-index: pick(2)",
+        },
+        StaticStylesheetOracleCorpusFixtureV0 {
+            id: "sass.static-each-return",
+            dialect: StyleDialect::Sass,
+            source: "@function tone($target)\n  @each $name, $tone in (primary: red, secondary: blue)\n    @if $name == $target\n      @return $tone\n  @return black\n.card\n  color: tone(secondary)",
+        },
+        StaticStylesheetOracleCorpusFixtureV0 {
             id: "scss.color-helpers",
             dialect: StyleDialect::Scss,
             source: "$tone: list.nth(list.append(1px, transparentize(red, .25)), 2); .card { color: $tone; }",

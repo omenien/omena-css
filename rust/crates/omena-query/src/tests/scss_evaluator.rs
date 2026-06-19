@@ -73,9 +73,9 @@ fn exposes_static_stylesheet_oracle_corpus_through_query_boundary() {
     assert_eq!(summary.mode, "oracleOnly");
     assert_eq!(summary.value_type, "AbstractCssValueV0");
     assert_eq!(summary.product_output_source, "legacyEvaluatedCss");
-    assert_eq!(summary.fixture_count, 58);
+    assert_eq!(summary.fixture_count, 62);
     assert_eq!(summary.scss_fixture_count, 10);
-    assert_eq!(summary.sass_fixture_count, 3);
+    assert_eq!(summary.sass_fixture_count, 7);
     assert_eq!(summary.less_fixture_count, 45);
     assert_eq!(summary.evaluated_fixture_count, summary.fixture_count);
     assert_eq!(summary.missing_evaluation_count, 0);
@@ -137,6 +137,24 @@ fn exposes_static_stylesheet_oracle_corpus_through_query_boundary() {
             && fixture.native_edit_output_matches_evaluated_css
             && fixture.divergence_count == 0
     }));
+    for id in [
+        "sass.static-if-return",
+        "sass.static-for-return",
+        "sass.static-while-return",
+        "sass.static-each-return",
+    ] {
+        assert!(
+            summary.corpus.fixtures.iter().any(|fixture| {
+                fixture.id == id
+                    && fixture.dialect == "sass"
+                    && fixture.evaluation_available
+                    && fixture.native_replacement_count == 1
+                    && fixture.native_edit_output_matches_evaluated_css
+                    && fixture.divergence_count == 0
+            }),
+            "missing evaluated Sass control-flow oracle fixture {id}"
+        );
+    }
     assert!(
         summary
             .corpus

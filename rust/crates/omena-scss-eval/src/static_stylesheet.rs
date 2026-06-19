@@ -5428,9 +5428,9 @@ mod tests {
         assert_eq!(report.mode, "oracleOnly");
         assert_eq!(report.value_type, "AbstractCssValueV0");
         assert_eq!(report.product_output_source, "legacyEvaluatedCss");
-        assert_eq!(report.fixture_count, 58);
+        assert_eq!(report.fixture_count, 62);
         assert_eq!(report.scss_fixture_count, 10);
-        assert_eq!(report.sass_fixture_count, 3);
+        assert_eq!(report.sass_fixture_count, 7);
         assert_eq!(report.less_fixture_count, 45);
         assert_eq!(report.evaluated_fixture_count, report.fixture_count);
         assert_eq!(report.missing_evaluation_count, 0);
@@ -5481,6 +5481,24 @@ mod tests {
                 && fixture.native_edit_output_matches_evaluated_css
                 && fixture.divergence_count == 0
         }));
+        for id in [
+            "sass.static-if-return",
+            "sass.static-for-return",
+            "sass.static-while-return",
+            "sass.static-each-return",
+        ] {
+            assert!(
+                report.fixtures.iter().any(|fixture| {
+                    fixture.id == id
+                        && fixture.dialect == "sass"
+                        && fixture.evaluation_available
+                        && fixture.native_replacement_count == 1
+                        && fixture.native_edit_output_matches_evaluated_css
+                        && fixture.divergence_count == 0
+                }),
+                "missing evaluated Sass control-flow oracle fixture {id}"
+            );
+        }
         assert!(
             report
                 .fixtures
