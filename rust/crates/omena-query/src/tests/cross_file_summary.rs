@@ -1336,7 +1336,7 @@ fn m4_axis_c_readiness_summary_proves_exit_predicate_slice() {
 
     assert_eq!(summary.product, "omena-query.m4-axis-c-readiness");
     assert_eq!(summary.status, "m4AxisCReady");
-    assert_eq!(summary.required_edge_kind_count, 12);
+    assert_eq!(summary.required_edge_kind_count, 14);
     assert!(summary.issue_63_provenance_round_trip_ready);
     assert!(summary.issue_65_summary_edge_equivalence_ready);
     assert!(summary.summary_hash_invalidation_ready);
@@ -1347,6 +1347,19 @@ fn m4_axis_c_readiness_summary_proves_exit_predicate_slice() {
             .iter()
             .all(|entry| entry.count > 0),
         "all M4 Axis C edge kinds must have fixture evidence: {summary:#?}"
+    );
+    let required_counts = summary
+        .required_edge_kind_counts
+        .iter()
+        .map(|entry| (entry.edge_kind, entry.count))
+        .collect::<BTreeMap<_, _>>();
+    assert_eq!(required_counts.get("lessImport").copied(), Some(1));
+    assert_eq!(
+        required_counts
+            .get("lessModuleGraphClosure")
+            .copied()
+            .unwrap_or(0),
+        1
     );
     assert_ne!(
         summary.summary_hash_samples.baseline,

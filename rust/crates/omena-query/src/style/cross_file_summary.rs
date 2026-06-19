@@ -574,7 +574,7 @@ pub fn summarize_omena_query_categorical_design_system_cross_project_summary(
     }
 }
 
-const M4_AXIS_C_REQUIRED_EDGE_KINDS: [&str; 12] = [
+const M4_AXIS_C_REQUIRED_EDGE_KINDS: [&str; 14] = [
     "cssModulesComposesImport",
     "cssModulesComposesClosure",
     "cssModulesValueImport",
@@ -585,6 +585,8 @@ const M4_AXIS_C_REQUIRED_EDGE_KINDS: [&str; 12] = [
     "sassForward",
     "sassImport",
     "sassModuleGraphClosure",
+    "lessImport",
+    "lessModuleGraphClosure",
     "styleDesignTokenReference",
     "sourceSelectorReference",
 ];
@@ -698,6 +700,7 @@ pub fn summarize_omena_query_m4_axis_c_readiness() -> OmenaQueryM4AxisCReadiness
             "linear-provenance-round-trip",
             "summary-edge-resolution-equivalence",
             "source-selector-summary-edge",
+            "less-module-edge-vocabulary",
             "workspace-summary-hash-source-invalidation",
             "workspace-summary-hash-style-invalidation",
             "workspace-summary-hash-package-manifest-invalidation",
@@ -751,6 +754,14 @@ fn m4_axis_c_style_sources(button_style_source: &str) -> Vec<OmenaQueryStyleSour
         OmenaQueryStyleSourceInputV0 {
             style_path: "/fake/workspace/src/_legacy.scss".to_string(),
             style_source: "$legacy: blue;".to_string(),
+        },
+        OmenaQueryStyleSourceInputV0 {
+            style_path: "/fake/workspace/src/tokens.less".to_string(),
+            style_source: "@tone: red;".to_string(),
+        },
+        OmenaQueryStyleSourceInputV0 {
+            style_path: "/fake/workspace/src/Button.module.less".to_string(),
+            style_source: r#"@import "./tokens.less"; .button { color: @tone; }"#.to_string(),
         },
         OmenaQueryStyleSourceInputV0 {
             style_path: "/fake/workspace/src/Button.module.scss".to_string(),
