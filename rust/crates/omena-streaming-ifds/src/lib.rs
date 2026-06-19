@@ -954,6 +954,8 @@ fn streaming_ifds_transfer_kind(edge_kind: UnifiedHypergraphEdgeKindV0) -> &'sta
         UnifiedHypergraphEdgeKindV0::SassUse
         | UnifiedHypergraphEdgeKindV0::SassForward
         | UnifiedHypergraphEdgeKindV0::SassImport
+        | UnifiedHypergraphEdgeKindV0::LessImport
+        | UnifiedHypergraphEdgeKindV0::LessModuleGraphClosure
         | UnifiedHypergraphEdgeKindV0::ForeignReference => "semanticReferencePreserving",
         _ => "semanticReferencePreserving",
     }
@@ -974,6 +976,8 @@ fn apply_streaming_ifds_transfer(
         | UnifiedHypergraphEdgeKindV0::SassUse
         | UnifiedHypergraphEdgeKindV0::SassForward
         | UnifiedHypergraphEdgeKindV0::SassImport
+        | UnifiedHypergraphEdgeKindV0::LessImport
+        | UnifiedHypergraphEdgeKindV0::LessModuleGraphClosure
         | UnifiedHypergraphEdgeKindV0::ForeignReference => value.clone(),
         _ => value.clone(),
     }
@@ -1663,6 +1667,35 @@ mod tests {
                     feature_gate: STREAMING_IFDS_FEATURE_GATE_V0,
                     hyperedge_id: "edge-sass-forward".to_string(),
                     edge_kind: UnifiedHypergraphEdgeKindV0::SassForward,
+                    tail_node_ids: vec!["a".to_string()],
+                    head_node_id: "b".to_string(),
+                    transfer_kind: "semanticReferencePreserving",
+                },
+                &AbstractClassValueV0::Exact {
+                    value: "token".to_string()
+                },
+            ),
+            AbstractClassValueV0::Exact {
+                value: "token".to_string()
+            }
+        );
+        assert_eq!(
+            streaming_ifds_transfer_kind(UnifiedHypergraphEdgeKindV0::LessImport),
+            "semanticReferencePreserving"
+        );
+        assert_eq!(
+            streaming_ifds_transfer_kind(UnifiedHypergraphEdgeKindV0::LessModuleGraphClosure),
+            "semanticReferencePreserving"
+        );
+        assert_eq!(
+            apply_streaming_ifds_transfer(
+                &StreamingIFDSTransferFunctionV0 {
+                    schema_version: STREAMING_IFDS_SCHEMA_VERSION_V0,
+                    product: "test.transfer",
+                    layer_marker: STREAMING_IFDS_LAYER_MARKER_V0,
+                    feature_gate: STREAMING_IFDS_FEATURE_GATE_V0,
+                    hyperedge_id: "edge-less-import".to_string(),
+                    edge_kind: UnifiedHypergraphEdgeKindV0::LessImport,
                     tail_node_ids: vec!["a".to_string()],
                     head_node_id: "b".to_string(),
                     transfer_kind: "semanticReferencePreserving",

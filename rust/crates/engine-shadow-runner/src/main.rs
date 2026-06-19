@@ -3238,6 +3238,8 @@ fn streaming_ifds_edge_kind(value: Option<&str>) -> UnifiedHypergraphEdgeKindV0 
         Some("sassUse") => UnifiedHypergraphEdgeKindV0::SassUse,
         Some("sassForward") => UnifiedHypergraphEdgeKindV0::SassForward,
         Some("sassImport") => UnifiedHypergraphEdgeKindV0::SassImport,
+        Some("lessImport") => UnifiedHypergraphEdgeKindV0::LessImport,
+        Some("lessModuleGraphClosure") => UnifiedHypergraphEdgeKindV0::LessModuleGraphClosure,
         Some("value") => UnifiedHypergraphEdgeKindV0::Value,
         Some("icss") => UnifiedHypergraphEdgeKindV0::Icss,
         Some("foreignReference") => UnifiedHypergraphEdgeKindV0::ForeignReference,

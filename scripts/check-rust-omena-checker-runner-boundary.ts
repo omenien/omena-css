@@ -154,6 +154,16 @@ assert.ok(
   "engine-shadow-runner must build streaming IFDS evidence before checker evaluation",
 );
 assert.ok(
+  runnerSource.includes('Some("lessImport") => UnifiedHypergraphEdgeKindV0::LessImport'),
+  "engine-shadow-runner must preserve Less import edge labels in streaming IFDS fixtures",
+);
+assert.ok(
+  runnerSource.includes(
+    'Some("lessModuleGraphClosure") => UnifiedHypergraphEdgeKindV0::LessModuleGraphClosure',
+  ),
+  "engine-shadow-runner must preserve Less module-closure edge labels in streaming IFDS fixtures",
+);
+assert.ok(
   runnerSource.includes("evaluate_omena_checker_mdl_rules"),
   "engine-shadow-runner must call omena-checker's MDL evaluator",
 );
@@ -653,15 +663,13 @@ function runStreamingIfdsEvaluationFixture(consistent: boolean): StreamingIfdsEv
   // the reused prior c is consistent (parity holds). Without it, c is no longer
   // reachable from the batch oracle, but the incremental path still reuses the
   // stale prior c, so the two computations diverge (parity false, diagnostic).
-  const hyperedges = [
-    { hyperedgeId: "edge-a-b", from: "a", to: "b", edgeKind: "foreignReference" },
-  ];
+  const hyperedges = [{ hyperedgeId: "edge-a-b", from: "a", to: "b", edgeKind: "lessImport" }];
   if (consistent) {
     hyperedges.push({
       hyperedgeId: "edge-b-c",
       from: "b",
       to: "c",
-      edgeKind: "foreignReference",
+      edgeKind: "lessModuleGraphClosure",
     });
   }
   const input = {
