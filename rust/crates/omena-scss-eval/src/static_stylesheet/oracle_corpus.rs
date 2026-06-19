@@ -342,6 +342,11 @@ fn static_stylesheet_oracle_corpus_fixtures() -> &'static [StaticStylesheetOracl
             source: "@function pick($target) { @each $item in list.append(1px 2px, 3px) { @if $item == $target { @return $item; } } @return 0px; } .button { margin: pick(3px); }",
         },
         StaticStylesheetOracleCorpusFixtureV0 {
+            id: "scss.static-each-tuple-function-source-return",
+            dialect: StyleDialect::Scss,
+            source: "@function width-for($target) { @each $width, $style in list.zip(1px 2px, solid dashed) { @if $style == $target { @return $width; } } @return 0px; } .button { margin: width-for(dashed); }",
+        },
+        StaticStylesheetOracleCorpusFixtureV0 {
             id: "scss.static-while-return",
             dialect: StyleDialect::Scss,
             source: "@function pick($target) { $i: 0; @while $i < 3 { @if $i == $target { @return $i + 1; } $i: $i + 1; } @return 0; } .button { z-index: pick(2); }",

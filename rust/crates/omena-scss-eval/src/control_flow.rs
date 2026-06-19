@@ -2633,6 +2633,34 @@ mod tests {
     }
 
     #[test]
+    fn control_flow_value_analysis_tracks_static_each_map_function_source_values() {
+        let source = "@each $name, $color in map.merge((primary: red), (secondary: blue)) { .#{$name} { color: $color; } }";
+        let report = analyze_scss_control_flow_values(source, StyleDialect::Scss);
+        assert!(report.is_some());
+        let Some(report) = report else {
+            return;
+        };
+
+        assert_eq!(report.block_count, 1);
+        assert_eq!(
+            report.blocks[0].loop_carried_bindings,
+            vec!["$name", "$color"]
+        );
+        assert_eq!(
+            report.blocks[0].loop_carried_binding_values[0].value,
+            AbstractCssValueV0::FiniteSet {
+                values: vec!["primary".to_string(), "secondary".to_string()]
+            }
+        );
+        assert_eq!(
+            report.blocks[0].loop_carried_binding_values[1].value,
+            AbstractCssValueV0::FiniteSet {
+                values: vec!["#00f".to_string(), "red".to_string()]
+            }
+        );
+    }
+
+    #[test]
     fn control_flow_value_analysis_tracks_static_each_tuple_pair_values() {
         let source =
             "@each $icon, $size in (save, 16px), (cancel, 24px) { .#{$icon} { width: $size; } }";
@@ -2660,6 +2688,33 @@ mod tests {
             }
         );
         assert_eq!(report.blocks[0].output_value_kind, "finiteSet");
+    }
+
+    #[test]
+    fn control_flow_value_analysis_tracks_static_each_tuple_function_source_values() {
+        let source = "@each $width, $style in list.zip(1px 2px, solid dashed) { .item { border: $width $style; } }";
+        let report = analyze_scss_control_flow_values(source, StyleDialect::Scss);
+        assert!(report.is_some());
+        let Some(report) = report else {
+            return;
+        };
+
+        assert_eq!(
+            report.blocks[0].loop_carried_bindings,
+            vec!["$width", "$style"]
+        );
+        assert_eq!(
+            report.blocks[0].loop_carried_binding_values[0].value,
+            AbstractCssValueV0::FiniteSet {
+                values: vec!["1px".to_string(), "2px".to_string()]
+            }
+        );
+        assert_eq!(
+            report.blocks[0].loop_carried_binding_values[1].value,
+            AbstractCssValueV0::FiniteSet {
+                values: vec!["dashed".to_string(), "solid".to_string()]
+            }
+        );
     }
 
     #[test]
@@ -4104,6 +4159,34 @@ mod tests {
             function_call.call_resolved_return_value,
             Some(AbstractCssValueV0::Exact {
                 value: "3px".to_string()
+            })
+        );
+    }
+
+    #[test]
+    fn call_return_ir_resolves_static_each_tuple_function_source_returns() {
+        let source = "@function width-for($target) { @each $width, $style in list.zip(1px 2px, solid dashed) { @if $style == $target { @return $width; } } @return 0px; } .a { margin: width-for(dashed); }";
+        let report = summarize_scss_call_return_ir(source, StyleDialect::Scss);
+        assert!(report.is_some());
+        let Some(report) = report else {
+            return;
+        };
+        let function_call = report
+            .nodes
+            .iter()
+            .find(|node| node.kind == "functionCall" && node.name.as_deref() == Some("width-for"));
+        assert!(function_call.is_some());
+        let Some(function_call) = function_call else {
+            return;
+        };
+
+        assert_eq!(report.call_resolved_return_value_count, 1);
+        assert_eq!(report.exact_call_resolved_return_value_count, 1);
+        assert_eq!(function_call.call_resolved_return_value_kind, Some("exact"));
+        assert_eq!(
+            function_call.call_resolved_return_value,
+            Some(AbstractCssValueV0::Exact {
+                value: "2px".to_string()
             })
         );
     }

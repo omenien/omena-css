@@ -4925,8 +4925,8 @@ mod tests {
             report.evaluated_fixture_count
         );
         assert!(report.all_legacy_outputs_retained_as_oracle);
-        assert_eq!(report.fixture_count, 70);
-        assert_eq!(report.scss_fixture_count, 14);
+        assert_eq!(report.fixture_count, 71);
+        assert_eq!(report.scss_fixture_count, 15);
         assert_eq!(report.sass_fixture_count, 11);
         assert_eq!(report.less_fixture_count, 45);
         assert_eq!(report.evaluated_fixture_count, report.fixture_count);
@@ -8566,6 +8566,25 @@ mod tests {
         assert_eq!(report.resolved_replacements[0].text, "3px");
         assert_eq!(report.resolved_replacements[0].abstract_value_kind, "exact");
         assert!(report.evaluated_css.contains(".button { margin: 3px; }"));
+        assert!(report.oracle.all_legacy_declaration_values_preserved);
+    }
+
+    #[test]
+    fn static_scss_evaluation_resolves_static_each_tuple_function_source_returns() {
+        let report = derive_static_stylesheet_module_evaluation(
+            "@function width-for($target) { @each $width, $style in list.zip(1px 2px, solid dashed) { @if $style == $target { @return $width; } } @return 0px; } .button { margin: width-for(dashed); }",
+            StyleDialect::Scss,
+        );
+        assert!(report.is_some());
+        let Some(report) = report else {
+            return;
+        };
+
+        assert_eq!(report.replacement_count, 1);
+        assert_eq!(report.resolved_replacements[0].name, "function:width-for");
+        assert_eq!(report.resolved_replacements[0].text, "2px");
+        assert_eq!(report.resolved_replacements[0].abstract_value_kind, "exact");
+        assert!(report.evaluated_css.contains(".button { margin: 2px; }"));
         assert!(report.oracle.all_legacy_declaration_values_preserved);
     }
 

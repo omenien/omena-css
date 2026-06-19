@@ -215,7 +215,8 @@ fn split_static_scss_key_value(entry: &str) -> Option<(&str, &str)> {
 }
 
 fn parse_static_scss_each_tuple_entries(source: &str, arity: usize) -> Option<Vec<Vec<String>>> {
-    let entries = split_static_scss_top_level(source.trim(), ',')?;
+    let source = strip_static_scss_outer_container(source.trim()).unwrap_or_else(|| source.trim());
+    let entries = split_static_scss_top_level(source, ',')?;
     if entries.is_empty() {
         return None;
     }
