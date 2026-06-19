@@ -257,6 +257,30 @@ pub struct OmenaQueryStaticStylesheetEvaluatorOracleCorpusSummaryV0 {
     pub corpus: OmenaScssEvalStaticStylesheetOracleCorpusReportV0,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct OmenaQueryStaticLifExportsSummaryV0 {
+    pub schema_version: &'static str,
+    pub product: &'static str,
+    pub mode: &'static str,
+    pub dialect: &'static str,
+    pub source_syntax: &'static str,
+    pub sif_superset: bool,
+    pub less_specific_export_count: usize,
+    pub less_variable_count: usize,
+    pub less_mixin_count: usize,
+    pub less_detached_ruleset_count: usize,
+    pub less_variable_names: Vec<String>,
+    pub less_mixin_names: Vec<String>,
+    pub less_detached_ruleset_names: Vec<String>,
+    pub sif_variable_count: usize,
+    pub sif_mixin_count: usize,
+    pub sif_function_count: usize,
+    pub sif_placeholder_count: usize,
+    pub sif_forward_count: usize,
+    pub exports: omena_sif::OmenaLifExportsV1,
+}
+
 pub fn summarize_omena_query_static_stylesheet_evaluator_from_source(
     source: &str,
     dialect: OmenaParserStyleDialect,
@@ -327,6 +351,59 @@ pub fn summarize_omena_query_static_stylesheet_evaluator_from_source(
             .map_or(0, |resolution| resolution.top_count),
         evaluation,
         value_resolution,
+    }
+}
+
+pub fn summarize_omena_query_static_lif_exports_from_source(
+    source: &str,
+    dialect: OmenaParserStyleDialect,
+) -> OmenaQueryStaticLifExportsSummaryV0 {
+    let source_syntax = omena_query_boundary_sif_source_syntax(dialect);
+    let exports = omena_sif::generate_static_omena_lif_exports_v1(
+        omena_sif::OmenaSifStaticGeneratorInputV1 {
+            canonical_url: "memory:omena-query-static-lif",
+            source,
+            syntax: source_syntax.clone(),
+        },
+    );
+    let less_variable_names = exports
+        .less_variables
+        .iter()
+        .map(|variable| variable.name.clone())
+        .collect::<Vec<_>>();
+    let less_mixin_names = exports
+        .less_mixins
+        .iter()
+        .map(|mixin| mixin.name.clone())
+        .collect::<Vec<_>>();
+    let less_detached_ruleset_names = exports
+        .less_detached_rulesets
+        .iter()
+        .map(|ruleset| ruleset.name.clone())
+        .collect::<Vec<_>>();
+
+    OmenaQueryStaticLifExportsSummaryV0 {
+        schema_version: OMENA_QUERY_CURRENT_SCHEMA_VERSION,
+        product: "omena-query.static-lif-exports",
+        mode: "staticInterfaceOnly",
+        dialect: omena_query_boundary_style_dialect_label(dialect),
+        source_syntax: omena_query_boundary_sif_source_syntax_label(source_syntax),
+        sif_superset: true,
+        less_specific_export_count: exports.less_variables.len()
+            + exports.less_mixins.len()
+            + exports.less_detached_rulesets.len(),
+        less_variable_count: exports.less_variables.len(),
+        less_mixin_count: exports.less_mixins.len(),
+        less_detached_ruleset_count: exports.less_detached_rulesets.len(),
+        less_variable_names,
+        less_mixin_names,
+        less_detached_ruleset_names,
+        sif_variable_count: exports.sif_exports.variables.len(),
+        sif_mixin_count: exports.sif_exports.mixins.len(),
+        sif_function_count: exports.sif_exports.functions.len(),
+        sif_placeholder_count: exports.sif_exports.placeholders.len(),
+        sif_forward_count: exports.sif_exports.forwards.len(),
+        exports,
     }
 }
 
@@ -475,6 +552,28 @@ fn omena_query_boundary_style_dialect_label(dialect: OmenaParserStyleDialect) ->
     }
 }
 
+fn omena_query_boundary_sif_source_syntax(
+    dialect: OmenaParserStyleDialect,
+) -> omena_sif::OmenaSifSourceSyntaxV1 {
+    match dialect {
+        OmenaParserStyleDialect::Css => omena_sif::OmenaSifSourceSyntaxV1::Css,
+        OmenaParserStyleDialect::Scss => omena_sif::OmenaSifSourceSyntaxV1::Scss,
+        OmenaParserStyleDialect::Sass => omena_sif::OmenaSifSourceSyntaxV1::Sass,
+        OmenaParserStyleDialect::Less => omena_sif::OmenaSifSourceSyntaxV1::Less,
+    }
+}
+
+fn omena_query_boundary_sif_source_syntax_label(
+    syntax: omena_sif::OmenaSifSourceSyntaxV1,
+) -> &'static str {
+    match syntax {
+        omena_sif::OmenaSifSourceSyntaxV1::Css => "css",
+        omena_sif::OmenaSifSourceSyntaxV1::Scss => "scss",
+        omena_sif::OmenaSifSourceSyntaxV1::Sass => "sass",
+        omena_sif::OmenaSifSourceSyntaxV1::Less => "less",
+    }
+}
+
 pub fn summarize_omena_query_boundary(input: &EngineInputV2) -> OmenaQueryBoundarySummaryV0 {
     let fragment_bundle = summarize_omena_query_fragment_bundle(input);
     let expression_semantics_query_count = fragment_bundle.expression_semantics.fragments.len();
@@ -526,6 +625,7 @@ pub fn summarize_omena_query_boundary(input: &EngineInputV2) -> OmenaQueryBounda
             "omena-scss-eval.control-flow-ir",
             "omena-scss-eval.control-flow-value-analysis",
             "omena-scss-eval.call-return-ir",
+            "omena-query.static-lif-exports",
             "omena-query.scss-evaluator-control-flow-oracle-corpus",
             "omena-scss-eval.control-flow-oracle-corpus",
             "omena-query.evaluation-runtime",
@@ -573,6 +673,7 @@ pub fn summarize_omena_query_boundary(input: &EngineInputV2) -> OmenaQueryBounda
             "staticStylesheetEvaluatorOracle",
             "staticStylesheetEvaluatorOracleCorpus",
             "scssEvaluatorControlFlowOracle",
+            "staticLifExportsBoundary",
             "scssEvaluatorControlFlowOracleCorpus",
             "sassModuleSourceSelection",
             "omenaParserStyleFactExtraction",

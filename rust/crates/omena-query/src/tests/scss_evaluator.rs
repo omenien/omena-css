@@ -1,9 +1,65 @@
 use crate::{
     OmenaParserStyleDialect, summarize_omena_query_scss_evaluator_control_flow_from_source,
     summarize_omena_query_scss_evaluator_control_flow_oracle_corpus,
+    summarize_omena_query_static_lif_exports_from_source,
     summarize_omena_query_static_stylesheet_evaluator_from_source,
     summarize_omena_query_static_stylesheet_evaluator_oracle_corpus,
 };
+
+#[test]
+fn exposes_less_lif_exports_through_query_boundary() {
+    let source = r#"
+@brand: #fff;
+@tokens: { primary: @brand; @gap: 2px; };
+.button(@gap: 1rem, @rest...) when (@gap > 0) { color: @brand; }
+"#;
+    let summary =
+        summarize_omena_query_static_lif_exports_from_source(source, OmenaParserStyleDialect::Less);
+
+    assert_eq!(summary.schema_version, "0");
+    assert_eq!(summary.product, "omena-query.static-lif-exports");
+    assert_eq!(summary.mode, "staticInterfaceOnly");
+    assert_eq!(summary.dialect, "less");
+    assert_eq!(summary.source_syntax, "less");
+    assert!(summary.sif_superset);
+    assert_eq!(summary.less_variable_names, vec!["@brand"]);
+    assert_eq!(summary.less_mixin_names, vec![".button"]);
+    assert_eq!(summary.less_detached_ruleset_names, vec!["@tokens"]);
+    assert_eq!(summary.less_specific_export_count, 3);
+    assert_eq!(summary.sif_variable_count, 0);
+    assert_eq!(
+        summary.exports.less_variables[0].value_repr.as_deref(),
+        Some("#fff")
+    );
+    assert!(summary.exports.less_mixins[0].guarded);
+    assert!(summary.exports.less_mixins[0].parameters[1].variadic);
+}
+
+#[test]
+fn exposes_scss_exports_as_lif_sif_superset_boundary() {
+    let source = r#"
+$brand: #fff !default;
+@mixin button($gap: 1rem) { gap: $gap; }
+@function double($value) { @return $value * 2; }
+%surface { color: $brand; }
+@forward "./tokens" as token-* show $token-brand;
+"#;
+    let summary =
+        summarize_omena_query_static_lif_exports_from_source(source, OmenaParserStyleDialect::Scss);
+
+    assert_eq!(summary.product, "omena-query.static-lif-exports");
+    assert_eq!(summary.dialect, "scss");
+    assert_eq!(summary.source_syntax, "scss");
+    assert!(summary.sif_superset);
+    assert_eq!(summary.less_specific_export_count, 0);
+    assert_eq!(summary.sif_variable_count, 1);
+    assert_eq!(summary.sif_mixin_count, 1);
+    assert_eq!(summary.sif_function_count, 1);
+    assert_eq!(summary.sif_placeholder_count, 1);
+    assert_eq!(summary.sif_forward_count, 1);
+    assert_eq!(summary.exports.sif_exports.variables[0].name, "$brand");
+    assert!(summary.exports.sif_exports.variables[0].defaulted);
+}
 
 #[test]
 fn exposes_static_stylesheet_oracle_corpus_through_query_boundary() {
