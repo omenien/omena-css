@@ -273,6 +273,11 @@ fn scss_control_flow_oracle_corpus_fixtures() -> &'static [ScssControlFlowOracle
             source: "@function tone($target) { @each $name, $tone in (primary: red, secondary: blue) { @if $name == $target { @return $tone; } } @return black; } .button { color: tone(secondary); }",
         },
         ScssControlFlowOracleCorpusFixtureV0 {
+            id: "scss.nested-static-loop-return",
+            dialect: StyleDialect::Scss,
+            source: "@function collect($target) { @for $i from 1 through 2 { @for $j from 1 through 2 { @if $i == $target { @return $i + $j; } } } @return 0; } .button { z-index: collect(2); }",
+        },
+        ScssControlFlowOracleCorpusFixtureV0 {
             id: "scss.dynamic-loop-top",
             dialect: StyleDialect::Scss,
             source: "@function collect($count) { @for $i from 1 through $count { @return $i; } } .button { z-index: collect(var(--count)); }",
@@ -304,8 +309,8 @@ mod tests {
         assert_eq!(report.value_type, "AbstractCssValueV0");
         assert_eq!(report.node_key_type, "StableNodeKeyV0");
         assert_eq!(report.recursion_cap, SCSS_CALL_RETURN_RECURSION_LIMIT);
-        assert_eq!(report.fixture_count, 7);
-        assert_eq!(report.supported_fixture_count, 6);
+        assert_eq!(report.fixture_count, 8);
+        assert_eq!(report.supported_fixture_count, 7);
         assert_eq!(report.rejected_flat_css_fixture_count, 1);
         assert!(report.branch_fixture_count >= 3);
         assert!(report.loop_fixture_count >= 4);
