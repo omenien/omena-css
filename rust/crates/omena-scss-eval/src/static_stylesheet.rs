@@ -39,19 +39,23 @@ use less_guard::{
     static_less_mixin_guard_matches, static_less_value_condition_matches,
 };
 use model::{
-    StaticLessDetachedRulesetAccessor, StaticLessDetachedRulesetAccessorRenderOutcome,
-    StaticLessDetachedRulesetCall, StaticLessDetachedRulesetCallRenderOutcome,
-    StaticLessDetachedRulesetDeclaration, StaticLessMixinAccessor,
-    StaticLessMixinAccessorCallRenderOutcome, StaticLessMixinAccessorRenderOutcome,
-    StaticLessMixinAccessorRenderResult, StaticLessMixinBodyLocalDeclaration, StaticLessMixinCall,
-    StaticLessMixinCallRenderOutcome, StaticLessMixinDeclaration, StaticLessMixinRenderContext,
-    StaticLessMixinRenderOutcome, StaticLessMixinRenderResult, StaticScssFunctionArgument,
-    StaticScssFunctionCall, StaticScssFunctionDeclaration, StaticScssFunctionLocalScope,
+    StaticLessBodyPropertyValueOutcome, StaticLessDetachedRulesetAccessor,
+    StaticLessDetachedRulesetAccessorEvaluationEdits,
+    StaticLessDetachedRulesetAccessorRenderOutcome, StaticLessDetachedRulesetCall,
+    StaticLessDetachedRulesetCallRenderOutcome, StaticLessDetachedRulesetDeclaration,
+    StaticLessDetachedRulesetEvaluationEdits, StaticLessMixinAccessor,
+    StaticLessMixinAccessorCallRenderOutcome, StaticLessMixinAccessorEvaluationEdits,
+    StaticLessMixinAccessorRenderOutcome, StaticLessMixinAccessorRenderResult,
+    StaticLessMixinBodyLocalDeclaration, StaticLessMixinCall, StaticLessMixinCallRenderOutcome,
+    StaticLessMixinDeclaration, StaticLessMixinEvaluationEdits, StaticLessMixinRenderContext,
+    StaticLessMixinRenderOutcome, StaticLessMixinRenderResult, StaticLessResolvedValue,
+    StaticScssFunctionArgument, StaticScssFunctionCall, StaticScssFunctionDeclaration,
+    StaticScssFunctionEvaluationEdits, StaticScssFunctionLocalScope,
     StaticScssFunctionLocalVariable, StaticScssFunctionParameter,
     StaticScssFunctionResolutionContext, StaticScssFunctionReturnClause, StaticScssLoopHeader,
-    StaticScssMixinBodyLocalDeclaration, StaticScssMixinDeclaration, StaticScssMixinIncludeCall,
-    StaticScssMixinRenderResult, StaticStylesheetEvaluationEdit,
-    StaticStylesheetPropertyDeclaration, StaticStylesheetScope,
+    StaticScssMixinBodyLocalDeclaration, StaticScssMixinDeclaration,
+    StaticScssMixinEvaluationEdits, StaticScssMixinIncludeCall, StaticScssMixinRenderResult,
+    StaticStylesheetEvaluationEdit, StaticStylesheetPropertyDeclaration, StaticStylesheetScope,
     StaticStylesheetScopedVariableDeclaration, StaticStylesheetVariableDeclaration,
     StaticStylesheetVariableKind,
 };
@@ -144,49 +148,6 @@ pub struct OmenaScssEvalStaticValueResolutionV0 {
 }
 
 const STATIC_STYLESHEET_VALUE_RESOLUTION_FUEL_LIMIT: usize = 128;
-
-struct StaticScssMixinEvaluationEdits {
-    edits: Vec<StaticStylesheetEvaluationEdit>,
-    preserved_raw_include_count: usize,
-}
-
-struct StaticScssFunctionEvaluationEdits {
-    edits: Vec<StaticStylesheetEvaluationEdit>,
-    replacements: Vec<OmenaScssEvalResolvedReplacementV0>,
-    preserved_raw_call_count: usize,
-}
-
-struct StaticLessMixinEvaluationEdits {
-    edits: Vec<StaticStylesheetEvaluationEdit>,
-    preserved_non_rendering_call_count: usize,
-}
-
-struct StaticLessDetachedRulesetEvaluationEdits {
-    edits: Vec<StaticStylesheetEvaluationEdit>,
-    preserved_raw_call_count: usize,
-}
-
-struct StaticLessDetachedRulesetAccessorEvaluationEdits {
-    edits: Vec<StaticStylesheetEvaluationEdit>,
-    preserved_raw_accessor_count: usize,
-    preserved_declaration_keys: BTreeSet<(usize, String)>,
-}
-
-struct StaticLessMixinAccessorEvaluationEdits {
-    edits: Vec<StaticStylesheetEvaluationEdit>,
-    preserved_raw_accessor_count: usize,
-}
-
-enum StaticLessBodyPropertyValueOutcome {
-    Resolved(String),
-    MemberNotFound,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-struct StaticLessResolvedValue {
-    text: String,
-    escaped: bool,
-}
 
 pub fn derive_static_stylesheet_module_evaluation(
     style_source: &str,

@@ -2,6 +2,8 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use omena_parser::StyleDialect;
 
+use super::OmenaScssEvalResolvedReplacementV0;
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(super) enum StaticStylesheetVariableKind {
     Scss,
@@ -55,6 +57,49 @@ pub(super) struct StaticStylesheetEvaluationEdit {
     pub(super) start: usize,
     pub(super) end: usize,
     pub(super) replacement: String,
+}
+
+pub(super) struct StaticScssMixinEvaluationEdits {
+    pub(super) edits: Vec<StaticStylesheetEvaluationEdit>,
+    pub(super) preserved_raw_include_count: usize,
+}
+
+pub(super) struct StaticScssFunctionEvaluationEdits {
+    pub(super) edits: Vec<StaticStylesheetEvaluationEdit>,
+    pub(super) replacements: Vec<OmenaScssEvalResolvedReplacementV0>,
+    pub(super) preserved_raw_call_count: usize,
+}
+
+pub(super) struct StaticLessMixinEvaluationEdits {
+    pub(super) edits: Vec<StaticStylesheetEvaluationEdit>,
+    pub(super) preserved_non_rendering_call_count: usize,
+}
+
+pub(super) struct StaticLessDetachedRulesetEvaluationEdits {
+    pub(super) edits: Vec<StaticStylesheetEvaluationEdit>,
+    pub(super) preserved_raw_call_count: usize,
+}
+
+pub(super) struct StaticLessDetachedRulesetAccessorEvaluationEdits {
+    pub(super) edits: Vec<StaticStylesheetEvaluationEdit>,
+    pub(super) preserved_raw_accessor_count: usize,
+    pub(super) preserved_declaration_keys: BTreeSet<(usize, String)>,
+}
+
+pub(super) struct StaticLessMixinAccessorEvaluationEdits {
+    pub(super) edits: Vec<StaticStylesheetEvaluationEdit>,
+    pub(super) preserved_raw_accessor_count: usize,
+}
+
+pub(super) enum StaticLessBodyPropertyValueOutcome {
+    Resolved(String),
+    MemberNotFound,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(super) struct StaticLessResolvedValue {
+    pub(super) text: String,
+    pub(super) escaped: bool,
 }
 
 #[derive(Debug, Clone)]
