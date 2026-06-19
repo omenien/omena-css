@@ -236,6 +236,11 @@ fn static_stylesheet_oracle_corpus_fixtures() -> &'static [StaticStylesheetOracl
             source: "@tone: lighten(#123456, 10%, relative); @sat: saturate(#123456, 10%, relative); @alpha: fadein(rgba(18, 52, 86, .5), 10%, relative); .button { color: @tone; border-color: @sat; background: @alpha; }",
         },
         StaticStylesheetOracleCorpusFixtureV0 {
+            id: "less.convert-units",
+            dialect: StyleDialect::Less,
+            source: "@cm: convert(1in, cm); @ms: convert(1s, ms); @deg: convert(.5turn, deg); .button { width: @cm; transition-duration: @ms; rotate: @deg; }",
+        },
+        StaticStylesheetOracleCorpusFixtureV0 {
             id: "less.color-mix",
             dialect: StyleDialect::Less,
             source: "@tone: mix(red, blue, 25%); @surface: tint(#123456, 10%); .button { color: @tone; background: @surface; }",

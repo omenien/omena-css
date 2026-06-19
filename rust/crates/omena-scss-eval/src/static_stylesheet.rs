@@ -6544,6 +6544,7 @@ fn reduce_static_less_value_with_escape_flag(value: String) -> StaticLessResolve
         &[
             ("unit", parse_static_less_unit_value),
             ("get-unit", parse_static_less_get_unit_value),
+            ("convert", parse_static_less_convert_value),
             ("if", parse_static_less_if_value),
             ("boolean", parse_static_less_boolean_value),
             ("percentage", parse_static_less_percentage_value),
@@ -6635,6 +6636,37 @@ fn parse_static_less_get_unit_value(value: &str) -> Option<String> {
     };
     let parsed = parse_numeric_value_with_unit(number.trim())?;
     Some(parsed.unit.to_string())
+}
+
+fn parse_static_less_convert_value(value: &str) -> Option<String> {
+    let arguments = parse_whole_function_value_arguments(value, "convert")?;
+    let [number, target_unit] = arguments.as_slice() else {
+        return None;
+    };
+    let parsed = parse_numeric_value_with_unit(number.trim())?;
+    let target_unit = parse_static_less_convert_unit_argument(target_unit.trim())?;
+    let original = || {
+        format!(
+            "{}{}",
+            format_static_less_channel_number(parsed.value),
+            parsed.unit
+        )
+    };
+    let Some(source_unit) = static_less_convertible_unit(parsed.unit) else {
+        return Some(original());
+    };
+    let Some(target_unit) = static_less_convertible_unit(target_unit.as_str()) else {
+        return Some(original());
+    };
+    if source_unit.family != target_unit.family {
+        return Some(original());
+    }
+    let converted = parsed.value * source_unit.base_factor / target_unit.base_factor;
+    Some(format!(
+        "{}{}",
+        format_static_less_channel_number(converted),
+        target_unit.unit
+    ))
 }
 
 fn parse_static_less_percentage_value(value: &str) -> Option<String> {
@@ -7777,6 +7809,79 @@ fn parse_static_less_unit_argument(unit: &str) -> Option<&str> {
     Some(unit)
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum StaticLessConvertibleUnitFamily {
+    Length,
+    Time,
+    Angle,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+struct StaticLessConvertibleUnit {
+    family: StaticLessConvertibleUnitFamily,
+    unit: &'static str,
+    base_factor: f64,
+}
+
+fn static_less_convertible_unit(unit: &str) -> Option<StaticLessConvertibleUnit> {
+    match unit {
+        "px" => Some(static_less_convertible_length_unit("px", 1.0)),
+        "in" => Some(static_less_convertible_length_unit("in", 96.0)),
+        "cm" => Some(static_less_convertible_length_unit("cm", 96.0 / 2.54)),
+        "mm" => Some(static_less_convertible_length_unit("mm", 96.0 / 25.4)),
+        "pt" => Some(static_less_convertible_length_unit("pt", 96.0 / 72.0)),
+        "pc" => Some(static_less_convertible_length_unit("pc", 16.0)),
+        "s" => Some(StaticLessConvertibleUnit {
+            family: StaticLessConvertibleUnitFamily::Time,
+            unit: "s",
+            base_factor: 1.0,
+        }),
+        "ms" => Some(StaticLessConvertibleUnit {
+            family: StaticLessConvertibleUnitFamily::Time,
+            unit: "ms",
+            base_factor: 0.001,
+        }),
+        "deg" => Some(static_less_convertible_angle_unit("deg", 1.0)),
+        "rad" => Some(static_less_convertible_angle_unit(
+            "rad",
+            180.0 / std::f64::consts::PI,
+        )),
+        "grad" => Some(static_less_convertible_angle_unit("grad", 0.9)),
+        "turn" => Some(static_less_convertible_angle_unit("turn", 360.0)),
+        _ => None,
+    }
+}
+
+fn static_less_convertible_length_unit(
+    unit: &'static str,
+    base_factor: f64,
+) -> StaticLessConvertibleUnit {
+    StaticLessConvertibleUnit {
+        family: StaticLessConvertibleUnitFamily::Length,
+        unit,
+        base_factor,
+    }
+}
+
+fn static_less_convertible_angle_unit(
+    unit: &'static str,
+    base_factor: f64,
+) -> StaticLessConvertibleUnit {
+    StaticLessConvertibleUnit {
+        family: StaticLessConvertibleUnitFamily::Angle,
+        unit,
+        base_factor,
+    }
+}
+
+fn parse_static_less_convert_unit_argument(unit: &str) -> Option<String> {
+    static_less_quoted_string_contents(unit).or_else(|| {
+        parse_static_less_unit_argument(unit)
+            .map(str::to_string)
+            .filter(|unit| unit != "%")
+    })
+}
+
 fn reduce_static_less_escaped_string_value(value: &str) -> Option<String> {
     let trimmed = value.trim();
     let rest = trimmed.strip_prefix('~')?;
@@ -8354,9 +8459,9 @@ mod tests {
         assert_eq!(report.mode, "oracleOnly");
         assert_eq!(report.value_type, "AbstractCssValueV0");
         assert_eq!(report.product_output_source, "legacyEvaluatedCss");
-        assert_eq!(report.fixture_count, 18);
+        assert_eq!(report.fixture_count, 19);
         assert_eq!(report.scss_fixture_count, 6);
-        assert_eq!(report.less_fixture_count, 12);
+        assert_eq!(report.less_fixture_count, 13);
         assert_eq!(report.evaluated_fixture_count, report.fixture_count);
         assert_eq!(report.missing_evaluation_count, 0);
         assert_eq!(report.divergence_count, 0);
@@ -10143,6 +10248,31 @@ mod tests {
         assert!(report.evaluated_css.contains("margin: 5px"));
         assert!(report.evaluated_css.contains("padding: 5"));
         assert!(report.evaluated_css.contains("--unit: rem"));
+        assert!(report.oracle.all_legacy_declaration_values_preserved);
+    }
+
+    #[test]
+    fn static_less_evaluation_reduces_convert_builtin_values() {
+        let report = derive_static_stylesheet_module_evaluation(
+            "@cm: convert(1in, cm); @inch: convert(2.54cm, in); @px: convert(96px, in); @ms: convert(1s, ms); @sec: convert(250ms, s); @deg: convert(1rad, deg); @turn: convert(.5turn, deg); @same: convert(1in, s); .button { cm: @cm; inch: @inch; px: @px; ms: @ms; sec: @sec; deg: @deg; turn: @turn; same: @same; }",
+            StyleDialect::Less,
+        );
+        assert!(report.is_some());
+        let Some(report) = report else {
+            return;
+        };
+
+        assert_eq!(report.replacement_count, 8);
+        assert_eq!(report.value_resolution.resolved_count, 6);
+        assert_eq!(report.value_resolution.raw_count, 2);
+        assert!(report.evaluated_css.contains("cm: 2.54cm"));
+        assert!(report.evaluated_css.contains("inch: 1in"));
+        assert!(report.evaluated_css.contains("px: 1in"));
+        assert!(report.evaluated_css.contains("ms: 1000ms"));
+        assert!(report.evaluated_css.contains("sec: 0.25s"));
+        assert!(report.evaluated_css.contains("deg: 57.29577951deg"));
+        assert!(report.evaluated_css.contains("turn: 180deg"));
+        assert!(report.evaluated_css.contains("same: 1in"));
         assert!(report.oracle.all_legacy_declaration_values_preserved);
     }
 
