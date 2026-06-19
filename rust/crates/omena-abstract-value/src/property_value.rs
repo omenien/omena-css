@@ -1,4 +1,4 @@
-use std::collections::BTreeSet;
+use std::collections::{BTreeMap, BTreeSet};
 
 use omena_value_lattice::{canonicalize_css_value, css_values_canonically_equal};
 
@@ -96,6 +96,8 @@ pub fn narrow_abstract_property_value_for_cascade_branch(
         &matched,
         exact_layer,
     );
+    let (display_value, display_values) =
+        display_property_values_from_matched_candidates(&value, &matched, exact_layer);
 
     AbstractPropertyValueNarrowingV0 {
         schema_version: "0",
@@ -113,6 +115,8 @@ pub fn narrow_abstract_property_value_for_cascade_branch(
         },
         candidate_count: candidates.len(),
         matched_candidate_count: matched.len(),
+        display_value,
+        display_values,
         value,
     }
 }
@@ -195,6 +199,103 @@ fn abstract_property_value_from_single_candidate(
         value,
         pseudo_state: requested_pseudo_state.map(str::to_string),
     }
+}
+
+fn display_property_values_from_matched_candidates(
+    value: &AbstractPropertyValueV0,
+    matched: &[&AbstractPropertyValueCandidateV0],
+    exact_layer: bool,
+) -> (Option<String>, Vec<String>) {
+    match value {
+        AbstractPropertyValueV0::Bottom { .. } | AbstractPropertyValueV0::Top { .. } => {
+            (None, Vec::new())
+        }
+        AbstractPropertyValueV0::Exact { value, .. } => (
+            display_value_for_exact_canonical_value(value, matched, exact_layer),
+            Vec::new(),
+        ),
+        AbstractPropertyValueV0::CustomPropertyReference {
+            custom_property_name,
+            ..
+        } => (
+            display_value_for_custom_property_reference(custom_property_name, matched),
+            Vec::new(),
+        ),
+        AbstractPropertyValueV0::FiniteSet { values, .. } => {
+            let display_values = display_values_for_canonical_values(values, matched);
+            (None, display_values)
+        }
+    }
+}
+
+fn display_value_for_exact_canonical_value(
+    canonical_value: &str,
+    matched: &[&AbstractPropertyValueCandidateV0],
+    exact_layer: bool,
+) -> Option<String> {
+    if exact_layer
+        && matched.len() > 1
+        && matched
+            .iter()
+            .all(|candidate| candidate.same_selector_ordering && candidate.source_order.is_some())
+    {
+        return matched
+            .iter()
+            .max_by_key(|candidate| (candidate.important, candidate.source_order.unwrap_or(0)))
+            .and_then(|candidate| display_candidate_value(candidate));
+    }
+
+    matched
+        .iter()
+        .find(|candidate| canonical_property_value_text(candidate.value.trim()) == canonical_value)
+        .and_then(|candidate| display_candidate_value(candidate))
+        .or_else(|| Some(canonical_value.to_string()))
+}
+
+fn display_value_for_custom_property_reference(
+    custom_property_name: &str,
+    matched: &[&AbstractPropertyValueCandidateV0],
+) -> Option<String> {
+    matched
+        .iter()
+        .find(|candidate| {
+            referenced_custom_property_name(candidate.value.trim()).as_deref()
+                == Some(custom_property_name)
+        })
+        .and_then(|candidate| display_candidate_value(candidate))
+        .or_else(|| Some(format!("var({custom_property_name})")))
+}
+
+fn display_values_for_canonical_values(
+    canonical_values: &[String],
+    matched: &[&AbstractPropertyValueCandidateV0],
+) -> Vec<String> {
+    let mut display_by_canonical_value = BTreeMap::new();
+    for candidate in matched {
+        let canonical_value = canonical_property_value_text(candidate.value.trim());
+        if canonical_values.contains(&canonical_value)
+            && let Some(display_value) = display_candidate_value(candidate)
+        {
+            display_by_canonical_value
+                .entry(canonical_value)
+                .or_insert(display_value);
+        }
+    }
+
+    canonical_values
+        .iter()
+        .map(|canonical_value| {
+            display_by_canonical_value
+                .get(canonical_value)
+                .cloned()
+                .unwrap_or_else(|| canonical_value.clone())
+        })
+        .collect()
+}
+
+fn display_candidate_value(candidate: &AbstractPropertyValueCandidateV0) -> Option<String> {
+    let value = candidate.value.trim();
+    (!value.is_empty()).then(|| value.to_string())
 }
 
 fn canonical_property_value_text(value: &str) -> String {

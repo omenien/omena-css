@@ -548,6 +548,8 @@ fn narrows_property_values_to_requested_cascade_branch() {
             pseudo_state: None,
         }
     );
+    assert_eq!(narrowed.display_value.as_deref(), Some("blue"));
+    assert!(narrowed.display_values.is_empty());
 }
 
 #[test]
@@ -595,6 +597,8 @@ fn narrows_same_selector_property_values_to_latest_source_order() {
             pseudo_state: None,
         }
     );
+    assert_eq!(narrowed.display_value.as_deref(), Some("blue"));
+    assert!(narrowed.display_values.is_empty());
 }
 
 #[test]
@@ -642,6 +646,8 @@ fn keeps_property_value_set_when_selector_ordering_is_unknown() {
             pseudo_states: Vec::new(),
         }
     );
+    assert_eq!(narrowed.display_value, None);
+    assert_eq!(narrowed.display_values, vec!["blue", "red"]);
 }
 
 #[test]

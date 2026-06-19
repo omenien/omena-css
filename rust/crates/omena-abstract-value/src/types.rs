@@ -346,6 +346,10 @@ pub struct AbstractPropertyValueNarrowingV0 {
     pub requested_layer_scope: &'static str,
     pub candidate_count: usize,
     pub matched_candidate_count: usize,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub display_value: Option<String>,
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub display_values: Vec<String>,
     pub value: AbstractPropertyValueV0,
 }
 

@@ -5936,13 +5936,30 @@ fn render_property_value_narrowings_markdown(
             format!(
                 "- `{}`: {}{}",
                 narrowing.property_name,
-                render_abstract_property_value(&narrowing.value),
+                render_property_value_narrowing_value(narrowing),
                 render_property_value_narrowing_context(narrowing)
             )
         })
         .collect::<Vec<_>>()
         .join("\n");
     format!("\n\nCascade narrowed values:\n{lines}")
+}
+
+fn render_property_value_narrowing_value(
+    narrowing: &omena_query::AbstractPropertyValueNarrowingV0,
+) -> String {
+    if let Some(display_value) = narrowing.display_value.as_deref() {
+        return format!("`{display_value}`");
+    }
+    if !narrowing.display_values.is_empty() {
+        return narrowing
+            .display_values
+            .iter()
+            .map(|value| format!("`{value}`"))
+            .collect::<Vec<_>>()
+            .join(" | ");
+    }
+    render_abstract_property_value(&narrowing.value)
 }
 
 fn render_abstract_property_value(value: &omena_query::AbstractPropertyValueV0) -> String {

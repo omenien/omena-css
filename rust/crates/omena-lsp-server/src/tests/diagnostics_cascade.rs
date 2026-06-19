@@ -451,17 +451,17 @@ fn cascade_narrowing_uses_reachable_module_graph_candidates() -> TestResult {
         unreachable.pointer("/data/cascadeNarrowing/propertyValueNarrowing/candidateCount"),
         Some(&json!(3)),
     );
-    let values = unreachable
-        .pointer("/data/cascadeNarrowing/propertyValueNarrowing/value/values")
+    let display_values = unreachable
+        .pointer("/data/cascadeNarrowing/propertyValueNarrowing/displayValues")
         .and_then(Value::as_array)
-        .ok_or_else(|| std::io::Error::other("finite property values"))?;
+        .ok_or_else(|| std::io::Error::other("finite property display values"))?;
     assert!(
-        values.iter().any(|value| value == &json!("blue")),
-        "reachable imported module value should participate: {values:?}"
+        display_values.iter().any(|value| value == &json!("blue")),
+        "reachable imported module value should participate: {display_values:?}"
     );
     assert!(
-        values.iter().all(|value| value != &json!("orange")),
-        "unreachable module value should not participate: {values:?}"
+        display_values.iter().all(|value| value != &json!("orange")),
+        "unreachable module value should not participate: {display_values:?}"
     );
     Ok(())
 }

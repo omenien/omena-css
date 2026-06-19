@@ -245,7 +245,7 @@ fn style_selector_completion_includes_cascade_narrowed_values() -> Result<(), &'
     assert!(documentation.contains("Cascade narrowed values:"));
     assert!(documentation.contains("- `color`: `var(--brand)`"));
     assert!(documentation.contains("@layer theme"));
-    assert!(documentation.contains("`#00f`"));
+    assert!(documentation.contains("`blue`"));
     Ok(())
 }
 
