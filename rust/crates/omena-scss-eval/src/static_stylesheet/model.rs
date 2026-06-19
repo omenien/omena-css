@@ -195,6 +195,11 @@ pub(super) struct StaticLessDetachedRulesetCall {
     pub(super) end: usize,
 }
 
+pub(super) enum StaticLessDetachedRulesetCallRenderOutcome {
+    Rendered(StaticLessMixinRenderResult),
+    PreservedRaw,
+}
+
 #[derive(Debug, Clone)]
 pub(super) struct StaticLessDetachedRulesetAccessor {
     pub(super) name: String,

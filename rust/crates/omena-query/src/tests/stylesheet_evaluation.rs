@@ -1070,7 +1070,7 @@ fn consumer_build_derives_static_less_evaluator_context_for_detached_ruleset_mix
 }
 
 #[test]
-fn consumer_build_keeps_unknown_detached_ruleset_mixin_calls_planned_only() {
+fn consumer_build_executes_unknown_detached_ruleset_mixin_calls_as_preserved_oracle_output() {
     let summary = execute_omena_query_consumer_build_style_source(
         "Button.module.less",
         "@rules: { .unknown(); }; .button { @rules(); }",
@@ -1084,8 +1084,20 @@ fn consumer_build_keeps_unknown_detached_ruleset_mixin_calls_planned_only() {
     assert!(
         summary
             .execution
+            .executed_pass_ids
+            .contains(&"less-module-evaluate")
+    );
+    assert!(
+        !summary
+            .execution
             .planned_only_pass_ids
             .contains(&"less-module-evaluate")
+    );
+    assert!(
+        summary
+            .execution
+            .output_css
+            .contains("@rules: { .unknown(); };")
     );
     assert!(summary.execution.output_css.contains("@rules();"));
 }
