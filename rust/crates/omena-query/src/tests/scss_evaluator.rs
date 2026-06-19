@@ -592,6 +592,49 @@ fn exposes_static_while_call_return_values_through_query_boundary() -> Result<()
 }
 
 #[test]
+fn exposes_static_while_conditional_call_return_values_through_query_boundary()
+-> Result<(), serde_json::Error> {
+    let source = "@function collect() { $i: 0; @while $i < 3 { @if $i == 2 { @return $i; } $i: $i + 1; } @return 0; } .a { width: collect(); }";
+
+    let summary = summarize_omena_query_scss_evaluator_control_flow_from_source(
+        source,
+        OmenaParserStyleDialect::Scss,
+    );
+
+    assert_eq!(summary.schema_version, "0");
+    assert_eq!(summary.product, "omena-query.scss-evaluator-control-flow");
+    assert_eq!(summary.mode, "oracleOnly");
+    assert_eq!(summary.value_type, "AbstractCssValueV0");
+    assert!(summary.supported_dialect);
+    assert_eq!(summary.control_flow_loop_block_count, 1);
+    assert_eq!(summary.control_flow_back_edge_count, 1);
+    assert_eq!(summary.call_resolved_return_value_count, 1);
+    assert_eq!(summary.exact_call_resolved_return_value_count, 1);
+
+    assert!(summary.call_return_ir.is_some());
+    let Some(call_return) = summary.call_return_ir.as_ref() else {
+        return Ok(());
+    };
+    let function_call = call_return
+        .nodes
+        .iter()
+        .find(|node| node.kind == "functionCall" && node.name.as_deref() == Some("collect"));
+    assert!(function_call.is_some());
+    let Some(function_call) = function_call else {
+        return Ok(());
+    };
+    assert_eq!(function_call.call_resolved_return_value_kind, Some("exact"));
+    assert_eq!(
+        serde_json::to_value(function_call.call_resolved_return_value.as_ref())?,
+        serde_json::json!({
+            "kind": "exact",
+            "value": "2",
+        })
+    );
+    Ok(())
+}
+
+#[test]
 fn keeps_plain_css_out_of_scss_evaluator_control_flow_oracle() {
     let summary = summarize_omena_query_scss_evaluator_control_flow_from_source(
         ".card { color: red; }",
