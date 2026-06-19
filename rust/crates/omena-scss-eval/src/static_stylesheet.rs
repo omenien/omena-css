@@ -9374,6 +9374,27 @@ mod tests {
     }
 
     #[test]
+    fn static_scss_evaluation_reduces_math_constant_function_arguments() {
+        let report = derive_static_stylesheet_module_evaluation(
+            "$unitless: if(math.is-unitless(math.$pi), 1px, 2px); $unit-ok: if(math.unit(math.$pi) == \"\", 5px, 6px); $compatible: if(math.compatible(math.$pi, 1), 3px, 4px); $sin: math.sin(math.$pi); .button { padding: $unitless; border-width: $unit-ok; margin: $compatible; opacity: $sin; }",
+            StyleDialect::Scss,
+        );
+        assert!(report.is_some());
+        let Some(report) = report else {
+            return;
+        };
+
+        assert!(report.evaluated_css.contains("padding: 1px"));
+        assert!(report.evaluated_css.contains("border-width: 5px"));
+        assert!(report.evaluated_css.contains("margin: 3px"));
+        assert!(report.evaluated_css.contains("opacity: 0"));
+        assert_eq!(report.value_resolution.reference_count, 4);
+        assert_eq!(report.value_resolution.resolved_count, 4);
+        assert_eq!(report.value_resolution.raw_count, 0);
+        assert!(report.oracle.all_legacy_declaration_values_preserved);
+    }
+
+    #[test]
     fn static_scss_evaluation_keeps_unsupported_namespaced_math_trig_raw() {
         let report = derive_static_stylesheet_module_evaluation(
             "$bad-angle: math.sin(1px); $bad-inverse: math.asin(2); .button { width: $bad-angle; height: $bad-inverse; }",

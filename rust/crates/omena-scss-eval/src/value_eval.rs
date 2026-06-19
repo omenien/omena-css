@@ -1089,8 +1089,10 @@ fn parse_static_scss_math_atan2_value(value: &str) -> Option<String> {
     let [y, x] = arguments.as_slice() else {
         return None;
     };
-    let y = parse_numeric_value_with_unit(y.trim())?;
-    let x = parse_numeric_value_with_unit(x.trim())?;
+    let y = reduce_static_scss_value(y.trim().to_string());
+    let x = reduce_static_scss_value(x.trim().to_string());
+    let y = parse_numeric_value_with_unit(y.as_str())?;
+    let x = parse_numeric_value_with_unit(x.as_str())?;
     if !y.unit.eq_ignore_ascii_case(x.unit) {
         return None;
     }
@@ -1124,7 +1126,8 @@ fn parse_static_scss_math_inverse_trig_value(
     let [number] = arguments.as_slice() else {
         return None;
     };
-    let number = parse_numeric_value_with_unit(number.trim())?;
+    let number = reduce_static_scss_value(number.trim().to_string());
+    let number = parse_numeric_value_with_unit(number.as_str())?;
     if !number.unit.is_empty() {
         return None;
     }
@@ -1138,7 +1141,8 @@ fn parse_static_scss_math_inverse_trig_value(
 }
 
 fn parse_static_scss_angle_radians(value: &str) -> Option<f64> {
-    let angle = parse_numeric_value_with_unit(value)?;
+    let value = reduce_static_scss_value(value.to_string());
+    let angle = parse_numeric_value_with_unit(value.as_str())?;
     let radians = match angle.unit.to_ascii_lowercase().as_str() {
         "" | "rad" => angle.value,
         "deg" => angle.value.to_radians(),
@@ -2449,7 +2453,8 @@ fn parse_static_scss_percentage_value_with_name(
     let [number] = arguments.as_slice() else {
         return None;
     };
-    let number = parse_numeric_value_with_unit(number.trim())?;
+    let number = reduce_static_scss_value(number.trim().to_string());
+    let number = parse_numeric_value_with_unit(number.as_str())?;
     if !number.unit.is_empty() {
         return None;
     }
@@ -2485,7 +2490,8 @@ fn parse_static_scss_unit_value_with_name(value: &str, function_name: &str) -> O
     let [number] = arguments.as_slice() else {
         return None;
     };
-    let number = parse_numeric_value_with_unit(number.trim())?;
+    let number = reduce_static_scss_value(number.trim().to_string());
+    let number = parse_numeric_value_with_unit(number.as_str())?;
     Some(format!("\"{}\"", number.unit))
 }
 
@@ -2494,7 +2500,8 @@ fn parse_static_scss_unitless_value_with_name(value: &str, function_name: &str) 
     let [number] = arguments.as_slice() else {
         return None;
     };
-    let number = parse_numeric_value_with_unit(number.trim())?;
+    let number = reduce_static_scss_value(number.trim().to_string());
+    let number = parse_numeric_value_with_unit(number.as_str())?;
     Some(number.unit.is_empty().to_string())
 }
 
@@ -2506,8 +2513,10 @@ fn parse_static_scss_compatible_value_with_name(
     let [left, right] = arguments.as_slice() else {
         return None;
     };
-    let left = parse_numeric_value_with_unit(left.trim())?;
-    let right = parse_numeric_value_with_unit(right.trim())?;
+    let left = reduce_static_scss_value(left.trim().to_string());
+    let right = reduce_static_scss_value(right.trim().to_string());
+    let left = parse_numeric_value_with_unit(left.as_str())?;
+    let right = parse_numeric_value_with_unit(right.as_str())?;
     if left.unit.eq_ignore_ascii_case(right.unit) {
         return Some("true".to_string());
     }
