@@ -227,6 +227,14 @@ const EXPECTED_RUNNER_COMMANDS = new Map([
     },
   ],
   [
+    "staticLifExports",
+    {
+      command: SELECTED_QUERY_RUNNER_COMMANDS.staticLifExports,
+      inputContract: "OmenaParserStyleFactsInputV0",
+      outputProduct: "omena-query.static-lif-exports",
+    },
+  ],
+  [
     "selectorUsage",
     {
       command: SELECTED_QUERY_RUNNER_COMMANDS.selectorUsageCanonicalProducer,
