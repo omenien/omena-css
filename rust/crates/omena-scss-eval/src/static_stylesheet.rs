@@ -5,9 +5,8 @@ use omena_parser::{LexedToken, ParsedVariableFact, ParsedVariableFactKind, Style
 use omena_syntax::SyntaxKind;
 use omena_value_lattice::{
     format_css_number, parse_numeric_value_with_unit, parse_reducible_ceil_value,
-    parse_reducible_floor_value, parse_reducible_max_value, parse_reducible_min_value,
-    parse_reducible_mod_value, parse_reducible_pow_value, parse_reducible_sqrt_value,
-    parse_whole_function_value_arguments, split_top_level_whitespace_value_components_owned,
+    parse_reducible_floor_value, parse_whole_function_value_arguments,
+    split_top_level_whitespace_value_components_owned,
     substitute_static_css_function_references_in_value_until_stable,
 };
 use serde::Serialize;
@@ -6497,11 +6496,6 @@ fn reduce_static_less_value(value: String) -> String {
             ("ceil", parse_reducible_ceil_value),
             ("floor", parse_reducible_floor_value),
             ("round", parse_static_less_round_value),
-            ("sqrt", parse_reducible_sqrt_value),
-            ("pow", parse_reducible_pow_value),
-            ("mod", parse_reducible_mod_value),
-            ("min", parse_reducible_min_value),
-            ("max", parse_reducible_max_value),
             ("isnumber", parse_static_less_isnumber_value),
             ("iscolor", parse_static_less_iscolor_value),
             ("isstring", parse_static_less_isstring_value),
