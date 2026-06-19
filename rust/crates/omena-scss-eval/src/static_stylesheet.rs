@@ -7,7 +7,6 @@ use omena_value_lattice::{
     format_css_number, parse_reducible_ceil_value, parse_reducible_floor_value,
     substitute_static_css_function_references_in_value_until_stable,
 };
-use serde::Serialize;
 
 use crate::{
     abstract_css_value_kind, abstract_css_value_reflected_in_legacy_css,
@@ -111,6 +110,11 @@ use less_strings::{
     parse_static_less_replace_value, parse_static_less_url_escape_value,
     preserve_static_less_dynamic_escaped_string_value, reduce_static_less_escaped_string_value,
 };
+pub use model::{
+    OmenaScssEvalResolvedReplacementV0, OmenaScssEvalStaticStylesheetEvaluationV0,
+    OmenaScssEvalStaticStylesheetNativeEditV0, OmenaScssEvalStaticValueResolutionReportV0,
+    OmenaScssEvalStaticValueResolutionV0,
+};
 use model::{
     StaticLessBodyPropertyValueOutcome, StaticLessDetachedRulesetAccessor,
     StaticLessDetachedRulesetAccessorEvaluationEdits,
@@ -192,87 +196,6 @@ use variable_references::{
     static_stylesheet_position_is_scss_module_member_reference,
     static_stylesheet_variable_reference_is_named_argument_label,
 };
-
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct OmenaScssEvalStaticStylesheetEvaluationV0 {
-    pub schema_version: &'static str,
-    pub product: &'static str,
-    pub evaluator: &'static str,
-    pub dialect: &'static str,
-    pub product_output_source: &'static str,
-    pub legacy_output_retained_as_oracle: bool,
-    pub legacy_output_consumed_until_cutover: bool,
-    pub evaluated_css: String,
-    pub native_edit_output: String,
-    pub replacement_count: usize,
-    pub native_replacement_legacy_reflection_count: usize,
-    pub native_replacement_legacy_unreflected_count: usize,
-    pub native_edit_count: usize,
-    pub native_value_edit_count: usize,
-    pub native_structural_edit_count: usize,
-    pub native_edit_output_matches_evaluated_css: bool,
-    pub resolved_replacements: Vec<OmenaScssEvalResolvedReplacementV0>,
-    pub native_edits: Vec<OmenaScssEvalStaticStylesheetNativeEditV0>,
-    pub value_resolution: OmenaScssEvalStaticValueResolutionReportV0,
-    pub oracle: crate::OmenaScssEvalOracleReportV0,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct OmenaScssEvalResolvedReplacementV0 {
-    pub name: String,
-    pub start: usize,
-    pub end: usize,
-    pub text: String,
-    pub rendered_value: Option<String>,
-    pub abstract_value: AbstractCssValueV0,
-    pub abstract_value_kind: &'static str,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct OmenaScssEvalStaticStylesheetNativeEditV0 {
-    pub start: usize,
-    pub end: usize,
-    pub replacement: String,
-    pub edit_kind: &'static str,
-    pub abstract_value: Option<AbstractCssValueV0>,
-    pub abstract_value_kind: Option<&'static str>,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct OmenaScssEvalStaticValueResolutionReportV0 {
-    pub schema_version: &'static str,
-    pub product: &'static str,
-    pub mode: &'static str,
-    pub dialect: &'static str,
-    pub fuel_limit: usize,
-    pub reference_count: usize,
-    pub resolved_count: usize,
-    pub raw_count: usize,
-    pub top_count: usize,
-    pub cycle_count: usize,
-    pub fuel_exhausted_count: usize,
-    pub unresolved_reference_count: usize,
-    pub unsupported_dynamic_count: usize,
-    pub values: Vec<OmenaScssEvalStaticValueResolutionV0>,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct OmenaScssEvalStaticValueResolutionV0 {
-    pub name: String,
-    pub start: usize,
-    pub end: usize,
-    pub source_text: String,
-    pub rendered_value: Option<String>,
-    pub abstract_value: AbstractCssValueV0,
-    pub abstract_value_kind: &'static str,
-    pub outcome: &'static str,
-    pub reason: &'static str,
-}
 
 const STATIC_STYLESHEET_VALUE_RESOLUTION_FUEL_LIMIT: usize = 128;
 

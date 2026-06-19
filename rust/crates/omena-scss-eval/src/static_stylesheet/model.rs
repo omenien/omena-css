@@ -1,8 +1,89 @@
 use std::collections::{BTreeMap, BTreeSet};
 
+use omena_abstract_value::AbstractCssValueV0;
 use omena_parser::StyleDialect;
+use serde::Serialize;
 
-use super::OmenaScssEvalResolvedReplacementV0;
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct OmenaScssEvalStaticStylesheetEvaluationV0 {
+    pub schema_version: &'static str,
+    pub product: &'static str,
+    pub evaluator: &'static str,
+    pub dialect: &'static str,
+    pub product_output_source: &'static str,
+    pub legacy_output_retained_as_oracle: bool,
+    pub legacy_output_consumed_until_cutover: bool,
+    pub evaluated_css: String,
+    pub native_edit_output: String,
+    pub replacement_count: usize,
+    pub native_replacement_legacy_reflection_count: usize,
+    pub native_replacement_legacy_unreflected_count: usize,
+    pub native_edit_count: usize,
+    pub native_value_edit_count: usize,
+    pub native_structural_edit_count: usize,
+    pub native_edit_output_matches_evaluated_css: bool,
+    pub resolved_replacements: Vec<OmenaScssEvalResolvedReplacementV0>,
+    pub native_edits: Vec<OmenaScssEvalStaticStylesheetNativeEditV0>,
+    pub value_resolution: OmenaScssEvalStaticValueResolutionReportV0,
+    pub oracle: crate::OmenaScssEvalOracleReportV0,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct OmenaScssEvalResolvedReplacementV0 {
+    pub name: String,
+    pub start: usize,
+    pub end: usize,
+    pub text: String,
+    pub rendered_value: Option<String>,
+    pub abstract_value: AbstractCssValueV0,
+    pub abstract_value_kind: &'static str,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct OmenaScssEvalStaticStylesheetNativeEditV0 {
+    pub start: usize,
+    pub end: usize,
+    pub replacement: String,
+    pub edit_kind: &'static str,
+    pub abstract_value: Option<AbstractCssValueV0>,
+    pub abstract_value_kind: Option<&'static str>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct OmenaScssEvalStaticValueResolutionReportV0 {
+    pub schema_version: &'static str,
+    pub product: &'static str,
+    pub mode: &'static str,
+    pub dialect: &'static str,
+    pub fuel_limit: usize,
+    pub reference_count: usize,
+    pub resolved_count: usize,
+    pub raw_count: usize,
+    pub top_count: usize,
+    pub cycle_count: usize,
+    pub fuel_exhausted_count: usize,
+    pub unresolved_reference_count: usize,
+    pub unsupported_dynamic_count: usize,
+    pub values: Vec<OmenaScssEvalStaticValueResolutionV0>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct OmenaScssEvalStaticValueResolutionV0 {
+    pub name: String,
+    pub start: usize,
+    pub end: usize,
+    pub source_text: String,
+    pub rendered_value: Option<String>,
+    pub abstract_value: AbstractCssValueV0,
+    pub abstract_value_kind: &'static str,
+    pub outcome: &'static str,
+    pub reason: &'static str,
+}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(super) enum StaticStylesheetVariableKind {
