@@ -52,6 +52,36 @@ interface StaticStylesheetEvaluatorOracleFixtureSummaryV0 {
   readonly nativeEditOutputMatchesEvaluatedCss: boolean;
 }
 
+interface StaticLifExportsSummaryV0 {
+  readonly product: string;
+  readonly mode: string;
+  readonly dialect: string;
+  readonly sourceSyntax: string;
+  readonly sifSuperset: boolean;
+  readonly lessSpecificExportCount: number;
+  readonly lessVariableCount: number;
+  readonly lessMixinCount: number;
+  readonly lessDetachedRulesetCount: number;
+  readonly lessVariableNames: readonly string[];
+  readonly lessMixinNames: readonly string[];
+  readonly lessDetachedRulesetNames: readonly string[];
+  readonly sifVariableCount: number;
+  readonly exports: {
+    readonly lessVariables: readonly {
+      readonly name: string;
+      readonly valueRepr?: string;
+    }[];
+    readonly lessMixins: readonly {
+      readonly name: string;
+      readonly guarded: boolean;
+    }[];
+    readonly lessDetachedRulesets: readonly {
+      readonly name: string;
+      readonly memberNames: readonly string[];
+    }[];
+  };
+}
+
 interface ScssEvaluatorControlFlowOracleCorpusSummaryV0 {
   readonly product: string;
   readonly mode: string;
@@ -581,6 +611,8 @@ void (async () => {
 
   const staticStylesheetOracleCorpus = runStaticStylesheetEvaluatorOracleCorpus();
   assertStaticStylesheetEvaluatorOracleCorpus(staticStylesheetOracleCorpus);
+  const lessStaticLifExports = runStaticLifExports();
+  assertLessStaticLifExports(lessStaticLifExports);
   const scssControlFlowOracleCorpus = runScssEvaluatorControlFlowOracleCorpus();
   assertScssEvaluatorControlFlowOracleCorpus(scssControlFlowOracleCorpus);
 
@@ -590,6 +622,7 @@ void (async () => {
       `backends=${summary.backendKinds.length}`,
       `runnerCommands=${summary.runnerCommands.length}`,
       `staticStylesheetOracleFixtures=${staticStylesheetOracleCorpus.fixtureCount}`,
+      `lessLifExports=${lessStaticLifExports.lessSpecificExportCount}`,
       `scssControlFlowOracleFixtures=${scssControlFlowOracleCorpus.fixtureCount}`,
       `routing=${summary.routingStatus}`,
     ].join(" "),
@@ -624,6 +657,38 @@ function runStaticStylesheetEvaluatorOracleCorpus(): StaticStylesheetEvaluatorOr
   return JSON.parse(result.stdout) as StaticStylesheetEvaluatorOracleCorpusSummaryV0;
 }
 
+function runStaticLifExports(): StaticLifExportsSummaryV0 {
+  const result = spawnSync(
+    "cargo",
+    [
+      "run",
+      "--manifest-path",
+      "rust/Cargo.toml",
+      "-p",
+      "engine-shadow-runner",
+      "--quiet",
+      "--",
+      SELECTED_QUERY_RUNNER_COMMANDS.staticLifExports,
+    ],
+    {
+      cwd: process.cwd(),
+      encoding: "utf8",
+      input: JSON.stringify({
+        dialect: "less",
+        styleSource:
+          "@brand: #fff;\n@tokens: { primary: @brand; @gap: 2px; };\n.button(@gap: 1rem, @rest...) when (@gap > 0) { color: @brand; }\n",
+      }),
+      maxBuffer: 8 * 1024 * 1024,
+    },
+  );
+  assert.equal(
+    result.status,
+    0,
+    `static LIF exports command failed\nstdout=${result.stdout}\nstderr=${result.stderr}`,
+  );
+  return JSON.parse(result.stdout) as StaticLifExportsSummaryV0;
+}
+
 function runScssEvaluatorControlFlowOracleCorpus(): ScssEvaluatorControlFlowOracleCorpusSummaryV0 {
   const result = spawnSync(
     "cargo",
@@ -649,6 +714,28 @@ function runScssEvaluatorControlFlowOracleCorpus(): ScssEvaluatorControlFlowOrac
     `SCSS control-flow oracle corpus command failed\nstdout=${result.stdout}\nstderr=${result.stderr}`,
   );
   return JSON.parse(result.stdout) as ScssEvaluatorControlFlowOracleCorpusSummaryV0;
+}
+
+function assertLessStaticLifExports(summary: StaticLifExportsSummaryV0): void {
+  assert.equal(summary.product, "omena-query.static-lif-exports");
+  assert.equal(summary.mode, "staticInterfaceOnly");
+  assert.equal(summary.dialect, "less");
+  assert.equal(summary.sourceSyntax, "less");
+  assert.equal(summary.sifSuperset, true);
+  assert.equal(summary.lessSpecificExportCount, 3);
+  assert.equal(summary.lessVariableCount, 1);
+  assert.equal(summary.lessMixinCount, 1);
+  assert.equal(summary.lessDetachedRulesetCount, 1);
+  assert.deepEqual(summary.lessVariableNames, ["@brand"]);
+  assert.deepEqual(summary.lessMixinNames, [".button"]);
+  assert.deepEqual(summary.lessDetachedRulesetNames, ["@tokens"]);
+  assert.equal(summary.sifVariableCount, 0);
+  assert.equal(summary.exports.lessVariables[0]?.valueRepr, "#fff");
+  assert.equal(summary.exports.lessMixins[0]?.guarded, true);
+  assert.deepEqual(summary.exports.lessDetachedRulesets[0]?.memberNames.toSorted(), [
+    "@gap",
+    "primary",
+  ]);
 }
 
 function assertStaticStylesheetEvaluatorOracleCorpus(
