@@ -107,6 +107,12 @@
         "css-values/functions/calc",
         "css-color/properties/opacity",
         "css-values/types/url",
+        "css-color/functions/light-dark",
+        "css-color/functions/color-mix",
+        "css-color/functions/color",
+        "css-nesting/selectors/nesting",
+        "css-cascade/atrules/@layer",
+        "css-cascade/atrules/@scope",
         "css-sizing/properties/width",
         "css-sizing/properties/height",
         "css-backgrounds/properties/background-color",
@@ -129,6 +135,12 @@
       "sourceKeys": [
         "css-color",
         "css-color-mix",
+        "light-dark",
+        "color-mix",
+        "color-function",
+        "nesting",
+        "cascade-layers",
+        "scope",
         "css-values",
         "css-sizing",
         "css-backgrounds",
@@ -148,6 +160,12 @@
         "css-values/functions/calc",
         "css-color/properties/opacity",
         "css-values/types/url",
+        "css-color/functions/light-dark",
+        "css-color/functions/color-mix",
+        "css-color/functions/color",
+        "css-nesting/selectors/nesting",
+        "css-cascade/atrules/@layer",
+        "css-cascade/atrules/@scope",
         "css-sizing/properties/width",
         "css-sizing/properties/height",
         "css-backgrounds/properties/background-color",
@@ -172,6 +190,12 @@
         "css.types.calc",
         "css.properties.opacity",
         "css.types.url",
+        "css.types.color.light-dark",
+        "css.types.color.color-mix",
+        "css.types.color.color",
+        "css.selectors.nesting",
+        "css.at-rules.layer",
+        "css.at-rules.scope",
         "css.properties.width",
         "css.properties.height",
         "css.properties.background-color",
@@ -243,6 +267,96 @@
       "evidence": [
         "url-quote-strip",
         "WPT css/css-values/urls/url-request-modifiers-serialize.sub.html"
+      ]
+    },
+    {
+      "id": "css-color/functions/light-dark",
+      "webrefId": "css-color/functions/light-dark",
+      "sourceName": "web-features",
+      "sourceCategory": "values",
+      "specUrl": "https://drafts.csswg.org/css-color-5/#light-dark",
+      "priority": "P1",
+      "status": "covered",
+      "owner": "omena-transform-target",
+      "evidence": [
+        "compat-source-key:web-features/light-dark",
+        "compat-source-key:mdn-bcd/css.types.color.light-dark",
+        "compat-source-key:caniuse/css-light-dark-function"
+      ]
+    },
+    {
+      "id": "css-color/functions/color-mix",
+      "webrefId": "css-color/functions/color-mix",
+      "sourceName": "web-features",
+      "sourceCategory": "values",
+      "specUrl": "https://drafts.csswg.org/css-color-5/#color-mix",
+      "priority": "P1",
+      "status": "covered",
+      "owner": "omena-transform-target",
+      "evidence": [
+        "compat-source-key:web-features/color-mix",
+        "compat-source-key:mdn-bcd/css.types.color.color-mix",
+        "compat-source-key:caniuse/css-color-mix"
+      ]
+    },
+    {
+      "id": "css-color/functions/color",
+      "webrefId": "css-color/functions/color",
+      "sourceName": "web-features",
+      "sourceCategory": "values",
+      "specUrl": "https://drafts.csswg.org/css-color-5/#color-function",
+      "priority": "P1",
+      "status": "covered",
+      "owner": "omena-transform-target",
+      "evidence": [
+        "compat-source-key:web-features/color-function",
+        "compat-source-key:mdn-bcd/css.types.color.color",
+        "compat-source-key:caniuse/css-color-function"
+      ]
+    },
+    {
+      "id": "css-nesting/selectors/nesting",
+      "webrefId": "css-nesting/selectors/nesting",
+      "sourceName": "web-features",
+      "sourceCategory": "selectors",
+      "specUrl": "https://drafts.csswg.org/css-nesting-1/",
+      "priority": "P1",
+      "status": "covered",
+      "owner": "omena-transform-target",
+      "evidence": [
+        "compat-source-key:web-features/nesting",
+        "compat-source-key:mdn-bcd/css.selectors.nesting",
+        "compat-source-key:caniuse/css-nesting"
+      ]
+    },
+    {
+      "id": "css-cascade/atrules/@layer",
+      "webrefId": "css-cascade/atrules/@layer",
+      "sourceName": "web-features",
+      "sourceCategory": "atrules",
+      "specUrl": "https://drafts.csswg.org/css-cascade-5/#layering",
+      "priority": "P1",
+      "status": "covered",
+      "owner": "omena-transform-target",
+      "evidence": [
+        "compat-source-key:web-features/cascade-layers",
+        "compat-source-key:mdn-bcd/css.at-rules.layer",
+        "compat-source-key:caniuse/css-cascade-layers"
+      ]
+    },
+    {
+      "id": "css-cascade/atrules/@scope",
+      "webrefId": "css-cascade/atrules/@scope",
+      "sourceName": "web-features",
+      "sourceCategory": "atrules",
+      "specUrl": "https://drafts.csswg.org/css-cascade-6/#scope-atrule",
+      "priority": "P1",
+      "status": "covered",
+      "owner": "omena-transform-target",
+      "evidence": [
+        "compat-source-key:web-features/scope",
+        "compat-source-key:mdn-bcd/css.at-rules.scope",
+        "compat-source-key:caniuse/css-cascade-scope"
       ]
     },
     {

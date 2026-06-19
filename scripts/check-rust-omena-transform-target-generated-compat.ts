@@ -42,6 +42,18 @@ interface CompatFeatureSelectionsV0 {
   readonly features: readonly CompatFeatureSelectionV0[];
 }
 
+interface SpecManifestV0 {
+  readonly schemaVersion: string;
+  readonly product: string;
+  readonly sourceCoverage: readonly SpecManifestSourceCoverageV0[];
+}
+
+interface SpecManifestSourceCoverageV0 {
+  readonly sourceName: string;
+  readonly entryIds: readonly string[];
+  readonly sourceKeys: readonly string[];
+}
+
 interface CompatFeatureSelectionV0 {
   readonly table: string;
   readonly passId: string;
@@ -60,6 +72,9 @@ interface ParsedTomlTablesV0 {
 
 const specSources = readJson<SpecSourcePinsV0>(
   "rust/crates/omena-spec-audit/data/spec-sources.json",
+);
+const specManifest = readJson<SpecManifestV0>(
+  "rust/crates/omena-spec-audit/data/omena-spec-manifest.json",
 );
 const compatSelections = readJson<CompatFeatureSelectionsV0>(
   "rust/crates/omena-transform-target/data/compat-feature-selections.json",
@@ -98,6 +113,17 @@ assert.ok(
   sourceNames.has("mdn-browser-compat-data"),
   "compat source pins must include MDN browser compatibility data",
 );
+assert.equal(specManifest.schemaVersion, "0");
+assert.equal(specManifest.product, "omena-spec-audit.single-source-manifest");
+const manifestSourceKeys = specManifestSourceKeyIndex(specManifest);
+assert.ok(
+  manifestSourceKeys.has("web-features"),
+  "spec manifest source coverage must include web-features",
+);
+assert.ok(
+  manifestSourceKeys.has("mdn-browser-compat-data"),
+  "spec manifest source coverage must include MDN browser compatibility data",
+);
 assert.match(
   cargoToml,
   /browserslist\s*=\s*\{\s*package\s*=\s*"oxc-browserslist"\s*,\s*version\s*=\s*"[^"]+"\s*\}/,
@@ -135,6 +161,8 @@ for (const feature of compatSelections.features) {
     feature.caniuseKeys[0],
     `selection ${feature.table} caniuse mapping must match the pass binding key`,
   );
+  assertFeatureSourceKeyAnchored(manifestSourceKeys, feature, "web-features");
+  assertFeatureSourceKeyAnchored(manifestSourceKeys, feature, "mdn-bcd");
   assert.ok(!selectionsByTable.has(feature.table), `duplicate selection table ${feature.table}`);
   selectionsByTable.set(feature.table, feature);
 }
@@ -273,6 +301,33 @@ function pushMapValue<K, V>(map: Map<K, V[]>, key: K, value: V): void {
     return;
   }
   map.set(key, [value]);
+}
+
+function specManifestSourceKeyIndex(manifest: SpecManifestV0): Map<string, Set<string>> {
+  const sourceKeysByName = new Map<string, Set<string>>();
+  for (const coverage of manifest.sourceCoverage) {
+    assert.ok(coverage.sourceName.length > 0, "spec manifest source coverage name required");
+    assert.ok(coverage.entryIds.length > 0, `spec manifest ${coverage.sourceName} entries required`);
+    assert.ok(
+      coverage.sourceKeys.length > 0,
+      `spec manifest ${coverage.sourceName} source keys required`,
+    );
+    sourceKeysByName.set(coverage.sourceName, new Set(coverage.sourceKeys));
+  }
+  return sourceKeysByName;
+}
+
+function assertFeatureSourceKeyAnchored(
+  manifestSourceKeys: Map<string, Set<string>>,
+  feature: CompatFeatureSelectionV0,
+  source: "web-features" | "mdn-bcd",
+): void {
+  const manifestSourceName = source === "mdn-bcd" ? "mdn-browser-compat-data" : source;
+  const sourceKey = feature.sourceKeys[source];
+  assert.ok(
+    manifestSourceKeys.get(manifestSourceName)?.has(sourceKey),
+    `selection ${feature.table} ${source} key ${sourceKey} must be anchored in spec manifest source coverage`,
+  );
 }
 
 function assertString(value: TomlValue | undefined, label: string): asserts value is string {
