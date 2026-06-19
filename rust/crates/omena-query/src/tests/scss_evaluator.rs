@@ -16,9 +16,9 @@ fn exposes_static_stylesheet_oracle_corpus_through_query_boundary() {
     assert_eq!(summary.mode, "oracleOnly");
     assert_eq!(summary.value_type, "AbstractCssValueV0");
     assert_eq!(summary.product_output_source, "legacyEvaluatedCss");
-    assert_eq!(summary.fixture_count, 12);
+    assert_eq!(summary.fixture_count, 13);
     assert_eq!(summary.scss_fixture_count, 6);
-    assert_eq!(summary.less_fixture_count, 6);
+    assert_eq!(summary.less_fixture_count, 7);
     assert_eq!(summary.evaluated_fixture_count, summary.fixture_count);
     assert_eq!(summary.missing_evaluation_count, 0);
     assert_eq!(summary.divergence_count, 0);
@@ -827,6 +827,40 @@ fn exposes_less_alpha_transform_builtins_through_query_boundary() {
                 .evaluated_css
                 .contains("c: rgba(18, 52, 86, 0.4)")
             && evaluation.evaluated_css.contains("d: #ff0000")
+    }));
+}
+
+#[test]
+fn exposes_less_hsl_color_transform_builtins_through_query_boundary() {
+    let summary = summarize_omena_query_static_stylesheet_evaluator_from_source(
+        "@light: lighten(#123456, 10%); @dark: darken(#123456, 10%); @sat: saturate(#123456, 10%); @desat: desaturate(#123456, 10%); @spin: spin(#123456, 10); @gray: greyscale(#123456); @alpha: lighten(rgba(18, 52, 86, .5), 10%); .button { light: @light; dark: @dark; sat: @sat; desat: @desat; spin: @spin; gray: @gray; alpha: @alpha; }",
+        OmenaParserStyleDialect::Less,
+    );
+
+    assert_eq!(summary.product, "omena-query.static-stylesheet-evaluator");
+    assert_eq!(summary.mode, "oracleOnly");
+    assert_eq!(summary.dialect, "less");
+    assert_eq!(summary.value_type, "AbstractCssValueV0");
+    assert!(summary.supported_dialect);
+    assert_eq!(summary.product_output_source, "legacyEvaluatedCss");
+    assert!(summary.legacy_output_consumed_until_cutover);
+    assert!(summary.evaluation_available);
+    assert_eq!(summary.divergence_count, 0);
+    assert!(summary.all_legacy_declaration_values_preserved);
+    assert_eq!(summary.native_replacement_count, 7);
+    assert_eq!(summary.native_resolved_value_count, 7);
+    assert_eq!(summary.native_raw_value_count, 0);
+    assert_eq!(summary.native_top_value_count, 0);
+    assert!(summary.evaluation.as_ref().is_some_and(|evaluation| {
+        evaluation.evaluated_css.contains("light: #1b4d80")
+            && evaluation.evaluated_css.contains("dark: #091a2c")
+            && evaluation.evaluated_css.contains("sat: #0d345b")
+            && evaluation.evaluated_css.contains("desat: #173451")
+            && evaluation.evaluated_css.contains("spin: #122956")
+            && evaluation.evaluated_css.contains("gray: #343434")
+            && evaluation
+                .evaluated_css
+                .contains("alpha: rgba(27, 77, 128, 0.5)")
     }));
 }
 

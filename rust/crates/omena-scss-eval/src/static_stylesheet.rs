@@ -6557,6 +6557,12 @@ fn reduce_static_less_value_with_escape_flag(value: String) -> StaticLessResolve
             ("fade", parse_static_less_fade_value),
             ("fadein", parse_static_less_fadein_value),
             ("fadeout", parse_static_less_fadeout_value),
+            ("lighten", parse_static_less_lighten_value),
+            ("darken", parse_static_less_darken_value),
+            ("saturate", parse_static_less_saturate_value),
+            ("desaturate", parse_static_less_desaturate_value),
+            ("spin", parse_static_less_spin_value),
+            ("greyscale", parse_static_less_greyscale_value),
             ("ceil", parse_reducible_ceil_value),
             ("floor", parse_reducible_floor_value),
             ("round", parse_static_less_round_value),
@@ -6702,6 +6708,74 @@ fn parse_static_less_fadeout_value(value: &str) -> Option<String> {
     parse_static_less_alpha_transform_value(value, "fadeout", |current, amount| current - amount)
 }
 
+fn parse_static_less_lighten_value(value: &str) -> Option<String> {
+    parse_static_less_hsl_amount_transform_value(value, "lighten", |mut channels, amount| {
+        channels.lightness = (channels.lightness + amount).clamp(0.0, 100.0);
+        channels
+    })
+}
+
+fn parse_static_less_darken_value(value: &str) -> Option<String> {
+    parse_static_less_hsl_amount_transform_value(value, "darken", |mut channels, amount| {
+        channels.lightness = (channels.lightness - amount).clamp(0.0, 100.0);
+        channels
+    })
+}
+
+fn parse_static_less_saturate_value(value: &str) -> Option<String> {
+    parse_static_less_hsl_amount_transform_value(value, "saturate", |mut channels, amount| {
+        channels.saturation = (channels.saturation + amount).clamp(0.0, 100.0);
+        channels
+    })
+}
+
+fn parse_static_less_desaturate_value(value: &str) -> Option<String> {
+    parse_static_less_hsl_amount_transform_value(value, "desaturate", |mut channels, amount| {
+        channels.saturation = (channels.saturation - amount).clamp(0.0, 100.0);
+        channels
+    })
+}
+
+fn parse_static_less_spin_value(value: &str) -> Option<String> {
+    let arguments = parse_whole_function_value_arguments(value, "spin")?;
+    let [color, amount] = arguments.as_slice() else {
+        return None;
+    };
+    let color = parse_static_less_color_argument(color.trim())?;
+    let mut channels = static_less_hsl_channels(color);
+    channels.hue =
+        (channels.hue + parse_static_less_angle_degrees(amount.trim())?).rem_euclid(360.0);
+    format_static_less_color_from_hsl_channels(color, channels)
+}
+
+fn parse_static_less_greyscale_value(value: &str) -> Option<String> {
+    let arguments = parse_whole_function_value_arguments(value, "greyscale")?;
+    let [color] = arguments.as_slice() else {
+        return None;
+    };
+    let color = parse_static_less_color_argument(color.trim())?;
+    let mut channels = static_less_hsl_channels(color);
+    channels.saturation = 0.0;
+    format_static_less_color_from_hsl_channels(color, channels)
+}
+
+fn parse_static_less_hsl_amount_transform_value(
+    value: &str,
+    function_name: &str,
+    transform: impl FnOnce(StaticLessHslChannels, f64) -> StaticLessHslChannels,
+) -> Option<String> {
+    let arguments = parse_whole_function_value_arguments(value, function_name)?;
+    let [color, amount] = arguments.as_slice() else {
+        return None;
+    };
+    let color = parse_static_less_color_argument(color.trim())?;
+    let amount = parse_static_less_percentage_points(amount.trim())?;
+    format_static_less_color_from_hsl_channels(
+        color,
+        transform(static_less_hsl_channels(color), amount),
+    )
+}
+
 fn parse_static_less_alpha_transform_value(
     value: &str,
     function_name: &str,
@@ -6782,6 +6856,22 @@ fn static_less_hsl_channels(color: StaticSrgbColorWithAlpha) -> StaticLessHslCha
         saturation: saturation * 100.0,
         lightness: lightness * 100.0,
     }
+}
+
+fn format_static_less_color_from_hsl_channels(
+    original_color: StaticSrgbColorWithAlpha,
+    channels: StaticLessHslChannels,
+) -> Option<String> {
+    let hue = format_static_less_channel_number(channels.hue.rem_euclid(360.0));
+    let saturation = format_static_less_channel_number(channels.saturation.clamp(0.0, 100.0));
+    let lightness = format_static_less_channel_number(channels.lightness.clamp(0.0, 100.0));
+    let color = parse_static_hsl_function_color_with_alpha(&format!(
+        "hsl({hue}, {saturation}%, {lightness}%)"
+    ))?;
+    Some(format_static_less_color_with_alpha(
+        color,
+        original_color.alpha.unwrap_or(1.0),
+    ))
 }
 
 fn parse_static_less_color_argument(value: &str) -> Option<StaticSrgbColorWithAlpha> {
@@ -7026,6 +7116,27 @@ fn parse_static_less_alpha_amount(value: &str) -> Option<f64> {
         return None;
     }
     Some((parsed.value / 100.0).clamp(0.0, 1.0))
+}
+
+fn parse_static_less_percentage_points(value: &str) -> Option<f64> {
+    let parsed = parse_numeric_value_with_unit(value)?;
+    if !parsed.value.is_finite() || !matches!(parsed.unit, "" | "%") {
+        return None;
+    }
+    Some(parsed.value)
+}
+
+fn parse_static_less_angle_degrees(value: &str) -> Option<f64> {
+    let parsed = parse_numeric_value_with_unit(value)?;
+    if !parsed.value.is_finite() {
+        return None;
+    }
+    match parsed.unit.to_ascii_lowercase().as_str() {
+        "" | "deg" => Some(parsed.value),
+        "rad" => Some(parsed.value.to_degrees()),
+        "grad" => Some(parsed.value * 0.9),
+        _ => None,
+    }
 }
 
 fn parse_static_less_unit_argument(unit: &str) -> Option<&str> {
@@ -7609,9 +7720,9 @@ mod tests {
         assert_eq!(report.mode, "oracleOnly");
         assert_eq!(report.value_type, "AbstractCssValueV0");
         assert_eq!(report.product_output_source, "legacyEvaluatedCss");
-        assert_eq!(report.fixture_count, 12);
+        assert_eq!(report.fixture_count, 13);
         assert_eq!(report.scss_fixture_count, 6);
-        assert_eq!(report.less_fixture_count, 6);
+        assert_eq!(report.less_fixture_count, 7);
         assert_eq!(report.evaluated_fixture_count, report.fixture_count);
         assert_eq!(report.missing_evaluation_count, 0);
         assert_eq!(report.divergence_count, 0);
@@ -9586,6 +9697,34 @@ mod tests {
         assert!(report.evaluated_css.contains("b: rgba(18, 52, 86, 0.6)"));
         assert!(report.evaluated_css.contains("c: rgba(18, 52, 86, 0.4)"));
         assert!(report.evaluated_css.contains("d: #ff0000"));
+        assert!(report.oracle.all_legacy_declaration_values_preserved);
+    }
+
+    #[test]
+    fn static_less_evaluation_reduces_hsl_color_transform_builtin_values() {
+        let report = derive_static_stylesheet_module_evaluation(
+            "@light: lighten(#123456, 10%); @dark: darken(#123456, 10%); @sat: saturate(#123456, 10%); @desat: desaturate(#123456, 10%); @spin: spin(#123456, 10); @gray: greyscale(#123456); @alpha: lighten(rgba(18, 52, 86, .5), 10%); .button { light: @light; dark: @dark; sat: @sat; desat: @desat; spin: @spin; gray: @gray; alpha: @alpha; }",
+            StyleDialect::Less,
+        );
+        assert!(report.is_some());
+        let Some(report) = report else {
+            return;
+        };
+
+        assert_eq!(report.replacement_count, 7);
+        assert_eq!(report.value_resolution.resolved_count, 7);
+        assert_eq!(report.value_resolution.raw_count, 0);
+        assert!(report.evaluated_css.contains("light: #1b4d80"));
+        assert!(report.evaluated_css.contains("dark: #091a2c"));
+        assert!(report.evaluated_css.contains("sat: #0d345b"));
+        assert!(report.evaluated_css.contains("desat: #173451"));
+        assert!(report.evaluated_css.contains("spin: #122956"));
+        assert!(report.evaluated_css.contains("gray: #343434"));
+        assert!(
+            report
+                .evaluated_css
+                .contains("alpha: rgba(27, 77, 128, 0.5)")
+        );
         assert!(report.oracle.all_legacy_declaration_values_preserved);
     }
 

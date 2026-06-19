@@ -225,5 +225,10 @@ fn static_stylesheet_oracle_corpus_fixtures() -> &'static [StaticStylesheetOracl
             dialect: StyleDialect::Less,
             source: "@brand: red; @tokens: { primary: @brand; @gap: 2px; }; .button { color: @tokens[primary]; margin: @tokens[@gap]; }",
         },
+        StaticStylesheetOracleCorpusFixtureV0 {
+            id: "less.hsl-color-transforms",
+            dialect: StyleDialect::Less,
+            source: "@tone: lighten(#123456, 10%); @shifted: spin(#123456, 10); .button { color: @tone; border-color: @shifted; }",
+        },
     ]
 }
