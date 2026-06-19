@@ -5,8 +5,9 @@ use omena_parser::{LexedToken, ParsedVariableFact, ParsedVariableFactKind, Style
 use omena_syntax::SyntaxKind;
 use omena_value_lattice::{
     format_css_number, parse_numeric_value_with_unit, parse_reducible_ceil_value,
-    parse_reducible_floor_value, parse_whole_function_value_arguments,
-    split_top_level_whitespace_value_components_owned,
+    parse_reducible_floor_value, parse_reducible_max_value, parse_reducible_min_value,
+    parse_reducible_mod_value, parse_reducible_pow_value, parse_reducible_sqrt_value,
+    parse_whole_function_value_arguments, split_top_level_whitespace_value_components_owned,
     substitute_static_css_function_references_in_value_until_stable,
 };
 use serde::Serialize;
@@ -6495,6 +6496,12 @@ fn reduce_static_less_value(value: String) -> String {
             ("percentage", parse_static_less_percentage_value),
             ("ceil", parse_reducible_ceil_value),
             ("floor", parse_reducible_floor_value),
+            ("round", parse_static_less_round_value),
+            ("sqrt", parse_reducible_sqrt_value),
+            ("pow", parse_reducible_pow_value),
+            ("mod", parse_reducible_mod_value),
+            ("min", parse_reducible_min_value),
+            ("max", parse_reducible_max_value),
             ("isnumber", parse_static_less_isnumber_value),
             ("iscolor", parse_static_less_iscolor_value),
             ("isstring", parse_static_less_isstring_value),
@@ -6544,6 +6551,22 @@ fn parse_static_less_percentage_value(value: &str) -> Option<String> {
     };
     let parsed = parse_numeric_value_with_unit(number.trim())?;
     Some(format!("{}%", format_css_number(parsed.value * 100.0)))
+}
+
+fn parse_static_less_round_value(value: &str) -> Option<String> {
+    let arguments = parse_whole_function_value_arguments(value, "round")?;
+    let (number, decimal_places) = match arguments.as_slice() {
+        [number] => (number.as_str(), 0usize),
+        [number, decimal_places] => {
+            let decimal_places = parse_static_less_unitless_integer(decimal_places.trim())?;
+            (number.as_str(), decimal_places)
+        }
+        _ => return None,
+    };
+    let parsed = parse_numeric_value_with_unit(number.trim())?;
+    let factor = 10_f64.powi(i32::try_from(decimal_places).ok()?);
+    let rounded = (parsed.value * factor).round() / factor;
+    Some(format!("{}{}", format_css_number(rounded), parsed.unit))
 }
 
 fn parse_static_less_isnumber_value(value: &str) -> Option<String> {
@@ -6617,7 +6640,7 @@ fn parse_static_less_extract_value(value: &str) -> Option<String> {
         return None;
     }
     let (index, list_arguments) = arguments.split_last()?;
-    let index = parse_static_less_list_index(index.trim())?;
+    let index = parse_static_less_unitless_integer(index.trim())?;
     let items = static_less_list_items_from_arguments(list_arguments)?;
     items.get(index.checked_sub(1)?).cloned()
 }
@@ -6637,8 +6660,8 @@ fn static_less_list_items_from_arguments(arguments: &[String]) -> Option<Vec<Str
     .filter(|items| !items.is_empty())
 }
 
-fn parse_static_less_list_index(index: &str) -> Option<usize> {
-    let parsed = parse_numeric_value_with_unit(index)?;
+fn parse_static_less_unitless_integer(value: &str) -> Option<usize> {
+    let parsed = parse_numeric_value_with_unit(value)?;
     if !parsed.unit.is_empty() || !parsed.value.is_finite() || parsed.value.fract() != 0.0 {
         return None;
     }
@@ -8925,7 +8948,7 @@ mod tests {
     }
 
     #[test]
-    fn static_less_evaluation_reduces_numeric_builtin_values() {
+    fn static_less_evaluation_reduces_max_builtin_value() {
         let report = derive_static_stylesheet_module_evaluation(
             "@gap: max(1px, 2px); .button { margin: @gap; }",
             StyleDialect::Less,
@@ -8996,6 +9019,30 @@ mod tests {
         assert!(report.evaluated_css.contains("width: 50%"));
         assert!(report.evaluated_css.contains("top: 2px"));
         assert!(report.evaluated_css.contains("bottom: 1px"));
+        assert!(report.oracle.all_legacy_declaration_values_preserved);
+    }
+
+    #[test]
+    fn static_less_evaluation_reduces_extended_numeric_builtin_values() {
+        let report = derive_static_stylesheet_module_evaluation(
+            "@sqrt: sqrt(4); @pow: pow(2, 3); @mod: mod(11px, 4px); @min: min(1px, 2px, 3px); @max: max(1px, 2px, 3px); @round1: round(1.6px); @round2: round(1.234px, 2); .button { sqrt: @sqrt; pow: @pow; mod: @mod; min: @min; max: @max; round1: @round1; round2: @round2; }",
+            StyleDialect::Less,
+        );
+        assert!(report.is_some());
+        let Some(report) = report else {
+            return;
+        };
+
+        assert_eq!(report.replacement_count, 7);
+        assert_eq!(report.value_resolution.resolved_count, 7);
+        assert_eq!(report.value_resolution.raw_count, 0);
+        assert!(report.evaluated_css.contains("sqrt: 2"));
+        assert!(report.evaluated_css.contains("pow: 8"));
+        assert!(report.evaluated_css.contains("mod: 3px"));
+        assert!(report.evaluated_css.contains("min: 1px"));
+        assert!(report.evaluated_css.contains("max: 3px"));
+        assert!(report.evaluated_css.contains("round1: 2px"));
+        assert!(report.evaluated_css.contains("round2: 1.23px"));
         assert!(report.oracle.all_legacy_declaration_values_preserved);
     }
 
