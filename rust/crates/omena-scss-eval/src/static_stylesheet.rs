@@ -6502,6 +6502,10 @@ fn reduce_static_less_value(value: String) -> String {
             ("green", parse_static_less_green_value),
             ("blue", parse_static_less_blue_value),
             ("alpha", parse_static_less_alpha_value),
+            ("hue", parse_static_less_hue_value),
+            ("saturation", parse_static_less_saturation_value),
+            ("lightness", parse_static_less_lightness_value),
+            ("argb", parse_static_less_argb_value),
             ("ceil", parse_reducible_ceil_value),
             ("floor", parse_reducible_floor_value),
             ("round", parse_static_less_round_value),
@@ -6603,6 +6607,35 @@ fn parse_static_less_alpha_value(value: &str) -> Option<String> {
     parse_static_less_color_channel_value(value, "alpha", |color| color.alpha.unwrap_or(1.0))
 }
 
+fn parse_static_less_hue_value(value: &str) -> Option<String> {
+    parse_static_less_hsl_channel_value(value, "hue", |channels| channels.hue)
+}
+
+fn parse_static_less_saturation_value(value: &str) -> Option<String> {
+    parse_static_less_hsl_channel_value(value, "saturation", |channels| channels.saturation)
+        .map(|value| format!("{value}%"))
+}
+
+fn parse_static_less_lightness_value(value: &str) -> Option<String> {
+    parse_static_less_hsl_channel_value(value, "lightness", |channels| channels.lightness)
+        .map(|value| format!("{value}%"))
+}
+
+fn parse_static_less_argb_value(value: &str) -> Option<String> {
+    let arguments = parse_whole_function_value_arguments(value, "argb")?;
+    let [color] = arguments.as_slice() else {
+        return None;
+    };
+    let color = parse_static_less_color_argument(color.trim())?;
+    Some(format!(
+        "#{:02x}{:02x}{:02x}{:02x}",
+        static_less_alpha_byte(color.alpha.unwrap_or(1.0)),
+        color.color.red,
+        color.color.green,
+        color.color.blue
+    ))
+}
+
 fn parse_static_less_color_channel_value(
     value: &str,
     function_name: &str,
@@ -6614,6 +6647,60 @@ fn parse_static_less_color_channel_value(
     };
     let color = parse_static_less_color_argument(color.trim())?;
     Some(format_static_less_number(channel(color)))
+}
+
+fn parse_static_less_hsl_channel_value(
+    value: &str,
+    function_name: &str,
+    channel: impl FnOnce(StaticLessHslChannels) -> f64,
+) -> Option<String> {
+    let arguments = parse_whole_function_value_arguments(value, function_name)?;
+    let [color] = arguments.as_slice() else {
+        return None;
+    };
+    let color = parse_static_less_color_argument(color.trim())?;
+    Some(format_static_less_channel_number(channel(
+        static_less_hsl_channels(color),
+    )))
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+struct StaticLessHslChannels {
+    hue: f64,
+    saturation: f64,
+    lightness: f64,
+}
+
+fn static_less_hsl_channels(color: StaticSrgbColorWithAlpha) -> StaticLessHslChannels {
+    let red = f64::from(color.color.red) / 255.0;
+    let green = f64::from(color.color.green) / 255.0;
+    let blue = f64::from(color.color.blue) / 255.0;
+    let max = red.max(green).max(blue);
+    let min = red.min(green).min(blue);
+    let lightness = (max + min) / 2.0;
+    let delta = max - min;
+
+    if delta == 0.0 {
+        return StaticLessHslChannels {
+            hue: 0.0,
+            saturation: 0.0,
+            lightness: lightness * 100.0,
+        };
+    }
+
+    let saturation = delta / (1.0 - (2.0 * lightness - 1.0).abs());
+    let hue_sector = if max == red {
+        ((green - blue) / delta).rem_euclid(6.0)
+    } else if max == green {
+        (blue - red) / delta + 2.0
+    } else {
+        (red - green) / delta + 4.0
+    };
+    StaticLessHslChannels {
+        hue: hue_sector * 60.0,
+        saturation: saturation * 100.0,
+        lightness: lightness * 100.0,
+    }
 }
 
 fn parse_static_less_color_argument(value: &str) -> Option<StaticSrgbColorWithAlpha> {
@@ -6658,6 +6745,28 @@ fn format_static_less_number(value: f64) -> String {
         return format!("-0.{suffix}");
     }
     formatted
+}
+
+fn format_static_less_channel_number(value: f64) -> String {
+    let formatted = if value.fract() == 0.0 {
+        format!("{value:.0}")
+    } else {
+        format!("{value:.8}")
+            .trim_end_matches('0')
+            .trim_end_matches('.')
+            .to_string()
+    };
+    if let Some(suffix) = formatted.strip_prefix('.') {
+        return format!("0.{suffix}");
+    }
+    if let Some(suffix) = formatted.strip_prefix("-.") {
+        return format!("-0.{suffix}");
+    }
+    formatted
+}
+
+fn static_less_alpha_byte(alpha: f64) -> u8 {
+    (alpha.clamp(0.0, 1.0) * 255.0).round() as u8
 }
 
 fn parse_static_less_isnumber_value(value: &str) -> Option<String> {
@@ -9203,6 +9312,27 @@ mod tests {
         assert!(report.evaluated_css.contains("g: 52"));
         assert!(report.evaluated_css.contains("b: 86"));
         assert!(report.evaluated_css.contains("a: 0.5"));
+        assert!(report.oracle.all_legacy_declaration_values_preserved);
+    }
+
+    #[test]
+    fn static_less_evaluation_reduces_color_metadata_builtin_values() {
+        let report = derive_static_stylesheet_module_evaluation(
+            "@color: #123456; @h: hue(@color); @s: saturation(@color); @l: lightness(@color); @legacy: argb(rgba(18, 52, 86, .5)); .button { h: @h; s: @s; l: @l; legacy: @legacy; }",
+            StyleDialect::Less,
+        );
+        assert!(report.is_some());
+        let Some(report) = report else {
+            return;
+        };
+
+        assert_eq!(report.replacement_count, 4);
+        assert_eq!(report.value_resolution.resolved_count, 4);
+        assert_eq!(report.value_resolution.raw_count, 0);
+        assert!(report.evaluated_css.contains("h: 210"));
+        assert!(report.evaluated_css.contains("s: 65.384615%"));
+        assert!(report.evaluated_css.contains("l: 20.392157%"));
+        assert!(report.evaluated_css.contains("legacy: #80123456"));
         assert!(report.oracle.all_legacy_declaration_values_preserved);
     }
 
