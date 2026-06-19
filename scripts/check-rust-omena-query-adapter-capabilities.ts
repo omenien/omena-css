@@ -36,7 +36,12 @@ interface StaticStylesheetEvaluatorOracleCorpusSummaryV0 {
   readonly nativeEditOutputMatchCount: number;
   readonly nativeValueEditCount: number;
   readonly nativeStructuralEditCount: number;
+  readonly nativeRawValueCount: number;
   readonly nativeTopValueCount: number;
+  readonly nativeCycleValueCount: number;
+  readonly nativeFuelExhaustedValueCount: number;
+  readonly nativeUnresolvedReferenceValueCount: number;
+  readonly nativeUnsupportedDynamicValueCount: number;
   readonly allLegacyDeclarationValuesPreserved: boolean;
   readonly allNativeEditOutputsMatchEvaluatedCss: boolean;
   readonly nativeProductOutputCorpusReady: boolean;
@@ -55,6 +60,12 @@ interface StaticStylesheetEvaluatorOracleFixtureSummaryV0 {
   readonly nativeEditOutput?: string;
   readonly divergenceCount: number;
   readonly nativeEditOutputMatchesEvaluatedCss: boolean;
+  readonly nativeRawValueCount: number;
+  readonly nativeTopValueCount: number;
+  readonly nativeCycleValueCount: number;
+  readonly nativeFuelExhaustedValueCount: number;
+  readonly nativeUnresolvedReferenceValueCount: number;
+  readonly nativeUnsupportedDynamicValueCount: number;
 }
 
 interface StaticLifExportsSummaryV0 {
@@ -763,7 +774,12 @@ function assertStaticStylesheetEvaluatorOracleCorpus(
   assert.equal(summary.nativeEditOutputMatchCount, summary.fixtureCount);
   assert.ok(summary.nativeValueEditCount > 0);
   assert.ok(summary.nativeStructuralEditCount > 0);
+  assert.ok(summary.nativeRawValueCount > 0);
   assert.ok(summary.nativeTopValueCount > 0);
+  assert.ok(summary.nativeCycleValueCount > 0);
+  assert.equal(summary.nativeFuelExhaustedValueCount, 0);
+  assert.ok(summary.nativeUnresolvedReferenceValueCount > 0);
+  assert.ok(summary.nativeUnsupportedDynamicValueCount > 0);
   assert.equal(summary.allLegacyDeclarationValuesPreserved, true);
   assert.equal(summary.allNativeEditOutputsMatchEvaluatedCss, true);
   assert.equal(summary.nativeProductOutputCorpusReady, true);
@@ -791,6 +807,7 @@ function assertStaticStylesheetEvaluatorOracleCorpus(
   const fixtures = new Map(corpus.fixtures.map((fixture) => [fixture.id, fixture]));
   for (const id of [
     "scss.dynamic-function-return",
+    "scss.unresolved-forward-composite",
     "scss.recursive-function-return",
     "sass.variable-basic",
     "sass.static-function-return",
@@ -821,6 +838,19 @@ function assertStaticStylesheetEvaluatorOracleCorpus(
       `oracle fixture ${id} native edits must match legacy output`,
     );
   }
+
+  const dynamicFunction = fixtures.get("scss.dynamic-function-return");
+  assert.equal(dynamicFunction?.nativeTopValueCount, 1);
+  assert.equal(dynamicFunction?.nativeUnsupportedDynamicValueCount, 1);
+  const unresolvedComposite = fixtures.get("scss.unresolved-forward-composite");
+  assert.equal(unresolvedComposite?.nativeTopValueCount, 1);
+  assert.equal(unresolvedComposite?.nativeUnresolvedReferenceValueCount, 1);
+  const recursiveFunction = fixtures.get("scss.recursive-function-return");
+  assert.equal(recursiveFunction?.nativeTopValueCount, 1);
+  assert.equal(recursiveFunction?.nativeCycleValueCount, 1);
+  const dynamicLess = fixtures.get("less.dynamic-escaped-string");
+  assert.equal(dynamicLess?.nativeRawValueCount, 1);
+  assert.equal(dynamicLess?.nativeUnsupportedDynamicValueCount, 1);
 }
 
 function assertScssEvaluatorControlFlowOracleCorpus(

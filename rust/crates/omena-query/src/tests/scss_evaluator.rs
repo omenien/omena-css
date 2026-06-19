@@ -73,8 +73,8 @@ fn exposes_static_stylesheet_oracle_corpus_through_query_boundary() {
     assert_eq!(summary.mode, "oracleOnly");
     assert_eq!(summary.value_type, "AbstractCssValueV0");
     assert_eq!(summary.product_output_source, "nativeEditOutput");
-    assert_eq!(summary.fixture_count, 71);
-    assert_eq!(summary.scss_fixture_count, 15);
+    assert_eq!(summary.fixture_count, 72);
+    assert_eq!(summary.scss_fixture_count, 16);
     assert_eq!(summary.sass_fixture_count, 11);
     assert_eq!(summary.less_fixture_count, 45);
     assert_eq!(summary.evaluated_fixture_count, summary.fixture_count);
@@ -106,7 +106,11 @@ fn exposes_static_stylesheet_oracle_corpus_through_query_boundary() {
     );
     assert!(summary.native_value_reference_count > 0);
     assert!(summary.native_resolved_value_count > 0);
+    assert!(summary.native_raw_value_count > 0);
     assert!(summary.native_top_value_count > 0);
+    assert!(summary.native_cycle_value_count > 0);
+    assert!(summary.native_unresolved_reference_value_count > 0);
+    assert!(summary.native_unsupported_dynamic_value_count > 0);
     assert!(summary.all_legacy_declaration_values_preserved);
     assert!(summary.all_native_edit_outputs_match_evaluated_css);
     assert!(summary.native_product_output_corpus_ready);
@@ -209,15 +213,22 @@ fn exposes_static_stylesheet_oracle_corpus_through_query_boundary() {
             .fixtures
             .iter()
             .any(|fixture| fixture.id == "scss.dynamic-function-return"
-                && fixture.native_top_value_count == 1)
+                && fixture.native_top_value_count == 1
+                && fixture.native_unsupported_dynamic_value_count == 1)
     );
+    assert!(summary.corpus.fixtures.iter().any(|fixture| {
+        fixture.id == "scss.unresolved-forward-composite"
+            && fixture.native_top_value_count == 1
+            && fixture.native_unresolved_reference_value_count == 1
+    }));
     assert!(
         summary
             .corpus
             .fixtures
             .iter()
             .any(|fixture| fixture.id == "scss.recursive-function-return"
-                && fixture.native_top_value_count == 1)
+                && fixture.native_top_value_count == 1
+                && fixture.native_cycle_value_count == 1)
     );
     assert!(
         summary

@@ -32,6 +32,10 @@ pub struct OmenaScssEvalStaticStylesheetOracleCorpusReportV0 {
     pub native_resolved_value_count: usize,
     pub native_raw_value_count: usize,
     pub native_top_value_count: usize,
+    pub native_cycle_value_count: usize,
+    pub native_fuel_exhausted_value_count: usize,
+    pub native_unresolved_reference_value_count: usize,
+    pub native_unsupported_dynamic_value_count: usize,
     pub all_legacy_declaration_values_preserved: bool,
     pub all_native_edit_outputs_match_evaluated_css: bool,
     pub native_product_output_corpus_ready: bool,
@@ -62,6 +66,10 @@ pub struct OmenaScssEvalStaticStylesheetOracleCorpusFixtureReportV0 {
     pub native_resolved_value_count: usize,
     pub native_raw_value_count: usize,
     pub native_top_value_count: usize,
+    pub native_cycle_value_count: usize,
+    pub native_fuel_exhausted_value_count: usize,
+    pub native_unresolved_reference_value_count: usize,
+    pub native_unsupported_dynamic_value_count: usize,
 }
 
 struct StaticStylesheetOracleCorpusFixtureV0 {
@@ -150,6 +158,22 @@ pub fn summarize_static_stylesheet_oracle_corpus()
         .iter()
         .map(|fixture| fixture.native_top_value_count)
         .sum();
+    let native_cycle_value_count = fixtures
+        .iter()
+        .map(|fixture| fixture.native_cycle_value_count)
+        .sum();
+    let native_fuel_exhausted_value_count = fixtures
+        .iter()
+        .map(|fixture| fixture.native_fuel_exhausted_value_count)
+        .sum();
+    let native_unresolved_reference_value_count = fixtures
+        .iter()
+        .map(|fixture| fixture.native_unresolved_reference_value_count)
+        .sum();
+    let native_unsupported_dynamic_value_count = fixtures
+        .iter()
+        .map(|fixture| fixture.native_unsupported_dynamic_value_count)
+        .sum();
     let all_legacy_declaration_values_preserved = missing_evaluation_count == 0
         && fixtures
             .iter()
@@ -199,6 +223,10 @@ pub fn summarize_static_stylesheet_oracle_corpus()
         native_resolved_value_count,
         native_raw_value_count,
         native_top_value_count,
+        native_cycle_value_count,
+        native_fuel_exhausted_value_count,
+        native_unresolved_reference_value_count,
+        native_unsupported_dynamic_value_count,
         all_legacy_declaration_values_preserved,
         all_native_edit_outputs_match_evaluated_css,
         native_product_output_corpus_ready,
@@ -233,6 +261,10 @@ fn static_stylesheet_oracle_corpus_fixture_report(
             native_resolved_value_count: 0,
             native_raw_value_count: 0,
             native_top_value_count: 0,
+            native_cycle_value_count: 0,
+            native_fuel_exhausted_value_count: 0,
+            native_unresolved_reference_value_count: 0,
+            native_unsupported_dynamic_value_count: 0,
         };
     };
 
@@ -263,6 +295,14 @@ fn static_stylesheet_oracle_corpus_fixture_report(
         native_resolved_value_count: evaluation.value_resolution.resolved_count,
         native_raw_value_count: evaluation.value_resolution.raw_count,
         native_top_value_count: evaluation.value_resolution.top_count,
+        native_cycle_value_count: evaluation.value_resolution.cycle_count,
+        native_fuel_exhausted_value_count: evaluation.value_resolution.fuel_exhausted_count,
+        native_unresolved_reference_value_count: evaluation
+            .value_resolution
+            .unresolved_reference_count,
+        native_unsupported_dynamic_value_count: evaluation
+            .value_resolution
+            .unsupported_dynamic_count,
     }
 }
 
@@ -377,6 +417,11 @@ fn static_stylesheet_oracle_corpus_fixtures() -> &'static [StaticStylesheetOracl
             id: "scss.dynamic-function-return",
             dialect: StyleDialect::Scss,
             source: "@function tone($enabled) { @if $enabled { @return red; } @else { @return blue; } } .button { color: tone(var(--enabled)); }",
+        },
+        StaticStylesheetOracleCorpusFixtureV0 {
+            id: "scss.unresolved-forward-composite",
+            dialect: StyleDialect::Scss,
+            source: "$border: 1px solid $brand; $brand: red; .button { border: $border; }",
         },
         StaticStylesheetOracleCorpusFixtureV0 {
             id: "scss.recursive-function-return",
