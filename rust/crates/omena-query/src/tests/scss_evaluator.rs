@@ -73,8 +73,9 @@ fn exposes_static_stylesheet_oracle_corpus_through_query_boundary() {
     assert_eq!(summary.mode, "oracleOnly");
     assert_eq!(summary.value_type, "AbstractCssValueV0");
     assert_eq!(summary.product_output_source, "legacyEvaluatedCss");
-    assert_eq!(summary.fixture_count, 55);
+    assert_eq!(summary.fixture_count, 56);
     assert_eq!(summary.scss_fixture_count, 10);
+    assert_eq!(summary.sass_fixture_count, 1);
     assert_eq!(summary.less_fixture_count, 45);
     assert_eq!(summary.evaluated_fixture_count, summary.fixture_count);
     assert_eq!(summary.missing_evaluation_count, 0);
@@ -113,6 +114,13 @@ fn exposes_static_stylesheet_oracle_corpus_through_query_boundary() {
             .iter()
             .any(|fixture| fixture.id == "scss.static-for-return")
     );
+    assert!(summary.corpus.fixtures.iter().any(|fixture| {
+        fixture.id == "sass.variable-basic"
+            && fixture.dialect == "sass"
+            && fixture.evaluation_available
+            && fixture.native_edit_output_matches_evaluated_css
+            && fixture.divergence_count == 0
+    }));
     assert!(
         summary
             .corpus
@@ -513,6 +521,49 @@ fn exposes_static_stylesheet_evaluator_oracle_through_query_boundary() {
             evaluation.native_edit_output == evaluation.evaluated_css
         })
     );
+    assert!(summary.evaluation.as_ref().is_some_and(|evaluation| {
+        evaluation.native_edits.iter().any(|edit| {
+            edit.edit_kind == "valueReplacement"
+                && edit.replacement == "1px"
+                && edit.abstract_value_kind == Some("exact")
+        })
+    }));
+}
+
+#[test]
+fn exposes_sass_static_stylesheet_evaluator_through_query_boundary() {
+    let summary = summarize_omena_query_static_stylesheet_evaluator_from_source(
+        "$gap: 1px\n.card\n  margin: $gap",
+        OmenaParserStyleDialect::Sass,
+    );
+
+    assert_eq!(summary.schema_version, "0");
+    assert_eq!(summary.product, "omena-query.static-stylesheet-evaluator");
+    assert_eq!(summary.mode, "oracleOnly");
+    assert_eq!(summary.dialect, "sass");
+    assert_eq!(summary.value_type, "AbstractCssValueV0");
+    assert!(summary.supported_dialect);
+    assert_eq!(summary.product_output_source, "legacyEvaluatedCss");
+    assert!(summary.legacy_output_consumed_until_cutover);
+    assert!(summary.evaluation_available);
+    assert!(summary.value_resolution_available);
+    assert_eq!(summary.divergence_count, 0);
+    assert!(summary.all_legacy_declaration_values_preserved);
+    assert_eq!(summary.native_replacement_count, 1);
+    assert_eq!(summary.native_replacement_legacy_reflection_count, 1);
+    assert_eq!(summary.native_replacement_legacy_unreflected_count, 0);
+    assert_eq!(summary.native_edit_count, 2);
+    assert_eq!(summary.native_value_edit_count, 1);
+    assert_eq!(summary.native_structural_edit_count, 1);
+    assert!(summary.native_edit_output_matches_evaluated_css);
+    assert_eq!(summary.native_value_reference_count, 1);
+    assert_eq!(summary.native_resolved_value_count, 1);
+    assert_eq!(summary.native_raw_value_count, 0);
+    assert_eq!(summary.native_top_value_count, 0);
+    assert!(summary.evaluation.as_ref().is_some_and(|evaluation| {
+        evaluation.evaluated_css == ".card\n  margin: 1px"
+            && evaluation.native_edit_output == evaluation.evaluated_css
+    }));
     assert!(summary.evaluation.as_ref().is_some_and(|evaluation| {
         evaluation.native_edits.iter().any(|edit| {
             edit.edit_kind == "valueReplacement"

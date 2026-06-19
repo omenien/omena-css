@@ -131,6 +131,7 @@ pub(super) fn collect_static_less_mixin_body_local_declarations(
             body,
             start,
             end,
+            StyleDialect::Less,
             StaticStylesheetVariableKind::Less,
         )?;
         if !static_stylesheet_less_declaration_value_is_removal_safe(&declaration.value) {

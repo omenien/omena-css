@@ -256,9 +256,7 @@ fn collect_legacy_declaration_values(
     let mut index = 0usize;
 
     while index < tokens.len() {
-        if tokens[index].kind == SyntaxKind::LeftBrace
-            && let Some(close_index) = matching_right_brace_index(tokens, index)
-        {
+        if let Some(close_index) = matching_declaration_block_end_index(tokens, index) {
             collect_declaration_values_in_block(tokens, index, close_index, &mut values);
             index = close_index + 1;
         } else {
@@ -281,9 +279,7 @@ fn collect_declaration_values_in_block(
         if index >= block_end {
             break;
         }
-        if tokens[index].kind == SyntaxKind::LeftBrace
-            && let Some(close_index) = matching_right_brace_index(tokens, index)
-        {
+        if let Some(close_index) = matching_declaration_block_end_index(tokens, index) {
             collect_declaration_values_in_block(tokens, index, close_index, values);
             index = close_index + 1;
             continue;
@@ -317,10 +313,13 @@ fn parse_declaration_value(
     let mut index = colon_index + 1;
     while index < block_end {
         match tokens[index].kind {
-            SyntaxKind::Semicolon => {
+            SyntaxKind::Semicolon | SyntaxKind::SassOptionalSemicolon => {
                 return build_declaration_value(property_name, value_tokens, index + 1);
             }
-            SyntaxKind::LeftBrace | SyntaxKind::RightBrace => return None,
+            SyntaxKind::LeftBrace
+            | SyntaxKind::RightBrace
+            | SyntaxKind::SassIndent
+            | SyntaxKind::SassDedent => return None,
             _ => value_tokens.push(&tokens[index]),
         }
         index += 1;
@@ -354,18 +353,42 @@ fn build_declaration_value(
     ))
 }
 
-fn matching_right_brace_index(tokens: &[LexedToken], left_brace_index: usize) -> Option<usize> {
+fn matching_declaration_block_end_index(
+    tokens: &[LexedToken],
+    start_index: usize,
+) -> Option<usize> {
+    match tokens.get(start_index)?.kind {
+        SyntaxKind::LeftBrace => matching_block_end_index(
+            tokens,
+            start_index,
+            SyntaxKind::LeftBrace,
+            SyntaxKind::RightBrace,
+        ),
+        SyntaxKind::SassIndent => matching_block_end_index(
+            tokens,
+            start_index,
+            SyntaxKind::SassIndent,
+            SyntaxKind::SassDedent,
+        ),
+        _ => None,
+    }
+}
+
+fn matching_block_end_index(
+    tokens: &[LexedToken],
+    start_index: usize,
+    open_kind: SyntaxKind,
+    close_kind: SyntaxKind,
+) -> Option<usize> {
     let mut depth = 0usize;
-    for (index, token) in tokens.iter().enumerate().skip(left_brace_index) {
-        match token.kind {
-            SyntaxKind::LeftBrace => depth += 1,
-            SyntaxKind::RightBrace => {
-                depth = depth.checked_sub(1)?;
-                if depth == 0 {
-                    return Some(index);
-                }
+    for (index, token) in tokens.iter().enumerate().skip(start_index) {
+        if token.kind == open_kind {
+            depth += 1;
+        } else if token.kind == close_kind {
+            depth = depth.checked_sub(1)?;
+            if depth == 0 {
+                return Some(index);
             }
-            _ => {}
         }
     }
     None
@@ -473,6 +496,25 @@ mod tests {
                 .first()
                 .map(|value| value.legacy_value.as_str()),
             Some("#fff")
+        );
+    }
+
+    #[test]
+    fn oracle_collects_declaration_values_inside_sass_indented_rules() {
+        let report = summarize_omena_scss_eval_oracle(
+            ".button\n  color: red",
+            StyleDialect::Sass,
+            ".button\n  color: red",
+        );
+
+        assert_eq!(report.legacy_declaration_value_count, 1);
+        assert_eq!(report.divergence_count, 0);
+        assert_eq!(
+            report
+                .values
+                .first()
+                .map(|value| (value.property_name.as_str(), value.legacy_value.as_str())),
+            Some(("color", "red"))
         );
     }
 }

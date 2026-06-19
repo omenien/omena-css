@@ -13,6 +13,7 @@ pub struct OmenaScssEvalStaticStylesheetOracleCorpusReportV0 {
     pub product_output_source: &'static str,
     pub fixture_count: usize,
     pub scss_fixture_count: usize,
+    pub sass_fixture_count: usize,
     pub less_fixture_count: usize,
     pub evaluated_fixture_count: usize,
     pub missing_evaluation_count: usize,
@@ -74,6 +75,10 @@ pub fn summarize_static_stylesheet_oracle_corpus()
     let scss_fixture_count = fixtures
         .iter()
         .filter(|fixture| fixture.dialect == "scss")
+        .count();
+    let sass_fixture_count = fixtures
+        .iter()
+        .filter(|fixture| fixture.dialect == "sass")
         .count();
     let less_fixture_count = fixtures
         .iter()
@@ -149,6 +154,7 @@ pub fn summarize_static_stylesheet_oracle_corpus()
         product_output_source: "legacyEvaluatedCss",
         fixture_count,
         scss_fixture_count,
+        sass_fixture_count,
         less_fixture_count,
         evaluated_fixture_count,
         missing_evaluation_count,
@@ -235,6 +241,11 @@ fn static_stylesheet_oracle_corpus_fixtures() -> &'static [StaticStylesheetOracl
             id: "scss.variable-basic",
             dialect: StyleDialect::Scss,
             source: "$gap: 1px; .card { margin: $gap; }",
+        },
+        StaticStylesheetOracleCorpusFixtureV0 {
+            id: "sass.variable-basic",
+            dialect: StyleDialect::Sass,
+            source: "$gap: 1px\n.card\n  margin: $gap",
         },
         StaticStylesheetOracleCorpusFixtureV0 {
             id: "scss.color-helpers",

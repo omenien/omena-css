@@ -25,6 +25,7 @@ interface StaticStylesheetEvaluatorOracleCorpusSummaryV0 {
   readonly productOutputSource: string;
   readonly fixtureCount: number;
   readonly scssFixtureCount: number;
+  readonly sassFixtureCount: number;
   readonly lessFixtureCount: number;
   readonly evaluatedFixtureCount: number;
   readonly missingEvaluationCount: number;
@@ -633,6 +634,7 @@ function assertStaticStylesheetEvaluatorOracleCorpus(
   assert.equal(summary.productOutputSource, "legacyEvaluatedCss");
   assert.ok(summary.fixtureCount >= 55, "static stylesheet oracle corpus must not shrink");
   assert.ok(summary.scssFixtureCount >= 10, "SCSS oracle fixture coverage must not shrink");
+  assert.ok(summary.sassFixtureCount >= 1, "Sass oracle fixture coverage must not shrink");
   assert.ok(summary.lessFixtureCount >= 45, "Less oracle fixture coverage must not shrink");
   assert.equal(summary.evaluatedFixtureCount, summary.fixtureCount);
   assert.equal(summary.missingEvaluationCount, 0);
@@ -657,6 +659,7 @@ function assertStaticStylesheetEvaluatorOracleCorpus(
   for (const id of [
     "scss.dynamic-function-return",
     "scss.recursive-function-return",
+    "sass.variable-basic",
     "less.variable-basic",
     "less.dynamic-escaped-string",
   ]) {
