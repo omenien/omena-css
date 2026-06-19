@@ -615,7 +615,10 @@ assert.equal(chrome122ColorMixEvidence.allResolvedTargetsSupported, true);
 assert.equal(chrome122ColorMixTarget.supported, true);
 assert.equal(chrome122ColorMixTarget.matchedThreshold?.minVersion, "111.0");
 assert.equal(chrome122ColorMixTarget.matchedThreshold?.caniuseKey, "css-color-mix");
-assert.deepEqual(chrome122TargetQuerySummary.target.plannedPassIds, ["light-dark-lowering"]);
+assert.deepEqual(chrome122TargetQuerySummary.target.plannedPassIds, [
+  "stale-prefix-removal",
+  "light-dark-lowering",
+]);
 assert.equal(
   chrome122TargetQuerySummary.execution.outputCss,
   ".button { color: #000; border-color: color-mix(in srgb, red, blue); } @media (prefers-color-scheme: dark) { .button { color: #fff; } }",
@@ -663,7 +666,7 @@ assert.equal(chrome123TargetQuerySummary.targetQuery?.profileId, "browserslist-r
 assert.deepEqual(chrome123TargetQuerySummary.targetQuery?.resolvedTargets, ["chrome 123"]);
 assert.equal(chrome123TargetQuerySummary.targetQuery?.support.supportsLightDark, true);
 assert.equal(chrome123TargetQuerySummary.targetQuery?.support.supportsColorMix, true);
-assert.deepEqual(chrome123TargetQuerySummary.target.plannedPassIds, []);
+assert.deepEqual(chrome123TargetQuerySummary.target.plannedPassIds, ["stale-prefix-removal"]);
 assert.equal(chrome123TargetQuerySummary.execution.outputCss, targetCompatStyleSource);
 
 const contextStyleSource =

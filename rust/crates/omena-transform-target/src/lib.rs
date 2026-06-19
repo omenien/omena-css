@@ -273,6 +273,8 @@ pub fn plan_target_transforms(
 
     if support.vendor_prefix_required {
         required_passes.push(TransformPassKind::VendorPrefixing);
+    } else {
+        required_passes.push(TransformPassKind::StalePrefixRemoval);
     }
     if !support.supports_light_dark {
         required_passes.push(TransformPassKind::LightDarkLowering);
@@ -988,9 +990,10 @@ fn push_required_or_blocked(
     }
 }
 
-fn target_managed_passes() -> [TransformPassKind; 12] {
+fn target_managed_passes() -> [TransformPassKind; 13] {
     [
         TransformPassKind::VendorPrefixing,
+        TransformPassKind::StalePrefixRemoval,
         TransformPassKind::LightDarkLowering,
         TransformPassKind::ColorMixLowering,
         TransformPassKind::OklchOklabLowering,
@@ -1018,7 +1021,7 @@ mod tests {
         let boundary = summarize_omena_transform_target_boundary();
 
         assert_eq!(boundary.product, "omena-transform-target.boundary");
-        assert_eq!(boundary.managed_pass_ids.len(), 12);
+        assert_eq!(boundary.managed_pass_ids.len(), 13);
         assert_eq!(
             boundary.target_data_source,
             "oxcBrowserslistV3+browserThresholdsTomlV0+staticTargetProfileV0+explicitFeatureMatrixV0"
@@ -1048,6 +1051,7 @@ mod tests {
             super::VENDOR_PREFIX_MATRIX_SOURCE
         );
         assert!(boundary.managed_pass_ids.contains(&"vendor-prefixing"));
+        assert!(boundary.managed_pass_ids.contains(&"stale-prefix-removal"));
         assert!(boundary.managed_pass_ids.contains(&"media-static-eval"));
         assert!(boundary.opt_in_pass_ids.contains(&"scope-flatten"));
     }
@@ -1162,6 +1166,19 @@ mod tests {
     }
 
     #[test]
+    fn plans_stale_prefix_removal_for_targets_that_do_not_need_prefixes() {
+        let plan = plan_target_transforms(
+            "modern",
+            super::modern_feature_support(),
+            conservative_target_options(),
+        );
+
+        assert!(plan.required_pass_ids.contains(&"stale-prefix-removal"));
+        assert!(!plan.required_pass_ids.contains(&"vendor-prefixing"));
+        assert!(plan.planned_pass_ids.contains(&"stale-prefix-removal"));
+    }
+
+    #[test]
     fn plans_target_lowering_from_static_target_query_profiles() {
         let options = TargetTransformOptionsV0 {
             allow_logical_to_physical: true,
@@ -1207,7 +1224,10 @@ mod tests {
             "omena-transform-target-data-v0:thresholds-2026-05-22:bindings-2026-05-22"
         );
         assert!(modern.target_data_evidence.is_empty());
-        assert!(modern.transform_plan.required_pass_ids.is_empty());
+        assert_eq!(
+            modern.transform_plan.required_pass_ids,
+            vec!["stale-prefix-removal"]
+        );
     }
 
     #[test]
