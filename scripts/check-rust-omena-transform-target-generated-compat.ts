@@ -67,6 +67,13 @@ interface CompatFeatureSelectionV0 {
   readonly caniuseKeys: readonly string[];
   readonly sourceKeys: Record<string, string>;
   readonly sourceQuorum: readonly string[];
+  readonly thresholds: readonly CompatBrowserThresholdSelectionV0[];
+}
+
+interface CompatBrowserThresholdSelectionV0 {
+  readonly browser: string;
+  readonly minMajor: number;
+  readonly minMinor: number;
 }
 
 type TomlValue = string | number | string[];
@@ -169,6 +176,8 @@ for (const feature of compatSelections.features) {
     feature.caniuseKeys[0],
     `selection ${feature.table} caniuse mapping must match the pass binding key`,
   );
+  assert.ok(feature.thresholds.length > 0, `selection ${feature.table} threshold rows required`);
+  assertSelectionThresholdRows(feature);
   assertFeatureSourceKeyAnchored(manifestSourceKeys, feature, "web-features");
   assertFeatureSourceKeyAnchored(manifestSourceKeys, feature, "mdn-bcd");
   assertFeatureSourceKeyEvidenceAnchored(manifestEvidence, feature);
@@ -224,6 +233,12 @@ for (const [table, thresholds] of thresholdsByTable) {
     1,
     `feature table ${table} must map to a single caniuse feature key`,
   );
+  assert.equal(
+    thresholds[0]?.caniuse_key,
+    selection.caniuseKeys[0],
+    `feature table ${table} generated rows must use the curated caniuse key`,
+  );
+  assertThresholdRowsMatchSelection(table, thresholds, selection);
 }
 
 const mappedTables = new Set<string>();
@@ -371,6 +386,66 @@ function assertFeatureSourceKeyEvidenceAnchored(
       `selection ${feature.table} ${source} key ${key} must be anchored by manifest evidence`,
     );
   }
+}
+
+function assertSelectionThresholdRows(feature: CompatFeatureSelectionV0): void {
+  let previousBrowserOrder = -1;
+  for (const threshold of feature.thresholds) {
+    assert.equal(typeof threshold.browser, "string", `selection ${feature.table} threshold browser`);
+    assert.equal(typeof threshold.minMajor, "number", `selection ${feature.table} minMajor`);
+    assert.equal(typeof threshold.minMinor, "number", `selection ${feature.table} minMinor`);
+    assert.ok(
+      Number.isInteger(threshold.minMajor) && threshold.minMajor >= 0,
+      `selection ${feature.table}/${threshold.browser} minMajor must be a non-negative integer`,
+    );
+    assert.ok(
+      Number.isInteger(threshold.minMinor) && threshold.minMinor >= 0,
+      `selection ${feature.table}/${threshold.browser} minMinor must be a non-negative integer`,
+    );
+    const browserOrder = expectedBrowsers.indexOf(
+      threshold.browser as (typeof expectedBrowsers)[number],
+    );
+    assert.notEqual(
+      browserOrder,
+      -1,
+      `selection ${feature.table} contains unknown browser row ${threshold.browser}`,
+    );
+    assert.ok(
+      browserOrder > previousBrowserOrder,
+      `selection ${feature.table} thresholds must retain stable browser row order without duplicates`,
+    );
+    previousBrowserOrder = browserOrder;
+  }
+}
+
+function assertThresholdRowsMatchSelection(
+  table: string,
+  generatedThresholds: readonly TomlRecord[],
+  selection: CompatFeatureSelectionV0,
+): void {
+  const generatedRows = generatedThresholds.map((threshold) => {
+    assertString(threshold.browser, `threshold ${table}.browser`);
+    assertNumber(threshold.min_major, `threshold ${table}.min_major`);
+    assertNumber(threshold.min_minor, `threshold ${table}.min_minor`);
+    assertString(threshold.caniuse_key, `threshold ${table}.caniuse_key`);
+    return {
+      browser: threshold.browser,
+      minMajor: threshold.min_major,
+      minMinor: threshold.min_minor,
+      caniuseKey: threshold.caniuse_key,
+    };
+  });
+  const expectedRows = selection.thresholds.map((threshold) => ({
+    browser: threshold.browser,
+    minMajor: threshold.minMajor,
+    minMinor: threshold.minMinor,
+    caniuseKey: selection.caniuseKeys[0],
+  }));
+  assert.deepEqual(
+    generatedRows,
+    expectedRows,
+    `generated threshold table ${table} must exactly match the curated source mapping`,
+  );
 }
 
 function assertString(value: TomlValue | undefined, label: string): asserts value is string {
