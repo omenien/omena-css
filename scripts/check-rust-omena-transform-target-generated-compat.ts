@@ -46,12 +46,19 @@ interface SpecManifestV0 {
   readonly schemaVersion: string;
   readonly product: string;
   readonly sourceCoverage: readonly SpecManifestSourceCoverageV0[];
+  readonly entries: readonly SpecManifestEntryV0[];
 }
 
 interface SpecManifestSourceCoverageV0 {
   readonly sourceName: string;
   readonly entryIds: readonly string[];
   readonly sourceKeys: readonly string[];
+}
+
+interface SpecManifestEntryV0 {
+  readonly id: string;
+  readonly owner: string;
+  readonly evidence?: readonly string[];
 }
 
 interface CompatFeatureSelectionV0 {
@@ -116,6 +123,7 @@ assert.ok(
 assert.equal(specManifest.schemaVersion, "0");
 assert.equal(specManifest.product, "omena-spec-audit.single-source-manifest");
 const manifestSourceKeys = specManifestSourceKeyIndex(specManifest);
+const manifestEvidence = specManifestEvidenceIndex(specManifest);
 assert.ok(
   manifestSourceKeys.has("web-features"),
   "spec manifest source coverage must include web-features",
@@ -163,6 +171,7 @@ for (const feature of compatSelections.features) {
   );
   assertFeatureSourceKeyAnchored(manifestSourceKeys, feature, "web-features");
   assertFeatureSourceKeyAnchored(manifestSourceKeys, feature, "mdn-bcd");
+  assertFeatureSourceKeyEvidenceAnchored(manifestEvidence, feature);
   assert.ok(!selectionsByTable.has(feature.table), `duplicate selection table ${feature.table}`);
   selectionsByTable.set(feature.table, feature);
 }
@@ -317,6 +326,19 @@ function specManifestSourceKeyIndex(manifest: SpecManifestV0): Map<string, Set<s
   return sourceKeysByName;
 }
 
+function specManifestEvidenceIndex(manifest: SpecManifestV0): Set<string> {
+  const evidence = new Set<string>();
+  for (const entry of manifest.entries) {
+    assert.ok(entry.id.length > 0, "spec manifest entry id required");
+    assert.ok(entry.owner.length > 0, `spec manifest ${entry.id} owner required`);
+    for (const item of entry.evidence ?? []) {
+      assert.ok(item.trim().length > 0, `spec manifest ${entry.id} evidence item required`);
+      evidence.add(item);
+    }
+  }
+  return evidence;
+}
+
 function assertFeatureSourceKeyAnchored(
   manifestSourceKeys: Map<string, Set<string>>,
   feature: CompatFeatureSelectionV0,
@@ -328,6 +350,18 @@ function assertFeatureSourceKeyAnchored(
     manifestSourceKeys.get(manifestSourceName)?.has(sourceKey),
     `selection ${feature.table} ${source} key ${sourceKey} must be anchored in spec manifest source coverage`,
   );
+}
+
+function assertFeatureSourceKeyEvidenceAnchored(
+  manifestEvidence: Set<string>,
+  feature: CompatFeatureSelectionV0,
+): void {
+  for (const [source, key] of Object.entries(feature.sourceKeys)) {
+    assert.ok(
+      manifestEvidence.has(`compat-source-key:${source}/${key}`),
+      `selection ${feature.table} ${source} key ${key} must be anchored by manifest evidence`,
+    );
+  }
 }
 
 function assertString(value: TomlValue | undefined, label: string): asserts value is string {
