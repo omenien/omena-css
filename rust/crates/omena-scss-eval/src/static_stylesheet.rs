@@ -17,10 +17,26 @@ use crate::{
 };
 
 mod less_guard;
+mod model;
 mod oracle_corpus;
 mod value_resolution_model;
 
 use less_guard::{static_less_mixin_guard_depends_on_default, static_less_mixin_guard_matches};
+use model::{
+    StaticLessDetachedRulesetAccessor, StaticLessDetachedRulesetCall,
+    StaticLessDetachedRulesetDeclaration, StaticLessMixinAccessor,
+    StaticLessMixinAccessorRenderOutcome, StaticLessMixinAccessorRenderResult,
+    StaticLessMixinBodyLocalDeclaration, StaticLessMixinCall, StaticLessMixinDeclaration,
+    StaticLessMixinRenderContext, StaticLessMixinRenderOutcome, StaticLessMixinRenderResult,
+    StaticScssFunctionArgument, StaticScssFunctionCall, StaticScssFunctionDeclaration,
+    StaticScssFunctionLocalScope, StaticScssFunctionLocalVariable, StaticScssFunctionParameter,
+    StaticScssFunctionResolutionContext, StaticScssFunctionReturnClause, StaticScssLoopHeader,
+    StaticScssMixinBodyLocalDeclaration, StaticScssMixinDeclaration, StaticScssMixinIncludeCall,
+    StaticScssMixinRenderResult, StaticStylesheetEvaluationEdit,
+    StaticStylesheetPropertyDeclaration, StaticStylesheetScope,
+    StaticStylesheetScopedVariableDeclaration, StaticStylesheetVariableDeclaration,
+    StaticStylesheetVariableKind,
+};
 pub use oracle_corpus::{
     OmenaScssEvalStaticStylesheetOracleCorpusFixtureReportV0,
     OmenaScssEvalStaticStylesheetOracleCorpusReportV0, summarize_static_stylesheet_oracle_corpus,
@@ -853,273 +869,6 @@ fn summarize_static_less_value_resolution_values(
         ));
     }
     Some(values)
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum StaticStylesheetVariableKind {
-    Scss,
-    Less,
-}
-
-impl StaticStylesheetVariableKind {
-    fn for_dialect(dialect: StyleDialect) -> Option<Self> {
-        match dialect {
-            StyleDialect::Scss | StyleDialect::Sass => Some(Self::Scss),
-            StyleDialect::Less => Some(Self::Less),
-            StyleDialect::Css => None,
-        }
-    }
-
-    fn evaluator_label(self) -> &'static str {
-        match self {
-            Self::Scss => "omena-query-static-scss-variable-evaluator",
-            Self::Less => "omena-query-static-less-variable-evaluator",
-        }
-    }
-
-    fn reference_prefix(self) -> char {
-        match self {
-            Self::Scss => '$',
-            Self::Less => '@',
-        }
-    }
-}
-
-#[derive(Debug, Clone)]
-struct StaticStylesheetVariableDeclaration {
-    value: String,
-    span_start: usize,
-    span_end: usize,
-    removal_spans: Vec<(usize, usize)>,
-    is_default: bool,
-    is_global: bool,
-}
-
-#[derive(Debug, Clone)]
-struct StaticStylesheetScopedVariableDeclaration {
-    name: String,
-    scope_id: usize,
-    declaration: StaticStylesheetVariableDeclaration,
-    removal_spans: Vec<(usize, usize)>,
-}
-
-#[derive(Debug, Clone)]
-struct StaticStylesheetEvaluationEdit {
-    start: usize,
-    end: usize,
-    replacement: String,
-}
-
-#[derive(Debug, Clone)]
-struct StaticStylesheetPropertyDeclaration {
-    value: String,
-}
-
-#[derive(Debug, Clone)]
-struct StaticScssFunctionDeclaration {
-    name: String,
-    parameters: Vec<StaticScssFunctionParameter>,
-    local_variables: Vec<StaticScssFunctionLocalVariable>,
-    return_clauses: Vec<StaticScssFunctionReturnClause>,
-    span_start: usize,
-    span_end: usize,
-    body_start: usize,
-    body_end: usize,
-}
-
-#[derive(Debug, Clone)]
-struct StaticScssMixinDeclaration {
-    name: String,
-    parameters: Vec<StaticScssFunctionParameter>,
-    span_start: usize,
-    span_end: usize,
-    body_start: usize,
-    body_end: usize,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-struct StaticScssFunctionLocalVariable {
-    name: String,
-    value: String,
-    span_start: usize,
-    scope_start: usize,
-    scope_end: usize,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-struct StaticScssFunctionReturnClause {
-    condition: Option<String>,
-    value: String,
-    span_start: usize,
-    loop_headers: Vec<StaticScssLoopHeader>,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-struct StaticScssLoopHeader {
-    text: String,
-    span_start: usize,
-    body_start: usize,
-    body_end: usize,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-struct StaticScssFunctionParameter {
-    name: String,
-    default_value: Option<String>,
-    variadic: bool,
-    pattern_value: Option<String>,
-}
-
-#[derive(Debug, Clone)]
-struct StaticScssFunctionCall {
-    name: String,
-    start: usize,
-    end: usize,
-    arguments: Vec<StaticScssFunctionArgument>,
-}
-
-#[derive(Debug, Clone)]
-struct StaticScssMixinIncludeCall {
-    name: String,
-    start: usize,
-    end: usize,
-    arguments: Vec<StaticScssFunctionArgument>,
-}
-
-#[derive(Debug, Clone)]
-struct StaticScssMixinRenderResult {
-    body: String,
-    used_mixin_declaration_names: BTreeSet<String>,
-    used_function_declaration_names: BTreeSet<String>,
-}
-
-#[derive(Debug, Clone)]
-struct StaticScssMixinBodyLocalDeclaration {
-    name: String,
-    declaration: StaticStylesheetVariableDeclaration,
-}
-
-#[derive(Debug, Clone)]
-struct StaticLessMixinDeclaration {
-    name: String,
-    parameters: Vec<StaticScssFunctionParameter>,
-    guard: Option<String>,
-    span_start: usize,
-    span_end: usize,
-    body_start: usize,
-    body_end: usize,
-}
-
-#[derive(Debug, Clone)]
-struct StaticLessMixinCall {
-    namespace: Option<String>,
-    namespace_arguments: Vec<StaticScssFunctionArgument>,
-    name: String,
-    start: usize,
-    end: usize,
-    important: bool,
-    arguments: Vec<StaticScssFunctionArgument>,
-}
-
-#[derive(Debug, Clone)]
-struct StaticLessMixinAccessor {
-    name: String,
-    member: String,
-    start: usize,
-    end: usize,
-    arguments: Vec<StaticScssFunctionArgument>,
-}
-
-#[derive(Debug, Clone)]
-struct StaticLessDetachedRulesetDeclaration {
-    name: String,
-    scope_id: usize,
-    span_start: usize,
-    span_end: usize,
-    body_start: usize,
-    body_end: usize,
-}
-
-#[derive(Debug, Clone)]
-struct StaticLessDetachedRulesetCall {
-    name: String,
-    start: usize,
-    end: usize,
-}
-
-#[derive(Debug, Clone)]
-struct StaticLessDetachedRulesetAccessor {
-    name: String,
-    member: String,
-    start: usize,
-    end: usize,
-}
-
-#[derive(Debug, Clone)]
-struct StaticLessMixinBodyLocalDeclaration {
-    name: String,
-    declaration: StaticStylesheetVariableDeclaration,
-}
-
-#[derive(Debug, Clone)]
-struct StaticLessMixinRenderResult {
-    body: String,
-    used_declaration_names: BTreeSet<String>,
-}
-
-enum StaticLessMixinRenderOutcome {
-    Rendered(StaticLessMixinRenderResult),
-    GuardNotMatched,
-}
-
-#[derive(Debug, Clone)]
-struct StaticLessMixinAccessorRenderResult {
-    value: String,
-    used_declaration_name: String,
-}
-
-enum StaticLessMixinAccessorRenderOutcome {
-    Rendered(StaticLessMixinAccessorRenderResult),
-    GuardNotMatched,
-}
-
-#[derive(Debug, Clone, Copy)]
-struct StaticLessMixinRenderContext<'a> {
-    source: &'a str,
-    declarations: &'a [StaticLessMixinDeclaration],
-    detached_ruleset_declarations: &'a [StaticLessDetachedRulesetDeclaration],
-    scopes: &'a [StaticStylesheetScope],
-    variable_declarations: &'a BTreeMap<(usize, String), StaticStylesheetVariableDeclaration>,
-    captured_values: &'a BTreeMap<String, String>,
-}
-
-#[derive(Debug, Clone, Copy)]
-struct StaticScssFunctionResolutionContext<'a> {
-    declarations: &'a [StaticScssFunctionDeclaration],
-    mixin_declarations: &'a [StaticScssMixinDeclaration],
-    scopes: &'a [StaticStylesheetScope],
-    variable_declarations: &'a [StaticStylesheetScopedVariableDeclaration],
-    active_functions: &'a BTreeSet<String>,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-struct StaticScssFunctionArgument {
-    name: Option<String>,
-    value: String,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-struct StaticScssFunctionLocalScope {
-    end_index: usize,
-    span_start: usize,
-    span_end: usize,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-struct StaticStylesheetScope {
-    parent_id: Option<usize>,
-    body_start: usize,
-    end: usize,
 }
 
 fn collect_static_scss_function_evaluation_edits(
