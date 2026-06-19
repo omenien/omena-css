@@ -6644,6 +6644,7 @@ fn reduce_static_less_value_with_escape_flag(value: String) -> StaticLessResolve
         ],
     )
     .unwrap_or(value);
+    let text = parse_static_less_rgb_color_value(text.as_str()).unwrap_or(text);
     StaticLessResolvedValue {
         text,
         escaped: false,
@@ -6744,6 +6745,14 @@ fn parse_static_less_boolean_value(value: &str) -> Option<String> {
         return None;
     };
     Some(static_less_value_condition_matches(condition.trim())?.to_string())
+}
+
+fn parse_static_less_rgb_color_value(value: &str) -> Option<String> {
+    let color = parse_static_rgb_function_color_with_alpha(value)?;
+    Some(format_static_less_color_with_alpha(
+        color,
+        color.alpha.unwrap_or(1.0),
+    ))
 }
 
 fn parse_static_less_red_value(value: &str) -> Option<String> {
@@ -8884,9 +8893,9 @@ mod tests {
         assert_eq!(report.mode, "oracleOnly");
         assert_eq!(report.value_type, "AbstractCssValueV0");
         assert_eq!(report.product_output_source, "legacyEvaluatedCss");
-        assert_eq!(report.fixture_count, 23);
+        assert_eq!(report.fixture_count, 24);
         assert_eq!(report.scss_fixture_count, 6);
-        assert_eq!(report.less_fixture_count, 17);
+        assert_eq!(report.less_fixture_count, 18);
         assert_eq!(report.evaluated_fixture_count, report.fixture_count);
         assert_eq!(report.missing_evaluation_count, 0);
         assert_eq!(report.divergence_count, 0);
@@ -9512,7 +9521,7 @@ mod tests {
 
         assert!(!report.evaluated_css.contains(".tone(@color"));
         assert!(!report.evaluated_css.contains(".tone(rgb"));
-        assert!(report.evaluated_css.contains("color: rgb(127.5, 0, 127.5)"));
+        assert!(report.evaluated_css.contains("color: #800080"));
         assert!(report.oracle.all_legacy_declaration_values_preserved);
     }
 
@@ -10895,6 +10904,39 @@ mod tests {
         assert!(report.evaluated_css.contains("g: 52"));
         assert!(report.evaluated_css.contains("b: 86"));
         assert!(report.evaluated_css.contains("a: 0.5"));
+        assert!(report.oracle.all_legacy_declaration_values_preserved);
+    }
+
+    #[test]
+    fn static_less_evaluation_reduces_rgb_color_constructor_values() {
+        let report = derive_static_stylesheet_module_evaluation(
+            "@rgb: rgb(18, 52, 86); @rgba: rgba(18, 52, 86, .5); @pct: rgba(100%, 0%, 0%, 50%); @slash: rgb(18 52 86 / .5); .button { color: @rgb; background: @rgba; border-color: @pct; outline-color: @slash; }",
+            StyleDialect::Less,
+        );
+        assert!(report.is_some());
+        let Some(report) = report else {
+            return;
+        };
+
+        assert_eq!(report.replacement_count, 4);
+        assert_eq!(report.value_resolution.resolved_count, 4);
+        assert_eq!(report.value_resolution.raw_count, 0);
+        assert!(report.evaluated_css.contains("color: #123456"));
+        assert!(
+            report
+                .evaluated_css
+                .contains("background: rgba(18, 52, 86, 0.5)")
+        );
+        assert!(
+            report
+                .evaluated_css
+                .contains("border-color: rgba(255, 0, 0, 0.5)")
+        );
+        assert!(
+            report
+                .evaluated_css
+                .contains("outline-color: rgba(18, 52, 86, 0.5)")
+        );
         assert!(report.oracle.all_legacy_declaration_values_preserved);
     }
 

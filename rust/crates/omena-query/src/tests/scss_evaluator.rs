@@ -16,9 +16,9 @@ fn exposes_static_stylesheet_oracle_corpus_through_query_boundary() {
     assert_eq!(summary.mode, "oracleOnly");
     assert_eq!(summary.value_type, "AbstractCssValueV0");
     assert_eq!(summary.product_output_source, "legacyEvaluatedCss");
-    assert_eq!(summary.fixture_count, 23);
+    assert_eq!(summary.fixture_count, 24);
     assert_eq!(summary.scss_fixture_count, 6);
-    assert_eq!(summary.less_fixture_count, 17);
+    assert_eq!(summary.less_fixture_count, 18);
     assert_eq!(summary.evaluated_fixture_count, summary.fixture_count);
     assert_eq!(summary.missing_evaluation_count, 0);
     assert_eq!(summary.divergence_count, 0);
@@ -58,6 +58,13 @@ fn exposes_static_stylesheet_oracle_corpus_through_query_boundary() {
             .fixtures
             .iter()
             .any(|fixture| fixture.id == "less.isruleset-predicate")
+    );
+    assert!(
+        summary
+            .corpus
+            .fixtures
+            .iter()
+            .any(|fixture| fixture.id == "less.rgb-color-constructors")
     );
 }
 
@@ -839,6 +846,41 @@ fn exposes_less_color_channel_builtins_through_query_boundary() {
             && evaluation.evaluated_css.contains("g: 52")
             && evaluation.evaluated_css.contains("b: 86")
             && evaluation.evaluated_css.contains("a: 0.5")
+    }));
+}
+
+#[test]
+fn exposes_less_rgb_color_constructors_through_query_boundary() {
+    let summary = summarize_omena_query_static_stylesheet_evaluator_from_source(
+        "@rgb: rgb(18, 52, 86); @rgba: rgba(18, 52, 86, .5); @pct: rgba(100%, 0%, 0%, 50%); @slash: rgb(18 52 86 / .5); .button { color: @rgb; background: @rgba; border-color: @pct; outline-color: @slash; }",
+        OmenaParserStyleDialect::Less,
+    );
+
+    assert_eq!(summary.product, "omena-query.static-stylesheet-evaluator");
+    assert_eq!(summary.mode, "oracleOnly");
+    assert_eq!(summary.dialect, "less");
+    assert_eq!(summary.value_type, "AbstractCssValueV0");
+    assert!(summary.supported_dialect);
+    assert_eq!(summary.product_output_source, "legacyEvaluatedCss");
+    assert!(summary.legacy_output_consumed_until_cutover);
+    assert!(summary.evaluation_available);
+    assert_eq!(summary.divergence_count, 0);
+    assert!(summary.all_legacy_declaration_values_preserved);
+    assert_eq!(summary.native_replacement_count, 4);
+    assert_eq!(summary.native_resolved_value_count, 4);
+    assert_eq!(summary.native_raw_value_count, 0);
+    assert_eq!(summary.native_top_value_count, 0);
+    assert!(summary.evaluation.as_ref().is_some_and(|evaluation| {
+        evaluation.evaluated_css.contains("color: #123456")
+            && evaluation
+                .evaluated_css
+                .contains("background: rgba(18, 52, 86, 0.5)")
+            && evaluation
+                .evaluated_css
+                .contains("border-color: rgba(255, 0, 0, 0.5)")
+            && evaluation
+                .evaluated_css
+                .contains("outline-color: rgba(18, 52, 86, 0.5)")
     }));
 }
 
