@@ -60,17 +60,20 @@ pub(super) fn derive_static_stylesheet_module_evaluation_for_transform_context(
             oracle,
         });
     }
-    (evaluation_source.as_ref() != style_source).then(|| TransformModuleEvaluationV0 {
-        evaluator: static_stylesheet_module_system_evaluator_label(dialect).to_string(),
-        product_output_source: Some("evaluatedCss".to_string()),
-        evaluated_css: restore_less_inline_literal_placeholders(
+    (evaluation_source.as_ref() != style_source).then(|| {
+        let output = restore_less_inline_literal_placeholders(
             evaluation_source.as_ref(),
             &import_aware_source.less_inline_literal_placeholders,
-        ),
-        native_edit_output: None,
-        native_replacements: Vec::new(),
-        native_edits: Vec::new(),
-        oracle: None,
+        );
+        TransformModuleEvaluationV0 {
+            evaluator: static_stylesheet_module_system_evaluator_label(dialect).to_string(),
+            product_output_source: Some("nativeEditOutput".to_string()),
+            evaluated_css: output.clone(),
+            native_edit_output: Some(output),
+            native_replacements: Vec::new(),
+            native_edits: Vec::new(),
+            oracle: None,
+        }
     })
 }
 
@@ -471,21 +474,10 @@ fn static_stylesheet_module_output_css_from_evaluation(
     if let Some(native_edit_output) = evaluation.native_edit_output {
         return Some(native_edit_output);
     }
-    if static_stylesheet_module_product_source_allows_evaluated_css(&evaluation)
-        || static_stylesheet_module_oracle_allows_legacy_output(&evaluation)
-    {
+    if static_stylesheet_module_oracle_allows_legacy_output(&evaluation) {
         return Some(evaluation.evaluated_css);
     }
     None
-}
-
-fn static_stylesheet_module_product_source_allows_evaluated_css(
-    evaluation: &TransformModuleEvaluationV0,
-) -> bool {
-    matches!(
-        evaluation.product_output_source.as_deref(),
-        Some("evaluatedCss" | "legacyEvaluatedCss")
-    )
 }
 
 fn static_stylesheet_module_oracle_allows_legacy_output(
@@ -1327,12 +1319,12 @@ mod tests {
     }
 
     #[test]
-    fn static_module_output_allows_declared_legacy_product_source() {
+    fn static_module_output_rejects_declared_legacy_product_source_without_oracle() {
         let evaluation = test_transform_module_evaluation(Some("evaluatedCss"), None, None);
 
         assert_eq!(
             static_stylesheet_module_output_css_from_evaluation(evaluation),
-            Some(".legacy { color: red; }".to_string())
+            None
         );
     }
 

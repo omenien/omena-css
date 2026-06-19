@@ -881,9 +881,7 @@ fn materialize_transform_module_evaluation_output(
         }
     }
 
-    if transform_module_evaluation_product_source_allows_evaluated_css(evaluation)
-        || transform_module_evaluation_oracle_allows_legacy_output(evaluation)
-    {
+    if transform_module_evaluation_oracle_allows_legacy_output(evaluation) {
         return TransformModuleEvaluationMaterializedOutput {
             css: evaluation.evaluated_css.clone(),
             detail: oracle_detail,
@@ -894,15 +892,6 @@ fn materialize_transform_module_evaluation_output(
         css: input_css.to_string(),
         detail: preserve_detail,
     }
-}
-
-fn transform_module_evaluation_product_source_allows_evaluated_css(
-    evaluation: &TransformModuleEvaluationV0,
-) -> bool {
-    matches!(
-        evaluation.product_output_source.as_deref(),
-        Some("evaluatedCss" | "legacyEvaluatedCss")
-    )
 }
 
 fn transform_module_evaluation_oracle_allows_legacy_output(

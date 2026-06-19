@@ -298,7 +298,7 @@ fn execution_runtime_preserves_less_source_when_native_product_output_is_missing
 }
 
 #[test]
-fn execution_runtime_consumes_scss_oracle_output_without_native_edits() {
+fn execution_runtime_rejects_scss_legacy_output_without_oracle() {
     let source = r#"@use "./tokens" as tokens; .button { color: tokens.$brand; }"#;
     let evaluated_css = ".base { color: blue; } .button { color: red; }";
     let context = TransformExecutionContextV0 {
@@ -323,16 +323,18 @@ fn execution_runtime_consumes_scss_oracle_output_without_native_edits() {
         &context,
     );
 
-    assert_eq!(execution.mutation_count, 1);
-    assert_eq!(execution.output_css, evaluated_css);
+    assert_eq!(execution.mutation_count, 0);
+    assert_eq!(execution.output_css, source);
     assert_eq!(
         execution.outcomes.first().map(|outcome| outcome.detail),
-        Some("applied SCSS module evaluation oracle output from the evaluator boundary")
+        Some(
+            "preserved SCSS source because native evaluator edits did not match the oracle boundary"
+        )
     );
 }
 
 #[test]
-fn execution_runtime_consumes_less_oracle_output_without_native_edits() {
+fn execution_runtime_rejects_less_legacy_output_without_oracle() {
     let source = r#"@import "./tokens.less"; .button { color: @brand; }"#;
     let evaluated_css = ".base { color: blue; } .button { color: red; }";
     let context = TransformExecutionContextV0 {
@@ -357,11 +359,13 @@ fn execution_runtime_consumes_less_oracle_output_without_native_edits() {
         &context,
     );
 
-    assert_eq!(execution.mutation_count, 1);
-    assert_eq!(execution.output_css, evaluated_css);
+    assert_eq!(execution.mutation_count, 0);
+    assert_eq!(execution.output_css, source);
     assert_eq!(
         execution.outcomes.first().map(|outcome| outcome.detail),
-        Some("applied Less module evaluation oracle output from the evaluator boundary")
+        Some(
+            "preserved Less source because native evaluator edits did not match the oracle boundary"
+        )
     );
 }
 
