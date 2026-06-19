@@ -13,7 +13,8 @@ use crate::value_eval::static_scss_literal_truthiness;
 use super::{
     StaticLessDetachedRulesetDeclaration, StaticLessMixinRenderContext, StaticStylesheetScope,
     StaticStylesheetVariableDeclaration, find_static_less_detached_ruleset_declaration,
-    resolve_static_less_mixin_value_with_bindings, static_stylesheet_property_name_is_safe,
+    find_static_less_variable_declaration, resolve_static_less_mixin_value_with_bindings,
+    static_less_variable_name_is_safe, static_stylesheet_property_name_is_safe,
 };
 
 pub(super) fn static_less_mixin_guard_matches(
@@ -176,6 +177,7 @@ fn static_less_guard_predicate_expression_matches(
         })
     })
     .or_else(|| static_less_mixin_guard_isunit_predicate_matches(predicate, context))
+    .or_else(|| static_less_mixin_guard_isdefined_predicate_matches(predicate, context))
     .or_else(|| static_less_mixin_guard_isruleset_predicate_matches(predicate, context))
     .or_else(|| {
         static_less_mixin_guard_predicate_matches(
@@ -265,6 +267,44 @@ fn static_less_mixin_guard_isunit_predicate_matches(
         resolved_value.trim(),
         expected_unit,
     ))
+}
+
+fn static_less_mixin_guard_isdefined_predicate_matches(
+    predicate: &str,
+    context: StaticLessGuardContext<'_>,
+) -> Option<bool> {
+    let arguments = parse_whole_function_value_arguments(predicate, "isdefined")?;
+    let [value] = arguments.as_slice() else {
+        return None;
+    };
+    let value = value.trim();
+    if value.is_empty() {
+        return None;
+    }
+    if !value.starts_with('@') {
+        return Some(true);
+    }
+    if value.starts_with("@@") || !static_less_variable_name_is_safe(value) {
+        return None;
+    }
+    Some(
+        context.argument_values.contains_key(value)
+            || context.captured_values.contains_key(value)
+            || find_static_less_variable_declaration(
+                value,
+                context.call_scope_id,
+                context.scopes,
+                context.variable_declarations,
+            )
+            .is_some()
+            || find_static_less_detached_ruleset_declaration(
+                value,
+                context.call_scope_id,
+                context.scopes,
+                context.detached_ruleset_declarations,
+            )
+            .is_some(),
+    )
 }
 
 fn static_less_mixin_guard_isruleset_predicate_matches(

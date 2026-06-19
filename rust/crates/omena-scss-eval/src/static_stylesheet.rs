@@ -9031,9 +9031,9 @@ mod tests {
         assert_eq!(report.mode, "oracleOnly");
         assert_eq!(report.value_type, "AbstractCssValueV0");
         assert_eq!(report.product_output_source, "legacyEvaluatedCss");
-        assert_eq!(report.fixture_count, 26);
+        assert_eq!(report.fixture_count, 27);
         assert_eq!(report.scss_fixture_count, 6);
-        assert_eq!(report.less_fixture_count, 20);
+        assert_eq!(report.less_fixture_count, 21);
         assert_eq!(report.evaluated_fixture_count, report.fixture_count);
         assert_eq!(report.missing_evaluation_count, 0);
         assert_eq!(report.divergence_count, 0);
@@ -9690,7 +9690,10 @@ mod tests {
 .display(@value) when (iskeyword(@value)) { display: @value; }
 .asset(@value) when (isurl(@value)) { background-image: @value; }
 .unit(@gap) when (isunit(@gap, "rem")) { padding: @gap; }
-.button { .space(2px); .ratio(50%); .font("Roboto"); .display(block); .asset(url("./icon.svg")); .unit(1rem); }"#,
+.present() when (isdefined(@brand)) { color: @brand; }
+.with-param(@tone) when (isdefined(@tone)) { border-color: @tone; }
+@brand: red;
+.button { .space(2px); .ratio(50%); .font("Roboto"); .display(block); .asset(url("./icon.svg")); .unit(1rem); .present(); .with-param(green); }"#,
             StyleDialect::Less,
         );
 
@@ -9704,6 +9707,8 @@ mod tests {
         assert!(report.evaluated_css.contains(r#"font-family: "Roboto""#));
         assert!(report.evaluated_css.contains("display: block"));
         assert!(report.evaluated_css.contains("padding: 1rem"));
+        assert!(report.evaluated_css.contains("color: red"));
+        assert!(report.evaluated_css.contains("border-color: green"));
         assert!(
             report
                 .evaluated_css
@@ -9836,6 +9841,16 @@ mod tests {
     fn static_less_evaluation_keeps_false_isunit_guarded_mixins_planned_only() {
         let report = derive_static_stylesheet_module_evaluation(
             r#".space(@gap) when (isunit(@gap, "px")) { margin: @gap; } .button { .space(2em); }"#,
+            StyleDialect::Less,
+        );
+
+        assert!(report.is_none());
+    }
+
+    #[test]
+    fn static_less_evaluation_keeps_false_isdefined_guarded_mixins_planned_only() {
+        let report = derive_static_stylesheet_module_evaluation(
+            ".missing() when (isdefined(@missing)) { color: blue; } .button { .missing(); }",
             StyleDialect::Less,
         );
 

@@ -16,9 +16,9 @@ fn exposes_static_stylesheet_oracle_corpus_through_query_boundary() {
     assert_eq!(summary.mode, "oracleOnly");
     assert_eq!(summary.value_type, "AbstractCssValueV0");
     assert_eq!(summary.product_output_source, "legacyEvaluatedCss");
-    assert_eq!(summary.fixture_count, 26);
+    assert_eq!(summary.fixture_count, 27);
     assert_eq!(summary.scss_fixture_count, 6);
-    assert_eq!(summary.less_fixture_count, 20);
+    assert_eq!(summary.less_fixture_count, 21);
     assert_eq!(summary.evaluated_fixture_count, summary.fixture_count);
     assert_eq!(summary.missing_evaluation_count, 0);
     assert_eq!(summary.divergence_count, 0);
@@ -65,6 +65,13 @@ fn exposes_static_stylesheet_oracle_corpus_through_query_boundary() {
             .fixtures
             .iter()
             .any(|fixture| fixture.id == "less.isdefined-predicate")
+    );
+    assert!(
+        summary
+            .corpus
+            .fixtures
+            .iter()
+            .any(|fixture| fixture.id == "less.isdefined-guarded-mixin")
     );
     assert!(
         summary
@@ -1395,6 +1402,29 @@ fn exposes_less_ruleset_guarded_mixin_oracle_through_query_boundary() {
             && !evaluation.evaluated_css.contains(".apply(@rules")
             && evaluation.evaluated_css.contains("color: red")
             && evaluation.evaluated_css.contains("margin: 1px")
+    }));
+}
+
+#[test]
+fn exposes_less_isdefined_guarded_mixin_oracle_through_query_boundary() {
+    let summary = summarize_omena_query_static_stylesheet_evaluator_from_source(
+        "@brand: red; .present() when (isdefined(@brand)) { color: @brand; } .with-param(@tone) when (isdefined(@tone)) { border-color: @tone; } .button { .present(); .with-param(green); }",
+        OmenaParserStyleDialect::Less,
+    );
+
+    assert_eq!(summary.product, "omena-query.static-stylesheet-evaluator");
+    assert_eq!(summary.mode, "oracleOnly");
+    assert_eq!(summary.dialect, "less");
+    assert_eq!(summary.value_type, "AbstractCssValueV0");
+    assert!(summary.legacy_output_consumed_until_cutover);
+    assert!(summary.evaluation_available);
+    assert_eq!(summary.divergence_count, 0);
+    assert!(summary.all_legacy_declaration_values_preserved);
+    assert!(summary.evaluation.as_ref().is_some_and(|evaluation| {
+        !evaluation.evaluated_css.contains(".present()")
+            && !evaluation.evaluated_css.contains(".with-param(green")
+            && evaluation.evaluated_css.contains("color: red")
+            && evaluation.evaluated_css.contains("border-color: green")
     }));
 }
 
