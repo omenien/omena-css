@@ -1959,28 +1959,63 @@ fn parse_static_scss_global_mix_value(value: &str) -> Option<String> {
 fn parse_static_scss_color_mix_value_with_name(value: &str, function_name: &str) -> Option<String> {
     let arguments = parse_whole_function_value_arguments(value, function_name)?;
     let arguments = parse_static_scss_color_mix_arguments(arguments.as_slice())?;
-    let first = parse_static_scss_opaque_srgb_color_argument(arguments.first_color)?;
-    let second = parse_static_scss_opaque_srgb_color_argument(arguments.second_color)?;
+    let first = parse_static_scss_srgb_color_argument(
+        reduce_static_scss_value(arguments.first_color.to_string()).as_str(),
+    )?;
+    let second = parse_static_scss_srgb_color_argument(
+        reduce_static_scss_value(arguments.second_color.to_string()).as_str(),
+    )?;
     let weight = match arguments.weight {
         Some(weight) => parse_static_scss_color_mix_weight(weight)?,
         None => 50.0,
     };
-    let first_weight = weight / 100.0;
-    let second_weight = 1.0 - first_weight;
-    Some(format!(
-        "rgb({}, {}, {})",
-        format_css_number(first.red.mul_add(first_weight, second.red * second_weight)),
-        format_css_number(
-            first
-                .green
-                .mul_add(first_weight, second.green * second_weight)
-        ),
-        format_css_number(
-            first
-                .blue
-                .mul_add(first_weight, second.blue * second_weight)
-        )
+    let mix = static_scss_color_mix_weights(weight, first.alpha, second.alpha)?;
+    let alpha = first
+        .alpha
+        .mul_add(mix.alpha_first, second.alpha * mix.alpha_second);
+    Some(render_static_scss_sass_color_constructor(
+        StaticScssSrgbColorValue {
+            red: first.red.mul_add(mix.first, second.red * mix.second),
+            green: first.green.mul_add(mix.first, second.green * mix.second),
+            blue: first.blue.mul_add(mix.first, second.blue * mix.second),
+            alpha,
+        },
+        alpha,
     ))
+}
+
+struct StaticScssColorMixWeights {
+    first: f64,
+    second: f64,
+    alpha_first: f64,
+    alpha_second: f64,
+}
+
+fn static_scss_color_mix_weights(
+    weight_percent: f64,
+    first_alpha: f64,
+    second_alpha: f64,
+) -> Option<StaticScssColorMixWeights> {
+    let alpha_first = weight_percent / 100.0;
+    let alpha_second = 1.0 - alpha_first;
+    let scaled_weight = alpha_first * 2.0 - 1.0;
+    let alpha_delta = first_alpha - second_alpha;
+    let channel_weight = if (scaled_weight * alpha_delta + 1.0).abs() <= f64::EPSILON {
+        scaled_weight
+    } else {
+        (scaled_weight + alpha_delta) / (1.0 + scaled_weight * alpha_delta)
+    };
+    let first = (channel_weight + 1.0) / 2.0;
+    let second = 1.0 - first;
+    [first, second, alpha_first, alpha_second]
+        .into_iter()
+        .all(f64::is_finite)
+        .then_some(StaticScssColorMixWeights {
+            first,
+            second,
+            alpha_first,
+            alpha_second,
+        })
 }
 
 struct StaticScssColorMixArguments<'a> {
@@ -2318,12 +2353,6 @@ fn static_scss_srgb_lightness(color: StaticScssSrgbColorValue) -> f64 {
 
 fn static_scss_normalized_rgb(color: StaticScssSrgbColorValue) -> (f64, f64, f64) {
     (color.red / 255.0, color.green / 255.0, color.blue / 255.0)
-}
-
-fn parse_static_scss_opaque_srgb_color_argument(value: &str) -> Option<StaticScssSrgbColorValue> {
-    let reduced = reduce_static_scss_value(value.to_string());
-    let color = parse_static_scss_srgb_color_argument(reduced.as_str())?;
-    ((color.alpha - 1.0).abs() <= f64::EPSILON).then_some(color)
 }
 
 fn parse_static_scss_srgb_color_argument(value: &str) -> Option<StaticScssSrgbColorValue> {

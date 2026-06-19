@@ -10129,7 +10129,7 @@ mod tests {
     }
 
     #[test]
-    fn static_value_resolution_keeps_dynamic_values_raw() {
+    fn static_value_resolution_emits_exact_alpha_color_mix_values() {
         let report = summarize_static_stylesheet_value_resolution(
             "$tone: color.mix(rgba(red, .5), blue); .button { color: $tone; }",
             StyleDialect::Scss,
@@ -10140,18 +10140,16 @@ mod tests {
         };
 
         assert_eq!(report.reference_count, 1);
-        assert_eq!(report.raw_count, 1);
-        assert_eq!(report.unsupported_dynamic_count, 1);
-        assert_eq!(report.values[0].outcome, "raw");
-        assert_eq!(report.values[0].reason, "unsupportedDynamic");
-        assert_eq!(
-            report.values[0].rendered_value.as_deref(),
-            Some("color.mix(rgba(red, .5), blue)")
-        );
+        assert_eq!(report.resolved_count, 1);
+        assert_eq!(report.raw_count, 0);
+        assert_eq!(report.unsupported_dynamic_count, 0);
+        assert_eq!(report.values[0].outcome, "resolved");
+        assert_eq!(report.values[0].reason, "resolved");
+        assert_eq!(report.values[0].abstract_value_kind, "exact");
     }
 
     #[test]
-    fn static_value_resolution_keeps_nested_opacity_helpers_raw() {
+    fn static_value_resolution_emits_exact_nested_opacity_color_mix_values() {
         let report = summarize_static_stylesheet_value_resolution(
             "$tone: color.mix(transparentize(red, .25), blue); .button { color: $tone; }",
             StyleDialect::Scss,
@@ -10162,14 +10160,12 @@ mod tests {
         };
 
         assert_eq!(report.reference_count, 1);
-        assert_eq!(report.raw_count, 1);
-        assert_eq!(report.unsupported_dynamic_count, 1);
-        assert_eq!(report.values[0].outcome, "raw");
-        assert_eq!(report.values[0].reason, "unsupportedDynamic");
-        assert_eq!(
-            report.values[0].rendered_value.as_deref(),
-            Some("color.mix(transparentize(red, .25), blue)")
-        );
+        assert_eq!(report.resolved_count, 1);
+        assert_eq!(report.raw_count, 0);
+        assert_eq!(report.unsupported_dynamic_count, 0);
+        assert_eq!(report.values[0].outcome, "resolved");
+        assert_eq!(report.values[0].reason, "resolved");
+        assert_eq!(report.values[0].abstract_value_kind, "exact");
     }
 
     #[test]
