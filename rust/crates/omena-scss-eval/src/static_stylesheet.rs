@@ -4924,6 +4924,7 @@ mod tests {
             report.legacy_output_retained_as_oracle_count,
             report.evaluated_fixture_count
         );
+        assert_eq!(report.legacy_output_consumed_until_cutover_count, 0);
         assert!(report.all_legacy_outputs_retained_as_oracle);
         assert_eq!(report.fixture_count, 71);
         assert_eq!(report.scss_fixture_count, 15);

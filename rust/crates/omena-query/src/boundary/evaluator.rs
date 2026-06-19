@@ -118,6 +118,7 @@ pub struct OmenaQueryStaticStylesheetEvaluatorOracleCorpusSummaryV0 {
     pub value_type: &'static str,
     pub product_output_source: &'static str,
     pub legacy_output_retained_as_oracle_count: usize,
+    pub legacy_output_consumed_until_cutover_count: usize,
     pub all_legacy_outputs_retained_as_oracle: bool,
     pub fixture_count: usize,
     pub scss_fixture_count: usize,
@@ -308,6 +309,8 @@ pub fn summarize_omena_query_static_stylesheet_evaluator_oracle_corpus()
         value_type: corpus.value_type,
         product_output_source: corpus.product_output_source,
         legacy_output_retained_as_oracle_count: corpus.legacy_output_retained_as_oracle_count,
+        legacy_output_consumed_until_cutover_count: corpus
+            .legacy_output_consumed_until_cutover_count,
         all_legacy_outputs_retained_as_oracle: corpus.all_legacy_outputs_retained_as_oracle,
         fixture_count: corpus.fixture_count,
         scss_fixture_count: corpus.scss_fixture_count,

@@ -12,6 +12,7 @@ pub struct OmenaScssEvalStaticStylesheetOracleCorpusReportV0 {
     pub value_type: &'static str,
     pub product_output_source: &'static str,
     pub legacy_output_retained_as_oracle_count: usize,
+    pub legacy_output_consumed_until_cutover_count: usize,
     pub all_legacy_outputs_retained_as_oracle: bool,
     pub fixture_count: usize,
     pub scss_fixture_count: usize,
@@ -128,6 +129,10 @@ pub fn summarize_static_stylesheet_oracle_corpus()
         .iter()
         .filter(|fixture| fixture.legacy_output_retained_as_oracle)
         .count();
+    let legacy_output_consumed_until_cutover_count = fixtures
+        .iter()
+        .filter(|fixture| fixture.legacy_output_consumed_until_cutover)
+        .count();
     let native_value_reference_count = fixtures
         .iter()
         .map(|fixture| fixture.native_value_reference_count)
@@ -164,6 +169,7 @@ pub fn summarize_static_stylesheet_oracle_corpus()
         value_type: "AbstractCssValueV0",
         product_output_source: "nativeEditOutput",
         legacy_output_retained_as_oracle_count,
+        legacy_output_consumed_until_cutover_count,
         all_legacy_outputs_retained_as_oracle,
         fixture_count,
         scss_fixture_count,

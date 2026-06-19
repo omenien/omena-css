@@ -82,6 +82,7 @@ fn exposes_static_stylesheet_oracle_corpus_through_query_boundary() {
         summary.legacy_output_retained_as_oracle_count,
         summary.evaluated_fixture_count
     );
+    assert_eq!(summary.legacy_output_consumed_until_cutover_count, 0);
     assert!(summary.all_legacy_outputs_retained_as_oracle);
     assert_eq!(summary.missing_evaluation_count, 0);
     assert_eq!(summary.divergence_count, 0);

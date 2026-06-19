@@ -24,6 +24,7 @@ interface StaticStylesheetEvaluatorOracleCorpusSummaryV0 {
   readonly valueType: string;
   readonly productOutputSource: string;
   readonly legacyOutputRetainedAsOracleCount: number;
+  readonly legacyOutputConsumedUntilCutoverCount: number;
   readonly allLegacyOutputsRetainedAsOracle: boolean;
   readonly fixtureCount: number;
   readonly scssFixtureCount: number;
@@ -46,6 +47,9 @@ interface StaticStylesheetEvaluatorOracleCorpusSummaryV0 {
 interface StaticStylesheetEvaluatorOracleFixtureSummaryV0 {
   readonly id: string;
   readonly dialect: string;
+  readonly productOutputSource: string;
+  readonly legacyOutputRetainedAsOracle: boolean;
+  readonly legacyOutputConsumedUntilCutover: boolean;
   readonly evaluationAvailable: boolean;
   readonly nativeEditOutput?: string;
   readonly divergenceCount: number;
@@ -751,6 +755,7 @@ function assertStaticStylesheetEvaluatorOracleCorpus(
   assert.ok(summary.lessFixtureCount >= 45, "Less oracle fixture coverage must not shrink");
   assert.equal(summary.evaluatedFixtureCount, summary.fixtureCount);
   assert.equal(summary.legacyOutputRetainedAsOracleCount, summary.evaluatedFixtureCount);
+  assert.equal(summary.legacyOutputConsumedUntilCutoverCount, 0);
   assert.equal(summary.allLegacyOutputsRetainedAsOracle, true);
   assert.equal(summary.missingEvaluationCount, 0);
   assert.equal(summary.divergenceCount, 0);
@@ -767,8 +772,18 @@ function assertStaticStylesheetEvaluatorOracleCorpus(
   assert.equal(corpus.fixtureCount, summary.fixtureCount);
   assert.equal(corpus.divergenceCount, 0);
   assert.equal(corpus.nativeEditOutputMatchCount, corpus.fixtureCount);
+  assert.equal(corpus.legacyOutputConsumedUntilCutoverCount, 0);
   assert.equal(corpus.allLegacyDeclarationValuesPreserved, true);
   assert.equal(corpus.allNativeEditOutputsMatchEvaluatedCss, true);
+  assert.ok(
+    corpus.fixtures.every(
+      (fixture) =>
+        fixture.productOutputSource === "nativeEditOutput" &&
+        fixture.legacyOutputRetainedAsOracle &&
+        !fixture.legacyOutputConsumedUntilCutover,
+    ),
+    "native evaluator corpus must retain legacy output only as oracle evidence",
+  );
 
   const fixtures = new Map(corpus.fixtures.map((fixture) => [fixture.id, fixture]));
   for (const id of [
