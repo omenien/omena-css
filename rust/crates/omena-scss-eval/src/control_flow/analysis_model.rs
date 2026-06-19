@@ -25,6 +25,7 @@ pub(super) struct ScssCallReturnCandidate {
     pub(super) return_inside_loop_control_flow: bool,
     pub(super) return_loop_header_text: Option<String>,
     pub(super) return_loop_header_texts: Vec<String>,
+    pub(super) return_loop_body_texts: Vec<String>,
     pub(super) return_condition_text: Option<String>,
     pub(super) return_negated_condition_texts: Vec<String>,
     pub(super) source_span_start: usize,

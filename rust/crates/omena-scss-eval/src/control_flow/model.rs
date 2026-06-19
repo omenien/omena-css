@@ -143,6 +143,7 @@ pub struct OmenaScssEvalCallReturnNodeV0 {
     pub return_inside_loop_control_flow: bool,
     pub return_loop_header_text: Option<String>,
     pub return_loop_header_texts: Vec<String>,
+    pub return_loop_body_texts: Vec<String>,
     pub return_condition_text: Option<String>,
     pub return_negated_condition_texts: Vec<String>,
     pub source_span_start: usize,

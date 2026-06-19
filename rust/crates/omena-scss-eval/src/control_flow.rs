@@ -53,8 +53,8 @@ use lexical::{
     scss_global_variable_metadata_exists, static_scss_metadata_exists_call_may_need_resolution,
 };
 use loop_values::{
-    loop_carried_binding_frames_for_headers, loop_carried_binding_values, loop_carried_value,
-    while_loop_body_assignment_names, while_loop_carried_binding_values,
+    ScssControlFlowLoopContext, loop_carried_binding_frames_for_contexts,
+    loop_carried_binding_values, loop_carried_value, while_loop_carried_binding_values,
 };
 use tokens::{
     declaration_end_token_index, matching_right_brace_token_index,
@@ -411,6 +411,7 @@ fn call_return_candidate_from_sass_symbol(
         return_inside_loop_control_flow: false,
         return_loop_header_text: None,
         return_loop_header_texts: Vec::new(),
+        return_loop_body_texts: Vec::new(),
         return_condition_text: None,
         return_negated_condition_texts: Vec::new(),
         source_span_start: symbol.range.start().into(),
@@ -432,7 +433,15 @@ fn collect_scss_return_candidates(
             let return_text = scss_return_text_from_token(source, tokens, index);
             let return_inside_loop_control_flow =
                 scss_return_is_inside_loop_control_flow(tokens, index);
-            let return_loop_header_texts = scss_return_loop_header_texts(source, tokens, index);
+            let return_loop_contexts = scss_return_loop_contexts(source, tokens, index);
+            let return_loop_header_texts = return_loop_contexts
+                .iter()
+                .map(|context| context.header_text.clone())
+                .collect::<Vec<_>>();
+            let return_loop_body_texts = return_loop_contexts
+                .iter()
+                .map(|context| context.body_text.clone().unwrap_or_default())
+                .collect::<Vec<_>>();
             let return_loop_header_text = return_loop_header_texts.last().cloned();
             let return_value = if return_inside_loop_control_flow {
                 Some(AbstractCssValueV0::Top)
@@ -459,6 +468,7 @@ fn collect_scss_return_candidates(
                 return_inside_loop_control_flow,
                 return_loop_header_text,
                 return_loop_header_texts,
+                return_loop_body_texts,
                 return_condition_text: return_condition
                     .as_ref()
                     .and_then(|condition| condition.condition_text.clone()),
@@ -476,15 +486,26 @@ fn scss_return_is_inside_loop_control_flow(tokens: &[LexedToken], return_index: 
     !enclosing_scss_loop_blocks(tokens, return_index).is_empty()
 }
 
-fn scss_return_loop_header_texts(
+fn scss_return_loop_contexts(
     source: &str,
     tokens: &[LexedToken],
     return_index: usize,
-) -> Vec<String> {
+) -> Vec<ScssControlFlowLoopContext> {
     enclosing_scss_loop_blocks(tokens, return_index)
         .into_iter()
-        .map(|block| control_flow_header_text(source, tokens, block.at_rule_index))
-        .filter(|header| !header.is_empty())
+        .filter_map(|block| {
+            let header_text = control_flow_header_text(source, tokens, block.at_rule_index);
+            if header_text.is_empty() {
+                return None;
+            }
+            let body_start = tokens.get(block.body_start_index)?.range.end().into();
+            let body_end = tokens.get(block.body_end_index)?.range.start().into();
+            let body_text = source.get(body_start..body_end).map(str::to_string);
+            Some(ScssControlFlowLoopContext {
+                header_text,
+                body_text,
+            })
+        })
         .collect()
 }
 
@@ -1287,18 +1308,33 @@ fn call_bound_loop_return_resolution(
     function_name: Option<&str>,
     context: Option<&ScssCallReturnResolutionContext<'_>>,
 ) -> ScssLoopReturnResolution {
-    let header_texts = if node.return_loop_header_texts.is_empty() {
+    let loop_contexts = if node.return_loop_header_texts.is_empty() {
         match node.return_loop_header_text.as_deref() {
-            Some(header) => vec![header.to_string()],
+            Some(header) => vec![ScssControlFlowLoopContext {
+                header_text: header.to_string(),
+                body_text: None,
+            }],
             None => return ScssLoopReturnResolution::Unknown,
         }
     } else {
-        node.return_loop_header_texts.clone()
+        node.return_loop_header_texts
+            .iter()
+            .enumerate()
+            .map(|(index, header_text)| ScssControlFlowLoopContext {
+                header_text: header_text.clone(),
+                body_text: node
+                    .return_loop_body_texts
+                    .get(index)
+                    .filter(|body| !body.is_empty())
+                    .cloned(),
+            })
+            .collect::<Vec<_>>()
     };
     let Some(return_text) = node.return_text.as_deref() else {
         return ScssLoopReturnResolution::Unknown;
     };
-    let Some(frames) = loop_carried_binding_frames_for_headers(header_texts.as_slice(), &bindings)
+    let Some(frames) =
+        loop_carried_binding_frames_for_contexts(loop_contexts.as_slice(), &bindings)
     else {
         return ScssLoopReturnResolution::Unknown;
     };
@@ -1799,12 +1835,7 @@ fn control_flow_transfer_for_block(
             ),
         },
         "@while" => {
-            let assigned_bindings = while_loop_body_assignment_names(source, block);
-            let bindings = while_loop_carried_binding_values(
-                block.header_text.as_str(),
-                &contextual_bindings,
-                assigned_bindings.as_slice(),
-            );
+            let bindings = while_loop_carried_binding_values(source, block, &contextual_bindings);
             let value = if bindings.is_empty() {
                 scss_header_value_with_bindings(
                     block.header_text.as_str(),
@@ -1862,12 +1893,7 @@ fn control_flow_loop_carried_binding_values(
     lexical_bindings: &BTreeMap<String, AbstractCssValueV0>,
 ) -> Vec<ScssControlFlowBindingValue> {
     if block.at_rule_name.eq_ignore_ascii_case("@while") {
-        let assigned_bindings = while_loop_body_assignment_names(source, block);
-        while_loop_carried_binding_values(
-            block.header_text.as_str(),
-            lexical_bindings,
-            assigned_bindings.as_slice(),
-        )
+        while_loop_carried_binding_values(source, block, lexical_bindings)
     } else {
         loop_carried_binding_values(block.header_text.as_str(), lexical_bindings)
     }
@@ -2828,6 +2854,27 @@ mod tests {
             report.blocks[0].loop_carried_binding_values[0].value,
             AbstractCssValueV0::FiniteSet {
                 values: vec!["0".to_string(), "1".to_string(), "2".to_string()]
+            }
+        );
+    }
+
+    #[test]
+    fn control_flow_value_analysis_tracks_static_while_assignment_steps() {
+        let source = "$i: 0; @while $i < 6 { $i: $i + 2; .n { order: $i; } }";
+        let report = analyze_scss_control_flow_values(source, StyleDialect::Scss);
+        assert!(report.is_some());
+        let Some(report) = report else {
+            return;
+        };
+
+        assert_eq!(report.block_count, 1);
+        assert_eq!(report.back_edge_count, 1);
+        assert_eq!(report.loop_carried_binding_count, 1);
+        assert_eq!(report.blocks[0].loop_carried_bindings, vec!["$i"]);
+        assert_eq!(
+            report.blocks[0].loop_carried_binding_values[0].value,
+            AbstractCssValueV0::FiniteSet {
+                values: vec!["0".to_string(), "2".to_string(), "4".to_string()]
             }
         );
     }
@@ -3992,6 +4039,34 @@ mod tests {
             function_call.call_resolved_return_value,
             Some(AbstractCssValueV0::Exact {
                 value: "3".to_string()
+            })
+        );
+    }
+
+    #[test]
+    fn call_return_ir_filters_static_while_step_conditional_returns() {
+        let source = "@function collect() { $i: 0; @while $i < 6 { @if $i == 3 { @return $i; } $i: $i + 2; } @return 9; } .a { width: collect(); }";
+        let report = summarize_scss_call_return_ir(source, StyleDialect::Scss);
+        assert!(report.is_some());
+        let Some(report) = report else {
+            return;
+        };
+        let function_call = report
+            .nodes
+            .iter()
+            .find(|node| node.kind == "functionCall" && node.name.as_deref() == Some("collect"));
+        assert!(function_call.is_some());
+        let Some(function_call) = function_call else {
+            return;
+        };
+
+        assert_eq!(report.call_resolved_return_value_count, 1);
+        assert_eq!(report.exact_call_resolved_return_value_count, 1);
+        assert_eq!(function_call.call_resolved_return_value_kind, Some("exact"));
+        assert_eq!(
+            function_call.call_resolved_return_value,
+            Some(AbstractCssValueV0::Exact {
+                value: "9".to_string()
             })
         );
     }

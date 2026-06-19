@@ -37,6 +37,7 @@ pub(super) fn call_return_node_from_candidate(
         return_inside_loop_control_flow: candidate.return_inside_loop_control_flow,
         return_loop_header_text: candidate.return_loop_header_text,
         return_loop_header_texts: candidate.return_loop_header_texts,
+        return_loop_body_texts: candidate.return_loop_body_texts,
         return_condition_text: candidate.return_condition_text,
         return_negated_condition_texts: candidate.return_negated_condition_texts,
         source_span_start: candidate.source_span_start,
