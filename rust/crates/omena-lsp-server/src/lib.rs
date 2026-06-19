@@ -3,6 +3,7 @@ mod diagnostics_follow_up;
 mod diagnostics_scheduler;
 mod disk_cache;
 mod document_state;
+mod engine_input_params;
 mod external_sif_loader;
 mod frame_aware_refresh;
 mod lsp_output;
@@ -34,6 +35,7 @@ use disk_cache::disk_diagnostics_cache_slot_for_resolve;
 pub(crate) use document_state::{
     lsp_text_document_state, lsp_text_document_state_with_source_syntax_index,
 };
+use engine_input_params::query_engine_input_from_params;
 pub use external_sif_loader::{
     LspExternalSifRefreshJobV0, LspExternalSifRefreshResultV0,
     apply_deferred_external_sif_refresh_result, collect_deferred_external_sif_refresh,
@@ -56,8 +58,7 @@ pub use message_loop::{
 use omena_query::summarize_omena_query_target_unresolved_sass_import_diagnostics_for_workspace_paths;
 use omena_query::{
     OmenaParserStyleDialect, OmenaQueryCodeActionV0, OmenaQueryCompletionCandidateV0,
-    OmenaQueryCompletionItemV0, OmenaQueryEngineInputV2, OmenaQueryExternalSifInputV0,
-    OmenaQuerySourceDocumentInputV0,
+    OmenaQueryCompletionItemV0, OmenaQueryExternalSifInputV0, OmenaQuerySourceDocumentInputV0,
     OmenaQuerySourceDomainClassReferenceFactV0 as SourceDomainClassReferenceFact,
     OmenaQuerySourceSelectorOccurrenceIndexV0, OmenaQuerySourceSelectorOccurrenceV0,
     OmenaQuerySourceSelectorReferenceMatchKindV0 as SourceSelectorReferenceMatchKind,
@@ -1178,20 +1179,6 @@ fn resolve_style_context_index(state: &LspShellState, params: Option<&Value>) ->
     )
     .map(|result| json!(result))
     .unwrap_or(Value::Null)
-}
-
-fn query_engine_input_from_params(params: Option<&Value>) -> Option<OmenaQueryEngineInputV2> {
-    if let Some(engine_input) = params.and_then(|value| value.get("engineInput")) {
-        return serde_json::from_value(engine_input.clone()).ok();
-    }
-
-    serde_json::from_value(json!({
-        "version": "2",
-        "sources": [],
-        "styles": [],
-        "typeFacts": [],
-    }))
-    .ok()
 }
 
 fn resolve_document_diagnostics_for_uri(state: &LspShellState, document_uri: &str) -> Value {
