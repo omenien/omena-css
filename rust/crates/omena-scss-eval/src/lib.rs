@@ -25,9 +25,9 @@ pub use control_flow::{
     OmenaScssEvalControlFlowBlockV0, OmenaScssEvalControlFlowIrSummaryV0,
     OmenaScssEvalControlFlowOracleCorpusFixtureReportV0,
     OmenaScssEvalControlFlowOracleCorpusReportV0, OmenaScssEvalControlFlowValueAnalysisV0,
-    OmenaScssEvalControlFlowValueBlockV0, analyze_scss_control_flow_values,
-    summarize_scss_call_return_ir, summarize_scss_control_flow_ir,
-    summarize_scss_control_flow_oracle_corpus,
+    OmenaScssEvalControlFlowValueBlockV0, OmenaScssEvalControlFlowWideningWitnessV0,
+    analyze_scss_control_flow_values, summarize_scss_call_return_ir,
+    summarize_scss_control_flow_ir, summarize_scss_control_flow_oracle_corpus,
 };
 pub use static_stylesheet::{
     OmenaScssEvalResolvedReplacementV0, OmenaScssEvalStaticStylesheetEvaluationV0,

@@ -73,14 +73,30 @@ interface ScssEvaluatorControlFlowOracleCorpusSummaryV0 {
   readonly recursiveCallFixtureCount: number;
   readonly convergedValueAnalysisFixtureCount: number;
   readonly widenedToTopFixtureCount: number;
+  readonly wideningWitnessWidenedToTopCount: number;
+  readonly wideningWitnessConverged: boolean;
   readonly flatCssCfgBuiltCount: number;
   readonly mergedCrossFileGraphCount: number;
   readonly allSupportedFixturesConverged: boolean;
   readonly noFlatCssCfgBuilt: boolean;
   readonly noMergedCrossFileGraph: boolean;
+  readonly wideningWitness: ScssEvaluatorControlFlowWideningWitnessV0;
   readonly corpus?: ScssEvaluatorControlFlowOracleCorpusSummaryV0 & {
     readonly fixtures: readonly ScssEvaluatorControlFlowOracleFixtureSummaryV0[];
   };
+}
+
+interface ScssEvaluatorControlFlowWideningWitnessV0 {
+  readonly product: string;
+  readonly mode: string;
+  readonly valueType: string;
+  readonly policy: string;
+  readonly maxIterations: number;
+  readonly nodeCount: number;
+  readonly converged: boolean;
+  readonly iterationCount: number;
+  readonly widenedToTopCount: number;
+  readonly outputTopCount: number;
 }
 
 interface ScssEvaluatorControlFlowOracleFixtureSummaryV0 {
@@ -726,6 +742,18 @@ function assertScssEvaluatorControlFlowOracleCorpus(
   assert.ok(summary.topCallReturnFixtureCount >= 1);
   assert.ok(summary.recursiveCallFixtureCount >= 1);
   assert.equal(summary.convergedValueAnalysisFixtureCount, summary.supportedFixtureCount);
+  assert.equal(summary.wideningWitness.product, "omena-scss-eval.control-flow-widening-witness");
+  assert.equal(summary.wideningWitness.mode, "oracleOnly");
+  assert.equal(summary.wideningWitness.valueType, "AbstractCssValueV0");
+  assert.equal(summary.wideningWitness.policy, "nonConvergedOutputsWidenToTop");
+  assert.equal(summary.wideningWitness.converged, false);
+  assert.equal(summary.wideningWitnessConverged, false);
+  assert.equal(summary.wideningWitness.iterationCount, summary.wideningWitness.maxIterations);
+  assert.equal(
+    summary.wideningWitnessWidenedToTopCount,
+    summary.wideningWitness.nodeCount,
+  );
+  assert.equal(summary.wideningWitness.outputTopCount, summary.wideningWitness.nodeCount);
   assert.equal(summary.flatCssCfgBuiltCount, 0);
   assert.equal(summary.mergedCrossFileGraphCount, 0);
   assert.equal(summary.allSupportedFixturesConverged, true);
@@ -738,6 +766,7 @@ function assertScssEvaluatorControlFlowOracleCorpus(
   assert.equal(corpus.fixtureCount, summary.fixtureCount);
   assert.equal(corpus.noFlatCssCfgBuilt, true);
   assert.equal(corpus.noMergedCrossFileGraph, true);
+  assert.equal(corpus.wideningWitness.widenedToTopCount, corpus.wideningWitness.nodeCount);
 
   const fixtures = new Map(corpus.fixtures.map((fixture) => [fixture.id, fixture]));
   assertControlFlowFixture(fixtures, "scss.branch-if-else", (fixture) => {

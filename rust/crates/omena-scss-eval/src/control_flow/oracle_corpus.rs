@@ -2,8 +2,9 @@ use omena_parser::StyleDialect;
 use serde::Serialize;
 
 use super::{
-    SCSS_CALL_RETURN_RECURSION_LIMIT, analyze_scss_control_flow_values, dialect_label,
-    summarize_scss_call_return_ir, summarize_scss_control_flow_ir,
+    OmenaScssEvalControlFlowWideningWitnessV0, SCSS_CALL_RETURN_RECURSION_LIMIT,
+    analyze_scss_control_flow_values, dialect_label, summarize_scss_call_return_ir,
+    summarize_scss_control_flow_ir, summarize_scss_control_flow_widening_witness,
 };
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -30,11 +31,14 @@ pub struct OmenaScssEvalControlFlowOracleCorpusReportV0 {
     pub recursive_call_fixture_count: usize,
     pub converged_value_analysis_fixture_count: usize,
     pub widened_to_top_fixture_count: usize,
+    pub widening_witness_widened_to_top_count: usize,
+    pub widening_witness_converged: bool,
     pub flat_css_cfg_built_count: usize,
     pub merged_cross_file_graph_count: usize,
     pub all_supported_fixtures_converged: bool,
     pub no_flat_css_cfg_built: bool,
     pub no_merged_cross_file_graph: bool,
+    pub widening_witness: OmenaScssEvalControlFlowWideningWitnessV0,
     pub fixtures: Vec<OmenaScssEvalControlFlowOracleCorpusFixtureReportV0>,
 }
 
@@ -76,6 +80,7 @@ pub fn summarize_scss_control_flow_oracle_corpus() -> OmenaScssEvalControlFlowOr
         .iter()
         .map(scss_control_flow_oracle_corpus_fixture_report)
         .collect::<Vec<_>>();
+    let widening_witness = summarize_scss_control_flow_widening_witness();
     let fixture_count = fixtures.len();
     let scss_fixture_count = fixtures
         .iter()
@@ -173,11 +178,14 @@ pub fn summarize_scss_control_flow_oracle_corpus() -> OmenaScssEvalControlFlowOr
         recursive_call_fixture_count,
         converged_value_analysis_fixture_count,
         widened_to_top_fixture_count,
+        widening_witness_widened_to_top_count: widening_witness.widened_to_top_count,
+        widening_witness_converged: widening_witness.converged,
         flat_css_cfg_built_count,
         merged_cross_file_graph_count,
         all_supported_fixtures_converged,
         no_flat_css_cfg_built: flat_css_cfg_built_count == 0,
         no_merged_cross_file_graph: merged_cross_file_graph_count == 0,
+        widening_witness,
         fixtures,
     }
 }
@@ -438,6 +446,19 @@ mod tests {
         assert!(report.resolved_call_return_fixture_count >= 4);
         assert!(report.top_call_return_fixture_count >= 1);
         assert!(report.recursive_call_fixture_count >= 1);
+        assert!(!report.widening_witness_converged);
+        assert_eq!(
+            report.widening_witness.iteration_count,
+            report.widening_witness.max_iterations
+        );
+        assert_eq!(
+            report.widening_witness_widened_to_top_count,
+            report.widening_witness.node_count
+        );
+        assert_eq!(
+            report.widening_witness.output_top_count,
+            report.widening_witness.node_count
+        );
         assert_eq!(
             report.converged_value_analysis_fixture_count,
             report.supported_fixture_count

@@ -55,6 +55,22 @@ pub struct OmenaScssEvalControlFlowValueAnalysisV0 {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
+pub struct OmenaScssEvalControlFlowWideningWitnessV0 {
+    pub schema_version: &'static str,
+    pub product: &'static str,
+    pub mode: &'static str,
+    pub value_type: &'static str,
+    pub policy: &'static str,
+    pub max_iterations: usize,
+    pub node_count: usize,
+    pub converged: bool,
+    pub iteration_count: usize,
+    pub widened_to_top_count: usize,
+    pub output_top_count: usize,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct OmenaScssEvalControlFlowValueBlockV0 {
     pub node_key: StableNodeKeyV0,
     pub kind: &'static str,

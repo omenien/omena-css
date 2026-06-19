@@ -76,7 +76,7 @@ pub use model::{
     OmenaScssEvalCallReturnIrSummaryV0, OmenaScssEvalCallReturnNodeV0,
     OmenaScssEvalControlFlowBindingValueV0, OmenaScssEvalControlFlowBlockV0,
     OmenaScssEvalControlFlowIrSummaryV0, OmenaScssEvalControlFlowValueAnalysisV0,
-    OmenaScssEvalControlFlowValueBlockV0,
+    OmenaScssEvalControlFlowValueBlockV0, OmenaScssEvalControlFlowWideningWitnessV0,
 };
 pub use oracle_corpus::{
     OmenaScssEvalControlFlowOracleCorpusFixtureReportV0,
@@ -84,6 +84,7 @@ pub use oracle_corpus::{
 };
 
 const SCSS_CALL_RETURN_RECURSION_LIMIT: usize = 32;
+const SCSS_CONTROL_FLOW_WIDENING_WITNESS_NODE_COUNT: usize = MAX_FLOW_ANALYSIS_ITERATIONS + 8;
 
 pub fn summarize_scss_control_flow_ir(
     source: &str,
@@ -377,6 +378,70 @@ pub fn analyze_scss_control_flow_values(
         merged_cross_file_graph: false,
         blocks,
     })
+}
+
+pub(super) fn summarize_scss_control_flow_widening_witness()
+-> OmenaScssEvalControlFlowWideningWitnessV0 {
+    let nodes = (0..SCSS_CONTROL_FLOW_WIDENING_WITNESS_NODE_COUNT)
+        .map(|index| {
+            let source_span_start = index;
+            let source_span_end = index + 1;
+            let block = OmenaScssEvalControlFlowBlockV0 {
+                node_key: blocks::scss_eval_stable_node_key(
+                    "scss-control-widening-witness",
+                    "loop",
+                    source_span_start,
+                    source_span_end,
+                ),
+                kind: "loop",
+                at_rule_name: "@while".to_string(),
+                header_text: "$i < $limit".to_string(),
+                source_span_start,
+                source_span_end,
+                successor_count: 1,
+                has_back_edge: true,
+            };
+            let predecessor_indices = (index + 1 < SCSS_CONTROL_FLOW_WIDENING_WITNESS_NODE_COUNT)
+                .then_some(index + 1)
+                .into_iter()
+                .collect::<Vec<_>>();
+            let transfer = if index + 1 == SCSS_CONTROL_FLOW_WIDENING_WITNESS_NODE_COUNT {
+                ScssControlFlowTransfer::LoopCondition {
+                    bindings: Vec::new(),
+                    value: AbstractCssValueV0::Exact {
+                        value: "1px".to_string(),
+                    },
+                }
+            } else {
+                ScssControlFlowTransfer::PassThrough
+            };
+            ScssControlFlowAnalysisNode {
+                block,
+                predecessor_indices,
+                transfer,
+            }
+        })
+        .collect::<Vec<_>>();
+    let fixpoint = run_scss_control_flow_fixpoint(&nodes);
+    let output_top_count = fixpoint
+        .output_values
+        .iter()
+        .filter(|value| matches!(value, AbstractCssValueV0::Top))
+        .count();
+
+    OmenaScssEvalControlFlowWideningWitnessV0 {
+        schema_version: "0",
+        product: "omena-scss-eval.control-flow-widening-witness",
+        mode: "oracleOnly",
+        value_type: "AbstractCssValueV0",
+        policy: "nonConvergedOutputsWidenToTop",
+        max_iterations: MAX_FLOW_ANALYSIS_ITERATIONS,
+        node_count: nodes.len(),
+        converged: fixpoint.converged,
+        iteration_count: fixpoint.iteration_count,
+        widened_to_top_count: fixpoint.widened_to_top_count,
+        output_top_count,
+    }
 }
 
 fn call_return_candidate_from_sass_symbol(

@@ -1,10 +1,10 @@
 use omena_scss_eval::{
-    OmenaScssEvalControlFlowOracleCorpusReportV0, OmenaScssEvalStaticStylesheetEvaluationV0,
-    OmenaScssEvalStaticStylesheetOracleCorpusReportV0, OmenaScssEvalStaticValueResolutionReportV0,
-    analyze_scss_control_flow_values, derive_static_stylesheet_module_evaluation,
-    summarize_scss_call_return_ir, summarize_scss_control_flow_ir,
-    summarize_scss_control_flow_oracle_corpus, summarize_static_stylesheet_oracle_corpus,
-    summarize_static_stylesheet_value_resolution,
+    OmenaScssEvalControlFlowOracleCorpusReportV0, OmenaScssEvalControlFlowWideningWitnessV0,
+    OmenaScssEvalStaticStylesheetEvaluationV0, OmenaScssEvalStaticStylesheetOracleCorpusReportV0,
+    OmenaScssEvalStaticValueResolutionReportV0, analyze_scss_control_flow_values,
+    derive_static_stylesheet_module_evaluation, summarize_scss_call_return_ir,
+    summarize_scss_control_flow_ir, summarize_scss_control_flow_oracle_corpus,
+    summarize_static_stylesheet_oracle_corpus, summarize_static_stylesheet_value_resolution,
 };
 use serde::Serialize;
 
@@ -66,11 +66,14 @@ pub struct OmenaQueryScssEvaluatorControlFlowOracleCorpusSummaryV0 {
     pub recursive_call_fixture_count: usize,
     pub converged_value_analysis_fixture_count: usize,
     pub widened_to_top_fixture_count: usize,
+    pub widening_witness_widened_to_top_count: usize,
+    pub widening_witness_converged: bool,
     pub flat_css_cfg_built_count: usize,
     pub merged_cross_file_graph_count: usize,
     pub all_supported_fixtures_converged: bool,
     pub no_flat_css_cfg_built: bool,
     pub no_merged_cross_file_graph: bool,
+    pub widening_witness: OmenaScssEvalControlFlowWideningWitnessV0,
     pub corpus: OmenaScssEvalControlFlowOracleCorpusReportV0,
 }
 
@@ -427,11 +430,14 @@ pub fn summarize_omena_query_scss_evaluator_control_flow_oracle_corpus()
         recursive_call_fixture_count: corpus.recursive_call_fixture_count,
         converged_value_analysis_fixture_count: corpus.converged_value_analysis_fixture_count,
         widened_to_top_fixture_count: corpus.widened_to_top_fixture_count,
+        widening_witness_widened_to_top_count: corpus.widening_witness_widened_to_top_count,
+        widening_witness_converged: corpus.widening_witness_converged,
         flat_css_cfg_built_count: corpus.flat_css_cfg_built_count,
         merged_cross_file_graph_count: corpus.merged_cross_file_graph_count,
         all_supported_fixtures_converged: corpus.all_supported_fixtures_converged,
         no_flat_css_cfg_built: corpus.no_flat_css_cfg_built,
         no_merged_cross_file_graph: corpus.no_merged_cross_file_graph,
+        widening_witness: corpus.widening_witness.clone(),
         corpus,
     }
 }
