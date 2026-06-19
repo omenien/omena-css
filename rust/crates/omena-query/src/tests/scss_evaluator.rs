@@ -461,10 +461,10 @@ fn exposes_scss_control_flow_oracle_corpus_through_query_boundary() {
     assert_eq!(summary.mode, "oracleOnly");
     assert_eq!(summary.value_type, "AbstractCssValueV0");
     assert_eq!(summary.node_key_type, "StableNodeKeyV0");
-    assert_eq!(summary.fixture_count, 24);
+    assert_eq!(summary.fixture_count, 26);
     assert_eq!(summary.scss_fixture_count, 14);
-    assert_eq!(summary.sass_fixture_count, 9);
-    assert_eq!(summary.supported_fixture_count, 23);
+    assert_eq!(summary.sass_fixture_count, 11);
+    assert_eq!(summary.supported_fixture_count, 25);
     assert_eq!(summary.rejected_flat_css_fixture_count, 1);
     assert!(summary.branch_fixture_count >= 5);
     assert!(summary.loop_fixture_count >= 6);
@@ -574,6 +574,21 @@ fn exposes_scss_control_flow_oracle_corpus_through_query_boundary() {
         && fixture.value_analysis_converged));
     assert!(summary.corpus.fixtures.iter().any(|fixture| fixture.id
         == "sass.static-while-expression-step"
+        && fixture.dialect == "sass"
+        && fixture.call_resolved_return_value_count == 1
+        && fixture.value_analysis_converged));
+    assert!(
+        summary
+            .corpus
+            .fixtures
+            .iter()
+            .any(|fixture| fixture.id == "sass.static-each-return"
+                && fixture.dialect == "sass"
+                && fixture.call_resolved_return_value_count == 1
+                && fixture.value_analysis_converged)
+    );
+    assert!(summary.corpus.fixtures.iter().any(|fixture| fixture.id
+        == "sass.static-each-tuple-function-source-return"
         && fixture.dialect == "sass"
         && fixture.call_resolved_return_value_count == 1
         && fixture.value_analysis_converged));
