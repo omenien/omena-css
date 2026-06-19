@@ -28,11 +28,10 @@
         { "browser": "safari", "minMajor": 17, "minMinor": 5 },
         { "browser": "ios_saf", "minMajor": 17, "minMinor": 5 },
         { "browser": "opera", "minMajor": 109, "minMinor": 0 },
-        { "browser": "op_mob", "minMajor": 109, "minMinor": 0 },
         { "browser": "and_chr", "minMajor": 123, "minMinor": 0 },
         { "browser": "and_ff", "minMajor": 120, "minMinor": 0 },
         { "browser": "samsung", "minMajor": 27, "minMinor": 0 },
-        { "browser": "android", "minMajor": 148, "minMinor": 0 }
+        { "browser": "android", "minMajor": 149, "minMinor": 0 }
       ]
     },
     {
@@ -56,7 +55,7 @@
         { "browser": "and_chr", "minMajor": 111, "minMinor": 0 },
         { "browser": "and_ff", "minMajor": 113, "minMinor": 0 },
         { "browser": "samsung", "minMajor": 22, "minMinor": 0 },
-        { "browser": "android", "minMajor": 148, "minMinor": 0 }
+        { "browser": "android", "minMajor": 149, "minMinor": 0 }
       ]
     },
     {

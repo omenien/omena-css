@@ -61,15 +61,6 @@ last_verified = "2026-05-22"
 
 [[threshold]]
 table = "light_dark"
-browser = "op_mob"
-min_major = 109
-min_minor = 0
-caniuse_key = "css-light-dark-function"
-source_quorum = ["caniuse", "web-features", "mdn-bcd"]
-last_verified = "2026-05-22"
-
-[[threshold]]
-table = "light_dark"
 browser = "and_chr"
 min_major = 123
 min_minor = 0
@@ -98,7 +89,7 @@ last_verified = "2026-05-22"
 [[threshold]]
 table = "light_dark"
 browser = "android"
-min_major = 148
+min_major = 149
 min_minor = 0
 caniuse_key = "css-light-dark-function"
 source_quorum = ["caniuse", "web-features", "mdn-bcd"]
@@ -197,7 +188,7 @@ last_verified = "2026-05-22"
 [[threshold]]
 table = "color_mix"
 browser = "android"
-min_major = 148
+min_major = 149
 min_minor = 0
 caniuse_key = "css-color-mix"
 source_quorum = ["caniuse", "web-features", "mdn-bcd"]

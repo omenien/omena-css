@@ -205,11 +205,20 @@ for (const [table, thresholds] of thresholdsByTable) {
   const selection = selectionsByTable.get(table);
   assert.ok(selection, `threshold table ${table} has no curated source-key selection`);
   const browsers = thresholds.map((threshold) => threshold.browser);
-  assert.deepEqual(
-    browsers,
-    [...expectedBrowsers],
-    `feature table ${table} must retain the generated browser support matrix shape`,
-  );
+  let previousBrowserOrder = -1;
+  for (const browser of browsers) {
+    const browserOrder = expectedBrowsers.indexOf(browser as (typeof expectedBrowsers)[number]);
+    assert.notEqual(
+      browserOrder,
+      -1,
+      `feature table ${table} contains unknown browser row ${browser}`,
+    );
+    assert.ok(
+      browserOrder > previousBrowserOrder,
+      `feature table ${table} must retain stable browser row order without duplicates`,
+    );
+    previousBrowserOrder = browserOrder;
+  }
   assert.equal(
     new Set(thresholds.map((threshold) => threshold.caniuse_key)).size,
     1,

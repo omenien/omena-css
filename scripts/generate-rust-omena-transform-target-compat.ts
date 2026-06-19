@@ -184,12 +184,19 @@ function validateInputs(
       selections.sourcePolicy.requiredSourceQuorum,
       `${feature.table} must retain full source quorum`,
     );
-    assert.deepEqual(
-      feature.thresholds.map((threshold) => threshold.browser),
-      expectedBrowserOrder(),
-      `${feature.table} must retain stable browser row order`,
-    );
+    let previousBrowserOrder = -1;
     for (const threshold of feature.thresholds) {
+      const browserOrder = expectedBrowserOrder().indexOf(threshold.browser);
+      assert.notEqual(
+        browserOrder,
+        -1,
+        `${feature.table}/${threshold.browser} must use a known browserslist browser id`,
+      );
+      assert.ok(
+        browserOrder > previousBrowserOrder,
+        `${feature.table} must retain stable browser row order without duplicates`,
+      );
+      previousBrowserOrder = browserOrder;
       assert.ok(Number.isInteger(threshold.minMajor), `${feature.table}/${threshold.browser} major`);
       assert.ok(Number.isInteger(threshold.minMinor), `${feature.table}/${threshold.browser} minor`);
       assert.ok(threshold.minMajor >= 0, `${feature.table}/${threshold.browser} major`);

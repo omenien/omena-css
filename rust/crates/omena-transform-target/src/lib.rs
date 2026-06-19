@@ -110,6 +110,7 @@ pub struct TransformTargetDataContractV0 {
     pub pass_feature_binding_count: usize,
     pub stale_entry_count: usize,
     pub unmapped_threshold_table_count: usize,
+    pub unresolvable_threshold_query_count: usize,
     pub quorum_valid: bool,
     pub bindings_valid: bool,
     pub valid: bool,
@@ -580,6 +581,7 @@ fn target_data_contract_summary(
     let parse_error_count = browser_data.parse_error_count + bindings.parse_error_count;
     let stale_entry_count = browser_threshold_stale_entry_count(browser_data);
     let unmapped_threshold_table_count = unmapped_threshold_table_count(browser_data, bindings);
+    let unresolvable_threshold_query_count = unresolvable_threshold_query_count(browser_data);
     let quorum_valid = browser_threshold_data_is_valid(browser_data);
     let bindings_valid = pass_feature_binding_data_is_valid(browser_data, bindings);
 
@@ -599,11 +601,13 @@ fn target_data_contract_summary(
         pass_feature_binding_count: bindings.bindings.len(),
         stale_entry_count,
         unmapped_threshold_table_count,
+        unresolvable_threshold_query_count,
         quorum_valid,
         bindings_valid,
         valid: parse_error_count == 0
             && stale_entry_count == 0
             && unmapped_threshold_table_count == 0
+            && unresolvable_threshold_query_count == 0
             && quorum_valid
             && bindings_valid,
     }
@@ -856,6 +860,7 @@ fn browser_threshold_data_is_valid(data: &BrowserThresholdDataV0) -> bool {
         && data.quorum_min_sources >= 2
         && browser_threshold_table_count(data) >= 2
         && browser_threshold_stale_entry_count(data) == 0
+        && unresolvable_threshold_query_count(data) == 0
         && data.thresholds.iter().all(|threshold| {
             !threshold.table.is_empty()
                 && !threshold.browser.is_empty()
@@ -916,6 +921,44 @@ fn unmapped_threshold_table_count(
         .collect::<BTreeSet<_>>()
         .difference(&bound_tables)
         .count()
+}
+
+fn unresolvable_threshold_query_count(browser_data: &BrowserThresholdDataV0) -> usize {
+    browser_data
+        .thresholds
+        .iter()
+        .filter(|threshold| !threshold_browser_query_resolves(threshold))
+        .count()
+}
+
+fn threshold_browser_query_resolves(threshold: &BrowserFeatureThresholdV0) -> bool {
+    let query = threshold_browser_query(threshold);
+    resolve_browserslist(&[query.as_str()], &Opts::default()).is_ok_and(|distribs| {
+        distribs.iter().any(|distrib| {
+            distrib.name() == threshold.browser
+                && browser_version_at_least(
+                    distrib.version(),
+                    threshold.min_major,
+                    threshold.min_minor,
+                )
+        })
+    })
+}
+
+fn threshold_browser_query(threshold: &BrowserFeatureThresholdV0) -> String {
+    browser_version_query(
+        threshold.browser.as_str(),
+        threshold.min_major,
+        threshold.min_minor,
+    )
+}
+
+fn browser_version_query(browser: &str, major: u16, minor: u16) -> String {
+    if minor == 0 {
+        format!("{browser} {major}")
+    } else {
+        format!("{browser} {major}.{minor}")
+    }
 }
 
 fn browser_threshold_table_count(data: &BrowserThresholdDataV0) -> usize {
@@ -1027,7 +1070,7 @@ mod tests {
             "oxcBrowserslistV3+browserThresholdsTomlV0+staticTargetProfileV0+explicitFeatureMatrixV0"
         );
         assert_eq!(boundary.browser_threshold_table_count, 6);
-        assert_eq!(boundary.browser_threshold_entry_count, 66);
+        assert_eq!(boundary.browser_threshold_entry_count, 65);
         assert_eq!(boundary.pass_feature_binding_count, 6);
         assert_eq!(boundary.browser_data_parse_error_count, 0);
         assert!(boundary.browser_data_quorum_valid);
@@ -1044,6 +1087,12 @@ mod tests {
         assert_eq!(boundary.target_data_contract.stale_entry_count, 0);
         assert_eq!(
             boundary.target_data_contract.unmapped_threshold_table_count,
+            0
+        );
+        assert_eq!(
+            boundary
+                .target_data_contract
+                .unresolvable_threshold_query_count,
             0
         );
         assert_eq!(
@@ -1073,6 +1122,12 @@ mod tests {
         assert!(boundary.browser_data_quorum_valid);
         assert!(boundary.browser_data_bindings_valid);
         assert_eq!(
+            boundary
+                .target_data_contract
+                .unresolvable_threshold_query_count,
+            0
+        );
+        assert_eq!(
             boundary.target_data_contract.source_files,
             boundary.browser_data_source_files
         );
@@ -1088,6 +1143,131 @@ mod tests {
                 .pass_feature_binding_schema_version,
             "0"
         );
+    }
+
+    #[test]
+    fn generated_browser_threshold_rows_resolve_and_match_pass_boundaries() {
+        let browser_data = super::browser_threshold_data();
+        let bindings = super::pass_feature_binding_data();
+        let options = TargetTransformOptionsV0 {
+            allow_logical_to_physical: true,
+            allow_scope_flatten: true,
+            allow_layer_flatten: true,
+            enable_supports_static_eval: false,
+            enable_media_static_eval: false,
+            drop_dark_mode_media_queries: false,
+        };
+
+        for binding in &bindings.bindings {
+            let pass_id = binding.pass_id.as_str();
+            for threshold in browser_data
+                .thresholds
+                .iter()
+                .filter(|threshold| threshold.table == binding.support_table)
+            {
+                let query = super::threshold_browser_query(threshold);
+                let plan = plan_target_transforms_from_query(query.clone(), options);
+                assert_eq!(
+                    plan.profile_id, "browserslist-resolved",
+                    "{query} must resolve through oxc-browserslist"
+                );
+
+                let evidence = plan
+                    .target_data_evidence
+                    .iter()
+                    .find(|evidence| evidence.support_table == threshold.table)
+                    .unwrap_or_else(|| panic!("{query} missing evidence for {}", threshold.table));
+                let resolved_target = evidence
+                    .resolved_targets
+                    .iter()
+                    .find(|target| target.browser == threshold.browser)
+                    .unwrap_or_else(|| {
+                        panic!("{query} missing resolved target {}", threshold.browser)
+                    });
+                assert!(
+                    resolved_target.supported,
+                    "{query} should satisfy {}",
+                    threshold.table
+                );
+                assert!(
+                    !plan
+                        .transform_plan
+                        .required_pass_ids
+                        .iter()
+                        .any(|id| *id == pass_id),
+                    "{query} should not require {pass_id} at the support threshold"
+                );
+                assert!(
+                    !plan
+                        .transform_plan
+                        .blocked_pass_ids
+                        .iter()
+                        .any(|id| *id == pass_id),
+                    "{query} should not block {pass_id} at the support threshold"
+                );
+
+                if let Some((previous_major, previous_minor)) =
+                    previous_browser_version(threshold.min_major, threshold.min_minor)
+                {
+                    let previous_query = super::browser_version_query(
+                        threshold.browser.as_str(),
+                        previous_major,
+                        previous_minor,
+                    );
+                    let previous_plan =
+                        plan_target_transforms_from_query(previous_query.clone(), options);
+                    if previous_plan.profile_id == "browserslist-resolved"
+                        && previous_plan
+                            .resolved_targets
+                            .iter()
+                            .any(|target| target == &previous_query)
+                    {
+                        let previous_evidence = previous_plan
+                            .target_data_evidence
+                            .iter()
+                            .find(|evidence| evidence.support_table == threshold.table)
+                            .unwrap_or_else(|| {
+                                panic!("{previous_query} missing evidence for {}", threshold.table)
+                            });
+                        let previous_target = previous_evidence
+                            .resolved_targets
+                            .iter()
+                            .find(|target| target.browser == threshold.browser)
+                            .unwrap_or_else(|| {
+                                panic!(
+                                    "{previous_query} missing resolved target {}",
+                                    threshold.browser
+                                )
+                            });
+                        assert!(
+                            !previous_target.supported,
+                            "{previous_query} should not satisfy {}",
+                            threshold.table
+                        );
+                        assert!(
+                            previous_plan
+                                .transform_plan
+                                .required_pass_ids
+                                .iter()
+                                .any(|id| *id == pass_id)
+                                || previous_plan
+                                    .transform_plan
+                                    .blocked_pass_ids
+                                    .iter()
+                                    .any(|id| *id == pass_id),
+                            "{previous_query} should require or block {pass_id} below the support threshold"
+                        );
+                    }
+                }
+            }
+        }
+    }
+
+    fn previous_browser_version(major: u16, minor: u16) -> Option<(u16, u16)> {
+        if minor > 0 {
+            return Some((major, minor - 1));
+        }
+        major.checked_sub(1).map(|previous| (previous, 0))
     }
 
     #[test]
@@ -1740,6 +1920,22 @@ mod tests {
     }
 
     #[test]
+    fn browser_data_contract_rejects_unresolvable_threshold_queries() {
+        let mut browser_data = super::browser_threshold_data().clone();
+        browser_data.thresholds[0].browser = "android".to_string();
+        browser_data.thresholds[0].min_major = 148;
+        browser_data.thresholds[0].min_minor = 0;
+
+        assert_eq!(super::unresolvable_threshold_query_count(&browser_data), 1);
+        assert!(!super::browser_threshold_data_is_valid(&browser_data));
+
+        let contract =
+            super::target_data_contract_summary(&browser_data, super::pass_feature_binding_data());
+        assert_eq!(contract.unresolvable_threshold_query_count, 1);
+        assert!(!contract.valid);
+    }
+
+    #[test]
     fn browser_data_contract_rejects_unmapped_threshold_tables() {
         let mut browser_data = super::browser_threshold_data().clone();
         browser_data
@@ -1747,7 +1943,7 @@ mod tests {
             .push(super::BrowserFeatureThresholdV0 {
                 table: "unmapped_feature".to_string(),
                 browser: "chrome".to_string(),
-                min_major: 1,
+                min_major: 123,
                 min_minor: 0,
                 caniuse_key: "css-unmapped-feature".to_string(),
                 source_quorum: vec![
