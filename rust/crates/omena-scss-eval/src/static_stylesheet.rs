@@ -6608,6 +6608,7 @@ fn reduce_static_less_value_with_escape_flag(value: String) -> StaticLessResolve
             ("length", parse_static_less_length_value),
             ("extract", parse_static_less_extract_value),
             ("range", parse_static_less_range_value),
+            ("replace", parse_static_less_replace_value),
         ],
     )
     .unwrap_or(value);
@@ -7826,6 +7827,189 @@ fn static_less_range_endpoint_from_numeric(
     })
 }
 
+fn parse_static_less_replace_value(value: &str) -> Option<String> {
+    let arguments = parse_whole_function_value_arguments(value, "replace")?;
+    let (input, pattern, replacement, flags) = match arguments.as_slice() {
+        [input, pattern, replacement] => {
+            (input.as_str(), pattern.as_str(), replacement.as_str(), None)
+        }
+        [input, pattern, replacement, flags] => (
+            input.as_str(),
+            pattern.as_str(),
+            replacement.as_str(),
+            Some(flags.as_str()),
+        ),
+        _ => return None,
+    };
+    let input = static_less_string_argument(input.trim())?;
+    let pattern = static_less_string_argument(pattern.trim())?.text;
+    let replacement = static_less_string_argument(replacement.trim())?.text;
+    if !static_less_replace_pattern_is_literal(pattern.as_str())
+        || replacement.contains('$')
+        || replacement
+            .chars()
+            .any(|ch| matches!(ch, '\n' | '\r' | '\u{000c}'))
+    {
+        return None;
+    }
+    let flags = flags
+        .map(|flags| static_less_replace_flags(flags.trim()))
+        .unwrap_or(Some(StaticLessReplaceFlags {
+            global: false,
+            case_insensitive: false,
+        }))?;
+    if flags.case_insensitive
+        && (!input.text.is_ascii() || !pattern.is_ascii() || !replacement.is_ascii())
+    {
+        return None;
+    }
+    if pattern.is_empty() && flags.global {
+        return None;
+    }
+
+    let output = static_less_replace_literal(
+        input.text.as_str(),
+        pattern.as_str(),
+        replacement.as_str(),
+        flags,
+    )?;
+    input.render(output.as_str())
+}
+
+#[derive(Debug, Clone)]
+struct StaticLessStringArgument {
+    text: String,
+    quote: Option<char>,
+    escaped: bool,
+}
+
+impl StaticLessStringArgument {
+    fn render(&self, output: &str) -> Option<String> {
+        if self.escaped || self.quote.is_none() {
+            return static_less_unquoted_string_argument_is_safe(output)
+                .then(|| output.to_string());
+        }
+        let quote = self.quote?;
+        if output
+            .chars()
+            .any(|ch| ch == quote || matches!(ch, '\\' | '\n' | '\r' | '\u{000c}'))
+        {
+            return None;
+        }
+        Some(format!("{quote}{output}{quote}"))
+    }
+}
+
+#[derive(Debug, Clone, Copy)]
+struct StaticLessReplaceFlags {
+    global: bool,
+    case_insensitive: bool,
+}
+
+fn static_less_replace_flags(value: &str) -> Option<StaticLessReplaceFlags> {
+    let text = static_less_string_argument(value)?.text;
+    let mut flags = StaticLessReplaceFlags {
+        global: false,
+        case_insensitive: false,
+    };
+    for ch in text.chars() {
+        match ch {
+            'g' if !flags.global => flags.global = true,
+            'i' if !flags.case_insensitive => flags.case_insensitive = true,
+            _ => return None,
+        }
+    }
+    Some(flags)
+}
+
+fn static_less_replace_literal(
+    input: &str,
+    pattern: &str,
+    replacement: &str,
+    flags: StaticLessReplaceFlags,
+) -> Option<String> {
+    if pattern.is_empty() {
+        return Some(format!("{replacement}{input}"));
+    }
+    if !flags.case_insensitive {
+        return if flags.global {
+            Some(input.replace(pattern, replacement))
+        } else {
+            Some(input.replacen(pattern, replacement, 1))
+        };
+    }
+
+    let mut output = String::new();
+    let mut cursor = 0usize;
+    let mut replaced = false;
+    while cursor <= input.len() {
+        let Some(relative) = static_less_ascii_case_insensitive_find(&input[cursor..], pattern)
+        else {
+            break;
+        };
+        let start = cursor + relative;
+        let end = start + pattern.len();
+        output.push_str(&input[cursor..start]);
+        output.push_str(replacement);
+        cursor = end;
+        replaced = true;
+        if !flags.global {
+            break;
+        }
+    }
+    if !replaced {
+        return Some(input.to_string());
+    }
+    output.push_str(&input[cursor..]);
+    Some(output)
+}
+
+fn static_less_ascii_case_insensitive_find(input: &str, pattern: &str) -> Option<usize> {
+    input
+        .as_bytes()
+        .windows(pattern.len())
+        .position(|window| window.eq_ignore_ascii_case(pattern.as_bytes()))
+}
+
+fn static_less_replace_pattern_is_literal(pattern: &str) -> bool {
+    pattern.chars().all(|ch| {
+        !matches!(
+            ch,
+            '\\' | '^' | '$' | '.' | '|' | '?' | '*' | '+' | '(' | ')' | '[' | ']' | '{' | '}'
+        ) && !matches!(ch, '\n' | '\r' | '\u{000c}')
+    })
+}
+
+fn static_less_string_argument(value: &str) -> Option<StaticLessStringArgument> {
+    if let Some(rest) = value.trim().strip_prefix('~') {
+        let (quote, text) = static_less_quoted_string(rest)?;
+        return Some(StaticLessStringArgument {
+            text,
+            quote: Some(quote),
+            escaped: true,
+        });
+    }
+    if let Some((quote, text)) = static_less_quoted_string(value) {
+        return Some(StaticLessStringArgument {
+            text,
+            quote: Some(quote),
+            escaped: false,
+        });
+    }
+    static_less_unquoted_string_argument_is_safe(value).then(|| StaticLessStringArgument {
+        text: value.to_string(),
+        quote: None,
+        escaped: false,
+    })
+}
+
+fn static_less_unquoted_string_argument_is_safe(value: &str) -> bool {
+    !value.is_empty()
+        && value
+            .chars()
+            .all(|ch| ch.is_ascii_alphanumeric() || matches!(ch, '_' | '-'))
+}
+
 fn parse_static_less_escape_value(value: &str) -> Option<String> {
     let argument = parse_whole_function_value_inner(value, "e")?.trim();
     static_less_quoted_string_contents(argument).or_else(|| {
@@ -8061,6 +8245,10 @@ fn reduce_static_less_escaped_string_value(value: &str) -> Option<String> {
 }
 
 fn static_less_quoted_string_contents(value: &str) -> Option<String> {
+    static_less_quoted_string(value).map(|(_, text)| text)
+}
+
+fn static_less_quoted_string(value: &str) -> Option<(char, String)> {
     let rest = value.trim();
     let quote = rest.chars().next()?;
     if !matches!(quote, '"' | '\'') {
@@ -8075,7 +8263,7 @@ fn static_less_quoted_string_contents(value: &str) -> Option<String> {
             return None;
         }
         if ch == quote {
-            return (index + ch.len_utf8() == rest.len()).then_some(output);
+            return (index + ch.len_utf8() == rest.len()).then_some((quote, output));
         }
         if ch == '\\' {
             index += ch.len_utf8();
@@ -8631,9 +8819,9 @@ mod tests {
         assert_eq!(report.mode, "oracleOnly");
         assert_eq!(report.value_type, "AbstractCssValueV0");
         assert_eq!(report.product_output_source, "legacyEvaluatedCss");
-        assert_eq!(report.fixture_count, 21);
+        assert_eq!(report.fixture_count, 22);
         assert_eq!(report.scss_fixture_count, 6);
-        assert_eq!(report.less_fixture_count, 15);
+        assert_eq!(report.less_fixture_count, 16);
         assert_eq!(report.evaluated_fixture_count, report.fixture_count);
         assert_eq!(report.missing_evaluation_count, 0);
         assert_eq!(report.divergence_count, 0);
@@ -10911,6 +11099,48 @@ mod tests {
         assert!(report.evaluated_css.contains("b: 1px 3px 5px"));
         assert!(report.evaluated_css.contains("c: 1 1.5 2"));
         assert!(report.evaluated_css.contains("d: ;"));
+        assert!(report.oracle.all_legacy_declaration_values_preserved);
+    }
+
+    #[test]
+    fn static_less_evaluation_reduces_replace_builtin_values() {
+        let report = derive_static_stylesheet_module_evaluation(
+            "@name: replace(\"hello world\", \"world\", \"less\"); @first: replace(\"hello\", \"l\", \"L\"); @all: replace(\"hello\", \"l\", \"L\", \"g\"); @fold: replace(\"ABCabc\", \"abc\", \"x\", \"gi\"); @bare: replace(hello, l, X); .button { name: @name; first: @first; all: @all; fold: @fold; bare: @bare; }",
+            StyleDialect::Less,
+        );
+        assert!(report.is_some());
+        let Some(report) = report else {
+            return;
+        };
+
+        assert_eq!(report.replacement_count, 5);
+        assert_eq!(report.value_resolution.raw_count, 5);
+        assert!(report.evaluated_css.contains("name: \"hello less\""));
+        assert!(report.evaluated_css.contains("first: \"heLlo\""));
+        assert!(report.evaluated_css.contains("all: \"heLLo\""));
+        assert!(report.evaluated_css.contains("fold: \"xx\""));
+        assert!(report.evaluated_css.contains("bare: heXlo"));
+        assert!(report.oracle.all_legacy_declaration_values_preserved);
+    }
+
+    #[test]
+    fn static_less_evaluation_keeps_regex_replace_patterns_raw() {
+        let report = derive_static_stylesheet_module_evaluation(
+            "@rx: replace(\"abc123\", \"[0-9]+\", \"#\"); .button { rx: @rx; }",
+            StyleDialect::Less,
+        );
+        assert!(report.is_some());
+        let Some(report) = report else {
+            return;
+        };
+
+        assert_eq!(report.replacement_count, 1);
+        assert_eq!(report.value_resolution.raw_count, 1);
+        assert!(
+            report
+                .evaluated_css
+                .contains("rx: replace(\"abc123\", \"[0-9]+\", \"#\")")
+        );
         assert!(report.oracle.all_legacy_declaration_values_preserved);
     }
 
