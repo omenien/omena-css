@@ -33,6 +33,7 @@ mod less_numbers;
 mod less_predicates;
 mod less_strings;
 mod model;
+mod names;
 mod oracle_corpus;
 mod safety;
 mod scss_arguments;
@@ -127,6 +128,11 @@ use model::{
     StaticStylesheetScopedVariableDeclaration, StaticStylesheetVariableDeclaration,
     StaticStylesheetVariableKind,
 };
+use names::{
+    canonical_static_less_mixin_name, canonical_static_scss_function_name,
+    static_scss_public_module_variable_name,
+};
+pub use names::{canonical_static_scss_variable_name, static_scss_variable_names_equal};
 pub use oracle_corpus::{
     OmenaScssEvalStaticStylesheetOracleCorpusFixtureReportV0,
     OmenaScssEvalStaticStylesheetOracleCorpusReportV0, summarize_static_stylesheet_oracle_corpus,
@@ -4973,33 +4979,6 @@ fn merge_static_stylesheet_duplicate_declaration(
         }
         StaticStylesheetVariableKind::Scss => None,
     }
-}
-
-fn static_scss_public_module_variable_name(name: &str) -> Option<String> {
-    let bare_name = name.strip_prefix('$')?;
-    if bare_name.starts_with('-') || bare_name.starts_with('_') || bare_name.is_empty() {
-        return None;
-    }
-    Some(canonical_static_scss_variable_name(bare_name))
-}
-
-pub fn canonical_static_scss_variable_name(name: &str) -> String {
-    name.trim()
-        .strip_prefix('$')
-        .unwrap_or_else(|| name.trim())
-        .replace('_', "-")
-}
-
-fn canonical_static_scss_function_name(name: &str) -> String {
-    name.trim().replace('_', "-")
-}
-
-fn canonical_static_less_mixin_name(name: &str) -> String {
-    name.trim().to_string()
-}
-
-pub fn static_scss_variable_names_equal(left: &str, right: &str) -> bool {
-    canonical_static_scss_variable_name(left) == canonical_static_scss_variable_name(right)
 }
 
 fn static_stylesheet_position_is_inside_scoped_declaration(
