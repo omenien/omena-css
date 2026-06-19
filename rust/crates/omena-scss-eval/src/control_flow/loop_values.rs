@@ -552,6 +552,8 @@ fn static_while_condition_loop_binding_values(
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum StaticWhileInequalityOperator {
+    Equal,
+    NotEqual,
     LessThan,
     LessThanOrEqual,
     GreaterThan,
@@ -561,6 +563,8 @@ enum StaticWhileInequalityOperator {
 impl StaticWhileInequalityOperator {
     const fn inverted_for_right_hand_binding(self) -> Self {
         match self {
+            Self::Equal => Self::Equal,
+            Self::NotEqual => Self::NotEqual,
             Self::LessThan => Self::GreaterThan,
             Self::LessThanOrEqual => Self::GreaterThanOrEqual,
             Self::GreaterThan => Self::LessThan,
@@ -601,7 +605,7 @@ fn split_static_while_inequality(
             ')' => paren_depth = paren_depth.checked_sub(1)?,
             '[' => bracket_depth += 1,
             ']' => bracket_depth = bracket_depth.checked_sub(1)?,
-            '<' | '>' if paren_depth == 0 && bracket_depth == 0 => {
+            '=' | '!' | '<' | '>' if paren_depth == 0 && bracket_depth == 0 => {
                 let (operator, width) = static_while_inequality_operator_at(value, index)?;
                 let left = value.get(..index)?.trim();
                 let right = value.get(index + width..)?.trim();
@@ -627,6 +631,12 @@ fn static_while_inequality_operator_at(
     index: usize,
 ) -> Option<(StaticWhileInequalityOperator, usize)> {
     let suffix = value.get(index..)?;
+    if suffix.starts_with("==") {
+        return Some((StaticWhileInequalityOperator::Equal, 2));
+    }
+    if suffix.starts_with("!=") {
+        return Some((StaticWhileInequalityOperator::NotEqual, 2));
+    }
     if suffix.starts_with("<=") {
         return Some((StaticWhileInequalityOperator::LessThanOrEqual, 2));
     }
@@ -689,6 +699,9 @@ fn static_while_integer_domain(
     }
 
     let (first, last) = match operator {
+        StaticWhileInequalityOperator::Equal | StaticWhileInequalityOperator::NotEqual => {
+            return None;
+        }
         StaticWhileInequalityOperator::LessThan => {
             if start >= bound {
                 return Some(AbstractCssValueV0::Bottom);
@@ -760,6 +773,8 @@ const fn static_while_integer_condition_holds(
     bound: i32,
 ) -> bool {
     match operator {
+        StaticWhileInequalityOperator::Equal => value == bound,
+        StaticWhileInequalityOperator::NotEqual => value != bound,
         StaticWhileInequalityOperator::LessThan => value < bound,
         StaticWhileInequalityOperator::LessThanOrEqual => value <= bound,
         StaticWhileInequalityOperator::GreaterThan => value > bound,
