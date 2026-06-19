@@ -32,7 +32,7 @@ use less_guard::{
     static_less_guard_value_is_color, static_less_guard_value_is_keyword,
     static_less_guard_value_is_number, static_less_guard_value_is_string,
     static_less_guard_value_is_url, static_less_mixin_guard_depends_on_default,
-    static_less_mixin_guard_matches,
+    static_less_mixin_guard_matches, static_less_value_condition_matches,
 };
 use model::{
     StaticLessDetachedRulesetAccessor, StaticLessDetachedRulesetCall,
@@ -6492,6 +6492,8 @@ fn reduce_static_less_value(value: String) -> String {
         &[
             ("unit", parse_static_less_unit_value),
             ("get-unit", parse_static_less_get_unit_value),
+            ("if", parse_static_less_if_value),
+            ("boolean", parse_static_less_boolean_value),
             ("percentage", parse_static_less_percentage_value),
             ("ceil", parse_reducible_ceil_value),
             ("floor", parse_reducible_floor_value),
@@ -6545,6 +6547,30 @@ fn parse_static_less_percentage_value(value: &str) -> Option<String> {
     };
     let parsed = parse_numeric_value_with_unit(number.trim())?;
     Some(format!("{}%", format_css_number(parsed.value * 100.0)))
+}
+
+fn parse_static_less_if_value(value: &str) -> Option<String> {
+    let arguments = parse_whole_function_value_arguments(value, "if")?;
+    let [condition, truthy, falsey] = arguments.as_slice() else {
+        return None;
+    };
+    Some(
+        if static_less_value_condition_matches(condition.trim())? {
+            truthy
+        } else {
+            falsey
+        }
+        .trim()
+        .to_string(),
+    )
+}
+
+fn parse_static_less_boolean_value(value: &str) -> Option<String> {
+    let arguments = parse_whole_function_value_arguments(value, "boolean")?;
+    let [condition] = arguments.as_slice() else {
+        return None;
+    };
+    Some(static_less_value_condition_matches(condition.trim())?.to_string())
 }
 
 fn parse_static_less_round_value(value: &str) -> Option<String> {
@@ -9063,6 +9089,28 @@ mod tests {
         assert!(report.evaluated_css.contains("--number: true"));
         assert!(report.evaluated_css.contains("--unit-ok: true"));
         assert!(report.evaluated_css.contains("--unit-bad: false"));
+        assert!(report.oracle.all_legacy_declaration_values_preserved);
+    }
+
+    #[test]
+    fn static_less_evaluation_reduces_conditional_builtin_values() {
+        let report = derive_static_stylesheet_module_evaluation(
+            "@gap: 1; @a: if(@gap > 0, red, blue); @b: if(false, red, blue); @c: if(isnumber(2px), yes, no); @d: boolean(@gap > 0); @e: if(default(), red, blue); .button { a: @a; b: @b; c: @c; d: @d; e: @e; }",
+            StyleDialect::Less,
+        );
+        assert!(report.is_some());
+        let Some(report) = report else {
+            return;
+        };
+
+        assert_eq!(report.replacement_count, 5);
+        assert_eq!(report.value_resolution.resolved_count, 3);
+        assert_eq!(report.value_resolution.raw_count, 2);
+        assert!(report.evaluated_css.contains("a: red"));
+        assert!(report.evaluated_css.contains("b: blue"));
+        assert!(report.evaluated_css.contains("c: yes"));
+        assert!(report.evaluated_css.contains("d: true"));
+        assert!(report.evaluated_css.contains("e: blue"));
         assert!(report.oracle.all_legacy_declaration_values_preserved);
     }
 

@@ -41,6 +41,22 @@ pub(super) fn static_less_mixin_guard_matches(
     static_less_guard_expression_matches(expression, context)
 }
 
+pub(super) fn static_less_value_condition_matches(expression: &str) -> Option<bool> {
+    let argument_values = BTreeMap::new();
+    let captured_values = BTreeMap::new();
+    let variable_declarations = BTreeMap::new();
+    let context = StaticLessGuardContext {
+        argument_values: &argument_values,
+        captured_values: &captured_values,
+        call_scope_id: 0,
+        scopes: &[],
+        variable_declarations: &variable_declarations,
+        detached_ruleset_declarations: &[],
+        default_matches: Some(false),
+    };
+    static_less_guard_expression_matches(expression, context)
+}
+
 #[derive(Clone, Copy)]
 struct StaticLessGuardContext<'a> {
     argument_values: &'a BTreeMap<String, String>,
@@ -59,6 +75,12 @@ fn static_less_guard_expression_matches(
     let expression = expression.trim();
     if expression.is_empty() {
         return None;
+    }
+    if expression.eq_ignore_ascii_case("true") {
+        return Some(true);
+    }
+    if expression.eq_ignore_ascii_case("false") {
+        return Some(false);
     }
     if let Some(inner) = static_less_guard_strip_outer_parens(expression) {
         return static_less_guard_expression_matches(inner, context);
