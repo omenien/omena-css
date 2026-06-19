@@ -49,6 +49,46 @@ pub(super) fn split_static_less_mixin_arguments(
     split_static_less_mixin_arguments_with_options(arguments, false)
 }
 
+pub(super) fn static_less_mixin_pattern_argument_matches(
+    pattern_value: &str,
+    argument_value: &str,
+) -> bool {
+    pattern_value.trim() == argument_value.trim()
+}
+
+pub(super) fn static_less_mixin_parameter_patterns_match(
+    parameters: &[StaticScssFunctionParameter],
+    arguments: &[StaticScssFunctionArgument],
+) -> bool {
+    let mut positional_index = 0usize;
+    let mut saw_named_argument = false;
+    for argument in arguments {
+        if argument.name.is_some() {
+            saw_named_argument = true;
+            continue;
+        }
+        if saw_named_argument {
+            return true;
+        }
+        let Some(parameter) = parameters.get(positional_index) else {
+            return true;
+        };
+        if let Some(pattern_value) = parameter.pattern_value.as_deref()
+            && !static_less_mixin_pattern_argument_matches(pattern_value, argument.value.as_str())
+        {
+            return false;
+        }
+        positional_index += 1;
+        if parameter.variadic {
+            return true;
+        }
+    }
+    parameters
+        .iter()
+        .enumerate()
+        .all(|(index, parameter)| parameter.pattern_value.is_none() || index < positional_index)
+}
+
 fn split_static_less_mixin_parameter_arguments(
     arguments: &str,
 ) -> Option<Vec<StaticScssFunctionArgument>> {

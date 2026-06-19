@@ -60,6 +60,9 @@ use less_detached_rulesets::{
     static_less_detached_ruleset_ranges_from_declarations,
 };
 use less_guard::{static_less_mixin_guard_depends_on_default, static_less_mixin_guard_matches};
+use less_mixin_arguments::{
+    static_less_mixin_parameter_patterns_match, static_less_mixin_pattern_argument_matches,
+};
 use less_mixins::{
     collect_static_less_mixin_accessors, collect_static_less_mixin_calls,
     collect_static_less_mixin_declarations,
@@ -4296,43 +4299,6 @@ fn bind_static_scss_callable_arguments(
                 .map(|value| (parameter.name.clone(), value))
         })
         .collect::<Option<Vec<_>>>()
-}
-
-fn static_less_mixin_pattern_argument_matches(pattern_value: &str, argument_value: &str) -> bool {
-    pattern_value.trim() == argument_value.trim()
-}
-
-fn static_less_mixin_parameter_patterns_match(
-    parameters: &[StaticScssFunctionParameter],
-    arguments: &[StaticScssFunctionArgument],
-) -> bool {
-    let mut positional_index = 0usize;
-    let mut saw_named_argument = false;
-    for argument in arguments {
-        if argument.name.is_some() {
-            saw_named_argument = true;
-            continue;
-        }
-        if saw_named_argument {
-            return true;
-        }
-        let Some(parameter) = parameters.get(positional_index) else {
-            return true;
-        };
-        if let Some(pattern_value) = parameter.pattern_value.as_deref()
-            && !static_less_mixin_pattern_argument_matches(pattern_value, argument.value.as_str())
-        {
-            return false;
-        }
-        positional_index += 1;
-        if parameter.variadic {
-            return true;
-        }
-    }
-    parameters
-        .iter()
-        .enumerate()
-        .all(|(index, parameter)| parameter.pattern_value.is_none() || index < positional_index)
 }
 
 fn resolve_static_scss_function_argument_abstract_value(
