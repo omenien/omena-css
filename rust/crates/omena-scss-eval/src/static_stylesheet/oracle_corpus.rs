@@ -221,6 +221,36 @@ fn static_stylesheet_oracle_corpus_fixtures() -> &'static [StaticStylesheetOracl
             source: ".shadow(@color; @rest...) { color: @color; box-shadow: @rest; trace: @arguments; } .button { .shadow(red; 1px, 2px, 3px); }",
         },
         StaticStylesheetOracleCorpusFixtureV0 {
+            id: "less.mixin-accessor",
+            dialect: StyleDialect::Less,
+            source: ".tokens(@color, @gap: 1px) { @result: @color; width: @gap; } .button { color: .tokens(red)[@result]; margin: .tokens(red, 2px)[width]; }",
+        },
+        StaticStylesheetOracleCorpusFixtureV0 {
+            id: "less.namespace-mixin",
+            dialect: StyleDialect::Less,
+            source: "#bundle() { .rounded(@radius) { border-radius: @radius; } } .button { #bundle > .rounded(2px); }",
+        },
+        StaticStylesheetOracleCorpusFixtureV0 {
+            id: "less.parameterized-namespace-mixin",
+            dialect: StyleDialect::Less,
+            source: "#bundle(@color) { .tone() { color: @color; } } .button { #bundle(red) > .tone(); }",
+        },
+        StaticStylesheetOracleCorpusFixtureV0 {
+            id: "less.literal-pattern-mixin",
+            dialect: StyleDialect::Less,
+            source: ".tone(dark, @color) { color: @color; background: black; } .tone(light, @color) { color: @color; background: white; } .button { .tone(dark, red); }",
+        },
+        StaticStylesheetOracleCorpusFixtureV0 {
+            id: "less.important-mixin",
+            dialect: StyleDialect::Less,
+            source: ".tone(@color, @gap: 1px) { color: @color; margin: @gap; } .button { .tone(red, 2px) !important; }",
+        },
+        StaticStylesheetOracleCorpusFixtureV0 {
+            id: "less.default-guarded-mixin",
+            dialect: StyleDialect::Less,
+            source: ".tone(@color) when (@color = red) { color: @color; } .tone(@color) when (default()) and (iscolor(@color)) { color: gray; } .button { .tone(blue); }",
+        },
+        StaticStylesheetOracleCorpusFixtureV0 {
             id: "less.guarded-namespace-mixin",
             dialect: StyleDialect::Less,
             source: "#bundle() when (iscolor(red)) { .tone() { color: red; } } .button { #bundle > .tone(); }",
