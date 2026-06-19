@@ -15,8 +15,8 @@ use super::{
     StaticStylesheetPropertyDeclaration, StaticStylesheetScope,
     StaticStylesheetVariableDeclaration, find_static_less_detached_ruleset_declaration,
     find_static_less_property_declaration, find_static_less_variable_declaration,
-    resolve_static_less_mixin_value_with_bindings, static_less_variable_name_is_safe,
-    static_stylesheet_property_name_is_safe,
+    less_mixin_values::resolve_static_less_mixin_value_with_bindings,
+    static_less_variable_name_is_safe, static_stylesheet_property_name_is_safe,
 };
 
 pub(super) fn static_less_mixin_guard_matches(

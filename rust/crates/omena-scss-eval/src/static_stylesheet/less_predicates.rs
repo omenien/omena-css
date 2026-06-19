@@ -8,15 +8,15 @@ use super::less_guard::{
     static_less_guard_value_is_number, static_less_guard_value_is_string,
     static_less_guard_value_is_url, static_less_value_condition_matches,
 };
+use super::less_mixin_values::static_less_value_is_detached_ruleset_reference;
 use super::model::{
     StaticLessDetachedRulesetDeclaration, StaticStylesheetPropertyDeclaration,
     StaticStylesheetScope, StaticStylesheetVariableDeclaration,
 };
 use super::{
     find_static_less_detached_ruleset_declaration, find_static_less_property_declaration_before,
-    find_static_less_variable_declaration, static_less_value_is_detached_ruleset_reference,
-    static_less_variable_name_is_safe, static_stylesheet_literal_value_is_safe,
-    static_stylesheet_property_name_is_safe,
+    find_static_less_variable_declaration, static_less_variable_name_is_safe,
+    static_stylesheet_literal_value_is_safe, static_stylesheet_property_name_is_safe,
 };
 
 pub(super) fn parse_static_less_if_value(value: &str) -> Option<String> {
