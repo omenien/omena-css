@@ -2590,7 +2590,8 @@ fn control_flow_transfer_for_block(
             ),
         },
         "@while" => {
-            let bindings = while_loop_carried_binding_values(block.header_text.as_str());
+            let bindings =
+                while_loop_carried_binding_values(block.header_text.as_str(), &contextual_bindings);
             let value = if bindings.is_empty() {
                 scss_header_value_with_bindings(
                     block.header_text.as_str(),
@@ -2627,8 +2628,7 @@ fn contextual_control_flow_bindings(
             && previous.source_span_start < block.source_span_start
             && block.source_span_start < previous.source_span_end
     }) {
-        for binding in loop_carried_binding_values(previous.header_text.as_str(), &visible_bindings)
-        {
+        for binding in control_flow_loop_carried_binding_values(previous, &visible_bindings) {
             insert_static_scss_binding(
                 &mut visible_bindings,
                 binding.name.as_str(),
@@ -2637,6 +2637,17 @@ fn contextual_control_flow_bindings(
         }
     }
     visible_bindings
+}
+
+fn control_flow_loop_carried_binding_values(
+    block: &OmenaScssEvalControlFlowBlockV0,
+    lexical_bindings: &BTreeMap<String, AbstractCssValueV0>,
+) -> Vec<ScssControlFlowBindingValue> {
+    if block.at_rule_name.eq_ignore_ascii_case("@while") {
+        while_loop_carried_binding_values(block.header_text.as_str(), lexical_bindings)
+    } else {
+        loop_carried_binding_values(block.header_text.as_str(), lexical_bindings)
+    }
 }
 
 fn control_flow_transfer_for_else_block(
@@ -3592,7 +3603,13 @@ fn static_each_tuple_loop_binding_values(
     )
 }
 
-fn while_loop_carried_binding_values(header: &str) -> Vec<ScssControlFlowBindingValue> {
+fn while_loop_carried_binding_values(
+    header: &str,
+    lexical_bindings: &BTreeMap<String, AbstractCssValueV0>,
+) -> Vec<ScssControlFlowBindingValue> {
+    if let Some(values) = static_while_condition_loop_binding_values(header, lexical_bindings) {
+        return values;
+    }
     loop_carried_bindings(header)
         .into_iter()
         .map(|name| ScssControlFlowBindingValue {
@@ -3600,6 +3617,203 @@ fn while_loop_carried_binding_values(header: &str) -> Vec<ScssControlFlowBinding
             value: AbstractCssValueV0::Top,
         })
         .collect()
+}
+
+fn static_while_condition_loop_binding_values(
+    header: &str,
+    lexical_bindings: &BTreeMap<String, AbstractCssValueV0>,
+) -> Option<Vec<ScssControlFlowBindingValue>> {
+    let bindings = loop_carried_bindings(header);
+    if bindings.len() != 1 {
+        return None;
+    }
+    let binding_name = bindings[0].as_str();
+    let (left, operator, right) = split_static_while_inequality(header)?;
+    let start = static_while_integer_binding_value(binding_name, lexical_bindings)?;
+
+    let (operator, bound) = if static_scss_side_is_binding(left, binding_name) {
+        (
+            operator,
+            static_while_integer_operand(right, lexical_bindings)?,
+        )
+    } else if static_scss_side_is_binding(right, binding_name) {
+        (
+            operator.inverted_for_right_hand_binding(),
+            static_while_integer_operand(left, lexical_bindings)?,
+        )
+    } else {
+        return None;
+    };
+    let value = static_while_integer_domain(start, operator, bound)?;
+
+    Some(vec![ScssControlFlowBindingValue {
+        name: bindings[0].clone(),
+        value,
+    }])
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum StaticWhileInequalityOperator {
+    LessThan,
+    LessThanOrEqual,
+    GreaterThan,
+    GreaterThanOrEqual,
+}
+
+impl StaticWhileInequalityOperator {
+    const fn inverted_for_right_hand_binding(self) -> Self {
+        match self {
+            Self::LessThan => Self::GreaterThan,
+            Self::LessThanOrEqual => Self::GreaterThanOrEqual,
+            Self::GreaterThan => Self::LessThan,
+            Self::GreaterThanOrEqual => Self::LessThanOrEqual,
+        }
+    }
+}
+
+fn split_static_while_inequality(
+    value: &str,
+) -> Option<(&str, StaticWhileInequalityOperator, &str)> {
+    let mut comparison = None;
+    let mut paren_depth = 0usize;
+    let mut bracket_depth = 0usize;
+    let mut quote: Option<char> = None;
+    let mut index = 0usize;
+
+    while index < value.len() {
+        let ch = value[index..].chars().next()?;
+        if let Some(quote_ch) = quote {
+            index += ch.len_utf8();
+            if ch == '\\' {
+                if let Some(escaped) = value[index..].chars().next() {
+                    index += escaped.len_utf8();
+                }
+            } else if ch == quote_ch {
+                quote = None;
+            }
+            continue;
+        }
+        if matches!(ch, '"' | '\'') {
+            quote = Some(ch);
+            index += ch.len_utf8();
+            continue;
+        }
+        match ch {
+            '(' => paren_depth += 1,
+            ')' => paren_depth = paren_depth.checked_sub(1)?,
+            '[' => bracket_depth += 1,
+            ']' => bracket_depth = bracket_depth.checked_sub(1)?,
+            '<' | '>' if paren_depth == 0 && bracket_depth == 0 => {
+                let (operator, width) = static_while_inequality_operator_at(value, index)?;
+                let left = value.get(..index)?.trim();
+                let right = value.get(index + width..)?.trim();
+                if left.is_empty() || right.is_empty() || comparison.is_some() {
+                    return None;
+                }
+                comparison = Some((left, operator, right));
+                index += width;
+                continue;
+            }
+            _ => {}
+        }
+        index += ch.len_utf8();
+    }
+    if quote.is_some() || paren_depth != 0 || bracket_depth != 0 {
+        return None;
+    }
+    comparison
+}
+
+fn static_while_inequality_operator_at(
+    value: &str,
+    index: usize,
+) -> Option<(StaticWhileInequalityOperator, usize)> {
+    let suffix = value.get(index..)?;
+    if suffix.starts_with("<=") {
+        return Some((StaticWhileInequalityOperator::LessThanOrEqual, 2));
+    }
+    if suffix.starts_with(">=") {
+        return Some((StaticWhileInequalityOperator::GreaterThanOrEqual, 2));
+    }
+    if suffix.starts_with('<') {
+        return Some((StaticWhileInequalityOperator::LessThan, 1));
+    }
+    if suffix.starts_with('>') {
+        return Some((StaticWhileInequalityOperator::GreaterThan, 1));
+    }
+    None
+}
+
+fn static_scss_side_is_binding(value: &str, binding_name: &str) -> bool {
+    let value = value.trim();
+    value.starts_with('$')
+        && variable_name_end(value, '$'.len_utf8()) == value.len()
+        && canonical_scss_variable_name(value) == canonical_scss_variable_name(binding_name)
+}
+
+fn static_while_integer_binding_value(
+    binding_name: &str,
+    lexical_bindings: &BTreeMap<String, AbstractCssValueV0>,
+) -> Option<i32> {
+    static_scss_binding_value(lexical_bindings, binding_name)
+        .and_then(single_static_scss_header_value_text)
+        .and_then(parse_static_while_integer_text)
+}
+
+fn static_while_integer_operand(
+    value: &str,
+    lexical_bindings: &BTreeMap<String, AbstractCssValueV0>,
+) -> Option<i32> {
+    let reduced = scss_header_value_from_bindings(value, lexical_bindings);
+    single_static_scss_header_value_text(&reduced).and_then(parse_static_while_integer_text)
+}
+
+fn parse_static_while_integer_text(value: &str) -> Option<i32> {
+    let reduced = reduce_static_scss_value(value.trim().to_string());
+    reduced.trim().parse::<i32>().ok()
+}
+
+fn static_while_integer_domain(
+    start: i32,
+    operator: StaticWhileInequalityOperator,
+    bound: i32,
+) -> Option<AbstractCssValueV0> {
+    let (first, last) = match operator {
+        StaticWhileInequalityOperator::LessThan => {
+            if start >= bound {
+                return Some(AbstractCssValueV0::Bottom);
+            }
+            (start, bound.saturating_sub(1))
+        }
+        StaticWhileInequalityOperator::LessThanOrEqual => {
+            if start > bound {
+                return Some(AbstractCssValueV0::Bottom);
+            }
+            (start, bound)
+        }
+        StaticWhileInequalityOperator::GreaterThan => {
+            if start <= bound {
+                return Some(AbstractCssValueV0::Bottom);
+            }
+            (bound.saturating_add(1), start)
+        }
+        StaticWhileInequalityOperator::GreaterThanOrEqual => {
+            if start < bound {
+                return Some(AbstractCssValueV0::Bottom);
+            }
+            (bound, start)
+        }
+    };
+    let value_count = i64::from(last) - i64::from(first) + 1;
+    if !(1..=64).contains(&value_count) {
+        return None;
+    }
+    Some(
+        (first..=last).fold(AbstractCssValueV0::Bottom, |acc, value| {
+            let value = abstract_css_value_from_text(value.to_string().as_str());
+            join_abstract_css_values(&acc, &value)
+        }),
+    )
 }
 
 fn parse_static_for_loop_range(
@@ -4904,8 +5118,34 @@ mod tests {
         assert_eq!(report.blocks[0].transfer_truthiness, None);
         assert_eq!(report.blocks[0].loop_carried_bindings, vec!["$i"]);
         assert_eq!(
-            report.blocks[0].loop_carried_binding_values[0].value_kind,
-            "top"
+            report.blocks[0].loop_carried_binding_values[0].value,
+            AbstractCssValueV0::FiniteSet {
+                values: vec!["0".to_string(), "1".to_string(), "2".to_string()]
+            }
+        );
+    }
+
+    #[test]
+    fn control_flow_value_analysis_tracks_reversed_while_condition_loop_bindings() {
+        let source = "$i: 3; @while 0 < $i { $i: $i - 1; .n { order: $i; } }";
+        let report = analyze_scss_control_flow_values(source, StyleDialect::Scss);
+        assert!(report.is_some());
+        let Some(report) = report else {
+            return;
+        };
+
+        assert_eq!(report.block_count, 1);
+        assert_eq!(report.back_edge_count, 1);
+        assert_eq!(report.loop_carried_binding_count, 1);
+        assert_eq!(report.blocks[0].kind, "loop");
+        assert_eq!(report.blocks[0].transfer_kind, "loopCondition");
+        assert_eq!(report.blocks[0].transfer_truthiness, None);
+        assert_eq!(report.blocks[0].loop_carried_bindings, vec!["$i"]);
+        assert_eq!(
+            report.blocks[0].loop_carried_binding_values[0].value,
+            AbstractCssValueV0::FiniteSet {
+                values: vec!["1".to_string(), "2".to_string(), "3".to_string()]
+            }
         );
     }
 

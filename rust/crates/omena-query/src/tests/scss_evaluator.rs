@@ -479,6 +479,39 @@ $enabled: true;
 }
 
 #[test]
+fn exposes_static_while_bindings_through_query_boundary() -> Result<(), serde_json::Error> {
+    let source = "$i: 0; @while $i < 3 { $i: $i + 1; .n { order: $i; } }";
+
+    let summary = summarize_omena_query_scss_evaluator_control_flow_from_source(
+        source,
+        OmenaParserStyleDialect::Scss,
+    );
+
+    assert_eq!(summary.schema_version, "0");
+    assert_eq!(summary.product, "omena-query.scss-evaluator-control-flow");
+    assert_eq!(summary.mode, "oracleOnly");
+    assert_eq!(summary.value_type, "AbstractCssValueV0");
+    assert!(summary.supported_dialect);
+    assert_eq!(summary.control_flow_loop_block_count, 1);
+    assert_eq!(summary.control_flow_back_edge_count, 1);
+    assert!(summary.value_analysis_converged);
+
+    assert!(summary.value_analysis.is_some());
+    let Some(value_analysis) = summary.value_analysis.as_ref() else {
+        return Ok(());
+    };
+    assert_eq!(value_analysis.blocks[0].loop_carried_bindings, vec!["$i"]);
+    assert_eq!(
+        serde_json::to_value(&value_analysis.blocks[0].loop_carried_binding_values[0].value)?,
+        serde_json::json!({
+            "kind": "finiteSet",
+            "values": ["0", "1", "2"],
+        })
+    );
+    Ok(())
+}
+
+#[test]
 fn keeps_plain_css_out_of_scss_evaluator_control_flow_oracle() {
     let summary = summarize_omena_query_scss_evaluator_control_flow_from_source(
         ".card { color: red; }",
