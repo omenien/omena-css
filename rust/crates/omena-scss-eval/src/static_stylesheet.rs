@@ -41,6 +41,7 @@ mod scss_callable_dependencies;
 mod scss_calls;
 mod scss_function_edits;
 mod scss_mixin_edits;
+mod tokens;
 mod value_resolution_model;
 mod variable_references;
 
@@ -166,6 +167,15 @@ use scss_function_edits::{
     collect_static_scss_function_value_resolution_values,
 };
 use scss_mixin_edits::collect_static_scss_mixin_evaluation_edits;
+use tokens::{
+    parser_text_size_to_usize, static_stylesheet_block_kinds_for_dialect,
+    static_stylesheet_declaration_value_end_token, static_stylesheet_matching_token_index,
+    static_stylesheet_next_token_kind_index, static_stylesheet_position_is_inside_ranges,
+    static_stylesheet_previous_token_is_body_start, static_stylesheet_scss_module_rule_semicolon,
+    static_stylesheet_skip_trivia_tokens, static_stylesheet_token_end,
+    static_stylesheet_token_is_trivia, static_stylesheet_token_start,
+    static_stylesheet_value_end_token_until,
+};
 use value_resolution_model::{
     StaticStylesheetAbstractResolution, StaticStylesheetResolutionOutcome,
     StaticStylesheetResolutionReason, raw_static_abstract_value, render_static_abstract_value,
@@ -3239,36 +3249,6 @@ fn static_scss_visible_global_variable_exists(
     .is_some()
 }
 
-fn static_stylesheet_matching_token_index(
-    tokens: &[LexedToken],
-    start: usize,
-    left: SyntaxKind,
-    right: SyntaxKind,
-) -> Option<usize> {
-    if tokens.get(start)?.kind != left {
-        return None;
-    }
-    let mut depth = 0usize;
-    for (index, token) in tokens.iter().enumerate().skip(start) {
-        if token.kind == left {
-            depth += 1;
-        } else if token.kind == right {
-            depth = depth.checked_sub(1)?;
-            if depth == 0 {
-                return Some(index);
-            }
-        }
-    }
-    None
-}
-
-fn static_stylesheet_block_kinds_for_dialect(dialect: StyleDialect) -> (SyntaxKind, SyntaxKind) {
-    match dialect {
-        StyleDialect::Sass => (SyntaxKind::SassIndent, SyntaxKind::SassDedent),
-        _ => (SyntaxKind::LeftBrace, SyntaxKind::RightBrace),
-    }
-}
-
 fn collect_static_scss_variable_declarations(
     source: &str,
     dialect: StyleDialect,
@@ -3441,48 +3421,6 @@ fn collect_static_scss_module_rule_ranges(
     }
 
     ranges
-}
-
-fn static_stylesheet_next_token_kind_index(
-    tokens: &[LexedToken],
-    mut index: usize,
-    kind: SyntaxKind,
-) -> Option<usize> {
-    while index < tokens.len() {
-        match tokens[index].kind {
-            candidate if candidate == kind => return Some(index),
-            SyntaxKind::Semicolon
-            | SyntaxKind::SassOptionalSemicolon
-            | SyntaxKind::RightBrace
-            | SyntaxKind::SassDedent => return None,
-            _ => index += 1,
-        }
-    }
-    None
-}
-
-fn static_stylesheet_scss_module_rule_semicolon(
-    tokens: &[LexedToken],
-    at_rule_index: usize,
-) -> Option<usize> {
-    let mut index = at_rule_index + 1;
-    while index < tokens.len() {
-        match tokens[index].kind {
-            SyntaxKind::Semicolon | SyntaxKind::SassOptionalSemicolon => return Some(index),
-            SyntaxKind::LeftBrace
-            | SyntaxKind::SassIndent
-            | SyntaxKind::RightBrace
-            | SyntaxKind::SassDedent => return None,
-            _ => index += 1,
-        }
-    }
-    None
-}
-
-fn static_stylesheet_position_is_inside_ranges(position: usize, ranges: &[(usize, usize)]) -> bool {
-    ranges
-        .iter()
-        .any(|(start, end)| *start <= position && position < *end)
 }
 
 fn collect_static_less_variable_declarations(
@@ -4799,69 +4737,6 @@ fn static_stylesheet_previous_token_starts_declaration(
         })
 }
 
-fn static_stylesheet_previous_token_is_body_start(tokens: &[LexedToken], index: usize) -> bool {
-    tokens[..index]
-        .iter()
-        .rev()
-        .all(|token| static_stylesheet_token_is_trivia(token.kind))
-}
-
-fn static_stylesheet_declaration_value_end_token(
-    tokens: &[LexedToken],
-    index: usize,
-) -> Option<usize> {
-    static_stylesheet_value_end_token_until(tokens, index, tokens.len())
-}
-
-fn static_stylesheet_value_end_token_until(
-    tokens: &[LexedToken],
-    mut index: usize,
-    end: usize,
-) -> Option<usize> {
-    let mut paren_depth = 0usize;
-    let mut bracket_depth = 0usize;
-    while index < end {
-        match tokens[index].kind {
-            SyntaxKind::LeftParen => paren_depth += 1,
-            SyntaxKind::RightParen => paren_depth = paren_depth.checked_sub(1)?,
-            SyntaxKind::LeftBracket => bracket_depth += 1,
-            SyntaxKind::RightBracket => bracket_depth = bracket_depth.checked_sub(1)?,
-            SyntaxKind::Semicolon
-            | SyntaxKind::SassOptionalSemicolon
-            | SyntaxKind::RightBrace
-            | SyntaxKind::SassDedent
-                if paren_depth == 0 && bracket_depth == 0 =>
-            {
-                return Some(index);
-            }
-            _ => {}
-        }
-        index += 1;
-    }
-    None
-}
-
-fn static_stylesheet_skip_trivia_tokens(tokens: &[LexedToken], mut index: usize) -> usize {
-    while tokens
-        .get(index)
-        .is_some_and(|token| static_stylesheet_token_is_trivia(token.kind))
-    {
-        index += 1;
-    }
-    index
-}
-
-fn static_stylesheet_token_is_trivia(kind: SyntaxKind) -> bool {
-    matches!(
-        kind,
-        SyntaxKind::Whitespace
-            | SyntaxKind::SassIndentedNewline
-            | SyntaxKind::LineComment
-            | SyntaxKind::BlockComment
-            | SyntaxKind::ScssSilentComment
-    )
-}
-
 fn extract_static_stylesheet_variable_declaration(
     source: &str,
     variable_start: usize,
@@ -5042,18 +4917,6 @@ fn apply_normalized_static_stylesheet_evaluation_edits(
         output.replace_range(edit.start..edit.end, edit.replacement.as_str());
     }
     output
-}
-
-fn parser_text_size_to_usize(value: u32) -> usize {
-    value as usize
-}
-
-fn static_stylesheet_token_start(token: &LexedToken) -> usize {
-    parser_text_size_to_usize(token.range.start().into())
-}
-
-fn static_stylesheet_token_end(token: &LexedToken) -> usize {
-    parser_text_size_to_usize(token.range.end().into())
 }
 
 fn dialect_label(dialect: StyleDialect) -> &'static str {
