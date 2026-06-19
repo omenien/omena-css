@@ -246,6 +246,11 @@ fn static_stylesheet_oracle_corpus_fixtures() -> &'static [StaticStylesheetOracl
             source: "@pi: pi(); @sin: sin(30deg); @asin: asin(.5); .button { opacity: @sin; rotate: @asin; --pi: @pi; }",
         },
         StaticStylesheetOracleCorpusFixtureV0 {
+            id: "less.range-list",
+            dialect: StyleDialect::Less,
+            source: "@items: range(4); @gaps: range(1px, 5px, 2); .button { z-index: length(@items); margin: extract(@gaps, 2); }",
+        },
+        StaticStylesheetOracleCorpusFixtureV0 {
             id: "less.color-mix",
             dialect: StyleDialect::Less,
             source: "@tone: mix(red, blue, 25%); @surface: tint(#123456, 10%); .button { color: @tone; background: @surface; }",

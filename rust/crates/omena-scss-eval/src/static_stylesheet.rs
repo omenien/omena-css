@@ -4,13 +4,13 @@ use omena_abstract_value::{AbstractCssValueV0, abstract_css_value_from_text};
 use omena_parser::{LexedToken, ParsedVariableFact, ParsedVariableFactKind, StyleDialect, lex};
 use omena_syntax::SyntaxKind;
 use omena_value_lattice::{
-    SrgbColor, StaticSrgbColorWithAlpha, format_css_number, parse_basic_named_srgb_color,
-    parse_color_function_value, parse_color_mix_value, parse_numeric_value_with_unit,
-    parse_oklab_oklch_value, parse_reducible_ceil_value, parse_reducible_floor_value,
-    parse_static_hsl_function_color_with_alpha, parse_static_hwb_function_color_with_alpha,
-    parse_static_rgb_function_color_with_alpha, parse_static_srgb_color_with_alpha,
-    parse_whole_function_value_arguments, parse_whole_function_value_inner,
-    split_top_level_whitespace_value_components_owned,
+    NumericValueV0, SrgbColor, StaticSrgbColorWithAlpha, format_css_number,
+    parse_basic_named_srgb_color, parse_color_function_value, parse_color_mix_value,
+    parse_numeric_value_with_unit, parse_oklab_oklch_value, parse_reducible_ceil_value,
+    parse_reducible_floor_value, parse_static_hsl_function_color_with_alpha,
+    parse_static_hwb_function_color_with_alpha, parse_static_rgb_function_color_with_alpha,
+    parse_static_srgb_color_with_alpha, parse_whole_function_value_arguments,
+    parse_whole_function_value_inner, split_top_level_whitespace_value_components_owned,
     substitute_static_css_function_references_in_value_until_stable,
 };
 use serde::Serialize;
@@ -6607,6 +6607,7 @@ fn reduce_static_less_value_with_escape_flag(value: String) -> StaticLessResolve
             ("isunit", parse_static_less_isunit_value),
             ("length", parse_static_less_length_value),
             ("extract", parse_static_less_extract_value),
+            ("range", parse_static_less_range_value),
         ],
     )
     .unwrap_or(value);
@@ -7749,6 +7750,82 @@ fn parse_static_less_extract_value(value: &str) -> Option<String> {
     items.get(index.checked_sub(1)?).cloned()
 }
 
+fn parse_static_less_range_value(value: &str) -> Option<String> {
+    const MAX_STATIC_LESS_RANGE_ITEMS: usize = 1024;
+
+    let arguments = parse_whole_function_value_arguments(value, "range")?;
+    let (start, end, step) = match arguments.as_slice() {
+        [end] => {
+            let end = parse_numeric_value_with_unit(end.trim())?;
+            let start = StaticLessRangeEndpoint {
+                value: 1.0,
+                unit: end.unit,
+            };
+            let step = StaticLessRangeEndpoint {
+                value: 1.0,
+                unit: "",
+            };
+            (start, static_less_range_endpoint_from_numeric(end)?, step)
+        }
+        [start, end] => {
+            let start = static_less_range_endpoint(start.trim())?;
+            let end = static_less_range_endpoint(end.trim())?;
+            let step = StaticLessRangeEndpoint {
+                value: 1.0,
+                unit: "",
+            };
+            (start, end, step)
+        }
+        [start, end, step] => (
+            static_less_range_endpoint(start.trim())?,
+            static_less_range_endpoint(end.trim())?,
+            static_less_range_endpoint(step.trim())?,
+        ),
+        _ => return None,
+    };
+
+    if step.value <= 0.0 {
+        return None;
+    }
+    if start.value > end.value {
+        return Some(String::new());
+    }
+
+    let mut items = Vec::new();
+    let mut current = start.value;
+    while current <= end.value + f64::EPSILON {
+        if items.len() >= MAX_STATIC_LESS_RANGE_ITEMS {
+            return None;
+        }
+        items.push(format!(
+            "{}{}",
+            format_static_less_number(current),
+            end.unit
+        ));
+        current += step.value;
+    }
+    Some(items.join(" "))
+}
+
+#[derive(Debug, Clone, Copy)]
+struct StaticLessRangeEndpoint<'a> {
+    value: f64,
+    unit: &'a str,
+}
+
+fn static_less_range_endpoint(value: &str) -> Option<StaticLessRangeEndpoint<'_>> {
+    static_less_range_endpoint_from_numeric(parse_numeric_value_with_unit(value)?)
+}
+
+fn static_less_range_endpoint_from_numeric(
+    parsed: NumericValueV0<'_>,
+) -> Option<StaticLessRangeEndpoint<'_>> {
+    parsed.value.is_finite().then_some(StaticLessRangeEndpoint {
+        value: parsed.value,
+        unit: parsed.unit,
+    })
+}
+
 fn parse_static_less_escape_value(value: &str) -> Option<String> {
     let argument = parse_whole_function_value_inner(value, "e")?.trim();
     static_less_quoted_string_contents(argument).or_else(|| {
@@ -8554,9 +8631,9 @@ mod tests {
         assert_eq!(report.mode, "oracleOnly");
         assert_eq!(report.value_type, "AbstractCssValueV0");
         assert_eq!(report.product_output_source, "legacyEvaluatedCss");
-        assert_eq!(report.fixture_count, 20);
+        assert_eq!(report.fixture_count, 21);
         assert_eq!(report.scss_fixture_count, 6);
-        assert_eq!(report.less_fixture_count, 14);
+        assert_eq!(report.less_fixture_count, 15);
         assert_eq!(report.evaluated_fixture_count, report.fixture_count);
         assert_eq!(report.missing_evaluation_count, 0);
         assert_eq!(report.divergence_count, 0);
@@ -10814,6 +10891,26 @@ mod tests {
         assert!(report.evaluated_css.contains("len2: 3"));
         assert!(report.evaluated_css.contains("x1: b"));
         assert!(report.evaluated_css.contains("x2: c"));
+        assert!(report.oracle.all_legacy_declaration_values_preserved);
+    }
+
+    #[test]
+    fn static_less_evaluation_reduces_range_builtin_values() {
+        let report = derive_static_stylesheet_module_evaluation(
+            "@items: range(4); @gaps: range(1px, 5px, 2); @half: range(1, 2, .5); @empty: range(3, 1); .button { a: @items; b: @gaps; c: @half; d: @empty; }",
+            StyleDialect::Less,
+        );
+        assert!(report.is_some());
+        let Some(report) = report else {
+            return;
+        };
+
+        assert_eq!(report.replacement_count, 4);
+        assert_eq!(report.value_resolution.raw_count, 3);
+        assert!(report.evaluated_css.contains("a: 1 2 3 4"));
+        assert!(report.evaluated_css.contains("b: 1px 3px 5px"));
+        assert!(report.evaluated_css.contains("c: 1 1.5 2"));
+        assert!(report.evaluated_css.contains("d: ;"));
         assert!(report.oracle.all_legacy_declaration_values_preserved);
     }
 
