@@ -1,7 +1,7 @@
 use crate::{
     OmenaQueryStyleSourceInputV0, OmenaQueryTargetTransformOptionsV0,
-    OmenaQueryTransformExecutionContextV0, OmenaQueryTransformModuleEvaluationV0,
-    execute_omena_query_consumer_build_style_source,
+    OmenaQueryTransformExecutionContextV0, OmenaQueryTransformModuleEvaluationNativeEditV0,
+    OmenaQueryTransformModuleEvaluationV0, execute_omena_query_consumer_build_style_source,
     execute_omena_query_consumer_build_style_source_for_target_query,
     execute_omena_query_consumer_build_style_source_for_target_query_with_context_and_options,
     execute_omena_query_consumer_build_style_source_for_target_query_with_options,
@@ -281,12 +281,13 @@ fn target_query_options_drop_dark_media_branches_through_execution_context() {
 
 #[test]
 fn consumer_build_accepts_explicit_scss_evaluator_context() {
+    let source = ".button { color: $brand; }";
     let context = OmenaQueryTransformExecutionContextV0 {
         scss_module_evaluation: Some(OmenaQueryTransformModuleEvaluationV0 {
             evaluator: "dart-sass-compatible".to_string(),
             evaluated_css: ".button { color: red; }".to_string(),
             native_replacements: Vec::new(),
-            native_edits: Vec::new(),
+            native_edits: vec![native_module_evaluation_edit(source, "$brand", "red")],
             oracle: None,
         }),
         ..OmenaQueryTransformExecutionContextV0::default()
@@ -294,7 +295,7 @@ fn consumer_build_accepts_explicit_scss_evaluator_context() {
     let summary =
         execute_omena_query_consumer_build_style_source_for_target_query_with_context_and_options(
             "Button.module.scss",
-            "$brand: red; .button { color: $brand; }",
+            source,
             "ie 11",
             &context,
             OmenaQueryTargetTransformOptionsV0 {
@@ -321,6 +322,69 @@ fn consumer_build_accepts_explicit_scss_evaluator_context() {
     );
     assert!(summary.execution.output_css.contains("color: red"));
     assert!(summary.execution.output_css.contains("._button_0"));
+}
+
+#[test]
+fn consumer_build_preserves_source_when_scss_evaluator_native_edits_diverge() {
+    let source = ".button { color: $brand; }";
+    let context = OmenaQueryTransformExecutionContextV0 {
+        scss_module_evaluation: Some(OmenaQueryTransformModuleEvaluationV0 {
+            evaluator: "dart-sass-compatible".to_string(),
+            evaluated_css: ".button { color: red; }".to_string(),
+            native_replacements: Vec::new(),
+            native_edits: vec![native_module_evaluation_edit(source, "$brand", "blue")],
+            oracle: None,
+        }),
+        ..OmenaQueryTransformExecutionContextV0::default()
+    };
+    let summary =
+        execute_omena_query_consumer_build_style_source_for_target_query_with_context_and_options(
+            "Button.module.scss",
+            source,
+            "ie 11",
+            &context,
+            OmenaQueryTargetTransformOptionsV0 {
+                allow_logical_to_physical: false,
+                allow_scope_flatten: false,
+                allow_layer_flatten: false,
+                enable_supports_static_eval: false,
+                enable_media_static_eval: false,
+                drop_dark_mode_media_queries: false,
+            },
+        );
+
+    assert!(summary.execution.output_css.contains("color: $brand"));
+    assert!(!summary.execution.output_css.contains("color: red"));
+    assert!(!summary.execution.output_css.contains("color: blue"));
+    assert_eq!(
+        summary
+            .execution
+            .outcomes
+            .iter()
+            .find(|outcome| outcome.pass_id == "scss-module-evaluate")
+            .map(|outcome| outcome.detail),
+        Some(
+            "preserved SCSS source because native evaluator edits did not match the oracle boundary"
+        )
+    );
+}
+
+fn native_module_evaluation_edit(
+    source: &str,
+    needle: &str,
+    replacement: &str,
+) -> OmenaQueryTransformModuleEvaluationNativeEditV0 {
+    let Some(start) = source.find(needle) else {
+        panic!("test fixture missing native edit needle: {needle}");
+    };
+    OmenaQueryTransformModuleEvaluationNativeEditV0 {
+        start,
+        end: start + needle.len(),
+        replacement: replacement.to_string(),
+        edit_kind: "valueReplacement".to_string(),
+        abstract_value: None,
+        abstract_value_kind: None,
+    }
 }
 
 #[test]
