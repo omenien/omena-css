@@ -6761,54 +6761,56 @@ fn parse_static_less_tone_mix_value(
 }
 
 fn parse_static_less_multiply_value(value: &str) -> Option<String> {
-    parse_static_less_blend_value(value, "multiply", static_less_multiply_channel)
+    parse_static_less_blend_value(value, "multiply", static_less_multiply_value)
 }
 
 fn parse_static_less_screen_value(value: &str) -> Option<String> {
-    parse_static_less_blend_value(value, "screen", static_less_screen_channel)
+    parse_static_less_blend_value(value, "screen", static_less_screen_value)
 }
 
 fn parse_static_less_overlay_value(value: &str) -> Option<String> {
-    parse_static_less_blend_value(value, "overlay", static_less_overlay_channel)
+    parse_static_less_blend_value(value, "overlay", static_less_overlay_value)
 }
 
 fn parse_static_less_softlight_value(value: &str) -> Option<String> {
-    parse_static_less_blend_value(value, "softlight", static_less_softlight_channel)
+    parse_static_less_blend_value(value, "softlight", static_less_softlight_value)
 }
 
 fn parse_static_less_hardlight_value(value: &str) -> Option<String> {
-    parse_static_less_blend_value(value, "hardlight", |first, second| {
-        static_less_overlay_channel(second, first)
+    parse_static_less_blend_value(value, "hardlight", |backdrop, source| {
+        static_less_overlay_value(source, backdrop)
     })
 }
 
 fn parse_static_less_difference_value(value: &str) -> Option<String> {
-    parse_static_less_blend_value(value, "difference", u8::abs_diff)
+    parse_static_less_blend_value(value, "difference", |backdrop, source| {
+        (backdrop - source).abs()
+    })
 }
 
 fn parse_static_less_exclusion_value(value: &str) -> Option<String> {
-    parse_static_less_blend_value(value, "exclusion", static_less_exclusion_channel)
+    parse_static_less_blend_value(value, "exclusion", static_less_exclusion_value)
 }
 
 fn parse_static_less_average_value(value: &str) -> Option<String> {
-    parse_static_less_blend_value(value, "average", static_less_average_channel)
+    parse_static_less_blend_value(value, "average", static_less_average_value)
 }
 
 fn parse_static_less_negation_value(value: &str) -> Option<String> {
-    parse_static_less_blend_value(value, "negation", static_less_negation_channel)
+    parse_static_less_blend_value(value, "negation", static_less_negation_value)
 }
 
 fn parse_static_less_blend_value(
     value: &str,
     function_name: &str,
-    blend_channel: impl Fn(u8, u8) -> u8,
+    blend_channel: impl Fn(f64, f64) -> f64,
 ) -> Option<String> {
     let arguments = parse_whole_function_value_arguments(value, function_name)?;
     let [first, second] = arguments.as_slice() else {
         return None;
     };
-    let first = parse_static_less_opaque_color_argument(first.trim())?;
-    let second = parse_static_less_opaque_color_argument(second.trim())?;
+    let first = parse_static_less_color_argument(first.trim())?;
+    let second = parse_static_less_color_argument(second.trim())?;
     Some(format_static_less_blended_color(
         first,
         second,
@@ -7038,68 +7040,107 @@ fn static_less_mix_channel(first: u8, second: u8, first_weight: f64, second_weig
 }
 
 fn format_static_less_blended_color(
-    first: SrgbColor,
-    second: SrgbColor,
-    blend_channel: impl Fn(u8, u8) -> u8,
+    first: StaticSrgbColorWithAlpha,
+    second: StaticSrgbColorWithAlpha,
+    blend_channel: impl Fn(f64, f64) -> f64,
 ) -> String {
+    let backdrop_alpha = first.alpha.unwrap_or(1.0);
+    let source_alpha = second.alpha.unwrap_or(1.0);
+    let alpha = source_alpha + backdrop_alpha * (1.0 - source_alpha);
     format_static_less_color_with_alpha(
         StaticSrgbColorWithAlpha {
             color: SrgbColor {
-                red: blend_channel(first.red, second.red),
-                green: blend_channel(first.green, second.green),
-                blue: blend_channel(first.blue, second.blue),
+                red: static_less_blend_result_channel(
+                    first.color.red,
+                    second.color.red,
+                    backdrop_alpha,
+                    source_alpha,
+                    alpha,
+                    &blend_channel,
+                ),
+                green: static_less_blend_result_channel(
+                    first.color.green,
+                    second.color.green,
+                    backdrop_alpha,
+                    source_alpha,
+                    alpha,
+                    &blend_channel,
+                ),
+                blue: static_less_blend_result_channel(
+                    first.color.blue,
+                    second.color.blue,
+                    backdrop_alpha,
+                    source_alpha,
+                    alpha,
+                    &blend_channel,
+                ),
             },
             alpha: None,
         },
-        1.0,
+        alpha,
     )
 }
 
-fn static_less_multiply_channel(first: u8, second: u8) -> u8 {
-    static_less_blend_channel(f64::from(first) * f64::from(second) / 255.0)
-}
-
-fn static_less_screen_channel(first: u8, second: u8) -> u8 {
-    static_less_blend_channel(255.0 - (f64::from(255 - first) * f64::from(255 - second) / 255.0))
-}
-
-fn static_less_overlay_channel(first: u8, second: u8) -> u8 {
-    if first < 128 {
-        return static_less_blend_channel(2.0 * f64::from(first) * f64::from(second) / 255.0);
-    }
-    static_less_blend_channel(
-        255.0 - 2.0 * f64::from(255 - first) * f64::from(255 - second) / 255.0,
-    )
-}
-
-fn static_less_softlight_channel(first: u8, second: u8) -> u8 {
-    let base = f64::from(first) / 255.0;
-    let blend = f64::from(second) / 255.0;
-    let result = if blend > 0.5 {
-        let d = if base > 0.25 {
-            base.sqrt()
-        } else {
-            ((16.0 * base - 12.0) * base + 4.0) * base
-        };
-        base + (2.0 * blend - 1.0) * (d - base)
+fn static_less_blend_result_channel(
+    backdrop: u8,
+    source: u8,
+    backdrop_alpha: f64,
+    source_alpha: f64,
+    alpha: f64,
+    blend_channel: &impl Fn(f64, f64) -> f64,
+) -> u8 {
+    let backdrop = f64::from(backdrop) / 255.0;
+    let source = f64::from(source) / 255.0;
+    let blended = blend_channel(backdrop, source);
+    let result = if alpha > 0.0 {
+        (source_alpha * source
+            + backdrop_alpha * (backdrop - source_alpha * (backdrop + source - blended)))
+            / alpha
     } else {
-        base - (1.0 - 2.0 * blend) * base * (1.0 - base)
+        blended
     };
     static_less_blend_channel(result * 255.0)
 }
 
-fn static_less_exclusion_channel(first: u8, second: u8) -> u8 {
-    static_less_blend_channel(
-        f64::from(first) + f64::from(second) - 2.0 * f64::from(first) * f64::from(second) / 255.0,
-    )
+fn static_less_multiply_value(backdrop: f64, source: f64) -> f64 {
+    backdrop * source
 }
 
-fn static_less_average_channel(first: u8, second: u8) -> u8 {
-    static_less_blend_channel((f64::from(first) + f64::from(second)) / 2.0)
+fn static_less_screen_value(backdrop: f64, source: f64) -> f64 {
+    backdrop + source - backdrop * source
 }
 
-fn static_less_negation_channel(first: u8, second: u8) -> u8 {
-    (255 - (255 - i16::from(first) - i16::from(second)).abs()).clamp(0, 255) as u8
+fn static_less_overlay_value(backdrop: f64, source: f64) -> f64 {
+    if backdrop * 2.0 <= 1.0 {
+        return static_less_multiply_value(backdrop * 2.0, source);
+    }
+    static_less_screen_value(backdrop * 2.0 - 1.0, source)
+}
+
+fn static_less_softlight_value(backdrop: f64, source: f64) -> f64 {
+    let mut distance = 1.0;
+    let mut factor = backdrop;
+    if source > 0.5 {
+        factor = 1.0;
+        distance = if backdrop > 0.25 {
+            backdrop.sqrt()
+        } else {
+            ((16.0 * backdrop - 12.0) * backdrop + 4.0) * backdrop
+        };
+    }
+    backdrop - (1.0 - 2.0 * source) * factor * (distance - backdrop)
+}
+
+fn static_less_exclusion_value(backdrop: f64, source: f64) -> f64 {
+    backdrop + source - 2.0 * backdrop * source
+}
+
+fn static_less_average_value(backdrop: f64, source: f64) -> f64 {
+    (backdrop + source) / 2.0
+}
+
+fn static_less_negation_value(backdrop: f64, source: f64) -> f64 {
+    1.0 - (backdrop + source - 1.0).abs()
 }
 
 fn static_less_blend_channel(value: f64) -> u8 {
@@ -7117,11 +7158,6 @@ fn parse_static_less_color_argument(value: &str) -> Option<StaticSrgbColorWithAl
                 .or_else(|| parse_oklab_oklch_value(value))
                 .and_then(|value| parse_static_less_color_argument(value.as_str()))
         })
-}
-
-fn parse_static_less_opaque_color_argument(value: &str) -> Option<SrgbColor> {
-    let color = parse_static_less_color_argument(value)?;
-    ((color.alpha.unwrap_or(1.0) - 1.0).abs() < f64::EPSILON).then_some(color.color)
 }
 
 fn parse_static_less_round_value(value: &str) -> Option<String> {
@@ -10019,6 +10055,72 @@ mod tests {
         assert!(report.evaluated_css.contains("exclusion: #a5ada4"));
         assert!(report.evaluated_css.contains("average: #5f81a3"));
         assert!(report.evaluated_css.contains("negation: #bdfdb9"));
+        assert!(report.oracle.all_legacy_declaration_values_preserved);
+    }
+
+    #[test]
+    fn static_less_evaluation_reduces_alpha_color_blend_builtin_values() {
+        let report = derive_static_stylesheet_module_evaluation(
+            "@multiply: multiply(rgba(255, 102, 0, .5), #0000ff); @screen: screen(rgba(255, 102, 0, .5), rgba(0, 0, 255, .25)); @overlay: overlay(rgba(255, 102, 0, .5), rgba(0, 0, 255, .25)); @softlight: softlight(rgba(255, 102, 0, .5), rgba(0, 0, 255, .25)); @hardlight: hardlight(rgba(255, 102, 0, .5), rgba(0, 0, 255, .25)); @difference: difference(rgba(255, 102, 0, .5), rgba(0, 0, 255, .25)); @exclusion: exclusion(rgba(255, 102, 0, .5), rgba(0, 0, 255, .25)); @average: average(rgba(255, 102, 0, .5), rgba(0, 0, 255, .25)); @negation: negation(rgba(255, 102, 0, .5), rgba(0, 0, 255, .25)); @both: multiply(transparent, transparent); @transparent: multiply(transparent, #0000ff); @sourceTransparent: screen(#ff6600, transparent); @transparentAverage: average(transparent, #ff6600); .button { multiply: @multiply; screen: @screen; overlay: @overlay; softlight: @softlight; hardlight: @hardlight; difference: @difference; exclusion: @exclusion; average: @average; negation: @negation; both: @both; transparent: @transparent; source-transparent: @sourceTransparent; transparent-average: @transparentAverage; }",
+            StyleDialect::Less,
+        );
+        assert!(report.is_some());
+        let Some(report) = report else {
+            return;
+        };
+
+        assert_eq!(report.replacement_count, 13);
+        assert_eq!(report.value_resolution.resolved_count, 13);
+        assert_eq!(report.value_resolution.raw_count, 0);
+        assert!(report.evaluated_css.contains("multiply: #000080"));
+        assert!(
+            report
+                .evaluated_css
+                .contains("screen: rgba(204, 82, 102, 0.625)")
+        );
+        assert!(
+            report
+                .evaluated_css
+                .contains("overlay: rgba(204, 61, 51, 0.625)")
+        );
+        assert!(
+            report
+                .evaluated_css
+                .contains("softlight: rgba(204, 69, 51, 0.625)")
+        );
+        assert!(
+            report
+                .evaluated_css
+                .contains("hardlight: rgba(153, 61, 102, 0.625)")
+        );
+        assert!(
+            report
+                .evaluated_css
+                .contains("difference: rgba(204, 82, 102, 0.625)")
+        );
+        assert!(
+            report
+                .evaluated_css
+                .contains("exclusion: rgba(204, 82, 102, 0.625)")
+        );
+        assert!(
+            report
+                .evaluated_css
+                .contains("average: rgba(179, 71, 77, 0.625)")
+        );
+        assert!(
+            report
+                .evaluated_css
+                .contains("negation: rgba(204, 82, 102, 0.625)")
+        );
+        assert!(report.evaluated_css.contains("both: rgba(0, 0, 0, 0)"));
+        assert!(report.evaluated_css.contains("transparent: #0000ff"));
+        assert!(report.evaluated_css.contains("source-transparent: #ff6600"));
+        assert!(
+            report
+                .evaluated_css
+                .contains("transparent-average: #ff6600")
+        );
         assert!(report.oracle.all_legacy_declaration_values_preserved);
     }
 

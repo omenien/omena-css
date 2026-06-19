@@ -934,6 +934,64 @@ fn exposes_less_color_blend_builtins_through_query_boundary() {
 }
 
 #[test]
+fn exposes_less_alpha_color_blend_builtins_through_query_boundary() {
+    let summary = summarize_omena_query_static_stylesheet_evaluator_from_source(
+        "@multiply: multiply(rgba(255, 102, 0, .5), #0000ff); @screen: screen(rgba(255, 102, 0, .5), rgba(0, 0, 255, .25)); @overlay: overlay(rgba(255, 102, 0, .5), rgba(0, 0, 255, .25)); @softlight: softlight(rgba(255, 102, 0, .5), rgba(0, 0, 255, .25)); @hardlight: hardlight(rgba(255, 102, 0, .5), rgba(0, 0, 255, .25)); @difference: difference(rgba(255, 102, 0, .5), rgba(0, 0, 255, .25)); @exclusion: exclusion(rgba(255, 102, 0, .5), rgba(0, 0, 255, .25)); @average: average(rgba(255, 102, 0, .5), rgba(0, 0, 255, .25)); @negation: negation(rgba(255, 102, 0, .5), rgba(0, 0, 255, .25)); @both: multiply(transparent, transparent); @transparent: multiply(transparent, #0000ff); @sourceTransparent: screen(#ff6600, transparent); @transparentAverage: average(transparent, #ff6600); .button { multiply: @multiply; screen: @screen; overlay: @overlay; softlight: @softlight; hardlight: @hardlight; difference: @difference; exclusion: @exclusion; average: @average; negation: @negation; both: @both; transparent: @transparent; source-transparent: @sourceTransparent; transparent-average: @transparentAverage; }",
+        OmenaParserStyleDialect::Less,
+    );
+
+    assert_eq!(summary.product, "omena-query.static-stylesheet-evaluator");
+    assert_eq!(summary.mode, "oracleOnly");
+    assert_eq!(summary.dialect, "less");
+    assert_eq!(summary.value_type, "AbstractCssValueV0");
+    assert!(summary.supported_dialect);
+    assert_eq!(summary.product_output_source, "legacyEvaluatedCss");
+    assert!(summary.legacy_output_consumed_until_cutover);
+    assert!(summary.evaluation_available);
+    assert_eq!(summary.divergence_count, 0);
+    assert!(summary.all_legacy_declaration_values_preserved);
+    assert_eq!(summary.native_replacement_count, 13);
+    assert_eq!(summary.native_resolved_value_count, 13);
+    assert_eq!(summary.native_raw_value_count, 0);
+    assert_eq!(summary.native_top_value_count, 0);
+    assert!(summary.evaluation.as_ref().is_some_and(|evaluation| {
+        evaluation.evaluated_css.contains("multiply: #000080")
+            && evaluation
+                .evaluated_css
+                .contains("screen: rgba(204, 82, 102, 0.625)")
+            && evaluation
+                .evaluated_css
+                .contains("overlay: rgba(204, 61, 51, 0.625)")
+            && evaluation
+                .evaluated_css
+                .contains("softlight: rgba(204, 69, 51, 0.625)")
+            && evaluation
+                .evaluated_css
+                .contains("hardlight: rgba(153, 61, 102, 0.625)")
+            && evaluation
+                .evaluated_css
+                .contains("difference: rgba(204, 82, 102, 0.625)")
+            && evaluation
+                .evaluated_css
+                .contains("exclusion: rgba(204, 82, 102, 0.625)")
+            && evaluation
+                .evaluated_css
+                .contains("average: rgba(179, 71, 77, 0.625)")
+            && evaluation
+                .evaluated_css
+                .contains("negation: rgba(204, 82, 102, 0.625)")
+            && evaluation.evaluated_css.contains("both: rgba(0, 0, 0, 0)")
+            && evaluation.evaluated_css.contains("transparent: #0000ff")
+            && evaluation
+                .evaluated_css
+                .contains("source-transparent: #ff6600")
+            && evaluation
+                .evaluated_css
+                .contains("transparent-average: #ff6600")
+    }));
+}
+
+#[test]
 fn exposes_less_list_builtins_through_query_boundary() {
     let summary = summarize_omena_query_static_stylesheet_evaluator_from_source(
         "@items: a b c; @comma: a, b, c; @len1: length(@items); @len2: length(@comma); @x1: extract(@items, 2); @x2: extract(@comma, 3); .button { len1: @len1; len2: @len2; x1: @x1; x2: @x2; }",
