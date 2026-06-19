@@ -42,6 +42,7 @@ interface CompatFeatureSelectionV0 {
   readonly table: string;
   readonly passId: string;
   readonly caniuseKeys: readonly string[];
+  readonly sourceKeys: Record<string, string>;
   readonly sourceQuorum: readonly string[];
   readonly thresholds: readonly CompatBrowserThresholdSelectionV0[];
 }
@@ -124,6 +125,22 @@ function validateInputs(
     assert.ok(!passIds.has(feature.passId), `duplicate compat passId ${feature.passId}`);
     passIds.add(feature.passId);
     assert.ok(feature.caniuseKeys.length > 0, `${feature.table} caniuseKeys required`);
+    assert.deepEqual(
+      Object.keys(feature.sourceKeys).toSorted(),
+      [...selections.sourcePolicy.requiredSourceQuorum].toSorted(),
+      `${feature.table} must carry a cross-source feature key map`,
+    );
+    assert.equal(
+      feature.sourceKeys.caniuse,
+      feature.caniuseKeys[0],
+      `${feature.table} primary caniuse key must match sourceKeys.caniuse`,
+    );
+    for (const source of selections.sourcePolicy.requiredSourceQuorum) {
+      assert.ok(
+        feature.sourceKeys[source]?.length > 0,
+        `${feature.table} missing source key for ${source}`,
+      );
+    }
     assert.deepEqual(
       feature.sourceQuorum,
       selections.sourcePolicy.requiredSourceQuorum,

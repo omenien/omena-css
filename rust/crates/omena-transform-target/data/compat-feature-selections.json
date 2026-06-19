@@ -15,6 +15,11 @@
       "table": "light_dark",
       "passId": "light-dark-lowering",
       "caniuseKeys": ["css-light-dark-function"],
+      "sourceKeys": {
+        "caniuse": "css-light-dark-function",
+        "web-features": "light-dark",
+        "mdn-bcd": "css.types.color.light-dark"
+      },
       "sourceQuorum": ["caniuse", "web-features", "mdn-bcd"],
       "thresholds": [
         { "browser": "chrome", "minMajor": 123, "minMinor": 0 },
@@ -34,6 +39,11 @@
       "table": "color_mix",
       "passId": "color-mix-lowering",
       "caniuseKeys": ["css-color-mix"],
+      "sourceKeys": {
+        "caniuse": "css-color-mix",
+        "web-features": "color-mix",
+        "mdn-bcd": "css.types.color.color-mix"
+      },
       "sourceQuorum": ["caniuse", "web-features", "mdn-bcd"],
       "thresholds": [
         { "browser": "chrome", "minMajor": 111, "minMinor": 0 },

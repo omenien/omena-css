@@ -33,6 +33,23 @@ interface SpecSourcePinsV0 {
   }[];
 }
 
+interface CompatFeatureSelectionsV0 {
+  readonly schemaVersion: string;
+  readonly product: string;
+  readonly sourcePolicy: {
+    readonly requiredSourceQuorum: readonly string[];
+  };
+  readonly features: readonly CompatFeatureSelectionV0[];
+}
+
+interface CompatFeatureSelectionV0 {
+  readonly table: string;
+  readonly passId: string;
+  readonly caniuseKeys: readonly string[];
+  readonly sourceKeys: Record<string, string>;
+  readonly sourceQuorum: readonly string[];
+}
+
 type TomlValue = string | number | string[];
 type TomlRecord = Record<string, TomlValue>;
 
@@ -43,6 +60,9 @@ interface ParsedTomlTablesV0 {
 
 const specSources = readJson<SpecSourcePinsV0>(
   "rust/crates/omena-spec-audit/data/spec-sources.json",
+);
+const compatSelections = readJson<CompatFeatureSelectionsV0>(
+  "rust/crates/omena-transform-target/data/compat-feature-selections.json",
 );
 const browserThresholdData = parseTomlWithRepeatedTable(
   readText("rust/crates/omena-transform-target/data/browser-thresholds.toml"),
@@ -55,6 +75,9 @@ const passFeatureBindingData = parseTomlWithRepeatedTable(
 const cargoToml = readText("rust/Cargo.toml");
 
 assert.equal(browserThresholdData.root.schema_version, "0");
+assert.equal(compatSelections.schemaVersion, "0");
+assert.equal(compatSelections.product, "omena-transform-target.compat-feature-selections");
+assert.deepEqual(compatSelections.sourcePolicy.requiredSourceQuorum, expectedQuorumSources);
 assert.equal(browserThresholdData.root.product, "omena-transform-target.browser-thresholds");
 assert.equal(passFeatureBindingData.root.schema_version, "0");
 assert.equal(passFeatureBindingData.root.product, "omena-transform-target.pass-feature-bindings");
@@ -80,6 +103,41 @@ assert.match(
   /browserslist\s*=\s*\{\s*package\s*=\s*"oxc-browserslist"\s*,\s*version\s*=\s*"[^"]+"\s*\}/,
   "compat resolver source must pin oxc-browserslist in the Rust workspace",
 );
+
+const selectionsByTable = new Map<string, CompatFeatureSelectionV0>();
+for (const feature of compatSelections.features) {
+  assertString(feature.table, "selection.table");
+  assertString(feature.passId, "selection.passId");
+  assertStringArray(feature.caniuseKeys as string[], "selection.caniuseKeys");
+  assert.deepEqual(
+    feature.sourceQuorum,
+    expectedQuorumSources,
+    `selection ${feature.table} must require every generated compat source`,
+  );
+  assert.deepEqual(
+    Object.keys(feature.sourceKeys).toSorted(),
+    [...expectedQuorumSources].toSorted(),
+    `selection ${feature.table} must map every generated compat source`,
+  );
+  for (const source of expectedQuorumSources) {
+    assert.equal(
+      typeof feature.sourceKeys[source],
+      "string",
+      `selection ${feature.table} source key ${source}`,
+    );
+    assert.ok(
+      feature.sourceKeys[source].length > 0,
+      `selection ${feature.table} source key ${source}`,
+    );
+  }
+  assert.equal(
+    feature.sourceKeys.caniuse,
+    feature.caniuseKeys[0],
+    `selection ${feature.table} caniuse mapping must match the pass binding key`,
+  );
+  assert.ok(!selectionsByTable.has(feature.table), `duplicate selection table ${feature.table}`);
+  selectionsByTable.set(feature.table, feature);
+}
 
 const thresholdsByTable = new Map<string, TomlRecord[]>();
 for (const threshold of browserThresholdData.tables) {
@@ -107,6 +165,8 @@ for (const threshold of browserThresholdData.tables) {
 
 assert.ok(thresholdsByTable.size > 0, "browser threshold data must include feature tables");
 for (const [table, thresholds] of thresholdsByTable) {
+  const selection = selectionsByTable.get(table);
+  assert.ok(selection, `threshold table ${table} has no curated source-key selection`);
   const browsers = thresholds.map((threshold) => threshold.browser);
   assert.deepEqual(
     browsers,
@@ -129,6 +189,18 @@ for (const binding of passFeatureBindingData.tables) {
 
   const thresholds = thresholdsByTable.get(binding.support_table);
   assert.ok(thresholds, `binding ${binding.pass_id} maps unknown table ${binding.support_table}`);
+  const selection = selectionsByTable.get(binding.support_table);
+  assert.ok(selection, `binding ${binding.pass_id} maps table without source-key selection`);
+  assert.equal(
+    binding.pass_id,
+    selection.passId,
+    `binding ${binding.pass_id} must match the curated selection pass id`,
+  );
+  assert.deepEqual(
+    binding.caniuse_keys,
+    selection.caniuseKeys,
+    `binding ${binding.pass_id} must keep the curated caniuse key set`,
+  );
   const thresholdKeys = new Set(thresholds.map((threshold) => threshold.caniuse_key));
   for (const key of binding.caniuse_keys) {
     assert.ok(
