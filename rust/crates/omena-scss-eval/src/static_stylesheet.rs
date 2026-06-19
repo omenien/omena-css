@@ -3,6 +3,10 @@ use std::collections::{BTreeMap, BTreeSet};
 use omena_abstract_value::{AbstractCssValueV0, abstract_css_value_from_text};
 use omena_parser::{LexedToken, ParsedVariableFact, ParsedVariableFactKind, StyleDialect, lex};
 use omena_syntax::SyntaxKind;
+use omena_value_lattice::{
+    format_css_number, parse_numeric_value_with_unit, parse_whole_function_value_arguments,
+    substitute_static_css_function_references_in_value_until_stable,
+};
 use serde::Serialize;
 
 use crate::{
@@ -6475,7 +6479,54 @@ fn static_less_escaped_string_token_is_declaration_value(
 
 fn reduce_static_less_value(value: String) -> String {
     let value = reduce_static_numeric_value(value);
+    let value = substitute_static_css_function_references_in_value_until_stable(
+        value.as_str(),
+        &[
+            ("unit", parse_static_less_unit_value),
+            ("get-unit", parse_static_less_get_unit_value),
+        ],
+    )
+    .unwrap_or(value);
     reduce_static_less_escaped_string_value(value.as_str()).unwrap_or(value)
+}
+
+fn parse_static_less_unit_value(value: &str) -> Option<String> {
+    let arguments = parse_whole_function_value_arguments(value, "unit")?;
+    match arguments.as_slice() {
+        [number] => {
+            let parsed = parse_numeric_value_with_unit(number.trim())?;
+            Some(format_css_number(parsed.value))
+        }
+        [number, unit] => {
+            let parsed = parse_numeric_value_with_unit(number.trim())?;
+            let unit = parse_static_less_unit_argument(unit.trim())?;
+            Some(format!("{}{}", format_css_number(parsed.value), unit))
+        }
+        _ => None,
+    }
+}
+
+fn parse_static_less_get_unit_value(value: &str) -> Option<String> {
+    let arguments = parse_whole_function_value_arguments(value, "get-unit")?;
+    let [number] = arguments.as_slice() else {
+        return None;
+    };
+    let parsed = parse_numeric_value_with_unit(number.trim())?;
+    Some(parsed.unit.to_string())
+}
+
+fn parse_static_less_unit_argument(unit: &str) -> Option<&str> {
+    if unit == "%" {
+        return Some(unit);
+    }
+    if unit.is_empty()
+        || !unit
+            .chars()
+            .all(|ch| ch.is_ascii_alphanumeric() || ch == '-' || ch == '_')
+    {
+        return None;
+    }
+    Some(unit)
 }
 
 fn reduce_static_less_escaped_string_value(value: &str) -> Option<String> {
@@ -8761,6 +8812,32 @@ mod tests {
             Some("2px")
         );
         assert!(report.evaluated_css.contains("margin: 2px"));
+    }
+
+    #[test]
+    fn static_less_evaluation_reduces_unit_builtin_values() {
+        let report = derive_static_stylesheet_module_evaluation(
+            "@gap: unit(5, px); @plain: unit(5px); @unit-name: get-unit(1.5rem); .button { margin: @gap; padding: @plain; --unit: @unit-name; }",
+            StyleDialect::Less,
+        );
+        assert!(report.is_some());
+        let Some(report) = report else {
+            return;
+        };
+
+        assert_eq!(report.replacement_count, 3);
+        assert_eq!(report.resolved_replacements[0].text, "5px");
+        assert_eq!(report.resolved_replacements[1].text, "5");
+        assert_eq!(report.resolved_replacements[2].text, "rem");
+        assert_eq!(report.resolved_replacements[0].abstract_value_kind, "exact");
+        assert_eq!(report.resolved_replacements[1].abstract_value_kind, "exact");
+        assert_eq!(report.resolved_replacements[2].abstract_value_kind, "raw");
+        assert_eq!(report.value_resolution.resolved_count, 2);
+        assert_eq!(report.value_resolution.raw_count, 1);
+        assert!(report.evaluated_css.contains("margin: 5px"));
+        assert!(report.evaluated_css.contains("padding: 5"));
+        assert!(report.evaluated_css.contains("--unit: rem"));
+        assert!(report.oracle.all_legacy_declaration_values_preserved);
     }
 
     #[test]
