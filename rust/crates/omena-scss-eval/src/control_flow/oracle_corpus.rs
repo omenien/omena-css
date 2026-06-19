@@ -295,6 +295,11 @@ fn scss_control_flow_oracle_corpus_fixtures() -> &'static [ScssControlFlowOracle
             source: "@function pick($target) { @for $i from 1 + 1 through 1 + 2 { @if $i == $target { @return $i; } } @return 0; } .button { z-index: pick(1); }",
         },
         ScssControlFlowOracleCorpusFixtureV0 {
+            id: "scss.static-for-finite-set-bound",
+            dialect: StyleDialect::Scss,
+            source: "@each $end in 2, 4 { @for $i from 1 through $end { .n { order: $i; } } }",
+        },
+        ScssControlFlowOracleCorpusFixtureV0 {
             id: "scss.static-while-expression-step",
             dialect: StyleDialect::Scss,
             source: "@function pick($target) { $step: 1 + 1; $i: 0; @while $i < 6 { @if $i == $target { @return $i; } $i: $i + $step; } @return 0; } .button { z-index: pick(4); }",
@@ -386,10 +391,10 @@ mod tests {
         assert_eq!(report.value_type, "AbstractCssValueV0");
         assert_eq!(report.node_key_type, "StableNodeKeyV0");
         assert_eq!(report.recursion_cap, SCSS_CALL_RETURN_RECURSION_LIMIT);
-        assert_eq!(report.fixture_count, 21);
-        assert_eq!(report.scss_fixture_count, 13);
+        assert_eq!(report.fixture_count, 22);
+        assert_eq!(report.scss_fixture_count, 14);
         assert_eq!(report.sass_fixture_count, 7);
-        assert_eq!(report.supported_fixture_count, 20);
+        assert_eq!(report.supported_fixture_count, 21);
         assert_eq!(report.rejected_flat_css_fixture_count, 1);
         assert!(report.branch_fixture_count >= 5);
         assert!(report.loop_fixture_count >= 6);
@@ -448,6 +453,12 @@ mod tests {
         assert!(report.fixtures.iter().any(|fixture| {
             fixture.id == "scss.static-for-expression-bounds"
                 && fixture.call_resolved_return_value_count == 1
+                && fixture.value_analysis_converged
+        }));
+        assert!(report.fixtures.iter().any(|fixture| {
+            fixture.id == "scss.static-for-finite-set-bound"
+                && fixture.loop_block_count == 2
+                && fixture.back_edge_count == 2
                 && fixture.value_analysis_converged
         }));
         assert!(report.fixtures.iter().any(|fixture| {

@@ -461,10 +461,10 @@ fn exposes_scss_control_flow_oracle_corpus_through_query_boundary() {
     assert_eq!(summary.mode, "oracleOnly");
     assert_eq!(summary.value_type, "AbstractCssValueV0");
     assert_eq!(summary.node_key_type, "StableNodeKeyV0");
-    assert_eq!(summary.fixture_count, 21);
-    assert_eq!(summary.scss_fixture_count, 13);
+    assert_eq!(summary.fixture_count, 22);
+    assert_eq!(summary.scss_fixture_count, 14);
     assert_eq!(summary.sass_fixture_count, 7);
-    assert_eq!(summary.supported_fixture_count, 20);
+    assert_eq!(summary.supported_fixture_count, 21);
     assert_eq!(summary.rejected_flat_css_fixture_count, 1);
     assert!(summary.branch_fixture_count >= 5);
     assert!(summary.loop_fixture_count >= 6);
@@ -536,6 +536,11 @@ fn exposes_scss_control_flow_oracle_corpus_through_query_boundary() {
                 && fixture.call_resolved_return_value_count == 1
                 && fixture.value_analysis_converged)
     );
+    assert!(summary.corpus.fixtures.iter().any(|fixture| fixture.id
+        == "scss.static-for-finite-set-bound"
+        && fixture.loop_block_count == 2
+        && fixture.back_edge_count == 2
+        && fixture.value_analysis_converged));
     assert!(summary.corpus.fixtures.iter().any(|fixture| fixture.id
         == "sass.static-for-expression-bounds"
         && fixture.dialect == "sass"
@@ -3135,6 +3140,47 @@ fn exposes_static_while_finite_set_bound_bindings_through_query_boundary()
         serde_json::json!({
             "kind": "finiteSet",
             "values": ["0", "1", "2", "3"],
+        })
+    );
+    Ok(())
+}
+
+#[test]
+fn exposes_static_for_finite_set_bound_bindings_through_query_boundary()
+-> Result<(), serde_json::Error> {
+    let source = "@each $end in 2, 4 { @for $i from 1 through $end { .n { order: $i; } } }";
+
+    let summary = summarize_omena_query_scss_evaluator_control_flow_from_source(
+        source,
+        OmenaParserStyleDialect::Scss,
+    );
+
+    assert_eq!(summary.schema_version, "0");
+    assert_eq!(summary.product, "omena-query.scss-evaluator-control-flow");
+    assert_eq!(summary.mode, "oracleOnly");
+    assert_eq!(summary.value_type, "AbstractCssValueV0");
+    assert!(summary.supported_dialect);
+    assert_eq!(summary.control_flow_loop_block_count, 2);
+    assert_eq!(summary.control_flow_back_edge_count, 2);
+    assert!(summary.value_analysis_converged);
+
+    assert!(summary.value_analysis.is_some());
+    let Some(value_analysis) = summary.value_analysis.as_ref() else {
+        return Ok(());
+    };
+    let for_block = value_analysis
+        .blocks
+        .iter()
+        .find(|block| block.loop_carried_bindings == vec!["$i"]);
+    assert!(for_block.is_some());
+    let Some(for_block) = for_block else {
+        return Ok(());
+    };
+    assert_eq!(
+        serde_json::to_value(&for_block.loop_carried_binding_values[0].value)?,
+        serde_json::json!({
+            "kind": "finiteSet",
+            "values": ["1", "2", "3", "4"],
         })
     );
     Ok(())
