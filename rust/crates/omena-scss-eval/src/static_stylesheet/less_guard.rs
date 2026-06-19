@@ -11,16 +11,19 @@ use omena_value_lattice::{
 use crate::value_eval::static_scss_literal_truthiness;
 
 use super::{
-    StaticLessDetachedRulesetDeclaration, StaticLessMixinRenderContext, StaticStylesheetScope,
+    StaticLessDetachedRulesetDeclaration, StaticLessMixinRenderContext,
+    StaticStylesheetPropertyDeclaration, StaticStylesheetScope,
     StaticStylesheetVariableDeclaration, find_static_less_detached_ruleset_declaration,
-    find_static_less_variable_declaration, resolve_static_less_mixin_value_with_bindings,
-    static_less_variable_name_is_safe, static_stylesheet_property_name_is_safe,
+    find_static_less_property_declaration, find_static_less_variable_declaration,
+    resolve_static_less_mixin_value_with_bindings, static_less_variable_name_is_safe,
+    static_stylesheet_property_name_is_safe,
 };
 
 pub(super) fn static_less_mixin_guard_matches(
     guard: &str,
     argument_values: &BTreeMap<String, String>,
     call_scope_id: usize,
+    call_position: usize,
     render_context: StaticLessMixinRenderContext<'_>,
     default_matches: Option<bool>,
 ) -> Option<bool> {
@@ -34,8 +37,10 @@ pub(super) fn static_less_mixin_guard_matches(
         argument_values,
         captured_values: render_context.captured_values,
         call_scope_id,
+        call_position,
         scopes: render_context.scopes,
         variable_declarations: render_context.variable_declarations,
+        property_declarations: render_context.property_declarations,
         detached_ruleset_declarations: render_context.detached_ruleset_declarations,
         default_matches,
     };
@@ -46,12 +51,15 @@ pub(super) fn static_less_value_condition_matches(expression: &str) -> Option<bo
     let argument_values = BTreeMap::new();
     let captured_values = BTreeMap::new();
     let variable_declarations = BTreeMap::new();
+    let property_declarations = BTreeMap::new();
     let context = StaticLessGuardContext {
         argument_values: &argument_values,
         captured_values: &captured_values,
         call_scope_id: 0,
+        call_position: 0,
         scopes: &[],
         variable_declarations: &variable_declarations,
+        property_declarations: &property_declarations,
         detached_ruleset_declarations: &[],
         default_matches: Some(false),
     };
@@ -63,8 +71,10 @@ struct StaticLessGuardContext<'a> {
     argument_values: &'a BTreeMap<String, String>,
     captured_values: &'a BTreeMap<String, String>,
     call_scope_id: usize,
+    call_position: usize,
     scopes: &'a [StaticStylesheetScope],
     variable_declarations: &'a BTreeMap<(usize, String), StaticStylesheetVariableDeclaration>,
+    property_declarations: &'a BTreeMap<(usize, String), StaticStylesheetPropertyDeclaration>,
     detached_ruleset_declarations: &'a [StaticLessDetachedRulesetDeclaration],
     default_matches: Option<bool>,
 }
@@ -231,6 +241,7 @@ fn static_less_mixin_guard_predicate_matches(
         context.call_scope_id,
         context.scopes,
         context.variable_declarations,
+        context.property_declarations,
         context.detached_ruleset_declarations,
     )?;
     Some(matches_value(resolved.trim()))
@@ -251,6 +262,7 @@ fn static_less_mixin_guard_isunit_predicate_matches(
         context.call_scope_id,
         context.scopes,
         context.variable_declarations,
+        context.property_declarations,
         context.detached_ruleset_declarations,
     )?;
     let resolved_unit = resolve_static_less_mixin_value_with_bindings(
@@ -260,6 +272,7 @@ fn static_less_mixin_guard_isunit_predicate_matches(
         context.call_scope_id,
         context.scopes,
         context.variable_declarations,
+        context.property_declarations,
         context.detached_ruleset_declarations,
     )?;
     let expected_unit = static_less_guard_unit_text(resolved_unit.trim())?;
@@ -280,6 +293,24 @@ fn static_less_mixin_guard_isdefined_predicate_matches(
     let value = value.trim();
     if value.is_empty() {
         return None;
+    }
+    if value.starts_with('$') {
+        if !value
+            .strip_prefix('$')
+            .is_some_and(static_stylesheet_property_name_is_safe)
+        {
+            return None;
+        }
+        return Some(
+            find_static_less_property_declaration(
+                value,
+                context.call_scope_id,
+                context.scopes,
+                context.property_declarations,
+            )
+            .filter(|declaration| declaration.span_start < context.call_position)
+            .is_some(),
+        );
     }
     if !value.starts_with('@') {
         return Some(true);
@@ -322,6 +353,7 @@ fn static_less_mixin_guard_isruleset_predicate_matches(
         context.call_scope_id,
         context.scopes,
         context.variable_declarations,
+        context.property_declarations,
         context.detached_ruleset_declarations,
     )?;
     Some(static_less_guard_value_is_ruleset(
@@ -344,6 +376,7 @@ fn static_less_guard_comparison_matches(
         context.call_scope_id,
         context.scopes,
         context.variable_declarations,
+        context.property_declarations,
         context.detached_ruleset_declarations,
     )?;
     let right = resolve_static_less_mixin_value_with_bindings(
@@ -353,6 +386,7 @@ fn static_less_guard_comparison_matches(
         context.call_scope_id,
         context.scopes,
         context.variable_declarations,
+        context.property_declarations,
         context.detached_ruleset_declarations,
     )?;
     static_scss_literal_truthiness(

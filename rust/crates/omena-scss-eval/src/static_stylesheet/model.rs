@@ -59,6 +59,7 @@ pub(super) struct StaticStylesheetEvaluationEdit {
 
 #[derive(Debug, Clone)]
 pub(super) struct StaticStylesheetPropertyDeclaration {
+    pub(super) span_start: usize,
     pub(super) value: String,
 }
 
@@ -238,6 +239,8 @@ pub(super) struct StaticLessMixinRenderContext<'a> {
     pub(super) scopes: &'a [StaticStylesheetScope],
     pub(super) variable_declarations:
         &'a BTreeMap<(usize, String), StaticStylesheetVariableDeclaration>,
+    pub(super) property_declarations:
+        &'a BTreeMap<(usize, String), StaticStylesheetPropertyDeclaration>,
     pub(super) captured_values: &'a BTreeMap<String, String>,
 }
 

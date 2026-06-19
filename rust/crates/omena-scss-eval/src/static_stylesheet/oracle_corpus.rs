@@ -271,6 +271,11 @@ fn static_stylesheet_oracle_corpus_fixtures() -> &'static [StaticStylesheetOracl
             source: "@brand: red; @defined: isdefined(@brand); @missing: isdefined(@absent); @literal: isdefined(red); @future-defined: isdefined(@future); @future: blue; .button { defined: @defined; missing: @missing; literal: @literal; future-defined: @future-defined; }",
         },
         StaticStylesheetOracleCorpusFixtureV0 {
+            id: "less.property-isdefined-predicate",
+            dialect: StyleDialect::Less,
+            source: ".button { color: red; @has-color: isdefined($color); @missing-prop: isdefined($missing); has: @has-color; missing: @missing-prop; }",
+        },
+        StaticStylesheetOracleCorpusFixtureV0 {
             id: "less.isdefined-guarded-mixin",
             dialect: StyleDialect::Less,
             source: "@brand: red; .present() when (isdefined(@brand)) { color: @brand; } .with-param(@tone) when (isdefined(@tone)) { border-color: @tone; } .button { .present(); .with-param(green); }",
