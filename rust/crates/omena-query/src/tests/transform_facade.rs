@@ -758,7 +758,7 @@ fn exposes_transform_execution_cascade_proof_obligations_from_source() {
 fn lists_transform_pass_summaries_from_query() {
     let passes = list_omena_query_transform_pass_summaries();
 
-    assert_eq!(passes.len(), 40);
+    assert_eq!(passes.len(), 41);
     assert!(passes.iter().any(|pass| pass.id == "whitespace-strip"));
     assert!(passes.iter().any(|pass| pass.id == "print-css"));
 }

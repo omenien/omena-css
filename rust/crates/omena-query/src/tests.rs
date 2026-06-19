@@ -2957,7 +2957,7 @@ fn consumer_build_resolves_css_modules_values_through_canonical_value_lattice()
 // cross-file-resolved @value is a TOUCHED region; canonicalizing it through the same sound
 // allowlist normalizes the emitted bytes. Under [value-resolution, print-css] each resolved
 // token is canonicalized independently (no shorthand-combining in the pass list), so
-// `1.0px`->`1px` per token; a `%`/`var()` value stays byte-faithful.
+// `1.0px`->`1px` and `50.0%`->`50%` per token; a `var()` value stays byte-faithful.
 #[test]
 fn consumer_build_canonicalizes_nonzero_cross_file_values() -> Result<(), Box<dyn std::error::Error>>
 {
@@ -2981,7 +2981,7 @@ fn consumer_build_canonicalizes_nonzero_cross_file_values() -> Result<(), Box<dy
 
     assert_eq!(
         summary.execution.output_css,
-        r#" .btn { padding: 1px 1px 1px 1px; width: 50.0%; }"#
+        r#" .btn { padding: 1px 1px 1px 1px; width: 50%; }"#
     );
     Ok(())
 }
