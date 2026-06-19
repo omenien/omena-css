@@ -4046,6 +4046,8 @@ fn render_static_less_namespace_mixin_call(
     let namespace = call.namespace.as_ref()?;
     let canonical_namespace = canonical_static_less_mixin_name(namespace.as_str());
     let mut saw_namespace = false;
+    let mut saw_parameter_match = false;
+    let mut saw_guard_not_matched = false;
     let mut rendered_bodies = Vec::new();
 
     for declaration in context.declarations.iter().filter(|declaration| {
@@ -4062,6 +4064,7 @@ fn render_static_less_namespace_mixin_call(
         ) else {
             continue;
         };
+        saw_parameter_match = true;
         for (parameter, argument) in bound_namespace_arguments {
             let rendered_value = resolve_static_less_mixin_value_with_bindings(
                 argument.as_str(),
@@ -4086,6 +4089,7 @@ fn render_static_less_namespace_mixin_call(
                 None,
             )?
         {
+            saw_guard_not_matched = true;
             continue;
         }
         if !active_mixins.insert(canonical_namespace.clone()) {
@@ -4135,6 +4139,9 @@ fn render_static_less_namespace_mixin_call(
         return Some(None);
     }
     if rendered_bodies.is_empty() {
+        if saw_parameter_match && saw_guard_not_matched {
+            return Some(Some(StaticLessMixinCallRenderOutcome::PreservedNoOutput));
+        }
         return None;
     }
     Some(Some(StaticLessMixinCallRenderOutcome::Rendered(
@@ -9481,9 +9488,9 @@ mod tests {
         assert_eq!(report.mode, "oracleOnly");
         assert_eq!(report.value_type, "AbstractCssValueV0");
         assert_eq!(report.product_output_source, "legacyEvaluatedCss");
-        assert_eq!(report.fixture_count, 40);
+        assert_eq!(report.fixture_count, 41);
         assert_eq!(report.scss_fixture_count, 6);
-        assert_eq!(report.less_fixture_count, 34);
+        assert_eq!(report.less_fixture_count, 35);
         assert_eq!(report.evaluated_fixture_count, report.fixture_count);
         assert_eq!(report.missing_evaluation_count, 0);
         assert_eq!(report.divergence_count, 0);
@@ -9726,13 +9733,22 @@ mod tests {
     }
 
     #[test]
-    fn static_less_evaluation_keeps_false_guarded_namespace_mixin_access_planned_only() {
+    fn static_less_evaluation_preserves_false_guarded_namespace_mixin_access_as_oracle_report() {
         let report = derive_static_stylesheet_module_evaluation(
             "#bundle() when (iscolor(1px)) { .tone() { color: red; } } .button { #bundle > .tone(); }",
             StyleDialect::Less,
         );
 
-        assert!(report.is_none());
+        assert!(report.is_some());
+        let Some(report) = report else {
+            return;
+        };
+
+        assert!(report.evaluated_css.contains("#bundle > .tone();"));
+        assert!(report.evaluated_css.contains("when (iscolor(1px))"));
+        assert!(!report.evaluated_css.contains(".button { color: red"));
+        assert_eq!(report.replacement_count, 0);
+        assert!(report.oracle.all_legacy_declaration_values_preserved);
     }
 
     #[test]

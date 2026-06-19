@@ -256,6 +256,11 @@ fn static_stylesheet_oracle_corpus_fixtures() -> &'static [StaticStylesheetOracl
             source: ".tone() when (iscolor(1px)) { color: red; } .button { .tone(); }",
         },
         StaticStylesheetOracleCorpusFixtureV0 {
+            id: "less.false-guarded-namespace-mixin",
+            dialect: StyleDialect::Less,
+            source: "#bundle() when (iscolor(1px)) { .tone() { color: red; } } .button { #bundle > .tone(); }",
+        },
+        StaticStylesheetOracleCorpusFixtureV0 {
             id: "less.guarded-namespace-mixin",
             dialect: StyleDialect::Less,
             source: "#bundle() when (iscolor(red)) { .tone() { color: red; } } .button { #bundle > .tone(); }",

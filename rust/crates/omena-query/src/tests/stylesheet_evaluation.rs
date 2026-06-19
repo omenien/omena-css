@@ -878,7 +878,7 @@ fn consumer_build_derives_static_less_evaluator_context_for_guarded_namespace_mi
 }
 
 #[test]
-fn consumer_build_keeps_false_guarded_less_namespace_mixin_access_planned_only() {
+fn consumer_build_executes_false_guarded_less_namespace_mixin_access_as_preserved_oracle_output() {
     let summary = execute_omena_query_consumer_build_style_source(
         "Button.module.less",
         "#bundle() when (iscolor(1px)) { .tone() { color: red; } } .button { #bundle > .tone(); }",
@@ -891,6 +891,12 @@ fn consumer_build_keeps_false_guarded_less_namespace_mixin_access_planned_only()
 
     assert!(
         summary
+            .execution
+            .executed_pass_ids
+            .contains(&"less-module-evaluate")
+    );
+    assert!(
+        !summary
             .execution
             .planned_only_pass_ids
             .contains(&"less-module-evaluate")

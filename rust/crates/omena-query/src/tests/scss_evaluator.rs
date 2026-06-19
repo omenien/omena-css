@@ -16,9 +16,9 @@ fn exposes_static_stylesheet_oracle_corpus_through_query_boundary() {
     assert_eq!(summary.mode, "oracleOnly");
     assert_eq!(summary.value_type, "AbstractCssValueV0");
     assert_eq!(summary.product_output_source, "legacyEvaluatedCss");
-    assert_eq!(summary.fixture_count, 40);
+    assert_eq!(summary.fixture_count, 41);
     assert_eq!(summary.scss_fixture_count, 6);
-    assert_eq!(summary.less_fixture_count, 34);
+    assert_eq!(summary.less_fixture_count, 35);
     assert_eq!(summary.evaluated_fixture_count, summary.fixture_count);
     assert_eq!(summary.missing_evaluation_count, 0);
     assert_eq!(summary.divergence_count, 0);
@@ -114,6 +114,13 @@ fn exposes_static_stylesheet_oracle_corpus_through_query_boundary() {
             .fixtures
             .iter()
             .any(|fixture| fixture.id == "less.false-guarded-mixin")
+    );
+    assert!(
+        summary
+            .corpus
+            .fixtures
+            .iter()
+            .any(|fixture| fixture.id == "less.false-guarded-namespace-mixin")
     );
     assert!(
         summary
@@ -1891,6 +1898,28 @@ fn exposes_less_false_guarded_mixins_as_preserved_oracle_output_through_query_bo
         evaluation.evaluated_css.contains(".tone();")
             && evaluation.evaluated_css.contains("when (iscolor(1px))")
             && !evaluation.evaluated_css.contains("color: 1px")
+    }));
+}
+
+#[test]
+fn exposes_less_false_guarded_namespace_mixins_as_preserved_oracle_output_through_query_boundary() {
+    let summary = summarize_omena_query_static_stylesheet_evaluator_from_source(
+        "#bundle() when (iscolor(1px)) { .tone() { color: red; } } .button { #bundle > .tone(); }",
+        OmenaParserStyleDialect::Less,
+    );
+
+    assert_eq!(summary.product, "omena-query.static-stylesheet-evaluator");
+    assert_eq!(summary.mode, "oracleOnly");
+    assert_eq!(summary.value_type, "AbstractCssValueV0");
+    assert!(summary.legacy_output_consumed_until_cutover);
+    assert!(summary.evaluation_available);
+    assert_eq!(summary.divergence_count, 0);
+    assert!(summary.all_legacy_declaration_values_preserved);
+    assert_eq!(summary.native_replacement_count, 0);
+    assert!(summary.evaluation.as_ref().is_some_and(|evaluation| {
+        evaluation.evaluated_css.contains("#bundle > .tone();")
+            && evaluation.evaluated_css.contains("when (iscolor(1px))")
+            && !evaluation.evaluated_css.contains(".button { color: red")
     }));
 }
 
