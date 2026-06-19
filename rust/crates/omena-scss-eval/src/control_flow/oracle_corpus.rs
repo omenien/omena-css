@@ -345,6 +345,11 @@ fn scss_control_flow_oracle_corpus_fixtures() -> &'static [ScssControlFlowOracle
             source: "$i: 0\n@while $i < 3\n  $i: $i + 1\n  .n\n    order: $i",
         },
         ScssControlFlowOracleCorpusFixtureV0 {
+            id: "sass.static-while-finite-set-bound",
+            dialect: StyleDialect::Sass,
+            source: "@each $limit in 2, 4\n  $i: 0\n  @while $i < $limit\n    $i: $i + 1\n    .n\n      order: $i",
+        },
+        ScssControlFlowOracleCorpusFixtureV0 {
             id: "sass.static-for-return",
             dialect: StyleDialect::Sass,
             source: "@function pick($target)\n  @for $i from 1 through 3\n    @if $i == $target\n      @return $i\n  @return 0\n.button\n  z-index: pick(2)",
@@ -358,6 +363,11 @@ fn scss_control_flow_oracle_corpus_fixtures() -> &'static [ScssControlFlowOracle
             id: "sass.static-for-expression-bounds",
             dialect: StyleDialect::Sass,
             source: "@function pick($target)\n  @for $i from 1 + 1 through 1 + 2\n    @if $i == $target\n      @return $i\n  @return 0\n.button\n  z-index: pick(1)",
+        },
+        ScssControlFlowOracleCorpusFixtureV0 {
+            id: "sass.static-for-finite-set-bound",
+            dialect: StyleDialect::Sass,
+            source: "@each $end in 2, 4\n  @for $i from 1 through $end\n    .n\n      order: $i",
         },
         ScssControlFlowOracleCorpusFixtureV0 {
             id: "sass.static-while-expression-step",
@@ -391,10 +401,10 @@ mod tests {
         assert_eq!(report.value_type, "AbstractCssValueV0");
         assert_eq!(report.node_key_type, "StableNodeKeyV0");
         assert_eq!(report.recursion_cap, SCSS_CALL_RETURN_RECURSION_LIMIT);
-        assert_eq!(report.fixture_count, 22);
+        assert_eq!(report.fixture_count, 24);
         assert_eq!(report.scss_fixture_count, 14);
-        assert_eq!(report.sass_fixture_count, 7);
-        assert_eq!(report.supported_fixture_count, 21);
+        assert_eq!(report.sass_fixture_count, 9);
+        assert_eq!(report.supported_fixture_count, 23);
         assert_eq!(report.rejected_flat_css_fixture_count, 1);
         assert!(report.branch_fixture_count >= 5);
         assert!(report.loop_fixture_count >= 6);
@@ -462,6 +472,13 @@ mod tests {
                 && fixture.value_analysis_converged
         }));
         assert!(report.fixtures.iter().any(|fixture| {
+            fixture.id == "sass.static-for-finite-set-bound"
+                && fixture.dialect == "sass"
+                && fixture.loop_block_count == 2
+                && fixture.back_edge_count == 2
+                && fixture.value_analysis_converged
+        }));
+        assert!(report.fixtures.iter().any(|fixture| {
             fixture.id == "sass.static-for-expression-bounds"
                 && fixture.dialect == "sass"
                 && fixture.call_resolved_return_value_count == 1
@@ -474,6 +491,13 @@ mod tests {
         }));
         assert!(report.fixtures.iter().any(|fixture| {
             fixture.id == "scss.static-while-finite-set-bound"
+                && fixture.loop_block_count == 2
+                && fixture.back_edge_count == 2
+                && fixture.value_analysis_converged
+        }));
+        assert!(report.fixtures.iter().any(|fixture| {
+            fixture.id == "sass.static-while-finite-set-bound"
+                && fixture.dialect == "sass"
                 && fixture.loop_block_count == 2
                 && fixture.back_edge_count == 2
                 && fixture.value_analysis_converged

@@ -124,7 +124,9 @@ pub(super) fn declaration_end_token_index(
         match tokens[index].kind {
             SyntaxKind::LeftParen => paren_depth += 1,
             SyntaxKind::RightParen => paren_depth = paren_depth.checked_sub(1)?,
-            SyntaxKind::Semicolon | SyntaxKind::SassOptionalSemicolon if paren_depth == 0 => {
+            SyntaxKind::Semicolon | SyntaxKind::SassOptionalSemicolon | SyntaxKind::SassIndent
+                if paren_depth == 0 =>
+            {
                 return Some(index);
             }
             _ => {}

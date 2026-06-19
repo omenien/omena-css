@@ -17,7 +17,10 @@ use crate::{
 use super::{
     header_values::{scss_header_value_from_bindings, single_static_scss_header_value_text},
     model::OmenaScssEvalControlFlowBlockV0,
-    tokens::{declaration_end_token_index, next_non_trivia_token_index, token_range_start},
+    tokens::{
+        declaration_end_token_index, matching_block_end_token_index, next_block_start_token_index,
+        next_non_trivia_token_index, token_range_end, token_range_start,
+    },
     transfer::ScssControlFlowBindingValue,
     variables::{
         canonical_scss_variable_name, insert_static_scss_binding, static_scss_binding_value,
@@ -83,7 +86,7 @@ pub(super) fn while_loop_body_assignment_names(
     let Some(body) = control_flow_block_body_text(source, block) else {
         return Vec::new();
     };
-    let lexed = lex(body, StyleDialect::Scss);
+    let lexed = lex(body, StyleDialect::Sass);
     let tokens = lexed.tokens();
     let mut names: Vec<String> = Vec::new();
     for (index, token) in tokens.iter().enumerate() {
@@ -239,10 +242,32 @@ fn control_flow_block_body_text<'a>(
     block: &OmenaScssEvalControlFlowBlockV0,
 ) -> Option<&'a str> {
     let block_text = source.get(block.source_span_start..block.source_span_end)?;
+    if let Some(body) = control_flow_brace_block_body_text(block_text) {
+        return Some(body);
+    }
+    control_flow_sass_indented_block_body_text(block_text)
+}
+
+fn control_flow_brace_block_body_text(block_text: &str) -> Option<&str> {
     let open = block_text.find('{')?;
     let close = block_text.rfind('}')?;
     (open < close)
         .then(|| block_text.get(open + '{'.len_utf8()..close))
+        .flatten()
+}
+
+fn control_flow_sass_indented_block_body_text(block_text: &str) -> Option<&str> {
+    let lexed = lex(block_text, StyleDialect::Sass);
+    let tokens = lexed.tokens();
+    let block_start_index = next_block_start_token_index(tokens, 0)?;
+    if tokens.get(block_start_index)?.kind != SyntaxKind::SassIndent {
+        return None;
+    }
+    let block_end_index = matching_block_end_token_index(tokens, block_start_index)?;
+    let body_start = token_range_end(tokens.get(block_start_index)?);
+    let body_end = token_range_start(tokens.get(block_end_index)?);
+    (body_start <= body_end)
+        .then(|| block_text.get(body_start..body_end))
         .flatten()
 }
 
@@ -261,7 +286,7 @@ fn while_loop_body_assignment_step(
     binding_name: &str,
     lexical_bindings: &BTreeMap<String, AbstractCssValueV0>,
 ) -> StaticWhileAssignmentStep {
-    let lexed = lex(body, StyleDialect::Scss);
+    let lexed = lex(body, StyleDialect::Sass);
     let tokens = lexed.tokens();
     let mut brace_depth = 0usize;
     let mut total_step = 0i32;
