@@ -578,6 +578,56 @@ fn consumer_build_uses_native_less_evaluation_after_import_inlining() -> Result<
 }
 
 #[test]
+fn consumer_build_uses_native_scss_module_output_after_use_inlining() -> Result<(), String> {
+    let sources = vec![
+        OmenaQueryStyleSourceInputV0 {
+            style_path: "/tmp/tokens.scss".to_string(),
+            style_source: "$brand: red; .token { color: $brand; }".to_string(),
+        },
+        OmenaQueryStyleSourceInputV0 {
+            style_path: "/tmp/Button.module.scss".to_string(),
+            style_source: r#"@use "./tokens"; .button { color: tokens.$brand; }"#.to_string(),
+        },
+    ];
+
+    let summary = execute_omena_query_consumer_build_style_sources(
+        "/tmp/Button.module.scss",
+        sources.as_slice(),
+        &["scss-module-evaluate".to_string(), "print-css".to_string()],
+        &[],
+    )?;
+
+    assert!(
+        summary
+            .execution
+            .executed_pass_ids
+            .contains(&"scss-module-evaluate"),
+        "{:?}",
+        summary.execution.executed_pass_ids
+    );
+    assert!(
+        summary
+            .execution
+            .output_css
+            .contains(".token { color: red; }"),
+        "{}",
+        summary.execution.output_css
+    );
+    assert!(
+        summary
+            .execution
+            .output_css
+            .contains(".button { color: red; }"),
+        "{}",
+        summary.execution.output_css
+    );
+    assert!(!summary.execution.output_css.contains(r#"@use "./tokens""#));
+    assert!(!summary.execution.output_css.contains("tokens.$brand"));
+    assert!(!summary.execution.output_css.contains("$brand:"));
+    Ok(())
+}
+
+#[test]
 fn consumer_build_derives_static_less_evaluator_context_for_forward_references() {
     let summary = execute_omena_query_consumer_build_style_source(
         "Button.module.less",

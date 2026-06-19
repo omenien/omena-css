@@ -133,7 +133,7 @@ pub(super) struct StaticScssModuleUseEvaluation {
     module_identity_key: String,
     namespace_kind: Option<&'static str>,
     namespace: Option<String>,
-    evaluated_css: String,
+    module_output_css: String,
     variable_exports: BTreeMap<String, String>,
 }
 
@@ -214,19 +214,19 @@ pub(super) fn derive_static_scss_module_use_evaluations_for_transform_context(
                     &mut derive_context,
                 )?
             };
-            let evaluated_css = if emitted_module_identity_keys.insert(module_identity_key.clone())
-            {
-                module_context.evaluated_css
-            } else {
-                String::new()
-            };
+            let module_output_css =
+                if emitted_module_identity_keys.insert(module_identity_key.clone()) {
+                    module_context.module_output_css
+                } else {
+                    String::new()
+                };
             Some(StaticScssModuleUseEvaluation {
                 source: edge.source.clone(),
                 use_rule_ordinal,
                 module_identity_key,
                 namespace_kind: edge.namespace_kind,
                 namespace: edge.namespace.clone(),
-                evaluated_css,
+                module_output_css,
                 variable_exports: module_context.variable_exports,
             })
         })
@@ -235,7 +235,7 @@ pub(super) fn derive_static_scss_module_use_evaluations_for_transform_context(
 
 #[derive(Debug, Clone)]
 struct StaticScssModuleContext {
-    evaluated_css: String,
+    module_output_css: String,
     variable_exports: BTreeMap<String, String>,
     configurable_variable_names: BTreeSet<String>,
 }
@@ -400,7 +400,7 @@ fn derive_static_scss_module_context_for_transform_context(
         static_scss_module_instance_identity_key(style_path, &variable_overrides);
     if !context.visited.insert(module_identity_key.clone()) {
         return Some(StaticScssModuleContext {
-            evaluated_css: String::new(),
+            module_output_css: String::new(),
             variable_exports: BTreeMap::new(),
             configurable_variable_names: BTreeSet::new(),
         });
@@ -434,7 +434,7 @@ fn derive_static_scss_module_context_for_transform_context(
         &forward_evaluations,
         context.emitted_module_identity_keys,
     );
-    let evaluated_css = derive_static_stylesheet_module_evaluation(
+    let module_output_css = derive_static_stylesheet_module_evaluation(
         evaluation_source.as_str(),
         OmenaParserStyleDialect::Scss,
     )
@@ -453,7 +453,7 @@ fn derive_static_scss_module_context_for_transform_context(
 
     context.visited.remove(&module_identity_key);
     Some(StaticScssModuleContext {
-        evaluated_css,
+        module_output_css,
         variable_exports,
         configurable_variable_names,
     })
@@ -464,7 +464,7 @@ struct StaticScssModuleForwardEvaluation {
     source: String,
     forward_rule_ordinal: usize,
     module_identity_key: String,
-    evaluated_css: String,
+    module_output_css: String,
     variable_exports: BTreeMap<String, String>,
     configurable_variable_names: BTreeSet<String>,
 }
@@ -541,7 +541,7 @@ fn derive_static_scss_module_forward_evaluations_for_transform_context(
             source: edge.source.clone(),
             forward_rule_ordinal,
             module_identity_key,
-            evaluated_css: module_context.evaluated_css,
+            module_output_css: module_context.module_output_css,
             variable_exports: filter_static_scss_forward_exports(
                 prefix_static_scss_forward_exports(
                     module_context.variable_exports,
@@ -957,7 +957,7 @@ fn inline_static_scss_use_rules(
                         let replacement = if emitted_module_identity_keys
                             .insert(module_use.module_identity_key.clone())
                         {
-                            module_use.evaluated_css.clone()
+                            module_use.module_output_css.clone()
                         } else {
                             String::new()
                         };
@@ -1013,7 +1013,7 @@ fn inline_static_scss_forward_rules(
                         let replacement = if emitted_module_identity_keys
                             .insert(forward.module_identity_key.clone())
                         {
-                            forward.evaluated_css.clone()
+                            forward.module_output_css.clone()
                         } else {
                             String::new()
                         };
