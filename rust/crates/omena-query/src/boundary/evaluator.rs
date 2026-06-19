@@ -105,6 +105,10 @@ pub struct OmenaQueryStaticStylesheetEvaluatorSummaryV0 {
     pub native_resolved_value_count: usize,
     pub native_raw_value_count: usize,
     pub native_top_value_count: usize,
+    pub native_cycle_value_count: usize,
+    pub native_fuel_exhausted_value_count: usize,
+    pub native_unresolved_reference_value_count: usize,
+    pub native_unsupported_dynamic_value_count: usize,
     pub evaluation: Option<OmenaScssEvalStaticStylesheetEvaluationV0>,
     pub value_resolution: Option<OmenaScssEvalStaticValueResolutionReportV0>,
 }
@@ -246,6 +250,18 @@ pub fn summarize_omena_query_static_stylesheet_evaluator_from_source(
         native_top_value_count: value_resolution
             .as_ref()
             .map_or(0, |resolution| resolution.top_count),
+        native_cycle_value_count: value_resolution
+            .as_ref()
+            .map_or(0, |resolution| resolution.cycle_count),
+        native_fuel_exhausted_value_count: value_resolution
+            .as_ref()
+            .map_or(0, |resolution| resolution.fuel_exhausted_count),
+        native_unresolved_reference_value_count: value_resolution
+            .as_ref()
+            .map_or(0, |resolution| resolution.unresolved_reference_count),
+        native_unsupported_dynamic_value_count: value_resolution
+            .as_ref()
+            .map_or(0, |resolution| resolution.unsupported_dynamic_count),
         evaluation,
         value_resolution,
     }

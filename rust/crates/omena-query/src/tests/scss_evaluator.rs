@@ -1,3 +1,5 @@
+use std::fmt::Write as _;
+
 use crate::{
     OmenaParserStyleDialect, summarize_omena_query_scss_evaluator_control_flow_from_source,
     summarize_omena_query_scss_evaluator_control_flow_oracle_corpus,
@@ -718,6 +720,10 @@ fn exposes_static_stylesheet_evaluator_oracle_through_query_boundary() {
     assert_eq!(summary.native_resolved_value_count, 1);
     assert_eq!(summary.native_raw_value_count, 0);
     assert_eq!(summary.native_top_value_count, 0);
+    assert_eq!(summary.native_cycle_value_count, 0);
+    assert_eq!(summary.native_fuel_exhausted_value_count, 0);
+    assert_eq!(summary.native_unresolved_reference_value_count, 0);
+    assert_eq!(summary.native_unsupported_dynamic_value_count, 0);
     assert!(
         summary
             .evaluation
@@ -769,6 +775,10 @@ fn exposes_sass_static_stylesheet_evaluator_through_query_boundary() {
     assert_eq!(summary.native_resolved_value_count, 1);
     assert_eq!(summary.native_raw_value_count, 0);
     assert_eq!(summary.native_top_value_count, 0);
+    assert_eq!(summary.native_cycle_value_count, 0);
+    assert_eq!(summary.native_fuel_exhausted_value_count, 0);
+    assert_eq!(summary.native_unresolved_reference_value_count, 0);
+    assert_eq!(summary.native_unsupported_dynamic_value_count, 0);
     assert!(summary.evaluation.as_ref().is_some_and(|evaluation| {
         evaluation.evaluated_css == ".card\n  margin: 1px"
             && evaluation.native_edit_output == evaluation.evaluated_css
@@ -800,6 +810,8 @@ fn exposes_unresolved_forward_scss_composite_as_preserved_oracle_output() {
     assert!(summary.all_legacy_declaration_values_preserved);
     assert_eq!(summary.native_replacement_count, 0);
     assert_eq!(summary.native_top_value_count, 1);
+    assert_eq!(summary.native_unresolved_reference_value_count, 1);
+    assert_eq!(summary.native_unsupported_dynamic_value_count, 0);
 
     let Some(resolution) = summary.value_resolution.as_ref() else {
         return;
@@ -834,6 +846,8 @@ fn exposes_dynamic_scss_function_calls_as_preserved_oracle_output() {
     assert!(summary.all_legacy_declaration_values_preserved);
     assert_eq!(summary.native_replacement_count, 0);
     assert_eq!(summary.native_top_value_count, 1);
+    assert_eq!(summary.native_unresolved_reference_value_count, 0);
+    assert_eq!(summary.native_unsupported_dynamic_value_count, 1);
 
     let Some(resolution) = summary.value_resolution.as_ref() else {
         return;
@@ -1332,10 +1346,45 @@ fn exposes_less_dynamic_escaped_strings_as_preserved_raw_oracle_output_through_q
     assert_eq!(summary.native_resolved_value_count, 0);
     assert_eq!(summary.native_raw_value_count, 1);
     assert_eq!(summary.native_top_value_count, 0);
+    assert_eq!(summary.native_unsupported_dynamic_value_count, 1);
     assert!(summary.evaluation.as_ref().is_some_and(|evaluation| {
         evaluation.evaluated_css.contains("filter: ~\"@{name}\"")
             && !evaluation.evaluated_css.contains("@filter:")
     }));
+}
+
+#[test]
+fn exposes_less_fuel_exhaustion_reason_through_query_boundary() {
+    let mut source = String::new();
+    for index in 0..130 {
+        let _ = write!(source, "@v{index}: @v{}; ", index + 1);
+    }
+    source.push_str("@v130: 1px; .button { width: @v0; }");
+
+    let summary = summarize_omena_query_static_stylesheet_evaluator_from_source(
+        source.as_str(),
+        OmenaParserStyleDialect::Less,
+    );
+
+    assert_eq!(summary.product, "omena-query.static-stylesheet-evaluator");
+    assert_eq!(summary.mode, "oracleOnly");
+    assert_eq!(summary.dialect, "less");
+    assert_eq!(summary.value_type, "AbstractCssValueV0");
+    assert!(summary.evaluation_available);
+    assert!(summary.value_resolution_available);
+    assert_eq!(summary.native_value_reference_count, 1);
+    assert_eq!(summary.native_top_value_count, 1);
+    assert_eq!(summary.native_fuel_exhausted_value_count, 1);
+    assert_eq!(summary.native_unresolved_reference_value_count, 0);
+    assert_eq!(summary.native_unsupported_dynamic_value_count, 0);
+
+    let Some(resolution) = summary.value_resolution.as_ref() else {
+        return;
+    };
+    assert_eq!(resolution.reference_count, 1);
+    assert_eq!(resolution.fuel_exhausted_count, 1);
+    assert_eq!(resolution.values[0].outcome, "top");
+    assert_eq!(resolution.values[0].reason, "fuelExhausted");
 }
 
 #[test]
