@@ -79,6 +79,22 @@ fn execution_runtime_removes_stale_vendor_prefixes_with_exact_unprefixed_peers()
     );
 
     assert_eq!(execution.mutation_count, 3);
+    assert_eq!(execution.cascade_proof_obligations.obligation_count, 3);
+    assert_eq!(execution.cascade_proof_obligations.accepted_count, 3);
+    assert_eq!(
+        execution.cascade_proof_obligations.checked_pass_ids,
+        vec!["stale-prefix-removal"]
+    );
+    assert!(
+        execution
+            .cascade_proof_obligations
+            .obligations
+            .iter()
+            .all(|obligation| obligation.proof_product
+                == "omena-cascade.stale-prefix-removal-proof"
+                && obligation.accepted
+                && obligation.canonical_smt_input.is_some())
+    );
     assert!(execution.output_css.contains("user-select: none"));
     assert!(
         execution
@@ -106,6 +122,7 @@ fn execution_runtime_keeps_vendor_prefixes_without_exact_proof() {
     );
 
     assert_eq!(execution.mutation_count, 0);
+    assert_eq!(execution.cascade_proof_obligations.obligation_count, 0);
     assert!(execution.output_css.contains("-webkit-user-select: text"));
     assert!(
         execution

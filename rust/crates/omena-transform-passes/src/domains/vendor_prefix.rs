@@ -5,9 +5,19 @@ use crate::runtime::lex_cache::lex_cached as lex;
 
 use crate::helpers::{
     blocks::at_rule_block_start,
-    declarations::collect_simple_declarations_in_block,
+    declarations::{SimpleDeclarationSlice, collect_simple_declarations_in_block},
     tokens::{matching_right_brace_index, skip_whitespace_tokens, token_end, token_start},
 };
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct StaleVendorPrefixRemovalProofCandidateV0 {
+    pub(crate) source_span_start: usize,
+    pub(crate) source_span_end: usize,
+    pub(crate) prefixed_property: String,
+    pub(crate) unprefixed_property: &'static str,
+    pub(crate) value: String,
+    pub(crate) important: bool,
+}
 
 pub(crate) fn add_css_vendor_prefixes_with_lexer(
     source: &str,
@@ -71,8 +81,25 @@ pub(crate) fn remove_stale_css_vendor_prefixes_with_lexer(
     (output, applied_count)
 }
 
+pub(crate) fn collect_stale_vendor_prefix_removal_proof_candidates_with_lexer(
+    source: &str,
+    dialect: StyleDialect,
+) -> Vec<StaleVendorPrefixRemovalProofCandidateV0> {
+    let lexed = lex(source, dialect);
+    collect_stale_vendor_prefix_removal_proof_candidates(lexed.tokens())
+}
+
 fn collect_stale_vendor_prefix_removals(tokens: &[LexedToken]) -> Vec<(usize, usize)> {
-    let mut removals = Vec::new();
+    collect_stale_vendor_prefix_removal_proof_candidates(tokens)
+        .into_iter()
+        .map(|candidate| (candidate.source_span_start, candidate.source_span_end))
+        .collect()
+}
+
+fn collect_stale_vendor_prefix_removal_proof_candidates(
+    tokens: &[LexedToken],
+) -> Vec<StaleVendorPrefixRemovalProofCandidateV0> {
+    let mut candidates = Vec::new();
     let mut index = 0;
 
     while index < tokens.len() {
@@ -81,18 +108,19 @@ fn collect_stale_vendor_prefix_removals(tokens: &[LexedToken]) -> Vec<(usize, us
         {
             let declarations = collect_simple_declarations_in_block(tokens, index, close_index);
             for declaration in &declarations {
-                let Some(unprefixed_property) =
-                    unprefixed_property_for_stale_prefix(&declaration.property)
+                let Some((unprefixed_property, _peer)) =
+                    exact_unprefixed_peer_for_stale_prefix(declaration, &declarations)
                 else {
                     continue;
                 };
-                if declarations.iter().any(|candidate| {
-                    candidate.property == unprefixed_property
-                        && candidate.value == declaration.value
-                        && candidate.important == declaration.important
-                }) {
-                    removals.push((declaration.start, declaration.end));
-                }
+                candidates.push(StaleVendorPrefixRemovalProofCandidateV0 {
+                    source_span_start: declaration.start,
+                    source_span_end: declaration.end,
+                    prefixed_property: declaration.property.clone(),
+                    unprefixed_property,
+                    value: declaration.value.clone(),
+                    important: declaration.important,
+                });
             }
             index += 1;
             continue;
@@ -100,7 +128,20 @@ fn collect_stale_vendor_prefix_removals(tokens: &[LexedToken]) -> Vec<(usize, us
         index += 1;
     }
 
-    removals
+    candidates
+}
+
+fn exact_unprefixed_peer_for_stale_prefix<'a>(
+    declaration: &SimpleDeclarationSlice,
+    declarations: &'a [SimpleDeclarationSlice],
+) -> Option<(&'static str, &'a SimpleDeclarationSlice)> {
+    let unprefixed_property = unprefixed_property_for_stale_prefix(&declaration.property)?;
+    let peer = declarations.iter().find(|candidate| {
+        candidate.property == unprefixed_property
+            && candidate.value == declaration.value
+            && candidate.important == declaration.important
+    })?;
+    Some((unprefixed_property, peer))
 }
 
 fn collect_vendor_prefix_insertions(source: &str, tokens: &[LexedToken]) -> Vec<(usize, String)> {

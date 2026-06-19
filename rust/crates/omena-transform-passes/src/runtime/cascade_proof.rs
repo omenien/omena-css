@@ -26,6 +26,7 @@ use crate::{
         },
         shorthand::collect_longhand_merge_proof_candidates_with_lexer,
         static_eval::collect_static_supports_proof_candidates_with_lexer,
+        vendor_prefix::collect_stale_vendor_prefix_removal_proof_candidates_with_lexer,
     },
     model::{
         TransformCascadeProofObligationReportV0, TransformCascadeProofObligationV0,
@@ -145,6 +146,22 @@ pub(crate) fn collect_cascade_proof_obligations_for_pass_input(
                 )
             })
             .collect(),
+        Some(TransformPassKind::StalePrefixRemoval) => {
+            collect_stale_vendor_prefix_removal_proof_candidates_with_lexer(source, dialect)
+                .into_iter()
+                .map(|candidate| {
+                    stale_prefix_removal_obligation(
+                        pass_id,
+                        candidate.source_span_start,
+                        candidate.source_span_end,
+                        candidate.prefixed_property,
+                        candidate.unprefixed_property,
+                        candidate.value,
+                        candidate.important,
+                    )
+                })
+                .collect()
+        }
         _ => Vec::new(),
     }
 }
@@ -374,6 +391,57 @@ fn check_layer_flatten_inversion(
     declarations: &[LayerInversionDeclarationV0],
 ) -> LayerFlattenInversionVerdictV0 {
     smt_check_layer_flatten_inversion_v0(declarations, &StubSmtBackendV0::default())
+}
+
+fn stale_prefix_removal_obligation(
+    pass_id: &'static str,
+    source_span_start: usize,
+    source_span_end: usize,
+    prefixed_property: String,
+    unprefixed_property: &'static str,
+    value: String,
+    important: bool,
+) -> TransformCascadeProofObligationV0 {
+    proof_obligation(
+        pass_id,
+        "omena-cascade.stale-prefix-removal-proof",
+        true,
+        None,
+        true,
+        format!(
+            "{prefixed_property} is removed only because {unprefixed_property} has an exact value peer with the same importance flag"
+        ),
+        Some(source_span_start),
+        Some(source_span_end),
+        vec![
+            "knownVendorPrefixMapping",
+            "exactUnprefixedPeer",
+            "sameImportantFlag",
+        ],
+        Some(canonical_smt_input_v0(
+            "stale-prefix-removal-candidate",
+            "prove_stale_prefix_exact_peer",
+            vec![
+                format!("prefixed-property:{prefixed_property}"),
+                format!("unprefixed-property:{unprefixed_property}"),
+                format!("value:{value}"),
+                format!("important:{important}"),
+            ],
+        )),
+        json!({
+            "product": "omena-cascade.stale-prefix-removal-proof",
+            "accepted": true,
+            "prefixedProperty": prefixed_property,
+            "unprefixedProperty": unprefixed_property,
+            "value": value,
+            "important": important,
+            "checkedObligations": [
+                "knownVendorPrefixMapping",
+                "exactUnprefixedPeer",
+                "sameImportantFlag"
+            ]
+        }),
+    )
 }
 
 fn supports_obligation(
