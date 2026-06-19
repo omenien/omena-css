@@ -16,9 +16,9 @@ fn exposes_static_stylesheet_oracle_corpus_through_query_boundary() {
     assert_eq!(summary.mode, "oracleOnly");
     assert_eq!(summary.value_type, "AbstractCssValueV0");
     assert_eq!(summary.product_output_source, "legacyEvaluatedCss");
-    assert_eq!(summary.fixture_count, 15);
+    assert_eq!(summary.fixture_count, 16);
     assert_eq!(summary.scss_fixture_count, 6);
-    assert_eq!(summary.less_fixture_count, 9);
+    assert_eq!(summary.less_fixture_count, 10);
     assert_eq!(summary.evaluated_fixture_count, summary.fixture_count);
     assert_eq!(summary.missing_evaluation_count, 0);
     assert_eq!(summary.divergence_count, 0);
@@ -789,9 +789,44 @@ fn exposes_less_color_metadata_builtins_through_query_boundary() {
     assert_eq!(summary.native_top_value_count, 0);
     assert!(summary.evaluation.as_ref().is_some_and(|evaluation| {
         evaluation.evaluated_css.contains("h: 210")
-            && evaluation.evaluated_css.contains("s: 65.384615%")
-            && evaluation.evaluated_css.contains("l: 20.392157%")
+            && evaluation.evaluated_css.contains("s: 65.38461538%")
+            && evaluation.evaluated_css.contains("l: 20.39215686%")
             && evaluation.evaluated_css.contains("legacy: #80123456")
+    }));
+}
+
+#[test]
+fn exposes_less_hsv_color_metadata_builtins_through_query_boundary() {
+    let summary = summarize_omena_query_static_stylesheet_evaluator_from_source(
+        "@hsv: hsv(210, 60%, 40%); @hsvUnitless: hsv(60, .6, .4); @hsva: hsva(210, 60%, 40%, 50%); @color: #123456; @h: hsvhue(@color); @s: hsvsaturation(@color); @v: hsvvalue(@color); @luma: luma(rgba(18, 52, 86, .5)); @lum: luminance(rgba(18, 52, 86, .5)); .button { hsv: @hsv; hsv-unitless: @hsvUnitless; hsva: @hsva; h: @h; s: @s; v: @v; luma: @luma; luminance: @lum; }",
+        OmenaParserStyleDialect::Less,
+    );
+
+    assert_eq!(summary.product, "omena-query.static-stylesheet-evaluator");
+    assert_eq!(summary.mode, "oracleOnly");
+    assert_eq!(summary.dialect, "less");
+    assert_eq!(summary.value_type, "AbstractCssValueV0");
+    assert!(summary.supported_dialect);
+    assert_eq!(summary.product_output_source, "legacyEvaluatedCss");
+    assert!(summary.legacy_output_consumed_until_cutover);
+    assert!(summary.evaluation_available);
+    assert_eq!(summary.divergence_count, 0);
+    assert!(summary.all_legacy_declaration_values_preserved);
+    assert_eq!(summary.native_replacement_count, 8);
+    assert_eq!(summary.native_resolved_value_count, 8);
+    assert_eq!(summary.native_raw_value_count, 0);
+    assert_eq!(summary.native_top_value_count, 0);
+    assert!(summary.evaluation.as_ref().is_some_and(|evaluation| {
+        evaluation.evaluated_css.contains("hsv: #294766")
+            && evaluation.evaluated_css.contains("hsv-unitless: #666629")
+            && evaluation
+                .evaluated_css
+                .contains("hsva: rgba(41, 71, 102, 0.5)")
+            && evaluation.evaluated_css.contains("h: 210")
+            && evaluation.evaluated_css.contains("s: 79.06976744%")
+            && evaluation.evaluated_css.contains("v: 33.7254902%")
+            && evaluation.evaluated_css.contains("luma: 1.62823344%")
+            && evaluation.evaluated_css.contains("luminance: 9.26007843%")
     }));
 }
 

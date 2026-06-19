@@ -1,11 +1,11 @@
 use omena_value_lattice::{
     SrgbColor, StaticSrgbColorWithAlpha, css_values_canonically_equal,
     number::{
-        format_css_number, parse_reducible_abs_value, parse_reducible_calc_value,
-        parse_reducible_ceil_value, parse_reducible_clamp_value, parse_reducible_exp_value,
-        parse_reducible_floor_value, parse_reducible_hypot_value, parse_reducible_log_value,
-        parse_reducible_max_value, parse_reducible_min_value, parse_reducible_mod_value,
-        parse_reducible_pow_value, parse_reducible_rem_value,
+        compress_number_prefix, format_css_number, numeric_prefix_end, parse_reducible_abs_value,
+        parse_reducible_calc_value, parse_reducible_ceil_value, parse_reducible_clamp_value,
+        parse_reducible_exp_value, parse_reducible_floor_value, parse_reducible_hypot_value,
+        parse_reducible_log_value, parse_reducible_max_value, parse_reducible_min_value,
+        parse_reducible_mod_value, parse_reducible_pow_value, parse_reducible_rem_value,
         parse_reducible_round_to_integer_value, parse_reducible_round_value,
         parse_reducible_sign_value, parse_reducible_sqrt_value, reduce_static_numeric_expression,
     },
@@ -249,6 +249,9 @@ pub(crate) fn reduce_static_less_numeric_value(value: String) -> String {
     ) {
         return reduced;
     }
+    if let Some(reduced) = reduce_static_less_standalone_numeric_literal(trimmed) {
+        return reduced;
+    }
     if let Some(reduced) = reduce_static_numeric_expression(trimmed) {
         return reduced;
     }
@@ -259,6 +262,19 @@ pub(crate) fn reduce_static_less_numeric_value(value: String) -> String {
         return value;
     };
     reduce_static_numeric_expression(inner.trim()).unwrap_or(value)
+}
+
+fn reduce_static_less_standalone_numeric_literal(value: &str) -> Option<String> {
+    parse_numeric_value_with_unit(value)?;
+    let number_end = numeric_prefix_end(value)?;
+    let (number, unit) = value.split_at(number_end);
+    let mut number = compress_number_prefix(number);
+    if let Some(fraction) = number.strip_prefix('.') {
+        number = format!("0.{fraction}");
+    } else if let Some(fraction) = number.strip_prefix("-.") {
+        number = format!("-0.{fraction}");
+    }
+    Some(format!("{number}{unit}"))
 }
 
 pub(crate) fn static_scss_bang_usage_is_comparison_only(value: &str) -> bool {

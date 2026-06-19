@@ -6554,6 +6554,13 @@ fn reduce_static_less_value_with_escape_flag(value: String) -> StaticLessResolve
             ("hue", parse_static_less_hue_value),
             ("saturation", parse_static_less_saturation_value),
             ("lightness", parse_static_less_lightness_value),
+            ("hsv", parse_static_less_hsv_value),
+            ("hsva", parse_static_less_hsva_value),
+            ("hsvhue", parse_static_less_hsvhue_value),
+            ("hsvsaturation", parse_static_less_hsvsaturation_value),
+            ("hsvvalue", parse_static_less_hsvvalue_value),
+            ("luma", parse_static_less_luma_value),
+            ("luminance", parse_static_less_luminance_value),
             ("argb", parse_static_less_argb_value),
             ("fade", parse_static_less_fade_value),
             ("fadein", parse_static_less_fadein_value),
@@ -6692,6 +6699,44 @@ fn parse_static_less_saturation_value(value: &str) -> Option<String> {
 fn parse_static_less_lightness_value(value: &str) -> Option<String> {
     parse_static_less_hsl_channel_value(value, "lightness", |channels| channels.lightness)
         .map(|value| format!("{value}%"))
+}
+
+fn parse_static_less_hsv_value(value: &str) -> Option<String> {
+    let arguments = parse_whole_function_value_arguments(value, "hsv")?;
+    let [hue, saturation, value] = arguments.as_slice() else {
+        return None;
+    };
+    parse_static_less_hsv_color(hue.trim(), saturation.trim(), value.trim(), "1")
+}
+
+fn parse_static_less_hsva_value(value: &str) -> Option<String> {
+    let arguments = parse_whole_function_value_arguments(value, "hsva")?;
+    let [hue, saturation, value, alpha] = arguments.as_slice() else {
+        return None;
+    };
+    parse_static_less_hsv_color(hue.trim(), saturation.trim(), value.trim(), alpha.trim())
+}
+
+fn parse_static_less_hsvhue_value(value: &str) -> Option<String> {
+    parse_static_less_hsv_channel_value(value, "hsvhue", |channels| channels.hue)
+}
+
+fn parse_static_less_hsvsaturation_value(value: &str) -> Option<String> {
+    parse_static_less_hsv_channel_value(value, "hsvsaturation", |channels| channels.saturation)
+        .map(|value| format!("{value}%"))
+}
+
+fn parse_static_less_hsvvalue_value(value: &str) -> Option<String> {
+    parse_static_less_hsv_channel_value(value, "hsvvalue", |channels| channels.value)
+        .map(|value| format!("{value}%"))
+}
+
+fn parse_static_less_luma_value(value: &str) -> Option<String> {
+    parse_static_less_luma_or_luminance_value(value, "luma", static_less_luma)
+}
+
+fn parse_static_less_luminance_value(value: &str) -> Option<String> {
+    parse_static_less_luma_or_luminance_value(value, "luminance", static_less_luminance)
 }
 
 fn parse_static_less_argb_value(value: &str) -> Option<String> {
@@ -6936,6 +6981,13 @@ struct StaticLessHslChannels {
     lightness: f64,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq)]
+struct StaticLessHsvChannels {
+    hue: f64,
+    saturation: f64,
+    value: f64,
+}
+
 fn static_less_hsl_channels(color: StaticSrgbColorWithAlpha) -> StaticLessHslChannels {
     let red = f64::from(color.color.red) / 255.0;
     let green = f64::from(color.color.green) / 255.0;
@@ -6965,6 +7017,37 @@ fn static_less_hsl_channels(color: StaticSrgbColorWithAlpha) -> StaticLessHslCha
         hue: hue_sector * 60.0,
         saturation: saturation * 100.0,
         lightness: lightness * 100.0,
+    }
+}
+
+fn static_less_hsv_channels(color: StaticSrgbColorWithAlpha) -> StaticLessHsvChannels {
+    let red = f64::from(color.color.red) / 255.0;
+    let green = f64::from(color.color.green) / 255.0;
+    let blue = f64::from(color.color.blue) / 255.0;
+    let max = red.max(green).max(blue);
+    let min = red.min(green).min(blue);
+    let delta = max - min;
+    let saturation = if max == 0.0 { 0.0 } else { delta / max };
+
+    if delta == 0.0 {
+        return StaticLessHsvChannels {
+            hue: 0.0,
+            saturation: saturation * 100.0,
+            value: max * 100.0,
+        };
+    }
+
+    let hue_sector = if max == red {
+        ((green - blue) / delta).rem_euclid(6.0)
+    } else if max == green {
+        (blue - red) / delta + 2.0
+    } else {
+        (red - green) / delta + 4.0
+    };
+    StaticLessHsvChannels {
+        hue: hue_sector * 60.0,
+        saturation: saturation * 100.0,
+        value: max * 100.0,
     }
 }
 
@@ -7019,6 +7102,46 @@ fn format_static_less_mixed_color(
         alpha: None,
     };
     format_static_less_color_with_alpha(color, alpha)
+}
+
+fn parse_static_less_hsv_color(
+    hue: &str,
+    saturation: &str,
+    value: &str,
+    alpha: &str,
+) -> Option<String> {
+    let hue = parse_static_less_positive_degrees(hue)?;
+    let saturation = parse_static_less_hsv_unit_interval(saturation)?;
+    let value = parse_static_less_hsv_unit_interval(value)?;
+    let alpha = parse_static_less_alpha_unit_interval(alpha)?;
+    let hue = hue.rem_euclid(360.0);
+    let sector = ((hue / 60.0).floor() as usize) % 6;
+    let fraction = (hue / 60.0) - sector as f64;
+    let candidates = [
+        value,
+        value * (1.0 - saturation),
+        value * (1.0 - fraction * saturation),
+        value * (1.0 - (1.0 - fraction) * saturation),
+    ];
+    let permutation = match sector {
+        0 => [0, 3, 1],
+        1 => [2, 0, 1],
+        2 => [1, 0, 3],
+        3 => [1, 2, 0],
+        4 => [3, 1, 0],
+        _ => [0, 1, 2],
+    };
+    Some(format_static_less_color_with_alpha(
+        StaticSrgbColorWithAlpha {
+            color: SrgbColor {
+                red: static_less_blend_channel(candidates[permutation[0]] * 255.0),
+                green: static_less_blend_channel(candidates[permutation[1]] * 255.0),
+                blue: static_less_blend_channel(candidates[permutation[2]] * 255.0),
+            },
+            alpha: None,
+        },
+        alpha,
+    ))
 }
 
 fn static_less_mix_channel_weight(first_stop: f64, first_alpha: f64, second_alpha: f64) -> f64 {
@@ -7158,6 +7281,60 @@ fn parse_static_less_color_argument(value: &str) -> Option<StaticSrgbColorWithAl
                 .or_else(|| parse_oklab_oklch_value(value))
                 .and_then(|value| parse_static_less_color_argument(value.as_str()))
         })
+}
+
+fn parse_static_less_hsv_channel_value(
+    value: &str,
+    function_name: &str,
+    channel: impl FnOnce(StaticLessHsvChannels) -> f64,
+) -> Option<String> {
+    let arguments = parse_whole_function_value_arguments(value, function_name)?;
+    let [color] = arguments.as_slice() else {
+        return None;
+    };
+    let color = parse_static_less_color_argument(color.trim())?;
+    Some(format_static_less_channel_number(channel(
+        static_less_hsv_channels(color),
+    )))
+}
+
+fn parse_static_less_luma_or_luminance_value(
+    value: &str,
+    function_name: &str,
+    channel: impl FnOnce(SrgbColor) -> f64,
+) -> Option<String> {
+    let arguments = parse_whole_function_value_arguments(value, function_name)?;
+    let [color] = arguments.as_slice() else {
+        return None;
+    };
+    let color = parse_static_less_color_argument(color.trim())?;
+    let alpha = color.alpha.unwrap_or(1.0);
+    Some(format!(
+        "{}%",
+        format_static_less_channel_number(channel(color.color) * alpha * 100.0)
+    ))
+}
+
+fn static_less_luma(color: SrgbColor) -> f64 {
+    0.2126 * static_less_linear_rgb_channel(color.red)
+        + 0.7152 * static_less_linear_rgb_channel(color.green)
+        + 0.0722 * static_less_linear_rgb_channel(color.blue)
+}
+
+fn static_less_luminance(color: SrgbColor) -> f64 {
+    (0.2126 * f64::from(color.red)
+        + 0.7152 * f64::from(color.green)
+        + 0.0722 * f64::from(color.blue))
+        / 255.0
+}
+
+fn static_less_linear_rgb_channel(channel: u8) -> f64 {
+    let channel = f64::from(channel) / 255.0;
+    if channel <= 0.03928 {
+        channel / 12.92
+    } else {
+        ((channel + 0.055) / 1.055).powf(2.4)
+    }
 }
 
 fn parse_static_less_round_value(value: &str) -> Option<String> {
@@ -7391,12 +7568,34 @@ fn parse_static_less_alpha_amount(value: &str) -> Option<f64> {
     Some((parsed.value / 100.0).clamp(0.0, 1.0))
 }
 
+fn parse_static_less_alpha_unit_interval(value: &str) -> Option<f64> {
+    let parsed = parse_numeric_value_with_unit(value)?;
+    if !parsed.value.is_finite() || !matches!(parsed.unit, "" | "%") {
+        return None;
+    }
+    let value = if parsed.unit == "%" {
+        parsed.value / 100.0
+    } else {
+        parsed.value
+    };
+    (0.0..=1.0).contains(&value).then_some(value)
+}
+
+fn parse_static_less_hsv_unit_interval(value: &str) -> Option<f64> {
+    parse_static_less_alpha_unit_interval(value)
+}
+
 fn parse_static_less_percentage_points(value: &str) -> Option<f64> {
     let parsed = parse_numeric_value_with_unit(value)?;
     if !parsed.value.is_finite() || !matches!(parsed.unit, "" | "%") {
         return None;
     }
     Some(parsed.value)
+}
+
+fn parse_static_less_positive_degrees(value: &str) -> Option<f64> {
+    let degrees = parse_static_less_angle_degrees(value)?;
+    (degrees >= 0.0).then_some(degrees)
 }
 
 fn parse_static_less_angle_degrees(value: &str) -> Option<f64> {
@@ -7993,9 +8192,9 @@ mod tests {
         assert_eq!(report.mode, "oracleOnly");
         assert_eq!(report.value_type, "AbstractCssValueV0");
         assert_eq!(report.product_output_source, "legacyEvaluatedCss");
-        assert_eq!(report.fixture_count, 15);
+        assert_eq!(report.fixture_count, 16);
         assert_eq!(report.scss_fixture_count, 6);
-        assert_eq!(report.less_fixture_count, 9);
+        assert_eq!(report.less_fixture_count, 10);
         assert_eq!(report.evaluated_fixture_count, report.fixture_count);
         assert_eq!(report.missing_evaluation_count, 0);
         assert_eq!(report.divergence_count, 0);
@@ -9946,9 +10145,38 @@ mod tests {
         assert_eq!(report.value_resolution.resolved_count, 4);
         assert_eq!(report.value_resolution.raw_count, 0);
         assert!(report.evaluated_css.contains("h: 210"));
-        assert!(report.evaluated_css.contains("s: 65.384615%"));
-        assert!(report.evaluated_css.contains("l: 20.392157%"));
+        assert!(report.evaluated_css.contains("s: 65.38461538%"));
+        assert!(report.evaluated_css.contains("l: 20.39215686%"));
         assert!(report.evaluated_css.contains("legacy: #80123456"));
+        assert!(report.oracle.all_legacy_declaration_values_preserved);
+    }
+
+    #[test]
+    fn static_less_evaluation_reduces_hsv_color_metadata_builtin_values() {
+        let report = derive_static_stylesheet_module_evaluation(
+            "@hsv: hsv(210, 60%, 40%); @hsvUnitless: hsv(60, .6, .4); @hsva: hsva(210, 60%, 40%, 50%); @color: #123456; @h: hsvhue(@color); @s: hsvsaturation(@color); @v: hsvvalue(@color); @luma: luma(rgba(18, 52, 86, .5)); @lum: luminance(rgba(18, 52, 86, .5)); .button { hsv: @hsv; hsv-unitless: @hsvUnitless; hsva: @hsva; h: @h; s: @s; v: @v; luma: @luma; luminance: @lum; }",
+            StyleDialect::Less,
+        );
+        assert!(report.is_some());
+        let Some(report) = report else {
+            return;
+        };
+
+        assert_eq!(report.replacement_count, 8);
+        assert_eq!(report.value_resolution.resolved_count, 8);
+        assert_eq!(report.value_resolution.raw_count, 0);
+        assert!(report.evaluated_css.contains("hsv: #294766"));
+        assert!(report.evaluated_css.contains("hsv-unitless: #666629"));
+        assert!(
+            report
+                .evaluated_css
+                .contains("hsva: rgba(41, 71, 102, 0.5)")
+        );
+        assert!(report.evaluated_css.contains("h: 210"));
+        assert!(report.evaluated_css.contains("s: 79.06976744%"));
+        assert!(report.evaluated_css.contains("v: 33.7254902%"));
+        assert!(report.evaluated_css.contains("luma: 1.62823344%"));
+        assert!(report.evaluated_css.contains("luminance: 9.26007843%"));
         assert!(report.oracle.all_legacy_declaration_values_preserved);
     }
 

@@ -240,5 +240,10 @@ fn static_stylesheet_oracle_corpus_fixtures() -> &'static [StaticStylesheetOracl
             dialect: StyleDialect::Less,
             source: "@tone: overlay(#123456, #abcdef); @surface: screen(red, blue); @alpha: screen(rgba(255, 102, 0, .5), rgba(0, 0, 255, .25)); .button { color: @tone; background: @surface; border-color: @alpha; }",
         },
+        StaticStylesheetOracleCorpusFixtureV0 {
+            id: "less.hsv-color-metadata",
+            dialect: StyleDialect::Less,
+            source: "@tone: hsv(210, 60%, 40%); @alpha: hsva(210, 60%, 40%, 50%); @v: hsvvalue(#123456); .button { color: @tone; border-color: @alpha; opacity: @v; }",
+        },
     ]
 }
