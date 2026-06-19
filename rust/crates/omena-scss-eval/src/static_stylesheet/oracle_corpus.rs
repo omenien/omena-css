@@ -245,5 +245,10 @@ fn static_stylesheet_oracle_corpus_fixtures() -> &'static [StaticStylesheetOracl
             dialect: StyleDialect::Less,
             source: "@tone: hsv(210, 60%, 40%); @alpha: hsva(210, 60%, 40%, 50%); @v: hsvvalue(#123456); .button { color: @tone; border-color: @alpha; opacity: @v; }",
         },
+        StaticStylesheetOracleCorpusFixtureV0 {
+            id: "less.contrast-color",
+            dialect: StyleDialect::Less,
+            source: "@contrast: contrast(#123456); @tone: color(\"#12345680\"); @keyword: color(red); .button { color: @contrast; border-color: @tone; background: @keyword; }",
+        },
     ]
 }

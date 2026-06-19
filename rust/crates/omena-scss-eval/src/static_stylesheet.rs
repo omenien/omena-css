@@ -4,9 +4,9 @@ use omena_abstract_value::{AbstractCssValueV0, abstract_css_value_from_text};
 use omena_parser::{LexedToken, ParsedVariableFact, ParsedVariableFactKind, StyleDialect, lex};
 use omena_syntax::SyntaxKind;
 use omena_value_lattice::{
-    SrgbColor, StaticSrgbColorWithAlpha, format_css_number, parse_color_function_value,
-    parse_color_mix_value, parse_numeric_value_with_unit, parse_oklab_oklch_value,
-    parse_reducible_ceil_value, parse_reducible_floor_value,
+    SrgbColor, StaticSrgbColorWithAlpha, format_css_number, parse_basic_named_srgb_color,
+    parse_color_function_value, parse_color_mix_value, parse_numeric_value_with_unit,
+    parse_oklab_oklch_value, parse_reducible_ceil_value, parse_reducible_floor_value,
     parse_static_hsl_function_color_with_alpha, parse_static_hwb_function_color_with_alpha,
     parse_static_rgb_function_color_with_alpha, parse_static_srgb_color_with_alpha,
     parse_whole_function_value_arguments, parse_whole_function_value_inner,
@@ -6561,6 +6561,8 @@ fn reduce_static_less_value_with_escape_flag(value: String) -> StaticLessResolve
             ("hsvvalue", parse_static_less_hsvvalue_value),
             ("luma", parse_static_less_luma_value),
             ("luminance", parse_static_less_luminance_value),
+            ("contrast", parse_static_less_contrast_value),
+            ("color", parse_static_less_color_value),
             ("argb", parse_static_less_argb_value),
             ("fade", parse_static_less_fade_value),
             ("fadein", parse_static_less_fadein_value),
@@ -6737,6 +6739,79 @@ fn parse_static_less_luma_value(value: &str) -> Option<String> {
 
 fn parse_static_less_luminance_value(value: &str) -> Option<String> {
     parse_static_less_luma_or_luminance_value(value, "luminance", static_less_luminance)
+}
+
+fn parse_static_less_contrast_value(value: &str) -> Option<String> {
+    let arguments = parse_whole_function_value_arguments(value, "contrast")?;
+    let (color, dark, light, threshold) = match arguments.as_slice() {
+        [color] => (color.as_str(), None, None, None),
+        [color, dark] => (color.as_str(), Some(dark.as_str()), None, None),
+        [color, dark, light] => (
+            color.as_str(),
+            Some(dark.as_str()),
+            Some(light.as_str()),
+            None,
+        ),
+        [color, dark, light, threshold] => (
+            color.as_str(),
+            Some(dark.as_str()),
+            Some(light.as_str()),
+            Some(threshold.as_str()),
+        ),
+        _ => return None,
+    };
+    let color = parse_static_less_color_argument(color.trim())?;
+    let mut dark = match dark {
+        Some(dark) => parse_static_less_color_argument(dark.trim())?,
+        None => static_less_opaque_srgb_color(0, 0, 0),
+    };
+    let mut light = match light {
+        Some(light) => parse_static_less_color_argument(light.trim())?,
+        None => static_less_opaque_srgb_color(255, 255, 255),
+    };
+    if static_less_luma(dark.color) > static_less_luma(light.color) {
+        std::mem::swap(&mut dark, &mut light);
+    }
+    let threshold = threshold
+        .map(|threshold| parse_static_less_threshold_number(threshold.trim()))
+        .unwrap_or(Some(0.43))?;
+    let selected = if static_less_luma(color.color) < threshold {
+        light
+    } else {
+        dark
+    };
+    Some(format_static_less_color_with_alpha(
+        selected,
+        selected.alpha.unwrap_or(1.0),
+    ))
+}
+
+fn parse_static_less_color_value(value: &str) -> Option<String> {
+    let arguments = parse_whole_function_value_arguments(value, "color")?;
+    let [color] = arguments.as_slice() else {
+        return None;
+    };
+    let color = color.trim();
+    if let Some(hex) = parse_static_less_quoted_hex_color_literal(color) {
+        return Some(hex);
+    }
+    if let Some(named) = static_less_quoted_string_contents(color)
+        .as_deref()
+        .and_then(parse_basic_named_srgb_color)
+    {
+        return Some(format_static_less_color_with_alpha(
+            StaticSrgbColorWithAlpha {
+                color: named,
+                alpha: None,
+            },
+            1.0,
+        ));
+    }
+    let color = parse_static_less_color_argument(color)?;
+    Some(format_static_less_color_with_alpha(
+        color,
+        color.alpha.unwrap_or(1.0),
+    ))
 }
 
 fn parse_static_less_argb_value(value: &str) -> Option<String> {
@@ -7283,6 +7358,13 @@ fn parse_static_less_color_argument(value: &str) -> Option<StaticSrgbColorWithAl
         })
 }
 
+fn static_less_opaque_srgb_color(red: u8, green: u8, blue: u8) -> StaticSrgbColorWithAlpha {
+    StaticSrgbColorWithAlpha {
+        color: SrgbColor { red, green, blue },
+        alpha: None,
+    }
+}
+
 fn parse_static_less_hsv_channel_value(
     value: &str,
     function_name: &str,
@@ -7402,7 +7484,7 @@ fn format_static_less_color_with_alpha(color: StaticSrgbColorWithAlpha, alpha: f
         color.color.red,
         color.color.green,
         color.color.blue,
-        format_static_less_number(alpha)
+        format_static_less_channel_number(alpha)
     )
 }
 
@@ -7585,6 +7667,18 @@ fn parse_static_less_hsv_unit_interval(value: &str) -> Option<f64> {
     parse_static_less_alpha_unit_interval(value)
 }
 
+fn parse_static_less_threshold_number(value: &str) -> Option<f64> {
+    let parsed = parse_numeric_value_with_unit(value)?;
+    if !parsed.value.is_finite() || !matches!(parsed.unit, "" | "%") {
+        return None;
+    }
+    Some(if parsed.unit == "%" {
+        parsed.value / 100.0
+    } else {
+        parsed.value
+    })
+}
+
 fn parse_static_less_percentage_points(value: &str) -> Option<f64> {
     let parsed = parse_numeric_value_with_unit(value)?;
     if !parsed.value.is_finite() || !matches!(parsed.unit, "" | "%") {
@@ -7662,6 +7756,16 @@ fn static_less_quoted_string_contents(value: &str) -> Option<String> {
         index += ch.len_utf8();
     }
     None
+}
+
+fn parse_static_less_quoted_hex_color_literal(value: &str) -> Option<String> {
+    let text = static_less_quoted_string_contents(value)?;
+    let hex = text.strip_prefix('#')?;
+    matches!(hex.len(), 3 | 4 | 6 | 8)
+        .then_some(hex)?
+        .chars()
+        .all(|ch| ch.is_ascii_hexdigit())
+        .then_some(text)
 }
 
 fn static_stylesheet_less_declaration_value_is_removal_safe(value: &str) -> bool {
@@ -8192,9 +8296,9 @@ mod tests {
         assert_eq!(report.mode, "oracleOnly");
         assert_eq!(report.value_type, "AbstractCssValueV0");
         assert_eq!(report.product_output_source, "legacyEvaluatedCss");
-        assert_eq!(report.fixture_count, 16);
+        assert_eq!(report.fixture_count, 17);
         assert_eq!(report.scss_fixture_count, 6);
-        assert_eq!(report.less_fixture_count, 10);
+        assert_eq!(report.less_fixture_count, 11);
         assert_eq!(report.evaluated_fixture_count, report.fixture_count);
         assert_eq!(report.missing_evaluation_count, 0);
         assert_eq!(report.divergence_count, 0);
@@ -10177,6 +10281,31 @@ mod tests {
         assert!(report.evaluated_css.contains("v: 33.7254902%"));
         assert!(report.evaluated_css.contains("luma: 1.62823344%"));
         assert!(report.evaluated_css.contains("luminance: 9.26007843%"));
+        assert!(report.oracle.all_legacy_declaration_values_preserved);
+    }
+
+    #[test]
+    fn static_less_evaluation_reduces_contrast_and_color_builtin_values() {
+        let report = derive_static_stylesheet_module_evaluation(
+            "@dark: contrast(#123456); @light: contrast(#eeeeee); @custom: contrast(#123456, #111111, #eeeeee); @threshold: contrast(#888888, #111111, #eeeeee, 60%); @hex: color(\"#123456\"); @short: color(\"#abc\"); @alpha: color(\"#12345680\"); @kw: color(red); .button { dark: @dark; light: @light; custom: @custom; threshold: @threshold; hex: @hex; short: @short; alpha: @alpha; kw: @kw; }",
+            StyleDialect::Less,
+        );
+        assert!(report.is_some());
+        let Some(report) = report else {
+            return;
+        };
+
+        assert_eq!(report.replacement_count, 8);
+        assert_eq!(report.value_resolution.resolved_count, 8);
+        assert_eq!(report.value_resolution.raw_count, 0);
+        assert!(report.evaluated_css.contains("dark: #ffffff"));
+        assert!(report.evaluated_css.contains("light: #000000"));
+        assert!(report.evaluated_css.contains("custom: #eeeeee"));
+        assert!(report.evaluated_css.contains("threshold: #eeeeee"));
+        assert!(report.evaluated_css.contains("hex: #123456"));
+        assert!(report.evaluated_css.contains("short: #abc"));
+        assert!(report.evaluated_css.contains("alpha: #12345680"));
+        assert!(report.evaluated_css.contains("kw: #ff0000"));
         assert!(report.oracle.all_legacy_declaration_values_preserved);
     }
 
