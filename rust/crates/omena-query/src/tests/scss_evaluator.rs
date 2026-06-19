@@ -23,6 +23,12 @@ fn exposes_static_stylesheet_oracle_corpus_through_query_boundary() {
     assert_eq!(summary.missing_evaluation_count, 0);
     assert_eq!(summary.divergence_count, 0);
     assert!(summary.native_replacement_count > 0);
+    assert!(summary.native_replacement_legacy_reflection_count > 0);
+    assert_eq!(
+        summary.native_replacement_legacy_reflection_count
+            + summary.native_replacement_legacy_unreflected_count,
+        summary.native_replacement_count
+    );
     assert!(summary.native_value_reference_count > 0);
     assert!(summary.native_resolved_value_count > 0);
     assert!(summary.native_top_value_count > 0);
@@ -307,6 +313,8 @@ fn exposes_static_stylesheet_evaluator_oracle_through_query_boundary() {
     assert_eq!(summary.divergence_count, 0);
     assert!(summary.all_legacy_declaration_values_preserved);
     assert_eq!(summary.native_replacement_count, 1);
+    assert_eq!(summary.native_replacement_legacy_reflection_count, 1);
+    assert_eq!(summary.native_replacement_legacy_unreflected_count, 0);
     assert_eq!(summary.native_value_reference_count, 1);
     assert_eq!(summary.native_resolved_value_count, 1);
     assert_eq!(summary.native_raw_value_count, 0);

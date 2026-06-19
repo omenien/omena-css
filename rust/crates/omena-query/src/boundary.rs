@@ -181,6 +181,8 @@ pub struct OmenaQueryStaticStylesheetEvaluatorSummaryV0 {
     pub divergence_count: usize,
     pub all_legacy_declaration_values_preserved: bool,
     pub native_replacement_count: usize,
+    pub native_replacement_legacy_reflection_count: usize,
+    pub native_replacement_legacy_unreflected_count: usize,
     pub native_value_reference_count: usize,
     pub native_resolved_value_count: usize,
     pub native_raw_value_count: usize,
@@ -204,6 +206,8 @@ pub struct OmenaQueryStaticStylesheetEvaluatorOracleCorpusSummaryV0 {
     pub missing_evaluation_count: usize,
     pub divergence_count: usize,
     pub native_replacement_count: usize,
+    pub native_replacement_legacy_reflection_count: usize,
+    pub native_replacement_legacy_unreflected_count: usize,
     pub native_value_reference_count: usize,
     pub native_resolved_value_count: usize,
     pub native_raw_value_count: usize,
@@ -247,6 +251,12 @@ pub fn summarize_omena_query_static_stylesheet_evaluator_from_source(
         native_replacement_count: evaluation
             .as_ref()
             .map_or(0, |evaluation| evaluation.replacement_count),
+        native_replacement_legacy_reflection_count: evaluation.as_ref().map_or(0, |evaluation| {
+            evaluation.native_replacement_legacy_reflection_count
+        }),
+        native_replacement_legacy_unreflected_count: evaluation.as_ref().map_or(0, |evaluation| {
+            evaluation.native_replacement_legacy_unreflected_count
+        }),
         native_value_reference_count: value_resolution
             .as_ref()
             .map_or(0, |resolution| resolution.reference_count),
@@ -280,6 +290,10 @@ pub fn summarize_omena_query_static_stylesheet_evaluator_oracle_corpus()
         missing_evaluation_count: corpus.missing_evaluation_count,
         divergence_count: corpus.divergence_count,
         native_replacement_count: corpus.native_replacement_count,
+        native_replacement_legacy_reflection_count: corpus
+            .native_replacement_legacy_reflection_count,
+        native_replacement_legacy_unreflected_count: corpus
+            .native_replacement_legacy_unreflected_count,
         native_value_reference_count: corpus.native_value_reference_count,
         native_resolved_value_count: corpus.native_resolved_value_count,
         native_raw_value_count: corpus.native_raw_value_count,
