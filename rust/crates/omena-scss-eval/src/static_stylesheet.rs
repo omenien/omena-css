@@ -6641,6 +6641,7 @@ fn reduce_static_less_value_with_escape_flag(value: String) -> StaticLessResolve
             ("extract", parse_static_less_extract_value),
             ("range", parse_static_less_range_value),
             ("replace", parse_static_less_replace_value),
+            ("%", parse_static_less_format_value),
         ],
     )
     .unwrap_or(value);
@@ -7950,6 +7951,62 @@ fn parse_static_less_replace_value(value: &str) -> Option<String> {
     input.render(output.as_str())
 }
 
+fn parse_static_less_format_value(value: &str) -> Option<String> {
+    let arguments = parse_whole_function_value_arguments(value, "%")?;
+    let [format, replacements @ ..] = arguments.as_slice() else {
+        return None;
+    };
+    let format = static_less_string_argument(format.trim())?;
+    let mut replacement_index = 0usize;
+    let mut output = String::new();
+    let mut chars = format.text.chars().peekable();
+
+    while let Some(ch) = chars.next() {
+        if ch != '%' {
+            output.push(ch);
+            continue;
+        }
+
+        let Some(specifier) = chars.next() else {
+            output.push('%');
+            break;
+        };
+        if specifier == '%' {
+            output.push('%');
+            continue;
+        }
+        if !matches!(specifier, 's' | 'S' | 'd' | 'D' | 'a' | 'A') {
+            return None;
+        }
+
+        let Some(replacement) = replacements.get(replacement_index) else {
+            output.push('%');
+            output.push(specifier);
+            continue;
+        };
+        replacement_index += 1;
+        let replacement = static_less_format_argument_text(replacement.trim())?;
+        if specifier.is_ascii_uppercase() {
+            output.push_str(percent_encode_static_less_escape_value(replacement.as_str()).as_str());
+        } else {
+            output.push_str(replacement.as_str());
+        }
+    }
+
+    format.render(output.as_str())
+}
+
+fn static_less_format_argument_text(value: &str) -> Option<String> {
+    if let Some(argument) = static_less_string_argument(value) {
+        return Some(argument.text);
+    }
+    (!value.is_empty()
+        && !value
+            .chars()
+            .any(|ch| matches!(ch, '\n' | '\r' | '\u{000c}')))
+    .then(|| value.to_string())
+}
+
 #[derive(Debug, Clone)]
 struct StaticLessStringArgument {
     text: String,
@@ -8893,9 +8950,9 @@ mod tests {
         assert_eq!(report.mode, "oracleOnly");
         assert_eq!(report.value_type, "AbstractCssValueV0");
         assert_eq!(report.product_output_source, "legacyEvaluatedCss");
-        assert_eq!(report.fixture_count, 24);
+        assert_eq!(report.fixture_count, 25);
         assert_eq!(report.scss_fixture_count, 6);
-        assert_eq!(report.less_fixture_count, 18);
+        assert_eq!(report.less_fixture_count, 19);
         assert_eq!(report.evaluated_fixture_count, report.fixture_count);
         assert_eq!(report.missing_evaluation_count, 0);
         assert_eq!(report.divergence_count, 0);
@@ -11252,6 +11309,29 @@ mod tests {
         assert!(report.evaluated_css.contains("all: \"heLLo\""));
         assert!(report.evaluated_css.contains("fold: \"xx\""));
         assert!(report.evaluated_css.contains("bare: heXlo"));
+        assert!(report.oracle.all_legacy_declaration_values_preserved);
+    }
+
+    #[test]
+    fn static_less_evaluation_reduces_format_builtin_values() {
+        let report = derive_static_stylesheet_module_evaluation(
+            "@name: %(\"hello %s\", \"less\"); @num: %(\"%dpx\", 12); @encoded: %(\"%S\", \"x y\"); @literal: %(\"%% done\"); @missing: %(\"%s %s\", alpha); @extra: %(\"%s\", beta, ignored); @escaped: %(~\"hello-%s\", less); .button { name: @name; num: @num; encoded: @encoded; literal: @literal; missing: @missing; extra: @extra; escaped: @escaped; }",
+            StyleDialect::Less,
+        );
+        assert!(report.is_some());
+        let Some(report) = report else {
+            return;
+        };
+
+        assert_eq!(report.replacement_count, 7);
+        assert_eq!(report.value_resolution.raw_count, 7);
+        assert!(report.evaluated_css.contains("name: \"hello less\""));
+        assert!(report.evaluated_css.contains("num: \"12px\""));
+        assert!(report.evaluated_css.contains("encoded: \"x%20y\""));
+        assert!(report.evaluated_css.contains("literal: \"% done\""));
+        assert!(report.evaluated_css.contains("missing: \"alpha %s\""));
+        assert!(report.evaluated_css.contains("extra: \"beta\""));
+        assert!(report.evaluated_css.contains("escaped: hello-less"));
         assert!(report.oracle.all_legacy_declaration_values_preserved);
     }
 

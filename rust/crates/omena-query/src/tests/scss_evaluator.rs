@@ -16,9 +16,9 @@ fn exposes_static_stylesheet_oracle_corpus_through_query_boundary() {
     assert_eq!(summary.mode, "oracleOnly");
     assert_eq!(summary.value_type, "AbstractCssValueV0");
     assert_eq!(summary.product_output_source, "legacyEvaluatedCss");
-    assert_eq!(summary.fixture_count, 24);
+    assert_eq!(summary.fixture_count, 25);
     assert_eq!(summary.scss_fixture_count, 6);
-    assert_eq!(summary.less_fixture_count, 18);
+    assert_eq!(summary.less_fixture_count, 19);
     assert_eq!(summary.evaluated_fixture_count, summary.fixture_count);
     assert_eq!(summary.missing_evaluation_count, 0);
     assert_eq!(summary.divergence_count, 0);
@@ -65,6 +65,13 @@ fn exposes_static_stylesheet_oracle_corpus_through_query_boundary() {
             .fixtures
             .iter()
             .any(|fixture| fixture.id == "less.rgb-color-constructors")
+    );
+    assert!(
+        summary
+            .corpus
+            .fixtures
+            .iter()
+            .any(|fixture| fixture.id == "less.format-string")
     );
 }
 
@@ -1270,6 +1277,37 @@ fn exposes_less_replace_builtin_through_query_boundary() {
             && evaluation.evaluated_css.contains("all: \"heLLo\"")
             && evaluation.evaluated_css.contains("fold: \"xx\"")
             && evaluation.evaluated_css.contains("bare: heXlo")
+    }));
+}
+
+#[test]
+fn exposes_less_format_builtin_through_query_boundary() {
+    let summary = summarize_omena_query_static_stylesheet_evaluator_from_source(
+        "@name: %(\"hello %s\", \"less\"); @num: %(\"%dpx\", 12); @encoded: %(\"%S\", \"x y\"); @literal: %(\"%% done\"); @missing: %(\"%s %s\", alpha); @extra: %(\"%s\", beta, ignored); @escaped: %(~\"hello-%s\", less); .button { name: @name; num: @num; encoded: @encoded; literal: @literal; missing: @missing; extra: @extra; escaped: @escaped; }",
+        OmenaParserStyleDialect::Less,
+    );
+
+    assert_eq!(summary.product, "omena-query.static-stylesheet-evaluator");
+    assert_eq!(summary.mode, "oracleOnly");
+    assert_eq!(summary.dialect, "less");
+    assert_eq!(summary.value_type, "AbstractCssValueV0");
+    assert!(summary.supported_dialect);
+    assert_eq!(summary.product_output_source, "legacyEvaluatedCss");
+    assert!(summary.legacy_output_consumed_until_cutover);
+    assert!(summary.evaluation_available);
+    assert_eq!(summary.divergence_count, 0);
+    assert!(summary.all_legacy_declaration_values_preserved);
+    assert_eq!(summary.native_replacement_count, 7);
+    assert_eq!(summary.native_raw_value_count, 7);
+    assert_eq!(summary.native_top_value_count, 0);
+    assert!(summary.evaluation.as_ref().is_some_and(|evaluation| {
+        evaluation.evaluated_css.contains("name: \"hello less\"")
+            && evaluation.evaluated_css.contains("num: \"12px\"")
+            && evaluation.evaluated_css.contains("encoded: \"x%20y\"")
+            && evaluation.evaluated_css.contains("literal: \"% done\"")
+            && evaluation.evaluated_css.contains("missing: \"alpha %s\"")
+            && evaluation.evaluated_css.contains("extra: \"beta\"")
+            && evaluation.evaluated_css.contains("escaped: hello-less")
     }));
 }
 
