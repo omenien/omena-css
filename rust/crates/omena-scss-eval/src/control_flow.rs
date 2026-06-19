@@ -14,6 +14,7 @@ use omena_transform_cst::StableNodeKeyV0;
 use crate::{
     abstract_css_value_kind,
     scss_metadata::reduce_static_scss_metadata_with_context,
+    static_loop_frames::parse_static_scss_each_loop_binding_frames,
     value_eval::{
         reduce_static_scss_value, static_scss_bang_usage_is_comparison_only,
         static_scss_literal_truthiness,
@@ -3091,10 +3092,7 @@ fn loop_carried_binding_values(
     header: &str,
     lexical_bindings: &BTreeMap<String, AbstractCssValueV0>,
 ) -> Vec<ScssControlFlowBindingValue> {
-    if let Some(values) = static_each_map_loop_binding_values(header, lexical_bindings) {
-        return values;
-    }
-    if let Some(values) = static_each_tuple_loop_binding_values(header, lexical_bindings) {
+    if let Some(values) = static_each_loop_binding_values(header, lexical_bindings) {
         return values;
     }
     let value = loop_carried_value(header, lexical_bindings);
@@ -3119,9 +3117,7 @@ fn loop_carried_binding_frames(
         return static_while_loop_binding_frames(header, lexical_bindings);
     }
     static_for_loop_binding_frames(header, lexical_bindings)
-        .or_else(|| static_each_map_loop_binding_frames(header, lexical_bindings))
-        .or_else(|| static_each_tuple_loop_binding_frames(header, lexical_bindings))
-        .or_else(|| static_each_single_loop_binding_frames(header, lexical_bindings))
+        .or_else(|| static_each_loop_binding_frames(header, lexical_bindings))
         .or_else(|| static_while_loop_binding_frames(header, lexical_bindings))
 }
 
@@ -3243,167 +3239,52 @@ fn static_while_loop_binding_frames(
     }
 }
 
-fn static_each_map_loop_binding_frames(
+fn static_each_loop_binding_frames(
     header: &str,
     lexical_bindings: &BTreeMap<String, AbstractCssValueV0>,
 ) -> Option<Vec<Vec<ScssControlFlowBindingValue>>> {
-    let bindings = loop_carried_bindings(header);
-    if bindings.len() != 2 {
-        return None;
-    }
-    let (_, source) = split_header_at_keyword(header, "in")?;
-    let source = static_each_source_text(source.trim(), lexical_bindings)?;
-    let entries = parse_static_each_map_entries(source)?;
-    if entries.len() > 64 {
-        return None;
-    }
-    Some(
-        entries
+    parse_static_scss_each_loop_binding_frames(header, |source| {
+        static_each_source_text(source.trim(), lexical_bindings).map(str::to_string)
+    })
+    .map(|frames| {
+        frames
             .into_iter()
-            .map(|(key, value)| {
-                vec![
-                    ScssControlFlowBindingValue {
-                        name: bindings[0].clone(),
-                        value: abstract_css_value_from_text(key.as_str()),
-                    },
-                    ScssControlFlowBindingValue {
-                        name: bindings[1].clone(),
-                        value: abstract_css_value_from_text(value.as_str()),
-                    },
-                ]
-            })
-            .collect(),
-    )
-}
-
-fn static_each_tuple_loop_binding_frames(
-    header: &str,
-    lexical_bindings: &BTreeMap<String, AbstractCssValueV0>,
-) -> Option<Vec<Vec<ScssControlFlowBindingValue>>> {
-    let bindings = loop_carried_bindings(header);
-    if bindings.len() <= 1 {
-        return None;
-    }
-    let (_, source) = split_header_at_keyword(header, "in")?;
-    let source = static_each_source_text(source.trim(), lexical_bindings)?;
-    let entries = parse_static_each_tuple_entries(source, bindings.len())?;
-    if entries.len() > 64 {
-        return None;
-    }
-    Some(
-        entries
-            .into_iter()
-            .map(|entry| {
-                bindings
-                    .iter()
-                    .zip(entry)
+            .map(|frame| {
+                frame
+                    .into_iter()
                     .map(|(name, value)| ScssControlFlowBindingValue {
-                        name: name.clone(),
+                        name,
                         value: abstract_css_value_from_text(value.as_str()),
                     })
                     .collect()
             })
-            .collect(),
-    )
+            .collect()
+    })
 }
 
-fn static_each_single_loop_binding_frames(
-    header: &str,
-    lexical_bindings: &BTreeMap<String, AbstractCssValueV0>,
-) -> Option<Vec<Vec<ScssControlFlowBindingValue>>> {
-    let bindings = loop_carried_bindings(header);
-    if bindings.len() != 1 {
-        return None;
-    }
-    let (_, source) = split_header_at_keyword(header, "in")?;
-    let source = static_each_source_text(source.trim(), lexical_bindings)?;
-    let values = split_static_scss_top_level(source, ',')?;
-    if values.is_empty() || values.len() > 64 {
-        return None;
-    }
-    Some(
-        values
-            .into_iter()
-            .map(|value| {
-                vec![ScssControlFlowBindingValue {
-                    name: bindings[0].clone(),
-                    value: abstract_css_value_from_text(value.as_str()),
-                }]
-            })
-            .collect(),
-    )
-}
-
-fn static_each_map_loop_binding_values(
+fn static_each_loop_binding_values(
     header: &str,
     lexical_bindings: &BTreeMap<String, AbstractCssValueV0>,
 ) -> Option<Vec<ScssControlFlowBindingValue>> {
-    let bindings = loop_carried_bindings(header);
-    if bindings.len() != 2 {
-        return None;
-    }
-    let (_, source) = split_header_at_keyword(header, "in")?;
-    let source = static_each_source_text(source.trim(), lexical_bindings)?;
-    let entries = parse_static_each_map_entries(source)?;
-    if entries.len() > 64 {
+    let frames = static_each_loop_binding_frames(header, lexical_bindings)?;
+    if frames.len() <= 1 {
         return None;
     }
 
-    let key_value = entries
-        .iter()
-        .map(|(key, _)| abstract_css_value_from_text(key.as_str()))
-        .fold(AbstractCssValueV0::Bottom, |acc, value| {
-            join_abstract_css_values(&acc, &value)
-        });
-    let item_value = entries
-        .iter()
-        .map(|(_, value)| abstract_css_value_from_text(value.as_str()))
-        .fold(AbstractCssValueV0::Bottom, |acc, value| {
-            join_abstract_css_values(&acc, &value)
-        });
-
-    Some(vec![
-        ScssControlFlowBindingValue {
-            name: bindings[0].clone(),
-            value: key_value,
-        },
-        ScssControlFlowBindingValue {
-            name: bindings[1].clone(),
-            value: item_value,
-        },
-    ])
-}
-
-fn static_each_tuple_loop_binding_values(
-    header: &str,
-    lexical_bindings: &BTreeMap<String, AbstractCssValueV0>,
-) -> Option<Vec<ScssControlFlowBindingValue>> {
-    let bindings = loop_carried_bindings(header);
-    if bindings.len() <= 1 {
-        return None;
+    let mut values = Vec::<ScssControlFlowBindingValue>::new();
+    for frame in frames {
+        for binding in frame {
+            if let Some(existing) = values.iter_mut().find(|existing| {
+                canonical_scss_variable_name(existing.name.as_str())
+                    == canonical_scss_variable_name(binding.name.as_str())
+            }) {
+                existing.value = join_abstract_css_values(&existing.value, &binding.value);
+            } else {
+                values.push(binding);
+            }
+        }
     }
-    let (_, source) = split_header_at_keyword(header, "in")?;
-    let source = static_each_source_text(source.trim(), lexical_bindings)?;
-    let entries = parse_static_each_tuple_entries(source, bindings.len())?;
-    if entries.len() > 64 {
-        return None;
-    }
-
-    Some(
-        bindings
-            .into_iter()
-            .enumerate()
-            .map(|(index, name)| {
-                let value = entries
-                    .iter()
-                    .map(|entry| abstract_css_value_from_text(entry[index].as_str()))
-                    .fold(AbstractCssValueV0::Bottom, |acc, value| {
-                        join_abstract_css_values(&acc, &value)
-                    });
-                ScssControlFlowBindingValue { name, value }
-            })
-            .collect(),
-    )
+    (!values.is_empty()).then_some(values)
 }
 
 fn while_loop_carried_binding_values(
@@ -3802,94 +3683,6 @@ fn static_each_source_text<'a>(
     Some(source)
 }
 
-fn parse_static_each_map_entries(source: &str) -> Option<Vec<(String, String)>> {
-    let inner = source
-        .strip_prefix('(')
-        .and_then(|source| source.strip_suffix(')'))?
-        .trim();
-    if inner.is_empty() {
-        return None;
-    }
-    let entries = split_static_scss_top_level(inner, ',')?;
-    if entries.len() <= 1 {
-        return None;
-    }
-
-    let mut pairs = Vec::with_capacity(entries.len());
-    for entry in entries {
-        let (key, value) = split_static_scss_key_value(entry.as_str())?;
-        pairs.push((key.to_string(), value.to_string()));
-    }
-    Some(pairs)
-}
-
-fn split_static_scss_key_value(entry: &str) -> Option<(&str, &str)> {
-    let colon_index = static_scss_top_level_separator_index(entry, ':')??;
-    let key = entry.get(..colon_index)?.trim();
-    let value = entry.get(colon_index + ':'.len_utf8()..)?.trim();
-    if key.is_empty() || value.is_empty() || key.contains('$') || value.contains('$') {
-        return None;
-    }
-    Some((key, value))
-}
-
-fn parse_static_each_tuple_entries(source: &str, arity: usize) -> Option<Vec<Vec<String>>> {
-    let entries = split_static_scss_top_level(source.trim(), ',')?;
-    if entries.len() <= 1 {
-        return None;
-    }
-
-    let mut tuples = Vec::with_capacity(entries.len());
-    for entry in entries {
-        let values = parse_static_each_tuple_entry_values(entry.as_str(), arity)?;
-        tuples.push(values);
-    }
-    Some(tuples)
-}
-
-fn parse_static_each_tuple_entry_values(entry: &str, arity: usize) -> Option<Vec<String>> {
-    let entry = strip_static_scss_outer_container(entry.trim()).unwrap_or_else(|| entry.trim());
-    let comma_values = split_static_scss_top_level(entry, ',')?;
-    let values = if comma_values.len() == arity {
-        comma_values
-    } else {
-        split_static_scss_top_level_whitespace(entry)?
-    };
-    if values.len() != arity
-        || values
-            .iter()
-            .any(|value| !static_each_tuple_value_is_static(value))
-    {
-        return None;
-    }
-    Some(values)
-}
-
-fn static_each_tuple_value_is_static(value: &str) -> bool {
-    !value.is_empty()
-        && !value.contains('$')
-        && static_scss_top_level_separator_index(value, ':').is_some_and(|index| index.is_none())
-}
-
-fn strip_static_scss_outer_container(value: &str) -> Option<&str> {
-    let trimmed = value.trim();
-    if trimmed.len() < 2 {
-        return None;
-    }
-    let (open, close) = match trimmed.chars().next()? {
-        '(' => ('(', ')'),
-        '[' => ('[', ']'),
-        _ => return None,
-    };
-    let end = static_scss_balanced_value_end(trimmed, 0, open, close)?;
-    if end != trimmed.len() {
-        return None;
-    }
-    trimmed
-        .get(open.len_utf8()..trimmed.len().saturating_sub(close.len_utf8()))
-        .map(str::trim)
-}
-
 fn split_static_scss_top_level(source: &str, separator: char) -> Option<Vec<String>> {
     let mut values = Vec::new();
     let mut cursor = 0usize;
@@ -3912,51 +3705,6 @@ fn split_static_scss_top_level(source: &str, separator: char) -> Option<Vec<Stri
     }
     values.push(value.to_string());
     Some(values)
-}
-
-fn split_static_scss_top_level_whitespace(source: &str) -> Option<Vec<String>> {
-    let mut values = Vec::new();
-    let mut cursor = 0usize;
-    let mut index = 0usize;
-    while index < source.len() {
-        let ch = source[index..].chars().next()?;
-        if ch.is_ascii_whitespace() {
-            let value = source.get(cursor..index)?.trim();
-            if !value.is_empty() {
-                values.push(value.to_string());
-            }
-            index += ch.len_utf8();
-            while index < source.len() {
-                let Some(next_ch) = source[index..].chars().next() else {
-                    break;
-                };
-                if !next_ch.is_ascii_whitespace() {
-                    break;
-                }
-                index += next_ch.len_utf8();
-            }
-            cursor = index;
-            continue;
-        }
-        index = static_scss_next_value_index(source, index)?;
-    }
-    let value = source.get(cursor..)?.trim();
-    if !value.is_empty() {
-        values.push(value.to_string());
-    }
-    Some(values)
-}
-
-fn static_scss_top_level_separator_index(source: &str, separator: char) -> Option<Option<usize>> {
-    let mut index = 0usize;
-    while index < source.len() {
-        let ch = source[index..].chars().next()?;
-        if ch == separator {
-            return Some(Some(index));
-        }
-        index = static_scss_next_value_index(source, index)?;
-    }
-    Some(None)
 }
 
 fn static_scss_next_value_index(source: &str, index: usize) -> Option<usize> {
