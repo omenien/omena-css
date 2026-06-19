@@ -22,6 +22,7 @@ mod analysis_model;
 mod arguments;
 mod model;
 mod oracle_corpus;
+mod tokens;
 
 use analysis_model::{
     ScssBranchBlock, ScssCallBoundReturnActivity, ScssCallLocalBindingScope,
@@ -30,6 +31,11 @@ use analysis_model::{
 };
 use arguments::{
     scss_named_value_from_text, split_scss_call_arguments, static_scss_argument_abstract_value,
+};
+use tokens::{
+    declaration_end_token_index, matching_right_brace_token_index,
+    matching_right_paren_token_index, next_non_trivia_token_index, token_range_end,
+    token_range_start, tokens_between_are_trivia,
 };
 
 pub use model::{
@@ -637,14 +643,6 @@ fn previous_scss_branch_condition_texts(
     Vec::new()
 }
 
-fn tokens_between_are_trivia(tokens: &[LexedToken], start: usize, end: usize) -> bool {
-    start <= end
-        && end <= tokens.len()
-        && tokens[start..end]
-            .iter()
-            .all(|token| is_trivia_token(token.kind))
-}
-
 fn scss_call_argument_values_from_symbol(
     source: &str,
     tokens: &[LexedToken],
@@ -1007,34 +1005,6 @@ fn token_index_for_symbol_range(
         })
 }
 
-fn token_range_start(token: &LexedToken) -> usize {
-    token.range.start().into()
-}
-
-fn token_range_end(token: &LexedToken) -> usize {
-    token.range.end().into()
-}
-
-fn matching_right_paren_token_index(
-    tokens: &[LexedToken],
-    left_paren_index: usize,
-) -> Option<usize> {
-    let mut depth = 0usize;
-    for (index, token) in tokens.iter().enumerate().skip(left_paren_index) {
-        match token.kind {
-            SyntaxKind::LeftParen => depth += 1,
-            SyntaxKind::RightParen => {
-                depth = depth.checked_sub(1)?;
-                if depth == 0 {
-                    return Some(index);
-                }
-            }
-            _ => {}
-        }
-    }
-    None
-}
-
 fn call_return_node_from_candidate(
     candidate: ScssCallReturnCandidate,
 ) -> OmenaScssEvalCallReturnNodeV0 {
@@ -1166,26 +1136,6 @@ fn call_return_declaration_body_end(
         .map(|(index, _)| index)?;
     let right_brace_index = matching_right_brace_token_index(tokens, left_brace_index)?;
     Some(tokens[right_brace_index].range.end().into())
-}
-
-fn matching_right_brace_token_index(
-    tokens: &[LexedToken],
-    left_brace_index: usize,
-) -> Option<usize> {
-    let mut depth = 0usize;
-    for (index, token) in tokens.iter().enumerate().skip(left_brace_index) {
-        match token.kind {
-            SyntaxKind::LeftBrace => depth += 1,
-            SyntaxKind::RightBrace => {
-                depth = depth.checked_sub(1)?;
-                if depth == 0 {
-                    return Some(index);
-                }
-            }
-            _ => {}
-        }
-    }
-    None
 }
 
 fn build_call_return_edges(
@@ -3756,43 +3706,6 @@ fn variable_name_end(text: &str, mut index: usize) -> usize {
         index += ch.len_utf8();
     }
     index
-}
-
-fn next_non_trivia_token_index(tokens: &[LexedToken], mut index: usize) -> Option<usize> {
-    while tokens
-        .get(index)
-        .is_some_and(|token| is_trivia_token(token.kind))
-    {
-        index += 1;
-    }
-    (index < tokens.len()).then_some(index)
-}
-
-fn declaration_end_token_index(tokens: &[LexedToken], mut index: usize) -> Option<usize> {
-    let mut paren_depth = 0usize;
-    while index < tokens.len() {
-        match tokens[index].kind {
-            SyntaxKind::LeftParen => paren_depth += 1,
-            SyntaxKind::RightParen => paren_depth = paren_depth.checked_sub(1)?,
-            SyntaxKind::Semicolon | SyntaxKind::SassOptionalSemicolon if paren_depth == 0 => {
-                return Some(index);
-            }
-            _ => {}
-        }
-        index += 1;
-    }
-    None
-}
-
-const fn is_trivia_token(kind: SyntaxKind) -> bool {
-    matches!(
-        kind,
-        SyntaxKind::Whitespace
-            | SyntaxKind::LineComment
-            | SyntaxKind::BlockComment
-            | SyntaxKind::ScssSilentComment
-            | SyntaxKind::SassIndentedNewline
-    )
 }
 
 #[cfg(test)]
