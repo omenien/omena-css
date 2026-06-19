@@ -32,6 +32,35 @@ where
     None
 }
 
+pub(crate) fn static_scss_for_loop_values(
+    start: i32,
+    end: i32,
+    includes_end: bool,
+) -> Option<Vec<i32>> {
+    if !includes_end && start == end {
+        return Some(Vec::new());
+    }
+
+    let step = if start <= end { 1_i64 } else { -1_i64 };
+    let stop = if includes_end {
+        i64::from(end)
+    } else {
+        i64::from(end) - step
+    };
+    let count = ((stop - i64::from(start)) / step) + 1;
+    if !(0..=64).contains(&count) {
+        return None;
+    }
+
+    let mut values = Vec::with_capacity(count as usize);
+    let mut current = i64::from(start);
+    for _ in 0..count {
+        values.push(i32::try_from(current).ok()?);
+        current += step;
+    }
+    Some(values)
+}
+
 fn static_scss_each_map_loop_binding_frames<F>(
     header: &str,
     bindings: &[String],

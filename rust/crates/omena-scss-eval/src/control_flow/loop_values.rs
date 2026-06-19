@@ -7,7 +7,7 @@ use omena_parser::{LexedToken, StyleDialect, lex};
 use omena_syntax::SyntaxKind;
 
 use crate::{
-    static_loop_frames::parse_static_scss_each_loop_binding_frames,
+    static_loop_frames::{parse_static_scss_each_loop_binding_frames, static_scss_for_loop_values},
     value_eval::reduce_static_scss_value,
 };
 
@@ -377,35 +377,17 @@ fn static_for_loop_binding_frames(
     let includes_end = parts[to_index].eq_ignore_ascii_case("through");
     let start = parse_static_for_loop_bound(parts.get(from_index + 1)?, lexical_bindings)?;
     let end = parse_static_for_loop_bound(parts.get(to_index + 1)?, lexical_bindings)?;
-    if start > end {
-        return None;
-    }
-    let value_count = if includes_end {
-        i64::from(end) - i64::from(start) + 1
-    } else {
-        i64::from(end) - i64::from(start)
-    };
-    if !(0..=64).contains(&value_count) {
-        return None;
-    }
-    let last = if includes_end {
-        end
-    } else {
-        end.saturating_sub(1)
-    };
-    let frames = if value_count == 0 {
-        Vec::new()
-    } else {
-        (start..=last)
+    Some(
+        static_scss_for_loop_values(start, end, includes_end)?
+            .into_iter()
             .map(|value| {
                 vec![ScssControlFlowBindingValue {
                     name: bindings[0].clone(),
                     value: abstract_css_value_from_text(value.to_string().as_str()),
                 }]
             })
-            .collect()
-    };
-    Some(frames)
+            .collect(),
+    )
 }
 
 fn static_while_loop_binding_frames(
@@ -796,30 +778,19 @@ fn parse_static_for_loop_range(
     let includes_end = parts[to_index].eq_ignore_ascii_case("through");
     let start = parse_static_for_loop_bound(parts.get(from_index + 1)?, lexical_bindings)?;
     let end = parse_static_for_loop_bound(parts.get(to_index + 1)?, lexical_bindings)?;
-    if start > end {
+    let Some(values) = static_scss_for_loop_values(start, end, includes_end) else {
         return Some(AbstractCssValueV0::Top);
-    }
-    let value_count = if includes_end {
-        i64::from(end) - i64::from(start) + 1
-    } else {
-        i64::from(end) - i64::from(start)
     };
-    if !(0..=64).contains(&value_count) {
-        return Some(AbstractCssValueV0::Top);
-    }
-    if value_count == 0 {
+    if values.is_empty() {
         return Some(AbstractCssValueV0::Bottom);
     }
-    let last = if includes_end {
-        end
-    } else {
-        end.saturating_sub(1)
-    };
     Some(
-        (start..=last).fold(AbstractCssValueV0::Bottom, |acc, value| {
-            let value = abstract_css_value_from_text(value.to_string().as_str());
-            join_abstract_css_values(&acc, &value)
-        }),
+        values
+            .into_iter()
+            .fold(AbstractCssValueV0::Bottom, |acc, value| {
+                let value = abstract_css_value_from_text(value.to_string().as_str());
+                join_abstract_css_values(&acc, &value)
+            }),
     )
 }
 

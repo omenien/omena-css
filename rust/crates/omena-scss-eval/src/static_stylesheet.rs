@@ -12,7 +12,7 @@ use serde::Serialize;
 use crate::{
     abstract_css_value_kind, abstract_css_value_reflected_in_legacy_css,
     scss_metadata::reduce_static_scss_metadata_with_context,
-    static_loop_frames::parse_static_scss_each_loop_binding_frames,
+    static_loop_frames::{parse_static_scss_each_loop_binding_frames, static_scss_for_loop_values},
     summarize_omena_scss_eval_oracle,
     value_eval::{
         reduce_static_less_numeric_value, reduce_static_scss_value, static_scss_literal_truthiness,
@@ -2794,27 +2794,10 @@ fn static_scss_for_loop_binding_frames(
         context,
         position,
     )?;
-    if start > end {
-        return None;
-    }
-    let value_count = if includes_end {
-        i64::from(end) - i64::from(start) + 1
-    } else {
-        i64::from(end) - i64::from(start)
-    };
-    if !(0..=64).contains(&value_count) {
-        return None;
-    }
-    if value_count == 0 {
-        return Some(Vec::new());
-    }
-    let last = if includes_end {
-        end
-    } else {
-        end.saturating_sub(1)
-    };
+    let values = static_scss_for_loop_values(start, end, includes_end)?;
     Some(
-        (start..=last)
+        values
+            .into_iter()
             .map(|value| vec![(binding.to_string(), value.to_string())])
             .collect(),
     )
@@ -8457,6 +8440,44 @@ mod tests {
         assert_eq!(report.resolved_replacements[0].text, "3");
         assert_eq!(report.resolved_replacements[0].abstract_value_kind, "exact");
         assert!(report.evaluated_css.contains(".button { z-index: 3; }"));
+        assert!(report.oracle.all_legacy_declaration_values_preserved);
+    }
+
+    #[test]
+    fn static_scss_evaluation_resolves_descending_static_for_loop_function_returns() {
+        let report = derive_static_stylesheet_module_evaluation(
+            "@function pick($target) { @for $i from 3 through 1 { @if $i == $target { @return $i + 1; } } @return 0; } .button { z-index: pick(2); }",
+            StyleDialect::Scss,
+        );
+        assert!(report.is_some());
+        let Some(report) = report else {
+            return;
+        };
+
+        assert_eq!(report.replacement_count, 1);
+        assert_eq!(report.resolved_replacements[0].name, "function:pick");
+        assert_eq!(report.resolved_replacements[0].text, "3");
+        assert_eq!(report.resolved_replacements[0].abstract_value_kind, "exact");
+        assert!(report.evaluated_css.contains(".button { z-index: 3; }"));
+        assert!(report.oracle.all_legacy_declaration_values_preserved);
+    }
+
+    #[test]
+    fn static_scss_evaluation_respects_descending_to_loop_exclusive_end() {
+        let report = derive_static_stylesheet_module_evaluation(
+            "@function pick() { @for $i from 3 to 1 { @if $i == 1 { @return 9; } } @return 2; } .button { z-index: pick(); }",
+            StyleDialect::Scss,
+        );
+        assert!(report.is_some());
+        let Some(report) = report else {
+            return;
+        };
+
+        assert_eq!(report.replacement_count, 1);
+        assert_eq!(report.resolved_replacements[0].name, "function:pick");
+        assert_eq!(report.resolved_replacements[0].text, "2");
+        assert_eq!(report.resolved_replacements[0].abstract_value_kind, "exact");
+        assert!(report.evaluated_css.contains(".button { z-index: 2; }"));
         assert!(report.oracle.all_legacy_declaration_values_preserved);
     }
 
