@@ -20,7 +20,7 @@ use crate::{
     static_loop_frames::parse_static_scss_each_loop_binding_frames,
     summarize_omena_scss_eval_oracle,
     value_eval::{
-        reduce_static_numeric_value, reduce_static_scss_value,
+        reduce_static_less_numeric_value, reduce_static_scss_value,
         static_scss_bang_usage_is_comparison_only, static_scss_literal_truthiness,
     },
 };
@@ -6489,7 +6489,7 @@ fn static_less_escaped_string_token_is_declaration_value(
 }
 
 fn reduce_static_less_value(value: String) -> String {
-    let value = reduce_static_numeric_value(value);
+    let value = reduce_static_less_numeric_value(value);
     let value = substitute_static_css_function_references_in_value_until_stable(
         value.as_str(),
         &[
@@ -9279,7 +9279,32 @@ mod tests {
     #[test]
     fn static_less_evaluation_reduces_extended_numeric_builtin_values() {
         let report = derive_static_stylesheet_module_evaluation(
-            "@sqrt: sqrt(4); @pow: pow(2, 3); @mod: mod(11px, 4px); @min: min(1px, 2px, 3px); @max: max(1px, 2px, 3px); @round1: round(1.6px); @round2: round(1.234px, 2); .button { sqrt: @sqrt; pow: @pow; mod: @mod; min: @min; max: @max; round1: @round1; round2: @round2; }",
+            "@sqrt: sqrt(4); @pow: pow(2, 3); @mod: mod(11px, 4px); @min: min(1px, 2px, 3px); @max: max(1px, 2px, 3px); @abs: abs(-2.4px); @round1: round(1.6px); @round2: round(1.234px, 2); .button { sqrt: @sqrt; pow: @pow; mod: @mod; min: @min; max: @max; abs: @abs; round1: @round1; round2: @round2; }",
+            StyleDialect::Less,
+        );
+        assert!(report.is_some());
+        let Some(report) = report else {
+            return;
+        };
+
+        assert_eq!(report.replacement_count, 8);
+        assert_eq!(report.value_resolution.resolved_count, 8);
+        assert_eq!(report.value_resolution.raw_count, 0);
+        assert!(report.evaluated_css.contains("sqrt: 2"));
+        assert!(report.evaluated_css.contains("pow: 8"));
+        assert!(report.evaluated_css.contains("mod: 3px"));
+        assert!(report.evaluated_css.contains("min: 1px"));
+        assert!(report.evaluated_css.contains("max: 3px"));
+        assert!(report.evaluated_css.contains("abs: 2.4px"));
+        assert!(report.evaluated_css.contains("round1: 2px"));
+        assert!(report.evaluated_css.contains("round2: 1.23px"));
+        assert!(report.oracle.all_legacy_declaration_values_preserved);
+    }
+
+    #[test]
+    fn static_less_evaluation_preserves_unsupported_css_math_functions() {
+        let report = derive_static_stylesheet_module_evaluation(
+            "@sign: sign(-2px); @clamp: clamp(1px, 3px, 2px); @rem: rem(11px, 4px); @hypot: hypot(3px, 4px); @exp: exp(1); @log: log(8, 2); @calc: calc(1px + 2px); .button { sign: @sign; clamp: @clamp; rem: @rem; hypot: @hypot; exp: @exp; log: @log; calc: @calc; }",
             StyleDialect::Less,
         );
         assert!(report.is_some());
@@ -9288,15 +9313,14 @@ mod tests {
         };
 
         assert_eq!(report.replacement_count, 7);
-        assert_eq!(report.value_resolution.resolved_count, 7);
-        assert_eq!(report.value_resolution.raw_count, 0);
-        assert!(report.evaluated_css.contains("sqrt: 2"));
-        assert!(report.evaluated_css.contains("pow: 8"));
-        assert!(report.evaluated_css.contains("mod: 3px"));
-        assert!(report.evaluated_css.contains("min: 1px"));
-        assert!(report.evaluated_css.contains("max: 3px"));
-        assert!(report.evaluated_css.contains("round1: 2px"));
-        assert!(report.evaluated_css.contains("round2: 1.23px"));
+        assert_eq!(report.value_resolution.raw_count, 7);
+        assert!(report.evaluated_css.contains("sign: sign(-2px)"));
+        assert!(report.evaluated_css.contains("clamp: clamp(1px, 3px, 2px)"));
+        assert!(report.evaluated_css.contains("rem: rem(11px, 4px)"));
+        assert!(report.evaluated_css.contains("hypot: hypot(3px, 4px)"));
+        assert!(report.evaluated_css.contains("exp: exp(1)"));
+        assert!(report.evaluated_css.contains("log: log(8, 2)"));
+        assert!(report.evaluated_css.contains("calc: calc(1px + 2px)"));
         assert!(report.oracle.all_legacy_declaration_values_preserved);
     }
 

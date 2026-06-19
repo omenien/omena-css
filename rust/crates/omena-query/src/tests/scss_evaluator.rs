@@ -557,7 +557,40 @@ fn exposes_less_percentage_and_rounding_builtins_through_query_boundary() {
 #[test]
 fn exposes_less_numeric_builtins_through_query_boundary() {
     let summary = summarize_omena_query_static_stylesheet_evaluator_from_source(
-        "@sqrt: sqrt(4); @pow: pow(2, 3); @mod: mod(11px, 4px); @min: min(1px, 2px, 3px); @max: max(1px, 2px, 3px); @round1: round(1.6px); @round2: round(1.234px, 2); .button { sqrt: @sqrt; pow: @pow; mod: @mod; min: @min; max: @max; round1: @round1; round2: @round2; }",
+        "@sqrt: sqrt(4); @pow: pow(2, 3); @mod: mod(11px, 4px); @min: min(1px, 2px, 3px); @max: max(1px, 2px, 3px); @abs: abs(-2.4px); @round1: round(1.6px); @round2: round(1.234px, 2); .button { sqrt: @sqrt; pow: @pow; mod: @mod; min: @min; max: @max; abs: @abs; round1: @round1; round2: @round2; }",
+        OmenaParserStyleDialect::Less,
+    );
+
+    assert_eq!(summary.product, "omena-query.static-stylesheet-evaluator");
+    assert_eq!(summary.mode, "oracleOnly");
+    assert_eq!(summary.dialect, "less");
+    assert_eq!(summary.value_type, "AbstractCssValueV0");
+    assert!(summary.supported_dialect);
+    assert_eq!(summary.product_output_source, "legacyEvaluatedCss");
+    assert!(summary.legacy_output_consumed_until_cutover);
+    assert!(summary.evaluation_available);
+    assert_eq!(summary.divergence_count, 0);
+    assert!(summary.all_legacy_declaration_values_preserved);
+    assert_eq!(summary.native_replacement_count, 8);
+    assert_eq!(summary.native_resolved_value_count, 8);
+    assert_eq!(summary.native_raw_value_count, 0);
+    assert_eq!(summary.native_top_value_count, 0);
+    assert!(summary.evaluation.as_ref().is_some_and(|evaluation| {
+        evaluation.evaluated_css.contains("sqrt: 2")
+            && evaluation.evaluated_css.contains("pow: 8")
+            && evaluation.evaluated_css.contains("mod: 3px")
+            && evaluation.evaluated_css.contains("min: 1px")
+            && evaluation.evaluated_css.contains("max: 3px")
+            && evaluation.evaluated_css.contains("abs: 2.4px")
+            && evaluation.evaluated_css.contains("round1: 2px")
+            && evaluation.evaluated_css.contains("round2: 1.23px")
+    }));
+}
+
+#[test]
+fn preserves_less_unsupported_css_math_builtins_through_query_boundary() {
+    let summary = summarize_omena_query_static_stylesheet_evaluator_from_source(
+        "@sign: sign(-2px); @clamp: clamp(1px, 3px, 2px); @rem: rem(11px, 4px); @hypot: hypot(3px, 4px); @exp: exp(1); @log: log(8, 2); @calc: calc(1px + 2px); .button { sign: @sign; clamp: @clamp; rem: @rem; hypot: @hypot; exp: @exp; log: @log; calc: @calc; }",
         OmenaParserStyleDialect::Less,
     );
 
@@ -572,17 +605,18 @@ fn exposes_less_numeric_builtins_through_query_boundary() {
     assert_eq!(summary.divergence_count, 0);
     assert!(summary.all_legacy_declaration_values_preserved);
     assert_eq!(summary.native_replacement_count, 7);
-    assert_eq!(summary.native_resolved_value_count, 7);
-    assert_eq!(summary.native_raw_value_count, 0);
+    assert_eq!(summary.native_raw_value_count, 7);
     assert_eq!(summary.native_top_value_count, 0);
     assert!(summary.evaluation.as_ref().is_some_and(|evaluation| {
-        evaluation.evaluated_css.contains("sqrt: 2")
-            && evaluation.evaluated_css.contains("pow: 8")
-            && evaluation.evaluated_css.contains("mod: 3px")
-            && evaluation.evaluated_css.contains("min: 1px")
-            && evaluation.evaluated_css.contains("max: 3px")
-            && evaluation.evaluated_css.contains("round1: 2px")
-            && evaluation.evaluated_css.contains("round2: 1.23px")
+        evaluation.evaluated_css.contains("sign: sign(-2px)")
+            && evaluation
+                .evaluated_css
+                .contains("clamp: clamp(1px, 3px, 2px)")
+            && evaluation.evaluated_css.contains("rem: rem(11px, 4px)")
+            && evaluation.evaluated_css.contains("hypot: hypot(3px, 4px)")
+            && evaluation.evaluated_css.contains("exp: exp(1)")
+            && evaluation.evaluated_css.contains("log: log(8, 2)")
+            && evaluation.evaluated_css.contains("calc: calc(1px + 2px)")
     }));
 }
 

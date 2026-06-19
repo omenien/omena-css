@@ -232,6 +232,35 @@ pub(crate) fn reduce_static_numeric_value(value: String) -> String {
     reduce_static_numeric_expression(inner.trim()).unwrap_or(value)
 }
 
+pub(crate) fn reduce_static_less_numeric_value(value: String) -> String {
+    let trimmed = value.trim();
+    // Less intentionally exposes a narrower math function surface than CSS/Sass.
+    // Preserve unsupported CSS math calls byte-for-byte instead of over-reducing.
+    if let Some(reduced) = substitute_static_css_function_references_in_value_until_stable(
+        trimmed,
+        &[
+            ("min", parse_reducible_min_value),
+            ("max", parse_reducible_max_value),
+            ("abs", parse_reducible_abs_value),
+            ("mod", parse_reducible_mod_value),
+            ("sqrt", parse_reducible_sqrt_value),
+            ("pow", parse_reducible_pow_value),
+        ],
+    ) {
+        return reduced;
+    }
+    if let Some(reduced) = reduce_static_numeric_expression(trimmed) {
+        return reduced;
+    }
+    let Some(inner) = trimmed
+        .strip_prefix('(')
+        .and_then(|without_left| without_left.strip_suffix(')'))
+    else {
+        return value;
+    };
+    reduce_static_numeric_expression(inner.trim()).unwrap_or(value)
+}
+
 pub(crate) fn static_scss_bang_usage_is_comparison_only(value: &str) -> bool {
     let mut index = 0usize;
     while let Some(relative_index) = value[index..].find('!') {
