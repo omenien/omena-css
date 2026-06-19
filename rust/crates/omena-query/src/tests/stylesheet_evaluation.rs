@@ -2110,6 +2110,40 @@ fn consumer_build_preserves_forward_scss_composite_values_through_oracle_evaluat
 }
 
 #[test]
+fn consumer_build_preserves_dynamic_scss_function_calls_through_oracle_evaluator() {
+    let source = "@function tone($enabled) { @if $enabled { @return red; } @else { @return blue; } } .button { color: tone(var(--enabled)); }";
+    let summary = execute_omena_query_consumer_build_style_source(
+        "Button.module.scss",
+        source,
+        &[
+            "scss-module-evaluate".to_string(),
+            "css-modules-class-hashing".to_string(),
+            "print-css".to_string(),
+        ],
+    );
+
+    assert!(
+        summary
+            .execution
+            .executed_pass_ids
+            .contains(&"scss-module-evaluate")
+    );
+    assert!(
+        !summary
+            .execution
+            .planned_only_pass_ids
+            .contains(&"scss-module-evaluate")
+    );
+    assert!(summary.execution.output_css.contains("@function tone"));
+    assert!(
+        summary
+            .execution
+            .output_css
+            .contains("color: tone(var(--enabled))")
+    );
+}
+
+#[test]
 fn consumer_build_derives_static_scss_evaluator_context_for_reassignments() {
     let summary = execute_omena_query_consumer_build_style_source(
         "Button.module.scss",

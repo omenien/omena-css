@@ -132,6 +132,12 @@ struct StaticScssMixinEvaluationEdits {
     preserved_raw_include_count: usize,
 }
 
+struct StaticScssFunctionEvaluationEdits {
+    edits: Vec<StaticStylesheetEvaluationEdit>,
+    replacements: Vec<OmenaScssEvalResolvedReplacementV0>,
+    preserved_raw_call_count: usize,
+}
+
 struct StaticLessMixinEvaluationEdits {
     edits: Vec<StaticStylesheetEvaluationEdit>,
     preserved_non_rendering_call_count: usize,
@@ -372,20 +378,25 @@ fn derive_static_scss_stylesheet_module_evaluation(
             replacement,
         });
     }
-    if let Some((function_edits, function_replacements)) =
-        collect_static_scss_function_evaluation_edits(
-            style_source,
-            tokens,
-            &function_declarations,
-            &mixin_declarations,
-            &scopes,
-            &declarations,
-        )
-    {
-        edits.extend(function_edits);
-        resolved_replacements.extend(function_replacements);
-    }
     let mut preserved_scss_evaluation_count = 0usize;
+    if let Some(function_edits) = collect_static_scss_function_evaluation_edits(
+        style_source,
+        tokens,
+        &function_declarations,
+        &mixin_declarations,
+        &scopes,
+        &declarations,
+    ) {
+        if function_edits.preserved_raw_call_count > 0 {
+            return build_static_stylesheet_preserved_evaluation_report_if_explained(
+                style_source,
+                dialect,
+                StaticStylesheetVariableKind::Scss,
+            );
+        }
+        edits.extend(function_edits.edits);
+        resolved_replacements.extend(function_edits.replacements);
+    }
     if let Some(mixin_edits) = collect_static_scss_mixin_evaluation_edits(
         style_source,
         tokens,
@@ -1005,13 +1016,14 @@ fn collect_static_scss_function_evaluation_edits(
     mixin_declarations: &[StaticScssMixinDeclaration],
     scopes: &[StaticStylesheetScope],
     variable_declarations: &[StaticStylesheetScopedVariableDeclaration],
-) -> Option<(
-    Vec<StaticStylesheetEvaluationEdit>,
-    Vec<OmenaScssEvalResolvedReplacementV0>,
-)> {
+) -> Option<StaticScssFunctionEvaluationEdits> {
     let calls = collect_static_scss_function_calls(source, tokens, declarations)?;
     if calls.is_empty() {
-        return Some((Vec::new(), Vec::new()));
+        return Some(StaticScssFunctionEvaluationEdits {
+            edits: Vec::new(),
+            replacements: Vec::new(),
+            preserved_raw_call_count: 0,
+        });
     }
 
     let mut edits = Vec::new();
@@ -1029,6 +1041,15 @@ fn collect_static_scss_function_evaluation_edits(
             variable_declarations,
             STATIC_STYLESHEET_VALUE_RESOLUTION_FUEL_LIMIT,
         );
+        if resolution.outcome == StaticStylesheetResolutionOutcome::Top
+            && resolution.reason != StaticStylesheetResolutionReason::UnresolvedReference
+        {
+            return Some(StaticScssFunctionEvaluationEdits {
+                edits: Vec::new(),
+                replacements: Vec::new(),
+                preserved_raw_call_count: 1,
+            });
+        }
         if resolution.outcome != StaticStylesheetResolutionOutcome::Resolved {
             return None;
         }
@@ -1060,7 +1081,11 @@ fn collect_static_scss_function_evaluation_edits(
         });
     }
 
-    Some((edits, replacements))
+    Some(StaticScssFunctionEvaluationEdits {
+        edits,
+        replacements,
+        preserved_raw_call_count: 0,
+    })
 }
 
 fn collect_static_scss_function_value_resolution_values(
@@ -13404,16 +13429,26 @@ mod tests {
 
     #[test]
     fn static_scss_evaluation_keeps_dynamic_if_function_returns_top() {
-        let report = derive_static_stylesheet_module_evaluation(
-            "@function tone($enabled) { @if $enabled { @return red; } @else { @return blue; } } .button { color: tone(var(--enabled)); }",
-            StyleDialect::Scss,
-        );
-        assert!(report.is_none());
+        let source = "@function tone($enabled) { @if $enabled { @return red; } @else { @return blue; } } .button { color: tone(var(--enabled)); }";
+        let report = derive_static_stylesheet_module_evaluation(source, StyleDialect::Scss);
+        assert!(report.is_some());
+        let Some(report) = report else {
+            return;
+        };
 
-        let resolution = summarize_static_stylesheet_value_resolution(
-            "@function tone($enabled) { @if $enabled { @return red; } @else { @return blue; } } .button { color: tone(var(--enabled)); }",
-            StyleDialect::Scss,
+        assert_eq!(report.evaluated_css, source);
+        assert_eq!(report.replacement_count, 0);
+        assert_eq!(report.value_resolution.reference_count, 1);
+        assert_eq!(report.value_resolution.top_count, 1);
+        assert_eq!(report.value_resolution.unsupported_dynamic_count, 1);
+        assert_eq!(report.value_resolution.values[0].outcome, "top");
+        assert_eq!(
+            report.value_resolution.values[0].reason,
+            "unsupportedDynamic"
         );
+        assert!(report.oracle.all_legacy_declaration_values_preserved);
+
+        let resolution = summarize_static_stylesheet_value_resolution(source, StyleDialect::Scss);
         assert!(resolution.is_some());
         let Some(resolution) = resolution else {
             return;
@@ -13427,17 +13462,24 @@ mod tests {
     }
 
     #[test]
-    fn static_scss_evaluation_reports_indirect_recursive_function_calls_as_top() {
-        let report = derive_static_stylesheet_module_evaluation(
-            "@function a($value) { @return b($value); } @function b($value) { @return a($value); } .button { color: a(red); }",
-            StyleDialect::Scss,
-        );
-        assert!(report.is_none());
+    fn static_scss_evaluation_preserves_indirect_recursive_function_calls_as_top() {
+        let source = "@function a($value) { @return b($value); } @function b($value) { @return a($value); } .button { color: a(red); }";
+        let report = derive_static_stylesheet_module_evaluation(source, StyleDialect::Scss);
+        assert!(report.is_some());
+        let Some(report) = report else {
+            return;
+        };
 
-        let resolution = summarize_static_stylesheet_value_resolution(
-            "@function a($value) { @return b($value); } @function b($value) { @return a($value); } .button { color: a(red); }",
-            StyleDialect::Scss,
-        );
+        assert_eq!(report.evaluated_css, source);
+        assert_eq!(report.replacement_count, 0);
+        assert_eq!(report.value_resolution.reference_count, 1);
+        assert_eq!(report.value_resolution.top_count, 1);
+        assert_eq!(report.value_resolution.cycle_count, 1);
+        assert_eq!(report.value_resolution.values[0].outcome, "top");
+        assert_eq!(report.value_resolution.values[0].reason, "cycle");
+        assert!(report.oracle.all_legacy_declaration_values_preserved);
+
+        let resolution = summarize_static_stylesheet_value_resolution(source, StyleDialect::Scss);
         assert!(resolution.is_some());
         let Some(resolution) = resolution else {
             return;
@@ -13451,17 +13493,30 @@ mod tests {
     }
 
     #[test]
-    fn static_scss_evaluation_skips_recursive_function_calls() {
-        let report = derive_static_stylesheet_module_evaluation(
-            "@function loop($value) { @return loop($value); } .button { color: loop(red); }",
-            StyleDialect::Scss,
-        );
-        assert!(report.is_none());
+    fn static_scss_evaluation_preserves_recursive_function_calls_as_top() {
+        let source =
+            "@function loop($value) { @return loop($value); } .button { color: loop(red); }";
+        let report = derive_static_stylesheet_module_evaluation(source, StyleDialect::Scss);
+        assert!(report.is_some());
+        let Some(report) = report else {
+            return;
+        };
 
-        let resolution = summarize_static_stylesheet_value_resolution(
-            "@function loop($value) { @return loop($value); } .button { color: loop(red); }",
-            StyleDialect::Scss,
+        assert_eq!(report.evaluated_css, source);
+        assert_eq!(report.replacement_count, 0);
+        assert_eq!(report.value_resolution.reference_count, 1);
+        assert_eq!(report.value_resolution.top_count, 1);
+        assert_eq!(report.value_resolution.cycle_count, 1);
+        assert!(
+            report
+                .value_resolution
+                .values
+                .iter()
+                .all(|value| value.outcome == "top" && value.reason == "cycle")
         );
+        assert!(report.oracle.all_legacy_declaration_values_preserved);
+
+        let resolution = summarize_static_stylesheet_value_resolution(source, StyleDialect::Scss);
         assert!(resolution.is_some());
         let Some(resolution) = resolution else {
             return;

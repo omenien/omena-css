@@ -331,6 +331,40 @@ fn exposes_unresolved_forward_scss_composite_as_preserved_oracle_output() {
 }
 
 #[test]
+fn exposes_dynamic_scss_function_calls_as_preserved_oracle_output() {
+    let source = "@function tone($enabled) { @if $enabled { @return red; } @else { @return blue; } } .button { color: tone(var(--enabled)); }";
+    let summary = summarize_omena_query_static_stylesheet_evaluator_from_source(
+        source,
+        OmenaParserStyleDialect::Scss,
+    );
+
+    assert_eq!(summary.product, "omena-query.static-stylesheet-evaluator");
+    assert_eq!(summary.mode, "oracleOnly");
+    assert_eq!(summary.value_type, "AbstractCssValueV0");
+    assert!(summary.legacy_output_consumed_until_cutover);
+    assert!(summary.evaluation_available);
+    assert!(summary.value_resolution_available);
+    assert_eq!(summary.divergence_count, 0);
+    assert!(summary.all_legacy_declaration_values_preserved);
+    assert_eq!(summary.native_replacement_count, 0);
+    assert_eq!(summary.native_top_value_count, 1);
+
+    let Some(resolution) = summary.value_resolution.as_ref() else {
+        return;
+    };
+    assert_eq!(resolution.reference_count, 1);
+    assert_eq!(resolution.unsupported_dynamic_count, 1);
+    assert_eq!(resolution.values[0].outcome, "top");
+    assert_eq!(resolution.values[0].reason, "unsupportedDynamic");
+
+    assert!(summary.evaluation.as_ref().is_some_and(|evaluation| {
+        evaluation.evaluated_css == source
+            && evaluation.replacement_count == 0
+            && evaluation.oracle.all_legacy_declaration_values_preserved
+    }));
+}
+
+#[test]
 fn exposes_static_scss_legacy_rounding_aliases_through_query_boundary() {
     let summary = summarize_omena_query_static_stylesheet_evaluator_from_source(
         "$ceil: ceil(1.2px); $floor: floor(1.8px); $round: round(1.5px); .card { top: $ceil; bottom: $floor; left: $round; }",
