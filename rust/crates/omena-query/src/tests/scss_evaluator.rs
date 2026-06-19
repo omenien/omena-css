@@ -703,6 +703,41 @@ fn exposes_less_color_metadata_builtins_through_query_boundary() {
 }
 
 #[test]
+fn exposes_less_alpha_transform_builtins_through_query_boundary() {
+    let summary = summarize_omena_query_static_stylesheet_evaluator_from_source(
+        "@faded: fade(#123456, 50%); @raised: fadein(rgba(18, 52, 86, .5), 10%); @lowered: fadeout(rgba(18, 52, 86, .5), 10%); @opaque: fadein(red, 10%); .button { a: @faded; b: @raised; c: @lowered; d: @opaque; }",
+        OmenaParserStyleDialect::Less,
+    );
+
+    assert_eq!(summary.product, "omena-query.static-stylesheet-evaluator");
+    assert_eq!(summary.mode, "oracleOnly");
+    assert_eq!(summary.dialect, "less");
+    assert_eq!(summary.value_type, "AbstractCssValueV0");
+    assert!(summary.supported_dialect);
+    assert_eq!(summary.product_output_source, "legacyEvaluatedCss");
+    assert!(summary.legacy_output_consumed_until_cutover);
+    assert!(summary.evaluation_available);
+    assert_eq!(summary.divergence_count, 0);
+    assert!(summary.all_legacy_declaration_values_preserved);
+    assert_eq!(summary.native_replacement_count, 4);
+    assert_eq!(summary.native_resolved_value_count, 4);
+    assert_eq!(summary.native_raw_value_count, 0);
+    assert_eq!(summary.native_top_value_count, 0);
+    assert!(summary.evaluation.as_ref().is_some_and(|evaluation| {
+        evaluation
+            .evaluated_css
+            .contains("a: rgba(18, 52, 86, 0.5)")
+            && evaluation
+                .evaluated_css
+                .contains("b: rgba(18, 52, 86, 0.6)")
+            && evaluation
+                .evaluated_css
+                .contains("c: rgba(18, 52, 86, 0.4)")
+            && evaluation.evaluated_css.contains("d: #ff0000")
+    }));
+}
+
+#[test]
 fn exposes_less_list_builtins_through_query_boundary() {
     let summary = summarize_omena_query_static_stylesheet_evaluator_from_source(
         "@items: a b c; @comma: a, b, c; @len1: length(@items); @len2: length(@comma); @x1: extract(@items, 2); @x2: extract(@comma, 3); .button { len1: @len1; len2: @len2; x1: @x1; x2: @x2; }",

@@ -6506,6 +6506,9 @@ fn reduce_static_less_value(value: String) -> String {
             ("saturation", parse_static_less_saturation_value),
             ("lightness", parse_static_less_lightness_value),
             ("argb", parse_static_less_argb_value),
+            ("fade", parse_static_less_fade_value),
+            ("fadein", parse_static_less_fadein_value),
+            ("fadeout", parse_static_less_fadeout_value),
             ("ceil", parse_reducible_ceil_value),
             ("floor", parse_reducible_floor_value),
             ("round", parse_static_less_round_value),
@@ -6634,6 +6637,33 @@ fn parse_static_less_argb_value(value: &str) -> Option<String> {
         color.color.green,
         color.color.blue
     ))
+}
+
+fn parse_static_less_fade_value(value: &str) -> Option<String> {
+    parse_static_less_alpha_transform_value(value, "fade", |_, amount| amount)
+}
+
+fn parse_static_less_fadein_value(value: &str) -> Option<String> {
+    parse_static_less_alpha_transform_value(value, "fadein", |current, amount| current + amount)
+}
+
+fn parse_static_less_fadeout_value(value: &str) -> Option<String> {
+    parse_static_less_alpha_transform_value(value, "fadeout", |current, amount| current - amount)
+}
+
+fn parse_static_less_alpha_transform_value(
+    value: &str,
+    function_name: &str,
+    transform: impl FnOnce(f64, f64) -> f64,
+) -> Option<String> {
+    let arguments = parse_whole_function_value_arguments(value, function_name)?;
+    let [color, amount] = arguments.as_slice() else {
+        return None;
+    };
+    let color = parse_static_less_color_argument(color.trim())?;
+    let amount = parse_static_less_alpha_amount(amount.trim())?;
+    let alpha = transform(color.alpha.unwrap_or(1.0), amount).clamp(0.0, 1.0);
+    Some(format_static_less_color_with_alpha(color, alpha))
 }
 
 fn parse_static_less_color_channel_value(
@@ -6769,6 +6799,22 @@ fn static_less_alpha_byte(alpha: f64) -> u8 {
     (alpha.clamp(0.0, 1.0) * 255.0).round() as u8
 }
 
+fn format_static_less_color_with_alpha(color: StaticSrgbColorWithAlpha, alpha: f64) -> String {
+    if (alpha - 1.0).abs() < f64::EPSILON {
+        return format!(
+            "#{:02x}{:02x}{:02x}",
+            color.color.red, color.color.green, color.color.blue
+        );
+    }
+    format!(
+        "rgba({}, {}, {}, {})",
+        color.color.red,
+        color.color.green,
+        color.color.blue,
+        format_static_less_number(alpha)
+    )
+}
+
 fn parse_static_less_isnumber_value(value: &str) -> Option<String> {
     parse_static_less_unary_predicate_value(value, "isnumber", static_less_guard_value_is_number)
 }
@@ -6866,6 +6912,14 @@ fn parse_static_less_unitless_integer(value: &str) -> Option<usize> {
         return None;
     }
     usize::try_from(parsed.value as i64).ok()
+}
+
+fn parse_static_less_alpha_amount(value: &str) -> Option<f64> {
+    let parsed = parse_numeric_value_with_unit(value)?;
+    if !parsed.value.is_finite() || !matches!(parsed.unit, "" | "%") {
+        return None;
+    }
+    Some((parsed.value / 100.0).clamp(0.0, 1.0))
 }
 
 fn parse_static_less_unit_argument(unit: &str) -> Option<&str> {
@@ -9333,6 +9387,27 @@ mod tests {
         assert!(report.evaluated_css.contains("s: 65.384615%"));
         assert!(report.evaluated_css.contains("l: 20.392157%"));
         assert!(report.evaluated_css.contains("legacy: #80123456"));
+        assert!(report.oracle.all_legacy_declaration_values_preserved);
+    }
+
+    #[test]
+    fn static_less_evaluation_reduces_alpha_transform_builtin_values() {
+        let report = derive_static_stylesheet_module_evaluation(
+            "@faded: fade(#123456, 50%); @raised: fadein(rgba(18, 52, 86, .5), 10%); @lowered: fadeout(rgba(18, 52, 86, .5), 10%); @opaque: fadein(red, 10%); .button { a: @faded; b: @raised; c: @lowered; d: @opaque; }",
+            StyleDialect::Less,
+        );
+        assert!(report.is_some());
+        let Some(report) = report else {
+            return;
+        };
+
+        assert_eq!(report.replacement_count, 4);
+        assert_eq!(report.value_resolution.resolved_count, 4);
+        assert_eq!(report.value_resolution.raw_count, 0);
+        assert!(report.evaluated_css.contains("a: rgba(18, 52, 86, 0.5)"));
+        assert!(report.evaluated_css.contains("b: rgba(18, 52, 86, 0.6)"));
+        assert!(report.evaluated_css.contains("c: rgba(18, 52, 86, 0.4)"));
+        assert!(report.evaluated_css.contains("d: #ff0000"));
         assert!(report.oracle.all_legacy_declaration_values_preserved);
     }
 
