@@ -15,8 +15,7 @@ use crate::{
     static_loop_frames::parse_static_scss_each_loop_binding_frames,
     summarize_omena_scss_eval_oracle,
     value_eval::{
-        reduce_static_less_numeric_value, reduce_static_scss_value,
-        static_scss_bang_usage_is_comparison_only, static_scss_literal_truthiness,
+        reduce_static_less_numeric_value, reduce_static_scss_value, static_scss_literal_truthiness,
     },
 };
 
@@ -35,6 +34,7 @@ mod less_predicates;
 mod less_strings;
 mod model;
 mod oracle_corpus;
+mod safety;
 mod scss_arguments;
 mod scss_callable_dependencies;
 mod scss_calls;
@@ -130,6 +130,17 @@ use model::{
 pub use oracle_corpus::{
     OmenaScssEvalStaticStylesheetOracleCorpusFixtureReportV0,
     OmenaScssEvalStaticStylesheetOracleCorpusReportV0, summarize_static_stylesheet_oracle_corpus,
+};
+use safety::{
+    static_less_mixin_argument_value_is_safe, static_less_mixin_body_is_static_declaration_subset,
+    static_less_mixin_hash_name_is_safe, static_less_mixin_name_part_is_safe,
+    static_less_variable_name_is_safe, static_scss_callable_name_is_safe,
+    static_scss_mixin_body_is_static_declaration_subset, static_stylesheet_composite_value_is_safe,
+    static_stylesheet_less_declaration_value_is_removal_safe,
+    static_stylesheet_literal_value_is_safe, static_stylesheet_property_name_is_safe,
+    static_stylesheet_property_value_is_removal_safe,
+    static_stylesheet_scss_declaration_value_is_removal_safe,
+    static_stylesheet_variable_name_is_safe,
 };
 use scss_arguments::{split_static_scss_function_arguments, static_scss_top_level_colon_index};
 use scss_callable_dependencies::{
@@ -4763,29 +4774,6 @@ fn format_static_less_channel_number(value: f64) -> String {
     formatted
 }
 
-fn static_stylesheet_less_declaration_value_is_removal_safe(value: &str) -> bool {
-    if preserve_static_less_dynamic_escaped_string_value(value).is_some() {
-        return true;
-    }
-    !value.chars().any(|ch| matches!(ch, '{' | '}' | ';' | '!'))
-}
-
-fn static_stylesheet_scss_declaration_value_is_removal_safe(value: &str) -> bool {
-    !value.chars().any(|ch| matches!(ch, '{' | '}' | ';'))
-        && static_scss_bang_usage_is_comparison_only(value)
-}
-
-fn static_stylesheet_property_name_is_safe(name: &str) -> bool {
-    !name.is_empty()
-        && name
-            .chars()
-            .all(|ch| ch.is_ascii_alphanumeric() || matches!(ch, '_' | '-'))
-}
-
-fn static_stylesheet_property_value_is_removal_safe(value: &str) -> bool {
-    !value.chars().any(|ch| matches!(ch, '{' | '}' | ';' | '!'))
-}
-
 fn static_stylesheet_previous_token_starts_declaration(
     tokens: &[LexedToken],
     index: usize,
@@ -4987,68 +4975,6 @@ fn merge_static_stylesheet_duplicate_declaration(
     }
 }
 
-fn static_stylesheet_literal_value_is_safe(value: &str) -> bool {
-    let value = value.trim();
-    !value.is_empty()
-        && !value
-            .chars()
-            .any(|ch| matches!(ch, '{' | '}' | ';' | '$' | '@'))
-        && static_scss_bang_usage_is_comparison_only(value)
-}
-
-fn static_stylesheet_variable_name_is_safe(name: &str) -> bool {
-    !name.is_empty()
-        && name
-            .chars()
-            .all(|ch| ch.is_ascii_alphanumeric() || ch == '_' || ch == '-')
-}
-
-fn static_scss_callable_name_is_safe(name: &str) -> bool {
-    static_stylesheet_variable_name_is_safe(name)
-}
-
-fn static_less_mixin_name_part_is_safe(name: &str) -> bool {
-    static_stylesheet_property_name_is_safe(name)
-}
-
-fn static_less_mixin_hash_name_is_safe(name: &str) -> bool {
-    name.strip_prefix('#')
-        .is_some_and(static_stylesheet_property_name_is_safe)
-}
-
-fn static_less_variable_name_is_safe(name: &str) -> bool {
-    name.strip_prefix('@')
-        .is_some_and(static_stylesheet_variable_name_is_safe)
-}
-
-fn static_less_mixin_argument_value_is_safe(value: &str) -> bool {
-    !value.is_empty()
-        && !value.contains("...")
-        && !value.chars().any(|ch| matches!(ch, '{' | '}' | ';'))
-}
-
-fn static_scss_mixin_body_is_static_declaration_subset(body: &str) -> bool {
-    let lower = body.to_ascii_lowercase();
-    !body.chars().any(|ch| matches!(ch, '{' | '}'))
-        && !lower.contains("@content")
-        && !lower.contains("@mixin")
-        && !lower.contains("@function")
-        && !lower.contains("@return")
-        && !lower.contains("@if")
-        && !lower.contains("@for")
-        && !lower.contains("@each")
-        && !lower.contains("@while")
-}
-
-fn static_less_mixin_body_is_static_declaration_subset(body: &str) -> bool {
-    let lower = body.to_ascii_lowercase();
-    !body.chars().any(|ch| matches!(ch, '{' | '}'))
-        && !lower.contains("when")
-        && !lower.contains(":extend")
-        && !lower.contains("@plugin")
-        && !lower.contains("@import")
-}
-
 fn static_scss_public_module_variable_name(name: &str) -> Option<String> {
     let bare_name = name.strip_prefix('$')?;
     if bare_name.starts_with('-') || bare_name.starts_with('_') || bare_name.is_empty() {
@@ -5074,13 +5000,6 @@ fn canonical_static_less_mixin_name(name: &str) -> String {
 
 pub fn static_scss_variable_names_equal(left: &str, right: &str) -> bool {
     canonical_static_scss_variable_name(left) == canonical_static_scss_variable_name(right)
-}
-
-fn static_stylesheet_composite_value_is_safe(value: &str) -> bool {
-    let value = value.trim();
-    !value.is_empty()
-        && !value.chars().any(|ch| matches!(ch, '{' | '}' | ';'))
-        && static_scss_bang_usage_is_comparison_only(value)
 }
 
 fn static_stylesheet_position_is_inside_scoped_declaration(
@@ -5170,6 +5089,7 @@ fn dialect_label(dialect: StyleDialect) -> &'static str {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::value_eval::static_scss_bang_usage_is_comparison_only;
     use std::fmt::Write as _;
 
     #[test]
