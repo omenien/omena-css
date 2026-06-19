@@ -24,10 +24,17 @@ use crate::{
 };
 
 mod oracle_corpus;
+mod value_resolution_model;
 
 pub use oracle_corpus::{
     OmenaScssEvalStaticStylesheetOracleCorpusFixtureReportV0,
     OmenaScssEvalStaticStylesheetOracleCorpusReportV0, summarize_static_stylesheet_oracle_corpus,
+};
+use value_resolution_model::{
+    StaticStylesheetAbstractResolution, StaticStylesheetResolutionOutcome,
+    StaticStylesheetResolutionReason, raw_static_abstract_value, render_static_abstract_value,
+    resolved_static_abstract_value, resolved_static_abstract_value_preserving_callable_raw,
+    static_value_resolution_record, top_static_abstract_value,
 };
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -825,145 +832,6 @@ fn summarize_static_less_value_resolution_values(
         ));
     }
     Some(values)
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum StaticStylesheetResolutionOutcome {
-    Resolved,
-    Raw,
-    Top,
-}
-
-impl StaticStylesheetResolutionOutcome {
-    fn label(self) -> &'static str {
-        match self {
-            Self::Resolved => "resolved",
-            Self::Raw => "raw",
-            Self::Top => "top",
-        }
-    }
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum StaticStylesheetResolutionReason {
-    Resolved,
-    Cycle,
-    FuelExhausted,
-    UnresolvedReference,
-    UnsupportedDynamic,
-}
-
-impl StaticStylesheetResolutionReason {
-    fn label(self) -> &'static str {
-        match self {
-            Self::Resolved => "resolved",
-            Self::Cycle => "cycle",
-            Self::FuelExhausted => "fuelExhausted",
-            Self::UnresolvedReference => "unresolvedReference",
-            Self::UnsupportedDynamic => "unsupportedDynamic",
-        }
-    }
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-struct StaticStylesheetAbstractResolution {
-    rendered_value: Option<String>,
-    abstract_value: AbstractCssValueV0,
-    outcome: StaticStylesheetResolutionOutcome,
-    reason: StaticStylesheetResolutionReason,
-}
-
-fn static_value_resolution_record(
-    name: &str,
-    start: usize,
-    end: usize,
-    source_text: &str,
-    resolution: StaticStylesheetAbstractResolution,
-) -> OmenaScssEvalStaticValueResolutionV0 {
-    OmenaScssEvalStaticValueResolutionV0 {
-        name: name.to_string(),
-        start,
-        end,
-        source_text: source_text.to_string(),
-        rendered_value: resolution.rendered_value,
-        abstract_value_kind: abstract_css_value_kind(&resolution.abstract_value),
-        abstract_value: resolution.abstract_value,
-        outcome: resolution.outcome.label(),
-        reason: resolution.reason.label(),
-    }
-}
-
-fn resolved_static_abstract_value(text: &str) -> StaticStylesheetAbstractResolution {
-    let abstract_value = abstract_css_value_from_text(text);
-    let rendered_value = render_static_abstract_value(&abstract_value);
-    let outcome = if matches!(abstract_value, AbstractCssValueV0::Raw { .. }) {
-        StaticStylesheetResolutionOutcome::Raw
-    } else {
-        StaticStylesheetResolutionOutcome::Resolved
-    };
-    let reason = if outcome == StaticStylesheetResolutionOutcome::Raw {
-        StaticStylesheetResolutionReason::UnsupportedDynamic
-    } else {
-        StaticStylesheetResolutionReason::Resolved
-    };
-    StaticStylesheetAbstractResolution {
-        rendered_value,
-        abstract_value,
-        outcome,
-        reason,
-    }
-}
-
-fn resolved_static_abstract_value_preserving_callable_raw(
-    original_text: &str,
-    reduced_text: &str,
-) -> StaticStylesheetAbstractResolution {
-    let abstract_value = abstract_css_value_from_text(reduced_text);
-    if matches!(abstract_value, AbstractCssValueV0::Raw { .. })
-        && static_scss_function_value_contains_any_callable(reduced_text)
-    {
-        return raw_static_abstract_value(
-            original_text,
-            StaticStylesheetResolutionReason::UnsupportedDynamic,
-        );
-    }
-    resolved_static_abstract_value(reduced_text)
-}
-
-fn raw_static_abstract_value(
-    text: &str,
-    reason: StaticStylesheetResolutionReason,
-) -> StaticStylesheetAbstractResolution {
-    StaticStylesheetAbstractResolution {
-        rendered_value: Some(text.to_string()),
-        abstract_value: AbstractCssValueV0::Raw {
-            value: text.to_string(),
-        },
-        outcome: StaticStylesheetResolutionOutcome::Raw,
-        reason,
-    }
-}
-
-fn top_static_abstract_value(
-    reason: StaticStylesheetResolutionReason,
-) -> StaticStylesheetAbstractResolution {
-    StaticStylesheetAbstractResolution {
-        rendered_value: None,
-        abstract_value: AbstractCssValueV0::Top,
-        outcome: StaticStylesheetResolutionOutcome::Top,
-        reason,
-    }
-}
-
-fn render_static_abstract_value(value: &AbstractCssValueV0) -> Option<String> {
-    match value {
-        AbstractCssValueV0::Bottom => Some(String::new()),
-        AbstractCssValueV0::Exact { value } | AbstractCssValueV0::Raw { value } => {
-            Some(value.clone())
-        }
-        AbstractCssValueV0::FiniteSet { values } => values.first().cloned(),
-        AbstractCssValueV0::Top => None,
-    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
