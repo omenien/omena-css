@@ -973,7 +973,8 @@ fn consumer_build_derives_static_less_evaluator_context_for_detached_ruleset_acc
 }
 
 #[test]
-fn consumer_build_keeps_unknown_less_detached_ruleset_accessor_members_planned_only() {
+fn consumer_build_executes_unknown_less_detached_ruleset_accessor_members_as_preserved_oracle_output()
+ {
     let summary = execute_omena_query_consumer_build_style_source(
         "Button.module.less",
         "@tokens: { primary: red; }; .button { color: @tokens[missing]; }",
@@ -987,8 +988,20 @@ fn consumer_build_keeps_unknown_less_detached_ruleset_accessor_members_planned_o
     assert!(
         summary
             .execution
+            .executed_pass_ids
+            .contains(&"less-module-evaluate")
+    );
+    assert!(
+        !summary
+            .execution
             .planned_only_pass_ids
             .contains(&"less-module-evaluate")
+    );
+    assert!(
+        summary
+            .execution
+            .output_css
+            .contains("@tokens: { primary: red; };")
     );
     assert!(summary.execution.output_css.contains("@tokens[missing]"));
 }

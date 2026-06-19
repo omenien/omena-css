@@ -39,8 +39,8 @@ use less_guard::{
     static_less_mixin_guard_matches, static_less_value_condition_matches,
 };
 use model::{
-    StaticLessDetachedRulesetAccessor, StaticLessDetachedRulesetCall,
-    StaticLessDetachedRulesetDeclaration, StaticLessMixinAccessor,
+    StaticLessDetachedRulesetAccessor, StaticLessDetachedRulesetAccessorRenderOutcome,
+    StaticLessDetachedRulesetCall, StaticLessDetachedRulesetDeclaration, StaticLessMixinAccessor,
     StaticLessMixinAccessorCallRenderOutcome, StaticLessMixinAccessorRenderOutcome,
     StaticLessMixinAccessorRenderResult, StaticLessMixinBodyLocalDeclaration, StaticLessMixinCall,
     StaticLessMixinCallRenderOutcome, StaticLessMixinDeclaration, StaticLessMixinRenderContext,
@@ -131,9 +131,20 @@ struct StaticLessMixinEvaluationEdits {
     preserved_non_rendering_call_count: usize,
 }
 
+struct StaticLessDetachedRulesetAccessorEvaluationEdits {
+    edits: Vec<StaticStylesheetEvaluationEdit>,
+    preserved_raw_accessor_count: usize,
+    preserved_declaration_keys: BTreeSet<(usize, String)>,
+}
+
 struct StaticLessMixinAccessorEvaluationEdits {
     edits: Vec<StaticStylesheetEvaluationEdit>,
     preserved_raw_accessor_count: usize,
+}
+
+enum StaticLessBodyPropertyValueOutcome {
+    Resolved(String),
+    MemberNotFound,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -553,17 +564,7 @@ fn derive_static_less_stylesheet_module_evaluation(
         &declarations,
         &variable_excluded_ranges,
     )?);
-    edits.extend(collect_static_less_detached_ruleset_evaluation_edits(
-        style_source,
-        &detached_rulesets,
-        &detached_ruleset_calls,
-        &mixin_declarations,
-        &mixin_declaration_ranges,
-        &scopes,
-        &declarations,
-        &property_declarations,
-    )?);
-    edits.extend(
+    let detached_ruleset_accessor_evaluation_edits =
         collect_static_less_detached_ruleset_accessor_evaluation_edits(
             style_source,
             &detached_rulesets,
@@ -572,8 +573,21 @@ fn derive_static_less_stylesheet_module_evaluation(
             &scopes,
             &declarations,
             &property_declarations,
-        )?,
-    );
+        )?;
+    preserved_less_evaluation_count +=
+        detached_ruleset_accessor_evaluation_edits.preserved_raw_accessor_count;
+    edits.extend(collect_static_less_detached_ruleset_evaluation_edits(
+        style_source,
+        &detached_rulesets,
+        &detached_ruleset_calls,
+        &mixin_declarations,
+        &mixin_declaration_ranges,
+        &detached_ruleset_accessor_evaluation_edits.preserved_declaration_keys,
+        &scopes,
+        &declarations,
+        &property_declarations,
+    )?);
+    edits.extend(detached_ruleset_accessor_evaluation_edits.edits);
     let accessor_evaluation_edits = collect_static_less_mixin_accessor_evaluation_edits(
         style_source,
         tokens,
@@ -2615,6 +2629,7 @@ fn collect_static_less_detached_ruleset_evaluation_edits(
     calls: &[StaticLessDetachedRulesetCall],
     mixin_declarations: &[StaticLessMixinDeclaration],
     mixin_declaration_ranges: &[(usize, usize)],
+    preserved_declaration_keys: &BTreeSet<(usize, String)>,
     scopes: &[StaticStylesheetScope],
     variable_declarations: &BTreeMap<(usize, String), StaticStylesheetVariableDeclaration>,
     property_declarations: &BTreeMap<(usize, String), StaticStylesheetPropertyDeclaration>,
@@ -2622,6 +2637,9 @@ fn collect_static_less_detached_ruleset_evaluation_edits(
     let declaration_ranges = static_less_detached_ruleset_ranges_from_declarations(declarations);
     let mut edits = declarations
         .iter()
+        .filter(|declaration| {
+            !preserved_declaration_keys.contains(&(declaration.scope_id, declaration.name.clone()))
+        })
         .map(|declaration| StaticStylesheetEvaluationEdit {
             start: declaration.span_start,
             end: declaration.span_end,
@@ -2679,13 +2697,19 @@ fn collect_static_less_detached_ruleset_accessor_evaluation_edits(
     scopes: &[StaticStylesheetScope],
     variable_declarations: &BTreeMap<(usize, String), StaticStylesheetVariableDeclaration>,
     property_declarations: &BTreeMap<(usize, String), StaticStylesheetPropertyDeclaration>,
-) -> Option<Vec<StaticStylesheetEvaluationEdit>> {
+) -> Option<StaticLessDetachedRulesetAccessorEvaluationEdits> {
     if accessors.is_empty() {
-        return Some(Vec::new());
+        return Some(StaticLessDetachedRulesetAccessorEvaluationEdits {
+            edits: Vec::new(),
+            preserved_raw_accessor_count: 0,
+            preserved_declaration_keys: BTreeSet::new(),
+        });
     }
 
     let declaration_ranges = static_less_detached_ruleset_ranges_from_declarations(declarations);
     let mut edits = Vec::new();
+    let mut preserved_raw_accessor_count = 0usize;
+    let mut preserved_declaration_keys = BTreeSet::new();
     for accessor in accessors.iter().filter(|accessor| {
         !static_stylesheet_position_is_inside_ranges(accessor.start, &declaration_ranges)
             && !static_stylesheet_position_is_inside_ranges(
@@ -2710,13 +2734,25 @@ fn collect_static_less_detached_ruleset_accessor_evaluation_edits(
             property_declarations,
             declarations,
         )?;
-        edits.push(StaticStylesheetEvaluationEdit {
-            start: accessor.start,
-            end: accessor.end,
-            replacement,
-        });
+        match replacement {
+            StaticLessDetachedRulesetAccessorRenderOutcome::Rendered(replacement) => {
+                edits.push(StaticStylesheetEvaluationEdit {
+                    start: accessor.start,
+                    end: accessor.end,
+                    replacement,
+                });
+            }
+            StaticLessDetachedRulesetAccessorRenderOutcome::PreservedRaw => {
+                preserved_raw_accessor_count += 1;
+                preserved_declaration_keys.insert((declaration.scope_id, declaration.name.clone()));
+            }
+        }
     }
-    Some(edits)
+    Some(StaticLessDetachedRulesetAccessorEvaluationEdits {
+        edits,
+        preserved_raw_accessor_count,
+        preserved_declaration_keys,
+    })
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -2789,7 +2825,7 @@ fn render_static_less_detached_ruleset_accessor(
     variable_declarations: &BTreeMap<(usize, String), StaticStylesheetVariableDeclaration>,
     property_declarations: &BTreeMap<(usize, String), StaticStylesheetPropertyDeclaration>,
     detached_ruleset_declarations: &[StaticLessDetachedRulesetDeclaration],
-) -> Option<String> {
+) -> Option<StaticLessDetachedRulesetAccessorRenderOutcome> {
     let body = source.get(declaration.body_start..declaration.body_end)?;
     if !static_less_mixin_body_is_static_declaration_subset(body) {
         return None;
@@ -2823,9 +2859,22 @@ fn render_static_less_detached_ruleset_accessor(
         detached_ruleset_declarations,
     )?;
     if static_less_variable_name_is_safe(member) {
-        return scoped_values.get(member).cloned();
+        return Some(match scoped_values.get(member) {
+            Some(value) => StaticLessDetachedRulesetAccessorRenderOutcome::Rendered(value.clone()),
+            None => StaticLessDetachedRulesetAccessorRenderOutcome::PreservedRaw,
+        });
     }
-    static_less_body_property_value(body, member, &scoped_values, call_scope_id, context)
+    Some(
+        match static_less_body_property_value(body, member, &scoped_values, call_scope_id, context)?
+        {
+            StaticLessBodyPropertyValueOutcome::Resolved(value) => {
+                StaticLessDetachedRulesetAccessorRenderOutcome::Rendered(value)
+            }
+            StaticLessBodyPropertyValueOutcome::MemberNotFound => {
+                StaticLessDetachedRulesetAccessorRenderOutcome::PreservedRaw
+            }
+        },
+    )
 }
 
 fn find_static_less_detached_ruleset_declaration<'a>(
@@ -3895,13 +3944,18 @@ fn render_static_less_mixin_accessor_declaration(
         };
         value.clone()
     } else {
-        static_less_mixin_accessor_property_value(
+        match static_less_mixin_accessor_property_value(
             body,
             member,
             &scoped_values,
             call_scope_id,
             context,
-        )?
+        )? {
+            StaticLessBodyPropertyValueOutcome::Resolved(value) => value,
+            StaticLessBodyPropertyValueOutcome::MemberNotFound => {
+                return Some(StaticLessMixinAccessorRenderOutcome::MemberNotFound);
+            }
+        }
     };
     Some(StaticLessMixinAccessorRenderOutcome::Rendered(
         StaticLessMixinAccessorRenderResult {
@@ -3947,7 +4001,7 @@ fn static_less_mixin_accessor_property_value(
     scoped_values: &BTreeMap<String, String>,
     call_scope_id: usize,
     context: StaticLessMixinRenderContext<'_>,
-) -> Option<String> {
+) -> Option<StaticLessBodyPropertyValueOutcome> {
     static_less_body_property_value(body, member, scoped_values, call_scope_id, context)
 }
 
@@ -3957,7 +4011,7 @@ fn static_less_body_property_value(
     scoped_values: &BTreeMap<String, String>,
     call_scope_id: usize,
     context: StaticLessMixinRenderContext<'_>,
-) -> Option<String> {
+) -> Option<StaticLessBodyPropertyValueOutcome> {
     if !static_stylesheet_property_name_is_safe(member) {
         return None;
     }
@@ -3965,13 +4019,15 @@ fn static_less_body_property_value(
     let body_scopes = collect_static_stylesheet_scopes(body)?;
     let property_declarations =
         collect_static_less_body_property_declarations(body, body_lexed.tokens(), &body_scopes)?;
-    let declaration = find_static_less_property_declaration(
+    let Some(declaration) = find_static_less_property_declaration(
         format!("${member}").as_str(),
         0,
         &body_scopes,
         &property_declarations,
-    )?;
-    resolve_static_less_mixin_value_with_bindings(
+    ) else {
+        return Some(StaticLessBodyPropertyValueOutcome::MemberNotFound);
+    };
+    let resolved = resolve_static_less_mixin_value_with_bindings(
         declaration.value.as_str(),
         scoped_values,
         context.captured_values,
@@ -3981,7 +4037,8 @@ fn static_less_body_property_value(
         context.property_declarations,
         None,
         context.detached_ruleset_declarations,
-    )
+    )?;
+    Some(StaticLessBodyPropertyValueOutcome::Resolved(resolved))
 }
 
 fn render_static_less_mixin_call(
@@ -9537,9 +9594,9 @@ mod tests {
         assert_eq!(report.mode, "oracleOnly");
         assert_eq!(report.value_type, "AbstractCssValueV0");
         assert_eq!(report.product_output_source, "legacyEvaluatedCss");
-        assert_eq!(report.fixture_count, 42);
+        assert_eq!(report.fixture_count, 43);
         assert_eq!(report.scss_fixture_count, 6);
-        assert_eq!(report.less_fixture_count, 36);
+        assert_eq!(report.less_fixture_count, 37);
         assert_eq!(report.evaluated_fixture_count, report.fixture_count);
         assert_eq!(report.missing_evaluation_count, 0);
         assert_eq!(report.divergence_count, 0);
@@ -9884,13 +9941,22 @@ mod tests {
     }
 
     #[test]
-    fn static_less_evaluation_keeps_unknown_detached_ruleset_accessor_members_planned_only() {
+    fn static_less_evaluation_preserves_unknown_detached_ruleset_accessor_members_as_oracle_report()
+    {
         let report = derive_static_stylesheet_module_evaluation(
             "@tokens: { primary: red; }; .button { color: @tokens[missing]; }",
             StyleDialect::Less,
         );
 
-        assert!(report.is_none());
+        assert!(report.is_some());
+        let Some(report) = report else {
+            return;
+        };
+
+        assert!(report.evaluated_css.contains("@tokens[missing]"));
+        assert!(report.evaluated_css.contains("@tokens: { primary: red; };"));
+        assert_eq!(report.replacement_count, 0);
+        assert!(report.oracle.all_legacy_declaration_values_preserved);
     }
 
     #[test]

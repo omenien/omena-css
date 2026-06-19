@@ -16,9 +16,9 @@ fn exposes_static_stylesheet_oracle_corpus_through_query_boundary() {
     assert_eq!(summary.mode, "oracleOnly");
     assert_eq!(summary.value_type, "AbstractCssValueV0");
     assert_eq!(summary.product_output_source, "legacyEvaluatedCss");
-    assert_eq!(summary.fixture_count, 42);
+    assert_eq!(summary.fixture_count, 43);
     assert_eq!(summary.scss_fixture_count, 6);
-    assert_eq!(summary.less_fixture_count, 36);
+    assert_eq!(summary.less_fixture_count, 37);
     assert_eq!(summary.evaluated_fixture_count, summary.fixture_count);
     assert_eq!(summary.missing_evaluation_count, 0);
     assert_eq!(summary.divergence_count, 0);
@@ -79,6 +79,13 @@ fn exposes_static_stylesheet_oracle_corpus_through_query_boundary() {
             .fixtures
             .iter()
             .any(|fixture| fixture.id == "less.unknown-mixin-accessor-member")
+    );
+    assert!(
+        summary
+            .corpus
+            .fixtures
+            .iter()
+            .any(|fixture| fixture.id == "less.unknown-detached-ruleset-accessor-member")
     );
     assert!(
         summary
@@ -1669,6 +1676,30 @@ fn exposes_less_unknown_mixin_accessor_members_as_preserved_oracle_output_throug
     assert!(summary.evaluation.as_ref().is_some_and(|evaluation| {
         evaluation.evaluated_css.contains(".tokens(red)[@missing]")
             && evaluation.evaluated_css.contains("@result: @color")
+    }));
+}
+
+#[test]
+fn exposes_less_unknown_detached_ruleset_accessor_members_as_preserved_oracle_output_through_query_boundary()
+ {
+    let summary = summarize_omena_query_static_stylesheet_evaluator_from_source(
+        "@tokens: { primary: red; }; .button { color: @tokens[missing]; }",
+        OmenaParserStyleDialect::Less,
+    );
+
+    assert_eq!(summary.product, "omena-query.static-stylesheet-evaluator");
+    assert_eq!(summary.mode, "oracleOnly");
+    assert_eq!(summary.value_type, "AbstractCssValueV0");
+    assert!(summary.legacy_output_consumed_until_cutover);
+    assert!(summary.evaluation_available);
+    assert_eq!(summary.divergence_count, 0);
+    assert!(summary.all_legacy_declaration_values_preserved);
+    assert_eq!(summary.native_replacement_count, 0);
+    assert!(summary.evaluation.as_ref().is_some_and(|evaluation| {
+        evaluation.evaluated_css.contains("@tokens[missing]")
+            && evaluation
+                .evaluated_css
+                .contains("@tokens: { primary: red; };")
     }));
 }
 

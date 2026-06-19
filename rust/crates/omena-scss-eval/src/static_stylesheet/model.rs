@@ -203,6 +203,11 @@ pub(super) struct StaticLessDetachedRulesetAccessor {
     pub(super) end: usize,
 }
 
+pub(super) enum StaticLessDetachedRulesetAccessorRenderOutcome {
+    Rendered(String),
+    PreservedRaw,
+}
+
 #[derive(Debug, Clone)]
 pub(super) struct StaticLessMixinBodyLocalDeclaration {
     pub(super) name: String,
