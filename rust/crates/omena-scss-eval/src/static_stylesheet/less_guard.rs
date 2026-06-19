@@ -605,7 +605,7 @@ fn static_less_guard_keyword_at(expression: &str, index: usize, keyword: &str) -
     before_ok && after_ok
 }
 
-fn static_less_guard_value_is_color(value: &str) -> bool {
+pub(super) fn static_less_guard_value_is_color(value: &str) -> bool {
     parse_static_srgb_color_with_alpha(value).is_some()
         || parse_static_rgb_function_color_with_alpha(value).is_some()
         || parse_static_hsl_function_color_with_alpha(value).is_some()
@@ -615,16 +615,16 @@ fn static_less_guard_value_is_color(value: &str) -> bool {
         || parse_oklab_oklch_value(value).is_some()
 }
 
-fn static_less_guard_value_is_number(value: &str) -> bool {
+pub(super) fn static_less_guard_value_is_number(value: &str) -> bool {
     parse_numeric_value_with_unit(value).is_some()
 }
 
-fn static_less_guard_value_has_unit(value: &str, expected_unit: &str) -> bool {
+pub(super) fn static_less_guard_value_has_unit(value: &str, expected_unit: &str) -> bool {
     parse_numeric_value_with_unit(value)
         .is_some_and(|value| value.unit.eq_ignore_ascii_case(expected_unit))
 }
 
-fn static_less_guard_unit_text(value: &str) -> Option<&str> {
+pub(super) fn static_less_guard_unit_text(value: &str) -> Option<&str> {
     let value = value.trim();
     if matches!(value, "%") {
         return Some(value);
@@ -635,12 +635,12 @@ fn static_less_guard_unit_text(value: &str) -> Option<&str> {
     static_stylesheet_property_name_is_safe(value).then_some(value)
 }
 
-fn static_less_guard_value_is_url(value: &str) -> bool {
+pub(super) fn static_less_guard_value_is_url(value: &str) -> bool {
     parse_whole_function_value_arguments(value.trim(), "url")
         .is_some_and(|arguments| arguments.len() == 1)
 }
 
-fn static_less_guard_value_is_string(value: &str) -> bool {
+pub(super) fn static_less_guard_value_is_string(value: &str) -> bool {
     static_less_guard_quoted_string_end(value.trim(), 0)
         .is_some_and(|end| end == value.trim().len())
 }
@@ -658,7 +658,7 @@ fn static_less_guard_quoted_string_inner(value: &str) -> Option<&str> {
     value.get(quote.len_utf8()..value.len().checked_sub(quote.len_utf8())?)
 }
 
-fn static_less_guard_value_is_keyword(value: &str) -> bool {
+pub(super) fn static_less_guard_value_is_keyword(value: &str) -> bool {
     let value = value.trim();
     if !static_stylesheet_property_name_is_safe(value)
         || static_less_guard_value_is_color(value)

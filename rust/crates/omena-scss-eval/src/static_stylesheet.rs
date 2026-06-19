@@ -26,7 +26,13 @@ mod model;
 mod oracle_corpus;
 mod value_resolution_model;
 
-use less_guard::{static_less_mixin_guard_depends_on_default, static_less_mixin_guard_matches};
+use less_guard::{
+    static_less_guard_unit_text, static_less_guard_value_has_unit,
+    static_less_guard_value_is_color, static_less_guard_value_is_keyword,
+    static_less_guard_value_is_number, static_less_guard_value_is_string,
+    static_less_guard_value_is_url, static_less_mixin_guard_depends_on_default,
+    static_less_mixin_guard_matches,
+};
 use model::{
     StaticLessDetachedRulesetAccessor, StaticLessDetachedRulesetCall,
     StaticLessDetachedRulesetDeclaration, StaticLessMixinAccessor,
@@ -6488,6 +6494,15 @@ fn reduce_static_less_value(value: String) -> String {
             ("percentage", parse_static_less_percentage_value),
             ("ceil", parse_reducible_ceil_value),
             ("floor", parse_reducible_floor_value),
+            ("isnumber", parse_static_less_isnumber_value),
+            ("iscolor", parse_static_less_iscolor_value),
+            ("isstring", parse_static_less_isstring_value),
+            ("iskeyword", parse_static_less_iskeyword_value),
+            ("isurl", parse_static_less_isurl_value),
+            ("ispixel", parse_static_less_ispixel_value),
+            ("ispercentage", parse_static_less_ispercentage_value),
+            ("isem", parse_static_less_isem_value),
+            ("isunit", parse_static_less_isunit_value),
         ],
     )
     .unwrap_or(value);
@@ -6526,6 +6541,65 @@ fn parse_static_less_percentage_value(value: &str) -> Option<String> {
     };
     let parsed = parse_numeric_value_with_unit(number.trim())?;
     Some(format!("{}%", format_css_number(parsed.value * 100.0)))
+}
+
+fn parse_static_less_isnumber_value(value: &str) -> Option<String> {
+    parse_static_less_unary_predicate_value(value, "isnumber", static_less_guard_value_is_number)
+}
+
+fn parse_static_less_iscolor_value(value: &str) -> Option<String> {
+    parse_static_less_unary_predicate_value(value, "iscolor", static_less_guard_value_is_color)
+}
+
+fn parse_static_less_isstring_value(value: &str) -> Option<String> {
+    parse_static_less_unary_predicate_value(value, "isstring", static_less_guard_value_is_string)
+}
+
+fn parse_static_less_iskeyword_value(value: &str) -> Option<String> {
+    parse_static_less_unary_predicate_value(value, "iskeyword", static_less_guard_value_is_keyword)
+}
+
+fn parse_static_less_isurl_value(value: &str) -> Option<String> {
+    parse_static_less_unary_predicate_value(value, "isurl", static_less_guard_value_is_url)
+}
+
+fn parse_static_less_ispixel_value(value: &str) -> Option<String> {
+    parse_static_less_unary_predicate_value(value, "ispixel", |value| {
+        static_less_guard_value_has_unit(value, "px")
+    })
+}
+
+fn parse_static_less_ispercentage_value(value: &str) -> Option<String> {
+    parse_static_less_unary_predicate_value(value, "ispercentage", |value| {
+        static_less_guard_value_has_unit(value, "%")
+    })
+}
+
+fn parse_static_less_isem_value(value: &str) -> Option<String> {
+    parse_static_less_unary_predicate_value(value, "isem", |value| {
+        static_less_guard_value_has_unit(value, "em")
+    })
+}
+
+fn parse_static_less_isunit_value(value: &str) -> Option<String> {
+    let arguments = parse_whole_function_value_arguments(value, "isunit")?;
+    let [value, unit] = arguments.as_slice() else {
+        return None;
+    };
+    let unit = static_less_guard_unit_text(unit.trim())?;
+    Some(static_less_guard_value_has_unit(value.trim(), unit).to_string())
+}
+
+fn parse_static_less_unary_predicate_value(
+    value: &str,
+    function_name: &str,
+    predicate: impl FnOnce(&str) -> bool,
+) -> Option<String> {
+    let arguments = parse_whole_function_value_arguments(value, function_name)?;
+    let [value] = arguments.as_slice() else {
+        return None;
+    };
+    Some(predicate(value.trim()).to_string())
 }
 
 fn parse_static_less_unit_argument(unit: &str) -> Option<&str> {
@@ -8879,6 +8953,32 @@ mod tests {
         assert!(report.evaluated_css.contains("width: 50%"));
         assert!(report.evaluated_css.contains("top: 2px"));
         assert!(report.evaluated_css.contains("bottom: 1px"));
+        assert!(report.oracle.all_legacy_declaration_values_preserved);
+    }
+
+    #[test]
+    fn static_less_evaluation_reduces_type_predicate_builtin_values() {
+        let report = derive_static_stylesheet_module_evaluation(
+            "@number: isnumber(2px); @color: iscolor(red); @string: isstring(\"Roboto\"); @keyword: iskeyword(block); @url: isurl(url(\"a.png\")); @px: ispixel(2px); @pct: ispercentage(50%); @em: isem(1em); @unit-ok: isunit(1rem, rem); @unit-bad: isunit(1rem, px); .button { --number: @number; --color: @color; --string: @string; --keyword: @keyword; --url: @url; --px: @px; --pct: @pct; --em: @em; --unit-ok: @unit-ok; --unit-bad: @unit-bad; }",
+            StyleDialect::Less,
+        );
+        assert!(report.is_some());
+        let Some(report) = report else {
+            return;
+        };
+
+        assert_eq!(report.replacement_count, 10);
+        assert_eq!(report.value_resolution.resolved_count, 0);
+        assert_eq!(report.value_resolution.raw_count, 10);
+        assert!(
+            report
+                .resolved_replacements
+                .iter()
+                .all(|replacement| replacement.abstract_value_kind == "raw")
+        );
+        assert!(report.evaluated_css.contains("--number: true"));
+        assert!(report.evaluated_css.contains("--unit-ok: true"));
+        assert!(report.evaluated_css.contains("--unit-bad: false"));
         assert!(report.oracle.all_legacy_declaration_values_preserved);
     }
 
