@@ -39,6 +39,70 @@ pub(crate) fn add_css_vendor_prefixes_with_lexer(
     (output, supports_mutation_count + insertions.len())
 }
 
+pub(crate) fn remove_stale_css_vendor_prefixes_with_lexer(
+    source: &str,
+    dialect: StyleDialect,
+) -> (String, usize) {
+    let lexed = lex(source, dialect);
+    let tokens = lexed.tokens();
+    let mut removals = collect_stale_vendor_prefix_removals(tokens);
+    if removals.is_empty() {
+        return (source.to_string(), 0);
+    }
+    removals.sort_by_key(|(start, _)| *start);
+
+    let mut output = String::with_capacity(source.len());
+    let mut cursor = 0;
+    let mut applied_count = 0usize;
+    for (start, end) in removals {
+        if start < cursor {
+            continue;
+        }
+        if start > cursor {
+            output.push_str(&source[cursor..start]);
+        }
+        cursor = end;
+        applied_count += 1;
+    }
+    if cursor < source.len() {
+        output.push_str(&source[cursor..]);
+    }
+
+    (output, applied_count)
+}
+
+fn collect_stale_vendor_prefix_removals(tokens: &[LexedToken]) -> Vec<(usize, usize)> {
+    let mut removals = Vec::new();
+    let mut index = 0;
+
+    while index < tokens.len() {
+        if tokens[index].kind == SyntaxKind::LeftBrace
+            && let Some(close_index) = matching_right_brace_index(tokens, index)
+        {
+            let declarations = collect_simple_declarations_in_block(tokens, index, close_index);
+            for declaration in &declarations {
+                let Some(unprefixed_property) =
+                    unprefixed_property_for_stale_prefix(&declaration.property)
+                else {
+                    continue;
+                };
+                if declarations.iter().any(|candidate| {
+                    candidate.property == unprefixed_property
+                        && candidate.value == declaration.value
+                        && candidate.important == declaration.important
+                }) {
+                    removals.push((declaration.start, declaration.end));
+                }
+            }
+            index += 1;
+            continue;
+        }
+        index += 1;
+    }
+
+    removals
+}
+
 fn collect_vendor_prefix_insertions(source: &str, tokens: &[LexedToken]) -> Vec<(usize, String)> {
     let mut insertions = Vec::new();
     insertions.extend(collect_keyframes_vendor_prefix_insertions(source, tokens));
@@ -347,6 +411,48 @@ fn prefixed_properties_for(property: &str) -> &'static [&'static str] {
         "transform-style" => &["-webkit-transform-style"],
         "user-select" => &["-webkit-user-select", "-moz-user-select", "-ms-user-select"],
         _ => &[],
+    }
+}
+
+fn unprefixed_property_for_stale_prefix(property: &str) -> Option<&'static str> {
+    match property {
+        "-moz-appearance" | "-webkit-appearance" => Some("appearance"),
+        "-webkit-backdrop-filter" => Some("backdrop-filter"),
+        "-webkit-backface-visibility" => Some("backface-visibility"),
+        "-webkit-border-image" => Some("border-image"),
+        "-webkit-box-decoration-break" => Some("box-decoration-break"),
+        "-webkit-clip-path" => Some("clip-path"),
+        "-moz-column-count" | "-webkit-column-count" => Some("column-count"),
+        "-moz-column-fill" => Some("column-fill"),
+        "-moz-column-gap" | "-webkit-column-gap" => Some("column-gap"),
+        "-moz-column-rule" | "-webkit-column-rule" => Some("column-rule"),
+        "-moz-column-rule-color" | "-webkit-column-rule-color" => Some("column-rule-color"),
+        "-moz-column-rule-style" | "-webkit-column-rule-style" => Some("column-rule-style"),
+        "-moz-column-rule-width" | "-webkit-column-rule-width" => Some("column-rule-width"),
+        "-webkit-column-span" => Some("column-span"),
+        "-moz-column-width" | "-webkit-column-width" => Some("column-width"),
+        "-moz-columns" | "-webkit-columns" => Some("columns"),
+        "-webkit-filter" => Some("filter"),
+        "-ms-hyphens" | "-webkit-hyphens" => Some("hyphens"),
+        "-webkit-mask-clip" => Some("mask-clip"),
+        "-webkit-mask-composite" => Some("mask-composite"),
+        "-webkit-mask-image" => Some("mask-image"),
+        "-webkit-mask-mode" => Some("mask-mode"),
+        "-webkit-mask-origin" => Some("mask-origin"),
+        "-webkit-mask-position" => Some("mask-position"),
+        "-webkit-mask-repeat" => Some("mask-repeat"),
+        "-webkit-mask-size" => Some("mask-size"),
+        "-webkit-perspective" => Some("perspective"),
+        "-webkit-perspective-origin" => Some("perspective-origin"),
+        "-webkit-print-color-adjust" => Some("print-color-adjust"),
+        "-moz-tab-size" => Some("tab-size"),
+        "-webkit-text-size-adjust" => Some("text-size-adjust"),
+        "-ms-touch-action" => Some("touch-action"),
+        "-ms-transform" | "-webkit-transform" => Some("transform"),
+        "-ms-transform-origin" | "-webkit-transform-origin" => Some("transform-origin"),
+        "-webkit-transform-style" => Some("transform-style"),
+        "-moz-user-select" | "-ms-user-select" | "-webkit-user-select" => Some("user-select"),
+        _ => None,
     }
 }
 

@@ -68,6 +68,58 @@ fn execution_runtime_adds_prefixed_supports_fallback_conditions() {
 }
 
 #[test]
+fn execution_runtime_removes_stale_vendor_prefixes_with_exact_unprefixed_peers() {
+    let source = r#".a { -webkit-user-select: none; -moz-user-select: none; user-select: none; -webkit-transform: translateX(1px) !important; transform: translateX(1px) !important; }"#;
+    let execution = execute_transform_passes_on_source(
+        source,
+        &[
+            TransformPassKind::StalePrefixRemoval,
+            TransformPassKind::PrintCss,
+        ],
+    );
+
+    assert_eq!(execution.mutation_count, 3);
+    assert!(execution.output_css.contains("user-select: none"));
+    assert!(
+        execution
+            .output_css
+            .contains("transform: translateX(1px) !important")
+    );
+    assert!(!execution.output_css.contains("-webkit-user-select"));
+    assert!(!execution.output_css.contains("-moz-user-select"));
+    assert!(!execution.output_css.contains("-webkit-transform"));
+    assert_eq!(
+        execution.executed_pass_ids,
+        vec!["stale-prefix-removal", "print-css"]
+    );
+}
+
+#[test]
+fn execution_runtime_keeps_vendor_prefixes_without_exact_proof() {
+    let source = r#".value { -webkit-user-select: text; user-select: none; } .important { -webkit-transform: translateX(1px) !important; transform: translateX(1px); } .legacy-value { display: -webkit-box; display: flex; }"#;
+    let execution = execute_transform_passes_on_source(
+        source,
+        &[
+            TransformPassKind::StalePrefixRemoval,
+            TransformPassKind::PrintCss,
+        ],
+    );
+
+    assert_eq!(execution.mutation_count, 0);
+    assert!(execution.output_css.contains("-webkit-user-select: text"));
+    assert!(
+        execution
+            .output_css
+            .contains("-webkit-transform: translateX(1px) !important")
+    );
+    assert!(execution.output_css.contains("display: -webkit-box"));
+    assert_eq!(
+        execution.executed_pass_ids,
+        vec!["stale-prefix-removal", "print-css"]
+    );
+}
+
+#[test]
 fn execution_runtime_lowers_whole_value_light_dark_declarations() {
     let source = r#".card { color: light-dark(#000, #fff); background: linear-gradient(light-dark(red, blue), white); border: 1px solid light-dark(red, blue); box-shadow: 0 0 1px light-dark(black, white); }"#;
     let execution = execute_transform_passes_on_source(

@@ -52,7 +52,9 @@ use crate::domains::{
     },
     trivia::{normalize_css_whitespace_with_lexer, strip_css_comments_with_lexer},
     unit::normalize_css_units_with_lexer,
-    vendor_prefix::add_css_vendor_prefixes_with_lexer,
+    vendor_prefix::{
+        add_css_vendor_prefixes_with_lexer, remove_stale_css_vendor_prefixes_with_lexer,
+    },
 };
 use crate::helpers::rules::collect_top_level_ordinary_rule_slices;
 use crate::model::{
@@ -125,6 +127,13 @@ pub(crate) fn merge_adjacent_same_block_css_selectors(
 
 pub(crate) fn add_css_vendor_prefixes(source: &str, dialect: StyleDialect) -> (String, usize) {
     add_css_vendor_prefixes_with_lexer(source, dialect)
+}
+
+pub(crate) fn remove_stale_css_vendor_prefixes(
+    source: &str,
+    dialect: StyleDialect,
+) -> (String, usize) {
+    remove_stale_css_vendor_prefixes_with_lexer(source, dialect)
 }
 
 pub(crate) fn lower_css_light_dark(source: &str, dialect: StyleDialect) -> (String, usize) {

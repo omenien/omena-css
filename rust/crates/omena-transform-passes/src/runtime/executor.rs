@@ -31,9 +31,9 @@ use crate::registry::{
     lower_css_oklab_oklch, merge_adjacent_same_block_css_selectors,
     merge_adjacent_same_selector_css_rules, normalize_css_string_quotes, normalize_css_units,
     normalize_css_whitespace, reachable_class_names_with_composes_exports, reduce_css_calc,
-    remove_empty_css_rules, resolve_css_module_composes, resolve_static_css_modules_values,
-    rewrite_css_module_class_names, route_design_token_values, strip_css_comments,
-    strip_css_url_quotes, substitute_static_css_custom_properties,
+    remove_empty_css_rules, remove_stale_css_vendor_prefixes, resolve_css_module_composes,
+    resolve_static_css_modules_values, rewrite_css_module_class_names, route_design_token_values,
+    strip_css_comments, strip_css_url_quotes, substitute_static_css_custom_properties,
     tree_shake_css_class_rules_with_removals, tree_shake_css_custom_properties_with_removals,
     tree_shake_css_keyframes_with_removals, tree_shake_css_modules_values_with_removals,
     unwrap_css_nesting,
@@ -330,6 +330,14 @@ fn execute_transform_passes_on_source_with_active_lex_cache(
                     input_byte_len,
                     add_css_vendor_prefixes(&pass_input_css, dialect),
                     "inserted conservative vendor-prefixed declaration synonyms when absent"
+                )
+            }
+            Some(TransformPassKind::StalePrefixRemoval) => {
+                apply_mutation_pass!(
+                    pass_id,
+                    input_byte_len,
+                    remove_stale_css_vendor_prefixes(&pass_input_css, dialect),
+                    "removed explicit stale prefixed declarations only when an exact unprefixed peer proves equivalence"
                 )
             }
             Some(TransformPassKind::LightDarkLowering) => {

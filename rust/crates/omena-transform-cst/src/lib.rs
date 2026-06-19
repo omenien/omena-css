@@ -39,6 +39,7 @@ pub enum TransformPassKind {
     SelectorMerging,
     EmptyRuleRemoval,
     VendorPrefixing,
+    StalePrefixRemoval,
     LightDarkLowering,
     ColorMixLowering,
     OklchOklabLowering,
@@ -67,7 +68,7 @@ pub enum TransformPassKind {
     PrintCss,
 }
 
-pub const TRANSFORM_PASS_CATALOG_LEN: usize = 40;
+pub const TRANSFORM_PASS_CATALOG_LEN: usize = 41;
 
 pub const fn all_transform_pass_kinds() -> [TransformPassKind; TRANSFORM_PASS_CATALOG_LEN] {
     [
@@ -85,6 +86,7 @@ pub const fn all_transform_pass_kinds() -> [TransformPassKind; TRANSFORM_PASS_CA
         TransformPassKind::SelectorMerging,
         TransformPassKind::EmptyRuleRemoval,
         TransformPassKind::VendorPrefixing,
+        TransformPassKind::StalePrefixRemoval,
         TransformPassKind::LightDarkLowering,
         TransformPassKind::ColorMixLowering,
         TransformPassKind::OklchOklabLowering,
@@ -131,32 +133,33 @@ impl TransformPassKind {
             Self::SelectorMerging => 12,
             Self::EmptyRuleRemoval => 13,
             Self::VendorPrefixing => 14,
-            Self::LightDarkLowering => 15,
-            Self::ColorMixLowering => 16,
-            Self::OklchOklabLowering => 17,
-            Self::ColorFunctionLowering => 18,
-            Self::LogicalToPhysical => 19,
-            Self::NestingUnwrap => 20,
-            Self::ScopeFlatten => 21,
-            Self::LayerFlatten => 22,
-            Self::SupportsStaticEval => 23,
-            Self::MediaStaticEval => 24,
-            Self::CalcReduction => 25,
-            Self::ImportInline => 26,
-            Self::ScssModuleEvaluate => 27,
-            Self::LessModuleEvaluate => 28,
-            Self::HashCssModuleClassNames => 29,
-            Self::ResolveCssModulesComposes => 30,
-            Self::ValueResolution => 31,
-            Self::StaticVarSubstitution => 32,
-            Self::TreeShakeClass => 33,
-            Self::TreeShakeKeyframes => 34,
-            Self::TreeShakeValue => 35,
-            Self::TreeShakeCustomProperty => 36,
-            Self::DeadMediaBranchRemoval => 37,
-            Self::DeadSupportsBranchRemoval => 38,
-            Self::DesignTokenRouting => 39,
-            Self::PrintCss => 40,
+            Self::StalePrefixRemoval => 15,
+            Self::LightDarkLowering => 16,
+            Self::ColorMixLowering => 17,
+            Self::OklchOklabLowering => 18,
+            Self::ColorFunctionLowering => 19,
+            Self::LogicalToPhysical => 20,
+            Self::NestingUnwrap => 21,
+            Self::ScopeFlatten => 22,
+            Self::LayerFlatten => 23,
+            Self::SupportsStaticEval => 24,
+            Self::MediaStaticEval => 25,
+            Self::CalcReduction => 26,
+            Self::ImportInline => 27,
+            Self::ScssModuleEvaluate => 28,
+            Self::LessModuleEvaluate => 29,
+            Self::HashCssModuleClassNames => 30,
+            Self::ResolveCssModulesComposes => 31,
+            Self::ValueResolution => 32,
+            Self::StaticVarSubstitution => 33,
+            Self::TreeShakeClass => 34,
+            Self::TreeShakeKeyframes => 35,
+            Self::TreeShakeValue => 36,
+            Self::TreeShakeCustomProperty => 37,
+            Self::DeadMediaBranchRemoval => 38,
+            Self::DeadSupportsBranchRemoval => 39,
+            Self::DesignTokenRouting => 40,
+            Self::PrintCss => 41,
         }
     }
 
@@ -180,6 +183,7 @@ impl TransformPassKind {
             Self::SelectorMerging => "selector merging",
             Self::EmptyRuleRemoval => "empty rule removal",
             Self::VendorPrefixing => "vendor prefixing",
+            Self::StalePrefixRemoval => "stale prefix removal",
             Self::LightDarkLowering => "light-dark lowering",
             Self::ColorMixLowering => "color-mix lowering",
             Self::OklchOklabLowering => "oklch/oklab lowering",
@@ -225,6 +229,7 @@ impl TransformPassKind {
             Self::SelectorMerging => "selector-merging",
             Self::EmptyRuleRemoval => "empty-rule-removal",
             Self::VendorPrefixing => "vendor-prefixing",
+            Self::StalePrefixRemoval => "stale-prefix-removal",
             Self::LightDarkLowering => "light-dark-lowering",
             Self::ColorMixLowering => "color-mix-lowering",
             Self::OklchOklabLowering => "oklch-oklab-lowering",
@@ -313,6 +318,7 @@ impl TransformPassKind {
     pub const fn read_model(self) -> TransformPassReadModel {
         match self {
             Self::VendorPrefixing
+            | Self::StalePrefixRemoval
             | Self::LightDarkLowering
             | Self::ColorMixLowering
             | Self::OklchOklabLowering
@@ -840,6 +846,9 @@ pub const fn cascade_safe_obligation(kind: TransformPassKind) -> &'static str {
         TransformPassKind::VendorPrefixing => {
             "must add target-required prefixed declarations without changing modern target outcomes"
         }
+        TransformPassKind::StalePrefixRemoval => {
+            "may remove prefixed declarations only when an explicit mapping and exact unprefixed peer prove the prefix stale"
+        }
         TransformPassKind::LightDarkLowering => {
             "must lower only when target data requires fallback branches and provenance tracks both branches"
         }
@@ -1244,6 +1253,16 @@ pub fn default_transform_dag_edges() -> Vec<TransformDagEdgeV0> {
             reason: "prefixing runs after target branch evaluation produces final declarations",
         },
         TransformDagEdgeV0 {
+            from: "vendor-prefixing",
+            to: "stale-prefix-removal",
+            reason: "stale-prefix removal must inspect the final vendor-prefix declaration set",
+        },
+        TransformDagEdgeV0 {
+            from: "stale-prefix-removal",
+            to: "print-css",
+            reason: "printer consumes the final prefix-removal decisions",
+        },
+        TransformDagEdgeV0 {
             from: "calc-reduction",
             to: "print-css",
             reason: "printer consumes the final reduced transform CST",
@@ -1273,7 +1292,7 @@ mod tests {
         assert_eq!(boundary.pass_catalog_count, TRANSFORM_PASS_CATALOG_LEN);
         assert!(boundary.full_pass_catalog_covered);
         assert_eq!(boundary.semantic_aware_pass_count, 14);
-        assert_eq!(boundary.commodity_pass_count, 25);
+        assert_eq!(boundary.commodity_pass_count, 26);
         assert_eq!(boundary.emission_pass_count, 1);
         assert!(boundary.all_passes_declare_cascade_obligation);
         assert!(boundary.all_passes_have_compile_time_cascade_witness);

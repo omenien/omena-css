@@ -102,6 +102,7 @@ pub fn implemented_mutation_pass_ids() -> Vec<&'static str> {
         TransformPassKind::SelectorMerging.id(),
         TransformPassKind::EmptyRuleRemoval.id(),
         TransformPassKind::VendorPrefixing.id(),
+        TransformPassKind::StalePrefixRemoval.id(),
         TransformPassKind::LightDarkLowering.id(),
         TransformPassKind::ColorMixLowering.id(),
         TransformPassKind::OklchOklabLowering.id(),
@@ -143,13 +144,13 @@ fn registry_entry_for_contract(contract: TransformPassContractV0) -> TransformPa
 fn module_family_for_pass(kind: TransformPassKind) -> &'static str {
     match kind.ordinal() {
         1..=7 => "commodity-token",
-        8 | 25 => "egg-backed",
+        8 | 26 => "egg-backed",
         9..=13 => "cascade-proven-structural",
-        14..=24 => "target-lowering",
-        26..=28 => "module-bundle",
-        29..=32 => "css-modules-resolution",
-        33..=39 => "semantic-reachability",
-        40 => "emission",
+        14..=25 => "target-lowering",
+        27..=29 => "module-bundle",
+        30..=33 => "css-modules-resolution",
+        34..=40 => "semantic-reachability",
+        41 => "emission",
         _ => "unknown",
     }
 }
@@ -234,12 +235,12 @@ pub(crate) fn transform_pass_kind_from_id(pass_id: &str) -> Option<TransformPass
 
 fn execution_rank(kind: TransformPassKind) -> u8 {
     match kind.ordinal() {
-        26..=28 => 10,
-        29..=39 => 20,
-        14..=24 => 30,
-        8..=13 | 25 => 40,
+        27..=29 => 10,
+        30..=40 => 20,
+        14..=25 => 30,
+        8..=13 | 26 => 40,
         1..=7 => 50,
-        40 => 60,
+        41 => 60,
         _ => 70,
     }
 }

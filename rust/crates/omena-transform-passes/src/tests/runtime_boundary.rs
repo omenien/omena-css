@@ -37,6 +37,7 @@ fn registry_covers_full_transform_catalog() {
             "selector-merging",
             "empty-rule-removal",
             "vendor-prefixing",
+            "stale-prefix-removal",
             "light-dark-lowering",
             "color-mix-lowering",
             "oklch-oklab-lowering",
@@ -68,6 +69,11 @@ fn registry_covers_full_transform_catalog() {
     assert!(boundary.registry_entries.iter().any(|entry| {
         entry.contract.kind == TransformPassKind::TreeShakeClass
             && entry.module_family == "semantic-reachability"
+    }));
+    assert!(boundary.registry_entries.iter().any(|entry| {
+        entry.contract.kind == TransformPassKind::StalePrefixRemoval
+            && entry.module_family == "target-lowering"
+            && entry.contract.read_model == omena_transform_cst::TransformPassReadModel::TargetData
     }));
     assert!(
         !boundary
