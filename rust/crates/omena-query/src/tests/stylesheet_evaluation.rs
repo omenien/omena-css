@@ -492,6 +492,76 @@ fn consumer_build_derives_static_less_evaluator_context() {
 }
 
 #[test]
+fn consumer_build_uses_native_less_evaluation_after_import_inlining() -> Result<(), String> {
+    let sources = vec![
+        OmenaQueryStyleSourceInputV0 {
+            style_path: "/tmp/tokens.less".to_string(),
+            style_source: "@brand: red; .base { color: @brand; }".to_string(),
+        },
+        OmenaQueryStyleSourceInputV0 {
+            style_path: "/tmp/Button.module.less".to_string(),
+            style_source: r#"@import "./tokens.less"; .button { color: @brand; }"#.to_string(),
+        },
+    ];
+
+    let summary = execute_omena_query_consumer_build_style_sources(
+        "/tmp/Button.module.less",
+        sources.as_slice(),
+        &[
+            "import-inline".to_string(),
+            "less-module-evaluate".to_string(),
+            "print-css".to_string(),
+        ],
+        &[],
+    )?;
+
+    assert!(
+        summary
+            .execution
+            .executed_pass_ids
+            .contains(&"import-inline"),
+        "{:?}",
+        summary.execution.executed_pass_ids
+    );
+    assert!(
+        summary
+            .execution
+            .executed_pass_ids
+            .contains(&"less-module-evaluate"),
+        "{:?}",
+        summary.execution.executed_pass_ids
+    );
+    assert!(
+        summary
+            .execution
+            .output_css
+            .contains(".base { color: red; }"),
+        "{}",
+        summary.execution.output_css
+    );
+    assert!(
+        summary
+            .execution
+            .output_css
+            .contains(".button { color: red; }"),
+        "{}",
+        summary.execution.output_css
+    );
+    assert_eq!(
+        summary
+            .execution
+            .outcomes
+            .iter()
+            .find(|outcome| outcome.pass_id == "less-module-evaluate")
+            .map(|outcome| outcome.detail),
+        Some(
+            "applied explicit Less module evaluation native edit output from the evaluator boundary"
+        )
+    );
+    Ok(())
+}
+
+#[test]
 fn consumer_build_derives_static_less_evaluator_context_for_forward_references() {
     let summary = execute_omena_query_consumer_build_style_source(
         "Button.module.less",
