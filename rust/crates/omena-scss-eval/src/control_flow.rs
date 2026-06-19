@@ -2884,6 +2884,48 @@ mod tests {
     }
 
     #[test]
+    fn control_flow_value_analysis_tracks_static_while_expression_steps() {
+        let source = "$step: 1 + 1; $i: 0; @while $i < 6 { $i: $i + $step; .n { order: $i; } }";
+        let report = analyze_scss_control_flow_values(source, StyleDialect::Scss);
+        assert!(report.is_some());
+        let Some(report) = report else {
+            return;
+        };
+
+        assert_eq!(report.block_count, 1);
+        assert_eq!(report.back_edge_count, 1);
+        assert_eq!(report.loop_carried_binding_count, 1);
+        assert_eq!(report.blocks[0].loop_carried_bindings, vec!["$i"]);
+        assert_eq!(
+            report.blocks[0].loop_carried_binding_values[0].value,
+            AbstractCssValueV0::FiniteSet {
+                values: vec!["0".to_string(), "2".to_string(), "4".to_string()]
+            }
+        );
+    }
+
+    #[test]
+    fn control_flow_value_analysis_tracks_static_while_compound_expression_steps() {
+        let source = "$step: 2; $i: 0; @while $i < 7 { $i += $step + 1; .n { order: $i; } }";
+        let report = analyze_scss_control_flow_values(source, StyleDialect::Scss);
+        assert!(report.is_some());
+        let Some(report) = report else {
+            return;
+        };
+
+        assert_eq!(report.block_count, 1);
+        assert_eq!(report.back_edge_count, 1);
+        assert_eq!(report.loop_carried_binding_count, 1);
+        assert_eq!(report.blocks[0].loop_carried_bindings, vec!["$i"]);
+        assert_eq!(
+            report.blocks[0].loop_carried_binding_values[0].value,
+            AbstractCssValueV0::FiniteSet {
+                values: vec!["0".to_string(), "3".to_string(), "6".to_string()]
+            }
+        );
+    }
+
+    #[test]
     fn call_return_ir_summarizes_mixin_and_function_edges() {
         let source = r#"
 @mixin tone($color) { color: $color; }
@@ -4136,6 +4178,34 @@ mod tests {
     #[test]
     fn call_return_ir_resolves_static_while_cumulative_step_returns() {
         let source = "@function collect() { $i: 0; @while $i < 7 { @if $i == 3 { @return $i + 1; } $i: $i + 1; $i: $i + 2; } @return 9; } .a { width: collect(); }";
+        let report = summarize_scss_call_return_ir(source, StyleDialect::Scss);
+        assert!(report.is_some());
+        let Some(report) = report else {
+            return;
+        };
+        let function_call = report
+            .nodes
+            .iter()
+            .find(|node| node.kind == "functionCall" && node.name.as_deref() == Some("collect"));
+        assert!(function_call.is_some());
+        let Some(function_call) = function_call else {
+            return;
+        };
+
+        assert_eq!(report.call_resolved_return_value_count, 1);
+        assert_eq!(report.exact_call_resolved_return_value_count, 1);
+        assert_eq!(function_call.call_resolved_return_value_kind, Some("exact"));
+        assert_eq!(
+            function_call.call_resolved_return_value,
+            Some(AbstractCssValueV0::Exact {
+                value: "4".to_string()
+            })
+        );
+    }
+
+    #[test]
+    fn call_return_ir_resolves_static_while_expression_step_returns() {
+        let source = "@function collect() { $step: 1 + 1; $i: 0; @while $i < 6 { @if $i == 4 { @return $i; } $i: $i + $step; } @return 9; } .a { width: collect(); }";
         let report = summarize_scss_call_return_ir(source, StyleDialect::Scss);
         assert!(report.is_some());
         let Some(report) = report else {

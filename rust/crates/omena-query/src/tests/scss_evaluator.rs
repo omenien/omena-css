@@ -73,9 +73,9 @@ fn exposes_static_stylesheet_oracle_corpus_through_query_boundary() {
     assert_eq!(summary.mode, "oracleOnly");
     assert_eq!(summary.value_type, "AbstractCssValueV0");
     assert_eq!(summary.product_output_source, "nativeEditOutput");
-    assert_eq!(summary.fixture_count, 66);
-    assert_eq!(summary.scss_fixture_count, 12);
-    assert_eq!(summary.sass_fixture_count, 9);
+    assert_eq!(summary.fixture_count, 68);
+    assert_eq!(summary.scss_fixture_count, 13);
+    assert_eq!(summary.sass_fixture_count, 10);
     assert_eq!(summary.less_fixture_count, 45);
     assert_eq!(summary.evaluated_fixture_count, summary.fixture_count);
     assert_eq!(
@@ -146,6 +146,19 @@ fn exposes_static_stylesheet_oracle_corpus_through_query_boundary() {
             && fixture.divergence_count == 0
     }));
     assert!(summary.corpus.fixtures.iter().any(|fixture| {
+        fixture.id == "scss.static-while-expression-step"
+            && fixture.evaluation_available
+            && fixture.native_edit_output_matches_evaluated_css
+            && fixture.divergence_count == 0
+    }));
+    assert!(summary.corpus.fixtures.iter().any(|fixture| {
+        fixture.id == "sass.static-while-expression-step"
+            && fixture.dialect == "sass"
+            && fixture.evaluation_available
+            && fixture.native_edit_output_matches_evaluated_css
+            && fixture.divergence_count == 0
+    }));
+    assert!(summary.corpus.fixtures.iter().any(|fixture| {
         fixture.id == "sass.variable-basic"
             && fixture.dialect == "sass"
             && fixture.evaluation_available
@@ -172,6 +185,7 @@ fn exposes_static_stylesheet_oracle_corpus_through_query_boundary() {
         "sass.static-if-return",
         "sass.static-for-return",
         "sass.static-while-return",
+        "sass.static-while-expression-step",
         "sass.static-each-return",
     ] {
         assert!(
@@ -447,10 +461,10 @@ fn exposes_scss_control_flow_oracle_corpus_through_query_boundary() {
     assert_eq!(summary.mode, "oracleOnly");
     assert_eq!(summary.value_type, "AbstractCssValueV0");
     assert_eq!(summary.node_key_type, "StableNodeKeyV0");
-    assert_eq!(summary.fixture_count, 15);
-    assert_eq!(summary.scss_fixture_count, 9);
-    assert_eq!(summary.sass_fixture_count, 5);
-    assert_eq!(summary.supported_fixture_count, 14);
+    assert_eq!(summary.fixture_count, 17);
+    assert_eq!(summary.scss_fixture_count, 10);
+    assert_eq!(summary.sass_fixture_count, 6);
+    assert_eq!(summary.supported_fixture_count, 16);
     assert_eq!(summary.rejected_flat_css_fixture_count, 1);
     assert!(summary.branch_fixture_count >= 5);
     assert!(summary.loop_fixture_count >= 6);
@@ -524,6 +538,20 @@ fn exposes_scss_control_flow_oracle_corpus_through_query_boundary() {
     );
     assert!(summary.corpus.fixtures.iter().any(|fixture| fixture.id
         == "sass.static-for-expression-bounds"
+        && fixture.dialect == "sass"
+        && fixture.call_resolved_return_value_count == 1
+        && fixture.value_analysis_converged));
+    assert!(
+        summary
+            .corpus
+            .fixtures
+            .iter()
+            .any(|fixture| fixture.id == "scss.static-while-expression-step"
+                && fixture.call_resolved_return_value_count == 1
+                && fixture.value_analysis_converged)
+    );
+    assert!(summary.corpus.fixtures.iter().any(|fixture| fixture.id
+        == "sass.static-while-expression-step"
         && fixture.dialect == "sass"
         && fixture.call_resolved_return_value_count == 1
         && fixture.value_analysis_converged));
@@ -3091,6 +3119,49 @@ fn exposes_static_while_conditional_call_return_values_through_query_boundary()
         serde_json::json!({
             "kind": "exact",
             "value": "2",
+        })
+    );
+    Ok(())
+}
+
+#[test]
+fn exposes_static_while_expression_step_call_return_values_through_query_boundary()
+-> Result<(), serde_json::Error> {
+    let source = "@function collect() { $step: 1 + 1; $i: 0; @while $i < 6 { @if $i == 4 { @return $i; } $i: $i + $step; } @return 9; } .a { width: collect(); }";
+
+    let summary = summarize_omena_query_scss_evaluator_control_flow_from_source(
+        source,
+        OmenaParserStyleDialect::Scss,
+    );
+
+    assert_eq!(summary.schema_version, "0");
+    assert_eq!(summary.product, "omena-query.scss-evaluator-control-flow");
+    assert_eq!(summary.mode, "oracleOnly");
+    assert_eq!(summary.value_type, "AbstractCssValueV0");
+    assert!(summary.supported_dialect);
+    assert_eq!(summary.control_flow_loop_block_count, 1);
+    assert_eq!(summary.control_flow_back_edge_count, 1);
+    assert_eq!(summary.call_resolved_return_value_count, 1);
+    assert_eq!(summary.exact_call_resolved_return_value_count, 1);
+
+    assert!(summary.call_return_ir.is_some());
+    let Some(call_return) = summary.call_return_ir.as_ref() else {
+        return Ok(());
+    };
+    let function_call = call_return
+        .nodes
+        .iter()
+        .find(|node| node.kind == "functionCall" && node.name.as_deref() == Some("collect"));
+    assert!(function_call.is_some());
+    let Some(function_call) = function_call else {
+        return Ok(());
+    };
+    assert_eq!(function_call.call_resolved_return_value_kind, Some("exact"));
+    assert_eq!(
+        serde_json::to_value(function_call.call_resolved_return_value.as_ref())?,
+        serde_json::json!({
+            "kind": "exact",
+            "value": "4",
         })
     );
     Ok(())

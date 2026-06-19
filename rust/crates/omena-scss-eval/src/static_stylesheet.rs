@@ -4925,9 +4925,9 @@ mod tests {
             report.evaluated_fixture_count
         );
         assert!(report.all_legacy_outputs_retained_as_oracle);
-        assert_eq!(report.fixture_count, 66);
-        assert_eq!(report.scss_fixture_count, 12);
-        assert_eq!(report.sass_fixture_count, 9);
+        assert_eq!(report.fixture_count, 68);
+        assert_eq!(report.scss_fixture_count, 13);
+        assert_eq!(report.sass_fixture_count, 10);
         assert_eq!(report.less_fixture_count, 45);
         assert_eq!(report.evaluated_fixture_count, report.fixture_count);
         assert_eq!(report.missing_evaluation_count, 0);
@@ -4982,6 +4982,7 @@ mod tests {
             "sass.static-if-return",
             "sass.static-for-return",
             "sass.static-while-return",
+            "sass.static-while-expression-step",
             "sass.static-each-return",
         ] {
             assert!(

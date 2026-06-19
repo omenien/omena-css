@@ -297,6 +297,11 @@ fn static_stylesheet_oracle_corpus_fixtures() -> &'static [StaticStylesheetOracl
             source: "@function pick($target)\n  $i: 0\n  @while $i < 3\n    @if $i == $target\n      @return $i + 1\n    $i: $i + 1\n  @return 0\n.card\n  z-index: pick(2)",
         },
         StaticStylesheetOracleCorpusFixtureV0 {
+            id: "sass.static-while-expression-step",
+            dialect: StyleDialect::Sass,
+            source: "@function pick($target)\n  $step: 1 + 1\n  $i: 0\n  @while $i < 6\n    @if $i == $target\n      @return $i\n    $i: $i + $step\n  @return 0\n.card\n  z-index: pick(4)",
+        },
+        StaticStylesheetOracleCorpusFixtureV0 {
             id: "sass.static-each-return",
             dialect: StyleDialect::Sass,
             source: "@function tone($target)\n  @each $name, $tone in (primary: red, secondary: blue)\n    @if $name == $target\n      @return $tone\n  @return black\n.card\n  color: tone(secondary)",
@@ -330,6 +335,11 @@ fn static_stylesheet_oracle_corpus_fixtures() -> &'static [StaticStylesheetOracl
             id: "scss.static-while-return",
             dialect: StyleDialect::Scss,
             source: "@function pick($target) { $i: 0; @while $i < 3 { @if $i == $target { @return $i + 1; } $i: $i + 1; } @return 0; } .button { z-index: pick(2); }",
+        },
+        StaticStylesheetOracleCorpusFixtureV0 {
+            id: "scss.static-while-expression-step",
+            dialect: StyleDialect::Scss,
+            source: "@function pick($target) { $step: 1 + 1; $i: 0; @while $i < 6 { @if $i == $target { @return $i; } $i: $i + $step; } @return 0; } .button { z-index: pick(4); }",
         },
         StaticStylesheetOracleCorpusFixtureV0 {
             id: "scss.dynamic-function-return",

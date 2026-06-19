@@ -17,7 +17,7 @@ use crate::{
 use super::{
     header_values::{scss_header_value_from_bindings, single_static_scss_header_value_text},
     model::OmenaScssEvalControlFlowBlockV0,
-    tokens::next_non_trivia_token_index,
+    tokens::{declaration_end_token_index, next_non_trivia_token_index, token_range_start},
     transfer::ScssControlFlowBindingValue,
     variables::{
         canonical_scss_variable_name, insert_static_scss_binding, static_scss_binding_value,
@@ -201,7 +201,7 @@ fn while_loop_carried_binding_values_from_parts(
     let step = binding_names
         .first()
         .map_or(StaticWhileAssignmentStep::Unspecified, |binding_name| {
-            static_while_assignment_step(body_text, binding_name)
+            static_while_assignment_step(body_text, binding_name, lexical_bindings)
         });
     if let Some(values) = static_while_condition_loop_binding_values(
         header,
@@ -249,13 +249,18 @@ fn control_flow_block_body_text<'a>(
 fn static_while_assignment_step(
     body_text: Option<&str>,
     binding_name: &str,
+    lexical_bindings: &BTreeMap<String, AbstractCssValueV0>,
 ) -> StaticWhileAssignmentStep {
     body_text.map_or(StaticWhileAssignmentStep::Unspecified, |body| {
-        while_loop_body_assignment_step(body, binding_name)
+        while_loop_body_assignment_step(body, binding_name, lexical_bindings)
     })
 }
 
-fn while_loop_body_assignment_step(body: &str, binding_name: &str) -> StaticWhileAssignmentStep {
+fn while_loop_body_assignment_step(
+    body: &str,
+    binding_name: &str,
+    lexical_bindings: &BTreeMap<String, AbstractCssValueV0>,
+) -> StaticWhileAssignmentStep {
     let lexed = lex(body, StyleDialect::Scss);
     let tokens = lexed.tokens();
     let mut brace_depth = 0usize;
@@ -286,13 +291,26 @@ fn while_loop_body_assignment_step(body: &str, binding_name: &str) -> StaticWhil
             continue;
         };
         let delta = match tokens[operator_index].kind {
-            SyntaxKind::PlusEquals => static_while_integer_token_after(tokens, operator_index),
-            SyntaxKind::MinusEquals => {
-                static_while_integer_token_after(tokens, operator_index).map(i32::saturating_neg)
-            }
-            SyntaxKind::Colon => {
-                static_while_self_assignment_step(tokens, operator_index, binding_name)
-            }
+            SyntaxKind::PlusEquals => static_while_integer_expression_after(
+                body,
+                tokens,
+                operator_index,
+                lexical_bindings,
+            ),
+            SyntaxKind::MinusEquals => static_while_integer_expression_after(
+                body,
+                tokens,
+                operator_index,
+                lexical_bindings,
+            )
+            .map(i32::saturating_neg),
+            SyntaxKind::Colon => static_while_self_assignment_step(
+                body,
+                tokens,
+                operator_index,
+                binding_name,
+                lexical_bindings,
+            ),
             _ => continue,
         };
         saw_assignment = true;
@@ -315,9 +333,11 @@ fn while_loop_body_assignment_step(body: &str, binding_name: &str) -> StaticWhil
 }
 
 fn static_while_self_assignment_step(
+    body: &str,
     tokens: &[LexedToken],
     colon_index: usize,
     binding_name: &str,
+    lexical_bindings: &BTreeMap<String, AbstractCssValueV0>,
 ) -> Option<i32> {
     let variable_index = next_non_trivia_token_index(tokens, colon_index + 1)?;
     let variable = tokens.get(variable_index)?;
@@ -329,20 +349,37 @@ fn static_while_self_assignment_step(
     }
     let operator_index = next_non_trivia_token_index(tokens, variable_index + 1)?;
     match tokens.get(operator_index)?.kind {
-        SyntaxKind::Plus => static_while_integer_token_after(tokens, operator_index),
+        SyntaxKind::Plus => {
+            static_while_integer_expression_after(body, tokens, operator_index, lexical_bindings)
+        }
         SyntaxKind::Minus => {
-            static_while_integer_token_after(tokens, operator_index).map(i32::saturating_neg)
+            static_while_integer_expression_after(body, tokens, operator_index, lexical_bindings)
+                .map(i32::saturating_neg)
         }
         _ => None,
     }
 }
 
-fn static_while_integer_token_after(tokens: &[LexedToken], operator_index: usize) -> Option<i32> {
-    let value_index = next_non_trivia_token_index(tokens, operator_index + 1)?;
-    let value = tokens.get(value_index)?;
-    (value.kind == SyntaxKind::Number)
-        .then(|| value.text.parse::<i32>().ok())
-        .flatten()
+fn static_while_integer_expression_after(
+    source: &str,
+    tokens: &[LexedToken],
+    operator_index: usize,
+    lexical_bindings: &BTreeMap<String, AbstractCssValueV0>,
+) -> Option<i32> {
+    let value_start_index = next_non_trivia_token_index(tokens, operator_index + 1)?;
+    let declaration_end_index = declaration_end_token_index(tokens, value_start_index)?;
+    let value_start = token_range_start(tokens.get(value_start_index)?);
+    let value_end = token_range_start(tokens.get(declaration_end_index)?);
+    let expression = source.get(value_start..value_end)?.trim();
+    parse_static_while_integer_expression(expression, lexical_bindings)
+}
+
+fn parse_static_while_integer_expression(
+    expression: &str,
+    lexical_bindings: &BTreeMap<String, AbstractCssValueV0>,
+) -> Option<i32> {
+    let reduced = scss_header_value_from_bindings(expression, lexical_bindings);
+    single_static_scss_header_value_text(&reduced).and_then(parse_static_while_integer_text)
 }
 
 fn loop_carried_binding_frames(
@@ -391,7 +428,7 @@ fn static_while_loop_binding_frames(
     if bindings.len() != 1 {
         return None;
     }
-    let step = static_while_assignment_step(body_text, bindings[0].as_str());
+    let step = static_while_assignment_step(body_text, bindings[0].as_str(), lexical_bindings);
     let values = static_while_condition_loop_binding_values(
         header,
         lexical_bindings,
