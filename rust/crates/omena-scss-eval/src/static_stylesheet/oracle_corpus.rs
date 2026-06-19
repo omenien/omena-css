@@ -248,6 +248,16 @@ fn static_stylesheet_oracle_corpus_fixtures() -> &'static [StaticStylesheetOracl
             source: "$gap: 1px\n.card\n  margin: $gap",
         },
         StaticStylesheetOracleCorpusFixtureV0 {
+            id: "sass.static-function-return",
+            dialect: StyleDialect::Sass,
+            source: "@function gap($value)\n  @return $value\n.card\n  margin: gap(1px)",
+        },
+        StaticStylesheetOracleCorpusFixtureV0 {
+            id: "sass.static-mixin-include",
+            dialect: StyleDialect::Sass,
+            source: "@mixin card($gap)\n  margin: $gap\n.card\n  @include card(1px)",
+        },
+        StaticStylesheetOracleCorpusFixtureV0 {
             id: "scss.color-helpers",
             dialect: StyleDialect::Scss,
             source: "$tone: list.nth(list.append(1px, transparentize(red, .25)), 2); .card { color: $tone; }",

@@ -1,6 +1,6 @@
 use std::collections::BTreeSet;
 
-use omena_parser::LexedToken;
+use omena_parser::{LexedToken, StyleDialect};
 
 use super::{
     StaticScssFunctionDeclaration, StaticScssFunctionResolutionContext, StaticScssMixinDeclaration,
@@ -13,13 +13,15 @@ use super::{
 
 pub(super) fn collect_static_scss_mixin_evaluation_edits(
     source: &str,
+    dialect: StyleDialect,
     tokens: &[LexedToken],
     function_declarations: &[StaticScssFunctionDeclaration],
     mixin_declarations: &[StaticScssMixinDeclaration],
     scopes: &[StaticStylesheetScope],
     variable_declarations: &[StaticStylesheetScopedVariableDeclaration],
 ) -> Option<StaticScssMixinEvaluationEdits> {
-    let calls = collect_static_scss_mixin_include_calls(source, tokens, mixin_declarations)?;
+    let calls =
+        collect_static_scss_mixin_include_calls(source, dialect, tokens, mixin_declarations)?;
     if calls.is_empty() {
         return Some(StaticScssMixinEvaluationEdits {
             edits: Vec::new(),
@@ -28,6 +30,7 @@ pub(super) fn collect_static_scss_mixin_evaluation_edits(
     }
 
     let context = StaticScssFunctionResolutionContext {
+        dialect,
         declarations: function_declarations,
         mixin_declarations,
         scopes,

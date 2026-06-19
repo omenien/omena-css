@@ -353,8 +353,9 @@ fn derive_static_scss_stylesheet_module_evaluation(
 ) -> Option<OmenaScssEvalStaticStylesheetEvaluationV0> {
     let lexed = lex(style_source, dialect);
     let tokens = lexed.tokens();
-    let function_declarations = collect_static_scss_function_declarations(style_source, tokens)?;
-    let mixin_declarations = collect_static_scss_mixin_declarations(style_source, tokens)?;
+    let function_declarations =
+        collect_static_scss_function_declarations(style_source, dialect, tokens)?;
+    let mixin_declarations = collect_static_scss_mixin_declarations(style_source, dialect, tokens)?;
     if !variable_facts
         .iter()
         .any(|fact| fact.kind == ParsedVariableFactKind::ScssDeclaration)
@@ -457,6 +458,7 @@ fn derive_static_scss_stylesheet_module_evaluation(
     let mut preserved_scss_evaluation_count = 0usize;
     if let Some(function_edits) = collect_static_scss_function_evaluation_edits(
         style_source,
+        dialect,
         tokens,
         &function_declarations,
         &mixin_declarations,
@@ -475,6 +477,7 @@ fn derive_static_scss_stylesheet_module_evaluation(
     }
     if let Some(mixin_edits) = collect_static_scss_mixin_evaluation_edits(
         style_source,
+        dialect,
         tokens,
         &function_declarations,
         &mixin_declarations,
@@ -984,8 +987,9 @@ fn summarize_static_scss_value_resolution_values(
         collect_static_scss_variable_declarations(style_source, dialect, variable_facts, scopes)?;
     let lexed = lex(style_source, dialect);
     let tokens = lexed.tokens();
-    let function_declarations = collect_static_scss_function_declarations(style_source, tokens)?;
-    let mixin_declarations = collect_static_scss_mixin_declarations(style_source, tokens)?;
+    let function_declarations =
+        collect_static_scss_function_declarations(style_source, dialect, tokens)?;
+    let mixin_declarations = collect_static_scss_mixin_declarations(style_source, dialect, tokens)?;
     let function_declaration_ranges =
         static_scss_function_declaration_ranges_from_declarations(function_declarations.as_slice());
     let mixin_declaration_ranges =
@@ -1034,6 +1038,7 @@ fn summarize_static_scss_value_resolution_values(
     }
     values.extend(collect_static_scss_function_value_resolution_values(
         style_source,
+        dialect,
         tokens,
         &function_declarations,
         &mixin_declarations,
@@ -1217,6 +1222,7 @@ fn collect_static_scss_resolved_function_names_in_mixin_body(
 
 fn collect_static_scss_function_declarations(
     source: &str,
+    dialect: StyleDialect,
     tokens: &[LexedToken],
 ) -> Option<Vec<StaticScssFunctionDeclaration>> {
     let mut declarations = Vec::new();
@@ -1261,9 +1267,10 @@ fn collect_static_scss_function_declarations(
 
         let body_open_index =
             static_stylesheet_skip_trivia_tokens(tokens, parameter_close_index + 1);
+        let (body_open_kind, body_close_kind) = static_stylesheet_block_kinds_for_dialect(dialect);
         if tokens
             .get(body_open_index)
-            .is_none_or(|token| token.kind != SyntaxKind::LeftBrace)
+            .is_none_or(|token| token.kind != body_open_kind)
         {
             index += 1;
             continue;
@@ -1271,8 +1278,8 @@ fn collect_static_scss_function_declarations(
         let body_close_index = static_stylesheet_matching_token_index(
             tokens,
             body_open_index,
-            SyntaxKind::LeftBrace,
-            SyntaxKind::RightBrace,
+            body_open_kind,
+            body_close_kind,
         )?;
         let return_clauses = collect_static_scss_function_return_clauses(
             source,
@@ -1308,6 +1315,7 @@ fn collect_static_scss_function_declarations(
 
 fn collect_static_scss_mixin_declarations(
     source: &str,
+    dialect: StyleDialect,
     tokens: &[LexedToken],
 ) -> Option<Vec<StaticScssMixinDeclaration>> {
     let mut declarations = Vec::new();
@@ -1349,19 +1357,18 @@ fn collect_static_scss_mixin_declarations(
         } else {
             (Vec::new(), name_index + 1)
         };
-        let Some(body_open_index) = static_stylesheet_next_token_kind_index(
-            tokens,
-            body_search_index,
-            SyntaxKind::LeftBrace,
-        ) else {
+        let (body_open_kind, body_close_kind) = static_stylesheet_block_kinds_for_dialect(dialect);
+        let Some(body_open_index) =
+            static_stylesheet_next_token_kind_index(tokens, body_search_index, body_open_kind)
+        else {
             index += 1;
             continue;
         };
         let Some(body_close_index) = static_stylesheet_matching_token_index(
             tokens,
             body_open_index,
-            SyntaxKind::LeftBrace,
-            SyntaxKind::RightBrace,
+            body_open_kind,
+            body_close_kind,
         ) else {
             index += 1;
             continue;
@@ -1404,12 +1411,17 @@ fn collect_static_scss_function_local_variables(
             scope_stack.pop();
         }
         match tokens[index].kind {
-            SyntaxKind::LeftBrace => {
+            SyntaxKind::LeftBrace | SyntaxKind::SassIndent => {
+                let close_kind = if tokens[index].kind == SyntaxKind::SassIndent {
+                    SyntaxKind::SassDedent
+                } else {
+                    SyntaxKind::RightBrace
+                };
                 let scope_end_index = static_stylesheet_matching_token_index(
                     tokens,
                     index,
-                    SyntaxKind::LeftBrace,
-                    SyntaxKind::RightBrace,
+                    tokens[index].kind,
+                    close_kind,
                 )?;
                 scope_stack.push(StaticScssFunctionLocalScope {
                     end_index: scope_end_index,
@@ -1418,7 +1430,7 @@ fn collect_static_scss_function_local_variables(
                 });
                 index += 1;
             }
-            SyntaxKind::RightBrace => {
+            SyntaxKind::RightBrace | SyntaxKind::SassDedent => {
                 if scope_stack
                     .last()
                     .is_some_and(|scope| scope.end_index == index)
@@ -1696,13 +1708,23 @@ fn static_scss_control_block_header_and_body(
     control_index: usize,
     end: usize,
 ) -> Option<(String, usize, usize)> {
-    let body_open_index =
-        (control_index + 1..end).find(|index| tokens[*index].kind == SyntaxKind::LeftBrace)?;
+    let body_open_index = (control_index + 1..end).find(|index| {
+        matches!(
+            tokens[*index].kind,
+            SyntaxKind::LeftBrace | SyntaxKind::SassIndent
+        )
+    })?;
+    let (body_open_kind, body_close_kind) =
+        if tokens[body_open_index].kind == SyntaxKind::SassIndent {
+            (SyntaxKind::SassIndent, SyntaxKind::SassDedent)
+        } else {
+            (SyntaxKind::LeftBrace, SyntaxKind::RightBrace)
+        };
     let body_close_index = static_stylesheet_matching_token_index(
         tokens,
         body_open_index,
-        SyntaxKind::LeftBrace,
-        SyntaxKind::RightBrace,
+        body_open_kind,
+        body_close_kind,
     )?;
     if body_close_index >= end {
         return None;
@@ -1744,6 +1766,7 @@ fn static_scss_branch_chain_else_condition(previous: &[String]) -> Option<String
 
 fn resolve_static_scss_function_call_abstract_value(
     call: &StaticScssFunctionCall,
+    dialect: StyleDialect,
     declarations: &[StaticScssFunctionDeclaration],
     mixin_declarations: &[StaticScssMixinDeclaration],
     scopes: &[StaticStylesheetScope],
@@ -1752,6 +1775,7 @@ fn resolve_static_scss_function_call_abstract_value(
 ) -> StaticStylesheetAbstractResolution {
     resolve_static_scss_function_call_abstract_value_with_stack(
         call,
+        dialect,
         declarations,
         mixin_declarations,
         scopes,
@@ -1763,6 +1787,7 @@ fn resolve_static_scss_function_call_abstract_value(
 
 fn resolve_static_scss_function_call_abstract_value_with_stack(
     call: &StaticScssFunctionCall,
+    dialect: StyleDialect,
     declarations: &[StaticScssFunctionDeclaration],
     mixin_declarations: &[StaticScssMixinDeclaration],
     scopes: &[StaticStylesheetScope],
@@ -1789,6 +1814,7 @@ fn resolve_static_scss_function_call_abstract_value_with_stack(
     let mut next_active_functions = active_functions.clone();
     next_active_functions.insert(canonical_declaration_name);
     let context = StaticScssFunctionResolutionContext {
+        dialect,
         declarations,
         mixin_declarations,
         scopes,
@@ -1974,10 +2000,16 @@ fn render_static_scss_mixin_include_body_with_active(
         argument_values.insert(parameter, rendered_value);
     }
 
-    let body =
-        render_static_scss_mixin_body_variables(body, call_position, &argument_values, context)?;
+    let body = render_static_scss_mixin_body_variables(
+        body,
+        context.dialect,
+        call_position,
+        &argument_values,
+        context,
+    )?;
     let nested = render_static_scss_mixin_body_nested_includes(
         body.as_str(),
+        context.dialect,
         source,
         tokens,
         call_position,
@@ -1986,6 +2018,7 @@ fn render_static_scss_mixin_include_body_with_active(
     )?;
     let body = resolve_static_scss_mixin_body_declaration_values(
         nested.body.as_str(),
+        context.dialect,
         call_position,
         context,
     )?;
@@ -2011,15 +2044,17 @@ fn render_static_scss_mixin_include_body_with_active(
 
 fn render_static_scss_mixin_body_nested_includes(
     body: &str,
+    dialect: StyleDialect,
     source: &str,
     tokens: &[LexedToken],
     call_position: usize,
     context: StaticScssFunctionResolutionContext<'_>,
     active_mixins: &mut BTreeSet<String>,
 ) -> Option<StaticScssMixinRenderResult> {
-    let body_lexed = lex(body, StyleDialect::Scss);
+    let body_lexed = lex(body, dialect);
     let calls = collect_static_scss_mixin_include_calls(
         body,
+        dialect,
         body_lexed.tokens(),
         context.mixin_declarations,
     )?;
@@ -2068,11 +2103,12 @@ fn render_static_scss_mixin_body_nested_includes(
 
 fn render_static_scss_mixin_body_variables(
     body: &str,
+    dialect: StyleDialect,
     call_position: usize,
     argument_values: &BTreeMap<String, String>,
     context: StaticScssFunctionResolutionContext<'_>,
 ) -> Option<String> {
-    let local_declarations = collect_static_scss_mixin_body_local_declarations(body)?;
+    let local_declarations = collect_static_scss_mixin_body_local_declarations(body, dialect)?;
     let local_declaration_ranges = local_declarations
         .iter()
         .flat_map(|declaration| declaration.declaration.removal_spans.iter().copied())
@@ -2147,8 +2183,9 @@ fn render_static_scss_mixin_body_variables(
 
 fn collect_static_scss_mixin_body_local_declarations(
     body: &str,
+    dialect: StyleDialect,
 ) -> Option<Vec<StaticScssMixinBodyLocalDeclaration>> {
-    let facts = omena_parser::collect_style_facts(body, StyleDialect::Scss);
+    let facts = omena_parser::collect_style_facts(body, dialect);
     let mut declarations = Vec::new();
     for fact in facts
         .variables
@@ -2164,7 +2201,7 @@ fn collect_static_scss_mixin_body_local_declarations(
             body,
             start,
             end,
-            StyleDialect::Scss,
+            dialect,
             StaticStylesheetVariableKind::Scss,
         )?;
         if !static_stylesheet_scss_declaration_value_is_removal_safe(&declaration.value) {
@@ -2181,10 +2218,11 @@ fn collect_static_scss_mixin_body_local_declarations(
 
 fn resolve_static_scss_mixin_body_declaration_values(
     body: &str,
+    dialect: StyleDialect,
     call_position: usize,
     context: StaticScssFunctionResolutionContext<'_>,
 ) -> Option<String> {
-    let value_ranges = collect_static_scss_mixin_body_declaration_value_ranges(body)?;
+    let value_ranges = collect_static_scss_mixin_body_declaration_value_ranges(body, dialect)?;
     let mut edits = Vec::new();
     let empty_arguments = BTreeMap::new();
     for (start, end) in value_ranges {
@@ -2213,6 +2251,7 @@ fn resolve_static_scss_mixin_body_declaration_values(
 
 fn collect_static_scss_mixin_body_declaration_value_ranges(
     body: &str,
+    dialect: StyleDialect,
 ) -> Option<Vec<(usize, usize)>> {
     let mut ranges = Vec::new();
     let mut statement_start = 0usize;
@@ -2253,6 +2292,15 @@ fn collect_static_scss_mixin_body_declaration_value_ranges(
                 )?;
                 statement_start = index + ch.len_utf8();
             }
+            '\n' if dialect == StyleDialect::Sass && paren_depth == 0 && bracket_depth == 0 => {
+                collect_static_scss_mixin_body_statement_value_range(
+                    body,
+                    statement_start,
+                    index,
+                    &mut ranges,
+                )?;
+                statement_start = index + ch.len_utf8();
+            }
             _ => {}
         }
         index += ch.len_utf8();
@@ -2262,7 +2310,19 @@ fn collect_static_scss_mixin_body_declaration_value_ranges(
         return None;
     }
     let trailing = body.get(statement_start..)?;
-    trailing.trim().is_empty().then_some(ranges)
+    if trailing.trim().is_empty() {
+        return Some(ranges);
+    }
+    if dialect == StyleDialect::Sass {
+        collect_static_scss_mixin_body_statement_value_range(
+            body,
+            statement_start,
+            body.len(),
+            &mut ranges,
+        )?;
+        return Some(ranges);
+    }
+    None
 }
 
 fn collect_static_scss_mixin_body_statement_value_range(
@@ -2969,6 +3029,7 @@ fn resolve_static_scss_known_function_calls_in_value(
         };
         let resolution = resolve_static_scss_function_call_abstract_value_with_stack(
             &nested_call,
+            context.dialect,
             context.declarations,
             context.mixin_declarations,
             context.scopes,
@@ -3168,6 +3229,13 @@ fn static_stylesheet_matching_token_index(
         }
     }
     None
+}
+
+fn static_stylesheet_block_kinds_for_dialect(dialect: StyleDialect) -> (SyntaxKind, SyntaxKind) {
+    match dialect {
+        StyleDialect::Sass => (SyntaxKind::SassIndent, SyntaxKind::SassDedent),
+        _ => (SyntaxKind::LeftBrace, SyntaxKind::RightBrace),
+    }
 }
 
 fn collect_static_scss_variable_declarations(
@@ -4712,7 +4780,15 @@ fn static_stylesheet_previous_token_starts_declaration(
         .iter()
         .rev()
         .find(|token| !static_stylesheet_token_is_trivia(token.kind))
-        .is_some_and(|token| matches!(token.kind, SyntaxKind::LeftBrace | SyntaxKind::Semicolon))
+        .is_some_and(|token| {
+            matches!(
+                token.kind,
+                SyntaxKind::LeftBrace
+                    | SyntaxKind::SassIndent
+                    | SyntaxKind::Semicolon
+                    | SyntaxKind::SassOptionalSemicolon
+            )
+        })
 }
 
 fn static_stylesheet_previous_token_is_body_start(tokens: &[LexedToken], index: usize) -> bool {
@@ -4742,7 +4818,10 @@ fn static_stylesheet_value_end_token_until(
             SyntaxKind::RightParen => paren_depth = paren_depth.checked_sub(1)?,
             SyntaxKind::LeftBracket => bracket_depth += 1,
             SyntaxKind::RightBracket => bracket_depth = bracket_depth.checked_sub(1)?,
-            SyntaxKind::Semicolon | SyntaxKind::RightBrace
+            SyntaxKind::Semicolon
+            | SyntaxKind::SassOptionalSemicolon
+            | SyntaxKind::RightBrace
+            | SyntaxKind::SassDedent
                 if paren_depth == 0 && bracket_depth == 0 =>
             {
                 return Some(index);
@@ -5349,9 +5428,9 @@ mod tests {
         assert_eq!(report.mode, "oracleOnly");
         assert_eq!(report.value_type, "AbstractCssValueV0");
         assert_eq!(report.product_output_source, "legacyEvaluatedCss");
-        assert_eq!(report.fixture_count, 56);
+        assert_eq!(report.fixture_count, 58);
         assert_eq!(report.scss_fixture_count, 10);
-        assert_eq!(report.sass_fixture_count, 1);
+        assert_eq!(report.sass_fixture_count, 3);
         assert_eq!(report.less_fixture_count, 45);
         assert_eq!(report.evaluated_fixture_count, report.fixture_count);
         assert_eq!(report.missing_evaluation_count, 0);
@@ -5383,6 +5462,22 @@ mod tests {
             fixture.id == "sass.variable-basic"
                 && fixture.dialect == "sass"
                 && fixture.evaluation_available
+                && fixture.native_edit_output_matches_evaluated_css
+                && fixture.divergence_count == 0
+        }));
+        assert!(report.fixtures.iter().any(|fixture| {
+            fixture.id == "sass.static-function-return"
+                && fixture.dialect == "sass"
+                && fixture.evaluation_available
+                && fixture.native_replacement_count == 1
+                && fixture.native_edit_output_matches_evaluated_css
+                && fixture.divergence_count == 0
+        }));
+        assert!(report.fixtures.iter().any(|fixture| {
+            fixture.id == "sass.static-mixin-include"
+                && fixture.dialect == "sass"
+                && fixture.evaluation_available
+                && fixture.native_structural_edit_count == 2
                 && fixture.native_edit_output_matches_evaluated_css
                 && fixture.divergence_count == 0
         }));

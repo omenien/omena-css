@@ -248,7 +248,8 @@ pub(super) fn static_less_value_is_detached_ruleset_reference(
 }
 
 pub(super) fn resolve_static_less_mixin_body_declaration_values(body: &str) -> Option<String> {
-    let value_ranges = collect_static_scss_mixin_body_declaration_value_ranges(body)?;
+    let value_ranges =
+        collect_static_scss_mixin_body_declaration_value_ranges(body, StyleDialect::Less)?;
     let mut edits = Vec::new();
     for (start, end) in value_ranges {
         let value = body.get(start..end)?;

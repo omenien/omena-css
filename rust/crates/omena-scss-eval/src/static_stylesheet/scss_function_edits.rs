@@ -1,6 +1,6 @@
 use std::collections::BTreeSet;
 
-use omena_parser::LexedToken;
+use omena_parser::{LexedToken, StyleDialect};
 
 use super::{
     OmenaScssEvalStaticValueResolutionV0, STATIC_STYLESHEET_VALUE_RESOLUTION_FUEL_LIMIT,
@@ -16,6 +16,7 @@ use super::{
 
 pub(super) fn collect_static_scss_function_evaluation_edits(
     source: &str,
+    dialect: StyleDialect,
     tokens: &[LexedToken],
     declarations: &[StaticScssFunctionDeclaration],
     mixin_declarations: &[StaticScssMixinDeclaration],
@@ -40,6 +41,7 @@ pub(super) fn collect_static_scss_function_evaluation_edits(
     }) {
         let resolution = resolve_static_scss_function_call_abstract_value(
             call,
+            dialect,
             declarations,
             mixin_declarations,
             scopes,
@@ -95,6 +97,7 @@ pub(super) fn collect_static_scss_function_evaluation_edits(
 
 pub(super) fn collect_static_scss_function_value_resolution_values(
     source: &str,
+    dialect: StyleDialect,
     tokens: &[LexedToken],
     declarations: &[StaticScssFunctionDeclaration],
     mixin_declarations: &[StaticScssMixinDeclaration],
@@ -114,6 +117,7 @@ pub(super) fn collect_static_scss_function_value_resolution_values(
         .map(|call| {
             let resolution = resolve_static_scss_function_call_abstract_value(
                 &call,
+                dialect,
                 declarations,
                 mixin_declarations,
                 scopes,

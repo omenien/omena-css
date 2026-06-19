@@ -1,6 +1,6 @@
 use std::collections::BTreeSet;
 
-use omena_parser::LexedToken;
+use omena_parser::{LexedToken, StyleDialect};
 use omena_syntax::SyntaxKind;
 
 use super::{
@@ -62,6 +62,7 @@ pub(super) fn collect_static_scss_function_calls(
 
 pub(super) fn collect_static_scss_mixin_include_calls(
     source: &str,
+    dialect: StyleDialect,
     tokens: &[LexedToken],
     declarations: &[StaticScssMixinDeclaration],
 ) -> Option<Vec<StaticScssMixinIncludeCall>> {
@@ -114,7 +115,14 @@ pub(super) fn collect_static_scss_mixin_include_calls(
             )
         };
         let end_token = tokens.get(after_arguments_index)?;
-        if end_token.kind != SyntaxKind::Semicolon {
+        let valid_terminator = match dialect {
+            StyleDialect::Sass => matches!(
+                end_token.kind,
+                SyntaxKind::SassOptionalSemicolon | SyntaxKind::SassDedent
+            ),
+            _ => end_token.kind == SyntaxKind::Semicolon,
+        };
+        if !valid_terminator {
             index += 1;
             continue;
         }

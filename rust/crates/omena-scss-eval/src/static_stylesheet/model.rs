@@ -314,6 +314,7 @@ pub(super) struct StaticLessMixinRenderContext<'a> {
 
 #[derive(Debug, Clone, Copy)]
 pub(super) struct StaticScssFunctionResolutionContext<'a> {
+    pub(super) dialect: StyleDialect,
     pub(super) declarations: &'a [StaticScssFunctionDeclaration],
     pub(super) mixin_declarations: &'a [StaticScssMixinDeclaration],
     pub(super) scopes: &'a [StaticStylesheetScope],
