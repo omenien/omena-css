@@ -6258,15 +6258,24 @@ fn resolve_static_less_variable_abstract_value_text(
     ) {
         return resolved_static_abstract_value(value.as_str());
     }
-    let Some(references) =
-        collect_static_stylesheet_variable_references(value, StaticStylesheetVariableKind::Less)
-    else {
+    let Some(references) = collect_static_stylesheet_variable_references_with_options(
+        value,
+        StaticStylesheetVariableKind::Less,
+        false,
+        true,
+    ) else {
         return raw_static_abstract_value(
             value,
             StaticStylesheetResolutionReason::UnsupportedDynamic,
         );
     };
-    if references.is_empty() {
+    let Some(property_references) = collect_static_less_property_variable_references(value) else {
+        return raw_static_abstract_value(
+            value,
+            StaticStylesheetResolutionReason::UnsupportedDynamic,
+        );
+    };
+    if references.is_empty() && property_references.is_empty() {
         if static_stylesheet_literal_value_is_safe(value) {
             return resolved_static_abstract_value(
                 reduce_static_less_value(value.to_string()).as_str(),
@@ -6305,6 +6314,20 @@ fn resolve_static_less_variable_abstract_value_text(
         cursor = reference.end;
     }
     output.push_str(&value[cursor..]);
+    if !property_references.is_empty() {
+        let mut property_stack = BTreeSet::new();
+        let resolved = resolve_static_less_property_references_in_value(
+            output.as_str(),
+            scope_id,
+            scopes,
+            property_declarations,
+            &mut property_stack,
+        );
+        let Some(rendered_value) = resolved.rendered_value else {
+            return top_static_abstract_value(resolved.reason);
+        };
+        output = rendered_value;
+    }
     resolved_static_abstract_value(reduce_static_less_value(output).as_str())
 }
 
@@ -6392,9 +6415,14 @@ fn resolve_static_less_variable_value_text(
             escaped: false,
         });
     }
-    let references =
-        collect_static_stylesheet_variable_references(value, StaticStylesheetVariableKind::Less)?;
-    if references.is_empty() {
+    let references = collect_static_stylesheet_variable_references_with_options(
+        value,
+        StaticStylesheetVariableKind::Less,
+        false,
+        true,
+    )?;
+    let property_references = collect_static_less_property_variable_references(value)?;
+    if references.is_empty() && property_references.is_empty() {
         return static_stylesheet_literal_value_is_safe(value)
             .then(|| reduce_static_less_value_with_escape_flag(value.to_string()));
     }
@@ -6421,6 +6449,18 @@ fn resolve_static_less_variable_value_text(
         cursor = reference.end;
     }
     output.push_str(&value[cursor..]);
+    if !property_references.is_empty() {
+        let mut property_stack = BTreeSet::new();
+        let resolved = resolve_static_less_property_value_text(
+            output.as_str(),
+            scope_id,
+            scopes,
+            property_declarations,
+            &mut property_stack,
+        )?;
+        escaped |= resolved.escaped;
+        output = resolved.text;
+    }
     Some(if escaped {
         StaticLessResolvedValue {
             text: output,
@@ -6615,6 +6655,59 @@ fn resolve_static_less_property_value_text(
     } else {
         reduce_static_less_value_with_escape_flag(output)
     })
+}
+
+fn resolve_static_less_property_references_in_value(
+    value: &str,
+    scope_id: usize,
+    scopes: &[StaticStylesheetScope],
+    declarations: &BTreeMap<(usize, String), StaticStylesheetPropertyDeclaration>,
+    stack: &mut BTreeSet<(usize, String)>,
+) -> StaticStylesheetAbstractResolution {
+    let Some(references) = collect_static_less_property_variable_references(value) else {
+        return raw_static_abstract_value(
+            value,
+            StaticStylesheetResolutionReason::UnsupportedDynamic,
+        );
+    };
+    if references.is_empty() {
+        if static_stylesheet_literal_value_is_safe(value) {
+            return resolved_static_abstract_value(
+                reduce_static_less_value(value.to_string()).as_str(),
+            );
+        }
+        return raw_static_abstract_value(
+            value,
+            StaticStylesheetResolutionReason::UnsupportedDynamic,
+        );
+    }
+    if !static_stylesheet_composite_value_is_safe(value) {
+        return raw_static_abstract_value(
+            value,
+            StaticStylesheetResolutionReason::UnsupportedDynamic,
+        );
+    }
+
+    let mut output = String::with_capacity(value.len());
+    let mut cursor = 0usize;
+    for reference in references {
+        let resolved = resolve_static_less_property_abstract_value_in_scope(
+            reference.name.as_str(),
+            scope_id,
+            scopes,
+            declarations,
+            stack,
+            STATIC_STYLESHEET_VALUE_RESOLUTION_FUEL_LIMIT,
+        );
+        let Some(rendered_value) = resolved.rendered_value else {
+            return top_static_abstract_value(resolved.reason);
+        };
+        output.push_str(&value[cursor..reference.start]);
+        output.push_str(&rendered_value);
+        cursor = reference.end;
+    }
+    output.push_str(&value[cursor..]);
+    resolved_static_abstract_value(reduce_static_less_value(output).as_str())
 }
 
 fn collect_static_less_literal_value_edits(
@@ -8934,6 +9027,57 @@ fn collect_static_stylesheet_variable_references(
     collect_static_stylesheet_variable_references_with_options(value, variable_kind, false, false)
 }
 
+fn collect_static_less_property_variable_references(
+    value: &str,
+) -> Option<Vec<StaticStylesheetVariableReference>> {
+    let mut references = Vec::new();
+    let mut index = 0usize;
+    let mut quote: Option<char> = None;
+
+    while index < value.len() {
+        let ch = value[index..].chars().next()?;
+        if let Some(quote_ch) = quote {
+            index += ch.len_utf8();
+            if ch == '\\' {
+                if let Some(escaped) = value[index..].chars().next() {
+                    index += escaped.len_utf8();
+                }
+            } else if ch == quote_ch {
+                quote = None;
+            }
+            continue;
+        }
+
+        if matches!(ch, '"' | '\'') {
+            quote = Some(ch);
+            index += ch.len_utf8();
+            continue;
+        }
+        if ch != '$' {
+            index += ch.len_utf8();
+            continue;
+        }
+
+        let name_start = index + ch.len_utf8();
+        let name_end = static_stylesheet_variable_name_end(value, name_start);
+        if name_end == name_start {
+            return None;
+        }
+        let bare_name = &value[name_start..name_end];
+        if !static_stylesheet_property_name_is_safe(bare_name) {
+            return None;
+        }
+        references.push(StaticStylesheetVariableReference {
+            name: value[index..name_end].to_string(),
+            start: index,
+            end: name_end,
+        });
+        index = name_end;
+    }
+
+    Some(references)
+}
+
 fn collect_static_stylesheet_variable_references_with_options(
     value: &str,
     variable_kind: StaticStylesheetVariableKind,
@@ -9176,9 +9320,9 @@ mod tests {
         assert_eq!(report.mode, "oracleOnly");
         assert_eq!(report.value_type, "AbstractCssValueV0");
         assert_eq!(report.product_output_source, "legacyEvaluatedCss");
-        assert_eq!(report.fixture_count, 28);
+        assert_eq!(report.fixture_count, 29);
         assert_eq!(report.scss_fixture_count, 6);
-        assert_eq!(report.less_fixture_count, 22);
+        assert_eq!(report.less_fixture_count, 23);
         assert_eq!(report.evaluated_fixture_count, report.fixture_count);
         assert_eq!(report.missing_evaluation_count, 0);
         assert_eq!(report.divergence_count, 0);
@@ -11692,6 +11836,53 @@ mod tests {
             Some("3px")
         );
         assert!(report.evaluated_css.contains("padding: 3px"));
+    }
+
+    #[test]
+    fn static_less_evaluation_reduces_property_variable_alias_values() {
+        let report = derive_static_stylesheet_module_evaluation(
+            ".button { margin: (1px + 2px); @gap: $margin; padding: @gap; }",
+            StyleDialect::Less,
+        );
+        assert!(report.is_some());
+        let Some(report) = report else {
+            return;
+        };
+
+        assert_eq!(report.replacement_count, 1);
+        assert_eq!(report.resolved_replacements[0].name, "@gap");
+        assert_eq!(report.resolved_replacements[0].text, "3px");
+        assert_eq!(report.resolved_replacements[0].abstract_value_kind, "exact");
+        assert_eq!(report.value_resolution.values[0].name, "@gap");
+        assert_eq!(
+            report.value_resolution.values[0].rendered_value.as_deref(),
+            Some("3px")
+        );
+        assert!(report.evaluated_css.contains("padding: 3px"));
+        assert!(report.oracle.all_legacy_declaration_values_preserved);
+    }
+
+    #[test]
+    fn static_less_evaluation_reduces_property_variable_composite_alias_values() {
+        let report = derive_static_stylesheet_module_evaluation(
+            ".button { color: red; @outline: 1px solid $color; border: @outline; }",
+            StyleDialect::Less,
+        );
+        assert!(report.is_some());
+        let Some(report) = report else {
+            return;
+        };
+
+        assert_eq!(report.replacement_count, 1);
+        assert_eq!(report.resolved_replacements[0].name, "@outline");
+        assert_eq!(report.resolved_replacements[0].text, "1px solid red");
+        assert_eq!(report.resolved_replacements[0].abstract_value_kind, "raw");
+        assert_eq!(
+            report.value_resolution.values[0].rendered_value.as_deref(),
+            Some("1px solid red")
+        );
+        assert!(report.evaluated_css.contains("border: 1px solid red"));
+        assert!(report.oracle.all_legacy_declaration_values_preserved);
     }
 
     #[test]
