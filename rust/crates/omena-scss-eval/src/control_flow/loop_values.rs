@@ -539,22 +539,22 @@ fn static_while_condition_loop_binding_values(
     }
     let binding_name = binding_names[0].as_str();
     let (left, operator, right) = split_static_while_inequality(header)?;
-    let start = static_while_integer_binding_value(binding_name, lexical_bindings)?;
+    let start_values = static_while_integer_binding_values(binding_name, lexical_bindings)?;
 
-    let (operator, bound) = if static_scss_side_is_binding(left, binding_name) {
+    let (operator, bound_values) = if static_scss_side_is_binding(left, binding_name) {
         (
             operator,
-            static_while_integer_operand(right, lexical_bindings)?,
+            static_while_integer_operand_values(right, lexical_bindings)?,
         )
     } else if static_scss_side_is_binding(right, binding_name) {
         (
             operator.inverted_for_right_hand_binding(),
-            static_while_integer_operand(left, lexical_bindings)?,
+            static_while_integer_operand_values(left, lexical_bindings)?,
         )
     } else {
         return None;
     };
-    let value = static_while_integer_domain(start, operator, bound, step)?;
+    let value = static_while_integer_domain_set(start_values, operator, bound_values, step)?;
 
     Some(vec![ScssControlFlowBindingValue {
         name: binding_names[0].clone(),
@@ -671,21 +671,32 @@ fn static_scss_side_is_binding(value: &str, binding_name: &str) -> bool {
         && canonical_scss_variable_name(value) == canonical_scss_variable_name(binding_name)
 }
 
-fn static_while_integer_binding_value(
+fn static_while_integer_binding_values(
     binding_name: &str,
     lexical_bindings: &BTreeMap<String, AbstractCssValueV0>,
-) -> Option<i32> {
-    static_scss_binding_value(lexical_bindings, binding_name)
-        .and_then(single_static_scss_header_value_text)
-        .and_then(parse_static_while_integer_text)
+) -> Option<Vec<i32>> {
+    static_scss_binding_value(lexical_bindings, binding_name).and_then(static_while_integer_values)
 }
 
-fn static_while_integer_operand(
+fn static_while_integer_operand_values(
     value: &str,
     lexical_bindings: &BTreeMap<String, AbstractCssValueV0>,
-) -> Option<i32> {
+) -> Option<Vec<i32>> {
     let reduced = scss_header_value_from_bindings(value, lexical_bindings);
-    single_static_scss_header_value_text(&reduced).and_then(parse_static_while_integer_text)
+    static_while_integer_values(&reduced)
+}
+
+fn static_while_integer_values(value: &AbstractCssValueV0) -> Option<Vec<i32>> {
+    match value {
+        AbstractCssValueV0::Exact { value } | AbstractCssValueV0::Raw { value } => {
+            Some(vec![parse_static_while_integer_text(value.as_str())?])
+        }
+        AbstractCssValueV0::FiniteSet { values } => values
+            .iter()
+            .map(|value| parse_static_while_integer_text(value.as_str()))
+            .collect(),
+        AbstractCssValueV0::Bottom | AbstractCssValueV0::Top => None,
+    }
 }
 
 fn parse_static_while_integer_text(value: &str) -> Option<i32> {
@@ -693,19 +704,43 @@ fn parse_static_while_integer_text(value: &str) -> Option<i32> {
     reduced.trim().parse::<i32>().ok()
 }
 
-fn static_while_integer_domain(
+fn static_while_integer_domain_set(
+    start_values: Vec<i32>,
+    operator: StaticWhileInequalityOperator,
+    bound_values: Vec<i32>,
+    step: StaticWhileAssignmentStep,
+) -> Option<AbstractCssValueV0> {
+    if start_values.is_empty() || bound_values.is_empty() {
+        return Some(AbstractCssValueV0::Bottom);
+    }
+    let mut values = BTreeSet::new();
+    for start in start_values {
+        for bound in &bound_values {
+            for value in static_while_integer_domain_values(start, operator, *bound, step)? {
+                values.insert(value);
+                if values.len() > 64 {
+                    return None;
+                }
+            }
+        }
+    }
+    Some(abstract_css_value_from_static_integers(
+        values.into_iter().collect(),
+    ))
+}
+
+fn static_while_integer_domain_values(
     start: i32,
     operator: StaticWhileInequalityOperator,
     bound: i32,
     step: StaticWhileAssignmentStep,
-) -> Option<AbstractCssValueV0> {
+) -> Option<Vec<i32>> {
     match step {
         StaticWhileAssignmentStep::Known(step) => {
-            return static_while_integer_progression_domain(start, operator, bound, step);
+            return static_while_integer_progression_domain_values(start, operator, bound, step);
         }
         StaticWhileAssignmentStep::Unknown => {
-            return (!static_while_integer_condition_holds(start, operator, bound))
-                .then_some(AbstractCssValueV0::Bottom);
+            return (!static_while_integer_condition_holds(start, operator, bound)).then(Vec::new);
         }
         StaticWhileAssignmentStep::Unspecified => {}
     }
@@ -716,25 +751,25 @@ fn static_while_integer_domain(
         }
         StaticWhileInequalityOperator::LessThan => {
             if start >= bound {
-                return Some(AbstractCssValueV0::Bottom);
+                return Some(Vec::new());
             }
             (start, bound.saturating_sub(1))
         }
         StaticWhileInequalityOperator::LessThanOrEqual => {
             if start > bound {
-                return Some(AbstractCssValueV0::Bottom);
+                return Some(Vec::new());
             }
             (start, bound)
         }
         StaticWhileInequalityOperator::GreaterThan => {
             if start <= bound {
-                return Some(AbstractCssValueV0::Bottom);
+                return Some(Vec::new());
             }
             (bound.saturating_add(1), start)
         }
         StaticWhileInequalityOperator::GreaterThanOrEqual => {
             if start < bound {
-                return Some(AbstractCssValueV0::Bottom);
+                return Some(Vec::new());
             }
             (bound, start)
         }
@@ -743,40 +778,41 @@ fn static_while_integer_domain(
     if !(1..=64).contains(&value_count) {
         return None;
     }
-    Some(
-        (first..=last).fold(AbstractCssValueV0::Bottom, |acc, value| {
-            let value = abstract_css_value_from_text(value.to_string().as_str());
-            join_abstract_css_values(&acc, &value)
-        }),
-    )
+    Some((first..=last).collect())
 }
 
-fn static_while_integer_progression_domain(
+fn static_while_integer_progression_domain_values(
     start: i32,
     operator: StaticWhileInequalityOperator,
     bound: i32,
     step: i32,
-) -> Option<AbstractCssValueV0> {
+) -> Option<Vec<i32>> {
     if step == 0 {
         return None;
     }
     let mut current = start;
-    let mut value = AbstractCssValueV0::Bottom;
+    let mut values = Vec::new();
     for _ in 0..64 {
         if !static_while_integer_condition_holds(current, operator, bound) {
-            return Some(value);
+            return Some(values);
         }
-        value = join_abstract_css_values(
-            &value,
-            &abstract_css_value_from_text(current.to_string().as_str()),
-        );
+        values.push(current);
         current = current.checked_add(step)?;
     }
     if static_while_integer_condition_holds(current, operator, bound) {
         None
     } else {
-        Some(value)
+        Some(values)
     }
+}
+
+fn abstract_css_value_from_static_integers(values: Vec<i32>) -> AbstractCssValueV0 {
+    values
+        .into_iter()
+        .fold(AbstractCssValueV0::Bottom, |acc, value| {
+            let value = abstract_css_value_from_text(value.to_string().as_str());
+            join_abstract_css_values(&acc, &value)
+        })
 }
 
 const fn static_while_integer_condition_holds(
@@ -976,6 +1012,87 @@ mod tests {
         );
     }
 
+    #[test]
+    fn static_while_loop_binding_frames_resolve_finite_set_bounds() {
+        let bindings = finite_limit_bindings();
+        let values = while_loop_carried_binding_values_from_parts(
+            "$i < $limit",
+            &bindings,
+            &["$i".to_string()],
+            Some("$i: $i + 1;"),
+        );
+
+        assert_eq!(values.len(), 1);
+
+        assert_eq!(
+            values[0].value,
+            AbstractCssValueV0::FiniteSet {
+                values: vec![
+                    "0".to_string(),
+                    "1".to_string(),
+                    "2".to_string(),
+                    "3".to_string(),
+                ],
+            }
+        );
+    }
+
+    #[test]
+    fn static_while_loop_binding_frames_resolve_finite_set_start_values() {
+        let bindings = finite_start_bindings();
+        let values = while_loop_carried_binding_values_from_parts(
+            "$i < 4",
+            &bindings,
+            &["$i".to_string()],
+            Some("$i: $i + 1;"),
+        );
+
+        assert_eq!(values.len(), 1);
+
+        assert_eq!(
+            values[0].value,
+            AbstractCssValueV0::FiniteSet {
+                values: vec![
+                    "0".to_string(),
+                    "1".to_string(),
+                    "2".to_string(),
+                    "3".to_string(),
+                ],
+            }
+        );
+    }
+
+    fn finite_start_bindings() -> BTreeMap<String, AbstractCssValueV0> {
+        BTreeMap::from([(
+            "$i".to_string(),
+            AbstractCssValueV0::FiniteSet {
+                values: vec!["0".to_string(), "2".to_string()],
+            },
+        )])
+    }
+
+    #[test]
+    fn static_while_loop_value_resolves_finite_set_bounds() {
+        let values = static_while_integer_domain_set(
+            vec![0],
+            StaticWhileInequalityOperator::LessThan,
+            vec![2, 4],
+            StaticWhileAssignmentStep::Known(1),
+        );
+
+        assert_eq!(
+            values,
+            Some(AbstractCssValueV0::FiniteSet {
+                values: vec![
+                    "0".to_string(),
+                    "1".to_string(),
+                    "2".to_string(),
+                    "3".to_string(),
+                ],
+            })
+        );
+    }
+
     fn finite_end_bindings() -> BTreeMap<String, AbstractCssValueV0> {
         BTreeMap::from([(
             "$end".to_string(),
@@ -983,5 +1100,22 @@ mod tests {
                 values: vec!["2".to_string(), "4".to_string()],
             },
         )])
+    }
+
+    fn finite_limit_bindings() -> BTreeMap<String, AbstractCssValueV0> {
+        BTreeMap::from([
+            (
+                "$i".to_string(),
+                AbstractCssValueV0::Exact {
+                    value: "0".to_string(),
+                },
+            ),
+            (
+                "$limit".to_string(),
+                AbstractCssValueV0::FiniteSet {
+                    values: vec!["2".to_string(), "4".to_string()],
+                },
+            ),
+        ])
     }
 }
