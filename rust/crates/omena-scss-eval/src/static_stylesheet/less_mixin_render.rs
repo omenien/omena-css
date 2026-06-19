@@ -14,16 +14,17 @@ use super::{
     less_detached_rulesets::{
         collect_static_less_detached_ruleset_calls, find_static_less_detached_ruleset_declaration,
     },
-    less_guard::static_less_mixin_guard_matches,
+    less_guard::{static_less_mixin_guard_depends_on_default, static_less_mixin_guard_matches},
+    less_mixin_arguments::static_less_mixin_parameter_patterns_match,
     less_mixin_values::{
         apply_static_less_mixin_call_importance, collect_static_less_mixin_body_local_declarations,
         resolve_static_less_mixin_body_declaration_values,
         resolve_static_less_mixin_value_with_bindings, static_less_mixin_arguments_value,
         static_less_mixin_body_scoped_values,
     },
-    less_mixins::collect_static_less_mixin_calls,
-    render_static_less_detached_ruleset_body, render_static_less_mixin_call,
-    resolve_static_less_property_value_in_scope, resolve_static_less_variable_value_in_scope,
+    less_mixins::{collect_static_less_mixin_calls, collect_static_less_mixin_declarations},
+    render_static_less_detached_ruleset_body, resolve_static_less_property_value_in_scope,
+    resolve_static_less_variable_value_in_scope,
     static_less_mixin_body_is_static_declaration_subset,
     static_stylesheet_position_is_inside_ranges, static_stylesheet_token_end,
     static_stylesheet_token_start,
@@ -297,4 +298,230 @@ pub(super) fn render_static_less_mixin_body(
             used_declaration_names,
         },
     ))
+}
+
+pub(super) fn render_static_less_mixin_call(
+    call: &StaticLessMixinCall,
+    call_scope_id: usize,
+    context: StaticLessMixinRenderContext<'_>,
+    active_mixins: &mut BTreeSet<String>,
+) -> Option<Option<StaticLessMixinCallRenderOutcome>> {
+    if call.namespace.is_some() {
+        return render_static_less_namespace_mixin_call(
+            call,
+            call_scope_id,
+            context,
+            active_mixins,
+        );
+    }
+    let canonical_call_name = canonical_static_less_mixin_name(call.name.as_str());
+    let mut saw_declaration = false;
+    let mut saw_parameter_match = false;
+    let mut saw_guard_not_matched = false;
+    let mut rendered_bodies = Vec::new();
+    let mut used_declaration_names = BTreeSet::new();
+    let declarations = context
+        .declarations
+        .iter()
+        .filter(|declaration| {
+            canonical_static_less_mixin_name(declaration.name.as_str()) == canonical_call_name
+        })
+        .collect::<Vec<_>>();
+    for declaration in &declarations {
+        saw_declaration = true;
+        if declaration
+            .guard
+            .as_deref()
+            .is_some_and(static_less_mixin_guard_depends_on_default)
+        {
+            continue;
+        }
+        if !static_less_mixin_parameter_patterns_match(&declaration.parameters, &call.arguments) {
+            continue;
+        }
+        saw_parameter_match = true;
+        match render_static_less_mixin_body(
+            declaration,
+            call,
+            call_scope_id,
+            context,
+            active_mixins,
+            None,
+        )? {
+            StaticLessMixinRenderOutcome::Rendered(rendered) => {
+                used_declaration_names.extend(rendered.used_declaration_names);
+                rendered_bodies.push(rendered.body);
+            }
+            StaticLessMixinRenderOutcome::GuardNotMatched => {
+                saw_guard_not_matched = true;
+            }
+            StaticLessMixinRenderOutcome::GuardUnknown => {
+                saw_guard_not_matched = true;
+            }
+        }
+    }
+    let default_matches = Some(rendered_bodies.is_empty());
+    for declaration in declarations.iter().filter(|declaration| {
+        declaration
+            .guard
+            .as_deref()
+            .is_some_and(static_less_mixin_guard_depends_on_default)
+    }) {
+        if !static_less_mixin_parameter_patterns_match(&declaration.parameters, &call.arguments) {
+            continue;
+        }
+        saw_parameter_match = true;
+        match render_static_less_mixin_body(
+            declaration,
+            call,
+            call_scope_id,
+            context,
+            active_mixins,
+            default_matches,
+        )? {
+            StaticLessMixinRenderOutcome::Rendered(rendered) => {
+                used_declaration_names.extend(rendered.used_declaration_names);
+                rendered_bodies.push(rendered.body);
+            }
+            StaticLessMixinRenderOutcome::GuardNotMatched => {
+                saw_guard_not_matched = true;
+            }
+            StaticLessMixinRenderOutcome::GuardUnknown => {
+                saw_guard_not_matched = true;
+            }
+        }
+    }
+    if !saw_declaration {
+        return Some(None);
+    }
+    if rendered_bodies.is_empty() {
+        if !saw_parameter_match || saw_guard_not_matched {
+            return Some(Some(StaticLessMixinCallRenderOutcome::PreservedNoOutput));
+        }
+        return None;
+    }
+    Some(Some(StaticLessMixinCallRenderOutcome::Rendered(
+        StaticLessMixinRenderResult {
+            body: rendered_bodies.join(" "),
+            used_declaration_names,
+        },
+    )))
+}
+
+fn render_static_less_namespace_mixin_call(
+    call: &StaticLessMixinCall,
+    call_scope_id: usize,
+    context: StaticLessMixinRenderContext<'_>,
+    active_mixins: &mut BTreeSet<String>,
+) -> Option<Option<StaticLessMixinCallRenderOutcome>> {
+    let namespace = call.namespace.as_ref()?;
+    let canonical_namespace = canonical_static_less_mixin_name(namespace.as_str());
+    let mut saw_namespace = false;
+    let mut saw_parameter_match = false;
+    let mut saw_guard_not_matched = false;
+    let mut rendered_bodies = Vec::new();
+
+    for declaration in context.declarations.iter().filter(|declaration| {
+        canonical_static_less_mixin_name(declaration.name.as_str()) == canonical_namespace
+    }) {
+        saw_namespace = true;
+        if declaration.parameters.is_empty() && !call.namespace_arguments.is_empty() {
+            continue;
+        }
+        let mut namespace_argument_values = BTreeMap::new();
+        let Some(bound_namespace_arguments) = bind_static_scss_callable_arguments(
+            &declaration.parameters,
+            call.namespace_arguments.as_slice(),
+        ) else {
+            continue;
+        };
+        saw_parameter_match = true;
+        for (parameter, argument) in bound_namespace_arguments {
+            let rendered_value = resolve_static_less_mixin_value_with_bindings(
+                argument.as_str(),
+                &namespace_argument_values,
+                context.captured_values,
+                call_scope_id,
+                context.scopes,
+                context.variable_declarations,
+                context.property_declarations,
+                None,
+                context.detached_ruleset_declarations,
+            )?;
+            namespace_argument_values.insert(parameter, rendered_value);
+        }
+        if let Some(guard) = &declaration.guard {
+            match static_less_mixin_guard_matches(
+                guard,
+                &namespace_argument_values,
+                call_scope_id,
+                call.start,
+                context,
+                None,
+            ) {
+                Some(true) => {}
+                Some(false) | None => {
+                    saw_guard_not_matched = true;
+                    continue;
+                }
+            }
+        }
+        if !active_mixins.insert(canonical_namespace.clone()) {
+            return None;
+        }
+        let body = context
+            .source
+            .get(declaration.body_start..declaration.body_end)?;
+        let body_lexed = lex(body, StyleDialect::Less);
+        let nested_declarations =
+            collect_static_less_mixin_declarations(body, body_lexed.tokens())?;
+        let nested_context = StaticLessMixinRenderContext {
+            source: body,
+            declarations: nested_declarations.as_slice(),
+            detached_ruleset_declarations: context.detached_ruleset_declarations,
+            scopes: context.scopes,
+            variable_declarations: context.variable_declarations,
+            property_declarations: context.property_declarations,
+            captured_values: &namespace_argument_values,
+        };
+        let nested_call = StaticLessMixinCall {
+            namespace: None,
+            namespace_arguments: Vec::new(),
+            name: call.name.clone(),
+            start: call.start,
+            end: call.end,
+            important: call.important,
+            arguments: call.arguments.clone(),
+        };
+        if let Some(rendered) = render_static_less_mixin_call(
+            &nested_call,
+            call_scope_id,
+            nested_context,
+            active_mixins,
+        )? {
+            match rendered {
+                StaticLessMixinCallRenderOutcome::Rendered(rendered) => {
+                    rendered_bodies.push(rendered.body);
+                }
+                StaticLessMixinCallRenderOutcome::PreservedNoOutput => {}
+            }
+        }
+        active_mixins.remove(&canonical_namespace);
+    }
+
+    if !saw_namespace {
+        return Some(None);
+    }
+    if rendered_bodies.is_empty() {
+        if !saw_parameter_match || saw_guard_not_matched {
+            return Some(Some(StaticLessMixinCallRenderOutcome::PreservedNoOutput));
+        }
+        return None;
+    }
+    Some(Some(StaticLessMixinCallRenderOutcome::Rendered(
+        StaticLessMixinRenderResult {
+            body: rendered_bodies.join(" "),
+            used_declaration_names: BTreeSet::from([canonical_namespace]),
+        },
+    )))
 }
