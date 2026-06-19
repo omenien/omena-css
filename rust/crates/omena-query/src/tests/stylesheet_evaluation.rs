@@ -1103,7 +1103,8 @@ fn consumer_build_executes_unknown_detached_ruleset_mixin_calls_as_preserved_ora
 }
 
 #[test]
-fn consumer_build_keeps_unbound_parameterized_less_namespace_mixin_access_planned_only() {
+fn consumer_build_executes_unbound_parameterized_less_namespace_mixin_access_as_preserved_oracle_output()
+ {
     let summary = execute_omena_query_consumer_build_style_source(
         "Button.module.less",
         "#bundle(@color) { .tone() { color: @color; } } .button { #bundle > .tone(); }",
@@ -1116,6 +1117,12 @@ fn consumer_build_keeps_unbound_parameterized_less_namespace_mixin_access_planne
 
     assert!(
         summary
+            .execution
+            .executed_pass_ids
+            .contains(&"less-module-evaluate")
+    );
+    assert!(
+        !summary
             .execution
             .planned_only_pass_ids
             .contains(&"less-module-evaluate")

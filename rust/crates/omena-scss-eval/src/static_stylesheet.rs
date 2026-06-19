@@ -4270,7 +4270,7 @@ fn render_static_less_namespace_mixin_call(
         return Some(None);
     }
     if rendered_bodies.is_empty() {
-        if saw_parameter_match && saw_guard_not_matched {
+        if !saw_parameter_match || saw_guard_not_matched {
             return Some(Some(StaticLessMixinCallRenderOutcome::PreservedNoOutput));
         }
         return None;
@@ -9624,9 +9624,9 @@ mod tests {
         assert_eq!(report.mode, "oracleOnly");
         assert_eq!(report.value_type, "AbstractCssValueV0");
         assert_eq!(report.product_output_source, "legacyEvaluatedCss");
-        assert_eq!(report.fixture_count, 46);
+        assert_eq!(report.fixture_count, 47);
         assert_eq!(report.scss_fixture_count, 6);
-        assert_eq!(report.less_fixture_count, 40);
+        assert_eq!(report.less_fixture_count, 41);
         assert_eq!(report.evaluated_fixture_count, report.fixture_count);
         assert_eq!(report.missing_evaluation_count, 0);
         assert_eq!(report.divergence_count, 0);
@@ -10061,13 +10061,23 @@ mod tests {
     }
 
     #[test]
-    fn static_less_evaluation_keeps_unbound_parameterized_namespace_mixin_access_planned_only() {
+    fn static_less_evaluation_preserves_unbound_parameterized_namespace_mixin_access_as_oracle_report()
+     {
         let report = derive_static_stylesheet_module_evaluation(
             "#bundle(@color) { .tone() { color: @color; } } .button { #bundle > .tone(); }",
             StyleDialect::Less,
         );
 
-        assert!(report.is_none());
+        assert!(report.is_some());
+        let Some(report) = report else {
+            return;
+        };
+
+        assert!(report.evaluated_css.contains("#bundle > .tone();"));
+        assert!(report.evaluated_css.contains("#bundle(@color)"));
+        assert!(!report.evaluated_css.contains(".button { color:"));
+        assert_eq!(report.replacement_count, 0);
+        assert!(report.oracle.all_legacy_declaration_values_preserved);
     }
 
     #[test]
