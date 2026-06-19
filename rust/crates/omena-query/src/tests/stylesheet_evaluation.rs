@@ -1338,7 +1338,7 @@ fn consumer_build_derives_static_less_evaluator_context_for_important_mixin_call
 }
 
 #[test]
-fn consumer_build_keeps_unknown_less_mixin_call_suffixes_planned_only() {
+fn consumer_build_executes_unknown_less_mixin_call_suffixes_as_preserved_oracle_output() {
     let summary = execute_omena_query_consumer_build_style_source(
         "Button.module.less",
         ".tone(@color) { color: @color; } .button { .tone(red) !default; }",
@@ -1352,10 +1352,22 @@ fn consumer_build_keeps_unknown_less_mixin_call_suffixes_planned_only() {
     assert!(
         summary
             .execution
+            .executed_pass_ids
+            .contains(&"less-module-evaluate")
+    );
+    assert!(
+        !summary
+            .execution
             .planned_only_pass_ids
             .contains(&"less-module-evaluate")
     );
     assert!(summary.execution.output_css.contains(".tone(red) !default"));
+    assert!(
+        !summary
+            .execution
+            .output_css
+            .contains(".button { color: red")
+    );
 }
 
 #[test]

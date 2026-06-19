@@ -2494,7 +2494,9 @@ fn collect_static_less_mixin_evaluation_edits(
     excluded_call_ranges: &[(usize, usize)],
 ) -> Option<StaticLessMixinEvaluationEdits> {
     let calls = collect_static_less_mixin_calls(source, tokens)?;
-    if calls.is_empty() {
+    let unsupported_suffix_ranges =
+        collect_static_less_unsupported_mixin_call_suffix_ranges(source, tokens)?;
+    if calls.is_empty() && unsupported_suffix_ranges.is_empty() {
         return Some(StaticLessMixinEvaluationEdits {
             edits: Vec::new(),
             preserved_non_rendering_call_count: 0,
@@ -2515,6 +2517,13 @@ fn collect_static_less_mixin_evaluation_edits(
     let mut edits = Vec::new();
     let mut preserved_non_rendering_call_count = 0usize;
     let mut used_declaration_names = BTreeSet::new();
+    preserved_non_rendering_call_count += unsupported_suffix_ranges
+        .iter()
+        .filter(|(start, _)| {
+            !static_stylesheet_position_is_inside_ranges(*start, &declaration_ranges)
+                && !static_stylesheet_position_is_inside_ranges(*start, excluded_call_ranges)
+        })
+        .count();
     for call in calls.iter().filter(|call| {
         !static_stylesheet_position_is_inside_ranges(call.start, &declaration_ranges)
             && !static_stylesheet_position_is_inside_ranges(call.start, excluded_call_ranges)
@@ -3061,6 +3070,53 @@ fn collect_static_less_mixin_calls(
     Some(calls)
 }
 
+fn collect_static_less_unsupported_mixin_call_suffix_ranges(
+    source: &str,
+    tokens: &[LexedToken],
+) -> Option<Vec<(usize, usize)>> {
+    let mut ranges = Vec::new();
+    let mut index = 0usize;
+    while index < tokens.len() {
+        if static_less_mixin_call_context_is_plain(tokens, index)
+            && let Some(((start, end), semicolon_index)) =
+                static_less_namespace_unsupported_mixin_call_suffix_at(source, tokens, index)
+        {
+            ranges.push((start, end));
+            index = semicolon_index + 1;
+            continue;
+        }
+        let Some((_, open_index)) = static_less_mixin_signature_at(tokens, index) else {
+            index += 1;
+            continue;
+        };
+        if !static_less_mixin_call_context_is_plain(tokens, index) {
+            index += 1;
+            continue;
+        }
+        let close_index = static_stylesheet_matching_token_index(
+            tokens,
+            open_index,
+            SyntaxKind::LeftParen,
+            SyntaxKind::RightParen,
+        )?;
+        let Some((semicolon_index, suffix)) =
+            static_less_mixin_call_semicolon_suffix(source, tokens, close_index)
+        else {
+            index += 1;
+            continue;
+        };
+        if !static_less_mixin_call_suffix_is_supported(suffix) {
+            ranges.push((
+                static_stylesheet_token_start(&tokens[index]),
+                static_stylesheet_token_end(&tokens[semicolon_index]),
+            ));
+        }
+        index = semicolon_index + 1;
+    }
+    ranges.sort();
+    Some(ranges)
+}
+
 fn collect_static_less_mixin_accessors(
     source: &str,
     tokens: &[LexedToken],
@@ -3363,6 +3419,53 @@ fn static_less_namespace_mixin_call_at(
     ))
 }
 
+fn static_less_namespace_unsupported_mixin_call_suffix_at(
+    source: &str,
+    tokens: &[LexedToken],
+    index: usize,
+) -> Option<((usize, usize), usize)> {
+    let (_, after_namespace_index) = static_less_namespace_name_at(tokens, index)?;
+    let namespace_arguments_index =
+        static_stylesheet_skip_trivia_tokens(tokens, after_namespace_index);
+    let separator_index = if tokens
+        .get(namespace_arguments_index)
+        .is_some_and(|token| token.kind == SyntaxKind::LeftParen)
+    {
+        let namespace_arguments_close_index = static_stylesheet_matching_token_index(
+            tokens,
+            namespace_arguments_index,
+            SyntaxKind::LeftParen,
+            SyntaxKind::RightParen,
+        )?;
+        static_stylesheet_skip_trivia_tokens(tokens, namespace_arguments_close_index + 1)
+    } else {
+        namespace_arguments_index
+    };
+    if tokens
+        .get(separator_index)
+        .is_none_or(|token| token.kind != SyntaxKind::GreaterThan)
+    {
+        return None;
+    }
+    let call_index = static_stylesheet_skip_trivia_tokens(tokens, separator_index + 1);
+    let (_, open_index) = static_less_mixin_signature_at(tokens, call_index)?;
+    let close_index = static_stylesheet_matching_token_index(
+        tokens,
+        open_index,
+        SyntaxKind::LeftParen,
+        SyntaxKind::RightParen,
+    )?;
+    let (semicolon_index, suffix) =
+        static_less_mixin_call_semicolon_suffix(source, tokens, close_index)?;
+    (!static_less_mixin_call_suffix_is_supported(suffix)).then_some((
+        (
+            static_stylesheet_token_start(&tokens[index]),
+            static_stylesheet_token_end(&tokens[semicolon_index]),
+        ),
+        semicolon_index,
+    ))
+}
+
 fn static_less_namespace_name_at(tokens: &[LexedToken], index: usize) -> Option<(String, usize)> {
     let token = tokens.get(index)?;
     if token.kind == SyntaxKind::Hash {
@@ -3391,6 +3494,21 @@ fn static_less_mixin_call_semicolon_and_importance(
     tokens: &[LexedToken],
     close_index: usize,
 ) -> Option<(usize, bool)> {
+    let (index, suffix) = static_less_mixin_call_semicolon_suffix(source, tokens, close_index)?;
+    if suffix.is_empty() {
+        return Some((index, false));
+    }
+    if suffix.eq_ignore_ascii_case("!important") {
+        return Some((index, true));
+    }
+    None
+}
+
+fn static_less_mixin_call_semicolon_suffix<'a>(
+    source: &'a str,
+    tokens: &[LexedToken],
+    close_index: usize,
+) -> Option<(usize, &'a str)> {
     let suffix_start = static_stylesheet_token_end(tokens.get(close_index)?);
     for (index, token) in tokens.iter().enumerate().skip(close_index + 1) {
         if token.kind != SyntaxKind::Semicolon {
@@ -3399,15 +3517,13 @@ fn static_less_mixin_call_semicolon_and_importance(
         let suffix = source
             .get(suffix_start..static_stylesheet_token_start(token))?
             .trim();
-        if suffix.is_empty() {
-            return Some((index, false));
-        }
-        if suffix.eq_ignore_ascii_case("!important") {
-            return Some((index, true));
-        }
-        return None;
+        return Some((index, suffix));
     }
     None
+}
+
+fn static_less_mixin_call_suffix_is_supported(suffix: &str) -> bool {
+    suffix.is_empty() || suffix.eq_ignore_ascii_case("!important")
 }
 
 fn static_less_mixin_signature_at(tokens: &[LexedToken], index: usize) -> Option<(String, usize)> {
@@ -9624,9 +9740,9 @@ mod tests {
         assert_eq!(report.mode, "oracleOnly");
         assert_eq!(report.value_type, "AbstractCssValueV0");
         assert_eq!(report.product_output_source, "legacyEvaluatedCss");
-        assert_eq!(report.fixture_count, 47);
+        assert_eq!(report.fixture_count, 48);
         assert_eq!(report.scss_fixture_count, 6);
-        assert_eq!(report.less_fixture_count, 41);
+        assert_eq!(report.less_fixture_count, 42);
         assert_eq!(report.evaluated_fixture_count, report.fixture_count);
         assert_eq!(report.missing_evaluation_count, 0);
         assert_eq!(report.divergence_count, 0);
@@ -10243,13 +10359,22 @@ mod tests {
     }
 
     #[test]
-    fn static_less_evaluation_does_not_expand_unknown_mixin_call_suffixes() {
+    fn static_less_evaluation_preserves_unknown_mixin_call_suffixes_as_oracle_report() {
         let report = derive_static_stylesheet_module_evaluation(
             ".tone(@color) { color: @color; } .button { .tone(red) !default; }",
             StyleDialect::Less,
         );
 
-        assert!(report.is_none());
+        assert!(report.is_some());
+        let Some(report) = report else {
+            return;
+        };
+
+        assert!(report.evaluated_css.contains(".tone(red) !default;"));
+        assert!(report.evaluated_css.contains(".tone(@color)"));
+        assert!(!report.evaluated_css.contains(".button { color: red"));
+        assert_eq!(report.replacement_count, 0);
+        assert!(report.oracle.all_legacy_declaration_values_preserved);
     }
 
     #[test]

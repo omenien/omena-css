@@ -266,6 +266,11 @@ fn static_stylesheet_oracle_corpus_fixtures() -> &'static [StaticStylesheetOracl
             source: ".tone(@color, @gap: 1px) { color: @color; margin: @gap; } .button { .tone(red, 2px) !important; }",
         },
         StaticStylesheetOracleCorpusFixtureV0 {
+            id: "less.unknown-mixin-call-suffix",
+            dialect: StyleDialect::Less,
+            source: ".tone(@color) { color: @color; } .button { .tone(red) !default; }",
+        },
+        StaticStylesheetOracleCorpusFixtureV0 {
             id: "less.default-guarded-mixin",
             dialect: StyleDialect::Less,
             source: ".tone(@color) when (@color = red) { color: @color; } .tone(@color) when (default()) and (iscolor(@color)) { color: gray; } .button { .tone(blue); }",
