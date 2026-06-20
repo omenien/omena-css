@@ -4009,6 +4009,29 @@ fn exposes_less_ambiguous_default_guarded_mixins_as_preserved_output_through_que
 }
 
 #[test]
+fn exposes_less_decidable_negated_default_guarded_mixins_through_query_boundary() {
+    let summary = summarize_omena_query_static_stylesheet_evaluator_from_source(
+        ".tone() when (default()) and (iscolor(red)) { color: red; } .tone() when not(default()) and (iscolor(1px)) { color: blue; } .button { .tone(); }",
+        OmenaParserStyleDialect::Less,
+    );
+
+    assert_eq!(summary.product, "omena-query.static-stylesheet-evaluator");
+    assert_eq!(summary.mode, "oracleOnly");
+    assert_eq!(summary.dialect, "less");
+    assert_eq!(summary.value_type, "AbstractCssValueV0");
+    assert!(!summary.legacy_output_consumed_until_cutover);
+    assert!(summary.evaluation_available);
+    assert_eq!(summary.divergence_count, 0);
+    assert!(summary.all_legacy_declaration_values_preserved);
+    assert!(summary.evaluation.as_ref().is_some_and(|evaluation| {
+        evaluation.evaluated_css.contains("color: red")
+            && !evaluation.evaluated_css.contains("color: blue")
+            && !evaluation.evaluated_css.contains(".tone()")
+            && !evaluation.evaluated_css.contains("not(default())")
+    }));
+}
+
+#[test]
 fn exposes_less_ruleset_guarded_mixin_oracle_through_query_boundary() {
     let summary = summarize_omena_query_static_stylesheet_evaluator_from_source(
         ".apply(@block) when (isruleset(@block)) { @block(); } @rules: { color: red; margin: 1px; }; .button { .apply(@rules); }",

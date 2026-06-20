@@ -18,10 +18,7 @@ use super::{
     less_detached_rulesets::{
         collect_static_less_detached_ruleset_calls, find_static_less_detached_ruleset_declaration,
     },
-    less_guard::{
-        static_less_mixin_guard_depends_on_default,
-        static_less_mixin_guard_depends_on_negated_default, static_less_mixin_guard_matches,
-    },
+    less_guard::{static_less_mixin_guard_depends_on_default, static_less_mixin_guard_matches},
     less_mixin_arguments::static_less_mixin_parameter_patterns_match,
     less_mixin_values::{
         apply_static_less_mixin_call_importance, collect_static_less_mixin_body_local_declarations,
@@ -406,7 +403,12 @@ pub(super) fn render_static_less_mixin_accessor(
 
     let default_matches = Some(rendered_values.is_empty());
     if rendered_values.is_empty()
-        && static_less_mixin_default_retry_is_ambiguous(declarations.as_slice(), &call)
+        && static_less_mixin_default_retry_is_ambiguous(
+            declarations.as_slice(),
+            &call,
+            call_scope_id,
+            context,
+        )
     {
         return Some(Some(StaticLessMixinAccessorCallRenderOutcome::PreservedRaw));
     }
@@ -618,7 +620,12 @@ pub(super) fn render_static_less_mixin_call(
     }
     let default_matches = Some(rendered_bodies.is_empty());
     if rendered_bodies.is_empty()
-        && static_less_mixin_default_retry_is_ambiguous(declarations.as_slice(), call)
+        && static_less_mixin_default_retry_is_ambiguous(
+            declarations.as_slice(),
+            call,
+            call_scope_id,
+            context,
+        )
     {
         active_mixins.remove(&canonical_call_name);
         return Some(Some(StaticLessMixinCallRenderOutcome::PreservedNoOutput));
@@ -684,9 +691,11 @@ pub(super) fn render_static_less_mixin_call(
 fn static_less_mixin_default_retry_is_ambiguous(
     declarations: &[&StaticLessMixinDeclaration],
     call: &StaticLessMixinCall,
+    call_scope_id: usize,
+    context: StaticLessMixinRenderContext<'_>,
 ) -> bool {
-    let mut saw_default_candidate = false;
-    let mut saw_negated_default_candidate = false;
+    let mut matches_when_default_true = false;
+    let mut matches_when_default_false = false;
     for declaration in declarations {
         let Some(guard) = declaration.guard.as_deref() else {
             continue;
@@ -697,10 +706,60 @@ fn static_less_mixin_default_retry_is_ambiguous(
         if !static_less_mixin_parameter_patterns_match(&declaration.parameters, &call.arguments) {
             continue;
         }
-        saw_default_candidate = true;
-        saw_negated_default_candidate |= static_less_mixin_guard_depends_on_negated_default(guard);
+        let Some(argument_values) =
+            static_less_mixin_call_argument_values(declaration, call, call_scope_id, context)
+        else {
+            continue;
+        };
+        matches_when_default_true |= static_less_mixin_guard_matches(
+            guard,
+            &argument_values,
+            call_scope_id,
+            call.start,
+            context,
+            Some(true),
+        )
+        .unwrap_or(false);
+        matches_when_default_false |= static_less_mixin_guard_matches(
+            guard,
+            &argument_values,
+            call_scope_id,
+            call.start,
+            context,
+            Some(false),
+        )
+        .unwrap_or(false);
     }
-    saw_default_candidate && saw_negated_default_candidate
+    matches_when_default_true && matches_when_default_false
+}
+
+fn static_less_mixin_call_argument_values(
+    declaration: &StaticLessMixinDeclaration,
+    call: &StaticLessMixinCall,
+    call_scope_id: usize,
+    context: StaticLessMixinRenderContext<'_>,
+) -> Option<BTreeMap<String, String>> {
+    let mut argument_values = BTreeMap::new();
+    for (parameter, argument) in
+        bind_static_scss_callable_arguments(&declaration.parameters, &call.arguments)?
+    {
+        let rendered_value = resolve_static_less_mixin_value_with_bindings(
+            argument.as_str(),
+            &argument_values,
+            context.captured_values,
+            call_scope_id,
+            context.scopes,
+            context.variable_declarations,
+            context.property_declarations,
+            None,
+            context.detached_ruleset_declarations,
+        )?;
+        argument_values.insert(parameter, rendered_value);
+    }
+    if let Some(arguments_value) = static_less_mixin_arguments_value(call.arguments.as_slice()) {
+        argument_values.insert("@arguments".to_string(), arguments_value);
+    }
+    Some(argument_values)
 }
 
 fn render_static_less_namespace_mixin_call(

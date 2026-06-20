@@ -124,20 +124,6 @@ pub(super) fn static_less_mixin_guard_depends_on_default(guard: &str) -> bool {
         .is_some_and(|expression| expression.contains("default("))
 }
 
-pub(super) fn static_less_mixin_guard_depends_on_negated_default(guard: &str) -> bool {
-    guard
-        .to_ascii_lowercase()
-        .split("when")
-        .nth(1)
-        .map(|expression| {
-            expression
-                .chars()
-                .filter(|character| !character.is_whitespace())
-                .collect::<String>()
-        })
-        .is_some_and(|expression| expression.contains("not(default("))
-}
-
 fn static_less_guard_or_matches(
     operands: Vec<&str>,
     context: StaticLessGuardContext<'_>,

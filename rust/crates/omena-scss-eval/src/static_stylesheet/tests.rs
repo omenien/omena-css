@@ -1824,6 +1824,26 @@ fn static_less_evaluation_preserves_ambiguous_default_guarded_mixins() {
 }
 
 #[test]
+fn static_less_evaluation_expands_decidable_negated_default_guarded_mixins() {
+    let report = derive_static_stylesheet_module_evaluation(
+        ".tone() when (default()) and (iscolor(red)) { color: red; } .tone() when not(default()) and (iscolor(1px)) { color: blue; } .button { .tone(); }",
+        StyleDialect::Less,
+    );
+
+    assert!(report.is_some());
+    let Some(report) = report else {
+        return;
+    };
+
+    assert!(report.evaluated_css.contains("color: red"));
+    assert!(!report.evaluated_css.contains("color: blue"));
+    assert!(!report.evaluated_css.contains(".tone()"));
+    assert!(!report.evaluated_css.contains("not(default())"));
+    assert!(report.oracle.all_legacy_declaration_values_preserved);
+    assert!(report.native_edit_output_matches_evaluated_css);
+}
+
+#[test]
 fn static_less_evaluation_removes_false_guarded_mixins() {
     let report = derive_static_stylesheet_module_evaluation(
         ".tone(@value) when (iscolor(@value)) { color: @value; } .button { .tone(1px); }",
