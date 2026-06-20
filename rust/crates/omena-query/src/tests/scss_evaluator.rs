@@ -665,20 +665,26 @@ fn exposes_static_stylesheet_oracle_corpus_through_query_boundary() {
             .iter()
             .any(|fixture| fixture.id == "less.default-guarded-mixin")
     );
-    assert!(
-        summary
-            .corpus
-            .fixtures
-            .iter()
-            .any(|fixture| fixture.id == "less.false-guarded-mixin")
-    );
-    assert!(
-        summary
-            .corpus
-            .fixtures
-            .iter()
-            .any(|fixture| fixture.id == "less.false-guarded-namespace-mixin")
-    );
+    let false_guard_fixture = summary
+        .corpus
+        .fixtures
+        .iter()
+        .find(|fixture| fixture.id == "less.false-guarded-mixin");
+    assert!(false_guard_fixture.is_some_and(|fixture| {
+        fixture.native_replacement_count == 0
+            && fixture.native_structural_edit_count > 0
+            && fixture.native_edit_output_matches_evaluated_css
+    }));
+    let false_guard_namespace_fixture = summary
+        .corpus
+        .fixtures
+        .iter()
+        .find(|fixture| fixture.id == "less.false-guarded-namespace-mixin");
+    assert!(false_guard_namespace_fixture.is_some_and(|fixture| {
+        fixture.native_replacement_count == 0
+            && fixture.native_structural_edit_count > 0
+            && fixture.native_edit_output_matches_evaluated_css
+    }));
     assert!(
         summary
             .corpus
