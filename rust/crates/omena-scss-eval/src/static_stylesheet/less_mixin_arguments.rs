@@ -2,8 +2,8 @@ use std::collections::BTreeSet;
 
 use super::{
     model::{StaticScssFunctionArgument, StaticScssFunctionParameter},
+    scss_arguments::static_scss_top_level_colon_index,
     static_less_mixin_argument_value_is_safe, static_less_variable_name_is_safe,
-    static_scss_top_level_colon_index,
 };
 
 pub(super) fn collect_static_less_mixin_parameters(

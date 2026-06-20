@@ -44,6 +44,7 @@ mod scss_calls;
 mod scss_declarations;
 mod scss_function_edits;
 mod scss_function_locals;
+mod scss_mixin_body;
 mod scss_mixin_edits;
 mod scss_return_clauses;
 mod scss_variables;
@@ -54,7 +55,6 @@ mod variable_references;
 use declarations::{
     collect_static_less_body_property_declarations, collect_static_less_property_declarations,
     collect_static_less_variable_declarations, collect_static_scss_variable_declarations,
-    extract_static_stylesheet_variable_declaration,
     static_less_mixin_declaration_ranges_from_declarations,
     static_scss_function_declaration_ranges_from_declarations,
     static_scss_mixin_declaration_ranges_from_declarations,
@@ -111,10 +111,9 @@ use model::{
     StaticLessMixinRenderOutcome, StaticLessMixinRenderResult, StaticScssFunctionCall,
     StaticScssFunctionDeclaration, StaticScssFunctionEvaluationEdits, StaticScssFunctionLocalScope,
     StaticScssFunctionLocalVariable, StaticScssFunctionResolutionContext,
-    StaticScssFunctionReturnClause, StaticScssLoopHeader, StaticScssMixinBodyLocalDeclaration,
-    StaticScssMixinDeclaration, StaticScssMixinEvaluationEdits, StaticScssMixinIncludeCall,
-    StaticScssMixinRenderResult, StaticStylesheetEvaluationEdit,
-    StaticStylesheetPropertyDeclaration, StaticStylesheetScope,
+    StaticScssFunctionReturnClause, StaticScssLoopHeader, StaticScssMixinDeclaration,
+    StaticScssMixinEvaluationEdits, StaticScssMixinIncludeCall, StaticScssMixinRenderResult,
+    StaticStylesheetEvaluationEdit, StaticStylesheetPropertyDeclaration, StaticStylesheetScope,
     StaticStylesheetScopedVariableDeclaration, StaticStylesheetVariableDeclaration,
     StaticStylesheetVariableKind,
 };
@@ -139,7 +138,6 @@ use safety::{
     static_stylesheet_composite_value_is_safe,
     static_stylesheet_less_declaration_value_is_removal_safe,
     static_stylesheet_literal_value_is_safe, static_stylesheet_property_name_is_safe,
-    static_stylesheet_scss_declaration_value_is_removal_safe,
     static_stylesheet_variable_name_is_safe,
 };
 use scopes::{
@@ -149,7 +147,7 @@ use scopes::{
 use scss_argument_binding::{
     bind_static_scss_function_arguments, bind_static_scss_mixin_arguments,
 };
-use scss_arguments::{split_static_scss_function_arguments, static_scss_top_level_colon_index};
+use scss_arguments::split_static_scss_function_arguments;
 use scss_callable_dependencies::{
     extend_static_scss_used_function_dependencies,
     static_scss_function_value_contains_any_callable,
@@ -168,6 +166,10 @@ use scss_declarations::{
 use scss_function_edits::{
     collect_static_scss_function_evaluation_edits,
     collect_static_scss_function_value_resolution_values,
+};
+use scss_mixin_body::{
+    collect_static_scss_mixin_body_declaration_value_ranges,
+    collect_static_scss_mixin_body_local_declarations,
 };
 use scss_mixin_edits::collect_static_scss_mixin_evaluation_edits;
 use scss_variables::{
@@ -1345,41 +1347,6 @@ fn render_static_scss_mixin_body_variables(
     apply_static_stylesheet_evaluation_edits(body, edits)
 }
 
-fn collect_static_scss_mixin_body_local_declarations(
-    body: &str,
-    dialect: StyleDialect,
-) -> Option<Vec<StaticScssMixinBodyLocalDeclaration>> {
-    let facts = omena_parser::collect_style_facts(body, dialect);
-    let mut declarations = Vec::new();
-    for fact in facts
-        .variables
-        .iter()
-        .filter(|fact| fact.kind == ParsedVariableFactKind::ScssDeclaration)
-    {
-        let start = parser_text_size_to_usize(fact.range.start().into());
-        let end = parser_text_size_to_usize(fact.range.end().into());
-        if static_stylesheet_variable_reference_is_named_argument_label(body, start, end) {
-            continue;
-        }
-        let declaration = extract_static_stylesheet_variable_declaration(
-            body,
-            start,
-            end,
-            dialect,
-            StaticStylesheetVariableKind::Scss,
-        )?;
-        if !static_stylesheet_scss_declaration_value_is_removal_safe(&declaration.value) {
-            return None;
-        }
-        declarations.push(StaticScssMixinBodyLocalDeclaration {
-            name: fact.name.clone(),
-            declaration,
-        });
-    }
-    declarations.sort_by_key(|declaration| declaration.declaration.span_start);
-    Some(declarations)
-}
-
 fn resolve_static_scss_mixin_body_declaration_values(
     body: &str,
     dialect: StyleDialect,
@@ -1411,116 +1378,6 @@ fn resolve_static_scss_mixin_body_declaration_values(
         }
     }
     apply_static_stylesheet_evaluation_edits(body, edits)
-}
-
-fn collect_static_scss_mixin_body_declaration_value_ranges(
-    body: &str,
-    dialect: StyleDialect,
-) -> Option<Vec<(usize, usize)>> {
-    let mut ranges = Vec::new();
-    let mut statement_start = 0usize;
-    let mut index = 0usize;
-    let mut paren_depth = 0usize;
-    let mut bracket_depth = 0usize;
-    let mut quote: Option<char> = None;
-
-    while index < body.len() {
-        let ch = body[index..].chars().next()?;
-        if let Some(quote_ch) = quote {
-            index += ch.len_utf8();
-            if ch == '\\' {
-                if let Some(escaped) = body[index..].chars().next() {
-                    index += escaped.len_utf8();
-                }
-            } else if ch == quote_ch {
-                quote = None;
-            }
-            continue;
-        }
-        if matches!(ch, '"' | '\'') {
-            quote = Some(ch);
-            index += ch.len_utf8();
-            continue;
-        }
-        match ch {
-            '(' => paren_depth += 1,
-            ')' => paren_depth = paren_depth.checked_sub(1)?,
-            '[' => bracket_depth += 1,
-            ']' => bracket_depth = bracket_depth.checked_sub(1)?,
-            ';' if paren_depth == 0 && bracket_depth == 0 => {
-                collect_static_scss_mixin_body_statement_value_range(
-                    body,
-                    statement_start,
-                    index,
-                    &mut ranges,
-                )?;
-                statement_start = index + ch.len_utf8();
-            }
-            '\n' if dialect == StyleDialect::Sass && paren_depth == 0 && bracket_depth == 0 => {
-                collect_static_scss_mixin_body_statement_value_range(
-                    body,
-                    statement_start,
-                    index,
-                    &mut ranges,
-                )?;
-                statement_start = index + ch.len_utf8();
-            }
-            _ => {}
-        }
-        index += ch.len_utf8();
-    }
-
-    if quote.is_some() || paren_depth != 0 || bracket_depth != 0 {
-        return None;
-    }
-    let trailing = body.get(statement_start..)?;
-    if trailing.trim().is_empty() {
-        return Some(ranges);
-    }
-    if dialect == StyleDialect::Sass {
-        collect_static_scss_mixin_body_statement_value_range(
-            body,
-            statement_start,
-            body.len(),
-            &mut ranges,
-        )?;
-        return Some(ranges);
-    }
-    None
-}
-
-fn collect_static_scss_mixin_body_statement_value_range(
-    body: &str,
-    statement_start: usize,
-    statement_end: usize,
-    ranges: &mut Vec<(usize, usize)>,
-) -> Option<()> {
-    let statement = body.get(statement_start..statement_end)?;
-    if statement.trim().is_empty() {
-        return Some(());
-    }
-    let colon_index = static_scss_top_level_colon_index(statement)??;
-    let mut value_start = statement_start + colon_index + ':'.len_utf8();
-    let mut value_end = statement_end;
-    while value_start < value_end {
-        let ch = body[value_start..].chars().next()?;
-        if !ch.is_ascii_whitespace() {
-            break;
-        }
-        value_start += ch.len_utf8();
-    }
-    while value_start < value_end {
-        let ch = body[..value_end].chars().next_back()?;
-        if !ch.is_ascii_whitespace() {
-            break;
-        }
-        value_end -= ch.len_utf8();
-    }
-    if value_start >= value_end {
-        return None;
-    }
-    ranges.push((value_start, value_end));
-    Some(())
 }
 
 fn resolve_static_scss_function_argument_abstract_value(
