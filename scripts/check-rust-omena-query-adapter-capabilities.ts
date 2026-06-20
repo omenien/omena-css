@@ -920,6 +920,7 @@ function assertStaticStylesheetEvaluatorOracleCorpus(
     "scss.static-mixin-content-expression-arguments",
     "scss.static-nested-mixin-include",
     "scss.static-hyphen-underscore-mixin-include",
+    "scss.dynamic-top-level-if",
     "scss.indirect-recursive-function-return",
     "less.variable-basic",
     "less.dynamic-escaped-string",
@@ -947,9 +948,38 @@ function assertStaticStylesheetEvaluatorOracleCorpus(
     );
   }
 
+  const indeterminateFixtureIds = corpus.fixtures
+    .filter(
+      (fixture) =>
+        fixture.nativeTopValueCount > 0 ||
+        fixture.nativeRawValueCount > 0 ||
+        fixture.nativeCycleValueCount > 0 ||
+        fixture.nativeFuelExhaustedValueCount > 0 ||
+        fixture.nativeUnresolvedReferenceValueCount > 0 ||
+        fixture.nativeUnsupportedDynamicValueCount > 0,
+    )
+    .map((fixture) => fixture.id)
+    .toSorted();
+  assert.deepEqual(
+    indeterminateFixtureIds,
+    [
+      "less.dynamic-escaped-string",
+      "less.fuel-exhausted-variable-chain",
+      "scss.dynamic-function-return",
+      "scss.dynamic-top-level-if",
+      "scss.indirect-recursive-function-return",
+      "scss.recursive-function-return",
+      "scss.unresolved-forward-composite",
+    ],
+    "Top/Raw native evaluator outputs must stay confined to explicit dynamic, cycle, fuel, or unresolved oracle fixtures",
+  );
+
   const dynamicFunction = fixtures.get("scss.dynamic-function-return");
   assert.equal(dynamicFunction?.nativeTopValueCount, 1);
   assert.equal(dynamicFunction?.nativeUnsupportedDynamicValueCount, 1);
+  const dynamicTopLevelIf = fixtures.get("scss.dynamic-top-level-if");
+  assert.equal(dynamicTopLevelIf?.nativeRawValueCount, 1);
+  assert.equal(dynamicTopLevelIf?.nativeUnsupportedDynamicValueCount, 1);
   const unresolvedComposite = fixtures.get("scss.unresolved-forward-composite");
   assert.equal(unresolvedComposite?.nativeTopValueCount, 1);
   assert.equal(unresolvedComposite?.nativeUnresolvedReferenceValueCount, 1);
