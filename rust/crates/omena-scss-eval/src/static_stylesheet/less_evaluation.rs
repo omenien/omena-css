@@ -421,7 +421,7 @@ fn static_less_interpolation_is_selector_name_part(
     tokens: &[LexedToken],
     interpolation_start_index: usize,
 ) -> bool {
-    static_less_interpolation_has_class_selector_marker(tokens, interpolation_start_index)
+    static_less_interpolation_has_selector_name_context(tokens, interpolation_start_index)
         && static_less_interpolation_is_in_selector_header(tokens, interpolation_start_index)
 }
 
@@ -435,6 +435,10 @@ fn static_less_interpolation_is_in_selector_header(
         match tokens[index].kind {
             kind if static_stylesheet_token_is_trivia(kind) => {}
             SyntaxKind::Colon | SyntaxKind::AtKeyword => return false,
+            SyntaxKind::LeftParen
+            | SyntaxKind::RightParen
+            | SyntaxKind::LeftBracket
+            | SyntaxKind::RightBracket => return false,
             SyntaxKind::Semicolon | SyntaxKind::RightBrace | SyntaxKind::LeftBrace => break,
             _ => {}
         }
@@ -445,6 +449,10 @@ fn static_less_interpolation_is_in_selector_header(
         match tokens[index].kind {
             kind if static_stylesheet_token_is_trivia(kind) => {}
             SyntaxKind::LeftBrace => return true,
+            SyntaxKind::LeftParen
+            | SyntaxKind::RightParen
+            | SyntaxKind::LeftBracket
+            | SyntaxKind::RightBracket => return false,
             SyntaxKind::Semicolon | SyntaxKind::RightBrace => return false,
             _ => {}
         }
@@ -453,7 +461,7 @@ fn static_less_interpolation_is_in_selector_header(
     false
 }
 
-fn static_less_interpolation_has_class_selector_marker(
+fn static_less_interpolation_has_selector_name_context(
     tokens: &[LexedToken],
     interpolation_start_index: usize,
 ) -> bool {
@@ -463,13 +471,21 @@ fn static_less_interpolation_has_class_selector_marker(
         match tokens[index].kind {
             SyntaxKind::Dot => return true,
             SyntaxKind::Delim if tokens[index].text == "#" => return true,
+            kind if static_stylesheet_token_is_trivia(kind) => return true,
             SyntaxKind::Ident
             | SyntaxKind::CustomPropertyName
             | SyntaxKind::Minus
             | SyntaxKind::LessInterpolationStart
             | SyntaxKind::LessInterpolationEnd => {}
+            SyntaxKind::Comma
+            | SyntaxKind::LeftBrace
+            | SyntaxKind::RightBrace
+            | SyntaxKind::Semicolon
+            | SyntaxKind::GreaterThan
+            | SyntaxKind::Plus
+            | SyntaxKind::Tilde => return true,
             _ => return false,
         }
     }
-    false
+    true
 }
