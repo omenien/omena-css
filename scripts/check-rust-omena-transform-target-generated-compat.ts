@@ -18,6 +18,8 @@ const expectedBrowsers = [
   "samsung",
   "android",
 ] as const;
+const webFeaturesDataPath = "node_modules/web-features/data.json";
+const mdnBrowserCompatDataPath = "node_modules/@mdn/browser-compat-data/data.json";
 
 interface SpecSourcePinsV0 {
   readonly refreshedAt: string;
@@ -97,6 +99,8 @@ interface ParsedTomlTablesV0 {
   readonly tables: readonly TomlRecord[];
 }
 
+type SourceJsonRecord = Record<string, unknown>;
+
 const specSources = readJson<SpecSourcePinsV0>(
   "rust/crates/omena-spec-audit/data/spec-sources.json",
 );
@@ -107,6 +111,8 @@ const compatSelections = readJson<CompatFeatureSelectionsV0>(
   "rust/crates/omena-transform-target/data/compat-feature-selections.json",
 );
 const packageJson = readJson<PackageJsonV0>("package.json");
+const webFeaturesData = readJson<SourceJsonRecord>(webFeaturesDataPath);
+const mdnBrowserCompatData = readJson<SourceJsonRecord>(mdnBrowserCompatDataPath);
 const browserThresholdData = parseTomlWithRepeatedTable(
   readText("rust/crates/omena-transform-target/data/browser-thresholds.toml"),
   "threshold",
@@ -160,6 +166,11 @@ assert.ok(
   "compat source pins must include MDN browser compatibility data",
 );
 assertSourcePinsDeclaredAsExactDevDependencies(specSources, packageJson);
+assertFeatureSourceKeysPresentInPackages(
+  compatSelections,
+  webFeaturesData,
+  mdnBrowserCompatData,
+);
 assert.equal(specManifest.schemaVersion, "0");
 assert.equal(specManifest.product, "omena-spec-audit.single-source-manifest");
 const manifestSourceKeys = specManifestSourceKeyIndex(specManifest);
@@ -411,6 +422,46 @@ function assertSourcePinsDeclaredAsExactDevDependencies(
   }
 }
 
+function assertFeatureSourceKeysPresentInPackages(
+  featureSelections: CompatFeatureSelectionsV0,
+  webFeaturesSourceData: SourceJsonRecord,
+  mdnCompatSourceData: SourceJsonRecord,
+): void {
+  const webFeatureRecords = objectProperty(webFeaturesSourceData, "features", "web-features");
+  for (const feature of featureSelections.features) {
+    const webFeatureKey = feature.sourceKeys["web-features"];
+    const mdnCompatKey = feature.sourceKeys["mdn-bcd"];
+    const caniuseKey = feature.sourceKeys.caniuse;
+    const webFeature = objectProperty(
+      webFeatureRecords,
+      webFeatureKey,
+      `web-features feature ${webFeatureKey}`,
+    );
+    const compatFeatures = stringArrayProperty(
+      webFeature,
+      "compat_features",
+      `web-features feature ${webFeatureKey}.compat_features`,
+    );
+    assert.ok(
+      compatFeatures.includes(mdnCompatKey),
+      `${feature.table} web-features key ${webFeatureKey} must include MDN compat key ${mdnCompatKey}`,
+    );
+    const webFeatureCaniuseKeys = optionalStringArrayProperty(
+      webFeature,
+      "caniuse",
+      `web-features feature ${webFeatureKey}.caniuse`,
+    );
+    if (webFeatureCaniuseKeys) {
+      assert.ok(
+        webFeatureCaniuseKeys.includes(caniuseKey),
+        `${feature.table} web-features key ${webFeatureKey} must include caniuse key ${caniuseKey}`,
+      );
+    }
+    const mdnCompat = dottedObjectProperty(mdnCompatSourceData, mdnCompatKey, "MDN BCD");
+    objectProperty(mdnCompat, "__compat", `MDN BCD ${mdnCompatKey}`);
+  }
+}
+
 function pinnedCargoPackageVersion(
   source: string,
   workspaceDependency: string,
@@ -587,6 +638,46 @@ function assertIsoDateOrder(left: string, right: string, message: string): void 
   assert.match(left, /^\d{4}-\d{2}-\d{2}$/u);
   assert.match(right, /^\d{4}-\d{2}-\d{2}$/u);
   assert.ok(left <= right, message);
+}
+
+function dottedObjectProperty(
+  source: SourceJsonRecord,
+  dottedPath: string,
+  label: string,
+): SourceJsonRecord {
+  return dottedPath.split(".").reduce<SourceJsonRecord>((current, segment, index) => {
+    return objectProperty(current, segment, `${label} ${dottedPath} segment ${index + 1}`);
+  }, source);
+}
+
+function objectProperty(
+  source: SourceJsonRecord,
+  key: string,
+  label: string,
+): SourceJsonRecord {
+  const value = source[key];
+  assert.ok(value && typeof value === "object" && !Array.isArray(value), `${label} required`);
+  return value as SourceJsonRecord;
+}
+
+function stringArrayProperty(
+  source: SourceJsonRecord,
+  key: string,
+  label: string,
+): readonly string[] {
+  const value = source[key];
+  assert.ok(Array.isArray(value), `${label} must be a string array`);
+  for (const item of value) assert.equal(typeof item, "string", `${label} item`);
+  return value as string[];
+}
+
+function optionalStringArrayProperty(
+  source: SourceJsonRecord,
+  key: string,
+  label: string,
+): readonly string[] | undefined {
+  if (source[key] === undefined) return undefined;
+  return stringArrayProperty(source, key, label);
 }
 
 function selectionPassIds(feature: CompatFeatureSelectionV0): readonly string[] {
