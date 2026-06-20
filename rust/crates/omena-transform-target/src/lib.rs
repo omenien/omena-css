@@ -1664,11 +1664,21 @@ mod tests {
                 .contains(&"nesting-unwrap")
         );
 
-        let chrome_112 =
-            plan_target_transforms_from_query("chrome 112", conservative_target_options());
-        assert!(chrome_112.support.supports_css_nesting);
+        let chrome_119 =
+            plan_target_transforms_from_query("chrome 119", conservative_target_options());
+        assert!(!chrome_119.support.supports_css_nesting);
         assert!(
-            !chrome_112
+            chrome_119
+                .transform_plan
+                .required_pass_ids
+                .contains(&"nesting-unwrap")
+        );
+
+        let chrome_120 =
+            plan_target_transforms_from_query("chrome 120", conservative_target_options());
+        assert!(chrome_120.support.supports_css_nesting);
+        assert!(
+            !chrome_120
                 .transform_plan
                 .required_pass_ids
                 .contains(&"nesting-unwrap")
@@ -1903,7 +1913,7 @@ mod tests {
         let Some(css_nesting_threshold) = css_nesting_threshold else {
             return;
         };
-        assert_eq!(css_nesting_threshold.min_version, "112.0");
+        assert_eq!(css_nesting_threshold.min_version, "120.0");
         assert_eq!(css_nesting_threshold.caniuse_key, "css-nesting");
 
         let cascade_layers = chrome_122

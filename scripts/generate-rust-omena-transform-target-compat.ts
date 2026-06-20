@@ -195,6 +195,7 @@ function validateInputs(
     webFeaturesSourceData,
     mdnCompatSourceData,
   );
+  assertFeatureThresholdsNotOlderThanMdnFullSupport(featureSelections, mdnCompatSourceData);
   const manifestSourceKeys = specManifestSourceKeyIndex(manifest);
   const manifestEvidence = specManifestEvidenceIndex(manifest);
   assert.ok(
@@ -420,6 +421,29 @@ function assertFeatureSourceKeysPresentInPackages(
   }
 }
 
+function assertFeatureThresholdsNotOlderThanMdnFullSupport(
+  featureSelections: CompatFeatureSelectionsV0,
+  mdnCompatSourceData: SourceJsonRecord,
+): void {
+  for (const feature of featureSelections.features) {
+    const mdnCompatKey = feature.sourceKeys["mdn-bcd"];
+    const mdnCompat = dottedObjectProperty(mdnCompatSourceData, mdnCompatKey, "MDN BCD");
+    const support = objectProperty(
+      objectProperty(mdnCompat, "__compat", `MDN BCD ${mdnCompatKey}`),
+      "support",
+      `MDN BCD ${mdnCompatKey} support`,
+    );
+    for (const threshold of feature.thresholds) {
+      const mdnBrowser = mdnBrowserForThresholdBrowser(threshold.browser);
+      const mdnVersion = mdnFullUnprefixedSupportVersion(support, mdnBrowser);
+      assert.ok(
+        compareBrowserVersions([threshold.minMajor, threshold.minMinor], mdnVersion) >= 0,
+        `${feature.table}/${threshold.browser} threshold ${threshold.minMajor}.${threshold.minMinor} must not be older than MDN full unprefixed support ${mdnVersion.join(".")}`,
+      );
+    }
+  }
+}
+
 function addIsoDateDays(value: string, days: number): string {
   assert.ok(Number.isInteger(days) && days > 0, "maxAgeDays must be a positive integer");
   const timestamp = Date.parse(`${value}T00:00:00.000Z`);
@@ -550,6 +574,70 @@ function optionalStringArrayProperty(
 ): readonly string[] | undefined {
   if (source[key] === undefined) return undefined;
   return stringArrayProperty(source, key, label);
+}
+
+function mdnBrowserForThresholdBrowser(browser: string): string {
+  const browserMap: Record<string, string> = {
+    chrome: "chrome",
+    edge: "edge",
+    firefox: "firefox",
+    safari: "safari",
+    ios_saf: "safari_ios",
+    opera: "opera",
+    op_mob: "opera_android",
+    and_chr: "chrome_android",
+    and_ff: "firefox_android",
+    samsung: "samsunginternet_android",
+    android: "webview_android",
+  };
+  const mapped = browserMap[browser];
+  assert.ok(mapped, `missing MDN browser mapping for ${browser}`);
+  return mapped;
+}
+
+function mdnFullUnprefixedSupportVersion(
+  support: SourceJsonRecord,
+  browser: string,
+): readonly [number, number] {
+  const entries = supportEntryArray(support[browser]);
+  const versions = entries
+    .filter((entry) => {
+      return (
+        !entry.partial_implementation &&
+        !entry.prefix &&
+        !entry.alternative_name &&
+        !entry.flags
+      );
+    })
+    .map((entry) => parseBrowserVersion(entry.version_added))
+    .filter((version): version is readonly [number, number] => version !== undefined)
+    .sort(compareBrowserVersions);
+  const version = versions[0];
+  assert.ok(version, `MDN ${browser} full unprefixed support version required`);
+  return version;
+}
+
+function supportEntryArray(value: unknown): SourceJsonRecord[] {
+  if (value === undefined || value === false) return [];
+  if (Array.isArray(value)) {
+    return value.filter(
+      (item): item is SourceJsonRecord =>
+        !!item && typeof item === "object" && !Array.isArray(item),
+    );
+  }
+  assert.ok(value && typeof value === "object", "MDN support entry must be an object");
+  return [value as SourceJsonRecord];
+}
+
+function parseBrowserVersion(value: unknown): readonly [number, number] | undefined {
+  if (typeof value !== "string") return undefined;
+  const match = value.match(/^(\d+)(?:\.(\d+))?/u);
+  if (!match) return undefined;
+  return [Number(match[1]), Number(match[2] ?? 0)];
+}
+
+function compareBrowserVersions(left: readonly [number, number], right: readonly [number, number]) {
+  return left[0] - right[0] || left[1] - right[1];
 }
 
 function expectedBrowserOrder(): readonly string[] {
