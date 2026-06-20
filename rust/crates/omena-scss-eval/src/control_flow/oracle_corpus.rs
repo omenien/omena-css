@@ -318,6 +318,16 @@ fn scss_control_flow_oracle_corpus_fixtures() -> &'static [ScssControlFlowOracle
             source: "@function pick($target) { $step: 1 + 1; $i: 0; @while $i < 6 { @if $i == $target { @return $i; } $i: $i + $step; } @return 0; } .button { z-index: pick(4); }",
         },
         ScssControlFlowOracleCorpusFixtureV0 {
+            id: "scss.static-default-function-arguments",
+            dialect: StyleDialect::Scss,
+            source: "@function offset($value: 1px, $extra: 2px) { @return $value + $extra; } .button { margin: offset(); }",
+        },
+        ScssControlFlowOracleCorpusFixtureV0 {
+            id: "scss.static-default-argument-prior-parameter",
+            dialect: StyleDialect::Scss,
+            source: "@function offset($value, $extra: $value + 1px) { @return $extra; } .button { margin: offset(2px); }",
+        },
+        ScssControlFlowOracleCorpusFixtureV0 {
             id: "scss.static-each-return",
             dialect: StyleDialect::Scss,
             source: "@function tone($target) { @each $name, $tone in (primary: red, secondary: blue) { @if $name == $target { @return $tone; } } @return black; } .button { color: tone(secondary); }",
@@ -403,6 +413,16 @@ fn scss_control_flow_oracle_corpus_fixtures() -> &'static [ScssControlFlowOracle
             source: "@function pick($target)\n  $step: 1 + 1\n  $i: 0\n  @while $i < 6\n    @if $i == $target\n      @return $i\n    $i: $i + $step\n  @return 0\n.button\n  z-index: pick(4)",
         },
         ScssControlFlowOracleCorpusFixtureV0 {
+            id: "sass.static-default-function-arguments",
+            dialect: StyleDialect::Sass,
+            source: "@function offset($value: 1px, $extra: 2px)\n  @return $value + $extra\n.button\n  margin: offset()",
+        },
+        ScssControlFlowOracleCorpusFixtureV0 {
+            id: "sass.static-default-argument-prior-parameter",
+            dialect: StyleDialect::Sass,
+            source: "@function offset($value, $extra: $value + 1px)\n  @return $extra\n.button\n  margin: offset(2px)",
+        },
+        ScssControlFlowOracleCorpusFixtureV0 {
             id: "sass.static-each-return",
             dialect: StyleDialect::Sass,
             source: "@function tone($target)\n  @each $name, $tone in (primary: red, secondary: blue)\n    @if $name == $target\n      @return $tone\n  @return black\n.button\n  color: tone(secondary)",
@@ -464,10 +484,10 @@ mod tests {
         assert_eq!(report.value_type, "AbstractCssValueV0");
         assert_eq!(report.node_key_type, "StableNodeKeyV0");
         assert_eq!(report.recursion_cap, SCSS_CALL_RETURN_RECURSION_LIMIT);
-        assert_eq!(report.fixture_count, 35);
-        assert_eq!(report.scss_fixture_count, 17);
-        assert_eq!(report.sass_fixture_count, 17);
-        assert_eq!(report.supported_fixture_count, 34);
+        assert_eq!(report.fixture_count, 39);
+        assert_eq!(report.scss_fixture_count, 19);
+        assert_eq!(report.sass_fixture_count, 19);
+        assert_eq!(report.supported_fixture_count, 38);
         assert_eq!(report.rejected_flat_css_fixture_count, 1);
         assert!(report.branch_fixture_count >= 5);
         assert!(report.loop_fixture_count >= 6);
@@ -576,6 +596,22 @@ mod tests {
                 && fixture.call_resolved_return_value_count == 1
                 && fixture.value_analysis_converged
         }));
+        for id in [
+            "scss.static-default-function-arguments",
+            "scss.static-default-argument-prior-parameter",
+            "sass.static-default-function-arguments",
+            "sass.static-default-argument-prior-parameter",
+        ] {
+            assert!(
+                report.fixtures.iter().any(|fixture| {
+                    fixture.id == id
+                        && fixture.call_resolved_return_value_count == 1
+                        && fixture.exact_call_resolved_return_value_count == 1
+                        && fixture.value_analysis_converged
+                }),
+                "missing control-flow default-argument oracle fixture {id}"
+            );
+        }
         assert!(report.fixtures.iter().any(|fixture| {
             fixture.id == "sass.static-each-return"
                 && fixture.dialect == "sass"
