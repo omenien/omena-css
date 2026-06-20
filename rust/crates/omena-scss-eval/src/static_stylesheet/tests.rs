@@ -1114,6 +1114,26 @@ fn static_less_evaluation_expands_mixin_local_variables() {
 }
 
 #[test]
+fn static_less_evaluation_expands_mixin_body_property_variables() {
+    let report = derive_static_stylesheet_module_evaluation(
+        ".space() { margin: 2px; padding: $margin; } .button { .space(); }",
+        StyleDialect::Less,
+    );
+    assert!(report.is_some());
+    let Some(report) = report else {
+        return;
+    };
+
+    assert!(!report.evaluated_css.contains(".space()"));
+    assert!(!report.evaluated_css.contains(".space();"));
+    assert!(!report.evaluated_css.contains("$margin"));
+    assert!(report.evaluated_css.contains("margin: 2px"));
+    assert!(report.evaluated_css.contains("padding: 2px"));
+    assert!(report.oracle.all_legacy_declaration_values_preserved);
+    assert!(report.native_edit_output_matches_evaluated_css);
+}
+
+#[test]
 fn static_less_evaluation_expands_nested_static_mixin_calls() {
     let report = derive_static_stylesheet_module_evaluation(
         ".spacing(@gap) { margin: @gap; } .tone(@gap, @color: red) { .spacing(@gap); color: @color; } .button { .tone(2px, blue); }",

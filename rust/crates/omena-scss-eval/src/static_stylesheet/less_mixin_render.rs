@@ -23,8 +23,9 @@ use super::{
     less_mixin_values::{
         apply_static_less_mixin_call_importance, collect_static_less_mixin_body_local_declarations,
         resolve_static_less_mixin_body_declaration_values,
-        resolve_static_less_mixin_value_with_bindings, static_less_mixin_accessor_property_value,
-        static_less_mixin_arguments_value, static_less_mixin_body_scoped_values,
+        resolve_static_less_mixin_value_with_bindings, static_less_body_property_value,
+        static_less_mixin_accessor_property_value, static_less_mixin_arguments_value,
+        static_less_mixin_body_scoped_values,
     },
     less_mixins::{collect_static_less_mixin_calls, collect_static_less_mixin_declarations},
     resolve_static_less_property_value_in_scope, resolve_static_less_variable_value_in_scope,
@@ -109,20 +110,41 @@ pub(super) fn render_static_less_mixin_body_variables(
         });
     }
     let body_lexed = omena_parser::lex(body, StyleDialect::Less);
+    let local_property_context = StaticLessMixinRenderContext {
+        source: body,
+        declarations: &[],
+        detached_ruleset_declarations,
+        scopes,
+        variable_declarations,
+        property_declarations,
+        captured_values,
+    };
     for token in body_lexed.tokens() {
         if token.kind != SyntaxKind::LessPropertyVariableToken {
             continue;
         }
         let reference_start = static_stylesheet_token_start(token);
-        let mut stack = BTreeSet::new();
-        let replacement = resolve_static_less_property_value_in_scope(
-            token.text.as_str(),
+        let member = token.text.as_str().strip_prefix('$')?;
+        let replacement = match static_less_body_property_value(
+            body,
+            member,
+            &scoped_values,
             call_scope_id,
-            scopes,
-            property_declarations,
-            &mut stack,
-        )?
-        .text;
+            local_property_context,
+        )? {
+            StaticLessBodyPropertyValueOutcome::Resolved(value) => value,
+            StaticLessBodyPropertyValueOutcome::MemberNotFound => {
+                let mut stack = BTreeSet::new();
+                resolve_static_less_property_value_in_scope(
+                    token.text.as_str(),
+                    call_scope_id,
+                    scopes,
+                    property_declarations,
+                    &mut stack,
+                )?
+                .text
+            }
+        };
         edits.push(StaticStylesheetEvaluationEdit {
             start: reference_start,
             end: static_stylesheet_token_end(token),

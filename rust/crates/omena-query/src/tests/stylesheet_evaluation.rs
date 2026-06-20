@@ -895,6 +895,31 @@ fn consumer_build_expands_future_property_guarded_less_mixins() {
 }
 
 #[test]
+fn consumer_build_expands_less_mixin_body_property_variables() {
+    let summary = execute_omena_query_consumer_build_style_source(
+        "Button.module.less",
+        ".space() { margin: 2px; padding: $margin; } .button { .space(); }",
+        &[
+            "less-module-evaluate".to_string(),
+            "css-modules-class-hashing".to_string(),
+            "print-css".to_string(),
+        ],
+    );
+
+    assert!(
+        summary
+            .execution
+            .executed_pass_ids
+            .contains(&"less-module-evaluate")
+    );
+    assert!(!summary.execution.output_css.contains(".space()"));
+    assert!(!summary.execution.output_css.contains(".space();"));
+    assert!(!summary.execution.output_css.contains("$margin"));
+    assert!(summary.execution.output_css.contains("margin: 2px"));
+    assert!(summary.execution.output_css.contains("padding: 2px"));
+}
+
+#[test]
 fn consumer_build_derives_static_less_evaluator_context_for_numeric_property_variables() {
     let summary = execute_omena_query_consumer_build_style_source(
         "Button.module.less",

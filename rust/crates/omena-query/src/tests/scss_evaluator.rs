@@ -2653,6 +2653,35 @@ fn exposes_less_property_variable_aliases_through_query_boundary() {
 }
 
 #[test]
+fn exposes_less_mixin_body_property_variables_through_query_boundary() {
+    let summary = summarize_omena_query_static_stylesheet_evaluator_from_source(
+        ".space() { margin: 2px; padding: $margin; } .button { .space(); }",
+        OmenaParserStyleDialect::Less,
+    );
+
+    assert_eq!(summary.product, "omena-query.static-stylesheet-evaluator");
+    assert_eq!(summary.mode, "oracleOnly");
+    assert_eq!(summary.dialect, "less");
+    assert_eq!(summary.value_type, "AbstractCssValueV0");
+    assert!(summary.supported_dialect);
+    assert_eq!(summary.product_output_source, "nativeEditOutput");
+    assert!(summary.legacy_output_retained_as_oracle);
+    assert!(!summary.legacy_output_consumed_until_cutover);
+    assert!(summary.evaluation_available);
+    assert_eq!(summary.divergence_count, 0);
+    assert!(summary.all_legacy_declaration_values_preserved);
+    assert!(summary.native_structural_edit_count > 0);
+    assert!(summary.native_edit_output_matches_evaluated_css);
+    assert!(summary.evaluation.as_ref().is_some_and(|evaluation| {
+        !evaluation.evaluated_css.contains(".space()")
+            && !evaluation.evaluated_css.contains(".space();")
+            && !evaluation.evaluated_css.contains("$margin")
+            && evaluation.evaluated_css.contains("margin: 2px")
+            && evaluation.evaluated_css.contains("padding: 2px")
+    }));
+}
+
+#[test]
 fn exposes_less_conditional_builtins_through_query_boundary() {
     let summary = summarize_omena_query_static_stylesheet_evaluator_from_source(
         "@gap: 1; @a: if(@gap > 0, red, blue); @b: if(false, red, blue); @c: if(isnumber(2px), yes, no); @d: boolean(@gap > 0); @e: if(default(), red, blue); .button { a: @a; b: @b; c: @c; d: @d; e: @e; }",
