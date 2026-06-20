@@ -6,7 +6,7 @@ use crate::value_eval::static_scss_bang_usage_is_comparison_only;
 
 use super::{
     StaticLessBodyPropertyValueOutcome, StaticLessDetachedRulesetDeclaration,
-    StaticLessMixinBodyLocalDeclaration, StaticLessMixinRenderContext, StaticScssFunctionArgument,
+    StaticLessMixinBodyLocalDeclaration, StaticLessMixinRenderContext,
     StaticStylesheetEvaluationEdit, StaticStylesheetPropertyDeclaration, StaticStylesheetScope,
     StaticStylesheetVariableDeclaration, StaticStylesheetVariableKind,
     apply_static_stylesheet_evaluation_edits, collect_static_less_body_property_declarations,
@@ -15,7 +15,8 @@ use super::{
     collect_static_stylesheet_variable_references_with_options,
     extract_static_stylesheet_variable_declaration, find_static_less_detached_ruleset_declaration,
     find_static_less_property_declaration, less_values::reduce_static_less_value,
-    parser_text_size_to_usize, resolve_static_less_property_value_text_with_position,
+    model::StaticScssFunctionArgument, parser_text_size_to_usize,
+    resolve_static_less_property_value_text_with_position,
     resolve_static_less_variable_value_in_scope, static_less_mixin_argument_value_is_safe,
     static_stylesheet_composite_value_is_safe,
     static_stylesheet_less_declaration_value_is_removal_safe,

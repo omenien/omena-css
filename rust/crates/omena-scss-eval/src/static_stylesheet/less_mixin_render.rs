@@ -12,8 +12,8 @@ use super::{
     StaticLessMixinRenderResult, StaticStylesheetEvaluationEdit,
     StaticStylesheetPropertyDeclaration, StaticStylesheetScope,
     StaticStylesheetVariableDeclaration, StaticStylesheetVariableKind,
-    apply_static_stylesheet_evaluation_edits, bind_static_scss_callable_arguments,
-    canonical_static_less_mixin_name, collect_static_stylesheet_variable_references_with_options,
+    apply_static_stylesheet_evaluation_edits, canonical_static_less_mixin_name,
+    collect_static_stylesheet_variable_references_with_options,
     less_detached_ruleset_render::render_static_less_detached_ruleset_body,
     less_detached_rulesets::{
         collect_static_less_detached_ruleset_calls, find_static_less_detached_ruleset_declaration,
@@ -28,6 +28,7 @@ use super::{
     },
     less_mixins::{collect_static_less_mixin_calls, collect_static_less_mixin_declarations},
     resolve_static_less_property_value_in_scope, resolve_static_less_variable_value_in_scope,
+    scss_argument_binding::bind_static_scss_callable_arguments,
     static_less_mixin_body_is_static_declaration_subset, static_less_variable_name_is_safe,
     static_stylesheet_position_is_inside_ranges, static_stylesheet_token_end,
     static_stylesheet_token_start,

@@ -5,7 +5,8 @@ use omena_parser::LexedToken;
 use crate::value_eval::static_scss_bang_usage_is_comparison_only;
 
 use super::{
-    StaticScssFunctionArgument, StaticScssFunctionParameter, canonical_static_scss_variable_name,
+    canonical_static_scss_variable_name,
+    model::{StaticScssFunctionArgument, StaticScssFunctionParameter},
     static_stylesheet_token_start, static_stylesheet_variable_name_is_safe,
 };
 

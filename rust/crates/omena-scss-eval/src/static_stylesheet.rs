@@ -37,6 +37,7 @@ mod oracle_corpus;
 mod reports;
 mod safety;
 mod scopes;
+mod scss_argument_binding;
 mod scss_arguments;
 mod scss_callable_dependencies;
 mod scss_calls;
@@ -72,7 +73,6 @@ use less_detached_rulesets::{
     static_less_detached_ruleset_ranges_from_declarations,
 };
 use less_literal_edits::collect_static_less_literal_value_edits;
-use less_mixin_arguments::static_less_mixin_pattern_argument_matches;
 use less_mixin_edits::{
     collect_static_less_mixin_accessor_evaluation_edits, collect_static_less_mixin_evaluation_edits,
 };
@@ -108,13 +108,13 @@ use model::{
     StaticLessMixinAccessorRenderOutcome, StaticLessMixinAccessorRenderResult,
     StaticLessMixinBodyLocalDeclaration, StaticLessMixinCall, StaticLessMixinCallRenderOutcome,
     StaticLessMixinDeclaration, StaticLessMixinEvaluationEdits, StaticLessMixinRenderContext,
-    StaticLessMixinRenderOutcome, StaticLessMixinRenderResult, StaticScssFunctionArgument,
-    StaticScssFunctionCall, StaticScssFunctionDeclaration, StaticScssFunctionEvaluationEdits,
-    StaticScssFunctionLocalScope, StaticScssFunctionLocalVariable, StaticScssFunctionParameter,
-    StaticScssFunctionResolutionContext, StaticScssFunctionReturnClause, StaticScssLoopHeader,
-    StaticScssMixinBodyLocalDeclaration, StaticScssMixinDeclaration,
-    StaticScssMixinEvaluationEdits, StaticScssMixinIncludeCall, StaticScssMixinRenderResult,
-    StaticStylesheetEvaluationEdit, StaticStylesheetPropertyDeclaration, StaticStylesheetScope,
+    StaticLessMixinRenderOutcome, StaticLessMixinRenderResult, StaticScssFunctionCall,
+    StaticScssFunctionDeclaration, StaticScssFunctionEvaluationEdits, StaticScssFunctionLocalScope,
+    StaticScssFunctionLocalVariable, StaticScssFunctionResolutionContext,
+    StaticScssFunctionReturnClause, StaticScssLoopHeader, StaticScssMixinBodyLocalDeclaration,
+    StaticScssMixinDeclaration, StaticScssMixinEvaluationEdits, StaticScssMixinIncludeCall,
+    StaticScssMixinRenderResult, StaticStylesheetEvaluationEdit,
+    StaticStylesheetPropertyDeclaration, StaticStylesheetScope,
     StaticStylesheetScopedVariableDeclaration, StaticStylesheetVariableDeclaration,
     StaticStylesheetVariableKind,
 };
@@ -145,6 +145,9 @@ use safety::{
 use scopes::{
     collect_static_stylesheet_scopes, static_stylesheet_position_is_inside_scoped_declaration,
     static_stylesheet_position_is_inside_scss_declaration, static_stylesheet_scope_for_position,
+};
+use scss_argument_binding::{
+    bind_static_scss_function_arguments, bind_static_scss_mixin_arguments,
 };
 use scss_arguments::{split_static_scss_function_arguments, static_scss_top_level_colon_index};
 use scss_callable_dependencies::{
@@ -1108,20 +1111,6 @@ fn bind_static_scss_function_local_variables_in_range(
     Ok(bound_values)
 }
 
-fn bind_static_scss_function_arguments(
-    declaration: &StaticScssFunctionDeclaration,
-    call: &StaticScssFunctionCall,
-) -> Option<Vec<(String, String)>> {
-    bind_static_scss_callable_arguments(&declaration.parameters, &call.arguments)
-}
-
-fn bind_static_scss_mixin_arguments(
-    declaration: &StaticScssMixinDeclaration,
-    call: &StaticScssMixinIncludeCall,
-) -> Option<Vec<(String, String)>> {
-    bind_static_scss_callable_arguments(&declaration.parameters, &call.arguments)
-}
-
 fn render_static_scss_mixin_include_body(
     source: &str,
     tokens: &[LexedToken],
@@ -1532,86 +1521,6 @@ fn collect_static_scss_mixin_body_statement_value_range(
     }
     ranges.push((value_start, value_end));
     Some(())
-}
-
-fn bind_static_scss_callable_arguments(
-    parameters: &[StaticScssFunctionParameter],
-    arguments: &[StaticScssFunctionArgument],
-) -> Option<Vec<(String, String)>> {
-    let mut bindings = BTreeMap::<String, String>::new();
-    let mut positional_index = 0usize;
-    let mut saw_named_argument = false;
-
-    for argument in arguments {
-        if let Some(argument_name) = argument.name.as_ref() {
-            saw_named_argument = true;
-            if !parameters.iter().any(|parameter| {
-                parameter.pattern_value.is_none() && parameter.name == *argument_name
-            }) || bindings
-                .insert(argument_name.clone(), argument.value.clone())
-                .is_some()
-            {
-                return None;
-            }
-            continue;
-        }
-
-        if saw_named_argument {
-            return None;
-        }
-        let parameter = parameters.get(positional_index)?;
-        if let Some(pattern_value) = parameter.pattern_value.as_deref() {
-            if !static_less_mixin_pattern_argument_matches(pattern_value, argument.value.as_str()) {
-                return None;
-            }
-            positional_index += 1;
-            continue;
-        }
-        if parameter.variadic {
-            bindings
-                .entry(parameter.name.clone())
-                .and_modify(|value| {
-                    value.push_str(", ");
-                    value.push_str(argument.value.as_str());
-                })
-                .or_insert_with(|| argument.value.clone());
-            continue;
-        }
-        if bindings
-            .insert(parameter.name.clone(), argument.value.clone())
-            .is_some()
-        {
-            return None;
-        }
-        positional_index += 1;
-    }
-
-    for (index, parameter) in parameters.iter().enumerate() {
-        if parameter.pattern_value.is_some() {
-            if index >= positional_index {
-                return None;
-            }
-            continue;
-        }
-        if bindings.contains_key(parameter.name.as_str()) {
-            continue;
-        }
-        if parameter.variadic {
-            return None;
-        }
-        let default_value = parameter.default_value.as_ref()?;
-        bindings.insert(parameter.name.clone(), default_value.clone());
-    }
-
-    parameters
-        .iter()
-        .filter(|parameter| parameter.pattern_value.is_none())
-        .map(|parameter| {
-            bindings
-                .remove(parameter.name.as_str())
-                .map(|value| (parameter.name.clone(), value))
-        })
-        .collect::<Option<Vec<_>>>()
 }
 
 fn resolve_static_scss_function_argument_abstract_value(
