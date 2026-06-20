@@ -1,8 +1,12 @@
+use std::collections::BTreeSet;
+
+use omena_parser::LexedToken;
+
 use crate::value_eval::static_scss_bang_usage_is_comparison_only;
 
 use super::{
-    StaticScssFunctionArgument, canonical_static_scss_variable_name,
-    static_stylesheet_variable_name_is_safe,
+    StaticScssFunctionArgument, StaticScssFunctionParameter, canonical_static_scss_variable_name,
+    static_stylesheet_token_start, static_stylesheet_variable_name_is_safe,
 };
 
 pub(super) fn split_static_scss_function_arguments(
@@ -83,6 +87,65 @@ fn parse_static_scss_function_argument(value: &str) -> Option<StaticScssFunction
     Some(StaticScssFunctionArgument {
         name: None,
         value: value.to_string(),
+    })
+}
+
+pub(super) fn collect_static_scss_function_parameters(
+    source: &str,
+    tokens: &[LexedToken],
+    start: usize,
+    end: usize,
+) -> Option<Vec<StaticScssFunctionParameter>> {
+    let parameter_start = tokens.get(start).map(static_stylesheet_token_start)?;
+    let parameter_end = tokens
+        .get(end)
+        .map(static_stylesheet_token_start)
+        .unwrap_or(parameter_start);
+    let parameter_text = source.get(parameter_start..parameter_end)?.trim();
+    if parameter_text.is_empty() {
+        return Some(Vec::new());
+    }
+
+    let mut parameters = Vec::new();
+    let mut names = BTreeSet::new();
+    let mut saw_default = false;
+    for argument in split_static_scss_function_arguments(parameter_text)? {
+        let parameter = parse_static_scss_function_parameter(argument)?;
+        if parameter.default_value.is_some() {
+            saw_default = true;
+        } else if saw_default {
+            return None;
+        }
+        if parameter.pattern_value.is_none() && !names.insert(parameter.name.clone()) {
+            return None;
+        }
+        parameters.push(parameter);
+    }
+    Some(parameters)
+}
+
+fn parse_static_scss_function_parameter(
+    argument: StaticScssFunctionArgument,
+) -> Option<StaticScssFunctionParameter> {
+    if let Some(name) = argument.name {
+        return Some(StaticScssFunctionParameter {
+            name,
+            default_value: Some(argument.value),
+            variadic: false,
+            pattern_value: None,
+        });
+    }
+
+    let name = argument.value.trim();
+    let name = name.strip_prefix('$')?.trim();
+    if !static_stylesheet_variable_name_is_safe(name) {
+        return None;
+    }
+    Some(StaticScssFunctionParameter {
+        name: canonical_static_scss_variable_name(name),
+        default_value: None,
+        variadic: false,
+        pattern_value: None,
     })
 }
 
