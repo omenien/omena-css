@@ -796,7 +796,7 @@ fn static_less_evaluation_reduces_escape_builtin_values_without_reentry() {
     };
 
     assert_eq!(report.replacement_count, 4);
-    assert_eq!(report.value_resolution.raw_count, 4);
+    assert_eq!(report.value_resolution.raw_count, 3);
     assert_eq!(report.value_resolution.top_count, 0);
     assert!(report.evaluated_css.contains("a: hello"));
     assert!(report.evaluated_css.contains("b: calc(1px + 2px)"));
@@ -2991,9 +2991,9 @@ fn static_less_evaluation_reduces_unit_builtin_values() {
     assert_eq!(report.resolved_replacements[2].text, "rem");
     assert_eq!(report.resolved_replacements[0].abstract_value_kind, "exact");
     assert_eq!(report.resolved_replacements[1].abstract_value_kind, "exact");
-    assert_eq!(report.resolved_replacements[2].abstract_value_kind, "raw");
-    assert_eq!(report.value_resolution.resolved_count, 2);
-    assert_eq!(report.value_resolution.raw_count, 1);
+    assert_eq!(report.resolved_replacements[2].abstract_value_kind, "exact");
+    assert_eq!(report.value_resolution.resolved_count, 3);
+    assert_eq!(report.value_resolution.raw_count, 0);
     assert!(report.evaluated_css.contains("margin: 5px"));
     assert!(report.evaluated_css.contains("padding: 5"));
     assert!(report.evaluated_css.contains("--unit: rem"));
@@ -3140,13 +3140,13 @@ fn static_less_evaluation_reduces_type_predicate_builtin_values() {
     };
 
     assert_eq!(report.replacement_count, 14);
-    assert_eq!(report.value_resolution.resolved_count, 0);
-    assert_eq!(report.value_resolution.raw_count, 14);
+    assert_eq!(report.value_resolution.resolved_count, 14);
+    assert_eq!(report.value_resolution.raw_count, 0);
     assert!(
         report
             .resolved_replacements
             .iter()
-            .all(|replacement| replacement.abstract_value_kind == "raw")
+            .all(|replacement| replacement.abstract_value_kind == "exact")
     );
     assert!(report.evaluated_css.contains("--number: true"));
     assert!(report.evaluated_css.contains("--defined: true"));
@@ -3170,13 +3170,13 @@ fn static_less_evaluation_reduces_property_isdefined_builtin_values() {
     };
 
     assert_eq!(report.replacement_count, 2);
-    assert_eq!(report.value_resolution.raw_count, 2);
+    assert_eq!(report.value_resolution.raw_count, 0);
     assert_eq!(report.value_resolution.top_count, 0);
     assert!(
         report
             .resolved_replacements
             .iter()
-            .all(|replacement| replacement.abstract_value_kind == "raw")
+            .all(|replacement| replacement.abstract_value_kind == "exact")
     );
     assert!(report.evaluated_css.contains("color: red"));
     assert!(report.evaluated_css.contains("has: true"));
@@ -3196,13 +3196,13 @@ fn static_less_evaluation_reduces_isruleset_builtin_values() {
     };
 
     assert_eq!(report.replacement_count, 2);
-    assert_eq!(report.value_resolution.raw_count, 2);
+    assert_eq!(report.value_resolution.raw_count, 0);
     assert_eq!(report.value_resolution.top_count, 0);
     assert!(
         report
             .resolved_replacements
             .iter()
-            .all(|replacement| replacement.abstract_value_kind == "raw")
+            .all(|replacement| replacement.abstract_value_kind == "exact")
     );
     assert!(report.evaluated_css.contains("ok: true"));
     assert!(report.evaluated_css.contains("bad: false"));
@@ -3221,8 +3221,8 @@ fn static_less_evaluation_reduces_conditional_builtin_values() {
     };
 
     assert_eq!(report.replacement_count, 5);
-    assert_eq!(report.value_resolution.resolved_count, 3);
-    assert_eq!(report.value_resolution.raw_count, 2);
+    assert_eq!(report.value_resolution.resolved_count, 5);
+    assert_eq!(report.value_resolution.raw_count, 0);
     assert!(report.evaluated_css.contains("a: red"));
     assert!(report.evaluated_css.contains("b: blue"));
     assert!(report.evaluated_css.contains("c: yes"));
@@ -3550,8 +3550,8 @@ fn static_less_evaluation_reduces_list_builtin_values() {
     };
 
     assert_eq!(report.replacement_count, 4);
-    assert_eq!(report.value_resolution.resolved_count, 2);
-    assert_eq!(report.value_resolution.raw_count, 2);
+    assert_eq!(report.value_resolution.resolved_count, 4);
+    assert_eq!(report.value_resolution.raw_count, 0);
     assert!(report.evaluated_css.contains("len1: 3"));
     assert!(report.evaluated_css.contains("len2: 3"));
     assert!(report.evaluated_css.contains("x1: b"));
@@ -3591,7 +3591,7 @@ fn static_less_evaluation_reduces_replace_builtin_values() {
     };
 
     assert_eq!(report.replacement_count, 5);
-    assert_eq!(report.value_resolution.raw_count, 5);
+    assert_eq!(report.value_resolution.raw_count, 4);
     assert!(report.evaluated_css.contains("name: \"hello less\""));
     assert!(report.evaluated_css.contains("first: \"heLlo\""));
     assert!(report.evaluated_css.contains("all: \"heLLo\""));
@@ -3612,7 +3612,7 @@ fn static_less_evaluation_reduces_format_builtin_values() {
     };
 
     assert_eq!(report.replacement_count, 7);
-    assert_eq!(report.value_resolution.raw_count, 7);
+    assert_eq!(report.value_resolution.raw_count, 6);
     assert!(report.evaluated_css.contains("name: \"hello less\""));
     assert!(report.evaluated_css.contains("num: \"12px\""));
     assert!(report.evaluated_css.contains("encoded: \"x%20y\""));

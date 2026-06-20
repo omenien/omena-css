@@ -190,6 +190,11 @@ pub fn canonicalize_css_value(value: &str) -> Option<CanonicalCssValueV0> {
     if value.contains('(') || value.contains(')') {
         return None;
     }
+    if is_css_keyword_like(value) {
+        return Some(CanonicalCssValueV0 {
+            serialized: value.to_string(),
+        });
+    }
 
     let numeric = parse_numeric_value(value)?;
     canonicalize_numeric_value(numeric)
@@ -514,6 +519,20 @@ mod tests {
             canonicalize_css_value("color(srgb 1 0 0 / .5)").map(|value| value.serialized),
             Some("#ff000080".to_string())
         );
+    }
+
+    #[test]
+    fn canonical_equality_tracks_single_keyword_values() {
+        assert_eq!(
+            canonicalize_css_value("block").map(|value| value.serialized),
+            Some("block".to_string())
+        );
+        assert_eq!(
+            canonicalize_css_value("true").map(|value| value.serialized),
+            Some("true".to_string())
+        );
+        assert_eq!(canonicalize_css_value("one two"), None);
+        assert_eq!(canonicalize_css_value("var(--keyword)"), None);
     }
 
     #[test]

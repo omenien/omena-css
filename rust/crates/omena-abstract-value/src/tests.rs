@@ -444,6 +444,12 @@ fn abstracts_css_values_through_the_region_local_value_lattice() {
             value: "red".to_string(),
         }
     );
+    assert_eq!(
+        abstract_css_value_from_text("true"),
+        AbstractCssValueV0::Exact {
+            value: "true".to_string(),
+        }
+    );
     assert!(abstract_css_values_canonically_equal(
         "color-mix(in srgb, red 50%, blue 50%)",
         "purple"

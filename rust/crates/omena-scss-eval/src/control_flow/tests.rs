@@ -160,7 +160,7 @@ fn control_flow_value_analysis_reports_sass_branch_truthiness() {
 
     assert_eq!(report.block_count, 1);
     assert_eq!(report.blocks[0].transfer_kind, "branchCondition");
-    assert_eq!(report.blocks[0].transfer_value_kind, Some("raw"));
+    assert_eq!(report.blocks[0].transfer_value_kind, Some("exact"));
     assert_eq!(report.blocks[0].transfer_truthiness, Some("falsey"));
 }
 
@@ -203,7 +203,7 @@ fn control_flow_value_analysis_reduces_static_if_variable_bindings() {
 
     assert_eq!(report.block_count, 1);
     assert_eq!(report.blocks[0].transfer_kind, "branchCondition");
-    assert_eq!(report.blocks[0].transfer_value_kind, Some("raw"));
+    assert_eq!(report.blocks[0].transfer_value_kind, Some("exact"));
     assert_eq!(report.blocks[0].transfer_truthiness, Some("truthy"));
 }
 
@@ -479,7 +479,7 @@ fn control_flow_value_analysis_uses_enclosing_scope_bindings() {
 
     assert_eq!(report.block_count, 1);
     assert_eq!(report.blocks[0].transfer_kind, "branchCondition");
-    assert_eq!(report.blocks[0].transfer_value_kind, Some("raw"));
+    assert_eq!(report.blocks[0].transfer_value_kind, Some("exact"));
     assert_eq!(report.blocks[0].transfer_truthiness, Some("truthy"));
 }
 
