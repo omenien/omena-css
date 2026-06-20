@@ -9,7 +9,7 @@ use omena_scss_eval::{
 use serde::Serialize;
 
 use crate::{
-    OMENA_QUERY_CURRENT_SCHEMA_VERSION, OmenaParserStyleDialect,
+    EngineInputV2, OMENA_QUERY_CURRENT_SCHEMA_VERSION, OmenaParserStyleDialect,
     OmenaQueryScssEvalCallReturnIrSummaryV0, OmenaQueryScssEvalControlFlowIrSummaryV0,
     OmenaQueryScssEvalControlFlowValueAnalysisV0,
 };
@@ -320,6 +320,21 @@ pub fn summarize_omena_query_static_lif_exports_from_source(
     }
 }
 
+pub fn summarize_omena_query_static_lif_exports_from_engine_input(
+    input: &EngineInputV2,
+    target_style_path: &str,
+) -> Option<OmenaQueryStaticLifExportsSummaryV0> {
+    let target = input
+        .styles
+        .iter()
+        .find(|style| style.file_path == target_style_path)?;
+    let source = target.source.as_deref()?;
+    Some(summarize_omena_query_static_lif_exports_from_source(
+        source,
+        omena_query_static_lif_dialect_for_style_path(target_style_path),
+    ))
+}
+
 pub fn summarize_omena_query_static_stylesheet_evaluator_oracle_corpus()
 -> OmenaQueryStaticStylesheetEvaluatorOracleCorpusSummaryV0 {
     let corpus = summarize_static_stylesheet_oracle_corpus();
@@ -468,6 +483,18 @@ pub fn summarize_omena_query_scss_evaluator_control_flow_oracle_corpus()
         no_merged_cross_file_graph: corpus.no_merged_cross_file_graph,
         widening_witness: corpus.widening_witness.clone(),
         corpus,
+    }
+}
+
+fn omena_query_static_lif_dialect_for_style_path(style_path: &str) -> OmenaParserStyleDialect {
+    if style_path.ends_with(".sass") {
+        OmenaParserStyleDialect::Sass
+    } else if style_path.ends_with(".scss") {
+        OmenaParserStyleDialect::Scss
+    } else if style_path.ends_with(".less") {
+        OmenaParserStyleDialect::Less
+    } else {
+        OmenaParserStyleDialect::Css
     }
 }
 

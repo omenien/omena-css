@@ -1,8 +1,10 @@
 use std::fmt::Write as _;
 
 use crate::{
-    OmenaParserStyleDialect, summarize_omena_query_scss_evaluator_control_flow_from_source,
+    EngineInputV2, OmenaParserStyleDialect, StyleAnalysisInputV2, StyleDocumentV2,
+    summarize_omena_query_scss_evaluator_control_flow_from_source,
     summarize_omena_query_scss_evaluator_control_flow_oracle_corpus,
+    summarize_omena_query_static_lif_exports_from_engine_input,
     summarize_omena_query_static_lif_exports_from_source,
     summarize_omena_query_static_stylesheet_evaluator_from_source,
     summarize_omena_query_static_stylesheet_evaluator_oracle_corpus,
@@ -35,6 +37,40 @@ fn exposes_less_lif_exports_through_query_boundary() {
     );
     assert!(summary.exports.less_mixins[0].guarded);
     assert!(summary.exports.less_mixins[0].parameters[1].variadic);
+}
+
+#[test]
+fn exposes_less_lif_exports_through_engine_input_boundary() {
+    let source = r#"
+@brand: #fff;
+@tokens: { primary: @brand; @gap: 2px; };
+.button(@gap: 1rem, @rest...) when (@gap > 0) { color: @brand; }
+"#;
+    let input = EngineInputV2 {
+        version: "static-lif-engine-input-v0".to_string(),
+        sources: Vec::new(),
+        styles: vec![StyleAnalysisInputV2 {
+            file_path: "/tmp/Button.module.less".to_string(),
+            source: Some(source.to_string()),
+            document: StyleDocumentV2 {
+                selectors: Vec::new(),
+            },
+        }],
+        type_facts: Vec::new(),
+    };
+    let summary = summarize_omena_query_static_lif_exports_from_engine_input(
+        &input,
+        "/tmp/Button.module.less",
+    )
+    .expect("target style source should be available from EngineInputV2");
+
+    assert_eq!(summary.product, "omena-query.static-lif-exports");
+    assert_eq!(summary.dialect, "less");
+    assert_eq!(summary.source_syntax, "less");
+    assert!(summary.sif_superset);
+    assert_eq!(summary.less_variable_names, vec!["@brand"]);
+    assert_eq!(summary.less_mixin_names, vec![".button"]);
+    assert_eq!(summary.less_detached_ruleset_names, vec!["@tokens"]);
 }
 
 #[test]

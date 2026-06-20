@@ -79,7 +79,7 @@ const OMENA_QUERY_OWNED_COMMANDS = new Map([
     "input-static-stylesheet-evaluator-oracle-corpus",
     ["summarize_omena_query_static_stylesheet_evaluator_oracle_corpus"],
   ],
-  ["input-static-lif-exports", ["summarize_omena_query_static_lif_exports_from_source"]],
+  ["input-static-lif-exports", ["summarize_omena_query_static_lif_exports_from_engine_input"]],
   [
     "input-selector-usage-canonical-producer",
     ["summarize_omena_query_selector_usage_canonical_producer_signal"],

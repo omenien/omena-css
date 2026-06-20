@@ -321,7 +321,7 @@ const EXPECTED_RUNNER_COMMANDS = new Map([
     "staticLifExports",
     {
       command: SELECTED_QUERY_RUNNER_COMMANDS.staticLifExports,
-      inputContract: "OmenaParserStyleFactsInputV0",
+      inputContract: "EngineInputV2 + targetStylePath",
       outputProduct: "omena-query.static-lif-exports",
     },
   ],
@@ -790,9 +790,22 @@ function runStaticLifExports(): StaticLifExportsSummaryV0 {
       cwd: process.cwd(),
       encoding: "utf8",
       input: JSON.stringify({
-        dialect: "less",
-        styleSource:
-          "@brand: #fff;\n@tokens: { primary: @brand; @gap: 2px; };\n.button(@gap: 1rem, @rest...) when (@gap > 0) { color: @brand; }\n",
+        targetStylePath: "/tmp/Button.module.less",
+        engineInput: {
+          version: "static-lif-engine-input-v0",
+          sources: [],
+          styles: [
+            {
+              filePath: "/tmp/Button.module.less",
+              source:
+                "@brand: #fff;\n@tokens: { primary: @brand; @gap: 2px; };\n.button(@gap: 1rem, @rest...) when (@gap > 0) { color: @brand; }\n",
+              document: {
+                selectors: [],
+              },
+            },
+          ],
+          typeFacts: [],
+        },
       }),
       maxBuffer: 8 * 1024 * 1024,
     },
