@@ -114,6 +114,33 @@ pub(super) fn collect_static_scss_mixin_include_calls(
                 static_stylesheet_skip_trivia_tokens(tokens, name_index + 1),
             )
         };
+        if dialect != StyleDialect::Sass
+            && tokens
+                .get(after_arguments_index)
+                .is_some_and(|token| token.kind == SyntaxKind::LeftBrace)
+        {
+            let close_index = static_stylesheet_matching_token_index(
+                tokens,
+                after_arguments_index,
+                SyntaxKind::LeftBrace,
+                SyntaxKind::RightBrace,
+            )?;
+            let content_body = source
+                .get(
+                    static_stylesheet_token_end(&tokens[after_arguments_index])
+                        ..static_stylesheet_token_start(&tokens[close_index]),
+                )?
+                .to_string();
+            calls.push(StaticScssMixinIncludeCall {
+                name: name_token.text.clone(),
+                start: static_stylesheet_token_start(token),
+                end: static_stylesheet_token_end(&tokens[close_index]),
+                arguments,
+                content_body: Some(content_body),
+            });
+            index = close_index + 1;
+            continue;
+        }
         let end_token = tokens.get(after_arguments_index)?;
         let valid_terminator = match dialect {
             StyleDialect::Sass => matches!(
@@ -131,6 +158,7 @@ pub(super) fn collect_static_scss_mixin_include_calls(
             start: static_stylesheet_token_start(token),
             end: static_stylesheet_token_end(end_token),
             arguments,
+            content_body: None,
         });
         index = after_arguments_index + 1;
     }

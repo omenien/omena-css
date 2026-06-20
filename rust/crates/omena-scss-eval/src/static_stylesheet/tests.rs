@@ -19,8 +19,8 @@ fn static_stylesheet_oracle_corpus_reports_native_product_output_with_legacy_ora
     );
     assert_eq!(report.legacy_output_consumed_until_cutover_count, 0);
     assert!(report.all_legacy_outputs_retained_as_oracle);
-    assert_eq!(report.fixture_count, 124);
-    assert_eq!(report.scss_fixture_count, 41);
+    assert_eq!(report.fixture_count, 125);
+    assert_eq!(report.scss_fixture_count, 42);
     assert_eq!(report.sass_fixture_count, 35);
     assert_eq!(report.less_fixture_count, 48);
     assert_eq!(report.evaluated_fixture_count, report.fixture_count);
@@ -93,6 +93,7 @@ fn static_stylesheet_oracle_corpus_reports_native_product_output_with_legacy_ora
         "scss.static-named-mixin-default-tail",
         "scss.static-mixin-default-argument-prior-parameter",
         "scss.static-named-mixin-default-argument-prior-parameter",
+        "scss.static-mixin-content-block",
         "scss.static-hyphen-underscore-mixin-include",
     ] {
         assert!(
@@ -3474,6 +3475,40 @@ fn static_scss_evaluation_resolves_named_mixin_default_arguments_from_prior_para
     assert!(report.evaluated_css.contains("color: blue;"));
     assert!(report.evaluated_css.contains("border-color: blue;"));
     assert!(report.oracle.all_legacy_declaration_values_preserved);
+    assert!(report.native_edit_output_matches_evaluated_css);
+}
+
+#[test]
+fn static_scss_evaluation_expands_mixin_content_blocks() {
+    let report = derive_static_stylesheet_module_evaluation(
+        "@mixin tone($color) { @content; color: $color; } .button { @include tone(red) { background: white; } }",
+        StyleDialect::Scss,
+    );
+    assert!(report.is_some());
+    let Some(report) = report else {
+        return;
+    };
+
+    assert!(!report.evaluated_css.contains("@mixin"));
+    assert!(!report.evaluated_css.contains("@include"));
+    assert!(!report.evaluated_css.contains("@content"));
+    assert!(report.evaluated_css.contains("background: white;"));
+    assert!(report.evaluated_css.contains("color: red;"));
+    assert!(report.oracle.all_legacy_declaration_values_preserved);
+    assert!(report.native_edit_output_matches_evaluated_css);
+}
+
+#[test]
+fn static_scss_evaluation_preserves_nested_mixin_content_blocks_as_raw() {
+    let source = "@mixin wrap { @content; } .button { @include wrap { .inner { color: red; } } }";
+    let report = derive_static_stylesheet_module_evaluation(source, StyleDialect::Scss);
+    assert!(report.is_some());
+    let Some(report) = report else {
+        return;
+    };
+
+    assert_eq!(report.evaluated_css, source);
+    assert!(report.evaluated_css.contains("@include wrap"));
     assert!(report.native_edit_output_matches_evaluated_css);
 }
 

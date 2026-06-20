@@ -258,6 +258,7 @@ pub(super) struct StaticScssMixinIncludeCall {
     pub(super) start: usize,
     pub(super) end: usize,
     pub(super) arguments: Vec<StaticScssFunctionArgument>,
+    pub(super) content_body: Option<String>,
 }
 
 #[derive(Debug, Clone)]

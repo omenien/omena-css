@@ -75,8 +75,8 @@ fn exposes_static_stylesheet_oracle_corpus_through_query_boundary() {
     assert_eq!(summary.mode, "oracleOnly");
     assert_eq!(summary.value_type, "AbstractCssValueV0");
     assert_eq!(summary.product_output_source, "nativeEditOutput");
-    assert_eq!(summary.fixture_count, 124);
-    assert_eq!(summary.scss_fixture_count, 41);
+    assert_eq!(summary.fixture_count, 125);
+    assert_eq!(summary.scss_fixture_count, 42);
     assert_eq!(summary.sass_fixture_count, 35);
     assert_eq!(summary.less_fixture_count, 48);
     assert_eq!(summary.evaluated_fixture_count, summary.fixture_count);
@@ -160,6 +160,7 @@ fn exposes_static_stylesheet_oracle_corpus_through_query_boundary() {
         "scss.static-named-mixin-default-tail",
         "scss.static-mixin-default-argument-prior-parameter",
         "scss.static-named-mixin-default-argument-prior-parameter",
+        "scss.static-mixin-content-block",
         "scss.static-hyphen-underscore-mixin-include",
     ] {
         assert!(
@@ -747,10 +748,10 @@ fn exposes_scss_control_flow_oracle_corpus_through_query_boundary() {
     assert_eq!(summary.mode, "oracleOnly");
     assert_eq!(summary.value_type, "AbstractCssValueV0");
     assert_eq!(summary.node_key_type, "StableNodeKeyV0");
-    assert_eq!(summary.fixture_count, 59);
-    assert_eq!(summary.scss_fixture_count, 29);
+    assert_eq!(summary.fixture_count, 60);
+    assert_eq!(summary.scss_fixture_count, 30);
     assert_eq!(summary.sass_fixture_count, 29);
-    assert_eq!(summary.supported_fixture_count, 58);
+    assert_eq!(summary.supported_fixture_count, 59);
     assert_eq!(summary.rejected_flat_css_fixture_count, 1);
     assert!(summary.branch_fixture_count >= 5);
     assert!(summary.loop_fixture_count >= 6);
@@ -1017,6 +1018,7 @@ fn exposes_scss_control_flow_oracle_corpus_through_query_boundary() {
         "scss.static-named-mixin-default-tail",
         "scss.static-mixin-default-argument-prior-parameter",
         "scss.static-named-mixin-default-argument-prior-parameter",
+        "scss.static-mixin-content-block",
         "scss.static-hyphen-underscore-mixin-include",
         "sass.static-named-mixin-arguments",
         "sass.static-named-mixin-default-tail",

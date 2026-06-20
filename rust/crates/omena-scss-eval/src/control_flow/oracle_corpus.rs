@@ -413,6 +413,11 @@ fn scss_control_flow_oracle_corpus_fixtures() -> &'static [ScssControlFlowOracle
             source: "@mixin tone($color, $border: $color) { color: $color; border-color: $border; } .button { @include tone($color: blue); }",
         },
         ScssControlFlowOracleCorpusFixtureV0 {
+            id: "scss.static-mixin-content-block",
+            dialect: StyleDialect::Scss,
+            source: "@mixin tone($color) { @content; color: $color; } .button { @include tone(red) { background: white; } }",
+        },
+        ScssControlFlowOracleCorpusFixtureV0 {
             id: "scss.static-hyphen-underscore-mixin-include",
             dialect: StyleDialect::Scss,
             source: "@mixin tone_color($color) { color: $color; } .button { @include tone-color(green); }",
@@ -584,10 +589,10 @@ mod tests {
         assert_eq!(report.value_type, "AbstractCssValueV0");
         assert_eq!(report.node_key_type, "StableNodeKeyV0");
         assert_eq!(report.recursion_cap, SCSS_CALL_RETURN_RECURSION_LIMIT);
-        assert_eq!(report.fixture_count, 59);
-        assert_eq!(report.scss_fixture_count, 29);
+        assert_eq!(report.fixture_count, 60);
+        assert_eq!(report.scss_fixture_count, 30);
         assert_eq!(report.sass_fixture_count, 29);
-        assert_eq!(report.supported_fixture_count, 58);
+        assert_eq!(report.supported_fixture_count, 59);
         assert_eq!(report.rejected_flat_css_fixture_count, 1);
         assert!(report.branch_fixture_count >= 5);
         assert!(report.loop_fixture_count >= 6);
@@ -793,6 +798,7 @@ mod tests {
             "scss.static-named-mixin-default-tail",
             "scss.static-mixin-default-argument-prior-parameter",
             "scss.static-named-mixin-default-argument-prior-parameter",
+            "scss.static-mixin-content-block",
             "scss.static-hyphen-underscore-mixin-include",
             "sass.static-named-mixin-arguments",
             "sass.static-named-mixin-default-tail",

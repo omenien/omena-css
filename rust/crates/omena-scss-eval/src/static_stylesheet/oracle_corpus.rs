@@ -639,6 +639,11 @@ fn static_stylesheet_oracle_corpus_fixtures() -> &'static [StaticStylesheetOracl
             source: "@mixin tone($color, $border: $color) { color: $color; border-color: $border; } .button { @include tone($color: blue); }",
         },
         StaticStylesheetOracleCorpusFixtureV0 {
+            id: "scss.static-mixin-content-block",
+            dialect: StyleDialect::Scss,
+            source: "@mixin tone($color) { @content; color: $color; } .button { @include tone(red) { background: white; } }",
+        },
+        StaticStylesheetOracleCorpusFixtureV0 {
             id: "scss.static-hyphen-underscore-mixin-include",
             dialect: StyleDialect::Scss,
             source: "@mixin tone_color($color) { color: $color; } .button { @include tone-color(green); }",

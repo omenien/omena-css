@@ -468,6 +468,11 @@ fn render_static_scss_mixin_include_body_with_active(
         call_position,
         context,
     )?;
+    let body = render_static_scss_mixin_content_body(
+        body.as_str(),
+        context.dialect,
+        call.content_body.as_deref(),
+    )?;
     if !static_scss_mixin_body_is_static_declaration_subset(body.as_str()) {
         return None;
     }
@@ -512,6 +517,60 @@ fn render_static_scss_mixin_include_body_with_active(
         used_mixin_declaration_names,
         used_function_declaration_names,
     })
+}
+
+fn render_static_scss_mixin_content_body(
+    body: &str,
+    dialect: StyleDialect,
+    content_body: Option<&str>,
+) -> Option<String> {
+    if !body.to_ascii_lowercase().contains("@content") {
+        return Some(body.to_string());
+    }
+    let content_body = content_body?;
+    if !static_scss_content_block_is_static_declaration_subset(content_body) {
+        return None;
+    }
+    let lexed = lex(body, dialect);
+    let tokens = lexed.tokens();
+    let mut edits = Vec::new();
+    for (index, token) in tokens.iter().enumerate() {
+        if token.kind != SyntaxKind::AtKeyword || !token.text.eq_ignore_ascii_case("@content") {
+            continue;
+        }
+        let terminator_index = static_stylesheet_skip_trivia_tokens(tokens, index + 1);
+        let terminator = tokens.get(terminator_index)?;
+        let valid_terminator = match dialect {
+            StyleDialect::Sass => matches!(
+                terminator.kind,
+                SyntaxKind::SassOptionalSemicolon | SyntaxKind::SassDedent
+            ),
+            _ => terminator.kind == SyntaxKind::Semicolon,
+        };
+        if !valid_terminator {
+            return None;
+        }
+        edits.push(StaticStylesheetEvaluationEdit {
+            start: static_stylesheet_token_start(token),
+            end: static_stylesheet_token_end(terminator),
+            replacement: content_body.trim().to_string(),
+        });
+    }
+    (!edits.is_empty()).then(|| apply_static_stylesheet_evaluation_edits(body, edits))?
+}
+
+fn static_scss_content_block_is_static_declaration_subset(content_body: &str) -> bool {
+    let lower = content_body.to_ascii_lowercase();
+    !content_body.chars().any(|ch| matches!(ch, '{' | '}'))
+        && !lower.contains("@content")
+        && !lower.contains("@include")
+        && !lower.contains("@mixin")
+        && !lower.contains("@function")
+        && !lower.contains("@return")
+        && !lower.contains("@if")
+        && !lower.contains("@for")
+        && !lower.contains("@each")
+        && !lower.contains("@while")
 }
 
 fn static_sass_mixin_body_replacement_for_include(body: &str, dialect: StyleDialect) -> String {
