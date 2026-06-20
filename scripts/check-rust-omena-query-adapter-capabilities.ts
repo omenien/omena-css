@@ -872,11 +872,11 @@ function assertScssEvaluatorControlFlowOracleCorpus(
   assert.equal(summary.valueType, "AbstractCssValueV0");
   assert.equal(summary.nodeKeyType, "StableNodeKeyV0");
   assert.ok(summary.recursionCap > 0, "SCSS call-return recursion cap must stay explicit");
-  assert.ok(summary.fixtureCount >= 11, "SCSS control-flow oracle corpus must not shrink");
-  assert.ok(summary.scssFixtureCount >= 7, "SCSS control-flow fixture coverage must not shrink");
-  assert.ok(summary.sassFixtureCount >= 3, "Sass control-flow fixture coverage must not shrink");
+  assert.ok(summary.fixtureCount >= 33, "SCSS control-flow oracle corpus must not shrink");
+  assert.ok(summary.scssFixtureCount >= 16, "SCSS control-flow fixture coverage must not shrink");
+  assert.ok(summary.sassFixtureCount >= 16, "Sass control-flow fixture coverage must not shrink");
   assert.ok(
-    summary.supportedFixtureCount >= 10,
+    summary.supportedFixtureCount >= 32,
     "supported SCSS control-flow fixtures must not shrink",
   );
   assert.equal(summary.rejectedFlatCssFixtureCount, 1);
