@@ -684,7 +684,10 @@ fn is_static_less_map_member_name(value: &str) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{OMENA_SIF_HASH_ALGORITHM_V1, write_omena_sif_json_v1};
+    use crate::{
+        OMENA_SIF_HASH_ALGORITHM_V1, read_omena_lif_exports_json_v1,
+        write_omena_lif_exports_json_v1, write_omena_sif_json_v1,
+    };
 
     #[test]
     fn static_generator_extracts_tier_a_sass_exports_without_evaluation()
@@ -770,6 +773,31 @@ $gap: 1rem;
             Some("1rem")
         );
         assert!(lif_exports.less_mixins[0].parameters[1].variadic);
+    }
+
+    #[test]
+    fn static_generator_round_trips_canonical_lif_exports_json() -> Result<(), serde_json::Error> {
+        let source = r#"
+@brand: #fff;
+@tokens: { primary: @brand; @gap: 2px; };
+.button(@gap: 1rem) when (@gap > 0) { color: @brand; }
+"#;
+        let lif_exports = generate_static_omena_lif_exports_v1(OmenaSifStaticGeneratorInputV1 {
+            canonical_url: "pkg:design-system/tokens.less",
+            source,
+            syntax: OmenaSifSourceSyntaxV1::Less,
+        });
+
+        let json = write_omena_lif_exports_json_v1(&lif_exports)?;
+        let round_tripped = read_omena_lif_exports_json_v1(&json)?;
+
+        assert_eq!(round_tripped, lif_exports);
+        assert!(json.contains(r##""lessVariables":[{"name":"@brand","valueRepr":"#fff"}]"##));
+        assert!(json.contains(r#""lessMixins":[{"guarded":true,"name":".button""#));
+        assert!(json.contains(
+            r#""lessDetachedRulesets":[{"memberNames":["@gap","primary"],"name":"@tokens"}]"#
+        ));
+        Ok(())
     }
 
     #[test]

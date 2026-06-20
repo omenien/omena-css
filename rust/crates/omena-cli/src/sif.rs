@@ -1,7 +1,7 @@
 use crate::{commands::SifCommand, io::read_source, paths::path_string};
 use omena_sif::{
     OmenaSifSourceSyntaxV1, OmenaSifStaticGeneratorInputV1, generate_static_omena_lif_exports_v1,
-    generate_static_omena_sif_v1, write_omena_canonical_json_string_v1, write_omena_sif_json_v1,
+    generate_static_omena_sif_v1, write_omena_lif_exports_json_v1, write_omena_sif_json_v1,
 };
 use std::{
     fs,
@@ -85,7 +85,7 @@ fn generate_lif_exports(
         source: &source,
         syntax,
     });
-    let exports_json = write_omena_canonical_json_string_v1(&exports)
+    let exports_json = write_omena_lif_exports_json_v1(&exports)
         .map_err(|error| format!("failed to serialize LIF exports: {error}"))?;
     let wrote_output = output.is_some();
 

@@ -1,0 +1,211 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://omena.dev/schemas/lif-exports-v1.schema.json",
+  "title": "Omena Less Interface Exports v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "variables",
+    "mixins",
+    "functions",
+    "placeholders",
+    "forwards",
+    "lessVariables",
+    "lessMixins",
+    "lessDetachedRulesets"
+  ],
+  "properties": {
+    "variables": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/variable"
+      }
+    },
+    "mixins": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/callable"
+      }
+    },
+    "functions": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/callable"
+      }
+    },
+    "placeholders": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/placeholder"
+      }
+    },
+    "forwards": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/forward"
+      }
+    },
+    "lessVariables": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/lessVariable"
+      }
+    },
+    "lessMixins": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/lessMixin"
+      }
+    },
+    "lessDetachedRulesets": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/lessDetachedRuleset"
+      }
+    }
+  },
+  "$defs": {
+    "variable": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "defaulted", "valueRepr"],
+      "properties": {
+        "name": {
+          "type": "string",
+          "minLength": 1
+        },
+        "defaulted": {
+          "type": "boolean"
+        },
+        "valueRepr": {
+          "type": ["string", "null"]
+        }
+      }
+    },
+    "callable": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "parameters", "acceptsContent"],
+      "properties": {
+        "name": {
+          "type": "string",
+          "minLength": 1
+        },
+        "parameters": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/parameter"
+          }
+        },
+        "acceptsContent": {
+          "type": "boolean"
+        }
+      }
+    },
+    "parameter": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "defaultValueRepr", "variadic"],
+      "properties": {
+        "name": {
+          "type": "string",
+          "minLength": 1
+        },
+        "defaultValueRepr": {
+          "type": ["string", "null"]
+        },
+        "variadic": {
+          "type": "boolean"
+        }
+      }
+    },
+    "placeholder": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name"],
+      "properties": {
+        "name": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "forward": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["canonicalUrl", "prefix", "show", "hide"],
+      "properties": {
+        "canonicalUrl": {
+          "type": "string",
+          "minLength": 1
+        },
+        "prefix": {
+          "type": ["string", "null"]
+        },
+        "show": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "hide": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "lessVariable": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "valueRepr"],
+      "properties": {
+        "name": {
+          "type": "string",
+          "minLength": 1
+        },
+        "valueRepr": {
+          "type": ["string", "null"]
+        }
+      }
+    },
+    "lessMixin": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "parameters", "guarded"],
+      "properties": {
+        "name": {
+          "type": "string",
+          "minLength": 1
+        },
+        "parameters": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/parameter"
+          }
+        },
+        "guarded": {
+          "type": "boolean"
+        }
+      }
+    },
+    "lessDetachedRuleset": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "memberNames"],
+      "properties": {
+        "name": {
+          "type": "string",
+          "minLength": 1
+        },
+        "memberNames": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    }
+  }
+}

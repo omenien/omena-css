@@ -21,6 +21,8 @@ pub const OMENA_SIF_ATTESTATION_VERIFICATION_REPORT_PRODUCT_V1: &str =
     "omena-sif.attestation-verification-report";
 pub const OMENA_SIF_ATTESTATION_VERIFICATION_REPORT_SCHEMA_VERSION_V1: &str = "1";
 pub const OMENA_SIF_V1_SCHEMA_JSON: &str = include_str!("../schema/sif-v1.schema.json");
+pub const OMENA_LIF_EXPORTS_V1_SCHEMA_JSON: &str =
+    include_str!("../schema/lif-exports-v1.schema.json");
 pub const OMENA_LOCK_V1_SCHEMA_JSON: &str = include_str!("../schema/lock-v1.schema.json");
 pub const OMENA_SIF_ATTESTATION_VERIFICATION_REPORT_V1_SCHEMA_JSON: &str =
     include_str!("../schema/attestation-verification-report-v1.schema.json");
@@ -1332,6 +1334,18 @@ pub fn write_omena_sif_json_v1(sif: &OmenaSifV1) -> Result<String, serde_json::E
     write_omena_canonical_json_string_v1(sif)
 }
 
+pub fn read_omena_lif_exports_json_v1(
+    source: &str,
+) -> Result<OmenaLifExportsV1, serde_json::Error> {
+    serde_json::from_str(source)
+}
+
+pub fn write_omena_lif_exports_json_v1(
+    exports: &OmenaLifExportsV1,
+) -> Result<String, serde_json::Error> {
+    write_omena_canonical_json_string_v1(exports)
+}
+
 pub fn write_omena_canonical_json_bytes_v1<T: Serialize>(
     value: &T,
 ) -> Result<Vec<u8>, serde_json::Error> {
@@ -1522,6 +1536,37 @@ mod tests {
         assert_eq!(
             schema.pointer("/$defs/source/properties/syntax/enum"),
             Some(&json!(["css", "scss", "sass", "less"]))
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn lif_exports_schema_file_is_valid_json() -> Result<(), serde_json::Error> {
+        let schema: Value = serde_json::from_str(OMENA_LIF_EXPORTS_V1_SCHEMA_JSON)?;
+        assert_eq!(
+            schema.get("title").and_then(Value::as_str),
+            Some("Omena Less Interface Exports v1")
+        );
+        assert_eq!(
+            schema.pointer("/required"),
+            Some(&json!([
+                "variables",
+                "mixins",
+                "functions",
+                "placeholders",
+                "forwards",
+                "lessVariables",
+                "lessMixins",
+                "lessDetachedRulesets"
+            ]))
+        );
+        assert_eq!(
+            schema.pointer("/properties/lessMixins/items/$ref"),
+            Some(&json!("#/$defs/lessMixin"))
+        );
+        assert_eq!(
+            schema.pointer("/$defs/lessDetachedRuleset/required"),
+            Some(&json!(["name", "memberNames"]))
         );
         Ok(())
     }
