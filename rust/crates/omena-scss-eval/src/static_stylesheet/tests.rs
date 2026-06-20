@@ -19,9 +19,9 @@ fn static_stylesheet_oracle_corpus_reports_native_product_output_with_legacy_ora
     );
     assert_eq!(report.legacy_output_consumed_until_cutover_count, 0);
     assert!(report.all_legacy_outputs_retained_as_oracle);
-    assert_eq!(report.fixture_count, 108);
-    assert_eq!(report.scss_fixture_count, 33);
-    assert_eq!(report.sass_fixture_count, 27);
+    assert_eq!(report.fixture_count, 112);
+    assert_eq!(report.scss_fixture_count, 35);
+    assert_eq!(report.sass_fixture_count, 29);
     assert_eq!(report.less_fixture_count, 48);
     assert_eq!(report.evaluated_fixture_count, report.fixture_count);
     assert_eq!(report.missing_evaluation_count, 0);
@@ -78,6 +78,10 @@ fn static_stylesheet_oracle_corpus_reports_native_product_output_with_legacy_ora
         "sass.static-named-argument-default-tail",
         "scss.static-named-function-arguments",
         "scss.static-named-argument-default-tail",
+        "sass.static-hyphen-underscore-function-reference",
+        "sass.static-hyphen-underscore-named-argument",
+        "scss.static-hyphen-underscore-function-reference",
+        "scss.static-hyphen-underscore-named-argument",
     ] {
         assert!(
             report.fixtures.iter().any(|fixture| {

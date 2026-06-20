@@ -419,6 +419,16 @@ fn static_stylesheet_oracle_corpus_fixtures() -> &'static [StaticStylesheetOracl
             source: "@function pair($left, $right: 2px)\n  @return $left + $right\n.card\n  margin: pair($left: 1px)",
         },
         StaticStylesheetOracleCorpusFixtureV0 {
+            id: "sass.static-hyphen-underscore-function-reference",
+            dialect: StyleDialect::Sass,
+            source: "@function gap($base_value)\n  @return $base-value + 1px\n.card\n  margin: gap(2px)",
+        },
+        StaticStylesheetOracleCorpusFixtureV0 {
+            id: "sass.static-hyphen-underscore-named-argument",
+            dialect: StyleDialect::Sass,
+            source: "@function gap($base_value)\n  @return $base-value + 1px\n.card\n  margin: gap($base-value: 2px)",
+        },
+        StaticStylesheetOracleCorpusFixtureV0 {
             id: "sass.static-top-level-for",
             dialect: StyleDialect::Sass,
             source: "@for $i from 1 through 3\n  .n\n    order: $i",
@@ -517,6 +527,16 @@ fn static_stylesheet_oracle_corpus_fixtures() -> &'static [StaticStylesheetOracl
             id: "scss.static-named-argument-default-tail",
             dialect: StyleDialect::Scss,
             source: "@function pair($left, $right: 2px) { @return $left + $right; } .card { margin: pair($left: 1px); }",
+        },
+        StaticStylesheetOracleCorpusFixtureV0 {
+            id: "scss.static-hyphen-underscore-function-reference",
+            dialect: StyleDialect::Scss,
+            source: "@function gap($base_value) { @return $base-value + 1px; } .card { margin: gap(2px); }",
+        },
+        StaticStylesheetOracleCorpusFixtureV0 {
+            id: "scss.static-hyphen-underscore-named-argument",
+            dialect: StyleDialect::Scss,
+            source: "@function gap($base_value) { @return $base-value + 1px; } .card { margin: gap($base-value: 2px); }",
         },
         StaticStylesheetOracleCorpusFixtureV0 {
             id: "scss.dynamic-function-return",

@@ -75,9 +75,9 @@ fn exposes_static_stylesheet_oracle_corpus_through_query_boundary() {
     assert_eq!(summary.mode, "oracleOnly");
     assert_eq!(summary.value_type, "AbstractCssValueV0");
     assert_eq!(summary.product_output_source, "nativeEditOutput");
-    assert_eq!(summary.fixture_count, 108);
-    assert_eq!(summary.scss_fixture_count, 33);
-    assert_eq!(summary.sass_fixture_count, 27);
+    assert_eq!(summary.fixture_count, 112);
+    assert_eq!(summary.scss_fixture_count, 35);
+    assert_eq!(summary.sass_fixture_count, 29);
     assert_eq!(summary.less_fixture_count, 48);
     assert_eq!(summary.evaluated_fixture_count, summary.fixture_count);
     assert_eq!(
@@ -145,6 +145,10 @@ fn exposes_static_stylesheet_oracle_corpus_through_query_boundary() {
         "sass.static-named-argument-default-tail",
         "scss.static-named-function-arguments",
         "scss.static-named-argument-default-tail",
+        "sass.static-hyphen-underscore-function-reference",
+        "sass.static-hyphen-underscore-named-argument",
+        "scss.static-hyphen-underscore-function-reference",
+        "scss.static-hyphen-underscore-named-argument",
     ] {
         assert!(
             summary.corpus.fixtures.iter().any(|fixture| {
@@ -731,10 +735,10 @@ fn exposes_scss_control_flow_oracle_corpus_through_query_boundary() {
     assert_eq!(summary.mode, "oracleOnly");
     assert_eq!(summary.value_type, "AbstractCssValueV0");
     assert_eq!(summary.node_key_type, "StableNodeKeyV0");
-    assert_eq!(summary.fixture_count, 43);
-    assert_eq!(summary.scss_fixture_count, 21);
-    assert_eq!(summary.sass_fixture_count, 21);
-    assert_eq!(summary.supported_fixture_count, 42);
+    assert_eq!(summary.fixture_count, 47);
+    assert_eq!(summary.scss_fixture_count, 23);
+    assert_eq!(summary.sass_fixture_count, 23);
+    assert_eq!(summary.supported_fixture_count, 46);
     assert_eq!(summary.rejected_flat_css_fixture_count, 1);
     assert!(summary.branch_fixture_count >= 5);
     assert!(summary.loop_fixture_count >= 6);
@@ -876,6 +880,10 @@ fn exposes_scss_control_flow_oracle_corpus_through_query_boundary() {
         "scss.static-named-argument-default-tail",
         "sass.static-named-function-arguments",
         "sass.static-named-argument-default-tail",
+        "scss.static-hyphen-underscore-function-reference",
+        "scss.static-hyphen-underscore-named-argument",
+        "sass.static-hyphen-underscore-function-reference",
+        "sass.static-hyphen-underscore-named-argument",
     ] {
         assert!(
             summary.corpus.fixtures.iter().any(|fixture| {

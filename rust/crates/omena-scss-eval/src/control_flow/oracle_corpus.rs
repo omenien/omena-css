@@ -338,6 +338,16 @@ fn scss_control_flow_oracle_corpus_fixtures() -> &'static [ScssControlFlowOracle
             source: "@function pair($left, $right: 2px) { @return $left + $right; } .button { margin: pair($left: 1px); }",
         },
         ScssControlFlowOracleCorpusFixtureV0 {
+            id: "scss.static-hyphen-underscore-function-reference",
+            dialect: StyleDialect::Scss,
+            source: "@function gap($base_value) { @return $base-value + 1px; } .button { margin: gap(2px); }",
+        },
+        ScssControlFlowOracleCorpusFixtureV0 {
+            id: "scss.static-hyphen-underscore-named-argument",
+            dialect: StyleDialect::Scss,
+            source: "@function gap($base_value) { @return $base-value + 1px; } .button { margin: gap($base-value: 2px); }",
+        },
+        ScssControlFlowOracleCorpusFixtureV0 {
             id: "scss.static-each-return",
             dialect: StyleDialect::Scss,
             source: "@function tone($target) { @each $name, $tone in (primary: red, secondary: blue) { @if $name == $target { @return $tone; } } @return black; } .button { color: tone(secondary); }",
@@ -443,6 +453,16 @@ fn scss_control_flow_oracle_corpus_fixtures() -> &'static [ScssControlFlowOracle
             source: "@function pair($left, $right: 2px)\n  @return $left + $right\n.button\n  margin: pair($left: 1px)",
         },
         ScssControlFlowOracleCorpusFixtureV0 {
+            id: "sass.static-hyphen-underscore-function-reference",
+            dialect: StyleDialect::Sass,
+            source: "@function gap($base_value)\n  @return $base-value + 1px\n.button\n  margin: gap(2px)",
+        },
+        ScssControlFlowOracleCorpusFixtureV0 {
+            id: "sass.static-hyphen-underscore-named-argument",
+            dialect: StyleDialect::Sass,
+            source: "@function gap($base_value)\n  @return $base-value + 1px\n.button\n  margin: gap($base-value: 2px)",
+        },
+        ScssControlFlowOracleCorpusFixtureV0 {
             id: "sass.static-each-return",
             dialect: StyleDialect::Sass,
             source: "@function tone($target)\n  @each $name, $tone in (primary: red, secondary: blue)\n    @if $name == $target\n      @return $tone\n  @return black\n.button\n  color: tone(secondary)",
@@ -504,10 +524,10 @@ mod tests {
         assert_eq!(report.value_type, "AbstractCssValueV0");
         assert_eq!(report.node_key_type, "StableNodeKeyV0");
         assert_eq!(report.recursion_cap, SCSS_CALL_RETURN_RECURSION_LIMIT);
-        assert_eq!(report.fixture_count, 43);
-        assert_eq!(report.scss_fixture_count, 21);
-        assert_eq!(report.sass_fixture_count, 21);
-        assert_eq!(report.supported_fixture_count, 42);
+        assert_eq!(report.fixture_count, 47);
+        assert_eq!(report.scss_fixture_count, 23);
+        assert_eq!(report.sass_fixture_count, 23);
+        assert_eq!(report.supported_fixture_count, 46);
         assert_eq!(report.rejected_flat_css_fixture_count, 1);
         assert!(report.branch_fixture_count >= 5);
         assert!(report.loop_fixture_count >= 6);
@@ -625,6 +645,10 @@ mod tests {
             "scss.static-named-argument-default-tail",
             "sass.static-named-function-arguments",
             "sass.static-named-argument-default-tail",
+            "scss.static-hyphen-underscore-function-reference",
+            "scss.static-hyphen-underscore-named-argument",
+            "sass.static-hyphen-underscore-function-reference",
+            "sass.static-hyphen-underscore-named-argument",
         ] {
             assert!(
                 report.fixtures.iter().any(|fixture| {
