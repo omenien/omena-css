@@ -286,6 +286,9 @@ impl Analysis<CssRewriteLanguage> for LawvereAnalysis {
             CssRewriteLanguage::Is(_)
             | CssRewriteLanguage::Where(_)
             | CssRewriteLanguage::List(_) => AbstractDomainTagV0::SelectorShape,
+            CssRewriteLanguage::Declaration(_) | CssRewriteLanguage::StalePrefixDeclaration(_) => {
+                AbstractDomainTagV0::TerminalEmission
+            }
         };
         let mut data = LawvereAnalysisDataV0::from_enode(tag, enode);
         for child in enode.children() {
@@ -370,6 +373,8 @@ fn lawvere_enode_kind(enode: &CssRewriteLanguage) -> &'static str {
         CssRewriteLanguage::Is(_) => "is",
         CssRewriteLanguage::Where(_) => "where",
         CssRewriteLanguage::List(_) => "list",
+        CssRewriteLanguage::Declaration(_) => "decl",
+        CssRewriteLanguage::StalePrefixDeclaration(_) => "stale-prefix-decl",
     }
 }
 

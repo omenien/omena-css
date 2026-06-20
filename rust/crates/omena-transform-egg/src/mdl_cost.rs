@@ -87,7 +87,11 @@ fn two_part_uniform_model_penalty(enode: &CssRewriteLanguage) -> usize {
         | CssRewriteLanguage::Box2(_)
         | CssRewriteLanguage::Box3(_)
         | CssRewriteLanguage::Box4(_) => 2,
-        CssRewriteLanguage::Calc(_) | CssRewriteLanguage::Is(_) | CssRewriteLanguage::Where(_) => 3,
+        CssRewriteLanguage::Calc(_)
+        | CssRewriteLanguage::Is(_)
+        | CssRewriteLanguage::Where(_)
+        | CssRewriteLanguage::Declaration(_) => 3,
+        CssRewriteLanguage::StalePrefixDeclaration(_) => 4,
     }
 }
 
