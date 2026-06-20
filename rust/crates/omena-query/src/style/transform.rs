@@ -9,6 +9,8 @@ mod design_tokens;
 mod imports;
 mod static_stylesheet;
 
+pub use context::summarize_omena_query_transform_context_from_engine_input;
+
 use context::{
     find_target_style_source, merge_target_options_transform_context, merge_transform_context,
     summarize_omena_query_transform_context_from_sources_with_resolution_context,
@@ -1426,94 +1428,6 @@ fn merge_workspace_transform_context(
     )
     .context;
     merge_transform_context(derived, context)
-}
-
-pub fn summarize_omena_query_transform_context_from_engine_input(
-    input: &EngineInputV2,
-    target_style_path: &str,
-    closed_style_world: bool,
-) -> OmenaQueryTransformContextFromEngineInputSummaryV0 {
-    let projection_summary = summarize_omena_query_expression_domain_selector_projection(input);
-    let mut reachable_class_names = BTreeSet::new();
-    let mut reachability_sources = Vec::new();
-
-    for projection in &projection_summary.projections {
-        if projection.target_style_paths.is_empty()
-            || projection
-                .target_style_paths
-                .iter()
-                .any(|path| path == target_style_path)
-        {
-            reachable_class_names.extend(projection.selector_names.iter().cloned());
-            reachability_sources.push(OmenaQuerySemanticReachabilitySourceV0 {
-                graph_id: projection.graph_id.clone(),
-                file_path: projection.file_path.clone(),
-                node_id: projection.node_id.clone(),
-                target_style_paths: projection.target_style_paths.clone(),
-                value_kind: projection.value_kind,
-                reduced_product: projection.reduced_product.clone(),
-                selector_names: projection.selector_names.clone(),
-                certainty: projection.certainty,
-            });
-        }
-    }
-
-    let semantic_context = TransformExecutionContextV0 {
-        closed_style_world,
-        reachable_class_names: reachable_class_names.into_iter().collect(),
-        ..TransformExecutionContextV0::default()
-    };
-    let style_sources = input
-        .styles
-        .iter()
-        .filter_map(|style| {
-            style
-                .source
-                .as_deref()
-                .map(|source| (style.file_path.as_str(), source))
-        })
-        .collect::<Vec<_>>();
-    let source_context_summary = (!style_sources.is_empty()).then(|| {
-        summarize_omena_query_transform_context_from_sources(target_style_path, style_sources, &[])
-    });
-    let context = if let Some(source_context_summary) = &source_context_summary {
-        merge_transform_context(source_context_summary.context.clone(), &semantic_context)
-    } else {
-        semantic_context
-    };
-
-    let mut ready_surfaces = vec![
-        "expressionDomainSelectorProjection",
-        "semanticReachabilityTransformContext",
-    ];
-    if source_context_summary.is_some() {
-        ready_surfaces.push("engineInputStyleSourceTransformContext");
-    }
-
-    OmenaQueryTransformContextFromEngineInputSummaryV0 {
-        schema_version: "0",
-        product: "omena-query.transform-context-from-engine-input",
-        input_version: input.version.clone(),
-        target_style_path: target_style_path.to_string(),
-        closed_style_world,
-        style_source_count: source_context_summary
-            .as_ref()
-            .map_or(0, |summary| summary.style_count),
-        projection_count: projection_summary.projection_count,
-        selected_projection_count: reachability_sources.len(),
-        import_inline_count: context.import_inlines.len(),
-        class_name_rewrite_count: context.class_name_rewrites.len(),
-        css_module_composes_resolution_count: context.css_module_composes_resolutions.len(),
-        css_module_value_resolution_count: context.css_module_value_resolutions.len(),
-        design_token_route_count: context.design_token_routes.len(),
-        reachable_class_name_count: context.reachable_class_names.len(),
-        reachable_keyframe_name_count: context.reachable_keyframe_names.len(),
-        reachable_value_name_count: context.reachable_value_names.len(),
-        reachable_custom_property_name_count: context.reachable_custom_property_names.len(),
-        reachability_sources,
-        context,
-        ready_surfaces,
-    }
 }
 
 pub fn list_omena_query_transform_pass_summaries() -> Vec<OmenaQueryTransformPassSummaryV0> {
