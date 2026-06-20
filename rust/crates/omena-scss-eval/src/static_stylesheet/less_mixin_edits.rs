@@ -78,6 +78,16 @@ pub(super) fn collect_static_less_mixin_evaluation_edits(
                     replacement: rendered.body,
                 });
             }
+            StaticLessMixinCallRenderOutcome::KnownNoOutput {
+                used_declaration_names: rendered_used_declaration_names,
+            } => {
+                used_declaration_names.extend(rendered_used_declaration_names);
+                edits.push(StaticStylesheetEvaluationEdit {
+                    start: call.start,
+                    end: call.end,
+                    replacement: String::new(),
+                });
+            }
             StaticLessMixinCallRenderOutcome::PreservedNoOutput => {
                 preserved_non_rendering_call_count += 1;
             }

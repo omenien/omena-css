@@ -703,7 +703,7 @@ fn static_less_evaluation_expands_guarded_namespace_mixin_access() {
 }
 
 #[test]
-fn static_less_evaluation_preserves_false_guarded_namespace_mixin_access_as_oracle_report() {
+fn static_less_evaluation_removes_false_guarded_namespace_mixin_access() {
     let report = derive_static_stylesheet_module_evaluation(
         "#bundle() when (iscolor(1px)) { .tone() { color: red; } } .button { #bundle > .tone(); }",
         StyleDialect::Less,
@@ -714,10 +714,12 @@ fn static_less_evaluation_preserves_false_guarded_namespace_mixin_access_as_orac
         return;
     };
 
-    assert!(report.evaluated_css.contains("#bundle > .tone();"));
-    assert!(report.evaluated_css.contains("when (iscolor(1px))"));
+    assert!(!report.evaluated_css.contains("#bundle > .tone();"));
+    assert!(!report.evaluated_css.contains("when (iscolor(1px))"));
     assert!(!report.evaluated_css.contains(".button { color: red"));
     assert_eq!(report.replacement_count, 0);
+    assert!(report.native_structural_edit_count > 0);
+    assert!(report.native_edit_output_matches_evaluated_css);
     assert!(report.oracle.all_legacy_declaration_values_preserved);
 }
 
@@ -760,7 +762,7 @@ fn static_less_evaluation_expands_ruleset_guarded_mixin_arguments() {
 }
 
 #[test]
-fn static_less_evaluation_preserves_false_ruleset_guarded_mixins_as_oracle_report() {
+fn static_less_evaluation_removes_false_ruleset_guarded_mixins() {
     let report = derive_static_stylesheet_module_evaluation(
         ".apply(@block) when (isruleset(@block)) { @block(); } .button { .apply(red); }",
         StyleDialect::Less,
@@ -771,9 +773,12 @@ fn static_less_evaluation_preserves_false_ruleset_guarded_mixins_as_oracle_repor
         return;
     };
 
-    assert!(report.evaluated_css.contains(".apply(red);"));
-    assert!(report.evaluated_css.contains("when (isruleset(@block))"));
+    assert!(!report.evaluated_css.contains(".apply(red);"));
+    assert!(!report.evaluated_css.contains("when (isruleset(@block))"));
+    assert!(!report.evaluated_css.contains("@block();"));
     assert_eq!(report.replacement_count, 0);
+    assert!(report.native_structural_edit_count > 0);
+    assert!(report.native_edit_output_matches_evaluated_css);
     assert!(report.oracle.all_legacy_declaration_values_preserved);
 }
 
@@ -1423,7 +1428,7 @@ fn static_less_evaluation_expands_default_guarded_mixins() {
 }
 
 #[test]
-fn static_less_evaluation_preserves_false_guarded_mixins_as_oracle_report() {
+fn static_less_evaluation_removes_false_guarded_mixins() {
     let report = derive_static_stylesheet_module_evaluation(
         ".tone(@value) when (iscolor(@value)) { color: @value; } .button { .tone(1px); }",
         StyleDialect::Less,
@@ -1434,14 +1439,17 @@ fn static_less_evaluation_preserves_false_guarded_mixins_as_oracle_report() {
         return;
     };
 
-    assert!(report.evaluated_css.contains(".tone(1px)"));
+    assert!(!report.evaluated_css.contains(".tone(1px)"));
+    assert!(!report.evaluated_css.contains(".tone(@value)"));
     assert!(!report.evaluated_css.contains("color: 1px"));
     assert_eq!(report.replacement_count, 0);
+    assert!(report.native_structural_edit_count > 0);
+    assert!(report.native_edit_output_matches_evaluated_css);
     assert!(report.oracle.all_legacy_declaration_values_preserved);
 }
 
 #[test]
-fn static_less_evaluation_preserves_false_comparison_guarded_mixins_as_oracle_report() {
+fn static_less_evaluation_removes_false_comparison_guarded_mixins() {
     let report = derive_static_stylesheet_module_evaluation(
         ".space(@gap) when (@gap > 2px) { margin: @gap; } .button { .space(1px); }",
         StyleDialect::Less,
@@ -1452,14 +1460,17 @@ fn static_less_evaluation_preserves_false_comparison_guarded_mixins_as_oracle_re
         return;
     };
 
-    assert!(report.evaluated_css.contains(".space(1px)"));
+    assert!(!report.evaluated_css.contains(".space(1px)"));
+    assert!(!report.evaluated_css.contains(".space(@gap)"));
     assert!(!report.evaluated_css.contains("margin: 1px"));
     assert_eq!(report.replacement_count, 0);
+    assert!(report.native_structural_edit_count > 0);
+    assert!(report.native_edit_output_matches_evaluated_css);
     assert!(report.oracle.all_legacy_declaration_values_preserved);
 }
 
 #[test]
-fn static_less_evaluation_preserves_false_unit_guarded_mixins_as_oracle_report() {
+fn static_less_evaluation_removes_false_unit_guarded_mixins() {
     let report = derive_static_stylesheet_module_evaluation(
         ".space(@gap) when (ispixel(@gap)) { margin: @gap; } .button { .space(2em); }",
         StyleDialect::Less,
@@ -1470,14 +1481,17 @@ fn static_less_evaluation_preserves_false_unit_guarded_mixins_as_oracle_report()
         return;
     };
 
-    assert!(report.evaluated_css.contains(".space(2em)"));
+    assert!(!report.evaluated_css.contains(".space(2em)"));
+    assert!(!report.evaluated_css.contains(".space(@gap)"));
     assert!(!report.evaluated_css.contains("margin: 2em"));
     assert_eq!(report.replacement_count, 0);
+    assert!(report.native_structural_edit_count > 0);
+    assert!(report.native_edit_output_matches_evaluated_css);
     assert!(report.oracle.all_legacy_declaration_values_preserved);
 }
 
 #[test]
-fn static_less_evaluation_preserves_false_isunit_guarded_mixins_as_oracle_report() {
+fn static_less_evaluation_removes_false_isunit_guarded_mixins() {
     let report = derive_static_stylesheet_module_evaluation(
         r#".space(@gap) when (isunit(@gap, "px")) { margin: @gap; } .button { .space(2em); }"#,
         StyleDialect::Less,
@@ -1488,14 +1502,17 @@ fn static_less_evaluation_preserves_false_isunit_guarded_mixins_as_oracle_report
         return;
     };
 
-    assert!(report.evaluated_css.contains(".space(2em)"));
+    assert!(!report.evaluated_css.contains(".space(2em)"));
+    assert!(!report.evaluated_css.contains(".space(@gap)"));
     assert!(!report.evaluated_css.contains("margin: 2em"));
     assert_eq!(report.replacement_count, 0);
+    assert!(report.native_structural_edit_count > 0);
+    assert!(report.native_edit_output_matches_evaluated_css);
     assert!(report.oracle.all_legacy_declaration_values_preserved);
 }
 
 #[test]
-fn static_less_evaluation_preserves_false_isdefined_guarded_mixins_as_oracle_report() {
+fn static_less_evaluation_removes_false_isdefined_guarded_mixins() {
     let report = derive_static_stylesheet_module_evaluation(
         ".missing() when (isdefined(@missing)) { color: blue; } .button { .missing(); }",
         StyleDialect::Less,
@@ -1506,14 +1523,17 @@ fn static_less_evaluation_preserves_false_isdefined_guarded_mixins_as_oracle_rep
         return;
     };
 
-    assert!(report.evaluated_css.contains(".missing();"));
+    assert!(!report.evaluated_css.contains(".missing();"));
+    assert!(!report.evaluated_css.contains(".missing() when"));
     assert!(!report.evaluated_css.contains(".button { color: blue"));
     assert_eq!(report.replacement_count, 0);
+    assert!(report.native_structural_edit_count > 0);
+    assert!(report.native_edit_output_matches_evaluated_css);
     assert!(report.oracle.all_legacy_declaration_values_preserved);
 }
 
 #[test]
-fn static_less_evaluation_preserves_false_property_isdefined_guarded_mixins_as_oracle_report() {
+fn static_less_evaluation_removes_false_property_isdefined_guarded_mixins() {
     let report = derive_static_stylesheet_module_evaluation(
         ".missing() when (isdefined($missing)) { color: blue; } .button { .missing(); }",
         StyleDialect::Less,
@@ -1524,9 +1544,12 @@ fn static_less_evaluation_preserves_false_property_isdefined_guarded_mixins_as_o
         return;
     };
 
-    assert!(report.evaluated_css.contains(".missing();"));
+    assert!(!report.evaluated_css.contains(".missing();"));
+    assert!(!report.evaluated_css.contains(".missing() when"));
     assert!(!report.evaluated_css.contains(".button { color: blue"));
     assert_eq!(report.replacement_count, 0);
+    assert!(report.native_structural_edit_count > 0);
+    assert!(report.native_edit_output_matches_evaluated_css);
     assert!(report.oracle.all_legacy_declaration_values_preserved);
 }
 

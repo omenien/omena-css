@@ -1277,7 +1277,7 @@ fn consumer_build_derives_static_less_evaluator_context_for_guarded_namespace_mi
 }
 
 #[test]
-fn consumer_build_executes_false_guarded_less_namespace_mixin_access_as_preserved_oracle_output() {
+fn consumer_build_removes_false_guarded_less_namespace_mixin_access() {
     let summary = execute_omena_query_consumer_build_style_source(
         "Button.module.less",
         "#bundle() when (iscolor(1px)) { .tone() { color: red; } } .button { #bundle > .tone(); }",
@@ -1300,7 +1300,8 @@ fn consumer_build_executes_false_guarded_less_namespace_mixin_access_as_preserve
             .planned_only_pass_ids
             .contains(&"less-module-evaluate")
     );
-    assert!(summary.execution.output_css.contains("#bundle > .tone()"));
+    assert!(!summary.execution.output_css.contains("#bundle > .tone()"));
+    assert!(!summary.execution.output_css.contains("when (iscolor(1px))"));
     assert!(!summary.execution.output_css.contains(".button { color:"));
 }
 
@@ -2053,7 +2054,7 @@ fn consumer_build_derives_static_less_evaluator_context_for_default_guarded_mixi
 }
 
 #[test]
-fn consumer_build_executes_false_guarded_less_mixins_as_preserved_oracle_output() {
+fn consumer_build_removes_false_guarded_less_mixins() {
     let summary = execute_omena_query_consumer_build_style_source(
         "Button.module.less",
         ".tone(@value) when (iscolor(@value)) { color: @value; } .button { .tone(1px); }",
@@ -2076,12 +2077,13 @@ fn consumer_build_executes_false_guarded_less_mixins_as_preserved_oracle_output(
             .planned_only_pass_ids
             .contains(&"less-module-evaluate")
     );
-    assert!(summary.execution.output_css.contains(".tone(1px)"));
+    assert!(!summary.execution.output_css.contains(".tone(1px)"));
+    assert!(!summary.execution.output_css.contains(".tone(@value)"));
     assert!(!summary.execution.output_css.contains("color: 1px"));
 }
 
 #[test]
-fn consumer_build_executes_false_comparison_guarded_less_mixins_as_preserved_oracle_output() {
+fn consumer_build_removes_false_comparison_guarded_less_mixins() {
     let summary = execute_omena_query_consumer_build_style_source(
         "Button.module.less",
         ".space(@gap) when (@gap > 2px) { margin: @gap; } .button { .space(1px); }",
@@ -2104,12 +2106,13 @@ fn consumer_build_executes_false_comparison_guarded_less_mixins_as_preserved_ora
             .planned_only_pass_ids
             .contains(&"less-module-evaluate")
     );
-    assert!(summary.execution.output_css.contains(".space(1px)"));
+    assert!(!summary.execution.output_css.contains(".space(1px)"));
+    assert!(!summary.execution.output_css.contains(".space(@gap)"));
     assert!(!summary.execution.output_css.contains("margin: 1px"));
 }
 
 #[test]
-fn consumer_build_executes_false_unit_guarded_less_mixins_as_preserved_oracle_output() {
+fn consumer_build_removes_false_unit_guarded_less_mixins() {
     let summary = execute_omena_query_consumer_build_style_source(
         "Button.module.less",
         ".space(@gap) when (ispixel(@gap)) { margin: @gap; } .button { .space(2em); }",
@@ -2132,12 +2135,13 @@ fn consumer_build_executes_false_unit_guarded_less_mixins_as_preserved_oracle_ou
             .planned_only_pass_ids
             .contains(&"less-module-evaluate")
     );
-    assert!(summary.execution.output_css.contains(".space(2em)"));
+    assert!(!summary.execution.output_css.contains(".space(2em)"));
+    assert!(!summary.execution.output_css.contains(".space(@gap)"));
     assert!(!summary.execution.output_css.contains("margin: 2em"));
 }
 
 #[test]
-fn consumer_build_executes_false_isunit_guarded_less_mixins_as_preserved_oracle_output() {
+fn consumer_build_removes_false_isunit_guarded_less_mixins() {
     let summary = execute_omena_query_consumer_build_style_source(
         "Button.module.less",
         r#".space(@gap) when (isunit(@gap, "px")) { margin: @gap; } .button { .space(2em); }"#,
@@ -2160,7 +2164,8 @@ fn consumer_build_executes_false_isunit_guarded_less_mixins_as_preserved_oracle_
             .planned_only_pass_ids
             .contains(&"less-module-evaluate")
     );
-    assert!(summary.execution.output_css.contains(".space(2em)"));
+    assert!(!summary.execution.output_css.contains(".space(2em)"));
+    assert!(!summary.execution.output_css.contains(".space(@gap)"));
     assert!(!summary.execution.output_css.contains("margin: 2em"));
 }
 

@@ -3746,7 +3746,7 @@ fn exposes_less_future_property_guarded_mixins_as_preserved_oracle_output_throug
 }
 
 #[test]
-fn exposes_less_false_guarded_mixins_as_preserved_oracle_output_through_query_boundary() {
+fn exposes_less_false_guarded_mixins_as_removed_output_through_query_boundary() {
     let summary = summarize_omena_query_static_stylesheet_evaluator_from_source(
         ".tone() when (iscolor(1px)) { color: red; } .button { .tone(); }",
         OmenaParserStyleDialect::Less,
@@ -3760,15 +3760,17 @@ fn exposes_less_false_guarded_mixins_as_preserved_oracle_output_through_query_bo
     assert_eq!(summary.divergence_count, 0);
     assert!(summary.all_legacy_declaration_values_preserved);
     assert_eq!(summary.native_replacement_count, 0);
+    assert!(summary.native_structural_edit_count > 0);
+    assert!(summary.native_edit_output_matches_evaluated_css);
     assert!(summary.evaluation.as_ref().is_some_and(|evaluation| {
-        evaluation.evaluated_css.contains(".tone();")
-            && evaluation.evaluated_css.contains("when (iscolor(1px))")
+        !evaluation.evaluated_css.contains(".tone();")
+            && !evaluation.evaluated_css.contains("when (iscolor(1px))")
             && !evaluation.evaluated_css.contains("color: 1px")
     }));
 }
 
 #[test]
-fn exposes_less_false_guarded_namespace_mixins_as_preserved_oracle_output_through_query_boundary() {
+fn exposes_less_false_guarded_namespace_mixins_as_removed_output_through_query_boundary() {
     let summary = summarize_omena_query_static_stylesheet_evaluator_from_source(
         "#bundle() when (iscolor(1px)) { .tone() { color: red; } } .button { #bundle > .tone(); }",
         OmenaParserStyleDialect::Less,
@@ -3782,9 +3784,11 @@ fn exposes_less_false_guarded_namespace_mixins_as_preserved_oracle_output_throug
     assert_eq!(summary.divergence_count, 0);
     assert!(summary.all_legacy_declaration_values_preserved);
     assert_eq!(summary.native_replacement_count, 0);
+    assert!(summary.native_structural_edit_count > 0);
+    assert!(summary.native_edit_output_matches_evaluated_css);
     assert!(summary.evaluation.as_ref().is_some_and(|evaluation| {
-        evaluation.evaluated_css.contains("#bundle > .tone();")
-            && evaluation.evaluated_css.contains("when (iscolor(1px))")
+        !evaluation.evaluated_css.contains("#bundle > .tone();")
+            && !evaluation.evaluated_css.contains("when (iscolor(1px))")
             && !evaluation.evaluated_css.contains(".button { color: red")
     }));
 }

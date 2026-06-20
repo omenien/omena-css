@@ -166,6 +166,16 @@ pub(super) fn render_static_less_mixin_body_nested_calls(
                     replacement: rendered.body,
                 });
             }
+            StaticLessMixinCallRenderOutcome::KnownNoOutput {
+                used_declaration_names: rendered_used_declaration_names,
+            } => {
+                used_declaration_names.extend(rendered_used_declaration_names);
+                edits.push(StaticStylesheetEvaluationEdit {
+                    start: call.start,
+                    end: call.end,
+                    replacement: String::new(),
+                });
+            }
             StaticLessMixinCallRenderOutcome::PreservedNoOutput => {}
         }
     }
@@ -526,7 +536,8 @@ pub(super) fn render_static_less_mixin_call(
     let canonical_call_name = canonical_static_less_mixin_name(call.name.as_str());
     let mut saw_declaration = false;
     let mut saw_parameter_match = false;
-    let mut saw_guard_not_matched = false;
+    let mut saw_guard_unknown = false;
+    let mut known_no_output_declaration_names = BTreeSet::new();
     let mut rendered_bodies = Vec::new();
     let mut used_declaration_names = BTreeSet::new();
     let declarations = context
@@ -562,10 +573,11 @@ pub(super) fn render_static_less_mixin_call(
                 rendered_bodies.push(rendered.body);
             }
             StaticLessMixinRenderOutcome::GuardNotMatched => {
-                saw_guard_not_matched = true;
+                known_no_output_declaration_names
+                    .insert(canonical_static_less_mixin_name(declaration.name.as_str()));
             }
             StaticLessMixinRenderOutcome::GuardUnknown => {
-                saw_guard_not_matched = true;
+                saw_guard_unknown = true;
             }
         }
     }
@@ -593,10 +605,11 @@ pub(super) fn render_static_less_mixin_call(
                 rendered_bodies.push(rendered.body);
             }
             StaticLessMixinRenderOutcome::GuardNotMatched => {
-                saw_guard_not_matched = true;
+                known_no_output_declaration_names
+                    .insert(canonical_static_less_mixin_name(declaration.name.as_str()));
             }
             StaticLessMixinRenderOutcome::GuardUnknown => {
-                saw_guard_not_matched = true;
+                saw_guard_unknown = true;
             }
         }
     }
@@ -604,7 +617,12 @@ pub(super) fn render_static_less_mixin_call(
         return Some(None);
     }
     if rendered_bodies.is_empty() {
-        if !saw_parameter_match || saw_guard_not_matched {
+        if !known_no_output_declaration_names.is_empty() && !saw_guard_unknown {
+            return Some(Some(StaticLessMixinCallRenderOutcome::KnownNoOutput {
+                used_declaration_names: known_no_output_declaration_names,
+            }));
+        }
+        if !saw_parameter_match || saw_guard_unknown {
             return Some(Some(StaticLessMixinCallRenderOutcome::PreservedNoOutput));
         }
         return None;
@@ -627,7 +645,8 @@ fn render_static_less_namespace_mixin_call(
     let canonical_namespace = canonical_static_less_mixin_name(namespace.as_str());
     let mut saw_namespace = false;
     let mut saw_parameter_match = false;
-    let mut saw_guard_not_matched = false;
+    let mut saw_guard_unknown = false;
+    let mut known_no_output_declaration_names = BTreeSet::new();
     let mut rendered_bodies = Vec::new();
 
     for declaration in context.declarations.iter().filter(|declaration| {
@@ -669,8 +688,13 @@ fn render_static_less_namespace_mixin_call(
                 None,
             ) {
                 Some(true) => {}
-                Some(false) | None => {
-                    saw_guard_not_matched = true;
+                Some(false) => {
+                    known_no_output_declaration_names
+                        .insert(canonical_static_less_mixin_name(declaration.name.as_str()));
+                    continue;
+                }
+                None => {
+                    saw_guard_unknown = true;
                     continue;
                 }
             }
@@ -712,7 +736,13 @@ fn render_static_less_namespace_mixin_call(
                 StaticLessMixinCallRenderOutcome::Rendered(rendered) => {
                     rendered_bodies.push(rendered.body);
                 }
-                StaticLessMixinCallRenderOutcome::PreservedNoOutput => {}
+                StaticLessMixinCallRenderOutcome::KnownNoOutput { .. } => {
+                    known_no_output_declaration_names
+                        .insert(canonical_static_less_mixin_name(declaration.name.as_str()));
+                }
+                StaticLessMixinCallRenderOutcome::PreservedNoOutput => {
+                    saw_guard_unknown = true;
+                }
             }
         }
         active_mixins.remove(&canonical_namespace);
@@ -722,7 +752,12 @@ fn render_static_less_namespace_mixin_call(
         return Some(None);
     }
     if rendered_bodies.is_empty() {
-        if !saw_parameter_match || saw_guard_not_matched {
+        if !known_no_output_declaration_names.is_empty() && !saw_guard_unknown {
+            return Some(Some(StaticLessMixinCallRenderOutcome::KnownNoOutput {
+                used_declaration_names: known_no_output_declaration_names,
+            }));
+        }
+        if !saw_parameter_match || saw_guard_unknown {
             return Some(Some(StaticLessMixinCallRenderOutcome::PreservedNoOutput));
         }
         return None;

@@ -355,6 +355,9 @@ pub(super) struct StaticLessMixinRenderResult {
 
 pub(super) enum StaticLessMixinCallRenderOutcome {
     Rendered(StaticLessMixinRenderResult),
+    KnownNoOutput {
+        used_declaration_names: BTreeSet<String>,
+    },
     PreservedNoOutput,
 }
 
