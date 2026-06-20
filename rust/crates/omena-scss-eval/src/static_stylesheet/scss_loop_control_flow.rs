@@ -7,6 +7,7 @@ use crate::static_loop_frames::{
     parse_static_scss_each_loop_binding_frames, parse_static_scss_for_loop_header,
     static_scss_for_loop_values,
 };
+use crate::value_eval::static_scss_literal_truthiness;
 
 use super::{
     OmenaScssEvalResolvedReplacementV0, STATIC_STYLESHEET_VALUE_RESOLUTION_FUEL_LIMIT,
@@ -17,7 +18,7 @@ use super::{
     resolve_static_scss_function_value_with_bindings, resolved_replacement_value,
     static_stylesheet_matching_token_index, static_stylesheet_position_is_inside_ranges,
     static_stylesheet_skip_trivia_tokens, static_stylesheet_token_end,
-    static_stylesheet_token_start,
+    static_stylesheet_token_start, static_stylesheet_value_end_token_until,
 };
 
 #[derive(Debug, Clone)]
@@ -170,6 +171,9 @@ fn render_static_scss_loop_block(
     if static_scss_loop_body_contains_known_function_call(loop_block.body.as_str(), context) {
         return None;
     }
+    if loop_block.at_rule_name.eq_ignore_ascii_case("@while") {
+        return render_static_scss_while_loop_block(loop_block, context);
+    }
     if loop_block.at_rule_name.eq_ignore_ascii_case("@each") {
         return render_static_scss_each_loop_block(loop_block, context);
     }
@@ -190,6 +194,7 @@ fn render_static_scss_loop_block(
             loop_block.body_start,
             &frame_values,
             context,
+            &[],
         )?;
         replacements.extend(rendered.replacements);
         output.push_str(rendered.replacement.as_str());
@@ -224,6 +229,7 @@ fn render_static_scss_each_loop_block(
             loop_block.body_start,
             &frame_values,
             context,
+            &[],
         )?;
         replacements.extend(rendered.replacements);
         output.push_str(rendered.replacement.as_str());
@@ -235,6 +241,68 @@ fn render_static_scss_each_loop_block(
         replacement: output,
         replacements,
     })
+}
+
+fn render_static_scss_while_loop_block(
+    loop_block: &StaticScssLoopBlock,
+    context: StaticScssFunctionResolutionContext<'_>,
+) -> Option<StaticScssLoopRender> {
+    let assignments = collect_static_scss_while_body_assignments(loop_block.body.as_str())?;
+    if assignments.is_empty()
+        || !static_scss_while_body_references_follow_assignments(
+            loop_block.body.as_str(),
+            assignments.as_slice(),
+        )?
+    {
+        return None;
+    }
+    let assignment_ranges = assignments
+        .iter()
+        .map(|assignment| (assignment.start, assignment.end))
+        .collect::<Vec<_>>();
+    let mut current_values = BTreeMap::new();
+    let mut output = String::with_capacity(loop_block.body.len());
+    let mut replacements = Vec::new();
+
+    for _ in 0..64 {
+        if !static_scss_while_condition_is_active(
+            loop_block.header.as_str(),
+            &current_values,
+            loop_block.start,
+            context,
+        )? {
+            if !static_scss_loop_replacement_is_static_css_subset(output.as_str()) {
+                return None;
+            }
+            return Some(StaticScssLoopRender {
+                replacement: output,
+                replacements,
+            });
+        }
+
+        let next_values = static_scss_while_next_frame_values(
+            loop_block.body.as_str(),
+            assignments.as_slice(),
+            &current_values,
+            loop_block.body_start,
+            context,
+        )?;
+        if next_values == current_values {
+            return None;
+        }
+        let rendered = render_static_scss_loop_body(
+            loop_block.body.as_str(),
+            loop_block.body_start,
+            &next_values,
+            context,
+            assignment_ranges.as_slice(),
+        )?;
+        replacements.extend(rendered.replacements);
+        output.push_str(rendered.replacement.as_str());
+        current_values = next_values;
+    }
+
+    None
 }
 
 fn resolve_static_scss_for_loop_bound(
@@ -277,12 +345,23 @@ fn render_static_scss_loop_body(
     source_body_start: usize,
     argument_values: &BTreeMap<String, String>,
     context: StaticScssFunctionResolutionContext<'_>,
+    removed_ranges: &[(usize, usize)],
 ) -> Option<StaticScssLoopRender> {
     let references =
         collect_static_stylesheet_variable_references(body, StaticStylesheetVariableKind::Scss)?;
     let mut edits = Vec::new();
     let mut replacements = Vec::new();
+    for (start, end) in removed_ranges {
+        edits.push(StaticStylesheetEvaluationEdit {
+            start: *start,
+            end: *end,
+            replacement: String::new(),
+        });
+    }
     for reference in references {
+        if static_stylesheet_position_is_inside_ranges(reference.start, removed_ranges) {
+            continue;
+        }
         let original_start = source_body_start + reference.start;
         let original_end = source_body_start + reference.end;
         let resolution = resolve_static_scss_function_value_with_bindings(
@@ -316,12 +395,159 @@ fn render_static_scss_loop_body(
 
 fn static_scss_source_contains_loop_candidate(source: &str) -> bool {
     let lower = source.to_ascii_lowercase();
-    lower.contains("@for") || lower.contains("@each")
+    lower.contains("@for") || lower.contains("@each") || lower.contains("@while")
 }
 
 fn static_scss_token_is_loop_at_keyword(token: &LexedToken) -> bool {
     token.kind == SyntaxKind::AtKeyword
-        && (token.text.eq_ignore_ascii_case("@for") || token.text.eq_ignore_ascii_case("@each"))
+        && (token.text.eq_ignore_ascii_case("@for")
+            || token.text.eq_ignore_ascii_case("@each")
+            || token.text.eq_ignore_ascii_case("@while"))
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum StaticScssWhileAssignmentOperator {
+    Assign,
+    PlusAssign,
+    MinusAssign,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct StaticScssWhileAssignment {
+    name: String,
+    start: usize,
+    end: usize,
+    value_start: usize,
+    value_end: usize,
+    operator: StaticScssWhileAssignmentOperator,
+}
+
+fn collect_static_scss_while_body_assignments(
+    body: &str,
+) -> Option<Vec<StaticScssWhileAssignment>> {
+    let lexed = omena_parser::lex(body, StyleDialect::Scss);
+    let tokens = lexed.tokens();
+    let mut assignments = Vec::new();
+    let mut brace_depth = 0usize;
+    for (index, token) in tokens.iter().enumerate() {
+        match token.kind {
+            SyntaxKind::LeftBrace => {
+                brace_depth += 1;
+                continue;
+            }
+            SyntaxKind::RightBrace => {
+                brace_depth = brace_depth.checked_sub(1)?;
+                continue;
+            }
+            _ => {}
+        }
+        if brace_depth != 0 || token.kind != SyntaxKind::ScssVariable {
+            continue;
+        }
+        let operator_index = static_stylesheet_skip_trivia_tokens(tokens, index + 1);
+        let operator = match tokens.get(operator_index)?.kind {
+            SyntaxKind::Colon => StaticScssWhileAssignmentOperator::Assign,
+            SyntaxKind::PlusEquals => StaticScssWhileAssignmentOperator::PlusAssign,
+            SyntaxKind::MinusEquals => StaticScssWhileAssignmentOperator::MinusAssign,
+            _ => continue,
+        };
+        let value_start_index = static_stylesheet_skip_trivia_tokens(tokens, operator_index + 1);
+        let end_index =
+            static_stylesheet_value_end_token_until(tokens, value_start_index, tokens.len())?;
+        assignments.push(StaticScssWhileAssignment {
+            name: token.text.clone(),
+            start: static_stylesheet_token_start(token),
+            end: static_stylesheet_token_end(&tokens[end_index]),
+            value_start: static_stylesheet_token_start(&tokens[value_start_index]),
+            value_end: static_stylesheet_token_start(&tokens[end_index]),
+            operator,
+        });
+    }
+    Some(assignments)
+}
+
+fn static_scss_while_body_references_follow_assignments(
+    body: &str,
+    assignments: &[StaticScssWhileAssignment],
+) -> Option<bool> {
+    let references =
+        collect_static_stylesheet_variable_references(body, StaticStylesheetVariableKind::Scss)?;
+    for reference in references {
+        let Some(assignment) = assignments.iter().find(|assignment| {
+            canonical_static_scss_variable_name(assignment.name.as_str())
+                == canonical_static_scss_variable_name(reference.name.as_str())
+        }) else {
+            continue;
+        };
+        if static_stylesheet_position_is_inside_ranges(
+            reference.start,
+            &[(assignment.start, assignment.end)],
+        ) {
+            continue;
+        }
+        if reference.start < assignment.end {
+            return Some(false);
+        }
+    }
+    Some(true)
+}
+
+fn static_scss_while_next_frame_values(
+    body: &str,
+    assignments: &[StaticScssWhileAssignment],
+    current_values: &BTreeMap<String, String>,
+    source_body_start: usize,
+    context: StaticScssFunctionResolutionContext<'_>,
+) -> Option<BTreeMap<String, String>> {
+    let mut next_values = current_values.clone();
+    for assignment in assignments {
+        let value = body
+            .get(assignment.value_start..assignment.value_end)?
+            .trim();
+        let expression = match assignment.operator {
+            StaticScssWhileAssignmentOperator::Assign => value.to_string(),
+            StaticScssWhileAssignmentOperator::PlusAssign => {
+                format!("{} + {}", assignment.name, value)
+            }
+            StaticScssWhileAssignmentOperator::MinusAssign => {
+                format!("{} - {}", assignment.name, value)
+            }
+        };
+        let resolution = resolve_static_scss_function_value_with_bindings(
+            expression.as_str(),
+            &next_values,
+            source_body_start + assignment.value_start,
+            STATIC_STYLESHEET_VALUE_RESOLUTION_FUEL_LIMIT,
+            context,
+        );
+        if resolution.outcome != StaticStylesheetResolutionOutcome::Resolved {
+            return None;
+        }
+        next_values.insert(
+            canonical_static_scss_variable_name(assignment.name.as_str()),
+            resolution.rendered_value?,
+        );
+    }
+    Some(next_values)
+}
+
+fn static_scss_while_condition_is_active(
+    condition: &str,
+    argument_values: &BTreeMap<String, String>,
+    position: usize,
+    context: StaticScssFunctionResolutionContext<'_>,
+) -> Option<bool> {
+    let resolution = resolve_static_scss_function_value_with_bindings(
+        condition,
+        argument_values,
+        position,
+        STATIC_STYLESHEET_VALUE_RESOLUTION_FUEL_LIMIT,
+        context,
+    );
+    if resolution.outcome == StaticStylesheetResolutionOutcome::Top {
+        return None;
+    }
+    static_scss_literal_truthiness(resolution.rendered_value?.as_str())
 }
 
 fn static_scss_loop_body_contains_known_function_call(

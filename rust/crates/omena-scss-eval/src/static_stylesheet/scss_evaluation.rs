@@ -47,8 +47,9 @@ pub(super) fn derive_static_scss_stylesheet_module_evaluation(
         collect_static_scss_function_declarations(style_source, dialect, tokens)?;
     let mixin_declarations = collect_static_scss_mixin_declarations(style_source, dialect, tokens)?;
     let lower_source = style_source.to_ascii_lowercase();
-    let source_has_static_loop_candidate =
-        lower_source.contains("@for") || lower_source.contains("@each");
+    let source_has_static_loop_candidate = lower_source.contains("@for")
+        || lower_source.contains("@each")
+        || lower_source.contains("@while");
     if !variable_facts
         .iter()
         .any(|fact| fact.kind == ParsedVariableFactKind::ScssDeclaration)
