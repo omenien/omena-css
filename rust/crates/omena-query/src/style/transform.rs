@@ -9,6 +9,7 @@ mod design_tokens;
 mod imports;
 mod static_stylesheet;
 
+use context::TransformResolutionContext;
 pub use context::summarize_omena_query_transform_context_from_engine_input;
 
 use context::{
@@ -29,63 +30,6 @@ pub(super) struct StaticScssModuleResolutionConfigurationEvidence {
     pub(super) configuration_variable_count: usize,
     pub(super) configuration_variable_names: Vec<String>,
     pub(super) module_instance_identity_key: Option<String>,
-}
-
-#[derive(Clone, Copy)]
-pub(super) struct TransformResolutionContext<'a> {
-    pub(super) package_manifests: &'a [OmenaQueryStylePackageManifestV0],
-    pub(super) bundler_path_mappings: &'a [OmenaResolverBundlerPathAliasMappingV0],
-    pub(super) tsconfig_path_mappings: &'a [OmenaResolverTsconfigPathMappingV0],
-    pub(super) disk_style_path_identities: &'a [OmenaResolverStyleModuleDiskCandidateIdentityV0],
-}
-
-impl<'a> TransformResolutionContext<'a> {
-    pub(super) fn from_resolution_inputs(
-        resolution_inputs: &'a OmenaQueryStyleResolutionInputsV0,
-    ) -> Self {
-        Self {
-            package_manifests: resolution_inputs.package_manifests.as_slice(),
-            bundler_path_mappings: resolution_inputs.bundler_path_mappings.as_slice(),
-            tsconfig_path_mappings: resolution_inputs.tsconfig_path_mappings.as_slice(),
-            disk_style_path_identities: resolution_inputs.disk_style_path_identities.as_slice(),
-        }
-    }
-
-    pub(super) fn resolve_style_module_source(
-        self,
-        from_style_path: &str,
-        source: &str,
-        available_style_paths: &BTreeSet<&str>,
-    ) -> Option<String> {
-        let load_path_roots = super::collect_load_path_roots(available_style_paths);
-        let load_path_root_refs = load_path_roots
-            .iter()
-            .map(String::as_str)
-            .collect::<Vec<_>>();
-        let resolver_package_manifests = self
-            .package_manifests
-            .iter()
-            .map(|manifest| OmenaResolverStylePackageManifestV0 {
-                package_json_path: manifest.package_json_path.clone(),
-                package_json_source: manifest.package_json_source.clone(),
-            })
-            .collect::<Vec<_>>();
-        summarize_omena_resolver_style_module_resolution_with_confirmation_inputs(
-            from_style_path,
-            source,
-            available_style_paths,
-            self.disk_style_path_identities,
-            &resolver_package_manifests,
-            self.bundler_path_mappings,
-            self.tsconfig_path_mappings,
-            &load_path_root_refs,
-            OmenaResolverStyleModuleConfirmationOptionsV0 {
-                allow_disk_confirmation: true,
-                ..OmenaResolverStyleModuleConfirmationOptionsV0::default()
-            },
-        )
-        .resolved_style_path
-    }
 }
 
 pub(super) fn derive_static_scss_module_resolution_configuration_evidence(
