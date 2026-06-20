@@ -75,9 +75,9 @@ fn exposes_static_stylesheet_oracle_corpus_through_query_boundary() {
     assert_eq!(summary.mode, "oracleOnly");
     assert_eq!(summary.value_type, "AbstractCssValueV0");
     assert_eq!(summary.product_output_source, "nativeEditOutput");
-    assert_eq!(summary.fixture_count, 96);
-    assert_eq!(summary.scss_fixture_count, 28);
-    assert_eq!(summary.sass_fixture_count, 22);
+    assert_eq!(summary.fixture_count, 98);
+    assert_eq!(summary.scss_fixture_count, 29);
+    assert_eq!(summary.sass_fixture_count, 23);
     assert_eq!(summary.less_fixture_count, 46);
     assert_eq!(summary.evaluated_fixture_count, summary.fixture_count);
     assert_eq!(
@@ -122,6 +122,20 @@ fn exposes_static_stylesheet_oracle_corpus_through_query_boundary() {
         "omena-scss-eval.static-stylesheet-oracle-corpus"
     );
     assert!(summary.corpus.native_product_output_corpus_ready);
+    assert!(summary.corpus.fixtures.iter().any(|fixture| {
+        fixture.id == "sass.static-map-list-builtins"
+            && fixture.dialect == "sass"
+            && fixture.evaluation_available
+            && fixture.native_edit_output_matches_evaluated_css
+            && fixture.divergence_count == 0
+    }));
+    assert!(summary.corpus.fixtures.iter().any(|fixture| {
+        fixture.id == "scss.static-map-list-builtins"
+            && fixture.dialect == "scss"
+            && fixture.evaluation_available
+            && fixture.native_edit_output_matches_evaluated_css
+            && fixture.divergence_count == 0
+    }));
     assert!(
         summary
             .corpus

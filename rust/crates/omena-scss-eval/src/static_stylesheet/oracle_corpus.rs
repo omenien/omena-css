@@ -394,6 +394,11 @@ fn static_stylesheet_oracle_corpus_fixtures() -> &'static [StaticStylesheetOracl
             source: "@function width-for($target)\n  @each $width, $style in zip(1px 2px, solid dashed)\n    @if $style == $target\n      @return $width\n  @return 0px\n.card\n  margin: width-for(dashed)",
         },
         StaticStylesheetOracleCorpusFixtureV0 {
+            id: "sass.static-map-list-builtins",
+            dialect: StyleDialect::Sass,
+            source: "$tokens: (primary: red, secondary: blue)\n$count: length(map-keys($tokens))\n$tone: nth(map-values($tokens), 2)\n.card\n  color: $tone\n  z-index: $count",
+        },
+        StaticStylesheetOracleCorpusFixtureV0 {
             id: "sass.static-top-level-for",
             dialect: StyleDialect::Sass,
             source: "@for $i from 1 through 3\n  .n\n    order: $i",
@@ -427,6 +432,11 @@ fn static_stylesheet_oracle_corpus_fixtures() -> &'static [StaticStylesheetOracl
             id: "scss.color-helpers",
             dialect: StyleDialect::Scss,
             source: "$tone: list.nth(list.append(1px, transparentize(red, .25)), 2); .card { color: $tone; }",
+        },
+        StaticStylesheetOracleCorpusFixtureV0 {
+            id: "scss.static-map-list-builtins",
+            dialect: StyleDialect::Scss,
+            source: "$merged: map.deep-merge((theme: (spacing: (sm: 4px), tone: blue)), (theme: (spacing: (md: 8px), tone: red))); $gap: map.get($merged, theme, spacing, md); $tone: map.get($merged, theme, tone); $count: list.length(map.keys(map.get($merged, theme, spacing))); .card { margin: $gap; color: $tone; z-index: $count; }",
         },
         StaticStylesheetOracleCorpusFixtureV0 {
             id: "scss.static-for-return",

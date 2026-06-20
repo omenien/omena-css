@@ -19,9 +19,9 @@ fn static_stylesheet_oracle_corpus_reports_native_product_output_with_legacy_ora
     );
     assert_eq!(report.legacy_output_consumed_until_cutover_count, 0);
     assert!(report.all_legacy_outputs_retained_as_oracle);
-    assert_eq!(report.fixture_count, 96);
-    assert_eq!(report.scss_fixture_count, 28);
-    assert_eq!(report.sass_fixture_count, 22);
+    assert_eq!(report.fixture_count, 98);
+    assert_eq!(report.scss_fixture_count, 29);
+    assert_eq!(report.sass_fixture_count, 23);
     assert_eq!(report.less_fixture_count, 46);
     assert_eq!(report.evaluated_fixture_count, report.fixture_count);
     assert_eq!(report.missing_evaluation_count, 0);
@@ -55,6 +55,20 @@ fn static_stylesheet_oracle_corpus_reports_native_product_output_with_legacy_ora
     assert!(report.all_legacy_declaration_values_preserved);
     assert!(report.all_native_edit_outputs_match_evaluated_css);
     assert!(report.native_product_output_corpus_ready);
+    assert!(report.fixtures.iter().any(|fixture| {
+        fixture.id == "sass.static-map-list-builtins"
+            && fixture.dialect == "sass"
+            && fixture.evaluation_available
+            && fixture.native_edit_output_matches_evaluated_css
+            && fixture.divergence_count == 0
+    }));
+    assert!(report.fixtures.iter().any(|fixture| {
+        fixture.id == "scss.static-map-list-builtins"
+            && fixture.dialect == "scss"
+            && fixture.evaluation_available
+            && fixture.native_edit_output_matches_evaluated_css
+            && fixture.divergence_count == 0
+    }));
     assert!(report.fixtures.iter().any(|fixture| {
         fixture.id == "sass.variable-basic"
             && fixture.dialect == "sass"
