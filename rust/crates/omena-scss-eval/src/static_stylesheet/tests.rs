@@ -19,8 +19,8 @@ fn static_stylesheet_oracle_corpus_reports_native_product_output_with_legacy_ora
     );
     assert_eq!(report.legacy_output_consumed_until_cutover_count, 0);
     assert!(report.all_legacy_outputs_retained_as_oracle);
-    assert_eq!(report.fixture_count, 79);
-    assert_eq!(report.scss_fixture_count, 21);
+    assert_eq!(report.fixture_count, 80);
+    assert_eq!(report.scss_fixture_count, 22);
     assert_eq!(report.sass_fixture_count, 12);
     assert_eq!(report.less_fixture_count, 46);
     assert_eq!(report.evaluated_fixture_count, report.fixture_count);
@@ -105,6 +105,16 @@ fn static_stylesheet_oracle_corpus_reports_native_product_output_with_legacy_ora
     }));
     assert!(report.fixtures.iter().any(|fixture| {
         fixture.id == "scss.static-top-level-if-variable"
+            && fixture.dialect == "scss"
+            && fixture.evaluation_available
+            && fixture.native_replacement_count == 1
+            && fixture.native_replacement_legacy_reflection_count == 1
+            && fixture.native_structural_edit_count == 3
+            && fixture.native_edit_output_matches_evaluated_css
+            && fixture.divergence_count == 0
+    }));
+    assert!(report.fixtures.iter().any(|fixture| {
+        fixture.id == "scss.static-top-level-if-function"
             && fixture.dialect == "scss"
             && fixture.evaluation_available
             && fixture.native_replacement_count == 1
@@ -4248,6 +4258,31 @@ fn static_scss_evaluation_resolves_static_values_inside_top_level_if_blocks() {
     assert!(!report.evaluated_css.contains(".off { color: blue; }"));
     assert_eq!(report.replacement_count, 1);
     assert_eq!(report.resolved_replacements[0].name, "$brand");
+    assert_eq!(report.resolved_replacements[0].text, "red");
+    assert_eq!(report.resolved_replacements[0].abstract_value_kind, "exact");
+    assert_eq!(report.native_replacement_legacy_reflection_count, 1);
+    assert!(report.oracle.all_legacy_declaration_values_preserved);
+    assert!(report.native_edit_output_matches_evaluated_css);
+}
+
+#[test]
+fn static_scss_evaluation_resolves_static_functions_inside_top_level_if_blocks() {
+    let report = derive_static_stylesheet_module_evaluation(
+        "@function tone($color) { @return $color; } $enabled: true; @if $enabled { .on { color: tone(red); } } @else { .off { color: blue; } }",
+        StyleDialect::Scss,
+    );
+    assert!(report.is_some());
+    let Some(report) = report else {
+        return;
+    };
+
+    assert!(!report.evaluated_css.contains("@function"));
+    assert!(!report.evaluated_css.contains("@if"));
+    assert!(!report.evaluated_css.contains("tone(red)"));
+    assert!(report.evaluated_css.contains(".on { color: red; }"));
+    assert!(!report.evaluated_css.contains(".off { color: blue; }"));
+    assert_eq!(report.replacement_count, 1);
+    assert_eq!(report.resolved_replacements[0].name, "function:tone");
     assert_eq!(report.resolved_replacements[0].text, "red");
     assert_eq!(report.resolved_replacements[0].abstract_value_kind, "exact");
     assert_eq!(report.native_replacement_legacy_reflection_count, 1);

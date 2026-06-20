@@ -75,8 +75,8 @@ fn exposes_static_stylesheet_oracle_corpus_through_query_boundary() {
     assert_eq!(summary.mode, "oracleOnly");
     assert_eq!(summary.value_type, "AbstractCssValueV0");
     assert_eq!(summary.product_output_source, "nativeEditOutput");
-    assert_eq!(summary.fixture_count, 79);
-    assert_eq!(summary.scss_fixture_count, 21);
+    assert_eq!(summary.fixture_count, 80);
+    assert_eq!(summary.scss_fixture_count, 22);
     assert_eq!(summary.sass_fixture_count, 12);
     assert_eq!(summary.less_fixture_count, 46);
     assert_eq!(summary.evaluated_fixture_count, summary.fixture_count);
@@ -218,6 +218,16 @@ fn exposes_static_stylesheet_oracle_corpus_through_query_boundary() {
     }));
     assert!(summary.corpus.fixtures.iter().any(|fixture| {
         fixture.id == "scss.static-top-level-if-variable"
+            && fixture.dialect == "scss"
+            && fixture.evaluation_available
+            && fixture.native_replacement_count == 1
+            && fixture.native_replacement_legacy_reflection_count == 1
+            && fixture.native_structural_edit_count == 3
+            && fixture.native_edit_output_matches_evaluated_css
+            && fixture.divergence_count == 0
+    }));
+    assert!(summary.corpus.fixtures.iter().any(|fixture| {
+        fixture.id == "scss.static-top-level-if-function"
             && fixture.dialect == "scss"
             && fixture.evaluation_available
             && fixture.native_replacement_count == 1
@@ -1350,6 +1360,36 @@ fn exposes_static_scss_top_level_if_value_replacements_through_query_boundary() 
             && !evaluation.evaluated_css.contains(".off { color: blue; }")
             && evaluation.resolved_replacements.iter().any(|replacement| {
                 replacement.name == "$brand"
+                    && replacement.text == "red"
+                    && replacement.abstract_value_kind == "exact"
+            })
+            && evaluation.native_edit_output_matches_evaluated_css
+    }));
+}
+
+#[test]
+fn exposes_static_scss_top_level_if_function_replacements_through_query_boundary() {
+    let summary = summarize_omena_query_static_stylesheet_evaluator_from_source(
+        "@function tone($color) { @return $color; } $enabled: true; @if $enabled { .on { color: tone(red); } } @else { .off { color: blue; } }",
+        OmenaParserStyleDialect::Scss,
+    );
+
+    assert_eq!(summary.product, "omena-query.static-stylesheet-evaluator");
+    assert_eq!(summary.mode, "oracleOnly");
+    assert_eq!(summary.value_type, "AbstractCssValueV0");
+    assert!(!summary.legacy_output_consumed_until_cutover);
+    assert!(summary.evaluation_available);
+    assert_eq!(summary.divergence_count, 0);
+    assert_eq!(summary.native_replacement_count, 1);
+    assert_eq!(summary.native_replacement_legacy_reflection_count, 1);
+    assert!(summary.evaluation.as_ref().is_some_and(|evaluation| {
+        !evaluation.evaluated_css.contains("@function")
+            && !evaluation.evaluated_css.contains("@if")
+            && !evaluation.evaluated_css.contains("tone(red)")
+            && evaluation.evaluated_css.contains(".on { color: red; }")
+            && !evaluation.evaluated_css.contains(".off { color: blue; }")
+            && evaluation.resolved_replacements.iter().any(|replacement| {
+                replacement.name == "function:tone"
                     && replacement.text == "red"
                     && replacement.abstract_value_kind == "exact"
             })
