@@ -369,6 +369,11 @@ fn static_stylesheet_oracle_corpus_fixtures() -> &'static [StaticStylesheetOracl
             source: "@function pick($target)\n  @each $item in append(1px 2px, 3px)\n    @if $item == $target\n      @return $item\n  @return 0px\n.card\n  margin: pick(3px)",
         },
         StaticStylesheetOracleCorpusFixtureV0 {
+            id: "sass.static-each-tuple-function-source-return",
+            dialect: StyleDialect::Sass,
+            source: "@function width-for($target)\n  @each $width, $style in zip(1px 2px, solid dashed)\n    @if $style == $target\n      @return $width\n  @return 0px\n.card\n  margin: width-for(dashed)",
+        },
+        StaticStylesheetOracleCorpusFixtureV0 {
             id: "scss.color-helpers",
             dialect: StyleDialect::Scss,
             source: "$tone: list.nth(list.append(1px, transparentize(red, .25)), 2); .card { color: $tone; }",
@@ -427,6 +432,11 @@ fn static_stylesheet_oracle_corpus_fixtures() -> &'static [StaticStylesheetOracl
             id: "scss.recursive-function-return",
             dialect: StyleDialect::Scss,
             source: "@function loop($value) { @return loop($value); } .button { color: loop(red); }",
+        },
+        StaticStylesheetOracleCorpusFixtureV0 {
+            id: "scss.indirect-recursive-function-return",
+            dialect: StyleDialect::Scss,
+            source: "@function a($value) { @return b($value); } @function b($value) { @return a($value); } .button { color: a(red); }",
         },
         StaticStylesheetOracleCorpusFixtureV0 {
             id: "scss.static-mixin-include",

@@ -816,6 +816,8 @@ function assertStaticStylesheetEvaluatorOracleCorpus(
     "sass.static-for-return",
     "sass.static-while-return",
     "sass.static-each-return",
+    "sass.static-each-tuple-function-source-return",
+    "scss.indirect-recursive-function-return",
     "less.variable-basic",
     "less.dynamic-escaped-string",
     "less.fuel-exhausted-variable-chain",
@@ -849,6 +851,9 @@ function assertStaticStylesheetEvaluatorOracleCorpus(
   const recursiveFunction = fixtures.get("scss.recursive-function-return");
   assert.equal(recursiveFunction?.nativeTopValueCount, 1);
   assert.equal(recursiveFunction?.nativeCycleValueCount, 1);
+  const indirectRecursiveFunction = fixtures.get("scss.indirect-recursive-function-return");
+  assert.equal(indirectRecursiveFunction?.nativeTopValueCount, 1);
+  assert.equal(indirectRecursiveFunction?.nativeCycleValueCount, 1);
   const fuelExhaustedLess = fixtures.get("less.fuel-exhausted-variable-chain");
   assert.equal(fuelExhaustedLess?.nativeTopValueCount, 1);
   assert.equal(fuelExhaustedLess?.nativeFuelExhaustedValueCount, 1);

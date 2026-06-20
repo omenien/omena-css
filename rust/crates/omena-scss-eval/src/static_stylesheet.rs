@@ -1320,9 +1320,9 @@ mod tests {
         );
         assert_eq!(report.legacy_output_consumed_until_cutover_count, 0);
         assert!(report.all_legacy_outputs_retained_as_oracle);
-        assert_eq!(report.fixture_count, 73);
-        assert_eq!(report.scss_fixture_count, 16);
-        assert_eq!(report.sass_fixture_count, 11);
+        assert_eq!(report.fixture_count, 75);
+        assert_eq!(report.scss_fixture_count, 17);
+        assert_eq!(report.sass_fixture_count, 12);
         assert_eq!(report.less_fixture_count, 46);
         assert_eq!(report.evaluated_fixture_count, report.fixture_count);
         assert_eq!(report.missing_evaluation_count, 0);
@@ -1385,6 +1385,7 @@ mod tests {
             "sass.static-while-return",
             "sass.static-while-expression-step",
             "sass.static-each-return",
+            "sass.static-each-tuple-function-source-return",
         ] {
             assert!(
                 report.fixtures.iter().any(|fixture| {
@@ -1398,6 +1399,10 @@ mod tests {
                 "missing evaluated Sass control-flow oracle fixture {id}"
             );
         }
+        assert!(report.fixtures.iter().any(|fixture| fixture.id
+            == "scss.indirect-recursive-function-return"
+            && fixture.native_top_value_count == 1
+            && fixture.native_cycle_value_count == 1));
         assert!(
             report
                 .fixtures

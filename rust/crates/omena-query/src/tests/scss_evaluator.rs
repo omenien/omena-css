@@ -75,9 +75,9 @@ fn exposes_static_stylesheet_oracle_corpus_through_query_boundary() {
     assert_eq!(summary.mode, "oracleOnly");
     assert_eq!(summary.value_type, "AbstractCssValueV0");
     assert_eq!(summary.product_output_source, "nativeEditOutput");
-    assert_eq!(summary.fixture_count, 73);
-    assert_eq!(summary.scss_fixture_count, 16);
-    assert_eq!(summary.sass_fixture_count, 11);
+    assert_eq!(summary.fixture_count, 75);
+    assert_eq!(summary.scss_fixture_count, 17);
+    assert_eq!(summary.sass_fixture_count, 12);
     assert_eq!(summary.less_fixture_count, 46);
     assert_eq!(summary.evaluated_fixture_count, summary.fixture_count);
     assert_eq!(
@@ -197,6 +197,7 @@ fn exposes_static_stylesheet_oracle_corpus_through_query_boundary() {
         "sass.static-while-return",
         "sass.static-while-expression-step",
         "sass.static-each-return",
+        "sass.static-each-tuple-function-source-return",
     ] {
         assert!(
             summary.corpus.fixtures.iter().any(|fixture| {
@@ -210,6 +211,10 @@ fn exposes_static_stylesheet_oracle_corpus_through_query_boundary() {
             "missing evaluated Sass control-flow oracle fixture {id}"
         );
     }
+    assert!(summary.corpus.fixtures.iter().any(|fixture| fixture.id
+        == "scss.indirect-recursive-function-return"
+        && fixture.native_top_value_count == 1
+        && fixture.native_cycle_value_count == 1));
     assert!(
         summary
             .corpus
