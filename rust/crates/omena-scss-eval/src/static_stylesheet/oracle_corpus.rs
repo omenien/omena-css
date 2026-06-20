@@ -748,6 +748,11 @@ fn static_stylesheet_oracle_corpus_fixtures() -> &'static [StaticStylesheetOracl
             source: "@pi: pi(); @sin: sin(30deg); @asin: asin(.5); .button { opacity: @sin; rotate: @asin; --pi: @pi; }",
         },
         StaticStylesheetOracleCorpusFixtureV0 {
+            id: "less.extended-numeric-builtins",
+            dialect: StyleDialect::Less,
+            source: "@sqrt: sqrt(4); @pow: pow(2, 3); @mod: mod(11px, 4px); @min: min(1px, 2px, 3px); @max: max(1px, 2px, 3px); @round: round(1.234px, 2); .button { sqrt: @sqrt; pow: @pow; mod: @mod; min: @min; max: @max; round: @round; }",
+        },
+        StaticStylesheetOracleCorpusFixtureV0 {
             id: "less.range-list",
             dialect: StyleDialect::Less,
             source: "@items: range(4); @gaps: range(1px, 5px, 2); .button { z-index: length(@items); margin: extract(@gaps, 2); }",
