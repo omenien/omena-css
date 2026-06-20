@@ -7,10 +7,7 @@ use super::*;
 use omena_query_transform_runner::{
     TransformImportInlineV0, TransformModuleEvaluationV0, restore_less_inline_literal_placeholders,
 };
-use std::{
-    borrow::Cow,
-    collections::{BTreeMap, BTreeSet},
-};
+use std::collections::{BTreeMap, BTreeSet};
 
 mod evaluation_source;
 mod scss_forwarding;
@@ -332,8 +329,10 @@ fn derive_static_scss_module_context_for_transform_context(
 
     let mut configurable_variable_names =
         derive_static_scss_stylesheet_module_configurable_variable_names(style_source);
-    let style_source =
-        apply_static_scss_module_variable_overrides(style_source, &variable_overrides);
+    let style_source = scss_variable_overrides::apply_static_scss_module_variable_overrides(
+        style_source,
+        &variable_overrides,
+    );
     let style_source = style_source.as_ref();
 
     let forward_evaluations = derive_static_scss_module_forward_evaluations_for_transform_context(
@@ -472,38 +471,6 @@ fn derive_static_scss_module_forward_evaluations_for_transform_context(
     }
 
     Some(evaluations)
-}
-
-fn apply_static_scss_module_variable_overrides<'a>(
-    style_source: &'a str,
-    variable_overrides: &BTreeMap<String, String>,
-) -> Cow<'a, str> {
-    if variable_overrides.is_empty() {
-        return Cow::Borrowed(style_source);
-    }
-    let configurable_names =
-        derive_static_scss_stylesheet_module_configurable_variable_names(style_source);
-    if !variable_overrides
-        .keys()
-        .all(|name| configurable_names.contains(name))
-    {
-        return Cow::Borrowed(style_source);
-    }
-
-    let mut source = String::new();
-    for (name, value) in variable_overrides {
-        source.push('$');
-        source.push_str(name);
-        source.push_str(": ");
-        source.push_str(value);
-        source.push_str("; ");
-    }
-    source.push_str(style_source);
-    Cow::Owned(source)
-}
-
-fn static_scss_identifier_char(ch: char) -> bool {
-    ch.is_ascii_alphanumeric() || matches!(ch, '_' | '-')
 }
 
 #[cfg(test)]

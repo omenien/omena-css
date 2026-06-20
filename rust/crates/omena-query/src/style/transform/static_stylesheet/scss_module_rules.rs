@@ -5,6 +5,10 @@ use crate::OmenaParserStyleDialect;
 use omena_syntax::SyntaxKind;
 use std::collections::BTreeMap;
 
+pub(super) fn static_scss_identifier_char(ch: char) -> bool {
+    ch.is_ascii_alphanumeric() || matches!(ch, '_' | '-')
+}
+
 pub(super) fn static_scss_use_rule_semicolon(
     tokens: &[omena_parser::LexedToken],
     at_use_index: usize,

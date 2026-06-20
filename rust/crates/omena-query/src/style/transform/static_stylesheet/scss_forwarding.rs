@@ -5,7 +5,7 @@ use super::super::parser_facade::lex_omena_query_omena_parser_style_source;
 use super::super::{
     apply_transform_source_replacements, transform_token_end, transform_token_start,
 };
-use super::{scss_module_rules, scss_variable_overrides, static_scss_identifier_char};
+use super::{scss_module_rules, scss_variable_overrides};
 use crate::OmenaParserStyleDialect;
 use omena_syntax::SyntaxKind;
 use std::collections::{BTreeMap, BTreeSet};
@@ -322,7 +322,7 @@ fn static_scss_forward_export_prefix_is_safe(prefix: &str) -> bool {
     prefix.contains('*')
         && prefix
             .chars()
-            .all(|ch| static_scss_identifier_char(ch) || ch == '*')
+            .all(|ch| scss_module_rules::static_scss_identifier_char(ch) || ch == '*')
 }
 
 fn parse_static_scss_forward_variable_overrides_from_rule(

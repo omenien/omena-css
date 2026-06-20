@@ -3,7 +3,7 @@ use super::super::stylesheet_evaluation::canonical_static_scss_variable_name;
 use super::super::{
     apply_transform_source_replacements, transform_token_end, transform_token_start,
 };
-use super::{StaticScssModuleUseEvaluation, scss_module_rules, static_scss_identifier_char};
+use super::{StaticScssModuleUseEvaluation, scss_module_rules};
 use crate::OmenaParserStyleDialect;
 use omena_syntax::SyntaxKind;
 use std::{borrow::Cow, collections::BTreeSet};
@@ -97,11 +97,11 @@ fn static_scss_reference_boundary_is_safe(source: &str, start: usize, end: usize
     let before_safe = source[..start]
         .chars()
         .next_back()
-        .is_none_or(|ch| !static_scss_identifier_char(ch));
+        .is_none_or(|ch| !scss_module_rules::static_scss_identifier_char(ch));
     let after_safe = source[end..]
         .chars()
         .next()
-        .is_none_or(|ch| !static_scss_identifier_char(ch));
+        .is_none_or(|ch| !scss_module_rules::static_scss_identifier_char(ch));
     before_safe && after_safe
 }
 
@@ -141,7 +141,7 @@ fn static_scss_variable_reference_name_end(source: &str, mut index: usize) -> us
         let Some(ch) = source[index..].chars().next() else {
             break;
         };
-        if !static_scss_identifier_char(ch) {
+        if !scss_module_rules::static_scss_identifier_char(ch) {
             break;
         }
         index += ch.len_utf8();

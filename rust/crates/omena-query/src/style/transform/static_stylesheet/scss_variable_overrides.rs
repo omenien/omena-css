@@ -1,7 +1,8 @@
 use super::super::super::stylesheet_evaluation::canonical_static_scss_variable_name;
-use super::static_scss_identifier_char;
+use super::super::super::stylesheet_evaluation::derive_static_scss_stylesheet_module_configurable_variable_names;
+use super::scss_module_rules::static_scss_identifier_char;
 use omena_syntax::SyntaxKind;
-use std::collections::BTreeMap;
+use std::{borrow::Cow, collections::BTreeMap};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(super) struct StaticScssModuleVariableOverride {
@@ -22,6 +23,34 @@ pub(super) fn parse_static_scss_forward_variable_override_list(
     content: &str,
 ) -> BTreeMap<String, StaticScssModuleVariableOverride> {
     parse_static_scss_variable_override_list(content, true)
+}
+
+pub(super) fn apply_static_scss_module_variable_overrides<'a>(
+    style_source: &'a str,
+    variable_overrides: &BTreeMap<String, String>,
+) -> Cow<'a, str> {
+    if variable_overrides.is_empty() {
+        return Cow::Borrowed(style_source);
+    }
+    let configurable_names =
+        derive_static_scss_stylesheet_module_configurable_variable_names(style_source);
+    if !variable_overrides
+        .keys()
+        .all(|name| configurable_names.contains(name))
+    {
+        return Cow::Borrowed(style_source);
+    }
+
+    let mut source = String::new();
+    for (name, value) in variable_overrides {
+        source.push('$');
+        source.push_str(name);
+        source.push_str(": ");
+        source.push_str(value);
+        source.push_str("; ");
+    }
+    source.push_str(style_source);
+    Cow::Owned(source)
 }
 
 fn parse_static_scss_variable_override_list(
