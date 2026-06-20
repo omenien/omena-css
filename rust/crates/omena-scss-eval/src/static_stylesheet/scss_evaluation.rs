@@ -111,7 +111,15 @@ pub(super) fn derive_static_scss_stylesheet_module_evaluation(
         &control_flow_excluded_ranges,
         control_flow_context,
     )?;
+    if control_flow_edits.preserved_dynamic_branch_count > 0 {
+        return build_static_stylesheet_preserved_evaluation_report_if_explained(
+            style_source,
+            dialect,
+            StaticStylesheetVariableKind::Scss,
+        );
+    }
     let control_flow_ranges = control_flow_edits
+        .edits
         .iter()
         .map(|edit| (edit.start, edit.end))
         .collect::<Vec<_>>();
@@ -191,7 +199,7 @@ pub(super) fn derive_static_scss_stylesheet_module_evaluation(
         preserved_scss_evaluation_count += mixin_edits.preserved_raw_include_count;
         edits.extend(mixin_edits.edits);
     }
-    edits.extend(control_flow_edits);
+    edits.extend(control_flow_edits.edits);
 
     let evaluated_css = apply_static_stylesheet_evaluation_edits(style_source, edits.clone())?;
     if evaluated_css == style_source && preserved_scss_evaluation_count == 0 {

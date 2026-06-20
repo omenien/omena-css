@@ -41,13 +41,17 @@ pub(super) fn collect_static_scss_control_flow_evaluation_edits(
     tokens: &[LexedToken],
     excluded_ranges: &[(usize, usize)],
     context: StaticScssFunctionResolutionContext<'_>,
-) -> Option<Vec<StaticStylesheetEvaluationEdit>> {
+) -> Option<StaticScssControlFlowEvaluationEdits> {
     if dialect != StyleDialect::Scss || !source.to_ascii_lowercase().contains("@if") {
-        return Some(Vec::new());
+        return Some(StaticScssControlFlowEvaluationEdits {
+            edits: Vec::new(),
+            preserved_dynamic_branch_count: 0,
+        });
     }
 
     let argument_values = BTreeMap::new();
     let mut edits = Vec::new();
+    let mut preserved_dynamic_branch_count = 0usize;
     let mut index = 0usize;
     while index < tokens.len() {
         let token = &tokens[index];
@@ -62,13 +66,17 @@ pub(super) fn collect_static_scss_control_flow_evaluation_edits(
         }
 
         let chain = static_scss_mixin_control_flow_chain(source, tokens, index)?;
-        let replacement = static_scss_mixin_selected_control_flow_body(
+        let Some(replacement) = static_scss_mixin_selected_control_flow_body(
             &chain,
             &argument_values,
             chain.start,
             context,
-        )?
-        .unwrap_or_default();
+        ) else {
+            preserved_dynamic_branch_count += 1;
+            index = chain.next_index;
+            continue;
+        };
+        let replacement = replacement.unwrap_or_default();
         let replacement = render_static_scss_mixin_control_flow_body(
             replacement.as_str(),
             dialect,
@@ -77,7 +85,9 @@ pub(super) fn collect_static_scss_control_flow_evaluation_edits(
             context,
         )?;
         if !static_scss_control_flow_replacement_is_static_css_subset(replacement.as_str()) {
-            return None;
+            preserved_dynamic_branch_count += 1;
+            index = chain.next_index;
+            continue;
         }
         edits.push(StaticStylesheetEvaluationEdit {
             start: chain.start,
@@ -87,7 +97,15 @@ pub(super) fn collect_static_scss_control_flow_evaluation_edits(
         index = chain.next_index;
     }
 
-    Some(edits)
+    Some(StaticScssControlFlowEvaluationEdits {
+        edits,
+        preserved_dynamic_branch_count,
+    })
+}
+
+pub(super) struct StaticScssControlFlowEvaluationEdits {
+    pub(super) edits: Vec<StaticStylesheetEvaluationEdit>,
+    pub(super) preserved_dynamic_branch_count: usize,
 }
 
 fn render_static_scss_mixin_control_flow_body_with_fuel(
