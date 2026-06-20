@@ -19,8 +19,8 @@ fn static_stylesheet_oracle_corpus_reports_native_product_output_with_legacy_ora
     );
     assert_eq!(report.legacy_output_consumed_until_cutover_count, 0);
     assert!(report.all_legacy_outputs_retained_as_oracle);
-    assert_eq!(report.fixture_count, 80);
-    assert_eq!(report.scss_fixture_count, 22);
+    assert_eq!(report.fixture_count, 81);
+    assert_eq!(report.scss_fixture_count, 23);
     assert_eq!(report.sass_fixture_count, 12);
     assert_eq!(report.less_fixture_count, 46);
     assert_eq!(report.evaluated_fixture_count, report.fixture_count);
@@ -120,6 +120,16 @@ fn static_stylesheet_oracle_corpus_reports_native_product_output_with_legacy_ora
             && fixture.native_replacement_count == 1
             && fixture.native_replacement_legacy_reflection_count == 1
             && fixture.native_structural_edit_count == 3
+            && fixture.native_edit_output_matches_evaluated_css
+            && fixture.divergence_count == 0
+    }));
+    assert!(report.fixtures.iter().any(|fixture| {
+        fixture.id == "scss.static-top-level-for"
+            && fixture.dialect == "scss"
+            && fixture.evaluation_available
+            && fixture.native_replacement_count == 3
+            && fixture.native_replacement_legacy_reflection_count == 3
+            && fixture.native_structural_edit_count == 1
             && fixture.native_edit_output_matches_evaluated_css
             && fixture.divergence_count == 0
     }));
@@ -4286,6 +4296,32 @@ fn static_scss_evaluation_resolves_static_functions_inside_top_level_if_blocks()
     assert_eq!(report.resolved_replacements[0].text, "red");
     assert_eq!(report.resolved_replacements[0].abstract_value_kind, "exact");
     assert_eq!(report.native_replacement_legacy_reflection_count, 1);
+    assert!(report.oracle.all_legacy_declaration_values_preserved);
+    assert!(report.native_edit_output_matches_evaluated_css);
+}
+
+#[test]
+fn static_scss_evaluation_expands_static_top_level_for_loops() {
+    let report = derive_static_stylesheet_module_evaluation(
+        "@for $i from 1 through 3 { .n { order: $i; } }",
+        StyleDialect::Scss,
+    );
+    assert!(report.is_some());
+    let Some(report) = report else {
+        return;
+    };
+
+    assert!(!report.evaluated_css.contains("@for"));
+    assert!(!report.evaluated_css.contains("$i"));
+    assert!(report.evaluated_css.contains("order: 1"));
+    assert!(report.evaluated_css.contains("order: 2"));
+    assert!(report.evaluated_css.contains("order: 3"));
+    assert_eq!(report.replacement_count, 3);
+    assert_eq!(report.resolved_replacements[0].name, "$i");
+    assert_eq!(report.resolved_replacements[0].text, "1");
+    assert_eq!(report.resolved_replacements[0].abstract_value_kind, "exact");
+    assert_eq!(report.native_replacement_legacy_reflection_count, 3);
+    assert_eq!(report.native_structural_edit_count, 1);
     assert!(report.oracle.all_legacy_declaration_values_preserved);
     assert!(report.native_edit_output_matches_evaluated_css);
 }

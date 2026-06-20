@@ -40,6 +40,7 @@ mod scss_evaluation;
 mod scss_exports;
 mod scss_function_edits;
 mod scss_function_locals;
+mod scss_loop_control_flow;
 mod scss_loop_returns;
 mod scss_mixin_body;
 mod scss_mixin_control_flow;

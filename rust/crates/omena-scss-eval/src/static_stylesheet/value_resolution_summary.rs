@@ -39,6 +39,7 @@ use super::{
         collect_static_scss_function_declarations, collect_static_scss_mixin_declarations,
     },
     scss_function_edits::collect_static_scss_function_value_resolution_values,
+    scss_loop_control_flow::collect_static_scss_loop_candidate_ranges,
     scss_variables::resolve_static_scss_variable_abstract_value_at_position,
     tokens::{
         parser_text_size_to_usize, static_stylesheet_position_is_inside_ranges,
@@ -68,6 +69,14 @@ pub(super) fn summarize_static_scss_value_resolution_values(
         static_scss_function_declaration_ranges_from_declarations(function_declarations.as_slice());
     let mixin_declaration_ranges =
         static_scss_mixin_declaration_ranges_from_declarations(mixin_declarations.as_slice());
+    let mut loop_excluded_ranges = function_declaration_ranges.clone();
+    loop_excluded_ranges.extend(mixin_declaration_ranges.iter().copied());
+    let loop_candidate_ranges = collect_static_scss_loop_candidate_ranges(
+        style_source,
+        dialect,
+        tokens,
+        &loop_excluded_ranges,
+    );
     let mut values = Vec::new();
     for fact in variable_facts {
         if fact.kind != ParsedVariableFactKind::ScssReference {
@@ -87,6 +96,7 @@ pub(super) fn summarize_static_scss_value_resolution_values(
                 reference_start,
                 &mixin_declaration_ranges,
             )
+            || static_stylesheet_position_is_inside_ranges(reference_start, &loop_candidate_ranges)
         {
             continue;
         }

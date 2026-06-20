@@ -26,6 +26,9 @@ use super::{
         collect_static_scss_function_declarations, collect_static_scss_mixin_declarations,
     },
     scss_function_edits::collect_static_scss_function_evaluation_edits,
+    scss_loop_control_flow::{
+        collect_static_scss_loop_candidate_ranges, collect_static_scss_loop_evaluation_edits,
+    },
     scss_mixin_control_flow::collect_static_scss_control_flow_evaluation_edits,
     scss_mixin_edits::collect_static_scss_mixin_evaluation_edits,
     scss_variables::resolve_static_scss_variable_value_at_position,
@@ -43,11 +46,13 @@ pub(super) fn derive_static_scss_stylesheet_module_evaluation(
     let function_declarations =
         collect_static_scss_function_declarations(style_source, dialect, tokens)?;
     let mixin_declarations = collect_static_scss_mixin_declarations(style_source, dialect, tokens)?;
+    let source_has_static_loop_candidate = style_source.to_ascii_lowercase().contains("@for");
     if !variable_facts
         .iter()
         .any(|fact| fact.kind == ParsedVariableFactKind::ScssDeclaration)
         && function_declarations.is_empty()
         && mixin_declarations.is_empty()
+        && !source_has_static_loop_candidate
     {
         return None;
     }
@@ -56,6 +61,14 @@ pub(super) fn derive_static_scss_stylesheet_module_evaluation(
         static_scss_function_declaration_ranges_from_declarations(function_declarations.as_slice());
     let mixin_declaration_ranges =
         static_scss_mixin_declaration_ranges_from_declarations(mixin_declarations.as_slice());
+    let mut loop_declaration_excluded_ranges = function_declaration_ranges.clone();
+    loop_declaration_excluded_ranges.extend(mixin_declaration_ranges.iter().copied());
+    let loop_candidate_ranges = collect_static_scss_loop_candidate_ranges(
+        style_source,
+        dialect,
+        tokens,
+        &loop_declaration_excluded_ranges,
+    );
     let function_call_ranges =
         collect_static_scss_function_calls(style_source, tokens, function_declarations.as_slice())
             .map(|calls| {
@@ -75,6 +88,9 @@ pub(super) fn derive_static_scss_stylesheet_module_evaluation(
                 ) && !static_stylesheet_position_is_inside_ranges(
                     declaration.declaration.span_start,
                     &mixin_declaration_ranges,
+                ) && !static_stylesheet_position_is_inside_ranges(
+                    declaration.declaration.span_start,
+                    &loop_candidate_ranges,
                 ) && !static_stylesheet_position_is_inside_ranges(
                     declaration.declaration.span_start,
                     &function_call_ranges,
@@ -118,11 +134,28 @@ pub(super) fn derive_static_scss_stylesheet_module_evaluation(
             StaticStylesheetVariableKind::Scss,
         );
     }
-    let control_flow_ranges = control_flow_edits
+    let mut control_flow_ranges = control_flow_edits
         .edits
         .iter()
         .map(|edit| (edit.start, edit.end))
         .collect::<Vec<_>>();
+    let mut loop_excluded_ranges = control_flow_excluded_ranges.clone();
+    loop_excluded_ranges.extend(control_flow_ranges.iter().copied());
+    let loop_edits = collect_static_scss_loop_evaluation_edits(
+        style_source,
+        dialect,
+        tokens,
+        &loop_excluded_ranges,
+        control_flow_context,
+    )?;
+    if loop_edits.preserved_dynamic_loop_count > 0 {
+        return build_static_stylesheet_preserved_evaluation_report_if_explained(
+            style_source,
+            dialect,
+            StaticStylesheetVariableKind::Scss,
+        );
+    }
+    control_flow_ranges.extend(loop_edits.edits.iter().map(|edit| (edit.start, edit.end)));
     for fact in variable_facts {
         if fact.kind != ParsedVariableFactKind::ScssReference {
             continue;
@@ -200,7 +233,9 @@ pub(super) fn derive_static_scss_stylesheet_module_evaluation(
         edits.extend(mixin_edits.edits);
     }
     resolved_replacements.extend(control_flow_edits.replacements);
+    resolved_replacements.extend(loop_edits.replacements);
     edits.extend(control_flow_edits.edits);
+    edits.extend(loop_edits.edits);
 
     let evaluated_css = apply_static_stylesheet_evaluation_edits(style_source, edits.clone())?;
     if evaluated_css == style_source && preserved_scss_evaluation_count == 0 {
