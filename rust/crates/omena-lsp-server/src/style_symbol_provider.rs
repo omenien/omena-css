@@ -17,6 +17,8 @@ use crate::workspace_occurrences::{
     source_selector_occurrence_index_from_open_documents,
     workspace_occurrence_indexes_from_documents,
 };
+use omena_query::{StyleLanguage, summarize_omena_query_sass_module_sources};
+use std::collections::BTreeMap;
 
 pub(crate) fn selector_reference_locations_from_open_documents(
     state: &LspShellState,

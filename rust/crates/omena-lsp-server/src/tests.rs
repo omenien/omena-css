@@ -1,4 +1,5 @@
 use super::*;
+use std::path::Path;
 
 #[path = "tests/code_actions.rs"]
 mod code_actions;

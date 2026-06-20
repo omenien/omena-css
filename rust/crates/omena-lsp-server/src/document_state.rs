@@ -4,7 +4,7 @@ use omena_query::{
 use omena_sif::compute_omena_sif_leaf_hash_v1;
 
 use crate::{
-    LspDocumentOrigin, LspTextDocumentState, is_foreign_style_document_uri,
+    LspDocumentOrigin, LspTextDocumentState, foreign_style_identity::is_foreign_style_document_uri,
     query_reuse::refresh_document_reusable_indexes,
     source_syntax_index::source_selector_candidates_from_index,
 };
