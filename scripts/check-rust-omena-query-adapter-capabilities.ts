@@ -826,6 +826,7 @@ function assertStaticStylesheetEvaluatorOracleCorpus(
     "sass.static-hyphen-underscore-named-argument",
     "sass.static-named-mixin-arguments",
     "sass.static-named-mixin-default-tail",
+    "sass.static-mixin-default-argument-prior-parameter",
     "sass.static-hyphen-underscore-mixin-include",
     "scss.static-map-list-builtins",
     "scss.static-default-function-arguments",
@@ -836,6 +837,7 @@ function assertStaticStylesheetEvaluatorOracleCorpus(
     "scss.static-hyphen-underscore-named-argument",
     "scss.static-named-mixin-arguments",
     "scss.static-named-mixin-default-tail",
+    "scss.static-mixin-default-argument-prior-parameter",
     "scss.static-hyphen-underscore-mixin-include",
     "scss.indirect-recursive-function-return",
     "less.variable-basic",
@@ -989,9 +991,11 @@ function assertScssEvaluatorControlFlowOracleCorpus(
   for (const id of [
     "scss.static-named-mixin-arguments",
     "scss.static-named-mixin-default-tail",
+    "scss.static-mixin-default-argument-prior-parameter",
     "scss.static-hyphen-underscore-mixin-include",
     "sass.static-named-mixin-arguments",
     "sass.static-named-mixin-default-tail",
+    "sass.static-mixin-default-argument-prior-parameter",
     "sass.static-hyphen-underscore-mixin-include",
   ]) {
     assertControlFlowFixture(fixtures, id, (fixture) => {

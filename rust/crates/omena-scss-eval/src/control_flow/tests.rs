@@ -3815,6 +3815,37 @@ fn call_return_ir_resolves_hyphen_underscore_equivalent_mixin_edges() {
 }
 
 #[test]
+fn call_return_ir_reports_mixin_default_arguments_from_prior_parameters() {
+    let source = "@mixin tone($color, $border: $color) { color: $color; border-color: $border; } .a { @include tone(blue); }";
+    let report = summarize_scss_call_return_ir(source, StyleDialect::Scss);
+    assert!(report.is_some());
+    let Some(report) = report else {
+        return;
+    };
+
+    let declaration = report
+        .nodes
+        .iter()
+        .find(|node| node.kind == "mixinDeclaration" && node.name.as_deref() == Some("tone"));
+    assert!(declaration.is_some());
+    let Some(declaration) = declaration else {
+        return;
+    };
+    assert_eq!(declaration.parameter_values.len(), 2);
+    assert_eq!(
+        declaration.parameter_values[1]
+            .default_value_text
+            .as_deref(),
+        Some("$color")
+    );
+    assert_eq!(report.declaration_node_count, 1);
+    assert_eq!(report.call_node_count, 1);
+    assert!(report.edges.iter().any(|edge| {
+        edge.kind == "mixinCall" && !edge.recursive && !edge.capped_by_recursion_cap
+    }));
+}
+
+#[test]
 fn call_return_ir_does_not_build_flat_css_cfg() {
     assert!(summarize_scss_call_return_ir(".button { color: red; }", StyleDialect::Css).is_none());
 }
