@@ -46,10 +46,11 @@ use super::{
         static_stylesheet_scope_for_position,
     },
     static_less_variable_name_is_safe, static_stylesheet_property_name_is_safe,
+    static_stylesheet_selector_name_part_is_safe,
     tokens::{
         parser_text_size_to_usize, static_stylesheet_position_is_inside_ranges,
         static_stylesheet_skip_trivia_tokens, static_stylesheet_token_end,
-        static_stylesheet_token_start,
+        static_stylesheet_token_is_trivia, static_stylesheet_token_start,
     },
     variable_references::static_stylesheet_variable_reference_is_named_argument_label,
 };
@@ -91,7 +92,7 @@ pub(super) fn derive_static_less_stylesheet_module_evaluation(
     )?;
     let property_declarations =
         collect_static_less_property_declarations(style_source, tokens, &scopes)?;
-    let interpolation_edits = collect_static_less_property_name_interpolation_edits(
+    let interpolation_edits = collect_static_less_interpolation_edits(
         tokens,
         &scopes,
         &declarations,
@@ -305,7 +306,7 @@ pub(super) fn derive_static_less_stylesheet_module_evaluation(
     )
 }
 
-fn collect_static_less_property_name_interpolation_edits(
+fn collect_static_less_interpolation_edits(
     tokens: &[LexedToken],
     scopes: &[StaticStylesheetScope],
     declarations: &BTreeMap<(usize, String), StaticStylesheetVariableDeclaration>,
@@ -324,13 +325,12 @@ fn collect_static_less_property_name_interpolation_edits(
         let interpolation_start = static_stylesheet_token_start(&tokens[index]);
         let ident_index = index + 1;
         let end_index = index + 2;
-        let supported_property_name_position = tokens
+        let supported_interpolation_shape = tokens
             .get(ident_index)
             .is_some_and(|token| token.kind == SyntaxKind::Ident)
             && tokens
                 .get(end_index)
                 .is_some_and(|token| token.kind == SyntaxKind::LessInterpolationEnd)
-            && static_less_interpolation_is_declaration_property_name(tokens, index)
             && !static_stylesheet_position_is_inside_ranges(
                 interpolation_start,
                 mixin_declaration_ranges,
@@ -339,11 +339,14 @@ fn collect_static_less_property_name_interpolation_edits(
                 interpolation_start,
                 detached_ruleset_ranges,
             );
-        if !supported_property_name_position {
+        if !supported_interpolation_shape {
             return None;
         }
+        let interpolation_kind = static_less_interpolation_kind(tokens, index)?;
         let reference_scope_id = static_stylesheet_scope_for_position(scopes, interpolation_start)?;
-        if reference_scope_id == 0 {
+        if interpolation_kind == StaticLessInterpolationKind::DeclarationPropertyName
+            && reference_scope_id == 0
+        {
             return None;
         }
         let variable_name = format!("@{}", tokens[ident_index].text);
@@ -360,8 +363,7 @@ fn collect_static_less_property_name_interpolation_edits(
             detached_ruleset_declarations,
             &mut stack,
         )?;
-        if replacement.escaped
-            || !static_stylesheet_property_name_is_safe(replacement.text.as_str())
+        if replacement.escaped || !interpolation_kind.replacement_is_safe(replacement.text.as_str())
         {
             return None;
         }
@@ -373,6 +375,32 @@ fn collect_static_less_property_name_interpolation_edits(
         index = end_index + 1;
     }
     Some(edits)
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum StaticLessInterpolationKind {
+    DeclarationPropertyName,
+    SelectorNamePart,
+}
+
+impl StaticLessInterpolationKind {
+    fn replacement_is_safe(self, replacement: &str) -> bool {
+        match self {
+            Self::DeclarationPropertyName => static_stylesheet_property_name_is_safe(replacement),
+            Self::SelectorNamePart => static_stylesheet_selector_name_part_is_safe(replacement),
+        }
+    }
+}
+
+fn static_less_interpolation_kind(
+    tokens: &[LexedToken],
+    interpolation_start_index: usize,
+) -> Option<StaticLessInterpolationKind> {
+    if static_less_interpolation_is_declaration_property_name(tokens, interpolation_start_index) {
+        return Some(StaticLessInterpolationKind::DeclarationPropertyName);
+    }
+    static_less_interpolation_is_selector_name_part(tokens, interpolation_start_index)
+        .then_some(StaticLessInterpolationKind::SelectorNamePart)
 }
 
 fn static_less_interpolation_is_declaration_property_name(
@@ -387,4 +415,53 @@ fn static_less_interpolation_is_declaration_property_name(
     tokens
         .get(colon_index)
         .is_some_and(|token| token.kind == SyntaxKind::Colon)
+}
+
+fn static_less_interpolation_is_selector_name_part(
+    tokens: &[LexedToken],
+    interpolation_start_index: usize,
+) -> bool {
+    matches!(
+        static_less_previous_non_trivia_token_kind(tokens, interpolation_start_index),
+        Some(SyntaxKind::Dot | SyntaxKind::Hash)
+    ) && static_less_interpolation_is_in_selector_header(tokens, interpolation_start_index)
+}
+
+fn static_less_previous_non_trivia_token_kind(
+    tokens: &[LexedToken],
+    index: usize,
+) -> Option<SyntaxKind> {
+    tokens[..index]
+        .iter()
+        .rev()
+        .find(|token| !static_stylesheet_token_is_trivia(token.kind))
+        .map(|token| token.kind)
+}
+
+fn static_less_interpolation_is_in_selector_header(
+    tokens: &[LexedToken],
+    interpolation_start_index: usize,
+) -> bool {
+    let mut index = interpolation_start_index;
+    while index > 0 {
+        index -= 1;
+        match tokens[index].kind {
+            kind if static_stylesheet_token_is_trivia(kind) => {}
+            SyntaxKind::Colon | SyntaxKind::AtKeyword => return false,
+            SyntaxKind::Semicolon | SyntaxKind::RightBrace | SyntaxKind::LeftBrace => break,
+            _ => {}
+        }
+    }
+
+    let mut index = interpolation_start_index + 1;
+    while index < tokens.len() {
+        match tokens[index].kind {
+            kind if static_stylesheet_token_is_trivia(kind) => {}
+            SyntaxKind::LeftBrace => return true,
+            SyntaxKind::Semicolon | SyntaxKind::RightBrace => return false,
+            _ => {}
+        }
+        index += 1;
+    }
+    false
 }

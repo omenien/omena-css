@@ -21,6 +21,10 @@ pub(super) fn static_stylesheet_property_name_is_safe(name: &str) -> bool {
             .all(|ch| ch.is_ascii_alphanumeric() || matches!(ch, '_' | '-'))
 }
 
+pub(super) fn static_stylesheet_selector_name_part_is_safe(name: &str) -> bool {
+    static_stylesheet_property_name_is_safe(name)
+}
+
 pub(super) fn static_stylesheet_property_value_is_removal_safe(value: &str) -> bool {
     !value.chars().any(|ch| matches!(ch, '{' | '}' | ';' | '!'))
 }

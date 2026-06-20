@@ -104,7 +104,7 @@ use safety::{
     static_stylesheet_composite_value_is_safe,
     static_stylesheet_less_declaration_value_is_removal_safe,
     static_stylesheet_literal_value_is_safe, static_stylesheet_property_name_is_safe,
-    static_stylesheet_variable_name_is_safe,
+    static_stylesheet_selector_name_part_is_safe, static_stylesheet_variable_name_is_safe,
 };
 use scopes::{collect_static_stylesheet_scopes, static_stylesheet_scope_for_position};
 use scss_argument_binding::{

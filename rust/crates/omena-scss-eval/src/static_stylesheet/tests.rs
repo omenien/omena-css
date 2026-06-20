@@ -496,9 +496,30 @@ fn static_less_evaluation_expands_property_name_interpolation() {
 }
 
 #[test]
-fn static_less_evaluation_rejects_unsupported_selector_interpolation_without_partial_mutation() {
+fn static_less_evaluation_expands_simple_selector_interpolation() {
     let report = derive_static_stylesheet_module_evaluation(
         "@name: button; .@{name} { color: red; }",
+        StyleDialect::Less,
+    );
+    assert!(report.is_some());
+    let Some(report) = report else {
+        return;
+    };
+
+    assert!(!report.evaluated_css.contains("@name:"));
+    assert!(!report.evaluated_css.contains("@{name}"));
+    assert!(report.evaluated_css.contains(".button"));
+    assert_eq!(report.replacement_count, 0);
+    assert_eq!(report.native_edit_count, 2);
+    assert_eq!(report.native_structural_edit_count, 2);
+    assert!(report.oracle.all_legacy_declaration_values_preserved);
+    assert!(report.native_edit_output_matches_evaluated_css);
+}
+
+#[test]
+fn static_less_evaluation_rejects_chained_selector_interpolation_without_partial_mutation() {
+    let report = derive_static_stylesheet_module_evaluation(
+        "@prefix: button; @suffix: primary; .@{prefix}-@{suffix} { color: red; }",
         StyleDialect::Less,
     );
 
