@@ -593,6 +593,11 @@ fn scss_control_flow_oracle_corpus_fixtures() -> &'static [ScssControlFlowOracle
             source: "@mixin apply($color, $gap)\n  @content($color, $gap + 1px)\n.button\n  @include apply(red, 1px) using ($tone, $space)\n    color: $tone\n    margin: $space",
         },
         ScssControlFlowOracleCorpusFixtureV0 {
+            id: "sass.static-mixin-content-nested-include",
+            dialect: StyleDialect::Sass,
+            source: "@mixin spacing($gap)\n  margin: $gap\n@mixin apply($gap)\n  @content($gap)\n  color: blue\n.button\n  @include apply(2px) using ($space)\n    @include spacing($space)\n    background: white",
+        },
+        ScssControlFlowOracleCorpusFixtureV0 {
             id: "sass.static-hyphen-underscore-mixin-include",
             dialect: StyleDialect::Sass,
             source: "@mixin tone_color($color)\n  color: $color\n.button\n  @include tone-color(green)",
@@ -619,10 +624,10 @@ mod tests {
         assert_eq!(report.value_type, "AbstractCssValueV0");
         assert_eq!(report.node_key_type, "StableNodeKeyV0");
         assert_eq!(report.recursion_cap, SCSS_CALL_RETURN_RECURSION_LIMIT);
-        assert_eq!(report.fixture_count, 66);
+        assert_eq!(report.fixture_count, 67);
         assert_eq!(report.scss_fixture_count, 33);
-        assert_eq!(report.sass_fixture_count, 32);
-        assert_eq!(report.supported_fixture_count, 65);
+        assert_eq!(report.sass_fixture_count, 33);
+        assert_eq!(report.supported_fixture_count, 66);
         assert_eq!(report.rejected_flat_css_fixture_count, 1);
         assert!(report.branch_fixture_count >= 5);
         assert!(report.loop_fixture_count >= 6);
@@ -853,6 +858,12 @@ mod tests {
         }
         assert!(report.fixtures.iter().any(|fixture| {
             fixture.id == "scss.static-mixin-content-nested-include"
+                && fixture.call_return_available
+                && fixture.call_return_edge_count == 2
+                && fixture.value_analysis_converged
+        }));
+        assert!(report.fixtures.iter().any(|fixture| {
+            fixture.id == "sass.static-mixin-content-nested-include"
                 && fixture.call_return_available
                 && fixture.call_return_edge_count == 2
                 && fixture.value_analysis_converged

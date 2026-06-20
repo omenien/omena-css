@@ -120,6 +120,7 @@ use scss_callable_dependencies::{
 };
 use scss_calls::{
     collect_static_scss_function_calls, collect_static_scss_mixin_include_calls,
+    collect_static_scss_mixin_include_calls_without_sass_content_blocks,
     static_scss_function_call_is_inside_declaration_body,
     static_scss_function_call_is_inside_mixin_declaration_body,
     static_scss_mixin_include_is_inside_declaration_body,
@@ -548,14 +549,15 @@ fn render_static_scss_mixin_content_body(
         if token.kind != SyntaxKind::AtKeyword || !token.text.eq_ignore_ascii_case("@content") {
             continue;
         }
-        let (content_arguments, terminator_index) = collect_static_scss_content_arguments(
-            body,
-            tokens,
-            index,
-            argument_values,
-            call_position,
-            context,
-        )?;
+        let (content_arguments, terminator_index, content_call_end) =
+            collect_static_scss_content_arguments(
+                body,
+                tokens,
+                index,
+                argument_values,
+                call_position,
+                context,
+            )?;
         let content_argument_bindings =
             bind_static_scss_content_arguments(content_parameters, content_arguments.as_slice())?;
         let rendered_content_body =
@@ -568,7 +570,7 @@ fn render_static_scss_mixin_content_body(
                 }
                 // Sass mixin body slices start after the block indent, so a following
                 // same-block declaration can appear as a relative SassIndent.
-                SyntaxKind::SassIndent => static_stylesheet_token_end(token),
+                SyntaxKind::SassIndent => content_call_end,
                 _ => return None,
             },
             _ if terminator.kind == SyntaxKind::Semicolon => {
@@ -592,13 +594,17 @@ fn collect_static_scss_content_arguments(
     argument_values: &BTreeMap<String, String>,
     call_position: usize,
     context: StaticScssFunctionResolutionContext<'_>,
-) -> Option<(Vec<String>, usize)> {
+) -> Option<(Vec<String>, usize, usize)> {
     let after_content_index = static_stylesheet_skip_trivia_tokens(tokens, content_token_index + 1);
     if tokens
         .get(after_content_index)
         .is_none_or(|token| token.kind != SyntaxKind::LeftParen)
     {
-        return Some((Vec::new(), after_content_index));
+        return Some((
+            Vec::new(),
+            after_content_index,
+            static_stylesheet_token_end(&tokens[content_token_index]),
+        ));
     }
     let close_index = static_stylesheet_matching_token_index(
         tokens,
@@ -631,6 +637,7 @@ fn collect_static_scss_content_arguments(
     Some((
         rendered_arguments,
         static_stylesheet_skip_trivia_tokens(tokens, close_index + 1),
+        static_stylesheet_token_end(&tokens[close_index]),
     ))
 }
 
@@ -689,7 +696,6 @@ fn static_scss_content_block_is_static_declaration_subset(
     !has_nested_sass_block
         && !content_body.chars().any(|ch| matches!(ch, '{' | '}'))
         && !lower.contains("@content")
-        && (dialect != StyleDialect::Sass || !lower.contains("@include"))
         && !lower.contains("@mixin")
         && !lower.contains("@function")
         && !lower.contains("@return")
@@ -803,7 +809,7 @@ fn render_static_scss_mixin_body_nested_includes(
     active_mixins: &mut BTreeSet<String>,
 ) -> Option<StaticScssMixinRenderResult> {
     let body_lexed = lex(body, dialect);
-    let calls = collect_static_scss_mixin_include_calls(
+    let calls = collect_static_scss_mixin_include_calls_without_sass_content_blocks(
         body,
         dialect,
         body_lexed.tokens(),

@@ -832,6 +832,7 @@ function assertStaticStylesheetEvaluatorOracleCorpus(
     "sass.static-mixin-content-block",
     "sass.static-mixin-content-arguments",
     "sass.static-mixin-content-expression-arguments",
+    "sass.static-mixin-content-nested-include",
     "sass.static-hyphen-underscore-mixin-include",
     "scss.static-map-list-builtins",
     "scss.static-default-function-arguments",
@@ -1025,6 +1026,11 @@ function assertScssEvaluatorControlFlowOracleCorpus(
     });
   }
   assertControlFlowFixture(fixtures, "scss.static-mixin-content-nested-include", (fixture) => {
+    assert.equal(fixture.callReturnAvailable, true);
+    assert.equal(fixture.callReturnEdgeCount, 2);
+    assert.equal(fixture.valueAnalysisConverged, true);
+  });
+  assertControlFlowFixture(fixtures, "sass.static-mixin-content-nested-include", (fixture) => {
     assert.equal(fixture.callReturnAvailable, true);
     assert.equal(fixture.callReturnEdgeCount, 2);
     assert.equal(fixture.valueAnalysisConverged, true);

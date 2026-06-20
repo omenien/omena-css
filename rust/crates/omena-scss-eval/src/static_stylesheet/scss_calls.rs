@@ -66,6 +66,37 @@ pub(super) fn collect_static_scss_mixin_include_calls(
     tokens: &[LexedToken],
     declarations: &[StaticScssMixinDeclaration],
 ) -> Option<Vec<StaticScssMixinIncludeCall>> {
+    collect_static_scss_mixin_include_calls_with_options(
+        source,
+        dialect,
+        tokens,
+        declarations,
+        true,
+    )
+}
+
+pub(super) fn collect_static_scss_mixin_include_calls_without_sass_content_blocks(
+    source: &str,
+    dialect: StyleDialect,
+    tokens: &[LexedToken],
+    declarations: &[StaticScssMixinDeclaration],
+) -> Option<Vec<StaticScssMixinIncludeCall>> {
+    collect_static_scss_mixin_include_calls_with_options(
+        source,
+        dialect,
+        tokens,
+        declarations,
+        false,
+    )
+}
+
+fn collect_static_scss_mixin_include_calls_with_options(
+    source: &str,
+    dialect: StyleDialect,
+    tokens: &[LexedToken],
+    declarations: &[StaticScssMixinDeclaration],
+    allow_sass_content_blocks: bool,
+) -> Option<Vec<StaticScssMixinIncludeCall>> {
     let declaration_names = declarations
         .iter()
         .map(|declaration| canonical_static_scss_function_name(declaration.name.as_str()))
@@ -149,9 +180,11 @@ pub(super) fn collect_static_scss_mixin_include_calls(
             StyleDialect::Sass => (SyntaxKind::SassIndent, SyntaxKind::SassDedent),
             _ => (SyntaxKind::LeftBrace, SyntaxKind::RightBrace),
         };
-        if tokens
-            .get(after_using_index)
-            .is_some_and(|token| token.kind == content_block_kinds.0)
+        let can_collect_content_block = dialect != StyleDialect::Sass || allow_sass_content_blocks;
+        if can_collect_content_block
+            && tokens
+                .get(after_using_index)
+                .is_some_and(|token| token.kind == content_block_kinds.0)
         {
             let close_index = static_stylesheet_matching_token_index(
                 tokens,
@@ -178,10 +211,12 @@ pub(super) fn collect_static_scss_mixin_include_calls(
         }
         let end_token = tokens.get(after_using_index)?;
         let valid_terminator = match dialect {
-            StyleDialect::Sass => matches!(
-                end_token.kind,
-                SyntaxKind::SassOptionalSemicolon | SyntaxKind::SassDedent
-            ),
+            StyleDialect::Sass => {
+                matches!(
+                    end_token.kind,
+                    SyntaxKind::SassOptionalSemicolon | SyntaxKind::SassDedent
+                ) || (!allow_sass_content_blocks && end_token.kind == SyntaxKind::SassIndent)
+            }
             _ => end_token.kind == SyntaxKind::Semicolon,
         };
         if !valid_terminator {
