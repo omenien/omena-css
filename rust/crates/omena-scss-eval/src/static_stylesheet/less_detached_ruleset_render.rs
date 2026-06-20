@@ -3,18 +3,18 @@ use std::collections::{BTreeMap, BTreeSet};
 use omena_parser::{StyleDialect, lex};
 
 use super::{
-    StaticLessBodyPropertyValueOutcome, StaticLessDetachedRulesetAccessorRenderOutcome,
-    StaticLessDetachedRulesetCallRenderOutcome, StaticLessDetachedRulesetDeclaration,
-    StaticLessMixinDeclaration, StaticLessMixinRenderContext, StaticLessMixinRenderResult,
-    StaticStylesheetPropertyDeclaration, StaticStylesheetScope,
-    StaticStylesheetVariableDeclaration,
+    StaticLessDetachedRulesetAccessorRenderOutcome, StaticLessDetachedRulesetCallRenderOutcome,
+    StaticLessDetachedRulesetDeclaration, StaticLessMixinDeclaration, StaticLessMixinRenderContext,
+    StaticLessMixinRenderResult, StaticStylesheetPropertyDeclaration, StaticStylesheetScope,
+    StaticStylesheetVariableDeclaration, collect_static_less_body_property_declarations,
+    collect_static_stylesheet_scopes, find_static_less_property_declaration,
     less_detached_rulesets::collect_static_less_detached_ruleset_calls,
     less_mixin_render::{
         render_static_less_mixin_body_nested_calls, render_static_less_mixin_body_variables,
     },
     less_mixin_values::{
-        resolve_static_less_mixin_body_declaration_values, static_less_body_property_value,
-        static_less_mixin_body_scoped_values,
+        resolve_static_less_mixin_body_declaration_values,
+        resolve_static_less_mixin_value_with_bindings, static_less_mixin_body_scoped_values,
     },
     less_mixins::collect_static_less_mixin_calls,
     static_less_mixin_body_is_static_declaration_subset, static_less_variable_name_is_safe,
@@ -132,14 +132,54 @@ pub(super) fn render_static_less_detached_ruleset_accessor(
         });
     }
     Some(
-        match static_less_body_property_value(body, member, &scoped_values, call_scope_id, context)?
-        {
-            StaticLessBodyPropertyValueOutcome::Resolved(value) => {
-                StaticLessDetachedRulesetAccessorRenderOutcome::Rendered(value)
-            }
-            StaticLessBodyPropertyValueOutcome::MemberNotFound => {
-                StaticLessDetachedRulesetAccessorRenderOutcome::PreservedRaw
-            }
+        match resolve_static_less_detached_ruleset_accessor_property_value(
+            body,
+            body_lexed.tokens(),
+            member,
+            &scoped_values,
+            call_scope_id,
+            context,
+        )? {
+            Some(value) => StaticLessDetachedRulesetAccessorRenderOutcome::Rendered(value),
+            None => StaticLessDetachedRulesetAccessorRenderOutcome::PreservedRaw,
         },
     )
+}
+
+fn resolve_static_less_detached_ruleset_accessor_property_value(
+    body: &str,
+    body_tokens: &[omena_parser::LexedToken],
+    member: &str,
+    scoped_values: &BTreeMap<String, String>,
+    call_scope_id: usize,
+    context: StaticLessMixinRenderContext<'_>,
+) -> Option<Option<String>> {
+    let Some(body_scopes) = collect_static_stylesheet_scopes(body) else {
+        return Some(None);
+    };
+    let Some(property_declarations) =
+        collect_static_less_body_property_declarations(body, body_tokens, &body_scopes)
+    else {
+        return Some(None);
+    };
+    let member_name = format!("${member}");
+    let Some(declaration) = find_static_less_property_declaration(
+        member_name.as_str(),
+        0,
+        &body_scopes,
+        &property_declarations,
+    ) else {
+        return Some(None);
+    };
+    Some(resolve_static_less_mixin_value_with_bindings(
+        declaration.value.as_str(),
+        scoped_values,
+        context.captured_values,
+        call_scope_id,
+        context.scopes,
+        context.variable_declarations,
+        context.property_declarations,
+        None,
+        context.detached_ruleset_declarations,
+    ))
 }

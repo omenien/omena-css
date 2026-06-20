@@ -742,6 +742,28 @@ fn static_less_evaluation_expands_detached_ruleset_calls() {
 }
 
 #[test]
+fn static_less_evaluation_expands_detached_ruleset_body_property_variables() {
+    let report = derive_static_stylesheet_module_evaluation(
+        "@gap: 3px; @rules: { margin: @gap; padding: $margin; gap: $padding; }; .button { @rules(); }",
+        StyleDialect::Less,
+    );
+    assert!(report.is_some());
+    let Some(report) = report else {
+        return;
+    };
+
+    assert!(!report.evaluated_css.contains("@rules:"));
+    assert!(!report.evaluated_css.contains("@rules();"));
+    assert!(!report.evaluated_css.contains("$margin"));
+    assert!(!report.evaluated_css.contains("$padding"));
+    assert!(report.evaluated_css.contains("margin: 3px"));
+    assert!(report.evaluated_css.contains("padding: 3px"));
+    assert!(report.evaluated_css.contains("gap: 3px"));
+    assert!(report.oracle.all_legacy_declaration_values_preserved);
+    assert!(report.native_edit_output_matches_evaluated_css);
+}
+
+#[test]
 fn static_less_evaluation_expands_ruleset_guarded_mixin_arguments() {
     let report = derive_static_stylesheet_module_evaluation(
         ".apply(@block) when (isruleset(@block)) { @block(); } @rules: { color: red; margin: 1px; }; .button { .apply(@rules); }",
@@ -799,6 +821,44 @@ fn static_less_evaluation_expands_detached_ruleset_accessors() {
     assert!(report.evaluated_css.contains("color: red"));
     assert!(report.evaluated_css.contains("margin: 2px"));
     assert!(report.oracle.all_legacy_declaration_values_preserved);
+}
+
+#[test]
+fn static_less_evaluation_resolves_detached_ruleset_accessor_properties_from_call_scope() {
+    let report = derive_static_stylesheet_module_evaluation(
+        "@tokens: { @gap: 2px; padding: @gap; gap: $padding; }; .button { padding: 4px; inset: @tokens[gap]; }",
+        StyleDialect::Less,
+    );
+    assert!(report.is_some());
+    let Some(report) = report else {
+        return;
+    };
+
+    assert!(!report.evaluated_css.contains("@tokens:"));
+    assert!(!report.evaluated_css.contains("@tokens[gap]"));
+    assert!(report.evaluated_css.contains("padding: 4px"));
+    assert!(report.evaluated_css.contains("inset: 4px"));
+    assert!(!report.evaluated_css.contains("inset: 2px"));
+    assert!(report.oracle.all_legacy_declaration_values_preserved);
+    assert!(report.native_edit_output_matches_evaluated_css);
+}
+
+#[test]
+fn static_less_evaluation_preserves_detached_ruleset_accessor_missing_property_scope_as_raw() {
+    let source = "@tokens: { margin: 2px; padding: $margin; }; .button { gap: @tokens[padding]; }";
+    let report = derive_static_stylesheet_module_evaluation(source, StyleDialect::Less);
+    assert!(report.is_some());
+    let Some(report) = report else {
+        return;
+    };
+
+    assert_eq!(report.evaluated_css, source);
+    assert!(report.evaluated_css.contains("@tokens[padding]"));
+    assert!(report.evaluated_css.contains("$margin"));
+    assert_eq!(report.replacement_count, 0);
+    assert_eq!(report.native_edit_count, 0);
+    assert!(report.oracle.all_legacy_declaration_values_preserved);
+    assert!(report.native_edit_output_matches_evaluated_css);
 }
 
 #[test]

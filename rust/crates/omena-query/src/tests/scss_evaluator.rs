@@ -3434,6 +3434,56 @@ fn exposes_less_unknown_detached_ruleset_accessor_members_as_preserved_oracle_ou
 }
 
 #[test]
+fn exposes_less_detached_ruleset_accessor_property_scope_through_query_boundary() {
+    let summary = summarize_omena_query_static_stylesheet_evaluator_from_source(
+        "@tokens: { @gap: 2px; padding: @gap; gap: $padding; }; .button { padding: 4px; inset: @tokens[gap]; }",
+        OmenaParserStyleDialect::Less,
+    );
+
+    assert_eq!(summary.product, "omena-query.static-stylesheet-evaluator");
+    assert_eq!(summary.mode, "oracleOnly");
+    assert_eq!(summary.dialect, "less");
+    assert_eq!(summary.value_type, "AbstractCssValueV0");
+    assert!(!summary.legacy_output_consumed_until_cutover);
+    assert!(summary.evaluation_available);
+    assert_eq!(summary.divergence_count, 0);
+    assert!(summary.all_legacy_declaration_values_preserved);
+    assert!(summary.evaluation.as_ref().is_some_and(|evaluation| {
+        !evaluation.evaluated_css.contains("@tokens:")
+            && !evaluation.evaluated_css.contains("@tokens[gap]")
+            && evaluation.evaluated_css.contains("padding: 4px")
+            && evaluation.evaluated_css.contains("inset: 4px")
+            && !evaluation.evaluated_css.contains("inset: 2px")
+    }));
+}
+
+#[test]
+fn exposes_less_detached_ruleset_accessor_missing_property_scope_as_preserved_oracle_output() {
+    let summary = summarize_omena_query_static_stylesheet_evaluator_from_source(
+        "@tokens: { margin: 2px; padding: $margin; }; .button { gap: @tokens[padding]; }",
+        OmenaParserStyleDialect::Less,
+    );
+
+    assert_eq!(summary.product, "omena-query.static-stylesheet-evaluator");
+    assert_eq!(summary.mode, "oracleOnly");
+    assert_eq!(summary.dialect, "less");
+    assert_eq!(summary.value_type, "AbstractCssValueV0");
+    assert!(!summary.legacy_output_consumed_until_cutover);
+    assert!(summary.evaluation_available);
+    assert_eq!(summary.divergence_count, 0);
+    assert!(summary.all_legacy_declaration_values_preserved);
+    assert_eq!(summary.native_replacement_count, 0);
+    assert_eq!(summary.native_edit_count, 0);
+    assert!(summary.evaluation.as_ref().is_some_and(|evaluation| {
+        evaluation
+            .evaluated_css
+            .contains("@tokens: { margin: 2px; padding: $margin; };")
+            && evaluation.evaluated_css.contains("@tokens[padding]")
+            && !evaluation.evaluated_css.contains("gap: 2px")
+    }));
+}
+
+#[test]
 fn exposes_less_unknown_detached_ruleset_mixin_calls_as_preserved_oracle_output_through_query_boundary()
  {
     let summary = summarize_omena_query_static_stylesheet_evaluator_from_source(

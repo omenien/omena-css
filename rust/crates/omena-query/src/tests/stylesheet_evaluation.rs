@@ -1385,6 +1385,71 @@ fn consumer_build_derives_static_less_evaluator_context_for_detached_ruleset_acc
 }
 
 #[test]
+fn consumer_build_resolves_less_detached_ruleset_accessor_properties_from_call_scope() {
+    let summary = execute_omena_query_consumer_build_style_source(
+        "Button.module.less",
+        "@tokens: { @gap: 2px; padding: @gap; gap: $padding; }; .button { padding: 4px; inset: @tokens[gap]; }",
+        &[
+            "less-module-evaluate".to_string(),
+            "css-modules-class-hashing".to_string(),
+            "print-css".to_string(),
+        ],
+    );
+
+    assert!(
+        summary
+            .execution
+            .executed_pass_ids
+            .contains(&"less-module-evaluate")
+    );
+    assert!(
+        !summary
+            .execution
+            .planned_only_pass_ids
+            .contains(&"less-module-evaluate")
+    );
+    assert!(summary.execution.output_css.contains("padding: 4px"));
+    assert!(summary.execution.output_css.contains("inset: 4px"));
+    assert!(!summary.execution.output_css.contains("inset: 2px"));
+    assert!(!summary.execution.output_css.contains("@tokens:"));
+    assert!(!summary.execution.output_css.contains("@tokens[gap]"));
+}
+
+#[test]
+fn consumer_build_preserves_less_detached_ruleset_accessor_missing_property_scope() {
+    let summary = execute_omena_query_consumer_build_style_source(
+        "Button.module.less",
+        "@tokens: { margin: 2px; padding: $margin; }; .button { gap: @tokens[padding]; }",
+        &[
+            "less-module-evaluate".to_string(),
+            "css-modules-class-hashing".to_string(),
+            "print-css".to_string(),
+        ],
+    );
+
+    assert!(
+        summary
+            .execution
+            .executed_pass_ids
+            .contains(&"less-module-evaluate")
+    );
+    assert!(
+        !summary
+            .execution
+            .planned_only_pass_ids
+            .contains(&"less-module-evaluate")
+    );
+    assert!(
+        summary
+            .execution
+            .output_css
+            .contains("@tokens: { margin: 2px; padding: $margin; };")
+    );
+    assert!(summary.execution.output_css.contains("@tokens[padding]"));
+    assert!(!summary.execution.output_css.contains("gap: 2px"));
+}
+
+#[test]
 fn consumer_build_executes_unknown_less_detached_ruleset_accessor_members_as_preserved_oracle_output()
  {
     let summary = execute_omena_query_consumer_build_style_source(
