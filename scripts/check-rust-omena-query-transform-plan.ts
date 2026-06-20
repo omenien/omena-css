@@ -1,5 +1,15 @@
 import { spawnSync } from "node:child_process";
+import { readFileSync } from "node:fs";
 import { strict as assert } from "node:assert";
+
+const generatedPassFeatureBindingSource = readFileSync(
+  "rust/crates/omena-transform-target/data/pass-feature-bindings.toml",
+  "utf8",
+);
+const generatedPassFeatureBindingCount = countTomlRepeatedTables(
+  generatedPassFeatureBindingSource,
+  "binding",
+);
 
 interface PassPlanV0 {
   readonly product: string;
@@ -545,7 +555,10 @@ assert.equal(
 );
 assert.deepEqual(targetQuerySummary.targetQuery?.resolvedTargets, ["ie 11"]);
 assert.equal(targetQuerySummary.targetQuery?.resolutionError, null);
-assert.equal(targetQuerySummary.targetQuery?.targetDataEvidence.length, 10);
+assert.equal(
+  targetQuerySummary.targetQuery?.targetDataEvidence.length,
+  generatedPassFeatureBindingCount,
+);
 const ieLightDarkEvidence = requireTargetDataEvidence(targetQuerySummary, "light_dark");
 assert.equal(ieLightDarkEvidence.product, "omena-transform-target.data-evidence");
 assert.equal(ieLightDarkEvidence.passId, "light-dark-lowering");
@@ -562,6 +575,28 @@ assert.equal(ieStickyEvidence.passId, "vendor-prefixing");
 assert.deepEqual(ieStickyEvidence.caniuseKeys, ["css-sticky"]);
 assert.deepEqual(ieStickyEvidence.sourceQuorum, ["caniuse", "web-features", "mdn-bcd"]);
 assert.equal(ieStickyEvidence.allResolvedTargetsSupported, false);
+const ieFlexboxStalePrefixEvidence = requireTargetDataEvidenceForPass(
+  targetQuerySummary,
+  "flexbox",
+  "stale-prefix-removal",
+);
+assert.deepEqual(ieFlexboxStalePrefixEvidence.caniuseKeys, ["flexbox"]);
+assert.deepEqual(ieFlexboxStalePrefixEvidence.sourceQuorum, [
+  "caniuse",
+  "web-features",
+  "mdn-bcd",
+]);
+const ieStickyStalePrefixEvidence = requireTargetDataEvidenceForPass(
+  targetQuerySummary,
+  "sticky_positioning",
+  "stale-prefix-removal",
+);
+assert.deepEqual(ieStickyStalePrefixEvidence.caniuseKeys, ["css-sticky"]);
+assert.deepEqual(ieStickyStalePrefixEvidence.sourceQuorum, [
+  "caniuse",
+  "web-features",
+  "mdn-bcd",
+]);
 const ieOklchEvidence = requireTargetDataEvidence(targetQuerySummary, "oklch_oklab");
 assert.equal(ieOklchEvidence.passId, "oklch-oklab-lowering");
 assert.deepEqual(ieOklchEvidence.caniuseKeys, ["css-lch-lab"]);
@@ -933,6 +968,10 @@ process.stdout.write(
 );
 process.stdout.write("\n");
 
+function countTomlRepeatedTables(source: string, tableName: string): number {
+  return source.split(/\r?\n/).filter((line) => line.trim() === `[[${tableName}]]`).length;
+}
+
 function requireTargetDataEvidence(
   planSummary: TransformPlanSummaryV0,
   supportTable: string,
@@ -945,6 +984,23 @@ function requireTargetDataEvidence(
   );
   if (!evidence) {
     throw new Error(`target query evidence must include ${supportTable}`);
+  }
+  return evidence;
+}
+
+function requireTargetDataEvidenceForPass(
+  planSummary: TransformPlanSummaryV0,
+  supportTable: string,
+  passId: string,
+): TargetDataEvidenceV0 {
+  if (!planSummary.targetQuery) {
+    throw new Error(`target query plan is required for ${supportTable}/${passId} evidence`);
+  }
+  const evidence = planSummary.targetQuery.targetDataEvidence.find(
+    (candidate) => candidate.supportTable === supportTable && candidate.passId === passId,
+  );
+  if (!evidence) {
+    throw new Error(`target query evidence must include ${supportTable}/${passId}`);
   }
   return evidence;
 }
