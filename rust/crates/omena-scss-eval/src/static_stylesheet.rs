@@ -40,6 +40,7 @@ mod scopes;
 mod scss_arguments;
 mod scss_callable_dependencies;
 mod scss_calls;
+mod scss_declarations;
 mod scss_function_edits;
 mod scss_function_locals;
 mod scss_mixin_edits;
@@ -134,8 +135,8 @@ use reports::{
 use safety::{
     static_less_mixin_argument_value_is_safe, static_less_mixin_body_is_static_declaration_subset,
     static_less_mixin_hash_name_is_safe, static_less_mixin_name_part_is_safe,
-    static_less_variable_name_is_safe, static_scss_callable_name_is_safe,
-    static_scss_mixin_body_is_static_declaration_subset, static_stylesheet_composite_value_is_safe,
+    static_less_variable_name_is_safe, static_scss_mixin_body_is_static_declaration_subset,
+    static_stylesheet_composite_value_is_safe,
     static_stylesheet_less_declaration_value_is_removal_safe,
     static_stylesheet_literal_value_is_safe, static_stylesheet_property_name_is_safe,
     static_stylesheet_scss_declaration_value_is_removal_safe,
@@ -145,10 +146,7 @@ use scopes::{
     collect_static_stylesheet_scopes, static_stylesheet_position_is_inside_scoped_declaration,
     static_stylesheet_position_is_inside_scss_declaration, static_stylesheet_scope_for_position,
 };
-use scss_arguments::{
-    collect_static_scss_function_parameters, split_static_scss_function_arguments,
-    static_scss_top_level_colon_index,
-};
+use scss_arguments::{split_static_scss_function_arguments, static_scss_top_level_colon_index};
 use scss_callable_dependencies::{
     extend_static_scss_used_function_dependencies,
     static_scss_function_value_contains_any_callable,
@@ -161,25 +159,24 @@ use scss_calls::{
     static_scss_mixin_include_is_inside_declaration_body,
     static_scss_mixin_include_is_inside_function_declaration_body,
 };
+use scss_declarations::{
+    collect_static_scss_function_declarations, collect_static_scss_mixin_declarations,
+};
 use scss_function_edits::{
     collect_static_scss_function_evaluation_edits,
     collect_static_scss_function_value_resolution_values,
 };
-use scss_function_locals::collect_static_scss_function_local_variables;
 use scss_mixin_edits::collect_static_scss_mixin_evaluation_edits;
-use scss_return_clauses::{
-    collect_static_scss_function_return_clauses, static_scss_function_return_clauses_are_safe,
-};
 use scss_variables::{
     find_static_scss_variable_declaration, find_static_scss_variable_declaration_in_scope,
     resolve_static_scss_variable_abstract_value_at_position,
     resolve_static_scss_variable_value_at_position, resolve_static_scss_variable_value_in_scope,
 };
 use tokens::{
-    parser_text_size_to_usize, static_stylesheet_block_kinds_for_dialect,
-    static_stylesheet_matching_token_index, static_stylesheet_next_token_kind_index,
-    static_stylesheet_position_is_inside_ranges, static_stylesheet_skip_trivia_tokens,
-    static_stylesheet_token_end, static_stylesheet_token_is_trivia, static_stylesheet_token_start,
+    parser_text_size_to_usize, static_stylesheet_matching_token_index,
+    static_stylesheet_next_token_kind_index, static_stylesheet_position_is_inside_ranges,
+    static_stylesheet_skip_trivia_tokens, static_stylesheet_token_end,
+    static_stylesheet_token_is_trivia, static_stylesheet_token_start,
     static_stylesheet_value_end_token_until,
 };
 use value_resolution_model::{
@@ -946,172 +943,6 @@ fn collect_static_scss_resolved_function_names_in_mixin_body(
         }
     }
     Some(names)
-}
-
-fn collect_static_scss_function_declarations(
-    source: &str,
-    dialect: StyleDialect,
-    tokens: &[LexedToken],
-) -> Option<Vec<StaticScssFunctionDeclaration>> {
-    let mut declarations = Vec::new();
-    let mut index = 0usize;
-    while index < tokens.len() {
-        if tokens[index].kind != SyntaxKind::AtKeyword
-            || !tokens[index].text.eq_ignore_ascii_case("@function")
-        {
-            index += 1;
-            continue;
-        }
-
-        let name_index = static_stylesheet_skip_trivia_tokens(tokens, index + 1);
-        let name_token = tokens.get(name_index)?;
-        if name_token.kind != SyntaxKind::Ident
-            || !static_scss_callable_name_is_safe(name_token.text.as_str())
-        {
-            index += 1;
-            continue;
-        }
-
-        let parameter_open_index = static_stylesheet_skip_trivia_tokens(tokens, name_index + 1);
-        if tokens
-            .get(parameter_open_index)
-            .is_none_or(|token| token.kind != SyntaxKind::LeftParen)
-        {
-            index += 1;
-            continue;
-        }
-        let parameter_close_index = static_stylesheet_matching_token_index(
-            tokens,
-            parameter_open_index,
-            SyntaxKind::LeftParen,
-            SyntaxKind::RightParen,
-        )?;
-        let parameters = collect_static_scss_function_parameters(
-            source,
-            tokens,
-            parameter_open_index + 1,
-            parameter_close_index,
-        )?;
-
-        let body_open_index =
-            static_stylesheet_skip_trivia_tokens(tokens, parameter_close_index + 1);
-        let (body_open_kind, body_close_kind) = static_stylesheet_block_kinds_for_dialect(dialect);
-        if tokens
-            .get(body_open_index)
-            .is_none_or(|token| token.kind != body_open_kind)
-        {
-            index += 1;
-            continue;
-        }
-        let body_close_index = static_stylesheet_matching_token_index(
-            tokens,
-            body_open_index,
-            body_open_kind,
-            body_close_kind,
-        )?;
-        let return_clauses = collect_static_scss_function_return_clauses(
-            source,
-            tokens,
-            body_open_index + 1,
-            body_close_index,
-        )?;
-        let local_variables = collect_static_scss_function_local_variables(
-            source,
-            tokens,
-            body_open_index + 1,
-            body_close_index,
-        )?;
-        if !static_scss_function_return_clauses_are_safe(return_clauses.as_slice()) {
-            index = body_close_index + 1;
-            continue;
-        }
-
-        declarations.push(StaticScssFunctionDeclaration {
-            name: name_token.text.clone(),
-            parameters,
-            local_variables,
-            return_clauses,
-            span_start: static_stylesheet_token_start(&tokens[index]),
-            span_end: static_stylesheet_token_end(&tokens[body_close_index]),
-            body_start: static_stylesheet_token_end(&tokens[body_open_index]),
-            body_end: static_stylesheet_token_start(&tokens[body_close_index]),
-        });
-        index = body_close_index + 1;
-    }
-    Some(declarations)
-}
-
-fn collect_static_scss_mixin_declarations(
-    source: &str,
-    dialect: StyleDialect,
-    tokens: &[LexedToken],
-) -> Option<Vec<StaticScssMixinDeclaration>> {
-    let mut declarations = Vec::new();
-    let mut index = 0usize;
-    while index < tokens.len() {
-        if tokens[index].kind != SyntaxKind::AtKeyword
-            || !tokens[index].text.eq_ignore_ascii_case("@mixin")
-        {
-            index += 1;
-            continue;
-        }
-
-        let name_index = static_stylesheet_skip_trivia_tokens(tokens, index + 1);
-        let name_token = tokens.get(name_index)?;
-        if name_token.kind != SyntaxKind::Ident
-            || !static_scss_callable_name_is_safe(name_token.text.as_str())
-        {
-            index += 1;
-            continue;
-        }
-        let after_name_index = static_stylesheet_skip_trivia_tokens(tokens, name_index + 1);
-        let (parameters, body_search_index) = if tokens
-            .get(after_name_index)
-            .is_some_and(|token| token.kind == SyntaxKind::LeftParen)
-        {
-            let parameter_close_index = static_stylesheet_matching_token_index(
-                tokens,
-                after_name_index,
-                SyntaxKind::LeftParen,
-                SyntaxKind::RightParen,
-            )?;
-            let parameters = collect_static_scss_function_parameters(
-                source,
-                tokens,
-                after_name_index + 1,
-                parameter_close_index,
-            )?;
-            (parameters, parameter_close_index + 1)
-        } else {
-            (Vec::new(), name_index + 1)
-        };
-        let (body_open_kind, body_close_kind) = static_stylesheet_block_kinds_for_dialect(dialect);
-        let Some(body_open_index) =
-            static_stylesheet_next_token_kind_index(tokens, body_search_index, body_open_kind)
-        else {
-            index += 1;
-            continue;
-        };
-        let Some(body_close_index) = static_stylesheet_matching_token_index(
-            tokens,
-            body_open_index,
-            body_open_kind,
-            body_close_kind,
-        ) else {
-            index += 1;
-            continue;
-        };
-        declarations.push(StaticScssMixinDeclaration {
-            name: name_token.text.clone(),
-            parameters,
-            span_start: static_stylesheet_token_start(&tokens[index]),
-            span_end: static_stylesheet_token_end(&tokens[body_close_index]),
-            body_start: static_stylesheet_token_end(&tokens[body_open_index]),
-            body_end: static_stylesheet_token_start(&tokens[body_close_index]),
-        });
-        index = body_close_index + 1;
-    }
-    Some(declarations)
 }
 
 fn resolve_static_scss_function_call_abstract_value(
