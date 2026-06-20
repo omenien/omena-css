@@ -761,9 +761,9 @@ function assertStaticStylesheetEvaluatorOracleCorpus(
   assert.equal(summary.mode, "oracleOnly");
   assert.equal(summary.valueType, "AbstractCssValueV0");
   assert.equal(summary.productOutputSource, "nativeEditOutput");
-  assert.ok(summary.fixtureCount >= 104, "static stylesheet oracle corpus must not shrink");
-  assert.ok(summary.scssFixtureCount >= 31, "SCSS oracle fixture coverage must not shrink");
-  assert.ok(summary.sassFixtureCount >= 25, "Sass oracle fixture coverage must not shrink");
+  assert.ok(summary.fixtureCount >= 108, "static stylesheet oracle corpus must not shrink");
+  assert.ok(summary.scssFixtureCount >= 33, "SCSS oracle fixture coverage must not shrink");
+  assert.ok(summary.sassFixtureCount >= 27, "Sass oracle fixture coverage must not shrink");
   assert.ok(summary.lessFixtureCount >= 48, "Less oracle fixture coverage must not shrink");
   assert.equal(summary.evaluatedFixtureCount, summary.fixtureCount);
   assert.equal(summary.legacyOutputRetainedAsOracleCount, summary.evaluatedFixtureCount);
@@ -820,9 +820,13 @@ function assertStaticStylesheetEvaluatorOracleCorpus(
     "sass.static-map-list-builtins",
     "sass.static-default-function-arguments",
     "sass.static-default-argument-prior-parameter",
+    "sass.static-named-function-arguments",
+    "sass.static-named-argument-default-tail",
     "scss.static-map-list-builtins",
     "scss.static-default-function-arguments",
     "scss.static-default-argument-prior-parameter",
+    "scss.static-named-function-arguments",
+    "scss.static-named-argument-default-tail",
     "scss.indirect-recursive-function-return",
     "less.variable-basic",
     "less.dynamic-escaped-string",
@@ -878,11 +882,11 @@ function assertScssEvaluatorControlFlowOracleCorpus(
   assert.equal(summary.valueType, "AbstractCssValueV0");
   assert.equal(summary.nodeKeyType, "StableNodeKeyV0");
   assert.ok(summary.recursionCap > 0, "SCSS call-return recursion cap must stay explicit");
-  assert.ok(summary.fixtureCount >= 39, "SCSS control-flow oracle corpus must not shrink");
-  assert.ok(summary.scssFixtureCount >= 19, "SCSS control-flow fixture coverage must not shrink");
-  assert.ok(summary.sassFixtureCount >= 19, "Sass control-flow fixture coverage must not shrink");
+  assert.ok(summary.fixtureCount >= 43, "SCSS control-flow oracle corpus must not shrink");
+  assert.ok(summary.scssFixtureCount >= 21, "SCSS control-flow fixture coverage must not shrink");
+  assert.ok(summary.sassFixtureCount >= 21, "Sass control-flow fixture coverage must not shrink");
   assert.ok(
-    summary.supportedFixtureCount >= 38,
+    summary.supportedFixtureCount >= 42,
     "supported SCSS control-flow fixtures must not shrink",
   );
   assert.equal(summary.rejectedFlatCssFixtureCount, 1);
@@ -940,6 +944,10 @@ function assertScssEvaluatorControlFlowOracleCorpus(
     "scss.static-default-argument-prior-parameter",
     "sass.static-default-function-arguments",
     "sass.static-default-argument-prior-parameter",
+    "scss.static-named-function-arguments",
+    "scss.static-named-argument-default-tail",
+    "sass.static-named-function-arguments",
+    "sass.static-named-argument-default-tail",
   ]) {
     assertControlFlowFixture(fixtures, id, (fixture) => {
       assert.equal(fixture.callResolvedReturnValueCount, 1);

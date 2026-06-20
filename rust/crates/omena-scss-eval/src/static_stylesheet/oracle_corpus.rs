@@ -409,6 +409,16 @@ fn static_stylesheet_oracle_corpus_fixtures() -> &'static [StaticStylesheetOracl
             source: "@function offset($value, $extra: $value + 1px)\n  @return $extra\n.card\n  margin: offset(2px)",
         },
         StaticStylesheetOracleCorpusFixtureV0 {
+            id: "sass.static-named-function-arguments",
+            dialect: StyleDialect::Sass,
+            source: "@function pair($left, $right)\n  @return $left + $right\n.card\n  margin: pair($right: 2px, $left: 1px)",
+        },
+        StaticStylesheetOracleCorpusFixtureV0 {
+            id: "sass.static-named-argument-default-tail",
+            dialect: StyleDialect::Sass,
+            source: "@function pair($left, $right: 2px)\n  @return $left + $right\n.card\n  margin: pair($left: 1px)",
+        },
+        StaticStylesheetOracleCorpusFixtureV0 {
             id: "sass.static-top-level-for",
             dialect: StyleDialect::Sass,
             source: "@for $i from 1 through 3\n  .n\n    order: $i",
@@ -497,6 +507,16 @@ fn static_stylesheet_oracle_corpus_fixtures() -> &'static [StaticStylesheetOracl
             id: "scss.static-default-argument-prior-parameter",
             dialect: StyleDialect::Scss,
             source: "@function offset($value, $extra: $value + 1px) { @return $extra; } .card { margin: offset(2px); }",
+        },
+        StaticStylesheetOracleCorpusFixtureV0 {
+            id: "scss.static-named-function-arguments",
+            dialect: StyleDialect::Scss,
+            source: "@function pair($left, $right) { @return $left + $right; } .card { margin: pair($right: 2px, $left: 1px); }",
+        },
+        StaticStylesheetOracleCorpusFixtureV0 {
+            id: "scss.static-named-argument-default-tail",
+            dialect: StyleDialect::Scss,
+            source: "@function pair($left, $right: 2px) { @return $left + $right; } .card { margin: pair($left: 1px); }",
         },
         StaticStylesheetOracleCorpusFixtureV0 {
             id: "scss.dynamic-function-return",
