@@ -500,6 +500,73 @@ fn consumer_build_derives_static_less_evaluator_context() {
 }
 
 #[test]
+fn consumer_build_uses_native_less_numeric_evaluator_output() {
+    let summary = execute_omena_query_consumer_build_style_source(
+        "Button.module.less",
+        "@sqrt: sqrt(4); @pow: pow(2, 3); @mod: mod(11px, 4px); @round: round(1.234px, 2); .button { sqrt: @sqrt; pow: @pow; mod: @mod; round: @round; }",
+        &[
+            "less-module-evaluate".to_string(),
+            "css-modules-class-hashing".to_string(),
+            "print-css".to_string(),
+        ],
+    );
+
+    assert!(
+        summary
+            .execution
+            .executed_pass_ids
+            .contains(&"less-module-evaluate")
+    );
+    assert!(
+        !summary
+            .execution
+            .planned_only_pass_ids
+            .contains(&"less-module-evaluate")
+    );
+    assert!(summary.execution.output_css.contains("sqrt: 2"));
+    assert!(summary.execution.output_css.contains("pow: 8"));
+    assert!(summary.execution.output_css.contains("mod: 3px"));
+    assert!(summary.execution.output_css.contains("round: 1.23px"));
+    assert!(!summary.execution.output_css.contains("@sqrt"));
+    assert_eq!(
+        summary
+            .execution
+            .outcomes
+            .iter()
+            .find(|outcome| outcome.pass_id == "less-module-evaluate")
+            .map(|outcome| outcome.detail),
+        Some(
+            "applied explicit Less module evaluation native edit output from the evaluator boundary"
+        )
+    );
+    assert!(
+        summary
+            .execution
+            .css_module_evaluation
+            .as_ref()
+            .and_then(|evaluation| evaluation.native_edit_output.as_deref())
+            .is_some_and(|output| output.contains("round: 1.23px"))
+    );
+    assert_eq!(
+        summary
+            .execution
+            .css_module_evaluation
+            .as_ref()
+            .and_then(|evaluation| evaluation.oracle.as_ref())
+            .map(|oracle| (
+                oracle.product_output_source.as_str(),
+                oracle.divergence_count,
+                oracle.all_legacy_declaration_values_preserved,
+                oracle.native_value_reference_count,
+                oracle.native_resolved_value_count,
+                oracle.native_raw_value_count,
+                oracle.native_top_value_count,
+            )),
+        Some(("legacyEvaluatedCss", 0, true, 4, 4, 0, 0))
+    );
+}
+
+#[test]
 fn consumer_build_uses_native_less_evaluation_after_import_inlining() -> Result<(), String> {
     let sources = vec![
         OmenaQueryStyleSourceInputV0 {
