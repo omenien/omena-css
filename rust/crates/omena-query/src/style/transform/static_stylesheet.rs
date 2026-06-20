@@ -1,4 +1,3 @@
-use super::super::parser_facade::lex_omena_query_omena_parser_style_source;
 use super::super::stylesheet_evaluation::{
     derive_static_scss_stylesheet_module_configurable_variable_names,
     derive_static_scss_stylesheet_module_variable_exports,
@@ -8,7 +7,6 @@ use super::*;
 use omena_query_transform_runner::{
     TransformImportInlineV0, TransformModuleEvaluationV0, restore_less_inline_literal_placeholders,
 };
-use omena_syntax::SyntaxKind;
 use std::{
     borrow::Cow,
     collections::{BTreeMap, BTreeSet},
@@ -17,6 +15,7 @@ use std::{
 mod evaluation_source;
 mod scss_forwarding;
 mod scss_module_identity;
+mod scss_module_rules;
 mod scss_use_inlining;
 mod scss_variable_overrides;
 
@@ -25,13 +24,16 @@ use evaluation_source::{
     static_stylesheet_module_output_css_from_evaluation,
     static_stylesheet_module_system_evaluator_label,
 };
-pub(super) use scss_forwarding::derive_static_scss_module_forward_effective_variable_override_values_for_resolution_at_ordinal;
 use scss_forwarding::{
     StaticScssModuleForwardEvaluation, derive_static_scss_forward_effective_variable_overrides,
     derive_static_scss_forward_export_prefix_at_ordinal,
     derive_static_scss_module_forward_variable_overrides_at_ordinal,
     filter_static_scss_forward_configurable_variable_names, filter_static_scss_forward_exports,
     inline_static_scss_forward_rules, prefix_static_scss_forward_exports,
+};
+pub(super) use scss_forwarding::{
+    derive_static_scss_module_forward_effective_variable_override_values_for_resolution_at_ordinal,
+    derive_static_scss_module_forward_variable_override_values_at_ordinal,
 };
 use scss_module_identity::{
     resolve_static_scss_module_effective_variable_overrides,
@@ -40,6 +42,7 @@ use scss_module_identity::{
 pub(super) use scss_module_identity::{
     static_scss_module_configuration_signature, static_scss_module_instance_identity_key,
 };
+pub(super) use scss_module_rules::derive_static_scss_module_rule_variable_overrides_at_ordinal;
 pub(super) use scss_use_inlining::derive_scss_use_aware_static_stylesheet_module_evaluation_source;
 
 pub(super) fn derive_static_stylesheet_module_evaluation_for_transform_context(
@@ -501,129 +504,6 @@ fn apply_static_scss_module_variable_overrides<'a>(
 
 fn static_scss_identifier_char(ch: char) -> bool {
     ch.is_ascii_alphanumeric() || matches!(ch, '_' | '-')
-}
-
-fn static_scss_use_rule_semicolon(
-    tokens: &[omena_parser::LexedToken],
-    at_use_index: usize,
-) -> Option<usize> {
-    let mut index = at_use_index + 1;
-    while index < tokens.len() {
-        match tokens[index].kind {
-            SyntaxKind::Semicolon => return Some(index),
-            SyntaxKind::LeftBrace | SyntaxKind::RightBrace => return None,
-            _ => index += 1,
-        }
-    }
-    None
-}
-
-fn static_scss_module_rule_source_name(
-    tokens: &[omena_parser::LexedToken],
-    start_index: usize,
-    end_index: usize,
-) -> Option<String> {
-    tokens[start_index..end_index]
-        .iter()
-        .find(|token| matches!(token.kind, SyntaxKind::String | SyntaxKind::Url))
-        .map(|token| token.text.trim_matches('"').trim_matches('\'').to_string())
-}
-
-pub(super) fn derive_static_scss_module_rule_variable_overrides_at_ordinal(
-    style_source: &str,
-    at_keyword: &str,
-    rule_ordinal: usize,
-) -> BTreeMap<String, String> {
-    static_scss_module_rule_source_at_ordinal(style_source, at_keyword, rule_ordinal)
-        .map(parse_static_scss_use_variable_overrides_from_rule)
-        .unwrap_or_default()
-}
-
-pub(super) fn derive_static_scss_module_forward_variable_override_values_at_ordinal(
-    style_source: &str,
-    forward_rule_ordinal: usize,
-) -> BTreeMap<String, String> {
-    derive_static_scss_module_forward_variable_overrides_at_ordinal(
-        style_source,
-        forward_rule_ordinal,
-    )
-    .into_iter()
-    .map(|(name, override_entry)| (name, override_entry.value))
-    .collect()
-}
-
-pub(super) fn static_scss_module_rule_source_at_ordinal<'a>(
-    style_source: &'a str,
-    at_keyword: &str,
-    rule_ordinal: usize,
-) -> Option<&'a str> {
-    let lexed =
-        lex_omena_query_omena_parser_style_source(style_source, OmenaParserStyleDialect::Scss);
-    let tokens = lexed.tokens();
-    let mut depth = 0usize;
-    let mut index = 0usize;
-    let mut current_rule_ordinal = 0usize;
-
-    while index < tokens.len() {
-        match tokens[index].kind {
-            SyntaxKind::LeftBrace => depth += 1,
-            SyntaxKind::RightBrace => depth = depth.saturating_sub(1),
-            SyntaxKind::AtKeyword
-                if depth == 0 && tokens[index].text.eq_ignore_ascii_case(at_keyword) =>
-            {
-                let Some(end_index) = static_scss_use_rule_semicolon(tokens, index) else {
-                    index += 1;
-                    continue;
-                };
-                if static_scss_module_rule_source_name(tokens, index + 1, end_index).is_some() {
-                    if current_rule_ordinal == rule_ordinal {
-                        let start = transform_token_start(&tokens[index]);
-                        let end = transform_token_end(&tokens[end_index]);
-                        return style_source.get(start..end);
-                    }
-                    current_rule_ordinal += 1;
-                }
-                index = end_index + 1;
-                continue;
-            }
-            _ => {}
-        }
-        index += 1;
-    }
-
-    None
-}
-
-fn parse_static_scss_use_variable_overrides_from_rule(
-    rule_source: &str,
-) -> BTreeMap<String, String> {
-    let lexed =
-        lex_omena_query_omena_parser_style_source(rule_source, OmenaParserStyleDialect::Scss);
-    let tokens = lexed.tokens();
-    let Some(with_index) = tokens
-        .iter()
-        .position(|token| token.text.eq_ignore_ascii_case("with"))
-    else {
-        return BTreeMap::new();
-    };
-    let Some(left_paren_index) = tokens[with_index + 1..]
-        .iter()
-        .position(|token| token.kind == SyntaxKind::LeftParen)
-        .map(|offset| with_index + 1 + offset)
-    else {
-        return BTreeMap::new();
-    };
-    let Some(right_paren_index) =
-        scss_variable_overrides::static_scss_matching_right_paren(tokens, left_paren_index)
-    else {
-        return BTreeMap::new();
-    };
-    let start = transform_token_end(&tokens[left_paren_index]);
-    let end = transform_token_start(&tokens[right_paren_index]);
-    rule_source
-        .get(start..end)
-        .map(scss_variable_overrides::parse_static_scss_use_variable_override_list)
-        .unwrap_or_default()
 }
 
 #[cfg(test)]

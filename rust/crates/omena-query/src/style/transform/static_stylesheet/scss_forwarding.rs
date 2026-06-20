@@ -5,11 +5,7 @@ use super::super::parser_facade::lex_omena_query_omena_parser_style_source;
 use super::super::{
     apply_transform_source_replacements, transform_token_end, transform_token_start,
 };
-use super::{
-    scss_variable_overrides, static_scss_identifier_char,
-    static_scss_module_rule_source_at_ordinal, static_scss_module_rule_source_name,
-    static_scss_use_rule_semicolon,
-};
+use super::{scss_module_rules, scss_variable_overrides, static_scss_identifier_char};
 use crate::OmenaParserStyleDialect;
 use omena_syntax::SyntaxKind;
 use std::collections::{BTreeMap, BTreeSet};
@@ -46,15 +42,19 @@ pub(super) fn inline_static_scss_forward_rules(
             SyntaxKind::AtKeyword
                 if depth == 0 && tokens[index].text.eq_ignore_ascii_case("@forward") =>
             {
-                let Some(end_index) = static_scss_use_rule_semicolon(tokens, index) else {
+                let Some(end_index) =
+                    scss_module_rules::static_scss_use_rule_semicolon(tokens, index)
+                else {
                     index += 1;
                     continue;
                 };
                 let start = transform_token_start(&tokens[index]);
                 let end = transform_token_end(&tokens[end_index]);
-                if let Some(source_name) =
-                    static_scss_module_rule_source_name(tokens, index + 1, end_index)
-                {
+                if let Some(source_name) = scss_module_rules::static_scss_module_rule_source_name(
+                    tokens,
+                    index + 1,
+                    end_index,
+                ) {
                     let matching_forward = forward_evaluations.iter().find(|forward| {
                         forward.forward_rule_ordinal == forward_rule_ordinal
                             && forward.source == source_name
@@ -86,9 +86,26 @@ pub(super) fn derive_static_scss_module_forward_variable_overrides_at_ordinal(
     style_source: &str,
     forward_rule_ordinal: usize,
 ) -> BTreeMap<String, StaticScssModuleVariableOverride> {
-    static_scss_module_rule_source_at_ordinal(style_source, "@forward", forward_rule_ordinal)
-        .map(parse_static_scss_forward_variable_overrides_from_rule)
-        .unwrap_or_default()
+    scss_module_rules::static_scss_module_rule_source_at_ordinal(
+        style_source,
+        "@forward",
+        forward_rule_ordinal,
+    )
+    .map(parse_static_scss_forward_variable_overrides_from_rule)
+    .unwrap_or_default()
+}
+
+pub(in crate::style::transform) fn derive_static_scss_module_forward_variable_override_values_at_ordinal(
+    style_source: &str,
+    forward_rule_ordinal: usize,
+) -> BTreeMap<String, String> {
+    derive_static_scss_module_forward_variable_overrides_at_ordinal(
+        style_source,
+        forward_rule_ordinal,
+    )
+    .into_iter()
+    .map(|(name, override_entry)| (name, override_entry.value))
+    .collect()
 }
 
 pub(super) fn derive_static_scss_forward_effective_variable_overrides(
@@ -257,8 +274,12 @@ pub(super) fn derive_static_scss_forward_export_prefix_at_ordinal(
     style_source: &str,
     forward_rule_ordinal: usize,
 ) -> Option<String> {
-    static_scss_module_rule_source_at_ordinal(style_source, "@forward", forward_rule_ordinal)
-        .and_then(parse_static_scss_forward_export_prefix_from_rule)
+    scss_module_rules::static_scss_module_rule_source_at_ordinal(
+        style_source,
+        "@forward",
+        forward_rule_ordinal,
+    )
+    .and_then(parse_static_scss_forward_export_prefix_from_rule)
 }
 
 fn parse_static_scss_forward_export_prefix_from_rule(rule_source: &str) -> Option<String> {

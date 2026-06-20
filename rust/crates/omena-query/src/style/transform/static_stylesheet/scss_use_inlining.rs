@@ -3,10 +3,7 @@ use super::super::stylesheet_evaluation::canonical_static_scss_variable_name;
 use super::super::{
     apply_transform_source_replacements, transform_token_end, transform_token_start,
 };
-use super::{
-    StaticScssModuleUseEvaluation, static_scss_identifier_char,
-    static_scss_module_rule_source_name, static_scss_use_rule_semicolon,
-};
+use super::{StaticScssModuleUseEvaluation, scss_module_rules, static_scss_identifier_char};
 use crate::OmenaParserStyleDialect;
 use omena_syntax::SyntaxKind;
 use std::{borrow::Cow, collections::BTreeSet};
@@ -187,15 +184,19 @@ fn inline_static_scss_use_rules(
             SyntaxKind::AtKeyword
                 if depth == 0 && tokens[index].text.eq_ignore_ascii_case("@use") =>
             {
-                let Some(end_index) = static_scss_use_rule_semicolon(tokens, index) else {
+                let Some(end_index) =
+                    scss_module_rules::static_scss_use_rule_semicolon(tokens, index)
+                else {
                     index += 1;
                     continue;
                 };
                 let start = transform_token_start(&tokens[index]);
                 let end = transform_token_end(&tokens[end_index]);
-                if let Some(source_name) =
-                    static_scss_module_rule_source_name(tokens, index + 1, end_index)
-                {
+                if let Some(source_name) = scss_module_rules::static_scss_module_rule_source_name(
+                    tokens,
+                    index + 1,
+                    end_index,
+                ) {
                     let matching_module_use = scss_module_uses.iter().find(|module_use| {
                         module_use.use_rule_ordinal == use_rule_ordinal
                             && module_use.source == source_name
