@@ -394,6 +394,16 @@ fn static_stylesheet_oracle_corpus_fixtures() -> &'static [StaticStylesheetOracl
             source: "$enabled: true\n@if $enabled\n  .on\n    color: green\n@else\n  .off\n    color: gray",
         },
         StaticStylesheetOracleCorpusFixtureV0 {
+            id: "sass.static-top-level-if-variable",
+            dialect: StyleDialect::Sass,
+            source: "$enabled: true\n$brand: green\n@if $enabled\n  .on\n    color: $brand\n@else\n  .off\n    color: gray",
+        },
+        StaticStylesheetOracleCorpusFixtureV0 {
+            id: "sass.static-top-level-if-function",
+            dialect: StyleDialect::Sass,
+            source: "@function tone($color)\n  @return $color\n$enabled: true\n@if $enabled\n  .on\n    color: tone(green)\n@else\n  .off\n    color: gray",
+        },
+        StaticStylesheetOracleCorpusFixtureV0 {
             id: "scss.color-helpers",
             dialect: StyleDialect::Scss,
             source: "$tone: list.nth(list.append(1px, transparentize(red, .25)), 2); .card { color: $tone; }",
