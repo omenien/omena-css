@@ -1,5 +1,6 @@
 import { strict as assert } from "node:assert";
 import { spawnSync } from "node:child_process";
+import { readFileSync } from "node:fs";
 import {
   SELECTED_QUERY_RUNNER_COMMANDS,
   usesRustExpressionSemanticsBackend,
@@ -626,6 +627,7 @@ void (async () => {
   );
 
   const staticStylesheetOracleCorpus = runStaticStylesheetEvaluatorOracleCorpus();
+  assertNativeEvaluatorCutoverProductPathPolicy();
   assertStaticStylesheetEvaluatorOracleCorpus(staticStylesheetOracleCorpus);
   const lessStaticLifExports = runStaticLifExports();
   assertLessStaticLifExports(lessStaticLifExports);
@@ -645,6 +647,72 @@ void (async () => {
   );
   process.stdout.write("\n");
 })();
+
+function assertNativeEvaluatorCutoverProductPathPolicy(): void {
+  const queryEvaluationSource = readText(
+    "rust/crates/omena-query/src/style/transform/static_stylesheet/evaluation_source.rs",
+  );
+  const transformExecutorSource = readText(
+    "rust/crates/omena-transform-passes/src/runtime/executor.rs",
+  );
+
+  assertSourceIncludesAll(
+    queryEvaluationSource,
+    [
+      "if !evaluation.may_consume_native_product_output()",
+      "evaluation.native_output_matches_retained_oracle(native_edit_output.as_str())",
+      "materialize_transform_module_evaluation_native_edits(input_css, &evaluation.native_edits)",
+      "native_css == evaluation.evaluated_css",
+    ],
+    "omena-query static stylesheet product output must stay behind the native evaluator cutover policy",
+  );
+  assertSourceExcludesAll(
+    queryEvaluationSource,
+    [
+      "Some(evaluation.evaluated_css",
+      "return Some(evaluation.evaluated_css",
+      "Some(evaluation.evaluated_css.clone())",
+    ],
+    "omena-query static stylesheet product output must not blind-consume evaluated_css",
+  );
+
+  assertSourceIncludesAll(
+    transformExecutorSource,
+    [
+      "if !evaluation.may_consume_native_product_output()",
+      "evaluation.native_output_matches_retained_oracle(native_edit_output)",
+      "apply_transform_module_evaluation_native_edits(input_css, &evaluation.native_edits)",
+      "native_css == evaluation.evaluated_css",
+    ],
+    "transform executor product output must stay behind the native evaluator cutover policy",
+  );
+  assertSourceExcludesAll(
+    transformExecutorSource,
+    [
+      "css: evaluation.evaluated_css",
+      "css: evaluation.evaluated_css.clone()",
+      "output_css: evaluation.evaluated_css",
+      "output_css: evaluation.evaluated_css.clone()",
+    ],
+    "transform executor product output must not blind-consume evaluated_css",
+  );
+}
+
+function readText(path: string): string {
+  return readFileSync(path, "utf8");
+}
+
+function assertSourceIncludesAll(source: string, needles: readonly string[], message: string): void {
+  for (const needle of needles) {
+    assert.ok(source.includes(needle), `${message}: missing ${needle}`);
+  }
+}
+
+function assertSourceExcludesAll(source: string, needles: readonly string[], message: string): void {
+  for (const needle of needles) {
+    assert.ok(!source.includes(needle), `${message}: forbidden ${needle}`);
+  }
+}
 
 function runStaticStylesheetEvaluatorOracleCorpus(): StaticStylesheetEvaluatorOracleCorpusSummaryV0 {
   const result = spawnSync(
