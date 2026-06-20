@@ -3924,6 +3924,22 @@ fn call_return_ir_reports_mixin_content_block_edges() {
 }
 
 #[test]
+fn call_return_ir_reports_sass_mixin_content_block_edges() {
+    let source = "@mixin tone($color)\n  @content\n  color: $color\n.a\n  @include tone(red)\n    background: white\n";
+    let report = summarize_scss_call_return_ir(source, StyleDialect::Sass);
+    assert!(report.is_some());
+    let Some(report) = report else {
+        return;
+    };
+
+    assert_eq!(report.declaration_node_count, 1);
+    assert_eq!(report.call_node_count, 1);
+    assert!(report.edges.iter().any(|edge| {
+        edge.kind == "mixinCall" && !edge.recursive && !edge.capped_by_recursion_cap
+    }));
+}
+
+#[test]
 fn call_return_ir_does_not_build_flat_css_cfg() {
     assert!(summarize_scss_call_return_ir(".button { color: red; }", StyleDialect::Css).is_none());
 }

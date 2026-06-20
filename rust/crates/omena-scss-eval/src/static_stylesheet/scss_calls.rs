@@ -114,16 +114,19 @@ pub(super) fn collect_static_scss_mixin_include_calls(
                 static_stylesheet_skip_trivia_tokens(tokens, name_index + 1),
             )
         };
-        if dialect != StyleDialect::Sass
-            && tokens
-                .get(after_arguments_index)
-                .is_some_and(|token| token.kind == SyntaxKind::LeftBrace)
+        let content_block_kinds = match dialect {
+            StyleDialect::Sass => (SyntaxKind::SassIndent, SyntaxKind::SassDedent),
+            _ => (SyntaxKind::LeftBrace, SyntaxKind::RightBrace),
+        };
+        if tokens
+            .get(after_arguments_index)
+            .is_some_and(|token| token.kind == content_block_kinds.0)
         {
             let close_index = static_stylesheet_matching_token_index(
                 tokens,
                 after_arguments_index,
-                SyntaxKind::LeftBrace,
-                SyntaxKind::RightBrace,
+                content_block_kinds.0,
+                content_block_kinds.1,
             )?;
             let content_body = source
                 .get(

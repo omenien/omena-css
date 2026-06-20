@@ -528,7 +528,7 @@ fn render_static_scss_mixin_content_body(
         return Some(body.to_string());
     }
     let content_body = content_body?;
-    if !static_scss_content_block_is_static_declaration_subset(content_body) {
+    if !static_scss_content_block_is_static_declaration_subset(content_body, dialect) {
         return None;
     }
     let lexed = lex(body, dialect);
@@ -540,28 +540,42 @@ fn render_static_scss_mixin_content_body(
         }
         let terminator_index = static_stylesheet_skip_trivia_tokens(tokens, index + 1);
         let terminator = tokens.get(terminator_index)?;
-        let valid_terminator = match dialect {
-            StyleDialect::Sass => matches!(
-                terminator.kind,
-                SyntaxKind::SassOptionalSemicolon | SyntaxKind::SassDedent
-            ),
-            _ => terminator.kind == SyntaxKind::Semicolon,
+        let replacement_end = match dialect {
+            StyleDialect::Sass => match terminator.kind {
+                SyntaxKind::SassOptionalSemicolon | SyntaxKind::SassDedent => {
+                    static_stylesheet_token_end(terminator)
+                }
+                // Sass mixin body slices start after the block indent, so a following
+                // same-block declaration can appear as a relative SassIndent.
+                SyntaxKind::SassIndent => static_stylesheet_token_end(token),
+                _ => return None,
+            },
+            _ if terminator.kind == SyntaxKind::Semicolon => {
+                static_stylesheet_token_end(terminator)
+            }
+            _ => return None,
         };
-        if !valid_terminator {
-            return None;
-        }
         edits.push(StaticStylesheetEvaluationEdit {
             start: static_stylesheet_token_start(token),
-            end: static_stylesheet_token_end(terminator),
+            end: replacement_end,
             replacement: content_body.trim().to_string(),
         });
     }
     (!edits.is_empty()).then(|| apply_static_stylesheet_evaluation_edits(body, edits))?
 }
 
-fn static_scss_content_block_is_static_declaration_subset(content_body: &str) -> bool {
+fn static_scss_content_block_is_static_declaration_subset(
+    content_body: &str,
+    dialect: StyleDialect,
+) -> bool {
     let lower = content_body.to_ascii_lowercase();
-    !content_body.chars().any(|ch| matches!(ch, '{' | '}'))
+    let has_nested_sass_block = dialect == StyleDialect::Sass
+        && lex(content_body, dialect)
+            .tokens()
+            .iter()
+            .any(|token| matches!(token.kind, SyntaxKind::SassIndent | SyntaxKind::SassDedent));
+    !has_nested_sass_block
+        && !content_body.chars().any(|ch| matches!(ch, '{' | '}'))
         && !lower.contains("@content")
         && !lower.contains("@include")
         && !lower.contains("@mixin")

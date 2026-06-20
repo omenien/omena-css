@@ -369,6 +369,11 @@ fn static_stylesheet_oracle_corpus_fixtures() -> &'static [StaticStylesheetOracl
             source: "@mixin tone($color, $border: $color)\n  color: $color\n  border-color: $border\n.button\n  @include tone($color: blue)",
         },
         StaticStylesheetOracleCorpusFixtureV0 {
+            id: "sass.static-mixin-content-block",
+            dialect: StyleDialect::Sass,
+            source: "@mixin tone($color)\n  @content\n  color: $color\n.button\n  @include tone(red)\n    background: white",
+        },
+        StaticStylesheetOracleCorpusFixtureV0 {
             id: "sass.static-hyphen-underscore-mixin-include",
             dialect: StyleDialect::Sass,
             source: "@mixin tone_color($color)\n  color: $color\n.button\n  @include tone-color(green)",
