@@ -25,6 +25,7 @@ fn registry_covers_full_transform_catalog() {
         "nativeEditOutput"
     );
     assert!(boundary.module_evaluation_requires_native_product_output);
+    assert!(boundary.module_evaluation_requires_oracle_readiness);
     assert!(boundary.module_evaluation_legacy_output_is_oracle_only);
     assert!(boundary.module_evaluation_preserves_source_without_native_output);
     assert_eq!(

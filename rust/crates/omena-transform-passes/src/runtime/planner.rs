@@ -44,6 +44,7 @@ pub fn summarize_omena_transform_passes_boundary() -> TransformPassesBoundarySum
         incremental_execution_runtime_ready: true,
         module_evaluation_native_output_marker: "nativeEditOutput",
         module_evaluation_requires_native_product_output: true,
+        module_evaluation_requires_oracle_readiness: true,
         module_evaluation_legacy_output_is_oracle_only: true,
         module_evaluation_preserves_source_without_native_output: true,
         implemented_mutation_pass_ids: implemented_mutation_pass_ids(),
