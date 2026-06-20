@@ -793,13 +793,21 @@ function readText(path: string): string {
   return readFileSync(path, "utf8");
 }
 
-function assertSourceIncludesAll(source: string, needles: readonly string[], message: string): void {
+function assertSourceIncludesAll(
+  source: string,
+  needles: readonly string[],
+  message: string,
+): void {
   for (const needle of needles) {
     assert.ok(source.includes(needle), `${message}: missing ${needle}`);
   }
 }
 
-function assertSourceExcludesAll(source: string, needles: readonly string[], message: string): void {
+function assertSourceExcludesAll(
+  source: string,
+  needles: readonly string[],
+  message: string,
+): void {
   for (const needle of needles) {
     assert.ok(!source.includes(needle), `${message}: forbidden ${needle}`);
   }
@@ -1412,10 +1420,7 @@ function assertScssEvaluatorControlFlowOracleCorpus(
   assert.equal(summary.wideningWitness.converged, false);
   assert.equal(summary.wideningWitnessConverged, false);
   assert.equal(summary.wideningWitness.iterationCount, summary.wideningWitness.maxIterations);
-  assert.equal(
-    summary.wideningWitnessWidenedToTopCount,
-    summary.wideningWitness.nodeCount,
-  );
+  assert.equal(summary.wideningWitnessWidenedToTopCount, summary.wideningWitness.nodeCount);
   assert.equal(summary.wideningWitness.outputTopCount, summary.wideningWitness.nodeCount);
   assert.equal(summary.flatCssCfgBuiltCount, 0);
   assert.equal(summary.mergedCrossFileGraphCount, 0);
@@ -1519,10 +1524,7 @@ function assertScssEvaluatorControlFlowOracleCorpus(
     assert.equal(fixture.callReturnEdgeCount, 2);
     assert.equal(fixture.valueAnalysisConverged, true);
   });
-  for (const id of [
-    "scss.static-nested-mixin-include",
-    "sass.static-nested-mixin-include",
-  ]) {
+  for (const id of ["scss.static-nested-mixin-include", "sass.static-nested-mixin-include"]) {
     assertControlFlowFixture(fixtures, id, (fixture) => {
       assert.equal(fixture.callReturnAvailable, true);
       assert.equal(fixture.callReturnEdgeCount, 2);

@@ -143,9 +143,7 @@ try {
     "--output",
     lifExportsPath,
   ]);
-  const lifExports = JSON.parse(
-    readFileSync(lifExportsPath, "utf8"),
-  ) as LifExportsResult;
+  const lifExports = JSON.parse(readFileSync(lifExportsPath, "utf8")) as LifExportsResult;
   assert.deepEqual(
     lifExports.lessVariables?.map((variable) => variable.name),
     ["@brand"],
@@ -157,10 +155,7 @@ try {
     "LIF export generation must expose guarded Less mixins through the shipped CLI",
   );
   assert.deepEqual(
-    lifExports.lessDetachedRulesets?.map((ruleset) => [
-      ruleset.name,
-      ruleset.memberNames,
-    ]),
+    lifExports.lessDetachedRulesets?.map((ruleset) => [ruleset.name, ruleset.memberNames]),
     [["@tokens", ["@gap", "primary"]]],
     "LIF export generation must expose Less detached rulesets through the shipped CLI",
   );

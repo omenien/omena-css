@@ -172,11 +172,7 @@ assert.ok(
   "compat source pins must include MDN browser compatibility data",
 );
 assertSourcePinsDeclaredAsExactDevDependencies(specSources, packageJson);
-assertFeatureSourceKeysPresentInPackages(
-  compatSelections,
-  webFeaturesData,
-  mdnBrowserCompatData,
-);
+assertFeatureSourceKeysPresentInPackages(compatSelections, webFeaturesData, mdnBrowserCompatData);
 assertFeatureThresholdsNotOlderThanMdnFullSupport(compatSelections, mdnBrowserCompatData);
 assert.equal(specManifest.schemaVersion, "0");
 assert.equal(specManifest.product, "omena-spec-audit.single-source-manifest");
@@ -522,7 +518,10 @@ function specManifestSourceKeyIndex(manifest: SpecManifestV0): Map<string, Set<s
   const sourceKeysByName = new Map<string, Set<string>>();
   for (const coverage of manifest.sourceCoverage) {
     assert.ok(coverage.sourceName.length > 0, "spec manifest source coverage name required");
-    assert.ok(coverage.entryIds.length > 0, `spec manifest ${coverage.sourceName} entries required`);
+    assert.ok(
+      coverage.entryIds.length > 0,
+      `spec manifest ${coverage.sourceName} entries required`,
+    );
     assert.ok(
       coverage.sourceKeys.length > 0,
       `spec manifest ${coverage.sourceName} source keys required`,
@@ -573,7 +572,11 @@ function assertFeatureSourceKeyEvidenceAnchored(
 function assertSelectionThresholdRows(feature: CompatFeatureSelectionV0): void {
   let previousBrowserOrder = -1;
   for (const threshold of feature.thresholds) {
-    assert.equal(typeof threshold.browser, "string", `selection ${feature.table} threshold browser`);
+    assert.equal(
+      typeof threshold.browser,
+      "string",
+      `selection ${feature.table} threshold browser`,
+    );
     assert.equal(typeof threshold.minMajor, "number", `selection ${feature.table} minMajor`);
     assert.equal(typeof threshold.minMinor, "number", `selection ${feature.table} minMinor`);
     assert.ok(
@@ -639,8 +642,7 @@ function addIsoDateDays(value: string, days: number): string {
 }
 
 function compatDataReviewDate(): string {
-  const reviewDate =
-    process.env.OMENA_COMPAT_REVIEW_DATE ?? new Date().toISOString().slice(0, 10);
+  const reviewDate = process.env.OMENA_COMPAT_REVIEW_DATE ?? new Date().toISOString().slice(0, 10);
   assert.match(
     reviewDate,
     /^\d{4}-\d{2}-\d{2}$/u,
@@ -680,11 +682,7 @@ function dottedObjectProperty(
   }, source);
 }
 
-function objectProperty(
-  source: SourceJsonRecord,
-  key: string,
-  label: string,
-): SourceJsonRecord {
+function objectProperty(source: SourceJsonRecord, key: string, label: string): SourceJsonRecord {
   const value = source[key];
   assert.ok(value && typeof value === "object" && !Array.isArray(value), `${label} required`);
   return value as SourceJsonRecord;
@@ -737,10 +735,7 @@ function mdnFullUnprefixedSupportVersion(
   const versions = entries
     .filter((entry) => {
       return (
-        !entry.partial_implementation &&
-        !entry.prefix &&
-        !entry.alternative_name &&
-        !entry.flags
+        !entry.partial_implementation && !entry.prefix && !entry.alternative_name && !entry.flags
       );
     })
     .map((entry) => parseBrowserVersion(entry.version_added))
@@ -795,10 +790,7 @@ function assertNumber(value: TomlValue | undefined, label: string): asserts valu
   assert.equal(typeof value, "number", `${label} must be a number`);
 }
 
-function assertStringArray(
-  value: TomlValue | undefined,
-  label: string,
-): asserts value is string[] {
+function assertStringArray(value: TomlValue | undefined, label: string): asserts value is string[] {
   assert.ok(Array.isArray(value), `${label} must be a string array`);
   for (const item of value) assert.equal(typeof item, "string", `${label} item must be a string`);
 }

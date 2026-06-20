@@ -581,22 +581,14 @@ const ieFlexboxStalePrefixEvidence = requireTargetDataEvidenceForPass(
   "stale-prefix-removal",
 );
 assert.deepEqual(ieFlexboxStalePrefixEvidence.caniuseKeys, ["flexbox"]);
-assert.deepEqual(ieFlexboxStalePrefixEvidence.sourceQuorum, [
-  "caniuse",
-  "web-features",
-  "mdn-bcd",
-]);
+assert.deepEqual(ieFlexboxStalePrefixEvidence.sourceQuorum, ["caniuse", "web-features", "mdn-bcd"]);
 const ieStickyStalePrefixEvidence = requireTargetDataEvidenceForPass(
   targetQuerySummary,
   "sticky_positioning",
   "stale-prefix-removal",
 );
 assert.deepEqual(ieStickyStalePrefixEvidence.caniuseKeys, ["css-sticky"]);
-assert.deepEqual(ieStickyStalePrefixEvidence.sourceQuorum, [
-  "caniuse",
-  "web-features",
-  "mdn-bcd",
-]);
+assert.deepEqual(ieStickyStalePrefixEvidence.sourceQuorum, ["caniuse", "web-features", "mdn-bcd"]);
 const ieOklchEvidence = requireTargetDataEvidence(targetQuerySummary, "oklch_oklab");
 assert.equal(ieOklchEvidence.passId, "oklch-oklab-lowering");
 assert.deepEqual(ieOklchEvidence.caniuseKeys, ["css-lch-lab"]);

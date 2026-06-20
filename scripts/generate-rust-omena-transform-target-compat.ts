@@ -548,11 +548,7 @@ function dottedObjectProperty(
   }, source);
 }
 
-function objectProperty(
-  source: SourceJsonRecord,
-  key: string,
-  label: string,
-): SourceJsonRecord {
+function objectProperty(source: SourceJsonRecord, key: string, label: string): SourceJsonRecord {
   const value = source[key];
   assert.ok(value && typeof value === "object" && !Array.isArray(value), `${label} required`);
   return value as SourceJsonRecord;
@@ -605,10 +601,7 @@ function mdnFullUnprefixedSupportVersion(
   const versions = entries
     .filter((entry) => {
       return (
-        !entry.partial_implementation &&
-        !entry.prefix &&
-        !entry.alternative_name &&
-        !entry.flags
+        !entry.partial_implementation && !entry.prefix && !entry.alternative_name && !entry.flags
       );
     })
     .map((entry) => parseBrowserVersion(entry.version_added))
