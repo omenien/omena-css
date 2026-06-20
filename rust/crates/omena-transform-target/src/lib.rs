@@ -21,6 +21,7 @@ const TARGET_DATA_SOURCE_FILES: &[&str] = &[
     "data/browser-thresholds.toml",
     "data/pass-feature-bindings.toml",
 ];
+const COMPAT_QUORUM_SOURCES: &[&str] = &["caniuse", "web-features", "mdn-bcd"];
 const VENDOR_PREFIX_MATRIX_SOURCE: &str = "conservativeHandMaintainedMatrixV0";
 
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
@@ -857,7 +858,7 @@ fn browser_threshold_data_is_valid(data: &BrowserThresholdDataV0) -> bool {
         && data.schema_version == "0"
         && data.product == "omena-transform-target.browser-thresholds"
         && is_iso_date(&data.refreshed_at)
-        && data.quorum_min_sources >= 2
+        && data.quorum_min_sources == COMPAT_QUORUM_SOURCES.len()
         && browser_threshold_table_count(data) >= 2
         && browser_threshold_stale_entry_count(data) == 0
         && unresolvable_threshold_query_count(data) == 0
@@ -865,13 +866,16 @@ fn browser_threshold_data_is_valid(data: &BrowserThresholdDataV0) -> bool {
             !threshold.table.is_empty()
                 && !threshold.browser.is_empty()
                 && !threshold.caniuse_key.is_empty()
-                && threshold.source_quorum.len() >= data.quorum_min_sources
-                && threshold
-                    .source_quorum
-                    .iter()
-                    .all(|source| matches!(source.as_str(), "caniuse" | "web-features" | "mdn-bcd"))
+                && compat_source_quorum_is_complete(&threshold.source_quorum)
                 && is_iso_date(&threshold.last_verified)
         })
+}
+
+fn compat_source_quorum_is_complete(source_quorum: &[String]) -> bool {
+    source_quorum.len() == COMPAT_QUORUM_SOURCES.len()
+        && COMPAT_QUORUM_SOURCES
+            .iter()
+            .all(|expected| source_quorum.iter().any(|source| source == expected))
 }
 
 fn pass_feature_binding_data_is_valid(
@@ -1175,34 +1179,38 @@ mod tests {
                 let evidence = plan
                     .target_data_evidence
                     .iter()
-                    .find(|evidence| evidence.support_table == threshold.table)
-                    .unwrap_or_else(|| panic!("{query} missing evidence for {}", threshold.table));
+                    .find(|evidence| evidence.support_table == threshold.table);
+                assert!(
+                    evidence.is_some(),
+                    "{query} missing evidence for {}",
+                    threshold.table
+                );
+                let Some(evidence) = evidence else {
+                    continue;
+                };
                 let resolved_target = evidence
                     .resolved_targets
                     .iter()
-                    .find(|target| target.browser == threshold.browser)
-                    .unwrap_or_else(|| {
-                        panic!("{query} missing resolved target {}", threshold.browser)
-                    });
+                    .find(|target| target.browser == threshold.browser);
+                assert!(
+                    resolved_target.is_some(),
+                    "{query} missing resolved target {}",
+                    threshold.browser
+                );
+                let Some(resolved_target) = resolved_target else {
+                    continue;
+                };
                 assert!(
                     resolved_target.supported,
                     "{query} should satisfy {}",
                     threshold.table
                 );
                 assert!(
-                    !plan
-                        .transform_plan
-                        .required_pass_ids
-                        .iter()
-                        .any(|id| *id == pass_id),
+                    !plan.transform_plan.required_pass_ids.contains(&pass_id),
                     "{query} should not require {pass_id} at the support threshold"
                 );
                 assert!(
-                    !plan
-                        .transform_plan
-                        .blocked_pass_ids
-                        .iter()
-                        .any(|id| *id == pass_id),
+                    !plan.transform_plan.blocked_pass_ids.contains(&pass_id),
                     "{query} should not block {pass_id} at the support threshold"
                 );
 
@@ -1225,20 +1233,27 @@ mod tests {
                         let previous_evidence = previous_plan
                             .target_data_evidence
                             .iter()
-                            .find(|evidence| evidence.support_table == threshold.table)
-                            .unwrap_or_else(|| {
-                                panic!("{previous_query} missing evidence for {}", threshold.table)
-                            });
+                            .find(|evidence| evidence.support_table == threshold.table);
+                        assert!(
+                            previous_evidence.is_some(),
+                            "{previous_query} missing evidence for {}",
+                            threshold.table
+                        );
+                        let Some(previous_evidence) = previous_evidence else {
+                            continue;
+                        };
                         let previous_target = previous_evidence
                             .resolved_targets
                             .iter()
-                            .find(|target| target.browser == threshold.browser)
-                            .unwrap_or_else(|| {
-                                panic!(
-                                    "{previous_query} missing resolved target {}",
-                                    threshold.browser
-                                )
-                            });
+                            .find(|target| target.browser == threshold.browser);
+                        assert!(
+                            previous_target.is_some(),
+                            "{previous_query} missing resolved target {}",
+                            threshold.browser
+                        );
+                        let Some(previous_target) = previous_target else {
+                            continue;
+                        };
                         assert!(
                             !previous_target.supported,
                             "{previous_query} should not satisfy {}",
@@ -1248,13 +1263,11 @@ mod tests {
                             previous_plan
                                 .transform_plan
                                 .required_pass_ids
-                                .iter()
-                                .any(|id| *id == pass_id)
+                                .contains(&pass_id)
                                 || previous_plan
                                     .transform_plan
                                     .blocked_pass_ids
-                                    .iter()
-                                    .any(|id| *id == pass_id),
+                                    .contains(&pass_id),
                             "{previous_query} should require or block {pass_id} below the support threshold"
                         );
                     }
@@ -1932,6 +1945,34 @@ mod tests {
         let contract =
             super::target_data_contract_summary(&browser_data, super::pass_feature_binding_data());
         assert_eq!(contract.unresolvable_threshold_query_count, 1);
+        assert!(!contract.valid);
+    }
+
+    #[test]
+    fn browser_data_contract_requires_three_source_quorum_minimum() {
+        let mut browser_data = super::browser_threshold_data().clone();
+        browser_data.quorum_min_sources = 2;
+
+        assert!(!super::browser_threshold_data_is_valid(&browser_data));
+
+        let contract =
+            super::target_data_contract_summary(&browser_data, super::pass_feature_binding_data());
+        assert_eq!(contract.quorum_min_sources, 2);
+        assert!(!contract.quorum_valid);
+        assert!(!contract.valid);
+    }
+
+    #[test]
+    fn browser_data_contract_rejects_incomplete_threshold_source_quorum() {
+        let mut browser_data = super::browser_threshold_data().clone();
+        browser_data.thresholds[0].source_quorum =
+            vec!["caniuse".to_string(), "web-features".to_string()];
+
+        assert!(!super::browser_threshold_data_is_valid(&browser_data));
+
+        let contract =
+            super::target_data_contract_summary(&browser_data, super::pass_feature_binding_data());
+        assert!(!contract.quorum_valid);
         assert!(!contract.valid);
     }
 
