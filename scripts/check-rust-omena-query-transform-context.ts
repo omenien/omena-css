@@ -280,6 +280,74 @@ assertIncludesAll(
   "stylesheet evaluation transform context ready surfaces",
 );
 
+const lessStylesheetEvaluationContextResult = spawnSync(
+  "cargo",
+  [
+    "run",
+    "--quiet",
+    "--manifest-path",
+    "rust/Cargo.toml",
+    "-p",
+    "engine-shadow-runner",
+    "--",
+    "transform-context",
+  ],
+  {
+    cwd: process.cwd(),
+    encoding: "utf8",
+    input: JSON.stringify({
+      targetStylePath: "src/Button.module.less",
+      styles: [
+        {
+          stylePath: "src/Button.module.less",
+          styleSource: "@brand: blue; @accent: @brand; .button { color: @accent; }",
+        },
+        {
+          stylePath: "src/Button.module.scss",
+          styleSource: "$brand: red; .button { color: $brand; }",
+        },
+      ],
+    }),
+    maxBuffer: 8 * 1024 * 1024,
+  },
+);
+
+assert.equal(
+  lessStylesheetEvaluationContextResult.status,
+  0,
+  lessStylesheetEvaluationContextResult.stderr,
+);
+assert.equal(lessStylesheetEvaluationContextResult.error, undefined);
+
+const lessStylesheetEvaluationContextSummary = JSON.parse(
+  lessStylesheetEvaluationContextResult.stdout,
+) as TransformContextSummaryV0;
+
+assert.equal(lessStylesheetEvaluationContextSummary.product, "omena-query.transform-context");
+assert.equal(lessStylesheetEvaluationContextSummary.targetStylePath, "src/Button.module.less");
+assert.equal(lessStylesheetEvaluationContextSummary.context.scssModuleEvaluation, null);
+assert.equal(
+  lessStylesheetEvaluationContextSummary.context.lessModuleEvaluation?.evaluator,
+  "omena-query-static-less-variable-evaluator",
+);
+assert.equal(
+  lessStylesheetEvaluationContextSummary.context.lessModuleEvaluation?.productOutputSource,
+  "nativeEditOutput",
+);
+assert.equal(
+  lessStylesheetEvaluationContextSummary.context.lessModuleEvaluation?.evaluatedCss,
+  "  .button { color: blue; }",
+);
+assert.equal(
+  lessStylesheetEvaluationContextSummary.context.lessModuleEvaluation?.nativeEditOutput,
+  "  .button { color: blue; }",
+);
+assertIncludesAll(
+  lessStylesheetEvaluationContextSummary.readySurfaces,
+  ["stylesheetModuleEvaluationProducer"],
+  "Less stylesheet evaluation transform context ready surfaces",
+);
+
 process.stdout.write(
   [
     "validated omena-query transform-context runtime:",
@@ -289,6 +357,7 @@ process.stdout.write(
     `composes=${summary.cssModuleComposesResolutionCount}`,
     `values=${valueContextSummary.cssModuleValueResolutionCount}`,
     `stylesheetEval=${stylesheetEvaluationContextSummary.context.scssModuleEvaluation ? 1 : 0}`,
+    `lessStylesheetEval=${lessStylesheetEvaluationContextSummary.context.lessModuleEvaluation ? 1 : 0}`,
     `reachableClasses=${summary.reachableClassNameCount}`,
   ].join(" "),
 );
