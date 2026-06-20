@@ -1003,6 +1003,63 @@ fn consumer_build_derives_static_less_evaluator_context_for_escaped_strings() {
 }
 
 #[test]
+fn consumer_build_derives_static_less_evaluator_context_for_property_name_interpolation() {
+    let summary = execute_omena_query_consumer_build_style_source(
+        "Button.module.less",
+        "@prop: color; .card { @{prop}: red; }",
+        &[
+            "less-module-evaluate".to_string(),
+            "css-modules-class-hashing".to_string(),
+            "print-css".to_string(),
+        ],
+    );
+
+    assert!(
+        summary
+            .execution
+            .executed_pass_ids
+            .contains(&"less-module-evaluate")
+    );
+    assert!(
+        !summary
+            .execution
+            .planned_only_pass_ids
+            .contains(&"less-module-evaluate")
+    );
+    assert!(summary.execution.output_css.contains("color: red"));
+    assert!(!summary.execution.output_css.contains("@{prop}"));
+    assert!(!summary.execution.output_css.contains("@prop:"));
+}
+
+#[test]
+fn consumer_build_keeps_less_selector_interpolation_planned_only() {
+    let summary = execute_omena_query_consumer_build_style_source(
+        "Button.module.less",
+        "@name: card; .@{name} { color: red; }",
+        &[
+            "less-module-evaluate".to_string(),
+            "css-modules-class-hashing".to_string(),
+            "print-css".to_string(),
+        ],
+    );
+
+    assert!(
+        !summary
+            .execution
+            .executed_pass_ids
+            .contains(&"less-module-evaluate")
+    );
+    assert!(
+        summary
+            .execution
+            .planned_only_pass_ids
+            .contains(&"less-module-evaluate")
+    );
+    assert!(summary.execution.output_css.contains("@name: card"));
+    assert!(summary.execution.output_css.contains(".@{name}"));
+}
+
+#[test]
 fn consumer_build_executes_dynamic_less_escaped_strings_as_preserved_raw_output() {
     let summary = execute_omena_query_consumer_build_style_source(
         "Button.module.less",

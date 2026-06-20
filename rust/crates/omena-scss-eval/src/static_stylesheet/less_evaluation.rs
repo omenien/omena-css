@@ -1,12 +1,13 @@
-use std::collections::BTreeSet;
+use std::collections::{BTreeMap, BTreeSet};
 
-use omena_parser::{ParsedVariableFact, ParsedVariableFactKind, StyleDialect, lex};
+use omena_parser::{LexedToken, ParsedVariableFact, ParsedVariableFactKind, StyleDialect, lex};
 use omena_syntax::SyntaxKind;
 
 use super::{
     declarations::{
         collect_static_less_property_declarations, collect_static_less_variable_declarations,
         static_less_mixin_declaration_ranges_from_declarations,
+        static_stylesheet_previous_token_starts_declaration,
     },
     edits::apply_static_stylesheet_evaluation_edits,
     less_detached_ruleset_edits::{
@@ -35,17 +36,20 @@ use super::{
         resolve_static_less_property_value_in_scope, resolve_static_less_variable_value_in_scope,
     },
     model::{
-        OmenaScssEvalStaticStylesheetEvaluationV0, StaticStylesheetEvaluationEdit,
-        StaticStylesheetVariableKind,
+        OmenaScssEvalStaticStylesheetEvaluationV0, StaticLessDetachedRulesetDeclaration,
+        StaticStylesheetEvaluationEdit, StaticStylesheetPropertyDeclaration, StaticStylesheetScope,
+        StaticStylesheetVariableDeclaration, StaticStylesheetVariableKind,
     },
     reports::{build_static_stylesheet_evaluation_report, resolved_replacement_value},
     scopes::{
         collect_static_stylesheet_scopes, static_stylesheet_position_is_inside_scoped_declaration,
         static_stylesheet_scope_for_position,
     },
+    static_less_variable_name_is_safe, static_stylesheet_property_name_is_safe,
     tokens::{
         parser_text_size_to_usize, static_stylesheet_position_is_inside_ranges,
-        static_stylesheet_token_end, static_stylesheet_token_start,
+        static_stylesheet_skip_trivia_tokens, static_stylesheet_token_end,
+        static_stylesheet_token_start,
     },
     variable_references::static_stylesheet_variable_reference_is_named_argument_label,
 };
@@ -87,6 +91,15 @@ pub(super) fn derive_static_less_stylesheet_module_evaluation(
     )?;
     let property_declarations =
         collect_static_less_property_declarations(style_source, tokens, &scopes)?;
+    let interpolation_edits = collect_static_less_property_name_interpolation_edits(
+        tokens,
+        &scopes,
+        &declarations,
+        &property_declarations,
+        detached_rulesets.as_slice(),
+        &mixin_declaration_ranges,
+        &detached_ruleset_ranges,
+    )?;
 
     let mut edits = Vec::new();
     let mut preserved_less_evaluation_count = 0usize;
@@ -222,6 +235,7 @@ pub(super) fn derive_static_less_stylesheet_module_evaluation(
         &declarations,
         &variable_excluded_ranges,
     )?);
+    edits.extend(interpolation_edits);
     let detached_ruleset_accessor_evaluation_edits =
         collect_static_less_detached_ruleset_accessor_evaluation_edits(
             style_source,
@@ -289,4 +303,88 @@ pub(super) fn derive_static_less_stylesheet_module_evaluation(
         edits,
         resolved_replacements,
     )
+}
+
+fn collect_static_less_property_name_interpolation_edits(
+    tokens: &[LexedToken],
+    scopes: &[StaticStylesheetScope],
+    declarations: &BTreeMap<(usize, String), StaticStylesheetVariableDeclaration>,
+    property_declarations: &BTreeMap<(usize, String), StaticStylesheetPropertyDeclaration>,
+    detached_ruleset_declarations: &[StaticLessDetachedRulesetDeclaration],
+    mixin_declaration_ranges: &[(usize, usize)],
+    detached_ruleset_ranges: &[(usize, usize)],
+) -> Option<Vec<StaticStylesheetEvaluationEdit>> {
+    let mut edits = Vec::new();
+    let mut index = 0usize;
+    while index < tokens.len() {
+        if tokens[index].kind != SyntaxKind::LessInterpolationStart {
+            index += 1;
+            continue;
+        }
+        let interpolation_start = static_stylesheet_token_start(&tokens[index]);
+        let ident_index = index + 1;
+        let end_index = index + 2;
+        let supported_property_name_position = tokens
+            .get(ident_index)
+            .is_some_and(|token| token.kind == SyntaxKind::Ident)
+            && tokens
+                .get(end_index)
+                .is_some_and(|token| token.kind == SyntaxKind::LessInterpolationEnd)
+            && static_less_interpolation_is_declaration_property_name(tokens, index)
+            && !static_stylesheet_position_is_inside_ranges(
+                interpolation_start,
+                mixin_declaration_ranges,
+            )
+            && !static_stylesheet_position_is_inside_ranges(
+                interpolation_start,
+                detached_ruleset_ranges,
+            );
+        if !supported_property_name_position {
+            return None;
+        }
+        let reference_scope_id = static_stylesheet_scope_for_position(scopes, interpolation_start)?;
+        if reference_scope_id == 0 {
+            return None;
+        }
+        let variable_name = format!("@{}", tokens[ident_index].text);
+        if !static_less_variable_name_is_safe(variable_name.as_str()) {
+            return None;
+        }
+        let mut stack = BTreeSet::new();
+        let replacement = resolve_static_less_variable_value_in_scope(
+            variable_name.as_str(),
+            reference_scope_id,
+            scopes,
+            declarations,
+            property_declarations,
+            detached_ruleset_declarations,
+            &mut stack,
+        )?;
+        if replacement.escaped
+            || !static_stylesheet_property_name_is_safe(replacement.text.as_str())
+        {
+            return None;
+        }
+        edits.push(StaticStylesheetEvaluationEdit {
+            start: interpolation_start,
+            end: static_stylesheet_token_end(&tokens[end_index]),
+            replacement: replacement.text,
+        });
+        index = end_index + 1;
+    }
+    Some(edits)
+}
+
+fn static_less_interpolation_is_declaration_property_name(
+    tokens: &[LexedToken],
+    interpolation_start_index: usize,
+) -> bool {
+    let interpolation_end_index = interpolation_start_index + 2;
+    if !static_stylesheet_previous_token_starts_declaration(tokens, interpolation_start_index) {
+        return false;
+    }
+    let colon_index = static_stylesheet_skip_trivia_tokens(tokens, interpolation_end_index + 1);
+    tokens
+        .get(colon_index)
+        .is_some_and(|token| token.kind == SyntaxKind::Colon)
 }

@@ -27,7 +27,7 @@ use super::{
     variable_references::static_stylesheet_variable_reference_is_named_argument_label,
 };
 
-fn static_stylesheet_previous_token_starts_declaration(
+pub(super) fn static_stylesheet_previous_token_starts_declaration(
     tokens: &[LexedToken],
     index: usize,
 ) -> bool {

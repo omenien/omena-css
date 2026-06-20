@@ -2205,6 +2205,47 @@ fn exposes_less_static_stylesheet_evaluator_oracle_through_query_boundary() {
 }
 
 #[test]
+fn exposes_less_property_name_interpolation_through_query_boundary() {
+    let summary = summarize_omena_query_static_stylesheet_evaluator_from_source(
+        "@prop: color; .card { @{prop}: red; }",
+        OmenaParserStyleDialect::Less,
+    );
+
+    assert_eq!(summary.product, "omena-query.static-stylesheet-evaluator");
+    assert_eq!(summary.mode, "oracleOnly");
+    assert_eq!(summary.dialect, "less");
+    assert_eq!(summary.value_type, "AbstractCssValueV0");
+    assert!(summary.evaluation_available);
+    assert_eq!(summary.divergence_count, 0);
+    assert!(summary.all_legacy_declaration_values_preserved);
+    assert_eq!(summary.native_replacement_count, 0);
+    assert_eq!(summary.native_edit_count, 2);
+    assert_eq!(summary.native_structural_edit_count, 2);
+    assert!(summary.evaluation.as_ref().is_some_and(|evaluation| {
+        evaluation.evaluated_css.contains("color: red")
+            && !evaluation.evaluated_css.contains("@{prop}")
+            && !evaluation.evaluated_css.contains("@prop:")
+    }));
+}
+
+#[test]
+fn rejects_less_selector_interpolation_without_query_partial_mutation() {
+    let summary = summarize_omena_query_static_stylesheet_evaluator_from_source(
+        "@name: card; .@{name} { color: red; }",
+        OmenaParserStyleDialect::Less,
+    );
+
+    assert_eq!(summary.product, "omena-query.static-stylesheet-evaluator");
+    assert_eq!(summary.mode, "oracleOnly");
+    assert_eq!(summary.dialect, "less");
+    assert_eq!(summary.value_type, "AbstractCssValueV0");
+    assert!(!summary.evaluation_available);
+    assert_eq!(summary.product_output_source, "none");
+    assert_eq!(summary.native_replacement_count, 0);
+    assert_eq!(summary.native_edit_count, 0);
+}
+
+#[test]
 fn exposes_less_dynamic_escaped_strings_as_preserved_raw_oracle_output_through_query_boundary() {
     let summary = summarize_omena_query_static_stylesheet_evaluator_from_source(
         "@filter: ~\"@{name}\"; .card { filter: @filter; }",
