@@ -474,6 +474,9 @@ fn static_stylesheet_module_output_css_from_evaluation(
     input_css: &str,
     evaluation: TransformModuleEvaluationV0,
 ) -> Option<String> {
+    if evaluation.product_output_source.as_deref() != Some("nativeEditOutput") {
+        return None;
+    }
     if let Some(native_edit_output) = evaluation.native_edit_output {
         return Some(native_edit_output);
     }
@@ -1382,6 +1385,20 @@ mod tests {
     }
 
     #[test]
+    fn static_module_output_rejects_native_edit_output_without_native_marker() {
+        let evaluation = test_transform_module_evaluation(
+            Some("legacyEvaluatedCss"),
+            Some(".native { color: red; }".to_string()),
+            None,
+        );
+
+        assert_eq!(
+            static_stylesheet_module_output_css_from_evaluation("", evaluation),
+            None
+        );
+    }
+
+    #[test]
     fn static_module_output_materializes_matching_native_edits() {
         let input_css = ".button { color: red; }";
         let start = ".button { color: ".len();
@@ -1402,6 +1419,31 @@ mod tests {
         assert_eq!(
             static_stylesheet_module_output_css_from_evaluation(input_css, evaluation),
             Some(".button { color: blue; }".to_string())
+        );
+    }
+
+    #[test]
+    fn static_module_output_rejects_matching_native_edits_without_native_marker() {
+        let input_css = ".button { color: red; }";
+        let start = ".button { color: ".len();
+        let end = start + "red".len();
+        let mut evaluation =
+            test_transform_module_evaluation(Some("legacyEvaluatedCss"), None, None);
+        evaluation.evaluated_css = ".button { color: blue; }".to_string();
+        evaluation
+            .native_edits
+            .push(TransformModuleEvaluationNativeEditV0 {
+                start,
+                end,
+                replacement: "blue".to_string(),
+                edit_kind: "value".to_string(),
+                abstract_value: None,
+                abstract_value_kind: None,
+            });
+
+        assert_eq!(
+            static_stylesheet_module_output_css_from_evaluation(input_css, evaluation),
+            None
         );
     }
 
