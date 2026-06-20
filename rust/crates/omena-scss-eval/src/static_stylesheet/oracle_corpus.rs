@@ -863,6 +863,11 @@ fn static_stylesheet_oracle_corpus_fixtures() -> &'static [StaticStylesheetOracl
             source: ".tone() when (iscolor(1px)) { color: red; } .button { .tone(); }",
         },
         StaticStylesheetOracleCorpusFixtureV0 {
+            id: "less.false-type-predicate-guarded-mixin",
+            dialect: StyleDialect::Less,
+            source: ".number(@value) when (isnumber(@value)) { margin: @value; } .ratio(@value) when (ispercentage(@value)) { width: @value; } .font(@value) when (isstring(@value)) { font-family: @value; } .display(@value) when (iskeyword(@value)) { display: @value; } .asset(@value) when (isurl(@value)) { background-image: @value; } .em(@value) when (isem(@value)) { letter-spacing: @value; } .button { .number(red); .ratio(2px); .font(block); .display(\"Roboto\"); .asset(red); .em(1rem); }",
+        },
+        StaticStylesheetOracleCorpusFixtureV0 {
             id: "less.false-guarded-namespace-mixin",
             dialect: StyleDialect::Less,
             source: "#bundle() when (iscolor(1px)) { .tone() { color: red; } } .button { #bundle > .tone(); }",

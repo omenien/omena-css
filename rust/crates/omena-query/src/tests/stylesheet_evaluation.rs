@@ -2170,6 +2170,64 @@ fn consumer_build_removes_false_isunit_guarded_less_mixins() {
 }
 
 #[test]
+fn consumer_build_removes_false_type_predicate_guarded_less_mixins() {
+    let summary = execute_omena_query_consumer_build_style_source(
+        "Button.module.less",
+        r#".number(@value) when (isnumber(@value)) { margin: @value; }
+.ratio(@value) when (ispercentage(@value)) { width: @value; }
+.font(@value) when (isstring(@value)) { font-family: @value; }
+.display(@value) when (iskeyword(@value)) { display: @value; }
+.asset(@value) when (isurl(@value)) { background-image: @value; }
+.em(@value) when (isem(@value)) { letter-spacing: @value; }
+.button { .number(red); .ratio(2px); .font(block); .display("Roboto"); .asset(red); .em(1rem); }"#,
+        &[
+            "less-module-evaluate".to_string(),
+            "css-modules-class-hashing".to_string(),
+            "print-css".to_string(),
+        ],
+    );
+
+    assert!(
+        summary
+            .execution
+            .executed_pass_ids
+            .contains(&"less-module-evaluate")
+    );
+    assert!(
+        !summary
+            .execution
+            .planned_only_pass_ids
+            .contains(&"less-module-evaluate")
+    );
+    for snippet in [
+        ".number(red)",
+        ".ratio(2px)",
+        ".font(block)",
+        r#".display("Roboto")"#,
+        ".asset(red)",
+        ".em(1rem)",
+        ".number(@value)",
+        ".ratio(@value)",
+        ".font(@value)",
+        ".display(@value)",
+        ".asset(@value)",
+        ".em(@value)",
+        "margin: red",
+        "width: 2px",
+        "font-family: block",
+        r#"display: "Roboto""#,
+        "background-image: red",
+        "letter-spacing: 1rem",
+    ] {
+        assert!(
+            !summary.execution.output_css.contains(snippet),
+            "false type-predicate guard output retained `{snippet}` in {}",
+            summary.execution.output_css
+        );
+    }
+}
+
+#[test]
 fn consumer_build_derives_static_scss_evaluator_context_with_default_declarations() {
     let first_default_summary = execute_omena_query_consumer_build_style_source(
         "Button.module.scss",

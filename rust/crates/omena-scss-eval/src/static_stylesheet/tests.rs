@@ -19,10 +19,10 @@ fn static_stylesheet_oracle_corpus_reports_native_product_output_with_legacy_ora
     );
     assert_eq!(report.legacy_output_consumed_until_cutover_count, 0);
     assert!(report.all_legacy_outputs_retained_as_oracle);
-    assert_eq!(report.fixture_count, 134);
+    assert_eq!(report.fixture_count, 135);
     assert_eq!(report.scss_fixture_count, 46);
     assert_eq!(report.sass_fixture_count, 40);
-    assert_eq!(report.less_fixture_count, 48);
+    assert_eq!(report.less_fixture_count, 49);
     assert_eq!(report.evaluated_fixture_count, report.fixture_count);
     assert_eq!(report.missing_evaluation_count, 0);
     assert_eq!(report.divergence_count, 0);
@@ -1505,6 +1505,56 @@ fn static_less_evaluation_removes_false_isunit_guarded_mixins() {
     assert!(!report.evaluated_css.contains(".space(2em)"));
     assert!(!report.evaluated_css.contains(".space(@gap)"));
     assert!(!report.evaluated_css.contains("margin: 2em"));
+    assert_eq!(report.replacement_count, 0);
+    assert!(report.native_structural_edit_count > 0);
+    assert!(report.native_edit_output_matches_evaluated_css);
+    assert!(report.oracle.all_legacy_declaration_values_preserved);
+}
+
+#[test]
+fn static_less_evaluation_removes_false_type_predicate_guarded_mixins() {
+    let report = derive_static_stylesheet_module_evaluation(
+        r#".number(@value) when (isnumber(@value)) { margin: @value; }
+.ratio(@value) when (ispercentage(@value)) { width: @value; }
+.font(@value) when (isstring(@value)) { font-family: @value; }
+.display(@value) when (iskeyword(@value)) { display: @value; }
+.asset(@value) when (isurl(@value)) { background-image: @value; }
+.em(@value) when (isem(@value)) { letter-spacing: @value; }
+.button { .number(red); .ratio(2px); .font(block); .display("Roboto"); .asset(red); .em(1rem); }"#,
+        StyleDialect::Less,
+    );
+
+    assert!(report.is_some());
+    let Some(report) = report else {
+        return;
+    };
+
+    for snippet in [
+        ".number(red)",
+        ".ratio(2px)",
+        ".font(block)",
+        r#".display("Roboto")"#,
+        ".asset(red)",
+        ".em(1rem)",
+        ".number(@value)",
+        ".ratio(@value)",
+        ".font(@value)",
+        ".display(@value)",
+        ".asset(@value)",
+        ".em(@value)",
+        "margin: red",
+        "width: 2px",
+        "font-family: block",
+        r#"display: "Roboto""#,
+        "background-image: red",
+        "letter-spacing: 1rem",
+    ] {
+        assert!(
+            !report.evaluated_css.contains(snippet),
+            "false type-predicate guard output retained `{snippet}` in {}",
+            report.evaluated_css
+        );
+    }
     assert_eq!(report.replacement_count, 0);
     assert!(report.native_structural_edit_count > 0);
     assert!(report.native_edit_output_matches_evaluated_css);

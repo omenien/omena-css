@@ -75,10 +75,10 @@ fn exposes_static_stylesheet_oracle_corpus_through_query_boundary() {
     assert_eq!(summary.mode, "oracleOnly");
     assert_eq!(summary.value_type, "AbstractCssValueV0");
     assert_eq!(summary.product_output_source, "nativeEditOutput");
-    assert_eq!(summary.fixture_count, 134);
+    assert_eq!(summary.fixture_count, 135);
     assert_eq!(summary.scss_fixture_count, 46);
     assert_eq!(summary.sass_fixture_count, 40);
-    assert_eq!(summary.less_fixture_count, 48);
+    assert_eq!(summary.less_fixture_count, 49);
     assert_eq!(summary.evaluated_fixture_count, summary.fixture_count);
     assert_eq!(
         summary.legacy_output_retained_as_oracle_count,
@@ -671,6 +671,16 @@ fn exposes_static_stylesheet_oracle_corpus_through_query_boundary() {
         .iter()
         .find(|fixture| fixture.id == "less.false-guarded-mixin");
     assert!(false_guard_fixture.is_some_and(|fixture| {
+        fixture.native_replacement_count == 0
+            && fixture.native_structural_edit_count > 0
+            && fixture.native_edit_output_matches_evaluated_css
+    }));
+    let false_type_predicate_guard_fixture = summary
+        .corpus
+        .fixtures
+        .iter()
+        .find(|fixture| fixture.id == "less.false-type-predicate-guarded-mixin");
+    assert!(false_type_predicate_guard_fixture.is_some_and(|fixture| {
         fixture.native_replacement_count == 0
             && fixture.native_structural_edit_count > 0
             && fixture.native_edit_output_matches_evaluated_css
@@ -3772,6 +3782,55 @@ fn exposes_less_false_guarded_mixins_as_removed_output_through_query_boundary() 
         !evaluation.evaluated_css.contains(".tone();")
             && !evaluation.evaluated_css.contains("when (iscolor(1px))")
             && !evaluation.evaluated_css.contains("color: 1px")
+    }));
+}
+
+#[test]
+fn exposes_less_false_type_predicate_guarded_mixins_as_removed_output_through_query_boundary() {
+    let summary = summarize_omena_query_static_stylesheet_evaluator_from_source(
+        r#".number(@value) when (isnumber(@value)) { margin: @value; }
+.ratio(@value) when (ispercentage(@value)) { width: @value; }
+.font(@value) when (isstring(@value)) { font-family: @value; }
+.display(@value) when (iskeyword(@value)) { display: @value; }
+.asset(@value) when (isurl(@value)) { background-image: @value; }
+.em(@value) when (isem(@value)) { letter-spacing: @value; }
+.button { .number(red); .ratio(2px); .font(block); .display("Roboto"); .asset(red); .em(1rem); }"#,
+        OmenaParserStyleDialect::Less,
+    );
+
+    assert_eq!(summary.product, "omena-query.static-stylesheet-evaluator");
+    assert_eq!(summary.mode, "oracleOnly");
+    assert_eq!(summary.value_type, "AbstractCssValueV0");
+    assert!(!summary.legacy_output_consumed_until_cutover);
+    assert!(summary.evaluation_available);
+    assert_eq!(summary.divergence_count, 0);
+    assert!(summary.all_legacy_declaration_values_preserved);
+    assert_eq!(summary.native_replacement_count, 0);
+    assert!(summary.native_structural_edit_count > 0);
+    assert!(summary.native_edit_output_matches_evaluated_css);
+    assert!(summary.evaluation.as_ref().is_some_and(|evaluation| {
+        [
+            ".number(red)",
+            ".ratio(2px)",
+            ".font(block)",
+            r#".display("Roboto")"#,
+            ".asset(red)",
+            ".em(1rem)",
+            ".number(@value)",
+            ".ratio(@value)",
+            ".font(@value)",
+            ".display(@value)",
+            ".asset(@value)",
+            ".em(@value)",
+            "margin: red",
+            "width: 2px",
+            "font-family: block",
+            r#"display: "Roboto""#,
+            "background-image: red",
+            "letter-spacing: 1rem",
+        ]
+        .into_iter()
+        .all(|snippet| !evaluation.evaluated_css.contains(snippet))
     }));
 }
 
