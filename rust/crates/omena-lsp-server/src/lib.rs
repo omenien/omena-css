@@ -12,6 +12,7 @@ mod frame_aware_refresh;
 mod lsp_output;
 mod message_loop;
 mod occurrence_mapping;
+mod open_document_inputs;
 #[cfg(feature = "parallel-style-diagnostics")]
 mod parallel_style_wave;
 mod protocol;
@@ -123,6 +124,12 @@ pub(crate) use omena_query::{
 };
 #[cfg(test)]
 pub(crate) use omena_tsgo_client::{TsgoResolvedTypeV0, TsgoTypeFactResultEntryV0};
+#[cfg(feature = "salsa-style-diagnostics")]
+pub(crate) use open_document_inputs::style_path_inputs_from_open_documents;
+pub(crate) use open_document_inputs::{
+    source_documents_from_open_documents, style_sources_for_hover_render,
+    style_sources_from_open_documents,
+};
 use protocol::*;
 use query_adapter::*;
 use query_reuse::{
@@ -1632,89 +1639,6 @@ fn resolve_lsp_refactor_code_actions(state: &LspShellState, params: Option<&Valu
     )
     .actions;
     render_omena_query_lsp_code_actions(actions)
-}
-
-fn style_sources_from_open_documents(
-    state: &LspShellState,
-    workspace_folder_uri: Option<&str>,
-    required_document_uri: Option<&str>,
-) -> Vec<OmenaQueryStyleSourceInputV0> {
-    let mut sources = state
-        .documents
-        .values()
-        .filter(|document| {
-            is_style_document_uri(document.uri.as_str())
-                && workspace_folder_compatible(workspace_folder_uri, document)
-        })
-        .map(|document| OmenaQueryStyleSourceInputV0 {
-            style_path: document.uri.clone(),
-            style_source: document.text.clone(),
-        })
-        .collect::<Vec<_>>();
-    if let Some(required_document_uri) = required_document_uri
-        && !sources
-            .iter()
-            .any(|source| source.style_path == required_document_uri)
-        && let Some(document) = state.document(required_document_uri)
-    {
-        sources.push(OmenaQueryStyleSourceInputV0 {
-            style_path: document.uri.clone(),
-            style_source: document.text.clone(),
-        });
-    }
-    sources
-}
-
-#[cfg(feature = "salsa-style-diagnostics")]
-fn style_path_inputs_from_open_documents(
-    state: &LspShellState,
-    workspace_folder_uri: Option<&str>,
-    required_document_uri: Option<&str>,
-) -> Vec<OmenaQueryStyleSourceInputV0> {
-    let mut sources = state
-        .documents
-        .values()
-        .filter(|document| {
-            is_style_document_uri(document.uri.as_str())
-                && workspace_folder_compatible(workspace_folder_uri, document)
-        })
-        .map(|document| OmenaQueryStyleSourceInputV0 {
-            style_path: document.uri.clone(),
-            style_source: String::new(),
-        })
-        .collect::<Vec<_>>();
-    if let Some(required_document_uri) = required_document_uri
-        && !sources
-            .iter()
-            .any(|source| source.style_path == required_document_uri)
-        && let Some(document) = state.document(required_document_uri)
-    {
-        sources.push(OmenaQueryStyleSourceInputV0 {
-            style_path: document.uri.clone(),
-            style_source: String::new(),
-        });
-    }
-    sources
-}
-
-fn source_documents_from_open_documents(
-    state: &LspShellState,
-    workspace_folder_uri: Option<&str>,
-) -> Vec<OmenaQuerySourceDocumentInputV0> {
-    state
-        .documents
-        .values()
-        .filter(|document| {
-            !is_style_document_uri(document.uri.as_str())
-                && workspace_folder_compatible(workspace_folder_uri, document)
-        })
-        .map(|document| OmenaQuerySourceDocumentInputV0 {
-            source_path: document.uri.clone(),
-            source_source: document.text.clone(),
-            source_syntax_index: Some(document.source_syntax_index.clone()),
-            has_unresolved_style_import: document.has_unresolved_style_import,
-        })
-        .collect()
 }
 
 fn render_omena_query_lsp_code_actions(actions: Vec<OmenaQueryCodeActionV0>) -> Vec<Value> {
@@ -3341,26 +3265,6 @@ fn render_style_hover_candidate_markdown_for_workspace(
             )
         });
     render_style_hover_candidate_markdown_from_parts(document_uri, candidate, &render_parts)
-}
-
-fn style_sources_for_hover_render(
-    state: &LspShellState,
-    workspace_folder_uri: Option<&str>,
-    document_uri: &str,
-    source: &str,
-) -> Vec<OmenaQueryStyleSourceInputV0> {
-    let mut style_sources =
-        style_sources_from_open_documents(state, workspace_folder_uri, Some(document_uri));
-    if !style_sources
-        .iter()
-        .any(|style_source| style_source.style_path == document_uri)
-    {
-        style_sources.push(OmenaQueryStyleSourceInputV0 {
-            style_path: document_uri.to_string(),
-            style_source: source.to_string(),
-        });
-    }
-    style_sources
 }
 
 #[cfg(test)]
