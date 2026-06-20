@@ -5,7 +5,6 @@ use omena_parser::{LexedToken, ParsedVariableFact, ParsedVariableFactKind, Style
 use omena_syntax::SyntaxKind;
 
 use crate::{
-    scss_metadata::reduce_static_scss_metadata_with_context,
     static_loop_frames::{
         parse_static_scss_each_loop_binding_frames, parse_static_scss_for_loop_header,
         static_scss_for_loop_values,
@@ -48,6 +47,7 @@ mod scss_mixin_body;
 mod scss_mixin_edits;
 mod scss_return_clauses;
 mod scss_variables;
+mod scss_visibility;
 mod tokens;
 mod value_resolution_model;
 mod variable_references;
@@ -173,10 +173,10 @@ use scss_mixin_body::{
 };
 use scss_mixin_edits::collect_static_scss_mixin_evaluation_edits;
 use scss_variables::{
-    find_static_scss_variable_declaration, find_static_scss_variable_declaration_in_scope,
     resolve_static_scss_variable_abstract_value_at_position,
     resolve_static_scss_variable_value_at_position, resolve_static_scss_variable_value_in_scope,
 };
+use scss_visibility::reduce_static_scss_metadata_with_function_context;
 use tokens::{
     parser_text_size_to_usize, static_stylesheet_matching_token_index,
     static_stylesheet_next_token_kind_index, static_stylesheet_position_is_inside_ranges,
@@ -2010,93 +2010,6 @@ fn evaluate_static_scss_function_output_value(value: &str) -> StaticStylesheetAb
         outcome,
         reason,
     }
-}
-
-fn reduce_static_scss_metadata_with_function_context(
-    value: &str,
-    argument_values: &BTreeMap<String, String>,
-    position: usize,
-    context: StaticScssFunctionResolutionContext<'_>,
-) -> Option<String> {
-    reduce_static_scss_metadata_with_context(
-        value,
-        |name| {
-            static_scss_visible_function_declaration_exists(name, position, context).then_some(true)
-        },
-        |name| {
-            static_scss_visible_mixin_declaration_exists(name, position, context).then_some(true)
-        },
-        |name| {
-            Some(static_scss_visible_variable_exists(
-                name,
-                position,
-                argument_values,
-                context,
-            ))
-        },
-        |name| {
-            Some(static_scss_visible_global_variable_exists(
-                name, position, context,
-            ))
-        },
-    )
-}
-
-fn static_scss_visible_function_declaration_exists(
-    name: &str,
-    position: usize,
-    context: StaticScssFunctionResolutionContext<'_>,
-) -> bool {
-    context.declarations.iter().any(|declaration| {
-        declaration.span_start <= position
-            && canonical_static_scss_function_name(declaration.name.as_str()) == name
-    })
-}
-
-fn static_scss_visible_mixin_declaration_exists(
-    name: &str,
-    position: usize,
-    context: StaticScssFunctionResolutionContext<'_>,
-) -> bool {
-    context.mixin_declarations.iter().any(|declaration| {
-        declaration.span_start <= position
-            && canonical_static_scss_function_name(declaration.name.as_str()) == name
-    })
-}
-
-fn static_scss_visible_variable_exists(
-    name: &str,
-    position: usize,
-    argument_values: &BTreeMap<String, String>,
-    context: StaticScssFunctionResolutionContext<'_>,
-) -> bool {
-    argument_values.contains_key(canonical_static_scss_variable_name(name).as_str())
-        || static_stylesheet_scope_for_position(context.scopes, position)
-            .and_then(|scope_id| {
-                find_static_scss_variable_declaration(
-                    name,
-                    scope_id,
-                    position,
-                    context.scopes,
-                    context.variable_declarations,
-                )
-            })
-            .is_some()
-}
-
-fn static_scss_visible_global_variable_exists(
-    name: &str,
-    position: usize,
-    context: StaticScssFunctionResolutionContext<'_>,
-) -> bool {
-    find_static_scss_variable_declaration_in_scope(
-        name,
-        0,
-        position,
-        context.scopes,
-        context.variable_declarations,
-    )
-    .is_some()
 }
 
 fn dialect_label(dialect: StyleDialect) -> &'static str {
