@@ -21,6 +21,10 @@ const expectedBrowsers = [
 
 interface SpecSourcePinsV0 {
   readonly refreshedAt: string;
+  readonly refreshPolicy: {
+    readonly maxAgeDays: number;
+    readonly nextReviewDueAt: string;
+  };
   readonly generatedDataReviewGate: {
     readonly humanReviewRequired: boolean;
     readonly changedGeneratedDataRequiresReview: boolean;
@@ -113,6 +117,12 @@ assert.equal(passFeatureBindingData.root.schema_version, "0");
 assert.equal(passFeatureBindingData.root.product, "omena-transform-target.pass-feature-bindings");
 assert.equal(browserThresholdData.root.refreshed_at, specSources.refreshedAt);
 assert.equal(passFeatureBindingData.root.refreshed_at, specSources.refreshedAt);
+assert.match(specSources.refreshedAt, /^\d{4}-\d{2}-\d{2}$/u);
+assert.equal(
+  specSources.refreshPolicy.nextReviewDueAt,
+  addIsoDateDays(specSources.refreshedAt, specSources.refreshPolicy.maxAgeDays),
+  "source pin review due date must match refreshedAt + maxAgeDays",
+);
 assert.equal(
   browserThresholdData.root.quorum_min_sources,
   expectedQuorumSources.length,
@@ -385,25 +395,25 @@ function specManifestEvidenceIndex(manifest: SpecManifestV0): Set<string> {
 }
 
 function assertFeatureSourceKeyAnchored(
-  manifestSourceKeys: Map<string, Set<string>>,
+  sourceKeysByManifestName: Map<string, Set<string>>,
   feature: CompatFeatureSelectionV0,
   source: "web-features" | "mdn-bcd",
 ): void {
   const manifestSourceName = source === "mdn-bcd" ? "mdn-browser-compat-data" : source;
   const sourceKey = feature.sourceKeys[source];
   assert.ok(
-    manifestSourceKeys.get(manifestSourceName)?.has(sourceKey),
+    sourceKeysByManifestName.get(manifestSourceName)?.has(sourceKey),
     `selection ${feature.table} ${source} key ${sourceKey} must be anchored in spec manifest source coverage`,
   );
 }
 
 function assertFeatureSourceKeyEvidenceAnchored(
-  manifestEvidence: Set<string>,
+  manifestEvidenceItems: Set<string>,
   feature: CompatFeatureSelectionV0,
 ): void {
   for (const [source, key] of Object.entries(feature.sourceKeys)) {
     assert.ok(
-      manifestEvidence.has(`compat-source-key:${source}/${key}`),
+      manifestEvidenceItems.has(`compat-source-key:${source}/${key}`),
       `selection ${feature.table} ${source} key ${key} must be anchored by manifest evidence`,
     );
   }
@@ -467,6 +477,14 @@ function assertThresholdRowsMatchSelection(
     expectedRows,
     `generated threshold table ${table} must exactly match the curated source mapping`,
   );
+}
+
+function addIsoDateDays(value: string, days: number): string {
+  assert.ok(Number.isInteger(days) && days > 0, "maxAgeDays must be a positive integer");
+  const timestamp = Date.parse(`${value}T00:00:00.000Z`);
+  assert.ok(Number.isFinite(timestamp), `invalid ISO date ${value}`);
+  const date = new Date(timestamp + days * 24 * 60 * 60 * 1000);
+  return date.toISOString().slice(0, 10);
 }
 
 function selectionPassIds(feature: CompatFeatureSelectionV0): readonly string[] {

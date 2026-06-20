@@ -18,6 +18,10 @@ interface SpecSourcePinsV0 {
   readonly schemaVersion: string;
   readonly product: string;
   readonly refreshedAt: string;
+  readonly refreshPolicy: {
+    readonly maxAgeDays: number;
+    readonly nextReviewDueAt: string;
+  };
   readonly sources: readonly {
     readonly name: string;
     readonly package: string;
@@ -113,6 +117,7 @@ process.stdout.write(
       0,
     ),
     refreshedAt: specSources.refreshedAt,
+    nextReviewDueAt: specSources.refreshPolicy.nextReviewDueAt,
   }),
 );
 
@@ -123,6 +128,12 @@ function validateInputs(
 ): void {
   assert.equal(sourcePins.schemaVersion, "0");
   assert.equal(sourcePins.product, featureSelections.sourcePolicy.sourcePinProduct);
+  assertIsoDate(sourcePins.refreshedAt, "sourcePins.refreshedAt");
+  assert.equal(
+    sourcePins.refreshPolicy.nextReviewDueAt,
+    addIsoDateDays(sourcePins.refreshedAt, sourcePins.refreshPolicy.maxAgeDays),
+    "source pin review due date must match refreshedAt + maxAgeDays",
+  );
   assert.equal(manifest.schemaVersion, "0");
   assert.equal(manifest.product, "omena-spec-audit.single-source-manifest");
   assert.equal(featureSelections.schemaVersion, "0");
@@ -272,6 +283,18 @@ function assertFeatureSourceKeyEvidenceAnchored(
       `${feature.table} ${source} key ${key} must be anchored by manifest evidence`,
     );
   }
+}
+
+function assertIsoDate(value: string, label: string): void {
+  assert.match(value, /^\d{4}-\d{2}-\d{2}$/u, `${label} must be an ISO date`);
+}
+
+function addIsoDateDays(value: string, days: number): string {
+  assert.ok(Number.isInteger(days) && days > 0, "maxAgeDays must be a positive integer");
+  const timestamp = Date.parse(`${value}T00:00:00.000Z`);
+  assert.ok(Number.isFinite(timestamp), `invalid ISO date ${value}`);
+  const date = new Date(timestamp + days * 24 * 60 * 60 * 1000);
+  return date.toISOString().slice(0, 10);
 }
 
 function renderBrowserThresholdsToml(
