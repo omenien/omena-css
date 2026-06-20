@@ -370,7 +370,7 @@ fn execution_runtime_rejects_less_legacy_output_without_oracle() {
 }
 
 #[test]
-fn execution_runtime_consumes_oracle_output_when_native_edits_are_stale_but_oracle_matches() {
+fn execution_runtime_preserves_source_when_native_edits_are_stale_but_oracle_matches() {
     let source =
         r#"@brand: red; .base { color: @brand; } @local: blue; .button { color: @local; }"#;
     let evaluated_css = "@brand: red; .base { color: @brand; }  .button { color: blue; }";
@@ -425,11 +425,13 @@ fn execution_runtime_consumes_oracle_output_when_native_edits_are_stale_but_orac
         &context,
     );
 
-    assert_eq!(execution.mutation_count, 1);
-    assert_eq!(execution.output_css, evaluated_css);
+    assert_eq!(execution.mutation_count, 0);
+    assert_eq!(execution.output_css, source);
     assert_eq!(
         execution.outcomes.first().map(|outcome| outcome.detail),
-        Some("applied Less module evaluation oracle output from the evaluator boundary")
+        Some(
+            "preserved Less source because native evaluator edits did not match the oracle boundary"
+        )
     );
 }
 
@@ -508,9 +510,12 @@ fn native_module_evaluation_edit(
     needle: &str,
     replacement: &str,
 ) -> TransformModuleEvaluationNativeEditV0 {
-    let Some(start) = source.find(needle) else {
-        panic!("test fixture missing native edit needle: {needle}");
-    };
+    let start = source.find(needle);
+    assert!(
+        start.is_some(),
+        "test fixture missing native edit needle: {needle}"
+    );
+    let start = start.unwrap_or(0);
     TransformModuleEvaluationNativeEditV0 {
         start,
         end: start + needle.len(),

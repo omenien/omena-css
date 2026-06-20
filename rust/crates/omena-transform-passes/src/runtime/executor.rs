@@ -452,7 +452,6 @@ fn execute_transform_passes_on_source_with_active_lex_cache(
                         &pass_input_css,
                         evaluation,
                         "applied explicit SCSS module evaluation native edit output from the evaluator boundary",
-                        "applied SCSS module evaluation oracle output from the evaluator boundary",
                         "preserved SCSS source because native evaluator edits did not match the oracle boundary",
                     );
                     let mutation_count = usize::from(pass_input_css != materialized.css);
@@ -486,7 +485,6 @@ fn execute_transform_passes_on_source_with_active_lex_cache(
                         &pass_input_css,
                         evaluation,
                         "applied explicit Less module evaluation native edit output from the evaluator boundary",
-                        "applied Less module evaluation oracle output from the evaluator boundary",
                         "preserved Less source because native evaluator edits did not match the oracle boundary",
                     );
                     let mutation_count = usize::from(pass_input_css != materialized.css);
@@ -860,7 +858,6 @@ fn materialize_transform_module_evaluation_output(
     input_css: &str,
     evaluation: &TransformModuleEvaluationV0,
     native_detail: &'static str,
-    oracle_detail: &'static str,
     preserve_detail: &'static str,
 ) -> TransformModuleEvaluationMaterializedOutput {
     if let Some(native_edit_output) = evaluation.native_edit_output.as_ref() {
@@ -880,28 +877,10 @@ fn materialize_transform_module_evaluation_output(
         };
     }
 
-    if transform_module_evaluation_oracle_allows_legacy_output(evaluation) {
-        return TransformModuleEvaluationMaterializedOutput {
-            css: evaluation.evaluated_css.clone(),
-            detail: oracle_detail,
-        };
-    }
-
     TransformModuleEvaluationMaterializedOutput {
         css: input_css.to_string(),
         detail: preserve_detail,
     }
-}
-
-fn transform_module_evaluation_oracle_allows_legacy_output(
-    evaluation: &TransformModuleEvaluationV0,
-) -> bool {
-    evaluation.oracle.as_ref().is_some_and(|oracle| {
-        oracle.mode == "oracleOnly"
-            && oracle.product_output_source == "legacyEvaluatedCss"
-            && oracle.divergence_count == 0
-            && oracle.all_legacy_declaration_values_preserved
-    })
 }
 
 fn apply_transform_module_evaluation_native_edits(

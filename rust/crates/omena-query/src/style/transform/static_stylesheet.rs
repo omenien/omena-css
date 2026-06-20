@@ -483,21 +483,7 @@ fn static_stylesheet_module_output_css_from_evaluation(
     {
         return Some(native_css);
     }
-    if static_stylesheet_module_oracle_allows_legacy_output(&evaluation) {
-        return Some(evaluation.evaluated_css);
-    }
     None
-}
-
-fn static_stylesheet_module_oracle_allows_legacy_output(
-    evaluation: &TransformModuleEvaluationV0,
-) -> bool {
-    evaluation.oracle.as_ref().is_some_and(|oracle| {
-        oracle.mode == "oracleOnly"
-            && oracle.product_output_source == "legacyEvaluatedCss"
-            && oracle.divergence_count == 0
-            && oracle.all_legacy_declaration_values_preserved
-    })
 }
 
 fn derive_static_scss_module_forward_evaluations_for_transform_context(
@@ -1339,7 +1325,7 @@ mod tests {
     }
 
     #[test]
-    fn static_module_output_allows_preserved_oracle_legacy_output() {
+    fn static_module_output_rejects_preserved_oracle_legacy_output() {
         let evaluation = test_transform_module_evaluation(
             Some("nativeEditOutput"),
             None,
@@ -1355,7 +1341,7 @@ mod tests {
 
         assert_eq!(
             static_stylesheet_module_output_css_from_evaluation("", evaluation),
-            Some(".legacy { color: red; }".to_string())
+            None
         );
     }
 
