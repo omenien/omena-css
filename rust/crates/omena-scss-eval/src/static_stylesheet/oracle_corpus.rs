@@ -399,6 +399,16 @@ fn static_stylesheet_oracle_corpus_fixtures() -> &'static [StaticStylesheetOracl
             source: "$tokens: (primary: red, secondary: blue)\n$count: length(map-keys($tokens))\n$tone: nth(map-values($tokens), 2)\n.card\n  color: $tone\n  z-index: $count",
         },
         StaticStylesheetOracleCorpusFixtureV0 {
+            id: "sass.static-default-function-arguments",
+            dialect: StyleDialect::Sass,
+            source: "@function offset($value: 1px, $extra: 2px)\n  @return $value + $extra\n.card\n  margin: offset()",
+        },
+        StaticStylesheetOracleCorpusFixtureV0 {
+            id: "sass.static-default-argument-prior-parameter",
+            dialect: StyleDialect::Sass,
+            source: "@function offset($value, $extra: $value + 1px)\n  @return $extra\n.card\n  margin: offset(2px)",
+        },
+        StaticStylesheetOracleCorpusFixtureV0 {
             id: "sass.static-top-level-for",
             dialect: StyleDialect::Sass,
             source: "@for $i from 1 through 3\n  .n\n    order: $i",
@@ -477,6 +487,16 @@ fn static_stylesheet_oracle_corpus_fixtures() -> &'static [StaticStylesheetOracl
             id: "scss.static-while-expression-step",
             dialect: StyleDialect::Scss,
             source: "@function pick($target) { $step: 1 + 1; $i: 0; @while $i < 6 { @if $i == $target { @return $i; } $i: $i + $step; } @return 0; } .button { z-index: pick(4); }",
+        },
+        StaticStylesheetOracleCorpusFixtureV0 {
+            id: "scss.static-default-function-arguments",
+            dialect: StyleDialect::Scss,
+            source: "@function offset($value: 1px, $extra: 2px) { @return $value + $extra; } .card { margin: offset(); }",
+        },
+        StaticStylesheetOracleCorpusFixtureV0 {
+            id: "scss.static-default-argument-prior-parameter",
+            dialect: StyleDialect::Scss,
+            source: "@function offset($value, $extra: $value + 1px) { @return $extra; } .card { margin: offset(2px); }",
         },
         StaticStylesheetOracleCorpusFixtureV0 {
             id: "scss.dynamic-function-return",
