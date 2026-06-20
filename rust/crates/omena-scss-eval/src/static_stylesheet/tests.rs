@@ -19,10 +19,10 @@ fn static_stylesheet_oracle_corpus_reports_native_product_output_with_legacy_ora
     );
     assert_eq!(report.legacy_output_consumed_until_cutover_count, 0);
     assert!(report.all_legacy_outputs_retained_as_oracle);
-    assert_eq!(report.fixture_count, 99);
+    assert_eq!(report.fixture_count, 100);
     assert_eq!(report.scss_fixture_count, 29);
     assert_eq!(report.sass_fixture_count, 23);
-    assert_eq!(report.less_fixture_count, 47);
+    assert_eq!(report.less_fixture_count, 48);
     assert_eq!(report.evaluated_fixture_count, report.fixture_count);
     assert_eq!(report.missing_evaluation_count, 0);
     assert_eq!(report.divergence_count, 0);
@@ -71,6 +71,13 @@ fn static_stylesheet_oracle_corpus_reports_native_product_output_with_legacy_ora
     }));
     assert!(report.fixtures.iter().any(|fixture| {
         fixture.id == "less.extended-numeric-builtins"
+            && fixture.dialect == "less"
+            && fixture.evaluation_available
+            && fixture.native_edit_output_matches_evaluated_css
+            && fixture.divergence_count == 0
+    }));
+    assert!(report.fixtures.iter().any(|fixture| {
+        fixture.id == "less.percentage-rounding-builtins"
             && fixture.dialect == "less"
             && fixture.evaluation_available
             && fixture.native_edit_output_matches_evaluated_css

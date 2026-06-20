@@ -500,10 +500,10 @@ fn consumer_build_derives_static_less_evaluator_context() {
 }
 
 #[test]
-fn consumer_build_uses_native_less_numeric_evaluator_output() {
+fn consumer_build_uses_native_less_numeric_and_rounding_evaluator_output() {
     let summary = execute_omena_query_consumer_build_style_source(
         "Button.module.less",
-        "@sqrt: sqrt(4); @pow: pow(2, 3); @mod: mod(11px, 4px); @round: round(1.234px, 2); .button { sqrt: @sqrt; pow: @pow; mod: @mod; round: @round; }",
+        "@sqrt: sqrt(4); @pow: pow(2, 3); @mod: mod(11px, 4px); @round: round(1.234px, 2); @ratio: percentage(.5); @ceil: ceil(1.2px); @floor: floor(1.8px); .button { sqrt: @sqrt; pow: @pow; mod: @mod; round: @round; width: @ratio; top: @ceil; bottom: @floor; }",
         &[
             "less-module-evaluate".to_string(),
             "css-modules-class-hashing".to_string(),
@@ -527,7 +527,11 @@ fn consumer_build_uses_native_less_numeric_evaluator_output() {
     assert!(summary.execution.output_css.contains("pow: 8"));
     assert!(summary.execution.output_css.contains("mod: 3px"));
     assert!(summary.execution.output_css.contains("round: 1.23px"));
+    assert!(summary.execution.output_css.contains("width: 50%"));
+    assert!(summary.execution.output_css.contains("top: 2px"));
+    assert!(summary.execution.output_css.contains("bottom: 1px"));
     assert!(!summary.execution.output_css.contains("@sqrt"));
+    assert!(!summary.execution.output_css.contains("@ratio"));
     assert_eq!(
         summary
             .execution
@@ -545,7 +549,7 @@ fn consumer_build_uses_native_less_numeric_evaluator_output() {
             .css_module_evaluation
             .as_ref()
             .and_then(|evaluation| evaluation.native_edit_output.as_deref())
-            .is_some_and(|output| output.contains("round: 1.23px"))
+            .is_some_and(|output| output.contains("round: 1.23px") && output.contains("width: 50%"))
     );
     assert_eq!(
         summary
@@ -562,7 +566,7 @@ fn consumer_build_uses_native_less_numeric_evaluator_output() {
                 oracle.native_raw_value_count,
                 oracle.native_top_value_count,
             )),
-        Some(("legacyEvaluatedCss", 0, true, 4, 4, 0, 0))
+        Some(("legacyEvaluatedCss", 0, true, 7, 7, 0, 0))
     );
 }
 

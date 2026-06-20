@@ -761,10 +761,10 @@ function assertStaticStylesheetEvaluatorOracleCorpus(
   assert.equal(summary.mode, "oracleOnly");
   assert.equal(summary.valueType, "AbstractCssValueV0");
   assert.equal(summary.productOutputSource, "nativeEditOutput");
-  assert.ok(summary.fixtureCount >= 99, "static stylesheet oracle corpus must not shrink");
+  assert.ok(summary.fixtureCount >= 100, "static stylesheet oracle corpus must not shrink");
   assert.ok(summary.scssFixtureCount >= 29, "SCSS oracle fixture coverage must not shrink");
   assert.ok(summary.sassFixtureCount >= 23, "Sass oracle fixture coverage must not shrink");
-  assert.ok(summary.lessFixtureCount >= 47, "Less oracle fixture coverage must not shrink");
+  assert.ok(summary.lessFixtureCount >= 48, "Less oracle fixture coverage must not shrink");
   assert.equal(summary.evaluatedFixtureCount, summary.fixtureCount);
   assert.equal(summary.legacyOutputRetainedAsOracleCount, summary.evaluatedFixtureCount);
   assert.equal(summary.legacyOutputConsumedUntilCutoverCount, 0);
@@ -824,6 +824,7 @@ function assertStaticStylesheetEvaluatorOracleCorpus(
     "less.dynamic-escaped-string",
     "less.fuel-exhausted-variable-chain",
     "less.extended-numeric-builtins",
+    "less.percentage-rounding-builtins",
   ]) {
     const fixture = fixtures.get(id);
     assert.ok(fixture, `missing oracle fixture ${id}`);
