@@ -1,6 +1,6 @@
 import { strict as assert } from "node:assert";
 import { spawnSync } from "node:child_process";
-import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 
@@ -28,6 +28,15 @@ const CANONICAL_URL = "https://cdn.example/tokens.scss";
 
 interface StyleDiagnosticsResult {
   readonly diagnostics?: ReadonlyArray<{ readonly code: string }>;
+}
+
+interface LifExportsResult {
+  readonly lessVariables?: ReadonlyArray<{ readonly name: string; readonly valueRepr?: string }>;
+  readonly lessMixins?: ReadonlyArray<{ readonly name: string; readonly guarded?: boolean }>;
+  readonly lessDetachedRulesets?: ReadonlyArray<{
+    readonly name: string;
+    readonly memberNames?: readonly string[];
+  }>;
 }
 
 function runChecked(
@@ -76,12 +85,22 @@ const workspace = mkdtempSync(path.join(tmpdir(), "omena-sif-e2e-"));
 
 try {
   const tokensPath = path.join(workspace, "tokens.scss");
+  const lessTokensPath = path.join(workspace, "tokens.less");
   const consumerPath = path.join(workspace, "consumer.module.scss");
   const sifPath = path.join(workspace, "tokens.sif.json");
+  const lifExportsPath = path.join(workspace, "tokens.lif-exports.json");
   const lockPath = path.join(workspace, "omena.lock");
 
   // A package that references an external Sass symbol through an `@use` URL.
   writeFileSync(tokensPath, "$brand: red !default;\n");
+  writeFileSync(
+    lessTokensPath,
+    [
+      "@brand: #fff;",
+      "@tokens: { primary: @brand; @gap: 2px; };",
+      ".button(@gap: 1rem) when (@gap > 0) { color: @brand; }",
+    ].join("\n"),
+  );
   writeFileSync(
     consumerPath,
     `@use "${CANONICAL_URL}" as remote;\n.button { color: remote.$brand; }\n`,
@@ -115,6 +134,36 @@ try {
     "--output",
     sifPath,
   ]);
+  runChecked("sif generate-lif-exports", binary, [
+    "sif",
+    "generate-lif-exports",
+    lessTokensPath,
+    "--syntax",
+    "less",
+    "--output",
+    lifExportsPath,
+  ]);
+  const lifExports = JSON.parse(
+    readFileSync(lifExportsPath, "utf8"),
+  ) as LifExportsResult;
+  assert.deepEqual(
+    lifExports.lessVariables?.map((variable) => variable.name),
+    ["@brand"],
+    "LIF export generation must expose Less variables through the shipped CLI",
+  );
+  assert.deepEqual(
+    lifExports.lessMixins?.map((mixin) => [mixin.name, mixin.guarded]),
+    [[".button", true]],
+    "LIF export generation must expose guarded Less mixins through the shipped CLI",
+  );
+  assert.deepEqual(
+    lifExports.lessDetachedRulesets?.map((ruleset) => [
+      ruleset.name,
+      ruleset.memberNames,
+    ]),
+    [["@tokens", ["@gap", "primary"]]],
+    "LIF export generation must expose Less detached rulesets through the shipped CLI",
+  );
 
   // 4. Author the lock from the generated SIF, then frozen-verify it.
   runChecked("lock update", binary, [
@@ -176,6 +225,7 @@ try {
     [
       "validated SIF end-to-end resolve loop:",
       "generator=sif-generate",
+      "lif=generate-lif-exports",
       "lock=update+verify-frozen",
       `baseline=${baselineCodes.join("|") || "(none)"}`,
       `resolved=${resolvedCodes.join("|") || "(none)"}`,
