@@ -72,6 +72,17 @@ interface TransformPlanSummaryV0 {
     readonly product: string;
     readonly plannedPassIds: readonly string[];
   };
+  readonly eggWitnesses: readonly {
+    readonly passId: string;
+    readonly sourceKind: string;
+    readonly cssBefore: string;
+    readonly cssAfter: string;
+    readonly execution: {
+      readonly product: string;
+      readonly accepted: boolean;
+      readonly afterMatchesCandidate: boolean;
+    };
+  }[];
   readonly print: {
     readonly product: string;
     readonly css: string;
@@ -134,7 +145,15 @@ interface TransformPlanSummaryV0 {
       readonly product: string;
       readonly obligationCount: number;
       readonly acceptedCount: number;
+      readonly blockedCount: number;
       readonly checkedPassIds: readonly string[];
+      readonly obligations: readonly {
+        readonly passId: string;
+        readonly proofProduct: string;
+        readonly accepted: boolean;
+        readonly blockedReason?: string | null;
+        readonly checkedObligations: readonly string[];
+      }[];
     };
     readonly provenanceDerivationForest: {
       readonly product: string;
@@ -669,6 +688,106 @@ assert.equal(chrome123TargetQuerySummary.targetQuery?.support.supportsColorMix, 
 assert.deepEqual(chrome123TargetQuerySummary.target.plannedPassIds, ["stale-prefix-removal"]);
 assert.equal(chrome123TargetQuerySummary.execution.outputCss, targetCompatStyleSource);
 
+const stalePrefixTargetStyleSource =
+  ".a { -webkit-user-select: none; -moz-user-select: none; user-select: none; -webkit-transform: translateX(1px) !important; transform: translateX(1px) !important; } .keep { -webkit-user-select: text; user-select: none; }";
+const stalePrefixTargetQueryResult = spawnSync(
+  "cargo",
+  [
+    "run",
+    "--quiet",
+    "--manifest-path",
+    "rust/Cargo.toml",
+    "-p",
+    "engine-shadow-runner",
+    "--",
+    "transform-plan",
+  ],
+  {
+    cwd: process.cwd(),
+    encoding: "utf8",
+    input: JSON.stringify({
+      stylePath: "Compat.css",
+      styleSource: stalePrefixTargetStyleSource,
+      targetQuery: "chrome 123",
+      targetOptions: {
+        allowLogicalToPhysical: false,
+        allowScopeFlatten: false,
+        allowLayerFlatten: false,
+        enableSupportsStaticEval: false,
+        enableMediaStaticEval: false,
+      },
+    }),
+    maxBuffer: 8 * 1024 * 1024,
+  },
+);
+
+assert.equal(stalePrefixTargetQueryResult.status, 0, stalePrefixTargetQueryResult.stderr);
+assert.equal(stalePrefixTargetQueryResult.error, undefined);
+
+const stalePrefixTargetQuerySummary = JSON.parse(
+  stalePrefixTargetQueryResult.stdout,
+) as TransformPlanSummaryV0;
+
+assert.equal(stalePrefixTargetQuerySummary.targetQuery?.profileId, "browserslist-resolved");
+assert.deepEqual(stalePrefixTargetQuerySummary.targetQuery?.resolvedTargets, ["chrome 123"]);
+assert.deepEqual(stalePrefixTargetQuerySummary.target.plannedPassIds, ["stale-prefix-removal"]);
+assert.deepEqual(stalePrefixTargetQuerySummary.combinedPassIds, [
+  "stale-prefix-removal",
+  "print-css",
+]);
+assert.deepEqual(stalePrefixTargetQuerySummary.execution.executedPassIds, [
+  "stale-prefix-removal",
+  "print-css",
+]);
+assert.equal(stalePrefixTargetQuerySummary.execution.mutationCount, 3);
+assert.equal(
+  stalePrefixTargetQuerySummary.execution.outputCss,
+  ".a {   user-select: none;  transform: translateX(1px) !important; } .keep { -webkit-user-select: text; user-select: none; }",
+);
+assert.ok(!stalePrefixTargetQuerySummary.execution.outputCss.includes("-moz-user-select: none"));
+assert.ok(
+  !stalePrefixTargetQuerySummary.execution.outputCss.includes(
+    "-webkit-transform: translateX(1px) !important",
+  ),
+);
+assert.ok(
+  stalePrefixTargetQuerySummary.execution.outputCss.includes("-webkit-user-select: text"),
+  "stale-prefix-removal must keep prefixed declarations when exact-peer proof is unavailable",
+);
+assert.equal(
+  stalePrefixTargetQuerySummary.execution.cascadeProofObligations.product,
+  "omena-transform-passes.cascade-proof-obligations",
+);
+assert.equal(stalePrefixTargetQuerySummary.execution.cascadeProofObligations.obligationCount, 3);
+assert.equal(stalePrefixTargetQuerySummary.execution.cascadeProofObligations.acceptedCount, 3);
+assert.equal(stalePrefixTargetQuerySummary.execution.cascadeProofObligations.blockedCount, 0);
+assert.deepEqual(stalePrefixTargetQuerySummary.execution.cascadeProofObligations.checkedPassIds, [
+  "stale-prefix-removal",
+]);
+assert.ok(
+  stalePrefixTargetQuerySummary.execution.cascadeProofObligations.obligations.every(
+    (obligation) =>
+      obligation.passId === "stale-prefix-removal" &&
+      obligation.proofProduct === "omena-cascade.stale-prefix-removal-proof" &&
+      obligation.accepted &&
+      obligation.blockedReason === null &&
+      obligation.checkedObligations.includes("knownVendorPrefixMapping") &&
+      obligation.checkedObligations.includes("exactUnprefixedPeer") &&
+      obligation.checkedObligations.includes("sameImportantFlag"),
+  ),
+);
+assert.equal(stalePrefixTargetQuerySummary.eggWitnesses.length, 3);
+assert.ok(
+  stalePrefixTargetQuerySummary.eggWitnesses.every(
+    (witness) =>
+      witness.passId === "stale-prefix-removal" &&
+      witness.sourceKind === "stalePrefixExactPeer" &&
+      witness.execution.product === "omena-transform-egg.execution" &&
+      witness.execution.accepted &&
+      witness.execution.afterMatchesCandidate,
+  ),
+);
+
 const contextStyleSource =
   '@import "./tokens.css"; .button { composes: base; color: var(--brand); } .base { color: blue; }';
 
@@ -790,13 +909,13 @@ process.stdout.write(
 process.stdout.write("\n");
 
 function requireTargetDataEvidence(
-  summary: TransformPlanSummaryV0,
+  planSummary: TransformPlanSummaryV0,
   supportTable: string,
 ): TargetDataEvidenceV0 {
-  if (!summary.targetQuery) {
+  if (!planSummary.targetQuery) {
     throw new Error(`target query plan is required for ${supportTable} evidence`);
   }
-  const evidence = summary.targetQuery.targetDataEvidence.find(
+  const evidence = planSummary.targetQuery.targetDataEvidence.find(
     (candidate) => candidate.supportTable === supportTable,
   );
   if (!evidence) {
