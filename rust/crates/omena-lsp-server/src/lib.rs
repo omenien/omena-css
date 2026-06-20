@@ -22,6 +22,7 @@ mod source_completion;
 mod source_diagnostics;
 mod source_document_cache;
 mod source_occurrence_cache;
+mod source_selector_provider;
 mod source_syntax_index;
 mod source_type_fact_cache;
 mod source_type_facts;
@@ -93,8 +94,6 @@ use omena_query::{
     resolve_omena_query_sass_module_use_sources_for_candidate,
     resolve_omena_query_sass_symbol_declarations,
     resolve_omena_query_source_candidate_selector_names,
-    resolve_omena_query_source_provider_candidates,
-    resolve_omena_query_style_selector_definitions_for_source_candidate,
     resolve_omena_query_style_uri_for_specifier_with_resolution_inputs,
     summarize_omena_query_omena_parser_style_facts,
     summarize_omena_query_refs_for_class_from_occurrence_index,
@@ -143,6 +142,13 @@ pub(crate) use source_diagnostics::{
     resolve_source_diagnostics_for_uri,
 };
 use source_occurrence_cache::store_source_selector_occurrence_sidecar;
+pub(crate) use source_selector_provider::{
+    collect_source_selector_reference_candidates, document_has_style_index,
+    first_style_document_for_workspace, resolve_source_provider_candidates,
+    source_selector_candidate_at_position, source_selector_candidate_for_params,
+    source_selector_candidates_at_position, style_selector_definitions_for_source_candidates,
+    style_selector_definitions_from_open_documents, style_selector_definitions_from_uri,
+};
 pub(crate) use source_syntax_index::{
     build_source_syntax_index, collect_source_imports, source_selector_candidates_from_index,
 };
@@ -222,12 +228,6 @@ pub mod test_support {
     pub fn path_to_file_uri(path: &Path) -> String {
         crate::protocol::path_to_file_uri(path)
     }
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-struct SourceProviderCandidateResolution {
-    matched: Vec<LspStyleHoverCandidate>,
-    unresolved: Vec<LspStyleHoverCandidate>,
 }
 
 fn refresh_source_indexes_for_resolution_config_change(
@@ -3217,225 +3217,6 @@ fn attach_provider_tier_feedback(response: &mut Value, provider_feedback: Option
     }
 }
 
-fn source_selector_candidate_for_params(
-    state: &LspShellState,
-    params: Option<&Value>,
-) -> Option<(String, LspStyleHoverCandidate)> {
-    let document_uri = document_uri_from_params(params);
-    let position = lsp_position_from_params(params)?;
-    let document = state.document(document_uri.as_str())?;
-    if is_style_document_uri(document.uri.as_str()) {
-        return None;
-    }
-    source_selector_candidate_at_position(state, document, position)
-        .map(|candidate| (document_uri, candidate))
-}
-
-fn source_selector_candidate_at_position(
-    state: &LspShellState,
-    document: &LspTextDocumentState,
-    position: ParserPositionV0,
-) -> Option<LspStyleHoverCandidate> {
-    source_selector_candidates_at_position(state, document, position)
-        .into_iter()
-        .next()
-}
-
-fn source_selector_candidates_at_position(
-    state: &LspShellState,
-    document: &LspTextDocumentState,
-    position: ParserPositionV0,
-) -> Vec<LspStyleHoverCandidate> {
-    collect_source_selector_reference_candidates(state, document)
-        .into_iter()
-        .filter(|candidate| parser_range_contains_position(&candidate.range, position))
-        .collect()
-}
-
-fn collect_source_selector_reference_candidates(
-    state: &LspShellState,
-    document: &LspTextDocumentState,
-) -> Vec<LspStyleHoverCandidate> {
-    resolve_source_provider_candidates(state, document).matched
-}
-
-fn resolve_source_provider_candidates(
-    state: &LspShellState,
-    document: &LspTextDocumentState,
-) -> SourceProviderCandidateResolution {
-    let source_candidates = collect_source_class_reference_candidates(document);
-    let mut definitions = style_selector_definitions_from_open_documents(
-        state,
-        "",
-        document.workspace_folder_uri.as_deref(),
-    );
-    for candidate in &source_candidates {
-        if let Some(target_uri) = candidate.target_style_uri.as_deref()
-            && !definitions
-                .iter()
-                .any(|(uri, _)| file_uri_equivalent(uri, target_uri))
-        {
-            definitions.extend(style_selector_definitions_from_uri(state, target_uri));
-        }
-    }
-    let query_definitions = definitions
-        .iter()
-        .map(|(uri, definition)| query_style_selector_definition_for_matching(uri, definition))
-        .collect::<Vec<_>>();
-    let resolution = resolve_omena_query_source_provider_candidates(
-        source_candidates
-            .iter()
-            .map(query_source_selector_candidate_for_matching)
-            .collect(),
-        query_definitions.as_slice(),
-    );
-
-    SourceProviderCandidateResolution {
-        matched: resolution
-            .matched
-            .into_iter()
-            .map(lsp_source_selector_candidate_from_query)
-            .collect(),
-        unresolved: resolution
-            .unresolved
-            .into_iter()
-            .map(lsp_source_selector_candidate_from_query)
-            .collect(),
-    }
-}
-
-fn collect_source_class_reference_candidates(
-    document: &LspTextDocumentState,
-) -> Vec<LspStyleHoverCandidate> {
-    document.source_selector_candidates.clone()
-}
-
-fn document_has_style_index(document: &LspTextDocumentState) -> bool {
-    is_style_document_uri(document.uri.as_str()) || document.style_summary.is_some()
-}
-
-fn style_selector_definitions_from_open_documents(
-    state: &LspShellState,
-    selector_name: &str,
-    workspace_folder_uri: Option<&str>,
-) -> Vec<(String, LspStyleHoverCandidate)> {
-    let mut definitions = Vec::new();
-    for document in state.documents.values() {
-        if !document_has_style_index(document)
-            || !workspace_folder_compatible(workspace_folder_uri, document)
-        {
-            continue;
-        }
-        let Some((_, candidates)) = style_hover_candidates_for_document(document) else {
-            continue;
-        };
-        definitions.extend(
-            candidates
-                .into_iter()
-                .filter(|candidate| {
-                    candidate.kind == "selector"
-                        && (selector_name.is_empty() || candidate.name == selector_name)
-                })
-                .map(|candidate| (document.uri.clone(), candidate)),
-        );
-    }
-    definitions.sort_by_key(|(uri, candidate)| {
-        (
-            uri.clone(),
-            candidate.range.start.line,
-            candidate.range.start.character,
-        )
-    });
-    definitions
-}
-
-fn style_selector_definitions_from_uri(
-    state: &LspShellState,
-    uri: &str,
-) -> Vec<(String, LspStyleHoverCandidate)> {
-    style_hover_candidates_for_uri(state, uri)
-        .map(|(_, candidates)| {
-            candidates
-                .into_iter()
-                .filter(|candidate| candidate.kind == "selector")
-                .map(|candidate| (uri.to_string(), candidate))
-                .collect()
-        })
-        .unwrap_or_default()
-}
-
-fn style_selector_definitions_for_source_candidate(
-    state: &LspShellState,
-    candidate: &LspStyleHoverCandidate,
-    workspace_folder_uri: Option<&str>,
-) -> Vec<(String, LspStyleHoverCandidate)> {
-    let mut definitions = style_selector_definitions_from_open_documents(
-        state,
-        source_candidate_definition_lookup_name(candidate),
-        workspace_folder_uri,
-    );
-    if let Some(target_uri) = candidate.target_style_uri.as_deref()
-        && !definitions
-            .iter()
-            .any(|(uri, _)| file_uri_equivalent(uri, target_uri))
-    {
-        definitions.extend(style_selector_definitions_from_uri(state, target_uri));
-    }
-    let query_definitions = definitions
-        .iter()
-        .map(|(uri, definition)| query_style_selector_definition_for_matching(uri, definition))
-        .collect::<Vec<_>>();
-    let matched_identities = resolve_omena_query_style_selector_definitions_for_source_candidate(
-        &query_source_selector_candidate_for_matching(candidate),
-        query_definitions.as_slice(),
-    )
-    .into_iter()
-    .map(|definition| {
-        query_definition_identity(
-            definition.uri.as_str(),
-            definition.name.as_str(),
-            definition.range,
-        )
-    })
-    .collect::<BTreeSet<_>>();
-
-    definitions
-        .into_iter()
-        .filter(|(uri, definition)| {
-            matched_identities.contains(&query_definition_identity(
-                uri.as_str(),
-                definition.name.as_str(),
-                definition.range,
-            ))
-        })
-        .collect()
-}
-
-fn style_selector_definitions_for_source_candidates(
-    state: &LspShellState,
-    candidates: &[LspStyleHoverCandidate],
-    workspace_folder_uri: Option<&str>,
-) -> Vec<(String, LspStyleHoverCandidate)> {
-    let mut definitions = candidates
-        .iter()
-        .flat_map(|candidate| {
-            style_selector_definitions_for_source_candidate(state, candidate, workspace_folder_uri)
-        })
-        .collect::<Vec<_>>();
-    definitions.sort_by_key(|(uri, definition)| {
-        (
-            uri.clone(),
-            definition.range.start.line,
-            definition.range.start.character,
-            definition.name.clone(),
-        )
-    });
-    definitions.dedup_by(|left, right| {
-        left.0 == right.0 && left.1.name == right.1.name && left.1.range == right.1.range
-    });
-    definitions
-}
-
 fn render_source_hover_definitions_markdown(
     state: &LspShellState,
     definitions: &[(String, LspStyleHoverCandidate)],
@@ -3458,27 +3239,6 @@ fn render_source_hover_definitions_markdown(
     } else {
         Some(parts.join("\n\n---\n\n"))
     }
-}
-
-fn source_candidate_definition_lookup_name(candidate: &LspStyleHoverCandidate) -> &str {
-    if candidate.kind == "sourceSelectorPrefixReference" {
-        ""
-    } else {
-        candidate.name.as_str()
-    }
-}
-
-fn first_style_document_for_workspace<'a>(
-    state: &'a LspShellState,
-    workspace_folder_uri: Option<&str>,
-) -> Option<(String, &'a LspTextDocumentState)> {
-    state
-        .documents
-        .values()
-        .filter(|document| document_has_style_index(document))
-        .filter(|document| workspace_folder_compatible(workspace_folder_uri, document))
-        .map(|document| (document.uri.clone(), document.as_ref()))
-        .next()
 }
 
 fn resolve_selector_rename(
