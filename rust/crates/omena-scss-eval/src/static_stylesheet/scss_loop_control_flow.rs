@@ -19,6 +19,7 @@ use super::{
     static_stylesheet_matching_token_index, static_stylesheet_position_is_inside_ranges,
     static_stylesheet_skip_trivia_tokens, static_stylesheet_token_end,
     static_stylesheet_token_start, static_stylesheet_value_end_token_until,
+    tokens::static_stylesheet_block_kinds_for_dialect,
 };
 
 #[derive(Debug, Clone)]
@@ -35,7 +36,9 @@ pub(super) fn collect_static_scss_loop_evaluation_edits(
     excluded_ranges: &[(usize, usize)],
     context: StaticScssFunctionResolutionContext<'_>,
 ) -> Option<StaticScssLoopEvaluationEdits> {
-    if dialect != StyleDialect::Scss || !static_scss_source_contains_loop_candidate(source) {
+    if !static_scss_loop_dialect_is_supported(dialect)
+        || !static_scss_source_contains_loop_candidate(source)
+    {
         return Some(StaticScssLoopEvaluationEdits {
             edits: Vec::new(),
             replacements: Vec::new(),
@@ -59,7 +62,7 @@ pub(super) fn collect_static_scss_loop_evaluation_edits(
             continue;
         }
 
-        let Some(loop_block) = static_scss_loop_block(source, tokens, index) else {
+        let Some(loop_block) = static_scss_loop_block(source, dialect, tokens, index) else {
             preserved_dynamic_loop_count += 1;
             index += 1;
             continue;
@@ -91,7 +94,9 @@ pub(super) fn collect_static_scss_loop_candidate_ranges(
     tokens: &[LexedToken],
     excluded_ranges: &[(usize, usize)],
 ) -> Vec<(usize, usize)> {
-    if dialect != StyleDialect::Scss || !static_scss_source_contains_loop_candidate(source) {
+    if !static_scss_loop_dialect_is_supported(dialect)
+        || !static_scss_source_contains_loop_candidate(source)
+    {
         return Vec::new();
     }
     let mut ranges = Vec::new();
@@ -107,7 +112,7 @@ pub(super) fn collect_static_scss_loop_candidate_ranges(
             index += 1;
             continue;
         }
-        if let Some(loop_block) = static_scss_loop_block(source, tokens, index) {
+        if let Some(loop_block) = static_scss_loop_block(source, dialect, tokens, index) {
             ranges.push((loop_block.start, loop_block.end));
             index = loop_block.next_index;
         } else {
@@ -120,6 +125,7 @@ pub(super) fn collect_static_scss_loop_candidate_ranges(
 #[derive(Debug, Clone)]
 struct StaticScssLoopBlock {
     at_rule_name: String,
+    dialect: StyleDialect,
     start: usize,
     end: usize,
     next_index: usize,
@@ -136,16 +142,18 @@ struct StaticScssLoopRender {
 
 fn static_scss_loop_block(
     source: &str,
+    dialect: StyleDialect,
     tokens: &[LexedToken],
     loop_index: usize,
 ) -> Option<StaticScssLoopBlock> {
-    let body_open_index = (loop_index + 1..tokens.len())
-        .find(|index| tokens[*index].kind == SyntaxKind::LeftBrace)?;
+    let (body_open_kind, body_close_kind) = static_stylesheet_block_kinds_for_dialect(dialect);
+    let body_open_index =
+        (loop_index + 1..tokens.len()).find(|index| tokens[*index].kind == body_open_kind)?;
     let body_close_index = static_stylesheet_matching_token_index(
         tokens,
         body_open_index,
-        SyntaxKind::LeftBrace,
-        SyntaxKind::RightBrace,
+        body_open_kind,
+        body_close_kind,
     )?;
     let start = static_stylesheet_token_start(&tokens[loop_index]);
     let end = static_stylesheet_token_end(&tokens[body_close_index]);
@@ -155,6 +163,7 @@ fn static_scss_loop_block(
     let body_end = static_stylesheet_token_start(&tokens[body_close_index]);
     Some(StaticScssLoopBlock {
         at_rule_name: tokens[loop_index].text.clone(),
+        dialect,
         start,
         end,
         next_index: body_close_index + 1,
@@ -168,7 +177,11 @@ fn render_static_scss_loop_block(
     loop_block: &StaticScssLoopBlock,
     context: StaticScssFunctionResolutionContext<'_>,
 ) -> Option<StaticScssLoopRender> {
-    if static_scss_loop_body_contains_known_function_call(loop_block.body.as_str(), context) {
+    if static_scss_loop_body_contains_known_function_call(
+        loop_block.body.as_str(),
+        loop_block.dialect,
+        context,
+    ) {
         return None;
     }
     if loop_block.at_rule_name.eq_ignore_ascii_case("@while") {
@@ -197,7 +210,11 @@ fn render_static_scss_loop_block(
             &[],
         )?;
         replacements.extend(rendered.replacements);
-        output.push_str(rendered.replacement.as_str());
+        append_static_scss_loop_rendered_body(
+            &mut output,
+            rendered.replacement.as_str(),
+            loop_block.dialect,
+        );
     }
 
     if !static_scss_loop_replacement_is_static_css_subset(output.as_str()) {
@@ -232,7 +249,11 @@ fn render_static_scss_each_loop_block(
             &[],
         )?;
         replacements.extend(rendered.replacements);
-        output.push_str(rendered.replacement.as_str());
+        append_static_scss_loop_rendered_body(
+            &mut output,
+            rendered.replacement.as_str(),
+            loop_block.dialect,
+        );
     }
     if !static_scss_loop_replacement_is_static_css_subset(output.as_str()) {
         return None;
@@ -247,7 +268,8 @@ fn render_static_scss_while_loop_block(
     loop_block: &StaticScssLoopBlock,
     context: StaticScssFunctionResolutionContext<'_>,
 ) -> Option<StaticScssLoopRender> {
-    let assignments = collect_static_scss_while_body_assignments(loop_block.body.as_str())?;
+    let assignments =
+        collect_static_scss_while_body_assignments(loop_block.body.as_str(), loop_block.dialect)?;
     if assignments.is_empty()
         || !static_scss_while_body_references_follow_assignments(
             loop_block.body.as_str(),
@@ -298,7 +320,11 @@ fn render_static_scss_while_loop_block(
             assignment_ranges.as_slice(),
         )?;
         replacements.extend(rendered.replacements);
-        output.push_str(rendered.replacement.as_str());
+        append_static_scss_loop_rendered_body(
+            &mut output,
+            rendered.replacement.as_str(),
+            loop_block.dialect,
+        );
         current_values = next_values;
     }
 
@@ -393,6 +419,17 @@ fn render_static_scss_loop_body(
     })
 }
 
+fn append_static_scss_loop_rendered_body(
+    output: &mut String,
+    rendered: &str,
+    dialect: StyleDialect,
+) {
+    if dialect == StyleDialect::Sass && !output.is_empty() && !output.ends_with('\n') {
+        output.push('\n');
+    }
+    output.push_str(rendered);
+}
+
 fn static_scss_source_contains_loop_candidate(source: &str) -> bool {
     let lower = source.to_ascii_lowercase();
     lower.contains("@for") || lower.contains("@each") || lower.contains("@while")
@@ -403,6 +440,10 @@ fn static_scss_token_is_loop_at_keyword(token: &LexedToken) -> bool {
         && (token.text.eq_ignore_ascii_case("@for")
             || token.text.eq_ignore_ascii_case("@each")
             || token.text.eq_ignore_ascii_case("@while"))
+}
+
+const fn static_scss_loop_dialect_is_supported(dialect: StyleDialect) -> bool {
+    matches!(dialect, StyleDialect::Scss | StyleDialect::Sass)
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -424,24 +465,27 @@ struct StaticScssWhileAssignment {
 
 fn collect_static_scss_while_body_assignments(
     body: &str,
+    dialect: StyleDialect,
 ) -> Option<Vec<StaticScssWhileAssignment>> {
-    let lexed = omena_parser::lex(body, StyleDialect::Scss);
+    let lexed = omena_parser::lex(body, dialect);
     let tokens = lexed.tokens();
     let mut assignments = Vec::new();
-    let mut brace_depth = 0usize;
+    let mut block_depth = 0usize;
     for (index, token) in tokens.iter().enumerate() {
         match token.kind {
-            SyntaxKind::LeftBrace => {
-                brace_depth += 1;
+            SyntaxKind::LeftBrace | SyntaxKind::SassIndent => {
+                block_depth += 1;
                 continue;
             }
-            SyntaxKind::RightBrace => {
-                brace_depth = brace_depth.checked_sub(1)?;
+            SyntaxKind::RightBrace | SyntaxKind::SassDedent => {
+                block_depth = block_depth.checked_sub(1)?;
                 continue;
             }
             _ => {}
         }
-        if brace_depth != 0 || token.kind != SyntaxKind::ScssVariable {
+        if static_scss_while_body_effective_block_depth(block_depth, dialect) != 0
+            || token.kind != SyntaxKind::ScssVariable
+        {
             continue;
         }
         let operator_index = static_stylesheet_skip_trivia_tokens(tokens, index + 1);
@@ -452,18 +496,82 @@ fn collect_static_scss_while_body_assignments(
             _ => continue,
         };
         let value_start_index = static_stylesheet_skip_trivia_tokens(tokens, operator_index + 1);
-        let end_index =
-            static_stylesheet_value_end_token_until(tokens, value_start_index, tokens.len())?;
+        let assignment_end = static_scss_while_assignment_end(tokens, value_start_index, dialect)?;
         assignments.push(StaticScssWhileAssignment {
             name: token.text.clone(),
             start: static_stylesheet_token_start(token),
-            end: static_stylesheet_token_end(&tokens[end_index]),
+            end: assignment_end.removal_end,
             value_start: static_stylesheet_token_start(&tokens[value_start_index]),
-            value_end: static_stylesheet_token_start(&tokens[end_index]),
+            value_end: assignment_end.value_end,
             operator,
         });
     }
     Some(assignments)
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+struct StaticScssWhileAssignmentEnd {
+    value_end: usize,
+    removal_end: usize,
+}
+
+fn static_scss_while_assignment_end(
+    tokens: &[LexedToken],
+    value_start_index: usize,
+    dialect: StyleDialect,
+) -> Option<StaticScssWhileAssignmentEnd> {
+    if dialect == StyleDialect::Sass {
+        return static_scss_sass_while_assignment_end(tokens, value_start_index);
+    }
+    let end_index =
+        static_stylesheet_value_end_token_until(tokens, value_start_index, tokens.len())?;
+    Some(StaticScssWhileAssignmentEnd {
+        value_end: static_stylesheet_token_start(&tokens[end_index]),
+        removal_end: static_stylesheet_token_end(&tokens[end_index]),
+    })
+}
+
+fn static_scss_sass_while_assignment_end(
+    tokens: &[LexedToken],
+    mut index: usize,
+) -> Option<StaticScssWhileAssignmentEnd> {
+    let mut paren_depth = 0usize;
+    let mut bracket_depth = 0usize;
+    while index < tokens.len() {
+        match tokens[index].kind {
+            SyntaxKind::LeftParen => paren_depth += 1,
+            SyntaxKind::RightParen => paren_depth = paren_depth.checked_sub(1)?,
+            SyntaxKind::LeftBracket => bracket_depth += 1,
+            SyntaxKind::RightBracket => bracket_depth = bracket_depth.checked_sub(1)?,
+            SyntaxKind::SassIndentedNewline
+            | SyntaxKind::SassOptionalSemicolon
+            | SyntaxKind::SassDedent
+                if paren_depth == 0 && bracket_depth == 0 =>
+            {
+                return Some(StaticScssWhileAssignmentEnd {
+                    value_end: static_stylesheet_token_start(&tokens[index]),
+                    removal_end: static_stylesheet_token_end(&tokens[index]),
+                });
+            }
+            _ => {}
+        }
+        index += 1;
+    }
+    tokens.last().map(|token| StaticScssWhileAssignmentEnd {
+        value_end: static_stylesheet_token_end(token),
+        removal_end: static_stylesheet_token_end(token),
+    })
+}
+
+const fn static_scss_while_body_effective_block_depth(
+    block_depth: usize,
+    dialect: StyleDialect,
+) -> usize {
+    if matches!(dialect, StyleDialect::Sass) {
+        block_depth.saturating_sub(1)
+    } else {
+        block_depth
+    }
 }
 
 fn static_scss_while_body_references_follow_assignments(
@@ -552,6 +660,7 @@ fn static_scss_while_condition_is_active(
 
 fn static_scss_loop_body_contains_known_function_call(
     body: &str,
+    dialect: StyleDialect,
     context: StaticScssFunctionResolutionContext<'_>,
 ) -> bool {
     let declaration_names = context
@@ -562,7 +671,7 @@ fn static_scss_loop_body_contains_known_function_call(
     if declaration_names.is_empty() {
         return false;
     }
-    let lexed = omena_parser::lex(body, StyleDialect::Scss);
+    let lexed = omena_parser::lex(body, dialect);
     let tokens = lexed.tokens();
     tokens.iter().enumerate().any(|(index, token)| {
         token.kind == SyntaxKind::Ident

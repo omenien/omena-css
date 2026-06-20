@@ -374,6 +374,21 @@ fn static_stylesheet_oracle_corpus_fixtures() -> &'static [StaticStylesheetOracl
             source: "@function width-for($target)\n  @each $width, $style in zip(1px 2px, solid dashed)\n    @if $style == $target\n      @return $width\n  @return 0px\n.card\n  margin: width-for(dashed)",
         },
         StaticStylesheetOracleCorpusFixtureV0 {
+            id: "sass.static-top-level-for",
+            dialect: StyleDialect::Sass,
+            source: "@for $i from 1 through 3\n  .n\n    order: $i",
+        },
+        StaticStylesheetOracleCorpusFixtureV0 {
+            id: "sass.static-top-level-each",
+            dialect: StyleDialect::Sass,
+            source: "@each $tone in red, blue\n  .n\n    color: $tone",
+        },
+        StaticStylesheetOracleCorpusFixtureV0 {
+            id: "sass.static-top-level-while",
+            dialect: StyleDialect::Sass,
+            source: "$i: 0\n@while $i < 3\n  $i: $i + 1\n  .n\n    order: $i",
+        },
+        StaticStylesheetOracleCorpusFixtureV0 {
             id: "scss.color-helpers",
             dialect: StyleDialect::Scss,
             source: "$tone: list.nth(list.append(1px, transparentize(red, .25)), 2); .card { color: $tone; }",

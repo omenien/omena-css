@@ -19,9 +19,9 @@ fn static_stylesheet_oracle_corpus_reports_native_product_output_with_legacy_ora
     );
     assert_eq!(report.legacy_output_consumed_until_cutover_count, 0);
     assert!(report.all_legacy_outputs_retained_as_oracle);
-    assert_eq!(report.fixture_count, 83);
+    assert_eq!(report.fixture_count, 86);
     assert_eq!(report.scss_fixture_count, 25);
-    assert_eq!(report.sass_fixture_count, 12);
+    assert_eq!(report.sass_fixture_count, 15);
     assert_eq!(report.less_fixture_count, 46);
     assert_eq!(report.evaluated_fixture_count, report.fixture_count);
     assert_eq!(report.missing_evaluation_count, 0);
@@ -146,6 +146,36 @@ fn static_stylesheet_oracle_corpus_reports_native_product_output_with_legacy_ora
     assert!(report.fixtures.iter().any(|fixture| {
         fixture.id == "scss.static-top-level-while"
             && fixture.dialect == "scss"
+            && fixture.evaluation_available
+            && fixture.native_replacement_count == 3
+            && fixture.native_replacement_legacy_reflection_count == 3
+            && fixture.native_structural_edit_count == 2
+            && fixture.native_edit_output_matches_evaluated_css
+            && fixture.divergence_count == 0
+    }));
+    assert!(report.fixtures.iter().any(|fixture| {
+        fixture.id == "sass.static-top-level-for"
+            && fixture.dialect == "sass"
+            && fixture.evaluation_available
+            && fixture.native_replacement_count == 3
+            && fixture.native_replacement_legacy_reflection_count == 3
+            && fixture.native_structural_edit_count == 1
+            && fixture.native_edit_output_matches_evaluated_css
+            && fixture.divergence_count == 0
+    }));
+    assert!(report.fixtures.iter().any(|fixture| {
+        fixture.id == "sass.static-top-level-each"
+            && fixture.dialect == "sass"
+            && fixture.evaluation_available
+            && fixture.native_replacement_count == 2
+            && fixture.native_replacement_legacy_reflection_count == 2
+            && fixture.native_structural_edit_count == 1
+            && fixture.native_edit_output_matches_evaluated_css
+            && fixture.divergence_count == 0
+    }));
+    assert!(report.fixtures.iter().any(|fixture| {
+        fixture.id == "sass.static-top-level-while"
+            && fixture.dialect == "sass"
             && fixture.evaluation_available
             && fixture.native_replacement_count == 3
             && fixture.native_replacement_legacy_reflection_count == 3
@@ -4394,6 +4424,71 @@ fn static_scss_evaluation_expands_static_top_level_while_loops() {
     assert_eq!(report.native_replacement_legacy_reflection_count, 3);
     assert_eq!(report.native_structural_edit_count, 2);
     assert!(report.oracle.all_legacy_declaration_values_preserved);
+    assert!(report.native_edit_output_matches_evaluated_css);
+}
+
+#[test]
+fn static_sass_evaluation_expands_static_top_level_for_loops() {
+    let report = derive_static_stylesheet_module_evaluation(
+        "@for $i from 1 through 3\n  .n\n    order: $i",
+        StyleDialect::Sass,
+    );
+    assert!(report.is_some());
+    let Some(report) = report else {
+        return;
+    };
+
+    assert!(!report.evaluated_css.contains("@for"));
+    assert!(!report.evaluated_css.contains("$i"));
+    assert!(report.evaluated_css.contains("order: 1"));
+    assert!(report.evaluated_css.contains("order: 2"));
+    assert!(report.evaluated_css.contains("order: 3"));
+    assert_eq!(report.replacement_count, 3);
+    assert_eq!(report.native_replacement_legacy_reflection_count, 3);
+    assert_eq!(report.native_structural_edit_count, 1);
+    assert!(report.native_edit_output_matches_evaluated_css);
+}
+
+#[test]
+fn static_sass_evaluation_expands_static_top_level_each_loops() {
+    let report = derive_static_stylesheet_module_evaluation(
+        "@each $tone in red, blue\n  .n\n    color: $tone",
+        StyleDialect::Sass,
+    );
+    assert!(report.is_some());
+    let Some(report) = report else {
+        return;
+    };
+
+    assert!(!report.evaluated_css.contains("@each"));
+    assert!(!report.evaluated_css.contains("$tone"));
+    assert!(report.evaluated_css.contains("color: red"));
+    assert!(report.evaluated_css.contains("color: blue"));
+    assert_eq!(report.replacement_count, 2);
+    assert_eq!(report.native_replacement_legacy_reflection_count, 2);
+    assert_eq!(report.native_structural_edit_count, 1);
+    assert!(report.native_edit_output_matches_evaluated_css);
+}
+
+#[test]
+fn static_sass_evaluation_expands_static_top_level_while_loops() {
+    let report = derive_static_stylesheet_module_evaluation(
+        "$i: 0\n@while $i < 3\n  $i: $i + 1\n  .n\n    order: $i",
+        StyleDialect::Sass,
+    );
+    assert!(report.is_some());
+    let Some(report) = report else {
+        return;
+    };
+
+    assert!(!report.evaluated_css.contains("@while"));
+    assert!(!report.evaluated_css.contains("$i"));
+    assert!(report.evaluated_css.contains("order: 1"));
+    assert!(report.evaluated_css.contains("order: 2"));
+    assert!(report.evaluated_css.contains("order: 3"));
+    assert_eq!(report.replacement_count, 3);
+    assert_eq!(report.native_replacement_legacy_reflection_count, 3);
+    assert_eq!(report.native_structural_edit_count, 2);
     assert!(report.native_edit_output_matches_evaluated_css);
 }
 
