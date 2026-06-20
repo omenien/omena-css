@@ -6,11 +6,11 @@ pub(super) fn static_stylesheet_less_declaration_value_is_removal_safe(value: &s
     if preserve_static_less_dynamic_escaped_string_value(value).is_some() {
         return true;
     }
-    !value.chars().any(|ch| matches!(ch, '{' | '}' | ';' | '!'))
+    !static_stylesheet_value_contains_unquoted_char(value, |ch| matches!(ch, '{' | '}' | ';' | '!'))
 }
 
 pub(super) fn static_stylesheet_scss_declaration_value_is_removal_safe(value: &str) -> bool {
-    !value.chars().any(|ch| matches!(ch, '{' | '}' | ';'))
+    !static_stylesheet_value_contains_unquoted_char(value, |ch| matches!(ch, '{' | '}' | ';'))
         && static_scss_bang_usage_is_comparison_only(value)
 }
 
@@ -26,7 +26,7 @@ pub(super) fn static_stylesheet_selector_name_part_is_safe(name: &str) -> bool {
 }
 
 pub(super) fn static_stylesheet_property_value_is_removal_safe(value: &str) -> bool {
-    !value.chars().any(|ch| matches!(ch, '{' | '}' | ';' | '!'))
+    !static_stylesheet_value_contains_unquoted_char(value, |ch| matches!(ch, '{' | '}' | ';' | '!'))
 }
 
 pub(super) fn static_stylesheet_literal_value_is_safe(value: &str) -> bool {
@@ -96,4 +96,38 @@ pub(super) fn static_stylesheet_composite_value_is_safe(value: &str) -> bool {
     !value.is_empty()
         && !value.chars().any(|ch| matches!(ch, '{' | '}' | ';'))
         && static_scss_bang_usage_is_comparison_only(value)
+}
+
+fn static_stylesheet_value_contains_unquoted_char(
+    value: &str,
+    predicate: impl Fn(char) -> bool,
+) -> bool {
+    let mut index = 0usize;
+    let mut quote: Option<char> = None;
+    while index < value.len() {
+        let Some(ch) = value[index..].chars().next() else {
+            break;
+        };
+        if let Some(quote_ch) = quote {
+            index += ch.len_utf8();
+            if ch == '\\' {
+                if let Some(escaped) = value[index..].chars().next() {
+                    index += escaped.len_utf8();
+                }
+            } else if ch == quote_ch {
+                quote = None;
+            }
+            continue;
+        }
+        if matches!(ch, '"' | '\'') {
+            quote = Some(ch);
+            index += ch.len_utf8();
+            continue;
+        }
+        if predicate(ch) {
+            return true;
+        }
+        index += ch.len_utf8();
+    }
+    false
 }

@@ -1189,6 +1189,73 @@ fn consumer_build_keeps_less_value_interpolation_planned_only() {
 }
 
 #[test]
+fn consumer_build_derives_static_less_evaluator_context_for_quoted_value_interpolation() {
+    let summary = execute_omena_query_consumer_build_style_source(
+        "Button.module.less",
+        r#"@path: "../img"; @theme: light; .button { color: "@{theme}"; background: url("@{path}/icon.png"); }"#,
+        &[
+            "less-module-evaluate".to_string(),
+            "css-modules-class-hashing".to_string(),
+            "print-css".to_string(),
+        ],
+    );
+
+    assert!(
+        summary
+            .execution
+            .executed_pass_ids
+            .contains(&"less-module-evaluate")
+    );
+    assert!(
+        !summary
+            .execution
+            .planned_only_pass_ids
+            .contains(&"less-module-evaluate")
+    );
+    assert!(!summary.execution.output_css.contains("@{theme}"));
+    assert!(!summary.execution.output_css.contains("@{path}"));
+    assert!(!summary.execution.output_css.contains("@theme: light"));
+    assert!(!summary.execution.output_css.contains(r#"@path: "../img""#));
+    assert!(summary.execution.output_css.contains(r#"color: "light""#));
+    assert!(
+        summary
+            .execution
+            .output_css
+            .contains(r#"background: url("../img/icon.png")"#)
+    );
+}
+
+#[test]
+fn consumer_build_derives_static_less_evaluator_context_for_escaped_quoted_value_interpolation() {
+    let summary = execute_omena_query_consumer_build_style_source(
+        "Button.module.less",
+        r#"@theme: light; .button { color: ~"@{theme}"; }"#,
+        &[
+            "less-module-evaluate".to_string(),
+            "css-modules-class-hashing".to_string(),
+            "print-css".to_string(),
+        ],
+    );
+
+    assert!(
+        summary
+            .execution
+            .executed_pass_ids
+            .contains(&"less-module-evaluate")
+    );
+    assert!(
+        !summary
+            .execution
+            .planned_only_pass_ids
+            .contains(&"less-module-evaluate")
+    );
+    assert!(!summary.execution.output_css.contains("@{theme}"));
+    assert!(!summary.execution.output_css.contains("@theme: light"));
+    assert!(!summary.execution.output_css.contains("~\"light\""));
+    assert!(summary.execution.output_css.contains("color: light"));
+}
+
+#[test]
 fn consumer_build_derives_static_less_evaluator_context_for_variable_indirection() {
     let summary = execute_omena_query_consumer_build_style_source(
         "Button.module.less",

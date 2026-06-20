@@ -14,6 +14,7 @@ mod less_detached_ruleset_render;
 mod less_detached_rulesets;
 mod less_evaluation;
 mod less_guard;
+mod less_interpolation;
 mod less_literal_edits;
 mod less_mixin_arguments;
 mod less_mixin_edits;

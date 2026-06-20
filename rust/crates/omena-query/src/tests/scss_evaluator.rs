@@ -75,10 +75,10 @@ fn exposes_static_stylesheet_oracle_corpus_through_query_boundary() {
     assert_eq!(summary.mode, "oracleOnly");
     assert_eq!(summary.value_type, "AbstractCssValueV0");
     assert_eq!(summary.product_output_source, "nativeEditOutput");
-    assert_eq!(summary.fixture_count, 135);
+    assert_eq!(summary.fixture_count, 137);
     assert_eq!(summary.scss_fixture_count, 46);
     assert_eq!(summary.sass_fixture_count, 40);
-    assert_eq!(summary.less_fixture_count, 49);
+    assert_eq!(summary.less_fixture_count, 51);
     assert_eq!(summary.evaluated_fixture_count, summary.fixture_count);
     assert_eq!(
         summary.legacy_output_retained_as_oracle_count,
@@ -190,6 +190,20 @@ fn exposes_static_stylesheet_oracle_corpus_through_query_boundary() {
     }));
     assert!(summary.corpus.fixtures.iter().any(|fixture| {
         fixture.id == "less.percentage-rounding-builtins"
+            && fixture.dialect == "less"
+            && fixture.evaluation_available
+            && fixture.native_edit_output_matches_evaluated_css
+            && fixture.divergence_count == 0
+    }));
+    assert!(summary.corpus.fixtures.iter().any(|fixture| {
+        fixture.id == "less.quoted-value-interpolation"
+            && fixture.dialect == "less"
+            && fixture.evaluation_available
+            && fixture.native_edit_output_matches_evaluated_css
+            && fixture.divergence_count == 0
+    }));
+    assert!(summary.corpus.fixtures.iter().any(|fixture| {
+        fixture.id == "less.escaped-quoted-value-interpolation"
             && fixture.dialect == "less"
             && fixture.evaluation_available
             && fixture.native_edit_output_matches_evaluated_css
@@ -2345,6 +2359,58 @@ fn rejects_less_value_interpolation_without_query_partial_mutation() {
     assert_eq!(summary.product_output_source, "none");
     assert_eq!(summary.native_replacement_count, 0);
     assert_eq!(summary.native_edit_count, 0);
+}
+
+#[test]
+fn exposes_less_quoted_value_interpolation_through_query_boundary() {
+    let summary = summarize_omena_query_static_stylesheet_evaluator_from_source(
+        r#"@path: "../img"; @theme: light; .card { color: "@{theme}"; background: url("@{path}/icon.png"); }"#,
+        OmenaParserStyleDialect::Less,
+    );
+
+    assert_eq!(summary.product, "omena-query.static-stylesheet-evaluator");
+    assert_eq!(summary.mode, "oracleOnly");
+    assert_eq!(summary.dialect, "less");
+    assert_eq!(summary.value_type, "AbstractCssValueV0");
+    assert!(summary.evaluation_available);
+    assert_eq!(summary.divergence_count, 0);
+    assert!(summary.all_legacy_declaration_values_preserved);
+    assert_eq!(summary.native_replacement_count, 0);
+    assert_eq!(summary.native_edit_count, 4);
+    assert_eq!(summary.native_structural_edit_count, 4);
+    assert!(summary.evaluation.as_ref().is_some_and(|evaluation| {
+        evaluation.evaluated_css.contains(r#"color: "light""#)
+            && evaluation
+                .evaluated_css
+                .contains(r#"background: url("../img/icon.png")"#)
+            && !evaluation.evaluated_css.contains("@{theme}")
+            && !evaluation.evaluated_css.contains("@{path}")
+            && !evaluation.evaluated_css.contains("@theme:")
+            && !evaluation.evaluated_css.contains("@path:")
+    }));
+}
+
+#[test]
+fn exposes_less_escaped_quoted_value_interpolation_through_query_boundary() {
+    let summary = summarize_omena_query_static_stylesheet_evaluator_from_source(
+        r#"@theme: light; .card { color: ~"@{theme}"; }"#,
+        OmenaParserStyleDialect::Less,
+    );
+
+    assert_eq!(summary.product, "omena-query.static-stylesheet-evaluator");
+    assert_eq!(summary.mode, "oracleOnly");
+    assert_eq!(summary.dialect, "less");
+    assert_eq!(summary.value_type, "AbstractCssValueV0");
+    assert!(summary.evaluation_available);
+    assert_eq!(summary.divergence_count, 0);
+    assert!(summary.all_legacy_declaration_values_preserved);
+    assert_eq!(summary.native_replacement_count, 0);
+    assert!(summary.evaluation.as_ref().is_some_and(|evaluation| {
+        evaluation.evaluated_css.contains("color: light")
+            && !evaluation.evaluated_css.contains("@{theme}")
+            && !evaluation.evaluated_css.contains("~\"light\"")
+            && !evaluation.evaluated_css.contains("@theme:")
+    }));
 }
 
 #[test]

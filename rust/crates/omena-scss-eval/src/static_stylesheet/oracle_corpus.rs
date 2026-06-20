@@ -749,6 +749,16 @@ fn static_stylesheet_oracle_corpus_fixtures() -> &'static [StaticStylesheetOracl
             source: "@filter: ~\"@{name}\"; .card { filter: @filter; }",
         },
         StaticStylesheetOracleCorpusFixtureV0 {
+            id: "less.quoted-value-interpolation",
+            dialect: StyleDialect::Less,
+            source: "@path: \"../img\"; @theme: light; .card { color: \"@{theme}\"; background: url(\"@{path}/icon.png\"); }",
+        },
+        StaticStylesheetOracleCorpusFixtureV0 {
+            id: "less.escaped-quoted-value-interpolation",
+            dialect: StyleDialect::Less,
+            source: "@theme: light; .card { color: ~\"@{theme}\"; }",
+        },
+        StaticStylesheetOracleCorpusFixtureV0 {
             id: "less.fuel-exhausted-variable-chain",
             dialect: StyleDialect::Less,
             source: concat!(

@@ -19,10 +19,10 @@ fn static_stylesheet_oracle_corpus_reports_native_product_output_with_legacy_ora
     );
     assert_eq!(report.legacy_output_consumed_until_cutover_count, 0);
     assert!(report.all_legacy_outputs_retained_as_oracle);
-    assert_eq!(report.fixture_count, 135);
+    assert_eq!(report.fixture_count, 137);
     assert_eq!(report.scss_fixture_count, 46);
     assert_eq!(report.sass_fixture_count, 40);
-    assert_eq!(report.less_fixture_count, 49);
+    assert_eq!(report.less_fixture_count, 51);
     assert_eq!(report.evaluated_fixture_count, report.fixture_count);
     assert_eq!(report.missing_evaluation_count, 0);
     assert_eq!(report.divergence_count, 0);
@@ -589,6 +589,81 @@ fn static_less_evaluation_expands_chained_type_selector_interpolation() {
 fn static_less_evaluation_rejects_value_interpolation_without_partial_mutation() {
     let report = derive_static_stylesheet_module_evaluation(
         "@color: red; .button { color: @{color}; }",
+        StyleDialect::Less,
+    );
+
+    assert!(report.is_none());
+}
+
+#[test]
+fn static_less_evaluation_expands_quoted_value_interpolation() {
+    let report = derive_static_stylesheet_module_evaluation(
+        r#"@path: "../img"; @theme: light; .button { color: "@{theme}"; background: url("@{path}/icon.png"); }"#,
+        StyleDialect::Less,
+    );
+    assert!(report.is_some());
+    let Some(report) = report else {
+        return;
+    };
+
+    assert!(!report.evaluated_css.contains("@path:"));
+    assert!(!report.evaluated_css.contains("@theme:"));
+    assert!(!report.evaluated_css.contains("@{path}"));
+    assert!(!report.evaluated_css.contains("@{theme}"));
+    assert!(report.evaluated_css.contains(r#"color: "light""#));
+    assert!(
+        report
+            .evaluated_css
+            .contains(r#"background: url("../img/icon.png")"#)
+    );
+    assert_eq!(report.replacement_count, 0);
+    assert_eq!(report.native_edit_count, 4);
+    assert_eq!(report.native_structural_edit_count, 4);
+    assert!(report.oracle.all_legacy_declaration_values_preserved);
+    assert!(report.native_edit_output_matches_evaluated_css);
+}
+
+#[test]
+fn static_less_evaluation_expands_quoted_interpolation_from_quoted_variables() {
+    let report = derive_static_stylesheet_module_evaluation(
+        r#"@theme: "light"; .button { color: "@{theme}"; }"#,
+        StyleDialect::Less,
+    );
+    assert!(report.is_some());
+    let Some(report) = report else {
+        return;
+    };
+
+    assert!(!report.evaluated_css.contains("@theme:"));
+    assert!(!report.evaluated_css.contains("@{theme}"));
+    assert!(report.evaluated_css.contains(r#"color: "light""#));
+    assert!(report.oracle.all_legacy_declaration_values_preserved);
+    assert!(report.native_edit_output_matches_evaluated_css);
+}
+
+#[test]
+fn static_less_evaluation_expands_escaped_quoted_value_interpolation() {
+    let report = derive_static_stylesheet_module_evaluation(
+        r#"@theme: light; .button { color: ~"@{theme}"; }"#,
+        StyleDialect::Less,
+    );
+    assert!(report.is_some());
+    let Some(report) = report else {
+        return;
+    };
+
+    assert!(!report.evaluated_css.contains("@theme:"));
+    assert!(!report.evaluated_css.contains("@{theme}"));
+    assert!(!report.evaluated_css.contains("~\"light\""));
+    assert!(report.evaluated_css.contains("color: light"));
+    assert!(report.oracle.all_legacy_declaration_values_preserved);
+    assert!(report.native_edit_output_matches_evaluated_css);
+}
+
+#[test]
+fn static_less_evaluation_rejects_import_interpolation_without_partial_mutation() {
+    let report = derive_static_stylesheet_module_evaluation(
+        r#"@path: "tokens"; @import "@{path}.less"; .button { color: red; }"#,
         StyleDialect::Less,
     );
 
