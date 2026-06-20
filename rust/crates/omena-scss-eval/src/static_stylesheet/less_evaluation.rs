@@ -462,6 +462,7 @@ fn static_less_interpolation_has_class_selector_marker(
         index -= 1;
         match tokens[index].kind {
             SyntaxKind::Dot => return true,
+            SyntaxKind::Delim if tokens[index].text == "#" => return true,
             SyntaxKind::Ident
             | SyntaxKind::CustomPropertyName
             | SyntaxKind::Minus

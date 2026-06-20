@@ -1096,6 +1096,41 @@ fn consumer_build_derives_static_less_evaluator_context_for_chained_class_select
 }
 
 #[test]
+fn consumer_build_derives_static_less_evaluator_context_for_chained_id_selector_interpolation() {
+    let summary = execute_omena_query_consumer_build_style_source(
+        "Button.module.less",
+        "@prefix: card; @suffix: primary; #@{prefix}-@{suffix} { color: red; }",
+        &[
+            "less-module-evaluate".to_string(),
+            "css-modules-class-hashing".to_string(),
+            "print-css".to_string(),
+        ],
+    );
+
+    assert!(
+        summary
+            .execution
+            .executed_pass_ids
+            .contains(&"less-module-evaluate")
+    );
+    assert!(
+        !summary
+            .execution
+            .planned_only_pass_ids
+            .contains(&"less-module-evaluate")
+    );
+    assert!(!summary.execution.output_css.contains("@prefix: card"));
+    assert!(!summary.execution.output_css.contains("@suffix: primary"));
+    assert!(
+        !summary
+            .execution
+            .output_css
+            .contains("#@{prefix}-@{suffix}")
+    );
+    assert!(summary.execution.output_css.contains("#card-primary"));
+}
+
+#[test]
 fn consumer_build_keeps_less_type_selector_interpolation_planned_only() {
     let summary = execute_omena_query_consumer_build_style_source(
         "Button.module.less",

@@ -540,6 +540,29 @@ fn static_less_evaluation_expands_chained_class_selector_interpolation() {
 }
 
 #[test]
+fn static_less_evaluation_expands_chained_id_selector_interpolation() {
+    let report = derive_static_stylesheet_module_evaluation(
+        "@prefix: button; @suffix: primary; #@{prefix}-@{suffix} { color: red; }",
+        StyleDialect::Less,
+    );
+    assert!(report.is_some());
+    let Some(report) = report else {
+        return;
+    };
+
+    assert!(!report.evaluated_css.contains("@prefix:"));
+    assert!(!report.evaluated_css.contains("@suffix:"));
+    assert!(!report.evaluated_css.contains("@{prefix}"));
+    assert!(!report.evaluated_css.contains("@{suffix}"));
+    assert!(report.evaluated_css.contains("#button-primary"));
+    assert_eq!(report.replacement_count, 0);
+    assert_eq!(report.native_edit_count, 4);
+    assert_eq!(report.native_structural_edit_count, 4);
+    assert!(report.oracle.all_legacy_declaration_values_preserved);
+    assert!(report.native_edit_output_matches_evaluated_css);
+}
+
+#[test]
 fn static_less_evaluation_rejects_type_selector_interpolation_without_partial_mutation() {
     let report = derive_static_stylesheet_module_evaluation(
         "@name: primary; button@{name} { color: red; }",
