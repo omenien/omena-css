@@ -339,6 +339,16 @@ fn static_stylesheet_oracle_corpus_fixtures() -> &'static [StaticStylesheetOracl
             source: "@mixin items($count)\n  @for $i from 1 through $count\n    order: $i\n.button\n  @include items(3)",
         },
         StaticStylesheetOracleCorpusFixtureV0 {
+            id: "sass.static-mixin-each",
+            dialect: StyleDialect::Sass,
+            source: "@mixin tones()\n  @each $tone in red, blue\n    color: $tone\n.button\n  @include tones()",
+        },
+        StaticStylesheetOracleCorpusFixtureV0 {
+            id: "sass.static-mixin-while",
+            dialect: StyleDialect::Sass,
+            source: "@mixin items()\n  $i: 0\n  @while $i < 3\n    $i: $i + 1\n    order: $i\n.button\n  @include items()",
+        },
+        StaticStylesheetOracleCorpusFixtureV0 {
             id: "sass.static-if-return",
             dialect: StyleDialect::Sass,
             source: "@function pick($enabled)\n  @if $enabled\n    @return 1px\n  @else\n    @return 2px\n.card\n  margin: pick(true)",
@@ -492,6 +502,16 @@ fn static_stylesheet_oracle_corpus_fixtures() -> &'static [StaticStylesheetOracl
             id: "scss.static-mixin-for",
             dialect: StyleDialect::Scss,
             source: "@mixin items($count) { @for $i from 1 through $count { order: $i; } } .button { @include items(3); }",
+        },
+        StaticStylesheetOracleCorpusFixtureV0 {
+            id: "scss.static-mixin-each",
+            dialect: StyleDialect::Scss,
+            source: "@mixin tones() { @each $tone in red, blue { color: $tone; } } .button { @include tones(); }",
+        },
+        StaticStylesheetOracleCorpusFixtureV0 {
+            id: "scss.static-mixin-while",
+            dialect: StyleDialect::Scss,
+            source: "@mixin items() { $i: 0; @while $i < 3 { $i: $i + 1; order: $i; } } .button { @include items(); }",
         },
         StaticStylesheetOracleCorpusFixtureV0 {
             id: "scss.static-top-level-if",

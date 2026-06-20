@@ -217,6 +217,7 @@ fn static_sass_mixin_loop_replacement_with_line_indent(
     if continuation_indent.is_empty() || replacement.is_empty() {
         return replacement.to_string();
     }
+    let replacement = replacement.trim_start_matches([' ', '\t']);
     let mut output = String::with_capacity(replacement.len() + continuation_indent.len());
     for (index, line) in replacement.split_inclusive('\n').enumerate() {
         if index > 0 && !line.is_empty() {

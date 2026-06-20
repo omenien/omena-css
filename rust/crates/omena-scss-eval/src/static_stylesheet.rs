@@ -451,12 +451,19 @@ fn render_static_scss_mixin_include_body_with_active(
         call_position,
         context,
     )?;
+    let loop_argument_values = static_scss_mixin_body_loop_argument_values(
+        body.as_str(),
+        context.dialect,
+        &argument_values,
+        call_position,
+        context,
+    )?;
     let continuation_indent =
         static_scss_mixin_include_continuation_indent(source, context.dialect, call_position)?;
     let body = render_static_scss_mixin_loop_control_flow_body(
         body.as_str(),
         context.dialect,
-        &argument_values,
+        &loop_argument_values,
         continuation_indent.as_str(),
         call_position,
         context,
@@ -486,6 +493,7 @@ fn render_static_scss_mixin_include_body_with_active(
         call_position,
         context,
     )?;
+    let body = static_sass_mixin_body_replacement_for_include(body.as_str(), context.dialect);
     let mut used_mixin_declaration_names = nested.used_mixin_declaration_names;
     let mut used_function_declaration_names = nested.used_function_declaration_names;
     used_mixin_declaration_names.insert(canonical_name.clone());
@@ -504,6 +512,63 @@ fn render_static_scss_mixin_include_body_with_active(
         used_mixin_declaration_names,
         used_function_declaration_names,
     })
+}
+
+fn static_sass_mixin_body_replacement_for_include(body: &str, dialect: StyleDialect) -> String {
+    if dialect == StyleDialect::Sass {
+        return body.trim_start_matches([' ', '\t']).to_string();
+    }
+    body.to_string()
+}
+
+fn static_scss_mixin_body_loop_argument_values(
+    body: &str,
+    dialect: StyleDialect,
+    argument_values: &BTreeMap<String, String>,
+    call_position: usize,
+    context: StaticScssFunctionResolutionContext<'_>,
+) -> Option<BTreeMap<String, String>> {
+    let Some(first_loop_start) = static_scss_mixin_body_first_loop_position(body, dialect)? else {
+        return Some(argument_values.clone());
+    };
+    let mut scoped_values = argument_values.clone();
+    for local in collect_static_scss_mixin_body_local_declarations(body, dialect)?
+        .into_iter()
+        .filter(|local| local.declaration.span_start < first_loop_start)
+    {
+        if local.declaration.is_default || local.declaration.is_global {
+            return None;
+        }
+        let resolution = resolve_static_scss_function_value_with_bindings(
+            local.declaration.value.as_str(),
+            &scoped_values,
+            call_position,
+            STATIC_STYLESHEET_VALUE_RESOLUTION_FUEL_LIMIT,
+            context,
+        );
+        if resolution.outcome != StaticStylesheetResolutionOutcome::Resolved {
+            return None;
+        }
+        scoped_values.insert(
+            canonical_static_scss_variable_name(local.name.as_str()),
+            resolution.rendered_value?,
+        );
+    }
+    Some(scoped_values)
+}
+
+fn static_scss_mixin_body_first_loop_position(
+    body: &str,
+    dialect: StyleDialect,
+) -> Option<Option<usize>> {
+    let lexed = lex(body, dialect);
+    Some(lexed.tokens().iter().find_map(|token| {
+        (token.kind == SyntaxKind::AtKeyword
+            && (token.text.eq_ignore_ascii_case("@for")
+                || token.text.eq_ignore_ascii_case("@each")
+                || token.text.eq_ignore_ascii_case("@while")))
+        .then(|| static_stylesheet_token_start(token))
+    }))
 }
 
 fn static_scss_mixin_include_continuation_indent(
