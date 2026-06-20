@@ -11,7 +11,8 @@ use super::{
     collect_static_scss_function_calls, extend_static_scss_used_function_dependencies,
     resolve_static_scss_function_call_abstract_value, resolved_replacement_value,
     static_scss_function_call_is_inside_declaration_body,
-    static_scss_function_call_is_inside_mixin_declaration_body, static_value_resolution_record,
+    static_scss_function_call_is_inside_mixin_declaration_body,
+    value_resolution_model::static_value_resolution_record,
 };
 
 pub(super) fn collect_static_scss_function_evaluation_edits(
