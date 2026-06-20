@@ -1223,6 +1223,48 @@ mod tests {
     }
 
     #[test]
+    fn generates_lif_exports_for_resolved_less_specifier() -> Result<(), Box<dyn std::error::Error>>
+    {
+        let root = temp_dir("omena_bridge_lif_resolved_less")?;
+        let source = root.join("src/App.tsx");
+        let style = root.join("src/tokens.less");
+        fs::create_dir_all(
+            style
+                .parent()
+                .ok_or_else(|| std::io::Error::other("parent"))?,
+        )?;
+        fs::write(&source, "")?;
+        fs::write(
+            &style,
+            "@brand: #fff;\n@tokens: { primary: @brand; @gap: 2px; };\n.button(@gap: 1rem) when (@gap > 0) { color: @brand; }\n",
+        )?;
+
+        let resolved = resolve_omena_bridge_style_uri_for_specifier(
+            path_to_file_uri(source.as_path()).as_str(),
+            Some(path_to_file_uri(root.as_path()).as_str()),
+            "./tokens.less",
+        )
+        .ok_or_else(|| std::io::Error::other("Less resolution failed"))?;
+
+        let exports = generate_omena_bridge_lif_exports_for_resolved_style_path(resolved.as_str())?;
+
+        assert_eq!(exports.less_variables[0].name, "@brand");
+        assert_eq!(
+            exports.less_variables[0].value_repr.as_deref(),
+            Some("#fff")
+        );
+        assert_eq!(exports.less_mixins[0].name, ".button");
+        assert!(exports.less_mixins[0].guarded);
+        assert_eq!(exports.less_detached_rulesets[0].name, "@tokens");
+        assert_eq!(
+            exports.less_detached_rulesets[0].member_names,
+            vec!["@gap", "primary"]
+        );
+        let _ = fs::remove_dir_all(root);
+        Ok(())
+    }
+
+    #[test]
     fn generates_sif_from_plain_resolved_path() -> Result<(), Box<dyn std::error::Error>> {
         let root = temp_dir("omena_bridge_sif_plain")?;
         let style = root.join("tokens.sass");
