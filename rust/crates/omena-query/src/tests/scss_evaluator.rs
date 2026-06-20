@@ -75,8 +75,8 @@ fn exposes_static_stylesheet_oracle_corpus_through_query_boundary() {
     assert_eq!(summary.mode, "oracleOnly");
     assert_eq!(summary.value_type, "AbstractCssValueV0");
     assert_eq!(summary.product_output_source, "nativeEditOutput");
-    assert_eq!(summary.fixture_count, 81);
-    assert_eq!(summary.scss_fixture_count, 23);
+    assert_eq!(summary.fixture_count, 82);
+    assert_eq!(summary.scss_fixture_count, 24);
     assert_eq!(summary.sass_fixture_count, 12);
     assert_eq!(summary.less_fixture_count, 46);
     assert_eq!(summary.evaluated_fixture_count, summary.fixture_count);
@@ -242,6 +242,16 @@ fn exposes_static_stylesheet_oracle_corpus_through_query_boundary() {
             && fixture.evaluation_available
             && fixture.native_replacement_count == 3
             && fixture.native_replacement_legacy_reflection_count == 3
+            && fixture.native_structural_edit_count == 1
+            && fixture.native_edit_output_matches_evaluated_css
+            && fixture.divergence_count == 0
+    }));
+    assert!(summary.corpus.fixtures.iter().any(|fixture| {
+        fixture.id == "scss.static-top-level-each"
+            && fixture.dialect == "scss"
+            && fixture.evaluation_available
+            && fixture.native_replacement_count == 2
+            && fixture.native_replacement_legacy_reflection_count == 2
             && fixture.native_structural_edit_count == 1
             && fixture.native_edit_output_matches_evaluated_css
             && fixture.divergence_count == 0
@@ -1431,6 +1441,35 @@ fn exposes_static_scss_top_level_for_expansion_through_query_boundary() {
             && evaluation.resolved_replacements.iter().any(|replacement| {
                 replacement.name == "$i"
                     && replacement.text == "1"
+                    && replacement.abstract_value_kind == "exact"
+            })
+            && evaluation.native_edit_output_matches_evaluated_css
+    }));
+}
+
+#[test]
+fn exposes_static_scss_top_level_each_expansion_through_query_boundary() {
+    let summary = summarize_omena_query_static_stylesheet_evaluator_from_source(
+        "@each $tone in red, blue { .n { color: $tone; } }",
+        OmenaParserStyleDialect::Scss,
+    );
+
+    assert_eq!(summary.product, "omena-query.static-stylesheet-evaluator");
+    assert_eq!(summary.mode, "oracleOnly");
+    assert_eq!(summary.value_type, "AbstractCssValueV0");
+    assert!(!summary.legacy_output_consumed_until_cutover);
+    assert!(summary.evaluation_available);
+    assert_eq!(summary.divergence_count, 0);
+    assert_eq!(summary.native_replacement_count, 2);
+    assert_eq!(summary.native_replacement_legacy_reflection_count, 2);
+    assert!(summary.evaluation.as_ref().is_some_and(|evaluation| {
+        !evaluation.evaluated_css.contains("@each")
+            && !evaluation.evaluated_css.contains("$tone")
+            && evaluation.evaluated_css.contains("color: red")
+            && evaluation.evaluated_css.contains("color: blue")
+            && evaluation.resolved_replacements.iter().any(|replacement| {
+                replacement.name == "$tone"
+                    && replacement.text == "red"
                     && replacement.abstract_value_kind == "exact"
             })
             && evaluation.native_edit_output_matches_evaluated_css

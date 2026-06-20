@@ -3,7 +3,10 @@ use std::collections::{BTreeMap, BTreeSet};
 use omena_parser::{LexedToken, StyleDialect};
 use omena_syntax::SyntaxKind;
 
-use crate::static_loop_frames::{parse_static_scss_for_loop_header, static_scss_for_loop_values};
+use crate::static_loop_frames::{
+    parse_static_scss_each_loop_binding_frames, parse_static_scss_for_loop_header,
+    static_scss_for_loop_values,
+};
 
 use super::{
     OmenaScssEvalResolvedReplacementV0, STATIC_STYLESHEET_VALUE_RESOLUTION_FUEL_LIMIT,
@@ -31,7 +34,7 @@ pub(super) fn collect_static_scss_loop_evaluation_edits(
     excluded_ranges: &[(usize, usize)],
     context: StaticScssFunctionResolutionContext<'_>,
 ) -> Option<StaticScssLoopEvaluationEdits> {
-    if dialect != StyleDialect::Scss || !source.to_ascii_lowercase().contains("@for") {
+    if dialect != StyleDialect::Scss || !static_scss_source_contains_loop_candidate(source) {
         return Some(StaticScssLoopEvaluationEdits {
             edits: Vec::new(),
             replacements: Vec::new(),
@@ -45,7 +48,7 @@ pub(super) fn collect_static_scss_loop_evaluation_edits(
     let mut index = 0usize;
     while index < tokens.len() {
         let token = &tokens[index];
-        if token.kind != SyntaxKind::AtKeyword || !token.text.eq_ignore_ascii_case("@for") {
+        if !static_scss_token_is_loop_at_keyword(token) {
             index += 1;
             continue;
         }
@@ -55,12 +58,12 @@ pub(super) fn collect_static_scss_loop_evaluation_edits(
             continue;
         }
 
-        let Some(loop_block) = static_scss_for_loop_block(source, tokens, index) else {
+        let Some(loop_block) = static_scss_loop_block(source, tokens, index) else {
             preserved_dynamic_loop_count += 1;
             index += 1;
             continue;
         };
-        let Some(rendered) = render_static_scss_for_loop_block(&loop_block, context) else {
+        let Some(rendered) = render_static_scss_loop_block(&loop_block, context) else {
             preserved_dynamic_loop_count += 1;
             index = loop_block.next_index;
             continue;
@@ -87,14 +90,14 @@ pub(super) fn collect_static_scss_loop_candidate_ranges(
     tokens: &[LexedToken],
     excluded_ranges: &[(usize, usize)],
 ) -> Vec<(usize, usize)> {
-    if dialect != StyleDialect::Scss || !source.to_ascii_lowercase().contains("@for") {
+    if dialect != StyleDialect::Scss || !static_scss_source_contains_loop_candidate(source) {
         return Vec::new();
     }
     let mut ranges = Vec::new();
     let mut index = 0usize;
     while index < tokens.len() {
         let token = &tokens[index];
-        if token.kind != SyntaxKind::AtKeyword || !token.text.eq_ignore_ascii_case("@for") {
+        if !static_scss_token_is_loop_at_keyword(token) {
             index += 1;
             continue;
         }
@@ -103,7 +106,7 @@ pub(super) fn collect_static_scss_loop_candidate_ranges(
             index += 1;
             continue;
         }
-        if let Some(loop_block) = static_scss_for_loop_block(source, tokens, index) {
+        if let Some(loop_block) = static_scss_loop_block(source, tokens, index) {
             ranges.push((loop_block.start, loop_block.end));
             index = loop_block.next_index;
         } else {
@@ -114,7 +117,8 @@ pub(super) fn collect_static_scss_loop_candidate_ranges(
 }
 
 #[derive(Debug, Clone)]
-struct StaticScssForLoopBlock {
+struct StaticScssLoopBlock {
+    at_rule_name: String,
     start: usize,
     end: usize,
     next_index: usize,
@@ -124,31 +128,32 @@ struct StaticScssForLoopBlock {
 }
 
 #[derive(Debug, Clone)]
-struct StaticScssForLoopRender {
+struct StaticScssLoopRender {
     replacement: String,
     replacements: Vec<OmenaScssEvalResolvedReplacementV0>,
 }
 
-fn static_scss_for_loop_block(
+fn static_scss_loop_block(
     source: &str,
     tokens: &[LexedToken],
-    for_index: usize,
-) -> Option<StaticScssForLoopBlock> {
-    let body_open_index =
-        (for_index + 1..tokens.len()).find(|index| tokens[*index].kind == SyntaxKind::LeftBrace)?;
+    loop_index: usize,
+) -> Option<StaticScssLoopBlock> {
+    let body_open_index = (loop_index + 1..tokens.len())
+        .find(|index| tokens[*index].kind == SyntaxKind::LeftBrace)?;
     let body_close_index = static_stylesheet_matching_token_index(
         tokens,
         body_open_index,
         SyntaxKind::LeftBrace,
         SyntaxKind::RightBrace,
     )?;
-    let start = static_stylesheet_token_start(&tokens[for_index]);
+    let start = static_stylesheet_token_start(&tokens[loop_index]);
     let end = static_stylesheet_token_end(&tokens[body_close_index]);
-    let header_start = static_stylesheet_token_end(&tokens[for_index]);
+    let header_start = static_stylesheet_token_end(&tokens[loop_index]);
     let header_end = static_stylesheet_token_start(&tokens[body_open_index]);
     let body_start = static_stylesheet_token_end(&tokens[body_open_index]);
     let body_end = static_stylesheet_token_start(&tokens[body_close_index]);
-    Some(StaticScssForLoopBlock {
+    Some(StaticScssLoopBlock {
+        at_rule_name: tokens[loop_index].text.clone(),
         start,
         end,
         next_index: body_close_index + 1,
@@ -158,12 +163,15 @@ fn static_scss_for_loop_block(
     })
 }
 
-fn render_static_scss_for_loop_block(
-    loop_block: &StaticScssForLoopBlock,
+fn render_static_scss_loop_block(
+    loop_block: &StaticScssLoopBlock,
     context: StaticScssFunctionResolutionContext<'_>,
-) -> Option<StaticScssForLoopRender> {
+) -> Option<StaticScssLoopRender> {
     if static_scss_loop_body_contains_known_function_call(loop_block.body.as_str(), context) {
         return None;
+    }
+    if loop_block.at_rule_name.eq_ignore_ascii_case("@each") {
+        return render_static_scss_each_loop_block(loop_block, context);
     }
     let header = parse_static_scss_for_loop_header(loop_block.header.as_str())?;
     let argument_values = BTreeMap::new();
@@ -177,7 +185,7 @@ fn render_static_scss_for_loop_block(
         let binding_name = canonical_static_scss_variable_name(header.binding.as_str());
         let mut frame_values = argument_values.clone();
         frame_values.insert(binding_name, value.to_string());
-        let rendered = render_static_scss_for_loop_body(
+        let rendered = render_static_scss_loop_body(
             loop_block.body.as_str(),
             loop_block.body_start,
             &frame_values,
@@ -190,7 +198,40 @@ fn render_static_scss_for_loop_block(
     if !static_scss_loop_replacement_is_static_css_subset(output.as_str()) {
         return None;
     }
-    Some(StaticScssForLoopRender {
+    Some(StaticScssLoopRender {
+        replacement: output,
+        replacements,
+    })
+}
+
+fn render_static_scss_each_loop_block(
+    loop_block: &StaticScssLoopBlock,
+    context: StaticScssFunctionResolutionContext<'_>,
+) -> Option<StaticScssLoopRender> {
+    let frames =
+        parse_static_scss_each_loop_binding_frames(loop_block.header.as_str(), |source| {
+            resolve_static_scss_loop_source_value(source, loop_block.start, context)
+        })?;
+    let mut output = String::with_capacity(loop_block.body.len().saturating_mul(frames.len()));
+    let mut replacements = Vec::new();
+    for frame in frames {
+        let mut frame_values = BTreeMap::new();
+        for (name, value) in frame {
+            frame_values.insert(canonical_static_scss_variable_name(name.as_str()), value);
+        }
+        let rendered = render_static_scss_loop_body(
+            loop_block.body.as_str(),
+            loop_block.body_start,
+            &frame_values,
+            context,
+        )?;
+        replacements.extend(rendered.replacements);
+        output.push_str(rendered.replacement.as_str());
+    }
+    if !static_scss_loop_replacement_is_static_css_subset(output.as_str()) {
+        return None;
+    }
+    Some(StaticScssLoopRender {
         replacement: output,
         replacements,
     })
@@ -214,12 +255,29 @@ fn resolve_static_scss_for_loop_bound(
     resolution.rendered_value?.trim().parse::<i32>().ok()
 }
 
-fn render_static_scss_for_loop_body(
+fn resolve_static_scss_loop_source_value(
+    source: &str,
+    position: usize,
+    context: StaticScssFunctionResolutionContext<'_>,
+) -> Option<String> {
+    let resolution = resolve_static_scss_function_value_with_bindings(
+        source,
+        &BTreeMap::new(),
+        position,
+        STATIC_STYLESHEET_VALUE_RESOLUTION_FUEL_LIMIT,
+        context,
+    );
+    (resolution.outcome == StaticStylesheetResolutionOutcome::Resolved)
+        .then_some(resolution.rendered_value)
+        .flatten()
+}
+
+fn render_static_scss_loop_body(
     body: &str,
     source_body_start: usize,
     argument_values: &BTreeMap<String, String>,
     context: StaticScssFunctionResolutionContext<'_>,
-) -> Option<StaticScssForLoopRender> {
+) -> Option<StaticScssLoopRender> {
     let references =
         collect_static_stylesheet_variable_references(body, StaticStylesheetVariableKind::Scss)?;
     let mut edits = Vec::new();
@@ -250,10 +308,20 @@ fn render_static_scss_for_loop_body(
             replacement: rendered_value,
         });
     }
-    Some(StaticScssForLoopRender {
+    Some(StaticScssLoopRender {
         replacement: apply_static_stylesheet_evaluation_edits(body, edits)?,
         replacements,
     })
+}
+
+fn static_scss_source_contains_loop_candidate(source: &str) -> bool {
+    let lower = source.to_ascii_lowercase();
+    lower.contains("@for") || lower.contains("@each")
+}
+
+fn static_scss_token_is_loop_at_keyword(token: &LexedToken) -> bool {
+    token.kind == SyntaxKind::AtKeyword
+        && (token.text.eq_ignore_ascii_case("@for") || token.text.eq_ignore_ascii_case("@each"))
 }
 
 fn static_scss_loop_body_contains_known_function_call(
