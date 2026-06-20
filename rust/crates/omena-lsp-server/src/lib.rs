@@ -27,6 +27,7 @@ mod source_type_facts;
 mod state;
 mod streaming_ifds_diagnostics;
 mod style_hover_markdown;
+mod style_symbol_monikers;
 mod style_symbol_occurrence_cache;
 mod workspace_index;
 mod workspace_occurrence_cache;
@@ -56,9 +57,7 @@ use external_sif_symbols::{
     external_sif_canonical_urls_match, external_sif_forward_canonical_url_candidates,
     external_sif_forward_visibility_allows, sass_symbol_names_match,
 };
-use foreign_style_identity::{
-    is_foreign_style_document_uri, node_modules_package_for_path, style_foreign_sass_symbol_moniker,
-};
+use foreign_style_identity::{is_foreign_style_document_uri, node_modules_package_for_path};
 pub use frame_aware_refresh::*;
 pub use lsp_output::*;
 #[cfg(test)]
@@ -162,6 +161,12 @@ use std::{
 };
 use streaming_ifds_diagnostics::summarize_cross_file_streaming_reachability_diagnostics_for_lsp;
 use style_hover_markdown::render_style_hover_candidate_markdown_from_parts;
+use style_symbol_monikers::{
+    render_external_sif_sass_symbol_hover_markdown, style_custom_property_moniker,
+    style_external_sif_sass_symbol_moniker, style_sass_symbol_moniker_for_document,
+    style_sass_symbol_moniker_for_uri, style_symbol_monikers_for_candidate,
+    style_symbol_role_for_candidate, style_unresolved_sass_symbol_moniker,
+};
 use style_symbol_occurrence_cache::store_style_symbol_occurrence_sidecar;
 pub(crate) use workspace_index::index_workspace_style_files;
 pub(crate) use workspace_index::workspace_index_language_id_for_uri;
@@ -2324,98 +2329,6 @@ fn style_symbol_occurrence_document_keys(
         .collect()
 }
 
-fn style_symbol_monikers_for_candidate(
-    state: &LspShellState,
-    document: &LspTextDocumentState,
-    candidate: &LspStyleHoverCandidate,
-) -> BTreeSet<String> {
-    if candidate.kind.starts_with("customProperty") {
-        return BTreeSet::from([style_custom_property_moniker(
-            document.workspace_folder_uri.as_deref(),
-            candidate.name.as_str(),
-        )]);
-    }
-    if is_sass_symbol_declaration_kind(candidate.kind) {
-        return BTreeSet::from([style_sass_symbol_moniker_for_document(
-            state, document, candidate,
-        )]);
-    }
-    let definitions = sass_symbol_definitions_for_candidate(state, document, candidate);
-    if definitions.is_empty() {
-        if let Some(target) =
-            external_sif_sass_symbol_target_for_candidate(state, document, candidate)
-        {
-            return BTreeSet::from([style_external_sif_sass_symbol_moniker(&target)]);
-        }
-        return BTreeSet::from([style_unresolved_sass_symbol_moniker(
-            document.workspace_folder_uri.as_deref(),
-            candidate,
-        )]);
-    }
-    definitions
-        .into_iter()
-        .map(|(uri, definition)| {
-            style_sass_symbol_moniker_for_uri(state, uri.as_str(), &definition)
-        })
-        .collect()
-}
-
-fn style_symbol_role_for_candidate(candidate: &LspStyleHoverCandidate) -> &'static str {
-    if candidate.kind.ends_with("Declaration") {
-        "definition"
-    } else {
-        "reference"
-    }
-}
-
-fn style_custom_property_moniker(workspace_folder_uri: Option<&str>, name: &str) -> String {
-    omena_workspace_moniker(OmenaWorkspaceMonikerInput::CssCustomProperty {
-        workspace_folder_uri,
-        name,
-    })
-}
-
-fn style_sass_symbol_moniker(uri: &str, candidate: &LspStyleHoverCandidate) -> String {
-    let family = sass_symbol_kind_from_candidate_kind(candidate.kind).unwrap_or("symbol");
-    omena_workspace_moniker(OmenaWorkspaceMonikerInput::SassSymbol {
-        definition_uri: uri,
-        family,
-        name: candidate.name.as_str(),
-    })
-}
-
-fn style_sass_symbol_moniker_for_document(
-    state: &LspShellState,
-    document: &LspTextDocumentState,
-    candidate: &LspStyleHoverCandidate,
-) -> String {
-    style_sass_symbol_moniker_for_uri(state, document.uri.as_str(), candidate)
-}
-
-fn style_sass_symbol_moniker_for_uri(
-    state: &LspShellState,
-    uri: &str,
-    candidate: &LspStyleHoverCandidate,
-) -> String {
-    if let Some(moniker) = style_foreign_sass_symbol_moniker(state, uri, candidate) {
-        return moniker;
-    }
-    style_sass_symbol_moniker(uri, candidate)
-}
-
-fn style_unresolved_sass_symbol_moniker(
-    workspace_folder_uri: Option<&str>,
-    candidate: &LspStyleHoverCandidate,
-) -> String {
-    let family = sass_symbol_kind_from_candidate_kind(candidate.kind).unwrap_or("symbol");
-    omena_workspace_moniker(OmenaWorkspaceMonikerInput::SassUnresolvedSymbol {
-        workspace_folder_uri,
-        family,
-        namespace: candidate.namespace.as_deref(),
-        name: candidate.name.as_str(),
-    })
-}
-
 #[derive(Debug, Clone, PartialEq, Eq)]
 struct ExternalSifSassSymbolTarget {
     canonical_url: String,
@@ -2423,13 +2336,6 @@ struct ExternalSifSassSymbolTarget {
     family: &'static str,
     name: String,
     value_repr: Option<String>,
-}
-
-fn style_external_sif_sass_symbol_moniker(target: &ExternalSifSassSymbolTarget) -> String {
-    format!(
-        "sass-symbol-foreign:sif:{}@{}#{}:{}",
-        target.canonical_url, target.interface_hash, target.family, target.name
-    )
 }
 
 fn external_sif_sass_symbol_target_for_candidate(
@@ -2631,30 +2537,6 @@ fn external_sif_for_forward<'a>(
                 )
         })
     })
-}
-
-fn render_external_sif_sass_symbol_hover_markdown(target: &ExternalSifSassSymbolTarget) -> String {
-    let label = match target.family {
-        "variable" => format!("`${}`", format_args!("${}", target.name)),
-        "mixin" => format!("`@mixin {}`", target.name),
-        "function" => format!("`{}()`", target.name),
-        _ => format!("`{}`", target.name),
-    };
-    let mut lines = vec![
-        label,
-        String::new(),
-        format!("External Sass interface from `{}`.", target.canonical_url),
-        "Source location is unavailable for this SIF-backed symbol.".to_string(),
-    ];
-    if let Some(value_repr) = target
-        .value_repr
-        .as_deref()
-        .filter(|value| !value.is_empty())
-    {
-        lines.push(String::new());
-        lines.push(format!("Value: `{value_repr}`"));
-    }
-    lines.join("\n")
 }
 
 fn external_sif_sass_symbol_definition_location(
