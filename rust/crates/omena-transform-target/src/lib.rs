@@ -22,6 +22,8 @@ const TARGET_DATA_SOURCE_FILES: &[&str] = &[
     "data/pass-feature-bindings.toml",
 ];
 const COMPAT_QUORUM_SOURCES: &[&str] = &["caniuse", "web-features", "mdn-bcd"];
+const CANIUSE_RESOLVER_WORKSPACE_DEPENDENCY: &str = "browserslist";
+const CANIUSE_RESOLVER_CARGO_PACKAGE: &str = "oxc-browserslist";
 const VENDOR_PREFIX_MATRIX_SOURCE: &str = "conservativeHandMaintainedMatrixV0";
 const RUNTIME_FALLBACK_FEATURE_KEYS: &[&str] = &[];
 
@@ -31,6 +33,9 @@ struct BrowserThresholdDataV0 {
     product: String,
     refreshed_at: String,
     quorum_min_sources: usize,
+    caniuse_resolver_workspace_dependency: String,
+    caniuse_resolver_cargo_package: String,
+    caniuse_resolver_cargo_version: String,
     thresholds: Vec<BrowserFeatureThresholdV0>,
     parse_error_count: usize,
 }
@@ -51,6 +56,9 @@ struct PassFeatureBindingDataV0 {
     schema_version: String,
     product: String,
     refreshed_at: String,
+    caniuse_resolver_workspace_dependency: String,
+    caniuse_resolver_cargo_package: String,
+    caniuse_resolver_cargo_version: String,
     bindings: Vec<PassFeatureBindingV0>,
     parse_error_count: usize,
 }
@@ -104,6 +112,9 @@ pub struct TransformTargetDataContractV0 {
     pub pass_feature_binding_schema_version: String,
     pub browser_threshold_refreshed_at: String,
     pub pass_feature_binding_refreshed_at: String,
+    pub caniuse_resolver_workspace_dependency: String,
+    pub caniuse_resolver_cargo_package: String,
+    pub caniuse_resolver_cargo_version: String,
     pub source_files: Vec<&'static str>,
     pub parse_error_count: usize,
     pub quorum_min_sources: usize,
@@ -118,6 +129,7 @@ pub struct TransformTargetDataContractV0 {
     pub generated_coverage_complete: bool,
     pub quorum_valid: bool,
     pub bindings_valid: bool,
+    pub resolver_provenance_valid: bool,
     pub valid: bool,
 }
 
@@ -597,6 +609,7 @@ fn target_data_contract_summary(
     let unresolvable_threshold_query_count = unresolvable_threshold_query_count(browser_data);
     let quorum_valid = browser_threshold_data_is_valid(browser_data);
     let bindings_valid = pass_feature_binding_data_is_valid(browser_data, bindings);
+    let resolver_provenance_valid = resolver_provenance_is_valid(browser_data, bindings);
 
     TransformTargetDataContractV0 {
         product: "omena-transform-target.data-contract",
@@ -606,6 +619,11 @@ fn target_data_contract_summary(
         pass_feature_binding_schema_version: bindings.schema_version.clone(),
         browser_threshold_refreshed_at: browser_data.refreshed_at.clone(),
         pass_feature_binding_refreshed_at: bindings.refreshed_at.clone(),
+        caniuse_resolver_workspace_dependency: browser_data
+            .caniuse_resolver_workspace_dependency
+            .clone(),
+        caniuse_resolver_cargo_package: browser_data.caniuse_resolver_cargo_package.clone(),
+        caniuse_resolver_cargo_version: browser_data.caniuse_resolver_cargo_version.clone(),
         source_files: target_data_source_files(),
         parse_error_count,
         quorum_min_sources: browser_data.quorum_min_sources,
@@ -620,12 +638,14 @@ fn target_data_contract_summary(
         generated_coverage_complete: RUNTIME_FALLBACK_FEATURE_KEYS.is_empty(),
         quorum_valid,
         bindings_valid,
+        resolver_provenance_valid,
         valid: parse_error_count == 0
             && stale_entry_count == 0
             && unmapped_threshold_table_count == 0
             && unresolvable_threshold_query_count == 0
             && quorum_valid
-            && bindings_valid,
+            && bindings_valid
+            && resolver_provenance_valid,
     }
 }
 
@@ -766,6 +786,15 @@ fn parse_browser_threshold_data(source: &str) -> Result<BrowserThresholdDataV0, 
                 "product" => data.product = parse_toml_string(value)?,
                 "refreshed_at" => data.refreshed_at = parse_toml_string(value)?,
                 "quorum_min_sources" => data.quorum_min_sources = parse_toml_usize(value)?,
+                "caniuse_resolver_workspace_dependency" => {
+                    data.caniuse_resolver_workspace_dependency = parse_toml_string(value)?
+                }
+                "caniuse_resolver_cargo_package" => {
+                    data.caniuse_resolver_cargo_package = parse_toml_string(value)?
+                }
+                "caniuse_resolver_cargo_version" => {
+                    data.caniuse_resolver_cargo_version = parse_toml_string(value)?
+                }
                 _ => return Err(format!("unknown browser threshold root key `{key}`")),
             }
         }
@@ -804,6 +833,15 @@ fn parse_pass_feature_binding_data(source: &str) -> Result<PassFeatureBindingDat
                 "schema_version" => data.schema_version = parse_toml_string(value)?,
                 "product" => data.product = parse_toml_string(value)?,
                 "refreshed_at" => data.refreshed_at = parse_toml_string(value)?,
+                "caniuse_resolver_workspace_dependency" => {
+                    data.caniuse_resolver_workspace_dependency = parse_toml_string(value)?
+                }
+                "caniuse_resolver_cargo_package" => {
+                    data.caniuse_resolver_cargo_package = parse_toml_string(value)?
+                }
+                "caniuse_resolver_cargo_version" => {
+                    data.caniuse_resolver_cargo_version = parse_toml_string(value)?
+                }
                 _ => return Err(format!("unknown pass feature binding root key `{key}`")),
             }
         }
@@ -874,6 +912,9 @@ fn browser_threshold_data_is_valid(data: &BrowserThresholdDataV0) -> bool {
         && data.product == "omena-transform-target.browser-thresholds"
         && is_iso_date(&data.refreshed_at)
         && data.quorum_min_sources == COMPAT_QUORUM_SOURCES.len()
+        && data.caniuse_resolver_workspace_dependency == CANIUSE_RESOLVER_WORKSPACE_DEPENDENCY
+        && data.caniuse_resolver_cargo_package == CANIUSE_RESOLVER_CARGO_PACKAGE
+        && !data.caniuse_resolver_cargo_version.is_empty()
         && browser_threshold_table_count(data) >= 2
         && browser_threshold_stale_entry_count(data) == 0
         && unresolvable_threshold_query_count(data) == 0
@@ -901,6 +942,10 @@ fn pass_feature_binding_data_is_valid(
         && binding_data.schema_version == "0"
         && binding_data.product == "omena-transform-target.pass-feature-bindings"
         && is_iso_date(&binding_data.refreshed_at)
+        && binding_data.caniuse_resolver_workspace_dependency
+            == CANIUSE_RESOLVER_WORKSPACE_DEPENDENCY
+        && binding_data.caniuse_resolver_cargo_package == CANIUSE_RESOLVER_CARGO_PACKAGE
+        && !binding_data.caniuse_resolver_cargo_version.is_empty()
         && !binding_data.bindings.is_empty()
         && unmapped_threshold_table_count(browser_data, binding_data) == 0
         && binding_data.bindings.iter().all(|binding| {
@@ -915,6 +960,21 @@ fn pass_feature_binding_data_is_valid(
                     })
                 })
         })
+}
+
+fn resolver_provenance_is_valid(
+    browser_data: &BrowserThresholdDataV0,
+    binding_data: &PassFeatureBindingDataV0,
+) -> bool {
+    browser_data.caniuse_resolver_workspace_dependency == CANIUSE_RESOLVER_WORKSPACE_DEPENDENCY
+        && browser_data.caniuse_resolver_cargo_package == CANIUSE_RESOLVER_CARGO_PACKAGE
+        && !browser_data.caniuse_resolver_cargo_version.is_empty()
+        && browser_data.caniuse_resolver_workspace_dependency
+            == binding_data.caniuse_resolver_workspace_dependency
+        && browser_data.caniuse_resolver_cargo_package
+            == binding_data.caniuse_resolver_cargo_package
+        && browser_data.caniuse_resolver_cargo_version
+            == binding_data.caniuse_resolver_cargo_version
 }
 
 fn browser_threshold_stale_entry_count(data: &BrowserThresholdDataV0) -> usize {
@@ -1086,6 +1146,21 @@ mod tests {
         );
         assert!(boundary.target_data_contract.valid);
         assert_eq!(boundary.target_data_contract.pass_feature_binding_count, 12);
+        assert_eq!(
+            boundary
+                .target_data_contract
+                .caniuse_resolver_workspace_dependency,
+            super::CANIUSE_RESOLVER_WORKSPACE_DEPENDENCY
+        );
+        assert_eq!(
+            boundary.target_data_contract.caniuse_resolver_cargo_package,
+            super::CANIUSE_RESOLVER_CARGO_PACKAGE
+        );
+        assert_eq!(
+            boundary.target_data_contract.caniuse_resolver_cargo_version,
+            "3.0.5"
+        );
+        assert!(boundary.target_data_contract.resolver_provenance_valid);
         assert_eq!(boundary.target_data_contract.stale_entry_count, 0);
         assert_eq!(
             boundary.target_data_contract.unmapped_threshold_table_count,
@@ -1159,6 +1234,7 @@ mod tests {
                 .pass_feature_binding_schema_version,
             "0"
         );
+        assert!(boundary.target_data_contract.resolver_provenance_valid);
         assert_eq!(
             boundary.target_data_contract.runtime_fallback_feature_count,
             0
@@ -2024,6 +2100,22 @@ mod tests {
         let contract =
             super::target_data_contract_summary(&browser_data, super::pass_feature_binding_data());
         assert!(!contract.quorum_valid);
+        assert!(!contract.valid);
+    }
+
+    #[test]
+    fn browser_data_contract_rejects_resolver_provenance_drift() {
+        let browser_data = super::browser_threshold_data().clone();
+        let mut bindings = super::pass_feature_binding_data().clone();
+        bindings.caniuse_resolver_cargo_version = "0.0.0".to_string();
+
+        assert!(!super::resolver_provenance_is_valid(
+            &browser_data,
+            &bindings
+        ));
+
+        let contract = super::target_data_contract_summary(&browser_data, &bindings);
+        assert!(!contract.resolver_provenance_valid);
         assert!(!contract.valid);
     }
 

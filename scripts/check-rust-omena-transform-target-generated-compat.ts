@@ -41,6 +41,10 @@ interface CompatFeatureSelectionsV0 {
   readonly schemaVersion: string;
   readonly product: string;
   readonly sourcePolicy: {
+    readonly caniuseResolver: {
+      readonly workspaceDependency: string;
+      readonly cargoPackage: string;
+    };
     readonly requiredSourceQuorum: readonly string[];
   };
   readonly features: readonly CompatFeatureSelectionV0[];
@@ -107,16 +111,25 @@ const passFeatureBindingData = parseTomlWithRepeatedTable(
   "binding",
 );
 const cargoToml = readText("rust/Cargo.toml");
+const caniuseResolverCargoVersion = pinnedCargoPackageVersion(
+  cargoToml,
+  compatSelections.sourcePolicy.caniuseResolver.workspaceDependency,
+  compatSelections.sourcePolicy.caniuseResolver.cargoPackage,
+);
 
 assert.equal(browserThresholdData.root.schema_version, "0");
 assert.equal(compatSelections.schemaVersion, "0");
 assert.equal(compatSelections.product, "omena-transform-target.compat-feature-selections");
+assert.equal(compatSelections.sourcePolicy.caniuseResolver.workspaceDependency, "browserslist");
+assert.equal(compatSelections.sourcePolicy.caniuseResolver.cargoPackage, "oxc-browserslist");
 assert.deepEqual(compatSelections.sourcePolicy.requiredSourceQuorum, expectedQuorumSources);
 assert.equal(browserThresholdData.root.product, "omena-transform-target.browser-thresholds");
 assert.equal(passFeatureBindingData.root.schema_version, "0");
 assert.equal(passFeatureBindingData.root.product, "omena-transform-target.pass-feature-bindings");
 assert.equal(browserThresholdData.root.refreshed_at, specSources.refreshedAt);
 assert.equal(passFeatureBindingData.root.refreshed_at, specSources.refreshedAt);
+assertGeneratedResolverProvenance(browserThresholdData.root);
+assertGeneratedResolverProvenance(passFeatureBindingData.root);
 assert.match(specSources.refreshedAt, /^\d{4}-\d{2}-\d{2}$/u);
 assert.equal(
   specSources.refreshPolicy.nextReviewDueAt,
@@ -358,6 +371,41 @@ function parseTomlString(value: string): string {
   return value.slice(1, -1);
 }
 
+function assertGeneratedResolverProvenance(root: TomlRecord): void {
+  assert.equal(
+    root.caniuse_resolver_workspace_dependency,
+    compatSelections.sourcePolicy.caniuseResolver.workspaceDependency,
+    "generated compat root must stamp the caniuse resolver workspace dependency",
+  );
+  assert.equal(
+    root.caniuse_resolver_cargo_package,
+    compatSelections.sourcePolicy.caniuseResolver.cargoPackage,
+    "generated compat root must stamp the caniuse resolver cargo package",
+  );
+  assert.equal(
+    root.caniuse_resolver_cargo_version,
+    caniuseResolverCargoVersion,
+    "generated compat root must stamp the caniuse resolver cargo version",
+  );
+}
+
+function pinnedCargoPackageVersion(
+  source: string,
+  workspaceDependency: string,
+  cargoPackage: string,
+): string {
+  const escapedDependency = escapeRegExp(workspaceDependency);
+  const escapedPackage = escapeRegExp(cargoPackage);
+  const match = source.match(
+    new RegExp(
+      `${escapedDependency}\\s*=\\s*\\{\\s*package\\s*=\\s*"${escapedPackage}"\\s*,\\s*version\\s*=\\s*"([^"]+)"\\s*\\}`,
+      "u",
+    ),
+  );
+  assert.ok(match?.[1], `${workspaceDependency} must pin ${cargoPackage} with an explicit version`);
+  return match[1];
+}
+
 function pushMapValue<K, V>(map: Map<K, V[]>, key: K, value: V): void {
   const existing = map.get(key);
   if (existing) {
@@ -514,4 +562,8 @@ function assertStringArray(
 ): asserts value is string[] {
   assert.ok(Array.isArray(value), `${label} must be a string array`);
   for (const item of value) assert.equal(typeof item, "string", `${label} item must be a string`);
+}
+
+function escapeRegExp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&");
 }
