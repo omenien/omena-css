@@ -37,6 +37,10 @@ interface SpecSourcePinsV0 {
   }[];
 }
 
+interface PackageJsonV0 {
+  readonly devDependencies?: Record<string, string>;
+}
+
 interface CompatFeatureSelectionsV0 {
   readonly schemaVersion: string;
   readonly product: string;
@@ -102,6 +106,7 @@ const specManifest = readJson<SpecManifestV0>(
 const compatSelections = readJson<CompatFeatureSelectionsV0>(
   "rust/crates/omena-transform-target/data/compat-feature-selections.json",
 );
+const packageJson = readJson<PackageJsonV0>("package.json");
 const browserThresholdData = parseTomlWithRepeatedTable(
   readText("rust/crates/omena-transform-target/data/browser-thresholds.toml"),
   "threshold",
@@ -154,6 +159,7 @@ assert.ok(
   sourceNames.has("mdn-browser-compat-data"),
   "compat source pins must include MDN browser compatibility data",
 );
+assertSourcePinsDeclaredAsExactDevDependencies(specSources, packageJson);
 assert.equal(specManifest.schemaVersion, "0");
 assert.equal(specManifest.product, "omena-spec-audit.single-source-manifest");
 const manifestSourceKeys = specManifestSourceKeyIndex(specManifest);
@@ -390,6 +396,19 @@ function assertGeneratedResolverProvenance(root: TomlRecord): void {
     caniuseResolverCargoVersion,
     "generated compat root must stamp the caniuse resolver cargo version",
   );
+}
+
+function assertSourcePinsDeclaredAsExactDevDependencies(
+  sourcePins: SpecSourcePinsV0,
+  rootPackageJson: PackageJsonV0,
+): void {
+  for (const source of sourcePins.sources) {
+    assert.equal(
+      rootPackageJson.devDependencies?.[source.package],
+      source.version,
+      `${source.package} must be pinned in root devDependencies at spec source version ${source.version}`,
+    );
+  }
 }
 
 function pinnedCargoPackageVersion(

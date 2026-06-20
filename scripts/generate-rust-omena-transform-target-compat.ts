@@ -9,6 +9,7 @@ const writeMode = process.argv.includes("--write") || !checkOnly;
 const sourcePinsPath = "rust/crates/omena-spec-audit/data/spec-sources.json";
 const specManifestPath = "rust/crates/omena-spec-audit/data/omena-spec-manifest.json";
 const selectionPath = "rust/crates/omena-transform-target/data/compat-feature-selections.json";
+const packageJsonPath = "package.json";
 const browserThresholdsPath = "rust/crates/omena-transform-target/data/browser-thresholds.toml";
 const passFeatureBindingsPath =
   "rust/crates/omena-transform-target/data/pass-feature-bindings.toml";
@@ -34,6 +35,10 @@ interface SpecSourcePinsV0 {
     readonly package: string;
     readonly version: string;
   }[];
+}
+
+interface PackageJsonV0 {
+  readonly devDependencies?: Record<string, string>;
 }
 
 interface SpecManifestV0 {
@@ -89,7 +94,8 @@ interface CompatBrowserThresholdSelectionV0 {
 const specSources = readJson<SpecSourcePinsV0>(sourcePinsPath);
 const specManifest = readJson<SpecManifestV0>(specManifestPath);
 const selections = readJson<CompatFeatureSelectionsV0>(selectionPath);
-validateInputs(specSources, specManifest, selections);
+const packageJson = readJson<PackageJsonV0>(packageJsonPath);
+validateInputs(specSources, specManifest, selections, packageJson);
 const resolverProvenance = caniuseResolverProvenance(selections);
 
 const browserThresholdsSource = renderBrowserThresholdsToml(
@@ -142,6 +148,7 @@ function validateInputs(
   sourcePins: SpecSourcePinsV0,
   manifest: SpecManifestV0,
   featureSelections: CompatFeatureSelectionsV0,
+  rootPackageJson: PackageJsonV0,
 ): void {
   assert.equal(sourcePins.schemaVersion, "0");
   assert.equal(sourcePins.product, featureSelections.sourcePolicy.sourcePinProduct);
@@ -167,6 +174,7 @@ function validateInputs(
   const sourceNames = new Set(sourcePins.sources.map((source) => source.name));
   assert.ok(sourceNames.has("web-features"), "web-features source pin is required");
   assert.ok(sourceNames.has("mdn-browser-compat-data"), "MDN BCD source pin is required");
+  assertSourcePinsDeclaredAsExactDevDependencies(sourcePins, rootPackageJson);
   const manifestSourceKeys = specManifestSourceKeyIndex(manifest);
   const manifestEvidence = specManifestEvidenceIndex(manifest);
   assert.ok(
@@ -337,6 +345,19 @@ function assertFeatureSourceKeyEvidenceAnchored(
 
 function assertIsoDate(value: string, label: string): void {
   assert.match(value, /^\d{4}-\d{2}-\d{2}$/u, `${label} must be an ISO date`);
+}
+
+function assertSourcePinsDeclaredAsExactDevDependencies(
+  sourcePins: SpecSourcePinsV0,
+  rootPackageJson: PackageJsonV0,
+): void {
+  for (const source of sourcePins.sources) {
+    assert.equal(
+      rootPackageJson.devDependencies?.[source.package],
+      source.version,
+      `${source.package} must be pinned in root devDependencies at spec source version ${source.version}`,
+    );
+  }
 }
 
 function addIsoDateDays(value: string, days: number): string {
