@@ -872,13 +872,12 @@ fn materialize_transform_module_evaluation_output(
 
     if let Some(native_css) =
         apply_transform_module_evaluation_native_edits(input_css, &evaluation.native_edits)
+        && native_css == evaluation.evaluated_css
     {
-        if native_css == evaluation.evaluated_css {
-            return TransformModuleEvaluationMaterializedOutput {
-                css: native_css,
-                detail: native_detail,
-            };
-        }
+        return TransformModuleEvaluationMaterializedOutput {
+            css: native_css,
+            detail: native_detail,
+        };
     }
 
     if transform_module_evaluation_oracle_allows_legacy_output(evaluation) {

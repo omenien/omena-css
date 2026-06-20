@@ -9,7 +9,7 @@ use super::*;
 use omena_query_transform_runner::{
     TransformImportInlineV0, TransformLessInlineLiteralPlaceholderV0, TransformModuleEvaluationV0,
     inline_css_imports, inline_css_imports_for_static_module_evaluation,
-    restore_less_inline_literal_placeholders,
+    materialize_transform_module_evaluation_native_edits, restore_less_inline_literal_placeholders,
 };
 use omena_syntax::SyntaxKind;
 use std::{
@@ -441,7 +441,9 @@ fn derive_static_scss_module_context_for_transform_context(
         evaluation_source.as_str(),
         OmenaParserStyleDialect::Scss,
     )
-    .and_then(static_stylesheet_module_output_css_from_evaluation)
+    .and_then(|evaluation| {
+        static_stylesheet_module_output_css_from_evaluation(evaluation_source.as_ref(), evaluation)
+    })
     .unwrap_or_else(|| {
         if forward_mutation_count > 0 {
             evaluation_source
@@ -469,10 +471,17 @@ struct StaticScssModuleForwardEvaluation {
 }
 
 fn static_stylesheet_module_output_css_from_evaluation(
+    input_css: &str,
     evaluation: TransformModuleEvaluationV0,
 ) -> Option<String> {
     if let Some(native_edit_output) = evaluation.native_edit_output {
         return Some(native_edit_output);
+    }
+    if let Some(native_css) =
+        materialize_transform_module_evaluation_native_edits(input_css, &evaluation.native_edits)
+        && native_css == evaluation.evaluated_css
+    {
+        return Some(native_css);
     }
     if static_stylesheet_module_oracle_allows_legacy_output(&evaluation) {
         return Some(evaluation.evaluated_css);
@@ -1307,13 +1316,14 @@ fn parse_static_scss_forward_variable_overrides_from_rule(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use omena_query_transform_runner::TransformModuleEvaluationNativeEditV0;
 
     #[test]
     fn static_module_output_rejects_blind_legacy_css_for_native_product_source() {
         let evaluation = test_transform_module_evaluation(Some("nativeEditOutput"), None, None);
 
         assert_eq!(
-            static_stylesheet_module_output_css_from_evaluation(evaluation),
+            static_stylesheet_module_output_css_from_evaluation("", evaluation),
             None
         );
     }
@@ -1323,7 +1333,7 @@ mod tests {
         let evaluation = test_transform_module_evaluation(Some("evaluatedCss"), None, None);
 
         assert_eq!(
-            static_stylesheet_module_output_css_from_evaluation(evaluation),
+            static_stylesheet_module_output_css_from_evaluation("", evaluation),
             None
         );
     }
@@ -1344,7 +1354,7 @@ mod tests {
         );
 
         assert_eq!(
-            static_stylesheet_module_output_css_from_evaluation(evaluation),
+            static_stylesheet_module_output_css_from_evaluation("", evaluation),
             Some(".legacy { color: red; }".to_string())
         );
     }
@@ -1366,7 +1376,7 @@ mod tests {
         );
 
         assert_eq!(
-            static_stylesheet_module_output_css_from_evaluation(evaluation),
+            static_stylesheet_module_output_css_from_evaluation("", evaluation),
             None
         );
     }
@@ -1380,8 +1390,56 @@ mod tests {
         );
 
         assert_eq!(
-            static_stylesheet_module_output_css_from_evaluation(evaluation),
+            static_stylesheet_module_output_css_from_evaluation("", evaluation),
             Some(".native { color: red; }".to_string())
+        );
+    }
+
+    #[test]
+    fn static_module_output_materializes_matching_native_edits() {
+        let input_css = ".button { color: red; }";
+        let start = ".button { color: ".len();
+        let end = start + "red".len();
+        let mut evaluation = test_transform_module_evaluation(Some("nativeEditOutput"), None, None);
+        evaluation.evaluated_css = ".button { color: blue; }".to_string();
+        evaluation
+            .native_edits
+            .push(TransformModuleEvaluationNativeEditV0 {
+                start,
+                end,
+                replacement: "blue".to_string(),
+                edit_kind: "value".to_string(),
+                abstract_value: None,
+                abstract_value_kind: None,
+            });
+
+        assert_eq!(
+            static_stylesheet_module_output_css_from_evaluation(input_css, evaluation),
+            Some(".button { color: blue; }".to_string())
+        );
+    }
+
+    #[test]
+    fn static_module_output_rejects_mismatched_native_edits_without_oracle() {
+        let input_css = ".button { color: red; }";
+        let start = ".button { color: ".len();
+        let end = start + "red".len();
+        let mut evaluation = test_transform_module_evaluation(Some("nativeEditOutput"), None, None);
+        evaluation.evaluated_css = ".button { color: green; }".to_string();
+        evaluation
+            .native_edits
+            .push(TransformModuleEvaluationNativeEditV0 {
+                start,
+                end,
+                replacement: "blue".to_string(),
+                edit_kind: "value".to_string(),
+                abstract_value: None,
+                abstract_value_kind: None,
+            });
+
+        assert_eq!(
+            static_stylesheet_module_output_css_from_evaluation(input_css, evaluation),
+            None
         );
     }
 

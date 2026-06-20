@@ -61,6 +61,37 @@ pub const OMENA_QUERY_TRANSFORM_RUNNER_COLLAPSED_CRATES_V0: [&str; 6] = [
     "omena-transform-target",
 ];
 
+pub fn materialize_transform_module_evaluation_native_edits(
+    input_css: &str,
+    native_edits: &[TransformModuleEvaluationNativeEditV0],
+) -> Option<String> {
+    if native_edits.is_empty() {
+        return None;
+    }
+
+    let mut edits = native_edits.to_vec();
+    edits.sort_by_key(|edit| edit.start);
+
+    let mut previous_end = 0usize;
+    for edit in &edits {
+        if edit.start < previous_end
+            || edit.start > edit.end
+            || edit.end > input_css.len()
+            || !input_css.is_char_boundary(edit.start)
+            || !input_css.is_char_boundary(edit.end)
+        {
+            return None;
+        }
+        previous_end = edit.end;
+    }
+
+    let mut output = input_css.to_string();
+    for edit in edits.iter().rev() {
+        output.replace_range(edit.start..edit.end, edit.replacement.as_str());
+    }
+    Some(output)
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct OmenaQueryTransformRunnerBoundaryV0 {
@@ -121,5 +152,66 @@ mod tests {
                 .ready_surfaces
                 .contains(&"transformTargetPlannerBoundary")
         );
+    }
+
+    #[test]
+    fn transform_runner_materializes_sorted_native_edits() {
+        let input_css = ".button { color: red; margin: 1px; }";
+        let color_start = input_css.find("red").unwrap_or(input_css.len());
+        let margin_start = input_css.find("1px").unwrap_or(input_css.len());
+
+        let output = materialize_transform_module_evaluation_native_edits(
+            input_css,
+            &[
+                TransformModuleEvaluationNativeEditV0 {
+                    start: margin_start,
+                    end: margin_start + "1px".len(),
+                    replacement: "2px".to_string(),
+                    edit_kind: "value".to_string(),
+                    abstract_value: None,
+                    abstract_value_kind: None,
+                },
+                TransformModuleEvaluationNativeEditV0 {
+                    start: color_start,
+                    end: color_start + "red".len(),
+                    replacement: "blue".to_string(),
+                    edit_kind: "value".to_string(),
+                    abstract_value: None,
+                    abstract_value_kind: None,
+                },
+            ],
+        );
+
+        assert_eq!(
+            output.as_deref(),
+            Some(".button { color: blue; margin: 2px; }")
+        );
+    }
+
+    #[test]
+    fn transform_runner_rejects_overlapping_native_edits() {
+        let output = materialize_transform_module_evaluation_native_edits(
+            "abcdef",
+            &[
+                TransformModuleEvaluationNativeEditV0 {
+                    start: 1,
+                    end: 4,
+                    replacement: "x".to_string(),
+                    edit_kind: "value".to_string(),
+                    abstract_value: None,
+                    abstract_value_kind: None,
+                },
+                TransformModuleEvaluationNativeEditV0 {
+                    start: 3,
+                    end: 5,
+                    replacement: "y".to_string(),
+                    edit_kind: "value".to_string(),
+                    abstract_value: None,
+                    abstract_value_kind: None,
+                },
+            ],
+        );
+
+        assert_eq!(output, None);
     }
 }
