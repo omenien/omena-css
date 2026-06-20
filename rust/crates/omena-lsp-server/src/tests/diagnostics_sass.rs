@@ -403,6 +403,98 @@ fn style_diagnostics_surface_streaming_ifds_cross_file_reachability_from_lsp() {
 }
 
 #[test]
+fn style_diagnostics_surface_less_module_streaming_reachability_from_lsp() {
+    let mut state = LspShellState::default();
+    for (uri, text) in [
+        (
+            "file:///workspace-a/src/Button.module.less",
+            "@import \"./tokens.less\";\n.root { color: @brand; }",
+        ),
+        ("file:///workspace-a/src/tokens.less", "@brand: red;"),
+    ] {
+        handle_lsp_message(
+            &mut state,
+            json!({
+                "jsonrpc": "2.0",
+                "method": "textDocument/didOpen",
+                "params": {
+                    "textDocument": {
+                        "uri": uri,
+                        "languageId": "less",
+                        "version": 1,
+                        "text": text,
+                    },
+                },
+            }),
+        );
+    }
+
+    let importer_response = handle_lsp_message(
+        &mut state,
+        json!({
+            "jsonrpc": "2.0",
+            "id": 1,
+            "method": STYLE_DIAGNOSTICS_REQUEST,
+            "params": {
+                "textDocument": {
+                    "uri": "file:///workspace-a/src/Button.module.less",
+                },
+            },
+        }),
+    );
+    let importer_diagnostics = importer_response
+        .as_ref()
+        .and_then(|value| value.pointer("/result"))
+        .and_then(Value::as_array)
+        .expect("Less style diagnostics response contains an array");
+    let streaming = importer_diagnostics
+        .iter()
+        .find(|diagnostic| {
+            diagnostic.pointer("/code") == Some(&json!("crossFileStreamingReachability"))
+        })
+        .expect("LSP Less diagnostics should surface streaming-IFDS reachability");
+    assert_eq!(
+        streaming.pointer("/data/provenance/1"),
+        Some(&json!(
+            "omena-streaming-ifds.cross-file-reachability-report"
+        )),
+    );
+    assert!(
+        streaming
+            .pointer("/message")
+            .and_then(Value::as_str)
+            .is_some_and(|message| message
+                == "cross-file dataflow reaches 1 module(s) via resolved edges; paths are omitted from diagnostics"),
+        "Less streaming diagnostic should summarize Less import reachability: {streaming:?}"
+    );
+
+    let leaf_response = handle_lsp_message(
+        &mut state,
+        json!({
+            "jsonrpc": "2.0",
+            "id": 2,
+            "method": STYLE_DIAGNOSTICS_REQUEST,
+            "params": {
+                "textDocument": {
+                    "uri": "file:///workspace-a/src/tokens.less",
+                },
+            },
+        }),
+    );
+    let leaf_diagnostics = leaf_response
+        .as_ref()
+        .and_then(|value| value.pointer("/result"))
+        .and_then(Value::as_array)
+        .expect("Less leaf diagnostics response contains an array");
+    assert!(
+        leaf_diagnostics.iter().all(|diagnostic| {
+            diagnostic.pointer("/code") != Some(&json!("crossFileStreamingReachability"))
+        }),
+        "Less leaf module should not surface cross-file streaming reachability: {leaf_diagnostics:?}"
+    );
+}
+
+#[test]
 fn style_diagnostics_surface_unified_cross_file_scc_from_lsp() {
     let mut state = LspShellState::default();
     for (uri, text) in [
