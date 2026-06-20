@@ -53,9 +53,9 @@ pub use external_sif_loader::{
 pub(crate) use external_sif_loader::{
     refresh_external_sifs_for_bridge_source_delta, refresh_external_sifs_for_state,
 };
-use external_sif_symbols::{
-    external_sif_canonical_urls_match, external_sif_forward_canonical_url_candidates,
-    external_sif_forward_visibility_allows, sass_symbol_names_match,
+use external_sif_symbols::external_sif_sass_symbol_definition_location;
+pub(crate) use external_sif_symbols::{
+    ExternalSifSassSymbolTarget, external_sif_sass_symbol_target_for_candidate,
 };
 use foreign_style_identity::{is_foreign_style_document_uri, node_modules_package_for_path};
 pub use frame_aware_refresh::*;
@@ -81,7 +81,7 @@ use occurrence_mapping::{
 use omena_query::summarize_omena_query_target_unresolved_sass_import_diagnostics_for_workspace_paths;
 use omena_query::{
     OmenaParserStyleDialect, OmenaQueryCodeActionV0, OmenaQueryCompletionCandidateV0,
-    OmenaQueryCompletionItemV0, OmenaQueryExternalSifInputV0, OmenaQuerySourceDocumentInputV0,
+    OmenaQueryCompletionItemV0, OmenaQuerySourceDocumentInputV0,
     OmenaQuerySourceDomainClassReferenceFactV0 as SourceDomainClassReferenceFact,
     OmenaQuerySourceSelectorOccurrenceIndexV0, OmenaQuerySourceSelectorOccurrenceV0,
     OmenaQuerySourceSelectorReferenceMatchKindV0 as SourceSelectorReferenceMatchKind,
@@ -126,7 +126,7 @@ use omena_query::{
 };
 #[cfg(test)]
 pub(crate) use omena_query::{
-    OmenaQuerySourceImportedStyleBindingV0 as ImportedStyleBinding,
+    OmenaQueryExternalSifInputV0, OmenaQuerySourceImportedStyleBindingV0 as ImportedStyleBinding,
     OmenaQuerySourceSelectorReferenceFactV0 as SourceSelectorReferenceFact,
 };
 #[cfg(test)]
@@ -2327,273 +2327,6 @@ fn style_symbol_occurrence_document_keys(
             text_hash: document.text_hash.clone(),
         })
         .collect()
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-struct ExternalSifSassSymbolTarget {
-    canonical_url: String,
-    interface_hash: String,
-    family: &'static str,
-    name: String,
-    value_repr: Option<String>,
-}
-
-fn external_sif_sass_symbol_target_for_candidate(
-    state: &LspShellState,
-    document: &LspTextDocumentState,
-    candidate: &LspStyleHoverCandidate,
-) -> Option<ExternalSifSassSymbolTarget> {
-    if is_sass_symbol_declaration_kind(candidate.kind) {
-        return None;
-    }
-    let family = sass_symbol_kind_from_candidate_kind(candidate.kind)?;
-    let sources =
-        summarize_omena_query_sass_module_sources(document.uri.as_str(), document.text.as_str())?;
-    let mut visiting = BTreeSet::new();
-    for source in resolve_omena_query_sass_module_use_sources_for_candidate(
-        &sources,
-        candidate.namespace.as_deref(),
-    ) {
-        if let Some(target) = external_sif_sass_symbol_target_for_module_source(
-            state,
-            document,
-            source.as_str(),
-            family,
-            candidate.name.as_str(),
-            &mut visiting,
-        ) {
-            return Some(target);
-        }
-    }
-    if candidate.namespace.is_some() {
-        return None;
-    }
-    for forward_edge in sass_forward_edges_for_document(document) {
-        let Some(private_candidate) =
-            forward_edge.private_candidate_for_forwarded_public_candidate(candidate)
-        else {
-            continue;
-        };
-        if let Some(mut target) = external_sif_sass_symbol_target_for_module_source(
-            state,
-            document,
-            forward_edge.source.as_str(),
-            family,
-            private_candidate.name.as_str(),
-            &mut visiting,
-        ) {
-            target.name = candidate.name.clone();
-            return Some(target);
-        }
-    }
-    None
-}
-
-fn external_sif_sass_symbol_target_for_module_source(
-    state: &LspShellState,
-    document: &LspTextDocumentState,
-    source: &str,
-    family: &'static str,
-    name: &str,
-    visiting: &mut BTreeSet<String>,
-) -> Option<ExternalSifSassSymbolTarget> {
-    let external_sif = external_sif_for_module_source(state, document, source)?;
-    external_sif_exported_sass_symbol_target(
-        external_sif,
-        state.resolution.external_sifs.as_slice(),
-        family,
-        name,
-        visiting,
-    )
-}
-
-fn external_sif_for_module_source<'a>(
-    state: &'a LspShellState,
-    document: &LspTextDocumentState,
-    source: &str,
-) -> Option<&'a OmenaQueryExternalSifInputV0> {
-    let mut candidates = BTreeSet::from([source.to_string()]);
-    if let Some(uri) = resolve_lsp_style_uri_for_specifier(state, document, source) {
-        candidates.insert(uri);
-    }
-    state.resolution.external_sifs.iter().find(|external_sif| {
-        candidates.iter().any(|candidate| {
-            external_sif_canonical_urls_match(external_sif.canonical_url.as_str(), candidate)
-                || external_sif_canonical_urls_match(
-                    external_sif.sif.canonical_url.as_str(),
-                    candidate,
-                )
-        })
-    })
-}
-
-fn external_sif_exported_sass_symbol_target(
-    external_sif: &OmenaQueryExternalSifInputV0,
-    external_sifs: &[OmenaQueryExternalSifInputV0],
-    family: &'static str,
-    name: &str,
-    visiting: &mut BTreeSet<String>,
-) -> Option<ExternalSifSassSymbolTarget> {
-    if !visiting.insert(external_sif.sif.canonical_url.clone()) {
-        return None;
-    }
-    let direct = external_sif_direct_sass_symbol_target(external_sif, family, name);
-    if direct.is_some() {
-        visiting.remove(external_sif.sif.canonical_url.as_str());
-        return direct;
-    }
-    for forward in &external_sif.sif.exports.forwards {
-        let Some(private_name) = unapply_sass_forward_prefix(forward.prefix.as_deref(), name)
-        else {
-            continue;
-        };
-        if !external_sif_forward_visibility_allows(forward, family, private_name.as_str()) {
-            continue;
-        }
-        let Some(forwarded_sif) = external_sif_for_forward(external_sif, forward, external_sifs)
-        else {
-            continue;
-        };
-        if let Some(mut target) = external_sif_exported_sass_symbol_target(
-            forwarded_sif,
-            external_sifs,
-            family,
-            private_name.as_str(),
-            visiting,
-        ) {
-            target.name = name.to_string();
-            visiting.remove(external_sif.sif.canonical_url.as_str());
-            return Some(target);
-        }
-    }
-    visiting.remove(external_sif.sif.canonical_url.as_str());
-    None
-}
-
-fn external_sif_direct_sass_symbol_target(
-    external_sif: &OmenaQueryExternalSifInputV0,
-    family: &'static str,
-    name: &str,
-) -> Option<ExternalSifSassSymbolTarget> {
-    let (name, value_repr) = match family {
-        "variable" => external_sif
-            .sif
-            .exports
-            .variables
-            .iter()
-            .find(|variable| sass_symbol_names_match(variable.name.as_str(), name))
-            .map(|variable| {
-                (
-                    variable.name.trim_start_matches('$').to_string(),
-                    variable.value_repr.clone(),
-                )
-            })?,
-        "mixin" => external_sif
-            .sif
-            .exports
-            .mixins
-            .iter()
-            .find(|mixin| sass_symbol_names_match(mixin.name.as_str(), name))
-            .map(|mixin| (mixin.name.clone(), None))?,
-        "function" => external_sif
-            .sif
-            .exports
-            .functions
-            .iter()
-            .find(|function| sass_symbol_names_match(function.name.as_str(), name))
-            .map(|function| (function.name.clone(), None))?,
-        _ => return None,
-    };
-    Some(ExternalSifSassSymbolTarget {
-        canonical_url: external_sif.sif.canonical_url.clone(),
-        interface_hash: external_sif
-            .sif
-            .fingerprints
-            .interface_hash
-            .as_str()
-            .to_string(),
-        family,
-        name,
-        value_repr,
-    })
-}
-
-fn external_sif_for_forward<'a>(
-    external_sif: &OmenaQueryExternalSifInputV0,
-    forward: &omena_sif::OmenaSifForwardExportV1,
-    external_sifs: &'a [OmenaQueryExternalSifInputV0],
-) -> Option<&'a OmenaQueryExternalSifInputV0> {
-    external_sif_forward_canonical_url_candidates(
-        external_sif.sif.canonical_url.as_str(),
-        forward.canonical_url.as_str(),
-    )
-    .into_iter()
-    .find_map(|candidate| {
-        external_sifs.iter().find(|input| {
-            external_sif_canonical_urls_match(input.canonical_url.as_str(), candidate.as_str())
-                || external_sif_canonical_urls_match(
-                    input.sif.canonical_url.as_str(),
-                    candidate.as_str(),
-                )
-        })
-    })
-}
-
-fn external_sif_sass_symbol_definition_location(
-    state: &LspShellState,
-    document: &LspTextDocumentState,
-    candidate: &LspStyleHoverCandidate,
-) -> Option<Value> {
-    let family = sass_symbol_kind_from_candidate_kind(candidate.kind)?;
-    let sources =
-        summarize_omena_query_sass_module_sources(document.uri.as_str(), document.text.as_str())?;
-    let mut visiting = BTreeSet::new();
-    let mut target = None;
-    for source in resolve_omena_query_sass_module_use_sources_for_candidate(
-        &sources,
-        candidate.namespace.as_deref(),
-    ) {
-        target = external_sif_sass_symbol_target_for_module_source(
-            state,
-            document,
-            source.as_str(),
-            family,
-            candidate.name.as_str(),
-            &mut visiting,
-        );
-        if target.is_some() {
-            break;
-        }
-    }
-    let target = target?;
-    let range = external_sif_sass_symbol_definition_range(state, &target).or_else(|| {
-        style_text_for_uri(state, target.canonical_url.as_str()).map(|_| {
-            let start = ParserPositionV0 {
-                line: 0,
-                character: 0,
-            };
-            ParserRangeV0 { start, end: start }
-        })
-    })?;
-    Some(json!({
-        "uri": target.canonical_url,
-        "range": range,
-    }))
-}
-
-fn external_sif_sass_symbol_definition_range(
-    state: &LspShellState,
-    target: &ExternalSifSassSymbolTarget,
-) -> Option<ParserRangeV0> {
-    let (_, candidates) = style_hover_candidates_for_uri(state, target.canonical_url.as_str())?;
-    candidates
-        .into_iter()
-        .find(|candidate| {
-            is_sass_symbol_declaration_kind(candidate.kind)
-                && sass_symbol_kind_from_candidate_kind(candidate.kind) == Some(target.family)
-                && sass_symbol_names_match(candidate.name.as_str(), target.name.as_str())
-        })
-        .map(|candidate| candidate.range)
 }
 
 fn source_candidate_selector_names(
