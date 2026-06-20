@@ -1,7 +1,8 @@
 use super::super::stylesheet_evaluation::derive_static_stylesheet_module_evaluation;
 use super::*;
 use omena_query_transform_runner::{
-    TransformImportInlineV0, TransformModuleEvaluationV0, restore_less_inline_literal_placeholders,
+    TransformImportInlineV0, TransformModuleEvaluationOracleV0, TransformModuleEvaluationV0,
+    restore_less_inline_literal_placeholders,
 };
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -86,9 +87,19 @@ pub(super) fn derive_static_stylesheet_module_evaluation_for_transform_context(
             native_edit_output: Some(output),
             native_replacements: Vec::new(),
             native_edits: Vec::new(),
-            oracle: None,
+            oracle: Some(static_stylesheet_module_system_zero_divergence_oracle()),
         }
     })
+}
+
+fn static_stylesheet_module_system_zero_divergence_oracle() -> TransformModuleEvaluationOracleV0 {
+    TransformModuleEvaluationOracleV0 {
+        mode: "oracleOnly".to_string(),
+        product_output_source: "legacyEvaluatedCss".to_string(),
+        divergence_count: 0,
+        all_legacy_declaration_values_preserved: true,
+        ..TransformModuleEvaluationOracleV0::default()
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -197,7 +208,9 @@ pub(super) fn derive_static_scss_module_use_evaluations_for_transform_context(
 mod tests {
     use super::evaluation_source::static_stylesheet_module_output_css_from_evaluation;
     use super::*;
-    use omena_query_transform_runner::TransformModuleEvaluationNativeEditV0;
+    use omena_query_transform_runner::{
+        TransformModuleEvaluationNativeEditV0, TransformModuleEvaluationOracleV0,
+    };
 
     #[test]
     fn static_module_output_rejects_blind_legacy_css_for_native_product_source() {
@@ -245,15 +258,13 @@ mod tests {
         let evaluation = test_transform_module_evaluation(
             Some("nativeEditOutput"),
             None,
-            Some(
-                omena_query_transform_runner::TransformModuleEvaluationOracleV0 {
-                    mode: "oracleOnly".to_string(),
-                    product_output_source: "legacyEvaluatedCss".to_string(),
-                    divergence_count: 1,
-                    all_legacy_declaration_values_preserved: true,
-                    ..omena_query_transform_runner::TransformModuleEvaluationOracleV0::default()
-                },
-            ),
+            Some(TransformModuleEvaluationOracleV0 {
+                mode: "oracleOnly".to_string(),
+                product_output_source: "legacyEvaluatedCss".to_string(),
+                divergence_count: 1,
+                all_legacy_declaration_values_preserved: true,
+                ..TransformModuleEvaluationOracleV0::default()
+            }),
         );
 
         assert_eq!(
@@ -289,14 +300,12 @@ mod tests {
         let evaluation = test_transform_module_evaluation(
             Some("nativeEditOutput"),
             Some(".legacy { color: red; }".to_string()),
-            Some(
-                omena_query_transform_runner::TransformModuleEvaluationOracleV0 {
-                    mode: "oracleOnly".to_string(),
-                    product_output_source: "legacyEvaluatedCss".to_string(),
-                    all_legacy_declaration_values_preserved: true,
-                    ..omena_query_transform_runner::TransformModuleEvaluationOracleV0::default()
-                },
-            ),
+            Some(TransformModuleEvaluationOracleV0 {
+                mode: "oracleOnly".to_string(),
+                product_output_source: "legacyEvaluatedCss".to_string(),
+                all_legacy_declaration_values_preserved: true,
+                ..TransformModuleEvaluationOracleV0::default()
+            }),
         );
 
         assert_eq!(
@@ -310,14 +319,12 @@ mod tests {
         let evaluation = test_transform_module_evaluation(
             Some("nativeEditOutput"),
             Some(".native { color: red; }".to_string()),
-            Some(
-                omena_query_transform_runner::TransformModuleEvaluationOracleV0 {
-                    mode: "oracleOnly".to_string(),
-                    product_output_source: "legacyEvaluatedCss".to_string(),
-                    all_legacy_declaration_values_preserved: true,
-                    ..omena_query_transform_runner::TransformModuleEvaluationOracleV0::default()
-                },
-            ),
+            Some(TransformModuleEvaluationOracleV0 {
+                mode: "oracleOnly".to_string(),
+                product_output_source: "legacyEvaluatedCss".to_string(),
+                all_legacy_declaration_values_preserved: true,
+                ..TransformModuleEvaluationOracleV0::default()
+            }),
         );
 
         assert_eq!(
@@ -327,7 +334,7 @@ mod tests {
     }
 
     #[test]
-    fn static_module_output_prefers_native_edit_output() {
+    fn static_module_output_rejects_native_edit_output_without_oracle() {
         let evaluation = test_transform_module_evaluation(
             Some("nativeEditOutput"),
             Some(".native { color: red; }".to_string()),
@@ -336,7 +343,7 @@ mod tests {
 
         assert_eq!(
             static_stylesheet_module_output_css_from_evaluation("", evaluation),
-            Some(".native { color: red; }".to_string())
+            None
         );
     }
 
@@ -359,7 +366,11 @@ mod tests {
         let input_css = ".button { color: red; }";
         let start = ".button { color: ".len();
         let end = start + "red".len();
-        let mut evaluation = test_transform_module_evaluation(Some("nativeEditOutput"), None, None);
+        let mut evaluation = test_transform_module_evaluation(
+            Some("nativeEditOutput"),
+            None,
+            Some(oracle_allowing_native_output()),
+        );
         evaluation.evaluated_css = ".button { color: blue; }".to_string();
         evaluation
             .native_edits
@@ -430,7 +441,7 @@ mod tests {
     fn test_transform_module_evaluation(
         product_output_source: Option<&str>,
         native_edit_output: Option<String>,
-        oracle: Option<omena_query_transform_runner::TransformModuleEvaluationOracleV0>,
+        oracle: Option<TransformModuleEvaluationOracleV0>,
     ) -> TransformModuleEvaluationV0 {
         TransformModuleEvaluationV0 {
             evaluator: "test".to_string(),
@@ -440,6 +451,16 @@ mod tests {
             native_replacements: Vec::new(),
             native_edits: Vec::new(),
             oracle,
+        }
+    }
+
+    fn oracle_allowing_native_output() -> TransformModuleEvaluationOracleV0 {
+        TransformModuleEvaluationOracleV0 {
+            mode: "oracleOnly".to_string(),
+            product_output_source: "legacyEvaluatedCss".to_string(),
+            divergence_count: 0,
+            all_legacy_declaration_values_preserved: true,
+            ..TransformModuleEvaluationOracleV0::default()
         }
     }
 }

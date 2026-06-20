@@ -309,8 +309,10 @@ impl TransformModuleEvaluationV0 {
     }
 
     pub fn oracle_allows_native_product_output(&self) -> bool {
-        self.oracle.as_ref().is_none_or(|oracle| {
-            oracle.divergence_count == 0 && oracle.all_legacy_declaration_values_preserved
+        self.oracle.as_ref().is_some_and(|oracle| {
+            oracle.mode == "oracleOnly"
+                && oracle.divergence_count == 0
+                && oracle.all_legacy_declaration_values_preserved
         })
     }
 
@@ -321,7 +323,7 @@ impl TransformModuleEvaluationV0 {
     pub fn native_output_matches_retained_oracle(&self, native_output: &str) -> bool {
         self.oracle
             .as_ref()
-            .is_none_or(|_| native_output == self.evaluated_css)
+            .is_some_and(|_| native_output == self.evaluated_css)
     }
 }
 

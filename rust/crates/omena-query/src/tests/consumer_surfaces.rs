@@ -1,7 +1,8 @@
 use crate::{
     OmenaQueryStyleSourceInputV0, OmenaQueryTargetTransformOptionsV0,
     OmenaQueryTransformExecutionContextV0, OmenaQueryTransformModuleEvaluationNativeEditV0,
-    OmenaQueryTransformModuleEvaluationV0, execute_omena_query_consumer_build_style_source,
+    OmenaQueryTransformModuleEvaluationOracleV0, OmenaQueryTransformModuleEvaluationV0,
+    execute_omena_query_consumer_build_style_source,
     execute_omena_query_consumer_build_style_source_for_target_query,
     execute_omena_query_consumer_build_style_source_for_target_query_with_context_and_options,
     execute_omena_query_consumer_build_style_source_for_target_query_with_options,
@@ -290,7 +291,7 @@ fn consumer_build_accepts_explicit_scss_evaluator_context() {
             native_edit_output: Some(".button { color: red; }".to_string()),
             native_replacements: Vec::new(),
             native_edits: vec![native_module_evaluation_edit(source, "$brand", "red")],
-            oracle: None,
+            oracle: Some(oracle_allowing_native_output()),
         }),
         ..OmenaQueryTransformExecutionContextV0::default()
     };
@@ -390,6 +391,16 @@ fn native_module_evaluation_edit(
         edit_kind: "valueReplacement".to_string(),
         abstract_value: None,
         abstract_value_kind: None,
+    }
+}
+
+fn oracle_allowing_native_output() -> OmenaQueryTransformModuleEvaluationOracleV0 {
+    OmenaQueryTransformModuleEvaluationOracleV0 {
+        mode: "oracleOnly".to_string(),
+        product_output_source: "legacyEvaluatedCss".to_string(),
+        divergence_count: 0,
+        all_legacy_declaration_values_preserved: true,
+        ..OmenaQueryTransformModuleEvaluationOracleV0::default()
     }
 }
 

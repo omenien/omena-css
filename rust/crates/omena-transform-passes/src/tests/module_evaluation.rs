@@ -7,6 +7,16 @@ use crate::{
 use omena_parser::StyleDialect;
 use omena_transform_cst::TransformPassKind;
 
+fn oracle_allowing_native_output() -> TransformModuleEvaluationOracleV0 {
+    TransformModuleEvaluationOracleV0 {
+        mode: "oracleOnly".to_string(),
+        product_output_source: "legacyEvaluatedCss".to_string(),
+        divergence_count: 0,
+        all_legacy_declaration_values_preserved: true,
+        ..TransformModuleEvaluationOracleV0::default()
+    }
+}
+
 #[test]
 fn execution_runtime_applies_explicit_scss_module_evaluation() {
     let source = r#".button { color: $brand; }"#;
@@ -19,7 +29,7 @@ fn execution_runtime_applies_explicit_scss_module_evaluation() {
             native_edit_output: Some(evaluated_css.to_string()),
             native_replacements: Vec::new(),
             native_edits: vec![native_module_evaluation_edit(source, "$brand", "red")],
-            oracle: None,
+            oracle: Some(oracle_allowing_native_output()),
         }),
         ..TransformExecutionContextV0::default()
     };
@@ -50,7 +60,7 @@ fn execution_runtime_applies_explicit_scss_module_evaluation() {
             native_edit_output: Some(evaluated_css.to_string()),
             native_replacements: Vec::new(),
             native_edits: vec![native_module_evaluation_edit(source, "$brand", "red")],
-            oracle: None,
+            oracle: Some(oracle_allowing_native_output()),
         })
     );
     assert_eq!(
@@ -60,7 +70,7 @@ fn execution_runtime_applies_explicit_scss_module_evaluation() {
 }
 
 #[test]
-fn execution_runtime_prefers_native_output_over_legacy_evaluated_css() {
+fn execution_runtime_preserves_scss_source_when_oracle_is_missing() {
     let source = r#".button { color: $brand; }"#;
     let native_css = ".button { color: red; }";
     let legacy_css = ".button { color: legacy; }";
@@ -86,13 +96,14 @@ fn execution_runtime_prefers_native_output_over_legacy_evaluated_css() {
         &context,
     );
 
-    assert_eq!(execution.mutation_count, 1);
-    assert_eq!(execution.output_css, native_css);
+    assert_eq!(execution.mutation_count, 0);
+    assert_eq!(execution.output_css, source);
+    assert!(!execution.output_css.contains("red"));
     assert!(!execution.output_css.contains("legacy"));
     assert_eq!(
         execution.outcomes.first().map(|outcome| outcome.detail),
         Some(
-            "applied explicit SCSS module evaluation native edit output from the evaluator boundary"
+            "preserved SCSS source because native evaluator edits did not match the oracle boundary"
         )
     );
 }
@@ -142,7 +153,7 @@ fn execution_runtime_preserves_scss_source_when_oracle_diverges() {
 }
 
 #[test]
-fn execution_runtime_consumes_native_output_without_native_edits() {
+fn execution_runtime_preserves_scss_source_without_native_edits_or_oracle() {
     let source = r#".button { color: $brand; }"#;
     let native_css = ".button { color: red; }";
     let legacy_css = ".button { color: legacy; }";
@@ -168,13 +179,14 @@ fn execution_runtime_consumes_native_output_without_native_edits() {
         &context,
     );
 
-    assert_eq!(execution.mutation_count, 1);
-    assert_eq!(execution.output_css, native_css);
+    assert_eq!(execution.mutation_count, 0);
+    assert_eq!(execution.output_css, source);
+    assert!(!execution.output_css.contains("red"));
     assert!(!execution.output_css.contains("legacy"));
     assert_eq!(
         execution.outcomes.first().map(|outcome| outcome.detail),
         Some(
-            "applied explicit SCSS module evaluation native edit output from the evaluator boundary"
+            "preserved SCSS source because native evaluator edits did not match the oracle boundary"
         )
     );
 }
@@ -265,7 +277,7 @@ fn execution_runtime_applies_explicit_less_module_evaluation() {
             native_edit_output: Some(evaluated_css.to_string()),
             native_replacements: Vec::new(),
             native_edits: vec![native_module_evaluation_edit(source, "@brand", "red")],
-            oracle: None,
+            oracle: Some(oracle_allowing_native_output()),
         }),
         ..TransformExecutionContextV0::default()
     };
@@ -296,7 +308,7 @@ fn execution_runtime_applies_explicit_less_module_evaluation() {
             native_edit_output: Some(evaluated_css.to_string()),
             native_replacements: Vec::new(),
             native_edits: vec![native_module_evaluation_edit(source, "@brand", "red")],
-            oracle: None,
+            oracle: Some(oracle_allowing_native_output()),
         })
     );
     assert_eq!(
@@ -306,7 +318,7 @@ fn execution_runtime_applies_explicit_less_module_evaluation() {
 }
 
 #[test]
-fn execution_runtime_prefers_less_native_output_over_legacy_evaluated_css() {
+fn execution_runtime_preserves_less_source_when_oracle_is_missing() {
     let source = r#".button { color: @brand; }"#;
     let native_css = ".button { color: red; }";
     let legacy_css = ".button { color: legacy; }";
@@ -332,13 +344,14 @@ fn execution_runtime_prefers_less_native_output_over_legacy_evaluated_css() {
         &context,
     );
 
-    assert_eq!(execution.mutation_count, 1);
-    assert_eq!(execution.output_css, native_css);
+    assert_eq!(execution.mutation_count, 0);
+    assert_eq!(execution.output_css, source);
+    assert!(!execution.output_css.contains("red"));
     assert!(!execution.output_css.contains("legacy"));
     assert_eq!(
         execution.outcomes.first().map(|outcome| outcome.detail),
         Some(
-            "applied explicit Less module evaluation native edit output from the evaluator boundary"
+            "preserved Less source because native evaluator edits did not match the oracle boundary"
         )
     );
 }

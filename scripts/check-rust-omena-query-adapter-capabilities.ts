@@ -721,11 +721,30 @@ void (async () => {
 })();
 
 function assertNativeEvaluatorCutoverProductPathPolicy(): void {
+  const transformModelSource = readText("rust/crates/omena-transform-passes/src/model.rs");
   const queryEvaluationSource = readText(
     "rust/crates/omena-query/src/style/transform/static_stylesheet/evaluation_source.rs",
   );
   const transformExecutorSource = readText(
     "rust/crates/omena-transform-passes/src/runtime/executor.rs",
+  );
+
+  assertSourceIncludesAll(
+    transformModelSource,
+    [
+      "self.oracle.as_ref().is_some_and(|oracle|",
+      'oracle.mode == "oracleOnly"',
+      "oracle.divergence_count == 0",
+      "oracle.all_legacy_declaration_values_preserved",
+      "self.oracle",
+      ".is_some_and(|_| native_output == self.evaluated_css)",
+    ],
+    "transform module evaluation must require a retained oracle before native product output",
+  );
+  assertSourceExcludesAll(
+    transformModelSource,
+    ["oracle.as_ref().is_none_or", ".is_none_or(|_| native_output == self.evaluated_css)"],
+    "transform module evaluation must not treat a missing oracle as product-output-ready",
   );
 
   assertSourceIncludesAll(
