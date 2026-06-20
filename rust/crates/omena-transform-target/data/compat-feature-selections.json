@@ -157,6 +157,7 @@
     {
       "table": "flexbox",
       "passId": "vendor-prefixing",
+      "passIds": ["vendor-prefixing", "stale-prefix-removal"],
       "caniuseKeys": ["flexbox"],
       "sourceKeys": {
         "caniuse": "flexbox",
@@ -181,6 +182,7 @@
     {
       "table": "sticky_positioning",
       "passId": "vendor-prefixing",
+      "passIds": ["vendor-prefixing", "stale-prefix-removal"],
       "caniuseKeys": ["css-sticky"],
       "sourceKeys": {
         "caniuse": "css-sticky",

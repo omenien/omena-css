@@ -40,7 +40,17 @@ caniuse_keys = ["flexbox"]
 support_table = "flexbox"
 
 [[binding]]
+pass_id = "stale-prefix-removal"
+caniuse_keys = ["flexbox"]
+support_table = "flexbox"
+
+[[binding]]
 pass_id = "vendor-prefixing"
+caniuse_keys = ["css-sticky"]
+support_table = "sticky_positioning"
+
+[[binding]]
+pass_id = "stale-prefix-removal"
 caniuse_keys = ["css-sticky"]
 support_table = "sticky_positioning"
 

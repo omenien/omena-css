@@ -1072,7 +1072,7 @@ mod tests {
         );
         assert_eq!(boundary.browser_threshold_table_count, 10);
         assert_eq!(boundary.browser_threshold_entry_count, 109);
-        assert_eq!(boundary.pass_feature_binding_count, 10);
+        assert_eq!(boundary.pass_feature_binding_count, 12);
         assert_eq!(boundary.browser_data_parse_error_count, 0);
         assert!(boundary.browser_data_quorum_valid);
         assert!(boundary.browser_data_bindings_valid);
@@ -1085,6 +1085,7 @@ mod tests {
             "omena-transform-target-data-v0:thresholds-2026-05-22:bindings-2026-05-22"
         );
         assert!(boundary.target_data_contract.valid);
+        assert_eq!(boundary.target_data_contract.pass_feature_binding_count, 12);
         assert_eq!(boundary.target_data_contract.stale_entry_count, 0);
         assert_eq!(
             boundary.target_data_contract.unmapped_threshold_table_count,
@@ -1192,10 +1193,9 @@ mod tests {
                     "{query} must resolve through oxc-browserslist"
                 );
 
-                let evidence = plan
-                    .target_data_evidence
-                    .iter()
-                    .find(|evidence| evidence.support_table == threshold.table);
+                let evidence = plan.target_data_evidence.iter().find(|evidence| {
+                    evidence.support_table == threshold.table && evidence.pass_id == pass_id
+                });
                 assert!(
                     evidence.is_some(),
                     "{query} missing evidence for {}",
@@ -1221,7 +1221,9 @@ mod tests {
                     "{query} should satisfy {}",
                     threshold.table
                 );
-                if pass_id != super::TransformPassKind::VendorPrefixing.id() {
+                if pass_id != super::TransformPassKind::VendorPrefixing.id()
+                    && pass_id != super::TransformPassKind::StalePrefixRemoval.id()
+                {
                     assert!(
                         !plan.transform_plan.required_pass_ids.contains(&pass_id),
                         "{query} should not require {pass_id} at the support threshold"
@@ -1248,10 +1250,11 @@ mod tests {
                             .iter()
                             .any(|target| target == &previous_query)
                     {
-                        let previous_evidence = previous_plan
-                            .target_data_evidence
-                            .iter()
-                            .find(|evidence| evidence.support_table == threshold.table);
+                        let previous_evidence =
+                            previous_plan.target_data_evidence.iter().find(|evidence| {
+                                evidence.support_table == threshold.table
+                                    && evidence.pass_id == pass_id
+                            });
                         assert!(
                             previous_evidence.is_some(),
                             "{previous_query} missing evidence for {}",
@@ -1277,7 +1280,9 @@ mod tests {
                             "{previous_query} should not satisfy {}",
                             threshold.table
                         );
-                        if pass_id != super::TransformPassKind::VendorPrefixing.id() {
+                        if pass_id != super::TransformPassKind::VendorPrefixing.id()
+                            && pass_id != super::TransformPassKind::StalePrefixRemoval.id()
+                        {
                             assert!(
                                 previous_plan
                                     .transform_plan
@@ -1468,7 +1473,7 @@ mod tests {
             plan.target_data_snapshot_id,
             "omena-transform-target-data-v0:thresholds-2026-05-22:bindings-2026-05-22"
         );
-        assert_eq!(plan.target_data_evidence.len(), 10);
+        assert_eq!(plan.target_data_evidence.len(), 12);
         assert!(
             plan.target_data_evidence
                 .iter()
@@ -1509,6 +1514,32 @@ mod tests {
                 .any(|evidence| evidence.support_table == "css_scope"
                     && evidence.caniuse_keys == vec!["css-cascade-scope".to_string()]
                     && !evidence.all_resolved_targets_supported)
+        );
+        assert!(
+            plan.target_data_evidence
+                .iter()
+                .any(|evidence| evidence.pass_id == "stale-prefix-removal"
+                    && evidence.support_table == "flexbox"
+                    && evidence.caniuse_keys == vec!["flexbox".to_string()]
+                    && evidence.source_quorum
+                        == vec![
+                            "caniuse".to_string(),
+                            "web-features".to_string(),
+                            "mdn-bcd".to_string()
+                        ])
+        );
+        assert!(
+            plan.target_data_evidence
+                .iter()
+                .any(|evidence| evidence.pass_id == "stale-prefix-removal"
+                    && evidence.support_table == "sticky_positioning"
+                    && evidence.caniuse_keys == vec!["css-sticky".to_string()]
+                    && evidence.source_quorum
+                        == vec![
+                            "caniuse".to_string(),
+                            "web-features".to_string(),
+                            "mdn-bcd".to_string()
+                        ])
         );
         assert!(plan.support.vendor_prefix_required);
         assert!(

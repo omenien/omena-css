@@ -64,6 +64,7 @@ interface SpecManifestEntryV0 {
 interface CompatFeatureSelectionV0 {
   readonly table: string;
   readonly passId: string;
+  readonly passIds?: readonly string[];
   readonly caniuseKeys: readonly string[];
   readonly sourceKeys: Record<string, string>;
   readonly sourceQuorum: readonly string[];
@@ -149,6 +150,11 @@ const selectionsByTable = new Map<string, CompatFeatureSelectionV0>();
 for (const feature of compatSelections.features) {
   assertString(feature.table, "selection.table");
   assertString(feature.passId, "selection.passId");
+  assert.deepEqual(
+    selectionPassIds(feature)[0],
+    feature.passId,
+    `selection ${feature.table} passIds must keep passId as the primary binding`,
+  );
   assertStringArray(feature.caniuseKeys as string[], "selection.caniuseKeys");
   assert.deepEqual(
     feature.sourceQuorum,
@@ -242,20 +248,28 @@ for (const [table, thresholds] of thresholdsByTable) {
 }
 
 const mappedTables = new Set<string>();
+const mappedPassIdsByTable = new Map<string, Set<string>>();
 for (const binding of passFeatureBindingData.tables) {
   assertString(binding.pass_id, "binding.pass_id");
   assertString(binding.support_table, "binding.support_table");
   assertStringArray(binding.caniuse_keys, "binding.caniuse_keys");
   mappedTables.add(binding.support_table);
+  const mappedPassIds = mappedPassIdsByTable.get(binding.support_table) ?? new Set<string>();
+  assert.ok(
+    !mappedPassIds.has(binding.pass_id),
+    `binding ${binding.pass_id} must not be duplicated for ${binding.support_table}`,
+  );
+  mappedPassIds.add(binding.pass_id);
+  mappedPassIdsByTable.set(binding.support_table, mappedPassIds);
 
   const thresholds = thresholdsByTable.get(binding.support_table);
   assert.ok(thresholds, `binding ${binding.pass_id} maps unknown table ${binding.support_table}`);
   const selection = selectionsByTable.get(binding.support_table);
   assert.ok(selection, `binding ${binding.pass_id} maps table without source-key selection`);
   assert.equal(
-    binding.pass_id,
-    selection.passId,
-    `binding ${binding.pass_id} must match the curated selection pass id`,
+    selectionPassIds(selection).includes(binding.pass_id),
+    true,
+    `binding ${binding.pass_id} must match one curated selection pass id`,
   );
   assert.deepEqual(
     binding.caniuse_keys,
@@ -276,6 +290,13 @@ assert.deepEqual(
   [...mappedTables].toSorted(),
   "every generated threshold table must be routed through a pass-feature binding",
 );
+for (const [table, selection] of selectionsByTable) {
+  assert.deepEqual(
+    [...(mappedPassIdsByTable.get(table) ?? new Set<string>())].toSorted(),
+    [...selectionPassIds(selection)].toSorted(),
+    `selection ${table} must emit every curated pass binding`,
+  );
+}
 
 function readJson<T>(relativePath: string): T {
   return JSON.parse(readText(relativePath)) as T;
@@ -446,6 +467,19 @@ function assertThresholdRowsMatchSelection(
     expectedRows,
     `generated threshold table ${table} must exactly match the curated source mapping`,
   );
+}
+
+function selectionPassIds(feature: CompatFeatureSelectionV0): readonly string[] {
+  const passIds = feature.passIds ?? [feature.passId];
+  assert.ok(passIds.length > 0, `selection ${feature.table} passIds is required`);
+  const seen = new Set<string>();
+  for (const passId of passIds) {
+    assert.equal(typeof passId, "string", `selection ${feature.table} pass id`);
+    assert.ok(passId.length > 0, `selection ${feature.table} pass id is required`);
+    assert.ok(!seen.has(passId), `selection ${feature.table} duplicate pass id ${passId}`);
+    seen.add(passId);
+  }
+  return passIds;
 }
 
 function assertString(value: TomlValue | undefined, label: string): asserts value is string {

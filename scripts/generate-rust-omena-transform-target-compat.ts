@@ -62,6 +62,7 @@ interface CompatFeatureSelectionsV0 {
 interface CompatFeatureSelectionV0 {
   readonly table: string;
   readonly passId: string;
+  readonly passIds?: readonly string[];
   readonly caniuseKeys: readonly string[];
   readonly sourceKeys: Record<string, string>;
   readonly sourceQuorum: readonly string[];
@@ -161,6 +162,11 @@ function validateInputs(
     assert.ok(!tables.has(feature.table), `duplicate compat table ${feature.table}`);
     tables.add(feature.table);
     assert.ok(feature.passId.length > 0, `${feature.table} passId is required`);
+    assert.deepEqual(
+      selectionPassIds(feature)[0],
+      feature.passId,
+      `${feature.table} passIds must keep passId as the primary binding`,
+    );
     assert.ok(feature.caniuseKeys.length > 0, `${feature.table} caniuseKeys required`);
     assert.deepEqual(
       Object.keys(feature.sourceKeys).toSorted(),
@@ -317,16 +323,31 @@ function renderPassFeatureBindingsToml(
   ];
 
   for (const feature of featureSelections.features) {
-    lines.push(
-      "[[binding]]",
-      `pass_id = ${quoteToml(feature.passId)}`,
-      `caniuse_keys = ${tomlStringArray(feature.caniuseKeys)}`,
-      `support_table = ${quoteToml(feature.table)}`,
-      "",
-    );
+    for (const passId of selectionPassIds(feature)) {
+      lines.push(
+        "[[binding]]",
+        `pass_id = ${quoteToml(passId)}`,
+        `caniuse_keys = ${tomlStringArray(feature.caniuseKeys)}`,
+        `support_table = ${quoteToml(feature.table)}`,
+        "",
+      );
+    }
   }
 
   return `${lines.join("\n").trimEnd()}\n`;
+}
+
+function selectionPassIds(feature: CompatFeatureSelectionV0): readonly string[] {
+  const passIds = feature.passIds ?? [feature.passId];
+  assert.ok(passIds.length > 0, `${feature.table} passIds is required`);
+  const seen = new Set<string>();
+  for (const passId of passIds) {
+    assert.equal(typeof passId, "string", `${feature.table} pass id must be a string`);
+    assert.ok(passId.length > 0, `${feature.table} pass id is required`);
+    assert.ok(!seen.has(passId), `${feature.table} duplicate pass id ${passId}`);
+    seen.add(passId);
+  }
+  return passIds;
 }
 
 function expectedBrowserOrder(): readonly string[] {
