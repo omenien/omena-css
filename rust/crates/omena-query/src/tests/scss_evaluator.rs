@@ -683,10 +683,10 @@ fn exposes_scss_control_flow_oracle_corpus_through_query_boundary() {
     assert_eq!(summary.mode, "oracleOnly");
     assert_eq!(summary.value_type, "AbstractCssValueV0");
     assert_eq!(summary.node_key_type, "StableNodeKeyV0");
-    assert_eq!(summary.fixture_count, 29);
-    assert_eq!(summary.scss_fixture_count, 14);
-    assert_eq!(summary.sass_fixture_count, 14);
-    assert_eq!(summary.supported_fixture_count, 28);
+    assert_eq!(summary.fixture_count, 33);
+    assert_eq!(summary.scss_fixture_count, 16);
+    assert_eq!(summary.sass_fixture_count, 16);
+    assert_eq!(summary.supported_fixture_count, 32);
     assert_eq!(summary.rejected_flat_css_fixture_count, 1);
     assert!(summary.branch_fixture_count >= 5);
     assert!(summary.loop_fixture_count >= 6);
@@ -872,6 +872,42 @@ fn exposes_scss_control_flow_oracle_corpus_through_query_boundary() {
                 && fixture.branch_block_count == 2
                 && fixture.value_analysis_converged)
     );
+    assert!(summary.corpus.fixtures.iter().any(|fixture| fixture.id
+        == "scss.mixin-branch-control-flow"
+        && fixture.supported_dialect
+        && fixture.control_flow_available
+        && fixture.call_return_available
+        && fixture.branch_block_count == 2
+        && fixture.call_return_edge_count == 1
+        && fixture.value_analysis_converged));
+    assert!(summary.corpus.fixtures.iter().any(|fixture| fixture.id
+        == "sass.mixin-branch-control-flow"
+        && fixture.dialect == "sass"
+        && fixture.supported_dialect
+        && fixture.control_flow_available
+        && fixture.call_return_available
+        && fixture.branch_block_count == 2
+        && fixture.call_return_edge_count == 1
+        && fixture.value_analysis_converged));
+    assert!(summary.corpus.fixtures.iter().any(|fixture| fixture.id
+        == "scss.mixin-loop-control-flow"
+        && fixture.supported_dialect
+        && fixture.control_flow_available
+        && fixture.call_return_available
+        && fixture.loop_block_count == 1
+        && fixture.back_edge_count == 1
+        && fixture.call_return_edge_count == 1
+        && fixture.value_analysis_converged));
+    assert!(summary.corpus.fixtures.iter().any(|fixture| fixture.id
+        == "sass.mixin-loop-control-flow"
+        && fixture.dialect == "sass"
+        && fixture.supported_dialect
+        && fixture.control_flow_available
+        && fixture.call_return_available
+        && fixture.loop_block_count == 1
+        && fixture.back_edge_count == 1
+        && fixture.call_return_edge_count == 1
+        && fixture.value_analysis_converged));
     assert!(
         summary
             .corpus
@@ -3822,6 +3858,111 @@ fn exposes_sass_function_return_control_flow_through_query_boundary() {
     assert_eq!(summary.call_resolved_return_value_count, 1);
     assert_eq!(summary.exact_call_resolved_return_value_count, 1);
     assert!(summary.value_analysis_converged);
+}
+
+#[test]
+fn exposes_mixin_body_control_flow_through_query_boundary() -> Result<(), serde_json::Error> {
+    let scss_branch_source = r#"
+@mixin tone($enabled) {
+  @if $enabled { color: red; }
+  @else { color: blue; }
+}
+.button { @include tone(false); }
+"#;
+
+    let scss_branch = summarize_omena_query_scss_evaluator_control_flow_from_source(
+        scss_branch_source,
+        OmenaParserStyleDialect::Scss,
+    );
+
+    assert_eq!(scss_branch.schema_version, "0");
+    assert_eq!(
+        scss_branch.product,
+        "omena-query.scss-evaluator-control-flow"
+    );
+    assert_eq!(scss_branch.mode, "oracleOnly");
+    assert_eq!(scss_branch.value_type, "AbstractCssValueV0");
+    assert!(scss_branch.supported_dialect);
+    assert!(!scss_branch.flat_css_cfg_built);
+    assert!(!scss_branch.merged_cross_file_graph);
+    assert_eq!(scss_branch.control_flow_branch_block_count, 2);
+    assert_eq!(scss_branch.call_return_edge_count, 1);
+    assert!(scss_branch.value_analysis_converged);
+
+    let Some(call_return) = scss_branch.call_return_ir.as_ref() else {
+        return Ok(());
+    };
+    let mixin_declaration = call_return
+        .nodes
+        .iter()
+        .find(|node| node.kind == "mixinDeclaration" && node.name.as_deref() == Some("tone"));
+    assert!(mixin_declaration.is_some());
+    let Some(mixin_declaration) = mixin_declaration else {
+        return Ok(());
+    };
+    assert!(mixin_declaration.body_has_control_flow);
+    assert!(!mixin_declaration.body_has_loop_control_flow);
+
+    let sass_loop_source = r#"
+@mixin items()
+  @for $i from 1 through 3
+    order: $i
+.button
+  @include items()
+"#;
+
+    let sass_loop = summarize_omena_query_scss_evaluator_control_flow_from_source(
+        sass_loop_source,
+        OmenaParserStyleDialect::Sass,
+    );
+
+    assert_eq!(sass_loop.schema_version, "0");
+    assert_eq!(sass_loop.product, "omena-query.scss-evaluator-control-flow");
+    assert_eq!(sass_loop.mode, "oracleOnly");
+    assert_eq!(sass_loop.dialect, "sass");
+    assert_eq!(sass_loop.value_type, "AbstractCssValueV0");
+    assert!(sass_loop.supported_dialect);
+    assert!(!sass_loop.flat_css_cfg_built);
+    assert!(!sass_loop.merged_cross_file_graph);
+    assert_eq!(sass_loop.control_flow_loop_block_count, 1);
+    assert_eq!(sass_loop.control_flow_back_edge_count, 1);
+    assert_eq!(sass_loop.call_return_edge_count, 1);
+    assert!(sass_loop.value_analysis_converged);
+
+    let Some(call_return) = sass_loop.call_return_ir.as_ref() else {
+        return Ok(());
+    };
+    let mixin_declaration = call_return
+        .nodes
+        .iter()
+        .find(|node| node.kind == "mixinDeclaration" && node.name.as_deref() == Some("items"));
+    assert!(mixin_declaration.is_some());
+    let Some(mixin_declaration) = mixin_declaration else {
+        return Ok(());
+    };
+    assert!(mixin_declaration.body_has_control_flow);
+    assert!(mixin_declaration.body_has_loop_control_flow);
+
+    let Some(value_analysis) = sass_loop.value_analysis.as_ref() else {
+        return Ok(());
+    };
+    let loop_block = value_analysis
+        .blocks
+        .iter()
+        .find(|block| block.loop_carried_bindings == vec!["$i"]);
+    assert!(loop_block.is_some());
+    let Some(loop_block) = loop_block else {
+        return Ok(());
+    };
+    assert_eq!(
+        serde_json::to_value(&loop_block.loop_carried_binding_values[0].value)?,
+        serde_json::json!({
+            "kind": "finiteSet",
+            "values": ["1", "2", "3"],
+        })
+    );
+
+    Ok(())
 }
 
 #[test]

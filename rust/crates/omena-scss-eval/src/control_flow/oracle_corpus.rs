@@ -343,6 +343,16 @@ fn scss_control_flow_oracle_corpus_fixtures() -> &'static [ScssControlFlowOracle
             source: "@mixin again { @include again; } .button { @include again; }",
         },
         ScssControlFlowOracleCorpusFixtureV0 {
+            id: "scss.mixin-branch-control-flow",
+            dialect: StyleDialect::Scss,
+            source: "@mixin tone($enabled) { @if $enabled { color: red; } @else { color: blue; } } .button { @include tone(false); }",
+        },
+        ScssControlFlowOracleCorpusFixtureV0 {
+            id: "scss.mixin-loop-control-flow",
+            dialect: StyleDialect::Scss,
+            source: "@mixin items() { @for $i from 1 through 3 { order: $i; } } .button { @include items(); }",
+        },
+        ScssControlFlowOracleCorpusFixtureV0 {
             id: "sass.branch-if-else",
             dialect: StyleDialect::Sass,
             source: "$enabled: true\n@if $enabled\n  .on\n    color: green\n@else\n  .off\n    color: gray",
@@ -413,6 +423,16 @@ fn scss_control_flow_oracle_corpus_fixtures() -> &'static [ScssControlFlowOracle
             source: "@mixin again\n  @include again\n.button\n  @include again",
         },
         ScssControlFlowOracleCorpusFixtureV0 {
+            id: "sass.mixin-branch-control-flow",
+            dialect: StyleDialect::Sass,
+            source: "@mixin tone($enabled)\n  @if $enabled\n    color: red\n  @else\n    color: blue\n.button\n  @include tone(false)",
+        },
+        ScssControlFlowOracleCorpusFixtureV0 {
+            id: "sass.mixin-loop-control-flow",
+            dialect: StyleDialect::Sass,
+            source: "@mixin items()\n  @for $i from 1 through 3\n    order: $i\n.button\n  @include items()",
+        },
+        ScssControlFlowOracleCorpusFixtureV0 {
             id: "css.flat-rejected",
             dialect: StyleDialect::Css,
             source: ".button { color: red; }",
@@ -434,10 +454,10 @@ mod tests {
         assert_eq!(report.value_type, "AbstractCssValueV0");
         assert_eq!(report.node_key_type, "StableNodeKeyV0");
         assert_eq!(report.recursion_cap, SCSS_CALL_RETURN_RECURSION_LIMIT);
-        assert_eq!(report.fixture_count, 29);
-        assert_eq!(report.scss_fixture_count, 14);
-        assert_eq!(report.sass_fixture_count, 14);
-        assert_eq!(report.supported_fixture_count, 28);
+        assert_eq!(report.fixture_count, 33);
+        assert_eq!(report.scss_fixture_count, 16);
+        assert_eq!(report.sass_fixture_count, 16);
+        assert_eq!(report.supported_fixture_count, 32);
         assert_eq!(report.rejected_flat_css_fixture_count, 1);
         assert!(report.branch_fixture_count >= 5);
         assert!(report.loop_fixture_count >= 6);
@@ -574,6 +594,42 @@ mod tests {
             fixture.id == "sass.recursive-mixin-cap"
                 && fixture.dialect == "sass"
                 && fixture.capped_recursive_call_count == 1
+                && fixture.value_analysis_converged
+        }));
+        assert!(report.fixtures.iter().any(|fixture| {
+            fixture.id == "scss.mixin-branch-control-flow"
+                && fixture.control_flow_available
+                && fixture.call_return_available
+                && fixture.branch_block_count == 2
+                && fixture.call_return_edge_count == 1
+                && fixture.value_analysis_converged
+        }));
+        assert!(report.fixtures.iter().any(|fixture| {
+            fixture.id == "sass.mixin-branch-control-flow"
+                && fixture.dialect == "sass"
+                && fixture.control_flow_available
+                && fixture.call_return_available
+                && fixture.branch_block_count == 2
+                && fixture.call_return_edge_count == 1
+                && fixture.value_analysis_converged
+        }));
+        assert!(report.fixtures.iter().any(|fixture| {
+            fixture.id == "scss.mixin-loop-control-flow"
+                && fixture.control_flow_available
+                && fixture.call_return_available
+                && fixture.loop_block_count == 1
+                && fixture.back_edge_count == 1
+                && fixture.call_return_edge_count == 1
+                && fixture.value_analysis_converged
+        }));
+        assert!(report.fixtures.iter().any(|fixture| {
+            fixture.id == "sass.mixin-loop-control-flow"
+                && fixture.dialect == "sass"
+                && fixture.control_flow_available
+                && fixture.call_return_available
+                && fixture.loop_block_count == 1
+                && fixture.back_edge_count == 1
+                && fixture.call_return_edge_count == 1
                 && fixture.value_analysis_converged
         }));
     }
