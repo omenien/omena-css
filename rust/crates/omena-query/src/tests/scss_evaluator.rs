@@ -75,9 +75,9 @@ fn exposes_static_stylesheet_oracle_corpus_through_query_boundary() {
     assert_eq!(summary.mode, "oracleOnly");
     assert_eq!(summary.value_type, "AbstractCssValueV0");
     assert_eq!(summary.product_output_source, "nativeEditOutput");
-    assert_eq!(summary.fixture_count, 128);
-    assert_eq!(summary.scss_fixture_count, 43);
-    assert_eq!(summary.sass_fixture_count, 37);
+    assert_eq!(summary.fixture_count, 130);
+    assert_eq!(summary.scss_fixture_count, 44);
+    assert_eq!(summary.sass_fixture_count, 38);
     assert_eq!(summary.less_fixture_count, 48);
     assert_eq!(summary.evaluated_fixture_count, summary.fixture_count);
     assert_eq!(
@@ -157,6 +157,7 @@ fn exposes_static_stylesheet_oracle_corpus_through_query_boundary() {
         "sass.static-named-mixin-default-argument-prior-parameter",
         "sass.static-mixin-content-block",
         "sass.static-mixin-content-arguments",
+        "sass.static-mixin-content-expression-arguments",
         "sass.static-hyphen-underscore-mixin-include",
         "scss.static-named-mixin-arguments",
         "scss.static-named-mixin-default-tail",
@@ -164,6 +165,7 @@ fn exposes_static_stylesheet_oracle_corpus_through_query_boundary() {
         "scss.static-named-mixin-default-argument-prior-parameter",
         "scss.static-mixin-content-block",
         "scss.static-mixin-content-arguments",
+        "scss.static-mixin-content-expression-arguments",
         "scss.static-hyphen-underscore-mixin-include",
     ] {
         assert!(
@@ -751,10 +753,10 @@ fn exposes_scss_control_flow_oracle_corpus_through_query_boundary() {
     assert_eq!(summary.mode, "oracleOnly");
     assert_eq!(summary.value_type, "AbstractCssValueV0");
     assert_eq!(summary.node_key_type, "StableNodeKeyV0");
-    assert_eq!(summary.fixture_count, 63);
-    assert_eq!(summary.scss_fixture_count, 31);
-    assert_eq!(summary.sass_fixture_count, 31);
-    assert_eq!(summary.supported_fixture_count, 62);
+    assert_eq!(summary.fixture_count, 65);
+    assert_eq!(summary.scss_fixture_count, 32);
+    assert_eq!(summary.sass_fixture_count, 32);
+    assert_eq!(summary.supported_fixture_count, 64);
     assert_eq!(summary.rejected_flat_css_fixture_count, 1);
     assert!(summary.branch_fixture_count >= 5);
     assert!(summary.loop_fixture_count >= 6);
@@ -1023,6 +1025,7 @@ fn exposes_scss_control_flow_oracle_corpus_through_query_boundary() {
         "scss.static-named-mixin-default-argument-prior-parameter",
         "scss.static-mixin-content-block",
         "scss.static-mixin-content-arguments",
+        "scss.static-mixin-content-expression-arguments",
         "scss.static-hyphen-underscore-mixin-include",
         "sass.static-named-mixin-arguments",
         "sass.static-named-mixin-default-tail",
@@ -1030,6 +1033,7 @@ fn exposes_scss_control_flow_oracle_corpus_through_query_boundary() {
         "sass.static-named-mixin-default-argument-prior-parameter",
         "sass.static-mixin-content-block",
         "sass.static-mixin-content-arguments",
+        "sass.static-mixin-content-expression-arguments",
         "sass.static-hyphen-underscore-mixin-include",
     ] {
         assert!(

@@ -831,6 +831,7 @@ function assertStaticStylesheetEvaluatorOracleCorpus(
     "sass.static-named-mixin-default-argument-prior-parameter",
     "sass.static-mixin-content-block",
     "sass.static-mixin-content-arguments",
+    "sass.static-mixin-content-expression-arguments",
     "sass.static-hyphen-underscore-mixin-include",
     "scss.static-map-list-builtins",
     "scss.static-default-function-arguments",
@@ -846,6 +847,7 @@ function assertStaticStylesheetEvaluatorOracleCorpus(
     "scss.static-named-mixin-default-argument-prior-parameter",
     "scss.static-mixin-content-block",
     "scss.static-mixin-content-arguments",
+    "scss.static-mixin-content-expression-arguments",
     "scss.static-hyphen-underscore-mixin-include",
     "scss.indirect-recursive-function-return",
     "less.variable-basic",
@@ -1005,6 +1007,7 @@ function assertScssEvaluatorControlFlowOracleCorpus(
     "scss.static-named-mixin-default-argument-prior-parameter",
     "scss.static-mixin-content-block",
     "scss.static-mixin-content-arguments",
+    "scss.static-mixin-content-expression-arguments",
     "scss.static-hyphen-underscore-mixin-include",
     "sass.static-named-mixin-arguments",
     "sass.static-named-mixin-default-tail",
@@ -1012,6 +1015,7 @@ function assertScssEvaluatorControlFlowOracleCorpus(
     "sass.static-named-mixin-default-argument-prior-parameter",
     "sass.static-mixin-content-block",
     "sass.static-mixin-content-arguments",
+    "sass.static-mixin-content-expression-arguments",
     "sass.static-hyphen-underscore-mixin-include",
   ]) {
     assertControlFlowFixture(fixtures, id, (fixture) => {

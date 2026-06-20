@@ -379,6 +379,11 @@ fn static_stylesheet_oracle_corpus_fixtures() -> &'static [StaticStylesheetOracl
             source: "@mixin apply($color)\n  @content($color)\n.button\n  @include apply(red) using ($tone)\n    color: $tone",
         },
         StaticStylesheetOracleCorpusFixtureV0 {
+            id: "sass.static-mixin-content-expression-arguments",
+            dialect: StyleDialect::Sass,
+            source: "@mixin apply($color, $gap)\n  @content($color, $gap + 1px)\n.button\n  @include apply(red, 1px) using ($tone, $space)\n    color: $tone\n    margin: $space",
+        },
+        StaticStylesheetOracleCorpusFixtureV0 {
             id: "sass.static-hyphen-underscore-mixin-include",
             dialect: StyleDialect::Sass,
             source: "@mixin tone_color($color)\n  color: $color\n.button\n  @include tone-color(green)",
@@ -657,6 +662,11 @@ fn static_stylesheet_oracle_corpus_fixtures() -> &'static [StaticStylesheetOracl
             id: "scss.static-mixin-content-arguments",
             dialect: StyleDialect::Scss,
             source: "@mixin apply($color) { @content($color); } .button { @include apply(red) using ($tone) { color: $tone; } }",
+        },
+        StaticStylesheetOracleCorpusFixtureV0 {
+            id: "scss.static-mixin-content-expression-arguments",
+            dialect: StyleDialect::Scss,
+            source: "@mixin apply($color, $gap) { @content($color, $gap + 1px); } .button { @include apply(red, 1px) using ($tone, $space) { color: $tone; margin: $space; } }",
         },
         StaticStylesheetOracleCorpusFixtureV0 {
             id: "scss.static-hyphen-underscore-mixin-include",

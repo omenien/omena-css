@@ -682,11 +682,8 @@ fn static_scss_content_block_is_static_declaration_subset(
     dialect: StyleDialect,
 ) -> bool {
     let lower = content_body.to_ascii_lowercase();
-    let has_nested_sass_block = dialect == StyleDialect::Sass
-        && lex(content_body, dialect)
-            .tokens()
-            .iter()
-            .any(|token| matches!(token.kind, SyntaxKind::SassIndent | SyntaxKind::SassDedent));
+    let has_nested_sass_block =
+        dialect == StyleDialect::Sass && static_sass_content_block_has_nested_block(content_body);
     !has_nested_sass_block
         && !content_body.chars().any(|ch| matches!(ch, '{' | '}'))
         && !lower.contains("@content")
@@ -698,6 +695,26 @@ fn static_scss_content_block_is_static_declaration_subset(
         && !lower.contains("@for")
         && !lower.contains("@each")
         && !lower.contains("@while")
+}
+
+fn static_sass_content_block_has_nested_block(content_body: &str) -> bool {
+    let lexed = lex(content_body, StyleDialect::Sass);
+    let mut depth = 0usize;
+    for token in lexed.tokens() {
+        match token.kind {
+            SyntaxKind::SassIndent => {
+                depth += 1;
+                if depth > 1 {
+                    return true;
+                }
+            }
+            SyntaxKind::SassDedent => {
+                depth = depth.saturating_sub(1);
+            }
+            _ => {}
+        }
+    }
+    false
 }
 
 fn static_sass_mixin_body_replacement_for_include(body: &str, dialect: StyleDialect) -> String {
