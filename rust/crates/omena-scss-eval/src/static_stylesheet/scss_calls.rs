@@ -145,7 +145,7 @@ fn collect_static_scss_mixin_include_calls_with_options(
                 static_stylesheet_skip_trivia_tokens(tokens, name_index + 1),
             )
         };
-        let (content_parameters, after_using_index) =
+        let (content_parameters, content_parameter_range, after_using_index) =
             if tokens.get(after_arguments_index).is_some_and(|token| {
                 token.kind == SyntaxKind::Ident && token.text.eq_ignore_ascii_case("using")
             }) {
@@ -171,10 +171,14 @@ fn collect_static_scss_mixin_include_calls_with_options(
                         open_index + 1,
                         close_index,
                     )?,
+                    Some((
+                        static_stylesheet_token_end(&tokens[open_index]),
+                        static_stylesheet_token_start(&tokens[close_index]),
+                    )),
                     static_stylesheet_skip_trivia_tokens(tokens, close_index + 1),
                 )
             } else {
-                (Vec::new(), after_arguments_index)
+                (Vec::new(), None, after_arguments_index)
             };
         let content_block_kinds = match dialect {
             StyleDialect::Sass => (SyntaxKind::SassIndent, SyntaxKind::SassDedent),
@@ -198,6 +202,10 @@ fn collect_static_scss_mixin_include_calls_with_options(
                         ..static_stylesheet_token_start(&tokens[close_index]),
                 )?
                 .to_string();
+            let content_body_range = Some((
+                static_stylesheet_token_end(&tokens[after_using_index]),
+                static_stylesheet_token_start(&tokens[close_index]),
+            ));
             calls.push(StaticScssMixinIncludeCall {
                 name: name_token.text.clone(),
                 start: static_stylesheet_token_start(token),
@@ -205,6 +213,8 @@ fn collect_static_scss_mixin_include_calls_with_options(
                 arguments,
                 content_body: Some(content_body),
                 content_parameters,
+                content_parameter_range,
+                content_body_range,
             });
             index = close_index + 1;
             continue;
@@ -230,6 +240,8 @@ fn collect_static_scss_mixin_include_calls_with_options(
             arguments,
             content_body: None,
             content_parameters,
+            content_parameter_range,
+            content_body_range: None,
         });
         index = after_using_index + 1;
     }

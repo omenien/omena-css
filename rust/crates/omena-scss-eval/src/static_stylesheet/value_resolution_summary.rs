@@ -29,12 +29,16 @@ use super::{
         resolve_static_less_property_abstract_value_in_scope,
         resolve_static_less_variable_abstract_value_in_scope,
     },
-    model::{OmenaScssEvalStaticValueResolutionV0, StaticStylesheetScope},
+    model::{
+        OmenaScssEvalStaticValueResolutionV0, StaticScssMixinIncludeCall, StaticStylesheetScope,
+    },
+    names::static_scss_variable_names_equal,
     scopes::{
         static_stylesheet_position_is_inside_scoped_declaration,
         static_stylesheet_position_is_inside_scss_declaration,
         static_stylesheet_scope_for_position,
     },
+    scss_calls::collect_static_scss_mixin_include_calls,
     scss_declarations::{
         collect_static_scss_function_declarations, collect_static_scss_mixin_declarations,
     },
@@ -77,6 +81,12 @@ pub(super) fn summarize_static_scss_value_resolution_values(
         tokens,
         &loop_excluded_ranges,
     );
+    let mixin_include_calls = collect_static_scss_mixin_include_calls(
+        style_source,
+        dialect,
+        tokens,
+        mixin_declarations.as_slice(),
+    )?;
     let mut values = Vec::new();
     for fact in variable_facts {
         if fact.kind != ParsedVariableFactKind::ScssReference {
@@ -85,6 +95,13 @@ pub(super) fn summarize_static_scss_value_resolution_values(
         let reference_start = parser_text_size_to_usize(fact.range.start().into());
         if static_stylesheet_position_is_scss_module_member_reference(style_source, reference_start)
         {
+            continue;
+        }
+        if static_scss_reference_is_content_parameter_binding(
+            fact.name.as_str(),
+            reference_start,
+            mixin_include_calls.as_slice(),
+        ) {
             continue;
         }
         if static_stylesheet_position_is_inside_scss_declaration(&declarations, reference_start)
@@ -130,6 +147,28 @@ pub(super) fn summarize_static_scss_value_resolution_values(
         &declarations,
     )?);
     Some(values)
+}
+
+fn static_scss_reference_is_content_parameter_binding(
+    name: &str,
+    reference_start: usize,
+    mixin_include_calls: &[StaticScssMixinIncludeCall],
+) -> bool {
+    mixin_include_calls.iter().any(|call| {
+        call.content_parameters
+            .iter()
+            .any(|parameter| static_scss_variable_names_equal(parameter, name))
+            && (call
+                .content_parameter_range
+                .is_some_and(|range| position_is_inside_range(reference_start, range))
+                || call
+                    .content_body_range
+                    .is_some_and(|range| position_is_inside_range(reference_start, range)))
+    })
+}
+
+fn position_is_inside_range(position: usize, range: (usize, usize)) -> bool {
+    position >= range.0 && position < range.1
 }
 
 pub(super) fn summarize_static_less_value_resolution_values(

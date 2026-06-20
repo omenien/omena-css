@@ -4011,6 +4011,8 @@ fn static_scss_evaluation_expands_mixin_content_arguments() {
     assert!(!report.evaluated_css.contains("@include"));
     assert!(!report.evaluated_css.contains("@content"));
     assert!(report.evaluated_css.contains("color: red;"));
+    assert_eq!(report.value_resolution.unresolved_reference_count, 0);
+    assert_eq!(report.value_resolution.top_count, 0);
     assert!(report.oracle.all_legacy_declaration_values_preserved);
     assert!(report.native_edit_output_matches_evaluated_css);
 }
@@ -4030,6 +4032,8 @@ fn static_sass_evaluation_expands_mixin_content_arguments() {
     assert!(!report.evaluated_css.contains("@include"));
     assert!(!report.evaluated_css.contains("@content"));
     assert!(report.evaluated_css.contains("color: red"));
+    assert_eq!(report.value_resolution.unresolved_reference_count, 0);
+    assert_eq!(report.value_resolution.top_count, 0);
     assert!(report.oracle.all_legacy_declaration_values_preserved);
     assert!(report.native_edit_output_matches_evaluated_css);
 }
@@ -4050,6 +4054,8 @@ fn static_scss_evaluation_expands_mixin_content_expression_arguments() {
     assert!(!report.evaluated_css.contains("@content"));
     assert!(report.evaluated_css.contains("color: red;"));
     assert!(report.evaluated_css.contains("margin: 2px;"));
+    assert_eq!(report.value_resolution.unresolved_reference_count, 0);
+    assert_eq!(report.value_resolution.top_count, 0);
     assert!(report.oracle.all_legacy_declaration_values_preserved);
     assert!(report.native_edit_output_matches_evaluated_css);
 }
@@ -4070,6 +4076,8 @@ fn static_sass_evaluation_expands_mixin_content_expression_arguments() {
     assert!(!report.evaluated_css.contains("@content"));
     assert!(report.evaluated_css.contains("color: red"));
     assert!(report.evaluated_css.contains("margin: 2px"));
+    assert_eq!(report.value_resolution.unresolved_reference_count, 0);
+    assert_eq!(report.value_resolution.top_count, 0);
     assert!(report.oracle.all_legacy_declaration_values_preserved);
     assert!(report.native_edit_output_matches_evaluated_css);
 }
@@ -4091,6 +4099,8 @@ fn static_scss_evaluation_expands_mixin_content_nested_includes() {
     assert!(report.evaluated_css.contains("margin: 2px"));
     assert!(report.evaluated_css.contains("background: white"));
     assert!(report.evaluated_css.contains("color: blue"));
+    assert_eq!(report.value_resolution.unresolved_reference_count, 0);
+    assert_eq!(report.value_resolution.top_count, 0);
     assert!(report.oracle.all_legacy_declaration_values_preserved);
     assert!(report.native_edit_output_matches_evaluated_css);
 }
@@ -4175,6 +4185,8 @@ fn static_sass_evaluation_expands_mixin_content_nested_includes() {
     assert!(report.evaluated_css.contains("margin: 2px"));
     assert!(report.evaluated_css.contains("background: white"));
     assert!(report.evaluated_css.contains("color: blue"));
+    assert_eq!(report.value_resolution.unresolved_reference_count, 0);
+    assert_eq!(report.value_resolution.top_count, 0);
     assert!(report.oracle.all_legacy_declaration_values_preserved);
     assert!(report.native_edit_output_matches_evaluated_css);
 }
