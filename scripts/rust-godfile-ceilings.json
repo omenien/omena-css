@@ -1,7 +1,9 @@
 {
   "schemaVersion": "0",
   "ceilings": {
-    "rust/crates/omena-lsp-server/src/lib.rs": 2200,
+    "rust/crates/omena-lsp-server/src/lib.rs": 1800,
+    "rust/crates/omena-lsp-server/src/style_diagnostics.rs": 450,
+    "rust/crates/omena-lsp-server/src/style_symbol_provider.rs": 750,
     "rust/crates/omena-query/src/style/cascade_checker.rs": 700
   }
 }

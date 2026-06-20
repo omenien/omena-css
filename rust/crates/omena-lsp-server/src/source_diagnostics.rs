@@ -1,8 +1,10 @@
+#[cfg(feature = "salsa-style-diagnostics")]
+use crate::DeferredDiagnosticsRenderInputsV0;
 use crate::{
-    DeferredDiagnosticsRenderInputsV0, DiagnosticsPipelineTierPlanV0,
-    LspDeferredDiagnosticsDispatchV0, LspOwnedSourceDiagnosticsRenderInputsV0, LspShellState,
-    LspStyleHoverCandidate, LspTextDocumentState, document_has_style_index,
-    first_style_document_for_workspace, lsp_diagnostic_severity,
+    DiagnosticsPipelineTierPlanV0, LspDeferredDiagnosticsDispatchV0,
+    LspOwnedSourceDiagnosticsRenderInputsV0, LspShellState, LspStyleHoverCandidate,
+    LspTextDocumentState, document_has_style_index, first_style_document_for_workspace,
+    lsp_diagnostic_severity,
     protocol::{file_uri_equivalent, is_style_document_uri, workspace_folder_compatible},
     query_style_selector_definition_for_matching, resolve_source_provider_candidates,
     style_selector_definitions_from_open_documents, style_selector_definitions_from_uri,
