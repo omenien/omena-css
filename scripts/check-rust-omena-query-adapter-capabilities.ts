@@ -99,6 +99,34 @@ interface StaticLifExportsSummaryV0 {
   };
 }
 
+interface CrossFileSummaryV0 {
+  readonly product: string;
+  readonly status: string;
+  readonly summaryScope: string;
+  readonly styleCount: number;
+  readonly summaryEdgeCount: number;
+  readonly edgeKindCounts: readonly {
+    readonly edgeKind: string;
+    readonly count: number;
+  }[];
+  readonly edges: readonly {
+    readonly edgeKind: string;
+    readonly fromKind: string;
+    readonly fromPath: string;
+    readonly targetKind?: string;
+    readonly targetPath?: string;
+    readonly source?: string;
+    readonly status: string;
+    readonly provenance: readonly string[];
+  }[];
+  readonly capabilities: {
+    readonly sassModuleEdgesReady: boolean;
+    readonly stableSummaryHashReady: boolean;
+    readonly linearProvenanceReady: boolean;
+    readonly linearProvenanceRoundTripReady: boolean;
+  };
+}
+
 interface ScssEvaluatorControlFlowOracleCorpusSummaryV0 {
   readonly product: string;
   readonly mode: string;
@@ -631,6 +659,9 @@ void (async () => {
   assertStaticStylesheetEvaluatorOracleCorpus(staticStylesheetOracleCorpus);
   const lessStaticLifExports = runStaticLifExports();
   assertLessStaticLifExports(lessStaticLifExports);
+  const lessCrossFileSummary = runLessWorkspaceCrossFileSummary();
+  assertLessWorkspaceCrossFileSummary(lessCrossFileSummary);
+  assertLessUnifiedHypergraphEdgeKindCoverage();
   const scssControlFlowOracleCorpus = runScssEvaluatorControlFlowOracleCorpus();
   assertScssEvaluatorControlFlowOracleCorpus(scssControlFlowOracleCorpus);
 
@@ -641,6 +672,7 @@ void (async () => {
       `runnerCommands=${summary.runnerCommands.length}`,
       `staticStylesheetOracleFixtures=${staticStylesheetOracleCorpus.fixtureCount}`,
       `lessLifExports=${lessStaticLifExports.lessSpecificExportCount}`,
+      `lessCrossFileEdges=${lessCrossFileSummary.summaryEdgeCount}`,
       `scssControlFlowOracleFixtures=${scssControlFlowOracleCorpus.fixtureCount}`,
       `routing=${summary.routingStatus}`,
     ].join(" "),
@@ -773,6 +805,45 @@ function runStaticLifExports(): StaticLifExportsSummaryV0 {
   return JSON.parse(result.stdout) as StaticLifExportsSummaryV0;
 }
 
+function runLessWorkspaceCrossFileSummary(): CrossFileSummaryV0 {
+  const result = spawnSync(
+    "cargo",
+    [
+      "run",
+      "--manifest-path",
+      "rust/Cargo.toml",
+      "-p",
+      "engine-shadow-runner",
+      "--quiet",
+      "--",
+      "workspace-cross-file-summary",
+    ],
+    {
+      cwd: process.cwd(),
+      encoding: "utf8",
+      input: JSON.stringify({
+        styles: [
+          {
+            stylePath: "/tmp/tokens.less",
+            styleSource: "@brand: red;",
+          },
+          {
+            stylePath: "/tmp/Button.module.less",
+            styleSource: '@import "./tokens.less"; .button { color: @brand; }',
+          },
+        ],
+      }),
+      maxBuffer: 8 * 1024 * 1024,
+    },
+  );
+  assert.equal(
+    result.status,
+    0,
+    `Less workspace cross-file summary command failed\nstdout=${result.stdout}\nstderr=${result.stderr}`,
+  );
+  return JSON.parse(result.stdout) as CrossFileSummaryV0;
+}
+
 function runScssEvaluatorControlFlowOracleCorpus(): ScssEvaluatorControlFlowOracleCorpusSummaryV0 {
   const result = spawnSync(
     "cargo",
@@ -820,6 +891,71 @@ function assertLessStaticLifExports(summary: StaticLifExportsSummaryV0): void {
     "@gap",
     "primary",
   ]);
+}
+
+function assertLessWorkspaceCrossFileSummary(summary: CrossFileSummaryV0): void {
+  assert.equal(summary.product, "omena-query.cross-file-summary");
+  assert.equal(summary.status, "workspaceSummaryEdgeSeed");
+  assert.equal(summary.summaryScope, "workspaceStyleAndSource");
+  assert.equal(summary.styleCount, 2);
+  assert.equal(summary.summaryEdgeCount, 2);
+  assert.equal(summary.capabilities.sassModuleEdgesReady, true);
+  assert.equal(summary.capabilities.stableSummaryHashReady, true);
+  assert.equal(summary.capabilities.linearProvenanceReady, true);
+  assert.equal(summary.capabilities.linearProvenanceRoundTripReady, true);
+
+  const edgeKindCounts = new Map(
+    summary.edgeKindCounts.map((entry) => [entry.edgeKind, entry.count]),
+  );
+  assert.equal(edgeKindCounts.get("lessImport"), 1);
+  assert.equal(edgeKindCounts.get("lessModuleGraphClosure"), 1);
+  assert.equal(edgeKindCounts.get("sassImport"), undefined);
+
+  assert.ok(
+    summary.edges.some(
+      (edge) =>
+        edge.edgeKind === "lessImport" &&
+        edge.fromKind === "style" &&
+        edge.fromPath === "/tmp/Button.module.less" &&
+        edge.targetKind === "style" &&
+        edge.targetPath === "/tmp/tokens.less" &&
+        edge.source === "./tokens.less" &&
+        edge.status === "resolved" &&
+        edge.provenance.includes("omena-query.sass-module-cross-file-resolution") &&
+        edge.provenance.includes("omena-parser.sass-module-facts"),
+    ),
+    "Less import must reach the workspace cross-file summary as a resolved Less edge",
+  );
+  assert.ok(
+    summary.edges.some(
+      (edge) =>
+        edge.edgeKind === "lessModuleGraphClosure" &&
+        edge.fromKind === "style" &&
+        edge.fromPath === "/tmp/Button.module.less" &&
+        edge.targetKind === "style" &&
+        edge.targetPath === "/tmp/tokens.less" &&
+        edge.status === "reachable" &&
+        edge.provenance.includes("omena-query.sass-module-cross-file-resolution") &&
+        edge.provenance.includes("omena-parser.sass-module-facts"),
+    ),
+    "Less module closure must reach the workspace cross-file summary as a reachable Less edge",
+  );
+}
+
+function assertLessUnifiedHypergraphEdgeKindCoverage(): void {
+  const crossFileSummarySource = readText("rust/crates/omena-cross-file-summary/src/lib.rs");
+  assertSourceIncludesAll(
+    crossFileSummarySource,
+    [
+      "LessImport",
+      "LessModuleGraphClosure",
+      'Self::LessImport => "lessImport"',
+      'Self::LessModuleGraphClosure => "lessModuleGraphClosure"',
+      '"lessImport" => UnifiedHypergraphEdgeKindV0::LessImport',
+      '"lessModuleGraphClosure" => UnifiedHypergraphEdgeKindV0::LessModuleGraphClosure',
+    ],
+    "Less module edges must stay consumable by the unified hypergraph substrate",
+  );
 }
 
 function assertStaticStylesheetEvaluatorOracleCorpus(
