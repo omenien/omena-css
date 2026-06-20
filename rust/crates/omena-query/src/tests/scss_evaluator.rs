@@ -512,27 +512,33 @@ fn exposes_scss_control_flow_oracle_corpus_through_query_boundary() {
         summary.corpus.product,
         "omena-scss-eval.control-flow-oracle-corpus"
     );
-    let Some(sass_while) = summary
+    let sass_while_index = summary
         .corpus
         .fixtures
         .iter()
-        .find(|fixture| fixture.id == "sass.static-while-loop")
-    else {
-        panic!("query boundary must expose the Sass while-loop oracle fixture");
-    };
+        .position(|fixture| fixture.id == "sass.static-while-loop")
+        .unwrap_or(summary.corpus.fixtures.len());
+    assert!(
+        sass_while_index < summary.corpus.fixtures.len(),
+        "query boundary must expose the Sass while-loop oracle fixture"
+    );
+    let sass_while = &summary.corpus.fixtures[sass_while_index];
     assert!(sass_while.control_flow_available);
     assert!(sass_while.value_analysis_converged);
     assert!(sass_while.loop_block_count >= 1);
     assert!(sass_while.back_edge_count >= 1);
 
-    let Some(sass_return) = summary
+    let sass_return_index = summary
         .corpus
         .fixtures
         .iter()
-        .find(|fixture| fixture.id == "sass.static-for-return")
-    else {
-        panic!("query boundary must expose the Sass function-return oracle fixture");
-    };
+        .position(|fixture| fixture.id == "sass.static-for-return")
+        .unwrap_or(summary.corpus.fixtures.len());
+    assert!(
+        sass_return_index < summary.corpus.fixtures.len(),
+        "query boundary must expose the Sass function-return oracle fixture"
+    );
+    let sass_return = &summary.corpus.fixtures[sass_return_index];
     assert!(sass_return.control_flow_available);
     assert!(sass_return.call_return_available);
     assert!(sass_return.value_analysis_converged);

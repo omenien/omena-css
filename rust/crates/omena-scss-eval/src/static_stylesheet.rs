@@ -1745,32 +1745,27 @@ fn resolve_static_scss_function_call_abstract_value(
     variable_declarations: &[StaticStylesheetScopedVariableDeclaration],
     fuel: usize,
 ) -> StaticStylesheetAbstractResolution {
-    resolve_static_scss_function_call_abstract_value_with_stack(
-        call,
+    let active_functions = BTreeSet::new();
+    let context = StaticScssFunctionResolutionContext {
         dialect,
         declarations,
         mixin_declarations,
         scopes,
         variable_declarations,
-        fuel,
-        &BTreeSet::new(),
-    )
+        active_functions: &active_functions,
+    };
+    resolve_static_scss_function_call_abstract_value_with_stack(call, context, fuel)
 }
 
 fn resolve_static_scss_function_call_abstract_value_with_stack(
     call: &StaticScssFunctionCall,
-    dialect: StyleDialect,
-    declarations: &[StaticScssFunctionDeclaration],
-    mixin_declarations: &[StaticScssMixinDeclaration],
-    scopes: &[StaticStylesheetScope],
-    variable_declarations: &[StaticStylesheetScopedVariableDeclaration],
+    context: StaticScssFunctionResolutionContext<'_>,
     fuel: usize,
-    active_functions: &BTreeSet<String>,
 ) -> StaticStylesheetAbstractResolution {
     if fuel == 0 {
         return top_static_abstract_value(StaticStylesheetResolutionReason::FuelExhausted);
     }
-    let Some(declaration) = declarations.iter().find(|declaration| {
+    let Some(declaration) = context.declarations.iter().find(|declaration| {
         canonical_static_scss_function_name(declaration.name.as_str())
             == canonical_static_scss_function_name(call.name.as_str())
     }) else {
@@ -1780,18 +1775,17 @@ fn resolve_static_scss_function_call_abstract_value_with_stack(
         return top_static_abstract_value(StaticStylesheetResolutionReason::Cycle);
     }
     let canonical_declaration_name = canonical_static_scss_function_name(declaration.name.as_str());
-    if active_functions.contains(&canonical_declaration_name) {
+    if context
+        .active_functions
+        .contains(&canonical_declaration_name)
+    {
         return top_static_abstract_value(StaticStylesheetResolutionReason::Cycle);
     }
-    let mut next_active_functions = active_functions.clone();
+    let mut next_active_functions = context.active_functions.clone();
     next_active_functions.insert(canonical_declaration_name);
-    let context = StaticScssFunctionResolutionContext {
-        dialect,
-        declarations,
-        mixin_declarations,
-        scopes,
-        variable_declarations,
+    let next_context = StaticScssFunctionResolutionContext {
         active_functions: &next_active_functions,
+        ..context
     };
     let Some(bound_arguments) = bind_static_scss_function_arguments(declaration, call) else {
         return raw_static_abstract_value(
@@ -1806,7 +1800,7 @@ fn resolve_static_scss_function_call_abstract_value_with_stack(
             &argument_values,
             call.start,
             fuel - 1,
-            context,
+            next_context,
         );
         let Some(rendered_value) = resolution.rendered_value else {
             return top_static_abstract_value(resolution.reason);
@@ -1821,7 +1815,7 @@ fn resolve_static_scss_function_call_abstract_value_with_stack(
         declaration,
         &argument_values,
         fuel - 1,
-        context,
+        next_context,
     )
 }
 
@@ -2973,13 +2967,8 @@ fn resolve_static_scss_known_function_calls_in_value(
         };
         let resolution = resolve_static_scss_function_call_abstract_value_with_stack(
             &nested_call,
-            context.dialect,
-            context.declarations,
-            context.mixin_declarations,
-            context.scopes,
-            context.variable_declarations,
+            context,
             fuel - 1,
-            context.active_functions,
         );
         if resolution.outcome == StaticStylesheetResolutionOutcome::Top {
             return top_static_abstract_value(resolution.reason);

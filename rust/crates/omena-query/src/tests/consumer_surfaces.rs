@@ -378,9 +378,11 @@ fn native_module_evaluation_edit(
     needle: &str,
     replacement: &str,
 ) -> OmenaQueryTransformModuleEvaluationNativeEditV0 {
-    let Some(start) = source.find(needle) else {
-        panic!("test fixture missing native edit needle: {needle}");
-    };
+    let start = source.find(needle).unwrap_or(source.len());
+    assert!(
+        start < source.len(),
+        "test fixture missing native edit needle: {needle}"
+    );
     OmenaQueryTransformModuleEvaluationNativeEditV0 {
         start,
         end: start + needle.len(),
