@@ -1116,7 +1116,7 @@ fn static_less_evaluation_expands_mixin_local_variables() {
 #[test]
 fn static_less_evaluation_expands_mixin_body_property_variables() {
     let report = derive_static_stylesheet_module_evaluation(
-        ".space() { margin: 2px; padding: $margin; } .button { .space(); }",
+        ".space(@gap) { margin: @gap; padding: $margin; gap: $padding; } .button { .space(3px); }",
         StyleDialect::Less,
     );
     assert!(report.is_some());
@@ -1124,11 +1124,13 @@ fn static_less_evaluation_expands_mixin_body_property_variables() {
         return;
     };
 
-    assert!(!report.evaluated_css.contains(".space()"));
-    assert!(!report.evaluated_css.contains(".space();"));
+    assert!(!report.evaluated_css.contains(".space(@gap"));
+    assert!(!report.evaluated_css.contains(".space(3px"));
     assert!(!report.evaluated_css.contains("$margin"));
-    assert!(report.evaluated_css.contains("margin: 2px"));
-    assert!(report.evaluated_css.contains("padding: 2px"));
+    assert!(!report.evaluated_css.contains("$padding"));
+    assert!(report.evaluated_css.contains("margin: 3px"));
+    assert!(report.evaluated_css.contains("padding: 3px"));
+    assert!(report.evaluated_css.contains("gap: 3px"));
     assert!(report.oracle.all_legacy_declaration_values_preserved);
     assert!(report.native_edit_output_matches_evaluated_css);
 }

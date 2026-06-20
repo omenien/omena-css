@@ -898,7 +898,7 @@ fn consumer_build_expands_future_property_guarded_less_mixins() {
 fn consumer_build_expands_less_mixin_body_property_variables() {
     let summary = execute_omena_query_consumer_build_style_source(
         "Button.module.less",
-        ".space() { margin: 2px; padding: $margin; } .button { .space(); }",
+        ".space(@gap) { margin: @gap; padding: $margin; gap: $padding; } .button { .space(3px); }",
         &[
             "less-module-evaluate".to_string(),
             "css-modules-class-hashing".to_string(),
@@ -912,11 +912,13 @@ fn consumer_build_expands_less_mixin_body_property_variables() {
             .executed_pass_ids
             .contains(&"less-module-evaluate")
     );
-    assert!(!summary.execution.output_css.contains(".space()"));
-    assert!(!summary.execution.output_css.contains(".space();"));
+    assert!(!summary.execution.output_css.contains(".space(@gap"));
+    assert!(!summary.execution.output_css.contains(".space(3px"));
     assert!(!summary.execution.output_css.contains("$margin"));
-    assert!(summary.execution.output_css.contains("margin: 2px"));
-    assert!(summary.execution.output_css.contains("padding: 2px"));
+    assert!(!summary.execution.output_css.contains("$padding"));
+    assert!(summary.execution.output_css.contains("margin: 3px"));
+    assert!(summary.execution.output_css.contains("padding: 3px"));
+    assert!(summary.execution.output_css.contains("gap: 3px"));
 }
 
 #[test]

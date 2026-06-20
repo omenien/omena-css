@@ -13,9 +13,10 @@ use super::{
     collect_static_less_property_variable_references, collect_static_stylesheet_scopes,
     collect_static_stylesheet_variable_references_with_options,
     declarations::extract_static_stylesheet_variable_declaration,
-    find_static_less_detached_ruleset_declaration, find_static_less_property_declaration,
-    less_values::reduce_static_less_value, model::StaticScssFunctionArgument,
-    parser_text_size_to_usize, resolve_static_less_property_value_text_with_position,
+    find_static_less_detached_ruleset_declaration, less_values::reduce_static_less_value,
+    model::StaticScssFunctionArgument, parser_text_size_to_usize,
+    resolve_static_less_property_value_in_scope,
+    resolve_static_less_property_value_text_with_position,
     resolve_static_less_variable_value_in_scope,
     scss_mixin_body::collect_static_scss_mixin_body_declaration_value_ranges,
     static_less_mixin_argument_value_is_safe, static_stylesheet_composite_value_is_safe,
@@ -23,6 +24,14 @@ use super::{
     static_stylesheet_literal_value_is_safe, static_stylesheet_property_name_is_safe,
     static_stylesheet_variable_reference_is_named_argument_label,
 };
+
+struct StaticLessBodyPropertyResolutionContext<'a> {
+    body_scopes: &'a [StaticStylesheetScope],
+    body_property_declarations: &'a BTreeMap<(usize, String), StaticStylesheetPropertyDeclaration>,
+    scoped_values: &'a BTreeMap<String, String>,
+    call_scope_id: usize,
+    mixin_context: StaticLessMixinRenderContext<'a>,
+}
 
 pub(super) fn static_less_mixin_arguments_value(
     arguments: &[StaticScssFunctionArgument],
@@ -91,26 +100,170 @@ pub(super) fn static_less_body_property_value(
     let body_scopes = collect_static_stylesheet_scopes(body)?;
     let property_declarations =
         collect_static_less_body_property_declarations(body, body_lexed.tokens(), &body_scopes)?;
-    let Some(declaration) = find_static_less_property_declaration(
+    let resolution_context = StaticLessBodyPropertyResolutionContext {
+        body_scopes: &body_scopes,
+        body_property_declarations: &property_declarations,
+        scoped_values,
+        call_scope_id,
+        mixin_context: context,
+    };
+    let mut stack = BTreeSet::new();
+    let resolved = resolve_static_less_body_property_value_by_name(
         format!("${member}").as_str(),
         0,
-        &body_scopes,
-        &property_declarations,
-    ) else {
-        return Some(StaticLessBodyPropertyValueOutcome::MemberNotFound);
-    };
-    let resolved = resolve_static_less_mixin_value_with_bindings(
-        declaration.value.as_str(),
-        scoped_values,
-        context.captured_values,
-        call_scope_id,
-        context.scopes,
-        context.variable_declarations,
-        context.property_declarations,
-        None,
-        context.detached_ruleset_declarations,
+        &resolution_context,
+        &mut stack,
     )?;
-    Some(StaticLessBodyPropertyValueOutcome::Resolved(resolved))
+    resolved.map_or(
+        Some(StaticLessBodyPropertyValueOutcome::MemberNotFound),
+        |resolved| Some(StaticLessBodyPropertyValueOutcome::Resolved(resolved)),
+    )
+}
+
+fn resolve_static_less_body_property_value_by_name(
+    name: &str,
+    body_scope_id: usize,
+    context: &StaticLessBodyPropertyResolutionContext<'_>,
+    stack: &mut BTreeSet<(usize, String)>,
+) -> Option<Option<String>> {
+    let Some((declaration_scope_id, declaration)) =
+        find_static_less_body_property_declaration_entry(
+            name,
+            body_scope_id,
+            context.body_scopes,
+            context.body_property_declarations,
+        )
+    else {
+        return Some(None);
+    };
+    let stack_key = (declaration_scope_id, name.to_string());
+    if !stack.insert(stack_key.clone()) {
+        return None;
+    }
+    let resolved = resolve_static_less_body_property_value_text(
+        declaration.value.as_str(),
+        declaration_scope_id,
+        context,
+        stack,
+    );
+    stack.remove(&stack_key);
+    resolved.map(Some)
+}
+
+fn find_static_less_body_property_declaration_entry<'a>(
+    name: &str,
+    mut scope_id: usize,
+    scopes: &[StaticStylesheetScope],
+    declarations: &'a BTreeMap<(usize, String), StaticStylesheetPropertyDeclaration>,
+) -> Option<(usize, &'a StaticStylesheetPropertyDeclaration)> {
+    loop {
+        if let Some(declaration) = declarations.get(&(scope_id, name.to_string())) {
+            return Some((scope_id, declaration));
+        }
+        scope_id = scopes.get(scope_id)?.parent_id?;
+    }
+}
+
+fn resolve_static_less_body_property_value_text(
+    value: &str,
+    body_scope_id: usize,
+    context: &StaticLessBodyPropertyResolutionContext<'_>,
+    stack: &mut BTreeSet<(usize, String)>,
+) -> Option<String> {
+    let references = collect_static_stylesheet_variable_references_with_options(
+        value,
+        StaticStylesheetVariableKind::Less,
+        false,
+        true,
+    )?;
+    let property_references = collect_static_less_property_variable_references(value)?;
+    if references.is_empty() && property_references.is_empty() {
+        return static_stylesheet_literal_value_is_safe(value)
+            .then(|| reduce_static_less_value(value.to_string()));
+    }
+    if !static_stylesheet_composite_value_is_safe(value) {
+        return None;
+    }
+
+    let mut output = String::with_capacity(value.len());
+    let mut cursor = 0usize;
+    for reference in references {
+        let replacement = if let Some(value) = context.scoped_values.get(reference.name.as_str()) {
+            value.clone()
+        } else if let Some(value) = context
+            .mixin_context
+            .captured_values
+            .get(reference.name.as_str())
+        {
+            value.clone()
+        } else if static_less_value_is_detached_ruleset_reference(
+            reference.name.as_str(),
+            context.call_scope_id,
+            context.mixin_context.scopes,
+            context.mixin_context.detached_ruleset_declarations,
+        ) {
+            reference.name.clone()
+        } else {
+            let mut variable_stack = BTreeSet::new();
+            resolve_static_less_variable_value_in_scope(
+                reference.name.as_str(),
+                context.call_scope_id,
+                context.mixin_context.scopes,
+                context.mixin_context.variable_declarations,
+                context.mixin_context.property_declarations,
+                context.mixin_context.detached_ruleset_declarations,
+                &mut variable_stack,
+            )?
+            .text
+        };
+        output.push_str(&value[cursor..reference.start]);
+        output.push_str(&replacement);
+        cursor = reference.end;
+    }
+    output.push_str(&value[cursor..]);
+
+    let property_references = collect_static_less_property_variable_references(output.as_str())?;
+    if !property_references.is_empty() {
+        let mut resolved_output = String::with_capacity(output.len());
+        let mut output_cursor = 0usize;
+        for reference in property_references {
+            let local = resolve_static_less_body_property_value_by_name(
+                reference.name.as_str(),
+                body_scope_id,
+                context,
+                stack,
+            )?;
+            let replacement = match local {
+                Some(value) => value,
+                None => {
+                    let mut property_stack = BTreeSet::new();
+                    resolve_static_less_property_value_in_scope(
+                        reference.name.as_str(),
+                        context.call_scope_id,
+                        context.mixin_context.scopes,
+                        context.mixin_context.property_declarations,
+                        &mut property_stack,
+                    )?
+                    .text
+                }
+            };
+            resolved_output.push_str(&output[output_cursor..reference.start]);
+            resolved_output.push_str(&replacement);
+            output_cursor = reference.end;
+        }
+        resolved_output.push_str(&output[output_cursor..]);
+        output = resolved_output;
+    }
+    if static_less_value_is_detached_ruleset_reference(
+        output.trim(),
+        context.call_scope_id,
+        context.mixin_context.scopes,
+        context.mixin_context.detached_ruleset_declarations,
+    ) {
+        return Some(output.trim().to_string());
+    }
+    static_stylesheet_literal_value_is_safe(output.as_str())
+        .then(|| reduce_static_less_value(output))
 }
 
 pub(super) fn collect_static_less_mixin_body_local_declarations(

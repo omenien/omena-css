@@ -2655,7 +2655,7 @@ fn exposes_less_property_variable_aliases_through_query_boundary() {
 #[test]
 fn exposes_less_mixin_body_property_variables_through_query_boundary() {
     let summary = summarize_omena_query_static_stylesheet_evaluator_from_source(
-        ".space() { margin: 2px; padding: $margin; } .button { .space(); }",
+        ".space(@gap) { margin: @gap; padding: $margin; gap: $padding; } .button { .space(3px); }",
         OmenaParserStyleDialect::Less,
     );
 
@@ -2673,11 +2673,13 @@ fn exposes_less_mixin_body_property_variables_through_query_boundary() {
     assert!(summary.native_structural_edit_count > 0);
     assert!(summary.native_edit_output_matches_evaluated_css);
     assert!(summary.evaluation.as_ref().is_some_and(|evaluation| {
-        !evaluation.evaluated_css.contains(".space()")
-            && !evaluation.evaluated_css.contains(".space();")
+        !evaluation.evaluated_css.contains(".space(@gap")
+            && !evaluation.evaluated_css.contains(".space(3px")
             && !evaluation.evaluated_css.contains("$margin")
-            && evaluation.evaluated_css.contains("margin: 2px")
-            && evaluation.evaluated_css.contains("padding: 2px")
+            && !evaluation.evaluated_css.contains("$padding")
+            && evaluation.evaluated_css.contains("margin: 3px")
+            && evaluation.evaluated_css.contains("padding: 3px")
+            && evaluation.evaluated_css.contains("gap: 3px")
     }));
 }
 
