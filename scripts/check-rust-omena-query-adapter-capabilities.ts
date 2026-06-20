@@ -761,9 +761,9 @@ function assertStaticStylesheetEvaluatorOracleCorpus(
   assert.equal(summary.mode, "oracleOnly");
   assert.equal(summary.valueType, "AbstractCssValueV0");
   assert.equal(summary.productOutputSource, "nativeEditOutput");
-  assert.ok(summary.fixtureCount >= 112, "static stylesheet oracle corpus must not shrink");
-  assert.ok(summary.scssFixtureCount >= 35, "SCSS oracle fixture coverage must not shrink");
-  assert.ok(summary.sassFixtureCount >= 29, "Sass oracle fixture coverage must not shrink");
+  assert.ok(summary.fixtureCount >= 118, "static stylesheet oracle corpus must not shrink");
+  assert.ok(summary.scssFixtureCount >= 38, "SCSS oracle fixture coverage must not shrink");
+  assert.ok(summary.sassFixtureCount >= 32, "Sass oracle fixture coverage must not shrink");
   assert.ok(summary.lessFixtureCount >= 48, "Less oracle fixture coverage must not shrink");
   assert.equal(summary.evaluatedFixtureCount, summary.fixtureCount);
   assert.equal(summary.legacyOutputRetainedAsOracleCount, summary.evaluatedFixtureCount);
@@ -824,6 +824,9 @@ function assertStaticStylesheetEvaluatorOracleCorpus(
     "sass.static-named-argument-default-tail",
     "sass.static-hyphen-underscore-function-reference",
     "sass.static-hyphen-underscore-named-argument",
+    "sass.static-named-mixin-arguments",
+    "sass.static-named-mixin-default-tail",
+    "sass.static-hyphen-underscore-mixin-include",
     "scss.static-map-list-builtins",
     "scss.static-default-function-arguments",
     "scss.static-default-argument-prior-parameter",
@@ -831,6 +834,9 @@ function assertStaticStylesheetEvaluatorOracleCorpus(
     "scss.static-named-argument-default-tail",
     "scss.static-hyphen-underscore-function-reference",
     "scss.static-hyphen-underscore-named-argument",
+    "scss.static-named-mixin-arguments",
+    "scss.static-named-mixin-default-tail",
+    "scss.static-hyphen-underscore-mixin-include",
     "scss.indirect-recursive-function-return",
     "less.variable-basic",
     "less.dynamic-escaped-string",
@@ -886,11 +892,11 @@ function assertScssEvaluatorControlFlowOracleCorpus(
   assert.equal(summary.valueType, "AbstractCssValueV0");
   assert.equal(summary.nodeKeyType, "StableNodeKeyV0");
   assert.ok(summary.recursionCap > 0, "SCSS call-return recursion cap must stay explicit");
-  assert.ok(summary.fixtureCount >= 47, "SCSS control-flow oracle corpus must not shrink");
-  assert.ok(summary.scssFixtureCount >= 23, "SCSS control-flow fixture coverage must not shrink");
-  assert.ok(summary.sassFixtureCount >= 23, "Sass control-flow fixture coverage must not shrink");
+  assert.ok(summary.fixtureCount >= 53, "SCSS control-flow oracle corpus must not shrink");
+  assert.ok(summary.scssFixtureCount >= 26, "SCSS control-flow fixture coverage must not shrink");
+  assert.ok(summary.sassFixtureCount >= 26, "Sass control-flow fixture coverage must not shrink");
   assert.ok(
-    summary.supportedFixtureCount >= 46,
+    summary.supportedFixtureCount >= 52,
     "supported SCSS control-flow fixtures must not shrink",
   );
   assert.equal(summary.rejectedFlatCssFixtureCount, 1);
@@ -980,6 +986,20 @@ function assertScssEvaluatorControlFlowOracleCorpus(
     assert.ok(fixture.recursiveEdgeCount > 0);
     assert.ok(fixture.cappedRecursiveCallCount > 0);
   });
+  for (const id of [
+    "scss.static-named-mixin-arguments",
+    "scss.static-named-mixin-default-tail",
+    "scss.static-hyphen-underscore-mixin-include",
+    "sass.static-named-mixin-arguments",
+    "sass.static-named-mixin-default-tail",
+    "sass.static-hyphen-underscore-mixin-include",
+  ]) {
+    assertControlFlowFixture(fixtures, id, (fixture) => {
+      assert.equal(fixture.callReturnAvailable, true);
+      assert.equal(fixture.callReturnEdgeCount, 1);
+      assert.equal(fixture.valueAnalysisConverged, true);
+    });
+  }
   assertControlFlowFixture(fixtures, "css.flat-rejected", (fixture) => {
     assert.equal(fixture.supportedDialect, false);
     assert.equal(fixture.controlFlowAvailable, false);

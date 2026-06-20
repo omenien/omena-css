@@ -349,6 +349,21 @@ fn static_stylesheet_oracle_corpus_fixtures() -> &'static [StaticStylesheetOracl
             source: "@mixin items()\n  $i: 0\n  @while $i < 3\n    $i: $i + 1\n    order: $i\n.button\n  @include items()",
         },
         StaticStylesheetOracleCorpusFixtureV0 {
+            id: "sass.static-named-mixin-arguments",
+            dialect: StyleDialect::Sass,
+            source: "@mixin tone($color, $gap: 1px)\n  color: $color\n  margin: $gap\n.button\n  @include tone($gap: 2px, $color: blue)",
+        },
+        StaticStylesheetOracleCorpusFixtureV0 {
+            id: "sass.static-named-mixin-default-tail",
+            dialect: StyleDialect::Sass,
+            source: "@mixin tone($color, $gap: 2px)\n  color: $color\n  margin: $gap\n.button\n  @include tone($color: blue)",
+        },
+        StaticStylesheetOracleCorpusFixtureV0 {
+            id: "sass.static-hyphen-underscore-mixin-include",
+            dialect: StyleDialect::Sass,
+            source: "@mixin tone_color($color)\n  color: $color\n.button\n  @include tone-color(green)",
+        },
+        StaticStylesheetOracleCorpusFixtureV0 {
             id: "sass.static-if-return",
             dialect: StyleDialect::Sass,
             source: "@function pick($enabled)\n  @if $enabled\n    @return 1px\n  @else\n    @return 2px\n.card\n  margin: pick(true)",
@@ -582,6 +597,21 @@ fn static_stylesheet_oracle_corpus_fixtures() -> &'static [StaticStylesheetOracl
             id: "scss.static-mixin-while",
             dialect: StyleDialect::Scss,
             source: "@mixin items() { $i: 0; @while $i < 3 { $i: $i + 1; order: $i; } } .button { @include items(); }",
+        },
+        StaticStylesheetOracleCorpusFixtureV0 {
+            id: "scss.static-named-mixin-arguments",
+            dialect: StyleDialect::Scss,
+            source: "@mixin tone($color, $gap: 1px) { color: $color; margin: $gap; } .button { @include tone($gap: 2px, $color: blue); }",
+        },
+        StaticStylesheetOracleCorpusFixtureV0 {
+            id: "scss.static-named-mixin-default-tail",
+            dialect: StyleDialect::Scss,
+            source: "@mixin tone($color, $gap: 2px) { color: $color; margin: $gap; } .button { @include tone($color: blue); }",
+        },
+        StaticStylesheetOracleCorpusFixtureV0 {
+            id: "scss.static-hyphen-underscore-mixin-include",
+            dialect: StyleDialect::Scss,
+            source: "@mixin tone_color($color) { color: $color; } .button { @include tone-color(green); }",
         },
         StaticStylesheetOracleCorpusFixtureV0 {
             id: "scss.static-top-level-if",

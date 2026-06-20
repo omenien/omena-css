@@ -388,6 +388,21 @@ fn scss_control_flow_oracle_corpus_fixtures() -> &'static [ScssControlFlowOracle
             source: "@mixin items() { @for $i from 1 through 3 { order: $i; } } .button { @include items(); }",
         },
         ScssControlFlowOracleCorpusFixtureV0 {
+            id: "scss.static-named-mixin-arguments",
+            dialect: StyleDialect::Scss,
+            source: "@mixin tone($color, $gap: 1px) { color: $color; margin: $gap; } .button { @include tone($gap: 2px, $color: blue); }",
+        },
+        ScssControlFlowOracleCorpusFixtureV0 {
+            id: "scss.static-named-mixin-default-tail",
+            dialect: StyleDialect::Scss,
+            source: "@mixin tone($color, $gap: 2px) { color: $color; margin: $gap; } .button { @include tone($color: blue); }",
+        },
+        ScssControlFlowOracleCorpusFixtureV0 {
+            id: "scss.static-hyphen-underscore-mixin-include",
+            dialect: StyleDialect::Scss,
+            source: "@mixin tone_color($color) { color: $color; } .button { @include tone-color(green); }",
+        },
+        ScssControlFlowOracleCorpusFixtureV0 {
             id: "sass.branch-if-else",
             dialect: StyleDialect::Sass,
             source: "$enabled: true\n@if $enabled\n  .on\n    color: green\n@else\n  .off\n    color: gray",
@@ -503,6 +518,21 @@ fn scss_control_flow_oracle_corpus_fixtures() -> &'static [ScssControlFlowOracle
             source: "@mixin items()\n  @for $i from 1 through 3\n    order: $i\n.button\n  @include items()",
         },
         ScssControlFlowOracleCorpusFixtureV0 {
+            id: "sass.static-named-mixin-arguments",
+            dialect: StyleDialect::Sass,
+            source: "@mixin tone($color, $gap: 1px)\n  color: $color\n  margin: $gap\n.button\n  @include tone($gap: 2px, $color: blue)",
+        },
+        ScssControlFlowOracleCorpusFixtureV0 {
+            id: "sass.static-named-mixin-default-tail",
+            dialect: StyleDialect::Sass,
+            source: "@mixin tone($color, $gap: 2px)\n  color: $color\n  margin: $gap\n.button\n  @include tone($color: blue)",
+        },
+        ScssControlFlowOracleCorpusFixtureV0 {
+            id: "sass.static-hyphen-underscore-mixin-include",
+            dialect: StyleDialect::Sass,
+            source: "@mixin tone_color($color)\n  color: $color\n.button\n  @include tone-color(green)",
+        },
+        ScssControlFlowOracleCorpusFixtureV0 {
             id: "css.flat-rejected",
             dialect: StyleDialect::Css,
             source: ".button { color: red; }",
@@ -524,10 +554,10 @@ mod tests {
         assert_eq!(report.value_type, "AbstractCssValueV0");
         assert_eq!(report.node_key_type, "StableNodeKeyV0");
         assert_eq!(report.recursion_cap, SCSS_CALL_RETURN_RECURSION_LIMIT);
-        assert_eq!(report.fixture_count, 47);
-        assert_eq!(report.scss_fixture_count, 23);
-        assert_eq!(report.sass_fixture_count, 23);
-        assert_eq!(report.supported_fixture_count, 46);
+        assert_eq!(report.fixture_count, 53);
+        assert_eq!(report.scss_fixture_count, 26);
+        assert_eq!(report.sass_fixture_count, 26);
+        assert_eq!(report.supported_fixture_count, 52);
         assert_eq!(report.rejected_flat_css_fixture_count, 1);
         assert!(report.branch_fixture_count >= 5);
         assert!(report.loop_fixture_count >= 6);
@@ -726,5 +756,23 @@ mod tests {
                 && fixture.call_return_edge_count == 1
                 && fixture.value_analysis_converged
         }));
+        for id in [
+            "scss.static-named-mixin-arguments",
+            "scss.static-named-mixin-default-tail",
+            "scss.static-hyphen-underscore-mixin-include",
+            "sass.static-named-mixin-arguments",
+            "sass.static-named-mixin-default-tail",
+            "sass.static-hyphen-underscore-mixin-include",
+        ] {
+            assert!(
+                report.fixtures.iter().any(|fixture| {
+                    fixture.id == id
+                        && fixture.call_return_available
+                        && fixture.call_return_edge_count == 1
+                        && fixture.value_analysis_converged
+                }),
+                "missing control-flow mixin call edge oracle fixture {id}"
+            );
+        }
     }
 }
