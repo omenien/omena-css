@@ -62,7 +62,7 @@ pub(super) fn static_stylesheet_module_output_css_from_evaluation(
     input_css: &str,
     evaluation: TransformModuleEvaluationV0,
 ) -> Option<String> {
-    if evaluation.product_output_source.as_deref() != Some("nativeEditOutput") {
+    if !evaluation.may_consume_native_product_output() {
         return None;
     }
     if let Some(native_edit_output) = evaluation.native_edit_output {

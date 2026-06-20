@@ -98,6 +98,50 @@ fn execution_runtime_prefers_native_output_over_legacy_evaluated_css() {
 }
 
 #[test]
+fn execution_runtime_preserves_scss_source_when_oracle_diverges() {
+    let source = r#".button { color: $brand; }"#;
+    let native_css = ".button { color: red; }";
+    let legacy_css = ".button { color: legacy; }";
+    let context = TransformExecutionContextV0 {
+        scss_module_evaluation: Some(TransformModuleEvaluationV0 {
+            evaluator: "dart-sass-compatible".to_string(),
+            product_output_source: Some("nativeEditOutput".to_string()),
+            evaluated_css: legacy_css.to_string(),
+            native_edit_output: Some(native_css.to_string()),
+            native_replacements: Vec::new(),
+            native_edits: vec![native_module_evaluation_edit(source, "$brand", "red")],
+            oracle: Some(TransformModuleEvaluationOracleV0 {
+                mode: "oracleOnly".to_string(),
+                product_output_source: "legacyEvaluatedCss".to_string(),
+                divergence_count: 1,
+                all_legacy_declaration_values_preserved: true,
+                ..TransformModuleEvaluationOracleV0::default()
+            }),
+        }),
+        ..TransformExecutionContextV0::default()
+    };
+    let execution = execute_transform_passes_on_source_with_dialect_and_context(
+        source,
+        StyleDialect::Scss,
+        &[
+            TransformPassKind::ScssModuleEvaluate,
+            TransformPassKind::PrintCss,
+        ],
+        &context,
+    );
+
+    assert_eq!(execution.mutation_count, 0);
+    assert_eq!(execution.output_css, source);
+    assert!(!execution.output_css.contains("legacy"));
+    assert_eq!(
+        execution.outcomes.first().map(|outcome| outcome.detail),
+        Some(
+            "preserved SCSS source because native evaluator edits did not match the oracle boundary"
+        )
+    );
+}
+
+#[test]
 fn execution_runtime_consumes_native_output_without_native_edits() {
     let source = r#".button { color: $brand; }"#;
     let native_css = ".button { color: red; }";
@@ -295,6 +339,50 @@ fn execution_runtime_prefers_less_native_output_over_legacy_evaluated_css() {
         execution.outcomes.first().map(|outcome| outcome.detail),
         Some(
             "applied explicit Less module evaluation native edit output from the evaluator boundary"
+        )
+    );
+}
+
+#[test]
+fn execution_runtime_preserves_less_source_when_oracle_diverges() {
+    let source = r#".button { color: @brand; }"#;
+    let native_css = ".button { color: red; }";
+    let legacy_css = ".button { color: legacy; }";
+    let context = TransformExecutionContextV0 {
+        less_module_evaluation: Some(TransformModuleEvaluationV0 {
+            evaluator: "less-js-compatible".to_string(),
+            product_output_source: Some("nativeEditOutput".to_string()),
+            evaluated_css: legacy_css.to_string(),
+            native_edit_output: Some(native_css.to_string()),
+            native_replacements: Vec::new(),
+            native_edits: vec![native_module_evaluation_edit(source, "@brand", "red")],
+            oracle: Some(TransformModuleEvaluationOracleV0 {
+                mode: "oracleOnly".to_string(),
+                product_output_source: "legacyEvaluatedCss".to_string(),
+                divergence_count: 1,
+                all_legacy_declaration_values_preserved: true,
+                ..TransformModuleEvaluationOracleV0::default()
+            }),
+        }),
+        ..TransformExecutionContextV0::default()
+    };
+    let execution = execute_transform_passes_on_source_with_dialect_and_context(
+        source,
+        StyleDialect::Less,
+        &[
+            TransformPassKind::LessModuleEvaluate,
+            TransformPassKind::PrintCss,
+        ],
+        &context,
+    );
+
+    assert_eq!(execution.mutation_count, 0);
+    assert_eq!(execution.output_css, source);
+    assert!(!execution.output_css.contains("legacy"));
+    assert_eq!(
+        execution.outcomes.first().map(|outcome| outcome.detail),
+        Some(
+            "preserved Less source because native evaluator edits did not match the oracle boundary"
         )
     );
 }

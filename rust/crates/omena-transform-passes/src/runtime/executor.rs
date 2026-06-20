@@ -860,7 +860,7 @@ fn materialize_transform_module_evaluation_output(
     native_detail: &'static str,
     preserve_detail: &'static str,
 ) -> TransformModuleEvaluationMaterializedOutput {
-    if !module_evaluation_declares_native_product_output(evaluation) {
+    if !evaluation.may_consume_native_product_output() {
         return TransformModuleEvaluationMaterializedOutput {
             css: input_css.to_string(),
             detail: preserve_detail,
@@ -888,15 +888,6 @@ fn materialize_transform_module_evaluation_output(
         css: input_css.to_string(),
         detail: preserve_detail,
     }
-}
-
-fn module_evaluation_declares_native_product_output(
-    evaluation: &TransformModuleEvaluationV0,
-) -> bool {
-    evaluation
-        .product_output_source
-        .as_deref()
-        .is_some_and(|source| source == "nativeEditOutput")
 }
 
 fn apply_transform_module_evaluation_native_edits(

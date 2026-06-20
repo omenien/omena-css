@@ -300,6 +300,24 @@ pub struct TransformModuleEvaluationV0 {
     pub oracle: Option<TransformModuleEvaluationOracleV0>,
 }
 
+impl TransformModuleEvaluationV0 {
+    pub fn declares_native_product_output(&self) -> bool {
+        self.product_output_source
+            .as_deref()
+            .is_some_and(|source| source == "nativeEditOutput")
+    }
+
+    pub fn oracle_allows_native_product_output(&self) -> bool {
+        self.oracle.as_ref().is_none_or(|oracle| {
+            oracle.divergence_count == 0 && oracle.all_legacy_declaration_values_preserved
+        })
+    }
+
+    pub fn may_consume_native_product_output(&self) -> bool {
+        self.declares_native_product_output() && self.oracle_allows_native_product_output()
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct TransformModuleEvaluationNativeReplacementV0 {

@@ -263,6 +263,28 @@ mod tests {
     }
 
     #[test]
+    fn static_module_output_rejects_native_output_when_oracle_diverges() {
+        let evaluation = test_transform_module_evaluation(
+            Some("nativeEditOutput"),
+            Some(".native { color: red; }".to_string()),
+            Some(
+                omena_query_transform_runner::TransformModuleEvaluationOracleV0 {
+                    mode: "oracleOnly".to_string(),
+                    product_output_source: "legacyEvaluatedCss".to_string(),
+                    divergence_count: 1,
+                    all_legacy_declaration_values_preserved: true,
+                    ..omena_query_transform_runner::TransformModuleEvaluationOracleV0::default()
+                },
+            ),
+        );
+
+        assert_eq!(
+            static_stylesheet_module_output_css_from_evaluation("", evaluation),
+            None
+        );
+    }
+
+    #[test]
     fn static_module_output_prefers_native_edit_output() {
         let evaluation = test_transform_module_evaluation(
             Some("nativeEditOutput"),
