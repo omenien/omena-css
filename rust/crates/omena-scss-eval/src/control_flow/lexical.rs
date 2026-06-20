@@ -8,7 +8,7 @@ use omena_parser::{
 use omena_syntax::SyntaxKind;
 
 use super::analysis_model::ScssGlobalVariableDeclaration;
-use super::canonical_scss_callable_name;
+use super::call_resolution::canonical_scss_callable_name;
 use super::header_values::static_scss_header_abstract_value;
 use super::tokens::{declaration_end_token_index, next_non_trivia_token_index};
 use super::variables::canonical_scss_variable_name;
