@@ -69,6 +69,25 @@ interface StaticStylesheetEvaluatorOracleFixtureSummaryV0 {
   readonly nativeUnsupportedDynamicValueCount: number;
 }
 
+interface StaticStylesheetEvaluatorSummaryV0 {
+  readonly product: string;
+  readonly mode: string;
+  readonly dialect: string;
+  readonly valueType: string;
+  readonly supportedDialect: boolean;
+  readonly productOutputSource: string;
+  readonly legacyOutputRetainedAsOracle: boolean;
+  readonly legacyOutputConsumedUntilCutover: boolean;
+  readonly evaluationAvailable: boolean;
+  readonly valueResolutionAvailable: boolean;
+  readonly nativeEditOutput?: string;
+  readonly divergenceCount: number;
+  readonly allLegacyDeclarationValuesPreserved: boolean;
+  readonly nativeEditOutputMatchesEvaluatedCss: boolean;
+  readonly nativeValueReferenceCount: number;
+  readonly nativeResolvedValueCount: number;
+}
+
 interface StaticLifExportsSummaryV0 {
   readonly product: string;
   readonly mode: string;
@@ -305,7 +324,7 @@ const EXPECTED_RUNNER_COMMANDS = new Map([
     "staticStylesheetEvaluator",
     {
       command: SELECTED_QUERY_RUNNER_COMMANDS.staticStylesheetEvaluator,
-      inputContract: "OmenaParserStyleFactsInputV0",
+      inputContract: "EngineInputV2 + targetStylePath",
       outputProduct: "omena-query.static-stylesheet-evaluator",
     },
   ],
@@ -655,6 +674,8 @@ void (async () => {
   );
 
   const staticStylesheetOracleCorpus = runStaticStylesheetEvaluatorOracleCorpus();
+  const staticStylesheetEvaluator = runStaticStylesheetEvaluator();
+  assertStaticStylesheetEvaluator(staticStylesheetEvaluator);
   assertNativeEvaluatorCutoverProductPathPolicy();
   assertStaticStylesheetEvaluatorOracleCorpus(staticStylesheetOracleCorpus);
   const lessStaticLifExports = runStaticLifExports();
@@ -670,6 +691,7 @@ void (async () => {
       "validated omena-query selected-query adapter capabilities:",
       `backends=${summary.backendKinds.length}`,
       `runnerCommands=${summary.runnerCommands.length}`,
+      `staticStylesheetEvaluator=${staticStylesheetEvaluator.productOutputSource}`,
       `staticStylesheetOracleFixtures=${staticStylesheetOracleCorpus.fixtureCount}`,
       `lessLifExports=${lessStaticLifExports.lessSpecificExportCount}`,
       `lessCrossFileEdges=${lessCrossFileSummary.summaryEdgeCount}`,
@@ -771,6 +793,50 @@ function runStaticStylesheetEvaluatorOracleCorpus(): StaticStylesheetEvaluatorOr
     `static stylesheet evaluator oracle corpus command failed\nstdout=${result.stdout}\nstderr=${result.stderr}`,
   );
   return JSON.parse(result.stdout) as StaticStylesheetEvaluatorOracleCorpusSummaryV0;
+}
+
+function runStaticStylesheetEvaluator(): StaticStylesheetEvaluatorSummaryV0 {
+  const result = spawnSync(
+    "cargo",
+    [
+      "run",
+      "--manifest-path",
+      "rust/Cargo.toml",
+      "-p",
+      "engine-shadow-runner",
+      "--quiet",
+      "--",
+      SELECTED_QUERY_RUNNER_COMMANDS.staticStylesheetEvaluator,
+    ],
+    {
+      cwd: process.cwd(),
+      encoding: "utf8",
+      input: JSON.stringify({
+        targetStylePath: "/tmp/Button.module.less",
+        engineInput: {
+          version: "static-stylesheet-evaluator-engine-input-v0",
+          sources: [],
+          styles: [
+            {
+              filePath: "/tmp/Button.module.less",
+              source: "@brand: red;\n.button { color: @brand; }\n",
+              document: {
+                selectors: [],
+              },
+            },
+          ],
+          typeFacts: [],
+        },
+      }),
+      maxBuffer: 8 * 1024 * 1024,
+    },
+  );
+  assert.equal(
+    result.status,
+    0,
+    `static stylesheet evaluator command failed\nstdout=${result.stdout}\nstderr=${result.stderr}`,
+  );
+  return JSON.parse(result.stdout) as StaticStylesheetEvaluatorSummaryV0;
 }
 
 function runStaticLifExports(): StaticLifExportsSummaryV0 {
@@ -882,6 +948,28 @@ function runScssEvaluatorControlFlowOracleCorpus(): ScssEvaluatorControlFlowOrac
     `SCSS control-flow oracle corpus command failed\nstdout=${result.stdout}\nstderr=${result.stderr}`,
   );
   return JSON.parse(result.stdout) as ScssEvaluatorControlFlowOracleCorpusSummaryV0;
+}
+
+function assertStaticStylesheetEvaluator(summary: StaticStylesheetEvaluatorSummaryV0): void {
+  assert.equal(summary.product, "omena-query.static-stylesheet-evaluator");
+  assert.equal(summary.mode, "oracleOnly");
+  assert.equal(summary.dialect, "less");
+  assert.equal(summary.valueType, "AbstractCssValueV0");
+  assert.equal(summary.supportedDialect, true);
+  assert.equal(summary.productOutputSource, "nativeEditOutput");
+  assert.equal(summary.legacyOutputRetainedAsOracle, true);
+  assert.equal(summary.legacyOutputConsumedUntilCutover, false);
+  assert.equal(summary.evaluationAvailable, true);
+  assert.equal(summary.valueResolutionAvailable, true);
+  assert.equal(summary.divergenceCount, 0);
+  assert.equal(summary.allLegacyDeclarationValuesPreserved, true);
+  assert.equal(summary.nativeEditOutputMatchesEvaluatedCss, true);
+  assert.ok(summary.nativeValueReferenceCount > 0);
+  assert.ok(summary.nativeResolvedValueCount > 0);
+  assert.ok(
+    summary.nativeEditOutput?.includes("color: red"),
+    "EngineInput-backed static evaluator must expose the native edit output",
+  );
 }
 
 function assertLessStaticLifExports(summary: StaticLifExportsSummaryV0): void {

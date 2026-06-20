@@ -6,6 +6,7 @@ use crate::{
     summarize_omena_query_scss_evaluator_control_flow_oracle_corpus,
     summarize_omena_query_static_lif_exports_from_engine_input,
     summarize_omena_query_static_lif_exports_from_source,
+    summarize_omena_query_static_stylesheet_evaluator_from_engine_input,
     summarize_omena_query_static_stylesheet_evaluator_from_source,
     summarize_omena_query_static_stylesheet_evaluator_oracle_corpus,
 };
@@ -40,7 +41,7 @@ fn exposes_less_lif_exports_through_query_boundary() {
 }
 
 #[test]
-fn exposes_less_lif_exports_through_engine_input_boundary() {
+fn exposes_less_lif_exports_through_engine_input_boundary() -> Result<(), String> {
     let source = r#"
 @brand: #fff;
 @tokens: { primary: @brand; @gap: 2px; };
@@ -62,7 +63,7 @@ fn exposes_less_lif_exports_through_engine_input_boundary() {
         &input,
         "/tmp/Button.module.less",
     )
-    .expect("target style source should be available from EngineInputV2");
+    .ok_or_else(|| "target style source should be available from EngineInputV2".to_string())?;
 
     assert_eq!(summary.product, "omena-query.static-lif-exports");
     assert_eq!(summary.dialect, "less");
@@ -71,6 +72,51 @@ fn exposes_less_lif_exports_through_engine_input_boundary() {
     assert_eq!(summary.less_variable_names, vec!["@brand"]);
     assert_eq!(summary.less_mixin_names, vec![".button"]);
     assert_eq!(summary.less_detached_ruleset_names, vec!["@tokens"]);
+    Ok(())
+}
+
+#[test]
+fn exposes_static_stylesheet_evaluator_through_engine_input_boundary() -> Result<(), String> {
+    let source = "@brand: red;\n.button { color: @brand; }\n";
+    let input = EngineInputV2 {
+        version: "static-stylesheet-evaluator-engine-input-v0".to_string(),
+        sources: Vec::new(),
+        styles: vec![StyleAnalysisInputV2 {
+            file_path: "/tmp/Button.module.less".to_string(),
+            source: Some(source.to_string()),
+            document: StyleDocumentV2 {
+                selectors: Vec::new(),
+            },
+        }],
+        type_facts: Vec::new(),
+    };
+    let summary = summarize_omena_query_static_stylesheet_evaluator_from_engine_input(
+        &input,
+        "/tmp/Button.module.less",
+    )
+    .ok_or_else(|| "target style source should be available from EngineInputV2".to_string())?;
+
+    assert_eq!(summary.product, "omena-query.static-stylesheet-evaluator");
+    assert_eq!(summary.mode, "oracleOnly");
+    assert_eq!(summary.dialect, "less");
+    assert_eq!(summary.value_type, "AbstractCssValueV0");
+    assert!(summary.supported_dialect);
+    assert_eq!(summary.product_output_source, "nativeEditOutput");
+    assert!(summary.legacy_output_retained_as_oracle);
+    assert!(!summary.legacy_output_consumed_until_cutover);
+    assert!(summary.evaluation_available);
+    assert_eq!(summary.divergence_count, 0);
+    assert!(summary.all_legacy_declaration_values_preserved);
+    assert!(summary.native_edit_output_matches_evaluated_css);
+    assert!(summary.native_value_reference_count > 0);
+    assert!(summary.native_resolved_value_count > 0);
+    assert!(
+        summary
+            .native_edit_output
+            .as_deref()
+            .is_some_and(|output| output.contains("color: red"))
+    );
+    Ok(())
 }
 
 #[test]

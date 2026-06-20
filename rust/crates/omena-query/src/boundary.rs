@@ -631,7 +631,7 @@ pub fn summarize_omena_query_selected_query_adapter_capabilities()
             SelectedQueryRunnerCommandV0 {
                 surface: "staticStylesheetEvaluator",
                 command: "input-static-stylesheet-evaluator",
-                input_contract: "OmenaParserStyleFactsInputV0",
+                input_contract: "EngineInputV2 + targetStylePath",
                 output_product: "omena-query.static-stylesheet-evaluator",
             },
             SelectedQueryRunnerCommandV0 {

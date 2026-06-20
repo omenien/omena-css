@@ -267,6 +267,23 @@ pub fn summarize_omena_query_static_stylesheet_evaluator_from_source(
     }
 }
 
+pub fn summarize_omena_query_static_stylesheet_evaluator_from_engine_input(
+    input: &EngineInputV2,
+    target_style_path: &str,
+) -> Option<OmenaQueryStaticStylesheetEvaluatorSummaryV0> {
+    let target = input
+        .styles
+        .iter()
+        .find(|style| style.file_path == target_style_path)?;
+    let source = target.source.as_deref()?;
+    Some(
+        summarize_omena_query_static_stylesheet_evaluator_from_source(
+            source,
+            omena_query_static_lif_dialect_for_style_path(target_style_path),
+        ),
+    )
+}
+
 pub fn summarize_omena_query_static_lif_exports_from_source(
     source: &str,
     dialect: OmenaParserStyleDialect,

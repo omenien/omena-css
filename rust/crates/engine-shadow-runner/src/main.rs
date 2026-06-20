@@ -102,7 +102,7 @@ use omena_query::{
     summarize_omena_query_source_resolution_query_fragments,
     summarize_omena_query_source_resolution_runtime,
     summarize_omena_query_static_lif_exports_from_engine_input,
-    summarize_omena_query_static_stylesheet_evaluator_from_source,
+    summarize_omena_query_static_stylesheet_evaluator_from_engine_input,
     summarize_omena_query_static_stylesheet_evaluator_oracle_corpus,
     summarize_omena_query_style_completion_for_workspace_file_with_resolution_inputs,
     summarize_omena_query_style_diagnostics_for_workspace_file_with_external_mode_and_sifs,
@@ -174,6 +174,13 @@ struct ReadStyleContextIndexInputV0 {
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct StaticLifExportsInputV0 {
+    target_style_path: String,
+    engine_input: EngineInputV2,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct StaticStylesheetEvaluatorInputV0 {
     target_style_path: String,
     engine_input: EngineInputV2,
 }
@@ -1596,12 +1603,17 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             serde_json::to_writer_pretty(io::stdout(), &summary)?;
         }
         Some("input-static-stylesheet-evaluator") => {
-            let input: OmenaParserStyleFactsInputV0 = serde_json::from_str(&stdin)?;
-            let dialect = parse_omena_parser_style_dialect(input.dialect.as_str())?;
-            let summary = summarize_omena_query_static_stylesheet_evaluator_from_source(
-                &input.style_source,
-                dialect,
-            );
+            let input: StaticStylesheetEvaluatorInputV0 = serde_json::from_str(&stdin)?;
+            let Some(summary) = summarize_omena_query_static_stylesheet_evaluator_from_engine_input(
+                &input.engine_input,
+                &input.target_style_path,
+            ) else {
+                return Err(format!(
+                    "target style source not found in EngineInputV2 for {}",
+                    input.target_style_path
+                )
+                .into());
+            };
             serde_json::to_writer_pretty(io::stdout(), &summary)?;
         }
         Some("input-static-lif-exports") => {
@@ -2342,14 +2354,18 @@ fn run_daemon_selected_query_command(
             summarize_omena_query_static_stylesheet_evaluator_oracle_corpus(),
         )?),
         "input-static-stylesheet-evaluator" => {
-            let input: OmenaParserStyleFactsInputV0 = serde_json::from_value(input)?;
-            let dialect = parse_omena_parser_style_dialect(input.dialect.as_str())?;
-            Ok(serde_json::to_value(
-                summarize_omena_query_static_stylesheet_evaluator_from_source(
-                    &input.style_source,
-                    dialect,
-                ),
-            )?)
+            let input: StaticStylesheetEvaluatorInputV0 = serde_json::from_value(input)?;
+            let Some(summary) = summarize_omena_query_static_stylesheet_evaluator_from_engine_input(
+                &input.engine_input,
+                &input.target_style_path,
+            ) else {
+                return Err(format!(
+                    "target style source not found in EngineInputV2 for {}",
+                    input.target_style_path
+                )
+                .into());
+            };
+            Ok(serde_json::to_value(summary)?)
         }
         "input-static-lif-exports" => {
             let input: StaticLifExportsInputV0 = serde_json::from_value(input)?;
