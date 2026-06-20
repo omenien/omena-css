@@ -106,7 +106,8 @@ fn static_less_guard_expression_matches(
         .get(..3)
         .is_some_and(|prefix| prefix.eq_ignore_ascii_case("not"))
         && let Some(operand) = expression.get(3..)
-        && operand.chars().next().is_some_and(char::is_whitespace)
+        && (operand.chars().next().is_some_and(char::is_whitespace)
+            || operand.trim_start().starts_with('('))
     {
         return static_less_guard_expression_matches(operand.trim(), context).map(|truthy| !truthy);
     }
@@ -121,6 +122,20 @@ pub(super) fn static_less_mixin_guard_depends_on_default(guard: &str) -> bool {
         .split("when")
         .nth(1)
         .is_some_and(|expression| expression.contains("default("))
+}
+
+pub(super) fn static_less_mixin_guard_depends_on_negated_default(guard: &str) -> bool {
+    guard
+        .to_ascii_lowercase()
+        .split("when")
+        .nth(1)
+        .map(|expression| {
+            expression
+                .chars()
+                .filter(|character| !character.is_whitespace())
+                .collect::<String>()
+        })
+        .is_some_and(|expression| expression.contains("not(default("))
 }
 
 fn static_less_guard_or_matches(

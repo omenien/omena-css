@@ -1791,6 +1791,39 @@ fn static_less_evaluation_expands_default_guarded_mixins() {
 }
 
 #[test]
+fn static_less_evaluation_preserves_ambiguous_default_guarded_mixins() {
+    let report = derive_static_stylesheet_module_evaluation(
+        "@gap: 1px; .tone() when (default()) { color: red; } .tone() when not(default()) { color: blue; } .button { margin: @gap; .tone(); }",
+        StyleDialect::Less,
+    );
+
+    assert!(report.is_some());
+    let Some(report) = report else {
+        return;
+    };
+
+    assert!(report.evaluated_css.contains(".tone() when (default())"));
+    assert!(report.evaluated_css.contains(".tone() when not(default())"));
+    assert!(
+        report
+            .evaluated_css
+            .contains(".button { margin: 1px; .tone(); }")
+    );
+    assert!(
+        !report
+            .evaluated_css
+            .contains(".button { margin: 1px;  color: red; }")
+    );
+    assert!(
+        !report
+            .evaluated_css
+            .contains(".button { margin: 1px;  color: blue; }")
+    );
+    assert!(report.oracle.all_legacy_declaration_values_preserved);
+    assert!(report.native_edit_output_matches_evaluated_css);
+}
+
+#[test]
 fn static_less_evaluation_removes_false_guarded_mixins() {
     let report = derive_static_stylesheet_module_evaluation(
         ".tone(@value) when (iscolor(@value)) { color: @value; } .button { .tone(1px); }",

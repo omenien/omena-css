@@ -18,7 +18,10 @@ use super::{
     less_detached_rulesets::{
         collect_static_less_detached_ruleset_calls, find_static_less_detached_ruleset_declaration,
     },
-    less_guard::{static_less_mixin_guard_depends_on_default, static_less_mixin_guard_matches},
+    less_guard::{
+        static_less_mixin_guard_depends_on_default,
+        static_less_mixin_guard_depends_on_negated_default, static_less_mixin_guard_matches,
+    },
     less_mixin_arguments::static_less_mixin_parameter_patterns_match,
     less_mixin_values::{
         apply_static_less_mixin_call_importance, collect_static_less_mixin_body_local_declarations,
@@ -402,6 +405,11 @@ pub(super) fn render_static_less_mixin_accessor(
     }
 
     let default_matches = Some(rendered_values.is_empty());
+    if rendered_values.is_empty()
+        && static_less_mixin_default_retry_is_ambiguous(declarations.as_slice(), &call)
+    {
+        return Some(Some(StaticLessMixinAccessorCallRenderOutcome::PreservedRaw));
+    }
     for declaration in declarations.iter().filter(|declaration| {
         declaration
             .guard
@@ -609,6 +617,12 @@ pub(super) fn render_static_less_mixin_call(
         }
     }
     let default_matches = Some(rendered_bodies.is_empty());
+    if rendered_bodies.is_empty()
+        && static_less_mixin_default_retry_is_ambiguous(declarations.as_slice(), call)
+    {
+        active_mixins.remove(&canonical_call_name);
+        return Some(Some(StaticLessMixinCallRenderOutcome::PreservedNoOutput));
+    }
     for declaration in declarations.iter().filter(|declaration| {
         declaration
             .guard
@@ -665,6 +679,28 @@ pub(super) fn render_static_less_mixin_call(
             used_declaration_names,
         },
     )))
+}
+
+fn static_less_mixin_default_retry_is_ambiguous(
+    declarations: &[&StaticLessMixinDeclaration],
+    call: &StaticLessMixinCall,
+) -> bool {
+    let mut saw_default_candidate = false;
+    let mut saw_negated_default_candidate = false;
+    for declaration in declarations {
+        let Some(guard) = declaration.guard.as_deref() else {
+            continue;
+        };
+        if !static_less_mixin_guard_depends_on_default(guard) {
+            continue;
+        }
+        if !static_less_mixin_parameter_patterns_match(&declaration.parameters, &call.arguments) {
+            continue;
+        }
+        saw_default_candidate = true;
+        saw_negated_default_candidate |= static_less_mixin_guard_depends_on_negated_default(guard);
+    }
+    saw_default_candidate && saw_negated_default_candidate
 }
 
 fn render_static_less_namespace_mixin_call(
