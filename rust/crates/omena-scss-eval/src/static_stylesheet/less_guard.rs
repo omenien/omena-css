@@ -311,7 +311,6 @@ fn static_less_mixin_guard_isdefined_predicate_matches(
                 context.scopes,
                 context.property_declarations,
             )
-            .filter(|declaration| declaration.span_start < context.call_position)
             .is_some(),
         );
     }

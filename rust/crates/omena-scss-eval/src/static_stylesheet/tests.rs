@@ -1313,7 +1313,7 @@ fn static_less_evaluation_expands_property_comparison_guarded_mixin_calls() {
 }
 
 #[test]
-fn static_less_evaluation_preserves_future_property_guarded_mixins_as_oracle_report() {
+fn static_less_evaluation_expands_future_property_guarded_mixins() {
     let report = derive_static_stylesheet_module_evaluation(
         ".space() when (isnumber($margin)) { padding: $margin; } .button { .space(); margin: 2px; }",
         StyleDialect::Less,
@@ -1324,18 +1324,12 @@ fn static_less_evaluation_preserves_future_property_guarded_mixins_as_oracle_rep
         return;
     };
 
-    assert_eq!(report.replacement_count, 0);
-    assert!(
-        report
-            .evaluated_css
-            .contains(".space() when (isnumber($margin))")
-    );
-    assert!(
-        report
-            .evaluated_css
-            .contains(".button { .space(); margin: 2px; }")
-    );
-    assert!(!report.evaluated_css.contains("padding: 2px"));
+    assert!(report.native_structural_edit_count > 0);
+    assert!(report.native_edit_output_matches_evaluated_css);
+    assert!(!report.evaluated_css.contains(".space()"));
+    assert!(!report.evaluated_css.contains(".space();"));
+    assert!(report.evaluated_css.contains("padding: 2px"));
+    assert!(report.evaluated_css.contains("margin: 2px"));
     assert!(report.oracle.all_legacy_declaration_values_preserved);
 }
 

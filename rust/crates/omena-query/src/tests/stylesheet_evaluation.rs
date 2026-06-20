@@ -864,7 +864,7 @@ fn consumer_build_derives_static_less_evaluator_context_for_property_variables()
 }
 
 #[test]
-fn consumer_build_executes_future_property_guarded_less_mixins_as_preserved_oracle_output() {
+fn consumer_build_expands_future_property_guarded_less_mixins() {
     let summary = execute_omena_query_consumer_build_style_source(
         "Button.module.less",
         ".space() when (isnumber($margin)) { padding: $margin; } .button { .space(); margin: 2px; }",
@@ -887,20 +887,11 @@ fn consumer_build_executes_future_property_guarded_less_mixins_as_preserved_orac
             .planned_only_pass_ids
             .contains(&"less-module-evaluate")
     );
-    assert!(
-        summary
-            .execution
-            .output_css
-            .contains(".space() when (isnumber($margin))")
-    );
-    assert!(
-        summary
-            .execution
-            .output_css
-            .contains("{ .space(); margin: 2px; }")
-    );
+    assert!(!summary.execution.output_css.contains(".space() when"));
+    assert!(!summary.execution.output_css.contains(".space();"));
     assert!(!summary.execution.output_css.contains("_space"));
-    assert!(!summary.execution.output_css.contains("padding: 2px"));
+    assert!(summary.execution.output_css.contains("padding: 2px"));
+    assert!(summary.execution.output_css.contains("margin: 2px"));
 }
 
 #[test]

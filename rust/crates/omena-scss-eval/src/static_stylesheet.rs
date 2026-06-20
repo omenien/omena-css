@@ -61,7 +61,7 @@ use less_values::{
     format_static_less_channel_number, format_static_less_math_number, format_static_less_number,
 };
 use less_variables::{
-    find_static_less_property_declaration, find_static_less_property_declaration_before,
+    find_static_less_property_declaration, find_static_less_property_declaration_for_reference,
     find_static_less_variable_declaration, resolve_static_less_property_value_in_scope,
     resolve_static_less_property_value_text_with_position,
     resolve_static_less_variable_value_in_scope,

@@ -11,12 +11,14 @@ use super::less_guard::{
 use super::less_mixin_values::static_less_value_is_detached_ruleset_reference;
 use super::model::{
     StaticLessDetachedRulesetDeclaration, StaticStylesheetPropertyDeclaration,
-    StaticStylesheetScope, StaticStylesheetVariableDeclaration,
+    StaticStylesheetScope, StaticStylesheetVariableDeclaration, StaticStylesheetVariableKind,
 };
+use super::variable_references::collect_static_stylesheet_variable_references;
 use super::{
-    find_static_less_detached_ruleset_declaration, find_static_less_property_declaration_before,
-    find_static_less_variable_declaration, static_less_variable_name_is_safe,
-    static_stylesheet_literal_value_is_safe, static_stylesheet_property_name_is_safe,
+    find_static_less_detached_ruleset_declaration,
+    find_static_less_property_declaration_for_reference, find_static_less_variable_declaration,
+    static_less_variable_name_is_safe, static_stylesheet_literal_value_is_safe,
+    static_stylesheet_property_name_is_safe,
 };
 
 pub(super) fn parse_static_less_if_value(value: &str) -> Option<String> {
@@ -117,15 +119,19 @@ fn static_less_isdefined_argument_matches(
         {
             return None;
         }
-        return Some(
-            find_static_less_property_declaration_before(
-                value,
-                scope_id,
-                scopes,
-                property_declarations,
-                reference_position,
-            )
-            .is_some(),
+        let declaration = find_static_less_property_declaration_for_reference(
+            value,
+            scope_id,
+            scopes,
+            property_declarations,
+            reference_position,
+        )?;
+        return static_less_property_declaration_isdefined_matches(
+            declaration,
+            scope_id,
+            reference_position,
+            scopes,
+            variable_declarations,
         );
     }
     if !value.starts_with('@') {
@@ -145,6 +151,28 @@ fn static_less_isdefined_argument_matches(
             )
             .is_some(),
     )
+}
+
+fn static_less_property_declaration_isdefined_matches(
+    declaration: &StaticStylesheetPropertyDeclaration,
+    scope_id: usize,
+    reference_position: usize,
+    scopes: &[StaticStylesheetScope],
+    variable_declarations: &BTreeMap<(usize, String), StaticStylesheetVariableDeclaration>,
+) -> Option<bool> {
+    let references = collect_static_stylesheet_variable_references(
+        declaration.value.as_str(),
+        StaticStylesheetVariableKind::Less,
+    )?;
+    Some(!references.into_iter().any(|reference| {
+        find_static_less_variable_declaration(
+            reference.name.as_str(),
+            scope_id,
+            scopes,
+            variable_declarations,
+        )
+        .is_some_and(|variable| variable.span_start == reference_position)
+    }))
 }
 
 pub(super) fn parse_static_less_isruleset_value(value: &str) -> Option<String> {

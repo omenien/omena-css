@@ -445,10 +445,7 @@ fn collect_static_less_property_declarations_with_body_start(
         )?;
         declarations.insert(
             (scope_id, format!("${}", tokens[index].text)),
-            StaticStylesheetPropertyDeclaration {
-                span_start: static_stylesheet_token_start(&tokens[index]),
-                value,
-            },
+            StaticStylesheetPropertyDeclaration { value },
         );
         index = value_end_index + 1;
     }

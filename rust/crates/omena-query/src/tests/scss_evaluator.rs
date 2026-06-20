@@ -637,13 +637,11 @@ fn exposes_static_stylesheet_oracle_corpus_through_query_boundary() {
             .iter()
             .any(|fixture| fixture.id == "less.dynamic-escaped-string")
     );
-    assert!(
-        summary
-            .corpus
-            .fixtures
-            .iter()
-            .any(|fixture| fixture.id == "less.future-property-guarded-mixin")
-    );
+    assert!(summary.corpus.fixtures.iter().any(|fixture| {
+        fixture.id == "less.future-property-guarded-mixin"
+            && fixture.native_structural_edit_count > 0
+            && fixture.native_edit_output_matches_evaluated_css
+    }));
     assert!(
         summary
             .corpus
@@ -3735,7 +3733,7 @@ fn exposes_less_property_guarded_mixins_through_query_boundary() {
 }
 
 #[test]
-fn exposes_less_future_property_guarded_mixins_as_preserved_oracle_output_through_query_boundary() {
+fn exposes_less_future_property_guarded_mixins_as_native_output_through_query_boundary() {
     let summary = summarize_omena_query_static_stylesheet_evaluator_from_source(
         ".space() when (isnumber($margin)) { padding: $margin; } .button { .space(); margin: 2px; }",
         OmenaParserStyleDialect::Less,
@@ -3750,14 +3748,13 @@ fn exposes_less_future_property_guarded_mixins_as_preserved_oracle_output_throug
     assert_eq!(summary.divergence_count, 0);
     assert!(summary.all_legacy_declaration_values_preserved);
     assert_eq!(summary.native_replacement_count, 0);
+    assert!(summary.native_structural_edit_count > 0);
+    assert!(summary.native_edit_output_matches_evaluated_css);
     assert!(summary.evaluation.as_ref().is_some_and(|evaluation| {
-        evaluation
-            .evaluated_css
-            .contains(".space() when (isnumber($margin))")
-            && evaluation
-                .evaluated_css
-                .contains(".button { .space(); margin: 2px; }")
-            && !evaluation.evaluated_css.contains("padding: 2px")
+        !evaluation.evaluated_css.contains(".space() when")
+            && !evaluation.evaluated_css.contains(".space();")
+            && evaluation.evaluated_css.contains("padding: 2px")
+            && evaluation.evaluated_css.contains("margin: 2px")
     }));
 }
 

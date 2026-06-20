@@ -424,7 +424,7 @@ fn resolve_static_less_property_value_in_scope_with_position(
         return None;
     }
     let declaration = match reference_position {
-        Some(position) => find_static_less_property_declaration_before(
+        Some(position) => find_static_less_property_declaration_for_reference(
             name,
             scope_id,
             scopes,
@@ -465,15 +465,14 @@ pub(super) fn find_static_less_property_declaration<'a>(
     }
 }
 
-pub(super) fn find_static_less_property_declaration_before<'a>(
+pub(super) fn find_static_less_property_declaration_for_reference<'a>(
     name: &str,
     scope_id: usize,
     scopes: &[StaticStylesheetScope],
     declarations: &'a BTreeMap<(usize, String), StaticStylesheetPropertyDeclaration>,
-    reference_position: usize,
+    _reference_position: usize,
 ) -> Option<&'a StaticStylesheetPropertyDeclaration> {
     find_static_less_property_declaration(name, scope_id, scopes, declarations)
-        .filter(|declaration| declaration.span_start < reference_position)
 }
 
 fn resolve_static_less_property_value_text(

@@ -185,7 +185,6 @@ pub(super) struct StaticLessResolvedValue {
 
 #[derive(Debug, Clone)]
 pub(super) struct StaticStylesheetPropertyDeclaration {
-    pub(super) span_start: usize,
     pub(super) value: String,
 }
 
