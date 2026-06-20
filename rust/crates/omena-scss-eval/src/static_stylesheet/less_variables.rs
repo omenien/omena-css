@@ -9,7 +9,9 @@ use super::{
         parse_static_less_isdefined_value_with_context,
         parse_static_less_isruleset_value_with_context,
     },
-    less_strings::preserve_static_less_dynamic_escaped_string_value,
+    less_strings::{
+        preserve_static_less_dynamic_escaped_string_value, static_less_quoted_string_contents,
+    },
     less_values::{reduce_static_less_value, reduce_static_less_value_with_escape_flag},
     model::{
         StaticLessDetachedRulesetDeclaration, StaticLessResolvedValue,
@@ -18,7 +20,7 @@ use super::{
     },
     raw_static_abstract_value, resolved_static_abstract_value,
     static_stylesheet_composite_value_is_safe, static_stylesheet_literal_value_is_safe,
-    top_static_abstract_value,
+    static_stylesheet_variable_name_is_safe, top_static_abstract_value,
 };
 
 #[allow(clippy::too_many_arguments)]
@@ -34,6 +36,39 @@ pub(super) fn resolve_static_less_variable_abstract_value_in_scope(
 ) -> StaticStylesheetAbstractResolution {
     if fuel == 0 {
         return top_static_abstract_value(StaticStylesheetResolutionReason::FuelExhausted);
+    }
+    if let Some(pointer_name) = static_less_indirect_variable_pointer_name(name) {
+        let pointer = resolve_static_less_variable_abstract_value_in_scope(
+            pointer_name.as_str(),
+            scope_id,
+            scopes,
+            declarations,
+            property_declarations,
+            detached_ruleset_declarations,
+            stack,
+            fuel - 1,
+        );
+        let Some(rendered_pointer) = pointer.rendered_value else {
+            return top_static_abstract_value(pointer.reason);
+        };
+        let Some(target_name) =
+            static_less_indirect_variable_target_name(rendered_pointer.as_str())
+        else {
+            return raw_static_abstract_value(
+                rendered_pointer.as_str(),
+                StaticStylesheetResolutionReason::UnsupportedDynamic,
+            );
+        };
+        return resolve_static_less_variable_abstract_value_in_scope(
+            target_name.as_str(),
+            scope_id,
+            scopes,
+            declarations,
+            property_declarations,
+            detached_ruleset_declarations,
+            stack,
+            fuel - 1,
+        );
     }
     let Some(declaration) =
         find_static_less_variable_declaration(name, scope_id, scopes, declarations)
@@ -172,6 +207,30 @@ pub(super) fn resolve_static_less_variable_value_in_scope(
     detached_ruleset_declarations: &[StaticLessDetachedRulesetDeclaration],
     stack: &mut BTreeSet<(usize, String)>,
 ) -> Option<StaticLessResolvedValue> {
+    if let Some(pointer_name) = static_less_indirect_variable_pointer_name(name) {
+        let pointer = resolve_static_less_variable_value_in_scope(
+            pointer_name.as_str(),
+            scope_id,
+            scopes,
+            declarations,
+            property_declarations,
+            detached_ruleset_declarations,
+            stack,
+        )?;
+        if pointer.escaped {
+            return None;
+        }
+        let target_name = static_less_indirect_variable_target_name(pointer.text.as_str())?;
+        return resolve_static_less_variable_value_in_scope(
+            target_name.as_str(),
+            scope_id,
+            scopes,
+            declarations,
+            property_declarations,
+            detached_ruleset_declarations,
+            stack,
+        );
+    }
     let stack_key = (scope_id, name.to_string());
     if !stack.insert(stack_key.clone()) {
         return None;
@@ -195,6 +254,19 @@ pub(super) fn resolve_static_less_variable_value_in_scope(
             reduce_static_less_value_with_escape_flag(resolved.text)
         }
     })
+}
+
+fn static_less_indirect_variable_pointer_name(name: &str) -> Option<String> {
+    name.strip_prefix("@@")
+        .filter(|bare_name| static_stylesheet_variable_name_is_safe(bare_name))
+        .map(|bare_name| format!("@{bare_name}"))
+}
+
+fn static_less_indirect_variable_target_name(value: &str) -> Option<String> {
+    let trimmed = value.trim();
+    let target = static_less_quoted_string_contents(trimmed).unwrap_or_else(|| trimmed.to_string());
+    let bare_name = target.strip_prefix('@').unwrap_or(target.as_str());
+    static_stylesheet_variable_name_is_safe(bare_name).then(|| format!("@{bare_name}"))
 }
 
 pub(super) fn find_static_less_variable_declaration<'a>(

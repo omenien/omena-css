@@ -131,6 +131,25 @@ pub(super) fn collect_static_stylesheet_variable_references_with_options(
             continue;
         }
 
+        if variable_kind == StaticStylesheetVariableKind::Less && value[index..].starts_with("@@") {
+            let name_start = index + "@@".len();
+            let name_end = static_stylesheet_variable_name_end(value, name_start);
+            if name_end == name_start {
+                return None;
+            }
+            let bare_name = &value[name_start..name_end];
+            if !static_stylesheet_variable_name_is_safe(bare_name) {
+                return None;
+            }
+            references.push(StaticStylesheetVariableReference {
+                name: value[index..name_end].to_string(),
+                start: index,
+                end: name_end,
+            });
+            index = name_end;
+            continue;
+        }
+
         let name_start = index + ch.len_utf8();
         let name_end = static_stylesheet_variable_name_end(value, name_start);
         if name_end == name_start {

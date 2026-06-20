@@ -26,9 +26,6 @@ pub(super) fn collect_static_less_detached_ruleset_declarations(
             index += 1;
             continue;
         }
-        if !static_less_variable_name_is_safe(token.text.as_str()) {
-            return None;
-        }
         let colon_index = static_stylesheet_skip_trivia_tokens(tokens, index + 1);
         if tokens
             .get(colon_index)
@@ -36,6 +33,9 @@ pub(super) fn collect_static_less_detached_ruleset_declarations(
         {
             index += 1;
             continue;
+        }
+        if !static_less_variable_name_is_safe(token.text.as_str()) {
+            return None;
         }
         let body_open_index = static_stylesheet_skip_trivia_tokens(tokens, colon_index + 1);
         if tokens

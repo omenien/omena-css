@@ -36,8 +36,9 @@ use super::{
         resolve_static_less_property_value_in_scope, resolve_static_less_variable_value_in_scope,
     },
     model::{
-        OmenaScssEvalStaticStylesheetEvaluationV0, StaticLessDetachedRulesetDeclaration,
-        StaticStylesheetEvaluationEdit, StaticStylesheetPropertyDeclaration, StaticStylesheetScope,
+        OmenaScssEvalResolvedReplacementV0, OmenaScssEvalStaticStylesheetEvaluationV0,
+        StaticLessDetachedRulesetDeclaration, StaticStylesheetEvaluationEdit,
+        StaticStylesheetPropertyDeclaration, StaticStylesheetScope,
         StaticStylesheetVariableDeclaration, StaticStylesheetVariableKind,
     },
     reports::{build_static_stylesheet_evaluation_report, resolved_replacement_value},
@@ -114,19 +115,60 @@ pub(super) fn derive_static_less_stylesheet_module_evaluation(
             });
         }
     }
+    let indirect_variable_edits = collect_static_less_indirect_variable_reference_edits(
+        style_source,
+        &scopes,
+        &declarations,
+        &property_declarations,
+        detached_rulesets.as_slice(),
+        &mixin_declaration_ranges,
+        &detached_ruleset_ranges,
+        &detached_ruleset_call_ranges,
+        &detached_ruleset_accessor_ranges,
+        &mixin_accessor_ranges,
+    )?;
+    let indirect_variable_ranges = indirect_variable_edits.ranges.clone();
+    resolved_replacements.extend(indirect_variable_edits.resolved_replacements);
+    edits.extend(indirect_variable_edits.edits);
     for fact in variable_facts {
         if fact.kind != ParsedVariableFactKind::LessReference {
             continue;
         }
-        let reference_start = parser_text_size_to_usize(fact.range.start().into());
-        let reference_end = parser_text_size_to_usize(fact.range.end().into());
-        if static_stylesheet_variable_reference_is_named_argument_label(
-            style_source,
-            reference_start,
-            reference_end,
+        let fact_reference_start = parser_text_size_to_usize(fact.range.start().into());
+        let fact_reference_end = parser_text_size_to_usize(fact.range.end().into());
+        if static_stylesheet_position_is_inside_ranges(
+            fact_reference_start,
+            &indirect_variable_ranges,
         ) {
             continue;
         }
+        if static_stylesheet_variable_reference_is_named_argument_label(
+            style_source,
+            fact_reference_start,
+            fact_reference_end,
+        ) {
+            continue;
+        }
+        if fact.name == "@"
+            && static_less_indirect_variable_reference_at(style_source, fact_reference_start)
+                .is_some()
+        {
+            continue;
+        }
+        let (reference_name, reference_start, reference_end) =
+            if static_less_variable_reference_is_indirect_inner(style_source, fact_reference_start)
+            {
+                let indirect_start = fact_reference_start.checked_sub(1)?;
+                let (indirect_name, indirect_end) =
+                    static_less_indirect_variable_reference_at(style_source, indirect_start)?;
+                (indirect_name, indirect_start, indirect_end)
+            } else if let Some((indirect_name, indirect_end)) =
+                static_less_indirect_variable_reference_at(style_source, fact_reference_start)
+            {
+                (indirect_name, fact_reference_start, indirect_end)
+            } else {
+                (fact.name.clone(), fact_reference_start, fact_reference_end)
+            };
         if static_stylesheet_position_is_inside_scoped_declaration(&declarations, reference_start) {
             continue;
         }
@@ -154,7 +196,7 @@ pub(super) fn derive_static_less_stylesheet_module_evaluation(
         let reference_scope_id = static_stylesheet_scope_for_position(&scopes, reference_start)?;
         if static_stylesheet_position_is_inside_ranges(reference_start, &mixin_call_ranges)
             && static_less_value_is_detached_ruleset_reference(
-                fact.name.as_str(),
+                reference_name.as_str(),
                 reference_scope_id,
                 &scopes,
                 detached_rulesets.as_slice(),
@@ -164,7 +206,7 @@ pub(super) fn derive_static_less_stylesheet_module_evaluation(
         }
         let mut stack = BTreeSet::new();
         let replacement = resolve_static_less_variable_value_in_scope(
-            fact.name.as_str(),
+            reference_name.as_str(),
             reference_scope_id,
             &scopes,
             &declarations,
@@ -174,7 +216,7 @@ pub(super) fn derive_static_less_stylesheet_module_evaluation(
         )?;
         let replacement = replacement.text;
         resolved_replacements.push(resolved_replacement_value(
-            fact.name.as_str(),
+            reference_name.as_str(),
             reference_start,
             reference_end,
             replacement.as_str(),
@@ -304,6 +346,138 @@ pub(super) fn derive_static_less_stylesheet_module_evaluation(
         edits,
         resolved_replacements,
     )
+}
+
+struct StaticLessIndirectVariableEdits {
+    edits: Vec<StaticStylesheetEvaluationEdit>,
+    resolved_replacements: Vec<OmenaScssEvalResolvedReplacementV0>,
+    ranges: Vec<(usize, usize)>,
+}
+
+#[allow(clippy::too_many_arguments)]
+fn collect_static_less_indirect_variable_reference_edits(
+    source: &str,
+    scopes: &[StaticStylesheetScope],
+    declarations: &BTreeMap<(usize, String), StaticStylesheetVariableDeclaration>,
+    property_declarations: &BTreeMap<(usize, String), StaticStylesheetPropertyDeclaration>,
+    detached_ruleset_declarations: &[StaticLessDetachedRulesetDeclaration],
+    mixin_declaration_ranges: &[(usize, usize)],
+    detached_ruleset_ranges: &[(usize, usize)],
+    detached_ruleset_call_ranges: &[(usize, usize)],
+    detached_ruleset_accessor_ranges: &[(usize, usize)],
+    mixin_accessor_ranges: &[(usize, usize)],
+) -> Option<StaticLessIndirectVariableEdits> {
+    let mut edits = Vec::new();
+    let mut resolved_replacements = Vec::new();
+    let mut ranges = Vec::new();
+    let mut index = 0usize;
+    let mut quote: Option<char> = None;
+
+    while index < source.len() {
+        let ch = source[index..].chars().next()?;
+        if let Some(quote_ch) = quote {
+            index += ch.len_utf8();
+            if ch == '\\' {
+                if let Some(escaped) = source[index..].chars().next() {
+                    index += escaped.len_utf8();
+                }
+            } else if ch == quote_ch {
+                quote = None;
+            }
+            continue;
+        }
+        if matches!(ch, '"' | '\'') {
+            quote = Some(ch);
+            index += ch.len_utf8();
+            continue;
+        }
+        if source.get(index..index + 2) == Some("/*") {
+            let end = source.get(index + 2..)?.find("*/")?;
+            index += end + 4;
+            continue;
+        }
+        if source.get(index..index + 2) == Some("//") {
+            index = source
+                .get(index + 2..)?
+                .find('\n')
+                .map(|offset| index + 2 + offset)
+                .unwrap_or(source.len());
+            continue;
+        }
+
+        let Some((reference_name, reference_end)) =
+            static_less_indirect_variable_reference_at(source, index)
+        else {
+            index += ch.len_utf8();
+            continue;
+        };
+        if static_stylesheet_position_is_inside_scoped_declaration(declarations, index)
+            || static_stylesheet_position_is_inside_ranges(index, mixin_declaration_ranges)
+            || static_stylesheet_position_is_inside_ranges(index, detached_ruleset_ranges)
+            || static_stylesheet_position_is_inside_ranges(index, detached_ruleset_call_ranges)
+            || static_stylesheet_position_is_inside_ranges(index, detached_ruleset_accessor_ranges)
+            || static_stylesheet_position_is_inside_ranges(index, mixin_accessor_ranges)
+        {
+            index = reference_end;
+            continue;
+        }
+        let reference_scope_id = static_stylesheet_scope_for_position(scopes, index)?;
+        let mut stack = BTreeSet::new();
+        let replacement = resolve_static_less_variable_value_in_scope(
+            reference_name.as_str(),
+            reference_scope_id,
+            scopes,
+            declarations,
+            property_declarations,
+            detached_ruleset_declarations,
+            &mut stack,
+        )?;
+        let replacement = replacement.text;
+        resolved_replacements.push(resolved_replacement_value(
+            reference_name.as_str(),
+            index,
+            reference_end,
+            replacement.as_str(),
+        ));
+        edits.push(StaticStylesheetEvaluationEdit {
+            start: index,
+            end: reference_end,
+            replacement,
+        });
+        ranges.push((index, reference_end));
+        index = reference_end;
+    }
+
+    Some(StaticLessIndirectVariableEdits {
+        edits,
+        resolved_replacements,
+        ranges,
+    })
+}
+
+fn static_less_indirect_variable_reference_at(
+    source: &str,
+    reference_start: usize,
+) -> Option<(String, usize)> {
+    let rest = source.get(reference_start..)?;
+    if !rest.starts_with("@@") {
+        return None;
+    }
+    let name_start = reference_start + "@@".len();
+    let mut name_end = name_start;
+    while name_end < source.len() {
+        let ch = source[name_end..].chars().next()?;
+        if ch.is_ascii_alphanumeric() || matches!(ch, '_' | '-') {
+            name_end += ch.len_utf8();
+            continue;
+        }
+        break;
+    }
+    (name_end > name_start).then(|| (source[reference_start..name_end].to_string(), name_end))
+}
+
+fn static_less_variable_reference_is_indirect_inner(source: &str, reference_start: usize) -> bool {
+    reference_start > 0 && source.get(reference_start - 1..reference_start) == Some("@")
 }
 
 fn collect_static_less_interpolation_edits(
