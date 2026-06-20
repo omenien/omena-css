@@ -20,6 +20,7 @@ const expectedBrowsers = [
 ] as const;
 const webFeaturesDataPath = "node_modules/web-features/data.json";
 const mdnBrowserCompatDataPath = "node_modules/@mdn/browser-compat-data/data.json";
+const expectedThresholdSourcePolicy = "mdnFullUnprefixedLowerBound";
 
 interface SpecSourcePinsV0 {
   readonly refreshedAt: string;
@@ -136,6 +137,11 @@ assert.equal(compatSelections.sourcePolicy.caniuseResolver.workspaceDependency, 
 assert.equal(compatSelections.sourcePolicy.caniuseResolver.cargoPackage, "oxc-browserslist");
 assert.deepEqual(compatSelections.sourcePolicy.requiredSourceQuorum, expectedQuorumSources);
 assert.equal(browserThresholdData.root.product, "omena-transform-target.browser-thresholds");
+assert.equal(
+  browserThresholdData.root.threshold_source_policy,
+  expectedThresholdSourcePolicy,
+  "generated compat data must stamp its threshold source policy",
+);
 assert.equal(passFeatureBindingData.root.schema_version, "0");
 assert.equal(passFeatureBindingData.root.product, "omena-transform-target.pass-feature-bindings");
 assert.equal(browserThresholdData.root.refreshed_at, specSources.refreshedAt);

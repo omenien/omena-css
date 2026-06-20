@@ -24,6 +24,7 @@ const TARGET_DATA_SOURCE_FILES: &[&str] = &[
 const COMPAT_QUORUM_SOURCES: &[&str] = &["caniuse", "web-features", "mdn-bcd"];
 const CANIUSE_RESOLVER_WORKSPACE_DEPENDENCY: &str = "browserslist";
 const CANIUSE_RESOLVER_CARGO_PACKAGE: &str = "oxc-browserslist";
+const THRESHOLD_SOURCE_POLICY: &str = "mdnFullUnprefixedLowerBound";
 const VENDOR_PREFIX_MATRIX_SOURCE: &str = "conservativeHandMaintainedMatrixV0";
 const RUNTIME_FALLBACK_FEATURE_KEYS: &[&str] = &[];
 
@@ -32,6 +33,7 @@ struct BrowserThresholdDataV0 {
     schema_version: String,
     product: String,
     refreshed_at: String,
+    threshold_source_policy: String,
     quorum_min_sources: usize,
     caniuse_resolver_workspace_dependency: String,
     caniuse_resolver_cargo_package: String,
@@ -112,6 +114,7 @@ pub struct TransformTargetDataContractV0 {
     pub pass_feature_binding_schema_version: String,
     pub browser_threshold_refreshed_at: String,
     pub pass_feature_binding_refreshed_at: String,
+    pub threshold_source_policy: String,
     pub caniuse_resolver_workspace_dependency: String,
     pub caniuse_resolver_cargo_package: String,
     pub caniuse_resolver_cargo_version: String,
@@ -619,6 +622,7 @@ fn target_data_contract_summary(
         pass_feature_binding_schema_version: bindings.schema_version.clone(),
         browser_threshold_refreshed_at: browser_data.refreshed_at.clone(),
         pass_feature_binding_refreshed_at: bindings.refreshed_at.clone(),
+        threshold_source_policy: browser_data.threshold_source_policy.clone(),
         caniuse_resolver_workspace_dependency: browser_data
             .caniuse_resolver_workspace_dependency
             .clone(),
@@ -785,6 +789,9 @@ fn parse_browser_threshold_data(source: &str) -> Result<BrowserThresholdDataV0, 
                 "schema_version" => data.schema_version = parse_toml_string(value)?,
                 "product" => data.product = parse_toml_string(value)?,
                 "refreshed_at" => data.refreshed_at = parse_toml_string(value)?,
+                "threshold_source_policy" => {
+                    data.threshold_source_policy = parse_toml_string(value)?
+                }
                 "quorum_min_sources" => data.quorum_min_sources = parse_toml_usize(value)?,
                 "caniuse_resolver_workspace_dependency" => {
                     data.caniuse_resolver_workspace_dependency = parse_toml_string(value)?
@@ -911,6 +918,7 @@ fn browser_threshold_data_is_valid(data: &BrowserThresholdDataV0) -> bool {
         && data.schema_version == "0"
         && data.product == "omena-transform-target.browser-thresholds"
         && is_iso_date(&data.refreshed_at)
+        && data.threshold_source_policy == THRESHOLD_SOURCE_POLICY
         && data.quorum_min_sources == COMPAT_QUORUM_SOURCES.len()
         && data.caniuse_resolver_workspace_dependency == CANIUSE_RESOLVER_WORKSPACE_DEPENDENCY
         && data.caniuse_resolver_cargo_package == CANIUSE_RESOLVER_CARGO_PACKAGE
@@ -1160,6 +1168,10 @@ mod tests {
             boundary.target_data_contract.caniuse_resolver_cargo_version,
             "3.0.5"
         );
+        assert_eq!(
+            boundary.target_data_contract.threshold_source_policy,
+            super::THRESHOLD_SOURCE_POLICY
+        );
         assert!(boundary.target_data_contract.resolver_provenance_valid);
         assert_eq!(boundary.target_data_contract.stale_entry_count, 0);
         assert_eq!(
@@ -1233,6 +1245,10 @@ mod tests {
                 .target_data_contract
                 .pass_feature_binding_schema_version,
             "0"
+        );
+        assert_eq!(
+            boundary.target_data_contract.threshold_source_policy,
+            super::THRESHOLD_SOURCE_POLICY
         );
         assert!(boundary.target_data_contract.resolver_provenance_valid);
         assert_eq!(
@@ -2109,6 +2125,20 @@ mod tests {
 
         let contract =
             super::target_data_contract_summary(&browser_data, super::pass_feature_binding_data());
+        assert!(!contract.quorum_valid);
+        assert!(!contract.valid);
+    }
+
+    #[test]
+    fn browser_data_contract_rejects_threshold_source_policy_drift() {
+        let mut browser_data = super::browser_threshold_data().clone();
+        browser_data.threshold_source_policy = "manualThresholdSelection".to_string();
+
+        assert!(!super::browser_threshold_data_is_valid(&browser_data));
+
+        let contract =
+            super::target_data_contract_summary(&browser_data, super::pass_feature_binding_data());
+        assert_eq!(contract.threshold_source_policy, "manualThresholdSelection");
         assert!(!contract.quorum_valid);
         assert!(!contract.valid);
     }

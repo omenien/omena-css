@@ -17,6 +17,7 @@ const passFeatureBindingsPath =
   "rust/crates/omena-transform-target/data/pass-feature-bindings.toml";
 const generatorPath = "scripts/generate-rust-omena-transform-target-compat.ts";
 const rustWorkspaceManifestPath = "rust/Cargo.toml";
+const thresholdSourcePolicy = "mdnFullUnprefixedLowerBound";
 
 interface CaniuseResolverProvenanceV0 {
   readonly workspaceDependency: string;
@@ -463,6 +464,7 @@ function renderBrowserThresholdsToml(
     'schema_version = "0"',
     'product = "omena-transform-target.browser-thresholds"',
     `refreshed_at = ${quoteToml(sourcePins.refreshedAt)}`,
+    `threshold_source_policy = ${quoteToml(thresholdSourcePolicy)}`,
     `quorum_min_sources = ${featureSelections.sourcePolicy.requiredSourceQuorum.length}`,
     `caniuse_resolver_workspace_dependency = ${quoteToml(provenance.workspaceDependency)}`,
     `caniuse_resolver_cargo_package = ${quoteToml(provenance.cargoPackage)}`,
