@@ -449,6 +449,11 @@ fn static_stylesheet_oracle_corpus_fixtures() -> &'static [StaticStylesheetOracl
             source: "@mixin tone($enabled) { @if $enabled { color: red; } @else { color: blue; } } .button { @include tone(false); }",
         },
         StaticStylesheetOracleCorpusFixtureV0 {
+            id: "scss.static-top-level-if",
+            dialect: StyleDialect::Scss,
+            source: "$enabled: false; @if $enabled { .on { color: green; } } @else { .off { color: red; } }",
+        },
+        StaticStylesheetOracleCorpusFixtureV0 {
             id: "scss.dynamic-mixin-local",
             dialect: StyleDialect::Scss,
             source: "@mixin tone { $space: meta.inspect((a: b)); margin: $space; } .button { @include tone; }",

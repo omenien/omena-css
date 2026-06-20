@@ -19,8 +19,8 @@ fn static_stylesheet_oracle_corpus_reports_native_product_output_with_legacy_ora
     );
     assert_eq!(report.legacy_output_consumed_until_cutover_count, 0);
     assert!(report.all_legacy_outputs_retained_as_oracle);
-    assert_eq!(report.fixture_count, 76);
-    assert_eq!(report.scss_fixture_count, 18);
+    assert_eq!(report.fixture_count, 77);
+    assert_eq!(report.scss_fixture_count, 19);
     assert_eq!(report.sass_fixture_count, 12);
     assert_eq!(report.less_fixture_count, 46);
     assert_eq!(report.evaluated_fixture_count, report.fixture_count);
@@ -80,6 +80,14 @@ fn static_stylesheet_oracle_corpus_reports_native_product_output_with_legacy_ora
     }));
     assert!(report.fixtures.iter().any(|fixture| {
         fixture.id == "scss.static-mixin-if"
+            && fixture.dialect == "scss"
+            && fixture.evaluation_available
+            && fixture.native_structural_edit_count == 2
+            && fixture.native_edit_output_matches_evaluated_css
+            && fixture.divergence_count == 0
+    }));
+    assert!(report.fixtures.iter().any(|fixture| {
+        fixture.id == "scss.static-top-level-if"
             && fixture.dialect == "scss"
             && fixture.evaluation_available
             && fixture.native_structural_edit_count == 2
@@ -4161,6 +4169,26 @@ fn static_scss_evaluation_expands_static_mixin_if_blocks() {
     assert!(!report.evaluated_css.contains("@if"));
     assert!(report.evaluated_css.contains("color: blue"));
     assert!(!report.evaluated_css.contains("color: red"));
+    assert!(report.oracle.all_legacy_declaration_values_preserved);
+    assert!(report.native_edit_output_matches_evaluated_css);
+}
+
+#[test]
+fn static_scss_evaluation_expands_static_top_level_if_blocks() {
+    let report = derive_static_stylesheet_module_evaluation(
+        "$enabled: false; @if $enabled { .on { color: green; } } @else { .off { color: red; } }",
+        StyleDialect::Scss,
+    );
+    assert!(report.is_some());
+    let Some(report) = report else {
+        return;
+    };
+
+    assert!(!report.evaluated_css.contains("@if"));
+    assert!(!report.evaluated_css.contains("@else"));
+    assert!(!report.evaluated_css.contains("$enabled"));
+    assert!(report.evaluated_css.contains(".off { color: red; }"));
+    assert!(!report.evaluated_css.contains(".on { color: green; }"));
     assert!(report.oracle.all_legacy_declaration_values_preserved);
     assert!(report.native_edit_output_matches_evaluated_css);
 }

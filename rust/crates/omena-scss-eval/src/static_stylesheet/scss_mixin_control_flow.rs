@@ -9,8 +9,9 @@ use super::{
     STATIC_STYLESHEET_VALUE_RESOLUTION_FUEL_LIMIT, StaticScssFunctionResolutionContext,
     StaticStylesheetEvaluationEdit, StaticStylesheetResolutionOutcome,
     apply_static_stylesheet_evaluation_edits, resolve_static_scss_function_value_with_bindings,
-    static_stylesheet_matching_token_index, static_stylesheet_skip_trivia_tokens,
-    static_stylesheet_token_end, static_stylesheet_token_start,
+    static_stylesheet_matching_token_index, static_stylesheet_position_is_inside_ranges,
+    static_stylesheet_skip_trivia_tokens, static_stylesheet_token_end,
+    static_stylesheet_token_start,
 };
 
 const STATIC_SCSS_MIXIN_CONTROL_FLOW_RENDER_LIMIT: usize = 32;
@@ -32,6 +33,61 @@ pub(super) fn render_static_scss_mixin_control_flow_body(
         context,
         STATIC_SCSS_MIXIN_CONTROL_FLOW_RENDER_LIMIT,
     )
+}
+
+pub(super) fn collect_static_scss_control_flow_evaluation_edits(
+    source: &str,
+    dialect: StyleDialect,
+    tokens: &[LexedToken],
+    excluded_ranges: &[(usize, usize)],
+    context: StaticScssFunctionResolutionContext<'_>,
+) -> Option<Vec<StaticStylesheetEvaluationEdit>> {
+    if dialect != StyleDialect::Scss || !source.to_ascii_lowercase().contains("@if") {
+        return Some(Vec::new());
+    }
+
+    let argument_values = BTreeMap::new();
+    let mut edits = Vec::new();
+    let mut index = 0usize;
+    while index < tokens.len() {
+        let token = &tokens[index];
+        if token.kind != SyntaxKind::AtKeyword || !token.text.eq_ignore_ascii_case("@if") {
+            index += 1;
+            continue;
+        }
+        let start = static_stylesheet_token_start(token);
+        if static_stylesheet_position_is_inside_ranges(start, excluded_ranges) {
+            index += 1;
+            continue;
+        }
+
+        let chain = static_scss_mixin_control_flow_chain(source, tokens, index)?;
+        let replacement = static_scss_mixin_selected_control_flow_body(
+            &chain,
+            &argument_values,
+            chain.start,
+            context,
+        )?
+        .unwrap_or_default();
+        let replacement = render_static_scss_mixin_control_flow_body(
+            replacement.as_str(),
+            dialect,
+            &argument_values,
+            chain.start,
+            context,
+        )?;
+        if !static_scss_control_flow_replacement_is_static_css_subset(replacement.as_str()) {
+            return None;
+        }
+        edits.push(StaticStylesheetEvaluationEdit {
+            start: chain.start,
+            end: chain.end,
+            replacement,
+        });
+        index = chain.next_index;
+    }
+
+    Some(edits)
 }
 
 fn render_static_scss_mixin_control_flow_body_with_fuel(
@@ -221,4 +277,17 @@ fn static_scss_mixin_selected_control_flow_body(
         }
     }
     Some(None)
+}
+
+fn static_scss_control_flow_replacement_is_static_css_subset(replacement: &str) -> bool {
+    let lower = replacement.to_ascii_lowercase();
+    !replacement.contains('$')
+        && !lower.contains("@mixin")
+        && !lower.contains("@function")
+        && !lower.contains("@return")
+        && !lower.contains("@include")
+        && !lower.contains("@content")
+        && !lower.contains("@for")
+        && !lower.contains("@each")
+        && !lower.contains("@while")
 }

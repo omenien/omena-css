@@ -10,8 +10,8 @@ use super::{
     },
     edits::apply_static_stylesheet_evaluation_edits,
     model::{
-        OmenaScssEvalStaticStylesheetEvaluationV0, StaticStylesheetEvaluationEdit,
-        StaticStylesheetVariableKind,
+        OmenaScssEvalStaticStylesheetEvaluationV0, StaticScssFunctionResolutionContext,
+        StaticStylesheetEvaluationEdit, StaticStylesheetVariableKind,
     },
     reports::{
         build_static_stylesheet_evaluation_report,
@@ -26,6 +26,7 @@ use super::{
         collect_static_scss_function_declarations, collect_static_scss_mixin_declarations,
     },
     scss_function_edits::collect_static_scss_function_evaluation_edits,
+    scss_mixin_control_flow::collect_static_scss_control_flow_evaluation_edits,
     scss_mixin_edits::collect_static_scss_mixin_evaluation_edits,
     scss_variables::resolve_static_scss_variable_value_at_position,
     tokens::{parser_text_size_to_usize, static_stylesheet_position_is_inside_ranges},
@@ -92,6 +93,28 @@ pub(super) fn derive_static_scss_stylesheet_module_evaluation(
             });
         }
     }
+    let mut control_flow_excluded_ranges = function_declaration_ranges.clone();
+    control_flow_excluded_ranges.extend(mixin_declaration_ranges.iter().copied());
+    let active_functions = BTreeSet::new();
+    let control_flow_context = StaticScssFunctionResolutionContext {
+        dialect,
+        declarations: &function_declarations,
+        mixin_declarations: &mixin_declarations,
+        scopes: &scopes,
+        variable_declarations: &declarations,
+        active_functions: &active_functions,
+    };
+    let control_flow_edits = collect_static_scss_control_flow_evaluation_edits(
+        style_source,
+        dialect,
+        tokens,
+        &control_flow_excluded_ranges,
+        control_flow_context,
+    )?;
+    let control_flow_ranges = control_flow_edits
+        .iter()
+        .map(|edit| (edit.start, edit.end))
+        .collect::<Vec<_>>();
     for fact in variable_facts {
         if fact.kind != ParsedVariableFactKind::ScssReference {
             continue;
@@ -111,6 +134,7 @@ pub(super) fn derive_static_scss_stylesheet_module_evaluation(
                 &mixin_declaration_ranges,
             )
             || static_stylesheet_position_is_inside_ranges(reference_start, &function_call_ranges)
+            || static_stylesheet_position_is_inside_ranges(reference_start, &control_flow_ranges)
         {
             continue;
         }
@@ -144,12 +168,9 @@ pub(super) fn derive_static_scss_stylesheet_module_evaluation(
     let mut preserved_scss_evaluation_count = 0usize;
     if let Some(function_edits) = collect_static_scss_function_evaluation_edits(
         style_source,
-        dialect,
         tokens,
-        &function_declarations,
-        &mixin_declarations,
-        &scopes,
-        &declarations,
+        control_flow_context,
+        &control_flow_ranges,
     ) {
         if function_edits.preserved_raw_call_count > 0 {
             return build_static_stylesheet_preserved_evaluation_report_if_explained(
@@ -163,16 +184,14 @@ pub(super) fn derive_static_scss_stylesheet_module_evaluation(
     }
     if let Some(mixin_edits) = collect_static_scss_mixin_evaluation_edits(
         style_source,
-        dialect,
         tokens,
-        &function_declarations,
-        &mixin_declarations,
-        &scopes,
-        &declarations,
+        control_flow_context,
+        &control_flow_ranges,
     ) {
         preserved_scss_evaluation_count += mixin_edits.preserved_raw_include_count;
         edits.extend(mixin_edits.edits);
     }
+    edits.extend(control_flow_edits);
 
     let evaluated_css = apply_static_stylesheet_evaluation_edits(style_source, edits.clone())?;
     if evaluated_css == style_source && preserved_scss_evaluation_count == 0 {

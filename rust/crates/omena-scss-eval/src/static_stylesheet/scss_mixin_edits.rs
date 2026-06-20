@@ -1,27 +1,28 @@
 use std::collections::BTreeSet;
 
-use omena_parser::{LexedToken, StyleDialect};
+use omena_parser::LexedToken;
 
 use super::{
-    StaticScssFunctionDeclaration, StaticScssFunctionResolutionContext, StaticScssMixinDeclaration,
-    StaticScssMixinEvaluationEdits, StaticStylesheetEvaluationEdit, StaticStylesheetScope,
-    StaticStylesheetScopedVariableDeclaration, canonical_static_scss_function_name,
+    StaticScssFunctionResolutionContext, StaticScssMixinEvaluationEdits,
+    StaticStylesheetEvaluationEdit, canonical_static_scss_function_name,
     collect_static_scss_mixin_include_calls, extend_static_scss_used_function_dependencies,
     render_static_scss_mixin_include_body, static_scss_mixin_include_is_inside_declaration_body,
     static_scss_mixin_include_is_inside_function_declaration_body,
+    static_stylesheet_position_is_inside_ranges,
 };
 
 pub(super) fn collect_static_scss_mixin_evaluation_edits(
     source: &str,
-    dialect: StyleDialect,
     tokens: &[LexedToken],
-    function_declarations: &[StaticScssFunctionDeclaration],
-    mixin_declarations: &[StaticScssMixinDeclaration],
-    scopes: &[StaticStylesheetScope],
-    variable_declarations: &[StaticStylesheetScopedVariableDeclaration],
+    context: StaticScssFunctionResolutionContext<'_>,
+    excluded_ranges: &[(usize, usize)],
 ) -> Option<StaticScssMixinEvaluationEdits> {
-    let calls =
-        collect_static_scss_mixin_include_calls(source, dialect, tokens, mixin_declarations)?;
+    let calls = collect_static_scss_mixin_include_calls(
+        source,
+        context.dialect,
+        tokens,
+        context.mixin_declarations,
+    )?;
     if calls.is_empty() {
         return Some(StaticScssMixinEvaluationEdits {
             edits: Vec::new(),
@@ -29,27 +30,20 @@ pub(super) fn collect_static_scss_mixin_evaluation_edits(
         });
     }
 
-    let context = StaticScssFunctionResolutionContext {
-        dialect,
-        declarations: function_declarations,
-        mixin_declarations,
-        scopes,
-        variable_declarations,
-        active_functions: &BTreeSet::new(),
-    };
     let mut edits = Vec::new();
     let mut used_declaration_names = BTreeSet::new();
     let mut preserved_declaration_names = BTreeSet::new();
     let mut used_function_declaration_names = BTreeSet::new();
     let mut preserved_raw_include_count = 0usize;
     for call in calls.iter().filter(|call| {
-        !static_scss_mixin_include_is_inside_declaration_body(call, mixin_declarations)
+        !static_scss_mixin_include_is_inside_declaration_body(call, context.mixin_declarations)
             && !static_scss_mixin_include_is_inside_function_declaration_body(
                 call,
-                function_declarations,
+                context.declarations,
             )
+            && !static_stylesheet_position_is_inside_ranges(call.start, excluded_ranges)
     }) {
-        let Some(declaration) = mixin_declarations.iter().find(|declaration| {
+        let Some(declaration) = context.mixin_declarations.iter().find(|declaration| {
             canonical_static_scss_function_name(declaration.name.as_str())
                 == canonical_static_scss_function_name(call.name.as_str())
         }) else {
@@ -78,7 +72,7 @@ pub(super) fn collect_static_scss_mixin_evaluation_edits(
         });
     }
 
-    for declaration in mixin_declarations.iter().filter(|declaration| {
+    for declaration in context.mixin_declarations.iter().filter(|declaration| {
         let canonical_name = canonical_static_scss_function_name(declaration.name.as_str());
         used_declaration_names.contains(&canonical_name)
             && !preserved_declaration_names.contains(&canonical_name)
@@ -91,9 +85,9 @@ pub(super) fn collect_static_scss_mixin_evaluation_edits(
     }
     extend_static_scss_used_function_dependencies(
         &mut used_function_declaration_names,
-        function_declarations,
+        context.declarations,
     );
-    for declaration in function_declarations.iter().filter(|declaration| {
+    for declaration in context.declarations.iter().filter(|declaration| {
         used_function_declaration_names.contains(&canonical_static_scss_function_name(
             declaration.name.as_str(),
         ))
