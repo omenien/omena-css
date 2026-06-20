@@ -761,9 +761,9 @@ function assertStaticStylesheetEvaluatorOracleCorpus(
   assert.equal(summary.mode, "oracleOnly");
   assert.equal(summary.valueType, "AbstractCssValueV0");
   assert.equal(summary.productOutputSource, "nativeEditOutput");
-  assert.ok(summary.fixtureCount >= 55, "static stylesheet oracle corpus must not shrink");
-  assert.ok(summary.scssFixtureCount >= 10, "SCSS oracle fixture coverage must not shrink");
-  assert.ok(summary.sassFixtureCount >= 7, "Sass oracle fixture coverage must not shrink");
+  assert.ok(summary.fixtureCount >= 98, "static stylesheet oracle corpus must not shrink");
+  assert.ok(summary.scssFixtureCount >= 29, "SCSS oracle fixture coverage must not shrink");
+  assert.ok(summary.sassFixtureCount >= 23, "Sass oracle fixture coverage must not shrink");
   assert.ok(summary.lessFixtureCount >= 46, "Less oracle fixture coverage must not shrink");
   assert.equal(summary.evaluatedFixtureCount, summary.fixtureCount);
   assert.equal(summary.legacyOutputRetainedAsOracleCount, summary.evaluatedFixtureCount);
@@ -817,6 +817,8 @@ function assertStaticStylesheetEvaluatorOracleCorpus(
     "sass.static-while-return",
     "sass.static-each-return",
     "sass.static-each-tuple-function-source-return",
+    "sass.static-map-list-builtins",
+    "scss.static-map-list-builtins",
     "scss.indirect-recursive-function-return",
     "less.variable-basic",
     "less.dynamic-escaped-string",
