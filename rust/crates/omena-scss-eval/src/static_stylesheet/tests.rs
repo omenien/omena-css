@@ -19,8 +19,8 @@ fn static_stylesheet_oracle_corpus_reports_native_product_output_with_legacy_ora
     );
     assert_eq!(report.legacy_output_consumed_until_cutover_count, 0);
     assert!(report.all_legacy_outputs_retained_as_oracle);
-    assert_eq!(report.fixture_count, 130);
-    assert_eq!(report.scss_fixture_count, 44);
+    assert_eq!(report.fixture_count, 131);
+    assert_eq!(report.scss_fixture_count, 45);
     assert_eq!(report.sass_fixture_count, 38);
     assert_eq!(report.less_fixture_count, 48);
     assert_eq!(report.evaluated_fixture_count, report.fixture_count);
@@ -99,6 +99,7 @@ fn static_stylesheet_oracle_corpus_reports_native_product_output_with_legacy_ora
         "scss.static-mixin-content-block",
         "scss.static-mixin-content-arguments",
         "scss.static-mixin-content-expression-arguments",
+        "scss.static-mixin-content-nested-include",
         "scss.static-hyphen-underscore-mixin-include",
     ] {
         assert!(
@@ -3582,6 +3583,27 @@ fn static_sass_evaluation_expands_mixin_content_expression_arguments() {
 }
 
 #[test]
+fn static_scss_evaluation_expands_mixin_content_nested_includes() {
+    let report = derive_static_stylesheet_module_evaluation(
+        "@mixin spacing($gap) { margin: $gap; } @mixin apply($gap) { @content($gap); color: blue; } .button { @include apply(2px) using ($space) { @include spacing($space); background: white; } }",
+        StyleDialect::Scss,
+    );
+    assert!(report.is_some());
+    let Some(report) = report else {
+        return;
+    };
+
+    assert!(!report.evaluated_css.contains("@mixin"));
+    assert!(!report.evaluated_css.contains("@include"));
+    assert!(!report.evaluated_css.contains("@content"));
+    assert!(report.evaluated_css.contains("margin: 2px"));
+    assert!(report.evaluated_css.contains("background: white"));
+    assert!(report.evaluated_css.contains("color: blue"));
+    assert!(report.oracle.all_legacy_declaration_values_preserved);
+    assert!(report.native_edit_output_matches_evaluated_css);
+}
+
+#[test]
 fn static_scss_evaluation_preserves_content_argument_arity_mismatch_as_raw() {
     let source = "@mixin apply($color) { @content($color); } .button { @include apply(red) { color: red; } }";
     let report = derive_static_stylesheet_module_evaluation(source, StyleDialect::Scss);
@@ -3641,6 +3663,20 @@ fn static_sass_evaluation_preserves_nested_mixin_content_blocks_as_raw() {
 
     assert_eq!(report.evaluated_css, source);
     assert!(report.evaluated_css.contains("@include wrap"));
+    assert!(report.native_edit_output_matches_evaluated_css);
+}
+
+#[test]
+fn static_sass_evaluation_preserves_mixin_content_nested_includes_as_raw() {
+    let source = "@mixin spacing($gap)\n  margin: $gap\n@mixin apply($gap)\n  @content($gap)\n  color: blue\n.button\n  @include apply(2px) using ($space)\n    @include spacing($space)\n    background: white\n";
+    let report = derive_static_stylesheet_module_evaluation(source, StyleDialect::Sass);
+    assert!(report.is_some());
+    let Some(report) = report else {
+        return;
+    };
+
+    assert_eq!(report.evaluated_css, source);
+    assert!(report.evaluated_css.contains("@include spacing($space)"));
     assert!(report.native_edit_output_matches_evaluated_css);
 }
 

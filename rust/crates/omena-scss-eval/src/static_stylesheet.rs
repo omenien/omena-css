@@ -657,9 +657,11 @@ fn render_static_scss_content_body_parameters(
     if content_argument_bindings.is_empty() {
         return Some(content_body.to_string());
     }
-    let references = collect_static_stylesheet_variable_references(
+    let references = collect_static_stylesheet_variable_references_with_options(
         content_body,
         StaticStylesheetVariableKind::Scss,
+        true,
+        false,
     )?;
     let edits = references
         .into_iter()
@@ -687,7 +689,7 @@ fn static_scss_content_block_is_static_declaration_subset(
     !has_nested_sass_block
         && !content_body.chars().any(|ch| matches!(ch, '{' | '}'))
         && !lower.contains("@content")
-        && !lower.contains("@include")
+        && (dialect != StyleDialect::Sass || !lower.contains("@include"))
         && !lower.contains("@mixin")
         && !lower.contains("@function")
         && !lower.contains("@return")

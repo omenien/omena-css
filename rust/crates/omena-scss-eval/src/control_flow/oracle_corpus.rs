@@ -428,6 +428,11 @@ fn scss_control_flow_oracle_corpus_fixtures() -> &'static [ScssControlFlowOracle
             source: "@mixin apply($color, $gap) { @content($color, $gap + 1px); } .button { @include apply(red, 1px) using ($tone, $space) { color: $tone; margin: $space; } }",
         },
         ScssControlFlowOracleCorpusFixtureV0 {
+            id: "scss.static-mixin-content-nested-include",
+            dialect: StyleDialect::Scss,
+            source: "@mixin spacing($gap) { margin: $gap; } @mixin apply($gap) { @content($gap); color: blue; } .button { @include apply(2px) using ($space) { @include spacing($space); background: white; } }",
+        },
+        ScssControlFlowOracleCorpusFixtureV0 {
             id: "scss.static-hyphen-underscore-mixin-include",
             dialect: StyleDialect::Scss,
             source: "@mixin tone_color($color) { color: $color; } .button { @include tone-color(green); }",
@@ -614,10 +619,10 @@ mod tests {
         assert_eq!(report.value_type, "AbstractCssValueV0");
         assert_eq!(report.node_key_type, "StableNodeKeyV0");
         assert_eq!(report.recursion_cap, SCSS_CALL_RETURN_RECURSION_LIMIT);
-        assert_eq!(report.fixture_count, 65);
-        assert_eq!(report.scss_fixture_count, 32);
+        assert_eq!(report.fixture_count, 66);
+        assert_eq!(report.scss_fixture_count, 33);
         assert_eq!(report.sass_fixture_count, 32);
-        assert_eq!(report.supported_fixture_count, 64);
+        assert_eq!(report.supported_fixture_count, 65);
         assert_eq!(report.rejected_flat_css_fixture_count, 1);
         assert!(report.branch_fixture_count >= 5);
         assert!(report.loop_fixture_count >= 6);
@@ -846,5 +851,11 @@ mod tests {
                 "missing control-flow mixin call edge oracle fixture {id}"
             );
         }
+        assert!(report.fixtures.iter().any(|fixture| {
+            fixture.id == "scss.static-mixin-content-nested-include"
+                && fixture.call_return_available
+                && fixture.call_return_edge_count == 2
+                && fixture.value_analysis_converged
+        }));
     }
 }

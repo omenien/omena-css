@@ -1024,6 +1024,11 @@ function assertScssEvaluatorControlFlowOracleCorpus(
       assert.equal(fixture.valueAnalysisConverged, true);
     });
   }
+  assertControlFlowFixture(fixtures, "scss.static-mixin-content-nested-include", (fixture) => {
+    assert.equal(fixture.callReturnAvailable, true);
+    assert.equal(fixture.callReturnEdgeCount, 2);
+    assert.equal(fixture.valueAnalysisConverged, true);
+  });
   assertControlFlowFixture(fixtures, "css.flat-rejected", (fixture) => {
     assert.equal(fixture.supportedDialect, false);
     assert.equal(fixture.controlFlowAvailable, false);
