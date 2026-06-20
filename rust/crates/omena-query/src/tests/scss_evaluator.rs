@@ -75,8 +75,8 @@ fn exposes_static_stylesheet_oracle_corpus_through_query_boundary() {
     assert_eq!(summary.mode, "oracleOnly");
     assert_eq!(summary.value_type, "AbstractCssValueV0");
     assert_eq!(summary.product_output_source, "nativeEditOutput");
-    assert_eq!(summary.fixture_count, 75);
-    assert_eq!(summary.scss_fixture_count, 17);
+    assert_eq!(summary.fixture_count, 76);
+    assert_eq!(summary.scss_fixture_count, 18);
     assert_eq!(summary.sass_fixture_count, 12);
     assert_eq!(summary.less_fixture_count, 46);
     assert_eq!(summary.evaluated_fixture_count, summary.fixture_count);
@@ -186,6 +186,14 @@ fn exposes_static_stylesheet_oracle_corpus_through_query_boundary() {
     assert!(summary.corpus.fixtures.iter().any(|fixture| {
         fixture.id == "sass.static-mixin-include"
             && fixture.dialect == "sass"
+            && fixture.evaluation_available
+            && fixture.native_structural_edit_count == 2
+            && fixture.native_edit_output_matches_evaluated_css
+            && fixture.divergence_count == 0
+    }));
+    assert!(summary.corpus.fixtures.iter().any(|fixture| {
+        fixture.id == "scss.static-mixin-if"
+            && fixture.dialect == "scss"
             && fixture.evaluation_available
             && fixture.native_structural_edit_count == 2
             && fixture.native_edit_output_matches_evaluated_css
@@ -1217,6 +1225,31 @@ fn exposes_static_scss_dynamic_mixin_locals_as_preserved_oracle_output_through_q
             && evaluation.evaluated_css.contains("meta.inspect((a: b))")
             && evaluation.evaluated_css.contains("@include tone")
             && !evaluation.evaluated_css.contains("margin: (a: b)")
+    }));
+}
+
+#[test]
+fn exposes_static_scss_mixin_if_blocks_through_query_boundary() {
+    let summary = summarize_omena_query_static_stylesheet_evaluator_from_source(
+        "@mixin tone($enabled) { @if $enabled { color: red; } @else { color: blue; } } .button { @include tone(false); }",
+        OmenaParserStyleDialect::Scss,
+    );
+
+    assert_eq!(summary.product, "omena-query.static-stylesheet-evaluator");
+    assert_eq!(summary.mode, "oracleOnly");
+    assert_eq!(summary.value_type, "AbstractCssValueV0");
+    assert!(!summary.legacy_output_consumed_until_cutover);
+    assert!(summary.evaluation_available);
+    assert_eq!(summary.divergence_count, 0);
+    assert!(summary.all_legacy_declaration_values_preserved);
+    assert!(summary.native_structural_edit_count >= 2);
+    assert!(summary.evaluation.as_ref().is_some_and(|evaluation| {
+        !evaluation.evaluated_css.contains("@mixin")
+            && !evaluation.evaluated_css.contains("@include")
+            && !evaluation.evaluated_css.contains("@if")
+            && evaluation.evaluated_css.contains("color: blue")
+            && !evaluation.evaluated_css.contains("color: red")
+            && evaluation.native_edit_output_matches_evaluated_css
     }));
 }
 

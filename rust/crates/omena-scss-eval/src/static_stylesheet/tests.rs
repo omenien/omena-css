@@ -19,8 +19,8 @@ fn static_stylesheet_oracle_corpus_reports_native_product_output_with_legacy_ora
     );
     assert_eq!(report.legacy_output_consumed_until_cutover_count, 0);
     assert!(report.all_legacy_outputs_retained_as_oracle);
-    assert_eq!(report.fixture_count, 75);
-    assert_eq!(report.scss_fixture_count, 17);
+    assert_eq!(report.fixture_count, 76);
+    assert_eq!(report.scss_fixture_count, 18);
     assert_eq!(report.sass_fixture_count, 12);
     assert_eq!(report.less_fixture_count, 46);
     assert_eq!(report.evaluated_fixture_count, report.fixture_count);
@@ -73,6 +73,14 @@ fn static_stylesheet_oracle_corpus_reports_native_product_output_with_legacy_ora
     assert!(report.fixtures.iter().any(|fixture| {
         fixture.id == "sass.static-mixin-include"
             && fixture.dialect == "sass"
+            && fixture.evaluation_available
+            && fixture.native_structural_edit_count == 2
+            && fixture.native_edit_output_matches_evaluated_css
+            && fixture.divergence_count == 0
+    }));
+    assert!(report.fixtures.iter().any(|fixture| {
+        fixture.id == "scss.static-mixin-if"
+            && fixture.dialect == "scss"
             && fixture.evaluation_available
             && fixture.native_structural_edit_count == 2
             && fixture.native_edit_output_matches_evaluated_css
@@ -4135,6 +4143,26 @@ fn static_scss_evaluation_expands_static_mixin_includes() {
     assert!(report.evaluated_css.contains("margin: 2px"));
     assert!(report.evaluated_css.contains("padding: red"));
     assert!(report.oracle.all_legacy_declaration_values_preserved);
+}
+
+#[test]
+fn static_scss_evaluation_expands_static_mixin_if_blocks() {
+    let report = derive_static_stylesheet_module_evaluation(
+        "@mixin tone($enabled) { @if $enabled { color: red; } @else { color: blue; } } .button { @include tone(false); }",
+        StyleDialect::Scss,
+    );
+    assert!(report.is_some());
+    let Some(report) = report else {
+        return;
+    };
+
+    assert!(!report.evaluated_css.contains("@mixin"));
+    assert!(!report.evaluated_css.contains("@include"));
+    assert!(!report.evaluated_css.contains("@if"));
+    assert!(report.evaluated_css.contains("color: blue"));
+    assert!(!report.evaluated_css.contains("color: red"));
+    assert!(report.oracle.all_legacy_declaration_values_preserved);
+    assert!(report.native_edit_output_matches_evaluated_css);
 }
 
 #[test]

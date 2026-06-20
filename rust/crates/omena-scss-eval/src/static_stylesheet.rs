@@ -42,6 +42,7 @@ mod scss_function_edits;
 mod scss_function_locals;
 mod scss_loop_returns;
 mod scss_mixin_body;
+mod scss_mixin_control_flow;
 mod scss_mixin_edits;
 mod scss_return_clauses;
 mod scss_variables;
@@ -131,6 +132,7 @@ use scss_mixin_body::{
     collect_static_scss_mixin_body_declaration_value_ranges,
     collect_static_scss_mixin_body_local_declarations,
 };
+use scss_mixin_control_flow::render_static_scss_mixin_control_flow_body;
 use scss_variables::{
     resolve_static_scss_variable_abstract_value_at_position,
     resolve_static_scss_variable_value_at_position,
@@ -419,9 +421,6 @@ fn render_static_scss_mixin_include_body_with_active(
         return None;
     }
     let body = source.get(declaration.body_start..declaration.body_end)?;
-    if !static_scss_mixin_body_is_static_declaration_subset(body) {
-        return None;
-    }
     let mut argument_values = BTreeMap::new();
     for (parameter, argument) in bind_static_scss_mixin_arguments(declaration, call)? {
         let resolution = resolve_static_scss_function_argument_abstract_value(
@@ -431,15 +430,30 @@ fn render_static_scss_mixin_include_body_with_active(
             STATIC_STYLESHEET_VALUE_RESOLUTION_FUEL_LIMIT,
             context,
         );
-        if resolution.outcome != StaticStylesheetResolutionOutcome::Resolved {
+        if resolution.outcome != StaticStylesheetResolutionOutcome::Resolved
+            && resolution
+                .rendered_value
+                .as_deref()
+                .is_none_or(|value| static_scss_literal_truthiness(value).is_none())
+        {
             return None;
         }
         let rendered_value = resolution.rendered_value?;
         argument_values.insert(parameter, rendered_value);
     }
 
-    let body = render_static_scss_mixin_body_variables(
+    let body = render_static_scss_mixin_control_flow_body(
         body,
+        context.dialect,
+        &argument_values,
+        call_position,
+        context,
+    )?;
+    if !static_scss_mixin_body_is_static_declaration_subset(body.as_str()) {
+        return None;
+    }
+    let body = render_static_scss_mixin_body_variables(
+        body.as_str(),
         context.dialect,
         call_position,
         &argument_values,
