@@ -328,6 +328,11 @@ fn scss_control_flow_oracle_corpus_fixtures() -> &'static [ScssControlFlowOracle
             source: "@function offset($value, $extra: $value + 1px) { @return $extra; } .button { margin: offset(2px); }",
         },
         ScssControlFlowOracleCorpusFixtureV0 {
+            id: "scss.static-named-default-argument-prior-parameter",
+            dialect: StyleDialect::Scss,
+            source: "@function offset($value, $extra: $value + 1px) { @return $extra; } .button { margin: offset($value: 2px); }",
+        },
+        ScssControlFlowOracleCorpusFixtureV0 {
             id: "scss.static-named-function-arguments",
             dialect: StyleDialect::Scss,
             source: "@function pair($left, $right) { @return $left + $right; } .button { margin: pair($right: 2px, $left: 1px); }",
@@ -403,6 +408,11 @@ fn scss_control_flow_oracle_corpus_fixtures() -> &'static [ScssControlFlowOracle
             source: "@mixin tone($color, $border: $color) { color: $color; border-color: $border; } .button { @include tone(blue); }",
         },
         ScssControlFlowOracleCorpusFixtureV0 {
+            id: "scss.static-named-mixin-default-argument-prior-parameter",
+            dialect: StyleDialect::Scss,
+            source: "@mixin tone($color, $border: $color) { color: $color; border-color: $border; } .button { @include tone($color: blue); }",
+        },
+        ScssControlFlowOracleCorpusFixtureV0 {
             id: "scss.static-hyphen-underscore-mixin-include",
             dialect: StyleDialect::Scss,
             source: "@mixin tone_color($color) { color: $color; } .button { @include tone-color(green); }",
@@ -461,6 +471,11 @@ fn scss_control_flow_oracle_corpus_fixtures() -> &'static [ScssControlFlowOracle
             id: "sass.static-default-argument-prior-parameter",
             dialect: StyleDialect::Sass,
             source: "@function offset($value, $extra: $value + 1px)\n  @return $extra\n.button\n  margin: offset(2px)",
+        },
+        ScssControlFlowOracleCorpusFixtureV0 {
+            id: "sass.static-named-default-argument-prior-parameter",
+            dialect: StyleDialect::Sass,
+            source: "@function offset($value, $extra: $value + 1px)\n  @return $extra\n.button\n  margin: offset($value: 2px)",
         },
         ScssControlFlowOracleCorpusFixtureV0 {
             id: "sass.static-named-function-arguments",
@@ -538,6 +553,11 @@ fn scss_control_flow_oracle_corpus_fixtures() -> &'static [ScssControlFlowOracle
             source: "@mixin tone($color, $border: $color)\n  color: $color\n  border-color: $border\n.button\n  @include tone(blue)",
         },
         ScssControlFlowOracleCorpusFixtureV0 {
+            id: "sass.static-named-mixin-default-argument-prior-parameter",
+            dialect: StyleDialect::Sass,
+            source: "@mixin tone($color, $border: $color)\n  color: $color\n  border-color: $border\n.button\n  @include tone($color: blue)",
+        },
+        ScssControlFlowOracleCorpusFixtureV0 {
             id: "sass.static-hyphen-underscore-mixin-include",
             dialect: StyleDialect::Sass,
             source: "@mixin tone_color($color)\n  color: $color\n.button\n  @include tone-color(green)",
@@ -564,10 +584,10 @@ mod tests {
         assert_eq!(report.value_type, "AbstractCssValueV0");
         assert_eq!(report.node_key_type, "StableNodeKeyV0");
         assert_eq!(report.recursion_cap, SCSS_CALL_RETURN_RECURSION_LIMIT);
-        assert_eq!(report.fixture_count, 55);
-        assert_eq!(report.scss_fixture_count, 27);
-        assert_eq!(report.sass_fixture_count, 27);
-        assert_eq!(report.supported_fixture_count, 54);
+        assert_eq!(report.fixture_count, 59);
+        assert_eq!(report.scss_fixture_count, 29);
+        assert_eq!(report.sass_fixture_count, 29);
+        assert_eq!(report.supported_fixture_count, 58);
         assert_eq!(report.rejected_flat_css_fixture_count, 1);
         assert!(report.branch_fixture_count >= 5);
         assert!(report.loop_fixture_count >= 6);
@@ -679,8 +699,10 @@ mod tests {
         for id in [
             "scss.static-default-function-arguments",
             "scss.static-default-argument-prior-parameter",
+            "scss.static-named-default-argument-prior-parameter",
             "sass.static-default-function-arguments",
             "sass.static-default-argument-prior-parameter",
+            "sass.static-named-default-argument-prior-parameter",
             "scss.static-named-function-arguments",
             "scss.static-named-argument-default-tail",
             "sass.static-named-function-arguments",
@@ -770,10 +792,12 @@ mod tests {
             "scss.static-named-mixin-arguments",
             "scss.static-named-mixin-default-tail",
             "scss.static-mixin-default-argument-prior-parameter",
+            "scss.static-named-mixin-default-argument-prior-parameter",
             "scss.static-hyphen-underscore-mixin-include",
             "sass.static-named-mixin-arguments",
             "sass.static-named-mixin-default-tail",
             "sass.static-mixin-default-argument-prior-parameter",
+            "sass.static-named-mixin-default-argument-prior-parameter",
             "sass.static-hyphen-underscore-mixin-include",
         ] {
             assert!(

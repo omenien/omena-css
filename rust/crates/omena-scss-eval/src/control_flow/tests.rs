@@ -1679,6 +1679,39 @@ fn call_return_ir_resolves_default_arguments_from_prior_parameters() {
 }
 
 #[test]
+fn call_return_ir_resolves_named_default_arguments_from_prior_parameters() {
+    let source = "@function offset($value, $extra: $value + 1px) { @return $extra; } .a { width: offset($value: 2px); }";
+    let report = summarize_scss_call_return_ir(source, StyleDialect::Scss);
+    assert!(report.is_some());
+    let Some(report) = report else {
+        return;
+    };
+    let function_call = report
+        .nodes
+        .iter()
+        .find(|node| node.kind == "functionCall" && node.name.as_deref() == Some("offset"));
+    assert!(function_call.is_some());
+    let Some(function_call) = function_call else {
+        return;
+    };
+
+    assert_eq!(function_call.argument_values.len(), 1);
+    assert_eq!(
+        function_call.argument_values[0].name.as_deref(),
+        Some("$value")
+    );
+    assert_eq!(report.call_resolved_return_value_count, 1);
+    assert_eq!(report.exact_call_resolved_return_value_count, 1);
+    assert_eq!(function_call.call_resolved_return_value_kind, Some("exact"));
+    assert_eq!(
+        function_call.call_resolved_return_value,
+        Some(AbstractCssValueV0::Exact {
+            value: "3px".to_string()
+        })
+    );
+}
+
+#[test]
 fn call_return_ir_resolves_composed_same_file_function_calls() {
     let source = "@function inc($value) { @return $value + 1px; } @function gap($value) { @return inc($value) + 1px; } .a { width: gap(2px); }";
     let report = summarize_scss_call_return_ir(source, StyleDialect::Scss);
@@ -3836,6 +3869,35 @@ fn call_return_ir_reports_mixin_default_arguments_from_prior_parameters() {
         declaration.parameter_values[1]
             .default_value_text
             .as_deref(),
+        Some("$color")
+    );
+    assert_eq!(report.declaration_node_count, 1);
+    assert_eq!(report.call_node_count, 1);
+    assert!(report.edges.iter().any(|edge| {
+        edge.kind == "mixinCall" && !edge.recursive && !edge.capped_by_recursion_cap
+    }));
+}
+
+#[test]
+fn call_return_ir_reports_named_mixin_default_arguments_from_prior_parameters() {
+    let source = "@mixin tone($color, $border: $color) { color: $color; border-color: $border; } .a { @include tone($color: blue); }";
+    let report = summarize_scss_call_return_ir(source, StyleDialect::Scss);
+    assert!(report.is_some());
+    let Some(report) = report else {
+        return;
+    };
+
+    let mixin_call = report
+        .nodes
+        .iter()
+        .find(|node| node.kind == "mixinInclude" && node.name.as_deref() == Some("tone"));
+    assert!(mixin_call.is_some());
+    let Some(mixin_call) = mixin_call else {
+        return;
+    };
+    assert_eq!(mixin_call.argument_values.len(), 1);
+    assert_eq!(
+        mixin_call.argument_values[0].name.as_deref(),
         Some("$color")
     );
     assert_eq!(report.declaration_node_count, 1);

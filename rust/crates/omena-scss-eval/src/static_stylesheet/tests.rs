@@ -19,9 +19,9 @@ fn static_stylesheet_oracle_corpus_reports_native_product_output_with_legacy_ora
     );
     assert_eq!(report.legacy_output_consumed_until_cutover_count, 0);
     assert!(report.all_legacy_outputs_retained_as_oracle);
-    assert_eq!(report.fixture_count, 120);
-    assert_eq!(report.scss_fixture_count, 39);
-    assert_eq!(report.sass_fixture_count, 33);
+    assert_eq!(report.fixture_count, 124);
+    assert_eq!(report.scss_fixture_count, 41);
+    assert_eq!(report.sass_fixture_count, 35);
     assert_eq!(report.less_fixture_count, 48);
     assert_eq!(report.evaluated_fixture_count, report.fixture_count);
     assert_eq!(report.missing_evaluation_count, 0);
@@ -72,8 +72,10 @@ fn static_stylesheet_oracle_corpus_reports_native_product_output_with_legacy_ora
     for id in [
         "sass.static-default-function-arguments",
         "sass.static-default-argument-prior-parameter",
+        "sass.static-named-default-argument-prior-parameter",
         "scss.static-default-function-arguments",
         "scss.static-default-argument-prior-parameter",
+        "scss.static-named-default-argument-prior-parameter",
         "sass.static-named-function-arguments",
         "sass.static-named-argument-default-tail",
         "scss.static-named-function-arguments",
@@ -85,10 +87,12 @@ fn static_stylesheet_oracle_corpus_reports_native_product_output_with_legacy_ora
         "sass.static-named-mixin-arguments",
         "sass.static-named-mixin-default-tail",
         "sass.static-mixin-default-argument-prior-parameter",
+        "sass.static-named-mixin-default-argument-prior-parameter",
         "sass.static-hyphen-underscore-mixin-include",
         "scss.static-named-mixin-arguments",
         "scss.static-named-mixin-default-tail",
         "scss.static-mixin-default-argument-prior-parameter",
+        "scss.static-named-mixin-default-argument-prior-parameter",
         "scss.static-hyphen-underscore-mixin-include",
     ] {
         assert!(
@@ -3419,9 +3423,46 @@ fn static_scss_evaluation_resolves_default_arguments_from_prior_parameters() {
 }
 
 #[test]
+fn static_scss_evaluation_resolves_named_default_arguments_from_prior_parameters() {
+    let report = derive_static_stylesheet_module_evaluation(
+        "@function offset($value, $extra: $value + 1px) { @return $extra; } .button { margin: offset($value: 2px); }",
+        StyleDialect::Scss,
+    );
+    assert!(report.is_some());
+    let Some(report) = report else {
+        return;
+    };
+
+    assert_eq!(report.replacement_count, 1);
+    assert_eq!(report.resolved_replacements[0].name, "function:offset");
+    assert_eq!(report.resolved_replacements[0].text, "3px");
+    assert_eq!(report.resolved_replacements[0].abstract_value_kind, "exact");
+    assert!(report.evaluated_css.contains(".button { margin: 3px; }"));
+    assert!(report.oracle.all_legacy_declaration_values_preserved);
+}
+
+#[test]
 fn static_scss_evaluation_resolves_mixin_default_arguments_from_prior_parameters() {
     let report = derive_static_stylesheet_module_evaluation(
         "@mixin tone($color, $border: $color) { color: $color; border-color: $border; } .button { @include tone(blue); }",
+        StyleDialect::Scss,
+    );
+    assert!(report.is_some());
+    let Some(report) = report else {
+        return;
+    };
+
+    assert!(!report.evaluated_css.contains("@mixin"));
+    assert!(report.evaluated_css.contains("color: blue;"));
+    assert!(report.evaluated_css.contains("border-color: blue;"));
+    assert!(report.oracle.all_legacy_declaration_values_preserved);
+    assert!(report.native_edit_output_matches_evaluated_css);
+}
+
+#[test]
+fn static_scss_evaluation_resolves_named_mixin_default_arguments_from_prior_parameters() {
+    let report = derive_static_stylesheet_module_evaluation(
+        "@mixin tone($color, $border: $color) { color: $color; border-color: $border; } .button { @include tone($color: blue); }",
         StyleDialect::Scss,
     );
     assert!(report.is_some());

@@ -364,6 +364,11 @@ fn static_stylesheet_oracle_corpus_fixtures() -> &'static [StaticStylesheetOracl
             source: "@mixin tone($color, $border: $color)\n  color: $color\n  border-color: $border\n.button\n  @include tone(blue)",
         },
         StaticStylesheetOracleCorpusFixtureV0 {
+            id: "sass.static-named-mixin-default-argument-prior-parameter",
+            dialect: StyleDialect::Sass,
+            source: "@mixin tone($color, $border: $color)\n  color: $color\n  border-color: $border\n.button\n  @include tone($color: blue)",
+        },
+        StaticStylesheetOracleCorpusFixtureV0 {
             id: "sass.static-hyphen-underscore-mixin-include",
             dialect: StyleDialect::Sass,
             source: "@mixin tone_color($color)\n  color: $color\n.button\n  @include tone-color(green)",
@@ -427,6 +432,11 @@ fn static_stylesheet_oracle_corpus_fixtures() -> &'static [StaticStylesheetOracl
             id: "sass.static-default-argument-prior-parameter",
             dialect: StyleDialect::Sass,
             source: "@function offset($value, $extra: $value + 1px)\n  @return $extra\n.card\n  margin: offset(2px)",
+        },
+        StaticStylesheetOracleCorpusFixtureV0 {
+            id: "sass.static-named-default-argument-prior-parameter",
+            dialect: StyleDialect::Sass,
+            source: "@function offset($value, $extra: $value + 1px)\n  @return $extra\n.card\n  margin: offset($value: 2px)",
         },
         StaticStylesheetOracleCorpusFixtureV0 {
             id: "sass.static-named-function-arguments",
@@ -539,6 +549,11 @@ fn static_stylesheet_oracle_corpus_fixtures() -> &'static [StaticStylesheetOracl
             source: "@function offset($value, $extra: $value + 1px) { @return $extra; } .card { margin: offset(2px); }",
         },
         StaticStylesheetOracleCorpusFixtureV0 {
+            id: "scss.static-named-default-argument-prior-parameter",
+            dialect: StyleDialect::Scss,
+            source: "@function offset($value, $extra: $value + 1px) { @return $extra; } .card { margin: offset($value: 2px); }",
+        },
+        StaticStylesheetOracleCorpusFixtureV0 {
             id: "scss.static-named-function-arguments",
             dialect: StyleDialect::Scss,
             source: "@function pair($left, $right) { @return $left + $right; } .card { margin: pair($right: 2px, $left: 1px); }",
@@ -617,6 +632,11 @@ fn static_stylesheet_oracle_corpus_fixtures() -> &'static [StaticStylesheetOracl
             id: "scss.static-mixin-default-argument-prior-parameter",
             dialect: StyleDialect::Scss,
             source: "@mixin tone($color, $border: $color) { color: $color; border-color: $border; } .button { @include tone(blue); }",
+        },
+        StaticStylesheetOracleCorpusFixtureV0 {
+            id: "scss.static-named-mixin-default-argument-prior-parameter",
+            dialect: StyleDialect::Scss,
+            source: "@mixin tone($color, $border: $color) { color: $color; border-color: $border; } .button { @include tone($color: blue); }",
         },
         StaticStylesheetOracleCorpusFixtureV0 {
             id: "scss.static-hyphen-underscore-mixin-include",
