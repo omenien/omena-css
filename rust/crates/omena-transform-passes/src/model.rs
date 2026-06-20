@@ -42,6 +42,10 @@ pub struct TransformPassesBoundarySummaryV0 {
     pub planner_enforces_dag_edges: bool,
     pub execution_runtime_ready: bool,
     pub incremental_execution_runtime_ready: bool,
+    pub module_evaluation_native_output_marker: &'static str,
+    pub module_evaluation_requires_native_product_output: bool,
+    pub module_evaluation_legacy_output_is_oracle_only: bool,
+    pub module_evaluation_preserves_source_without_native_output: bool,
     pub implemented_mutation_pass_ids: Vec<&'static str>,
     pub next_surfaces: Vec<&'static str>,
 }

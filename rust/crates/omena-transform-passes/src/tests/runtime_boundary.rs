@@ -21,6 +21,13 @@ fn registry_covers_full_transform_catalog() {
     assert!(boundary.execution_runtime_ready);
     assert!(boundary.incremental_execution_runtime_ready);
     assert_eq!(
+        boundary.module_evaluation_native_output_marker,
+        "nativeEditOutput"
+    );
+    assert!(boundary.module_evaluation_requires_native_product_output);
+    assert!(boundary.module_evaluation_legacy_output_is_oracle_only);
+    assert!(boundary.module_evaluation_preserves_source_without_native_output);
+    assert_eq!(
         boundary.implemented_mutation_pass_ids,
         vec![
             "whitespace-strip",
