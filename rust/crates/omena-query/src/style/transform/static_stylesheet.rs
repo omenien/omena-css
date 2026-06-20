@@ -16,12 +16,20 @@ use std::{
 };
 
 mod evaluation_source;
+mod scss_module_identity;
 mod scss_variable_overrides;
 
 use evaluation_source::{
     derive_import_aware_static_stylesheet_module_evaluation_source,
     static_stylesheet_module_output_css_from_evaluation,
     static_stylesheet_module_system_evaluator_label,
+};
+use scss_module_identity::{
+    resolve_static_scss_module_effective_variable_overrides,
+    static_scss_module_configuration_variables_are_valid,
+};
+pub(super) use scss_module_identity::{
+    static_scss_module_configuration_signature, static_scss_module_instance_identity_key,
 };
 use scss_variable_overrides::StaticScssModuleVariableOverride;
 
@@ -289,57 +297,6 @@ fn derive_static_scss_module_configurable_variable_names_for_transform_context_i
     names
 }
 
-pub(super) fn static_scss_module_instance_identity_key(
-    style_path: &str,
-    variable_overrides: &BTreeMap<String, String>,
-) -> String {
-    let canonical_path = canonicalize_omena_resolver_style_identity_path(style_path);
-    let mut key = format!("path:{}:{canonical_path}", canonical_path.len());
-    key.push('|');
-    key.push_str(static_scss_module_configuration_signature(variable_overrides).as_str());
-    key
-}
-
-pub(super) fn static_scss_module_configuration_signature(
-    variable_overrides: &BTreeMap<String, String>,
-) -> String {
-    if variable_overrides.is_empty() {
-        return "with:none".to_string();
-    }
-    let mut key = String::from("with");
-    for (name, value) in variable_overrides {
-        key.push('|');
-        key.push_str(name.len().to_string().as_str());
-        key.push(':');
-        key.push_str(name);
-        key.push('=');
-        key.push_str(value.len().to_string().as_str());
-        key.push(':');
-        key.push_str(value);
-    }
-    key
-}
-
-fn resolve_static_scss_module_effective_variable_overrides(
-    style_path: &str,
-    variable_overrides: &BTreeMap<String, String>,
-    loaded_module_overrides_by_path: &mut BTreeMap<String, BTreeMap<String, String>>,
-) -> Option<BTreeMap<String, String>> {
-    let canonical_path = canonicalize_omena_resolver_style_identity_path(style_path);
-    match loaded_module_overrides_by_path.get(canonical_path.as_str()) {
-        Some(existing_overrides) if variable_overrides.is_empty() => {
-            Some(existing_overrides.clone())
-        }
-        Some(existing_overrides) => {
-            (existing_overrides == variable_overrides).then(|| variable_overrides.clone())
-        }
-        None => {
-            loaded_module_overrides_by_path.insert(canonical_path, variable_overrides.clone());
-            Some(variable_overrides.clone())
-        }
-    }
-}
-
 fn derive_static_scss_module_context_for_transform_context(
     style_path: &str,
     style_source: &str,
@@ -577,15 +534,6 @@ pub(super) fn derive_static_scss_module_forward_effective_variable_override_valu
         visibility_filter_names,
         configurable_names,
     )
-}
-
-fn static_scss_module_configuration_variables_are_valid(
-    variable_overrides: &BTreeMap<String, String>,
-    configurable_names: &BTreeSet<String>,
-) -> bool {
-    variable_overrides
-        .keys()
-        .all(|name| configurable_names.contains(name))
 }
 
 fn filter_static_scss_forward_configurable_variable_names(
