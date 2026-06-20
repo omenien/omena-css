@@ -3576,6 +3576,32 @@ fn exposes_less_unbound_parameterized_namespace_mixins_as_preserved_oracle_outpu
 }
 
 #[test]
+fn exposes_less_namespace_local_detached_rulesets_as_preserved_oracle_output() {
+    let summary = summarize_omena_query_static_stylesheet_evaluator_from_source(
+        "#bundle() { @tokens: { color: red; }; .tone() { color: @tokens[color]; } } .button { #bundle > .tone(); }",
+        OmenaParserStyleDialect::Less,
+    );
+
+    assert_eq!(summary.product, "omena-query.static-stylesheet-evaluator");
+    assert_eq!(summary.mode, "oracleOnly");
+    assert_eq!(summary.dialect, "less");
+    assert_eq!(summary.value_type, "AbstractCssValueV0");
+    assert!(!summary.legacy_output_consumed_until_cutover);
+    assert!(summary.evaluation_available);
+    assert_eq!(summary.divergence_count, 0);
+    assert!(summary.all_legacy_declaration_values_preserved);
+    assert_eq!(summary.native_replacement_count, 0);
+    assert_eq!(summary.native_edit_count, 0);
+    assert!(summary.evaluation.as_ref().is_some_and(|evaluation| {
+        evaluation
+            .evaluated_css
+            .contains("@tokens: { color: red; };")
+            && evaluation.evaluated_css.contains("@tokens[color]")
+            && !evaluation.evaluated_css.contains(".button { color: red")
+    }));
+}
+
+#[test]
 fn exposes_less_literal_pattern_mixins_through_query_boundary() {
     let summary = summarize_omena_query_static_stylesheet_evaluator_from_source(
         ".tone(dark, @color) { color: @color; background: black; } .tone(light, @color) { color: @color; background: white; } .button { .tone(dark, red); }",

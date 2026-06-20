@@ -1576,6 +1576,45 @@ fn consumer_build_executes_unbound_parameterized_less_namespace_mixin_access_as_
 }
 
 #[test]
+fn consumer_build_preserves_less_namespace_local_detached_rulesets_as_raw() {
+    let summary = execute_omena_query_consumer_build_style_source(
+        "Button.module.less",
+        "#bundle() { @tokens: { color: red; }; .tone() { color: @tokens[color]; } } .button { #bundle > .tone(); }",
+        &[
+            "less-module-evaluate".to_string(),
+            "css-modules-class-hashing".to_string(),
+            "print-css".to_string(),
+        ],
+    );
+
+    assert!(
+        summary
+            .execution
+            .executed_pass_ids
+            .contains(&"less-module-evaluate")
+    );
+    assert!(
+        !summary
+            .execution
+            .planned_only_pass_ids
+            .contains(&"less-module-evaluate")
+    );
+    assert!(
+        summary
+            .execution
+            .output_css
+            .contains("@tokens: { color: red; };")
+    );
+    assert!(summary.execution.output_css.contains("@tokens[color]"));
+    assert!(
+        !summary
+            .execution
+            .output_css
+            .contains(".button { color: red")
+    );
+}
+
+#[test]
 fn consumer_build_derives_static_less_evaluator_context_for_escaped_string_mixin_arguments() {
     let summary = execute_omena_query_consumer_build_style_source(
         "Button.module.less",

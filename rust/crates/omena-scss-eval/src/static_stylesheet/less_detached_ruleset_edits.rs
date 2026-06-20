@@ -73,7 +73,10 @@ pub(super) fn collect_static_less_detached_ruleset_evaluation_edits(
         }
     }
     for declaration in declarations.iter().filter(|declaration| {
-        !preserved_declaration_keys.contains(&(declaration.scope_id, declaration.name.clone()))
+        !static_stylesheet_position_is_inside_ranges(
+            declaration.span_start,
+            mixin_declaration_ranges,
+        ) && !preserved_declaration_keys.contains(&(declaration.scope_id, declaration.name.clone()))
             && !call_preserved_declaration_keys
                 .contains(&(declaration.scope_id, declaration.name.clone()))
     }) {

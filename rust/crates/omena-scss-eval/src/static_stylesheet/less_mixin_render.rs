@@ -582,14 +582,19 @@ pub(super) fn render_static_less_mixin_call(
             continue;
         }
         saw_parameter_match = true;
-        match render_static_less_mixin_body(
+        let Some(rendered_outcome) = render_static_less_mixin_body(
             declaration,
             call,
             call_scope_id,
             context,
             active_mixins,
             None,
-        )? {
+        ) else {
+            active_mixins.remove(&canonical_call_name);
+            saw_guard_unknown = true;
+            continue;
+        };
+        match rendered_outcome {
             StaticLessMixinRenderOutcome::Rendered(rendered) => {
                 used_declaration_names.extend(rendered.used_declaration_names);
                 rendered_bodies.push(rendered.body);
@@ -614,14 +619,19 @@ pub(super) fn render_static_less_mixin_call(
             continue;
         }
         saw_parameter_match = true;
-        match render_static_less_mixin_body(
+        let Some(rendered_outcome) = render_static_less_mixin_body(
             declaration,
             call,
             call_scope_id,
             context,
             active_mixins,
             default_matches,
-        )? {
+        ) else {
+            active_mixins.remove(&canonical_call_name);
+            saw_guard_unknown = true;
+            continue;
+        };
+        match rendered_outcome {
             StaticLessMixinRenderOutcome::Rendered(rendered) => {
                 used_declaration_names.extend(rendered.used_declaration_names);
                 rendered_bodies.push(rendered.body);
@@ -647,7 +657,7 @@ pub(super) fn render_static_less_mixin_call(
         if !saw_parameter_match || saw_guard_unknown {
             return Some(Some(StaticLessMixinCallRenderOutcome::PreservedNoOutput));
         }
-        return None;
+        return Some(Some(StaticLessMixinCallRenderOutcome::PreservedNoOutput));
     }
     Some(Some(StaticLessMixinCallRenderOutcome::Rendered(
         StaticLessMixinRenderResult {
@@ -748,12 +758,19 @@ fn render_static_less_namespace_mixin_call(
             important: call.important,
             arguments: call.arguments.clone(),
         };
-        if let Some(rendered) = render_static_less_mixin_call(
+        let nested_render = render_static_less_mixin_call(
             &nested_call,
             call_scope_id,
             nested_context,
             active_mixins,
-        )? {
+        );
+        let Some(nested_render) = nested_render else {
+            active_mixins.remove(&canonical_namespace);
+            active_mixins.remove(&canonical_static_less_mixin_name(call.name.as_str()));
+            saw_guard_unknown = true;
+            continue;
+        };
+        if let Some(rendered) = nested_render {
             match rendered {
                 StaticLessMixinCallRenderOutcome::Rendered(rendered) => {
                     rendered_bodies.push(rendered.body);
@@ -782,7 +799,7 @@ fn render_static_less_namespace_mixin_call(
         if !saw_parameter_match || saw_guard_unknown {
             return Some(Some(StaticLessMixinCallRenderOutcome::PreservedNoOutput));
         }
-        return None;
+        return Some(Some(StaticLessMixinCallRenderOutcome::PreservedNoOutput));
     }
     Some(Some(StaticLessMixinCallRenderOutcome::Rendered(
         StaticLessMixinRenderResult {

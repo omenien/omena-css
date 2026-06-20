@@ -953,6 +953,25 @@ fn static_less_evaluation_preserves_unbound_parameterized_namespace_mixin_access
 }
 
 #[test]
+fn static_less_evaluation_preserves_namespace_local_detached_rulesets_as_raw() {
+    let source = "#bundle() { @tokens: { color: red; }; .tone() { color: @tokens[color]; } } .button { #bundle > .tone(); }";
+    let report = derive_static_stylesheet_module_evaluation(source, StyleDialect::Less);
+
+    assert!(report.is_some());
+    let Some(report) = report else {
+        return;
+    };
+
+    assert_eq!(report.evaluated_css, source);
+    assert!(report.evaluated_css.contains("@tokens: { color: red; };"));
+    assert!(report.evaluated_css.contains("@tokens[color]"));
+    assert_eq!(report.replacement_count, 0);
+    assert_eq!(report.native_edit_count, 0);
+    assert!(report.oracle.all_legacy_declaration_values_preserved);
+    assert!(report.native_edit_output_matches_evaluated_css);
+}
+
+#[test]
 fn static_less_evaluation_reduces_escaped_string_mixin_arguments() {
     let report = derive_static_stylesheet_module_evaluation(
         ".legacy(@value) { filter: @value; } .button { .legacy(~\"alpha(opacity=50)\"); }",
