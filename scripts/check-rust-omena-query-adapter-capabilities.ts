@@ -833,6 +833,7 @@ function assertStaticStylesheetEvaluatorOracleCorpus(
     "sass.static-mixin-content-arguments",
     "sass.static-mixin-content-expression-arguments",
     "sass.static-mixin-content-nested-include",
+    "sass.static-nested-mixin-include",
     "sass.static-hyphen-underscore-mixin-include",
     "scss.static-map-list-builtins",
     "scss.static-default-function-arguments",
@@ -849,6 +850,7 @@ function assertStaticStylesheetEvaluatorOracleCorpus(
     "scss.static-mixin-content-block",
     "scss.static-mixin-content-arguments",
     "scss.static-mixin-content-expression-arguments",
+    "scss.static-nested-mixin-include",
     "scss.static-hyphen-underscore-mixin-include",
     "scss.indirect-recursive-function-return",
     "less.variable-basic",
@@ -1035,6 +1037,16 @@ function assertScssEvaluatorControlFlowOracleCorpus(
     assert.equal(fixture.callReturnEdgeCount, 2);
     assert.equal(fixture.valueAnalysisConverged, true);
   });
+  for (const id of [
+    "scss.static-nested-mixin-include",
+    "sass.static-nested-mixin-include",
+  ]) {
+    assertControlFlowFixture(fixtures, id, (fixture) => {
+      assert.equal(fixture.callReturnAvailable, true);
+      assert.equal(fixture.callReturnEdgeCount, 2);
+      assert.equal(fixture.valueAnalysisConverged, true);
+    });
+  }
   assertControlFlowFixture(fixtures, "css.flat-rejected", (fixture) => {
     assert.equal(fixture.supportedDialect, false);
     assert.equal(fixture.controlFlowAvailable, false);

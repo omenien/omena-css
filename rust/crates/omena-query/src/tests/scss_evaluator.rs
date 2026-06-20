@@ -75,9 +75,9 @@ fn exposes_static_stylesheet_oracle_corpus_through_query_boundary() {
     assert_eq!(summary.mode, "oracleOnly");
     assert_eq!(summary.value_type, "AbstractCssValueV0");
     assert_eq!(summary.product_output_source, "nativeEditOutput");
-    assert_eq!(summary.fixture_count, 132);
-    assert_eq!(summary.scss_fixture_count, 45);
-    assert_eq!(summary.sass_fixture_count, 39);
+    assert_eq!(summary.fixture_count, 134);
+    assert_eq!(summary.scss_fixture_count, 46);
+    assert_eq!(summary.sass_fixture_count, 40);
     assert_eq!(summary.less_fixture_count, 48);
     assert_eq!(summary.evaluated_fixture_count, summary.fixture_count);
     assert_eq!(
@@ -159,6 +159,7 @@ fn exposes_static_stylesheet_oracle_corpus_through_query_boundary() {
         "sass.static-mixin-content-arguments",
         "sass.static-mixin-content-expression-arguments",
         "sass.static-mixin-content-nested-include",
+        "sass.static-nested-mixin-include",
         "sass.static-hyphen-underscore-mixin-include",
         "scss.static-named-mixin-arguments",
         "scss.static-named-mixin-default-tail",
@@ -167,6 +168,7 @@ fn exposes_static_stylesheet_oracle_corpus_through_query_boundary() {
         "scss.static-mixin-content-block",
         "scss.static-mixin-content-arguments",
         "scss.static-mixin-content-expression-arguments",
+        "scss.static-nested-mixin-include",
         "scss.static-hyphen-underscore-mixin-include",
     ] {
         assert!(
@@ -754,10 +756,10 @@ fn exposes_scss_control_flow_oracle_corpus_through_query_boundary() {
     assert_eq!(summary.mode, "oracleOnly");
     assert_eq!(summary.value_type, "AbstractCssValueV0");
     assert_eq!(summary.node_key_type, "StableNodeKeyV0");
-    assert_eq!(summary.fixture_count, 67);
-    assert_eq!(summary.scss_fixture_count, 33);
-    assert_eq!(summary.sass_fixture_count, 33);
-    assert_eq!(summary.supported_fixture_count, 66);
+    assert_eq!(summary.fixture_count, 69);
+    assert_eq!(summary.scss_fixture_count, 34);
+    assert_eq!(summary.sass_fixture_count, 34);
+    assert_eq!(summary.supported_fixture_count, 68);
     assert_eq!(summary.rejected_flat_css_fixture_count, 1);
     assert!(summary.branch_fixture_count >= 5);
     assert!(summary.loop_fixture_count >= 6);
@@ -1059,6 +1061,20 @@ fn exposes_scss_control_flow_oracle_corpus_through_query_boundary() {
             && fixture.call_return_edge_count == 2
             && fixture.value_analysis_converged
     }));
+    for id in [
+        "scss.static-nested-mixin-include",
+        "sass.static-nested-mixin-include",
+    ] {
+        assert!(
+            summary.corpus.fixtures.iter().any(|fixture| {
+                fixture.id == id
+                    && fixture.call_return_available
+                    && fixture.call_return_edge_count == 2
+                    && fixture.value_analysis_converged
+            }),
+            "query boundary must expose nested mixin call edge oracle fixture {id}"
+        );
+    }
     assert!(
         summary
             .corpus

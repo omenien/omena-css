@@ -19,9 +19,9 @@ fn static_stylesheet_oracle_corpus_reports_native_product_output_with_legacy_ora
     );
     assert_eq!(report.legacy_output_consumed_until_cutover_count, 0);
     assert!(report.all_legacy_outputs_retained_as_oracle);
-    assert_eq!(report.fixture_count, 132);
-    assert_eq!(report.scss_fixture_count, 45);
-    assert_eq!(report.sass_fixture_count, 39);
+    assert_eq!(report.fixture_count, 134);
+    assert_eq!(report.scss_fixture_count, 46);
+    assert_eq!(report.sass_fixture_count, 40);
     assert_eq!(report.less_fixture_count, 48);
     assert_eq!(report.evaluated_fixture_count, report.fixture_count);
     assert_eq!(report.missing_evaluation_count, 0);
@@ -92,6 +92,7 @@ fn static_stylesheet_oracle_corpus_reports_native_product_output_with_legacy_ora
         "sass.static-mixin-content-arguments",
         "sass.static-mixin-content-expression-arguments",
         "sass.static-mixin-content-nested-include",
+        "sass.static-nested-mixin-include",
         "sass.static-hyphen-underscore-mixin-include",
         "scss.static-named-mixin-arguments",
         "scss.static-named-mixin-default-tail",
@@ -101,6 +102,7 @@ fn static_stylesheet_oracle_corpus_reports_native_product_output_with_legacy_ora
         "scss.static-mixin-content-arguments",
         "scss.static-mixin-content-expression-arguments",
         "scss.static-mixin-content-nested-include",
+        "scss.static-nested-mixin-include",
         "scss.static-hyphen-underscore-mixin-include",
     ] {
         assert!(

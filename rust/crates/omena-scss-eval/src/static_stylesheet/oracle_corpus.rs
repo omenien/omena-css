@@ -389,6 +389,11 @@ fn static_stylesheet_oracle_corpus_fixtures() -> &'static [StaticStylesheetOracl
             source: "@mixin spacing($gap)\n  margin: $gap\n@mixin apply($gap)\n  @content($gap)\n  color: blue\n.button\n  @include apply(2px) using ($space)\n    @include spacing($space)\n    background: white",
         },
         StaticStylesheetOracleCorpusFixtureV0 {
+            id: "sass.static-nested-mixin-include",
+            dialect: StyleDialect::Sass,
+            source: "@mixin spacing($gap)\n  margin: $gap\n@mixin tone($gap, $color: red)\n  @include spacing($gap)\n  color: $color\n.button\n  @include tone(2px, blue)",
+        },
+        StaticStylesheetOracleCorpusFixtureV0 {
             id: "sass.static-hyphen-underscore-mixin-include",
             dialect: StyleDialect::Sass,
             source: "@mixin tone_color($color)\n  color: $color\n.button\n  @include tone-color(green)",
@@ -677,6 +682,11 @@ fn static_stylesheet_oracle_corpus_fixtures() -> &'static [StaticStylesheetOracl
             id: "scss.static-mixin-content-nested-include",
             dialect: StyleDialect::Scss,
             source: "@mixin spacing($gap) { margin: $gap; } @mixin apply($gap) { @content($gap); color: blue; } .button { @include apply(2px) using ($space) { @include spacing($space); background: white; } }",
+        },
+        StaticStylesheetOracleCorpusFixtureV0 {
+            id: "scss.static-nested-mixin-include",
+            dialect: StyleDialect::Scss,
+            source: "@mixin spacing($gap) { margin: $gap; } @mixin tone($gap, $color: red) { @include spacing($gap); color: $color; } .button { @include tone(2px, blue); }",
         },
         StaticStylesheetOracleCorpusFixtureV0 {
             id: "scss.static-hyphen-underscore-mixin-include",
