@@ -635,6 +635,29 @@ fn static_less_evaluation_resolves_quoted_variable_indirection() {
 }
 
 #[test]
+fn static_less_evaluation_resolves_variable_indirection_aliases() {
+    let report = derive_static_stylesheet_module_evaluation(
+        "@name: color; @color: red; @alias: @@name; .button { color: @alias; }",
+        StyleDialect::Less,
+    );
+    assert!(report.is_some());
+    let Some(report) = report else {
+        return;
+    };
+
+    assert_eq!(report.resolved_replacements[0].text, "red");
+    assert_eq!(report.resolved_replacements[0].abstract_value_kind, "exact");
+    assert!(!report.evaluated_css.contains("@name:"));
+    assert!(!report.evaluated_css.contains("@color:"));
+    assert!(!report.evaluated_css.contains("@alias:"));
+    assert!(!report.evaluated_css.contains("@@name"));
+    assert!(!report.evaluated_css.contains("@alias"));
+    assert!(report.evaluated_css.contains("color: red"));
+    assert!(report.oracle.all_legacy_declaration_values_preserved);
+    assert!(report.native_edit_output_matches_evaluated_css);
+}
+
+#[test]
 fn static_less_evaluation_rejects_missing_variable_indirection_without_partial_mutation() {
     let report = derive_static_stylesheet_module_evaluation(
         "@name: missing; .button { color: @@name; }",

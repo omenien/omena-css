@@ -2371,6 +2371,30 @@ fn exposes_less_variable_indirection_through_query_boundary() {
 }
 
 #[test]
+fn exposes_less_variable_indirection_aliases_through_query_boundary() {
+    let summary = summarize_omena_query_static_stylesheet_evaluator_from_source(
+        "@name: color; @color: red; @alias: @@name; .card { color: @alias; }",
+        OmenaParserStyleDialect::Less,
+    );
+
+    assert_eq!(summary.product, "omena-query.static-stylesheet-evaluator");
+    assert_eq!(summary.mode, "oracleOnly");
+    assert_eq!(summary.dialect, "less");
+    assert_eq!(summary.value_type, "AbstractCssValueV0");
+    assert!(summary.evaluation_available);
+    assert_eq!(summary.divergence_count, 0);
+    assert!(summary.all_legacy_declaration_values_preserved);
+    assert_eq!(summary.native_replacement_count, 1);
+    assert!(summary.evaluation.as_ref().is_some_and(|evaluation| {
+        evaluation.evaluated_css.contains("color: red")
+            && !evaluation.evaluated_css.contains("@alias")
+            && !evaluation.evaluated_css.contains("@@name")
+            && !evaluation.evaluated_css.contains("@name:")
+            && !evaluation.evaluated_css.contains("@color:")
+    }));
+}
+
+#[test]
 fn exposes_less_dynamic_escaped_strings_as_preserved_raw_oracle_output_through_query_boundary() {
     let summary = summarize_omena_query_static_stylesheet_evaluator_from_source(
         "@filter: ~\"@{name}\"; .card { filter: @filter; }",

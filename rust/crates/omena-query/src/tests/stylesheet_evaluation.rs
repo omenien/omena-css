@@ -1219,6 +1219,37 @@ fn consumer_build_derives_static_less_evaluator_context_for_variable_indirection
 }
 
 #[test]
+fn consumer_build_derives_static_less_evaluator_context_for_variable_indirection_aliases() {
+    let summary = execute_omena_query_consumer_build_style_source(
+        "Button.module.less",
+        "@name: color; @color: red; @alias: @@name; .button { color: @alias; }",
+        &[
+            "less-module-evaluate".to_string(),
+            "css-modules-class-hashing".to_string(),
+            "print-css".to_string(),
+        ],
+    );
+
+    assert!(
+        summary
+            .execution
+            .executed_pass_ids
+            .contains(&"less-module-evaluate")
+    );
+    assert!(
+        !summary
+            .execution
+            .planned_only_pass_ids
+            .contains(&"less-module-evaluate")
+    );
+    assert!(!summary.execution.output_css.contains("@@name"));
+    assert!(!summary.execution.output_css.contains("@alias"));
+    assert!(!summary.execution.output_css.contains("@name: color"));
+    assert!(!summary.execution.output_css.contains("@color: red"));
+    assert!(summary.execution.output_css.contains("color: red"));
+}
+
+#[test]
 fn consumer_build_executes_dynamic_less_escaped_strings_as_preserved_raw_output() {
     let summary = execute_omena_query_consumer_build_style_source(
         "Button.module.less",
