@@ -29,7 +29,9 @@ pub(super) fn render_static_scss_mixin_control_flow_body(
     call_position: usize,
     context: StaticScssFunctionResolutionContext<'_>,
 ) -> Option<String> {
-    if dialect != StyleDialect::Scss || !body.to_ascii_lowercase().contains("@if") {
+    if !static_scss_control_flow_dialect_is_supported(dialect)
+        || !body.to_ascii_lowercase().contains("@if")
+    {
         return Some(body.to_string());
     }
     render_static_scss_mixin_control_flow_body_with_fuel(

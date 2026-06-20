@@ -329,6 +329,11 @@ fn static_stylesheet_oracle_corpus_fixtures() -> &'static [StaticStylesheetOracl
             source: "@mixin card($gap)\n  margin: $gap\n.card\n  @include card(1px)",
         },
         StaticStylesheetOracleCorpusFixtureV0 {
+            id: "sass.static-mixin-if",
+            dialect: StyleDialect::Sass,
+            source: "@mixin tone($enabled)\n  @if $enabled\n    color: red\n  @else\n    color: blue\n.button\n  @include tone(false)",
+        },
+        StaticStylesheetOracleCorpusFixtureV0 {
             id: "sass.static-if-return",
             dialect: StyleDialect::Sass,
             source: "@function pick($enabled)\n  @if $enabled\n    @return 1px\n  @else\n    @return 2px\n.card\n  margin: pick(true)",
