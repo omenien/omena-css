@@ -2,6 +2,7 @@ use std::fmt::Write as _;
 
 use crate::{
     EngineInputV2, OmenaParserStyleDialect, StyleAnalysisInputV2, StyleDocumentV2,
+    summarize_omena_query_scss_evaluator_control_flow_from_engine_input,
     summarize_omena_query_scss_evaluator_control_flow_from_source,
     summarize_omena_query_scss_evaluator_control_flow_oracle_corpus,
     summarize_omena_query_static_lif_exports_from_engine_input,
@@ -10,6 +11,41 @@ use crate::{
     summarize_omena_query_static_stylesheet_evaluator_from_source,
     summarize_omena_query_static_stylesheet_evaluator_oracle_corpus,
 };
+
+#[test]
+fn exposes_scss_control_flow_through_engine_input_boundary() -> Result<(), String> {
+    let source = "$brand: red;\n@mixin tone($enabled) { @if $enabled { color: $brand; } @else { color: blue; } }\n.button { @include tone(true); }\n";
+    let input = EngineInputV2 {
+        version: "scss-control-flow-engine-input-v0".to_string(),
+        sources: Vec::new(),
+        styles: vec![StyleAnalysisInputV2 {
+            file_path: "/tmp/Button.module.scss".to_string(),
+            source: Some(source.to_string()),
+            document: StyleDocumentV2 {
+                selectors: Vec::new(),
+            },
+        }],
+        type_facts: Vec::new(),
+    };
+    let summary = summarize_omena_query_scss_evaluator_control_flow_from_engine_input(
+        &input,
+        "/tmp/Button.module.scss",
+    )
+    .ok_or_else(|| "target style source should be available from EngineInputV2".to_string())?;
+
+    assert_eq!(summary.product, "omena-query.scss-evaluator-control-flow");
+    assert_eq!(summary.mode, "oracleOnly");
+    assert_eq!(summary.dialect, "scss");
+    assert_eq!(summary.value_type, "AbstractCssValueV0");
+    assert!(summary.supported_dialect);
+    assert!(!summary.flat_css_cfg_built);
+    assert!(!summary.merged_cross_file_graph);
+    assert!(summary.control_flow_block_count > 0);
+    assert!(summary.control_flow_branch_block_count > 0);
+    assert!(summary.call_return_node_count > 0);
+    assert!(summary.value_analysis_converged);
+    Ok(())
+}
 
 #[test]
 fn exposes_less_lif_exports_through_query_boundary() {

@@ -619,7 +619,7 @@ pub fn summarize_omena_query_selected_query_adapter_capabilities()
             SelectedQueryRunnerCommandV0 {
                 surface: "scssEvaluatorControlFlow",
                 command: "input-scss-evaluator-control-flow",
-                input_contract: "OmenaParserStyleFactsInputV0",
+                input_contract: "EngineInputV2 + targetStylePath",
                 output_product: "omena-query.scss-evaluator-control-flow",
             },
             SelectedQueryRunnerCommandV0 {

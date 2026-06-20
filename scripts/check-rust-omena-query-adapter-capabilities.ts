@@ -180,6 +180,21 @@ interface ScssEvaluatorControlFlowOracleCorpusSummaryV0 {
   };
 }
 
+interface ScssEvaluatorControlFlowSummaryV0 {
+  readonly product: string;
+  readonly mode: string;
+  readonly dialect: string;
+  readonly valueType: string;
+  readonly supportedDialect: boolean;
+  readonly flatCssCfgBuilt: boolean;
+  readonly mergedCrossFileGraph: boolean;
+  readonly controlFlowBlockCount: number;
+  readonly controlFlowBranchBlockCount: number;
+  readonly callReturnNodeCount: number;
+  readonly valueAnalysisConverged: boolean;
+  readonly readySurfaces: readonly string[];
+}
+
 interface ScssEvaluatorControlFlowWideningWitnessV0 {
   readonly product: string;
   readonly mode: string;
@@ -308,7 +323,7 @@ const EXPECTED_RUNNER_COMMANDS = new Map([
     "scssEvaluatorControlFlow",
     {
       command: SELECTED_QUERY_RUNNER_COMMANDS.scssEvaluatorControlFlow,
-      inputContract: "OmenaParserStyleFactsInputV0",
+      inputContract: "EngineInputV2 + targetStylePath",
       outputProduct: "omena-query.scss-evaluator-control-flow",
     },
   ],
@@ -683,6 +698,8 @@ void (async () => {
   const lessCrossFileSummary = runLessWorkspaceCrossFileSummary();
   assertLessWorkspaceCrossFileSummary(lessCrossFileSummary);
   assertLessUnifiedHypergraphEdgeKindCoverage();
+  const scssControlFlow = runScssEvaluatorControlFlow();
+  assertScssEvaluatorControlFlow(scssControlFlow);
   const scssControlFlowOracleCorpus = runScssEvaluatorControlFlowOracleCorpus();
   assertScssEvaluatorControlFlowOracleCorpus(scssControlFlowOracleCorpus);
 
@@ -695,6 +712,7 @@ void (async () => {
       `staticStylesheetOracleFixtures=${staticStylesheetOracleCorpus.fixtureCount}`,
       `lessLifExports=${lessStaticLifExports.lessSpecificExportCount}`,
       `lessCrossFileEdges=${lessCrossFileSummary.summaryEdgeCount}`,
+      `scssControlFlowBlocks=${scssControlFlow.controlFlowBlockCount}`,
       `scssControlFlowOracleFixtures=${scssControlFlowOracleCorpus.fixtureCount}`,
       `routing=${summary.routingStatus}`,
     ].join(" "),
@@ -950,6 +968,51 @@ function runScssEvaluatorControlFlowOracleCorpus(): ScssEvaluatorControlFlowOrac
   return JSON.parse(result.stdout) as ScssEvaluatorControlFlowOracleCorpusSummaryV0;
 }
 
+function runScssEvaluatorControlFlow(): ScssEvaluatorControlFlowSummaryV0 {
+  const result = spawnSync(
+    "cargo",
+    [
+      "run",
+      "--manifest-path",
+      "rust/Cargo.toml",
+      "-p",
+      "engine-shadow-runner",
+      "--quiet",
+      "--",
+      SELECTED_QUERY_RUNNER_COMMANDS.scssEvaluatorControlFlow,
+    ],
+    {
+      cwd: process.cwd(),
+      encoding: "utf8",
+      input: JSON.stringify({
+        targetStylePath: "/tmp/Button.module.scss",
+        engineInput: {
+          version: "scss-control-flow-engine-input-v0",
+          sources: [],
+          styles: [
+            {
+              filePath: "/tmp/Button.module.scss",
+              source:
+                "$brand: red;\n@mixin tone($enabled) { @if $enabled { color: $brand; } @else { color: blue; } }\n.button { @include tone(true); }\n",
+              document: {
+                selectors: [],
+              },
+            },
+          ],
+          typeFacts: [],
+        },
+      }),
+      maxBuffer: 8 * 1024 * 1024,
+    },
+  );
+  assert.equal(
+    result.status,
+    0,
+    `SCSS control-flow command failed\nstdout=${result.stdout}\nstderr=${result.stderr}`,
+  );
+  return JSON.parse(result.stdout) as ScssEvaluatorControlFlowSummaryV0;
+}
+
 function assertStaticStylesheetEvaluator(summary: StaticStylesheetEvaluatorSummaryV0): void {
   assert.equal(summary.product, "omena-query.static-stylesheet-evaluator");
   assert.equal(summary.mode, "oracleOnly");
@@ -970,6 +1033,25 @@ function assertStaticStylesheetEvaluator(summary: StaticStylesheetEvaluatorSumma
     summary.nativeEditOutput?.includes("color: red"),
     "EngineInput-backed static evaluator must expose the native edit output",
   );
+}
+
+function assertScssEvaluatorControlFlow(summary: ScssEvaluatorControlFlowSummaryV0): void {
+  assert.equal(summary.product, "omena-query.scss-evaluator-control-flow");
+  assert.equal(summary.mode, "oracleOnly");
+  assert.equal(summary.dialect, "scss");
+  assert.equal(summary.valueType, "AbstractCssValueV0");
+  assert.equal(summary.supportedDialect, true);
+  assert.equal(summary.flatCssCfgBuilt, false);
+  assert.equal(summary.mergedCrossFileGraph, false);
+  assert.ok(summary.controlFlowBlockCount > 0);
+  assert.ok(summary.controlFlowBranchBlockCount > 0);
+  assert.ok(summary.callReturnNodeCount > 0);
+  assert.equal(summary.valueAnalysisConverged, true);
+  assert.deepEqual(summary.readySurfaces.toSorted(), [
+    "scssEvaluatorCallReturnIr",
+    "scssEvaluatorControlFlowIr",
+    "scssEvaluatorControlFlowValueAnalysis",
+  ]);
 }
 
 function assertLessStaticLifExports(summary: StaticLifExportsSummaryV0): void {

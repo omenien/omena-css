@@ -279,7 +279,7 @@ pub fn summarize_omena_query_static_stylesheet_evaluator_from_engine_input(
     Some(
         summarize_omena_query_static_stylesheet_evaluator_from_source(
             source,
-            omena_query_static_lif_dialect_for_style_path(target_style_path),
+            omena_query_style_dialect_for_path(target_style_path),
         ),
     )
 }
@@ -348,7 +348,7 @@ pub fn summarize_omena_query_static_lif_exports_from_engine_input(
     let source = target.source.as_deref()?;
     Some(summarize_omena_query_static_lif_exports_from_source(
         source,
-        omena_query_static_lif_dialect_for_style_path(target_style_path),
+        omena_query_style_dialect_for_path(target_style_path),
     ))
 }
 
@@ -466,6 +466,23 @@ pub fn summarize_omena_query_scss_evaluator_control_flow_from_source(
     }
 }
 
+pub fn summarize_omena_query_scss_evaluator_control_flow_from_engine_input(
+    input: &EngineInputV2,
+    target_style_path: &str,
+) -> Option<OmenaQueryScssEvaluatorControlFlowSummaryV0> {
+    let target = input
+        .styles
+        .iter()
+        .find(|style| style.file_path == target_style_path)?;
+    let source = target.source.as_deref()?;
+    Some(
+        summarize_omena_query_scss_evaluator_control_flow_from_source(
+            source,
+            omena_query_style_dialect_for_path(target_style_path),
+        ),
+    )
+}
+
 pub fn summarize_omena_query_scss_evaluator_control_flow_oracle_corpus()
 -> OmenaQueryScssEvaluatorControlFlowOracleCorpusSummaryV0 {
     let corpus = summarize_scss_control_flow_oracle_corpus();
@@ -503,7 +520,7 @@ pub fn summarize_omena_query_scss_evaluator_control_flow_oracle_corpus()
     }
 }
 
-fn omena_query_static_lif_dialect_for_style_path(style_path: &str) -> OmenaParserStyleDialect {
+fn omena_query_style_dialect_for_path(style_path: &str) -> OmenaParserStyleDialect {
     if style_path.ends_with(".sass") {
         OmenaParserStyleDialect::Sass
     } else if style_path.ends_with(".scss") {
