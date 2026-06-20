@@ -65,12 +65,16 @@ pub(super) fn static_stylesheet_module_output_css_from_evaluation(
     if !evaluation.may_consume_native_product_output() {
         return None;
     }
-    if let Some(native_edit_output) = evaluation.native_edit_output {
-        return Some(native_edit_output);
+    if let Some(native_edit_output) = evaluation.native_edit_output.as_ref() {
+        if !evaluation.native_output_matches_retained_oracle(native_edit_output.as_str()) {
+            return None;
+        }
+        return Some(native_edit_output.clone());
     }
     if let Some(native_css) =
         materialize_transform_module_evaluation_native_edits(input_css, &evaluation.native_edits)
         && native_css == evaluation.evaluated_css
+        && evaluation.native_output_matches_retained_oracle(native_css.as_str())
     {
         return Some(native_css);
     }

@@ -868,15 +868,22 @@ fn materialize_transform_module_evaluation_output(
     }
 
     if let Some(native_edit_output) = evaluation.native_edit_output.as_ref() {
+        if evaluation.native_output_matches_retained_oracle(native_edit_output) {
+            return TransformModuleEvaluationMaterializedOutput {
+                css: native_edit_output.clone(),
+                detail: native_detail,
+            };
+        }
         return TransformModuleEvaluationMaterializedOutput {
-            css: native_edit_output.clone(),
-            detail: native_detail,
+            css: input_css.to_string(),
+            detail: preserve_detail,
         };
     }
 
     if let Some(native_css) =
         apply_transform_module_evaluation_native_edits(input_css, &evaluation.native_edits)
         && native_css == evaluation.evaluated_css
+        && evaluation.native_output_matches_retained_oracle(native_css.as_str())
     {
         return TransformModuleEvaluationMaterializedOutput {
             css: native_css,
@@ -1106,6 +1113,78 @@ fn innermost_stable_node_key_for_span(
             )
         })
         .and_then(|node| node.node_key.clone())
+}
+
+#[cfg(test)]
+mod module_evaluation_materialization_tests {
+    use super::*;
+    use crate::model::TransformModuleEvaluationOracleV0;
+
+    fn oracle_allowing_native_output() -> TransformModuleEvaluationOracleV0 {
+        TransformModuleEvaluationOracleV0 {
+            mode: "oracleOnly".to_string(),
+            product_output_source: "legacyEvaluatedCss".to_string(),
+            divergence_count: 0,
+            all_legacy_declaration_values_preserved: true,
+            ..TransformModuleEvaluationOracleV0::default()
+        }
+    }
+
+    fn module_evaluation(
+        evaluated_css: &str,
+        native_edit_output: Option<&str>,
+        oracle: Option<TransformModuleEvaluationOracleV0>,
+    ) -> TransformModuleEvaluationV0 {
+        TransformModuleEvaluationV0 {
+            evaluator: "test".to_string(),
+            product_output_source: Some("nativeEditOutput".to_string()),
+            evaluated_css: evaluated_css.to_string(),
+            native_edit_output: native_edit_output.map(str::to_string),
+            native_replacements: Vec::new(),
+            native_edits: Vec::new(),
+            oracle,
+        }
+    }
+
+    #[test]
+    fn module_evaluation_consumes_oracle_backed_matching_native_output() {
+        let input_css = ".input { color: red; }";
+        let evaluation = module_evaluation(
+            ".native { color: red; }",
+            Some(".native { color: red; }"),
+            Some(oracle_allowing_native_output()),
+        );
+
+        let output = materialize_transform_module_evaluation_output(
+            input_css,
+            &evaluation,
+            "native",
+            "preserve",
+        );
+
+        assert_eq!(output.css, ".native { color: red; }");
+        assert_eq!(output.detail, "native");
+    }
+
+    #[test]
+    fn module_evaluation_preserves_input_when_oracle_backed_native_output_mismatches() {
+        let input_css = ".input { color: red; }";
+        let evaluation = module_evaluation(
+            ".legacy { color: red; }",
+            Some(".native { color: red; }"),
+            Some(oracle_allowing_native_output()),
+        );
+
+        let output = materialize_transform_module_evaluation_output(
+            input_css,
+            &evaluation,
+            "native",
+            "preserve",
+        );
+
+        assert_eq!(output.css, input_css);
+        assert_eq!(output.detail, "preserve");
+    }
 }
 
 #[cfg(test)]

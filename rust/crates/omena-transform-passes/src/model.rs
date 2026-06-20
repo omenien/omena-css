@@ -317,6 +317,12 @@ impl TransformModuleEvaluationV0 {
     pub fn may_consume_native_product_output(&self) -> bool {
         self.declares_native_product_output() && self.oracle_allows_native_product_output()
     }
+
+    pub fn native_output_matches_retained_oracle(&self, native_output: &str) -> bool {
+        self.oracle
+            .as_ref()
+            .is_none_or(|_| native_output == self.evaluated_css)
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize)]
