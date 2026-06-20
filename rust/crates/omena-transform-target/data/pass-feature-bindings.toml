@@ -33,3 +33,23 @@ support_table = "cascade_layers"
 pass_id = "scope-flatten"
 caniuse_keys = ["css-cascade-scope"]
 support_table = "css_scope"
+
+[[binding]]
+pass_id = "vendor-prefixing"
+caniuse_keys = ["flexbox"]
+support_table = "flexbox"
+
+[[binding]]
+pass_id = "vendor-prefixing"
+caniuse_keys = ["css-sticky"]
+support_table = "sticky_positioning"
+
+[[binding]]
+pass_id = "oklch-oklab-lowering"
+caniuse_keys = ["css-lch-lab"]
+support_table = "oklch_oklab"
+
+[[binding]]
+pass_id = "logical-to-physical"
+caniuse_keys = ["css-logical-props"]
+support_table = "logical_properties"

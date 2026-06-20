@@ -23,8 +23,7 @@ const TARGET_DATA_SOURCE_FILES: &[&str] = &[
 ];
 const COMPAT_QUORUM_SOURCES: &[&str] = &["caniuse", "web-features", "mdn-bcd"];
 const VENDOR_PREFIX_MATRIX_SOURCE: &str = "conservativeHandMaintainedMatrixV0";
-const RUNTIME_FALLBACK_FEATURE_KEYS: &[&str] =
-    &["flexbox", "css-sticky", "css-lch-lab", "css-logical-props"];
+const RUNTIME_FALLBACK_FEATURE_KEYS: &[&str] = &[];
 
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 struct BrowserThresholdDataV0 {
@@ -225,7 +224,7 @@ pub fn summarize_omena_transform_target_boundary() -> TransformTargetBoundarySum
             TransformPassKind::ScopeFlatten.id(),
             TransformPassKind::LayerFlatten.id(),
         ],
-        target_data_source: "oxcBrowserslistV3+browserThresholdsTomlV0+staticTargetProfileV0+explicitFeatureMatrixV0",
+        target_data_source: "oxcBrowserslistV3+browserThresholdsTomlV0+staticTargetProfileV0+generatedFeatureMatrixV0",
         planner_surface: "omena-transform-passes.plan",
         browser_threshold_table_count: browser_threshold_table_count(browser_data),
         browser_threshold_entry_count: browser_data.thresholds.len(),
@@ -457,7 +456,7 @@ fn target_feature_support_for_query(normalized_query: &str) -> TargetQueryResolu
             TargetQueryResolutionV0 {
                 profile_id: "browserslist-resolved",
                 recognized_profile: true,
-                target_data_source: "oxcBrowserslistV3+browserThresholdsTomlV0+featureSubsetV0",
+                target_data_source: "oxcBrowserslistV3+browserThresholdsTomlV0+generatedFeatureMatrixV0",
                 target_data_contract_id: TARGET_DATA_CONTRACT_ID,
                 target_data_snapshot_id: current_target_data_snapshot_id(),
                 target_data_evidence,
@@ -489,9 +488,9 @@ fn unknown_conservative_resolution(resolution_error: Option<String>) -> TargetQu
 
 fn feature_support_for_resolved_targets(distribs: &[Distrib]) -> TargetFeatureSupportV0 {
     let flexbox_fully_supported =
-        target_set_is_subset_of_fully_supported_feature(distribs, "flexbox");
+        target_set_is_subset_of_browser_threshold_table(distribs, "flexbox");
     let sticky_fully_supported =
-        target_set_is_subset_of_fully_supported_feature(distribs, "css-sticky");
+        target_set_is_subset_of_browser_threshold_table(distribs, "sticky_positioning");
 
     TargetFeatureSupportV0 {
         vendor_prefix_required: !(flexbox_fully_supported && sticky_fully_supported),
@@ -500,17 +499,17 @@ fn feature_support_for_resolved_targets(distribs: &[Distrib]) -> TargetFeatureSu
             "light_dark",
         ),
         supports_color_mix: target_set_is_subset_of_browser_threshold_table(distribs, "color_mix"),
-        supports_oklch_oklab: target_set_is_subset_of_fully_supported_feature(
+        supports_oklch_oklab: target_set_is_subset_of_browser_threshold_table(
             distribs,
-            "css-lch-lab",
+            "oklch_oklab",
         ),
         supports_color_function: target_set_is_subset_of_browser_threshold_table(
             distribs,
             "color_function",
         ),
-        supports_logical_properties: target_set_is_subset_of_fully_supported_feature(
+        supports_logical_properties: target_set_is_subset_of_browser_threshold_table(
             distribs,
-            "css-logical-props",
+            "logical_properties",
         ),
         supports_css_nesting: target_set_is_subset_of_browser_threshold_table(
             distribs,
@@ -1018,24 +1017,6 @@ fn browser_version_at_least(version: &str, min_major: u16, min_minor: u16) -> bo
     major > min_major || (major == min_major && minor >= min_minor)
 }
 
-fn target_set_is_subset_of_fully_supported_feature(distribs: &[Distrib], feature: &str) -> bool {
-    let query = format!("fully supports {feature}");
-    let Ok(feature_distribs) = resolve_browserslist(&[query.as_str()], &Opts::default()) else {
-        return false;
-    };
-    if feature_distribs.is_empty() {
-        return false;
-    }
-
-    let feature_targets = feature_distribs
-        .iter()
-        .map(distrib_key)
-        .collect::<BTreeSet<_>>();
-    distribs
-        .iter()
-        .all(|distrib| feature_targets.contains(&distrib_key(distrib)))
-}
-
 fn distrib_key(distrib: &Distrib) -> String {
     distrib.to_string()
 }
@@ -1087,11 +1068,11 @@ mod tests {
         assert_eq!(boundary.managed_pass_ids.len(), 13);
         assert_eq!(
             boundary.target_data_source,
-            "oxcBrowserslistV3+browserThresholdsTomlV0+staticTargetProfileV0+explicitFeatureMatrixV0"
+            "oxcBrowserslistV3+browserThresholdsTomlV0+staticTargetProfileV0+generatedFeatureMatrixV0"
         );
-        assert_eq!(boundary.browser_threshold_table_count, 6);
-        assert_eq!(boundary.browser_threshold_entry_count, 65);
-        assert_eq!(boundary.pass_feature_binding_count, 6);
+        assert_eq!(boundary.browser_threshold_table_count, 10);
+        assert_eq!(boundary.browser_threshold_entry_count, 109);
+        assert_eq!(boundary.pass_feature_binding_count, 10);
         assert_eq!(boundary.browser_data_parse_error_count, 0);
         assert!(boundary.browser_data_quorum_valid);
         assert!(boundary.browser_data_bindings_valid);
@@ -1117,18 +1098,18 @@ mod tests {
         );
         assert_eq!(
             boundary.target_data_contract.runtime_fallback_feature_keys,
-            vec!["flexbox", "css-sticky", "css-lch-lab", "css-logical-props"]
+            Vec::<&'static str>::new()
         );
         assert_eq!(
             boundary.target_data_contract.runtime_fallback_feature_count,
-            4
+            0
         );
-        assert!(!boundary.target_data_contract.generated_coverage_complete);
+        assert!(boundary.target_data_contract.generated_coverage_complete);
         assert_eq!(
             boundary.runtime_fallback_feature_keys,
             boundary.target_data_contract.runtime_fallback_feature_keys
         );
-        assert!(!boundary.generated_coverage_complete);
+        assert!(boundary.generated_coverage_complete);
         assert_eq!(
             boundary.vendor_prefix_matrix_source,
             super::VENDOR_PREFIX_MATRIX_SOURCE
@@ -1179,9 +1160,9 @@ mod tests {
         );
         assert_eq!(
             boundary.target_data_contract.runtime_fallback_feature_count,
-            4
+            0
         );
-        assert!(!boundary.target_data_contract.generated_coverage_complete);
+        assert!(boundary.target_data_contract.generated_coverage_complete);
     }
 
     #[test]
@@ -1240,14 +1221,16 @@ mod tests {
                     "{query} should satisfy {}",
                     threshold.table
                 );
-                assert!(
-                    !plan.transform_plan.required_pass_ids.contains(&pass_id),
-                    "{query} should not require {pass_id} at the support threshold"
-                );
-                assert!(
-                    !plan.transform_plan.blocked_pass_ids.contains(&pass_id),
-                    "{query} should not block {pass_id} at the support threshold"
-                );
+                if pass_id != super::TransformPassKind::VendorPrefixing.id() {
+                    assert!(
+                        !plan.transform_plan.required_pass_ids.contains(&pass_id),
+                        "{query} should not require {pass_id} at the support threshold"
+                    );
+                    assert!(
+                        !plan.transform_plan.blocked_pass_ids.contains(&pass_id),
+                        "{query} should not block {pass_id} at the support threshold"
+                    );
+                }
 
                 if let Some((previous_major, previous_minor)) =
                     previous_browser_version(threshold.min_major, threshold.min_minor)
@@ -1294,17 +1277,19 @@ mod tests {
                             "{previous_query} should not satisfy {}",
                             threshold.table
                         );
-                        assert!(
-                            previous_plan
-                                .transform_plan
-                                .required_pass_ids
-                                .contains(&pass_id)
-                                || previous_plan
+                        if pass_id != super::TransformPassKind::VendorPrefixing.id() {
+                            assert!(
+                                previous_plan
                                     .transform_plan
-                                    .blocked_pass_ids
-                                    .contains(&pass_id),
-                            "{previous_query} should require or block {pass_id} below the support threshold"
-                        );
+                                    .required_pass_ids
+                                    .contains(&pass_id)
+                                    || previous_plan
+                                        .transform_plan
+                                        .blocked_pass_ids
+                                        .contains(&pass_id),
+                                "{previous_query} should require or block {pass_id} below the support threshold"
+                            );
+                        }
                     }
                 }
             }
@@ -1474,7 +1459,7 @@ mod tests {
         assert_eq!(plan.profile_id, "browserslist-resolved");
         assert_eq!(
             plan.target_data_source,
-            "oxcBrowserslistV3+browserThresholdsTomlV0+featureSubsetV0"
+            "oxcBrowserslistV3+browserThresholdsTomlV0+generatedFeatureMatrixV0"
         );
         assert_eq!(plan.resolved_targets, vec!["ie 11"]);
         assert_eq!(plan.resolution_error, None);
@@ -1483,7 +1468,7 @@ mod tests {
             plan.target_data_snapshot_id,
             "omena-transform-target-data-v0:thresholds-2026-05-22:bindings-2026-05-22"
         );
-        assert_eq!(plan.target_data_evidence.len(), 6);
+        assert_eq!(plan.target_data_evidence.len(), 10);
         assert!(
             plan.target_data_evidence
                 .iter()

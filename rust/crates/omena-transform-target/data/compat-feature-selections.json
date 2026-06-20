@@ -153,6 +153,102 @@
         { "browser": "samsung", "minMajor": 25, "minMinor": 0 },
         { "browser": "android", "minMajor": 149, "minMinor": 0 }
       ]
+    },
+    {
+      "table": "flexbox",
+      "passId": "vendor-prefixing",
+      "caniuseKeys": ["flexbox"],
+      "sourceKeys": {
+        "caniuse": "flexbox",
+        "web-features": "flexbox",
+        "mdn-bcd": "css.properties.flex"
+      },
+      "sourceQuorum": ["caniuse", "web-features", "mdn-bcd"],
+      "thresholds": [
+        { "browser": "chrome", "minMajor": 21, "minMinor": 0 },
+        { "browser": "edge", "minMajor": 12, "minMinor": 0 },
+        { "browser": "firefox", "minMajor": 28, "minMinor": 0 },
+        { "browser": "safari", "minMajor": 6, "minMinor": 1 },
+        { "browser": "ios_saf", "minMajor": 7, "minMinor": 0 },
+        { "browser": "opera", "minMajor": 12, "minMinor": 1 },
+        { "browser": "op_mob", "minMajor": 12, "minMinor": 1 },
+        { "browser": "and_chr", "minMajor": 149, "minMinor": 0 },
+        { "browser": "and_ff", "minMajor": 151, "minMinor": 0 },
+        { "browser": "samsung", "minMajor": 4, "minMinor": 0 },
+        { "browser": "android", "minMajor": 4, "minMinor": 4 }
+      ]
+    },
+    {
+      "table": "sticky_positioning",
+      "passId": "vendor-prefixing",
+      "caniuseKeys": ["css-sticky"],
+      "sourceKeys": {
+        "caniuse": "css-sticky",
+        "web-features": "sticky-positioning",
+        "mdn-bcd": "css.properties.position.sticky"
+      },
+      "sourceQuorum": ["caniuse", "web-features", "mdn-bcd"],
+      "thresholds": [
+        { "browser": "chrome", "minMajor": 91, "minMinor": 0 },
+        { "browser": "edge", "minMajor": 91, "minMinor": 0 },
+        { "browser": "firefox", "minMajor": 59, "minMinor": 0 },
+        { "browser": "safari", "minMajor": 7, "minMinor": 1 },
+        { "browser": "ios_saf", "minMajor": 8, "minMinor": 0 },
+        { "browser": "opera", "minMajor": 78, "minMinor": 0 },
+        { "browser": "op_mob", "minMajor": 80, "minMinor": 0 },
+        { "browser": "and_chr", "minMajor": 149, "minMinor": 0 },
+        { "browser": "and_ff", "minMajor": 151, "minMinor": 0 },
+        { "browser": "samsung", "minMajor": 6, "minMinor": 2 },
+        { "browser": "android", "minMajor": 149, "minMinor": 0 }
+      ]
+    },
+    {
+      "table": "oklch_oklab",
+      "passId": "oklch-oklab-lowering",
+      "caniuseKeys": ["css-lch-lab"],
+      "sourceKeys": {
+        "caniuse": "css-lch-lab",
+        "web-features": "oklab",
+        "mdn-bcd": "css.types.color.oklch"
+      },
+      "sourceQuorum": ["caniuse", "web-features", "mdn-bcd"],
+      "thresholds": [
+        { "browser": "chrome", "minMajor": 111, "minMinor": 0 },
+        { "browser": "edge", "minMajor": 111, "minMinor": 0 },
+        { "browser": "firefox", "minMajor": 113, "minMinor": 0 },
+        { "browser": "safari", "minMajor": 15, "minMinor": 0 },
+        { "browser": "ios_saf", "minMajor": 15, "minMinor": 0 },
+        { "browser": "opera", "minMajor": 98, "minMinor": 0 },
+        { "browser": "op_mob", "minMajor": 80, "minMinor": 0 },
+        { "browser": "and_chr", "minMajor": 149, "minMinor": 0 },
+        { "browser": "and_ff", "minMajor": 151, "minMinor": 0 },
+        { "browser": "samsung", "minMajor": 22, "minMinor": 0 },
+        { "browser": "android", "minMajor": 149, "minMinor": 0 }
+      ]
+    },
+    {
+      "table": "logical_properties",
+      "passId": "logical-to-physical",
+      "caniuseKeys": ["css-logical-props"],
+      "sourceKeys": {
+        "caniuse": "css-logical-props",
+        "web-features": "logical-properties",
+        "mdn-bcd": "css.properties.margin-inline-start"
+      },
+      "sourceQuorum": ["caniuse", "web-features", "mdn-bcd"],
+      "thresholds": [
+        { "browser": "chrome", "minMajor": 89, "minMinor": 0 },
+        { "browser": "edge", "minMajor": 89, "minMinor": 0 },
+        { "browser": "firefox", "minMajor": 66, "minMinor": 0 },
+        { "browser": "safari", "minMajor": 15, "minMinor": 0 },
+        { "browser": "ios_saf", "minMajor": 15, "minMinor": 0 },
+        { "browser": "opera", "minMajor": 76, "minMinor": 0 },
+        { "browser": "op_mob", "minMajor": 80, "minMinor": 0 },
+        { "browser": "and_chr", "minMajor": 149, "minMinor": 0 },
+        { "browser": "and_ff", "minMajor": 151, "minMinor": 0 },
+        { "browser": "samsung", "minMajor": 15, "minMinor": 0 },
+        { "browser": "android", "minMajor": 149, "minMinor": 0 }
+      ]
     }
   ]
 }

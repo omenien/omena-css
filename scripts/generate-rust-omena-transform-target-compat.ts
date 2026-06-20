@@ -10,7 +10,8 @@ const sourcePinsPath = "rust/crates/omena-spec-audit/data/spec-sources.json";
 const specManifestPath = "rust/crates/omena-spec-audit/data/omena-spec-manifest.json";
 const selectionPath = "rust/crates/omena-transform-target/data/compat-feature-selections.json";
 const browserThresholdsPath = "rust/crates/omena-transform-target/data/browser-thresholds.toml";
-const passFeatureBindingsPath = "rust/crates/omena-transform-target/data/pass-feature-bindings.toml";
+const passFeatureBindingsPath =
+  "rust/crates/omena-transform-target/data/pass-feature-bindings.toml";
 const generatorPath = "scripts/generate-rust-omena-transform-target-compat.ts";
 
 interface SpecSourcePinsV0 {
@@ -82,7 +83,11 @@ const browserThresholdsSource = renderBrowserThresholdsToml(specSources, selecti
 const passFeatureBindingsSource = renderPassFeatureBindingsToml(specSources, selections);
 
 if (checkOnly) {
-  assert.equal(readText(browserThresholdsPath), browserThresholdsSource, `${browserThresholdsPath} is stale`);
+  assert.equal(
+    readText(browserThresholdsPath),
+    browserThresholdsSource,
+    `${browserThresholdsPath} is stale`,
+  );
   assert.equal(
     readText(passFeatureBindingsPath),
     passFeatureBindingsSource,
@@ -111,30 +116,30 @@ process.stdout.write(
 );
 
 function validateInputs(
-  specSources: SpecSourcePinsV0,
-  specManifest: SpecManifestV0,
-  selections: CompatFeatureSelectionsV0,
+  sourcePins: SpecSourcePinsV0,
+  manifest: SpecManifestV0,
+  featureSelections: CompatFeatureSelectionsV0,
 ): void {
-  assert.equal(specSources.schemaVersion, "0");
-  assert.equal(specSources.product, selections.sourcePolicy.sourcePinProduct);
-  assert.equal(specManifest.schemaVersion, "0");
-  assert.equal(specManifest.product, "omena-spec-audit.single-source-manifest");
-  assert.equal(selections.schemaVersion, "0");
-  assert.equal(selections.product, "omena-transform-target.compat-feature-selections");
-  assert.equal(selections.sourcePolicy.refreshedAtSource, sourcePinsPath);
-  assert.equal(selections.sourcePolicy.caniuseResolver.workspaceDependency, "browserslist");
-  assert.equal(selections.sourcePolicy.caniuseResolver.cargoPackage, "oxc-browserslist");
-  assert.deepEqual(selections.sourcePolicy.requiredSourceQuorum, [
+  assert.equal(sourcePins.schemaVersion, "0");
+  assert.equal(sourcePins.product, featureSelections.sourcePolicy.sourcePinProduct);
+  assert.equal(manifest.schemaVersion, "0");
+  assert.equal(manifest.product, "omena-spec-audit.single-source-manifest");
+  assert.equal(featureSelections.schemaVersion, "0");
+  assert.equal(featureSelections.product, "omena-transform-target.compat-feature-selections");
+  assert.equal(featureSelections.sourcePolicy.refreshedAtSource, sourcePinsPath);
+  assert.equal(featureSelections.sourcePolicy.caniuseResolver.workspaceDependency, "browserslist");
+  assert.equal(featureSelections.sourcePolicy.caniuseResolver.cargoPackage, "oxc-browserslist");
+  assert.deepEqual(featureSelections.sourcePolicy.requiredSourceQuorum, [
     "caniuse",
     "web-features",
     "mdn-bcd",
   ]);
 
-  const sourceNames = new Set(specSources.sources.map((source) => source.name));
+  const sourceNames = new Set(sourcePins.sources.map((source) => source.name));
   assert.ok(sourceNames.has("web-features"), "web-features source pin is required");
   assert.ok(sourceNames.has("mdn-browser-compat-data"), "MDN BCD source pin is required");
-  const manifestSourceKeys = specManifestSourceKeyIndex(specManifest);
-  const manifestEvidence = specManifestEvidenceIndex(specManifest);
+  const manifestSourceKeys = specManifestSourceKeyIndex(manifest);
+  const manifestEvidence = specManifestEvidenceIndex(manifest);
   assert.ok(
     manifestSourceKeys.has("web-features"),
     "spec manifest source coverage must include web-features",
@@ -149,20 +154,17 @@ function validateInputs(
     "caniuse resolution must remain pinned through oxc-browserslist",
   );
 
-  assert.ok(selections.features.length > 0, "at least one compat feature is required");
+  assert.ok(featureSelections.features.length > 0, "at least one compat feature is required");
   const tables = new Set<string>();
-  const passIds = new Set<string>();
-  for (const feature of selections.features) {
+  for (const feature of featureSelections.features) {
     assert.match(feature.table, /^[a-z][a-z0-9_]*$/u, `invalid table ${feature.table}`);
     assert.ok(!tables.has(feature.table), `duplicate compat table ${feature.table}`);
     tables.add(feature.table);
     assert.ok(feature.passId.length > 0, `${feature.table} passId is required`);
-    assert.ok(!passIds.has(feature.passId), `duplicate compat passId ${feature.passId}`);
-    passIds.add(feature.passId);
     assert.ok(feature.caniuseKeys.length > 0, `${feature.table} caniuseKeys required`);
     assert.deepEqual(
       Object.keys(feature.sourceKeys).toSorted(),
-      [...selections.sourcePolicy.requiredSourceQuorum].toSorted(),
+      [...featureSelections.sourcePolicy.requiredSourceQuorum].toSorted(),
       `${feature.table} must carry a cross-source feature key map`,
     );
     assert.equal(
@@ -173,7 +175,7 @@ function validateInputs(
     assertFeatureSourceKeyAnchored(manifestSourceKeys, feature, "web-features");
     assertFeatureSourceKeyAnchored(manifestSourceKeys, feature, "mdn-bcd");
     assertFeatureSourceKeyEvidenceAnchored(manifestEvidence, feature);
-    for (const source of selections.sourcePolicy.requiredSourceQuorum) {
+    for (const source of featureSelections.sourcePolicy.requiredSourceQuorum) {
       assert.ok(
         feature.sourceKeys[source]?.length > 0,
         `${feature.table} missing source key for ${source}`,
@@ -181,7 +183,7 @@ function validateInputs(
     }
     assert.deepEqual(
       feature.sourceQuorum,
-      selections.sourcePolicy.requiredSourceQuorum,
+      featureSelections.sourcePolicy.requiredSourceQuorum,
       `${feature.table} must retain full source quorum`,
     );
     let previousBrowserOrder = -1;
@@ -197,8 +199,14 @@ function validateInputs(
         `${feature.table} must retain stable browser row order without duplicates`,
       );
       previousBrowserOrder = browserOrder;
-      assert.ok(Number.isInteger(threshold.minMajor), `${feature.table}/${threshold.browser} major`);
-      assert.ok(Number.isInteger(threshold.minMinor), `${feature.table}/${threshold.browser} minor`);
+      assert.ok(
+        Number.isInteger(threshold.minMajor),
+        `${feature.table}/${threshold.browser} major`,
+      );
+      assert.ok(
+        Number.isInteger(threshold.minMinor),
+        `${feature.table}/${threshold.browser} minor`,
+      );
       assert.ok(threshold.minMajor >= 0, `${feature.table}/${threshold.browser} major`);
       assert.ok(threshold.minMinor >= 0, `${feature.table}/${threshold.browser} minor`);
     }
@@ -209,7 +217,10 @@ function specManifestSourceKeyIndex(manifest: SpecManifestV0): Map<string, Set<s
   const sourceKeysByName = new Map<string, Set<string>>();
   for (const coverage of manifest.sourceCoverage) {
     assert.ok(coverage.sourceName.length > 0, "spec manifest source coverage name required");
-    assert.ok(coverage.entryIds.length > 0, `spec manifest ${coverage.sourceName} entries required`);
+    assert.ok(
+      coverage.entryIds.length > 0,
+      `spec manifest ${coverage.sourceName} entries required`,
+    );
     assert.ok(
       coverage.sourceKeys.length > 0,
       `spec manifest ${coverage.sourceName} source keys required`,
@@ -258,20 +269,20 @@ function assertFeatureSourceKeyEvidenceAnchored(
 }
 
 function renderBrowserThresholdsToml(
-  specSources: SpecSourcePinsV0,
-  selections: CompatFeatureSelectionsV0,
+  sourcePins: SpecSourcePinsV0,
+  featureSelections: CompatFeatureSelectionsV0,
 ): string {
   const lines = [
     `# Generated by ${generatorPath}. Do not edit manually.`,
     `# Source selections: ${selectionPath}.`,
     'schema_version = "0"',
     'product = "omena-transform-target.browser-thresholds"',
-    `refreshed_at = ${quoteToml(specSources.refreshedAt)}`,
-    `quorum_min_sources = ${selections.sourcePolicy.requiredSourceQuorum.length}`,
+    `refreshed_at = ${quoteToml(sourcePins.refreshedAt)}`,
+    `quorum_min_sources = ${featureSelections.sourcePolicy.requiredSourceQuorum.length}`,
     "",
   ];
 
-  for (const feature of selections.features) {
+  for (const feature of featureSelections.features) {
     const caniuseKey = feature.caniuseKeys[0];
     assert.ok(caniuseKey, `${feature.table} needs a primary caniuse key`);
     for (const threshold of feature.thresholds) {
@@ -283,7 +294,7 @@ function renderBrowserThresholdsToml(
         `min_minor = ${threshold.minMinor}`,
         `caniuse_key = ${quoteToml(caniuseKey)}`,
         `source_quorum = ${tomlStringArray(feature.sourceQuorum)}`,
-        `last_verified = ${quoteToml(specSources.refreshedAt)}`,
+        `last_verified = ${quoteToml(sourcePins.refreshedAt)}`,
         "",
       );
     }
@@ -293,19 +304,19 @@ function renderBrowserThresholdsToml(
 }
 
 function renderPassFeatureBindingsToml(
-  specSources: SpecSourcePinsV0,
-  selections: CompatFeatureSelectionsV0,
+  sourcePins: SpecSourcePinsV0,
+  featureSelections: CompatFeatureSelectionsV0,
 ): string {
   const lines = [
     `# Generated by ${generatorPath}. Do not edit manually.`,
     `# Source selections: ${selectionPath}.`,
     'schema_version = "0"',
     'product = "omena-transform-target.pass-feature-bindings"',
-    `refreshed_at = ${quoteToml(specSources.refreshedAt)}`,
+    `refreshed_at = ${quoteToml(sourcePins.refreshedAt)}`,
     "",
   ];
 
-  for (const feature of selections.features) {
+  for (const feature of featureSelections.features) {
     lines.push(
       "[[binding]]",
       `pass_id = ${quoteToml(feature.passId)}`,

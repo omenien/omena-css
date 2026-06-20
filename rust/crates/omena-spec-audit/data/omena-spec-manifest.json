@@ -113,6 +113,10 @@
         "css-nesting/selectors/nesting",
         "css-cascade/atrules/@layer",
         "css-cascade/atrules/@scope",
+        "css-flexbox/layout/flexbox",
+        "css-position/properties/sticky",
+        "css-color/functions/oklch-oklab",
+        "css-logical/properties/logical-properties",
         "css-sizing/properties/width",
         "css-sizing/properties/height",
         "css-backgrounds/properties/background-color",
@@ -141,6 +145,10 @@
         "nesting",
         "cascade-layers",
         "scope",
+        "flexbox",
+        "sticky-positioning",
+        "oklab",
+        "logical-properties",
         "css-values",
         "css-sizing",
         "css-backgrounds",
@@ -166,6 +174,10 @@
         "css-nesting/selectors/nesting",
         "css-cascade/atrules/@layer",
         "css-cascade/atrules/@scope",
+        "css-flexbox/layout/flexbox",
+        "css-position/properties/sticky",
+        "css-color/functions/oklch-oklab",
+        "css-logical/properties/logical-properties",
         "css-sizing/properties/width",
         "css-sizing/properties/height",
         "css-backgrounds/properties/background-color",
@@ -196,6 +208,10 @@
         "css.selectors.nesting",
         "css.at-rules.layer",
         "css.at-rules.scope",
+        "css.properties.flex",
+        "css.properties.position.sticky",
+        "css.types.color.oklch",
+        "css.properties.margin-inline-start",
         "css.properties.width",
         "css.properties.height",
         "css.properties.background-color",
@@ -357,6 +373,66 @@
         "compat-source-key:web-features/scope",
         "compat-source-key:mdn-bcd/css.at-rules.scope",
         "compat-source-key:caniuse/css-cascade-scope"
+      ]
+    },
+    {
+      "id": "css-flexbox/layout/flexbox",
+      "webrefId": "css-flexbox/layout/flexbox",
+      "sourceName": "web-features",
+      "sourceCategory": "layout",
+      "specUrl": "https://drafts.csswg.org/css-flexbox-1/",
+      "priority": "P1",
+      "status": "covered",
+      "owner": "omena-transform-target",
+      "evidence": [
+        "compat-source-key:web-features/flexbox",
+        "compat-source-key:mdn-bcd/css.properties.flex",
+        "compat-source-key:caniuse/flexbox"
+      ]
+    },
+    {
+      "id": "css-position/properties/sticky",
+      "webrefId": "css-position/properties/sticky",
+      "sourceName": "web-features",
+      "sourceCategory": "properties",
+      "specUrl": "https://drafts.csswg.org/css-position-3/#sticky-pos",
+      "priority": "P1",
+      "status": "covered",
+      "owner": "omena-transform-target",
+      "evidence": [
+        "compat-source-key:web-features/sticky-positioning",
+        "compat-source-key:mdn-bcd/css.properties.position.sticky",
+        "compat-source-key:caniuse/css-sticky"
+      ]
+    },
+    {
+      "id": "css-color/functions/oklch-oklab",
+      "webrefId": "css-color/functions/oklch-oklab",
+      "sourceName": "web-features",
+      "sourceCategory": "values",
+      "specUrl": "https://drafts.csswg.org/css-color-4/#specifying-oklab-oklch",
+      "priority": "P1",
+      "status": "covered",
+      "owner": "omena-transform-target",
+      "evidence": [
+        "compat-source-key:web-features/oklab",
+        "compat-source-key:mdn-bcd/css.types.color.oklch",
+        "compat-source-key:caniuse/css-lch-lab"
+      ]
+    },
+    {
+      "id": "css-logical/properties/logical-properties",
+      "webrefId": "css-logical/properties/logical-properties",
+      "sourceName": "web-features",
+      "sourceCategory": "properties",
+      "specUrl": "https://drafts.csswg.org/css-logical-1/",
+      "priority": "P1",
+      "status": "covered",
+      "owner": "omena-transform-target",
+      "evidence": [
+        "compat-source-key:web-features/logical-properties",
+        "compat-source-key:mdn-bcd/css.properties.margin-inline-start",
+        "compat-source-key:caniuse/css-logical-props"
       ]
     },
     {

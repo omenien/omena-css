@@ -589,3 +589,399 @@ min_minor = 0
 caniuse_key = "css-cascade-scope"
 source_quorum = ["caniuse", "web-features", "mdn-bcd"]
 last_verified = "2026-05-22"
+
+[[threshold]]
+table = "flexbox"
+browser = "chrome"
+min_major = 21
+min_minor = 0
+caniuse_key = "flexbox"
+source_quorum = ["caniuse", "web-features", "mdn-bcd"]
+last_verified = "2026-05-22"
+
+[[threshold]]
+table = "flexbox"
+browser = "edge"
+min_major = 12
+min_minor = 0
+caniuse_key = "flexbox"
+source_quorum = ["caniuse", "web-features", "mdn-bcd"]
+last_verified = "2026-05-22"
+
+[[threshold]]
+table = "flexbox"
+browser = "firefox"
+min_major = 28
+min_minor = 0
+caniuse_key = "flexbox"
+source_quorum = ["caniuse", "web-features", "mdn-bcd"]
+last_verified = "2026-05-22"
+
+[[threshold]]
+table = "flexbox"
+browser = "safari"
+min_major = 6
+min_minor = 1
+caniuse_key = "flexbox"
+source_quorum = ["caniuse", "web-features", "mdn-bcd"]
+last_verified = "2026-05-22"
+
+[[threshold]]
+table = "flexbox"
+browser = "ios_saf"
+min_major = 7
+min_minor = 0
+caniuse_key = "flexbox"
+source_quorum = ["caniuse", "web-features", "mdn-bcd"]
+last_verified = "2026-05-22"
+
+[[threshold]]
+table = "flexbox"
+browser = "opera"
+min_major = 12
+min_minor = 1
+caniuse_key = "flexbox"
+source_quorum = ["caniuse", "web-features", "mdn-bcd"]
+last_verified = "2026-05-22"
+
+[[threshold]]
+table = "flexbox"
+browser = "op_mob"
+min_major = 12
+min_minor = 1
+caniuse_key = "flexbox"
+source_quorum = ["caniuse", "web-features", "mdn-bcd"]
+last_verified = "2026-05-22"
+
+[[threshold]]
+table = "flexbox"
+browser = "and_chr"
+min_major = 149
+min_minor = 0
+caniuse_key = "flexbox"
+source_quorum = ["caniuse", "web-features", "mdn-bcd"]
+last_verified = "2026-05-22"
+
+[[threshold]]
+table = "flexbox"
+browser = "and_ff"
+min_major = 151
+min_minor = 0
+caniuse_key = "flexbox"
+source_quorum = ["caniuse", "web-features", "mdn-bcd"]
+last_verified = "2026-05-22"
+
+[[threshold]]
+table = "flexbox"
+browser = "samsung"
+min_major = 4
+min_minor = 0
+caniuse_key = "flexbox"
+source_quorum = ["caniuse", "web-features", "mdn-bcd"]
+last_verified = "2026-05-22"
+
+[[threshold]]
+table = "flexbox"
+browser = "android"
+min_major = 4
+min_minor = 4
+caniuse_key = "flexbox"
+source_quorum = ["caniuse", "web-features", "mdn-bcd"]
+last_verified = "2026-05-22"
+
+[[threshold]]
+table = "sticky_positioning"
+browser = "chrome"
+min_major = 91
+min_minor = 0
+caniuse_key = "css-sticky"
+source_quorum = ["caniuse", "web-features", "mdn-bcd"]
+last_verified = "2026-05-22"
+
+[[threshold]]
+table = "sticky_positioning"
+browser = "edge"
+min_major = 91
+min_minor = 0
+caniuse_key = "css-sticky"
+source_quorum = ["caniuse", "web-features", "mdn-bcd"]
+last_verified = "2026-05-22"
+
+[[threshold]]
+table = "sticky_positioning"
+browser = "firefox"
+min_major = 59
+min_minor = 0
+caniuse_key = "css-sticky"
+source_quorum = ["caniuse", "web-features", "mdn-bcd"]
+last_verified = "2026-05-22"
+
+[[threshold]]
+table = "sticky_positioning"
+browser = "safari"
+min_major = 7
+min_minor = 1
+caniuse_key = "css-sticky"
+source_quorum = ["caniuse", "web-features", "mdn-bcd"]
+last_verified = "2026-05-22"
+
+[[threshold]]
+table = "sticky_positioning"
+browser = "ios_saf"
+min_major = 8
+min_minor = 0
+caniuse_key = "css-sticky"
+source_quorum = ["caniuse", "web-features", "mdn-bcd"]
+last_verified = "2026-05-22"
+
+[[threshold]]
+table = "sticky_positioning"
+browser = "opera"
+min_major = 78
+min_minor = 0
+caniuse_key = "css-sticky"
+source_quorum = ["caniuse", "web-features", "mdn-bcd"]
+last_verified = "2026-05-22"
+
+[[threshold]]
+table = "sticky_positioning"
+browser = "op_mob"
+min_major = 80
+min_minor = 0
+caniuse_key = "css-sticky"
+source_quorum = ["caniuse", "web-features", "mdn-bcd"]
+last_verified = "2026-05-22"
+
+[[threshold]]
+table = "sticky_positioning"
+browser = "and_chr"
+min_major = 149
+min_minor = 0
+caniuse_key = "css-sticky"
+source_quorum = ["caniuse", "web-features", "mdn-bcd"]
+last_verified = "2026-05-22"
+
+[[threshold]]
+table = "sticky_positioning"
+browser = "and_ff"
+min_major = 151
+min_minor = 0
+caniuse_key = "css-sticky"
+source_quorum = ["caniuse", "web-features", "mdn-bcd"]
+last_verified = "2026-05-22"
+
+[[threshold]]
+table = "sticky_positioning"
+browser = "samsung"
+min_major = 6
+min_minor = 2
+caniuse_key = "css-sticky"
+source_quorum = ["caniuse", "web-features", "mdn-bcd"]
+last_verified = "2026-05-22"
+
+[[threshold]]
+table = "sticky_positioning"
+browser = "android"
+min_major = 149
+min_minor = 0
+caniuse_key = "css-sticky"
+source_quorum = ["caniuse", "web-features", "mdn-bcd"]
+last_verified = "2026-05-22"
+
+[[threshold]]
+table = "oklch_oklab"
+browser = "chrome"
+min_major = 111
+min_minor = 0
+caniuse_key = "css-lch-lab"
+source_quorum = ["caniuse", "web-features", "mdn-bcd"]
+last_verified = "2026-05-22"
+
+[[threshold]]
+table = "oklch_oklab"
+browser = "edge"
+min_major = 111
+min_minor = 0
+caniuse_key = "css-lch-lab"
+source_quorum = ["caniuse", "web-features", "mdn-bcd"]
+last_verified = "2026-05-22"
+
+[[threshold]]
+table = "oklch_oklab"
+browser = "firefox"
+min_major = 113
+min_minor = 0
+caniuse_key = "css-lch-lab"
+source_quorum = ["caniuse", "web-features", "mdn-bcd"]
+last_verified = "2026-05-22"
+
+[[threshold]]
+table = "oklch_oklab"
+browser = "safari"
+min_major = 15
+min_minor = 0
+caniuse_key = "css-lch-lab"
+source_quorum = ["caniuse", "web-features", "mdn-bcd"]
+last_verified = "2026-05-22"
+
+[[threshold]]
+table = "oklch_oklab"
+browser = "ios_saf"
+min_major = 15
+min_minor = 0
+caniuse_key = "css-lch-lab"
+source_quorum = ["caniuse", "web-features", "mdn-bcd"]
+last_verified = "2026-05-22"
+
+[[threshold]]
+table = "oklch_oklab"
+browser = "opera"
+min_major = 98
+min_minor = 0
+caniuse_key = "css-lch-lab"
+source_quorum = ["caniuse", "web-features", "mdn-bcd"]
+last_verified = "2026-05-22"
+
+[[threshold]]
+table = "oklch_oklab"
+browser = "op_mob"
+min_major = 80
+min_minor = 0
+caniuse_key = "css-lch-lab"
+source_quorum = ["caniuse", "web-features", "mdn-bcd"]
+last_verified = "2026-05-22"
+
+[[threshold]]
+table = "oklch_oklab"
+browser = "and_chr"
+min_major = 149
+min_minor = 0
+caniuse_key = "css-lch-lab"
+source_quorum = ["caniuse", "web-features", "mdn-bcd"]
+last_verified = "2026-05-22"
+
+[[threshold]]
+table = "oklch_oklab"
+browser = "and_ff"
+min_major = 151
+min_minor = 0
+caniuse_key = "css-lch-lab"
+source_quorum = ["caniuse", "web-features", "mdn-bcd"]
+last_verified = "2026-05-22"
+
+[[threshold]]
+table = "oklch_oklab"
+browser = "samsung"
+min_major = 22
+min_minor = 0
+caniuse_key = "css-lch-lab"
+source_quorum = ["caniuse", "web-features", "mdn-bcd"]
+last_verified = "2026-05-22"
+
+[[threshold]]
+table = "oklch_oklab"
+browser = "android"
+min_major = 149
+min_minor = 0
+caniuse_key = "css-lch-lab"
+source_quorum = ["caniuse", "web-features", "mdn-bcd"]
+last_verified = "2026-05-22"
+
+[[threshold]]
+table = "logical_properties"
+browser = "chrome"
+min_major = 89
+min_minor = 0
+caniuse_key = "css-logical-props"
+source_quorum = ["caniuse", "web-features", "mdn-bcd"]
+last_verified = "2026-05-22"
+
+[[threshold]]
+table = "logical_properties"
+browser = "edge"
+min_major = 89
+min_minor = 0
+caniuse_key = "css-logical-props"
+source_quorum = ["caniuse", "web-features", "mdn-bcd"]
+last_verified = "2026-05-22"
+
+[[threshold]]
+table = "logical_properties"
+browser = "firefox"
+min_major = 66
+min_minor = 0
+caniuse_key = "css-logical-props"
+source_quorum = ["caniuse", "web-features", "mdn-bcd"]
+last_verified = "2026-05-22"
+
+[[threshold]]
+table = "logical_properties"
+browser = "safari"
+min_major = 15
+min_minor = 0
+caniuse_key = "css-logical-props"
+source_quorum = ["caniuse", "web-features", "mdn-bcd"]
+last_verified = "2026-05-22"
+
+[[threshold]]
+table = "logical_properties"
+browser = "ios_saf"
+min_major = 15
+min_minor = 0
+caniuse_key = "css-logical-props"
+source_quorum = ["caniuse", "web-features", "mdn-bcd"]
+last_verified = "2026-05-22"
+
+[[threshold]]
+table = "logical_properties"
+browser = "opera"
+min_major = 76
+min_minor = 0
+caniuse_key = "css-logical-props"
+source_quorum = ["caniuse", "web-features", "mdn-bcd"]
+last_verified = "2026-05-22"
+
+[[threshold]]
+table = "logical_properties"
+browser = "op_mob"
+min_major = 80
+min_minor = 0
+caniuse_key = "css-logical-props"
+source_quorum = ["caniuse", "web-features", "mdn-bcd"]
+last_verified = "2026-05-22"
+
+[[threshold]]
+table = "logical_properties"
+browser = "and_chr"
+min_major = 149
+min_minor = 0
+caniuse_key = "css-logical-props"
+source_quorum = ["caniuse", "web-features", "mdn-bcd"]
+last_verified = "2026-05-22"
+
+[[threshold]]
+table = "logical_properties"
+browser = "and_ff"
+min_major = 151
+min_minor = 0
+caniuse_key = "css-logical-props"
+source_quorum = ["caniuse", "web-features", "mdn-bcd"]
+last_verified = "2026-05-22"
+
+[[threshold]]
+table = "logical_properties"
+browser = "samsung"
+min_major = 15
+min_minor = 0
+caniuse_key = "css-logical-props"
+source_quorum = ["caniuse", "web-features", "mdn-bcd"]
+last_verified = "2026-05-22"
+
+[[threshold]]
+table = "logical_properties"
+browser = "android"
+min_major = 149
+min_minor = 0
+caniuse_key = "css-logical-props"
+source_quorum = ["caniuse", "web-features", "mdn-bcd"]
+last_verified = "2026-05-22"

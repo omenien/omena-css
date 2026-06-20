@@ -58,8 +58,11 @@ interface TransformPlanSummaryV0 {
     readonly resolvedTargets: readonly string[];
     readonly resolutionError: string | null;
     readonly support: {
+      readonly vendorPrefixRequired: boolean;
       readonly supportsLightDark: boolean;
       readonly supportsColorMix: boolean;
+      readonly supportsOklchOklab: boolean;
+      readonly supportsLogicalProperties: boolean;
     };
     readonly transformPlan: {
       readonly product: string;
@@ -526,7 +529,7 @@ assert.equal(targetQuerySummary.targetQuery?.product, "omena-transform-target.qu
 assert.equal(targetQuerySummary.targetQuery?.profileId, "browserslist-resolved");
 assert.equal(
   targetQuerySummary.targetQuery?.targetDataSource,
-  "oxcBrowserslistV3+browserThresholdsTomlV0+featureSubsetV0",
+  "oxcBrowserslistV3+browserThresholdsTomlV0+generatedFeatureMatrixV0",
 );
 assert.equal(
   targetQuerySummary.targetQuery?.targetDataContractId,
@@ -542,6 +545,7 @@ assert.equal(
 );
 assert.deepEqual(targetQuerySummary.targetQuery?.resolvedTargets, ["ie 11"]);
 assert.equal(targetQuerySummary.targetQuery?.resolutionError, null);
+assert.equal(targetQuerySummary.targetQuery?.targetDataEvidence.length, 10);
 const ieLightDarkEvidence = requireTargetDataEvidence(targetQuerySummary, "light_dark");
 assert.equal(ieLightDarkEvidence.product, "omena-transform-target.data-evidence");
 assert.equal(ieLightDarkEvidence.passId, "light-dark-lowering");
@@ -553,6 +557,21 @@ const ieLightDarkTarget = requireResolvedTargetEvidence(ieLightDarkEvidence, "ie
 assert.equal(ieLightDarkTarget.version, "11");
 assert.equal(ieLightDarkTarget.supported, false);
 assert.equal(ieLightDarkTarget.matchedThreshold, null);
+const ieStickyEvidence = requireTargetDataEvidence(targetQuerySummary, "sticky_positioning");
+assert.equal(ieStickyEvidence.passId, "vendor-prefixing");
+assert.deepEqual(ieStickyEvidence.caniuseKeys, ["css-sticky"]);
+assert.deepEqual(ieStickyEvidence.sourceQuorum, ["caniuse", "web-features", "mdn-bcd"]);
+assert.equal(ieStickyEvidence.allResolvedTargetsSupported, false);
+const ieOklchEvidence = requireTargetDataEvidence(targetQuerySummary, "oklch_oklab");
+assert.equal(ieOklchEvidence.passId, "oklch-oklab-lowering");
+assert.deepEqual(ieOklchEvidence.caniuseKeys, ["css-lch-lab"]);
+assert.deepEqual(ieOklchEvidence.sourceQuorum, ["caniuse", "web-features", "mdn-bcd"]);
+assert.equal(ieOklchEvidence.allResolvedTargetsSupported, false);
+const ieLogicalEvidence = requireTargetDataEvidence(targetQuerySummary, "logical_properties");
+assert.equal(ieLogicalEvidence.passId, "logical-to-physical");
+assert.deepEqual(ieLogicalEvidence.caniuseKeys, ["css-logical-props"]);
+assert.deepEqual(ieLogicalEvidence.sourceQuorum, ["caniuse", "web-features", "mdn-bcd"]);
+assert.equal(ieLogicalEvidence.allResolvedTargetsSupported, false);
 assert.deepEqual(
   targetQuerySummary.target.plannedPassIds,
   targetQuerySummary.targetQuery?.transformPlan.plannedPassIds,
@@ -605,8 +624,11 @@ const chrome122TargetQuerySummary = JSON.parse(
 
 assert.equal(chrome122TargetQuerySummary.targetQuery?.profileId, "browserslist-resolved");
 assert.deepEqual(chrome122TargetQuerySummary.targetQuery?.resolvedTargets, ["chrome 122"]);
+assert.equal(chrome122TargetQuerySummary.targetQuery?.support.vendorPrefixRequired, false);
 assert.equal(chrome122TargetQuerySummary.targetQuery?.support.supportsLightDark, false);
 assert.equal(chrome122TargetQuerySummary.targetQuery?.support.supportsColorMix, true);
+assert.equal(chrome122TargetQuerySummary.targetQuery?.support.supportsOklchOklab, true);
+assert.equal(chrome122TargetQuerySummary.targetQuery?.support.supportsLogicalProperties, true);
 const chrome122LightDarkEvidence = requireTargetDataEvidence(
   chrome122TargetQuerySummary,
   "light_dark",
@@ -683,8 +705,11 @@ const chrome123TargetQuerySummary = JSON.parse(
 
 assert.equal(chrome123TargetQuerySummary.targetQuery?.profileId, "browserslist-resolved");
 assert.deepEqual(chrome123TargetQuerySummary.targetQuery?.resolvedTargets, ["chrome 123"]);
+assert.equal(chrome123TargetQuerySummary.targetQuery?.support.vendorPrefixRequired, false);
 assert.equal(chrome123TargetQuerySummary.targetQuery?.support.supportsLightDark, true);
 assert.equal(chrome123TargetQuerySummary.targetQuery?.support.supportsColorMix, true);
+assert.equal(chrome123TargetQuerySummary.targetQuery?.support.supportsOklchOklab, true);
+assert.equal(chrome123TargetQuerySummary.targetQuery?.support.supportsLogicalProperties, true);
 assert.deepEqual(chrome123TargetQuerySummary.target.plannedPassIds, ["stale-prefix-removal"]);
 assert.equal(chrome123TargetQuerySummary.execution.outputCss, targetCompatStyleSource);
 
