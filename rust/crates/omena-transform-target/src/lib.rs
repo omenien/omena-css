@@ -23,6 +23,8 @@ const TARGET_DATA_SOURCE_FILES: &[&str] = &[
 ];
 const COMPAT_QUORUM_SOURCES: &[&str] = &["caniuse", "web-features", "mdn-bcd"];
 const VENDOR_PREFIX_MATRIX_SOURCE: &str = "conservativeHandMaintainedMatrixV0";
+const RUNTIME_FALLBACK_FEATURE_KEYS: &[&str] =
+    &["flexbox", "css-sticky", "css-lch-lab", "css-logical-props"];
 
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 struct BrowserThresholdDataV0 {
@@ -112,6 +114,9 @@ pub struct TransformTargetDataContractV0 {
     pub stale_entry_count: usize,
     pub unmapped_threshold_table_count: usize,
     pub unresolvable_threshold_query_count: usize,
+    pub runtime_fallback_feature_keys: Vec<&'static str>,
+    pub runtime_fallback_feature_count: usize,
+    pub generated_coverage_complete: bool,
     pub quorum_valid: bool,
     pub bindings_valid: bool,
     pub valid: bool,
@@ -167,6 +172,8 @@ pub struct TransformTargetBoundarySummaryV0 {
     pub browser_data_bindings_valid: bool,
     pub target_data_contract: TransformTargetDataContractV0,
     pub vendor_prefix_matrix_source: &'static str,
+    pub runtime_fallback_feature_keys: Vec<&'static str>,
+    pub generated_coverage_complete: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -229,6 +236,8 @@ pub fn summarize_omena_transform_target_boundary() -> TransformTargetBoundarySum
         browser_data_bindings_valid: pass_feature_binding_data_is_valid(browser_data, bindings),
         target_data_contract,
         vendor_prefix_matrix_source: VENDOR_PREFIX_MATRIX_SOURCE,
+        runtime_fallback_feature_keys: runtime_fallback_feature_keys(),
+        generated_coverage_complete: runtime_fallback_feature_keys().is_empty(),
     }
 }
 
@@ -561,6 +570,10 @@ fn target_data_source_files() -> Vec<&'static str> {
     TARGET_DATA_SOURCE_FILES.to_vec()
 }
 
+fn runtime_fallback_feature_keys() -> Vec<&'static str> {
+    RUNTIME_FALLBACK_FEATURE_KEYS.to_vec()
+}
+
 fn current_target_data_snapshot_id() -> String {
     target_data_snapshot_id(browser_threshold_data(), pass_feature_binding_data())
 }
@@ -603,6 +616,9 @@ fn target_data_contract_summary(
         stale_entry_count,
         unmapped_threshold_table_count,
         unresolvable_threshold_query_count,
+        runtime_fallback_feature_keys: runtime_fallback_feature_keys(),
+        runtime_fallback_feature_count: RUNTIME_FALLBACK_FEATURE_KEYS.len(),
+        generated_coverage_complete: RUNTIME_FALLBACK_FEATURE_KEYS.is_empty(),
         quorum_valid,
         bindings_valid,
         valid: parse_error_count == 0
@@ -1100,6 +1116,20 @@ mod tests {
             0
         );
         assert_eq!(
+            boundary.target_data_contract.runtime_fallback_feature_keys,
+            vec!["flexbox", "css-sticky", "css-lch-lab", "css-logical-props"]
+        );
+        assert_eq!(
+            boundary.target_data_contract.runtime_fallback_feature_count,
+            4
+        );
+        assert!(!boundary.target_data_contract.generated_coverage_complete);
+        assert_eq!(
+            boundary.runtime_fallback_feature_keys,
+            boundary.target_data_contract.runtime_fallback_feature_keys
+        );
+        assert!(!boundary.generated_coverage_complete);
+        assert_eq!(
             boundary.vendor_prefix_matrix_source,
             super::VENDOR_PREFIX_MATRIX_SOURCE
         );
@@ -1147,6 +1177,11 @@ mod tests {
                 .pass_feature_binding_schema_version,
             "0"
         );
+        assert_eq!(
+            boundary.target_data_contract.runtime_fallback_feature_count,
+            4
+        );
+        assert!(!boundary.target_data_contract.generated_coverage_complete);
     }
 
     #[test]
