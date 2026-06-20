@@ -19,9 +19,9 @@ fn static_stylesheet_oracle_corpus_reports_native_product_output_with_legacy_ora
     );
     assert_eq!(report.legacy_output_consumed_until_cutover_count, 0);
     assert!(report.all_legacy_outputs_retained_as_oracle);
-    assert_eq!(report.fixture_count, 126);
-    assert_eq!(report.scss_fixture_count, 42);
-    assert_eq!(report.sass_fixture_count, 36);
+    assert_eq!(report.fixture_count, 128);
+    assert_eq!(report.scss_fixture_count, 43);
+    assert_eq!(report.sass_fixture_count, 37);
     assert_eq!(report.less_fixture_count, 48);
     assert_eq!(report.evaluated_fixture_count, report.fixture_count);
     assert_eq!(report.missing_evaluation_count, 0);
@@ -89,12 +89,14 @@ fn static_stylesheet_oracle_corpus_reports_native_product_output_with_legacy_ora
         "sass.static-mixin-default-argument-prior-parameter",
         "sass.static-named-mixin-default-argument-prior-parameter",
         "sass.static-mixin-content-block",
+        "sass.static-mixin-content-arguments",
         "sass.static-hyphen-underscore-mixin-include",
         "scss.static-named-mixin-arguments",
         "scss.static-named-mixin-default-tail",
         "scss.static-mixin-default-argument-prior-parameter",
         "scss.static-named-mixin-default-argument-prior-parameter",
         "scss.static-mixin-content-block",
+        "scss.static-mixin-content-arguments",
         "scss.static-hyphen-underscore-mixin-include",
     ] {
         assert!(
@@ -3496,6 +3498,58 @@ fn static_scss_evaluation_expands_mixin_content_blocks() {
     assert!(report.evaluated_css.contains("background: white;"));
     assert!(report.evaluated_css.contains("color: red;"));
     assert!(report.oracle.all_legacy_declaration_values_preserved);
+    assert!(report.native_edit_output_matches_evaluated_css);
+}
+
+#[test]
+fn static_scss_evaluation_expands_mixin_content_arguments() {
+    let report = derive_static_stylesheet_module_evaluation(
+        "@mixin apply($color) { @content($color); } .button { @include apply(red) using ($tone) { color: $tone; } }",
+        StyleDialect::Scss,
+    );
+    assert!(report.is_some());
+    let Some(report) = report else {
+        return;
+    };
+
+    assert!(!report.evaluated_css.contains("@mixin"));
+    assert!(!report.evaluated_css.contains("@include"));
+    assert!(!report.evaluated_css.contains("@content"));
+    assert!(report.evaluated_css.contains("color: red;"));
+    assert!(report.oracle.all_legacy_declaration_values_preserved);
+    assert!(report.native_edit_output_matches_evaluated_css);
+}
+
+#[test]
+fn static_sass_evaluation_expands_mixin_content_arguments() {
+    let report = derive_static_stylesheet_module_evaluation(
+        "@mixin apply($color)\n  @content($color)\n.button\n  @include apply(red) using ($tone)\n    color: $tone\n",
+        StyleDialect::Sass,
+    );
+    assert!(report.is_some());
+    let Some(report) = report else {
+        return;
+    };
+
+    assert!(!report.evaluated_css.contains("@mixin"));
+    assert!(!report.evaluated_css.contains("@include"));
+    assert!(!report.evaluated_css.contains("@content"));
+    assert!(report.evaluated_css.contains("color: red"));
+    assert!(report.oracle.all_legacy_declaration_values_preserved);
+    assert!(report.native_edit_output_matches_evaluated_css);
+}
+
+#[test]
+fn static_scss_evaluation_preserves_content_argument_arity_mismatch_as_raw() {
+    let source = "@mixin apply($color) { @content($color); } .button { @include apply(red) { color: red; } }";
+    let report = derive_static_stylesheet_module_evaluation(source, StyleDialect::Scss);
+    assert!(report.is_some());
+    let Some(report) = report else {
+        return;
+    };
+
+    assert_eq!(report.evaluated_css, source);
+    assert!(report.evaluated_css.contains("@include apply"));
     assert!(report.native_edit_output_matches_evaluated_css);
 }
 

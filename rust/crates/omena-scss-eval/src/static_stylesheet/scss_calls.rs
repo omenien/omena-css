@@ -6,9 +6,9 @@ use omena_syntax::SyntaxKind;
 use super::{
     StaticScssFunctionCall, StaticScssFunctionDeclaration, StaticScssMixinDeclaration,
     StaticScssMixinIncludeCall, canonical_static_scss_function_name,
-    split_static_scss_function_arguments, static_stylesheet_matching_token_index,
-    static_stylesheet_skip_trivia_tokens, static_stylesheet_token_end,
-    static_stylesheet_token_start,
+    collect_static_scss_content_parameters, split_static_scss_function_arguments,
+    static_stylesheet_matching_token_index, static_stylesheet_skip_trivia_tokens,
+    static_stylesheet_token_end, static_stylesheet_token_start,
 };
 
 pub(super) fn collect_static_scss_function_calls(
@@ -114,23 +114,54 @@ pub(super) fn collect_static_scss_mixin_include_calls(
                 static_stylesheet_skip_trivia_tokens(tokens, name_index + 1),
             )
         };
+        let (content_parameters, after_using_index) =
+            if tokens.get(after_arguments_index).is_some_and(|token| {
+                token.kind == SyntaxKind::Ident && token.text.eq_ignore_ascii_case("using")
+            }) {
+                let open_index =
+                    static_stylesheet_skip_trivia_tokens(tokens, after_arguments_index + 1);
+                if tokens
+                    .get(open_index)
+                    .is_none_or(|token| token.kind != SyntaxKind::LeftParen)
+                {
+                    index += 1;
+                    continue;
+                }
+                let close_index = static_stylesheet_matching_token_index(
+                    tokens,
+                    open_index,
+                    SyntaxKind::LeftParen,
+                    SyntaxKind::RightParen,
+                )?;
+                (
+                    collect_static_scss_content_parameters(
+                        source,
+                        tokens,
+                        open_index + 1,
+                        close_index,
+                    )?,
+                    static_stylesheet_skip_trivia_tokens(tokens, close_index + 1),
+                )
+            } else {
+                (Vec::new(), after_arguments_index)
+            };
         let content_block_kinds = match dialect {
             StyleDialect::Sass => (SyntaxKind::SassIndent, SyntaxKind::SassDedent),
             _ => (SyntaxKind::LeftBrace, SyntaxKind::RightBrace),
         };
         if tokens
-            .get(after_arguments_index)
+            .get(after_using_index)
             .is_some_and(|token| token.kind == content_block_kinds.0)
         {
             let close_index = static_stylesheet_matching_token_index(
                 tokens,
-                after_arguments_index,
+                after_using_index,
                 content_block_kinds.0,
                 content_block_kinds.1,
             )?;
             let content_body = source
                 .get(
-                    static_stylesheet_token_end(&tokens[after_arguments_index])
+                    static_stylesheet_token_end(&tokens[after_using_index])
                         ..static_stylesheet_token_start(&tokens[close_index]),
                 )?
                 .to_string();
@@ -140,11 +171,12 @@ pub(super) fn collect_static_scss_mixin_include_calls(
                 end: static_stylesheet_token_end(&tokens[close_index]),
                 arguments,
                 content_body: Some(content_body),
+                content_parameters,
             });
             index = close_index + 1;
             continue;
         }
-        let end_token = tokens.get(after_arguments_index)?;
+        let end_token = tokens.get(after_using_index)?;
         let valid_terminator = match dialect {
             StyleDialect::Sass => matches!(
                 end_token.kind,
@@ -162,8 +194,9 @@ pub(super) fn collect_static_scss_mixin_include_calls(
             end: static_stylesheet_token_end(end_token),
             arguments,
             content_body: None,
+            content_parameters,
         });
-        index = after_arguments_index + 1;
+        index = after_using_index + 1;
     }
     calls.sort_by_key(|call| (call.start, call.end));
     Some(calls)

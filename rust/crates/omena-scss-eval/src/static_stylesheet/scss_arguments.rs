@@ -125,6 +125,23 @@ pub(super) fn collect_static_scss_function_parameters(
     Some(parameters)
 }
 
+pub(super) fn collect_static_scss_content_parameters(
+    source: &str,
+    tokens: &[LexedToken],
+    start: usize,
+    end: usize,
+) -> Option<Vec<String>> {
+    collect_static_scss_function_parameters(source, tokens, start, end)?
+        .into_iter()
+        .map(|parameter| {
+            (parameter.default_value.is_none()
+                && !parameter.variadic
+                && parameter.pattern_value.is_none())
+            .then_some(parameter.name)
+        })
+        .collect()
+}
+
 fn parse_static_scss_function_parameter(
     argument: StaticScssFunctionArgument,
 ) -> Option<StaticScssFunctionParameter> {

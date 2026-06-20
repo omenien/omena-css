@@ -110,7 +110,9 @@ use scopes::{collect_static_stylesheet_scopes, static_stylesheet_scope_for_posit
 use scss_argument_binding::{
     bind_static_scss_function_arguments, bind_static_scss_mixin_arguments,
 };
-use scss_arguments::split_static_scss_function_arguments;
+use scss_arguments::{
+    collect_static_scss_content_parameters, split_static_scss_function_arguments,
+};
 use scss_callable_dependencies::{
     extend_static_scss_used_function_dependencies,
     static_scss_function_value_contains_any_callable,
@@ -472,6 +474,10 @@ fn render_static_scss_mixin_include_body_with_active(
         body.as_str(),
         context.dialect,
         call.content_body.as_deref(),
+        call.content_parameters.as_slice(),
+        &argument_values,
+        call_position,
+        context,
     )?;
     if !static_scss_mixin_body_is_static_declaration_subset(body.as_str()) {
         return None;
@@ -523,6 +529,10 @@ fn render_static_scss_mixin_content_body(
     body: &str,
     dialect: StyleDialect,
     content_body: Option<&str>,
+    content_parameters: &[String],
+    argument_values: &BTreeMap<String, String>,
+    call_position: usize,
+    context: StaticScssFunctionResolutionContext<'_>,
 ) -> Option<String> {
     if !body.to_ascii_lowercase().contains("@content") {
         return Some(body.to_string());
@@ -538,7 +548,18 @@ fn render_static_scss_mixin_content_body(
         if token.kind != SyntaxKind::AtKeyword || !token.text.eq_ignore_ascii_case("@content") {
             continue;
         }
-        let terminator_index = static_stylesheet_skip_trivia_tokens(tokens, index + 1);
+        let (content_arguments, terminator_index) = collect_static_scss_content_arguments(
+            body,
+            tokens,
+            index,
+            argument_values,
+            call_position,
+            context,
+        )?;
+        let content_argument_bindings =
+            bind_static_scss_content_arguments(content_parameters, content_arguments.as_slice())?;
+        let rendered_content_body =
+            render_static_scss_content_body_parameters(content_body, &content_argument_bindings)?;
         let terminator = tokens.get(terminator_index)?;
         let replacement_end = match dialect {
             StyleDialect::Sass => match terminator.kind {
@@ -558,10 +579,102 @@ fn render_static_scss_mixin_content_body(
         edits.push(StaticStylesheetEvaluationEdit {
             start: static_stylesheet_token_start(token),
             end: replacement_end,
-            replacement: content_body.trim().to_string(),
+            replacement: rendered_content_body.trim().to_string(),
         });
     }
     (!edits.is_empty()).then(|| apply_static_stylesheet_evaluation_edits(body, edits))?
+}
+
+fn collect_static_scss_content_arguments(
+    body: &str,
+    tokens: &[LexedToken],
+    content_token_index: usize,
+    argument_values: &BTreeMap<String, String>,
+    call_position: usize,
+    context: StaticScssFunctionResolutionContext<'_>,
+) -> Option<(Vec<String>, usize)> {
+    let after_content_index = static_stylesheet_skip_trivia_tokens(tokens, content_token_index + 1);
+    if tokens
+        .get(after_content_index)
+        .is_none_or(|token| token.kind != SyntaxKind::LeftParen)
+    {
+        return Some((Vec::new(), after_content_index));
+    }
+    let close_index = static_stylesheet_matching_token_index(
+        tokens,
+        after_content_index,
+        SyntaxKind::LeftParen,
+        SyntaxKind::RightParen,
+    )?;
+    let argument_text = body.get(
+        static_stylesheet_token_end(&tokens[after_content_index])
+            ..static_stylesheet_token_start(&tokens[close_index]),
+    )?;
+    let arguments = split_static_scss_function_arguments(argument_text)?;
+    let mut rendered_arguments = Vec::new();
+    for argument in arguments {
+        if argument.name.is_some() {
+            return None;
+        }
+        let resolution = resolve_static_scss_function_value_with_bindings(
+            argument.value.as_str(),
+            argument_values,
+            call_position,
+            STATIC_STYLESHEET_VALUE_RESOLUTION_FUEL_LIMIT,
+            context,
+        );
+        if resolution.outcome != StaticStylesheetResolutionOutcome::Resolved {
+            return None;
+        }
+        rendered_arguments.push(resolution.rendered_value?);
+    }
+    Some((
+        rendered_arguments,
+        static_stylesheet_skip_trivia_tokens(tokens, close_index + 1),
+    ))
+}
+
+fn bind_static_scss_content_arguments(
+    content_parameters: &[String],
+    content_arguments: &[String],
+) -> Option<BTreeMap<String, String>> {
+    if content_parameters.len() != content_arguments.len() {
+        return None;
+    }
+    Some(
+        content_parameters
+            .iter()
+            .cloned()
+            .zip(content_arguments.iter().cloned())
+            .collect(),
+    )
+}
+
+fn render_static_scss_content_body_parameters(
+    content_body: &str,
+    content_argument_bindings: &BTreeMap<String, String>,
+) -> Option<String> {
+    if content_argument_bindings.is_empty() {
+        return Some(content_body.to_string());
+    }
+    let references = collect_static_stylesheet_variable_references(
+        content_body,
+        StaticStylesheetVariableKind::Scss,
+    )?;
+    let edits = references
+        .into_iter()
+        .filter_map(|reference| {
+            let canonical_name = canonical_static_scss_variable_name(reference.name.as_str());
+            content_argument_bindings
+                .get(canonical_name.as_str())
+                .map(|replacement| StaticStylesheetEvaluationEdit {
+                    start: reference.start,
+                    end: reference.end,
+                    replacement: replacement.clone(),
+                })
+        })
+        .collect::<Vec<_>>();
+    apply_static_stylesheet_evaluation_edits(content_body, edits)
 }
 
 fn static_scss_content_block_is_static_declaration_subset(

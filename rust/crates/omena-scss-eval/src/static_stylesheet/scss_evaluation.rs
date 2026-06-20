@@ -21,7 +21,7 @@ use super::{
     scopes::{
         collect_static_stylesheet_scopes, static_stylesheet_position_is_inside_scss_declaration,
     },
-    scss_calls::collect_static_scss_function_calls,
+    scss_calls::{collect_static_scss_function_calls, collect_static_scss_mixin_include_calls},
     scss_declarations::{
         collect_static_scss_function_declarations, collect_static_scss_mixin_declarations,
     },
@@ -81,6 +81,19 @@ pub(super) fn derive_static_scss_stylesheet_module_evaluation(
                     .collect::<Vec<_>>()
             })
             .unwrap_or_default();
+    let mixin_include_ranges = collect_static_scss_mixin_include_calls(
+        style_source,
+        dialect,
+        tokens,
+        mixin_declarations.as_slice(),
+    )
+    .map(|calls| {
+        calls
+            .into_iter()
+            .map(|call| (call.start, call.end))
+            .collect::<Vec<_>>()
+    })
+    .unwrap_or_default();
     let declarations =
         collect_static_scss_variable_declarations(style_source, dialect, variable_facts, &scopes)?
             .into_iter()
@@ -178,6 +191,7 @@ pub(super) fn derive_static_scss_stylesheet_module_evaluation(
                 &mixin_declaration_ranges,
             )
             || static_stylesheet_position_is_inside_ranges(reference_start, &function_call_ranges)
+            || static_stylesheet_position_is_inside_ranges(reference_start, &mixin_include_ranges)
             || static_stylesheet_position_is_inside_ranges(reference_start, &control_flow_ranges)
         {
             continue;
