@@ -421,21 +421,8 @@ fn static_less_interpolation_is_selector_name_part(
     tokens: &[LexedToken],
     interpolation_start_index: usize,
 ) -> bool {
-    matches!(
-        static_less_previous_non_trivia_token_kind(tokens, interpolation_start_index),
-        Some(SyntaxKind::Dot | SyntaxKind::Hash)
-    ) && static_less_interpolation_is_in_selector_header(tokens, interpolation_start_index)
-}
-
-fn static_less_previous_non_trivia_token_kind(
-    tokens: &[LexedToken],
-    index: usize,
-) -> Option<SyntaxKind> {
-    tokens[..index]
-        .iter()
-        .rev()
-        .find(|token| !static_stylesheet_token_is_trivia(token.kind))
-        .map(|token| token.kind)
+    static_less_interpolation_has_class_selector_marker(tokens, interpolation_start_index)
+        && static_less_interpolation_is_in_selector_header(tokens, interpolation_start_index)
 }
 
 fn static_less_interpolation_is_in_selector_header(
@@ -462,6 +449,26 @@ fn static_less_interpolation_is_in_selector_header(
             _ => {}
         }
         index += 1;
+    }
+    false
+}
+
+fn static_less_interpolation_has_class_selector_marker(
+    tokens: &[LexedToken],
+    interpolation_start_index: usize,
+) -> bool {
+    let mut index = interpolation_start_index;
+    while index > 0 {
+        index -= 1;
+        match tokens[index].kind {
+            SyntaxKind::Dot => return true,
+            SyntaxKind::Ident
+            | SyntaxKind::CustomPropertyName
+            | SyntaxKind::Minus
+            | SyntaxKind::LessInterpolationStart
+            | SyntaxKind::LessInterpolationEnd => {}
+            _ => return false,
+        }
     }
     false
 }
