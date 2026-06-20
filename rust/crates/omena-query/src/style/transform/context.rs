@@ -1,5 +1,17 @@
+use super::css_modules::{
+    derive_class_name_rewrites_for_transform_context,
+    derive_css_module_composes_resolutions_for_transform_context,
+    derive_css_module_value_resolutions_for_transform_context,
+};
+use super::design_tokens::derive_design_token_routes_for_transform_context;
+use super::imports::derive_import_inlines_for_transform_context;
+use super::static_stylesheet::{
+    derive_static_scss_module_use_evaluations_for_transform_context,
+    derive_static_stylesheet_module_evaluation_for_transform_context,
+};
 use super::*;
 use std::borrow::Cow;
+use std::collections::{BTreeMap, BTreeSet};
 
 pub(super) fn merge_transform_context(
     mut merged: TransformExecutionContextV0,
@@ -192,6 +204,114 @@ pub(super) fn find_target_style_source<'a>(
         .iter()
         .find(|source| source.style_path == target_style_path)
         .map(|source| source.style_source.as_str())
+}
+
+pub(super) fn summarize_omena_query_transform_context_from_sources_with_resolution_context<'a>(
+    target_style_path: &str,
+    styles: impl IntoIterator<Item = (&'a str, &'a str)>,
+    resolution_context: TransformResolutionContext<'_>,
+) -> OmenaQueryTransformContextFromSourcesSummaryV0 {
+    let style_sources = styles.into_iter().collect::<Vec<_>>();
+    let style_count = style_sources.len();
+    let style_fact_entries = collect_omena_query_style_fact_entries(style_sources.as_slice());
+    let source_by_path = style_sources
+        .iter()
+        .map(|(style_path, style_source)| ((*style_path).to_string(), (*style_source).to_string()))
+        .collect::<BTreeMap<_, _>>();
+    let available_style_paths = style_fact_entries
+        .iter()
+        .map(|entry| entry.style_path.as_str())
+        .collect::<BTreeSet<_>>();
+    let target_entry = style_fact_entries
+        .iter()
+        .find(|entry| entry.style_path == target_style_path);
+
+    let mut context = TransformExecutionContextV0::default();
+
+    if let Some(entry) = target_entry {
+        context.import_inlines = derive_import_inlines_for_transform_context(
+            entry,
+            &style_fact_entries,
+            &available_style_paths,
+            &source_by_path,
+            resolution_context,
+        );
+        let scss_module_uses = derive_static_scss_module_use_evaluations_for_transform_context(
+            entry,
+            &available_style_paths,
+            &source_by_path,
+            resolution_context,
+        );
+        match omena_parser_dialect_for_style_path(entry.style_path.as_str()) {
+            OmenaParserStyleDialect::Scss | OmenaParserStyleDialect::Sass => {
+                let dialect = omena_parser_dialect_for_style_path(entry.style_path.as_str());
+                context.scss_module_evaluation =
+                    derive_static_stylesheet_module_evaluation_for_transform_context(
+                        entry.style_source.as_str(),
+                        dialect,
+                        &context.import_inlines,
+                        &scss_module_uses,
+                    );
+            }
+            OmenaParserStyleDialect::Less => {
+                context.less_module_evaluation =
+                    derive_static_stylesheet_module_evaluation_for_transform_context(
+                        entry.style_source.as_str(),
+                        OmenaParserStyleDialect::Less,
+                        &context.import_inlines,
+                        &[],
+                    );
+            }
+            OmenaParserStyleDialect::Css => {}
+        }
+        context.class_name_rewrites = derive_class_name_rewrites_for_transform_context(entry);
+        context.css_module_composes_resolutions =
+            derive_css_module_composes_resolutions_for_transform_context(
+                entry,
+                &style_fact_entries,
+                &available_style_paths,
+                resolution_context,
+            );
+        context.css_module_value_resolutions =
+            derive_css_module_value_resolutions_for_transform_context(
+                entry,
+                &style_fact_entries,
+                &available_style_paths,
+                &source_by_path,
+                resolution_context,
+            );
+        context.design_token_routes = derive_design_token_routes_for_transform_context(
+            entry,
+            &style_fact_entries,
+            resolution_context.package_manifests,
+        );
+    }
+
+    OmenaQueryTransformContextFromSourcesSummaryV0 {
+        schema_version: "0",
+        product: "omena-query.transform-context",
+        target_style_path: target_style_path.to_string(),
+        style_count,
+        import_inline_count: context.import_inlines.len(),
+        class_name_rewrite_count: context.class_name_rewrites.len(),
+        css_module_composes_resolution_count: context.css_module_composes_resolutions.len(),
+        css_module_value_resolution_count: context.css_module_value_resolutions.len(),
+        design_token_route_count: context.design_token_routes.len(),
+        reachable_class_name_count: context.reachable_class_names.len(),
+        reachable_keyframe_name_count: context.reachable_keyframe_names.len(),
+        reachable_value_name_count: context.reachable_value_names.len(),
+        reachable_custom_property_name_count: context.reachable_custom_property_names.len(),
+        context,
+        ready_surfaces: vec![
+            "transformContextProducer",
+            "stylesheetModuleEvaluationProducer",
+            "cssModuleClassRewriteProducer",
+            "cssModuleComposesResolutionProducer",
+            "cssModuleValueResolutionProducer",
+            "designTokenRouteProducer",
+            "transitiveImportInlineProducer",
+        ],
+    }
 }
 
 fn merge_context_list(target: &mut Vec<String>, additional: &[String]) {
