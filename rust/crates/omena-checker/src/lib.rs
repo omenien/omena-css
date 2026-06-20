@@ -1,5 +1,4 @@
 use std::collections::{BTreeMap, BTreeSet};
-use std::fmt;
 
 use omena_abstract_value::{
     AbstractClassValueV0, RegisteredSyntaxMatchV0, SelectorProjectionCertaintyV0,
@@ -32,9 +31,11 @@ use serde::{Deserialize, Serialize};
 mod enforcement_coverage;
 mod frame_emission;
 mod rule_metadata;
+mod selectors;
 pub use enforcement_coverage::*;
 pub use frame_emission::*;
 use rule_metadata::{bundle, count_rules_in_tier, rule, rule_tier_for_code};
+pub use selectors::{CanonicalSelector, RawSelector};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize)]
 #[serde(rename_all = "kebab-case")]
@@ -383,74 +384,6 @@ pub struct OmenaCheckerCascadeInputV0 {
     pub custom_properties: Vec<OmenaCheckerCustomPropertyInputV0>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub custom_property_registrations: Vec<OmenaCheckerCustomPropertyRegistrationInputV0>,
-}
-
-/// Selector text before the parser/query boundary has expanded nesting.
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Deserialize, Serialize)]
-#[serde(transparent)]
-pub struct RawSelector(String);
-
-impl RawSelector {
-    pub fn new(selector: impl Into<String>) -> Self {
-        Self(selector.into())
-    }
-
-    pub fn as_str(&self) -> &str {
-        self.0.as_str()
-    }
-
-    pub fn into_string(self) -> String {
-        self.0
-    }
-}
-
-impl fmt::Display for RawSelector {
-    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
-        self.0.fmt(formatter)
-    }
-}
-
-impl AsRef<str> for RawSelector {
-    fn as_ref(&self) -> &str {
-        self.as_str()
-    }
-}
-
-/// Selector text after the parser/query boundary has expanded nesting and
-/// normalized the selector enough for cascade-context comparison.
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Deserialize, Serialize)]
-#[serde(transparent)]
-pub struct CanonicalSelector(String);
-
-impl CanonicalSelector {
-    pub fn from_canonical(selector: impl Into<String>) -> Self {
-        let selector = selector.into();
-        debug_assert!(
-            !selector.contains('&'),
-            "canonical selector must not contain an unexpanded ampersand: {selector:?}"
-        );
-        Self(selector)
-    }
-
-    pub fn as_str(&self) -> &str {
-        self.0.as_str()
-    }
-
-    pub fn into_string(self) -> String {
-        self.0
-    }
-}
-
-impl fmt::Display for CanonicalSelector {
-    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
-        self.0.fmt(formatter)
-    }
-}
-
-impl AsRef<str> for CanonicalSelector {
-    fn as_ref(&self) -> &str {
-        self.as_str()
-    }
 }
 
 /// Cascade declaration consumed by the checker.
