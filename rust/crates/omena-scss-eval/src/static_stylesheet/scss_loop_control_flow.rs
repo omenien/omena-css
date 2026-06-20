@@ -122,6 +122,111 @@ pub(super) fn collect_static_scss_loop_candidate_ranges(
     ranges
 }
 
+pub(super) fn render_static_scss_mixin_loop_control_flow_body(
+    body: &str,
+    dialect: StyleDialect,
+    argument_values: &BTreeMap<String, String>,
+    continuation_indent: &str,
+    call_position: usize,
+    context: StaticScssFunctionResolutionContext<'_>,
+) -> Option<String> {
+    if !static_scss_loop_dialect_is_supported(dialect)
+        || !static_scss_source_contains_loop_candidate(body)
+    {
+        return Some(body.to_string());
+    }
+    render_static_scss_mixin_loop_control_flow_body_with_fuel(
+        body,
+        dialect,
+        argument_values,
+        continuation_indent,
+        call_position,
+        context,
+        32,
+    )
+}
+
+fn render_static_scss_mixin_loop_control_flow_body_with_fuel(
+    body: &str,
+    dialect: StyleDialect,
+    argument_values: &BTreeMap<String, String>,
+    continuation_indent: &str,
+    call_position: usize,
+    context: StaticScssFunctionResolutionContext<'_>,
+    fuel: usize,
+) -> Option<String> {
+    if fuel == 0 {
+        return None;
+    }
+    let lexed = omena_parser::lex(body, dialect);
+    let tokens = lexed.tokens();
+    let mut edits = Vec::new();
+    let mut index = 0usize;
+    while index < tokens.len() {
+        let token = &tokens[index];
+        if !static_scss_token_is_loop_at_keyword(token) {
+            index += 1;
+            continue;
+        }
+        let loop_block = static_scss_loop_block(body, dialect, tokens, index)?;
+        let rendered = render_static_scss_loop_block_with_bindings(
+            &loop_block,
+            argument_values,
+            call_position,
+            context,
+        )?;
+        let replacement = static_sass_mixin_loop_replacement_with_line_indent(
+            dialect,
+            continuation_indent,
+            rendered.replacement.as_str(),
+        );
+        edits.push(StaticStylesheetEvaluationEdit {
+            start: loop_block.start,
+            end: loop_block.end,
+            replacement,
+        });
+        index = loop_block.next_index;
+    }
+
+    if edits.is_empty() {
+        return Some(body.to_string());
+    }
+    let rendered = apply_static_stylesheet_evaluation_edits(body, edits)?;
+    if static_scss_source_contains_loop_candidate(rendered.as_str()) {
+        return render_static_scss_mixin_loop_control_flow_body_with_fuel(
+            rendered.as_str(),
+            dialect,
+            argument_values,
+            continuation_indent,
+            call_position,
+            context,
+            fuel - 1,
+        );
+    }
+    Some(rendered)
+}
+
+fn static_sass_mixin_loop_replacement_with_line_indent(
+    dialect: StyleDialect,
+    continuation_indent: &str,
+    replacement: &str,
+) -> String {
+    if dialect != StyleDialect::Sass {
+        return replacement.to_string();
+    }
+    if continuation_indent.is_empty() || replacement.is_empty() {
+        return replacement.to_string();
+    }
+    let mut output = String::with_capacity(replacement.len() + continuation_indent.len());
+    for (index, line) in replacement.split_inclusive('\n').enumerate() {
+        if index > 0 && !line.is_empty() {
+            output.push_str(continuation_indent);
+        }
+        output.push_str(line);
+    }
+    output
+}
+
 #[derive(Debug, Clone)]
 struct StaticScssLoopBlock {
     at_rule_name: String,
@@ -177,6 +282,20 @@ fn render_static_scss_loop_block(
     loop_block: &StaticScssLoopBlock,
     context: StaticScssFunctionResolutionContext<'_>,
 ) -> Option<StaticScssLoopRender> {
+    render_static_scss_loop_block_with_bindings(
+        loop_block,
+        &BTreeMap::new(),
+        loop_block.start,
+        context,
+    )
+}
+
+fn render_static_scss_loop_block_with_bindings(
+    loop_block: &StaticScssLoopBlock,
+    argument_values: &BTreeMap<String, String>,
+    call_position: usize,
+    context: StaticScssFunctionResolutionContext<'_>,
+) -> Option<StaticScssLoopRender> {
     if static_scss_loop_body_contains_known_function_call(
         loop_block.body.as_str(),
         loop_block.dialect,
@@ -185,15 +304,34 @@ fn render_static_scss_loop_block(
         return None;
     }
     if loop_block.at_rule_name.eq_ignore_ascii_case("@while") {
-        return render_static_scss_while_loop_block(loop_block, context);
+        return render_static_scss_while_loop_block_with_bindings(
+            loop_block,
+            argument_values,
+            call_position,
+            context,
+        );
     }
     if loop_block.at_rule_name.eq_ignore_ascii_case("@each") {
-        return render_static_scss_each_loop_block(loop_block, context);
+        return render_static_scss_each_loop_block_with_bindings(
+            loop_block,
+            argument_values,
+            call_position,
+            context,
+        );
     }
     let header = parse_static_scss_for_loop_header(loop_block.header.as_str())?;
-    let argument_values = BTreeMap::new();
-    let start = resolve_static_scss_for_loop_bound(header.start_bound, loop_block.start, context)?;
-    let end = resolve_static_scss_for_loop_bound(header.end_bound, loop_block.start, context)?;
+    let start = resolve_static_scss_for_loop_bound_with_bindings(
+        header.start_bound,
+        argument_values,
+        call_position,
+        context,
+    )?;
+    let end = resolve_static_scss_for_loop_bound_with_bindings(
+        header.end_bound,
+        argument_values,
+        call_position,
+        context,
+    )?;
     let values = static_scss_for_loop_values(start, end, header.includes_end)?;
 
     let mut output = String::with_capacity(loop_block.body.len().saturating_mul(values.len()));
@@ -226,18 +364,25 @@ fn render_static_scss_loop_block(
     })
 }
 
-fn render_static_scss_each_loop_block(
+fn render_static_scss_each_loop_block_with_bindings(
     loop_block: &StaticScssLoopBlock,
+    argument_values: &BTreeMap<String, String>,
+    call_position: usize,
     context: StaticScssFunctionResolutionContext<'_>,
 ) -> Option<StaticScssLoopRender> {
     let frames =
         parse_static_scss_each_loop_binding_frames(loop_block.header.as_str(), |source| {
-            resolve_static_scss_loop_source_value(source, loop_block.start, context)
+            resolve_static_scss_loop_source_value_with_bindings(
+                source,
+                argument_values,
+                call_position,
+                context,
+            )
         })?;
     let mut output = String::with_capacity(loop_block.body.len().saturating_mul(frames.len()));
     let mut replacements = Vec::new();
     for frame in frames {
-        let mut frame_values = BTreeMap::new();
+        let mut frame_values = argument_values.clone();
         for (name, value) in frame {
             frame_values.insert(canonical_static_scss_variable_name(name.as_str()), value);
         }
@@ -264,8 +409,10 @@ fn render_static_scss_each_loop_block(
     })
 }
 
-fn render_static_scss_while_loop_block(
+fn render_static_scss_while_loop_block_with_bindings(
     loop_block: &StaticScssLoopBlock,
+    argument_values: &BTreeMap<String, String>,
+    call_position: usize,
     context: StaticScssFunctionResolutionContext<'_>,
 ) -> Option<StaticScssLoopRender> {
     let assignments =
@@ -282,7 +429,7 @@ fn render_static_scss_while_loop_block(
         .iter()
         .map(|assignment| (assignment.start, assignment.end))
         .collect::<Vec<_>>();
-    let mut current_values = BTreeMap::new();
+    let mut current_values = argument_values.clone();
     let mut output = String::with_capacity(loop_block.body.len());
     let mut replacements = Vec::new();
 
@@ -290,7 +437,7 @@ fn render_static_scss_while_loop_block(
         if !static_scss_while_condition_is_active(
             loop_block.header.as_str(),
             &current_values,
-            loop_block.start,
+            call_position,
             context,
         )? {
             if !static_scss_loop_replacement_is_static_css_subset(output.as_str()) {
@@ -331,14 +478,15 @@ fn render_static_scss_while_loop_block(
     None
 }
 
-fn resolve_static_scss_for_loop_bound(
+fn resolve_static_scss_for_loop_bound_with_bindings(
     value: &str,
+    argument_values: &BTreeMap<String, String>,
     position: usize,
     context: StaticScssFunctionResolutionContext<'_>,
 ) -> Option<i32> {
     let resolution = resolve_static_scss_function_value_with_bindings(
         value,
-        &BTreeMap::new(),
+        argument_values,
         position,
         STATIC_STYLESHEET_VALUE_RESOLUTION_FUEL_LIMIT,
         context,
@@ -349,14 +497,15 @@ fn resolve_static_scss_for_loop_bound(
     resolution.rendered_value?.trim().parse::<i32>().ok()
 }
 
-fn resolve_static_scss_loop_source_value(
+fn resolve_static_scss_loop_source_value_with_bindings(
     source: &str,
+    argument_values: &BTreeMap<String, String>,
     position: usize,
     context: StaticScssFunctionResolutionContext<'_>,
 ) -> Option<String> {
     let resolution = resolve_static_scss_function_value_with_bindings(
         source,
-        &BTreeMap::new(),
+        argument_values,
         position,
         STATIC_STYLESHEET_VALUE_RESOLUTION_FUEL_LIMIT,
         context,

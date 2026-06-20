@@ -128,6 +128,7 @@ pub use scss_exports::{
     derive_static_scss_stylesheet_module_configurable_variable_names,
     derive_static_scss_stylesheet_module_variable_exports,
 };
+use scss_loop_control_flow::render_static_scss_mixin_loop_control_flow_body;
 use scss_loop_returns::{StaticScssLoopReturnResolution, resolve_static_scss_loop_return_clause};
 use scss_mixin_body::{
     collect_static_scss_mixin_body_declaration_value_ranges,
@@ -450,6 +451,16 @@ fn render_static_scss_mixin_include_body_with_active(
         call_position,
         context,
     )?;
+    let continuation_indent =
+        static_scss_mixin_include_continuation_indent(source, context.dialect, call_position)?;
+    let body = render_static_scss_mixin_loop_control_flow_body(
+        body.as_str(),
+        context.dialect,
+        &argument_values,
+        continuation_indent.as_str(),
+        call_position,
+        context,
+    )?;
     if !static_scss_mixin_body_is_static_declaration_subset(body.as_str()) {
         return None;
     }
@@ -493,6 +504,23 @@ fn render_static_scss_mixin_include_body_with_active(
         used_mixin_declaration_names,
         used_function_declaration_names,
     })
+}
+
+fn static_scss_mixin_include_continuation_indent(
+    source: &str,
+    dialect: StyleDialect,
+    call_position: usize,
+) -> Option<String> {
+    if dialect != StyleDialect::Sass {
+        return Some(String::new());
+    }
+    let prefix = source.get(..call_position)?;
+    let line_start = prefix.rfind('\n').map_or(0, |index| index + 1);
+    let indent = source.get(line_start..call_position)?;
+    indent
+        .chars()
+        .all(|character| character == ' ' || character == '\t')
+        .then(|| indent.to_string())
 }
 
 fn render_static_scss_mixin_body_nested_includes(

@@ -334,6 +334,11 @@ fn static_stylesheet_oracle_corpus_fixtures() -> &'static [StaticStylesheetOracl
             source: "@mixin tone($enabled)\n  @if $enabled\n    color: red\n  @else\n    color: blue\n.button\n  @include tone(false)",
         },
         StaticStylesheetOracleCorpusFixtureV0 {
+            id: "sass.static-mixin-for",
+            dialect: StyleDialect::Sass,
+            source: "@mixin items($count)\n  @for $i from 1 through $count\n    order: $i\n.button\n  @include items(3)",
+        },
+        StaticStylesheetOracleCorpusFixtureV0 {
             id: "sass.static-if-return",
             dialect: StyleDialect::Sass,
             source: "@function pick($enabled)\n  @if $enabled\n    @return 1px\n  @else\n    @return 2px\n.card\n  margin: pick(true)",
@@ -482,6 +487,11 @@ fn static_stylesheet_oracle_corpus_fixtures() -> &'static [StaticStylesheetOracl
             id: "scss.static-mixin-if",
             dialect: StyleDialect::Scss,
             source: "@mixin tone($enabled) { @if $enabled { color: red; } @else { color: blue; } } .button { @include tone(false); }",
+        },
+        StaticStylesheetOracleCorpusFixtureV0 {
+            id: "scss.static-mixin-for",
+            dialect: StyleDialect::Scss,
+            source: "@mixin items($count) { @for $i from 1 through $count { order: $i; } } .button { @include items(3); }",
         },
         StaticStylesheetOracleCorpusFixtureV0 {
             id: "scss.static-top-level-if",
