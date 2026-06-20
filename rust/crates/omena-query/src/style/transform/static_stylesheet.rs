@@ -27,11 +27,11 @@ use evaluation_source::{
 };
 pub(super) use scss_forwarding::derive_static_scss_module_forward_effective_variable_override_values_for_resolution_at_ordinal;
 use scss_forwarding::{
-    derive_static_scss_forward_effective_variable_overrides,
+    StaticScssModuleForwardEvaluation, derive_static_scss_forward_effective_variable_overrides,
     derive_static_scss_forward_export_prefix_at_ordinal,
     derive_static_scss_module_forward_variable_overrides_at_ordinal,
     filter_static_scss_forward_configurable_variable_names, filter_static_scss_forward_exports,
-    prefix_static_scss_forward_exports,
+    inline_static_scss_forward_rules, prefix_static_scss_forward_exports,
 };
 use scss_module_identity::{
     resolve_static_scss_module_effective_variable_overrides,
@@ -378,16 +378,6 @@ fn derive_static_scss_module_context_for_transform_context(
     })
 }
 
-#[derive(Debug, Clone)]
-struct StaticScssModuleForwardEvaluation {
-    source: String,
-    forward_rule_ordinal: usize,
-    module_identity_key: String,
-    module_output_css: String,
-    variable_exports: BTreeMap<String, String>,
-    configurable_variable_names: BTreeSet<String>,
-}
-
 fn derive_static_scss_module_forward_evaluations_for_transform_context(
     style_path: &str,
     style_source: &str,
@@ -511,62 +501,6 @@ fn apply_static_scss_module_variable_overrides<'a>(
 
 fn static_scss_identifier_char(ch: char) -> bool {
     ch.is_ascii_alphanumeric() || matches!(ch, '_' | '-')
-}
-
-fn inline_static_scss_forward_rules(
-    source: &str,
-    dialect: OmenaParserStyleDialect,
-    forward_evaluations: &[StaticScssModuleForwardEvaluation],
-    emitted_module_identity_keys: &mut BTreeSet<String>,
-) -> (String, usize) {
-    let lexed = lex_omena_query_omena_parser_style_source(source, dialect);
-    let tokens = lexed.tokens();
-    let mut replacements = Vec::new();
-    let mut depth = 0usize;
-    let mut forward_rule_ordinal = 0usize;
-    let mut index = 0usize;
-
-    while index < tokens.len() {
-        match tokens[index].kind {
-            SyntaxKind::LeftBrace => depth += 1,
-            SyntaxKind::RightBrace => depth = depth.saturating_sub(1),
-            SyntaxKind::AtKeyword
-                if depth == 0 && tokens[index].text.eq_ignore_ascii_case("@forward") =>
-            {
-                let Some(end_index) = static_scss_use_rule_semicolon(tokens, index) else {
-                    index += 1;
-                    continue;
-                };
-                let start = transform_token_start(&tokens[index]);
-                let end = transform_token_end(&tokens[end_index]);
-                if let Some(source_name) =
-                    static_scss_module_rule_source_name(tokens, index + 1, end_index)
-                {
-                    let matching_forward = forward_evaluations.iter().find(|forward| {
-                        forward.forward_rule_ordinal == forward_rule_ordinal
-                            && forward.source == source_name
-                    });
-                    forward_rule_ordinal += 1;
-                    if let Some(forward) = matching_forward {
-                        let replacement = if emitted_module_identity_keys
-                            .insert(forward.module_identity_key.clone())
-                        {
-                            forward.module_output_css.clone()
-                        } else {
-                            String::new()
-                        };
-                        replacements.push((start, end, replacement));
-                    }
-                }
-                index = end_index + 1;
-                continue;
-            }
-            _ => {}
-        }
-        index += 1;
-    }
-
-    apply_transform_source_replacements(source, replacements)
 }
 
 fn static_scss_use_rule_semicolon(
