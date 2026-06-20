@@ -469,31 +469,23 @@ mod tests {
         assert!(report.no_flat_css_cfg_built);
         assert!(report.no_merged_cross_file_graph);
 
-        let Some(sass_while) = report
-            .fixtures
-            .iter()
-            .find(|fixture| fixture.id == "sass.static-while-loop")
-        else {
-            panic!("Sass while-loop fixture must stay in the U3 oracle corpus");
-        };
-        assert!(sass_while.control_flow_available);
-        assert!(sass_while.value_analysis_converged);
-        assert!(sass_while.loop_block_count >= 1);
-        assert!(sass_while.back_edge_count >= 1);
+        assert!(report.fixtures.iter().any(|fixture| {
+            fixture.id == "sass.static-while-loop"
+                && fixture.control_flow_available
+                && fixture.value_analysis_converged
+                && fixture.loop_block_count >= 1
+                && fixture.back_edge_count >= 1
+        }));
 
-        let Some(sass_return) = report
-            .fixtures
-            .iter()
-            .find(|fixture| fixture.id == "sass.static-for-return")
-        else {
-            panic!("Sass function-return fixture must stay in the U3 oracle corpus");
-        };
-        assert!(sass_return.control_flow_available);
-        assert!(sass_return.call_return_available);
-        assert!(sass_return.value_analysis_converged);
-        assert!(sass_return.loop_block_count >= 1);
-        assert!(sass_return.back_edge_count >= 1);
-        assert!(sass_return.call_resolved_return_value_count >= 1);
+        assert!(report.fixtures.iter().any(|fixture| {
+            fixture.id == "sass.static-for-return"
+                && fixture.control_flow_available
+                && fixture.call_return_available
+                && fixture.value_analysis_converged
+                && fixture.loop_block_count >= 1
+                && fixture.back_edge_count >= 1
+                && fixture.call_resolved_return_value_count >= 1
+        }));
 
         assert!(report.fixtures.iter().any(|fixture| {
             fixture.id == "scss.descending-static-for-return"
