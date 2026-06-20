@@ -3012,8 +3012,8 @@ fn static_less_evaluation_reduces_convert_builtin_values() {
     };
 
     assert_eq!(report.replacement_count, 8);
-    assert_eq!(report.value_resolution.resolved_count, 6);
-    assert_eq!(report.value_resolution.raw_count, 2);
+    assert_eq!(report.value_resolution.resolved_count, 8);
+    assert_eq!(report.value_resolution.raw_count, 0);
     assert!(report.evaluated_css.contains("cm: 2.54cm"));
     assert!(report.evaluated_css.contains("inch: 1in"));
     assert!(report.evaluated_css.contains("px: 1in"));
@@ -3571,7 +3571,7 @@ fn static_less_evaluation_reduces_range_builtin_values() {
     };
 
     assert_eq!(report.replacement_count, 4);
-    assert_eq!(report.value_resolution.raw_count, 3);
+    assert_eq!(report.value_resolution.raw_count, 0);
     assert!(report.evaluated_css.contains("a: 1 2 3 4"));
     assert!(report.evaluated_css.contains("b: 1px 3px 5px"));
     assert!(report.evaluated_css.contains("c: 1 1.5 2"));
@@ -3591,7 +3591,7 @@ fn static_less_evaluation_reduces_replace_builtin_values() {
     };
 
     assert_eq!(report.replacement_count, 5);
-    assert_eq!(report.value_resolution.raw_count, 4);
+    assert_eq!(report.value_resolution.raw_count, 0);
     assert!(report.evaluated_css.contains("name: \"hello less\""));
     assert!(report.evaluated_css.contains("first: \"heLlo\""));
     assert!(report.evaluated_css.contains("all: \"heLLo\""));
@@ -3612,7 +3612,7 @@ fn static_less_evaluation_reduces_format_builtin_values() {
     };
 
     assert_eq!(report.replacement_count, 7);
-    assert_eq!(report.value_resolution.raw_count, 6);
+    assert_eq!(report.value_resolution.raw_count, 0);
     assert!(report.evaluated_css.contains("name: \"hello less\""));
     assert!(report.evaluated_css.contains("num: \"12px\""));
     assert!(report.evaluated_css.contains("encoded: \"x%20y\""));
@@ -3721,7 +3721,7 @@ fn static_less_evaluation_reduces_property_variable_composite_alias_values() {
     assert_eq!(report.replacement_count, 1);
     assert_eq!(report.resolved_replacements[0].name, "@outline");
     assert_eq!(report.resolved_replacements[0].text, "1px solid red");
-    assert_eq!(report.resolved_replacements[0].abstract_value_kind, "raw");
+    assert_eq!(report.resolved_replacements[0].abstract_value_kind, "exact");
     assert_eq!(
         report.value_resolution.values[0].rendered_value.as_deref(),
         Some("1px solid red")

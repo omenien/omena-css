@@ -3740,11 +3740,11 @@ fn call_return_ir_reports_static_scss_unit_compatibility_returns() {
     };
 
     assert_eq!(report.return_value_count, 1);
-    assert_eq!(report.raw_return_value_count, 1);
-    assert_eq!(return_node.return_value_kind, Some("raw"));
+    assert_eq!(report.raw_return_value_count, 0);
+    assert_eq!(return_node.return_value_kind, Some("exact"));
     assert_eq!(
         return_node.return_value,
-        Some(AbstractCssValueV0::Raw {
+        Some(AbstractCssValueV0::Exact {
             value: "\"px\"".to_string()
         })
     );

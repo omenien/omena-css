@@ -176,8 +176,15 @@ pub fn css_number_is_zero(number: &str) -> bool {
 
 pub fn canonicalize_css_value(value: &str) -> Option<CanonicalCssValueV0> {
     let value = value.trim();
-    if value.is_empty()
-        || value.contains("var(")
+    if value.is_empty() {
+        return None;
+    }
+    if is_static_quoted_string_value(value) {
+        return Some(CanonicalCssValueV0 {
+            serialized: value.to_string(),
+        });
+    }
+    if value.contains("var(")
         || value.contains("VAR(")
         || value.contains("env(")
         || value.contains("ENV(")
@@ -189,6 +196,9 @@ pub fn canonicalize_css_value(value: &str) -> Option<CanonicalCssValueV0> {
     }
     if value.contains('(') || value.contains(')') {
         return None;
+    }
+    if let Some(serialized) = canonicalize_static_whitespace_list_value(value) {
+        return Some(CanonicalCssValueV0 { serialized });
     }
     if is_css_keyword_like(value) {
         return Some(CanonicalCssValueV0 {
@@ -273,6 +283,11 @@ fn canonicalize_numeric_value(value: NumericValueV0<'_>) -> Option<CanonicalCssV
                 serialized: "0%".to_string(),
             });
         }
+        if is_serializable_numeric_unit(&normalized_unit) {
+            return Some(CanonicalCssValueV0 {
+                serialized: format!("0{normalized_unit}"),
+            });
+        }
         return None;
     }
     if normalized_unit == "%" {
@@ -280,7 +295,7 @@ fn canonicalize_numeric_value(value: NumericValueV0<'_>) -> Option<CanonicalCssV
             serialized: format!("{}%", format_css_number(value.value)),
         });
     }
-    if unit.is_empty() || is_absolute_zero_collapsible_unit(&normalized_unit) {
+    if unit.is_empty() || is_serializable_numeric_unit(&normalized_unit) {
         return Some(CanonicalCssValueV0 {
             serialized: format!("{}{}", format_css_number(value.value), normalized_unit),
         });
@@ -297,6 +312,47 @@ fn is_absolute_zero_collapsible_unit(unit: &str) -> bool {
         unit,
         "px" | "cm" | "mm" | "q" | "in" | "pc" | "pt" | "deg" | "grad" | "rad" | "turn"
     )
+}
+
+fn is_serializable_numeric_unit(unit: &str) -> bool {
+    is_absolute_zero_collapsible_unit(unit) || matches!(unit, "s" | "ms")
+}
+
+fn canonicalize_static_whitespace_list_value(value: &str) -> Option<String> {
+    let segments = split_top_level_whitespace_value_components(value, 0)?;
+    if segments.len() < 2 {
+        return None;
+    }
+    segments
+        .into_iter()
+        .map(|segment| canonicalize_css_value(segment.text).map(|value| value.serialized))
+        .collect::<Option<Vec<_>>>()
+        .map(|values| values.join(" "))
+}
+
+fn is_static_quoted_string_value(value: &str) -> bool {
+    let Some(quote) = value.chars().next() else {
+        return false;
+    };
+    if quote != '"' && quote != '\'' {
+        return false;
+    }
+    let mut escaped = false;
+    let mut chars = value.char_indices().skip(1).peekable();
+    while let Some((index, ch)) = chars.next() {
+        if escaped {
+            escaped = false;
+            continue;
+        }
+        if ch == '\\' {
+            escaped = true;
+            continue;
+        }
+        if ch == quote {
+            return index + ch.len_utf8() == value.len() && chars.peek().is_none();
+        }
+    }
+    false
 }
 
 fn looks_like_unknown_function(value: &str) -> bool {
@@ -531,8 +587,36 @@ mod tests {
             canonicalize_css_value("true").map(|value| value.serialized),
             Some("true".to_string())
         );
-        assert_eq!(canonicalize_css_value("one two"), None);
+        assert_eq!(
+            canonicalize_css_value("one two").map(|value| value.serialized),
+            Some("one two".to_string())
+        );
         assert_eq!(canonicalize_css_value("var(--keyword)"), None);
+    }
+
+    #[test]
+    fn canonical_equality_tracks_static_strings_lists_and_time_units() {
+        assert_eq!(
+            canonicalize_css_value("\"hello less\"").map(|value| value.serialized),
+            Some("\"hello less\"".to_string())
+        );
+        assert_eq!(
+            canonicalize_css_value("1px solid red").map(|value| value.serialized),
+            Some("1px solid red".to_string())
+        );
+        assert_eq!(
+            canonicalize_css_value("1 2 3 4").map(|value| value.serialized),
+            Some("1 2 3 4".to_string())
+        );
+        assert_eq!(
+            canonicalize_css_value("1000ms").map(|value| value.serialized),
+            Some("1000ms".to_string())
+        );
+        assert_eq!(
+            canonicalize_css_value("0ms").map(|value| value.serialized),
+            Some("0ms".to_string())
+        );
+        assert_eq!(canonicalize_css_value("1px var(--gap)"), None);
     }
 
     #[test]

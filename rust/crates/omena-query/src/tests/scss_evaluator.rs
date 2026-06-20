@@ -1460,8 +1460,8 @@ fn exposes_static_scss_legacy_list_metadata_aliases_through_query_boundary() {
     assert_eq!(summary.divergence_count, 0);
     assert!(summary.all_legacy_declaration_values_preserved);
     assert_eq!(summary.native_value_reference_count, 2);
-    assert_eq!(summary.native_resolved_value_count, 1);
-    assert_eq!(summary.native_raw_value_count, 1);
+    assert_eq!(summary.native_resolved_value_count, 2);
+    assert_eq!(summary.native_raw_value_count, 0);
     assert!(
         summary
             .evaluation
@@ -1490,8 +1490,8 @@ fn exposes_static_scss_slash_lists_through_query_boundary() {
     assert_eq!(summary.divergence_count, 0);
     assert!(summary.all_legacy_declaration_values_preserved);
     assert_eq!(summary.native_value_reference_count, 2);
-    assert_eq!(summary.native_resolved_value_count, 0);
-    assert_eq!(summary.native_raw_value_count, 2);
+    assert_eq!(summary.native_resolved_value_count, 1);
+    assert_eq!(summary.native_raw_value_count, 1);
     assert!(
         summary
             .evaluation
@@ -2598,8 +2598,8 @@ fn exposes_less_convert_builtin_through_query_boundary() {
     assert_eq!(summary.divergence_count, 0);
     assert!(summary.all_legacy_declaration_values_preserved);
     assert_eq!(summary.native_replacement_count, 8);
-    assert_eq!(summary.native_resolved_value_count, 6);
-    assert_eq!(summary.native_raw_value_count, 2);
+    assert_eq!(summary.native_resolved_value_count, 8);
+    assert_eq!(summary.native_raw_value_count, 0);
     assert_eq!(summary.native_top_value_count, 0);
     assert!(summary.evaluation.as_ref().is_some_and(|evaluation| {
         evaluation.evaluated_css.contains("cm: 2.54cm")
@@ -2889,8 +2889,8 @@ fn exposes_less_property_variable_aliases_through_query_boundary() {
     assert_eq!(summary.divergence_count, 0);
     assert!(summary.all_legacy_declaration_values_preserved);
     assert_eq!(summary.native_replacement_count, 2);
-    assert_eq!(summary.native_resolved_value_count, 1);
-    assert_eq!(summary.native_raw_value_count, 1);
+    assert_eq!(summary.native_resolved_value_count, 2);
+    assert_eq!(summary.native_raw_value_count, 0);
     assert_eq!(summary.native_top_value_count, 0);
     assert!(summary.evaluation.as_ref().is_some_and(|evaluation| {
         evaluation.evaluated_css.contains("padding: 3px")
@@ -2903,7 +2903,7 @@ fn exposes_less_property_variable_aliases_through_query_boundary() {
             && evaluation.resolved_replacements.iter().any(|replacement| {
                 replacement.name == "@outline"
                     && replacement.text == "1px solid red"
-                    && replacement.abstract_value_kind == "raw"
+                    && replacement.abstract_value_kind == "exact"
             })
     }));
 }
@@ -3396,7 +3396,7 @@ fn exposes_less_range_builtin_through_query_boundary() {
     assert_eq!(summary.divergence_count, 0);
     assert!(summary.all_legacy_declaration_values_preserved);
     assert_eq!(summary.native_replacement_count, 4);
-    assert_eq!(summary.native_raw_value_count, 3);
+    assert_eq!(summary.native_raw_value_count, 0);
     assert_eq!(summary.native_top_value_count, 0);
     assert!(summary.evaluation.as_ref().is_some_and(|evaluation| {
         evaluation.evaluated_css.contains("a: 1 2 3 4")
@@ -3425,7 +3425,7 @@ fn exposes_less_replace_builtin_through_query_boundary() {
     assert_eq!(summary.divergence_count, 0);
     assert!(summary.all_legacy_declaration_values_preserved);
     assert_eq!(summary.native_replacement_count, 5);
-    assert_eq!(summary.native_raw_value_count, 4);
+    assert_eq!(summary.native_raw_value_count, 0);
     assert_eq!(summary.native_top_value_count, 0);
     assert!(summary.evaluation.as_ref().is_some_and(|evaluation| {
         evaluation.evaluated_css.contains("name: \"hello less\"")
@@ -3455,7 +3455,7 @@ fn exposes_less_format_builtin_through_query_boundary() {
     assert_eq!(summary.divergence_count, 0);
     assert!(summary.all_legacy_declaration_values_preserved);
     assert_eq!(summary.native_replacement_count, 7);
-    assert_eq!(summary.native_raw_value_count, 6);
+    assert_eq!(summary.native_raw_value_count, 0);
     assert_eq!(summary.native_top_value_count, 0);
     assert!(summary.evaluation.as_ref().is_some_and(|evaluation| {
         evaluation.evaluated_css.contains("name: \"hello less\"")
