@@ -17,6 +17,7 @@ use super::{
     split_static_scss_function_arguments, static_stylesheet_matching_token_index,
     static_stylesheet_position_is_inside_ranges, static_stylesheet_skip_trivia_tokens,
     static_stylesheet_token_end, static_stylesheet_token_start,
+    tokens::static_stylesheet_block_kinds_for_dialect,
 };
 
 const STATIC_SCSS_MIXIN_CONTROL_FLOW_RENDER_LIMIT: usize = 32;
@@ -33,6 +34,7 @@ pub(super) fn render_static_scss_mixin_control_flow_body(
     }
     render_static_scss_mixin_control_flow_body_with_fuel(
         body,
+        dialect,
         argument_values,
         call_position,
         context,
@@ -47,7 +49,9 @@ pub(super) fn collect_static_scss_control_flow_evaluation_edits(
     excluded_ranges: &[(usize, usize)],
     context: StaticScssFunctionResolutionContext<'_>,
 ) -> Option<StaticScssControlFlowEvaluationEdits> {
-    if dialect != StyleDialect::Scss || !source.to_ascii_lowercase().contains("@if") {
+    if !static_scss_control_flow_dialect_is_supported(dialect)
+        || !source.to_ascii_lowercase().contains("@if")
+    {
         return Some(StaticScssControlFlowEvaluationEdits {
             edits: Vec::new(),
             replacements: Vec::new(),
@@ -73,7 +77,7 @@ pub(super) fn collect_static_scss_control_flow_evaluation_edits(
             continue;
         }
 
-        let chain = static_scss_mixin_control_flow_chain(source, tokens, index)?;
+        let chain = static_scss_mixin_control_flow_chain(source, dialect, tokens, index)?;
         let Some(replacement) = static_scss_mixin_selected_control_flow_body(
             &chain,
             &argument_values,
@@ -149,6 +153,7 @@ pub(super) struct StaticScssControlFlowEvaluationEdits {
 
 fn render_static_scss_mixin_control_flow_body_with_fuel(
     body: &str,
+    dialect: StyleDialect,
     argument_values: &BTreeMap<String, String>,
     call_position: usize,
     context: StaticScssFunctionResolutionContext<'_>,
@@ -157,7 +162,7 @@ fn render_static_scss_mixin_control_flow_body_with_fuel(
     if fuel == 0 {
         return None;
     }
-    let lexed = lex(body, StyleDialect::Scss);
+    let lexed = lex(body, dialect);
     let tokens = lexed.tokens();
     let mut edits = Vec::new();
     let mut index = 0usize;
@@ -167,7 +172,7 @@ fn render_static_scss_mixin_control_flow_body_with_fuel(
             index += 1;
             continue;
         }
-        let chain = static_scss_mixin_control_flow_chain(body, tokens, index)?;
+        let chain = static_scss_mixin_control_flow_chain(body, dialect, tokens, index)?;
         let replacement = static_scss_mixin_selected_control_flow_body(
             &chain,
             argument_values,
@@ -191,6 +196,7 @@ fn render_static_scss_mixin_control_flow_body_with_fuel(
     if rendered.to_ascii_lowercase().contains("@if") {
         return render_static_scss_mixin_control_flow_body_with_fuel(
             rendered.as_str(),
+            dialect,
             argument_values,
             call_position,
             context,
@@ -237,11 +243,12 @@ impl StaticScssSelectedControlFlowBody {
 
 fn static_scss_mixin_control_flow_chain(
     source: &str,
+    dialect: StyleDialect,
     tokens: &[LexedToken],
     if_index: usize,
 ) -> Option<StaticScssMixinControlFlowChain> {
     let (condition, body_open_index, body_close_index) =
-        static_scss_mixin_control_flow_header_and_body(source, tokens, if_index)?;
+        static_scss_mixin_control_flow_header_and_body(source, dialect, tokens, if_index)?;
     let start = static_stylesheet_token_start(&tokens[if_index]);
     let mut end = static_stylesheet_token_end(&tokens[body_close_index]);
     let mut next_index = body_close_index + 1;
@@ -265,7 +272,7 @@ fn static_scss_mixin_control_flow_chain(
             break;
         }
         let (header, else_body_open_index, else_body_close_index) =
-            static_scss_mixin_control_flow_header_and_body(source, tokens, else_index)?;
+            static_scss_mixin_control_flow_header_and_body(source, dialect, tokens, else_index)?;
         let condition = static_scss_mixin_else_if_condition(header.as_str()).map(ToOwned::to_owned);
         branches.push(StaticScssMixinControlFlowBranch {
             condition,
@@ -291,16 +298,18 @@ fn static_scss_mixin_control_flow_chain(
 
 fn static_scss_mixin_control_flow_header_and_body(
     source: &str,
+    dialect: StyleDialect,
     tokens: &[LexedToken],
     control_index: usize,
 ) -> Option<(String, usize, usize)> {
-    let body_open_index = (control_index + 1..tokens.len())
-        .find(|index| tokens[*index].kind == SyntaxKind::LeftBrace)?;
+    let (body_open_kind, body_close_kind) = static_stylesheet_block_kinds_for_dialect(dialect);
+    let body_open_index =
+        (control_index + 1..tokens.len()).find(|index| tokens[*index].kind == body_open_kind)?;
     let body_close_index = static_stylesheet_matching_token_index(
         tokens,
         body_open_index,
-        SyntaxKind::LeftBrace,
-        SyntaxKind::RightBrace,
+        body_open_kind,
+        body_close_kind,
     )?;
     let header_start = static_stylesheet_token_end(&tokens[control_index]);
     let header_end = static_stylesheet_token_start(&tokens[body_open_index]);
@@ -330,6 +339,10 @@ fn static_scss_mixin_else_if_condition(header: &str) -> Option<&str> {
         return None;
     }
     Some(rest.trim()).filter(|condition| !condition.is_empty())
+}
+
+const fn static_scss_control_flow_dialect_is_supported(dialect: StyleDialect) -> bool {
+    matches!(dialect, StyleDialect::Scss | StyleDialect::Sass)
 }
 
 fn static_scss_mixin_selected_control_flow_body(

@@ -389,6 +389,11 @@ fn static_stylesheet_oracle_corpus_fixtures() -> &'static [StaticStylesheetOracl
             source: "$i: 0\n@while $i < 3\n  $i: $i + 1\n  .n\n    order: $i",
         },
         StaticStylesheetOracleCorpusFixtureV0 {
+            id: "sass.static-top-level-if",
+            dialect: StyleDialect::Sass,
+            source: "$enabled: true\n@if $enabled\n  .on\n    color: green\n@else\n  .off\n    color: gray",
+        },
+        StaticStylesheetOracleCorpusFixtureV0 {
             id: "scss.color-helpers",
             dialect: StyleDialect::Scss,
             source: "$tone: list.nth(list.append(1px, transparentize(red, .25)), 2); .card { color: $tone; }",
