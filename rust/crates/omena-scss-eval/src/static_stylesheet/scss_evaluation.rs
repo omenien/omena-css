@@ -199,6 +199,7 @@ pub(super) fn derive_static_scss_stylesheet_module_evaluation(
         preserved_scss_evaluation_count += mixin_edits.preserved_raw_include_count;
         edits.extend(mixin_edits.edits);
     }
+    resolved_replacements.extend(control_flow_edits.replacements);
     edits.extend(control_flow_edits.edits);
 
     let evaluated_css = apply_static_stylesheet_evaluation_edits(style_source, edits.clone())?;

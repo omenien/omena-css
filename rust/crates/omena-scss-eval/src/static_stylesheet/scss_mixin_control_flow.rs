@@ -6,9 +6,11 @@ use omena_syntax::SyntaxKind;
 use crate::value_eval::static_scss_literal_truthiness;
 
 use super::{
-    STATIC_STYLESHEET_VALUE_RESOLUTION_FUEL_LIMIT, StaticScssFunctionResolutionContext,
-    StaticStylesheetEvaluationEdit, StaticStylesheetResolutionOutcome,
-    apply_static_stylesheet_evaluation_edits, resolve_static_scss_function_value_with_bindings,
+    OmenaScssEvalResolvedReplacementV0, STATIC_STYLESHEET_VALUE_RESOLUTION_FUEL_LIMIT,
+    StaticScssFunctionResolutionContext, StaticStylesheetEvaluationEdit,
+    StaticStylesheetResolutionOutcome, StaticStylesheetVariableKind,
+    apply_static_stylesheet_evaluation_edits, collect_static_stylesheet_variable_references,
+    resolve_static_scss_function_value_with_bindings, resolved_replacement_value,
     static_stylesheet_matching_token_index, static_stylesheet_position_is_inside_ranges,
     static_stylesheet_skip_trivia_tokens, static_stylesheet_token_end,
     static_stylesheet_token_start,
@@ -45,12 +47,14 @@ pub(super) fn collect_static_scss_control_flow_evaluation_edits(
     if dialect != StyleDialect::Scss || !source.to_ascii_lowercase().contains("@if") {
         return Some(StaticScssControlFlowEvaluationEdits {
             edits: Vec::new(),
+            replacements: Vec::new(),
             preserved_dynamic_branch_count: 0,
         });
     }
 
     let argument_values = BTreeMap::new();
     let mut edits = Vec::new();
+    let mut replacements = Vec::new();
     let mut preserved_dynamic_branch_count = 0usize;
     let mut index = 0usize;
     while index < tokens.len() {
@@ -76,7 +80,13 @@ pub(super) fn collect_static_scss_control_flow_evaluation_edits(
             index = chain.next_index;
             continue;
         };
-        let replacement = replacement.unwrap_or_default();
+        let selected = replacement.unwrap_or_else(StaticScssSelectedControlFlowBody::empty);
+        let (replacement, branch_replacements) =
+            render_static_scss_control_flow_replacement_values(
+                selected.body.as_str(),
+                selected.body_start,
+                context,
+            )?;
         let replacement = render_static_scss_mixin_control_flow_body(
             replacement.as_str(),
             dialect,
@@ -89,6 +99,7 @@ pub(super) fn collect_static_scss_control_flow_evaluation_edits(
             index = chain.next_index;
             continue;
         }
+        replacements.extend(branch_replacements);
         edits.push(StaticStylesheetEvaluationEdit {
             start: chain.start,
             end: chain.end,
@@ -99,12 +110,14 @@ pub(super) fn collect_static_scss_control_flow_evaluation_edits(
 
     Some(StaticScssControlFlowEvaluationEdits {
         edits,
+        replacements,
         preserved_dynamic_branch_count,
     })
 }
 
 pub(super) struct StaticScssControlFlowEvaluationEdits {
     pub(super) edits: Vec<StaticStylesheetEvaluationEdit>,
+    pub(super) replacements: Vec<OmenaScssEvalResolvedReplacementV0>,
     pub(super) preserved_dynamic_branch_count: usize,
 }
 
@@ -135,6 +148,7 @@ fn render_static_scss_mixin_control_flow_body_with_fuel(
             call_position,
             context,
         )?
+        .map(|selected| selected.body)
         .unwrap_or_default();
         edits.push(StaticStylesheetEvaluationEdit {
             start: chain.start,
@@ -172,6 +186,21 @@ struct StaticScssMixinControlFlowChain {
 struct StaticScssMixinControlFlowBranch {
     condition: Option<String>,
     body: String,
+    body_start: usize,
+}
+
+struct StaticScssSelectedControlFlowBody {
+    body: String,
+    body_start: usize,
+}
+
+impl StaticScssSelectedControlFlowBody {
+    fn empty() -> Self {
+        Self {
+            body: String::new(),
+            body_start: 0,
+        }
+    }
 }
 
 fn static_scss_mixin_control_flow_chain(
@@ -186,6 +215,7 @@ fn static_scss_mixin_control_flow_chain(
     let mut next_index = body_close_index + 1;
     let mut branches = vec![StaticScssMixinControlFlowBranch {
         condition: Some(condition),
+        body_start: static_stylesheet_token_end(&tokens[body_open_index]),
         body: static_scss_mixin_control_flow_branch_body(
             source,
             tokens,
@@ -207,6 +237,7 @@ fn static_scss_mixin_control_flow_chain(
         let condition = static_scss_mixin_else_if_condition(header.as_str()).map(ToOwned::to_owned);
         branches.push(StaticScssMixinControlFlowBranch {
             condition,
+            body_start: static_stylesheet_token_end(&tokens[else_body_open_index]),
             body: static_scss_mixin_control_flow_branch_body(
                 source,
                 tokens,
@@ -274,10 +305,13 @@ fn static_scss_mixin_selected_control_flow_body(
     argument_values: &BTreeMap<String, String>,
     call_position: usize,
     context: StaticScssFunctionResolutionContext<'_>,
-) -> Option<Option<String>> {
+) -> Option<Option<StaticScssSelectedControlFlowBody>> {
     for branch in &chain.branches {
         let Some(condition) = branch.condition.as_ref() else {
-            return Some(Some(branch.body.clone()));
+            return Some(Some(StaticScssSelectedControlFlowBody {
+                body: branch.body.clone(),
+                body_start: branch.body_start,
+            }));
         };
         let resolution = resolve_static_scss_function_value_with_bindings(
             condition.as_str(),
@@ -291,10 +325,58 @@ fn static_scss_mixin_selected_control_flow_body(
         }
         let condition_value = resolution.rendered_value?;
         if static_scss_literal_truthiness(condition_value.as_str())? {
-            return Some(Some(branch.body.clone()));
+            return Some(Some(StaticScssSelectedControlFlowBody {
+                body: branch.body.clone(),
+                body_start: branch.body_start,
+            }));
         }
     }
     Some(None)
+}
+
+fn render_static_scss_control_flow_replacement_values(
+    replacement: &str,
+    source_body_start: usize,
+    context: StaticScssFunctionResolutionContext<'_>,
+) -> Option<(String, Vec<OmenaScssEvalResolvedReplacementV0>)> {
+    let references = collect_static_stylesheet_variable_references(
+        replacement,
+        StaticStylesheetVariableKind::Scss,
+    )?;
+    if references.is_empty() {
+        return Some((replacement.to_string(), Vec::new()));
+    }
+
+    let argument_values = BTreeMap::new();
+    let mut output = String::with_capacity(replacement.len());
+    let mut cursor = 0usize;
+    let mut replacements = Vec::new();
+    for reference in references {
+        let original_start = source_body_start + reference.start;
+        let original_end = source_body_start + reference.end;
+        let resolution = resolve_static_scss_function_value_with_bindings(
+            reference.name.as_str(),
+            &argument_values,
+            original_start,
+            STATIC_STYLESHEET_VALUE_RESOLUTION_FUEL_LIMIT,
+            context,
+        );
+        if resolution.outcome != StaticStylesheetResolutionOutcome::Resolved {
+            return None;
+        }
+        let rendered_value = resolution.rendered_value?;
+        output.push_str(&replacement[cursor..reference.start]);
+        output.push_str(rendered_value.as_str());
+        cursor = reference.end;
+        replacements.push(resolved_replacement_value(
+            reference.name.as_str(),
+            original_start,
+            original_end,
+            rendered_value.as_str(),
+        ));
+    }
+    output.push_str(&replacement[cursor..]);
+    Some((output, replacements))
 }
 
 fn static_scss_control_flow_replacement_is_static_css_subset(replacement: &str) -> bool {
