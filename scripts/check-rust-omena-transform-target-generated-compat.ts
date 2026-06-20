@@ -116,6 +116,7 @@ const caniuseResolverCargoVersion = pinnedCargoPackageVersion(
   compatSelections.sourcePolicy.caniuseResolver.workspaceDependency,
   compatSelections.sourcePolicy.caniuseResolver.cargoPackage,
 );
+const compatReviewDate = compatDataReviewDate();
 
 assert.equal(browserThresholdData.root.schema_version, "0");
 assert.equal(compatSelections.schemaVersion, "0");
@@ -131,11 +132,13 @@ assert.equal(passFeatureBindingData.root.refreshed_at, specSources.refreshedAt);
 assertGeneratedResolverProvenance(browserThresholdData.root);
 assertGeneratedResolverProvenance(passFeatureBindingData.root);
 assert.match(specSources.refreshedAt, /^\d{4}-\d{2}-\d{2}$/u);
+assert.match(specSources.refreshPolicy.nextReviewDueAt, /^\d{4}-\d{2}-\d{2}$/u);
 assert.equal(
   specSources.refreshPolicy.nextReviewDueAt,
   addIsoDateDays(specSources.refreshedAt, specSources.refreshPolicy.maxAgeDays),
   "source pin review due date must match refreshedAt + maxAgeDays",
 );
+assertSourcePinsNotPastReviewDue(specSources, compatReviewDate);
 assert.equal(
   browserThresholdData.root.quorum_min_sources,
   expectedQuorumSources.length,
@@ -533,6 +536,38 @@ function addIsoDateDays(value: string, days: number): string {
   assert.ok(Number.isFinite(timestamp), `invalid ISO date ${value}`);
   const date = new Date(timestamp + days * 24 * 60 * 60 * 1000);
   return date.toISOString().slice(0, 10);
+}
+
+function compatDataReviewDate(): string {
+  const reviewDate =
+    process.env.OMENA_COMPAT_REVIEW_DATE ?? new Date().toISOString().slice(0, 10);
+  assert.match(
+    reviewDate,
+    /^\d{4}-\d{2}-\d{2}$/u,
+    "OMENA_COMPAT_REVIEW_DATE must be an ISO calendar date",
+  );
+  return reviewDate;
+}
+
+function assertSourcePinsNotPastReviewDue(sourcePins: SpecSourcePinsV0, reviewDate: string): void {
+  assertIsoDateOrder(
+    sourcePins.refreshedAt,
+    sourcePins.refreshPolicy.nextReviewDueAt,
+    "source pin review due date must not precede refreshedAt",
+  );
+  assertIsoDateOrder(
+    reviewDate,
+    sourcePins.refreshPolicy.nextReviewDueAt,
+    `generated compat source pins are past review due date ${
+      sourcePins.refreshPolicy.nextReviewDueAt
+    }; refresh source pins and regenerate compat data`,
+  );
+}
+
+function assertIsoDateOrder(left: string, right: string, message: string): void {
+  assert.match(left, /^\d{4}-\d{2}-\d{2}$/u);
+  assert.match(right, /^\d{4}-\d{2}-\d{2}$/u);
+  assert.ok(left <= right, message);
 }
 
 function selectionPassIds(feature: CompatFeatureSelectionV0): readonly string[] {
