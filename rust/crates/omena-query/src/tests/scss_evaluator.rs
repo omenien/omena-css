@@ -711,10 +711,10 @@ fn exposes_scss_control_flow_oracle_corpus_through_query_boundary() {
     assert_eq!(summary.mode, "oracleOnly");
     assert_eq!(summary.value_type, "AbstractCssValueV0");
     assert_eq!(summary.node_key_type, "StableNodeKeyV0");
-    assert_eq!(summary.fixture_count, 33);
-    assert_eq!(summary.scss_fixture_count, 16);
-    assert_eq!(summary.sass_fixture_count, 16);
-    assert_eq!(summary.supported_fixture_count, 32);
+    assert_eq!(summary.fixture_count, 35);
+    assert_eq!(summary.scss_fixture_count, 17);
+    assert_eq!(summary.sass_fixture_count, 17);
+    assert_eq!(summary.supported_fixture_count, 34);
     assert_eq!(summary.rejected_flat_css_fixture_count, 1);
     assert!(summary.branch_fixture_count >= 5);
     assert!(summary.loop_fixture_count >= 6);
@@ -792,6 +792,15 @@ fn exposes_scss_control_flow_oracle_corpus_through_query_boundary() {
                 && fixture.call_resolved_return_value_count == 1
                 && fixture.value_analysis_converged)
     );
+    assert!(
+        summary
+            .corpus
+            .fixtures
+            .iter()
+            .any(|fixture| fixture.id == "scss.static-for-exclusive-bound"
+                && fixture.call_resolved_return_value_count == 1
+                && fixture.value_analysis_converged)
+    );
     assert!(summary.corpus.fixtures.iter().any(|fixture| fixture.id
         == "scss.static-for-finite-set-bound"
         && fixture.loop_block_count == 2
@@ -805,6 +814,11 @@ fn exposes_scss_control_flow_oracle_corpus_through_query_boundary() {
         && fixture.value_analysis_converged));
     assert!(summary.corpus.fixtures.iter().any(|fixture| fixture.id
         == "sass.static-for-expression-bounds"
+        && fixture.dialect == "sass"
+        && fixture.call_resolved_return_value_count == 1
+        && fixture.value_analysis_converged));
+    assert!(summary.corpus.fixtures.iter().any(|fixture| fixture.id
+        == "sass.static-for-exclusive-bound"
         && fixture.dialect == "sass"
         && fixture.call_resolved_return_value_count == 1
         && fixture.value_analysis_converged));
