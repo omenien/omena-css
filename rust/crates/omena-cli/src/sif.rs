@@ -1,7 +1,7 @@
 use crate::{commands::SifCommand, io::read_source, paths::path_string};
 use omena_sif::{
-    OmenaSifSourceSyntaxV1, OmenaSifStaticGeneratorInputV1, generate_static_omena_sif_v1,
-    write_omena_sif_json_v1,
+    OmenaSifSourceSyntaxV1, OmenaSifStaticGeneratorInputV1, generate_static_omena_lif_exports_v1,
+    generate_static_omena_sif_v1, write_omena_canonical_json_string_v1, write_omena_sif_json_v1,
 };
 use std::{
     fs,
@@ -17,6 +17,12 @@ pub(crate) fn sif_command(command: SifCommand) -> Result<(), String> {
             syntax,
             json,
         } => generate_sif(path, canonical_url, output, syntax, json),
+        SifCommand::GenerateLifExports {
+            path,
+            output,
+            syntax,
+            json,
+        } => generate_lif_exports(path, output, syntax, json),
     }
 }
 
@@ -57,6 +63,46 @@ fn generate_sif(
 
     if !wrote_output || json {
         println!("{sif_json}");
+    }
+
+    Ok(())
+}
+
+fn generate_lif_exports(
+    path: PathBuf,
+    output: Option<PathBuf>,
+    syntax: Option<String>,
+    json: bool,
+) -> Result<(), String> {
+    let source = read_source(&path)?;
+    let syntax = match syntax {
+        Some(syntax) => parse_sif_source_syntax(&syntax)?,
+        None => infer_sif_source_syntax(&path),
+    };
+    let canonical_url = path_string(&path);
+    let exports = generate_static_omena_lif_exports_v1(OmenaSifStaticGeneratorInputV1 {
+        canonical_url: &canonical_url,
+        source: &source,
+        syntax,
+    });
+    let exports_json = write_omena_canonical_json_string_v1(&exports)
+        .map_err(|error| format!("failed to serialize LIF exports: {error}"))?;
+    let wrote_output = output.is_some();
+
+    if let Some(output_path) = output {
+        fs::write(&output_path, &exports_json).map_err(|error| {
+            format!(
+                "failed to write LIF exports to {}: {error}",
+                path_string(&output_path)
+            )
+        })?;
+        if !json {
+            println!("generated LIF exports: {}", path_string(&output_path));
+        }
+    }
+
+    if !wrote_output || json {
+        println!("{exports_json}");
     }
 
     Ok(())

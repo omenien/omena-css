@@ -459,6 +459,20 @@ pub(crate) enum SifCommand {
         #[arg(long)]
         json: bool,
     },
+    /// Generate static LIF exports, including Less-specific interface facts.
+    GenerateLifExports {
+        /// CSS, SCSS, Sass, or Less source to scan.
+        path: PathBuf,
+        /// Output path. Prints LIF export JSON to stdout when omitted.
+        #[arg(short, long)]
+        output: Option<PathBuf>,
+        /// Source syntax: css, scss, sass, or less. Defaults from extension.
+        #[arg(long)]
+        syntax: Option<String>,
+        /// Print generated LIF export JSON even when --output is provided.
+        #[arg(long)]
+        json: bool,
+    },
 }
 
 #[derive(Debug, Subcommand)]

@@ -4321,6 +4321,45 @@ fn sif_generate_command_accepts_less_source_syntax() -> Result<(), String> {
     Ok(())
 }
 
+#[test]
+fn sif_generate_lif_exports_command_writes_less_interface_facts() -> Result<(), String> {
+    let source_path = temp_path("tokens.less");
+    let output_path = temp_path("tokens.lif-exports.json");
+    fs::write(
+        &source_path,
+        r#"
+@brand: #fff;
+@tokens: { primary: @brand; @gap: 2px; };
+.button(@gap: 1rem, @rest...) when (@gap > 0) { color: @brand; }
+"#,
+    )
+    .map_err(|error| format!("fixture source should be writable: {error}"))?;
+
+    let result = run(Cli {
+        command: Command::Sif {
+            command: SifCommand::GenerateLifExports {
+                path: source_path.clone(),
+                output: Some(output_path.clone()),
+                syntax: Some("less".to_string()),
+                json: false,
+            },
+        },
+    });
+
+    assert!(result.is_ok(), "{result:?}");
+    let lif_json = fs::read_to_string(&output_path)
+        .map_err(|error| format!("generated LIF exports should be readable: {error}"))?;
+    assert!(lif_json.contains(r##""lessVariables":[{"name":"@brand","valueRepr":"#fff"}]"##));
+    assert!(lif_json.contains(r#""lessMixins":[{"guarded":true,"name":".button""#));
+    assert!(lif_json.contains(
+        r#""lessDetachedRulesets":[{"memberNames":["@gap","primary"],"name":"@tokens"}]"#
+    ));
+
+    cleanup(&source_path);
+    cleanup(&output_path);
+    Ok(())
+}
+
 #[cfg(feature = "zk-audit")]
 #[test]
 fn audit_zk_commands_are_feature_gated_surfaces() {
