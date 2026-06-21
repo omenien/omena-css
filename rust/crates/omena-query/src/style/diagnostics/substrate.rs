@@ -18,38 +18,42 @@ use super::shared::*;
 /// compute is carried as its own slot, byte-identical to what the sub-pass would have
 /// computed itself. The slots are built from the monolith's separate `package_manifests`
 /// parameter (NOT `resolution_inputs.package_manifests`, which no sub-pass reads).
-pub(super) struct OmenaQueryWorkspaceDiagnosticsSubstrateV0 {
+#[derive(Clone, PartialEq, Eq)]
+pub(in crate::style) struct OmenaQueryWorkspaceDiagnosticsSubstrateV0 {
     /// ENTRIES: `collect_omena_query_style_fact_entries` over ALL
     /// `(style_path, style_source)` pairs in input order. Order-sensitive: the
     /// resolution derives per-kind `rule_ordinal`s from iteration order, so the corpus
     /// is never sorted/deduped/keyed here.
-    pub(super) style_fact_entries: Vec<OmenaQueryStyleFactEntry>,
+    pub(in crate::style) style_fact_entries: Vec<OmenaQueryStyleFactEntry>,
     /// RES-A: plain resolution with `(package_manifests, bundler, tsconfig)`.
     /// Consumers: sass-use-cycle, resolution-identity, replica-ensemble, module-graph
     /// property-value narrowing.
-    pub(super) sass_resolution: OmenaQuerySassModuleCrossFileResolutionV0,
+    pub(in crate::style) sass_resolution: OmenaQuerySassModuleCrossFileResolutionV0,
     /// RES-B: plain resolution with EMPTY manifests + `(bundler, tsconfig)`. Sole
     /// consumer: missing-extend-target. Equals RES-A only when `package_manifests` is
     /// empty, so it stays a separate slot.
-    pub(super) sass_resolution_without_manifests: OmenaQuerySassModuleCrossFileResolutionV0,
+    pub(in crate::style) sass_resolution_without_manifests:
+        OmenaQuerySassModuleCrossFileResolutionV0,
     /// RES-C: plain resolution with `(package_manifests)` + EMPTY path mappings.
     /// Consumers: unresolved-sass-import (always) and the unified-SCC pass's Sass leg
     /// (`hypergraph-ifds` builds only). Equals RES-A only when both mapping vecs are
     /// empty, so it stays a separate slot.
-    pub(super) sass_resolution_without_path_mappings: OmenaQuerySassModuleCrossFileResolutionV0,
+    pub(in crate::style) sass_resolution_without_path_mappings:
+        OmenaQuerySassModuleCrossFileResolutionV0,
     /// RES-D: SIF-promoted resolution (== RES-A + `promote_sif_backed_external_edges`;
     /// byte-identical to RES-A when `external_sifs` is empty since the promotion
     /// early-returns). Consumers: missing-sass-symbol (unconditional, even in `Ignored`
     /// mode), external top-any ranges + SIF boundary (Sif mode).
-    pub(super) sass_resolution_with_external_sifs: OmenaQuerySassModuleCrossFileResolutionV0,
+    pub(in crate::style) sass_resolution_with_external_sifs:
+        OmenaQuerySassModuleCrossFileResolutionV0,
     /// RES-E (`hypergraph-ifds` only): css-modules resolution with
     /// `(package_manifests)`, consumed by the unified-SCC pass via the workspace
     /// cross-file summary. Default builds run the empty SCC stub and never compute it.
     #[cfg(feature = "hypergraph-ifds")]
-    pub(super) css_modules_resolution: OmenaQueryCssModulesCrossFileResolutionV0,
+    pub(in crate::style) css_modules_resolution: OmenaQueryCssModulesCrossFileResolutionV0,
 }
 
-pub(super) fn collect_omena_query_workspace_diagnostics_substrate(
+pub(in crate::style) fn collect_omena_query_workspace_diagnostics_substrate(
     style_sources: &[OmenaQueryStyleSourceInputV0],
     package_manifests: &[OmenaQueryStylePackageManifestV0],
     external_sifs: &[OmenaQueryExternalSifInputV0],

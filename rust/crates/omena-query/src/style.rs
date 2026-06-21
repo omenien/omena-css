@@ -1085,6 +1085,7 @@ pub fn summarize_omena_query_style_semantic_graph_batch_from_sources_with_packag
     }
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
 struct OmenaQueryStyleFactEntry {
     style_path: String,
     style_source: String,
