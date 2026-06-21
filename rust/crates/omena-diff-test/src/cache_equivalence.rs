@@ -813,14 +813,91 @@ mod tests {
             &resolution_inputs,
         )
         .ok_or("chord entry diagnostics")?;
-        assert!(
-            chord
-                .diagnostics
-                .iter()
-                .any(|diagnostic| diagnostic.code == "sassUseCycle"),
-            "the chord cycle must witness a sassUseCycle diagnostic: {:?}",
-            chord.diagnostics
+        // 0a golden: the chord SCC {a,b,c} (edges a->b, a->c, b->c, c->a) has TWO elementary
+        // circuits through `_chord_a` (a->b->c->a and a->c->a), so target=_chord_a keeps BOTH
+        // sassUseCycle diagnostics, anchored on DIFFERENT `@use` statements. The SLICE-A producer
+        // rewire (off the RawAllPaths closure scan onto SCC-gated elementary-circuit enumeration)
+        // must preserve this set; a one-ring-per-SCC producer would drop the a->c diagnostic.
+        let chord_cycles = chord
+            .diagnostics
+            .iter()
+            .filter(|d| d.code == "sassUseCycle")
+            .collect::<Vec<_>>();
+        assert_eq!(
+            chord_cycles.len(),
+            2,
+            "chord target keeps both elementary-circuit diagnostics: {chord_cycles:?}"
         );
+        assert!(chord_cycles.iter().all(|d| d.severity == "error"));
+        // the 3-cycle a->b->c->a, anchored on the `@use \"./chord_b\"` statement (line 0)
+        assert!(
+            chord_cycles
+                .iter()
+                .any(|d| d.message.contains("_chord_b.scss") && d.range.start.line == 0),
+            "3-cycle diagnostic on the chord_b @use: {chord_cycles:?}"
+        );
+        // the 2-cycle a->c->a (via the chord edge), anchored on the `@use \"./chord_c\"` (line 1)
+        assert!(
+            chord_cycles
+                .iter()
+                .any(|d| !d.message.contains("_chord_b.scss") && d.range.start.line == 1),
+            "2-cycle diagnostic on the chord_c @use: {chord_cycles:?}"
+        );
+        Ok(())
+    }
+
+    fn dense_k4_cycle_corpus() -> Vec<OmenaQueryStyleSourceInputV0> {
+        // A complete K4 module digraph (every node `@use`s the other three) — a DENSE SCC where the
+        // CanonicalFirstTarget visited-prune drops elementary circuits that the RawAllPaths producer
+        // (and the SLICE-A SCC-gated enumeration) keep. Distinguishes Option D from a regression to
+        // CanonicalFirstTarget-as-producer, which matches on the chord but not here.
+        let nodes = ["a", "b", "c", "d"];
+        nodes
+            .iter()
+            .map(|node| OmenaQueryStyleSourceInputV0 {
+                style_path: format!("/workspace/src/_k4_{node}.scss"),
+                style_source: nodes
+                    .iter()
+                    .filter(|other| *other != node)
+                    .map(|other| format!("@use \"./k4_{other}\";\n"))
+                    .collect::<String>(),
+            })
+            .collect()
+    }
+
+    #[test]
+    fn dense_scc_witnesses_full_elementary_circuit_diagnostic_set() -> Result<(), &'static str> {
+        let corpus = dense_k4_cycle_corpus();
+        let resolution_inputs = OmenaQueryStyleResolutionInputsV0::default();
+        let diagnostics = evaluate_workspace_diagnostics_from_scratch_v0(
+            "/workspace/src/_k4_a.scss",
+            &corpus,
+            &resolution_inputs,
+        )
+        .ok_or("k4 entry diagnostics")?;
+        let cycles = diagnostics
+            .diagnostics
+            .iter()
+            .filter(|d| d.code == "sassUseCycle")
+            .collect::<Vec<_>>();
+        // 0a golden: target=_k4_a sees ALL 15 elementary circuits through it (len 2: 3, len 3: 6,
+        // len 4: 6), evenly anchored across its three `@use` edges (5 per line). A producer using
+        // the CanonicalFirstTarget visited-prune drops the revisit-requiring circuits and yields
+        // fewer; Option D's SCC-confined enumeration must reproduce the full 15.
+        assert_eq!(
+            cycles.len(),
+            15,
+            "K4 target keeps the full elementary-circuit set: {}",
+            cycles.len()
+        );
+        assert!(cycles.iter().all(|d| d.severity == "error"));
+        for line in 0..3usize {
+            assert_eq!(
+                cycles.iter().filter(|d| d.range.start.line == line).count(),
+                5,
+                "each of the three @use edges anchors 5 circuits (line {line})"
+            );
+        }
         Ok(())
     }
 
