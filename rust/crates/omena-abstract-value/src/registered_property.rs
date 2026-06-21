@@ -527,6 +527,20 @@ fn is_quoted_string(value: &str) -> bool {
 }
 
 fn is_css_wide_keyword(value: &str) -> bool {
+    // Spec-driven: the `all` property's grammar is exactly the CSS-wide keyword set
+    // (it resets every property), so its closed alternation is the authoritative
+    // source — including newer members like `revert-rule` the inline floor omits. The
+    // floor keeps recognition from regressing if the feed snapshot fails to parse.
+    if spec_vocabulary()
+        .property_keywords("all")
+        .is_some_and(|keywords| {
+            keywords
+                .iter()
+                .any(|keyword| keyword.eq_ignore_ascii_case(value))
+        })
+    {
+        return true;
+    }
     matches!(
         value,
         "initial" | "inherit" | "unset" | "revert" | "revert-layer"
@@ -971,7 +985,11 @@ mod tests {
             ("'<color>'", "red", RegisteredSyntaxMatchV0::Accepts),
             ("'<color>'", "8px", RegisteredSyntaxMatchV0::Rejects),
             ("'<length>'", "red", RegisteredSyntaxMatchV0::Rejects),
-            ("'<length>'", "customvalue", RegisteredSyntaxMatchV0::Unknown),
+            (
+                "'<length>'",
+                "customvalue",
+                RegisteredSyntaxMatchV0::Unknown,
+            ),
             (
                 "'<custom-ident>'",
                 "customvalue",
@@ -1180,7 +1198,10 @@ mod tests {
                 );
             }
         }
-        assert!(checked > 0, "expected closed-alternation properties in the feed");
+        assert!(
+            checked > 0,
+            "expected closed-alternation properties in the feed"
+        );
     }
 
     #[test]
@@ -1210,6 +1231,29 @@ mod tests {
             standard_property_syntax_match("box-sizing", "inline-box"),
             RegisteredSyntaxMatchV0::Rejects
         );
+    }
+
+    #[test]
+    fn css_wide_keywords_are_spec_driven_from_the_all_property() {
+        // The `all` property's grammar is the authoritative CSS-wide keyword set,
+        // including `revert-rule`, which the historical inline floor omits.
+        assert_eq!(
+            classify_registered_property_declared_value_v0("revert-rule"),
+            DeclaredValueKindV0::CssWide
+        );
+        // A CSS-wide keyword is valid for every property, so the value diagnostic
+        // stays silent even on a closed-alternation property (no false positive).
+        assert_eq!(
+            standard_property_syntax_match("box-sizing", "revert-rule"),
+            RegisteredSyntaxMatchV0::Accepts
+        );
+        // The inline floor still covers the classic keywords if the feed were absent.
+        for keyword in ["initial", "inherit", "unset", "revert", "revert-layer"] {
+            assert_eq!(
+                classify_registered_property_declared_value_v0(keyword),
+                DeclaredValueKindV0::CssWide
+            );
+        }
     }
 
     #[test]
