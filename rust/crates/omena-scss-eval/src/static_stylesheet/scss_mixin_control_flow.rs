@@ -3,7 +3,10 @@ use std::collections::{BTreeMap, BTreeSet};
 use omena_parser::{LexedToken, StyleDialect, lex};
 use omena_syntax::SyntaxKind;
 
-use crate::value_eval::{static_scss_literal_truthiness, static_scss_typed_advisory_truthiness};
+use crate::{
+    analyze_scss_control_flow_values, build_scss_control_flow_graph,
+    value_eval::{static_scss_literal_truthiness, static_scss_typed_advisory_truthiness},
+};
 
 use super::{
     OmenaScssEvalResolvedReplacementV0, STATIC_STYLESHEET_VALUE_RESOLUTION_FUEL_LIMIT,
@@ -66,6 +69,8 @@ pub(super) fn collect_static_scss_control_flow_evaluation_edits(
     let mut replacements = Vec::new();
     let mut used_function_declaration_names = BTreeSet::new();
     let mut preserved_dynamic_branch_count = 0usize;
+    let value_truthiness_by_start =
+        static_scss_control_flow_value_truthiness_by_start(source, dialect);
     let mut index = 0usize;
     while index < tokens.len() {
         let token = &tokens[index];
@@ -85,6 +90,7 @@ pub(super) fn collect_static_scss_control_flow_evaluation_edits(
             &argument_values,
             chain.start,
             context,
+            Some(&value_truthiness_by_start),
         ) else {
             preserved_dynamic_branch_count += 1;
             index = chain.next_index;
@@ -180,6 +186,7 @@ fn render_static_scss_mixin_control_flow_body_with_fuel(
             argument_values,
             call_position,
             context,
+            None,
         )?
         .map(|selected| selected.body)
         .unwrap_or_default();
@@ -218,6 +225,7 @@ struct StaticScssMixinControlFlowChain {
 
 #[derive(Debug, Clone)]
 struct StaticScssMixinControlFlowBranch {
+    control_start: usize,
     condition: Option<String>,
     body: String,
     body_start: usize,
@@ -255,6 +263,7 @@ fn static_scss_mixin_control_flow_chain(
     let mut end = static_stylesheet_token_end(&tokens[body_close_index]);
     let mut next_index = body_close_index + 1;
     let mut branches = vec![StaticScssMixinControlFlowBranch {
+        control_start: start,
         condition: Some(condition),
         body_start: static_stylesheet_token_end(&tokens[body_open_index]),
         body: static_scss_mixin_control_flow_branch_body(
@@ -277,6 +286,7 @@ fn static_scss_mixin_control_flow_chain(
             static_scss_mixin_control_flow_header_and_body(source, dialect, tokens, else_index)?;
         let condition = static_scss_mixin_else_if_condition(header.as_str()).map(ToOwned::to_owned);
         branches.push(StaticScssMixinControlFlowBranch {
+            control_start: static_stylesheet_token_start(&tokens[else_index]),
             condition,
             body_start: static_stylesheet_token_end(&tokens[else_body_open_index]),
             body: static_scss_mixin_control_flow_branch_body(
@@ -352,6 +362,7 @@ fn static_scss_mixin_selected_control_flow_body(
     argument_values: &BTreeMap<String, String>,
     call_position: usize,
     context: StaticScssFunctionResolutionContext<'_>,
+    value_truthiness_by_start: Option<&BTreeMap<usize, bool>>,
 ) -> Option<Option<StaticScssSelectedControlFlowBody>> {
     for branch in &chain.branches {
         let Some(condition) = branch.condition.as_ref() else {
@@ -360,20 +371,24 @@ fn static_scss_mixin_selected_control_flow_body(
                 body_start: branch.body_start,
             }));
         };
-        let resolution = resolve_static_scss_function_value_with_bindings(
+        let value_truthiness = value_truthiness_by_start
+            .and_then(|truthiness_by_start| truthiness_by_start.get(&branch.control_start))
+            .copied();
+        let fallback_truthiness = static_scss_resolved_condition_truthiness(
             condition.as_str(),
             argument_values,
             call_position,
-            STATIC_STYLESHEET_VALUE_RESOLUTION_FUEL_LIMIT,
             context,
         );
-        if resolution.outcome == StaticStylesheetResolutionOutcome::Top {
-            return None;
-        }
-        let condition_value = resolution.rendered_value?;
-        let _typed_advisory_truthiness =
-            static_scss_typed_advisory_truthiness(condition_value.as_str());
-        if static_scss_literal_truthiness(condition_value.as_str())? {
+        let truthy = match (value_truthiness, fallback_truthiness) {
+            (Some(value_truthy), Some(fallback_truthy)) if value_truthy != fallback_truthy => {
+                return None;
+            }
+            (Some(value_truthy), _) => value_truthy,
+            (None, Some(fallback_truthy)) => fallback_truthy,
+            (None, None) => return None,
+        };
+        if truthy {
             return Some(Some(StaticScssSelectedControlFlowBody {
                 body: branch.body.clone(),
                 body_start: branch.body_start,
@@ -381,6 +396,66 @@ fn static_scss_mixin_selected_control_flow_body(
         }
     }
     Some(None)
+}
+
+fn static_scss_control_flow_value_truthiness_by_start(
+    source: &str,
+    dialect: StyleDialect,
+) -> BTreeMap<usize, bool> {
+    let Some(graph) = build_scss_control_flow_graph(source, dialect) else {
+        return BTreeMap::new();
+    };
+    let Some(analysis) = analyze_scss_control_flow_values(source, dialect) else {
+        return BTreeMap::new();
+    };
+    let source_start_by_node_key = graph
+        .blocks
+        .iter()
+        .map(|block| {
+            (
+                block.node_key.as_str().to_string(),
+                block.block.source_span_start,
+            )
+        })
+        .collect::<BTreeMap<_, _>>();
+
+    analysis
+        .blocks
+        .iter()
+        .filter_map(|block| {
+            let truthy = match block.transfer_truthiness {
+                Some("truthy") => true,
+                Some("falsey") => false,
+                _ => return None,
+            };
+            source_start_by_node_key
+                .get(block.node_key.as_str())
+                .copied()
+                .map(|source_span_start| (source_span_start, truthy))
+        })
+        .collect()
+}
+
+fn static_scss_resolved_condition_truthiness(
+    condition: &str,
+    argument_values: &BTreeMap<String, String>,
+    call_position: usize,
+    context: StaticScssFunctionResolutionContext<'_>,
+) -> Option<bool> {
+    let resolution = resolve_static_scss_function_value_with_bindings(
+        condition,
+        argument_values,
+        call_position,
+        STATIC_STYLESHEET_VALUE_RESOLUTION_FUEL_LIMIT,
+        context,
+    );
+    if resolution.outcome == StaticStylesheetResolutionOutcome::Top {
+        return None;
+    }
+    let condition_value = resolution.rendered_value?;
+    let _typed_advisory_truthiness =
+        static_scss_typed_advisory_truthiness(condition_value.as_str());
+    static_scss_literal_truthiness(condition_value.as_str())
 }
 
 fn render_static_scss_control_flow_replacement_values(
