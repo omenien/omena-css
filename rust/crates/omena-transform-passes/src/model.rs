@@ -308,6 +308,12 @@ impl TransformModuleEvaluationV0 {
             .is_some_and(|source| source == "nativeEditOutput")
     }
 
+    // HONESTY NOTE: `divergence_count == 0` is a value-WELL-FORMEDNESS self-check on the
+    // native-edit output (every native-emitted declaration value canonically round-trips), NOT a
+    // differential against an external SCSS/Less compiler. So this gate means "native output is
+    // self-consistent and value-preserving", NOT "native agrees with dart-sass/lessc". A genuine
+    // external-reference differential is a separate equivalence-oracle track; the U4 cutover's
+    // n==0 predicate must not be described as external agreement until that lands.
     pub fn oracle_allows_native_product_output(&self) -> bool {
         self.oracle.as_ref().is_some_and(|oracle| {
             oracle.mode == "oracleOnly"
@@ -320,6 +326,10 @@ impl TransformModuleEvaluationV0 {
         self.declares_native_product_output() && self.oracle_allows_native_product_output()
     }
 
+    // NOTE: the "retained oracle" here is the retained product-output string (`evaluated_css`),
+    // which in the production rail is itself native-derived — so this is a byte-equality
+    // self-consistency check between two native-derived strings, not a comparison to an
+    // independent external evaluator.
     pub fn native_output_matches_retained_oracle(&self, native_output: &str) -> bool {
         self.oracle
             .as_ref()

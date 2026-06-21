@@ -22,9 +22,12 @@ pub(super) fn derive_static_stylesheet_module_evaluation(
 ) -> Option<TransformModuleEvaluationV0> {
     let evaluation =
         derive_omena_scss_eval_static_stylesheet_module_evaluation(style_source, dialect)?;
+    // NOTE: `all_legacy_declaration_values_preserved` is a value-WELL-FORMEDNESS self-check on the
+    // native-edit output (every native-emitted declaration value canonically round-trips), NOT a
+    // differential against an external SCSS/Less compiler. See `summarize_omena_scss_eval_oracle`.
     debug_assert!(
         evaluation.oracle.all_legacy_declaration_values_preserved,
-        "native SCSS/Less value oracle diverged from legacy evaluated_css"
+        "native-emitted value failed canonical round-trip self-check"
     );
     let oracle = transform_module_evaluation_oracle(&evaluation);
     Some(TransformModuleEvaluationV0 {
