@@ -79,7 +79,7 @@ pub use source_usage::{
     summarize_omena_query_unused_selector_style_diagnostics_with_path_mappings,
 };
 pub(super) use substrate::collect_sass_module_graph_reachable_style_paths;
-use substrate::{
+pub(in crate::style) use substrate::{
     OmenaQueryWorkspaceDiagnosticsSubstrateV0, collect_omena_query_workspace_diagnostics_substrate,
 };
 pub use types::OmenaQueryExternalModuleModeV0;

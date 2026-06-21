@@ -112,9 +112,39 @@ pub fn resolve_memo_workspace_style_diagnostics_from_view(
     memo_workspace_style_diagnostics(db, workspace, target)
 }
 
+/// RFC 0009 Pillar B (#65) SLICE-3: the target-INDEPENDENT diagnostics substrate, hoisted into its
+/// own workspace-keyed tracked query so N open targets share ONE substrate build per revision
+/// instead of rebuilding it per `(workspace, target)`. `returns(ref)` hands the per-target query a
+/// borrow, so the entries + resolution variants are not cloned per target. The arguments mirror the
+/// monolith wrapper's inline build exactly, so the substrate is byte-identical either way.
+#[salsa::tracked(returns(ref))]
+fn memo_workspace_diagnostics_substrate(
+    db: &dyn salsa::Database,
+    workspace: OmenaQueryStyleWorkspaceInputV0,
+) -> OmenaQueryWorkspaceDiagnosticsSubstrateV0 {
+    let corpus = workspace
+        .files(db)
+        .iter()
+        .map(|file| OmenaQueryStyleSourceInputV0 {
+            style_path: file.style_path(db).clone(),
+            style_source: file.style_source(db).clone(),
+        })
+        .collect::<Vec<_>>();
+    let resolution_inputs = workspace.resolution_inputs(db);
+    collect_omena_query_workspace_diagnostics_substrate(
+        corpus.as_slice(),
+        workspace.package_manifests(db).as_slice(),
+        workspace.external_sifs(db).as_slice(),
+        resolution_inputs.bundler_path_mappings.as_slice(),
+        resolution_inputs.tsconfig_path_mappings.as_slice(),
+    )
+}
+
 /// The memoized workspace diagnostics query. Mirrors the LSP's call shape
 /// exactly: `classname_transform` is `None` and the external mode is derived
 /// from SIF presence, byte-identical to `resolve_style_diagnostics_for_uri`.
+/// Reads the workspace-keyed substrate query so the target-independent
+/// resolution is shared across targets.
 #[salsa::tracked(returns(clone))]
 fn memo_workspace_style_diagnostics(
     db: &dyn salsa::Database,
@@ -130,7 +160,8 @@ fn memo_workspace_style_diagnostics(
         })
         .collect::<Vec<_>>();
     let external_sifs = workspace.external_sifs(db);
-    summarize_omena_query_style_diagnostics_for_workspace_file_with_external_mode_and_sifs_and_resolution_inputs(
+    let substrate = memo_workspace_diagnostics_substrate(db, workspace);
+    summarize_omena_query_style_diagnostics_for_workspace_file_with_external_mode_and_sifs_and_resolution_inputs_and_suppression_mode_with_substrate(
         target.style_path(db).as_str(),
         corpus.as_slice(),
         workspace.source_documents(db).as_slice(),
@@ -139,6 +170,8 @@ fn memo_workspace_style_diagnostics(
         OmenaQueryExternalModuleModeV0::Auto,
         external_sifs.as_slice(),
         workspace.resolution_inputs(db),
+        OmenaQueryDiagnosticSuppressionModeV0::Apply,
+        substrate,
     )
 }
 
