@@ -11,7 +11,7 @@ use std::collections::{BTreeMap, BTreeSet, VecDeque};
 use omena_abstract_value::AbstractClassValueV0;
 use omena_cross_file_summary::{
     OmenaUnifiedHypergraphConnectivityOracle, UnifiedHypergraphEdgeKindV0,
-    UnifiedHypergraphHyperedgeV0,
+    UnifiedHypergraphHyperedgeV0, collect_directed_graph_sccs,
 };
 use serde::Serialize;
 
@@ -500,7 +500,7 @@ fn summarize_streaming_ifds_cross_file_reachability_fast_v0(
 ) -> StreamingIfdsCrossFileReachabilityFastSummaryV0 {
     let start_node_ids = streaming_ifds_node_ids_for_path(target_style_path, hyperedges);
     let adjacency = streaming_ifds_node_adjacency(hyperedges);
-    let sccs = collect_streaming_ifds_tarjan_sccs(&adjacency);
+    let sccs = collect_directed_graph_sccs(&adjacency);
     let mut scc_by_node = BTreeMap::<String, usize>::new();
     for (index, scc) in sccs.iter().enumerate() {
         for node_id in scc {
@@ -1147,76 +1147,6 @@ fn streaming_ifds_node_adjacency(
     adjacency
 }
 
-fn collect_streaming_ifds_tarjan_sccs(
-    adjacency: &BTreeMap<String, BTreeSet<String>>,
-) -> Vec<Vec<String>> {
-    let mut state = StreamingIfdsTarjanStateV0::default();
-    for node_id in adjacency.keys() {
-        if !state.indices.contains_key(node_id) {
-            state.visit(node_id, adjacency);
-        }
-    }
-    state.components
-}
-
-#[derive(Debug, Default)]
-struct StreamingIfdsTarjanStateV0 {
-    next_index: usize,
-    stack: Vec<String>,
-    on_stack: BTreeSet<String>,
-    indices: BTreeMap<String, usize>,
-    lowlinks: BTreeMap<String, usize>,
-    components: Vec<Vec<String>>,
-}
-
-impl StreamingIfdsTarjanStateV0 {
-    fn visit(&mut self, node_id: &str, adjacency: &BTreeMap<String, BTreeSet<String>>) {
-        let index = self.next_index;
-        self.next_index = self.next_index.saturating_add(1);
-        self.indices.insert(node_id.to_string(), index);
-        self.lowlinks.insert(node_id.to_string(), index);
-        self.stack.push(node_id.to_string());
-        self.on_stack.insert(node_id.to_string());
-
-        if let Some(targets) = adjacency.get(node_id) {
-            for target in targets {
-                if !self.indices.contains_key(target.as_str()) {
-                    self.visit(target, adjacency);
-                    if let (Some(target_lowlink), Some(current_lowlink)) = (
-                        self.lowlinks.get(target.as_str()).copied(),
-                        self.lowlinks.get(node_id).copied(),
-                    ) {
-                        self.lowlinks
-                            .insert(node_id.to_string(), current_lowlink.min(target_lowlink));
-                    }
-                } else if self.on_stack.contains(target.as_str())
-                    && let (Some(target_index), Some(current_lowlink)) = (
-                        self.indices.get(target.as_str()).copied(),
-                        self.lowlinks.get(node_id).copied(),
-                    )
-                {
-                    self.lowlinks
-                        .insert(node_id.to_string(), current_lowlink.min(target_index));
-                }
-            }
-        }
-
-        if self.lowlinks.get(node_id) == self.indices.get(node_id) {
-            let mut component = Vec::new();
-            while let Some(stack_node) = self.stack.pop() {
-                self.on_stack.remove(stack_node.as_str());
-                let done = stack_node == node_id;
-                component.push(stack_node);
-                if done {
-                    break;
-                }
-            }
-            component.sort();
-            self.components.push(component);
-        }
-    }
-}
-
 fn exact_reachable_node_ids(
     start_node_id: &str,
     hyperedges: &[UnifiedHypergraphHyperedgeV0],
@@ -1247,6 +1177,30 @@ mod tests {
         assert_eq!(update.delta, 0);
         assert_eq!(update.epsilon, 0);
         assert_eq!(update.refinement_context_digest, Some(42));
+    }
+
+    #[test]
+    fn shared_scc_primitive_reproduces_the_deleted_tarjan_duplicate() {
+        // SLICE-A guard-equivalence: the shared `collect_directed_graph_sccs` owner reproduces the
+        // exact output the now-deleted streaming-ifds Tarjan duplicate produced — each component
+        // sorted, the `a <-> b` 2-cycle collapsed, the `c` sink kept as a singleton, components in
+        // Tarjan reverse-topological discovery order (sink first).
+        let adjacency: BTreeMap<String, BTreeSet<String>> = BTreeMap::from([
+            ("a".to_string(), BTreeSet::from(["b".to_string()])),
+            (
+                "b".to_string(),
+                BTreeSet::from(["a".to_string(), "c".to_string()]),
+            ),
+            ("c".to_string(), BTreeSet::new()),
+        ]);
+        let sccs = collect_directed_graph_sccs(&adjacency);
+        assert_eq!(
+            sccs,
+            vec![
+                vec!["c".to_string()],
+                vec!["a".to_string(), "b".to_string()],
+            ]
+        );
     }
 
     #[test]

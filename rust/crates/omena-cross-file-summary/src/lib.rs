@@ -282,7 +282,7 @@ pub fn summarize_omena_query_unified_cross_file_scc_report(
     hypergraph: &OmenaQueryUnifiedCrossFileHypergraphV0,
 ) -> OmenaQueryUnifiedCrossFileSccReportV0 {
     let adjacency = build_directed_projection_adjacency(&hypergraph.summary_edges);
-    let mut sccs = collect_tarjan_sccs(&adjacency)
+    let mut sccs = collect_directed_graph_sccs(&adjacency)
         .into_iter()
         .filter_map(|node_ids| summarize_cyclic_scc(&node_ids, &hypergraph.summary_edges))
         .collect::<Vec<_>>();
@@ -613,7 +613,13 @@ fn build_directed_projection_adjacency(
     adjacency
 }
 
-fn collect_tarjan_sccs(adjacency: &BTreeMap<String, BTreeSet<String>>) -> Vec<Vec<String>> {
+/// The single shared strongly-connected-components primitive for the cross-file engine: exact
+/// Tarjan over a deterministic `BTreeMap` adjacency, each component sorted, components in Tarjan
+/// reverse-topological discovery order. Consumed by both this crate's unified SCC report and
+/// `omena-streaming-ifds` (which previously carried a byte-identical duplicate).
+pub fn collect_directed_graph_sccs(
+    adjacency: &BTreeMap<String, BTreeSet<String>>,
+) -> Vec<Vec<String>> {
     let mut state = TarjanState::default();
     for node_id in adjacency.keys() {
         if !state.indices.contains_key(node_id) {
