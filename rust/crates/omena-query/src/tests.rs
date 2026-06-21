@@ -85,6 +85,7 @@ mod dynamic_classname;
 mod expression_domain;
 mod provider_queries;
 mod runtime_contracts;
+mod sass_closure_config_golden;
 mod scss_evaluator;
 mod source_surfaces;
 mod style_diagnostics;

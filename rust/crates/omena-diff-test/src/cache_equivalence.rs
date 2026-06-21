@@ -271,6 +271,25 @@ pub fn omena_diff_cache_equivalence_default_corpus_v0() -> (
             style_path: "/workspace/src/_chord_c.scss".to_string(),
             style_source: "@use \"./chord_a\";\n".to_string(),
         },
+        // Config-state convergence diamond: `_cfg_app` reaches `_cfg_base` configured `red` via BOTH
+        // `_cfg_red_a` and `_cfg_red_b` (equal config -> one diagnostic, two closure paths). Covers
+        // the SLICE-2 worklist MERGE-on-equal path, which the rest of the corpus never exercises.
+        OmenaQueryStyleSourceInputV0 {
+            style_path: "/workspace/src/_cfg_base.scss".to_string(),
+            style_source: "$brand: blue !default;\n.base { color: $brand; }\n".to_string(),
+        },
+        OmenaQueryStyleSourceInputV0 {
+            style_path: "/workspace/src/_cfg_red_a.scss".to_string(),
+            style_source: "@forward \"./cfg_base\" with ($brand: red);\n".to_string(),
+        },
+        OmenaQueryStyleSourceInputV0 {
+            style_path: "/workspace/src/_cfg_red_b.scss".to_string(),
+            style_source: "@forward \"./cfg_base\" with ($brand: red);\n".to_string(),
+        },
+        OmenaQueryStyleSourceInputV0 {
+            style_path: "/workspace/src/_cfg_app.scss".to_string(),
+            style_source: "@use \"./cfg_red_a\" as a;\n@use \"./cfg_red_b\" as b;\n".to_string(),
+        },
     ];
     let resolution_inputs = OmenaQueryStyleResolutionInputsV0 {
         package_manifests: vec![
