@@ -6,6 +6,7 @@
 use omena_meta_macros::{pass, spec};
 use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, BTreeSet};
+use std::sync::OnceLock;
 
 /// Compile-time marker proving the spec metadata attribute is available to the
 /// spec audit layer.
@@ -68,6 +69,10 @@ pub struct OmenaSpecAuditBoundarySummaryV0 {
     pub all_webref_grammar_entries_valid: bool,
     /// Whether the vendored grammar's stamped version + git head match the pin.
     pub webref_grammar_provenance_valid: bool,
+    /// Number of closed-vocabulary terms the `SpecVocabularyV0` feed exposes from the
+    /// vendored grammar (entries reduced to a finite keyword set). A bounded subset
+    /// of the grammar, NOT a spec-coverage metric.
+    pub spec_vocabulary_coverage: usize,
     /// Named gates closed by this boundary.
     pub closed_gates: Vec<&'static str>,
 }
@@ -274,6 +279,7 @@ pub fn summarize_omena_spec_audit_boundary() -> OmenaSpecAuditBoundarySummaryV0 
         webref_grammar_modeled_entry_count: webref_grammar.modeled_entry_count,
         all_webref_grammar_entries_valid: webref_grammar.all_entries_valid,
         webref_grammar_provenance_valid: webref_grammar.provenance_valid,
+        spec_vocabulary_coverage: spec_vocabulary().closed_term_count(),
         closed_gates: vec![
             "specAuditSourcePins",
             "specAuditSingleSourceManifest",
@@ -494,6 +500,88 @@ fn simple_keyword_alternation(syntax: &str) -> Option<Vec<String>> {
     Some(parts.into_iter().map(str::to_string).collect())
 }
 
+/// Public closed-vocabulary projection of the pinned webref grammar snapshot.
+///
+/// For each webref category, every entry whose value-definition syntax reduces to
+/// a finite, enumerable keyword set (`Keyword` or `KeywordAlternation`) is exposed
+/// as `name -> keywords`. Entries whose syntax is a `<type>` reference or a grammar
+/// richer than the conservative classifier models (`Raw`) are intentionally omitted
+/// — never fabricated. This is a bounded closed-vocabulary tally driven entirely by
+/// the vendored snapshot, NOT a spec-coverage or conformance claim.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct SpecVocabularyV0 {
+    closed_terms: BTreeMap<String, BTreeMap<String, Vec<String>>>,
+}
+
+impl SpecVocabularyV0 {
+    /// The closed keyword set for a named term in a webref category, if the term's
+    /// grammar reduces to one. Lookup is case-insensitive on the term name.
+    pub fn closed_keywords(&self, category: &str, name: &str) -> Option<&[String]> {
+        let lowered = name.trim().to_ascii_lowercase();
+        self.closed_terms
+            .get(category)
+            .and_then(|terms| terms.get(&lowered))
+            .map(Vec::as_slice)
+    }
+
+    /// The closed keyword set for a `<type>` (e.g. `named-color`), if it is closed.
+    pub fn type_keywords(&self, type_name: &str) -> Option<&[String]> {
+        self.closed_keywords("types", type_name)
+    }
+
+    /// The closed keyword set for a standard property (e.g. `box-sizing`), if the
+    /// property's whole grammar is a closed alternation.
+    pub fn property_keywords(&self, property: &str) -> Option<&[String]> {
+        self.closed_keywords("properties", property)
+    }
+
+    /// Total number of closed-vocabulary terms exposed across all categories.
+    pub fn closed_term_count(&self) -> usize {
+        self.closed_terms.values().map(BTreeMap::len).sum()
+    }
+
+    /// Whether a value is a member of a `<type>`'s closed keyword set
+    /// (case-insensitive). Returns `None` when the type has no closed projection,
+    /// which the caller must treat as undecided (never a rejection).
+    pub fn type_accepts(&self, type_name: &str, value: &str) -> Option<bool> {
+        let keywords = self.type_keywords(type_name)?;
+        let value = value.trim();
+        Some(keywords.iter().any(|keyword| keyword.eq_ignore_ascii_case(value)))
+    }
+}
+
+/// The closed-vocabulary projection of the vendored webref snapshot, parsed once.
+pub fn spec_vocabulary() -> &'static SpecVocabularyV0 {
+    static DATA: OnceLock<SpecVocabularyV0> = OnceLock::new();
+    DATA.get_or_init(build_spec_vocabulary)
+}
+
+fn build_spec_vocabulary() -> SpecVocabularyV0 {
+    let Ok(snapshot) = serde_json::from_str::<WebrefGrammarSnapshotV0>(WEBREF_GRAMMAR_SOURCE) else {
+        return SpecVocabularyV0::default();
+    };
+    let mut closed_terms: BTreeMap<String, BTreeMap<String, Vec<String>>> = BTreeMap::new();
+    for (category, entries) in &snapshot.categories {
+        let mut terms: BTreeMap<String, Vec<String>> = BTreeMap::new();
+        for entry in entries {
+            let keywords = match classify_webref_syntax(entry.syntax.as_str()) {
+                WebrefGrammarTermV0::Keyword(keyword) => vec![keyword],
+                WebrefGrammarTermV0::KeywordAlternation(keywords) => keywords,
+                WebrefGrammarTermV0::Reference(_) | WebrefGrammarTermV0::Raw(_) => continue,
+            };
+            let name = entry.name.trim().to_ascii_lowercase();
+            if name.is_empty() {
+                continue;
+            }
+            terms.insert(name, keywords);
+        }
+        if !terms.is_empty() {
+            closed_terms.insert(category.clone(), terms);
+        }
+    }
+    SpecVocabularyV0 { closed_terms }
+}
+
 fn summarize_webref_grammar(
     webref_pin: Option<&SpecSourcePinV0>,
 ) -> WebrefGrammarConsumerSummaryV0 {
@@ -555,8 +643,9 @@ fn summarize_webref_grammar(
 mod tests {
     use super::{
         SPEC_AUDIT_COLOR_MARKER, SPEC_AUDIT_PASS_MARKER, SpecGeneratedDataReviewGateV0,
-        SpecSourcePinsV0, SpecSourceRefreshPolicyV0, generated_data_review_gate_is_valid,
-        source_freshness_policy_is_valid, summarize_omena_spec_audit_boundary,
+        SpecSourcePinsV0, SpecSourceRefreshPolicyV0, WebrefGrammarTermV0, classify_webref_syntax,
+        generated_data_review_gate_is_valid, source_freshness_policy_is_valid, spec_vocabulary,
+        summarize_omena_spec_audit_boundary,
     };
 
     #[test]
@@ -680,5 +769,54 @@ mod tests {
 
         source_pins.generated_data_review_gate.auto_merge_allowed = true;
         assert!(!generated_data_review_gate_is_valid(&source_pins));
+    }
+
+    #[test]
+    fn spec_vocabulary_exposes_closed_keyword_projections_from_the_snapshot() {
+        let vocabulary = spec_vocabulary();
+
+        // Named colors reduce to a closed alternation — the full vendored set, not
+        // the historical 15-entry stub.
+        let named_colors = vocabulary.type_keywords("named-color").unwrap_or_default();
+        assert!(named_colors.iter().any(|color| color == "aliceblue"));
+        assert!(named_colors.len() > 100);
+        assert_eq!(vocabulary.type_accepts("named-color", "AliceBlue"), Some(true));
+        assert_eq!(
+            vocabulary.type_accepts("named-color", "not-a-color"),
+            Some(false)
+        );
+
+        // A closed-alternation property is projected verbatim, in syntax order.
+        assert_eq!(
+            vocabulary.property_keywords("box-sizing"),
+            Some(["content-box".to_string(), "border-box".to_string()].as_slice())
+        );
+
+        // An open grammar has no closed projection -> the caller must treat it as
+        // undecided, never a rejection.
+        assert_eq!(vocabulary.type_accepts("color", "anything"), None);
+
+        assert_eq!(
+            vocabulary.closed_term_count(),
+            summarize_omena_spec_audit_boundary().spec_vocabulary_coverage
+        );
+        assert!(vocabulary.closed_term_count() > 0);
+    }
+
+    #[test]
+    fn spec_vocabulary_never_fabricates_a_term_outside_the_closed_classification() {
+        let vocabulary = spec_vocabulary();
+        // Every exposed projection traces back to a Keyword/KeywordAlternation
+        // classification of a vendored entry; nothing is fabricated.
+        assert!(!vocabulary.type_keywords("named-color").unwrap_or_default().is_empty());
+        // `color` is a rich grammar (Raw) and must never be exposed as closed.
+        assert!(vocabulary.type_keywords("color").is_none());
+        // `system-color` references <deprecated-color> (Raw) -> excluded.
+        assert!(vocabulary.type_keywords("system-color").is_none());
+        // Sanity: the classifier and projection agree on the box-sizing shape.
+        assert!(matches!(
+            classify_webref_syntax("content-box | border-box"),
+            WebrefGrammarTermV0::KeywordAlternation(_)
+        ));
     }
 }
