@@ -30,6 +30,7 @@
       "totalLexTokenCount": 141597,
       "totalLexSpliceHitCount": 15,
       "totalLexSpliceFullRelexFallbackCount": 3,
+      "lexInvocationGrowthExponentMilli": 939,
       "lexTokenGrowthExponentMilli": 988,
       "maxLexTokensPerEditedByteMilli": 455,
       "samples": [
@@ -104,6 +105,7 @@
       "totalLexTokenCount": 223776,
       "totalLexSpliceHitCount": 0,
       "totalLexSpliceFullRelexFallbackCount": 0,
+      "lexInvocationGrowthExponentMilli": 0,
       "lexTokenGrowthExponentMilli": 986,
       "maxLexTokensPerEditedByteMilli": 721,
       "samples": [
@@ -169,6 +171,7 @@
         }
       ]
     },
+    "lexInvocationGrowthExponentBoundMilli": 1100,
     "lexTokenGrowthExponentBoundMilli": 1100,
     "lexTokensPerEditedByteBoundMilli": 600,
     "lexSpliceFullRelexFallbackBound": 3,

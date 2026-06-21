@@ -276,6 +276,7 @@ pub struct TransformExecutorSpineLaneSnapshotV0 {
     pub total_lex_token_count: u64,
     pub total_lex_splice_hit_count: u64,
     pub total_lex_splice_full_relex_fallback_count: u64,
+    pub lex_invocation_growth_exponent_milli: i64,
     pub lex_token_growth_exponent_milli: i64,
     pub max_lex_tokens_per_edited_byte_milli: u64,
     pub samples: Vec<TransformExecutorSpineSampleSnapshotV0>,
@@ -290,6 +291,7 @@ pub struct TransformExecutorSpineAssertionSnapshotV0 {
     pub check_id: &'static str,
     pub current_lane: TransformExecutorSpineLaneSnapshotV0,
     pub full_relex_witness_lane: TransformExecutorSpineLaneSnapshotV0,
+    pub lex_invocation_growth_exponent_bound_milli: i64,
     pub lex_token_growth_exponent_bound_milli: i64,
     pub lex_tokens_per_edited_byte_bound_milli: u64,
     pub lex_splice_full_relex_fallback_bound: u64,
@@ -847,6 +849,7 @@ pub fn fit_log_log_growth_exponent(samples: &[(usize, usize)]) -> Option<f64> {
     exponent.is_finite().then_some(exponent)
 }
 
+const TRANSFORM_EXECUTOR_SPINE_LEX_INVOCATION_GROWTH_BOUND_MILLI: i64 = 1100;
 const TRANSFORM_EXECUTOR_SPINE_LEX_TOKEN_GROWTH_BOUND_MILLI: i64 = 1100;
 const TRANSFORM_EXECUTOR_SPINE_TOKENS_PER_EDITED_BYTE_BOUND_MILLI: u64 = 600;
 const TRANSFORM_EXECUTOR_SPINE_LEX_SPLICE_FULL_RELEX_FALLBACK_BOUND: u64 = 3;
@@ -862,7 +865,9 @@ pub fn summarize_transform_executor_spine_assertion() -> TransformExecutorSpineA
         "cache-disabled-full-relex",
         execute_transform_passes_on_source_with_dialect_and_context_without_lex_cache_for_measurement,
     );
-    let current_under_growth_bound = current_lane.lex_token_growth_exponent_milli
+    let current_under_invocation_growth_bound = current_lane.lex_invocation_growth_exponent_milli
+        <= TRANSFORM_EXECUTOR_SPINE_LEX_INVOCATION_GROWTH_BOUND_MILLI;
+    let current_under_token_growth_bound = current_lane.lex_token_growth_exponent_milli
         <= TRANSFORM_EXECUTOR_SPINE_LEX_TOKEN_GROWTH_BOUND_MILLI;
     let current_under_edited_byte_bound = current_lane.max_lex_tokens_per_edited_byte_milli
         <= TRANSFORM_EXECUTOR_SPINE_TOKENS_PER_EDITED_BYTE_BOUND_MILLI;
@@ -874,7 +879,8 @@ pub fn summarize_transform_executor_spine_assertion() -> TransformExecutorSpineA
         > TRANSFORM_EXECUTOR_SPINE_TOKENS_PER_EDITED_BYTE_BOUND_MILLI;
 
     TransformExecutorSpineAssertionSnapshotV0 {
-        asserted: current_under_growth_bound
+        asserted: current_under_invocation_growth_bound
+            && current_under_token_growth_bound
             && current_under_edited_byte_bound
             && current_under_splice_fallback_bound
             && witness_over_edited_byte_bound,
@@ -883,6 +889,8 @@ pub fn summarize_transform_executor_spine_assertion() -> TransformExecutorSpineA
         check_id: "rust/benchmark/transform-relex-baseline",
         current_lane,
         full_relex_witness_lane,
+        lex_invocation_growth_exponent_bound_milli:
+            TRANSFORM_EXECUTOR_SPINE_LEX_INVOCATION_GROWTH_BOUND_MILLI,
         lex_token_growth_exponent_bound_milli:
             TRANSFORM_EXECUTOR_SPINE_LEX_TOKEN_GROWTH_BOUND_MILLI,
         lex_tokens_per_edited_byte_bound_milli:
@@ -905,7 +913,8 @@ fn summarize_transform_executor_spine_lane(
 ) -> TransformExecutorSpineLaneSnapshotV0 {
     let scales = [1_usize, 2, 4];
     let mut samples = Vec::with_capacity(scales.len());
-    let mut growth_samples = Vec::with_capacity(scales.len());
+    let mut invocation_growth_samples = Vec::with_capacity(scales.len());
+    let mut token_growth_samples = Vec::with_capacity(scales.len());
     let mut total_source_byte_length = 0usize;
     let mut total_edited_byte_count = 0usize;
     let mut total_lex_invocation_count = 0u64;
@@ -940,7 +949,11 @@ fn summarize_transform_executor_spine_lane(
         total_lex_token_count += instrumentation.lex_token_count;
         total_lex_splice_hit_count += splice_telemetry.splice_hit_count;
         total_lex_splice_full_relex_fallback_count += splice_telemetry.full_relex_fallback_count;
-        growth_samples.push((
+        invocation_growth_samples.push((
+            source.len(),
+            usize::try_from(instrumentation.lex_invocation_count).unwrap_or(usize::MAX),
+        ));
+        token_growth_samples.push((
             source.len(),
             usize::try_from(instrumentation.lex_token_count).unwrap_or(usize::MAX),
         ));
@@ -977,7 +990,8 @@ fn summarize_transform_executor_spine_lane(
         total_lex_token_count,
         total_lex_splice_hit_count,
         total_lex_splice_full_relex_fallback_count,
-        lex_token_growth_exponent_milli: exponent_milli(growth_samples.as_slice()),
+        lex_invocation_growth_exponent_milli: exponent_milli(invocation_growth_samples.as_slice()),
+        lex_token_growth_exponent_milli: exponent_milli(token_growth_samples.as_slice()),
         max_lex_tokens_per_edited_byte_milli,
         samples,
     }
@@ -1152,7 +1166,7 @@ pub fn validate_transform_relex_baseline_snapshot(expected_json: &str) -> Result
     // the fixture were re-pinned to match it.
     if !summary.executor_spine.asserted {
         return Err(
-            "transform re-lex spine regressed: executor_spine.asserted=false — the cached-spine lane no longer meets the lex-token growth, tokens-per-edited-byte, or splice-fallback bounds"
+            "transform re-lex spine regressed: executor_spine.asserted=false — the cached-spine lane no longer meets the lex-invocation growth, lex-token growth, tokens-per-edited-byte, or splice-fallback bounds"
                 .to_string(),
         );
     }
@@ -1706,6 +1720,15 @@ mod tests {
         assert!(snapshot.lex_token_growth_exponent_milli > 0);
         assert!(snapshot.executor_spine.asserted);
         assert!(snapshot.executor_spine.red_on_full_relex_witness);
+        assert!(
+            snapshot
+                .executor_spine
+                .current_lane
+                .lex_invocation_growth_exponent_milli
+                <= snapshot
+                    .executor_spine
+                    .lex_invocation_growth_exponent_bound_milli
+        );
         assert!(
             snapshot
                 .executor_spine
