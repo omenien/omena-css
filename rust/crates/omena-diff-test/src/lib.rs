@@ -1160,6 +1160,11 @@ const WPT_VALUE_DIFFERENTIAL_TRIAGE: &[&str] = &["css-opacity-percent-half"];
 fn flatten_calc_keywords(value: &str) -> String {
     // `calc()` is pure grouping; replace each `calc(` (case-insensitive) with a
     // bare paren so the numeric reducer folds arbitrarily nested calc expressions.
+    // NOTE: this is a lexical substring replace, not a tokenizer — it assumes a
+    // numeric-value context, so a `calc(` appearing inside a string or url() literal
+    // would be rewritten. Sound for the present corpus (such values are raw-equal
+    // and short-circuit before this runs); revisit if the corpus grows to carry
+    // calc-bearing string/url values.
     let mut result = value.to_string();
     while let Some(pos) = result.to_ascii_lowercase().find("calc(") {
         result.replace_range(pos..pos + "calc(".len(), "(");
@@ -1191,13 +1196,14 @@ fn wpt_values_agree(value: &str, expected: &str) -> bool {
     if omena_value_lattice::css_values_canonically_equal(value, expected) {
         return true;
     }
+    // NOTE: compare the reduced forms by EXACT text only. css_values_canonically_equal
+    // collapses every absolute-zero unit to "0" (`0px` == `0deg`), so using it here
+    // would unsoundly match a cross-unit zero (e.g. `calc(0px)` vs `0deg`). The
+    // reducers already emit a canonical shortest form, so exact equality of the two
+    // reductions is the sound test.
     match (reduce_static_math(value), reduce_static_math(expected)) {
         (Some(folded_value), Some(folded_expected)) => {
             folded_value.trim() == folded_expected.trim()
-                || omena_value_lattice::css_values_canonically_equal(
-                    &folded_value,
-                    &folded_expected,
-                )
         }
         _ => false,
     }
@@ -1213,6 +1219,18 @@ fn wpt_value_differential_fixtures() -> Vec<WptValueDifferentialFixtureV0> {
         .unwrap_or_default()
 }
 
+// DEFERRED (recorded so the next session does not assume these landed):
+//  - Net-new computed-value WPT fixtures (selections.json regeneration) are NOT
+//    added — the existing pairs are already specified-value level, and authoring
+//    new ones would require sourcing real WPT data (fabricating violates the
+//    no-guess invariant). The helper allowlist is widened to admit them when sourced.
+//  - The comparator is property-AGNOSTIC (raw / canonical / numeric folds) rather
+//    than property-dispatched; the two cascade hand-models are not used because
+//    run_wpt_cascade_seed_corpus() / compute_cascade_computed_value take/return
+//    structs, not a value -> Option<String> fold (the goal doc's "all four return
+//    Option<String>" is false for those two).
+//  - The value gate lands as the boundary-bin exit condition, running in PARALLEL
+//    with the structural wpt-seed-policy.toml green-run gate rather than superseding it.
 /// Route the stage2-blocking WPT value pairs through the hand-models.
 pub fn summarize_wpt_value_differential() -> WptValueDifferentialReportV0 {
     let fixtures = wpt_value_differential_fixtures();
@@ -1228,9 +1246,13 @@ pub fn summarize_wpt_value_differential() -> WptValueDifferentialReportV0 {
             triage_fixture_ids.push(fixture.id.clone());
         }
     }
-    let all_foldable_matches_hold = triage_fixture_ids
-        .iter()
-        .all(|id| WPT_VALUE_DIFFERENTIAL_TRIAGE.contains(&id.as_str()));
+    // A non-empty corpus is required: an empty fixture set (e.g. a corpus that
+    // failed to deserialize) would vacuously satisfy `.all(..)` and green the value
+    // gate with zero comparisons.
+    let all_foldable_matches_hold = !fixtures.is_empty()
+        && triage_fixture_ids
+            .iter()
+            .all(|id| WPT_VALUE_DIFFERENTIAL_TRIAGE.contains(&id.as_str()));
     WptValueDifferentialReportV0 {
         schema_version: "0",
         product: "omena-diff-test.wpt-value-differential",
@@ -1825,6 +1847,9 @@ mod tests {
         assert!(!wpt_values_agree("10px", "20px"));
         assert!(!wpt_values_agree("calc(10px + 10px)", "calc(100px)"));
         assert!(!wpt_values_agree("50%", "0.5"));
+        // A cross-unit zero must NOT pass through the numeric branch (the reducers
+        // emit `0px` vs `0deg`, never collapsed to a common `0`).
+        assert!(!wpt_values_agree("calc(0px)", "0deg"));
     }
 
     /// A style source the real engine deterministically diagnoses: `--missing`
