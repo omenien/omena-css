@@ -2129,6 +2129,7 @@ name = "omena-abstract-value"
 version = "0.2.1"
 dependencies = [
  "omena-incremental",
+ "omena-spec-audit",
  "omena-value-lattice",
  "serde",
  "serde_json",
