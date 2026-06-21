@@ -14,6 +14,9 @@ fn main() -> ExitCode {
         && summary.all_cache_equivalence_files_identical
         && summary.all_salsa_memo_equivalence_phases_identical
         && summary.all_parallel_salsa_equivalence_phases_identical
+        && summary
+            .wpt_value_differential_report
+            .all_foldable_matches_hold
     {
         ExitCode::SUCCESS
     } else {

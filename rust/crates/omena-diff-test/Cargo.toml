@@ -21,6 +21,7 @@ omena-parser = { path = "../omena-parser", version = "=0.2.1" }
 omena-query = { path = "../omena-query", version = "=0.2.1", features = ["salsa-memo"] }
 omena-sif = { path = "../omena-sif", version = "=0.2.1" }
 omena-testkit = { path = "../omena-testkit", version = "=0.2.1" }
+omena-value-lattice = { path = "../omena-value-lattice", version = "=0.2.1" }
 serde.workspace = true
 serde_json.workspace = true
 

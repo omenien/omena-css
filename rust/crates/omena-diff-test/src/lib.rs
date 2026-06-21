@@ -27,7 +27,7 @@ pub use omena_testkit::{
     OmenaFixtureExpectationV0, OmenaFixtureFileV0, OmenaFixtureV0, OmenaTestkitFixtureSeedV0,
     parse_omena_fixture_v0, summarize_omena_testkit_fixture_seed_corpus,
 };
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 
 mod cache_equivalence;
 pub use cache_equivalence::{
@@ -138,6 +138,12 @@ pub struct OmenaDiffTestBoundarySummary {
     pub wpt_seed_fixture_count: usize,
     /// Whether WPT seed corpus metadata and known-failure policy are valid.
     pub all_wpt_seed_metadata_valid: bool,
+    /// WPT value-differential fixtures routed through the value hand-models.
+    pub wpt_value_differential_fixture_count: usize,
+    /// Fixtures whose value folds to its WPT expected value.
+    pub wpt_value_differential_match_count: usize,
+    /// Fixtures the hand-models do not fold (declared triage, never a pass).
+    pub wpt_value_differential_triage_count: usize,
     /// Soundiness metamorphic relation count.
     pub soundiness_metamorphic_relation_count: usize,
     /// Whether every soundiness metamorphic relation currently holds.
@@ -160,6 +166,8 @@ pub struct OmenaDiffTestBoundarySummary {
     pub all_parallel_salsa_equivalence_phases_identical: bool,
     /// WPT-style seed metadata report.
     pub wpt_seed_metadata_report: WptSeedCorpusMetadataReportV0,
+    /// WPT value-differential report (specified-value hand-model agreement).
+    pub wpt_value_differential_report: WptValueDifferentialReportV0,
     /// Soundiness metamorphic relation report.
     pub soundiness_metamorphic_report: SoundinessMetamorphicReportV0,
     /// Internal omena-vs-omena diagnostic metamorphic relation report.
@@ -623,6 +631,7 @@ pub fn summarize_omena_diff_test_boundary() -> OmenaDiffTestBoundarySummary {
     let all_parser_legacy_fixtures_match = reports.iter().all(|report| report.all_fields_match);
     let m3_fixture_seed_report = summarize_m3_fixture_seed_corpus();
     let wpt_seed_metadata_report = summarize_wpt_seed_corpus_metadata();
+    let wpt_value_differential_report = summarize_wpt_value_differential();
     let soundiness_metamorphic_report = summarize_soundiness_metamorphic_relations();
     let diagnostic_metamorphic_report = summarize_diagnostic_metamorphic_relations();
     let (cache_equivalence_corpus, cache_equivalence_resolution_inputs) =
@@ -651,6 +660,9 @@ pub fn summarize_omena_diff_test_boundary() -> OmenaDiffTestBoundarySummary {
         all_m3_fixture_seeds_parse: m3_fixture_seed_report.all_seeds_parse,
         wpt_seed_fixture_count: wpt_seed_metadata_report.fixture_count,
         all_wpt_seed_metadata_valid: wpt_seed_metadata_report.all_metadata_valid,
+        wpt_value_differential_fixture_count: wpt_value_differential_report.fixture_count,
+        wpt_value_differential_match_count: wpt_value_differential_report.value_match_count,
+        wpt_value_differential_triage_count: wpt_value_differential_report.triage_fixture_ids.len(),
         soundiness_metamorphic_relation_count: soundiness_metamorphic_report.relation_count,
         all_soundiness_metamorphic_relations_hold: soundiness_metamorphic_report.all_relations_hold,
         diagnostic_metamorphic_relation_count: diagnostic_metamorphic_report.relation_count,
@@ -676,10 +688,12 @@ pub fn summarize_omena_diff_test_boundary() -> OmenaDiffTestBoundarySummary {
             "salsaMemoizedVsFromScratchEquivalence",
             "externalSifsSalsaMemoizedVsFromScratchEquivalence",
             "parallelSalsaViewsVsFromScratchEquivalence",
+            "wptValueDifferentialHandModelAgreement",
         ],
         reports,
         m3_fixture_seed_report,
         wpt_seed_metadata_report,
+        wpt_value_differential_report,
         soundiness_metamorphic_report,
         diagnostic_metamorphic_report,
         cache_equivalence_report,
@@ -1101,6 +1115,132 @@ fn testkit_seed_from_m3_seed(seed: M3FixtureSeedV0) -> OmenaTestkitFixtureSeedV0
 }
 
 /// Summarize the WPT-style seed corpus metadata.
+/// WPT value-differential report: the WPT specified-value pairs
+/// (`wptValue` → `wptExpectedValue`) routed through the `omena-value-lattice`
+/// hand-models. STRING-domain agreement only — never a typed-eval claim, and a
+/// fixture the hand-models cannot fold is a declared triage record, never a pass.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct WptValueDifferentialReportV0 {
+    /// Schema version.
+    pub schema_version: &'static str,
+    /// Product surface name.
+    pub product: &'static str,
+    /// Stage2-blocking fixtures compared.
+    pub fixture_count: usize,
+    /// Fixtures whose value folds to its WPT expected value.
+    pub value_match_count: usize,
+    /// Fixture ids the hand-models do not fold (declared, never an implicit pass).
+    pub triage_fixture_ids: Vec<String>,
+    /// Whether every non-agreeing fixture is on the declared triage allowlist
+    /// (an undeclared non-fold — a regression — makes this false).
+    pub all_foldable_matches_hold: bool,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct WptValueDifferentialChunkV0 {
+    fixtures: Vec<WptValueDifferentialFixtureV0>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct WptValueDifferentialFixtureV0 {
+    id: String,
+    wpt_value: String,
+    wpt_expected_value: String,
+}
+
+// Fixtures whose WPT computed/used value the string-domain hand-models do not
+// fold (e.g. `opacity: 50%` resolving to `0.5` needs property-aware computed-value
+// semantics the value lattice does not model). Declared so coverage stays honest;
+// each is reported, never silently treated as a pass.
+const WPT_VALUE_DIFFERENTIAL_TRIAGE: &[&str] = &["css-opacity-percent-half"];
+
+fn flatten_calc_keywords(value: &str) -> String {
+    // `calc()` is pure grouping; replace each `calc(` (case-insensitive) with a
+    // bare paren so the numeric reducer folds arbitrarily nested calc expressions.
+    let mut result = value.to_string();
+    while let Some(pos) = result.to_ascii_lowercase().find("calc(") {
+        result.replace_range(pos..pos + "calc(".len(), "(");
+    }
+    result
+}
+
+fn reduce_static_math(value: &str) -> Option<String> {
+    let flattened = flatten_calc_keywords(value.trim());
+    let lower = flattened.to_ascii_lowercase();
+    if lower.starts_with("clamp(") {
+        omena_value_lattice::parse_reducible_clamp_value(&flattened)
+    } else if lower.starts_with("min(") {
+        omena_value_lattice::parse_reducible_min_value(&flattened)
+    } else if lower.starts_with("max(") {
+        omena_value_lattice::parse_reducible_max_value(&flattened)
+    } else {
+        omena_value_lattice::reduce_static_numeric_expression(&flattened)
+    }
+}
+
+/// Whether `value` folds to `expected` under the string-domain hand-models. Sound
+/// by construction: only raw equality, canonical color/number equality, or a
+/// numeric reduction that agrees counts as a match — disagreement is never a pass.
+fn wpt_values_agree(value: &str, expected: &str) -> bool {
+    if value.trim() == expected.trim() {
+        return true;
+    }
+    if omena_value_lattice::css_values_canonically_equal(value, expected) {
+        return true;
+    }
+    match (reduce_static_math(value), reduce_static_math(expected)) {
+        (Some(folded_value), Some(folded_expected)) => {
+            folded_value.trim() == folded_expected.trim()
+                || omena_value_lattice::css_values_canonically_equal(
+                    &folded_value,
+                    &folded_expected,
+                )
+        }
+        _ => false,
+    }
+}
+
+fn wpt_value_differential_fixtures() -> Vec<WptValueDifferentialFixtureV0> {
+    // The first chunk source is the stage2-blocking seed corpus (css-values.json);
+    // the advisory chunk is intentionally out of the blocking value gate.
+    WPT_SEED_CHUNK_SOURCES
+        .first()
+        .and_then(|source| serde_json::from_str::<WptValueDifferentialChunkV0>(source).ok())
+        .map(|chunk| chunk.fixtures)
+        .unwrap_or_default()
+}
+
+/// Route the stage2-blocking WPT value pairs through the hand-models.
+pub fn summarize_wpt_value_differential() -> WptValueDifferentialReportV0 {
+    let fixtures = wpt_value_differential_fixtures();
+    let mut value_match_count = 0usize;
+    let mut triage_fixture_ids = Vec::new();
+    for fixture in &fixtures {
+        if wpt_values_agree(
+            fixture.wpt_value.as_str(),
+            fixture.wpt_expected_value.as_str(),
+        ) {
+            value_match_count += 1;
+        } else {
+            triage_fixture_ids.push(fixture.id.clone());
+        }
+    }
+    let all_foldable_matches_hold = triage_fixture_ids
+        .iter()
+        .all(|id| WPT_VALUE_DIFFERENTIAL_TRIAGE.contains(&id.as_str()));
+    WptValueDifferentialReportV0 {
+        schema_version: "0",
+        product: "omena-diff-test.wpt-value-differential",
+        fixture_count: fixtures.len(),
+        value_match_count,
+        triage_fixture_ids,
+        all_foldable_matches_hold,
+    }
+}
+
 pub fn summarize_wpt_seed_corpus_metadata() -> WptSeedCorpusMetadataReportV0 {
     let manifest = serde_json::from_str::<serde_json::Value>(WPT_SEED_MANIFEST_SOURCE).ok();
     let chunks = WPT_SEED_CHUNK_SOURCES
@@ -1646,6 +1786,47 @@ fn normalize_sass_variable_name(name: &str) -> String {
 mod tests {
     use super::*;
 
+    #[test]
+    fn wpt_value_differential_routes_pairs_through_hand_models() {
+        let report = summarize_wpt_value_differential();
+        assert_eq!(report.fixture_count, 25);
+        assert_eq!(report.value_match_count, 24);
+        assert_eq!(
+            report.triage_fixture_ids,
+            vec!["css-opacity-percent-half".to_string()]
+        );
+        assert!(report.all_foldable_matches_hold);
+        // The declared triage allowlist is tight: every declared id actually fails
+        // to fold (no stale declaration that would mask a real regression).
+        for id in WPT_VALUE_DIFFERENTIAL_TRIAGE {
+            assert!(
+                report
+                    .triage_fixture_ids
+                    .iter()
+                    .any(|reported| reported.as_str() == *id)
+            );
+        }
+        // Boundary integration (scalar fields + closed gate) is exercised in
+        // `parser_legacy_seed_fixtures_match`, which already builds the full
+        // (expensive) boundary summary.
+    }
+
+    #[test]
+    fn wpt_values_agree_is_sound_string_domain_fold() {
+        // Canonical color agreement (hex vs rgb, percent alpha vs decimal).
+        assert!(wpt_values_agree("#FEDCBA", "rgb(254, 220, 186)"));
+        assert!(wpt_values_agree("rgba(2, 3, 4, 50%)", "rgba(2, 3, 4, 0.5)"));
+        // Nested calc folds to the same value as the wrapped expected.
+        assert!(wpt_values_agree("calc(20px + calc(80px))", "calc(100px)"));
+        assert!(wpt_values_agree("min(50%, 0%)", "calc(0%)"));
+        // Raw passthrough.
+        assert!(wpt_values_agree("currentcolor", "currentcolor"));
+        // Soundness: genuine disagreement is never a pass.
+        assert!(!wpt_values_agree("10px", "20px"));
+        assert!(!wpt_values_agree("calc(10px + 10px)", "calc(100px)"));
+        assert!(!wpt_values_agree("50%", "0.5"));
+    }
+
     /// A style source the real engine deterministically diagnoses: `--missing`
     /// is referenced but never declared, yielding exactly one
     /// `missingCustomProperty` diagnostic (verified in
@@ -1745,6 +1926,22 @@ code: missingCustomProperty
         assert!(summary.all_m3_fixture_seeds_parse);
         assert!(summary.all_wpt_seed_metadata_valid);
         assert!(summary.wpt_seed_fixture_count >= 25);
+        assert!(summary.wpt_value_differential_fixture_count >= 25);
+        assert_eq!(
+            summary.wpt_value_differential_fixture_count,
+            summary.wpt_value_differential_match_count
+                + summary.wpt_value_differential_triage_count
+        );
+        assert!(
+            summary
+                .wpt_value_differential_report
+                .all_foldable_matches_hold
+        );
+        assert!(
+            summary
+                .closed_gates
+                .contains(&"wptValueDifferentialHandModelAgreement")
+        );
         assert_eq!(summary.soundiness_metamorphic_relation_count, 3);
         assert!(summary.all_soundiness_metamorphic_relations_hold);
         assert_eq!(summary.diagnostic_metamorphic_relation_count, 7);
@@ -1767,6 +1964,11 @@ code: missingCustomProperty
             summary
                 .closed_gates
                 .contains(&"wptSeedCorpusMetadataPolicy")
+        );
+        assert!(
+            summary
+                .closed_gates
+                .contains(&"wptValueDifferentialHandModelAgreement")
         );
         assert!(
             summary
