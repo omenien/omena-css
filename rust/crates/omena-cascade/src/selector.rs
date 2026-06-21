@@ -479,7 +479,7 @@ fn find_closing_paren(chars: &[char], open_index: usize) -> Option<usize> {
 /// argument; `:where()` always contributes zero. Unknown functional
 /// pseudo-classes return `None` so the caller keeps treating them as unsupported
 /// rather than guessing.
-///
+//
 // NOTE: recognizing `:has` here also lets the whole signature parse (the rule is
 // no longer dropped), which sharpens the co-match verdict for a tag-mismatched
 // `:has` pair (e.g. `a:has(.x)` vs `b:has(.x)`) from `Maybe` to `No`. That is an
