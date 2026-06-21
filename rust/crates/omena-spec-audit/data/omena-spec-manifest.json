@@ -379,7 +379,7 @@
       "id": "css-flexbox/layout/flexbox",
       "webrefId": "css-flexbox/layout/flexbox",
       "sourceName": "web-features",
-      "sourceCategory": "layout",
+      "sourceCategory": "properties",
       "specUrl": "https://drafts.csswg.org/css-flexbox-1/",
       "priority": "P1",
       "status": "covered",
