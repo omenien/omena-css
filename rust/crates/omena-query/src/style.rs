@@ -1,6 +1,7 @@
 use super::*;
 use omena_parser::{ParsedSassIncludeFact, ParsedSelectorFact, ParsedVariableFact};
 use std::cell::RefCell;
+use std::collections::VecDeque;
 use std::path::{Path, PathBuf};
 
 mod cascade_position;
@@ -29,9 +30,8 @@ pub use completion::*;
 #[cfg(feature = "hypergraph-ifds")]
 pub use cross_file_hypergraph::*;
 use cross_file_hypergraph::{
-    HypergraphClosureMode, HypergraphClosurePath, collect_directed_graph_cycles,
+    HypergraphClosurePath, collect_directed_graph_cycles,
     collect_hypergraph_transitive_closure_paths,
-    collect_hypergraph_transitive_closure_paths_with_mode,
 };
 use cross_file_summary::summarize_omena_query_cross_file_summary;
 pub use cross_file_summary::{
@@ -1454,50 +1454,57 @@ fn summarize_sass_module_graph_closure(
             .push(SassModuleGraphClosureStepMetadata::from(edge));
     }
 
-    let (closure_paths, _) = collect_hypergraph_transitive_closure_paths_with_mode(
-        &graph,
-        &mut |style_path: &String| style_path.clone(),
-        HypergraphClosureMode::RawAllPaths,
-    );
     // Cycles come from the dedicated SCC-gated elementary-circuit owner, decoupled from the
-    // closure scan so SLICE-2 can replace the all-paths enumeration without touching cycles.
+    // closure scan so the all-paths enumeration could be replaced without touching cycles.
     let cycle_paths = collect_directed_graph_cycles(&graph);
-    let mut closure_edges = closure_paths
-        .into_iter()
-        .flat_map(
-            |HypergraphClosurePath {
-                 origin,
-                 target,
-                 depth,
-                 path_labels,
-             }| {
-                derive_sass_module_graph_closure_path_metadata(
-                    path_labels.as_slice(),
-                    &metadata_by_step,
-                    context,
-                )
-                .into_iter()
-                .map(|metadata| OmenaQuerySassModuleGraphClosureEdgeV0 {
-                    from_style_path: origin.clone(),
-                    target_style_path: target.clone(),
-                    edge_kind: metadata.edge_kind,
-                    depth,
-                    path: path_labels.clone(),
-                    namespace_kind: metadata.namespace_kind,
-                    namespace: metadata.namespace,
-                    forward_prefix: metadata.forward_prefix,
-                    visibility_filter_kind: metadata.visibility_filter_kind,
-                    visibility_filter_names: metadata.visibility_filter_names,
-                    configuration_signature: metadata.configuration_signature,
-                    configuration_variable_count: metadata.configuration_variable_count,
-                    invalid_configuration_variable_names: metadata
-                        .invalid_configuration_variable_names,
-                    module_instance_identity_key: metadata.module_instance_identity_key,
-                })
-                .collect::<Vec<_>>()
-            },
-        )
-        .collect::<Vec<_>>();
+
+    // Differential guard: a test can force the legacy RawAllPaths enumeration to assert the worklist
+    // emits byte-identical diagnostics. Both modes share `finalize_*`, so only the edge source differs.
+    #[cfg(test)]
+    if test_force_rawallpaths_closure() {
+        let (closure_paths, _) =
+            omena_cross_file_summary::collect_hypergraph_transitive_closure_paths_with_mode(
+                &graph,
+                &mut |style_path: &String| style_path.clone(),
+                omena_cross_file_summary::HypergraphClosureMode::RawAllPaths,
+            );
+        let closure_edges =
+            sass_module_graph_closure_edges_from_paths(closure_paths, &metadata_by_step, context);
+        return finalize_sass_module_graph_closure(closure_edges, cycle_paths);
+    }
+
+    // Closure edges come from the config-state worklist (replaces the super-polynomial all-paths
+    // enumeration): the state is (node, inherited override map), deduped + min-depth, so the cost is
+    // bounded by nodes x distinct config-states, not by path count. The observable diagnostics are
+    // unchanged; the internal representative-edge count shrinks. On the (never-in-practice) state
+    // cap it falls back to the bounded CanonicalFirstTarget path enumeration.
+    let (mut closure_edges, capped) = collect_sass_module_graph_closure_edges_via_worklist(
+        &graph,
+        &metadata_by_step,
+        context,
+        SASS_MODULE_CLOSURE_STATE_CAP,
+    );
+    if capped {
+        let (closure_paths, _) =
+            collect_hypergraph_transitive_closure_paths(&graph, |style_path: &String| {
+                style_path.clone()
+            });
+        closure_edges =
+            sass_module_graph_closure_edges_from_paths(closure_paths, &metadata_by_step, context);
+    }
+    finalize_sass_module_graph_closure(closure_edges, cycle_paths)
+}
+
+/// Shared closure finalization: stable-sort the representative edges, drop exact duplicates, and
+/// wrap + sort the cycle paths. Both the worklist and the RawAllPaths differential go through this
+/// so the only observable difference between them is which edges the producer emitted.
+fn finalize_sass_module_graph_closure(
+    mut closure_edges: Vec<OmenaQuerySassModuleGraphClosureEdgeV0>,
+    cycle_paths: Vec<Vec<String>>,
+) -> (
+    Vec<OmenaQuerySassModuleGraphClosureEdgeV0>,
+    Vec<OmenaQuerySassModuleCycleV0>,
+) {
     let mut cycles = cycle_paths
         .into_iter()
         .map(|path| OmenaQuerySassModuleCycleV0 { path })
@@ -1567,6 +1574,170 @@ impl From<&OmenaQuerySassModuleEdgeResolutionV0> for SassModuleGraphClosureStepM
             module_instance_identity_key: edge.module_instance_identity_key.clone(),
         }
     }
+}
+
+/// Per-origin config-state worklist budget. Real Sass module graphs have a tiny config-state space
+/// (a handful of configurable variables); the cap is a backstop that never fires in practice and
+/// falls back to the bounded CanonicalFirstTarget path enumeration (never silent).
+const SASS_MODULE_CLOSURE_STATE_CAP: usize = 1 << 16;
+
+#[cfg(test)]
+thread_local! {
+    static FORCE_RAWALLPATHS_CLOSURE: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
+}
+
+#[cfg(test)]
+fn test_force_rawallpaths_closure() -> bool {
+    FORCE_RAWALLPATHS_CLOSURE.with(std::cell::Cell::get)
+}
+
+/// Run `body` with the closure producer forced to the legacy RawAllPaths enumeration so a test can
+/// assert the worklist emits byte-identical diagnostics. Test-only; thread-local so it is isolated
+/// per `#[test]` thread.
+#[cfg(test)]
+pub(crate) fn with_rawallpaths_closure<R>(body: impl FnOnce() -> R) -> R {
+    FORCE_RAWALLPATHS_CLOSURE.with(|cell| cell.set(true));
+    let result = body();
+    FORCE_RAWALLPATHS_CLOSURE.with(|cell| cell.set(false));
+    result
+}
+
+/// Build one closure edge from a step's applied metadata. Shared by the worklist and the fallback
+/// so both produce byte-identical edge structs.
+fn sass_module_graph_closure_edge(
+    origin: &str,
+    target: &str,
+    depth: usize,
+    path: Vec<String>,
+    metadata: SassModuleGraphClosureStepMetadata,
+) -> OmenaQuerySassModuleGraphClosureEdgeV0 {
+    OmenaQuerySassModuleGraphClosureEdgeV0 {
+        from_style_path: origin.to_string(),
+        target_style_path: target.to_string(),
+        edge_kind: metadata.edge_kind,
+        depth,
+        path,
+        namespace_kind: metadata.namespace_kind,
+        namespace: metadata.namespace,
+        forward_prefix: metadata.forward_prefix,
+        visibility_filter_kind: metadata.visibility_filter_kind,
+        visibility_filter_names: metadata.visibility_filter_names,
+        configuration_signature: metadata.configuration_signature,
+        configuration_variable_count: metadata.configuration_variable_count,
+        invalid_configuration_variable_names: metadata.invalid_configuration_variable_names,
+        module_instance_identity_key: metadata.module_instance_identity_key,
+    }
+}
+
+/// Fallback edge builder: fold each enumerated closure path's per-step config (the pre-worklist
+/// path-based shape), used only when the worklist hits its state cap.
+fn sass_module_graph_closure_edges_from_paths(
+    closure_paths: Vec<HypergraphClosurePath<String>>,
+    metadata_by_step: &BTreeMap<(String, String), Vec<SassModuleGraphClosureStepMetadata>>,
+    context: SassModuleGraphClosureContext<'_>,
+) -> Vec<OmenaQuerySassModuleGraphClosureEdgeV0> {
+    closure_paths
+        .into_iter()
+        .flat_map(
+            |HypergraphClosurePath {
+                 origin,
+                 target,
+                 depth,
+                 path_labels,
+             }| {
+                derive_sass_module_graph_closure_path_metadata(
+                    path_labels.as_slice(),
+                    metadata_by_step,
+                    context,
+                )
+                .into_iter()
+                .map(move |metadata| {
+                    sass_module_graph_closure_edge(
+                        &origin,
+                        &target,
+                        depth,
+                        path_labels.clone(),
+                        metadata,
+                    )
+                })
+                .collect::<Vec<_>>()
+            },
+        )
+        .collect()
+}
+
+/// The config-state worklist: for each origin, BFS over `(node, inherited_override_map)` states
+/// (pop_front so the first reach of a state is at its MIN depth; dedup so each state is expanded
+/// once). Each out-edge of a popped state emits one closure edge (per rule-ordinal metadata entry,
+/// so distinct ordinals/prefixes/visibility do NOT collapse) carrying the min-depth representative
+/// path. Reuses the two transition fns + the configurable-names memo verbatim. Returns `capped` when
+/// the per-origin state budget is exceeded.
+fn collect_sass_module_graph_closure_edges_via_worklist(
+    graph: &BTreeMap<String, BTreeSet<String>>,
+    metadata_by_step: &BTreeMap<(String, String), Vec<SassModuleGraphClosureStepMetadata>>,
+    context: SassModuleGraphClosureContext<'_>,
+    per_origin_state_cap: usize,
+) -> (Vec<OmenaQuerySassModuleGraphClosureEdgeV0>, bool) {
+    let mut edges = Vec::new();
+    for origin in graph.keys() {
+        let mut visited = BTreeSet::<(String, BTreeMap<String, String>)>::new();
+        let mut pending = VecDeque::<(String, BTreeMap<String, String>, usize, Vec<String>)>::new();
+        visited.insert((origin.clone(), BTreeMap::new()));
+        pending.push_back((origin.clone(), BTreeMap::new(), 0, vec![origin.clone()]));
+        let mut state_count = 0usize;
+        while let Some((node, inherited_overrides, depth, path)) = pending.pop_front() {
+            state_count += 1;
+            if state_count > per_origin_state_cap {
+                return (edges, true);
+            }
+            let Some(targets) = graph.get(node.as_str()) else {
+                continue;
+            };
+            for target in targets {
+                // Match the path enumeration's simple-path semantics: a target already on this path
+                // closes a cycle (owned separately by collect_directed_graph_cycles), so it emits no
+                // closure edge. Without this the (node, config) worklist would traverse the cycle and
+                // surface a configured-instance the path scan never reaches.
+                if path.contains(target) {
+                    continue;
+                }
+                let Some(step_metadata) = metadata_by_step.get(&(node.clone(), target.clone()))
+                else {
+                    continue;
+                };
+                for metadata in step_metadata {
+                    let variable_overrides =
+                        derive_sass_module_graph_closure_step_variable_overrides(
+                            node.as_str(),
+                            target.as_str(),
+                            metadata,
+                            &inherited_overrides,
+                            context,
+                        );
+                    let applied = apply_sass_module_graph_closure_step_configuration(
+                        metadata.clone(),
+                        target.as_str(),
+                        variable_overrides.clone(),
+                        context,
+                    );
+                    let mut edge_path = path.clone();
+                    edge_path.push(target.clone());
+                    edges.push(sass_module_graph_closure_edge(
+                        origin,
+                        target,
+                        depth + 1,
+                        edge_path.clone(),
+                        applied,
+                    ));
+                    let next_state = (target.clone(), variable_overrides);
+                    if visited.insert(next_state.clone()) {
+                        pending.push_back((target.clone(), next_state.1, depth + 1, edge_path));
+                    }
+                }
+            }
+        }
+    }
+    (edges, false)
 }
 
 fn derive_sass_module_graph_closure_path_metadata(

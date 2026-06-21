@@ -1,10 +1,10 @@
-//! 0c characterization golden for the SLICE-2 config-state worklist (replaces the RawAllPaths
-//! super-poly closure enumeration). The oracle corpus had NO config-bearing diamonds. Each test
-//! pins the CURRENT (RawAllPaths) behavior so the worklist swap is a reviewed re-baseline:
+//! Config-state worklist golden (the worklist replaces the RawAllPaths super-poly closure
+//! enumeration). The oracle corpus had NO config-bearing diamonds. Invariants vs re-baseline:
 //! - the DIAGNOSTIC bytes (sassModuleInstanceIdentity incl "in N hop(s)", sassModuleConfigurationConflict)
-//!   are the byte-identity oracle and MUST stay identical after the worklist;
-//! - graph_closure_edge_count + the multiplicity/depth structure are the RE-BASELINE surface that the
-//!   worklist shrinks (path-duplicate + non-min-depth edges collapse to one representative).
+//!   are byte-identical to RawAllPaths;
+//! - the only structural change is that the worklist keeps the MIN-depth representative per
+//!   config-state, so non-min-depth duplicate paths collapse. Same-depth convergence via distinct
+//!   parents is preserved (so the count matches RawAllPaths for a min-depth-symmetric diamond).
 
 use super::support::sample_input;
 use crate::{
@@ -22,10 +22,11 @@ fn sources(entries: &[(&str, &str)]) -> Vec<OmenaQueryStyleSourceInputV0> {
         .collect()
 }
 
-// EQUAL-config convergence (a reaches d via b AND via c, both `with red`) + DIFFERENT-config (via e
-// `with green`). The two red paths produce TWO closure edges with an identical observable tuple,
-// differing only in `.path` -> the worklist collapses them to ONE (count drops). The green path
-// drives a ConfigurationConflict. The two distinct identity_keys each emit ONE identity diagnostic.
+// EQUAL-config convergence (a reaches d via b AND via c, both `with red`, BOTH at depth 2) +
+// DIFFERENT-config (via e `with green`). The two red paths are distinct min-depth edges reached via
+// distinct parents, so BOTH survive (the worklist only drops non-min-depth duplicates) — count is
+// identical to RawAllPaths. The green path drives a ConfigurationConflict. The two distinct
+// identity_keys each emit ONE identity diagnostic.
 const DIAMOND: [(&str, &str); 5] = [
     (
         "/tmp/d.scss",
@@ -46,8 +47,8 @@ fn golden_equal_and_different_config_convergence_diamond() -> Result<(), &'stati
     let batch = summarize_omena_query_style_semantic_graph_batch_from_sources(DIAMOND, &input);
     let resolution = &batch.sass_module_resolution;
 
-    // RE-BASELINE (worklist shrinks this): the two `with red` a->d edges share one observable tuple
-    // and differ only in .path; today they are stored as 2, the worklist will store 1.
+    // INVARIANT: both `with red` a->d edges are at min depth 2 via distinct parents (b, c), so both
+    // survive — the worklist keeps every min-depth representative, identical to RawAllPaths here.
     let a_to_d_red = resolution
         .graph_closure_edges
         .iter()
@@ -59,11 +60,11 @@ fn golden_equal_and_different_config_convergence_diamond() -> Result<(), &'stati
         .count();
     assert_eq!(
         a_to_d_red, 2,
-        "RawAllPaths stores both red convergence paths"
+        "both min-depth red convergence edges survive"
     );
     assert_eq!(
         resolution.graph_closure_edge_count, 9,
-        "re-baseline target: drops to 8 when the red path-duplicate collapses"
+        "min-depth-symmetric diamond: count matches RawAllPaths"
     );
 
     // INVARIANT (must stay byte-identical after the worklist): the diagnostic bytes.
@@ -127,8 +128,8 @@ fn golden_min_depth_wins_over_deeper_same_config_path() -> Result<(), &'static s
     let batch = summarize_omena_query_style_semantic_graph_batch_from_sources(MIN_DEPTH, &input);
     let resolution = &batch.sass_module_resolution;
 
-    // RE-BASELINE: a reaches the SAME configured d-red at two graph depths (via x = depth 2, via
-    // y->x = depth 3); the worklist keeps the min-depth representative only.
+    // a reaches the SAME configured d-red at two graph depths (via x = depth 2, via y->x = depth 3);
+    // the worklist keeps the min-depth representative only (RawAllPaths kept both {2,3}).
     let a_to_d_depths = resolution
         .graph_closure_edges
         .iter()
@@ -139,7 +140,7 @@ fn golden_min_depth_wins_over_deeper_same_config_path() -> Result<(), &'static s
         })
         .map(|edge| edge.depth)
         .collect::<std::collections::BTreeSet<_>>();
-    assert_eq!(a_to_d_depths, [2, 3].into_iter().collect());
+    assert_eq!(a_to_d_depths, [2].into_iter().collect());
 
     // INVARIANT: the identity diagnostic embeds the MIN depth ("in 2 hop(s)").
     let diagnostics = summarize_omena_query_style_diagnostics_for_workspace_file(
