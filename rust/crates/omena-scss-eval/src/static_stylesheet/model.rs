@@ -22,6 +22,10 @@ pub struct OmenaScssEvalStaticStylesheetEvaluationV0 {
     pub native_edit_count: usize,
     pub native_value_edit_count: usize,
     pub native_structural_edit_count: usize,
+    pub preserved_dynamic_branch_count: usize,
+    pub preserved_dynamic_loop_count: usize,
+    pub preserved_raw_call_count: usize,
+    pub preserved_raw_include_count: usize,
     pub preserved_dynamic_interpolation_count: usize,
     pub native_edit_output_matches_evaluated_css: bool,
     pub resolved_replacements: Vec<OmenaScssEvalResolvedReplacementV0>,
@@ -139,6 +143,25 @@ pub(super) struct StaticStylesheetEvaluationEdit {
     pub(super) start: usize,
     pub(super) end: usize,
     pub(super) replacement: String,
+}
+
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub(super) struct StaticStylesheetPreservedEvaluationCounts {
+    pub(super) dynamic_branch_count: usize,
+    pub(super) dynamic_loop_count: usize,
+    pub(super) raw_call_count: usize,
+    pub(super) raw_include_count: usize,
+    pub(super) dynamic_interpolation_count: usize,
+}
+
+impl StaticStylesheetPreservedEvaluationCounts {
+    pub(super) fn total(self) -> usize {
+        self.dynamic_branch_count
+            + self.dynamic_loop_count
+            + self.raw_call_count
+            + self.raw_include_count
+            + self.dynamic_interpolation_count
+    }
 }
 
 pub(super) struct StaticScssMixinEvaluationEdits {

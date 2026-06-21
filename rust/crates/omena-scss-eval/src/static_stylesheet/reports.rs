@@ -16,7 +16,7 @@ use super::{
         OmenaScssEvalResolvedReplacementV0, OmenaScssEvalStaticStylesheetEvaluationV0,
         OmenaScssEvalStaticStylesheetNativeEditV0, OmenaScssEvalStaticValueResolutionReportV0,
         OmenaScssEvalStaticValueResolutionV0, StaticStylesheetEvaluationEdit,
-        StaticStylesheetVariableKind,
+        StaticStylesheetPreservedEvaluationCounts, StaticStylesheetVariableKind,
     },
     summarize_static_stylesheet_value_resolution,
     value_resolution_model::render_static_abstract_value,
@@ -29,7 +29,7 @@ pub(super) fn build_static_stylesheet_evaluation_report(
     evaluated_css: String,
     native_edit_source: Vec<StaticStylesheetEvaluationEdit>,
     resolved_replacements: Vec<OmenaScssEvalResolvedReplacementV0>,
-    preserved_dynamic_interpolation_count: usize,
+    preserved_counts: StaticStylesheetPreservedEvaluationCounts,
 ) -> Option<OmenaScssEvalStaticStylesheetEvaluationV0> {
     let value_resolution = summarize_static_stylesheet_value_resolution(style_source, dialect)?;
     build_static_stylesheet_evaluation_report_with_value_resolution(
@@ -41,7 +41,7 @@ pub(super) fn build_static_stylesheet_evaluation_report(
             native_edit_source,
             resolved_replacements,
             value_resolution,
-            preserved_dynamic_interpolation_count,
+            preserved_counts,
         },
     )
 }
@@ -51,24 +51,24 @@ pub(super) fn build_static_stylesheet_preserved_evaluation_report_if_explained(
     dialect: StyleDialect,
     variable_kind: StaticStylesheetVariableKind,
 ) -> Option<OmenaScssEvalStaticStylesheetEvaluationV0> {
-    build_static_stylesheet_preserved_evaluation_report_with_interpolation_count(
+    build_static_stylesheet_preserved_evaluation_report_with_counts(
         style_source,
         dialect,
         variable_kind,
-        0,
+        StaticStylesheetPreservedEvaluationCounts::default(),
     )
 }
 
-pub(super) fn build_static_stylesheet_preserved_evaluation_report_with_interpolation_count(
+pub(super) fn build_static_stylesheet_preserved_evaluation_report_with_counts(
     style_source: &str,
     dialect: StyleDialect,
     variable_kind: StaticStylesheetVariableKind,
-    preserved_dynamic_interpolation_count: usize,
+    preserved_counts: StaticStylesheetPreservedEvaluationCounts,
 ) -> Option<OmenaScssEvalStaticStylesheetEvaluationV0> {
     let value_resolution = summarize_static_stylesheet_value_resolution(style_source, dialect)?;
     if value_resolution.raw_count == 0
         && value_resolution.top_count == 0
-        && preserved_dynamic_interpolation_count == 0
+        && preserved_counts.total() == 0
     {
         return None;
     }
@@ -81,7 +81,7 @@ pub(super) fn build_static_stylesheet_preserved_evaluation_report_with_interpola
             native_edit_source: Vec::new(),
             resolved_replacements: Vec::new(),
             value_resolution,
-            preserved_dynamic_interpolation_count,
+            preserved_counts,
         },
     )
 }
@@ -90,7 +90,7 @@ struct StaticStylesheetEvaluationReportEvidence {
     native_edit_source: Vec<StaticStylesheetEvaluationEdit>,
     resolved_replacements: Vec<OmenaScssEvalResolvedReplacementV0>,
     value_resolution: OmenaScssEvalStaticValueResolutionReportV0,
-    preserved_dynamic_interpolation_count: usize,
+    preserved_counts: StaticStylesheetPreservedEvaluationCounts,
 }
 
 fn build_static_stylesheet_evaluation_report_with_value_resolution(
@@ -144,7 +144,13 @@ fn build_static_stylesheet_evaluation_report_with_value_resolution(
         native_edit_count: native_edits.len(),
         native_value_edit_count,
         native_structural_edit_count,
-        preserved_dynamic_interpolation_count: evidence.preserved_dynamic_interpolation_count,
+        preserved_dynamic_branch_count: evidence.preserved_counts.dynamic_branch_count,
+        preserved_dynamic_loop_count: evidence.preserved_counts.dynamic_loop_count,
+        preserved_raw_call_count: evidence.preserved_counts.raw_call_count,
+        preserved_raw_include_count: evidence.preserved_counts.raw_include_count,
+        preserved_dynamic_interpolation_count: evidence
+            .preserved_counts
+            .dynamic_interpolation_count,
         native_edit_output_matches_evaluated_css,
         resolved_replacements: evidence.resolved_replacements,
         native_edits,

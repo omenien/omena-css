@@ -27,6 +27,10 @@ pub struct OmenaScssEvalStaticStylesheetOracleCorpusReportV0 {
     pub native_edit_count: usize,
     pub native_value_edit_count: usize,
     pub native_structural_edit_count: usize,
+    pub native_preserved_dynamic_branch_count: usize,
+    pub native_preserved_dynamic_loop_count: usize,
+    pub native_preserved_raw_call_count: usize,
+    pub native_preserved_raw_include_count: usize,
     pub native_preserved_dynamic_interpolation_count: usize,
     pub native_edit_output_match_count: usize,
     pub native_value_reference_count: usize,
@@ -62,6 +66,10 @@ pub struct OmenaScssEvalStaticStylesheetOracleCorpusFixtureReportV0 {
     pub native_edit_count: usize,
     pub native_value_edit_count: usize,
     pub native_structural_edit_count: usize,
+    pub native_preserved_dynamic_branch_count: usize,
+    pub native_preserved_dynamic_loop_count: usize,
+    pub native_preserved_raw_call_count: usize,
+    pub native_preserved_raw_include_count: usize,
     pub native_preserved_dynamic_interpolation_count: usize,
     pub native_edit_output_matches_evaluated_css: bool,
     pub native_value_reference_count: usize,
@@ -135,6 +143,22 @@ pub fn summarize_static_stylesheet_oracle_corpus()
     let native_preserved_dynamic_interpolation_count = fixtures
         .iter()
         .map(|fixture| fixture.native_preserved_dynamic_interpolation_count)
+        .sum();
+    let native_preserved_dynamic_branch_count = fixtures
+        .iter()
+        .map(|fixture| fixture.native_preserved_dynamic_branch_count)
+        .sum();
+    let native_preserved_dynamic_loop_count = fixtures
+        .iter()
+        .map(|fixture| fixture.native_preserved_dynamic_loop_count)
+        .sum();
+    let native_preserved_raw_call_count = fixtures
+        .iter()
+        .map(|fixture| fixture.native_preserved_raw_call_count)
+        .sum();
+    let native_preserved_raw_include_count = fixtures
+        .iter()
+        .map(|fixture| fixture.native_preserved_raw_include_count)
         .sum();
     let native_edit_output_match_count = fixtures
         .iter()
@@ -224,6 +248,10 @@ pub fn summarize_static_stylesheet_oracle_corpus()
         native_edit_count,
         native_value_edit_count,
         native_structural_edit_count,
+        native_preserved_dynamic_branch_count,
+        native_preserved_dynamic_loop_count,
+        native_preserved_raw_call_count,
+        native_preserved_raw_include_count,
         native_preserved_dynamic_interpolation_count,
         native_edit_output_match_count,
         native_value_reference_count,
@@ -263,6 +291,10 @@ fn static_stylesheet_oracle_corpus_fixture_report(
             native_edit_count: 0,
             native_value_edit_count: 0,
             native_structural_edit_count: 0,
+            native_preserved_dynamic_branch_count: 0,
+            native_preserved_dynamic_loop_count: 0,
+            native_preserved_raw_call_count: 0,
+            native_preserved_raw_include_count: 0,
             native_preserved_dynamic_interpolation_count: 0,
             native_edit_output_matches_evaluated_css: false,
             native_value_reference_count: 0,
@@ -297,6 +329,10 @@ fn static_stylesheet_oracle_corpus_fixture_report(
         native_edit_count: evaluation.native_edit_count,
         native_value_edit_count: evaluation.native_value_edit_count,
         native_structural_edit_count: evaluation.native_structural_edit_count,
+        native_preserved_dynamic_branch_count: evaluation.preserved_dynamic_branch_count,
+        native_preserved_dynamic_loop_count: evaluation.preserved_dynamic_loop_count,
+        native_preserved_raw_call_count: evaluation.preserved_raw_call_count,
+        native_preserved_raw_include_count: evaluation.preserved_raw_include_count,
         native_preserved_dynamic_interpolation_count: evaluation
             .preserved_dynamic_interpolation_count,
         native_edit_output_matches_evaluated_css: evaluation

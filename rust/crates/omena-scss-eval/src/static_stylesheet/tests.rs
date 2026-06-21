@@ -40,6 +40,9 @@ fn static_stylesheet_oracle_corpus_reports_native_product_output_with_legacy_ora
         report.native_value_edit_count + report.native_structural_edit_count,
         report.native_edit_count
     );
+    assert!(report.native_preserved_dynamic_branch_count > 0);
+    assert!(report.native_preserved_raw_call_count > 0);
+    assert!(report.native_preserved_raw_include_count > 0);
     assert!(report.native_preserved_dynamic_interpolation_count > 0);
     assert_eq!(
         report.native_edit_output_match_count,
@@ -93,6 +96,16 @@ fn static_stylesheet_oracle_corpus_reports_native_product_output_with_legacy_ora
             && fixture.native_preserved_dynamic_interpolation_count == 1
             && fixture.native_edit_output_matches_evaluated_css
             && fixture.divergence_count == 0
+    }));
+    assert!(report.fixtures.iter().any(|fixture| {
+        fixture.id == "scss.dynamic-top-level-if"
+            && fixture.native_preserved_dynamic_branch_count == 1
+    }));
+    assert!(report.fixtures.iter().any(|fixture| {
+        fixture.id == "scss.dynamic-function-return" && fixture.native_preserved_raw_call_count == 1
+    }));
+    assert!(report.fixtures.iter().any(|fixture| {
+        fixture.id == "scss.dynamic-mixin-local" && fixture.native_preserved_raw_include_count == 1
     }));
     for id in [
         "sass.static-default-function-arguments",

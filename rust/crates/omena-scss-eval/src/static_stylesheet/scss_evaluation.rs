@@ -11,12 +11,13 @@ use super::{
     edits::apply_static_stylesheet_evaluation_edits,
     model::{
         OmenaScssEvalStaticStylesheetEvaluationV0, StaticScssFunctionResolutionContext,
-        StaticStylesheetEvaluationEdit, StaticStylesheetVariableKind,
+        StaticStylesheetEvaluationEdit, StaticStylesheetPreservedEvaluationCounts,
+        StaticStylesheetVariableKind,
     },
     reports::{
         build_static_stylesheet_evaluation_report,
         build_static_stylesheet_preserved_evaluation_report_if_explained,
-        build_static_stylesheet_preserved_evaluation_report_with_interpolation_count,
+        build_static_stylesheet_preserved_evaluation_report_with_counts,
         resolved_replacement_value,
     },
     scopes::{
@@ -150,10 +151,14 @@ pub(super) fn derive_static_scss_stylesheet_module_evaluation(
         control_flow_context,
     )?;
     if control_flow_edits.preserved_dynamic_branch_count > 0 {
-        return build_static_stylesheet_preserved_evaluation_report_if_explained(
+        return build_static_stylesheet_preserved_evaluation_report_with_counts(
             style_source,
             dialect,
             StaticStylesheetVariableKind::Scss,
+            StaticStylesheetPreservedEvaluationCounts {
+                dynamic_branch_count: control_flow_edits.preserved_dynamic_branch_count,
+                ..Default::default()
+            },
         );
     }
     let mut control_flow_ranges = control_flow_edits
@@ -171,10 +176,14 @@ pub(super) fn derive_static_scss_stylesheet_module_evaluation(
         control_flow_context,
     )?;
     if loop_edits.preserved_dynamic_loop_count > 0 {
-        return build_static_stylesheet_preserved_evaluation_report_if_explained(
+        return build_static_stylesheet_preserved_evaluation_report_with_counts(
             style_source,
             dialect,
             StaticStylesheetVariableKind::Scss,
+            StaticStylesheetPreservedEvaluationCounts {
+                dynamic_loop_count: loop_edits.preserved_dynamic_loop_count,
+                ..Default::default()
+            },
         );
     }
     control_flow_ranges.extend(loop_edits.edits.iter().map(|edit| (edit.start, edit.end)));
@@ -233,7 +242,7 @@ pub(super) fn derive_static_scss_stylesheet_module_evaluation(
             replacement,
         });
     }
-    let mut preserved_scss_evaluation_count = 0usize;
+    let mut preserved_counts = StaticStylesheetPreservedEvaluationCounts::default();
     if let Some(function_edits) = collect_static_scss_function_evaluation_edits(
         style_source,
         tokens,
@@ -241,10 +250,14 @@ pub(super) fn derive_static_scss_stylesheet_module_evaluation(
         &control_flow_ranges,
     ) {
         if function_edits.preserved_raw_call_count > 0 {
-            return build_static_stylesheet_preserved_evaluation_report_if_explained(
+            return build_static_stylesheet_preserved_evaluation_report_with_counts(
                 style_source,
                 dialect,
                 StaticStylesheetVariableKind::Scss,
+                StaticStylesheetPreservedEvaluationCounts {
+                    raw_call_count: function_edits.preserved_raw_call_count,
+                    ..Default::default()
+                },
             );
         }
         edits.extend(function_edits.edits);
@@ -256,7 +269,7 @@ pub(super) fn derive_static_scss_stylesheet_module_evaluation(
         control_flow_context,
         &control_flow_ranges,
     ) {
-        preserved_scss_evaluation_count += mixin_edits.preserved_raw_include_count;
+        preserved_counts.raw_include_count += mixin_edits.preserved_raw_include_count;
         edits.extend(mixin_edits.edits);
     }
     let mut interpolation_excluded_ranges = function_declaration_ranges.clone();
@@ -272,11 +285,15 @@ pub(super) fn derive_static_scss_stylesheet_module_evaluation(
         &interpolation_excluded_ranges,
     )?;
     if interpolation_edits.preserved_dynamic_interpolation_count > 0 {
-        return build_static_stylesheet_preserved_evaluation_report_with_interpolation_count(
+        return build_static_stylesheet_preserved_evaluation_report_with_counts(
             style_source,
             dialect,
             StaticStylesheetVariableKind::Scss,
-            interpolation_edits.preserved_dynamic_interpolation_count,
+            StaticStylesheetPreservedEvaluationCounts {
+                dynamic_interpolation_count: interpolation_edits
+                    .preserved_dynamic_interpolation_count,
+                ..Default::default()
+            },
         );
     }
     edits.extend(interpolation_edits.edits);
@@ -287,7 +304,7 @@ pub(super) fn derive_static_scss_stylesheet_module_evaluation(
     edits.extend(loop_edits.edits);
 
     let evaluated_css = apply_static_stylesheet_evaluation_edits(style_source, edits.clone())?;
-    if evaluated_css == style_source && preserved_scss_evaluation_count == 0 {
+    if evaluated_css == style_source && preserved_counts.total() == 0 {
         return None;
     }
     build_static_stylesheet_evaluation_report(
@@ -297,6 +314,6 @@ pub(super) fn derive_static_scss_stylesheet_module_evaluation(
         evaluated_css,
         edits,
         resolved_replacements,
-        0,
+        preserved_counts,
     )
 }
