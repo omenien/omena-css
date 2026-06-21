@@ -381,6 +381,15 @@ fn is_css_keyword_like(value: &str) -> bool {
         .all(|ch| ch == '-' || ch == '_' || ch.is_ascii_alphabetic())
 }
 
+/// `subgrid` value keyword for `grid-template-rows`/`grid-template-columns`.
+///
+/// Recognition only: `subgrid` carries line-name/track context the lattice does
+/// not model, so it is never rewritten, reordered, or folded — it round-trips as
+/// a `Keyword`/`Raw` identity.
+pub fn is_subgrid_track_keyword(value: &str) -> bool {
+    value.trim().eq_ignore_ascii_case("subgrid")
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum SegmentDelimiterV0 {
     Comma,
@@ -577,6 +586,20 @@ mod tests {
         assert!(!css_values_canonically_equal("0cqi", "0cqb"));
         assert!(!is_container_query_length_unit("px"));
         assert!(!is_container_query_length_unit("em"));
+    }
+
+    #[test]
+    fn subgrid_is_recognized_keyword_and_round_trips_byte_identically() {
+        assert!(is_subgrid_track_keyword("subgrid"));
+        assert!(is_subgrid_track_keyword("SUBGRID"));
+        assert!(!is_subgrid_track_keyword("grid"));
+        assert_eq!(
+            canonicalize_css_value("subgrid").map(|value| value.serialized),
+            Some("subgrid".to_string())
+        );
+        // A subgrid track list carrying line-name args the lattice cannot model
+        // stays opaque (never rewritten or reordered).
+        assert!(canonicalize_css_value("subgrid [full-start]").is_none());
     }
 
     #[test]
