@@ -3,10 +3,11 @@ use std::collections::BTreeSet;
 use omena_parser::LexedToken;
 
 use super::{
-    StaticScssFunctionResolutionContext, StaticScssMixinEvaluationEdits,
-    StaticStylesheetEvaluationEdit, canonical_static_scss_function_name,
-    collect_static_scss_mixin_include_calls, extend_static_scss_used_function_dependencies,
-    render_static_scss_mixin_include_body, static_scss_mixin_include_is_inside_declaration_body,
+    StaticScssControlFlowPruneEvidenceCounts, StaticScssFunctionResolutionContext,
+    StaticScssMixinEvaluationEdits, StaticStylesheetEvaluationEdit,
+    canonical_static_scss_function_name, collect_static_scss_mixin_include_calls,
+    extend_static_scss_used_function_dependencies, render_static_scss_mixin_include_body,
+    static_scss_mixin_include_is_inside_declaration_body,
     static_scss_mixin_include_is_inside_function_declaration_body,
     static_stylesheet_position_is_inside_ranges,
 };
@@ -27,6 +28,7 @@ pub(super) fn collect_static_scss_mixin_evaluation_edits(
         return Some(StaticScssMixinEvaluationEdits {
             edits: Vec::new(),
             preserved_raw_include_count: 0,
+            prune_evidence_counts: StaticScssControlFlowPruneEvidenceCounts::default(),
         });
     }
 
@@ -35,6 +37,7 @@ pub(super) fn collect_static_scss_mixin_evaluation_edits(
     let mut preserved_declaration_names = BTreeSet::new();
     let mut used_function_declaration_names = BTreeSet::new();
     let mut preserved_raw_include_count = 0usize;
+    let mut prune_evidence_counts = StaticScssControlFlowPruneEvidenceCounts::default();
     for call in calls.iter().filter(|call| {
         !static_scss_mixin_include_is_inside_declaration_body(call, context.mixin_declarations)
             && !static_scss_mixin_include_is_inside_function_declaration_body(
@@ -65,6 +68,7 @@ pub(super) fn collect_static_scss_mixin_evaluation_edits(
         };
         used_declaration_names.extend(rendered.used_mixin_declaration_names);
         used_function_declaration_names.extend(rendered.used_function_declaration_names);
+        prune_evidence_counts.add_assign(rendered.prune_evidence_counts);
         edits.push(StaticStylesheetEvaluationEdit {
             start: call.start,
             end: call.end,
@@ -102,5 +106,6 @@ pub(super) fn collect_static_scss_mixin_evaluation_edits(
     Some(StaticScssMixinEvaluationEdits {
         edits,
         preserved_raw_include_count,
+        prune_evidence_counts,
     })
 }

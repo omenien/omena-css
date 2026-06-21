@@ -37,6 +37,9 @@ interface StaticStylesheetEvaluatorOracleCorpusSummaryV0 {
   readonly nativeEditOutputMatchCount: number;
   readonly nativeValueEditCount: number;
   readonly nativeStructuralEditCount: number;
+  readonly scssControlFlowValueTruthinessCount: number;
+  readonly scssControlFlowContextualTruthinessFallbackCount: number;
+  readonly scssControlFlowContextualTruthinessConflictCount: number;
   readonly scssControlFlowPruneReachabilityFixtureCount: number;
   readonly scssControlFlowPruneReachabilityChangedFixtureCount: number;
   readonly scssControlFlowPruneReachabilityFlatCssCfgBuiltCount: number;
@@ -70,6 +73,9 @@ interface StaticStylesheetEvaluatorOracleFixtureSummaryV0 {
   readonly nativeFuelExhaustedValueCount: number;
   readonly nativeUnresolvedReferenceValueCount: number;
   readonly nativeUnsupportedDynamicValueCount: number;
+  readonly scssControlFlowValueTruthinessCount: number;
+  readonly scssControlFlowContextualTruthinessFallbackCount: number;
+  readonly scssControlFlowContextualTruthinessConflictCount: number;
   readonly scssControlFlowPruneReachabilityAvailable: boolean;
   readonly scssControlFlowPruneReachabilityConverged: boolean;
   readonly scssControlFlowPruneReachabilityFlatCssCfgBuilt: boolean;
@@ -1207,6 +1213,9 @@ function assertStaticStylesheetEvaluatorOracleCorpus(
   assert.equal(summary.nativeEditOutputMatchCount, summary.fixtureCount);
   assert.ok(summary.nativeValueEditCount > 0);
   assert.ok(summary.nativeStructuralEditCount > 0);
+  assert.ok(summary.scssControlFlowValueTruthinessCount > 0);
+  assert.equal(summary.scssControlFlowContextualTruthinessFallbackCount, 0);
+  assert.equal(summary.scssControlFlowContextualTruthinessConflictCount, 0);
   assert.equal(
     summary.scssControlFlowPruneReachabilityFixtureCount,
     summary.scssFixtureCount + summary.sassFixtureCount,
@@ -1232,6 +1241,9 @@ function assertStaticStylesheetEvaluatorOracleCorpus(
   assert.equal(corpus.fixtureCount, summary.fixtureCount);
   assert.equal(corpus.divergenceCount, 0);
   assert.equal(corpus.nativeEditOutputMatchCount, corpus.fixtureCount);
+  assert.ok(corpus.scssControlFlowValueTruthinessCount > 0);
+  assert.equal(corpus.scssControlFlowContextualTruthinessFallbackCount, 0);
+  assert.equal(corpus.scssControlFlowContextualTruthinessConflictCount, 0);
   assert.equal(
     corpus.scssControlFlowPruneReachabilityFixtureCount,
     corpus.scssFixtureCount + corpus.sassFixtureCount,
@@ -1439,6 +1451,10 @@ function assertStaticStylesheetEvaluatorOracleCorpus(
   assert.equal(staticScssIf?.scssControlFlowPruneReachabilityFlatCssCfgBuilt, true);
   assert.equal(staticScssIf?.scssControlFlowPruneReachabilityHaveTerminalsChanged, false);
   assert.equal(staticScssIf?.scssControlFlowPruneReachabilityUnreachableBlockCount, 0);
+  const staticMixinIf = fixtures.get("scss.static-mixin-if");
+  assert.ok((staticMixinIf?.scssControlFlowValueTruthinessCount ?? 0) > 0);
+  assert.equal(staticMixinIf?.scssControlFlowContextualTruthinessFallbackCount, 0);
+  assert.equal(staticMixinIf?.scssControlFlowContextualTruthinessConflictCount, 0);
   const dynamicScssIf = fixtures.get("scss.dynamic-top-level-if");
   assert.equal(dynamicScssIf?.scssControlFlowPruneReachabilityAvailable, true);
   assert.equal(dynamicScssIf?.scssControlFlowPruneReachabilityConverged, true);

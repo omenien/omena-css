@@ -148,6 +148,9 @@ pub struct OmenaQueryStaticStylesheetEvaluatorOracleCorpusSummaryV0 {
     pub native_edit_count: usize,
     pub native_value_edit_count: usize,
     pub native_structural_edit_count: usize,
+    pub scss_control_flow_value_truthiness_count: usize,
+    pub scss_control_flow_contextual_truthiness_fallback_count: usize,
+    pub scss_control_flow_contextual_truthiness_conflict_count: usize,
     pub scss_control_flow_prune_reachability_fixture_count: usize,
     pub scss_control_flow_prune_reachability_changed_fixture_count: usize,
     pub scss_control_flow_prune_reachability_flat_css_cfg_built_count: usize,
@@ -394,6 +397,11 @@ pub fn summarize_omena_query_static_stylesheet_evaluator_oracle_corpus()
         native_edit_count: corpus.native_edit_count,
         native_value_edit_count: corpus.native_value_edit_count,
         native_structural_edit_count: corpus.native_structural_edit_count,
+        scss_control_flow_value_truthiness_count: corpus.scss_control_flow_value_truthiness_count,
+        scss_control_flow_contextual_truthiness_fallback_count: corpus
+            .scss_control_flow_contextual_truthiness_fallback_count,
+        scss_control_flow_contextual_truthiness_conflict_count: corpus
+            .scss_control_flow_contextual_truthiness_conflict_count,
         scss_control_flow_prune_reachability_fixture_count: corpus
             .scss_control_flow_prune_reachability_fixture_count,
         scss_control_flow_prune_reachability_changed_fixture_count: corpus

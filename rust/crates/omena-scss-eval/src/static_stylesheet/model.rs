@@ -27,6 +27,9 @@ pub struct OmenaScssEvalStaticStylesheetEvaluationV0 {
     pub preserved_raw_call_count: usize,
     pub preserved_raw_include_count: usize,
     pub preserved_dynamic_interpolation_count: usize,
+    pub scss_control_flow_value_truthiness_count: usize,
+    pub scss_control_flow_contextual_truthiness_fallback_count: usize,
+    pub scss_control_flow_contextual_truthiness_conflict_count: usize,
     pub native_edit_output_matches_evaluated_css: bool,
     pub resolved_replacements: Vec<OmenaScssEvalResolvedReplacementV0>,
     pub native_edits: Vec<OmenaScssEvalStaticStylesheetNativeEditV0>,
@@ -164,9 +167,25 @@ impl StaticStylesheetPreservedEvaluationCounts {
     }
 }
 
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub(super) struct StaticScssControlFlowPruneEvidenceCounts {
+    pub(super) value_truthiness_count: usize,
+    pub(super) contextual_truthiness_fallback_count: usize,
+    pub(super) contextual_truthiness_conflict_count: usize,
+}
+
+impl StaticScssControlFlowPruneEvidenceCounts {
+    pub(super) fn add_assign(&mut self, other: Self) {
+        self.value_truthiness_count += other.value_truthiness_count;
+        self.contextual_truthiness_fallback_count += other.contextual_truthiness_fallback_count;
+        self.contextual_truthiness_conflict_count += other.contextual_truthiness_conflict_count;
+    }
+}
+
 pub(super) struct StaticScssMixinEvaluationEdits {
     pub(super) edits: Vec<StaticStylesheetEvaluationEdit>,
     pub(super) preserved_raw_include_count: usize,
+    pub(super) prune_evidence_counts: StaticScssControlFlowPruneEvidenceCounts,
 }
 
 pub(super) struct StaticScssFunctionEvaluationEdits {
@@ -302,6 +321,7 @@ pub(super) struct StaticScssMixinRenderResult {
     pub(super) body: String,
     pub(super) used_mixin_declaration_names: BTreeSet<String>,
     pub(super) used_function_declaration_names: BTreeSet<String>,
+    pub(super) prune_evidence_counts: StaticScssControlFlowPruneEvidenceCounts,
 }
 
 #[derive(Debug, Clone)]

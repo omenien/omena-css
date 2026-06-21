@@ -44,6 +44,15 @@ fn static_stylesheet_oracle_corpus_reports_native_product_output_with_legacy_ora
     assert!(report.native_preserved_raw_call_count > 0);
     assert!(report.native_preserved_raw_include_count > 0);
     assert!(report.native_preserved_dynamic_interpolation_count > 0);
+    assert!(report.scss_control_flow_value_truthiness_count > 0);
+    assert_eq!(
+        report.scss_control_flow_contextual_truthiness_fallback_count,
+        0
+    );
+    assert_eq!(
+        report.scss_control_flow_contextual_truthiness_conflict_count,
+        0
+    );
     assert_eq!(
         report.scss_control_flow_prune_reachability_fixture_count,
         report.scss_fixture_count + report.sass_fixture_count
@@ -241,6 +250,9 @@ fn static_stylesheet_oracle_corpus_reports_native_product_output_with_legacy_ora
             && fixture.dialect == "scss"
             && fixture.evaluation_available
             && fixture.native_structural_edit_count == 2
+            && fixture.scss_control_flow_value_truthiness_count > 0
+            && fixture.scss_control_flow_contextual_truthiness_fallback_count == 0
+            && fixture.scss_control_flow_contextual_truthiness_conflict_count == 0
             && fixture.native_edit_output_matches_evaluated_css
             && fixture.divergence_count == 0
     }));
@@ -5342,6 +5354,15 @@ fn static_scss_evaluation_expands_static_mixin_if_blocks() {
     assert!(!report.evaluated_css.contains("color: red"));
     assert!(report.oracle.all_legacy_declaration_values_preserved);
     assert!(report.native_edit_output_matches_evaluated_css);
+    assert!(report.scss_control_flow_value_truthiness_count > 0);
+    assert_eq!(
+        report.scss_control_flow_contextual_truthiness_fallback_count,
+        0
+    );
+    assert_eq!(
+        report.scss_control_flow_contextual_truthiness_conflict_count,
+        0
+    );
 }
 
 #[test]

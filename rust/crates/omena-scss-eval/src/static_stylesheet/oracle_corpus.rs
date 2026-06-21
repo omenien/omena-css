@@ -34,6 +34,9 @@ pub struct OmenaScssEvalStaticStylesheetOracleCorpusReportV0 {
     pub native_preserved_raw_call_count: usize,
     pub native_preserved_raw_include_count: usize,
     pub native_preserved_dynamic_interpolation_count: usize,
+    pub scss_control_flow_value_truthiness_count: usize,
+    pub scss_control_flow_contextual_truthiness_fallback_count: usize,
+    pub scss_control_flow_contextual_truthiness_conflict_count: usize,
     pub scss_control_flow_prune_reachability_fixture_count: usize,
     pub scss_control_flow_prune_reachability_changed_fixture_count: usize,
     pub scss_control_flow_prune_reachability_flat_css_cfg_built_count: usize,
@@ -76,6 +79,9 @@ pub struct OmenaScssEvalStaticStylesheetOracleCorpusFixtureReportV0 {
     pub native_preserved_raw_call_count: usize,
     pub native_preserved_raw_include_count: usize,
     pub native_preserved_dynamic_interpolation_count: usize,
+    pub scss_control_flow_value_truthiness_count: usize,
+    pub scss_control_flow_contextual_truthiness_fallback_count: usize,
+    pub scss_control_flow_contextual_truthiness_conflict_count: usize,
     pub scss_control_flow_prune_reachability_available: bool,
     pub scss_control_flow_prune_reachability_converged: bool,
     pub scss_control_flow_prune_reachability_flat_css_cfg_built: bool,
@@ -170,6 +176,18 @@ pub fn summarize_static_stylesheet_oracle_corpus()
     let native_preserved_raw_include_count = fixtures
         .iter()
         .map(|fixture| fixture.native_preserved_raw_include_count)
+        .sum();
+    let scss_control_flow_value_truthiness_count = fixtures
+        .iter()
+        .map(|fixture| fixture.scss_control_flow_value_truthiness_count)
+        .sum();
+    let scss_control_flow_contextual_truthiness_fallback_count = fixtures
+        .iter()
+        .map(|fixture| fixture.scss_control_flow_contextual_truthiness_fallback_count)
+        .sum();
+    let scss_control_flow_contextual_truthiness_conflict_count = fixtures
+        .iter()
+        .map(|fixture| fixture.scss_control_flow_contextual_truthiness_conflict_count)
         .sum();
     let scss_control_flow_prune_reachability_fixture_count = fixtures
         .iter()
@@ -276,6 +294,9 @@ pub fn summarize_static_stylesheet_oracle_corpus()
         native_preserved_raw_call_count,
         native_preserved_raw_include_count,
         native_preserved_dynamic_interpolation_count,
+        scss_control_flow_value_truthiness_count,
+        scss_control_flow_contextual_truthiness_fallback_count,
+        scss_control_flow_contextual_truthiness_conflict_count,
         scss_control_flow_prune_reachability_fixture_count,
         scss_control_flow_prune_reachability_changed_fixture_count,
         scss_control_flow_prune_reachability_flat_css_cfg_built_count,
@@ -322,6 +343,9 @@ fn static_stylesheet_oracle_corpus_fixture_report(
             native_preserved_raw_call_count: 0,
             native_preserved_raw_include_count: 0,
             native_preserved_dynamic_interpolation_count: 0,
+            scss_control_flow_value_truthiness_count: 0,
+            scss_control_flow_contextual_truthiness_fallback_count: 0,
+            scss_control_flow_contextual_truthiness_conflict_count: 0,
             scss_control_flow_prune_reachability_available: false,
             scss_control_flow_prune_reachability_converged: false,
             scss_control_flow_prune_reachability_flat_css_cfg_built: false,
@@ -369,6 +393,12 @@ fn static_stylesheet_oracle_corpus_fixture_report(
         native_preserved_raw_include_count: evaluation.preserved_raw_include_count,
         native_preserved_dynamic_interpolation_count: evaluation
             .preserved_dynamic_interpolation_count,
+        scss_control_flow_value_truthiness_count: evaluation
+            .scss_control_flow_value_truthiness_count,
+        scss_control_flow_contextual_truthiness_fallback_count: evaluation
+            .scss_control_flow_contextual_truthiness_fallback_count,
+        scss_control_flow_contextual_truthiness_conflict_count: evaluation
+            .scss_control_flow_contextual_truthiness_conflict_count,
         scss_control_flow_prune_reachability_available: prune_reachability.is_some(),
         scss_control_flow_prune_reachability_converged: prune_reachability
             .as_ref()

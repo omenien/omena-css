@@ -15,9 +15,10 @@ use super::{
         StaticStylesheetVariableKind,
     },
     reports::{
-        build_static_stylesheet_evaluation_report,
+        build_static_stylesheet_evaluation_report_with_control_flow_evidence,
         build_static_stylesheet_preserved_evaluation_report_if_explained,
         build_static_stylesheet_preserved_evaluation_report_with_counts,
+        build_static_stylesheet_preserved_evaluation_report_with_counts_and_control_flow_evidence,
         resolved_replacement_value,
     },
     scopes::{
@@ -151,7 +152,7 @@ pub(super) fn derive_static_scss_stylesheet_module_evaluation(
         control_flow_context,
     )?;
     if control_flow_edits.preserved_dynamic_branch_count > 0 {
-        return build_static_stylesheet_preserved_evaluation_report_with_counts(
+        return build_static_stylesheet_preserved_evaluation_report_with_counts_and_control_flow_evidence(
             style_source,
             dialect,
             StaticStylesheetVariableKind::Scss,
@@ -159,8 +160,10 @@ pub(super) fn derive_static_scss_stylesheet_module_evaluation(
                 dynamic_branch_count: control_flow_edits.preserved_dynamic_branch_count,
                 ..Default::default()
             },
+            control_flow_edits.prune_evidence_counts,
         );
     }
+    let mut scss_control_flow_prune_evidence_counts = control_flow_edits.prune_evidence_counts;
     let mut control_flow_ranges = control_flow_edits
         .edits
         .iter()
@@ -270,6 +273,7 @@ pub(super) fn derive_static_scss_stylesheet_module_evaluation(
         &control_flow_ranges,
     ) {
         preserved_counts.raw_include_count += mixin_edits.preserved_raw_include_count;
+        scss_control_flow_prune_evidence_counts.add_assign(mixin_edits.prune_evidence_counts);
         edits.extend(mixin_edits.edits);
     }
     let mut interpolation_excluded_ranges = function_declaration_ranges.clone();
@@ -307,7 +311,7 @@ pub(super) fn derive_static_scss_stylesheet_module_evaluation(
     if evaluated_css == style_source && preserved_counts.total() == 0 {
         return None;
     }
-    build_static_stylesheet_evaluation_report(
+    build_static_stylesheet_evaluation_report_with_control_flow_evidence(
         style_source,
         dialect,
         StaticStylesheetVariableKind::Scss,
@@ -315,5 +319,6 @@ pub(super) fn derive_static_scss_stylesheet_module_evaluation(
         edits,
         resolved_replacements,
         preserved_counts,
+        scss_control_flow_prune_evidence_counts,
     )
 }

@@ -83,7 +83,8 @@ use model::{
     StaticLessMixinAccessorRenderOutcome, StaticLessMixinAccessorRenderResult,
     StaticLessMixinBodyLocalDeclaration, StaticLessMixinCall, StaticLessMixinCallRenderOutcome,
     StaticLessMixinDeclaration, StaticLessMixinEvaluationEdits, StaticLessMixinRenderContext,
-    StaticLessMixinRenderOutcome, StaticLessMixinRenderResult, StaticScssFunctionCall,
+    StaticLessMixinRenderOutcome, StaticLessMixinRenderResult,
+    StaticScssControlFlowPruneEvidenceCounts, StaticScssFunctionCall,
     StaticScssFunctionDeclaration, StaticScssFunctionEvaluationEdits, StaticScssFunctionLocalScope,
     StaticScssFunctionLocalVariable, StaticScssFunctionResolutionContext,
     StaticScssFunctionReturnClause, StaticScssLoopHeader, StaticScssMixinDeclaration,
@@ -449,13 +450,15 @@ fn render_static_scss_mixin_include_body_with_active(
         argument_values.insert(parameter, rendered_value);
     }
 
-    let body = render_static_scss_mixin_control_flow_body(
+    let control_flow_body = render_static_scss_mixin_control_flow_body(
         body,
         context.dialect,
         &argument_values,
         call_position,
         context,
     )?;
+    let mut prune_evidence_counts = control_flow_body.prune_evidence_counts;
+    let body = control_flow_body.body;
     let loop_argument_values = static_scss_mixin_body_loop_argument_values(
         body.as_str(),
         context.dialect,
@@ -501,6 +504,7 @@ fn render_static_scss_mixin_include_body_with_active(
         context,
         active_mixins,
     )?;
+    prune_evidence_counts.add_assign(nested.prune_evidence_counts);
     let body = resolve_static_scss_mixin_body_declaration_values(
         nested.body.as_str(),
         context.dialect,
@@ -525,6 +529,7 @@ fn render_static_scss_mixin_include_body_with_active(
         body,
         used_mixin_declaration_names,
         used_function_declaration_names,
+        prune_evidence_counts,
     })
 }
 
@@ -822,12 +827,14 @@ fn render_static_scss_mixin_body_nested_includes(
             body: body.to_string(),
             used_mixin_declaration_names: BTreeSet::new(),
             used_function_declaration_names: BTreeSet::new(),
+            prune_evidence_counts: StaticScssControlFlowPruneEvidenceCounts::default(),
         });
     }
 
     let mut edits = Vec::new();
     let mut used_mixin_declaration_names = BTreeSet::new();
     let mut used_function_declaration_names = BTreeSet::new();
+    let mut prune_evidence_counts = StaticScssControlFlowPruneEvidenceCounts::default();
     for call in calls {
         let Some(declaration) = context.mixin_declarations.iter().find(|declaration| {
             canonical_static_scss_function_name(declaration.name.as_str())
@@ -846,6 +853,7 @@ fn render_static_scss_mixin_body_nested_includes(
         )?;
         used_mixin_declaration_names.extend(rendered.used_mixin_declaration_names);
         used_function_declaration_names.extend(rendered.used_function_declaration_names);
+        prune_evidence_counts.add_assign(rendered.prune_evidence_counts);
         edits.push(StaticStylesheetEvaluationEdit {
             start: call.start,
             end: call.end,
@@ -857,6 +865,7 @@ fn render_static_scss_mixin_body_nested_includes(
         body: apply_static_stylesheet_evaluation_edits(body, edits)?,
         used_mixin_declaration_names,
         used_function_declaration_names,
+        prune_evidence_counts,
     })
 }
 

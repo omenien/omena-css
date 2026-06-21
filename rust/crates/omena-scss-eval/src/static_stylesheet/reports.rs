@@ -15,8 +15,9 @@ use super::{
     model::{
         OmenaScssEvalResolvedReplacementV0, OmenaScssEvalStaticStylesheetEvaluationV0,
         OmenaScssEvalStaticStylesheetNativeEditV0, OmenaScssEvalStaticValueResolutionReportV0,
-        OmenaScssEvalStaticValueResolutionV0, StaticStylesheetEvaluationEdit,
-        StaticStylesheetPreservedEvaluationCounts, StaticStylesheetVariableKind,
+        OmenaScssEvalStaticValueResolutionV0, StaticScssControlFlowPruneEvidenceCounts,
+        StaticStylesheetEvaluationEdit, StaticStylesheetPreservedEvaluationCounts,
+        StaticStylesheetVariableKind,
     },
     summarize_static_stylesheet_value_resolution,
     value_resolution_model::render_static_abstract_value,
@@ -31,6 +32,29 @@ pub(super) fn build_static_stylesheet_evaluation_report(
     resolved_replacements: Vec<OmenaScssEvalResolvedReplacementV0>,
     preserved_counts: StaticStylesheetPreservedEvaluationCounts,
 ) -> Option<OmenaScssEvalStaticStylesheetEvaluationV0> {
+    build_static_stylesheet_evaluation_report_with_control_flow_evidence(
+        style_source,
+        dialect,
+        variable_kind,
+        evaluated_css,
+        native_edit_source,
+        resolved_replacements,
+        preserved_counts,
+        StaticScssControlFlowPruneEvidenceCounts::default(),
+    )
+}
+
+#[allow(clippy::too_many_arguments)]
+pub(super) fn build_static_stylesheet_evaluation_report_with_control_flow_evidence(
+    style_source: &str,
+    dialect: StyleDialect,
+    variable_kind: StaticStylesheetVariableKind,
+    evaluated_css: String,
+    native_edit_source: Vec<StaticStylesheetEvaluationEdit>,
+    resolved_replacements: Vec<OmenaScssEvalResolvedReplacementV0>,
+    preserved_counts: StaticStylesheetPreservedEvaluationCounts,
+    scss_control_flow_prune_evidence: StaticScssControlFlowPruneEvidenceCounts,
+) -> Option<OmenaScssEvalStaticStylesheetEvaluationV0> {
     let value_resolution = summarize_static_stylesheet_value_resolution(style_source, dialect)?;
     build_static_stylesheet_evaluation_report_with_value_resolution(
         style_source,
@@ -42,6 +66,7 @@ pub(super) fn build_static_stylesheet_evaluation_report(
             resolved_replacements,
             value_resolution,
             preserved_counts,
+            scss_control_flow_prune_evidence,
         },
     )
 }
@@ -82,6 +107,36 @@ pub(super) fn build_static_stylesheet_preserved_evaluation_report_with_counts(
             resolved_replacements: Vec::new(),
             value_resolution,
             preserved_counts,
+            scss_control_flow_prune_evidence: StaticScssControlFlowPruneEvidenceCounts::default(),
+        },
+    )
+}
+
+pub(super) fn build_static_stylesheet_preserved_evaluation_report_with_counts_and_control_flow_evidence(
+    style_source: &str,
+    dialect: StyleDialect,
+    variable_kind: StaticStylesheetVariableKind,
+    preserved_counts: StaticStylesheetPreservedEvaluationCounts,
+    scss_control_flow_prune_evidence: StaticScssControlFlowPruneEvidenceCounts,
+) -> Option<OmenaScssEvalStaticStylesheetEvaluationV0> {
+    let value_resolution = summarize_static_stylesheet_value_resolution(style_source, dialect)?;
+    if value_resolution.raw_count == 0
+        && value_resolution.top_count == 0
+        && preserved_counts.total() == 0
+    {
+        return None;
+    }
+    build_static_stylesheet_evaluation_report_with_value_resolution(
+        style_source,
+        dialect,
+        variable_kind,
+        style_source.to_string(),
+        StaticStylesheetEvaluationReportEvidence {
+            native_edit_source: Vec::new(),
+            resolved_replacements: Vec::new(),
+            value_resolution,
+            preserved_counts,
+            scss_control_flow_prune_evidence,
         },
     )
 }
@@ -91,6 +146,7 @@ struct StaticStylesheetEvaluationReportEvidence {
     resolved_replacements: Vec<OmenaScssEvalResolvedReplacementV0>,
     value_resolution: OmenaScssEvalStaticValueResolutionReportV0,
     preserved_counts: StaticStylesheetPreservedEvaluationCounts,
+    scss_control_flow_prune_evidence: StaticScssControlFlowPruneEvidenceCounts,
 }
 
 fn build_static_stylesheet_evaluation_report_with_value_resolution(
@@ -151,6 +207,15 @@ fn build_static_stylesheet_evaluation_report_with_value_resolution(
         preserved_dynamic_interpolation_count: evidence
             .preserved_counts
             .dynamic_interpolation_count,
+        scss_control_flow_value_truthiness_count: evidence
+            .scss_control_flow_prune_evidence
+            .value_truthiness_count,
+        scss_control_flow_contextual_truthiness_fallback_count: evidence
+            .scss_control_flow_prune_evidence
+            .contextual_truthiness_fallback_count,
+        scss_control_flow_contextual_truthiness_conflict_count: evidence
+            .scss_control_flow_prune_evidence
+            .contextual_truthiness_conflict_count,
         native_edit_output_matches_evaluated_css,
         resolved_replacements: evidence.resolved_replacements,
         native_edits,
