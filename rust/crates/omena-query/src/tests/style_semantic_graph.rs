@@ -1092,14 +1092,19 @@ fn fit_growth_exponent(samples: &[(f64, f64)]) -> f64 {
     (n * sxy - sx * sy) / (n * sxx - sx * sx)
 }
 
-// End-to-end anti-recurrence gate (replaces the prior leg-isolated, tautological growth check):
-// drive the FULL cross-file resolution over a cyclic corpus at >=3 sizes and assert that the
-// number of configurable-name DERIVATIONS (the parse + disk-resolution work that the L1 run-scoped
-// memo collapses to O(distinct modules)) grows ~linearly. Removing the L1 memo makes the same
-// derivation run per enumerated closure path = O(paths) (super-polynomial, ~2.6 measured) and turns
-// this RED — a perf regression the output-only equivalence oracle would NOT catch. The path
-// enumeration itself (graph_closure_edge_count) stays super-polynomial by design and is reported
-// advisorily, not asserted (eliminating it is the deferred config-state-worklist work).
+// End-to-end anti-recurrence gate: drive the FULL cross-file resolution over a cyclic corpus at
+// >=3 sizes and assert BOTH growth exponents.
+// (1) configurable-name DERIVATIONS (the parse + disk-resolution work the L1 run-scoped memo
+//     collapses to O(distinct modules)) grow ~linearly (<=1.3); removing the L1 memo reruns the
+//     derivation per enumerated path = O(paths) (super-poly, ~2.6) and REDs this — a perf
+//     regression the output-only oracle would NOT catch.
+// (2) graph_closure_edge_count: the config-state worklist (style.rs, replaced the old RawAllPaths
+//     path enumeration) means that on this single-SCC ring the closure is now the O(n^2)
+//     reachability-pair FLOOR (n origins x ~2n targets; deterministic, a pure fn of the corpus),
+//     measured exponent ~1.74 at [4,8,16]. Asserted <=2.2 (asymptote 2.0): tight enough to RED if
+//     RawAllPaths recurs (~2.6), loose enough to absorb the lower-order curvature at small n. This
+//     is an anti-path-blowup gate, NOT a linearity claim — a ring has inherently O(n^2)
+//     reachability pairs. Pinned to sizes [4,8,16]; re-validate if the sizes or topology change.
 #[test]
 fn cross_file_configurable_name_derivations_grow_near_linearly_end_to_end() {
     let input = sample_input();
@@ -1129,10 +1134,14 @@ fn cross_file_configurable_name_derivations_grow_near_linearly_end_to_end() {
         "configurable-name derivations (L1-memo, asserted ~linear): {derivation_samples:?} exponent={derivation_exponent:.3}"
     );
     eprintln!(
-        "graph_closure_edge_count (path enumeration, advisory): {edge_samples:?} exponent={edge_exponent:.3}"
+        "graph_closure_edge_count (config-state worklist floor, asserted <=2.2): {edge_samples:?} exponent={edge_exponent:.3}"
     );
     assert!(
         derivation_exponent <= 1.3,
         "cross-file configurable-name derivations must grow ~linearly in module count (L1 memo intact); exponent={derivation_exponent:.3}, samples={derivation_samples:?}"
+    );
+    assert!(
+        edge_exponent <= 2.2,
+        "graph_closure_edge_count must stay at the quadratic reachability floor (config-state worklist intact, NOT RawAllPaths path-blowup ~2.6); exponent={edge_exponent:.3}, samples={edge_samples:?}"
     );
 }
