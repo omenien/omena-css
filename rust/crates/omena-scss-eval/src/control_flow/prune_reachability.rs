@@ -15,6 +15,11 @@ use super::{
     },
 };
 
+/// Summarize the value-driven prune/reachability loop for a style region.
+///
+/// Each iteration folds known control-flow truthiness, prunes only proved-dead
+/// outcome edges, and recomputes reachability. Unknown values keep their edges
+/// so the product path can preserve source bytes when the lattice cannot decide.
 pub fn summarize_scss_control_flow_prune_reachability(
     source: &str,
     dialect: StyleDialect,

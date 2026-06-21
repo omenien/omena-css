@@ -2,6 +2,7 @@ use omena_abstract_value::AbstractCssValueV0;
 use omena_transform_cst::StableNodeKeyV0;
 use serde::Serialize;
 
+/// Block summary for the per-region SCSS control-flow surface.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct OmenaScssEvalControlFlowIrSummaryV0 {
@@ -38,7 +39,10 @@ pub struct OmenaScssEvalControlFlowBlockV0 {
 #[serde(transparent)]
 pub struct OmenaScssEvalControlFlowBlockIdV0(pub u32);
 
-/// Explicit-edge SCSS control-flow graph built beside the existing block summary.
+/// Explicit-edge SCSS control-flow graph for one style region.
+///
+/// `flat_css_cfg_built` means this transient per-region graph has concrete outcome
+/// edges. It does not imply a merged cross-file graph; that surface remains false.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct OmenaScssEvalControlFlowGraphV0 {
@@ -75,7 +79,10 @@ pub struct OmenaScssEvalControlFlowEdgeV0 {
     pub target_block_id: Option<OmenaScssEvalControlFlowBlockIdV0>,
 }
 
-/// Reachability recomputed after pruning known control-flow outcomes.
+/// Reachability recomputed after value-flow-driven control-flow pruning.
+///
+/// Unknown branch values keep their outgoing edges, so this witness is conservative
+/// unless the value fixpoint proves a branch or loop outcome.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct OmenaScssEvalControlFlowPruneReachabilityV0 {
@@ -100,6 +107,9 @@ pub struct OmenaScssEvalControlFlowPruneReachabilityV0 {
     pub unreachable_block_ids: Vec<OmenaScssEvalControlFlowBlockIdV0>,
 }
 
+/// Value fixpoint over the per-region SCSS control-flow graph.
+///
+/// The graph is local to the analyzed region; `merged_cross_file_graph` remains false.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct OmenaScssEvalControlFlowValueAnalysisV0 {

@@ -416,6 +416,9 @@ fn static_scss_control_flow_value_prune_plan(
     dialect: StyleDialect,
     argument_values: &BTreeMap<String, String>,
 ) -> StaticScssControlFlowValuePrunePlan {
+    // Product pruning consumes value-flow truthiness and the edge-IR reachability
+    // witness. It deliberately preserves branches when the value lattice has no
+    // proof, rather than re-deriving local contextual truthiness here.
     let initial_bindings = static_scss_control_flow_initial_bindings(argument_values);
     let truthiness_by_start =
         static_scss_control_flow_value_truthiness_by_start(source, dialect, &initial_bindings);

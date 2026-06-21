@@ -13,7 +13,10 @@ use super::{
     },
 };
 
-/// Build the per-region SCSS control-flow edge IR without changing product edits.
+/// Build the transient per-region SCSS control-flow edge IR.
+///
+/// The graph records explicit outcome edges for value-flow pruning. It does not
+/// rewrite source bytes by itself and does not merge cross-file control flow.
 pub fn build_scss_control_flow_graph(
     source: &str,
     dialect: StyleDialect,

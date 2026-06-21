@@ -1,10 +1,11 @@
-//! Oracle-first SCSS/Less value evaluator rail.
+//! Native SCSS/Less value evaluator with retained oracle evidence.
 //!
 //! This crate is the native evaluator entry point above parser facts and the
 //! shared abstract value vocabulary. Product runtime paths consume the native
 //! edit output when available, while the legacy `evaluated_css` string stays in
-//! the model as a differential oracle until the native rail has complete corpus
-//! coverage.
+//! the model as retained byte evidence. Covered fixture slices are checked by
+//! internal value oracles and the external differential gate before native edits
+//! are widened.
 
 mod control_flow;
 mod scss_metadata;
@@ -79,7 +80,7 @@ pub struct OmenaScssEvalValueOracleV0 {
 
 /// Value-WELL-FORMEDNESS self-check on the candidate native-edit output.
 ///
-/// This function does not invoke an external SCSS/Less compiler. In the production rail
+/// This function does not invoke an external SCSS/Less compiler. In the product path
 /// `candidate_evaluated_css` is the native-edit output (source with native edits applied), so
 /// `divergence_count == 0` / `all_legacy_declaration_values_preserved` mean "every native-emitted
 /// declaration value canonically round-trips", not "native agrees with an external evaluator".
