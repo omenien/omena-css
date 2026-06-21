@@ -1,0 +1,56 @@
+{
+  "schemaVersion": "0",
+  "product": "omena-scss-eval.static-stylesheet-external-differential-corpus",
+  "mode": "externalDifferential",
+  "lastVerified": "2026-06-21",
+  "compilers": {
+    "dartSassPackage": "sass",
+    "dartSassVersion": "1.100.0",
+    "lesscPackage": "less",
+    "lesscVersion": "4.6.4"
+  },
+  "fixtures": [
+    {
+      "id": "scss.variable-basic",
+      "dialect": "scss",
+      "compiler": "dart-sass",
+      "source": "$gap: 1px; .card { margin: $gap; }",
+      "expectedDivergence": "none"
+    },
+    {
+      "id": "scss.static-function-return",
+      "dialect": "scss",
+      "compiler": "dart-sass",
+      "source": "@function gap($value) { @return $value; } .card { margin: gap(1px); }",
+      "expectedDivergence": "none"
+    },
+    {
+      "id": "scss.static-mixin-if",
+      "dialect": "scss",
+      "compiler": "dart-sass",
+      "source": "@mixin tone($enabled) { @if $enabled { color: red; } @else { color: blue; } } .button { @include tone(false); }",
+      "expectedDivergence": "none"
+    },
+    {
+      "id": "scss.static-top-level-if",
+      "dialect": "scss",
+      "compiler": "dart-sass",
+      "source": "$enabled: false; @if $enabled { .on { color: green; } } @else { .off { color: red; } }",
+      "expectedDivergence": "none"
+    },
+    {
+      "id": "less.variable-basic",
+      "dialect": "less",
+      "compiler": "lessc",
+      "source": "@gap: 2px; .card { margin: @gap; }",
+      "expectedDivergence": "none"
+    },
+    {
+      "id": "less.quoted-value-interpolation",
+      "dialect": "less",
+      "compiler": "lessc",
+      "source": "@path: \"../img\"; @theme: light; .card { color: \"@{theme}\"; background: url(\"@{path}/icon.png\"); }",
+      "expectedDivergence": "none"
+    }
+  ]
+}
