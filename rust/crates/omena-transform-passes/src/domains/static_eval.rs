@@ -1221,7 +1221,8 @@ mod container_static_eval_tests {
 
     #[test]
     fn removes_impossible_block_behind_container_name() {
-        let (output, mutations) = eval("@container sidebar (max-width: -1px) { .a { color: red } }");
+        let (output, mutations) =
+            eval("@container sidebar (max-width: -1px) { .a { color: red } }");
         assert_eq!(output, "");
         assert_eq!(mutations, 1);
     }
@@ -1288,7 +1289,10 @@ mod container_static_eval_tests {
             "@container (max-width: -1in) { .a { color: red } }",
         ] {
             let (output, mutations) = eval(source);
-            assert_eq!(output, "", "must remove impossible absolute bound: {source}");
+            assert_eq!(
+                output, "",
+                "must remove impossible absolute bound: {source}"
+            );
             assert_eq!(mutations, 1);
         }
     }
@@ -1306,7 +1310,10 @@ mod container_static_eval_tests {
             strip_static_container_name("sidebar (max-width: -1px)"),
             "(max-width: -1px)"
         );
-        assert_eq!(strip_static_container_name("(max-width: -1px)"), "(max-width: -1px)");
+        assert_eq!(
+            strip_static_container_name("(max-width: -1px)"),
+            "(max-width: -1px)"
+        );
         assert_eq!(
             strip_static_container_name("not (max-width: 0px)"),
             "not (max-width: 0px)"

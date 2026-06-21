@@ -73,13 +73,13 @@ pub fn list_omena_checker_rule_enforcement_evidence_v0()
         CascadeDeepConflict, CascadeSMTViolation, CascadeUnreachableRule,
         CategoricalCascadeEvidenceInconsistency, CircularVar, DeadCascadeLayer,
         DesignSystemMdlBudget, DesignerIntentInconsistency, IacvtProne, InvalidPropertyValue,
-        MissingComposedModule, MissingComposedSelector, MissingCustomProperty, MissingImportedValue,
-        MissingKeyframes,
-        MissingModule, MissingResolvedClassDomain, MissingResolvedClassValues, MissingSassSymbol,
-        MissingStaticClass, MissingTemplatePrefix, MissingValueModule, NoImpossibleSelector,
-        NoImpreciseValue, NoUnknownDynamicClass, RegisteredPropertyTypeMismatch,
-        ReplicaEnsembleInconsistency, RgFlowRelevantOperator, StreamingIfdsPrecisionParity,
-        UnreachableDeclaration, UnspecifiedCascadeTie, UnusedSelector,
+        MissingComposedModule, MissingComposedSelector, MissingCustomProperty,
+        MissingImportedValue, MissingKeyframes, MissingModule, MissingResolvedClassDomain,
+        MissingResolvedClassValues, MissingSassSymbol, MissingStaticClass, MissingTemplatePrefix,
+        MissingValueModule, NoImpossibleSelector, NoImpreciseValue, NoUnknownDynamicClass,
+        RegisteredPropertyTypeMismatch, ReplicaEnsembleInconsistency, RgFlowRelevantOperator,
+        StreamingIfdsPrecisionParity, UnreachableDeclaration, UnspecifiedCascadeTie,
+        UnusedSelector,
     };
 
     vec![

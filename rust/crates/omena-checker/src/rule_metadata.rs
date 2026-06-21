@@ -36,13 +36,13 @@ fn rule_ordinal_for_code(code: OmenaCheckerRuleCodeV0) -> u16 {
         CascadeDeepConflict, CascadeSMTViolation, CascadeUnreachableRule,
         CategoricalCascadeEvidenceInconsistency, CircularVar, DeadCascadeLayer,
         DesignSystemMdlBudget, DesignerIntentInconsistency, IacvtProne, InvalidPropertyValue,
-        MissingComposedModule,
-        MissingComposedSelector, MissingCustomProperty, MissingImportedValue, MissingKeyframes,
-        MissingModule, MissingResolvedClassDomain, MissingResolvedClassValues, MissingSassSymbol,
-        MissingStaticClass, MissingTemplatePrefix, MissingValueModule, NoImpossibleSelector,
-        NoImpreciseValue, NoUnknownDynamicClass, RegisteredPropertyTypeMismatch,
-        ReplicaEnsembleInconsistency, RgFlowRelevantOperator, StreamingIfdsPrecisionParity,
-        UnreachableDeclaration, UnspecifiedCascadeTie, UnusedSelector,
+        MissingComposedModule, MissingComposedSelector, MissingCustomProperty,
+        MissingImportedValue, MissingKeyframes, MissingModule, MissingResolvedClassDomain,
+        MissingResolvedClassValues, MissingSassSymbol, MissingStaticClass, MissingTemplatePrefix,
+        MissingValueModule, NoImpossibleSelector, NoImpreciseValue, NoUnknownDynamicClass,
+        RegisteredPropertyTypeMismatch, ReplicaEnsembleInconsistency, RgFlowRelevantOperator,
+        StreamingIfdsPrecisionParity, UnreachableDeclaration, UnspecifiedCascadeTie,
+        UnusedSelector,
     };
 
     match code {
@@ -86,13 +86,13 @@ pub(crate) fn rule_tier_for_code(code: OmenaCheckerRuleCodeV0) -> OmenaCheckerRu
         CascadeDeepConflict, CascadeSMTViolation, CascadeUnreachableRule,
         CategoricalCascadeEvidenceInconsistency, CircularVar, DeadCascadeLayer,
         DesignSystemMdlBudget, DesignerIntentInconsistency, IacvtProne, InvalidPropertyValue,
-        MissingComposedModule,
-        MissingComposedSelector, MissingCustomProperty, MissingImportedValue, MissingKeyframes,
-        MissingModule, MissingResolvedClassDomain, MissingResolvedClassValues, MissingSassSymbol,
-        MissingStaticClass, MissingTemplatePrefix, MissingValueModule, NoImpossibleSelector,
-        NoImpreciseValue, NoUnknownDynamicClass, RegisteredPropertyTypeMismatch,
-        ReplicaEnsembleInconsistency, RgFlowRelevantOperator, StreamingIfdsPrecisionParity,
-        UnreachableDeclaration, UnspecifiedCascadeTie, UnusedSelector,
+        MissingComposedModule, MissingComposedSelector, MissingCustomProperty,
+        MissingImportedValue, MissingKeyframes, MissingModule, MissingResolvedClassDomain,
+        MissingResolvedClassValues, MissingSassSymbol, MissingStaticClass, MissingTemplatePrefix,
+        MissingValueModule, NoImpossibleSelector, NoImpreciseValue, NoUnknownDynamicClass,
+        RegisteredPropertyTypeMismatch, ReplicaEnsembleInconsistency, RgFlowRelevantOperator,
+        StreamingIfdsPrecisionParity, UnreachableDeclaration, UnspecifiedCascadeTie,
+        UnusedSelector,
     };
 
     match code {

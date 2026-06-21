@@ -821,10 +821,6 @@ fn lists_transform_pass_summaries_from_query() {
             .iter()
             .any(|pass| pass.id == "relative-color-lowering")
     );
-    assert!(
-        passes
-            .iter()
-            .any(|pass| pass.id == "container-static-eval")
-    );
+    assert!(passes.iter().any(|pass| pass.id == "container-static-eval"));
     assert!(passes.iter().any(|pass| pass.id == "print-css"));
 }

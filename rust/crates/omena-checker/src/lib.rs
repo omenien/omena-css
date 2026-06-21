@@ -748,12 +748,13 @@ pub fn list_omena_checker_rule_descriptors() -> Vec<OmenaCheckerRuleDescriptorV0
         CascadeDeepConflict, CascadeSMTViolation, CascadeUnreachableRule,
         CategoricalCascadeEvidenceInconsistency, CircularVar, DeadCascadeLayer,
         DesignSystemMdlBudget, DesignerIntentInconsistency, IacvtProne, InvalidPropertyValue,
-        MissingComposedModule, MissingComposedSelector, MissingCustomProperty, MissingImportedValue,
-        MissingKeyframes, MissingModule, MissingResolvedClassDomain, MissingResolvedClassValues,
-        MissingSassSymbol, MissingStaticClass, MissingTemplatePrefix, MissingValueModule,
-        NoImpossibleSelector, NoImpreciseValue, NoUnknownDynamicClass,
+        MissingComposedModule, MissingComposedSelector, MissingCustomProperty,
+        MissingImportedValue, MissingKeyframes, MissingModule, MissingResolvedClassDomain,
+        MissingResolvedClassValues, MissingSassSymbol, MissingStaticClass, MissingTemplatePrefix,
+        MissingValueModule, NoImpossibleSelector, NoImpreciseValue, NoUnknownDynamicClass,
         RegisteredPropertyTypeMismatch, ReplicaEnsembleInconsistency, RgFlowRelevantOperator,
-        StreamingIfdsPrecisionParity, UnreachableDeclaration, UnspecifiedCascadeTie, UnusedSelector,
+        StreamingIfdsPrecisionParity, UnreachableDeclaration, UnspecifiedCascadeTie,
+        UnusedSelector,
     };
     use OmenaCheckerRuleFixabilityV0::{CodeAction, None};
     use OmenaCheckerRulePresetV0::{Recommended, Strict};
@@ -1564,10 +1565,8 @@ pub fn evaluate_omena_checker_cascade_rules(
         if declaration.property.starts_with("--") {
             continue;
         }
-        if standard_property_syntax_match(
-            declaration.property.as_str(),
-            declaration.value.as_str(),
-        ) == RegisteredSyntaxMatchV0::Rejects
+        if standard_property_syntax_match(declaration.property.as_str(), declaration.value.as_str())
+            == RegisteredSyntaxMatchV0::Rejects
         {
             evaluations.push(cascade_evaluation(
                 OmenaCheckerRuleCodeV0::InvalidPropertyValue,

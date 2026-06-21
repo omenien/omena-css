@@ -546,7 +546,11 @@ impl SpecVocabularyV0 {
     pub fn type_accepts(&self, type_name: &str, value: &str) -> Option<bool> {
         let keywords = self.type_keywords(type_name)?;
         let value = value.trim();
-        Some(keywords.iter().any(|keyword| keyword.eq_ignore_ascii_case(value)))
+        Some(
+            keywords
+                .iter()
+                .any(|keyword| keyword.eq_ignore_ascii_case(value)),
+        )
     }
 }
 
@@ -557,7 +561,8 @@ pub fn spec_vocabulary() -> &'static SpecVocabularyV0 {
 }
 
 fn build_spec_vocabulary() -> SpecVocabularyV0 {
-    let Ok(snapshot) = serde_json::from_str::<WebrefGrammarSnapshotV0>(WEBREF_GRAMMAR_SOURCE) else {
+    let Ok(snapshot) = serde_json::from_str::<WebrefGrammarSnapshotV0>(WEBREF_GRAMMAR_SOURCE)
+    else {
         return SpecVocabularyV0::default();
     };
     let mut closed_terms: BTreeMap<String, BTreeMap<String, Vec<String>>> = BTreeMap::new();
@@ -780,7 +785,10 @@ mod tests {
         let named_colors = vocabulary.type_keywords("named-color").unwrap_or_default();
         assert!(named_colors.iter().any(|color| color == "aliceblue"));
         assert!(named_colors.len() > 100);
-        assert_eq!(vocabulary.type_accepts("named-color", "AliceBlue"), Some(true));
+        assert_eq!(
+            vocabulary.type_accepts("named-color", "AliceBlue"),
+            Some(true)
+        );
         assert_eq!(
             vocabulary.type_accepts("named-color", "not-a-color"),
             Some(false)
@@ -808,7 +816,12 @@ mod tests {
         let vocabulary = spec_vocabulary();
         // Every exposed projection traces back to a Keyword/KeywordAlternation
         // classification of a vendored entry; nothing is fabricated.
-        assert!(!vocabulary.type_keywords("named-color").unwrap_or_default().is_empty());
+        assert!(
+            !vocabulary
+                .type_keywords("named-color")
+                .unwrap_or_default()
+                .is_empty()
+        );
         // `color` is a rich grammar (Raw) and must never be exposed as closed.
         assert!(vocabulary.type_keywords("color").is_none());
         // `system-color` references <deprecated-color> (Raw) -> excluded.
