@@ -648,7 +648,10 @@ fn style_semantic_graph_batch_detects_sass_module_cycles() {
 
     assert_eq!(resolution.module_edge_count, 2);
     assert_eq!(resolution.resolved_module_edge_count, 2);
-    assert_eq!(resolution.cycle_count, 2);
+    // Re-baselined (SLICE-A cycle-source rewire): the dedicated elementary-circuit owner stores ONE
+    // canonical circuit per cycle; the prior all-paths scan stored both raw rotations (==2). The
+    // user-facing sassUseCycle diagnostic set is unchanged (the consumer always deduped rotations).
+    assert_eq!(resolution.cycle_count, 1);
     assert!(resolution.cycles.iter().any(|cycle| {
         cycle.path
             == vec![

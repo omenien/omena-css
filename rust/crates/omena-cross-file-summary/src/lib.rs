@@ -408,6 +408,80 @@ where
     (closure_paths, cycle_paths)
 }
 
+/// Generous per-SCC enumeration work budget; real module-graph SCCs are tiny (a cycle is a user
+/// error to report), so the cap is a backstop that never fires in practice.
+const DEFAULT_CYCLE_ENUMERATION_WORK_CAP: usize = 1 << 16;
+
+/// All elementary directed circuits of `adjacency`, found per strongly-connected component:
+/// partition with `collect_directed_graph_sccs`, then enumerate the simple cycles CONFINED to each
+/// non-trivial SCC (a back-edge to the start closes a circuit). Each circuit is canonicalized via
+/// `canonical_hypergraph_cycle_labels` (lex-smallest rotation, emitted CLOSED so a consumer's
+/// `windows(2)` successor lookup resolves), deduped and sorted. This is the cross-file CYCLE owner,
+/// decoupled from the all-paths closure scan so the latter can be replaced without touching cycles.
+pub fn collect_directed_graph_cycles(
+    adjacency: &BTreeMap<String, BTreeSet<String>>,
+) -> Vec<Vec<String>> {
+    collect_directed_graph_cycles_with_work_cap(adjacency, DEFAULT_CYCLE_ENUMERATION_WORK_CAP)
+}
+
+/// `collect_directed_graph_cycles` with an explicit per-SCC work cap (for tests). On cap-hit a
+/// dense SCC degrades to its lex-smallest representative circuit — a witnessed shrink, NEVER a
+/// silent drop.
+pub fn collect_directed_graph_cycles_with_work_cap(
+    adjacency: &BTreeMap<String, BTreeSet<String>>,
+    per_scc_work_cap: usize,
+) -> Vec<Vec<String>> {
+    let mut circuits = BTreeSet::new();
+    for scc in collect_directed_graph_sccs(adjacency) {
+        let self_loop = scc.len() == 1
+            && adjacency
+                .get(scc[0].as_str())
+                .is_some_and(|targets| targets.contains(&scc[0]));
+        if scc.len() < 2 && !self_loop {
+            continue;
+        }
+        let scc_nodes = scc.iter().map(String::as_str).collect::<BTreeSet<_>>();
+        let mut found = BTreeSet::new();
+        let mut work = 0usize;
+        let mut capped = false;
+        'starts: for start in &scc {
+            // BFS over simple paths so the shortest circuits surface first (so the cap-fallback
+            // representative is a real, short circuit).
+            let mut pending = VecDeque::from([(start.clone(), vec![start.clone()])]);
+            while let Some((current, path)) = pending.pop_front() {
+                work += 1;
+                if work > per_scc_work_cap {
+                    capped = true;
+                    break 'starts;
+                }
+                for target in adjacency.get(current.as_str()).into_iter().flatten() {
+                    if !scc_nodes.contains(target.as_str()) {
+                        continue;
+                    }
+                    if target == start {
+                        let mut ring = path.clone();
+                        ring.push(target.clone());
+                        let canonical = canonical_hypergraph_cycle_labels(ring);
+                        if !canonical.is_empty() {
+                            found.insert(canonical);
+                        }
+                    } else if !path.iter().any(|node| node == target) {
+                        let mut next = path.clone();
+                        next.push(target.clone());
+                        pending.push_back((target.clone(), next));
+                    }
+                }
+            }
+        }
+        if capped {
+            circuits.extend(found.into_iter().next());
+        } else {
+            circuits.extend(found);
+        }
+    }
+    circuits.into_iter().collect()
+}
+
 fn canonical_hypergraph_cycle_labels(mut labels: Vec<String>) -> Vec<String> {
     if labels.len() > 1 && labels.first() == labels.last() {
         labels.pop();

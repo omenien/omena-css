@@ -1224,6 +1224,51 @@ mod tests {
     }
 
     #[test]
+    fn shared_cycle_enumerator_reproduces_the_elementary_circuit_set() {
+        use omena_cross_file_summary::{
+            collect_directed_graph_cycles, collect_directed_graph_cycles_with_work_cap,
+        };
+        let ring = |xs: &[&str]| xs.iter().map(|x| x.to_string()).collect::<Vec<_>>();
+        let graph = |edges: &[(&str, &[&str])]| {
+            edges
+                .iter()
+                .map(|(node, targets)| {
+                    (
+                        node.to_string(),
+                        targets
+                            .iter()
+                            .map(|t| t.to_string())
+                            .collect::<BTreeSet<_>>(),
+                    )
+                })
+                .collect::<BTreeMap<_, _>>()
+        };
+        // chord {a,b,c} (a->b, a->c, b->c, c->a): two elementary circuits, canonical closed rings.
+        let chord = graph(&[("a", &["b", "c"]), ("b", &["c"]), ("c", &["a"])]);
+        assert_eq!(
+            collect_directed_graph_cycles(&chord),
+            vec![ring(&["a", "b", "c", "a"]), ring(&["a", "c", "a"])]
+        );
+        // complete K4: all 20 elementary circuits in the SCC (len 2:6, len 3:8, len 4:6); the
+        // consumer later filters to the 15 that contain a given target.
+        let k4 = graph(&[
+            ("a", &["b", "c", "d"]),
+            ("b", &["a", "c", "d"]),
+            ("c", &["a", "b", "d"]),
+            ("d", &["a", "b", "c"]),
+        ]);
+        assert_eq!(collect_directed_graph_cycles(&k4).len(), 20);
+        // self-loop singleton is non-trivial; acyclic input short-circuits to no cycles.
+        assert_eq!(
+            collect_directed_graph_cycles(&graph(&[("a", &["a"])])),
+            vec![ring(&["a", "a"])]
+        );
+        assert!(collect_directed_graph_cycles(&graph(&[("a", &["b"]), ("b", &[])])).is_empty());
+        // fail-soft: a tiny work cap degrades the dense K4 SCC to ONE representative (witnessed).
+        assert_eq!(collect_directed_graph_cycles_with_work_cap(&k4, 4).len(), 1);
+    }
+
+    #[test]
     fn refinement_context_change_invalidates_by_salsa_revision_bump() {
         let update = streaming_ifds_refinement_revision_bump_v0("u2", 7, 8, 4242);
         assert_eq!(update.previous_revision, Some(7));

@@ -29,7 +29,8 @@ pub use completion::*;
 #[cfg(feature = "hypergraph-ifds")]
 pub use cross_file_hypergraph::*;
 use cross_file_hypergraph::{
-    HypergraphClosureMode, HypergraphClosurePath, collect_hypergraph_transitive_closure_paths,
+    HypergraphClosureMode, HypergraphClosurePath, collect_directed_graph_cycles,
+    collect_hypergraph_transitive_closure_paths,
     collect_hypergraph_transitive_closure_paths_with_mode,
 };
 use cross_file_summary::summarize_omena_query_cross_file_summary;
@@ -1453,11 +1454,14 @@ fn summarize_sass_module_graph_closure(
             .push(SassModuleGraphClosureStepMetadata::from(edge));
     }
 
-    let (closure_paths, cycle_paths) = collect_hypergraph_transitive_closure_paths_with_mode(
+    let (closure_paths, _) = collect_hypergraph_transitive_closure_paths_with_mode(
         &graph,
         &mut |style_path: &String| style_path.clone(),
         HypergraphClosureMode::RawAllPaths,
     );
+    // Cycles come from the dedicated SCC-gated elementary-circuit owner, decoupled from the
+    // closure scan so SLICE-2 can replace the all-paths enumeration without touching cycles.
+    let cycle_paths = collect_directed_graph_cycles(&graph);
     let mut closure_edges = closure_paths
         .into_iter()
         .flat_map(
