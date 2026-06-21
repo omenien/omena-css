@@ -530,13 +530,17 @@ pub fn summarize_lawvere_saturation_execution_v0(
 }
 
 pub const fn lawvere_execution_rank_hint(kind: TransformPassKind) -> u8 {
+    // Mirrors the planner promote pattern (omena-transform-passes runtime::planner
+    // execution_rank), keyed by catalog ordinal: target-lowering + static-eval
+    // (14..=25) plus the appended relative-color/@container passes (42/43) cluster
+    // together; print-css (41) is the terminal emission rank.
     match kind.ordinal() {
-        26..=28 => 10,
-        29..=39 => 20,
-        14..=24 => 30,
-        8..=13 | 25 => 40,
+        27..=29 => 10,
+        30..=40 => 20,
+        14..=25 | 42 | 43 => 30,
+        8..=13 | 26 => 40,
         1..=7 => 50,
-        40 => 60,
+        41 => 60,
         _ => 70,
     }
 }
