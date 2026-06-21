@@ -172,7 +172,7 @@ const edgeSetSha256 = createHash("sha256")
       .join("\n"),
   )
   .digest("hex");
-const EXPECTED_EDGE_SET_SHA256 = "640325c7663b9862023592378f76fb4eba43430bf563f90b29e2880118088a02";
+const EXPECTED_EDGE_SET_SHA256 = "826b4a2cce0eea0064b83e0e1668dbd982fc5d685e61ae1c7d659411d8b2ac9e";
 assert.equal(
   edgeSetSha256,
   EXPECTED_EDGE_SET_SHA256,
