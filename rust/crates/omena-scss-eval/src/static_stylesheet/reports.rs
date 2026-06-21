@@ -29,6 +29,7 @@ pub(super) fn build_static_stylesheet_evaluation_report(
     evaluated_css: String,
     native_edit_source: Vec<StaticStylesheetEvaluationEdit>,
     resolved_replacements: Vec<OmenaScssEvalResolvedReplacementV0>,
+    preserved_dynamic_interpolation_count: usize,
 ) -> Option<OmenaScssEvalStaticStylesheetEvaluationV0> {
     let value_resolution = summarize_static_stylesheet_value_resolution(style_source, dialect)?;
     build_static_stylesheet_evaluation_report_with_value_resolution(
@@ -36,9 +37,12 @@ pub(super) fn build_static_stylesheet_evaluation_report(
         dialect,
         variable_kind,
         evaluated_css,
-        native_edit_source,
-        resolved_replacements,
-        value_resolution,
+        StaticStylesheetEvaluationReportEvidence {
+            native_edit_source,
+            resolved_replacements,
+            value_resolution,
+            preserved_dynamic_interpolation_count,
+        },
     )
 }
 
@@ -47,8 +51,25 @@ pub(super) fn build_static_stylesheet_preserved_evaluation_report_if_explained(
     dialect: StyleDialect,
     variable_kind: StaticStylesheetVariableKind,
 ) -> Option<OmenaScssEvalStaticStylesheetEvaluationV0> {
+    build_static_stylesheet_preserved_evaluation_report_with_interpolation_count(
+        style_source,
+        dialect,
+        variable_kind,
+        0,
+    )
+}
+
+pub(super) fn build_static_stylesheet_preserved_evaluation_report_with_interpolation_count(
+    style_source: &str,
+    dialect: StyleDialect,
+    variable_kind: StaticStylesheetVariableKind,
+    preserved_dynamic_interpolation_count: usize,
+) -> Option<OmenaScssEvalStaticStylesheetEvaluationV0> {
     let value_resolution = summarize_static_stylesheet_value_resolution(style_source, dialect)?;
-    if value_resolution.raw_count == 0 && value_resolution.top_count == 0 {
+    if value_resolution.raw_count == 0
+        && value_resolution.top_count == 0
+        && preserved_dynamic_interpolation_count == 0
+    {
         return None;
     }
     build_static_stylesheet_evaluation_report_with_value_resolution(
@@ -56,10 +77,20 @@ pub(super) fn build_static_stylesheet_preserved_evaluation_report_if_explained(
         dialect,
         variable_kind,
         style_source.to_string(),
-        Vec::new(),
-        Vec::new(),
-        value_resolution,
+        StaticStylesheetEvaluationReportEvidence {
+            native_edit_source: Vec::new(),
+            resolved_replacements: Vec::new(),
+            value_resolution,
+            preserved_dynamic_interpolation_count,
+        },
     )
+}
+
+struct StaticStylesheetEvaluationReportEvidence {
+    native_edit_source: Vec<StaticStylesheetEvaluationEdit>,
+    resolved_replacements: Vec<OmenaScssEvalResolvedReplacementV0>,
+    value_resolution: OmenaScssEvalStaticValueResolutionReportV0,
+    preserved_dynamic_interpolation_count: usize,
 }
 
 fn build_static_stylesheet_evaluation_report_with_value_resolution(
@@ -67,9 +98,7 @@ fn build_static_stylesheet_evaluation_report_with_value_resolution(
     dialect: StyleDialect,
     variable_kind: StaticStylesheetVariableKind,
     evaluated_css: String,
-    native_edit_source: Vec<StaticStylesheetEvaluationEdit>,
-    resolved_replacements: Vec<OmenaScssEvalResolvedReplacementV0>,
-    value_resolution: OmenaScssEvalStaticValueResolutionReportV0,
+    evidence: StaticStylesheetEvaluationReportEvidence,
 ) -> Option<OmenaScssEvalStaticStylesheetEvaluationV0> {
     let oracle = summarize_omena_scss_eval_oracle(style_source, dialect, evaluated_css.as_str());
     if !oracle.all_legacy_declaration_values_preserved {
@@ -77,15 +106,16 @@ fn build_static_stylesheet_evaluation_report_with_value_resolution(
     }
     let native_replacement_legacy_reflection_count =
         count_native_replacements_reflected_in_legacy_css(
-            resolved_replacements.as_slice(),
+            evidence.resolved_replacements.as_slice(),
             evaluated_css.as_str(),
             dialect,
         );
-    let native_replacement_legacy_unreflected_count = resolved_replacements
+    let native_replacement_legacy_unreflected_count = evidence
+        .resolved_replacements
         .len()
         .saturating_sub(native_replacement_legacy_reflection_count);
     let normalized_native_edit_source =
-        normalize_static_stylesheet_evaluation_edits(style_source, native_edit_source)?;
+        normalize_static_stylesheet_evaluation_edits(style_source, evidence.native_edit_source)?;
     let native_edit_output = apply_normalized_static_stylesheet_evaluation_edits(
         style_source,
         &normalized_native_edit_source,
@@ -93,7 +123,7 @@ fn build_static_stylesheet_evaluation_report_with_value_resolution(
     let native_edit_output_matches_evaluated_css = native_edit_output == evaluated_css;
     let native_edits = build_static_stylesheet_native_edits(
         normalized_native_edit_source,
-        resolved_replacements.as_slice(),
+        evidence.resolved_replacements.as_slice(),
     );
     let native_value_edit_count = native_edits
         .iter()
@@ -108,16 +138,17 @@ fn build_static_stylesheet_evaluation_report_with_value_resolution(
         product_output_source: "nativeEditOutput",
         legacy_output_retained_as_oracle: true,
         legacy_output_consumed_until_cutover: false,
-        replacement_count: resolved_replacements.len(),
+        replacement_count: evidence.resolved_replacements.len(),
         native_replacement_legacy_reflection_count,
         native_replacement_legacy_unreflected_count,
         native_edit_count: native_edits.len(),
         native_value_edit_count,
         native_structural_edit_count,
+        preserved_dynamic_interpolation_count: evidence.preserved_dynamic_interpolation_count,
         native_edit_output_matches_evaluated_css,
-        resolved_replacements,
+        resolved_replacements: evidence.resolved_replacements,
         native_edits,
-        value_resolution,
+        value_resolution: evidence.value_resolution,
         native_edit_output,
         evaluated_css,
         oracle,

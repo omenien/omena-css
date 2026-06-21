@@ -22,6 +22,7 @@ pub struct OmenaScssEvalStaticStylesheetEvaluationV0 {
     pub native_edit_count: usize,
     pub native_value_edit_count: usize,
     pub native_structural_edit_count: usize,
+    pub preserved_dynamic_interpolation_count: usize,
     pub native_edit_output_matches_evaluated_css: bool,
     pub resolved_replacements: Vec<OmenaScssEvalResolvedReplacementV0>,
     pub native_edits: Vec<OmenaScssEvalStaticStylesheetNativeEditV0>,

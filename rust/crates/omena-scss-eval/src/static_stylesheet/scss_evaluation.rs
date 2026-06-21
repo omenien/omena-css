@@ -16,6 +16,7 @@ use super::{
     reports::{
         build_static_stylesheet_evaluation_report,
         build_static_stylesheet_preserved_evaluation_report_if_explained,
+        build_static_stylesheet_preserved_evaluation_report_with_interpolation_count,
         resolved_replacement_value,
     },
     scopes::{
@@ -26,6 +27,10 @@ use super::{
         collect_static_scss_function_declarations, collect_static_scss_mixin_declarations,
     },
     scss_function_edits::collect_static_scss_function_evaluation_edits,
+    scss_interpolation::{
+        collect_static_scss_interpolation_evaluation_edits,
+        collect_static_scss_interpolation_ranges,
+    },
     scss_loop_control_flow::{
         collect_static_scss_loop_candidate_ranges, collect_static_scss_loop_evaluation_edits,
     },
@@ -94,6 +99,7 @@ pub(super) fn derive_static_scss_stylesheet_module_evaluation(
             .collect::<Vec<_>>()
     })
     .unwrap_or_default();
+    let scss_interpolation_ranges = collect_static_scss_interpolation_ranges(tokens);
     let declarations =
         collect_static_scss_variable_declarations(style_source, dialect, variable_facts, &scopes)?
             .into_iter()
@@ -193,6 +199,10 @@ pub(super) fn derive_static_scss_stylesheet_module_evaluation(
             || static_stylesheet_position_is_inside_ranges(reference_start, &function_call_ranges)
             || static_stylesheet_position_is_inside_ranges(reference_start, &mixin_include_ranges)
             || static_stylesheet_position_is_inside_ranges(reference_start, &control_flow_ranges)
+            || static_stylesheet_position_is_inside_ranges(
+                reference_start,
+                &scss_interpolation_ranges,
+            )
         {
             continue;
         }
@@ -249,6 +259,28 @@ pub(super) fn derive_static_scss_stylesheet_module_evaluation(
         preserved_scss_evaluation_count += mixin_edits.preserved_raw_include_count;
         edits.extend(mixin_edits.edits);
     }
+    let mut interpolation_excluded_ranges = function_declaration_ranges.clone();
+    interpolation_excluded_ranges.extend(mixin_declaration_ranges.iter().copied());
+    interpolation_excluded_ranges.extend(control_flow_ranges.iter().copied());
+    for declaration in &declarations {
+        interpolation_excluded_ranges.extend(declaration.removal_spans.iter().copied());
+    }
+    let interpolation_edits = collect_static_scss_interpolation_evaluation_edits(
+        tokens,
+        &scopes,
+        &declarations,
+        &interpolation_excluded_ranges,
+    )?;
+    if interpolation_edits.preserved_dynamic_interpolation_count > 0 {
+        return build_static_stylesheet_preserved_evaluation_report_with_interpolation_count(
+            style_source,
+            dialect,
+            StaticStylesheetVariableKind::Scss,
+            interpolation_edits.preserved_dynamic_interpolation_count,
+        );
+    }
+    edits.extend(interpolation_edits.edits);
+    resolved_replacements.extend(interpolation_edits.replacements);
     resolved_replacements.extend(control_flow_edits.replacements);
     resolved_replacements.extend(loop_edits.replacements);
     edits.extend(control_flow_edits.edits);
@@ -265,5 +297,6 @@ pub(super) fn derive_static_scss_stylesheet_module_evaluation(
         evaluated_css,
         edits,
         resolved_replacements,
+        0,
     )
 }

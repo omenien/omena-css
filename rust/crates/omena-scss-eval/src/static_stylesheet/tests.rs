@@ -19,8 +19,8 @@ fn static_stylesheet_oracle_corpus_reports_native_product_output_with_legacy_ora
     );
     assert_eq!(report.legacy_output_consumed_until_cutover_count, 0);
     assert!(report.all_legacy_outputs_retained_as_oracle);
-    assert_eq!(report.fixture_count, 137);
-    assert_eq!(report.scss_fixture_count, 46);
+    assert_eq!(report.fixture_count, 139);
+    assert_eq!(report.scss_fixture_count, 48);
     assert_eq!(report.sass_fixture_count, 40);
     assert_eq!(report.less_fixture_count, 51);
     assert_eq!(report.evaluated_fixture_count, report.fixture_count);
@@ -40,6 +40,7 @@ fn static_stylesheet_oracle_corpus_reports_native_product_output_with_legacy_ora
         report.native_value_edit_count + report.native_structural_edit_count,
         report.native_edit_count
     );
+    assert!(report.native_preserved_dynamic_interpolation_count > 0);
     assert_eq!(
         report.native_edit_output_match_count,
         report.evaluated_fixture_count
@@ -66,6 +67,30 @@ fn static_stylesheet_oracle_corpus_reports_native_product_output_with_legacy_ora
         fixture.id == "scss.static-map-list-builtins"
             && fixture.dialect == "scss"
             && fixture.evaluation_available
+            && fixture.native_edit_output_matches_evaluated_css
+            && fixture.divergence_count == 0
+    }));
+    assert!(report.fixtures.iter().any(|fixture| {
+        fixture.id == "scss.static-value-interpolation"
+            && fixture.dialect == "scss"
+            && fixture.evaluation_available
+            && fixture
+                .native_edit_output
+                .as_deref()
+                .is_some_and(|output| output.contains("margin: 1px") && !output.contains("#{"))
+            && fixture.native_preserved_dynamic_interpolation_count == 0
+            && fixture.native_edit_output_matches_evaluated_css
+            && fixture.divergence_count == 0
+    }));
+    assert!(report.fixtures.iter().any(|fixture| {
+        fixture.id == "scss.preserved-dynamic-value-interpolation"
+            && fixture.dialect == "scss"
+            && fixture.evaluation_available
+            && fixture
+                .native_edit_output
+                .as_deref()
+                .is_some_and(|output| output.contains("#{$gap + 1px}"))
+            && fixture.native_preserved_dynamic_interpolation_count == 1
             && fixture.native_edit_output_matches_evaluated_css
             && fixture.divergence_count == 0
     }));
@@ -452,6 +477,51 @@ fn static_scss_evaluation_emits_abstract_replacement_values() {
     assert_eq!(report.value_resolution.resolved_count, 1);
     assert!(report.evaluated_css.contains("margin: 0px"));
     assert!(report.oracle.all_legacy_declaration_values_preserved);
+}
+
+#[test]
+fn static_scss_evaluation_resolves_declaration_value_interpolation() {
+    let report = derive_static_stylesheet_module_evaluation(
+        "$gap: 1px; .button { margin: #{$gap}; }",
+        StyleDialect::Scss,
+    );
+    assert!(report.is_some());
+    let Some(report) = report else {
+        return;
+    };
+
+    assert_eq!(report.preserved_dynamic_interpolation_count, 0);
+    assert_eq!(report.replacement_count, 1);
+    assert_eq!(report.native_edit_count, 2);
+    assert_eq!(report.native_value_edit_count, 1);
+    assert_eq!(report.native_structural_edit_count, 1);
+    assert!(report.native_edit_output.contains("margin: 1px"));
+    assert!(!report.native_edit_output.contains("#{"));
+    assert!(report.native_edit_output_matches_evaluated_css);
+    assert!(
+        report
+            .native_edits
+            .iter()
+            .any(|edit| edit.edit_kind == "valueReplacement"
+                && edit.replacement == "1px"
+                && edit.abstract_value_kind == Some("exact"))
+    );
+}
+
+#[test]
+fn static_scss_evaluation_preserves_dynamic_declaration_value_interpolation() {
+    let source = "$gap: 1px; .button { margin: #{$gap + 1px}; }";
+    let report = derive_static_stylesheet_module_evaluation(source, StyleDialect::Scss);
+    assert!(report.is_some());
+    let Some(report) = report else {
+        return;
+    };
+
+    assert_eq!(report.preserved_dynamic_interpolation_count, 1);
+    assert_eq!(report.native_edit_output, source);
+    assert_eq!(report.native_edit_count, 0);
+    assert_eq!(report.replacement_count, 0);
+    assert!(report.native_edit_output_matches_evaluated_css);
 }
 
 #[test]

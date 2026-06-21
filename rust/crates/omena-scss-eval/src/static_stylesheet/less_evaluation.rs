@@ -368,6 +368,7 @@ pub(super) fn derive_static_less_stylesheet_module_evaluation(
         evaluated_css,
         edits,
         resolved_replacements,
+        0,
     )
 }
 

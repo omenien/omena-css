@@ -18,6 +18,13 @@
       "expectedDivergence": "none"
     },
     {
+      "id": "scss.static-value-interpolation",
+      "dialect": "scss",
+      "compiler": "dart-sass",
+      "source": "$gap: 1px; .card { margin: #{$gap}; }",
+      "expectedDivergence": "none"
+    },
+    {
       "id": "scss.static-function-return",
       "dialect": "scss",
       "compiler": "dart-sass",

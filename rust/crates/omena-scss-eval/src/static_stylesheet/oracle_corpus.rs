@@ -27,6 +27,7 @@ pub struct OmenaScssEvalStaticStylesheetOracleCorpusReportV0 {
     pub native_edit_count: usize,
     pub native_value_edit_count: usize,
     pub native_structural_edit_count: usize,
+    pub native_preserved_dynamic_interpolation_count: usize,
     pub native_edit_output_match_count: usize,
     pub native_value_reference_count: usize,
     pub native_resolved_value_count: usize,
@@ -61,6 +62,7 @@ pub struct OmenaScssEvalStaticStylesheetOracleCorpusFixtureReportV0 {
     pub native_edit_count: usize,
     pub native_value_edit_count: usize,
     pub native_structural_edit_count: usize,
+    pub native_preserved_dynamic_interpolation_count: usize,
     pub native_edit_output_matches_evaluated_css: bool,
     pub native_value_reference_count: usize,
     pub native_resolved_value_count: usize,
@@ -129,6 +131,10 @@ pub fn summarize_static_stylesheet_oracle_corpus()
     let native_structural_edit_count = fixtures
         .iter()
         .map(|fixture| fixture.native_structural_edit_count)
+        .sum();
+    let native_preserved_dynamic_interpolation_count = fixtures
+        .iter()
+        .map(|fixture| fixture.native_preserved_dynamic_interpolation_count)
         .sum();
     let native_edit_output_match_count = fixtures
         .iter()
@@ -218,6 +224,7 @@ pub fn summarize_static_stylesheet_oracle_corpus()
         native_edit_count,
         native_value_edit_count,
         native_structural_edit_count,
+        native_preserved_dynamic_interpolation_count,
         native_edit_output_match_count,
         native_value_reference_count,
         native_resolved_value_count,
@@ -256,6 +263,7 @@ fn static_stylesheet_oracle_corpus_fixture_report(
             native_edit_count: 0,
             native_value_edit_count: 0,
             native_structural_edit_count: 0,
+            native_preserved_dynamic_interpolation_count: 0,
             native_edit_output_matches_evaluated_css: false,
             native_value_reference_count: 0,
             native_resolved_value_count: 0,
@@ -289,6 +297,8 @@ fn static_stylesheet_oracle_corpus_fixture_report(
         native_edit_count: evaluation.native_edit_count,
         native_value_edit_count: evaluation.native_value_edit_count,
         native_structural_edit_count: evaluation.native_structural_edit_count,
+        native_preserved_dynamic_interpolation_count: evaluation
+            .preserved_dynamic_interpolation_count,
         native_edit_output_matches_evaluated_css: evaluation
             .native_edit_output_matches_evaluated_css,
         native_value_reference_count: evaluation.value_resolution.reference_count,
@@ -312,6 +322,16 @@ fn static_stylesheet_oracle_corpus_fixtures() -> &'static [StaticStylesheetOracl
             id: "scss.variable-basic",
             dialect: StyleDialect::Scss,
             source: "$gap: 1px; .card { margin: $gap; }",
+        },
+        StaticStylesheetOracleCorpusFixtureV0 {
+            id: "scss.static-value-interpolation",
+            dialect: StyleDialect::Scss,
+            source: "$gap: 1px; .card { margin: #{$gap}; }",
+        },
+        StaticStylesheetOracleCorpusFixtureV0 {
+            id: "scss.preserved-dynamic-value-interpolation",
+            dialect: StyleDialect::Scss,
+            source: "$gap: 1px; .card { margin: #{$gap + 1px}; }",
         },
         StaticStylesheetOracleCorpusFixtureV0 {
             id: "sass.variable-basic",
