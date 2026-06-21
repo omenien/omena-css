@@ -5,6 +5,7 @@ use omena_syntax::SyntaxKind;
 
 use crate::{
     analyze_scss_control_flow_values, build_scss_control_flow_graph,
+    summarize_scss_control_flow_prune_reachability,
     value_eval::{static_scss_literal_truthiness, static_scss_typed_advisory_truthiness},
 };
 
@@ -69,8 +70,7 @@ pub(super) fn collect_static_scss_control_flow_evaluation_edits(
     let mut replacements = Vec::new();
     let mut used_function_declaration_names = BTreeSet::new();
     let mut preserved_dynamic_branch_count = 0usize;
-    let value_truthiness_by_start =
-        static_scss_control_flow_value_truthiness_by_start(source, dialect);
+    let value_prune_plan = static_scss_control_flow_value_prune_plan(source, dialect);
     let mut index = 0usize;
     while index < tokens.len() {
         let token = &tokens[index];
@@ -90,7 +90,7 @@ pub(super) fn collect_static_scss_control_flow_evaluation_edits(
             &argument_values,
             chain.start,
             context,
-            Some(&value_truthiness_by_start),
+            Some(&value_prune_plan),
         ) else {
             preserved_dynamic_branch_count += 1;
             index = chain.next_index;
@@ -362,17 +362,22 @@ fn static_scss_mixin_selected_control_flow_body(
     argument_values: &BTreeMap<String, String>,
     call_position: usize,
     context: StaticScssFunctionResolutionContext<'_>,
-    value_truthiness_by_start: Option<&BTreeMap<usize, bool>>,
+    value_prune_plan: Option<&StaticScssControlFlowValuePrunePlan>,
 ) -> Option<Option<StaticScssSelectedControlFlowBody>> {
     for branch in &chain.branches {
+        if value_prune_plan
+            .is_some_and(|plan| !plan.control_start_is_reachable(branch.control_start))
+        {
+            continue;
+        }
         let Some(condition) = branch.condition.as_ref() else {
             return Some(Some(StaticScssSelectedControlFlowBody {
                 body: branch.body.clone(),
                 body_start: branch.body_start,
             }));
         };
-        let value_truthiness = value_truthiness_by_start
-            .and_then(|truthiness_by_start| truthiness_by_start.get(&branch.control_start))
+        let value_truthiness = value_prune_plan
+            .and_then(|plan| plan.truthiness_by_start.get(&branch.control_start))
             .copied();
         let fallback_truthiness = static_scss_resolved_condition_truthiness(
             condition.as_str(),
@@ -396,6 +401,32 @@ fn static_scss_mixin_selected_control_flow_body(
         }
     }
     Some(None)
+}
+
+#[derive(Debug, Clone, Default)]
+struct StaticScssControlFlowValuePrunePlan {
+    truthiness_by_start: BTreeMap<usize, bool>,
+    reachable_control_starts: Option<BTreeSet<usize>>,
+}
+
+impl StaticScssControlFlowValuePrunePlan {
+    fn control_start_is_reachable(&self, control_start: usize) -> bool {
+        self.reachable_control_starts
+            .as_ref()
+            .is_none_or(|starts| starts.contains(&control_start))
+    }
+}
+
+fn static_scss_control_flow_value_prune_plan(
+    source: &str,
+    dialect: StyleDialect,
+) -> StaticScssControlFlowValuePrunePlan {
+    StaticScssControlFlowValuePrunePlan {
+        truthiness_by_start: static_scss_control_flow_value_truthiness_by_start(source, dialect),
+        reachable_control_starts: static_scss_control_flow_reachable_starts_after_prune(
+            source, dialect,
+        ),
+    }
 }
 
 fn static_scss_control_flow_value_truthiness_by_start(
@@ -434,6 +465,29 @@ fn static_scss_control_flow_value_truthiness_by_start(
                 .map(|source_span_start| (source_span_start, truthy))
         })
         .collect()
+}
+
+fn static_scss_control_flow_reachable_starts_after_prune(
+    source: &str,
+    dialect: StyleDialect,
+) -> Option<BTreeSet<usize>> {
+    let graph = build_scss_control_flow_graph(source, dialect)?;
+    let report = summarize_scss_control_flow_prune_reachability(source, dialect)?;
+    if !report.converged {
+        return None;
+    }
+    let reachable_block_ids = report
+        .reachable_block_ids
+        .into_iter()
+        .collect::<BTreeSet<_>>();
+    Some(
+        graph
+            .blocks
+            .iter()
+            .filter(|block| reachable_block_ids.contains(&block.id))
+            .map(|block| block.block.source_span_start)
+            .collect(),
+    )
 }
 
 fn static_scss_resolved_condition_truthiness(
@@ -608,4 +662,67 @@ fn static_scss_control_flow_replacement_is_static_css_subset(replacement: &str) 
         && !lower.contains("@for")
         && !lower.contains("@each")
         && !lower.contains("@while")
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn control_flow_selection_skips_unreachable_pruned_branches() {
+        let chain = StaticScssMixinControlFlowChain {
+            start: 0,
+            end: 30,
+            next_index: 3,
+            branches: vec![
+                StaticScssMixinControlFlowBranch {
+                    control_start: 0,
+                    condition: Some("false".to_string()),
+                    body: ".off { color: red; }".to_string(),
+                    body_start: 1,
+                },
+                StaticScssMixinControlFlowBranch {
+                    control_start: 10,
+                    condition: Some("true".to_string()),
+                    body: ".unreachable { color: blue; }".to_string(),
+                    body_start: 11,
+                },
+                StaticScssMixinControlFlowBranch {
+                    control_start: 20,
+                    condition: None,
+                    body: ".fallback { color: green; }".to_string(),
+                    body_start: 21,
+                },
+            ],
+        };
+        let plan = StaticScssControlFlowValuePrunePlan {
+            truthiness_by_start: BTreeMap::from([(0, false), (10, true)]),
+            reachable_control_starts: Some(BTreeSet::from([0, 20])),
+        };
+        let active_functions = BTreeSet::new();
+        let argument_values = BTreeMap::new();
+        let context = StaticScssFunctionResolutionContext {
+            dialect: StyleDialect::Scss,
+            declarations: &[],
+            mixin_declarations: &[],
+            scopes: &[],
+            variable_declarations: &[],
+            active_functions: &active_functions,
+        };
+
+        let selected = static_scss_mixin_selected_control_flow_body(
+            &chain,
+            &argument_values,
+            chain.start,
+            context,
+            Some(&plan),
+        );
+
+        assert!(selected.is_some());
+        let Some(Some(selected)) = selected else {
+            return;
+        };
+        assert_eq!(selected.body, ".fallback { color: green; }");
+        assert_eq!(selected.body_start, 21);
+    }
 }
