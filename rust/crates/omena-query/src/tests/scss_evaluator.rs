@@ -38,7 +38,7 @@ fn exposes_scss_control_flow_through_engine_input_boundary() -> Result<(), Strin
     assert_eq!(summary.dialect, "scss");
     assert_eq!(summary.value_type, "AbstractCssValueV0");
     assert!(summary.supported_dialect);
-    assert!(!summary.flat_css_cfg_built);
+    assert!(summary.flat_css_cfg_built);
     assert!(!summary.merged_cross_file_graph);
     assert!(summary.control_flow_block_count > 0);
     assert!(summary.control_flow_branch_block_count > 0);
@@ -930,10 +930,13 @@ fn exposes_scss_control_flow_oracle_corpus_through_query_boundary() {
         summary.supported_fixture_count
     );
     assert!(summary.prune_reachability_changed_fixture_count > 0);
-    assert_eq!(summary.flat_css_cfg_built_count, 0);
+    assert_eq!(
+        summary.flat_css_cfg_built_count,
+        summary.supported_fixture_count
+    );
     assert_eq!(summary.merged_cross_file_graph_count, 0);
     assert!(summary.all_supported_fixtures_converged);
-    assert!(summary.no_flat_css_cfg_built);
+    assert!(!summary.no_flat_css_cfg_built);
     assert!(summary.no_merged_cross_file_graph);
     assert_eq!(
         summary.corpus.product,
@@ -4547,7 +4550,7 @@ $enabled: true;
     assert_eq!(summary.dialect, "scss");
     assert_eq!(summary.value_type, "AbstractCssValueV0");
     assert!(summary.supported_dialect);
-    assert!(!summary.flat_css_cfg_built);
+    assert!(summary.flat_css_cfg_built);
     assert!(!summary.merged_cross_file_graph);
     assert!(summary.control_flow_ir.is_some());
     assert!(summary.value_analysis.is_some());
@@ -4577,13 +4580,13 @@ $enabled: true;
 
     if let Some(control_flow) = summary.control_flow_ir.as_ref() {
         assert_eq!(control_flow.node_key_type, "StableNodeKeyV0");
-        assert!(!control_flow.flat_css_cfg_built);
+        assert!(control_flow.flat_css_cfg_built);
         assert!(!control_flow.merged_cross_file_graph);
     }
 
     if let Some(value_analysis) = summary.value_analysis.as_ref() {
         assert_eq!(value_analysis.value_type, "AbstractCssValueV0");
-        assert!(!value_analysis.flat_css_cfg_built);
+        assert!(value_analysis.flat_css_cfg_built);
         assert!(!value_analysis.merged_cross_file_graph);
     }
 
@@ -4625,7 +4628,7 @@ $i: 0
     assert_eq!(summary.dialect, "sass");
     assert_eq!(summary.value_type, "AbstractCssValueV0");
     assert!(summary.supported_dialect);
-    assert!(!summary.flat_css_cfg_built);
+    assert!(summary.flat_css_cfg_built);
     assert!(!summary.merged_cross_file_graph);
     assert!(summary.control_flow_ir.is_some());
     assert!(summary.value_analysis.is_some());
@@ -4657,7 +4660,7 @@ fn exposes_sass_function_return_control_flow_through_query_boundary() {
     assert_eq!(summary.dialect, "sass");
     assert_eq!(summary.value_type, "AbstractCssValueV0");
     assert!(summary.supported_dialect);
-    assert!(!summary.flat_css_cfg_built);
+    assert!(summary.flat_css_cfg_built);
     assert!(!summary.merged_cross_file_graph);
     assert!(summary.control_flow_ir.is_some());
     assert!(summary.value_analysis.is_some());
@@ -4692,7 +4695,7 @@ fn exposes_mixin_body_control_flow_through_query_boundary() -> Result<(), serde_
     assert_eq!(scss_branch.mode, "oracleOnly");
     assert_eq!(scss_branch.value_type, "AbstractCssValueV0");
     assert!(scss_branch.supported_dialect);
-    assert!(!scss_branch.flat_css_cfg_built);
+    assert!(scss_branch.flat_css_cfg_built);
     assert!(!scss_branch.merged_cross_file_graph);
     assert_eq!(scss_branch.control_flow_branch_block_count, 2);
     assert_eq!(scss_branch.call_return_edge_count, 1);
@@ -4731,7 +4734,7 @@ fn exposes_mixin_body_control_flow_through_query_boundary() -> Result<(), serde_
     assert_eq!(sass_loop.dialect, "sass");
     assert_eq!(sass_loop.value_type, "AbstractCssValueV0");
     assert!(sass_loop.supported_dialect);
-    assert!(!sass_loop.flat_css_cfg_built);
+    assert!(sass_loop.flat_css_cfg_built);
     assert!(!sass_loop.merged_cross_file_graph);
     assert_eq!(sass_loop.control_flow_loop_block_count, 1);
     assert_eq!(sass_loop.control_flow_back_edge_count, 1);

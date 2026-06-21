@@ -1074,7 +1074,7 @@ function assertScssEvaluatorControlFlow(summary: ScssEvaluatorControlFlowSummary
   assert.equal(summary.dialect, "scss");
   assert.equal(summary.valueType, "AbstractCssValueV0");
   assert.equal(summary.supportedDialect, true);
-  assert.equal(summary.flatCssCfgBuilt, false);
+  assert.equal(summary.flatCssCfgBuilt, true);
   assert.equal(summary.mergedCrossFileGraph, false);
   assert.ok(summary.controlFlowBlockCount > 0);
   assert.ok(summary.controlFlowBranchBlockCount > 0);
@@ -1435,17 +1435,17 @@ function assertScssEvaluatorControlFlowOracleCorpus(
   assert.equal(summary.pruneReachabilityFixtureCount, summary.supportedFixtureCount);
   assert.equal(summary.pruneReachabilityFlatCssCfgBuiltCount, summary.supportedFixtureCount);
   assert.ok(summary.pruneReachabilityChangedFixtureCount > 0);
-  assert.equal(summary.flatCssCfgBuiltCount, 0);
+  assert.equal(summary.flatCssCfgBuiltCount, summary.supportedFixtureCount);
   assert.equal(summary.mergedCrossFileGraphCount, 0);
   assert.equal(summary.allSupportedFixturesConverged, true);
-  assert.equal(summary.noFlatCssCfgBuilt, true);
+  assert.equal(summary.noFlatCssCfgBuilt, false);
   assert.equal(summary.noMergedCrossFileGraph, true);
 
   const corpus = summary.corpus;
   assert.ok(corpus, "selected-query facade must expose the underlying control-flow corpus");
   assert.equal(corpus.product, "omena-scss-eval.control-flow-oracle-corpus");
   assert.equal(corpus.fixtureCount, summary.fixtureCount);
-  assert.equal(corpus.noFlatCssCfgBuilt, true);
+  assert.equal(corpus.noFlatCssCfgBuilt, false);
   assert.equal(corpus.noMergedCrossFileGraph, true);
   assert.equal(corpus.wideningWitness.widenedToTopCount, corpus.wideningWitness.nodeCount);
 
@@ -1559,7 +1559,11 @@ function assertControlFlowFixture(
 ): void {
   const fixture = fixtures.get(id);
   assert.ok(fixture, `missing SCSS control-flow oracle fixture ${id}`);
-  assert.equal(fixture.flatCssCfgBuilt, false, `fixture ${id} must not build a flat CSS CFG`);
+  assert.equal(
+    fixture.flatCssCfgBuilt,
+    fixture.supportedDialect,
+    `fixture ${id} flat CSS CFG availability must track dialect support`,
+  );
   assert.equal(
     fixture.mergedCrossFileGraph,
     false,

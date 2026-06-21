@@ -14,7 +14,7 @@ fn scss_control_flow_ir_summarizes_branch_and_loop_blocks() {
     };
 
     assert_eq!(report.mode, "oracleOnly");
-    assert!(!report.flat_css_cfg_built);
+    assert!(report.flat_css_cfg_built);
     assert!(!report.merged_cross_file_graph);
     assert_eq!(report.node_key_type, "StableNodeKeyV0");
     assert_eq!(report.block_count, 5);
@@ -51,7 +51,7 @@ fn scss_control_flow_ir_counts_else_if_as_conditional_branch() {
 }
 
 #[test]
-fn scss_control_flow_edge_ir_reencodes_linear_predecessors_without_building_flat_cfg() {
+fn scss_control_flow_edge_ir_reencodes_linear_predecessors_with_per_region_cfg() {
     let source = "$enabled: true; @if $enabled { .on { color: green; } } @else { .off { color: red; } } @while $enabled { @if $enabled { .w { color: blue; } } } @for $i from 1 through 3 { .n { order: $i; } }";
     let graph = build_scss_control_flow_graph(source, StyleDialect::Scss);
     let analysis = analyze_scss_control_flow_values(source, StyleDialect::Scss);
@@ -68,7 +68,7 @@ fn scss_control_flow_edge_ir_reencodes_linear_predecessors_without_building_flat
     assert_eq!(graph.mode, "oracleOnly");
     assert_eq!(graph.block_id_type, "u32");
     assert_eq!(graph.node_key_type, "StableNodeKeyV0");
-    assert!(!graph.flat_css_cfg_built);
+    assert!(graph.flat_css_cfg_built);
     assert!(!graph.merged_cross_file_graph);
     assert_eq!(graph.block_count, analysis.block_count);
     assert!(graph.edge_count > 0);
@@ -214,7 +214,7 @@ fn scss_control_flow_prune_reachability_preserves_unknown_conditions() {
 }
 
 #[test]
-fn control_flow_ir_does_not_build_flat_css_cfg() {
+fn control_flow_ir_rejects_unsupported_css_dialect() {
     assert!(summarize_scss_control_flow_ir(".button { color: red; }", StyleDialect::Css).is_none());
 }
 
@@ -229,7 +229,7 @@ fn control_flow_value_analysis_uses_single_abstract_css_value_domain() {
 
     assert_eq!(report.mode, "oracleOnly");
     assert_eq!(report.value_type, "AbstractCssValueV0");
-    assert!(!report.flat_css_cfg_built);
+    assert!(report.flat_css_cfg_built);
     assert!(!report.merged_cross_file_graph);
     assert!(report.converged);
     assert_eq!(report.block_count, 2);
@@ -4252,7 +4252,7 @@ fn call_return_ir_does_not_build_flat_css_cfg() {
 }
 
 #[test]
-fn control_flow_value_analysis_does_not_build_flat_css_cfg() {
+fn control_flow_value_analysis_rejects_unsupported_css_dialect() {
     assert!(
         analyze_scss_control_flow_values(".button { color: red; }", StyleDialect::Css).is_none()
     );

@@ -46,7 +46,7 @@ pub fn summarize_scss_control_flow_ir(
         mode: "oracleOnly",
         dialect: dialect_label(dialect),
         node_key_type: "StableNodeKeyV0",
-        flat_css_cfg_built: false,
+        flat_css_cfg_built: true,
         merged_cross_file_graph: false,
         block_count: blocks.len(),
         branch_block_count,

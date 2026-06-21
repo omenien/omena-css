@@ -133,7 +133,7 @@ pub fn analyze_scss_control_flow_values(
         back_edge_count,
         loop_carried_binding_count,
         widened_to_top_count: fixpoint.widened_to_top_count,
-        flat_css_cfg_built: false,
+        flat_css_cfg_built: true,
         merged_cross_file_graph: false,
         blocks,
     })

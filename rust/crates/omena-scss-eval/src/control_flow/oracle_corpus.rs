@@ -717,10 +717,13 @@ mod tests {
             report.supported_fixture_count
         );
         assert!(report.prune_reachability_changed_fixture_count > 0);
-        assert_eq!(report.flat_css_cfg_built_count, 0);
+        assert_eq!(
+            report.flat_css_cfg_built_count,
+            report.supported_fixture_count
+        );
         assert_eq!(report.merged_cross_file_graph_count, 0);
         assert!(report.all_supported_fixtures_converged);
-        assert!(report.no_flat_css_cfg_built);
+        assert!(!report.no_flat_css_cfg_built);
         assert!(report.no_merged_cross_file_graph);
 
         assert!(report.fixtures.iter().any(|fixture| {

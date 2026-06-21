@@ -60,7 +60,7 @@ pub fn build_scss_control_flow_graph(
         dialect: dialect_label(dialect),
         block_id_type: "u32",
         node_key_type: "StableNodeKeyV0",
-        flat_css_cfg_built: false,
+        flat_css_cfg_built: true,
         merged_cross_file_graph: false,
         block_count: graph_blocks.len(),
         edge_count,
