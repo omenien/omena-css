@@ -39,10 +39,45 @@
       "expectedDivergence": "none"
     },
     {
+      "id": "scss.static-mixin-include",
+      "dialect": "scss",
+      "compiler": "dart-sass",
+      "source": "@mixin tone($color, $gap: 1px) { color: $color; margin: $gap; } .button { @include tone(red, 2px); }",
+      "expectedDivergence": "none"
+    },
+    {
+      "id": "scss.static-mixin-content-block",
+      "dialect": "scss",
+      "compiler": "dart-sass",
+      "source": "@mixin tone($color) { @content; color: $color; } .button { @include tone(red) { background: white; } }",
+      "expectedDivergence": "none"
+    },
+    {
       "id": "scss.static-top-level-if",
       "dialect": "scss",
       "compiler": "dart-sass",
       "source": "$enabled: false; @if $enabled { .on { color: green; } } @else { .off { color: red; } }",
+      "expectedDivergence": "none"
+    },
+    {
+      "id": "scss.static-top-level-for",
+      "dialect": "scss",
+      "compiler": "dart-sass",
+      "source": "@for $i from 1 through 3 { .n { order: $i; } }",
+      "expectedDivergence": "none"
+    },
+    {
+      "id": "scss.static-top-level-each",
+      "dialect": "scss",
+      "compiler": "dart-sass",
+      "source": "@each $tone in red, blue { .n { color: $tone; } }",
+      "expectedDivergence": "none"
+    },
+    {
+      "id": "scss.static-top-level-while",
+      "dialect": "scss",
+      "compiler": "dart-sass",
+      "source": "$i: 0; @while $i < 3 { $i: $i + 1; .n { order: $i; } }",
       "expectedDivergence": "none"
     },
     {
