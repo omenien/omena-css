@@ -196,6 +196,18 @@ pub fn parse_color_function_value(value: &str) -> Option<String> {
 /// any non-static origin, non-`rgb`/`rgba` family, or unresolved channel so the
 /// value is preserved verbatim.
 pub fn parse_relative_color_value(value: &str) -> Option<String> {
+    // Gate on the Wave-1 recognition vocabulary: only fold a recognized
+    // relative-color form, and only the rgb/rgba channel family ([r, g, b, alpha])
+    // this layer resolves on the string domain. Other families/non-relative forms
+    // stay unfolded (preserved verbatim).
+    let trimmed = value.trim();
+    if !is_relative_color_form(trimmed) {
+        return None;
+    }
+    let function = trimmed[..trimmed.find('(')?].trim();
+    if relative_color_channel_names(function) != Some(["r", "g", "b", "alpha"].as_slice()) {
+        return None;
+    }
     let inner = parse_whole_function_value_inner(value, "rgb")
         .or_else(|| parse_whole_function_value_inner(value, "rgba"))?;
     if inner.contains(',') {
@@ -214,9 +226,9 @@ pub fn parse_relative_color_value(value: &str) -> Option<String> {
 
     let origin = parse_static_srgb_color_with_alpha(origin)?;
     let color = SrgbColor {
-        red: resolve_relative_srgb_channel(red, origin.color.red)?,
-        green: resolve_relative_srgb_channel(green, origin.color.green)?,
-        blue: resolve_relative_srgb_channel(blue, origin.color.blue)?,
+        red: resolve_relative_srgb_channel(red, &origin.color)?,
+        green: resolve_relative_srgb_channel(green, &origin.color)?,
+        blue: resolve_relative_srgb_channel(blue, &origin.color)?,
     };
     let alpha = match alpha {
         Some(alpha) => resolve_relative_alpha_channel(alpha, origin.alpha)?,
@@ -225,11 +237,14 @@ pub fn parse_relative_color_value(value: &str) -> Option<String> {
     Some(color.to_css_rgb_with_alpha(alpha))
 }
 
-// NOTE: an `r`/`g`/`b` channel reference is the origin byte verbatim; only a
-// literal sRGB component is otherwise decidable. Anything else stays unfolded.
-fn resolve_relative_srgb_channel(channel: &str, origin: u8) -> Option<u8> {
+// NOTE: a channel reference resolves to the origin's matching channel BY NAME
+// (`r`->red, `g`->green, `b`->blue), so a swap like `from c b g r` is honoured;
+// only a literal sRGB component is otherwise decidable. Anything else stays unfolded.
+fn resolve_relative_srgb_channel(channel: &str, origin: &SrgbColor) -> Option<u8> {
     match channel {
-        "r" | "g" | "b" => Some(origin),
+        "r" => Some(origin.red),
+        "g" => Some(origin.green),
+        "b" => Some(origin.blue),
         literal => parse_rgb_component_byte(literal),
     }
 }

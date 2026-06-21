@@ -628,6 +628,32 @@ mod tests {
     }
 
     #[test]
+    fn relative_color_fold_resolves_channels_by_name_via_recognition_vocab() {
+        // Identity: each slot's name matches its position.
+        assert_eq!(
+            parse_relative_color_value("rgb(from red r g b)").as_deref(),
+            Some("rgb(255 0 0)")
+        );
+        // Swap: a `b g r` slot order must honour the channel NAME (origin #112233).
+        assert_eq!(
+            parse_relative_color_value("rgb(from #112233 b g r)").as_deref(),
+            Some("rgb(51 34 17)")
+        );
+        // Literal channels.
+        assert_eq!(
+            parse_relative_color_value("rgb(from red 0 255 0)").as_deref(),
+            Some("rgb(0 255 0)")
+        );
+        assert!(parse_relative_color_value("rgb(from #0000ff r g b / 0.5)").is_some());
+        // Gated by the Wave-1 recognition vocabulary: non-recognized / non-rgb /
+        // non-static forms stay unfolded (preserved verbatim).
+        assert!(parse_relative_color_value("hsl(from red h s l)").is_none());
+        assert!(parse_relative_color_value("color(from red srgb r g b)").is_none());
+        assert!(parse_relative_color_value("rgb(from var(--x) r g b)").is_none());
+        assert!(parse_relative_color_value("rgb(255 0 0)").is_none());
+    }
+
+    #[test]
     fn canonical_equality_uses_raw_identity_without_typed_transfer_for_unknowns() {
         assert!(css_values_canonically_equal("var(--x)", "var(--x)"));
         assert!(!css_values_canonically_equal("var(--x)", "0"));
