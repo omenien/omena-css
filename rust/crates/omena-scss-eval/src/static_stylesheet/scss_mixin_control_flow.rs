@@ -173,6 +173,7 @@ fn render_static_scss_mixin_control_flow_body_with_fuel(
     let lexed = lex(body, dialect);
     let tokens = lexed.tokens();
     let mut edits = Vec::new();
+    let value_prune_plan = static_scss_control_flow_value_prune_plan(body, dialect);
     let mut index = 0usize;
     while index < tokens.len() {
         let token = &tokens[index];
@@ -186,7 +187,7 @@ fn render_static_scss_mixin_control_flow_body_with_fuel(
             argument_values,
             call_position,
             context,
-            None,
+            Some(&value_prune_plan),
         )?
         .map(|selected| selected.body)
         .unwrap_or_default();
