@@ -189,6 +189,58 @@ pub fn parse_color_function_value(value: &str) -> Option<String> {
     Some(color.to_css_rgb_with_alpha(alpha))
 }
 
+/// Lowers a static relative color `rgb(from <static-color> <r> <g> <b> [/ <a>])`
+/// (CSS Color 5) to its absolute sRGB form. Each channel resolves either to the
+/// origin color's matching channel (`r`/`g`/`b`) or to a literal sRGB component;
+/// alpha resolves to the origin alpha (`alpha`) or a literal. Returns `None` for
+/// any non-static origin, non-`rgb`/`rgba` family, or unresolved channel so the
+/// value is preserved verbatim.
+pub fn parse_relative_color_value(value: &str) -> Option<String> {
+    let inner = parse_whole_function_value_inner(value, "rgb")
+        .or_else(|| parse_whole_function_value_inner(value, "rgba"))?;
+    if inner.contains(',') {
+        return None;
+    }
+    let parts = inner.split_whitespace().collect::<Vec<_>>();
+    let (origin, red, green, blue, alpha) = match parts.as_slice() {
+        [from, origin, red, green, blue] if from.eq_ignore_ascii_case("from") => {
+            (*origin, *red, *green, *blue, None)
+        }
+        [from, origin, red, green, blue, "/", alpha] if from.eq_ignore_ascii_case("from") => {
+            (*origin, *red, *green, *blue, Some(*alpha))
+        }
+        _ => return None,
+    };
+
+    let origin = parse_static_srgb_color_with_alpha(origin)?;
+    let color = SrgbColor {
+        red: resolve_relative_srgb_channel(red, origin.color.red)?,
+        green: resolve_relative_srgb_channel(green, origin.color.green)?,
+        blue: resolve_relative_srgb_channel(blue, origin.color.blue)?,
+    };
+    let alpha = match alpha {
+        Some(alpha) => resolve_relative_alpha_channel(alpha, origin.alpha)?,
+        None => origin.alpha,
+    };
+    Some(color.to_css_rgb_with_alpha(alpha))
+}
+
+// NOTE: an `r`/`g`/`b` channel reference is the origin byte verbatim; only a
+// literal sRGB component is otherwise decidable. Anything else stays unfolded.
+fn resolve_relative_srgb_channel(channel: &str, origin: u8) -> Option<u8> {
+    match channel {
+        "r" | "g" | "b" => Some(origin),
+        literal => parse_rgb_component_byte(literal),
+    }
+}
+
+fn resolve_relative_alpha_channel(channel: &str, origin: Option<f64>) -> Option<Option<f64>> {
+    match channel {
+        "alpha" => Some(origin),
+        literal => non_opaque_alpha_value(literal),
+    }
+}
+
 pub fn parse_static_rgb_function_color_with_alpha(value: &str) -> Option<StaticSrgbColorWithAlpha> {
     let inner = parse_whole_function_value_inner(value, "rgb")
         .or_else(|| parse_whole_function_value_inner(value, "rgba"))?;

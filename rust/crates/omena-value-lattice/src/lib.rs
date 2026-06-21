@@ -14,10 +14,11 @@ pub mod number;
 pub use color::{
     StaticSrgbColorWithAlpha, can_shorten_hex_pairs, compress_hex_color_token_text,
     is_relative_color_form, parse_basic_named_static_color_with_alpha, parse_color_function_value,
-    parse_color_mix_value, parse_oklab_oklch_value, parse_static_hsl_function_color_with_alpha,
-    parse_static_hwb_function_color_with_alpha, parse_static_rgb_function_color_with_alpha,
-    parse_static_srgb_color, parse_static_srgb_color_with_alpha, relative_color_channel_names,
-    shorten_hex_pairs, shortest_static_srgb_color_with_alpha_text,
+    parse_color_mix_value, parse_oklab_oklch_value, parse_relative_color_value,
+    parse_static_hsl_function_color_with_alpha, parse_static_hwb_function_color_with_alpha,
+    parse_static_rgb_function_color_with_alpha, parse_static_srgb_color,
+    parse_static_srgb_color_with_alpha, relative_color_channel_names, shorten_hex_pairs,
+    shortest_static_srgb_color_with_alpha_text,
 };
 pub use functions::{
     StaticCssFunctionParser, StaticCssFunctionSpec, matching_function_call_end,

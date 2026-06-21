@@ -80,6 +80,7 @@ pub struct TargetFeatureSupportV0 {
     pub supports_color_mix: bool,
     pub supports_oklch_oklab: bool,
     pub supports_color_function: bool,
+    pub supports_relative_color: bool,
     pub supports_logical_properties: bool,
     pub supports_css_nesting: bool,
     pub supports_css_scope: bool,
@@ -313,6 +314,9 @@ pub fn plan_target_transforms(
     if !support.supports_color_function {
         required_passes.push(TransformPassKind::ColorFunctionLowering);
     }
+    if !support.supports_relative_color {
+        required_passes.push(TransformPassKind::RelativeColorLowering);
+    }
     if !support.supports_logical_properties {
         push_required_or_blocked(
             TransformPassKind::LogicalToPhysical,
@@ -376,6 +380,7 @@ pub const fn modern_feature_support() -> TargetFeatureSupportV0 {
         supports_color_mix: true,
         supports_oklch_oklab: true,
         supports_color_function: true,
+        supports_relative_color: true,
         supports_logical_properties: true,
         supports_css_nesting: true,
         supports_css_scope: true,
@@ -390,6 +395,7 @@ pub const fn legacy_webview_feature_support() -> TargetFeatureSupportV0 {
         supports_color_mix: false,
         supports_oklch_oklab: false,
         supports_color_function: false,
+        supports_relative_color: false,
         supports_logical_properties: false,
         supports_css_nesting: false,
         supports_css_scope: false,
@@ -519,6 +525,13 @@ fn feature_support_for_resolved_targets(distribs: &[Distrib]) -> TargetFeatureSu
             "oklch_oklab",
         ),
         supports_color_function: target_set_is_subset_of_browser_threshold_table(
+            distribs,
+            "color_function",
+        ),
+        // NOTE: relative color `rgb(from …)` ships no earlier than `color()`, so
+        // the color_function threshold is a sound conservative fallback gate
+        // (it never wrongly skips lowering) without a new threshold table.
+        supports_relative_color: target_set_is_subset_of_browser_threshold_table(
             distribs,
             "color_function",
         ),
@@ -1408,6 +1421,7 @@ mod tests {
             supports_color_mix: false,
             supports_oklch_oklab: true,
             supports_color_function: true,
+            supports_relative_color: true,
             supports_logical_properties: true,
             supports_css_nesting: false,
             supports_css_scope: false,

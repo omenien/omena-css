@@ -29,7 +29,7 @@ use crate::registry::{
     evaluate_dead_media_branch_rules, evaluate_static_media_rules, evaluate_static_supports_rules,
     flatten_css_layers, flatten_css_scopes, inline_css_imports, lower_css_color_function,
     lower_css_color_mix, lower_css_light_dark, lower_css_logical_to_physical,
-    lower_css_oklab_oklch, merge_adjacent_same_block_css_selectors,
+    lower_css_oklab_oklch, lower_relative_color, merge_adjacent_same_block_css_selectors,
     merge_adjacent_same_selector_css_rules, normalize_css_string_quotes, normalize_css_units,
     normalize_css_whitespace, reachable_class_names_with_composes_exports, reduce_css_calc,
     remove_empty_css_rules, remove_stale_css_vendor_prefixes, resolve_css_module_composes,
@@ -371,6 +371,14 @@ fn execute_transform_passes_on_source_with_active_lex_cache(
                     input_byte_len,
                     lower_css_color_function(&pass_input_css, dialect),
                     "lowered static color(...) references with static channels"
+                )
+            }
+            Some(TransformPassKind::RelativeColorLowering) => {
+                apply_mutation_pass!(
+                    pass_id,
+                    input_byte_len,
+                    lower_relative_color(&pass_input_css, dialect),
+                    "lowered static rgb(from ...) relative-color references to absolute srgb"
                 )
             }
             Some(TransformPassKind::LogicalToPhysical) => {

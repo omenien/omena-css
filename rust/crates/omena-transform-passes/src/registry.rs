@@ -11,6 +11,7 @@ use crate::domains::{
     color_lowering::{
         lower_css_color_function_with_lexer, lower_css_color_mix_with_lexer,
         lower_css_light_dark_with_lexer, lower_css_oklab_oklch_with_lexer,
+        lower_relative_color_with_lexer,
     },
     css_modules_classes::{
         local_css_module_composes_resolutions_with_lexer,
@@ -150,6 +151,10 @@ pub(crate) fn lower_css_oklab_oklch(source: &str, dialect: StyleDialect) -> (Str
 
 pub(crate) fn lower_css_color_function(source: &str, dialect: StyleDialect) -> (String, usize) {
     lower_css_color_function_with_lexer(source, dialect)
+}
+
+pub(crate) fn lower_relative_color(source: &str, dialect: StyleDialect) -> (String, usize) {
+    lower_relative_color_with_lexer(source, dialect)
 }
 
 pub(crate) fn lower_css_logical_to_physical(

@@ -261,6 +261,45 @@ fn execution_runtime_lowers_static_srgb_color_function_declarations() {
 }
 
 #[test]
+fn execution_runtime_lowers_static_relative_color_declarations() {
+    let source = r#".card { color: rgb(from red r g b); background-color: rgb(from #0000ff r g b / .5); outline-color: rgb(from red 0 255 0); fill: rgb(from var(--brand) r g b); border-color: rgb(from currentColor r g b); }"#;
+    let execution = execute_transform_passes_on_source(
+        source,
+        &[
+            TransformPassKind::RelativeColorLowering,
+            TransformPassKind::PrintCss,
+        ],
+    );
+
+    // Only the decidable static relative colors fold; `var(--brand)` and
+    // `currentColor` origins stay byte-identical (preserved verbatim).
+    assert_eq!(execution.mutation_count, 3);
+    assert_eq!(
+        execution.output_css,
+        r#".card { color: rgb(255 0 0); background-color: rgb(0 0 255 / .5); outline-color: rgb(0 255 0); fill: rgb(from var(--brand) r g b); border-color: rgb(from currentColor r g b); }"#
+    );
+    assert_eq!(
+        execution.executed_pass_ids,
+        vec!["relative-color-lowering", "print-css"]
+    );
+}
+
+#[test]
+fn execution_runtime_preserves_non_static_relative_color_verbatim() {
+    let source = r#".x { color: rgb(from var(--x) r g b); }"#;
+    let execution = execute_transform_passes_on_source(
+        source,
+        &[
+            TransformPassKind::RelativeColorLowering,
+            TransformPassKind::PrintCss,
+        ],
+    );
+
+    assert_eq!(execution.mutation_count, 0);
+    assert_eq!(execution.output_css, source);
+}
+
+#[test]
 fn execution_runtime_lowers_logical_properties_only_with_static_direction() {
     let source = r#".ltr { direction: ltr; margin-inline-start: 1px; padding-inline-end: 2px; inline-size: 10rem; margin-inline: 1px 2px; padding-inline: calc(1rem + 1px) 3px; border-inline-color: red blue; margin-block: 4px 5px; padding-block-start: 6px; border-block-color: green yellow; border-block: 1px solid blue; inset-block-end: 7px; border-start-start-radius: 1px; border-start-end-radius: 2px; border-end-start-radius: 3px; border-end-end-radius: 4px; } .unknown { margin-inline-start: 1px; } .rtl { direction: rtl; writing-mode: horizontal-tb; inset-inline-start: 3px; border-inline-end-color: red; inset-inline: 4px 5px; border-inline: 1px solid red; border-inline-start: 2px dashed blue; border-start-start-radius: 5px; border-start-end-radius: 6px; border-end-start-radius: 7px; border-end-end-radius: 8px; }"#;
     let execution = execute_transform_passes_on_source(

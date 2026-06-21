@@ -22,6 +22,7 @@ fn exposes_transform_plan_facade_from_source() {
         supports_color_mix: true,
         supports_oklch_oklab: true,
         supports_color_function: true,
+        supports_relative_color: true,
         supports_logical_properties: true,
         supports_css_nesting: false,
         supports_css_scope: true,
@@ -428,6 +429,7 @@ fn exposes_transform_plan_egg_witnesses_from_source_execution() {
         supports_color_mix: true,
         supports_oklch_oklab: true,
         supports_color_function: true,
+        supports_relative_color: true,
         supports_logical_properties: true,
         supports_css_nesting: true,
         supports_css_scope: true,
@@ -494,6 +496,7 @@ fn exposes_target_stale_prefix_removal_egg_witnesses_from_source_execution() {
             supports_color_mix: true,
             supports_oklch_oklab: true,
             supports_color_function: true,
+            supports_relative_color: true,
             supports_logical_properties: true,
             supports_css_nesting: true,
             supports_css_scope: true,
@@ -806,7 +809,12 @@ fn exposes_transform_execution_cascade_proof_obligations_from_source() {
 fn lists_transform_pass_summaries_from_query() {
     let passes = list_omena_query_transform_pass_summaries();
 
-    assert_eq!(passes.len(), 41);
+    assert_eq!(passes.len(), 42);
     assert!(passes.iter().any(|pass| pass.id == "whitespace-strip"));
+    assert!(
+        passes
+            .iter()
+            .any(|pass| pass.id == "relative-color-lowering")
+    );
     assert!(passes.iter().any(|pass| pass.id == "print-css"));
 }

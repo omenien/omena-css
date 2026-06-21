@@ -430,6 +430,10 @@ fn default_transform_target_label() -> String {
     "explicit-feature-matrix".to_string()
 }
 
+fn default_true() -> bool {
+    true
+}
+
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct TransformPlanTargetFeatureSupportInputV0 {
@@ -438,6 +442,10 @@ struct TransformPlanTargetFeatureSupportInputV0 {
     supports_color_mix: bool,
     supports_oklch_oklab: bool,
     supports_color_function: bool,
+    // NOTE: defaulted so existing payloads omitting it map to "supported"
+    // (no spurious relative-color lowering) and still deserialize.
+    #[serde(default = "default_true")]
+    supports_relative_color: bool,
     supports_logical_properties: bool,
     supports_css_nesting: bool,
     supports_css_scope: bool,
@@ -452,6 +460,7 @@ impl Default for TransformPlanTargetFeatureSupportInputV0 {
             supports_color_mix: true,
             supports_oklch_oklab: true,
             supports_color_function: true,
+            supports_relative_color: true,
             supports_logical_properties: true,
             supports_css_nesting: true,
             supports_css_scope: true,
@@ -468,6 +477,7 @@ impl From<TransformPlanTargetFeatureSupportInputV0> for OmenaQueryTargetFeatureS
             supports_color_mix: input.supports_color_mix,
             supports_oklch_oklab: input.supports_oklch_oklab,
             supports_color_function: input.supports_color_function,
+            supports_relative_color: input.supports_relative_color,
             supports_logical_properties: input.supports_logical_properties,
             supports_css_nesting: input.supports_css_nesting,
             supports_css_scope: input.supports_css_scope,

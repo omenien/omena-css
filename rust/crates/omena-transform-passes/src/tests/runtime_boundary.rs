@@ -50,6 +50,7 @@ fn registry_covers_full_transform_catalog() {
             "color-mix-lowering",
             "oklch-oklab-lowering",
             "color-function-lowering",
+            "relative-color-lowering",
             "logical-to-physical",
             "nesting-unwrap",
             "scope-flatten",

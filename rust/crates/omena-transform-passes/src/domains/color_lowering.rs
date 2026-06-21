@@ -1,5 +1,6 @@
 use omena_parser::StyleDialect;
 use omena_syntax::SyntaxKind;
+use omena_value_lattice::parse_relative_color_value;
 
 use crate::runtime::lex_cache::lex_cached as lex;
 
@@ -139,6 +140,21 @@ pub(crate) fn lower_css_color_function_with_lexer(
         source,
         dialect,
         &[("color", parse_color_function_value)],
+        StaticColorLoweringTraversal::SkipBlock,
+    )
+}
+
+pub(crate) fn lower_relative_color_with_lexer(
+    source: &str,
+    dialect: StyleDialect,
+) -> (String, usize) {
+    lower_static_color_function_references_with_lexer(
+        source,
+        dialect,
+        &[
+            ("rgb", parse_relative_color_value),
+            ("rgba", parse_relative_color_value),
+        ],
         StaticColorLoweringTraversal::SkipBlock,
     )
 }

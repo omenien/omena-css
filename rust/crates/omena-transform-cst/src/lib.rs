@@ -44,6 +44,7 @@ pub enum TransformPassKind {
     ColorMixLowering,
     OklchOklabLowering,
     ColorFunctionLowering,
+    RelativeColorLowering,
     LogicalToPhysical,
     NestingUnwrap,
     ScopeFlatten,
@@ -68,7 +69,7 @@ pub enum TransformPassKind {
     PrintCss,
 }
 
-pub const TRANSFORM_PASS_CATALOG_LEN: usize = 41;
+pub const TRANSFORM_PASS_CATALOG_LEN: usize = 42;
 
 pub const fn all_transform_pass_kinds() -> [TransformPassKind; TRANSFORM_PASS_CATALOG_LEN] {
     [
@@ -91,6 +92,7 @@ pub const fn all_transform_pass_kinds() -> [TransformPassKind; TRANSFORM_PASS_CA
         TransformPassKind::ColorMixLowering,
         TransformPassKind::OklchOklabLowering,
         TransformPassKind::ColorFunctionLowering,
+        TransformPassKind::RelativeColorLowering,
         TransformPassKind::LogicalToPhysical,
         TransformPassKind::NestingUnwrap,
         TransformPassKind::ScopeFlatten,
@@ -160,6 +162,7 @@ impl TransformPassKind {
             Self::DeadSupportsBranchRemoval => 39,
             Self::DesignTokenRouting => 40,
             Self::PrintCss => 41,
+            Self::RelativeColorLowering => 42,
         }
     }
 
@@ -188,6 +191,7 @@ impl TransformPassKind {
             Self::ColorMixLowering => "color-mix lowering",
             Self::OklchOklabLowering => "oklch/oklab lowering",
             Self::ColorFunctionLowering => "color() lowering",
+            Self::RelativeColorLowering => "relative color lowering",
             Self::LogicalToPhysical => "logical to physical",
             Self::NestingUnwrap => "nesting unwrap",
             Self::ScopeFlatten => "@scope flatten",
@@ -234,6 +238,7 @@ impl TransformPassKind {
             Self::ColorMixLowering => "color-mix-lowering",
             Self::OklchOklabLowering => "oklch-oklab-lowering",
             Self::ColorFunctionLowering => "color-function-lowering",
+            Self::RelativeColorLowering => "relative-color-lowering",
             Self::LogicalToPhysical => "logical-to-physical",
             Self::NestingUnwrap => "nesting-unwrap",
             Self::ScopeFlatten => "scope-flatten",
@@ -323,6 +328,7 @@ impl TransformPassKind {
             | Self::ColorMixLowering
             | Self::OklchOklabLowering
             | Self::ColorFunctionLowering
+            | Self::RelativeColorLowering
             | Self::LogicalToPhysical
             | Self::NestingUnwrap => TransformPassReadModel::TargetData,
             Self::ShorthandCombining
@@ -901,6 +907,9 @@ pub const fn cascade_safe_obligation(kind: TransformPassKind) -> &'static str {
         TransformPassKind::ColorFunctionLowering => {
             "must preserve color semantics within the configured target fallback precision"
         }
+        TransformPassKind::RelativeColorLowering => {
+            "must preserve color semantics within the configured target fallback precision"
+        }
         TransformPassKind::LogicalToPhysical => {
             "must run only under explicit directionality options"
         }
@@ -1263,6 +1272,11 @@ pub fn default_transform_dag_edges() -> Vec<TransformDagEdgeV0> {
             reason: "prefixing runs after target lowering produces final declarations",
         },
         TransformDagEdgeV0 {
+            from: "relative-color-lowering",
+            to: "vendor-prefixing",
+            reason: "prefixing runs after target lowering produces final declarations",
+        },
+        TransformDagEdgeV0 {
             from: "logical-to-physical",
             to: "vendor-prefixing",
             reason: "prefixing runs after target lowering produces final declarations",
@@ -1333,7 +1347,7 @@ mod tests {
         assert_eq!(boundary.pass_catalog_count, TRANSFORM_PASS_CATALOG_LEN);
         assert!(boundary.full_pass_catalog_covered);
         assert_eq!(boundary.semantic_aware_pass_count, 14);
-        assert_eq!(boundary.commodity_pass_count, 26);
+        assert_eq!(boundary.commodity_pass_count, 27);
         assert_eq!(boundary.emission_pass_count, 1);
         assert!(boundary.all_passes_declare_cascade_obligation);
         assert!(boundary.all_passes_have_compile_time_cascade_witness);
