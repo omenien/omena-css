@@ -383,42 +383,130 @@ mod tests {
     }
 
     #[test]
-    fn incremental_splice_matches_full_relex_for_hazard_cases() {
-        let cases = [
-            (
-                ".a { color: red; margin: 0px; }",
-                ".a { color: blue; margin: 0px; }",
-            ),
-            (
-                ".a { content: \"open\"; color: red; }",
-                ".a { content: \"opened\"; color: red; }",
-            ),
-            (
-                ".한글 { color: red; margin: 0px; }",
-                ".한글 { color: blue; margin: 0px; }",
-            ),
-            (
-                ".a { color: red; }\n.b { color: blue; }",
-                ".a { color: green; }\n.b { color: navy; }",
-            ),
-            (".a { --x: 1px; }", ".a { --xy: 1px; }"),
-            (".a { color: red; }", ".a { /*c*/ color: red; }"),
-        ];
+    fn lex_splice_equivalence_property_covers_generated_edits() {
+        for (input, output) in splice_equivalence_cases() {
+            assert_splice_equivalent_to_full_relex(&input, &output, StyleDialect::Css);
+        }
+    }
 
-        for (input, output) in cases {
-            let input_tokens = materialize_lex_tokens(input, StyleDialect::Css);
-            let mutation_spans = derive_transform_mutation_spans(input, output);
-            let incremental = spliced_tokens_for_output(
-                input,
-                output,
-                StyleDialect::Css,
-                input_tokens.as_slice(),
-                mutation_spans.as_slice(),
-            )
-            .unwrap_or_default();
-            let full = materialize_lex_tokens(output, StyleDialect::Css);
+    fn assert_splice_equivalent_to_full_relex(input: &str, output: &str, dialect: StyleDialect) {
+        let input_tokens = materialize_lex_tokens(input, dialect);
+        let mutation_spans = derive_transform_mutation_spans(input, output);
+        let incremental = spliced_tokens_for_output(
+            input,
+            output,
+            dialect,
+            input_tokens.as_slice(),
+            mutation_spans.as_slice(),
+        );
+        let full = materialize_lex_tokens(output, dialect);
 
+        assert!(
+            incremental.is_some(),
+            "splice equivalence case fell back before producing tokens\ninput: {input}\noutput: {output}",
+        );
+        if let Some(incremental) = incremental {
             assert_eq!(incremental, full, "input: {input}\noutput: {output}");
         }
+    }
+
+    fn splice_equivalence_cases() -> Vec<(String, String)> {
+        let mut cases = vec![
+            (
+                ".a { color: red; margin: 0px; }".to_string(),
+                ".a { color: blue; margin: 0px; }".to_string(),
+            ),
+            (
+                ".a { content: \"open\"; color: red; }".to_string(),
+                ".a { content: \"opened\"; color: red; }".to_string(),
+            ),
+            (
+                ".한글 { color: red; margin: 0px; }".to_string(),
+                ".한글 { color: blue; margin: 0px; }".to_string(),
+            ),
+            (
+                ".a { color: red; }\n.b { color: blue; }".to_string(),
+                ".a { color: green; }\n.b { color: navy; }".to_string(),
+            ),
+            (
+                ".a { --x: 1px; }".to_string(),
+                ".a { --xy: 1px; }".to_string(),
+            ),
+            (
+                ".a { color: red; }".to_string(),
+                ".a { /*c*/ color: red; }".to_string(),
+            ),
+        ];
+
+        let seed = concat!(
+            ".a { color: red; margin: 0px; padding: 1px; }\n",
+            ".b { content: \"open\"; --x: 1px; }\n",
+            ".한글 { transform: translateX(1px); }\n",
+        );
+        for (from, to) in [
+            ("red", "blue"),
+            ("0px", "10px"),
+            ("1px", "2px"),
+            ("\"open\"", "\"opened\""),
+            ("--x", "--xy"),
+            ("translateX(1px)", "translateX(2px)"),
+        ] {
+            push_replacement_case(&mut cases, seed, from, to);
+        }
+
+        let mut cumulative = seed.to_string();
+        for (from, to) in [
+            ("red", "green"),
+            ("0px", "4px"),
+            ("padding: 1px", "padding: calc(1px + 1px)"),
+            ("\"open\"", "\"열림\""),
+            ("translateX(1px)", "translateX(3px) rotate(1deg)"),
+        ] {
+            let Some(next) = replace_once(&cumulative, from, to) else {
+                assert!(
+                    cumulative.contains(from),
+                    "missing generated edit fixture token: {from}",
+                );
+                continue;
+            };
+            cases.push((cumulative, next.clone()));
+            cumulative = next;
+        }
+
+        push_replacement_case(
+            &mut cases,
+            ".a { color: red; }\n.b { color: blue; }",
+            "red; }\n.b { color",
+            "green; }\n.b { background-color",
+        );
+        push_replacement_case(
+            &mut cases,
+            ".a { color: red; margin: 0px; padding: 1px; }",
+            "red; margin: 0px",
+            "blue; margin: 10px",
+        );
+
+        cases
+    }
+
+    fn push_replacement_case(cases: &mut Vec<(String, String)>, input: &str, from: &str, to: &str) {
+        let Some(output) = replace_once(input, from, to) else {
+            assert!(
+                input.contains(from),
+                "missing generated edit fixture token: {from}"
+            );
+            return;
+        };
+        cases.push((input.to_string(), output));
+    }
+
+    fn replace_once(input: &str, from: &str, to: &str) -> Option<String> {
+        let start = input.find(from)?;
+        let end = start + from.len();
+        let mut output = String::with_capacity(input.len() + to.len().saturating_sub(from.len()));
+        output.push_str(&input[..start]);
+        output.push_str(to);
+        output.push_str(&input[end..]);
+        Some(output)
     }
 }
