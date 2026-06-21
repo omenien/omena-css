@@ -35,6 +35,8 @@ pub(super) fn collect_static_less_mixin_evaluation_edits(
         return Some(StaticLessMixinEvaluationEdits {
             edits: Vec::new(),
             preserved_non_rendering_call_count: 0,
+            used_mixin_names: BTreeSet::new(),
+            preserved_mixin_names: BTreeSet::new(),
         });
     }
 
@@ -51,6 +53,11 @@ pub(super) fn collect_static_less_mixin_evaluation_edits(
     let mut edits = Vec::new();
     let mut preserved_non_rendering_call_count = 0usize;
     let mut used_declaration_names = BTreeSet::new();
+    let mut preserved_mixin_names = BTreeSet::new();
+    // NOTE: unsupported-suffix ranges are a COUNT metric only — they can overlap a call that
+    // actually renders via the namespace path, so they are NOT a reliable preserved-name source.
+    // Genuine preservation is captured authoritatively by the PreservedNoOutput render outcome
+    // below (and a truly-unrenderable suffix call surfaces there). See StaticLessMixinEvaluationEdits.
     preserved_non_rendering_call_count += unsupported_suffix_ranges
         .iter()
         .filter(|(start, _)| {
@@ -90,23 +97,25 @@ pub(super) fn collect_static_less_mixin_evaluation_edits(
             }
             StaticLessMixinCallRenderOutcome::PreservedNoOutput => {
                 preserved_non_rendering_call_count += 1;
+                // A preserved (non-resolving) call still needs its matching declaration. Key on
+                // the SAME name the deletion is keyed on: the namespace name for a namespace
+                // call (declarations are deleted under the namespace), the inner name otherwise.
+                preserved_mixin_names.insert(match call.namespace.as_ref() {
+                    Some(namespace) => canonical_static_less_mixin_name(namespace.as_str()),
+                    None => canonical_static_less_mixin_name(call.name.as_str()),
+                });
             }
         }
     }
 
-    for declaration in declarations.iter().filter(|declaration| {
-        used_declaration_names
-            .contains(&canonical_static_less_mixin_name(declaration.name.as_str()))
-    }) {
-        edits.push(StaticStylesheetEvaluationEdit {
-            start: declaration.span_start,
-            end: declaration.span_end,
-            replacement: String::new(),
-        });
-    }
+    // Declaration deletion is performed once, by the orchestrator (less_evaluation.rs), over the
+    // UNION of used/preserved names from all passes — a same-name sibling overload kept alive by a
+    // preserved call in any pass must not be deleted here. See StaticLessMixinEvaluationEdits.
     Some(StaticLessMixinEvaluationEdits {
         edits,
         preserved_non_rendering_call_count,
+        used_mixin_names: used_declaration_names,
+        preserved_mixin_names,
     })
 }
 
@@ -127,6 +136,8 @@ pub(super) fn collect_static_less_mixin_accessor_evaluation_edits(
         return Some(StaticLessMixinAccessorEvaluationEdits {
             edits: Vec::new(),
             preserved_raw_accessor_count: 0,
+            used_mixin_names: BTreeSet::new(),
+            preserved_mixin_names: BTreeSet::new(),
         });
     }
 
@@ -143,6 +154,7 @@ pub(super) fn collect_static_less_mixin_accessor_evaluation_edits(
     let mut edits = Vec::new();
     let mut preserved_raw_accessor_count = 0usize;
     let mut used_declaration_names = BTreeSet::new();
+    let mut preserved_mixin_names = BTreeSet::new();
     for accessor in accessors.iter().filter(|accessor| {
         !static_stylesheet_position_is_inside_ranges(accessor.start, declaration_ranges)
             && !static_stylesheet_position_is_inside_ranges(accessor.start, excluded_ranges)
@@ -163,22 +175,18 @@ pub(super) fn collect_static_less_mixin_accessor_evaluation_edits(
             }
             StaticLessMixinAccessorCallRenderOutcome::PreservedRaw => {
                 preserved_raw_accessor_count += 1;
+                preserved_mixin_names
+                    .insert(canonical_static_less_mixin_name(accessor.name.as_str()));
             }
         }
     }
 
-    for declaration in declarations.iter().filter(|declaration| {
-        used_declaration_names
-            .contains(&canonical_static_less_mixin_name(declaration.name.as_str()))
-    }) {
-        edits.push(StaticStylesheetEvaluationEdit {
-            start: declaration.span_start,
-            end: declaration.span_end,
-            replacement: String::new(),
-        });
-    }
+    // Declaration deletion is performed once, by the orchestrator (less_evaluation.rs); see
+    // StaticLessMixinEvaluationEdits.
     Some(StaticLessMixinAccessorEvaluationEdits {
         edits,
         preserved_raw_accessor_count,
+        used_mixin_names: used_declaration_names,
+        preserved_mixin_names,
     })
 }

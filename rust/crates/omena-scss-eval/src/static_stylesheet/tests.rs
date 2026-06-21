@@ -1387,6 +1387,62 @@ fn static_less_evaluation_does_not_expand_variadic_tokens_in_calls() {
 }
 
 #[test]
+fn static_less_evaluation_keeps_mixin_declaration_needed_by_preserved_call() {
+    // `.button` renders the 1-arg `.tone(@c)`, statically CONSUMING the bare name `.tone`;
+    // `.card`'s 0-arg `.tone()` is PRESERVED (ambiguous `default()` guards) yet still needs the
+    // 0-arg `.tone()` declarations. Dead-code elimination keys on the bare mixin name, so without
+    // the preserved-reference guard the rendered `.button` call would delete EVERY `.tone`
+    // declaration — including the guarded 0-arg overloads the preserved `.card` call still
+    // references — dropping live CSS / leaving a dangling mixin call.
+    let report = derive_static_stylesheet_module_evaluation(
+        ".tone(@c) { color: @c; } .tone() when (default()) { color: red; } .tone() when not(default()) { color: blue; } .button { .tone(green); } .card { .tone(); }",
+        StyleDialect::Less,
+    );
+    assert!(report.is_some());
+    let Some(report) = report else {
+        return;
+    };
+
+    assert!(report.evaluated_css.contains("color: green"));
+    // the preserved call must remain verbatim ...
+    assert!(report.evaluated_css.contains(".card { .tone(); }"));
+    // ... and the guarded declarations it needs must NOT be deleted (the regression guard).
+    assert!(report.evaluated_css.contains(".tone() when (default())"));
+    assert!(report.evaluated_css.contains(".tone() when not(default())"));
+    assert!(report.oracle.all_legacy_declaration_values_preserved);
+}
+
+#[test]
+fn static_less_evaluation_keeps_mixin_declaration_needed_by_preserved_call_across_detached_ruleset()
+{
+    // The 0-arg `.rounded()` is rendered INSIDE a detached-ruleset body (the detached-ruleset pass
+    // consumes the bare name `.rounded`); a top-level `.card` call to the 1-arg `.rounded(@r)`
+    // overloads is PRESERVED (ambiguous `default()` guards). Deletion is performed once by the
+    // orchestrator over the union of all passes, so the detached-ruleset pass must NOT delete a
+    // `.rounded` declaration the top-level preserved call still needs. Guards the three-loop union.
+    let report = derive_static_stylesheet_module_evaluation(
+        ".rounded() { border-radius: 2px; } .rounded(@r) when (default()) { border-radius: @r; } .rounded(@r) when not(default()) { border-radius: @r; } @rules: { .rounded(); }; .button { @rules(); } .card { .rounded(8px); }",
+        StyleDialect::Less,
+    );
+    assert!(report.is_some());
+    let Some(report) = report else {
+        return;
+    };
+
+    // the detached ruleset rendered the 0-arg overload ...
+    assert!(report.evaluated_css.contains("border-radius: 2px"));
+    // ... the preserved top-level call remains ...
+    assert!(report.evaluated_css.contains(".card { .rounded(8px); }"));
+    // ... and the 1-arg overload declarations it needs survive the detached-ruleset pass deletion.
+    assert!(
+        report
+            .evaluated_css
+            .contains(".rounded(@r) when (default())")
+    );
+    assert!(report.oracle.all_legacy_declaration_values_preserved);
+}
+
+#[test]
 fn static_less_evaluation_expands_important_mixin_calls() {
     let report = derive_static_stylesheet_module_evaluation(
         ".tone(@color, @gap: 1px) { color: @color; margin: @gap; } .button { .tone(red, 2px) !important; }",

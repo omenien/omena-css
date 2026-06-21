@@ -6,7 +6,7 @@ use super::{
     StaticLessDetachedRulesetCallRenderOutcome, StaticLessDetachedRulesetDeclaration,
     StaticLessDetachedRulesetEvaluationEdits, StaticLessMixinDeclaration,
     StaticStylesheetEvaluationEdit, StaticStylesheetPropertyDeclaration, StaticStylesheetScope,
-    StaticStylesheetVariableDeclaration, canonical_static_less_mixin_name,
+    StaticStylesheetVariableDeclaration,
     less_detached_ruleset_render::{
         render_static_less_detached_ruleset_accessor, render_static_less_detached_ruleset_body,
     },
@@ -86,19 +86,18 @@ pub(super) fn collect_static_less_detached_ruleset_evaluation_edits(
             replacement: String::new(),
         });
     }
-    for declaration in mixin_declarations.iter().filter(|declaration| {
-        used_mixin_declaration_names
-            .contains(&canonical_static_less_mixin_name(declaration.name.as_str()))
-    }) {
-        edits.push(StaticStylesheetEvaluationEdit {
-            start: declaration.span_start,
-            end: declaration.span_end,
-            replacement: String::new(),
-        });
-    }
+    // Mixin-declaration deletion is performed once by the orchestrator (less_evaluation.rs) over
+    // the union of used/preserved names from all passes; forward this pass's used mixin names.
+    // DEFERRED (documented, narrower than the fixed bug): a mixin call textually inside a
+    // *preserved* detached-ruleset body is not enumerated, so preserved_mixin_names is empty for
+    // this pass — this matches pre-fix behavior for that nested case and does not regress it; the
+    // reproducible top-level/overload bug is closed because a top-level preserved sibling call
+    // still contributes to the orchestrator's preserved set.
     Some(StaticLessDetachedRulesetEvaluationEdits {
         edits,
         preserved_raw_call_count,
+        used_mixin_names: used_mixin_declaration_names,
+        preserved_mixin_names: BTreeSet::new(),
     })
 }
 

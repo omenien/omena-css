@@ -154,11 +154,19 @@ pub(super) struct StaticScssFunctionEvaluationEdits {
 pub(super) struct StaticLessMixinEvaluationEdits {
     pub(super) edits: Vec<StaticStylesheetEvaluationEdit>,
     pub(super) preserved_non_rendering_call_count: usize,
+    // Canonical mixin names statically CONSUMED by this pass (rendered/known-no-output).
+    pub(super) used_mixin_names: BTreeSet<String>,
+    // Canonical mixin names a non-resolving (preserved) reference in this pass still needs;
+    // the orchestrator must NOT delete declarations for these (avoids dropping live CSS for a
+    // sibling overload the preserved call still references).
+    pub(super) preserved_mixin_names: BTreeSet<String>,
 }
 
 pub(super) struct StaticLessDetachedRulesetEvaluationEdits {
     pub(super) edits: Vec<StaticStylesheetEvaluationEdit>,
     pub(super) preserved_raw_call_count: usize,
+    pub(super) used_mixin_names: BTreeSet<String>,
+    pub(super) preserved_mixin_names: BTreeSet<String>,
 }
 
 pub(super) struct StaticLessDetachedRulesetAccessorEvaluationEdits {
@@ -170,6 +178,8 @@ pub(super) struct StaticLessDetachedRulesetAccessorEvaluationEdits {
 pub(super) struct StaticLessMixinAccessorEvaluationEdits {
     pub(super) edits: Vec<StaticStylesheetEvaluationEdit>,
     pub(super) preserved_raw_accessor_count: usize,
+    pub(super) used_mixin_names: BTreeSet<String>,
+    pub(super) preserved_mixin_names: BTreeSet<String>,
 }
 
 pub(super) enum StaticLessBodyPropertyValueOutcome {

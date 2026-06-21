@@ -4,6 +4,7 @@ use omena_parser::{ParsedVariableFact, ParsedVariableFactKind, StyleDialect, lex
 use omena_syntax::SyntaxKind;
 
 use super::{
+    canonical_static_less_mixin_name,
     declarations::{
         collect_static_less_property_declarations, collect_static_less_variable_declarations,
         static_less_mixin_declaration_ranges_from_declarations,
@@ -301,6 +302,10 @@ pub(super) fn derive_static_less_stylesheet_module_evaluation(
         &property_declarations,
     )?;
     preserved_less_evaluation_count += detached_ruleset_evaluation_edits.preserved_raw_call_count;
+    let mut union_used_mixin_names = BTreeSet::new();
+    let mut union_preserved_mixin_names = BTreeSet::new();
+    union_used_mixin_names.extend(detached_ruleset_evaluation_edits.used_mixin_names);
+    union_preserved_mixin_names.extend(detached_ruleset_evaluation_edits.preserved_mixin_names);
     edits.extend(detached_ruleset_evaluation_edits.edits);
     edits.extend(detached_ruleset_accessor_evaluation_edits.edits);
     let accessor_evaluation_edits = collect_static_less_mixin_accessor_evaluation_edits(
@@ -315,6 +320,8 @@ pub(super) fn derive_static_less_stylesheet_module_evaluation(
         &detached_ruleset_ranges,
     )?;
     preserved_less_evaluation_count += accessor_evaluation_edits.preserved_raw_accessor_count;
+    union_used_mixin_names.extend(accessor_evaluation_edits.used_mixin_names);
+    union_preserved_mixin_names.extend(accessor_evaluation_edits.preserved_mixin_names);
     edits.extend(accessor_evaluation_edits.edits);
     if let Some(mixin_evaluation_edits) = collect_static_less_mixin_evaluation_edits(
         style_source,
@@ -329,7 +336,25 @@ pub(super) fn derive_static_less_stylesheet_module_evaluation(
     ) {
         preserved_less_evaluation_count +=
             mixin_evaluation_edits.preserved_non_rendering_call_count;
+        union_used_mixin_names.extend(mixin_evaluation_edits.used_mixin_names);
+        union_preserved_mixin_names.extend(mixin_evaluation_edits.preserved_mixin_names);
         edits.extend(mixin_evaluation_edits.edits);
+    }
+    // Single mixin-declaration deletion authority (decouple-to-orchestrator): delete a top-level
+    // mixin declaration only when its canonical name is statically CONSUMED by some pass AND no
+    // preserved (non-resolving) reference in any pass still needs it. This closes the name-keyed
+    // overload bug where a rendered call to one overload deleted a sibling overload that a
+    // preserved call still referenced (dropping live CSS). Correctness-monotone: any preserved
+    // reference to a name keeps all same-name declarations.
+    for declaration in mixin_declarations.iter().filter(|declaration| {
+        let name = canonical_static_less_mixin_name(declaration.name.as_str());
+        union_used_mixin_names.contains(&name) && !union_preserved_mixin_names.contains(&name)
+    }) {
+        edits.push(StaticStylesheetEvaluationEdit {
+            start: declaration.span_start,
+            end: declaration.span_end,
+            replacement: String::new(),
+        });
     }
 
     let evaluated_css = apply_static_stylesheet_evaluation_edits(style_source, edits.clone())?;
