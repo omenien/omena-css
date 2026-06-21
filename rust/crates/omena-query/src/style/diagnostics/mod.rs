@@ -78,8 +78,10 @@ pub use source_usage::{
     summarize_omena_query_unused_selector_style_diagnostics,
     summarize_omena_query_unused_selector_style_diagnostics_with_path_mappings,
 };
-use substrate::collect_omena_query_workspace_diagnostics_substrate;
 pub(super) use substrate::collect_sass_module_graph_reachable_style_paths;
+use substrate::{
+    OmenaQueryWorkspaceDiagnosticsSubstrateV0, collect_omena_query_workspace_diagnostics_substrate,
+};
 pub use types::OmenaQueryExternalModuleModeV0;
 
 pub fn summarize_omena_query_style_diagnostics_for_file(
@@ -323,6 +325,44 @@ pub fn summarize_omena_query_style_diagnostics_for_workspace_file_with_external_
     resolution_inputs: &OmenaQueryStyleResolutionInputsV0,
     suppression_mode: OmenaQueryDiagnosticSuppressionModeV0,
 ) -> Option<OmenaQueryStyleDiagnosticsForFileV0> {
+    // RFC 0009 Pillar B stage-2 (#65): build the one shared target-independent substrate, then run
+    // the per-target diagnostics over it. The salsa layer memoizes the substrate via a
+    // workspace-keyed tracked query and calls `_with_substrate` directly; every other caller routes
+    // through here so the substrate build stays identical to the pre-decomposition path.
+    let substrate = collect_omena_query_workspace_diagnostics_substrate(
+        style_sources,
+        package_manifests,
+        external_sifs,
+        resolution_inputs.bundler_path_mappings.as_slice(),
+        resolution_inputs.tsconfig_path_mappings.as_slice(),
+    );
+    summarize_omena_query_style_diagnostics_for_workspace_file_with_external_mode_and_sifs_and_resolution_inputs_and_suppression_mode_with_substrate(
+        target_style_path,
+        style_sources,
+        source_documents,
+        package_manifests,
+        classname_transform,
+        external_mode,
+        external_sifs,
+        resolution_inputs,
+        suppression_mode,
+        &substrate,
+    )
+}
+
+#[allow(clippy::too_many_arguments)]
+pub(in crate::style) fn summarize_omena_query_style_diagnostics_for_workspace_file_with_external_mode_and_sifs_and_resolution_inputs_and_suppression_mode_with_substrate(
+    target_style_path: &str,
+    style_sources: &[OmenaQueryStyleSourceInputV0],
+    source_documents: &[OmenaQuerySourceDocumentInputV0],
+    package_manifests: &[OmenaQueryStylePackageManifestV0],
+    classname_transform: Option<&str>,
+    external_mode: OmenaQueryExternalModuleModeV0,
+    external_sifs: &[OmenaQueryExternalSifInputV0],
+    resolution_inputs: &OmenaQueryStyleResolutionInputsV0,
+    suppression_mode: OmenaQueryDiagnosticSuppressionModeV0,
+    substrate: &OmenaQueryWorkspaceDiagnosticsSubstrateV0,
+) -> Option<OmenaQueryStyleDiagnosticsForFileV0> {
     let target = style_sources
         .iter()
         .find(|source| source.style_path == target_style_path)?;
@@ -346,21 +386,11 @@ pub fn summarize_omena_query_style_diagnostics_for_workspace_file_with_external_
     summary
         .diagnostics
         .retain(|diagnostic| diagnostic.code != "missingExtendTarget");
-    // RFC 0009 Pillar B stage-2 (#65): one shared substrate per monolith call. Every
-    // workspace sub-pass below receives the precomputed (entries, resolution-variant)
-    // slot it would otherwise have rebuilt from the same corpus itself.
-    let substrate = collect_omena_query_workspace_diagnostics_substrate(
-        style_sources,
-        package_manifests,
-        external_sifs,
-        resolution_inputs.bundler_path_mappings.as_slice(),
-        resolution_inputs.tsconfig_path_mappings.as_slice(),
-    );
     summary.diagnostics.extend(
         summarize_omena_query_missing_extend_target_diagnostics_for_workspace(
             target_style_path,
             style_sources,
-            &substrate,
+            substrate,
         ),
     );
     summary.diagnostics.extend(
@@ -388,7 +418,7 @@ pub fn summarize_omena_query_style_diagnostics_for_workspace_file_with_external_
         summarize_omena_query_sass_use_cycle_diagnostics_for_workspace(
             target_style_path,
             style_sources,
-            &substrate,
+            substrate,
         ),
     );
     summary.diagnostics.extend(
@@ -398,14 +428,14 @@ pub fn summarize_omena_query_style_diagnostics_for_workspace_file_with_external_
             style_sources,
             source_documents,
             package_manifests,
-            &substrate,
+            substrate,
         ),
     );
     summary.diagnostics.extend(
         summarize_omena_query_unresolved_sass_import_diagnostics_for_workspace(
             target_style_path,
             style_sources,
-            &substrate,
+            substrate,
         ),
     );
     summary.diagnostics.extend(
@@ -432,14 +462,14 @@ pub fn summarize_omena_query_style_diagnostics_for_workspace_file_with_external_
         summarize_omena_query_replica_ensemble_inconsistency_diagnostics_for_workspace(
             target_style_path,
             style_sources,
-            &substrate,
+            substrate,
         ),
     );
     attach_omena_query_module_graph_property_value_narrowing_for_workspace(
         target_style_path,
         &mut summary,
         style_sources,
-        &substrate,
+        substrate,
     );
     summary.diagnostic_count = summary.diagnostics.len();
     push_omena_query_ready_surface(
@@ -493,7 +523,7 @@ pub fn summarize_omena_query_style_diagnostics_for_workspace_file_with_external_
         OmenaQueryExternalModuleModeV0::Auto => target_has_auto_external_boundary_edges(
             target_style_path,
             external_sif_context,
-            &substrate,
+            substrate,
         ),
     };
     if external_boundary_enabled {
@@ -509,7 +539,7 @@ pub fn summarize_omena_query_style_diagnostics_for_workspace_file_with_external_
                 resolution_inputs.bundler_path_mappings.as_slice(),
                 resolution_inputs.tsconfig_path_mappings.as_slice(),
                 external_sifs,
-                &substrate,
+                substrate,
             );
         if strictness.suppresses_top_any_external_symbols() {
             summary.diagnostics.retain(|diagnostic| {
@@ -538,7 +568,7 @@ pub fn summarize_omena_query_style_diagnostics_for_workspace_file_with_external_
                     resolution_inputs.tsconfig_path_mappings.as_slice(),
                     external_sifs,
                     strictness,
-                    &substrate,
+                    substrate,
                 ));
         }
         push_omena_query_ready_surface(
