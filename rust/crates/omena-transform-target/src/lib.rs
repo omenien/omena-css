@@ -96,6 +96,7 @@ pub struct TargetTransformOptionsV0 {
     pub allow_layer_flatten: bool,
     pub enable_supports_static_eval: bool,
     pub enable_media_static_eval: bool,
+    pub enable_container_static_eval: bool,
     pub drop_dark_mode_media_queries: bool,
 }
 
@@ -350,6 +351,9 @@ pub fn plan_target_transforms(
     if options.enable_media_static_eval {
         required_passes.push(TransformPassKind::MediaStaticEval);
     }
+    if options.enable_container_static_eval {
+        required_passes.push(TransformPassKind::ContainerStaticEval);
+    }
     if options.drop_dark_mode_media_queries {
         required_passes.push(TransformPassKind::DeadMediaBranchRemoval);
     }
@@ -410,6 +414,7 @@ pub const fn conservative_target_options() -> TargetTransformOptionsV0 {
         allow_layer_flatten: false,
         enable_supports_static_eval: false,
         enable_media_static_eval: false,
+        enable_container_static_eval: false,
         drop_dark_mode_media_queries: false,
     }
 }
@@ -1281,6 +1286,7 @@ mod tests {
             allow_layer_flatten: true,
             enable_supports_static_eval: false,
             enable_media_static_eval: false,
+            enable_container_static_eval: false,
             drop_dark_mode_media_queries: false,
         };
 
@@ -1433,6 +1439,7 @@ mod tests {
             allow_layer_flatten: true,
             enable_supports_static_eval: true,
             enable_media_static_eval: true,
+            enable_container_static_eval: false,
             drop_dark_mode_media_queries: false,
         };
 
@@ -1510,6 +1517,7 @@ mod tests {
             allow_layer_flatten: true,
             enable_supports_static_eval: true,
             enable_media_static_eval: true,
+            enable_container_static_eval: false,
             drop_dark_mode_media_queries: false,
         };
         let plan = plan_target_transforms_from_query("legacy-webview", options);
@@ -1562,6 +1570,7 @@ mod tests {
             allow_layer_flatten: true,
             enable_supports_static_eval: false,
             enable_media_static_eval: false,
+            enable_container_static_eval: false,
             drop_dark_mode_media_queries: false,
         };
         let plan = plan_target_transforms_from_query("ie 11", options);

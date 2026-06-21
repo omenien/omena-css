@@ -34,6 +34,7 @@ fn exposes_transform_plan_facade_from_source() {
         allow_layer_flatten: false,
         enable_supports_static_eval: false,
         enable_media_static_eval: false,
+        enable_container_static_eval: false,
         drop_dark_mode_media_queries: false,
     };
 
@@ -441,6 +442,7 @@ fn exposes_transform_plan_egg_witnesses_from_source_execution() {
         allow_layer_flatten: false,
         enable_supports_static_eval: false,
         enable_media_static_eval: false,
+        enable_container_static_eval: false,
         drop_dark_mode_media_queries: false,
     };
 
@@ -508,6 +510,7 @@ fn exposes_target_stale_prefix_removal_egg_witnesses_from_source_execution() {
             allow_layer_flatten: false,
             enable_supports_static_eval: false,
             enable_media_static_eval: false,
+            enable_container_static_eval: false,
             drop_dark_mode_media_queries: false,
         },
         default_omena_query_transform_print_options(),
@@ -546,6 +549,7 @@ fn exposes_transform_plan_custom_property_fixed_point() {
             allow_layer_flatten: false,
             enable_supports_static_eval: false,
             enable_media_static_eval: false,
+            enable_container_static_eval: false,
             drop_dark_mode_media_queries: false,
         },
         default_omena_query_transform_print_options(),
@@ -674,6 +678,7 @@ fn exposes_transform_plan_facade_from_browserslist_target_query() {
         allow_layer_flatten: true,
         enable_supports_static_eval: false,
         enable_media_static_eval: false,
+        enable_container_static_eval: false,
         drop_dark_mode_media_queries: false,
     };
 
@@ -809,12 +814,17 @@ fn exposes_transform_execution_cascade_proof_obligations_from_source() {
 fn lists_transform_pass_summaries_from_query() {
     let passes = list_omena_query_transform_pass_summaries();
 
-    assert_eq!(passes.len(), 42);
+    assert_eq!(passes.len(), 43);
     assert!(passes.iter().any(|pass| pass.id == "whitespace-strip"));
     assert!(
         passes
             .iter()
             .any(|pass| pass.id == "relative-color-lowering")
+    );
+    assert!(
+        passes
+            .iter()
+            .any(|pass| pass.id == "container-static-eval")
     );
     assert!(passes.iter().any(|pass| pass.id == "print-css"));
 }

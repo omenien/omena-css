@@ -6,6 +6,7 @@ use omena_cascade::{
 };
 use omena_parser::StyleDialect;
 use omena_syntax::SyntaxKind;
+use omena_value_lattice::is_container_query_length_unit;
 
 use crate::runtime::lex_cache::lex_cached as lex;
 
@@ -868,4 +869,412 @@ fn media_keyword_at(text: &str, index: usize, keyword: &str) -> bool {
 
 fn is_media_ident_char(ch: char) -> bool {
     ch.is_ascii_alphanumeric() || ch == '-'
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum StaticContainerEvalVerdict {
+    AlwaysFalse,
+    Unknown,
+}
+
+/// Removes `@container` blocks whose size condition is provably unsatisfiable.
+///
+/// Unlike `@media` (the viewport always exists), an `@container` rule only
+/// matches when a matching container ancestor exists, which cannot be proven
+/// statically — so the vacuous-true unwrap direction is intentionally NOT taken
+/// (it would apply the body unconditionally when no container ancestor exists).
+/// Only the impossible→remove direction is sound: a never-matching rule is dead
+/// regardless of container context.
+pub(crate) fn evaluate_static_container_rules_with_lexer(
+    source: &str,
+    dialect: StyleDialect,
+) -> (String, usize) {
+    let mut output = source.to_string();
+    let mut mutation_count = 0;
+
+    loop {
+        let (next_output, next_mutation_count) =
+            evaluate_static_container_rules_once_with_lexer(&output, dialect);
+        if next_mutation_count == 0 {
+            return (output, mutation_count);
+        }
+        output = next_output;
+        mutation_count += next_mutation_count;
+    }
+}
+
+fn evaluate_static_container_rules_once_with_lexer(
+    source: &str,
+    dialect: StyleDialect,
+) -> (String, usize) {
+    let lexed = lex(source, dialect);
+    let tokens = lexed.tokens();
+    let mut replacements = Vec::new();
+    let mut index = 0;
+
+    while index < tokens.len() {
+        match tokens[index].kind {
+            SyntaxKind::AtKeyword if tokens[index].text.eq_ignore_ascii_case("@container") => {
+                let Some((block_start_index, block_end_index)) =
+                    at_rule_block_indexes(tokens, index)
+                else {
+                    index += 1;
+                    continue;
+                };
+                let prelude = source
+                    [token_end(&tokens[index])..token_start(&tokens[block_start_index])]
+                    .trim();
+                let condition = strip_static_container_name(prelude);
+                if matches!(
+                    evaluate_static_container_condition(condition),
+                    StaticContainerEvalVerdict::AlwaysFalse
+                ) {
+                    replacements.push((
+                        token_start(&tokens[index]),
+                        token_end(&tokens[block_end_index]),
+                        String::new(),
+                    ));
+                    index = block_end_index + 1;
+                    continue;
+                }
+                index += 1;
+                continue;
+            }
+            _ => {}
+        }
+        index += 1;
+    }
+
+    if replacements.is_empty() {
+        return (source.to_string(), 0);
+    }
+
+    let mut output = String::with_capacity(source.len());
+    let mut cursor = 0;
+    for (start, end, replacement) in &replacements {
+        if *start > cursor {
+            output.push_str(&source[cursor..*start]);
+        }
+        output.push_str(replacement);
+        cursor = *end;
+    }
+    if cursor < source.len() {
+        output.push_str(&source[cursor..]);
+    }
+
+    (output, replacements.len())
+}
+
+fn evaluate_static_container_condition(condition: &str) -> StaticContainerEvalVerdict {
+    if static_container_condition_is_always_false(condition) {
+        StaticContainerEvalVerdict::AlwaysFalse
+    } else {
+        StaticContainerEvalVerdict::Unknown
+    }
+}
+
+/// Strips the optional `<container-name>` ident preceding a `<container-condition>`.
+///
+/// `@container sidebar (min-width: 0)` → `(min-width: 0)`; a prelude that already
+/// starts with a query (`(`, `style(`, `not …`) has no name and is returned as-is.
+fn strip_static_container_name(prelude: &str) -> &str {
+    let prelude = prelude.trim();
+    if prelude.starts_with('(') {
+        return prelude;
+    }
+    let head_len = prelude
+        .char_indices()
+        .find(|(_, ch)| !(ch.is_ascii_alphanumeric() || *ch == '-' || *ch == '_'))
+        .map_or(prelude.len(), |(offset, _)| offset);
+    let (head, rest) = prelude.split_at(head_len);
+    if rest.starts_with('(') {
+        return prelude;
+    }
+    let rest = rest.trim_start();
+    if rest.is_empty() || matches!(head.to_ascii_lowercase().as_str(), "not" | "and" | "or") {
+        return prelude;
+    }
+    rest
+}
+
+/// Proves a `@container` size condition can never be satisfied (so the block is dead).
+///
+/// Sound subset only: conjunctions/single size bounds over a non-negativity floor
+/// (a queried size is always ≥ 0). Any `cq*` unit (depends on an outer container),
+/// `style()` query, disjunction, negation, or unrecognized feature → not provably
+/// false → kept verbatim.
+fn static_container_condition_is_always_false(condition: &str) -> bool {
+    if parse_static_media_disjunction(condition).is_some()
+        || parse_static_media_negation(condition).is_some()
+    {
+        return false;
+    }
+
+    let parts = parse_static_media_conjunction(condition).unwrap_or_else(|| vec![condition]);
+
+    let mut width = StaticMediaRangeConstraint::default();
+    let mut height = StaticMediaRangeConstraint::default();
+    let mut inline_size = StaticMediaRangeConstraint::default();
+    let mut block_size = StaticMediaRangeConstraint::default();
+
+    for part in &parts {
+        if let Some((dimension, bound)) = parse_static_container_size_equality(part) {
+            if is_container_query_length_unit(&bound.unit) {
+                return false;
+            }
+            let Some(constraint) = static_container_constraint_for(
+                dimension,
+                &mut width,
+                &mut height,
+                &mut inline_size,
+                &mut block_size,
+            ) else {
+                continue;
+            };
+            constraint.apply(StaticMediaRangeBoundKind::Lower, bound.clone());
+            constraint.apply(StaticMediaRangeBoundKind::Upper, bound);
+            continue;
+        }
+
+        let Some((dimension, kind, bound)) = parse_static_container_size_bound(part) else {
+            continue;
+        };
+        if is_container_query_length_unit(&bound.unit) {
+            return false;
+        }
+        let Some(constraint) = static_container_constraint_for(
+            dimension,
+            &mut width,
+            &mut height,
+            &mut inline_size,
+            &mut block_size,
+        ) else {
+            continue;
+        };
+        constraint.apply(kind, bound);
+    }
+
+    [&width, &height, &inline_size, &block_size]
+        .into_iter()
+        .any(static_container_size_constraint_is_impossible)
+}
+
+fn static_container_constraint_for<'a>(
+    dimension: &str,
+    width: &'a mut StaticMediaRangeConstraint,
+    height: &'a mut StaticMediaRangeConstraint,
+    inline_size: &'a mut StaticMediaRangeConstraint,
+    block_size: &'a mut StaticMediaRangeConstraint,
+) -> Option<&'a mut StaticMediaRangeConstraint> {
+    match dimension {
+        "width" => Some(width),
+        "height" => Some(height),
+        "inline-size" => Some(inline_size),
+        "block-size" => Some(block_size),
+        _ => None,
+    }
+}
+
+/// A size constraint is impossible when its bounds contradict, or when an upper
+/// bound falls below the non-negativity floor (`max-*: <neg>`, `*-size < 0`).
+fn static_container_size_constraint_is_impossible(constraint: &StaticMediaRangeConstraint) -> bool {
+    if constraint.is_impossible() {
+        return true;
+    }
+    matches!(
+        &constraint.upper,
+        Some(upper) if upper.value < 0.0 || (upper.value == 0.0 && !upper.inclusive)
+    )
+}
+
+fn static_container_dimension_name(text: &str) -> Option<&'static str> {
+    match text.trim().to_ascii_lowercase().as_str() {
+        "width" => Some("width"),
+        "height" => Some("height"),
+        "inline-size" => Some("inline-size"),
+        "block-size" => Some("block-size"),
+        _ => None,
+    }
+}
+
+fn static_container_named_bound(name: &str) -> Option<(&'static str, StaticMediaRangeBoundKind)> {
+    match name {
+        "min-width" => Some(("width", StaticMediaRangeBoundKind::Lower)),
+        "max-width" => Some(("width", StaticMediaRangeBoundKind::Upper)),
+        "min-height" => Some(("height", StaticMediaRangeBoundKind::Lower)),
+        "max-height" => Some(("height", StaticMediaRangeBoundKind::Upper)),
+        "min-inline-size" => Some(("inline-size", StaticMediaRangeBoundKind::Lower)),
+        "max-inline-size" => Some(("inline-size", StaticMediaRangeBoundKind::Upper)),
+        "min-block-size" => Some(("block-size", StaticMediaRangeBoundKind::Lower)),
+        "max-block-size" => Some(("block-size", StaticMediaRangeBoundKind::Upper)),
+        _ => None,
+    }
+}
+
+fn parse_static_container_size_bound(
+    condition: &str,
+) -> Option<(
+    &'static str,
+    StaticMediaRangeBoundKind,
+    StaticMediaRangeBound,
+)> {
+    let condition = strip_wrapping_media_condition_parentheses(condition).unwrap_or(condition);
+    if let Some((name, value)) = condition.split_once(':') {
+        let (dimension, kind) =
+            static_container_named_bound(name.trim().to_ascii_lowercase().as_str())?;
+        return parse_static_media_range_bound_value(value.trim(), true)
+            .map(|bound| (dimension, kind, bound));
+    }
+
+    for (operator, kind, inclusive) in [
+        (">=", StaticMediaRangeBoundKind::Lower, true),
+        ("<=", StaticMediaRangeBoundKind::Upper, true),
+        (">", StaticMediaRangeBoundKind::Lower, false),
+        ("<", StaticMediaRangeBoundKind::Upper, false),
+    ] {
+        let Some((left, right)) = condition.split_once(operator) else {
+            continue;
+        };
+        if let Some(dimension) = static_container_dimension_name(left) {
+            return parse_static_media_range_bound_value(right.trim(), inclusive)
+                .map(|bound| (dimension, kind, bound));
+        }
+        if let Some(dimension) = static_container_dimension_name(right) {
+            let reverse_kind = match kind {
+                StaticMediaRangeBoundKind::Lower => StaticMediaRangeBoundKind::Upper,
+                StaticMediaRangeBoundKind::Upper => StaticMediaRangeBoundKind::Lower,
+            };
+            return parse_static_media_range_bound_value(left.trim(), inclusive)
+                .map(|bound| (dimension, reverse_kind, bound));
+        }
+    }
+
+    None
+}
+
+fn parse_static_container_size_equality(
+    condition: &str,
+) -> Option<(&'static str, StaticMediaRangeBound)> {
+    let condition = strip_wrapping_media_condition_parentheses(condition).unwrap_or(condition);
+    if condition.contains("<=")
+        || condition.contains(">=")
+        || condition.contains('<')
+        || condition.contains('>')
+    {
+        return None;
+    }
+    let (left, right) = condition.split_once('=')?;
+    if right.contains('=') {
+        return None;
+    }
+    if let Some(dimension) = static_container_dimension_name(left) {
+        return parse_static_media_range_bound_value(right.trim(), true)
+            .map(|bound| (dimension, bound));
+    }
+    if let Some(dimension) = static_container_dimension_name(right) {
+        return parse_static_media_range_bound_value(left.trim(), true)
+            .map(|bound| (dimension, bound));
+    }
+    None
+}
+
+#[cfg(test)]
+mod container_static_eval_tests {
+    use super::{evaluate_static_container_rules_with_lexer, strip_static_container_name};
+    use omena_parser::StyleDialect;
+
+    fn eval(source: &str) -> (String, usize) {
+        evaluate_static_container_rules_with_lexer(source, StyleDialect::Css)
+    }
+
+    #[test]
+    fn removes_impossible_negative_max_width_block() {
+        let (output, mutations) = eval("@container (max-width: -1px) { .a { color: red } }");
+        assert_eq!(output, "");
+        assert_eq!(mutations, 1);
+    }
+
+    #[test]
+    fn removes_impossible_conjunction_block() {
+        let (output, mutations) =
+            eval("@container (min-width: 500px) and (max-width: 400px) { .a { color: red } }");
+        assert_eq!(output, "");
+        assert_eq!(mutations, 1);
+    }
+
+    #[test]
+    fn removes_impossible_block_behind_container_name() {
+        let (output, mutations) = eval("@container sidebar (max-width: -1px) { .a { color: red } }");
+        assert_eq!(output, "");
+        assert_eq!(mutations, 1);
+    }
+
+    #[test]
+    fn keeps_vacuously_true_min_width_zero_verbatim() {
+        // min-width:0 is always satisfiable but unwrapping is unsound for @container
+        // (no proven container ancestor), so the block must be byte-identical.
+        let source = "@container (min-width: 0px) { .a { color: red } }";
+        let (output, mutations) = eval(source);
+        assert_eq!(output, source);
+        assert_eq!(mutations, 0);
+    }
+
+    #[test]
+    fn keeps_satisfiable_max_width_verbatim() {
+        let source = "@container (max-width: 400px) { .a { color: red } }";
+        let (output, mutations) = eval(source);
+        assert_eq!(output, source);
+        assert_eq!(mutations, 0);
+    }
+
+    #[test]
+    fn keeps_zero_inclusive_max_width_verbatim() {
+        // A zero-size container is possible, so (max-width: 0px) is satisfiable.
+        let source = "@container (max-width: 0px) { .a { color: red } }";
+        let (output, mutations) = eval(source);
+        assert_eq!(output, source);
+        assert_eq!(mutations, 0);
+    }
+
+    #[test]
+    fn keeps_style_query_verbatim() {
+        let source = "@container style(--theme: dark) { .a { color: red } }";
+        let (output, mutations) = eval(source);
+        assert_eq!(output, source);
+        assert_eq!(mutations, 0);
+    }
+
+    #[test]
+    fn keeps_container_query_unit_bound_verbatim() {
+        // cqw depends on an outer container, so the bound is undecidable here and
+        // the recognizer is consumed as a soundness guard (its first production home).
+        let source = "@container (max-width: -1cqw) { .a { color: red } }";
+        let (output, mutations) = eval(source);
+        assert_eq!(output, source);
+        assert_eq!(mutations, 0);
+    }
+
+    #[test]
+    fn removes_impossible_inline_size_block() {
+        let (output, mutations) = eval("@container (max-inline-size: -5px) { .a { color: red } }");
+        assert_eq!(output, "");
+        assert_eq!(mutations, 1);
+    }
+
+    #[test]
+    fn strips_container_name_before_condition() {
+        assert_eq!(
+            strip_static_container_name("sidebar (max-width: -1px)"),
+            "(max-width: -1px)"
+        );
+        assert_eq!(strip_static_container_name("(max-width: -1px)"), "(max-width: -1px)");
+        assert_eq!(
+            strip_static_container_name("not (max-width: 0px)"),
+            "not (max-width: 0px)"
+        );
+        assert_eq!(
+            strip_static_container_name("style(--x: y)"),
+            "style(--x: y)"
+        );
+    }
 }

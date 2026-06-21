@@ -57,6 +57,7 @@ fn registry_covers_full_transform_catalog() {
             "layer-flatten",
             "supports-static-eval",
             "media-static-eval",
+            "container-static-eval",
             "dead-media-branch-removal",
             "dead-supports-branch-removal",
             "import-inline",

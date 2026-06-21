@@ -266,6 +266,7 @@ fn target_query_build_derives_workspace_context_for_bundle_passes() {
                 allow_layer_flatten: false,
                 enable_supports_static_eval: false,
                 enable_media_static_eval: false,
+                enable_container_static_eval: false,
                 drop_dark_mode_media_queries: false,
             },
             &[],

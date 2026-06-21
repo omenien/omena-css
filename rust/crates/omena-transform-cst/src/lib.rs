@@ -51,6 +51,7 @@ pub enum TransformPassKind {
     LayerFlatten,
     SupportsStaticEval,
     MediaStaticEval,
+    ContainerStaticEval,
     CalcReduction,
     ImportInline,
     ScssModuleEvaluate,
@@ -69,7 +70,7 @@ pub enum TransformPassKind {
     PrintCss,
 }
 
-pub const TRANSFORM_PASS_CATALOG_LEN: usize = 42;
+pub const TRANSFORM_PASS_CATALOG_LEN: usize = 43;
 
 pub const fn all_transform_pass_kinds() -> [TransformPassKind; TRANSFORM_PASS_CATALOG_LEN] {
     [
@@ -99,6 +100,7 @@ pub const fn all_transform_pass_kinds() -> [TransformPassKind; TRANSFORM_PASS_CA
         TransformPassKind::LayerFlatten,
         TransformPassKind::SupportsStaticEval,
         TransformPassKind::MediaStaticEval,
+        TransformPassKind::ContainerStaticEval,
         TransformPassKind::CalcReduction,
         TransformPassKind::ImportInline,
         TransformPassKind::ScssModuleEvaluate,
@@ -163,6 +165,7 @@ impl TransformPassKind {
             Self::DesignTokenRouting => 40,
             Self::PrintCss => 41,
             Self::RelativeColorLowering => 42,
+            Self::ContainerStaticEval => 43,
         }
     }
 
@@ -198,6 +201,7 @@ impl TransformPassKind {
             Self::LayerFlatten => "@layer flatten",
             Self::SupportsStaticEval => "@supports static eval",
             Self::MediaStaticEval => "@media static eval",
+            Self::ContainerStaticEval => "@container static eval",
             Self::CalcReduction => "calc() reduction",
             Self::ImportInline => "@import inline",
             Self::ScssModuleEvaluate => "SCSS module evaluate",
@@ -245,6 +249,7 @@ impl TransformPassKind {
             Self::LayerFlatten => "layer-flatten",
             Self::SupportsStaticEval => "supports-static-eval",
             Self::MediaStaticEval => "media-static-eval",
+            Self::ContainerStaticEval => "container-static-eval",
             Self::CalcReduction => "calc-reduction",
             Self::ImportInline => "import-inline",
             Self::ScssModuleEvaluate => "scss-module-evaluate",
@@ -926,6 +931,9 @@ pub const fn cascade_safe_obligation(kind: TransformPassKind) -> &'static str {
         TransformPassKind::MediaStaticEval => {
             "may remove branches only when the configured media predicate is known"
         }
+        TransformPassKind::ContainerStaticEval => {
+            "may remove @container branches only when the size condition is provably unsatisfiable regardless of container context"
+        }
         TransformPassKind::CalcReduction => {
             "may reduce only syntax-equivalent or computed-value-equivalent calc expressions"
         }
@@ -1347,7 +1355,7 @@ mod tests {
         assert_eq!(boundary.pass_catalog_count, TRANSFORM_PASS_CATALOG_LEN);
         assert!(boundary.full_pass_catalog_covered);
         assert_eq!(boundary.semantic_aware_pass_count, 14);
-        assert_eq!(boundary.commodity_pass_count, 27);
+        assert_eq!(boundary.commodity_pass_count, 28);
         assert_eq!(boundary.emission_pass_count, 1);
         assert!(boundary.all_passes_declare_cascade_obligation);
         assert!(boundary.all_passes_have_compile_time_cascade_witness);

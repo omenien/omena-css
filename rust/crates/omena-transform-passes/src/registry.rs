@@ -44,8 +44,8 @@ use crate::domains::{
     selector::compress_css_is_where_selectors_with_lexer,
     shorthand::combine_css_shorthands_with_lexer,
     static_eval::{
-        StaticMediaEvaluationOptions, evaluate_static_media_rules_with_lexer,
-        evaluate_static_supports_rules_with_lexer,
+        StaticMediaEvaluationOptions, evaluate_static_container_rules_with_lexer,
+        evaluate_static_media_rules_with_lexer, evaluate_static_supports_rules_with_lexer,
     },
     text::{
         normalize_css_font_declarations_with_lexer, normalize_css_string_quotes_with_lexer,
@@ -189,6 +189,13 @@ pub(crate) fn evaluate_static_supports_rules(
 
 pub(crate) fn evaluate_static_media_rules(source: &str, dialect: StyleDialect) -> (String, usize) {
     evaluate_static_media_rules_with_lexer(source, dialect, StaticMediaEvaluationOptions::default())
+}
+
+pub(crate) fn evaluate_static_container_rules(
+    source: &str,
+    dialect: StyleDialect,
+) -> (String, usize) {
+    evaluate_static_container_rules_with_lexer(source, dialect)
 }
 
 pub(crate) fn evaluate_dead_media_branch_rules(

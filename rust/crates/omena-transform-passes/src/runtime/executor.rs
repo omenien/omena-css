@@ -26,7 +26,8 @@ use crate::registry::{
     add_css_vendor_prefixes, combine_css_shorthands, compress_css_colors,
     compress_css_is_where_selectors, compress_css_numbers,
     css_module_composes_resolutions_for_source, dedupe_exact_css_rules,
-    evaluate_dead_media_branch_rules, evaluate_static_media_rules, evaluate_static_supports_rules,
+    evaluate_dead_media_branch_rules, evaluate_static_container_rules, evaluate_static_media_rules,
+    evaluate_static_supports_rules,
     flatten_css_layers, flatten_css_scopes, inline_css_imports, lower_css_color_function,
     lower_css_color_mix, lower_css_light_dark, lower_css_logical_to_physical,
     lower_css_oklab_oklch, lower_relative_color, merge_adjacent_same_block_css_selectors,
@@ -434,6 +435,14 @@ fn execute_transform_passes_on_source_with_active_lex_cache(
                     input_byte_len,
                     evaluate_static_media_rules(&pass_input_css, dialect),
                     "evaluated literal @media all/not all branches and normalized simple min/max media ranges"
+                )
+            }
+            Some(TransformPassKind::ContainerStaticEval) => {
+                apply_mutation_pass!(
+                    pass_id,
+                    input_byte_len,
+                    evaluate_static_container_rules(&pass_input_css, dialect),
+                    "removed @container branches whose size condition is provably unsatisfiable"
                 )
             }
             Some(TransformPassKind::DeadMediaBranchRemoval) => {

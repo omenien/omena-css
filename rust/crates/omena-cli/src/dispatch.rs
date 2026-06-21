@@ -72,6 +72,7 @@ pub(crate) fn run(cli: Cli) -> Result<(), String> {
                 allow_layer_flatten,
                 enable_supports_static_eval,
                 enable_media_static_eval,
+                enable_container_static_eval: false,
                 drop_dark_mode_media_queries,
             },
             json,

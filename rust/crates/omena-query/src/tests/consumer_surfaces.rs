@@ -220,6 +220,7 @@ fn exposes_consumer_build_facade_from_target_query_options() {
             allow_layer_flatten: true,
             enable_supports_static_eval: true,
             enable_media_static_eval: true,
+            enable_container_static_eval: false,
             drop_dark_mode_media_queries: false,
         },
     );
@@ -257,6 +258,7 @@ fn target_query_options_drop_dark_media_branches_through_execution_context() {
             allow_layer_flatten: false,
             enable_supports_static_eval: false,
             enable_media_static_eval: false,
+            enable_container_static_eval: false,
             drop_dark_mode_media_queries: true,
         },
     );
@@ -307,6 +309,7 @@ fn consumer_build_accepts_explicit_scss_evaluator_context() {
                 allow_layer_flatten: false,
                 enable_supports_static_eval: false,
                 enable_media_static_eval: false,
+                enable_container_static_eval: false,
                 drop_dark_mode_media_queries: false,
             },
         );
@@ -354,6 +357,7 @@ fn consumer_build_preserves_source_when_scss_evaluator_native_edits_diverge() {
                 allow_layer_flatten: false,
                 enable_supports_static_eval: false,
                 enable_media_static_eval: false,
+                enable_container_static_eval: false,
                 drop_dark_mode_media_queries: false,
             },
         );
