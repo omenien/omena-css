@@ -8,6 +8,7 @@ use omena_transform_passes::{
     TransformExecutionContextV0, TransformExecutionSummaryV0,
     execute_transform_passes_on_source_with_dialect_and_context,
     execute_transform_passes_on_source_with_dialect_and_context_without_lex_cache_for_measurement,
+    reset_transform_lex_cache_splice_telemetry, transform_lex_cache_splice_telemetry_snapshot,
 };
 use omena_transform_print::{
     TransformPrintMode, TransformPrintOptionsV0, default_print_options,
@@ -256,6 +257,11 @@ pub struct TransformExecutorSpineSampleSnapshotV0 {
     pub output_sha256: String,
     pub lex_invocation_count: u64,
     pub lex_token_count: u64,
+    pub lex_splice_hit_count: u64,
+    pub lex_splice_full_relex_fallback_count: u64,
+    pub lex_splice_window_derivation_fallback_count: u64,
+    pub lex_splice_full_output_window_fallback_count: u64,
+    pub lex_splice_token_offset_fallback_count: u64,
     pub lex_tokens_per_edited_byte_milli: u64,
 }
 
@@ -268,6 +274,8 @@ pub struct TransformExecutorSpineLaneSnapshotV0 {
     pub total_edited_byte_count: usize,
     pub total_lex_invocation_count: u64,
     pub total_lex_token_count: u64,
+    pub total_lex_splice_hit_count: u64,
+    pub total_lex_splice_full_relex_fallback_count: u64,
     pub lex_token_growth_exponent_milli: i64,
     pub max_lex_tokens_per_edited_byte_milli: u64,
     pub samples: Vec<TransformExecutorSpineSampleSnapshotV0>,
@@ -284,6 +292,7 @@ pub struct TransformExecutorSpineAssertionSnapshotV0 {
     pub full_relex_witness_lane: TransformExecutorSpineLaneSnapshotV0,
     pub lex_token_growth_exponent_bound_milli: i64,
     pub lex_tokens_per_edited_byte_bound_milli: u64,
+    pub lex_splice_full_relex_fallback_bound: u64,
     pub red_on_full_relex_witness: bool,
 }
 
@@ -840,6 +849,7 @@ pub fn fit_log_log_growth_exponent(samples: &[(usize, usize)]) -> Option<f64> {
 
 const TRANSFORM_EXECUTOR_SPINE_LEX_TOKEN_GROWTH_BOUND_MILLI: i64 = 1100;
 const TRANSFORM_EXECUTOR_SPINE_TOKENS_PER_EDITED_BYTE_BOUND_MILLI: u64 = 600;
+const TRANSFORM_EXECUTOR_SPINE_LEX_SPLICE_FULL_RELEX_FALLBACK_BOUND: u64 = 3;
 
 pub fn summarize_transform_executor_spine_assertion() -> TransformExecutorSpineAssertionSnapshotV0 {
     let current_lane = summarize_transform_executor_spine_lane(
@@ -856,6 +866,9 @@ pub fn summarize_transform_executor_spine_assertion() -> TransformExecutorSpineA
         <= TRANSFORM_EXECUTOR_SPINE_LEX_TOKEN_GROWTH_BOUND_MILLI;
     let current_under_edited_byte_bound = current_lane.max_lex_tokens_per_edited_byte_milli
         <= TRANSFORM_EXECUTOR_SPINE_TOKENS_PER_EDITED_BYTE_BOUND_MILLI;
+    let current_under_splice_fallback_bound = current_lane
+        .total_lex_splice_full_relex_fallback_count
+        <= TRANSFORM_EXECUTOR_SPINE_LEX_SPLICE_FULL_RELEX_FALLBACK_BOUND;
     let witness_over_edited_byte_bound = full_relex_witness_lane
         .max_lex_tokens_per_edited_byte_milli
         > TRANSFORM_EXECUTOR_SPINE_TOKENS_PER_EDITED_BYTE_BOUND_MILLI;
@@ -863,6 +876,7 @@ pub fn summarize_transform_executor_spine_assertion() -> TransformExecutorSpineA
     TransformExecutorSpineAssertionSnapshotV0 {
         asserted: current_under_growth_bound
             && current_under_edited_byte_bound
+            && current_under_splice_fallback_bound
             && witness_over_edited_byte_bound,
         measured_operation: "transform-executor-lex-materialization-op-count",
         corpus_kind: "synthetic-mutating-transform-executor-size-sweep",
@@ -873,6 +887,8 @@ pub fn summarize_transform_executor_spine_assertion() -> TransformExecutorSpineA
             TRANSFORM_EXECUTOR_SPINE_LEX_TOKEN_GROWTH_BOUND_MILLI,
         lex_tokens_per_edited_byte_bound_milli:
             TRANSFORM_EXECUTOR_SPINE_TOKENS_PER_EDITED_BYTE_BOUND_MILLI,
+        lex_splice_full_relex_fallback_bound:
+            TRANSFORM_EXECUTOR_SPINE_LEX_SPLICE_FULL_RELEX_FALLBACK_BOUND,
         red_on_full_relex_witness: witness_over_edited_byte_bound,
     }
 }
@@ -894,12 +910,15 @@ fn summarize_transform_executor_spine_lane(
     let mut total_edited_byte_count = 0usize;
     let mut total_lex_invocation_count = 0u64;
     let mut total_lex_token_count = 0u64;
+    let mut total_lex_splice_hit_count = 0u64;
+    let mut total_lex_splice_full_relex_fallback_count = 0u64;
     let mut max_lex_tokens_per_edited_byte_milli = 0u64;
     let requested = transform_executor_spine_passes();
     let context = TransformExecutionContextV0::default();
 
     for scale in scales {
         let source = transform_executor_spine_source(scale);
+        reset_transform_lex_cache_splice_telemetry();
         let (execution, instrumentation) =
             omena_parser::with_omena_parser_lex_instrumentation(|| {
                 execute(
@@ -909,6 +928,7 @@ fn summarize_transform_executor_spine_lane(
                     &context,
                 )
             });
+        let splice_telemetry = transform_lex_cache_splice_telemetry_snapshot();
         let edited_byte_count = transform_execution_edited_byte_count(&execution).max(1);
         let lex_tokens_per_edited_byte_milli =
             instrumentation.lex_token_count.saturating_mul(1000) / edited_byte_count as u64;
@@ -918,6 +938,8 @@ fn summarize_transform_executor_spine_lane(
         total_edited_byte_count += edited_byte_count;
         total_lex_invocation_count += instrumentation.lex_invocation_count;
         total_lex_token_count += instrumentation.lex_token_count;
+        total_lex_splice_hit_count += splice_telemetry.splice_hit_count;
+        total_lex_splice_full_relex_fallback_count += splice_telemetry.full_relex_fallback_count;
         growth_samples.push((
             source.len(),
             usize::try_from(instrumentation.lex_token_count).unwrap_or(usize::MAX),
@@ -935,6 +957,13 @@ fn summarize_transform_executor_spine_lane(
             output_sha256: sha256_hex(execution.output_css.as_bytes()),
             lex_invocation_count: instrumentation.lex_invocation_count,
             lex_token_count: instrumentation.lex_token_count,
+            lex_splice_hit_count: splice_telemetry.splice_hit_count,
+            lex_splice_full_relex_fallback_count: splice_telemetry.full_relex_fallback_count,
+            lex_splice_window_derivation_fallback_count: splice_telemetry
+                .window_derivation_fallback_count,
+            lex_splice_full_output_window_fallback_count: splice_telemetry
+                .full_output_window_fallback_count,
+            lex_splice_token_offset_fallback_count: splice_telemetry.token_offset_fallback_count,
             lex_tokens_per_edited_byte_milli,
         });
     }
@@ -946,6 +975,8 @@ fn summarize_transform_executor_spine_lane(
         total_edited_byte_count,
         total_lex_invocation_count,
         total_lex_token_count,
+        total_lex_splice_hit_count,
+        total_lex_splice_full_relex_fallback_count,
         lex_token_growth_exponent_milli: exponent_milli(growth_samples.as_slice()),
         max_lex_tokens_per_edited_byte_milli,
         samples,
@@ -1121,7 +1152,7 @@ pub fn validate_transform_relex_baseline_snapshot(expected_json: &str) -> Result
     // the fixture were re-pinned to match it.
     if !summary.executor_spine.asserted {
         return Err(
-            "transform re-lex spine regressed: executor_spine.asserted=false — the cached-spine lane no longer meets the lex-token growth-exponent and tokens-per-edited-byte bounds"
+            "transform re-lex spine regressed: executor_spine.asserted=false — the cached-spine lane no longer meets the lex-token growth, tokens-per-edited-byte, or splice-fallback bounds"
                 .to_string(),
         );
     }
@@ -1702,9 +1733,39 @@ mod tests {
         );
         assert!(
             snapshot
+                .executor_spine
+                .current_lane
+                .total_lex_splice_hit_count
+                > 0
+        );
+        assert!(
+            snapshot
+                .executor_spine
+                .current_lane
+                .total_lex_splice_full_relex_fallback_count
+                <= snapshot.executor_spine.lex_splice_full_relex_fallback_bound
+        );
+        assert_eq!(
+            snapshot
+                .executor_spine
+                .full_relex_witness_lane
+                .total_lex_splice_hit_count,
+            0
+        );
+        assert!(
+            snapshot
                 .samples
                 .iter()
                 .all(|sample| sample.lex_invocation_count > 0 && sample.lex_token_count > 0)
+        );
+        assert!(
+            snapshot
+                .executor_spine
+                .current_lane
+                .samples
+                .iter()
+                .all(|sample| sample.lex_splice_hit_count > 0
+                    && sample.lex_splice_full_relex_fallback_count <= 1)
         );
         assert!(
             snapshot

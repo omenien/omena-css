@@ -3,7 +3,7 @@ use std::{cell::RefCell, collections::BTreeMap, rc::Rc};
 use cstree::text::{TextRange, TextSize};
 use omena_parser::{LexedToken, StyleDialect, lex};
 
-use crate::TransformProvenanceMutationSpanV0;
+use crate::{TransformLexCacheSpliceTelemetryV0, TransformProvenanceMutationSpanV0};
 
 #[derive(Debug, Clone)]
 pub(crate) struct CachedLexResultV0 {
@@ -24,6 +24,16 @@ struct TransformLexCacheV0 {
 thread_local! {
     static ACTIVE_TRANSFORM_LEX_CACHES: RefCell<Vec<TransformLexCacheV0>> =
         const { RefCell::new(Vec::new()) };
+    static TRANSFORM_LEX_CACHE_SPLICE_TELEMETRY:
+        RefCell<TransformLexCacheSpliceTelemetryV0> = const {
+            RefCell::new(TransformLexCacheSpliceTelemetryV0 {
+                splice_hit_count: 0,
+                full_relex_fallback_count: 0,
+                window_derivation_fallback_count: 0,
+                full_output_window_fallback_count: 0,
+                token_offset_fallback_count: 0,
+            })
+        };
 }
 
 struct TransformLexCacheScopeGuard;
@@ -42,6 +52,18 @@ pub(crate) fn with_transform_lex_cache<T>(operation: impl FnOnce() -> T) -> T {
     });
     let _guard = TransformLexCacheScopeGuard;
     operation()
+}
+
+/// Reset per-thread lex-splice counters before a measurement run.
+pub fn reset_transform_lex_cache_splice_telemetry() {
+    TRANSFORM_LEX_CACHE_SPLICE_TELEMETRY.with(|telemetry| {
+        *telemetry.borrow_mut() = TransformLexCacheSpliceTelemetryV0::default();
+    });
+}
+
+/// Snapshot per-thread lex-splice counters without mutating them.
+pub fn transform_lex_cache_splice_telemetry_snapshot() -> TransformLexCacheSpliceTelemetryV0 {
+    TRANSFORM_LEX_CACHE_SPLICE_TELEMETRY.with(|telemetry| *telemetry.borrow())
 }
 
 pub(crate) fn lex_cached(source: &str, dialect: StyleDialect) -> CachedLexResultV0 {
@@ -94,6 +116,7 @@ pub(crate) fn update_cached_lex_from_splice(
             input_tokens.as_slice(),
             mutation_spans,
         ) else {
+            record_splice_fallback(TransformLexCacheSpliceFallbackReasonV0::WindowDerivation);
             return;
         };
         let relex_byte_len = windows
@@ -101,13 +124,16 @@ pub(crate) fn update_cached_lex_from_splice(
             .map(|window| window.output_end.saturating_sub(window.output_start))
             .sum::<usize>();
         if relex_byte_len >= output.len() {
+            record_splice_fallback(TransformLexCacheSpliceFallbackReasonV0::FullOutputWindow);
             return;
         }
         let Some(output_tokens) =
             spliced_tokens_for_windows(output, dialect, input_tokens.as_slice(), windows)
         else {
+            record_splice_fallback(TransformLexCacheSpliceFallbackReasonV0::TokenOffset);
             return;
         };
+        record_splice_hit();
         cache
             .entries
             .insert((dialect, output.to_string()), Rc::new(output_tokens));
@@ -116,6 +142,42 @@ pub(crate) fn update_cached_lex_from_splice(
 
 fn materialize_lex_tokens(source: &str, dialect: StyleDialect) -> Vec<LexedToken> {
     lex(source, dialect).tokens().to_vec()
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum TransformLexCacheSpliceFallbackReasonV0 {
+    WindowDerivation,
+    FullOutputWindow,
+    TokenOffset,
+}
+
+fn record_splice_hit() {
+    TRANSFORM_LEX_CACHE_SPLICE_TELEMETRY.with(|telemetry| {
+        let mut telemetry = telemetry.borrow_mut();
+        telemetry.splice_hit_count = telemetry.splice_hit_count.saturating_add(1);
+    });
+}
+
+fn record_splice_fallback(reason: TransformLexCacheSpliceFallbackReasonV0) {
+    TRANSFORM_LEX_CACHE_SPLICE_TELEMETRY.with(|telemetry| {
+        let mut telemetry = telemetry.borrow_mut();
+        telemetry.full_relex_fallback_count = telemetry.full_relex_fallback_count.saturating_add(1);
+        match reason {
+            TransformLexCacheSpliceFallbackReasonV0::WindowDerivation => {
+                telemetry.window_derivation_fallback_count =
+                    telemetry.window_derivation_fallback_count.saturating_add(1);
+            }
+            TransformLexCacheSpliceFallbackReasonV0::FullOutputWindow => {
+                telemetry.full_output_window_fallback_count = telemetry
+                    .full_output_window_fallback_count
+                    .saturating_add(1);
+            }
+            TransformLexCacheSpliceFallbackReasonV0::TokenOffset => {
+                telemetry.token_offset_fallback_count =
+                    telemetry.token_offset_fallback_count.saturating_add(1);
+            }
+        }
+    });
 }
 
 #[cfg(test)]
@@ -337,10 +399,13 @@ fn ceil_char_boundary(source: &str, mut index: usize) -> usize {
 #[cfg(test)]
 mod tests {
     use super::{
-        lex_cached, materialize_lex_tokens, spliced_tokens_for_output, with_transform_lex_cache,
+        lex_cached, materialize_lex_tokens, reset_transform_lex_cache_splice_telemetry,
+        spliced_tokens_for_output, transform_lex_cache_splice_telemetry_snapshot,
+        update_cached_lex_from_splice, with_transform_lex_cache,
     };
     use omena_parser::{StyleDialect, with_omena_parser_lex_instrumentation};
 
+    use crate::TransformProvenanceMutationSpanV0;
     use crate::runtime::provenance::derive_transform_mutation_spans;
 
     #[test]
@@ -380,6 +445,51 @@ mod tests {
         });
 
         assert_eq!(instrumentation.lex_invocation_count, 2);
+    }
+
+    #[test]
+    fn transform_lex_cache_splice_telemetry_records_hits_and_safe_fallbacks() {
+        reset_transform_lex_cache_splice_telemetry();
+        with_transform_lex_cache(|| {
+            let input = ".a { color: red; margin: 0px; }";
+            let output = ".a { color: blue; margin: 0px; }";
+            let _ = lex_cached(input, StyleDialect::Css);
+            let mutation_spans = derive_transform_mutation_spans(input, output);
+            update_cached_lex_from_splice(
+                input,
+                output,
+                StyleDialect::Css,
+                mutation_spans.as_slice(),
+            );
+        });
+        let hit = transform_lex_cache_splice_telemetry_snapshot();
+        assert_eq!(hit.splice_hit_count, 1);
+        assert_eq!(hit.full_relex_fallback_count, 0);
+
+        reset_transform_lex_cache_splice_telemetry();
+        with_transform_lex_cache(|| {
+            let input = ".a { color: red; }";
+            let output =
+                "body, main, section { background: linear-gradient(red, blue); padding: 10px; }";
+            let _ = lex_cached(input, StyleDialect::Css);
+            let mutation_spans = vec![TransformProvenanceMutationSpanV0 {
+                source_span_start: input.len(),
+                source_span_end: 0,
+                generated_span_start: 0,
+                generated_span_end: output.len(),
+                node_key: None,
+            }];
+            update_cached_lex_from_splice(
+                input,
+                output,
+                StyleDialect::Css,
+                mutation_spans.as_slice(),
+            );
+        });
+        let fallback = transform_lex_cache_splice_telemetry_snapshot();
+        assert_eq!(fallback.splice_hit_count, 0);
+        assert_eq!(fallback.full_relex_fallback_count, 1);
+        assert_eq!(fallback.window_derivation_fallback_count, 1);
     }
 
     #[test]

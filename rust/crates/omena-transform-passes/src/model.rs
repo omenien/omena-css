@@ -123,6 +123,25 @@ pub struct TransformProvenanceMutationSpanV0 {
     pub node_key: Option<StableNodeKeyV0>,
 }
 
+/// Counts incremental lex-splice outcomes inside a transform execution.
+///
+/// A fallback is conservative: the cache declines to reuse token ranges and the
+/// next consumer re-lexes the generated source normally.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TransformLexCacheSpliceTelemetryV0 {
+    /// Number of generated token streams inserted through bounded splicing.
+    pub splice_hit_count: u64,
+    /// Number of active-cache attempts that intentionally fell back to full re-lex.
+    pub full_relex_fallback_count: u64,
+    /// Fallbacks caused by invalid or non-projectable mutation windows.
+    pub window_derivation_fallback_count: u64,
+    /// Fallbacks where the safe restart window covers the full generated output.
+    pub full_output_window_fallback_count: u64,
+    /// Fallbacks caused by token offset arithmetic or projection failure.
+    pub token_offset_fallback_count: u64,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct TransformExecutionSummaryV0 {

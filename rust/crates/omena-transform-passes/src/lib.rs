@@ -56,6 +56,9 @@ pub use runtime::fuzz::{run_transform_cascade_safe_fuzz_case, run_transform_fuzz
 pub use runtime::incremental::{
     execute_transform_passes_incremental_with_database, transform_pass_incremental_graph_input,
 };
+pub use runtime::lex_cache::{
+    reset_transform_lex_cache_splice_telemetry, transform_lex_cache_splice_telemetry_snapshot,
+};
 #[cfg(feature = "lawvere-trace")]
 pub use runtime::planner::plan_transform_passes_parallel_lawvere_layers;
 pub use runtime::planner::{

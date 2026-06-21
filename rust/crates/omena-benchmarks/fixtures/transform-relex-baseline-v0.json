@@ -28,6 +28,8 @@
       "totalEditedByteCount": 316060,
       "totalLexInvocationCount": 699,
       "totalLexTokenCount": 141597,
+      "totalLexSpliceHitCount": 15,
+      "totalLexSpliceFullRelexFallbackCount": 3,
       "lexTokenGrowthExponentMilli": 988,
       "maxLexTokensPerEditedByteMilli": 455,
       "samples": [
@@ -44,6 +46,11 @@
           "outputSha256": "262dbc2abab4fcf22e9230132b8c75f6a1f2b92c06bdafb4af6529c8b87f1eff",
           "lexInvocationCount": 105,
           "lexTokenCount": 20191,
+          "lexSpliceHitCount": 5,
+          "lexSpliceFullRelexFallbackCount": 1,
+          "lexSpliceWindowDerivationFallbackCount": 0,
+          "lexSpliceFullOutputWindowFallbackCount": 1,
+          "lexSpliceTokenOffsetFallbackCount": 0,
           "lexTokensPerEditedByteMilli": 455
         },
         {
@@ -59,6 +66,11 @@
           "outputSha256": "4965bc03c2aab896a0292a874dcfa7a17d4c9fdbd24da3a0c3ef10e3609a67df",
           "lexInvocationCount": 201,
           "lexTokenCount": 40447,
+          "lexSpliceHitCount": 5,
+          "lexSpliceFullRelexFallbackCount": 1,
+          "lexSpliceWindowDerivationFallbackCount": 0,
+          "lexSpliceFullOutputWindowFallbackCount": 1,
+          "lexSpliceTokenOffsetFallbackCount": 0,
           "lexTokensPerEditedByteMilli": 449
         },
         {
@@ -74,6 +86,11 @@
           "outputSha256": "a6ce3d8d962d13522973a5f5cd23cfbfc9f03fe8d65cce461e2672860ec1033e",
           "lexInvocationCount": 393,
           "lexTokenCount": 80959,
+          "lexSpliceHitCount": 5,
+          "lexSpliceFullRelexFallbackCount": 1,
+          "lexSpliceWindowDerivationFallbackCount": 0,
+          "lexSpliceFullOutputWindowFallbackCount": 1,
+          "lexSpliceTokenOffsetFallbackCount": 0,
           "lexTokensPerEditedByteMilli": 445
         }
       ]
@@ -85,6 +102,8 @@
       "totalEditedByteCount": 316060,
       "totalLexInvocationCount": 39,
       "totalLexTokenCount": 223776,
+      "totalLexSpliceHitCount": 0,
+      "totalLexSpliceFullRelexFallbackCount": 0,
       "lexTokenGrowthExponentMilli": 986,
       "maxLexTokensPerEditedByteMilli": 721,
       "samples": [
@@ -101,6 +120,11 @@
           "outputSha256": "262dbc2abab4fcf22e9230132b8c75f6a1f2b92c06bdafb4af6529c8b87f1eff",
           "lexInvocationCount": 13,
           "lexTokenCount": 31968,
+          "lexSpliceHitCount": 0,
+          "lexSpliceFullRelexFallbackCount": 0,
+          "lexSpliceWindowDerivationFallbackCount": 0,
+          "lexSpliceFullOutputWindowFallbackCount": 0,
+          "lexSpliceTokenOffsetFallbackCount": 0,
           "lexTokensPerEditedByteMilli": 721
         },
         {
@@ -116,6 +140,11 @@
           "outputSha256": "4965bc03c2aab896a0292a874dcfa7a17d4c9fdbd24da3a0c3ef10e3609a67df",
           "lexInvocationCount": 13,
           "lexTokenCount": 63936,
+          "lexSpliceHitCount": 0,
+          "lexSpliceFullRelexFallbackCount": 0,
+          "lexSpliceWindowDerivationFallbackCount": 0,
+          "lexSpliceFullOutputWindowFallbackCount": 0,
+          "lexSpliceTokenOffsetFallbackCount": 0,
           "lexTokensPerEditedByteMilli": 709
         },
         {
@@ -131,12 +160,18 @@
           "outputSha256": "a6ce3d8d962d13522973a5f5cd23cfbfc9f03fe8d65cce461e2672860ec1033e",
           "lexInvocationCount": 13,
           "lexTokenCount": 127872,
+          "lexSpliceHitCount": 0,
+          "lexSpliceFullRelexFallbackCount": 0,
+          "lexSpliceWindowDerivationFallbackCount": 0,
+          "lexSpliceFullOutputWindowFallbackCount": 0,
+          "lexSpliceTokenOffsetFallbackCount": 0,
           "lexTokensPerEditedByteMilli": 703
         }
       ]
     },
     "lexTokenGrowthExponentBoundMilli": 1100,
     "lexTokensPerEditedByteBoundMilli": 600,
+    "lexSpliceFullRelexFallbackBound": 3,
     "redOnFullRelexWitness": true
   },
   "scales": [
