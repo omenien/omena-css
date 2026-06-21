@@ -75,10 +75,7 @@ const manifest = readJson<ExternalDifferentialManifestV0>(path.join(corpusRoot, 
 const packageJson = readJson<PackageJsonV0>(path.join(repoRoot, "package.json"));
 
 assert.equal(manifest.schemaVersion, "0");
-assert.equal(
-  manifest.product,
-  "omena-scss-eval.static-stylesheet-external-differential-corpus",
-);
+assert.equal(manifest.product, "omena-scss-eval.static-stylesheet-external-differential-corpus");
 assert.equal(manifest.mode, "externalDifferential");
 assert.equal(manifest.lastVerified, "2026-06-21");
 assert.ok(manifest.fixtures.length > 0, "external differential corpus must not be empty");
@@ -140,9 +137,7 @@ function evaluateFixture(fixture: ExternalDifferentialFixtureV0): ExternalDiffer
     const compilerCss = compilerCompiled ? readFileSync(outputPath, "utf8") : "";
     const nativeOutput = readOmenaNativeEditOutput(inputPath);
     const nativeEvaluationAvailable = nativeOutput !== undefined;
-    const compilerValuePairs = compilerCompiled
-      ? collectDeclarationValuePairs(compilerCss)
-      : [];
+    const compilerValuePairs = compilerCompiled ? collectDeclarationValuePairs(compilerCss) : [];
     const nativeValuePairs =
       nativeOutput === undefined ? [] : collectDeclarationValuePairs(nativeOutput);
     const comparedValuePairCount = Math.min(compilerValuePairs.length, nativeValuePairs.length);
@@ -234,8 +229,7 @@ function classifyDivergence(
 
 function collectDeclarationValuePairs(css: string): DeclarationValuePairV0[] {
   const pairs: DeclarationValuePairV0[] = [];
-  const declarationPattern =
-    /(?<property>[-_a-zA-Z][-_a-zA-Z0-9]*)\s*:\s*(?<value>[^;{}]+);/gu;
+  const declarationPattern = /(?<property>[-_a-zA-Z][-_a-zA-Z0-9]*)\s*:\s*(?<value>[^;{}]+);/gu;
   for (const match of css.matchAll(declarationPattern)) {
     const property = match.groups?.property;
     const value = match.groups?.value;
