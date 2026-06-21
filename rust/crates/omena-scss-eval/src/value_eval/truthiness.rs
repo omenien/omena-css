@@ -1,10 +1,7 @@
-use omena_abstract_value::{
-    AbstractCssTypedComparisonOperatorV0, abstract_css_value_from_text,
-    compare_abstract_css_values_with_typed_payloads,
-};
+use omena_abstract_value::AbstractCssTypedComparisonOperatorV0;
 use omena_value_lattice::{css_values_canonically_equal, parse_numeric_value_with_unit};
 
-use super::reduce_static_scss_value;
+use super::{numeric::static_scss_typed_advisory_numeric_comparison, reduce_static_scss_value};
 
 pub(crate) fn static_scss_literal_truthiness(value: &str) -> Option<bool> {
     let trimmed = value.trim();
@@ -45,11 +42,7 @@ pub(crate) fn static_scss_literal_truthiness(value: &str) -> Option<bool> {
 
 pub(crate) fn static_scss_typed_advisory_truthiness(value: &str) -> Option<bool> {
     let (left, operator, right) = split_static_scss_comparison(value).ok()??;
-    compare_abstract_css_values_with_typed_payloads(
-        &abstract_css_value_from_text(left),
-        typed_comparison_operator(operator),
-        &abstract_css_value_from_text(right),
-    )
+    static_scss_typed_advisory_numeric_comparison(left, typed_comparison_operator(operator), right)
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -384,4 +377,22 @@ fn static_scss_boolean_keyword_at(value: &str, index: usize, keyword: &str) -> b
         .and_then(|suffix| suffix.chars().next())
         .is_some_and(char::is_whitespace);
     before_ok && after_ok
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn typed_advisory_truthiness_compares_absolute_dimensions_without_consuming_prunes() {
+        assert_eq!(
+            static_scss_typed_advisory_truthiness("1in == 96px"),
+            Some(true)
+        );
+        assert_eq!(
+            static_scss_typed_advisory_truthiness("2px > 1px"),
+            Some(true)
+        );
+        assert_eq!(static_scss_typed_advisory_truthiness("1em == 16px"), None);
+    }
 }
