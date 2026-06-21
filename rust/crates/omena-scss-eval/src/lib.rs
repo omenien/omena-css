@@ -26,11 +26,12 @@ pub use control_flow::{
     OmenaScssEvalControlFlowEdgeV0, OmenaScssEvalControlFlowGraphBlockV0,
     OmenaScssEvalControlFlowGraphV0, OmenaScssEvalControlFlowIrSummaryV0,
     OmenaScssEvalControlFlowOracleCorpusFixtureReportV0,
-    OmenaScssEvalControlFlowOracleCorpusReportV0, OmenaScssEvalControlFlowValueAnalysisV0,
-    OmenaScssEvalControlFlowValueBlockV0, OmenaScssEvalControlFlowWideningWitnessV0,
-    OmenaScssEvalTypedValueKindCountV0, OmenaScssEvalTypedValueLatticeWitnessV0,
-    analyze_scss_control_flow_values, build_scss_control_flow_graph, summarize_scss_call_return_ir,
-    summarize_scss_control_flow_ir, summarize_scss_control_flow_oracle_corpus,
+    OmenaScssEvalControlFlowOracleCorpusReportV0, OmenaScssEvalControlFlowPruneReachabilityV0,
+    OmenaScssEvalControlFlowValueAnalysisV0, OmenaScssEvalControlFlowValueBlockV0,
+    OmenaScssEvalControlFlowWideningWitnessV0, OmenaScssEvalTypedValueKindCountV0,
+    OmenaScssEvalTypedValueLatticeWitnessV0, analyze_scss_control_flow_values,
+    build_scss_control_flow_graph, summarize_scss_call_return_ir, summarize_scss_control_flow_ir,
+    summarize_scss_control_flow_oracle_corpus, summarize_scss_control_flow_prune_reachability,
     summarize_typed_value_lattice_witness,
 };
 pub use static_stylesheet::{

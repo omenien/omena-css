@@ -168,6 +168,52 @@ fn scss_control_flow_edge_ir_uses_generic_reachability_primitives() {
 }
 
 #[test]
+fn scss_control_flow_prune_reachability_tracks_terminal_changes() {
+    let source = "$enabled: true; @if $enabled { .on { color: green; } } @else { @if true { .off { color: red; } } }";
+    let report = summarize_scss_control_flow_prune_reachability(source, StyleDialect::Scss);
+    assert!(report.is_some());
+    let Some(report) = report else {
+        return;
+    };
+
+    assert_eq!(
+        report.product,
+        "omena-scss-eval.control-flow-prune-reachability"
+    );
+    assert_eq!(report.mode, "oracleOnlyPrunedReachability");
+    assert_eq!(report.block_id_type, "u32");
+    assert_eq!(report.node_key_type, "StableNodeKeyV0");
+    assert!(report.flat_css_cfg_built);
+    assert!(!report.merged_cross_file_graph);
+    assert!(report.converged);
+    assert!(report.iteration_count > 0);
+    assert_eq!(report.block_count, 3);
+    assert!(report.original_edge_count > 0);
+    assert!(report.pruned_edge_count > 0);
+    assert!(report.have_terminals_changed);
+    assert_eq!(report.reachable_block_count, 1);
+    assert_eq!(report.unreachable_block_count, 2);
+}
+
+#[test]
+fn scss_control_flow_prune_reachability_preserves_unknown_conditions() {
+    let source = "$enabled: var(--enabled); @if $enabled { .on { color: green; } } @else { @if true { .off { color: red; } } }";
+    let report = summarize_scss_control_flow_prune_reachability(source, StyleDialect::Scss);
+    assert!(report.is_some());
+    let Some(report) = report else {
+        return;
+    };
+
+    assert!(report.flat_css_cfg_built);
+    assert!(report.converged);
+    assert_eq!(report.block_count, 3);
+    assert_eq!(report.pruned_edge_count, 0);
+    assert!(!report.have_terminals_changed);
+    assert_eq!(report.reachable_block_count, report.block_count);
+    assert_eq!(report.unreachable_block_count, 0);
+}
+
+#[test]
 fn control_flow_ir_does_not_build_flat_css_cfg() {
     assert!(summarize_scss_control_flow_ir(".button { color: red; }", StyleDialect::Css).is_none());
 }

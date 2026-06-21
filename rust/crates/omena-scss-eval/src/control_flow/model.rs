@@ -75,6 +75,31 @@ pub struct OmenaScssEvalControlFlowEdgeV0 {
     pub target_block_id: Option<OmenaScssEvalControlFlowBlockIdV0>,
 }
 
+/// Reachability recomputed after pruning known control-flow outcomes.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct OmenaScssEvalControlFlowPruneReachabilityV0 {
+    pub schema_version: &'static str,
+    pub product: &'static str,
+    pub mode: &'static str,
+    pub dialect: &'static str,
+    pub block_id_type: &'static str,
+    pub node_key_type: &'static str,
+    pub max_iterations: usize,
+    pub iteration_count: usize,
+    pub converged: bool,
+    pub flat_css_cfg_built: bool,
+    pub merged_cross_file_graph: bool,
+    pub block_count: usize,
+    pub original_edge_count: usize,
+    pub pruned_edge_count: usize,
+    pub reachable_block_count: usize,
+    pub unreachable_block_count: usize,
+    pub have_terminals_changed: bool,
+    pub reachable_block_ids: Vec<OmenaScssEvalControlFlowBlockIdV0>,
+    pub unreachable_block_ids: Vec<OmenaScssEvalControlFlowBlockIdV0>,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct OmenaScssEvalControlFlowValueAnalysisV0 {

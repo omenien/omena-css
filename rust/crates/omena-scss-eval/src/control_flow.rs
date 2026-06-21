@@ -12,6 +12,7 @@ mod lexical;
 mod loop_values;
 mod model;
 mod oracle_corpus;
+mod prune_reachability;
 mod return_candidates;
 mod summaries;
 mod symbol_candidates;
@@ -32,14 +33,16 @@ pub use model::{
     OmenaScssEvalControlFlowBindingValueV0, OmenaScssEvalControlFlowBlockIdV0,
     OmenaScssEvalControlFlowBlockV0, OmenaScssEvalControlFlowEdgeV0,
     OmenaScssEvalControlFlowGraphBlockV0, OmenaScssEvalControlFlowGraphV0,
-    OmenaScssEvalControlFlowIrSummaryV0, OmenaScssEvalControlFlowValueAnalysisV0,
-    OmenaScssEvalControlFlowValueBlockV0, OmenaScssEvalControlFlowWideningWitnessV0,
-    OmenaScssEvalTypedValueKindCountV0, OmenaScssEvalTypedValueLatticeWitnessV0,
+    OmenaScssEvalControlFlowIrSummaryV0, OmenaScssEvalControlFlowPruneReachabilityV0,
+    OmenaScssEvalControlFlowValueAnalysisV0, OmenaScssEvalControlFlowValueBlockV0,
+    OmenaScssEvalControlFlowWideningWitnessV0, OmenaScssEvalTypedValueKindCountV0,
+    OmenaScssEvalTypedValueLatticeWitnessV0,
 };
 pub use oracle_corpus::{
     OmenaScssEvalControlFlowOracleCorpusFixtureReportV0,
     OmenaScssEvalControlFlowOracleCorpusReportV0, summarize_scss_control_flow_oracle_corpus,
 };
+pub use prune_reachability::summarize_scss_control_flow_prune_reachability;
 pub use summaries::{summarize_scss_call_return_ir, summarize_scss_control_flow_ir};
 
 const SCSS_CALL_RETURN_RECURSION_LIMIT: usize = 32;
