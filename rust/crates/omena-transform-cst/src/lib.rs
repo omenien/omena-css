@@ -11,7 +11,7 @@ use omena_parser::{
     collect_style_facts,
 };
 use serde::Serialize;
-use std::collections::BTreeMap;
+use std::{borrow::Cow, collections::BTreeMap};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -502,6 +502,16 @@ pub struct StableTransformIrNodeV0 {
     pub provenance_anchor_index: usize,
 }
 
+impl StableTransformIrNodeV0 {
+    pub fn positional_node_id(&self) -> &str {
+        self.node_id.as_str()
+    }
+
+    pub fn additive_node_key(&self) -> Option<&StableNodeKeyV0> {
+        self.node_key.as_ref()
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct TransformCstProvenanceAnchorV0 {
@@ -526,6 +536,36 @@ pub struct StableTransformIrV0 {
     pub stable_post_semantic_ir: bool,
     pub nodes: Vec<StableTransformIrNodeV0>,
     pub provenance_anchors: Vec<TransformCstProvenanceAnchorV0>,
+}
+
+pub const STABLE_TRANSFORM_IR_SCHEMA_VERSION_V0: &str = "0";
+
+pub const STABLE_TRANSFORM_IR_NODE_IDENTITY_POLICY_V0: &str =
+    "schema-v0-node-key-preferred-node-id-fallback";
+
+impl StableTransformIrV0 {
+    pub fn node_identity_policy(&self) -> &'static str {
+        if self.schema_version == STABLE_TRANSFORM_IR_SCHEMA_VERSION_V0 {
+            STABLE_TRANSFORM_IR_NODE_IDENTITY_POLICY_V0
+        } else {
+            "legacy-node-id-only"
+        }
+    }
+
+    pub fn identity_key_for_node<'a>(&self, node: &'a StableTransformIrNodeV0) -> Cow<'a, str> {
+        if self.schema_version == STABLE_TRANSFORM_IR_SCHEMA_VERSION_V0
+            && let Some(node_key) = node.additive_node_key()
+        {
+            return Cow::Borrowed(node_key.as_str());
+        }
+        Cow::Borrowed(node.positional_node_id())
+    }
+
+    pub fn identity_key_at(&self, node_index: usize) -> Option<Cow<'_, str>> {
+        self.nodes
+            .get(node_index)
+            .map(|node| self.identity_key_for_node(node))
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -1278,8 +1318,9 @@ pub fn default_transform_dag_edges() -> Vec<TransformDagEdgeV0> {
 #[cfg(test)]
 mod tests {
     use super::{
-        StableTransformIrNodeKindV0, StyleDialect, TRANSFORM_PASS_CATALOG_LEN, TransformLayer,
-        TransformPassKind, build_stable_transform_ir_from_source, build_transform_cst_artifact,
+        STABLE_TRANSFORM_IR_NODE_IDENTITY_POLICY_V0, StableTransformIrNodeKindV0, StyleDialect,
+        TRANSFORM_PASS_CATALOG_LEN, TransformLayer, TransformPassKind,
+        build_stable_transform_ir_from_source, build_transform_cst_artifact,
         summarize_omena_transform_cst_boundary,
     };
 
@@ -1422,5 +1463,58 @@ mod tests {
         assert!(ir.nodes.iter().enumerate().all(|(index, node)| {
             node.node_id == format!("ir:{index}") && node.node_key.is_some()
         }));
+    }
+
+    #[test]
+    fn stable_transform_ir_identity_reader_prefers_key_with_positional_fallback() {
+        let mut ir = build_stable_transform_ir_from_source(
+            ".button { color: red; }\n.button { color: blue; }",
+            StyleDialect::Css,
+            "semantic:duplicate-button",
+        );
+
+        assert_eq!(
+            ir.node_identity_policy(),
+            STABLE_TRANSFORM_IR_NODE_IDENTITY_POLICY_V0
+        );
+        assert_eq!(
+            ir.identity_key_at(0).as_deref(),
+            Some("class-selector:button#0")
+        );
+        assert_eq!(
+            ir.identity_key_at(1).as_deref(),
+            Some("class-selector:button#1")
+        );
+
+        ir.nodes[0].node_key = None;
+        assert_eq!(ir.identity_key_at(0).as_deref(), Some("ir:0"));
+        assert_eq!(
+            ir.identity_key_at(1).as_deref(),
+            Some("class-selector:button#1")
+        );
+
+        ir.schema_version = "future";
+        assert_eq!(ir.node_identity_policy(), "legacy-node-id-only");
+        assert_eq!(ir.identity_key_at(1).as_deref(), Some("ir:1"));
+    }
+
+    #[test]
+    fn stable_transform_ir_identity_reader_preserves_serialized_node_shape()
+    -> Result<(), serde_json::Error> {
+        let mut ir = build_stable_transform_ir_from_source(
+            ".button { color: red; }",
+            StyleDialect::Css,
+            "semantic:button",
+        );
+        let with_key_json = serde_json::to_string(&ir.nodes[0])?;
+        assert!(with_key_json.contains("\"nodeId\":\"ir:0\""));
+        assert!(with_key_json.contains("\"nodeKey\":\"class-selector:button#0\""));
+
+        ir.nodes[0].node_key = None;
+        let fallback_json = serde_json::to_string(&ir.nodes[0])?;
+        assert!(fallback_json.contains("\"nodeId\":\"ir:0\""));
+        assert!(!fallback_json.contains("nodeKey"));
+        assert_eq!(ir.identity_key_at(0).as_deref(), Some("ir:0"));
+        Ok(())
     }
 }

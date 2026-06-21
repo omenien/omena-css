@@ -2519,6 +2519,7 @@ version = "0.2.1"
 dependencies = [
  "omena-parser",
  "serde",
+ "serde_json",
 ]
 
 [[package]]

@@ -19,3 +19,6 @@ workspace = true
 [dependencies]
 omena-parser = { path = "../omena-parser", version = "=0.2.1" }
 serde.workspace = true
+
+[dev-dependencies]
+serde_json.workspace = true
