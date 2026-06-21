@@ -33,6 +33,48 @@ pub struct OmenaScssEvalControlFlowBlockV0 {
     pub has_back_edge: bool,
 }
 
+/// Stable integer block id for the per-region SCSS control-flow edge IR.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize)]
+#[serde(transparent)]
+pub struct OmenaScssEvalControlFlowBlockIdV0(pub u32);
+
+/// Explicit-edge SCSS control-flow graph built beside the existing block summary.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct OmenaScssEvalControlFlowGraphV0 {
+    pub schema_version: &'static str,
+    pub product: &'static str,
+    pub mode: &'static str,
+    pub dialect: &'static str,
+    pub block_id_type: &'static str,
+    pub node_key_type: &'static str,
+    pub flat_css_cfg_built: bool,
+    pub merged_cross_file_graph: bool,
+    pub block_count: usize,
+    pub edge_count: usize,
+    pub outcome_count: usize,
+    pub blocks: Vec<OmenaScssEvalControlFlowGraphBlockV0>,
+    pub edges: Vec<OmenaScssEvalControlFlowEdgeV0>,
+}
+
+/// Block payload plus the integer id used by the edge IR.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct OmenaScssEvalControlFlowGraphBlockV0 {
+    pub id: OmenaScssEvalControlFlowBlockIdV0,
+    pub node_key: StableNodeKeyV0,
+    pub block: OmenaScssEvalControlFlowBlockV0,
+}
+
+/// One explicit SCSS control-flow outcome edge.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct OmenaScssEvalControlFlowEdgeV0 {
+    pub source_block_id: OmenaScssEvalControlFlowBlockIdV0,
+    pub outcome: &'static str,
+    pub target_block_id: Option<OmenaScssEvalControlFlowBlockIdV0>,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct OmenaScssEvalControlFlowValueAnalysisV0 {

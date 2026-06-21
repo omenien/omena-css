@@ -22,12 +22,14 @@ use serde::Serialize;
 pub use control_flow::{
     OmenaScssEvalCallReturnEdgeV0, OmenaScssEvalCallReturnIrSummaryV0,
     OmenaScssEvalCallReturnNodeV0, OmenaScssEvalControlFlowBindingValueV0,
-    OmenaScssEvalControlFlowBlockV0, OmenaScssEvalControlFlowIrSummaryV0,
+    OmenaScssEvalControlFlowBlockIdV0, OmenaScssEvalControlFlowBlockV0,
+    OmenaScssEvalControlFlowEdgeV0, OmenaScssEvalControlFlowGraphBlockV0,
+    OmenaScssEvalControlFlowGraphV0, OmenaScssEvalControlFlowIrSummaryV0,
     OmenaScssEvalControlFlowOracleCorpusFixtureReportV0,
     OmenaScssEvalControlFlowOracleCorpusReportV0, OmenaScssEvalControlFlowValueAnalysisV0,
     OmenaScssEvalControlFlowValueBlockV0, OmenaScssEvalControlFlowWideningWitnessV0,
     OmenaScssEvalTypedValueKindCountV0, OmenaScssEvalTypedValueLatticeWitnessV0,
-    analyze_scss_control_flow_values, summarize_scss_call_return_ir,
+    analyze_scss_control_flow_values, build_scss_control_flow_graph, summarize_scss_call_return_ir,
     summarize_scss_control_flow_ir, summarize_scss_control_flow_oracle_corpus,
     summarize_typed_value_lattice_witness,
 };

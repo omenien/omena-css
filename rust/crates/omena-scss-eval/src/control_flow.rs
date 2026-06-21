@@ -6,6 +6,7 @@ mod blocks;
 mod call_resolution;
 mod call_return_nodes;
 mod call_return_resolution;
+mod edge_ir;
 mod header_values;
 mod lexical;
 mod loop_values;
@@ -23,11 +24,14 @@ use transfer::ScssControlFlowTransfer;
 pub(super) use value_analysis::summarize_scss_control_flow_widening_witness;
 pub use value_analysis::{analyze_scss_control_flow_values, summarize_typed_value_lattice_witness};
 
+pub use edge_ir::build_scss_control_flow_graph;
 pub use model::{
     OmenaScssEvalCallArgumentValueV0, OmenaScssEvalCallLocalBindingV0,
     OmenaScssEvalCallParameterValueV0, OmenaScssEvalCallReturnEdgeV0,
     OmenaScssEvalCallReturnIrSummaryV0, OmenaScssEvalCallReturnNodeV0,
-    OmenaScssEvalControlFlowBindingValueV0, OmenaScssEvalControlFlowBlockV0,
+    OmenaScssEvalControlFlowBindingValueV0, OmenaScssEvalControlFlowBlockIdV0,
+    OmenaScssEvalControlFlowBlockV0, OmenaScssEvalControlFlowEdgeV0,
+    OmenaScssEvalControlFlowGraphBlockV0, OmenaScssEvalControlFlowGraphV0,
     OmenaScssEvalControlFlowIrSummaryV0, OmenaScssEvalControlFlowValueAnalysisV0,
     OmenaScssEvalControlFlowValueBlockV0, OmenaScssEvalControlFlowWideningWitnessV0,
     OmenaScssEvalTypedValueKindCountV0, OmenaScssEvalTypedValueLatticeWitnessV0,

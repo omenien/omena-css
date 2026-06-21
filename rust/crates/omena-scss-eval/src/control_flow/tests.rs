@@ -1,5 +1,6 @@
 use super::*;
 use omena_abstract_value::AbstractCssValueV0;
+use std::collections::BTreeMap;
 
 #[test]
 fn scss_control_flow_ir_summarizes_branch_and_loop_blocks() {
@@ -45,6 +46,85 @@ fn scss_control_flow_ir_counts_else_if_as_conditional_branch() {
     assert_eq!(report.blocks[1].successor_count, 2);
     assert_eq!(report.blocks[2].kind, "branchElse");
     assert_eq!(report.blocks[2].successor_count, 1);
+}
+
+#[test]
+fn scss_control_flow_edge_ir_reencodes_linear_predecessors_without_building_flat_cfg() {
+    let source = "$enabled: true; @if $enabled { .on { color: green; } } @else { .off { color: red; } } @while $enabled { @if $enabled { .w { color: blue; } } } @for $i from 1 through 3 { .n { order: $i; } }";
+    let graph = build_scss_control_flow_graph(source, StyleDialect::Scss);
+    let analysis = analyze_scss_control_flow_values(source, StyleDialect::Scss);
+    assert!(graph.is_some());
+    assert!(analysis.is_some());
+    let Some(graph) = graph else {
+        return;
+    };
+    let Some(analysis) = analysis else {
+        return;
+    };
+
+    assert_eq!(graph.product, "omena-scss-eval.control-flow-edge-ir");
+    assert_eq!(graph.mode, "oracleOnly");
+    assert_eq!(graph.block_id_type, "u32");
+    assert_eq!(graph.node_key_type, "StableNodeKeyV0");
+    assert!(!graph.flat_css_cfg_built);
+    assert!(!graph.merged_cross_file_graph);
+    assert_eq!(graph.block_count, analysis.block_count);
+    assert!(graph.edge_count > 0);
+    assert!(graph.outcome_count >= graph.edge_count);
+    assert!(graph.edges.iter().any(|edge| edge.outcome == "then"));
+    assert!(graph.edges.iter().any(|edge| edge.outcome == "else"));
+    assert!(graph.edges.iter().any(|edge| edge.outcome == "fallthrough"));
+    assert!(graph.edges.iter().any(|edge| {
+        edge.outcome == "body" && edge.target_block_id == Some(edge.source_block_id)
+    }));
+
+    let block_key_by_id = graph
+        .blocks
+        .iter()
+        .map(|block| (block.id.0, block.node_key.as_str().to_string()))
+        .collect::<BTreeMap<_, _>>();
+    let mut graph_predecessors = BTreeMap::<String, Vec<String>>::new();
+    for edge in graph
+        .edges
+        .iter()
+        .filter(|edge| edge.target_block_id.is_some())
+    {
+        let source_key = block_key_by_id
+            .get(&edge.source_block_id.0)
+            .cloned()
+            .unwrap_or_default();
+        let target_key = edge
+            .target_block_id
+            .and_then(|target| block_key_by_id.get(&target.0).cloned())
+            .unwrap_or_default();
+        graph_predecessors
+            .entry(target_key)
+            .or_default()
+            .push(source_key);
+    }
+    for predecessors in graph_predecessors.values_mut() {
+        predecessors.sort();
+        predecessors.dedup();
+    }
+
+    for block in &analysis.blocks {
+        let mut expected = block
+            .predecessor_node_keys
+            .iter()
+            .map(|key| key.as_str().to_string())
+            .collect::<Vec<_>>();
+        expected.sort();
+        let actual = graph_predecessors
+            .get(block.node_key.as_str())
+            .cloned()
+            .unwrap_or_default();
+        assert_eq!(
+            actual,
+            expected,
+            "predecessors for {}",
+            block.node_key.as_str()
+        );
+    }
 }
 
 #[test]
