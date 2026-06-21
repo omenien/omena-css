@@ -993,6 +993,17 @@ fn not_pseudo_takes_most_specific_argument_specificity() {
 }
 
 #[test]
+fn has_pseudo_takes_most_specific_argument_specificity() {
+    // Selectors L4: `:has(.a, #b)` takes the specificity of its most specific
+    // argument (same rule as `:is`/`:not`), so the rule is no longer dropped.
+    let Some(signature) = parse_simple_selector_signature(":has(.a, #b)") else {
+        unreachable!(":has(...) parses")
+    };
+    assert_eq!(signature.specificity, Specificity::new(1, 0, 0));
+    assert!(signature.required_pseudo_states.contains("has"));
+}
+
+#[test]
 fn functional_pseudo_folds_into_compound_specificity() {
     // The functional-pseudo specificity adds to the rest of the compound, and a
     // bare pseudo-state (`:hover`) is unchanged by this lane (over-correction guard).

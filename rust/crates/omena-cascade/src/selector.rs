@@ -473,15 +473,16 @@ fn find_closing_paren(chars: &[char], open_index: usize) -> Option<usize> {
     None
 }
 
-/// Specificity contribution of a functional pseudo-class per Selectors L4 §15.
+/// Specificity contribution of a functional pseudo-class per Selectors L4.
 ///
-/// `:is()`/`:not()` contribute the specificity of their most specific argument;
-/// `:where()` always contributes zero. Unknown functional pseudo-classes return
-/// `None` so the caller keeps treating them as unsupported rather than guessing.
+/// `:is()`/`:not()`/`:has()` contribute the specificity of their most specific
+/// argument; `:where()` always contributes zero. Unknown functional
+/// pseudo-classes return `None` so the caller keeps treating them as unsupported
+/// rather than guessing.
 fn functional_pseudo_specificity(name: &str, arguments: &str) -> Option<Specificity> {
     match name.to_ascii_lowercase().as_str() {
         "where" => Some(Specificity::ZERO),
-        "is" | "not" | "matches" => Some(most_specific_argument_specificity(arguments)),
+        "is" | "not" | "matches" | "has" => Some(most_specific_argument_specificity(arguments)),
         _ => None,
     }
 }
