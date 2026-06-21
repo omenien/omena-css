@@ -4,12 +4,6 @@ use omena_abstract_value::{AbstractCssValueV0, abstract_css_value_from_text};
 use omena_parser::{LexedToken, StyleDialect, lex};
 use omena_syntax::SyntaxKind;
 
-use crate::control_flow::{
-    analyze_scss_control_flow_values_with_initial_bindings, build_scss_control_flow_graph,
-    summarize_scss_control_flow_prune_reachability_with_initial_bindings,
-};
-use crate::value_eval::{static_scss_literal_truthiness, static_scss_typed_advisory_truthiness};
-
 use super::model::StaticScssControlFlowPruneEvidenceCounts;
 use super::{
     OmenaScssEvalResolvedReplacementV0, STATIC_STYLESHEET_VALUE_RESOLUTION_FUEL_LIMIT,
@@ -25,6 +19,10 @@ use super::{
     static_stylesheet_token_end, static_stylesheet_token_start,
     tokens::static_stylesheet_block_kinds_for_dialect,
 };
+use crate::control_flow::{
+    analyze_scss_control_flow_values_with_initial_bindings, build_scss_control_flow_graph,
+    summarize_scss_control_flow_prune_reachability_with_initial_bindings,
+};
 
 const STATIC_SCSS_MIXIN_CONTROL_FLOW_RENDER_LIMIT: usize = 32;
 
@@ -32,8 +30,6 @@ pub(super) fn render_static_scss_mixin_control_flow_body(
     body: &str,
     dialect: StyleDialect,
     argument_values: &BTreeMap<String, String>,
-    call_position: usize,
-    context: StaticScssFunctionResolutionContext<'_>,
 ) -> Option<StaticScssControlFlowBodyRender> {
     if !static_scss_control_flow_dialect_is_supported(dialect)
         || !body.to_ascii_lowercase().contains("@if")
@@ -47,8 +43,6 @@ pub(super) fn render_static_scss_mixin_control_flow_body(
         body,
         dialect,
         argument_values,
-        call_position,
-        context,
         STATIC_SCSS_MIXIN_CONTROL_FLOW_RENDER_LIMIT,
     )
 }
@@ -91,14 +85,8 @@ pub(super) fn collect_static_scss_control_flow_evaluation_edits(
         }
 
         let chain = static_scss_mixin_control_flow_chain(source, dialect, tokens, index)?;
-        let value_prune_plan = static_scss_control_flow_value_prune_plan(
-            source,
-            dialect,
-            &chain,
-            &argument_values,
-            chain.start,
-            context,
-        );
+        let value_prune_plan =
+            static_scss_control_flow_value_prune_plan(source, dialect, &argument_values);
         prune_evidence_counts.add_assign(value_prune_plan.evidence_counts);
         let Some(replacement) =
             static_scss_mixin_selected_control_flow_body(&chain, Some(&value_prune_plan))
@@ -121,8 +109,6 @@ pub(super) fn collect_static_scss_control_flow_evaluation_edits(
             replacement.as_str(),
             dialect,
             &argument_values,
-            chain.start,
-            context,
         )?;
         prune_evidence_counts.add_assign(rendered_control_flow.prune_evidence_counts);
         let replacement = rendered_control_flow.body;
@@ -183,8 +169,6 @@ fn render_static_scss_mixin_control_flow_body_with_fuel(
     body: &str,
     dialect: StyleDialect,
     argument_values: &BTreeMap<String, String>,
-    call_position: usize,
-    context: StaticScssFunctionResolutionContext<'_>,
     fuel: usize,
 ) -> Option<StaticScssControlFlowBodyRender> {
     if fuel == 0 {
@@ -202,14 +186,8 @@ fn render_static_scss_mixin_control_flow_body_with_fuel(
             continue;
         }
         let chain = static_scss_mixin_control_flow_chain(body, dialect, tokens, index)?;
-        let value_prune_plan = static_scss_control_flow_value_prune_plan(
-            body,
-            dialect,
-            &chain,
-            argument_values,
-            call_position,
-            context,
-        );
+        let value_prune_plan =
+            static_scss_control_flow_value_prune_plan(body, dialect, argument_values);
         prune_evidence_counts.add_assign(value_prune_plan.evidence_counts);
         let replacement =
             static_scss_mixin_selected_control_flow_body(&chain, Some(&value_prune_plan))?
@@ -235,8 +213,6 @@ fn render_static_scss_mixin_control_flow_body_with_fuel(
             rendered.as_str(),
             dialect,
             argument_values,
-            call_position,
-            context,
             fuel - 1,
         )?;
         prune_evidence_counts.add_assign(nested.prune_evidence_counts);
@@ -407,11 +383,6 @@ fn static_scss_mixin_selected_control_flow_body(
                 body_start: branch.body_start,
             }));
         }
-        if value_prune_plan
-            .is_some_and(|plan| plan.control_start_has_conflict(branch.control_start))
-        {
-            return None;
-        }
         let truthy = value_prune_plan
             .and_then(|plan| plan.truthiness_by_start.get(&branch.control_start))
             .copied()?;
@@ -428,16 +399,11 @@ fn static_scss_mixin_selected_control_flow_body(
 #[derive(Debug, Clone, Default)]
 struct StaticScssControlFlowValuePrunePlan {
     truthiness_by_start: BTreeMap<usize, bool>,
-    conflicting_control_starts: BTreeSet<usize>,
     reachable_control_starts: Option<BTreeSet<usize>>,
     evidence_counts: StaticScssControlFlowPruneEvidenceCounts,
 }
 
 impl StaticScssControlFlowValuePrunePlan {
-    fn control_start_has_conflict(&self, control_start: usize) -> bool {
-        self.conflicting_control_starts.contains(&control_start)
-    }
-
     fn control_start_is_reachable(&self, control_start: usize) -> bool {
         self.reachable_control_starts
             .as_ref()
@@ -448,46 +414,17 @@ impl StaticScssControlFlowValuePrunePlan {
 fn static_scss_control_flow_value_prune_plan(
     source: &str,
     dialect: StyleDialect,
-    chain: &StaticScssMixinControlFlowChain,
     argument_values: &BTreeMap<String, String>,
-    call_position: usize,
-    context: StaticScssFunctionResolutionContext<'_>,
 ) -> StaticScssControlFlowValuePrunePlan {
     let initial_bindings = static_scss_control_flow_initial_bindings(argument_values);
-    let mut truthiness_by_start =
+    let truthiness_by_start =
         static_scss_control_flow_value_truthiness_by_start(source, dialect, &initial_bindings);
-    let mut evidence_counts = StaticScssControlFlowPruneEvidenceCounts {
+    let evidence_counts = StaticScssControlFlowPruneEvidenceCounts {
         value_truthiness_count: truthiness_by_start.len(),
         ..Default::default()
     };
-    let mut conflicting_control_starts = BTreeSet::new();
-    for branch in &chain.branches {
-        let Some(condition) = branch.condition.as_ref() else {
-            continue;
-        };
-        let Some(contextual_truthiness) = static_scss_resolved_condition_truthiness(
-            condition.as_str(),
-            argument_values,
-            call_position,
-            context,
-        ) else {
-            continue;
-        };
-        match truthiness_by_start.get(&branch.control_start).copied() {
-            Some(value_truthiness) if value_truthiness != contextual_truthiness => {
-                conflicting_control_starts.insert(branch.control_start);
-                evidence_counts.contextual_truthiness_conflict_count += 1;
-            }
-            Some(_) => {}
-            None => {
-                truthiness_by_start.insert(branch.control_start, contextual_truthiness);
-                evidence_counts.contextual_truthiness_fallback_count += 1;
-            }
-        }
-    }
     StaticScssControlFlowValuePrunePlan {
         truthiness_by_start,
-        conflicting_control_starts,
         reachable_control_starts: static_scss_control_flow_reachable_starts_after_prune(
             source,
             dialect,
@@ -573,28 +510,6 @@ fn static_scss_control_flow_reachable_starts_after_prune(
             .map(|block| block.block.source_span_start)
             .collect(),
     )
-}
-
-fn static_scss_resolved_condition_truthiness(
-    condition: &str,
-    argument_values: &BTreeMap<String, String>,
-    call_position: usize,
-    context: StaticScssFunctionResolutionContext<'_>,
-) -> Option<bool> {
-    let resolution = resolve_static_scss_function_value_with_bindings(
-        condition,
-        argument_values,
-        call_position,
-        STATIC_STYLESHEET_VALUE_RESOLUTION_FUEL_LIMIT,
-        context,
-    );
-    if resolution.outcome == StaticStylesheetResolutionOutcome::Top {
-        return None;
-    }
-    let condition_value = resolution.rendered_value?;
-    let _typed_advisory_truthiness =
-        static_scss_typed_advisory_truthiness(condition_value.as_str());
-    static_scss_literal_truthiness(condition_value.as_str())
 }
 
 fn render_static_scss_control_flow_replacement_values(
@@ -782,7 +697,6 @@ mod tests {
         };
         let plan = StaticScssControlFlowValuePrunePlan {
             truthiness_by_start: BTreeMap::from([(0, false), (10, true)]),
-            conflicting_control_starts: BTreeSet::new(),
             reachable_control_starts: Some(BTreeSet::from([0, 20])),
             evidence_counts: StaticScssControlFlowPruneEvidenceCounts::default(),
         };
@@ -798,7 +712,7 @@ mod tests {
     }
 
     #[test]
-    fn control_flow_selection_preserves_conflicting_prune_truthiness() {
+    fn control_flow_selection_preserves_when_value_truthiness_is_missing() {
         let chain = StaticScssMixinControlFlowChain {
             start: 0,
             end: 20,
@@ -819,8 +733,7 @@ mod tests {
             ],
         };
         let plan = StaticScssControlFlowValuePrunePlan {
-            truthiness_by_start: BTreeMap::from([(0, true)]),
-            conflicting_control_starts: BTreeSet::from([0]),
+            truthiness_by_start: BTreeMap::new(),
             reachable_control_starts: Some(BTreeSet::from([0, 10])),
             evidence_counts: StaticScssControlFlowPruneEvidenceCounts::default(),
         };

@@ -54,9 +54,7 @@ use string::{
     parse_static_scss_to_lower_case_value, parse_static_scss_to_upper_case_value,
     parse_static_scss_unquote_value, static_scss_quote_string, static_scss_quoted_string_text,
 };
-pub(crate) use truthiness::{
-    static_scss_literal_truthiness, static_scss_typed_advisory_truthiness,
-};
+pub(crate) use truthiness::static_scss_literal_truthiness;
 use unit::{
     parse_static_scss_comparable_value, parse_static_scss_math_compatible_value,
     parse_static_scss_math_is_unitless_value, parse_static_scss_math_percentage_value,

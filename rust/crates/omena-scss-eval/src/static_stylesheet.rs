@@ -450,13 +450,8 @@ fn render_static_scss_mixin_include_body_with_active(
         argument_values.insert(parameter, rendered_value);
     }
 
-    let control_flow_body = render_static_scss_mixin_control_flow_body(
-        body,
-        context.dialect,
-        &argument_values,
-        call_position,
-        context,
-    )?;
+    let control_flow_body =
+        render_static_scss_mixin_control_flow_body(body, context.dialect, &argument_values)?;
     let mut prune_evidence_counts = control_flow_body.prune_evidence_counts;
     let body = control_flow_body.body;
     let loop_argument_values = static_scss_mixin_body_loop_argument_values(

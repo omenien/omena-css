@@ -1,7 +1,3 @@
-use omena_abstract_value::{
-    AbstractCssTypedComparisonOperatorV0, abstract_css_value_from_text,
-    compare_abstract_css_values_with_typed_payloads,
-};
 use omena_value_lattice::{
     number::{
         compress_number_prefix, numeric_prefix_end, parse_reducible_abs_value,
@@ -12,6 +8,12 @@ use omena_value_lattice::{
         parse_reducible_sqrt_value, reduce_static_numeric_expression,
     },
     parse_numeric_value_with_unit, substitute_static_css_function_references_in_value_until_stable,
+};
+
+#[cfg(test)]
+use omena_abstract_value::{
+    AbstractCssTypedComparisonOperatorV0, abstract_css_value_from_text,
+    compare_abstract_css_values_with_typed_payloads,
 };
 
 pub(crate) fn reduce_static_numeric_value(value: String) -> String {
@@ -49,6 +51,7 @@ pub(crate) fn reduce_static_numeric_value(value: String) -> String {
     reduce_static_numeric_expression(inner.trim()).unwrap_or(value)
 }
 
+#[cfg(test)]
 pub(crate) fn static_scss_typed_advisory_numeric_comparison(
     left: &str,
     operator: AbstractCssTypedComparisonOperatorV0,

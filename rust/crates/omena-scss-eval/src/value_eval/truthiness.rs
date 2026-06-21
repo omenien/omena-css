@@ -1,7 +1,11 @@
-use omena_abstract_value::AbstractCssTypedComparisonOperatorV0;
 use omena_value_lattice::{css_values_canonically_equal, parse_numeric_value_with_unit};
 
-use super::{numeric::static_scss_typed_advisory_numeric_comparison, reduce_static_scss_value};
+#[cfg(test)]
+use omena_abstract_value::AbstractCssTypedComparisonOperatorV0;
+
+#[cfg(test)]
+use super::numeric::static_scss_typed_advisory_numeric_comparison;
+use super::reduce_static_scss_value;
 
 pub(crate) fn static_scss_literal_truthiness(value: &str) -> Option<bool> {
     let trimmed = value.trim();
@@ -40,6 +44,7 @@ pub(crate) fn static_scss_literal_truthiness(value: &str) -> Option<bool> {
     }
 }
 
+#[cfg(test)]
 pub(crate) fn static_scss_typed_advisory_truthiness(value: &str) -> Option<bool> {
     let (left, operator, right) = split_static_scss_comparison(value).ok()??;
     static_scss_typed_advisory_numeric_comparison(left, typed_comparison_operator(operator), right)
@@ -55,6 +60,7 @@ enum StaticScssComparisonOperator {
     GreaterThanOrEqual,
 }
 
+#[cfg(test)]
 fn typed_comparison_operator(
     operator: StaticScssComparisonOperator,
 ) -> AbstractCssTypedComparisonOperatorV0 {
