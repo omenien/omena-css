@@ -11,7 +11,7 @@ use std::collections::{BTreeMap, BTreeSet, VecDeque};
 use omena_abstract_value::AbstractClassValueV0;
 use omena_cross_file_summary::{
     OmenaUnifiedHypergraphConnectivityOracle, UnifiedHypergraphEdgeKindV0,
-    UnifiedHypergraphHyperedgeV0, collect_directed_graph_sccs,
+    UnifiedHypergraphHyperedgeV0, collect_directed_graph_sccs, collect_reachable_node_ids,
 };
 use serde::Serialize;
 
@@ -1151,18 +1151,9 @@ fn exact_reachable_node_ids(
     start_node_id: &str,
     hyperedges: &[UnifiedHypergraphHyperedgeV0],
 ) -> Vec<String> {
-    let adjacency = streaming_ifds_node_adjacency(hyperedges);
-
-    let mut seen = BTreeSet::new();
-    let mut pending = VecDeque::from([start_node_id.to_string()]);
-    while let Some(current) = pending.pop_front() {
-        for target in adjacency.get(&current).into_iter().flatten() {
-            if seen.insert(target.clone()) {
-                pending.push_back(target.clone());
-            }
-        }
-    }
-    seen.into_iter().collect()
+    // Build this crate's OWN adjacency (its node space), but share the single reachability BFS
+    // loop owned by omena-cross-file-summary (SLICE-1.5; the duplicate loop is removed here).
+    collect_reachable_node_ids(start_node_id, &streaming_ifds_node_adjacency(hyperedges))
 }
 
 #[cfg(test)]
@@ -1200,6 +1191,35 @@ mod tests {
                 vec!["c".to_string()],
                 vec!["a".to_string(), "b".to_string()],
             ]
+        );
+    }
+
+    #[test]
+    fn shared_reachability_loop_reproduces_the_deleted_bfs_duplicate() {
+        // SLICE-1.5 guard: the shared `collect_reachable_node_ids` owner reproduces the forward
+        // closure the now-removed streaming-ifds BFS loop computed — start excluded, all forward
+        // reachable nodes included, returned sorted; a back edge does not loop forever.
+        let adjacency: BTreeMap<String, BTreeSet<String>> = BTreeMap::from([
+            (
+                "a".to_string(),
+                BTreeSet::from(["b".to_string(), "c".to_string()]),
+            ),
+            ("b".to_string(), BTreeSet::from(["d".to_string()])),
+            ("c".to_string(), BTreeSet::from(["a".to_string()])),
+            ("d".to_string(), BTreeSet::new()),
+        ]);
+        assert_eq!(
+            collect_reachable_node_ids("a", &adjacency),
+            vec![
+                "a".to_string(),
+                "b".to_string(),
+                "c".to_string(),
+                "d".to_string(),
+            ]
+        );
+        assert_eq!(
+            collect_reachable_node_ids("d", &adjacency),
+            Vec::<String>::new()
         );
     }
 

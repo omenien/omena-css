@@ -244,18 +244,33 @@ impl OmenaUnifiedHypergraphConnectivityOracle for BatchHypergraphConnectivityOra
         start_node_id: &str,
         hyperedges: &[UnifiedHypergraphHyperedgeV0],
     ) -> Vec<String> {
-        let adjacency = build_adjacency(hyperedges);
-        let mut seen = BTreeSet::new();
-        let mut pending = VecDeque::from([start_node_id.to_string()]);
-        while let Some(current) = pending.pop_front() {
-            for target in adjacency.get(current.as_str()).into_iter().flatten() {
-                if seen.insert(target.clone()) {
-                    pending.push_back(target.clone());
-                }
+        collect_reachable_node_ids(start_node_id, &build_adjacency(hyperedges))
+    }
+}
+
+/// The single shared reachability BFS loop for the cross-file engine: forward closure over a
+/// deterministic `BTreeMap` adjacency, returned sorted (BTreeSet order). Generic over the
+/// adjacency key type so each caller keeps its OWN adjacency builder (the distinct node spaces
+/// comment-2 point 4 demands) while sharing exactly one traversal loop. (The substrate diagnostics
+/// reachability is a separate borrowed-`&str` DFS over inline-filtered `resolved` edges and is
+/// intentionally NOT one of the two BFS impls this collapses.)
+pub fn collect_reachable_node_ids<K>(
+    start_node_id: &str,
+    adjacency: &BTreeMap<K, BTreeSet<String>>,
+) -> Vec<String>
+where
+    K: Ord + std::borrow::Borrow<str>,
+{
+    let mut seen = BTreeSet::new();
+    let mut pending = VecDeque::from([start_node_id.to_string()]);
+    while let Some(current) = pending.pop_front() {
+        for target in adjacency.get(current.as_str()).into_iter().flatten() {
+            if seen.insert(target.clone()) {
+                pending.push_back(target.clone());
             }
         }
-        seen.into_iter().collect()
     }
+    seen.into_iter().collect()
 }
 
 pub fn tabulate_hypergraph_ifds_summary_edges(
