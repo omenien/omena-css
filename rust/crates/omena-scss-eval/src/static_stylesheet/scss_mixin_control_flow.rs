@@ -739,4 +739,36 @@ mod tests {
         assert_eq!(selected.body, ".fallback { color: green; }");
         assert_eq!(selected.body_start, 21);
     }
+
+    #[test]
+    fn control_flow_selection_preserves_conflicting_prune_truthiness() {
+        let chain = StaticScssMixinControlFlowChain {
+            start: 0,
+            end: 20,
+            next_index: 2,
+            branches: vec![
+                StaticScssMixinControlFlowBranch {
+                    control_start: 0,
+                    condition: Some("$enabled".to_string()),
+                    body: ".on { color: green; }".to_string(),
+                    body_start: 1,
+                },
+                StaticScssMixinControlFlowBranch {
+                    control_start: 10,
+                    condition: None,
+                    body: ".off { color: gray; }".to_string(),
+                    body_start: 11,
+                },
+            ],
+        };
+        let plan = StaticScssControlFlowValuePrunePlan {
+            truthiness_by_start: BTreeMap::from([(0, true)]),
+            conflicting_control_starts: BTreeSet::from([0]),
+            reachable_control_starts: Some(BTreeSet::from([0, 10])),
+        };
+
+        let selected = static_scss_mixin_selected_control_flow_body(&chain, Some(&plan));
+
+        assert!(selected.is_none());
+    }
 }
