@@ -13,11 +13,11 @@ pub mod number;
 
 pub use color::{
     StaticSrgbColorWithAlpha, can_shorten_hex_pairs, compress_hex_color_token_text,
-    parse_basic_named_static_color_with_alpha, parse_color_function_value, parse_color_mix_value,
-    parse_oklab_oklch_value, parse_static_hsl_function_color_with_alpha,
+    is_relative_color_form, parse_basic_named_static_color_with_alpha, parse_color_function_value,
+    parse_color_mix_value, parse_oklab_oklch_value, parse_static_hsl_function_color_with_alpha,
     parse_static_hwb_function_color_with_alpha, parse_static_rgb_function_color_with_alpha,
-    parse_static_srgb_color, parse_static_srgb_color_with_alpha, shorten_hex_pairs,
-    shortest_static_srgb_color_with_alpha_text,
+    parse_static_srgb_color, parse_static_srgb_color_with_alpha, relative_color_channel_names,
+    shorten_hex_pairs, shortest_static_srgb_color_with_alpha_text,
 };
 pub use functions::{
     StaticCssFunctionParser, StaticCssFunctionSpec, matching_function_call_end,
@@ -600,6 +600,27 @@ mod tests {
         // A subgrid track list carrying line-name args the lattice cannot model
         // stays opaque (never rewritten or reordered).
         assert!(canonicalize_css_value("subgrid [full-start]").is_none());
+    }
+
+    #[test]
+    fn relative_color_channel_vocabulary_recognizes_without_folding() {
+        assert_eq!(
+            relative_color_channel_names("rgb"),
+            Some(["r", "g", "b", "alpha"].as_slice())
+        );
+        assert_eq!(
+            relative_color_channel_names("OKLCH"),
+            Some(["l", "c", "h", "alpha"].as_slice())
+        );
+        assert_eq!(relative_color_channel_names("rotate"), None);
+        assert!(is_relative_color_form("rgb(from red r g b)"));
+        assert!(is_relative_color_form("color(from red srgb r g b)"));
+        assert!(!is_relative_color_form("rgb(255 0 0)"));
+        assert!(!is_relative_color_form("rotate(45deg)"));
+        // Recognition is a no-op on bytes: a relative-color value is not folded,
+        // it stays opaque (`Raw`/identity) through canonicalization.
+        assert!(canonicalize_css_value("rgb(from red r g b)").is_none());
+        assert!(canonicalize_css_value("oklch(from blue l c h)").is_none());
     }
 
     #[test]

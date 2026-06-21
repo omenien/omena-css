@@ -58,6 +58,45 @@ impl SrgbColor {
     }
 }
 
+/// Relative-color channel names for a color function family, per CSS Color 5
+/// `<colorfn>(from <color> <ch>… [/ alpha])`. Returns the ordered channel
+/// identifiers, or `None` if the function defines no fixed relative form
+/// (`color(from …)` channels are colorspace-dependent and excluded here).
+///
+/// Recognition vocabulary only: this crate does not fold `rgb(from …)` — such a
+/// value round-trips as `Raw`/identity until a dedicated lowering consumes it.
+pub fn relative_color_channel_names(function: &str) -> Option<&'static [&'static str]> {
+    let channels: &'static [&'static str] = match function.trim().to_ascii_lowercase().as_str() {
+        "rgb" | "rgba" => &["r", "g", "b", "alpha"],
+        "hsl" | "hsla" => &["h", "s", "l", "alpha"],
+        "hwb" => &["h", "w", "b", "alpha"],
+        "lab" | "oklab" => &["l", "a", "b", "alpha"],
+        "lch" | "oklch" => &["l", "c", "h", "alpha"],
+        _ => return None,
+    };
+    Some(channels)
+}
+
+/// Whether `value` is a relative-color form `<colorfn>(from …)` (CSS Color 5),
+/// including colorspace-keyed `color(from …)`. Recognition only — the form is
+/// never folded; it round-trips byte-faithfully.
+pub fn is_relative_color_form(value: &str) -> bool {
+    let trimmed = value.trim();
+    let Some(open) = trimmed.find('(') else {
+        return false;
+    };
+    let function = trimmed[..open].trim();
+    let recognized_function =
+        relative_color_channel_names(function).is_some() || function.eq_ignore_ascii_case("color");
+    if !recognized_function {
+        return false;
+    }
+    trimmed[open + 1..]
+        .split_whitespace()
+        .next()
+        .is_some_and(|first| first.eq_ignore_ascii_case("from"))
+}
+
 pub fn parse_color_mix_value(value: &str) -> Option<String> {
     let arguments = parse_whole_function_value_arguments(value, "color-mix")?;
     let [space, first, second] = arguments.as_slice() else {
