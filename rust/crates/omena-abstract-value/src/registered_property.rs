@@ -1,3 +1,4 @@
+use omena_spec_audit::spec_vocabulary;
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize)]
@@ -498,6 +499,15 @@ fn is_hex_color(value: &str) -> bool {
 }
 
 fn is_named_color(value: &str) -> bool {
+    // Spec-driven: the vendored webref `<named-color>` closed alternation (the full
+    // ~148-color set). The inline list is a recognition floor so a feed snapshot
+    // that fails to parse never regresses below the historically recognized set.
+    if matches!(
+        spec_vocabulary().type_accepts("named-color", value),
+        Some(true)
+    ) {
+        return true;
+    }
     matches!(
         value,
         "aliceblue"
@@ -831,7 +841,7 @@ mod tests {
         "tan",
         "teal",
         "thistle",
-        "tomato",
+        "customvalue",
         "turquoise",
         "violet",
         "wheat",
@@ -875,12 +885,9 @@ mod tests {
             ("'<length>'", "env(safe-area-inset-top)"),
             ("'<length>'", "attr(data-gap)"),
             ("'<length>'", "calc(100% - 8px)"),
-            ("'<length>'", "tomato"),
+            ("'<length>'", "customvalue"),
             ("'<length>'", "Canvas"),
-            ("'<color>'", "tomato"),
-            ("'<color>'", "crimson"),
-            ("'<color>'", "teal"),
-            ("'<color>'", "navy"),
+            ("'<color>'", "customvalue"),
             ("'<foo>'", "8px"),
             ("'<transform-list>+'", "rotate(45deg)"),
             ("'* | <length>'", "8px"),
@@ -900,14 +907,14 @@ mod tests {
     #[test]
     fn registered_property_syntax_corpus_matches_expected_tri_state() {
         for (syntax, value, expected) in [
-            ("'<color>'", "tomato", RegisteredSyntaxMatchV0::Unknown),
+            ("'<color>'", "customvalue", RegisteredSyntaxMatchV0::Unknown),
             ("'<color>'", "red", RegisteredSyntaxMatchV0::Accepts),
             ("'<color>'", "8px", RegisteredSyntaxMatchV0::Rejects),
             ("'<length>'", "red", RegisteredSyntaxMatchV0::Rejects),
-            ("'<length>'", "tomato", RegisteredSyntaxMatchV0::Unknown),
+            ("'<length>'", "customvalue", RegisteredSyntaxMatchV0::Unknown),
             (
                 "'<custom-ident>'",
-                "tomato",
+                "customvalue",
                 RegisteredSyntaxMatchV0::Accepts,
             ),
             (
@@ -922,7 +929,7 @@ mod tests {
             ),
             (
                 "'small | <custom-ident>'",
-                "tomato",
+                "customvalue",
                 RegisteredSyntaxMatchV0::Accepts,
             ),
             ("'<number>'", "infinity", RegisteredSyntaxMatchV0::Unknown),
@@ -956,7 +963,7 @@ mod tests {
             ),
             (
                 "'<length># | red'",
-                "tomato",
+                "customvalue",
                 RegisteredSyntaxMatchV0::Unknown,
             ),
         ] {
@@ -983,13 +990,44 @@ mod tests {
 
     #[test]
     fn bare_idents_do_not_reject_typed_components() {
+        // `customvalue` is a genuinely under-determined bare ident (not a named
+        // color, css-wide keyword, or function), so it must stay silent against
+        // every component base.
         for component in PVA_L1_COMPONENTS {
             assert_ne!(
-                registered_syntax_match(component, "tomato"),
+                registered_syntax_match(component, "customvalue"),
                 RegisteredSyntaxMatchV0::Rejects,
                 "{component} must not reject an under-determined bare ident"
             );
         }
+    }
+
+    #[test]
+    fn spec_driven_named_color_widening_narrows_against_noncolor_bases() {
+        // V2: the feed-driven `is_named_color` recognizes the full `<named-color>`
+        // set, so `rebeccapurple` (absent from the historical fast-path stub) is now
+        // a ColorKeyword, not an under-determined bare ident. This is a CORRECT
+        // narrowing — it positively Accepts against `<color>` AND definitely Rejects
+        // against a non-color base (`rebeccapurple` is genuinely not a length). It is
+        // NOT a pure false-negative shrink: it introduces a new, correct Rejects.
+        assert_eq!(
+            classify_registered_property_declared_value_v0("rebeccapurple"),
+            DeclaredValueKindV0::ColorKeyword("rebeccapurple".to_string())
+        );
+        assert_eq!(
+            registered_syntax_match("'<color>'", "rebeccapurple"),
+            RegisteredSyntaxMatchV0::Accepts
+        );
+        assert_eq!(
+            registered_syntax_match("'<length>'", "rebeccapurple"),
+            RegisteredSyntaxMatchV0::Rejects
+        );
+        // `currentcolor` is a `<color>` keyword, not a `<named-color>`, so the feed
+        // alone would miss it; the inline floor keeps it recognized.
+        assert_eq!(
+            classify_registered_property_declared_value_v0("currentcolor"),
+            DeclaredValueKindV0::ColorKeyword("currentcolor".to_string())
+        );
     }
 
     #[test]
@@ -1009,91 +1047,91 @@ mod tests {
             (
                 "'<length>'",
                 &["16px"][..],
-                &["tomato", "var(--x)", "calc(100% - 8px)"][..],
+                &["customvalue", "var(--x)", "calc(100% - 8px)"][..],
                 &["red", "50%"][..],
             ),
             (
                 "'<percentage>'",
                 &["50%"][..],
-                &["tomato", "var(--x)"][..],
+                &["customvalue", "var(--x)"][..],
                 &["16px", "red"][..],
             ),
             (
                 "'<length-percentage>'",
                 &["16px", "50%"][..],
-                &["tomato", "var(--x)"][..],
+                &["customvalue", "var(--x)"][..],
                 &["red", "30deg"][..],
             ),
             (
                 "'<number>'",
                 &["3", "1.5", "1e3"][..],
-                &["inf", "tomato"][..],
+                &["inf", "customvalue"][..],
                 &["16px", "red"][..],
             ),
             (
                 "'<integer>'",
                 &["3", "+5"][..],
-                &["inf", "tomato"][..],
+                &["inf", "customvalue"][..],
                 &["1.5", "16px"][..],
             ),
             (
                 "'<color>'",
                 &["#fff", "rgb(1 2 3)", "oklch(60% 0.1 120)", "red"][..],
-                &["tomato", "Canvas", "var(--x)"][..],
+                &["customvalue", "Canvas", "var(--x)"][..],
                 &["16px", "30deg"][..],
             ),
             (
                 "'<angle>'",
                 &["30deg", "1turn"][..],
-                &["tomato", "var(--x)"][..],
+                &["customvalue", "var(--x)"][..],
                 &["16px", "red"][..],
             ),
             (
                 "'<time>'",
                 &["200ms", "1s"][..],
-                &["tomato", "var(--x)"][..],
+                &["customvalue", "var(--x)"][..],
                 &["16px", "red"][..],
             ),
             (
                 "'<resolution>'",
                 &["2dppx", "96dpi"][..],
-                &["tomato", "var(--x)"][..],
+                &["customvalue", "var(--x)"][..],
                 &["16px", "red"][..],
             ),
             (
                 "'<image>'",
                 &["url(a.png)", "linear-gradient(red, blue)"][..],
-                &["tomato", "var(--x)"][..],
+                &["customvalue", "var(--x)"][..],
                 &["16px"][..],
             ),
             (
                 "'<url>'",
                 &["url(a.png)"][..],
-                &["tomato", "var(--x)"][..],
+                &["customvalue", "var(--x)"][..],
                 &["16px", "red"][..],
             ),
             (
                 "'<transform-function>'",
                 &["rotate(45deg)", "translateX(1px)"][..],
-                &["tomato", "var(--x)"][..],
+                &["customvalue", "var(--x)"][..],
                 &["16px", "red"][..],
             ),
             (
                 "'<transform-list>'",
                 &["rotate(45deg)"][..],
-                &["rotate(45deg) scale(2)", "tomato", "var(--x)"][..],
+                &["rotate(45deg) scale(2)", "customvalue", "var(--x)"][..],
                 &["16px", "red"][..],
             ),
             (
                 "'<custom-ident>'",
-                &["tomato", "red"][..],
+                &["customvalue", "red"][..],
                 &["var(--x)", "0x10"][..],
                 &["16px", "50%"][..],
             ),
             (
                 "'<string>'",
                 &["\"hello\"", "'hello'"][..],
-                &["tomato", "var(--x)"][..],
+                &["customvalue", "var(--x)"][..],
                 &["16px", "red"][..],
             ),
         ] {
