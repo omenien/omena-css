@@ -1,3 +1,8 @@
+//! Lightweight instrumentation for parser lexing materialization.
+//!
+//! The counters in this module support regression gates that verify parser
+//! consumers do not accidentally rematerialize token streams.
+
 use std::cell::Cell;
 
 use serde::Serialize;

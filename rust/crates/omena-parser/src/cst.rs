@@ -1,3 +1,8 @@
+//! Typed CST wrappers over the raw parser syntax tree.
+//!
+//! These wrappers give downstream parser consumers stable node categories
+//! without exposing the full cstree traversal contract at every call site.
+
 use cstree::{syntax::SyntaxNode, text::TextRange};
 use omena_syntax::SyntaxKind;
 

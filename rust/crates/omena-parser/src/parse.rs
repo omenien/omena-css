@@ -1,3 +1,8 @@
+//! Recursive-descent parser entry points and result types.
+//!
+//! This module owns the concrete parser loop while exporting stable parse,
+//! lex, and fact-collection functions for the crate's public API.
+
 use cstree::{
     build::GreenNodeBuilder,
     green::GreenNode,

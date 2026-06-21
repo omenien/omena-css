@@ -1,3 +1,8 @@
+//! Parser facts for animation and keyframes references.
+//!
+//! These facts are intentionally token-derived so diagnostics can consume
+//! animation names without depending on later semantic graph construction.
+
 use cstree::text::TextRange;
 use omena_syntax::SyntaxKind;
 use std::collections::BTreeSet;

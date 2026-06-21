@@ -1,3 +1,8 @@
+//! Aggregated parser fact surface.
+//!
+//! This module re-exports the syntax-derived fact records that are safe for
+//! query, bridge, LSP, and transform consumers to share.
+
 mod animations;
 mod at_rules;
 mod css_modules;

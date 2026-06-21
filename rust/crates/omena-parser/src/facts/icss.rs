@@ -1,3 +1,8 @@
+//! Parser facts for ICSS import/export blocks.
+//!
+//! ICSS facts preserve the raw local names and specifier spans needed by
+//! resolver and CSS Modules consumers.
+
 use cstree::text::TextRange;
 use omena_syntax::SyntaxKind;
 use std::collections::BTreeSet;

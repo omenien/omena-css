@@ -1,3 +1,8 @@
+//! Serializable parser span and range records.
+//!
+//! Parser summaries use these byte/line/column records at crate boundaries
+//! instead of exposing cstree-specific range types.
+
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Default)]

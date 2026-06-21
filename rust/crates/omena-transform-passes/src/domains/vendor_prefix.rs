@@ -1,3 +1,8 @@
+//! Vendor-prefix transform analysis and proof candidates.
+//!
+//! This domain records stale-prefix removal evidence before execution commits
+//! to a concrete stylesheet mutation.
+
 use omena_parser::{LexedToken, StyleDialect};
 use omena_syntax::SyntaxKind;
 

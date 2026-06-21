@@ -1,3 +1,8 @@
+//! Recovery token sets used by the parser.
+//!
+//! These constants define the public recovery policy for top-level, selector,
+//! and declaration parsing entry points.
+
 use omena_syntax::SyntaxKind;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

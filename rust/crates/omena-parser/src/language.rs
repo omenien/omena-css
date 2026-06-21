@@ -1,3 +1,8 @@
+//! Source language classification for style-bearing modules.
+//!
+//! This small boundary maps paths to CSS-family languages before dialect and
+//! source-projection layers perform deeper parsing.
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum StyleLanguage {
     Css,

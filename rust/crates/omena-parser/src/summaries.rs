@@ -1,3 +1,8 @@
+//! Parser boundary and evidence summaries.
+//!
+//! These V0 records are consumed by check gates, CLIs, and higher-level crates
+//! to prove parser coverage without coupling to private parser internals.
+
 use cstree::Syntax;
 use omena_interner::{
     NameKind, intern_class_name, intern_css_ident, intern_custom_property_name, intern_file_path,

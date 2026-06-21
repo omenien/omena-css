@@ -1,3 +1,8 @@
+//! Dialect extension hooks for CSS, SCSS, Less, and CSS Modules parsing.
+//!
+//! The parser keeps its core grammar shared and lets this module provide the
+//! dialect-specific at-rule and selector behavior needed by product consumers.
+
 use omena_syntax::{StyleDialect, SyntaxKind};
 
 pub trait DialectExtension {

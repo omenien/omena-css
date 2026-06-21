@@ -1,3 +1,8 @@
+//! Public lexer result types and token wrappers.
+//!
+//! Lexing remains dialect-aware, but this module exposes a stable token surface
+//! for summaries and parser fact collection.
+
 use cstree::text::{TextRange, TextSize};
 use omena_syntax::{StyleDialect, SyntaxKind};
 

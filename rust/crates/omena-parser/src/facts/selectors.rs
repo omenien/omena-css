@@ -1,3 +1,8 @@
+//! Parser facts for selector definitions and references.
+//!
+//! Selector facts expose the local class, id, and custom property names
+//! required by diagnostics, rename, references, and transform reachability.
+
 use cstree::text::TextRange;
 use omena_syntax::SyntaxKind;
 use std::collections::BTreeSet;

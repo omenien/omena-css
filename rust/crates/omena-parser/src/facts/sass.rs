@@ -1,3 +1,8 @@
+//! Parser facts for Sass symbols, module edges, includes, and extend targets.
+//!
+//! These records intentionally stop at syntax-level visibility and target
+//! extraction; module graph resolution is owned by downstream query layers.
+
 use cstree::text::{TextRange, TextSize};
 use omena_syntax::SyntaxKind;
 use std::collections::BTreeSet;

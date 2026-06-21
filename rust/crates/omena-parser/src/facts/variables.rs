@@ -1,3 +1,8 @@
+//! Parser facts for Sass and CSS variable-like declarations and references.
+//!
+//! The collector distinguishes declaration/reference positions at token level
+//! so later layers can resolve scope and module visibility explicitly.
+
 use cstree::text::TextRange;
 use omena_syntax::SyntaxKind;
 

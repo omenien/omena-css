@@ -1,3 +1,8 @@
+//! Parser facts for at-rule headers.
+//!
+//! The fact layer records the at-rule kind and source span used by summaries,
+//! diagnostics, and transform planning.
+
 use cstree::text::TextRange;
 use omena_syntax::{StyleDialect, SyntaxKind};
 

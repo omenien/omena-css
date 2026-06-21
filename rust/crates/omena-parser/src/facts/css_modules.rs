@@ -1,3 +1,8 @@
+//! Parser facts for CSS Modules `:export`, `:import`, `@value`, and `composes`.
+//!
+//! This module stays syntax-only: it records local edges and references so
+//! query/resolution layers can perform cross-file interpretation later.
+
 use cstree::text::TextRange;
 use omena_syntax::SyntaxKind;
 use std::collections::{BTreeMap, BTreeSet};
