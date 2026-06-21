@@ -192,6 +192,9 @@ interface ScssEvaluatorControlFlowSummaryV0 {
   readonly controlFlowBranchBlockCount: number;
   readonly callReturnNodeCount: number;
   readonly valueAnalysisConverged: boolean;
+  readonly pruneReachabilityAvailable: boolean;
+  readonly pruneReachabilityConverged: boolean;
+  readonly pruneReachabilityFlatCssCfgBuilt: boolean;
   readonly readySurfaces: readonly string[];
 }
 
@@ -1074,9 +1077,13 @@ function assertScssEvaluatorControlFlow(summary: ScssEvaluatorControlFlowSummary
   assert.ok(summary.controlFlowBranchBlockCount > 0);
   assert.ok(summary.callReturnNodeCount > 0);
   assert.equal(summary.valueAnalysisConverged, true);
+  assert.equal(summary.pruneReachabilityAvailable, true);
+  assert.equal(summary.pruneReachabilityConverged, true);
+  assert.equal(summary.pruneReachabilityFlatCssCfgBuilt, true);
   assert.deepEqual(summary.readySurfaces.toSorted(), [
     "scssEvaluatorCallReturnIr",
     "scssEvaluatorControlFlowIr",
+    "scssEvaluatorControlFlowPruneReachability",
     "scssEvaluatorControlFlowValueAnalysis",
   ]);
 }

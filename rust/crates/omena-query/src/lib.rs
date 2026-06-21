@@ -121,6 +121,7 @@ pub use omena_resolver::{
 pub use omena_scss_eval::{
     OmenaScssEvalCallReturnIrSummaryV0 as OmenaQueryScssEvalCallReturnIrSummaryV0,
     OmenaScssEvalControlFlowIrSummaryV0 as OmenaQueryScssEvalControlFlowIrSummaryV0,
+    OmenaScssEvalControlFlowPruneReachabilityV0 as OmenaQueryScssEvalControlFlowPruneReachabilityV0,
     OmenaScssEvalControlFlowValueAnalysisV0 as OmenaQueryScssEvalControlFlowValueAnalysisV0,
 };
 use omena_semantic::StyleContextIndexV0;

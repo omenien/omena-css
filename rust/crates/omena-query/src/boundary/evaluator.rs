@@ -4,14 +4,15 @@ use omena_scss_eval::{
     OmenaScssEvalStaticValueResolutionReportV0, analyze_scss_control_flow_values,
     derive_static_stylesheet_module_evaluation, summarize_scss_call_return_ir,
     summarize_scss_control_flow_ir, summarize_scss_control_flow_oracle_corpus,
-    summarize_static_stylesheet_oracle_corpus, summarize_static_stylesheet_value_resolution,
+    summarize_scss_control_flow_prune_reachability, summarize_static_stylesheet_oracle_corpus,
+    summarize_static_stylesheet_value_resolution,
 };
 use serde::Serialize;
 
 use crate::{
     EngineInputV2, OMENA_QUERY_CURRENT_SCHEMA_VERSION, OmenaParserStyleDialect,
     OmenaQueryScssEvalCallReturnIrSummaryV0, OmenaQueryScssEvalControlFlowIrSummaryV0,
-    OmenaQueryScssEvalControlFlowValueAnalysisV0,
+    OmenaQueryScssEvalControlFlowPruneReachabilityV0, OmenaQueryScssEvalControlFlowValueAnalysisV0,
 };
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -36,9 +37,16 @@ pub struct OmenaQueryScssEvaluatorControlFlowSummaryV0 {
     pub value_analysis_converged: bool,
     pub value_analysis_iteration_count: usize,
     pub value_analysis_widened_to_top_count: usize,
+    pub prune_reachability_available: bool,
+    pub prune_reachability_converged: bool,
+    pub prune_reachability_flat_css_cfg_built: bool,
+    pub prune_reachability_have_terminals_changed: bool,
+    pub prune_reachability_reachable_block_count: usize,
+    pub prune_reachability_unreachable_block_count: usize,
     pub ready_surfaces: Vec<&'static str>,
     pub control_flow_ir: Option<OmenaQueryScssEvalControlFlowIrSummaryV0>,
     pub value_analysis: Option<OmenaQueryScssEvalControlFlowValueAnalysisV0>,
+    pub prune_reachability: Option<OmenaQueryScssEvalControlFlowPruneReachabilityV0>,
     pub call_return_ir: Option<OmenaQueryScssEvalCallReturnIrSummaryV0>,
 }
 
@@ -403,6 +411,7 @@ pub fn summarize_omena_query_scss_evaluator_control_flow_from_source(
 ) -> OmenaQueryScssEvaluatorControlFlowSummaryV0 {
     let control_flow_ir = summarize_scss_control_flow_ir(source, dialect);
     let value_analysis = analyze_scss_control_flow_values(source, dialect);
+    let prune_reachability = summarize_scss_control_flow_prune_reachability(source, dialect);
     let call_return_ir = summarize_scss_call_return_ir(source, dialect);
     let supported_dialect = matches!(
         dialect,
@@ -455,13 +464,31 @@ pub fn summarize_omena_query_scss_evaluator_control_flow_from_source(
         value_analysis_widened_to_top_count: value_analysis
             .as_ref()
             .map_or(0, |summary| summary.widened_to_top_count),
+        prune_reachability_available: prune_reachability.is_some(),
+        prune_reachability_converged: prune_reachability
+            .as_ref()
+            .is_some_and(|summary| summary.converged),
+        prune_reachability_flat_css_cfg_built: prune_reachability
+            .as_ref()
+            .is_some_and(|summary| summary.flat_css_cfg_built),
+        prune_reachability_have_terminals_changed: prune_reachability
+            .as_ref()
+            .is_some_and(|summary| summary.have_terminals_changed),
+        prune_reachability_reachable_block_count: prune_reachability
+            .as_ref()
+            .map_or(0, |summary| summary.reachable_block_count),
+        prune_reachability_unreachable_block_count: prune_reachability
+            .as_ref()
+            .map_or(0, |summary| summary.unreachable_block_count),
         ready_surfaces: vec![
             "scssEvaluatorControlFlowIr",
             "scssEvaluatorControlFlowValueAnalysis",
+            "scssEvaluatorControlFlowPruneReachability",
             "scssEvaluatorCallReturnIr",
         ],
         control_flow_ir,
         value_analysis,
+        prune_reachability,
         call_return_ir,
     }
 }

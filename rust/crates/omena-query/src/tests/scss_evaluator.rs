@@ -44,6 +44,9 @@ fn exposes_scss_control_flow_through_engine_input_boundary() -> Result<(), Strin
     assert!(summary.control_flow_branch_block_count > 0);
     assert!(summary.call_return_node_count > 0);
     assert!(summary.value_analysis_converged);
+    assert!(summary.prune_reachability_available);
+    assert!(summary.prune_reachability_converged);
+    assert!(summary.prune_reachability_flat_css_cfg_built);
     Ok(())
 }
 
@@ -4513,6 +4516,10 @@ fn exposes_scss_evaluator_control_flow_oracle_through_query_boundary() {
 $enabled: true;
 @if $enabled {
   .on { color: green; }
+} @else {
+  @if true {
+    .off { color: red; }
+  }
 }
 @function space($input) {
   @return $input + 1px;
@@ -4535,16 +4542,28 @@ $enabled: true;
     assert!(!summary.merged_cross_file_graph);
     assert!(summary.control_flow_ir.is_some());
     assert!(summary.value_analysis.is_some());
+    assert!(summary.prune_reachability.is_some());
     assert!(summary.call_return_ir.is_some());
     assert!(summary.control_flow_branch_block_count >= 1);
     assert!(summary.call_return_node_count >= 3);
     assert!(summary.call_resolved_return_value_count >= 1);
     assert!(summary.exact_call_resolved_return_value_count >= 1);
     assert!(summary.value_analysis_converged);
+    assert!(summary.prune_reachability_available);
+    assert!(summary.prune_reachability_converged);
+    assert!(summary.prune_reachability_flat_css_cfg_built);
+    assert!(summary.prune_reachability_have_terminals_changed);
+    assert!(summary.prune_reachability_reachable_block_count > 0);
+    assert!(summary.prune_reachability_unreachable_block_count > 0);
     assert!(
         summary
             .ready_surfaces
             .contains(&"scssEvaluatorControlFlowValueAnalysis")
+    );
+    assert!(
+        summary
+            .ready_surfaces
+            .contains(&"scssEvaluatorControlFlowPruneReachability")
     );
 
     if let Some(control_flow) = summary.control_flow_ir.as_ref() {
@@ -4557,6 +4576,16 @@ $enabled: true;
         assert_eq!(value_analysis.value_type, "AbstractCssValueV0");
         assert!(!value_analysis.flat_css_cfg_built);
         assert!(!value_analysis.merged_cross_file_graph);
+    }
+
+    if let Some(prune_reachability) = summary.prune_reachability.as_ref() {
+        assert_eq!(
+            prune_reachability.product,
+            "omena-scss-eval.control-flow-prune-reachability"
+        );
+        assert!(prune_reachability.flat_css_cfg_built);
+        assert!(!prune_reachability.merged_cross_file_graph);
+        assert!(prune_reachability.converged);
     }
 
     if let Some(call_return) = summary.call_return_ir.as_ref() {
