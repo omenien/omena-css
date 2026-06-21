@@ -921,6 +921,15 @@ fn exposes_scss_control_flow_oracle_corpus_through_query_boundary() {
         summary.converged_value_analysis_fixture_count,
         summary.supported_fixture_count
     );
+    assert_eq!(
+        summary.prune_reachability_fixture_count,
+        summary.supported_fixture_count
+    );
+    assert_eq!(
+        summary.prune_reachability_flat_css_cfg_built_count,
+        summary.supported_fixture_count
+    );
+    assert!(summary.prune_reachability_changed_fixture_count > 0);
     assert_eq!(summary.flat_css_cfg_built_count, 0);
     assert_eq!(summary.merged_cross_file_graph_count, 0);
     assert!(summary.all_supported_fixtures_converged);

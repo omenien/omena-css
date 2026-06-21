@@ -5,7 +5,8 @@ use super::{
     OmenaScssEvalControlFlowWideningWitnessV0, OmenaScssEvalTypedValueLatticeWitnessV0,
     SCSS_CALL_RETURN_RECURSION_LIMIT, analyze_scss_control_flow_values, dialect_label,
     summarize_scss_call_return_ir, summarize_scss_control_flow_ir,
-    summarize_scss_control_flow_widening_witness, summarize_typed_value_lattice_witness,
+    summarize_scss_control_flow_prune_reachability, summarize_scss_control_flow_widening_witness,
+    summarize_typed_value_lattice_witness,
 };
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -34,6 +35,9 @@ pub struct OmenaScssEvalControlFlowOracleCorpusReportV0 {
     pub widened_to_top_fixture_count: usize,
     pub widening_witness_widened_to_top_count: usize,
     pub widening_witness_converged: bool,
+    pub prune_reachability_fixture_count: usize,
+    pub prune_reachability_changed_fixture_count: usize,
+    pub prune_reachability_flat_css_cfg_built_count: usize,
     pub flat_css_cfg_built_count: usize,
     pub merged_cross_file_graph_count: usize,
     pub all_supported_fixtures_converged: bool,
@@ -67,6 +71,10 @@ pub struct OmenaScssEvalControlFlowOracleCorpusFixtureReportV0 {
     pub value_analysis_converged: bool,
     pub value_analysis_iteration_count: usize,
     pub widened_to_top_count: usize,
+    pub prune_reachability_available: bool,
+    pub prune_reachability_converged: bool,
+    pub prune_reachability_flat_css_cfg_built: bool,
+    pub prune_reachability_have_terminals_changed: bool,
     pub flat_css_cfg_built: bool,
     pub merged_cross_file_graph: bool,
 }
@@ -145,6 +153,18 @@ pub fn summarize_scss_control_flow_oracle_corpus() -> OmenaScssEvalControlFlowOr
         .iter()
         .filter(|fixture| fixture.widened_to_top_count > 0)
         .count();
+    let prune_reachability_fixture_count = fixtures
+        .iter()
+        .filter(|fixture| fixture.prune_reachability_available)
+        .count();
+    let prune_reachability_changed_fixture_count = fixtures
+        .iter()
+        .filter(|fixture| fixture.prune_reachability_have_terminals_changed)
+        .count();
+    let prune_reachability_flat_css_cfg_built_count = fixtures
+        .iter()
+        .filter(|fixture| fixture.prune_reachability_flat_css_cfg_built)
+        .count();
     let flat_css_cfg_built_count = fixtures
         .iter()
         .filter(|fixture| fixture.flat_css_cfg_built)
@@ -183,6 +203,9 @@ pub fn summarize_scss_control_flow_oracle_corpus() -> OmenaScssEvalControlFlowOr
         widened_to_top_fixture_count,
         widening_witness_widened_to_top_count: widening_witness.widened_to_top_count,
         widening_witness_converged: widening_witness.converged,
+        prune_reachability_fixture_count,
+        prune_reachability_changed_fixture_count,
+        prune_reachability_flat_css_cfg_built_count,
         flat_css_cfg_built_count,
         merged_cross_file_graph_count,
         all_supported_fixtures_converged,
@@ -200,6 +223,8 @@ fn scss_control_flow_oracle_corpus_fixture_report(
     let supported_dialect = matches!(fixture.dialect, StyleDialect::Scss | StyleDialect::Sass);
     let control_flow_ir = summarize_scss_control_flow_ir(fixture.source, fixture.dialect);
     let value_analysis = analyze_scss_control_flow_values(fixture.source, fixture.dialect);
+    let prune_reachability =
+        summarize_scss_control_flow_prune_reachability(fixture.source, fixture.dialect);
     let call_return_ir = summarize_scss_call_return_ir(fixture.source, fixture.dialect);
     let flat_css_cfg_built = control_flow_ir
         .as_ref()
@@ -269,6 +294,16 @@ fn scss_control_flow_oracle_corpus_fixture_report(
         widened_to_top_count: value_analysis
             .as_ref()
             .map_or(0, |summary| summary.widened_to_top_count),
+        prune_reachability_available: prune_reachability.is_some(),
+        prune_reachability_converged: prune_reachability
+            .as_ref()
+            .is_some_and(|summary| summary.converged),
+        prune_reachability_flat_css_cfg_built: prune_reachability
+            .as_ref()
+            .is_some_and(|summary| summary.flat_css_cfg_built),
+        prune_reachability_have_terminals_changed: prune_reachability
+            .as_ref()
+            .is_some_and(|summary| summary.have_terminals_changed),
         flat_css_cfg_built,
         merged_cross_file_graph,
     }
@@ -673,6 +708,15 @@ mod tests {
             report.converged_value_analysis_fixture_count,
             report.supported_fixture_count
         );
+        assert_eq!(
+            report.prune_reachability_fixture_count,
+            report.supported_fixture_count
+        );
+        assert_eq!(
+            report.prune_reachability_flat_css_cfg_built_count,
+            report.supported_fixture_count
+        );
+        assert!(report.prune_reachability_changed_fixture_count > 0);
         assert_eq!(report.flat_css_cfg_built_count, 0);
         assert_eq!(report.merged_cross_file_graph_count, 0);
         assert!(report.all_supported_fixtures_converged);

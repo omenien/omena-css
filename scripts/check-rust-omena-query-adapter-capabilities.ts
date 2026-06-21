@@ -169,6 +169,9 @@ interface ScssEvaluatorControlFlowOracleCorpusSummaryV0 {
   readonly widenedToTopFixtureCount: number;
   readonly wideningWitnessWidenedToTopCount: number;
   readonly wideningWitnessConverged: boolean;
+  readonly pruneReachabilityFixtureCount: number;
+  readonly pruneReachabilityChangedFixtureCount: number;
+  readonly pruneReachabilityFlatCssCfgBuiltCount: number;
   readonly flatCssCfgBuiltCount: number;
   readonly mergedCrossFileGraphCount: number;
   readonly allSupportedFixturesConverged: boolean;
@@ -1429,6 +1432,9 @@ function assertScssEvaluatorControlFlowOracleCorpus(
   assert.equal(summary.wideningWitness.iterationCount, summary.wideningWitness.maxIterations);
   assert.equal(summary.wideningWitnessWidenedToTopCount, summary.wideningWitness.nodeCount);
   assert.equal(summary.wideningWitness.outputTopCount, summary.wideningWitness.nodeCount);
+  assert.equal(summary.pruneReachabilityFixtureCount, summary.supportedFixtureCount);
+  assert.equal(summary.pruneReachabilityFlatCssCfgBuiltCount, summary.supportedFixtureCount);
+  assert.ok(summary.pruneReachabilityChangedFixtureCount > 0);
   assert.equal(summary.flatCssCfgBuiltCount, 0);
   assert.equal(summary.mergedCrossFileGraphCount, 0);
   assert.equal(summary.allSupportedFixturesConverged, true);
