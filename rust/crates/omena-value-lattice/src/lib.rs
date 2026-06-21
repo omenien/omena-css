@@ -318,6 +318,18 @@ fn is_serializable_numeric_unit(unit: &str) -> bool {
     is_absolute_zero_collapsible_unit(unit) || matches!(unit, "s" | "ms")
 }
 
+/// Container-query length units (`cqw cqh cqi cqb cqmin cqmax`).
+///
+/// A closed, context-relative family: like `em`/`rem` they are never collapsed
+/// to `0` or to each other and never folded into a shorthand. Recognition
+/// vocabulary for container-query lowering — not a new canonicalization rule.
+pub fn is_container_query_length_unit(unit: &str) -> bool {
+    matches!(
+        unit.to_ascii_lowercase().as_str(),
+        "cqw" | "cqh" | "cqi" | "cqb" | "cqmin" | "cqmax"
+    )
+}
+
 fn canonicalize_static_whitespace_list_value(value: &str) -> Option<String> {
     let segments = split_top_level_whitespace_value_components(value, 0)?;
     if segments.len() < 2 {
@@ -549,6 +561,22 @@ mod tests {
         assert!(!css_values_canonically_equal("0%", "0"));
         assert!(!css_values_canonically_equal("0em", "0"));
         assert!(!css_values_canonically_equal("0cqw", "0"));
+    }
+
+    #[test]
+    fn container_query_length_units_are_recognized_but_never_collapsed() {
+        for unit in ["cqw", "cqh", "cqi", "cqb", "cqmin", "cqmax"] {
+            assert!(is_container_query_length_unit(unit));
+            assert!(is_container_query_length_unit(&unit.to_ascii_uppercase()));
+            assert!(!is_absolute_zero_collapsible_unit(unit));
+            assert!(!is_serializable_numeric_unit(unit));
+            assert!(!css_values_canonically_equal(&format!("0{unit}"), "0"));
+            assert!(!css_values_canonically_equal(&format!("1{unit}"), "1"));
+        }
+        assert!(!css_values_canonically_equal("1cqw", "1cqh"));
+        assert!(!css_values_canonically_equal("0cqi", "0cqb"));
+        assert!(!is_container_query_length_unit("px"));
+        assert!(!is_container_query_length_unit("em"));
     }
 
     #[test]
