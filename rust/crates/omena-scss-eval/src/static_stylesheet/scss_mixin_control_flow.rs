@@ -3,7 +3,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use omena_parser::{LexedToken, StyleDialect, lex};
 use omena_syntax::SyntaxKind;
 
-use crate::value_eval::static_scss_literal_truthiness;
+use crate::value_eval::{static_scss_literal_truthiness, static_scss_typed_advisory_truthiness};
 
 use super::{
     OmenaScssEvalResolvedReplacementV0, STATIC_STYLESHEET_VALUE_RESOLUTION_FUEL_LIMIT,
@@ -371,6 +371,8 @@ fn static_scss_mixin_selected_control_flow_body(
             return None;
         }
         let condition_value = resolution.rendered_value?;
+        let _typed_advisory_truthiness =
+            static_scss_typed_advisory_truthiness(condition_value.as_str());
         if static_scss_literal_truthiness(condition_value.as_str())? {
             return Some(Some(StaticScssSelectedControlFlowBody {
                 body: branch.body.clone(),

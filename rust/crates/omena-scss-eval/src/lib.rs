@@ -26,8 +26,10 @@ pub use control_flow::{
     OmenaScssEvalControlFlowOracleCorpusFixtureReportV0,
     OmenaScssEvalControlFlowOracleCorpusReportV0, OmenaScssEvalControlFlowValueAnalysisV0,
     OmenaScssEvalControlFlowValueBlockV0, OmenaScssEvalControlFlowWideningWitnessV0,
+    OmenaScssEvalTypedValueKindCountV0, OmenaScssEvalTypedValueLatticeWitnessV0,
     analyze_scss_control_flow_values, summarize_scss_call_return_ir,
     summarize_scss_control_flow_ir, summarize_scss_control_flow_oracle_corpus,
+    summarize_typed_value_lattice_witness,
 };
 pub use static_stylesheet::{
     OmenaScssEvalResolvedReplacementV0, OmenaScssEvalStaticStylesheetEvaluationV0,
@@ -158,8 +160,10 @@ fn evaluate_legacy_declaration_value(
 fn render_abstract_css_value_for_oracle(value: &AbstractCssValueV0) -> String {
     match value {
         AbstractCssValueV0::Bottom => String::new(),
-        AbstractCssValueV0::Exact { value } | AbstractCssValueV0::Raw { value } => value.clone(),
-        AbstractCssValueV0::FiniteSet { values } => values.join(" | "),
+        AbstractCssValueV0::Exact { value, .. } | AbstractCssValueV0::Raw { value } => {
+            value.clone()
+        }
+        AbstractCssValueV0::FiniteSet { values, .. } => values.join(" | "),
         AbstractCssValueV0::Top => "<top>".to_string(),
     }
 }
@@ -176,7 +180,7 @@ fn abstract_css_value_matches_legacy(
             legacy_value == rendered_value
                 || abstract_css_values_canonically_equal(legacy_value, rendered_value)
         }
-        AbstractCssValueV0::FiniteSet { values } => values
+        AbstractCssValueV0::FiniteSet { values, .. } => values
             .iter()
             .any(|value| abstract_css_values_canonically_equal(legacy_value, value)),
         AbstractCssValueV0::Raw { .. } => legacy_value == rendered_value,

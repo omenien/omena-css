@@ -2,9 +2,10 @@ use omena_parser::StyleDialect;
 use serde::Serialize;
 
 use super::{
-    OmenaScssEvalControlFlowWideningWitnessV0, SCSS_CALL_RETURN_RECURSION_LIMIT,
-    analyze_scss_control_flow_values, dialect_label, summarize_scss_call_return_ir,
-    summarize_scss_control_flow_ir, summarize_scss_control_flow_widening_witness,
+    OmenaScssEvalControlFlowWideningWitnessV0, OmenaScssEvalTypedValueLatticeWitnessV0,
+    SCSS_CALL_RETURN_RECURSION_LIMIT, analyze_scss_control_flow_values, dialect_label,
+    summarize_scss_call_return_ir, summarize_scss_control_flow_ir,
+    summarize_scss_control_flow_widening_witness, summarize_typed_value_lattice_witness,
 };
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -39,6 +40,7 @@ pub struct OmenaScssEvalControlFlowOracleCorpusReportV0 {
     pub no_flat_css_cfg_built: bool,
     pub no_merged_cross_file_graph: bool,
     pub widening_witness: OmenaScssEvalControlFlowWideningWitnessV0,
+    pub typed_value_lattice_witness: OmenaScssEvalTypedValueLatticeWitnessV0,
     pub fixtures: Vec<OmenaScssEvalControlFlowOracleCorpusFixtureReportV0>,
 }
 
@@ -155,6 +157,7 @@ pub fn summarize_scss_control_flow_oracle_corpus() -> OmenaScssEvalControlFlowOr
         .iter()
         .filter(|fixture| fixture.supported_dialect)
         .all(|fixture| fixture.value_analysis_available && fixture.value_analysis_converged);
+    let typed_value_lattice_witness = summarize_typed_value_lattice_witness();
 
     OmenaScssEvalControlFlowOracleCorpusReportV0 {
         schema_version: "0",
@@ -186,6 +189,7 @@ pub fn summarize_scss_control_flow_oracle_corpus() -> OmenaScssEvalControlFlowOr
         no_flat_css_cfg_built: flat_css_cfg_built_count == 0,
         no_merged_cross_file_graph: merged_cross_file_graph_count == 0,
         widening_witness,
+        typed_value_lattice_witness,
         fixtures,
     }
 }
@@ -633,6 +637,12 @@ mod tests {
         assert_eq!(report.mode, "oracleOnly");
         assert_eq!(report.value_type, "AbstractCssValueV0");
         assert_eq!(report.node_key_type, "StableNodeKeyV0");
+        assert_eq!(
+            report.typed_value_lattice_witness.payload_type,
+            "AbstractCssTypedValueV0"
+        );
+        assert_eq!(report.typed_value_lattice_witness.typed_payload_count, 5);
+        assert_eq!(report.typed_value_lattice_witness.raw_value_count, 1);
         assert_eq!(report.recursion_cap, SCSS_CALL_RETURN_RECURSION_LIMIT);
         assert_eq!(report.fixture_count, 69);
         assert_eq!(report.scss_fixture_count, 34);

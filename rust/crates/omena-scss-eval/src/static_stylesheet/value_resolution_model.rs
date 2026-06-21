@@ -137,10 +137,10 @@ pub(super) fn top_static_abstract_value(
 pub(super) fn render_static_abstract_value(value: &AbstractCssValueV0) -> Option<String> {
     match value {
         AbstractCssValueV0::Bottom => Some(String::new()),
-        AbstractCssValueV0::Exact { value } | AbstractCssValueV0::Raw { value } => {
+        AbstractCssValueV0::Exact { value, .. } | AbstractCssValueV0::Raw { value } => {
             Some(value.clone())
         }
-        AbstractCssValueV0::FiniteSet { values } => values.first().cloned(),
+        AbstractCssValueV0::FiniteSet { values, .. } => values.first().cloned(),
         AbstractCssValueV0::Top => None,
     }
 }

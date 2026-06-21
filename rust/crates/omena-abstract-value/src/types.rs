@@ -1,4 +1,7 @@
-use crate::{Lin01ProvenanceSemiringV0, NaturalCountProvenanceSemiringV0, ProvenanceSemiringV0};
+use crate::{
+    DeclaredNumericTypeV0, Lin01ProvenanceSemiringV0, NaturalCountProvenanceSemiringV0,
+    ProvenanceSemiringV0,
+};
 use omena_incremental::{IncrementalComputationPlanV0, IncrementalSnapshotV0};
 use serde::{Deserialize, Serialize};
 
@@ -275,13 +278,109 @@ pub enum AbstractClassValueV0 {
     rename_all = "camelCase",
     rename_all_fields = "camelCase"
 )]
-pub enum AbstractCssValueV0 {
-    Bottom,
-    Exact { value: String },
-    FiniteSet { values: Vec<String> },
-    Raw { value: String },
+pub enum AbstractCssTypedValueV0 {
+    Exact {
+        value: AbstractCssTypedScalarValueV0,
+    },
+    FiniteSet {
+        values: Vec<AbstractCssTypedScalarValueV0>,
+    },
     Top,
 }
+
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize)]
+#[serde(
+    tag = "kind",
+    rename_all = "camelCase",
+    rename_all_fields = "camelCase"
+)]
+pub enum AbstractCssTypedScalarValueV0 {
+    Dimension {
+        numeric_type: DeclaredNumericTypeV0,
+        number: String,
+        unit: String,
+        serialized: String,
+    },
+    Number {
+        number: String,
+        serialized: String,
+    },
+    Integer {
+        number: String,
+        serialized: String,
+    },
+    Color {
+        serialized: String,
+    },
+    Keyword {
+        value: String,
+    },
+    QuotedString {
+        value: String,
+    },
+    Url {
+        value: String,
+    },
+    Image {
+        serialized: String,
+    },
+    Transform {
+        serialized: String,
+    },
+    CssWide {
+        value: String,
+    },
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum AbstractCssTypedComparisonOperatorV0 {
+    Equal,
+    NotEqual,
+    LessThan,
+    LessThanOrEqual,
+    GreaterThan,
+    GreaterThanOrEqual,
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize)]
+#[serde(
+    tag = "kind",
+    rename_all = "camelCase",
+    rename_all_fields = "camelCase"
+)]
+pub enum AbstractCssValueV0 {
+    Bottom,
+    Exact {
+        value: String,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        typed: Option<Box<AbstractCssTypedValueV0>>,
+    },
+    FiniteSet {
+        values: Vec<String>,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        typed: Option<Box<AbstractCssTypedValueV0>>,
+    },
+    Raw {
+        value: String,
+    },
+    Top,
+}
+
+impl PartialEq for AbstractCssValueV0 {
+    fn eq(&self, other: &Self) -> bool {
+        match (self, other) {
+            (Self::Bottom, Self::Bottom) | (Self::Top, Self::Top) => true,
+            (Self::Exact { value: left, .. }, Self::Exact { value: right, .. })
+            | (Self::Raw { value: left }, Self::Raw { value: right }) => left == right,
+            (Self::FiniteSet { values: left, .. }, Self::FiniteSet { values: right, .. }) => {
+                left == right
+            }
+            _ => false,
+        }
+    }
+}
+
+impl Eq for AbstractCssValueV0 {}
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(

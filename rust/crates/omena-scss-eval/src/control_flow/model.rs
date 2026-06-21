@@ -71,6 +71,33 @@ pub struct OmenaScssEvalControlFlowWideningWitnessV0 {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
+pub struct OmenaScssEvalTypedValueLatticeWitnessV0 {
+    pub schema_version: &'static str,
+    pub product: &'static str,
+    pub mode: &'static str,
+    pub value_type: &'static str,
+    pub payload_type: &'static str,
+    pub policy: &'static str,
+    pub sample_value_count: usize,
+    pub typed_payload_count: usize,
+    pub raw_value_count: usize,
+    pub untyped_exact_or_finite_count: usize,
+    pub typed_coverage_basis_points: usize,
+    pub typed_advisory_comparison_count: usize,
+    pub typed_advisory_true_count: usize,
+    pub typed_prune_consumer_enabled: bool,
+    pub type_kind_counts: Vec<OmenaScssEvalTypedValueKindCountV0>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct OmenaScssEvalTypedValueKindCountV0 {
+    pub kind: &'static str,
+    pub count: usize,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct OmenaScssEvalControlFlowValueBlockV0 {
     pub node_key: StableNodeKeyV0,
     pub kind: &'static str,

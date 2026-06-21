@@ -86,6 +86,40 @@ fn control_flow_value_analysis_uses_single_abstract_css_value_domain() {
 }
 
 #[test]
+fn typed_value_lattice_witness_reports_advisory_payload_coverage() {
+    let witness = summarize_typed_value_lattice_witness();
+
+    assert_eq!(witness.schema_version, "0");
+    assert_eq!(
+        witness.product,
+        "omena-scss-eval.typed-value-lattice-witness"
+    );
+    assert_eq!(witness.mode, "oracleOnlyAdvisoryPayload");
+    assert_eq!(witness.value_type, "AbstractCssValueV0");
+    assert_eq!(witness.payload_type, "AbstractCssTypedValueV0");
+    assert_eq!(witness.sample_value_count, 6);
+    assert_eq!(witness.typed_payload_count, 5);
+    assert_eq!(witness.raw_value_count, 1);
+    assert_eq!(witness.untyped_exact_or_finite_count, 0);
+    assert_eq!(witness.typed_coverage_basis_points, 8333);
+    assert_eq!(witness.typed_advisory_comparison_count, 2);
+    assert_eq!(witness.typed_advisory_true_count, 2);
+    assert!(!witness.typed_prune_consumer_enabled);
+    assert!(
+        witness
+            .type_kind_counts
+            .iter()
+            .any(|entry| { entry.kind == "dimension:percentage" && entry.count == 1 })
+    );
+    assert!(
+        witness
+            .type_kind_counts
+            .iter()
+            .any(|entry| { entry.kind == "quotedString" && entry.count == 1 })
+    );
+}
+
+#[test]
 fn control_flow_value_analysis_uses_loop_carried_bindings_for_nested_branch_conditions() {
     let source = "@for $i from 1 through 3 { @if $i == 2 { .item { order: $i; } } }";
     let report = analyze_scss_control_flow_values(source, StyleDialect::Scss);
@@ -102,6 +136,7 @@ fn control_flow_value_analysis_uses_loop_carried_bindings_for_nested_branch_cond
     assert_eq!(
         report.blocks[1].transfer_value,
         Some(AbstractCssValueV0::FiniteSet {
+            typed: None,
             values: vec!["false".to_string(), "true".to_string()]
         })
     );
@@ -594,6 +629,7 @@ fn control_flow_value_analysis_tracks_static_each_function_source_values() {
     assert_eq!(
         report.blocks[0].loop_carried_binding_values[0].value,
         AbstractCssValueV0::FiniteSet {
+            typed: None,
             values: vec!["1px".to_string(), "2px".to_string(), "3px".to_string()]
         }
     );
@@ -623,6 +659,7 @@ fn control_flow_value_analysis_tracks_static_each_map_pair_values() {
     assert_eq!(
         report.blocks[0].loop_carried_binding_values[0].value,
         AbstractCssValueV0::FiniteSet {
+            typed: None,
             values: vec!["primary".to_string(), "secondary".to_string()]
         }
     );
@@ -633,6 +670,7 @@ fn control_flow_value_analysis_tracks_static_each_map_pair_values() {
     assert_eq!(
         report.blocks[0].loop_carried_binding_values[1].value,
         AbstractCssValueV0::FiniteSet {
+            typed: None,
             values: vec!["#00f".to_string(), "red".to_string()]
         }
     );
@@ -655,12 +693,14 @@ fn control_flow_value_analysis_tracks_static_each_map_variable_pair_values() {
     assert_eq!(
         report.blocks[0].loop_carried_binding_values[0].value,
         AbstractCssValueV0::FiniteSet {
+            typed: None,
             values: vec!["primary".to_string(), "secondary".to_string()]
         }
     );
     assert_eq!(
         report.blocks[0].loop_carried_binding_values[1].value,
         AbstractCssValueV0::FiniteSet {
+            typed: None,
             values: vec!["#00f".to_string(), "red".to_string()]
         }
     );
@@ -683,12 +723,14 @@ fn control_flow_value_analysis_tracks_static_each_map_function_source_values() {
     assert_eq!(
         report.blocks[0].loop_carried_binding_values[0].value,
         AbstractCssValueV0::FiniteSet {
+            typed: None,
             values: vec!["primary".to_string(), "secondary".to_string()]
         }
     );
     assert_eq!(
         report.blocks[0].loop_carried_binding_values[1].value,
         AbstractCssValueV0::FiniteSet {
+            typed: None,
             values: vec!["#00f".to_string(), "red".to_string()]
         }
     );
@@ -712,12 +754,14 @@ fn control_flow_value_analysis_tracks_static_each_tuple_pair_values() {
     assert_eq!(
         report.blocks[0].loop_carried_binding_values[0].value,
         AbstractCssValueV0::FiniteSet {
+            typed: None,
             values: vec!["cancel".to_string(), "save".to_string()]
         }
     );
     assert_eq!(
         report.blocks[0].loop_carried_binding_values[1].value,
         AbstractCssValueV0::FiniteSet {
+            typed: None,
             values: vec!["16px".to_string(), "24px".to_string()]
         }
     );
@@ -740,12 +784,14 @@ fn control_flow_value_analysis_tracks_static_each_tuple_function_source_values()
     assert_eq!(
         report.blocks[0].loop_carried_binding_values[0].value,
         AbstractCssValueV0::FiniteSet {
+            typed: None,
             values: vec!["1px".to_string(), "2px".to_string()]
         }
     );
     assert_eq!(
         report.blocks[0].loop_carried_binding_values[1].value,
         AbstractCssValueV0::FiniteSet {
+            typed: None,
             values: vec!["dashed".to_string(), "solid".to_string()]
         }
     );
@@ -768,12 +814,14 @@ fn control_flow_value_analysis_tracks_static_each_tuple_variable_pair_values() {
     assert_eq!(
         report.blocks[0].loop_carried_binding_values[0].value,
         AbstractCssValueV0::FiniteSet {
+            typed: None,
             values: vec!["cancel".to_string(), "save".to_string()]
         }
     );
     assert_eq!(
         report.blocks[0].loop_carried_binding_values[1].value,
         AbstractCssValueV0::FiniteSet {
+            typed: None,
             values: vec!["16px".to_string(), "24px".to_string()]
         }
     );
@@ -795,12 +843,14 @@ fn control_flow_value_analysis_tracks_static_each_space_tuple_pair_values() {
     assert_eq!(
         report.blocks[0].loop_carried_binding_values[0].value,
         AbstractCssValueV0::FiniteSet {
+            typed: None,
             values: vec!["cancel".to_string(), "save".to_string()]
         }
     );
     assert_eq!(
         report.blocks[0].loop_carried_binding_values[1].value,
         AbstractCssValueV0::FiniteSet {
+            typed: None,
             values: vec!["16px".to_string(), "24px".to_string()]
         }
     );
@@ -820,6 +870,7 @@ fn control_flow_value_analysis_models_for_to_as_end_exclusive() {
     assert_eq!(
         report.blocks[0].loop_carried_binding_values[0].value,
         AbstractCssValueV0::FiniteSet {
+            typed: None,
             values: vec!["1".to_string(), "2".to_string()]
         }
     );
@@ -839,6 +890,7 @@ fn control_flow_value_analysis_resolves_static_for_loop_bounds() {
     assert_eq!(
         report.blocks[0].loop_carried_binding_values[0].value,
         AbstractCssValueV0::FiniteSet {
+            typed: None,
             values: vec!["1".to_string(), "2".to_string(), "3".to_string()]
         }
     );
@@ -858,6 +910,7 @@ fn control_flow_value_analysis_resolves_static_for_loop_expression_bounds() {
     assert_eq!(
         report.blocks[0].loop_carried_binding_values[0].value,
         AbstractCssValueV0::FiniteSet {
+            typed: None,
             values: vec!["2".to_string(), "3".to_string()]
         }
     );
@@ -895,6 +948,7 @@ fn control_flow_value_analysis_resolves_hyphen_underscore_equivalent_loop_bounds
     assert_eq!(
         report.blocks[0].loop_carried_binding_values[0].value,
         AbstractCssValueV0::FiniteSet {
+            typed: None,
             values: vec!["1".to_string(), "2".to_string(), "3".to_string()]
         }
     );
@@ -919,6 +973,7 @@ fn control_flow_value_analysis_tracks_while_condition_loop_bindings() {
     assert_eq!(
         report.blocks[0].loop_carried_binding_values[0].value,
         AbstractCssValueV0::FiniteSet {
+            typed: None,
             values: vec!["0".to_string(), "1".to_string(), "2".to_string()]
         }
     );
@@ -943,6 +998,7 @@ fn control_flow_value_analysis_tracks_reversed_while_condition_loop_bindings() {
     assert_eq!(
         report.blocks[0].loop_carried_binding_values[0].value,
         AbstractCssValueV0::FiniteSet {
+            typed: None,
             values: vec!["1".to_string(), "2".to_string(), "3".to_string()]
         }
     );
@@ -966,6 +1022,7 @@ fn control_flow_value_analysis_tracks_while_bound_variable_bindings() {
     assert_eq!(
         report.blocks[0].loop_carried_binding_values[0].value,
         AbstractCssValueV0::FiniteSet {
+            typed: None,
             values: vec!["0".to_string(), "1".to_string(), "2".to_string()]
         }
     );
@@ -987,6 +1044,7 @@ fn control_flow_value_analysis_tracks_static_while_assignment_steps() {
     assert_eq!(
         report.blocks[0].loop_carried_binding_values[0].value,
         AbstractCssValueV0::FiniteSet {
+            typed: None,
             values: vec!["0".to_string(), "2".to_string(), "4".to_string()]
         }
     );
@@ -1008,6 +1066,7 @@ fn control_flow_value_analysis_tracks_static_while_expression_steps() {
     assert_eq!(
         report.blocks[0].loop_carried_binding_values[0].value,
         AbstractCssValueV0::FiniteSet {
+            typed: None,
             values: vec!["0".to_string(), "2".to_string(), "4".to_string()]
         }
     );
@@ -1029,6 +1088,7 @@ fn control_flow_value_analysis_tracks_static_while_compound_expression_steps() {
     assert_eq!(
         report.blocks[0].loop_carried_binding_values[0].value,
         AbstractCssValueV0::FiniteSet {
+            typed: None,
             values: vec!["0".to_string(), "3".to_string(), "6".to_string()]
         }
     );
@@ -1123,6 +1183,7 @@ fn call_return_ir_reports_function_return_values_in_abstract_domain() {
     assert_eq!(
         return_node.return_value,
         Some(AbstractCssValueV0::Exact {
+            typed: None,
             value: "3px".to_string()
         })
     );
@@ -1161,6 +1222,7 @@ fn call_return_ir_resolves_function_call_returns_with_arguments() {
     assert_eq!(
         function_call.call_resolved_return_value,
         Some(AbstractCssValueV0::Exact {
+            typed: None,
             value: "4px".to_string()
         })
     );
@@ -1190,6 +1252,7 @@ fn call_return_ir_resolves_function_call_returns_through_static_if() {
     assert_eq!(
         function_call.call_resolved_return_value,
         Some(AbstractCssValueV0::Exact {
+            typed: None,
             value: "#00f".to_string()
         })
     );
@@ -1233,6 +1296,7 @@ fn call_return_ir_resolves_call_bound_local_variable_returns() {
     assert_eq!(
         function_call.call_resolved_return_value,
         Some(AbstractCssValueV0::Exact {
+            typed: None,
             value: "4px".to_string()
         })
     );
@@ -1259,6 +1323,7 @@ fn call_return_ir_resolves_hyphen_underscore_equivalent_local_bindings() {
     assert_eq!(
         function_call.call_resolved_return_value,
         Some(AbstractCssValueV0::Exact {
+            typed: None,
             value: "4px".to_string()
         })
     );
@@ -1299,6 +1364,7 @@ fn call_return_ir_resolves_call_bound_local_variable_chains() {
     assert_eq!(
         function_call.call_resolved_return_value,
         Some(AbstractCssValueV0::Exact {
+            typed: None,
             value: "6px".to_string()
         })
     );
@@ -1359,6 +1425,7 @@ fn call_return_ir_resolves_sass_indented_function_returns() {
     assert_eq!(
         function_call.call_resolved_return_value,
         Some(AbstractCssValueV0::Exact {
+            typed: None,
             value: "2".to_string()
         })
     );
@@ -1396,6 +1463,7 @@ fn call_return_ir_resolves_local_bindings_after_prior_branch() {
     assert_eq!(
         function_call.call_resolved_return_value,
         Some(AbstractCssValueV0::Exact {
+            typed: None,
             value: "2px".to_string()
         })
     );
@@ -1433,6 +1501,7 @@ fn call_return_ir_resolves_branch_local_bindings() {
     assert_eq!(
         function_call.call_resolved_return_value,
         Some(AbstractCssValueV0::Exact {
+            typed: None,
             value: "2px".to_string()
         })
     );
@@ -1542,6 +1611,7 @@ fn call_return_ir_resolves_named_function_arguments() {
     assert_eq!(
         function_call.call_resolved_return_value,
         Some(AbstractCssValueV0::Exact {
+            typed: None,
             value: "3px".to_string()
         })
     );
@@ -1569,6 +1639,7 @@ fn call_return_ir_resolves_hyphen_underscore_equivalent_parameter_references() {
     assert_eq!(
         function_call.call_resolved_return_value,
         Some(AbstractCssValueV0::Exact {
+            typed: None,
             value: "3px".to_string()
         })
     );
@@ -1595,6 +1666,7 @@ fn call_return_ir_resolves_hyphen_underscore_equivalent_named_arguments() {
     assert_eq!(
         function_call.call_resolved_return_value,
         Some(AbstractCssValueV0::Exact {
+            typed: None,
             value: "3px".to_string()
         })
     );
@@ -1645,6 +1717,7 @@ fn call_return_ir_resolves_default_function_arguments() {
     assert_eq!(
         function_call.call_resolved_return_value,
         Some(AbstractCssValueV0::Exact {
+            typed: None,
             value: "3px".to_string()
         })
     );
@@ -1673,6 +1746,7 @@ fn call_return_ir_resolves_default_arguments_from_prior_parameters() {
     assert_eq!(
         function_call.call_resolved_return_value,
         Some(AbstractCssValueV0::Exact {
+            typed: None,
             value: "3px".to_string()
         })
     );
@@ -1706,6 +1780,7 @@ fn call_return_ir_resolves_named_default_arguments_from_prior_parameters() {
     assert_eq!(
         function_call.call_resolved_return_value,
         Some(AbstractCssValueV0::Exact {
+            typed: None,
             value: "3px".to_string()
         })
     );
@@ -1733,6 +1808,7 @@ fn call_return_ir_resolves_composed_same_file_function_calls() {
     assert_eq!(
         function_call.call_resolved_return_value,
         Some(AbstractCssValueV0::Exact {
+            typed: None,
             value: "4px".to_string()
         })
     );
@@ -1760,6 +1836,7 @@ fn call_return_ir_resolves_hyphen_underscore_equivalent_function_calls() {
     assert_eq!(
         function_call.call_resolved_return_value,
         Some(AbstractCssValueV0::Exact {
+            typed: None,
             value: "4px".to_string()
         })
     );
@@ -1787,6 +1864,7 @@ fn call_return_ir_resolves_local_values_with_same_file_function_calls() {
     assert_eq!(
         function_call.call_resolved_return_value,
         Some(AbstractCssValueV0::Exact {
+            typed: None,
             value: "4px".to_string()
         })
     );
@@ -1864,6 +1942,7 @@ fn call_return_ir_resolves_same_file_function_call_arguments() {
     assert_eq!(
         function_call.call_resolved_return_value,
         Some(AbstractCssValueV0::Exact {
+            typed: None,
             value: "4px".to_string()
         })
     );
@@ -1891,6 +1970,7 @@ fn call_return_ir_resolves_named_same_file_function_call_arguments() {
     assert_eq!(
         function_call.call_resolved_return_value,
         Some(AbstractCssValueV0::Exact {
+            typed: None,
             value: "4px".to_string()
         })
     );
@@ -1971,6 +2051,7 @@ fn call_return_ir_uses_local_variables_in_branch_conditions() {
     assert_eq!(
         function_call.call_resolved_return_value,
         Some(AbstractCssValueV0::Exact {
+            typed: None,
             value: "#00f".to_string()
         })
     );
@@ -2028,6 +2109,7 @@ fn call_return_ir_resolves_call_bound_if_branch_returns() {
     assert_eq!(
         function_call.call_resolved_return_value,
         Some(AbstractCssValueV0::Exact {
+            typed: None,
             value: "red".to_string()
         })
     );
@@ -2056,6 +2138,7 @@ fn call_return_ir_respects_first_active_return_before_fallback() {
     assert_eq!(
         function_call.call_resolved_return_value,
         Some(AbstractCssValueV0::Exact {
+            typed: None,
             value: "red".to_string()
         })
     );
@@ -2090,6 +2173,7 @@ fn call_return_ir_resolves_call_bound_else_branch_returns() {
     assert_eq!(
         function_call.call_resolved_return_value,
         Some(AbstractCssValueV0::Exact {
+            typed: None,
             value: "#00f".to_string()
         })
     );
@@ -2118,6 +2202,7 @@ fn call_return_ir_resolves_call_bound_else_if_branch_returns() {
     assert_eq!(
         function_call.call_resolved_return_value,
         Some(AbstractCssValueV0::Exact {
+            typed: None,
             value: "green".to_string()
         })
     );
@@ -2175,6 +2260,7 @@ fn call_return_ir_resolves_static_for_loop_body_returns() {
     assert_eq!(
         function_call.call_resolved_return_value,
         Some(AbstractCssValueV0::FiniteSet {
+            typed: None,
             values: vec!["1".to_string(), "2".to_string(), "3".to_string()]
         })
     );
@@ -2207,6 +2293,7 @@ fn call_return_ir_resolves_static_each_loop_body_returns() {
     assert_eq!(
         function_call.call_resolved_return_value,
         Some(AbstractCssValueV0::FiniteSet {
+            typed: None,
             values: vec!["#00f".to_string(), "red".to_string()]
         })
     );
@@ -2235,6 +2322,7 @@ fn call_return_ir_resolves_static_each_function_source_returns() {
     assert_eq!(
         function_call.call_resolved_return_value,
         Some(AbstractCssValueV0::Exact {
+            typed: None,
             value: "3px".to_string()
         })
     );
@@ -2263,6 +2351,7 @@ fn call_return_ir_resolves_static_each_tuple_function_source_returns() {
     assert_eq!(
         function_call.call_resolved_return_value,
         Some(AbstractCssValueV0::Exact {
+            typed: None,
             value: "2px".to_string()
         })
     );
@@ -2294,6 +2383,7 @@ fn call_return_ir_resolves_static_while_loop_body_returns() {
     assert_eq!(
         function_call.call_resolved_return_value,
         Some(AbstractCssValueV0::FiniteSet {
+            typed: None,
             values: vec!["0".to_string(), "1".to_string(), "2".to_string()]
         })
     );
@@ -2322,6 +2412,7 @@ fn call_return_ir_filters_static_while_conditional_returns() {
     assert_eq!(
         function_call.call_resolved_return_value,
         Some(AbstractCssValueV0::Exact {
+            typed: None,
             value: "2".to_string()
         })
     );
@@ -2350,6 +2441,7 @@ fn call_return_ir_uses_call_arguments_in_static_while_conditional_returns() {
     assert_eq!(
         function_call.call_resolved_return_value,
         Some(AbstractCssValueV0::Exact {
+            typed: None,
             value: "3".to_string()
         })
     );
@@ -2378,6 +2470,7 @@ fn call_return_ir_filters_static_while_step_conditional_returns() {
     assert_eq!(
         function_call.call_resolved_return_value,
         Some(AbstractCssValueV0::Exact {
+            typed: None,
             value: "9".to_string()
         })
     );
@@ -2406,6 +2499,7 @@ fn call_return_ir_resolves_static_while_cumulative_step_returns() {
     assert_eq!(
         function_call.call_resolved_return_value,
         Some(AbstractCssValueV0::Exact {
+            typed: None,
             value: "4".to_string()
         })
     );
@@ -2434,6 +2528,7 @@ fn call_return_ir_resolves_static_while_expression_step_returns() {
     assert_eq!(
         function_call.call_resolved_return_value,
         Some(AbstractCssValueV0::Exact {
+            typed: None,
             value: "4".to_string()
         })
     );
@@ -2488,6 +2583,7 @@ fn call_return_ir_resolves_static_while_inequality_operator_returns() {
     assert_eq!(
         function_call.call_resolved_return_value,
         Some(AbstractCssValueV0::Exact {
+            typed: None,
             value: "3".to_string()
         })
     );
@@ -2516,6 +2612,7 @@ fn call_return_ir_filters_static_for_loop_conditional_returns() {
     assert_eq!(
         function_call.call_resolved_return_value,
         Some(AbstractCssValueV0::Exact {
+            typed: None,
             value: "2".to_string()
         })
     );
@@ -2544,6 +2641,7 @@ fn call_return_ir_filters_static_for_loop_expression_bound_returns() {
     assert_eq!(
         function_call.call_resolved_return_value,
         Some(AbstractCssValueV0::Exact {
+            typed: None,
             value: "0".to_string()
         })
     );
@@ -2572,6 +2670,7 @@ fn call_return_ir_continues_after_inactive_static_loop_returns() {
     assert_eq!(
         function_call.call_resolved_return_value,
         Some(AbstractCssValueV0::Exact {
+            typed: None,
             value: "0".to_string()
         })
     );
@@ -2608,6 +2707,7 @@ fn call_return_ir_resolves_nested_static_loop_body_returns() {
     assert_eq!(
         function_call.call_resolved_return_value,
         Some(AbstractCssValueV0::FiniteSet {
+            typed: None,
             values: vec!["3".to_string(), "4".to_string()]
         })
     );
@@ -2636,6 +2736,7 @@ fn call_return_ir_continues_after_inactive_nested_static_loop_returns() {
     assert_eq!(
         function_call.call_resolved_return_value,
         Some(AbstractCssValueV0::Exact {
+            typed: None,
             value: "0".to_string()
         })
     );
@@ -2664,6 +2765,7 @@ fn call_return_ir_filters_static_each_map_conditional_returns() {
     assert_eq!(
         function_call.call_resolved_return_value,
         Some(AbstractCssValueV0::Exact {
+            typed: None,
             value: "#00f".to_string()
         })
     );
@@ -2718,6 +2820,7 @@ fn call_return_ir_resolves_return_after_static_loop() {
     assert_eq!(
         function_call.call_resolved_return_value,
         Some(AbstractCssValueV0::Exact {
+            typed: None,
             value: "2px".to_string()
         })
     );
@@ -2776,6 +2879,7 @@ fn call_return_ir_reports_static_scss_if_return_values_in_abstract_domain() {
     assert_eq!(
         return_node.return_value,
         Some(AbstractCssValueV0::Exact {
+            typed: None,
             value: "2px".to_string()
         })
     );
@@ -2804,6 +2908,7 @@ fn call_return_ir_reports_static_scss_nth_return_values_in_abstract_domain() {
     assert_eq!(
         return_node.return_value,
         Some(AbstractCssValueV0::Exact {
+            typed: None,
             value: "2px".to_string()
         })
     );
@@ -2832,6 +2937,7 @@ fn call_return_ir_reports_static_scss_map_get_return_values_in_abstract_domain()
     assert_eq!(
         return_node.return_value,
         Some(AbstractCssValueV0::Exact {
+            typed: None,
             value: "1px".to_string()
         })
     );
@@ -2860,6 +2966,7 @@ fn call_return_ir_reports_nested_static_scss_map_lookup_values() {
     assert_eq!(
         return_node.return_value,
         Some(AbstractCssValueV0::Exact {
+            typed: None,
             value: "500".to_string()
         })
     );
@@ -2889,6 +2996,7 @@ fn call_return_ir_reports_static_scss_collection_search_values_in_abstract_domai
     assert_eq!(
         return_node.return_value,
         Some(AbstractCssValueV0::Exact {
+            typed: None,
             value: "3".to_string()
         })
     );
@@ -2917,6 +3025,7 @@ fn call_return_ir_reports_static_scss_list_metadata_values() {
     assert_eq!(
         return_node.return_value,
         Some(AbstractCssValueV0::Exact {
+            typed: None,
             value: "3px".to_string()
         })
     );
@@ -2945,6 +3054,7 @@ fn call_return_ir_reports_static_scss_type_metadata_values() {
     assert_eq!(
         return_node.return_value,
         Some(AbstractCssValueV0::Exact {
+            typed: None,
             value: "3px".to_string()
         })
     );
@@ -2973,6 +3083,7 @@ fn call_return_ir_reports_static_scss_calculation_metadata_values() {
     assert_eq!(
         return_node.return_value,
         Some(AbstractCssValueV0::Exact {
+            typed: None,
             value: "3px".to_string()
         })
     );
@@ -3009,6 +3120,7 @@ fn call_return_ir_reports_static_scss_function_metadata_values() {
     assert_eq!(
         return_node.return_value,
         Some(AbstractCssValueV0::Exact {
+            typed: None,
             value: "3px".to_string()
         })
     );
@@ -3016,6 +3128,7 @@ fn call_return_ir_reports_static_scss_function_metadata_values() {
     assert_eq!(
         function_call.call_resolved_return_value,
         Some(AbstractCssValueV0::Exact {
+            typed: None,
             value: "3px".to_string()
         })
     );
@@ -3042,6 +3155,7 @@ fn call_return_ir_preserves_function_exists_declaration_order() {
     assert_eq!(
         function_call.call_resolved_return_value,
         Some(AbstractCssValueV0::Exact {
+            typed: None,
             value: "1px".to_string()
         })
     );
@@ -3068,6 +3182,7 @@ fn call_return_ir_reports_static_scss_variable_metadata_values() {
     assert_eq!(
         function_call.call_resolved_return_value,
         Some(AbstractCssValueV0::Exact {
+            typed: None,
             value: "3px".to_string()
         })
     );
@@ -3094,6 +3209,7 @@ fn call_return_ir_reports_static_scss_global_variable_metadata_values() {
     assert_eq!(
         function_call.call_resolved_return_value,
         Some(AbstractCssValueV0::Exact {
+            typed: None,
             value: "3px".to_string()
         })
     );
@@ -3144,6 +3260,7 @@ fn call_return_ir_does_not_treat_local_binding_as_global_metadata() {
     assert_eq!(
         function_call.call_resolved_return_value,
         Some(AbstractCssValueV0::Exact {
+            typed: None,
             value: "4px".to_string()
         })
     );
@@ -3180,6 +3297,7 @@ fn call_return_ir_reports_static_scss_mixin_metadata_values() {
     assert_eq!(
         return_node.return_value,
         Some(AbstractCssValueV0::Exact {
+            typed: None,
             value: "3px".to_string()
         })
     );
@@ -3187,6 +3305,7 @@ fn call_return_ir_reports_static_scss_mixin_metadata_values() {
     assert_eq!(
         function_call.call_resolved_return_value,
         Some(AbstractCssValueV0::Exact {
+            typed: None,
             value: "3px".to_string()
         })
     );
@@ -3213,6 +3332,7 @@ fn call_return_ir_preserves_mixin_exists_declaration_order() {
     assert_eq!(
         function_call.call_resolved_return_value,
         Some(AbstractCssValueV0::Exact {
+            typed: None,
             value: "1px".to_string()
         })
     );
@@ -3241,6 +3361,7 @@ fn call_return_ir_reports_static_scss_string_metadata_values() {
     assert_eq!(
         return_node.return_value,
         Some(AbstractCssValueV0::Exact {
+            typed: None,
             value: "14".to_string()
         })
     );
@@ -3269,6 +3390,7 @@ fn call_return_ir_reports_static_scss_map_has_key_conditions_in_abstract_domain(
     assert_eq!(
         return_node.return_value,
         Some(AbstractCssValueV0::Exact {
+            typed: None,
             value: "2".to_string()
         })
     );
@@ -3297,6 +3419,7 @@ fn call_return_ir_reports_static_scss_map_key_and_value_lists() {
     assert_eq!(
         return_node.return_value,
         Some(AbstractCssValueV0::Exact {
+            typed: None,
             value: "2px".to_string()
         })
     );
@@ -3325,6 +3448,7 @@ fn call_return_ir_reports_static_scss_map_merge_values() {
     assert_eq!(
         return_node.return_value,
         Some(AbstractCssValueV0::Exact {
+            typed: None,
             value: "3px".to_string()
         })
     );
@@ -3353,6 +3477,7 @@ fn call_return_ir_reports_nested_static_scss_map_merge_values() {
     assert_eq!(
         return_node.return_value,
         Some(AbstractCssValueV0::Exact {
+            typed: None,
             value: "8px".to_string()
         })
     );
@@ -3381,6 +3506,7 @@ fn call_return_ir_reports_static_scss_map_deep_merge_values() {
     assert_eq!(
         return_node.return_value,
         Some(AbstractCssValueV0::Exact {
+            typed: None,
             value: "8px".to_string()
         })
     );
@@ -3409,6 +3535,7 @@ fn call_return_ir_reports_static_scss_map_remove_values() {
     assert_eq!(
         return_node.return_value,
         Some(AbstractCssValueV0::Exact {
+            typed: None,
             value: "1".to_string()
         })
     );
@@ -3437,6 +3564,7 @@ fn call_return_ir_reports_nested_static_scss_map_deep_remove_values() {
     assert_eq!(
         return_node.return_value,
         Some(AbstractCssValueV0::Exact {
+            typed: None,
             value: "8px".to_string()
         })
     );
@@ -3465,6 +3593,7 @@ fn call_return_ir_reports_static_scss_map_set_values() {
     assert_eq!(
         return_node.return_value,
         Some(AbstractCssValueV0::Exact {
+            typed: None,
             value: "700".to_string()
         })
     );
@@ -3493,6 +3622,7 @@ fn call_return_ir_reports_nested_static_scss_map_set_values() {
     assert_eq!(
         return_node.return_value,
         Some(AbstractCssValueV0::Exact {
+            typed: None,
             value: "red".to_string()
         })
     );
@@ -3521,6 +3651,7 @@ fn call_return_ir_reports_static_scss_math_return_values_in_abstract_domain() {
     assert_eq!(
         return_node.return_value,
         Some(AbstractCssValueV0::Exact {
+            typed: None,
             value: "2px".to_string()
         })
     );
@@ -3549,6 +3680,7 @@ fn call_return_ir_reports_static_scss_math_alias_returns() {
     assert_eq!(
         return_node.return_value,
         Some(AbstractCssValueV0::Exact {
+            typed: None,
             value: "3px".to_string()
         })
     );
@@ -3577,6 +3709,7 @@ fn call_return_ir_reports_static_scss_math_constant_returns() {
     assert_eq!(
         return_node.return_value,
         Some(AbstractCssValueV0::Exact {
+            typed: None,
             value: "3.141593".to_string()
         })
     );
@@ -3605,6 +3738,7 @@ fn call_return_ir_reports_static_scss_math_constant_argument_returns() {
     assert_eq!(
         return_node.return_value,
         Some(AbstractCssValueV0::Exact {
+            typed: None,
             value: "1px".to_string()
         })
     );
@@ -3633,6 +3767,7 @@ fn call_return_ir_reports_static_scss_extended_math_alias_returns() {
     assert_eq!(
         return_node.return_value,
         Some(AbstractCssValueV0::Exact {
+            typed: None,
             value: "5px".to_string()
         })
     );
@@ -3661,6 +3796,7 @@ fn call_return_ir_reports_static_scss_rounding_alias_returns() {
     assert_eq!(
         return_node.return_value,
         Some(AbstractCssValueV0::Exact {
+            typed: None,
             value: "2px".to_string()
         })
     );
@@ -3689,6 +3825,7 @@ fn call_return_ir_reduces_nested_static_list_conditions_in_order() {
     assert_eq!(
         return_node.return_value,
         Some(AbstractCssValueV0::Exact {
+            typed: None,
             value: "3".to_string()
         })
     );
@@ -3717,6 +3854,7 @@ fn call_return_ir_reports_static_scss_unitless_branch_returns() {
     assert_eq!(
         return_node.return_value,
         Some(AbstractCssValueV0::Exact {
+            typed: None,
             value: "2px".to_string()
         })
     );
@@ -3745,6 +3883,7 @@ fn call_return_ir_reports_static_scss_unit_compatibility_returns() {
     assert_eq!(
         return_node.return_value,
         Some(AbstractCssValueV0::Exact {
+            typed: None,
             value: "\"px\"".to_string()
         })
     );
@@ -3774,6 +3913,7 @@ fn call_return_ir_reports_static_scss_if_argument_values_in_abstract_domain() {
     assert_eq!(
         function_call.argument_values[0].value,
         AbstractCssValueV0::Exact {
+            typed: None,
             value: "2px".to_string()
         }
     );
@@ -3806,6 +3946,7 @@ fn call_return_ir_reports_static_scss_inequality_argument_values_in_abstract_dom
     assert_eq!(
         function_call.argument_values[0].value,
         AbstractCssValueV0::Exact {
+            typed: None,
             value: "1px".to_string()
         }
     );

@@ -2131,6 +2131,7 @@ dependencies = [
  "omena-incremental",
  "omena-value-lattice",
  "serde",
+ "serde_json",
 ]
 
 [[package]]

@@ -158,12 +158,13 @@ pub(super) fn run_scss_control_flow_fixpoint(
 
 pub(super) fn scss_static_truthiness_label(value: &AbstractCssValueV0) -> Option<&'static str> {
     match value {
-        AbstractCssValueV0::Exact { value } => scss_static_truthiness_label_from_text(value),
-        AbstractCssValueV0::FiniteSet { values } => {
+        AbstractCssValueV0::Exact { value, .. } => scss_static_truthiness_label_from_text(value),
+        AbstractCssValueV0::FiniteSet { values, .. } => {
             let mut truthiness = values
                 .iter()
                 .filter_map(|value| {
                     scss_static_truthiness_label(&AbstractCssValueV0::Exact {
+                        typed: None,
                         value: value.clone(),
                     })
                 })

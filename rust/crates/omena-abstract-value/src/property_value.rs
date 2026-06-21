@@ -3,8 +3,9 @@ use std::collections::{BTreeMap, BTreeSet};
 use omena_value_lattice::{canonicalize_css_value, css_values_canonically_equal};
 
 use crate::{
-    AbstractCssValueV0, AbstractPropertyValueCandidateV0, AbstractPropertyValueNarrowingV0,
-    AbstractPropertyValueV0,
+    AbstractCssTypedValueV0, AbstractCssValueV0, AbstractPropertyValueCandidateV0,
+    AbstractPropertyValueNarrowingV0, AbstractPropertyValueV0, abstract_css_typed_value_from_text,
+    join_abstract_css_typed_values,
 };
 
 pub fn abstract_css_value_from_text(value: &str) -> AbstractCssValueV0 {
@@ -13,7 +14,10 @@ pub fn abstract_css_value_from_text(value: &str) -> AbstractCssValueV0 {
         return AbstractCssValueV0::Bottom;
     }
     match canonical_css_value_text(value) {
-        Some(value) => AbstractCssValueV0::Exact { value },
+        Some(value) => AbstractCssValueV0::Exact {
+            typed: abstract_css_typed_value_from_text(value.as_str()).map(Box::new),
+            value,
+        },
         None => AbstractCssValueV0::Raw {
             value: value.to_string(),
         },
@@ -35,11 +39,20 @@ pub fn join_abstract_css_values(
     match (left, right) {
         (AbstractCssValueV0::Bottom, value) | (value, AbstractCssValueV0::Bottom) => value.clone(),
         (AbstractCssValueV0::Top, _) | (_, AbstractCssValueV0::Top) => AbstractCssValueV0::Top,
-        (AbstractCssValueV0::Exact { value: left }, AbstractCssValueV0::Exact { value: right })
-            if left == right =>
-        {
-            left_css_value(left)
-        }
+        (
+            AbstractCssValueV0::Exact {
+                value: left,
+                typed: left_typed,
+            },
+            AbstractCssValueV0::Exact {
+                value: right,
+                typed: right_typed,
+            },
+        ) if left == right => AbstractCssValueV0::Exact {
+            value: left.clone(),
+            typed: join_abstract_css_typed_values(left_typed.as_deref(), right_typed.as_deref())
+                .map(Box::new),
+        },
         (AbstractCssValueV0::Raw { value: left }, AbstractCssValueV0::Raw { value: right })
             if left == right =>
         {
@@ -302,12 +315,6 @@ fn canonical_property_value_text(value: &str) -> String {
     canonical_css_value_text(value).unwrap_or_else(|| value.trim().to_string())
 }
 
-fn left_css_value(value: &str) -> AbstractCssValueV0 {
-    AbstractCssValueV0::Exact {
-        value: value.to_string(),
-    }
-}
-
 fn finite_css_value_set<const N: usize>(values: [&AbstractCssValueV0; N]) -> AbstractCssValueV0 {
     let values = values
         .into_iter()
@@ -316,12 +323,16 @@ fn finite_css_value_set<const N: usize>(values: [&AbstractCssValueV0; N]) -> Abs
     if values.is_empty() {
         AbstractCssValueV0::Bottom
     } else if values.len() == 1 {
+        let value = values.into_iter().next().unwrap_or_default();
         AbstractCssValueV0::Exact {
-            value: values.into_iter().next().unwrap_or_default(),
+            typed: abstract_css_typed_value_from_text(value.as_str()).map(Box::new),
+            value,
         }
     } else {
+        let values = values.into_iter().collect::<Vec<_>>();
         AbstractCssValueV0::FiniteSet {
-            values: values.into_iter().collect(),
+            typed: finite_css_typed_value_from_strings(values.as_slice()),
+            values,
         }
     }
 }
@@ -329,12 +340,26 @@ fn finite_css_value_set<const N: usize>(values: [&AbstractCssValueV0; N]) -> Abs
 fn flatten_css_value_set(value: &AbstractCssValueV0) -> Vec<String> {
     match value {
         AbstractCssValueV0::Bottom => Vec::new(),
-        AbstractCssValueV0::Exact { value } | AbstractCssValueV0::Raw { value } => {
+        AbstractCssValueV0::Exact { value, .. } | AbstractCssValueV0::Raw { value } => {
             vec![value.clone()]
         }
-        AbstractCssValueV0::FiniteSet { values } => values.clone(),
+        AbstractCssValueV0::FiniteSet { values, .. } => values.clone(),
         AbstractCssValueV0::Top => vec!["<top>".to_string()],
     }
+}
+
+fn finite_css_typed_value_from_strings(values: &[String]) -> Option<Box<AbstractCssTypedValueV0>> {
+    values
+        .iter()
+        .filter_map(|value| canonical_css_value_text(value.as_str()))
+        .filter_map(|value| abstract_css_typed_value_from_text(value.as_str()))
+        .reduce(
+            |left, right| match join_abstract_css_typed_values(Some(&left), Some(&right)) {
+                Some(joined) => joined,
+                None => left,
+            },
+        )
+        .map(Box::new)
 }
 
 fn referenced_custom_property_name(value: &str) -> Option<String> {

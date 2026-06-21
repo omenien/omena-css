@@ -20,8 +20,8 @@ mod value_analysis;
 mod variables;
 
 use transfer::ScssControlFlowTransfer;
-pub use value_analysis::analyze_scss_control_flow_values;
 pub(super) use value_analysis::summarize_scss_control_flow_widening_witness;
+pub use value_analysis::{analyze_scss_control_flow_values, summarize_typed_value_lattice_witness};
 
 pub use model::{
     OmenaScssEvalCallArgumentValueV0, OmenaScssEvalCallLocalBindingV0,
@@ -30,6 +30,7 @@ pub use model::{
     OmenaScssEvalControlFlowBindingValueV0, OmenaScssEvalControlFlowBlockV0,
     OmenaScssEvalControlFlowIrSummaryV0, OmenaScssEvalControlFlowValueAnalysisV0,
     OmenaScssEvalControlFlowValueBlockV0, OmenaScssEvalControlFlowWideningWitnessV0,
+    OmenaScssEvalTypedValueKindCountV0, OmenaScssEvalTypedValueLatticeWitnessV0,
 };
 pub use oracle_corpus::{
     OmenaScssEvalControlFlowOracleCorpusFixtureReportV0,

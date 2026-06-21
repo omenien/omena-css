@@ -1,3 +1,7 @@
+use omena_abstract_value::{
+    AbstractCssTypedComparisonOperatorV0, abstract_css_value_from_text,
+    compare_abstract_css_values_with_typed_payloads,
+};
 use omena_value_lattice::{css_values_canonically_equal, parse_numeric_value_with_unit};
 
 use super::reduce_static_scss_value;
@@ -39,6 +43,15 @@ pub(crate) fn static_scss_literal_truthiness(value: &str) -> Option<bool> {
     }
 }
 
+pub(crate) fn static_scss_typed_advisory_truthiness(value: &str) -> Option<bool> {
+    let (left, operator, right) = split_static_scss_comparison(value).ok()??;
+    compare_abstract_css_values_with_typed_payloads(
+        &abstract_css_value_from_text(left),
+        typed_comparison_operator(operator),
+        &abstract_css_value_from_text(right),
+    )
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum StaticScssComparisonOperator {
     Equal,
@@ -47,6 +60,25 @@ enum StaticScssComparisonOperator {
     LessThanOrEqual,
     GreaterThan,
     GreaterThanOrEqual,
+}
+
+fn typed_comparison_operator(
+    operator: StaticScssComparisonOperator,
+) -> AbstractCssTypedComparisonOperatorV0 {
+    match operator {
+        StaticScssComparisonOperator::Equal => AbstractCssTypedComparisonOperatorV0::Equal,
+        StaticScssComparisonOperator::NotEqual => AbstractCssTypedComparisonOperatorV0::NotEqual,
+        StaticScssComparisonOperator::LessThan => AbstractCssTypedComparisonOperatorV0::LessThan,
+        StaticScssComparisonOperator::LessThanOrEqual => {
+            AbstractCssTypedComparisonOperatorV0::LessThanOrEqual
+        }
+        StaticScssComparisonOperator::GreaterThan => {
+            AbstractCssTypedComparisonOperatorV0::GreaterThan
+        }
+        StaticScssComparisonOperator::GreaterThanOrEqual => {
+            AbstractCssTypedComparisonOperatorV0::GreaterThanOrEqual
+        }
+    }
 }
 
 fn static_scss_comparison_truthiness(value: &str) -> Result<Option<bool>, ()> {

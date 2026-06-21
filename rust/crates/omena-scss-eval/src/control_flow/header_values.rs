@@ -119,10 +119,10 @@ fn scss_header_value_from_binding_combinations(
 
 fn static_scss_header_value_texts(value: &AbstractCssValueV0) -> Option<Vec<String>> {
     match value {
-        AbstractCssValueV0::Exact { value } | AbstractCssValueV0::Raw { value } => {
+        AbstractCssValueV0::Exact { value, .. } | AbstractCssValueV0::Raw { value } => {
             Some(vec![value.clone()])
         }
-        AbstractCssValueV0::FiniteSet { values } => Some(values.clone()),
+        AbstractCssValueV0::FiniteSet { values, .. } => Some(values.clone()),
         AbstractCssValueV0::Bottom | AbstractCssValueV0::Top => None,
     }
 }
@@ -199,10 +199,10 @@ pub(super) fn substitute_static_scss_header_variables(
 
 pub(super) fn single_static_scss_header_value_text(value: &AbstractCssValueV0) -> Option<&str> {
     match value {
-        AbstractCssValueV0::Exact { value } | AbstractCssValueV0::Raw { value } => {
+        AbstractCssValueV0::Exact { value, .. } | AbstractCssValueV0::Raw { value } => {
             Some(value.as_str())
         }
-        AbstractCssValueV0::FiniteSet { values } if values.len() == 1 => {
+        AbstractCssValueV0::FiniteSet { values, .. } if values.len() == 1 => {
             values.first().map(String::as_str)
         }
         AbstractCssValueV0::Bottom

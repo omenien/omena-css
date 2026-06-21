@@ -15,6 +15,7 @@ mod reduced_product;
 mod registered_property;
 mod selector_projection;
 mod semiring;
+mod typed_value;
 mod types;
 
 pub use algebra::*;
@@ -35,6 +36,7 @@ pub use reduced_product::{
 pub use registered_property::*;
 pub use selector_projection::*;
 pub use semiring::*;
+pub use typed_value::*;
 pub use types::*;
 
 #[cfg(test)]

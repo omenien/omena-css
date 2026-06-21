@@ -1,7 +1,9 @@
 use std::collections::BTreeMap;
 
 use omena_abstract_value::{
-    AbstractCssValueV0, MAX_FLOW_ANALYSIS_ITERATIONS, abstract_css_value_from_text,
+    AbstractCssTypedComparisonOperatorV0, AbstractCssTypedValueV0, AbstractCssValueV0,
+    MAX_FLOW_ANALYSIS_ITERATIONS, abstract_css_typed_value_kind_label,
+    abstract_css_value_from_text, compare_abstract_css_values_with_typed_payloads,
 };
 use omena_parser::StyleDialect;
 
@@ -19,6 +21,7 @@ use super::{
     model::{
         OmenaScssEvalControlFlowBlockV0, OmenaScssEvalControlFlowValueAnalysisV0,
         OmenaScssEvalControlFlowValueBlockV0, OmenaScssEvalControlFlowWideningWitnessV0,
+        OmenaScssEvalTypedValueKindCountV0, OmenaScssEvalTypedValueLatticeWitnessV0,
     },
     summarize_scss_control_flow_ir,
     transfer::{
@@ -29,6 +32,21 @@ use super::{
 };
 
 const SCSS_CONTROL_FLOW_WIDENING_WITNESS_NODE_COUNT: usize = MAX_FLOW_ANALYSIS_ITERATIONS + 8;
+const TYPED_VALUE_LATTICE_WITNESS_VALUES: &[&str] =
+    &["0px", "50%", "red", "true", "\"hello\"", "var(--gap)"];
+const TYPED_VALUE_LATTICE_WITNESS_COMPARISONS: &[(
+    &str,
+    AbstractCssTypedComparisonOperatorV0,
+    &str,
+)] = &[
+    ("1in", AbstractCssTypedComparisonOperatorV0::Equal, "96px"),
+    (
+        "2px",
+        AbstractCssTypedComparisonOperatorV0::GreaterThan,
+        "1px",
+    ),
+    ("1em", AbstractCssTypedComparisonOperatorV0::Equal, "16px"),
+];
 
 pub fn analyze_scss_control_flow_values(
     source: &str,
@@ -141,6 +159,7 @@ pub(crate) fn summarize_scss_control_flow_widening_witness()
                 ScssControlFlowTransfer::LoopCondition {
                     bindings: Vec::new(),
                     value: AbstractCssValueV0::Exact {
+                        typed: None,
                         value: "1px".to_string(),
                     },
                 }
@@ -173,6 +192,90 @@ pub(crate) fn summarize_scss_control_flow_widening_witness()
         iteration_count: fixpoint.iteration_count,
         widened_to_top_count: fixpoint.widened_to_top_count,
         output_top_count,
+    }
+}
+
+pub fn summarize_typed_value_lattice_witness() -> OmenaScssEvalTypedValueLatticeWitnessV0 {
+    let values = TYPED_VALUE_LATTICE_WITNESS_VALUES
+        .iter()
+        .map(|value| abstract_css_value_from_text(value))
+        .collect::<Vec<_>>();
+    let sample_value_count = values.len();
+    let typed_payload_count = values
+        .iter()
+        .filter(|value| abstract_css_typed_payload(value).is_some())
+        .count();
+    let raw_value_count = values
+        .iter()
+        .filter(|value| matches!(value, AbstractCssValueV0::Raw { .. }))
+        .count();
+    let untyped_exact_or_finite_count = values
+        .iter()
+        .filter(|value| {
+            matches!(
+                value,
+                AbstractCssValueV0::Exact { typed: None, .. }
+                    | AbstractCssValueV0::FiniteSet { typed: None, .. }
+            )
+        })
+        .count();
+    let typed_coverage_basis_points = typed_payload_count
+        .checked_mul(10_000)
+        .and_then(|value| value.checked_div(sample_value_count))
+        .unwrap_or(0);
+    let mut type_kind_counts: Vec<OmenaScssEvalTypedValueKindCountV0> = Vec::new();
+    for value in values.iter().filter_map(abstract_css_typed_payload) {
+        let kind = abstract_css_typed_value_kind_label(value);
+        if let Some(existing) = type_kind_counts.iter_mut().find(|entry| entry.kind == kind) {
+            existing.count += 1;
+        } else {
+            type_kind_counts.push(OmenaScssEvalTypedValueKindCountV0 { kind, count: 1 });
+        }
+    }
+    type_kind_counts.sort_by_key(|entry| entry.kind);
+    let typed_advisory_comparisons = TYPED_VALUE_LATTICE_WITNESS_COMPARISONS
+        .iter()
+        .filter_map(|(left, operator, right)| {
+            compare_abstract_css_values_with_typed_payloads(
+                &abstract_css_value_from_text(left),
+                *operator,
+                &abstract_css_value_from_text(right),
+            )
+        })
+        .collect::<Vec<_>>();
+    let typed_advisory_comparison_count = typed_advisory_comparisons.len();
+    let typed_advisory_true_count = typed_advisory_comparisons
+        .iter()
+        .filter(|comparison| **comparison)
+        .count();
+
+    OmenaScssEvalTypedValueLatticeWitnessV0 {
+        schema_version: "0",
+        product: "omena-scss-eval.typed-value-lattice-witness",
+        mode: "oracleOnlyAdvisoryPayload",
+        value_type: "AbstractCssValueV0",
+        payload_type: "AbstractCssTypedValueV0",
+        policy: "typedPayloadAdvisoryStringDomainOutputUnchanged",
+        sample_value_count,
+        typed_payload_count,
+        raw_value_count,
+        untyped_exact_or_finite_count,
+        typed_coverage_basis_points,
+        typed_advisory_comparison_count,
+        typed_advisory_true_count,
+        typed_prune_consumer_enabled: false,
+        type_kind_counts,
+    }
+}
+
+fn abstract_css_typed_payload(value: &AbstractCssValueV0) -> Option<&AbstractCssTypedValueV0> {
+    match value {
+        AbstractCssValueV0::Exact { typed, .. } | AbstractCssValueV0::FiniteSet { typed, .. } => {
+            typed.as_deref()
+        }
+        AbstractCssValueV0::Bottom | AbstractCssValueV0::Raw { .. } | AbstractCssValueV0::Top => {
+            None
+        }
     }
 }
 

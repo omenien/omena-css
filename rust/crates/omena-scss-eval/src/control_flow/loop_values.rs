@@ -467,7 +467,7 @@ fn static_while_loop_binding_frames(
     let binding = values.into_iter().next()?;
     match binding.value {
         AbstractCssValueV0::Bottom => Some(Vec::new()),
-        AbstractCssValueV0::FiniteSet { values } => Some(
+        AbstractCssValueV0::FiniteSet { values, .. } => Some(
             values
                 .into_iter()
                 .map(|value| {
@@ -713,10 +713,10 @@ fn static_while_integer_operand_values(
 
 fn static_while_integer_values(value: &AbstractCssValueV0) -> Option<Vec<i32>> {
     match value {
-        AbstractCssValueV0::Exact { value } | AbstractCssValueV0::Raw { value } => {
+        AbstractCssValueV0::Exact { value, .. } | AbstractCssValueV0::Raw { value } => {
             Some(vec![parse_static_while_integer_text(value.as_str())?])
         }
-        AbstractCssValueV0::FiniteSet { values } => values
+        AbstractCssValueV0::FiniteSet { values, .. } => values
             .iter()
             .map(|value| parse_static_while_integer_text(value.as_str()))
             .collect(),
@@ -885,10 +885,10 @@ fn parse_static_for_loop_bound_values(
     lexical_bindings: &BTreeMap<String, AbstractCssValueV0>,
 ) -> Option<Vec<i32>> {
     match scss_header_value_from_bindings(value, lexical_bindings) {
-        AbstractCssValueV0::Exact { value } | AbstractCssValueV0::Raw { value } => {
+        AbstractCssValueV0::Exact { value, .. } | AbstractCssValueV0::Raw { value } => {
             Some(vec![parse_static_for_loop_integer(value.as_str())?])
         }
-        AbstractCssValueV0::FiniteSet { values } => values
+        AbstractCssValueV0::FiniteSet { values, .. } => values
             .into_iter()
             .map(|value| parse_static_for_loop_integer(value.as_str()))
             .collect(),
@@ -993,6 +993,7 @@ mod tests {
         assert_eq!(
             value,
             Some(AbstractCssValueV0::FiniteSet {
+                typed: None,
                 values: vec![
                     "1".to_string(),
                     "2".to_string(),
@@ -1022,15 +1023,19 @@ mod tests {
             values,
             vec![
                 AbstractCssValueV0::Exact {
+                    typed: None,
                     value: "1".to_string(),
                 },
                 AbstractCssValueV0::Exact {
+                    typed: None,
                     value: "2".to_string(),
                 },
                 AbstractCssValueV0::Exact {
+                    typed: None,
                     value: "3".to_string(),
                 },
                 AbstractCssValueV0::Exact {
+                    typed: None,
                     value: "4".to_string(),
                 },
             ]
@@ -1052,6 +1057,7 @@ mod tests {
         assert_eq!(
             values[0].value,
             AbstractCssValueV0::FiniteSet {
+                typed: None,
                 values: vec![
                     "0".to_string(),
                     "1".to_string(),
@@ -1077,6 +1083,7 @@ mod tests {
         assert_eq!(
             values[0].value,
             AbstractCssValueV0::FiniteSet {
+                typed: None,
                 values: vec![
                     "0".to_string(),
                     "1".to_string(),
@@ -1091,6 +1098,7 @@ mod tests {
         BTreeMap::from([(
             "$i".to_string(),
             AbstractCssValueV0::FiniteSet {
+                typed: None,
                 values: vec!["0".to_string(), "2".to_string()],
             },
         )])
@@ -1108,6 +1116,7 @@ mod tests {
         assert_eq!(
             values,
             Some(AbstractCssValueV0::FiniteSet {
+                typed: None,
                 values: vec![
                     "0".to_string(),
                     "1".to_string(),
@@ -1122,6 +1131,7 @@ mod tests {
         BTreeMap::from([(
             "$end".to_string(),
             AbstractCssValueV0::FiniteSet {
+                typed: None,
                 values: vec!["2".to_string(), "4".to_string()],
             },
         )])
@@ -1132,12 +1142,14 @@ mod tests {
             (
                 "$i".to_string(),
                 AbstractCssValueV0::Exact {
+                    typed: None,
                     value: "0".to_string(),
                 },
             ),
             (
                 "$limit".to_string(),
                 AbstractCssValueV0::FiniteSet {
+                    typed: None,
                     values: vec!["2".to_string(), "4".to_string()],
                 },
             ),

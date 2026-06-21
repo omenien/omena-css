@@ -1,15 +1,17 @@
 use super::{
     ABSTRACT_VALUE_CASCADE_FAMILY_CLAIM_LEVEL_V0, AbstractClassValueProvenanceNodeV0,
-    AbstractClassValueProvenanceV0, AbstractClassValueV0, AbstractCssValueV0,
+    AbstractClassValueProvenanceV0, AbstractClassValueV0, AbstractCssTypedComparisonOperatorV0,
+    AbstractCssTypedScalarValueV0, AbstractCssTypedValueV0, AbstractCssValueV0,
     AbstractPropertyValueCandidateV0, AbstractPropertyValueV0, CascadeContextV0,
     CascadeRestrictionMapV0, CascadeValueFamilyMemberV0, ClassValueControlFlowBlockV0,
     ClassValueControlFlowGraphV0, ClassValueFlowGraphV0, ClassValueFlowNodeV0,
-    ClassValueFlowTransferV0, CompositeClassValueInputV0, ExternalStringTypeFactsV0,
-    KLimitedCallSiteFlowInputV0, Lin01ProvenanceSemiringV0, LinearProvenancePathV0,
-    LinearProvenanceV0, MAX_FINITE_CLASS_VALUES, NaturalCountProvenanceSemiringV0,
-    OneCfaCallSiteFlowInputV0, ProvenanceSemiringV0, SecurityLabelProvenanceSemiringV0,
-    SelectorProjectionCertaintyV0, TropicalProvenanceSemiringV0, ViterbiProvenanceSemiringV0,
-    abstract_class_value_from_facts, abstract_class_value_is_subset, abstract_css_value_from_text,
+    ClassValueFlowTransferV0, CompositeClassValueInputV0, DeclaredNumericTypeV0,
+    ExternalStringTypeFactsV0, KLimitedCallSiteFlowInputV0, Lin01ProvenanceSemiringV0,
+    LinearProvenancePathV0, LinearProvenanceV0, MAX_FINITE_CLASS_VALUES,
+    NaturalCountProvenanceSemiringV0, OneCfaCallSiteFlowInputV0, ProvenanceSemiringV0,
+    SecurityLabelProvenanceSemiringV0, SelectorProjectionCertaintyV0, TropicalProvenanceSemiringV0,
+    ViterbiProvenanceSemiringV0, abstract_class_value_from_facts, abstract_class_value_is_subset,
+    abstract_css_typed_value_from_text, abstract_css_value_from_text,
     abstract_css_values_canonically_equal, analyze_class_value_control_flow_graph,
     analyze_class_value_flow, analyze_class_value_flow_incremental,
     analyze_class_value_flow_incremental_batch_with_reuse,
@@ -17,12 +19,13 @@ use super::{
     analyze_class_value_flow_incremental_with_reuse, analyze_k_limited_call_site_flows,
     analyze_one_cfa_call_site_flows, bottom_class_value, cascade_context_refinement_morphism_v0,
     cascade_family_context_values, cascade_value_for_context, char_inclusion_class_value,
-    composite_class_value, concatenate_abstract_class_values,
-    concatenate_reduced_class_value_products, derive_cascade_restriction_maps_v0,
-    derive_selector_projection_certainty, evaluate_cascade_stalk_v0, exact_class_value,
-    finite_set_class_value, finite_values_from_facts, intersect_abstract_class_values,
-    intersect_reduced_class_value_products, iterate_reduced_class_value_product_constraints,
-    join_abstract_class_values, join_abstract_css_values, join_reduced_class_value_products,
+    compare_abstract_css_values_with_typed_payloads, composite_class_value,
+    concatenate_abstract_class_values, concatenate_reduced_class_value_products,
+    derive_cascade_restriction_maps_v0, derive_selector_projection_certainty,
+    evaluate_cascade_stalk_v0, exact_class_value, finite_set_class_value, finite_values_from_facts,
+    intersect_abstract_class_values, intersect_reduced_class_value_products,
+    iterate_reduced_class_value_product_constraints, join_abstract_class_values,
+    join_abstract_css_values, join_reduced_class_value_products,
     m4_alpha_provenance_semiring_law_reports_v0, narrow_abstract_property_value_for_cascade_branch,
     narrow_abstract_property_value_for_pseudo_state, prefix_class_value, prefix_suffix_class_value,
     project_abstract_value_selectors, reduce_class_value_product,
@@ -427,6 +430,7 @@ fn abstracts_css_values_through_the_region_local_value_lattice() {
     assert_eq!(
         abstract_css_value_from_text("0px"),
         AbstractCssValueV0::Exact {
+            typed: abstract_css_typed_value_from_text("0").map(Box::new),
             value: "0".to_string(),
         }
     );
@@ -435,18 +439,21 @@ fn abstracts_css_values_through_the_region_local_value_lattice() {
     assert_eq!(
         abstract_css_value_from_text("50%"),
         AbstractCssValueV0::Exact {
+            typed: abstract_css_typed_value_from_text("50%").map(Box::new),
             value: "50%".to_string(),
         }
     );
     assert_eq!(
         abstract_css_value_from_text("#ff0000"),
         AbstractCssValueV0::Exact {
+            typed: abstract_css_typed_value_from_text("red").map(Box::new),
             value: "red".to_string(),
         }
     );
     assert_eq!(
         abstract_css_value_from_text("true"),
         AbstractCssValueV0::Exact {
+            typed: abstract_css_typed_value_from_text("true").map(Box::new),
             value: "true".to_string(),
         }
     );
@@ -466,8 +473,118 @@ fn abstracts_css_values_through_the_region_local_value_lattice() {
             &abstract_css_value_from_text("0")
         ),
         AbstractCssValueV0::Exact {
+            typed: abstract_css_typed_value_from_text("0").map(Box::new),
             value: "0".to_string(),
         }
+    );
+}
+
+#[test]
+fn serializes_untyped_css_values_with_the_legacy_json_shape() -> Result<(), serde_json::Error> {
+    let value = AbstractCssValueV0::Exact {
+        value: "mystery".to_string(),
+        typed: None,
+    };
+
+    assert_eq!(
+        serde_json::to_string(&value)?,
+        r#"{"kind":"exact","value":"mystery"}"#
+    );
+    assert_eq!(
+        serde_json::from_str::<AbstractCssValueV0>(r#"{"kind":"exact","value":"mystery"}"#)?,
+        value
+    );
+    Ok(())
+}
+
+#[test]
+fn mints_typed_css_payloads_without_changing_the_string_value() -> Result<(), String> {
+    let value = abstract_css_value_from_text("50%");
+
+    let AbstractCssValueV0::Exact {
+        value,
+        typed: Some(typed),
+    } = value
+    else {
+        return Err("expected a typed percentage payload".to_string());
+    };
+    let AbstractCssTypedValueV0::Exact {
+        value:
+            AbstractCssTypedScalarValueV0::Dimension {
+                numeric_type,
+                number,
+                unit,
+                serialized,
+            },
+    } = *typed
+    else {
+        return Err("expected a typed percentage dimension".to_string());
+    };
+    assert_eq!(value, "50%");
+    assert_eq!(numeric_type, DeclaredNumericTypeV0::Percentage);
+    assert_eq!(number, "50");
+    assert_eq!(unit, "%");
+    assert_eq!(serialized, "50%");
+    Ok(())
+}
+
+#[test]
+fn typed_css_join_is_advisory_and_preserves_the_string_verdict() -> Result<(), String> {
+    let joined = join_abstract_css_values(
+        &abstract_css_value_from_text("25%"),
+        &abstract_css_value_from_text("50%"),
+    );
+
+    let AbstractCssValueV0::FiniteSet {
+        values,
+        typed: Some(typed),
+    } = joined
+    else {
+        return Err("expected a finite string set with typed advisory payload".to_string());
+    };
+    let AbstractCssTypedValueV0::FiniteSet {
+        values: typed_values,
+    } = *typed
+    else {
+        return Err("expected finite typed advisory payload".to_string());
+    };
+    assert_eq!(values, vec!["25%".to_string(), "50%".to_string()]);
+    assert_eq!(typed_values.len(), 2);
+    assert!(typed_values.iter().all(|value| matches!(
+        value,
+        AbstractCssTypedScalarValueV0::Dimension {
+            numeric_type: DeclaredNumericTypeV0::Percentage,
+            ..
+        }
+    )));
+    Ok(())
+}
+
+#[test]
+fn typed_css_comparison_is_advisory_over_dimension_payloads() {
+    assert_eq!(
+        compare_abstract_css_values_with_typed_payloads(
+            &abstract_css_value_from_text("1in"),
+            AbstractCssTypedComparisonOperatorV0::Equal,
+            &abstract_css_value_from_text("96px"),
+        ),
+        Some(true)
+    );
+    assert_eq!(
+        compare_abstract_css_values_with_typed_payloads(
+            &abstract_css_value_from_text("2px"),
+            AbstractCssTypedComparisonOperatorV0::GreaterThan,
+            &abstract_css_value_from_text("1px"),
+        ),
+        Some(true)
+    );
+    assert_eq!(
+        compare_abstract_css_values_with_typed_payloads(
+            &abstract_css_value_from_text("1em"),
+            AbstractCssTypedComparisonOperatorV0::Equal,
+            &abstract_css_value_from_text("16px"),
+        ),
+        None
     );
 }
 
