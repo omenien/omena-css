@@ -72,8 +72,9 @@ pub fn list_omena_checker_rule_enforcement_evidence_v0()
     use OmenaCheckerRuleCodeV0::{
         CascadeDeepConflict, CascadeSMTViolation, CascadeUnreachableRule,
         CategoricalCascadeEvidenceInconsistency, CircularVar, DeadCascadeLayer,
-        DesignSystemMdlBudget, DesignerIntentInconsistency, IacvtProne, MissingComposedModule,
-        MissingComposedSelector, MissingCustomProperty, MissingImportedValue, MissingKeyframes,
+        DesignSystemMdlBudget, DesignerIntentInconsistency, IacvtProne, InvalidPropertyValue,
+        MissingComposedModule, MissingComposedSelector, MissingCustomProperty, MissingImportedValue,
+        MissingKeyframes,
         MissingModule, MissingResolvedClassDomain, MissingResolvedClassValues, MissingSassSymbol,
         MissingStaticClass, MissingTemplatePrefix, MissingValueModule, NoImpossibleSelector,
         NoImpreciseValue, NoUnknownDynamicClass, RegisteredPropertyTypeMismatch,
@@ -142,6 +143,12 @@ pub fn list_omena_checker_rule_enforcement_evidence_v0()
             "omena-query-checker-orchestrator.cascade-gate",
             "registered_property_type_mismatch_only_fires_on_definite_rejects",
             "registered_property_type_mismatch_ignores_inactive_registrations_and_uses_last_wins",
+        ),
+        direct(
+            InvalidPropertyValue,
+            "omena-query-checker-orchestrator.cascade-gate",
+            "invalid_property_value_fires_on_definite_keyword_violation",
+            "invalid_property_value_keeps_valid_and_undecidable_values_silent",
         ),
         direct(
             UnspecifiedCascadeTie,
@@ -297,7 +304,7 @@ mod tests {
         let summary = summarize_omena_checker_rule_enforcement_coverage_v0();
 
         assert!(summary.coverage_passed);
-        assert_eq!(summary.registered_rule_count, 31);
+        assert_eq!(summary.registered_rule_count, 32);
         assert_eq!(summary.mapped_rule_count, summary.registered_rule_count);
         assert!(summary.missing_rule_names.is_empty());
         assert!(summary.extra_rule_names.is_empty());

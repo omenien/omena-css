@@ -35,7 +35,8 @@ fn rule_ordinal_for_code(code: OmenaCheckerRuleCodeV0) -> u16 {
     use OmenaCheckerRuleCodeV0::{
         CascadeDeepConflict, CascadeSMTViolation, CascadeUnreachableRule,
         CategoricalCascadeEvidenceInconsistency, CircularVar, DeadCascadeLayer,
-        DesignSystemMdlBudget, DesignerIntentInconsistency, IacvtProne, MissingComposedModule,
+        DesignSystemMdlBudget, DesignerIntentInconsistency, IacvtProne, InvalidPropertyValue,
+        MissingComposedModule,
         MissingComposedSelector, MissingCustomProperty, MissingImportedValue, MissingKeyframes,
         MissingModule, MissingResolvedClassDomain, MissingResolvedClassValues, MissingSassSymbol,
         MissingStaticClass, MissingTemplatePrefix, MissingValueModule, NoImpossibleSelector,
@@ -76,6 +77,7 @@ fn rule_ordinal_for_code(code: OmenaCheckerRuleCodeV0) -> u16 {
         ReplicaEnsembleInconsistency => 29,
         CategoricalCascadeEvidenceInconsistency => 30,
         RegisteredPropertyTypeMismatch => 31,
+        InvalidPropertyValue => 32,
     }
 }
 
@@ -83,7 +85,8 @@ pub(crate) fn rule_tier_for_code(code: OmenaCheckerRuleCodeV0) -> OmenaCheckerRu
     use OmenaCheckerRuleCodeV0::{
         CascadeDeepConflict, CascadeSMTViolation, CascadeUnreachableRule,
         CategoricalCascadeEvidenceInconsistency, CircularVar, DeadCascadeLayer,
-        DesignSystemMdlBudget, DesignerIntentInconsistency, IacvtProne, MissingComposedModule,
+        DesignSystemMdlBudget, DesignerIntentInconsistency, IacvtProne, InvalidPropertyValue,
+        MissingComposedModule,
         MissingComposedSelector, MissingCustomProperty, MissingImportedValue, MissingKeyframes,
         MissingModule, MissingResolvedClassDomain, MissingResolvedClassValues, MissingSassSymbol,
         MissingStaticClass, MissingTemplatePrefix, MissingValueModule, NoImpossibleSelector,
@@ -116,6 +119,7 @@ pub(crate) fn rule_tier_for_code(code: OmenaCheckerRuleCodeV0) -> OmenaCheckerRu
         | IacvtProne
         | CircularVar
         | RegisteredPropertyTypeMismatch
+        | InvalidPropertyValue
         | UnspecifiedCascadeTie => OmenaCheckerRuleTierV0::T,
         DesignSystemMdlBudget
         | CascadeUnreachableRule

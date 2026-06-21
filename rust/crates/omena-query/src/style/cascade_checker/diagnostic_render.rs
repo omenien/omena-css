@@ -21,6 +21,7 @@ pub(super) fn query_cascade_checker_code(code: &'static str) -> &'static str {
         "iacvt-prone" => "iacvtProne",
         "circular-var" => "circularVar",
         "registered-property-type-mismatch" => "registeredPropertyTypeMismatch",
+        "invalid-property-value" => "invalidPropertyValue",
         "unspecified-cascade-tie" => "unspecifiedCascadeTie",
         "designer-intent-inconsistency" => "designerIntentInconsistency",
         _ => "cascadeAware",

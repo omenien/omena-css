@@ -146,6 +146,7 @@ pub fn query_product_diagnostic_checker_rule_code_name_v0(
         "registeredPropertyTypeMismatch" => {
             Some(OmenaCheckerRuleCodeV0::RegisteredPropertyTypeMismatch.as_str())
         }
+        "invalidPropertyValue" => Some(OmenaCheckerRuleCodeV0::InvalidPropertyValue.as_str()),
         "unspecifiedCascadeTie" => Some(OmenaCheckerRuleCodeV0::UnspecifiedCascadeTie.as_str()),
         "designerIntentInconsistency" => {
             Some(OmenaCheckerRuleCodeV0::DesignerIntentInconsistency.as_str())
@@ -215,6 +216,7 @@ fn cascade_gate_enabled_rule_names_v0() -> Vec<&'static str> {
         OmenaCheckerRuleCodeV0::IacvtProne.as_str(),
         OmenaCheckerRuleCodeV0::CircularVar.as_str(),
         OmenaCheckerRuleCodeV0::RegisteredPropertyTypeMismatch.as_str(),
+        OmenaCheckerRuleCodeV0::InvalidPropertyValue.as_str(),
         OmenaCheckerRuleCodeV0::UnspecifiedCascadeTie.as_str(),
         OmenaCheckerRuleCodeV0::DesignerIntentInconsistency.as_str(),
     ]
@@ -810,6 +812,17 @@ mod tests {
                     important: false,
                     var_references: &[],
                 }),
+                cascade_declaration(CascadeDeclarationFixture {
+                    declaration_id: "invalid-box-sizing",
+                    selector: ".card",
+                    property: "box-sizing",
+                    value: "inline-box",
+                    source_order: 7,
+                    layer_name: None,
+                    layer_order: None,
+                    important: false,
+                    var_references: &[],
+                }),
             ],
             custom_properties: vec![
                 OmenaCheckerCustomPropertyInputV0 {
@@ -846,6 +859,7 @@ mod tests {
             gate.emitted_rule_names
                 .contains(&"registered-property-type-mismatch")
         );
+        assert!(gate.emitted_rule_names.contains(&"invalid-property-value"));
         assert!(gate.emitted_rule_names.contains(&"unspecified-cascade-tie"));
         assert!(
             gate.emitted_rule_names

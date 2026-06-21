@@ -228,6 +228,37 @@ pub fn registered_syntax_match(syntax: &str, value: &str) -> RegisteredSyntaxMat
     }
 }
 
+/// Tri-state match of a STANDARD (non-custom) property's value against its webref
+/// closed-vocabulary grammar, driven by the `SpecVocabularyV0` feed.
+///
+/// Only properties whose entire spec grammar reduces to a closed keyword alternation
+/// (e.g. `box-sizing: content-box | border-box`) are decidable; every property whose
+/// grammar references a `<type>` or is otherwise open stays `Unknown` (silent), as
+/// does every value that is not a single plain keyword. A CSS-wide keyword is always
+/// accepted. The matcher never rejects a value it cannot prove invalid — a definite
+/// `Rejects` requires the value to be a single keyword that is provably outside a
+/// closed, exhaustive alternation. Snapshot completeness is fenced by the
+/// webref-drift gate; matching is case-insensitive.
+pub fn standard_property_syntax_match(property: &str, value: &str) -> RegisteredSyntaxMatchV0 {
+    let Some(keywords) = spec_vocabulary().property_keywords(property) else {
+        return RegisteredSyntaxMatchV0::Unknown;
+    };
+    match classify_registered_property_declared_value_v0(value) {
+        DeclaredValueKindV0::CssWide => RegisteredSyntaxMatchV0::Accepts,
+        DeclaredValueKindV0::BareIdent(ident) | DeclaredValueKindV0::ColorKeyword(ident) => {
+            if keywords
+                .iter()
+                .any(|keyword| keyword.eq_ignore_ascii_case(&ident))
+            {
+                RegisteredSyntaxMatchV0::Accepts
+            } else {
+                RegisteredSyntaxMatchV0::Rejects
+            }
+        }
+        _ => RegisteredSyntaxMatchV0::Unknown,
+    }
+}
+
 fn parse_registered_property_syntax_alternative_v0(
     alternative: &str,
 ) -> RegisteredPropertySyntaxAlternativeV0 {
@@ -1074,6 +1105,74 @@ mod tests {
             classify_registered_property_declared_value_v0("cqw"),
             DeclaredValueKindV0::Dimension(DeclaredNumericTypeV0::Length)
         );
+    }
+
+    #[test]
+    fn standard_property_syntax_match_flags_only_definite_keyword_violations() {
+        // `box-sizing: content-box | border-box` is a closed alternation in the feed.
+        assert_eq!(
+            standard_property_syntax_match("box-sizing", "border-box"),
+            RegisteredSyntaxMatchV0::Accepts
+        );
+        assert_eq!(
+            standard_property_syntax_match("box-sizing", "inline-box"),
+            RegisteredSyntaxMatchV0::Rejects
+        );
+        // CSS-wide keywords are valid for every property.
+        assert_eq!(
+            standard_property_syntax_match("box-sizing", "inherit"),
+            RegisteredSyntaxMatchV0::Accepts
+        );
+        // Case-insensitive membership.
+        assert_eq!(
+            standard_property_syntax_match("box-sizing", "Border-Box"),
+            RegisteredSyntaxMatchV0::Accepts
+        );
+        // Undecidable values stay silent (no false positives).
+        for value in ["var(--x)", "10px", "content-box border-box", "calc(1px)"] {
+            assert_eq!(
+                standard_property_syntax_match("box-sizing", value),
+                RegisteredSyntaxMatchV0::Unknown,
+                "box-sizing: {value} must stay silent"
+            );
+        }
+        // Properties with an open `<type>` grammar, and unknown properties, are never
+        // matched (always silent).
+        assert_eq!(
+            standard_property_syntax_match("color", "tomato"),
+            RegisteredSyntaxMatchV0::Unknown
+        );
+        assert_eq!(
+            standard_property_syntax_match("not-a-real-property", "anything"),
+            RegisteredSyntaxMatchV0::Unknown
+        );
+    }
+
+    #[test]
+    fn standard_property_syntax_match_never_rejects_a_spec_listed_value() {
+        // No false positives: every keyword the feed lists for a closed-alternation
+        // property must Accept against it, as must every CSS-wide keyword.
+        let mut checked = 0usize;
+        for property in ["box-sizing", "float", "clear", "visibility", "caption-side"] {
+            let Some(keywords) = spec_vocabulary().property_keywords(property) else {
+                continue;
+            };
+            for keyword in keywords {
+                assert_eq!(
+                    standard_property_syntax_match(property, keyword),
+                    RegisteredSyntaxMatchV0::Accepts,
+                    "{property}: spec-listed {keyword} must accept"
+                );
+                checked += 1;
+            }
+            for global in ["inherit", "initial", "unset", "revert", "revert-layer"] {
+                assert_eq!(
+                    standard_property_syntax_match(property, global),
+                    RegisteredSyntaxMatchV0::Accepts
+                );
+            }
+        }
+        assert!(checked > 0, "expected closed-alternation properties in the feed");
     }
 
     #[test]

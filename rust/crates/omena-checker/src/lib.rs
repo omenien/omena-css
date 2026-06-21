@@ -4,6 +4,7 @@ use omena_abstract_value::{
     AbstractClassValueV0, RegisteredSyntaxMatchV0, SelectorProjectionCertaintyV0,
     enumerate_finite_class_values, project_abstract_value_selectors,
     registered_property_syntax_requires_initial_value_v0, registered_syntax_match,
+    standard_property_syntax_match,
 };
 use omena_cascade::{GrnBooleanState, GrnVertexStateV0, GrnVertexV0, project_grn_outcome};
 pub use omena_categorical::CategoricalCascadeEvidenceV0;
@@ -71,6 +72,7 @@ pub enum OmenaCheckerRuleCodeV0 {
     ReplicaEnsembleInconsistency,
     CategoricalCascadeEvidenceInconsistency,
     RegisteredPropertyTypeMismatch,
+    InvalidPropertyValue,
 }
 
 impl OmenaCheckerRuleCodeV0 {
@@ -109,6 +111,7 @@ impl OmenaCheckerRuleCodeV0 {
                 "categorical-cascade-evidence-inconsistency"
             }
             Self::RegisteredPropertyTypeMismatch => "registered-property-type-mismatch",
+            Self::InvalidPropertyValue => "invalid-property-value",
         }
     }
 }
@@ -744,13 +747,13 @@ pub fn list_omena_checker_rule_descriptors() -> Vec<OmenaCheckerRuleDescriptorV0
     use OmenaCheckerRuleCodeV0::{
         CascadeDeepConflict, CascadeSMTViolation, CascadeUnreachableRule,
         CategoricalCascadeEvidenceInconsistency, CircularVar, DeadCascadeLayer,
-        DesignSystemMdlBudget, DesignerIntentInconsistency, IacvtProne, MissingComposedModule,
-        MissingComposedSelector, MissingCustomProperty, MissingImportedValue, MissingKeyframes,
-        MissingModule, MissingResolvedClassDomain, MissingResolvedClassValues, MissingSassSymbol,
-        MissingStaticClass, MissingTemplatePrefix, MissingValueModule, NoImpossibleSelector,
-        NoImpreciseValue, NoUnknownDynamicClass, RegisteredPropertyTypeMismatch,
-        ReplicaEnsembleInconsistency, RgFlowRelevantOperator, StreamingIfdsPrecisionParity,
-        UnreachableDeclaration, UnspecifiedCascadeTie, UnusedSelector,
+        DesignSystemMdlBudget, DesignerIntentInconsistency, IacvtProne, InvalidPropertyValue,
+        MissingComposedModule, MissingComposedSelector, MissingCustomProperty, MissingImportedValue,
+        MissingKeyframes, MissingModule, MissingResolvedClassDomain, MissingResolvedClassValues,
+        MissingSassSymbol, MissingStaticClass, MissingTemplatePrefix, MissingValueModule,
+        NoImpossibleSelector, NoImpreciseValue, NoUnknownDynamicClass,
+        RegisteredPropertyTypeMismatch, ReplicaEnsembleInconsistency, RgFlowRelevantOperator,
+        StreamingIfdsPrecisionParity, UnreachableDeclaration, UnspecifiedCascadeTie, UnusedSelector,
     };
     use OmenaCheckerRuleFixabilityV0::{CodeAction, None};
     use OmenaCheckerRulePresetV0::{Recommended, Strict};
@@ -1004,6 +1007,14 @@ pub fn list_omena_checker_rule_descriptors() -> Vec<OmenaCheckerRuleDescriptorV0
             None,
             &[Recommended],
             "Report custom property declarations whose values definitely do not match their same-file @property syntax registration.",
+        ),
+        rule(
+            InvalidPropertyValue,
+            Style,
+            Warning,
+            None,
+            &[Recommended],
+            "Report standard property declarations whose value is provably outside the property's closed keyword grammar.",
         ),
     ]
 }
@@ -1545,6 +1556,26 @@ pub fn evaluate_omena_checker_cascade_rules(
                 declaration.layer_name.clone(),
                 vec![declaration.property.clone()],
                 "Custom property value does not match its same-file @property syntax registration and may be discarded at computed-value time.",
+            ));
+        }
+    }
+
+    for declaration in &declarations {
+        if declaration.property.starts_with("--") {
+            continue;
+        }
+        if standard_property_syntax_match(
+            declaration.property.as_str(),
+            declaration.value.as_str(),
+        ) == RegisteredSyntaxMatchV0::Rejects
+        {
+            evaluations.push(cascade_evaluation(
+                OmenaCheckerRuleCodeV0::InvalidPropertyValue,
+                OmenaCheckerSeverityV0::Warning,
+                vec![declaration.declaration_id.clone()],
+                declaration.layer_name.clone(),
+                vec![declaration.property.clone()],
+                "Property value is outside the property's closed keyword grammar and is invalid.",
             ));
         }
     }
@@ -2331,6 +2362,7 @@ mod tests {
                 "cascade.unreachable-rule",
                 "categorical-cascade-evidence-inconsistency",
                 "registered-property-type-mismatch",
+                "invalid-property-value",
             ],
         );
     }
@@ -2365,7 +2397,7 @@ mod tests {
         assert_eq!(descriptors.len(), ordinals.len());
         assert_eq!(
             ordinals.into_iter().collect::<Vec<_>>(),
-            (1..=31).collect::<Vec<_>>()
+            (1..=32).collect::<Vec<_>>()
         );
         assert!(!is_omena_checker_rule_code("not-a-rule"));
     }
@@ -2395,12 +2427,12 @@ mod tests {
             summary.bundle_registry_product,
             "omena-checker.code-bundles"
         );
-        assert_eq!(summary.rule_count, 31);
+        assert_eq!(summary.rule_count, 32);
         assert_eq!(summary.source_rule_count, 8);
-        assert_eq!(summary.style_rule_count, 23);
+        assert_eq!(summary.style_rule_count, 24);
         assert_eq!(summary.m_tier_rule_count, 3);
         assert_eq!(summary.s_tier_rule_count, 7);
-        assert_eq!(summary.t_tier_rule_count, 14);
+        assert_eq!(summary.t_tier_rule_count, 15);
         assert_eq!(summary.i_tier_rule_count, 7);
         assert_eq!(summary.bundle_count, 5);
         assert!(
@@ -2960,6 +2992,72 @@ mod tests {
 
         assert!(!evaluations.iter().any(|evaluation| {
             evaluation.rule_code == OmenaCheckerRuleCodeV0::RegisteredPropertyTypeMismatch
+        }));
+    }
+
+    #[test]
+    fn invalid_property_value_fires_on_definite_keyword_violation() {
+        let decl = |id: &'static str, value: &'static str, order: u32| {
+            cascade_declaration(CascadeDeclarationFixture {
+                declaration_id: id,
+                selector: ".s",
+                property: "box-sizing",
+                value,
+                source_order: order,
+                condition_context: &[],
+                layer_name: None,
+                layer_order: None,
+                important: false,
+                var_references: &[],
+            })
+        };
+        let evaluations = evaluate_omena_checker_cascade_rules(OmenaCheckerCascadeInputV0 {
+            declarations: vec![decl("bad", "inline-box", 1), decl("good", "border-box", 2)],
+            custom_properties: Vec::new(),
+            custom_property_registrations: Vec::new(),
+        });
+        let findings = evaluations
+            .iter()
+            .filter(|evaluation| {
+                evaluation.rule_code == OmenaCheckerRuleCodeV0::InvalidPropertyValue
+            })
+            .collect::<Vec<_>>();
+
+        assert_eq!(findings.len(), 1);
+        assert_eq!(findings[0].declaration_ids, vec!["bad"]);
+        assert_eq!(findings[0].custom_property_names, vec!["box-sizing"]);
+    }
+
+    #[test]
+    fn invalid_property_value_keeps_valid_and_undecidable_values_silent() {
+        let decl = |id: &'static str, property: &'static str, value: &'static str, order: u32| {
+            cascade_declaration(CascadeDeclarationFixture {
+                declaration_id: id,
+                selector: ".s",
+                property,
+                value,
+                source_order: order,
+                condition_context: &[],
+                layer_name: None,
+                layer_order: None,
+                important: false,
+                var_references: &[],
+            })
+        };
+        let evaluations = evaluate_omena_checker_cascade_rules(OmenaCheckerCascadeInputV0 {
+            declarations: vec![
+                decl("valid", "box-sizing", "border-box", 1),
+                decl("css-wide", "box-sizing", "inherit", 2),
+                decl("substituted", "box-sizing", "var(--x)", 3),
+                decl("open-grammar", "color", "rebeccapurple", 4),
+                decl("custom-prop", "--tone", "anything-goes", 5),
+            ],
+            custom_properties: Vec::new(),
+            custom_property_registrations: Vec::new(),
+        });
+
+        assert!(!evaluations.iter().any(|evaluation| {
+            evaluation.rule_code == OmenaCheckerRuleCodeV0::InvalidPropertyValue
         }));
     }
 

@@ -406,6 +406,40 @@ fn registered_property_type_mismatch_surfaces_as_product_diagnostic() -> Result<
 }
 
 #[test]
+fn invalid_property_value_surfaces_as_product_diagnostic() -> Result<(), &'static str> {
+    let source = r#".bad { box-sizing: inline-box; }
+.good { box-sizing: border-box; }
+.global { box-sizing: inherit; }
+.dynamic { box-sizing: var(--mode); }
+"#;
+    let candidates =
+        crate::summarize_omena_query_style_hover_candidates("Component.module.scss", source)
+            .ok_or("style candidates")?;
+    let diagnostics = crate::summarize_omena_query_style_diagnostics_for_file(
+        "file:///workspace/src/Component.module.scss",
+        source,
+        candidates.candidates.as_slice(),
+    );
+    let invalid_value_diagnostics = diagnostics
+        .diagnostics
+        .iter()
+        .filter(|diagnostic| diagnostic.code == "invalidPropertyValue")
+        .collect::<Vec<_>>();
+
+    assert_eq!(invalid_value_diagnostics.len(), 1);
+    let diagnostic = invalid_value_diagnostics[0];
+    assert_eq!(diagnostic.severity, "warning");
+    assert!(diagnostic.tags.is_empty());
+    assert_eq!(diagnostic.range.start.line, 0);
+    assert!(
+        diagnostic
+            .message
+            .contains("outside the property's closed keyword grammar")
+    );
+    Ok(())
+}
+
+#[test]
 fn workspace_cascade_diagnostics_join_runtime_state_scenarios_and_inline_overrides()
 -> Result<(), &'static str> {
     let target_style_path = "file:///workspace/src/App.module.scss";
