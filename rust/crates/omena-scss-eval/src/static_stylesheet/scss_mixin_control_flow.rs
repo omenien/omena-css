@@ -70,7 +70,6 @@ pub(super) fn collect_static_scss_control_flow_evaluation_edits(
     let mut replacements = Vec::new();
     let mut used_function_declaration_names = BTreeSet::new();
     let mut preserved_dynamic_branch_count = 0usize;
-    let value_prune_plan = static_scss_control_flow_value_prune_plan(source, dialect);
     let mut index = 0usize;
     while index < tokens.len() {
         let token = &tokens[index];
@@ -85,13 +84,17 @@ pub(super) fn collect_static_scss_control_flow_evaluation_edits(
         }
 
         let chain = static_scss_mixin_control_flow_chain(source, dialect, tokens, index)?;
-        let Some(replacement) = static_scss_mixin_selected_control_flow_body(
+        let value_prune_plan = static_scss_control_flow_value_prune_plan(
+            source,
+            dialect,
             &chain,
             &argument_values,
             chain.start,
             context,
-            Some(&value_prune_plan),
-        ) else {
+        );
+        let Some(replacement) =
+            static_scss_mixin_selected_control_flow_body(&chain, Some(&value_prune_plan))
+        else {
             preserved_dynamic_branch_count += 1;
             index = chain.next_index;
             continue;
@@ -173,7 +176,6 @@ fn render_static_scss_mixin_control_flow_body_with_fuel(
     let lexed = lex(body, dialect);
     let tokens = lexed.tokens();
     let mut edits = Vec::new();
-    let value_prune_plan = static_scss_control_flow_value_prune_plan(body, dialect);
     let mut index = 0usize;
     while index < tokens.len() {
         let token = &tokens[index];
@@ -182,15 +184,18 @@ fn render_static_scss_mixin_control_flow_body_with_fuel(
             continue;
         }
         let chain = static_scss_mixin_control_flow_chain(body, dialect, tokens, index)?;
-        let replacement = static_scss_mixin_selected_control_flow_body(
+        let value_prune_plan = static_scss_control_flow_value_prune_plan(
+            body,
+            dialect,
             &chain,
             argument_values,
             call_position,
             context,
-            Some(&value_prune_plan),
-        )?
-        .map(|selected| selected.body)
-        .unwrap_or_default();
+        );
+        let replacement =
+            static_scss_mixin_selected_control_flow_body(&chain, Some(&value_prune_plan))?
+                .map(|selected| selected.body)
+                .unwrap_or_default();
         edits.push(StaticStylesheetEvaluationEdit {
             start: chain.start,
             end: chain.end,
@@ -360,9 +365,6 @@ const fn static_scss_control_flow_dialect_is_supported(dialect: StyleDialect) ->
 
 fn static_scss_mixin_selected_control_flow_body(
     chain: &StaticScssMixinControlFlowChain,
-    argument_values: &BTreeMap<String, String>,
-    call_position: usize,
-    context: StaticScssFunctionResolutionContext<'_>,
     value_prune_plan: Option<&StaticScssControlFlowValuePrunePlan>,
 ) -> Option<Option<StaticScssSelectedControlFlowBody>> {
     for branch in &chain.branches {
@@ -371,29 +373,20 @@ fn static_scss_mixin_selected_control_flow_body(
         {
             continue;
         }
-        let Some(condition) = branch.condition.as_ref() else {
+        if branch.condition.is_none() {
             return Some(Some(StaticScssSelectedControlFlowBody {
                 body: branch.body.clone(),
                 body_start: branch.body_start,
             }));
-        };
-        let value_truthiness = value_prune_plan
+        }
+        if value_prune_plan
+            .is_some_and(|plan| plan.control_start_has_conflict(branch.control_start))
+        {
+            return None;
+        }
+        let truthy = value_prune_plan
             .and_then(|plan| plan.truthiness_by_start.get(&branch.control_start))
-            .copied();
-        let fallback_truthiness = static_scss_resolved_condition_truthiness(
-            condition.as_str(),
-            argument_values,
-            call_position,
-            context,
-        );
-        let truthy = match (value_truthiness, fallback_truthiness) {
-            (Some(value_truthy), Some(fallback_truthy)) if value_truthy != fallback_truthy => {
-                return None;
-            }
-            (Some(value_truthy), _) => value_truthy,
-            (None, Some(fallback_truthy)) => fallback_truthy,
-            (None, None) => return None,
-        };
+            .copied()?;
         if truthy {
             return Some(Some(StaticScssSelectedControlFlowBody {
                 body: branch.body.clone(),
@@ -407,10 +400,15 @@ fn static_scss_mixin_selected_control_flow_body(
 #[derive(Debug, Clone, Default)]
 struct StaticScssControlFlowValuePrunePlan {
     truthiness_by_start: BTreeMap<usize, bool>,
+    conflicting_control_starts: BTreeSet<usize>,
     reachable_control_starts: Option<BTreeSet<usize>>,
 }
 
 impl StaticScssControlFlowValuePrunePlan {
+    fn control_start_has_conflict(&self, control_start: usize) -> bool {
+        self.conflicting_control_starts.contains(&control_start)
+    }
+
     fn control_start_is_reachable(&self, control_start: usize) -> bool {
         self.reachable_control_starts
             .as_ref()
@@ -421,9 +419,39 @@ impl StaticScssControlFlowValuePrunePlan {
 fn static_scss_control_flow_value_prune_plan(
     source: &str,
     dialect: StyleDialect,
+    chain: &StaticScssMixinControlFlowChain,
+    argument_values: &BTreeMap<String, String>,
+    call_position: usize,
+    context: StaticScssFunctionResolutionContext<'_>,
 ) -> StaticScssControlFlowValuePrunePlan {
+    let mut truthiness_by_start =
+        static_scss_control_flow_value_truthiness_by_start(source, dialect);
+    let mut conflicting_control_starts = BTreeSet::new();
+    for branch in &chain.branches {
+        let Some(condition) = branch.condition.as_ref() else {
+            continue;
+        };
+        let Some(contextual_truthiness) = static_scss_resolved_condition_truthiness(
+            condition.as_str(),
+            argument_values,
+            call_position,
+            context,
+        ) else {
+            continue;
+        };
+        match truthiness_by_start.get(&branch.control_start).copied() {
+            Some(value_truthiness) if value_truthiness != contextual_truthiness => {
+                conflicting_control_starts.insert(branch.control_start);
+            }
+            Some(_) => {}
+            None => {
+                truthiness_by_start.insert(branch.control_start, contextual_truthiness);
+            }
+        }
+    }
     StaticScssControlFlowValuePrunePlan {
-        truthiness_by_start: static_scss_control_flow_value_truthiness_by_start(source, dialect),
+        truthiness_by_start,
+        conflicting_control_starts,
         reachable_control_starts: static_scss_control_flow_reachable_starts_after_prune(
             source, dialect,
         ),
@@ -698,26 +726,11 @@ mod tests {
         };
         let plan = StaticScssControlFlowValuePrunePlan {
             truthiness_by_start: BTreeMap::from([(0, false), (10, true)]),
+            conflicting_control_starts: BTreeSet::new(),
             reachable_control_starts: Some(BTreeSet::from([0, 20])),
         };
-        let active_functions = BTreeSet::new();
-        let argument_values = BTreeMap::new();
-        let context = StaticScssFunctionResolutionContext {
-            dialect: StyleDialect::Scss,
-            declarations: &[],
-            mixin_declarations: &[],
-            scopes: &[],
-            variable_declarations: &[],
-            active_functions: &active_functions,
-        };
 
-        let selected = static_scss_mixin_selected_control_flow_body(
-            &chain,
-            &argument_values,
-            chain.start,
-            context,
-            Some(&plan),
-        );
+        let selected = static_scss_mixin_selected_control_flow_body(&chain, Some(&plan));
 
         assert!(selected.is_some());
         let Some(Some(selected)) = selected else {
