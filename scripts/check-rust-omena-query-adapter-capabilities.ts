@@ -37,6 +37,9 @@ interface StaticStylesheetEvaluatorOracleCorpusSummaryV0 {
   readonly nativeEditOutputMatchCount: number;
   readonly nativeValueEditCount: number;
   readonly nativeStructuralEditCount: number;
+  readonly scssControlFlowPruneReachabilityFixtureCount: number;
+  readonly scssControlFlowPruneReachabilityChangedFixtureCount: number;
+  readonly scssControlFlowPruneReachabilityFlatCssCfgBuiltCount: number;
   readonly nativeRawValueCount: number;
   readonly nativeTopValueCount: number;
   readonly nativeCycleValueCount: number;
@@ -67,6 +70,12 @@ interface StaticStylesheetEvaluatorOracleFixtureSummaryV0 {
   readonly nativeFuelExhaustedValueCount: number;
   readonly nativeUnresolvedReferenceValueCount: number;
   readonly nativeUnsupportedDynamicValueCount: number;
+  readonly scssControlFlowPruneReachabilityAvailable: boolean;
+  readonly scssControlFlowPruneReachabilityConverged: boolean;
+  readonly scssControlFlowPruneReachabilityFlatCssCfgBuilt: boolean;
+  readonly scssControlFlowPruneReachabilityHaveTerminalsChanged: boolean;
+  readonly scssControlFlowPruneReachabilityReachableBlockCount: number;
+  readonly scssControlFlowPruneReachabilityUnreachableBlockCount: number;
 }
 
 interface StaticStylesheetEvaluatorSummaryV0 {
@@ -1198,6 +1207,15 @@ function assertStaticStylesheetEvaluatorOracleCorpus(
   assert.equal(summary.nativeEditOutputMatchCount, summary.fixtureCount);
   assert.ok(summary.nativeValueEditCount > 0);
   assert.ok(summary.nativeStructuralEditCount > 0);
+  assert.equal(
+    summary.scssControlFlowPruneReachabilityFixtureCount,
+    summary.scssFixtureCount + summary.sassFixtureCount,
+  );
+  assert.equal(
+    summary.scssControlFlowPruneReachabilityFlatCssCfgBuiltCount,
+    summary.scssFixtureCount + summary.sassFixtureCount,
+  );
+  assert.ok(summary.scssControlFlowPruneReachabilityChangedFixtureCount > 0);
   assert.ok(summary.nativeRawValueCount > 0);
   assert.ok(summary.nativeTopValueCount > 0);
   assert.ok(summary.nativeCycleValueCount > 0);
@@ -1214,6 +1232,24 @@ function assertStaticStylesheetEvaluatorOracleCorpus(
   assert.equal(corpus.fixtureCount, summary.fixtureCount);
   assert.equal(corpus.divergenceCount, 0);
   assert.equal(corpus.nativeEditOutputMatchCount, corpus.fixtureCount);
+  assert.equal(
+    corpus.scssControlFlowPruneReachabilityFixtureCount,
+    corpus.scssFixtureCount + corpus.sassFixtureCount,
+  );
+  assert.equal(
+    corpus.scssControlFlowPruneReachabilityFlatCssCfgBuiltCount,
+    corpus.scssFixtureCount + corpus.sassFixtureCount,
+  );
+  assert.ok(corpus.scssControlFlowPruneReachabilityChangedFixtureCount > 0);
+  assert.ok(
+    corpus.fixtures.some(
+      (fixture) =>
+        fixture.scssControlFlowPruneReachabilityHaveTerminalsChanged &&
+        fixture.nativeEditOutputMatchesEvaluatedCss &&
+        fixture.divergenceCount === 0,
+    ),
+    "static stylesheet product corpus must include an oracle-clean fixture with changed SCCP reachability",
+  );
   assert.equal(corpus.legacyOutputConsumedUntilCutoverCount, 0);
   assert.equal(corpus.allLegacyDeclarationValuesPreserved, true);
   assert.equal(corpus.allNativeEditOutputsMatchEvaluatedCss, true);
@@ -1397,6 +1433,18 @@ function assertStaticStylesheetEvaluatorOracleCorpus(
   const dynamicLess = fixtures.get("less.dynamic-escaped-string");
   assert.equal(dynamicLess?.nativeRawValueCount, 1);
   assert.equal(dynamicLess?.nativeUnsupportedDynamicValueCount, 1);
+  const staticScssIf = fixtures.get("scss.static-top-level-if");
+  assert.equal(staticScssIf?.scssControlFlowPruneReachabilityAvailable, true);
+  assert.equal(staticScssIf?.scssControlFlowPruneReachabilityConverged, true);
+  assert.equal(staticScssIf?.scssControlFlowPruneReachabilityFlatCssCfgBuilt, true);
+  assert.equal(staticScssIf?.scssControlFlowPruneReachabilityHaveTerminalsChanged, false);
+  assert.equal(staticScssIf?.scssControlFlowPruneReachabilityUnreachableBlockCount, 0);
+  const dynamicScssIf = fixtures.get("scss.dynamic-top-level-if");
+  assert.equal(dynamicScssIf?.scssControlFlowPruneReachabilityAvailable, true);
+  assert.equal(dynamicScssIf?.scssControlFlowPruneReachabilityConverged, true);
+  assert.equal(dynamicScssIf?.scssControlFlowPruneReachabilityFlatCssCfgBuilt, true);
+  assert.equal(dynamicScssIf?.scssControlFlowPruneReachabilityHaveTerminalsChanged, false);
+  assert.equal(dynamicScssIf?.scssControlFlowPruneReachabilityUnreachableBlockCount, 0);
 }
 
 function assertScssEvaluatorControlFlowOracleCorpus(

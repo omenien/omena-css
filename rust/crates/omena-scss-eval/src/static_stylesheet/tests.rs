@@ -45,6 +45,20 @@ fn static_stylesheet_oracle_corpus_reports_native_product_output_with_legacy_ora
     assert!(report.native_preserved_raw_include_count > 0);
     assert!(report.native_preserved_dynamic_interpolation_count > 0);
     assert_eq!(
+        report.scss_control_flow_prune_reachability_fixture_count,
+        report.scss_fixture_count + report.sass_fixture_count
+    );
+    assert_eq!(
+        report.scss_control_flow_prune_reachability_flat_css_cfg_built_count,
+        report.scss_fixture_count + report.sass_fixture_count
+    );
+    assert!(report.scss_control_flow_prune_reachability_changed_fixture_count > 0);
+    assert!(report.fixtures.iter().any(|fixture| {
+        fixture.scss_control_flow_prune_reachability_have_terminals_changed
+            && fixture.native_edit_output_matches_evaluated_css
+            && fixture.divergence_count == 0
+    }));
+    assert_eq!(
         report.native_edit_output_match_count,
         report.evaluated_fixture_count
     );
@@ -259,6 +273,11 @@ fn static_stylesheet_oracle_corpus_reports_native_product_output_with_legacy_ora
             && fixture.dialect == "scss"
             && fixture.evaluation_available
             && fixture.native_structural_edit_count == 2
+            && fixture.scss_control_flow_prune_reachability_available
+            && fixture.scss_control_flow_prune_reachability_converged
+            && fixture.scss_control_flow_prune_reachability_flat_css_cfg_built
+            && !fixture.scss_control_flow_prune_reachability_have_terminals_changed
+            && fixture.scss_control_flow_prune_reachability_unreachable_block_count == 0
             && fixture.native_edit_output_matches_evaluated_css
             && fixture.divergence_count == 0
     }));
@@ -268,6 +287,11 @@ fn static_stylesheet_oracle_corpus_reports_native_product_output_with_legacy_ora
             && fixture.evaluation_available
             && fixture.native_edit_count == 0
             && fixture.native_raw_value_count > 0
+            && fixture.scss_control_flow_prune_reachability_available
+            && fixture.scss_control_flow_prune_reachability_converged
+            && fixture.scss_control_flow_prune_reachability_flat_css_cfg_built
+            && !fixture.scss_control_flow_prune_reachability_have_terminals_changed
+            && fixture.scss_control_flow_prune_reachability_unreachable_block_count == 0
             && fixture.native_edit_output_matches_evaluated_css
             && fixture.divergence_count == 0
     }));

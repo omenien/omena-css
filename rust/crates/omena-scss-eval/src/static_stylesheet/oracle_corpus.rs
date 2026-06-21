@@ -1,6 +1,8 @@
 use omena_parser::StyleDialect;
 use serde::Serialize;
 
+use crate::summarize_scss_control_flow_prune_reachability;
+
 use super::{derive_static_stylesheet_module_evaluation, dialect_label};
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -32,6 +34,9 @@ pub struct OmenaScssEvalStaticStylesheetOracleCorpusReportV0 {
     pub native_preserved_raw_call_count: usize,
     pub native_preserved_raw_include_count: usize,
     pub native_preserved_dynamic_interpolation_count: usize,
+    pub scss_control_flow_prune_reachability_fixture_count: usize,
+    pub scss_control_flow_prune_reachability_changed_fixture_count: usize,
+    pub scss_control_flow_prune_reachability_flat_css_cfg_built_count: usize,
     pub native_edit_output_match_count: usize,
     pub native_value_reference_count: usize,
     pub native_resolved_value_count: usize,
@@ -71,6 +76,12 @@ pub struct OmenaScssEvalStaticStylesheetOracleCorpusFixtureReportV0 {
     pub native_preserved_raw_call_count: usize,
     pub native_preserved_raw_include_count: usize,
     pub native_preserved_dynamic_interpolation_count: usize,
+    pub scss_control_flow_prune_reachability_available: bool,
+    pub scss_control_flow_prune_reachability_converged: bool,
+    pub scss_control_flow_prune_reachability_flat_css_cfg_built: bool,
+    pub scss_control_flow_prune_reachability_have_terminals_changed: bool,
+    pub scss_control_flow_prune_reachability_reachable_block_count: usize,
+    pub scss_control_flow_prune_reachability_unreachable_block_count: usize,
     pub native_edit_output_matches_evaluated_css: bool,
     pub native_value_reference_count: usize,
     pub native_resolved_value_count: usize,
@@ -160,6 +171,18 @@ pub fn summarize_static_stylesheet_oracle_corpus()
         .iter()
         .map(|fixture| fixture.native_preserved_raw_include_count)
         .sum();
+    let scss_control_flow_prune_reachability_fixture_count = fixtures
+        .iter()
+        .filter(|fixture| fixture.scss_control_flow_prune_reachability_available)
+        .count();
+    let scss_control_flow_prune_reachability_changed_fixture_count = fixtures
+        .iter()
+        .filter(|fixture| fixture.scss_control_flow_prune_reachability_have_terminals_changed)
+        .count();
+    let scss_control_flow_prune_reachability_flat_css_cfg_built_count = fixtures
+        .iter()
+        .filter(|fixture| fixture.scss_control_flow_prune_reachability_flat_css_cfg_built)
+        .count();
     let native_edit_output_match_count = fixtures
         .iter()
         .filter(|fixture| fixture.native_edit_output_matches_evaluated_css)
@@ -253,6 +276,9 @@ pub fn summarize_static_stylesheet_oracle_corpus()
         native_preserved_raw_call_count,
         native_preserved_raw_include_count,
         native_preserved_dynamic_interpolation_count,
+        scss_control_flow_prune_reachability_fixture_count,
+        scss_control_flow_prune_reachability_changed_fixture_count,
+        scss_control_flow_prune_reachability_flat_css_cfg_built_count,
         native_edit_output_match_count,
         native_value_reference_count,
         native_resolved_value_count,
@@ -296,6 +322,12 @@ fn static_stylesheet_oracle_corpus_fixture_report(
             native_preserved_raw_call_count: 0,
             native_preserved_raw_include_count: 0,
             native_preserved_dynamic_interpolation_count: 0,
+            scss_control_flow_prune_reachability_available: false,
+            scss_control_flow_prune_reachability_converged: false,
+            scss_control_flow_prune_reachability_flat_css_cfg_built: false,
+            scss_control_flow_prune_reachability_have_terminals_changed: false,
+            scss_control_flow_prune_reachability_reachable_block_count: 0,
+            scss_control_flow_prune_reachability_unreachable_block_count: 0,
             native_edit_output_matches_evaluated_css: false,
             native_value_reference_count: 0,
             native_resolved_value_count: 0,
@@ -307,6 +339,8 @@ fn static_stylesheet_oracle_corpus_fixture_report(
             native_unsupported_dynamic_value_count: 0,
         };
     };
+    let prune_reachability =
+        summarize_scss_control_flow_prune_reachability(fixture.source, fixture.dialect);
 
     OmenaScssEvalStaticStylesheetOracleCorpusFixtureReportV0 {
         id: fixture.id,
@@ -335,6 +369,22 @@ fn static_stylesheet_oracle_corpus_fixture_report(
         native_preserved_raw_include_count: evaluation.preserved_raw_include_count,
         native_preserved_dynamic_interpolation_count: evaluation
             .preserved_dynamic_interpolation_count,
+        scss_control_flow_prune_reachability_available: prune_reachability.is_some(),
+        scss_control_flow_prune_reachability_converged: prune_reachability
+            .as_ref()
+            .is_some_and(|summary| summary.converged),
+        scss_control_flow_prune_reachability_flat_css_cfg_built: prune_reachability
+            .as_ref()
+            .is_some_and(|summary| summary.flat_css_cfg_built),
+        scss_control_flow_prune_reachability_have_terminals_changed: prune_reachability
+            .as_ref()
+            .is_some_and(|summary| summary.have_terminals_changed),
+        scss_control_flow_prune_reachability_reachable_block_count: prune_reachability
+            .as_ref()
+            .map_or(0, |summary| summary.reachable_block_count),
+        scss_control_flow_prune_reachability_unreachable_block_count: prune_reachability
+            .as_ref()
+            .map_or(0, |summary| summary.unreachable_block_count),
         native_edit_output_matches_evaluated_css: evaluation
             .native_edit_output_matches_evaluated_css,
         native_value_reference_count: evaluation.value_resolution.reference_count,

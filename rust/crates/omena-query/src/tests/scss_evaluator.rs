@@ -220,6 +220,15 @@ fn exposes_static_stylesheet_oracle_corpus_through_query_boundary() {
     assert!(summary.native_value_edit_count > 0);
     assert!(summary.native_structural_edit_count > 0);
     assert_eq!(
+        summary.scss_control_flow_prune_reachability_fixture_count,
+        summary.scss_fixture_count + summary.sass_fixture_count
+    );
+    assert_eq!(
+        summary.scss_control_flow_prune_reachability_flat_css_cfg_built_count,
+        summary.scss_fixture_count + summary.sass_fixture_count
+    );
+    assert!(summary.scss_control_flow_prune_reachability_changed_fixture_count > 0);
+    assert_eq!(
         summary.native_value_edit_count + summary.native_structural_edit_count,
         summary.native_edit_count
     );
