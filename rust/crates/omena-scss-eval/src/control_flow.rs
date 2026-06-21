@@ -22,6 +22,7 @@ mod value_analysis;
 mod variables;
 
 use transfer::ScssControlFlowTransfer;
+pub(crate) use value_analysis::analyze_scss_control_flow_values_with_initial_bindings;
 pub(super) use value_analysis::summarize_scss_control_flow_widening_witness;
 pub use value_analysis::{analyze_scss_control_flow_values, summarize_typed_value_lattice_witness};
 
@@ -43,6 +44,7 @@ pub use oracle_corpus::{
     OmenaScssEvalControlFlowOracleCorpusReportV0, summarize_scss_control_flow_oracle_corpus,
 };
 pub use prune_reachability::summarize_scss_control_flow_prune_reachability;
+pub(crate) use prune_reachability::summarize_scss_control_flow_prune_reachability_with_initial_bindings;
 pub use summaries::{summarize_scss_call_return_ir, summarize_scss_control_flow_ir};
 
 const SCSS_CALL_RETURN_RECURSION_LIMIT: usize = 32;

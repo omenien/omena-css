@@ -1,6 +1,7 @@
 use super::*;
 use omena_abstract_value::{
-    AbstractCssValueV0, control_flow_predecessor_counts, reachable_control_flow_block_ids,
+    AbstractCssValueV0, abstract_css_value_from_text, control_flow_predecessor_counts,
+    reachable_control_flow_block_ids,
 };
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -211,6 +212,57 @@ fn scss_control_flow_prune_reachability_preserves_unknown_conditions() {
     assert!(!report.have_terminals_changed);
     assert_eq!(report.reachable_block_count, report.block_count);
     assert_eq!(report.unreachable_block_count, 0);
+}
+
+#[test]
+fn scss_control_flow_value_analysis_uses_initial_bindings_for_branch_conditions() {
+    let source = "@if $enabled { .on { color: green; } } @else { .off { color: red; } }";
+    let initial_bindings = BTreeMap::from([(
+        "$enabled".to_string(),
+        abstract_css_value_from_text("false"),
+    )]);
+    let report = analyze_scss_control_flow_values_with_initial_bindings(
+        source,
+        StyleDialect::Scss,
+        &initial_bindings,
+    );
+    assert!(report.is_some());
+    let Some(report) = report else {
+        return;
+    };
+
+    let branch = report.blocks.iter().find(|block| block.kind == "branchIf");
+    assert!(branch.is_some());
+    let Some(branch) = branch else {
+        return;
+    };
+    assert_eq!(branch.transfer_truthiness, Some("falsey"));
+    assert!(report.flat_css_cfg_built);
+    assert!(!report.merged_cross_file_graph);
+}
+
+#[test]
+fn scss_control_flow_prune_reachability_uses_initial_bindings() {
+    let source =
+        "@if $enabled { .on { color: green; } } @else { @if true { .off { color: red; } } }";
+    let initial_bindings =
+        BTreeMap::from([("$enabled".to_string(), abstract_css_value_from_text("true"))]);
+    let report = summarize_scss_control_flow_prune_reachability_with_initial_bindings(
+        source,
+        StyleDialect::Scss,
+        &initial_bindings,
+    );
+    assert!(report.is_some());
+    let Some(report) = report else {
+        return;
+    };
+
+    assert!(report.converged);
+    assert!(report.flat_css_cfg_built);
+    assert!(!report.merged_cross_file_graph);
+    assert!(report.have_terminals_changed);
+    assert!(report.pruned_edge_count > 0);
+    assert!(report.unreachable_block_count > 0);
 }
 
 #[test]

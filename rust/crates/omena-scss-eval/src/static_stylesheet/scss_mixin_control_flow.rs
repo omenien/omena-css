@@ -1,13 +1,14 @@
 use std::collections::{BTreeMap, BTreeSet};
 
+use omena_abstract_value::{AbstractCssValueV0, abstract_css_value_from_text};
 use omena_parser::{LexedToken, StyleDialect, lex};
 use omena_syntax::SyntaxKind;
 
-use crate::{
-    analyze_scss_control_flow_values, build_scss_control_flow_graph,
-    summarize_scss_control_flow_prune_reachability,
-    value_eval::{static_scss_literal_truthiness, static_scss_typed_advisory_truthiness},
+use crate::control_flow::{
+    analyze_scss_control_flow_values_with_initial_bindings, build_scss_control_flow_graph,
+    summarize_scss_control_flow_prune_reachability_with_initial_bindings,
 };
+use crate::value_eval::{static_scss_literal_truthiness, static_scss_typed_advisory_truthiness};
 
 use super::{
     OmenaScssEvalResolvedReplacementV0, STATIC_STYLESHEET_VALUE_RESOLUTION_FUEL_LIMIT,
@@ -424,8 +425,9 @@ fn static_scss_control_flow_value_prune_plan(
     call_position: usize,
     context: StaticScssFunctionResolutionContext<'_>,
 ) -> StaticScssControlFlowValuePrunePlan {
+    let initial_bindings = static_scss_control_flow_initial_bindings(argument_values);
     let mut truthiness_by_start =
-        static_scss_control_flow_value_truthiness_by_start(source, dialect);
+        static_scss_control_flow_value_truthiness_by_start(source, dialect, &initial_bindings);
     let mut conflicting_control_starts = BTreeSet::new();
     for branch in &chain.branches {
         let Some(condition) = branch.condition.as_ref() else {
@@ -453,19 +455,33 @@ fn static_scss_control_flow_value_prune_plan(
         truthiness_by_start,
         conflicting_control_starts,
         reachable_control_starts: static_scss_control_flow_reachable_starts_after_prune(
-            source, dialect,
+            source,
+            dialect,
+            &initial_bindings,
         ),
     }
+}
+
+fn static_scss_control_flow_initial_bindings(
+    argument_values: &BTreeMap<String, String>,
+) -> BTreeMap<String, AbstractCssValueV0> {
+    argument_values
+        .iter()
+        .map(|(name, value)| (name.clone(), abstract_css_value_from_text(value.as_str())))
+        .collect()
 }
 
 fn static_scss_control_flow_value_truthiness_by_start(
     source: &str,
     dialect: StyleDialect,
+    initial_bindings: &BTreeMap<String, AbstractCssValueV0>,
 ) -> BTreeMap<usize, bool> {
     let Some(graph) = build_scss_control_flow_graph(source, dialect) else {
         return BTreeMap::new();
     };
-    let Some(analysis) = analyze_scss_control_flow_values(source, dialect) else {
+    let Some(analysis) =
+        analyze_scss_control_flow_values_with_initial_bindings(source, dialect, initial_bindings)
+    else {
         return BTreeMap::new();
     };
     let source_start_by_node_key = graph
@@ -499,9 +515,14 @@ fn static_scss_control_flow_value_truthiness_by_start(
 fn static_scss_control_flow_reachable_starts_after_prune(
     source: &str,
     dialect: StyleDialect,
+    initial_bindings: &BTreeMap<String, AbstractCssValueV0>,
 ) -> Option<BTreeSet<usize>> {
     let graph = build_scss_control_flow_graph(source, dialect)?;
-    let report = summarize_scss_control_flow_prune_reachability(source, dialect)?;
+    let report = summarize_scss_control_flow_prune_reachability_with_initial_bindings(
+        source,
+        dialect,
+        initial_bindings,
+    )?;
     if !report.converged {
         return None;
     }

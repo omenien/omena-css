@@ -1,12 +1,14 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use omena_abstract_value::{
-    ControlFlowEdgeGraphV0, MAX_FLOW_ANALYSIS_ITERATIONS, reachable_control_flow_block_ids,
+    AbstractCssValueV0, ControlFlowEdgeGraphV0, MAX_FLOW_ANALYSIS_ITERATIONS,
+    reachable_control_flow_block_ids,
 };
 use omena_parser::StyleDialect;
 
 use super::{
-    analyze_scss_control_flow_values, build_scss_control_flow_graph, dialect_label,
+    analyze_scss_control_flow_values_with_initial_bindings, build_scss_control_flow_graph,
+    dialect_label,
     model::{
         OmenaScssEvalControlFlowBlockIdV0, OmenaScssEvalControlFlowEdgeV0,
         OmenaScssEvalControlFlowPruneReachabilityV0,
@@ -16,6 +18,18 @@ use super::{
 pub fn summarize_scss_control_flow_prune_reachability(
     source: &str,
     dialect: StyleDialect,
+) -> Option<OmenaScssEvalControlFlowPruneReachabilityV0> {
+    summarize_scss_control_flow_prune_reachability_with_initial_bindings(
+        source,
+        dialect,
+        &BTreeMap::new(),
+    )
+}
+
+pub(crate) fn summarize_scss_control_flow_prune_reachability_with_initial_bindings(
+    source: &str,
+    dialect: StyleDialect,
+    initial_bindings: &BTreeMap<String, AbstractCssValueV0>,
 ) -> Option<OmenaScssEvalControlFlowPruneReachabilityV0> {
     let graph = build_scss_control_flow_graph(source, dialect)?;
     let block_ids = graph
@@ -54,7 +68,8 @@ pub fn summarize_scss_control_flow_prune_reachability(
         });
     }
 
-    let truthiness_by_block_id = control_flow_truthiness_by_block_id(source, dialect)?;
+    let truthiness_by_block_id =
+        control_flow_truthiness_by_block_id(source, dialect, initial_bindings)?;
     let mut reachable_block_ids = original_reachable_block_ids.clone();
     let mut pruned_edge_count = 0usize;
     let mut iteration_count = 0usize;
@@ -110,9 +125,11 @@ pub fn summarize_scss_control_flow_prune_reachability(
 fn control_flow_truthiness_by_block_id(
     source: &str,
     dialect: StyleDialect,
+    initial_bindings: &BTreeMap<String, AbstractCssValueV0>,
 ) -> Option<BTreeMap<OmenaScssEvalControlFlowBlockIdV0, bool>> {
     let graph = build_scss_control_flow_graph(source, dialect)?;
-    let analysis = analyze_scss_control_flow_values(source, dialect)?;
+    let analysis =
+        analyze_scss_control_flow_values_with_initial_bindings(source, dialect, initial_bindings)?;
     let block_id_by_node_key = graph
         .blocks
         .iter()

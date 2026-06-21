@@ -262,6 +262,10 @@ impl LexicalScssBindings {
         });
     }
 
+    pub(super) fn push_root_binding(&mut self, name: &str, value: AbstractCssValueV0) {
+        self.push(name, 0, 0, value);
+    }
+
     fn push_callable(
         &mut self,
         kind: LexicalScssCallableKind,

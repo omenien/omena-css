@@ -52,12 +52,23 @@ pub fn analyze_scss_control_flow_values(
     source: &str,
     dialect: StyleDialect,
 ) -> Option<OmenaScssEvalControlFlowValueAnalysisV0> {
+    analyze_scss_control_flow_values_with_initial_bindings(source, dialect, &BTreeMap::new())
+}
+
+pub(crate) fn analyze_scss_control_flow_values_with_initial_bindings(
+    source: &str,
+    dialect: StyleDialect,
+    initial_bindings: &BTreeMap<String, AbstractCssValueV0>,
+) -> Option<OmenaScssEvalControlFlowValueAnalysisV0> {
     if !matches!(dialect, StyleDialect::Scss | StyleDialect::Sass) {
         return None;
     }
     let graph = build_scss_control_flow_graph(source, dialect)?;
     let predecessor_indices_by_block_id = control_flow_predecessor_indices_by_block_id(&graph);
-    let lexical_bindings = collect_lexical_scss_bindings(source, dialect);
+    let mut lexical_bindings = collect_lexical_scss_bindings(source, dialect);
+    for (name, value) in initial_bindings {
+        lexical_bindings.push_root_binding(name.as_str(), value.clone());
+    }
     let graph_block_payloads = graph
         .blocks
         .iter()
