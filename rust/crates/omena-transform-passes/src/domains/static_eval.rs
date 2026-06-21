@@ -6,7 +6,6 @@ use omena_cascade::{
 };
 use omena_parser::StyleDialect;
 use omena_syntax::SyntaxKind;
-use omena_value_lattice::is_container_query_length_unit;
 
 use crate::runtime::lex_cache::lex_cached as lex;
 
@@ -999,10 +998,13 @@ fn strip_static_container_name(prelude: &str) -> &str {
 
 /// Proves a `@container` size condition can never be satisfied (so the block is dead).
 ///
-/// Sound subset only: conjunctions/single size bounds over a non-negativity floor
-/// (a queried size is always ≥ 0). Any `cq*` unit (depends on an outer container),
-/// `style()` query, disjunction, negation, or unrecognized feature → not provably
-/// false → kept verbatim.
+/// Sound subset only: conjunctions/single size bounds in ABSOLUTE physical length
+/// units (`px`/`cm`/`mm`/`q`/`in`/`pc`/`pt`), over a non-negativity floor — a queried
+/// size is always ≥ 0. Bounds whose resolution basis can be zero or lives outside this
+/// container (`%` resolves against the container's own size, `em`/`rem` against a
+/// font-size that may be 0, viewport units, `cq*` against an outer container) are
+/// skipped as undecidable, as are `style()` queries, disjunctions, negations, and
+/// unrecognized features → not provably false → kept verbatim.
 fn static_container_condition_is_always_false(condition: &str) -> bool {
     if parse_static_media_disjunction(condition).is_some()
         || parse_static_media_negation(condition).is_some()
@@ -1019,8 +1021,8 @@ fn static_container_condition_is_always_false(condition: &str) -> bool {
 
     for part in &parts {
         if let Some((dimension, bound)) = parse_static_container_size_equality(part) {
-            if is_container_query_length_unit(&bound.unit) {
-                return false;
+            if !unit_is_absolute_length(&bound.unit) {
+                continue;
             }
             let Some(constraint) = static_container_constraint_for(
                 dimension,
@@ -1039,8 +1041,8 @@ fn static_container_condition_is_always_false(condition: &str) -> bool {
         let Some((dimension, kind, bound)) = parse_static_container_size_bound(part) else {
             continue;
         };
-        if is_container_query_length_unit(&bound.unit) {
-            return false;
+        if !unit_is_absolute_length(&bound.unit) {
+            continue;
         }
         let Some(constraint) = static_container_constraint_for(
             dimension,
@@ -1077,6 +1079,9 @@ fn static_container_constraint_for<'a>(
 
 /// A size constraint is impossible when its bounds contradict, or when an upper
 /// bound falls below the non-negativity floor (`max-*: <neg>`, `*-size < 0`).
+///
+/// Only ever called with absolute-length bounds (the caller skips other units), so
+/// `value < 0` is genuinely unsatisfiable: a queried box size is always ≥ 0.
 fn static_container_size_constraint_is_impossible(constraint: &StaticMediaRangeConstraint) -> bool {
     if constraint.is_impossible() {
         return true;
@@ -1084,6 +1089,18 @@ fn static_container_size_constraint_is_impossible(constraint: &StaticMediaRangeC
     matches!(
         &constraint.upper,
         Some(upper) if upper.value < 0.0 || (upper.value == 0.0 && !upper.inclusive)
+    )
+}
+
+/// Absolute physical length units, whose resolution to `px` is a fixed positive
+/// factor. Only these have a provably strictly-positive basis, so a negative bound
+/// in one is genuinely impossible against the non-negative-size floor. Relative
+/// units (`%`, `em`/`rem`, viewport, `cq*`) resolve against a basis that can be zero
+/// or external, so their bounds are undecidable for this static pass.
+fn unit_is_absolute_length(unit: &str) -> bool {
+    matches!(
+        unit.to_ascii_lowercase().as_str(),
+        "px" | "cm" | "mm" | "q" | "in" | "pc" | "pt"
     )
 }
 
@@ -1245,13 +1262,35 @@ mod container_static_eval_tests {
     }
 
     #[test]
-    fn keeps_container_query_unit_bound_verbatim() {
-        // cqw depends on an outer container, so the bound is undecidable here and
-        // the recognizer is consumed as a soundness guard (its first production home).
-        let source = "@container (max-width: -1cqw) { .a { color: red } }";
-        let (output, mutations) = eval(source);
-        assert_eq!(output, source);
-        assert_eq!(mutations, 0);
+    fn keeps_relative_unit_bounds_verbatim() {
+        // Only absolute physical lengths have a provably positive basis. A negative
+        // bound in a relative unit is satisfiable at a zero basis (% against a
+        // zero-size container, em against font-size:0) or resolves against an outer
+        // container (cq*) / the viewport (vw) — all undecidable here, so kept.
+        for source in [
+            "@container (max-width: -1cqw) { .a { color: red } }",
+            "@container (max-width: -1%) { .a { color: red } }",
+            "@container (max-width: -1em) { .a { color: red } }",
+            "@container (max-width: -100vw) { .a { color: red } }",
+            "@container (max-width: -1xyz) { .a { color: red } }",
+        ] {
+            let (output, mutations) = eval(source);
+            assert_eq!(output, source, "must keep undecidable-unit bound: {source}");
+            assert_eq!(mutations, 0);
+        }
+    }
+
+    #[test]
+    fn removes_impossible_absolute_unit_bounds() {
+        // Absolute units beyond px also resolve to a fixed positive px factor.
+        for source in [
+            "@container (max-width: -1cm) { .a { color: red } }",
+            "@container (max-width: -1in) { .a { color: red } }",
+        ] {
+            let (output, mutations) = eval(source);
+            assert_eq!(output, "", "must remove impossible absolute bound: {source}");
+            assert_eq!(mutations, 1);
+        }
     }
 
     #[test]
