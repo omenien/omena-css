@@ -235,10 +235,12 @@ pub fn registered_syntax_match(syntax: &str, value: &str) -> RegisteredSyntaxMat
 /// (e.g. `box-sizing: content-box | border-box`) are decidable; every property whose
 /// grammar references a `<type>` or is otherwise open stays `Unknown` (silent), as
 /// does every value that is not a single plain keyword. A CSS-wide keyword is always
-/// accepted. The matcher never rejects a value it cannot prove invalid — a definite
-/// `Rejects` requires the value to be a single keyword that is provably outside a
-/// closed, exhaustive alternation. Snapshot completeness is fenced by the
-/// webref-drift gate; matching is case-insensitive.
+/// accepted, and a vendor-prefixed / experimental value (`-webkit-*`, `-moz-*`, …) is
+/// always silent — it is a legal browser extension the standard grammar never lists.
+/// The matcher never rejects a value it cannot prove outside the standard grammar — a
+/// definite `Rejects` requires a single non-prefixed keyword provably absent from a
+/// closed, exhaustive alternation. Snapshot completeness is fenced by the webref-drift
+/// gate; matching is case-insensitive.
 pub fn standard_property_syntax_match(property: &str, value: &str) -> RegisteredSyntaxMatchV0 {
     let Some(keywords) = spec_vocabulary().property_keywords(property) else {
         return RegisteredSyntaxMatchV0::Unknown;
@@ -251,6 +253,12 @@ pub fn standard_property_syntax_match(property: &str, value: &str) -> Registered
                 .any(|keyword| keyword.eq_ignore_ascii_case(&ident))
             {
                 RegisteredSyntaxMatchV0::Accepts
+            } else if ident.starts_with('-') {
+                // A leading `-` marks a vendor-prefixed or experimental value
+                // (`-webkit-optimize-contrast`, `-moz-none`, …) that the standard
+                // grammar will never enumerate; these are legal browser extensions,
+                // so they stay silent rather than being flagged.
+                RegisteredSyntaxMatchV0::Unknown
             } else {
                 RegisteredSyntaxMatchV0::Rejects
             }
@@ -534,8 +542,8 @@ fn is_hex_color(value: &str) -> bool {
 
 fn is_named_color(value: &str) -> bool {
     // Spec-driven: the vendored webref `<named-color>` closed alternation (the full
-    // ~148-color set). The inline list is a recognition floor so a feed snapshot
-    // that fails to parse never regresses below the historically recognized set.
+    // set). The inline list is a recognition floor so a feed snapshot that fails to
+    // parse never regresses below the historically recognized set.
     if matches!(
         spec_vocabulary().type_accepts("named-color", value),
         Some(true)
@@ -1173,6 +1181,35 @@ mod tests {
             }
         }
         assert!(checked > 0, "expected closed-alternation properties in the feed");
+    }
+
+    #[test]
+    fn standard_property_syntax_match_keeps_vendor_prefixed_values_silent() {
+        // A leading `-` marks a legal browser extension the standard closed grammar
+        // never lists; it must stay silent, not be flagged as a value violation. The
+        // guard is exercised directly on box-sizing (a confirmed closed alternation):
+        // without the prefix the same shape would Reject, with it stays Unknown.
+        assert_eq!(
+            standard_property_syntax_match("box-sizing", "-webkit-border-box"),
+            RegisteredSyntaxMatchV0::Unknown
+        );
+        for value in [
+            "-webkit-optimize-contrast",
+            "-moz-crisp-edges",
+            "-moz-none",
+            "-webkit-auto",
+        ] {
+            assert_ne!(
+                standard_property_syntax_match("image-rendering", value),
+                RegisteredSyntaxMatchV0::Rejects,
+                "vendor-prefixed {value} must not be flagged"
+            );
+        }
+        // A non-prefixed unlisted keyword is still flagged (the typo-catching value).
+        assert_eq!(
+            standard_property_syntax_match("box-sizing", "inline-box"),
+            RegisteredSyntaxMatchV0::Rejects
+        );
     }
 
     #[test]

@@ -1575,7 +1575,7 @@ pub fn evaluate_omena_checker_cascade_rules(
                 vec![declaration.declaration_id.clone()],
                 declaration.layer_name.clone(),
                 vec![declaration.property.clone()],
-                "Property value is outside the property's closed keyword grammar and is invalid.",
+                "Property value is outside the property's closed keyword grammar; only a standard keyword, a vendor-prefixed value, or a CSS-wide keyword is recognized here.",
             ));
         }
     }
