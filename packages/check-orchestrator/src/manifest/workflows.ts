@@ -453,16 +453,6 @@ const GOVERNED_CI_LEAF_CLASSIFICATIONS: readonly GovernedCiLeafClassification[] 
       "Rust subsystem probe retained for targeted manual diagnosis; canonical boundary/readiness bundles carry CI coverage.",
   },
   {
-    id: "rust/omena-spec-audit-webref-drift",
-    reason:
-      "Webref grammar drift fence retained for targeted manual diagnosis; canonical readiness bundle carries CI coverage.",
-  },
-  {
-    id: "rust/omena-spec-audit-webref-grammar",
-    reason:
-      "Webref grammar snapshot idempotency probe retained for targeted manual diagnosis; canonical readiness bundle carries CI coverage.",
-  },
-  {
     id: "rust/omena-tsgo-client/split-boundary",
     reason:
       "Compatibility alias for split-boundary checks; canonical boundary bundles carry CI coverage.",

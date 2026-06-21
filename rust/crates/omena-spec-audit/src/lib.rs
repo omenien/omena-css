@@ -512,6 +512,10 @@ fn summarize_webref_grammar(
         .map(|entries| entries.len())
         .sum::<usize>();
     let mut classified = 0usize;
+    // NOTE: `modeled` is a recognition tally (entries the conservative classifier
+    // shaped as a Reference/Keyword/Alternation rather than `Raw`), NOT a spec
+    // coverage or conformance metric — a `<type>` reference is still an
+    // unresolved forward pointer.
     let mut modeled = 0usize;
     let mut all_entries_well_formed = true;
     for entries in snapshot.categories.values() {
