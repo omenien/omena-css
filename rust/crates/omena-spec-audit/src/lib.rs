@@ -19,6 +19,7 @@ pub const SPEC_AUDIT_PASS_MARKER: &str = "color-compression";
 
 const SPEC_SOURCE_PINS_SOURCE: &str = include_str!("../data/spec-sources.json");
 const OMENA_SPEC_MANIFEST_SOURCE: &str = include_str!("../data/omena-spec-manifest.json");
+const WEBREF_GRAMMAR_SOURCE: &str = include_str!("../data/webref-grammar.json");
 
 /// Boundary summary for the Stage 1 spec audit substrate.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -58,6 +59,15 @@ pub struct OmenaSpecAuditBoundarySummaryV0 {
     pub manifest_source_coverage_valid: bool,
     /// Whether every pinned source is represented by manifest coverage metadata.
     pub all_pinned_sources_have_manifest_coverage: bool,
+    /// Number of vendored webref value-definition-syntax grammar entries.
+    pub webref_grammar_entry_count: usize,
+    /// Vendored webref grammar entries the consumer modeled (non-`Raw`).
+    pub webref_grammar_modeled_entry_count: usize,
+    /// Whether every vendored grammar entry round-trips (parsed or `Raw`, none
+    /// dropped) and the snapshot's entry count is internally consistent.
+    pub all_webref_grammar_entries_valid: bool,
+    /// Whether the vendored grammar's stamped version + git head match the pin.
+    pub webref_grammar_provenance_valid: bool,
     /// Named gates closed by this boundary.
     pub closed_gates: Vec<&'static str>,
 }
@@ -237,6 +247,10 @@ pub fn summarize_omena_spec_audit_boundary() -> OmenaSpecAuditBoundarySummaryV0 
         && entries
             .iter()
             .all(|entry| manifest_entry_cross_reference_is_valid(entry, &source_by_name));
+    let webref_pin = sources
+        .iter()
+        .find(|source| source.package == "@webref/css");
+    let webref_grammar = summarize_webref_grammar(webref_pin);
 
     OmenaSpecAuditBoundarySummaryV0 {
         schema_version: "0",
@@ -256,6 +270,10 @@ pub fn summarize_omena_spec_audit_boundary() -> OmenaSpecAuditBoundarySummaryV0 
         manifest_cross_references_valid,
         manifest_source_coverage_valid,
         all_pinned_sources_have_manifest_coverage,
+        webref_grammar_entry_count: webref_grammar.entry_count,
+        webref_grammar_modeled_entry_count: webref_grammar.modeled_entry_count,
+        all_webref_grammar_entries_valid: webref_grammar.all_entries_valid,
+        webref_grammar_provenance_valid: webref_grammar.provenance_valid,
         closed_gates: vec![
             "specAuditSourcePins",
             "specAuditSingleSourceManifest",
@@ -265,6 +283,7 @@ pub fn summarize_omena_spec_audit_boundary() -> OmenaSpecAuditBoundarySummaryV0 
             "specAuditSourceFreshnessPolicy",
             "generatedDataHumanReviewGate",
             "metaMacroAttributeShape",
+            "webrefGrammarConsumer",
         ],
     }
 }
@@ -386,6 +405,148 @@ fn entry_has_rationale(entry: &OmenaSpecManifestEntryV0) -> bool {
         .is_some_and(|rationale| !rationale.trim().is_empty())
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct WebrefGrammarSnapshotV0 {
+    schema_version: String,
+    product: String,
+    source: WebrefGrammarSourceV0,
+    entry_count: usize,
+    categories: BTreeMap<String, Vec<WebrefGrammarEntryV0>>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct WebrefGrammarSourceV0 {
+    package: String,
+    version: String,
+    git_head: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
+struct WebrefGrammarEntryV0 {
+    name: String,
+    syntax: String,
+}
+
+/// Coarse classification of a webref value-definition-syntax string. The consumer
+/// is conservative: anything it cannot model with certainty is preserved as `Raw`,
+/// so no entry is dropped and no structure is guessed.
+#[derive(Debug, Clone, PartialEq, Eq)]
+enum WebrefGrammarTermV0 {
+    Reference(String),
+    Keyword(String),
+    KeywordAlternation(Vec<String>),
+    Raw(String),
+}
+
+struct WebrefGrammarConsumerSummaryV0 {
+    entry_count: usize,
+    modeled_entry_count: usize,
+    all_entries_valid: bool,
+    provenance_valid: bool,
+}
+
+fn classify_webref_syntax(syntax: &str) -> WebrefGrammarTermV0 {
+    let trimmed = syntax.trim();
+    if is_single_type_reference(trimmed) {
+        return WebrefGrammarTermV0::Reference(trimmed.to_string());
+    }
+    if is_bare_grammar_keyword(trimmed) {
+        return WebrefGrammarTermV0::Keyword(trimmed.to_string());
+    }
+    if let Some(keywords) = simple_keyword_alternation(trimmed) {
+        return WebrefGrammarTermV0::KeywordAlternation(keywords);
+    }
+    WebrefGrammarTermV0::Raw(trimmed.to_string())
+}
+
+fn is_single_type_reference(syntax: &str) -> bool {
+    syntax.starts_with('<')
+        && syntax.ends_with('>')
+        && syntax.matches('<').count() == 1
+        && syntax.matches('>').count() == 1
+}
+
+fn is_bare_grammar_keyword(syntax: &str) -> bool {
+    let mut chars = syntax.chars();
+    let Some(first) = chars.next() else {
+        return false;
+    };
+    (first == '-' || first == '_' || first.is_ascii_alphabetic())
+        && chars.all(|char| char == '-' || char == '_' || char.is_ascii_alphanumeric())
+}
+
+fn simple_keyword_alternation(syntax: &str) -> Option<Vec<String>> {
+    // Only the simplest `a | b | c` shape with no groups, multipliers, type
+    // references, or other combinators reduces to a keyword set; anything richer
+    // stays `Raw` so the consumer never mis-parses a structure it does not model.
+    if syntax.contains([
+        '[', ']', '(', ')', '<', '>', '{', '}', '*', '+', '?', '#', ',', '!', '&',
+    ]) || syntax.contains("||")
+    {
+        return None;
+    }
+    let parts = syntax.split('|').map(str::trim).collect::<Vec<_>>();
+    if parts.len() < 2 || !parts.iter().all(|part| is_bare_grammar_keyword(part)) {
+        return None;
+    }
+    Some(parts.into_iter().map(str::to_string).collect())
+}
+
+fn summarize_webref_grammar(
+    webref_pin: Option<&SpecSourcePinV0>,
+) -> WebrefGrammarConsumerSummaryV0 {
+    let Ok(snapshot) = serde_json::from_str::<WebrefGrammarSnapshotV0>(WEBREF_GRAMMAR_SOURCE)
+    else {
+        return WebrefGrammarConsumerSummaryV0 {
+            entry_count: 0,
+            modeled_entry_count: 0,
+            all_entries_valid: false,
+            provenance_valid: false,
+        };
+    };
+    let actual_count = snapshot
+        .categories
+        .values()
+        .map(|entries| entries.len())
+        .sum::<usize>();
+    let mut classified = 0usize;
+    let mut modeled = 0usize;
+    let mut all_entries_well_formed = true;
+    for entries in snapshot.categories.values() {
+        for entry in entries {
+            if entry.name.trim().is_empty() || entry.syntax.trim().is_empty() {
+                all_entries_well_formed = false;
+                continue;
+            }
+            classified += 1;
+            if !matches!(
+                classify_webref_syntax(entry.syntax.as_str()),
+                WebrefGrammarTermV0::Raw(_)
+            ) {
+                modeled += 1;
+            }
+        }
+    }
+    let all_entries_valid = snapshot.schema_version == "0"
+        && snapshot.product == "omena-spec-audit.webref-grammar"
+        && actual_count == snapshot.entry_count
+        && classified == snapshot.entry_count
+        && all_entries_well_formed;
+    let provenance_valid = webref_pin.is_some_and(|pin| {
+        snapshot.source.package == pin.package
+            && snapshot.source.version == pin.version
+            && snapshot.source.git_head == pin.git_head
+    });
+    WebrefGrammarConsumerSummaryV0 {
+        entry_count: snapshot.entry_count,
+        modeled_entry_count: modeled,
+        all_entries_valid,
+        provenance_valid,
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::{
@@ -401,9 +562,9 @@ mod tests {
         assert_eq!(summary.product, "omena-spec-audit.boundary");
         assert_eq!(summary.stage, "stage1-advisory");
         assert_eq!(summary.source_count, 4);
-        assert_eq!(summary.manifest_entry_count, 29);
+        assert_eq!(summary.manifest_entry_count, 33);
         assert_eq!(summary.p0_entry_count, 22);
-        assert_eq!(summary.source_linked_entry_count, 29);
+        assert_eq!(summary.source_linked_entry_count, 33);
         assert_eq!(summary.webref_entry_count, 23);
         assert_eq!(summary.source_coverage_count, 4);
         assert_eq!(summary.blocking_p0_gap_count, 0);
@@ -436,6 +597,49 @@ mod tests {
                 .contains(&"generatedDataHumanReviewGate")
         );
         assert!(summary.closed_gates.contains(&"metaMacroAttributeShape"));
+    }
+
+    #[test]
+    fn boundary_consumes_webref_grammar_with_count_and_provenance() {
+        let summary = summarize_omena_spec_audit_boundary();
+
+        assert!(summary.webref_grammar_entry_count > 0);
+        assert!(summary.webref_grammar_modeled_entry_count <= summary.webref_grammar_entry_count);
+        assert!(summary.all_webref_grammar_entries_valid);
+        assert!(summary.webref_grammar_provenance_valid);
+        assert!(summary.closed_gates.contains(&"webrefGrammarConsumer"));
+    }
+
+    #[test]
+    fn webref_syntax_classifier_reduces_unmodelable_to_raw() {
+        use super::{WebrefGrammarTermV0, classify_webref_syntax};
+
+        assert_eq!(
+            classify_webref_syntax("<length>"),
+            WebrefGrammarTermV0::Reference("<length>".to_string())
+        );
+        assert_eq!(
+            classify_webref_syntax("subgrid"),
+            WebrefGrammarTermV0::Keyword("subgrid".to_string())
+        );
+        assert_eq!(
+            classify_webref_syntax("block | inline | none"),
+            WebrefGrammarTermV0::KeywordAlternation(vec![
+                "block".to_string(),
+                "inline".to_string(),
+                "none".to_string(),
+            ])
+        );
+        // Combinators/multipliers/groups the consumer does not model reduce to
+        // Raw (never a guess, never a panic).
+        assert!(matches!(
+            classify_webref_syntax("none | <track-list> | subgrid <line-name-list>?"),
+            WebrefGrammarTermV0::Raw(_)
+        ));
+        assert!(matches!(
+            classify_webref_syntax("<a> || <b>"),
+            WebrefGrammarTermV0::Raw(_)
+        ));
     }
 
     #[test]
