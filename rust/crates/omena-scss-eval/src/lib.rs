@@ -72,14 +72,16 @@ pub struct OmenaScssEvalValueOracleV0 {
     pub matches_legacy: bool,
 }
 
-/// Value-WELL-FORMEDNESS self-check on the candidate (native-edit) output, NOT a differential
-/// against an external SCSS/Less compiler. In the production rail `candidate_evaluated_css` is the
-/// native-edit output (source with native edits applied), so `divergence_count == 0` /
-/// `all_legacy_declaration_values_preserved` mean "every native-emitted declaration value
-/// canonically round-trips", NOT "native agrees with an external/legacy evaluator". A genuine
-/// dart-sass/lessc differential is out of scope here (separate equivalence-oracle track); the
-/// `legacy*` vocabulary is retained for the serialized contract and denotes the retained
-/// product-output string, not an independent ground truth.
+/// Value-WELL-FORMEDNESS self-check on the candidate native-edit output.
+///
+/// This function does not invoke an external SCSS/Less compiler. In the production rail
+/// `candidate_evaluated_css` is the native-edit output (source with native edits applied), so
+/// `divergence_count == 0` / `all_legacy_declaration_values_preserved` mean "every native-emitted
+/// declaration value canonically round-trips", not "native agrees with an external evaluator".
+/// The separate `externalDifferential` gate compares covered fixture slices against pinned
+/// dart-sass/lessc versions; this self-check remains the cheap inner oracle for every evaluated
+/// candidate. The `legacy*` vocabulary is retained for the serialized contract and denotes the
+/// retained product-output string, not an independent ground truth.
 pub fn summarize_omena_scss_eval_oracle(
     source: &str,
     dialect: StyleDialect,

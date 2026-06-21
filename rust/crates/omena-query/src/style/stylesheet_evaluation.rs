@@ -23,8 +23,9 @@ pub(super) fn derive_static_stylesheet_module_evaluation(
     let evaluation =
         derive_omena_scss_eval_static_stylesheet_module_evaluation(style_source, dialect)?;
     // NOTE: `all_legacy_declaration_values_preserved` is a value-WELL-FORMEDNESS self-check on the
-    // native-edit output (every native-emitted declaration value canonically round-trips), NOT a
-    // differential against an external SCSS/Less compiler. See `summarize_omena_scss_eval_oracle`.
+    // native-edit output (every native-emitted declaration value canonically round-trips). External
+    // Sass/Less agreement is witnessed by the separate `externalDifferential` gate for its covered
+    // fixture slices, not by this in-process adapter check. See `summarize_omena_scss_eval_oracle`.
     debug_assert!(
         evaluation.oracle.all_legacy_declaration_values_preserved,
         "native-emitted value failed canonical round-trip self-check"
