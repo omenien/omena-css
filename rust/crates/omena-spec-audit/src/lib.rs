@@ -819,4 +819,39 @@ mod tests {
             WebrefGrammarTermV0::KeywordAlternation(_)
         ));
     }
+
+    #[test]
+    fn spec_vocabulary_coverage_fences_depended_on_terms_against_drift() {
+        let vocabulary = spec_vocabulary();
+
+        // The `<named-color>` closed alternation backs the registered- and
+        // standard-property value diagnostics. A webref re-vendor that drops, renames,
+        // or shrinks it below the historically recognized set must fail CI rather than
+        // silently degrade those diagnostics; additions (a new color) keep it passing.
+        let named_colors = vocabulary.type_keywords("named-color").unwrap_or_default();
+        assert!(
+            named_colors.len() >= 140,
+            "the <named-color> closed set shrank to {}; re-bless the coverage contract if intended",
+            named_colors.len()
+        );
+        for color in ["aliceblue", "rebeccapurple"] {
+            assert!(
+                named_colors.iter().any(|entry| entry == color),
+                "<named-color> no longer lists {color}"
+            );
+        }
+
+        // A representative closed-alternation property the standard-property diagnostic
+        // validates; if its grammar stops reducing to a closed keyword set the feed
+        // shape has changed and the contract must be re-reviewed.
+        assert!(vocabulary.property_keywords("box-sizing").is_some());
+
+        // Broad coverage floor: additions are non-breaking (coverage only grows); a
+        // bulk drop of closed-vocabulary terms fails this contract and forces review.
+        assert!(
+            vocabulary.closed_term_count() >= 200,
+            "closed-vocabulary coverage dropped to {}; re-bless the contract if intended",
+            vocabulary.closed_term_count()
+        );
+    }
 }
