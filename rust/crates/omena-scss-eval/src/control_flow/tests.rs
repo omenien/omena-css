@@ -1,6 +1,8 @@
 use super::*;
-use omena_abstract_value::AbstractCssValueV0;
-use std::collections::BTreeMap;
+use omena_abstract_value::{
+    AbstractCssValueV0, control_flow_predecessor_counts, reachable_control_flow_block_ids,
+};
+use std::collections::{BTreeMap, BTreeSet};
 
 #[test]
 fn scss_control_flow_ir_summarizes_branch_and_loop_blocks() {
@@ -125,6 +127,44 @@ fn scss_control_flow_edge_ir_reencodes_linear_predecessors_without_building_flat
             block.node_key.as_str()
         );
     }
+}
+
+#[test]
+fn scss_control_flow_edge_ir_uses_generic_reachability_primitives() {
+    let source = "$enabled: true; @if $enabled { .on { color: green; } } @else { .off { color: red; } } @while $enabled { @if $enabled { .w { color: blue; } } } @for $i from 1 through 3 { .n { order: $i; } }";
+    let graph = build_scss_control_flow_graph(source, StyleDialect::Scss);
+    assert!(graph.is_some());
+    let Some(graph) = graph else {
+        return;
+    };
+
+    let reachable_ids = reachable_control_flow_block_ids(&graph);
+    let expected_reachable_ids = graph
+        .blocks
+        .iter()
+        .map(|block| block.id)
+        .collect::<BTreeSet<_>>();
+    assert_eq!(reachable_ids, expected_reachable_ids);
+
+    let predecessor_counts = control_flow_predecessor_counts(&graph);
+    let mut expected_predecessor_counts = graph
+        .blocks
+        .iter()
+        .map(|block| (block.id, 0usize))
+        .collect::<BTreeMap<_, _>>();
+    for edge in graph
+        .edges
+        .iter()
+        .filter(|edge| edge.target_block_id.is_some())
+    {
+        let Some(target_block_id) = edge.target_block_id else {
+            continue;
+        };
+        *expected_predecessor_counts
+            .entry(target_block_id)
+            .or_default() += 1;
+    }
+    assert_eq!(predecessor_counts, expected_predecessor_counts);
 }
 
 #[test]

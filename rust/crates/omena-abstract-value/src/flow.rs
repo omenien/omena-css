@@ -27,6 +27,30 @@ pub fn summarize_omena_abstract_value_flow_analysis() -> AbstractValueFlowAnalys
     }
 }
 
+/// Minimal explicit-edge graph shape used by reachability helpers.
+pub trait ControlFlowEdgeGraphV0 {
+    type BlockId: Clone + Ord;
+
+    fn entry_block_id(&self) -> Option<Self::BlockId>;
+
+    fn successor_block_ids_by_source(&self) -> Vec<(Self::BlockId, Vec<Self::BlockId>)>;
+}
+
+impl ControlFlowEdgeGraphV0 for ClassValueControlFlowGraphV0 {
+    type BlockId = String;
+
+    fn entry_block_id(&self) -> Option<Self::BlockId> {
+        Some(self.entry_block_id.clone())
+    }
+
+    fn successor_block_ids_by_source(&self) -> Vec<(Self::BlockId, Vec<Self::BlockId>)> {
+        self.blocks
+            .iter()
+            .map(|block| (block.id.clone(), block.successor_block_ids.clone()))
+            .collect()
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct BoundedJoinFixpointNodeV0<TTransfer> {
     pub id: String,
@@ -525,39 +549,46 @@ fn k_limited_context_key(input: &KLimitedCallSiteFlowInputV0, max_context_depth:
     format!("{}@{}", input.callee_key, stack)
 }
 
-fn reachable_control_flow_block_ids(graph: &ClassValueControlFlowGraphV0) -> BTreeSet<String> {
-    let blocks_by_id = graph
-        .blocks
-        .iter()
-        .map(|block| (block.id.as_str(), block))
+pub fn reachable_control_flow_block_ids<TGraph>(
+    graph: &TGraph,
+) -> BTreeSet<<TGraph as ControlFlowEdgeGraphV0>::BlockId>
+where
+    TGraph: ControlFlowEdgeGraphV0,
+{
+    let successors_by_id = graph
+        .successor_block_ids_by_source()
+        .into_iter()
         .collect::<BTreeMap<_, _>>();
     let mut reachable = BTreeSet::new();
-    let mut worklist = vec![graph.entry_block_id.clone()];
+    let mut worklist = graph.entry_block_id().into_iter().collect::<Vec<_>>();
 
     while let Some(block_id) = worklist.pop() {
         if !reachable.insert(block_id.clone()) {
             continue;
         }
-        let Some(block) = blocks_by_id.get(block_id.as_str()) else {
+        let Some(successor_ids) = successors_by_id.get(&block_id) else {
             continue;
         };
-        worklist.extend(block.successor_block_ids.iter().cloned());
+        worklist.extend(successor_ids.iter().cloned());
     }
 
     reachable
 }
 
-fn control_flow_predecessor_counts(
-    graph: &ClassValueControlFlowGraphV0,
-) -> BTreeMap<String, usize> {
-    let mut counts = graph
-        .blocks
+pub fn control_flow_predecessor_counts<TGraph>(
+    graph: &TGraph,
+) -> BTreeMap<<TGraph as ControlFlowEdgeGraphV0>::BlockId, usize>
+where
+    TGraph: ControlFlowEdgeGraphV0,
+{
+    let successors_by_id = graph.successor_block_ids_by_source();
+    let mut counts = successors_by_id
         .iter()
-        .map(|block| (block.id.clone(), 0usize))
+        .map(|(block_id, _)| (block_id.clone(), 0usize))
         .collect::<BTreeMap<_, _>>();
 
-    for block in &graph.blocks {
-        for successor_id in &block.successor_block_ids {
+    for (_, successor_ids) in successors_by_id {
+        for successor_id in successor_ids {
             *counts.entry(successor_id.clone()).or_default() += 1;
         }
     }

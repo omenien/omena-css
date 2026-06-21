@@ -1,3 +1,6 @@
+use std::collections::BTreeMap;
+
+use omena_abstract_value::ControlFlowEdgeGraphV0;
 use omena_parser::{StyleDialect, lex};
 
 use super::{
@@ -164,5 +167,28 @@ fn control_flow_edge(
         source_block_id,
         outcome,
         target_block_id,
+    }
+}
+
+impl ControlFlowEdgeGraphV0 for OmenaScssEvalControlFlowGraphV0 {
+    type BlockId = OmenaScssEvalControlFlowBlockIdV0;
+
+    fn entry_block_id(&self) -> Option<Self::BlockId> {
+        self.blocks.first().map(|block| block.id)
+    }
+
+    fn successor_block_ids_by_source(&self) -> Vec<(Self::BlockId, Vec<Self::BlockId>)> {
+        let mut successors_by_id = self
+            .blocks
+            .iter()
+            .map(|block| (block.id, Vec::new()))
+            .collect::<BTreeMap<_, _>>();
+        for edge in &self.edges {
+            let successors = successors_by_id.entry(edge.source_block_id).or_default();
+            if let Some(target_block_id) = edge.target_block_id {
+                successors.push(target_block_id);
+            }
+        }
+        successors_by_id.into_iter().collect()
     }
 }
