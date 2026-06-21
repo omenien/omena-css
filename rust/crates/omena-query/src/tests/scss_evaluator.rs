@@ -193,8 +193,8 @@ fn exposes_static_stylesheet_oracle_corpus_through_query_boundary() {
     assert_eq!(summary.mode, "oracleOnly");
     assert_eq!(summary.value_type, "AbstractCssValueV0");
     assert_eq!(summary.product_output_source, "nativeEditOutput");
-    assert_eq!(summary.fixture_count, 137);
-    assert_eq!(summary.scss_fixture_count, 46);
+    assert_eq!(summary.fixture_count, 139);
+    assert_eq!(summary.scss_fixture_count, 48);
     assert_eq!(summary.sass_fixture_count, 40);
     assert_eq!(summary.less_fixture_count, 51);
     assert_eq!(summary.evaluated_fixture_count, summary.fixture_count);

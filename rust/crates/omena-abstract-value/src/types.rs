@@ -352,12 +352,12 @@ pub enum AbstractCssValueV0 {
     Bottom,
     Exact {
         value: String,
-        #[serde(default, skip_serializing_if = "Option::is_none")]
+        #[serde(default, skip_serializing)]
         typed: Option<Box<AbstractCssTypedValueV0>>,
     },
     FiniteSet {
         values: Vec<String>,
-        #[serde(default, skip_serializing_if = "Option::is_none")]
+        #[serde(default, skip_serializing)]
         typed: Option<Box<AbstractCssTypedValueV0>>,
     },
     Raw {

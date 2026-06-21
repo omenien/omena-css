@@ -498,6 +498,27 @@ fn serializes_untyped_css_values_with_the_legacy_json_shape() -> Result<(), serd
 }
 
 #[test]
+fn serializes_typed_css_values_with_the_legacy_json_shape() -> Result<(), serde_json::Error> {
+    let value = abstract_css_value_from_text("50%");
+
+    assert!(matches!(
+        value,
+        AbstractCssValueV0::Exact { typed: Some(_), .. }
+    ));
+    assert_eq!(
+        serde_json::to_string(&value)?,
+        r#"{"kind":"exact","value":"50%"}"#
+    );
+    assert_eq!(
+        serde_json::from_str::<AbstractCssValueV0>(
+            r#"{"kind":"exact","value":"50%","typed":{"kind":"exact","value":{"kind":"dimension","numericType":"percentage","number":"50","unit":"%","serialized":"50%"}}}"#
+        )?,
+        value
+    );
+    Ok(())
+}
+
+#[test]
 fn mints_typed_css_payloads_without_changing_the_string_value() -> Result<(), String> {
     let value = abstract_css_value_from_text("50%");
 
