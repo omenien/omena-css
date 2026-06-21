@@ -1196,9 +1196,9 @@ mod tests {
 
     #[test]
     fn shared_reachability_loop_reproduces_the_deleted_bfs_duplicate() {
-        // SLICE-1.5 guard: the shared `collect_reachable_node_ids` owner reproduces the forward
-        // closure the now-removed streaming-ifds BFS loop computed — start excluded, all forward
-        // reachable nodes included, returned sorted; a back edge does not loop forever.
+        // Guard: the shared owner reproduces the deleted BFS loop. The start is not pre-seeded into
+        // the result, so it appears only when reachable from itself via a cycle (here `a` via
+        // a->c->a; the sink `d` is absent).
         let adjacency: BTreeMap<String, BTreeSet<String>> = BTreeMap::from([
             (
                 "a".to_string(),

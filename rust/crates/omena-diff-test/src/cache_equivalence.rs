@@ -222,10 +222,11 @@ pub fn omena_diff_cache_equivalence_default_corpus_v0() -> (
             style_path: "/workspace/node_modules/@design/tokens/colors.scss".to_string(),
             style_source: "$ds_gray-700: #374151;\n".to_string(),
         },
-        // SLICE-0 cyclic / deep-chain extension: exercises the cross-file SCC + reachability +
-        // closure paths over a CYCLIC graph (the default corpus above is acyclic), so the
-        // cache-equivalence oracle and the SLICE-A/1.5/2 refactors are proven byte-identical on
-        // cycle output, not just trees. A two-node `@use` ring -> sassUseCycle.
+        // Cyclic / deep-chain corpus extension: the default corpus above is acyclic. Under
+        // omena-diff-test (built WITHOUT hypergraph-ifds) these fixtures pin the NATIVE
+        // sassUseCycle detector across the warm / salsa-memo / parallel-view arms; they do NOT
+        // reach the hypergraph-ifds-gated cross-file SCC/closure primitives (those are covered by
+        // the omena-streaming-ifds guard tests). A two-node `@use` ring -> sassUseCycle.
         OmenaQueryStyleSourceInputV0 {
             style_path: "/workspace/src/_cycle_a.scss".to_string(),
             style_source: "@use \"./cycle_b\";\n.cycle-a { color: red; }\n".to_string(),
@@ -234,8 +235,8 @@ pub fn omena_diff_cache_equivalence_default_corpus_v0() -> (
             style_path: "/workspace/src/_cycle_b.scss".to_string(),
             style_source: "@use \"./cycle_a\";\n.cycle-b { color: blue; }\n".to_string(),
         },
-        // A deep `@forward` chain (4 hops h0->h1->h2->h3->h4) — acyclic but exercises deep
-        // transitive reachability/closure.
+        // A deep `@forward` chain (4 hops h0->h1->h2->h3->h4) — acyclic, evaluated across the 3
+        // arms for parity (no cycle diagnostic).
         OmenaQueryStyleSourceInputV0 {
             style_path: "/workspace/src/_fwd_h0.scss".to_string(),
             style_source: "@forward \"./fwd_h1\";\n".to_string(),
@@ -256,8 +257,8 @@ pub fn omena_diff_cache_equivalence_default_corpus_v0() -> (
             style_path: "/workspace/src/_fwd_h4.scss".to_string(),
             style_source: "$deep_token: 8px;\n".to_string(),
         },
-        // A chord cycle: a -> b -> c -> a with the chord a -> c (a 3-node SCC with an extra
-        // intra-SCC edge), exercising non-trivial SCC membership + the closure path enumeration.
+        // A chord cycle: a -> b -> c -> a with the chord a -> c (a 3-node loop with an extra
+        // intra-loop edge) -> sassUseCycle on the `_chord_a` entry.
         OmenaQueryStyleSourceInputV0 {
             style_path: "/workspace/src/_chord_a.scss".to_string(),
             style_source: "@use \"./chord_b\";\n@use \"./chord_c\";\n".to_string(),
