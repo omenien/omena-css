@@ -12,18 +12,18 @@ use crate::abstract_css_value_kind;
 use super::{
     ScssControlFlowAnalysisNode,
     blocks::{self, scss_else_if_header_condition},
-    dialect_label,
+    build_scss_control_flow_graph, dialect_label,
     header_values::{scss_header_value, scss_header_value_with_bindings},
     lexical::{LexicalScssBindings, collect_lexical_scss_bindings},
     loop_values::{
         loop_carried_binding_values, loop_carried_value, while_loop_carried_binding_values,
     },
     model::{
-        OmenaScssEvalControlFlowBlockV0, OmenaScssEvalControlFlowValueAnalysisV0,
+        OmenaScssEvalControlFlowBlockIdV0, OmenaScssEvalControlFlowBlockV0,
+        OmenaScssEvalControlFlowGraphV0, OmenaScssEvalControlFlowValueAnalysisV0,
         OmenaScssEvalControlFlowValueBlockV0, OmenaScssEvalControlFlowWideningWitnessV0,
         OmenaScssEvalTypedValueKindCountV0, OmenaScssEvalTypedValueLatticeWitnessV0,
     },
-    summarize_scss_control_flow_ir,
     transfer::{
         ScssControlFlowBindingValue, ScssControlFlowTransfer, run_scss_control_flow_fixpoint,
         scss_static_truthiness_label,
@@ -55,22 +55,31 @@ pub fn analyze_scss_control_flow_values(
     if !matches!(dialect, StyleDialect::Scss | StyleDialect::Sass) {
         return None;
     }
-    let summary = summarize_scss_control_flow_ir(source, dialect)?;
+    let graph = build_scss_control_flow_graph(source, dialect)?;
+    let predecessor_indices_by_block_id = control_flow_predecessor_indices_by_block_id(&graph);
     let lexical_bindings = collect_lexical_scss_bindings(source, dialect);
-    let nodes = summary
+    let graph_block_payloads = graph
+        .blocks
+        .iter()
+        .map(|block| block.block.clone())
+        .collect::<Vec<_>>();
+    let nodes = graph
         .blocks
         .iter()
         .enumerate()
-        .map(|(index, block)| {
-            let predecessor_indices = control_flow_predecessor_indices(index, block);
-            let previous_blocks = &summary.blocks[..index];
+        .map(|(index, graph_block)| {
+            let block = &graph_block.block;
+            let predecessor_indices = predecessor_indices_by_block_id
+                .get(&graph_block.id)
+                .cloned()
+                .unwrap_or_default();
             ScssControlFlowAnalysisNode {
                 block: block.clone(),
                 predecessor_indices,
                 transfer: control_flow_transfer_for_block(
                     source,
                     block,
-                    previous_blocks,
+                    &graph_block_payloads[..index],
                     &lexical_bindings,
                 ),
             }
@@ -279,18 +288,37 @@ fn abstract_css_typed_payload(value: &AbstractCssValueV0) -> Option<&AbstractCss
     }
 }
 
-fn control_flow_predecessor_indices(
-    index: usize,
-    block: &OmenaScssEvalControlFlowBlockV0,
-) -> Vec<usize> {
-    let mut predecessors = Vec::new();
-    if index > 0 {
-        predecessors.push(index - 1);
+fn control_flow_predecessor_indices_by_block_id(
+    graph: &OmenaScssEvalControlFlowGraphV0,
+) -> BTreeMap<OmenaScssEvalControlFlowBlockIdV0, Vec<usize>> {
+    let block_index_by_id = graph
+        .blocks
+        .iter()
+        .enumerate()
+        .map(|(index, block)| (block.id, index))
+        .collect::<BTreeMap<_, _>>();
+    let mut predecessor_indices_by_id = graph
+        .blocks
+        .iter()
+        .map(|block| (block.id, Vec::new()))
+        .collect::<BTreeMap<_, _>>();
+    for edge in &graph.edges {
+        let Some(target_block_id) = edge.target_block_id else {
+            continue;
+        };
+        let Some(source_index) = block_index_by_id.get(&edge.source_block_id) else {
+            continue;
+        };
+        predecessor_indices_by_id
+            .entry(target_block_id)
+            .or_default()
+            .push(*source_index);
     }
-    if block.has_back_edge {
-        predecessors.push(index);
+    for predecessor_indices in predecessor_indices_by_id.values_mut() {
+        predecessor_indices.sort_unstable();
+        predecessor_indices.dedup();
     }
-    predecessors
+    predecessor_indices_by_id
 }
 
 fn control_flow_transfer_for_block(
