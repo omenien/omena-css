@@ -614,7 +614,10 @@ mod tests {
         );
         assert_eq!(relative_color_channel_names("rotate"), None);
         assert!(is_relative_color_form("rgb(from red r g b)"));
+        // `color(from …)` is a recognized relative form whose channels are
+        // colorspace-dependent, so it has no fixed channel-name list.
         assert!(is_relative_color_form("color(from red srgb r g b)"));
+        assert_eq!(relative_color_channel_names("color"), None);
         assert!(!is_relative_color_form("rgb(255 0 0)"));
         assert!(!is_relative_color_form("rotate(45deg)"));
         // Recognition is a no-op on bytes: a relative-color value is not folded,
