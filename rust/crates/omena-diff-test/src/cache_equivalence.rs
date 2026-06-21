@@ -222,6 +222,54 @@ pub fn omena_diff_cache_equivalence_default_corpus_v0() -> (
             style_path: "/workspace/node_modules/@design/tokens/colors.scss".to_string(),
             style_source: "$ds_gray-700: #374151;\n".to_string(),
         },
+        // SLICE-0 cyclic / deep-chain extension: exercises the cross-file SCC + reachability +
+        // closure paths over a CYCLIC graph (the default corpus above is acyclic), so the
+        // cache-equivalence oracle and the SLICE-A/1.5/2 refactors are proven byte-identical on
+        // cycle output, not just trees. A two-node `@use` ring -> sassUseCycle.
+        OmenaQueryStyleSourceInputV0 {
+            style_path: "/workspace/src/_cycle_a.scss".to_string(),
+            style_source: "@use \"./cycle_b\";\n.cycle-a { color: red; }\n".to_string(),
+        },
+        OmenaQueryStyleSourceInputV0 {
+            style_path: "/workspace/src/_cycle_b.scss".to_string(),
+            style_source: "@use \"./cycle_a\";\n.cycle-b { color: blue; }\n".to_string(),
+        },
+        // A deep `@forward` chain (4 hops h0->h1->h2->h3->h4) — acyclic but exercises deep
+        // transitive reachability/closure.
+        OmenaQueryStyleSourceInputV0 {
+            style_path: "/workspace/src/_fwd_h0.scss".to_string(),
+            style_source: "@forward \"./fwd_h1\";\n".to_string(),
+        },
+        OmenaQueryStyleSourceInputV0 {
+            style_path: "/workspace/src/_fwd_h1.scss".to_string(),
+            style_source: "@forward \"./fwd_h2\";\n".to_string(),
+        },
+        OmenaQueryStyleSourceInputV0 {
+            style_path: "/workspace/src/_fwd_h2.scss".to_string(),
+            style_source: "@forward \"./fwd_h3\";\n".to_string(),
+        },
+        OmenaQueryStyleSourceInputV0 {
+            style_path: "/workspace/src/_fwd_h3.scss".to_string(),
+            style_source: "@forward \"./fwd_h4\";\n".to_string(),
+        },
+        OmenaQueryStyleSourceInputV0 {
+            style_path: "/workspace/src/_fwd_h4.scss".to_string(),
+            style_source: "$deep_token: 8px;\n".to_string(),
+        },
+        // A chord cycle: a -> b -> c -> a with the chord a -> c (a 3-node SCC with an extra
+        // intra-SCC edge), exercising non-trivial SCC membership + the closure path enumeration.
+        OmenaQueryStyleSourceInputV0 {
+            style_path: "/workspace/src/_chord_a.scss".to_string(),
+            style_source: "@use \"./chord_b\";\n@use \"./chord_c\";\n".to_string(),
+        },
+        OmenaQueryStyleSourceInputV0 {
+            style_path: "/workspace/src/_chord_b.scss".to_string(),
+            style_source: "@use \"./chord_c\";\n".to_string(),
+        },
+        OmenaQueryStyleSourceInputV0 {
+            style_path: "/workspace/src/_chord_c.scss".to_string(),
+            style_source: "@use \"./chord_a\";\n".to_string(),
+        },
     ];
     let resolution_inputs = OmenaQueryStyleResolutionInputsV0 {
         package_manifests: vec![
@@ -714,6 +762,63 @@ mod tests {
             !diagnostics.diagnostics.is_empty(),
             "expected non-empty diagnostics, got {:?}",
             diagnostics.diagnostics
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn default_corpus_cyclic_fixtures_witness_cross_file_cycle_diagnostics()
+    -> Result<(), &'static str> {
+        // SLICE-0 characterization (RED witness): the cyclic fixtures appended to the default
+        // corpus must produce the cross-file `sassUseCycle` diagnostic at HEAD, pinning the
+        // behavior the SLICE-A (one shared SCC owner) and SLICE-2 (config-state worklist) refactors
+        // must keep byte-identical. The full-output byte-identity across arms is already covered by
+        // the equivalence tests now that the corpus is cyclic; this asserts the cycle is detected.
+        let (corpus, resolution_inputs) = omena_diff_cache_equivalence_default_corpus_v0();
+
+        let ring = evaluate_workspace_diagnostics_from_scratch_v0(
+            "/workspace/src/_cycle_a.scss",
+            &corpus,
+            &resolution_inputs,
+        )
+        .ok_or("ring entry diagnostics")?;
+        let ring_cycles = ring
+            .diagnostics
+            .iter()
+            .filter(|diagnostic| diagnostic.code == "sassUseCycle")
+            .collect::<Vec<_>>();
+        assert!(
+            !ring_cycles.is_empty(),
+            "the `@use` ring must witness a sassUseCycle diagnostic: {:?}",
+            ring.diagnostics
+        );
+        assert!(
+            ring_cycles
+                .iter()
+                .all(|diagnostic| diagnostic.severity == "error"),
+            "sassUseCycle is error-severity: {ring_cycles:?}"
+        );
+        assert!(
+            ring_cycles.iter().any(|diagnostic| diagnostic
+                .message
+                .contains("/workspace/src/_cycle_a.scss")
+                && diagnostic.message.contains("/workspace/src/_cycle_b.scss")),
+            "the cycle names both ring members: {ring_cycles:?}"
+        );
+
+        let chord = evaluate_workspace_diagnostics_from_scratch_v0(
+            "/workspace/src/_chord_a.scss",
+            &corpus,
+            &resolution_inputs,
+        )
+        .ok_or("chord entry diagnostics")?;
+        assert!(
+            chord
+                .diagnostics
+                .iter()
+                .any(|diagnostic| diagnostic.code == "sassUseCycle"),
+            "the chord cycle must witness a sassUseCycle diagnostic: {:?}",
+            chord.diagnostics
         );
         Ok(())
     }
