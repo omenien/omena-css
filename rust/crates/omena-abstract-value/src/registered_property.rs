@@ -1,4 +1,5 @@
 use omena_spec_audit::spec_vocabulary;
+use omena_value_lattice::is_container_query_length_unit;
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize)]
@@ -188,7 +189,9 @@ pub fn classify_registered_property_declared_value_v0(value: &str) -> DeclaredVa
     if parse_number_with_unit(lower.as_str(), RESOLUTION_UNITS).is_some() {
         return DeclaredValueKindV0::Dimension(DeclaredNumericTypeV0::Resolution);
     }
-    if parse_number_with_unit(lower.as_str(), LENGTH_UNITS).is_some() {
+    if parse_number_with_unit(lower.as_str(), LENGTH_UNITS).is_some()
+        || is_container_query_length_dimension(lower.as_str())
+    {
         return DeclaredValueKindV0::Dimension(DeclaredNumericTypeV0::Length);
     }
     if is_css_integer_token(lower.as_str()) {
@@ -599,6 +602,24 @@ fn is_transform_function_head(head: &str) -> bool {
             | "translatey"
             | "translatez"
     )
+}
+
+/// Whether `value` is a number suffixed by a container-query length unit
+/// (`cqw`/`cqh`/`cqi`/`cqb`/`cqmin`/`cqmax`). These are `<length>`s that `LENGTH_UNITS`
+/// omits; recognizing them here is the first production consumer of the
+/// `omena-value-lattice` recognizer, so a registered `<length>` property accepts e.g.
+/// `50cqw` instead of silently leaving it undetermined.
+fn is_container_query_length_dimension(value: &str) -> bool {
+    let unit_len = value
+        .chars()
+        .rev()
+        .take_while(|character| character.is_ascii_alphabetic())
+        .count();
+    if unit_len == 0 || unit_len == value.len() {
+        return false;
+    }
+    let (number, unit) = value.split_at(value.len() - unit_len);
+    is_css_number_token(number) && is_container_query_length_unit(unit)
 }
 
 fn parse_number_with_unit<'value, 'unit>(
@@ -1027,6 +1048,31 @@ mod tests {
         assert_eq!(
             classify_registered_property_declared_value_v0("currentcolor"),
             DeclaredValueKindV0::ColorKeyword("currentcolor".to_string())
+        );
+    }
+
+    #[test]
+    fn container_query_length_units_classify_as_length() {
+        // Container-query length units are `<length>`s that LENGTH_UNITS omits.
+        // Recognizing them (the first production consumer of the value-lattice
+        // recognizer) fixes a false-negative: a registered `<length>` property now
+        // accepts `50cqw` instead of silently leaving it undetermined.
+        for value in ["50cqw", "10cqh", "1cqi", "100cqmin", "2cqmax"] {
+            assert_eq!(
+                classify_registered_property_declared_value_v0(value),
+                DeclaredValueKindV0::Dimension(DeclaredNumericTypeV0::Length),
+                "{value} must classify as a length dimension"
+            );
+            assert_eq!(
+                registered_syntax_match("'<length>'", value),
+                RegisteredSyntaxMatchV0::Accepts,
+                "{value} must be accepted by a <length> registration"
+            );
+        }
+        // A bare unit token without a number is not a dimension.
+        assert_ne!(
+            classify_registered_property_declared_value_v0("cqw"),
+            DeclaredValueKindV0::Dimension(DeclaredNumericTypeV0::Length)
         );
     }
 
