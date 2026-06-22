@@ -353,6 +353,8 @@ syntax_kinds! {
     LanguageTag = 0x1076,
     DirectionalitySelectorArgument = 0x1077,
     NamespacePrefix = 0x1078,
+    FunctionRule = 0x1079,
+    IfFunction = 0x107a,
 
     ScssStylesheet = 0x1400,
     ScssUseRule = 0x1401,

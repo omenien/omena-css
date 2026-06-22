@@ -635,6 +635,9 @@ pub(crate) fn specialized_function_kind(text: &str) -> Option<SyntaxKind> {
     if text.eq_ignore_ascii_case("attr") {
         return Some(SyntaxKind::AttrFunction);
     }
+    if text.eq_ignore_ascii_case("if") {
+        return Some(SyntaxKind::IfFunction);
+    }
     if matches_ignore_ascii_case(text, VALUES_L4_MATH_FUNCTION_NAMES) {
         return Some(SyntaxKind::MathFunction);
     }

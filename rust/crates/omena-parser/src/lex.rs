@@ -104,6 +104,7 @@ pub(crate) fn is_css_at_rule_name(text: &str) -> bool {
             "@container",
             "@font-face",
             "@font-feature-values",
+            "@function",
             "@font-palette-values",
             "@import",
             "@keyframes",

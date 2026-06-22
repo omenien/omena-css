@@ -1513,6 +1513,10 @@ fn parses_registered_keyframes_and_declaration_at_rules() {
         "@counter-style thumbs { system: cyclic; symbols: \"yes\"; suffix: \" \"; } @font-palette-values --brand { font-family: Demo; base-palette: 1; } @color-profile --display-p3 { src: url(p3.icc); } @position-try --popover { inset-area: top; }",
         StyleDialect::Css,
     );
+    let native_function_rule = parse(
+        "@function --gap(--size <length>: 1rem) returns <length> { result: var(--size); }",
+        StyleDialect::Css,
+    );
     let font_feature_values = parse(
         "@font-feature-values Demo { @stylistic { nice: 1; } @styleset { alt: 2; } @character-variant { nice: 3 4; } @swash { fancy: 1; } @ornaments { leaf: 1; } @annotation { circled: 1; } @historical-forms { old: 1; } } @view-transition { navigation: auto; }",
         StyleDialect::Css,
@@ -1530,6 +1534,7 @@ fn parses_registered_keyframes_and_declaration_at_rules() {
     let page_margin_kinds = node_kinds(&page_margin.syntax());
     let conditional_l5_kinds = node_kinds(&conditional_l5.syntax());
     let modern_declaration_kinds = node_kinds(&modern_declaration_rules.syntax());
+    let native_function_kinds = node_kinds(&native_function_rule.syntax());
     let font_feature_value_kinds = node_kinds(&font_feature_values.syntax());
     let less_css_at_rule_kinds = node_kinds(&less_css_at_rules.syntax());
     let nesting_and_custom_media_kinds = node_kinds(&nesting_and_custom_media.syntax());
@@ -1539,6 +1544,7 @@ fn parses_registered_keyframes_and_declaration_at_rules() {
     assert!(page_margin.errors().is_empty());
     assert!(conditional_l5.errors().is_empty());
     assert!(modern_declaration_rules.errors().is_empty());
+    assert!(native_function_rule.errors().is_empty());
     assert!(font_feature_values.errors().is_empty());
     assert!(less_css_at_rules.errors().is_empty());
     assert!(nesting_and_custom_media.errors().is_empty());
@@ -1557,6 +1563,9 @@ fn parses_registered_keyframes_and_declaration_at_rules() {
     assert!(modern_declaration_kinds.contains(&SyntaxKind::ColorProfileRule));
     assert!(modern_declaration_kinds.contains(&SyntaxKind::PositionTryRule));
     assert!(modern_declaration_kinds.contains(&SyntaxKind::DeclarationList));
+    assert!(native_function_kinds.contains(&SyntaxKind::FunctionRule));
+    assert!(native_function_kinds.contains(&SyntaxKind::DeclarationList));
+    assert!(!native_function_kinds.contains(&SyntaxKind::ScssFunctionDeclaration));
     assert!(font_feature_value_kinds.contains(&SyntaxKind::FontFeatureValuesRule));
     assert!(font_feature_value_kinds.contains(&SyntaxKind::FontFeatureValuesStylisticRule));
     assert!(font_feature_value_kinds.contains(&SyntaxKind::FontFeatureValuesStylesetRule));
@@ -2034,7 +2043,7 @@ fn structures_css_value_function_calls() {
 #[test]
 fn structures_modern_css_value_functions() {
     let result = parse(
-        ".a { color: color-mix(in oklch, var(--brand), white 20%); accent-color: device-cmyk(0 1 1 0); width: clamp(1rem, 2vw, 3rem); content: attr(data-label string, \"x\"); padding: env(safe-area-inset-top); background-image: linear-gradient(red, blue); transform: translateX(1rem) rotate(10deg); filter: blur(2px) brightness(1.1); image-set: image-set(url(a.png) 1x); offset-path: path(\"M0,0 L1,1\"); }",
+        ".a { color: color-mix(in oklch, var(--brand), white 20%); accent-color: device-cmyk(0 1 1 0); width: clamp(1rem, 2vw, 3rem); margin: if(media(screen), 1rem); content: attr(data-label string, \"x\"); padding: env(safe-area-inset-top); background-image: linear-gradient(red, blue); transform: translateX(1rem) rotate(10deg); filter: blur(2px) brightness(1.1); image-set: image-set(url(a.png) 1x); offset-path: path(\"M0,0 L1,1\"); }",
         StyleDialect::Css,
     );
     let kinds = node_kinds(&result.syntax());
@@ -2044,6 +2053,7 @@ fn structures_modern_css_value_functions() {
     assert!(kinds.contains(&SyntaxKind::MathFunction));
     assert!(kinds.contains(&SyntaxKind::AttrFunction));
     assert!(kinds.contains(&SyntaxKind::EnvFunction));
+    assert!(kinds.contains(&SyntaxKind::IfFunction));
     assert!(kinds.contains(&SyntaxKind::VarFunction));
     assert!(kinds.contains(&SyntaxKind::GradientFunction));
     assert!(kinds.contains(&SyntaxKind::TransformFunction));

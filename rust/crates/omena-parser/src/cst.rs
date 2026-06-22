@@ -202,6 +202,7 @@ pub fn is_at_rule_node_kind(kind: SyntaxKind) -> bool {
             | SyntaxKind::ImportRule
             | SyntaxKind::CharsetRule
             | SyntaxKind::PropertyRule
+            | SyntaxKind::FunctionRule
             | SyntaxKind::StartingStyleRule
             | SyntaxKind::PageMarginRule
             | SyntaxKind::WhenRule

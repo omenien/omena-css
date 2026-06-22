@@ -70,6 +70,7 @@ pub(crate) fn at_rule_spec(text: &str) -> Option<AtRuleSpec> {
         "@font-face" => (SyntaxKind::FontFaceRule, AtRuleBlockKind::DeclarationList),
         "@page" => (SyntaxKind::PageRule, AtRuleBlockKind::DeclarationList),
         "@property" => (SyntaxKind::PropertyRule, AtRuleBlockKind::DeclarationList),
+        "@function" => (SyntaxKind::FunctionRule, AtRuleBlockKind::DeclarationList),
         "@counter-style" => (
             SyntaxKind::CounterStyleRule,
             AtRuleBlockKind::DeclarationList,
