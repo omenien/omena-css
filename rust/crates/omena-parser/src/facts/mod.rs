@@ -106,6 +106,7 @@ pub fn collect_style_facts_with_extension(
     let (tokens, lex_errors) = tokenize(text, extension);
     let token_count = tokens.len();
     let mut parser = Parser::new(tokens.clone(), lex_errors, extension.dialect());
+    crate::record_omena_parser_parse_materialization(token_count);
     let (green, interner) = parser.parse();
     let errors = parser.into_errors();
     let parsed = ParseResult::new(green, interner, errors, token_count, extension.dialect());
@@ -119,6 +120,7 @@ pub fn collect_style_facts_with_extension_from_legacy_tokens(
 ) -> ParsedStyleFacts {
     let (tokens, lex_errors) = tokenize(text, extension);
     let mut parser = Parser::new(tokens.clone(), lex_errors, extension.dialect());
+    crate::record_omena_parser_parse_materialization(tokens.len());
     let _ = parser.parse();
     let errors = parser.into_errors();
     style_facts_from_tokens(text, &tokens, extension.dialect(), errors.len())

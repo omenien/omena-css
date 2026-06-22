@@ -246,6 +246,7 @@ pub fn parse_entry_point_with_extension(
     let (tokens, errors) = tokenize(text, extension);
     let token_count = tokens.len();
     let mut parser = Parser::new(tokens, errors, extension.dialect());
+    crate::record_omena_parser_parse_materialization(token_count);
     let (green, interner) = parser.parse_entry_point(entry_point);
 
     ParseResult::new(
@@ -285,6 +286,7 @@ pub fn parse_entry_point_with_extension_and_reuse_cache(
     let token_count = tokens.len();
     let node_cache = std::mem::take(&mut cache.node_cache);
     let mut parser = Parser::new_with_node_cache(tokens, errors, extension.dialect(), node_cache);
+    crate::record_omena_parser_parse_materialization(token_count);
     let (green, node_cache) = parser.parse_entry_point_reusing_cache(entry_point);
     cache.node_cache = node_cache.unwrap_or_default();
 

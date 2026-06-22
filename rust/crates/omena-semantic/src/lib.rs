@@ -14,8 +14,8 @@ use omena_interner::{
 use omena_parser::{
     ParsedAnimationFactKind, ParsedCssModuleComposesEdgeKind, ParsedCssModuleComposesFactKind,
     ParsedCssModuleValueFactKind, ParsedSassModuleEdgeFactKind, ParsedSassSymbolFactKind,
-    ParsedSelectorFactKind, ParsedStyleFacts, ParsedVariableFactKind, StyleDialect,
-    collect_style_facts, parse,
+    ParsedSelectorFactKind, ParsedStyleFacts, ParsedVariableFactKind, StyleDialect, facts_from_cst,
+    parse,
 };
 use serde::Serialize;
 use std::collections::BTreeSet;
@@ -370,7 +370,7 @@ pub fn summarize_omena_parser_style_semantic_boundary_from_source(
 ) -> StyleSemanticBoundarySummaryV0 {
     let dialect = omena_parser_dialect_for_style_path(style_path);
     let parsed = parse(style_source, dialect);
-    let facts = collect_style_facts(style_source, dialect);
+    let facts = facts_from_cst(style_source, &parsed);
     let parser_facts = summarize_omena_parser_contract_facts(
         style_source,
         parsed.token_count(),

@@ -15,6 +15,24 @@ use engine_input_producers::{
 };
 
 #[test]
+fn semantic_boundary_materializes_parser_once_per_analysis() {
+    let (_, instrumentation) = omena_parser::with_omena_parser_parse_instrumentation(|| {
+        summarize_omena_parser_style_semantic_boundary_from_source(
+            "Component.module.scss",
+            r#"
+@use "./tokens";
+.button {
+  --brand: red;
+  color: var(--brand);
+}
+"#,
+        )
+    });
+
+    assert_eq!(instrumentation.parse_invocation_count, 1);
+}
+
+#[test]
 fn exposes_omena_parser_backed_semantic_boundary() {
     let summary = summarize_omena_parser_style_semantic_boundary_from_source(
         "Component.module.scss",

@@ -54,9 +54,12 @@ pub(crate) use facts::{
     collect_css_module_value_definition_edge_names, css_module_value_reference_token_can_be_name,
     css_module_value_source_name, css_module_value_statement_end, declaration_colon_index,
 };
-pub(crate) use instrumentation::record_omena_parser_lex_materialization;
 pub use instrumentation::{
-    OmenaParserLexInstrumentationSnapshotV0, with_omena_parser_lex_instrumentation,
+    OmenaParserLexInstrumentationSnapshotV0, OmenaParserParseInstrumentationSnapshotV0,
+    with_omena_parser_lex_instrumentation, with_omena_parser_parse_instrumentation,
+};
+pub(crate) use instrumentation::{
+    record_omena_parser_lex_materialization, record_omena_parser_parse_materialization,
 };
 pub use language::StyleLanguage;
 pub use lex::{LexResult, LexedToken};
