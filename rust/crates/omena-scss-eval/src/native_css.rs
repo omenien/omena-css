@@ -298,6 +298,7 @@ pub fn summarize_native_css_static_edit_plan(
     edits.extend(native_css_if_function_static_edits(
         &if_function_decisions,
         &if_function_truthiness_by_start,
+        &functions,
     ));
     edits.extend(native_css_function_call_static_edits(
         &function_call_evaluations,
@@ -611,10 +612,14 @@ fn block_inner_source(
 fn native_css_if_function_static_edits(
     surface: &OmenaScssEvalNativeCssIfFunctionDecisionSurfaceV0,
     truthiness_by_start: &BTreeMap<usize, bool>,
+    functions: &[OmenaScssEvalNativeCssFunctionV0],
 ) -> Vec<OmenaScssEvalNativeCssStaticEditV0> {
     surface
         .functions
         .iter()
+        .filter(|function| {
+            !native_css_if_function_is_inside_function_declaration(function, functions)
+        })
         .filter_map(|function| {
             let replacement = function.selected_value.as_ref()?;
             (function.decision == "foldToStaticValue"
@@ -627,6 +632,16 @@ fn native_css_if_function_static_edits(
             })
         })
         .collect()
+}
+
+fn native_css_if_function_is_inside_function_declaration(
+    function: &OmenaScssEvalNativeCssIfFunctionDecisionV0,
+    functions: &[OmenaScssEvalNativeCssFunctionV0],
+) -> bool {
+    functions.iter().any(|declaration| {
+        declaration.source_span_start <= function.source_span_start
+            && function.source_span_end <= declaration.source_span_end
+    })
 }
 
 fn native_css_if_function_edge_ir_allows_fold(
@@ -1188,10 +1203,38 @@ fn evaluate_native_css_function_result_value(
             .iter()
             .find_map(|(name, value)| (name == parameter_name).then(|| value.clone()));
     }
+    if let Some(value) = evaluate_native_css_function_result_if_value(result) {
+        return Some(value);
+    }
     if native_css_if_value_is_fully_static(result) {
         return Some(result.trim().to_string());
     }
     None
+}
+
+fn evaluate_native_css_function_result_if_value(result: &str) -> Option<String> {
+    let trimmed = result.trim();
+    if !trimmed
+        .get(..2)
+        .is_some_and(|prefix| prefix.eq_ignore_ascii_case("if"))
+    {
+        return None;
+    }
+    let source = format!(".native-result {{ value: {trimmed}; }}");
+    let value_start = source.find(trimmed)?;
+    let decisions = summarize_native_css_if_function_decisions(&source, StyleDialect::Css)?;
+    let decision = decisions.functions.first()?;
+    if decisions.functions.len() != 1
+        || decision.decision != "foldToStaticValue"
+        || decision.source_span_start != value_start
+        || decision.source_span_end != value_start + trimmed.len()
+    {
+        return None;
+    }
+    let truthiness_by_start = native_css_branch_truthiness_by_start(&source, "if()");
+    native_css_if_function_edge_ir_allows_fold(decision, &truthiness_by_start)
+        .then(|| decision.selected_value.clone())
+        .flatten()
 }
 
 fn collect_native_css_if_function_decision(
@@ -1933,6 +1976,22 @@ mod tests {
     }
 
     #[test]
+    fn native_css_function_call_evaluation_folds_static_if_result_through_edge_ir() {
+        let source = "@function --gap() returns <length> { result: if(supports(display: grid): 2rem; else: 1rem); } .card { gap: --gap(); }";
+        let report = summarize_native_css_function_call_evaluations(source, StyleDialect::Css);
+        assert!(report.is_some());
+        let Some(report) = report else {
+            return;
+        };
+
+        assert_eq!(report.call_count, 1);
+        assert_eq!(report.foldable_call_count, 1);
+        assert_eq!(report.preserved_call_count, 0);
+        assert_eq!(report.calls[0].decision, "foldToStaticValue");
+        assert_eq!(report.calls[0].evaluated_value.as_deref(), Some("2rem"));
+    }
+
+    #[test]
     fn native_css_function_call_evaluation_preserves_runtime_argument() {
         let source = "@function --gap(--size <length>: 1rem) returns <length> { result: var(--size); } .card { gap: --gap(var(--space)); }";
         let report = summarize_native_css_function_call_evaluations(source, StyleDialect::Css);
@@ -2152,6 +2211,28 @@ mod tests {
         assert!(report.output_changed);
         assert!(report.edited_css.contains("result: --inner();"));
         assert!(report.edited_css.contains("width: 1px"));
+    }
+
+    #[test]
+    fn native_css_static_edit_plan_folds_function_result_if_without_rewriting_function_body() {
+        let source = "@function --gap() returns <length> { result: if(supports(display: grid): 2rem; else: 1rem); } .card { gap: --gap(); }";
+        let report = summarize_native_css_static_edit_plan(source, StyleDialect::Css);
+        assert!(report.is_some());
+        let Some(report) = report else {
+            return;
+        };
+
+        assert_eq!(report.edit_count, 1);
+        assert_eq!(report.if_function_edit_count, 0);
+        assert_eq!(report.function_call_edit_count, 1);
+        assert!(report.output_changed);
+        assert!(
+            report
+                .edited_css
+                .contains("result: if(supports(display: grid): 2rem; else: 1rem);")
+        );
+        assert!(report.edited_css.contains("gap: 2rem"));
+        assert!(!report.edited_css.contains("--gap();"));
     }
 
     #[test]

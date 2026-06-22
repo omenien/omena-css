@@ -117,7 +117,8 @@ function engineInput(stylePath: string, styleSource: string) {
 const nativeSource =
   "@function --inner() returns <length> { result: 1px; } " +
   "@function --outer() returns <length> { result: --inner(); } " +
-  ".card { width: --inner(); display: if(supports(display: grid): grid; else: block); " +
+  "@function --choose() returns <length> { result: if(supports(display: grid): 2rem; else: 1rem); } " +
+  ".card { width: --inner(); height: --choose(); display: if(supports(display: grid): grid; else: block); " +
   "margin: if(media(width >= 1px): 1rem; else: 2rem); } " +
   "@when supports(display: grid) { .grid { display: if(supports(display: grid): grid; else: block); } } " +
   "@else { .fallback { display: block; } }";
@@ -205,17 +206,23 @@ assert.equal(
 );
 assert.equal(nativeEvaluator.nativeStaticEvalDialectRestriction, "css-only");
 assert.equal(nativeEvaluator.nativeStaticEvalExplicitOptInRequired, true);
-assert.equal(nativeEvaluator.nativeFunctionCallFoldableCount, 2);
+assert.equal(nativeEvaluator.nativeFunctionCallFoldableCount, 3);
 assert.equal(nativeEvaluator.nativeFunctionCallStructuralErrorCount, 0);
-assert.equal(nativeEvaluator.ifFunctionFoldableCount, 2);
+assert.equal(nativeEvaluator.ifFunctionFoldableCount, 3);
 assert.equal(nativeEvaluator.ifFunctionPreservedCount, 1);
 assert.equal(nativeEvaluator.nativeStaticEditOutputChanged, true);
 assert.equal(nativeEvaluator.nativeStaticEditPlan?.whenRuleEditCount, 1);
 assert.equal(nativeEvaluator.nativeStaticEditPlan?.ifFunctionEditCount, 1);
-assert.equal(nativeEvaluator.nativeStaticEditPlan?.functionCallEditCount, 1);
+assert.equal(nativeEvaluator.nativeStaticEditPlan?.functionCallEditCount, 2);
 assert.ok(
   nativeEvaluator.nativeStaticEditPlan?.editedCss.includes("result: --inner();"),
   "native function declaration bodies must stay preserved until scope/tree-shake analysis is stronger",
+);
+assert.ok(
+  nativeEvaluator.nativeStaticEditPlan?.editedCss.includes(
+    "result: if(supports(display: grid): 2rem; else: 1rem);",
+  ),
+  "native function result if() bodies must stay preserved while call-site folding consumes edge-IR truthiness",
 );
 assert.ok(
   nativeEvaluator.nativeStaticEditPlan?.editedCss.includes(".grid { display: grid; }"),
@@ -256,9 +263,15 @@ assert.deepEqual(transformExecution.execution.executedPassIds, [
   "native-css-static-eval",
   "print-css",
 ]);
-assert.equal(transformExecution.execution.mutationCount, 3);
+assert.equal(transformExecution.execution.mutationCount, 4);
 assert.ok(transformExecution.execution.outputCss.includes("width: 1px"));
+assert.ok(transformExecution.execution.outputCss.includes("height: 2rem"));
 assert.ok(transformExecution.execution.outputCss.includes("result: --inner();"));
+assert.ok(
+  transformExecution.execution.outputCss.includes(
+    "result: if(supports(display: grid): 2rem; else: 1rem);",
+  ),
+);
 assert.ok(transformExecution.execution.outputCss.includes(".grid { display: grid; }"));
 assert.ok(!transformExecution.execution.outputCss.includes(".fallback"));
 assert.ok(!transformExecution.execution.outputCss.includes("display: if(supports"));
