@@ -177,8 +177,8 @@ assert.match(
 // OmenaQuerySassModuleCrossFileResolutionV0 derives Serialize and is emitted to the engine host
 // (style-semantic-graph batch -> JSON stdout). Freeze its serialized field set so an accidental
 // new sub-field that silently widens the public boundary fails CI rather than leaking.
-const resolutionStructBody = /pub struct OmenaQuerySassModuleCrossFileResolutionV0 \{([\s\S]*?)\n\}/
-  .exec(typeSource)?.[1];
+const resolutionStructBody =
+  /pub struct OmenaQuerySassModuleCrossFileResolutionV0 \{([\s\S]*?)\n\}/.exec(typeSource)?.[1];
 assert.ok(
   resolutionStructBody,
   "OmenaQuerySassModuleCrossFileResolutionV0 must be defined in omena-query types",
