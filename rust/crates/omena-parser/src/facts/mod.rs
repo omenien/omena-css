@@ -13,7 +13,7 @@ mod variables;
 
 use omena_syntax::StyleDialect;
 
-use crate::{DialectExtension, Parser, tokenize};
+use crate::{DialectExtension, ParseResult, Parser, Token, tokenize};
 
 pub(crate) use animations::collect_animation_facts_from_tokens;
 pub use animations::{ParsedAnimationFact, ParsedAnimationFactKind};
@@ -163,4 +163,82 @@ pub fn collect_style_facts_with_extension(
         at_rules,
         error_count: errors.len(),
     }
+}
+
+pub fn facts_from_cst(text: &str, parsed: &ParseResult) -> ParsedStyleFacts {
+    let tokens = tokens_from_cst(text, parsed);
+    let selectors = collect_selector_facts_from_tokens(&tokens);
+    let variables = collect_variable_facts_from_tokens(&tokens);
+    let sass_symbols = collect_sass_symbol_facts_from_tokens(&tokens);
+    let sass_includes = collect_sass_include_facts_from_tokens(text, &tokens);
+    let sass_module_edges = collect_sass_module_edge_facts_from_tokens(&tokens);
+    let extend_targets = collect_extend_target_facts_from_tokens(&tokens);
+    let animations = collect_animation_facts_from_tokens(&tokens);
+    let css_module_values = collect_css_module_value_facts_from_tokens(&tokens);
+    let css_module_value_import_edges =
+        collect_css_module_value_import_edge_facts_from_tokens(&tokens);
+    let css_module_value_definition_edges =
+        collect_css_module_value_definition_edge_facts_from_tokens(&tokens);
+    let css_module_composes = collect_css_module_composes_facts_from_tokens(&tokens);
+    let css_module_composes_edges = collect_css_module_composes_edge_facts_from_tokens(&tokens);
+    let icss = collect_icss_facts_from_tokens(&tokens);
+    let icss_import_edges = collect_icss_import_edge_facts_from_tokens(&tokens);
+    let icss_export_edges = collect_icss_export_edge_facts_from_tokens(&tokens);
+    let at_rules = collect_at_rule_facts_from_tokens(&tokens, parsed.dialect());
+
+    ParsedStyleFacts {
+        product: "omena-parser.style-facts",
+        dialect: parsed.dialect(),
+        selector_count: selectors.len(),
+        selectors,
+        variable_count: variables.len(),
+        variables,
+        sass_symbol_count: sass_symbols.len(),
+        sass_symbols,
+        sass_include_count: sass_includes.len(),
+        sass_includes,
+        sass_module_edge_count: sass_module_edges.len(),
+        sass_module_edges,
+        extend_target_count: extend_targets.len(),
+        extend_targets,
+        animation_count: animations.len(),
+        animations,
+        css_module_value_count: css_module_values.len(),
+        css_module_values,
+        css_module_value_import_edge_count: css_module_value_import_edges.len(),
+        css_module_value_import_edges,
+        css_module_value_definition_edge_count: css_module_value_definition_edges.len(),
+        css_module_value_definition_edges,
+        css_module_composes_count: css_module_composes.len(),
+        css_module_composes,
+        css_module_composes_edge_count: css_module_composes_edges.len(),
+        css_module_composes_edges,
+        icss_count: icss.len(),
+        icss,
+        icss_import_edge_count: icss_import_edges.len(),
+        icss_import_edges,
+        icss_export_edge_count: icss_export_edges.len(),
+        icss_export_edges,
+        at_rule_count: at_rules.len(),
+        at_rules,
+        error_count: parsed.errors().len(),
+    }
+}
+
+fn tokens_from_cst<'text>(text: &'text str, parsed: &ParseResult) -> Vec<Token<'text>> {
+    parsed
+        .syntax()
+        .descendants_with_tokens()
+        .filter_map(|element| element.into_token())
+        .map(|token| {
+            let range = token.text_range();
+            let start = u32::from(range.start()) as usize;
+            let end = u32::from(range.end()) as usize;
+            Token {
+                kind: token.kind(),
+                text: text.get(start..end).unwrap_or_default(),
+                range,
+            }
+        })
+        .collect()
 }

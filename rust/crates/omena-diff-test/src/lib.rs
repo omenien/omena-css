@@ -12,7 +12,10 @@ use omena_incremental::{
     IncrementalGraphInputV0, IncrementalNodeInputV0, IncrementalRevisionV0,
     plan_incremental_computation, snapshot_from_graph_input,
 };
-use omena_parser::{StyleDialect, summarize_omena_parser_style_facts};
+use omena_parser::{
+    ParsedStyleFacts, StyleDialect, collect_style_facts, facts_from_cst, parse,
+    summarize_omena_parser_style_facts,
+};
 use omena_query::{
     OmenaQueryExternalModuleModeV0, OmenaQueryExternalSifInputV0,
     OmenaQueryStyleDiagnosticsForFileV0, OmenaQueryStyleSourceInputV0,
@@ -118,6 +121,44 @@ pub struct ParserDifferentialReport {
     pub fields: Vec<DiffFieldReport>,
     /// Whether every field matched.
     pub all_fields_match: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ParserCstFactAuthorityCategoryReportV0 {
+    pub fixture: &'static str,
+    pub category: &'static str,
+    pub legacy_values: Vec<String>,
+    pub cst_values: Vec<String>,
+    pub legacy_spans: Vec<String>,
+    pub cst_spans: Vec<String>,
+    pub values_match: bool,
+    pub spans_match: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ParserCstFactAuthorityMetamorphicReportV0 {
+    pub relation: &'static str,
+    pub fixture: &'static str,
+    pub before_values: Vec<String>,
+    pub after_values: Vec<String>,
+    pub holds: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ParserCstFactAuthorityReportV0 {
+    pub schema_version: &'static str,
+    pub product: &'static str,
+    pub fixture_count: usize,
+    pub category_count: usize,
+    pub comparisons: Vec<ParserCstFactAuthorityCategoryReportV0>,
+    pub all_value_sets_match: bool,
+    pub all_span_sets_match: bool,
+    pub metamorphic_relation_count: usize,
+    pub metamorphic_relations: Vec<ParserCstFactAuthorityMetamorphicReportV0>,
+    pub all_metamorphic_relations_hold: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -456,6 +497,47 @@ pub const PARSER_LEGACY_SEED_FIXTURES: &[ParserDifferentialFixture] = &[
     },
 ];
 
+const PARSER_FACT_AUTHORITY_CATEGORY_COUNT: usize = 16;
+
+const PARSER_FACT_AUTHORITY_FIXTURES: &[ParserDifferentialFixture] = &[
+    ParserDifferentialFixture {
+        label: "css-modules-values-and-icss",
+        file_path: "/values.module.css",
+        source: r#"
+@value brand: red;
+@value remote as local from "./tokens.module.css";
+:import("./theme.module.css") { themeCard: card; }
+:export { exported: brand local; }
+.card { composes: local from "./mixins.module.css"; color: brand; }
+"#,
+        dialect: DiffDialect::Css,
+    },
+    ParserDifferentialFixture {
+        label: "scss-modules-symbols-and-extends",
+        file_path: "/symbols.module.scss",
+        source: r#"
+@use "./tokens" as tokens;
+@forward "./theme" show tone;
+@import "./legacy" screen;
+@mixin raised($depth) { box-shadow: 0 0 $depth black; }
+@function double($value) { @return $value * 2; }
+%surface { color: tokens.$brand; }
+@keyframes spin { from { opacity: 0; } to { opacity: 1; } }
+.card { @include raised($gap); @extend %surface !optional; animation: spin 1s; }
+"#,
+        dialect: DiffDialect::Scss,
+    },
+    ParserDifferentialFixture {
+        label: "less-variables-and-nested-selectors",
+        file_path: "/nested.module.less",
+        source: r#"
+@color: red;
+.card { --tone: @color; &__icon { color: var(--tone); } }
+"#,
+        dialect: DiffDialect::Less,
+    },
+];
+
 /// M3 reusable fixture seeds for future `omena-testkit` promotion.
 pub const M3_THEORETICAL_MOAT_FIXTURE_SEEDS: &[M3FixtureSeedV0] = &[
     M3FixtureSeedV0 {
@@ -636,6 +718,457 @@ pub fn compare_omena_parser_with_legacy(
         fields,
         all_fields_match,
     }
+}
+
+pub fn summarize_parser_cst_fact_authority_equivalence_v0() -> ParserCstFactAuthorityReportV0 {
+    let fixtures = parser_fact_authority_fixtures();
+    let comparisons = fixtures
+        .iter()
+        .copied()
+        .flat_map(parser_cst_fact_authority_reports_for_fixture)
+        .collect::<Vec<_>>();
+    let metamorphic_relations = parser_cst_fact_authority_metamorphic_reports(&fixtures);
+    let all_value_sets_match = comparisons.iter().all(|report| report.values_match);
+    let all_span_sets_match = comparisons.iter().all(|report| report.spans_match);
+    let all_metamorphic_relations_hold = metamorphic_relations.iter().all(|report| report.holds);
+
+    ParserCstFactAuthorityReportV0 {
+        schema_version: "0",
+        product: "omena-diff-test.parser-cst-fact-authority-equivalence",
+        fixture_count: fixtures.len(),
+        category_count: PARSER_FACT_AUTHORITY_CATEGORY_COUNT,
+        comparisons,
+        all_value_sets_match,
+        all_span_sets_match,
+        metamorphic_relation_count: metamorphic_relations.len(),
+        metamorphic_relations,
+        all_metamorphic_relations_hold,
+    }
+}
+
+fn parser_fact_authority_fixtures() -> Vec<ParserDifferentialFixture> {
+    PARSER_LEGACY_SEED_FIXTURES
+        .iter()
+        .chain(PARSER_FACT_AUTHORITY_FIXTURES)
+        .copied()
+        .collect()
+}
+
+fn parser_cst_fact_authority_reports_for_fixture(
+    fixture: ParserDifferentialFixture,
+) -> Vec<ParserCstFactAuthorityCategoryReportV0> {
+    let dialect = fixture.dialect.as_omena_dialect();
+    let legacy = collect_style_facts(fixture.source, dialect);
+    let parsed = parse(fixture.source, dialect);
+    let cst = facts_from_cst(fixture.source, &parsed);
+    style_fact_category_reports(fixture.label, &legacy, &cst)
+}
+
+fn parser_cst_fact_authority_metamorphic_reports(
+    fixtures: &[ParserDifferentialFixture],
+) -> Vec<ParserCstFactAuthorityMetamorphicReportV0> {
+    fixtures
+        .iter()
+        .flat_map(|fixture| {
+            let comment_source = format!("/* inserted parser comment */\n{}", fixture.source);
+            let whitespace_source = format!("\n{}\n", fixture.source);
+            [
+                parser_cst_fact_authority_metamorphic_report(
+                    "comment-insertion",
+                    *fixture,
+                    comment_source.as_str(),
+                ),
+                parser_cst_fact_authority_metamorphic_report(
+                    "whitespace-insertion",
+                    *fixture,
+                    whitespace_source.as_str(),
+                ),
+            ]
+        })
+        .collect()
+}
+
+fn parser_cst_fact_authority_metamorphic_report(
+    relation: &'static str,
+    fixture: ParserDifferentialFixture,
+    after_source: &str,
+) -> ParserCstFactAuthorityMetamorphicReportV0 {
+    let dialect = fixture.dialect.as_omena_dialect();
+    let before_values = parser_cst_fact_value_signature(fixture.source, dialect);
+    let after_values = parser_cst_fact_value_signature(after_source, dialect);
+    let holds = before_values == after_values;
+    ParserCstFactAuthorityMetamorphicReportV0 {
+        relation,
+        fixture: fixture.label,
+        before_values,
+        after_values,
+        holds,
+    }
+}
+
+fn parser_cst_fact_value_signature(source: &str, dialect: StyleDialect) -> Vec<String> {
+    let parsed = parse(source, dialect);
+    let facts = facts_from_cst(source, &parsed);
+    sorted_unique(style_fact_category_value_sets(&facts).into_iter().flat_map(
+        |(category, values)| {
+            values
+                .into_iter()
+                .map(move |value| format!("{category}:{value}"))
+        },
+    ))
+}
+
+fn style_fact_category_reports(
+    fixture: &'static str,
+    legacy: &ParsedStyleFacts,
+    cst: &ParsedStyleFacts,
+) -> Vec<ParserCstFactAuthorityCategoryReportV0> {
+    let legacy_values = style_fact_category_value_sets(legacy);
+    let cst_values = style_fact_category_value_sets(cst);
+    let legacy_spans = style_fact_category_span_sets(legacy);
+    let cst_spans = style_fact_category_span_sets(cst);
+    assert_eq!(legacy_values.len(), PARSER_FACT_AUTHORITY_CATEGORY_COUNT);
+    assert_eq!(cst_values.len(), PARSER_FACT_AUTHORITY_CATEGORY_COUNT);
+    assert_eq!(legacy_spans.len(), PARSER_FACT_AUTHORITY_CATEGORY_COUNT);
+    assert_eq!(cst_spans.len(), PARSER_FACT_AUTHORITY_CATEGORY_COUNT);
+
+    legacy_values
+        .into_iter()
+        .zip(cst_values)
+        .zip(legacy_spans.into_iter().zip(cst_spans))
+        .map(
+            |(
+                ((category, legacy_values), (cst_category, cst_values)),
+                ((span_category, legacy_spans), (cst_span_category, cst_spans)),
+            )| {
+                assert_eq!(category, cst_category);
+                assert_eq!(category, span_category);
+                assert_eq!(category, cst_span_category);
+                let values_match = legacy_values == cst_values;
+                let spans_match = legacy_spans == cst_spans;
+                ParserCstFactAuthorityCategoryReportV0 {
+                    fixture,
+                    category,
+                    legacy_values,
+                    cst_values,
+                    legacy_spans,
+                    cst_spans,
+                    values_match,
+                    spans_match,
+                }
+            },
+        )
+        .collect()
+}
+
+fn style_fact_category_value_sets(facts: &ParsedStyleFacts) -> Vec<(&'static str, Vec<String>)> {
+    vec![
+        (
+            "selectors",
+            sorted_unique(
+                facts
+                    .selectors
+                    .iter()
+                    .map(|fact| format!("{:?}:{}", fact.kind, fact.name)),
+            ),
+        ),
+        (
+            "variables",
+            sorted_unique(facts.variables.iter().map(|fact| {
+                format!(
+                    "{:?}:{}:fallback={}",
+                    fact.kind, fact.name, fact.has_fallback
+                )
+            })),
+        ),
+        (
+            "sass_symbols",
+            sorted_unique(facts.sass_symbols.iter().map(|fact| {
+                format!(
+                    "{:?}:{}:{}:{}:{:?}",
+                    fact.kind, fact.symbol_kind, fact.name, fact.role, fact.namespace
+                )
+            })),
+        ),
+        (
+            "sass_includes",
+            sorted_unique(
+                facts
+                    .sass_includes
+                    .iter()
+                    .map(|fact| format!("{}:{:?}:{}", fact.name, fact.namespace, fact.params)),
+            ),
+        ),
+        (
+            "sass_module_edges",
+            sorted_unique(facts.sass_module_edges.iter().map(|fact| {
+                format!(
+                    "{:?}:{}:{:?}:{:?}:{:?}:{:?}:{:?}:media={}",
+                    fact.kind,
+                    fact.source,
+                    fact.namespace_kind,
+                    fact.namespace,
+                    fact.forward_prefix,
+                    fact.visibility_filter_kind,
+                    fact.visibility_filter_names,
+                    fact.media_qualified
+                )
+            })),
+        ),
+        (
+            "extend_targets",
+            sorted_unique(
+                facts.extend_targets.iter().map(|fact| {
+                    format!("{:?}:{}:optional={}", fact.kind, fact.name, fact.optional)
+                }),
+            ),
+        ),
+        (
+            "animations",
+            sorted_unique(
+                facts
+                    .animations
+                    .iter()
+                    .map(|fact| format!("{:?}:{}", fact.kind, fact.name)),
+            ),
+        ),
+        (
+            "css_module_values",
+            sorted_unique(
+                facts
+                    .css_module_values
+                    .iter()
+                    .map(|fact| format!("{:?}:{}", fact.kind, fact.name)),
+            ),
+        ),
+        (
+            "css_module_value_import_edges",
+            sorted_unique(facts.css_module_value_import_edges.iter().map(|fact| {
+                format!(
+                    "{}:{}:{}",
+                    fact.remote_name, fact.local_name, fact.import_source
+                )
+            })),
+        ),
+        (
+            "css_module_value_definition_edges",
+            sorted_unique(
+                facts
+                    .css_module_value_definition_edges
+                    .iter()
+                    .map(|fact| format!("{}:{:?}", fact.definition_name, fact.reference_names)),
+            ),
+        ),
+        (
+            "css_module_composes",
+            sorted_unique(
+                facts
+                    .css_module_composes
+                    .iter()
+                    .map(|fact| format!("{:?}:{}", fact.kind, fact.name)),
+            ),
+        ),
+        (
+            "css_module_composes_edges",
+            sorted_unique(facts.css_module_composes_edges.iter().map(|fact| {
+                format!(
+                    "{:?}:{:?}:{:?}:{:?}",
+                    fact.kind, fact.owner_selector_names, fact.target_names, fact.import_source
+                )
+            })),
+        ),
+        (
+            "icss",
+            sorted_unique(
+                facts
+                    .icss
+                    .iter()
+                    .map(|fact| format!("{:?}:{}", fact.kind, fact.name)),
+            ),
+        ),
+        (
+            "icss_import_edges",
+            sorted_unique(facts.icss_import_edges.iter().map(|fact| {
+                format!(
+                    "{}:{}:{}",
+                    fact.local_name, fact.remote_name, fact.import_source
+                )
+            })),
+        ),
+        (
+            "icss_export_edges",
+            sorted_unique(
+                facts
+                    .icss_export_edges
+                    .iter()
+                    .map(|fact| format!("{}:{:?}", fact.export_name, fact.reference_names)),
+            ),
+        ),
+        (
+            "at_rules",
+            sorted_unique(
+                facts
+                    .at_rules
+                    .iter()
+                    .map(|fact| format!("{}:{:?}", fact.name, fact.node_kind)),
+            ),
+        ),
+    ]
+}
+
+fn style_fact_category_span_sets(facts: &ParsedStyleFacts) -> Vec<(&'static str, Vec<String>)> {
+    vec![
+        (
+            "selectors",
+            sorted_unique(
+                facts
+                    .selectors
+                    .iter()
+                    .map(|fact| format!("{:?}:{}", fact.kind, span_record(&fact.range))),
+            ),
+        ),
+        (
+            "variables",
+            sorted_unique(
+                facts
+                    .variables
+                    .iter()
+                    .map(|fact| format!("{:?}:{}", fact.kind, span_record(&fact.range))),
+            ),
+        ),
+        (
+            "sass_symbols",
+            sorted_unique(
+                facts
+                    .sass_symbols
+                    .iter()
+                    .map(|fact| format!("{:?}:{}", fact.kind, span_record(&fact.range))),
+            ),
+        ),
+        (
+            "sass_includes",
+            sorted_unique(
+                facts
+                    .sass_includes
+                    .iter()
+                    .map(|fact| span_record(&fact.range)),
+            ),
+        ),
+        (
+            "sass_module_edges",
+            sorted_unique(
+                facts
+                    .sass_module_edges
+                    .iter()
+                    .map(|fact| format!("{:?}:{}", fact.kind, span_record(&fact.range))),
+            ),
+        ),
+        (
+            "extend_targets",
+            sorted_unique(
+                facts
+                    .extend_targets
+                    .iter()
+                    .map(|fact| format!("{:?}:{}", fact.kind, span_record(&fact.range))),
+            ),
+        ),
+        (
+            "animations",
+            sorted_unique(
+                facts
+                    .animations
+                    .iter()
+                    .map(|fact| format!("{:?}:{}", fact.kind, span_record(&fact.range))),
+            ),
+        ),
+        (
+            "css_module_values",
+            sorted_unique(
+                facts
+                    .css_module_values
+                    .iter()
+                    .map(|fact| format!("{:?}:{}", fact.kind, span_record(&fact.range))),
+            ),
+        ),
+        (
+            "css_module_value_import_edges",
+            sorted_unique(facts.css_module_value_import_edges.iter().map(|fact| {
+                format!(
+                    "local={}:remote={}:statement={}",
+                    span_record(&fact.local_range),
+                    span_record(&fact.remote_range),
+                    span_record(&fact.range)
+                )
+            })),
+        ),
+        (
+            "css_module_value_definition_edges",
+            sorted_unique(
+                facts
+                    .css_module_value_definition_edges
+                    .iter()
+                    .map(|fact| span_record(&fact.range)),
+            ),
+        ),
+        (
+            "css_module_composes",
+            sorted_unique(
+                facts
+                    .css_module_composes
+                    .iter()
+                    .map(|fact| format!("{:?}:{}", fact.kind, span_record(&fact.range))),
+            ),
+        ),
+        (
+            "css_module_composes_edges",
+            sorted_unique(
+                facts
+                    .css_module_composes_edges
+                    .iter()
+                    .map(|fact| format!("{:?}:{}", fact.kind, span_record(&fact.range))),
+            ),
+        ),
+        (
+            "icss",
+            sorted_unique(
+                facts
+                    .icss
+                    .iter()
+                    .map(|fact| format!("{:?}:{}", fact.kind, span_record(&fact.range))),
+            ),
+        ),
+        (
+            "icss_import_edges",
+            sorted_unique(
+                facts
+                    .icss_import_edges
+                    .iter()
+                    .map(|fact| span_record(&fact.range)),
+            ),
+        ),
+        (
+            "icss_export_edges",
+            sorted_unique(
+                facts
+                    .icss_export_edges
+                    .iter()
+                    .map(|fact| span_record(&fact.range)),
+            ),
+        ),
+        (
+            "at_rules",
+            sorted_unique(
+                facts
+                    .at_rules
+                    .iter()
+                    .map(|fact| format!("{}:{}", fact.name, span_record(&fact.range))),
+            ),
+        ),
+    ]
+}
+
+fn span_record(range: &impl std::fmt::Debug) -> String {
+    format!("{range:?}")
 }
 
 pub fn summarize_incremental_identity_reuse_equivalence_v0()
@@ -2163,6 +2696,56 @@ code: missingCustomProperty
                 .closed_gates
                 .contains(&"wptSeedStaleKnownFailurePruning")
         );
+    }
+
+    #[test]
+    fn parser_cst_fact_authority_matches_legacy_collectors() {
+        let report = summarize_parser_cst_fact_authority_equivalence_v0();
+
+        assert_eq!(
+            report.product,
+            "omena-diff-test.parser-cst-fact-authority-equivalence"
+        );
+        assert_eq!(report.category_count, 16);
+        assert_eq!(
+            report.fixture_count,
+            PARSER_LEGACY_SEED_FIXTURES.len() + PARSER_FACT_AUTHORITY_FIXTURES.len()
+        );
+        assert_eq!(
+            report.comparisons.len(),
+            report.fixture_count * report.category_count
+        );
+        assert!(report.all_value_sets_match, "{report:#?}");
+        assert!(report.all_span_sets_match, "{report:#?}");
+        assert_eq!(report.metamorphic_relation_count, report.fixture_count * 2);
+        assert!(report.all_metamorphic_relations_hold, "{report:#?}");
+
+        for category in [
+            "selectors",
+            "variables",
+            "sass_symbols",
+            "sass_includes",
+            "sass_module_edges",
+            "extend_targets",
+            "animations",
+            "css_module_values",
+            "css_module_value_import_edges",
+            "css_module_value_definition_edges",
+            "css_module_composes",
+            "css_module_composes_edges",
+            "icss",
+            "icss_import_edges",
+            "icss_export_edges",
+            "at_rules",
+        ] {
+            assert!(
+                report
+                    .comparisons
+                    .iter()
+                    .any(|comparison| comparison.category == category),
+                "missing parser fact category: {category}"
+            );
+        }
     }
 
     #[test]
