@@ -27,10 +27,14 @@ pub use css_modules::{
     ParsedCssModuleValueFact, ParsedCssModuleValueFactKind, ParsedCssModuleValueImportEdgeFact,
 };
 pub(crate) use css_modules::{
-    collect_css_module_composes_edge_facts_from_tokens,
+    collect_css_module_composes_edge_facts_from_cst,
+    collect_css_module_composes_edge_facts_from_tokens, collect_css_module_composes_facts_from_cst,
     collect_css_module_composes_facts_from_tokens,
+    collect_css_module_value_definition_edge_facts_from_cst,
     collect_css_module_value_definition_edge_facts_from_tokens,
-    collect_css_module_value_definition_edge_names, collect_css_module_value_facts_from_tokens,
+    collect_css_module_value_definition_edge_names, collect_css_module_value_facts_from_cst,
+    collect_css_module_value_facts_from_tokens,
+    collect_css_module_value_import_edge_facts_from_cst,
     collect_css_module_value_import_edge_facts_from_tokens,
     css_module_value_reference_token_can_be_name, css_module_value_source_name,
     css_module_value_statement_end, declaration_colon_index,
@@ -213,6 +217,18 @@ pub fn facts_from_cst(text: &str, parsed: &ParseResult) -> ParsedStyleFacts {
     facts.extend_target_count = facts.extend_targets.len();
     facts.animations = collect_animation_facts_from_cst(text, parsed);
     facts.animation_count = facts.animations.len();
+    facts.css_module_values = collect_css_module_value_facts_from_cst(text, parsed);
+    facts.css_module_value_count = facts.css_module_values.len();
+    facts.css_module_value_import_edges =
+        collect_css_module_value_import_edge_facts_from_cst(text, parsed);
+    facts.css_module_value_import_edge_count = facts.css_module_value_import_edges.len();
+    facts.css_module_value_definition_edges =
+        collect_css_module_value_definition_edge_facts_from_cst(text, parsed);
+    facts.css_module_value_definition_edge_count = facts.css_module_value_definition_edges.len();
+    facts.css_module_composes = collect_css_module_composes_facts_from_cst(text, parsed);
+    facts.css_module_composes_count = facts.css_module_composes.len();
+    facts.css_module_composes_edges = collect_css_module_composes_edge_facts_from_cst(text, parsed);
+    facts.css_module_composes_edge_count = facts.css_module_composes_edges.len();
     facts.icss = collect_icss_facts_from_cst(text, parsed);
     facts.icss_count = facts.icss.len();
     facts.icss_import_edges = collect_icss_import_edge_facts_from_cst(text, parsed);

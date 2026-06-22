@@ -8,11 +8,13 @@ use omena_syntax::SyntaxKind;
 use std::collections::{BTreeMap, BTreeSet};
 
 use crate::{
-    SelectorBranch, Token, css_module_block_scope_marker_in_header, find_block_after_header,
-    matching_right_brace, next_non_trivia_token_index_until, previous_non_trivia_token_index,
-    resolve_selector_header, skip_statement, skip_trivia_tokens, style_wrapper_at_rule,
-    top_level_token_kind_index, top_level_token_text_index,
+    ParseResult, SelectorBranch, Token, css_module_block_scope_marker_in_header,
+    find_block_after_header, matching_right_brace, next_non_trivia_token_index_until,
+    previous_non_trivia_token_index, resolve_selector_header, skip_statement, skip_trivia_tokens,
+    style_wrapper_at_rule, top_level_token_kind_index, top_level_token_text_index,
 };
+
+use super::tokens_from_cst;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ParsedCssModuleValueFact {
@@ -31,6 +33,18 @@ pub enum ParsedCssModuleValueFactKind {
 pub(crate) fn collect_css_module_value_facts_from_tokens(
     tokens: &[Token<'_>],
 ) -> Vec<ParsedCssModuleValueFact> {
+    css_module_value_facts_from_token_view(tokens)
+}
+
+pub(crate) fn collect_css_module_value_facts_from_cst(
+    text: &str,
+    parsed: &ParseResult,
+) -> Vec<ParsedCssModuleValueFact> {
+    let tokens = tokens_from_cst(text, parsed);
+    css_module_value_facts_from_token_view(&tokens)
+}
+
+fn css_module_value_facts_from_token_view(tokens: &[Token<'_>]) -> Vec<ParsedCssModuleValueFact> {
     let mut values = Vec::new();
     let mut seen = BTreeSet::new();
     let value_path_aliases = collect_css_module_value_path_aliases_from_tokens(tokens);
@@ -211,6 +225,20 @@ pub struct ParsedCssModuleValueImportEdgeFact {
 pub(crate) fn collect_css_module_value_import_edge_facts_from_tokens(
     tokens: &[Token<'_>],
 ) -> Vec<ParsedCssModuleValueImportEdgeFact> {
+    css_module_value_import_edge_facts_from_token_view(tokens)
+}
+
+pub(crate) fn collect_css_module_value_import_edge_facts_from_cst(
+    text: &str,
+    parsed: &ParseResult,
+) -> Vec<ParsedCssModuleValueImportEdgeFact> {
+    let tokens = tokens_from_cst(text, parsed);
+    css_module_value_import_edge_facts_from_token_view(&tokens)
+}
+
+fn css_module_value_import_edge_facts_from_token_view(
+    tokens: &[Token<'_>],
+) -> Vec<ParsedCssModuleValueImportEdgeFact> {
     let mut edges = Vec::new();
     let value_path_aliases = collect_css_module_value_path_aliases_from_tokens(tokens);
     for (index, token) in tokens.iter().enumerate() {
@@ -247,6 +275,20 @@ pub struct ParsedCssModuleValueDefinitionEdgeFact {
 }
 
 pub(crate) fn collect_css_module_value_definition_edge_facts_from_tokens(
+    tokens: &[Token<'_>],
+) -> Vec<ParsedCssModuleValueDefinitionEdgeFact> {
+    css_module_value_definition_edge_facts_from_token_view(tokens)
+}
+
+pub(crate) fn collect_css_module_value_definition_edge_facts_from_cst(
+    text: &str,
+    parsed: &ParseResult,
+) -> Vec<ParsedCssModuleValueDefinitionEdgeFact> {
+    let tokens = tokens_from_cst(text, parsed);
+    css_module_value_definition_edge_facts_from_token_view(&tokens)
+}
+
+fn css_module_value_definition_edge_facts_from_token_view(
     tokens: &[Token<'_>],
 ) -> Vec<ParsedCssModuleValueDefinitionEdgeFact> {
     let mut edges = Vec::new();
@@ -731,6 +773,20 @@ pub enum ParsedCssModuleComposesEdgeKind {
 pub(crate) fn collect_css_module_composes_facts_from_tokens(
     tokens: &[Token<'_>],
 ) -> Vec<ParsedCssModuleComposesFact> {
+    css_module_composes_facts_from_token_view(tokens)
+}
+
+pub(crate) fn collect_css_module_composes_facts_from_cst(
+    text: &str,
+    parsed: &ParseResult,
+) -> Vec<ParsedCssModuleComposesFact> {
+    let tokens = tokens_from_cst(text, parsed);
+    css_module_composes_facts_from_token_view(&tokens)
+}
+
+fn css_module_composes_facts_from_token_view(
+    tokens: &[Token<'_>],
+) -> Vec<ParsedCssModuleComposesFact> {
     let mut composes = Vec::new();
     let mut seen = BTreeSet::new();
     for (index, token) in tokens.iter().enumerate() {
@@ -764,6 +820,20 @@ pub(crate) fn collect_css_module_composes_facts_from_tokens(
 }
 
 pub(crate) fn collect_css_module_composes_edge_facts_from_tokens(
+    tokens: &[Token<'_>],
+) -> Vec<ParsedCssModuleComposesEdgeFact> {
+    css_module_composes_edge_facts_from_token_view(tokens)
+}
+
+pub(crate) fn collect_css_module_composes_edge_facts_from_cst(
+    text: &str,
+    parsed: &ParseResult,
+) -> Vec<ParsedCssModuleComposesEdgeFact> {
+    let tokens = tokens_from_cst(text, parsed);
+    css_module_composes_edge_facts_from_token_view(&tokens)
+}
+
+fn css_module_composes_edge_facts_from_token_view(
     tokens: &[Token<'_>],
 ) -> Vec<ParsedCssModuleComposesEdgeFact> {
     let mut edges = Vec::new();
