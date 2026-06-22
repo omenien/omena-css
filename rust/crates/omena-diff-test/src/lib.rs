@@ -24,6 +24,7 @@ use omena_query::{
     summarize_omena_query_style_diagnostics_for_workspace_file_with_external_mode_and_sifs,
     summarize_omena_query_style_hover_candidates,
 };
+use omena_semantic::summarize_omena_parser_style_semantic_boundary_from_source;
 use omena_sif::{
     OmenaSifExportsV1, OmenaSifGeneratorV1, OmenaSifSourceSyntaxV1, OmenaSifSourceV1, OmenaSifV1,
     OmenaSifVariableExportV1,
@@ -162,6 +163,42 @@ pub struct ParserCstFactAuthorityReportV0 {
     pub all_metamorphic_relations_hold: bool,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+struct ParserCstContextRawScanFixture {
+    label: &'static str,
+    file_path: &'static str,
+    source: &'static str,
+    expected_statement_layers: &'static [&'static str],
+    expected_block_layers: &'static [&'static str],
+    expected_layer_selector_memberships: &'static [&'static str],
+    rejected_names: &'static [&'static str],
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ParserCstContextRawScanFixtureReportV0 {
+    pub label: &'static str,
+    pub statement_layers: Vec<String>,
+    pub expected_statement_layers: Vec<&'static str>,
+    pub block_layers: Vec<String>,
+    pub expected_block_layers: Vec<&'static str>,
+    pub layer_selector_memberships: Vec<String>,
+    pub expected_layer_selector_memberships: Vec<&'static str>,
+    pub rejected_names: Vec<&'static str>,
+    pub rejected_names_absent: bool,
+    pub matches: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ParserCstContextRawScanDivergenceReportV0 {
+    pub schema_version: &'static str,
+    pub product: &'static str,
+    pub fixture_count: usize,
+    pub reports: Vec<ParserCstContextRawScanFixtureReportV0>,
+    pub all_fixtures_match: bool,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct IncrementalIdentityReuseEquivalenceReportV0 {
@@ -211,6 +248,10 @@ pub struct OmenaDiffTestBoundarySummary {
     pub diagnostic_metamorphic_relation_count: usize,
     /// Whether every diagnostic metamorphic relation currently holds.
     pub all_diagnostic_metamorphic_relations_hold: bool,
+    /// Context-index fixtures that keep comment/string/interpolation text out of facts.
+    pub parser_cst_context_raw_scan_fixture_count: usize,
+    /// Whether context-index fixtures match their intended CST-derived output.
+    pub all_parser_cst_context_raw_scan_fixtures_match: bool,
     /// Cache-equivalence oracle corpus size (RFC 0009 §0).
     pub cache_equivalence_file_count: usize,
     /// Whether the cached-vs-from-scratch equivalence gate holds.
@@ -231,6 +272,8 @@ pub struct OmenaDiffTestBoundarySummary {
     pub soundiness_metamorphic_report: SoundinessMetamorphicReportV0,
     /// Internal omena-vs-omena diagnostic metamorphic relation report.
     pub diagnostic_metamorphic_report: DiagnosticMetamorphicReportV0,
+    /// CST-derived context-index raw-text divergence report.
+    pub parser_cst_context_raw_scan_report: ParserCstContextRawScanDivergenceReportV0,
     /// Cached-vs-from-scratch diagnostic equivalence report (RFC 0009 §0).
     pub cache_equivalence_report: OmenaDiffCacheEquivalenceReportV0,
     /// Salsa-memo lifecycle equivalence report (RFC 0009 Pillar B).
@@ -536,6 +579,58 @@ const PARSER_FACT_AUTHORITY_FIXTURES: &[ParserDifferentialFixture] = &[
 .card { --tone: @color; &__icon { color: var(--tone); } }
 "#,
         dialect: DiffDialect::Less,
+    },
+];
+
+const PARSER_CST_CONTEXT_RAW_SCAN_FIXTURES: &[ParserCstContextRawScanFixture] = &[
+    ParserCstContextRawScanFixture {
+        label: "comment-embedded-context-tokens",
+        file_path: "/comment.module.scss",
+        source: r#"
+/* @layer fakeComment; @layer fakeCommentBlock { .fakeComment { color: red; } } */
+@layer reset;
+@layer components {
+  .card { color: red; }
+}
+"#,
+        expected_statement_layers: &["reset"],
+        expected_block_layers: &["components"],
+        expected_layer_selector_memberships: &["card"],
+        rejected_names: &["fakeComment", "fakeCommentBlock"],
+    },
+    ParserCstContextRawScanFixture {
+        label: "string-embedded-context-tokens",
+        file_path: "/string.module.scss",
+        source: r#"
+.noise::before {
+  content: "@layer fakeString; @layer fakeStringBlock { .fakeString {";
+}
+@layer reset;
+@layer components {
+  .card { content: "{"; color: red; }
+}
+"#,
+        expected_statement_layers: &["reset"],
+        expected_block_layers: &["components"],
+        expected_layer_selector_memberships: &["card"],
+        rejected_names: &["fakeString", "fakeStringBlock"],
+    },
+    ParserCstContextRawScanFixture {
+        label: "interpolation-embedded-context-tokens",
+        file_path: "/interpolation.module.scss",
+        source: r#"
+.noise-#{"@layer fakeInterpolation; @layer fakeInterpolationBlock { .fakeInterpolation {"} {
+  color: red;
+}
+@layer reset;
+@layer components {
+  .card { color: red; }
+}
+"#,
+        expected_statement_layers: &["reset"],
+        expected_block_layers: &["components"],
+        expected_layer_selector_memberships: &["card"],
+        rejected_names: &["fakeInterpolation", "fakeInterpolationBlock"],
     },
 ];
 
@@ -861,6 +956,86 @@ fn style_fact_category_reports(
             },
         )
         .collect()
+}
+
+pub fn summarize_parser_cst_context_raw_scan_divergence_v0()
+-> ParserCstContextRawScanDivergenceReportV0 {
+    let reports = PARSER_CST_CONTEXT_RAW_SCAN_FIXTURES
+        .iter()
+        .copied()
+        .map(parser_cst_context_raw_scan_fixture_report)
+        .collect::<Vec<_>>();
+    let all_fixtures_match = reports.iter().all(|report| report.matches);
+    ParserCstContextRawScanDivergenceReportV0 {
+        schema_version: "0",
+        product: "omena-diff-test.parser-cst-context-raw-scan-divergence",
+        fixture_count: reports.len(),
+        reports,
+        all_fixtures_match,
+    }
+}
+
+fn parser_cst_context_raw_scan_fixture_report(
+    fixture: ParserCstContextRawScanFixture,
+) -> ParserCstContextRawScanFixtureReportV0 {
+    let summary = summarize_omena_parser_style_semantic_boundary_from_source(
+        fixture.file_path,
+        fixture.source,
+    );
+    let context_index = summary.semantic_facts.context_index;
+    let statement_layers = context_index
+        .layer_index
+        .statement_layers
+        .iter()
+        .map(|layer| layer.name.clone())
+        .collect::<Vec<_>>();
+    let block_layers = context_index
+        .layer_index
+        .block_layers
+        .iter()
+        .filter_map(|block| block.name.clone())
+        .collect::<Vec<_>>();
+    let layer_selector_memberships = sorted_unique(
+        context_index
+            .layer_index
+            .selector_memberships
+            .iter()
+            .map(|membership| membership.selector_name.clone()),
+    );
+    let observed_names = statement_layers
+        .iter()
+        .chain(block_layers.iter())
+        .chain(layer_selector_memberships.iter())
+        .collect::<Vec<_>>();
+    let rejected_names_absent = fixture.rejected_names.iter().all(|rejected| {
+        observed_names
+            .iter()
+            .all(|observed| observed.as_str() != *rejected)
+    });
+    let expected_statement_layers = fixture.expected_statement_layers.to_vec();
+    let expected_block_layers = fixture.expected_block_layers.to_vec();
+    let expected_layer_selector_memberships = fixture.expected_layer_selector_memberships.to_vec();
+    let matches = statement_layers == strings_from_static(&expected_statement_layers)
+        && block_layers == strings_from_static(&expected_block_layers)
+        && layer_selector_memberships == strings_from_static(&expected_layer_selector_memberships)
+        && rejected_names_absent;
+
+    ParserCstContextRawScanFixtureReportV0 {
+        label: fixture.label,
+        statement_layers,
+        expected_statement_layers,
+        block_layers,
+        expected_block_layers,
+        layer_selector_memberships,
+        expected_layer_selector_memberships,
+        rejected_names: fixture.rejected_names.to_vec(),
+        rejected_names_absent,
+        matches,
+    }
+}
+
+fn strings_from_static(values: &[&'static str]) -> Vec<String> {
+    values.iter().map(|value| (*value).to_string()).collect()
 }
 
 fn style_fact_category_value_sets(facts: &ParsedStyleFacts) -> Vec<(&'static str, Vec<String>)> {
@@ -1289,6 +1464,7 @@ pub fn summarize_omena_diff_test_boundary() -> OmenaDiffTestBoundarySummary {
     let wpt_value_differential_report = summarize_wpt_value_differential();
     let soundiness_metamorphic_report = summarize_soundiness_metamorphic_relations();
     let diagnostic_metamorphic_report = summarize_diagnostic_metamorphic_relations();
+    let parser_cst_context_raw_scan_report = summarize_parser_cst_context_raw_scan_divergence_v0();
     let (cache_equivalence_corpus, cache_equivalence_resolution_inputs) =
         omena_diff_cache_equivalence_default_corpus_v0();
     let cache_equivalence_report = summarize_workspace_diagnostics_warm_pass_equivalence_v0(
@@ -1322,6 +1498,9 @@ pub fn summarize_omena_diff_test_boundary() -> OmenaDiffTestBoundarySummary {
         all_soundiness_metamorphic_relations_hold: soundiness_metamorphic_report.all_relations_hold,
         diagnostic_metamorphic_relation_count: diagnostic_metamorphic_report.relation_count,
         all_diagnostic_metamorphic_relations_hold: diagnostic_metamorphic_report.all_relations_hold,
+        parser_cst_context_raw_scan_fixture_count: parser_cst_context_raw_scan_report.fixture_count,
+        all_parser_cst_context_raw_scan_fixtures_match: parser_cst_context_raw_scan_report
+            .all_fixtures_match,
         cache_equivalence_file_count: cache_equivalence_report.file_count,
         all_cache_equivalence_files_identical: cache_equivalence_report.all_files_identical,
         salsa_memo_equivalence_comparison_count: salsa_memo_equivalence_report.comparison_count,
@@ -1344,6 +1523,7 @@ pub fn summarize_omena_diff_test_boundary() -> OmenaDiffTestBoundarySummary {
             "externalSifsSalsaMemoizedVsFromScratchEquivalence",
             "parallelSalsaViewsVsFromScratchEquivalence",
             "wptValueDifferentialHandModelAgreement",
+            "parserCstContextRawScanDivergence",
         ],
         reports,
         m3_fixture_seed_report,
@@ -1351,6 +1531,7 @@ pub fn summarize_omena_diff_test_boundary() -> OmenaDiffTestBoundarySummary {
         wpt_value_differential_report,
         soundiness_metamorphic_report,
         diagnostic_metamorphic_report,
+        parser_cst_context_raw_scan_report,
         cache_equivalence_report,
         salsa_memo_equivalence_report,
         parallel_salsa_equivalence_report,
@@ -2644,6 +2825,11 @@ code: missingCustomProperty
         assert_eq!(summary.diagnostic_metamorphic_relation_count, 7);
         assert!(summary.all_diagnostic_metamorphic_relations_hold);
         assert_eq!(
+            summary.parser_cst_context_raw_scan_fixture_count,
+            PARSER_CST_CONTEXT_RAW_SCAN_FIXTURES.len()
+        );
+        assert!(summary.all_parser_cst_context_raw_scan_fixtures_match);
+        assert_eq!(
             summary.wpt_seed_metadata_report.stale_known_failure_count,
             0
         );
@@ -2676,6 +2862,11 @@ code: missingCustomProperty
             summary
                 .closed_gates
                 .contains(&"diagnosticMetamorphicRelations")
+        );
+        assert!(
+            summary
+                .closed_gates
+                .contains(&"parserCstContextRawScanDivergence")
         );
         assert!(
             summary
@@ -2746,6 +2937,53 @@ code: missingCustomProperty
                     .iter()
                     .any(|comparison| comparison.category == category),
                 "missing parser fact category: {category}"
+            );
+        }
+    }
+
+    #[test]
+    fn parser_cst_context_raw_scan_divergence_fixtures_match_intended_output() {
+        let report = summarize_parser_cst_context_raw_scan_divergence_v0();
+
+        assert_eq!(
+            report.product,
+            "omena-diff-test.parser-cst-context-raw-scan-divergence"
+        );
+        assert_eq!(
+            report.fixture_count,
+            PARSER_CST_CONTEXT_RAW_SCAN_FIXTURES.len()
+        );
+        assert_eq!(report.fixture_count, 3);
+        assert!(report.all_fixtures_match, "{report:#?}");
+
+        for fixture_report in &report.reports {
+            assert!(fixture_report.rejected_names_absent, "{fixture_report:#?}");
+            assert_eq!(
+                fixture_report.statement_layers,
+                strings_from_static(&fixture_report.expected_statement_layers)
+            );
+            assert_eq!(
+                fixture_report.block_layers,
+                strings_from_static(&fixture_report.expected_block_layers)
+            );
+            assert_eq!(
+                fixture_report.layer_selector_memberships,
+                strings_from_static(&fixture_report.expected_layer_selector_memberships)
+            );
+        }
+    }
+
+    #[test]
+    fn semantic_context_index_has_no_raw_scan_helpers() {
+        let semantic_source = include_str!("../../omena-semantic/src/lib.rs");
+        for forbidden in [
+            ".find(\"@layer\")",
+            "selector_class_names",
+            "block_header_and_start_before_open_brace",
+        ] {
+            assert!(
+                !semantic_source.contains(forbidden),
+                "semantic context index must stay CST-derived: {forbidden}"
             );
         }
     }

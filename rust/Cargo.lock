@@ -2243,6 +2243,7 @@ dependencies = [
  "omena-lsp-server",
  "omena-parser",
  "omena-query",
+ "omena-semantic",
  "omena-sif",
  "omena-testkit",
  "omena-value-lattice",
