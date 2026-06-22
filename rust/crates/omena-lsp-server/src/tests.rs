@@ -316,6 +316,68 @@ fn document_map_uses_canonical_identity_for_case_varied_paths_when_supported() -
     Ok(())
 }
 
+#[cfg(unix)]
+#[test]
+fn document_map_uses_canonical_identity_for_case_varied_symlink_paths_when_supported() -> TestResult
+{
+    let root = std::env::temp_dir().join(format!(
+        "omena_lsp_case_symlink_document_identity_{}_{}",
+        std::process::id(),
+        current_time_millis()
+    ));
+    let real_src = root.join("RealSrc");
+    let link_src = root.join("linked-src");
+    let real_style = real_src.join("CaseStyle.module.scss");
+    let linked_case_style = link_src.join("casestyle.module.scss");
+    fs::create_dir_all(real_src.as_path())?;
+    fs::write(real_style.as_path(), ".case { color: red; }")?;
+    std::os::unix::fs::symlink(real_src.as_path(), link_src.as_path())?;
+
+    let real_uri = raw_test_file_uri(real_style.as_path());
+    let linked_case_uri = raw_test_file_uri(linked_case_style.as_path());
+    if !file_uri_equivalent(real_uri.as_str(), linked_case_uri.as_str()) {
+        let _ = fs::remove_dir_all(root.as_path());
+        return Ok(());
+    }
+    assert_eq!(
+        LspShellState::document_storage_uri(real_uri.as_str()),
+        LspShellState::document_storage_uri(linked_case_uri.as_str())
+    );
+
+    let mut state = LspShellState::default();
+    for (uri, text) in [
+        (real_uri.as_str(), ".case { color: red; }"),
+        (linked_case_uri.as_str(), ".case { color: blue; }"),
+    ] {
+        handle_lsp_message(
+            &mut state,
+            json!({
+                "jsonrpc": "2.0",
+                "method": "textDocument/didOpen",
+                "params": {
+                    "textDocument": {
+                        "uri": uri,
+                        "languageId": "scss",
+                        "version": 1,
+                        "text": text,
+                    },
+                },
+            }),
+        );
+    }
+
+    assert_eq!(state.document_count(), 1);
+    assert_eq!(state.open_document_uris.len(), 1);
+    assert_eq!(
+        state.document_file_id(real_uri.as_str()),
+        state.document_file_id(linked_case_uri.as_str())
+    );
+    assert!(state.document(real_uri.as_str()).is_some());
+    assert!(state.document(linked_case_uri.as_str()).is_some());
+    let _ = fs::remove_dir_all(root.as_path());
+    Ok(())
+}
+
 #[test]
 fn workspace_wave_document_admission_keeps_canonicalize_syscalls_linear() -> TestResult {
     let root = std::env::temp_dir().join(format!(
