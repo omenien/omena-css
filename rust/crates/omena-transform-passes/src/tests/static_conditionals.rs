@@ -1,4 +1,5 @@
-use super::execute_transform_passes_on_source;
+use super::{execute_transform_passes_on_source, execute_transform_passes_on_source_with_dialect};
+use omena_parser::StyleDialect;
 use omena_transform_cst::TransformPassKind;
 
 #[test]
@@ -276,5 +277,71 @@ fn execution_runtime_evaluates_font_supports_branches_with_cascade_witness() {
     assert_eq!(
         execution.executed_pass_ids,
         vec!["supports-static-eval", "print-css"]
+    );
+}
+
+#[test]
+fn execution_runtime_folds_static_native_css_if_and_function_values() {
+    let source = r#"@function --gap(--size <length>: 1rem) returns <length> { result: var(--size); } .card { gap: --gap(2rem); display: if(supports(display: grid): grid; else: block); margin: if(media(width >= 1px): 1rem; else: 2rem); }"#;
+    let execution = execute_transform_passes_on_source(
+        source,
+        &[
+            TransformPassKind::NativeCssStaticEval,
+            TransformPassKind::PrintCss,
+        ],
+    );
+
+    assert_eq!(execution.mutation_count, 2);
+    assert!(execution.output_css.contains("gap: 2rem"));
+    assert!(execution.output_css.contains("display: grid"));
+    assert!(
+        execution
+            .output_css
+            .contains("margin: if(media(width >= 1px): 1rem; else: 2rem)")
+    );
+    assert!(!execution.output_css.contains("--gap(2rem)"));
+    assert!(!execution.output_css.contains("display: if(supports"));
+    assert_eq!(
+        execution.executed_pass_ids,
+        vec!["native-css-static-eval", "print-css"]
+    );
+}
+
+#[test]
+fn execution_runtime_preserves_runtime_native_css_static_values() {
+    let source = r#"@function --gap(--size <length>: 1rem) returns <length> { result: var(--size); } .card { gap: --gap(var(--space)); margin: if(media(width >= 1px): 1rem; else: 2rem); }"#;
+    let execution = execute_transform_passes_on_source(
+        source,
+        &[
+            TransformPassKind::NativeCssStaticEval,
+            TransformPassKind::PrintCss,
+        ],
+    );
+
+    assert_eq!(execution.mutation_count, 0);
+    assert_eq!(execution.output_css, source);
+    assert_eq!(
+        execution.executed_pass_ids,
+        vec!["native-css-static-eval", "print-css"]
+    );
+}
+
+#[test]
+fn execution_runtime_keeps_native_css_static_eval_css_dialect_only() {
+    let source = r#".card { display: if(true, grid, block); }"#;
+    let execution = execute_transform_passes_on_source_with_dialect(
+        source,
+        StyleDialect::Scss,
+        &[
+            TransformPassKind::NativeCssStaticEval,
+            TransformPassKind::PrintCss,
+        ],
+    );
+
+    assert_eq!(execution.mutation_count, 0);
+    assert_eq!(execution.output_css, source);
+    assert_eq!(
+        execution.executed_pass_ids,
+        vec!["native-css-static-eval", "print-css"]
     );
 }

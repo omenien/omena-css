@@ -26,14 +26,14 @@ use crate::registry::{
     add_css_vendor_prefixes, combine_css_shorthands, compress_css_colors,
     compress_css_is_where_selectors, compress_css_numbers,
     css_module_composes_resolutions_for_source, dedupe_exact_css_rules,
-    evaluate_dead_media_branch_rules, evaluate_static_container_rules, evaluate_static_media_rules,
-    evaluate_static_supports_rules, flatten_css_layers, flatten_css_scopes, inline_css_imports,
-    lower_css_color_function, lower_css_color_mix, lower_css_light_dark,
-    lower_css_logical_to_physical, lower_css_oklab_oklch, lower_relative_color,
-    merge_adjacent_same_block_css_selectors, merge_adjacent_same_selector_css_rules,
-    normalize_css_string_quotes, normalize_css_units, normalize_css_whitespace,
-    reachable_class_names_with_composes_exports, reduce_css_calc, remove_empty_css_rules,
-    remove_stale_css_vendor_prefixes, resolve_css_module_composes,
+    evaluate_dead_media_branch_rules, evaluate_native_css_static_values,
+    evaluate_static_container_rules, evaluate_static_media_rules, evaluate_static_supports_rules,
+    flatten_css_layers, flatten_css_scopes, inline_css_imports, lower_css_color_function,
+    lower_css_color_mix, lower_css_light_dark, lower_css_logical_to_physical,
+    lower_css_oklab_oklch, lower_relative_color, merge_adjacent_same_block_css_selectors,
+    merge_adjacent_same_selector_css_rules, normalize_css_string_quotes, normalize_css_units,
+    normalize_css_whitespace, reachable_class_names_with_composes_exports, reduce_css_calc,
+    remove_empty_css_rules, remove_stale_css_vendor_prefixes, resolve_css_module_composes,
     resolve_static_css_modules_values, rewrite_css_module_class_names, route_design_token_values,
     strip_css_comments, strip_css_url_quotes, substitute_static_css_custom_properties,
     tree_shake_css_class_rules_with_removals, tree_shake_css_custom_properties_with_removals,
@@ -443,6 +443,21 @@ fn execute_transform_passes_on_source_with_active_lex_cache(
                     input_byte_len,
                     evaluate_static_container_rules(&pass_input_css, dialect),
                     "removed @container branches whose size condition is provably unsatisfiable"
+                )
+            }
+            Some(TransformPassKind::NativeCssStaticEval) if dialect == StyleDialect::Css => {
+                apply_mutation_pass!(
+                    pass_id,
+                    input_byte_len,
+                    evaluate_native_css_static_values(&pass_input_css, dialect),
+                    "folded fully static native CSS if() values and native CSS function calls while preserving runtime-dependent constructs"
+                )
+            }
+            Some(TransformPassKind::NativeCssStaticEval) => {
+                no_change_pass!(
+                    pass_id,
+                    input_byte_len,
+                    "preserved non-CSS dialect because native CSS static evaluation is CSS-only"
                 )
             }
             Some(TransformPassKind::DeadMediaBranchRemoval) => {

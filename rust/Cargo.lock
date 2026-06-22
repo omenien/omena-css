@@ -2548,6 +2548,7 @@ dependencies = [
  "omena-incremental",
  "omena-lawvere",
  "omena-parser",
+ "omena-scss-eval",
  "omena-smt",
  "omena-syntax",
  "omena-transform-cst",

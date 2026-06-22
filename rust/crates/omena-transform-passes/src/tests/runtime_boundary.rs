@@ -58,6 +58,7 @@ fn registry_covers_full_transform_catalog() {
             "supports-static-eval",
             "media-static-eval",
             "container-static-eval",
+            "native-css-static-eval",
             "dead-media-branch-removal",
             "dead-supports-branch-removal",
             "import-inline",

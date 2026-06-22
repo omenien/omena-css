@@ -52,6 +52,7 @@ pub enum TransformPassKind {
     SupportsStaticEval,
     MediaStaticEval,
     ContainerStaticEval,
+    NativeCssStaticEval,
     CalcReduction,
     ImportInline,
     ScssModuleEvaluate,
@@ -70,7 +71,7 @@ pub enum TransformPassKind {
     PrintCss,
 }
 
-pub const TRANSFORM_PASS_CATALOG_LEN: usize = 43;
+pub const TRANSFORM_PASS_CATALOG_LEN: usize = 44;
 
 pub const fn all_transform_pass_kinds() -> [TransformPassKind; TRANSFORM_PASS_CATALOG_LEN] {
     [
@@ -101,6 +102,7 @@ pub const fn all_transform_pass_kinds() -> [TransformPassKind; TRANSFORM_PASS_CA
         TransformPassKind::SupportsStaticEval,
         TransformPassKind::MediaStaticEval,
         TransformPassKind::ContainerStaticEval,
+        TransformPassKind::NativeCssStaticEval,
         TransformPassKind::CalcReduction,
         TransformPassKind::ImportInline,
         TransformPassKind::ScssModuleEvaluate,
@@ -166,6 +168,7 @@ impl TransformPassKind {
             Self::PrintCss => 41,
             Self::RelativeColorLowering => 42,
             Self::ContainerStaticEval => 43,
+            Self::NativeCssStaticEval => 44,
         }
     }
 
@@ -202,6 +205,7 @@ impl TransformPassKind {
             Self::SupportsStaticEval => "@supports static eval",
             Self::MediaStaticEval => "@media static eval",
             Self::ContainerStaticEval => "@container static eval",
+            Self::NativeCssStaticEval => "native CSS static eval",
             Self::CalcReduction => "calc() reduction",
             Self::ImportInline => "@import inline",
             Self::ScssModuleEvaluate => "SCSS module evaluate",
@@ -250,6 +254,7 @@ impl TransformPassKind {
             Self::SupportsStaticEval => "supports-static-eval",
             Self::MediaStaticEval => "media-static-eval",
             Self::ContainerStaticEval => "container-static-eval",
+            Self::NativeCssStaticEval => "native-css-static-eval",
             Self::CalcReduction => "calc-reduction",
             Self::ImportInline => "import-inline",
             Self::ScssModuleEvaluate => "scss-module-evaluate",
@@ -335,7 +340,8 @@ impl TransformPassKind {
             | Self::ColorFunctionLowering
             | Self::RelativeColorLowering
             | Self::LogicalToPhysical
-            | Self::NestingUnwrap => TransformPassReadModel::TargetData,
+            | Self::NestingUnwrap
+            | Self::NativeCssStaticEval => TransformPassReadModel::TargetData,
             Self::ShorthandCombining
             | Self::RuleDeduplication
             | Self::RuleMerging
@@ -934,6 +940,9 @@ pub const fn cascade_safe_obligation(kind: TransformPassKind) -> &'static str {
         TransformPassKind::ContainerStaticEval => {
             "may remove @container branches only when the size condition is provably unsatisfiable regardless of container context"
         }
+        TransformPassKind::NativeCssStaticEval => {
+            "may fold native CSS if() and function calls only when the evaluator proves a concrete static value and preserves runtime-dependent constructs verbatim"
+        }
         TransformPassKind::CalcReduction => {
             "may reduce only syntax-equivalent or computed-value-equivalent calc expressions"
         }
@@ -1215,6 +1224,21 @@ pub fn default_transform_dag_edges() -> Vec<TransformDagEdgeV0> {
             reason: "var() references inside @media preludes must resolve before static media normalization",
         },
         TransformDagEdgeV0 {
+            from: "value-resolution",
+            to: "native-css-static-eval",
+            reason: "@value references inside native CSS conditional values and function arguments must resolve before static native evaluation",
+        },
+        TransformDagEdgeV0 {
+            from: "custom-property-static-resolve",
+            to: "native-css-static-eval",
+            reason: "var() references inside native CSS conditional values and function arguments must resolve before static native evaluation",
+        },
+        TransformDagEdgeV0 {
+            from: "native-css-static-eval",
+            to: "calc-reduction",
+            reason: "native CSS static evaluation can expose calc() values that should reduce after folding",
+        },
+        TransformDagEdgeV0 {
             from: "tree-shake-class",
             to: "rule-deduplication",
             reason: "tree shaking must run before rule deduplication can hide dead rules",
@@ -1315,6 +1339,11 @@ pub fn default_transform_dag_edges() -> Vec<TransformDagEdgeV0> {
             reason: "prefixing runs after target branch evaluation produces final declarations",
         },
         TransformDagEdgeV0 {
+            from: "native-css-static-eval",
+            to: "vendor-prefixing",
+            reason: "prefixing runs after native CSS static evaluation produces final declarations",
+        },
+        TransformDagEdgeV0 {
             from: "vendor-prefixing",
             to: "stale-prefix-removal",
             reason: "stale-prefix removal must inspect the final vendor-prefix declaration set",
@@ -1355,7 +1384,7 @@ mod tests {
         assert_eq!(boundary.pass_catalog_count, TRANSFORM_PASS_CATALOG_LEN);
         assert!(boundary.full_pass_catalog_covered);
         assert_eq!(boundary.semantic_aware_pass_count, 14);
-        assert_eq!(boundary.commodity_pass_count, 28);
+        assert_eq!(boundary.commodity_pass_count, 29);
         assert_eq!(boundary.emission_pass_count, 1);
         assert!(boundary.all_passes_declare_cascade_obligation);
         assert!(boundary.all_passes_have_compile_time_cascade_witness);
@@ -1375,6 +1404,13 @@ mod tests {
                 && contract.cascade_safety_witness.pass_id == "tree-shake-class"
                 && contract.cascade_safety_witness.enforced_at
                     == "compile-time-exhaustive-pass-catalog"
+        }));
+        assert!(boundary.pass_contracts.iter().any(|contract| {
+            contract.kind == TransformPassKind::NativeCssStaticEval
+                && contract.label == "native-css-static-eval"
+                && contract.layer == TransformLayer::Commodity
+                && contract.read_model == super::TransformPassReadModel::TargetData
+                && contract.cascade_safety_witness.pass_id == "native-css-static-eval"
         }));
         assert!(boundary.dag_edges.iter().any(|edge| {
             edge.from == "composes-resolution" && edge.to == "css-modules-class-hashing"

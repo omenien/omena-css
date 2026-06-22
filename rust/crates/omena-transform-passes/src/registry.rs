@@ -3,6 +3,7 @@ use omena_cascade::{
     summarize_custom_property_least_fixed_point,
 };
 use omena_parser::StyleDialect;
+use omena_scss_eval::summarize_native_css_static_edit_plan;
 
 use crate::domains::{
     calc::reduce_css_calc_with_lexer,
@@ -196,6 +197,24 @@ pub(crate) fn evaluate_static_container_rules(
     dialect: StyleDialect,
 ) -> (String, usize) {
     evaluate_static_container_rules_with_lexer(source, dialect)
+}
+
+pub(crate) fn evaluate_native_css_static_values(
+    source: &str,
+    dialect: StyleDialect,
+) -> (String, usize) {
+    if dialect != StyleDialect::Css {
+        return (source.to_string(), 0);
+    }
+    let Some(plan) = summarize_native_css_static_edit_plan(source, dialect) else {
+        return (source.to_string(), 0);
+    };
+    let mutation_count = if plan.output_changed {
+        plan.edit_count
+    } else {
+        0
+    };
+    (plan.edited_css, mutation_count)
 }
 
 pub(crate) fn evaluate_dead_media_branch_rules(
