@@ -39,7 +39,9 @@ pub use control_flow::{
 pub use native_css::{
     OmenaScssEvalNativeCssFunctionParameterV0, OmenaScssEvalNativeCssFunctionResultV0,
     OmenaScssEvalNativeCssFunctionSurfaceV0, OmenaScssEvalNativeCssFunctionV0,
-    summarize_native_css_function_surface,
+    OmenaScssEvalNativeCssIfFunctionBranchV0, OmenaScssEvalNativeCssIfFunctionDecisionSurfaceV0,
+    OmenaScssEvalNativeCssIfFunctionDecisionV0, summarize_native_css_function_surface,
+    summarize_native_css_if_function_decisions,
 };
 pub use static_stylesheet::{
     OmenaScssEvalResolvedReplacementV0, OmenaScssEvalStaticStylesheetEvaluationV0,

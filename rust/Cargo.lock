@@ -2432,6 +2432,7 @@ name = "omena-scss-eval"
 version = "0.2.1"
 dependencies = [
  "omena-abstract-value",
+ "omena-cascade",
  "omena-parser",
  "omena-syntax",
  "omena-transform-cst",
