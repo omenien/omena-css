@@ -174,9 +174,47 @@ assert.match(
   "omena-query README must describe CSS Modules closure/cycle support",
 );
 
+// OmenaQuerySassModuleCrossFileResolutionV0 derives Serialize and is emitted to the engine host
+// (style-semantic-graph batch -> JSON stdout). Freeze its serialized field set so an accidental
+// new sub-field that silently widens the public boundary fails CI rather than leaking.
+const resolutionStructBody = /pub struct OmenaQuerySassModuleCrossFileResolutionV0 \{([\s\S]*?)\n\}/
+  .exec(typeSource)?.[1];
+assert.ok(
+  resolutionStructBody,
+  "OmenaQuerySassModuleCrossFileResolutionV0 must be defined in omena-query types",
+);
+const resolutionFields = [...resolutionStructBody.matchAll(/pub (\w+):/g)].map((match) => match[1]);
+assert.deepEqual(
+  resolutionFields,
+  [
+    "schema_version",
+    "product",
+    "status",
+    "resolution_scope",
+    "style_count",
+    "module_edge_count",
+    "resolved_module_edge_count",
+    "unresolved_module_edge_count",
+    "external_module_edge_count",
+    "symlink_chain_edge_count",
+    "symlink_chain_link_count",
+    "configured_module_instance_count",
+    "edges",
+    "graph_closure_edge_count",
+    "cycle_count",
+    "visibility_filter_count",
+    "graph_closure_edges",
+    "cycles",
+    "capabilities",
+    "next_priorities",
+  ],
+  "OmenaQuerySassModuleCrossFileResolutionV0 serialized field set changed — this type crosses the engine-host boundary; update this allowlist (and the host mirror) deliberately.",
+);
+
 process.stdout.write(
   [
     "validated omena-query CSS Modules resolution:",
+    "crossFileResolutionFields=20",
     "closure=composes,value,icss",
     "cycles=composes,value,icss,sass",
     "scc=exact-tarjan",
