@@ -148,6 +148,56 @@ pub struct ParseReuseCache {
     node_cache: NodeCache<'static>,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct SyntaxNodeId {
+    value: String,
+}
+
+impl SyntaxNodeId {
+    pub fn as_str(&self) -> &str {
+        self.value.as_str()
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct HirId {
+    value: String,
+}
+
+impl HirId {
+    pub fn as_str(&self) -> &str {
+        self.value.as_str()
+    }
+}
+
+pub fn syntax_node_id(node: &SyntaxNode<SyntaxKind>) -> SyntaxNodeId {
+    let path = syntax_node_child_path(node)
+        .into_iter()
+        .map(|index| index.to_string())
+        .collect::<Vec<_>>()
+        .join(".");
+    let text = node
+        .try_resolved()
+        .map(|resolved| resolved.text().to_string())
+        .unwrap_or_default();
+    let text_hash = stable_parser_identity_hash(text.as_bytes());
+    SyntaxNodeId {
+        value: format!(
+            "syntax:v0:kind={}:path={}:len={}:text={text_hash:016x}",
+            node.kind().as_u32(),
+            path,
+            u32::from(node.text_range().len())
+        ),
+    }
+}
+
+pub fn hir_id_for_syntax_node(node: &SyntaxNode<SyntaxKind>) -> HirId {
+    let syntax_id = syntax_node_id(node);
+    HirId {
+        value: format!("hir:v0:{}", syntax_id.as_str()),
+    }
+}
+
 pub fn parse(text: &str, dialect: StyleDialect) -> ParseResult {
     parse_entry_point(text, dialect, ParseEntryPoint::Stylesheet)
 }
@@ -259,6 +309,31 @@ pub(crate) fn tokenize<'text>(
     let mut tokenizer = Tokenizer::new(text, extension);
     tokenizer.tokenize();
     (tokenizer.tokens, tokenizer.errors)
+}
+
+fn syntax_node_child_path(node: &SyntaxNode<SyntaxKind>) -> Vec<usize> {
+    let mut ancestors = node.ancestors().collect::<Vec<_>>();
+    ancestors.reverse();
+    ancestors
+        .windows(2)
+        .map(|pair| {
+            let parent = pair[0];
+            let child = pair[1];
+            parent
+                .children()
+                .position(|candidate| candidate == child)
+                .unwrap_or(0)
+        })
+        .collect()
+}
+
+fn stable_parser_identity_hash(bytes: &[u8]) -> u64 {
+    const FNV_OFFSET: u64 = 0xcbf29ce484222325;
+    const FNV_PRIME: u64 = 0x00000100000001b3;
+
+    bytes.iter().fold(FNV_OFFSET, |hash, byte| {
+        (hash ^ u64::from(*byte)).wrapping_mul(FNV_PRIME)
+    })
 }
 
 pub(crate) struct Parser<'text> {

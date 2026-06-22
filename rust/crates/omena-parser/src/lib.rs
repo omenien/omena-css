@@ -60,10 +60,11 @@ pub use language::StyleLanguage;
 pub use lex::{LexResult, LexedToken};
 pub(crate) use lex::{Token, Tokenizer, public_token_text};
 pub use parse::{
-    ParseEntryPoint, ParseError, ParseErrorCode, ParseResult, ParseReuseCache, collect_style_facts,
-    lex, lex_with_extension, parse, parse_entry_point, parse_entry_point_with_extension,
-    parse_entry_point_with_extension_and_reuse_cache, parse_entry_point_with_reuse_cache,
-    parse_with_extension, parse_with_reuse_cache,
+    HirId, ParseEntryPoint, ParseError, ParseErrorCode, ParseResult, ParseReuseCache, SyntaxNodeId,
+    collect_style_facts, hir_id_for_syntax_node, lex, lex_with_extension, parse, parse_entry_point,
+    parse_entry_point_with_extension, parse_entry_point_with_extension_and_reuse_cache,
+    parse_entry_point_with_reuse_cache, parse_with_extension, parse_with_reuse_cache,
+    syntax_node_id,
 };
 pub(crate) use parse::{Parser, tokenize};
 pub use public_product::{

@@ -4602,6 +4602,41 @@ fn reusable_parse_cache_shares_exact_green_nodes_after_sparse_edit() {
     );
 }
 
+#[test]
+fn syntax_and_hir_ids_stay_stable_for_unchanged_region_and_change_for_edit() {
+    let first = parse(
+        ".alpha { color: red; } .beta { color: blue; }",
+        StyleDialect::Css,
+    );
+    let second = parse(
+        ".alpha { color: green; } .beta { color: blue; }",
+        StyleDialect::Css,
+    );
+    let first_syntax = first.syntax();
+    let second_syntax = second.syntax();
+    let first_alpha = rule_node_containing_for_test(&first_syntax, ".alpha");
+    let second_alpha = rule_node_containing_for_test(&second_syntax, ".alpha");
+    let first_beta = rule_node_containing_for_test(&first_syntax, ".beta");
+    let second_beta = rule_node_containing_for_test(&second_syntax, ".beta");
+
+    let first_beta_id = syntax_node_id(first_beta);
+    let second_beta_id = syntax_node_id(second_beta);
+    assert_eq!(
+        first_beta_id.as_str().as_bytes(),
+        second_beta_id.as_str().as_bytes()
+    );
+    assert_eq!(
+        hir_id_for_syntax_node(first_beta).as_str().as_bytes(),
+        hir_id_for_syntax_node(second_beta).as_str().as_bytes()
+    );
+
+    assert_ne!(syntax_node_id(first_alpha), syntax_node_id(second_alpha));
+    assert_ne!(
+        hir_id_for_syntax_node(first_alpha),
+        hir_id_for_syntax_node(second_alpha)
+    );
+}
+
 fn assert_lex_ranges_are_char_boundaries(source: &str, tokens: &[LexedToken]) {
     for token in tokens {
         let start = u32::from(token.range.start()) as usize;
@@ -4675,6 +4710,21 @@ fn shared_green_node_storage_count_for_test(first: &GreenNode, second: &GreenNod
         }
     }
     shared
+}
+
+fn rule_node_containing_for_test<'a>(
+    root: &'a SyntaxNode<SyntaxKind>,
+    needle: &str,
+) -> &'a SyntaxNode<SyntaxKind> {
+    root.descendants()
+        .find(|node| {
+            node.kind() == SyntaxKind::Rule
+                && node
+                    .try_resolved()
+                    .map(|resolved| resolved.text().to_string().contains(needle))
+                    .unwrap_or(false)
+        })
+        .unwrap_or_else(|| panic!("expected rule containing {needle:?}"))
 }
 
 fn node_kinds(node: &SyntaxNode<SyntaxKind>) -> Vec<SyntaxKind> {
