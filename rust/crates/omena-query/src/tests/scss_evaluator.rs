@@ -5508,6 +5508,16 @@ fn exposes_native_css_evaluator_surfaces_through_query_boundary() {
     assert_eq!(summary.mode, "oracleOnlyPruneButKeep");
     assert_eq!(summary.dialect, "css");
     assert!(summary.supported_dialect);
+    assert_eq!(
+        summary.native_static_eval_spec_snapshot,
+        "css-values-5-if-css-mixins-1-function-ed-2026-06-22"
+    );
+    assert_eq!(
+        summary.native_static_eval_opt_in_policy,
+        "explicit-pass-id-required-default-consumer-build-excludes"
+    );
+    assert_eq!(summary.native_static_eval_dialect_restriction, "css-only");
+    assert!(summary.native_static_eval_explicit_opt_in_required);
     assert!(summary.native_function_surface_available);
     assert!(summary.if_function_decision_available);
     assert_eq!(summary.native_function_count, 1);

@@ -871,5 +871,13 @@ fn lists_transform_pass_summaries_from_query() {
             .iter()
             .any(|pass| pass.id == "native-css-static-eval")
     );
+    assert!(passes.iter().any(|pass| {
+        pass.id == "native-css-static-eval"
+            && pass.explicit_opt_in_required
+            && pass.dialect_restriction == Some("css-only")
+            && pass.spec_snapshot == Some("css-values-5-if-css-mixins-1-function-ed-2026-06-22")
+            && pass.opt_in_policy
+                == Some("explicit-pass-id-required-default-consumer-build-excludes")
+    }));
     assert!(passes.iter().any(|pass| pass.id == "print-css"));
 }

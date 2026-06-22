@@ -1387,6 +1387,10 @@ pub fn list_omena_query_transform_pass_summaries() -> Vec<OmenaQueryTransformPas
             title: kind.title(),
             reads_semantic_graph: kind.reads_semantic_graph(),
             reads_cascade_model: kind.reads_cascade_model(),
+            explicit_opt_in_required: kind.explicit_opt_in_required(),
+            dialect_restriction: kind.dialect_restriction(),
+            spec_snapshot: kind.spec_snapshot(),
+            opt_in_policy: kind.opt_in_policy(),
         })
         .collect()
 }

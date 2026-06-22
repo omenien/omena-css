@@ -674,6 +674,10 @@ pub struct OmenaQueryTransformPassSummaryV0 {
     pub title: &'static str,
     pub reads_semantic_graph: bool,
     pub reads_cascade_model: bool,
+    pub explicit_opt_in_required: bool,
+    pub dialect_restriction: Option<&'static str>,
+    pub spec_snapshot: Option<&'static str>,
+    pub opt_in_policy: Option<&'static str>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize)]

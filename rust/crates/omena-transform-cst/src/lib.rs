@@ -72,6 +72,11 @@ pub enum TransformPassKind {
 }
 
 pub const TRANSFORM_PASS_CATALOG_LEN: usize = 44;
+pub const NATIVE_CSS_STATIC_EVAL_SPEC_SNAPSHOT_V0: &str =
+    "css-values-5-if-css-mixins-1-function-ed-2026-06-22";
+pub const NATIVE_CSS_STATIC_EVAL_OPT_IN_POLICY_V0: &str =
+    "explicit-pass-id-required-default-consumer-build-excludes";
+pub const NATIVE_CSS_STATIC_EVAL_DIALECT_RESTRICTION_V0: &str = "css-only";
 
 pub const fn all_transform_pass_kinds() -> [TransformPassKind; TRANSFORM_PASS_CATALOG_LEN] {
     [
@@ -366,6 +371,31 @@ impl TransformPassKind {
             _ => TransformPassReadModel::SyntaxOnly,
         }
     }
+
+    pub const fn explicit_opt_in_required(self) -> bool {
+        matches!(self, Self::NativeCssStaticEval)
+    }
+
+    pub const fn dialect_restriction(self) -> Option<&'static str> {
+        match self {
+            Self::NativeCssStaticEval => Some(NATIVE_CSS_STATIC_EVAL_DIALECT_RESTRICTION_V0),
+            _ => None,
+        }
+    }
+
+    pub const fn spec_snapshot(self) -> Option<&'static str> {
+        match self {
+            Self::NativeCssStaticEval => Some(NATIVE_CSS_STATIC_EVAL_SPEC_SNAPSHOT_V0),
+            _ => None,
+        }
+    }
+
+    pub const fn opt_in_policy(self) -> Option<&'static str> {
+        match self {
+            Self::NativeCssStaticEval => Some(NATIVE_CSS_STATIC_EVAL_OPT_IN_POLICY_V0),
+            _ => None,
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
@@ -395,6 +425,10 @@ pub struct TransformPassContractV0 {
     pub cascade_safe: bool,
     pub cascade_safety_witness: CascadeSafetyWitnessV0,
     pub cascade_safe_obligation: &'static str,
+    pub explicit_opt_in_required: bool,
+    pub dialect_restriction: Option<&'static str>,
+    pub spec_snapshot: Option<&'static str>,
+    pub opt_in_policy: Option<&'static str>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
@@ -850,6 +884,10 @@ fn transform_pass_contract(kind: TransformPassKind) -> TransformPassContractV0 {
         cascade_safe: true,
         cascade_safety_witness,
         cascade_safe_obligation: cascade_safety_witness.obligation,
+        explicit_opt_in_required: kind.explicit_opt_in_required(),
+        dialect_restriction: kind.dialect_restriction(),
+        spec_snapshot: kind.spec_snapshot(),
+        opt_in_policy: kind.opt_in_policy(),
     }
 }
 
@@ -1369,9 +1407,10 @@ pub fn default_transform_dag_edges() -> Vec<TransformDagEdgeV0> {
 #[cfg(test)]
 mod tests {
     use super::{
-        STABLE_TRANSFORM_IR_NODE_IDENTITY_POLICY_V0, StableTransformIrNodeKindV0, StyleDialect,
-        TRANSFORM_PASS_CATALOG_LEN, TransformLayer, TransformPassKind,
-        build_stable_transform_ir_from_source, build_transform_cst_artifact,
+        NATIVE_CSS_STATIC_EVAL_DIALECT_RESTRICTION_V0, NATIVE_CSS_STATIC_EVAL_OPT_IN_POLICY_V0,
+        NATIVE_CSS_STATIC_EVAL_SPEC_SNAPSHOT_V0, STABLE_TRANSFORM_IR_NODE_IDENTITY_POLICY_V0,
+        StableTransformIrNodeKindV0, StyleDialect, TRANSFORM_PASS_CATALOG_LEN, TransformLayer,
+        TransformPassKind, build_stable_transform_ir_from_source, build_transform_cst_artifact,
         summarize_omena_transform_cst_boundary,
     };
 
@@ -1411,6 +1450,11 @@ mod tests {
                 && contract.layer == TransformLayer::Commodity
                 && contract.read_model == super::TransformPassReadModel::TargetData
                 && contract.cascade_safety_witness.pass_id == "native-css-static-eval"
+                && contract.explicit_opt_in_required
+                && contract.dialect_restriction
+                    == Some(NATIVE_CSS_STATIC_EVAL_DIALECT_RESTRICTION_V0)
+                && contract.spec_snapshot == Some(NATIVE_CSS_STATIC_EVAL_SPEC_SNAPSHOT_V0)
+                && contract.opt_in_policy == Some(NATIVE_CSS_STATIC_EVAL_OPT_IN_POLICY_V0)
         }));
         assert!(boundary.dag_edges.iter().any(|edge| {
             edge.from == "composes-resolution" && edge.to == "css-modules-class-hashing"

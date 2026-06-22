@@ -5,6 +5,10 @@ interface NativeCssEvaluatorSummaryV0 {
   readonly product: string;
   readonly dialect: string;
   readonly supportedDialect: boolean;
+  readonly nativeStaticEvalSpecSnapshot: string;
+  readonly nativeStaticEvalOptInPolicy: string;
+  readonly nativeStaticEvalDialectRestriction: string;
+  readonly nativeStaticEvalExplicitOptInRequired: boolean;
   readonly nativeFunctionCallFoldableCount: number;
   readonly nativeFunctionCallStructuralErrorCount: number;
   readonly nativeStaticEditCount: number;
@@ -101,6 +105,16 @@ const nativeEvaluator = runRunner<NativeCssEvaluatorSummaryV0>("input-native-css
 assert.equal(nativeEvaluator.product, "omena-query.native-css-evaluator");
 assert.equal(nativeEvaluator.dialect, "css");
 assert.equal(nativeEvaluator.supportedDialect, true);
+assert.equal(
+  nativeEvaluator.nativeStaticEvalSpecSnapshot,
+  "css-values-5-if-css-mixins-1-function-ed-2026-06-22",
+);
+assert.equal(
+  nativeEvaluator.nativeStaticEvalOptInPolicy,
+  "explicit-pass-id-required-default-consumer-build-excludes",
+);
+assert.equal(nativeEvaluator.nativeStaticEvalDialectRestriction, "css-only");
+assert.equal(nativeEvaluator.nativeStaticEvalExplicitOptInRequired, true);
 assert.equal(nativeEvaluator.nativeFunctionCallFoldableCount, 2);
 assert.equal(nativeEvaluator.nativeFunctionCallStructuralErrorCount, 0);
 assert.equal(nativeEvaluator.ifFunctionFoldableCount, 2);

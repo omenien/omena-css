@@ -1,3 +1,7 @@
+use omena_query_transform_runner::{
+    NATIVE_CSS_STATIC_EVAL_DIALECT_RESTRICTION_V0, NATIVE_CSS_STATIC_EVAL_OPT_IN_POLICY_V0,
+    NATIVE_CSS_STATIC_EVAL_SPEC_SNAPSHOT_V0,
+};
 use omena_scss_eval::{
     OmenaScssEvalControlFlowOracleCorpusReportV0, OmenaScssEvalControlFlowWideningWitnessV0,
     OmenaScssEvalStaticStylesheetEvaluationV0, OmenaScssEvalStaticStylesheetOracleCorpusReportV0,
@@ -102,6 +106,10 @@ pub struct OmenaQueryNativeCssEvaluatorSummaryV0 {
     pub mode: &'static str,
     pub dialect: &'static str,
     pub supported_dialect: bool,
+    pub native_static_eval_spec_snapshot: &'static str,
+    pub native_static_eval_opt_in_policy: &'static str,
+    pub native_static_eval_dialect_restriction: &'static str,
+    pub native_static_eval_explicit_opt_in_required: bool,
     pub native_function_surface_available: bool,
     pub native_function_call_evaluation_available: bool,
     pub native_static_edit_plan_available: bool,
@@ -590,6 +598,10 @@ pub fn summarize_omena_query_native_css_evaluator_from_source(
         mode: "oracleOnlyPruneButKeep",
         dialect: omena_query_boundary_style_dialect_label(dialect),
         supported_dialect,
+        native_static_eval_spec_snapshot: NATIVE_CSS_STATIC_EVAL_SPEC_SNAPSHOT_V0,
+        native_static_eval_opt_in_policy: NATIVE_CSS_STATIC_EVAL_OPT_IN_POLICY_V0,
+        native_static_eval_dialect_restriction: NATIVE_CSS_STATIC_EVAL_DIALECT_RESTRICTION_V0,
+        native_static_eval_explicit_opt_in_required: true,
         native_function_surface_available: native_function_surface.is_some(),
         native_function_call_evaluation_available: native_function_call_evaluations.is_some(),
         native_static_edit_plan_available: native_static_edit_plan.is_some(),

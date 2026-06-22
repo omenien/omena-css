@@ -12,7 +12,10 @@ pub use omena_bundler::{
     TransformBundleSourceSummaryV0, rewrite_omena_transform_bundle_asset_urls_in_source,
     summarize_omena_transform_bundle_from_source,
 };
-pub use omena_transform_cst::{TransformPassKind, all_transform_pass_kinds};
+pub use omena_transform_cst::{
+    NATIVE_CSS_STATIC_EVAL_DIALECT_RESTRICTION_V0, NATIVE_CSS_STATIC_EVAL_OPT_IN_POLICY_V0,
+    NATIVE_CSS_STATIC_EVAL_SPEC_SNAPSHOT_V0, TransformPassKind, all_transform_pass_kinds,
+};
 pub use omena_transform_egg::{
     EggRewriteSourceWitnessV0, TransformEggPlanV0, execute_egg_rewrite_witnesses_for_css_source,
     plan_egg_rewrite_passes_for_source,
