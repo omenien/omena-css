@@ -15,8 +15,10 @@ use omena_syntax::StyleDialect;
 
 use crate::{DialectExtension, ParseResult, Parser, Token, tokenize};
 
-pub(crate) use animations::collect_animation_facts_from_tokens;
 pub use animations::{ParsedAnimationFact, ParsedAnimationFactKind};
+pub(crate) use animations::{
+    collect_animation_facts_from_cst, collect_animation_facts_from_tokens,
+};
 pub use at_rules::ParsedAtRuleFact;
 pub(crate) use at_rules::{collect_at_rule_facts_from_cst, collect_at_rule_facts_from_tokens};
 pub use css_modules::{
@@ -196,6 +198,8 @@ pub fn facts_from_cst(text: &str, parsed: &ParseResult) -> ParsedStyleFacts {
     let mut facts = style_facts_from_tokens(text, &tokens, parsed.dialect(), parsed.errors().len());
     facts.variables = collect_variable_facts_from_cst(text, parsed);
     facts.variable_count = facts.variables.len();
+    facts.animations = collect_animation_facts_from_cst(text, parsed);
+    facts.animation_count = facts.animations.len();
     facts.at_rules = collect_at_rule_facts_from_cst(text, parsed);
     facts.at_rule_count = facts.at_rules.len();
     facts

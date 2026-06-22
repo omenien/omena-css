@@ -7,7 +7,9 @@ use cstree::text::TextRange;
 use omena_syntax::SyntaxKind;
 use std::collections::BTreeSet;
 
-use crate::{Token, next_non_trivia_token_index_until};
+use crate::{ParseResult, Token, next_non_trivia_token_index_until};
+
+use super::tokens_from_cst;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ParsedAnimationFact {
@@ -25,6 +27,18 @@ pub enum ParsedAnimationFactKind {
 pub(crate) fn collect_animation_facts_from_tokens(
     tokens: &[Token<'_>],
 ) -> Vec<ParsedAnimationFact> {
+    animation_facts_from_token_view(tokens)
+}
+
+pub(crate) fn collect_animation_facts_from_cst(
+    text: &str,
+    parsed: &ParseResult,
+) -> Vec<ParsedAnimationFact> {
+    let tokens = tokens_from_cst(text, parsed);
+    animation_facts_from_token_view(&tokens)
+}
+
+fn animation_facts_from_token_view(tokens: &[Token<'_>]) -> Vec<ParsedAnimationFact> {
     let mut animations = Vec::new();
     let mut seen = BTreeSet::new();
     for (index, token) in tokens.iter().enumerate() {
