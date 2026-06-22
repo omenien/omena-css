@@ -5520,6 +5520,9 @@ fn exposes_native_css_evaluator_surfaces_through_query_boundary() {
     assert_eq!(summary.native_function_call_preserved_count, 0);
     assert_eq!(summary.native_function_call_structural_error_count, 0);
     assert_eq!(summary.native_function_call_missing_result_count, 0);
+    assert!(summary.native_static_edit_plan_available);
+    assert_eq!(summary.native_static_edit_count, 2);
+    assert!(summary.native_static_edit_output_changed);
     assert_eq!(summary.if_function_count, 2);
     assert_eq!(summary.if_function_foldable_count, 1);
     assert_eq!(summary.if_function_preserved_count, 1);
@@ -5537,6 +5540,11 @@ fn exposes_native_css_evaluator_surfaces_through_query_boundary() {
     );
     assert!(
         summary
+            .ready_surfaces
+            .contains(&"nativeCssStaticEditPlanSurface")
+    );
+    assert!(
+        summary
             .native_function_surface
             .as_ref()
             .is_some_and(|surface| surface.functions[0].name == "--gap")
@@ -5548,6 +5556,16 @@ fn exposes_native_css_evaluator_surfaces_through_query_boundary() {
             .is_some_and(|surface| {
                 surface.calls[0].decision == "foldToStaticValue"
                     && surface.calls[0].evaluated_value.as_deref() == Some("2rem")
+            })
+    );
+    assert!(
+        summary
+            .native_static_edit_plan
+            .as_ref()
+            .is_some_and(|plan| {
+                plan.edited_css.contains("gap: 2rem")
+                    && plan.edited_css.contains("display: grid")
+                    && plan.edited_css.contains("margin: if(media")
             })
     );
     assert!(

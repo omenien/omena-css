@@ -126,6 +126,7 @@ pub use omena_scss_eval::{
     OmenaScssEvalNativeCssFunctionCallEvaluationSurfaceV0 as OmenaQueryScssEvalNativeCssFunctionCallEvaluationSurfaceV0,
     OmenaScssEvalNativeCssFunctionSurfaceV0 as OmenaQueryScssEvalNativeCssFunctionSurfaceV0,
     OmenaScssEvalNativeCssIfFunctionDecisionSurfaceV0 as OmenaQueryScssEvalNativeCssIfFunctionDecisionSurfaceV0,
+    OmenaScssEvalNativeCssStaticEditPlanV0 as OmenaQueryScssEvalNativeCssStaticEditPlanV0,
 };
 use omena_semantic::StyleContextIndexV0;
 use serde::{Deserialize, Serialize};

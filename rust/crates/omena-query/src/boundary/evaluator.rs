@@ -4,9 +4,10 @@ use omena_scss_eval::{
     OmenaScssEvalStaticValueResolutionReportV0, analyze_scss_control_flow_values,
     derive_static_stylesheet_module_evaluation, summarize_native_css_function_call_evaluations,
     summarize_native_css_function_surface, summarize_native_css_if_function_decisions,
-    summarize_scss_call_return_ir, summarize_scss_control_flow_ir,
-    summarize_scss_control_flow_oracle_corpus, summarize_scss_control_flow_prune_reachability,
-    summarize_static_stylesheet_oracle_corpus, summarize_static_stylesheet_value_resolution,
+    summarize_native_css_static_edit_plan, summarize_scss_call_return_ir,
+    summarize_scss_control_flow_ir, summarize_scss_control_flow_oracle_corpus,
+    summarize_scss_control_flow_prune_reachability, summarize_static_stylesheet_oracle_corpus,
+    summarize_static_stylesheet_value_resolution,
 };
 use serde::Serialize;
 
@@ -17,6 +18,7 @@ use crate::{
     OmenaQueryScssEvalNativeCssFunctionCallEvaluationSurfaceV0,
     OmenaQueryScssEvalNativeCssFunctionSurfaceV0,
     OmenaQueryScssEvalNativeCssIfFunctionDecisionSurfaceV0,
+    OmenaQueryScssEvalNativeCssStaticEditPlanV0,
 };
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -102,6 +104,7 @@ pub struct OmenaQueryNativeCssEvaluatorSummaryV0 {
     pub supported_dialect: bool,
     pub native_function_surface_available: bool,
     pub native_function_call_evaluation_available: bool,
+    pub native_static_edit_plan_available: bool,
     pub if_function_decision_available: bool,
     pub native_function_count: usize,
     pub native_function_parameter_count: usize,
@@ -113,6 +116,8 @@ pub struct OmenaQueryNativeCssEvaluatorSummaryV0 {
     pub native_function_call_structural_error_count: usize,
     pub native_function_call_runtime_dependent_count: usize,
     pub native_function_call_missing_result_count: usize,
+    pub native_static_edit_count: usize,
+    pub native_static_edit_output_changed: bool,
     pub if_function_count: usize,
     pub if_function_foldable_count: usize,
     pub if_function_preserved_count: usize,
@@ -122,6 +127,7 @@ pub struct OmenaQueryNativeCssEvaluatorSummaryV0 {
     pub native_function_surface: Option<OmenaQueryScssEvalNativeCssFunctionSurfaceV0>,
     pub native_function_call_evaluations:
         Option<OmenaQueryScssEvalNativeCssFunctionCallEvaluationSurfaceV0>,
+    pub native_static_edit_plan: Option<OmenaQueryScssEvalNativeCssStaticEditPlanV0>,
     pub if_function_decisions: Option<OmenaQueryScssEvalNativeCssIfFunctionDecisionSurfaceV0>,
 }
 
@@ -574,6 +580,7 @@ pub fn summarize_omena_query_native_css_evaluator_from_source(
     let native_function_surface = summarize_native_css_function_surface(source, dialect);
     let native_function_call_evaluations =
         summarize_native_css_function_call_evaluations(source, dialect);
+    let native_static_edit_plan = summarize_native_css_static_edit_plan(source, dialect);
     let if_function_decisions = summarize_native_css_if_function_decisions(source, dialect);
     let supported_dialect = dialect == OmenaParserStyleDialect::Css;
 
@@ -585,6 +592,7 @@ pub fn summarize_omena_query_native_css_evaluator_from_source(
         supported_dialect,
         native_function_surface_available: native_function_surface.is_some(),
         native_function_call_evaluation_available: native_function_call_evaluations.is_some(),
+        native_static_edit_plan_available: native_static_edit_plan.is_some(),
         if_function_decision_available: if_function_decisions.is_some(),
         native_function_count: native_function_surface
             .as_ref()
@@ -616,6 +624,12 @@ pub fn summarize_omena_query_native_css_evaluator_from_source(
         native_function_call_missing_result_count: native_function_call_evaluations
             .as_ref()
             .map_or(0, |summary| summary.missing_result_count),
+        native_static_edit_count: native_static_edit_plan
+            .as_ref()
+            .map_or(0, |summary| summary.edit_count),
+        native_static_edit_output_changed: native_static_edit_plan
+            .as_ref()
+            .is_some_and(|summary| summary.output_changed),
         if_function_count: if_function_decisions
             .as_ref()
             .map_or(0, |summary| summary.function_count),
@@ -634,10 +648,12 @@ pub fn summarize_omena_query_native_css_evaluator_from_source(
         ready_surfaces: vec![
             "nativeCssFunctionSurface",
             "nativeCssFunctionCallEvaluationSurface",
+            "nativeCssStaticEditPlanSurface",
             "nativeCssIfFunctionDecisionSurface",
         ],
         native_function_surface,
         native_function_call_evaluations,
+        native_static_edit_plan,
         if_function_decisions,
     }
 }

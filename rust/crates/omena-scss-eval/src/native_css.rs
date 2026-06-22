@@ -144,6 +144,30 @@ pub struct OmenaScssEvalNativeCssFunctionCallArgumentV0 {
     pub static_value: bool,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct OmenaScssEvalNativeCssStaticEditPlanV0 {
+    pub schema_version: &'static str,
+    pub product: &'static str,
+    pub mode: &'static str,
+    pub dialect: &'static str,
+    pub edit_count: usize,
+    pub if_function_edit_count: usize,
+    pub function_call_edit_count: usize,
+    pub output_changed: bool,
+    pub edited_css: String,
+    pub edits: Vec<OmenaScssEvalNativeCssStaticEditV0>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct OmenaScssEvalNativeCssStaticEditV0 {
+    pub start: usize,
+    pub end: usize,
+    pub replacement: String,
+    pub edit_kind: &'static str,
+}
+
 pub fn summarize_native_css_function_surface(
     source: &str,
     dialect: StyleDialect,
@@ -242,6 +266,49 @@ pub fn summarize_native_css_function_call_evaluations(
     })
 }
 
+pub fn summarize_native_css_static_edit_plan(
+    source: &str,
+    dialect: StyleDialect,
+) -> Option<OmenaScssEvalNativeCssStaticEditPlanV0> {
+    if dialect != StyleDialect::Css {
+        return None;
+    }
+
+    let if_function_decisions = summarize_native_css_if_function_decisions(source, dialect)?;
+    let function_call_evaluations =
+        summarize_native_css_function_call_evaluations(source, dialect)?;
+    let mut edits = Vec::new();
+    edits.extend(native_css_if_function_static_edits(&if_function_decisions));
+    edits.extend(native_css_function_call_static_edits(
+        &function_call_evaluations,
+    ));
+    let edits = normalize_native_css_static_edits(source, edits)?;
+    let edited_css = apply_native_css_static_edits(source, &edits);
+    let edit_count = edits.len();
+    let if_function_edit_count = edits
+        .iter()
+        .filter(|edit| edit.edit_kind == "ifFunctionValueFold")
+        .count();
+    let function_call_edit_count = edits
+        .iter()
+        .filter(|edit| edit.edit_kind == "functionCallValueFold")
+        .count();
+    let output_changed = edited_css != source;
+
+    Some(OmenaScssEvalNativeCssStaticEditPlanV0 {
+        schema_version: "0",
+        product: "omena-scss-eval.native-css-static-edit-plan",
+        mode: "staticSubsetPruneButKeep",
+        dialect: "css",
+        edit_count,
+        if_function_edit_count,
+        function_call_edit_count,
+        output_changed,
+        edited_css,
+        edits,
+    })
+}
+
 pub fn summarize_native_css_if_function_decisions(
     source: &str,
     dialect: StyleDialect,
@@ -311,6 +378,76 @@ fn collect_native_css_if_function_decisions(
                 .flatten()
         })
         .collect()
+}
+
+fn native_css_if_function_static_edits(
+    surface: &OmenaScssEvalNativeCssIfFunctionDecisionSurfaceV0,
+) -> Vec<OmenaScssEvalNativeCssStaticEditV0> {
+    surface
+        .functions
+        .iter()
+        .filter_map(|function| {
+            let replacement = function.selected_value.as_ref()?;
+            (function.decision == "foldToStaticValue").then(|| OmenaScssEvalNativeCssStaticEditV0 {
+                start: function.source_span_start,
+                end: function.source_span_end,
+                replacement: replacement.clone(),
+                edit_kind: "ifFunctionValueFold",
+            })
+        })
+        .collect()
+}
+
+fn native_css_function_call_static_edits(
+    surface: &OmenaScssEvalNativeCssFunctionCallEvaluationSurfaceV0,
+) -> Vec<OmenaScssEvalNativeCssStaticEditV0> {
+    surface
+        .calls
+        .iter()
+        .filter_map(|call| {
+            let replacement = call.evaluated_value.as_ref()?;
+            (call.decision == "foldToStaticValue").then(|| OmenaScssEvalNativeCssStaticEditV0 {
+                start: call.source_span_start,
+                end: call.source_span_end,
+                replacement: replacement.clone(),
+                edit_kind: "functionCallValueFold",
+            })
+        })
+        .collect()
+}
+
+fn normalize_native_css_static_edits(
+    source: &str,
+    mut edits: Vec<OmenaScssEvalNativeCssStaticEditV0>,
+) -> Option<Vec<OmenaScssEvalNativeCssStaticEditV0>> {
+    edits.sort_by_key(|edit| edit.start);
+    edits.dedup_by(|left, right| {
+        left.start == right.start
+            && left.end == right.end
+            && left.replacement == right.replacement
+            && left.edit_kind == right.edit_kind
+    });
+    let mut normalized = Vec::new();
+    let mut previous_end = 0usize;
+    for edit in edits {
+        if edit.start < previous_end || edit.start > edit.end || edit.end > source.len() {
+            return None;
+        }
+        previous_end = edit.end;
+        normalized.push(edit);
+    }
+    Some(normalized)
+}
+
+fn apply_native_css_static_edits(
+    source: &str,
+    edits: &[OmenaScssEvalNativeCssStaticEditV0],
+) -> String {
+    let mut output = source.to_string();
+    for edit in edits.iter().rev() {
+        output.replace_range(edit.start..edit.end, edit.replacement.as_str());
+    }
+    output
 }
 
 fn collect_native_css_function_call_evaluations(
@@ -1214,7 +1351,7 @@ mod tests {
 
     use super::{
         summarize_native_css_function_call_evaluations, summarize_native_css_function_surface,
-        summarize_native_css_if_function_decisions,
+        summarize_native_css_if_function_decisions, summarize_native_css_static_edit_plan,
     };
 
     #[test]
@@ -1352,6 +1489,51 @@ mod tests {
         assert!(
             summarize_native_css_function_call_evaluations(source, StyleDialect::Scss).is_none()
         );
+    }
+
+    #[test]
+    fn native_css_static_edit_plan_folds_static_if_and_function_call_values() {
+        let source = "@function --gap(--size <length>: 1rem) returns <length> { result: var(--size); } .card { gap: --gap(2rem); display: if(supports(display: grid): grid; else: block); }";
+        let report = summarize_native_css_static_edit_plan(source, StyleDialect::Css);
+        assert!(report.is_some());
+        let Some(report) = report else {
+            return;
+        };
+
+        assert_eq!(report.mode, "staticSubsetPruneButKeep");
+        assert_eq!(report.edit_count, 2);
+        assert_eq!(report.if_function_edit_count, 1);
+        assert_eq!(report.function_call_edit_count, 1);
+        assert!(report.output_changed);
+        assert!(report.edited_css.contains("gap: 2rem"));
+        assert!(report.edited_css.contains("display: grid"));
+        assert!(!report.edited_css.contains("--gap(2rem)"));
+        assert!(!report.edited_css.contains("if(supports"));
+        assert_eq!(report.edits[0].edit_kind, "functionCallValueFold");
+        assert_eq!(report.edits[1].edit_kind, "ifFunctionValueFold");
+    }
+
+    #[test]
+    fn native_css_static_edit_plan_preserves_runtime_native_values() {
+        let source = "@function --gap(--size <length>: 1rem) returns <length> { result: var(--size); } .card { gap: --gap(var(--space)); margin: if(media(width >= 1px): 1rem; else: 2rem); }";
+        let report = summarize_native_css_static_edit_plan(source, StyleDialect::Css);
+        assert!(report.is_some());
+        let Some(report) = report else {
+            return;
+        };
+
+        assert_eq!(report.edit_count, 0);
+        assert_eq!(report.if_function_edit_count, 0);
+        assert_eq!(report.function_call_edit_count, 0);
+        assert!(!report.output_changed);
+        assert_eq!(report.edited_css, source);
+    }
+
+    #[test]
+    fn native_css_static_edit_plan_stays_css_dialect_only() {
+        let source = ".card { display: if(supports(display: grid): grid; else: block); }";
+
+        assert!(summarize_native_css_static_edit_plan(source, StyleDialect::Scss).is_none());
     }
 
     #[test]

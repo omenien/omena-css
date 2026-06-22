@@ -43,8 +43,9 @@ pub use native_css::{
     OmenaScssEvalNativeCssFunctionResultV0, OmenaScssEvalNativeCssFunctionSurfaceV0,
     OmenaScssEvalNativeCssFunctionV0, OmenaScssEvalNativeCssIfFunctionBranchV0,
     OmenaScssEvalNativeCssIfFunctionDecisionSurfaceV0, OmenaScssEvalNativeCssIfFunctionDecisionV0,
+    OmenaScssEvalNativeCssStaticEditPlanV0, OmenaScssEvalNativeCssStaticEditV0,
     summarize_native_css_function_call_evaluations, summarize_native_css_function_surface,
-    summarize_native_css_if_function_decisions,
+    summarize_native_css_if_function_decisions, summarize_native_css_static_edit_plan,
 };
 pub use static_stylesheet::{
     OmenaScssEvalResolvedReplacementV0, OmenaScssEvalStaticStylesheetEvaluationV0,
