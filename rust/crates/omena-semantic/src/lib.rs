@@ -379,6 +379,7 @@ pub fn summarize_omena_parser_style_semantic_boundary_from_source(
         parsed.syntax().children().count(),
         parsed.errors().len(),
         &facts,
+        &cst,
     );
     let semantic_facts =
         summarize_omena_parser_semantic_facts(style_source, &facts, &parser_facts, &cst);
@@ -406,6 +407,7 @@ fn summarize_omena_parser_contract_facts(
     root_node_count: usize,
     diagnostic_count: usize,
     facts: &ParsedStyleFacts,
+    cst: &ParsedCst,
 ) -> ParserBoundarySyntaxFactsV0 {
     ParserBoundarySyntaxFactsV0 {
         lossless_cst: ParserLosslessCstFactsV0 {
@@ -418,7 +420,7 @@ fn summarize_omena_parser_contract_facts(
         },
         selectors: summarize_omena_parser_selector_facts(source, facts),
         values: summarize_omena_parser_value_facts(facts),
-        custom_properties: summarize_omena_parser_custom_property_facts(source, facts),
+        custom_properties: summarize_omena_parser_custom_property_facts(source, facts, cst),
         sass: summarize_omena_parser_sass_syntax_facts(facts),
         keyframes: summarize_omena_parser_keyframe_facts(facts),
         composes: summarize_omena_parser_composes_facts(facts),
@@ -437,7 +439,7 @@ fn summarize_omena_parser_semantic_facts(
     let sass_same_file_resolution =
         summarize_omena_parser_sass_same_file_resolution(&parser_facts.sass);
     let sass_selector_resolution =
-        summarize_omena_parser_sass_selector_resolution(source, facts, &sass_same_file_resolution);
+        summarize_omena_parser_sass_selector_resolution(facts, &sass_same_file_resolution, cst);
     StyleSemanticFactsV0 {
         selector_identity: StyleSelectorIdentityFactsV0 {
             canonical_names: parser_facts.selectors.names.clone(),
@@ -875,6 +877,7 @@ fn summarize_omena_parser_value_facts(facts: &ParsedStyleFacts) -> ParserIndexVa
 fn summarize_omena_parser_custom_property_facts(
     source: &str,
     facts: &ParsedStyleFacts,
+    cst: &ParsedCst,
 ) -> ParserIndexCustomPropertyFactsV0 {
     let mut decl_names = BTreeSet::new();
     let mut ref_names = BTreeSet::new();
@@ -888,48 +891,34 @@ fn summarize_omena_parser_custom_property_facts(
                     u32::from(variable.range.end()) as usize,
                 );
                 decl_names.insert(variable.name.clone());
-                let (
-                    selector_contexts,
-                    under_media,
-                    under_supports,
-                    under_layer,
-                    layer_names,
-                    condition_context,
-                ) = style_context_with_layers_for_byte_offset(source, byte_span.start);
+                let context = style_context_for_cst_offset(source, cst, byte_span.start);
                 decl_facts.push(ParserIndexCustomPropertyDeclFactV0 {
                     name: variable.name.clone(),
                     value: declaration_value_text(source, byte_span.start),
                     source_order: decl_facts.len(),
                     byte_span,
                     range: parser_range_for_byte_span(source, byte_span),
-                    selector_contexts,
-                    condition_context,
-                    layer_names,
-                    under_media,
-                    under_supports,
-                    under_layer,
+                    selector_contexts: context.selector_contexts,
+                    condition_context: context.condition_context,
+                    layer_names: context.layer_names,
+                    under_media: context.under_media,
+                    under_supports: context.under_supports,
+                    under_layer: context.under_layer,
                 });
             }
             ParsedVariableFactKind::CustomPropertyReference => {
                 let byte_offset = u32::from(variable.range.start()) as usize;
-                let (
-                    selector_contexts,
-                    under_media,
-                    under_supports,
-                    under_layer,
-                    layer_names,
-                    condition_context,
-                ) = style_context_with_layers_for_byte_offset(source, byte_offset);
+                let context = style_context_for_cst_offset(source, cst, byte_offset);
                 ref_names.insert(variable.name.clone());
                 ref_facts.push(ParserIndexCustomPropertyRefFactV0 {
                     name: variable.name.clone(),
                     source_order: ref_facts.len(),
-                    selector_contexts,
-                    condition_context,
-                    layer_names,
-                    under_media,
-                    under_supports,
-                    under_layer,
+                    selector_contexts: context.selector_contexts,
+                    condition_context: context.condition_context,
+                    layer_names: context.layer_names,
+                    under_media: context.under_media,
+                    under_supports: context.under_supports,
+                    under_layer: context.under_layer,
                 });
             }
             _ => {}
@@ -1165,9 +1154,9 @@ struct SassSelectorResolution {
 }
 
 fn summarize_omena_parser_sass_selector_resolution(
-    source: &str,
     facts: &ParsedStyleFacts,
     resolution: &ParserIndexSassSameFileResolutionFactsV0,
+    cst: &ParsedCst,
 ) -> SassSelectorResolution {
     let resolved_variables = resolution
         .resolved_variable_ref_names
@@ -1187,8 +1176,8 @@ fn summarize_omena_parser_sass_selector_resolution(
     for symbol in &facts.sass_symbols {
         match symbol.kind {
             ParsedSassSymbolFactKind::VariableReference => {
-                let selector = semantic_selector_name_for_byte_offset(
-                    source,
+                let selector = semantic_selector_name_for_cst_offset(
+                    cst,
                     u32::from(symbol.range.start()) as usize,
                 );
                 let Some(selector) = selector else {
@@ -1201,8 +1190,8 @@ fn summarize_omena_parser_sass_selector_resolution(
                 }
             }
             ParsedSassSymbolFactKind::MixinInclude => {
-                let selector = semantic_selector_name_for_byte_offset(
-                    source,
+                let selector = semantic_selector_name_for_cst_offset(
+                    cst,
                     u32::from(symbol.range.start()) as usize,
                 );
                 let Some(selector) = selector else {
@@ -1327,64 +1316,64 @@ fn selector_has_parent_ampersand_class_prefix(source: &str, selector_start: usiz
     )
 }
 
-fn style_context_for_byte_offset(
-    source: &str,
-    byte_offset: usize,
-) -> (Vec<String>, bool, bool, bool) {
-    let (selector_contexts, under_media, under_supports, under_layer, _, _) =
-        style_context_with_layers_for_byte_offset(source, byte_offset);
-    (selector_contexts, under_media, under_supports, under_layer)
+#[derive(Debug, Clone, Default)]
+struct StyleOffsetContext {
+    selector_contexts: Vec<String>,
+    under_media: bool,
+    under_supports: bool,
+    under_layer: bool,
+    layer_names: Vec<String>,
+    condition_context: Vec<String>,
 }
 
-fn style_context_with_layers_for_byte_offset(
+fn style_context_for_cst_offset(
     source: &str,
+    cst: &ParsedCst,
     byte_offset: usize,
-) -> (Vec<String>, bool, bool, bool, Vec<String>, Vec<String>) {
-    let contexts = block_contexts_for_byte_offset(source, byte_offset);
-    let selector_contexts = contexts
-        .iter()
-        .filter_map(|context| match context {
-            StyleBlockContext::Selector(selector) => Some(selector.clone()),
-            StyleBlockContext::Media(_)
-            | StyleBlockContext::Supports(_)
-            | StyleBlockContext::Layer(_)
-            | StyleBlockContext::OtherAtRule(_) => None,
-        })
-        .collect::<Vec<_>>();
-    let under_media = contexts
-        .iter()
-        .any(|context| matches!(context, StyleBlockContext::Media(_)));
-    let under_supports = contexts
-        .iter()
-        .any(|context| matches!(context, StyleBlockContext::Supports(_)));
-    let under_layer = contexts
-        .iter()
-        .any(|context| matches!(context, StyleBlockContext::Layer(_)));
-    let layer_names = contexts
-        .iter()
-        .filter_map(|context| match context {
-            StyleBlockContext::Layer(Some(name)) => Some(name.clone()),
-            _ => None,
-        })
-        .collect::<Vec<_>>();
-    let condition_context = contexts
-        .iter()
-        .filter_map(|context| match context {
-            StyleBlockContext::Media(header)
-            | StyleBlockContext::Supports(header)
-            | StyleBlockContext::OtherAtRule(header) => Some(header.clone()),
-            StyleBlockContext::Selector(_) | StyleBlockContext::Layer(_) => None,
-        })
-        .collect::<Vec<_>>();
-
-    (
-        selector_contexts,
-        under_media,
-        under_supports,
-        under_layer,
-        layer_names,
-        condition_context,
-    )
+) -> StyleOffsetContext {
+    let mut context = StyleOffsetContext::default();
+    for node in cst
+        .root()
+        .descendants()
+        .filter(|node| cst_node_contains_byte_offset(node, byte_offset))
+    {
+        match node.kind() {
+            SyntaxKind::Rule => {
+                if let Some(selector) = rule_selector_text_from_cst_node(node) {
+                    context.selector_contexts.push(selector);
+                }
+            }
+            SyntaxKind::MediaRule => {
+                context.under_media = true;
+                if let Some(header) = cst_at_rule_header_text(source, node) {
+                    context.condition_context.push(header);
+                }
+            }
+            SyntaxKind::SupportsRule => {
+                context.under_supports = true;
+                if let Some(header) = cst_at_rule_header_text(source, node) {
+                    context.condition_context.push(header);
+                }
+            }
+            SyntaxKind::LayerRule => {
+                if cst_node_has_block(node) {
+                    context.under_layer = true;
+                    context
+                        .layer_names
+                        .extend(split_layer_names(&cst_context_prelude(node)));
+                }
+            }
+            kind if cst_non_layer_condition_kind(kind) => {
+                if let Some(header) = cst_at_rule_header_text(source, node)
+                    && !header.starts_with("@layer")
+                {
+                    context.condition_context.push(header);
+                }
+            }
+            _ => {}
+        }
+    }
+    context
 }
 
 fn declaration_value_text(source: &str, offset: usize) -> String {
@@ -1423,109 +1412,104 @@ fn declaration_statement_byte_span_for_offset(source: &str, offset: usize) -> Pa
     ParserByteSpanV0 { start, end }
 }
 
-fn semantic_selector_name_for_byte_offset(source: &str, byte_offset: usize) -> Option<String> {
-    let (selector_contexts, _, _, _) = style_context_for_byte_offset(source, byte_offset);
-    selector_contexts
+fn semantic_selector_name_for_cst_offset(cst: &ParsedCst, byte_offset: usize) -> Option<String> {
+    cst.root()
+        .descendants()
+        .filter(|node| {
+            node.kind() == SyntaxKind::Rule && cst_node_contains_byte_offset(node, byte_offset)
+        })
+        .filter_map(last_class_selector_name_from_rule_node)
         .last()
-        .and_then(|selector| selector_class_name(selector))
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
-enum StyleBlockContext {
-    Selector(String),
-    Media(String),
-    Supports(String),
-    Layer(Option<String>),
-    OtherAtRule(String),
+fn cst_node_contains_byte_offset(node: &SyntaxNode, byte_offset: usize) -> bool {
+    let range = node.text_range();
+    let start = u32::from(range.start()) as usize;
+    let end = u32::from(range.end()) as usize;
+    start <= byte_offset && byte_offset < end
 }
 
-fn block_contexts_for_byte_offset(source: &str, byte_offset: usize) -> Vec<StyleBlockContext> {
-    let bytes = source.as_bytes();
-    let mut contexts = Vec::new();
-    let limit = byte_offset.min(bytes.len());
-    let mut index = 0usize;
-    while index < limit {
-        match bytes[index] {
-            b'{' => {
-                let header = block_header_before_open_brace(source, index);
-                contexts.push(style_block_context_for_header(&header));
-            }
-            b'}' => {
-                contexts.pop();
-            }
-            _ => {}
-        }
-        index += 1;
-    }
-    contexts
+fn cst_non_layer_condition_kind(kind: SyntaxKind) -> bool {
+    matches!(
+        kind,
+        SyntaxKind::ContainerRule
+            | SyntaxKind::ScopeRule
+            | SyntaxKind::AtRule
+            | SyntaxKind::KeyframesRule
+            | SyntaxKind::FontFaceRule
+            | SyntaxKind::PageRule
+            | SyntaxKind::StartingStyleRule
+            | SyntaxKind::PageMarginRule
+            | SyntaxKind::CounterStyleRule
+            | SyntaxKind::FontPaletteValuesRule
+            | SyntaxKind::ColorProfileRule
+            | SyntaxKind::PositionTryRule
+            | SyntaxKind::FontFeatureValuesRule
+            | SyntaxKind::FontFeatureValuesStylisticRule
+            | SyntaxKind::FontFeatureValuesStylesetRule
+            | SyntaxKind::FontFeatureValuesCharacterVariantRule
+            | SyntaxKind::FontFeatureValuesSwashRule
+            | SyntaxKind::FontFeatureValuesOrnamentsRule
+            | SyntaxKind::FontFeatureValuesAnnotationRule
+            | SyntaxKind::FontFeatureValuesHistoricalFormsRule
+            | SyntaxKind::ViewTransitionRule
+            | SyntaxKind::WhenRule
+            | SyntaxKind::ElseRule
+    )
 }
 
-fn block_header_before_open_brace(source: &str, open_brace_index: usize) -> String {
-    let bytes = source.as_bytes();
-    let mut start = 0usize;
-    let mut index = open_brace_index;
-    while let Some(previous) = index.checked_sub(1) {
-        index = previous;
-        if matches!(bytes[index], b'{' | b'}' | b';') {
-            start = index + 1;
-            break;
-        }
-        if index == 0 {
-            break;
-        }
-    }
+fn cst_at_rule_header_text(source: &str, node: &SyntaxNode) -> Option<String> {
+    let start = u32::from(node.text_range().start()) as usize;
+    let end = cst_node_block_open_start(node)?;
     source
-        .get(start..open_brace_index)
-        .unwrap_or_default()
-        .trim()
-        .to_string()
+        .get(start..end)
+        .map(normalized_condition_header)
+        .filter(|header| !header.is_empty())
 }
 
-fn style_block_context_for_header(header: &str) -> StyleBlockContext {
-    let header = header.trim();
-    if header.starts_with("@media") {
-        StyleBlockContext::Media(normalized_condition_header(header))
-    } else if header.starts_with("@supports") {
-        StyleBlockContext::Supports(normalized_condition_header(header))
-    } else if header.starts_with("@layer") {
-        StyleBlockContext::Layer(
-            header
-                .strip_prefix("@layer")
-                .and_then(|prelude| split_layer_names(prelude).into_iter().next()),
-        )
-    } else if header.starts_with('@') {
-        StyleBlockContext::OtherAtRule(normalized_condition_header(header))
-    } else {
-        StyleBlockContext::Selector(header.to_string())
+fn cst_node_block_open_start(node: &SyntaxNode) -> Option<usize> {
+    node.descendants_with_tokens()
+        .filter_map(|element| element.into_token())
+        .find(|token| matches!(token.kind(), SyntaxKind::LeftBrace | SyntaxKind::SassIndent))
+        .map(|token| u32::from(token.text_range().start()) as usize)
+}
+
+fn rule_selector_text_from_cst_node(node: &SyntaxNode) -> Option<String> {
+    let mut selector = String::new();
+    for child in node.children() {
+        if matches!(
+            child.kind(),
+            SyntaxKind::DeclarationList | SyntaxKind::RuleList | SyntaxKind::SassIndentedBlock
+        ) {
+            break;
+        }
+        selector.push_str(&syntax_node_text(child));
     }
+    let selector = selector.trim();
+    (!selector.is_empty()).then(|| selector.to_string())
+}
+
+fn last_class_selector_name_from_rule_node(node: &SyntaxNode) -> Option<String> {
+    let mut last = None;
+    for child in node.children() {
+        if matches!(
+            child.kind(),
+            SyntaxKind::DeclarationList | SyntaxKind::RuleList | SyntaxKind::SassIndentedBlock
+        ) {
+            break;
+        }
+        for class_node in child
+            .descendants()
+            .filter(|node| node.kind() == SyntaxKind::ClassSelector)
+        {
+            last = class_selector_name_from_cst_node(class_node);
+        }
+    }
+    last
 }
 
 fn normalized_condition_header(header: &str) -> String {
     header.split_whitespace().collect::<Vec<_>>().join(" ")
-}
-
-fn selector_class_name(selector: &str) -> Option<String> {
-    let bytes = selector.as_bytes();
-    let mut index = 0usize;
-    let mut last = None;
-    while index < bytes.len() {
-        if bytes[index] == b'.' {
-            let start = index + 1;
-            let mut end = start;
-            while end < bytes.len()
-                && (bytes[end].is_ascii_alphanumeric() || matches!(bytes[end], b'_' | b'-'))
-            {
-                end += 1;
-            }
-            if end > start {
-                last = selector.get(start..end).map(ToString::to_string);
-            }
-            index = end;
-        } else {
-            index += 1;
-        }
-    }
-    last
 }
 
 fn previous_non_whitespace_byte_index(bytes: &[u8], before: usize) -> Option<usize> {
