@@ -21,7 +21,10 @@ pub fn build_scss_control_flow_graph(
     source: &str,
     dialect: StyleDialect,
 ) -> Option<OmenaScssEvalControlFlowGraphV0> {
-    if !matches!(dialect, StyleDialect::Scss | StyleDialect::Sass) {
+    if !matches!(
+        dialect,
+        StyleDialect::Css | StyleDialect::Scss | StyleDialect::Sass
+    ) {
         return None;
     }
     let lexed = lex(source, dialect);
@@ -29,8 +32,13 @@ pub fn build_scss_control_flow_graph(
     let blocks = tokens
         .iter()
         .enumerate()
-        .filter_map(|(index, token)| control_flow_block_from_token(source, tokens, index, token))
+        .filter_map(|(index, token)| {
+            control_flow_block_from_token(source, tokens, index, token, dialect)
+        })
         .collect::<Vec<_>>();
+    if dialect == StyleDialect::Css && blocks.is_empty() {
+        return None;
+    }
     let graph_blocks = blocks
         .iter()
         .enumerate()

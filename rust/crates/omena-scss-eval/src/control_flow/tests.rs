@@ -52,6 +52,64 @@ fn scss_control_flow_ir_counts_else_if_as_conditional_branch() {
 }
 
 #[test]
+fn native_css_when_else_routes_through_edge_ir_without_pruning_unknown_conditions() {
+    let source = "@when media(screen) { .on { color: green; } } @else { .off { color: red; } }";
+    let report = summarize_scss_control_flow_ir(source, StyleDialect::Css);
+    let graph = build_scss_control_flow_graph(source, StyleDialect::Css);
+    let analysis = analyze_scss_control_flow_values(source, StyleDialect::Css);
+    let prune = summarize_scss_control_flow_prune_reachability(source, StyleDialect::Css);
+
+    assert!(report.is_some());
+    assert!(graph.is_some());
+    assert!(analysis.is_some());
+    assert!(prune.is_some());
+
+    let Some(report) = report else {
+        return;
+    };
+    let Some(graph) = graph else {
+        return;
+    };
+    let Some(analysis) = analysis else {
+        return;
+    };
+    let Some(prune) = prune else {
+        return;
+    };
+
+    assert_eq!(report.dialect, "css");
+    assert_eq!(report.block_count, 2);
+    assert_eq!(report.branch_block_count, 2);
+    assert_eq!(report.loop_block_count, 0);
+    assert!(report.flat_css_cfg_built);
+    assert_eq!(report.blocks[0].at_rule_name, "@when");
+    assert_eq!(report.blocks[0].kind, "branchIf");
+    assert_eq!(report.blocks[1].at_rule_name, "@else");
+    assert_eq!(report.blocks[1].kind, "branchElse");
+
+    assert_eq!(graph.dialect, "css");
+    assert!(graph.flat_css_cfg_built);
+    assert!(graph.edges.iter().any(|edge| edge.outcome == "then"));
+    assert!(graph.edges.iter().any(|edge| edge.outcome == "else"));
+    assert!(graph.edges.iter().any(|edge| edge.outcome == "fallthrough"));
+
+    assert_eq!(analysis.dialect, "css");
+    assert!(analysis.flat_css_cfg_built);
+    assert!(
+        analysis
+            .blocks
+            .iter()
+            .all(|block| block.transfer_truthiness.is_none())
+    );
+
+    assert_eq!(prune.dialect, "css");
+    assert!(prune.flat_css_cfg_built);
+    assert!(prune.converged);
+    assert!(!prune.have_terminals_changed);
+    assert_eq!(prune.unreachable_block_count, 0);
+}
+
+#[test]
 fn scss_control_flow_edge_ir_reencodes_linear_predecessors_with_per_region_cfg() {
     let source = "$enabled: true; @if $enabled { .on { color: green; } } @else { .off { color: red; } } @while $enabled { @if $enabled { .w { color: blue; } } } @for $i from 1 through 3 { .n { order: $i; } }";
     let graph = build_scss_control_flow_graph(source, StyleDialect::Scss);

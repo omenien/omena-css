@@ -1,4 +1,4 @@
-use omena_parser::LexedToken;
+use omena_parser::{LexedToken, StyleDialect};
 use omena_syntax::SyntaxKind;
 use omena_transform_cst::StableNodeKeyV0;
 
@@ -10,11 +10,12 @@ pub(super) fn control_flow_block_from_token(
     tokens: &[LexedToken],
     token_index: usize,
     token: &LexedToken,
+    dialect: StyleDialect,
 ) -> Option<OmenaScssEvalControlFlowBlockV0> {
     if token.kind != SyntaxKind::AtKeyword {
         return None;
     }
-    let node_kind = scss_control_node_kind_from_name(token.text.as_str())?;
+    let node_kind = scss_control_node_kind_from_name(token.text.as_str(), dialect)?;
     let kind = scss_control_block_kind(node_kind)?;
     let has_back_edge = scss_control_block_has_back_edge(node_kind);
     let source_span_start = token.range.start().into();
@@ -88,21 +89,23 @@ pub(super) fn control_flow_header_text(
         .to_string()
 }
 
-fn scss_control_node_kind_from_name(name: &str) -> Option<SyntaxKind> {
-    match name.to_ascii_lowercase().as_str() {
-        "@if" => Some(SyntaxKind::ScssControlIf),
-        "@else" => Some(SyntaxKind::ScssControlElse),
-        "@for" => Some(SyntaxKind::ScssControlFor),
-        "@each" => Some(SyntaxKind::ScssControlEach),
-        "@while" => Some(SyntaxKind::ScssControlWhile),
+fn scss_control_node_kind_from_name(name: &str, dialect: StyleDialect) -> Option<SyntaxKind> {
+    match (dialect, name.to_ascii_lowercase().as_str()) {
+        (StyleDialect::Css, "@when") => Some(SyntaxKind::WhenRule),
+        (StyleDialect::Css, "@else") => Some(SyntaxKind::ElseRule),
+        (StyleDialect::Scss | StyleDialect::Sass, "@if") => Some(SyntaxKind::ScssControlIf),
+        (StyleDialect::Scss | StyleDialect::Sass, "@else") => Some(SyntaxKind::ScssControlElse),
+        (StyleDialect::Scss | StyleDialect::Sass, "@for") => Some(SyntaxKind::ScssControlFor),
+        (StyleDialect::Scss | StyleDialect::Sass, "@each") => Some(SyntaxKind::ScssControlEach),
+        (StyleDialect::Scss | StyleDialect::Sass, "@while") => Some(SyntaxKind::ScssControlWhile),
         _ => None,
     }
 }
 
 fn scss_control_block_kind(kind: SyntaxKind) -> Option<&'static str> {
     match kind {
-        SyntaxKind::ScssControlIf => Some("branchIf"),
-        SyntaxKind::ScssControlElse => Some("branchElse"),
+        SyntaxKind::ScssControlIf | SyntaxKind::WhenRule => Some("branchIf"),
+        SyntaxKind::ScssControlElse | SyntaxKind::ElseRule => Some("branchElse"),
         SyntaxKind::ScssControlFor | SyntaxKind::ScssControlEach | SyntaxKind::ScssControlWhile => {
             Some("loop")
         }
@@ -119,9 +122,9 @@ const fn scss_control_block_has_back_edge(kind: SyntaxKind) -> bool {
 
 fn scss_control_block_successor_count(kind: SyntaxKind, header: &str) -> usize {
     match kind {
-        SyntaxKind::ScssControlIf => 2,
+        SyntaxKind::ScssControlIf | SyntaxKind::WhenRule => 2,
         SyntaxKind::ScssControlElse if scss_else_if_header_condition(header).is_some() => 2,
-        SyntaxKind::ScssControlElse => 1,
+        SyntaxKind::ScssControlElse | SyntaxKind::ElseRule => 1,
         SyntaxKind::ScssControlFor | SyntaxKind::ScssControlEach | SyntaxKind::ScssControlWhile => {
             2
         }

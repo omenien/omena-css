@@ -60,7 +60,10 @@ pub(crate) fn analyze_scss_control_flow_values_with_initial_bindings(
     dialect: StyleDialect,
     initial_bindings: &BTreeMap<String, AbstractCssValueV0>,
 ) -> Option<OmenaScssEvalControlFlowValueAnalysisV0> {
-    if !matches!(dialect, StyleDialect::Scss | StyleDialect::Sass) {
+    if !matches!(
+        dialect,
+        StyleDialect::Css | StyleDialect::Scss | StyleDialect::Sass
+    ) {
         return None;
     }
     let graph = build_scss_control_flow_graph(source, dialect)?;
@@ -89,6 +92,7 @@ pub(crate) fn analyze_scss_control_flow_values_with_initial_bindings(
                 predecessor_indices,
                 transfer: control_flow_transfer_for_block(
                     source,
+                    dialect,
                     block,
                     &graph_block_payloads[..index],
                     &lexical_bindings,
@@ -334,6 +338,7 @@ fn control_flow_predecessor_indices_by_block_id(
 
 fn control_flow_transfer_for_block(
     source: &str,
+    dialect: StyleDialect,
     block: &OmenaScssEvalControlFlowBlockV0,
     previous_blocks: &[OmenaScssEvalControlFlowBlockV0],
     lexical_bindings: &LexicalScssBindings,
@@ -341,6 +346,12 @@ fn control_flow_transfer_for_block(
     let contextual_bindings =
         contextual_control_flow_bindings(source, block, previous_blocks, lexical_bindings);
     match block.at_rule_name.to_ascii_lowercase().as_str() {
+        "@when" if dialect == StyleDialect::Css => ScssControlFlowTransfer::BranchCondition {
+            value: AbstractCssValueV0::Top,
+        },
+        "@else" if dialect == StyleDialect::Css => ScssControlFlowTransfer::BranchCondition {
+            value: AbstractCssValueV0::Top,
+        },
         "@if" => ScssControlFlowTransfer::BranchCondition {
             value: scss_header_value_with_bindings(
                 block.header_text.as_str(),

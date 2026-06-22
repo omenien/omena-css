@@ -23,7 +23,10 @@ pub fn summarize_scss_control_flow_ir(
     source: &str,
     dialect: StyleDialect,
 ) -> Option<OmenaScssEvalControlFlowIrSummaryV0> {
-    if !matches!(dialect, StyleDialect::Scss | StyleDialect::Sass) {
+    if !matches!(
+        dialect,
+        StyleDialect::Css | StyleDialect::Scss | StyleDialect::Sass
+    ) {
         return None;
     }
     let lexed = lex(source, dialect);
@@ -31,8 +34,13 @@ pub fn summarize_scss_control_flow_ir(
     let blocks = tokens
         .iter()
         .enumerate()
-        .filter_map(|(index, token)| control_flow_block_from_token(source, tokens, index, token))
+        .filter_map(|(index, token)| {
+            control_flow_block_from_token(source, tokens, index, token, dialect)
+        })
         .collect::<Vec<_>>();
+    if dialect == StyleDialect::Css && blocks.is_empty() {
+        return None;
+    }
     let branch_block_count = blocks
         .iter()
         .filter(|block| block.kind.starts_with("branch"))
