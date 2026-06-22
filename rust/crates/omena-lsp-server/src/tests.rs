@@ -232,9 +232,13 @@ fn lsp_file_identity_feeds_incremental_revision_salsa_key() {
             },
         }),
     );
-    let file_id = state
-        .document_file_id(uri)
-        .expect("opened document should have an LSP file identity");
+    assert!(
+        state.document_file_id(uri).is_some(),
+        "opened document should have an LSP file identity"
+    );
+    let Some(file_id) = state.document_file_id(uri) else {
+        return;
+    };
     let parsed = omena_parser::parse(text, omena_parser::StyleDialect::Scss);
     let syntax = parsed.syntax();
     let syntax_id = omena_parser::syntax_node_id(&syntax);

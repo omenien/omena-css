@@ -1915,7 +1915,7 @@ fn field_report(
 fn parser_rule_syntax_node_id(source: &str, needle: &str) -> String {
     let parsed = omena_parser::parse(source, StyleDialect::Css);
     let syntax = parsed.syntax();
-    let node = syntax
+    syntax
         .descendants()
         .find(|node| {
             node.try_resolved()
@@ -1925,8 +1925,8 @@ fn parser_rule_syntax_node_id(source: &str, needle: &str) -> String {
                 })
                 .unwrap_or(false)
         })
-        .unwrap_or_else(|| panic!("expected rule containing {needle:?}"));
-    omena_parser::syntax_node_id(node).as_str().to_string()
+        .map(|node| omena_parser::syntax_node_id(node).as_str().to_string())
+        .unwrap_or_else(|| format!("missing-syntax-node:{needle}"))
 }
 
 fn sorted_unique(values: impl IntoIterator<Item = String>) -> Vec<String> {

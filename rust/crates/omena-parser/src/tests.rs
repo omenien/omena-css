@@ -4618,6 +4618,14 @@ fn syntax_and_hir_ids_stay_stable_for_unchanged_region_and_change_for_edit() {
     let second_alpha = rule_node_containing_for_test(&second_syntax, ".alpha");
     let first_beta = rule_node_containing_for_test(&first_syntax, ".beta");
     let second_beta = rule_node_containing_for_test(&second_syntax, ".beta");
+    assert!(first_alpha.is_some(), "missing first alpha rule");
+    assert!(second_alpha.is_some(), "missing second alpha rule");
+    assert!(first_beta.is_some(), "missing first beta rule");
+    assert!(second_beta.is_some(), "missing second beta rule");
+    let first_alpha = first_alpha.unwrap_or(&first_syntax);
+    let second_alpha = second_alpha.unwrap_or(&second_syntax);
+    let first_beta = first_beta.unwrap_or(&first_syntax);
+    let second_beta = second_beta.unwrap_or(&second_syntax);
 
     let first_beta_id = syntax_node_id(first_beta);
     let second_beta_id = syntax_node_id(second_beta);
@@ -4715,16 +4723,14 @@ fn shared_green_node_storage_count_for_test(first: &GreenNode, second: &GreenNod
 fn rule_node_containing_for_test<'a>(
     root: &'a SyntaxNode<SyntaxKind>,
     needle: &str,
-) -> &'a SyntaxNode<SyntaxKind> {
-    root.descendants()
-        .find(|node| {
-            node.kind() == SyntaxKind::Rule
-                && node
-                    .try_resolved()
-                    .map(|resolved| resolved.text().to_string().contains(needle))
-                    .unwrap_or(false)
-        })
-        .unwrap_or_else(|| panic!("expected rule containing {needle:?}"))
+) -> Option<&'a SyntaxNode<SyntaxKind>> {
+    root.descendants().find(|node| {
+        node.kind() == SyntaxKind::Rule
+            && node
+                .try_resolved()
+                .map(|resolved| resolved.text().to_string().contains(needle))
+                .unwrap_or(false)
+    })
 }
 
 fn node_kinds(node: &SyntaxNode<SyntaxKind>) -> Vec<SyntaxKind> {
