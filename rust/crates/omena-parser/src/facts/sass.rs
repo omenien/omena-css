@@ -8,13 +8,14 @@ use omena_syntax::SyntaxKind;
 use std::collections::BTreeSet;
 
 use crate::{
-    Token, containing_at_rule_header_name, css_module_value_source_name,
+    ParseResult, Token, containing_at_rule_header_name, css_module_value_source_name,
     css_module_value_statement_end, matches_ignore_ascii_case, next_non_trivia_token,
     next_non_trivia_token_index_until, previous_non_trivia_token, previous_non_trivia_token_index,
     skip_trivia_tokens, top_level_token_text_index,
 };
 
 use super::scss_variable_token_is_declaration;
+use super::tokens_from_cst;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ParsedSassSymbolFact {
@@ -39,6 +40,18 @@ pub enum ParsedSassSymbolFactKind {
 pub(crate) fn collect_sass_symbol_facts_from_tokens(
     tokens: &[Token<'_>],
 ) -> Vec<ParsedSassSymbolFact> {
+    sass_symbol_facts_from_token_view(tokens)
+}
+
+pub(crate) fn collect_sass_symbol_facts_from_cst(
+    text: &str,
+    parsed: &ParseResult,
+) -> Vec<ParsedSassSymbolFact> {
+    let tokens = tokens_from_cst(text, parsed);
+    sass_symbol_facts_from_token_view(&tokens)
+}
+
+fn sass_symbol_facts_from_token_view(tokens: &[Token<'_>]) -> Vec<ParsedSassSymbolFact> {
     let declared_functions = collect_sass_callable_declaration_names(tokens, "@function");
     let mut symbols = Vec::new();
 
@@ -220,6 +233,21 @@ pub(crate) fn collect_sass_include_facts_from_tokens(
     source: &str,
     tokens: &[Token<'_>],
 ) -> Vec<ParsedSassIncludeFact> {
+    sass_include_facts_from_token_view(source, tokens)
+}
+
+pub(crate) fn collect_sass_include_facts_from_cst(
+    source: &str,
+    parsed: &ParseResult,
+) -> Vec<ParsedSassIncludeFact> {
+    let tokens = tokens_from_cst(source, parsed);
+    sass_include_facts_from_token_view(source, &tokens)
+}
+
+fn sass_include_facts_from_token_view(
+    source: &str,
+    tokens: &[Token<'_>],
+) -> Vec<ParsedSassIncludeFact> {
     let mut includes = Vec::new();
     for (index, token) in tokens.iter().enumerate() {
         if token.kind != SyntaxKind::AtKeyword || !token.text.eq_ignore_ascii_case("@include") {
@@ -276,6 +304,18 @@ pub enum ParsedSassModuleEdgeFactKind {
 pub(crate) fn collect_sass_module_edge_facts_from_tokens(
     tokens: &[Token<'_>],
 ) -> Vec<ParsedSassModuleEdgeFact> {
+    sass_module_edge_facts_from_token_view(tokens)
+}
+
+pub(crate) fn collect_sass_module_edge_facts_from_cst(
+    text: &str,
+    parsed: &ParseResult,
+) -> Vec<ParsedSassModuleEdgeFact> {
+    let tokens = tokens_from_cst(text, parsed);
+    sass_module_edge_facts_from_token_view(&tokens)
+}
+
+fn sass_module_edge_facts_from_token_view(tokens: &[Token<'_>]) -> Vec<ParsedSassModuleEdgeFact> {
     let mut edges = Vec::new();
     let mut seen = BTreeSet::new();
 
@@ -509,6 +549,18 @@ pub enum ParsedExtendTargetFactKind {
 pub(crate) fn collect_extend_target_facts_from_tokens(
     tokens: &[Token<'_>],
 ) -> Vec<ParsedExtendTargetFact> {
+    extend_target_facts_from_token_view(tokens)
+}
+
+pub(crate) fn collect_extend_target_facts_from_cst(
+    text: &str,
+    parsed: &ParseResult,
+) -> Vec<ParsedExtendTargetFact> {
+    let tokens = tokens_from_cst(text, parsed);
+    extend_target_facts_from_token_view(&tokens)
+}
+
+fn extend_target_facts_from_token_view(tokens: &[Token<'_>]) -> Vec<ParsedExtendTargetFact> {
     let mut targets = Vec::new();
 
     for (index, token) in tokens.iter().enumerate() {

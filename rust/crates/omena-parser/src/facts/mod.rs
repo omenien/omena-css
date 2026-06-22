@@ -49,8 +49,10 @@ pub use sass::{
     ParsedSassSymbolFactKind,
 };
 pub(crate) use sass::{
-    collect_extend_target_facts_from_tokens, collect_sass_include_facts_from_tokens,
-    collect_sass_module_edge_facts_from_tokens, collect_sass_symbol_facts_from_tokens,
+    collect_extend_target_facts_from_cst, collect_extend_target_facts_from_tokens,
+    collect_sass_include_facts_from_cst, collect_sass_include_facts_from_tokens,
+    collect_sass_module_edge_facts_from_cst, collect_sass_module_edge_facts_from_tokens,
+    collect_sass_symbol_facts_from_cst, collect_sass_symbol_facts_from_tokens,
 };
 pub use selectors::{ParsedSelectorFact, ParsedSelectorFactKind};
 pub(crate) use selectors::{
@@ -201,6 +203,14 @@ pub fn facts_from_cst(text: &str, parsed: &ParseResult) -> ParsedStyleFacts {
     facts.selector_count = facts.selectors.len();
     facts.variables = collect_variable_facts_from_cst(text, parsed);
     facts.variable_count = facts.variables.len();
+    facts.sass_symbols = collect_sass_symbol_facts_from_cst(text, parsed);
+    facts.sass_symbol_count = facts.sass_symbols.len();
+    facts.sass_includes = collect_sass_include_facts_from_cst(text, parsed);
+    facts.sass_include_count = facts.sass_includes.len();
+    facts.sass_module_edges = collect_sass_module_edge_facts_from_cst(text, parsed);
+    facts.sass_module_edge_count = facts.sass_module_edges.len();
+    facts.extend_targets = collect_extend_target_facts_from_cst(text, parsed);
+    facts.extend_target_count = facts.extend_targets.len();
     facts.animations = collect_animation_facts_from_cst(text, parsed);
     facts.animation_count = facts.animations.len();
     facts.icss = collect_icss_facts_from_cst(text, parsed);
