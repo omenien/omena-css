@@ -2416,6 +2416,9 @@ impl<'text> Parser<'text> {
             self.current_function_has_empty_top_level_argument_slot_before(recovery);
         let argument_head = self.current_function_first_argument_token_before(recovery);
         let specialized_kind = function_name.as_deref().and_then(specialized_function_kind);
+        let uses_component_value_arguments = function_name.as_deref().is_some_and(|name| {
+            matches_ignore_ascii_case(name, &["if", "media", "supports", "style"])
+        });
         let closed = self.current_function_has_closing_paren_before(recovery);
         let function_kind = if closed {
             SyntaxKind::FunctionCall
@@ -2436,8 +2439,23 @@ impl<'text> Parser<'text> {
         if self.current_kind() == Some(SyntaxKind::LeftParen) {
             self.token_current();
             self.builder.start_node(arguments_kind);
-            let argument_recovery = function_argument_recovery(recovery);
-            self.parse_value_or_value_list_until(&argument_recovery);
+            let mut argument_recovery = function_argument_recovery(recovery);
+            if function_name
+                .as_deref()
+                .is_some_and(|name| name.eq_ignore_ascii_case("if"))
+            {
+                argument_recovery.retain(|kind| {
+                    !matches!(
+                        kind,
+                        SyntaxKind::Semicolon | SyntaxKind::SassOptionalSemicolon
+                    )
+                });
+            }
+            if uses_component_value_arguments {
+                self.parse_component_value_list_until(&argument_recovery);
+            } else {
+                self.parse_value_or_value_list_until(&argument_recovery);
+            }
             self.builder.finish_node();
             if self.current_kind() == Some(SyntaxKind::RightParen) {
                 self.token_current();

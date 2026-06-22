@@ -2043,12 +2043,16 @@ fn structures_css_value_function_calls() {
 #[test]
 fn structures_modern_css_value_functions() {
     let result = parse(
-        ".a { color: color-mix(in oklch, var(--brand), white 20%); accent-color: device-cmyk(0 1 1 0); width: clamp(1rem, 2vw, 3rem); margin: if(media(screen), 1rem); content: attr(data-label string, \"x\"); padding: env(safe-area-inset-top); background-image: linear-gradient(red, blue); transform: translateX(1rem) rotate(10deg); filter: blur(2px) brightness(1.1); image-set: image-set(url(a.png) 1x); offset-path: path(\"M0,0 L1,1\"); }",
+        ".a { color: color-mix(in oklch, var(--brand), white 20%); accent-color: device-cmyk(0 1 1 0); width: clamp(1rem, 2vw, 3rem); margin: if(media(width >= 1px): 1rem; else: 2rem); content: attr(data-label string, \"x\"); padding: env(safe-area-inset-top); background-image: linear-gradient(red, blue); transform: translateX(1rem) rotate(10deg); filter: blur(2px) brightness(1.1); image-set: image-set(url(a.png) 1x); offset-path: path(\"M0,0 L1,1\"); }",
         StyleDialect::Css,
     );
     let kinds = node_kinds(&result.syntax());
 
-    assert!(result.errors().is_empty());
+    assert!(
+        result.errors().is_empty(),
+        "unexpected parse errors: {:?}",
+        result.errors()
+    );
     assert!(kinds.contains(&SyntaxKind::ColorValue));
     assert!(kinds.contains(&SyntaxKind::MathFunction));
     assert!(kinds.contains(&SyntaxKind::AttrFunction));
