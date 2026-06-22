@@ -635,21 +635,79 @@ fn normalize_native_css_static_edits(
             && left.edit_kind == right.edit_kind
     });
     let mut normalized: Vec<OmenaScssEvalNativeCssStaticEditV0> = Vec::new();
-    for edit in edits {
+    let mut index = 0usize;
+    while index < edits.len() {
+        let mut edit = edits.get(index)?.clone();
         if edit.start > edit.end || edit.end > source.len() {
             return None;
         }
-        if let Some(previous) = normalized.last()
-            && edit.start < previous.end
+        let mut contained = Vec::new();
+        let mut next_index = index + 1;
+        while let Some(next_edit) = edits.get(next_index)
+            && next_edit.start < edit.end
         {
-            if edit.end <= previous.end {
+            if next_edit.start > next_edit.end || next_edit.end > source.len() {
+                return None;
+            }
+            if next_edit.end <= edit.end {
+                contained.push(next_edit.clone());
+                next_index += 1;
                 continue;
             }
             return None;
         }
+        compose_contained_native_css_static_edits(source, &mut edit, &contained)?;
         normalized.push(edit);
+        index = next_index;
     }
     Some(normalized)
+}
+
+fn compose_contained_native_css_static_edits(
+    source: &str,
+    outer: &mut OmenaScssEvalNativeCssStaticEditV0,
+    contained: &[OmenaScssEvalNativeCssStaticEditV0],
+) -> Option<()> {
+    if outer.edit_kind != "whenRuleBranchFold" || contained.is_empty() {
+        return Some(());
+    }
+    let Some((replacement_source_start, replacement_source_end)) =
+        native_css_static_edit_replacement_source_span(source, outer)
+    else {
+        return Some(());
+    };
+    for inner in contained.iter().rev().filter(|inner| {
+        replacement_source_start <= inner.start && inner.end <= replacement_source_end
+    }) {
+        let relative_start = inner.start - replacement_source_start;
+        let relative_end = inner.end - replacement_source_start;
+        if !outer.replacement.is_char_boundary(relative_start)
+            || !outer.replacement.is_char_boundary(relative_end)
+        {
+            return None;
+        }
+        outer
+            .replacement
+            .replace_range(relative_start..relative_end, inner.replacement.as_str());
+    }
+    Some(())
+}
+
+fn native_css_static_edit_replacement_source_span(
+    source: &str,
+    edit: &OmenaScssEvalNativeCssStaticEditV0,
+) -> Option<(usize, usize)> {
+    if edit.replacement.is_empty() {
+        return None;
+    }
+    let edited_source = source.get(edit.start..edit.end)?;
+    let mut matches = edited_source.match_indices(edit.replacement.as_str());
+    let (relative_start, _) = matches.next()?;
+    if matches.next().is_some() {
+        return None;
+    }
+    let start = edit.start + relative_start;
+    Some((start, start + edit.replacement.len()))
 }
 
 fn apply_native_css_static_edits(
@@ -2049,6 +2107,24 @@ mod tests {
         assert!(!report.edited_css.contains("@when"));
         assert!(!report.edited_css.contains(".fallback"));
         assert_eq!(report.edits[0].edit_kind, "whenRuleBranchFold");
+    }
+
+    #[test]
+    fn native_css_static_edit_plan_composes_nested_static_when_body_edits() {
+        let source = "@when supports(display: grid) { .grid { display: if(supports(display: grid): grid; else: block); } } @else { .fallback { display: block; } }";
+        let report = summarize_native_css_static_edit_plan(source, StyleDialect::Css);
+        assert!(report.is_some());
+        let Some(report) = report else {
+            return;
+        };
+
+        assert_eq!(report.edit_count, 1);
+        assert_eq!(report.when_rule_edit_count, 1);
+        assert!(report.output_changed);
+        assert!(report.edited_css.contains(".grid { display: grid; }"));
+        assert!(!report.edited_css.contains("@when"));
+        assert!(!report.edited_css.contains("if(supports"));
+        assert!(!report.edited_css.contains(".fallback"));
     }
 
     #[test]
