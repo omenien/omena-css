@@ -273,11 +273,6 @@ pub fn facts_from_cst(text: &str, parsed: &ParseResult) -> ParsedStyleFacts {
     }
 }
 
-pub(crate) fn tokens_from_cst<'text>(text: &'text str, parsed: &ParseResult) -> Vec<Token<'text>> {
-    let syntax = parsed.syntax();
-    tokens_from_syntax_node(text, &syntax)
-}
-
 pub(crate) fn tokens_from_syntax_node<'text>(
     text: &'text str,
     node: &SyntaxNode<SyntaxKind>,

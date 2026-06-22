@@ -15,7 +15,7 @@ use crate::{
     token_index_by_range,
 };
 
-use super::tokens_from_cst;
+use super::tokens_from_syntax_node;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ParsedSelectorFact {
@@ -47,10 +47,23 @@ pub(crate) fn collect_selector_facts_from_cst(
     text: &str,
     parsed: &ParseResult,
 ) -> Vec<ParsedSelectorFact> {
-    let tokens = tokens_from_cst(text, parsed);
-    selector_facts_from_token_view(&tokens)
+    let mut selectors = Vec::new();
+    let mut seen = BTreeSet::new();
+    for tokens in selector_statement_tokens_from_cst(text, parsed) {
+        collect_selector_facts_in_range(
+            &tokens,
+            0,
+            tokens.len(),
+            &[],
+            None,
+            &mut seen,
+            &mut selectors,
+        );
+    }
+    selectors
 }
 
+#[cfg(feature = "internal-oracle")]
 fn selector_facts_from_token_view(tokens: &[Token<'_>]) -> Vec<ParsedSelectorFact> {
     let mut selectors = Vec::new();
     let mut seen = BTreeSet::new();
@@ -64,6 +77,17 @@ fn selector_facts_from_token_view(tokens: &[Token<'_>]) -> Vec<ParsedSelectorFac
         &mut selectors,
     );
     selectors
+}
+
+fn selector_statement_tokens_from_cst<'text>(
+    text: &'text str,
+    parsed: &ParseResult,
+) -> Vec<Vec<Token<'text>>> {
+    parsed
+        .syntax()
+        .children()
+        .map(|node| tokens_from_syntax_node(text, node))
+        .collect()
 }
 
 fn collect_selector_facts_in_range(
