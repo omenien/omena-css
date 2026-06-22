@@ -120,15 +120,16 @@ fn query_snapshot_clones_document_pointers_and_isolates_later_edits() -> TestRes
     open_query_dispatch_workspace(&mut state);
 
     let snapshot = state.query_snapshot();
-    for (uri, document) in &state.documents {
+    for (file_id, document) in &state.documents {
         let snapshot_document = snapshot
             .shell_state()
             .documents
-            .get(uri)
+            .get(file_id)
             .ok_or_else(|| std::io::Error::other("snapshot must carry every document"))?;
         assert!(
             Arc::ptr_eq(document, snapshot_document),
-            "snapshot must clone document pointers, not the corpus: {uri}"
+            "snapshot must clone document pointers, not the corpus: {}",
+            document.uri
         );
     }
 
@@ -138,19 +139,25 @@ fn query_snapshot_clones_document_pointers_and_isolates_later_edits() -> TestRes
     // still shares storage with the snapshot.
     let theme_storage_uri = LspShellState::document_storage_uri(THEME_STYLE_URI);
     let app_storage_uri = LspShellState::document_storage_uri(APP_STYLE_URI);
+    let theme_file_id = state
+        .document_file_id(THEME_STYLE_URI)
+        .ok_or_else(|| std::io::Error::other("theme document must be interned"))?;
+    let app_file_id = state
+        .document_file_id(APP_STYLE_URI)
+        .ok_or_else(|| std::io::Error::other("app document must be interned"))?;
     assert!(
         !Arc::ptr_eq(
-            &state.documents[theme_storage_uri.as_str()],
-            &snapshot.shell_state().documents[theme_storage_uri.as_str()],
+            &state.documents[&theme_file_id],
+            &snapshot.shell_state().documents[&theme_file_id],
         ),
-        "edited document must be copy-on-write detached from the snapshot"
+        "edited document must be copy-on-write detached from the snapshot: {theme_storage_uri}"
     );
     assert!(
         Arc::ptr_eq(
-            &state.documents[app_storage_uri.as_str()],
-            &snapshot.shell_state().documents[app_storage_uri.as_str()],
+            &state.documents[&app_file_id],
+            &snapshot.shell_state().documents[&app_file_id],
         ),
-        "untouched document must still share storage with the snapshot"
+        "untouched document must still share storage with the snapshot: {app_storage_uri}"
     );
 
     // The stale snapshot keeps answering from its dispatch-time corpus (LSP

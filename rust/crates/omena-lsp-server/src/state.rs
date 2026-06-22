@@ -111,6 +111,43 @@ pub struct LspWatchedFileChangeState {
     pub change_type: u64,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+pub(crate) struct LspFileId(u32);
+
+#[derive(Debug, Clone, Default)]
+pub(crate) struct LspFileIdentityInterner {
+    next_id: u32,
+    ids_by_storage_uri: BTreeMap<String, LspFileId>,
+    storage_uris_by_id: BTreeMap<LspFileId, String>,
+}
+
+impl LspFileIdentityInterner {
+    fn intern_uri(&mut self, uri: &str) -> (LspFileId, String) {
+        let storage_uri = Self::storage_uri(uri);
+        if let Some(file_id) = self.ids_by_storage_uri.get(storage_uri.as_str()) {
+            return (*file_id, storage_uri);
+        }
+        let file_id = LspFileId(self.next_id);
+        self.next_id = self.next_id.saturating_add(1);
+        self.ids_by_storage_uri.insert(storage_uri.clone(), file_id);
+        self.storage_uris_by_id.insert(file_id, storage_uri.clone());
+        (file_id, storage_uri)
+    }
+
+    fn file_id_for_uri(&self, uri: &str) -> Option<LspFileId> {
+        let storage_uri = Self::storage_uri(uri);
+        self.ids_by_storage_uri.get(storage_uri.as_str()).copied()
+    }
+
+    pub(crate) fn storage_uri_for_file_id(&self, file_id: LspFileId) -> Option<&str> {
+        self.storage_uris_by_id.get(&file_id).map(String::as_str)
+    }
+
+    fn storage_uri(uri: &str) -> String {
+        crate::protocol::canonical_file_uri(uri).unwrap_or_else(|| uri.to_string())
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct LspShellStateSnapshot {
@@ -259,8 +296,9 @@ pub struct LspShellState {
     /// through `document_mut`/`insert_document`, which copy-on-write via
     /// `Arc::make_mut`/`Arc::new` (a worker holding a snapshot of a document
     /// forces at most a one-document deep clone on that document's next edit).
-    pub(crate) documents: BTreeMap<String, Arc<LspTextDocumentState>>,
-    pub(crate) open_document_uris: BTreeSet<String>,
+    pub(crate) file_identity: LspFileIdentityInterner,
+    pub(crate) documents: BTreeMap<LspFileId, Arc<LspTextDocumentState>>,
+    pub(crate) open_document_uris: BTreeSet<LspFileId>,
     pub(crate) workspace_runtime_registry: WorkspaceRuntimeRegistry,
     pub(crate) tsgo_workspace_process_pool: TsgoWorkspaceProcessPoolV0,
     pub(crate) watched_file_changes: Vec<LspWatchedFileChangeState>,
@@ -318,18 +356,8 @@ impl LspShellState {
     }
 
     pub fn document(&self, uri: &str) -> Option<&LspTextDocumentState> {
-        let storage_uri = Self::document_storage_uri(uri);
-        self.documents
-            .get(storage_uri.as_str())
-            .map(Arc::as_ref)
-            .or_else(|| {
-                self.documents
-                    .iter()
-                    .find(|(document_uri, _)| {
-                        crate::protocol::file_uri_equivalent(document_uri, uri)
-                    })
-                    .map(|(_, document)| document.as_ref())
-            })
+        let file_id = self.file_identity.file_id_for_uri(uri)?;
+        self.documents.get(&file_id).map(Arc::as_ref)
     }
 
     #[cfg(feature = "test-support")]
@@ -343,84 +371,58 @@ impl LspShellState {
     }
 
     pub(crate) fn document_mut(&mut self, uri: &str) -> Option<&mut LspTextDocumentState> {
-        let storage_uri = Self::document_storage_uri(uri);
-        if self.documents.contains_key(storage_uri.as_str()) {
-            let document = self.documents.get_mut(storage_uri.as_str())?;
-            if document.origin == LspDocumentOrigin::Foreign {
-                return None;
-            }
-            return Some(Arc::make_mut(document));
+        let file_id = self.file_identity.file_id_for_uri(uri)?;
+        let document = self.documents.get_mut(&file_id)?;
+        if document.origin == LspDocumentOrigin::Foreign {
+            return None;
         }
-        let equivalent_uri = self
-            .documents
-            .keys()
-            .find(|document_uri| crate::protocol::file_uri_equivalent(document_uri, uri))
-            .cloned();
-        equivalent_uri.and_then(|document_uri| {
-            let document = self.documents.get_mut(document_uri.as_str())?;
-            if document.origin == LspDocumentOrigin::Foreign {
-                return None;
-            }
-            Some(Arc::make_mut(document))
-        })
+        Some(Arc::make_mut(document))
     }
 
+    #[cfg(test)]
     pub(crate) fn document_storage_uri(uri: &str) -> String {
-        crate::protocol::canonical_file_uri(uri).unwrap_or_else(|| uri.to_string())
+        LspFileIdentityInterner::storage_uri(uri)
+    }
+
+    #[cfg(test)]
+    pub(crate) fn document_file_id(&self, uri: &str) -> Option<LspFileId> {
+        self.file_identity.file_id_for_uri(uri)
+    }
+
+    pub(crate) fn document_storage_uri_for_file_id(&self, file_id: LspFileId) -> Option<&str> {
+        self.file_identity.storage_uri_for_file_id(file_id)
+    }
+
+    pub(crate) fn document_for_file_id(&self, file_id: LspFileId) -> Option<&LspTextDocumentState> {
+        self.documents.get(&file_id).map(Arc::as_ref)
     }
 
     pub(crate) fn insert_open_document_uri(&mut self, uri: &str) -> String {
-        let storage_uri = Self::document_storage_uri(uri);
-        self.remove_open_document_uri(uri);
-        self.open_document_uris.insert(storage_uri.clone());
+        let (file_id, storage_uri) = self.file_identity.intern_uri(uri);
+        self.open_document_uris.insert(file_id);
         storage_uri
     }
 
     pub(crate) fn remove_open_document_uri(&mut self, uri: &str) {
-        let storage_uri = Self::document_storage_uri(uri);
-        self.open_document_uris.remove(storage_uri.as_str());
-        let equivalent_uris = self
-            .open_document_uris
-            .iter()
-            .filter(|candidate| crate::protocol::file_uri_equivalent(candidate, uri))
-            .cloned()
-            .collect::<Vec<_>>();
-        for candidate in equivalent_uris {
-            self.open_document_uris.remove(candidate.as_str());
+        if let Some(file_id) = self.file_identity.file_id_for_uri(uri) {
+            self.open_document_uris.remove(&file_id);
         }
     }
 
     pub(crate) fn has_open_document_uri(&self, uri: &str) -> bool {
-        let storage_uri = Self::document_storage_uri(uri);
-        self.open_document_uris.contains(storage_uri.as_str())
-            || self
-                .open_document_uris
-                .iter()
-                .any(|candidate| crate::protocol::file_uri_equivalent(candidate, uri))
+        self.file_identity
+            .file_id_for_uri(uri)
+            .is_some_and(|file_id| self.open_document_uris.contains(&file_id))
     }
 
     pub(crate) fn insert_document(&mut self, uri: &str, document: LspTextDocumentState) {
-        let storage_uri = Self::document_storage_uri(uri);
-        self.remove_document_uri(uri);
-        self.documents.insert(storage_uri, Arc::new(document));
+        let (file_id, _) = self.file_identity.intern_uri(uri);
+        self.documents.insert(file_id, Arc::new(document));
     }
 
     pub(crate) fn remove_document_uri(&mut self, uri: &str) -> Option<LspTextDocumentState> {
-        let storage_uri = Self::document_storage_uri(uri);
-        let removed = self
-            .documents
-            .remove(storage_uri.as_str())
-            .map(Arc::unwrap_or_clone);
-        let equivalent_uris = self
-            .documents
-            .keys()
-            .filter(|candidate| crate::protocol::file_uri_equivalent(candidate, uri))
-            .cloned()
-            .collect::<Vec<_>>();
-        for candidate in equivalent_uris {
-            self.documents.remove(candidate.as_str());
-        }
-        removed
+        let file_id = self.file_identity.file_id_for_uri(uri)?;
+        self.documents.remove(&file_id).map(Arc::unwrap_or_clone)
     }
 
     pub(crate) fn contains_document_uri(&self, uri: &str) -> bool {
@@ -479,6 +481,7 @@ impl LspShellState {
                 features: self.features.clone(),
                 diagnostics: self.diagnostics.clone(),
                 resolution: self.resolution.clone(),
+                file_identity: self.file_identity.clone(),
                 documents: self.documents.clone(),
                 open_document_uris: self.open_document_uris.clone(),
                 workspace_runtime_registry: self.workspace_runtime_registry.clone(),

@@ -68,12 +68,18 @@ pub fn prepare_background_workspace_index_job(state: &mut LspShellState) -> LspW
         open_document_uris: state
             .open_document_uris
             .iter()
-            .filter_map(|uri| {
-                state
-                    .document(uri.as_str())
-                    .map(|document| document.uri.clone())
+            .flat_map(|file_id| {
+                [
+                    state
+                        .document_for_file_id(*file_id)
+                        .map(|document| document.uri.clone()),
+                    state
+                        .document_storage_uri_for_file_id(*file_id)
+                        .map(ToString::to_string),
+                ]
+                .into_iter()
+                .flatten()
             })
-            .chain(state.open_document_uris.iter().cloned())
             .collect(),
         pending_file_uris: Vec::new(),
     }

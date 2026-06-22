@@ -392,9 +392,9 @@ fn open_document_uris_for_diagnostics(state: &LspShellState) -> Vec<String> {
     state
         .open_document_uris
         .iter()
-        .filter_map(|uri| {
+        .filter_map(|file_id| {
             state
-                .document(uri.as_str())
+                .document_for_file_id(*file_id)
                 .map(|document| document.uri.clone())
         })
         .collect()
@@ -453,11 +453,14 @@ fn style_uris_for_style_peer_change_diagnostics(
     state
         .open_document_uris
         .iter()
+        .filter_map(|file_id| {
+            state
+                .document_for_file_id(*file_id)
+                .map(|document| document.uri.clone())
+        })
         .filter(|uri| is_style_document_uri(uri.as_str()))
         .filter(|uri| !file_uri_equivalent(uri.as_str(), changed_style_uri))
-        .filter(|uri| state.document(uri.as_str()).is_some())
         .filter(|uri| style_disk_import_closure_reaches(state, uri.as_str(), changed_style_uri))
-        .cloned()
         .collect()
 }
 

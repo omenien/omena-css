@@ -3,11 +3,10 @@ use serde_json::Value;
 use crate::{
     LspShellState, LspTextDocumentState, LspWatchedFileChangeState,
     StyleExternalDependencySnapshot, admit_foreign_style_dependencies_for_style_uri,
-    byte_offset_for_parser_position, file_uri_equivalent, index_workspace_style_files,
-    insert_workspace_folder, invalidate_file_uri_identity_cache, is_resolution_config_document_uri,
-    is_style_document_uri, lsp_range_from_value, lsp_text_document_state,
-    refresh_document_reusable_indexes, refresh_external_sifs_for_state,
-    refresh_source_indexes_for_resolution_config_change,
+    byte_offset_for_parser_position, index_workspace_style_files, insert_workspace_folder,
+    invalidate_file_uri_identity_cache, is_resolution_config_document_uri, is_style_document_uri,
+    lsp_range_from_value, lsp_text_document_state, refresh_document_reusable_indexes,
+    refresh_external_sifs_for_state, refresh_source_indexes_for_resolution_config_change,
     refresh_source_indexes_for_style_document_change,
     refresh_source_type_fact_candidates_for_document,
     refresh_style_external_inputs_after_document_removal,
@@ -221,14 +220,14 @@ fn remove_unowned_indexed_documents_for_removed_workspaces(
     }
     let open_document_uris = state.open_document_uris.clone();
     let workspace_runtime_registry = state.workspace_runtime_registry.clone();
-    state.documents.retain(|uri, document| {
-        if open_document_uris.contains(uri)
-            || open_document_uris
-                .iter()
-                .any(|open_uri| file_uri_equivalent(open_uri, uri))
-        {
+    let file_identity = state.file_identity.clone();
+    state.documents.retain(|file_id, document| {
+        if open_document_uris.contains(file_id) {
             return true;
         }
+        let uri = file_identity
+            .storage_uri_for_file_id(*file_id)
+            .unwrap_or(document.uri.as_str());
         let owned_by_removed_workspace =
             document
                 .workspace_folder_uri
@@ -238,10 +237,7 @@ fn remove_unowned_indexed_documents_for_removed_workspaces(
                         .iter()
                         .any(|removed_uri| removed_uri == workspace_uri)
                 });
-        !owned_by_removed_workspace
-            || workspace_runtime_registry
-                .resolve_owner_uri(uri.as_str())
-                .is_some()
+        !owned_by_removed_workspace || workspace_runtime_registry.resolve_owner_uri(uri).is_some()
     });
 }
 

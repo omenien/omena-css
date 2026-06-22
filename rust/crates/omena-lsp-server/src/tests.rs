@@ -268,6 +268,55 @@ fn admitted_document_identity_comparisons_do_not_recanonicalize_paths() -> TestR
 }
 
 #[test]
+fn document_map_uses_canonical_identity_for_case_varied_paths_when_supported() -> TestResult {
+    let root = std::env::temp_dir().join(format!(
+        "omena_lsp_case_document_identity_{}_{}",
+        std::process::id(),
+        current_time_millis()
+    ));
+    fs::create_dir_all(root.as_path())?;
+    let real_style = root.join("CaseStyle.module.scss");
+    let case_style = root.join("casestyle.module.scss");
+    fs::write(real_style.as_path(), ".case { color: red; }")?;
+
+    let real_uri = raw_test_file_uri(real_style.as_path());
+    let case_uri = raw_test_file_uri(case_style.as_path());
+    if !file_uri_equivalent(real_uri.as_str(), case_uri.as_str()) {
+        let _ = fs::remove_dir_all(root.as_path());
+        return Ok(());
+    }
+
+    let mut state = LspShellState::default();
+    for (uri, text) in [
+        (real_uri.as_str(), ".case { color: red; }"),
+        (case_uri.as_str(), ".case { color: blue; }"),
+    ] {
+        handle_lsp_message(
+            &mut state,
+            json!({
+                "jsonrpc": "2.0",
+                "method": "textDocument/didOpen",
+                "params": {
+                    "textDocument": {
+                        "uri": uri,
+                        "languageId": "scss",
+                        "version": 1,
+                        "text": text,
+                    },
+                },
+            }),
+        );
+    }
+
+    assert_eq!(state.document_count(), 1);
+    assert_eq!(state.open_document_uris.len(), 1);
+    assert!(state.document(real_uri.as_str()).is_some());
+    assert!(state.document(case_uri.as_str()).is_some());
+    let _ = fs::remove_dir_all(root.as_path());
+    Ok(())
+}
+
+#[test]
 fn workspace_wave_document_admission_keeps_canonicalize_syscalls_linear() -> TestResult {
     let root = std::env::temp_dir().join(format!(
         "omena_lsp_file_identity_wave_{}_{}",
@@ -381,9 +430,8 @@ fn codelens_keeps_references_when_workspace_owner_uri_encoding_differs() {
             },
         }),
     );
-    if let Some(document) = state.documents.get_mut(source_uri) {
-        std::sync::Arc::make_mut(document).workspace_folder_uri =
-            Some(encoded_workspace_uri.to_string());
+    if let Some(document) = state.document_mut(source_uri) {
+        document.workspace_folder_uri = Some(encoded_workspace_uri.to_string());
     }
 
     let code_lens_response = handle_lsp_message(
