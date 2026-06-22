@@ -18,7 +18,7 @@ use crate::{DialectExtension, ParseResult, Parser, Token, tokenize};
 pub(crate) use animations::collect_animation_facts_from_tokens;
 pub use animations::{ParsedAnimationFact, ParsedAnimationFactKind};
 pub use at_rules::ParsedAtRuleFact;
-pub(crate) use at_rules::collect_at_rule_facts_from_tokens;
+pub(crate) use at_rules::{collect_at_rule_facts_from_cst, collect_at_rule_facts_from_tokens};
 pub use css_modules::{
     ParsedCssModuleComposesEdgeFact, ParsedCssModuleComposesEdgeKind, ParsedCssModuleComposesFact,
     ParsedCssModuleComposesFactKind, ParsedCssModuleValueDefinitionEdgeFact,
@@ -192,7 +192,10 @@ fn style_facts_from_tokens(
 
 pub fn facts_from_cst(text: &str, parsed: &ParseResult) -> ParsedStyleFacts {
     let tokens = tokens_from_cst(text, parsed);
-    style_facts_from_tokens(text, &tokens, parsed.dialect(), parsed.errors().len())
+    let mut facts = style_facts_from_tokens(text, &tokens, parsed.dialect(), parsed.errors().len());
+    facts.at_rules = collect_at_rule_facts_from_cst(text, parsed);
+    facts.at_rule_count = facts.at_rules.len();
+    facts
 }
 
 fn tokens_from_cst<'text>(text: &'text str, parsed: &ParseResult) -> Vec<Token<'text>> {
