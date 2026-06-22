@@ -3,7 +3,7 @@
 //! This module stays syntax-only: it records local edges and references so
 //! query/resolution layers can perform cross-file interpretation later.
 
-use cstree::text::TextRange;
+use cstree::{syntax::SyntaxNode, text::TextRange};
 use omena_syntax::SyntaxKind;
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -14,7 +14,7 @@ use crate::{
     top_level_token_kind_index, top_level_token_text_index,
 };
 
-use super::{tokens_from_cst, tokens_from_syntax_node};
+use super::tokens_from_syntax_node;
 
 #[cfg(feature = "internal-oracle")]
 use crate::matching_right_brace;
@@ -1170,16 +1170,91 @@ pub(crate) fn collect_css_module_composes_edge_facts_from_cst(
     text: &str,
     parsed: &ParseResult,
 ) -> Vec<ParsedCssModuleComposesEdgeFact> {
-    let tokens = tokens_from_cst(text, parsed);
-    css_module_composes_edge_facts_from_token_view(&tokens)
+    let mut edges = Vec::new();
+    for declaration in parsed
+        .syntax()
+        .descendants()
+        .filter(|node| node.kind() == SyntaxKind::CssModuleComposesDeclaration)
+    {
+        let owner_branches = css_module_composes_owner_branches_from_cst(text, declaration);
+        if owner_branches.is_empty() {
+            continue;
+        }
+        let tokens = tokens_from_syntax_node(text, declaration);
+        collect_immediate_css_module_composes_edge_facts(
+            &tokens,
+            0,
+            tokens.len(),
+            &owner_branches,
+            &mut edges,
+        );
+    }
+    edges
 }
 
+#[cfg(feature = "internal-oracle")]
 fn css_module_composes_edge_facts_from_token_view(
     tokens: &[Token<'_>],
 ) -> Vec<ParsedCssModuleComposesEdgeFact> {
     let mut edges = Vec::new();
     collect_css_module_composes_edge_facts_in_range(tokens, 0, tokens.len(), &[], None, &mut edges);
     edges
+}
+
+fn css_module_composes_owner_branches_from_cst(
+    text: &str,
+    declaration: &SyntaxNode<SyntaxKind>,
+) -> Vec<SelectorBranch> {
+    let mut branches = Vec::new();
+    let mut css_module_scope = None;
+    let mut ancestors = declaration.ancestors().collect::<Vec<_>>();
+    ancestors.reverse();
+    for ancestor in ancestors {
+        match ancestor.kind() {
+            SyntaxKind::Rule | SyntaxKind::NestRule => {
+                let tokens = tokens_from_syntax_node(text, ancestor);
+                let Some(open) = first_block_open_token_index(&tokens) else {
+                    continue;
+                };
+                let header_start = if ancestor.kind() == SyntaxKind::NestRule {
+                    tokens
+                        .iter()
+                        .position(|token| token.kind == SyntaxKind::AtKeyword)
+                        .map_or(0, |index| index + 1)
+                } else {
+                    0
+                };
+                let effective_scope = css_module_scope.or_else(|| {
+                    css_module_block_scope_marker_in_header(&tokens, header_start, open)
+                });
+                if effective_scope == Some("global") {
+                    branches.clear();
+                } else {
+                    branches = resolve_selector_header(&tokens, header_start, open, &branches);
+                }
+                css_module_scope = effective_scope;
+            }
+            SyntaxKind::CssModuleGlobalBlock => {
+                branches.clear();
+                css_module_scope = Some("global");
+            }
+            SyntaxKind::CssModuleLocalBlock if css_module_scope.is_none() => {
+                css_module_scope = Some("local");
+            }
+            _ => {}
+        }
+    }
+    if css_module_scope == Some("global") {
+        Vec::new()
+    } else {
+        branches
+    }
+}
+
+fn first_block_open_token_index(tokens: &[Token<'_>]) -> Option<usize> {
+    tokens
+        .iter()
+        .position(|token| matches!(token.kind, SyntaxKind::LeftBrace | SyntaxKind::SassIndent))
 }
 
 fn collect_css_module_composes_edge_facts_in_range(
