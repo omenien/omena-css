@@ -17,6 +17,7 @@ workspace = true
 
 [dependencies]
 engine-style-parser = { path = "../engine-style-parser", version = "=0.2.1" }
+omena-incremental = { path = "../omena-incremental", version = "=0.2.1" }
 omena-parser = { path = "../omena-parser", version = "=0.2.1" }
 omena-query = { path = "../omena-query", version = "=0.2.1", features = ["salsa-memo"] }
 omena-sif = { path = "../omena-sif", version = "=0.2.1" }

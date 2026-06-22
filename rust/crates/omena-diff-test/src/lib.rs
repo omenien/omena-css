@@ -8,6 +8,10 @@
 use std::collections::BTreeSet;
 
 use engine_style_parser::{parse_style_module, summarize_css_modules_intermediate};
+use omena_incremental::{
+    IncrementalGraphInputV0, IncrementalNodeInputV0, IncrementalRevisionV0,
+    plan_incremental_computation, snapshot_from_graph_input,
+};
 use omena_parser::{StyleDialect, summarize_omena_parser_style_facts};
 use omena_query::{
     OmenaQueryExternalModuleModeV0, OmenaQueryExternalSifInputV0,
@@ -113,6 +117,19 @@ pub struct ParserDifferentialReport {
     /// Field-level comparisons.
     pub fields: Vec<DiffFieldReport>,
     /// Whether every field matched.
+    pub all_fields_match: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct IncrementalIdentityReuseEquivalenceReportV0 {
+    pub schema_version: &'static str,
+    pub product: &'static str,
+    pub source_pair: &'static str,
+    pub unchanged_syntax_id_stable: bool,
+    pub changed_syntax_id_differs: bool,
+    pub incremental_matches_from_scratch_delta: bool,
+    pub fields: Vec<DiffFieldReport>,
     pub all_fields_match: bool,
 }
 
@@ -616,6 +633,109 @@ pub fn compare_omena_parser_with_legacy(
         product: "omena-diff-test.parser-legacy-differential",
         label: fixture.label,
         dialect: fixture.dialect.as_label(),
+        fields,
+        all_fields_match,
+    }
+}
+
+pub fn summarize_incremental_identity_reuse_equivalence_v0()
+-> IncrementalIdentityReuseEquivalenceReportV0 {
+    let previous_source = ".alpha { color: red; } .beta { color: blue; }";
+    let next_source = ".alpha { color: green; } .beta { color: blue; }";
+    let previous_alpha_id = parser_rule_syntax_node_id(previous_source, ".alpha");
+    let previous_beta_id = parser_rule_syntax_node_id(previous_source, ".beta");
+    let next_alpha_id = parser_rule_syntax_node_id(next_source, ".alpha");
+    let next_beta_id = parser_rule_syntax_node_id(next_source, ".beta");
+    let previous = IncrementalGraphInputV0 {
+        revision: IncrementalRevisionV0 { value: 1 },
+        nodes: vec![
+            IncrementalNodeInputV0 {
+                id: previous_alpha_id.clone(),
+                digest: "alpha:red".to_string(),
+                dependency_ids: Vec::new(),
+            },
+            IncrementalNodeInputV0 {
+                id: previous_beta_id.clone(),
+                digest: "beta:blue".to_string(),
+                dependency_ids: Vec::new(),
+            },
+        ],
+    };
+    let next = IncrementalGraphInputV0 {
+        revision: IncrementalRevisionV0 { value: 2 },
+        nodes: vec![
+            IncrementalNodeInputV0 {
+                id: next_alpha_id.clone(),
+                digest: "alpha:green".to_string(),
+                dependency_ids: Vec::new(),
+            },
+            IncrementalNodeInputV0 {
+                id: next_beta_id.clone(),
+                digest: "beta:blue".to_string(),
+                dependency_ids: Vec::new(),
+            },
+        ],
+    };
+    let previous_snapshot = snapshot_from_graph_input(&previous);
+    let identity_keyed_reuse = plan_incremental_computation(&next, Some(&previous_snapshot));
+    let full_rebuild_snapshot = snapshot_from_graph_input(&next);
+    let fields = vec![
+        field_report(
+            "nodeIdentityDigest",
+            full_rebuild_snapshot
+                .nodes
+                .iter()
+                .map(|node| format!("{}|{}", node.id, node.digest)),
+            identity_keyed_reuse
+                .nodes
+                .iter()
+                .map(|node| format!("{}|{}", node.id, node.digest)),
+        ),
+        field_report(
+            "dependencyEdges",
+            full_rebuild_snapshot.nodes.iter().flat_map(|node| {
+                node.dependency_ids
+                    .iter()
+                    .map(|dependency_id| format!("{}->{dependency_id}", node.id))
+            }),
+            identity_keyed_reuse.nodes.iter().flat_map(|node| {
+                node.dependency_ids
+                    .iter()
+                    .map(|dependency_id| format!("{}->{dependency_id}", node.id))
+            }),
+        ),
+        field_report(
+            "dirtyIds",
+            identity_keyed_reuse
+                .shadow_delta_oracle
+                .from_scratch_dirty_ids
+                .clone(),
+            identity_keyed_reuse
+                .shadow_delta_oracle
+                .incremental_dirty_ids
+                .clone(),
+        ),
+        field_report(
+            "reusableCleanIds",
+            vec![next_beta_id.clone()],
+            identity_keyed_reuse
+                .nodes
+                .iter()
+                .filter(|node| !node.dirty)
+                .map(|node| node.id.clone()),
+        ),
+    ];
+    let all_fields_match = fields.iter().all(|field| field.matches);
+
+    IncrementalIdentityReuseEquivalenceReportV0 {
+        schema_version: "0",
+        product: "omena-diff-test.incremental-identity-reuse-equivalence",
+        source_pair: "css-two-rule-alpha-edit-beta-unchanged",
+        unchanged_syntax_id_stable: previous_beta_id == next_beta_id,
+        changed_syntax_id_differs: previous_alpha_id != next_alpha_id,
+        incremental_matches_from_scratch_delta: identity_keyed_reuse
+            .shadow_delta_oracle
+            .incremental_matches_from_scratch_delta,
         fields,
         all_fields_match,
     }
@@ -1792,6 +1912,23 @@ fn field_report(
     }
 }
 
+fn parser_rule_syntax_node_id(source: &str, needle: &str) -> String {
+    let parsed = omena_parser::parse(source, StyleDialect::Css);
+    let syntax = parsed.syntax();
+    let node = syntax
+        .descendants()
+        .find(|node| {
+            node.try_resolved()
+                .map(|resolved| {
+                    let text = resolved.text().to_string();
+                    text.starts_with(needle) && text.contains('{')
+                })
+                .unwrap_or(false)
+        })
+        .unwrap_or_else(|| panic!("expected rule containing {needle:?}"));
+    omena_parser::syntax_node_id(node).as_str().to_string()
+}
+
 fn sorted_unique(values: impl IntoIterator<Item = String>) -> Vec<String> {
     values
         .into_iter()
@@ -2282,5 +2419,33 @@ code: missingCustomProperty
             wpt_seed_stale_known_failure_count(&[chunk], &known_failure_subtests),
             2
         );
+    }
+
+    #[test]
+    fn reports_incremental_identity_reuse_equivalence_with_field_reports() {
+        let report = summarize_incremental_identity_reuse_equivalence_v0();
+
+        assert_eq!(
+            report.product,
+            "omena-diff-test.incremental-identity-reuse-equivalence"
+        );
+        assert!(report.unchanged_syntax_id_stable);
+        assert!(report.changed_syntax_id_differs);
+        assert!(report.incremental_matches_from_scratch_delta);
+        assert!(report.all_fields_match);
+        assert_eq!(
+            report
+                .fields
+                .iter()
+                .map(|field| field.field)
+                .collect::<Vec<_>>(),
+            vec![
+                "nodeIdentityDigest",
+                "dependencyEdges",
+                "dirtyIds",
+                "reusableCleanIds"
+            ]
+        );
+        assert!(report.fields.iter().all(|field| field.matches));
     }
 }
