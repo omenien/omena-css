@@ -603,6 +603,18 @@ fn css_module_value_statement_tokens_from_cst<'text>(
         .collect()
 }
 
+fn css_module_composes_declaration_tokens_from_cst<'text>(
+    text: &'text str,
+    parsed: &ParseResult,
+) -> Vec<Vec<Token<'text>>> {
+    parsed
+        .syntax()
+        .descendants()
+        .filter(|node| node.kind() == SyntaxKind::CssModuleComposesDeclaration)
+        .map(|node| tokens_from_syntax_node(text, node))
+        .collect()
+}
+
 fn css_module_value_import_edge_source(
     tokens: &[Token<'_>],
     start: usize,
@@ -1027,10 +1039,10 @@ pub(crate) fn collect_css_module_composes_facts_from_cst(
     text: &str,
     parsed: &ParseResult,
 ) -> Vec<ParsedCssModuleComposesFact> {
-    let tokens = tokens_from_cst(text, parsed);
-    css_module_composes_facts_from_token_view(&tokens)
+    css_module_composes_facts_from_cst_nodes(text, parsed)
 }
 
+#[cfg(feature = "internal-oracle")]
 fn css_module_composes_facts_from_token_view(
     tokens: &[Token<'_>],
 ) -> Vec<ParsedCssModuleComposesFact> {
@@ -1064,6 +1076,46 @@ fn css_module_composes_facts_from_token_view(
         }
     }
     composes
+}
+
+fn css_module_composes_facts_from_cst_nodes(
+    text: &str,
+    parsed: &ParseResult,
+) -> Vec<ParsedCssModuleComposesFact> {
+    let mut composes = Vec::new();
+    let mut seen = BTreeSet::new();
+    for tokens in css_module_composes_declaration_tokens_from_cst(text, parsed) {
+        collect_css_module_composes_statement_facts(&tokens, &mut composes, &mut seen);
+    }
+    composes
+}
+
+fn collect_css_module_composes_statement_facts(
+    tokens: &[Token<'_>],
+    composes: &mut Vec<ParsedCssModuleComposesFact>,
+    seen: &mut BTreeSet<(ParsedCssModuleComposesFactKind, String, u32, u32)>,
+) {
+    let Some(index) = tokens.iter().position(|token| {
+        token.kind == SyntaxKind::Ident && token.text.eq_ignore_ascii_case("composes")
+    }) else {
+        return;
+    };
+    let Some(colon_index) = next_non_trivia_token_index_until(tokens, index + 1, tokens.len())
+    else {
+        return;
+    };
+    if tokens[colon_index].kind != SyntaxKind::Colon {
+        return;
+    }
+
+    let start = colon_index + 1;
+    let end = css_module_value_statement_end(tokens, start);
+    let from_index = top_level_token_text_index(tokens, start, end, "from");
+    let target_end = from_index.unwrap_or(end);
+    collect_css_module_composes_targets(tokens, start, target_end, composes, seen);
+    if let Some(from_index) = from_index {
+        collect_css_module_composes_import_source(tokens, from_index + 1, end, composes, seen);
+    }
 }
 
 #[cfg(feature = "internal-oracle")]
