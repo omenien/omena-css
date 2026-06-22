@@ -1389,6 +1389,85 @@ fn background_workspace_index_admits_foreign_dependencies_from_new_batch_only() 
 }
 
 #[test]
+fn background_workspace_index_prioritizes_candidates_near_open_documents() -> TestResult {
+    let workspace_root = std::env::temp_dir().join(format!(
+        "omena-lsp-server-background-proximity-{}",
+        std::process::id()
+    ));
+    let far_dir = workspace_root.join("aaa");
+    let near_dir = workspace_root.join("zzz");
+    let open_source_path = near_dir.join("App.tsx");
+    let near_style_path = near_dir.join("Near.module.scss");
+    let _ = std::fs::remove_dir_all(&workspace_root);
+    std::fs::create_dir_all(&far_dir)?;
+    std::fs::create_dir_all(&near_dir)?;
+    for index in 0..520 {
+        std::fs::write(
+            far_dir.join(format!("Style{index:04}.module.scss")),
+            format!(".far{index} {{ color: red; }}"),
+        )?;
+    }
+    std::fs::write(
+        open_source_path.as_path(),
+        "import styles from \"./Near.module.scss\";\nconst view = <div className={styles.near} />;",
+    )?;
+    std::fs::write(near_style_path.as_path(), ".near { color: blue; }")?;
+
+    let workspace_uri = crate::protocol::path_to_file_uri(workspace_root.as_path());
+    let open_source_uri = crate::protocol::path_to_file_uri(open_source_path.as_path());
+    let near_style_uri = crate::protocol::path_to_file_uri(near_style_path.as_path());
+    let mut state = LspShellState::default();
+    handle_lsp_message(
+        &mut state,
+        json!({
+            "jsonrpc": "2.0",
+            "id": 1,
+            "method": "initialize",
+            "params": {
+                "workspaceFolders": [
+                    {
+                        "uri": workspace_uri,
+                        "name": "background-proximity",
+                    },
+                ],
+            },
+        }),
+    );
+    handle_lsp_message(
+        &mut state,
+        json!({
+            "jsonrpc": "2.0",
+            "method": "textDocument/didOpen",
+            "params": {
+                "textDocument": {
+                    "uri": open_source_uri,
+                    "languageId": "typescriptreact",
+                    "version": 1,
+                    "text": "import styles from \"./Near.module.scss\";\nconst view = <div className={styles.near} />;",
+                },
+            },
+        }),
+    );
+
+    let job = prepare_background_workspace_index_job(&mut state);
+    let result = collect_background_workspace_index(job);
+    assert!(
+        result.exhausted,
+        "fixture should exceed the per-tick file budget"
+    );
+    assert!(
+        result
+            .documents
+            .iter()
+            .any(|document| file_uri_equivalent(document.uri.as_str(), near_style_uri.as_str())),
+        "first background batch should include the style candidate near the open source document"
+    );
+
+    let _ = std::fs::remove_dir_all(&workspace_root);
+    Ok(())
+}
+
+#[test]
 fn background_workspace_index_reaches_sources_past_dir_budget() -> TestResult {
     let workspace_root = std::env::temp_dir().join(format!(
         "omena-lsp-server-background-dir-frontier-{}",

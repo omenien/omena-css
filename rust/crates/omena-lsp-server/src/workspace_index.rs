@@ -13,7 +13,7 @@ use omena_query::{OmenaQueryStyleResolutionInputsV0, StyleLanguage};
 use std::{
     collections::{BTreeMap, BTreeSet},
     fs,
-    path::Path,
+    path::{Path, PathBuf},
     time::Instant,
 };
 
@@ -250,9 +250,43 @@ fn collect_workspace_index_candidate_uris(job: &LspWorkspaceIndexJobV0) -> Vec<S
         };
         collect_workspace_index_candidate_uris_from_dir(job, path.as_path(), uris.as_mut());
     }
-    uris.sort();
+    sort_workspace_index_candidate_uris(job, uris.as_mut_slice());
     uris.dedup();
     uris
+}
+
+fn sort_workspace_index_candidate_uris(job: &LspWorkspaceIndexJobV0, uris: &mut [String]) {
+    let open_document_dirs = workspace_index_open_document_dirs(job);
+    uris.sort_by(|left, right| {
+        workspace_index_candidate_proximity_group(&open_document_dirs, left.as_str())
+            .cmp(&workspace_index_candidate_proximity_group(
+                &open_document_dirs,
+                right.as_str(),
+            ))
+            .then_with(|| left.cmp(right))
+    });
+}
+
+fn workspace_index_open_document_dirs(job: &LspWorkspaceIndexJobV0) -> BTreeSet<PathBuf> {
+    job.open_document_uris
+        .iter()
+        .filter_map(|uri| {
+            file_uri_to_path(uri.as_str()).and_then(|path| path.parent().map(Path::to_path_buf))
+        })
+        .collect()
+}
+
+fn workspace_index_candidate_proximity_group(
+    open_document_dirs: &BTreeSet<PathBuf>,
+    uri: &str,
+) -> u8 {
+    file_uri_to_path(uri)
+        .and_then(|path| {
+            path.parent()
+                .map(|parent| open_document_dirs.contains(parent))
+        })
+        .filter(|is_near_open_document| *is_near_open_document)
+        .map_or(1, |_| 0)
 }
 
 fn collect_workspace_index_candidate_uris_from_dir(
