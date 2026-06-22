@@ -4,6 +4,9 @@ use std::{
     path::Path,
 };
 
+#[cfg(test)]
+use std::cell::Cell;
+
 use omena_query::{
     StyleLanguage, summarize_omena_query_sass_module_sources, summarize_omena_query_style_document,
 };
@@ -198,6 +201,21 @@ pub(crate) fn reload_indexed_source_document_from_disk(
 
 const FOREIGN_STYLE_DEPENDENCY_ADMISSION_LIMIT: usize = 512;
 
+#[cfg(test)]
+thread_local! {
+    static FOREIGN_STYLE_DEPENDENCY_SCAN_COUNT: Cell<usize> = const { Cell::new(0) };
+}
+
+#[cfg(test)]
+pub(crate) fn reset_foreign_style_dependency_scan_count_for_test() {
+    FOREIGN_STYLE_DEPENDENCY_SCAN_COUNT.with(|count| count.set(0));
+}
+
+#[cfg(test)]
+pub(crate) fn foreign_style_dependency_scan_count_for_test() -> usize {
+    FOREIGN_STYLE_DEPENDENCY_SCAN_COUNT.with(Cell::get)
+}
+
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub(crate) struct StyleExternalDependencySnapshot {
     bridge_sources: Vec<String>,
@@ -298,7 +316,7 @@ pub(crate) fn admit_foreign_style_dependencies_for_style_uri(state: &mut LspShel
     admit_foreign_style_dependencies_for_style_uris(state, vec![uri.to_string()]);
 }
 
-fn admit_foreign_style_dependencies_for_style_uris(
+pub(crate) fn admit_foreign_style_dependencies_for_style_uris(
     state: &mut LspShellState,
     style_uris: Vec<String>,
 ) {
@@ -341,6 +359,8 @@ fn style_module_dependency_target_uris(
     state: &LspShellState,
     document: &LspTextDocumentState,
 ) -> Vec<String> {
+    #[cfg(test)]
+    FOREIGN_STYLE_DEPENDENCY_SCAN_COUNT.with(|count| count.set(count.get().saturating_add(1)));
     let Some(sources) =
         summarize_omena_query_sass_module_sources(document.uri.as_str(), document.text.as_str())
     else {

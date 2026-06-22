@@ -1307,6 +1307,88 @@ fn background_workspace_index_resumes_past_already_indexed_source_files() -> Tes
 }
 
 #[test]
+fn background_workspace_index_admits_foreign_dependencies_from_new_batch_only() -> TestResult {
+    let workspace_root = std::env::temp_dir().join(format!(
+        "omena-lsp-server-background-delta-admit-{}",
+        std::process::id()
+    ));
+    let src_dir = workspace_root.join("src");
+    let _ = std::fs::remove_dir_all(&workspace_root);
+    std::fs::create_dir_all(&src_dir)?;
+    let mut style_uris = Vec::new();
+    for index in 0..4 {
+        let path = src_dir.join(format!("Style{index}.module.scss"));
+        std::fs::write(path.as_path(), format!(".item{index} {{ color: red; }}"))?;
+        style_uris.push(crate::protocol::path_to_file_uri(path.as_path()));
+    }
+
+    let workspace_uri = crate::protocol::path_to_file_uri(workspace_root.as_path());
+    let mut state = LspShellState::default();
+    handle_lsp_message(
+        &mut state,
+        json!({
+            "jsonrpc": "2.0",
+            "id": 1,
+            "method": "initialize",
+            "params": {
+                "workspaceFolders": [
+                    {
+                        "uri": workspace_uri,
+                        "name": "background-delta-admit",
+                    },
+                ],
+            },
+        }),
+    );
+
+    let resolution_inputs =
+        resolution_inputs_for_workspace_uri(&state, Some(workspace_uri.as_str()));
+    for uri in style_uris.iter().take(3) {
+        state.insert_document(
+            uri.as_str(),
+            lsp_text_document_state(
+                uri.clone(),
+                Some(workspace_uri.clone()),
+                "scss".to_string(),
+                0,
+                ".old { color: red; }".to_string(),
+                &resolution_inputs,
+            ),
+        );
+    }
+
+    crate::document_refresh::reset_foreign_style_dependency_scan_count_for_test();
+    let new_uri = style_uris
+        .get(3)
+        .ok_or_else(|| std::io::Error::other("missing new style uri"))?;
+    let result = LspWorkspaceIndexResultV0 {
+        revision: state.workspace_index_revision,
+        progress_token: None,
+        documents: vec![lsp_text_document_state(
+            new_uri.clone(),
+            Some(workspace_uri.clone()),
+            "scss".to_string(),
+            0,
+            ".new { color: blue; }".to_string(),
+            &resolution_inputs,
+        )],
+        pending_file_uris: Vec::new(),
+        indexed_count: 1,
+        pending_file_count: 0,
+        exhausted: false,
+    };
+    assert!(apply_background_workspace_index_result(&mut state, result));
+    assert_eq!(
+        crate::document_refresh::foreign_style_dependency_scan_count_for_test(),
+        1,
+        "background result apply must scan only newly indexed style documents"
+    );
+
+    let _ = std::fs::remove_dir_all(&workspace_root);
+    Ok(())
+}
+
+#[test]
 fn background_workspace_index_reaches_sources_past_dir_budget() -> TestResult {
     let workspace_root = std::env::temp_dir().join(format!(
         "omena-lsp-server-background-dir-frontier-{}",

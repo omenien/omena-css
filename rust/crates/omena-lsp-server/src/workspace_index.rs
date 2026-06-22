@@ -130,6 +130,7 @@ pub fn apply_background_workspace_index_result(
     if result.revision != state.workspace_index_revision {
         return false;
     }
+    let mut indexed_style_uris = Vec::new();
     for document in result.documents {
         if state.has_open_document_uri(document.uri.as_str()) {
             continue;
@@ -144,9 +145,12 @@ pub fn apply_background_workspace_index_result(
             continue;
         }
         let uri = document.uri.clone();
+        if is_style_document_uri(uri.as_str()) {
+            indexed_style_uris.push(uri.clone());
+        }
         state.insert_document(uri.as_str(), document);
     }
-    crate::admit_foreign_style_dependencies_for_indexed_style_documents(state);
+    crate::admit_foreign_style_dependencies_for_style_uris(state, indexed_style_uris);
     crate::refresh_external_sifs_for_state(state);
     state.workspace_index_pending_file_count = result.pending_file_count;
     if result.exhausted {

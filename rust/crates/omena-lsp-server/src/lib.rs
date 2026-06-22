@@ -53,7 +53,8 @@ pub(crate) use document_events::{
 };
 pub(crate) use document_refresh::{
     StyleExternalDependencySnapshot, admit_foreign_style_dependencies_for_indexed_style_documents,
-    admit_foreign_style_dependencies_for_style_uri, ensure_style_document_loaded_from_disk,
+    admit_foreign_style_dependencies_for_style_uri,
+    admit_foreign_style_dependencies_for_style_uris, ensure_style_document_loaded_from_disk,
     is_resolution_config_document_uri, refresh_source_indexes_for_resolution_config_change,
     refresh_source_indexes_for_resolution_settings_change,
     refresh_source_indexes_for_style_document_change,
