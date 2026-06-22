@@ -127,11 +127,11 @@ const nativeCssImplementation = readFileSync(
   "utf8",
 );
 assert.ok(
-  nativeCssImplementation.includes("native_css_branch_truthiness_by_start(source, \"@when\")"),
+  nativeCssImplementation.includes('native_css_branch_truthiness_by_start(source, "@when")'),
   "native CSS @when static edits must derive branch truthiness through the edge-IR value-analysis bridge",
 );
 assert.ok(
-  nativeCssImplementation.includes("native_css_branch_truthiness_by_start(source, \"if()\")"),
+  nativeCssImplementation.includes('native_css_branch_truthiness_by_start(source, "if()")'),
   "native CSS if() static edits must derive branch truthiness through the edge-IR value-analysis bridge",
 );
 assert.ok(
@@ -169,7 +169,10 @@ const staticIfNodeKey = nativeControlFlow.controlFlowIr?.blocks.find(
     block.kind === "branchIf" &&
     block.sourceSpanStart < nativeSource.indexOf("@when"),
 )?.nodeKey;
-assert.ok(staticIfNodeKey, "static native CSS if() must be present in the unified control-flow edge IR");
+assert.ok(
+  staticIfNodeKey,
+  "static native CSS if() must be present in the unified control-flow edge IR",
+);
 assert.ok(
   nativeControlFlow.valueAnalysis?.blocks.some(
     (block) => block.nodeKey === staticIfNodeKey && block.transferTruthiness === "truthy",
