@@ -580,6 +580,23 @@ const PARSER_FACT_AUTHORITY_FIXTURES: &[ParserDifferentialFixture] = &[
 "#,
         dialect: DiffDialect::Less,
     },
+    ParserDifferentialFixture {
+        label: "scss-interpolation-token-contexts",
+        file_path: "/interpolation.module.scss",
+        source: r#"
+$tone: brand;
+@mixin paint($value) { color: $value; }
+@keyframes spin { to { opacity: 1; } }
+.button-#{$variant} {
+  @include paint($tone);
+  animation: #{$tone}-spin 1s;
+}
+.button {
+  animation: #{$tone} spin 1s;
+}
+"#,
+        dialect: DiffDialect::Scss,
+    },
 ];
 
 const PARSER_CST_CONTEXT_RAW_SCAN_FIXTURES: &[ParserCstContextRawScanFixture] = &[
