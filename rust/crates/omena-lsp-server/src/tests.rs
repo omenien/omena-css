@@ -212,6 +212,50 @@ fn document_map_uses_canonical_identity_for_symlinked_document_paths() -> TestRe
     Ok(())
 }
 
+#[test]
+fn lsp_file_identity_feeds_incremental_revision_salsa_key() {
+    let uri = "file:///workspace/src/Card.module.scss";
+    let text = ".card { color: red; }";
+    let mut state = LspShellState::default();
+    handle_lsp_message(
+        &mut state,
+        json!({
+            "jsonrpc": "2.0",
+            "method": "textDocument/didOpen",
+            "params": {
+                "textDocument": {
+                    "uri": uri,
+                    "languageId": "scss",
+                    "version": 7,
+                    "text": text,
+                },
+            },
+        }),
+    );
+    let file_id = state
+        .document_file_id(uri)
+        .expect("opened document should have an LSP file identity");
+    let parsed = omena_parser::parse(text, omena_parser::StyleDialect::Scss);
+    let syntax = parsed.syntax();
+    let syntax_id = omena_parser::syntax_node_id(&syntax);
+    let db = salsa::DatabaseImpl::default();
+    let key_input = omena_incremental::SalsaIncrementalFileRevisionInputV0::new(
+        &db,
+        file_id.incremental_key(),
+        omena_incremental::IncrementalRevisionV0 { value: 7 },
+        syntax_id.as_str().to_string(),
+    );
+
+    assert_eq!(
+        omena_incremental::read_salsa_file_revision_syntax_key(&db, key_input),
+        format!(
+            "file={};revision=7;syntax={}",
+            file_id.incremental_key(),
+            syntax_id.as_str()
+        )
+    );
+}
+
 #[cfg(unix)]
 #[test]
 fn admitted_document_identity_comparisons_do_not_recanonicalize_paths() -> TestResult {

@@ -2298,11 +2298,13 @@ version = "0.2.1"
 dependencies = [
  "omena-cascade",
  "omena-incremental",
+ "omena-parser",
  "omena-query",
  "omena-sif",
  "omena-streaming-ifds",
  "omena-tsgo-client",
  "rayon",
+ "salsa",
  "serde",
  "serde_json",
 ]

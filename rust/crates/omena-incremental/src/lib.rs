@@ -48,7 +48,7 @@ pub struct OmenaIncrementalBoundarySummaryV0 {
 
 pub const DEFAULT_INCREMENTAL_CANCELLATION_LIMIT: usize = 128;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct IncrementalRevisionV0 {
     pub value: u64,
@@ -318,6 +318,14 @@ pub struct SalsaIncrementalNodeInputV0 {
     digest: String,
     #[returns(ref)]
     dependency_ids: Vec<String>,
+}
+
+#[salsa::input(debug)]
+pub struct SalsaIncrementalFileRevisionInputV0 {
+    file_id: u32,
+    revision: IncrementalRevisionV0,
+    #[returns(ref)]
+    syntax_node_id: String,
 }
 
 #[derive(Default)]
@@ -943,6 +951,20 @@ fn read_salsa_transitive_unrelated(
 ) -> String {
     SALSA_TRANSITIVE_UNRELATED_QUERY_RUNS.fetch_add(1, Ordering::Relaxed);
     format!("u={}", read_salsa_transitive_leaf(db, node))
+}
+
+#[salsa::tracked(returns(clone))]
+pub fn read_salsa_file_revision_syntax_key(
+    db: &dyn salsa::Database,
+    input: SalsaIncrementalFileRevisionInputV0,
+) -> String {
+    let revision = input.revision(db);
+    format!(
+        "file={};revision={};syntax={}",
+        input.file_id(db),
+        revision.value,
+        input.syntax_node_id(db)
+    )
 }
 
 fn normalized_snapshot_nodes(input: &IncrementalGraphInputV0) -> Vec<IncrementalSnapshotNodeV0> {

@@ -114,6 +114,13 @@ pub struct LspWatchedFileChangeState {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub(crate) struct LspFileId(u32);
 
+impl LspFileId {
+    #[cfg(test)]
+    pub(crate) fn incremental_key(self) -> u32 {
+        self.0
+    }
+}
+
 #[derive(Debug, Clone, Default)]
 pub(crate) struct LspFileIdentityInterner {
     next_id: u32,

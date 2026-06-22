@@ -33,6 +33,7 @@ smt-z3 = ["omena-query/smt-z3"]
 [dependencies]
 omena-cascade = { path = "../omena-cascade", version = "=0.2.1" }
 omena-incremental = { path = "../omena-incremental", version = "=0.2.1" }
+omena-parser = { path = "../omena-parser", version = "=0.2.1" }
 omena-query = { path = "../omena-query", version = "=0.2.1", features = ["hypergraph-ifds"] }
 # RFC 0009 Pillar C (rfcs#66): blake3 content addressing for the disk
 # diagnostics shard cache reuses the SIF hash substrate (already in the build
@@ -43,5 +44,6 @@ omena-streaming-ifds = { path = "../omena-streaming-ifds", version = "=0.2.1", f
 ] }
 omena-tsgo-client = { path = "../omena-tsgo-client", version = "=0.2.1" }
 rayon = { workspace = true, optional = true }
+salsa.workspace = true
 serde.workspace = true
 serde_json.workspace = true
