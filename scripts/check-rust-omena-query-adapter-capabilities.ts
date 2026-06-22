@@ -357,6 +357,14 @@ const EXPECTED_RUNNER_COMMANDS = new Map([
     },
   ],
   [
+    "nativeCssEvaluator",
+    {
+      command: "input-native-css-evaluator",
+      inputContract: "EngineInputV2 + targetStylePath",
+      outputProduct: "omena-query.native-css-evaluator",
+    },
+  ],
+  [
     "staticStylesheetEvaluator",
     {
       command: SELECTED_QUERY_RUNNER_COMMANDS.staticStylesheetEvaluator,
@@ -641,6 +649,7 @@ void (async () => {
     "expressionDomainSelectorProjection",
     "expressionSemanticsDerivationPayload",
     "fragmentBundleBoundary",
+    "nativeCssEvaluatorFacade",
     "omenaParserStyleFactExtraction",
     "queryEvaluationRuntime",
     "readCascadeAtPosition",
