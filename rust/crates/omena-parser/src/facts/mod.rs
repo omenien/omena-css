@@ -57,7 +57,8 @@ pub(crate) use selectors::{
 };
 pub use variables::{ParsedVariableFact, ParsedVariableFactKind};
 pub(crate) use variables::{
-    collect_variable_facts_from_tokens, scss_variable_token_is_declaration,
+    collect_variable_facts_from_cst, collect_variable_facts_from_tokens,
+    scss_variable_token_is_declaration,
 };
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -193,12 +194,14 @@ fn style_facts_from_tokens(
 pub fn facts_from_cst(text: &str, parsed: &ParseResult) -> ParsedStyleFacts {
     let tokens = tokens_from_cst(text, parsed);
     let mut facts = style_facts_from_tokens(text, &tokens, parsed.dialect(), parsed.errors().len());
+    facts.variables = collect_variable_facts_from_cst(text, parsed);
+    facts.variable_count = facts.variables.len();
     facts.at_rules = collect_at_rule_facts_from_cst(text, parsed);
     facts.at_rule_count = facts.at_rules.len();
     facts
 }
 
-fn tokens_from_cst<'text>(text: &'text str, parsed: &ParseResult) -> Vec<Token<'text>> {
+pub(crate) fn tokens_from_cst<'text>(text: &'text str, parsed: &ParseResult) -> Vec<Token<'text>> {
     parsed
         .syntax()
         .descendants_with_tokens()

@@ -7,9 +7,11 @@ use cstree::text::TextRange;
 use omena_syntax::SyntaxKind;
 
 use crate::{
-    Token, containing_at_rule_header_name, next_non_trivia_token, previous_non_trivia_token,
-    previous_non_trivia_token_index,
+    ParseResult, Token, containing_at_rule_header_name, next_non_trivia_token,
+    previous_non_trivia_token, previous_non_trivia_token_index,
 };
+
+use super::tokens_from_cst;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ParsedVariableFact {
@@ -34,6 +36,18 @@ pub enum ParsedVariableFactKind {
 }
 
 pub(crate) fn collect_variable_facts_from_tokens(tokens: &[Token<'_>]) -> Vec<ParsedVariableFact> {
+    variable_facts_from_token_view(tokens)
+}
+
+pub(crate) fn collect_variable_facts_from_cst(
+    text: &str,
+    parsed: &ParseResult,
+) -> Vec<ParsedVariableFact> {
+    let tokens = tokens_from_cst(text, parsed);
+    variable_facts_from_token_view(&tokens)
+}
+
+fn variable_facts_from_token_view(tokens: &[Token<'_>]) -> Vec<ParsedVariableFact> {
     let mut variables = Vec::new();
     for (index, token) in tokens.iter().enumerate() {
         let kind = match token.kind {
