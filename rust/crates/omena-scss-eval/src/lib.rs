@@ -8,6 +8,7 @@
 //! are widened.
 
 mod control_flow;
+mod native_css;
 mod scss_metadata;
 mod static_loop_frames;
 mod static_stylesheet;
@@ -34,6 +35,11 @@ pub use control_flow::{
     build_scss_control_flow_graph, summarize_scss_call_return_ir, summarize_scss_control_flow_ir,
     summarize_scss_control_flow_oracle_corpus, summarize_scss_control_flow_prune_reachability,
     summarize_typed_value_lattice_witness,
+};
+pub use native_css::{
+    OmenaScssEvalNativeCssFunctionParameterV0, OmenaScssEvalNativeCssFunctionResultV0,
+    OmenaScssEvalNativeCssFunctionSurfaceV0, OmenaScssEvalNativeCssFunctionV0,
+    summarize_native_css_function_surface,
 };
 pub use static_stylesheet::{
     OmenaScssEvalResolvedReplacementV0, OmenaScssEvalStaticStylesheetEvaluationV0,
