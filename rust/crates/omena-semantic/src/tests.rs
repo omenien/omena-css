@@ -171,6 +171,60 @@ fn indexes_layer_container_and_scope_contexts_for_semantic_consumers() {
 }
 
 #[test]
+fn context_index_ignores_layer_tokens_inside_comments_and_strings() {
+    let summary = summarize_omena_parser_style_semantic_boundary_from_source(
+        "Component.module.css",
+        r#"
+/* @layer fakeComment; { */
+.noise::before { content: "@layer fakeString; {"; }
+
+@layer reset, components;
+@layer components {
+  .card { content: "{"; color: red; }
+  .card__body { color: blue; }
+}
+"#,
+    );
+    let context_index = summary.semantic_facts.context_index;
+
+    assert_eq!(
+        context_index
+            .layer_index
+            .statement_layers
+            .iter()
+            .map(|layer| layer.name.as_str())
+            .collect::<Vec<_>>(),
+        vec!["reset", "components"]
+    );
+    assert!(
+        context_index
+            .layer_index
+            .statement_layers
+            .iter()
+            .all(|layer| !matches!(layer.name.as_str(), "fakeComment" | "fakeString"))
+    );
+    assert_eq!(context_index.layer_index.block_layers.len(), 1);
+    assert_eq!(
+        context_index.layer_index.block_layers[0].name.as_deref(),
+        Some("components")
+    );
+    assert!(
+        context_index
+            .layer_index
+            .selector_memberships
+            .iter()
+            .any(|membership| membership.selector_name == "card")
+    );
+    assert!(
+        context_index
+            .layer_index
+            .selector_memberships
+            .iter()
+            .any(|membership| membership.selector_name == "card__body")
+    );
+}
+
+#[test]
 fn exposes_semantic_soa_tables_with_typed_name_interners() {
     let boundary = summarize_omena_parser_style_semantic_boundary_from_source(
         "Component.module.scss",

@@ -2451,6 +2451,7 @@ dependencies = [
  "omena-engine-input-producers",
  "omena-interner",
  "omena-parser",
+ "omena-syntax",
  "salsa",
  "serde",
  "serde_json",

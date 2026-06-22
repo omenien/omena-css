@@ -13,10 +13,11 @@ use omena_interner::{
 };
 use omena_parser::{
     ParsedAnimationFactKind, ParsedCssModuleComposesEdgeKind, ParsedCssModuleComposesFactKind,
-    ParsedCssModuleValueFactKind, ParsedSassModuleEdgeFactKind, ParsedSassSymbolFactKind,
-    ParsedSelectorFactKind, ParsedStyleFacts, ParsedVariableFactKind, StyleDialect, facts_from_cst,
-    parse,
+    ParsedCssModuleValueFactKind, ParsedCst, ParsedSassModuleEdgeFactKind,
+    ParsedSassSymbolFactKind, ParsedSelectorFactKind, ParsedStyleFacts, ParsedVariableFactKind,
+    StyleDialect, facts_from_cst, parse,
 };
+use omena_syntax::{SyntaxKind, SyntaxNode};
 use serde::Serialize;
 use std::collections::BTreeSet;
 
@@ -371,6 +372,7 @@ pub fn summarize_omena_parser_style_semantic_boundary_from_source(
     let dialect = omena_parser_dialect_for_style_path(style_path);
     let parsed = parse(style_source, dialect);
     let facts = facts_from_cst(style_source, &parsed);
+    let cst = parsed.cst();
     let parser_facts = summarize_omena_parser_contract_facts(
         style_source,
         parsed.token_count(),
@@ -378,7 +380,8 @@ pub fn summarize_omena_parser_style_semantic_boundary_from_source(
         parsed.errors().len(),
         &facts,
     );
-    let semantic_facts = summarize_omena_parser_semantic_facts(style_source, &facts, &parser_facts);
+    let semantic_facts =
+        summarize_omena_parser_semantic_facts(style_source, &facts, &parser_facts, &cst);
     let design_token_semantics = summarize_design_token_semantics(&parser_facts, &semantic_facts);
     let selector_identity_engine =
         summarize_selector_identity_engine(&semantic_facts.selector_identity);
@@ -427,6 +430,7 @@ fn summarize_omena_parser_semantic_facts(
     source: &str,
     facts: &ParsedStyleFacts,
     parser_facts: &ParserBoundarySyntaxFactsV0,
+    cst: &ParsedCst,
 ) -> StyleSemanticFactsV0 {
     let custom_properties =
         summarize_omena_parser_custom_property_semantic_facts(&parser_facts.custom_properties);
@@ -456,13 +460,13 @@ fn summarize_omena_parser_semantic_facts(
             selectors_with_function_calls_names: parser_facts.sass.function_call_names.clone(),
             same_file_resolution: sass_same_file_resolution,
         },
-        context_index: summarize_style_context_index(source),
+        context_index: summarize_style_context_index(source, cst),
     }
 }
 
-fn summarize_style_context_index(source: &str) -> StyleContextIndexV0 {
-    let layer_statements = collect_layer_statement_facts(source);
-    let (context_blocks, memberships) = collect_style_context_blocks_and_memberships(source);
+fn summarize_style_context_index(source: &str, cst: &ParsedCst) -> StyleContextIndexV0 {
+    let layer_statements = layer_statement_facts_from_cst(source, cst);
+    let (context_blocks, memberships) = style_context_blocks_and_memberships_from_cst(source, cst);
     let block_layers = context_blocks
         .iter()
         .filter(|block| block.kind == "layer")
@@ -544,134 +548,100 @@ fn summarize_style_context_index(source: &str) -> StyleContextIndexV0 {
     }
 }
 
-fn collect_layer_statement_facts(source: &str) -> Vec<StyleLayerStatementV0> {
+fn layer_statement_facts_from_cst(source: &str, cst: &ParsedCst) -> Vec<StyleLayerStatementV0> {
     let mut statements = Vec::new();
-    let mut search_start = 0usize;
-    while let Some(relative_start) = source
-        .get(search_start..)
-        .and_then(|tail| tail.find("@layer"))
+    for node in cst
+        .root()
+        .descendants()
+        .filter(|node| node.kind() == SyntaxKind::LayerRule)
     {
-        let at_index = search_start + relative_start;
-        let prelude_start = at_index + "@layer".len();
-        let tail = source.get(prelude_start..).unwrap_or_default();
-        let semicolon = tail.find(';');
-        let open_brace = tail.find('{');
-        let Some(semicolon) = semicolon else {
-            break;
-        };
-        if open_brace.is_some_and(|open| open < semicolon) {
-            search_start = prelude_start + open_brace.unwrap_or(0) + 1;
+        if cst_node_has_block(node) {
             continue;
         }
-
-        let prelude_end = prelude_start + semicolon;
-        let prelude = source.get(prelude_start..prelude_end).unwrap_or_default();
+        let range = node.text_range();
         let byte_span = ParserByteSpanV0 {
-            start: at_index,
-            end: prelude_end + 1,
+            start: u32::from(range.start()) as usize,
+            end: u32::from(range.end()) as usize,
         };
-        for name in split_layer_names(prelude) {
+        for layer_name in node
+            .descendants()
+            .filter(|child| child.kind() == SyntaxKind::LayerName)
+            .flat_map(|child| split_layer_names(&syntax_node_text(child)))
+        {
             statements.push(StyleLayerStatementV0 {
-                name,
+                name: layer_name,
                 source_order: statements.len(),
                 byte_span,
                 range: parser_range_for_byte_span(source, byte_span),
             });
         }
-        search_start = prelude_end + 1;
     }
     statements
 }
 
-fn collect_style_context_blocks_and_memberships(
+fn style_context_blocks_and_memberships_from_cst(
     source: &str,
+    cst: &ParsedCst,
 ) -> (
     Vec<StyleContextBlockV0>,
     Vec<StyleContextSelectorMembershipV0>,
 ) {
-    let bytes = source.as_bytes();
+    let mut context_nodes = Vec::new();
     let mut blocks = Vec::new();
-    let mut memberships = Vec::new();
-    let mut active_contexts = Vec::<StyleContextBlockV0>::new();
-    let mut block_stack = Vec::<Option<String>>::new();
-    let mut index = 0usize;
+    for node in cst
+        .root()
+        .descendants()
+        .filter(|node| cst_context_kind(node.kind()).is_some() && cst_node_has_block(node))
+    {
+        let Some(context) = style_context_block_for_cst_node(source, node, blocks.len()) else {
+            continue;
+        };
+        context_nodes.push((node, context.clone()));
+        blocks.push(context);
+    }
 
-    while index < bytes.len() {
-        match bytes[index] {
-            b'{' => {
-                let (header, header_start) =
-                    block_header_and_start_before_open_brace(source, index);
-                if let Some(context) = style_context_block_for_header(
-                    source,
-                    &header,
-                    header_start,
-                    index,
-                    blocks.len(),
-                ) {
-                    block_stack.push(Some(context.id.clone()));
-                    active_contexts.push(context.clone());
-                    blocks.push(context);
-                } else {
-                    for selector_name in selector_class_names(&header) {
-                        for context in &active_contexts {
-                            memberships.push(StyleContextSelectorMembershipV0 {
-                                selector_name: selector_name.clone(),
-                                context_id: context.id.clone(),
-                                context_kind: context.kind,
-                                source_order: memberships.len(),
-                            });
-                        }
-                    }
-                    block_stack.push(None);
-                }
-            }
-            b'}' => {
-                if let Some(Some(context_id)) = block_stack.pop() {
-                    if active_contexts
-                        .last()
-                        .is_some_and(|context| context.id == context_id)
-                    {
-                        active_contexts.pop();
-                    } else {
-                        active_contexts.retain(|context| context.id != context_id);
-                    }
-                }
-            }
-            _ => {}
+    let mut memberships = Vec::new();
+    for rule in cst
+        .root()
+        .descendants()
+        .filter(|node| node.kind() == SyntaxKind::Rule)
+    {
+        let selector_names = class_names_from_rule_node(rule);
+        if selector_names.is_empty() {
+            continue;
         }
-        index += 1;
+        for context in cst_context_blocks_for_rule(rule, &context_nodes) {
+            for selector_name in &selector_names {
+                memberships.push(StyleContextSelectorMembershipV0 {
+                    selector_name: selector_name.clone(),
+                    context_id: context.id.clone(),
+                    context_kind: context.kind,
+                    source_order: memberships.len(),
+                });
+            }
+        }
     }
 
     (blocks, memberships)
 }
 
-fn style_context_block_for_header(
+fn style_context_block_for_cst_node(
     source: &str,
-    header: &str,
-    header_start: usize,
-    open_brace_index: usize,
+    node: &SyntaxNode,
     source_order: usize,
 ) -> Option<StyleContextBlockV0> {
-    let header = header.trim();
-    let (kind, raw_prelude) = if let Some(prelude) = header.strip_prefix("@layer") {
-        ("layer", prelude)
-    } else if let Some(prelude) = header.strip_prefix("@container") {
-        ("container", prelude)
-    } else if let Some(prelude) = header.strip_prefix("@scope") {
-        ("scope", prelude)
-    } else {
-        return None;
-    };
-    let prelude = raw_prelude.trim().to_string();
+    let kind = cst_context_kind(node.kind())?;
+    let prelude = cst_context_prelude(node);
     let name = match kind {
         "layer" => split_layer_names(&prelude).into_iter().next(),
         "container" => container_name_from_prelude(&prelude),
         "scope" => None,
         _ => None,
     };
+    let header_end = cst_node_block_open_end(node)?;
     let byte_span = ParserByteSpanV0 {
-        start: header_start,
-        end: open_brace_index + 1,
+        start: u32::from(node.text_range().start()) as usize,
+        end: header_end,
     };
 
     Some(StyleContextBlockV0 {
@@ -683,6 +653,90 @@ fn style_context_block_for_header(
         byte_span,
         range: parser_range_for_byte_span(source, byte_span),
     })
+}
+
+fn cst_context_kind(kind: SyntaxKind) -> Option<&'static str> {
+    match kind {
+        SyntaxKind::LayerRule => Some("layer"),
+        SyntaxKind::ContainerRule => Some("container"),
+        SyntaxKind::ScopeRule => Some("scope"),
+        _ => None,
+    }
+}
+
+fn cst_context_prelude(node: &SyntaxNode) -> String {
+    let prelude_kind = match node.kind() {
+        SyntaxKind::LayerRule => SyntaxKind::LayerName,
+        SyntaxKind::ContainerRule => SyntaxKind::ContainerCondition,
+        SyntaxKind::ScopeRule => SyntaxKind::ScopeRange,
+        _ => return String::new(),
+    };
+    node.descendants()
+        .find(|child| child.kind() == prelude_kind)
+        .map(|child| syntax_node_text(child).trim().to_string())
+        .unwrap_or_default()
+}
+
+fn cst_node_has_block(node: &SyntaxNode) -> bool {
+    node.descendants_with_tokens()
+        .filter_map(|element| element.into_token())
+        .any(|token| matches!(token.kind(), SyntaxKind::LeftBrace | SyntaxKind::SassIndent))
+}
+
+fn cst_node_block_open_end(node: &SyntaxNode) -> Option<usize> {
+    node.descendants_with_tokens()
+        .filter_map(|element| element.into_token())
+        .find(|token| matches!(token.kind(), SyntaxKind::LeftBrace | SyntaxKind::SassIndent))
+        .map(|token| u32::from(token.text_range().end()) as usize)
+}
+
+fn cst_context_blocks_for_rule<'a>(
+    rule: &SyntaxNode,
+    contexts: &'a [(&'a SyntaxNode, StyleContextBlockV0)],
+) -> Vec<&'a StyleContextBlockV0> {
+    contexts
+        .iter()
+        .filter(|(node, _)| {
+            rule.text_range().start() > node.text_range().start()
+                && rule.text_range().end() < node.text_range().end()
+        })
+        .map(|(_, context)| context)
+        .collect()
+}
+
+fn class_names_from_rule_node(rule: &SyntaxNode) -> Vec<String> {
+    let mut names = BTreeSet::new();
+    for child in rule.children() {
+        if matches!(
+            child.kind(),
+            SyntaxKind::DeclarationList | SyntaxKind::RuleList | SyntaxKind::SassIndentedBlock
+        ) {
+            break;
+        }
+        for class_node in child
+            .descendants()
+            .filter(|node| node.kind() == SyntaxKind::ClassSelector)
+        {
+            if let Some(name) = class_selector_name_from_cst_node(class_node) {
+                names.insert(name);
+            }
+        }
+    }
+    names.into_iter().collect()
+}
+
+fn class_selector_name_from_cst_node(node: &SyntaxNode) -> Option<String> {
+    syntax_node_text(node)
+        .trim()
+        .strip_prefix('.')
+        .filter(|name| !name.is_empty())
+        .map(ToString::to_string)
+}
+
+fn syntax_node_text(node: &SyntaxNode) -> String {
+    node.try_resolved()
+        .map(|resolved| resolved.text().to_string())
+        .unwrap_or_default()
 }
 
 fn split_layer_names(prelude: &str) -> Vec<String> {
@@ -719,54 +773,6 @@ fn css_identifier_text_is_plain(value: &str) -> bool {
     };
     (first.is_ascii_alphabetic() || matches!(first, '_' | '-'))
         && chars.all(|char| char.is_ascii_alphanumeric() || matches!(char, '_' | '-'))
-}
-
-fn block_header_and_start_before_open_brace(
-    source: &str,
-    open_brace_index: usize,
-) -> (String, usize) {
-    let bytes = source.as_bytes();
-    let mut start = 0usize;
-    let mut index = open_brace_index;
-    while let Some(previous) = index.checked_sub(1) {
-        index = previous;
-        if matches!(bytes[index], b'{' | b'}' | b';') {
-            start = index + 1;
-            break;
-        }
-        if index == 0 {
-            break;
-        }
-    }
-    let raw = source.get(start..open_brace_index).unwrap_or_default();
-    let trimmed_start_delta = raw.len().saturating_sub(raw.trim_start().len());
-    (raw.trim().to_string(), start + trimmed_start_delta)
-}
-
-fn selector_class_names(selector: &str) -> Vec<String> {
-    let bytes = selector.as_bytes();
-    let mut names = BTreeSet::new();
-    let mut index = 0usize;
-    while index < bytes.len() {
-        if bytes[index] == b'.' {
-            let start = index + 1;
-            let mut end = start;
-            while end < bytes.len()
-                && (bytes[end].is_ascii_alphanumeric() || matches!(bytes[end], b'_' | b'-'))
-            {
-                end += 1;
-            }
-            if end > start
-                && let Some(name) = selector.get(start..end)
-            {
-                names.insert(name.to_string());
-            }
-            index = end;
-            continue;
-        }
-        index += 1;
-    }
-    names.into_iter().collect()
 }
 
 fn summarize_omena_parser_selector_facts(
