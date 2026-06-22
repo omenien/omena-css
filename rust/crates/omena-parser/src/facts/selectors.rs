@@ -8,11 +8,14 @@ use omena_syntax::SyntaxKind;
 use std::collections::BTreeSet;
 
 use crate::{
-    Token, find_block_after_header, is_selector_combinator_kind, matching_right_paren_from_range,
-    next_non_trivia_token_after_range, next_non_trivia_token_until, previous_non_trivia_token,
-    selector_component_can_end, selector_component_can_start, skip_statement, skip_trivia_tokens,
-    style_wrapper_at_rule, token_index_by_range,
+    ParseResult, Token, find_block_after_header, is_selector_combinator_kind,
+    matching_right_paren_from_range, next_non_trivia_token_after_range,
+    next_non_trivia_token_until, previous_non_trivia_token, selector_component_can_end,
+    selector_component_can_start, skip_statement, skip_trivia_tokens, style_wrapper_at_rule,
+    token_index_by_range,
 };
+
+use super::tokens_from_cst;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ParsedSelectorFact {
@@ -36,6 +39,18 @@ pub(crate) struct SelectorBranch {
 }
 
 pub(crate) fn collect_selector_facts_from_tokens(tokens: &[Token<'_>]) -> Vec<ParsedSelectorFact> {
+    selector_facts_from_token_view(tokens)
+}
+
+pub(crate) fn collect_selector_facts_from_cst(
+    text: &str,
+    parsed: &ParseResult,
+) -> Vec<ParsedSelectorFact> {
+    let tokens = tokens_from_cst(text, parsed);
+    selector_facts_from_token_view(&tokens)
+}
+
+fn selector_facts_from_token_view(tokens: &[Token<'_>]) -> Vec<ParsedSelectorFact> {
     let mut selectors = Vec::new();
     let mut seen = BTreeSet::new();
     collect_selector_facts_in_range(

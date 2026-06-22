@@ -53,9 +53,9 @@ pub(crate) use sass::{
 };
 pub use selectors::{ParsedSelectorFact, ParsedSelectorFactKind};
 pub(crate) use selectors::{
-    SelectorBranch, collect_class_selector_names_from_header, collect_selector_facts_from_tokens,
-    css_module_block_scope_marker_in_header, css_module_header_is_global_only,
-    resolve_selector_header, split_selector_groups,
+    SelectorBranch, collect_class_selector_names_from_header, collect_selector_facts_from_cst,
+    collect_selector_facts_from_tokens, css_module_block_scope_marker_in_header,
+    css_module_header_is_global_only, resolve_selector_header, split_selector_groups,
 };
 pub use variables::{ParsedVariableFact, ParsedVariableFactKind};
 pub(crate) use variables::{
@@ -196,6 +196,8 @@ fn style_facts_from_tokens(
 pub fn facts_from_cst(text: &str, parsed: &ParseResult) -> ParsedStyleFacts {
     let tokens = tokens_from_cst(text, parsed);
     let mut facts = style_facts_from_tokens(text, &tokens, parsed.dialect(), parsed.errors().len());
+    facts.selectors = collect_selector_facts_from_cst(text, parsed);
+    facts.selector_count = facts.selectors.len();
     facts.variables = collect_variable_facts_from_cst(text, parsed);
     facts.variable_count = facts.variables.len();
     facts.animations = collect_animation_facts_from_cst(text, parsed);
