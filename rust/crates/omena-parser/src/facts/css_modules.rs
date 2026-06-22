@@ -9,15 +9,14 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use crate::{
     ParseResult, SelectorBranch, Token, css_module_block_scope_marker_in_header,
-    find_block_after_header, next_non_trivia_token_index_until, previous_non_trivia_token_index,
-    resolve_selector_header, skip_statement, skip_trivia_tokens, style_wrapper_at_rule,
-    top_level_token_kind_index, top_level_token_text_index,
+    next_non_trivia_token_index_until, previous_non_trivia_token_index, resolve_selector_header,
+    skip_trivia_tokens, top_level_token_kind_index, top_level_token_text_index,
 };
 
 use super::tokens_from_syntax_node;
 
 #[cfg(feature = "internal-oracle")]
-use crate::matching_right_brace;
+use crate::{find_block_after_header, matching_right_brace, skip_statement, style_wrapper_at_rule};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ParsedCssModuleValueFact {
