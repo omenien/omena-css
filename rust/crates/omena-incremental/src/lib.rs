@@ -20,6 +20,16 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 static SALSA_DIGEST_QUERY_RUNS: AtomicUsize = AtomicUsize::new(0);
 #[cfg(test)]
 static SALSA_DEPENDENCY_QUERY_RUNS: AtomicUsize = AtomicUsize::new(0);
+#[cfg(test)]
+static SALSA_TRANSITIVE_LEAF_QUERY_RUNS: AtomicUsize = AtomicUsize::new(0);
+#[cfg(test)]
+static SALSA_TRANSITIVE_A_QUERY_RUNS: AtomicUsize = AtomicUsize::new(0);
+#[cfg(test)]
+static SALSA_TRANSITIVE_B_QUERY_RUNS: AtomicUsize = AtomicUsize::new(0);
+#[cfg(test)]
+static SALSA_TRANSITIVE_C_QUERY_RUNS: AtomicUsize = AtomicUsize::new(0);
+#[cfg(test)]
+static SALSA_TRANSITIVE_UNRELATED_QUERY_RUNS: AtomicUsize = AtomicUsize::new(0);
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -877,6 +887,64 @@ pub fn read_salsa_incremental_node_dependency_ids(
     normalized_ids(node.dependency_ids(db))
 }
 
+#[cfg(test)]
+#[salsa::tracked(returns(clone))]
+fn read_salsa_transitive_leaf(
+    db: &dyn salsa::Database,
+    node: SalsaIncrementalNodeInputV0,
+) -> String {
+    SALSA_TRANSITIVE_LEAF_QUERY_RUNS.fetch_add(1, Ordering::Relaxed);
+    node.digest(db).clone()
+}
+
+#[cfg(test)]
+#[salsa::tracked(returns(clone))]
+fn read_salsa_transitive_a(db: &dyn salsa::Database, a: SalsaIncrementalNodeInputV0) -> String {
+    SALSA_TRANSITIVE_A_QUERY_RUNS.fetch_add(1, Ordering::Relaxed);
+    format!("a={}", read_salsa_transitive_leaf(db, a))
+}
+
+#[cfg(test)]
+#[salsa::tracked(returns(clone))]
+fn read_salsa_transitive_b(
+    db: &dyn salsa::Database,
+    a: SalsaIncrementalNodeInputV0,
+    b: SalsaIncrementalNodeInputV0,
+) -> String {
+    SALSA_TRANSITIVE_B_QUERY_RUNS.fetch_add(1, Ordering::Relaxed);
+    format!(
+        "{}|b={}",
+        read_salsa_transitive_a(db, a),
+        read_salsa_transitive_leaf(db, b)
+    )
+}
+
+#[cfg(test)]
+#[salsa::tracked(returns(clone))]
+fn read_salsa_transitive_c(
+    db: &dyn salsa::Database,
+    a: SalsaIncrementalNodeInputV0,
+    b: SalsaIncrementalNodeInputV0,
+    c: SalsaIncrementalNodeInputV0,
+) -> String {
+    SALSA_TRANSITIVE_C_QUERY_RUNS.fetch_add(1, Ordering::Relaxed);
+    format!(
+        "{}|c={}",
+        read_salsa_transitive_b(db, a, b),
+        read_salsa_transitive_leaf(db, c)
+    )
+}
+
+#[cfg(test)]
+#[salsa::tracked(returns(clone))]
+fn read_salsa_transitive_unrelated(
+    db: &dyn salsa::Database,
+    node: SalsaIncrementalNodeInputV0,
+) -> String {
+    SALSA_TRANSITIVE_UNRELATED_QUERY_RUNS.fetch_add(1, Ordering::Relaxed);
+    format!("u={}", read_salsa_transitive_leaf(db, node))
+}
+
 fn normalized_snapshot_nodes(input: &IncrementalGraphInputV0) -> Vec<IncrementalSnapshotNodeV0> {
     let mut nodes = input
         .nodes
@@ -1304,12 +1372,17 @@ mod tests {
     use super::{
         IncrementalCancellationRegistryV0, IncrementalGraphInputV0, IncrementalNodeInputV0,
         IncrementalRevisionV0, OmenaIncrementalDatabaseV0, SALSA_DEPENDENCY_QUERY_RUNS,
-        SALSA_DIGEST_QUERY_RUNS, plan_incremental_computation,
-        plan_incremental_computation_with_priority_inputs,
+        SALSA_DIGEST_QUERY_RUNS, SALSA_TRANSITIVE_A_QUERY_RUNS, SALSA_TRANSITIVE_B_QUERY_RUNS,
+        SALSA_TRANSITIVE_C_QUERY_RUNS, SALSA_TRANSITIVE_LEAF_QUERY_RUNS,
+        SALSA_TRANSITIVE_UNRELATED_QUERY_RUNS, SalsaIncrementalNodeInputV0,
+        plan_incremental_computation, plan_incremental_computation_with_priority_inputs,
         read_salsa_incremental_node_dependency_ids, read_salsa_incremental_node_digest,
-        snapshot_from_graph_input, summarize_datalog_rule_evaluator_v0,
-        summarize_incremental_layer_evidence_v0, summarize_omena_incremental_boundary,
+        read_salsa_transitive_c, read_salsa_transitive_unrelated, snapshot_from_graph_input,
+        summarize_datalog_rule_evaluator_v0, summarize_incremental_layer_evidence_v0,
+        summarize_omena_incremental_boundary,
     };
+    use salsa::Setter;
+    use std::collections::BTreeSet;
     use std::sync::atomic::Ordering;
 
     #[test]
@@ -1750,6 +1823,128 @@ mod tests {
         );
         assert_eq!(SALSA_DIGEST_QUERY_RUNS.load(Ordering::Relaxed), 1);
         assert_eq!(SALSA_DEPENDENCY_QUERY_RUNS.load(Ordering::Relaxed), 2);
+    }
+
+    #[test]
+    fn salsa_transitive_query_graph_matches_planner_dirty_set() {
+        SALSA_TRANSITIVE_LEAF_QUERY_RUNS.store(0, Ordering::Relaxed);
+        SALSA_TRANSITIVE_A_QUERY_RUNS.store(0, Ordering::Relaxed);
+        SALSA_TRANSITIVE_B_QUERY_RUNS.store(0, Ordering::Relaxed);
+        SALSA_TRANSITIVE_C_QUERY_RUNS.store(0, Ordering::Relaxed);
+        SALSA_TRANSITIVE_UNRELATED_QUERY_RUNS.store(0, Ordering::Relaxed);
+
+        let mut db = salsa::DatabaseImpl::default();
+        let a =
+            SalsaIncrementalNodeInputV0::new(&db, "a".to_string(), "a:v1".to_string(), Vec::new());
+        let b = SalsaIncrementalNodeInputV0::new(
+            &db,
+            "b".to_string(),
+            "b:v1".to_string(),
+            vec!["a".to_string()],
+        );
+        let c = SalsaIncrementalNodeInputV0::new(
+            &db,
+            "c".to_string(),
+            "c:v1".to_string(),
+            vec!["b".to_string()],
+        );
+        let unrelated = SalsaIncrementalNodeInputV0::new(
+            &db,
+            "unrelated".to_string(),
+            "u:v1".to_string(),
+            Vec::new(),
+        );
+
+        assert_eq!(
+            read_salsa_transitive_c(&db, a, b, c),
+            "a=a:v1|b=b:v1|c=c:v1"
+        );
+        assert_eq!(read_salsa_transitive_unrelated(&db, unrelated), "u=u:v1");
+
+        SALSA_TRANSITIVE_LEAF_QUERY_RUNS.store(0, Ordering::Relaxed);
+        SALSA_TRANSITIVE_A_QUERY_RUNS.store(0, Ordering::Relaxed);
+        SALSA_TRANSITIVE_B_QUERY_RUNS.store(0, Ordering::Relaxed);
+        SALSA_TRANSITIVE_C_QUERY_RUNS.store(0, Ordering::Relaxed);
+        SALSA_TRANSITIVE_UNRELATED_QUERY_RUNS.store(0, Ordering::Relaxed);
+
+        a.set_digest(&mut db).to("a:v2".to_string());
+
+        assert_eq!(
+            read_salsa_transitive_c(&db, a, b, c),
+            "a=a:v2|b=b:v1|c=c:v1"
+        );
+        assert_eq!(read_salsa_transitive_unrelated(&db, unrelated), "u=u:v1");
+
+        assert_eq!(SALSA_TRANSITIVE_LEAF_QUERY_RUNS.load(Ordering::Relaxed), 1);
+        assert_eq!(SALSA_TRANSITIVE_A_QUERY_RUNS.load(Ordering::Relaxed), 1);
+        assert_eq!(SALSA_TRANSITIVE_B_QUERY_RUNS.load(Ordering::Relaxed), 1);
+        assert_eq!(SALSA_TRANSITIVE_C_QUERY_RUNS.load(Ordering::Relaxed), 1);
+        assert_eq!(
+            SALSA_TRANSITIVE_UNRELATED_QUERY_RUNS.load(Ordering::Relaxed),
+            0
+        );
+
+        let previous = IncrementalGraphInputV0 {
+            revision: IncrementalRevisionV0 { value: 1 },
+            nodes: vec![
+                IncrementalNodeInputV0 {
+                    id: "a".to_string(),
+                    digest: "a:v1".to_string(),
+                    dependency_ids: Vec::new(),
+                },
+                IncrementalNodeInputV0 {
+                    id: "b".to_string(),
+                    digest: "b:v1".to_string(),
+                    dependency_ids: vec!["a".to_string()],
+                },
+                IncrementalNodeInputV0 {
+                    id: "c".to_string(),
+                    digest: "c:v1".to_string(),
+                    dependency_ids: vec!["b".to_string()],
+                },
+                IncrementalNodeInputV0 {
+                    id: "unrelated".to_string(),
+                    digest: "u:v1".to_string(),
+                    dependency_ids: Vec::new(),
+                },
+            ],
+        };
+        let next = IncrementalGraphInputV0 {
+            revision: IncrementalRevisionV0 { value: 2 },
+            nodes: vec![
+                IncrementalNodeInputV0 {
+                    id: "a".to_string(),
+                    digest: "a:v2".to_string(),
+                    dependency_ids: Vec::new(),
+                },
+                IncrementalNodeInputV0 {
+                    id: "b".to_string(),
+                    digest: "b:v1".to_string(),
+                    dependency_ids: vec!["a".to_string()],
+                },
+                IncrementalNodeInputV0 {
+                    id: "c".to_string(),
+                    digest: "c:v1".to_string(),
+                    dependency_ids: vec!["b".to_string()],
+                },
+                IncrementalNodeInputV0 {
+                    id: "unrelated".to_string(),
+                    digest: "u:v1".to_string(),
+                    dependency_ids: Vec::new(),
+                },
+            ],
+        };
+        let previous_snapshot = snapshot_from_graph_input(&previous);
+        let plan = plan_incremental_computation(&next, Some(&previous_snapshot));
+        let planner_dirty_ids = plan
+            .nodes
+            .iter()
+            .filter(|node| node.dirty)
+            .map(|node| node.id.as_str())
+            .collect::<BTreeSet<_>>();
+        let salsa_rerun_ids = ["a", "b", "c"].into_iter().collect::<BTreeSet<_>>();
+
+        assert_eq!(planner_dirty_ids, salsa_rerun_ids);
     }
 
     #[test]
