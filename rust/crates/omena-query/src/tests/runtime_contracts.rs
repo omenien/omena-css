@@ -136,6 +136,12 @@ fn declares_runtime_backed_selected_query_adapter_capabilities() {
         summary
             .runner_commands
             .iter()
+            .any(|command| command.command == "input-native-css-evaluator")
+    );
+    assert!(
+        summary
+            .runner_commands
+            .iter()
             .any(|command| command.command == "input-static-stylesheet-evaluator")
     );
     assert!(

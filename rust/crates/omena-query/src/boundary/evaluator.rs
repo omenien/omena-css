@@ -2,7 +2,8 @@ use omena_scss_eval::{
     OmenaScssEvalControlFlowOracleCorpusReportV0, OmenaScssEvalControlFlowWideningWitnessV0,
     OmenaScssEvalStaticStylesheetEvaluationV0, OmenaScssEvalStaticStylesheetOracleCorpusReportV0,
     OmenaScssEvalStaticValueResolutionReportV0, analyze_scss_control_flow_values,
-    derive_static_stylesheet_module_evaluation, summarize_scss_call_return_ir,
+    derive_static_stylesheet_module_evaluation, summarize_native_css_function_surface,
+    summarize_native_css_if_function_decisions, summarize_scss_call_return_ir,
     summarize_scss_control_flow_ir, summarize_scss_control_flow_oracle_corpus,
     summarize_scss_control_flow_prune_reachability, summarize_static_stylesheet_oracle_corpus,
     summarize_static_stylesheet_value_resolution,
@@ -13,6 +14,8 @@ use crate::{
     EngineInputV2, OMENA_QUERY_CURRENT_SCHEMA_VERSION, OmenaParserStyleDialect,
     OmenaQueryScssEvalCallReturnIrSummaryV0, OmenaQueryScssEvalControlFlowIrSummaryV0,
     OmenaQueryScssEvalControlFlowPruneReachabilityV0, OmenaQueryScssEvalControlFlowValueAnalysisV0,
+    OmenaQueryScssEvalNativeCssFunctionSurfaceV0,
+    OmenaQueryScssEvalNativeCssIfFunctionDecisionSurfaceV0,
 };
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -86,6 +89,30 @@ pub struct OmenaQueryScssEvaluatorControlFlowOracleCorpusSummaryV0 {
     pub no_merged_cross_file_graph: bool,
     pub widening_witness: OmenaScssEvalControlFlowWideningWitnessV0,
     pub corpus: OmenaScssEvalControlFlowOracleCorpusReportV0,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct OmenaQueryNativeCssEvaluatorSummaryV0 {
+    pub schema_version: &'static str,
+    pub product: &'static str,
+    pub mode: &'static str,
+    pub dialect: &'static str,
+    pub supported_dialect: bool,
+    pub native_function_surface_available: bool,
+    pub if_function_decision_available: bool,
+    pub native_function_count: usize,
+    pub native_function_parameter_count: usize,
+    pub native_function_typed_parameter_count: usize,
+    pub native_function_result_count: usize,
+    pub if_function_count: usize,
+    pub if_function_foldable_count: usize,
+    pub if_function_preserved_count: usize,
+    pub if_function_static_supports_branch_count: usize,
+    pub if_function_runtime_branch_count: usize,
+    pub ready_surfaces: Vec<&'static str>,
+    pub native_function_surface: Option<OmenaQueryScssEvalNativeCssFunctionSurfaceV0>,
+    pub if_function_decisions: Option<OmenaQueryScssEvalNativeCssIfFunctionDecisionSurfaceV0>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -528,6 +555,73 @@ pub fn summarize_omena_query_scss_evaluator_control_flow_from_engine_input(
             omena_query_style_dialect_for_path(target_style_path),
         ),
     )
+}
+
+pub fn summarize_omena_query_native_css_evaluator_from_source(
+    source: &str,
+    dialect: OmenaParserStyleDialect,
+) -> OmenaQueryNativeCssEvaluatorSummaryV0 {
+    let native_function_surface = summarize_native_css_function_surface(source, dialect);
+    let if_function_decisions = summarize_native_css_if_function_decisions(source, dialect);
+    let supported_dialect = dialect == OmenaParserStyleDialect::Css;
+
+    OmenaQueryNativeCssEvaluatorSummaryV0 {
+        schema_version: OMENA_QUERY_CURRENT_SCHEMA_VERSION,
+        product: "omena-query.native-css-evaluator",
+        mode: "oracleOnlyPruneButKeep",
+        dialect: omena_query_boundary_style_dialect_label(dialect),
+        supported_dialect,
+        native_function_surface_available: native_function_surface.is_some(),
+        if_function_decision_available: if_function_decisions.is_some(),
+        native_function_count: native_function_surface
+            .as_ref()
+            .map_or(0, |summary| summary.function_count),
+        native_function_parameter_count: native_function_surface
+            .as_ref()
+            .map_or(0, |summary| summary.parameter_count),
+        native_function_typed_parameter_count: native_function_surface
+            .as_ref()
+            .map_or(0, |summary| summary.typed_parameter_count),
+        native_function_result_count: native_function_surface
+            .as_ref()
+            .map_or(0, |summary| summary.result_count),
+        if_function_count: if_function_decisions
+            .as_ref()
+            .map_or(0, |summary| summary.function_count),
+        if_function_foldable_count: if_function_decisions
+            .as_ref()
+            .map_or(0, |summary| summary.foldable_function_count),
+        if_function_preserved_count: if_function_decisions
+            .as_ref()
+            .map_or(0, |summary| summary.preserved_function_count),
+        if_function_static_supports_branch_count: if_function_decisions
+            .as_ref()
+            .map_or(0, |summary| summary.static_supports_branch_count),
+        if_function_runtime_branch_count: if_function_decisions
+            .as_ref()
+            .map_or(0, |summary| summary.runtime_branch_count),
+        ready_surfaces: vec![
+            "nativeCssFunctionSurface",
+            "nativeCssIfFunctionDecisionSurface",
+        ],
+        native_function_surface,
+        if_function_decisions,
+    }
+}
+
+pub fn summarize_omena_query_native_css_evaluator_from_engine_input(
+    input: &EngineInputV2,
+    target_style_path: &str,
+) -> Option<OmenaQueryNativeCssEvaluatorSummaryV0> {
+    let target = input
+        .styles
+        .iter()
+        .find(|style| style.file_path == target_style_path)?;
+    let source = target.source.as_deref()?;
+    Some(summarize_omena_query_native_css_evaluator_from_source(
+        source,
+        omena_query_style_dialect_for_path(target_style_path),
+    ))
 }
 
 pub fn summarize_omena_query_scss_evaluator_control_flow_oracle_corpus()

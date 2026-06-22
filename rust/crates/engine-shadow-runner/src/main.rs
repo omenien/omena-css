@@ -87,6 +87,7 @@ use omena_query::{
     summarize_omena_query_expression_domain_selector_projection,
     summarize_omena_query_expression_semantics_canonical_producer_signal,
     summarize_omena_query_expression_semantics_query_fragments,
+    summarize_omena_query_native_css_evaluator_from_engine_input,
     summarize_omena_query_omena_parser_css_modules_intermediate,
     summarize_omena_query_omena_parser_lex, summarize_omena_query_omena_parser_style_facts,
     summarize_omena_query_refs_for_workspace_class,
@@ -1607,6 +1608,20 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             let summary = summarize_omena_query_scss_evaluator_control_flow_oracle_corpus();
             serde_json::to_writer_pretty(io::stdout(), &summary)?;
         }
+        Some("input-native-css-evaluator") => {
+            let input: TargetStyleEngineInputV0 = serde_json::from_str(&stdin)?;
+            let Some(summary) = summarize_omena_query_native_css_evaluator_from_engine_input(
+                &input.engine_input,
+                &input.target_style_path,
+            ) else {
+                return Err(format!(
+                    "target style source not found in EngineInputV2 for {}",
+                    input.target_style_path
+                )
+                .into());
+            };
+            serde_json::to_writer_pretty(io::stdout(), &summary)?;
+        }
         Some("input-static-stylesheet-evaluator-oracle-corpus") => {
             let summary = summarize_omena_query_static_stylesheet_evaluator_oracle_corpus();
             serde_json::to_writer_pretty(io::stdout(), &summary)?;
@@ -2363,6 +2378,20 @@ fn run_daemon_selected_query_command(
         "input-scss-evaluator-control-flow-oracle-corpus" => Ok(serde_json::to_value(
             summarize_omena_query_scss_evaluator_control_flow_oracle_corpus(),
         )?),
+        "input-native-css-evaluator" => {
+            let input: TargetStyleEngineInputV0 = serde_json::from_value(input)?;
+            let Some(summary) = summarize_omena_query_native_css_evaluator_from_engine_input(
+                &input.engine_input,
+                &input.target_style_path,
+            ) else {
+                return Err(format!(
+                    "target style source not found in EngineInputV2 for {}",
+                    input.target_style_path
+                )
+                .into());
+            };
+            Ok(serde_json::to_value(summary)?)
+        }
         "input-static-stylesheet-evaluator-oracle-corpus" => Ok(serde_json::to_value(
             summarize_omena_query_static_stylesheet_evaluator_oracle_corpus(),
         )?),

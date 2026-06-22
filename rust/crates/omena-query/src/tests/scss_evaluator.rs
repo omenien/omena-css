@@ -2,6 +2,8 @@ use std::fmt::Write as _;
 
 use crate::{
     EngineInputV2, OmenaParserStyleDialect, StyleAnalysisInputV2, StyleDocumentV2,
+    summarize_omena_query_native_css_evaluator_from_engine_input,
+    summarize_omena_query_native_css_evaluator_from_source,
     summarize_omena_query_scss_evaluator_control_flow_from_engine_input,
     summarize_omena_query_scss_evaluator_control_flow_from_source,
     summarize_omena_query_scss_evaluator_control_flow_oracle_corpus,
@@ -5481,4 +5483,112 @@ fn keeps_plain_css_out_of_scss_evaluator_control_flow_oracle() {
     assert!(summary.control_flow_ir.is_none());
     assert!(summary.value_analysis.is_none());
     assert!(summary.call_return_ir.is_none());
+}
+
+#[test]
+fn exposes_native_css_evaluator_surfaces_through_query_boundary() {
+    let source = r#"
+@function --gap(--size <length>: 1rem) returns <length> {
+  result: var(--size);
+}
+.card {
+  display: if(supports(display: grid): grid; else: block);
+  margin: if(media(width >= 1px): 1rem; else: 2rem);
+}
+"#;
+
+    let summary = summarize_omena_query_native_css_evaluator_from_source(
+        source,
+        OmenaParserStyleDialect::Css,
+    );
+
+    assert_eq!(summary.schema_version, "0");
+    assert_eq!(summary.product, "omena-query.native-css-evaluator");
+    assert_eq!(summary.mode, "oracleOnlyPruneButKeep");
+    assert_eq!(summary.dialect, "css");
+    assert!(summary.supported_dialect);
+    assert!(summary.native_function_surface_available);
+    assert!(summary.if_function_decision_available);
+    assert_eq!(summary.native_function_count, 1);
+    assert_eq!(summary.native_function_parameter_count, 1);
+    assert_eq!(summary.native_function_typed_parameter_count, 1);
+    assert_eq!(summary.native_function_result_count, 1);
+    assert_eq!(summary.if_function_count, 2);
+    assert_eq!(summary.if_function_foldable_count, 1);
+    assert_eq!(summary.if_function_preserved_count, 1);
+    assert_eq!(summary.if_function_static_supports_branch_count, 1);
+    assert_eq!(summary.if_function_runtime_branch_count, 1);
+    assert!(
+        summary
+            .ready_surfaces
+            .contains(&"nativeCssIfFunctionDecisionSurface")
+    );
+    assert!(
+        summary
+            .native_function_surface
+            .as_ref()
+            .is_some_and(|surface| surface.functions[0].name == "--gap")
+    );
+    assert!(
+        summary
+            .if_function_decisions
+            .as_ref()
+            .is_some_and(|surface| {
+                surface.functions.iter().any(|function| {
+                    function.decision == "foldToStaticValue"
+                        && function.selected_value.as_deref() == Some("grid")
+                }) && surface
+                    .functions
+                    .iter()
+                    .any(|function| function.decision == "preserveVerbatim")
+            })
+    );
+}
+
+#[test]
+fn exposes_native_css_evaluator_surfaces_through_engine_input_boundary() -> Result<(), String> {
+    let source = ".card { display: if(supports(display: grid): grid; else: block); }";
+    let input = EngineInputV2 {
+        version: "native-css-evaluator-engine-input-v0".to_string(),
+        sources: Vec::new(),
+        styles: vec![StyleAnalysisInputV2 {
+            file_path: "/tmp/Card.module.css".to_string(),
+            source: Some(source.to_string()),
+            document: StyleDocumentV2 {
+                selectors: Vec::new(),
+            },
+        }],
+        type_facts: Vec::new(),
+    };
+
+    let summary = summarize_omena_query_native_css_evaluator_from_engine_input(
+        &input,
+        "/tmp/Card.module.css",
+    )
+    .ok_or_else(|| "missing native CSS evaluator summary".to_string())?;
+
+    assert_eq!(summary.product, "omena-query.native-css-evaluator");
+    assert_eq!(summary.dialect, "css");
+    assert_eq!(summary.if_function_count, 1);
+    assert_eq!(summary.if_function_foldable_count, 1);
+    Ok(())
+}
+
+#[test]
+fn keeps_scss_out_of_native_css_evaluator_surface() {
+    let source = ".card { width: if(true, 1px, 2px); }";
+    let summary = summarize_omena_query_native_css_evaluator_from_source(
+        source,
+        OmenaParserStyleDialect::Scss,
+    );
+
+    assert_eq!(summary.product, "omena-query.native-css-evaluator");
+    assert_eq!(summary.dialect, "scss");
+    assert!(!summary.supported_dialect);
+    assert!(!summary.native_function_surface_available);
+    assert!(!summary.if_function_decision_available);
+    assert_eq!(summary.native_function_count, 0);
+    assert_eq!(summary.if_function_count, 0);
+    assert!(summary.native_function_surface.is_none());
+    assert!(summary.if_function_decisions.is_none());
 }

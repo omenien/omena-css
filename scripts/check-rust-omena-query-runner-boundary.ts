@@ -72,6 +72,10 @@ const OMENA_QUERY_OWNED_COMMANDS = new Map([
     ["summarize_omena_query_scss_evaluator_control_flow_oracle_corpus"],
   ],
   [
+    "input-native-css-evaluator",
+    ["summarize_omena_query_native_css_evaluator_from_engine_input"],
+  ],
+  [
     "input-static-stylesheet-evaluator",
     ["summarize_omena_query_static_stylesheet_evaluator_from_engine_input"],
   ],

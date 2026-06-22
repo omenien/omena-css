@@ -301,6 +301,16 @@ fn summarizes_query_boundary_over_producer_fragments() {
     );
     assert!(
         summary
+            .delegated_fragment_products
+            .contains(&"omena-query.native-css-evaluator")
+    );
+    assert!(
+        summary
+            .delegated_fragment_products
+            .contains(&"omena-scss-eval.native-css-if-function-decisions")
+    );
+    assert!(
+        summary
             .ready_surfaces
             .contains(&"expressionDomainFlowAnalysisBoundary")
     );
@@ -367,6 +377,7 @@ fn summarizes_query_boundary_over_producer_fragments() {
             .ready_surfaces
             .contains(&"scssEvaluatorControlFlowOracleCorpus")
     );
+    assert!(summary.ready_surfaces.contains(&"nativeCssEvaluatorOracle"));
     assert!(summary.ready_surfaces.contains(&"readCascadeAtPosition"));
     assert!(
         summary
