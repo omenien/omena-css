@@ -9,12 +9,15 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use crate::{
     ParseResult, SelectorBranch, Token, css_module_block_scope_marker_in_header,
-    find_block_after_header, matching_right_brace, next_non_trivia_token_index_until,
-    previous_non_trivia_token_index, resolve_selector_header, skip_statement, skip_trivia_tokens,
-    style_wrapper_at_rule, top_level_token_kind_index, top_level_token_text_index,
+    find_block_after_header, next_non_trivia_token_index_until, previous_non_trivia_token_index,
+    resolve_selector_header, skip_statement, skip_trivia_tokens, style_wrapper_at_rule,
+    top_level_token_kind_index, top_level_token_text_index,
 };
 
 use super::{tokens_from_cst, tokens_from_syntax_node};
+
+#[cfg(feature = "internal-oracle")]
+use crate::matching_right_brace;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ParsedCssModuleValueFact {
@@ -135,15 +138,14 @@ fn css_module_value_facts_from_cst_nodes(
         .filter(|value| value.kind == ParsedCssModuleValueFactKind::Definition)
         .map(|value| value.name.clone())
         .collect::<BTreeSet<_>>();
-    let tokens = tokens_from_cst(text, parsed);
-    collect_css_module_value_declaration_reference_facts(
-        &tokens,
-        0,
-        tokens.len(),
-        &local_value_names,
-        &mut values,
-        &mut seen,
-    );
+    for tokens in css_module_value_reference_declaration_tokens_from_cst(text, parsed) {
+        collect_css_module_value_declaration_reference_facts_from_declaration_tokens(
+            &tokens,
+            &local_value_names,
+            &mut values,
+            &mut seen,
+        );
+    }
     values
 }
 
@@ -603,6 +605,23 @@ fn css_module_value_statement_tokens_from_cst<'text>(
         .collect()
 }
 
+fn css_module_value_reference_declaration_tokens_from_cst<'text>(
+    text: &'text str,
+    parsed: &ParseResult,
+) -> Vec<Vec<Token<'text>>> {
+    parsed
+        .syntax()
+        .descendants()
+        .filter(|node| {
+            matches!(
+                node.kind(),
+                SyntaxKind::Declaration | SyntaxKind::CssModuleComposesDeclaration
+            )
+        })
+        .map(|node| tokens_from_syntax_node(text, node))
+        .collect()
+}
+
 fn css_module_composes_declaration_tokens_from_cst<'text>(
     text: &'text str,
     parsed: &ParseResult,
@@ -772,6 +791,7 @@ fn collect_css_module_value_reference_facts(
     }
 }
 
+#[cfg(feature = "internal-oracle")]
 fn collect_css_module_value_declaration_reference_facts(
     tokens: &[Token<'_>],
     start: usize,
@@ -844,6 +864,27 @@ fn collect_css_module_value_declaration_reference_facts(
             break;
         }
         index = statement_end + 1;
+    }
+}
+
+fn collect_css_module_value_declaration_reference_facts_from_declaration_tokens(
+    tokens: &[Token<'_>],
+    local_value_names: &BTreeSet<String>,
+    values: &mut Vec<ParsedCssModuleValueFact>,
+    seen: &mut BTreeSet<(ParsedCssModuleValueFactKind, String, u32, u32)>,
+) {
+    if local_value_names.is_empty() {
+        return;
+    }
+    if let Some(colon_index) = declaration_colon_index(tokens, 0, tokens.len()) {
+        collect_known_css_module_value_reference_facts(
+            tokens,
+            colon_index + 1,
+            tokens.len(),
+            local_value_names,
+            values,
+            seen,
+        );
     }
 }
 
