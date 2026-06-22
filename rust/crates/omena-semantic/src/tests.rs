@@ -171,12 +171,13 @@ fn indexes_layer_container_and_scope_contexts_for_semantic_consumers() {
 }
 
 #[test]
-fn context_index_ignores_layer_tokens_inside_comments_and_strings() {
+fn context_index_ignores_layer_tokens_inside_comments_strings_and_interpolation() {
     let summary = summarize_omena_parser_style_semantic_boundary_from_source(
-        "Component.module.css",
+        "Component.module.scss",
         r#"
 /* @layer fakeComment; { */
 .noise::before { content: "@layer fakeString; {"; }
+.noise-#{"@layer fakeInterpolation; {"} { color: red; }
 
 @layer reset, components;
 @layer components {
@@ -201,7 +202,12 @@ fn context_index_ignores_layer_tokens_inside_comments_and_strings() {
             .layer_index
             .statement_layers
             .iter()
-            .all(|layer| !matches!(layer.name.as_str(), "fakeComment" | "fakeString"))
+            .all(|layer| {
+                !matches!(
+                    layer.name.as_str(),
+                    "fakeComment" | "fakeString" | "fakeInterpolation"
+                )
+            })
     );
     assert_eq!(context_index.layer_index.block_layers.len(), 1);
     assert_eq!(
