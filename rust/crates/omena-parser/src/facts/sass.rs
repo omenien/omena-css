@@ -15,7 +15,7 @@ use crate::{
 };
 
 use super::scss_variable_token_is_declaration;
-use super::tokens_from_cst;
+use super::{tokens_from_cst, tokens_from_syntax_node};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ParsedSassSymbolFact {
@@ -241,12 +241,24 @@ pub(crate) fn collect_sass_include_facts_from_cst(
     source: &str,
     parsed: &ParseResult,
 ) -> Vec<ParsedSassIncludeFact> {
-    let tokens = tokens_from_cst(source, parsed);
-    sass_include_facts_from_token_view(&tokens)
+    let mut includes = Vec::new();
+    for tokens in scss_include_rule_tokens_from_cst(source, parsed) {
+        collect_sass_include_facts_from_rule_tokens(&tokens, &mut includes);
+    }
+    includes
 }
 
+#[cfg(feature = "internal-oracle")]
 fn sass_include_facts_from_token_view(tokens: &[Token<'_>]) -> Vec<ParsedSassIncludeFact> {
     let mut includes = Vec::new();
+    collect_sass_include_facts_from_rule_tokens(tokens, &mut includes);
+    includes
+}
+
+fn collect_sass_include_facts_from_rule_tokens(
+    tokens: &[Token<'_>],
+    includes: &mut Vec<ParsedSassIncludeFact>,
+) {
     for (index, token) in tokens.iter().enumerate() {
         if token.kind != SyntaxKind::AtKeyword || !token.text.eq_ignore_ascii_case("@include") {
             continue;
@@ -268,7 +280,18 @@ fn sass_include_facts_from_token_view(tokens: &[Token<'_>]) -> Vec<ParsedSassInc
             range: TextRange::new(token.range.start(), header_end),
         });
     }
-    includes
+}
+
+fn scss_include_rule_tokens_from_cst<'text>(
+    text: &'text str,
+    parsed: &ParseResult,
+) -> Vec<Vec<Token<'text>>> {
+    parsed
+        .syntax()
+        .descendants()
+        .filter(|node| node.kind() == SyntaxKind::ScssIncludeRule)
+        .map(|node| tokens_from_syntax_node(text, node))
+        .collect()
 }
 
 fn token_text_between_offsets(
