@@ -4,9 +4,10 @@ use crate::{
     LspShellState, LspTextDocumentState, LspWatchedFileChangeState,
     StyleExternalDependencySnapshot, admit_foreign_style_dependencies_for_style_uri,
     byte_offset_for_parser_position, file_uri_equivalent, index_workspace_style_files,
-    insert_workspace_folder, is_resolution_config_document_uri, is_style_document_uri,
-    lsp_range_from_value, lsp_text_document_state, refresh_document_reusable_indexes,
-    refresh_external_sifs_for_state, refresh_source_indexes_for_resolution_config_change,
+    insert_workspace_folder, invalidate_file_uri_identity_cache, is_resolution_config_document_uri,
+    is_style_document_uri, lsp_range_from_value, lsp_text_document_state,
+    refresh_document_reusable_indexes, refresh_external_sifs_for_state,
+    refresh_source_indexes_for_resolution_config_change,
     refresh_source_indexes_for_style_document_change,
     refresh_source_type_fact_candidates_for_document,
     refresh_style_external_inputs_after_document_removal,
@@ -143,6 +144,7 @@ pub(crate) fn did_close_text_document(state: &mut LspShellState, params: Option<
     else {
         return;
     };
+    invalidate_file_uri_identity_cache();
     state.remove_open_document_uri(uri);
     let previous_external_inputs = if is_style_document_uri(uri) {
         style_external_dependency_snapshot(state, uri)
@@ -250,6 +252,7 @@ pub(crate) fn did_change_watched_files(state: &mut LspShellState, params: Option
     else {
         return;
     };
+    invalidate_file_uri_identity_cache();
     for change in changes {
         let Some(uri) = change.get("uri").and_then(Value::as_str) else {
             continue;

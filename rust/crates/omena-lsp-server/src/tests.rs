@@ -212,6 +212,118 @@ fn document_map_uses_canonical_identity_for_symlinked_document_paths() -> TestRe
     Ok(())
 }
 
+#[cfg(unix)]
+#[test]
+fn admitted_document_identity_comparisons_do_not_recanonicalize_paths() -> TestResult {
+    let root = std::env::temp_dir().join(format!(
+        "omena_lsp_file_identity_cache_{}_{}",
+        std::process::id(),
+        current_time_millis()
+    ));
+    let real_src = root.join("real/src");
+    let link_src = root.join("linked-src");
+    let real_style = real_src.join("Button.module.scss");
+    let linked_style = link_src.join("Button.module.scss");
+    fs::create_dir_all(real_src.as_path())?;
+    fs::write(real_style.as_path(), ".button { color: red; }")?;
+    std::os::unix::fs::symlink(real_src.as_path(), link_src.as_path())?;
+
+    let real_uri = raw_test_file_uri(real_style.as_path());
+    let linked_uri = raw_test_file_uri(linked_style.as_path());
+
+    crate::protocol::reset_file_uri_identity_cache_for_test();
+    let mut state = LspShellState::default();
+    for uri in [linked_uri.as_str(), real_uri.as_str()] {
+        handle_lsp_message(
+            &mut state,
+            json!({
+                "jsonrpc": "2.0",
+                "method": "textDocument/didOpen",
+                "params": {
+                    "textDocument": {
+                        "uri": uri,
+                        "languageId": "scss",
+                        "version": 1,
+                        "text": ".button { color: red; }",
+                    },
+                },
+            }),
+        );
+    }
+
+    crate::protocol::reset_file_uri_identity_canonicalize_syscall_count_for_test();
+    assert!(state.document(real_uri.as_str()).is_some());
+    assert!(state.document(linked_uri.as_str()).is_some());
+    assert!(state.has_open_document_uri(real_uri.as_str()));
+    assert!(state.has_open_document_uri(linked_uri.as_str()));
+    assert!(file_uri_equivalent(real_uri.as_str(), linked_uri.as_str()));
+    assert_eq!(
+        crate::protocol::file_uri_identity_canonicalize_syscall_count_for_test(),
+        0,
+        "admitted equivalent path comparisons must hit the identity cache"
+    );
+
+    let _ = fs::remove_dir_all(root.as_path());
+    Ok(())
+}
+
+#[test]
+fn workspace_wave_document_admission_keeps_canonicalize_syscalls_linear() -> TestResult {
+    let root = std::env::temp_dir().join(format!(
+        "omena_lsp_file_identity_wave_{}_{}",
+        std::process::id(),
+        current_time_millis()
+    ));
+    fs::create_dir_all(root.as_path())?;
+    let mut uris = Vec::new();
+    for index in 0..24 {
+        let path = root.join(format!("Style{index}.module.scss"));
+        fs::write(path.as_path(), format!(".item{index} {{ color: red; }}"))?;
+        uris.push(raw_test_file_uri(path.as_path()));
+    }
+
+    crate::protocol::reset_file_uri_identity_cache_for_test();
+    let mut state = LspShellState::default();
+    let resolution_inputs = resolution_inputs_for_workspace_uri(&state, None);
+    for uri in uris.iter().take(12) {
+        state.insert_document(
+            uri.as_str(),
+            lsp_text_document_state(
+                uri.clone(),
+                None,
+                "scss".to_string(),
+                0,
+                ".item { color: red; }".to_string(),
+                &resolution_inputs,
+            ),
+        );
+    }
+
+    crate::protocol::reset_file_uri_identity_canonicalize_syscall_count_for_test();
+    for uri in uris.iter().skip(12) {
+        state.insert_document(
+            uri.as_str(),
+            lsp_text_document_state(
+                uri.clone(),
+                None,
+                "scss".to_string(),
+                0,
+                ".item { color: red; }".to_string(),
+                &resolution_inputs,
+            ),
+        );
+    }
+    let canonicalize_count =
+        crate::protocol::file_uri_identity_canonicalize_syscall_count_for_test();
+    assert!(
+        canonicalize_count <= 12,
+        "second wave must canonicalize only newly admitted paths, not old-store comparisons: {canonicalize_count}"
+    );
+
+    let _ = fs::remove_dir_all(root.as_path());
+    Ok(())
+}
+
 fn raw_test_file_uri(path: &Path) -> String {
     format!("file://{}", path.to_string_lossy())
 }

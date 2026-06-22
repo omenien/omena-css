@@ -1,9 +1,58 @@
 use crate::LspTextDocumentState;
 use omena_query::{ParserByteSpanV0, ParserPositionV0, ParserRangeV0, StyleLanguage};
 use serde_json::Value;
+use std::cell::RefCell;
+use std::collections::BTreeMap;
 use std::ffi::OsString;
 use std::fs;
 use std::path::{Component, Path, PathBuf};
+use std::sync::atomic::{AtomicU64, Ordering};
+
+static CANONICALIZE_PATH_CACHE_VERSION: AtomicU64 = AtomicU64::new(0);
+
+thread_local! {
+    static CANONICALIZE_PATH_CACHE: RefCell<CanonicalizePathCache> = const {
+        RefCell::new(CanonicalizePathCache {
+            version: 0,
+            paths: BTreeMap::new(),
+        })
+    };
+
+    #[cfg(test)]
+    static CANONICALIZE_SYSCALL_COUNT: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
+}
+
+struct CanonicalizePathCache {
+    version: u64,
+    paths: BTreeMap<PathBuf, Option<PathBuf>>,
+}
+
+pub(crate) fn invalidate_file_uri_identity_cache() {
+    let next_version = CANONICALIZE_PATH_CACHE_VERSION
+        .fetch_add(1, Ordering::AcqRel)
+        .saturating_add(1);
+    CANONICALIZE_PATH_CACHE.with(|cache| {
+        let mut cache = cache.borrow_mut();
+        cache.version = next_version;
+        cache.paths.clear();
+    });
+}
+
+#[cfg(test)]
+pub(crate) fn reset_file_uri_identity_cache_for_test() {
+    invalidate_file_uri_identity_cache();
+    reset_file_uri_identity_canonicalize_syscall_count_for_test();
+}
+
+#[cfg(test)]
+pub(crate) fn reset_file_uri_identity_canonicalize_syscall_count_for_test() {
+    CANONICALIZE_SYSCALL_COUNT.with(|count| count.set(0));
+}
+
+#[cfg(test)]
+pub(crate) fn file_uri_identity_canonicalize_syscall_count_for_test() -> usize {
+    CANONICALIZE_SYSCALL_COUNT.with(std::cell::Cell::get)
+}
 
 pub(crate) fn path_to_file_uri(path: &Path) -> String {
     let path = normalize_path(path.to_path_buf());
@@ -25,7 +74,20 @@ pub(crate) fn normalize_path(path: PathBuf) -> PathBuf {
 }
 
 fn canonicalize_existing_path_or_parent(path: &Path) -> Option<PathBuf> {
-    if let Ok(canonical) = fs::canonicalize(path) {
+    if let Some(cached) = canonicalize_path_cache_get(path) {
+        return cached;
+    }
+
+    let canonical = canonicalize_existing_path_or_parent_uncached(path);
+    canonicalize_path_cache_insert(path.to_path_buf(), canonical.clone());
+    if let Some(canonical_path) = canonical.as_ref() {
+        canonicalize_path_cache_insert(canonical_path.clone(), Some(canonical_path.clone()));
+    }
+    canonical
+}
+
+fn canonicalize_existing_path_or_parent_uncached(path: &Path) -> Option<PathBuf> {
+    if let Ok(canonical) = canonicalize_path_for_identity(path) {
         return Some(canonical);
     }
 
@@ -35,7 +97,7 @@ fn canonicalize_existing_path_or_parent(path: &Path) -> Option<PathBuf> {
         if let Some(file_name) = current.file_name() {
             suffix.push(file_name.to_os_string());
         }
-        if let Ok(mut canonical_parent) = fs::canonicalize(parent) {
+        if let Ok(mut canonical_parent) = canonicalize_path_for_identity(parent) {
             for segment in suffix.iter().rev() {
                 canonical_parent.push(segment);
             }
@@ -44,6 +106,36 @@ fn canonicalize_existing_path_or_parent(path: &Path) -> Option<PathBuf> {
         current = parent.to_path_buf();
     }
     None
+}
+
+fn canonicalize_path_cache_get(path: &Path) -> Option<Option<PathBuf>> {
+    CANONICALIZE_PATH_CACHE.with(|cache| {
+        let mut cache = cache.borrow_mut();
+        sync_canonicalize_path_cache_version(&mut cache);
+        cache.paths.get(path).cloned()
+    })
+}
+
+fn canonicalize_path_cache_insert(path: PathBuf, canonical: Option<PathBuf>) {
+    CANONICALIZE_PATH_CACHE.with(|cache| {
+        let mut cache = cache.borrow_mut();
+        sync_canonicalize_path_cache_version(&mut cache);
+        cache.paths.insert(path, canonical);
+    });
+}
+
+fn sync_canonicalize_path_cache_version(cache: &mut CanonicalizePathCache) {
+    let current = CANONICALIZE_PATH_CACHE_VERSION.load(Ordering::Acquire);
+    if cache.version != current {
+        cache.version = current;
+        cache.paths.clear();
+    }
+}
+
+fn canonicalize_path_for_identity(path: &Path) -> std::io::Result<PathBuf> {
+    #[cfg(test)]
+    CANONICALIZE_SYSCALL_COUNT.with(|count| count.set(count.get().saturating_add(1)));
+    fs::canonicalize(path)
 }
 
 fn normalize_path_lexical(path: PathBuf) -> PathBuf {
