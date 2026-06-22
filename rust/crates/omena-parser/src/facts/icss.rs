@@ -8,10 +8,12 @@ use omena_syntax::SyntaxKind;
 use std::collections::BTreeSet;
 
 use crate::{
-    Token, collect_css_module_value_definition_edge_names,
+    ParseResult, Token, collect_css_module_value_definition_edge_names,
     css_module_value_reference_token_can_be_name, css_module_value_source_name,
     css_module_value_statement_end, find_block_after_header, next_non_trivia_token_index_until,
 };
+
+use super::tokens_from_cst;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ParsedIcssFact {
@@ -44,6 +46,15 @@ pub struct ParsedIcssExportEdgeFact {
 }
 
 pub(crate) fn collect_icss_facts_from_tokens(tokens: &[Token<'_>]) -> Vec<ParsedIcssFact> {
+    icss_facts_from_token_view(tokens)
+}
+
+pub(crate) fn collect_icss_facts_from_cst(text: &str, parsed: &ParseResult) -> Vec<ParsedIcssFact> {
+    let tokens = tokens_from_cst(text, parsed);
+    icss_facts_from_token_view(&tokens)
+}
+
+fn icss_facts_from_token_view(tokens: &[Token<'_>]) -> Vec<ParsedIcssFact> {
     let mut icss = Vec::new();
     let mut seen = BTreeSet::new();
     for (index, token) in tokens.iter().enumerate() {
@@ -81,6 +92,18 @@ pub(crate) fn collect_icss_facts_from_tokens(tokens: &[Token<'_>]) -> Vec<Parsed
 pub(crate) fn collect_icss_import_edge_facts_from_tokens(
     tokens: &[Token<'_>],
 ) -> Vec<ParsedIcssImportEdgeFact> {
+    icss_import_edge_facts_from_token_view(tokens)
+}
+
+pub(crate) fn collect_icss_import_edge_facts_from_cst(
+    text: &str,
+    parsed: &ParseResult,
+) -> Vec<ParsedIcssImportEdgeFact> {
+    let tokens = tokens_from_cst(text, parsed);
+    icss_import_edge_facts_from_token_view(&tokens)
+}
+
+fn icss_import_edge_facts_from_token_view(tokens: &[Token<'_>]) -> Vec<ParsedIcssImportEdgeFact> {
     let mut edges = Vec::new();
     for (index, token) in tokens.iter().enumerate() {
         if token.kind != SyntaxKind::Colon {
@@ -108,6 +131,18 @@ pub(crate) fn collect_icss_import_edge_facts_from_tokens(
 pub(crate) fn collect_icss_export_edge_facts_from_tokens(
     tokens: &[Token<'_>],
 ) -> Vec<ParsedIcssExportEdgeFact> {
+    icss_export_edge_facts_from_token_view(tokens)
+}
+
+pub(crate) fn collect_icss_export_edge_facts_from_cst(
+    text: &str,
+    parsed: &ParseResult,
+) -> Vec<ParsedIcssExportEdgeFact> {
+    let tokens = tokens_from_cst(text, parsed);
+    icss_export_edge_facts_from_token_view(&tokens)
+}
+
+fn icss_export_edge_facts_from_token_view(tokens: &[Token<'_>]) -> Vec<ParsedIcssExportEdgeFact> {
     let mut edges = Vec::new();
     for (index, token) in tokens.iter().enumerate() {
         if token.kind != SyntaxKind::Colon {

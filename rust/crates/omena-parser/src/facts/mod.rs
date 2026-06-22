@@ -39,8 +39,9 @@ pub use icss::{
     ParsedIcssExportEdgeFact, ParsedIcssFact, ParsedIcssFactKind, ParsedIcssImportEdgeFact,
 };
 pub(crate) use icss::{
-    collect_icss_export_edge_facts_from_tokens, collect_icss_facts_from_tokens,
-    collect_icss_import_edge_facts_from_tokens,
+    collect_icss_export_edge_facts_from_cst, collect_icss_export_edge_facts_from_tokens,
+    collect_icss_facts_from_cst, collect_icss_facts_from_tokens,
+    collect_icss_import_edge_facts_from_cst, collect_icss_import_edge_facts_from_tokens,
 };
 pub use sass::{
     ParsedExtendTargetFact, ParsedExtendTargetFactKind, ParsedSassIncludeFact,
@@ -202,6 +203,12 @@ pub fn facts_from_cst(text: &str, parsed: &ParseResult) -> ParsedStyleFacts {
     facts.variable_count = facts.variables.len();
     facts.animations = collect_animation_facts_from_cst(text, parsed);
     facts.animation_count = facts.animations.len();
+    facts.icss = collect_icss_facts_from_cst(text, parsed);
+    facts.icss_count = facts.icss.len();
+    facts.icss_import_edges = collect_icss_import_edge_facts_from_cst(text, parsed);
+    facts.icss_import_edge_count = facts.icss_import_edges.len();
+    facts.icss_export_edges = collect_icss_export_edge_facts_from_cst(text, parsed);
+    facts.icss_export_edge_count = facts.icss_export_edges.len();
     facts.at_rules = collect_at_rule_facts_from_cst(text, parsed);
     facts.at_rule_count = facts.at_rules.len();
     facts
