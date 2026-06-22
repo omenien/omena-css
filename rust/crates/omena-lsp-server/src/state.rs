@@ -453,11 +453,15 @@ impl LspShellState {
                 .resolution
                 .workspace_style_resolution_inputs
                 .len(),
-            documents: self
-                .documents
-                .values()
-                .map(|document| (**document).clone())
-                .collect(),
+            documents: {
+                let mut documents = self
+                    .documents
+                    .values()
+                    .map(|document| (**document).clone())
+                    .collect::<Vec<_>>();
+                documents.sort_by(|left, right| left.uri.cmp(&right.uri));
+                documents
+            },
             workspace_folders: self.workspace_runtime_registry.folder_snapshots(),
             watched_file_changes: self.watched_file_changes.clone(),
         }
