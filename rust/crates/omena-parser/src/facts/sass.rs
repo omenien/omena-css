@@ -15,7 +15,7 @@ use crate::{
 };
 
 use super::scss_variable_token_is_declaration;
-use super::{tokens_from_cst, tokens_from_syntax_node};
+use super::tokens_from_syntax_node;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ParsedSassSymbolFact {
@@ -48,12 +48,40 @@ pub(crate) fn collect_sass_symbol_facts_from_cst(
     text: &str,
     parsed: &ParseResult,
 ) -> Vec<ParsedSassSymbolFact> {
-    let tokens = tokens_from_cst(text, parsed);
-    sass_symbol_facts_from_token_view(&tokens)
+    let statement_tokens = sass_symbol_statement_tokens_from_cst(text, parsed);
+    let declared_functions = statement_tokens
+        .iter()
+        .flat_map(|tokens| collect_sass_callable_declaration_names(tokens, "@function"))
+        .collect::<BTreeSet<_>>();
+    statement_tokens
+        .iter()
+        .flat_map(|tokens| {
+            sass_symbol_facts_from_token_view_with_declared_functions(tokens, &declared_functions)
+        })
+        .collect()
 }
 
+#[cfg(feature = "internal-oracle")]
 fn sass_symbol_facts_from_token_view(tokens: &[Token<'_>]) -> Vec<ParsedSassSymbolFact> {
     let declared_functions = collect_sass_callable_declaration_names(tokens, "@function");
+    sass_symbol_facts_from_token_view_with_declared_functions(tokens, &declared_functions)
+}
+
+fn sass_symbol_statement_tokens_from_cst<'text>(
+    text: &'text str,
+    parsed: &ParseResult,
+) -> Vec<Vec<Token<'text>>> {
+    parsed
+        .syntax()
+        .children()
+        .map(|node| tokens_from_syntax_node(text, node))
+        .collect()
+}
+
+fn sass_symbol_facts_from_token_view_with_declared_functions(
+    tokens: &[Token<'_>],
+    declared_functions: &BTreeSet<String>,
+) -> Vec<ParsedSassSymbolFact> {
     let mut symbols = Vec::new();
 
     for (index, token) in tokens.iter().enumerate() {
