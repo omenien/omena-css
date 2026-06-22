@@ -5585,6 +5585,39 @@ fn exposes_native_css_evaluator_surfaces_through_query_boundary() {
 }
 
 #[test]
+fn exposes_native_css_function_type_mismatch_through_query_boundary() {
+    let source = r#"
+@function --tone(--size <length>) returns <color> {
+  result: var(--size);
+}
+.card {
+  color: --tone(2rem);
+}
+"#;
+
+    let summary = summarize_omena_query_native_css_evaluator_from_source(
+        source,
+        OmenaParserStyleDialect::Css,
+    );
+
+    assert_eq!(summary.product, "omena-query.native-css-evaluator");
+    assert_eq!(summary.native_function_call_count, 1);
+    assert_eq!(summary.native_function_call_foldable_count, 0);
+    assert_eq!(summary.native_function_call_structural_error_count, 1);
+    assert_eq!(summary.native_static_edit_count, 0);
+    assert!(!summary.native_static_edit_output_changed);
+    assert!(
+        summary
+            .native_function_call_evaluations
+            .as_ref()
+            .is_some_and(|surface| {
+                surface.calls[0].decision == "structuralError"
+                    && surface.calls[0].reason == "result value does not match return syntax"
+            })
+    );
+}
+
+#[test]
 fn exposes_native_css_evaluator_surfaces_through_engine_input_boundary() -> Result<(), String> {
     let source = ".card { display: if(supports(display: grid): grid; else: block); }";
     let input = EngineInputV2 {

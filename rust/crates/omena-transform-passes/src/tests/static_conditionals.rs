@@ -308,6 +308,25 @@ fn execution_runtime_folds_static_native_css_if_and_function_values() {
 }
 
 #[test]
+fn execution_runtime_preserves_native_css_function_type_mismatches() {
+    let source = r#"@function --tone(--size <length>) returns <color> { result: var(--size); } .card { color: --tone(2rem); }"#;
+    let execution = execute_transform_passes_on_source(
+        source,
+        &[
+            TransformPassKind::NativeCssStaticEval,
+            TransformPassKind::PrintCss,
+        ],
+    );
+
+    assert_eq!(execution.mutation_count, 0);
+    assert_eq!(execution.output_css, source);
+    assert_eq!(
+        execution.executed_pass_ids,
+        vec!["native-css-static-eval", "print-css"]
+    );
+}
+
+#[test]
 fn execution_runtime_folds_static_native_css_when_rule_branch() {
     let source = r#"@when supports(display: grid) { .grid { display: grid; } } @else { .fallback { display: block; } }"#;
     let execution = execute_transform_passes_on_source(

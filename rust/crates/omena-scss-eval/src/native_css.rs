@@ -1,4 +1,7 @@
-use omena_abstract_value::{RegisteredPropertySyntaxV0, parse_registered_property_syntax_v0};
+use omena_abstract_value::{
+    RegisteredPropertySyntaxV0, RegisteredSyntaxMatchV0, parse_registered_property_syntax_v0,
+    registered_syntax_match,
+};
 use omena_cascade::{
     StaticSupportsAssumptionV0, StaticSupportsEvalVerdictV0, StaticSupportsEvalWitnessV0,
     evaluate_static_supports_condition,
@@ -820,6 +823,27 @@ fn decide_native_css_function_call(
             Some(function.source_span_end),
         );
     };
+    match native_css_function_parameter_syntax_gate(&bindings, function) {
+        NativeCssFunctionSyntaxGateV0::Accepts => {}
+        NativeCssFunctionSyntaxGateV0::Rejects { reason } => {
+            return (
+                "structuralError",
+                reason,
+                None,
+                Some(function.source_span_start),
+                Some(function.source_span_end),
+            );
+        }
+        NativeCssFunctionSyntaxGateV0::Unknown { reason } => {
+            return (
+                "preserveVerbatim",
+                reason,
+                None,
+                Some(function.source_span_start),
+                Some(function.source_span_end),
+            );
+        }
+    }
     let result = &function.results[0].value;
     let Some(evaluated_value) = evaluate_native_css_function_result_value(result, &bindings) else {
         return (
@@ -830,6 +854,27 @@ fn decide_native_css_function_call(
             Some(function.source_span_end),
         );
     };
+    match native_css_function_return_syntax_gate(evaluated_value.as_str(), function) {
+        NativeCssFunctionSyntaxGateV0::Accepts => {}
+        NativeCssFunctionSyntaxGateV0::Rejects { reason } => {
+            return (
+                "structuralError",
+                reason,
+                None,
+                Some(function.source_span_start),
+                Some(function.source_span_end),
+            );
+        }
+        NativeCssFunctionSyntaxGateV0::Unknown { reason } => {
+            return (
+                "preserveVerbatim",
+                reason,
+                None,
+                Some(function.source_span_start),
+                Some(function.source_span_end),
+            );
+        }
+    }
 
     (
         "foldToStaticValue",
@@ -838,6 +883,59 @@ fn decide_native_css_function_call(
         Some(function.source_span_start),
         Some(function.source_span_end),
     )
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum NativeCssFunctionSyntaxGateV0 {
+    Accepts,
+    Rejects { reason: &'static str },
+    Unknown { reason: &'static str },
+}
+
+fn native_css_function_parameter_syntax_gate(
+    bindings: &[(String, String)],
+    function: &OmenaScssEvalNativeCssFunctionV0,
+) -> NativeCssFunctionSyntaxGateV0 {
+    for parameter in &function.parameters {
+        let Some(syntax) = parameter.syntax_source.as_deref() else {
+            continue;
+        };
+        let Some((_, value)) = bindings.iter().find(|(name, _)| name == &parameter.name) else {
+            continue;
+        };
+        match registered_syntax_match(syntax, value) {
+            RegisteredSyntaxMatchV0::Accepts => {}
+            RegisteredSyntaxMatchV0::Rejects => {
+                return NativeCssFunctionSyntaxGateV0::Rejects {
+                    reason: "argument does not match parameter syntax",
+                };
+            }
+            RegisteredSyntaxMatchV0::Unknown => {
+                return NativeCssFunctionSyntaxGateV0::Unknown {
+                    reason: "argument syntax match is unknown",
+                };
+            }
+        }
+    }
+    NativeCssFunctionSyntaxGateV0::Accepts
+}
+
+fn native_css_function_return_syntax_gate(
+    evaluated_value: &str,
+    function: &OmenaScssEvalNativeCssFunctionV0,
+) -> NativeCssFunctionSyntaxGateV0 {
+    let Some(syntax) = function.return_syntax_source.as_deref() else {
+        return NativeCssFunctionSyntaxGateV0::Accepts;
+    };
+    match registered_syntax_match(syntax, evaluated_value) {
+        RegisteredSyntaxMatchV0::Accepts => NativeCssFunctionSyntaxGateV0::Accepts,
+        RegisteredSyntaxMatchV0::Rejects => NativeCssFunctionSyntaxGateV0::Rejects {
+            reason: "result value does not match return syntax",
+        },
+        RegisteredSyntaxMatchV0::Unknown => NativeCssFunctionSyntaxGateV0::Unknown {
+            reason: "result return syntax match is unknown",
+        },
+    }
 }
 
 fn bind_native_css_function_arguments(
@@ -1643,6 +1741,67 @@ mod tests {
             "argument or default value depends on runtime or cascade state"
         );
         assert!(!report.calls[0].arguments[0].static_value);
+    }
+
+    #[test]
+    fn native_css_function_call_evaluation_rejects_parameter_syntax_mismatch() {
+        let source = "@function --gap(--size <length>) returns <length> { result: var(--size); } .card { gap: --gap(red); }";
+        let report = summarize_native_css_function_call_evaluations(source, StyleDialect::Css);
+        assert!(report.is_some());
+        let Some(report) = report else {
+            return;
+        };
+
+        assert_eq!(report.call_count, 1);
+        assert_eq!(report.foldable_call_count, 0);
+        assert_eq!(report.structural_error_count, 1);
+        assert_eq!(report.calls[0].decision, "structuralError");
+        assert_eq!(
+            report.calls[0].reason,
+            "argument does not match parameter syntax"
+        );
+        assert_eq!(report.calls[0].evaluated_value, None);
+    }
+
+    #[test]
+    fn native_css_function_call_evaluation_rejects_return_syntax_mismatch() {
+        let source = "@function --tone(--size <length>) returns <color> { result: var(--size); } .card { color: --tone(2rem); }";
+        let report = summarize_native_css_function_call_evaluations(source, StyleDialect::Css);
+        assert!(report.is_some());
+        let Some(report) = report else {
+            return;
+        };
+
+        assert_eq!(report.call_count, 1);
+        assert_eq!(report.foldable_call_count, 0);
+        assert_eq!(report.structural_error_count, 1);
+        assert_eq!(report.calls[0].decision, "structuralError");
+        assert_eq!(
+            report.calls[0].reason,
+            "result value does not match return syntax"
+        );
+        assert_eq!(report.calls[0].evaluated_value, None);
+    }
+
+    #[test]
+    fn native_css_function_call_evaluation_preserves_unknown_return_syntax_match() {
+        let source = "@function --tone(--value) returns <color> { result: var(--value); } .card { color: --tone(customvalue); }";
+        let report = summarize_native_css_function_call_evaluations(source, StyleDialect::Css);
+        assert!(report.is_some());
+        let Some(report) = report else {
+            return;
+        };
+
+        assert_eq!(report.call_count, 1);
+        assert_eq!(report.foldable_call_count, 0);
+        assert_eq!(report.preserved_call_count, 1);
+        assert_eq!(report.structural_error_count, 0);
+        assert_eq!(report.calls[0].decision, "preserveVerbatim");
+        assert_eq!(
+            report.calls[0].reason,
+            "result return syntax match is unknown"
+        );
+        assert_eq!(report.calls[0].evaluated_value, None);
     }
 
     #[test]
