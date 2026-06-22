@@ -1,5 +1,6 @@
 import { spawnSync } from "node:child_process";
 import { strict as assert } from "node:assert";
+import { readFileSync } from "node:fs";
 
 interface NativeCssEvaluatorSummaryV0 {
   readonly product: string;
@@ -21,6 +22,27 @@ interface NativeCssEvaluatorSummaryV0 {
     readonly whenRuleEditCount: number;
     readonly ifFunctionEditCount: number;
     readonly functionCallEditCount: number;
+  } | null;
+}
+
+interface ScssEvaluatorControlFlowSummaryV0 {
+  readonly product: string;
+  readonly dialect: string;
+  readonly supportedDialect: boolean;
+  readonly flatCssCfgBuilt: boolean;
+  readonly controlFlowBlockCount: number;
+  readonly controlFlowBranchBlockCount: number;
+  readonly valueAnalysis?: {
+    readonly blocks: readonly {
+      readonly kind: string;
+      readonly transferTruthiness?: string | null;
+    }[];
+  } | null;
+  readonly controlFlowIr?: {
+    readonly blocks: readonly {
+      readonly atRuleName: string;
+      readonly kind: string;
+    }[];
   } | null;
 }
 
@@ -96,6 +118,50 @@ const nativeSource =
   "margin: if(media(width >= 1px): 1rem; else: 2rem); } " +
   "@when supports(display: grid) { .grid { display: if(supports(display: grid): grid; else: block); } } " +
   "@else { .fallback { display: block; } }";
+
+const nativeCssImplementation = readFileSync(
+  "rust/crates/omena-scss-eval/src/native_css.rs",
+  "utf8",
+);
+assert.ok(
+  nativeCssImplementation.includes("native_css_when_rule_truthiness_by_start(source)"),
+  "native CSS @when static edits must derive branch truthiness through the edge-IR value-analysis bridge",
+);
+assert.ok(
+  !nativeCssImplementation.includes("classify_native_css_when_rule_condition"),
+  "native CSS @when static edits must not bypass edge-IR with a second direct condition classifier",
+);
+
+const nativeControlFlow = runRunner<ScssEvaluatorControlFlowSummaryV0>(
+  "input-scss-evaluator-control-flow",
+  {
+    targetStylePath: "/tmp/Native.module.css",
+    engineInput: engineInput("/tmp/Native.module.css", nativeSource),
+  },
+);
+
+assert.equal(nativeControlFlow.product, "omena-query.scss-evaluator-control-flow");
+assert.equal(nativeControlFlow.dialect, "css");
+assert.equal(
+  nativeControlFlow.supportedDialect,
+  false,
+  "CSS has no SCSS call-return support; native CSS edge-IR support is asserted by the concrete CSS surfaces below",
+);
+assert.equal(nativeControlFlow.flatCssCfgBuilt, true);
+assert.ok(nativeControlFlow.controlFlowBlockCount >= 2);
+assert.ok(nativeControlFlow.controlFlowBranchBlockCount >= 2);
+assert.ok(
+  nativeControlFlow.controlFlowIr?.blocks.some(
+    (block) => block.atRuleName === "@when" && block.kind === "branchIf",
+  ),
+  "native CSS @when must be present in the unified control-flow edge IR",
+);
+assert.ok(
+  nativeControlFlow.valueAnalysis?.blocks.some(
+    (block) => block.kind === "branchIf" && block.transferTruthiness === "truthy",
+  ),
+  "static native CSS @when supports() must surface truthiness through value analysis",
+);
 
 const nativeEvaluator = runRunner<NativeCssEvaluatorSummaryV0>("input-native-css-evaluator", {
   targetStylePath: "/tmp/Native.module.css",

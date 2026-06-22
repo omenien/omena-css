@@ -9,6 +9,9 @@ use omena_cascade::{
 use omena_parser::{LexedToken, StyleDialect, lex};
 use omena_syntax::SyntaxKind;
 use serde::Serialize;
+use std::collections::BTreeMap;
+
+use crate::control_flow::{analyze_scss_control_flow_values, build_scss_control_flow_graph};
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -285,7 +288,12 @@ pub fn summarize_native_css_static_edit_plan(
     let lexed = lex(source, dialect);
     let tokens = lexed.tokens();
     let functions = collect_native_css_functions(source, tokens);
-    edits.extend(native_css_when_rule_static_edits(source, tokens));
+    let when_rule_truthiness_by_start = native_css_when_rule_truthiness_by_start(source);
+    edits.extend(native_css_when_rule_static_edits(
+        source,
+        tokens,
+        &when_rule_truthiness_by_start,
+    ));
     edits.extend(native_css_if_function_static_edits(&if_function_decisions));
     edits.extend(native_css_function_call_static_edits(
         &function_call_evaluations,
@@ -397,6 +405,7 @@ fn collect_native_css_if_function_decisions(
 fn native_css_when_rule_static_edits(
     source: &str,
     tokens: &[LexedToken],
+    truthiness_by_start: &BTreeMap<usize, bool>,
 ) -> Vec<OmenaScssEvalNativeCssStaticEditV0> {
     let mut edits = Vec::new();
     let mut index = 0usize;
@@ -407,7 +416,7 @@ fn native_css_when_rule_static_edits(
         if token.kind == SyntaxKind::AtKeyword
             && token.text.eq_ignore_ascii_case("@when")
             && let Some((edit, next_index)) =
-                collect_native_css_when_rule_static_edit(source, tokens, index)
+                collect_native_css_when_rule_static_edit(source, tokens, index, truthiness_by_start)
         {
             edits.push(edit);
             index = next_index.saturating_add(1);
@@ -422,6 +431,7 @@ fn collect_native_css_when_rule_static_edit(
     source: &str,
     tokens: &[LexedToken],
     when_index: usize,
+    truthiness_by_start: &BTreeMap<usize, bool>,
 ) -> Option<(OmenaScssEvalNativeCssStaticEditV0, usize)> {
     let block_start_index = next_matching_token_index(tokens, when_index + 1, |token| {
         matches!(
@@ -438,14 +448,11 @@ fn collect_native_css_when_rule_static_edit(
         SyntaxKind::LeftBrace,
         SyntaxKind::RightBrace,
     )?;
-    let header = trimmed_source_between_tokens(source, tokens, when_index + 1, block_start_index)
-        .unwrap_or_default();
-    let verdict = classify_native_css_when_rule_condition(header.as_str());
     let else_rule = collect_immediate_native_css_else_rule(source, tokens, block_end_index + 1);
 
     let source_span_start = token_start(tokens.get(when_index)?);
-    match verdict {
-        "alwaysTrue" => {
+    match truthiness_by_start.get(&source_span_start).copied() {
+        Some(true) => {
             let source_span_end = else_rule
                 .as_ref()
                 .map(|else_rule| else_rule.source_span_end)
@@ -465,7 +472,7 @@ fn collect_native_css_when_rule_static_edit(
                     .unwrap_or(block_end_index),
             ))
         }
-        "alwaysFalse" => {
+        Some(false) => {
             let Some(else_rule) = else_rule else {
                 return Some((
                     OmenaScssEvalNativeCssStaticEditV0 {
@@ -498,6 +505,42 @@ fn collect_native_css_when_rule_static_edit(
         }
         _ => None,
     }
+}
+
+fn native_css_when_rule_truthiness_by_start(source: &str) -> BTreeMap<usize, bool> {
+    let Some(graph) = build_scss_control_flow_graph(source, StyleDialect::Css) else {
+        return BTreeMap::new();
+    };
+    let Some(analysis) = analyze_scss_control_flow_values(source, StyleDialect::Css) else {
+        return BTreeMap::new();
+    };
+    let source_start_by_when_node_key = graph
+        .blocks
+        .iter()
+        .filter(|block| block.block.at_rule_name.eq_ignore_ascii_case("@when"))
+        .map(|block| {
+            (
+                block.node_key.as_str().to_string(),
+                block.block.source_span_start,
+            )
+        })
+        .collect::<BTreeMap<_, _>>();
+
+    analysis
+        .blocks
+        .iter()
+        .filter_map(|block| {
+            let truthy = match block.transfer_truthiness {
+                Some("truthy") => true,
+                Some("falsey") => false,
+                _ => return None,
+            };
+            source_start_by_when_node_key
+                .get(block.node_key.as_str())
+                .copied()
+                .map(|source_span_start| (source_span_start, truthy))
+        })
+        .collect()
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -556,23 +599,6 @@ fn block_inner_source(
     let start = token_end(tokens.get(block_start_index)?);
     let end = token_start(tokens.get(block_end_index)?);
     source.get(start..end).map(ToString::to_string)
-}
-
-fn classify_native_css_when_rule_condition(header: &str) -> &'static str {
-    if let Some(inner) = extract_named_function_inner(header, "supports") {
-        let normalized_condition = normalize_supports_condition_for_if(inner);
-        let witness = evaluate_static_supports_condition(
-            &normalized_condition,
-            StaticSupportsAssumptionV0::ModernBrowser,
-        );
-        return static_supports_verdict_label(witness.verdict);
-    }
-    if extract_named_function_inner(header, "media").is_some()
-        || extract_named_function_inner(header, "style").is_some()
-    {
-        return "runtime";
-    }
-    "unknown"
 }
 
 fn native_css_if_function_static_edits(
@@ -1789,8 +1815,9 @@ mod tests {
     use omena_parser::StyleDialect;
 
     use super::{
-        summarize_native_css_function_call_evaluations, summarize_native_css_function_surface,
-        summarize_native_css_if_function_decisions, summarize_native_css_static_edit_plan,
+        native_css_when_rule_truthiness_by_start, summarize_native_css_function_call_evaluations,
+        summarize_native_css_function_surface, summarize_native_css_if_function_decisions,
+        summarize_native_css_static_edit_plan,
     };
 
     #[test]
@@ -2107,6 +2134,24 @@ mod tests {
         assert!(!report.edited_css.contains("@when"));
         assert!(!report.edited_css.contains(".fallback"));
         assert_eq!(report.edits[0].edit_kind, "whenRuleBranchFold");
+    }
+
+    #[test]
+    fn native_css_static_edit_plan_consumes_edge_ir_when_truthiness() {
+        let source = "@when supports(display: grid) { .grid { display: grid; } } @else { .fallback { display: block; } }";
+        let truthiness_by_start = native_css_when_rule_truthiness_by_start(source);
+
+        assert_eq!(truthiness_by_start.get(&0), Some(&true));
+
+        let report = summarize_native_css_static_edit_plan(source, StyleDialect::Css);
+        assert!(report.is_some());
+        let Some(report) = report else {
+            return;
+        };
+
+        assert_eq!(report.when_rule_edit_count, 1);
+        assert!(report.edited_css.contains(".grid { display: grid; }"));
+        assert!(!report.edited_css.contains(".fallback"));
     }
 
     #[test]
