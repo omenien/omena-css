@@ -102,6 +102,48 @@ pub struct OmenaScssEvalNativeCssIfFunctionBranchV0 {
     pub supports_witness: Option<StaticSupportsEvalWitnessV0>,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct OmenaScssEvalNativeCssFunctionCallEvaluationSurfaceV0 {
+    pub schema_version: &'static str,
+    pub product: &'static str,
+    pub mode: &'static str,
+    pub dialect: &'static str,
+    pub call_count: usize,
+    pub foldable_call_count: usize,
+    pub preserved_call_count: usize,
+    pub structural_error_count: usize,
+    pub runtime_dependent_call_count: usize,
+    pub missing_result_count: usize,
+    pub calls: Vec<OmenaScssEvalNativeCssFunctionCallEvaluationV0>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct OmenaScssEvalNativeCssFunctionCallEvaluationV0 {
+    pub name: String,
+    pub source_span_start: usize,
+    pub source_span_end: usize,
+    pub argument_count: usize,
+    pub matched_function_count: usize,
+    pub matched_function_source_span_start: Option<usize>,
+    pub matched_function_source_span_end: Option<usize>,
+    pub decision: &'static str,
+    pub reason: &'static str,
+    pub evaluated_value: Option<String>,
+    pub arguments: Vec<OmenaScssEvalNativeCssFunctionCallArgumentV0>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct OmenaScssEvalNativeCssFunctionCallArgumentV0 {
+    pub argument_index: usize,
+    pub value: String,
+    pub source_span_start: usize,
+    pub source_span_end: usize,
+    pub static_value: bool,
+}
+
 pub fn summarize_native_css_function_surface(
     source: &str,
     dialect: StyleDialect,
@@ -149,6 +191,54 @@ pub fn summarize_native_css_function_surface(
         unsupported_parameter_syntax_count,
         result_count,
         functions,
+    })
+}
+
+pub fn summarize_native_css_function_call_evaluations(
+    source: &str,
+    dialect: StyleDialect,
+) -> Option<OmenaScssEvalNativeCssFunctionCallEvaluationSurfaceV0> {
+    if dialect != StyleDialect::Css {
+        return None;
+    }
+    let lexed = lex(source, dialect);
+    let tokens = lexed.tokens();
+    let functions = collect_native_css_functions(source, tokens);
+    let calls = collect_native_css_function_call_evaluations(source, tokens, &functions);
+    let call_count = calls.len();
+    let foldable_call_count = calls
+        .iter()
+        .filter(|call| call.decision == "foldToStaticValue")
+        .count();
+    let preserved_call_count = calls
+        .iter()
+        .filter(|call| call.decision == "preserveVerbatim")
+        .count();
+    let structural_error_count = calls
+        .iter()
+        .filter(|call| call.decision == "structuralError")
+        .count();
+    let runtime_dependent_call_count = calls
+        .iter()
+        .filter(|call| call.reason.contains("runtime") || call.reason.contains("cascade"))
+        .count();
+    let missing_result_count = calls
+        .iter()
+        .filter(|call| call.reason == "function has no result declaration")
+        .count();
+
+    Some(OmenaScssEvalNativeCssFunctionCallEvaluationSurfaceV0 {
+        schema_version: "0",
+        product: "omena-scss-eval.native-css-function-call-evaluations",
+        mode: "oracleOnlyPruneButKeep",
+        dialect: "css",
+        call_count,
+        foldable_call_count,
+        preserved_call_count,
+        structural_error_count,
+        runtime_dependent_call_count,
+        missing_result_count,
+        calls,
     })
 }
 
@@ -221,6 +311,247 @@ fn collect_native_css_if_function_decisions(
                 .flatten()
         })
         .collect()
+}
+
+fn collect_native_css_function_call_evaluations(
+    source: &str,
+    tokens: &[LexedToken],
+    functions: &[OmenaScssEvalNativeCssFunctionV0],
+) -> Vec<OmenaScssEvalNativeCssFunctionCallEvaluationV0> {
+    tokens
+        .iter()
+        .enumerate()
+        .filter_map(|(index, token)| {
+            (matches!(
+                token.kind,
+                SyntaxKind::Ident | SyntaxKind::CustomPropertyName
+            ) && token.text.starts_with("--")
+                && !native_css_function_name_is_declaration(tokens, index))
+            .then(|| collect_native_css_function_call_evaluation(source, tokens, functions, index))
+            .flatten()
+        })
+        .collect()
+}
+
+fn collect_native_css_function_call_evaluation(
+    source: &str,
+    tokens: &[LexedToken],
+    functions: &[OmenaScssEvalNativeCssFunctionV0],
+    name_index: usize,
+) -> Option<OmenaScssEvalNativeCssFunctionCallEvaluationV0> {
+    let name = tokens.get(name_index)?;
+    let left_paren_index = next_non_trivia_token_index(tokens, name_index + 1)?;
+    if tokens.get(left_paren_index)?.kind != SyntaxKind::LeftParen {
+        return None;
+    }
+    let right_paren_index = matching_token_index(
+        tokens,
+        left_paren_index,
+        SyntaxKind::LeftParen,
+        SyntaxKind::RightParen,
+    )?;
+    let arguments = collect_native_css_function_call_arguments(
+        source,
+        tokens,
+        left_paren_index + 1,
+        right_paren_index,
+    );
+    let matches = functions
+        .iter()
+        .filter(|function| function.name == name.text)
+        .collect::<Vec<_>>();
+    let matched_function_count = matches.len();
+    let (
+        decision,
+        reason,
+        evaluated_value,
+        matched_function_source_span_start,
+        matched_function_source_span_end,
+    ) = decide_native_css_function_call(&arguments, &matches);
+
+    Some(OmenaScssEvalNativeCssFunctionCallEvaluationV0 {
+        name: name.text.clone(),
+        source_span_start: token_start(name),
+        source_span_end: token_end(tokens.get(right_paren_index)?),
+        argument_count: arguments.len(),
+        matched_function_count,
+        matched_function_source_span_start,
+        matched_function_source_span_end,
+        decision,
+        reason,
+        evaluated_value,
+        arguments,
+    })
+}
+
+fn collect_native_css_function_call_arguments(
+    source: &str,
+    tokens: &[LexedToken],
+    start_index: usize,
+    end_index: usize,
+) -> Vec<OmenaScssEvalNativeCssFunctionCallArgumentV0> {
+    split_top_level_ranges(tokens, start_index, end_index, SyntaxKind::Comma)
+        .into_iter()
+        .enumerate()
+        .filter_map(|(argument_index, (start, end))| {
+            let value = trimmed_source_between_tokens(source, tokens, start, end)?;
+            let source_span_start = first_non_trivia_token_index_until(tokens, start, end)
+                .and_then(|index| tokens.get(index))
+                .map(token_start)?;
+            let source_span_end = previous_non_trivia_token_index_until(tokens, start, end)
+                .and_then(|index| tokens.get(index))
+                .map(token_end)
+                .unwrap_or(source_span_start);
+            Some(OmenaScssEvalNativeCssFunctionCallArgumentV0 {
+                argument_index,
+                static_value: native_css_if_value_is_fully_static(&value),
+                value,
+                source_span_start,
+                source_span_end,
+            })
+        })
+        .collect()
+}
+
+fn decide_native_css_function_call(
+    arguments: &[OmenaScssEvalNativeCssFunctionCallArgumentV0],
+    matches: &[&OmenaScssEvalNativeCssFunctionV0],
+) -> (
+    &'static str,
+    &'static str,
+    Option<String>,
+    Option<usize>,
+    Option<usize>,
+) {
+    let Some(function) = matches.first().copied() else {
+        return (
+            "preserveVerbatim",
+            "function resolution is unavailable",
+            None,
+            None,
+            None,
+        );
+    };
+    if matches.len() != 1 {
+        return (
+            "preserveVerbatim",
+            "function resolution is ambiguous",
+            None,
+            None,
+            None,
+        );
+    }
+    if arguments.len() > function.parameters.len() {
+        return (
+            "structuralError",
+            "call has more arguments than declared parameters",
+            None,
+            Some(function.source_span_start),
+            Some(function.source_span_end),
+        );
+    }
+    if native_css_function_required_argument_is_missing(arguments, function) {
+        return (
+            "structuralError",
+            "required argument is missing",
+            None,
+            Some(function.source_span_start),
+            Some(function.source_span_end),
+        );
+    }
+    if function.results.is_empty() {
+        return (
+            "structuralError",
+            "function has no result declaration",
+            None,
+            Some(function.source_span_start),
+            Some(function.source_span_end),
+        );
+    }
+    if function.results.len() != 1 {
+        return (
+            "preserveVerbatim",
+            "function has multiple result declarations",
+            None,
+            Some(function.source_span_start),
+            Some(function.source_span_end),
+        );
+    }
+
+    let Some(bindings) = bind_native_css_function_arguments(arguments, function) else {
+        return (
+            "preserveVerbatim",
+            "argument or default value depends on runtime or cascade state",
+            None,
+            Some(function.source_span_start),
+            Some(function.source_span_end),
+        );
+    };
+    let result = &function.results[0].value;
+    let Some(evaluated_value) = evaluate_native_css_function_result_value(result, &bindings) else {
+        return (
+            "preserveVerbatim",
+            "result value depends on runtime or cascade state",
+            None,
+            Some(function.source_span_start),
+            Some(function.source_span_end),
+        );
+    };
+
+    (
+        "foldToStaticValue",
+        "unique function call resolved to a static result value",
+        Some(evaluated_value),
+        Some(function.source_span_start),
+        Some(function.source_span_end),
+    )
+}
+
+fn bind_native_css_function_arguments(
+    arguments: &[OmenaScssEvalNativeCssFunctionCallArgumentV0],
+    function: &OmenaScssEvalNativeCssFunctionV0,
+) -> Option<Vec<(String, String)>> {
+    function
+        .parameters
+        .iter()
+        .enumerate()
+        .map(|(index, parameter)| {
+            if let Some(argument) = arguments.get(index) {
+                return argument
+                    .static_value
+                    .then(|| (parameter.name.clone(), argument.value.clone()));
+            }
+            let default_value = parameter.default_value.as_deref()?;
+            native_css_if_value_is_fully_static(default_value)
+                .then(|| (parameter.name.clone(), default_value.to_string()))
+        })
+        .collect()
+}
+
+fn native_css_function_required_argument_is_missing(
+    arguments: &[OmenaScssEvalNativeCssFunctionCallArgumentV0],
+    function: &OmenaScssEvalNativeCssFunctionV0,
+) -> bool {
+    function
+        .parameters
+        .iter()
+        .enumerate()
+        .any(|(index, parameter)| index >= arguments.len() && parameter.default_value.is_none())
+}
+
+fn evaluate_native_css_function_result_value(
+    result: &str,
+    bindings: &[(String, String)],
+) -> Option<String> {
+    if let Some(parameter_name) = extract_exact_var_reference(result) {
+        return bindings
+            .iter()
+            .find_map(|(name, value)| (name == parameter_name).then(|| value.clone()));
+    }
+    if native_css_if_value_is_fully_static(result) {
+        return Some(result.trim().to_string());
+    }
+    None
 }
 
 fn collect_native_css_if_function_decision(
@@ -749,6 +1080,15 @@ fn previous_non_trivia_token_index_until(
         .find_map(|(index, token)| (!token.kind.is_trivia()).then_some(index))
 }
 
+fn previous_non_trivia_token_index(tokens: &[LexedToken], before_index: usize) -> Option<usize> {
+    tokens
+        .iter()
+        .enumerate()
+        .take(before_index)
+        .rev()
+        .find_map(|(index, token)| (!token.kind.is_trivia()).then_some(index))
+}
+
 fn trimmed_source_between_tokens(
     source: &str,
     tokens: &[LexedToken],
@@ -797,6 +1137,20 @@ fn extract_named_function_inner<'a>(condition: &'a str, name: &str) -> Option<&'
         .trim()
         .is_empty()
         .then_some(&rest[1..close_index])
+}
+
+fn extract_exact_var_reference(value: &str) -> Option<&str> {
+    let inner = extract_named_function_inner(value, "var")?;
+    let name = inner.trim();
+    (name.starts_with("--") && !name.contains(',')).then_some(name)
+}
+
+fn native_css_function_name_is_declaration(tokens: &[LexedToken], name_index: usize) -> bool {
+    previous_non_trivia_token_index(tokens, name_index)
+        .and_then(|index| tokens.get(index))
+        .is_some_and(|token| {
+            token.kind == SyntaxKind::AtKeyword && token.text.eq_ignore_ascii_case("@function")
+        })
 }
 
 fn matching_closing_paren_byte_index(value: &str) -> Option<usize> {
@@ -859,7 +1213,8 @@ mod tests {
     use omena_parser::StyleDialect;
 
     use super::{
-        summarize_native_css_function_surface, summarize_native_css_if_function_decisions,
+        summarize_native_css_function_call_evaluations, summarize_native_css_function_surface,
+        summarize_native_css_if_function_decisions,
     };
 
     #[test]
@@ -911,6 +1266,92 @@ mod tests {
         let source = "@function gap($size) { @return $size; }";
 
         assert!(summarize_native_css_function_surface(source, StyleDialect::Scss).is_none());
+    }
+
+    #[test]
+    fn native_css_function_call_evaluation_folds_static_result_binding() {
+        let source = "@function --gap(--size <length>: 1rem) returns <length> { result: var(--size); } .card { gap: --gap(2rem); }";
+        let report = summarize_native_css_function_call_evaluations(source, StyleDialect::Css);
+        assert!(report.is_some());
+        let Some(report) = report else {
+            return;
+        };
+
+        assert_eq!(report.mode, "oracleOnlyPruneButKeep");
+        assert_eq!(report.call_count, 1);
+        assert_eq!(report.foldable_call_count, 1);
+        assert_eq!(report.preserved_call_count, 0);
+        assert_eq!(report.structural_error_count, 0);
+        assert_eq!(report.calls[0].name, "--gap");
+        assert_eq!(report.calls[0].argument_count, 1);
+        assert_eq!(report.calls[0].matched_function_count, 1);
+        assert_eq!(report.calls[0].decision, "foldToStaticValue");
+        assert_eq!(report.calls[0].evaluated_value.as_deref(), Some("2rem"));
+        assert_eq!(report.calls[0].arguments[0].value, "2rem");
+        assert!(report.calls[0].arguments[0].static_value);
+    }
+
+    #[test]
+    fn native_css_function_call_evaluation_preserves_runtime_argument() {
+        let source = "@function --gap(--size <length>: 1rem) returns <length> { result: var(--size); } .card { gap: --gap(var(--space)); }";
+        let report = summarize_native_css_function_call_evaluations(source, StyleDialect::Css);
+        assert!(report.is_some());
+        let Some(report) = report else {
+            return;
+        };
+
+        assert_eq!(report.call_count, 1);
+        assert_eq!(report.foldable_call_count, 0);
+        assert_eq!(report.preserved_call_count, 1);
+        assert_eq!(report.runtime_dependent_call_count, 1);
+        assert_eq!(report.calls[0].decision, "preserveVerbatim");
+        assert_eq!(
+            report.calls[0].reason,
+            "argument or default value depends on runtime or cascade state"
+        );
+        assert!(!report.calls[0].arguments[0].static_value);
+    }
+
+    #[test]
+    fn native_css_function_call_evaluation_surfaces_missing_result() {
+        let source = "@function --gap(--size <length>) returns <length> { color: red; } .card { gap: --gap(2rem); }";
+        let report = summarize_native_css_function_call_evaluations(source, StyleDialect::Css);
+        assert!(report.is_some());
+        let Some(report) = report else {
+            return;
+        };
+
+        assert_eq!(report.call_count, 1);
+        assert_eq!(report.foldable_call_count, 0);
+        assert_eq!(report.structural_error_count, 1);
+        assert_eq!(report.missing_result_count, 1);
+        assert_eq!(report.calls[0].decision, "structuralError");
+        assert_eq!(report.calls[0].reason, "function has no result declaration");
+    }
+
+    #[test]
+    fn native_css_function_call_evaluation_surfaces_missing_required_argument() {
+        let source = "@function --gap(--size <length>) returns <length> { result: var(--size); } .card { gap: --gap(); }";
+        let report = summarize_native_css_function_call_evaluations(source, StyleDialect::Css);
+        assert!(report.is_some());
+        let Some(report) = report else {
+            return;
+        };
+
+        assert_eq!(report.call_count, 1);
+        assert_eq!(report.foldable_call_count, 0);
+        assert_eq!(report.structural_error_count, 1);
+        assert_eq!(report.calls[0].decision, "structuralError");
+        assert_eq!(report.calls[0].reason, "required argument is missing");
+    }
+
+    #[test]
+    fn native_css_function_call_evaluation_stays_css_dialect_only() {
+        let source = "@function --gap(--size <length>) returns <length> { result: var(--size); } .card { gap: --gap(2rem); }";
+
+        assert!(
+            summarize_native_css_function_call_evaluations(source, StyleDialect::Scss).is_none()
+        );
     }
 
     #[test]

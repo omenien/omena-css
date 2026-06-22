@@ -37,10 +37,13 @@ pub use control_flow::{
     summarize_typed_value_lattice_witness,
 };
 pub use native_css::{
-    OmenaScssEvalNativeCssFunctionParameterV0, OmenaScssEvalNativeCssFunctionResultV0,
-    OmenaScssEvalNativeCssFunctionSurfaceV0, OmenaScssEvalNativeCssFunctionV0,
-    OmenaScssEvalNativeCssIfFunctionBranchV0, OmenaScssEvalNativeCssIfFunctionDecisionSurfaceV0,
-    OmenaScssEvalNativeCssIfFunctionDecisionV0, summarize_native_css_function_surface,
+    OmenaScssEvalNativeCssFunctionCallArgumentV0,
+    OmenaScssEvalNativeCssFunctionCallEvaluationSurfaceV0,
+    OmenaScssEvalNativeCssFunctionCallEvaluationV0, OmenaScssEvalNativeCssFunctionParameterV0,
+    OmenaScssEvalNativeCssFunctionResultV0, OmenaScssEvalNativeCssFunctionSurfaceV0,
+    OmenaScssEvalNativeCssFunctionV0, OmenaScssEvalNativeCssIfFunctionBranchV0,
+    OmenaScssEvalNativeCssIfFunctionDecisionSurfaceV0, OmenaScssEvalNativeCssIfFunctionDecisionV0,
+    summarize_native_css_function_call_evaluations, summarize_native_css_function_surface,
     summarize_native_css_if_function_decisions,
 };
 pub use static_stylesheet::{

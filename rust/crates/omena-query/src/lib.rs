@@ -123,6 +123,7 @@ pub use omena_scss_eval::{
     OmenaScssEvalControlFlowIrSummaryV0 as OmenaQueryScssEvalControlFlowIrSummaryV0,
     OmenaScssEvalControlFlowPruneReachabilityV0 as OmenaQueryScssEvalControlFlowPruneReachabilityV0,
     OmenaScssEvalControlFlowValueAnalysisV0 as OmenaQueryScssEvalControlFlowValueAnalysisV0,
+    OmenaScssEvalNativeCssFunctionCallEvaluationSurfaceV0 as OmenaQueryScssEvalNativeCssFunctionCallEvaluationSurfaceV0,
     OmenaScssEvalNativeCssFunctionSurfaceV0 as OmenaQueryScssEvalNativeCssFunctionSurfaceV0,
     OmenaScssEvalNativeCssIfFunctionDecisionSurfaceV0 as OmenaQueryScssEvalNativeCssIfFunctionDecisionSurfaceV0,
 };
