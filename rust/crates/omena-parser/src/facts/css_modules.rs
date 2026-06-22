@@ -14,7 +14,7 @@ use crate::{
     style_wrapper_at_rule, top_level_token_kind_index, top_level_token_text_index,
 };
 
-use super::tokens_from_cst;
+use super::{tokens_from_cst, tokens_from_syntax_node};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ParsedCssModuleValueFact {
@@ -41,10 +41,10 @@ pub(crate) fn collect_css_module_value_facts_from_cst(
     text: &str,
     parsed: &ParseResult,
 ) -> Vec<ParsedCssModuleValueFact> {
-    let tokens = tokens_from_cst(text, parsed);
-    css_module_value_facts_from_token_view(&tokens)
+    css_module_value_facts_from_cst_nodes(text, parsed)
 }
 
+#[cfg(feature = "internal-oracle")]
 fn css_module_value_facts_from_token_view(tokens: &[Token<'_>]) -> Vec<ParsedCssModuleValueFact> {
     let mut values = Vec::new();
     let mut seen = BTreeSet::new();
@@ -115,6 +115,85 @@ fn css_module_value_facts_from_token_view(tokens: &[Token<'_>]) -> Vec<ParsedCss
     values
 }
 
+fn css_module_value_facts_from_cst_nodes(
+    text: &str,
+    parsed: &ParseResult,
+) -> Vec<ParsedCssModuleValueFact> {
+    let mut values = Vec::new();
+    let mut seen = BTreeSet::new();
+    let value_path_aliases = collect_css_module_value_path_aliases_from_cst_nodes(text, parsed);
+    for tokens in css_module_value_statement_tokens_from_cst(text, parsed) {
+        collect_css_module_value_statement_facts(
+            &tokens,
+            &value_path_aliases,
+            &mut values,
+            &mut seen,
+        );
+    }
+    let local_value_names = values
+        .iter()
+        .filter(|value| value.kind == ParsedCssModuleValueFactKind::Definition)
+        .map(|value| value.name.clone())
+        .collect::<BTreeSet<_>>();
+    let tokens = tokens_from_cst(text, parsed);
+    collect_css_module_value_declaration_reference_facts(
+        &tokens,
+        0,
+        tokens.len(),
+        &local_value_names,
+        &mut values,
+        &mut seen,
+    );
+    values
+}
+
+fn collect_css_module_value_statement_facts(
+    tokens: &[Token<'_>],
+    value_path_aliases: &BTreeMap<String, String>,
+    values: &mut Vec<ParsedCssModuleValueFact>,
+    seen: &mut BTreeSet<(ParsedCssModuleValueFactKind, String, u32, u32)>,
+) {
+    let Some(index) = tokens.iter().position(|token| {
+        token.kind == SyntaxKind::AtKeyword && token.text.eq_ignore_ascii_case("@value")
+    }) else {
+        return;
+    };
+
+    let start = skip_trivia_tokens(tokens, index + 1, tokens.len());
+    let end = css_module_value_statement_end(tokens, start);
+    let colon_index = top_level_token_kind_index(tokens, start, end, SyntaxKind::Colon);
+    let from_index = top_level_token_text_index(tokens, start, end, "from");
+
+    if let Some(from_index) = from_index
+        && match colon_index {
+            Some(colon_index) => from_index < colon_index,
+            None => true,
+        }
+    {
+        collect_css_module_value_import_facts(
+            tokens,
+            start,
+            from_index,
+            end,
+            value_path_aliases,
+            values,
+            seen,
+        );
+        return;
+    }
+
+    if let Some(colon_index) = colon_index {
+        if css_module_value_path_alias_from_tokens(tokens, start, colon_index, end).is_some() {
+            return;
+        }
+        collect_css_module_value_definition_facts(tokens, start, colon_index, values, seen);
+        collect_css_module_value_reference_facts(tokens, colon_index + 1, end, values, seen);
+    } else {
+        collect_css_module_value_definition_facts(tokens, start, end, values, seen);
+    }
+}
+
+#[cfg(feature = "internal-oracle")]
 fn collect_css_module_value_path_aliases_from_tokens(
     tokens: &[Token<'_>],
 ) -> BTreeMap<String, String> {
@@ -140,6 +219,43 @@ fn collect_css_module_value_path_aliases_from_tokens(
         }
     }
     aliases
+}
+
+fn collect_css_module_value_path_aliases_from_cst_nodes(
+    text: &str,
+    parsed: &ParseResult,
+) -> BTreeMap<String, String> {
+    let mut aliases = BTreeMap::new();
+    for tokens in css_module_value_statement_tokens_from_cst(text, parsed) {
+        collect_css_module_value_path_aliases_from_statement_tokens(&tokens, &mut aliases);
+    }
+    aliases
+}
+
+fn collect_css_module_value_path_aliases_from_statement_tokens(
+    tokens: &[Token<'_>],
+    aliases: &mut BTreeMap<String, String>,
+) {
+    let Some(index) = tokens.iter().position(|token| {
+        token.kind == SyntaxKind::AtKeyword && token.text.eq_ignore_ascii_case("@value")
+    }) else {
+        return;
+    };
+
+    let start = skip_trivia_tokens(tokens, index + 1, tokens.len());
+    let end = css_module_value_statement_end(tokens, start);
+    let Some(colon_index) = top_level_token_kind_index(tokens, start, end, SyntaxKind::Colon)
+    else {
+        return;
+    };
+    if top_level_token_text_index(tokens, start, end, "from").is_some() {
+        return;
+    }
+    if let Some((name, target)) =
+        css_module_value_path_alias_from_tokens(tokens, start, colon_index, end)
+    {
+        aliases.insert(name, target);
+    }
 }
 
 fn css_module_value_path_alias_from_tokens(
@@ -234,10 +350,10 @@ pub(crate) fn collect_css_module_value_import_edge_facts_from_cst(
     text: &str,
     parsed: &ParseResult,
 ) -> Vec<ParsedCssModuleValueImportEdgeFact> {
-    let tokens = tokens_from_cst(text, parsed);
-    css_module_value_import_edge_facts_from_token_view(&tokens)
+    css_module_value_import_edge_facts_from_cst_nodes(text, parsed)
 }
 
+#[cfg(feature = "internal-oracle")]
 fn css_module_value_import_edge_facts_from_token_view(
     tokens: &[Token<'_>],
 ) -> Vec<ParsedCssModuleValueImportEdgeFact> {
@@ -269,6 +385,52 @@ fn css_module_value_import_edge_facts_from_token_view(
     edges
 }
 
+fn css_module_value_import_edge_facts_from_cst_nodes(
+    text: &str,
+    parsed: &ParseResult,
+) -> Vec<ParsedCssModuleValueImportEdgeFact> {
+    let mut edges = Vec::new();
+    let value_path_aliases = collect_css_module_value_path_aliases_from_cst_nodes(text, parsed);
+    for tokens in css_module_value_statement_tokens_from_cst(text, parsed) {
+        collect_css_module_value_import_edge_statement_facts(
+            &tokens,
+            &value_path_aliases,
+            &mut edges,
+        );
+    }
+    edges
+}
+
+fn collect_css_module_value_import_edge_statement_facts(
+    tokens: &[Token<'_>],
+    value_path_aliases: &BTreeMap<String, String>,
+    edges: &mut Vec<ParsedCssModuleValueImportEdgeFact>,
+) {
+    let Some(index) = tokens.iter().position(|token| {
+        token.kind == SyntaxKind::AtKeyword && token.text.eq_ignore_ascii_case("@value")
+    }) else {
+        return;
+    };
+
+    let start = skip_trivia_tokens(tokens, index + 1, tokens.len());
+    let end = css_module_value_statement_end(tokens, start);
+    let colon_index = top_level_token_kind_index(tokens, start, end, SyntaxKind::Colon);
+    let from_index = top_level_token_text_index(tokens, start, end, "from");
+    let Some(from_index) = from_index else {
+        return;
+    };
+    if colon_index.is_some_and(|colon_index| from_index > colon_index) {
+        return;
+    }
+    let Some((import_source, _source_range)) =
+        css_module_value_import_edge_source(tokens, from_index + 1, end, value_path_aliases)
+    else {
+        return;
+    };
+
+    collect_css_module_value_import_edges(tokens, start, from_index, import_source, edges);
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ParsedCssModuleValueDefinitionEdgeFact {
     pub definition_name: String,
@@ -287,10 +449,10 @@ pub(crate) fn collect_css_module_value_definition_edge_facts_from_cst(
     text: &str,
     parsed: &ParseResult,
 ) -> Vec<ParsedCssModuleValueDefinitionEdgeFact> {
-    let tokens = tokens_from_cst(text, parsed);
-    css_module_value_definition_edge_facts_from_token_view(&tokens)
+    css_module_value_definition_edge_facts_from_cst_nodes(text, parsed)
 }
 
+#[cfg(feature = "internal-oracle")]
 fn css_module_value_definition_edge_facts_from_token_view(
     tokens: &[Token<'_>],
 ) -> Vec<ParsedCssModuleValueDefinitionEdgeFact> {
@@ -343,6 +505,68 @@ fn css_module_value_definition_edge_facts_from_token_view(
     edges
 }
 
+fn css_module_value_definition_edge_facts_from_cst_nodes(
+    text: &str,
+    parsed: &ParseResult,
+) -> Vec<ParsedCssModuleValueDefinitionEdgeFact> {
+    let mut edges = Vec::new();
+    for tokens in css_module_value_statement_tokens_from_cst(text, parsed) {
+        collect_css_module_value_definition_edge_statement_facts(&tokens, &mut edges);
+    }
+    edges
+}
+
+fn collect_css_module_value_definition_edge_statement_facts(
+    tokens: &[Token<'_>],
+    edges: &mut Vec<ParsedCssModuleValueDefinitionEdgeFact>,
+) {
+    let Some(index) = tokens.iter().position(|token| {
+        token.kind == SyntaxKind::AtKeyword && token.text.eq_ignore_ascii_case("@value")
+    }) else {
+        return;
+    };
+
+    let start = skip_trivia_tokens(tokens, index + 1, tokens.len());
+    let end = css_module_value_statement_end(tokens, start);
+    let colon_index = top_level_token_kind_index(tokens, start, end, SyntaxKind::Colon);
+    let from_index = top_level_token_text_index(tokens, start, end, "from");
+    let Some(colon_index) = colon_index else {
+        return;
+    };
+    if from_index.is_some_and(|from_index| from_index < colon_index) {
+        return;
+    }
+
+    let definition_names = collect_css_module_value_definition_edge_names(
+        tokens,
+        start,
+        colon_index,
+        |tokens, index| css_module_value_name_token_can_define(tokens[index]),
+    );
+    let reference_names = collect_css_module_value_definition_edge_names(
+        tokens,
+        colon_index + 1,
+        end,
+        css_module_value_reference_token_can_be_name,
+    );
+    if reference_names.is_empty() {
+        return;
+    }
+    let range_end = end
+        .checked_sub(1)
+        .and_then(|end| tokens.get(end))
+        .map(|token| token.range.end())
+        .unwrap_or_else(|| tokens[index].range.end());
+
+    for definition_name in definition_names {
+        edges.push(ParsedCssModuleValueDefinitionEdgeFact {
+            definition_name,
+            reference_names: reference_names.clone(),
+            range: TextRange::new(tokens[index].range.start(), range_end),
+        });
+    }
+}
+
 pub(crate) fn collect_css_module_value_definition_edge_names(
     tokens: &[Token<'_>],
     start: usize,
@@ -358,6 +582,25 @@ pub(crate) fn collect_css_module_value_definition_edge_names(
         index += 1;
     }
     names
+}
+
+fn css_module_value_statement_tokens_from_cst<'text>(
+    text: &'text str,
+    parsed: &ParseResult,
+) -> Vec<Vec<Token<'text>>> {
+    parsed
+        .syntax()
+        .descendants()
+        .filter(|node| {
+            matches!(
+                node.kind(),
+                SyntaxKind::CssModuleExportBlock
+                    | SyntaxKind::CssModuleImportBlock
+                    | SyntaxKind::BogusCssModuleBlock
+            )
+        })
+        .map(|node| tokens_from_syntax_node(text, node))
+        .collect()
 }
 
 fn css_module_value_import_edge_source(

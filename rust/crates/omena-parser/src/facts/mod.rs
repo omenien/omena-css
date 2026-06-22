@@ -11,7 +11,8 @@ mod sass;
 mod selectors;
 mod variables;
 
-use omena_syntax::StyleDialect;
+use cstree::syntax::SyntaxNode;
+use omena_syntax::{StyleDialect, SyntaxKind};
 
 use crate::{DialectExtension, ParseResult, Parser, Token, tokenize};
 
@@ -273,9 +274,15 @@ pub fn facts_from_cst(text: &str, parsed: &ParseResult) -> ParsedStyleFacts {
 }
 
 pub(crate) fn tokens_from_cst<'text>(text: &'text str, parsed: &ParseResult) -> Vec<Token<'text>> {
-    parsed
-        .syntax()
-        .descendants_with_tokens()
+    let syntax = parsed.syntax();
+    tokens_from_syntax_node(text, &syntax)
+}
+
+pub(crate) fn tokens_from_syntax_node<'text>(
+    text: &'text str,
+    node: &SyntaxNode<SyntaxKind>,
+) -> Vec<Token<'text>> {
+    node.descendants_with_tokens()
         .filter_map(|element| element.into_token())
         .map(|token| {
             let range = token.text_range();
