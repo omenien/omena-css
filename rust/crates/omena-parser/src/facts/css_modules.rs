@@ -1257,6 +1257,7 @@ fn first_block_open_token_index(tokens: &[Token<'_>]) -> Option<usize> {
         .position(|token| matches!(token.kind, SyntaxKind::LeftBrace | SyntaxKind::SassIndent))
 }
 
+#[cfg(feature = "internal-oracle")]
 fn collect_css_module_composes_edge_facts_in_range(
     tokens: &[Token<'_>],
     start: usize,
