@@ -110,6 +110,30 @@ fn native_css_when_else_routes_through_edge_ir_without_pruning_unknown_condition
 }
 
 #[test]
+fn native_css_when_supports_routes_static_truthiness_through_edge_ir() {
+    let source =
+        "@when supports(display: grid) { .on { color: green; } } @else { .off { color: red; } }";
+    let analysis = analyze_scss_control_flow_values(source, StyleDialect::Css);
+    let prune = summarize_scss_control_flow_prune_reachability(source, StyleDialect::Css);
+    assert!(analysis.is_some());
+    assert!(prune.is_some());
+
+    let Some(analysis) = analysis else {
+        return;
+    };
+    let Some(prune) = prune else {
+        return;
+    };
+
+    assert_eq!(analysis.dialect, "css");
+    assert_eq!(analysis.blocks[0].kind, "branchIf");
+    assert_eq!(analysis.blocks[0].transfer_value_kind, Some("exact"));
+    assert_eq!(analysis.blocks[0].transfer_truthiness, Some("truthy"));
+    assert!(prune.converged);
+    assert!(prune.pruned_edge_count > 0);
+}
+
+#[test]
 fn native_css_if_function_routes_through_edge_ir_without_pruning_unknown_conditions() {
     let source = ".card { margin: if(media(width >= 1px): 1rem; else: 2rem); }";
     let report = summarize_scss_control_flow_ir(source, StyleDialect::Css);

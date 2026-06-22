@@ -5,6 +5,9 @@ use omena_abstract_value::{
     MAX_FLOW_ANALYSIS_ITERATIONS, abstract_css_typed_value_kind_label,
     abstract_css_value_from_text, compare_abstract_css_values_with_typed_payloads,
 };
+use omena_cascade::{
+    StaticSupportsAssumptionV0, StaticSupportsEvalVerdictV0, evaluate_static_supports_condition,
+};
 use omena_parser::StyleDialect;
 
 use crate::abstract_css_value_kind;
@@ -347,7 +350,7 @@ fn control_flow_transfer_for_block(
         contextual_control_flow_bindings(source, block, previous_blocks, lexical_bindings);
     match block.at_rule_name.to_ascii_lowercase().as_str() {
         "@when" if dialect == StyleDialect::Css => ScssControlFlowTransfer::BranchCondition {
-            value: AbstractCssValueV0::Top,
+            value: native_css_when_header_value(block.header_text.as_str()),
         },
         "@else" if dialect == StyleDialect::Css => ScssControlFlowTransfer::BranchCondition {
             value: AbstractCssValueV0::Top,
@@ -389,6 +392,65 @@ fn control_flow_transfer_for_block(
             control_flow_transfer_for_else_block(source, block, previous_blocks, lexical_bindings)
         }
         _ => ScssControlFlowTransfer::PassThrough,
+    }
+}
+
+fn native_css_when_header_value(header: &str) -> AbstractCssValueV0 {
+    if let Some(inner) = extract_named_function_inner(header, "supports") {
+        let normalized_condition = normalize_supports_condition_for_native_css(inner);
+        let witness = evaluate_static_supports_condition(
+            &normalized_condition,
+            StaticSupportsAssumptionV0::ModernBrowser,
+        );
+        return match witness.verdict {
+            StaticSupportsEvalVerdictV0::AlwaysTrue => abstract_css_value_from_text("true"),
+            StaticSupportsEvalVerdictV0::AlwaysFalse => abstract_css_value_from_text("false"),
+            StaticSupportsEvalVerdictV0::Unknown => AbstractCssValueV0::Top,
+        };
+    }
+    AbstractCssValueV0::Top
+}
+
+fn extract_named_function_inner<'a>(condition: &'a str, name: &str) -> Option<&'a str> {
+    let trimmed = condition.trim();
+    let prefix = trimmed.get(..name.len())?;
+    if !prefix.eq_ignore_ascii_case(name) {
+        return None;
+    }
+    let rest = trimmed[name.len()..].trim_start();
+    if !rest.starts_with('(') {
+        return None;
+    }
+    let close_index = matching_closing_paren_byte_index(rest)?;
+    rest[close_index + 1..]
+        .trim()
+        .is_empty()
+        .then_some(&rest[1..close_index])
+}
+
+fn matching_closing_paren_byte_index(value: &str) -> Option<usize> {
+    let mut depth = 0usize;
+    for (index, ch) in value.char_indices() {
+        match ch {
+            '(' => depth += 1,
+            ')' => {
+                depth = depth.checked_sub(1)?;
+                if depth == 0 {
+                    return Some(index);
+                }
+            }
+            _ => {}
+        }
+    }
+    None
+}
+
+fn normalize_supports_condition_for_native_css(condition: &str) -> String {
+    let trimmed = condition.trim();
+    if trimmed.starts_with('(') {
+        trimmed.to_string()
+    } else {
+        format!("({trimmed})")
     }
 }
 
