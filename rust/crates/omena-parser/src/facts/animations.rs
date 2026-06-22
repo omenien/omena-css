@@ -1,7 +1,7 @@
 //! Parser facts for animation and keyframes references.
 //!
-//! These facts are intentionally token-derived so diagnostics can consume
-//! animation names without depending on later semantic graph construction.
+//! These facts stay syntax-derived so diagnostics can consume animation names
+//! without depending on later semantic graph construction.
 
 use cstree::text::TextRange;
 use omena_syntax::SyntaxKind;
@@ -9,7 +9,7 @@ use std::collections::BTreeSet;
 
 use crate::{ParseResult, Token, next_non_trivia_token_index_until};
 
-use super::tokens_from_cst;
+use super::tokens_from_syntax_node;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ParsedAnimationFact {
@@ -35,13 +35,27 @@ pub(crate) fn collect_animation_facts_from_cst(
     text: &str,
     parsed: &ParseResult,
 ) -> Vec<ParsedAnimationFact> {
-    let tokens = tokens_from_cst(text, parsed);
-    animation_facts_from_token_view(&tokens)
+    let mut animations = Vec::new();
+    let mut seen = BTreeSet::new();
+    for tokens in animation_fact_tokens_from_cst(text, parsed) {
+        collect_animation_facts_from_syntax_tokens(&tokens, &mut animations, &mut seen);
+    }
+    animations
 }
 
+#[cfg(feature = "internal-oracle")]
 fn animation_facts_from_token_view(tokens: &[Token<'_>]) -> Vec<ParsedAnimationFact> {
     let mut animations = Vec::new();
     let mut seen = BTreeSet::new();
+    collect_animation_facts_from_syntax_tokens(tokens, &mut animations, &mut seen);
+    animations
+}
+
+fn collect_animation_facts_from_syntax_tokens(
+    tokens: &[Token<'_>],
+    animations: &mut Vec<ParsedAnimationFact>,
+    seen: &mut BTreeSet<(ParsedAnimationFactKind, String, u32, u32)>,
+) {
     for (index, token) in tokens.iter().enumerate() {
         if token.kind == SyntaxKind::AtKeyword && at_keyword_is_keyframes_rule(token.text) {
             if let Some(name_index) =
@@ -49,8 +63,8 @@ fn animation_facts_from_token_view(tokens: &[Token<'_>]) -> Vec<ParsedAnimationF
                 && let Some(name) = animation_name_from_token(tokens[name_index])
             {
                 push_animation_fact(
-                    &mut animations,
-                    &mut seen,
+                    animations,
+                    seen,
                     ParsedAnimationFactKind::KeyframesDeclaration,
                     name,
                     tokens[name_index].range,
@@ -65,12 +79,7 @@ fn animation_facts_from_token_view(tokens: &[Token<'_>]) -> Vec<ParsedAnimationF
                 next_non_trivia_token_index_until(tokens, index + 1, tokens.len())
             && tokens[colon_index].kind == SyntaxKind::Colon
         {
-            collect_animation_name_references_until(
-                tokens,
-                colon_index + 1,
-                &mut animations,
-                &mut seen,
-            );
+            collect_animation_name_references_until(tokens, colon_index + 1, animations, seen);
         }
 
         if token.kind == SyntaxKind::Ident
@@ -79,15 +88,26 @@ fn animation_facts_from_token_view(tokens: &[Token<'_>]) -> Vec<ParsedAnimationF
                 next_non_trivia_token_index_until(tokens, index + 1, tokens.len())
             && tokens[colon_index].kind == SyntaxKind::Colon
         {
-            collect_animation_shorthand_references_until(
-                tokens,
-                colon_index + 1,
-                &mut animations,
-                &mut seen,
-            );
+            collect_animation_shorthand_references_until(tokens, colon_index + 1, animations, seen);
         }
     }
-    animations
+}
+
+fn animation_fact_tokens_from_cst<'text>(
+    text: &'text str,
+    parsed: &ParseResult,
+) -> Vec<Vec<Token<'text>>> {
+    parsed
+        .syntax()
+        .descendants()
+        .filter(|node| {
+            matches!(
+                node.kind(),
+                SyntaxKind::KeyframesRule | SyntaxKind::Declaration
+            )
+        })
+        .map(|node| tokens_from_syntax_node(text, node))
+        .collect()
 }
 
 fn collect_animation_name_references_until(
