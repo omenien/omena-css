@@ -60,9 +60,10 @@ pub use language::StyleLanguage;
 pub use lex::{LexResult, LexedToken};
 pub(crate) use lex::{Token, Tokenizer, public_token_text};
 pub use parse::{
-    ParseEntryPoint, ParseError, ParseErrorCode, ParseResult, collect_style_facts, lex,
-    lex_with_extension, parse, parse_entry_point, parse_entry_point_with_extension,
-    parse_with_extension,
+    ParseEntryPoint, ParseError, ParseErrorCode, ParseResult, ParseReuseCache, collect_style_facts,
+    lex, lex_with_extension, parse, parse_entry_point, parse_entry_point_with_extension,
+    parse_entry_point_with_extension_and_reuse_cache, parse_entry_point_with_reuse_cache,
+    parse_with_extension, parse_with_reuse_cache,
 };
 pub(crate) use parse::{Parser, tokenize};
 pub use public_product::{

@@ -4,7 +4,7 @@
 //! lex, and fact-collection functions for the crate's public API.
 
 use cstree::{
-    build::GreenNodeBuilder,
+    build::{GreenNodeBuilder, NodeCache},
     green::GreenNode,
     interning::TokenInterner,
     syntax::SyntaxNode,
@@ -143,6 +143,11 @@ pub enum ParseEntryPoint {
     SimpleBlock,
 }
 
+#[derive(Debug, Default)]
+pub struct ParseReuseCache {
+    node_cache: NodeCache<'static>,
+}
+
 pub fn parse(text: &str, dialect: StyleDialect) -> ParseResult {
     parse_entry_point(text, dialect, ParseEntryPoint::Stylesheet)
 }
@@ -202,6 +207,46 @@ pub fn parse_entry_point_with_extension(
     )
 }
 
+pub fn parse_with_reuse_cache(
+    text: &str,
+    dialect: StyleDialect,
+    cache: &mut ParseReuseCache,
+) -> ParseResult {
+    parse_entry_point_with_reuse_cache(text, dialect, ParseEntryPoint::Stylesheet, cache)
+}
+
+pub fn parse_entry_point_with_reuse_cache(
+    text: &str,
+    dialect: StyleDialect,
+    entry_point: ParseEntryPoint,
+    cache: &mut ParseReuseCache,
+) -> ParseResult {
+    let extension = BuiltinDialectExtension::new(dialect);
+    parse_entry_point_with_extension_and_reuse_cache(text, &extension, entry_point, cache)
+}
+
+pub fn parse_entry_point_with_extension_and_reuse_cache(
+    text: &str,
+    extension: &impl DialectExtension,
+    entry_point: ParseEntryPoint,
+    cache: &mut ParseReuseCache,
+) -> ParseResult {
+    let (tokens, errors) = tokenize(text, extension);
+    let token_count = tokens.len();
+    let node_cache = std::mem::take(&mut cache.node_cache);
+    let mut parser = Parser::new_with_node_cache(tokens, errors, extension.dialect(), node_cache);
+    let (green, node_cache) = parser.parse_entry_point_reusing_cache(entry_point);
+    cache.node_cache = node_cache.unwrap_or_default();
+
+    ParseResult::new(
+        green,
+        None,
+        parser.into_errors(),
+        token_count,
+        extension.dialect(),
+    )
+}
+
 pub fn collect_style_facts(text: &str, dialect: StyleDialect) -> ParsedStyleFacts {
     let extension = BuiltinDialectExtension::new(dialect);
     collect_style_facts_with_extension(text, &extension)
@@ -230,11 +275,20 @@ impl<'text> Parser<'text> {
         errors: Vec<ParseError>,
         dialect: StyleDialect,
     ) -> Self {
+        Self::new_with_node_cache(tokens, errors, dialect, NodeCache::new())
+    }
+
+    pub(crate) fn new_with_node_cache(
+        tokens: Vec<Token<'text>>,
+        errors: Vec<ParseError>,
+        dialect: StyleDialect,
+        node_cache: NodeCache<'static>,
+    ) -> Self {
         Self {
             tokens,
             position: 0,
             dialect,
-            builder: GreenNodeBuilder::new(),
+            builder: GreenNodeBuilder::from_cache(node_cache),
             errors,
         }
     }
@@ -247,6 +301,15 @@ impl<'text> Parser<'text> {
         &mut self,
         entry_point: ParseEntryPoint,
     ) -> (GreenNode, Option<Arc<TokenInterner>>) {
+        let (green, cache) = self.parse_entry_point_reusing_cache(entry_point);
+        let interner = cache.and_then(|cache| cache.into_interner()).map(Arc::new);
+        (green, interner)
+    }
+
+    fn parse_entry_point_reusing_cache(
+        &mut self,
+        entry_point: ParseEntryPoint,
+    ) -> (GreenNode, Option<NodeCache<'static>>) {
         self.builder.start_node(SyntaxKind::Root);
         match entry_point {
             ParseEntryPoint::Stylesheet => {
@@ -283,9 +346,7 @@ impl<'text> Parser<'text> {
         self.builder.finish_node();
 
         let builder = std::mem::take(&mut self.builder);
-        let (green, cache) = builder.finish();
-        let interner = cache.and_then(|cache| cache.into_interner()).map(Arc::new);
-        (green, interner)
+        builder.finish()
     }
 
     fn parse_sass_indentation_bogus(&mut self) {

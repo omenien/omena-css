@@ -1,5 +1,5 @@
-use cstree::syntax::SyntaxNode;
-use std::collections::BTreeSet;
+use cstree::{green::GreenNode, syntax::SyntaxNode};
+use std::collections::{BTreeMap, BTreeSet};
 
 use super::*;
 
@@ -4562,6 +4562,46 @@ fn nested_var_fallback_is_scoped_per_call() {
     );
 }
 
+#[test]
+fn reusable_parse_cache_shares_exact_green_nodes_after_small_edit() {
+    let mut cache = ParseReuseCache::default();
+    let first = parse_with_reuse_cache(
+        ".alpha { color: red; } .beta { color: blue; }",
+        StyleDialect::Css,
+        &mut cache,
+    );
+    let second = parse_with_reuse_cache(
+        ".alpha { color: green; } .beta { color: blue; }",
+        StyleDialect::Css,
+        &mut cache,
+    );
+
+    assert_eq!(
+        shared_green_node_storage_count_for_test(first.green(), second.green()),
+        16
+    );
+}
+
+#[test]
+fn reusable_parse_cache_shares_exact_green_nodes_after_sparse_edit() {
+    let mut cache = ParseReuseCache::default();
+    let first = parse_with_reuse_cache(
+        ".card { color: red; padding: 1rem; margin: 2rem; border-color: black; } .icon { width: 1rem; height: 1rem; }",
+        StyleDialect::Css,
+        &mut cache,
+    );
+    let second = parse_with_reuse_cache(
+        ".card { color: red; padding: 1rem; margin: 3rem; border-color: black; } .icon { width: 1rem; height: 1rem; }",
+        StyleDialect::Css,
+        &mut cache,
+    );
+
+    assert_eq!(
+        shared_green_node_storage_count_for_test(first.green(), second.green()),
+        26
+    );
+}
+
 fn assert_lex_ranges_are_char_boundaries(source: &str, tokens: &[LexedToken]) {
     for token in tokens {
         let start = u32::from(token.range.start()) as usize;
@@ -4592,6 +4632,49 @@ fn source_text(node: &SyntaxNode<SyntaxKind>) -> Option<String> {
         }
     }
     Some(text)
+}
+
+#[allow(unsafe_code)]
+fn green_node_storage_key_for_test(node: &GreenNode) -> usize {
+    assert_eq!(
+        std::mem::size_of::<GreenNode>(),
+        std::mem::size_of::<usize>()
+    );
+    // cstree exposes structural equality but not green-node pointer identity.
+    // This test-only gate observes the internal ThinArc pointer so cache reuse
+    // is checked by exact storage sharing instead of by value equality.
+    unsafe { *(node as *const GreenNode as *const usize) }
+}
+
+fn collect_green_node_storage_keys_for_test(node: &GreenNode, keys: &mut Vec<usize>) {
+    keys.push(green_node_storage_key_for_test(node));
+    for child in node.children() {
+        if let Some(&child_node) = child.as_node() {
+            collect_green_node_storage_keys_for_test(child_node, keys);
+        }
+    }
+}
+
+fn shared_green_node_storage_count_for_test(first: &GreenNode, second: &GreenNode) -> usize {
+    let mut first_counts = BTreeMap::new();
+    let mut first_keys = Vec::new();
+    collect_green_node_storage_keys_for_test(first, &mut first_keys);
+    for key in first_keys {
+        *first_counts.entry(key).or_insert(0usize) += 1;
+    }
+
+    let mut second_keys = Vec::new();
+    collect_green_node_storage_keys_for_test(second, &mut second_keys);
+    let mut shared = 0usize;
+    for key in second_keys {
+        if let Some(count) = first_counts.get_mut(&key)
+            && *count > 0
+        {
+            *count -= 1;
+            shared += 1;
+        }
+    }
+    shared
 }
 
 fn node_kinds(node: &SyntaxNode<SyntaxKind>) -> Vec<SyntaxKind> {
