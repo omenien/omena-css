@@ -146,12 +146,11 @@ pub fn collect_style_facts_with_extension_from_legacy_tokens(
     crate::record_omena_parser_parse_materialization(tokens.len());
     let _ = parser.parse();
     let errors = parser.into_errors();
-    style_facts_from_tokens(text, &tokens, extension.dialect(), errors.len())
+    style_facts_from_tokens(&tokens, extension.dialect(), errors.len())
 }
 
 #[cfg(feature = "internal-oracle")]
 fn style_facts_from_tokens(
-    text: &str,
     tokens: &[Token<'_>],
     dialect: StyleDialect,
     error_count: usize,
@@ -159,7 +158,7 @@ fn style_facts_from_tokens(
     let selectors = collect_selector_facts_from_tokens(tokens);
     let variables = collect_variable_facts_from_tokens(tokens);
     let sass_symbols = collect_sass_symbol_facts_from_tokens(tokens);
-    let sass_includes = collect_sass_include_facts_from_tokens(text, tokens);
+    let sass_includes = collect_sass_include_facts_from_tokens(tokens);
     let sass_module_edges = collect_sass_module_edge_facts_from_tokens(tokens);
     let extend_targets = collect_extend_target_facts_from_tokens(tokens);
     let animations = collect_animation_facts_from_tokens(tokens);

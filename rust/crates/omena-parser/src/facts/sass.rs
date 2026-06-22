@@ -232,10 +232,9 @@ pub struct ParsedSassIncludeFact {
 
 #[cfg(feature = "internal-oracle")]
 pub(crate) fn collect_sass_include_facts_from_tokens(
-    source: &str,
     tokens: &[Token<'_>],
 ) -> Vec<ParsedSassIncludeFact> {
-    sass_include_facts_from_token_view(source, tokens)
+    sass_include_facts_from_token_view(tokens)
 }
 
 pub(crate) fn collect_sass_include_facts_from_cst(
@@ -243,13 +242,10 @@ pub(crate) fn collect_sass_include_facts_from_cst(
     parsed: &ParseResult,
 ) -> Vec<ParsedSassIncludeFact> {
     let tokens = tokens_from_cst(source, parsed);
-    sass_include_facts_from_token_view(source, &tokens)
+    sass_include_facts_from_token_view(&tokens)
 }
 
-fn sass_include_facts_from_token_view(
-    source: &str,
-    tokens: &[Token<'_>],
-) -> Vec<ParsedSassIncludeFact> {
+fn sass_include_facts_from_token_view(tokens: &[Token<'_>]) -> Vec<ParsedSassIncludeFact> {
     let mut includes = Vec::new();
     for (index, token) in tokens.iter().enumerate() {
         if token.kind != SyntaxKind::AtKeyword || !token.text.eq_ignore_ascii_case("@include") {
@@ -262,9 +258,7 @@ fn sass_include_facts_from_token_view(
         let header_end = previous_non_trivia_token_index(tokens, statement_end, index + 1)
             .map(|previous| tokens[previous].range.end())
             .unwrap_or(name.range.end());
-        let params = source
-            .get(u32::from(name.range.end()) as usize..u32::from(header_end) as usize)
-            .unwrap_or_default()
+        let params = token_text_between_offsets(tokens, name.range.end(), header_end)
             .trim()
             .to_string();
         includes.push(ParsedSassIncludeFact {
@@ -275,6 +269,18 @@ fn sass_include_facts_from_token_view(
         });
     }
     includes
+}
+
+fn token_text_between_offsets(
+    tokens: &[Token<'_>],
+    start: cstree::text::TextSize,
+    end: cstree::text::TextSize,
+) -> String {
+    tokens
+        .iter()
+        .filter(|token| token.range.start() >= start && token.range.end() <= end)
+        .map(|token| token.text)
+        .collect()
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
