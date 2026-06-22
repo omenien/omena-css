@@ -751,7 +751,7 @@ fn exposes_transform_execution_runner_from_source() {
 
 #[test]
 fn exposes_native_css_static_eval_execution_runner_from_source() {
-    let source = r#"@function --gap(--size <length>: 1rem) returns <length> { result: var(--size); } .card { gap: --gap(2rem); display: if(supports(display: grid): grid; else: block); margin: if(media(width >= 1px): 1rem; else: 2rem); }"#;
+    let source = r#"@function --gap(--size <length>: 1rem) returns <length> { result: var(--size); } .card { gap: --gap(2rem); display: if(supports(display: grid): grid; else: block); margin: if(media(width >= 1px): 1rem; else: 2rem); } @when supports(display: grid) { .grid { display: grid; } } @else { .fallback { display: block; } }"#;
     let summary = execute_omena_query_transform_passes_from_source(
         "Native.css",
         source,
@@ -763,9 +763,15 @@ fn exposes_native_css_static_eval_execution_runner_from_source() {
 
     assert_eq!(summary.product, "omena-query.transform-execute");
     assert_eq!(summary.unknown_pass_ids, Vec::<String>::new());
-    assert_eq!(summary.execution.mutation_count, 2);
+    assert_eq!(summary.execution.mutation_count, 3);
     assert!(summary.execution.output_css.contains("gap: 2rem"));
     assert!(summary.execution.output_css.contains("display: grid"));
+    assert!(
+        summary
+            .execution
+            .output_css
+            .contains(".grid { display: grid; }")
+    );
     assert!(
         summary
             .execution
@@ -773,6 +779,8 @@ fn exposes_native_css_static_eval_execution_runner_from_source() {
             .contains("margin: if(media(width >= 1px): 1rem; else: 2rem)")
     );
     assert!(!summary.execution.output_css.contains("--gap(2rem)"));
+    assert!(!summary.execution.output_css.contains("@when"));
+    assert!(!summary.execution.output_css.contains(".fallback"));
     assert!(
         !summary
             .execution

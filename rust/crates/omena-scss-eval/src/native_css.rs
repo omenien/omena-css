@@ -152,6 +152,7 @@ pub struct OmenaScssEvalNativeCssStaticEditPlanV0 {
     pub mode: &'static str,
     pub dialect: &'static str,
     pub edit_count: usize,
+    pub when_rule_edit_count: usize,
     pub if_function_edit_count: usize,
     pub function_call_edit_count: usize,
     pub output_changed: bool,
@@ -278,6 +279,9 @@ pub fn summarize_native_css_static_edit_plan(
     let function_call_evaluations =
         summarize_native_css_function_call_evaluations(source, dialect)?;
     let mut edits = Vec::new();
+    let lexed = lex(source, dialect);
+    let tokens = lexed.tokens();
+    edits.extend(native_css_when_rule_static_edits(source, tokens));
     edits.extend(native_css_if_function_static_edits(&if_function_decisions));
     edits.extend(native_css_function_call_static_edits(
         &function_call_evaluations,
@@ -285,6 +289,10 @@ pub fn summarize_native_css_static_edit_plan(
     let edits = normalize_native_css_static_edits(source, edits)?;
     let edited_css = apply_native_css_static_edits(source, &edits);
     let edit_count = edits.len();
+    let when_rule_edit_count = edits
+        .iter()
+        .filter(|edit| edit.edit_kind == "whenRuleBranchFold")
+        .count();
     let if_function_edit_count = edits
         .iter()
         .filter(|edit| edit.edit_kind == "ifFunctionValueFold")
@@ -301,6 +309,7 @@ pub fn summarize_native_css_static_edit_plan(
         mode: "staticSubsetPruneButKeep",
         dialect: "css",
         edit_count,
+        when_rule_edit_count,
         if_function_edit_count,
         function_call_edit_count,
         output_changed,
@@ -380,6 +389,187 @@ fn collect_native_css_if_function_decisions(
         .collect()
 }
 
+fn native_css_when_rule_static_edits(
+    source: &str,
+    tokens: &[LexedToken],
+) -> Vec<OmenaScssEvalNativeCssStaticEditV0> {
+    let mut edits = Vec::new();
+    let mut index = 0usize;
+    while index < tokens.len() {
+        let Some(token) = tokens.get(index) else {
+            break;
+        };
+        if token.kind == SyntaxKind::AtKeyword
+            && token.text.eq_ignore_ascii_case("@when")
+            && let Some((edit, next_index)) =
+                collect_native_css_when_rule_static_edit(source, tokens, index)
+        {
+            edits.push(edit);
+            index = next_index.saturating_add(1);
+            continue;
+        }
+        index += 1;
+    }
+    edits
+}
+
+fn collect_native_css_when_rule_static_edit(
+    source: &str,
+    tokens: &[LexedToken],
+    when_index: usize,
+) -> Option<(OmenaScssEvalNativeCssStaticEditV0, usize)> {
+    let block_start_index = next_matching_token_index(tokens, when_index + 1, |token| {
+        matches!(
+            token.kind,
+            SyntaxKind::LeftBrace | SyntaxKind::Semicolon | SyntaxKind::SassOptionalSemicolon
+        )
+    })?;
+    if tokens.get(block_start_index)?.kind != SyntaxKind::LeftBrace {
+        return None;
+    }
+    let block_end_index = matching_token_index(
+        tokens,
+        block_start_index,
+        SyntaxKind::LeftBrace,
+        SyntaxKind::RightBrace,
+    )?;
+    let header = trimmed_source_between_tokens(source, tokens, when_index + 1, block_start_index)
+        .unwrap_or_default();
+    let verdict = classify_native_css_when_rule_condition(header.as_str());
+    let else_rule = collect_immediate_native_css_else_rule(source, tokens, block_end_index + 1);
+
+    let source_span_start = token_start(tokens.get(when_index)?);
+    match verdict {
+        "alwaysTrue" => {
+            let source_span_end = else_rule
+                .as_ref()
+                .map(|else_rule| else_rule.source_span_end)
+                .unwrap_or_else(|| token_end(&tokens[block_end_index]));
+            let replacement =
+                block_inner_source(source, tokens, block_start_index, block_end_index)?;
+            Some((
+                OmenaScssEvalNativeCssStaticEditV0 {
+                    start: source_span_start,
+                    end: source_span_end,
+                    replacement,
+                    edit_kind: "whenRuleBranchFold",
+                },
+                else_rule
+                    .as_ref()
+                    .map(|else_rule| else_rule.block_end_index)
+                    .unwrap_or(block_end_index),
+            ))
+        }
+        "alwaysFalse" => {
+            let Some(else_rule) = else_rule else {
+                return Some((
+                    OmenaScssEvalNativeCssStaticEditV0 {
+                        start: source_span_start,
+                        end: token_end(tokens.get(block_end_index)?),
+                        replacement: String::new(),
+                        edit_kind: "whenRuleBranchFold",
+                    },
+                    block_end_index,
+                ));
+            };
+            if !else_rule.header_text.trim().is_empty() {
+                return None;
+            }
+            let replacement = block_inner_source(
+                source,
+                tokens,
+                else_rule.block_start_index,
+                else_rule.block_end_index,
+            )?;
+            Some((
+                OmenaScssEvalNativeCssStaticEditV0 {
+                    start: source_span_start,
+                    end: else_rule.source_span_end,
+                    replacement,
+                    edit_kind: "whenRuleBranchFold",
+                },
+                else_rule.block_end_index,
+            ))
+        }
+        _ => None,
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct NativeCssElseRuleV0 {
+    header_text: String,
+    block_start_index: usize,
+    block_end_index: usize,
+    source_span_end: usize,
+}
+
+fn collect_immediate_native_css_else_rule(
+    source: &str,
+    tokens: &[LexedToken],
+    start_index: usize,
+) -> Option<NativeCssElseRuleV0> {
+    let else_index = next_non_trivia_token_index(tokens, start_index)?;
+    let else_token = tokens.get(else_index)?;
+    if else_token.kind != SyntaxKind::AtKeyword || !else_token.text.eq_ignore_ascii_case("@else") {
+        return None;
+    }
+    let block_start_index = next_matching_token_index(tokens, else_index + 1, |token| {
+        matches!(
+            token.kind,
+            SyntaxKind::LeftBrace | SyntaxKind::Semicolon | SyntaxKind::SassOptionalSemicolon
+        )
+    })?;
+    if tokens.get(block_start_index)?.kind != SyntaxKind::LeftBrace {
+        return None;
+    }
+    let block_end_index = matching_token_index(
+        tokens,
+        block_start_index,
+        SyntaxKind::LeftBrace,
+        SyntaxKind::RightBrace,
+    )?;
+    Some(NativeCssElseRuleV0 {
+        header_text: trimmed_source_between_tokens(
+            source,
+            tokens,
+            else_index + 1,
+            block_start_index,
+        )
+        .unwrap_or_default(),
+        block_start_index,
+        block_end_index,
+        source_span_end: token_end(tokens.get(block_end_index)?),
+    })
+}
+
+fn block_inner_source(
+    source: &str,
+    tokens: &[LexedToken],
+    block_start_index: usize,
+    block_end_index: usize,
+) -> Option<String> {
+    let start = token_end(tokens.get(block_start_index)?);
+    let end = token_start(tokens.get(block_end_index)?);
+    source.get(start..end).map(ToString::to_string)
+}
+
+fn classify_native_css_when_rule_condition(header: &str) -> &'static str {
+    if let Some(inner) = extract_named_function_inner(header, "supports") {
+        let normalized_condition = normalize_supports_condition_for_if(inner);
+        let witness = evaluate_static_supports_condition(
+            &normalized_condition,
+            StaticSupportsAssumptionV0::ModernBrowser,
+        );
+        return static_supports_verdict_label(witness.verdict);
+    }
+    if extract_named_function_inner(header, "media").is_some()
+        || extract_named_function_inner(header, "style").is_some()
+    {
+        return "runtime";
+    }
+    "unknown"
+}
+
 fn native_css_if_function_static_edits(
     surface: &OmenaScssEvalNativeCssIfFunctionDecisionSurfaceV0,
 ) -> Vec<OmenaScssEvalNativeCssStaticEditV0> {
@@ -427,13 +617,19 @@ fn normalize_native_css_static_edits(
             && left.replacement == right.replacement
             && left.edit_kind == right.edit_kind
     });
-    let mut normalized = Vec::new();
-    let mut previous_end = 0usize;
+    let mut normalized: Vec<OmenaScssEvalNativeCssStaticEditV0> = Vec::new();
     for edit in edits {
-        if edit.start < previous_end || edit.start > edit.end || edit.end > source.len() {
+        if edit.start > edit.end || edit.end > source.len() {
             return None;
         }
-        previous_end = edit.end;
+        if let Some(previous) = normalized.last()
+            && edit.start < previous.end
+        {
+            if edit.end <= previous.end {
+                continue;
+            }
+            return None;
+        }
         normalized.push(edit);
     }
     Some(normalized)
@@ -1511,6 +1707,57 @@ mod tests {
         assert!(!report.edited_css.contains("if(supports"));
         assert_eq!(report.edits[0].edit_kind, "functionCallValueFold");
         assert_eq!(report.edits[1].edit_kind, "ifFunctionValueFold");
+    }
+
+    #[test]
+    fn native_css_static_edit_plan_folds_static_when_rule_true_branch() {
+        let source = "@when supports(display: grid) { .grid { display: grid; } } @else { .fallback { display: block; } }";
+        let report = summarize_native_css_static_edit_plan(source, StyleDialect::Css);
+        assert!(report.is_some());
+        let Some(report) = report else {
+            return;
+        };
+
+        assert_eq!(report.edit_count, 1);
+        assert_eq!(report.when_rule_edit_count, 1);
+        assert_eq!(report.if_function_edit_count, 0);
+        assert_eq!(report.function_call_edit_count, 0);
+        assert!(report.output_changed);
+        assert!(report.edited_css.contains(".grid { display: grid; }"));
+        assert!(!report.edited_css.contains("@when"));
+        assert!(!report.edited_css.contains(".fallback"));
+        assert_eq!(report.edits[0].edit_kind, "whenRuleBranchFold");
+    }
+
+    #[test]
+    fn native_css_static_edit_plan_folds_static_when_rule_else_branch() {
+        let source = "@when supports(display: -ms-grid) { .grid { display: grid; } } @else { .fallback { display: block; } }";
+        let report = summarize_native_css_static_edit_plan(source, StyleDialect::Css);
+        assert!(report.is_some());
+        let Some(report) = report else {
+            return;
+        };
+
+        assert_eq!(report.edit_count, 1);
+        assert_eq!(report.when_rule_edit_count, 1);
+        assert!(report.edited_css.contains(".fallback { display: block; }"));
+        assert!(!report.edited_css.contains("@when"));
+        assert!(!report.edited_css.contains(".grid"));
+    }
+
+    #[test]
+    fn native_css_static_edit_plan_preserves_runtime_when_rule() {
+        let source = "@when media(width >= 1px) { .grid { display: grid; } } @else { .fallback { display: block; } }";
+        let report = summarize_native_css_static_edit_plan(source, StyleDialect::Css);
+        assert!(report.is_some());
+        let Some(report) = report else {
+            return;
+        };
+
+        assert_eq!(report.edit_count, 0);
+        assert_eq!(report.when_rule_edit_count, 0);
+        assert!(!report.output_changed);
+        assert_eq!(report.edited_css, source);
     }
 
     #[test]
