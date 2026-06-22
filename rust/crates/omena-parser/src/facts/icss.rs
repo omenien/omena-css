@@ -13,7 +13,7 @@ use crate::{
     css_module_value_statement_end, find_block_after_header, next_non_trivia_token_index_until,
 };
 
-use super::tokens_from_cst;
+use super::tokens_from_syntax_node;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ParsedIcssFact {
@@ -51,13 +51,27 @@ pub(crate) fn collect_icss_facts_from_tokens(tokens: &[Token<'_>]) -> Vec<Parsed
 }
 
 pub(crate) fn collect_icss_facts_from_cst(text: &str, parsed: &ParseResult) -> Vec<ParsedIcssFact> {
-    let tokens = tokens_from_cst(text, parsed);
-    icss_facts_from_token_view(&tokens)
+    let mut icss = Vec::new();
+    let mut seen = BTreeSet::new();
+    for tokens in icss_block_tokens_from_cst(text, parsed) {
+        collect_icss_facts_from_block_tokens(&tokens, &mut icss, &mut seen);
+    }
+    icss
 }
 
+#[cfg(feature = "internal-oracle")]
 fn icss_facts_from_token_view(tokens: &[Token<'_>]) -> Vec<ParsedIcssFact> {
     let mut icss = Vec::new();
     let mut seen = BTreeSet::new();
+    collect_icss_facts_from_block_tokens(tokens, &mut icss, &mut seen);
+    icss
+}
+
+fn collect_icss_facts_from_block_tokens(
+    tokens: &[Token<'_>],
+    icss: &mut Vec<ParsedIcssFact>,
+    seen: &mut BTreeSet<(ParsedIcssFactKind, String, u32, u32)>,
+) {
     for (index, token) in tokens.iter().enumerate() {
         if token.kind != SyntaxKind::Colon {
             continue;
@@ -74,20 +88,19 @@ fn icss_facts_from_token_view(tokens: &[Token<'_>]) -> Vec<ParsedIcssFact> {
             if let Some((open, close)) =
                 find_block_after_header(tokens, name_index + 1, tokens.len())
             {
-                collect_icss_export_names(tokens, open + 1, close, &mut icss, &mut seen);
+                collect_icss_export_names(tokens, open + 1, close, icss, seen);
             }
             continue;
         }
         if name.eq_ignore_ascii_case("import") {
-            collect_icss_import_source(tokens, name_index + 1, &mut icss, &mut seen);
+            collect_icss_import_source(tokens, name_index + 1, icss, seen);
             if let Some((open, close)) =
                 find_block_after_header(tokens, name_index + 1, tokens.len())
             {
-                collect_icss_import_names(tokens, open + 1, close, &mut icss, &mut seen);
+                collect_icss_import_names(tokens, open + 1, close, icss, seen);
             }
         }
     }
-    icss
 }
 
 #[cfg(feature = "internal-oracle")]
@@ -101,12 +114,24 @@ pub(crate) fn collect_icss_import_edge_facts_from_cst(
     text: &str,
     parsed: &ParseResult,
 ) -> Vec<ParsedIcssImportEdgeFact> {
-    let tokens = tokens_from_cst(text, parsed);
-    icss_import_edge_facts_from_token_view(&tokens)
+    let mut edges = Vec::new();
+    for tokens in icss_block_tokens_from_cst(text, parsed) {
+        collect_icss_import_edge_facts_from_block_tokens(&tokens, &mut edges);
+    }
+    edges
 }
 
+#[cfg(feature = "internal-oracle")]
 fn icss_import_edge_facts_from_token_view(tokens: &[Token<'_>]) -> Vec<ParsedIcssImportEdgeFact> {
     let mut edges = Vec::new();
+    collect_icss_import_edge_facts_from_block_tokens(tokens, &mut edges);
+    edges
+}
+
+fn collect_icss_import_edge_facts_from_block_tokens(
+    tokens: &[Token<'_>],
+    edges: &mut Vec<ParsedIcssImportEdgeFact>,
+) {
     for (index, token) in tokens.iter().enumerate() {
         if token.kind != SyntaxKind::Colon {
             continue;
@@ -124,10 +149,9 @@ fn icss_import_edge_facts_from_token_view(tokens: &[Token<'_>]) -> Vec<ParsedIcs
             continue;
         };
         if let Some((open, close)) = find_block_after_header(tokens, name_index + 1, tokens.len()) {
-            collect_icss_import_edges(tokens, open + 1, close, import_source, &mut edges);
+            collect_icss_import_edges(tokens, open + 1, close, import_source, edges);
         }
     }
-    edges
 }
 
 #[cfg(feature = "internal-oracle")]
@@ -141,12 +165,24 @@ pub(crate) fn collect_icss_export_edge_facts_from_cst(
     text: &str,
     parsed: &ParseResult,
 ) -> Vec<ParsedIcssExportEdgeFact> {
-    let tokens = tokens_from_cst(text, parsed);
-    icss_export_edge_facts_from_token_view(&tokens)
+    let mut edges = Vec::new();
+    for tokens in icss_block_tokens_from_cst(text, parsed) {
+        collect_icss_export_edge_facts_from_block_tokens(&tokens, &mut edges);
+    }
+    edges
 }
 
+#[cfg(feature = "internal-oracle")]
 fn icss_export_edge_facts_from_token_view(tokens: &[Token<'_>]) -> Vec<ParsedIcssExportEdgeFact> {
     let mut edges = Vec::new();
+    collect_icss_export_edge_facts_from_block_tokens(tokens, &mut edges);
+    edges
+}
+
+fn collect_icss_export_edge_facts_from_block_tokens(
+    tokens: &[Token<'_>],
+    edges: &mut Vec<ParsedIcssExportEdgeFact>,
+) {
     for (index, token) in tokens.iter().enumerate() {
         if token.kind != SyntaxKind::Colon {
             continue;
@@ -161,10 +197,26 @@ fn icss_export_edge_facts_from_token_view(tokens: &[Token<'_>]) -> Vec<ParsedIcs
             continue;
         }
         if let Some((open, close)) = find_block_after_header(tokens, name_index + 1, tokens.len()) {
-            collect_icss_export_edges(tokens, open + 1, close, &mut edges);
+            collect_icss_export_edges(tokens, open + 1, close, edges);
         }
     }
-    edges
+}
+
+fn icss_block_tokens_from_cst<'text>(
+    text: &'text str,
+    parsed: &ParseResult,
+) -> Vec<Vec<Token<'text>>> {
+    parsed
+        .syntax()
+        .descendants()
+        .filter(|node| {
+            matches!(
+                node.kind(),
+                SyntaxKind::CssModuleExportBlock | SyntaxKind::CssModuleImportBlock
+            )
+        })
+        .map(|node| tokens_from_syntax_node(text, node))
+        .collect()
 }
 
 fn collect_icss_export_edges(
