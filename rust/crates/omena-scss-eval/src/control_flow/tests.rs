@@ -131,6 +131,7 @@ fn native_css_when_supports_routes_static_truthiness_through_edge_ir() {
     assert_eq!(analysis.blocks[0].transfer_truthiness, Some("truthy"));
     assert!(prune.converged);
     assert!(prune.pruned_edge_count > 0);
+    assert!(prune.have_terminals_changed);
 }
 
 #[test]
@@ -172,6 +173,30 @@ fn native_css_if_function_routes_through_edge_ir_without_pruning_unknown_conditi
     assert_eq!(analysis.blocks[0].transfer_truthiness, None);
     assert_eq!(prune.pruned_edge_count, 0);
     assert_eq!(prune.unreachable_block_count, 0);
+    assert!(!prune.have_terminals_changed);
+}
+
+#[test]
+fn native_css_if_function_supports_routes_static_truthiness_through_edge_ir() {
+    let source = ".card { display: if(supports(display: grid): grid; else: block); }";
+    let analysis = analyze_scss_control_flow_values(source, StyleDialect::Css);
+    let prune = summarize_scss_control_flow_prune_reachability(source, StyleDialect::Css);
+    assert!(analysis.is_some());
+    assert!(prune.is_some());
+
+    let Some(analysis) = analysis else {
+        return;
+    };
+    let Some(prune) = prune else {
+        return;
+    };
+
+    assert_eq!(analysis.dialect, "css");
+    assert_eq!(analysis.blocks[0].kind, "branchIf");
+    assert_eq!(analysis.blocks[0].transfer_value_kind, Some("exact"));
+    assert_eq!(analysis.blocks[0].transfer_truthiness, Some("truthy"));
+    assert!(prune.converged);
+    assert!(prune.flat_css_cfg_built);
     assert!(!prune.have_terminals_changed);
 }
 

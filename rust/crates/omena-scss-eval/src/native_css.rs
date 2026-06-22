@@ -288,13 +288,17 @@ pub fn summarize_native_css_static_edit_plan(
     let lexed = lex(source, dialect);
     let tokens = lexed.tokens();
     let functions = collect_native_css_functions(source, tokens);
-    let when_rule_truthiness_by_start = native_css_when_rule_truthiness_by_start(source);
+    let when_rule_truthiness_by_start = native_css_branch_truthiness_by_start(source, "@when");
+    let if_function_truthiness_by_start = native_css_branch_truthiness_by_start(source, "if()");
     edits.extend(native_css_when_rule_static_edits(
         source,
         tokens,
         &when_rule_truthiness_by_start,
     ));
-    edits.extend(native_css_if_function_static_edits(&if_function_decisions));
+    edits.extend(native_css_if_function_static_edits(
+        &if_function_decisions,
+        &if_function_truthiness_by_start,
+    ));
     edits.extend(native_css_function_call_static_edits(
         &function_call_evaluations,
         &functions,
@@ -507,7 +511,10 @@ fn collect_native_css_when_rule_static_edit(
     }
 }
 
-fn native_css_when_rule_truthiness_by_start(source: &str) -> BTreeMap<usize, bool> {
+fn native_css_branch_truthiness_by_start(
+    source: &str,
+    at_rule_name: &str,
+) -> BTreeMap<usize, bool> {
     let Some(graph) = build_scss_control_flow_graph(source, StyleDialect::Css) else {
         return BTreeMap::new();
     };
@@ -517,7 +524,7 @@ fn native_css_when_rule_truthiness_by_start(source: &str) -> BTreeMap<usize, boo
     let source_start_by_when_node_key = graph
         .blocks
         .iter()
-        .filter(|block| block.block.at_rule_name.eq_ignore_ascii_case("@when"))
+        .filter(|block| block.block.at_rule_name.eq_ignore_ascii_case(at_rule_name))
         .map(|block| {
             (
                 block.node_key.as_str().to_string(),
@@ -603,13 +610,16 @@ fn block_inner_source(
 
 fn native_css_if_function_static_edits(
     surface: &OmenaScssEvalNativeCssIfFunctionDecisionSurfaceV0,
+    truthiness_by_start: &BTreeMap<usize, bool>,
 ) -> Vec<OmenaScssEvalNativeCssStaticEditV0> {
     surface
         .functions
         .iter()
         .filter_map(|function| {
             let replacement = function.selected_value.as_ref()?;
-            (function.decision == "foldToStaticValue").then(|| OmenaScssEvalNativeCssStaticEditV0 {
+            (function.decision == "foldToStaticValue"
+                && native_css_if_function_edge_ir_allows_fold(function, truthiness_by_start))
+            .then(|| OmenaScssEvalNativeCssStaticEditV0 {
                 start: function.source_span_start,
                 end: function.source_span_end,
                 replacement: replacement.clone(),
@@ -617,6 +627,34 @@ fn native_css_if_function_static_edits(
             })
         })
         .collect()
+}
+
+fn native_css_if_function_edge_ir_allows_fold(
+    function: &OmenaScssEvalNativeCssIfFunctionDecisionV0,
+    truthiness_by_start: &BTreeMap<usize, bool>,
+) -> bool {
+    let Some(edge_ir_truthy) = truthiness_by_start
+        .get(&function.source_span_start)
+        .copied()
+    else {
+        return false;
+    };
+    match function.selected_branch_index {
+        Some(0) => edge_ir_truthy,
+        Some(selected_branch_index) => {
+            !edge_ir_truthy
+                && function
+                    .branches
+                    .get(selected_branch_index)
+                    .is_some_and(|branch| branch.verdict == "else")
+                && function
+                    .branches
+                    .iter()
+                    .take(selected_branch_index)
+                    .all(|branch| branch.verdict == "alwaysFalse")
+        }
+        None => false,
+    }
 }
 
 fn native_css_function_call_static_edits(
@@ -1815,7 +1853,7 @@ mod tests {
     use omena_parser::StyleDialect;
 
     use super::{
-        native_css_when_rule_truthiness_by_start, summarize_native_css_function_call_evaluations,
+        native_css_branch_truthiness_by_start, summarize_native_css_function_call_evaluations,
         summarize_native_css_function_surface, summarize_native_css_if_function_decisions,
         summarize_native_css_static_edit_plan,
     };
@@ -2139,7 +2177,7 @@ mod tests {
     #[test]
     fn native_css_static_edit_plan_consumes_edge_ir_when_truthiness() {
         let source = "@when supports(display: grid) { .grid { display: grid; } } @else { .fallback { display: block; } }";
-        let truthiness_by_start = native_css_when_rule_truthiness_by_start(source);
+        let truthiness_by_start = native_css_branch_truthiness_by_start(source, "@when");
 
         assert_eq!(truthiness_by_start.get(&0), Some(&true));
 
@@ -2152,6 +2190,25 @@ mod tests {
         assert_eq!(report.when_rule_edit_count, 1);
         assert!(report.edited_css.contains(".grid { display: grid; }"));
         assert!(!report.edited_css.contains(".fallback"));
+    }
+
+    #[test]
+    fn native_css_static_edit_plan_consumes_edge_ir_if_function_truthiness() {
+        let source = ".card { display: if(supports(display: grid): grid; else: block); }";
+        let truthiness_by_start = native_css_branch_truthiness_by_start(source, "if()");
+
+        assert_eq!(truthiness_by_start.len(), 1);
+        assert!(truthiness_by_start.values().all(|truthy| *truthy));
+
+        let report = summarize_native_css_static_edit_plan(source, StyleDialect::Css);
+        assert!(report.is_some());
+        let Some(report) = report else {
+            return;
+        };
+
+        assert_eq!(report.if_function_edit_count, 1);
+        assert!(report.edited_css.contains("display: grid"));
+        assert!(!report.edited_css.contains("if(supports"));
     }
 
     #[test]

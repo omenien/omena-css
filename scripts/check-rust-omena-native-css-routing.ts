@@ -34,14 +34,17 @@ interface ScssEvaluatorControlFlowSummaryV0 {
   readonly controlFlowBranchBlockCount: number;
   readonly valueAnalysis?: {
     readonly blocks: readonly {
+      readonly nodeKey: string;
       readonly kind: string;
       readonly transferTruthiness?: string | null;
     }[];
   } | null;
   readonly controlFlowIr?: {
     readonly blocks: readonly {
+      readonly nodeKey: string;
       readonly atRuleName: string;
       readonly kind: string;
+      readonly sourceSpanStart: number;
     }[];
   } | null;
 }
@@ -124,8 +127,12 @@ const nativeCssImplementation = readFileSync(
   "utf8",
 );
 assert.ok(
-  nativeCssImplementation.includes("native_css_when_rule_truthiness_by_start(source)"),
+  nativeCssImplementation.includes("native_css_branch_truthiness_by_start(source, \"@when\")"),
   "native CSS @when static edits must derive branch truthiness through the edge-IR value-analysis bridge",
+);
+assert.ok(
+  nativeCssImplementation.includes("native_css_branch_truthiness_by_start(source, \"if()\")"),
+  "native CSS if() static edits must derive branch truthiness through the edge-IR value-analysis bridge",
 );
 assert.ok(
   !nativeCssImplementation.includes("classify_native_css_when_rule_condition"),
@@ -156,9 +163,23 @@ assert.ok(
   ),
   "native CSS @when must be present in the unified control-flow edge IR",
 );
+const staticIfNodeKey = nativeControlFlow.controlFlowIr?.blocks.find(
+  (block) =>
+    block.atRuleName === "if()" &&
+    block.kind === "branchIf" &&
+    block.sourceSpanStart < nativeSource.indexOf("@when"),
+)?.nodeKey;
+assert.ok(staticIfNodeKey, "static native CSS if() must be present in the unified control-flow edge IR");
 assert.ok(
   nativeControlFlow.valueAnalysis?.blocks.some(
-    (block) => block.kind === "branchIf" && block.transferTruthiness === "truthy",
+    (block) => block.nodeKey === staticIfNodeKey && block.transferTruthiness === "truthy",
+  ),
+  "static native CSS if() supports() must surface truthiness through value analysis",
+);
+assert.ok(
+  nativeControlFlow.valueAnalysis?.blocks.some(
+    (block) =>
+      block.nodeKey.includes("scss-control:branchIf@") && block.transferTruthiness === "truthy",
   ),
   "static native CSS @when supports() must surface truthiness through value analysis",
 );

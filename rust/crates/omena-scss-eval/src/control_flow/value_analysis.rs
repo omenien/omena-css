@@ -356,7 +356,7 @@ fn control_flow_transfer_for_block(
             value: AbstractCssValueV0::Top,
         },
         "if()" if dialect == StyleDialect::Css => ScssControlFlowTransfer::BranchCondition {
-            value: AbstractCssValueV0::Top,
+            value: native_css_if_function_header_value(block.header_text.as_str()),
         },
         "@if" => ScssControlFlowTransfer::BranchCondition {
             value: scss_header_value_with_bindings(
@@ -409,6 +409,50 @@ fn native_css_when_header_value(header: &str) -> AbstractCssValueV0 {
         };
     }
     AbstractCssValueV0::Top
+}
+
+fn native_css_if_function_header_value(header: &str) -> AbstractCssValueV0 {
+    let Some(condition) = native_css_if_function_first_condition(header) else {
+        return AbstractCssValueV0::Top;
+    };
+    if condition.eq_ignore_ascii_case("else") {
+        return abstract_css_value_from_text("true");
+    }
+    if let Some(inner) = extract_named_function_inner(condition, "supports") {
+        let normalized_condition = normalize_supports_condition_for_native_css(inner);
+        let witness = evaluate_static_supports_condition(
+            &normalized_condition,
+            StaticSupportsAssumptionV0::ModernBrowser,
+        );
+        return match witness.verdict {
+            StaticSupportsEvalVerdictV0::AlwaysTrue => abstract_css_value_from_text("true"),
+            StaticSupportsEvalVerdictV0::AlwaysFalse => abstract_css_value_from_text("false"),
+            StaticSupportsEvalVerdictV0::Unknown => AbstractCssValueV0::Top,
+        };
+    }
+    AbstractCssValueV0::Top
+}
+
+fn native_css_if_function_first_condition(header: &str) -> Option<&str> {
+    let condition_end = first_top_level_colon_byte_index(header)?;
+    header
+        .get(..condition_end)
+        .map(str::trim)
+        .filter(|condition| !condition.is_empty())
+}
+
+fn first_top_level_colon_byte_index(value: &str) -> Option<usize> {
+    let mut paren_depth = 0usize;
+    for (index, ch) in value.char_indices() {
+        match ch {
+            '(' => paren_depth = paren_depth.saturating_add(1),
+            ')' => paren_depth = paren_depth.saturating_sub(1),
+            ':' if paren_depth == 0 => return Some(index),
+            ';' if paren_depth == 0 => return None,
+            _ => {}
+        }
+    }
+    None
 }
 
 fn extract_named_function_inner<'a>(condition: &'a str, name: &str) -> Option<&'a str> {
