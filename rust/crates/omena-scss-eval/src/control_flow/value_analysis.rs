@@ -352,6 +352,9 @@ fn control_flow_transfer_for_block(
         "@else" if dialect == StyleDialect::Css => ScssControlFlowTransfer::BranchCondition {
             value: AbstractCssValueV0::Top,
         },
+        "if()" if dialect == StyleDialect::Css => ScssControlFlowTransfer::BranchCondition {
+            value: AbstractCssValueV0::Top,
+        },
         "@if" => ScssControlFlowTransfer::BranchCondition {
             value: scss_header_value_with_bindings(
                 block.header_text.as_str(),

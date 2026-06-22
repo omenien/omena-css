@@ -3,9 +3,27 @@ use omena_syntax::SyntaxKind;
 use omena_transform_cst::StableNodeKeyV0;
 
 use super::model::OmenaScssEvalControlFlowBlockV0;
-use super::tokens::{matching_block_end_token_index, next_block_start_token_index};
+use super::tokens::{
+    matching_block_end_token_index, matching_right_paren_token_index, next_block_start_token_index,
+    next_non_trivia_token_index,
+};
 
 pub(super) fn control_flow_block_from_token(
+    source: &str,
+    tokens: &[LexedToken],
+    token_index: usize,
+    token: &LexedToken,
+    dialect: StyleDialect,
+) -> Option<OmenaScssEvalControlFlowBlockV0> {
+    if let Some(block) =
+        control_flow_at_rule_block_from_token(source, tokens, token_index, token, dialect)
+    {
+        return Some(block);
+    }
+    native_css_if_function_block_from_token(source, tokens, token_index, token, dialect)
+}
+
+fn control_flow_at_rule_block_from_token(
     source: &str,
     tokens: &[LexedToken],
     token_index: usize,
@@ -37,6 +55,51 @@ pub(super) fn control_flow_block_from_token(
         source_span_end,
         successor_count,
         has_back_edge,
+    })
+}
+
+fn native_css_if_function_block_from_token(
+    source: &str,
+    tokens: &[LexedToken],
+    token_index: usize,
+    token: &LexedToken,
+    dialect: StyleDialect,
+) -> Option<OmenaScssEvalControlFlowBlockV0> {
+    if dialect != StyleDialect::Css
+        || token.kind != SyntaxKind::Ident
+        || !token.text.eq_ignore_ascii_case("if")
+    {
+        return None;
+    }
+    let left_paren_index = next_non_trivia_token_index(tokens, token_index + 1)?;
+    if tokens.get(left_paren_index)?.kind != SyntaxKind::LeftParen {
+        return None;
+    }
+    let right_paren_index = matching_right_paren_token_index(tokens, left_paren_index)?;
+    let source_span_start = token.range.start().into();
+    let source_span_end = tokens.get(right_paren_index)?.range.end().into();
+    let header_start: usize = tokens.get(left_paren_index)?.range.end().into();
+    let header_end: usize = tokens.get(right_paren_index)?.range.start().into();
+    let header_text = source
+        .get(header_start..header_end)
+        .unwrap_or("")
+        .trim()
+        .to_string();
+
+    Some(OmenaScssEvalControlFlowBlockV0 {
+        node_key: scss_eval_stable_node_key(
+            "css-value-control",
+            "branchIf",
+            source_span_start,
+            source_span_end,
+        ),
+        kind: "branchIf",
+        at_rule_name: "if()".to_string(),
+        header_text,
+        source_span_start,
+        source_span_end,
+        successor_count: 2,
+        has_back_edge: false,
     })
 }
 
