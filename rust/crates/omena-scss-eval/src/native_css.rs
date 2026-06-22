@@ -703,7 +703,7 @@ fn collect_native_css_function_call_evaluation(
         evaluated_value,
         matched_function_source_span_start,
         matched_function_source_span_end,
-    ) = decide_native_css_function_call(&arguments, &matches);
+    ) = decide_native_css_function_call(&arguments, &matches, functions);
 
     Some(OmenaScssEvalNativeCssFunctionCallEvaluationV0 {
         name: name.text.clone(),
@@ -752,6 +752,7 @@ fn collect_native_css_function_call_arguments(
 fn decide_native_css_function_call(
     arguments: &[OmenaScssEvalNativeCssFunctionCallArgumentV0],
     matches: &[&OmenaScssEvalNativeCssFunctionV0],
+    functions: &[OmenaScssEvalNativeCssFunctionV0],
 ) -> (
     &'static str,
     &'static str,
@@ -808,6 +809,15 @@ fn decide_native_css_function_call(
         return (
             "preserveVerbatim",
             "function has multiple result declarations",
+            None,
+            Some(function.source_span_start),
+            Some(function.source_span_end),
+        );
+    }
+    if native_css_function_has_guaranteed_result_cycle(function, functions) {
+        return (
+            "structuralError",
+            "function result call graph contains a guaranteed cycle",
             None,
             Some(function.source_span_start),
             Some(function.source_span_end),
@@ -883,6 +893,69 @@ fn decide_native_css_function_call(
         Some(function.source_span_start),
         Some(function.source_span_end),
     )
+}
+
+fn native_css_function_has_guaranteed_result_cycle(
+    function: &OmenaScssEvalNativeCssFunctionV0,
+    functions: &[OmenaScssEvalNativeCssFunctionV0],
+) -> bool {
+    native_css_result_reaches_function(
+        function.name.as_str(),
+        function.name.as_str(),
+        functions,
+        &mut Vec::new(),
+    )
+}
+
+fn native_css_result_reaches_function(
+    target_name: &str,
+    current_name: &str,
+    functions: &[OmenaScssEvalNativeCssFunctionV0],
+    visited: &mut Vec<String>,
+) -> bool {
+    if visited.iter().any(|name| name == current_name) {
+        return false;
+    }
+    visited.push(current_name.to_string());
+    let Some(function) = native_css_unique_function_by_name(functions, current_name) else {
+        return false;
+    };
+    for result in &function.results {
+        let Some(next_name) = native_css_exact_function_call_name(result.value.as_str()) else {
+            continue;
+        };
+        if next_name == target_name {
+            return true;
+        }
+        if native_css_result_reaches_function(target_name, next_name, functions, visited) {
+            return true;
+        }
+    }
+    false
+}
+
+fn native_css_unique_function_by_name<'a>(
+    functions: &'a [OmenaScssEvalNativeCssFunctionV0],
+    name: &str,
+) -> Option<&'a OmenaScssEvalNativeCssFunctionV0> {
+    let mut matches = functions.iter().filter(|function| function.name == name);
+    let first = matches.next()?;
+    matches.next().is_none().then_some(first)
+}
+
+fn native_css_exact_function_call_name(value: &str) -> Option<&str> {
+    let trimmed = value.trim();
+    let open_index = trimmed.find('(')?;
+    let name = trimmed[..open_index].trim();
+    if !name.starts_with("--") {
+        return None;
+    }
+    let call_tail = &trimmed[open_index..];
+    let close_index = matching_closing_paren_byte_index(call_tail)?;
+    call_tail[close_index + 1..]
+        .trim()
+        .is_empty()
+        .then_some(name)
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -1802,6 +1875,66 @@ mod tests {
             "result return syntax match is unknown"
         );
         assert_eq!(report.calls[0].evaluated_value, None);
+    }
+
+    #[test]
+    fn native_css_function_call_evaluation_surfaces_direct_result_cycle() {
+        let source =
+            "@function --loop() returns <length> { result: --loop(); } .card { width: --loop(); }";
+        let report = summarize_native_css_function_call_evaluations(source, StyleDialect::Css);
+        assert!(report.is_some());
+        let Some(report) = report else {
+            return;
+        };
+
+        assert_eq!(report.foldable_call_count, 0);
+        assert!(report.structural_error_count >= 1);
+        assert!(report.calls.iter().any(|call| {
+            call.name == "--loop"
+                && call.decision == "structuralError"
+                && call.reason == "function result call graph contains a guaranteed cycle"
+        }));
+    }
+
+    #[test]
+    fn native_css_function_call_evaluation_surfaces_mutual_result_cycle() {
+        let source = "@function --a() returns <length> { result: --b(); } @function --b() returns <length> { result: --a(); } .card { width: --a(); height: --b(); }";
+        let report = summarize_native_css_function_call_evaluations(source, StyleDialect::Css);
+        assert!(report.is_some());
+        let Some(report) = report else {
+            return;
+        };
+
+        assert_eq!(report.foldable_call_count, 0);
+        assert!(report.structural_error_count >= 2);
+        assert!(report.calls.iter().any(|call| {
+            call.name == "--a"
+                && call.decision == "structuralError"
+                && call.reason == "function result call graph contains a guaranteed cycle"
+        }));
+        assert!(report.calls.iter().any(|call| {
+            call.name == "--b"
+                && call.decision == "structuralError"
+                && call.reason == "function result call graph contains a guaranteed cycle"
+        }));
+    }
+
+    #[test]
+    fn native_css_function_call_evaluation_preserves_ambiguous_result_cycle() {
+        let source = "@function --a() returns <length> { result: --b(); } @function --b() returns <length> { result: --a(); } @function --b() returns <length> { result: 1px; } .card { width: --a(); }";
+        let report = summarize_native_css_function_call_evaluations(source, StyleDialect::Css);
+        assert!(report.is_some());
+        let Some(report) = report else {
+            return;
+        };
+
+        assert_eq!(report.foldable_call_count, 0);
+        assert_eq!(report.structural_error_count, 0);
+        assert!(report.calls.iter().any(|call| {
+            call.name == "--a"
+                && call.decision == "preserveVerbatim"
+                && call.reason == "result value depends on runtime or cascade state"
+        }));
     }
 
     #[test]
