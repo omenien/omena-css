@@ -617,13 +617,24 @@ pub(crate) fn collect_extend_target_facts_from_cst(
     text: &str,
     parsed: &ParseResult,
 ) -> Vec<ParsedExtendTargetFact> {
-    let tokens = tokens_from_cst(text, parsed);
-    extend_target_facts_from_token_view(&tokens)
+    let mut targets = Vec::new();
+    for tokens in scss_extend_rule_tokens_from_cst(text, parsed) {
+        collect_extend_target_facts_from_rule_tokens(&tokens, &mut targets);
+    }
+    targets
 }
 
+#[cfg(feature = "internal-oracle")]
 fn extend_target_facts_from_token_view(tokens: &[Token<'_>]) -> Vec<ParsedExtendTargetFact> {
     let mut targets = Vec::new();
+    collect_extend_target_facts_from_rule_tokens(tokens, &mut targets);
+    targets
+}
 
+fn collect_extend_target_facts_from_rule_tokens(
+    tokens: &[Token<'_>],
+    targets: &mut Vec<ParsedExtendTargetFact>,
+) {
     for (index, token) in tokens.iter().enumerate() {
         if token.kind != SyntaxKind::AtKeyword || !token.text.eq_ignore_ascii_case("@extend") {
             continue;
@@ -668,8 +679,18 @@ fn extend_target_facts_from_token_view(tokens: &[Token<'_>]) -> Vec<ParsedExtend
             targets.push(target);
         }
     }
+}
 
-    targets
+fn scss_extend_rule_tokens_from_cst<'text>(
+    text: &'text str,
+    parsed: &ParseResult,
+) -> Vec<Vec<Token<'text>>> {
+    parsed
+        .syntax()
+        .descendants()
+        .filter(|node| node.kind() == SyntaxKind::ScssExtendRule)
+        .map(|node| tokens_from_syntax_node(text, node))
+        .collect()
 }
 
 fn extend_statement_has_optional_flag(tokens: &[Token<'_>], start: usize, end: usize) -> bool {
