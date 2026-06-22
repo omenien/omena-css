@@ -330,9 +330,11 @@ impl TransformModuleEvaluationV0 {
     // HONESTY NOTE: `divergence_count == 0` is a value-WELL-FORMEDNESS self-check on the
     // native-edit output (every native-emitted declaration value canonically round-trips), NOT a
     // differential against an external SCSS/Less compiler. So this gate means "native output is
-    // self-consistent and value-preserving", NOT "native agrees with dart-sass/lessc". A genuine
-    // external-reference differential is a separate equivalence-oracle track; the U4 cutover's
-    // n==0 predicate must not be described as external agreement until that lands.
+    // self-consistent and value-preserving", NOT "native agrees with dart-sass/lessc". External
+    // agreement is witnessed separately by the `externalDifferential` gate
+    // (`scripts/check-rust-omena-scss-eval-external-differential.ts`, pinned dart-sass/lessc) over
+    // its covered fixture slices only; this self-check stays the cheap inner oracle for every
+    // evaluated candidate, and the production rail remains a self-comparison.
     pub fn oracle_allows_native_product_output(&self) -> bool {
         self.oracle.as_ref().is_some_and(|oracle| {
             oracle.mode == "oracleOnly"
