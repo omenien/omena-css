@@ -750,6 +750,42 @@ fn exposes_transform_execution_runner_from_source() {
 }
 
 #[test]
+fn exposes_native_css_static_eval_execution_runner_from_source() {
+    let source = r#"@function --gap(--size <length>: 1rem) returns <length> { result: var(--size); } .card { gap: --gap(2rem); display: if(supports(display: grid): grid; else: block); margin: if(media(width >= 1px): 1rem; else: 2rem); }"#;
+    let summary = execute_omena_query_transform_passes_from_source(
+        "Native.css",
+        source,
+        &[
+            "native-css-static-eval".to_string(),
+            "print-css".to_string(),
+        ],
+    );
+
+    assert_eq!(summary.product, "omena-query.transform-execute");
+    assert_eq!(summary.unknown_pass_ids, Vec::<String>::new());
+    assert_eq!(summary.execution.mutation_count, 2);
+    assert!(summary.execution.output_css.contains("gap: 2rem"));
+    assert!(summary.execution.output_css.contains("display: grid"));
+    assert!(
+        summary
+            .execution
+            .output_css
+            .contains("margin: if(media(width >= 1px): 1rem; else: 2rem)")
+    );
+    assert!(!summary.execution.output_css.contains("--gap(2rem)"));
+    assert!(
+        !summary
+            .execution
+            .output_css
+            .contains("display: if(supports")
+    );
+    assert_eq!(
+        summary.execution.executed_pass_ids,
+        vec!["native-css-static-eval", "print-css"]
+    );
+}
+
+#[test]
 fn exposes_transform_execution_cascade_proof_obligations_from_source() {
     let source = r#".a { margin-top: 1px; margin-right: 2px; margin-bottom: 1px; margin-left: 2px; }
 @supports (display: grid) { .grid { display: grid; } }
