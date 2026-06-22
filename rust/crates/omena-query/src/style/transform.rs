@@ -372,10 +372,7 @@ pub fn execute_omena_query_consumer_build_style_source_with_context(
     context: &TransformExecutionContextV0,
 ) -> OmenaQueryConsumerBuildSummaryV0 {
     let pass_ids = if requested_pass_ids.is_empty() {
-        all_transform_pass_kinds()
-            .into_iter()
-            .map(|pass| pass.id().to_string())
-            .collect::<Vec<_>>()
+        default_consumer_build_transform_pass_ids()
     } else {
         requested_pass_ids.to_vec()
     };
@@ -406,6 +403,14 @@ pub fn execute_omena_query_consumer_build_style_source_with_context(
             "transformPassOutcomeContract",
         ],
     }
+}
+
+fn default_consumer_build_transform_pass_ids() -> Vec<String> {
+    all_transform_pass_kinds()
+        .into_iter()
+        .filter(|pass| *pass != TransformPassKind::NativeCssStaticEval)
+        .map(|pass| pass.id().to_string())
+        .collect()
 }
 
 pub fn execute_omena_query_consumer_build_style_source_with_engine_input_context(

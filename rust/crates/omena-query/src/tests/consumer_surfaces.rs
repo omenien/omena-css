@@ -49,6 +49,44 @@ fn exposes_consumer_build_facade_from_query() {
 }
 
 #[test]
+fn consumer_build_keeps_native_css_static_eval_explicit_opt_in() {
+    let source = ".card { display: if(supports(display: grid): grid; else: block); }";
+    let default_summary =
+        execute_omena_query_consumer_build_style_source("Button.module.css", source, &[]);
+
+    assert!(
+        !default_summary
+            .execution
+            .executed_pass_ids
+            .contains(&"native-css-static-eval")
+    );
+    assert!(default_summary.execution.output_css.contains("if("));
+
+    let explicit_summary = execute_omena_query_consumer_build_style_source(
+        "Button.module.css",
+        source,
+        &[
+            "native-css-static-eval".to_string(),
+            "print-css".to_string(),
+        ],
+    );
+
+    assert!(
+        explicit_summary
+            .execution
+            .executed_pass_ids
+            .contains(&"native-css-static-eval")
+    );
+    assert!(
+        explicit_summary
+            .execution
+            .output_css
+            .contains("display: grid")
+    );
+    assert!(!explicit_summary.execution.output_css.contains("if("));
+}
+
+#[test]
 fn consumer_build_derives_single_source_transform_context() {
     let summary = execute_omena_query_consumer_build_style_source(
         "Button.module.css",
