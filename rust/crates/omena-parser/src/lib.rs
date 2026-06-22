@@ -32,6 +32,8 @@ pub use cst::{
 };
 pub use extension::{BuiltinDialectExtension, DialectExtension};
 pub(crate) use extension::{at_rule_spec, scss_at_rule_spec};
+#[cfg(feature = "internal-oracle")]
+pub use facts::collect_style_facts_with_extension_from_legacy_tokens;
 pub use facts::{
     ParsedAnimationFact, ParsedAnimationFactKind, ParsedAtRuleFact,
     ParsedCssModuleComposesEdgeFact, ParsedCssModuleComposesEdgeKind, ParsedCssModuleComposesFact,

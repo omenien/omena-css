@@ -13,7 +13,8 @@ use omena_incremental::{
     plan_incremental_computation, snapshot_from_graph_input,
 };
 use omena_parser::{
-    ParsedStyleFacts, StyleDialect, collect_style_facts, facts_from_cst, parse,
+    BuiltinDialectExtension, ParsedStyleFacts, StyleDialect,
+    collect_style_facts_with_extension_from_legacy_tokens, facts_from_cst, parse,
     summarize_omena_parser_style_facts,
 };
 use omena_query::{
@@ -758,7 +759,8 @@ fn parser_cst_fact_authority_reports_for_fixture(
     fixture: ParserDifferentialFixture,
 ) -> Vec<ParserCstFactAuthorityCategoryReportV0> {
     let dialect = fixture.dialect.as_omena_dialect();
-    let legacy = collect_style_facts(fixture.source, dialect);
+    let extension = BuiltinDialectExtension::new(dialect);
+    let legacy = collect_style_facts_with_extension_from_legacy_tokens(fixture.source, &extension);
     let parsed = parse(fixture.source, dialect);
     let cst = facts_from_cst(fixture.source, &parsed);
     style_fact_category_reports(fixture.label, &legacy, &cst)
