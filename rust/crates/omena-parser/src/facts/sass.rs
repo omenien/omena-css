@@ -343,14 +343,27 @@ pub(crate) fn collect_sass_module_edge_facts_from_cst(
     text: &str,
     parsed: &ParseResult,
 ) -> Vec<ParsedSassModuleEdgeFact> {
-    let tokens = tokens_from_cst(text, parsed);
-    sass_module_edge_facts_from_token_view(&tokens)
+    let mut edges = Vec::new();
+    let mut seen = BTreeSet::new();
+    for tokens in sass_module_rule_tokens_from_cst(text, parsed) {
+        collect_sass_module_edge_facts_from_rule_tokens(&tokens, &mut edges, &mut seen);
+    }
+    edges
 }
 
+#[cfg(feature = "internal-oracle")]
 fn sass_module_edge_facts_from_token_view(tokens: &[Token<'_>]) -> Vec<ParsedSassModuleEdgeFact> {
     let mut edges = Vec::new();
     let mut seen = BTreeSet::new();
+    collect_sass_module_edge_facts_from_rule_tokens(tokens, &mut edges, &mut seen);
+    edges
+}
 
+fn collect_sass_module_edge_facts_from_rule_tokens(
+    tokens: &[Token<'_>],
+    edges: &mut Vec<ParsedSassModuleEdgeFact>,
+    seen: &mut BTreeSet<(ParsedSassModuleEdgeFactKind, String, u32, u32)>,
+) {
     for (index, token) in tokens.iter().enumerate() {
         if token.kind != SyntaxKind::AtKeyword {
             continue;
@@ -361,7 +374,7 @@ fn sass_module_edge_facts_from_token_view(tokens: &[Token<'_>]) -> Vec<ParsedSas
         let start = skip_trivia_tokens(tokens, index + 1, tokens.len());
         let end = css_module_value_statement_end(tokens, start);
         if kind == ParsedSassModuleEdgeFactKind::Import {
-            collect_sass_import_module_edges(tokens, start, end, &mut edges, &mut seen);
+            collect_sass_import_module_edges(tokens, start, end, edges, seen);
             continue;
         }
         let Some(source_index) = next_non_trivia_token_index_until(tokens, start, end) else {
@@ -389,8 +402,8 @@ fn sass_module_edge_facts_from_token_view(tokens: &[Token<'_>]) -> Vec<ParsedSas
             None
         };
         push_sass_module_edge_fact(
-            &mut edges,
-            &mut seen,
+            edges,
+            seen,
             ParsedSassModuleEdgeFact {
                 kind,
                 source: source_name,
@@ -404,8 +417,23 @@ fn sass_module_edge_facts_from_token_view(tokens: &[Token<'_>]) -> Vec<ParsedSas
             },
         );
     }
+}
 
-    edges
+fn sass_module_rule_tokens_from_cst<'text>(
+    text: &'text str,
+    parsed: &ParseResult,
+) -> Vec<Vec<Token<'text>>> {
+    parsed
+        .syntax()
+        .descendants()
+        .filter(|node| {
+            matches!(
+                node.kind(),
+                SyntaxKind::ScssUseRule | SyntaxKind::ScssForwardRule | SyntaxKind::ImportRule
+            )
+        })
+        .map(|node| tokens_from_syntax_node(text, node))
+        .collect()
 }
 
 fn sass_module_edge_kind(text: &str) -> Option<ParsedSassModuleEdgeFactKind> {
