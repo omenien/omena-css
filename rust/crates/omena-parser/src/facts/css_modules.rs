@@ -30,6 +30,7 @@ pub enum ParsedCssModuleValueFactKind {
     ImportSource,
 }
 
+#[cfg(feature = "internal-oracle")]
 pub(crate) fn collect_css_module_value_facts_from_tokens(
     tokens: &[Token<'_>],
 ) -> Vec<ParsedCssModuleValueFact> {
@@ -222,6 +223,7 @@ pub struct ParsedCssModuleValueImportEdgeFact {
     pub range: TextRange,
 }
 
+#[cfg(feature = "internal-oracle")]
 pub(crate) fn collect_css_module_value_import_edge_facts_from_tokens(
     tokens: &[Token<'_>],
 ) -> Vec<ParsedCssModuleValueImportEdgeFact> {
@@ -274,6 +276,7 @@ pub struct ParsedCssModuleValueDefinitionEdgeFact {
     pub range: TextRange,
 }
 
+#[cfg(feature = "internal-oracle")]
 pub(crate) fn collect_css_module_value_definition_edge_facts_from_tokens(
     tokens: &[Token<'_>],
 ) -> Vec<ParsedCssModuleValueDefinitionEdgeFact> {
@@ -770,6 +773,7 @@ pub enum ParsedCssModuleComposesEdgeKind {
     External,
 }
 
+#[cfg(feature = "internal-oracle")]
 pub(crate) fn collect_css_module_composes_facts_from_tokens(
     tokens: &[Token<'_>],
 ) -> Vec<ParsedCssModuleComposesFact> {
@@ -819,6 +823,7 @@ fn css_module_composes_facts_from_token_view(
     composes
 }
 
+#[cfg(feature = "internal-oracle")]
 pub(crate) fn collect_css_module_composes_edge_facts_from_tokens(
     tokens: &[Token<'_>],
 ) -> Vec<ParsedCssModuleComposesEdgeFact> {

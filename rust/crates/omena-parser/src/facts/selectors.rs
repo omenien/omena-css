@@ -38,6 +38,7 @@ pub(crate) struct SelectorBranch {
     pub(crate) bare_suffix_base: bool,
 }
 
+#[cfg(feature = "internal-oracle")]
 pub(crate) fn collect_selector_facts_from_tokens(tokens: &[Token<'_>]) -> Vec<ParsedSelectorFact> {
     selector_facts_from_token_view(tokens)
 }

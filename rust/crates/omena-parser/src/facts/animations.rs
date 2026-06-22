@@ -24,6 +24,7 @@ pub enum ParsedAnimationFactKind {
     AnimationNameReference,
 }
 
+#[cfg(feature = "internal-oracle")]
 pub(crate) fn collect_animation_facts_from_tokens(
     tokens: &[Token<'_>],
 ) -> Vec<ParsedAnimationFact> {

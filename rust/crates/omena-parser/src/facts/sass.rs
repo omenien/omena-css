@@ -37,6 +37,7 @@ pub enum ParsedSassSymbolFactKind {
     FunctionCall,
 }
 
+#[cfg(feature = "internal-oracle")]
 pub(crate) fn collect_sass_symbol_facts_from_tokens(
     tokens: &[Token<'_>],
 ) -> Vec<ParsedSassSymbolFact> {
@@ -229,6 +230,7 @@ pub struct ParsedSassIncludeFact {
     pub range: TextRange,
 }
 
+#[cfg(feature = "internal-oracle")]
 pub(crate) fn collect_sass_include_facts_from_tokens(
     source: &str,
     tokens: &[Token<'_>],
@@ -301,6 +303,7 @@ pub enum ParsedSassModuleEdgeFactKind {
     Import,
 }
 
+#[cfg(feature = "internal-oracle")]
 pub(crate) fn collect_sass_module_edge_facts_from_tokens(
     tokens: &[Token<'_>],
 ) -> Vec<ParsedSassModuleEdgeFact> {
@@ -546,6 +549,7 @@ pub enum ParsedExtendTargetFactKind {
 /// `@extend` targets, so the first-simple capture is sufficient for missing-target
 /// checks without over-reporting. Interpolated targets produce no simple token
 /// here and are skipped because they are not statically checkable.
+#[cfg(feature = "internal-oracle")]
 pub(crate) fn collect_extend_target_facts_from_tokens(
     tokens: &[Token<'_>],
 ) -> Vec<ParsedExtendTargetFact> {

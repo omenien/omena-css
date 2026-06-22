@@ -45,6 +45,7 @@ pub struct ParsedIcssExportEdgeFact {
     pub range: TextRange,
 }
 
+#[cfg(feature = "internal-oracle")]
 pub(crate) fn collect_icss_facts_from_tokens(tokens: &[Token<'_>]) -> Vec<ParsedIcssFact> {
     icss_facts_from_token_view(tokens)
 }
@@ -89,6 +90,7 @@ fn icss_facts_from_token_view(tokens: &[Token<'_>]) -> Vec<ParsedIcssFact> {
     icss
 }
 
+#[cfg(feature = "internal-oracle")]
 pub(crate) fn collect_icss_import_edge_facts_from_tokens(
     tokens: &[Token<'_>],
 ) -> Vec<ParsedIcssImportEdgeFact> {
@@ -128,6 +130,7 @@ fn icss_import_edge_facts_from_token_view(tokens: &[Token<'_>]) -> Vec<ParsedIcs
     edges
 }
 
+#[cfg(feature = "internal-oracle")]
 pub(crate) fn collect_icss_export_edge_facts_from_tokens(
     tokens: &[Token<'_>],
 ) -> Vec<ParsedIcssExportEdgeFact> {

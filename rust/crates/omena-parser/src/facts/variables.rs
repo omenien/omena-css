@@ -35,6 +35,7 @@ pub enum ParsedVariableFactKind {
     CustomPropertyReference,
 }
 
+#[cfg(feature = "internal-oracle")]
 pub(crate) fn collect_variable_facts_from_tokens(tokens: &[Token<'_>]) -> Vec<ParsedVariableFact> {
     variable_facts_from_token_view(tokens)
 }

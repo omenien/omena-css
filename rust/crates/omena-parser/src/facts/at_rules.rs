@@ -6,7 +6,9 @@
 use cstree::text::TextRange;
 use omena_syntax::{StyleDialect, SyntaxKind};
 
-use crate::{ParseResult, Token, at_rule_spec, scss_at_rule_spec};
+#[cfg(feature = "internal-oracle")]
+use crate::Token;
+use crate::{ParseResult, at_rule_spec, scss_at_rule_spec};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ParsedAtRuleFact {
@@ -15,6 +17,7 @@ pub struct ParsedAtRuleFact {
     pub range: TextRange,
 }
 
+#[cfg(feature = "internal-oracle")]
 pub(crate) fn collect_at_rule_facts_from_tokens(
     tokens: &[Token<'_>],
     dialect: StyleDialect,
