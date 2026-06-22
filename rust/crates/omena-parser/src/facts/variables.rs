@@ -11,7 +11,7 @@ use crate::{
     previous_non_trivia_token, previous_non_trivia_token_index,
 };
 
-use super::tokens_from_cst;
+use super::tokens_from_syntax_node;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ParsedVariableFact {
@@ -25,7 +25,7 @@ pub struct ParsedVariableFact {
     pub has_fallback: bool,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub enum ParsedVariableFactKind {
     ScssDeclaration,
     ScssReference,
@@ -44,8 +44,25 @@ pub(crate) fn collect_variable_facts_from_cst(
     text: &str,
     parsed: &ParseResult,
 ) -> Vec<ParsedVariableFact> {
-    let tokens = tokens_from_cst(text, parsed);
-    variable_facts_from_token_view(&tokens)
+    let mut variables = Vec::new();
+    let mut seen = std::collections::BTreeSet::new();
+    for tokens in variable_fact_statement_tokens_from_cst(text, parsed) {
+        for fact in variable_facts_from_token_view(&tokens) {
+            push_variable_fact(&mut variables, &mut seen, fact);
+        }
+    }
+    variables
+}
+
+fn variable_fact_statement_tokens_from_cst<'text>(
+    text: &'text str,
+    parsed: &ParseResult,
+) -> Vec<Vec<Token<'text>>> {
+    parsed
+        .syntax()
+        .children()
+        .map(|node| tokens_from_syntax_node(text, node))
+        .collect()
 }
 
 fn variable_facts_from_token_view(tokens: &[Token<'_>]) -> Vec<ParsedVariableFact> {
@@ -100,6 +117,22 @@ fn variable_facts_from_token_view(tokens: &[Token<'_>]) -> Vec<ParsedVariableFac
         });
     }
     variables
+}
+
+fn push_variable_fact(
+    variables: &mut Vec<ParsedVariableFact>,
+    seen: &mut std::collections::BTreeSet<(ParsedVariableFactKind, String, u32, u32, bool)>,
+    fact: ParsedVariableFact,
+) {
+    if seen.insert((
+        fact.kind,
+        fact.name.clone(),
+        u32::from(fact.range.start()),
+        u32::from(fact.range.end()),
+        fact.has_fallback,
+    )) {
+        variables.push(fact);
+    }
 }
 
 /// Detect a `var(--x, fallback)` fallback for the `CustomPropertyName` at `index`.
