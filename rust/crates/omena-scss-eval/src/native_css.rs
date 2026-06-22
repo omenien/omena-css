@@ -284,10 +284,12 @@ pub fn summarize_native_css_static_edit_plan(
     let mut edits = Vec::new();
     let lexed = lex(source, dialect);
     let tokens = lexed.tokens();
+    let functions = collect_native_css_functions(source, tokens);
     edits.extend(native_css_when_rule_static_edits(source, tokens));
     edits.extend(native_css_if_function_static_edits(&if_function_decisions));
     edits.extend(native_css_function_call_static_edits(
         &function_call_evaluations,
+        &functions,
     ));
     let edits = normalize_native_css_static_edits(source, edits)?;
     let edited_css = apply_native_css_static_edits(source, &edits);
@@ -593,10 +595,12 @@ fn native_css_if_function_static_edits(
 
 fn native_css_function_call_static_edits(
     surface: &OmenaScssEvalNativeCssFunctionCallEvaluationSurfaceV0,
+    functions: &[OmenaScssEvalNativeCssFunctionV0],
 ) -> Vec<OmenaScssEvalNativeCssStaticEditV0> {
     surface
         .calls
         .iter()
+        .filter(|call| !native_css_function_call_is_inside_function_declaration(call, functions))
         .filter_map(|call| {
             let replacement = call.evaluated_value.as_ref()?;
             (call.decision == "foldToStaticValue").then(|| OmenaScssEvalNativeCssStaticEditV0 {
@@ -607,6 +611,16 @@ fn native_css_function_call_static_edits(
             })
         })
         .collect()
+}
+
+fn native_css_function_call_is_inside_function_declaration(
+    call: &OmenaScssEvalNativeCssFunctionCallEvaluationV0,
+    functions: &[OmenaScssEvalNativeCssFunctionV0],
+) -> bool {
+    functions.iter().any(|function| {
+        function.source_span_start <= call.source_span_start
+            && call.source_span_end <= function.source_span_end
+    })
 }
 
 fn normalize_native_css_static_edits(
@@ -1999,6 +2013,22 @@ mod tests {
         assert!(!report.edited_css.contains("if(supports"));
         assert_eq!(report.edits[0].edit_kind, "functionCallValueFold");
         assert_eq!(report.edits[1].edit_kind, "ifFunctionValueFold");
+    }
+
+    #[test]
+    fn native_css_static_edit_plan_preserves_function_body_calls() {
+        let source = "@function --inner() returns <length> { result: 1px; } @function --outer() returns <length> { result: --inner(); } .card { width: --inner(); }";
+        let report = summarize_native_css_static_edit_plan(source, StyleDialect::Css);
+        assert!(report.is_some());
+        let Some(report) = report else {
+            return;
+        };
+
+        assert_eq!(report.edit_count, 1);
+        assert_eq!(report.function_call_edit_count, 1);
+        assert!(report.output_changed);
+        assert!(report.edited_css.contains("result: --inner();"));
+        assert!(report.edited_css.contains("width: 1px"));
     }
 
     #[test]

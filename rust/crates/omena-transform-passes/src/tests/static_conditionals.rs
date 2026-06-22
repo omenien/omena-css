@@ -347,6 +347,26 @@ fn execution_runtime_preserves_native_css_function_cycles() {
 }
 
 #[test]
+fn execution_runtime_preserves_native_css_function_body_calls() {
+    let source = r#"@function --inner() returns <length> { result: 1px; } @function --outer() returns <length> { result: --inner(); } .card { width: --inner(); }"#;
+    let execution = execute_transform_passes_on_source(
+        source,
+        &[
+            TransformPassKind::NativeCssStaticEval,
+            TransformPassKind::PrintCss,
+        ],
+    );
+
+    assert_eq!(execution.mutation_count, 1);
+    assert!(execution.output_css.contains("result: --inner();"));
+    assert!(execution.output_css.contains("width: 1px"));
+    assert_eq!(
+        execution.executed_pass_ids,
+        vec!["native-css-static-eval", "print-css"]
+    );
+}
+
+#[test]
 fn execution_runtime_folds_static_native_css_when_rule_branch() {
     let source = r#"@when supports(display: grid) { .grid { display: grid; } } @else { .fallback { display: block; } }"#;
     let execution = execute_transform_passes_on_source(

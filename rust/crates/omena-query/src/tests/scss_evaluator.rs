@@ -5646,6 +5646,30 @@ fn exposes_native_css_function_cycle_through_query_boundary() {
 }
 
 #[test]
+fn exposes_native_css_function_body_call_preservation_through_query_boundary() {
+    let source = "@function --inner() returns <length> { result: 1px; } @function --outer() returns <length> { result: --inner(); } .card { width: --inner(); }";
+
+    let summary = summarize_omena_query_native_css_evaluator_from_source(
+        source,
+        OmenaParserStyleDialect::Css,
+    );
+
+    assert_eq!(summary.product, "omena-query.native-css-evaluator");
+    assert_eq!(summary.native_function_call_foldable_count, 2);
+    assert_eq!(summary.native_static_edit_count, 1);
+    assert!(summary.native_static_edit_output_changed);
+    assert!(
+        summary
+            .native_static_edit_plan
+            .as_ref()
+            .is_some_and(|plan| {
+                plan.edited_css.contains("result: --inner();")
+                    && plan.edited_css.contains("width: 1px")
+            })
+    );
+}
+
+#[test]
 fn exposes_native_css_evaluator_surfaces_through_engine_input_boundary() -> Result<(), String> {
     let source = ".card { display: if(supports(display: grid): grid; else: block); }";
     let input = EngineInputV2 {
