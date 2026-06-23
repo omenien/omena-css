@@ -58,6 +58,10 @@ pub use source_side::summarize_source_side_evaluator_candidates_input;
 pub use type_facts::summarize_type_fact_input;
 pub type EngineInputWireV2 = engine_contract_v2_idl_generated::EngineInputV2Json;
 pub type StringTypeFactsV2 = engine_contract_v2_idl_generated::StringTypeFactsV2Json;
+pub type TypeFactControlFlowBlockV2 =
+    engine_contract_v2_idl_generated::TypeFactControlFlowBlockV2Json;
+pub type TypeFactControlFlowGraphV2 =
+    engine_contract_v2_idl_generated::TypeFactControlFlowGraphV2Json;
 pub type TypeFactEntryV2 = engine_contract_v2_idl_generated::TypeFactEntryV2Json;
 
 #[derive(Debug)]

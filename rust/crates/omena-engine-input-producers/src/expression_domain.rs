@@ -11,10 +11,10 @@ use crate::{
     ExpressionDomainFlowGraphEntryV0, ExpressionDomainFragmentV0, ExpressionDomainFragmentsV0,
     ExpressionDomainPlanSummaryV0, ExpressionDomainProvenanceExplanationV0,
     ExpressionDomainProvenanceExplanationsV0, ExpressionDomainReducedProductIterationEntryV0,
-    ExpressionDomainReducedProductIterationV0, StringTypeFactsV2, TypeFactEntryV2,
-    abstract_value_facts, collect_constraint_detail_counts,
-    map_reduced_expression_value_domain_derivation, map_reduced_expression_value_domain_kind,
-    map_reduced_expression_value_domain_provenance_tree,
+    ExpressionDomainReducedProductIterationV0, StringTypeFactsV2, TypeFactControlFlowBlockV2,
+    TypeFactControlFlowGraphV2, TypeFactEntryV2, abstract_value_facts,
+    collect_constraint_detail_counts, map_reduced_expression_value_domain_derivation,
+    map_reduced_expression_value_domain_kind, map_reduced_expression_value_domain_provenance_tree,
 };
 
 struct ExpressionDomainInputRows {
@@ -273,17 +273,28 @@ pub fn summarize_expression_domain_flow_analysis_input(
 pub fn summarize_expression_domain_control_flow_analysis_input(
     input: &EngineInputV2,
 ) -> ExpressionDomainControlFlowAnalysisV0 {
-    let analyses = collect_expression_domain_flow_graphs(input)
+    let mut analyses = collect_expression_domain_control_flow_graphs(input)
         .into_iter()
-        .map(|entry| {
-            let cfg = expression_domain_control_flow_graph(&entry.graph);
-            ExpressionDomainControlFlowAnalysisEntryV0 {
-                graph_id: entry.graph_id,
-                file_path: entry.file_path,
-                analysis: omena_abstract_value::analyze_class_value_control_flow_graph(&cfg),
-            }
+        .map(|entry| ExpressionDomainControlFlowAnalysisEntryV0 {
+            graph_id: entry.graph_id,
+            file_path: entry.file_path,
+            analysis: omena_abstract_value::analyze_class_value_control_flow_graph(&entry.graph),
         })
-        .collect();
+        .collect::<Vec<_>>();
+
+    if analyses.is_empty() {
+        analyses = collect_expression_domain_flow_graphs(input)
+            .into_iter()
+            .map(|entry| {
+                let cfg = expression_domain_control_flow_graph(&entry.graph);
+                ExpressionDomainControlFlowAnalysisEntryV0 {
+                    graph_id: entry.graph_id,
+                    file_path: entry.file_path,
+                    analysis: omena_abstract_value::analyze_class_value_control_flow_graph(&cfg),
+                }
+            })
+            .collect();
+    }
 
     ExpressionDomainControlFlowAnalysisV0 {
         schema_version: "0",
@@ -392,6 +403,37 @@ pub fn collect_expression_domain_flow_graphs(
         .collect()
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct ExpressionDomainControlFlowGraphEntryV0 {
+    graph_id: String,
+    file_path: String,
+    graph: omena_abstract_value::ClassValueControlFlowGraphV0,
+}
+
+fn collect_expression_domain_control_flow_graphs(
+    input: &EngineInputV2,
+) -> Vec<ExpressionDomainControlFlowGraphEntryV0> {
+    input
+        .type_facts
+        .iter()
+        .filter_map(|entry| {
+            entry.control_flow_graph.as_ref().map(|graph| {
+                let graph_id = format!(
+                    "{}:{}:expression-domain-control-flow",
+                    entry.file_path, entry.expression_id
+                );
+                ExpressionDomainControlFlowGraphEntryV0 {
+                    graph_id: graph_id.clone(),
+                    file_path: entry.file_path.clone(),
+                    graph: expression_domain_control_flow_graph_from_type_fact_graph(
+                        &graph_id, entry, graph,
+                    ),
+                }
+            })
+        })
+        .collect()
+}
+
 fn collect_expression_domain_call_site_flow_inputs(
     input: &EngineInputV2,
 ) -> Vec<omena_abstract_value::KLimitedCallSiteFlowInputV0> {
@@ -454,6 +496,92 @@ fn expression_domain_flow_exit_node_id(
             .first()
             .map(|node| node.id.clone())
             .unwrap_or_else(|| "exit".to_string())
+    }
+}
+
+fn expression_domain_control_flow_graph_from_type_fact_graph(
+    graph_id: &str,
+    entry: &TypeFactEntryV2,
+    graph: &TypeFactControlFlowGraphV2,
+) -> omena_abstract_value::ClassValueControlFlowGraphV0 {
+    let predecessor_block_ids = control_flow_predecessor_block_ids(&graph.blocks);
+    let block_node_ids = graph
+        .blocks
+        .iter()
+        .map(|block| {
+            (
+                block.id.clone(),
+                type_fact_control_flow_node_id(entry, block),
+            )
+        })
+        .collect::<BTreeMap<_, _>>();
+    let blocks = graph
+        .blocks
+        .iter()
+        .map(|block| {
+            let node_id = block_node_ids
+                .get(&block.id)
+                .cloned()
+                .unwrap_or_else(|| type_fact_control_flow_node_id(entry, block));
+            let predecessors = predecessor_block_ids
+                .get(&block.id)
+                .into_iter()
+                .flat_map(|ids| ids.iter())
+                .filter_map(|id| block_node_ids.get(id).cloned())
+                .collect::<Vec<_>>();
+            omena_abstract_value::ClassValueControlFlowBlockV0 {
+                id: block.id.clone(),
+                nodes: vec![omena_abstract_value::ClassValueFlowNodeV0 {
+                    id: node_id,
+                    predecessors,
+                    transfer: type_fact_control_flow_transfer(block, &entry.facts),
+                }],
+                successor_block_ids: block.successor_block_ids.clone(),
+            }
+        })
+        .collect();
+
+    omena_abstract_value::ClassValueControlFlowGraphV0 {
+        context_key: Some(graph_id.to_string()),
+        entry_block_id: graph.entry_block_id.clone(),
+        blocks,
+    }
+}
+
+fn control_flow_predecessor_block_ids(
+    blocks: &[TypeFactControlFlowBlockV2],
+) -> BTreeMap<String, Vec<String>> {
+    let mut predecessors = BTreeMap::<String, Vec<String>>::new();
+    for block in blocks {
+        for successor in &block.successor_block_ids {
+            predecessors
+                .entry(successor.clone())
+                .or_default()
+                .push(block.id.clone());
+        }
+    }
+    predecessors
+}
+
+fn type_fact_control_flow_node_id(
+    entry: &TypeFactEntryV2,
+    block: &TypeFactControlFlowBlockV2,
+) -> String {
+    format!("{}:{}", entry.expression_id, block.id)
+}
+
+fn type_fact_control_flow_transfer(
+    block: &TypeFactControlFlowBlockV2,
+    facts: &StringTypeFactsV2,
+) -> omena_abstract_value::ClassValueFlowTransferV0 {
+    match block.transfer_kind.as_str() {
+        "assignFacts" => {
+            omena_abstract_value::ClassValueFlowTransferV0::AssignFacts(abstract_value_facts(facts))
+        }
+        "concatFacts" => {
+            omena_abstract_value::ClassValueFlowTransferV0::ConcatFacts(abstract_value_facts(facts))
+        }
+        _ => omena_abstract_value::ClassValueFlowTransferV0::Join,
     }
 }
 
@@ -528,7 +656,10 @@ mod tests {
         summarize_expression_domain_provenance_explanations_input,
         summarize_expression_domain_reduced_product_iteration_input,
     };
-    use crate::{StringTypeFactsV2, TypeFactEntryV2, test_support::sample_input};
+    use crate::{
+        StringTypeFactsV2, TypeFactControlFlowBlockV2, TypeFactControlFlowGraphV2, TypeFactEntryV2,
+        test_support::sample_input,
+    };
     use omena_abstract_value::AbstractClassValueV0;
 
     #[test]
@@ -812,6 +943,61 @@ mod tests {
     }
 
     #[test]
+    fn consumes_type_fact_control_flow_graph_for_branchy_flow() {
+        let mut input = sample_input();
+        input.type_facts = vec![TypeFactEntryV2 {
+            file_path: "/tmp/App.tsx".to_string(),
+            expression_id: "expr-branchy".to_string(),
+            facts: StringTypeFactsV2 {
+                kind: "exact".to_string(),
+                constraint_kind: None,
+                values: Some(vec!["btn-primary".to_string()]),
+                prefix: None,
+                suffix: None,
+                min_len: None,
+                max_len: None,
+                char_must: None,
+                char_may: None,
+                may_include_other_chars: None,
+                provenance: None,
+            },
+            control_flow_graph: Some(branchy_type_fact_control_flow_graph()),
+        }];
+
+        let summary = summarize_expression_domain_control_flow_analysis_input(&input);
+
+        assert_eq!(summary.analyses.len(), 1);
+        assert_eq!(
+            summary.analyses[0].graph_id,
+            "/tmp/App.tsx:expr-branchy:expression-domain-control-flow"
+        );
+        let analysis = &summary.analyses[0].analysis;
+        assert_eq!(analysis.block_count, 6);
+        assert_eq!(analysis.edge_count, 6);
+        assert_eq!(analysis.branch_block_ids, vec!["branch:0".to_string()]);
+        assert_eq!(analysis.join_block_ids, vec!["join:0".to_string()]);
+        assert!(
+            analysis
+                .blocks
+                .iter()
+                .all(|block| block.block_id != "file-merge")
+        );
+        assert!(
+            analysis
+                .blocks
+                .iter()
+                .find(|block| block.block_id == "branch:0")
+                .is_some_and(|block| block.successor_block_ids.len() > 1)
+        );
+        assert!(analysis
+            .flow_analysis
+            .nodes
+            .iter()
+            .any(|node| node.id == "expr-branchy:then:0"
+                && node.transfer_kind == "concatFacts"));
+    }
+
+    #[test]
     fn summarizes_expression_domain_call_site_flow_analysis_for_zero_and_one_cfa() {
         let mut input = sample_input();
         input.type_facts = vec![
@@ -952,6 +1138,39 @@ mod tests {
                 provenance: None,
             },
             control_flow_graph: None,
+        }
+    }
+
+    fn branchy_type_fact_control_flow_graph() -> TypeFactControlFlowGraphV2 {
+        TypeFactControlFlowGraphV2 {
+            entry_block_id: "entry".to_string(),
+            blocks: vec![
+                type_fact_control_flow_block("entry", "entry", "entry", &["branch:0"]),
+                type_fact_control_flow_block("branch:0", "branch", "branch", &["then:0", "else:0"]),
+                type_fact_control_flow_block("then:0", "assignment", "concatFacts", &["join:0"]),
+                type_fact_control_flow_block("else:0", "assignment", "assignFacts", &["join:0"]),
+                type_fact_control_flow_block("join:0", "join", "join", &["exit"]),
+                type_fact_control_flow_block("exit", "exit", "exit", &[]),
+            ],
+        }
+    }
+
+    fn type_fact_control_flow_block(
+        id: &str,
+        kind: &str,
+        transfer_kind: &str,
+        successor_block_ids: &[&str],
+    ) -> TypeFactControlFlowBlockV2 {
+        TypeFactControlFlowBlockV2 {
+            id: id.to_string(),
+            kind: kind.to_string(),
+            transfer_kind: transfer_kind.to_string(),
+            successor_block_ids: successor_block_ids
+                .iter()
+                .map(|id| (*id).to_string())
+                .collect(),
+            variable_name: None,
+            expression_kind: None,
         }
     }
 }
