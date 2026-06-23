@@ -1422,6 +1422,8 @@ pub struct OmenaQuerySourceDiagnosticV0 {
     pub range: ParserRangeV0,
     pub message: String,
     #[serde(skip_serializing_if = "Option::is_none")]
+    pub precision: Option<OmenaQueryAnalysisPrecisionV0>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub suggestion: Option<String>,
     pub create_selector: Option<OmenaQueryCreateSelectorActionV0>,
 }
@@ -1429,6 +1431,20 @@ pub struct OmenaQuerySourceDiagnosticV0 {
 impl OmenaQuerySourceDiagnosticV0 {
     pub fn linear_provenance(&self) -> OmenaQueryLinearProvenanceV0 {
         summarize_omena_query_linear_provenance(self.provenance.as_slice())
+    }
+}
+
+pub(crate) fn source_diagnostic_precision(
+    value_domain: &str,
+    flow_sensitivity: &str,
+    context_sensitivity: &str,
+) -> OmenaQueryAnalysisPrecisionV0 {
+    OmenaQueryAnalysisPrecisionV0 {
+        product: "omena-query.analysis-precision".to_string(),
+        value_domain: value_domain.to_string(),
+        flow_sensitivity: flow_sensitivity.to_string(),
+        context_sensitivity: context_sensitivity.to_string(),
+        revision_axis: "OmenaQuerySourceDiagnosticsForFileV0.input".to_string(),
     }
 }
 

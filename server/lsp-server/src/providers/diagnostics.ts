@@ -33,6 +33,7 @@ interface QuerySourceDiagnosticV0 {
   readonly provenance: readonly string[];
   readonly range: SourceCheckerFinding["range"];
   readonly message: string;
+  readonly precision?: Record<string, unknown>;
   readonly suggestion?: string;
   readonly createSelector?: {
     readonly uri: string;
@@ -213,6 +214,7 @@ function toQueryOwnedSourceDiagnostic(
     data: {
       querySeverity: diagnostic.severity,
       provenance: diagnostic.provenance,
+      ...(diagnostic.precision ? { precision: diagnostic.precision } : {}),
       ...(diagnostic.suggestion ? { suggestion: diagnostic.suggestion } : {}),
       ...(createSelector ? { createSelector } : {}),
       ...(createModuleFile ? { createModuleFile } : {}),

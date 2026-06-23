@@ -121,6 +121,11 @@ async function main(): Promise<void> {
         "omena-query-checker-orchestrator.product-diagnostic-gate",
         "omena-checker.rule-registry",
       ]);
+      assert.equal(diagnostic.data?.precision?.product, "omena-query.analysis-precision");
+      assert.equal(
+        diagnostic.data?.precision?.revisionAxis,
+        "OmenaQuerySourceDiagnosticsForFileV0.input",
+      );
     }
     assert.deepEqual(byCode.get("missingStaticClass")?.data?.createSelector?.selectorName, "ghost");
 

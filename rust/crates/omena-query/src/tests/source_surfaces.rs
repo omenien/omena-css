@@ -194,13 +194,24 @@ export function App({ suffix }) {
         "omena-checker.rule-registry",
     ];
     for code in ["missingStaticClass", "missingTemplatePrefix"] {
+        let diagnostic = diagnostics
+            .diagnostics
+            .iter()
+            .find(|diagnostic| diagnostic.code == code)
+            .expect("expected source selector diagnostic");
         assert_eq!(
-            diagnostics
-                .diagnostics
-                .iter()
-                .find(|diagnostic| diagnostic.code == code)
-                .map(|diagnostic| diagnostic.provenance.as_slice()),
-            Some(checker_product_diagnostic_provenance.as_slice())
+            diagnostic.provenance.as_slice(),
+            checker_product_diagnostic_provenance.as_slice()
+        );
+        let precision = diagnostic
+            .precision
+            .as_ref()
+            .expect("source selector diagnostics must carry precision");
+        assert_eq!(precision.product, "omena-query.analysis-precision");
+        assert_eq!(precision.value_domain, "classValueResolution");
+        assert_eq!(
+            precision.revision_axis,
+            "OmenaQuerySourceDiagnosticsForFileV0.input"
         );
     }
     assert_eq!(

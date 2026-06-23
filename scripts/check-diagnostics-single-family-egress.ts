@@ -203,6 +203,7 @@ function assertLspSelectedQueryDiagnostics(): void {
     "SELECTED_QUERY_RUNNER_COMMANDS.sourceDiagnosticsForFile",
     FILES.sourceProvider,
   );
+  assertIncludes(sourceProvider, "diagnostic.precision", FILES.sourceProvider);
   assertIncludes(
     styleProvider,
     "SELECTED_QUERY_RUNNER_COMMANDS.styleDiagnosticsForFile",
@@ -247,6 +248,7 @@ function assertQueryDiagnosticsShapeLock(): void {
     "pub diagnostics: Vec<OmenaQuery",
     "pub ready_surfaces: Vec<&'static str>",
     "pub provenance: Vec<&'static str>",
+    "pub precision: Option<OmenaQueryAnalysisPrecisionV0>",
   ]) {
     assertIncludes(queryTypes, token, FILES.queryTypes);
   }

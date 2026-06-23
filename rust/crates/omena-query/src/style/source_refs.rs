@@ -408,6 +408,11 @@ pub fn summarize_omena_query_missing_selector_diagnostic(
         message: format!(
             "CSS Module selector '.{selector_name}' not found in indexed style tokens."
         ),
+        precision: Some(source_diagnostic_precision(
+            "classValueResolution",
+            "sourceSyntaxIndex",
+            "perSourceReference",
+        )),
         suggestion: None,
         create_selector: Some(OmenaQueryCreateSelectorActionV0 {
             uri: target_style_uri.to_string(),
@@ -529,6 +534,11 @@ pub fn summarize_omena_query_source_diagnostics_for_workspace_file_with_context_
                     "Cannot resolve CSS Module '{}'. The file does not exist.",
                     import.specifier
                 ),
+                precision: Some(source_diagnostic_precision(
+                    "styleModuleResolution",
+                    "sourceImportResolution",
+                    "perImportSpecifier",
+                )),
                 suggestion: None,
                 create_selector: None,
             }),
@@ -864,6 +874,11 @@ fn summarize_omena_query_domain_class_reference_diagnostics(
                 "Class value option '{}' is not defined for {}.{}.",
                 option_name, reference.owner_name, reference.axis_name
             ),
+            precision: Some(source_diagnostic_precision(
+                "classValueUniverse",
+                "sourceDomainReference",
+                "perDomainAxis",
+            )),
             suggestion: None,
             create_selector: None,
         });
@@ -1140,6 +1155,16 @@ fn summarize_omena_query_unresolved_source_reference_diagnostic(
         ],
         range,
         message: query_source_diagnostic_message(code, selector_name, suggestion.as_deref()),
+        precision: Some(source_diagnostic_precision(
+            "classValueResolution",
+            "sourceSelectorReference",
+            match code {
+                "missingResolvedClassValues" | "missingResolvedClassDomain" => {
+                    "resolvedClassValueDomain"
+                }
+                _ => "perSourceReference",
+            },
+        )),
         suggestion,
         create_selector,
     }

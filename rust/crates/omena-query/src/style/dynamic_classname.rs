@@ -355,6 +355,11 @@ pub(super) fn collect_omena_query_dynamic_classname_m_tier_diagnostics(
                     ],
                     range,
                     message: evaluation.message.clone(),
+                    precision: Some(source_diagnostic_precision(
+                        "classValueFlow",
+                        "kLimitedCallSiteFlow",
+                        "kLimitedDynamicClassname",
+                    )),
                     suggestion: None,
                     create_selector: None,
                 });

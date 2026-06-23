@@ -318,6 +318,16 @@ describe("computeDiagnostics", () => {
             "omena-query-checker-orchestrator.product-diagnostic-gate",
             "omena-checker.rule-registry",
           ],
+          precision: {
+            product: "omena-query.analysis-precision",
+            valueDomain: "classValueResolution",
+            flowSensitivity: "sourceSelectorReference",
+            contextSensitivity:
+              code === "missingResolvedClassValues" || code === "missingResolvedClassDomain"
+                ? "resolvedClassValueDomain"
+                : "perSourceReference",
+            revisionAxis: "OmenaQuerySourceDiagnosticsForFileV0.input",
+          },
           range: MISSING_CLASS_RANGE,
           message: `query-owned ${code}`,
           ...(code === "missingStaticClass"
@@ -355,6 +365,12 @@ describe("computeDiagnostics", () => {
             "omena-query-checker-orchestrator.product-diagnostic-gate",
             "omena-checker.rule-registry",
           ],
+          precision: {
+            product: "omena-query.analysis-precision",
+            valueDomain: "classValueResolution",
+            flowSensitivity: "sourceSelectorReference",
+            revisionAxis: "OmenaQuerySourceDiagnosticsForFileV0.input",
+          },
         });
       }
     } finally {
