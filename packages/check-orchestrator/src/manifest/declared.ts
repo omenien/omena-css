@@ -180,6 +180,18 @@ export const DECLARED_CHECK_GATES = [
     ciGroup: "drift",
   },
   {
+    id: "contract/engine-v2-contract-idl",
+    kind: "bundle",
+    scope: "contract",
+    deps: [
+      "contract/engine-v2-contract-idl-decisions",
+      "contract/engine-v2-contract-idl-toolchain",
+    ],
+    tags: ["contract", "engine-v2"],
+    ciTier: "verify",
+    ciGroup: "verify",
+  },
+  {
     id: "rust/closure-fast",
     kind: "bundle",
     scope: "rust",
