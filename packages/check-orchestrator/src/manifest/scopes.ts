@@ -129,6 +129,7 @@ export const SCOPE_DEFINITIONS: readonly ScopeDefinition[] = [
       scriptName === "check:rename-query-consumer" ||
       scriptName === "check:source-diagnostics-query-consumer" ||
       scriptName === "check:style-diagnostics-query-consumer" ||
+      scriptName === "check:diagnostics-single-family-egress" ||
       scriptName === "check:provider-host-routing-boundary" ||
       scriptName.startsWith("check:lsp-server-smoke") ||
       scriptName === "omena" ||
