@@ -356,6 +356,16 @@ fn query_engine_input_for_source_type_facts(
             })
         })
         .collect::<Vec<_>>();
+    let workspace_root = document
+        .workspace_folder_uri
+        .as_deref()
+        .and_then(file_uri_to_path)
+        .or_else(|| {
+            file_uri_to_path(document.uri.as_str())
+                .and_then(|path| path.parent().map(Path::to_path_buf))
+        })
+        .map(|path| path.to_string_lossy().to_string())
+        .unwrap_or_else(|| document.workspace_folder_uri.clone().unwrap_or_default());
     let source_file_path = file_uri_to_path(document.uri.as_str())
         .map(|path| path.to_string_lossy().to_string())
         .unwrap_or_else(|| document.uri.clone());
@@ -390,7 +400,13 @@ fn query_engine_input_for_source_type_facts(
     }
     serde_json::from_value(json!({
         "version": "2",
+        "workspace": {
+            "root": workspace_root,
+            "classnameTransform": "asIs",
+            "settingsKey": "lsp-source-type-facts",
+        },
         "sources": [{
+            "filePath": source_file_path,
             "document": {
                 "classExpressions": class_expressions,
             },
