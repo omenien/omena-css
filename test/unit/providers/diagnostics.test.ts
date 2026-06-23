@@ -311,7 +311,7 @@ describe("computeDiagnostics", () => {
     }
   });
 
-  it("preserves every query-owned source diagnostic code on the selected-query path", async () => {
+  it("snapshots the selected-query source merged-output oracle for every diagnostic code", async () => {
     const previousBackend = process.env.OMENA_SELECTED_QUERY_BACKEND;
     process.env.OMENA_SELECTED_QUERY_BACKEND = "rust-selected-query";
     const queryCodes = [
@@ -929,6 +929,38 @@ describe("missing-module diagnostics", () => {
           },
         },
       });
+      expect(stableDiagnosticSnapshot(result)).toMatchInlineSnapshot(`
+        "[
+          {
+            "code": "missingModule",
+            "severity": 2,
+            "source": "omena-css",
+            "message": "Cannot resolve CSS Module './typo.module.scss'. The file does not exist.",
+            "range": {
+              "start": {
+                "line": 0,
+                "character": 19
+              },
+              "end": {
+                "line": 0,
+                "character": 38
+              }
+            },
+            "data": {
+              "querySeverity": "warning",
+              "provenance": [
+                "omena-query.source-import-declarations",
+                "omena-resolver.style-module-resolution",
+                "omena-query-checker-orchestrator.product-diagnostic-gate",
+                "omena-checker.rule-registry"
+              ],
+              "createModuleFile": {
+                "uri": "file:///fake/ws/src/typo.module.scss"
+              }
+            }
+          }
+        ]"
+      `);
     } finally {
       if (previousBackend === undefined) {
         delete process.env.OMENA_SELECTED_QUERY_BACKEND;

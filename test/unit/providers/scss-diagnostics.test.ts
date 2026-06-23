@@ -262,7 +262,7 @@ describe("computeScssUnusedDiagnostics", () => {
     });
   });
 
-  it("preserves every query-owned style diagnostic code on the selected-query path", async () => {
+  it("snapshots the selected-query style merged-output oracle for every diagnostic code", async () => {
     const styleSource = `.button { color: red; }\n`;
     const styleDoc = parseStyleDocument(styleSource, SCSS_PATH);
     const baseModulePath = "/fake/Base.module.scss";

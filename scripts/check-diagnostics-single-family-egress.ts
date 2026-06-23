@@ -77,6 +77,7 @@ function main(): void {
   assertCheckerCodeMirror();
   assertRustQueryDiagnosticProducerCoverage();
   assertLspProviderQueryDiagnosticCoverage();
+  assertLspMergedOutputSnapshotOracleCoverage();
   assertLspSelectedQueryDiagnostics();
   assertQueryDiagnosticsShapeLock();
   assertCliNapiWasmQueryDiagnostics();
@@ -94,6 +95,7 @@ function main(): void {
       "shape-lock=cli-napi-wasm",
       "checker-code-mirror=13",
       "lsp-provider-code-coverage=13",
+      "lsp-merged-output-snapshot-oracle=13",
       "legacy-plugin-fallback=absent",
     ].join(" ") + "\n",
   );
@@ -175,7 +177,7 @@ function assertLspProviderQueryDiagnosticCoverage(): void {
 
   assertIncludes(
     sourceProviderTests,
-    "preserves every query-owned source diagnostic code",
+    "snapshots the selected-query source merged-output oracle for every diagnostic code",
     FILES.sourceProviderTests,
   );
   assertIncludes(sourceProviderTests, "stableDiagnosticSnapshot", FILES.sourceProviderTests);
@@ -187,7 +189,7 @@ function assertLspProviderQueryDiagnosticCoverage(): void {
   );
   assertIncludes(
     styleProviderTests,
-    "preserves every query-owned style diagnostic code",
+    "snapshots the selected-query style merged-output oracle for every diagnostic code",
     FILES.styleProviderTests,
   );
   assertIncludes(styleProviderTests, "stableDiagnosticSnapshot", FILES.styleProviderTests);
@@ -207,6 +209,59 @@ function assertLspProviderQueryDiagnosticCoverage(): void {
   }
   for (const [queryCode] of STYLE_DIAGNOSTIC_CODE_PAIRS) {
     assertIncludes(styleProviderTests, `"${queryCode}"`, FILES.styleProviderTests);
+  }
+}
+
+function assertLspMergedOutputSnapshotOracleCoverage(): void {
+  const sourceProviderTests = readRepoFile(FILES.sourceProviderTests);
+  const styleProviderTests = readRepoFile(FILES.styleProviderTests);
+
+  assertIncludes(
+    sourceProviderTests,
+    "expect(stableDiagnosticSnapshot(diagnostics)).toMatchInlineSnapshot",
+    FILES.sourceProviderTests,
+  );
+  assertIncludes(
+    styleProviderTests,
+    "expect(stableDiagnosticSnapshot(diagnostics)).toMatchInlineSnapshot",
+    FILES.styleProviderTests,
+  );
+
+  for (const [queryCode] of SOURCE_DIAGNOSTIC_CODE_PAIRS) {
+    assertIncludes(sourceProviderTests, `"code": "${queryCode}"`, FILES.sourceProviderTests);
+  }
+  for (const [queryCode] of STYLE_DIAGNOSTIC_CODE_PAIRS) {
+    assertIncludes(styleProviderTests, `"code": "${queryCode}"`, FILES.styleProviderTests);
+  }
+
+  for (const [source, label] of [
+    [sourceProviderTests, FILES.sourceProviderTests],
+    [styleProviderTests, FILES.styleProviderTests],
+  ] as const) {
+    assertIncludes(source, "omena-query-checker-orchestrator.product-diagnostic-gate", label);
+    assertIncludes(source, "omena-checker.rule-registry", label);
+    assertIncludes(source, '"querySeverity":', label);
+    assertIncludes(source, '"provenance":', label);
+  }
+
+  for (const token of [
+    '"precision":',
+    '"revisionAxis": "OmenaQuerySourceDiagnosticsForFileV0.input"',
+    '"createSelector":',
+    '"createModuleFile":',
+  ]) {
+    assertIncludes(sourceProviderTests, token, FILES.sourceProviderTests);
+  }
+
+  for (const token of [
+    '"createModuleFile":',
+    '"createSelector":',
+    '"createValue":',
+    '"createKeyframes":',
+    '"createCustomProperty":',
+    '"createSassSymbol":',
+  ]) {
+    assertIncludes(styleProviderTests, token, FILES.styleProviderTests);
   }
 }
 
