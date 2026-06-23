@@ -2,6 +2,7 @@ use std::collections::BTreeMap;
 
 use serde::{Deserialize, Serialize};
 
+pub mod engine_contract_v2_idl_generated;
 mod expression_domain;
 mod expression_semantics;
 mod query_plan;

@@ -382,6 +382,7 @@
     "update:contract-parity-v1-golden": "node --import tsx ./scripts/update-contract-parity-v1-golden.ts",
     "check:engine-v2-contract-idl-decisions": "node --import tsx ./scripts/check-engine-v2-contract-idl-decisions.ts",
     "check:engine-v2-contract-idl-fixtures": "node --import tsx ./scripts/check-engine-v2-contract-idl-fixtures.ts",
+    "check:engine-v2-contract-idl-generated": "node --import tsx ./scripts/generate-engine-v2-contract-idl.ts --check",
     "check:engine-v2-contract-idl-toolchain": "node --import tsx ./scripts/check-engine-v2-contract-idl-toolchain.ts",
     "check:contract-parity-v2-smoke": "node --import tsx ./scripts/check-contract-parity-v2-smoke.ts",
     "check:contract-parity-v2-golden": "node --import tsx ./scripts/check-contract-parity-v2-golden.ts",
