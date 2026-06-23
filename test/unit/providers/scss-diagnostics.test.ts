@@ -219,6 +219,37 @@ describe("computeScssUnusedDiagnostics", () => {
     });
   });
 
+  it("does not fall back to checker diagnostics in the selected-query style path", async () => {
+    const classMap = new Map([
+      ["indicator", info("indicator", 1)],
+      ["active", info("active", 3)],
+    ]);
+    const styleDoc = styleDocument(classMap);
+    let runnerCalled = false;
+
+    const diagnostics = await computeScssUnusedDiagnostics(
+      SCSS_PATH,
+      styleDoc,
+      new WorkspaceSemanticWorkspaceReferenceIndex(),
+      new WorkspaceStyleDependencyGraph(),
+      undefined,
+      {
+        env: { OMENA_SELECTED_QUERY_BACKEND: "rust-selected-query" } as NodeJS.ProcessEnv,
+        runRustSelectedQueryBackendJsonAsync: async <T>() => {
+          runnerCalled = true;
+          return {
+            product: "omena-query.diagnostics-for-file",
+            fileKind: "style",
+            diagnostics: [],
+          } as T;
+        },
+      },
+    );
+
+    expect(runnerCalled).toBe(false);
+    expect(diagnostics).toEqual([]);
+  });
+
   it("forwards external SIFs and mode to the engine wire when supplied", async () => {
     const styleSource = `@use "design-system" as ds;\n.button { color: ds.$brand; }\n`;
     const styleDoc = parseStyleDocument(styleSource, SCSS_PATH);

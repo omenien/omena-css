@@ -123,6 +123,9 @@ export function computeScssUnusedDiagnostics(
     if (queryDiagnostics) {
       return queryDiagnostics;
     }
+    if (resolveSelectedQueryBackendKind(runtimeDeps.env) === "rust-selected-query") {
+      return [];
+    }
     return resolveStyleDiagnosticFindingsAsync(
       { scssPath, styleDocument },
       {

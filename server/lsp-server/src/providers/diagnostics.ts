@@ -72,6 +72,9 @@ export const computeDiagnostics = wrapHandler<
       if (queryDiagnostics) {
         return queryDiagnostics;
       }
+      if (resolveSelectedQueryBackendKind() === "rust-selected-query") {
+        return [];
+      }
       return resolveSourceDiagnosticFindingsAsync(params, deps, {
         runRustSelectedQueryBackendJsonAsync: rustRunner,
       }).then((findings) => findings.map((finding) => toDiagnostic(finding, deps, severity)));
@@ -92,7 +95,6 @@ function resolveQueryOwnedSourceDiagnostics(
 ): Promise<Diagnostic[]> | null {
   if (resolveSelectedQueryBackendKind() !== "rust-selected-query") return null;
   const styles = collectSourceDiagnosticStyleSources(params, deps);
-  if (styles.length === 0) return null;
   const diagnosticScopeRanges = collectQueryOwnedSourceDiagnosticScopeRanges(params, deps);
   if (diagnosticScopeRanges.length === 0) return null;
 
@@ -109,9 +111,8 @@ function resolveQueryOwnedSourceDiagnostics(
       return [];
     }
     return summary.diagnostics
-      .filter((diagnostic) => diagnostic.code !== "missingModule")
       .filter((diagnostic) => sourceRangeMatchesAny(diagnostic.range, diagnosticScopeRanges))
-      .map(toQueryOwnedSourceDiagnostic);
+      .map((diagnostic) => toQueryOwnedSourceDiagnostic(diagnostic, params, deps));
   });
 }
 
@@ -157,7 +158,12 @@ function collectQueryOwnedSourceDiagnosticScopeRanges(
   );
   return entry.sourceDocument.classExpressions
     .filter((expression) => expression.origin === "cxCall")
-    .map((expression) => expression.range);
+    .map((expression) => expression.range)
+    .concat(
+      Array.from(entry.stylesBindings.values()).flatMap((styleImport) =>
+        styleImport.kind === "missing" ? [styleImport.range] : [],
+      ),
+    );
 }
 
 function sourceRangeMatchesAny(
@@ -184,7 +190,11 @@ function comparePositions(
   return left.character - right.character;
 }
 
-function toQueryOwnedSourceDiagnostic(diagnostic: QuerySourceDiagnosticV0): Diagnostic {
+function toQueryOwnedSourceDiagnostic(
+  diagnostic: QuerySourceDiagnosticV0,
+  params: DocumentParams,
+  deps: ProviderDeps,
+): Diagnostic {
   const createSelector = diagnostic.createSelector
     ? {
         ...diagnostic.createSelector,
@@ -193,6 +203,7 @@ function toQueryOwnedSourceDiagnostic(diagnostic: QuerySourceDiagnosticV0): Diag
           : pathToFileUrl(diagnostic.createSelector.uri),
       }
     : undefined;
+  const createModuleFile = findMissingModuleCreateFileData(diagnostic, params, deps);
   return {
     range: toLspRange(diagnostic.range),
     severity: querySeverityToLspSeverity(diagnostic.severity),
@@ -204,8 +215,33 @@ function toQueryOwnedSourceDiagnostic(diagnostic: QuerySourceDiagnosticV0): Diag
       provenance: diagnostic.provenance,
       ...(diagnostic.suggestion ? { suggestion: diagnostic.suggestion } : {}),
       ...(createSelector ? { createSelector } : {}),
+      ...(createModuleFile ? { createModuleFile } : {}),
     },
   };
+}
+
+function findMissingModuleCreateFileData(
+  diagnostic: QuerySourceDiagnosticV0,
+  params: DocumentParams,
+  deps: ProviderDeps,
+): { readonly uri: string } | undefined {
+  if (diagnostic.code !== "missingModule") return undefined;
+  const entry = deps.analysisCache.get(
+    params.documentUri,
+    params.content,
+    params.filePath,
+    params.version,
+  );
+  for (const styleImport of entry.stylesBindings.values()) {
+    if (
+      styleImport.kind === "missing" &&
+      sourceRangeContains(styleImport.range, diagnostic.range) &&
+      sourceRangeContains(diagnostic.range, styleImport.range)
+    ) {
+      return { uri: pathToFileUrl(styleImport.absolutePath) };
+    }
+  }
+  return undefined;
 }
 
 function querySeverityToLspSeverity(

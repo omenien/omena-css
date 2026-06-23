@@ -552,6 +552,74 @@ describe("missing-module diagnostics", () => {
     });
   });
 
+  it("uses query-owned missing-module diagnostics in the selected-query path", async () => {
+    const previousBackend = process.env.OMENA_SELECTED_QUERY_BACKEND;
+    process.env.OMENA_SELECTED_QUERY_BACKEND = "rust-selected-query";
+    const missingModuleRange = MISSING_WORKSPACE.range("module", MISSING_SOURCE_PATH).range;
+    const commands: string[] = [];
+    const runRustSelectedQueryBackendJsonAsync: RustSelectedQueryBackendJsonRunnerAsync = async (
+      command,
+      input,
+    ) => {
+      commands.push(command);
+      expect(command).toBe(SELECTED_QUERY_RUNNER_COMMANDS.sourceDiagnosticsForFile);
+      expect(input).toMatchObject({
+        sourcePath: MISSING_SOURCE_PATH,
+        sourceSource: missingParams.content,
+        styles: [],
+      });
+      return {
+        product: "omena-query.diagnostics-for-file",
+        fileKind: "source",
+        diagnostics: [
+          {
+            code: "missingModule",
+            severity: "warning",
+            provenance: [
+              "omena-query.source-import-declarations",
+              "omena-resolver.style-module-resolution",
+              "omena-query-checker-orchestrator.product-diagnostic-gate",
+              "omena-checker.rule-registry",
+            ],
+            range: missingModuleRange,
+            message: "Cannot resolve CSS Module './typo.module.scss'. The file does not exist.",
+          },
+        ],
+      };
+    };
+
+    try {
+      const result = await computeDiagnostics(missingParams, {
+        ...makeMissingDeps(),
+        runRustSelectedQueryBackendJsonAsync,
+      });
+      expect(commands).toEqual([SELECTED_QUERY_RUNNER_COMMANDS.sourceDiagnosticsForFile]);
+      expect(result).toHaveLength(1);
+      expect(result[0]).toMatchObject({
+        code: "missingModule",
+        message: "Cannot resolve CSS Module './typo.module.scss'. The file does not exist.",
+        data: {
+          querySeverity: "warning",
+          provenance: [
+            "omena-query.source-import-declarations",
+            "omena-resolver.style-module-resolution",
+            "omena-query-checker-orchestrator.product-diagnostic-gate",
+            "omena-checker.rule-registry",
+          ],
+          createModuleFile: {
+            uri: "file:///fake/ws/src/typo.module.scss",
+          },
+        },
+      });
+    } finally {
+      if (previousBackend === undefined) {
+        delete process.env.OMENA_SELECTED_QUERY_BACKEND;
+      } else {
+        process.env.OMENA_SELECTED_QUERY_BACKEND = previousBackend;
+      }
+    }
+  });
+
   it("does not emit when diagnostics.missingModule is false", () => {
     const deps = makeMissingDeps({
       settings: {
