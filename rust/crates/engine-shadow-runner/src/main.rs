@@ -3,7 +3,12 @@ use std::env;
 use std::io::{self, BufRead, Read, Write};
 
 use engine_input_producers::{
-    ConstraintDetailCounts, EngineInputV2, summarize_expression_domain_candidates_input,
+    ConstraintDetailCounts, EngineInputV2,
+    engine_contract_v2_idl_generated::{
+        CertaintyShapeKindV2Json, CheckerReportJsonV1Json, EngineOutputV2Json as EngineOutputV2,
+        QueryResultV2Json as QueryResultV2, StringConstraintKindV2Json, ValueDomainKindV2Json,
+    },
+    summarize_expression_domain_candidates_input,
     summarize_expression_domain_canonical_candidate_bundle_input,
     summarize_expression_domain_canonical_producer_signal_input,
     summarize_expression_domain_evaluator_candidates_input,
@@ -137,14 +142,6 @@ use serde::{Deserialize, Serialize};
 struct ShadowPayloadV0 {
     input: EngineInputV2,
     output: EngineOutputV2,
-}
-
-#[derive(Debug, Deserialize)]
-#[serde(rename_all = "camelCase")]
-struct EngineOutputV2 {
-    query_results: Vec<QueryResultV2>,
-    rewrite_plans: Vec<serde_json::Value>,
-    checker_report: CheckerReportV1,
 }
 
 #[derive(Debug, Deserialize)]
@@ -963,81 +960,6 @@ struct EngineShadowRunnerDaemonResponseV0 {
     result: Option<serde_json::Value>,
     #[serde(skip_serializing_if = "Option::is_none")]
     error: Option<String>,
-}
-
-#[derive(Debug, Deserialize)]
-#[serde(tag = "kind")]
-enum QueryResultV2 {
-    #[serde(rename = "expression-semantics")]
-    ExpressionSemantics {
-        #[serde(rename = "queryId")]
-        query_id: String,
-        payload: ExpressionSemanticsPayloadV2,
-    },
-    #[serde(rename = "source-expression-resolution")]
-    SourceExpressionResolution {
-        #[serde(rename = "queryId")]
-        query_id: String,
-        payload: SourceExpressionResolutionPayloadV2,
-    },
-    #[serde(rename = "selector-usage")]
-    SelectorUsage {
-        #[serde(rename = "queryId")]
-        query_id: String,
-        payload: SelectorUsagePayloadV2,
-    },
-}
-
-#[derive(Debug, Deserialize)]
-#[serde(rename_all = "camelCase")]
-struct ExpressionSemanticsPayloadV2 {
-    value_domain_kind: String,
-    value_constraint_kind: Option<String>,
-    value_prefix: Option<String>,
-    value_suffix: Option<String>,
-    value_min_len: Option<usize>,
-    value_max_len: Option<usize>,
-    value_char_must: Option<String>,
-    value_char_may: Option<String>,
-    value_may_include_other_chars: Option<bool>,
-    value_certainty_shape_kind: Option<String>,
-    selector_certainty_shape_kind: Option<String>,
-}
-
-#[derive(Debug, Deserialize)]
-#[serde(rename_all = "camelCase")]
-struct SourceExpressionResolutionPayloadV2 {
-    value_certainty_shape_kind: Option<String>,
-    value_certainty_constraint_kind: Option<String>,
-    value_prefix: Option<String>,
-    value_suffix: Option<String>,
-    value_min_len: Option<usize>,
-    value_max_len: Option<usize>,
-    value_char_must: Option<String>,
-    value_char_may: Option<String>,
-    value_may_include_other_chars: Option<bool>,
-    selector_certainty_shape_kind: Option<String>,
-}
-
-#[derive(Debug, Deserialize)]
-#[serde(rename_all = "camelCase")]
-struct SelectorUsagePayloadV2 {
-    total_references: usize,
-    direct_reference_count: usize,
-    editable_direct_reference_count: usize,
-    exact_reference_count: usize,
-    inferred_or_better_reference_count: usize,
-    has_expanded_references: bool,
-    has_style_dependency_references: bool,
-    has_any_references: bool,
-}
-
-#[derive(Debug, Deserialize)]
-#[serde(rename_all = "camelCase")]
-struct CheckerReportV1 {
-    version: String,
-    findings: Vec<CheckerFindingRecordV1>,
-    summary: CheckerReportSummaryV1,
 }
 
 #[derive(Debug, Deserialize, Serialize)]
@@ -3406,18 +3328,20 @@ fn summarize(payload: ShadowPayloadV0) -> ShadowSummaryV0 {
 
     for query in &output.query_results {
         match query {
-            QueryResultV2::ExpressionSemantics { query_id, payload } => {
+            QueryResultV2::ExpressionSemantics {
+                query_id, payload, ..
+            } => {
                 *query_kind_counts
                     .entry("expression-semantics".to_string())
                     .or_insert(0) += 1;
                 expression_semantics_ids.insert(query_id.clone());
                 *expression_value_domain_kinds
-                    .entry(payload.value_domain_kind.clone())
+                    .entry(value_domain_kind_string(&payload.value_domain_kind))
                     .or_insert(0) += 1;
 
                 if let Some(constraint_kind) = &payload.value_constraint_kind {
                     *expression_value_constraint_kinds
-                        .entry(constraint_kind.clone())
+                        .entry(string_constraint_kind_string(constraint_kind))
                         .or_insert(0) += 1;
                 }
                 collect_constraint_detail_counts(
@@ -3425,8 +3349,14 @@ fn summarize(payload: ShadowPayloadV0) -> ShadowSummaryV0 {
                     ConstraintDetailInput {
                         prefix: payload.value_prefix.as_ref(),
                         suffix: payload.value_suffix.as_ref(),
-                        min_len: payload.value_min_len,
-                        max_len: payload.value_max_len,
+                        min_len: optional_nonnegative_i32_to_usize(
+                            "expression valueMinLen",
+                            payload.value_min_len,
+                        ),
+                        max_len: optional_nonnegative_i32_to_usize(
+                            "expression valueMaxLen",
+                            payload.value_max_len,
+                        ),
                         char_must: payload.value_char_must.as_ref(),
                         char_may: payload.value_char_may.as_ref(),
                         may_include_other_chars: payload.value_may_include_other_chars,
@@ -3435,17 +3365,19 @@ fn summarize(payload: ShadowPayloadV0) -> ShadowSummaryV0 {
 
                 if let Some(shape_kind) = &payload.value_certainty_shape_kind {
                     *expression_value_certainty_shapes
-                        .entry(shape_kind.clone())
+                        .entry(certainty_shape_kind_string(shape_kind))
                         .or_insert(0) += 1;
                 }
 
                 if let Some(shape_kind) = &payload.selector_certainty_shape_kind {
                     *expression_selector_certainty_shapes
-                        .entry(shape_kind.clone())
+                        .entry(certainty_shape_kind_string(shape_kind))
                         .or_insert(0) += 1;
                 }
             }
-            QueryResultV2::SourceExpressionResolution { query_id, payload } => {
+            QueryResultV2::SourceExpressionResolution {
+                query_id, payload, ..
+            } => {
                 *query_kind_counts
                     .entry("source-expression-resolution".to_string())
                     .or_insert(0) += 1;
@@ -3453,7 +3385,7 @@ fn summarize(payload: ShadowPayloadV0) -> ShadowSummaryV0 {
 
                 if let Some(constraint_kind) = &payload.value_certainty_constraint_kind {
                     *resolution_value_constraint_kinds
-                        .entry(constraint_kind.clone())
+                        .entry(string_constraint_kind_string(constraint_kind))
                         .or_insert(0) += 1;
                 }
                 collect_constraint_detail_counts(
@@ -3461,8 +3393,14 @@ fn summarize(payload: ShadowPayloadV0) -> ShadowSummaryV0 {
                     ConstraintDetailInput {
                         prefix: payload.value_prefix.as_ref(),
                         suffix: payload.value_suffix.as_ref(),
-                        min_len: payload.value_min_len,
-                        max_len: payload.value_max_len,
+                        min_len: optional_nonnegative_i32_to_usize(
+                            "source resolution valueMinLen",
+                            payload.value_min_len,
+                        ),
+                        max_len: optional_nonnegative_i32_to_usize(
+                            "source resolution valueMaxLen",
+                            payload.value_max_len,
+                        ),
                         char_must: payload.value_char_must.as_ref(),
                         char_may: payload.value_char_may.as_ref(),
                         may_include_other_chars: payload.value_may_include_other_chars,
@@ -3471,29 +3409,42 @@ fn summarize(payload: ShadowPayloadV0) -> ShadowSummaryV0 {
 
                 if let Some(shape_kind) = &payload.value_certainty_shape_kind {
                     *resolution_value_certainty_shapes
-                        .entry(shape_kind.clone())
+                        .entry(certainty_shape_kind_string(shape_kind))
                         .or_insert(0) += 1;
                 }
 
                 if let Some(shape_kind) = &payload.selector_certainty_shape_kind {
                     *resolution_selector_certainty_shapes
-                        .entry(shape_kind.clone())
+                        .entry(certainty_shape_kind_string(shape_kind))
                         .or_insert(0) += 1;
                 }
             }
-            QueryResultV2::SelectorUsage { query_id, payload } => {
+            QueryResultV2::SelectorUsage {
+                query_id, payload, ..
+            } => {
                 *query_kind_counts
                     .entry("selector-usage".to_string())
                     .or_insert(0) += 1;
                 selector_usage_ids.insert(query_id.clone());
 
-                selector_usage_total_references += payload.total_references;
-                selector_usage_direct_references += payload.direct_reference_count;
-                selector_usage_editable_direct_references +=
-                    payload.editable_direct_reference_count;
-                selector_usage_exact_references += payload.exact_reference_count;
-                selector_usage_inferred_or_better_references +=
-                    payload.inferred_or_better_reference_count;
+                selector_usage_total_references +=
+                    nonnegative_i32_to_usize("selector totalReferences", payload.total_references);
+                selector_usage_direct_references += nonnegative_i32_to_usize(
+                    "selector directReferenceCount",
+                    payload.direct_reference_count,
+                );
+                selector_usage_editable_direct_references += nonnegative_i32_to_usize(
+                    "selector editableDirectReferenceCount",
+                    payload.editable_direct_reference_count,
+                );
+                selector_usage_exact_references += nonnegative_i32_to_usize(
+                    "selector exactReferenceCount",
+                    payload.exact_reference_count,
+                );
+                selector_usage_inferred_or_better_references += nonnegative_i32_to_usize(
+                    "selector inferredOrBetterReferenceCount",
+                    payload.inferred_or_better_reference_count,
+                );
 
                 if payload.has_expanded_references {
                     selector_usage_expanded_count += 1;
@@ -3586,9 +3537,9 @@ fn summarize(payload: ShadowPayloadV0) -> ShadowSummaryV0 {
         missing_selector_usage_count,
         unexpected_selector_usage_count,
         rewrite_plan_count: output.rewrite_plans.len(),
-        checker_warning_count: output.checker_report.summary.warnings,
-        checker_hint_count: output.checker_report.summary.hints,
-        checker_total_findings: output.checker_report.summary.total,
+        checker_warning_count: checker_summary_count(&output.checker_report, "warnings"),
+        checker_hint_count: checker_summary_count(&output.checker_report, "hints"),
+        checker_total_findings: checker_summary_count(&output.checker_report, "total"),
     }
 }
 
@@ -3597,13 +3548,14 @@ fn summarize_checker_style_recovery_canonical_candidate(
 ) -> CheckerStyleRecoveryCanonicalCandidateBundleV0 {
     let input_version = payload.input.version.to_string();
     let report = payload.output.checker_report;
+    let report_version = report.version.clone();
     let mut code_counts = BTreeMap::new();
     let mut file_paths = std::collections::BTreeSet::new();
     let mut findings = Vec::new();
     let mut warnings = 0usize;
     let mut hints = 0usize;
 
-    for finding in report.findings {
+    for finding in checker_findings(report.findings) {
         if finding.category != "style" {
             continue;
         }
@@ -3643,7 +3595,7 @@ fn summarize_checker_style_recovery_canonical_candidate(
     CheckerStyleRecoveryCanonicalCandidateBundleV0 {
         schema_version: "0",
         input_version,
-        report_version: report.version,
+        report_version,
         bundle: "style-recovery",
         distinct_file_count: file_paths.len(),
         code_counts,
@@ -3692,13 +3644,14 @@ fn summarize_checker_source_missing_canonical_candidate(
 ) -> CheckerSourceMissingCanonicalCandidateBundleV0 {
     let input_version = payload.input.version.clone();
     let report = payload.output.checker_report;
+    let report_version = report.version.clone();
     let mut code_counts = BTreeMap::new();
     let mut file_paths = std::collections::BTreeSet::new();
     let mut findings = Vec::new();
     let mut warnings = 0usize;
     let mut hints = 0usize;
 
-    for finding in report.findings {
+    for finding in checker_findings(report.findings) {
         if finding.category != "source" {
             continue;
         }
@@ -3738,7 +3691,7 @@ fn summarize_checker_source_missing_canonical_candidate(
     CheckerSourceMissingCanonicalCandidateBundleV0 {
         schema_version: "0",
         input_version,
-        report_version: report.version,
+        report_version,
         bundle: "source-missing",
         distinct_file_count: file_paths.len(),
         code_counts,
@@ -3815,13 +3768,14 @@ fn summarize_checker_style_unused_canonical_candidate(
 ) -> CheckerStyleUnusedCanonicalCandidateBundleV0 {
     let input_version = payload.input.version.clone();
     let report = payload.output.checker_report;
+    let report_version = report.version.clone();
     let mut code_counts = BTreeMap::new();
     let mut file_paths = std::collections::BTreeSet::new();
     let mut findings = Vec::new();
     let mut warnings = 0usize;
     let mut hints = 0usize;
 
-    for finding in report.findings {
+    for finding in checker_findings(report.findings) {
         if finding.category != "style" || finding.code != "unused-selector" {
             continue;
         }
@@ -3850,7 +3804,7 @@ fn summarize_checker_style_unused_canonical_candidate(
     CheckerStyleUnusedCanonicalCandidateBundleV0 {
         schema_version: "0",
         input_version,
-        report_version: report.version,
+        report_version,
         bundle: "style-unused",
         distinct_file_count: file_paths.len(),
         code_counts,
@@ -3892,6 +3846,63 @@ fn summarize_checker_style_unused_canonical_producer(
             included_in_rust_release_bundle: true,
         },
     }
+}
+
+fn optional_nonnegative_i32_to_usize(label: &str, value: Option<i32>) -> Option<usize> {
+    value.map(|inner| nonnegative_i32_to_usize(label, inner))
+}
+
+fn nonnegative_i32_to_usize(_label: &str, value: i32) -> usize {
+    usize::try_from(value).unwrap_or(0)
+}
+
+fn checker_summary_count(report: &CheckerReportJsonV1Json, field: &str) -> usize {
+    let Some(raw_value) = report.summary.get(field) else {
+        return 0;
+    };
+    let Some(count) = raw_value.as_u64() else {
+        return 0;
+    };
+    usize::try_from(count).unwrap_or(usize::MAX)
+}
+
+fn checker_findings(values: Vec<serde_json::Value>) -> Vec<CheckerFindingRecordV1> {
+    values
+        .into_iter()
+        .filter_map(|value| serde_json::from_value(value).ok())
+        .collect()
+}
+
+fn value_domain_kind_string(value: &ValueDomainKindV2Json) -> String {
+    match value {
+        ValueDomainKindV2Json::None => "none",
+        ValueDomainKindV2Json::Exact => "exact",
+        ValueDomainKindV2Json::FiniteSet => "finiteSet",
+        ValueDomainKindV2Json::Constrained => "constrained",
+        ValueDomainKindV2Json::Top => "top",
+    }
+    .to_string()
+}
+
+fn string_constraint_kind_string(value: &StringConstraintKindV2Json) -> String {
+    match value {
+        StringConstraintKindV2Json::Prefix => "prefix",
+        StringConstraintKindV2Json::Suffix => "suffix",
+        StringConstraintKindV2Json::PrefixSuffix => "prefixSuffix",
+        StringConstraintKindV2Json::CharInclusion => "charInclusion",
+        StringConstraintKindV2Json::Composite => "composite",
+    }
+    .to_string()
+}
+
+fn certainty_shape_kind_string(value: &CertaintyShapeKindV2Json) -> String {
+    match value {
+        CertaintyShapeKindV2Json::Exact => "exact",
+        CertaintyShapeKindV2Json::BoundedFinite => "boundedFinite",
+        CertaintyShapeKindV2Json::Constrained => "constrained",
+        CertaintyShapeKindV2Json::Unknown => "unknown",
+    }
+    .to_string()
 }
 
 fn collect_constraint_detail_counts(

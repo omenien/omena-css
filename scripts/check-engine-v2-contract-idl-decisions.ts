@@ -13,8 +13,8 @@ function assertIncludes(file: string, content: string, expected: string): void {
   assert.ok(content.includes(expected), `${file} must contain ${expected}`);
 }
 
-function assertMatches(file: string, content: string, pattern: RegExp): void {
-  assert.ok(pattern.test(content), `${file} must match ${pattern}`);
+function assertDoesNotMatch(file: string, content: string, pattern: RegExp): void {
+  assert.ok(!pattern.test(content), `${file} must not match ${pattern}`);
 }
 
 const decisionDocPath = "docs/engine-v2-contract-idl-decisions.md";
@@ -100,8 +100,10 @@ assertIncludes(
 );
 assertIncludes(codeActionQueryPath, codeActionQuery, "export type CodeActionPlan");
 
-assertMatches(shadowRunnerPath, shadowRunner, /struct EngineOutputV2\s*\{/);
-assertMatches(shadowRunnerPath, shadowRunner, /enum QueryResultV2\s*\{/);
+assertIncludes(shadowRunnerPath, shadowRunner, "EngineOutputV2Json as EngineOutputV2");
+assertIncludes(shadowRunnerPath, shadowRunner, "QueryResultV2Json as QueryResultV2");
+assertDoesNotMatch(shadowRunnerPath, shadowRunner, /struct EngineOutputV2\s*\{/);
+assertDoesNotMatch(shadowRunnerPath, shadowRunner, /enum QueryResultV2\s*\{/);
 
 process.stdout.write(
   `${JSON.stringify(

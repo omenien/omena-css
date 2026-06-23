@@ -84,8 +84,10 @@ Current drift to resolve:
 - `server/engine-host-node/src/engine-output-v2.ts` no longer defines a second
   `EngineOutputV2`, but it still defines a hand-written builder options DTO and
   defaulting behavior for `queryResults` and `rewritePlans`.
-- `rust/crates/engine-shadow-runner/src/main.rs` defines a local Rust
-  `EngineOutputV2` and local `QueryResultV2` union for shadow payloads.
+- `rust/crates/engine-shadow-runner/src/main.rs` no longer defines a local Rust
+  `EngineOutputV2` or local `QueryResultV2` union. It aliases the generated Rust
+  output DTOs and parses checker finding details only inside shadow summary
+  helpers.
 - `server/engine-host-node/src/engine-query-v2.ts` constructs the same
   `QueryResultV2` variants but also contains runtime-only options that are not
   wire DTOs.
@@ -107,8 +109,9 @@ Canonical decisions:
   model them as versioned referenced schemas, not duplicate ad-hoc shapes.
 - Host builder input DTOs can be generated helper input types, but runtime-only
   dependency bags in `engine-query-v2.ts` stay manual.
-- The Rust shadow-runner output mirror must be generated or replaced by a shared
-  generated Rust output module before the drift gate can pass.
+- The Rust shadow-runner output mirror is replaced by the shared generated Rust
+  output module; shadow-only checker finding summaries remain local analysis
+  helpers, not wire DTOs.
 - The Rust code-action JSON plan shape must be IDL-owned; the host-internal
   `CodeActionPlan` workspace-edit union stays TypeScript-only.
 
