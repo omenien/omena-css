@@ -37,13 +37,6 @@ pub enum ParsedSassSymbolFactKind {
     FunctionCall,
 }
 
-#[cfg(feature = "internal-oracle")]
-pub(crate) fn collect_sass_symbol_facts_from_tokens(
-    tokens: &[Token<'_>],
-) -> Vec<ParsedSassSymbolFact> {
-    sass_symbol_facts_from_token_view(tokens)
-}
-
 pub(crate) fn collect_sass_symbol_facts_from_cst(
     text: &str,
     parsed: &ParseResult,
@@ -59,12 +52,6 @@ pub(crate) fn collect_sass_symbol_facts_from_cst(
             sass_symbol_facts_from_token_view_with_declared_functions(tokens, &declared_functions)
         })
         .collect()
-}
-
-#[cfg(feature = "internal-oracle")]
-fn sass_symbol_facts_from_token_view(tokens: &[Token<'_>]) -> Vec<ParsedSassSymbolFact> {
-    let declared_functions = collect_sass_callable_declaration_names(tokens, "@function");
-    sass_symbol_facts_from_token_view_with_declared_functions(tokens, &declared_functions)
 }
 
 fn sass_symbol_statement_tokens_from_cst<'text>(
@@ -258,13 +245,6 @@ pub struct ParsedSassIncludeFact {
     pub range: TextRange,
 }
 
-#[cfg(feature = "internal-oracle")]
-pub(crate) fn collect_sass_include_facts_from_tokens(
-    tokens: &[Token<'_>],
-) -> Vec<ParsedSassIncludeFact> {
-    sass_include_facts_from_token_view(tokens)
-}
-
 pub(crate) fn collect_sass_include_facts_from_cst(
     source: &str,
     parsed: &ParseResult,
@@ -273,13 +253,6 @@ pub(crate) fn collect_sass_include_facts_from_cst(
     for tokens in scss_include_rule_tokens_from_cst(source, parsed) {
         collect_sass_include_facts_from_rule_tokens(&tokens, &mut includes);
     }
-    includes
-}
-
-#[cfg(feature = "internal-oracle")]
-fn sass_include_facts_from_token_view(tokens: &[Token<'_>]) -> Vec<ParsedSassIncludeFact> {
-    let mut includes = Vec::new();
-    collect_sass_include_facts_from_rule_tokens(tokens, &mut includes);
     includes
 }
 
@@ -360,13 +333,6 @@ pub enum ParsedSassModuleEdgeFactKind {
     Import,
 }
 
-#[cfg(feature = "internal-oracle")]
-pub(crate) fn collect_sass_module_edge_facts_from_tokens(
-    tokens: &[Token<'_>],
-) -> Vec<ParsedSassModuleEdgeFact> {
-    sass_module_edge_facts_from_token_view(tokens)
-}
-
 pub(crate) fn collect_sass_module_edge_facts_from_cst(
     text: &str,
     parsed: &ParseResult,
@@ -376,14 +342,6 @@ pub(crate) fn collect_sass_module_edge_facts_from_cst(
     for tokens in sass_module_rule_tokens_from_cst(text, parsed) {
         collect_sass_module_edge_facts_from_rule_tokens(&tokens, &mut edges, &mut seen);
     }
-    edges
-}
-
-#[cfg(feature = "internal-oracle")]
-fn sass_module_edge_facts_from_token_view(tokens: &[Token<'_>]) -> Vec<ParsedSassModuleEdgeFact> {
-    let mut edges = Vec::new();
-    let mut seen = BTreeSet::new();
-    collect_sass_module_edge_facts_from_rule_tokens(tokens, &mut edges, &mut seen);
     edges
 }
 
@@ -634,13 +592,6 @@ pub enum ParsedExtendTargetFactKind {
 /// `@extend` targets, so the first-simple capture is sufficient for missing-target
 /// checks without over-reporting. Interpolated targets produce no simple token
 /// here and are skipped because they are not statically checkable.
-#[cfg(feature = "internal-oracle")]
-pub(crate) fn collect_extend_target_facts_from_tokens(
-    tokens: &[Token<'_>],
-) -> Vec<ParsedExtendTargetFact> {
-    extend_target_facts_from_token_view(tokens)
-}
-
 pub(crate) fn collect_extend_target_facts_from_cst(
     text: &str,
     parsed: &ParseResult,
@@ -649,13 +600,6 @@ pub(crate) fn collect_extend_target_facts_from_cst(
     for tokens in scss_extend_rule_tokens_from_cst(text, parsed) {
         collect_extend_target_facts_from_rule_tokens(&tokens, &mut targets);
     }
-    targets
-}
-
-#[cfg(feature = "internal-oracle")]
-fn extend_target_facts_from_token_view(tokens: &[Token<'_>]) -> Vec<ParsedExtendTargetFact> {
-    let mut targets = Vec::new();
-    collect_extend_target_facts_from_rule_tokens(tokens, &mut targets);
     targets
 }
 

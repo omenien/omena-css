@@ -15,9 +15,6 @@ use crate::{
 
 use super::tokens_from_syntax_node;
 
-#[cfg(feature = "internal-oracle")]
-use crate::{find_block_after_header, matching_right_brace, skip_statement, style_wrapper_at_rule};
-
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ParsedCssModuleValueFact {
     pub kind: ParsedCssModuleValueFactKind,
@@ -32,89 +29,11 @@ pub enum ParsedCssModuleValueFactKind {
     ImportSource,
 }
 
-#[cfg(feature = "internal-oracle")]
-pub(crate) fn collect_css_module_value_facts_from_tokens(
-    tokens: &[Token<'_>],
-) -> Vec<ParsedCssModuleValueFact> {
-    css_module_value_facts_from_token_view(tokens)
-}
-
 pub(crate) fn collect_css_module_value_facts_from_cst(
     text: &str,
     parsed: &ParseResult,
 ) -> Vec<ParsedCssModuleValueFact> {
     css_module_value_facts_from_cst_nodes(text, parsed)
-}
-
-#[cfg(feature = "internal-oracle")]
-fn css_module_value_facts_from_token_view(tokens: &[Token<'_>]) -> Vec<ParsedCssModuleValueFact> {
-    let mut values = Vec::new();
-    let mut seen = BTreeSet::new();
-    let value_path_aliases = collect_css_module_value_path_aliases_from_tokens(tokens);
-    for (index, token) in tokens.iter().enumerate() {
-        if token.kind != SyntaxKind::AtKeyword || !token.text.eq_ignore_ascii_case("@value") {
-            continue;
-        }
-
-        let start = skip_trivia_tokens(tokens, index + 1, tokens.len());
-        let end = css_module_value_statement_end(tokens, start);
-        let colon_index = top_level_token_kind_index(tokens, start, end, SyntaxKind::Colon);
-        let from_index = top_level_token_text_index(tokens, start, end, "from");
-
-        if let Some(from_index) = from_index
-            && match colon_index {
-                Some(colon_index) => from_index < colon_index,
-                None => true,
-            }
-        {
-            collect_css_module_value_import_facts(
-                tokens,
-                start,
-                from_index,
-                end,
-                &value_path_aliases,
-                &mut values,
-                &mut seen,
-            );
-            continue;
-        }
-
-        if let Some(colon_index) = colon_index {
-            if css_module_value_path_alias_from_tokens(tokens, start, colon_index, end).is_some() {
-                continue;
-            }
-            collect_css_module_value_definition_facts(
-                tokens,
-                start,
-                colon_index,
-                &mut values,
-                &mut seen,
-            );
-            collect_css_module_value_reference_facts(
-                tokens,
-                colon_index + 1,
-                end,
-                &mut values,
-                &mut seen,
-            );
-        } else {
-            collect_css_module_value_definition_facts(tokens, start, end, &mut values, &mut seen);
-        }
-    }
-    let local_value_names = values
-        .iter()
-        .filter(|value| value.kind == ParsedCssModuleValueFactKind::Definition)
-        .map(|value| value.name.clone())
-        .collect::<BTreeSet<_>>();
-    collect_css_module_value_declaration_reference_facts(
-        tokens,
-        0,
-        tokens.len(),
-        &local_value_names,
-        &mut values,
-        &mut seen,
-    );
-    values
 }
 
 fn css_module_value_facts_from_cst_nodes(
@@ -192,34 +111,6 @@ fn collect_css_module_value_statement_facts(
     } else {
         collect_css_module_value_definition_facts(tokens, start, end, values, seen);
     }
-}
-
-#[cfg(feature = "internal-oracle")]
-fn collect_css_module_value_path_aliases_from_tokens(
-    tokens: &[Token<'_>],
-) -> BTreeMap<String, String> {
-    let mut aliases = BTreeMap::new();
-    for (index, token) in tokens.iter().enumerate() {
-        if token.kind != SyntaxKind::AtKeyword || !token.text.eq_ignore_ascii_case("@value") {
-            continue;
-        }
-
-        let start = skip_trivia_tokens(tokens, index + 1, tokens.len());
-        let end = css_module_value_statement_end(tokens, start);
-        let Some(colon_index) = top_level_token_kind_index(tokens, start, end, SyntaxKind::Colon)
-        else {
-            continue;
-        };
-        if top_level_token_text_index(tokens, start, end, "from").is_some() {
-            continue;
-        }
-        if let Some((name, target)) =
-            css_module_value_path_alias_from_tokens(tokens, start, colon_index, end)
-        {
-            aliases.insert(name, target);
-        }
-    }
-    aliases
 }
 
 fn collect_css_module_value_path_aliases_from_cst_nodes(
@@ -340,50 +231,11 @@ pub struct ParsedCssModuleValueImportEdgeFact {
     pub range: TextRange,
 }
 
-#[cfg(feature = "internal-oracle")]
-pub(crate) fn collect_css_module_value_import_edge_facts_from_tokens(
-    tokens: &[Token<'_>],
-) -> Vec<ParsedCssModuleValueImportEdgeFact> {
-    css_module_value_import_edge_facts_from_token_view(tokens)
-}
-
 pub(crate) fn collect_css_module_value_import_edge_facts_from_cst(
     text: &str,
     parsed: &ParseResult,
 ) -> Vec<ParsedCssModuleValueImportEdgeFact> {
     css_module_value_import_edge_facts_from_cst_nodes(text, parsed)
-}
-
-#[cfg(feature = "internal-oracle")]
-fn css_module_value_import_edge_facts_from_token_view(
-    tokens: &[Token<'_>],
-) -> Vec<ParsedCssModuleValueImportEdgeFact> {
-    let mut edges = Vec::new();
-    let value_path_aliases = collect_css_module_value_path_aliases_from_tokens(tokens);
-    for (index, token) in tokens.iter().enumerate() {
-        if token.kind != SyntaxKind::AtKeyword || !token.text.eq_ignore_ascii_case("@value") {
-            continue;
-        }
-
-        let start = skip_trivia_tokens(tokens, index + 1, tokens.len());
-        let end = css_module_value_statement_end(tokens, start);
-        let colon_index = top_level_token_kind_index(tokens, start, end, SyntaxKind::Colon);
-        let from_index = top_level_token_text_index(tokens, start, end, "from");
-        let Some(from_index) = from_index else {
-            continue;
-        };
-        if colon_index.is_some_and(|colon_index| from_index > colon_index) {
-            continue;
-        }
-        let Some((import_source, _source_range)) =
-            css_module_value_import_edge_source(tokens, from_index + 1, end, &value_path_aliases)
-        else {
-            continue;
-        };
-
-        collect_css_module_value_import_edges(tokens, start, from_index, import_source, &mut edges);
-    }
-    edges
 }
 
 fn css_module_value_import_edge_facts_from_cst_nodes(
@@ -439,71 +291,11 @@ pub struct ParsedCssModuleValueDefinitionEdgeFact {
     pub range: TextRange,
 }
 
-#[cfg(feature = "internal-oracle")]
-pub(crate) fn collect_css_module_value_definition_edge_facts_from_tokens(
-    tokens: &[Token<'_>],
-) -> Vec<ParsedCssModuleValueDefinitionEdgeFact> {
-    css_module_value_definition_edge_facts_from_token_view(tokens)
-}
-
 pub(crate) fn collect_css_module_value_definition_edge_facts_from_cst(
     text: &str,
     parsed: &ParseResult,
 ) -> Vec<ParsedCssModuleValueDefinitionEdgeFact> {
     css_module_value_definition_edge_facts_from_cst_nodes(text, parsed)
-}
-
-#[cfg(feature = "internal-oracle")]
-fn css_module_value_definition_edge_facts_from_token_view(
-    tokens: &[Token<'_>],
-) -> Vec<ParsedCssModuleValueDefinitionEdgeFact> {
-    let mut edges = Vec::new();
-    for (index, token) in tokens.iter().enumerate() {
-        if token.kind != SyntaxKind::AtKeyword || !token.text.eq_ignore_ascii_case("@value") {
-            continue;
-        }
-
-        let start = skip_trivia_tokens(tokens, index + 1, tokens.len());
-        let end = css_module_value_statement_end(tokens, start);
-        let colon_index = top_level_token_kind_index(tokens, start, end, SyntaxKind::Colon);
-        let from_index = top_level_token_text_index(tokens, start, end, "from");
-        let Some(colon_index) = colon_index else {
-            continue;
-        };
-        if from_index.is_some_and(|from_index| from_index < colon_index) {
-            continue;
-        }
-
-        let definition_names = collect_css_module_value_definition_edge_names(
-            tokens,
-            start,
-            colon_index,
-            |tokens, index| css_module_value_name_token_can_define(tokens[index]),
-        );
-        let reference_names = collect_css_module_value_definition_edge_names(
-            tokens,
-            colon_index + 1,
-            end,
-            css_module_value_reference_token_can_be_name,
-        );
-        if reference_names.is_empty() {
-            continue;
-        }
-        let range_end = end
-            .checked_sub(1)
-            .and_then(|end| tokens.get(end))
-            .map(|token| token.range.end())
-            .unwrap_or_else(|| tokens[index].range.end());
-
-        for definition_name in definition_names {
-            edges.push(ParsedCssModuleValueDefinitionEdgeFact {
-                definition_name,
-                reference_names: reference_names.clone(),
-                range: TextRange::new(tokens[index].range.start(), range_end),
-            });
-        }
-    }
-    edges
 }
 
 fn css_module_value_definition_edge_facts_from_cst_nodes(
@@ -790,82 +582,6 @@ fn collect_css_module_value_reference_facts(
     }
 }
 
-#[cfg(feature = "internal-oracle")]
-fn collect_css_module_value_declaration_reference_facts(
-    tokens: &[Token<'_>],
-    start: usize,
-    end: usize,
-    local_value_names: &BTreeSet<String>,
-    values: &mut Vec<ParsedCssModuleValueFact>,
-    seen: &mut BTreeSet<(ParsedCssModuleValueFactKind, String, u32, u32)>,
-) {
-    if local_value_names.is_empty() {
-        return;
-    }
-
-    let mut index = start;
-    while index < end {
-        index = skip_trivia_tokens(tokens, index, end);
-        if index >= end {
-            break;
-        }
-
-        if tokens[index].kind == SyntaxKind::AtKeyword {
-            let block = find_block_after_header(tokens, index, end);
-            if let Some((open, close)) = block {
-                if style_wrapper_at_rule(tokens[index].text) {
-                    collect_css_module_value_declaration_reference_facts(
-                        tokens,
-                        open + 1,
-                        close,
-                        local_value_names,
-                        values,
-                        seen,
-                    );
-                }
-                index = close + 1;
-            } else {
-                index = skip_statement(tokens, index, end);
-            }
-            continue;
-        }
-
-        let statement_end = css_module_value_statement_end(tokens, index);
-        if statement_end < end && tokens[statement_end].kind == SyntaxKind::LeftBrace {
-            if let Some(close) = matching_right_brace(tokens, statement_end, end) {
-                collect_css_module_value_declaration_reference_facts(
-                    tokens,
-                    statement_end + 1,
-                    close,
-                    local_value_names,
-                    values,
-                    seen,
-                );
-                index = close + 1;
-            } else {
-                index = statement_end + 1;
-            }
-            continue;
-        }
-
-        if let Some(colon_index) = declaration_colon_index(tokens, index, statement_end.min(end)) {
-            collect_known_css_module_value_reference_facts(
-                tokens,
-                colon_index + 1,
-                statement_end.min(end),
-                local_value_names,
-                values,
-                seen,
-            );
-        }
-
-        if statement_end >= end || tokens[statement_end].kind == SyntaxKind::RightBrace {
-            break;
-        }
-        index = statement_end + 1;
-    }
-}
-
 fn collect_css_module_value_declaration_reference_facts_from_declaration_tokens(
     tokens: &[Token<'_>],
     local_value_names: &BTreeSet<String>,
@@ -1068,54 +784,11 @@ pub enum ParsedCssModuleComposesEdgeKind {
     External,
 }
 
-#[cfg(feature = "internal-oracle")]
-pub(crate) fn collect_css_module_composes_facts_from_tokens(
-    tokens: &[Token<'_>],
-) -> Vec<ParsedCssModuleComposesFact> {
-    css_module_composes_facts_from_token_view(tokens)
-}
-
 pub(crate) fn collect_css_module_composes_facts_from_cst(
     text: &str,
     parsed: &ParseResult,
 ) -> Vec<ParsedCssModuleComposesFact> {
     css_module_composes_facts_from_cst_nodes(text, parsed)
-}
-
-#[cfg(feature = "internal-oracle")]
-fn css_module_composes_facts_from_token_view(
-    tokens: &[Token<'_>],
-) -> Vec<ParsedCssModuleComposesFact> {
-    let mut composes = Vec::new();
-    let mut seen = BTreeSet::new();
-    for (index, token) in tokens.iter().enumerate() {
-        if token.kind != SyntaxKind::Ident || !token.text.eq_ignore_ascii_case("composes") {
-            continue;
-        }
-        let Some(colon_index) = next_non_trivia_token_index_until(tokens, index + 1, tokens.len())
-        else {
-            continue;
-        };
-        if tokens[colon_index].kind != SyntaxKind::Colon {
-            continue;
-        }
-
-        let start = colon_index + 1;
-        let end = css_module_value_statement_end(tokens, start);
-        let from_index = top_level_token_text_index(tokens, start, end, "from");
-        let target_end = from_index.unwrap_or(end);
-        collect_css_module_composes_targets(tokens, start, target_end, &mut composes, &mut seen);
-        if let Some(from_index) = from_index {
-            collect_css_module_composes_import_source(
-                tokens,
-                from_index + 1,
-                end,
-                &mut composes,
-                &mut seen,
-            );
-        }
-    }
-    composes
 }
 
 fn css_module_composes_facts_from_cst_nodes(
@@ -1158,13 +831,6 @@ fn collect_css_module_composes_statement_facts(
     }
 }
 
-#[cfg(feature = "internal-oracle")]
-pub(crate) fn collect_css_module_composes_edge_facts_from_tokens(
-    tokens: &[Token<'_>],
-) -> Vec<ParsedCssModuleComposesEdgeFact> {
-    css_module_composes_edge_facts_from_token_view(tokens)
-}
-
 pub(crate) fn collect_css_module_composes_edge_facts_from_cst(
     text: &str,
     parsed: &ParseResult,
@@ -1188,15 +854,6 @@ pub(crate) fn collect_css_module_composes_edge_facts_from_cst(
             &mut edges,
         );
     }
-    edges
-}
-
-#[cfg(feature = "internal-oracle")]
-fn css_module_composes_edge_facts_from_token_view(
-    tokens: &[Token<'_>],
-) -> Vec<ParsedCssModuleComposesEdgeFact> {
-    let mut edges = Vec::new();
-    collect_css_module_composes_edge_facts_in_range(tokens, 0, tokens.len(), &[], None, &mut edges);
     edges
 }
 
@@ -1254,109 +911,6 @@ fn first_block_open_token_index(tokens: &[Token<'_>]) -> Option<usize> {
     tokens
         .iter()
         .position(|token| matches!(token.kind, SyntaxKind::LeftBrace | SyntaxKind::SassIndent))
-}
-
-#[cfg(feature = "internal-oracle")]
-fn collect_css_module_composes_edge_facts_in_range(
-    tokens: &[Token<'_>],
-    start: usize,
-    end: usize,
-    parent_branches: &[SelectorBranch],
-    css_module_scope: Option<&'static str>,
-    edges: &mut Vec<ParsedCssModuleComposesEdgeFact>,
-) {
-    let mut index = start;
-    while index < end {
-        index = skip_trivia_tokens(tokens, index, end);
-        if index >= end {
-            break;
-        }
-
-        if tokens[index].kind == SyntaxKind::AtKeyword {
-            let block = find_block_after_header(tokens, index, end);
-            if let Some((open, close)) = block {
-                if tokens[index].text == "@nest" {
-                    if css_module_scope == Some("global") {
-                        collect_css_module_composes_edge_facts_in_range(
-                            tokens,
-                            open + 1,
-                            close,
-                            &[],
-                            css_module_scope,
-                            edges,
-                        );
-                    } else {
-                        let branches =
-                            resolve_selector_header(tokens, index + 1, open, parent_branches);
-                        collect_immediate_css_module_composes_edge_facts(
-                            tokens,
-                            open + 1,
-                            close,
-                            &branches,
-                            edges,
-                        );
-                        collect_css_module_composes_edge_facts_in_range(
-                            tokens,
-                            open + 1,
-                            close,
-                            &branches,
-                            css_module_scope,
-                            edges,
-                        );
-                    }
-                } else if style_wrapper_at_rule(tokens[index].text) {
-                    collect_css_module_composes_edge_facts_in_range(
-                        tokens,
-                        open + 1,
-                        close,
-                        parent_branches,
-                        css_module_scope,
-                        edges,
-                    );
-                }
-                index = close + 1;
-            } else {
-                index = skip_statement(tokens, index, end);
-            }
-            continue;
-        }
-
-        let Some((open, close)) = find_block_after_header(tokens, index, end) else {
-            index = skip_statement(tokens, index, end);
-            continue;
-        };
-
-        let effective_scope = css_module_scope
-            .or_else(|| css_module_block_scope_marker_in_header(tokens, index, open));
-        if effective_scope == Some("global") {
-            collect_css_module_composes_edge_facts_in_range(
-                tokens,
-                open + 1,
-                close,
-                &[],
-                effective_scope,
-                edges,
-            );
-        } else {
-            let branches = resolve_selector_header(tokens, index, open, parent_branches);
-            collect_immediate_css_module_composes_edge_facts(
-                tokens,
-                open + 1,
-                close,
-                &branches,
-                edges,
-            );
-            collect_css_module_composes_edge_facts_in_range(
-                tokens,
-                open + 1,
-                close,
-                &branches,
-                effective_scope,
-                edges,
-            );
-        }
-        index = close + 1;
-    }
 }
 
 fn collect_immediate_css_module_composes_edge_facts(

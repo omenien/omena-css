@@ -24,13 +24,6 @@ pub enum ParsedAnimationFactKind {
     AnimationNameReference,
 }
 
-#[cfg(feature = "internal-oracle")]
-pub(crate) fn collect_animation_facts_from_tokens(
-    tokens: &[Token<'_>],
-) -> Vec<ParsedAnimationFact> {
-    animation_facts_from_token_view(tokens)
-}
-
 pub(crate) fn collect_animation_facts_from_cst(
     text: &str,
     parsed: &ParseResult,
@@ -40,14 +33,6 @@ pub(crate) fn collect_animation_facts_from_cst(
     for tokens in animation_fact_tokens_from_cst(text, parsed) {
         collect_animation_facts_from_syntax_tokens(&tokens, &mut animations, &mut seen);
     }
-    animations
-}
-
-#[cfg(feature = "internal-oracle")]
-fn animation_facts_from_token_view(tokens: &[Token<'_>]) -> Vec<ParsedAnimationFact> {
-    let mut animations = Vec::new();
-    let mut seen = BTreeSet::new();
-    collect_animation_facts_from_syntax_tokens(tokens, &mut animations, &mut seen);
     animations
 }
 

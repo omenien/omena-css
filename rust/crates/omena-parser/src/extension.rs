@@ -53,6 +53,12 @@ pub(crate) enum AtRuleBlockKind {
 
 pub(crate) fn at_rule_spec(text: &str) -> Option<AtRuleSpec> {
     let lowered = text.to_ascii_lowercase();
+    if at_rule_is_vendor_prefixed_keyframes(&lowered) {
+        return Some(AtRuleSpec {
+            node_kind: SyntaxKind::KeyframesRule,
+            block_kind: AtRuleBlockKind::Keyframes,
+        });
+    }
     let (node_kind, block_kind) = match lowered.as_str() {
         "@media" => (SyntaxKind::MediaRule, AtRuleBlockKind::GroupRuleList),
         "@supports" => (SyntaxKind::SupportsRule, AtRuleBlockKind::GroupRuleList),
@@ -136,6 +142,16 @@ pub(crate) fn at_rule_spec(text: &str) -> Option<AtRuleSpec> {
         node_kind,
         block_kind,
     })
+}
+
+fn at_rule_is_vendor_prefixed_keyframes(text: &str) -> bool {
+    let Some(rest) = text.strip_prefix("@-") else {
+        return false;
+    };
+    let Some((vendor, rule)) = rest.split_once('-') else {
+        return false;
+    };
+    !vendor.is_empty() && rule == "keyframes"
 }
 
 pub(crate) fn scss_at_rule_spec(text: &str) -> Option<AtRuleSpec> {

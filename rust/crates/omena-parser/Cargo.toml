@@ -15,9 +15,6 @@ role = "R1"
 [lints]
 workspace = true
 
-[features]
-internal-oracle = []
-
 [dependencies]
 cstree.workspace = true
 omena-interner = { path = "../omena-interner", version = "=0.2.1" }

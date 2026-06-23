@@ -45,25 +45,12 @@ pub struct ParsedIcssExportEdgeFact {
     pub range: TextRange,
 }
 
-#[cfg(feature = "internal-oracle")]
-pub(crate) fn collect_icss_facts_from_tokens(tokens: &[Token<'_>]) -> Vec<ParsedIcssFact> {
-    icss_facts_from_token_view(tokens)
-}
-
 pub(crate) fn collect_icss_facts_from_cst(text: &str, parsed: &ParseResult) -> Vec<ParsedIcssFact> {
     let mut icss = Vec::new();
     let mut seen = BTreeSet::new();
     for tokens in icss_block_tokens_from_cst(text, parsed) {
         collect_icss_facts_from_block_tokens(&tokens, &mut icss, &mut seen);
     }
-    icss
-}
-
-#[cfg(feature = "internal-oracle")]
-fn icss_facts_from_token_view(tokens: &[Token<'_>]) -> Vec<ParsedIcssFact> {
-    let mut icss = Vec::new();
-    let mut seen = BTreeSet::new();
-    collect_icss_facts_from_block_tokens(tokens, &mut icss, &mut seen);
     icss
 }
 
@@ -103,13 +90,6 @@ fn collect_icss_facts_from_block_tokens(
     }
 }
 
-#[cfg(feature = "internal-oracle")]
-pub(crate) fn collect_icss_import_edge_facts_from_tokens(
-    tokens: &[Token<'_>],
-) -> Vec<ParsedIcssImportEdgeFact> {
-    icss_import_edge_facts_from_token_view(tokens)
-}
-
 pub(crate) fn collect_icss_import_edge_facts_from_cst(
     text: &str,
     parsed: &ParseResult,
@@ -118,13 +98,6 @@ pub(crate) fn collect_icss_import_edge_facts_from_cst(
     for tokens in icss_block_tokens_from_cst(text, parsed) {
         collect_icss_import_edge_facts_from_block_tokens(&tokens, &mut edges);
     }
-    edges
-}
-
-#[cfg(feature = "internal-oracle")]
-fn icss_import_edge_facts_from_token_view(tokens: &[Token<'_>]) -> Vec<ParsedIcssImportEdgeFact> {
-    let mut edges = Vec::new();
-    collect_icss_import_edge_facts_from_block_tokens(tokens, &mut edges);
     edges
 }
 
@@ -154,13 +127,6 @@ fn collect_icss_import_edge_facts_from_block_tokens(
     }
 }
 
-#[cfg(feature = "internal-oracle")]
-pub(crate) fn collect_icss_export_edge_facts_from_tokens(
-    tokens: &[Token<'_>],
-) -> Vec<ParsedIcssExportEdgeFact> {
-    icss_export_edge_facts_from_token_view(tokens)
-}
-
 pub(crate) fn collect_icss_export_edge_facts_from_cst(
     text: &str,
     parsed: &ParseResult,
@@ -169,13 +135,6 @@ pub(crate) fn collect_icss_export_edge_facts_from_cst(
     for tokens in icss_block_tokens_from_cst(text, parsed) {
         collect_icss_export_edge_facts_from_block_tokens(&tokens, &mut edges);
     }
-    edges
-}
-
-#[cfg(feature = "internal-oracle")]
-fn icss_export_edge_facts_from_token_view(tokens: &[Token<'_>]) -> Vec<ParsedIcssExportEdgeFact> {
-    let mut edges = Vec::new();
-    collect_icss_export_edge_facts_from_block_tokens(tokens, &mut edges);
     edges
 }
 

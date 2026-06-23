@@ -38,11 +38,6 @@ pub(crate) struct SelectorBranch {
     pub(crate) bare_suffix_base: bool,
 }
 
-#[cfg(feature = "internal-oracle")]
-pub(crate) fn collect_selector_facts_from_tokens(tokens: &[Token<'_>]) -> Vec<ParsedSelectorFact> {
-    selector_facts_from_token_view(tokens)
-}
-
 pub(crate) fn collect_selector_facts_from_cst(
     text: &str,
     parsed: &ParseResult,
@@ -60,22 +55,6 @@ pub(crate) fn collect_selector_facts_from_cst(
             &mut selectors,
         );
     }
-    selectors
-}
-
-#[cfg(feature = "internal-oracle")]
-fn selector_facts_from_token_view(tokens: &[Token<'_>]) -> Vec<ParsedSelectorFact> {
-    let mut selectors = Vec::new();
-    let mut seen = BTreeSet::new();
-    collect_selector_facts_in_range(
-        tokens,
-        0,
-        tokens.len(),
-        &[],
-        None,
-        &mut seen,
-        &mut selectors,
-    );
     selectors
 }
 
