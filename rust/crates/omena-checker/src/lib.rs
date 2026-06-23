@@ -7,6 +7,10 @@ use omena_abstract_value::{
     standard_property_syntax_match,
 };
 use omena_cascade::{GrnBooleanState, GrnVertexStateV0, GrnVertexV0, project_grn_outcome};
+#[cfg(not(feature = "smt-z3"))]
+use omena_cascade_proof::{
+    SmtBackendKindV0, SmtBackendSatResultV0, SmtBackendV0, StubSmtBackendV0, canonical_smt_input_v0,
+};
 pub use omena_categorical::CategoricalCascadeEvidenceV0;
 use omena_categorical::{CascadeFunctorApplicationV0, apply_cascade_role_mapping_functor_v0};
 pub use omena_rg_flow::{
@@ -14,14 +18,12 @@ pub use omena_rg_flow::{
     RG_FLOW_PRODUCT_SURFACE_V0,
 };
 use omena_rg_flow::{coupling_space, estimate_coupling_jacobian_spectrum_v0};
-#[cfg(not(feature = "smt-z3"))]
-use omena_smt::StubSmtBackendV0;
 #[cfg(feature = "smt-z3")]
 use omena_smt::Z3SmtBackendV0;
-use omena_smt::{SmtBackendKindV0, SmtBackendSatResultV0, SmtBackendV0, canonical_smt_input_v0};
 #[cfg(feature = "smt-z3")]
 use omena_smt::{
-    SmtVerdictV0, layer_inversion_declaration_v0, smt_check_layer_flatten_inversion_v0,
+    SmtBackendKindV0, SmtBackendSatResultV0, SmtBackendV0, SmtVerdictV0, canonical_smt_input_v0,
+    layer_inversion_declaration_v0, smt_check_layer_flatten_inversion_v0,
 };
 use omena_variational::{
     PatternIntentV0, designer_intent_posterior_input_v0, dominant_designer_intent_v0,

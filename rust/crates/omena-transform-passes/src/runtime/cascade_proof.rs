@@ -5,14 +5,17 @@ use omena_cascade::{
     ScopeFlattenProofV0, ShorthandCombinationProofV0, StaticSupportsEvalVerdictV0,
     StaticSupportsEvalWitnessV0,
 };
-use omena_parser::StyleDialect;
-use omena_smt::{
+#[cfg(not(feature = "smt-z3"))]
+use omena_cascade_proof::smt_check_layer_flatten_inversion_v0;
+use omena_cascade_proof::{
     CanonicalSmtInputV0, LayerFlattenInversionVerdictV0, LayerInversionDeclarationV0,
     SmtBackendSatResultV0, SmtBackendV0, SmtVerdictV0, StubSmtBackendV0, canonical_smt_input_v0,
-    smt_check_layer_flatten_inversion_v0, smt_evaluate_static_supports_condition_v0,
-    smt_prove_layer_flatten_candidate_v0, smt_prove_longhand_merge_v0,
-    smt_prove_scope_flatten_candidate_v0,
+    smt_evaluate_static_supports_condition_v0, smt_prove_layer_flatten_candidate_v0,
+    smt_prove_longhand_merge_v0, smt_prove_scope_flatten_candidate_v0,
 };
+#[cfg(feature = "smt-z3")]
+use omena_cascade_proof::{SmtBackendKindV0, canonical_layer_flatten_inversion_input_v0};
+use omena_parser::StyleDialect;
 use omena_transform_cst::TransformPassKind;
 use serde::Serialize;
 use serde_json::{Value, json};
@@ -383,7 +386,42 @@ fn layer_inversion_obligation(
 fn check_layer_flatten_inversion(
     declarations: &[LayerInversionDeclarationV0],
 ) -> LayerFlattenInversionVerdictV0 {
-    smt_check_layer_flatten_inversion_v0(declarations, &omena_smt::Z3SmtBackendV0::default())
+    let smt_declarations = declarations
+        .iter()
+        .map(|declaration| {
+            omena_smt::layer_inversion_declaration_v0(
+                declaration.declaration_id.clone(),
+                declaration.layer_rank,
+                declaration.source_order,
+            )
+        })
+        .collect::<Vec<_>>();
+    let verdict = omena_smt::smt_check_layer_flatten_inversion_v0(
+        &smt_declarations,
+        &omena_smt::Z3SmtBackendV0::default(),
+    );
+    LayerFlattenInversionVerdictV0 {
+        schema_version: verdict.schema_version,
+        product: verdict.product,
+        layer_marker: verdict.layer_marker,
+        feature_gate: verdict.feature_gate,
+        backend: match verdict.backend {
+            omena_smt::SmtBackendKindV0::Stub => SmtBackendKindV0::Stub,
+            omena_smt::SmtBackendKindV0::Z3 => SmtBackendKindV0::Z3,
+        },
+        inversion_exists: verdict.inversion_exists,
+        verdict: match verdict.verdict {
+            omena_smt::SmtVerdictV0::Accepted => SmtVerdictV0::Accepted,
+            omena_smt::SmtVerdictV0::Rejected => SmtVerdictV0::Rejected,
+            omena_smt::SmtVerdictV0::Unknown => SmtVerdictV0::Unknown,
+        },
+        canonical_input: canonical_layer_flatten_inversion_input_v0(declarations),
+        sat_result: match verdict.sat_result {
+            omena_smt::SmtBackendSatResultV0::Sat => SmtBackendSatResultV0::Sat,
+            omena_smt::SmtBackendSatResultV0::Unsat => SmtBackendSatResultV0::Unsat,
+            omena_smt::SmtBackendSatResultV0::Unknown => SmtBackendSatResultV0::Unknown,
+        },
+    }
 }
 
 #[cfg(not(feature = "smt-z3"))]

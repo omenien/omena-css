@@ -3,8 +3,8 @@ use omena_cascade::{
     SelectorMatchVerdict, prove_layer_flatten_candidate, prove_scope_flatten_candidate,
     selector_co_match_verdict,
 };
+use omena_cascade_proof::{LayerInversionDeclarationV0, layer_inversion_declaration_v0};
 use omena_parser::StyleDialect;
-use omena_smt::{LayerInversionDeclarationV0, layer_inversion_declaration_v0};
 use omena_syntax::SyntaxKind;
 
 use crate::runtime::lex_cache::lex_cached as lex;
@@ -334,7 +334,7 @@ struct CompetingLayerDeclarationV0 {
 /// declarations that genuinely compete — same property and selector co-match in
 /// more than one layer — are returned, because a flatten is unsafe exactly when
 /// the layered and flattened winners of a competition disagree. That ordering
-/// inversion is the search [`omena_smt::smt_check_layer_flatten_inversion_v0`]
+/// inversion is the search performed by the cascade proof boundary
 /// runs. The discriminating `(layer_rank, source_order)` pairs are read from the
 /// tokens, never fabricated from a literal inversion flag.
 pub(crate) fn collect_layer_inversion_declarations_with_lexer(

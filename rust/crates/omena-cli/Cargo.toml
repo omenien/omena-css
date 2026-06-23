@@ -20,7 +20,13 @@ workspace = true
 default = []
 mdl = []
 smt-z3 = ["omena-query/smt-z3"]
+variational-trace = ["dep:omena-variational"]
 zk-audit = ["dep:omena-zk-audit", "omena-zk-audit/zk-audit"]
+
+[[bin]]
+name = "trace"
+path = "src/bin/trace.rs"
+required-features = ["variational-trace"]
 
 [dependencies]
 clap.workspace = true
@@ -32,7 +38,7 @@ omena-query = { path = "../omena-query", version = "=0.2.1", features = [
 omena-streaming-ifds = { path = "../omena-streaming-ifds", version = "=0.2.1", features = [
   "streaming-ifds",
 ] }
-omena-variational = { path = "../omena-variational", version = "=0.2.1" }
+omena-variational = { path = "../omena-variational", version = "=0.2.1", optional = true }
 omena-zk-audit = { path = "../omena-zk-audit", version = "=0.2.1", optional = true }
 serde.workspace = true
 serde_json.workspace = true

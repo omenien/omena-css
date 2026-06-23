@@ -7,8 +7,8 @@
 //! bindings, CLI runners, and release gates.
 
 use omena_abstract_value::AbstractCssValueV0;
+use omena_cascade_proof::CanonicalSmtInputV0;
 use omena_incremental::{IncrementalComputationPlanV0, IncrementalSnapshotV0};
-use omena_smt::CanonicalSmtInputV0;
 use omena_transform_cst::{StableNodeKeyV0, TransformDagEdgeV0, TransformPassContractV0};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;

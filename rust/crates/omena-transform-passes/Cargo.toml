@@ -20,15 +20,16 @@ default = []
 lawvere-trace = ["dep:omena-lawvere"]
 # Discharge the cross-layer flatten inversion obligation with the z3 backend.
 # Default builds stay solver-free and conservatively block multi-layer flattens.
-smt-z3 = ["omena-smt/smt-z3"]
+smt-z3 = ["dep:omena-smt", "omena-smt/smt-z3"]
 
 [dependencies]
 cstree.workspace = true
 omena-abstract-value = { path = "../omena-abstract-value", version = "=0.2.1" }
 omena-cascade = { path = "../omena-cascade", version = "=0.2.1" }
+omena-cascade-proof = { path = "../omena-cascade-proof", version = "=0.2.1" }
 omena-incremental = { path = "../omena-incremental", version = "=0.2.1" }
 omena-lawvere = { path = "../omena-lawvere", version = "=0.2.1", optional = true }
-omena-smt = { path = "../omena-smt", version = "=0.2.1" }
+omena-smt = { path = "../omena-smt", version = "=0.2.1", optional = true }
 omena-scss-eval = { path = "../omena-scss-eval", version = "=0.2.1" }
 omena-transform-cst = { path = "../omena-transform-cst", version = "=0.2.1" }
 omena-value-lattice = { path = "../omena-value-lattice", version = "=0.2.1" }

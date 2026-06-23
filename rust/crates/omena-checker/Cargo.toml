@@ -17,14 +17,15 @@ workspace = true
 
 [features]
 default = []
-smt-z3 = ["omena-smt/smt-z3"]
+smt-z3 = ["dep:omena-smt", "omena-smt/smt-z3"]
 
 [dependencies]
 omena-abstract-value = { path = "../omena-abstract-value", version = "=0.2.1" }
 omena-cascade = { path = "../omena-cascade", version = "=0.2.1" }
+omena-cascade-proof = { path = "../omena-cascade-proof", version = "=0.2.1" }
 omena-categorical = { path = "../omena-categorical", version = "=0.2.1" }
 omena-rg-flow = { path = "../omena-rg-flow", version = "=0.2.1" }
 omena-resolver = { path = "../omena-resolver", version = "=0.2.1" }
-omena-smt = { path = "../omena-smt", version = "=0.2.1" }
+omena-smt = { path = "../omena-smt", version = "=0.2.1", optional = true }
 omena-variational = { path = "../omena-variational", version = "=0.2.1" }
 serde.workspace = true

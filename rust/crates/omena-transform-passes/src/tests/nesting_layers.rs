@@ -2,8 +2,8 @@ use super::{
     TransformExecutionContextV0, execute_transform_passes_on_source,
     execute_transform_passes_on_source_with_dialect_and_context,
 };
+use omena_cascade_proof::{SmtBackendSatResultV0, SmtBackendV0, StubSmtBackendV0};
 use omena_parser::StyleDialect;
-use omena_smt::{SmtBackendSatResultV0, SmtBackendV0, StubSmtBackendV0};
 use omena_transform_cst::TransformPassKind;
 
 #[test]

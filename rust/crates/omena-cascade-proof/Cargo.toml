@@ -1,0 +1,25 @@
+[package]
+name = "omena-cascade-proof"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+description = "Product-owned cascade proof contracts for Omena CSS"
+repository = "https://github.com/omenien/omena-css"
+readme = "README.md"
+
+[package.metadata.omena]
+role = "R2"
+
+[lints]
+workspace = true
+
+[features]
+default = []
+
+[dependencies]
+blake3.workspace = true
+omena-cascade = { path = "../omena-cascade", version = "=0.2.1" }
+omena-refinement-trait = { path = "../omena-refinement-trait", version = "=0.2.1" }
+serde.workspace = true

@@ -2189,6 +2189,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "omena-cascade-proof"
+version = "0.2.1"
+dependencies = [
+ "blake3",
+ "omena-cascade",
+ "omena-refinement-trait",
+ "serde",
+]
+
+[[package]]
 name = "omena-categorical"
 version = "0.2.1"
 dependencies = [
@@ -2202,6 +2212,7 @@ version = "0.2.1"
 dependencies = [
  "omena-abstract-value",
  "omena-cascade",
+ "omena-cascade-proof",
  "omena-categorical",
  "omena-resolver",
  "omena-rg-flow",
@@ -2550,6 +2561,7 @@ dependencies = [
  "cstree",
  "omena-abstract-value",
  "omena-cascade",
+ "omena-cascade-proof",
  "omena-incremental",
  "omena-lawvere",
  "omena-parser",
