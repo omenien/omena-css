@@ -659,6 +659,7 @@ mod tests {
                 char_must: None,
                 char_may: None,
                 may_include_other_chars: None,
+                provenance: None,
             },
         });
 
@@ -881,6 +882,7 @@ mod tests {
                 char_must: Some("a".to_string()),
                 char_may: Some("-abceintv".to_string()),
                 may_include_other_chars: Some(false),
+                provenance: None,
             },
         }];
 
@@ -945,6 +947,7 @@ mod tests {
                 char_must: None,
                 char_may: None,
                 may_include_other_chars: None,
+                provenance: None,
             },
         }
     }

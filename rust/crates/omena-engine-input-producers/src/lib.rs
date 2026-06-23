@@ -56,6 +56,8 @@ pub use source_side::summarize_source_side_canonical_candidate_bundle_input;
 pub use source_side::summarize_source_side_canonical_producer_signal_input;
 pub use source_side::summarize_source_side_evaluator_candidates_input;
 pub use type_facts::summarize_type_fact_input;
+pub type StringTypeFactsV2 = engine_contract_v2_idl_generated::StringTypeFactsV2Json;
+pub type TypeFactEntryV2 = engine_contract_v2_idl_generated::TypeFactEntryV2Json;
 
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -135,29 +137,6 @@ pub struct StyleSelectorV2 {
     pub nested_safety: Option<String>,
     pub composes: Option<Vec<serde_json::Value>>,
     pub bem_suffix: Option<BemSuffixInfoV2>,
-}
-
-#[derive(Debug, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct TypeFactEntryV2 {
-    pub file_path: String,
-    pub expression_id: String,
-    pub facts: StringTypeFactsV2,
-}
-
-#[derive(Debug, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct StringTypeFactsV2 {
-    pub kind: String,
-    pub constraint_kind: Option<String>,
-    pub values: Option<Vec<String>>,
-    pub prefix: Option<String>,
-    pub suffix: Option<String>,
-    pub min_len: Option<usize>,
-    pub max_len: Option<usize>,
-    pub char_must: Option<String>,
-    pub char_may: Option<String>,
-    pub may_include_other_chars: Option<bool>,
 }
 
 #[derive(Debug, Serialize)]

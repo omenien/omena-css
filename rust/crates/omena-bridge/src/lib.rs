@@ -1076,6 +1076,7 @@ const lazy = import("./ignored.module.scss");
                     char_must: None,
                     char_may: None,
                     may_include_other_chars: None,
+                    provenance: None,
                 },
             }],
         }

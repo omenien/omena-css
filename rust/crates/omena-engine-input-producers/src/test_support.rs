@@ -136,6 +136,7 @@ pub fn sample_input() -> EngineInputV2 {
                     char_must: None,
                     char_may: None,
                     may_include_other_chars: None,
+                    provenance: None,
                 },
             },
             TypeFactEntryV2 {
@@ -152,6 +153,7 @@ pub fn sample_input() -> EngineInputV2 {
                     char_must: None,
                     char_may: None,
                     may_include_other_chars: None,
+                    provenance: None,
                 },
             },
         ],

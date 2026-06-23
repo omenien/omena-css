@@ -88,6 +88,7 @@ pub(super) fn sample_input() -> EngineInputV2 {
                     char_must: None,
                     char_may: None,
                     may_include_other_chars: None,
+                    provenance: None,
                 },
             },
             TypeFactEntryV2 {
@@ -104,6 +105,7 @@ pub(super) fn sample_input() -> EngineInputV2 {
                     char_must: None,
                     char_may: None,
                     may_include_other_chars: None,
+                    provenance: None,
                 },
             },
         ],
@@ -129,6 +131,7 @@ pub(super) fn reduced_product_iteration_input() -> EngineInputV2 {
                 char_must: Some("a".to_string()),
                 char_may: Some("-abceintv".to_string()),
                 may_include_other_chars: Some(false),
+                provenance: None,
             },
         }],
     }
@@ -188,6 +191,7 @@ pub(super) fn reduced_product_projection_input() -> EngineInputV2 {
                     char_must: None,
                     char_may: None,
                     may_include_other_chars: None,
+                    provenance: None,
                 },
             },
             TypeFactEntryV2 {
@@ -204,6 +208,7 @@ pub(super) fn reduced_product_projection_input() -> EngineInputV2 {
                     char_must: None,
                     char_may: None,
                     may_include_other_chars: None,
+                    provenance: None,
                 },
             },
         ],

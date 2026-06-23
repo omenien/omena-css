@@ -468,6 +468,7 @@ fn sample_input() -> EngineInputV2 {
                     char_must: None,
                     char_may: None,
                     may_include_other_chars: None,
+                    provenance: None,
                 },
             },
             TypeFactEntryV2 {
@@ -484,6 +485,7 @@ fn sample_input() -> EngineInputV2 {
                     char_must: None,
                     char_may: None,
                     may_include_other_chars: None,
+                    provenance: None,
                 },
             },
         ],

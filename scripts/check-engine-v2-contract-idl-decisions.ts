@@ -25,6 +25,8 @@ const hostOutputPath = "server/engine-host-node/src/engine-output-v2.ts";
 const engineQueryPath = "server/engine-host-node/src/engine-query-v2.ts";
 const codeActionQueryPath = "server/engine-host-node/src/code-action-query.ts";
 const rustInputPath = "rust/crates/omena-engine-input-producers/src/lib.rs";
+const generatedRustInputPath =
+  "rust/crates/omena-engine-input-producers/src/engine_contract_v2_idl_generated.rs";
 const shadowRunnerPath = "rust/crates/engine-shadow-runner/src/main.rs";
 
 const decisionDoc = read(decisionDocPath);
@@ -34,6 +36,7 @@ const hostOutput = read(hostOutputPath);
 const engineQuery = read(engineQueryPath);
 const codeActionQuery = read(codeActionQueryPath);
 const rustInput = read(rustInputPath);
+const generatedRustInput = read(generatedRustInputPath);
 const shadowRunner = read(shadowRunnerPath);
 
 for (const expected of [
@@ -60,9 +63,20 @@ assertIncludes(
 );
 
 assertIncludes(rustInputPath, rustInput, "pub struct EngineInputV2");
-assertIncludes(rustInputPath, rustInput, "pub struct TypeFactEntryV2");
-assertIncludes(rustInputPath, rustInput, "pub struct StringTypeFactsV2");
+assertIncludes(
+  rustInputPath,
+  rustInput,
+  "pub type TypeFactEntryV2 = engine_contract_v2_idl_generated::TypeFactEntryV2Json;",
+);
+assertIncludes(
+  rustInputPath,
+  rustInput,
+  "pub type StringTypeFactsV2 = engine_contract_v2_idl_generated::StringTypeFactsV2Json;",
+);
 assertIncludes(rustInputPath, rustInput, '#[serde(rename_all = "camelCase")]');
+assertIncludes(generatedRustInputPath, generatedRustInput, "pub struct TypeFactEntryV2Json");
+assertIncludes(generatedRustInputPath, generatedRustInput, "pub struct StringTypeFactsV2Json");
+assertIncludes(generatedRustInputPath, generatedRustInput, "pub provenance: Option<String>");
 
 assertIncludes(hostOutputPath, hostOutput, "export interface BuildEngineOutputV2Options");
 assertIncludes(hostOutputPath, hostOutput, "export function buildEngineOutputV2");
@@ -96,6 +110,7 @@ process.stdout.write(
         engineQueryPath,
         codeActionQueryPath,
         rustInputPath,
+        generatedRustInputPath,
         shadowRunnerPath,
       ],
     },

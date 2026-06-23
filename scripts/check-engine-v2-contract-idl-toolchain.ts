@@ -135,6 +135,11 @@ assert.ok(engineInputTypes.includes("provenance?: string"));
 assert.ok(!engineInputTypes.includes("[k: string]"));
 assert.ok(generatedRustContract.includes("CamelCaseOnly"));
 assert.ok(generatedRustContract.includes('#[serde(rename = "camelCaseOnly")]'));
+assert.ok(generatedRustContract.includes("pub kind: String,"));
+assert.ok(generatedRustContract.includes("pub constraint_kind: Option<String>,"));
+assert.ok(generatedRustContract.includes("pub min_len: Option<usize>,"));
+assert.ok(generatedRustContract.includes("pub max_len: Option<usize>,"));
+assert.ok(generatedRustContract.includes("pub provenance: Option<String>,"));
 
 assert.ok(engineOutputTypes.includes("export interface EngineOutputV2Json"));
 assert.ok(engineOutputTypes.includes("queryResults: QueryResultV2Json[]"));

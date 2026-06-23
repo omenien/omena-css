@@ -275,19 +275,19 @@ pub enum StringConstraintKindV2Json {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct StringTypeFactsV2Json {
-    pub kind: StringTypeFactKindV2Json,
+    pub kind: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub values: Option<Vec<String>>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub constraint_kind: Option<StringConstraintKindV2Json>,
+    pub constraint_kind: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub prefix: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub suffix: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub min_len: Option<i32>,
+    pub min_len: Option<usize>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub max_len: Option<i32>,
+    pub max_len: Option<usize>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub char_must: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
