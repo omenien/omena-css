@@ -147,10 +147,11 @@ The current prototype uses:
   round-trips for `workspace`, `provenance`, tagged query results, required
   `rewritePlans`, and code-action query JSON.
 
-The prototype command is `pnpm check:engine-v2-contract-idl-toolchain`. It does
-not replace the production drift gate yet. It proves the selected toolchain can
-represent the required wire decisions without manual patches before the generated
-files are wired into product code.
+The prototype command is `pnpm check:engine-v2-contract-idl-toolchain`. The
+production drift gate is `pnpm check:engine-v2-contract-idl-generated`; it
+regenerates the IDL-owned files and then runs `git diff --exit-code` over the
+generated TypeScript and Rust surfaces. The prototype remains as the toolchain
+proof, while the drift gate owns stale generated file detection.
 
 The generator must preserve:
 

@@ -383,7 +383,7 @@
     "update:contract-parity-v1-golden": "node --import tsx ./scripts/update-contract-parity-v1-golden.ts",
     "check:engine-v2-contract-idl-decisions": "node --import tsx ./scripts/check-engine-v2-contract-idl-decisions.ts",
     "check:engine-v2-contract-idl-fixtures": "node --import tsx ./scripts/check-engine-v2-contract-idl-fixtures.ts",
-    "check:engine-v2-contract-idl-generated": "node --import tsx ./scripts/generate-engine-v2-contract-idl.ts --check",
+    "check:engine-v2-contract-idl-generated": "node --import tsx ./scripts/generate-engine-v2-contract-idl.ts --write && git diff --exit-code -- server/engine-core-ts/src/contracts/engine-v2-input-idl.generated.ts server/engine-core-ts/src/contracts/engine-v2-output-idl.generated.ts server/engine-host-node/src/engine-output-v2-idl.generated.ts server/engine-host-node/src/engine-query-v2-idl.generated.ts server/engine-host-node/src/code-action-query-idl.generated.ts rust/crates/omena-engine-input-producers/src/engine_contract_v2_idl_generated.rs",
     "check:engine-v2-contract-idl-rust-roundtrip": "cargo test --manifest-path rust/Cargo.toml -p omena-engine-input-producers engine_contract_v2_idl",
     "check:engine-v2-contract-idl-toolchain": "node --import tsx ./scripts/check-engine-v2-contract-idl-toolchain.ts",
     "check:engine-v2-contract-idl-ts-compat": "pnpm exec tsc -p scripts/tsconfig.engine-v2-contract-idl-ts-compat.json --pretty false",
