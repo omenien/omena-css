@@ -220,6 +220,10 @@ jobs:
         name: Run product-lab closure
         run: pnpm omena-check run rust/product-lab-closure
         continue-on-error: true
+      - id: product_lab_severance
+        name: Run product-lab severance
+        run: pnpm omena-check run rust/product-lab-severance
+        continue-on-error: true
       - id: cross_file_reachability
         name: Run cross-file reachability diagnostic
         run: pnpm omena-check run rust/cross-file-reachability-diagnostic
