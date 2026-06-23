@@ -820,7 +820,9 @@ mod tests {
         let diagnostics = value
             .get("diagnostics")
             .and_then(|value| value.as_array())
-            .expect("diagnostics must be serialized as an array");
+            .ok_or_else(|| {
+                napi::Error::from_reason("diagnostics must be serialized as an array")
+            })?;
         assert_eq!(
             value
                 .get("diagnosticCount")
