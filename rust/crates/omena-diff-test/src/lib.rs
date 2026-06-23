@@ -7,7 +7,14 @@
 
 use std::collections::BTreeSet;
 
+use engine_input_producers::{
+    EngineInputV2, StringTypeFactsV2, TypeFactControlFlowBlockV2, TypeFactControlFlowGraphV2,
+    TypeFactEntryV2, summarize_expression_domain_control_flow_analysis_input,
+};
 use engine_style_parser::{parse_style_module, summarize_css_modules_intermediate};
+use omena_abstract_value::{
+    AbstractClassValueV0, enumerate_finite_class_values, join_abstract_class_values,
+};
 use omena_cascade::{SelectorMatchVerdict, selector_context_witness};
 use omena_incremental::{
     IncrementalGraphInputV0, IncrementalNodeInputV0, IncrementalRevisionV0,
@@ -272,6 +279,35 @@ pub struct IncrementalIdentityReuseEquivalenceReportV0 {
     pub all_fields_match: bool,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SourceCfgRefinementFixtureReportV0 {
+    pub fixture_id: &'static str,
+    pub baseline_graph_id: String,
+    pub source_graph_ids: Vec<String>,
+    pub baseline_value_kind: &'static str,
+    pub source_value_kinds: Vec<&'static str>,
+    pub all_source_values_le_baseline: bool,
+    pub strict_refinement_count: usize,
+    pub all_source_values_covered_by_baseline: bool,
+    pub branch_block_observed: bool,
+    pub concat_transfer_observed: bool,
+    pub file_merge_absent_from_source_cfg: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SourceCfgRefinementOracleReportV0 {
+    pub schema_version: &'static str,
+    pub product: &'static str,
+    pub fixture_count: usize,
+    pub strict_refinement_witness_count: usize,
+    pub all_source_values_le_baseline: bool,
+    pub all_source_values_covered_by_baseline: bool,
+    pub all_shape_witnesses_present: bool,
+    pub reports: Vec<SourceCfgRefinementFixtureReportV0>,
+}
+
 /// Boundary summary for the omena-css differential harness.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -328,6 +364,16 @@ pub struct OmenaDiffTestBoundarySummary {
     pub selector_context_soundness_fixture_count: usize,
     /// Whether selector-context verdicts match the soundness corpus.
     pub all_selector_context_soundness_fixtures_match: bool,
+    /// Source-CFG-vs-file-merge refinement fixture count.
+    pub source_cfg_refinement_fixture_count: usize,
+    /// Whether every source-CFG fixture is equal-or-more precise than baseline.
+    pub all_source_cfg_values_le_file_merge_baseline: bool,
+    /// Strict source-CFG refinement witnesses.
+    pub source_cfg_strict_refinement_witness_count: usize,
+    /// Whether source-CFG values remain covered by the baseline value set.
+    pub all_source_cfg_values_covered_by_file_merge_baseline: bool,
+    /// Whether source-CFG shape witnesses include branch and concat transfers.
+    pub all_source_cfg_shape_witnesses_present: bool,
     /// Cache-equivalence oracle corpus size (RFC 0009 §0).
     pub cache_equivalence_file_count: usize,
     /// Whether the cached-vs-from-scratch equivalence gate holds.
@@ -354,6 +400,8 @@ pub struct OmenaDiffTestBoundarySummary {
     pub parser_cst_context_raw_scan_report: ParserCstContextRawScanDivergenceReportV0,
     /// Selector-context soundness corpus report.
     pub selector_context_soundness_report: SelectorContextSoundnessReportV0,
+    /// Source-CFG refinement oracle report.
+    pub source_cfg_refinement_report: SourceCfgRefinementOracleReportV0,
     /// Cached-vs-from-scratch diagnostic equivalence report (RFC 0009 §0).
     pub cache_equivalence_report: OmenaDiffCacheEquivalenceReportV0,
     /// Salsa-memo lifecycle equivalence report (RFC 0009 Pillar B).
@@ -1712,6 +1760,231 @@ pub fn summarize_incremental_identity_reuse_equivalence_v0()
     }
 }
 
+pub fn summarize_expression_domain_source_cfg_refinement_oracle_v0()
+-> SourceCfgRefinementOracleReportV0 {
+    let reports = vec![source_cfg_refinement_fixture_report(
+        "branchy-two-expression-file",
+    )];
+    let strict_refinement_witness_count = reports
+        .iter()
+        .map(|report| report.strict_refinement_count)
+        .sum();
+    let all_source_values_le_baseline = reports
+        .iter()
+        .all(|report| report.all_source_values_le_baseline);
+    let all_source_values_covered_by_baseline = reports
+        .iter()
+        .all(|report| report.all_source_values_covered_by_baseline);
+    let all_shape_witnesses_present = reports.iter().all(|report| {
+        report.branch_block_observed
+            && report.concat_transfer_observed
+            && report.file_merge_absent_from_source_cfg
+    });
+
+    SourceCfgRefinementOracleReportV0 {
+        schema_version: "0",
+        product: "omena-diff-test.expression-domain-source-cfg-refinement-oracle",
+        fixture_count: reports.len(),
+        strict_refinement_witness_count,
+        all_source_values_le_baseline,
+        all_source_values_covered_by_baseline,
+        all_shape_witnesses_present,
+        reports,
+    }
+}
+
+fn source_cfg_refinement_fixture_report(
+    fixture_id: &'static str,
+) -> SourceCfgRefinementFixtureReportV0 {
+    let baseline_summary = summarize_expression_domain_control_flow_analysis_input(
+        &source_cfg_refinement_input(false),
+    );
+    let source_summary =
+        summarize_expression_domain_control_flow_analysis_input(&source_cfg_refinement_input(true));
+    let baseline_analysis = baseline_summary.analyses.first();
+    let baseline_exit =
+        baseline_analysis.and_then(|entry| control_flow_exit_value(&entry.analysis, "merge"));
+    let baseline_value = baseline_exit.map(|exit| exit.value);
+    let baseline_value_set = baseline_value
+        .and_then(enumerate_finite_class_values)
+        .map(|values| values.into_iter().collect::<BTreeSet<_>>());
+    let source_exits = source_summary
+        .analyses
+        .iter()
+        .filter_map(|entry| control_flow_exit_value(&entry.analysis, "exit"))
+        .collect::<Vec<_>>();
+    let all_source_values_le_baseline = !source_exits.is_empty()
+        && baseline_value.is_some()
+        && source_exits.iter().all(|exit| {
+            baseline_value.is_some_and(|baseline| derived_le_class_value(exit.value, baseline))
+        });
+    let strict_refinement_count = source_exits
+        .iter()
+        .filter(|exit| {
+            baseline_value.is_some_and(|baseline| {
+                derived_le_class_value(exit.value, baseline) && exit.value != baseline
+            })
+        })
+        .count();
+    let all_source_values_covered_by_baseline = !source_exits.is_empty()
+        && baseline_value_set.as_ref().is_some_and(|baseline_values| {
+            source_exits.iter().all(|exit| {
+                enumerate_finite_class_values(exit.value).is_some_and(|source_values| {
+                    !source_values.is_empty()
+                        && source_values
+                            .iter()
+                            .all(|value| baseline_values.contains(value))
+                })
+            })
+        });
+    let branch_block_observed = source_summary
+        .analyses
+        .iter()
+        .any(|entry| !entry.analysis.branch_block_ids.is_empty());
+    let concat_transfer_observed = source_summary.analyses.iter().any(|entry| {
+        entry
+            .analysis
+            .flow_analysis
+            .nodes
+            .iter()
+            .any(|node| node.transfer_kind == "concatFacts")
+    });
+    let file_merge_absent_from_source_cfg = source_summary.analyses.iter().all(|entry| {
+        entry.analysis.blocks.iter().all(|block| {
+            block.block_id != "file-merge"
+                && block.node_ids.iter().all(|node_id| node_id != "file-merge")
+        })
+    });
+
+    SourceCfgRefinementFixtureReportV0 {
+        fixture_id,
+        baseline_graph_id: baseline_analysis
+            .map(|entry| entry.graph_id.clone())
+            .unwrap_or_default(),
+        source_graph_ids: source_summary
+            .analyses
+            .iter()
+            .map(|entry| entry.graph_id.clone())
+            .collect(),
+        baseline_value_kind: baseline_exit.map_or("missing", |exit| exit.kind),
+        source_value_kinds: source_exits.iter().map(|exit| exit.kind).collect(),
+        all_source_values_le_baseline,
+        strict_refinement_count,
+        all_source_values_covered_by_baseline,
+        branch_block_observed,
+        concat_transfer_observed,
+        file_merge_absent_from_source_cfg,
+    }
+}
+
+fn derived_le_class_value(left: &AbstractClassValueV0, right: &AbstractClassValueV0) -> bool {
+    join_abstract_class_values(left, right) == *right
+}
+
+#[derive(Clone, Copy)]
+struct ControlFlowExitValue<'a> {
+    kind: &'static str,
+    value: &'a AbstractClassValueV0,
+}
+
+fn control_flow_exit_value<'a>(
+    analysis: &'a omena_abstract_value::ClassValueControlFlowAnalysisV0,
+    preferred_block_id: &str,
+) -> Option<ControlFlowExitValue<'a>> {
+    analysis
+        .blocks
+        .iter()
+        .find(|block| block.block_id == preferred_block_id)
+        .or_else(|| {
+            analysis
+                .blocks
+                .iter()
+                .find(|block| block.successor_block_ids.is_empty())
+        })
+        .map(|block| ControlFlowExitValue {
+            kind: block.exit_value_kind,
+            value: &block.exit_value,
+        })
+}
+
+fn source_cfg_refinement_input(include_source_cfg: bool) -> EngineInputV2 {
+    EngineInputV2 {
+        version: "2".to_string(),
+        sources: Vec::new(),
+        styles: Vec::new(),
+        type_facts: vec![
+            exact_type_fact_with_optional_cfg(
+                "expr-primary",
+                "btn-primary",
+                include_source_cfg.then(branchy_type_fact_control_flow_graph),
+            ),
+            exact_type_fact_with_optional_cfg(
+                "expr-secondary",
+                "btn-secondary",
+                include_source_cfg.then(branchy_type_fact_control_flow_graph),
+            ),
+        ],
+    }
+}
+
+fn exact_type_fact_with_optional_cfg(
+    expression_id: &str,
+    value: &str,
+    control_flow_graph: Option<TypeFactControlFlowGraphV2>,
+) -> TypeFactEntryV2 {
+    TypeFactEntryV2 {
+        file_path: "/tmp/App.tsx".to_string(),
+        expression_id: expression_id.to_string(),
+        facts: StringTypeFactsV2 {
+            kind: "exact".to_string(),
+            constraint_kind: None,
+            values: Some(vec![value.to_string()]),
+            prefix: None,
+            suffix: None,
+            min_len: None,
+            max_len: None,
+            char_must: None,
+            char_may: None,
+            may_include_other_chars: None,
+            provenance: None,
+        },
+        control_flow_graph,
+    }
+}
+
+fn branchy_type_fact_control_flow_graph() -> TypeFactControlFlowGraphV2 {
+    TypeFactControlFlowGraphV2 {
+        entry_block_id: "entry".to_string(),
+        blocks: vec![
+            type_fact_control_flow_block("entry", "entry", "entry", &["branch:0"]),
+            type_fact_control_flow_block("branch:0", "branch", "branch", &["then:0", "else:0"]),
+            type_fact_control_flow_block("then:0", "assignment", "concatFacts", &["join:0"]),
+            type_fact_control_flow_block("else:0", "assignment", "assignFacts", &["join:0"]),
+            type_fact_control_flow_block("join:0", "join", "join", &["exit"]),
+            type_fact_control_flow_block("exit", "exit", "exit", &[]),
+        ],
+    }
+}
+
+fn type_fact_control_flow_block(
+    id: &str,
+    kind: &str,
+    transfer_kind: &str,
+    successor_block_ids: &[&str],
+) -> TypeFactControlFlowBlockV2 {
+    TypeFactControlFlowBlockV2 {
+        id: id.to_string(),
+        kind: kind.to_string(),
+        transfer_kind: transfer_kind.to_string(),
+        successor_block_ids: successor_block_ids
+            .iter()
+            .map(|id| (*id).to_string())
+            .collect(),
+        variable_name: None,
+        expression_kind: None,
+    }
+}
+
 /// Summarize the differential harness boundary for parser cutover readiness gates.
 pub fn summarize_omena_diff_test_boundary() -> OmenaDiffTestBoundarySummary {
     let reports: Vec<_> = PARSER_LEGACY_SEED_FIXTURES
@@ -1728,6 +2001,8 @@ pub fn summarize_omena_diff_test_boundary() -> OmenaDiffTestBoundarySummary {
     let parser_cst_fact_authority_report = summarize_parser_cst_fact_authority_equivalence_v0();
     let parser_cst_context_raw_scan_report = summarize_parser_cst_context_raw_scan_divergence_v0();
     let selector_context_soundness_report = summarize_selector_context_soundness_v0();
+    let source_cfg_refinement_report =
+        summarize_expression_domain_source_cfg_refinement_oracle_v0();
     let (cache_equivalence_corpus, cache_equivalence_resolution_inputs) =
         omena_diff_cache_equivalence_default_corpus_v0();
     let cache_equivalence_report = summarize_workspace_diagnostics_warm_pass_equivalence_v0(
@@ -1781,6 +2056,15 @@ pub fn summarize_omena_diff_test_boundary() -> OmenaDiffTestBoundarySummary {
             .all_expected_verdicts_match
             && selector_context_soundness_report.all_unmodeled_fixtures_stay_maybe
             && selector_context_soundness_report.positive_preservation_matches,
+        source_cfg_refinement_fixture_count: source_cfg_refinement_report.fixture_count,
+        all_source_cfg_values_le_file_merge_baseline: source_cfg_refinement_report
+            .all_source_values_le_baseline,
+        source_cfg_strict_refinement_witness_count: source_cfg_refinement_report
+            .strict_refinement_witness_count,
+        all_source_cfg_values_covered_by_file_merge_baseline: source_cfg_refinement_report
+            .all_source_values_covered_by_baseline,
+        all_source_cfg_shape_witnesses_present: source_cfg_refinement_report
+            .all_shape_witnesses_present,
         cache_equivalence_file_count: cache_equivalence_report.file_count,
         all_cache_equivalence_files_identical: cache_equivalence_report.all_files_identical,
         salsa_memo_equivalence_comparison_count: salsa_memo_equivalence_report.comparison_count,
@@ -1806,6 +2090,7 @@ pub fn summarize_omena_diff_test_boundary() -> OmenaDiffTestBoundarySummary {
             "parserCstFactAuthorityEquivalence",
             "parserCstContextRawScanDivergence",
             "selectorContextSoundness",
+            "expressionDomainSourceCfgRefinementOracle",
         ],
         reports,
         m3_fixture_seed_report,
@@ -1816,6 +2101,7 @@ pub fn summarize_omena_diff_test_boundary() -> OmenaDiffTestBoundarySummary {
         parser_cst_fact_authority_report,
         parser_cst_context_raw_scan_report,
         selector_context_soundness_report,
+        source_cfg_refinement_report,
         cache_equivalence_report,
         salsa_memo_equivalence_report,
         parallel_salsa_equivalence_report,
@@ -3097,6 +3383,38 @@ code: missingCustomProperty
     }
 
     #[test]
+    fn expression_domain_source_cfg_refinement_oracle_is_non_vacuous() {
+        let report = summarize_expression_domain_source_cfg_refinement_oracle_v0();
+
+        assert_eq!(
+            report.product,
+            "omena-diff-test.expression-domain-source-cfg-refinement-oracle"
+        );
+        assert_eq!(report.fixture_count, 1);
+        assert!(report.all_source_values_le_baseline, "{report:#?}");
+        assert!(
+            report.strict_refinement_witness_count >= 1,
+            "source CFG oracle must include a strict non-vacuous witness: {report:#?}"
+        );
+        assert!(
+            report.all_source_values_covered_by_baseline,
+            "source CFG values must stay inside the file-merge baseline coverage: {report:#?}"
+        );
+        assert!(
+            report.all_shape_witnesses_present,
+            "source CFG oracle must observe branch/concat shape and no file-merge source block: {report:#?}"
+        );
+        assert!(report.reports.iter().all(|fixture| {
+            fixture.all_source_values_le_baseline
+                && fixture.strict_refinement_count > 0
+                && fixture.all_source_values_covered_by_baseline
+                && fixture.branch_block_observed
+                && fixture.concat_transfer_observed
+                && fixture.file_merge_absent_from_source_cfg
+        }));
+    }
+
+    #[test]
     fn parser_legacy_seed_fixtures_match() {
         let summary = summarize_omena_diff_test_boundary();
         assert_eq!(
@@ -3156,6 +3474,11 @@ code: missingCustomProperty
             SELECTOR_CONTEXT_SOUNDNESS_FIXTURES.len()
         );
         assert!(summary.all_selector_context_soundness_fixtures_match);
+        assert_eq!(summary.source_cfg_refinement_fixture_count, 1);
+        assert!(summary.all_source_cfg_values_le_file_merge_baseline);
+        assert!(summary.source_cfg_strict_refinement_witness_count >= 1);
+        assert!(summary.all_source_cfg_values_covered_by_file_merge_baseline);
+        assert!(summary.all_source_cfg_shape_witnesses_present);
         assert_eq!(
             summary.wpt_seed_metadata_report.stale_known_failure_count,
             0
@@ -3201,6 +3524,11 @@ code: missingCustomProperty
                 .contains(&"parserCstContextRawScanDivergence")
         );
         assert!(summary.closed_gates.contains(&"selectorContextSoundness"));
+        assert!(
+            summary
+                .closed_gates
+                .contains(&"expressionDomainSourceCfgRefinementOracle")
+        );
         assert!(
             summary
                 .closed_gates
