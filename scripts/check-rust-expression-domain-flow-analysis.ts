@@ -66,21 +66,56 @@ void (async () => {
   const provenanceSummary = await runShadowExpressionDomainProvenanceExplanationsInput(INPUT);
   const reducedProductSummary =
     await runShadowExpressionDomainReducedProductIterationInput(REDUCED_PRODUCT_INPUT);
-  const analysis = summary.analyses[0]?.analysis;
-  const merge = analysis?.nodes.find((node) => node.id === "file-merge");
+  const branchAGraph = findAnalysis(summary, "/tmp/App.tsx:expr-branch-a:expression-domain-flow");
+  const branchANode = findNode(branchAGraph, "expr-branch-a");
+  const cardOnlyGraph = findAnalysis(
+    summary,
+    "/tmp/Card.tsx:expr-card-only:expression-domain-flow",
+  );
+  const cardOnlyNode = findNode(cardOnlyGraph, "expr-card-only");
 
   assertEqual(summary.product, "engine-input-producers.expression-domain-flow-analysis", "product");
-  assertEqual(analysis?.contextSensitivity, "1-cfa", "context sensitivity");
-  assertEqual(analysis?.converged, true, "flow convergence");
-  assertEqual(merge?.transferKind, "join", "merge transfer kind");
-  assertEqual(merge?.valueKind, "finiteSet", "merge value kind");
+  assertEqual(summary.analyses.length, INPUT.typeFacts.length, "per-expression graph count");
   assertEqual(
-    JSON.stringify(merge?.value),
+    summary.analyses.every((entry) => entry.analysis.contextSensitivity === "1-cfa"),
+    true,
+    "context sensitivity",
+  );
+  assertEqual(
+    summary.analyses.every((entry) => entry.analysis.converged),
+    true,
+    "flow convergence",
+  );
+  assertEqual(
+    summary.analyses.every((entry) =>
+      entry.analysis.nodes.every((node) => node.id !== "file-merge"),
+    ),
+    true,
+    "no synthetic file-merge node",
+  );
+  assertEqual(branchAGraph.filePath, "/tmp/App.tsx", "branch graph file path");
+  assertEqual(branchAGraph.analysis.nodes.length, 1, "branch graph node count");
+  assertEqual(branchANode.transferKind, "assignFacts", "branch transfer kind");
+  assertEqual(branchANode.valueKind, "exact", "branch value kind");
+  assertEqual(
+    JSON.stringify(branchANode.value),
     JSON.stringify({
-      kind: "finiteSet",
-      values: ["btn-primary", "btn-secondary", "card"],
+      kind: "exact",
+      value: "btn-primary",
     }),
-    "merge abstract value",
+    "branch abstract value",
+  );
+  assertEqual(cardOnlyGraph.filePath, "/tmp/Card.tsx", "card graph file path");
+  assertEqual(cardOnlyGraph.analysis.nodes.length, 1, "card graph node count");
+  assertEqual(cardOnlyNode.transferKind, "assignFacts", "card transfer kind");
+  assertEqual(cardOnlyNode.valueKind, "exact", "card value kind");
+  assertEqual(
+    JSON.stringify(cardOnlyNode.value),
+    JSON.stringify({
+      kind: "exact",
+      value: "card-standalone",
+    }),
+    "card abstract value",
   );
   assertEqual(
     callSiteSummary.product,
@@ -89,27 +124,32 @@ void (async () => {
   );
   assertEqual(callSiteSummary.zeroCfa.contextSensitivity, "0-cfa", "zero-cfa context");
   assertEqual(callSiteSummary.oneCfa.contextSensitivity, "1-cfa", "one-cfa context");
-  assertEqual(callSiteSummary.zeroCfa.callSiteCount, 2, "multi-file call-site count");
-  assertEqual(callSiteSummary.oneCfa.callSiteCount, 2, "multi-file 1-cfa call-site count");
+  assertEqual(callSiteSummary.zeroCfa.callSiteCount, 4, "multi-expression call-site count");
+  assertEqual(callSiteSummary.oneCfa.callSiteCount, 4, "multi-expression 1-cfa call-site count");
   assertEqual(
-    callSiteSummary.zeroCfa.entries[0]?.contextKey,
-    "expression-domain-class-value@<root>",
-    "zero-cfa root context key",
+    callSiteSummary.zeroCfa.entries.every(
+      (entry) => entry.contextKey === "expression-domain-class-value@<root>",
+    ),
+    true,
+    "zero-cfa root context keys",
   );
   assertEqual(
-    callSiteSummary.zeroCfa.entries[1]?.contextKey,
-    "expression-domain-class-value@<root>",
-    "second zero-cfa root context key",
+    callSiteSummary.oneCfa.entries.some(
+      (entry) =>
+        entry.contextKey ===
+        "expression-domain-class-value@/tmp/App.tsx:expr-branch-a:expression-domain-flow",
+    ),
+    true,
+    "one-cfa branch graph context key",
   );
   assertEqual(
-    callSiteSummary.oneCfa.entries[0]?.contextKey,
-    "expression-domain-class-value@/tmp/App.tsx:expression-domain-flow",
-    "one-cfa graph context key",
-  );
-  assertEqual(
-    callSiteSummary.oneCfa.entries[1]?.contextKey,
-    "expression-domain-class-value@/tmp/Card.tsx:expression-domain-flow",
-    "second one-cfa graph context key",
+    callSiteSummary.oneCfa.entries.some(
+      (entry) =>
+        entry.contextKey ===
+        "expression-domain-class-value@/tmp/Card.tsx:expr-card-only:expression-domain-flow",
+    ),
+    true,
+    "one-cfa card graph context key",
   );
   assertEqual(
     reducedProductSummary.product,
@@ -160,9 +200,31 @@ void (async () => {
   );
 
   process.stdout.write(
-    `validated expression-domain flow analysis: graphs=${summary.analyses.length} nodes=${analysis?.nodes.length ?? 0} callSiteProduct=${callSiteSummary.product} reducedProduct=${reducedProductSummary.product} provenance=${provenanceSummary.product}\n`,
+    `validated expression-domain flow analysis: graphs=${summary.analyses.length} nodes=${summary.analyses.reduce((count, entry) => count + entry.analysis.nodes.length, 0)} callSiteProduct=${callSiteSummary.product} reducedProduct=${reducedProductSummary.product} provenance=${provenanceSummary.product}\n`,
   );
 })();
+
+function findAnalysis(
+  summary: Awaited<ReturnType<typeof runShadowExpressionDomainFlowAnalysisInput>>,
+  graphId: string,
+) {
+  const entry = summary.analyses.find((candidate) => candidate.graphId === graphId);
+  if (!entry) {
+    throw new Error(`missing flow analysis graph: ${graphId}`);
+  }
+  return entry;
+}
+
+function findNode(
+  entry: Awaited<ReturnType<typeof runShadowExpressionDomainFlowAnalysisInput>>["analyses"][number],
+  nodeId: string,
+) {
+  const node = entry.analysis.nodes.find((candidate) => candidate.id === nodeId);
+  if (!node) {
+    throw new Error(`missing flow analysis node: ${nodeId}`);
+  }
+  return node;
+}
 
 function fact(expressionId: string, facts: StringTypeFactsV2) {
   return factInFile("/tmp/App.tsx", expressionId, facts);
