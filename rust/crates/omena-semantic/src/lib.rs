@@ -169,7 +169,10 @@ pub fn summarize_style_semantic_graph_for_path_with_workspace_declarations(
     style_path: Option<&str>,
     workspace_declarations: &[DesignTokenWorkspaceDeclarationFactV0],
 ) -> StyleSemanticGraphSummaryV0 {
-    let boundary = summarize_style_semantic_boundary(sheet);
+    let (boundary, facts) = summarize_omena_parser_style_semantic_boundary_with_facts_from_source(
+        &sheet.path,
+        &sheet.source,
+    );
     let parser_facts = boundary.parser_facts;
     let semantic_facts = boundary.semantic_facts;
     let effective_style_path = style_path.or(Some(sheet.path.as_str()));
@@ -179,7 +182,7 @@ pub fn summarize_style_semantic_graph_for_path_with_workspace_declarations(
         effective_style_path,
         workspace_declarations,
     );
-    let css_modules_semantics = summarize_css_modules_semantics(sheet);
+    let css_modules_semantics = css_modules::summarize_css_modules_semantics_from_facts(&facts);
     let selector_identity_engine =
         summarize_selector_identity_engine(&semantic_facts.selector_identity);
     let selector_reference_engine = summarize_selector_reference_engine(input, style_path);
@@ -212,10 +215,12 @@ pub fn summarize_style_semantic_graph_from_source(
     style_source: &str,
     input: &EngineInputV2,
 ) -> Option<StyleSemanticGraphSummaryV0> {
-    let css_modules_semantics =
-        summarize_css_modules_semantics_from_source(style_path, style_source)?;
-    let boundary =
-        summarize_omena_parser_style_semantic_boundary_from_source(style_path, style_source);
+    dialect_for_style_path(style_path)?;
+    let (boundary, facts) = summarize_omena_parser_style_semantic_boundary_with_facts_from_source(
+        style_path,
+        style_source,
+    );
+    let css_modules_semantics = css_modules::summarize_css_modules_semantics_from_facts(&facts);
     let parser_facts = boundary.parser_facts;
     let semantic_facts = boundary.semantic_facts;
     let selector_reference_engine = summarize_selector_reference_engine(input, Some(style_path));
@@ -369,6 +374,14 @@ pub fn summarize_omena_parser_style_semantic_boundary_from_source(
     style_path: &str,
     style_source: &str,
 ) -> StyleSemanticBoundarySummaryV0 {
+    summarize_omena_parser_style_semantic_boundary_with_facts_from_source(style_path, style_source)
+        .0
+}
+
+fn summarize_omena_parser_style_semantic_boundary_with_facts_from_source(
+    style_path: &str,
+    style_source: &str,
+) -> (StyleSemanticBoundarySummaryV0, ParsedStyleFacts) {
     let dialect = omena_parser_dialect_for_style_path(style_path);
     let parsed = parse(style_source, dialect);
     let facts = facts_from_cst(style_source, &parsed);
@@ -389,16 +402,19 @@ pub fn summarize_omena_parser_style_semantic_boundary_from_source(
     let promotion_evidence = summarize_semantic_promotion_evidence(&parser_facts, &semantic_facts);
     let lossless_cst_contract = summarize_lossless_cst_contract(&parser_facts.lossless_cst);
 
-    StyleSemanticBoundarySummaryV0 {
-        schema_version: "0",
-        language: omena_parser_dialect_label(dialect),
-        parser_facts,
-        semantic_facts,
-        design_token_semantics,
-        selector_identity_engine,
-        promotion_evidence,
-        lossless_cst_contract,
-    }
+    (
+        StyleSemanticBoundarySummaryV0 {
+            schema_version: "0",
+            language: omena_parser_dialect_label(dialect),
+            parser_facts,
+            semantic_facts,
+            design_token_semantics,
+            selector_identity_engine,
+            promotion_evidence,
+            lossless_cst_contract,
+        },
+        facts,
+    )
 }
 
 fn summarize_omena_parser_contract_facts(

@@ -8,8 +8,8 @@ use std::collections::BTreeSet;
 
 use omena_parser::{
     ParsedAnimationFactKind, ParsedCssModuleComposesEdgeKind, ParsedCssModuleComposesFactKind,
-    ParsedCssModuleValueFactKind, ParsedIcssFactKind, ParsedSelectorFactKind, StyleDialect,
-    collect_style_facts,
+    ParsedCssModuleValueFactKind, ParsedIcssFactKind, ParsedSelectorFactKind, ParsedStyleFacts,
+    StyleDialect, facts_from_cst, parse,
 };
 use serde::Serialize;
 
@@ -83,7 +83,14 @@ fn summarize_css_modules_semantics_for_source(
     style_source: &str,
     dialect: StyleDialect,
 ) -> CssModulesSemanticSummaryV0 {
-    let facts = collect_style_facts(style_source, dialect);
+    let parsed = parse(style_source, dialect);
+    let facts = facts_from_cst(style_source, &parsed);
+    summarize_css_modules_semantics_from_facts(&facts)
+}
+
+pub(crate) fn summarize_css_modules_semantics_from_facts(
+    facts: &ParsedStyleFacts,
+) -> CssModulesSemanticSummaryV0 {
     let mut class_export_names = BTreeSet::new();
     let mut composes_target_names = BTreeSet::new();
     let mut composes_import_sources = BTreeSet::new();
@@ -100,23 +107,23 @@ fn summarize_css_modules_semantics_for_source(
     let mut keyframe_names = BTreeSet::new();
     let mut animation_reference_names = BTreeSet::new();
 
-    for selector in facts.selectors {
+    for selector in &facts.selectors {
         if selector.kind == ParsedSelectorFactKind::Class {
-            class_export_names.insert(selector.name);
+            class_export_names.insert(selector.name.clone());
         }
     }
 
-    for composes in facts.css_module_composes {
+    for composes in &facts.css_module_composes {
         match composes.kind {
             ParsedCssModuleComposesFactKind::Target => {
-                composes_target_names.insert(composes.name);
+                composes_target_names.insert(composes.name.clone());
             }
             ParsedCssModuleComposesFactKind::ImportSource => {
-                composes_import_sources.insert(composes.name);
+                composes_import_sources.insert(composes.name.clone());
             }
         }
     }
-    for edge in facts.css_module_composes_edges {
+    for edge in &facts.css_module_composes_edges {
         match edge.kind {
             ParsedCssModuleComposesEdgeKind::Local => composes_local_edge_count += 1,
             ParsedCssModuleComposesEdgeKind::Global => composes_global_edge_count += 1,
@@ -124,44 +131,44 @@ fn summarize_css_modules_semantics_for_source(
         }
     }
 
-    for value in facts.css_module_values {
+    for value in &facts.css_module_values {
         match value.kind {
             ParsedCssModuleValueFactKind::Definition => {
-                value_definition_names.insert(value.name);
+                value_definition_names.insert(value.name.clone());
             }
             ParsedCssModuleValueFactKind::Reference => {
-                value_reference_names.insert(value.name);
+                value_reference_names.insert(value.name.clone());
             }
             ParsedCssModuleValueFactKind::ImportSource => {
-                value_import_sources.insert(value.name);
+                value_import_sources.insert(value.name.clone());
             }
         }
     }
 
-    for icss in facts.icss {
+    for icss in &facts.icss {
         match icss.kind {
             ParsedIcssFactKind::ExportName => {
-                icss_export_names.insert(icss.name);
+                icss_export_names.insert(icss.name.clone());
             }
             ParsedIcssFactKind::ImportLocalName => {
-                icss_import_local_names.insert(icss.name);
+                icss_import_local_names.insert(icss.name.clone());
             }
             ParsedIcssFactKind::ImportRemoteName => {
-                icss_import_remote_names.insert(icss.name);
+                icss_import_remote_names.insert(icss.name.clone());
             }
             ParsedIcssFactKind::ImportSource => {
-                icss_import_sources.insert(icss.name);
+                icss_import_sources.insert(icss.name.clone());
             }
         }
     }
 
-    for animation in facts.animations {
+    for animation in &facts.animations {
         match animation.kind {
             ParsedAnimationFactKind::KeyframesDeclaration => {
-                keyframe_names.insert(animation.name);
+                keyframe_names.insert(animation.name.clone());
             }
             ParsedAnimationFactKind::AnimationNameReference => {
-                animation_reference_names.insert(animation.name);
+                animation_reference_names.insert(animation.name.clone());
             }
         }
     }

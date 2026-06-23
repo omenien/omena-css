@@ -33,6 +33,26 @@ fn semantic_boundary_materializes_parser_once_per_analysis() {
 }
 
 #[test]
+fn semantic_graph_materializes_parser_once_per_analysis() {
+    let (_, instrumentation) = omena_parser::with_omena_parser_parse_instrumentation(|| {
+        let graph = summarize_style_semantic_graph_from_source(
+            "Component.module.scss",
+            r#"
+@value primary: red;
+.button {
+  composes: base from "./base.module.scss";
+  color: primary;
+}
+"#,
+            &sample_engine_input(),
+        );
+        assert!(graph.is_some());
+    });
+
+    assert_eq!(instrumentation.parse_invocation_count, 1);
+}
+
+#[test]
 fn exposes_omena_parser_backed_semantic_boundary() {
     let summary = summarize_omena_parser_style_semantic_boundary_from_source(
         "Component.module.scss",
