@@ -355,6 +355,7 @@ pub(super) fn collect_omena_query_dynamic_classname_m_tier_diagnostics(
                     ],
                     range,
                     message: evaluation.message.clone(),
+                    suggestion: None,
                     create_selector: None,
                 });
             }

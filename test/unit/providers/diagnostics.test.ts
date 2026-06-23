@@ -165,7 +165,7 @@ describe("computeDiagnostics", () => {
     });
   });
 
-  it("uses omena-query source diagnostics while preserving checker quick-fix data", async () => {
+  it("uses omena-query source diagnostics with Rust-owned quick-fix data", async () => {
     const previousBackend = process.env.OMENA_SELECTED_QUERY_BACKEND;
     process.env.OMENA_SELECTED_QUERY_BACKEND = "rust-selected-query";
     const BUFFER_SCSS = ".indicator {}\n";
@@ -194,7 +194,8 @@ describe("computeDiagnostics", () => {
               "omena-query.style-selector-definitions",
             ],
             range: MISSING_CLASS_RANGE,
-            message: "Class '.unknonw' not found in target CSS Module.",
+            message: "Class '.unknonw' not found in target CSS Module. Did you mean 'unknown'?",
+            suggestion: "unknown",
             createSelector: {
               uri: "/fake/ws/src/Button.module.scss",
               range: {

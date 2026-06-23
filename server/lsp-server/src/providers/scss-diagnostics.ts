@@ -116,7 +116,14 @@ export function computeScssUnusedDiagnostics(
         }
       : undefined;
   if (runtimeDeps?.runRustSelectedQueryBackendJsonAsync) {
-    const checkerDiagnostics = resolveStyleDiagnosticFindingsAsync(
+    const queryDiagnostics = resolveQueryOwnedStyleDiagnostics(
+      { scssPath, styleDocument },
+      runtimeDeps,
+    );
+    if (queryDiagnostics) {
+      return queryDiagnostics;
+    }
+    return resolveStyleDiagnosticFindingsAsync(
       { scssPath, styleDocument },
       {
         ...(runtimeDeps?.analysisCache ? { analysisCache: runtimeDeps.analysisCache } : {}),
@@ -144,16 +151,6 @@ export function computeScssUnusedDiagnostics(
         toDiagnostic(finding, styleDocument, styleDocumentForPath, runtimeDeps?.readStyleFile),
       ),
     );
-    const queryDiagnostics = resolveQueryOwnedStyleDiagnostics(
-      { scssPath, styleDocument },
-      runtimeDeps,
-    );
-    if (queryDiagnostics) {
-      return Promise.all([queryDiagnostics, checkerDiagnostics]).then(([query, checker]) =>
-        mergeQueryOwnedStyleDiagnostics(query, checker, styleDocument),
-      );
-    }
-    return checkerDiagnostics;
   }
   return resolveStyleDiagnosticFindings(
     { scssPath, styleDocument },
@@ -308,72 +305,6 @@ function querySeverityToLspSeverity(
     case "warning":
       return DiagnosticSeverity.Warning;
   }
-}
-
-function mergeQueryOwnedStyleDiagnostics(
-  queryDiagnostics: readonly Diagnostic[],
-  checkerDiagnostics: readonly Diagnostic[],
-  styleDocument: StyleDocumentHIR,
-): Diagnostic[] {
-  if (queryDiagnostics.length === 0) return [...checkerDiagnostics];
-  const checkerKeys = new Set(
-    checkerDiagnostics.map((diagnostic) => diagnosticKey(diagnostic.code, diagnostic.range)),
-  );
-  const hasSassModuleGraph =
-    styleDocument.sassModuleUses.length > 0 || styleDocument.sassModuleForwards.length > 0;
-  const effectiveQueryDiagnostics = queryDiagnostics.filter((diagnostic) =>
-    shouldKeepQueryOwnedStyleDiagnostic(diagnostic, checkerKeys, hasSassModuleGraph),
-  );
-  if (effectiveQueryDiagnostics.length === 0) return [...checkerDiagnostics];
-  const queryDuplicateKeys = new Set<string>();
-  for (const diagnostic of effectiveQueryDiagnostics) {
-    const checkerCode = checkerDuplicateCodeForQueryCode(diagnostic.code);
-    if (checkerCode) {
-      queryDuplicateKeys.add(diagnosticKey(checkerCode, diagnostic.range));
-    }
-  }
-  return [
-    ...effectiveQueryDiagnostics,
-    ...checkerDiagnostics.filter(
-      (diagnostic) => !queryDuplicateKeys.has(diagnosticKey(diagnostic.code, diagnostic.range)),
-    ),
-  ];
-}
-
-function shouldKeepQueryOwnedStyleDiagnostic(
-  diagnostic: Diagnostic,
-  checkerKeys: ReadonlySet<string>,
-  hasSassModuleGraph: boolean,
-): boolean {
-  if (diagnostic.code !== "missingSassSymbol") return true;
-  if (!hasSassModuleGraph) return true;
-  return checkerKeys.has(diagnosticKey("missing-sass-symbol", diagnostic.range));
-}
-
-function checkerDuplicateCodeForQueryCode(code: Diagnostic["code"]): string | null {
-  if (typeof code !== "string") return null;
-  return QUERY_TO_CHECKER_DIAGNOSTIC_CODE[code] ?? null;
-}
-
-const QUERY_TO_CHECKER_DIAGNOSTIC_CODE: Readonly<Record<string, string>> = {
-  unusedSelector: "unused-selector",
-  missingComposedModule: "missing-composed-module",
-  missingComposedSelector: "missing-composed-selector",
-  missingValueModule: "missing-value-module",
-  missingImportedValue: "missing-imported-value",
-  missingCustomProperty: "missing-custom-property",
-  missingKeyframes: "missing-keyframes",
-  missingSassSymbol: "missing-sass-symbol",
-};
-
-function diagnosticKey(code: Diagnostic["code"], range: Diagnostic["range"]): string {
-  return [
-    String(code ?? ""),
-    range.start.line,
-    range.start.character,
-    range.end.line,
-    range.end.character,
-  ].join(":");
 }
 
 function extractQuotedName(message: string): string | null {

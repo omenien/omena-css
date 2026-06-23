@@ -1421,6 +1421,8 @@ pub struct OmenaQuerySourceDiagnosticV0 {
     pub provenance: Vec<&'static str>,
     pub range: ParserRangeV0,
     pub message: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub suggestion: Option<String>,
     pub create_selector: Option<OmenaQueryCreateSelectorActionV0>,
 }
 

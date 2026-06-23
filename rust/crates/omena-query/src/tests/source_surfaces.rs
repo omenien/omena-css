@@ -232,6 +232,42 @@ export function App({ suffix }) {
 }
 
 #[test]
+fn source_diagnostics_missing_static_class_carries_query_owned_suggestion() -> Result<(), String> {
+    let diagnostics = summarize_omena_query_source_diagnostics_for_workspace_file(
+        "/workspace/src/App.tsx",
+        r#"import styles from "./App.module.scss";
+const value = styles.unknonw;
+"#,
+        &[OmenaQueryStyleSourceInputV0 {
+            style_path: "/workspace/src/App.module.scss".to_string(),
+            style_source: ".unknown {}\n".to_string(),
+        }],
+        &[],
+    );
+
+    let diagnostic = diagnostics
+        .diagnostics
+        .iter()
+        .find(|diagnostic| diagnostic.code == "missingStaticClass")
+        .ok_or_else(|| {
+            format!(
+                "the typo must be reported as a Rust-owned source diagnostic: {:?}",
+                diagnostics.diagnostics
+            )
+        })?;
+    assert_eq!(diagnostic.suggestion.as_deref(), Some("unknown"));
+    assert!(
+        diagnostic.message.contains("Did you mean 'unknown'?"),
+        "query-owned message should carry the replacement hint: {}",
+        diagnostic.message
+    );
+    let json = serde_json::to_value(diagnostic)
+        .map_err(|error| format!("source diagnostic serializes: {error}"))?;
+    assert_eq!(json["suggestion"], "unknown");
+    Ok(())
+}
+
+#[test]
 fn source_diagnostics_consume_precomputed_source_syntax_index() {
     let source_path = "/workspace/src/App.tsx";
     let source = "const view = styles.ghost;";

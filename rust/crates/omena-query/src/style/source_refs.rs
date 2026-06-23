@@ -408,6 +408,7 @@ pub fn summarize_omena_query_missing_selector_diagnostic(
         message: format!(
             "CSS Module selector '.{selector_name}' not found in indexed style tokens."
         ),
+        suggestion: None,
         create_selector: Some(OmenaQueryCreateSelectorActionV0 {
             uri: target_style_uri.to_string(),
             range: insertion_range,
@@ -528,6 +529,7 @@ pub fn summarize_omena_query_source_diagnostics_for_workspace_file_with_context_
                     "Cannot resolve CSS Module '{}'. The file does not exist.",
                     import.specifier
                 ),
+                suggestion: None,
                 create_selector: None,
             }),
         }
@@ -794,6 +796,7 @@ fn summarize_omena_query_source_diagnostics_from_syntax_index(
                     reference,
                     selector_name.as_str(),
                     target_style_source,
+                    workspace_facts.definitions,
                 ),
             );
         }
@@ -861,6 +864,7 @@ fn summarize_omena_query_domain_class_reference_diagnostics(
                 "Class value option '{}' is not defined for {}.{}.",
                 option_name, reference.owner_name, reference.axis_name
             ),
+            suggestion: None,
             create_selector: None,
         });
     }
@@ -1071,6 +1075,7 @@ fn summarize_omena_query_unresolved_source_reference_diagnostic(
     reference: &OmenaQuerySourceSelectorReferenceFactV0,
     selector_name: &str,
     target_style_source: Option<&str>,
+    definitions: &[OmenaQueryStyleSelectorDefinitionV0],
 ) -> OmenaQuerySourceDiagnosticV0 {
     let range = parser_range_for_byte_span(source, reference.byte_span);
     let reference_text = source
@@ -1106,6 +1111,25 @@ fn summarize_omena_query_unresolved_source_reference_diagnostic(
             )
             .create_selector
         });
+    let suggestion = if code == "missingStaticClass" {
+        reference
+            .target_style_uri
+            .as_deref()
+            .and_then(|target_style_uri| {
+                closest_selector_name(
+                    selector_name,
+                    definitions
+                        .iter()
+                        .filter(|definition| {
+                            file_uri_equivalent(definition.uri.as_str(), target_style_uri)
+                        })
+                        .map(|definition| definition.name.as_str()),
+                    3,
+                )
+            })
+    } else {
+        None
+    };
 
     OmenaQuerySourceDiagnosticV0 {
         code,
@@ -1115,14 +1139,24 @@ fn summarize_omena_query_unresolved_source_reference_diagnostic(
             "omena-query.style-selector-definitions",
         ],
         range,
-        message: query_source_diagnostic_message(code, selector_name),
+        message: query_source_diagnostic_message(code, selector_name, suggestion.as_deref()),
+        suggestion,
         create_selector,
     }
 }
 
-fn query_source_diagnostic_message(code: &str, selector_name: &str) -> String {
+fn query_source_diagnostic_message(
+    code: &str,
+    selector_name: &str,
+    suggestion: Option<&str>,
+) -> String {
     match code {
-        "missingStaticClass" => format!("Class '.{selector_name}' not found in target CSS Module."),
+        "missingStaticClass" => {
+            let hint = suggestion
+                .map(|suggestion| format!(" Did you mean '{suggestion}'?"))
+                .unwrap_or_default();
+            format!("Class '.{selector_name}' not found in target CSS Module.{hint}")
+        }
         "missingTemplatePrefix" => {
             format!("No class starting with '{selector_name}' found in target CSS Module.")
         }
@@ -1134,6 +1168,64 @@ fn query_source_diagnostic_message(code: &str, selector_name: &str) -> String {
         }
         _ => "Source diagnostic reported by omena-query.".to_string(),
     }
+}
+
+fn closest_selector_name<'a>(
+    target: &str,
+    candidates: impl IntoIterator<Item = &'a str>,
+    max_distance: usize,
+) -> Option<String> {
+    let mut best = None::<(&'a str, usize)>;
+    for candidate in candidates {
+        let current_bound = best
+            .map(|(_, distance)| distance.saturating_sub(1))
+            .unwrap_or(max_distance);
+        let distance = bounded_levenshtein_distance(target, candidate, current_bound);
+        if distance <= max_distance
+            && best.is_none_or(|(_, best_distance)| distance < best_distance)
+        {
+            best = Some((candidate, distance));
+        }
+    }
+    best.map(|(candidate, _)| candidate.to_string())
+}
+
+fn bounded_levenshtein_distance(left: &str, right: &str, max_distance: usize) -> usize {
+    if left == right {
+        return 0;
+    }
+    if left.is_empty() {
+        return right.chars().count();
+    }
+    if right.is_empty() {
+        return left.chars().count();
+    }
+
+    let left_chars = left.chars().collect::<Vec<_>>();
+    let right_chars = right.chars().collect::<Vec<_>>();
+    if left_chars.len().abs_diff(right_chars.len()) > max_distance {
+        return max_distance + 1;
+    }
+
+    let mut previous = (0..=right_chars.len()).collect::<Vec<_>>();
+    let mut current = vec![0; right_chars.len() + 1];
+    for (left_index, left_char) in left_chars.iter().enumerate() {
+        current[0] = left_index + 1;
+        let mut row_min = current[0];
+        for (right_index, right_char) in right_chars.iter().enumerate() {
+            let cost = usize::from(left_char != right_char);
+            let value = (current[right_index] + 1)
+                .min(previous[right_index + 1] + 1)
+                .min(previous[right_index] + cost);
+            current[right_index + 1] = value;
+            row_min = row_min.min(value);
+        }
+        if row_min > max_distance {
+            return max_distance + 1;
+        }
+        previous.copy_from_slice(&current);
+    }
+    previous[right_chars.len()]
 }
 
 fn is_query_source_style_module_specifier(specifier: &str) -> bool {

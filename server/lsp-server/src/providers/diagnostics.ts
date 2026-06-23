@@ -33,6 +33,7 @@ interface QuerySourceDiagnosticV0 {
   readonly provenance: readonly string[];
   readonly range: SourceCheckerFinding["range"];
   readonly message: string;
+  readonly suggestion?: string;
   readonly createSelector?: {
     readonly uri: string;
     readonly range: SourceCheckerFinding["range"];
@@ -67,16 +68,13 @@ export const computeDiagnostics = wrapHandler<
   (params, deps, severity: DiagnosticSeverity = DiagnosticSeverity.Warning) => {
     const rustRunner = getRustSelectedQueryBackendJsonRunnerAsync(deps);
     if (rustRunner) {
-      const checkerDiagnostics = resolveSourceDiagnosticFindingsAsync(params, deps, {
-        runRustSelectedQueryBackendJsonAsync: rustRunner,
-      }).then((findings) => findings.map((finding) => toDiagnostic(finding, deps, severity)));
       const queryDiagnostics = resolveQueryOwnedSourceDiagnostics(params, deps, rustRunner);
       if (queryDiagnostics) {
-        return Promise.all([queryDiagnostics, checkerDiagnostics]).then(([query, checker]) =>
-          mergeQueryOwnedSourceDiagnostics(query, checker),
-        );
+        return queryDiagnostics;
       }
-      return checkerDiagnostics;
+      return resolveSourceDiagnosticFindingsAsync(params, deps, {
+        runRustSelectedQueryBackendJsonAsync: rustRunner,
+      }).then((findings) => findings.map((finding) => toDiagnostic(finding, deps, severity)));
     }
     return resolveSourceDiagnosticFindings(params, deps).map((finding) =>
       toDiagnostic(finding, deps, severity),
@@ -204,6 +202,7 @@ function toQueryOwnedSourceDiagnostic(diagnostic: QuerySourceDiagnosticV0): Diag
     data: {
       querySeverity: diagnostic.severity,
       provenance: diagnostic.provenance,
+      ...(diagnostic.suggestion ? { suggestion: diagnostic.suggestion } : {}),
       ...(createSelector ? { createSelector } : {}),
     },
   };
@@ -222,79 +221,6 @@ function querySeverityToLspSeverity(
     case "warning":
       return DiagnosticSeverity.Warning;
   }
-}
-
-function mergeQueryOwnedSourceDiagnostics(
-  queryDiagnostics: readonly Diagnostic[],
-  checkerDiagnostics: readonly Diagnostic[],
-): Diagnostic[] {
-  if (queryDiagnostics.length === 0) return [...checkerDiagnostics];
-  const checkerByQueryDuplicateKey = new Map<string, Diagnostic>();
-  for (const checkerDiagnostic of checkerDiagnostics) {
-    checkerByQueryDuplicateKey.set(
-      diagnosticKey(checkerDiagnostic.code, checkerDiagnostic.range),
-      checkerDiagnostic,
-    );
-  }
-  const consumedCheckerKeys = new Set<string>();
-  const mergedQueryDiagnostics = queryDiagnostics.flatMap((queryDiagnostic) => {
-    const checkerCode = checkerDuplicateCodeForQueryCode(queryDiagnostic.code);
-    if (!checkerCode) return [queryDiagnostic];
-    const checkerKey = diagnosticKey(checkerCode, queryDiagnostic.range);
-    const checkerDiagnostic = checkerByQueryDuplicateKey.get(checkerKey);
-    if (!checkerDiagnostic) return [queryDiagnostic];
-    consumedCheckerKeys.add(checkerKey);
-    return [mergeQueryDiagnosticWithCheckerData(queryDiagnostic, checkerDiagnostic)];
-  });
-  return [
-    ...mergedQueryDiagnostics,
-    ...checkerDiagnostics.filter(
-      (diagnostic) => !consumedCheckerKeys.has(diagnosticKey(diagnostic.code, diagnostic.range)),
-    ),
-  ];
-}
-
-function mergeQueryDiagnosticWithCheckerData(
-  queryDiagnostic: Diagnostic,
-  checkerDiagnostic: Diagnostic,
-): Diagnostic {
-  const checkerData = isRecord(checkerDiagnostic.data) ? checkerDiagnostic.data : {};
-  const queryData = isRecord(queryDiagnostic.data) ? queryDiagnostic.data : {};
-  return {
-    ...queryDiagnostic,
-    message: checkerDiagnostic.message,
-    data: {
-      ...checkerData,
-      ...queryData,
-    },
-  };
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
-}
-
-function checkerDuplicateCodeForQueryCode(code: Diagnostic["code"]): string | null {
-  if (typeof code !== "string") return null;
-  return QUERY_TO_CHECKER_DIAGNOSTIC_CODE[code] ?? null;
-}
-
-const QUERY_TO_CHECKER_DIAGNOSTIC_CODE: Readonly<Record<string, string>> = {
-  missingSelector: "missing-static-class",
-  missingStaticClass: "missing-static-class",
-  missingTemplatePrefix: "missing-template-prefix",
-  missingResolvedClassValues: "missing-resolved-class-values",
-  missingResolvedClassDomain: "missing-resolved-class-domain",
-};
-
-function diagnosticKey(code: Diagnostic["code"], range: LspRange): string {
-  return [
-    String(code ?? ""),
-    range.start.line,
-    range.start.character,
-    range.end.line,
-    range.end.character,
-  ].join(":");
 }
 
 function toDiagnostic(
