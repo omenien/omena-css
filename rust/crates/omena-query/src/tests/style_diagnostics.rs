@@ -1168,6 +1168,192 @@ fn cascade_aware_lints_carry_categorical_functor_evidence() -> Result<(), &'stat
 }
 
 #[test]
+fn lab_backed_style_diagnostics_keep_serialized_contract() -> Result<(), &'static str> {
+    let designer_source = r#"
+.button--primary {
+  color: red;
+  color: blue;
+}
+.u-color-red {
+  color: red;
+  color: blue;
+}
+"#;
+    let candidates = crate::summarize_omena_query_style_hover_candidates(
+        "Component.module.css",
+        designer_source,
+    )
+    .ok_or("style candidates")?;
+    let designer_diagnostics = crate::summarize_omena_query_style_diagnostics_for_file(
+        "file:///workspace/src/Component.module.css",
+        designer_source,
+        candidates.candidates.as_slice(),
+    );
+    let mut records = designer_diagnostics
+        .diagnostics
+        .iter()
+        .filter(|diagnostic| diagnostic.code == "designerIntentInconsistency")
+        .map(|diagnostic| {
+            serde_json::json!({
+                "code": diagnostic.code,
+                "severity": diagnostic.severity,
+                "message": diagnostic.message,
+                "provenance": diagnostic.provenance,
+            })
+        })
+        .collect::<Vec<_>>();
+    let smt_source = r#"
+.box {
+  margin-top: 1px;
+  margin-right: 2px;
+  margin-bottom: 3px;
+  margin-left: 4px !important;
+}
+"#;
+    let smt_candidates =
+        crate::summarize_omena_query_style_hover_candidates("Box.module.css", smt_source)
+            .ok_or("smt candidates")?;
+    let smt_diagnostics =
+        crate::summarize_omena_query_style_diagnostics_for_file_with_deep_analysis(
+            "file:///workspace/src/Box.module.css",
+            smt_source,
+            smt_candidates.candidates.as_slice(),
+            true,
+        );
+    records.extend(
+        smt_diagnostics
+            .diagnostics
+            .iter()
+            .filter(|diagnostic| diagnostic.code == "cascadeSmtViolation")
+            .map(|diagnostic| {
+                serde_json::json!({
+                    "code": diagnostic.code,
+                    "severity": diagnostic.severity,
+                    "message": diagnostic.message,
+                    "provenance": diagnostic.provenance,
+                })
+            }),
+    );
+    let rg_source = r#"
+:root {
+  --seed: 1px;
+  --a: var(--seed);
+  --b: var(--seed);
+  --c: var(--seed);
+  --d: var(--seed);
+}
+"#;
+    let rg_candidates =
+        crate::summarize_omena_query_style_hover_candidates("Tokens.module.css", rg_source)
+            .ok_or("rg candidates")?;
+    let rg_diagnostics = crate::summarize_omena_query_style_diagnostics_for_file_with_deep_analysis(
+        "file:///workspace/src/Tokens.module.css",
+        rg_source,
+        rg_candidates.candidates.as_slice(),
+        true,
+    );
+    records.extend(
+        rg_diagnostics
+            .diagnostics
+            .iter()
+            .filter(|diagnostic| diagnostic.code == "rgFlowRelevantOperator")
+            .map(|diagnostic| {
+                serde_json::json!({
+                    "code": diagnostic.code,
+                    "severity": diagnostic.severity,
+                    "message": diagnostic.message,
+                    "provenance": diagnostic.provenance,
+                })
+            }),
+    );
+    let categorical_source = r#"
+:root {
+  --a: var(--b);
+  --b: var(--a);
+}
+.alert {
+  color: var(--a);
+}
+"#;
+    let categorical_candidates =
+        crate::summarize_omena_query_style_hover_candidates("Alert.module.css", categorical_source)
+            .ok_or("categorical candidates")?;
+    let categorical_diagnostics =
+        crate::summarize_omena_query_style_diagnostics_for_file_with_deep_analysis(
+            "file:///workspace/src/Alert.module.css",
+            categorical_source,
+            categorical_candidates.candidates.as_slice(),
+            true,
+        );
+    records.extend(
+        categorical_diagnostics
+            .diagnostics
+            .iter()
+            .filter(|diagnostic| {
+                diagnostic.code == "circularVar"
+                    && diagnostic
+                        .provenance
+                        .contains(&"omena-categorical.cascade-primitive-role-functor")
+            })
+            .map(|diagnostic| {
+                serde_json::json!({
+                    "code": diagnostic.code,
+                    "severity": diagnostic.severity,
+                    "message": diagnostic.message,
+                    "provenance": diagnostic.provenance,
+                })
+            }),
+    );
+    let ensemble_sources = vec![
+        OmenaQueryStyleSourceInputV0 {
+            style_path: "/tmp/app.module.scss".to_string(),
+            style_source: r#"@use "./theme";
+.button { color: red; }
+.button { color: green; }"#
+                .to_string(),
+        },
+        OmenaQueryStyleSourceInputV0 {
+            style_path: "/tmp/_theme.scss".to_string(),
+            style_source: r#".button { color: red; }
+.button { color: blue; }"#
+                .to_string(),
+        },
+    ];
+    let ensemble_diagnostics = crate::summarize_omena_query_style_diagnostics_for_workspace_file(
+        "/tmp/app.module.scss",
+        ensemble_sources.as_slice(),
+        &[],
+        &[],
+        None,
+    )
+    .ok_or("ensemble diagnostics")?;
+    records.extend(
+        ensemble_diagnostics
+            .diagnostics
+            .iter()
+            .filter(|diagnostic| diagnostic.code == "replicaEnsembleInconsistency")
+            .map(|diagnostic| {
+                serde_json::json!({
+                    "code": diagnostic.code,
+                    "severity": diagnostic.severity,
+                    "message": diagnostic.message,
+                    "provenance": diagnostic.provenance,
+                })
+            }),
+    );
+    let actual = serde_json::to_string(&records).map_err(|_| "serialize")?;
+    let expected = concat!(
+        r#"[{"code":"designerIntentInconsistency","severity":"hint","message":"Variational designer-intent posterior classifies this selector as BEM, but the declarations rely on source order as the final tie-breaker.","provenance":["omena-query-checker-orchestrator.cascade-gate","omena-checker.cascade-rules","omena-query.cascade-checker","omena-variational.designer-intent-posterior","omena-query.cascade-narrowing","omena-abstract-value.property-value-narrowing","omena-abstract-value.reduced-product-iteration","omena-query-checker-orchestrator.product-diagnostic-gate","omena-checker.rule-registry"]}"#,
+        r#",{"code":"cascadeSmtViolation","severity":"warning","message":"Box-shorthand combination proof obligation is unsatisfiable: these longhands cannot be safely combined into the shorthand without changing the cascade outcome.","provenance":["omena-query-checker-orchestrator.smt-gate","omena-checker.smt-rules","omena-query.cascade-checker","omena-smt.backend-check","omena-smt.backend.stub","omena-query-checker-orchestrator.product-diagnostic-gate","omena-checker.rule-registry"]}"#,
+        r#",{"code":"rgFlowRelevantOperator","severity":"hint","message":"RG-flow opt-in deep-analysis hint found a relevant coupling operator; review custom-property fixed-point sensitivity. This is not a default product decision mechanism.","provenance":["omena-query-checker-orchestrator.rg-flow-gate","omena-checker.rg-flow-rules","omena-query.cascade-checker","omena-rg-flow.coupling-jacobian-spectrum","omena-query-checker-orchestrator.product-diagnostic-gate","omena-checker.rule-registry"]}"#,
+        r#",{"code":"circularVar","severity":"warning","message":"Custom property dependency graph contains a cycle.","provenance":["omena-query-checker-orchestrator.cascade-gate","omena-checker.cascade-rules","omena-query.cascade-checker","omena-query-checker-orchestrator.rg-flow-gate","omena-checker.rg-flow-rules","omena-rg-flow.coupling-jacobian-spectrum","omena-query-checker-orchestrator.categorical-gate","omena-checker.categorical-rules","omena-categorical.cascade-primitive-role-functor","omena-query-checker-orchestrator.product-diagnostic-gate","omena-checker.rule-registry"]}"#,
+        r#",{"code":"replicaEnsembleInconsistency","severity":"hint","message":"Replica-ensemble cross-file consistency hint found inconsistent cascade outcomes; this is not a default product decision mechanism.","provenance":["omena-query-checker-orchestrator.replica-ensemble-gate","omena-checker.replica-ensemble-rules","omena-ensemble.cross-file-inconsistency-report","omena-query.cross-file-replica-ensemble","omena-ensemble.cross-file-inconsistency-report","omena-query-checker-orchestrator.product-diagnostic-gate","omena-checker.rule-registry"]}]"#,
+    );
+    assert_eq!(actual, expected);
+    Ok(())
+}
+
+#[test]
 fn cascade_aware_lints_preserve_flatten_invariance_for_nested_ampersand() -> Result<(), &'static str>
 {
     let nested = r#"
