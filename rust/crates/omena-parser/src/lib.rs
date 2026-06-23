@@ -46,7 +46,7 @@ pub use facts::{
 pub(crate) use facts::{
     SelectorBranch, collect_class_selector_names_from_header,
     css_module_block_scope_marker_in_header, css_module_header_is_global_only,
-    resolve_selector_header, split_selector_groups,
+    product_facts_from_cst, resolve_selector_header, split_selector_groups,
 };
 pub(crate) use facts::{
     collect_css_module_value_definition_edge_names, css_module_value_reference_token_can_be_name,

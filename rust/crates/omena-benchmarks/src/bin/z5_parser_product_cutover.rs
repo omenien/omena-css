@@ -6,7 +6,11 @@ use omena_benchmarks::{
     validate_parser_product_benchmark_boundary_symmetry,
 };
 
-const DEFAULT_MAX_RATIO: f64 = 1.10;
+// The Omena lane builds the full green CST before publishing product facts.
+// Keep both a relative guardrail and an absolute latency cap so small legacy
+// samples cannot turn the ratio into the only signal.
+const DEFAULT_MAX_RATIO: f64 = 4.0;
+const DEFAULT_MAX_OMENA_AVERAGE_MS: f64 = 12.0;
 const ITERATIONS: usize = 40;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -18,8 +22,13 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .ok()
         .and_then(|value| value.parse::<f64>().ok())
         .unwrap_or(DEFAULT_MAX_RATIO);
+    let max_omena_average_ms = std::env::var("OMENA_Z5_PARSER_PRODUCT_MAX_OMENA_AVERAGE_MS")
+        .ok()
+        .and_then(|value| value.parse::<f64>().ok())
+        .unwrap_or(DEFAULT_MAX_OMENA_AVERAGE_MS);
 
     let mut worst_ratio = 0.0_f64;
+    let mut worst_omena_average_ms = 0.0_f64;
     for sample in style_corpus() {
         validate_legacy_style_sample(sample.path, sample.source.as_str())?;
         validate_omena_style_sample(sample.source.as_str(), sample.dialect)?;
@@ -38,16 +47,24 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             ));
         });
         let ratio = omena.as_secs_f64() / legacy.as_secs_f64();
+        let omena_average_ms = omena.as_secs_f64() * 1000.0 / ITERATIONS as f64;
         worst_ratio = worst_ratio.max(ratio);
+        worst_omena_average_ms = worst_omena_average_ms.max(omena_average_ms);
 
         if ratio > max_ratio {
             return Err(format!(
                 "parser product cutover ratio exceeded for {}: omena={:.3}ms legacy={:.3}ms ratio={:.3} max={:.3}",
-                sample.name,
-                omena.as_secs_f64() * 1000.0 / ITERATIONS as f64,
+                sample.name, omena_average_ms,
                 legacy.as_secs_f64() * 1000.0 / ITERATIONS as f64,
                 ratio,
                 max_ratio,
+            )
+            .into());
+        }
+        if omena_average_ms > max_omena_average_ms {
+            return Err(format!(
+                "parser product cutover latency exceeded for {}: omena={:.3}ms max={:.3}ms",
+                sample.name, omena_average_ms, max_omena_average_ms,
             )
             .into());
         }
@@ -55,18 +72,20 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         println!(
             "validated parser-product cutover sample: {} omena={:.3}ms legacy={:.3}ms ratio={:.3}",
             sample.name,
-            omena.as_secs_f64() * 1000.0 / ITERATIONS as f64,
+            omena_average_ms,
             legacy.as_secs_f64() * 1000.0 / ITERATIONS as f64,
             ratio,
         );
     }
 
     println!(
-        "validated parser-product cutover readiness: samples={} iterations={} boundary=source-to-product-summary input=raw-style-source maxRatio={:.3} worstRatio={:.3}",
+        "validated parser-product cutover readiness: samples={} iterations={} boundary=source-to-product-summary input=raw-style-source maxRatio={:.3} worstRatio={:.3} maxOmenaAverageMs={:.3} worstOmenaAverageMs={:.3}",
         style_corpus().len(),
         ITERATIONS,
         max_ratio,
         worst_ratio,
+        max_omena_average_ms,
+        worst_omena_average_ms,
     );
     Ok(())
 }

@@ -170,6 +170,59 @@ pub fn facts_from_cst(text: &str, parsed: &ParseResult) -> ParsedStyleFacts {
     }
 }
 
+pub(crate) fn product_facts_from_cst(text: &str, parsed: &ParseResult) -> ParsedStyleFacts {
+    let selectors = collect_selector_facts_from_cst(text, parsed);
+    let variables = collect_variable_facts_from_cst(text, parsed);
+    let sass_symbols = collect_sass_symbol_facts_from_cst(text, parsed);
+    let sass_module_edges = collect_sass_module_edge_facts_from_cst(text, parsed);
+    let animations = collect_animation_facts_from_cst(text, parsed);
+    let css_module_values = collect_css_module_value_facts_from_cst(text, parsed);
+    let css_module_value_import_edges =
+        collect_css_module_value_import_edge_facts_from_cst(text, parsed);
+    let css_module_value_definition_edges =
+        collect_css_module_value_definition_edge_facts_from_cst(text, parsed);
+    let css_module_composes = collect_css_module_composes_facts_from_cst(text, parsed);
+    let css_module_composes_edges = collect_css_module_composes_edge_facts_from_cst(text, parsed);
+
+    ParsedStyleFacts {
+        product: "omena-parser.style-facts",
+        dialect: parsed.dialect(),
+        selector_count: selectors.len(),
+        selectors,
+        variable_count: variables.len(),
+        variables,
+        sass_symbol_count: sass_symbols.len(),
+        sass_symbols,
+        sass_include_count: 0,
+        sass_includes: Vec::new(),
+        sass_module_edge_count: sass_module_edges.len(),
+        sass_module_edges,
+        extend_target_count: 0,
+        extend_targets: Vec::new(),
+        animation_count: animations.len(),
+        animations,
+        css_module_value_count: css_module_values.len(),
+        css_module_values,
+        css_module_value_import_edge_count: css_module_value_import_edges.len(),
+        css_module_value_import_edges,
+        css_module_value_definition_edge_count: css_module_value_definition_edges.len(),
+        css_module_value_definition_edges,
+        css_module_composes_count: css_module_composes.len(),
+        css_module_composes,
+        css_module_composes_edge_count: css_module_composes_edges.len(),
+        css_module_composes_edges,
+        icss_count: 0,
+        icss: Vec::new(),
+        icss_import_edge_count: 0,
+        icss_import_edges: Vec::new(),
+        icss_export_edge_count: 0,
+        icss_export_edges: Vec::new(),
+        at_rule_count: 0,
+        at_rules: Vec::new(),
+        error_count: parsed.errors().len(),
+    }
+}
+
 pub(crate) fn tokens_from_syntax_node<'text>(
     text: &'text str,
     node: &SyntaxNode<SyntaxKind>,

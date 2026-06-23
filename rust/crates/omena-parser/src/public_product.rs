@@ -11,7 +11,7 @@ use crate::{
     ParsedAnimationFactKind, ParsedCssModuleComposesEdgeKind, ParsedCssModuleComposesFactKind,
     ParsedCssModuleValueFactKind, ParsedSassModuleEdgeFactKind, ParsedSassSymbolFactKind,
     ParsedSelectorFactKind, ParsedStyleFacts, ParsedVariableFactKind, ParserByteSpanV0,
-    ParserPositionV0, ParserRangeV0, StyleDialect, collect_style_facts,
+    ParserPositionV0, ParserRangeV0, StyleDialect, parse, product_facts_from_cst,
     summarize_omena_parser_parity_lite,
 };
 use cstree::text::TextRange;
@@ -498,7 +498,8 @@ pub fn summarize_css_modules_intermediate(
     dialect: StyleDialect,
 ) -> ParserIndexSummaryV0 {
     let line_index = SourceLineIndex::new(source);
-    let facts = collect_style_facts(source, dialect);
+    let parsed = parse(source, dialect);
+    let facts = product_facts_from_cst(source, &parsed);
     let blocks = collect_style_blocks(source, &line_index);
     let selectors = summarize_selectors(source, &line_index, &facts, &blocks);
     let values = summarize_values(source, &line_index, &facts, &blocks);
