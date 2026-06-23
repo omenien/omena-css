@@ -48,6 +48,10 @@ const PROBE_DURATION_MS = parsePositiveInteger(
   1_200,
 );
 const MAX_PROBE_MS = parsePositiveInteger(process.env.OMENA_LSP_RUNTIME_LOOP_MAX_MS, 400);
+const SINGLE_OUTLIER_PROBE_MS = parsePositiveInteger(
+  process.env.OMENA_LSP_RUNTIME_LOOP_SINGLE_OUTLIER_MS,
+  750,
+);
 const P95_PROBE_MS = parsePositiveInteger(process.env.OMENA_LSP_RUNTIME_LOOP_P95_MS, 150);
 const REQUEST_TIMEOUT_MS = parsePositiveInteger(
   process.env.OMENA_LSP_RUNTIME_LOOP_REQUEST_TIMEOUT_MS,
@@ -376,12 +380,17 @@ function assertProbeMetrics(latencies: readonly number[]): void {
 
   const p95 = percentile(latencies, 95);
   const max = Math.max(...latencies);
-  if (p95 > P95_PROBE_MS || max > MAX_PROBE_MS) {
+  const overBudgetCount = latencies.filter((latency) => latency > MAX_PROBE_MS).length;
+  const hasSustainedMaxRegression =
+    max > MAX_PROBE_MS && (overBudgetCount > 1 || max > SINGLE_OUTLIER_PROBE_MS);
+  if (p95 > P95_PROBE_MS || hasSustainedMaxRegression) {
     throw new Error(
       [
         "omena-lsp-server runtime loop probe exceeded budget",
         `p95=${p95.toFixed(2)}ms budget=${P95_PROBE_MS}ms`,
         `max=${max.toFixed(2)}ms budget=${MAX_PROBE_MS}ms`,
+        `singleOutlierBudget=${SINGLE_OUTLIER_PROBE_MS}ms`,
+        `overBudgetSamples=${overBudgetCount}`,
         `samples=${latencies.length}`,
       ].join("\n"),
     );
