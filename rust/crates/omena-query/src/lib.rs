@@ -38,6 +38,16 @@ pub use omena_parser::{
     ParserByteSpanV0, ParserPositionV0, ParserRangeV0, StyleDialect as OmenaParserStyleDialect,
     StyleLanguage,
 };
+
+pub fn syntax_node_id_for_omena_query_style_source(
+    style_source: &str,
+    dialect: OmenaParserStyleDialect,
+) -> String {
+    let parsed = omena_parser::parse(style_source, dialect);
+    omena_parser::syntax_node_id(&parsed.syntax())
+        .as_str()
+        .to_string()
+}
 use omena_query_checker_orchestrator::{
     CATEGORICAL_FEATURE_GATE_V0, CATEGORICAL_LAYER_MARKER_V0, CATEGORICAL_SCHEMA_VERSION_V0,
     DesignSystemEdgeKindCountV0, DesignSystemProjectSummaryInputV0,

@@ -239,15 +239,16 @@ fn lsp_file_identity_feeds_incremental_revision_salsa_key() {
     let Some(file_id) = state.document_file_id(uri) else {
         return;
     };
-    let parsed = omena_parser::parse(text, omena_parser::StyleDialect::Scss);
-    let syntax = parsed.syntax();
-    let syntax_id = omena_parser::syntax_node_id(&syntax);
+    let syntax_id = omena_query::syntax_node_id_for_omena_query_style_source(
+        text,
+        omena_query::OmenaParserStyleDialect::Scss,
+    );
     let db = salsa::DatabaseImpl::default();
     let key_input = omena_incremental::SalsaIncrementalFileRevisionInputV0::new(
         &db,
         file_id.incremental_key(),
         omena_incremental::IncrementalRevisionV0 { value: 7 },
-        syntax_id.as_str().to_string(),
+        syntax_id.clone(),
     );
 
     assert_eq!(
@@ -255,7 +256,7 @@ fn lsp_file_identity_feeds_incremental_revision_salsa_key() {
         format!(
             "file={};revision=7;syntax={}",
             file_id.incremental_key(),
-            syntax_id.as_str()
+            syntax_id
         )
     );
 }
