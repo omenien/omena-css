@@ -225,8 +225,25 @@ union QueryResultV2 {
   selectorUsage: SelectorUsageQueryResultV2,
 }
 
+model TextPositionJsonV2 {
+  line: int32;
+  character: int32;
+}
+
+model TextRangeJsonV2 {
+  start: TextPositionJsonV2;
+  end: TextPositionJsonV2;
+}
+
+model PlannedTextEditJsonV2 {
+  uri: string;
+  range: TextRangeJsonV2;
+  newText: string;
+}
+
 model TextRewritePlanJsonV2 {
-  payload: unknown;
+  target: unknown;
+  edits: PlannedTextEditJsonV2[];
 }
 
 model CheckerReportJsonV1 {

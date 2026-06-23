@@ -139,7 +139,21 @@ export interface SelectorUsagePayloadV2Json {
   hasAnyReferences: boolean;
 }
 export interface TextRewritePlanJsonV2Json {
-  payload: unknown;
+  target: unknown;
+  edits: PlannedTextEditJsonV2Json[];
+}
+export interface PlannedTextEditJsonV2Json {
+  uri: string;
+  range: TextRangeJsonV2Json;
+  newText: string;
+}
+export interface TextRangeJsonV2Json {
+  start: TextPositionJsonV2Json;
+  end: TextPositionJsonV2Json;
+}
+export interface TextPositionJsonV2Json {
+  line: number;
+  character: number;
 }
 export interface CheckerReportJsonV1Json {
   version: string;

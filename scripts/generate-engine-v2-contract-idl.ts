@@ -510,10 +510,33 @@ pub enum QueryResultV2Json {
     },
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TextPositionJsonV2Json {
+    pub line: i32,
+    pub character: i32,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TextRangeJsonV2Json {
+    pub start: TextPositionJsonV2Json,
+    pub end: TextPositionJsonV2Json,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PlannedTextEditJsonV2Json {
+    pub uri: String,
+    pub range: TextRangeJsonV2Json,
+    pub new_text: String,
+}
+
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct TextRewritePlanJsonV2Json {
-    pub payload: serde_json::Value,
+    pub target: serde_json::Value,
+    pub edits: Vec<PlannedTextEditJsonV2Json>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]

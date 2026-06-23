@@ -129,6 +129,8 @@ assert.ok(!engineInputTypes.includes("[k: string]"));
 assert.ok(engineOutputTypes.includes("export interface EngineOutputV2Json"));
 assert.ok(engineOutputTypes.includes("queryResults: QueryResultV2Json[]"));
 assert.ok(engineOutputTypes.includes("rewritePlans: TextRewritePlanJsonV2Json[]"));
+assert.match(engineOutputTypes, /target: (unknown|any);/u);
+assert.ok(engineOutputTypes.includes("edits: PlannedTextEditJsonV2Json[]"));
 assert.ok(engineOutputTypes.includes("checkerReport: CheckerReportJsonV1Json"));
 assert.ok(!engineOutputTypes.includes("[k: string]"));
 
@@ -321,7 +323,30 @@ pub enum QueryResultV2 {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct TextRewritePlanJsonV2 {
-    pub payload: serde_json::Value,
+    pub target: serde_json::Value,
+    pub edits: Vec<PlannedTextEditJsonV2>,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PlannedTextEditJsonV2 {
+    pub uri: String,
+    pub range: TextRangeJsonV2,
+    pub new_text: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TextRangeJsonV2 {
+    pub start: TextPositionJsonV2,
+    pub end: TextPositionJsonV2,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TextPositionJsonV2 {
+    pub line: i32,
+    pub character: i32,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -415,7 +440,17 @@ mod tests {
                 "queryId": "button",
                 "payload": { "canonicalName": "button" }
             }],
-            "rewritePlans": [],
+            "rewritePlans": [{
+                "target": { "kind": "selector", "name": "button" },
+                "edits": [{
+                    "uri": "file:///repo/src/App.module.scss",
+                    "range": {
+                        "start": { "line": 0, "character": 0 },
+                        "end": { "line": 0, "character": 7 }
+                    },
+                    "newText": ".button"
+                }]
+            }],
             "checkerReport": {
                 "version": "1",
                 "findings": [],
@@ -425,7 +460,7 @@ mod tests {
         .unwrap();
         let output = serde_json::to_value(output).unwrap();
         assert_eq!(output["queryResults"][0]["kind"], "selector-usage");
-        assert!(output["rewritePlans"].as_array().unwrap().is_empty());
+        assert_eq!(output["rewritePlans"][0]["edits"][0]["newText"], ".button");
     }
 
     #[test]
