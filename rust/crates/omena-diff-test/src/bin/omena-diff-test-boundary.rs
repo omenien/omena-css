@@ -11,6 +11,9 @@ fn main() -> ExitCode {
         && summary.all_m3_fixture_seeds_parse
         && summary.all_soundiness_metamorphic_relations_hold
         && summary.all_diagnostic_metamorphic_relations_hold
+        && summary.all_parser_cst_fact_authority_values_match
+        && summary.all_parser_cst_fact_authority_spans_match
+        && summary.all_parser_cst_fact_authority_metamorphic_relations_hold
         && summary.all_parser_cst_context_raw_scan_fixtures_match
         && summary.all_cache_equivalence_files_identical
         && summary.all_salsa_memo_equivalence_phases_identical

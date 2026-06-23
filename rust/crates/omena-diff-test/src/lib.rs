@@ -248,6 +248,18 @@ pub struct OmenaDiffTestBoundarySummary {
     pub diagnostic_metamorphic_relation_count: usize,
     /// Whether every diagnostic metamorphic relation currently holds.
     pub all_diagnostic_metamorphic_relations_hold: bool,
+    /// Parser fact authority fixtures compared against the CST-derived path.
+    pub parser_cst_fact_authority_fixture_count: usize,
+    /// Parser fact authority category comparisons.
+    pub parser_cst_fact_authority_comparison_count: usize,
+    /// Whether parser fact values match the internal authority oracle.
+    pub all_parser_cst_fact_authority_values_match: bool,
+    /// Whether parser fact spans match the internal authority oracle.
+    pub all_parser_cst_fact_authority_spans_match: bool,
+    /// Parser fact authority metamorphic relation count.
+    pub parser_cst_fact_authority_metamorphic_relation_count: usize,
+    /// Whether parser fact authority metamorphic relations hold.
+    pub all_parser_cst_fact_authority_metamorphic_relations_hold: bool,
     /// Context-index fixtures that keep comment/string/interpolation text out of facts.
     pub parser_cst_context_raw_scan_fixture_count: usize,
     /// Whether context-index fixtures match their intended CST-derived output.
@@ -272,6 +284,8 @@ pub struct OmenaDiffTestBoundarySummary {
     pub soundiness_metamorphic_report: SoundinessMetamorphicReportV0,
     /// Internal omena-vs-omena diagnostic metamorphic relation report.
     pub diagnostic_metamorphic_report: DiagnosticMetamorphicReportV0,
+    /// Internal parser fact authority report.
+    pub parser_cst_fact_authority_report: ParserCstFactAuthorityReportV0,
     /// CST-derived context-index raw-text divergence report.
     pub parser_cst_context_raw_scan_report: ParserCstContextRawScanDivergenceReportV0,
     /// Cached-vs-from-scratch diagnostic equivalence report (RFC 0009 §0).
@@ -1481,6 +1495,7 @@ pub fn summarize_omena_diff_test_boundary() -> OmenaDiffTestBoundarySummary {
     let wpt_value_differential_report = summarize_wpt_value_differential();
     let soundiness_metamorphic_report = summarize_soundiness_metamorphic_relations();
     let diagnostic_metamorphic_report = summarize_diagnostic_metamorphic_relations();
+    let parser_cst_fact_authority_report = summarize_parser_cst_fact_authority_equivalence_v0();
     let parser_cst_context_raw_scan_report = summarize_parser_cst_context_raw_scan_divergence_v0();
     let (cache_equivalence_corpus, cache_equivalence_resolution_inputs) =
         omena_diff_cache_equivalence_default_corpus_v0();
@@ -1515,6 +1530,18 @@ pub fn summarize_omena_diff_test_boundary() -> OmenaDiffTestBoundarySummary {
         all_soundiness_metamorphic_relations_hold: soundiness_metamorphic_report.all_relations_hold,
         diagnostic_metamorphic_relation_count: diagnostic_metamorphic_report.relation_count,
         all_diagnostic_metamorphic_relations_hold: diagnostic_metamorphic_report.all_relations_hold,
+        parser_cst_fact_authority_fixture_count: parser_cst_fact_authority_report.fixture_count,
+        parser_cst_fact_authority_comparison_count: parser_cst_fact_authority_report
+            .comparisons
+            .len(),
+        all_parser_cst_fact_authority_values_match: parser_cst_fact_authority_report
+            .all_value_sets_match,
+        all_parser_cst_fact_authority_spans_match: parser_cst_fact_authority_report
+            .all_span_sets_match,
+        parser_cst_fact_authority_metamorphic_relation_count: parser_cst_fact_authority_report
+            .metamorphic_relation_count,
+        all_parser_cst_fact_authority_metamorphic_relations_hold: parser_cst_fact_authority_report
+            .all_metamorphic_relations_hold,
         parser_cst_context_raw_scan_fixture_count: parser_cst_context_raw_scan_report.fixture_count,
         all_parser_cst_context_raw_scan_fixtures_match: parser_cst_context_raw_scan_report
             .all_fixtures_match,
@@ -1540,6 +1567,7 @@ pub fn summarize_omena_diff_test_boundary() -> OmenaDiffTestBoundarySummary {
             "externalSifsSalsaMemoizedVsFromScratchEquivalence",
             "parallelSalsaViewsVsFromScratchEquivalence",
             "wptValueDifferentialHandModelAgreement",
+            "parserCstFactAuthorityEquivalence",
             "parserCstContextRawScanDivergence",
         ],
         reports,
@@ -1548,6 +1576,7 @@ pub fn summarize_omena_diff_test_boundary() -> OmenaDiffTestBoundarySummary {
         wpt_value_differential_report,
         soundiness_metamorphic_report,
         diagnostic_metamorphic_report,
+        parser_cst_fact_authority_report,
         parser_cst_context_raw_scan_report,
         cache_equivalence_report,
         salsa_memo_equivalence_report,
@@ -2842,6 +2871,21 @@ code: missingCustomProperty
         assert_eq!(summary.diagnostic_metamorphic_relation_count, 7);
         assert!(summary.all_diagnostic_metamorphic_relations_hold);
         assert_eq!(
+            summary.parser_cst_fact_authority_fixture_count,
+            PARSER_LEGACY_SEED_FIXTURES.len() + PARSER_FACT_AUTHORITY_FIXTURES.len()
+        );
+        assert_eq!(
+            summary.parser_cst_fact_authority_comparison_count,
+            summary.parser_cst_fact_authority_fixture_count * 16
+        );
+        assert!(summary.all_parser_cst_fact_authority_values_match);
+        assert!(summary.all_parser_cst_fact_authority_spans_match);
+        assert_eq!(
+            summary.parser_cst_fact_authority_metamorphic_relation_count,
+            summary.parser_cst_fact_authority_fixture_count * 2
+        );
+        assert!(summary.all_parser_cst_fact_authority_metamorphic_relations_hold);
+        assert_eq!(
             summary.parser_cst_context_raw_scan_fixture_count,
             PARSER_CST_CONTEXT_RAW_SCAN_FIXTURES.len()
         );
@@ -2879,6 +2923,11 @@ code: missingCustomProperty
             summary
                 .closed_gates
                 .contains(&"diagnosticMetamorphicRelations")
+        );
+        assert!(
+            summary
+                .closed_gates
+                .contains(&"parserCstFactAuthorityEquivalence")
         );
         assert!(
             summary
