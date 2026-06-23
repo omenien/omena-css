@@ -191,6 +191,143 @@ function render(flag: boolean, variant: string) {
     });
   });
 
+  it("preserves string candidates from logical-and short-circuit expressions", () => {
+    const source = `
+function render(flag: boolean) {
+  const size = flag && "is-active";
+  return cx(size);
+}
+`;
+    const sourceFile = ts.createSourceFile(
+      "/fake/Flow.tsx",
+      source,
+      ts.ScriptTarget.Latest,
+      true,
+      ts.ScriptKind.TSX,
+    );
+
+    expect(resolveFlowClassValues(sourceFile, rangeOf(source, "cx(size)"), "size")).toEqual({
+      abstractValue: {
+        kind: "exact",
+        value: "is-active",
+      },
+      valueCertainty: "exact",
+      reason: "flowBranch",
+    });
+  });
+
+  it("preserves fallback candidates from nullish short-circuit expressions", () => {
+    const source = `
+function render(sizeInput: string | null) {
+  const size = sizeInput ?? "fallback";
+  return cx(size);
+}
+`;
+    const sourceFile = ts.createSourceFile(
+      "/fake/Flow.tsx",
+      source,
+      ts.ScriptTarget.Latest,
+      true,
+      ts.ScriptKind.TSX,
+    );
+
+    expect(resolveFlowClassValues(sourceFile, rangeOf(source, "cx(size)"), "size")).toEqual({
+      abstractValue: {
+        kind: "exact",
+        value: "fallback",
+      },
+      valueCertainty: "exact",
+      reason: "flowBranch",
+    });
+  });
+
+  it("merges while-loop assignments with the zero-iteration path", () => {
+    const source = `
+function render(flag: boolean) {
+  let size = "base";
+  while (flag) {
+    size = "loop";
+    break;
+  }
+  return cx(size);
+}
+`;
+    const sourceFile = ts.createSourceFile(
+      "/fake/Flow.tsx",
+      source,
+      ts.ScriptTarget.Latest,
+      true,
+      ts.ScriptKind.TSX,
+    );
+
+    expect(resolveFlowClassValues(sourceFile, rangeOf(source, "cx(size)"), "size")).toEqual({
+      abstractValue: {
+        kind: "finiteSet",
+        values: ["base", "loop"],
+      },
+      valueCertainty: "inferred",
+      reason: "flowBranch",
+    });
+  });
+
+  it("merges for-loop assignments with the zero-iteration path", () => {
+    const source = `
+function render(count: number) {
+  let size = "base";
+  for (let index = 0; index < count; index += 1) {
+    size = "loop";
+  }
+  return cx(size);
+}
+`;
+    const sourceFile = ts.createSourceFile(
+      "/fake/Flow.tsx",
+      source,
+      ts.ScriptTarget.Latest,
+      true,
+      ts.ScriptKind.TSX,
+    );
+
+    expect(resolveFlowClassValues(sourceFile, rangeOf(source, "cx(size)"), "size")).toEqual({
+      abstractValue: {
+        kind: "finiteSet",
+        values: ["base", "loop"],
+      },
+      valueCertainty: "inferred",
+      reason: "flowBranch",
+    });
+  });
+
+  it("routes labeled break to the loop exit without consuming dead assignments", () => {
+    const source = `
+function render(flag: boolean) {
+  let size = "base";
+  outer: while (flag) {
+    size = "loop";
+    break outer;
+    size = "never";
+  }
+  return cx(size);
+}
+`;
+    const sourceFile = ts.createSourceFile(
+      "/fake/Flow.tsx",
+      source,
+      ts.ScriptTarget.Latest,
+      true,
+      ts.ScriptKind.TSX,
+    );
+
+    expect(resolveFlowClassValues(sourceFile, rangeOf(source, "cx(size)"), "size")).toEqual({
+      abstractValue: {
+        kind: "finiteSet",
+        values: ["base", "loop"],
+      },
+      valueCertainty: "inferred",
+      reason: "flowBranch",
+    });
+  });
+
   it("derives a finite set from a same-file helper call that returns string literals", () => {
     const source = `
 type Status = "idle" | "busy" | "error";

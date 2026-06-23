@@ -21,6 +21,7 @@ type FlowEnv = Map<string, ClassValueLattice>;
 interface FlowState {
   readonly env: FlowEnv;
   readonly terminated: boolean;
+  readonly termination: "none" | "function" | "break";
 }
 
 export function resolveFlowClassValues(
@@ -68,22 +69,34 @@ function analyzeNodes(
         const elseState =
           node.elseNodes.length > 0
             ? analyzeNodes(node.elseNodes, env, sourceFile)
-            : { env, terminated: false };
+            : { env, terminated: false, termination: "none" as const };
         const merged = mergeEnvs(env, thenState, elseState);
         env = merged.env;
         terminated = merged.terminated;
         break;
       }
+      case "loop": {
+        if (node.referenceLocation === "body") {
+          return analyzeNodes(node.bodyNodes, env, sourceFile);
+        }
+
+        const bodyState = analyzeNodes(node.bodyNodes, env, sourceFile);
+        env = mergeLoopEnv(env, bodyState);
+        break;
+      }
+      case "break":
+        terminated = true;
+        return { env, terminated, termination: "break" };
       case "terminate":
         terminated = true;
-        break;
+        return { env, terminated, termination: "function" };
       default:
         node satisfies never;
         break;
     }
   }
 
-  return { env, terminated };
+  return { env, terminated, termination: "none" };
 }
 
 function resolveExpression(
@@ -147,11 +160,42 @@ function resolveExpression(
     }
   }
 
+  if (
+    ts.isBinaryExpression(expression) &&
+    (expression.operatorToken.kind === ts.SyntaxKind.AmpersandAmpersandToken ||
+      expression.operatorToken.kind === ts.SyntaxKind.BarBarToken ||
+      expression.operatorToken.kind === ts.SyntaxKind.QuestionQuestionToken)
+  ) {
+    return resolveShortCircuitExpression(expression, env, sourceFile);
+  }
+
   if (ts.isCallExpression(expression)) {
     return resolveDirectFunctionCall(expression, env, sourceFile);
   }
 
   return null;
+}
+
+function resolveShortCircuitExpression(
+  expression: ts.BinaryExpression,
+  env: FlowEnv,
+  sourceFile: ts.SourceFile,
+): ClassValueLattice | null {
+  const left = resolveExpression(expression.left, env, sourceFile);
+  const right = resolveExpression(expression.right, env, sourceFile);
+
+  if (expression.operatorToken.kind === ts.SyntaxKind.AmpersandAmpersandToken) {
+    if (left && isDefinitelyTruthyClassValue(left)) return right;
+    return markBranched(right);
+  }
+
+  if (left && isDefinitelyTruthyClassValue(left)) return left;
+  return markBranched(mergeValues(left, right));
+}
+
+function isDefinitelyTruthyClassValue(value: ClassValueLattice): boolean {
+  const abstractValue = value.abstractValue;
+  return abstractValue.kind === "exact" && abstractValue.value.length > 0;
 }
 
 interface ReturnAnalysis {
@@ -351,11 +395,19 @@ function findTypeAliasDeclaration(
 }
 
 function mergeEnvs(base: FlowEnv, left: FlowState, right: FlowState): FlowState {
-  if (left.terminated && right.terminated) {
-    return { env: new Map(), terminated: true };
+  if (left.termination === "function" && right.termination === "function") {
+    return { env: new Map(), terminated: true, termination: "function" };
   }
-  if (left.terminated) return { env: cloneEnv(right.env), terminated: right.terminated };
-  if (right.terminated) return { env: cloneEnv(left.env), terminated: left.terminated };
+  if (left.termination === "function") {
+    return {
+      env: cloneEnv(right.env),
+      terminated: right.terminated,
+      termination: right.termination,
+    };
+  }
+  if (right.termination === "function") {
+    return { env: cloneEnv(left.env), terminated: left.terminated, termination: left.termination };
+  }
 
   const merged = cloneEnv(base);
   const keys = new Set([...left.env.keys(), ...right.env.keys(), ...base.keys()]);
@@ -367,7 +419,28 @@ function mergeEnvs(base: FlowEnv, left: FlowState, right: FlowState): FlowState 
       merged.delete(key);
     }
   }
-  return { env: merged, terminated: false };
+  const breakTerminated = left.termination === "break" && right.termination === "break";
+  return {
+    env: merged,
+    terminated: breakTerminated,
+    termination: breakTerminated ? "break" : "none",
+  };
+}
+
+function mergeLoopEnv(base: FlowEnv, bodyState: FlowState): FlowEnv {
+  if (bodyState.termination === "function") return cloneEnv(base);
+
+  const merged = cloneEnv(base);
+  const keys = new Set([...bodyState.env.keys(), ...base.keys()]);
+  for (const key of keys) {
+    const value = mergeValues(base.get(key) ?? null, bodyState.env.get(key) ?? null);
+    if (value) {
+      merged.set(key, value);
+    } else {
+      merged.delete(key);
+    }
+  }
+  return merged;
 }
 
 function cloneEnv(env: FlowEnv): FlowEnv {

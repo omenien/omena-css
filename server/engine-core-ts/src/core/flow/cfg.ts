@@ -1,6 +1,11 @@
 import ts from "typescript";
 
-export type FlowNode = AssignmentFlowNode | BranchFlowNode | TerminateFlowNode;
+export type FlowNode =
+  | AssignmentFlowNode
+  | BranchFlowNode
+  | LoopFlowNode
+  | BreakFlowNode
+  | TerminateFlowNode;
 
 export interface AssignmentFlowNode {
   readonly kind: "assignment";
@@ -15,6 +20,18 @@ export interface BranchFlowNode {
   readonly referenceLocation: "then" | "else" | "after";
   readonly thenNodes: readonly FlowNode[];
   readonly elseNodes: readonly FlowNode[];
+}
+
+export interface LoopFlowNode {
+  readonly kind: "loop";
+  readonly statement: ts.WhileStatement | ts.ForStatement | ts.DoStatement;
+  readonly referenceLocation: "body" | "after";
+  readonly bodyNodes: readonly FlowNode[];
+}
+
+export interface BreakFlowNode {
+  readonly kind: "break";
+  readonly statement: ts.BreakStatement;
 }
 
 export interface TerminateFlowNode {
@@ -52,6 +69,34 @@ export function buildFlowNodes(
       continue;
     }
 
+    if (isLoopStatement(statement)) {
+      const referenceLocation = containsPosition(statement.statement, referencePos)
+        ? "body"
+        : "after";
+      nodes.push({
+        kind: "loop",
+        statement,
+        referenceLocation,
+        bodyNodes: buildFlowNodes(
+          statementListOf(statement.statement),
+          referenceLocation === "body" ? referencePos : Number.POSITIVE_INFINITY,
+        ),
+      });
+      if (referenceLocation === "body") break;
+      continue;
+    }
+
+    if (ts.isLabeledStatement(statement)) {
+      nodes.push(...buildFlowNodes([statement.statement], referencePos));
+      if (containsPosition(statement.statement, referencePos)) break;
+      continue;
+    }
+
+    if (ts.isBreakStatement(statement)) {
+      nodes.push({ kind: "break", statement });
+      break;
+    }
+
     if (ts.isReturnStatement(statement) || ts.isThrowStatement(statement)) {
       nodes.push({ kind: "terminate", statement });
       break;
@@ -61,6 +106,14 @@ export function buildFlowNodes(
   }
 
   return nodes;
+}
+
+function isLoopStatement(
+  statement: ts.Statement,
+): statement is ts.WhileStatement | ts.ForStatement | ts.DoStatement {
+  return (
+    ts.isWhileStatement(statement) || ts.isForStatement(statement) || ts.isDoStatement(statement)
+  );
 }
 
 function statementListOf(statement: ts.Statement | undefined): readonly ts.Statement[] {
