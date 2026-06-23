@@ -147,6 +147,7 @@
     "check:rust-product-path-matrix": "node --import tsx ./scripts/check-rust-product-path-matrix.ts",
     "check:rust-core-layer-hygiene": "node --import tsx ./scripts/check-rust-core-layer-hygiene.ts",
     "check:rust-feature-resolved-product-reachability": "node --import tsx ./scripts/check-rust-feature-resolved-product-reachability.ts",
+    "check:rust-product-lab-closure": "node --import tsx ./scripts/check-rust-product-lab-closure.ts",
     "check:rust-publish-flags": "node --import tsx ./scripts/check-rust-publish-flags.ts",
     "check:rust-naming-consistency": "node --import tsx ./scripts/check-rust-naming-consistency.ts",
     "check:rust-closure-fast-aggregation-complete": "node --import tsx ./scripts/check-rust-closure-fast-aggregation-complete.ts",

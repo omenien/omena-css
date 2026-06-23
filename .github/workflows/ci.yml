@@ -215,6 +215,10 @@ jobs:
         name: Run feature-resolved-product-reachability
         run: pnpm omena-check run rust/feature-resolved-product-reachability
         continue-on-error: true
+      - id: product_lab_closure
+        name: Run product-lab closure
+        run: pnpm omena-check run rust/product-lab-closure
+        continue-on-error: true
       - id: cross_file_reachability
         name: Run cross-file reachability diagnostic
         run: pnpm omena-check run rust/cross-file-reachability-diagnostic
@@ -260,6 +264,7 @@ jobs:
           echo "product_path_matrix=${{ steps.product_path_matrix.outcome }}"
           echo "core_layer_hygiene=${{ steps.core_layer_hygiene.outcome }}"
           echo "feature_resolved_reachability=${{ steps.feature_resolved_reachability.outcome }}"
+          echo "product_lab_closure=${{ steps.product_lab_closure.outcome }}"
           echo "cross_file_reachability=${{ steps.cross_file_reachability.outcome }}"
           echo "streaming_ifds_solver_hygiene=${{ steps.streaming_ifds_solver_hygiene.outcome }}"
           echo "publish_flags=${{ steps.publish_flags.outcome }}"
@@ -283,6 +288,7 @@ jobs:
             "${{ steps.product_path_matrix.outcome }}" \
             "${{ steps.core_layer_hygiene.outcome }}" \
             "${{ steps.feature_resolved_reachability.outcome }}" \
+            "${{ steps.product_lab_closure.outcome }}" \
             "${{ steps.cross_file_reachability.outcome }}" \
             "${{ steps.streaming_ifds_solver_hygiene.outcome }}" \
             "${{ steps.publish_flags.outcome }}" \
