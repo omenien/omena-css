@@ -67,11 +67,61 @@ impl PartialOrd for Specificity {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize)]
 #[serde(rename_all = "camelCase")]
+pub struct ModuleRank {
+    pub distance_priority: u32,
+    pub import_order_priority: u32,
+    pub file_order_priority: u32,
+}
+
+impl ModuleRank {
+    pub const ZERO: Self = Self {
+        distance_priority: 0,
+        import_order_priority: 0,
+        file_order_priority: 0,
+    };
+
+    pub const fn new(
+        distance_priority: u32,
+        import_order_priority: u32,
+        file_order_priority: u32,
+    ) -> Self {
+        Self {
+            distance_priority,
+            import_order_priority,
+            file_order_priority,
+        }
+    }
+}
+
+impl Ord for ModuleRank {
+    fn cmp(&self, other: &Self) -> Ordering {
+        (
+            self.distance_priority,
+            self.import_order_priority,
+            self.file_order_priority,
+        )
+            .cmp(&(
+                other.distance_priority,
+                other.import_order_priority,
+                other.file_order_priority,
+            ))
+    }
+}
+
+impl PartialOrd for ModuleRank {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct CascadeKey {
     pub level: CascadeLevel,
     pub layer_rank: LayerRank,
     pub scope_proximity: u32,
     pub specificity: Specificity,
+    pub module_rank: ModuleRank,
     pub source_order: u32,
 }
 
@@ -81,6 +131,7 @@ impl CascadeKey {
         layer_rank: LayerRank,
         scope_proximity: u32,
         specificity: Specificity,
+        module_rank: ModuleRank,
         source_order: u32,
     ) -> Self {
         Self {
@@ -88,6 +139,7 @@ impl CascadeKey {
             layer_rank,
             scope_proximity,
             specificity,
+            module_rank,
             source_order,
         }
     }
@@ -100,6 +152,7 @@ impl Ord for CascadeKey {
             .then_with(|| self.layer_rank.cmp(&other.layer_rank))
             .then_with(|| other.scope_proximity.cmp(&self.scope_proximity))
             .then_with(|| self.specificity.cmp(&other.specificity))
+            .then_with(|| self.module_rank.cmp(&other.module_rank))
             .then_with(|| self.source_order.cmp(&other.source_order))
     }
 }
@@ -128,6 +181,7 @@ pub struct CascadeProof {
     pub layer_rank: LayerRank,
     pub scope_proximity: u32,
     pub specificity: Specificity,
+    pub module_rank: ModuleRank,
     pub source_order: u32,
 }
 
@@ -140,6 +194,7 @@ impl CascadeProof {
             layer_rank: declaration.key.layer_rank,
             scope_proximity: declaration.key.scope_proximity,
             specificity: declaration.key.specificity,
+            module_rank: declaration.key.module_rank,
             source_order: declaration.key.source_order,
         }
     }
@@ -150,7 +205,7 @@ impl CascadeProof {
 pub enum CascadeOutcome {
     Definite {
         winner: CascadeDeclaration,
-        proof: CascadeProof,
+        proof: Box<CascadeProof>,
         also_considered: Vec<CascadeDeclaration>,
     },
     RankedSet(Vec<CascadeDeclaration>),
@@ -214,12 +269,14 @@ pub enum SelectorContextMatchKind {
     Root,
     Exact,
     ContainsSelector,
+    ApproximateSelector,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SelectorContextWitness {
     pub kind: SelectorContextMatchKind,
+    pub verdict: SelectorMatchVerdict,
     pub matched: bool,
     pub rank: usize,
     pub declaration_selector: Option<String>,
@@ -230,6 +287,7 @@ impl SelectorContextWitness {
     pub fn no_match() -> Self {
         Self {
             kind: SelectorContextMatchKind::NoMatch,
+            verdict: SelectorMatchVerdict::No,
             matched: false,
             rank: 0,
             declaration_selector: None,

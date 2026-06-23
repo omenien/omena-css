@@ -7,7 +7,7 @@
 use crate::{
     CascadeConformanceSeedCase, CascadeConformanceSeedReport, CascadeConformanceSeedResult,
     CascadeDeclaration, CascadeKey, CascadeLevel, CascadeOutcome, CascadeValue, LayerRank,
-    Specificity, cascade_property,
+    ModuleRank, Specificity, cascade_property,
 };
 
 pub fn run_cascade_conformance_seed_corpus() -> CascadeConformanceSeedReport {
@@ -485,6 +485,7 @@ fn conformance_key(
         LayerRank(layer_rank),
         scope_proximity,
         specificity,
+        ModuleRank::ZERO,
         source_order,
     )
 }

@@ -35,7 +35,7 @@ use omena_abstract_value::{
 };
 use omena_cascade::{
     CascadeDeclaration, CascadeKey, CascadeLevel, CascadeOutcome, CascadeProof, CascadeValue,
-    LayerRank, Specificity,
+    LayerRank, ModuleRank, Specificity,
 };
 use omena_checker::{
     OmenaCheckerCascadeEvaluationV0, OmenaCheckerCascadeInputV0,
@@ -3279,11 +3279,12 @@ fn replica_ensemble_definite_outcome(winner: &str, source_order: u32) -> Cascade
                 classes: 1,
                 elements: 0,
             },
+            module_rank: ModuleRank::ZERO,
             source_order,
         },
     };
     CascadeOutcome::Definite {
-        proof: CascadeProof::from_declaration(&declaration),
+        proof: Box::new(CascadeProof::from_declaration(&declaration)),
         winner: declaration,
         also_considered: Vec::new(),
     }

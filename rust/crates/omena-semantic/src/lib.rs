@@ -6,7 +6,7 @@
 //! contracts rather than raw CST traversal.
 
 use engine_input_producers::EngineInputV2;
-use omena_cascade::selector_context_witness_for_declaration;
+use omena_cascade::{SelectorMatchVerdict, selector_context_witness_for_declaration};
 use omena_interner::{
     intern_class_name, intern_css_ident, intern_custom_property_name, intern_keyframes_name,
     intern_mixin_name,
@@ -1253,7 +1253,11 @@ fn custom_property_context_matches(
         return true;
     }
     declaration.selector_contexts.iter().any(|selector| {
-        selector_context_witness_for_declaration(selector, &reference.selector_contexts).matched
+        !matches!(
+            selector_context_witness_for_declaration(selector, &reference.selector_contexts)
+                .verdict,
+            SelectorMatchVerdict::No
+        )
     })
 }
 

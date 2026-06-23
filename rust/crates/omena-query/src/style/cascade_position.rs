@@ -5,7 +5,7 @@ use omena_bridge::{OmenaBridgeParserRangeV0, StyleSemanticGraphSummaryV0};
 use omena_cascade::{
     CascadeComputedValueInputV0, CascadeDeclaration, CascadeKey, CascadeLevel, CascadeValue,
     ComputedCascadeValueStatusV0, CustomPropertyEnv, CustomPropertyLeastFixedPointEntryV0,
-    LayerRank, Specificity, compute_cascade_computed_value,
+    LayerRank, ModuleRank, Specificity, compute_cascade_computed_value,
     summarize_custom_property_least_fixed_point,
 };
 use omena_parser::{ParserByteSpanV0, ParserPositionV0, ParserRangeV0};
@@ -249,6 +249,7 @@ fn compute_referenced_declaration_cascade_value_seed(
                 LayerRank(0),
                 0,
                 Specificity::ZERO,
+                ModuleRank::ZERO,
                 declaration.source_order.min(u32::MAX as usize) as u32,
             ),
         }],

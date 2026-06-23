@@ -30,7 +30,8 @@ pub use site::*;
 
 use omena_cascade::{
     CascadeDeclaration, CascadeKey, CascadeLevel, CascadeOutcome, CascadeValue,
-    LayerFlattenInputV0, LayerRank, Specificity, cascade_property, prove_layer_flatten_candidate,
+    LayerFlattenInputV0, LayerRank, ModuleRank, Specificity, cascade_property,
+    prove_layer_flatten_candidate,
 };
 use serde::Serialize;
 
@@ -727,6 +728,7 @@ fn omega_color_declaration(id: &str, value: &str, source_order: u32) -> CascadeD
             LayerRank(0),
             0,
             Specificity::ZERO,
+            ModuleRank::ZERO,
             source_order,
         ),
     }

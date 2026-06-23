@@ -41,6 +41,7 @@ fn key(
         LayerRank(layer_rank),
         scope_proximity,
         specificity,
+        ModuleRank::ZERO,
         source_order,
     )
 }
@@ -106,6 +107,48 @@ fn orders_cascade_keys_by_level_layer_scope_specificity_and_source() {
             2,
         ) > base
     );
+}
+
+#[test]
+fn separates_module_rank_from_css_specificity() {
+    let css_specificity_winner = CascadeKey::new(
+        CascadeLevel::AuthorNormal,
+        LayerRank(0),
+        1,
+        Specificity::new(0, 2, 0),
+        ModuleRank::ZERO,
+        1,
+    );
+    let module_rank_winner = CascadeKey::new(
+        CascadeLevel::AuthorNormal,
+        LayerRank(0),
+        1,
+        Specificity::new(0, 1, 0),
+        ModuleRank::new(u32::MAX, u32::MAX, u32::MAX),
+        2,
+    );
+    assert!(
+        css_specificity_winner > module_rank_winner,
+        "real CSS specificity must outrank import-graph provenance rank"
+    );
+
+    let nearer_module = CascadeKey::new(
+        CascadeLevel::AuthorNormal,
+        LayerRank(0),
+        1,
+        Specificity::ZERO,
+        ModuleRank::new(10, 1, 1),
+        1,
+    );
+    let farther_module = CascadeKey::new(
+        CascadeLevel::AuthorNormal,
+        LayerRank(0),
+        1,
+        Specificity::ZERO,
+        ModuleRank::new(9, 99, 99),
+        2,
+    );
+    assert!(nearer_module > farther_module);
 }
 
 #[test]
@@ -921,16 +964,19 @@ fn modal_check_witness_keeps_unknown_supports_as_blocked_fixture_evidence() {
 fn reports_selector_context_witness_rank() {
     let root = selector_context_witness(&[":root".to_string()], &[".button".to_string()]);
     assert_eq!(root.kind, SelectorContextMatchKind::Root);
+    assert_eq!(root.verdict, SelectorMatchVerdict::Yes);
     assert!(root.matched);
     assert_eq!(root.rank, 1);
 
     let exact = selector_context_witness(&[".button".to_string()], &[".button".to_string()]);
     assert_eq!(exact.kind, SelectorContextMatchKind::Exact);
+    assert_eq!(exact.verdict, SelectorMatchVerdict::Yes);
     assert_eq!(exact.rank, 3);
 
     let descendant =
         selector_context_witness(&[".theme".to_string()], &[".theme .button".to_string()]);
     assert_eq!(descendant.kind, SelectorContextMatchKind::ContainsSelector);
+    assert_eq!(descendant.verdict, SelectorMatchVerdict::Yes);
     assert_eq!(descendant.rank, 2);
     assert_eq!(
         descendant.reference_selector.as_deref(),
@@ -943,6 +989,7 @@ fn reports_selector_context_witness_rank() {
         prefix_false_positive.kind,
         SelectorContextMatchKind::NoMatch
     );
+    assert_eq!(prefix_false_positive.verdict, SelectorMatchVerdict::No);
     assert!(!prefix_false_positive.matched);
 
     let bem_suffix_false_positive =
@@ -951,10 +998,21 @@ fn reports_selector_context_witness_rank() {
         bem_suffix_false_positive.kind,
         SelectorContextMatchKind::NoMatch
     );
+    assert_eq!(bem_suffix_false_positive.verdict, SelectorMatchVerdict::No);
     assert!(!bem_suffix_false_positive.matched);
+
+    let approximate =
+        selector_context_witness(&[".card:unknown(.x)".to_string()], &[".button".to_string()]);
+    assert_eq!(
+        approximate.kind,
+        SelectorContextMatchKind::ApproximateSelector
+    );
+    assert_eq!(approximate.verdict, SelectorMatchVerdict::Maybe);
+    assert!(approximate.matched);
 
     let miss = selector_context_witness(&[".card".to_string()], &[".button".to_string()]);
     assert_eq!(miss.kind, SelectorContextMatchKind::NoMatch);
+    assert_eq!(miss.verdict, SelectorMatchVerdict::No);
     assert!(!miss.matched);
 }
 

@@ -56,7 +56,9 @@ use crate::{
     summarize_omena_query_style_hover_render_parts_for_workspace_file_hover_position_with_substrate,
     summarize_omena_query_style_hover_render_parts_for_workspace_file_with_substrate,
 };
-use omena_cascade::{CascadeKey, CascadeLevel, CascadeMarginV0, LayerRank, Specificity};
+use omena_cascade::{
+    CascadeKey, CascadeLevel, CascadeMarginV0, LayerRank, ModuleRank, Specificity,
+};
 
 fn cascade_narrowing_substrate_corpus() -> Vec<OmenaQueryStyleSourceInputV0> {
     vec![
@@ -1117,6 +1119,7 @@ fn exposes_style_edit_distance_and_cascade_margin_bridge_witness() {
         LayerRank(0),
         1,
         Specificity::new(0, 1, 0),
+        ModuleRank::ZERO,
         2,
     );
     let challenger_key = CascadeKey::new(
@@ -1124,6 +1127,7 @@ fn exposes_style_edit_distance_and_cascade_margin_bridge_witness() {
         LayerRank(0),
         1,
         Specificity::new(0, 1, 0),
+        ModuleRank::ZERO,
         1,
     );
     let margin = CascadeMarginV0 {

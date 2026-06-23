@@ -1,7 +1,7 @@
 use std::collections::BTreeMap;
 
 use omena_cascade::{
-    CascadeDeclaration, CascadeKey, CascadeLevel, CascadeValue, LayerRank, Specificity,
+    CascadeDeclaration, CascadeKey, CascadeLevel, CascadeValue, LayerRank, ModuleRank, Specificity,
     cascade_property, parse_simple_selector_signature,
 };
 use omena_query_checker_orchestrator::{
@@ -94,6 +94,13 @@ fn query_cascade_declaration_from_input(
         id: value.clone(),
         property: input.property.clone(),
         value: CascadeValue::Literal(value),
-        key: CascadeKey::new(level, layer_rank, 0, specificity, input.source_order),
+        key: CascadeKey::new(
+            level,
+            layer_rank,
+            0,
+            specificity,
+            ModuleRank::ZERO,
+            input.source_order,
+        ),
     }
 }

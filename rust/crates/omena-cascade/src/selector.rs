@@ -18,6 +18,7 @@ pub fn selector_context_witness(
     if declaration_selectors.is_empty() {
         return SelectorContextWitness {
             kind: SelectorContextMatchKind::Global,
+            verdict: SelectorMatchVerdict::Yes,
             matched: true,
             rank: 1,
             declaration_selector: None,
@@ -45,6 +46,7 @@ pub fn selector_context_witness_for_declaration(
     if declaration_selector == ":root" {
         return SelectorContextWitness {
             kind: SelectorContextMatchKind::Root,
+            verdict: SelectorMatchVerdict::Yes,
             matched: true,
             rank: 1,
             declaration_selector: Some(declaration_selector.to_string()),
@@ -56,6 +58,7 @@ pub fn selector_context_witness_for_declaration(
         if reference_selector == declaration_selector {
             return SelectorContextWitness {
                 kind: SelectorContextMatchKind::Exact,
+                verdict: SelectorMatchVerdict::Yes,
                 matched: true,
                 rank: 3,
                 declaration_selector: Some(declaration_selector.to_string()),
@@ -64,20 +67,40 @@ pub fn selector_context_witness_for_declaration(
         }
     }
 
+    let mut approximate_reference_selector = None;
     for reference_selector in reference_selectors {
-        if reference_selector_has_compound_component(reference_selector, declaration_selector) {
-            return SelectorContextWitness {
-                kind: SelectorContextMatchKind::ContainsSelector,
-                matched: true,
-                rank: 2,
-                declaration_selector: Some(declaration_selector.to_string()),
-                reference_selector: Some(reference_selector.clone()),
-            };
+        match selector_context_component_verdict(reference_selector, declaration_selector) {
+            SelectorMatchVerdict::Yes => {
+                return SelectorContextWitness {
+                    kind: SelectorContextMatchKind::ContainsSelector,
+                    verdict: SelectorMatchVerdict::Yes,
+                    matched: true,
+                    rank: 2,
+                    declaration_selector: Some(declaration_selector.to_string()),
+                    reference_selector: Some(reference_selector.clone()),
+                };
+            }
+            SelectorMatchVerdict::Maybe => {
+                approximate_reference_selector.get_or_insert_with(|| reference_selector.clone());
+            }
+            SelectorMatchVerdict::No => {}
         }
+    }
+
+    if let Some(reference_selector) = approximate_reference_selector {
+        return SelectorContextWitness {
+            kind: SelectorContextMatchKind::ApproximateSelector,
+            verdict: SelectorMatchVerdict::Maybe,
+            matched: true,
+            rank: 1,
+            declaration_selector: Some(declaration_selector.to_string()),
+            reference_selector: Some(reference_selector),
+        };
     }
 
     SelectorContextWitness {
         kind: SelectorContextMatchKind::NoMatch,
+        verdict: SelectorMatchVerdict::No,
         matched: false,
         rank: 0,
         declaration_selector: Some(declaration_selector.to_string()),
@@ -85,17 +108,41 @@ pub fn selector_context_witness_for_declaration(
     }
 }
 
-fn reference_selector_has_compound_component(
+fn selector_context_component_verdict(
     reference_selector: &str,
     declaration_selector: &str,
-) -> bool {
-    split_selector_list(reference_selector)
-        .iter()
-        .any(|branch| {
-            split_complex_selector_components(branch)
-                .iter()
-                .any(|component| component == declaration_selector)
-        })
+) -> SelectorMatchVerdict {
+    if parse_simple_selector_signature(declaration_selector).is_none() {
+        return SelectorMatchVerdict::Maybe;
+    }
+
+    let branches = split_selector_list(reference_selector);
+    if branches.is_empty() {
+        return SelectorMatchVerdict::Maybe;
+    }
+
+    let mut saw_unmodeled_component = false;
+    for branch in branches {
+        let components = split_complex_selector_components(&branch);
+        if components.is_empty() {
+            saw_unmodeled_component = true;
+            continue;
+        }
+        for component in components {
+            if component == declaration_selector {
+                return SelectorMatchVerdict::Yes;
+            }
+            if parse_simple_selector_signature(&component).is_none() {
+                saw_unmodeled_component = true;
+            }
+        }
+    }
+
+    if saw_unmodeled_component {
+        SelectorMatchVerdict::Maybe
+    } else {
+        SelectorMatchVerdict::No
+    }
 }
 
 fn split_complex_selector_components(selector: &str) -> Vec<String> {

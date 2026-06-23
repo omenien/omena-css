@@ -2,9 +2,9 @@ use std::collections::BTreeSet;
 
 use omena_cascade::{
     CascadeDeclaration, CascadeKey, CascadeLevel, CascadeOutcome, CascadeValue, LayerRank,
-    SelectorMatchVerdict, Specificity, StaticSupportsAssumptionV0, StaticSupportsEvalVerdictV0,
-    cascade_property, evaluate_static_supports_condition, parse_simple_selector_signature,
-    selector_co_match_verdict,
+    ModuleRank, SelectorMatchVerdict, Specificity, StaticSupportsAssumptionV0,
+    StaticSupportsEvalVerdictV0, cascade_property, evaluate_static_supports_condition,
+    parse_simple_selector_signature, selector_co_match_verdict,
 };
 use omena_query_checker_orchestrator::{
     OmenaCheckerCascadeDeclarationInputV0, OmenaCheckerCascadeEvaluationV0,
@@ -442,7 +442,14 @@ pub(super) fn query_runtime_cascade_declaration_from_input(
         id: input.declaration_id.clone(),
         property: input.property.clone(),
         value: CascadeValue::Literal(value),
-        key: CascadeKey::new(level, layer_rank, 0, specificity, input.source_order),
+        key: CascadeKey::new(
+            level,
+            layer_rank,
+            0,
+            specificity,
+            ModuleRank::ZERO,
+            input.source_order,
+        ),
     }
 }
 

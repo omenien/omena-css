@@ -5,8 +5,8 @@
 //! diagnostics, and cascade-aware resolution.
 
 use omena_cascade::{
-    CascadeKey, CascadeLevel, LayerRank, Specificity, select_cascade_winner,
-    selector_context_witness, selector_context_witness_for_declaration,
+    CascadeKey, CascadeLevel, LayerRank, ModuleRank, SelectorMatchVerdict, Specificity,
+    select_cascade_winner, selector_context_witness, selector_context_witness_for_declaration,
 };
 use serde::Serialize;
 use std::collections::{BTreeMap, BTreeSet};
@@ -852,6 +852,7 @@ impl DesignTokenCandidateDeclaration<'_> {
                 ),
                 scope_proximity,
                 Specificity::ZERO,
+                ModuleRank::ZERO,
                 cascade_u32_rank(declaration.source_order),
             ),
             DesignTokenCandidateDeclaration::Workspace(declaration) => {
@@ -866,9 +867,8 @@ impl DesignTokenCandidateDeclaration<'_> {
                         declaration.under_layer,
                     ),
                     scope_proximity,
-                    // Import graph tie-breakers are encoded into specificity slots
-                    // until selector-match witnesses provide real CSS specificity.
-                    Specificity::new(
+                    Specificity::ZERO,
+                    ModuleRank::new(
                         cascade_inverse_rank(
                             declaration.import_graph_distance.unwrap_or(usize::MAX),
                         ),
@@ -1066,8 +1066,14 @@ fn custom_property_selector_context_matches(
     declaration_selector: &str,
     reference: &ParserIndexCustomPropertyRefFactV0,
 ) -> bool {
-    selector_context_witness_for_declaration(declaration_selector, &reference.selector_contexts)
-        .matched
+    !matches!(
+        selector_context_witness_for_declaration(
+            declaration_selector,
+            &reference.selector_contexts
+        )
+        .verdict,
+        SelectorMatchVerdict::No
+    )
 }
 
 fn custom_property_declaration_context_rank(

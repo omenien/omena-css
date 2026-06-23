@@ -2239,6 +2239,7 @@ name = "omena-diff-test"
 version = "0.2.1"
 dependencies = [
  "engine-style-parser",
+ "omena-cascade",
  "omena-incremental",
  "omena-lsp-server",
  "omena-parser",

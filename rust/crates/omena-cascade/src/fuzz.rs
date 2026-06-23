@@ -7,7 +7,7 @@
 use crate::{
     CascadeDeclaration, CascadeEvaluationFuzzCaseV0, CascadeEvaluationFuzzResultV0,
     CascadeFuzzSeedReportV0, CascadeKey, CascadeLevel, CascadeOutcome, CascadeValue,
-    CustomPropertyEnv, LayerRank, Specificity, VarSubstitutionFuzzCaseV0,
+    CustomPropertyEnv, LayerRank, ModuleRank, Specificity, VarSubstitutionFuzzCaseV0,
     VarSubstitutionFuzzResultV0, cascade_property, rank_cascade_items,
     substitute_custom_properties,
 };
@@ -159,6 +159,11 @@ fn generated_cascade_fuzz_declarations(
                         (fuzz_next(&mut state) % 4) as u32,
                         (fuzz_next(&mut state) % 8) as u32,
                         (fuzz_next(&mut state) % 12) as u32,
+                    ),
+                    ModuleRank::new(
+                        (fuzz_next(&mut state) % 5) as u32,
+                        (fuzz_next(&mut state) % 7) as u32,
+                        (fuzz_next(&mut state) % 11) as u32,
                     ),
                     index as u32,
                 ),

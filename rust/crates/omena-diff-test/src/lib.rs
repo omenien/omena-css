@@ -8,6 +8,7 @@
 use std::collections::BTreeSet;
 
 use engine_style_parser::{parse_style_module, summarize_css_modules_intermediate};
+use omena_cascade::{SelectorMatchVerdict, selector_context_witness};
 use omena_incremental::{
     IncrementalGraphInputV0, IncrementalNodeInputV0, IncrementalRevisionV0,
     plan_incremental_computation, snapshot_from_graph_input,
@@ -192,6 +193,17 @@ struct ParserCstContextRawScanFixture {
     rejected_names: &'static [&'static str],
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+struct SelectorContextSoundnessFixtureV0 {
+    fixture_id: &'static str,
+    declaration_selector: &'static str,
+    reference_selector: &'static str,
+    expected_verdict: SelectorMatchVerdict,
+    baseline_positive: bool,
+    removed_spurious_positive: bool,
+    unmodeled: bool,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ParserCstContextRawScanFixtureReportV0 {
@@ -215,6 +227,36 @@ pub struct ParserCstContextRawScanDivergenceReportV0 {
     pub fixture_count: usize,
     pub reports: Vec<ParserCstContextRawScanFixtureReportV0>,
     pub all_fixtures_match: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SelectorContextSoundnessFixtureReportV0 {
+    pub fixture_id: &'static str,
+    pub declaration_selector: &'static str,
+    pub reference_selector: &'static str,
+    pub expected_verdict: SelectorMatchVerdict,
+    pub actual_verdict: SelectorMatchVerdict,
+    pub expected_match: bool,
+    pub actual_match: bool,
+    pub baseline_positive: bool,
+    pub removed_spurious_positive: bool,
+    pub unmodeled: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SelectorContextSoundnessReportV0 {
+    pub schema_version: &'static str,
+    pub product: &'static str,
+    pub fixture_count: usize,
+    pub reports: Vec<SelectorContextSoundnessFixtureReportV0>,
+    pub all_expected_verdicts_match: bool,
+    pub all_unmodeled_fixtures_stay_maybe: bool,
+    pub baseline_positive_count: usize,
+    pub removed_spurious_positive_count: usize,
+    pub actual_positive_count: usize,
+    pub positive_preservation_matches: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -282,6 +324,10 @@ pub struct OmenaDiffTestBoundarySummary {
     pub parser_cst_context_raw_scan_fixture_count: usize,
     /// Whether context-index fixtures match their intended CST-derived output.
     pub all_parser_cst_context_raw_scan_fixtures_match: bool,
+    /// Selector-context soundness fixtures for cascade-aware variable lookup.
+    pub selector_context_soundness_fixture_count: usize,
+    /// Whether selector-context verdicts match the soundness corpus.
+    pub all_selector_context_soundness_fixtures_match: bool,
     /// Cache-equivalence oracle corpus size (RFC 0009 §0).
     pub cache_equivalence_file_count: usize,
     /// Whether the cached-vs-from-scratch equivalence gate holds.
@@ -306,6 +352,8 @@ pub struct OmenaDiffTestBoundarySummary {
     pub parser_cst_fact_authority_report: ParserCstFactAuthorityReportV0,
     /// CST-derived context-index raw-text divergence report.
     pub parser_cst_context_raw_scan_report: ParserCstContextRawScanDivergenceReportV0,
+    /// Selector-context soundness corpus report.
+    pub selector_context_soundness_report: SelectorContextSoundnessReportV0,
     /// Cached-vs-from-scratch diagnostic equivalence report (RFC 0009 §0).
     pub cache_equivalence_report: OmenaDiffCacheEquivalenceReportV0,
     /// Salsa-memo lifecycle equivalence report (RFC 0009 Pillar B).
@@ -683,6 +731,72 @@ const PARSER_CST_CONTEXT_RAW_SCAN_FIXTURES: &[ParserCstContextRawScanFixture] = 
     },
 ];
 
+const SELECTOR_CONTEXT_SOUNDNESS_FIXTURES: &[SelectorContextSoundnessFixtureV0] = &[
+    SelectorContextSoundnessFixtureV0 {
+        fixture_id: "prefix-reject-dot-foo",
+        declaration_selector: ".foo",
+        reference_selector: ".foobar",
+        expected_verdict: SelectorMatchVerdict::No,
+        baseline_positive: true,
+        removed_spurious_positive: true,
+        unmodeled: false,
+    },
+    SelectorContextSoundnessFixtureV0 {
+        fixture_id: "prefix-reject-bem-btn",
+        declaration_selector: ".btn",
+        reference_selector: ".btn-primary",
+        expected_verdict: SelectorMatchVerdict::No,
+        baseline_positive: true,
+        removed_spurious_positive: true,
+        unmodeled: false,
+    },
+    SelectorContextSoundnessFixtureV0 {
+        fixture_id: "descendant-preserve-theme",
+        declaration_selector: ".theme",
+        reference_selector: ".theme .button",
+        expected_verdict: SelectorMatchVerdict::Yes,
+        baseline_positive: true,
+        removed_spurious_positive: false,
+        unmodeled: false,
+    },
+    SelectorContextSoundnessFixtureV0 {
+        fixture_id: "child-combinator-preserve",
+        declaration_selector: ".a",
+        reference_selector: ".a > .b",
+        expected_verdict: SelectorMatchVerdict::Yes,
+        baseline_positive: true,
+        removed_spurious_positive: false,
+        unmodeled: false,
+    },
+    SelectorContextSoundnessFixtureV0 {
+        fixture_id: "sibling-combinator-preserve",
+        declaration_selector: ".a",
+        reference_selector: ".a ~ .b",
+        expected_verdict: SelectorMatchVerdict::Yes,
+        baseline_positive: true,
+        removed_spurious_positive: false,
+        unmodeled: false,
+    },
+    SelectorContextSoundnessFixtureV0 {
+        fixture_id: "adjacent-combinator-preserve",
+        declaration_selector: ".a",
+        reference_selector: ".a + .b",
+        expected_verdict: SelectorMatchVerdict::Yes,
+        baseline_positive: true,
+        removed_spurious_positive: false,
+        unmodeled: false,
+    },
+    SelectorContextSoundnessFixtureV0 {
+        fixture_id: "unmodeled-declaration-stays-maybe",
+        declaration_selector: ".card:unknown(.x)",
+        reference_selector: ".button",
+        expected_verdict: SelectorMatchVerdict::Maybe,
+        baseline_positive: false,
+        removed_spurious_positive: false,
+        unmodeled: true,
+    },
+];
+
 /// M3 reusable fixture seeds for future `omena-testkit` promotion.
 pub const M3_THEORETICAL_MOAT_FIXTURE_SEEDS: &[M3FixtureSeedV0] = &[
     M3FixtureSeedV0 {
@@ -1047,6 +1161,78 @@ pub fn summarize_parser_cst_context_raw_scan_divergence_v0()
         fixture_count: reports.len(),
         reports,
         all_fixtures_match,
+    }
+}
+
+pub fn summarize_selector_context_soundness_v0() -> SelectorContextSoundnessReportV0 {
+    let reports = SELECTOR_CONTEXT_SOUNDNESS_FIXTURES
+        .iter()
+        .copied()
+        .map(selector_context_soundness_fixture_report)
+        .collect::<Vec<_>>();
+    let all_expected_verdicts_match = reports
+        .iter()
+        .all(|report| report.expected_verdict == report.actual_verdict);
+    let all_unmodeled_fixtures_stay_maybe = reports
+        .iter()
+        .filter(|report| report.unmodeled)
+        .all(|report| report.actual_verdict == SelectorMatchVerdict::Maybe);
+    let baseline_positive_ids = reports
+        .iter()
+        .filter(|report| report.baseline_positive)
+        .map(|report| report.fixture_id)
+        .collect::<BTreeSet<_>>();
+    let removed_spurious_positive_ids = reports
+        .iter()
+        .filter(|report| report.removed_spurious_positive)
+        .map(|report| report.fixture_id)
+        .collect::<BTreeSet<_>>();
+    let expected_positive_ids = baseline_positive_ids
+        .difference(&removed_spurious_positive_ids)
+        .copied()
+        .collect::<BTreeSet<_>>();
+    let actual_positive_ids = reports
+        .iter()
+        .filter(|report| report.actual_verdict == SelectorMatchVerdict::Yes)
+        .map(|report| report.fixture_id)
+        .collect::<BTreeSet<_>>();
+    let positive_preservation_matches = expected_positive_ids == actual_positive_ids;
+
+    SelectorContextSoundnessReportV0 {
+        schema_version: "0",
+        product: "omena-diff-test.selector-context-soundness",
+        fixture_count: reports.len(),
+        reports,
+        all_expected_verdicts_match,
+        all_unmodeled_fixtures_stay_maybe,
+        baseline_positive_count: baseline_positive_ids.len(),
+        removed_spurious_positive_count: removed_spurious_positive_ids.len(),
+        actual_positive_count: actual_positive_ids.len(),
+        positive_preservation_matches,
+    }
+}
+
+fn selector_context_soundness_fixture_report(
+    fixture: SelectorContextSoundnessFixtureV0,
+) -> SelectorContextSoundnessFixtureReportV0 {
+    let witness = selector_context_witness(
+        &[fixture.declaration_selector.to_string()],
+        &[fixture.reference_selector.to_string()],
+    );
+    let expected_match = fixture.expected_verdict != SelectorMatchVerdict::No;
+    let actual_match = witness.verdict != SelectorMatchVerdict::No;
+
+    SelectorContextSoundnessFixtureReportV0 {
+        fixture_id: fixture.fixture_id,
+        declaration_selector: fixture.declaration_selector,
+        reference_selector: fixture.reference_selector,
+        expected_verdict: fixture.expected_verdict,
+        actual_verdict: witness.verdict,
+        expected_match,
+        actual_match,
+        baseline_positive: fixture.baseline_positive,
+        removed_spurious_positive: fixture.removed_spurious_positive,
+        unmodeled: fixture.unmodeled,
     }
 }
 
@@ -1541,6 +1727,7 @@ pub fn summarize_omena_diff_test_boundary() -> OmenaDiffTestBoundarySummary {
     let diagnostic_metamorphic_report = summarize_diagnostic_metamorphic_relations();
     let parser_cst_fact_authority_report = summarize_parser_cst_fact_authority_equivalence_v0();
     let parser_cst_context_raw_scan_report = summarize_parser_cst_context_raw_scan_divergence_v0();
+    let selector_context_soundness_report = summarize_selector_context_soundness_v0();
     let (cache_equivalence_corpus, cache_equivalence_resolution_inputs) =
         omena_diff_cache_equivalence_default_corpus_v0();
     let cache_equivalence_report = summarize_workspace_diagnostics_warm_pass_equivalence_v0(
@@ -1589,6 +1776,11 @@ pub fn summarize_omena_diff_test_boundary() -> OmenaDiffTestBoundarySummary {
         parser_cst_context_raw_scan_fixture_count: parser_cst_context_raw_scan_report.fixture_count,
         all_parser_cst_context_raw_scan_fixtures_match: parser_cst_context_raw_scan_report
             .all_fixtures_match,
+        selector_context_soundness_fixture_count: selector_context_soundness_report.fixture_count,
+        all_selector_context_soundness_fixtures_match: selector_context_soundness_report
+            .all_expected_verdicts_match
+            && selector_context_soundness_report.all_unmodeled_fixtures_stay_maybe
+            && selector_context_soundness_report.positive_preservation_matches,
         cache_equivalence_file_count: cache_equivalence_report.file_count,
         all_cache_equivalence_files_identical: cache_equivalence_report.all_files_identical,
         salsa_memo_equivalence_comparison_count: salsa_memo_equivalence_report.comparison_count,
@@ -1613,6 +1805,7 @@ pub fn summarize_omena_diff_test_boundary() -> OmenaDiffTestBoundarySummary {
             "wptValueDifferentialHandModelAgreement",
             "parserCstFactAuthorityEquivalence",
             "parserCstContextRawScanDivergence",
+            "selectorContextSoundness",
         ],
         reports,
         m3_fixture_seed_report,
@@ -1622,6 +1815,7 @@ pub fn summarize_omena_diff_test_boundary() -> OmenaDiffTestBoundarySummary {
         diagnostic_metamorphic_report,
         parser_cst_fact_authority_report,
         parser_cst_context_raw_scan_report,
+        selector_context_soundness_report,
         cache_equivalence_report,
         salsa_memo_equivalence_report,
         parallel_salsa_equivalence_report,
@@ -2880,6 +3074,29 @@ code: missingCustomProperty
     }
 
     #[test]
+    fn selector_context_soundness_corpus_preserves_positive_witnesses() {
+        let report = summarize_selector_context_soundness_v0();
+
+        assert_eq!(report.product, "omena-diff-test.selector-context-soundness");
+        assert_eq!(
+            report.fixture_count,
+            SELECTOR_CONTEXT_SOUNDNESS_FIXTURES.len()
+        );
+        assert!(
+            report.all_expected_verdicts_match,
+            "selector-context verdicts drifted: {report:#?}"
+        );
+        assert!(
+            report.all_unmodeled_fixtures_stay_maybe,
+            "unmodeled selector fixtures must stay conservative: {report:#?}"
+        );
+        assert!(
+            report.positive_preservation_matches,
+            "known positive selector relations changed unexpectedly: {report:#?}"
+        );
+    }
+
+    #[test]
     fn parser_legacy_seed_fixtures_match() {
         let summary = summarize_omena_diff_test_boundary();
         assert_eq!(
@@ -2935,6 +3152,11 @@ code: missingCustomProperty
         );
         assert!(summary.all_parser_cst_context_raw_scan_fixtures_match);
         assert_eq!(
+            summary.selector_context_soundness_fixture_count,
+            SELECTOR_CONTEXT_SOUNDNESS_FIXTURES.len()
+        );
+        assert!(summary.all_selector_context_soundness_fixtures_match);
+        assert_eq!(
             summary.wpt_seed_metadata_report.stale_known_failure_count,
             0
         );
@@ -2978,6 +3200,7 @@ code: missingCustomProperty
                 .closed_gates
                 .contains(&"parserCstContextRawScanDivergence")
         );
+        assert!(summary.closed_gates.contains(&"selectorContextSoundness"));
         assert!(
             summary
                 .closed_gates
