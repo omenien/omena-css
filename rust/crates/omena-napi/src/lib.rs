@@ -1520,8 +1520,14 @@ export function App() {
     fn reduced_product_projection_engine_input_json() -> &'static str {
         r#"{
           "version": "2",
+          "workspace": {
+            "root": "/tmp",
+            "classnameTransform": "asIs",
+            "settingsKey": "fixture"
+          },
           "sources": [
             {
+              "filePath": "/tmp/App.tsx",
               "document": {
                 "classExpressions": [
                   {
@@ -1625,6 +1631,11 @@ export function App() {
     fn workspace_style_source_engine_input_json() -> &'static str {
         r#"{
           "version": "2",
+          "workspace": {
+            "root": "/tmp",
+            "classnameTransform": "asIs",
+            "settingsKey": "fixture"
+          },
           "sources": [],
           "styles": [
             {
