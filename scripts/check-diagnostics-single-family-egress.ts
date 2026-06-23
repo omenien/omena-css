@@ -178,11 +178,15 @@ function assertLspProviderQueryDiagnosticCoverage(): void {
     "preserves every query-owned source diagnostic code",
     FILES.sourceProviderTests,
   );
+  assertIncludes(sourceProviderTests, "stableDiagnosticSnapshot", FILES.sourceProviderTests);
+  assertIncludes(sourceProviderTests, "toMatchInlineSnapshot", FILES.sourceProviderTests);
   assertIncludes(
     styleProviderTests,
     "preserves every query-owned style diagnostic code",
     FILES.styleProviderTests,
   );
+  assertIncludes(styleProviderTests, "stableDiagnosticSnapshot", FILES.styleProviderTests);
+  assertIncludes(styleProviderTests, "toMatchInlineSnapshot", FILES.styleProviderTests);
   for (const [queryCode] of SOURCE_DIAGNOSTIC_CODE_PAIRS) {
     assertIncludes(sourceProviderTests, `"${queryCode}"`, FILES.sourceProviderTests);
   }

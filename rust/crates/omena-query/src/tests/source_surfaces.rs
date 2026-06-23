@@ -156,7 +156,7 @@ fn source_diagnostics_for_file_are_query_owned() {
 }
 
 #[test]
-fn source_diagnostics_for_workspace_file_are_query_owned() {
+fn source_diagnostics_for_workspace_file_are_query_owned() -> Result<(), String> {
     let diagnostics = summarize_omena_query_source_diagnostics_for_workspace_file(
         "/workspace/src/App.tsx",
         r#"import bind from "classnames/bind";
@@ -198,7 +198,7 @@ export function App({ suffix }) {
             .diagnostics
             .iter()
             .find(|diagnostic| diagnostic.code == code)
-            .expect("expected source selector diagnostic");
+            .ok_or_else(|| format!("expected source selector diagnostic for {code}"))?;
         assert_eq!(
             diagnostic.provenance.as_slice(),
             checker_product_diagnostic_provenance.as_slice()
@@ -206,7 +206,7 @@ export function App({ suffix }) {
         let precision = diagnostic
             .precision
             .as_ref()
-            .expect("source selector diagnostics must carry precision");
+            .ok_or_else(|| format!("{code} must carry source diagnostic precision"))?;
         assert_eq!(precision.product, "omena-query.analysis-precision");
         assert_eq!(precision.value_domain, "classValueResolution");
         assert_eq!(
@@ -240,6 +240,7 @@ export function App({ suffix }) {
             .ready_surfaces
             .contains(&"checkerProductDiagnosticGate")
     );
+    Ok(())
 }
 
 #[test]

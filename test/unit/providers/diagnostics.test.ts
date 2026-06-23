@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import type ts from "typescript";
-import { DiagnosticSeverity } from "vscode-languageserver-protocol/node";
+import { DiagnosticSeverity, type Diagnostic } from "vscode-languageserver-protocol/node";
 import type { Range } from "@omena/shared";
 import type { CxBinding } from "../../../server/engine-core-ts/src/core/cx/cx-types";
 import type { ResolvedCxBinding } from "../../../server/engine-core-ts/src/core/cx/resolved-bindings";
@@ -36,6 +36,24 @@ const CX_BINDING_RANGE = TSX_WORKSPACE.range("binding", SOURCE_PATH).range;
 const INDICATOR_RANGE = TSX_WORKSPACE.range("indicator", SOURCE_PATH).range;
 const MISSING_CLASS_RANGE = TSX_WORKSPACE.range("missing", SOURCE_PATH).range;
 type TestClassExpression = Parameters<typeof buildTestClassExpressions>[0]["expressions"][number];
+
+function stableDiagnosticSnapshot(diagnostics: readonly Diagnostic[]): string {
+  return JSON.stringify(
+    [...diagnostics]
+      .map((diagnostic) => ({
+        code: diagnostic.code,
+        severity: diagnostic.severity,
+        source: diagnostic.source,
+        message: diagnostic.message,
+        range: diagnostic.range,
+        tags: diagnostic.tags,
+        data: diagnostic.data,
+      }))
+      .toSorted((left, right) => String(left.code).localeCompare(String(right.code))),
+    null,
+    2,
+  );
+}
 
 const detectCxBindings = (_sourceFile: ts.SourceFile): CxBinding[] => [
   {
@@ -373,6 +391,185 @@ describe("computeDiagnostics", () => {
           },
         });
       }
+      expect(stableDiagnosticSnapshot(diagnostics)).toMatchInlineSnapshot(`
+        "[
+          {
+            "code": "missingModule",
+            "severity": 2,
+            "source": "omena-css",
+            "message": "query-owned missingModule",
+            "range": {
+              "start": {
+                "line": 5,
+                "character": 14
+              },
+              "end": {
+                "line": 5,
+                "character": 21
+              }
+            },
+            "data": {
+              "querySeverity": "warning",
+              "provenance": [
+                "omena-query.source-syntax-index",
+                "omena-query.style-selector-definitions",
+                "omena-query-checker-orchestrator.product-diagnostic-gate",
+                "omena-checker.rule-registry"
+              ],
+              "precision": {
+                "product": "omena-query.analysis-precision",
+                "valueDomain": "classValueResolution",
+                "flowSensitivity": "sourceSelectorReference",
+                "contextSensitivity": "perSourceReference",
+                "revisionAxis": "OmenaQuerySourceDiagnosticsForFileV0.input"
+              }
+            }
+          },
+          {
+            "code": "missingResolvedClassDomain",
+            "severity": 2,
+            "source": "omena-css",
+            "message": "query-owned missingResolvedClassDomain",
+            "range": {
+              "start": {
+                "line": 5,
+                "character": 14
+              },
+              "end": {
+                "line": 5,
+                "character": 21
+              }
+            },
+            "data": {
+              "querySeverity": "warning",
+              "provenance": [
+                "omena-query.source-syntax-index",
+                "omena-query.style-selector-definitions",
+                "omena-query-checker-orchestrator.product-diagnostic-gate",
+                "omena-checker.rule-registry"
+              ],
+              "precision": {
+                "product": "omena-query.analysis-precision",
+                "valueDomain": "classValueResolution",
+                "flowSensitivity": "sourceSelectorReference",
+                "contextSensitivity": "resolvedClassValueDomain",
+                "revisionAxis": "OmenaQuerySourceDiagnosticsForFileV0.input"
+              }
+            }
+          },
+          {
+            "code": "missingResolvedClassValues",
+            "severity": 2,
+            "source": "omena-css",
+            "message": "query-owned missingResolvedClassValues",
+            "range": {
+              "start": {
+                "line": 5,
+                "character": 14
+              },
+              "end": {
+                "line": 5,
+                "character": 21
+              }
+            },
+            "data": {
+              "querySeverity": "warning",
+              "provenance": [
+                "omena-query.source-syntax-index",
+                "omena-query.style-selector-definitions",
+                "omena-query-checker-orchestrator.product-diagnostic-gate",
+                "omena-checker.rule-registry"
+              ],
+              "precision": {
+                "product": "omena-query.analysis-precision",
+                "valueDomain": "classValueResolution",
+                "flowSensitivity": "sourceSelectorReference",
+                "contextSensitivity": "resolvedClassValueDomain",
+                "revisionAxis": "OmenaQuerySourceDiagnosticsForFileV0.input"
+              }
+            }
+          },
+          {
+            "code": "missingStaticClass",
+            "severity": 2,
+            "source": "omena-css",
+            "message": "query-owned missingStaticClass",
+            "range": {
+              "start": {
+                "line": 5,
+                "character": 14
+              },
+              "end": {
+                "line": 5,
+                "character": 21
+              }
+            },
+            "data": {
+              "querySeverity": "warning",
+              "provenance": [
+                "omena-query.source-syntax-index",
+                "omena-query.style-selector-definitions",
+                "omena-query-checker-orchestrator.product-diagnostic-gate",
+                "omena-checker.rule-registry"
+              ],
+              "precision": {
+                "product": "omena-query.analysis-precision",
+                "valueDomain": "classValueResolution",
+                "flowSensitivity": "sourceSelectorReference",
+                "contextSensitivity": "perSourceReference",
+                "revisionAxis": "OmenaQuerySourceDiagnosticsForFileV0.input"
+              },
+              "createSelector": {
+                "uri": "file:///fake/ws/src/Button.module.scss",
+                "range": {
+                  "start": {
+                    "line": 1,
+                    "character": 0
+                  },
+                  "end": {
+                    "line": 1,
+                    "character": 0
+                  }
+                },
+                "newText": "\\n\\n.unknonw {\\n}\\n",
+                "selectorName": "unknonw"
+              }
+            }
+          },
+          {
+            "code": "missingTemplatePrefix",
+            "severity": 2,
+            "source": "omena-css",
+            "message": "query-owned missingTemplatePrefix",
+            "range": {
+              "start": {
+                "line": 5,
+                "character": 14
+              },
+              "end": {
+                "line": 5,
+                "character": 21
+              }
+            },
+            "data": {
+              "querySeverity": "warning",
+              "provenance": [
+                "omena-query.source-syntax-index",
+                "omena-query.style-selector-definitions",
+                "omena-query-checker-orchestrator.product-diagnostic-gate",
+                "omena-checker.rule-registry"
+              ],
+              "precision": {
+                "product": "omena-query.analysis-precision",
+                "valueDomain": "classValueResolution",
+                "flowSensitivity": "sourceSelectorReference",
+                "contextSensitivity": "perSourceReference",
+                "revisionAxis": "OmenaQuerySourceDiagnosticsForFileV0.input"
+              }
+            }
+          }
+        ]"
+      `);
     } finally {
       if (previousBackend === undefined) {
         delete process.env.OMENA_SELECTED_QUERY_BACKEND;

@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { DiagnosticSeverity, DiagnosticTag } from "vscode-languageserver-protocol/node";
+import {
+  DiagnosticSeverity,
+  DiagnosticTag,
+  type Diagnostic,
+} from "vscode-languageserver-protocol/node";
 import { AliasResolver } from "../../../server/engine-core-ts/src/core/cx/alias-resolver";
 import { WorkspaceSemanticWorkspaceReferenceIndex } from "../../../server/engine-core-ts/src/core/semantic/workspace-reference-index";
 import { WorkspaceStyleDependencyGraph } from "../../../server/engine-core-ts/src/core/semantic/style-dependency-graph";
@@ -29,6 +33,24 @@ const COMPOSES_WORKSPACE = workspace({
 `,
 });
 const COMPOSED_CLASS_TOKEN_RANGE = COMPOSES_WORKSPACE.range("class", SCSS_PATH).range;
+
+function stableDiagnosticSnapshot(diagnostics: readonly Diagnostic[]): string {
+  return JSON.stringify(
+    [...diagnostics]
+      .map((diagnostic) => ({
+        code: diagnostic.code,
+        severity: diagnostic.severity,
+        source: diagnostic.source,
+        message: diagnostic.message,
+        range: diagnostic.range,
+        tags: diagnostic.tags,
+        data: diagnostic.data,
+      }))
+      .toSorted((left, right) => String(left.code).localeCompare(String(right.code))),
+    null,
+    2,
+  );
+}
 
 function styleDocument(selectors: ReadonlyMap<string, ReturnType<typeof info>>) {
   return buildStyleDocumentFromSelectorMap(SCSS_PATH, selectors);
@@ -281,6 +303,205 @@ describe("computeScssUnusedDiagnostics", () => {
       severity: DiagnosticSeverity.Hint,
       tags: [DiagnosticTag.Unnecessary],
     });
+    expect(stableDiagnosticSnapshot(diagnostics)).toMatchInlineSnapshot(`
+      "[
+        {
+          "code": "missingComposedModule",
+          "severity": 2,
+          "source": "omena-css",
+          "message": "query-owned missingComposedModule",
+          "range": {
+            "start": {
+              "line": 0,
+              "character": 0
+            },
+            "end": {
+              "line": 0,
+              "character": 7
+            }
+          },
+          "data": {
+            "querySeverity": "warning",
+            "provenance": [
+              "omena-query.style-diagnostics",
+              "omena-query-checker-orchestrator.product-diagnostic-gate",
+              "omena-checker.rule-registry"
+            ]
+          }
+        },
+        {
+          "code": "missingComposedSelector",
+          "severity": 2,
+          "source": "omena-css",
+          "message": "query-owned missingComposedSelector",
+          "range": {
+            "start": {
+              "line": 0,
+              "character": 0
+            },
+            "end": {
+              "line": 0,
+              "character": 7
+            }
+          },
+          "data": {
+            "querySeverity": "warning",
+            "provenance": [
+              "omena-query.style-diagnostics",
+              "omena-query-checker-orchestrator.product-diagnostic-gate",
+              "omena-checker.rule-registry"
+            ]
+          }
+        },
+        {
+          "code": "missingCustomProperty",
+          "severity": 2,
+          "source": "omena-css",
+          "message": "query-owned missingCustomProperty",
+          "range": {
+            "start": {
+              "line": 0,
+              "character": 0
+            },
+            "end": {
+              "line": 0,
+              "character": 7
+            }
+          },
+          "data": {
+            "querySeverity": "warning",
+            "provenance": [
+              "omena-query.style-diagnostics",
+              "omena-query-checker-orchestrator.product-diagnostic-gate",
+              "omena-checker.rule-registry"
+            ]
+          }
+        },
+        {
+          "code": "missingImportedValue",
+          "severity": 2,
+          "source": "omena-css",
+          "message": "query-owned missingImportedValue",
+          "range": {
+            "start": {
+              "line": 0,
+              "character": 0
+            },
+            "end": {
+              "line": 0,
+              "character": 7
+            }
+          },
+          "data": {
+            "querySeverity": "warning",
+            "provenance": [
+              "omena-query.style-diagnostics",
+              "omena-query-checker-orchestrator.product-diagnostic-gate",
+              "omena-checker.rule-registry"
+            ]
+          }
+        },
+        {
+          "code": "missingKeyframes",
+          "severity": 2,
+          "source": "omena-css",
+          "message": "query-owned missingKeyframes",
+          "range": {
+            "start": {
+              "line": 0,
+              "character": 0
+            },
+            "end": {
+              "line": 0,
+              "character": 7
+            }
+          },
+          "data": {
+            "querySeverity": "warning",
+            "provenance": [
+              "omena-query.style-diagnostics",
+              "omena-query-checker-orchestrator.product-diagnostic-gate",
+              "omena-checker.rule-registry"
+            ]
+          }
+        },
+        {
+          "code": "missingSassSymbol",
+          "severity": 2,
+          "source": "omena-css",
+          "message": "query-owned missingSassSymbol",
+          "range": {
+            "start": {
+              "line": 0,
+              "character": 0
+            },
+            "end": {
+              "line": 0,
+              "character": 7
+            }
+          },
+          "data": {
+            "querySeverity": "warning",
+            "provenance": [
+              "omena-query.style-diagnostics",
+              "omena-query-checker-orchestrator.product-diagnostic-gate",
+              "omena-checker.rule-registry"
+            ]
+          }
+        },
+        {
+          "code": "missingValueModule",
+          "severity": 2,
+          "source": "omena-css",
+          "message": "query-owned missingValueModule",
+          "range": {
+            "start": {
+              "line": 0,
+              "character": 0
+            },
+            "end": {
+              "line": 0,
+              "character": 7
+            }
+          },
+          "data": {
+            "querySeverity": "warning",
+            "provenance": [
+              "omena-query.style-diagnostics",
+              "omena-query-checker-orchestrator.product-diagnostic-gate",
+              "omena-checker.rule-registry"
+            ]
+          }
+        },
+        {
+          "code": "unusedSelector",
+          "severity": 4,
+          "source": "omena-css",
+          "message": "query-owned unusedSelector",
+          "range": {
+            "start": {
+              "line": 0,
+              "character": 0
+            },
+            "end": {
+              "line": 0,
+              "character": 7
+            }
+          },
+          "tags": [
+            1
+          ],
+          "data": {
+            "querySeverity": "hint",
+            "provenance": [
+              "omena-query.style-diagnostics",
+              "omena-query-checker-orchestrator.product-diagnostic-gate",
+              "omena-checker.rule-registry"
+            ]
+          }
+        }
+      ]"
+    `);
   });
 
   it("does not fall back to checker diagnostics in the selected-query style path", async () => {
