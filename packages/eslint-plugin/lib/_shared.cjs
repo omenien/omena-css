@@ -23,7 +23,7 @@ const OMENA_QUERY_SOURCE_DIAGNOSTIC_CODE_MAP = new Map([
 
 module.exports = {
   SOURCE_FILE_PATTERN,
-  formatCheckerFinding,
+  formatQueryDiagnostic,
   getRuleOptions,
   resolveWorkspaceRoot,
   runSourceChecks,
@@ -45,7 +45,7 @@ function runSourceChecks(context, ruleOptions) {
   return readDirectSourceDiagnostics(context, ruleOptions);
 }
 
-function formatCheckerFinding(finding) {
+function formatQueryDiagnostic(finding) {
   if (typeof finding.message === "string" && finding.message.length > 0) {
     return finding.message;
   }

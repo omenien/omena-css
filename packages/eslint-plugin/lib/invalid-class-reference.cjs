@@ -1,6 +1,6 @@
 const {
   SOURCE_FILE_PATTERN,
-  formatCheckerFinding,
+  formatQueryDiagnostic,
   getRuleOptions,
   runSourceChecks,
   toEslintLoc,
@@ -45,7 +45,7 @@ module.exports = {
         for (const finding of findings) {
           context.report({
             loc: toEslintLoc(finding.range),
-            message: formatCheckerFinding(finding, ruleOptions.workspaceRoot),
+            message: formatQueryDiagnostic(finding, ruleOptions.workspaceRoot),
           });
         }
       },
