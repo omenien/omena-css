@@ -10,6 +10,7 @@ alias EngineContractVersionV2 = "2";
 enum ClassnameTransformMode {
   asIs: "asIs",
   camelCase: "camelCase",
+  camelCaseOnly: "camelCaseOnly",
   dashes: "dashes",
   dashesOnly: "dashesOnly",
 }

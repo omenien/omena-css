@@ -16,147 +16,147 @@ export type StringConstraintKindV2Json =
 export type CertaintyShapeKindV2Json = "exact" | "boundedFinite" | "constrained" | "unknown";
 
 export interface EngineOutputV2Json {
-  version: "2";
-  queryResults: QueryResultV2Json[];
-  rewritePlans: TextRewritePlanJsonV2Json[];
-  checkerReport: CheckerReportJsonV1Json;
+  readonly version: "2";
+  readonly queryResults: readonly QueryResultV2Json[];
+  readonly rewritePlans: readonly TextRewritePlanJsonV2Json[];
+  readonly checkerReport: CheckerReportJsonV1Json;
 }
 export interface ExpressionSemanticsQueryResultV2Json {
-  kind: "expression-semantics";
-  filePath: string;
-  queryId: string;
-  payload: ExpressionSemanticsPayloadV2Json;
+  readonly kind: "expression-semantics";
+  readonly filePath: string;
+  readonly queryId: string;
+  readonly payload: ExpressionSemanticsPayloadV2Json;
 }
 export interface ExpressionSemanticsPayloadV2Json {
-  expressionId: string;
-  expressionKind: string;
-  styleFilePath: string | null;
-  selectorNames: string[];
-  candidateNames: string[];
-  finiteValues: string[] | null;
-  valueDomainKind: ValueDomainKindV2Json;
-  valueConstraintKind?: StringConstraintKindV2Json;
-  valuePrefix?: string;
-  valueSuffix?: string;
-  valueMinLen?: number;
-  valueMaxLen?: number;
-  valueCharMust?: string;
-  valueCharMay?: string;
-  valueMayIncludeOtherChars?: boolean;
-  valueDomainReason?: string;
-  valueDomainDerivation?: ValueDomainDerivationV2Json;
-  valueDomainProvenanceTree?: ValueDomainProvenanceTreeV2Json;
-  selectorCertainty: string;
-  selectorCertaintyShapeKind?: CertaintyShapeKindV2Json;
-  selectorConstraintKind?: StringConstraintKindV2Json;
-  selectorCertaintyShapeLabel?: string;
-  selectorCertaintyReason?: string;
-  valueCertainty?: string;
-  valueCertaintyShapeKind?: CertaintyShapeKindV2Json;
-  valueCertaintyConstraintKind?: StringConstraintKindV2Json;
-  valueCertaintyShapeLabel?: string;
-  valueCertaintyReason?: string;
-  reason?: string;
+  readonly expressionId: string;
+  readonly expressionKind: string;
+  readonly styleFilePath: string | null;
+  readonly selectorNames: readonly string[];
+  readonly candidateNames: readonly string[];
+  readonly finiteValues: readonly string[] | null;
+  readonly valueDomainKind: ValueDomainKindV2Json;
+  readonly valueConstraintKind?: StringConstraintKindV2Json;
+  readonly valuePrefix?: string;
+  readonly valueSuffix?: string;
+  readonly valueMinLen?: number;
+  readonly valueMaxLen?: number;
+  readonly valueCharMust?: string;
+  readonly valueCharMay?: string;
+  readonly valueMayIncludeOtherChars?: boolean;
+  readonly valueDomainReason?: string;
+  readonly valueDomainDerivation?: ValueDomainDerivationV2Json;
+  readonly valueDomainProvenanceTree?: ValueDomainProvenanceTreeV2Json;
+  readonly selectorCertainty: string;
+  readonly selectorCertaintyShapeKind?: CertaintyShapeKindV2Json;
+  readonly selectorConstraintKind?: StringConstraintKindV2Json;
+  readonly selectorCertaintyShapeLabel?: string;
+  readonly selectorCertaintyReason?: string;
+  readonly valueCertainty?: string;
+  readonly valueCertaintyShapeKind?: CertaintyShapeKindV2Json;
+  readonly valueCertaintyConstraintKind?: StringConstraintKindV2Json;
+  readonly valueCertaintyShapeLabel?: string;
+  readonly valueCertaintyReason?: string;
+  readonly reason?: string;
 }
 export interface ValueDomainDerivationV2Json {
-  schemaVersion: string;
-  product: string;
-  inputFactKind: string;
-  inputConstraintKind?: string;
-  inputValueCount: number;
-  reducedKind: string;
-  steps: ValueDomainDerivationStepV2Json[];
+  readonly schemaVersion: string;
+  readonly product: string;
+  readonly inputFactKind: string;
+  readonly inputConstraintKind?: string;
+  readonly inputValueCount: number;
+  readonly reducedKind: string;
+  readonly steps: readonly ValueDomainDerivationStepV2Json[];
 }
 export interface ValueDomainDerivationStepV2Json {
-  operation: string;
-  inputKind?: string;
-  refinementKind?: string;
-  resultKind: string;
-  resultProvenance?: string;
-  reason: string;
+  readonly operation: string;
+  readonly inputKind?: string;
+  readonly refinementKind?: string;
+  readonly resultKind: string;
+  readonly resultProvenance?: string;
+  readonly reason: string;
 }
 export interface ValueDomainProvenanceTreeV2Json {
-  schemaVersion: string;
-  product: string;
-  valueKind: string;
-  value: unknown;
-  valueProvenance?: string;
-  root: ValueDomainProvenanceNodeV2Json;
+  readonly schemaVersion: string;
+  readonly product: string;
+  readonly valueKind: string;
+  readonly value: unknown;
+  readonly valueProvenance?: string;
+  readonly root: ValueDomainProvenanceNodeV2Json;
 }
 export interface ValueDomainProvenanceNodeV2Json {
-  operation: string;
-  resultKind: string;
-  resultProvenance?: string;
-  detail?: string;
-  reason: string;
-  children: ValueDomainProvenanceNodeV2Json[];
+  readonly operation: string;
+  readonly resultKind: string;
+  readonly resultProvenance?: string;
+  readonly detail?: string;
+  readonly reason: string;
+  readonly children: readonly ValueDomainProvenanceNodeV2Json[];
 }
 export interface SourceExpressionResolutionQueryResultV2Json {
-  kind: "source-expression-resolution";
-  filePath: string;
-  queryId: string;
-  payload: SourceExpressionResolutionPayloadV2Json;
+  readonly kind: "source-expression-resolution";
+  readonly filePath: string;
+  readonly queryId: string;
+  readonly payload: SourceExpressionResolutionPayloadV2Json;
 }
 export interface SourceExpressionResolutionPayloadV2Json {
-  expressionId: string;
-  styleFilePath: string | null;
-  selectorNames: string[];
-  finiteValues: string[] | null;
-  selectorCertainty: string;
-  selectorCertaintyShapeKind?: CertaintyShapeKindV2Json;
-  selectorConstraintKind?: StringConstraintKindV2Json;
-  selectorCertaintyShapeLabel?: string;
-  selectorCertaintyReason?: string;
-  valueCertainty?: string;
-  valueCertaintyShapeKind?: CertaintyShapeKindV2Json;
-  valueCertaintyConstraintKind?: StringConstraintKindV2Json;
-  valuePrefix?: string;
-  valueSuffix?: string;
-  valueMinLen?: number;
-  valueMaxLen?: number;
-  valueCharMust?: string;
-  valueCharMay?: string;
-  valueMayIncludeOtherChars?: boolean;
-  valueCertaintyShapeLabel?: string;
-  valueCertaintyReason?: string;
-  reason?: string;
+  readonly expressionId: string;
+  readonly styleFilePath: string | null;
+  readonly selectorNames: readonly string[];
+  readonly finiteValues: readonly string[] | null;
+  readonly selectorCertainty: string;
+  readonly selectorCertaintyShapeKind?: CertaintyShapeKindV2Json;
+  readonly selectorConstraintKind?: StringConstraintKindV2Json;
+  readonly selectorCertaintyShapeLabel?: string;
+  readonly selectorCertaintyReason?: string;
+  readonly valueCertainty?: string;
+  readonly valueCertaintyShapeKind?: CertaintyShapeKindV2Json;
+  readonly valueCertaintyConstraintKind?: StringConstraintKindV2Json;
+  readonly valuePrefix?: string;
+  readonly valueSuffix?: string;
+  readonly valueMinLen?: number;
+  readonly valueMaxLen?: number;
+  readonly valueCharMust?: string;
+  readonly valueCharMay?: string;
+  readonly valueMayIncludeOtherChars?: boolean;
+  readonly valueCertaintyShapeLabel?: string;
+  readonly valueCertaintyReason?: string;
+  readonly reason?: string;
 }
 export interface SelectorUsageQueryResultV2Json {
-  kind: "selector-usage";
-  filePath: string;
-  queryId: string;
-  payload: SelectorUsagePayloadV2Json;
+  readonly kind: "selector-usage";
+  readonly filePath: string;
+  readonly queryId: string;
+  readonly payload: SelectorUsagePayloadV2Json;
 }
 export interface SelectorUsagePayloadV2Json {
-  canonicalName: string;
-  totalReferences: number;
-  directReferenceCount: number;
-  editableDirectReferenceCount: number;
-  exactReferenceCount: number;
-  inferredOrBetterReferenceCount: number;
-  hasExpandedReferences: boolean;
-  hasStyleDependencyReferences: boolean;
-  hasAnyReferences: boolean;
+  readonly canonicalName: string;
+  readonly totalReferences: number;
+  readonly directReferenceCount: number;
+  readonly editableDirectReferenceCount: number;
+  readonly exactReferenceCount: number;
+  readonly inferredOrBetterReferenceCount: number;
+  readonly hasExpandedReferences: boolean;
+  readonly hasStyleDependencyReferences: boolean;
+  readonly hasAnyReferences: boolean;
 }
 export interface TextRewritePlanJsonV2Json {
-  target: unknown;
-  edits: PlannedTextEditJsonV2Json[];
+  readonly target: unknown;
+  readonly edits: readonly PlannedTextEditJsonV2Json[];
 }
 export interface PlannedTextEditJsonV2Json {
-  uri: string;
-  range: TextRangeJsonV2Json;
-  newText: string;
+  readonly uri: string;
+  readonly range: TextRangeJsonV2Json;
+  readonly newText: string;
 }
 export interface TextRangeJsonV2Json {
-  start: TextPositionJsonV2Json;
-  end: TextPositionJsonV2Json;
+  readonly start: TextPositionJsonV2Json;
+  readonly end: TextPositionJsonV2Json;
 }
 export interface TextPositionJsonV2Json {
-  line: number;
-  character: number;
+  readonly line: number;
+  readonly character: number;
 }
 export interface CheckerReportJsonV1Json {
-  version: string;
-  findings: unknown[];
-  summary: unknown;
+  readonly version: string;
+  readonly findings: readonly unknown[];
+  readonly summary: unknown;
 }

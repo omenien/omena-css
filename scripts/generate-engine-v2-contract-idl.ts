@@ -125,7 +125,7 @@ function renderGeneratedTypescript(schemaFile: string): string {
     .replace(/^\/\* eslint-disable \*\/\n\/\*\*[\s\S]*?\*\/\n\n/u, "")
     .replace(/\bany\[\]/gu, "unknown[]")
     .replace(/\bany\b/gu, "unknown");
-  return formatTypescript(withGeneratedHeader(body));
+  return formatTypescript(withGeneratedHeader(applyReadonlyTypescriptSurface(body)));
 }
 
 function withGeneratedHeader(body: string): string {
@@ -135,6 +135,24 @@ function withGeneratedHeader(body: string): string {
 
 ${body.trimEnd()}
 `;
+}
+
+function applyReadonlyTypescriptSurface(source: string): string {
+  return source
+    .split("\n")
+    .map((line) => {
+      const property = /^(\s{2})([A-Za-z_$][\w$]*\??): (.+);$/u.exec(line);
+      if (!property) {
+        return line;
+      }
+      const [, indent, name, type] = property;
+      return `${indent}readonly ${name}: ${readonlyArrayType(type)};`;
+    })
+    .join("\n");
+}
+
+function readonlyArrayType(type: string): string {
+  return type.replace(/\b([A-Za-z_$][\w$]*)\[\]/gu, "readonly $1[]");
 }
 
 function renderHostOutputMirror(): string {

@@ -1,0 +1,13 @@
+{
+  "extends": "../tsconfig.base.json",
+  "compilerOptions": {
+    "composite": false,
+    "declarationMap": false,
+    "noEmit": true,
+    "types": ["node"]
+  },
+  "files": [
+    "./check-engine-v2-contract-idl-ts-compat.ts",
+    "../server/engine-core-ts/src/core/scss/postcss-less.d.ts"
+  ]
+}

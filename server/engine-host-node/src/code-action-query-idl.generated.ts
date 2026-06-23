@@ -5,22 +5,22 @@
 export type CodeActionPlanKindJson = "quickfix" | "refactor.extract" | "refactor.inline";
 
 export interface OmenaQueryCodeActionPlanV0Json {
-  schemaVersion: string;
-  product: "omena-query.code-actions";
-  fileUri: string;
-  fileKind: "style";
-  actionCount: number;
-  actions: OmenaQueryCodeActionV0Json[];
-  readySurfaces?: string[];
+  readonly schemaVersion: string;
+  readonly product: "omena-query.code-actions";
+  readonly fileUri: string;
+  readonly fileKind: "style";
+  readonly actionCount: number;
+  readonly actions: readonly OmenaQueryCodeActionV0Json[];
+  readonly readySurfaces?: readonly string[];
 }
 export interface OmenaQueryCodeActionV0Json {
-  title: string;
-  kind: CodeActionPlanKindJson;
-  edits: OmenaQueryWorkspaceTextEditV0Json[];
-  source: string;
+  readonly title: string;
+  readonly kind: CodeActionPlanKindJson;
+  readonly edits: readonly OmenaQueryWorkspaceTextEditV0Json[];
+  readonly source: string;
 }
 export interface OmenaQueryWorkspaceTextEditV0Json {
-  uri: string;
-  range: unknown;
-  newText: string;
+  readonly uri: string;
+  readonly range: unknown;
+  readonly newText: string;
 }
