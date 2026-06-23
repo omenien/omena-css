@@ -17,6 +17,7 @@ pillar = "theoretical-rigor"
 workspace = true
 
 [dependencies]
+omena-cascade-proof = { path = "../omena-cascade-proof", version = "=0.2.1" }
 omena-parser = { path = "../omena-parser", version = "=0.2.1" }
 serde.workspace = true
 

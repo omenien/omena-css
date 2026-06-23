@@ -4,6 +4,10 @@
 //! only valid when they declare which semantic/cascade facts they read and what
 //! cascade-safety obligation they must preserve.
 
+use omena_cascade_proof::{
+    CascadeSMTProofV0, SmtBackendV0, SmtVerdictV0, StubSmtBackendV0, TransformRewriteProofInputV0,
+    smt_verify_transform_rewrite_candidate_v0,
+};
 pub use omena_parser::StyleDialect;
 use omena_parser::{
     ParsedAnimationFactKind, ParsedCssModuleComposesFactKind, ParsedCssModuleValueFactKind,
@@ -634,6 +638,150 @@ pub struct TransformCstArtifactV0 {
     pub provenance_preserved: bool,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TransformPassSpecV0 {
+    pub schema_version: &'static str,
+    pub product: &'static str,
+    pub pass_id: &'static str,
+    pub pass_kind: TransformPassKind,
+    pub cascade_obligation: &'static str,
+    pub cascade_safety_witness: CascadeSafetyWitnessV0,
+}
+
+impl TransformPassSpecV0 {
+    pub fn from_pass(pass_kind: TransformPassKind) -> Self {
+        let cascade_safety_witness = cascade_safety_witness(pass_kind);
+        Self {
+            schema_version: "0",
+            product: "omena-transform-cst.pass-spec",
+            pass_id: pass_kind.id(),
+            pass_kind,
+            cascade_obligation: cascade_safety_witness.obligation,
+            cascade_safety_witness,
+        }
+    }
+
+    pub fn declares_cascade_obligation(&self) -> bool {
+        !self.cascade_obligation.is_empty()
+            && self.cascade_safety_witness.pass_id == self.pass_id
+            && self.cascade_safety_witness.obligation == self.cascade_obligation
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RewriteCandidateV0 {
+    schema_version: &'static str,
+    product: &'static str,
+    pass_spec: TransformPassSpecV0,
+    semantic_signature: String,
+    input_source_byte_len: usize,
+    output_source_byte_len: usize,
+    input_stable_ir: StableTransformIrV0,
+    output_stable_ir: StableTransformIrV0,
+}
+
+impl RewriteCandidateV0 {
+    pub fn from_sources(
+        pass_kind: TransformPassKind,
+        input_source: &str,
+        output_source: &str,
+        dialect: StyleDialect,
+        semantic_signature: impl Into<String>,
+    ) -> Self {
+        let semantic_signature = semantic_signature.into();
+        Self {
+            schema_version: "0",
+            product: "omena-transform-cst.rewrite-candidate",
+            pass_spec: TransformPassSpecV0::from_pass(pass_kind),
+            semantic_signature: semantic_signature.clone(),
+            input_source_byte_len: input_source.len(),
+            output_source_byte_len: output_source.len(),
+            input_stable_ir: build_stable_transform_ir_from_source(
+                input_source,
+                dialect,
+                semantic_signature.clone(),
+            ),
+            output_stable_ir: build_stable_transform_ir_from_source(
+                output_source,
+                dialect,
+                semantic_signature,
+            ),
+        }
+    }
+
+    pub fn pass_spec(&self) -> &TransformPassSpecV0 {
+        &self.pass_spec
+    }
+
+    pub fn output_stable_ir(&self) -> &StableTransformIrV0 {
+        &self.output_stable_ir
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct VerificationReportV0 {
+    schema_version: &'static str,
+    product: &'static str,
+    pass_id: &'static str,
+    cascade_obligation_declared: bool,
+    provenance_recomputed: bool,
+    provenance_preserved: bool,
+    contains_bogus_or_trivia: bool,
+    stable_post_semantic_ir: bool,
+    cascade_proof: CascadeSMTProofV0,
+}
+
+impl VerificationReportV0 {
+    pub fn provenance_preserved(&self) -> bool {
+        self.provenance_preserved
+    }
+
+    pub fn contains_bogus_or_trivia(&self) -> bool {
+        self.contains_bogus_or_trivia
+    }
+
+    pub fn cascade_proof(&self) -> &CascadeSMTProofV0 {
+        &self.cascade_proof
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct VerifiedRewriteV0 {
+    schema_version: &'static str,
+    product: &'static str,
+    candidate: RewriteCandidateV0,
+    verification_report: VerificationReportV0,
+}
+
+impl VerifiedRewriteV0 {
+    pub fn candidate(&self) -> &RewriteCandidateV0 {
+        &self.candidate
+    }
+
+    pub fn verification_report(&self) -> &VerificationReportV0 {
+        &self.verification_report
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub enum TransformVerificationErrorV0 {
+    CascadeProofRejected {
+        pass_id: &'static str,
+        verdict: SmtVerdictV0,
+    },
+    CascadeObligationMissing {
+        pass_id: &'static str,
+    },
+    ProvenanceNotPreserved {
+        pass_id: &'static str,
+    },
+}
+
 pub fn summarize_omena_transform_cst_boundary() -> TransformCstBoundarySummaryV0 {
     let pass_contracts = default_transform_pass_contracts();
     let semantic_aware_pass_count = pass_contracts
@@ -699,6 +847,13 @@ pub fn build_transform_cst_artifact_with_dialect(
     let stable_ir_node_count = stable_ir.node_count;
     let parser_error_count = stable_ir.parser_error_count;
     let contains_bogus_or_trivia = stable_ir.contains_bogus_or_trivia;
+    let verified_rewrites =
+        verify_rewrite_plan_with_backend(source, dialect, semantic_signature.clone(), passes);
+    let provenance_preserved = verified_rewrites.as_ref().is_ok_and(|rewrites| {
+        rewrites
+            .iter()
+            .all(|rewrite| rewrite.verification_report.provenance_preserved)
+    });
 
     TransformCstArtifactV0 {
         schema_version: "0",
@@ -710,8 +865,98 @@ pub fn build_transform_cst_artifact_with_dialect(
         parser_error_count,
         contains_bogus_or_trivia,
         pass_ids: passes.iter().map(|pass| pass.id()).collect(),
-        provenance_preserved: true,
+        provenance_preserved,
     }
+}
+
+pub fn build_verified_transform_cst_artifact_with_dialect(
+    source: &str,
+    dialect: StyleDialect,
+    semantic_signature: impl Into<String>,
+    passes: &[TransformPassKind],
+) -> Result<TransformCstArtifactV0, TransformVerificationErrorV0> {
+    let semantic_signature = semantic_signature.into();
+    let verified_rewrites =
+        verify_rewrite_plan_with_backend(source, dialect, semantic_signature.clone(), passes)?;
+    let stable_ir =
+        build_stable_transform_ir_from_source(source, dialect, semantic_signature.clone());
+    Ok(transform_cst_artifact_from_verified_plan(
+        source.len(),
+        semantic_signature,
+        stable_ir,
+        passes,
+        &verified_rewrites,
+    ))
+}
+
+pub fn verify_rewrite_candidate_with_backend<B: SmtBackendV0>(
+    candidate: RewriteCandidateV0,
+    backend: &B,
+) -> Result<VerifiedRewriteV0, TransformVerificationErrorV0> {
+    let pass_id = candidate.pass_spec.pass_id;
+    let cascade_obligation_declared = candidate.pass_spec.declares_cascade_obligation();
+    let provenance_recomputed = candidate_recomputes_provenance(&candidate);
+    let contains_bogus_or_trivia = candidate.input_stable_ir.contains_bogus_or_trivia
+        || candidate.output_stable_ir.contains_bogus_or_trivia;
+    let stable_post_semantic_ir = candidate.input_stable_ir.stable_post_semantic_ir
+        && candidate.output_stable_ir.stable_post_semantic_ir;
+    let provenance_preserved =
+        provenance_recomputed && stable_post_semantic_ir && !contains_bogus_or_trivia;
+    let proof_input = TransformRewriteProofInputV0::new(
+        pass_id,
+        cascade_obligation_declared,
+        provenance_recomputed,
+        provenance_preserved,
+        contains_bogus_or_trivia,
+        stable_post_semantic_ir,
+    );
+    let cascade_proof = smt_verify_transform_rewrite_candidate_v0(&proof_input, backend);
+    let verdict = cascade_proof.verdict;
+    let verification_report = VerificationReportV0 {
+        schema_version: "0",
+        product: "omena-transform-cst.verification-report",
+        pass_id,
+        cascade_obligation_declared,
+        provenance_recomputed,
+        provenance_preserved,
+        contains_bogus_or_trivia,
+        stable_post_semantic_ir,
+        cascade_proof,
+    };
+
+    if verdict != SmtVerdictV0::Accepted {
+        return Err(TransformVerificationErrorV0::CascadeProofRejected { pass_id, verdict });
+    }
+    if !cascade_obligation_declared {
+        return Err(TransformVerificationErrorV0::CascadeObligationMissing { pass_id });
+    }
+    if !provenance_preserved {
+        return Err(TransformVerificationErrorV0::ProvenanceNotPreserved { pass_id });
+    }
+
+    Ok(VerifiedRewriteV0 {
+        schema_version: "0",
+        product: "omena-transform-cst.verified-rewrite",
+        candidate,
+        verification_report,
+    })
+}
+
+pub fn verify_rewrite_candidate(
+    candidate: RewriteCandidateV0,
+) -> Result<VerifiedRewriteV0, TransformVerificationErrorV0> {
+    verify_rewrite_candidate_with_backend(candidate, &StubSmtBackendV0::default())
+}
+
+pub fn apply_verified_rewrite(verified_rewrite: &VerifiedRewriteV0) -> TransformCstArtifactV0 {
+    let candidate = verified_rewrite.candidate();
+    transform_cst_artifact_from_verified_plan(
+        candidate.output_source_byte_len,
+        candidate.semantic_signature.clone(),
+        candidate.output_stable_ir.clone(),
+        &[candidate.pass_spec.pass_kind],
+        std::slice::from_ref(verified_rewrite),
+    )
 }
 
 pub fn build_stable_transform_ir_from_source(
@@ -844,6 +1089,7 @@ pub fn build_stable_transform_ir_from_source(
 
     let node_count = nodes.len();
     let parser_error_count = facts.error_count;
+    let contains_bogus_or_trivia = parser_error_count > 0;
 
     StableTransformIrV0 {
         schema_version: "0",
@@ -853,11 +1099,86 @@ pub fn build_stable_transform_ir_from_source(
         semantic_signature: semantic_signature.into(),
         node_count,
         parser_error_count,
-        contains_bogus_or_trivia: false,
+        contains_bogus_or_trivia,
         stable_post_semantic_ir: parser_error_count == 0,
         nodes,
         provenance_anchors,
     }
+}
+
+fn verify_rewrite_plan_with_backend(
+    source: &str,
+    dialect: StyleDialect,
+    semantic_signature: String,
+    passes: &[TransformPassKind],
+) -> Result<Vec<VerifiedRewriteV0>, TransformVerificationErrorV0> {
+    let backend = StubSmtBackendV0::default();
+    passes
+        .iter()
+        .map(|pass| {
+            verify_rewrite_candidate_with_backend(
+                RewriteCandidateV0::from_sources(
+                    *pass,
+                    source,
+                    source,
+                    dialect,
+                    semantic_signature.clone(),
+                ),
+                &backend,
+            )
+        })
+        .collect()
+}
+
+fn transform_cst_artifact_from_verified_plan(
+    source_byte_len: usize,
+    semantic_signature: String,
+    stable_ir: StableTransformIrV0,
+    passes: &[TransformPassKind],
+    verified_rewrites: &[VerifiedRewriteV0],
+) -> TransformCstArtifactV0 {
+    let stable_ir_node_count = stable_ir.node_count;
+    let parser_error_count = stable_ir.parser_error_count;
+    let contains_bogus_or_trivia = verified_rewrites
+        .iter()
+        .any(|rewrite| rewrite.verification_report.contains_bogus_or_trivia());
+    let provenance_preserved = verified_rewrites
+        .iter()
+        .all(|rewrite| rewrite.verification_report.provenance_preserved());
+
+    TransformCstArtifactV0 {
+        schema_version: "0",
+        product: "omena-transform-cst.artifact",
+        source_byte_len,
+        semantic_signature,
+        stable_ir,
+        stable_ir_node_count,
+        parser_error_count,
+        contains_bogus_or_trivia,
+        pass_ids: passes.iter().map(|pass| pass.id()).collect(),
+        provenance_preserved,
+    }
+}
+
+fn candidate_recomputes_provenance(candidate: &RewriteCandidateV0) -> bool {
+    stable_ir_has_consistent_provenance(&candidate.input_stable_ir)
+        && stable_ir_has_consistent_provenance(&candidate.output_stable_ir)
+}
+
+fn stable_ir_has_consistent_provenance(ir: &StableTransformIrV0) -> bool {
+    ir.node_count == ir.nodes.len()
+        && ir.node_count == ir.provenance_anchors.len()
+        && ir.nodes.iter().enumerate().all(|(index, node)| {
+            let Some(anchor) = ir.provenance_anchors.get(index) else {
+                return false;
+            };
+            node.provenance_anchor_index == index
+                && anchor.anchor_index == index
+                && anchor.node_id == node.node_id
+                && anchor.semantic_key == node.semantic_key
+                && anchor.source_span_start == node.source_span_start
+                && anchor.source_span_end == node.source_span_end
+        })
 }
 
 pub fn default_transform_pass_contracts() -> Vec<TransformPassContractV0> {
@@ -869,6 +1190,8 @@ pub fn default_transform_pass_contracts() -> Vec<TransformPassContractV0> {
 
 fn transform_pass_contract(kind: TransformPassKind) -> TransformPassContractV0 {
     let cascade_safety_witness = cascade_safety_witness(kind);
+    let cascade_safe = !cascade_safety_witness.obligation.is_empty()
+        && cascade_safety_witness.pass_id == kind.id();
 
     TransformPassContractV0 {
         ordinal: kind.ordinal(),
@@ -881,7 +1204,7 @@ fn transform_pass_contract(kind: TransformPassKind) -> TransformPassContractV0 {
         reads_semantic_graph: kind.reads_semantic_graph(),
         reads_cascade_model: kind.reads_cascade_model(),
         writes_css: true,
-        cascade_safe: true,
+        cascade_safe,
         cascade_safety_witness,
         cascade_safe_obligation: cascade_safety_witness.obligation,
         explicit_opt_in_required: kind.explicit_opt_in_required(),
@@ -1408,11 +1731,40 @@ pub fn default_transform_dag_edges() -> Vec<TransformDagEdgeV0> {
 mod tests {
     use super::{
         NATIVE_CSS_STATIC_EVAL_DIALECT_RESTRICTION_V0, NATIVE_CSS_STATIC_EVAL_OPT_IN_POLICY_V0,
-        NATIVE_CSS_STATIC_EVAL_SPEC_SNAPSHOT_V0, STABLE_TRANSFORM_IR_NODE_IDENTITY_POLICY_V0,
-        StableTransformIrNodeKindV0, StyleDialect, TRANSFORM_PASS_CATALOG_LEN, TransformLayer,
-        TransformPassKind, build_stable_transform_ir_from_source, build_transform_cst_artifact,
-        summarize_omena_transform_cst_boundary,
+        NATIVE_CSS_STATIC_EVAL_SPEC_SNAPSHOT_V0, RewriteCandidateV0,
+        STABLE_TRANSFORM_IR_NODE_IDENTITY_POLICY_V0, StableTransformIrNodeKindV0, StyleDialect,
+        TRANSFORM_PASS_CATALOG_LEN, TransformLayer, TransformPassKind,
+        TransformVerificationErrorV0, apply_verified_rewrite,
+        build_stable_transform_ir_from_source, build_transform_cst_artifact,
+        build_verified_transform_cst_artifact_with_dialect, summarize_omena_transform_cst_boundary,
+        verify_rewrite_candidate, verify_rewrite_candidate_with_backend,
     };
+    use omena_cascade_proof::{
+        CanonicalSmtInputV0, SMT_FEATURE_GATE_V0, SMT_LAYER_MARKER_V0, SMT_SCHEMA_VERSION_V0,
+        SmtBackendCheckV0, SmtBackendKindV0, SmtBackendSatResultV0, SmtBackendV0, SmtVerdictV0,
+    };
+
+    struct RejectingBackend;
+
+    impl SmtBackendV0 for RejectingBackend {
+        fn backend_kind(&self) -> SmtBackendKindV0 {
+            SmtBackendKindV0::Stub
+        }
+
+        fn check_canonical_input_v0(&self, input: &CanonicalSmtInputV0) -> SmtBackendCheckV0 {
+            SmtBackendCheckV0 {
+                schema_version: SMT_SCHEMA_VERSION_V0,
+                product: "omena-smt.backend-check",
+                layer_marker: SMT_LAYER_MARKER_V0,
+                feature_gate: SMT_FEATURE_GATE_V0,
+                backend: self.backend_kind(),
+                obligation_id: input.obligation_id.clone(),
+                formula_count: input.canonical_terms.len(),
+                sat_result: SmtBackendSatResultV0::Unsat,
+                model_available: false,
+            }
+        }
+    }
 
     #[test]
     fn exposes_transform_cst_boundary_with_full_pass_catalog() {
@@ -1489,6 +1841,115 @@ mod tests {
             vec!["custom-property-static-resolve", "color-compression"]
         );
         assert!(artifact.provenance_preserved);
+    }
+
+    #[test]
+    fn verified_rewrite_requires_accepted_cascade_proof() -> Result<(), String> {
+        let candidate = RewriteCandidateV0::from_sources(
+            TransformPassKind::RuleDeduplication,
+            ".button { color: red; }",
+            ".button { color: red; }",
+            StyleDialect::Css,
+            "semantic:button",
+        );
+        let err = match verify_rewrite_candidate_with_backend(candidate, &RejectingBackend) {
+            Ok(_) => {
+                return Err(
+                    "rejecting backend must prevent verified rewrite construction".to_string(),
+                );
+            }
+            Err(err) => err,
+        };
+
+        assert_eq!(
+            err,
+            TransformVerificationErrorV0::CascadeProofRejected {
+                pass_id: "rule-deduplication",
+                verdict: SmtVerdictV0::Rejected,
+            }
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn verified_rewrite_token_is_the_artifact_apply_input() -> Result<(), String> {
+        let candidate = RewriteCandidateV0::from_sources(
+            TransformPassKind::ColorCompression,
+            ".button { color: #ffffff; }",
+            ".button { color: #ffffff; }",
+            StyleDialect::Css,
+            "semantic:button",
+        );
+        let verified = match verify_rewrite_candidate(candidate) {
+            Ok(verified) => verified,
+            Err(err) => {
+                return Err(format!(
+                    "default proof backend should accept recomputed stable IR: {err:?}"
+                ));
+            }
+        };
+        let artifact = apply_verified_rewrite(&verified);
+
+        assert!(verified.verification_report().provenance_preserved());
+        assert_eq!(
+            verified.verification_report().cascade_proof().verdict,
+            SmtVerdictV0::Accepted
+        );
+        assert_eq!(artifact.pass_ids, vec!["color-compression"]);
+        assert_eq!(artifact.source_byte_len, 27);
+        assert!(artifact.provenance_preserved);
+        assert!(!artifact.contains_bogus_or_trivia);
+        Ok(())
+    }
+
+    #[test]
+    fn verified_artifact_builder_routes_through_typestate_report() -> Result<(), String> {
+        let artifact = match build_verified_transform_cst_artifact_with_dialect(
+            ".button { color: red; }",
+            StyleDialect::Css,
+            "semantic:button",
+            &[
+                TransformPassKind::RuleDeduplication,
+                TransformPassKind::ColorCompression,
+            ],
+        ) {
+            Ok(artifact) => artifact,
+            Err(err) => {
+                return Err(format!(
+                    "valid stable IR should produce verified artifact: {err:?}"
+                ));
+            }
+        };
+
+        assert_eq!(
+            artifact.pass_ids,
+            vec!["rule-deduplication", "color-compression"]
+        );
+        assert!(artifact.provenance_preserved);
+        Ok(())
+    }
+
+    #[test]
+    fn transform_cst_boolean_fields_are_not_direct_literal_assignments() -> Result<(), String> {
+        let source = match std::fs::read_to_string(
+            std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+                .join("src")
+                .join("lib.rs"),
+        ) {
+            Ok(source) => source,
+            Err(err) => return Err(format!("test source should be readable: {err:?}")),
+        };
+        for forbidden in [
+            ["cascade_safe", ": true"].concat(),
+            ["provenance_preserved", ": true"].concat(),
+            ["contains_bogus_or_trivia", ": false"].concat(),
+        ] {
+            assert!(
+                !source.contains(&forbidden),
+                "{forbidden} must be derived through verification instead of assigned directly"
+            );
+        }
+        Ok(())
     }
 
     #[test]

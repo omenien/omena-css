@@ -252,6 +252,41 @@ pub struct CascadeSMTProofV0 {
     pub cascade_spec_digest: [u8; 32],
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TransformRewriteProofInputV0 {
+    pub schema_version: &'static str,
+    pub product: &'static str,
+    pub pass_id: String,
+    pub cascade_obligation_declared: bool,
+    pub provenance_recomputed: bool,
+    pub provenance_preserved: bool,
+    pub contains_bogus_or_trivia: bool,
+    pub stable_post_semantic_ir: bool,
+}
+
+impl TransformRewriteProofInputV0 {
+    pub fn new(
+        pass_id: impl Into<String>,
+        cascade_obligation_declared: bool,
+        provenance_recomputed: bool,
+        provenance_preserved: bool,
+        contains_bogus_or_trivia: bool,
+        stable_post_semantic_ir: bool,
+    ) -> Self {
+        Self {
+            schema_version: SMT_SCHEMA_VERSION_V0,
+            product: "omena-cascade-proof.transform-rewrite-input",
+            pass_id: pass_id.into(),
+            cascade_obligation_declared,
+            provenance_recomputed,
+            provenance_preserved,
+            contains_bogus_or_trivia,
+            stable_post_semantic_ir,
+        }
+    }
+}
+
 pub fn cascade_spec_digest_v0() -> [u8; 32] {
     *blake3::hash(CASCADE_SMT_SPEC_MATERIAL_V0.as_bytes()).as_bytes()
 }
@@ -369,6 +404,24 @@ pub fn smt_evaluate_static_supports_condition_v0<B: SmtBackendV0>(
         backend,
         "evaluate_static_supports_condition",
         l1_accepted,
+    )
+}
+
+pub fn smt_verify_transform_rewrite_candidate_v0<B: SmtBackendV0>(
+    input: &TransformRewriteProofInputV0,
+    backend: &B,
+) -> CascadeSMTProofV0 {
+    cascade_smt_proof_v0(
+        canonical_transform_rewrite_candidate_input_v0(input),
+        backend,
+        "verify_transform_rewrite_candidate",
+        Some(
+            input.cascade_obligation_declared
+                && input.provenance_recomputed
+                && input.provenance_preserved
+                && !input.contains_bogus_or_trivia
+                && input.stable_post_semantic_ir,
+        ),
     )
 }
 
@@ -496,6 +549,26 @@ fn canonical_static_supports_condition_input_v0(
         "static-supports-condition",
         "evaluate_static_supports_condition",
         canonical_terms,
+    )
+}
+
+fn canonical_transform_rewrite_candidate_input_v0(
+    input: &TransformRewriteProofInputV0,
+) -> CanonicalSmtInputV0 {
+    canonical_smt_input_v0(
+        "transform-rewrite-candidate",
+        "verify_transform_rewrite_candidate",
+        vec![
+            format!("pass:{}", input.pass_id),
+            smt_require_term_v0(
+                "cascade-obligation-declared",
+                input.cascade_obligation_declared,
+            ),
+            smt_require_term_v0("provenance-recomputed", input.provenance_recomputed),
+            smt_require_term_v0("provenance-preserved", input.provenance_preserved),
+            smt_require_term_v0("no-bogus-or-trivia", !input.contains_bogus_or_trivia),
+            smt_require_term_v0("stable-post-semantic-ir", input.stable_post_semantic_ir),
+        ],
     )
 }
 
@@ -735,6 +808,33 @@ mod tests {
                 .canonical_input
                 .smtlib2_script
                 .contains("(set-logic QF_UF)")
+        );
+    }
+
+    #[test]
+    fn transform_rewrite_verification_runs_backend_check() {
+        let backend = StubSmtBackendV0::default();
+        let proof_input =
+            TransformRewriteProofInputV0::new("rule-deduplication", true, true, true, false, true);
+        let proof = smt_verify_transform_rewrite_candidate_v0(&proof_input, &backend);
+
+        assert_eq!(proof.verdict, SmtVerdictV0::Accepted);
+        assert_eq!(proof.l1_primitive, "verify_transform_rewrite_candidate");
+        assert_eq!(
+            proof.canonical_input.obligation_id,
+            "transform-rewrite-candidate"
+        );
+        assert!(
+            proof
+                .canonical_input
+                .canonical_terms
+                .contains(&"require:provenance-recomputed=true".to_string())
+        );
+        assert!(
+            proof
+                .canonical_input
+                .canonical_terms
+                .contains(&"require:no-bogus-or-trivia=true".to_string())
         );
     }
 

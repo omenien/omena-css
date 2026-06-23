@@ -2542,6 +2542,7 @@ dependencies = [
 name = "omena-transform-cst"
 version = "0.2.1"
 dependencies = [
+ "omena-cascade-proof",
  "omena-parser",
  "serde",
  "serde_json",
