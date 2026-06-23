@@ -39,6 +39,32 @@ export interface TerminateFlowNode {
   readonly statement: ts.ReturnStatement | ts.ThrowStatement;
 }
 
+export interface FlowBlockGraphSnapshot {
+  readonly entryBlockId: string;
+  readonly blocks: readonly FlowBlockSnapshot[];
+}
+
+export interface FlowBlockSnapshot {
+  readonly id: string;
+  readonly kind:
+    | "entry"
+    | "assignment"
+    | "branch"
+    | "join"
+    | "loopHeader"
+    | "loopBody"
+    | "loopExit"
+    | "break"
+    | "terminate"
+    | "logicalOperand"
+    | "logicalRhs"
+    | "logicalJoin"
+    | "exit";
+  readonly successorBlockIds: readonly string[];
+  readonly variableName?: string;
+  readonly expressionKind?: "logicalAnd" | "logicalOr" | "nullishCoalesce";
+}
+
 export function buildFlowNodes(
   statements: readonly ts.Statement[],
   referencePos: number,
@@ -92,6 +118,8 @@ export function buildFlowNodes(
       continue;
     }
 
+    if (containsPosition(statement, referencePos)) break;
+
     if (ts.isBreakStatement(statement)) {
       nodes.push({ kind: "break", statement });
       break;
@@ -106,6 +134,11 @@ export function buildFlowNodes(
   }
 
   return nodes;
+}
+
+export function buildFlowBlockGraphSnapshot(nodes: readonly FlowNode[]): FlowBlockGraphSnapshot {
+  const builder = new FlowBlockGraphSnapshotBuilder();
+  return builder.build(nodes);
 }
 
 function isLoopStatement(
@@ -180,4 +213,204 @@ function assignmentNodesForStatement(statement: ts.Statement): readonly Assignme
 
 function containsPosition(node: ts.Node, pos: number): boolean {
   return node.getStart() <= pos && pos < node.end;
+}
+
+class FlowBlockGraphSnapshotBuilder {
+  readonly #blocks: MutableFlowBlockSnapshot[] = [];
+  readonly #counters = new Map<string, number>();
+
+  build(nodes: readonly FlowNode[]): FlowBlockGraphSnapshot {
+    const entryBlockId = this.#addBlock("entry", "entry");
+    const tails = this.#appendNodes(nodes, [entryBlockId], {});
+    const exitBlockId = this.#addBlock("exit", "exit");
+    this.#connect(tails, exitBlockId);
+    return {
+      entryBlockId,
+      blocks: this.#blocks.map((block) => ({
+        ...block,
+        successorBlockIds: [...block.successorBlockIds],
+      })),
+    };
+  }
+
+  #appendNodes(
+    nodes: readonly FlowNode[],
+    incomingBlockIds: readonly string[],
+    context: FlowBlockContext,
+  ): readonly string[] {
+    let tails = [...incomingBlockIds];
+
+    for (const node of nodes) {
+      if (tails.length === 0) return [];
+      tails = [...this.#appendNode(node, tails, context)];
+    }
+
+    return tails;
+  }
+
+  #appendNode(
+    node: FlowNode,
+    incomingBlockIds: readonly string[],
+    context: FlowBlockContext,
+  ): readonly string[] {
+    switch (node.kind) {
+      case "assignment":
+        return this.#appendAssignment(node, incomingBlockIds);
+      case "branch":
+        return this.#appendBranch(node, incomingBlockIds, context);
+      case "loop":
+        return this.#appendLoop(node, incomingBlockIds, context);
+      case "break": {
+        const breakBlockId = this.#addBlock("break");
+        this.#connect(incomingBlockIds, breakBlockId);
+        if (context.breakTargetBlockId) {
+          this.#connect([breakBlockId], context.breakTargetBlockId);
+        }
+        return [];
+      }
+      case "terminate": {
+        const terminateBlockId = this.#addBlock("terminate");
+        this.#connect(incomingBlockIds, terminateBlockId);
+        return [];
+      }
+      default:
+        node satisfies never;
+        return incomingBlockIds;
+    }
+  }
+
+  #appendAssignment(
+    node: AssignmentFlowNode,
+    incomingBlockIds: readonly string[],
+  ): readonly string[] {
+    const assignmentBlockId = this.#addBlock("assignment", undefined, {
+      variableName: node.variableName,
+    });
+    this.#connect(incomingBlockIds, assignmentBlockId);
+
+    if (node.expression && isShortCircuitExpression(node.expression)) {
+      return this.#appendShortCircuitExpression(node.expression, [assignmentBlockId]);
+    }
+
+    return [assignmentBlockId];
+  }
+
+  #appendShortCircuitExpression(
+    expression: ts.BinaryExpression,
+    incomingBlockIds: readonly string[],
+  ): readonly string[] {
+    const expressionKind = shortCircuitExpressionKind(expression);
+    const operandBlockId = this.#addBlock("logicalOperand", undefined, { expressionKind });
+    const rhsBlockId = this.#addBlock("logicalRhs", undefined, { expressionKind });
+    const joinBlockId = this.#addBlock("logicalJoin", undefined, { expressionKind });
+    this.#connect(incomingBlockIds, operandBlockId);
+    this.#connect([operandBlockId], joinBlockId);
+    this.#connect([operandBlockId], rhsBlockId);
+    this.#connect([rhsBlockId], joinBlockId);
+    return [joinBlockId];
+  }
+
+  #appendBranch(
+    node: BranchFlowNode,
+    incomingBlockIds: readonly string[],
+    context: FlowBlockContext,
+  ): readonly string[] {
+    const branchBlockId = this.#addBlock("branch");
+    const joinBlockId = this.#addBlock("join");
+    this.#connect(incomingBlockIds, branchBlockId);
+
+    const thenTails = this.#appendNodes(node.thenNodes, [branchBlockId], context);
+    const elseTails =
+      node.elseNodes.length > 0
+        ? this.#appendNodes(node.elseNodes, [branchBlockId], context)
+        : [branchBlockId];
+    this.#connect(thenTails, joinBlockId);
+    this.#connect(elseTails, joinBlockId);
+    return [joinBlockId];
+  }
+
+  #appendLoop(
+    node: LoopFlowNode,
+    incomingBlockIds: readonly string[],
+    context: FlowBlockContext,
+  ): readonly string[] {
+    const loopIndex = this.#nextIndex("loop");
+    const headerBlockId = `loop:${loopIndex}:header`;
+    const bodyBlockId = `loop:${loopIndex}:body`;
+    const exitBlockId = `loop:${loopIndex}:exit`;
+    this.#addBlock("loopHeader", headerBlockId);
+    this.#addBlock("loopBody", bodyBlockId);
+    this.#addBlock("loopExit", exitBlockId);
+    this.#connect(incomingBlockIds, headerBlockId);
+    this.#connect([headerBlockId], bodyBlockId);
+    this.#connect([headerBlockId], exitBlockId);
+
+    const bodyTails = this.#appendNodes(node.bodyNodes, [bodyBlockId], {
+      ...context,
+      breakTargetBlockId: exitBlockId,
+    });
+    this.#connect(bodyTails, headerBlockId);
+    return [exitBlockId];
+  }
+
+  #addBlock(
+    kind: FlowBlockSnapshot["kind"],
+    explicitId?: string,
+    metadata: Omit<Partial<MutableFlowBlockSnapshot>, "id" | "kind" | "successorBlockIds"> = {},
+  ): string {
+    const id = explicitId ?? `${kind}:${this.#nextIndex(kind)}`;
+    this.#blocks.push({
+      id,
+      kind,
+      successorBlockIds: [],
+      ...metadata,
+    });
+    return id;
+  }
+
+  #connect(fromBlockIds: readonly string[], toBlockId: string): void {
+    for (const fromBlockId of fromBlockIds) {
+      const block = this.#blocks.find((candidate) => candidate.id === fromBlockId);
+      if (!block || block.successorBlockIds.includes(toBlockId)) continue;
+      block.successorBlockIds.push(toBlockId);
+    }
+  }
+
+  #nextIndex(kind: string): number {
+    const next = this.#counters.get(kind) ?? 0;
+    this.#counters.set(kind, next + 1);
+    return next;
+  }
+}
+
+interface FlowBlockContext {
+  readonly breakTargetBlockId?: string;
+}
+
+type MutableFlowBlockSnapshot = Omit<FlowBlockSnapshot, "successorBlockIds"> & {
+  successorBlockIds: string[];
+};
+
+function isShortCircuitExpression(expression: ts.Expression): expression is ts.BinaryExpression {
+  return (
+    ts.isBinaryExpression(expression) &&
+    (expression.operatorToken.kind === ts.SyntaxKind.AmpersandAmpersandToken ||
+      expression.operatorToken.kind === ts.SyntaxKind.BarBarToken ||
+      expression.operatorToken.kind === ts.SyntaxKind.QuestionQuestionToken)
+  );
+}
+
+function shortCircuitExpressionKind(
+  expression: ts.BinaryExpression,
+): NonNullable<FlowBlockSnapshot["expressionKind"]> {
+  switch (expression.operatorToken.kind) {
+    case ts.SyntaxKind.AmpersandAmpersandToken:
+      return "logicalAnd";
+    case ts.SyntaxKind.BarBarToken:
+      return "logicalOr";
+    case ts.SyntaxKind.QuestionQuestionToken:
+      return "nullishCoalesce";
+    default:
+      throw new Error("not a short-circuit expression");
+  }
 }

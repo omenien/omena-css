@@ -1,6 +1,8 @@
 import ts from "typescript";
 import { describe, expect, it } from "vitest";
 import { resolveFlowClassValues } from "../../../server/engine-core-ts/src/core/flow/class-value-analysis";
+import { buildFlowBlockGraphSnapshot } from "../../../server/engine-core-ts/src/core/flow/cfg";
+import { buildFlowSlice } from "../../../server/engine-core-ts/src/core/flow/flow-slice";
 
 describe("resolveFlowClassValues", () => {
   it("tracks straight-line reassignment before the class use", () => {
@@ -458,6 +460,107 @@ function render(flag: number) {
     });
   });
 });
+
+describe("buildFlowBlockGraphSnapshot", () => {
+  it.each([
+    ["&&", 'flag && "is-active"', "logicalAnd"],
+    ["||", 'sizeInput || "fallback"', "logicalOr"],
+    ["??", 'sizeInput ?? "fallback"', "nullishCoalesce"],
+  ] as const)("captures %s short-circuit skip and rhs edges", (_operator, expression, kind) => {
+    const source = `
+function render(flag: boolean, sizeInput: string | null) {
+  const size = ${expression};
+  return cx(size);
+}
+`;
+
+    const graph = flowBlockGraphFor(source);
+
+    expect(graph.blocks).toHaveLength(6);
+    expect(blockSummary(graph.blocks)).toEqual([
+      ["entry", "entry", ["assignment:0"], undefined],
+      ["assignment:0", "assignment", ["logicalOperand:0"], undefined],
+      ["logicalOperand:0", "logicalOperand", ["logicalJoin:0", "logicalRhs:0"], kind],
+      ["logicalRhs:0", "logicalRhs", ["logicalJoin:0"], kind],
+      ["logicalJoin:0", "logicalJoin", ["exit"], kind],
+      ["exit", "exit", [], undefined],
+    ]);
+  });
+
+  it("captures a while-loop header exit edge and body back-edge", () => {
+    const source = `
+function render(flag: boolean) {
+  let size = "base";
+  while (flag) {
+    size = "loop";
+  }
+  return cx(size);
+}
+`;
+
+    const graph = flowBlockGraphFor(source);
+
+    expect(graph.blocks).toHaveLength(7);
+    expect(blockSummary(graph.blocks)).toEqual([
+      ["entry", "entry", ["assignment:0"], undefined],
+      ["assignment:0", "assignment", ["loop:0:header"], undefined],
+      ["loop:0:header", "loopHeader", ["loop:0:body", "loop:0:exit"], undefined],
+      ["loop:0:body", "loopBody", ["assignment:1"], undefined],
+      ["loop:0:exit", "loopExit", ["exit"], undefined],
+      ["assignment:1", "assignment", ["loop:0:header"], undefined],
+      ["exit", "exit", [], undefined],
+    ]);
+  });
+
+  it("routes a labeled break block to the labeled loop exit", () => {
+    const source = `
+function render(flag: boolean) {
+  let size = "base";
+  outer: while (flag) {
+    size = "loop";
+    break outer;
+    size = "never";
+  }
+  return cx(size);
+}
+`;
+
+    const graph = flowBlockGraphFor(source);
+
+    expect(graph.blocks).toHaveLength(8);
+    expect(blockSummary(graph.blocks)).toEqual([
+      ["entry", "entry", ["assignment:0"], undefined],
+      ["assignment:0", "assignment", ["loop:0:header"], undefined],
+      ["loop:0:header", "loopHeader", ["loop:0:body", "loop:0:exit"], undefined],
+      ["loop:0:body", "loopBody", ["assignment:1"], undefined],
+      ["loop:0:exit", "loopExit", ["exit"], undefined],
+      ["assignment:1", "assignment", ["break:0"], undefined],
+      ["break:0", "break", ["loop:0:exit"], undefined],
+      ["exit", "exit", [], undefined],
+    ]);
+  });
+});
+
+function flowBlockGraphFor(source: string) {
+  const sourceFile = ts.createSourceFile(
+    "/fake/Flow.tsx",
+    source,
+    ts.ScriptTarget.Latest,
+    true,
+    ts.ScriptKind.TSX,
+  );
+  const slice = buildFlowSlice(sourceFile, rangeOf(source, "cx(size)"), "size");
+  if (!slice) throw new Error("expected flow slice");
+  return buildFlowBlockGraphSnapshot(slice.nodes);
+}
+
+function blockSummary(
+  blocks: readonly ReturnType<typeof buildFlowBlockGraphSnapshot>["blocks"][number][],
+) {
+  return blocks.map(
+    (block) => [block.id, block.kind, block.successorBlockIds, block.expressionKind] as const,
+  );
+}
 
 function rangeOf(source: string, token: string) {
   const tokenIndex = source.lastIndexOf(token);
