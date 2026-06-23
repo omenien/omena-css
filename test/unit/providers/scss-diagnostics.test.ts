@@ -52,6 +52,27 @@ function stableDiagnosticSnapshot(diagnostics: readonly Diagnostic[]): string {
   );
 }
 
+function queryStyleDiagnosticMessage(code: string): string {
+  switch (code) {
+    case "missingComposedModule":
+      return "Cannot resolve composed CSS Module './Missing.module.scss'.";
+    case "missingComposedSelector":
+      return "Selector '.base' not found in composed module './Base.module.scss'.";
+    case "missingValueModule":
+      return "Cannot resolve imported @value module './missing-values.module.css'.";
+    case "missingImportedValue":
+      return "@value 'primary' not found in './tokens.module.css'.";
+    case "missingKeyframes":
+      return "Keyframes 'spin' not found.";
+    case "missingCustomProperty":
+      return "CSS custom property '--missing' not found in indexed style tokens.";
+    case "missingSassSymbol":
+      return "Sass variable '$missing' not found in this file.";
+    default:
+      return `query-owned ${code}`;
+  }
+}
+
 function styleDocument(selectors: ReadonlyMap<string, ReturnType<typeof info>>) {
   return buildStyleDocumentFromSelectorMap(SCSS_PATH, selectors);
 }
@@ -244,6 +265,14 @@ describe("computeScssUnusedDiagnostics", () => {
   it("preserves every query-owned style diagnostic code on the selected-query path", async () => {
     const styleSource = `.button { color: red; }\n`;
     const styleDoc = parseStyleDocument(styleSource, SCSS_PATH);
+    const baseModulePath = "/fake/Base.module.scss";
+    const valueModulePath = "/fake/tokens.module.css";
+    const baseModuleSource = `.existing { color: blue; }\n`;
+    const valueModuleSource = `@value secondary: blue;\n`;
+    const targetStyleDocuments = new Map([
+      [baseModulePath, parseStyleDocument(baseModuleSource, baseModulePath)],
+      [valueModulePath, parseStyleDocument(valueModuleSource, valueModulePath)],
+    ]);
     const queryCodes = [
       "unusedSelector",
       "missingComposedModule",
@@ -280,10 +309,29 @@ describe("computeScssUnusedDiagnostics", () => {
                 start: { line: 0, character: 0 },
                 end: { line: 0, character: 7 },
               },
-              message: `query-owned ${code}`,
+              message: queryStyleDiagnosticMessage(code),
               tags: code === "unusedSelector" ? [DiagnosticTag.Unnecessary] : [],
+              ...(code === "missingCustomProperty"
+                ? {
+                    createCustomProperty: {
+                      uri: SCSS_PATH,
+                      range: {
+                        start: { line: 1, character: 0 },
+                        end: { line: 1, character: 0 },
+                      },
+                      newText: "\n\n:root {\n  --missing: ;\n}\n",
+                      propertyName: "--missing",
+                    },
+                  }
+                : {}),
             })),
           }) as T,
+        styleDocumentForPath: (filePath) => targetStyleDocuments.get(filePath) ?? null,
+        readStyleFile: (filePath) => {
+          if (filePath === baseModulePath) return baseModuleSource;
+          if (filePath === valueModulePath) return valueModuleSource;
+          return null;
+        },
       },
     );
 
@@ -309,7 +357,7 @@ describe("computeScssUnusedDiagnostics", () => {
           "code": "missingComposedModule",
           "severity": 2,
           "source": "omena-css",
-          "message": "query-owned missingComposedModule",
+          "message": "Cannot resolve composed CSS Module './Missing.module.scss'.",
           "range": {
             "start": {
               "line": 0,
@@ -326,14 +374,17 @@ describe("computeScssUnusedDiagnostics", () => {
               "omena-query.style-diagnostics",
               "omena-query-checker-orchestrator.product-diagnostic-gate",
               "omena-checker.rule-registry"
-            ]
+            ],
+            "createModuleFile": {
+              "uri": "file:///fake/Missing.module.scss"
+            }
           }
         },
         {
           "code": "missingComposedSelector",
           "severity": 2,
           "source": "omena-css",
-          "message": "query-owned missingComposedSelector",
+          "message": "Selector '.base' not found in composed module './Base.module.scss'.",
           "range": {
             "start": {
               "line": 0,
@@ -350,14 +401,29 @@ describe("computeScssUnusedDiagnostics", () => {
               "omena-query.style-diagnostics",
               "omena-query-checker-orchestrator.product-diagnostic-gate",
               "omena-checker.rule-registry"
-            ]
+            ],
+            "createSelector": {
+              "uri": "file:///fake/Base.module.scss",
+              "range": {
+                "start": {
+                  "line": 0,
+                  "character": 26
+                },
+                "end": {
+                  "line": 0,
+                  "character": 26
+                }
+              },
+              "newText": "\\n\\n.base {\\n}\\n",
+              "selectorName": "base"
+            }
           }
         },
         {
           "code": "missingCustomProperty",
           "severity": 2,
           "source": "omena-css",
-          "message": "query-owned missingCustomProperty",
+          "message": "CSS custom property '--missing' not found in indexed style tokens.",
           "range": {
             "start": {
               "line": 0,
@@ -374,14 +440,29 @@ describe("computeScssUnusedDiagnostics", () => {
               "omena-query.style-diagnostics",
               "omena-query-checker-orchestrator.product-diagnostic-gate",
               "omena-checker.rule-registry"
-            ]
+            ],
+            "createCustomProperty": {
+              "uri": "/fake/Button.module.scss",
+              "range": {
+                "start": {
+                  "line": 1,
+                  "character": 0
+                },
+                "end": {
+                  "line": 1,
+                  "character": 0
+                }
+              },
+              "newText": "\\n\\n:root {\\n  --missing: ;\\n}\\n",
+              "propertyName": "--missing"
+            }
           }
         },
         {
           "code": "missingImportedValue",
           "severity": 2,
           "source": "omena-css",
-          "message": "query-owned missingImportedValue",
+          "message": "@value 'primary' not found in './tokens.module.css'.",
           "range": {
             "start": {
               "line": 0,
@@ -398,14 +479,29 @@ describe("computeScssUnusedDiagnostics", () => {
               "omena-query.style-diagnostics",
               "omena-query-checker-orchestrator.product-diagnostic-gate",
               "omena-checker.rule-registry"
-            ]
+            ],
+            "createValue": {
+              "uri": "file:///fake/tokens.module.css",
+              "range": {
+                "start": {
+                  "line": 0,
+                  "character": 23
+                },
+                "end": {
+                  "line": 0,
+                  "character": 23
+                }
+              },
+              "newText": "\\n@value primary: ;",
+              "valueName": "primary"
+            }
           }
         },
         {
           "code": "missingKeyframes",
           "severity": 2,
           "source": "omena-css",
-          "message": "query-owned missingKeyframes",
+          "message": "Keyframes 'spin' not found.",
           "range": {
             "start": {
               "line": 0,
@@ -422,14 +518,29 @@ describe("computeScssUnusedDiagnostics", () => {
               "omena-query.style-diagnostics",
               "omena-query-checker-orchestrator.product-diagnostic-gate",
               "omena-checker.rule-registry"
-            ]
+            ],
+            "createKeyframes": {
+              "uri": "file:///fake/Button.module.scss",
+              "range": {
+                "start": {
+                  "line": 0,
+                  "character": 0
+                },
+                "end": {
+                  "line": 0,
+                  "character": 0
+                }
+              },
+              "newText": "@keyframes spin {\\n}\\n\\n",
+              "keyframesName": "spin"
+            }
           }
         },
         {
           "code": "missingSassSymbol",
           "severity": 2,
           "source": "omena-css",
-          "message": "query-owned missingSassSymbol",
+          "message": "Sass variable '$missing' not found in this file.",
           "range": {
             "start": {
               "line": 0,
@@ -446,14 +557,31 @@ describe("computeScssUnusedDiagnostics", () => {
               "omena-query.style-diagnostics",
               "omena-query-checker-orchestrator.product-diagnostic-gate",
               "omena-checker.rule-registry"
-            ]
+            ],
+            "createSassSymbol": {
+              "uri": "file:///fake/Button.module.scss",
+              "range": {
+                "start": {
+                  "line": 0,
+                  "character": 0
+                },
+                "end": {
+                  "line": 0,
+                  "character": 0
+                }
+              },
+              "newText": "$missing: ;\\n\\n",
+              "symbolKind": "variable",
+              "symbolName": "missing",
+              "symbolLabel": "$missing"
+            }
           }
         },
         {
           "code": "missingValueModule",
           "severity": 2,
           "source": "omena-css",
-          "message": "query-owned missingValueModule",
+          "message": "Cannot resolve imported @value module './missing-values.module.css'.",
           "range": {
             "start": {
               "line": 0,
@@ -470,7 +598,10 @@ describe("computeScssUnusedDiagnostics", () => {
               "omena-query.style-diagnostics",
               "omena-query-checker-orchestrator.product-diagnostic-gate",
               "omena-checker.rule-registry"
-            ]
+            ],
+            "createModuleFile": {
+              "uri": "file:///fake/missing-values.module.css"
+            }
           }
         },
         {

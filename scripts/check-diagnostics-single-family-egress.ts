@@ -192,6 +192,16 @@ function assertLspProviderQueryDiagnosticCoverage(): void {
   );
   assertIncludes(styleProviderTests, "stableDiagnosticSnapshot", FILES.styleProviderTests);
   assertIncludes(styleProviderTests, "toMatchInlineSnapshot", FILES.styleProviderTests);
+  for (const token of [
+    "createModuleFile",
+    "createSelector",
+    "createValue",
+    "createKeyframes",
+    "createCustomProperty",
+    "createSassSymbol",
+  ]) {
+    assertIncludes(styleProviderTests, token, FILES.styleProviderTests);
+  }
   for (const [queryCode] of SOURCE_DIAGNOSTIC_CODE_PAIRS) {
     assertIncludes(sourceProviderTests, `"${queryCode}"`, FILES.sourceProviderTests);
   }

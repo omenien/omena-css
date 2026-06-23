@@ -1,3 +1,4 @@
+import path from "node:path";
 import { DiagnosticSeverity, DiagnosticTag, type Diagnostic } from "vscode-languageserver/node";
 import { type StyleCheckerFinding } from "../../../engine-core-ts/src/core/checker";
 import { formatCheckerFinding } from "../../../engine-core-ts/src/checker-surface";
@@ -29,6 +30,7 @@ type RuntimeStyleDiagnosticsDeps = Partial<
     ProviderDeps,
     | "analysisCache"
     | "readStyleFile"
+    | "styleDocumentForPath"
     | "typeResolver"
     | "workspaceRoot"
     | "settings"
@@ -223,7 +225,12 @@ function resolveQueryOwnedStyleDiagnostics(
       return [];
     }
     return summary.diagnostics.map((diagnostic) =>
-      toQueryOwnedStyleDiagnostic(diagnostic, args.styleDocument),
+      toQueryOwnedStyleDiagnostic(
+        diagnostic,
+        args.styleDocument,
+        runtimeDeps.styleDocumentForPath,
+        runtimeDeps.readStyleFile,
+      ),
     );
   });
 }
@@ -231,13 +238,15 @@ function resolveQueryOwnedStyleDiagnostics(
 function toQueryOwnedStyleDiagnostic(
   diagnostic: QueryStyleDiagnosticV0,
   styleDocument: StyleDocumentHIR,
+  styleDocumentForPath?: (filePath: string) => StyleDocumentHIR | null,
+  readStyleFile?: (filePath: string) => string | null,
 ): Diagnostic {
   const data = {
     querySeverity: diagnostic.severity,
     provenance: diagnostic.provenance,
     ...(diagnostic.createCustomProperty
       ? { createCustomProperty: diagnostic.createCustomProperty }
-      : queryQuickFixData(diagnostic, styleDocument)),
+      : queryQuickFixData(diagnostic, styleDocument, styleDocumentForPath, readStyleFile)),
     ...(diagnostic.cascadeConfidence ? { cascadeConfidence: diagnostic.cascadeConfidence } : {}),
     ...(diagnostic.polynomialProvenance
       ? { polynomialProvenance: diagnostic.polynomialProvenance }
@@ -260,12 +269,71 @@ function toQueryOwnedStyleDiagnostic(
 function queryQuickFixData(
   diagnostic: QueryStyleDiagnosticV0,
   styleDocument: StyleDocumentHIR,
+  styleDocumentForPath?: (filePath: string) => StyleDocumentHIR | null,
+  readStyleFile?: (filePath: string) => string | null,
 ):
   | {
+      readonly createModuleFile?: { readonly uri: string };
+      readonly createSelector?: ReturnType<typeof buildCreateSelectorActionData>;
+      readonly createValue?: ReturnType<typeof buildCreateValueActionData>;
       readonly createKeyframes?: ReturnType<typeof buildCreateKeyframesActionData>;
       readonly createSassSymbol?: ReturnType<typeof buildCreateSassSymbolActionData>;
     }
   | Record<string, never> {
+  if (diagnostic.code === "missingComposedModule") {
+    const specifier = extractComposedModuleSpecifier(diagnostic.message);
+    const targetPath = specifier
+      ? resolveRelativeStyleSpecifier(styleDocument.filePath, specifier)
+      : null;
+    if (targetPath) {
+      return { createModuleFile: { uri: pathToFileUrl(targetPath) } };
+    }
+  }
+  if (diagnostic.code === "missingValueModule") {
+    const specifier = extractValueModuleSpecifier(diagnostic.message);
+    const targetPath = specifier
+      ? resolveRelativeStyleSpecifier(styleDocument.filePath, specifier)
+      : null;
+    if (targetPath) {
+      return { createModuleFile: { uri: pathToFileUrl(targetPath) } };
+    }
+  }
+  if (diagnostic.code === "missingComposedSelector") {
+    const target = extractComposedSelectorTarget(diagnostic.message);
+    if (target) {
+      const targetPath = target.specifier
+        ? resolveRelativeStyleSpecifier(styleDocument.filePath, target.specifier)
+        : styleDocument.filePath;
+      const targetDocument = targetPath ? styleDocumentForPath?.(targetPath) : null;
+      if (targetPath && targetDocument) {
+        return {
+          createSelector: buildCreateSelectorActionData(
+            target.className,
+            targetPath,
+            targetDocument,
+            readStyleFile?.(targetPath) ?? undefined,
+          ),
+        };
+      }
+    }
+  }
+  if (diagnostic.code === "missingImportedValue") {
+    const target = extractImportedValueTarget(diagnostic.message);
+    const targetPath = target
+      ? resolveRelativeStyleSpecifier(styleDocument.filePath, target.specifier)
+      : null;
+    const targetDocument = targetPath ? styleDocumentForPath?.(targetPath) : null;
+    if (target && targetPath && targetDocument) {
+      return {
+        createValue: buildCreateValueActionData(
+          target.valueName,
+          targetPath,
+          targetDocument,
+          readStyleFile?.(targetPath) ?? undefined,
+        ),
+      };
+    }
+  }
   if (diagnostic.code === "missingKeyframes") {
     const keyframesName = extractQuotedName(diagnostic.message);
     if (keyframesName) {
@@ -293,6 +361,43 @@ function queryQuickFixData(
     }
   }
   return {};
+}
+
+function resolveRelativeStyleSpecifier(styleFilePath: string, specifier: string): string | null {
+  if (!specifier.startsWith(".")) return null;
+  return path.resolve(path.dirname(styleFilePath), specifier);
+}
+
+function extractComposedModuleSpecifier(message: string): string | null {
+  return /Cannot resolve composed CSS Module '([^']+)'/u.exec(message)?.[1] ?? null;
+}
+
+function extractValueModuleSpecifier(message: string): string | null {
+  return /Cannot resolve imported @value module '([^']+)'/u.exec(message)?.[1] ?? null;
+}
+
+function extractComposedSelectorTarget(message: string): {
+  readonly className: string;
+  readonly specifier?: string;
+} | null {
+  const external = /Selector '\.([^']+)' not found in composed module '([^']+)'/u.exec(message);
+  if (external?.[1] && external[2]) {
+    return { className: external[1], specifier: external[2] };
+  }
+  const local = /Selector '\.([^']+)' not found in this file for composes/u.exec(message);
+  if (local?.[1]) {
+    return { className: local[1] };
+  }
+  return null;
+}
+
+function extractImportedValueTarget(message: string): {
+  readonly valueName: string;
+  readonly specifier: string;
+} | null {
+  const result = /@value '([^']+)' not found in '([^']+)'/u.exec(message);
+  if (!result?.[1] || !result[2]) return null;
+  return { valueName: result[1], specifier: result[2] };
 }
 
 function querySeverityToLspSeverity(
