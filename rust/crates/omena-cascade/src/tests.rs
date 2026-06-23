@@ -926,15 +926,32 @@ fn reports_selector_context_witness_rank() {
 
     let exact = selector_context_witness(&[".button".to_string()], &[".button".to_string()]);
     assert_eq!(exact.kind, SelectorContextMatchKind::Exact);
-    assert_eq!(exact.rank, 2);
+    assert_eq!(exact.rank, 3);
 
     let descendant =
         selector_context_witness(&[".theme".to_string()], &[".theme .button".to_string()]);
     assert_eq!(descendant.kind, SelectorContextMatchKind::ContainsSelector);
+    assert_eq!(descendant.rank, 2);
     assert_eq!(
         descendant.reference_selector.as_deref(),
         Some(".theme .button")
     );
+
+    let prefix_false_positive =
+        selector_context_witness(&[".foo".to_string()], &[".foobar".to_string()]);
+    assert_eq!(
+        prefix_false_positive.kind,
+        SelectorContextMatchKind::NoMatch
+    );
+    assert!(!prefix_false_positive.matched);
+
+    let bem_suffix_false_positive =
+        selector_context_witness(&[".btn".to_string()], &[".btn-primary".to_string()]);
+    assert_eq!(
+        bem_suffix_false_positive.kind,
+        SelectorContextMatchKind::NoMatch
+    );
+    assert!(!bem_suffix_false_positive.matched);
 
     let miss = selector_context_witness(&[".card".to_string()], &[".button".to_string()]);
     assert_eq!(miss.kind, SelectorContextMatchKind::NoMatch);

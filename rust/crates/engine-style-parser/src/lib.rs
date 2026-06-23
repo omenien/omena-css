@@ -1570,8 +1570,72 @@ fn custom_property_selector_context_matches(
 ) -> bool {
     decl_selector == ":root"
         || reference.selector_contexts.iter().any(|ref_selector| {
-            ref_selector == decl_selector || ref_selector.contains(decl_selector)
+            ref_selector == decl_selector
+                || reference_selector_has_compound_component(ref_selector, decl_selector)
         })
+}
+
+fn reference_selector_has_compound_component(ref_selector: &str, decl_selector: &str) -> bool {
+    split_selector_branches(ref_selector).iter().any(|branch| {
+        split_complex_selector_components(branch)
+            .iter()
+            .any(|component| component == decl_selector)
+    })
+}
+
+fn split_selector_branches(selector: &str) -> Vec<String> {
+    let mut branches = Vec::new();
+    let mut start = 0usize;
+    let mut paren_depth = 0usize;
+    let mut bracket_depth = 0usize;
+    for (index, ch) in selector.char_indices() {
+        match ch {
+            '(' => paren_depth += 1,
+            ')' => paren_depth = paren_depth.saturating_sub(1),
+            '[' => bracket_depth += 1,
+            ']' => bracket_depth = bracket_depth.saturating_sub(1),
+            ',' if paren_depth == 0 && bracket_depth == 0 => {
+                push_selector_component(selector, start, index, &mut branches);
+                start = index + ch.len_utf8();
+            }
+            _ => {}
+        }
+    }
+    push_selector_component(selector, start, selector.len(), &mut branches);
+    branches
+}
+
+fn split_complex_selector_components(selector: &str) -> Vec<String> {
+    let mut components = Vec::new();
+    let mut start = 0usize;
+    let mut paren_depth = 0usize;
+    let mut bracket_depth = 0usize;
+    for (index, ch) in selector.char_indices() {
+        match ch {
+            '(' => paren_depth += 1,
+            ')' => paren_depth = paren_depth.saturating_sub(1),
+            '[' => bracket_depth += 1,
+            ']' => bracket_depth = bracket_depth.saturating_sub(1),
+            '>' | '+' | '~' if paren_depth == 0 && bracket_depth == 0 => {
+                push_selector_component(selector, start, index, &mut components);
+                start = index + ch.len_utf8();
+            }
+            ch if ch.is_whitespace() && paren_depth == 0 && bracket_depth == 0 => {
+                push_selector_component(selector, start, index, &mut components);
+                start = index + ch.len_utf8();
+            }
+            _ => {}
+        }
+    }
+    push_selector_component(selector, start, selector.len(), &mut components);
+    components
+}
+
+fn push_selector_component(selector: &str, start: usize, end: usize, components: &mut Vec<String>) {
+    let component = selector[start..end].trim();
+    if !component.is_empty() {
+        components.push(component.to_string());
+    }
 }
 
 fn summarize_lossless_cst(sheet: &Stylesheet) -> ParserLosslessCstFactsV0 {
@@ -5464,6 +5528,9 @@ $gap: 1rem;
 .theme .button { border-color: var(--brand); }
 :root { --surface: white; }
 .card { background: var(--surface); }
+.foo { --accent: red; }
+.foobar { color: var(--accent); }
+.foo .child { outline-color: var(--accent); }
 "#;
         let sheet = parse_stylesheet(StyleLanguage::Css, source);
         let semantic_boundary = super::summarize_semantic_boundary(&sheet);
@@ -5473,14 +5540,14 @@ $gap: 1rem;
                 .semantic_facts
                 .custom_properties
                 .resolved_ref_names,
-            vec!["--brand", "--surface"]
+            vec!["--accent", "--brand", "--surface"]
         );
         assert_eq!(
             semantic_boundary
                 .semantic_facts
                 .custom_properties
                 .unresolved_ref_names,
-            vec!["--brand"]
+            vec!["--accent", "--brand"]
         );
     }
 

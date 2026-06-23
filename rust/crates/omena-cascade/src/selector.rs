@@ -57,7 +57,7 @@ pub fn selector_context_witness_for_declaration(
             return SelectorContextWitness {
                 kind: SelectorContextMatchKind::Exact,
                 matched: true,
-                rank: 2,
+                rank: 3,
                 declaration_selector: Some(declaration_selector.to_string()),
                 reference_selector: Some(reference_selector.clone()),
             };
@@ -65,7 +65,7 @@ pub fn selector_context_witness_for_declaration(
     }
 
     for reference_selector in reference_selectors {
-        if reference_selector.contains(declaration_selector) {
+        if reference_selector_has_compound_component(reference_selector, declaration_selector) {
             return SelectorContextWitness {
                 kind: SelectorContextMatchKind::ContainsSelector,
                 matched: true,
@@ -82,6 +82,55 @@ pub fn selector_context_witness_for_declaration(
         rank: 0,
         declaration_selector: Some(declaration_selector.to_string()),
         reference_selector: None,
+    }
+}
+
+fn reference_selector_has_compound_component(
+    reference_selector: &str,
+    declaration_selector: &str,
+) -> bool {
+    split_selector_list(reference_selector)
+        .iter()
+        .any(|branch| {
+            split_complex_selector_components(branch)
+                .iter()
+                .any(|component| component == declaration_selector)
+        })
+}
+
+fn split_complex_selector_components(selector: &str) -> Vec<String> {
+    let mut components = Vec::new();
+    let mut start = 0usize;
+    let mut paren_depth = 0usize;
+    let mut bracket_depth = 0usize;
+    let chars = selector.char_indices().collect::<Vec<_>>();
+
+    for (index, ch) in &chars {
+        match *ch {
+            '(' => paren_depth += 1,
+            ')' => paren_depth = paren_depth.saturating_sub(1),
+            '[' => bracket_depth += 1,
+            ']' => bracket_depth = bracket_depth.saturating_sub(1),
+            '>' | '+' | '~' if paren_depth == 0 && bracket_depth == 0 => {
+                push_selector_component(selector, start, *index, &mut components);
+                start = *index + ch.len_utf8();
+            }
+            ch if ch.is_whitespace() && paren_depth == 0 && bracket_depth == 0 => {
+                push_selector_component(selector, start, *index, &mut components);
+                start = *index + ch.len_utf8();
+            }
+            _ => {}
+        }
+    }
+
+    push_selector_component(selector, start, selector.len(), &mut components);
+    components
+}
+
+fn push_selector_component(selector: &str, start: usize, end: usize, components: &mut Vec<String>) {
+    let component = selector[start..end].trim();
+    if !component.is_empty() {
+        components.push(component.to_string());
     }
 }
 
