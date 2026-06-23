@@ -1401,12 +1401,19 @@ export function App() {
             summary.product,
             "omena-query.transform-context-from-engine-input"
         );
-        assert_eq!(summary.selected_projection_count, 3);
+        assert_eq!(summary.selected_projection_count, 2);
         assert!(
             summary
                 .reachability_sources
                 .iter()
-                .any(|source| source.node_id == "file-merge")
+                .all(|source| source.node_id != "file-merge")
+        );
+        assert!(
+            summary
+                .reachability_sources
+                .iter()
+                .any(|source| source.node_id == "expr-primary"
+                    && source.selector_names == vec!["btn-primary--active".to_string()])
         );
     }
 
@@ -1432,7 +1439,7 @@ export function App() {
         let second = runtime.analyze_summary(&input);
         assert_eq!(second.revision, 2);
         assert_eq!(second.dirty_graph_count, 0);
-        assert_eq!(second.reused_graph_count, 1);
+        assert_eq!(second.reused_graph_count, 2);
         assert!(
             second
                 .analyses

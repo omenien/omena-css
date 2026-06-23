@@ -1372,8 +1372,9 @@ export function App() {
 
         assert!(json.contains("\"product\":\"omena-query.expression-domain-selector-projection\""));
         assert!(json.contains("\"reducedProduct\""));
-        assert!(json.contains("\"sourceValueKind\":\"composite\""));
-        assert!(json.contains("\"prefix\":\"btn-\""));
+        assert!(json.contains("\"sourceValueKind\":\"prefixSuffix\""));
+        assert!(json.contains("\"prefix\":\"btn-primary-\""));
+        assert!(json.contains("\"prefix\":\"btn-secondary-\""));
         assert!(json.contains("\"suffix\":\"-active\""));
         Ok(())
     }
@@ -1395,7 +1396,7 @@ export function App() {
         let second_json = runtime.analyze_json(input_json)?;
         assert!(second_json.contains("\"revision\":2"));
         assert!(second_json.contains("\"dirtyGraphCount\":0"));
-        assert!(second_json.contains("\"reusedGraphCount\":1"));
+        assert!(second_json.contains("\"reusedGraphCount\":2"));
         assert!(second_json.contains("\"reusedPreviousAnalysis\":true"));
         Ok(())
     }
@@ -1410,9 +1411,10 @@ export function App() {
         .map_err(|error| napi::Error::from_reason(format!("{error:?}")))?;
 
         assert!(json.contains("\"product\":\"omena-query.transform-context-from-engine-input\""));
-        assert!(json.contains("\"selectedProjectionCount\":3"));
+        assert!(json.contains("\"selectedProjectionCount\":2"));
         assert!(json.contains("\"reachabilitySources\""));
-        assert!(json.contains("\"nodeId\":\"file-merge\""));
+        assert!(!json.contains("\"nodeId\":\"file-merge\""));
+        assert!(json.contains("\"nodeId\":\"expr-primary\""));
         assert!(json.contains("\"btn-primary--active\""));
         Ok(())
     }

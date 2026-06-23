@@ -340,49 +340,28 @@ pub fn summarize_expression_domain_reduced_product_iteration_input(
 pub fn collect_expression_domain_flow_graphs(
     input: &EngineInputV2,
 ) -> Vec<ExpressionDomainFlowGraphEntryV0> {
-    let mut by_file = BTreeMap::<String, Vec<&TypeFactEntryV2>>::new();
-    for entry in &input.type_facts {
-        by_file
-            .entry(entry.file_path.clone())
-            .or_default()
-            .push(entry);
-    }
-
-    by_file
-        .into_iter()
-        .map(|(file_path, mut entries)| {
-            entries.sort_by(|a, b| a.expression_id.cmp(&b.expression_id));
-            let graph_id = format!("{file_path}:expression-domain-flow");
-            let mut nodes = entries
-                .iter()
-                .map(|entry| omena_abstract_value::ClassValueFlowNodeV0 {
+    input
+        .type_facts
+        .iter()
+        .map(|entry| {
+            let graph_id = format!(
+                "{}:{}:expression-domain-flow",
+                entry.file_path, entry.expression_id
+            );
+            let graph = omena_abstract_value::ClassValueFlowGraphV0 {
+                context_key: Some(graph_id.clone()),
+                nodes: vec![omena_abstract_value::ClassValueFlowNodeV0 {
                     id: entry.expression_id.clone(),
                     predecessors: Vec::new(),
                     transfer: omena_abstract_value::ClassValueFlowTransferV0::AssignFacts(
                         abstract_value_facts(&entry.facts),
                     ),
-                })
-                .collect::<Vec<_>>();
-
-            if entries.len() > 1 {
-                nodes.push(omena_abstract_value::ClassValueFlowNodeV0 {
-                    id: "file-merge".to_string(),
-                    predecessors: entries
-                        .iter()
-                        .map(|entry| entry.expression_id.clone())
-                        .collect(),
-                    transfer: omena_abstract_value::ClassValueFlowTransferV0::Join,
-                });
-            }
-
-            let graph = omena_abstract_value::ClassValueFlowGraphV0 {
-                context_key: Some(graph_id.clone()),
-                nodes,
+                }],
             };
 
             ExpressionDomainFlowGraphEntryV0 {
                 graph_id,
-                file_path,
+                file_path: entry.file_path.clone(),
                 graph,
             }
         })
@@ -474,15 +453,11 @@ fn reduced_product_axis_constraints_from_facts(
 fn expression_domain_flow_exit_node_id(
     graph: &omena_abstract_value::ClassValueFlowGraphV0,
 ) -> String {
-    if graph.nodes.iter().any(|node| node.id == "file-merge") {
-        "file-merge".to_string()
-    } else {
-        graph
-            .nodes
-            .first()
-            .map(|node| node.id.clone())
-            .unwrap_or_else(|| "exit".to_string())
-    }
+    graph
+        .nodes
+        .first()
+        .map(|node| node.id.clone())
+        .unwrap_or_else(|| "exit".to_string())
 }
 
 fn expression_domain_control_flow_graph_from_type_fact_graph(
@@ -786,28 +761,36 @@ mod tests {
             summary.product,
             "engine-input-producers.expression-domain-flow-analysis"
         );
-        assert_eq!(summary.analyses.len(), 1);
+        assert_eq!(summary.analyses.len(), 3);
         assert_eq!(summary.analyses[0].file_path, "/tmp/App.tsx");
         assert_eq!(summary.analyses[0].analysis.context_sensitivity, "1-cfa");
-        assert!(summary.analyses[0].analysis.converged);
+        assert!(
+            summary
+                .analyses
+                .iter()
+                .all(|entry| entry.analysis.converged)
+        );
         assert_eq!(
             summary.analyses[0]
                 .analysis
                 .nodes
                 .iter()
-                .find(|node| node.id == "file-merge")
+                .find(|node| node.id == "expr-branch-a")
                 .map(|node| (node.value_kind, &node.value)),
             Some((
-                "finiteSet",
-                &AbstractClassValueV0::FiniteSet {
-                    values: vec![
-                        "btn-primary".to_string(),
-                        "btn-secondary".to_string(),
-                        "card".to_string(),
-                    ]
+                "exact",
+                &AbstractClassValueV0::Exact {
+                    value: "btn-primary".to_string()
                 }
             ))
         );
+        assert!(summary.analyses.iter().all(|entry| {
+            entry
+                .analysis
+                .nodes
+                .iter()
+                .all(|node| node.id != "file-merge")
+        }));
     }
 
     #[test]
@@ -820,19 +803,21 @@ mod tests {
 
         let graphs = collect_expression_domain_flow_graphs(&input);
 
-        assert_eq!(graphs.len(), 1);
-        assert_eq!(graphs[0].graph_id, "/tmp/App.tsx:expression-domain-flow");
+        assert_eq!(graphs.len(), 2);
         assert_eq!(
-            graphs[0].graph.context_key.as_deref(),
-            Some(graphs[0].graph_id.as_str())
-        );
-        assert!(
-            graphs[0]
-                .graph
-                .nodes
+            graphs
                 .iter()
-                .any(|node| node.id == "file-merge")
+                .map(|entry| entry.graph_id.as_str())
+                .collect::<Vec<_>>(),
+            vec![
+                "/tmp/App.tsx:expr-branch-a:expression-domain-flow",
+                "/tmp/App.tsx:expr-branch-b:expression-domain-flow"
+            ]
         );
+        assert!(graphs.iter().all(|entry| {
+            entry.graph.context_key.as_deref() == Some(entry.graph_id.as_str())
+                && entry.graph.nodes.iter().all(|node| node.id != "file-merge")
+        }));
     }
 
     #[test]

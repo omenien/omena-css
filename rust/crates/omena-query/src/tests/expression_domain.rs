@@ -156,40 +156,49 @@ fn projects_reduced_product_flow_to_target_style_selectors() {
         "omena-query.expression-domain-selector-projection"
     );
     assert_eq!(summary.input_version, "2");
-    assert_eq!(summary.projection_count, 3);
+    assert_eq!(summary.projection_count, 2);
+    assert!(
+        summary
+            .projections
+            .iter()
+            .all(|projection| projection.node_id != "file-merge")
+    );
 
-    let merge = summary
+    let primary = summary
         .projections
         .iter()
-        .find(|projection| projection.node_id == "file-merge");
-    assert!(merge.is_some());
-    let Some(merge) = merge else {
+        .find(|projection| projection.node_id == "expr-primary");
+    assert!(primary.is_some());
+    let Some(primary) = primary else {
         return;
     };
-    assert_eq!(merge.graph_id, "/tmp/App.tsx:expression-domain-flow");
-    assert_eq!(merge.file_path, "/tmp/App.tsx");
     assert_eq!(
-        merge.target_style_paths,
+        primary.graph_id,
+        "/tmp/App.tsx:expr-primary:expression-domain-flow"
+    );
+    assert_eq!(primary.file_path, "/tmp/App.tsx");
+    assert_eq!(
+        primary.target_style_paths,
         vec!["/tmp/App.module.scss".to_string()]
     );
-    assert_eq!(merge.value_kind, "composite");
+    assert_eq!(primary.value_kind, "prefixSuffix");
     assert_eq!(
-        merge
+        primary
             .reduced_product
             .as_ref()
             .map(|product| product.source_value_kind),
-        Some("composite")
+        Some("prefixSuffix")
     );
     assert_eq!(
-        merge
+        primary
             .reduced_product
             .as_ref()
             .and_then(|product| product.prefix.as_ref())
             .map(|axis| axis.prefix.as_str()),
-        Some("btn-")
+        Some("btn-primary-")
     );
     assert_eq!(
-        merge
+        primary
             .reduced_product
             .as_ref()
             .and_then(|product| product.suffix.as_ref())
@@ -197,13 +206,24 @@ fn projects_reduced_product_flow_to_target_style_selectors() {
         Some("-active")
     );
     assert_eq!(
-        merge.selector_names,
-        vec![
-            "btn-primary--active".to_string(),
-            "btn-secondary--active".to_string()
-        ]
+        primary.selector_names,
+        vec!["btn-primary--active".to_string()]
     );
-    assert_eq!(merge.certainty, SelectorProjectionCertaintyV0::Inferred);
+    assert_eq!(primary.certainty, SelectorProjectionCertaintyV0::Inferred);
+
+    let secondary = summary
+        .projections
+        .iter()
+        .find(|projection| projection.node_id == "expr-secondary");
+    assert!(secondary.is_some());
+    let Some(secondary) = secondary else {
+        return;
+    };
+    assert_eq!(
+        secondary.selector_names,
+        vec!["btn-secondary--active".to_string()]
+    );
+    assert_eq!(secondary.certainty, SelectorProjectionCertaintyV0::Inferred);
 }
 
 #[test]
@@ -220,20 +240,22 @@ fn builds_semantic_reachability_transform_context_from_expression_projection() {
         "omena-query.transform-context-from-engine-input"
     );
     assert!(context_summary.closed_style_world);
-    assert_eq!(context_summary.projection_count, 3);
-    assert_eq!(context_summary.selected_projection_count, 3);
+    assert_eq!(context_summary.projection_count, 2);
+    assert_eq!(context_summary.selected_projection_count, 2);
     assert_eq!(context_summary.reachable_class_name_count, 2);
-    assert_eq!(context_summary.reachability_sources.len(), 3);
-    let merge_source = context_summary
-        .reachability_sources
-        .iter()
-        .find(|source| source.node_id == "file-merge");
-    assert!(merge_source.is_some());
-    let Some(merge_source) = merge_source else {
-        return;
-    };
+    assert_eq!(context_summary.reachability_sources.len(), 2);
+    assert!(
+        context_summary
+            .reachability_sources
+            .iter()
+            .all(|source| source.node_id != "file-merge")
+    );
     assert_eq!(
-        merge_source.selector_names,
+        context_summary
+            .reachability_sources
+            .iter()
+            .flat_map(|source| source.selector_names.iter().cloned())
+            .collect::<Vec<_>>(),
         vec![
             "btn-primary--active".to_string(),
             "btn-secondary--active".to_string()

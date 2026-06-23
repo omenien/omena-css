@@ -14,7 +14,8 @@ use engine_input_producers::{
 };
 use engine_style_parser::{parse_style_module, summarize_css_modules_intermediate};
 use omena_abstract_value::{
-    AbstractClassValueV0, enumerate_finite_class_values, join_abstract_class_values,
+    AbstractClassValueV0, abstract_class_value_kind, enumerate_finite_class_values,
+    join_abstract_class_values,
 };
 use omena_cascade::{SelectorMatchVerdict, selector_context_witness};
 use omena_incremental::{
@@ -1801,10 +1802,9 @@ fn source_cfg_refinement_fixture_report(
         summarize_expression_domain_flow_analysis_input(&source_cfg_refinement_input(false));
     let source_summary =
         summarize_expression_domain_control_flow_analysis_input(&source_cfg_refinement_input(true));
-    let baseline_analysis = baseline_summary.analyses.first();
-    let baseline_exit = baseline_analysis.and_then(|entry| flow_exit_value(&entry.analysis));
-    let baseline_value = baseline_exit.map(|exit| exit.value);
+    let baseline_value = flow_baseline_value(&baseline_summary);
     let baseline_value_set = baseline_value
+        .as_ref()
         .and_then(enumerate_finite_class_values)
         .map(|values| values.into_iter().collect::<BTreeSet<_>>());
     let source_exits = source_summary
@@ -1815,12 +1815,14 @@ fn source_cfg_refinement_fixture_report(
     let all_source_values_le_baseline = !source_exits.is_empty()
         && baseline_value.is_some()
         && source_exits.iter().all(|exit| {
-            baseline_value.is_some_and(|baseline| derived_le_class_value(exit.value, baseline))
+            baseline_value
+                .as_ref()
+                .is_some_and(|baseline| derived_le_class_value(exit.value, baseline))
         });
     let strict_refinement_count = source_exits
         .iter()
         .filter(|exit| {
-            baseline_value.is_some_and(|baseline| {
+            baseline_value.as_ref().is_some_and(|baseline| {
                 derived_le_class_value(exit.value, baseline) && exit.value != baseline
             })
         })
@@ -1857,15 +1859,19 @@ fn source_cfg_refinement_fixture_report(
 
     SourceCfgRefinementFixtureReportV0 {
         fixture_id,
-        baseline_graph_id: baseline_analysis
-            .map(|entry| entry.graph_id.clone())
-            .unwrap_or_default(),
+        baseline_graph_id: if baseline_summary.analyses.is_empty() {
+            String::new()
+        } else {
+            format!("{fixture_id}:legacy-file-merge-baseline")
+        },
         source_graph_ids: source_summary
             .analyses
             .iter()
             .map(|entry| entry.graph_id.clone())
             .collect(),
-        baseline_value_kind: baseline_exit.map_or("missing", |exit| exit.kind),
+        baseline_value_kind: baseline_value
+            .as_ref()
+            .map_or("missing", abstract_class_value_kind),
         source_value_kinds: source_exits.iter().map(|exit| exit.kind).collect(),
         all_source_values_le_baseline,
         strict_refinement_count,
@@ -1880,24 +1886,15 @@ fn derived_le_class_value(left: &AbstractClassValueV0, right: &AbstractClassValu
     join_abstract_class_values(left, right) == *right
 }
 
-#[derive(Clone, Copy)]
-struct FlowExitValue<'a> {
-    kind: &'static str,
-    value: &'a AbstractClassValueV0,
-}
-
-fn flow_exit_value<'a>(
-    analysis: &'a omena_abstract_value::ClassValueFlowAnalysisV0,
-) -> Option<FlowExitValue<'a>> {
-    analysis
-        .nodes
+fn flow_baseline_value(
+    summary: &engine_input_producers::ExpressionDomainFlowAnalysisV0,
+) -> Option<AbstractClassValueV0> {
+    summary
+        .analyses
         .iter()
-        .find(|node| node.id == "file-merge")
-        .or_else(|| analysis.nodes.first())
-        .map(|node| FlowExitValue {
-            kind: node.value_kind,
-            value: &node.value,
-        })
+        .flat_map(|entry| entry.analysis.nodes.iter())
+        .map(|node| node.value.clone())
+        .reduce(|left, right| join_abstract_class_values(&left, &right))
 }
 
 #[derive(Clone, Copy)]
