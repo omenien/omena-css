@@ -6,37 +6,23 @@
   "comparisons": [
     {
       "category": "selectors",
-      "cstSpans": [
-        "Class:25..29"
-      ],
-      "cstValues": [
-        "Class:card"
-      ],
+      "cstSpans": ["Class:25..29"],
+      "cstValues": ["Class:card"],
       "fixture": "css-custom-properties",
-      "legacySpans": [
-        "Class:25..29"
-      ],
-      "legacyValues": [
-        "Class:card"
-      ],
+      "legacySpans": ["Class:25..29"],
+      "legacyValues": ["Class:card"],
       "spansMatch": true,
       "valuesMatch": true
     },
     {
       "category": "variables",
-      "cstSpans": [
-        "CustomPropertyDeclaration:8..15",
-        "CustomPropertyReference:43..50"
-      ],
+      "cstSpans": ["CustomPropertyDeclaration:8..15", "CustomPropertyReference:43..50"],
       "cstValues": [
         "CustomPropertyDeclaration:--brand:fallback=false",
         "CustomPropertyReference:--brand:fallback=false"
       ],
       "fixture": "css-custom-properties",
-      "legacySpans": [
-        "CustomPropertyDeclaration:8..15",
-        "CustomPropertyReference:43..50"
-      ],
+      "legacySpans": ["CustomPropertyDeclaration:8..15", "CustomPropertyReference:43..50"],
       "legacyValues": [
         "CustomPropertyDeclaration:--brand:fallback=false",
         "CustomPropertyReference:--brand:fallback=false"
@@ -186,45 +172,23 @@
     },
     {
       "category": "selectors",
-      "cstSpans": [
-        "Class:1..5",
-        "Class:51..61",
-        "Class:8..12"
-      ],
-      "cstValues": [
-        "Class:card",
-        "Class:card__icon",
-        "Class:tile"
-      ],
+      "cstSpans": ["Class:1..5", "Class:51..61", "Class:8..12"],
+      "cstValues": ["Class:card", "Class:card__icon", "Class:tile"],
       "fixture": "css-selector-list-custom-properties",
-      "legacySpans": [
-        "Class:1..5",
-        "Class:51..61",
-        "Class:8..12"
-      ],
-      "legacyValues": [
-        "Class:card",
-        "Class:card__icon",
-        "Class:tile"
-      ],
+      "legacySpans": ["Class:1..5", "Class:51..61", "Class:8..12"],
+      "legacyValues": ["Class:card", "Class:card__icon", "Class:tile"],
       "spansMatch": true,
       "valuesMatch": true
     },
     {
       "category": "variables",
-      "cstSpans": [
-        "CustomPropertyDeclaration:15..21",
-        "CustomPropertyReference:39..45"
-      ],
+      "cstSpans": ["CustomPropertyDeclaration:15..21", "CustomPropertyReference:39..45"],
       "cstValues": [
         "CustomPropertyDeclaration:--tone:fallback=false",
         "CustomPropertyReference:--tone:fallback=false"
       ],
       "fixture": "css-selector-list-custom-properties",
-      "legacySpans": [
-        "CustomPropertyDeclaration:15..21",
-        "CustomPropertyReference:39..45"
-      ],
+      "legacySpans": ["CustomPropertyDeclaration:15..21", "CustomPropertyReference:39..45"],
       "legacyValues": [
         "CustomPropertyDeclaration:--tone:fallback=false",
         "CustomPropertyReference:--tone:fallback=false"
@@ -374,63 +338,33 @@
     },
     {
       "category": "selectors",
-      "cstSpans": [
-        "Class:50..54",
-        "Class:58..64"
-      ],
-      "cstValues": [
-        "Class:card",
-        "Class:card__icon"
-      ],
+      "cstSpans": ["Class:50..54", "Class:58..64"],
+      "cstValues": ["Class:card", "Class:card__icon"],
       "fixture": "scss-nested-bem-and-sass-vars",
-      "legacySpans": [
-        "Class:50..54",
-        "Class:58..64"
-      ],
-      "legacyValues": [
-        "Class:card",
-        "Class:card__icon"
-      ],
+      "legacySpans": ["Class:50..54", "Class:58..64"],
+      "legacyValues": ["Class:card", "Class:card__icon"],
       "spansMatch": true,
       "valuesMatch": true
     },
     {
       "category": "variables",
-      "cstSpans": [
-        "ScssDeclaration:37..41",
-        "ScssReference:74..78"
-      ],
-      "cstValues": [
-        "ScssDeclaration:$gap:fallback=false",
-        "ScssReference:$gap:fallback=false"
-      ],
+      "cstSpans": ["ScssDeclaration:37..41", "ScssReference:74..78"],
+      "cstValues": ["ScssDeclaration:$gap:fallback=false", "ScssReference:$gap:fallback=false"],
       "fixture": "scss-nested-bem-and-sass-vars",
-      "legacySpans": [
-        "ScssDeclaration:37..41",
-        "ScssReference:74..78"
-      ],
-      "legacyValues": [
-        "ScssDeclaration:$gap:fallback=false",
-        "ScssReference:$gap:fallback=false"
-      ],
+      "legacySpans": ["ScssDeclaration:37..41", "ScssReference:74..78"],
+      "legacyValues": ["ScssDeclaration:$gap:fallback=false", "ScssReference:$gap:fallback=false"],
       "spansMatch": true,
       "valuesMatch": true
     },
     {
       "category": "sass_symbols",
-      "cstSpans": [
-        "VariableDeclaration:38..41",
-        "VariableReference:74..78"
-      ],
+      "cstSpans": ["VariableDeclaration:38..41", "VariableReference:74..78"],
       "cstValues": [
         "VariableDeclaration:variable:gap:declaration:None",
         "VariableReference:variable:gap:reference:None"
       ],
       "fixture": "scss-nested-bem-and-sass-vars",
-      "legacySpans": [
-        "VariableDeclaration:38..41",
-        "VariableReference:74..78"
-      ],
+      "legacySpans": ["VariableDeclaration:38..41", "VariableReference:74..78"],
       "legacyValues": [
         "VariableDeclaration:variable:gap:declaration:None",
         "VariableReference:variable:gap:reference:None"
@@ -450,19 +384,13 @@
     },
     {
       "category": "sass_module_edges",
-      "cstSpans": [
-        "Forward:26..35",
-        "Use:5..15"
-      ],
+      "cstSpans": ["Forward:26..35", "Use:5..15"],
       "cstValues": [
         "Forward:./theme:None:None:None:None:[]:media=false",
         "Use:./tokens:Some(\"default\"):Some(\"tokens\"):None:None:[]:media=false"
       ],
       "fixture": "scss-nested-bem-and-sass-vars",
-      "legacySpans": [
-        "Forward:26..35",
-        "Use:5..15"
-      ],
+      "legacySpans": ["Forward:26..35", "Use:5..15"],
       "legacyValues": [
         "Forward:./theme:None:None:None:None:[]:media=false",
         "Use:./tokens:Some(\"default\"):Some(\"tokens\"):None:None:[]:media=false"
@@ -572,41 +500,21 @@
     },
     {
       "category": "at_rules",
-      "cstSpans": [
-        "@forward:17..25",
-        "@use:0..4"
-      ],
-      "cstValues": [
-        "@forward:Some(ScssForwardRule)",
-        "@use:Some(ScssUseRule)"
-      ],
+      "cstSpans": ["@forward:17..25", "@use:0..4"],
+      "cstValues": ["@forward:Some(ScssForwardRule)", "@use:Some(ScssUseRule)"],
       "fixture": "scss-nested-bem-and-sass-vars",
-      "legacySpans": [
-        "@forward:17..25",
-        "@use:0..4"
-      ],
-      "legacyValues": [
-        "@forward:Some(ScssForwardRule)",
-        "@use:Some(ScssUseRule)"
-      ],
+      "legacySpans": ["@forward:17..25", "@use:0..4"],
+      "legacyValues": ["@forward:Some(ScssForwardRule)", "@use:Some(ScssUseRule)"],
       "spansMatch": true,
       "valuesMatch": true
     },
     {
       "category": "selectors",
-      "cstSpans": [
-        "Class:146..150"
-      ],
-      "cstValues": [
-        "Class:card"
-      ],
+      "cstSpans": ["Class:146..150"],
+      "cstValues": ["Class:card"],
       "fixture": "scss-use-forward-import-and-mixin",
-      "legacySpans": [
-        "Class:146..150"
-      ],
-      "legacyValues": [
-        "Class:card"
-      ],
+      "legacySpans": ["Class:146..150"],
+      "legacyValues": ["Class:card"],
       "spansMatch": true,
       "valuesMatch": true
     },
@@ -680,40 +588,24 @@
     },
     {
       "category": "sass_includes",
-      "cstSpans": [
-        "153..174"
-      ],
-      "cstValues": [
-        "raised:None:($gap)"
-      ],
+      "cstSpans": ["153..174"],
+      "cstValues": ["raised:None:($gap)"],
       "fixture": "scss-use-forward-import-and-mixin",
-      "legacySpans": [
-        "153..174"
-      ],
-      "legacyValues": [
-        "raised:None:($gap)"
-      ],
+      "legacySpans": ["153..174"],
+      "legacyValues": ["raised:None:($gap)"],
       "spansMatch": true,
       "valuesMatch": true
     },
     {
       "category": "sass_module_edges",
-      "cstSpans": [
-        "Forward:36..45",
-        "Import:65..75",
-        "Use:5..15"
-      ],
+      "cstSpans": ["Forward:36..45", "Import:65..75", "Use:5..15"],
       "cstValues": [
         "Forward:./theme:None:None:None:Some(\"show\"):[\"tone\"]:media=false",
         "Import:./legacy:None:None:None:None:[]:media=false",
         "Use:./tokens:Some(\"alias\"):Some(\"tokens\"):None:None:[]:media=false"
       ],
       "fixture": "scss-use-forward-import-and-mixin",
-      "legacySpans": [
-        "Forward:36..45",
-        "Import:65..75",
-        "Use:5..15"
-      ],
+      "legacySpans": ["Forward:36..45", "Import:65..75", "Use:5..15"],
       "legacyValues": [
         "Forward:./theme:None:None:None:Some(\"show\"):[\"tone\"]:media=false",
         "Import:./legacy:None:None:None:None:[]:media=false",
@@ -858,37 +750,20 @@
     },
     {
       "category": "selectors",
-      "cstSpans": [
-        "Class:14..18"
-      ],
-      "cstValues": [
-        "Class:card"
-      ],
+      "cstSpans": ["Class:14..18"],
+      "cstValues": ["Class:card"],
       "fixture": "less-variable-and-selector",
-      "legacySpans": [
-        "Class:14..18"
-      ],
-      "legacyValues": [
-        "Class:card"
-      ],
+      "legacySpans": ["Class:14..18"],
+      "legacyValues": ["Class:card"],
       "spansMatch": true,
       "valuesMatch": true
     },
     {
       "category": "variables",
-      "cstSpans": [
-        "LessDeclaration:0..6",
-        "LessReference:28..34"
-      ],
-      "cstValues": [
-        "LessDeclaration:@color:fallback=false",
-        "LessReference:@color:fallback=false"
-      ],
+      "cstSpans": ["LessDeclaration:0..6", "LessReference:28..34"],
+      "cstValues": ["LessDeclaration:@color:fallback=false", "LessReference:@color:fallback=false"],
       "fixture": "less-variable-and-selector",
-      "legacySpans": [
-        "LessDeclaration:0..6",
-        "LessReference:28..34"
-      ],
+      "legacySpans": ["LessDeclaration:0..6", "LessReference:28..34"],
       "legacyValues": [
         "LessDeclaration:@color:fallback=false",
         "LessReference:@color:fallback=false"
@@ -1038,23 +913,11 @@
     },
     {
       "category": "selectors",
-      "cstSpans": [
-        "Class:14..18",
-        "Class:38..44"
-      ],
-      "cstValues": [
-        "Class:card",
-        "Class:card__icon"
-      ],
+      "cstSpans": ["Class:14..18", "Class:38..44"],
+      "cstValues": ["Class:card", "Class:card__icon"],
       "fixture": "less-nested-selector-and-custom-property",
-      "legacySpans": [
-        "Class:14..18",
-        "Class:38..44"
-      ],
-      "legacyValues": [
-        "Class:card",
-        "Class:card__icon"
-      ],
+      "legacySpans": ["Class:14..18", "Class:38..44"],
+      "legacyValues": ["Class:card", "Class:card__icon"],
       "spansMatch": true,
       "valuesMatch": true
     },
@@ -1230,19 +1093,11 @@
     },
     {
       "category": "selectors",
-      "cstSpans": [
-        "Class:158..162"
-      ],
-      "cstValues": [
-        "Class:card"
-      ],
+      "cstSpans": ["Class:158..162"],
+      "cstValues": ["Class:card"],
       "fixture": "css-modules-values-and-icss",
-      "legacySpans": [
-        "Class:158..162"
-      ],
-      "legacyValues": [
-        "Class:card"
-      ],
+      "legacySpans": ["Class:158..162"],
+      "legacyValues": ["Class:card"],
       "spansMatch": true,
       "valuesMatch": true
     },
@@ -1350,19 +1205,11 @@
     },
     {
       "category": "css_module_value_import_edges",
-      "cstSpans": [
-        "local=37..42:remote=27..33:statement=27..33"
-      ],
-      "cstValues": [
-        "remote:local:./tokens.module.css"
-      ],
+      "cstSpans": ["local=37..42:remote=27..33:statement=27..33"],
+      "cstValues": ["remote:local:./tokens.module.css"],
       "fixture": "css-modules-values-and-icss",
-      "legacySpans": [
-        "local=37..42:remote=27..33:statement=27..33"
-      ],
-      "legacyValues": [
-        "remote:local:./tokens.module.css"
-      ],
+      "legacySpans": ["local=37..42:remote=27..33:statement=27..33"],
+      "legacyValues": ["remote:local:./tokens.module.css"],
       "spansMatch": true,
       "valuesMatch": true
     },
@@ -1378,41 +1225,21 @@
     },
     {
       "category": "css_module_composes",
-      "cstSpans": [
-        "ImportSource:186..207",
-        "Target:175..180"
-      ],
-      "cstValues": [
-        "ImportSource:./mixins.module.css",
-        "Target:local"
-      ],
+      "cstSpans": ["ImportSource:186..207", "Target:175..180"],
+      "cstValues": ["ImportSource:./mixins.module.css", "Target:local"],
       "fixture": "css-modules-values-and-icss",
-      "legacySpans": [
-        "ImportSource:186..207",
-        "Target:175..180"
-      ],
-      "legacyValues": [
-        "ImportSource:./mixins.module.css",
-        "Target:local"
-      ],
+      "legacySpans": ["ImportSource:186..207", "Target:175..180"],
+      "legacyValues": ["ImportSource:./mixins.module.css", "Target:local"],
       "spansMatch": true,
       "valuesMatch": true
     },
     {
       "category": "css_module_composes_edges",
-      "cstSpans": [
-        "External:165..207"
-      ],
-      "cstValues": [
-        "External:[\"card\"]:[\"local\"]:Some(\"./mixins.module.css\")"
-      ],
+      "cstSpans": ["External:165..207"],
+      "cstValues": ["External:[\"card\"]:[\"local\"]:Some(\"./mixins.module.css\")"],
       "fixture": "css-modules-values-and-icss",
-      "legacySpans": [
-        "External:165..207"
-      ],
-      "legacyValues": [
-        "External:[\"card\"]:[\"local\"]:Some(\"./mixins.module.css\")"
-      ],
+      "legacySpans": ["External:165..207"],
+      "legacyValues": ["External:[\"card\"]:[\"local\"]:Some(\"./mixins.module.css\")"],
       "spansMatch": true,
       "valuesMatch": true
     },
@@ -1448,79 +1275,41 @@
     },
     {
       "category": "icss_import_edges",
-      "cstSpans": [
-        "103..112"
-      ],
-      "cstValues": [
-        "themeCard:card:./theme.module.css"
-      ],
+      "cstSpans": ["103..112"],
+      "cstValues": ["themeCard:card:./theme.module.css"],
       "fixture": "css-modules-values-and-icss",
-      "legacySpans": [
-        "103..112"
-      ],
-      "legacyValues": [
-        "themeCard:card:./theme.module.css"
-      ],
+      "legacySpans": ["103..112"],
+      "legacyValues": ["themeCard:card:./theme.module.css"],
       "spansMatch": true,
       "valuesMatch": true
     },
     {
       "category": "icss_export_edges",
-      "cstSpans": [
-        "132..153"
-      ],
-      "cstValues": [
-        "exported:[\"brand\", \"local\"]"
-      ],
+      "cstSpans": ["132..153"],
+      "cstValues": ["exported:[\"brand\", \"local\"]"],
       "fixture": "css-modules-values-and-icss",
-      "legacySpans": [
-        "132..153"
-      ],
-      "legacyValues": [
-        "exported:[\"brand\", \"local\"]"
-      ],
+      "legacySpans": ["132..153"],
+      "legacyValues": ["exported:[\"brand\", \"local\"]"],
       "spansMatch": true,
       "valuesMatch": true
     },
     {
       "category": "at_rules",
-      "cstSpans": [
-        "@value:1..7",
-        "@value:20..26"
-      ],
-      "cstValues": [
-        "@value:None"
-      ],
+      "cstSpans": ["@value:1..7", "@value:20..26"],
+      "cstValues": ["@value:None"],
       "fixture": "css-modules-values-and-icss",
-      "legacySpans": [
-        "@value:1..7",
-        "@value:20..26"
-      ],
-      "legacyValues": [
-        "@value:None"
-      ],
+      "legacySpans": ["@value:1..7", "@value:20..26"],
+      "legacyValues": ["@value:None"],
       "spansMatch": true,
       "valuesMatch": true
     },
     {
       "category": "selectors",
-      "cstSpans": [
-        "Class:286..290",
-        "Placeholder:190..198"
-      ],
-      "cstValues": [
-        "Class:card",
-        "Placeholder:surface"
-      ],
+      "cstSpans": ["Class:286..290", "Placeholder:190..198"],
+      "cstValues": ["Class:card", "Placeholder:surface"],
       "fixture": "scss-modules-symbols-and-extends",
-      "legacySpans": [
-        "Class:286..290",
-        "Placeholder:190..198"
-      ],
-      "legacyValues": [
-        "Class:card",
-        "Placeholder:surface"
-      ],
+      "legacySpans": ["Class:286..290", "Placeholder:190..198"],
+      "legacyValues": ["Class:card", "Placeholder:surface"],
       "spansMatch": true,
       "valuesMatch": true
     },
@@ -1614,40 +1403,24 @@
     },
     {
       "category": "sass_includes",
-      "cstSpans": [
-        "293..314"
-      ],
-      "cstValues": [
-        "raised:None:($gap)"
-      ],
+      "cstSpans": ["293..314"],
+      "cstValues": ["raised:None:($gap)"],
       "fixture": "scss-modules-symbols-and-extends",
-      "legacySpans": [
-        "293..314"
-      ],
-      "legacyValues": [
-        "raised:None:($gap)"
-      ],
+      "legacySpans": ["293..314"],
+      "legacyValues": ["raised:None:($gap)"],
       "spansMatch": true,
       "valuesMatch": true
     },
     {
       "category": "sass_module_edges",
-      "cstSpans": [
-        "Forward:37..46",
-        "Import:66..76",
-        "Use:6..16"
-      ],
+      "cstSpans": ["Forward:37..46", "Import:66..76", "Use:6..16"],
       "cstValues": [
         "Forward:./theme:None:None:None:Some(\"show\"):[\"tone\"]:media=false",
         "Import:./legacy:None:None:None:None:[]:media=true",
         "Use:./tokens:Some(\"alias\"):Some(\"tokens\"):None:None:[]:media=false"
       ],
       "fixture": "scss-modules-symbols-and-extends",
-      "legacySpans": [
-        "Forward:37..46",
-        "Import:66..76",
-        "Use:6..16"
-      ],
+      "legacySpans": ["Forward:37..46", "Import:66..76", "Use:6..16"],
       "legacyValues": [
         "Forward:./theme:None:None:None:Some(\"show\"):[\"tone\"]:media=false",
         "Import:./legacy:None:None:None:None:[]:media=true",
@@ -1658,41 +1431,21 @@
     },
     {
       "category": "extend_targets",
-      "cstSpans": [
-        "Placeholder:324..332"
-      ],
-      "cstValues": [
-        "Placeholder:surface:optional=true"
-      ],
+      "cstSpans": ["Placeholder:324..332"],
+      "cstValues": ["Placeholder:surface:optional=true"],
       "fixture": "scss-modules-symbols-and-extends",
-      "legacySpans": [
-        "Placeholder:324..332"
-      ],
-      "legacyValues": [
-        "Placeholder:surface:optional=true"
-      ],
+      "legacySpans": ["Placeholder:324..332"],
+      "legacyValues": ["Placeholder:surface:optional=true"],
       "spansMatch": true,
       "valuesMatch": true
     },
     {
       "category": "animations",
-      "cstSpans": [
-        "AnimationNameReference:355..359",
-        "KeyframesDeclaration:236..240"
-      ],
-      "cstValues": [
-        "AnimationNameReference:spin",
-        "KeyframesDeclaration:spin"
-      ],
+      "cstSpans": ["AnimationNameReference:355..359", "KeyframesDeclaration:236..240"],
+      "cstValues": ["AnimationNameReference:spin", "KeyframesDeclaration:spin"],
       "fixture": "scss-modules-symbols-and-extends",
-      "legacySpans": [
-        "AnimationNameReference:355..359",
-        "KeyframesDeclaration:236..240"
-      ],
-      "legacyValues": [
-        "AnimationNameReference:spin",
-        "KeyframesDeclaration:spin"
-      ],
+      "legacySpans": ["AnimationNameReference:355..359", "KeyframesDeclaration:236..240"],
+      "legacyValues": ["AnimationNameReference:spin", "KeyframesDeclaration:spin"],
       "spansMatch": true,
       "valuesMatch": true
     },
@@ -1828,23 +1581,11 @@
     },
     {
       "category": "selectors",
-      "cstSpans": [
-        "Class:15..19",
-        "Class:39..45"
-      ],
-      "cstValues": [
-        "Class:card",
-        "Class:card__icon"
-      ],
+      "cstSpans": ["Class:15..19", "Class:39..45"],
+      "cstValues": ["Class:card", "Class:card__icon"],
       "fixture": "less-variables-and-nested-selectors",
-      "legacySpans": [
-        "Class:15..19",
-        "Class:39..45"
-      ],
-      "legacyValues": [
-        "Class:card",
-        "Class:card__icon"
-      ],
+      "legacySpans": ["Class:15..19", "Class:39..45"],
+      "legacyValues": ["Class:card", "Class:card__icon"],
       "spansMatch": true,
       "valuesMatch": true
     },
@@ -2020,23 +1761,11 @@
     },
     {
       "category": "selectors",
-      "cstSpans": [
-        "Class:175..181",
-        "Class:95..102"
-      ],
-      "cstValues": [
-        "Class:button",
-        "Class:button-"
-      ],
+      "cstSpans": ["Class:175..181", "Class:95..102"],
+      "cstValues": ["Class:button", "Class:button-"],
       "fixture": "scss-interpolation-token-contexts",
-      "legacySpans": [
-        "Class:175..181",
-        "Class:95..102"
-      ],
-      "legacyValues": [
-        "Class:button",
-        "Class:button-"
-      ],
+      "legacySpans": ["Class:175..181", "Class:95..102"],
+      "legacyValues": ["Class:button", "Class:button-"],
       "spansMatch": true,
       "valuesMatch": true
     },
@@ -2126,19 +1855,11 @@
     },
     {
       "category": "sass_includes",
-      "cstSpans": [
-        "118..139"
-      ],
-      "cstValues": [
-        "paint:None:($tone)"
-      ],
+      "cstSpans": ["118..139"],
+      "cstValues": ["paint:None:($tone)"],
       "fixture": "scss-interpolation-token-contexts",
-      "legacySpans": [
-        "118..139"
-      ],
-      "legacyValues": [
-        "paint:None:($tone)"
-      ],
+      "legacySpans": ["118..139"],
+      "legacyValues": ["paint:None:($tone)"],
       "spansMatch": true,
       "valuesMatch": true
     },
@@ -2164,23 +1885,11 @@
     },
     {
       "category": "animations",
-      "cstSpans": [
-        "AnimationNameReference:206..210",
-        "KeyframesDeclaration:66..70"
-      ],
-      "cstValues": [
-        "AnimationNameReference:spin",
-        "KeyframesDeclaration:spin"
-      ],
+      "cstSpans": ["AnimationNameReference:206..210", "KeyframesDeclaration:66..70"],
+      "cstValues": ["AnimationNameReference:spin", "KeyframesDeclaration:spin"],
       "fixture": "scss-interpolation-token-contexts",
-      "legacySpans": [
-        "AnimationNameReference:206..210",
-        "KeyframesDeclaration:66..70"
-      ],
-      "legacyValues": [
-        "AnimationNameReference:spin",
-        "KeyframesDeclaration:spin"
-      ],
+      "legacySpans": ["AnimationNameReference:206..210", "KeyframesDeclaration:66..70"],
+      "legacyValues": ["AnimationNameReference:spin", "KeyframesDeclaration:spin"],
       "spansMatch": true,
       "valuesMatch": true
     },
@@ -2266,22 +1975,14 @@
     },
     {
       "category": "at_rules",
-      "cstSpans": [
-        "@include:118..126",
-        "@keyframes:55..65",
-        "@mixin:15..21"
-      ],
+      "cstSpans": ["@include:118..126", "@keyframes:55..65", "@mixin:15..21"],
       "cstValues": [
         "@include:Some(ScssIncludeRule)",
         "@keyframes:Some(KeyframesRule)",
         "@mixin:Some(ScssMixinDeclaration)"
       ],
       "fixture": "scss-interpolation-token-contexts",
-      "legacySpans": [
-        "@include:118..126",
-        "@keyframes:55..65",
-        "@mixin:15..21"
-      ],
+      "legacySpans": ["@include:118..126", "@keyframes:55..65", "@mixin:15..21"],
       "legacyValues": [
         "@include:Some(ScssIncludeRule)",
         "@keyframes:Some(KeyframesRule)",
