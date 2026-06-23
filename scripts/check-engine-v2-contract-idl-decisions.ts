@@ -19,6 +19,8 @@ function assertMatches(file: string, content: string, pattern: RegExp): void {
 
 const decisionDocPath = "docs/engine-v2-contract-idl-decisions.md";
 const coreContractPath = "server/engine-core-ts/src/contracts/engine-v2.ts";
+const generatedInputContractPath =
+  "server/engine-core-ts/src/contracts/engine-v2-input-idl.generated.ts";
 const hostOutputPath = "server/engine-host-node/src/engine-output-v2.ts";
 const engineQueryPath = "server/engine-host-node/src/engine-query-v2.ts";
 const codeActionQueryPath = "server/engine-host-node/src/code-action-query.ts";
@@ -27,6 +29,7 @@ const shadowRunnerPath = "rust/crates/engine-shadow-runner/src/main.rs";
 
 const decisionDoc = read(decisionDocPath);
 const coreContract = read(coreContractPath);
+const generatedInputContract = read(generatedInputContractPath);
 const hostOutput = read(hostOutputPath);
 const engineQuery = read(engineQueryPath);
 const codeActionQuery = read(codeActionQueryPath);
@@ -45,11 +48,11 @@ for (const expected of [
   assertIncludes(decisionDocPath, decisionDoc, expected);
 }
 
-assertIncludes(coreContractPath, coreContract, "export interface EngineInputV2");
+assertIncludes(coreContractPath, coreContract, "export type EngineInputV2");
 assertIncludes(coreContractPath, coreContract, "readonly workspace: EngineWorkspaceV1");
-assertIncludes(coreContractPath, coreContract, "readonly provenance?: string");
+assertIncludes(generatedInputContractPath, generatedInputContract, "readonly provenance?: string");
 assertIncludes(coreContractPath, coreContract, "export type QueryResultV2");
-assertIncludes(coreContractPath, coreContract, "export interface EngineOutputV2");
+assertIncludes(coreContractPath, coreContract, "export type EngineOutputV2");
 assertIncludes(
   coreContractPath,
   coreContract,
