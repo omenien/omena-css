@@ -7,7 +7,7 @@
 //! claim_level: opt-in arkworks proof round-trip, while the default build stays
 //! protocol metadata only.
 
-use omena_smt::CanonicalSmtInputV0;
+use omena_cascade_proof::CanonicalSmtInputV0;
 use omena_zk_circuit::{
     ArithmetizationKindV0, CascadeCircuitSpecV0, cascade_circuit_spec_from_canonical_terms_v0,
     cascade_circuit_spec_v0,
@@ -299,7 +299,7 @@ mod tests {
 
     #[test]
     fn audit_accepts_canonical_smt_payload_without_enabling_heavy_deps() {
-        let payload = omena_smt::canonical_smt_input_v0(
+        let payload = omena_cascade_proof::canonical_smt_input_v0(
             "obligation",
             "prove_box_shorthand_combination",
             vec![
@@ -361,7 +361,7 @@ mod tests {
     #[cfg(feature = "zk-audit")]
     #[test]
     fn arkworks_groth16_roundtrip_generates_and_verifies_proof() {
-        let payload = omena_smt::canonical_smt_input_v0(
+        let payload = omena_cascade_proof::canonical_smt_input_v0(
             "box-shorthand-combination",
             "prove_box_shorthand_combination",
             vec![
@@ -393,7 +393,7 @@ mod tests {
     #[cfg(feature = "zk-audit")]
     #[test]
     fn arkworks_rejects_unsatisfied_circuit_witness_without_proof_generation() {
-        let payload = omena_smt::canonical_smt_input_v0(
+        let payload = omena_cascade_proof::canonical_smt_input_v0(
             "box-shorthand-combination",
             "prove_box_shorthand_combination",
             vec![

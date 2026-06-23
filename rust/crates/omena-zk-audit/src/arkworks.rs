@@ -6,7 +6,9 @@ use ark_relations::gr1cs::{
 };
 use ark_std::rand::{SeedableRng, rngs::StdRng};
 use omena_cascade::BoxLonghandInputV0;
-use omena_smt::{CanonicalSmtInputV0, StubSmtBackendV0, smt_prove_box_shorthand_combination_v0};
+use omena_cascade_proof::{
+    CanonicalSmtInputV0, StubSmtBackendV0, smt_prove_box_shorthand_combination_v0,
+};
 use omena_zk_circuit::{
     CascadeCircuitSpecV0, R1CSConstraintV0, R1CSLinearCombinationV0, R1CSWitnessAssignmentV0,
     cascade_circuit_spec_from_canonical_terms_v0, cascade_r1cs_constraints_from_canonical_terms_v0,
@@ -117,7 +119,7 @@ pub fn prove_and_verify_cascade_smt_payload_with_arkworks_v0(
 /// Groth16 round-trip.
 ///
 /// The `require:...=true/false` terms are computed by the L1 cascade algorithm
-/// `prove_box_shorthand_combination` (via omena-smt's obligation builder), so a
+/// `prove_box_shorthand_combination` (via the product cascade proof builder), so a
 /// canonical longhand quartet yields a satisfiable obligation that produces a
 /// verified proof, while a reordered/important/non-canonical quartet yields an
 /// unsatisfiable obligation whose proof is rejected. The discriminating field is

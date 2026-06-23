@@ -2688,7 +2688,7 @@ dependencies = [
  "ark-relations",
  "ark-std",
  "omena-cascade",
- "omena-smt",
+ "omena-cascade-proof",
  "omena-zk-circuit",
  "serde",
 ]

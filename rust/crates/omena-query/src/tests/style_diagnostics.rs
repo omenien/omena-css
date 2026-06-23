@@ -4515,8 +4515,8 @@ fn cascade_smt_violation_surfaces_for_unsatisfiable_box_shorthand_obligation()
     // quartet is a box-shorthand combination candidate; the
     // omena-query-checker-orchestrator smt-gate builds the canonical obligation
     // from the parsed longhands and runs the real evaluate_omena_checker_smt_rules
-    // mechanism. Default builds use StubSmtBackendV0; opt-in `smt-z3` builds route
-    // this product gate through the z3 backend.
+    // mechanism. Default builds use the product-owned propositional backend;
+    // opt-in `smt-z3` builds route this product gate through the z3 backend.
     //
     // Here the last longhand is `!important`, so the obligation's
     // `no-important-longhand` precondition is violated, the backend verdict on the

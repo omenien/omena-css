@@ -74,10 +74,7 @@ pub fn canonical_smtlib2_script_v0(canonical_terms: &[String]) -> String {
     script
 }
 
-pub(crate) fn canonical_requirement_value_v0(term: &str) -> Option<bool> {
-    canonical_requirement_parts_v0(term).map(|(_, value)| value)
-}
-
+#[cfg(feature = "smt-z3")]
 pub(crate) fn canonical_input_has_unknown_v0(input: &CanonicalSmtInputV0) -> bool {
     input
         .canonical_terms

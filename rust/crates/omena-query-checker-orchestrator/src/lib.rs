@@ -482,8 +482,8 @@ pub struct OmenaQueryCheckerSmtGateV0 {
 /// that flatten/combination rewrite. This gate runs the genuine
 /// `evaluate_omena_checker_smt_rules` mechanism, which discharges each obligation
 /// through the active SMT backend. The default product build stays solver-free
-/// and uses `StubSmtBackendV0`; builds that opt into the `smt-z3` feature route
-/// the same product gate through the z3 backend. The gate only surfaces
+/// and uses the product-owned propositional backend; builds that opt into the
+/// `smt-z3` feature route the same product gate through the z3 backend. The gate only surfaces
 /// `cascade.smt-violation`
 /// diagnostics when the backend's verdict on the conjunction is `Unsat` — i.e. a
 /// required precondition is violated. An obligation whose preconditions all hold
@@ -1100,8 +1100,9 @@ mod tests {
         // A box-shorthand combination obligation whose `no-important-longhand`
         // precondition is violated: the conjunction is `Unsat`, so the real
         // The active backend verdict drives the gate to surface
-        // `cascade.smt-violation`. Default builds use StubSmtBackendV0; opt-in
-        // `smt-z3` builds route this same product gate through z3.
+        // `cascade.smt-violation`. Default builds use the product-owned
+        // propositional backend; opt-in `smt-z3` builds route this same product
+        // gate through z3.
         let gate = run_omena_query_checker_smt_gate_v0(OmenaCheckerSmtInputV0 {
             obligations: vec![OmenaCheckerSmtObligationInputV0 {
                 obligation_id: "stylesheet://.box::box-shorthand-combination".to_string(),

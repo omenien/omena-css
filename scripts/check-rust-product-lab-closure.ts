@@ -1,5 +1,6 @@
 import { spawnSync, execFileSync } from "node:child_process";
 import { strict as assert } from "node:assert";
+import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -79,6 +80,36 @@ const metadata = JSON.parse(
     { cwd: repoRoot, encoding: "utf8", maxBuffer: 128 * 1024 * 1024 },
   ),
 ) as CargoMetadata;
+
+const smtStubBackendPath = path.join(repoRoot, "rust/crates/omena-smt/src/backend/stub.rs");
+const smtBackendMod = readFileSync(
+  path.join(repoRoot, "rust/crates/omena-smt/src/backend/mod.rs"),
+  "utf8",
+);
+const smtLib = readFileSync(path.join(repoRoot, "rust/crates/omena-smt/src/lib.rs"), "utf8");
+const smtManifest = readFileSync(path.join(repoRoot, "rust/crates/omena-smt/Cargo.toml"), "utf8");
+const cascadeProofLib = readFileSync(
+  path.join(repoRoot, "rust/crates/omena-cascade-proof/src/lib.rs"),
+  "utf8",
+);
+
+assert.equal(existsSync(smtStubBackendPath), false, "omena-smt must not own a stub backend file");
+assert.equal(
+  /\bStubSmtBackendV0\b/.test(smtBackendMod) || /\bStubSmtBackendV0\b/.test(smtLib),
+  false,
+  "omena-smt must not export the product-owned stub backend",
+);
+assert.equal(/\bsmt-stub\b/.test(smtManifest), false, "omena-smt must not expose smt-stub");
+assert.ok(
+  /fn check_canonical_input_v0\(&self, input: &CanonicalSmtInputV0\) -> SmtBackendCheckV0;/.test(
+    smtBackendMod,
+  ),
+  "omena-smt backend trait must require concrete solver implementations",
+);
+assert.ok(
+  /\bStubSmtBackendV0\b/.test(cascadeProofLib),
+  "omena-cascade-proof must own the solver-free product backend",
+);
 
 const packagesByName = new Map(metadata.packages.map((pkg) => [pkg.name, pkg]));
 const packagesById = new Map(metadata.packages.map((pkg) => [pkg.id, pkg]));
@@ -187,6 +218,7 @@ process.stdout.write(
       mode: hardFail ? "hard-fail" : "report-only",
       resolution: "cargo metadata --no-default-features normal dependency closure",
       corroboration: "cargo tree -e normal --no-default-features -p <root> -i <labcrate>",
+      smtStubEvaluatorOwner: "omena-cascade-proof",
       productRoots: PRODUCT_ROOTS,
       labCrates: LAB_CRATES,
       roots: results,

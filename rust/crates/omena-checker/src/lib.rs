@@ -2023,6 +2023,7 @@ fn checker_smt_l1_primitive_name(value: &str) -> &'static str {
     }
 }
 
+#[cfg(not(feature = "smt-z3"))]
 fn smt_backend_kind_name(kind: SmtBackendKindV0) -> &'static str {
     match kind {
         SmtBackendKindV0::Stub => "stub",
@@ -2030,11 +2031,22 @@ fn smt_backend_kind_name(kind: SmtBackendKindV0) -> &'static str {
     }
 }
 
+#[cfg(feature = "smt-z3")]
+fn smt_backend_kind_name(_kind: SmtBackendKindV0) -> &'static str {
+    "z3"
+}
+
+#[cfg(not(feature = "smt-z3"))]
 fn smt_backend_product_name(kind: SmtBackendKindV0) -> &'static str {
     match kind {
         SmtBackendKindV0::Stub => "omena-smt.backend.stub",
         SmtBackendKindV0::Z3 => "omena-smt.backend.z3",
     }
+}
+
+#[cfg(feature = "smt-z3")]
+fn smt_backend_product_name(_kind: SmtBackendKindV0) -> &'static str {
+    "omena-smt.backend.z3"
 }
 
 fn smt_sat_result_name(result: SmtBackendSatResultV0) -> &'static str {

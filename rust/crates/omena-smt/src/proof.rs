@@ -10,8 +10,8 @@ pub(crate) const CASCADE_SMT_SPEC_MATERIAL_V0: &str = "\
 schema=0\n\
 theory=cascade-smt-theory-v0\n\
 encoding=canonical-smt-input-v0\n\
-default-backend=stub-propositional\n\
-opt-in-backend=smt-z3-qf-lia-layer-inversion\n\
+default-backend=none\n\
+solver-backend=smt-z3-qf-lia-layer-inversion\n\
 obligations=box-shorthand-combination,scope-flatten-candidate,layer-flatten-candidate,static-supports-condition\n\
 ";
 

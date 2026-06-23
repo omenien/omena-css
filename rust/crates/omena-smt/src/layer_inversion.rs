@@ -1,11 +1,10 @@
 //! Non-trivial cascade-ordering obligation for `@layer` flattening.
 //!
 //! The propositional obligations in [`crate::obligations`] hand a solver a
-//! conjunction of `require:name=bool` literals the Rust code already decided, so
-//! any backend (including [`crate::StubSmtBackendV0`]) reaches the same verdict
-//! and the solver adds no reasoning. This module emits a genuinely non-trivial
-//! formula instead: a QF_LIA *search* over declaration orderings whose
-//! satisfiability the encoder does not evaluate.
+//! conjunction of `require:name=bool` literals the Rust code already decided.
+//! This module emits a genuinely non-trivial formula instead: a QF_LIA *search*
+//! over declaration orderings whose satisfiability the encoder does not
+//! evaluate.
 //!
 //! Flattening `@layer` boundaries rewrites the cascade order for a property from
 //! `(layer_rank, source_order)` to `source_order` alone. The rewrite is unsafe

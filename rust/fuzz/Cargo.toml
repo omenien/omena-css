@@ -12,8 +12,8 @@ cargo-fuzz = true
 [dependencies]
 libfuzzer-sys = "0.4.13"
 omena-cascade = { path = "../crates/omena-cascade" }
+omena-cascade-proof = { path = "../crates/omena-cascade-proof" }
 omena-incremental = { path = "../crates/omena-incremental" }
-omena-smt = { path = "../crates/omena-smt" }
 omena-transform-passes = { path = "../crates/omena-transform-passes" }
 
 [[bin]]

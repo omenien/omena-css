@@ -381,7 +381,7 @@ fn layer_inversion_obligation(
 
 /// Select the SMT backend for the cross-layer inversion search. The z3 backend
 /// is only linked under the `smt-z3` feature; the default build stays
-/// solver-free and uses the propositional stub.
+/// solver-free and uses the product-owned propositional backend.
 #[cfg(feature = "smt-z3")]
 fn check_layer_flatten_inversion(
     declarations: &[LayerInversionDeclarationV0],
@@ -406,7 +406,6 @@ fn check_layer_flatten_inversion(
         layer_marker: verdict.layer_marker,
         feature_gate: verdict.feature_gate,
         backend: match verdict.backend {
-            omena_smt::SmtBackendKindV0::Stub => SmtBackendKindV0::Stub,
             omena_smt::SmtBackendKindV0::Z3 => SmtBackendKindV0::Z3,
         },
         inversion_exists: verdict.inversion_exists,

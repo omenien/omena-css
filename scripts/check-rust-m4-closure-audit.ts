@@ -320,8 +320,8 @@ function buildTheoryClaimGuard(): {
       stage: "m4-gamma",
       status: "propertyTestEnforced",
       framing: "enforcedProperty",
-      surface: "SMT bisimulation fuzz case",
-      evidencePath: "rust/crates/omena-smt/src/fuzz.rs",
+      surface: "product cascade proof bisimulation fuzz case",
+      evidencePath: "rust/crates/omena-cascade-proof/src/fuzz.rs",
       evidenceMarkers: [
         "smt_bisimulation_fuzz_case_v0",
         "run_smt_bisimulation_fuzz_case_v0",

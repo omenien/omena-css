@@ -1,5 +1,5 @@
 # omena-smt
 
-`omena-smt` hosts M4-gamma SMT cascade verification contracts. The default
-build uses the stub backend; the only real solver backend currently exposed is
-the opt-in `smt-z3` path.
+`omena-smt` hosts SMT-backed cascade verification contracts. Solver-free
+product proofs live in `omena-cascade-proof`; this lab crate keeps the opt-in
+`smt-z3` backend and the z3-only layer-inversion path.

@@ -1,7 +1,9 @@
 #![no_main]
 
 use libfuzzer_sys::fuzz_target;
-use omena_smt::{run_smt_bisimulation_fuzz_case_v0, smt_bisimulation_fuzz_case_v0};
+use omena_cascade_proof::{
+    run_smt_bisimulation_fuzz_case_v0, smt_bisimulation_fuzz_case_v0,
+};
 
 fuzz_target!(|data: &[u8]| {
     if data.is_empty() {

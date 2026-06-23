@@ -306,7 +306,6 @@ for (const smtPath of [
   "rust/crates/omena-smt/src/obligations.rs",
   "rust/crates/omena-smt/src/proof.rs",
   "rust/crates/omena-smt/src/unsat_core.rs",
-  "rust/crates/omena-smt/src/backend/stub.rs",
   "rust/crates/omena-smt/src/backend/z3.rs",
 ]) {
   assert(existsSync(smtPath), `missing SMT module ${smtPath}`);
@@ -315,18 +314,8 @@ for (const smtPath of [
 const smt = read("rust/crates/omena-smt/src/lib.rs");
 assertIncludes(
   smt,
-  "proof_style_bisimulation_invariant_holds_for_all_l1_primitives",
-  "SMT bisimulation invariant test must be present",
-);
-assertIncludes(
-  smt,
-  "static_supports_smt_equivalence_tracks_l1_verdict_shape",
-  "SMT supports equivalence test must be present",
-);
-assertIncludes(
-  smt,
-  "smt_bisimulation_fuzz_seed_corpus_covers_m3_fixture_shapes",
-  "SMT must cover the M3 fixture-shaped fuzz seed corpus",
+  "canonical_smt_encoder_emits_named_assertions",
+  "SMT must keep schema-zero encoder coverage after product stub severance",
 );
 assertIncludes(
   smt,
@@ -346,21 +335,27 @@ assertIncludes(
   'smt-z3 = ["dep:z3", "z3/gh-release"]',
   "SMT Z3 backend must stay opt-in and self-contained",
 );
-const smtFuzz = read("rust/crates/omena-smt/src/fuzz.rs");
+const cascadeProof = read("rust/crates/omena-cascade-proof/src/lib.rs");
+assertIncludes(
+  cascadeProof,
+  "StubSmtBackendV0",
+  "product cascade proof crate must own the solver-free backend",
+);
+const smtFuzz = read("rust/crates/omena-cascade-proof/src/fuzz.rs");
 assertIncludes(
   smtFuzz,
   "SmtBisimulationFuzzCaseV0",
-  "SMT must expose a bisimulation fuzz case contract",
+  "product cascade proof must expose a bisimulation fuzz case contract",
 );
 assertIncludes(
   smtFuzz,
   "SmtBisimulationFuzzReportV0",
-  "SMT must expose a bisimulation fuzz report contract",
+  "product cascade proof must expose a bisimulation fuzz report contract",
 );
 assertIncludes(
   smtFuzz,
   "smt_bisimulation_fuzz_case_v0",
-  "SMT fuzz cases must have a schema-zero constructor",
+  "product cascade proof fuzz cases must have a schema-zero constructor",
 );
 assertIncludes(
   smtFuzz,

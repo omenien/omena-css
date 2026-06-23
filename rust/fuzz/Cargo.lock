@@ -286,9 +286,29 @@ dependencies = [
 ]
 
 [[package]]
+name = "omena-abstract-value"
+version = "0.2.1"
+dependencies = [
+ "omena-incremental",
+ "omena-spec-audit",
+ "omena-value-lattice",
+ "serde",
+]
+
+[[package]]
 name = "omena-cascade"
 version = "0.2.1"
 dependencies = [
+ "omena-refinement-trait",
+ "serde",
+]
+
+[[package]]
+name = "omena-cascade-proof"
+version = "0.2.1"
+dependencies = [
+ "blake3",
+ "omena-cascade",
  "omena-refinement-trait",
  "serde",
 ]
@@ -299,8 +319,8 @@ version = "0.0.0"
 dependencies = [
  "libfuzzer-sys",
  "omena-cascade",
+ "omena-cascade-proof",
  "omena-incremental",
- "omena-smt",
  "omena-transform-passes",
 ]
 
@@ -323,6 +343,10 @@ dependencies = [
 ]
 
 [[package]]
+name = "omena-meta-macros"
+version = "0.2.1"
+
+[[package]]
 name = "omena-parser"
 version = "0.2.1"
 dependencies = [
@@ -342,13 +366,25 @@ dependencies = [
 ]
 
 [[package]]
-name = "omena-smt"
+name = "omena-scss-eval"
 version = "0.2.1"
 dependencies = [
- "blake3",
+ "omena-abstract-value",
  "omena-cascade",
- "omena-refinement-trait",
+ "omena-parser",
+ "omena-syntax",
+ "omena-transform-cst",
+ "omena-value-lattice",
  "serde",
+]
+
+[[package]]
+name = "omena-spec-audit"
+version = "0.2.1"
+dependencies = [
+ "omena-meta-macros",
+ "serde",
+ "serde_json",
 ]
 
 [[package]]
@@ -370,14 +406,26 @@ dependencies = [
 name = "omena-transform-passes"
 version = "0.2.1"
 dependencies = [
+ "cstree",
+ "omena-abstract-value",
  "omena-cascade",
+ "omena-cascade-proof",
  "omena-incremental",
  "omena-parser",
- "omena-smt",
+ "omena-scss-eval",
  "omena-syntax",
  "omena-transform-cst",
+ "omena-value-lattice",
  "serde",
  "serde_json",
+]
+
+[[package]]
+name = "omena-value-lattice"
+version = "0.2.1"
+dependencies = [
+ "omena-parser",
+ "omena-syntax",
 ]
 
 [[package]]
