@@ -140,6 +140,7 @@ assert.ok(generatedRustContract.includes("pub constraint_kind: Option<String>,")
 assert.ok(generatedRustContract.includes("pub min_len: Option<usize>,"));
 assert.ok(generatedRustContract.includes("pub max_len: Option<usize>,"));
 assert.ok(generatedRustContract.includes("pub provenance: Option<String>,"));
+assert.ok(generatedRustContract.includes("#[allow(clippy::large_enum_variant)]"));
 
 assert.ok(engineOutputTypes.includes("export interface EngineOutputV2Json"));
 assert.ok(engineOutputTypes.includes("queryResults: QueryResultV2Json[]"));

@@ -314,6 +314,7 @@ pub struct SelectorUsagePayloadV2Json {
     rename_all = "kebab-case",
     rename_all_fields = "camelCase"
 )]
+#[allow(clippy::large_enum_variant)]
 pub enum QueryResultV2Json {
     #[serde(rename = "expression-semantics")]
     ExpressionSemantics {
