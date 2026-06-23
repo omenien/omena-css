@@ -218,6 +218,8 @@ pub enum ClassnameTransformModeJson {
     AsIs,
     #[serde(rename = "camelCase")]
     CamelCase,
+    #[serde(rename = "camelCaseOnly")]
+    CamelCaseOnly,
     #[serde(rename = "dashes")]
     Dashes,
     #[serde(rename = "dashesOnly")]

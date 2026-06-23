@@ -119,12 +119,22 @@ const codeActionTypes = output("pnpm", [
   "false",
   "--no-additionalProperties",
 ]);
+const generatedRustContract = fs.readFileSync(
+  path.join(
+    repoRoot,
+    "rust/crates/omena-engine-input-producers/src/engine_contract_v2_idl_generated.rs",
+  ),
+  "utf8",
+);
 
 assert.ok(engineInputTypes.includes("export interface EngineInputV2Json"));
 assert.ok(engineInputTypes.includes('version: "2"'));
 assert.ok(engineInputTypes.includes("workspace: EngineWorkspaceV1Json"));
+assert.ok(engineInputTypes.includes('"camelCaseOnly"'));
 assert.ok(engineInputTypes.includes("provenance?: string"));
 assert.ok(!engineInputTypes.includes("[k: string]"));
+assert.ok(generatedRustContract.includes("CamelCaseOnly"));
+assert.ok(generatedRustContract.includes('#[serde(rename = "camelCaseOnly")]'));
 
 assert.ok(engineOutputTypes.includes("export interface EngineOutputV2Json"));
 assert.ok(engineOutputTypes.includes("queryResults: QueryResultV2Json[]"));
