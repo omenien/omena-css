@@ -307,7 +307,11 @@ pub struct SelectorUsagePayloadV2Json {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(tag = "kind", rename_all = "kebab-case")]
+#[serde(
+    tag = "kind",
+    rename_all = "kebab-case",
+    rename_all_fields = "camelCase"
+)]
 pub enum QueryResultV2Json {
     #[serde(rename = "expression-semantics")]
     ExpressionSemantics {

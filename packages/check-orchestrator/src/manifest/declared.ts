@@ -187,6 +187,7 @@ export const DECLARED_CHECK_GATES = [
       "contract/engine-v2-contract-idl-decisions",
       "contract/engine-v2-contract-idl-fixtures",
       "contract/engine-v2-contract-idl-generated",
+      "contract/engine-v2-contract-idl-rust-roundtrip",
       "contract/engine-v2-contract-idl-toolchain",
     ],
     tags: ["contract", "engine-v2"],

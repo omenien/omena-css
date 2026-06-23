@@ -57,7 +57,7 @@ const outputs = new Map<string, string>([
   ],
   [
     "rust/crates/omena-engine-input-producers/src/engine_contract_v2_idl_generated.rs",
-    renderRustContractModule(),
+    formatRust(renderRustContractModule()),
   ],
 ]);
 
@@ -167,6 +167,14 @@ function formatTypescript(source: string): string {
   const tempFile = path.join(workDir, `generated-${formatCounter}.ts`);
   fs.writeFileSync(tempFile, source, "utf8");
   run("pnpm", ["exec", "oxfmt", tempFile]);
+  return fs.readFileSync(tempFile, "utf8");
+}
+
+function formatRust(source: string): string {
+  formatCounter += 1;
+  const tempFile = path.join(workDir, `generated-${formatCounter}.rs`);
+  fs.writeFileSync(tempFile, source, "utf8");
+  run("rustfmt", ["--edition", "2024", tempFile]);
   return fs.readFileSync(tempFile, "utf8");
 }
 
@@ -480,7 +488,7 @@ pub struct SelectorUsagePayloadV2Json {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(tag = "kind", rename_all = "kebab-case")]
+#[serde(tag = "kind", rename_all = "kebab-case", rename_all_fields = "camelCase")]
 pub enum QueryResultV2Json {
     #[serde(rename = "expression-semantics")]
     ExpressionSemantics {
