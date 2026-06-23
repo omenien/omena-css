@@ -171,18 +171,53 @@ pub fn facts_from_cst(text: &str, parsed: &ParseResult) -> ParsedStyleFacts {
 }
 
 pub(crate) fn product_facts_from_cst(text: &str, parsed: &ParseResult) -> ParsedStyleFacts {
+    let has_sass_syntax = matches!(parsed.dialect(), StyleDialect::Scss | StyleDialect::Sass);
+    let has_animation_syntax = text.contains("animation") || text.contains("keyframes");
+    let has_css_module_values = text.contains("@value");
+    let has_css_module_composes = text.contains("composes");
+
     let selectors = collect_selector_facts_from_cst(text, parsed);
     let variables = collect_variable_facts_from_cst(text, parsed);
-    let sass_symbols = collect_sass_symbol_facts_from_cst(text, parsed);
-    let sass_module_edges = collect_sass_module_edge_facts_from_cst(text, parsed);
-    let animations = collect_animation_facts_from_cst(text, parsed);
-    let css_module_values = collect_css_module_value_facts_from_cst(text, parsed);
-    let css_module_value_import_edges =
-        collect_css_module_value_import_edge_facts_from_cst(text, parsed);
-    let css_module_value_definition_edges =
-        collect_css_module_value_definition_edge_facts_from_cst(text, parsed);
-    let css_module_composes = collect_css_module_composes_facts_from_cst(text, parsed);
-    let css_module_composes_edges = collect_css_module_composes_edge_facts_from_cst(text, parsed);
+    let sass_symbols = if has_sass_syntax {
+        collect_sass_symbol_facts_from_cst(text, parsed)
+    } else {
+        Vec::new()
+    };
+    let sass_module_edges = if has_sass_syntax {
+        collect_sass_module_edge_facts_from_cst(text, parsed)
+    } else {
+        Vec::new()
+    };
+    let animations = if has_animation_syntax {
+        collect_animation_facts_from_cst(text, parsed)
+    } else {
+        Vec::new()
+    };
+    let css_module_values = if has_css_module_values {
+        collect_css_module_value_facts_from_cst(text, parsed)
+    } else {
+        Vec::new()
+    };
+    let css_module_value_import_edges = if has_css_module_values {
+        collect_css_module_value_import_edge_facts_from_cst(text, parsed)
+    } else {
+        Vec::new()
+    };
+    let css_module_value_definition_edges = if has_css_module_values {
+        collect_css_module_value_definition_edge_facts_from_cst(text, parsed)
+    } else {
+        Vec::new()
+    };
+    let css_module_composes = if has_css_module_composes {
+        collect_css_module_composes_facts_from_cst(text, parsed)
+    } else {
+        Vec::new()
+    };
+    let css_module_composes_edges = if has_css_module_composes {
+        collect_css_module_composes_edge_facts_from_cst(text, parsed)
+    } else {
+        Vec::new()
+    };
 
     ParsedStyleFacts {
         product: "omena-parser.style-facts",
