@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
+import { readdirSync, readFileSync } from "node:fs";
 import path from "node:path";
 
 const ROOT = process.cwd();
@@ -14,7 +14,39 @@ const FILES = {
   cliTests: "rust/crates/omena-cli/src/tests.rs",
   napi: "rust/crates/omena-napi/src/lib.rs",
   wasm: "rust/crates/omena-wasm/src/lib.rs",
+  checkerContracts: "server/engine-core-ts/src/core/checker/contracts.ts",
+  querySourceRefs: "rust/crates/omena-query/src/style/source_refs.rs",
+  queryDynamicClassname: "rust/crates/omena-query/src/style/dynamic_classname.rs",
+  queryStyleDiagnostics: "rust/crates/omena-query/src/style/diagnostics",
+  queryStyleSourceUsage: "rust/crates/omena-query/src/style/diagnostics/source_usage.rs",
+  querySourceSurfacesTests: "rust/crates/omena-query/src/tests/source_surfaces.rs",
+  sourceConsumerGate: "scripts/check-source-diagnostics-query-consumer.ts",
+  styleConsumerGate: "scripts/check-style-diagnostics-query-consumer.ts",
 } as const;
+
+const SOURCE_DIAGNOSTIC_CODE_PAIRS = [
+  ["missingModule", "missing-module"],
+  ["missingStaticClass", "missing-static-class"],
+  ["missingTemplatePrefix", "missing-template-prefix"],
+  ["missingResolvedClassValues", "missing-resolved-class-values"],
+  ["missingResolvedClassDomain", "missing-resolved-class-domain"],
+] as const;
+
+const STYLE_DIAGNOSTIC_CODE_PAIRS = [
+  ["unusedSelector", "unused-selector"],
+  ["missingComposedModule", "missing-composed-module"],
+  ["missingComposedSelector", "missing-composed-selector"],
+  ["missingValueModule", "missing-value-module"],
+  ["missingImportedValue", "missing-imported-value"],
+  ["missingKeyframes", "missing-keyframes"],
+  ["missingCustomProperty", "missing-custom-property"],
+  ["missingSassSymbol", "missing-sass-symbol"],
+] as const;
+
+const CHECKER_DIAGNOSTIC_CODE_PAIRS = [
+  ...SOURCE_DIAGNOSTIC_CODE_PAIRS,
+  ...STYLE_DIAGNOSTIC_CODE_PAIRS,
+] as const;
 
 const LEGACY_QUERY_MERGE_TOKENS = [
   "QUERY_TO_CHECKER_DIAGNOSTIC_CODE",
@@ -40,6 +72,8 @@ const STYLELINT_LEGACY_FALLBACK_TOKENS = [
 ] as const;
 
 function main(): void {
+  assertCheckerCodeMirror();
+  assertRustQueryDiagnosticProducerCoverage();
   assertLspSelectedQueryDiagnostics();
   assertQueryDiagnosticsShapeLock();
   assertCliNapiWasmQueryDiagnostics();
@@ -55,8 +89,79 @@ function main(): void {
       "eslint=cli-query",
       "stylelint=cli-query",
       "shape-lock=cli-napi-wasm",
+      "checker-code-mirror=13",
       "legacy-plugin-fallback=absent",
     ].join(" ") + "\n",
+  );
+}
+
+function assertCheckerCodeMirror(): void {
+  const checkerContracts = readRepoFile(FILES.checkerContracts);
+  const eslint = readRepoFile(FILES.eslintShared);
+  const stylelint = readRepoFile(FILES.stylelintShared);
+  const checkerCodes = [...checkerContracts.matchAll(/readonly code: "([^"]+)"/gu)].map(
+    (match) => match[1],
+  );
+  assert.deepEqual(
+    checkerCodes.toSorted(),
+    CHECKER_DIAGNOSTIC_CODE_PAIRS.map(([, checkerCode]) => checkerCode).toSorted(),
+    `${FILES.checkerContracts} must declare the 13 mirrored checker diagnostic codes`,
+  );
+
+  assertExactDiagnosticMap(
+    eslint,
+    "OMENA_QUERY_SOURCE_DIAGNOSTIC_CODE_MAP",
+    SOURCE_DIAGNOSTIC_CODE_PAIRS,
+    FILES.eslintShared,
+  );
+  assertExactDiagnosticMap(
+    stylelint,
+    "OMENA_QUERY_STYLE_DIAGNOSTIC_CODE_MAP",
+    STYLE_DIAGNOSTIC_CODE_PAIRS,
+    FILES.stylelintShared,
+  );
+}
+
+function assertRustQueryDiagnosticProducerCoverage(): void {
+  const sourceProducers = [
+    readRepoFile(FILES.querySourceRefs),
+    readRepoFile(FILES.queryDynamicClassname),
+  ].join("\n");
+  const styleProducers = [
+    readRepoTree(FILES.queryStyleDiagnostics),
+    readRepoFile(FILES.queryStyleSourceUsage),
+  ].join("\n");
+  const provenanceEvidence = [
+    readRepoFile(FILES.querySourceSurfacesTests),
+    readRepoFile(FILES.sourceConsumerGate),
+    readRepoFile(FILES.styleConsumerGate),
+  ].join("\n");
+
+  for (const [queryCode] of SOURCE_DIAGNOSTIC_CODE_PAIRS) {
+    assertIncludes(sourceProducers, `"${queryCode}"`, "omena-query source producers");
+  }
+  for (const [queryCode] of STYLE_DIAGNOSTIC_CODE_PAIRS) {
+    assertIncludes(styleProducers, `"${queryCode}"`, "omena-query style producers");
+  }
+  assertIncludes(
+    sourceProducers,
+    "omena-query.source-syntax-index",
+    "omena-query source producers",
+  );
+  assertIncludes(
+    sourceProducers,
+    "omena-query.style-selector-definitions",
+    "omena-query source producers",
+  );
+  assertIncludes(
+    provenanceEvidence,
+    "omena-query-checker-orchestrator.product-diagnostic-gate",
+    "omena-query diagnostic provenance gates",
+  );
+  assertIncludes(
+    provenanceEvidence,
+    "omena-checker.rule-registry",
+    "omena-query diagnostic provenance gates",
   );
 }
 
@@ -175,6 +280,34 @@ function assertLintPluginCliDiagnostics(): void {
   assertIncludes(stylelint, "OMENA_QUERY_STYLE_DIAGNOSTIC_CODE_MAP", FILES.stylelintShared);
 }
 
+function assertExactDiagnosticMap(
+  source: string,
+  mapName: string,
+  expectedPairs: readonly (readonly [string, string])[],
+  label: string,
+): void {
+  const mapBody = new RegExp(
+    `const\\s+${mapName}\\s*=\\s*new\\s+Map\\(\\[([\\s\\S]*?)\\]\\);`,
+    "u",
+  ).exec(source)?.[1];
+  assert.ok(mapBody, `${label} must declare ${mapName}`);
+  const actualPairs = [...mapBody.matchAll(/\["([^"]+)",\s*"([^"]+)"\]/gu)].map((match) => [
+    match[1],
+    match[2],
+  ]);
+  assert.deepEqual(
+    actualPairs.toSorted(pairComparator),
+    expectedPairs
+      .map(([queryCode, checkerCode]) => [queryCode, checkerCode])
+      .toSorted(pairComparator),
+    `${label} ${mapName} must mirror the exact checker/query diagnostic code pairs`,
+  );
+}
+
+function pairComparator(left: readonly string[], right: readonly string[]): number {
+  return left.join("\0").localeCompare(right.join("\0"));
+}
+
 function assertNone(source: string, tokens: readonly string[], label: string): void {
   for (const token of tokens) {
     assertNotIncludes(source, token, label);
@@ -191,6 +324,19 @@ function assertNotIncludes(source: string, token: string, label: string): void {
 
 function readRepoFile(relativePath: string): string {
   return readFileSync(path.join(ROOT, relativePath), "utf8");
+}
+
+function readRepoTree(relativePath: string): string {
+  const absolutePath = path.join(ROOT, relativePath);
+  const entries = readdirSync(absolutePath, { withFileTypes: true });
+  return entries
+    .flatMap((entry) => {
+      const childPath = path.join(relativePath, entry.name);
+      if (entry.isDirectory()) return [readRepoTree(childPath)];
+      if (entry.isFile() && childPath.endsWith(".rs")) return [readRepoFile(childPath)];
+      return [];
+    })
+    .join("\n");
 }
 
 main();
