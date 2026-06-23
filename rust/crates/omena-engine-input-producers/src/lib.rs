@@ -1,6 +1,6 @@
 use std::collections::BTreeMap;
 
-use serde::{Deserialize, Serialize};
+use serde::{Deserialize, Deserializer, Serialize, de};
 
 pub mod engine_contract_v2_idl_generated;
 mod expression_domain;
@@ -56,11 +56,11 @@ pub use source_side::summarize_source_side_canonical_candidate_bundle_input;
 pub use source_side::summarize_source_side_canonical_producer_signal_input;
 pub use source_side::summarize_source_side_evaluator_candidates_input;
 pub use type_facts::summarize_type_fact_input;
+pub type EngineInputWireV2 = engine_contract_v2_idl_generated::EngineInputV2Json;
 pub type StringTypeFactsV2 = engine_contract_v2_idl_generated::StringTypeFactsV2Json;
 pub type TypeFactEntryV2 = engine_contract_v2_idl_generated::TypeFactEntryV2Json;
 
-#[derive(Debug, Deserialize)]
-#[serde(rename_all = "camelCase")]
+#[derive(Debug)]
 pub struct EngineInputV2 {
     pub version: String,
     pub sources: Vec<SourceAnalysisInputV2>,
@@ -68,10 +68,56 @@ pub struct EngineInputV2 {
     pub type_facts: Vec<TypeFactEntryV2>,
 }
 
+impl<'de> Deserialize<'de> for EngineInputV2 {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        EngineInputWireV2::deserialize(deserializer)?
+            .try_into()
+            .map_err(de::Error::custom)
+    }
+}
+
+impl TryFrom<EngineInputWireV2> for EngineInputV2 {
+    type Error = serde_json::Error;
+
+    fn try_from(value: EngineInputWireV2) -> Result<Self, Self::Error> {
+        Ok(Self {
+            version: value.version,
+            sources: value
+                .sources
+                .into_iter()
+                .map(SourceAnalysisInputV2::try_from)
+                .collect::<Result<Vec<_>, _>>()?,
+            styles: value
+                .styles
+                .into_iter()
+                .map(StyleAnalysisInputV2::try_from)
+                .collect::<Result<Vec<_>, _>>()?,
+            type_facts: value.type_facts,
+        })
+    }
+}
+
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SourceAnalysisInputV2 {
     pub document: SourceDocumentV2,
+}
+
+impl TryFrom<engine_contract_v2_idl_generated::SourceAnalysisInputV2Json>
+    for SourceAnalysisInputV2
+{
+    type Error = serde_json::Error;
+
+    fn try_from(
+        value: engine_contract_v2_idl_generated::SourceAnalysisInputV2Json,
+    ) -> Result<Self, Self::Error> {
+        Ok(Self {
+            document: serde_json::from_value(value.document)?,
+        })
+    }
 }
 
 #[derive(Debug, Deserialize)]
@@ -119,6 +165,20 @@ pub struct StyleAnalysisInputV2 {
     #[serde(default)]
     pub source: Option<String>,
     pub document: StyleDocumentV2,
+}
+
+impl TryFrom<engine_contract_v2_idl_generated::StyleAnalysisInputV2Json> for StyleAnalysisInputV2 {
+    type Error = serde_json::Error;
+
+    fn try_from(
+        value: engine_contract_v2_idl_generated::StyleAnalysisInputV2Json,
+    ) -> Result<Self, Self::Error> {
+        Ok(Self {
+            file_path: value.file_path,
+            source: value.source,
+            document: serde_json::from_value(value.document)?,
+        })
+    }
 }
 
 #[derive(Debug, Deserialize)]

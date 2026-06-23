@@ -2,6 +2,7 @@ use std::fs;
 use std::io;
 use std::path::{Path, PathBuf};
 
+use engine_input_producers::EngineInputV2;
 use engine_input_producers::engine_contract_v2_idl_generated::{
     EngineInputV2Json, EngineOutputV2Json, OmenaQueryCodeActionPlanV0Json,
 };
@@ -102,6 +103,34 @@ fn engine_contract_v2_idl_code_action_plan_round_trips_canonically() -> TestResu
     assert_eq!(
         canonical_json(&value)?,
         canonical_json(&serde_json::to_value(plan)?)?,
+    );
+    Ok(())
+}
+
+#[test]
+fn engine_contract_v2_idl_runtime_projection_uses_generated_wire_input() -> TestResult {
+    let fixture_path = contract_parity_v2_fixture_dir().join("type-fact-parity-v2.json");
+    let fixture = read_json(&fixture_path)?;
+    let input_value = fixture
+        .get("input")
+        .ok_or_else(|| missing_fixture_field(&fixture_path, "input"))?
+        .clone();
+
+    let projected: EngineInputV2 = serde_json::from_value(input_value.clone())?;
+    assert_eq!(projected.version, "2");
+    assert!(!projected.sources.is_empty());
+    assert!(!projected.styles.is_empty());
+    assert!(!projected.type_facts.is_empty());
+
+    let mut missing_workspace = input_value;
+    missing_workspace
+        .as_object_mut()
+        .ok_or_else(|| io::Error::new(io::ErrorKind::InvalidData, "input must be an object"))?
+        .remove("workspace");
+
+    assert!(
+        serde_json::from_value::<EngineInputV2>(missing_workspace).is_err(),
+        "runtime projection must reject JSON that fails the generated EngineInputV2 wire contract",
     );
     Ok(())
 }

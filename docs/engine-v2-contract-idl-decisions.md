@@ -41,16 +41,20 @@ Not owned by the first IDL cut:
 - `styles`: required array.
 - `typeFacts`: required array.
 
-Current drift to resolve:
+Resolved drift:
 
-- TypeScript requires `workspace`; Rust currently deserializes `EngineInputV2`
-  without a `workspace` field and therefore ignores the TypeScript field.
-- TypeScript names the type fact row `TypeFactTableEntryV2`; Rust names the same
-  wire row `TypeFactEntryV2`.
-- TypeScript `StringTypeFactsV2` carries optional `provenance`; Rust currently
-  omits it and ignores the field during deserialization.
-- TypeScript uses string literal unions for fact kind and constraint kind; Rust
-  currently uses raw `String` fields.
+- TypeScript requires `workspace`; Rust runtime projection now deserializes
+  through the generated `EngineInputV2Json` wire DTO first, so JSON without the
+  canonical `workspace` field is rejected before projection.
+- TypeScript names the compatibility type fact row `TypeFactTableEntryV2`; the
+  IDL model name and generated Rust row are `TypeFactEntryV2`.
+- TypeScript `StringTypeFactsV2` carries optional `provenance`; Rust consumes the
+  generated `StringTypeFactsV2Json`, so optional provenance participates in the
+  shared serde JSON contract.
+- TypeScript uses string literal unions for fact kind and constraint kind; the
+  IDL records the closed value set, while Rust runtime analysis keeps string
+  projection fields where existing downstream analysis intentionally remains
+  string-indexed.
 
 Canonical decisions:
 
@@ -65,8 +69,9 @@ Canonical decisions:
 - String kind fields are closed IDL enums for the currently emitted values. New
   values require schema and round-trip fixture updates.
 - Source/style document HIR fields remain opaque in the IDL. Narrow Rust
-  projection structs can continue to exist as adapters, but they are not the
-  cross-language source of truth.
+  projection structs continue to exist as adapters, but generated
+  `EngineInputV2Json` is the cross-language source of truth for wire
+  deserialization.
 
 ## Output Decisions
 

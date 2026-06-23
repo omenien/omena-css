@@ -66,6 +66,13 @@ assertIncludes(rustInputPath, rustInput, "pub struct EngineInputV2");
 assertIncludes(
   rustInputPath,
   rustInput,
+  "pub type EngineInputWireV2 = engine_contract_v2_idl_generated::EngineInputV2Json;",
+);
+assertIncludes(rustInputPath, rustInput, "impl<'de> Deserialize<'de> for EngineInputV2");
+assertIncludes(rustInputPath, rustInput, "EngineInputWireV2::deserialize(deserializer)?");
+assertIncludes(
+  rustInputPath,
+  rustInput,
   "pub type TypeFactEntryV2 = engine_contract_v2_idl_generated::TypeFactEntryV2Json;",
 );
 assertIncludes(
