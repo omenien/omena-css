@@ -219,6 +219,70 @@ describe("computeScssUnusedDiagnostics", () => {
     });
   });
 
+  it("preserves every query-owned style diagnostic code on the selected-query path", async () => {
+    const styleSource = `.button { color: red; }\n`;
+    const styleDoc = parseStyleDocument(styleSource, SCSS_PATH);
+    const queryCodes = [
+      "unusedSelector",
+      "missingComposedModule",
+      "missingComposedSelector",
+      "missingValueModule",
+      "missingImportedValue",
+      "missingKeyframes",
+      "missingCustomProperty",
+      "missingSassSymbol",
+    ] as const;
+
+    const diagnostics = await computeScssUnusedDiagnostics(
+      SCSS_PATH,
+      styleDoc,
+      new WorkspaceSemanticWorkspaceReferenceIndex(),
+      new WorkspaceStyleDependencyGraph(),
+      undefined,
+      {
+        env: { OMENA_SELECTED_QUERY_BACKEND: "rust-selected-query" } as NodeJS.ProcessEnv,
+        styleSource,
+        runRustSelectedQueryBackendJsonAsync: async <T>() =>
+          ({
+            product: "omena-query.diagnostics-for-file",
+            fileKind: "style",
+            diagnostics: queryCodes.map((code) => ({
+              code,
+              severity: code === "unusedSelector" ? "hint" : "warning",
+              provenance: [
+                "omena-query.style-diagnostics",
+                "omena-query-checker-orchestrator.product-diagnostic-gate",
+                "omena-checker.rule-registry",
+              ],
+              range: {
+                start: { line: 0, character: 0 },
+                end: { line: 0, character: 7 },
+              },
+              message: `query-owned ${code}`,
+              tags: code === "unusedSelector" ? [DiagnosticTag.Unnecessary] : [],
+            })),
+          }) as T,
+      },
+    );
+
+    expect(diagnostics.map((diagnostic) => diagnostic.code).toSorted()).toEqual(
+      [...queryCodes].toSorted(),
+    );
+    for (const diagnostic of diagnostics) {
+      expect(diagnostic.data).toMatchObject({
+        provenance: [
+          "omena-query.style-diagnostics",
+          "omena-query-checker-orchestrator.product-diagnostic-gate",
+          "omena-checker.rule-registry",
+        ],
+      });
+    }
+    expect(diagnostics.find((diagnostic) => diagnostic.code === "unusedSelector")).toMatchObject({
+      severity: DiagnosticSeverity.Hint,
+      tags: [DiagnosticTag.Unnecessary],
+    });
+  });
+
   it("does not fall back to checker diagnostics in the selected-query style path", async () => {
     const classMap = new Map([
       ["indicator", info("indicator", 1)],

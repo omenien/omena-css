@@ -293,6 +293,79 @@ describe("computeDiagnostics", () => {
     }
   });
 
+  it("preserves every query-owned source diagnostic code on the selected-query path", async () => {
+    const previousBackend = process.env.OMENA_SELECTED_QUERY_BACKEND;
+    process.env.OMENA_SELECTED_QUERY_BACKEND = "rust-selected-query";
+    const queryCodes = [
+      "missingModule",
+      "missingStaticClass",
+      "missingTemplatePrefix",
+      "missingResolvedClassValues",
+      "missingResolvedClassDomain",
+    ] as const;
+    const runRustSelectedQueryBackendJsonAsync: RustSelectedQueryBackendJsonRunnerAsync = async <
+      T,
+    >() =>
+      ({
+        product: "omena-query.diagnostics-for-file",
+        fileKind: "source",
+        diagnostics: queryCodes.map((code) => ({
+          code,
+          severity: "warning",
+          provenance: [
+            "omena-query.source-syntax-index",
+            "omena-query.style-selector-definitions",
+            "omena-query-checker-orchestrator.product-diagnostic-gate",
+            "omena-checker.rule-registry",
+          ],
+          range: MISSING_CLASS_RANGE,
+          message: `query-owned ${code}`,
+          ...(code === "missingStaticClass"
+            ? {
+                createSelector: {
+                  uri: "/fake/ws/src/Button.module.scss",
+                  range: {
+                    start: { line: 1, character: 0 },
+                    end: { line: 1, character: 0 },
+                  },
+                  newText: "\n\n.unknonw {\n}\n",
+                  selectorName: "unknonw",
+                },
+              }
+            : {}),
+        })),
+      }) as T;
+
+    try {
+      const diagnostics = await computeDiagnostics(baseParams, {
+        ...makeDeps(),
+        runRustSelectedQueryBackendJsonAsync,
+      });
+
+      expect(diagnostics.map((diagnostic) => diagnostic.code).toSorted()).toEqual(
+        [...queryCodes].toSorted(),
+      );
+      for (const diagnostic of diagnostics) {
+        expect(diagnostic.severity).toBe(DiagnosticSeverity.Warning);
+        expect(diagnostic.data).toMatchObject({
+          querySeverity: "warning",
+          provenance: [
+            "omena-query.source-syntax-index",
+            "omena-query.style-selector-definitions",
+            "omena-query-checker-orchestrator.product-diagnostic-gate",
+            "omena-checker.rule-registry",
+          ],
+        });
+      }
+    } finally {
+      if (previousBackend === undefined) {
+        delete process.env.OMENA_SELECTED_QUERY_BACKEND;
+      } else {
+        process.env.OMENA_SELECTED_QUERY_BACKEND = previousBackend;
+      }
+    }
+  });
+
   it("returns an empty array when the file does not import classnames/bind", () => {
     const sourceFileCache = new SourceFileCache({ max: 10 });
     const result = computeDiagnostics(

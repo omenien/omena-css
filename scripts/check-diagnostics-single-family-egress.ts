@@ -22,6 +22,8 @@ const FILES = {
   querySourceSurfacesTests: "rust/crates/omena-query/src/tests/source_surfaces.rs",
   sourceConsumerGate: "scripts/check-source-diagnostics-query-consumer.ts",
   styleConsumerGate: "scripts/check-style-diagnostics-query-consumer.ts",
+  sourceProviderTests: "test/unit/providers/diagnostics.test.ts",
+  styleProviderTests: "test/unit/providers/scss-diagnostics.test.ts",
 } as const;
 
 const SOURCE_DIAGNOSTIC_CODE_PAIRS = [
@@ -74,6 +76,7 @@ const STYLELINT_LEGACY_FALLBACK_TOKENS = [
 function main(): void {
   assertCheckerCodeMirror();
   assertRustQueryDiagnosticProducerCoverage();
+  assertLspProviderQueryDiagnosticCoverage();
   assertLspSelectedQueryDiagnostics();
   assertQueryDiagnosticsShapeLock();
   assertCliNapiWasmQueryDiagnostics();
@@ -90,6 +93,7 @@ function main(): void {
       "stylelint=cli-query",
       "shape-lock=cli-napi-wasm",
       "checker-code-mirror=13",
+      "lsp-provider-code-coverage=13",
       "legacy-plugin-fallback=absent",
     ].join(" ") + "\n",
   );
@@ -163,6 +167,28 @@ function assertRustQueryDiagnosticProducerCoverage(): void {
     "omena-checker.rule-registry",
     "omena-query diagnostic provenance gates",
   );
+}
+
+function assertLspProviderQueryDiagnosticCoverage(): void {
+  const sourceProviderTests = readRepoFile(FILES.sourceProviderTests);
+  const styleProviderTests = readRepoFile(FILES.styleProviderTests);
+
+  assertIncludes(
+    sourceProviderTests,
+    "preserves every query-owned source diagnostic code",
+    FILES.sourceProviderTests,
+  );
+  assertIncludes(
+    styleProviderTests,
+    "preserves every query-owned style diagnostic code",
+    FILES.styleProviderTests,
+  );
+  for (const [queryCode] of SOURCE_DIAGNOSTIC_CODE_PAIRS) {
+    assertIncludes(sourceProviderTests, `"${queryCode}"`, FILES.sourceProviderTests);
+  }
+  for (const [queryCode] of STYLE_DIAGNOSTIC_CODE_PAIRS) {
+    assertIncludes(styleProviderTests, `"${queryCode}"`, FILES.styleProviderTests);
+  }
 }
 
 function assertLspSelectedQueryDiagnostics(): void {
