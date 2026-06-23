@@ -15,6 +15,12 @@ import type {
   SelectorDeclHIR,
   StyleDocumentHIR,
 } from "../../engine-core-ts/src/core/hir/style-types";
+import type {
+  CodeActionPlanKindJson,
+  OmenaQueryCodeActionPlanV0Json,
+  OmenaQueryCodeActionV0Json,
+  OmenaQueryWorkspaceTextEditV0Json,
+} from "./code-action-query-idl.generated";
 import {
   resolveSelectedQueryBackendKind,
   runRustSelectedQueryBackendJson,
@@ -27,29 +33,24 @@ export interface CodeActionDiagnosticInput {
   readonly data?: unknown;
 }
 
-export type CodeActionPlanKind = "quickfix" | "refactor.extract" | "refactor.inline";
+export type CodeActionPlanKind = CodeActionPlanKindJson;
 
 type CodeActionDeps = Pick<ProviderDeps, "fileExists"> &
   Partial<Pick<ProviderDeps, "buildStyleDocument" | "readStyleFile" | "styleDocumentForPath">> & {
     readonly runRustSelectedQueryBackendJson?: typeof runRustSelectedQueryBackendJson;
   };
 
-interface OmenaQueryCodeActionPlanJson {
-  readonly product: "omena-query.code-actions";
-  readonly fileUri: string;
-  readonly fileKind: "style";
-  readonly actionCount: number;
-  readonly actions: readonly {
-    readonly title: string;
-    readonly kind: CodeActionPlanKind;
-    readonly edits: readonly {
-      readonly uri: string;
-      readonly range: Range;
-      readonly newText: string;
-    }[];
-    readonly source: string;
-  }[];
-}
+type OmenaQueryWorkspaceTextEditJson = Omit<OmenaQueryWorkspaceTextEditV0Json, "range"> & {
+  readonly range: Range;
+};
+
+type OmenaQueryCodeActionJson = Omit<OmenaQueryCodeActionV0Json, "edits"> & {
+  readonly edits: readonly OmenaQueryWorkspaceTextEditJson[];
+};
+
+type OmenaQueryCodeActionPlanJson = Omit<OmenaQueryCodeActionPlanV0Json, "actions"> & {
+  readonly actions: readonly OmenaQueryCodeActionJson[];
+};
 
 export type CodeActionPlan =
   | {

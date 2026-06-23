@@ -92,7 +92,12 @@ assertIncludes(engineQueryPath, engineQuery, "ExpressionSemanticsQueryResultV2")
 assertIncludes(engineQueryPath, engineQuery, "SourceExpressionResolutionQueryResultV2");
 assertIncludes(engineQueryPath, engineQuery, "SelectorUsageQueryResultV2");
 
-assertIncludes(codeActionQueryPath, codeActionQuery, "interface OmenaQueryCodeActionPlanJson");
+assertIncludes(codeActionQueryPath, codeActionQuery, "OmenaQueryCodeActionPlanV0Json");
+assertIncludes(
+  codeActionQueryPath,
+  codeActionQuery,
+  "export type CodeActionPlanKind = CodeActionPlanKindJson",
+);
 assertIncludes(codeActionQueryPath, codeActionQuery, "export type CodeActionPlan");
 
 assertMatches(shadowRunnerPath, shadowRunner, /struct EngineOutputV2\s*\{/);
