@@ -470,6 +470,7 @@ fn sample_input() -> EngineInputV2 {
                     may_include_other_chars: None,
                     provenance: None,
                 },
+                control_flow_graph: None,
             },
             TypeFactEntryV2 {
                 file_path: "/tmp/Card.tsx".to_string(),
@@ -487,6 +488,7 @@ fn sample_input() -> EngineInputV2 {
                     may_include_other_chars: None,
                     provenance: None,
                 },
+                control_flow_graph: None,
             },
         ],
     }

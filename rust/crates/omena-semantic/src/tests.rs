@@ -1538,6 +1538,7 @@ fn sample_engine_input() -> EngineInputV2 {
                     may_include_other_chars: None,
                     provenance: None,
                 },
+                control_flow_graph: None,
             },
             TypeFactEntryV2 {
                 file_path: "/tmp/Component.tsx".to_string(),
@@ -1555,6 +1556,7 @@ fn sample_engine_input() -> EngineInputV2 {
                     may_include_other_chars: None,
                     provenance: None,
                 },
+                control_flow_graph: None,
             },
         ],
     }

@@ -1078,6 +1078,7 @@ const lazy = import("./ignored.module.scss");
                     may_include_other_chars: None,
                     provenance: None,
                 },
+                control_flow_graph: None,
             }],
         }
     }
