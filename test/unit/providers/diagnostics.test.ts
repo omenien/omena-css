@@ -579,6 +579,38 @@ describe("computeDiagnostics", () => {
     }
   });
 
+  it("does not fall back to checker diagnostics in the selected-query source path", async () => {
+    const previousBackend = process.env.OMENA_SELECTED_QUERY_BACKEND;
+    process.env.OMENA_SELECTED_QUERY_BACKEND = "rust-selected-query";
+    let runnerCalled = false;
+    const runRustSelectedQueryBackendJsonAsync: RustSelectedQueryBackendJsonRunnerAsync = async <
+      T,
+    >() => {
+      runnerCalled = true;
+      return {
+        product: "omena-query.diagnostics-for-file",
+        fileKind: "source",
+        diagnostics: [],
+      } as T;
+    };
+
+    try {
+      const diagnostics = await computeDiagnostics(baseParams, {
+        ...makeDeps(),
+        runRustSelectedQueryBackendJsonAsync,
+      });
+
+      expect(runnerCalled).toBe(true);
+      expect(diagnostics).toEqual([]);
+    } finally {
+      if (previousBackend === undefined) {
+        delete process.env.OMENA_SELECTED_QUERY_BACKEND;
+      } else {
+        process.env.OMENA_SELECTED_QUERY_BACKEND = previousBackend;
+      }
+    }
+  });
+
   it("returns an empty array when the file does not import classnames/bind", () => {
     const sourceFileCache = new SourceFileCache({ max: 10 });
     const result = computeDiagnostics(

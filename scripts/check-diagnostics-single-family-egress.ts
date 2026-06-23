@@ -181,6 +181,11 @@ function assertLspProviderQueryDiagnosticCoverage(): void {
   assertIncludes(sourceProviderTests, "stableDiagnosticSnapshot", FILES.sourceProviderTests);
   assertIncludes(sourceProviderTests, "toMatchInlineSnapshot", FILES.sourceProviderTests);
   assertIncludes(
+    sourceProviderTests,
+    "does not fall back to checker diagnostics in the selected-query source path",
+    FILES.sourceProviderTests,
+  );
+  assertIncludes(
     styleProviderTests,
     "preserves every query-owned style diagnostic code",
     FILES.styleProviderTests,
