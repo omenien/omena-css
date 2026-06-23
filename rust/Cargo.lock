@@ -2213,11 +2213,9 @@ dependencies = [
  "omena-abstract-value",
  "omena-cascade",
  "omena-cascade-proof",
- "omena-categorical",
+ "omena-product-hints",
  "omena-resolver",
- "omena-rg-flow",
  "omena-smt",
- "omena-variational",
  "serde",
 ]
 
@@ -2350,6 +2348,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "omena-product-hints"
+version = "0.2.1"
+dependencies = [
+ "omena-cascade",
+ "serde",
+]
+
+[[package]]
 name = "omena-query"
 version = "0.2.1"
 dependencies = [
@@ -2375,9 +2381,8 @@ name = "omena-query-checker-orchestrator"
 version = "0.2.1"
 dependencies = [
  "omena-abstract-value",
- "omena-categorical",
  "omena-checker",
- "omena-ensemble",
+ "omena-product-hints",
  "serde",
 ]
 

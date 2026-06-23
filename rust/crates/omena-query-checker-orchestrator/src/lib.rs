@@ -14,11 +14,6 @@ use omena_abstract_value::{
     KLimitedCallSiteFlowInputV0, abstract_class_value_kind, analyze_k_limited_call_site_flows,
     external_string_type_facts_from_abstract_class_value,
 };
-pub use omena_categorical::{
-    CATEGORICAL_FEATURE_GATE_V0, CATEGORICAL_LAYER_MARKER_V0, CATEGORICAL_SCHEMA_VERSION_V0,
-    DesignSystemEdgeKindCountV0, DesignSystemInvariantSummaryV0, DesignSystemModelV0,
-    DesignSystemProjectSummaryInputV0,
-};
 pub use omena_checker::{
     CanonicalSelector, CategoricalCascadeEvidenceV0, OmenaCheckerCascadeDeclarationInputV0,
     OmenaCheckerCascadeEvaluationV0, OmenaCheckerCascadeInputV0,
@@ -46,7 +41,12 @@ use omena_checker::{
     evaluate_omena_checker_smt_rules, list_omena_checker_m_tier_rule_code_names,
     list_omena_checker_rule_code_names,
 };
-pub use omena_ensemble::{
+pub use omena_product_hints::{
+    CATEGORICAL_FEATURE_GATE_V0, CATEGORICAL_LAYER_MARKER_V0, CATEGORICAL_SCHEMA_VERSION_V0,
+    DesignSystemEdgeKindCountV0, DesignSystemInvariantSummaryV0, DesignSystemModelV0,
+    DesignSystemProjectSummaryInputV0,
+};
+pub use omena_product_hints::{
     ModuleGraphEdgeV0, ModuleGraphV0, OutcomeMode,
     REPLICA_ENSEMBLE_DEFAULT_PRODUCT_DECISION_MECHANISM_V0, REPLICA_ENSEMBLE_FEATURE_GATE_V0,
     REPLICA_ENSEMBLE_LAYER_MARKER_V0, REPLICA_ENSEMBLE_MECHANISM_SCOPE_V0,
@@ -364,7 +364,7 @@ pub fn build_omena_query_checker_design_system_model_from_project_summary_v0(
     theory_id: impl Into<String>,
     input: DesignSystemProjectSummaryInputV0,
 ) -> DesignSystemModelV0 {
-    omena_categorical::design_system_model_from_project_summary_v0(theory_id, input)
+    omena_product_hints::design_system_model_from_project_summary_v0(theory_id, input)
 }
 
 /// Compare design-system models through the query checker boundary. This keeps
@@ -373,7 +373,7 @@ pub fn compare_omena_query_checker_design_system_models_for_invariant_v0(
     invariant_id: impl Into<String>,
     models: &[DesignSystemModelV0],
 ) -> DesignSystemInvariantSummaryV0 {
-    omena_categorical::compare_design_system_models_for_invariant_v0(invariant_id, models)
+    omena_product_hints::compare_design_system_models_for_invariant_v0(invariant_id, models)
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize)]

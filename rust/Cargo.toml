@@ -17,6 +17,7 @@ members = [
   "crates/omena-ensemble",
   "crates/omena-interner",
   "crates/omena-parser",
+  "crates/omena-product-hints",
   "crates/omena-syntax",
   "crates/omena-testkit",
   "crates/omena-incremental",

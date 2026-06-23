@@ -21,7 +21,6 @@ smt-z3 = ["omena-checker/smt-z3"]
 
 [dependencies]
 omena-abstract-value = { path = "../omena-abstract-value", version = "=0.2.1" }
-omena-categorical = { path = "../omena-categorical", version = "=0.2.1" }
 omena-checker = { path = "../omena-checker", version = "=0.2.1" }
-omena-ensemble = { path = "../omena-ensemble", version = "=0.2.1", features = ["replica-ensemble"] }
+omena-product-hints = { path = "../omena-product-hints", version = "=0.2.1" }
 serde.workspace = true

@@ -11,23 +11,22 @@ use omena_cascade::{GrnBooleanState, GrnVertexStateV0, GrnVertexV0, project_grn_
 use omena_cascade_proof::{
     SmtBackendKindV0, SmtBackendSatResultV0, SmtBackendV0, StubSmtBackendV0, canonical_smt_input_v0,
 };
-pub use omena_categorical::CategoricalCascadeEvidenceV0;
-use omena_categorical::{CascadeFunctorApplicationV0, apply_cascade_role_mapping_functor_v0};
-pub use omena_rg_flow::{
+pub use omena_product_hints::CategoricalCascadeEvidenceV0;
+use omena_product_hints::{
+    CascadeFunctorApplicationV0, PatternIntentV0, apply_cascade_role_mapping_functor_v0,
+    coupling_space, designer_intent_posterior_input_v0, dominant_designer_intent_v0,
+    estimate_coupling_jacobian_spectrum_v0, infer_designer_intent_posterior_v0,
+};
+pub use omena_product_hints::{
     RG_FLOW_DEFAULT_PRODUCT_DECISION_MECHANISM_V0, RG_FLOW_MECHANISM_SCOPE_V0,
     RG_FLOW_PRODUCT_SURFACE_V0,
 };
-use omena_rg_flow::{coupling_space, estimate_coupling_jacobian_spectrum_v0};
 #[cfg(feature = "smt-z3")]
 use omena_smt::Z3SmtBackendV0;
 #[cfg(feature = "smt-z3")]
 use omena_smt::{
     SmtBackendKindV0, SmtBackendSatResultV0, SmtBackendV0, SmtVerdictV0, canonical_smt_input_v0,
     layer_inversion_declaration_v0, smt_check_layer_flatten_inversion_v0,
-};
-use omena_variational::{
-    PatternIntentV0, designer_intent_posterior_input_v0, dominant_designer_intent_v0,
-    infer_designer_intent_posterior_v0,
 };
 use serde::{Deserialize, Serialize};
 
@@ -1164,28 +1163,27 @@ pub fn resolve_omena_checker_rule_tier_for_smt_backend(
 pub fn checker_categorical_cascade_evidence_v0(
     source_product: &'static str,
 ) -> CategoricalCascadeEvidenceV0 {
-    omena_categorical::categorical_cascade_evidence_v0(source_product)
+    omena_product_hints::categorical_cascade_evidence_v0(source_product)
 }
 
 /// Build cascade categorical evidence whose functor application is the real
 /// verdict over the cascade primitives a concrete stylesheet exercises.
 ///
-/// Thin wrapper over
-/// `omena_categorical::categorical_cascade_evidence_for_exercised_primitives_v0`
-/// so the query style path can attach a verdict that depends on the parsed
-/// cascade without a Query -> Theory layer skip.
+/// Thin wrapper over the product-owned categorical hint contract so the query
+/// style path can attach a verdict that depends on the parsed cascade without a
+/// Query -> Theory layer skip.
 pub fn checker_categorical_cascade_evidence_for_exercised_primitives_v0(
     source_product: &'static str,
     exercised_primitive_role_pairs: &[(String, String)],
 ) -> CategoricalCascadeEvidenceV0 {
-    omena_categorical::categorical_cascade_evidence_for_exercised_primitives_v0(
+    omena_product_hints::categorical_cascade_evidence_for_exercised_primitives_v0(
         source_product,
         exercised_primitive_role_pairs,
     )
 }
 
-/// The canonical cascade primitive-to-categorical-role catalog, sourced from
-/// `omena_categorical::cascade_primitive_roles_v0`.
+/// The canonical cascade primitive-to-categorical-role catalog for default
+/// product diagnostics.
 ///
 /// Each tuple is `(primitive_name, categorical_role)`. Product callers (the
 /// query style path) project this catalog down to the cascade primitives a real
@@ -1193,7 +1191,7 @@ pub fn checker_categorical_cascade_evidence_for_exercised_primitives_v0(
 /// gate; keeping the catalog here avoids a Query -> Theory layer skip and keeps
 /// the role names in sync with the categorical source of truth.
 pub fn checker_cascade_primitive_role_catalog_v0() -> Vec<(&'static str, &'static str)> {
-    omena_categorical::cascade_primitive_roles_v0()
+    omena_product_hints::cascade_primitive_roles_v0()
         .into_iter()
         .map(|role| (role.primitive_name, role.categorical_role))
         .collect()
@@ -2130,7 +2128,7 @@ fn replica_ensemble_evaluation(
 
 fn checker_rg_flow_coupling_space(
     input: OmenaCheckerRgFlowCouplingSpaceInputV0,
-) -> omena_rg_flow::CouplingSpaceV0 {
+) -> omena_product_hints::CouplingSpaceV0 {
     coupling_space(input.k_env, input.k_decl, input.k_cycle, input.k_dirty)
 }
 
