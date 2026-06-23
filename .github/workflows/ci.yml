@@ -270,6 +270,7 @@ jobs:
           echo "core_layer_hygiene=${{ steps.core_layer_hygiene.outcome }}"
           echo "feature_resolved_reachability=${{ steps.feature_resolved_reachability.outcome }}"
           echo "product_lab_closure=${{ steps.product_lab_closure.outcome }}"
+          echo "product_lab_severance=${{ steps.product_lab_severance.outcome }}"
           echo "cross_file_reachability=${{ steps.cross_file_reachability.outcome }}"
           echo "streaming_ifds_solver_hygiene=${{ steps.streaming_ifds_solver_hygiene.outcome }}"
           echo "publish_flags=${{ steps.publish_flags.outcome }}"
@@ -294,6 +295,7 @@ jobs:
             "${{ steps.core_layer_hygiene.outcome }}" \
             "${{ steps.feature_resolved_reachability.outcome }}" \
             "${{ steps.product_lab_closure.outcome }}" \
+            "${{ steps.product_lab_severance.outcome }}" \
             "${{ steps.cross_file_reachability.outcome }}" \
             "${{ steps.streaming_ifds_solver_hygiene.outcome }}" \
             "${{ steps.publish_flags.outcome }}" \

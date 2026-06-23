@@ -10,7 +10,7 @@ repository = "https://github.com/omenien/omena-css"
 readme = "README.md"
 
 [package.metadata.omena]
-role = "R2"
+role = "R1"
 
 [lints]
 workspace = true

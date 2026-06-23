@@ -66,6 +66,18 @@
       "evidence": ["rust/crates/omena-cascade/src/lib.rs", "rust/crates/omena-query/Cargo.toml"]
     },
     {
+      "crate": "omena-cascade-proof",
+      "role": "R1",
+      "surface": "product-runtime",
+      "entrypoints": [
+        "product-owned cascade proof contracts consumed by checker and transform paths"
+      ],
+      "evidence": [
+        "rust/crates/omena-cascade-proof/src/lib.rs",
+        "rust/crates/omena-checker/Cargo.toml"
+      ]
+    },
+    {
       "crate": "omena-cross-file-summary",
       "role": "R1",
       "surface": "product-runtime",
@@ -78,12 +90,15 @@
     {
       "crate": "omena-categorical",
       "role": "R1",
-      "surface": "product-runtime",
-      "entrypoints": ["product-wired additive evidence through checker/query path"],
+      "surface": "check-evidence",
+      "entrypoints": [
+        "lab categorical evidence compatibility exercised by product-lab severance gates"
+      ],
       "evidence": [
         "rust/crates/omena-categorical/src/lib.rs",
         "rust/crates/omena-checker/Cargo.toml"
-      ]
+      ],
+      "gates": ["rust/product-lab-severance"]
     },
     {
       "crate": "omena-checker",
@@ -126,12 +141,15 @@
     {
       "crate": "omena-ensemble",
       "role": "R1",
-      "surface": "product-runtime",
-      "entrypoints": ["product-wired cross-file consistency hint substrate"],
+      "surface": "check-evidence",
+      "entrypoints": [
+        "lab replica-overlap evidence compatibility exercised by product-lab severance gates"
+      ],
       "evidence": [
         "rust/crates/omena-ensemble/src/lib.rs",
         "rust/crates/omena-query-checker-orchestrator/Cargo.toml"
-      ]
+      ],
+      "gates": ["rust/product-lab-severance"]
     },
     {
       "crate": "omena-incremental",
@@ -192,6 +210,16 @@
       "surface": "product-runtime",
       "entrypoints": ["product parser consumed by query/LSP/transform paths"],
       "evidence": ["rust/crates/omena-parser/src/lib.rs", "rust/crates/omena-query/Cargo.toml"]
+    },
+    {
+      "crate": "omena-product-hints",
+      "role": "R1",
+      "surface": "product-runtime",
+      "entrypoints": ["product-owned hint contracts consumed by default checker diagnostics"],
+      "evidence": [
+        "rust/crates/omena-product-hints/src/lib.rs",
+        "rust/crates/omena-query-checker-orchestrator/Cargo.toml"
+      ]
     },
     {
       "crate": "omena-query",
@@ -257,9 +285,12 @@
     {
       "crate": "omena-rg-flow",
       "role": "R1",
-      "surface": "product-runtime",
-      "entrypoints": ["opt-in deep-analysis RG evidence reachable through checker/query path"],
-      "evidence": ["rust/crates/omena-rg-flow/src/lib.rs", "rust/crates/omena-checker/Cargo.toml"]
+      "surface": "check-evidence",
+      "entrypoints": [
+        "lab RG-flow evidence compatibility exercised by product-lab severance gates"
+      ],
+      "evidence": ["rust/crates/omena-rg-flow/src/lib.rs", "rust/crates/omena-checker/Cargo.toml"],
+      "gates": ["rust/product-lab-severance"]
     },
     {
       "crate": "omena-semantic",
@@ -278,11 +309,12 @@
     {
       "crate": "omena-smt",
       "role": "R1",
-      "surface": "product-runtime",
+      "surface": "check-evidence",
       "entrypoints": [
-        "opt-in solver-backed cascade checking substrate reachable through checker/query"
+        "lab SMT compatibility oracle preserved behind product-owned cascade proof contracts"
       ],
-      "evidence": ["rust/crates/omena-smt/src/lib.rs", "rust/crates/omena-checker/Cargo.toml"]
+      "evidence": ["rust/crates/omena-smt/src/lib.rs", "rust/crates/omena-checker/Cargo.toml"],
+      "gates": ["rust/product-lab-severance"]
     },
     {
       "crate": "omena-spec-audit",
@@ -428,14 +460,15 @@
     {
       "crate": "omena-variational",
       "role": "R1",
-      "surface": "product-runtime",
+      "surface": "check-evidence",
       "entrypoints": [
-        "product-wired posterior inference substrate reachable through checker/query"
+        "lab variational evidence compatibility exercised by product-lab severance gates"
       ],
       "evidence": [
         "rust/crates/omena-variational/src/lib.rs",
         "rust/crates/omena-checker/Cargo.toml"
-      ]
+      ],
+      "gates": ["rust/product-lab-severance"]
     },
     {
       "crate": "omena-wasm",
