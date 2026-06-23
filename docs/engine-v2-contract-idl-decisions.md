@@ -123,6 +123,27 @@ The generator must produce all of the following from one authoritative IDL:
   code-action query JSON surface.
 - A drift gate that regenerates the files and fails on `git diff --exit-code`.
 
+## Toolchain Decision
+
+The current prototype uses:
+
+- TypeSpec 1.13 with `@typespec/json-schema` 1.13 as the IDL front-end and JSON
+  Schema emitter.
+- Separate JSON Schema files, not a bundled schema file. The bundled emitter mode
+  currently leaves `$ref` values that downstream TypeScript generation treats as
+  external files; separate files plus an explicit schema root are deterministic.
+- `json-schema-to-typescript` 15.0 for generated TypeScript declaration smoke
+  checks.
+- A repo-owned Rust serde emitter path for generated Rust structs. The first
+  smoke gate emits a Rust proof crate from the IDL decisions and checks serde
+  round-trips for `workspace`, `provenance`, tagged query results, required
+  `rewritePlans`, and code-action query JSON.
+
+The prototype command is `pnpm check:engine-v2-contract-idl-toolchain`. It does
+not replace the production drift gate yet. It proves the selected toolchain can
+represent the required wire decisions without manual patches before the generated
+files are wired into product code.
+
 The generator must preserve:
 
 - camelCase serde names.
