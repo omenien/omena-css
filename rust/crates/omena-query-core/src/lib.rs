@@ -65,10 +65,49 @@ pub use omena_value_lattice::{
     canonicalize_css_value, split_top_level_value_arguments,
     split_top_level_whitespace_value_components,
 };
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 
 pub const OMENA_QUERY_CURRENT_SCHEMA_VERSION: &str = "0";
 pub const OMENA_QUERY_CURRENT_SCHEMA_VERSION_LABEL: &str = "V0";
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct OmenaQueryAnalysisPrecisionV0 {
+    pub product: String,
+    pub value_domain: String,
+    pub flow_sensitivity: String,
+    pub context_sensitivity: String,
+    pub revision_axis: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct OmenaQueryAnalysisResultV0<TValue> {
+    pub schema_version: String,
+    pub product: String,
+    pub value: TValue,
+    pub precision: OmenaQueryAnalysisPrecisionV0,
+    pub provenance: Vec<String>,
+    pub revision: u64,
+}
+
+impl<TValue> OmenaQueryAnalysisResultV0<TValue> {
+    pub fn new(
+        value: TValue,
+        precision: OmenaQueryAnalysisPrecisionV0,
+        provenance: Vec<String>,
+        revision: u64,
+    ) -> Self {
+        Self {
+            schema_version: OMENA_QUERY_CURRENT_SCHEMA_VERSION.to_string(),
+            product: "omena-query.analysis-result".to_string(),
+            value,
+            precision,
+            provenance,
+            revision,
+        }
+    }
+}
 
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -262,6 +301,29 @@ pub fn summarize_omena_query_expression_domain_incremental_flow_analysis(
     runtime: &mut OmenaQueryExpressionDomainFlowRuntimeV0,
 ) -> OmenaQueryExpressionDomainIncrementalFlowAnalysisV0 {
     runtime.analyze_input(input)
+}
+
+pub fn summarize_omena_query_expression_domain_incremental_flow_analysis_result(
+    input: &EngineInputV2,
+    runtime: &mut OmenaQueryExpressionDomainFlowRuntimeV0,
+) -> OmenaQueryAnalysisResultV0<OmenaQueryExpressionDomainIncrementalFlowAnalysisV0> {
+    let value = runtime.analyze_input(input);
+    let revision = value.revision;
+    OmenaQueryAnalysisResultV0::new(
+        value,
+        OmenaQueryAnalysisPrecisionV0 {
+            product: "omena-query.analysis-precision".to_string(),
+            value_domain: "classValueFlow".to_string(),
+            flow_sensitivity: "incrementalDataflow".to_string(),
+            context_sensitivity: "perExpressionGraph".to_string(),
+            revision_axis: "OmenaQueryExpressionDomainFlowRuntimeV0.revision".to_string(),
+        },
+        vec![
+            "omena-query-core.expression-domain-runtime".to_string(),
+            "omena-abstract-value.incremental-class-value-flow".to_string(),
+        ],
+        revision,
+    )
 }
 
 pub fn summarize_omena_query_expression_domain_selector_projection(

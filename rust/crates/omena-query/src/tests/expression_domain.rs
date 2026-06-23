@@ -146,6 +146,66 @@ fn reuses_expression_domain_flow_analysis_through_salsa_runtime() {
 }
 
 #[test]
+fn wraps_expression_domain_runtime_in_revision_aligned_analysis_result() -> Result<(), String> {
+    let input = sample_input();
+    let mut runtime = OmenaQueryExpressionDomainFlowRuntimeV0::default();
+
+    let first = summarize_omena_query_expression_domain_incremental_flow_analysis_result(
+        &input,
+        &mut runtime,
+    );
+    let first_json = serde_json::to_value(&first)
+        .map_err(|err| format!("analysis result should serialize: {err:?}"))?;
+
+    assert_eq!(first.product, "omena-query.analysis-result");
+    assert_eq!(first.revision, 1);
+    assert_eq!(first.value.revision, first.revision);
+    assert_eq!(first.precision.value_domain, "classValueFlow");
+    assert_eq!(
+        first.precision.revision_axis,
+        "OmenaQueryExpressionDomainFlowRuntimeV0.revision"
+    );
+    assert!(
+        first
+            .provenance
+            .contains(&"omena-query-core.expression-domain-runtime".to_string())
+    );
+    assert_eq!(first_json["schemaVersion"], "0");
+    assert_eq!(
+        first_json["precision"]["flowSensitivity"],
+        "incrementalDataflow"
+    );
+    assert_eq!(first_json["value"]["revision"], first_json["revision"]);
+
+    let roundtrip: OmenaQueryAnalysisResultV0<String> = serde_json::from_value(serde_json::json!({
+        "schemaVersion": "0",
+        "product": "omena-query.analysis-result",
+        "value": "class-value-flow",
+        "precision": {
+            "product": "omena-query.analysis-precision",
+            "valueDomain": "classValueFlow",
+            "flowSensitivity": "incrementalDataflow",
+            "contextSensitivity": "perExpressionGraph",
+            "revisionAxis": "OmenaQueryExpressionDomainFlowRuntimeV0.revision"
+        },
+        "provenance": ["omena-query-core.expression-domain-runtime"],
+        "revision": 7
+    }))
+    .map_err(|err| format!("generic analysis result should deserialize: {err:?}"))?;
+    assert_eq!(roundtrip.value, "class-value-flow");
+    assert_eq!(roundtrip.revision, 7);
+
+    let second = summarize_omena_query_expression_domain_incremental_flow_analysis_result(
+        &input,
+        &mut runtime,
+    );
+    assert_eq!(second.revision, 2);
+    assert_eq!(second.value.revision, 2);
+    assert_eq!(runtime.revision(), 2);
+    Ok(())
+}
+
+#[test]
 fn projects_reduced_product_flow_to_target_style_selectors() {
     let input = reduced_product_projection_input();
     let summary = summarize_omena_query_expression_domain_selector_projection(&input);

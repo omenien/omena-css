@@ -4,9 +4,10 @@ use std::collections::BTreeSet;
 
 use super::{
     EngineInputV2, IncrementalGraphInputV0, IncrementalNodeInputV0, IncrementalRevisionV0,
-    OmenaQueryCanonicalFormInput, OmenaQueryExpressionDomainFlowRuntimeV0,
-    OmenaQueryStylePackageManifestV0, ParserPositionV0, SelectorProjectionCertaintyV0,
-    StyleAnalysisInputV2, StyleDocumentV2, attach_omena_query_consumer_build_bundle_summary,
+    OmenaQueryAnalysisResultV0, OmenaQueryCanonicalFormInput,
+    OmenaQueryExpressionDomainFlowRuntimeV0, OmenaQueryStylePackageManifestV0, ParserPositionV0,
+    SelectorProjectionCertaintyV0, StyleAnalysisInputV2, StyleDocumentV2,
+    attach_omena_query_consumer_build_bundle_summary,
     attach_omena_query_consumer_build_source_map_v3,
     attach_omena_query_consumer_build_source_map_v3_with_sources,
     execute_omena_query_consumer_build_style_source,
@@ -23,6 +24,7 @@ use super::{
     summarize_omena_query_expression_domain_control_flow_analysis,
     summarize_omena_query_expression_domain_flow_analysis,
     summarize_omena_query_expression_domain_incremental_flow_analysis,
+    summarize_omena_query_expression_domain_incremental_flow_analysis_result,
     summarize_omena_query_expression_domain_provenance_explanations,
     summarize_omena_query_expression_domain_reduced_product_iteration,
     summarize_omena_query_expression_domain_selector_projection,
