@@ -55,14 +55,11 @@ Supported options:
 - `pathAlias`
 - `includeMissingModule`
 
-Optional direct Omena backend:
+Omena CLI backend:
 
-- Set `OMENA_ESLINT_QUERY_BACKEND=omena-cli` to route focused source-side rules
-  through `omena source-diagnostics`.
-- Set `OMENA_CLI_BIN=/path/to/omena` to use a prebuilt CLI binary instead
-  of `cargo run`.
-- Without those variables, the plugin keeps using the existing TypeScript
-  checker host path.
+- Source-side rules read diagnostics from `omena source-diagnostics`.
+- In this repository, the plugin can use `cargo run -p omena-cli`.
+- In external projects, set `OMENA_CLI_BIN=/path/to/omena` to a built CLI binary.
 
 Current limitations:
 

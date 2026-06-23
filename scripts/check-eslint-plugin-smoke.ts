@@ -14,6 +14,7 @@ const MISSING_MODULE_FILE_PATH = path.join(WORKSPACE_ROOT, "src/MissingModule.js
 const TEMPLATE_PREFIX_FILE_PATH = path.join(WORKSPACE_ROOT, "src/TemplatePrefix.jsx");
 
 async function main(): Promise<void> {
+  assertNoLegacyDiagnosticFallback();
   await assertInvalidClassReferenceRule();
   await assertMissingStaticClassRule();
   await assertMissingTemplatePrefixRule();
@@ -24,7 +25,25 @@ async function main(): Promise<void> {
   await assertNoImpreciseValueRule();
   await assertMTierConfig();
   await assertMissingModuleRule();
-  await assertOmenaCliDirectBackend();
+  await assertOmenaCliBackend();
+}
+
+function assertNoLegacyDiagnosticFallback(): void {
+  const sharedSource = require("node:fs").readFileSync(
+    path.join(REPO_ROOT, "packages/eslint-plugin/lib/_shared.cjs"),
+    "utf8",
+  );
+  for (const forbidden of [
+    ["check", "SourceDocument"].join(""),
+    ["format", "LegacyCheckerFinding"].join(""),
+    ["create", "WorkspaceAnalysisHost"].join(""),
+    ["create", "WorkspaceStyleHost"].join(""),
+    ["OMENA", "ESLINT", "QUERY", "BACKEND"].join("_"),
+  ]) {
+    if (sharedSource.includes(forbidden)) {
+      throw new Error(`ESLint plugin must not retain legacy diagnostic fallback: ${forbidden}`);
+    }
+  }
 }
 
 async function assertInvalidClassReferenceRule(): Promise<void> {
@@ -406,54 +425,44 @@ async function assertMissingModuleRule(): Promise<void> {
   }
 }
 
-async function assertOmenaCliDirectBackend(): Promise<void> {
-  const previousBackend = process.env.OMENA_ESLINT_QUERY_BACKEND;
-  process.env.OMENA_ESLINT_QUERY_BACKEND = "omena-cli";
-  try {
-    const eslint = new ESLint({
-      cwd: WORKSPACE_ROOT,
-      ignore: false,
-      overrideConfigFile: true,
-      overrideConfig: [
-        {
-          files: ["**/*.{js,jsx}"],
-          languageOptions: {
-            ecmaVersion: "latest",
-            sourceType: "module",
-            parserOptions: {
-              ecmaFeatures: { jsx: true },
-            },
+async function assertOmenaCliBackend(): Promise<void> {
+  const eslint = new ESLint({
+    cwd: WORKSPACE_ROOT,
+    ignore: false,
+    overrideConfigFile: true,
+    overrideConfig: [
+      {
+        files: ["**/*.{js,jsx}"],
+        languageOptions: {
+          ecmaVersion: "latest",
+          sourceType: "module",
+          parserOptions: {
+            ecmaFeatures: { jsx: true },
           },
         },
-        ...plugin.configs.focused,
-      ],
-    });
+      },
+      ...plugin.configs.focused,
+    ],
+  });
 
-    const results = await eslint.lintFiles([
-      INVALID_CLASS_FILE_PATH,
-      TEMPLATE_PREFIX_FILE_PATH,
-      DYNAMIC_CLASS_FILE_PATH,
-      DYNAMIC_DOMAIN_FILE_PATH,
-      MISSING_MODULE_FILE_PATH,
-    ]);
-    const messages = results.flatMap((result) => result.messages);
-    const expectedRuleIds = [
-      "omena/missing-static-class",
-      "omena/missing-template-prefix",
-      "omena/missing-resolved-class-values",
-      "omena/missing-resolved-class-domain",
-      "omena/missing-module",
-    ];
-    for (const ruleId of expectedRuleIds) {
-      if (!messages.some((message) => message.ruleId === ruleId)) {
-        throw new Error(`Expected direct omena-cli backend message for ${ruleId}.`);
-      }
-    }
-  } finally {
-    if (previousBackend === undefined) {
-      delete process.env.OMENA_ESLINT_QUERY_BACKEND;
-    } else {
-      process.env.OMENA_ESLINT_QUERY_BACKEND = previousBackend;
+  const results = await eslint.lintFiles([
+    INVALID_CLASS_FILE_PATH,
+    TEMPLATE_PREFIX_FILE_PATH,
+    DYNAMIC_CLASS_FILE_PATH,
+    DYNAMIC_DOMAIN_FILE_PATH,
+    MISSING_MODULE_FILE_PATH,
+  ]);
+  const messages = results.flatMap((result) => result.messages);
+  const expectedRuleIds = [
+    "omena/missing-static-class",
+    "omena/missing-template-prefix",
+    "omena/missing-resolved-class-values",
+    "omena/missing-resolved-class-domain",
+    "omena/missing-module",
+  ];
+  for (const ruleId of expectedRuleIds) {
+    if (!messages.some((message) => message.ruleId === ruleId)) {
+      throw new Error(`Expected omena-cli diagnostic backend message for ${ruleId}.`);
     }
   }
 }

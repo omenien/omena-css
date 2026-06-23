@@ -49,9 +49,8 @@ Current limitations:
   `omena/missing-value-module`,
   `omena/missing-imported-value`,
   `omena/missing-custom-property`, and
-  `omena/missing-keyframes` can read the `omena-query`
-  style diagnostics surface through `omena-cli` by setting
-  `OMENA_STYLELINT_QUERY_BACKEND=omena-cli` or `OMENA_CLI_BIN=/path/to/omena`
+  `omena/missing-keyframes` read the `omena-query` style diagnostics surface
+  through `omena-cli`
 - `omena/missing-sass-symbol` also supports that direct
-  `omena-cli` path for same-file unresolved Sass symbols; cross-file
-  `@use`/`@forward` resolution still remains on the legacy workspace report path
+  `omena-cli` path for same-file unresolved Sass symbols
+- In external projects, set `OMENA_CLI_BIN=/path/to/omena` to a built CLI binary.
