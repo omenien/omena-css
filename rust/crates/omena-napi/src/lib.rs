@@ -792,6 +792,68 @@ fn effective_path(path: &str) -> &str {
 mod tests {
     use super::*;
 
+    fn assert_query_diagnostics_json_shape(
+        json: &str,
+        expected_file_kind: &str,
+        expected_code: &str,
+    ) -> napi::Result<()> {
+        let value = serde_json::from_str::<serde_json::Value>(json)
+            .map_err(|error| napi::Error::from_reason(format!("diagnostics JSON: {error}")))?;
+        assert_eq!(
+            value.get("schemaVersion").and_then(|value| value.as_str()),
+            Some("0")
+        );
+        assert_eq!(
+            value.get("product").and_then(|value| value.as_str()),
+            Some("omena-query.diagnostics-for-file")
+        );
+        assert_eq!(
+            value.get("fileKind").and_then(|value| value.as_str()),
+            Some(expected_file_kind)
+        );
+        assert!(
+            value
+                .get("fileUri")
+                .and_then(|value| value.as_str())
+                .is_some_and(|value| !value.is_empty())
+        );
+        let diagnostics = value
+            .get("diagnostics")
+            .and_then(|value| value.as_array())
+            .expect("diagnostics must be serialized as an array");
+        assert_eq!(
+            value
+                .get("diagnosticCount")
+                .and_then(|value| value.as_u64()),
+            Some(diagnostics.len() as u64)
+        );
+        assert!(
+            value
+                .get("readySurfaces")
+                .and_then(|value| value.as_array())
+                .is_some_and(|surfaces| !surfaces.is_empty())
+        );
+        assert!(
+            diagnostics.iter().any(|diagnostic| diagnostic
+                .get("code")
+                .and_then(|value| value.as_str())
+                == Some(expected_code)),
+            "diagnostics must include {expected_code}: {json}"
+        );
+        assert!(
+            diagnostics
+                .iter()
+                .all(|diagnostic| diagnostic.get("category").is_none())
+        );
+        assert!(diagnostics.iter().all(|diagnostic| {
+            diagnostic
+                .get("provenance")
+                .and_then(|value| value.as_array())
+                .is_some_and(|provenance| !provenance.is_empty())
+        }));
+        Ok(())
+    }
+
     #[test]
     fn accepts_absent_json_sentinels_for_optional_node_inputs() -> napi::Result<()> {
         assert_eq!(
@@ -1241,9 +1303,7 @@ mod tests {
         )
         .map_err(|error| napi::Error::from_reason(format!("{error:?}")))?;
 
-        assert!(json.contains("\"product\":\"omena-query.diagnostics-for-file\""));
-        assert!(json.contains("\"fileKind\":\"style\""));
-        assert!(json.contains("\"code\":\"missingCustomProperty\""));
+        assert_query_diagnostics_json_shape(&json, "style", "missingCustomProperty")?;
         Ok(())
     }
 
@@ -1263,8 +1323,7 @@ mod tests {
         )
         .map_err(|error| napi::Error::from_reason(format!("{error:?}")))?;
 
-        assert!(json.contains("\"product\":\"omena-query.diagnostics-for-file\""));
-        assert!(json.contains("\"code\":\"missingComposedSelector\""));
+        assert_query_diagnostics_json_shape(&json, "style", "missingComposedSelector")?;
         Ok(())
     }
 
@@ -1326,9 +1385,7 @@ mod tests {
         )
         .map_err(|error| napi::Error::from_reason(format!("{error:?}")))?;
 
-        assert!(json.contains("\"product\":\"omena-query.diagnostics-for-file\""));
-        assert!(json.contains("\"fileKind\":\"source\""));
-        assert!(json.contains("\"code\":\"missingSelector\""));
+        assert_query_diagnostics_json_shape(&json, "source", "missingSelector")?;
         Ok(())
     }
 
@@ -1356,9 +1413,7 @@ export function App() {
         )
         .map_err(|error| napi::Error::from_reason(format!("{error:?}")))?;
 
-        assert!(json.contains("\"product\":\"omena-query.diagnostics-for-file\""));
-        assert!(json.contains("\"fileKind\":\"source\""));
-        assert!(json.contains("\"code\":\"missingResolvedClassValues\""));
+        assert_query_diagnostics_json_shape(&json, "source", "missingResolvedClassValues")?;
         Ok(())
     }
 

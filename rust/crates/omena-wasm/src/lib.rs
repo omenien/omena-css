@@ -914,8 +914,11 @@ mod tests {
         )
         .map_err(|_| "style diagnostics should be available".to_string())?;
 
+        assert_eq!(summary.schema_version, "0");
         assert_eq!(summary.product, "omena-query.diagnostics-for-file");
+        assert_eq!(summary.file_uri, "fixture.module.css");
         assert_eq!(summary.file_kind, "style");
+        assert_eq!(summary.diagnostic_count, summary.diagnostics.len());
         assert!(
             summary
                 .ready_surfaces
@@ -942,6 +945,12 @@ mod tests {
                 .diagnostics
                 .iter()
                 .any(|diagnostic| diagnostic.code == "missingKeyframes")
+        );
+        assert!(
+            summary
+                .diagnostics
+                .iter()
+                .all(|diagnostic| !diagnostic.provenance.is_empty())
         );
         Ok(())
     }
@@ -1078,10 +1087,14 @@ mod tests {
         let summary =
             read_source_diagnostics_summary("file:///workspace/src/App.tsx", candidates.as_slice());
 
+        assert_eq!(summary.schema_version, "0");
         assert_eq!(summary.product, "omena-query.diagnostics-for-file");
+        assert_eq!(summary.file_uri, "file:///workspace/src/App.tsx");
         assert_eq!(summary.file_kind, "source");
         assert_eq!(summary.diagnostic_count, 1);
+        assert_eq!(summary.diagnostic_count, summary.diagnostics.len());
         assert_eq!(summary.diagnostics[0].code, "missingSelector");
+        assert!(!summary.diagnostics[0].provenance.is_empty());
         assert!(summary.ready_surfaces.contains(&"crossLanguageDiagnostics"));
     }
 

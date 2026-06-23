@@ -5,11 +5,13 @@ import path from "node:path";
 const ROOT = process.cwd();
 
 const FILES = {
+  queryTypes: "rust/crates/omena-query/src/types.rs",
   sourceProvider: "server/lsp-server/src/providers/diagnostics.ts",
   styleProvider: "server/lsp-server/src/providers/scss-diagnostics.ts",
   eslintShared: "packages/eslint-plugin/lib/_shared.cjs",
   stylelintShared: "packages/stylelint-plugin/lib/_shared.cjs",
   cliDiagnostics: "rust/crates/omena-cli/src/diagnostics.rs",
+  cliTests: "rust/crates/omena-cli/src/tests.rs",
   napi: "rust/crates/omena-napi/src/lib.rs",
   wasm: "rust/crates/omena-wasm/src/lib.rs",
 } as const;
@@ -39,6 +41,7 @@ const STYLELINT_LEGACY_FALLBACK_TOKENS = [
 
 function main(): void {
   assertLspSelectedQueryDiagnostics();
+  assertQueryDiagnosticsShapeLock();
   assertCliNapiWasmQueryDiagnostics();
   assertLintPluginCliDiagnostics();
 
@@ -51,6 +54,7 @@ function main(): void {
       "wasm=omena-query",
       "eslint=cli-query",
       "stylelint=cli-query",
+      "shape-lock=cli-napi-wasm",
       "legacy-plugin-fallback=absent",
     ].join(" ") + "\n",
   );
@@ -91,6 +95,48 @@ function assertLspSelectedQueryDiagnostics(): void {
     FILES.sourceProvider,
   );
   assertIncludes(sourceProvider, "findMissingModuleCreateFileData", FILES.sourceProvider);
+}
+
+function assertQueryDiagnosticsShapeLock(): void {
+  const queryTypes = readRepoFile(FILES.queryTypes);
+  const cliTests = readRepoFile(FILES.cliTests);
+  const napi = readRepoFile(FILES.napi);
+  const wasm = readRepoFile(FILES.wasm);
+
+  for (const token of [
+    "pub struct OmenaQueryStyleDiagnosticV0",
+    "pub struct OmenaQueryStyleDiagnosticsForFileV0",
+    "pub struct OmenaQuerySourceDiagnosticV0",
+    "pub struct OmenaQuerySourceDiagnosticsForFileV0",
+    "pub schema_version: &'static str",
+    "pub product: &'static str",
+    "pub file_uri: String",
+    "pub file_kind: &'static str",
+    "pub diagnostic_count: usize",
+    "pub diagnostics: Vec<OmenaQuery",
+    "pub ready_surfaces: Vec<&'static str>",
+    "pub provenance: Vec<&'static str>",
+  ]) {
+    assertIncludes(queryTypes, token, FILES.queryTypes);
+  }
+
+  for (const [source, label] of [
+    [cliTests, FILES.cliTests],
+    [wasm, FILES.wasm],
+  ] as const) {
+    assertIncludes(source, "schema_version", label);
+    assertIncludes(source, "omena-query.diagnostics-for-file", label);
+    assertIncludes(source, "diagnostic_count", label);
+    assertIncludes(source, "ready_surfaces", label);
+    assertIncludes(source, "provenance", label);
+  }
+
+  assertIncludes(napi, "assert_query_diagnostics_json_shape", FILES.napi);
+  assertIncludes(napi, "schemaVersion", FILES.napi);
+  assertIncludes(napi, "diagnosticCount", FILES.napi);
+  assertIncludes(napi, "readySurfaces", FILES.napi);
+  assertIncludes(napi, "provenance", FILES.napi);
+  assertIncludes(napi, 'category").is_none()', FILES.napi);
 }
 
 function assertCliNapiWasmQueryDiagnostics(): void {

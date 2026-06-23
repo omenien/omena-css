@@ -2335,6 +2335,25 @@ fn source_diagnostics_command_reads_query_owned_diagnostics() -> Result<(), Stri
     });
 
     assert!(result.is_ok(), "{result:?}");
+    let summary = source_diagnostics_summary(
+        "file:///workspace/src/App.tsx".to_string(),
+        Some(candidates_path.clone()),
+        None,
+        Vec::new(),
+        Vec::new(),
+    )?;
+    assert_eq!(summary.schema_version, "0");
+    assert_eq!(summary.product, "omena-query.diagnostics-for-file");
+    assert_eq!(summary.file_uri, "file:///workspace/src/App.tsx");
+    assert_eq!(summary.file_kind, "source");
+    assert_eq!(summary.diagnostic_count, summary.diagnostics.len());
+    assert!(summary.ready_surfaces.contains(&"crossLanguageDiagnostics"));
+    assert!(
+        summary
+            .diagnostics
+            .iter()
+            .all(|diagnostic| !diagnostic.provenance.is_empty())
+    );
 
     cleanup(&candidates_path);
     Ok(())
@@ -2344,16 +2363,21 @@ fn source_diagnostics_command_reads_query_owned_diagnostics() -> Result<(), Stri
 fn source_diagnostics_command_reads_workspace_query_owned_diagnostics() -> Result<(), String> {
     let source_path = temp_path("App.tsx");
     let style_path = temp_path("App.module.scss");
+    let style_file_name = style_path
+        .file_name()
+        .and_then(|value| value.to_str())
+        .ok_or_else(|| "style fixture should have a UTF-8 filename".to_string())?;
     fs::write(
         &source_path,
         r#"import bind from "classnames/bind";
-import styles from "./App.module.scss";
+import styles from "./__STYLE_FILE_NAME__";
 const cx = bind.bind(styles);
 const variant = Math.random() > 0.5 ? "chip" : "ghost";
 export function App() {
   return <div className={cx(variant)} />;
 }
-"#,
+"#
+        .replace("__STYLE_FILE_NAME__", style_file_name),
     )
     .map_err(|error| format!("fixture source should be writable: {error}"))?;
     fs::write(&style_path, ".chip {}\n")
@@ -2371,6 +2395,29 @@ export function App() {
     });
 
     assert!(result.is_ok(), "{result:?}");
+    let summary = source_diagnostics_summary(
+        path_string(&source_path),
+        None,
+        Some(source_path.clone()),
+        vec![style_path.clone()],
+        Vec::new(),
+    )?;
+    assert_eq!(summary.schema_version, "0");
+    assert_eq!(summary.product, "omena-query.diagnostics-for-file");
+    assert_eq!(summary.file_kind, "source");
+    assert_eq!(summary.diagnostic_count, summary.diagnostics.len());
+    assert!(
+        summary
+            .diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.code == "missingResolvedClassValues")
+    );
+    assert!(
+        summary
+            .diagnostics
+            .iter()
+            .all(|diagnostic| !diagnostic.provenance.is_empty())
+    );
 
     cleanup(&source_path);
     cleanup(&style_path);

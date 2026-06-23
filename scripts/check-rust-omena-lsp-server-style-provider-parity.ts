@@ -192,7 +192,7 @@ const expectedMissingImportedStaticClassDiagnostic = {
   severity: 2,
   source: "omena-css",
   code: "missingStaticClass",
-  message: "Class '.ghost' not found in target CSS Module.",
+  message: "Class '.ghost' not found in target CSS Module. Did you mean 'root'?",
   data: {
     querySeverity: "warning",
     provenance: [
