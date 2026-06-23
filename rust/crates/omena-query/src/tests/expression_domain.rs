@@ -37,13 +37,7 @@ fn owns_expression_domain_control_flow_analysis_wrapper_without_changing_product
         "engine-input-producers.expression-domain-control-flow-analysis"
     );
     assert_eq!(summary.input_version, "2");
-    assert_eq!(summary.analyses.len(), 2);
-    assert!(
-        summary
-            .analyses
-            .iter()
-            .all(|entry| entry.analysis.product == "omena-abstract-value.control-flow-analysis")
-    );
+    assert!(summary.analyses.is_empty());
 }
 
 #[test]

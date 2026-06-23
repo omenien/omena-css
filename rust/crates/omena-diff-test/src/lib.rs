@@ -10,6 +10,7 @@ use std::collections::BTreeSet;
 use engine_input_producers::{
     EngineInputV2, StringTypeFactsV2, TypeFactControlFlowBlockV2, TypeFactControlFlowGraphV2,
     TypeFactEntryV2, summarize_expression_domain_control_flow_analysis_input,
+    summarize_expression_domain_flow_analysis_input,
 };
 use engine_style_parser::{parse_style_module, summarize_css_modules_intermediate};
 use omena_abstract_value::{
@@ -1796,14 +1797,12 @@ pub fn summarize_expression_domain_source_cfg_refinement_oracle_v0()
 fn source_cfg_refinement_fixture_report(
     fixture_id: &'static str,
 ) -> SourceCfgRefinementFixtureReportV0 {
-    let baseline_summary = summarize_expression_domain_control_flow_analysis_input(
-        &source_cfg_refinement_input(false),
-    );
+    let baseline_summary =
+        summarize_expression_domain_flow_analysis_input(&source_cfg_refinement_input(false));
     let source_summary =
         summarize_expression_domain_control_flow_analysis_input(&source_cfg_refinement_input(true));
     let baseline_analysis = baseline_summary.analyses.first();
-    let baseline_exit =
-        baseline_analysis.and_then(|entry| control_flow_exit_value(&entry.analysis, "merge"));
+    let baseline_exit = baseline_analysis.and_then(|entry| flow_exit_value(&entry.analysis));
     let baseline_value = baseline_exit.map(|exit| exit.value);
     let baseline_value_set = baseline_value
         .and_then(enumerate_finite_class_values)
@@ -1879,6 +1878,26 @@ fn source_cfg_refinement_fixture_report(
 
 fn derived_le_class_value(left: &AbstractClassValueV0, right: &AbstractClassValueV0) -> bool {
     join_abstract_class_values(left, right) == *right
+}
+
+#[derive(Clone, Copy)]
+struct FlowExitValue<'a> {
+    kind: &'static str,
+    value: &'a AbstractClassValueV0,
+}
+
+fn flow_exit_value<'a>(
+    analysis: &'a omena_abstract_value::ClassValueFlowAnalysisV0,
+) -> Option<FlowExitValue<'a>> {
+    analysis
+        .nodes
+        .iter()
+        .find(|node| node.id == "file-merge")
+        .or_else(|| analysis.nodes.first())
+        .map(|node| FlowExitValue {
+            kind: node.value_kind,
+            value: &node.value,
+        })
 }
 
 #[derive(Clone, Copy)]
