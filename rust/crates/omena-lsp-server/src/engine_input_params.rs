@@ -10,6 +10,11 @@ pub(crate) fn query_engine_input_from_params(
 
     serde_json::from_value(json!({
         "version": "2",
+        "workspace": {
+            "root": "/",
+            "classnameTransform": "asIs",
+            "settingsKey": "lsp-default",
+        },
         "sources": [],
         "styles": [],
         "typeFacts": [],

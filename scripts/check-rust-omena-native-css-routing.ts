@@ -100,6 +100,11 @@ function runRunner<T>(command: string, input: unknown): T {
 function engineInput(stylePath: string, styleSource: string) {
   return {
     version: "native-css-routing-check-v0",
+    workspace: {
+      root: "/tmp",
+      classnameTransform: "asIs",
+      settingsKey: "native-css-routing-check",
+    },
     sources: [],
     styles: [
       {

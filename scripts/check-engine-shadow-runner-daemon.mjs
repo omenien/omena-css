@@ -9,8 +9,14 @@ const sourcePath = "/tmp/DaemonSmoke.tsx";
 
 const engineInput = {
   version: "2",
+  workspace: {
+    root: "/tmp",
+    classnameTransform: "asIs",
+    settingsKey: "engine-shadow-runner-daemon-smoke",
+  },
   sources: [
     {
+      filePath: sourcePath,
       document: {
         classExpressions: [
           {

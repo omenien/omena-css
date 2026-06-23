@@ -890,6 +890,11 @@ function runStaticStylesheetEvaluator(): StaticStylesheetEvaluatorSummaryV0 {
         targetStylePath: "/tmp/Button.module.less",
         engineInput: {
           version: "static-stylesheet-evaluator-engine-input-v0",
+          workspace: {
+            root: "/tmp",
+            classnameTransform: "asIs",
+            settingsKey: "adapter-capabilities-static-stylesheet",
+          },
           sources: [],
           styles: [
             {
@@ -934,6 +939,11 @@ function runStaticLifExports(): StaticLifExportsSummaryV0 {
         targetStylePath: "/tmp/Button.module.less",
         engineInput: {
           version: "static-lif-engine-input-v0",
+          workspace: {
+            root: "/tmp",
+            classnameTransform: "asIs",
+            settingsKey: "adapter-capabilities-static-lif",
+          },
           sources: [],
           styles: [
             {
@@ -1045,6 +1055,11 @@ function runScssEvaluatorControlFlow(): ScssEvaluatorControlFlowSummaryV0 {
         targetStylePath: "/tmp/Button.module.scss",
         engineInput: {
           version: "scss-control-flow-engine-input-v0",
+          workspace: {
+            root: "/tmp",
+            classnameTransform: "asIs",
+            settingsKey: "adapter-capabilities-scss-control-flow",
+          },
           sources: [],
           styles: [
             {
