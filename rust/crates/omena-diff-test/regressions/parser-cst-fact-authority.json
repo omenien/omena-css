@@ -1,0 +1,2976 @@
+{
+  "allMetamorphicRelationsHold": true,
+  "allSpanSetsMatch": true,
+  "allValueSetsMatch": true,
+  "categoryCount": 16,
+  "comparisons": [
+    {
+      "category": "selectors",
+      "cstSpans": [
+        "Class:25..29"
+      ],
+      "cstValues": [
+        "Class:card"
+      ],
+      "fixture": "css-custom-properties",
+      "legacySpans": [
+        "Class:25..29"
+      ],
+      "legacyValues": [
+        "Class:card"
+      ],
+      "spansMatch": true,
+      "valuesMatch": true
+    },
+    {
+      "category": "variables",
+      "cstSpans": [
+        "CustomPropertyDeclaration:8..15",
+        "CustomPropertyReference:43..50"
+      ],
+      "cstValues": [
+        "CustomPropertyDeclaration:--brand:fallback=false",
+        "CustomPropertyReference:--brand:fallback=false"
+      ],
+      "fixture": "css-custom-properties",
+      "legacySpans": [
+        "CustomPropertyDeclaration:8..15",
+        "CustomPropertyReference:43..50"
+      ],
+      "legacyValues": [
+        "CustomPropertyDeclaration:--brand:fallback=false",
+        "CustomPropertyReference:--brand:fallback=false"
+      ],
+      "spansMatch": true,
+      "valuesMatch": true
+    },
+    {
+      "category": "sass_symbols",
+      "cstSpans": [],
+      "cstValues": [],
+      "fixture": "css-custom-properties",
+      "legacySpans": [],
+      "legacyValues": [],
+      "spansMatch": true,
+      "valuesMatch": true
+    },
+    {
+      "category": "sass_includes",
+      "cstSpans": [],
+      "cstValues": [],
+      "fixture": "css-custom-properties",
+      "legacySpans": [],
+      "legacyValues": [],
+      "spansMatch": true,
+      "valuesMatch": true
+    },
+    {
+      "category": "sass_module_edges",
+      "cstSpans": [],
+      "cstValues": [],
+      "fixture": "css-custom-properties",
+      "legacySpans": [],
+      "legacyValues": [],
+      "spansMatch": true,
+      "valuesMatch": true
+    },
+    {
+      "category": "extend_targets",
+      "cstSpans": [],
+      "cstValues": [],
+      "fixture": "css-custom-properties",
+      "legacySpans": [],
+      "legacyValues": [],
+      "spansMatch": true,
+      "valuesMatch": true
+    },
+    {
+      "category": "animations",
+      "cstSpans": [],
+      "cstValues": [],
+      "fixture": "css-custom-properties",
+      "legacySpans": [],
+      "legacyValues": [],
+      "spansMatch": true,
+      "valuesMatch": true
+    },
+    {
+      "category": "css_module_values",
+      "cstSpans": [],
+      "cstValues": [],
+      "fixture": "css-custom-properties",
+      "legacySpans": [],
+      "legacyValues": [],
+      "spansMatch": true,
+      "valuesMatch": true
+    },
+    {
+      "category": "css_module_value_import_edges",
+      "cstSpans": [],
+      "cstValues": [],
+      "fixture": "css-custom-properties",
+      "legacySpans": [],
+      "legacyValues": [],
+      "spansMatch": true,
+      "valuesMatch": true
+    },
+    {
+      "category": "css_module_value_definition_edges",
+      "cstSpans": [],
+      "cstValues": [],
+      "fixture": "css-custom-properties",
+      "legacySpans": [],
+      "legacyValues": [],
+      "spansMatch": true,
+      "valuesMatch": true
+    },
+    {
+      "category": "css_module_composes",
+      "cstSpans": [],
+      "cstValues": [],
+      "fixture": "css-custom-properties",
+      "legacySpans": [],
+      "legacyValues": [],
+      "spansMatch": true,
+      "valuesMatch": true
+    },
+    {
+      "category": "css_module_composes_edges",
+      "cstSpans": [],
+      "cstValues": [],
+      "fixture": "css-custom-properties",
+      "legacySpans": [],
+      "legacyValues": [],
+      "spansMatch": true,
+      "valuesMatch": true
+    },
+    {
+      "category": "icss",
+      "cstSpans": [],
+      "cstValues": [],
+      "fixture": "css-custom-properties",
+      "legacySpans": [],
+      "legacyValues": [],
+      "spansMatch": true,
+      "valuesMatch": true
+    },
+    {
+      "category": "icss_import_edges",
+      "cstSpans": [],
+      "cstValues": [],
+      "fixture": "css-custom-properties",
+      "legacySpans": [],
+      "legacyValues": [],
+      "spansMatch": true,
+      "valuesMatch": true
+    },
+    {
+      "category": "icss_export_edges",
+      "cstSpans": [],
+      "cstValues": [],
+      "fixture": "css-custom-properties",
+      "legacySpans": [],
+      "legacyValues": [],
+      "spansMatch": true,
+      "valuesMatch": true
+    },
+    {
+      "category": "at_rules",
+      "cstSpans": [],
+      "cstValues": [],
+      "fixture": "css-custom-properties",
+      "legacySpans": [],
+      "legacyValues": [],
+      "spansMatch": true,
+      "valuesMatch": true
+    },
+    {
+      "category": "selectors",
+      "cstSpans": [
+        "Class:1..5",
+        "Class:51..61",
+        "Class:8..12"
+      ],
+      "cstValues": [
+        "Class:card",
+        "Class:card__icon",
+        "Class:tile"
+      ],
+      "fixture": "css-selector-list-custom-properties",
+      "legacySpans": [
+        "Class:1..5",
+        "Class:51..61",
+        "Class:8..12"
+      ],
+      "legacyValues": [
+        "Class:card",
+        "Class:card__icon",
+        "Class:tile"
+      ],
+      "spansMatch": true,
+      "valuesMatch": true
+    },
+    {
+      "category": "variables",
+      "cstSpans": [
+        "CustomPropertyDeclaration:15..21",
+        "CustomPropertyReference:39..45"
+      ],
+      "cstValues": [
+        "CustomPropertyDeclaration:--tone:fallback=false",
+        "CustomPropertyReference:--tone:fallback=false"
+      ],
+      "fixture": "css-selector-list-custom-properties",
+      "legacySpans": [
+        "CustomPropertyDeclaration:15..21",
+        "CustomPropertyReference:39..45"
+      ],
+      "legacyValues": [
+        "CustomPropertyDeclaration:--tone:fallback=false",
+        "CustomPropertyReference:--tone:fallback=false"
+      ],
+      "spansMatch": true,
+      "valuesMatch": true
+    },
+    {
+      "category": "sass_symbols",
+      "cstSpans": [],
+      "cstValues": [],
+      "fixture": "css-selector-list-custom-properties",
+      "legacySpans": [],
+      "legacyValues": [],
+      "spansMatch": true,
+      "valuesMatch": true
+    },
+    {
+      "category": "sass_includes",
+      "cstSpans": [],
+      "cstValues": [],
+      "fixture": "css-selector-list-custom-properties",
+      "legacySpans": [],
+      "legacyValues": [],
+      "spansMatch": true,
+      "valuesMatch": true
+    },
+    {
+      "category": "sass_module_edges",
+      "cstSpans": [],
+      "cstValues": [],
+      "fixture": "css-selector-list-custom-properties",
+      "legacySpans": [],
+      "legacyValues": [],
+      "spansMatch": true,
+      "valuesMatch": true
+    },
+    {
+      "category": "extend_targets",
+      "cstSpans": [],
+      "cstValues": [],
+      "fixture": "css-selector-list-custom-properties",
+      "legacySpans": [],
+      "legacyValues": [],
+      "spansMatch": true,
+      "valuesMatch": true
+    },
+    {
+      "category": "animations",
+      "cstSpans": [],
+      "cstValues": [],
+      "fixture": "css-selector-list-custom-properties",
+      "legacySpans": [],
+      "legacyValues": [],
+      "spansMatch": true,
+      "valuesMatch": true
+    },
+    {
+      "category": "css_module_values",
+      "cstSpans": [],
+      "cstValues": [],
+      "fixture": "css-selector-list-custom-properties",
+      "legacySpans": [],
+      "legacyValues": [],
+      "spansMatch": true,
+      "valuesMatch": true
+    },
+    {
+      "category": "css_module_value_import_edges",
+      "cstSpans": [],
+      "cstValues": [],
+      "fixture": "css-selector-list-custom-properties",
+      "legacySpans": [],
+      "legacyValues": [],
+      "spansMatch": true,
+      "valuesMatch": true
+    },
+    {
+      "category": "css_module_value_definition_edges",
+      "cstSpans": [],
+      "cstValues": [],
+      "fixture": "css-selector-list-custom-properties",
+      "legacySpans": [],
+      "legacyValues": [],
+      "spansMatch": true,
+      "valuesMatch": true
+    },
+    {
+      "category": "css_module_composes",
+      "cstSpans": [],
+      "cstValues": [],
+      "fixture": "css-selector-list-custom-properties",
+      "legacySpans": [],
+      "legacyValues": [],
+      "spansMatch": true,
+      "valuesMatch": true
+    },
+    {
+      "category": "css_module_composes_edges",
+      "cstSpans": [],
+      "cstValues": [],
+      "fixture": "css-selector-list-custom-properties",
+      "legacySpans": [],
+      "legacyValues": [],
+      "spansMatch": true,
+      "valuesMatch": true
+    },
+    {
+      "category": "icss",
+      "cstSpans": [],
+      "cstValues": [],
+      "fixture": "css-selector-list-custom-properties",
+      "legacySpans": [],
+      "legacyValues": [],
+      "spansMatch": true,
+      "valuesMatch": true
+    },
+    {
+      "category": "icss_import_edges",
+      "cstSpans": [],
+      "cstValues": [],
+      "fixture": "css-selector-list-custom-properties",
+      "legacySpans": [],
+      "legacyValues": [],
+      "spansMatch": true,
+      "valuesMatch": true
+    },
+    {
+      "category": "icss_export_edges",
+      "cstSpans": [],
+      "cstValues": [],
+      "fixture": "css-selector-list-custom-properties",
+      "legacySpans": [],
+      "legacyValues": [],
+      "spansMatch": true,
+      "valuesMatch": true
+    },
+    {
+      "category": "at_rules",
+      "cstSpans": [],
+      "cstValues": [],
+      "fixture": "css-selector-list-custom-properties",
+      "legacySpans": [],
+      "legacyValues": [],
+      "spansMatch": true,
+      "valuesMatch": true
+    },
+    {
+      "category": "selectors",
+      "cstSpans": [
+        "Class:50..54",
+        "Class:58..64"
+      ],
+      "cstValues": [
+        "Class:card",
+        "Class:card__icon"
+      ],
+      "fixture": "scss-nested-bem-and-sass-vars",
+      "legacySpans": [
+        "Class:50..54",
+        "Class:58..64"
+      ],
+      "legacyValues": [
+        "Class:card",
+        "Class:card__icon"
+      ],
+      "spansMatch": true,
+      "valuesMatch": true
+    },
+    {
+      "category": "variables",
+      "cstSpans": [
+        "ScssDeclaration:37..41",
+        "ScssReference:74..78"
+      ],
+      "cstValues": [
+        "ScssDeclaration:$gap:fallback=false",
+        "ScssReference:$gap:fallback=false"
+      ],
+      "fixture": "scss-nested-bem-and-sass-vars",
+      "legacySpans": [
+        "ScssDeclaration:37..41",
+        "ScssReference:74..78"
+      ],
+      "legacyValues": [
+        "ScssDeclaration:$gap:fallback=false",
+        "ScssReference:$gap:fallback=false"
+      ],
+      "spansMatch": true,
+      "valuesMatch": true
+    },
+    {
+      "category": "sass_symbols",
+      "cstSpans": [
+        "VariableDeclaration:38..41",
+        "VariableReference:74..78"
+      ],
+      "cstValues": [
+        "VariableDeclaration:variable:gap:declaration:None",
+        "VariableReference:variable:gap:reference:None"
+      ],
+      "fixture": "scss-nested-bem-and-sass-vars",
+      "legacySpans": [
+        "VariableDeclaration:38..41",
+        "VariableReference:74..78"
+      ],
+      "legacyValues": [
+        "VariableDeclaration:variable:gap:declaration:None",
+        "VariableReference:variable:gap:reference:None"
+      ],
+      "spansMatch": true,
+      "valuesMatch": true
+    },
+    {
+      "category": "sass_includes",
+      "cstSpans": [],
+      "cstValues": [],
+      "fixture": "scss-nested-bem-and-sass-vars",
+      "legacySpans": [],
+      "legacyValues": [],
+      "spansMatch": true,
+      "valuesMatch": true
+    },
+    {
+      "category": "sass_module_edges",
+      "cstSpans": [
+        "Forward:26..35",
+        "Use:5..15"
+      ],
+      "cstValues": [
+        "Forward:./theme:None:None:None:None:[]:media=false",
+        "Use:./tokens:Some(\"default\"):Some(\"tokens\"):None:None:[]:media=false"
+      ],
+      "fixture": "scss-nested-bem-and-sass-vars",
+      "legacySpans": [
+        "Forward:26..35",
+        "Use:5..15"
+      ],
+      "legacyValues": [
+        "Forward:./theme:None:None:None:None:[]:media=false",
+        "Use:./tokens:Some(\"default\"):Some(\"tokens\"):None:None:[]:media=false"
+      ],
+      "spansMatch": true,
+      "valuesMatch": true
+    },
+    {
+      "category": "extend_targets",
+      "cstSpans": [],
+      "cstValues": [],
+      "fixture": "scss-nested-bem-and-sass-vars",
+      "legacySpans": [],
+      "legacyValues": [],
+      "spansMatch": true,
+      "valuesMatch": true
+    },
+    {
+      "category": "animations",
+      "cstSpans": [],
+      "cstValues": [],
+      "fixture": "scss-nested-bem-and-sass-vars",
+      "legacySpans": [],
+      "legacyValues": [],
+      "spansMatch": true,
+      "valuesMatch": true
+    },
+    {
+      "category": "css_module_values",
+      "cstSpans": [],
+      "cstValues": [],
+      "fixture": "scss-nested-bem-and-sass-vars",
+      "legacySpans": [],
+      "legacyValues": [],
+      "spansMatch": true,
+      "valuesMatch": true
+    },
+    {
+      "category": "css_module_value_import_edges",
+      "cstSpans": [],
+      "cstValues": [],
+      "fixture": "scss-nested-bem-and-sass-vars",
+      "legacySpans": [],
+      "legacyValues": [],
+      "spansMatch": true,
+      "valuesMatch": true
+    },
+    {
+      "category": "css_module_value_definition_edges",
+      "cstSpans": [],
+      "cstValues": [],
+      "fixture": "scss-nested-bem-and-sass-vars",
+      "legacySpans": [],
+      "legacyValues": [],
+      "spansMatch": true,
+      "valuesMatch": true
+    },
+    {
+      "category": "css_module_composes",
+      "cstSpans": [],
+      "cstValues": [],
+      "fixture": "scss-nested-bem-and-sass-vars",
+      "legacySpans": [],
+      "legacyValues": [],
+      "spansMatch": true,
+      "valuesMatch": true
+    },
+    {
+      "category": "css_module_composes_edges",
+      "cstSpans": [],
+      "cstValues": [],
+      "fixture": "scss-nested-bem-and-sass-vars",
+      "legacySpans": [],
+      "legacyValues": [],
+      "spansMatch": true,
+      "valuesMatch": true
+    },
+    {
+      "category": "icss",
+      "cstSpans": [],
+      "cstValues": [],
+      "fixture": "scss-nested-bem-and-sass-vars",
+      "legacySpans": [],
+      "legacyValues": [],
+      "spansMatch": true,
+      "valuesMatch": true
+    },
+    {
+      "category": "icss_import_edges",
+      "cstSpans": [],
+      "cstValues": [],
+      "fixture": "scss-nested-bem-and-sass-vars",
+      "legacySpans": [],
+      "legacyValues": [],
+      "spansMatch": true,
+      "valuesMatch": true
+    },
+    {
+      "category": "icss_export_edges",
+      "cstSpans": [],
+      "cstValues": [],
+      "fixture": "scss-nested-bem-and-sass-vars",
+      "legacySpans": [],
+      "legacyValues": [],
+      "spansMatch": true,
+      "valuesMatch": true
+    },
+    {
+      "category": "at_rules",
+      "cstSpans": [
+        "@forward:17..25",
+        "@use:0..4"
+      ],
+      "cstValues": [
+        "@forward:Some(ScssForwardRule)",
+        "@use:Some(ScssUseRule)"
+      ],
+      "fixture": "scss-nested-bem-and-sass-vars",
+      "legacySpans": [
+        "@forward:17..25",
+        "@use:0..4"
+      ],
+      "legacyValues": [
+        "@forward:Some(ScssForwardRule)",
+        "@use:Some(ScssUseRule)"
+      ],
+      "spansMatch": true,
+      "valuesMatch": true
+    },
+    {
+      "category": "selectors",
+      "cstSpans": [
+        "Class:146..150"
+      ],
+      "cstValues": [
+        "Class:card"
+      ],
+      "fixture": "scss-use-forward-import-and-mixin",
+      "legacySpans": [
+        "Class:146..150"
+      ],
+      "legacyValues": [
+        "Class:card"
+      ],
+      "spansMatch": true,
+      "valuesMatch": true
+    },
+    {
+      "category": "variables",
+      "cstSpans": [
+        "ScssDeclaration:103..109",
+        "ScssDeclaration:77..81",
+        "ScssReference:129..135",
+        "ScssReference:169..173"
+      ],
+      "cstValues": [
+        "ScssDeclaration:$depth:fallback=false",
+        "ScssDeclaration:$gap:fallback=false",
+        "ScssReference:$depth:fallback=false",
+        "ScssReference:$gap:fallback=false"
+      ],
+      "fixture": "scss-use-forward-import-and-mixin",
+      "legacySpans": [
+        "ScssDeclaration:103..109",
+        "ScssDeclaration:77..81",
+        "ScssReference:129..135",
+        "ScssReference:169..173"
+      ],
+      "legacyValues": [
+        "ScssDeclaration:$depth:fallback=false",
+        "ScssDeclaration:$gap:fallback=false",
+        "ScssReference:$depth:fallback=false",
+        "ScssReference:$gap:fallback=false"
+      ],
+      "spansMatch": true,
+      "valuesMatch": true
+    },
+    {
+      "category": "sass_symbols",
+      "cstSpans": [
+        "MixinDeclaration:96..102",
+        "MixinInclude:162..168",
+        "VariableDeclaration:104..109",
+        "VariableDeclaration:78..81",
+        "VariableReference:129..135",
+        "VariableReference:169..173"
+      ],
+      "cstValues": [
+        "MixinDeclaration:mixin:raised:declaration:None",
+        "MixinInclude:mixin:raised:include:None",
+        "VariableDeclaration:variable:depth:declaration:None",
+        "VariableDeclaration:variable:gap:declaration:None",
+        "VariableReference:variable:depth:reference:None",
+        "VariableReference:variable:gap:reference:None"
+      ],
+      "fixture": "scss-use-forward-import-and-mixin",
+      "legacySpans": [
+        "MixinDeclaration:96..102",
+        "MixinInclude:162..168",
+        "VariableDeclaration:104..109",
+        "VariableDeclaration:78..81",
+        "VariableReference:129..135",
+        "VariableReference:169..173"
+      ],
+      "legacyValues": [
+        "MixinDeclaration:mixin:raised:declaration:None",
+        "MixinInclude:mixin:raised:include:None",
+        "VariableDeclaration:variable:depth:declaration:None",
+        "VariableDeclaration:variable:gap:declaration:None",
+        "VariableReference:variable:depth:reference:None",
+        "VariableReference:variable:gap:reference:None"
+      ],
+      "spansMatch": true,
+      "valuesMatch": true
+    },
+    {
+      "category": "sass_includes",
+      "cstSpans": [
+        "153..174"
+      ],
+      "cstValues": [
+        "raised:None:($gap)"
+      ],
+      "fixture": "scss-use-forward-import-and-mixin",
+      "legacySpans": [
+        "153..174"
+      ],
+      "legacyValues": [
+        "raised:None:($gap)"
+      ],
+      "spansMatch": true,
+      "valuesMatch": true
+    },
+    {
+      "category": "sass_module_edges",
+      "cstSpans": [
+        "Forward:36..45",
+        "Import:65..75",
+        "Use:5..15"
+      ],
+      "cstValues": [
+        "Forward:./theme:None:None:None:Some(\"show\"):[\"tone\"]:media=false",
+        "Import:./legacy:None:None:None:None:[]:media=false",
+        "Use:./tokens:Some(\"alias\"):Some(\"tokens\"):None:None:[]:media=false"
+      ],
+      "fixture": "scss-use-forward-import-and-mixin",
+      "legacySpans": [
+        "Forward:36..45",
+        "Import:65..75",
+        "Use:5..15"
+      ],
+      "legacyValues": [
+        "Forward:./theme:None:None:None:Some(\"show\"):[\"tone\"]:media=false",
+        "Import:./legacy:None:None:None:None:[]:media=false",
+        "Use:./tokens:Some(\"alias\"):Some(\"tokens\"):None:None:[]:media=false"
+      ],
+      "spansMatch": true,
+      "valuesMatch": true
+    },
+    {
+      "category": "extend_targets",
+      "cstSpans": [],
+      "cstValues": [],
+      "fixture": "scss-use-forward-import-and-mixin",
+      "legacySpans": [],
+      "legacyValues": [],
+      "spansMatch": true,
+      "valuesMatch": true
+    },
+    {
+      "category": "animations",
+      "cstSpans": [],
+      "cstValues": [],
+      "fixture": "scss-use-forward-import-and-mixin",
+      "legacySpans": [],
+      "legacyValues": [],
+      "spansMatch": true,
+      "valuesMatch": true
+    },
+    {
+      "category": "css_module_values",
+      "cstSpans": [],
+      "cstValues": [],
+      "fixture": "scss-use-forward-import-and-mixin",
+      "legacySpans": [],
+      "legacyValues": [],
+      "spansMatch": true,
+      "valuesMatch": true
+    },
+    {
+      "category": "css_module_value_import_edges",
+      "cstSpans": [],
+      "cstValues": [],
+      "fixture": "scss-use-forward-import-and-mixin",
+      "legacySpans": [],
+      "legacyValues": [],
+      "spansMatch": true,
+      "valuesMatch": true
+    },
+    {
+      "category": "css_module_value_definition_edges",
+      "cstSpans": [],
+      "cstValues": [],
+      "fixture": "scss-use-forward-import-and-mixin",
+      "legacySpans": [],
+      "legacyValues": [],
+      "spansMatch": true,
+      "valuesMatch": true
+    },
+    {
+      "category": "css_module_composes",
+      "cstSpans": [],
+      "cstValues": [],
+      "fixture": "scss-use-forward-import-and-mixin",
+      "legacySpans": [],
+      "legacyValues": [],
+      "spansMatch": true,
+      "valuesMatch": true
+    },
+    {
+      "category": "css_module_composes_edges",
+      "cstSpans": [],
+      "cstValues": [],
+      "fixture": "scss-use-forward-import-and-mixin",
+      "legacySpans": [],
+      "legacyValues": [],
+      "spansMatch": true,
+      "valuesMatch": true
+    },
+    {
+      "category": "icss",
+      "cstSpans": [],
+      "cstValues": [],
+      "fixture": "scss-use-forward-import-and-mixin",
+      "legacySpans": [],
+      "legacyValues": [],
+      "spansMatch": true,
+      "valuesMatch": true
+    },
+    {
+      "category": "icss_import_edges",
+      "cstSpans": [],
+      "cstValues": [],
+      "fixture": "scss-use-forward-import-and-mixin",
+      "legacySpans": [],
+      "legacyValues": [],
+      "spansMatch": true,
+      "valuesMatch": true
+    },
+    {
+      "category": "icss_export_edges",
+      "cstSpans": [],
+      "cstValues": [],
+      "fixture": "scss-use-forward-import-and-mixin",
+      "legacySpans": [],
+      "legacyValues": [],
+      "spansMatch": true,
+      "valuesMatch": true
+    },
+    {
+      "category": "at_rules",
+      "cstSpans": [
+        "@forward:27..35",
+        "@import:57..64",
+        "@include:153..161",
+        "@mixin:89..95",
+        "@use:0..4"
+      ],
+      "cstValues": [
+        "@forward:Some(ScssForwardRule)",
+        "@import:Some(ImportRule)",
+        "@include:Some(ScssIncludeRule)",
+        "@mixin:Some(ScssMixinDeclaration)",
+        "@use:Some(ScssUseRule)"
+      ],
+      "fixture": "scss-use-forward-import-and-mixin",
+      "legacySpans": [
+        "@forward:27..35",
+        "@import:57..64",
+        "@include:153..161",
+        "@mixin:89..95",
+        "@use:0..4"
+      ],
+      "legacyValues": [
+        "@forward:Some(ScssForwardRule)",
+        "@import:Some(ImportRule)",
+        "@include:Some(ScssIncludeRule)",
+        "@mixin:Some(ScssMixinDeclaration)",
+        "@use:Some(ScssUseRule)"
+      ],
+      "spansMatch": true,
+      "valuesMatch": true
+    },
+    {
+      "category": "selectors",
+      "cstSpans": [
+        "Class:14..18"
+      ],
+      "cstValues": [
+        "Class:card"
+      ],
+      "fixture": "less-variable-and-selector",
+      "legacySpans": [
+        "Class:14..18"
+      ],
+      "legacyValues": [
+        "Class:card"
+      ],
+      "spansMatch": true,
+      "valuesMatch": true
+    },
+    {
+      "category": "variables",
+      "cstSpans": [
+        "LessDeclaration:0..6",
+        "LessReference:28..34"
+      ],
+      "cstValues": [
+        "LessDeclaration:@color:fallback=false",
+        "LessReference:@color:fallback=false"
+      ],
+      "fixture": "less-variable-and-selector",
+      "legacySpans": [
+        "LessDeclaration:0..6",
+        "LessReference:28..34"
+      ],
+      "legacyValues": [
+        "LessDeclaration:@color:fallback=false",
+        "LessReference:@color:fallback=false"
+      ],
+      "spansMatch": true,
+      "valuesMatch": true
+    },
+    {
+      "category": "sass_symbols",
+      "cstSpans": [],
+      "cstValues": [],
+      "fixture": "less-variable-and-selector",
+      "legacySpans": [],
+      "legacyValues": [],
+      "spansMatch": true,
+      "valuesMatch": true
+    },
+    {
+      "category": "sass_includes",
+      "cstSpans": [],
+      "cstValues": [],
+      "fixture": "less-variable-and-selector",
+      "legacySpans": [],
+      "legacyValues": [],
+      "spansMatch": true,
+      "valuesMatch": true
+    },
+    {
+      "category": "sass_module_edges",
+      "cstSpans": [],
+      "cstValues": [],
+      "fixture": "less-variable-and-selector",
+      "legacySpans": [],
+      "legacyValues": [],
+      "spansMatch": true,
+      "valuesMatch": true
+    },
+    {
+      "category": "extend_targets",
+      "cstSpans": [],
+      "cstValues": [],
+      "fixture": "less-variable-and-selector",
+      "legacySpans": [],
+      "legacyValues": [],
+      "spansMatch": true,
+      "valuesMatch": true
+    },
+    {
+      "category": "animations",
+      "cstSpans": [],
+      "cstValues": [],
+      "fixture": "less-variable-and-selector",
+      "legacySpans": [],
+      "legacyValues": [],
+      "spansMatch": true,
+      "valuesMatch": true
+    },
+    {
+      "category": "css_module_values",
+      "cstSpans": [],
+      "cstValues": [],
+      "fixture": "less-variable-and-selector",
+      "legacySpans": [],
+      "legacyValues": [],
+      "spansMatch": true,
+      "valuesMatch": true
+    },
+    {
+      "category": "css_module_value_import_edges",
+      "cstSpans": [],
+      "cstValues": [],
+      "fixture": "less-variable-and-selector",
+      "legacySpans": [],
+      "legacyValues": [],
+      "spansMatch": true,
+      "valuesMatch": true
+    },
+    {
+      "category": "css_module_value_definition_edges",
+      "cstSpans": [],
+      "cstValues": [],
+      "fixture": "less-variable-and-selector",
+      "legacySpans": [],
+      "legacyValues": [],
+      "spansMatch": true,
+      "valuesMatch": true
+    },
+    {
+      "category": "css_module_composes",
+      "cstSpans": [],
+      "cstValues": [],
+      "fixture": "less-variable-and-selector",
+      "legacySpans": [],
+      "legacyValues": [],
+      "spansMatch": true,
+      "valuesMatch": true
+    },
+    {
+      "category": "css_module_composes_edges",
+      "cstSpans": [],
+      "cstValues": [],
+      "fixture": "less-variable-and-selector",
+      "legacySpans": [],
+      "legacyValues": [],
+      "spansMatch": true,
+      "valuesMatch": true
+    },
+    {
+      "category": "icss",
+      "cstSpans": [],
+      "cstValues": [],
+      "fixture": "less-variable-and-selector",
+      "legacySpans": [],
+      "legacyValues": [],
+      "spansMatch": true,
+      "valuesMatch": true
+    },
+    {
+      "category": "icss_import_edges",
+      "cstSpans": [],
+      "cstValues": [],
+      "fixture": "less-variable-and-selector",
+      "legacySpans": [],
+      "legacyValues": [],
+      "spansMatch": true,
+      "valuesMatch": true
+    },
+    {
+      "category": "icss_export_edges",
+      "cstSpans": [],
+      "cstValues": [],
+      "fixture": "less-variable-and-selector",
+      "legacySpans": [],
+      "legacyValues": [],
+      "spansMatch": true,
+      "valuesMatch": true
+    },
+    {
+      "category": "at_rules",
+      "cstSpans": [],
+      "cstValues": [],
+      "fixture": "less-variable-and-selector",
+      "legacySpans": [],
+      "legacyValues": [],
+      "spansMatch": true,
+      "valuesMatch": true
+    },
+    {
+      "category": "selectors",
+      "cstSpans": [
+        "Class:14..18",
+        "Class:38..44"
+      ],
+      "cstValues": [
+        "Class:card",
+        "Class:card__icon"
+      ],
+      "fixture": "less-nested-selector-and-custom-property",
+      "legacySpans": [
+        "Class:14..18",
+        "Class:38..44"
+      ],
+      "legacyValues": [
+        "Class:card",
+        "Class:card__icon"
+      ],
+      "spansMatch": true,
+      "valuesMatch": true
+    },
+    {
+      "category": "variables",
+      "cstSpans": [
+        "CustomPropertyDeclaration:21..27",
+        "CustomPropertyReference:58..64",
+        "LessDeclaration:0..6",
+        "LessReference:29..35"
+      ],
+      "cstValues": [
+        "CustomPropertyDeclaration:--tone:fallback=false",
+        "CustomPropertyReference:--tone:fallback=false",
+        "LessDeclaration:@color:fallback=false",
+        "LessReference:@color:fallback=false"
+      ],
+      "fixture": "less-nested-selector-and-custom-property",
+      "legacySpans": [
+        "CustomPropertyDeclaration:21..27",
+        "CustomPropertyReference:58..64",
+        "LessDeclaration:0..6",
+        "LessReference:29..35"
+      ],
+      "legacyValues": [
+        "CustomPropertyDeclaration:--tone:fallback=false",
+        "CustomPropertyReference:--tone:fallback=false",
+        "LessDeclaration:@color:fallback=false",
+        "LessReference:@color:fallback=false"
+      ],
+      "spansMatch": true,
+      "valuesMatch": true
+    },
+    {
+      "category": "sass_symbols",
+      "cstSpans": [],
+      "cstValues": [],
+      "fixture": "less-nested-selector-and-custom-property",
+      "legacySpans": [],
+      "legacyValues": [],
+      "spansMatch": true,
+      "valuesMatch": true
+    },
+    {
+      "category": "sass_includes",
+      "cstSpans": [],
+      "cstValues": [],
+      "fixture": "less-nested-selector-and-custom-property",
+      "legacySpans": [],
+      "legacyValues": [],
+      "spansMatch": true,
+      "valuesMatch": true
+    },
+    {
+      "category": "sass_module_edges",
+      "cstSpans": [],
+      "cstValues": [],
+      "fixture": "less-nested-selector-and-custom-property",
+      "legacySpans": [],
+      "legacyValues": [],
+      "spansMatch": true,
+      "valuesMatch": true
+    },
+    {
+      "category": "extend_targets",
+      "cstSpans": [],
+      "cstValues": [],
+      "fixture": "less-nested-selector-and-custom-property",
+      "legacySpans": [],
+      "legacyValues": [],
+      "spansMatch": true,
+      "valuesMatch": true
+    },
+    {
+      "category": "animations",
+      "cstSpans": [],
+      "cstValues": [],
+      "fixture": "less-nested-selector-and-custom-property",
+      "legacySpans": [],
+      "legacyValues": [],
+      "spansMatch": true,
+      "valuesMatch": true
+    },
+    {
+      "category": "css_module_values",
+      "cstSpans": [],
+      "cstValues": [],
+      "fixture": "less-nested-selector-and-custom-property",
+      "legacySpans": [],
+      "legacyValues": [],
+      "spansMatch": true,
+      "valuesMatch": true
+    },
+    {
+      "category": "css_module_value_import_edges",
+      "cstSpans": [],
+      "cstValues": [],
+      "fixture": "less-nested-selector-and-custom-property",
+      "legacySpans": [],
+      "legacyValues": [],
+      "spansMatch": true,
+      "valuesMatch": true
+    },
+    {
+      "category": "css_module_value_definition_edges",
+      "cstSpans": [],
+      "cstValues": [],
+      "fixture": "less-nested-selector-and-custom-property",
+      "legacySpans": [],
+      "legacyValues": [],
+      "spansMatch": true,
+      "valuesMatch": true
+    },
+    {
+      "category": "css_module_composes",
+      "cstSpans": [],
+      "cstValues": [],
+      "fixture": "less-nested-selector-and-custom-property",
+      "legacySpans": [],
+      "legacyValues": [],
+      "spansMatch": true,
+      "valuesMatch": true
+    },
+    {
+      "category": "css_module_composes_edges",
+      "cstSpans": [],
+      "cstValues": [],
+      "fixture": "less-nested-selector-and-custom-property",
+      "legacySpans": [],
+      "legacyValues": [],
+      "spansMatch": true,
+      "valuesMatch": true
+    },
+    {
+      "category": "icss",
+      "cstSpans": [],
+      "cstValues": [],
+      "fixture": "less-nested-selector-and-custom-property",
+      "legacySpans": [],
+      "legacyValues": [],
+      "spansMatch": true,
+      "valuesMatch": true
+    },
+    {
+      "category": "icss_import_edges",
+      "cstSpans": [],
+      "cstValues": [],
+      "fixture": "less-nested-selector-and-custom-property",
+      "legacySpans": [],
+      "legacyValues": [],
+      "spansMatch": true,
+      "valuesMatch": true
+    },
+    {
+      "category": "icss_export_edges",
+      "cstSpans": [],
+      "cstValues": [],
+      "fixture": "less-nested-selector-and-custom-property",
+      "legacySpans": [],
+      "legacyValues": [],
+      "spansMatch": true,
+      "valuesMatch": true
+    },
+    {
+      "category": "at_rules",
+      "cstSpans": [],
+      "cstValues": [],
+      "fixture": "less-nested-selector-and-custom-property",
+      "legacySpans": [],
+      "legacyValues": [],
+      "spansMatch": true,
+      "valuesMatch": true
+    },
+    {
+      "category": "selectors",
+      "cstSpans": [
+        "Class:158..162"
+      ],
+      "cstValues": [
+        "Class:card"
+      ],
+      "fixture": "css-modules-values-and-icss",
+      "legacySpans": [
+        "Class:158..162"
+      ],
+      "legacyValues": [
+        "Class:card"
+      ],
+      "spansMatch": true,
+      "valuesMatch": true
+    },
+    {
+      "category": "variables",
+      "cstSpans": [],
+      "cstValues": [],
+      "fixture": "css-modules-values-and-icss",
+      "legacySpans": [],
+      "legacyValues": [],
+      "spansMatch": true,
+      "valuesMatch": true
+    },
+    {
+      "category": "sass_symbols",
+      "cstSpans": [],
+      "cstValues": [],
+      "fixture": "css-modules-values-and-icss",
+      "legacySpans": [],
+      "legacyValues": [],
+      "spansMatch": true,
+      "valuesMatch": true
+    },
+    {
+      "category": "sass_includes",
+      "cstSpans": [],
+      "cstValues": [],
+      "fixture": "css-modules-values-and-icss",
+      "legacySpans": [],
+      "legacyValues": [],
+      "spansMatch": true,
+      "valuesMatch": true
+    },
+    {
+      "category": "sass_module_edges",
+      "cstSpans": [],
+      "cstValues": [],
+      "fixture": "css-modules-values-and-icss",
+      "legacySpans": [],
+      "legacyValues": [],
+      "spansMatch": true,
+      "valuesMatch": true
+    },
+    {
+      "category": "extend_targets",
+      "cstSpans": [],
+      "cstValues": [],
+      "fixture": "css-modules-values-and-icss",
+      "legacySpans": [],
+      "legacyValues": [],
+      "spansMatch": true,
+      "valuesMatch": true
+    },
+    {
+      "category": "animations",
+      "cstSpans": [],
+      "cstValues": [],
+      "fixture": "css-modules-values-and-icss",
+      "legacySpans": [],
+      "legacyValues": [],
+      "spansMatch": true,
+      "valuesMatch": true
+    },
+    {
+      "category": "css_module_values",
+      "cstSpans": [
+        "Definition:37..42",
+        "Definition:8..13",
+        "ImportSource:48..69",
+        "Reference:142..147",
+        "Reference:148..153",
+        "Reference:175..180",
+        "Reference:216..221",
+        "Reference:27..33"
+      ],
+      "cstValues": [
+        "Definition:brand",
+        "Definition:local",
+        "ImportSource:./tokens.module.css",
+        "Reference:brand",
+        "Reference:local",
+        "Reference:remote"
+      ],
+      "fixture": "css-modules-values-and-icss",
+      "legacySpans": [
+        "Definition:37..42",
+        "Definition:8..13",
+        "ImportSource:48..69",
+        "Reference:142..147",
+        "Reference:148..153",
+        "Reference:175..180",
+        "Reference:216..221",
+        "Reference:27..33"
+      ],
+      "legacyValues": [
+        "Definition:brand",
+        "Definition:local",
+        "ImportSource:./tokens.module.css",
+        "Reference:brand",
+        "Reference:local",
+        "Reference:remote"
+      ],
+      "spansMatch": true,
+      "valuesMatch": true
+    },
+    {
+      "category": "css_module_value_import_edges",
+      "cstSpans": [
+        "local=37..42:remote=27..33:statement=27..33"
+      ],
+      "cstValues": [
+        "remote:local:./tokens.module.css"
+      ],
+      "fixture": "css-modules-values-and-icss",
+      "legacySpans": [
+        "local=37..42:remote=27..33:statement=27..33"
+      ],
+      "legacyValues": [
+        "remote:local:./tokens.module.css"
+      ],
+      "spansMatch": true,
+      "valuesMatch": true
+    },
+    {
+      "category": "css_module_value_definition_edges",
+      "cstSpans": [],
+      "cstValues": [],
+      "fixture": "css-modules-values-and-icss",
+      "legacySpans": [],
+      "legacyValues": [],
+      "spansMatch": true,
+      "valuesMatch": true
+    },
+    {
+      "category": "css_module_composes",
+      "cstSpans": [
+        "ImportSource:186..207",
+        "Target:175..180"
+      ],
+      "cstValues": [
+        "ImportSource:./mixins.module.css",
+        "Target:local"
+      ],
+      "fixture": "css-modules-values-and-icss",
+      "legacySpans": [
+        "ImportSource:186..207",
+        "Target:175..180"
+      ],
+      "legacyValues": [
+        "ImportSource:./mixins.module.css",
+        "Target:local"
+      ],
+      "spansMatch": true,
+      "valuesMatch": true
+    },
+    {
+      "category": "css_module_composes_edges",
+      "cstSpans": [
+        "External:165..207"
+      ],
+      "cstValues": [
+        "External:[\"card\"]:[\"local\"]:Some(\"./mixins.module.css\")"
+      ],
+      "fixture": "css-modules-values-and-icss",
+      "legacySpans": [
+        "External:165..207"
+      ],
+      "legacyValues": [
+        "External:[\"card\"]:[\"local\"]:Some(\"./mixins.module.css\")"
+      ],
+      "spansMatch": true,
+      "valuesMatch": true
+    },
+    {
+      "category": "icss",
+      "cstSpans": [
+        "ExportName:132..140",
+        "ImportLocalName:103..112",
+        "ImportRemoteName:114..118",
+        "ImportSource:79..99"
+      ],
+      "cstValues": [
+        "ExportName:exported",
+        "ImportLocalName:themeCard",
+        "ImportRemoteName:card",
+        "ImportSource:./theme.module.css"
+      ],
+      "fixture": "css-modules-values-and-icss",
+      "legacySpans": [
+        "ExportName:132..140",
+        "ImportLocalName:103..112",
+        "ImportRemoteName:114..118",
+        "ImportSource:79..99"
+      ],
+      "legacyValues": [
+        "ExportName:exported",
+        "ImportLocalName:themeCard",
+        "ImportRemoteName:card",
+        "ImportSource:./theme.module.css"
+      ],
+      "spansMatch": true,
+      "valuesMatch": true
+    },
+    {
+      "category": "icss_import_edges",
+      "cstSpans": [
+        "103..112"
+      ],
+      "cstValues": [
+        "themeCard:card:./theme.module.css"
+      ],
+      "fixture": "css-modules-values-and-icss",
+      "legacySpans": [
+        "103..112"
+      ],
+      "legacyValues": [
+        "themeCard:card:./theme.module.css"
+      ],
+      "spansMatch": true,
+      "valuesMatch": true
+    },
+    {
+      "category": "icss_export_edges",
+      "cstSpans": [
+        "132..153"
+      ],
+      "cstValues": [
+        "exported:[\"brand\", \"local\"]"
+      ],
+      "fixture": "css-modules-values-and-icss",
+      "legacySpans": [
+        "132..153"
+      ],
+      "legacyValues": [
+        "exported:[\"brand\", \"local\"]"
+      ],
+      "spansMatch": true,
+      "valuesMatch": true
+    },
+    {
+      "category": "at_rules",
+      "cstSpans": [
+        "@value:1..7",
+        "@value:20..26"
+      ],
+      "cstValues": [
+        "@value:None"
+      ],
+      "fixture": "css-modules-values-and-icss",
+      "legacySpans": [
+        "@value:1..7",
+        "@value:20..26"
+      ],
+      "legacyValues": [
+        "@value:None"
+      ],
+      "spansMatch": true,
+      "valuesMatch": true
+    },
+    {
+      "category": "selectors",
+      "cstSpans": [
+        "Class:286..290",
+        "Placeholder:190..198"
+      ],
+      "cstValues": [
+        "Class:card",
+        "Placeholder:surface"
+      ],
+      "fixture": "scss-modules-symbols-and-extends",
+      "legacySpans": [
+        "Class:286..290",
+        "Placeholder:190..198"
+      ],
+      "legacyValues": [
+        "Class:card",
+        "Placeholder:surface"
+      ],
+      "spansMatch": true,
+      "valuesMatch": true
+    },
+    {
+      "category": "variables",
+      "cstSpans": [
+        "ScssDeclaration:158..164",
+        "ScssDeclaration:99..105",
+        "ScssReference:125..131",
+        "ScssReference:176..182",
+        "ScssReference:215..221",
+        "ScssReference:309..313"
+      ],
+      "cstValues": [
+        "ScssDeclaration:$depth:fallback=false",
+        "ScssDeclaration:$value:fallback=false",
+        "ScssReference:$brand:fallback=false",
+        "ScssReference:$depth:fallback=false",
+        "ScssReference:$gap:fallback=false",
+        "ScssReference:$value:fallback=false"
+      ],
+      "fixture": "scss-modules-symbols-and-extends",
+      "legacySpans": [
+        "ScssDeclaration:158..164",
+        "ScssDeclaration:99..105",
+        "ScssReference:125..131",
+        "ScssReference:176..182",
+        "ScssReference:215..221",
+        "ScssReference:309..313"
+      ],
+      "legacyValues": [
+        "ScssDeclaration:$depth:fallback=false",
+        "ScssDeclaration:$value:fallback=false",
+        "ScssReference:$brand:fallback=false",
+        "ScssReference:$depth:fallback=false",
+        "ScssReference:$gap:fallback=false",
+        "ScssReference:$value:fallback=false"
+      ],
+      "spansMatch": true,
+      "valuesMatch": true
+    },
+    {
+      "category": "sass_symbols",
+      "cstSpans": [
+        "FunctionDeclaration:151..157",
+        "MixinDeclaration:92..98",
+        "MixinInclude:302..308",
+        "VariableDeclaration:100..105",
+        "VariableDeclaration:159..164",
+        "VariableReference:125..131",
+        "VariableReference:176..182",
+        "VariableReference:215..221",
+        "VariableReference:309..313"
+      ],
+      "cstValues": [
+        "FunctionDeclaration:function:double:declaration:None",
+        "MixinDeclaration:mixin:raised:declaration:None",
+        "MixinInclude:mixin:raised:include:None",
+        "VariableDeclaration:variable:depth:declaration:None",
+        "VariableDeclaration:variable:value:declaration:None",
+        "VariableReference:variable:brand:reference:Some(\"tokens\")",
+        "VariableReference:variable:depth:reference:None",
+        "VariableReference:variable:gap:reference:None",
+        "VariableReference:variable:value:reference:None"
+      ],
+      "fixture": "scss-modules-symbols-and-extends",
+      "legacySpans": [
+        "FunctionDeclaration:151..157",
+        "MixinDeclaration:92..98",
+        "MixinInclude:302..308",
+        "VariableDeclaration:100..105",
+        "VariableDeclaration:159..164",
+        "VariableReference:125..131",
+        "VariableReference:176..182",
+        "VariableReference:215..221",
+        "VariableReference:309..313"
+      ],
+      "legacyValues": [
+        "FunctionDeclaration:function:double:declaration:None",
+        "MixinDeclaration:mixin:raised:declaration:None",
+        "MixinInclude:mixin:raised:include:None",
+        "VariableDeclaration:variable:depth:declaration:None",
+        "VariableDeclaration:variable:value:declaration:None",
+        "VariableReference:variable:brand:reference:Some(\"tokens\")",
+        "VariableReference:variable:depth:reference:None",
+        "VariableReference:variable:gap:reference:None",
+        "VariableReference:variable:value:reference:None"
+      ],
+      "spansMatch": true,
+      "valuesMatch": true
+    },
+    {
+      "category": "sass_includes",
+      "cstSpans": [
+        "293..314"
+      ],
+      "cstValues": [
+        "raised:None:($gap)"
+      ],
+      "fixture": "scss-modules-symbols-and-extends",
+      "legacySpans": [
+        "293..314"
+      ],
+      "legacyValues": [
+        "raised:None:($gap)"
+      ],
+      "spansMatch": true,
+      "valuesMatch": true
+    },
+    {
+      "category": "sass_module_edges",
+      "cstSpans": [
+        "Forward:37..46",
+        "Import:66..76",
+        "Use:6..16"
+      ],
+      "cstValues": [
+        "Forward:./theme:None:None:None:Some(\"show\"):[\"tone\"]:media=false",
+        "Import:./legacy:None:None:None:None:[]:media=true",
+        "Use:./tokens:Some(\"alias\"):Some(\"tokens\"):None:None:[]:media=false"
+      ],
+      "fixture": "scss-modules-symbols-and-extends",
+      "legacySpans": [
+        "Forward:37..46",
+        "Import:66..76",
+        "Use:6..16"
+      ],
+      "legacyValues": [
+        "Forward:./theme:None:None:None:Some(\"show\"):[\"tone\"]:media=false",
+        "Import:./legacy:None:None:None:None:[]:media=true",
+        "Use:./tokens:Some(\"alias\"):Some(\"tokens\"):None:None:[]:media=false"
+      ],
+      "spansMatch": true,
+      "valuesMatch": true
+    },
+    {
+      "category": "extend_targets",
+      "cstSpans": [
+        "Placeholder:324..332"
+      ],
+      "cstValues": [
+        "Placeholder:surface:optional=true"
+      ],
+      "fixture": "scss-modules-symbols-and-extends",
+      "legacySpans": [
+        "Placeholder:324..332"
+      ],
+      "legacyValues": [
+        "Placeholder:surface:optional=true"
+      ],
+      "spansMatch": true,
+      "valuesMatch": true
+    },
+    {
+      "category": "animations",
+      "cstSpans": [
+        "AnimationNameReference:355..359",
+        "KeyframesDeclaration:236..240"
+      ],
+      "cstValues": [
+        "AnimationNameReference:spin",
+        "KeyframesDeclaration:spin"
+      ],
+      "fixture": "scss-modules-symbols-and-extends",
+      "legacySpans": [
+        "AnimationNameReference:355..359",
+        "KeyframesDeclaration:236..240"
+      ],
+      "legacyValues": [
+        "AnimationNameReference:spin",
+        "KeyframesDeclaration:spin"
+      ],
+      "spansMatch": true,
+      "valuesMatch": true
+    },
+    {
+      "category": "css_module_values",
+      "cstSpans": [],
+      "cstValues": [],
+      "fixture": "scss-modules-symbols-and-extends",
+      "legacySpans": [],
+      "legacyValues": [],
+      "spansMatch": true,
+      "valuesMatch": true
+    },
+    {
+      "category": "css_module_value_import_edges",
+      "cstSpans": [],
+      "cstValues": [],
+      "fixture": "scss-modules-symbols-and-extends",
+      "legacySpans": [],
+      "legacyValues": [],
+      "spansMatch": true,
+      "valuesMatch": true
+    },
+    {
+      "category": "css_module_value_definition_edges",
+      "cstSpans": [],
+      "cstValues": [],
+      "fixture": "scss-modules-symbols-and-extends",
+      "legacySpans": [],
+      "legacyValues": [],
+      "spansMatch": true,
+      "valuesMatch": true
+    },
+    {
+      "category": "css_module_composes",
+      "cstSpans": [],
+      "cstValues": [],
+      "fixture": "scss-modules-symbols-and-extends",
+      "legacySpans": [],
+      "legacyValues": [],
+      "spansMatch": true,
+      "valuesMatch": true
+    },
+    {
+      "category": "css_module_composes_edges",
+      "cstSpans": [],
+      "cstValues": [],
+      "fixture": "scss-modules-symbols-and-extends",
+      "legacySpans": [],
+      "legacyValues": [],
+      "spansMatch": true,
+      "valuesMatch": true
+    },
+    {
+      "category": "icss",
+      "cstSpans": [],
+      "cstValues": [],
+      "fixture": "scss-modules-symbols-and-extends",
+      "legacySpans": [],
+      "legacyValues": [],
+      "spansMatch": true,
+      "valuesMatch": true
+    },
+    {
+      "category": "icss_import_edges",
+      "cstSpans": [],
+      "cstValues": [],
+      "fixture": "scss-modules-symbols-and-extends",
+      "legacySpans": [],
+      "legacyValues": [],
+      "spansMatch": true,
+      "valuesMatch": true
+    },
+    {
+      "category": "icss_export_edges",
+      "cstSpans": [],
+      "cstValues": [],
+      "fixture": "scss-modules-symbols-and-extends",
+      "legacySpans": [],
+      "legacyValues": [],
+      "spansMatch": true,
+      "valuesMatch": true
+    },
+    {
+      "category": "at_rules",
+      "cstSpans": [
+        "@extend:316..323",
+        "@forward:28..36",
+        "@function:141..150",
+        "@import:58..65",
+        "@include:293..301",
+        "@keyframes:225..235",
+        "@mixin:85..91",
+        "@return:168..175",
+        "@use:1..5"
+      ],
+      "cstValues": [
+        "@extend:Some(ScssExtendRule)",
+        "@forward:Some(ScssForwardRule)",
+        "@function:Some(FunctionRule)",
+        "@import:Some(ImportRule)",
+        "@include:Some(ScssIncludeRule)",
+        "@keyframes:Some(KeyframesRule)",
+        "@mixin:Some(ScssMixinDeclaration)",
+        "@return:Some(ScssReturnRule)",
+        "@use:Some(ScssUseRule)"
+      ],
+      "fixture": "scss-modules-symbols-and-extends",
+      "legacySpans": [
+        "@extend:316..323",
+        "@forward:28..36",
+        "@function:141..150",
+        "@import:58..65",
+        "@include:293..301",
+        "@keyframes:225..235",
+        "@mixin:85..91",
+        "@return:168..175",
+        "@use:1..5"
+      ],
+      "legacyValues": [
+        "@extend:Some(ScssExtendRule)",
+        "@forward:Some(ScssForwardRule)",
+        "@function:Some(FunctionRule)",
+        "@import:Some(ImportRule)",
+        "@include:Some(ScssIncludeRule)",
+        "@keyframes:Some(KeyframesRule)",
+        "@mixin:Some(ScssMixinDeclaration)",
+        "@return:Some(ScssReturnRule)",
+        "@use:Some(ScssUseRule)"
+      ],
+      "spansMatch": true,
+      "valuesMatch": true
+    },
+    {
+      "category": "selectors",
+      "cstSpans": [
+        "Class:15..19",
+        "Class:39..45"
+      ],
+      "cstValues": [
+        "Class:card",
+        "Class:card__icon"
+      ],
+      "fixture": "less-variables-and-nested-selectors",
+      "legacySpans": [
+        "Class:15..19",
+        "Class:39..45"
+      ],
+      "legacyValues": [
+        "Class:card",
+        "Class:card__icon"
+      ],
+      "spansMatch": true,
+      "valuesMatch": true
+    },
+    {
+      "category": "variables",
+      "cstSpans": [
+        "CustomPropertyDeclaration:22..28",
+        "CustomPropertyReference:59..65",
+        "LessDeclaration:1..7",
+        "LessReference:30..36"
+      ],
+      "cstValues": [
+        "CustomPropertyDeclaration:--tone:fallback=false",
+        "CustomPropertyReference:--tone:fallback=false",
+        "LessDeclaration:@color:fallback=false",
+        "LessReference:@color:fallback=false"
+      ],
+      "fixture": "less-variables-and-nested-selectors",
+      "legacySpans": [
+        "CustomPropertyDeclaration:22..28",
+        "CustomPropertyReference:59..65",
+        "LessDeclaration:1..7",
+        "LessReference:30..36"
+      ],
+      "legacyValues": [
+        "CustomPropertyDeclaration:--tone:fallback=false",
+        "CustomPropertyReference:--tone:fallback=false",
+        "LessDeclaration:@color:fallback=false",
+        "LessReference:@color:fallback=false"
+      ],
+      "spansMatch": true,
+      "valuesMatch": true
+    },
+    {
+      "category": "sass_symbols",
+      "cstSpans": [],
+      "cstValues": [],
+      "fixture": "less-variables-and-nested-selectors",
+      "legacySpans": [],
+      "legacyValues": [],
+      "spansMatch": true,
+      "valuesMatch": true
+    },
+    {
+      "category": "sass_includes",
+      "cstSpans": [],
+      "cstValues": [],
+      "fixture": "less-variables-and-nested-selectors",
+      "legacySpans": [],
+      "legacyValues": [],
+      "spansMatch": true,
+      "valuesMatch": true
+    },
+    {
+      "category": "sass_module_edges",
+      "cstSpans": [],
+      "cstValues": [],
+      "fixture": "less-variables-and-nested-selectors",
+      "legacySpans": [],
+      "legacyValues": [],
+      "spansMatch": true,
+      "valuesMatch": true
+    },
+    {
+      "category": "extend_targets",
+      "cstSpans": [],
+      "cstValues": [],
+      "fixture": "less-variables-and-nested-selectors",
+      "legacySpans": [],
+      "legacyValues": [],
+      "spansMatch": true,
+      "valuesMatch": true
+    },
+    {
+      "category": "animations",
+      "cstSpans": [],
+      "cstValues": [],
+      "fixture": "less-variables-and-nested-selectors",
+      "legacySpans": [],
+      "legacyValues": [],
+      "spansMatch": true,
+      "valuesMatch": true
+    },
+    {
+      "category": "css_module_values",
+      "cstSpans": [],
+      "cstValues": [],
+      "fixture": "less-variables-and-nested-selectors",
+      "legacySpans": [],
+      "legacyValues": [],
+      "spansMatch": true,
+      "valuesMatch": true
+    },
+    {
+      "category": "css_module_value_import_edges",
+      "cstSpans": [],
+      "cstValues": [],
+      "fixture": "less-variables-and-nested-selectors",
+      "legacySpans": [],
+      "legacyValues": [],
+      "spansMatch": true,
+      "valuesMatch": true
+    },
+    {
+      "category": "css_module_value_definition_edges",
+      "cstSpans": [],
+      "cstValues": [],
+      "fixture": "less-variables-and-nested-selectors",
+      "legacySpans": [],
+      "legacyValues": [],
+      "spansMatch": true,
+      "valuesMatch": true
+    },
+    {
+      "category": "css_module_composes",
+      "cstSpans": [],
+      "cstValues": [],
+      "fixture": "less-variables-and-nested-selectors",
+      "legacySpans": [],
+      "legacyValues": [],
+      "spansMatch": true,
+      "valuesMatch": true
+    },
+    {
+      "category": "css_module_composes_edges",
+      "cstSpans": [],
+      "cstValues": [],
+      "fixture": "less-variables-and-nested-selectors",
+      "legacySpans": [],
+      "legacyValues": [],
+      "spansMatch": true,
+      "valuesMatch": true
+    },
+    {
+      "category": "icss",
+      "cstSpans": [],
+      "cstValues": [],
+      "fixture": "less-variables-and-nested-selectors",
+      "legacySpans": [],
+      "legacyValues": [],
+      "spansMatch": true,
+      "valuesMatch": true
+    },
+    {
+      "category": "icss_import_edges",
+      "cstSpans": [],
+      "cstValues": [],
+      "fixture": "less-variables-and-nested-selectors",
+      "legacySpans": [],
+      "legacyValues": [],
+      "spansMatch": true,
+      "valuesMatch": true
+    },
+    {
+      "category": "icss_export_edges",
+      "cstSpans": [],
+      "cstValues": [],
+      "fixture": "less-variables-and-nested-selectors",
+      "legacySpans": [],
+      "legacyValues": [],
+      "spansMatch": true,
+      "valuesMatch": true
+    },
+    {
+      "category": "at_rules",
+      "cstSpans": [],
+      "cstValues": [],
+      "fixture": "less-variables-and-nested-selectors",
+      "legacySpans": [],
+      "legacyValues": [],
+      "spansMatch": true,
+      "valuesMatch": true
+    },
+    {
+      "category": "selectors",
+      "cstSpans": [
+        "Class:175..181",
+        "Class:95..102"
+      ],
+      "cstValues": [
+        "Class:button",
+        "Class:button-"
+      ],
+      "fixture": "scss-interpolation-token-contexts",
+      "legacySpans": [
+        "Class:175..181",
+        "Class:95..102"
+      ],
+      "legacyValues": [
+        "Class:button",
+        "Class:button-"
+      ],
+      "spansMatch": true,
+      "valuesMatch": true
+    },
+    {
+      "category": "variables",
+      "cstSpans": [
+        "ScssDeclaration:1..6",
+        "ScssDeclaration:28..34",
+        "ScssReference:104..112",
+        "ScssReference:133..138",
+        "ScssReference:156..161",
+        "ScssReference:199..204",
+        "ScssReference:45..51"
+      ],
+      "cstValues": [
+        "ScssDeclaration:$tone:fallback=false",
+        "ScssDeclaration:$value:fallback=false",
+        "ScssReference:$tone:fallback=false",
+        "ScssReference:$value:fallback=false",
+        "ScssReference:$variant:fallback=false"
+      ],
+      "fixture": "scss-interpolation-token-contexts",
+      "legacySpans": [
+        "ScssDeclaration:1..6",
+        "ScssDeclaration:28..34",
+        "ScssReference:104..112",
+        "ScssReference:133..138",
+        "ScssReference:156..161",
+        "ScssReference:199..204",
+        "ScssReference:45..51"
+      ],
+      "legacyValues": [
+        "ScssDeclaration:$tone:fallback=false",
+        "ScssDeclaration:$value:fallback=false",
+        "ScssReference:$tone:fallback=false",
+        "ScssReference:$value:fallback=false",
+        "ScssReference:$variant:fallback=false"
+      ],
+      "spansMatch": true,
+      "valuesMatch": true
+    },
+    {
+      "category": "sass_symbols",
+      "cstSpans": [
+        "MixinDeclaration:22..27",
+        "MixinInclude:127..132",
+        "VariableDeclaration:2..6",
+        "VariableDeclaration:29..34",
+        "VariableReference:104..112",
+        "VariableReference:133..138",
+        "VariableReference:156..161",
+        "VariableReference:199..204",
+        "VariableReference:45..51"
+      ],
+      "cstValues": [
+        "MixinDeclaration:mixin:paint:declaration:None",
+        "MixinInclude:mixin:paint:include:None",
+        "VariableDeclaration:variable:tone:declaration:None",
+        "VariableDeclaration:variable:value:declaration:None",
+        "VariableReference:variable:tone:reference:None",
+        "VariableReference:variable:value:reference:None",
+        "VariableReference:variable:variant:reference:None"
+      ],
+      "fixture": "scss-interpolation-token-contexts",
+      "legacySpans": [
+        "MixinDeclaration:22..27",
+        "MixinInclude:127..132",
+        "VariableDeclaration:2..6",
+        "VariableDeclaration:29..34",
+        "VariableReference:104..112",
+        "VariableReference:133..138",
+        "VariableReference:156..161",
+        "VariableReference:199..204",
+        "VariableReference:45..51"
+      ],
+      "legacyValues": [
+        "MixinDeclaration:mixin:paint:declaration:None",
+        "MixinInclude:mixin:paint:include:None",
+        "VariableDeclaration:variable:tone:declaration:None",
+        "VariableDeclaration:variable:value:declaration:None",
+        "VariableReference:variable:tone:reference:None",
+        "VariableReference:variable:value:reference:None",
+        "VariableReference:variable:variant:reference:None"
+      ],
+      "spansMatch": true,
+      "valuesMatch": true
+    },
+    {
+      "category": "sass_includes",
+      "cstSpans": [
+        "118..139"
+      ],
+      "cstValues": [
+        "paint:None:($tone)"
+      ],
+      "fixture": "scss-interpolation-token-contexts",
+      "legacySpans": [
+        "118..139"
+      ],
+      "legacyValues": [
+        "paint:None:($tone)"
+      ],
+      "spansMatch": true,
+      "valuesMatch": true
+    },
+    {
+      "category": "sass_module_edges",
+      "cstSpans": [],
+      "cstValues": [],
+      "fixture": "scss-interpolation-token-contexts",
+      "legacySpans": [],
+      "legacyValues": [],
+      "spansMatch": true,
+      "valuesMatch": true
+    },
+    {
+      "category": "extend_targets",
+      "cstSpans": [],
+      "cstValues": [],
+      "fixture": "scss-interpolation-token-contexts",
+      "legacySpans": [],
+      "legacyValues": [],
+      "spansMatch": true,
+      "valuesMatch": true
+    },
+    {
+      "category": "animations",
+      "cstSpans": [
+        "AnimationNameReference:206..210",
+        "KeyframesDeclaration:66..70"
+      ],
+      "cstValues": [
+        "AnimationNameReference:spin",
+        "KeyframesDeclaration:spin"
+      ],
+      "fixture": "scss-interpolation-token-contexts",
+      "legacySpans": [
+        "AnimationNameReference:206..210",
+        "KeyframesDeclaration:66..70"
+      ],
+      "legacyValues": [
+        "AnimationNameReference:spin",
+        "KeyframesDeclaration:spin"
+      ],
+      "spansMatch": true,
+      "valuesMatch": true
+    },
+    {
+      "category": "css_module_values",
+      "cstSpans": [],
+      "cstValues": [],
+      "fixture": "scss-interpolation-token-contexts",
+      "legacySpans": [],
+      "legacyValues": [],
+      "spansMatch": true,
+      "valuesMatch": true
+    },
+    {
+      "category": "css_module_value_import_edges",
+      "cstSpans": [],
+      "cstValues": [],
+      "fixture": "scss-interpolation-token-contexts",
+      "legacySpans": [],
+      "legacyValues": [],
+      "spansMatch": true,
+      "valuesMatch": true
+    },
+    {
+      "category": "css_module_value_definition_edges",
+      "cstSpans": [],
+      "cstValues": [],
+      "fixture": "scss-interpolation-token-contexts",
+      "legacySpans": [],
+      "legacyValues": [],
+      "spansMatch": true,
+      "valuesMatch": true
+    },
+    {
+      "category": "css_module_composes",
+      "cstSpans": [],
+      "cstValues": [],
+      "fixture": "scss-interpolation-token-contexts",
+      "legacySpans": [],
+      "legacyValues": [],
+      "spansMatch": true,
+      "valuesMatch": true
+    },
+    {
+      "category": "css_module_composes_edges",
+      "cstSpans": [],
+      "cstValues": [],
+      "fixture": "scss-interpolation-token-contexts",
+      "legacySpans": [],
+      "legacyValues": [],
+      "spansMatch": true,
+      "valuesMatch": true
+    },
+    {
+      "category": "icss",
+      "cstSpans": [],
+      "cstValues": [],
+      "fixture": "scss-interpolation-token-contexts",
+      "legacySpans": [],
+      "legacyValues": [],
+      "spansMatch": true,
+      "valuesMatch": true
+    },
+    {
+      "category": "icss_import_edges",
+      "cstSpans": [],
+      "cstValues": [],
+      "fixture": "scss-interpolation-token-contexts",
+      "legacySpans": [],
+      "legacyValues": [],
+      "spansMatch": true,
+      "valuesMatch": true
+    },
+    {
+      "category": "icss_export_edges",
+      "cstSpans": [],
+      "cstValues": [],
+      "fixture": "scss-interpolation-token-contexts",
+      "legacySpans": [],
+      "legacyValues": [],
+      "spansMatch": true,
+      "valuesMatch": true
+    },
+    {
+      "category": "at_rules",
+      "cstSpans": [
+        "@include:118..126",
+        "@keyframes:55..65",
+        "@mixin:15..21"
+      ],
+      "cstValues": [
+        "@include:Some(ScssIncludeRule)",
+        "@keyframes:Some(KeyframesRule)",
+        "@mixin:Some(ScssMixinDeclaration)"
+      ],
+      "fixture": "scss-interpolation-token-contexts",
+      "legacySpans": [
+        "@include:118..126",
+        "@keyframes:55..65",
+        "@mixin:15..21"
+      ],
+      "legacyValues": [
+        "@include:Some(ScssIncludeRule)",
+        "@keyframes:Some(KeyframesRule)",
+        "@mixin:Some(ScssMixinDeclaration)"
+      ],
+      "spansMatch": true,
+      "valuesMatch": true
+    }
+  ],
+  "fixtureCount": 10,
+  "metamorphicRelationCount": 20,
+  "metamorphicRelations": [
+    {
+      "afterValues": [
+        "selectors:Class:card",
+        "variables:CustomPropertyDeclaration:--brand:fallback=false",
+        "variables:CustomPropertyReference:--brand:fallback=false"
+      ],
+      "beforeValues": [
+        "selectors:Class:card",
+        "variables:CustomPropertyDeclaration:--brand:fallback=false",
+        "variables:CustomPropertyReference:--brand:fallback=false"
+      ],
+      "fixture": "css-custom-properties",
+      "holds": true,
+      "relation": "comment-insertion"
+    },
+    {
+      "afterValues": [
+        "selectors:Class:card",
+        "variables:CustomPropertyDeclaration:--brand:fallback=false",
+        "variables:CustomPropertyReference:--brand:fallback=false"
+      ],
+      "beforeValues": [
+        "selectors:Class:card",
+        "variables:CustomPropertyDeclaration:--brand:fallback=false",
+        "variables:CustomPropertyReference:--brand:fallback=false"
+      ],
+      "fixture": "css-custom-properties",
+      "holds": true,
+      "relation": "whitespace-insertion"
+    },
+    {
+      "afterValues": [
+        "selectors:Class:card",
+        "selectors:Class:card__icon",
+        "selectors:Class:tile",
+        "variables:CustomPropertyDeclaration:--tone:fallback=false",
+        "variables:CustomPropertyReference:--tone:fallback=false"
+      ],
+      "beforeValues": [
+        "selectors:Class:card",
+        "selectors:Class:card__icon",
+        "selectors:Class:tile",
+        "variables:CustomPropertyDeclaration:--tone:fallback=false",
+        "variables:CustomPropertyReference:--tone:fallback=false"
+      ],
+      "fixture": "css-selector-list-custom-properties",
+      "holds": true,
+      "relation": "comment-insertion"
+    },
+    {
+      "afterValues": [
+        "selectors:Class:card",
+        "selectors:Class:card__icon",
+        "selectors:Class:tile",
+        "variables:CustomPropertyDeclaration:--tone:fallback=false",
+        "variables:CustomPropertyReference:--tone:fallback=false"
+      ],
+      "beforeValues": [
+        "selectors:Class:card",
+        "selectors:Class:card__icon",
+        "selectors:Class:tile",
+        "variables:CustomPropertyDeclaration:--tone:fallback=false",
+        "variables:CustomPropertyReference:--tone:fallback=false"
+      ],
+      "fixture": "css-selector-list-custom-properties",
+      "holds": true,
+      "relation": "whitespace-insertion"
+    },
+    {
+      "afterValues": [
+        "at_rules:@forward:Some(ScssForwardRule)",
+        "at_rules:@use:Some(ScssUseRule)",
+        "sass_module_edges:Forward:./theme:None:None:None:None:[]:media=false",
+        "sass_module_edges:Use:./tokens:Some(\"default\"):Some(\"tokens\"):None:None:[]:media=false",
+        "sass_symbols:VariableDeclaration:variable:gap:declaration:None",
+        "sass_symbols:VariableReference:variable:gap:reference:None",
+        "selectors:Class:card",
+        "selectors:Class:card__icon",
+        "variables:ScssDeclaration:$gap:fallback=false",
+        "variables:ScssReference:$gap:fallback=false"
+      ],
+      "beforeValues": [
+        "at_rules:@forward:Some(ScssForwardRule)",
+        "at_rules:@use:Some(ScssUseRule)",
+        "sass_module_edges:Forward:./theme:None:None:None:None:[]:media=false",
+        "sass_module_edges:Use:./tokens:Some(\"default\"):Some(\"tokens\"):None:None:[]:media=false",
+        "sass_symbols:VariableDeclaration:variable:gap:declaration:None",
+        "sass_symbols:VariableReference:variable:gap:reference:None",
+        "selectors:Class:card",
+        "selectors:Class:card__icon",
+        "variables:ScssDeclaration:$gap:fallback=false",
+        "variables:ScssReference:$gap:fallback=false"
+      ],
+      "fixture": "scss-nested-bem-and-sass-vars",
+      "holds": true,
+      "relation": "comment-insertion"
+    },
+    {
+      "afterValues": [
+        "at_rules:@forward:Some(ScssForwardRule)",
+        "at_rules:@use:Some(ScssUseRule)",
+        "sass_module_edges:Forward:./theme:None:None:None:None:[]:media=false",
+        "sass_module_edges:Use:./tokens:Some(\"default\"):Some(\"tokens\"):None:None:[]:media=false",
+        "sass_symbols:VariableDeclaration:variable:gap:declaration:None",
+        "sass_symbols:VariableReference:variable:gap:reference:None",
+        "selectors:Class:card",
+        "selectors:Class:card__icon",
+        "variables:ScssDeclaration:$gap:fallback=false",
+        "variables:ScssReference:$gap:fallback=false"
+      ],
+      "beforeValues": [
+        "at_rules:@forward:Some(ScssForwardRule)",
+        "at_rules:@use:Some(ScssUseRule)",
+        "sass_module_edges:Forward:./theme:None:None:None:None:[]:media=false",
+        "sass_module_edges:Use:./tokens:Some(\"default\"):Some(\"tokens\"):None:None:[]:media=false",
+        "sass_symbols:VariableDeclaration:variable:gap:declaration:None",
+        "sass_symbols:VariableReference:variable:gap:reference:None",
+        "selectors:Class:card",
+        "selectors:Class:card__icon",
+        "variables:ScssDeclaration:$gap:fallback=false",
+        "variables:ScssReference:$gap:fallback=false"
+      ],
+      "fixture": "scss-nested-bem-and-sass-vars",
+      "holds": true,
+      "relation": "whitespace-insertion"
+    },
+    {
+      "afterValues": [
+        "at_rules:@forward:Some(ScssForwardRule)",
+        "at_rules:@import:Some(ImportRule)",
+        "at_rules:@include:Some(ScssIncludeRule)",
+        "at_rules:@mixin:Some(ScssMixinDeclaration)",
+        "at_rules:@use:Some(ScssUseRule)",
+        "sass_includes:raised:None:($gap)",
+        "sass_module_edges:Forward:./theme:None:None:None:Some(\"show\"):[\"tone\"]:media=false",
+        "sass_module_edges:Import:./legacy:None:None:None:None:[]:media=false",
+        "sass_module_edges:Use:./tokens:Some(\"alias\"):Some(\"tokens\"):None:None:[]:media=false",
+        "sass_symbols:MixinDeclaration:mixin:raised:declaration:None",
+        "sass_symbols:MixinInclude:mixin:raised:include:None",
+        "sass_symbols:VariableDeclaration:variable:depth:declaration:None",
+        "sass_symbols:VariableDeclaration:variable:gap:declaration:None",
+        "sass_symbols:VariableReference:variable:depth:reference:None",
+        "sass_symbols:VariableReference:variable:gap:reference:None",
+        "selectors:Class:card",
+        "variables:ScssDeclaration:$depth:fallback=false",
+        "variables:ScssDeclaration:$gap:fallback=false",
+        "variables:ScssReference:$depth:fallback=false",
+        "variables:ScssReference:$gap:fallback=false"
+      ],
+      "beforeValues": [
+        "at_rules:@forward:Some(ScssForwardRule)",
+        "at_rules:@import:Some(ImportRule)",
+        "at_rules:@include:Some(ScssIncludeRule)",
+        "at_rules:@mixin:Some(ScssMixinDeclaration)",
+        "at_rules:@use:Some(ScssUseRule)",
+        "sass_includes:raised:None:($gap)",
+        "sass_module_edges:Forward:./theme:None:None:None:Some(\"show\"):[\"tone\"]:media=false",
+        "sass_module_edges:Import:./legacy:None:None:None:None:[]:media=false",
+        "sass_module_edges:Use:./tokens:Some(\"alias\"):Some(\"tokens\"):None:None:[]:media=false",
+        "sass_symbols:MixinDeclaration:mixin:raised:declaration:None",
+        "sass_symbols:MixinInclude:mixin:raised:include:None",
+        "sass_symbols:VariableDeclaration:variable:depth:declaration:None",
+        "sass_symbols:VariableDeclaration:variable:gap:declaration:None",
+        "sass_symbols:VariableReference:variable:depth:reference:None",
+        "sass_symbols:VariableReference:variable:gap:reference:None",
+        "selectors:Class:card",
+        "variables:ScssDeclaration:$depth:fallback=false",
+        "variables:ScssDeclaration:$gap:fallback=false",
+        "variables:ScssReference:$depth:fallback=false",
+        "variables:ScssReference:$gap:fallback=false"
+      ],
+      "fixture": "scss-use-forward-import-and-mixin",
+      "holds": true,
+      "relation": "comment-insertion"
+    },
+    {
+      "afterValues": [
+        "at_rules:@forward:Some(ScssForwardRule)",
+        "at_rules:@import:Some(ImportRule)",
+        "at_rules:@include:Some(ScssIncludeRule)",
+        "at_rules:@mixin:Some(ScssMixinDeclaration)",
+        "at_rules:@use:Some(ScssUseRule)",
+        "sass_includes:raised:None:($gap)",
+        "sass_module_edges:Forward:./theme:None:None:None:Some(\"show\"):[\"tone\"]:media=false",
+        "sass_module_edges:Import:./legacy:None:None:None:None:[]:media=false",
+        "sass_module_edges:Use:./tokens:Some(\"alias\"):Some(\"tokens\"):None:None:[]:media=false",
+        "sass_symbols:MixinDeclaration:mixin:raised:declaration:None",
+        "sass_symbols:MixinInclude:mixin:raised:include:None",
+        "sass_symbols:VariableDeclaration:variable:depth:declaration:None",
+        "sass_symbols:VariableDeclaration:variable:gap:declaration:None",
+        "sass_symbols:VariableReference:variable:depth:reference:None",
+        "sass_symbols:VariableReference:variable:gap:reference:None",
+        "selectors:Class:card",
+        "variables:ScssDeclaration:$depth:fallback=false",
+        "variables:ScssDeclaration:$gap:fallback=false",
+        "variables:ScssReference:$depth:fallback=false",
+        "variables:ScssReference:$gap:fallback=false"
+      ],
+      "beforeValues": [
+        "at_rules:@forward:Some(ScssForwardRule)",
+        "at_rules:@import:Some(ImportRule)",
+        "at_rules:@include:Some(ScssIncludeRule)",
+        "at_rules:@mixin:Some(ScssMixinDeclaration)",
+        "at_rules:@use:Some(ScssUseRule)",
+        "sass_includes:raised:None:($gap)",
+        "sass_module_edges:Forward:./theme:None:None:None:Some(\"show\"):[\"tone\"]:media=false",
+        "sass_module_edges:Import:./legacy:None:None:None:None:[]:media=false",
+        "sass_module_edges:Use:./tokens:Some(\"alias\"):Some(\"tokens\"):None:None:[]:media=false",
+        "sass_symbols:MixinDeclaration:mixin:raised:declaration:None",
+        "sass_symbols:MixinInclude:mixin:raised:include:None",
+        "sass_symbols:VariableDeclaration:variable:depth:declaration:None",
+        "sass_symbols:VariableDeclaration:variable:gap:declaration:None",
+        "sass_symbols:VariableReference:variable:depth:reference:None",
+        "sass_symbols:VariableReference:variable:gap:reference:None",
+        "selectors:Class:card",
+        "variables:ScssDeclaration:$depth:fallback=false",
+        "variables:ScssDeclaration:$gap:fallback=false",
+        "variables:ScssReference:$depth:fallback=false",
+        "variables:ScssReference:$gap:fallback=false"
+      ],
+      "fixture": "scss-use-forward-import-and-mixin",
+      "holds": true,
+      "relation": "whitespace-insertion"
+    },
+    {
+      "afterValues": [
+        "selectors:Class:card",
+        "variables:LessDeclaration:@color:fallback=false",
+        "variables:LessReference:@color:fallback=false"
+      ],
+      "beforeValues": [
+        "selectors:Class:card",
+        "variables:LessDeclaration:@color:fallback=false",
+        "variables:LessReference:@color:fallback=false"
+      ],
+      "fixture": "less-variable-and-selector",
+      "holds": true,
+      "relation": "comment-insertion"
+    },
+    {
+      "afterValues": [
+        "selectors:Class:card",
+        "variables:LessDeclaration:@color:fallback=false",
+        "variables:LessReference:@color:fallback=false"
+      ],
+      "beforeValues": [
+        "selectors:Class:card",
+        "variables:LessDeclaration:@color:fallback=false",
+        "variables:LessReference:@color:fallback=false"
+      ],
+      "fixture": "less-variable-and-selector",
+      "holds": true,
+      "relation": "whitespace-insertion"
+    },
+    {
+      "afterValues": [
+        "selectors:Class:card",
+        "selectors:Class:card__icon",
+        "variables:CustomPropertyDeclaration:--tone:fallback=false",
+        "variables:CustomPropertyReference:--tone:fallback=false",
+        "variables:LessDeclaration:@color:fallback=false",
+        "variables:LessReference:@color:fallback=false"
+      ],
+      "beforeValues": [
+        "selectors:Class:card",
+        "selectors:Class:card__icon",
+        "variables:CustomPropertyDeclaration:--tone:fallback=false",
+        "variables:CustomPropertyReference:--tone:fallback=false",
+        "variables:LessDeclaration:@color:fallback=false",
+        "variables:LessReference:@color:fallback=false"
+      ],
+      "fixture": "less-nested-selector-and-custom-property",
+      "holds": true,
+      "relation": "comment-insertion"
+    },
+    {
+      "afterValues": [
+        "selectors:Class:card",
+        "selectors:Class:card__icon",
+        "variables:CustomPropertyDeclaration:--tone:fallback=false",
+        "variables:CustomPropertyReference:--tone:fallback=false",
+        "variables:LessDeclaration:@color:fallback=false",
+        "variables:LessReference:@color:fallback=false"
+      ],
+      "beforeValues": [
+        "selectors:Class:card",
+        "selectors:Class:card__icon",
+        "variables:CustomPropertyDeclaration:--tone:fallback=false",
+        "variables:CustomPropertyReference:--tone:fallback=false",
+        "variables:LessDeclaration:@color:fallback=false",
+        "variables:LessReference:@color:fallback=false"
+      ],
+      "fixture": "less-nested-selector-and-custom-property",
+      "holds": true,
+      "relation": "whitespace-insertion"
+    },
+    {
+      "afterValues": [
+        "at_rules:@value:None",
+        "css_module_composes:ImportSource:./mixins.module.css",
+        "css_module_composes:Target:local",
+        "css_module_composes_edges:External:[\"card\"]:[\"local\"]:Some(\"./mixins.module.css\")",
+        "css_module_value_import_edges:remote:local:./tokens.module.css",
+        "css_module_values:Definition:brand",
+        "css_module_values:Definition:local",
+        "css_module_values:ImportSource:./tokens.module.css",
+        "css_module_values:Reference:brand",
+        "css_module_values:Reference:local",
+        "css_module_values:Reference:remote",
+        "icss:ExportName:exported",
+        "icss:ImportLocalName:themeCard",
+        "icss:ImportRemoteName:card",
+        "icss:ImportSource:./theme.module.css",
+        "icss_export_edges:exported:[\"brand\", \"local\"]",
+        "icss_import_edges:themeCard:card:./theme.module.css",
+        "selectors:Class:card"
+      ],
+      "beforeValues": [
+        "at_rules:@value:None",
+        "css_module_composes:ImportSource:./mixins.module.css",
+        "css_module_composes:Target:local",
+        "css_module_composes_edges:External:[\"card\"]:[\"local\"]:Some(\"./mixins.module.css\")",
+        "css_module_value_import_edges:remote:local:./tokens.module.css",
+        "css_module_values:Definition:brand",
+        "css_module_values:Definition:local",
+        "css_module_values:ImportSource:./tokens.module.css",
+        "css_module_values:Reference:brand",
+        "css_module_values:Reference:local",
+        "css_module_values:Reference:remote",
+        "icss:ExportName:exported",
+        "icss:ImportLocalName:themeCard",
+        "icss:ImportRemoteName:card",
+        "icss:ImportSource:./theme.module.css",
+        "icss_export_edges:exported:[\"brand\", \"local\"]",
+        "icss_import_edges:themeCard:card:./theme.module.css",
+        "selectors:Class:card"
+      ],
+      "fixture": "css-modules-values-and-icss",
+      "holds": true,
+      "relation": "comment-insertion"
+    },
+    {
+      "afterValues": [
+        "at_rules:@value:None",
+        "css_module_composes:ImportSource:./mixins.module.css",
+        "css_module_composes:Target:local",
+        "css_module_composes_edges:External:[\"card\"]:[\"local\"]:Some(\"./mixins.module.css\")",
+        "css_module_value_import_edges:remote:local:./tokens.module.css",
+        "css_module_values:Definition:brand",
+        "css_module_values:Definition:local",
+        "css_module_values:ImportSource:./tokens.module.css",
+        "css_module_values:Reference:brand",
+        "css_module_values:Reference:local",
+        "css_module_values:Reference:remote",
+        "icss:ExportName:exported",
+        "icss:ImportLocalName:themeCard",
+        "icss:ImportRemoteName:card",
+        "icss:ImportSource:./theme.module.css",
+        "icss_export_edges:exported:[\"brand\", \"local\"]",
+        "icss_import_edges:themeCard:card:./theme.module.css",
+        "selectors:Class:card"
+      ],
+      "beforeValues": [
+        "at_rules:@value:None",
+        "css_module_composes:ImportSource:./mixins.module.css",
+        "css_module_composes:Target:local",
+        "css_module_composes_edges:External:[\"card\"]:[\"local\"]:Some(\"./mixins.module.css\")",
+        "css_module_value_import_edges:remote:local:./tokens.module.css",
+        "css_module_values:Definition:brand",
+        "css_module_values:Definition:local",
+        "css_module_values:ImportSource:./tokens.module.css",
+        "css_module_values:Reference:brand",
+        "css_module_values:Reference:local",
+        "css_module_values:Reference:remote",
+        "icss:ExportName:exported",
+        "icss:ImportLocalName:themeCard",
+        "icss:ImportRemoteName:card",
+        "icss:ImportSource:./theme.module.css",
+        "icss_export_edges:exported:[\"brand\", \"local\"]",
+        "icss_import_edges:themeCard:card:./theme.module.css",
+        "selectors:Class:card"
+      ],
+      "fixture": "css-modules-values-and-icss",
+      "holds": true,
+      "relation": "whitespace-insertion"
+    },
+    {
+      "afterValues": [
+        "animations:AnimationNameReference:spin",
+        "animations:KeyframesDeclaration:spin",
+        "at_rules:@extend:Some(ScssExtendRule)",
+        "at_rules:@forward:Some(ScssForwardRule)",
+        "at_rules:@function:Some(FunctionRule)",
+        "at_rules:@import:Some(ImportRule)",
+        "at_rules:@include:Some(ScssIncludeRule)",
+        "at_rules:@keyframes:Some(KeyframesRule)",
+        "at_rules:@mixin:Some(ScssMixinDeclaration)",
+        "at_rules:@return:Some(ScssReturnRule)",
+        "at_rules:@use:Some(ScssUseRule)",
+        "extend_targets:Placeholder:surface:optional=true",
+        "sass_includes:raised:None:($gap)",
+        "sass_module_edges:Forward:./theme:None:None:None:Some(\"show\"):[\"tone\"]:media=false",
+        "sass_module_edges:Import:./legacy:None:None:None:None:[]:media=true",
+        "sass_module_edges:Use:./tokens:Some(\"alias\"):Some(\"tokens\"):None:None:[]:media=false",
+        "sass_symbols:FunctionDeclaration:function:double:declaration:None",
+        "sass_symbols:MixinDeclaration:mixin:raised:declaration:None",
+        "sass_symbols:MixinInclude:mixin:raised:include:None",
+        "sass_symbols:VariableDeclaration:variable:depth:declaration:None",
+        "sass_symbols:VariableDeclaration:variable:value:declaration:None",
+        "sass_symbols:VariableReference:variable:brand:reference:Some(\"tokens\")",
+        "sass_symbols:VariableReference:variable:depth:reference:None",
+        "sass_symbols:VariableReference:variable:gap:reference:None",
+        "sass_symbols:VariableReference:variable:value:reference:None",
+        "selectors:Class:card",
+        "selectors:Placeholder:surface",
+        "variables:ScssDeclaration:$depth:fallback=false",
+        "variables:ScssDeclaration:$value:fallback=false",
+        "variables:ScssReference:$brand:fallback=false",
+        "variables:ScssReference:$depth:fallback=false",
+        "variables:ScssReference:$gap:fallback=false",
+        "variables:ScssReference:$value:fallback=false"
+      ],
+      "beforeValues": [
+        "animations:AnimationNameReference:spin",
+        "animations:KeyframesDeclaration:spin",
+        "at_rules:@extend:Some(ScssExtendRule)",
+        "at_rules:@forward:Some(ScssForwardRule)",
+        "at_rules:@function:Some(FunctionRule)",
+        "at_rules:@import:Some(ImportRule)",
+        "at_rules:@include:Some(ScssIncludeRule)",
+        "at_rules:@keyframes:Some(KeyframesRule)",
+        "at_rules:@mixin:Some(ScssMixinDeclaration)",
+        "at_rules:@return:Some(ScssReturnRule)",
+        "at_rules:@use:Some(ScssUseRule)",
+        "extend_targets:Placeholder:surface:optional=true",
+        "sass_includes:raised:None:($gap)",
+        "sass_module_edges:Forward:./theme:None:None:None:Some(\"show\"):[\"tone\"]:media=false",
+        "sass_module_edges:Import:./legacy:None:None:None:None:[]:media=true",
+        "sass_module_edges:Use:./tokens:Some(\"alias\"):Some(\"tokens\"):None:None:[]:media=false",
+        "sass_symbols:FunctionDeclaration:function:double:declaration:None",
+        "sass_symbols:MixinDeclaration:mixin:raised:declaration:None",
+        "sass_symbols:MixinInclude:mixin:raised:include:None",
+        "sass_symbols:VariableDeclaration:variable:depth:declaration:None",
+        "sass_symbols:VariableDeclaration:variable:value:declaration:None",
+        "sass_symbols:VariableReference:variable:brand:reference:Some(\"tokens\")",
+        "sass_symbols:VariableReference:variable:depth:reference:None",
+        "sass_symbols:VariableReference:variable:gap:reference:None",
+        "sass_symbols:VariableReference:variable:value:reference:None",
+        "selectors:Class:card",
+        "selectors:Placeholder:surface",
+        "variables:ScssDeclaration:$depth:fallback=false",
+        "variables:ScssDeclaration:$value:fallback=false",
+        "variables:ScssReference:$brand:fallback=false",
+        "variables:ScssReference:$depth:fallback=false",
+        "variables:ScssReference:$gap:fallback=false",
+        "variables:ScssReference:$value:fallback=false"
+      ],
+      "fixture": "scss-modules-symbols-and-extends",
+      "holds": true,
+      "relation": "comment-insertion"
+    },
+    {
+      "afterValues": [
+        "animations:AnimationNameReference:spin",
+        "animations:KeyframesDeclaration:spin",
+        "at_rules:@extend:Some(ScssExtendRule)",
+        "at_rules:@forward:Some(ScssForwardRule)",
+        "at_rules:@function:Some(FunctionRule)",
+        "at_rules:@import:Some(ImportRule)",
+        "at_rules:@include:Some(ScssIncludeRule)",
+        "at_rules:@keyframes:Some(KeyframesRule)",
+        "at_rules:@mixin:Some(ScssMixinDeclaration)",
+        "at_rules:@return:Some(ScssReturnRule)",
+        "at_rules:@use:Some(ScssUseRule)",
+        "extend_targets:Placeholder:surface:optional=true",
+        "sass_includes:raised:None:($gap)",
+        "sass_module_edges:Forward:./theme:None:None:None:Some(\"show\"):[\"tone\"]:media=false",
+        "sass_module_edges:Import:./legacy:None:None:None:None:[]:media=true",
+        "sass_module_edges:Use:./tokens:Some(\"alias\"):Some(\"tokens\"):None:None:[]:media=false",
+        "sass_symbols:FunctionDeclaration:function:double:declaration:None",
+        "sass_symbols:MixinDeclaration:mixin:raised:declaration:None",
+        "sass_symbols:MixinInclude:mixin:raised:include:None",
+        "sass_symbols:VariableDeclaration:variable:depth:declaration:None",
+        "sass_symbols:VariableDeclaration:variable:value:declaration:None",
+        "sass_symbols:VariableReference:variable:brand:reference:Some(\"tokens\")",
+        "sass_symbols:VariableReference:variable:depth:reference:None",
+        "sass_symbols:VariableReference:variable:gap:reference:None",
+        "sass_symbols:VariableReference:variable:value:reference:None",
+        "selectors:Class:card",
+        "selectors:Placeholder:surface",
+        "variables:ScssDeclaration:$depth:fallback=false",
+        "variables:ScssDeclaration:$value:fallback=false",
+        "variables:ScssReference:$brand:fallback=false",
+        "variables:ScssReference:$depth:fallback=false",
+        "variables:ScssReference:$gap:fallback=false",
+        "variables:ScssReference:$value:fallback=false"
+      ],
+      "beforeValues": [
+        "animations:AnimationNameReference:spin",
+        "animations:KeyframesDeclaration:spin",
+        "at_rules:@extend:Some(ScssExtendRule)",
+        "at_rules:@forward:Some(ScssForwardRule)",
+        "at_rules:@function:Some(FunctionRule)",
+        "at_rules:@import:Some(ImportRule)",
+        "at_rules:@include:Some(ScssIncludeRule)",
+        "at_rules:@keyframes:Some(KeyframesRule)",
+        "at_rules:@mixin:Some(ScssMixinDeclaration)",
+        "at_rules:@return:Some(ScssReturnRule)",
+        "at_rules:@use:Some(ScssUseRule)",
+        "extend_targets:Placeholder:surface:optional=true",
+        "sass_includes:raised:None:($gap)",
+        "sass_module_edges:Forward:./theme:None:None:None:Some(\"show\"):[\"tone\"]:media=false",
+        "sass_module_edges:Import:./legacy:None:None:None:None:[]:media=true",
+        "sass_module_edges:Use:./tokens:Some(\"alias\"):Some(\"tokens\"):None:None:[]:media=false",
+        "sass_symbols:FunctionDeclaration:function:double:declaration:None",
+        "sass_symbols:MixinDeclaration:mixin:raised:declaration:None",
+        "sass_symbols:MixinInclude:mixin:raised:include:None",
+        "sass_symbols:VariableDeclaration:variable:depth:declaration:None",
+        "sass_symbols:VariableDeclaration:variable:value:declaration:None",
+        "sass_symbols:VariableReference:variable:brand:reference:Some(\"tokens\")",
+        "sass_symbols:VariableReference:variable:depth:reference:None",
+        "sass_symbols:VariableReference:variable:gap:reference:None",
+        "sass_symbols:VariableReference:variable:value:reference:None",
+        "selectors:Class:card",
+        "selectors:Placeholder:surface",
+        "variables:ScssDeclaration:$depth:fallback=false",
+        "variables:ScssDeclaration:$value:fallback=false",
+        "variables:ScssReference:$brand:fallback=false",
+        "variables:ScssReference:$depth:fallback=false",
+        "variables:ScssReference:$gap:fallback=false",
+        "variables:ScssReference:$value:fallback=false"
+      ],
+      "fixture": "scss-modules-symbols-and-extends",
+      "holds": true,
+      "relation": "whitespace-insertion"
+    },
+    {
+      "afterValues": [
+        "selectors:Class:card",
+        "selectors:Class:card__icon",
+        "variables:CustomPropertyDeclaration:--tone:fallback=false",
+        "variables:CustomPropertyReference:--tone:fallback=false",
+        "variables:LessDeclaration:@color:fallback=false",
+        "variables:LessReference:@color:fallback=false"
+      ],
+      "beforeValues": [
+        "selectors:Class:card",
+        "selectors:Class:card__icon",
+        "variables:CustomPropertyDeclaration:--tone:fallback=false",
+        "variables:CustomPropertyReference:--tone:fallback=false",
+        "variables:LessDeclaration:@color:fallback=false",
+        "variables:LessReference:@color:fallback=false"
+      ],
+      "fixture": "less-variables-and-nested-selectors",
+      "holds": true,
+      "relation": "comment-insertion"
+    },
+    {
+      "afterValues": [
+        "selectors:Class:card",
+        "selectors:Class:card__icon",
+        "variables:CustomPropertyDeclaration:--tone:fallback=false",
+        "variables:CustomPropertyReference:--tone:fallback=false",
+        "variables:LessDeclaration:@color:fallback=false",
+        "variables:LessReference:@color:fallback=false"
+      ],
+      "beforeValues": [
+        "selectors:Class:card",
+        "selectors:Class:card__icon",
+        "variables:CustomPropertyDeclaration:--tone:fallback=false",
+        "variables:CustomPropertyReference:--tone:fallback=false",
+        "variables:LessDeclaration:@color:fallback=false",
+        "variables:LessReference:@color:fallback=false"
+      ],
+      "fixture": "less-variables-and-nested-selectors",
+      "holds": true,
+      "relation": "whitespace-insertion"
+    },
+    {
+      "afterValues": [
+        "animations:AnimationNameReference:spin",
+        "animations:KeyframesDeclaration:spin",
+        "at_rules:@include:Some(ScssIncludeRule)",
+        "at_rules:@keyframes:Some(KeyframesRule)",
+        "at_rules:@mixin:Some(ScssMixinDeclaration)",
+        "sass_includes:paint:None:($tone)",
+        "sass_symbols:MixinDeclaration:mixin:paint:declaration:None",
+        "sass_symbols:MixinInclude:mixin:paint:include:None",
+        "sass_symbols:VariableDeclaration:variable:tone:declaration:None",
+        "sass_symbols:VariableDeclaration:variable:value:declaration:None",
+        "sass_symbols:VariableReference:variable:tone:reference:None",
+        "sass_symbols:VariableReference:variable:value:reference:None",
+        "sass_symbols:VariableReference:variable:variant:reference:None",
+        "selectors:Class:button",
+        "selectors:Class:button-",
+        "variables:ScssDeclaration:$tone:fallback=false",
+        "variables:ScssDeclaration:$value:fallback=false",
+        "variables:ScssReference:$tone:fallback=false",
+        "variables:ScssReference:$value:fallback=false",
+        "variables:ScssReference:$variant:fallback=false"
+      ],
+      "beforeValues": [
+        "animations:AnimationNameReference:spin",
+        "animations:KeyframesDeclaration:spin",
+        "at_rules:@include:Some(ScssIncludeRule)",
+        "at_rules:@keyframes:Some(KeyframesRule)",
+        "at_rules:@mixin:Some(ScssMixinDeclaration)",
+        "sass_includes:paint:None:($tone)",
+        "sass_symbols:MixinDeclaration:mixin:paint:declaration:None",
+        "sass_symbols:MixinInclude:mixin:paint:include:None",
+        "sass_symbols:VariableDeclaration:variable:tone:declaration:None",
+        "sass_symbols:VariableDeclaration:variable:value:declaration:None",
+        "sass_symbols:VariableReference:variable:tone:reference:None",
+        "sass_symbols:VariableReference:variable:value:reference:None",
+        "sass_symbols:VariableReference:variable:variant:reference:None",
+        "selectors:Class:button",
+        "selectors:Class:button-",
+        "variables:ScssDeclaration:$tone:fallback=false",
+        "variables:ScssDeclaration:$value:fallback=false",
+        "variables:ScssReference:$tone:fallback=false",
+        "variables:ScssReference:$value:fallback=false",
+        "variables:ScssReference:$variant:fallback=false"
+      ],
+      "fixture": "scss-interpolation-token-contexts",
+      "holds": true,
+      "relation": "comment-insertion"
+    },
+    {
+      "afterValues": [
+        "animations:AnimationNameReference:spin",
+        "animations:KeyframesDeclaration:spin",
+        "at_rules:@include:Some(ScssIncludeRule)",
+        "at_rules:@keyframes:Some(KeyframesRule)",
+        "at_rules:@mixin:Some(ScssMixinDeclaration)",
+        "sass_includes:paint:None:($tone)",
+        "sass_symbols:MixinDeclaration:mixin:paint:declaration:None",
+        "sass_symbols:MixinInclude:mixin:paint:include:None",
+        "sass_symbols:VariableDeclaration:variable:tone:declaration:None",
+        "sass_symbols:VariableDeclaration:variable:value:declaration:None",
+        "sass_symbols:VariableReference:variable:tone:reference:None",
+        "sass_symbols:VariableReference:variable:value:reference:None",
+        "sass_symbols:VariableReference:variable:variant:reference:None",
+        "selectors:Class:button",
+        "selectors:Class:button-",
+        "variables:ScssDeclaration:$tone:fallback=false",
+        "variables:ScssDeclaration:$value:fallback=false",
+        "variables:ScssReference:$tone:fallback=false",
+        "variables:ScssReference:$value:fallback=false",
+        "variables:ScssReference:$variant:fallback=false"
+      ],
+      "beforeValues": [
+        "animations:AnimationNameReference:spin",
+        "animations:KeyframesDeclaration:spin",
+        "at_rules:@include:Some(ScssIncludeRule)",
+        "at_rules:@keyframes:Some(KeyframesRule)",
+        "at_rules:@mixin:Some(ScssMixinDeclaration)",
+        "sass_includes:paint:None:($tone)",
+        "sass_symbols:MixinDeclaration:mixin:paint:declaration:None",
+        "sass_symbols:MixinInclude:mixin:paint:include:None",
+        "sass_symbols:VariableDeclaration:variable:tone:declaration:None",
+        "sass_symbols:VariableDeclaration:variable:value:declaration:None",
+        "sass_symbols:VariableReference:variable:tone:reference:None",
+        "sass_symbols:VariableReference:variable:value:reference:None",
+        "sass_symbols:VariableReference:variable:variant:reference:None",
+        "selectors:Class:button",
+        "selectors:Class:button-",
+        "variables:ScssDeclaration:$tone:fallback=false",
+        "variables:ScssDeclaration:$value:fallback=false",
+        "variables:ScssReference:$tone:fallback=false",
+        "variables:ScssReference:$value:fallback=false",
+        "variables:ScssReference:$variant:fallback=false"
+      ],
+      "fixture": "scss-interpolation-token-contexts",
+      "holds": true,
+      "relation": "whitespace-insertion"
+    }
+  ],
+  "product": "omena-diff-test.parser-cst-fact-authority-equivalence",
+  "schemaVersion": "0"
+}

@@ -13,9 +13,7 @@ use omena_incremental::{
     plan_incremental_computation, snapshot_from_graph_input,
 };
 use omena_parser::{
-    BuiltinDialectExtension, ParsedStyleFacts, StyleDialect,
-    collect_style_facts_with_extension_from_legacy_tokens, facts_from_cst, parse,
-    summarize_omena_parser_style_facts,
+    ParsedStyleFacts, StyleDialect, facts_from_cst, parse, summarize_omena_parser_style_facts,
 };
 use omena_query::{
     OmenaQueryExternalModuleModeV0, OmenaQueryExternalSifInputV0,
@@ -49,6 +47,9 @@ pub use cache_equivalence::{
     summarize_workspace_diagnostics_salsa_memo_equivalence_v0,
     summarize_workspace_diagnostics_warm_pass_equivalence_v0,
 };
+
+const PARSER_CST_FACT_AUTHORITY_SNAPSHOT_SOURCE: &str =
+    include_str!("../regressions/parser-cst-fact-authority.json");
 
 /// Style dialects that can be compared against the legacy parser oracle.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
@@ -161,6 +162,23 @@ pub struct ParserCstFactAuthorityReportV0 {
     pub metamorphic_relation_count: usize,
     pub metamorphic_relations: Vec<ParserCstFactAuthorityMetamorphicReportV0>,
     pub all_metamorphic_relations_hold: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct ParserCstFactAuthoritySnapshotV0 {
+    fixture_count: usize,
+    category_count: usize,
+    comparisons: Vec<ParserCstFactAuthoritySnapshotCategoryV0>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct ParserCstFactAuthoritySnapshotCategoryV0 {
+    fixture: String,
+    category: String,
+    legacy_values: Vec<String>,
+    legacy_spans: Vec<String>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -849,10 +867,11 @@ pub fn compare_omena_parser_with_legacy(
 
 pub fn summarize_parser_cst_fact_authority_equivalence_v0() -> ParserCstFactAuthorityReportV0 {
     let fixtures = parser_fact_authority_fixtures();
+    let snapshot = parser_cst_fact_authority_snapshot();
     let comparisons = fixtures
         .iter()
         .copied()
-        .flat_map(parser_cst_fact_authority_reports_for_fixture)
+        .flat_map(|fixture| parser_cst_fact_authority_reports_for_fixture(fixture, &snapshot))
         .collect::<Vec<_>>();
     let metamorphic_relations = parser_cst_fact_authority_metamorphic_reports(&fixtures);
     let all_value_sets_match = comparisons.iter().all(|report| report.values_match);
@@ -883,13 +902,28 @@ fn parser_fact_authority_fixtures() -> Vec<ParserDifferentialFixture> {
 
 fn parser_cst_fact_authority_reports_for_fixture(
     fixture: ParserDifferentialFixture,
+    snapshot: &ParserCstFactAuthoritySnapshotV0,
 ) -> Vec<ParserCstFactAuthorityCategoryReportV0> {
     let dialect = fixture.dialect.as_omena_dialect();
-    let extension = BuiltinDialectExtension::new(dialect);
-    let legacy = collect_style_facts_with_extension_from_legacy_tokens(fixture.source, &extension);
     let parsed = parse(fixture.source, dialect);
     let cst = facts_from_cst(fixture.source, &parsed);
-    style_fact_category_reports(fixture.label, &legacy, &cst)
+    style_fact_category_reports(fixture.label, snapshot, &cst)
+}
+
+fn parser_cst_fact_authority_snapshot() -> ParserCstFactAuthoritySnapshotV0 {
+    match serde_json::from_str(PARSER_CST_FACT_AUTHORITY_SNAPSHOT_SOURCE) {
+        Ok(snapshot) => snapshot,
+        Err(error) => ParserCstFactAuthoritySnapshotV0 {
+            fixture_count: 0,
+            category_count: 0,
+            comparisons: vec![ParserCstFactAuthoritySnapshotCategoryV0 {
+                fixture: "invalid-snapshot".to_string(),
+                category: "parse-error".to_string(),
+                legacy_values: vec![error.to_string()],
+                legacy_spans: Vec::new(),
+            }],
+        },
+    }
 }
 
 fn parser_cst_fact_authority_metamorphic_reports(
@@ -948,45 +982,55 @@ fn parser_cst_fact_value_signature(source: &str, dialect: StyleDialect) -> Vec<S
 
 fn style_fact_category_reports(
     fixture: &'static str,
-    legacy: &ParsedStyleFacts,
+    snapshot: &ParserCstFactAuthoritySnapshotV0,
     cst: &ParsedStyleFacts,
 ) -> Vec<ParserCstFactAuthorityCategoryReportV0> {
-    let legacy_values = style_fact_category_value_sets(legacy);
     let cst_values = style_fact_category_value_sets(cst);
-    let legacy_spans = style_fact_category_span_sets(legacy);
     let cst_spans = style_fact_category_span_sets(cst);
-    assert_eq!(legacy_values.len(), PARSER_FACT_AUTHORITY_CATEGORY_COUNT);
     assert_eq!(cst_values.len(), PARSER_FACT_AUTHORITY_CATEGORY_COUNT);
-    assert_eq!(legacy_spans.len(), PARSER_FACT_AUTHORITY_CATEGORY_COUNT);
     assert_eq!(cst_spans.len(), PARSER_FACT_AUTHORITY_CATEGORY_COUNT);
 
-    legacy_values
+    cst_values
         .into_iter()
-        .zip(cst_values)
-        .zip(legacy_spans.into_iter().zip(cst_spans))
-        .map(
-            |(
-                ((category, legacy_values), (cst_category, cst_values)),
-                ((span_category, legacy_spans), (cst_span_category, cst_spans)),
-            )| {
-                assert_eq!(category, cst_category);
-                assert_eq!(category, span_category);
-                assert_eq!(category, cst_span_category);
-                let values_match = legacy_values == cst_values;
-                let spans_match = legacy_spans == cst_spans;
-                ParserCstFactAuthorityCategoryReportV0 {
-                    fixture,
-                    category,
-                    legacy_values,
-                    cst_values,
-                    legacy_spans,
-                    cst_spans,
-                    values_match,
-                    spans_match,
-                }
-            },
-        )
+        .zip(cst_spans)
+        .map(|((category, cst_values), (cst_span_category, cst_spans))| {
+            assert_eq!(category, cst_span_category);
+            let (legacy_values, legacy_spans) =
+                match parser_cst_fact_authority_snapshot_category(snapshot, fixture, category) {
+                    Some(expected) => (
+                        expected.legacy_values.clone(),
+                        expected.legacy_spans.clone(),
+                    ),
+                    None => (
+                        vec![format!("missing snapshot row: {fixture}/{category}")],
+                        Vec::new(),
+                    ),
+                };
+            let values_match = legacy_values == cst_values;
+            let spans_match = legacy_spans == cst_spans;
+            ParserCstFactAuthorityCategoryReportV0 {
+                fixture,
+                category,
+                legacy_values,
+                cst_values,
+                legacy_spans,
+                cst_spans,
+                values_match,
+                spans_match,
+            }
+        })
         .collect()
+}
+
+fn parser_cst_fact_authority_snapshot_category<'snapshot>(
+    snapshot: &'snapshot ParserCstFactAuthoritySnapshotV0,
+    fixture: &str,
+    category: &str,
+) -> Option<&'snapshot ParserCstFactAuthoritySnapshotCategoryV0> {
+    snapshot
+        .comparisons
+        .iter()
+        .find(|entry| entry.fixture == fixture && entry.category == category)
 }
 
 pub fn summarize_parser_cst_context_raw_scan_divergence_v0()
