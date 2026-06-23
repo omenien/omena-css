@@ -60,6 +60,16 @@ export interface FlowBlockSnapshot {
     | "logicalRhs"
     | "logicalJoin"
     | "exit";
+  readonly transferKind:
+    | "entry"
+    | "assignFacts"
+    | "branch"
+    | "concatFacts"
+    | "join"
+    | "loop"
+    | "break"
+    | "terminate"
+    | "exit";
   readonly successorBlockIds: readonly string[];
   readonly variableName?: string;
   readonly expressionKind?: "logicalAnd" | "logicalOr" | "nullishCoalesce";
@@ -284,6 +294,7 @@ class FlowBlockGraphSnapshotBuilder {
     incomingBlockIds: readonly string[],
   ): readonly string[] {
     const assignmentBlockId = this.#addBlock("assignment", undefined, {
+      transferKind: isConcatExpression(node.expression) ? "concatFacts" : "assignFacts",
       variableName: node.variableName,
     });
     this.#connect(incomingBlockIds, assignmentBlockId);
@@ -362,6 +373,7 @@ class FlowBlockGraphSnapshotBuilder {
     this.#blocks.push({
       id,
       kind,
+      transferKind: metadata.transferKind ?? transferKindForBlockKind(kind),
       successorBlockIds: [],
       ...metadata,
     });
@@ -400,6 +412,14 @@ function isShortCircuitExpression(expression: ts.Expression): expression is ts.B
   );
 }
 
+function isConcatExpression(expression: ts.Expression | null): boolean {
+  return (
+    expression !== null &&
+    ts.isBinaryExpression(expression) &&
+    expression.operatorToken.kind === ts.SyntaxKind.PlusToken
+  );
+}
+
 function shortCircuitExpressionKind(
   expression: ts.BinaryExpression,
 ): NonNullable<FlowBlockSnapshot["expressionKind"]> {
@@ -412,5 +432,37 @@ function shortCircuitExpressionKind(
       return "nullishCoalesce";
     default:
       throw new Error("not a short-circuit expression");
+  }
+}
+
+function transferKindForBlockKind(
+  kind: FlowBlockSnapshot["kind"],
+): FlowBlockSnapshot["transferKind"] {
+  switch (kind) {
+    case "entry":
+      return "entry";
+    case "assignment":
+      return "assignFacts";
+    case "branch":
+    case "logicalOperand":
+      return "branch";
+    case "join":
+    case "logicalJoin":
+      return "join";
+    case "loopHeader":
+    case "loopBody":
+    case "loopExit":
+      return "loop";
+    case "break":
+      return "break";
+    case "terminate":
+      return "terminate";
+    case "logicalRhs":
+      return "assignFacts";
+    case "exit":
+      return "exit";
+    default:
+      kind satisfies never;
+      return "exit";
   }
 }

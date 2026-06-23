@@ -172,6 +172,30 @@
     ],
     "typeFacts": [
       {
+        "controlFlowGraph": {
+          "blocks": [
+            {
+              "id": "entry",
+              "kind": "entry",
+              "successorBlockIds": ["assignment:0"],
+              "transferKind": "entry"
+            },
+            {
+              "id": "assignment:0",
+              "kind": "assignment",
+              "successorBlockIds": ["exit"],
+              "transferKind": "assignFacts",
+              "variableName": "size"
+            },
+            {
+              "id": "exit",
+              "kind": "exit",
+              "successorBlockIds": [],
+              "transferKind": "exit"
+            }
+          ],
+          "entryBlockId": "entry"
+        },
         "expressionId": "class-expr:0",
         "facts": {
           "kind": "unknown"

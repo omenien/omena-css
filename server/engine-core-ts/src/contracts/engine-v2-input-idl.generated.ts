@@ -15,6 +15,34 @@ export type StringConstraintKindV2Json =
   | "prefixSuffix"
   | "charInclusion"
   | "composite";
+export type TypeFactControlFlowBlockKindV2Json =
+  | "entry"
+  | "assignment"
+  | "branch"
+  | "join"
+  | "loopHeader"
+  | "loopBody"
+  | "loopExit"
+  | "break"
+  | "terminate"
+  | "logicalOperand"
+  | "logicalRhs"
+  | "logicalJoin"
+  | "exit";
+export type TypeFactControlFlowTransferKindV2Json =
+  | "entry"
+  | "assignFacts"
+  | "branch"
+  | "concatFacts"
+  | "join"
+  | "loop"
+  | "break"
+  | "terminate"
+  | "exit";
+export type TypeFactControlFlowExpressionKindV2Json =
+  | "logicalAnd"
+  | "logicalOr"
+  | "nullishCoalesce";
 
 export interface EngineInputV2Json {
   readonly version: "2";
@@ -42,6 +70,7 @@ export interface TypeFactEntryV2Json {
   readonly filePath: string;
   readonly expressionId: string;
   readonly facts: StringTypeFactsV2Json;
+  readonly controlFlowGraph?: TypeFactControlFlowGraphV2Json;
 }
 export interface StringTypeFactsV2Json {
   readonly kind: StringTypeFactKindV2Json;
@@ -55,4 +84,16 @@ export interface StringTypeFactsV2Json {
   readonly charMay?: string;
   readonly mayIncludeOtherChars?: boolean;
   readonly provenance?: string;
+}
+export interface TypeFactControlFlowGraphV2Json {
+  readonly entryBlockId: string;
+  readonly blocks: readonly TypeFactControlFlowBlockV2Json[];
+}
+export interface TypeFactControlFlowBlockV2Json {
+  readonly id: string;
+  readonly kind: TypeFactControlFlowBlockKindV2Json;
+  readonly transferKind: TypeFactControlFlowTransferKindV2Json;
+  readonly successorBlockIds: readonly string[];
+  readonly variableName?: string;
+  readonly expressionKind?: TypeFactControlFlowExpressionKindV2Json;
 }

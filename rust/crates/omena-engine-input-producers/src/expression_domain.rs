@@ -661,6 +661,7 @@ mod tests {
                 may_include_other_chars: None,
                 provenance: None,
             },
+            control_flow_graph: None,
         });
 
         let fragments = summarize_expression_domain_fragments_input(&input);
@@ -884,6 +885,7 @@ mod tests {
                 may_include_other_chars: Some(false),
                 provenance: None,
             },
+            control_flow_graph: None,
         }];
 
         let summary = summarize_expression_domain_reduced_product_iteration_input(&input);
@@ -949,6 +951,7 @@ mod tests {
                 may_include_other_chars: None,
                 provenance: None,
             },
+            control_flow_graph: None,
         }
     }
 }

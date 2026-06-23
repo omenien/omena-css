@@ -298,12 +298,34 @@ pub struct StringTypeFactsV2Json {
     pub provenance: Option<String>,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TypeFactControlFlowBlockV2Json {
+    pub id: String,
+    pub kind: String,
+    pub transfer_kind: String,
+    pub successor_block_ids: Vec<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub variable_name: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub expression_kind: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TypeFactControlFlowGraphV2Json {
+    pub entry_block_id: String,
+    pub blocks: Vec<TypeFactControlFlowBlockV2Json>,
+}
+
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct TypeFactEntryV2Json {
     pub file_path: String,
     pub expression_id: String,
     pub facts: StringTypeFactsV2Json,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub control_flow_graph: Option<TypeFactControlFlowGraphV2Json>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]

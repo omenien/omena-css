@@ -20,6 +20,7 @@ import type {
   SelectorUsageQueryResultV2,
   SourceExpressionResolutionQueryResultV2,
   StringTypeFactsV2,
+  TypeFactControlFlowGraphV2,
   TypeFactTableEntryV2,
 } from "./engine-v2";
 
@@ -117,11 +118,13 @@ export function createTypeFactTableEntryV2(
   filePath: string,
   expressionId: string,
   resolvedType: ResolvedType,
+  controlFlowGraph?: TypeFactControlFlowGraphV2 | null,
 ): TypeFactTableEntryV2 {
   return {
     filePath,
     expressionId,
     facts: normalizeResolvedTypeToTypeFactsV2(resolvedType),
+    ...(controlFlowGraph ? { controlFlowGraph } : {}),
   };
 }
 

@@ -6,6 +6,11 @@ import type {
   StringConstraintKindV2Json,
   StringTypeFactKindV2Json,
   StringTypeFactsV2Json,
+  TypeFactControlFlowBlockKindV2Json,
+  TypeFactControlFlowBlockV2Json,
+  TypeFactControlFlowExpressionKindV2Json,
+  TypeFactControlFlowGraphV2Json,
+  TypeFactControlFlowTransferKindV2Json,
   TypeFactEntryV2Json,
 } from "./engine-v2-input-idl.generated";
 import type {
@@ -27,6 +32,11 @@ export const ENGINE_CONTRACT_VERSION_V2 = "2" as const;
 export type StringTypeFactKindV2 = StringTypeFactKindV2Json;
 export type StringConstraintKindV2 = StringConstraintKindV2Json;
 export type StringTypeFactsV2 = StringTypeFactsV2Json;
+export type TypeFactControlFlowBlockKindV2 = TypeFactControlFlowBlockKindV2Json;
+export type TypeFactControlFlowTransferKindV2 = TypeFactControlFlowTransferKindV2Json;
+export type TypeFactControlFlowExpressionKindV2 = TypeFactControlFlowExpressionKindV2Json;
+export type TypeFactControlFlowBlockV2 = TypeFactControlFlowBlockV2Json;
+export type TypeFactControlFlowGraphV2 = TypeFactControlFlowGraphV2Json;
 export type TypeFactTableEntryV2 = TypeFactEntryV2Json;
 
 export type TypeFactTableV2 = readonly TypeFactTableEntryV2[];

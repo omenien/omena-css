@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
+import ts from "typescript";
 import type { TypeResolver } from "../../../server/engine-core-ts/src/core/ts/type-resolver";
 import { selectTypeFactCollector } from "../../../server/engine-host-node/src/type-fact-collector";
 import {
@@ -84,6 +85,54 @@ describe("selectTypeFactCollector", () => {
     );
     expect(collector.collectV2({ workspaceRoot: "/repo", sourceEntries })[0]?.facts.kind).toBe(
       "finiteSet",
+    );
+  });
+
+  it("carries source control-flow blocks on v2 type facts", () => {
+    const collector = selectTypeFactCollector({
+      typeBackend: "typescript-current",
+      typeResolver: finiteSetResolver(["primary", "secondary"]),
+    });
+    const source = `
+function render(flag: boolean, variant: string) {
+  let size = "btn-" + variant;
+  if (flag) {
+    size = "primary";
+  }
+  return cx(size);
+}
+`;
+
+    const [entry] = collector.collectV2({
+      workspaceRoot: "/repo",
+      sourceEntries: createSourceEntries({
+        source,
+        range: rangeOf(source, "cx(size)"),
+      }),
+    });
+
+    expect(entry?.controlFlowGraph?.entryBlockId).toBe("entry");
+    expect(entry?.controlFlowGraph?.blocks).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          id: "assignment:0",
+          kind: "assignment",
+          transferKind: "concatFacts",
+          successorBlockIds: ["branch:0"],
+          variableName: "size",
+        }),
+        expect.objectContaining({
+          id: "branch:0",
+          kind: "branch",
+          transferKind: "branch",
+          successorBlockIds: expect.arrayContaining(["assignment:1", "join:0"]),
+        }),
+        expect.objectContaining({
+          id: "join:0",
+          kind: "join",
+          transferKind: "join",
+        }),
+      ]),
     );
   });
 
@@ -342,32 +391,48 @@ function finiteSetResolver(values: readonly string[]): TypeResolver {
 function createSourceEntries(
   options: {
     readonly contentHash?: string;
+    readonly source?: string;
+    readonly range?: {
+      readonly start: { readonly line: number; readonly character: number };
+      readonly end: { readonly line: number; readonly character: number };
+    };
   } = {},
 ): readonly TypeFactSourceEntry[] {
+  const filePath = "/repo/src/App.tsx";
+  const content = options.source ?? "variant";
+  const sourceFile =
+    options.source === undefined
+      ? ({} as TypeFactSourceEntry["analysis"]["sourceFile"])
+      : ts.createSourceFile(filePath, content, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
+  const range = options.range ?? {
+    start: { line: 0, character: 0 },
+    end: { line: 0, character: 7 },
+  };
+
   return [
     {
       document: {
         uri: "file:///repo/src/App.tsx",
-        filePath: "/repo/src/App.tsx",
-        content: "variant",
+        filePath,
+        content,
         version: 1,
       },
       analysis: {
         version: 1,
         contentHash: options.contentHash ?? "hash",
-        sourceFile: {} as TypeFactSourceEntry["analysis"]["sourceFile"],
+        sourceFile,
         sourceBinder: {
-          filePath: "/repo/src/App.tsx",
+          filePath,
           scopes: [],
           decls: [],
         },
         sourceBindingGraph: {
-          filePath: "/repo/src/App.tsx",
+          filePath,
           nodes: [],
           edges: [],
         },
         sourceDocument: makeSourceDocumentHIR({
-          filePath: "/repo/src/App.tsx",
+          filePath,
           language: "tsx",
           styleImports: [],
           utilityBindings: [],
@@ -379,10 +444,7 @@ function createSourceEntries(
               "variant",
               "variant",
               [],
-              {
-                start: { line: 0, character: 0 },
-                end: { line: 0, character: 7 },
-              },
+              range,
             ),
           ],
         }),
@@ -393,4 +455,17 @@ function createSourceEntries(
       },
     },
   ];
+}
+
+function rangeOf(source: string, token: string) {
+  const tokenIndex = source.lastIndexOf(token);
+  const startIndex = tokenIndex + token.indexOf("size");
+  const prefix = source.slice(0, startIndex);
+  const line = prefix.split("\n").length - 1;
+  const lastLineStart = prefix.lastIndexOf("\n");
+  const character = startIndex - (lastLineStart + 1);
+  return {
+    start: { line, character },
+    end: { line, character: character + 4 },
+  };
 }

@@ -63,10 +63,59 @@ model StringTypeFactsV2 {
   provenance?: string;
 }
 
+enum TypeFactControlFlowBlockKindV2 {
+  entry: "entry",
+  assignment: "assignment",
+  branch: "branch",
+  join: "join",
+  loopHeader: "loopHeader",
+  loopBody: "loopBody",
+  loopExit: "loopExit",
+  break: "break",
+  terminate: "terminate",
+  logicalOperand: "logicalOperand",
+  logicalRhs: "logicalRhs",
+  logicalJoin: "logicalJoin",
+  exit: "exit",
+}
+
+enum TypeFactControlFlowTransferKindV2 {
+  entry: "entry",
+  assignFacts: "assignFacts",
+  branch: "branch",
+  concatFacts: "concatFacts",
+  join: "join",
+  loop: "loop",
+  break: "break",
+  terminate: "terminate",
+  exit: "exit",
+}
+
+enum TypeFactControlFlowExpressionKindV2 {
+  logicalAnd: "logicalAnd",
+  logicalOr: "logicalOr",
+  nullishCoalesce: "nullishCoalesce",
+}
+
+model TypeFactControlFlowBlockV2 {
+  id: string;
+  kind: TypeFactControlFlowBlockKindV2;
+  transferKind: TypeFactControlFlowTransferKindV2;
+  successorBlockIds: string[];
+  variableName?: string;
+  expressionKind?: TypeFactControlFlowExpressionKindV2;
+}
+
+model TypeFactControlFlowGraphV2 {
+  entryBlockId: string;
+  blocks: TypeFactControlFlowBlockV2[];
+}
+
 model TypeFactEntryV2 {
   filePath: string;
   expressionId: string;
   facts: StringTypeFactsV2;
+  controlFlowGraph?: TypeFactControlFlowGraphV2;
 }
 
 model EngineInputV2 {
