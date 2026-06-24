@@ -1,8 +1,9 @@
 #![allow(clippy::expect_used)]
 use super::*;
 use crate::{
-    read_omena_query_cascade_at_position,
+    read_omena_query_cascade_at_position, read_omena_query_cascade_at_position_analysis_result,
     read_omena_query_cascade_at_position_with_categorical_evidence,
+    summarize_omena_query_evaluation_runtime,
 };
 
 #[test]
@@ -100,6 +101,83 @@ fn read_cascade_at_position_is_query_owned() {
         no_reference.map(|cascade| cascade.status),
         Some("noCustomPropertyReference")
     );
+}
+
+#[test]
+fn read_cascade_at_position_analysis_result_carries_revision_aligned_precision() {
+    let first_source = ":root { --surface: white; }\n:root { --surface: black; }\n.button { color: var(--surface); }\n";
+    let second_source = ":root { --surface: white; }\n:root { --surface: blue; }\n.button { color: var(--surface); }\n";
+    let input = sample_input();
+    let mut edited_input = sample_input();
+    edited_input.type_facts[0].facts.suffix = Some("-primary".to_string());
+    let mut runtime = OmenaQueryExpressionDomainFlowRuntimeV0::default();
+    let first_runtime = summarize_omena_query_evaluation_runtime(&input, &mut runtime);
+    let second_runtime = summarize_omena_query_evaluation_runtime(&edited_input, &mut runtime);
+    let first = read_omena_query_cascade_at_position_analysis_result(
+        "Component.module.css",
+        first_source,
+        &input,
+        ParserPositionV0 {
+            line: 2,
+            character: 24,
+        },
+        &first_runtime,
+    )
+    .expect("cascade position analysis result");
+    let second = read_omena_query_cascade_at_position_analysis_result(
+        "Component.module.css",
+        second_source,
+        &edited_input,
+        ParserPositionV0 {
+            line: 2,
+            character: 24,
+        },
+        &second_runtime,
+    )
+    .expect("cascade position analysis result after source edit");
+
+    assert_eq!(first.product, "omena-query.analysis-result");
+    assert_eq!(first.value.product, "omena-query.read-cascade-at-position");
+    assert_eq!(first.precision.product, "omena-query.analysis-precision");
+    assert_eq!(first.precision.value_domain, "cascadeAtPosition");
+    assert_eq!(first.precision.flow_sensitivity, "positionScopedCascade");
+    assert_eq!(
+        first.precision.revision_axis,
+        "OmenaQueryEvaluationRuntimeSummaryV0.expressionDomainRevision"
+    );
+    assert!(
+        first
+            .provenance
+            .iter()
+            .any(|entry| entry == "omena-query.read-cascade-at-position")
+    );
+    assert_eq!(first_runtime.expression_domain_revision, 1);
+    assert_eq!(second_runtime.expression_domain_revision, 2);
+    assert!(second_runtime.expression_domain_dirty_graph_count > 0);
+    assert_eq!(first.revision, first_runtime.expression_domain_revision);
+    assert_eq!(second.revision, second_runtime.expression_domain_revision);
+    assert!(second.revision > first.revision);
+    assert_eq!(
+        first.value.referenced_declaration_computed_value.as_deref(),
+        Some("black")
+    );
+    assert_eq!(
+        second
+            .value
+            .referenced_declaration_computed_value
+            .as_deref(),
+        Some("blue")
+    );
+    let serialized = serde_json::to_value(&first).expect("analysis result serializes");
+    assert_eq!(
+        serialized["revision"],
+        first_runtime.expression_domain_revision
+    );
+    assert_eq!(
+        serialized["precision"]["revisionAxis"],
+        "OmenaQueryEvaluationRuntimeSummaryV0.expressionDomainRevision"
+    );
+    assert_eq!(serialized["value"]["status"], "resolved");
 }
 
 #[test]

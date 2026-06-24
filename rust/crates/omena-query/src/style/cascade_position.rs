@@ -14,9 +14,10 @@ use omena_semantic::DesignTokenRankedReferenceV0;
 
 use crate::{
     AbstractPropertyValueV0, CascadeContextV0, CascadeDimensionalRefinementBridgeV0,
-    CascadeValueFamilyMemberV0, OmenaQueryCascadeAtPositionV0, RefinementPropertyPredicateV0,
-    derive_cascade_restriction_maps_v0, summarize_cascade_dimensional_refinement_bridge_v0,
-    summarize_cascade_value_family_v0,
+    CascadeValueFamilyMemberV0, OmenaQueryAnalysisPrecisionV0, OmenaQueryAnalysisResultV0,
+    OmenaQueryCascadeAtPositionV0, OmenaQueryEvaluationRuntimeSummaryV0,
+    RefinementPropertyPredicateV0, derive_cascade_restriction_maps_v0,
+    summarize_cascade_dimensional_refinement_bridge_v0, summarize_cascade_value_family_v0,
 };
 
 use super::{
@@ -38,6 +39,42 @@ pub fn read_omena_query_cascade_at_position(
         &graph,
         position,
     ))
+}
+
+pub fn read_omena_query_cascade_at_position_analysis_result(
+    style_path: &str,
+    style_source: &str,
+    input: &EngineInputV2,
+    position: ParserPositionV0,
+    runtime_summary: &OmenaQueryEvaluationRuntimeSummaryV0,
+) -> Option<OmenaQueryAnalysisResultV0<OmenaQueryCascadeAtPositionV0>> {
+    let value = read_omena_query_cascade_at_position(style_path, style_source, input, position)?;
+    Some(cascade_at_position_analysis_result(
+        value,
+        runtime_summary.expression_domain_revision,
+    ))
+}
+
+fn cascade_at_position_analysis_result(
+    value: OmenaQueryCascadeAtPositionV0,
+    revision: u64,
+) -> OmenaQueryAnalysisResultV0<OmenaQueryCascadeAtPositionV0> {
+    OmenaQueryAnalysisResultV0::new(
+        value,
+        OmenaQueryAnalysisPrecisionV0 {
+            product: "omena-query.analysis-precision".to_string(),
+            value_domain: "cascadeAtPosition".to_string(),
+            flow_sensitivity: "positionScopedCascade".to_string(),
+            context_sensitivity: "styleSemanticGraph".to_string(),
+            revision_axis: "OmenaQueryEvaluationRuntimeSummaryV0.expressionDomainRevision"
+                .to_string(),
+        },
+        vec![
+            "omena-query.read-cascade-at-position".to_string(),
+            "omena-cascade.winner-resolution".to_string(),
+        ],
+        revision,
+    )
 }
 
 pub fn read_omena_query_cascade_at_position_with_categorical_evidence(
