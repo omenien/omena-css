@@ -426,9 +426,8 @@ pub struct TransformPassContractV0 {
     pub reads_semantic_graph: bool,
     pub reads_cascade_model: bool,
     pub writes_css: bool,
-    pub cascade_safe: bool,
     pub cascade_safety_witness: CascadeSafetyWitnessV0,
-    pub cascade_safe_obligation: &'static str,
+    pub cascade_obligation: &'static str,
     pub explicit_opt_in_required: bool,
     pub dialect_restriction: Option<&'static str>,
     pub spec_snapshot: Option<&'static str>,
@@ -746,6 +745,10 @@ impl VerificationReportV0 {
     pub fn cascade_proof(&self) -> &CascadeSMTProofV0 {
         &self.cascade_proof
     }
+
+    pub fn cascade_safe(&self) -> bool {
+        self.cascade_proof.verdict == SmtVerdictV0::Accepted
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -798,11 +801,10 @@ pub fn summarize_omena_transform_cst_boundary() -> TransformCstBoundarySummaryV0
         .count();
     let all_passes_declare_cascade_obligation = pass_contracts
         .iter()
-        .all(|contract| !contract.cascade_safe_obligation.is_empty());
+        .all(|contract| !contract.cascade_obligation.is_empty());
     let all_passes_have_compile_time_cascade_witness = pass_contracts.iter().all(|contract| {
-        contract.cascade_safe
-            && contract.cascade_safety_witness.pass_id == contract.id
-            && contract.cascade_safety_witness.obligation == contract.cascade_safe_obligation
+        contract.cascade_safety_witness.pass_id == contract.id
+            && contract.cascade_safety_witness.obligation == contract.cascade_obligation
             && contract.cascade_safety_witness.enforced_at == "compile-time-exhaustive-pass-catalog"
     });
     let pass_catalog_count = pass_contracts.len();
@@ -1190,8 +1192,6 @@ pub fn default_transform_pass_contracts() -> Vec<TransformPassContractV0> {
 
 fn transform_pass_contract(kind: TransformPassKind) -> TransformPassContractV0 {
     let cascade_safety_witness = cascade_safety_witness(kind);
-    let cascade_safe = !cascade_safety_witness.obligation.is_empty()
-        && cascade_safety_witness.pass_id == kind.id();
 
     TransformPassContractV0 {
         ordinal: kind.ordinal(),
@@ -1204,9 +1204,8 @@ fn transform_pass_contract(kind: TransformPassKind) -> TransformPassContractV0 {
         reads_semantic_graph: kind.reads_semantic_graph(),
         reads_cascade_model: kind.reads_cascade_model(),
         writes_css: true,
-        cascade_safe,
         cascade_safety_witness,
-        cascade_safe_obligation: cascade_safety_witness.obligation,
+        cascade_obligation: cascade_safety_witness.obligation,
         explicit_opt_in_required: kind.explicit_opt_in_required(),
         dialect_restriction: kind.dialect_restriction(),
         spec_snapshot: kind.spec_snapshot(),
@@ -1791,8 +1790,9 @@ mod tests {
                 && contract.label == "tree-shake-class"
                 && contract.layer == TransformLayer::SemanticAware
                 && contract.reads_semantic_graph
-                && contract.cascade_safe
+                && !contract.cascade_obligation.is_empty()
                 && contract.cascade_safety_witness.pass_id == "tree-shake-class"
+                && contract.cascade_safety_witness.obligation == contract.cascade_obligation
                 && contract.cascade_safety_witness.enforced_at
                     == "compile-time-exhaustive-pass-catalog"
         }));
@@ -1891,6 +1891,7 @@ mod tests {
         let artifact = apply_verified_rewrite(&verified);
 
         assert!(verified.verification_report().provenance_preserved());
+        assert!(verified.verification_report().cascade_safe());
         assert_eq!(
             verified.verification_report().cascade_proof().verdict,
             SmtVerdictV0::Accepted
@@ -1949,6 +1950,10 @@ mod tests {
                 "{forbidden} must be derived through verification instead of assigned directly"
             );
         }
+        assert!(
+            !source.contains(&["pub ", "cascade_safe", ": bool"].concat()),
+            "pass contracts must not expose static cascade safety as a catalog field"
+        );
         Ok(())
     }
 
