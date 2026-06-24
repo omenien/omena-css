@@ -174,7 +174,7 @@ fn icss_block_tokens_from_cst<'text>(
                 SyntaxKind::CssModuleExportBlock | SyntaxKind::CssModuleImportBlock
             )
         })
-        .map(|node| tokens_from_syntax_node(text, node))
+        .map(|node| tokens_from_syntax_node(text, parsed, node))
         .collect()
 }
 

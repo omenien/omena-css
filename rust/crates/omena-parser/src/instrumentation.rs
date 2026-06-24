@@ -4,6 +4,8 @@
 //! consumers do not accidentally rematerialize token streams.
 
 use std::cell::Cell;
+#[cfg(test)]
+use std::sync::atomic::{AtomicUsize, Ordering};
 
 use serde::Serialize;
 
@@ -26,6 +28,9 @@ thread_local! {
         const { Cell::new(None) };
     static PARSE_INSTRUMENTATION: Cell<Option<OmenaParserParseInstrumentationSnapshotV0>> =
         const { Cell::new(None) };
+    #[cfg(test)]
+    static SYNTAX_ROOT_MATERIALIZATION_COUNT: AtomicUsize =
+        const { AtomicUsize::new(0) };
 }
 
 pub fn with_omena_parser_lex_instrumentation<T>(
@@ -74,4 +79,22 @@ pub(crate) fn record_omena_parser_parse_materialization(token_count: usize) {
             instrumentation.set(Some(snapshot));
         }
     });
+}
+
+#[cfg(test)]
+pub(crate) fn record_omena_parser_syntax_root_materialization() {
+    SYNTAX_ROOT_MATERIALIZATION_COUNT.with(|counter| counter.fetch_add(1, Ordering::SeqCst));
+}
+
+#[cfg(not(test))]
+pub(crate) fn record_omena_parser_syntax_root_materialization() {}
+
+#[cfg(test)]
+pub(crate) fn reset_omena_parser_syntax_root_materialization_count() {
+    SYNTAX_ROOT_MATERIALIZATION_COUNT.with(|counter| counter.store(0, Ordering::SeqCst));
+}
+
+#[cfg(test)]
+pub(crate) fn omena_parser_syntax_root_materialization_count() -> usize {
+    SYNTAX_ROOT_MATERIALIZATION_COUNT.with(|counter| counter.load(Ordering::SeqCst))
 }

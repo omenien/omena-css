@@ -56,8 +56,14 @@ pub use instrumentation::{
     OmenaParserLexInstrumentationSnapshotV0, OmenaParserParseInstrumentationSnapshotV0,
     with_omena_parser_lex_instrumentation, with_omena_parser_parse_instrumentation,
 };
+#[cfg(test)]
+pub(crate) use instrumentation::{
+    omena_parser_syntax_root_materialization_count,
+    reset_omena_parser_syntax_root_materialization_count,
+};
 pub(crate) use instrumentation::{
     record_omena_parser_lex_materialization, record_omena_parser_parse_materialization,
+    record_omena_parser_syntax_root_materialization,
 };
 pub use language::StyleLanguage;
 pub use lex::{LexResult, LexedToken};

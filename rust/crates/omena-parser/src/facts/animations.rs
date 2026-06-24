@@ -91,7 +91,7 @@ fn animation_fact_tokens_from_cst<'text>(
                 SyntaxKind::KeyframesRule | SyntaxKind::Declaration
             )
         })
-        .map(|node| tokens_from_syntax_node(text, node))
+        .map(|node| tokens_from_syntax_node(text, parsed, node))
         .collect()
 }
 

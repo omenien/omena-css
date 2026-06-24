@@ -119,6 +119,25 @@ fn tokenizes_multibyte_source_without_boundary_errors() {
 }
 
 #[test]
+fn facts_from_cst_materializes_syntax_root_once() {
+    let source = r#"@use "./tokens" as t;
+@mixin tone { color: $brand; }
+:export { exported: local; }
+:import("./theme.module.css") { imported: theme; }
+@value spacing from "./spacing.module.css";
+.button { --brand: red; animation: fade 1s; composes: base from "./base.module.css"; }
+@keyframes fade { from { opacity: 0; } to { opacity: 1; } }"#;
+    let expected = collect_style_facts(source, StyleDialect::Scss);
+    let parsed = parse(source, StyleDialect::Scss);
+
+    reset_omena_parser_syntax_root_materialization_count();
+    let actual = facts_from_cst(source, &parsed);
+
+    assert_eq!(actual, expected);
+    assert_eq!(omena_parser_syntax_root_materialization_count(), 1);
+}
+
+#[test]
 fn reports_unterminated_constructs_without_panicking() {
     let comment = parse("/* open", StyleDialect::Css);
     let string = parse(".a { content: \"open; }", StyleDialect::Css);

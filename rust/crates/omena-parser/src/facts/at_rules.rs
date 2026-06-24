@@ -20,11 +20,10 @@ pub(crate) fn collect_at_rule_facts_from_cst(
     parsed: &ParseResult,
 ) -> Vec<ParsedAtRuleFact> {
     parsed
-        .syntax()
-        .descendants_with_tokens()
-        .filter_map(|element| element.into_token())
-        .filter(|token| token.kind() == SyntaxKind::AtKeyword)
-        .map(|token| at_rule_fact_from_cst_token(text, token.text_range(), parsed.dialect()))
+        .syntax_token_views()
+        .iter()
+        .filter(|token| token.kind == SyntaxKind::AtKeyword)
+        .map(|token| at_rule_fact_from_cst_token(text, token.range, parsed.dialect()))
         .collect()
 }
 

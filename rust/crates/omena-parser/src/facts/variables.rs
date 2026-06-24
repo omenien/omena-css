@@ -56,7 +56,7 @@ fn variable_fact_statement_tokens_from_cst<'text>(
     parsed
         .syntax()
         .children()
-        .map(|node| tokens_from_syntax_node(text, node))
+        .map(|node| tokens_from_syntax_node(text, parsed, node))
         .collect()
 }
 

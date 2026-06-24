@@ -61,7 +61,7 @@ fn sass_symbol_statement_tokens_from_cst<'text>(
     parsed
         .syntax()
         .children()
-        .map(|node| tokens_from_syntax_node(text, node))
+        .map(|node| tokens_from_syntax_node(text, parsed, node))
         .collect()
 }
 
@@ -291,7 +291,7 @@ fn scss_include_rule_tokens_from_cst<'text>(
         .syntax()
         .descendants()
         .filter(|node| node.kind() == SyntaxKind::ScssIncludeRule)
-        .map(|node| tokens_from_syntax_node(text, node))
+        .map(|node| tokens_from_syntax_node(text, parsed, node))
         .collect()
 }
 
@@ -418,7 +418,7 @@ fn sass_module_rule_tokens_from_cst<'text>(
                 SyntaxKind::ScssUseRule | SyntaxKind::ScssForwardRule | SyntaxKind::ImportRule
             )
         })
-        .map(|node| tokens_from_syntax_node(text, node))
+        .map(|node| tokens_from_syntax_node(text, parsed, node))
         .collect()
 }
 
@@ -661,7 +661,7 @@ fn scss_extend_rule_tokens_from_cst<'text>(
         .syntax()
         .descendants()
         .filter(|node| node.kind() == SyntaxKind::ScssExtendRule)
-        .map(|node| tokens_from_syntax_node(text, node))
+        .map(|node| tokens_from_syntax_node(text, parsed, node))
         .collect()
 }
 

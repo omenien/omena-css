@@ -260,16 +260,21 @@ pub(crate) fn product_facts_from_cst(text: &str, parsed: &ParseResult) -> Parsed
 
 pub(crate) fn tokens_from_syntax_node<'text>(
     text: &'text str,
+    parsed: &ParseResult,
     node: &SyntaxNode<SyntaxKind>,
 ) -> Vec<Token<'text>> {
-    node.descendants_with_tokens()
-        .filter_map(|element| element.into_token())
+    let node_range = node.text_range();
+    parsed
+        .syntax_token_views()
+        .iter()
+        .filter(|token| token.range.start() >= node_range.start())
+        .filter(|token| token.range.end() <= node_range.end())
         .map(|token| {
-            let range = token.text_range();
+            let range = token.range;
             let start = u32::from(range.start()) as usize;
             let end = u32::from(range.end()) as usize;
             Token {
-                kind: token.kind(),
+                kind: token.kind,
                 text: text.get(start..end).unwrap_or_default(),
                 range,
             }

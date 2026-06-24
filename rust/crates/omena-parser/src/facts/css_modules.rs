@@ -392,7 +392,7 @@ fn css_module_value_statement_tokens_from_cst<'text>(
                     | SyntaxKind::BogusCssModuleBlock
             )
         })
-        .map(|node| tokens_from_syntax_node(text, node))
+        .map(|node| tokens_from_syntax_node(text, parsed, node))
         .collect()
 }
 
@@ -409,7 +409,7 @@ fn css_module_value_reference_declaration_tokens_from_cst<'text>(
                 SyntaxKind::Declaration | SyntaxKind::CssModuleComposesDeclaration
             )
         })
-        .map(|node| tokens_from_syntax_node(text, node))
+        .map(|node| tokens_from_syntax_node(text, parsed, node))
         .collect()
 }
 
@@ -421,7 +421,7 @@ fn css_module_composes_declaration_tokens_from_cst<'text>(
         .syntax()
         .descendants()
         .filter(|node| node.kind() == SyntaxKind::CssModuleComposesDeclaration)
-        .map(|node| tokens_from_syntax_node(text, node))
+        .map(|node| tokens_from_syntax_node(text, parsed, node))
         .collect()
 }
 
@@ -841,11 +841,11 @@ pub(crate) fn collect_css_module_composes_edge_facts_from_cst(
         .descendants()
         .filter(|node| node.kind() == SyntaxKind::CssModuleComposesDeclaration)
     {
-        let owner_branches = css_module_composes_owner_branches_from_cst(text, declaration);
+        let owner_branches = css_module_composes_owner_branches_from_cst(text, parsed, declaration);
         if owner_branches.is_empty() {
             continue;
         }
-        let tokens = tokens_from_syntax_node(text, declaration);
+        let tokens = tokens_from_syntax_node(text, parsed, declaration);
         collect_immediate_css_module_composes_edge_facts(
             &tokens,
             0,
@@ -859,6 +859,7 @@ pub(crate) fn collect_css_module_composes_edge_facts_from_cst(
 
 fn css_module_composes_owner_branches_from_cst(
     text: &str,
+    parsed: &ParseResult,
     declaration: &SyntaxNode<SyntaxKind>,
 ) -> Vec<SelectorBranch> {
     let mut branches = Vec::new();
@@ -868,7 +869,7 @@ fn css_module_composes_owner_branches_from_cst(
     for ancestor in ancestors {
         match ancestor.kind() {
             SyntaxKind::Rule | SyntaxKind::NestRule => {
-                let tokens = tokens_from_syntax_node(text, ancestor);
+                let tokens = tokens_from_syntax_node(text, parsed, ancestor);
                 let Some(open) = first_block_open_token_index(&tokens) else {
                     continue;
                 };

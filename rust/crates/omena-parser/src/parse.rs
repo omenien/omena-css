@@ -11,7 +11,7 @@ use cstree::{
     text::{TextRange, TextSize},
 };
 use omena_syntax::{StyleDialect, SyntaxKind};
-use std::sync::Arc;
+use std::sync::{Arc, OnceLock};
 
 use crate::extension::{AtRuleBlockKind, AtRuleSpec, at_rule_spec, scss_at_rule_spec};
 use crate::facts::collect_style_facts_with_extension;
@@ -36,13 +36,21 @@ use crate::{
     value_list_item_recovery, variable_declaration_node_kind,
 };
 
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub struct ParseResult {
     green: GreenNode,
     interner: Option<Arc<TokenInterner>>,
     errors: Vec<ParseError>,
     token_count: usize,
     dialect: StyleDialect,
+    syntax_root: OnceLock<SyntaxNode<SyntaxKind>>,
+    syntax_tokens: OnceLock<Vec<SyntaxTokenView>>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) struct SyntaxTokenView {
+    pub(crate) kind: SyntaxKind,
+    pub(crate) range: TextRange,
 }
 
 impl ParseResult {
@@ -59,6 +67,40 @@ impl ParseResult {
             errors,
             token_count,
             dialect,
+            syntax_root: OnceLock::new(),
+            syntax_tokens: OnceLock::new(),
+        }
+    }
+
+    fn materialize_syntax_root(&self) -> SyntaxNode<SyntaxKind> {
+        crate::record_omena_parser_syntax_root_materialization();
+        if let Some(interner) = &self.interner {
+            return SyntaxNode::new_root_with_resolver(self.green.clone(), Arc::clone(interner))
+                .syntax()
+                .clone();
+        }
+        SyntaxNode::new_root(self.green.clone())
+    }
+}
+
+impl Clone for ParseResult {
+    fn clone(&self) -> Self {
+        let syntax_root = OnceLock::new();
+        if let Some(root) = self.syntax_root.get() {
+            let _ = syntax_root.set(root.clone());
+        }
+        let syntax_tokens = OnceLock::new();
+        if let Some(tokens) = self.syntax_tokens.get() {
+            let _ = syntax_tokens.set(tokens.clone());
+        }
+        Self {
+            green: self.green.clone(),
+            interner: self.interner.clone(),
+            errors: self.errors.clone(),
+            token_count: self.token_count,
+            dialect: self.dialect,
+            syntax_root,
+            syntax_tokens,
         }
     }
 }
@@ -80,12 +122,9 @@ impl ParseResult {
     }
 
     pub fn syntax(&self) -> SyntaxNode<SyntaxKind> {
-        if let Some(interner) = &self.interner {
-            return SyntaxNode::new_root_with_resolver(self.green.clone(), Arc::clone(interner))
-                .syntax()
-                .clone();
-        }
-        SyntaxNode::new_root(self.green.clone())
+        self.syntax_root
+            .get_or_init(|| self.materialize_syntax_root())
+            .clone()
     }
 
     pub fn source_text(&self) -> Option<String> {
@@ -109,6 +148,21 @@ impl ParseResult {
 
     pub fn cst(&self) -> ParsedCst {
         ParsedCst::new(self.syntax())
+    }
+
+    pub(crate) fn syntax_token_views(&self) -> &[SyntaxTokenView] {
+        self.syntax_tokens
+            .get_or_init(|| {
+                self.syntax()
+                    .descendants_with_tokens()
+                    .filter_map(|element| element.into_token())
+                    .map(|token| SyntaxTokenView {
+                        kind: token.kind(),
+                        range: token.text_range(),
+                    })
+                    .collect()
+            })
+            .as_slice()
     }
 }
 
