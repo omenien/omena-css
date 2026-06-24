@@ -72,6 +72,12 @@ export function computeScssUnusedDiagnostics(
   styleDocumentForPath?: (filePath: string) => StyleDocumentHIR | null,
   runtimeDeps?: RuntimeStyleDiagnosticsDeps,
 ): Diagnostic[] | Promise<Diagnostic[]> {
+  const selectedBackendKind = resolveSelectedQueryBackendKind(runtimeDeps?.env);
+  const hasStyleQueryRuntimeInputs = Boolean(
+    runtimeDeps?.styleSemanticGraphCache ||
+    runtimeDeps?.styleSemanticGraphBatchOutputCache ||
+    runtimeDeps?.selectorUsagePayloadCache,
+  );
   const queryOptions =
     runtimeDeps?.env ||
     runtimeDeps?.styleSemanticGraphCache ||
@@ -97,6 +103,13 @@ export function computeScssUnusedDiagnostics(
             : {}),
         }
       : undefined;
+  if (
+    !runtimeDeps?.runRustSelectedQueryBackendJsonAsync &&
+    selectedBackendKind === "rust-selected-query" &&
+    !hasStyleQueryRuntimeInputs
+  ) {
+    return [];
+  }
   if (runtimeDeps?.runRustSelectedQueryBackendJsonAsync) {
     const queryDiagnostics = resolveQueryOwnedStyleDiagnostics(
       { scssPath, styleDocument },
@@ -105,7 +118,7 @@ export function computeScssUnusedDiagnostics(
     if (queryDiagnostics) {
       return queryDiagnostics;
     }
-    if (resolveSelectedQueryBackendKind(runtimeDeps.env) === "rust-selected-query") {
+    if (selectedBackendKind === "rust-selected-query") {
       return [];
     }
     return resolveStyleDiagnosticFindingsAsync(

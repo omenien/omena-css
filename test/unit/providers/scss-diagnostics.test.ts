@@ -165,6 +165,28 @@ describe("computeScssUnusedDiagnostics", () => {
     expect(diagnostics).toEqual([]);
   });
 
+  it("does not fall back to checker diagnostics when selected-query has no runner", () => {
+    const classMap = new Map([
+      ["indicator", info("indicator", 1)],
+      ["active", info("active", 3)],
+    ]);
+    const semanticReferenceIndex = new WorkspaceSemanticWorkspaceReferenceIndex();
+    semanticReferenceIndex.record("file:///a.tsx", [
+      semanticSiteAt("file:///a.tsx", "indicator", 5, SCSS_PATH),
+    ]);
+
+    const diagnostics = computeScssUnusedDiagnostics(
+      SCSS_PATH,
+      styleDocument(classMap),
+      semanticReferenceIndex,
+      undefined,
+      undefined,
+      { env: { OMENA_SELECTED_QUERY_BACKEND: "rust-selected-query" } as NodeJS.ProcessEnv },
+    );
+
+    expect(diagnostics).toEqual([]);
+  });
+
   it("uses rust style semantic graph references through the provider runtime deps", () => {
     const classMap = new Map([
       ["indicator", info("indicator", 1)],

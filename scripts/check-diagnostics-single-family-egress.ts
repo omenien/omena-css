@@ -302,15 +302,22 @@ function assertLspSelectedQueryDiagnostics(): void {
   );
   assertIncludes(
     sourceProvider,
-    'resolveSelectedQueryBackendKind() === "rust-selected-query"',
+    "const selectedBackendKind = resolveSelectedQueryBackendKind();",
+    FILES.sourceProvider,
+  );
+  assertIncludes(
+    sourceProvider,
+    'if (!rustRunner && selectedBackendKind === "rust-selected-query")',
     FILES.sourceProvider,
   );
   assertIncludes(sourceProvider, "return [];", FILES.sourceProvider);
   assertIncludes(
     styleProvider,
-    'resolveSelectedQueryBackendKind(runtimeDeps.env) === "rust-selected-query"',
+    "const selectedBackendKind = resolveSelectedQueryBackendKind(runtimeDeps?.env);",
     FILES.styleProvider,
   );
+  assertIncludes(styleProvider, "const hasStyleQueryRuntimeInputs = Boolean(", FILES.styleProvider);
+  assertIncludes(styleProvider, "!hasStyleQueryRuntimeInputs", FILES.styleProvider);
   assertIncludes(styleProvider, "return [];", FILES.styleProvider);
   assertNotIncludes(
     sourceProvider,

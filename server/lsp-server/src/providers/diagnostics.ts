@@ -49,13 +49,17 @@ export const computeDiagnostics = wrapHandler<
 >(
   "diagnostics",
   (params, deps, severity: DiagnosticSeverity = DiagnosticSeverity.Warning) => {
+    const selectedBackendKind = resolveSelectedQueryBackendKind();
     const rustRunner = getRustSelectedQueryBackendJsonRunnerAsync(deps);
+    if (!rustRunner && selectedBackendKind === "rust-selected-query") {
+      return [];
+    }
     if (rustRunner) {
       const queryDiagnostics = resolveQueryOwnedSourceDiagnostics(params, deps, rustRunner);
       if (queryDiagnostics) {
         return queryDiagnostics;
       }
-      if (resolveSelectedQueryBackendKind() === "rust-selected-query") {
+      if (selectedBackendKind === "rust-selected-query") {
         return [];
       }
       return resolveSourceDiagnosticFindingsAsync(params, deps, {

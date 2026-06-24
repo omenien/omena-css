@@ -167,6 +167,20 @@ describe("computeDiagnostics", () => {
     expect(result).toEqual([]);
   });
 
+  it("does not fall back to checker diagnostics when selected-query has no runner", () => {
+    const previousBackend = process.env.OMENA_SELECTED_QUERY_BACKEND;
+    process.env.OMENA_SELECTED_QUERY_BACKEND = "rust-selected-query";
+    try {
+      expect(computeDiagnostics(baseParams, makeDeps())).toEqual([]);
+    } finally {
+      if (previousBackend === undefined) {
+        delete process.env.OMENA_SELECTED_QUERY_BACKEND;
+      } else {
+        process.env.OMENA_SELECTED_QUERY_BACKEND = previousBackend;
+      }
+    }
+  });
+
   it("warns on a missing static class with a did-you-mean hint", () => {
     const result = computeDiagnostics(baseParams, makeDeps());
     expect(result).toHaveLength(1);
