@@ -22,6 +22,27 @@ use super::*;
 use salsa::Setter;
 use std::collections::BTreeMap;
 
+#[cfg(test)]
+mod style_fact_entry_probe {
+    use std::cell::Cell;
+
+    thread_local! {
+        static RUN_COUNT: Cell<usize> = const { Cell::new(0) };
+    }
+
+    pub(super) fn record() {
+        RUN_COUNT.with(|count| count.set(count.get() + 1));
+    }
+
+    pub(super) fn reset() {
+        RUN_COUNT.with(|count| count.set(0));
+    }
+
+    pub(super) fn read() -> usize {
+        RUN_COUNT.with(Cell::get)
+    }
+}
+
 /// The long-lived analysis database for the memoized style-diagnostics layer.
 #[salsa::db]
 #[derive(Clone, Default)]
@@ -122,22 +143,29 @@ fn memo_workspace_diagnostics_substrate(
     db: &dyn salsa::Database,
     workspace: OmenaQueryStyleWorkspaceInputV0,
 ) -> OmenaQueryWorkspaceDiagnosticsSubstrateV0 {
-    let corpus = workspace
+    let style_fact_entries = workspace
         .files(db)
         .iter()
-        .map(|file| OmenaQueryStyleSourceInputV0 {
-            style_path: file.style_path(db).clone(),
-            style_source: file.style_source(db).clone(),
-        })
+        .map(|file| memo_style_fact_entry(db, *file))
         .collect::<Vec<_>>();
     let resolution_inputs = workspace.resolution_inputs(db);
-    collect_omena_query_workspace_diagnostics_substrate(
-        corpus.as_slice(),
+    collect_omena_query_workspace_diagnostics_substrate_from_entries(
+        style_fact_entries,
         workspace.package_manifests(db).as_slice(),
         workspace.external_sifs(db).as_slice(),
         resolution_inputs.bundler_path_mappings.as_slice(),
         resolution_inputs.tsconfig_path_mappings.as_slice(),
     )
+}
+
+#[salsa::tracked(returns(clone))]
+fn memo_style_fact_entry(
+    db: &dyn salsa::Database,
+    file: OmenaQueryStyleFileInputV0,
+) -> OmenaQueryStyleFactEntry {
+    #[cfg(test)]
+    style_fact_entry_probe::record();
+    collect_omena_query_style_fact_entry(file.style_path(db), file.style_source(db))
 }
 
 /// The memoized workspace diagnostics query. Mirrors the LSP's call shape
@@ -482,6 +510,51 @@ mod tests {
             )
             .is_none(),
             "a duplicate style_path corpus must bypass to the caller's serial arm",
+        );
+    }
+
+    #[test]
+    fn workspace_substrate_recomputes_only_changed_file_facts() {
+        let corpus = parallel_probe_corpus();
+        let resolution_inputs = OmenaQueryStyleResolutionInputsV0::default();
+        let mut host = OmenaQueryStyleMemoHostV0::new();
+        let workspace = host.sync_workspace(corpus.as_slice(), &[], &[], &[], &resolution_inputs);
+
+        style_fact_entry_probe::reset();
+        {
+            let _ = memo_workspace_diagnostics_substrate(&host.db, workspace);
+        }
+        assert_eq!(
+            style_fact_entry_probe::read(),
+            2,
+            "initial substrate build must collect facts for every style input",
+        );
+
+        style_fact_entry_probe::reset();
+        {
+            let _ = memo_workspace_diagnostics_substrate(&host.db, workspace);
+        }
+        assert_eq!(
+            style_fact_entry_probe::read(),
+            0,
+            "unchanged workspace substrate must reuse per-file fact entries",
+        );
+
+        let mut edited_corpus = corpus.clone();
+        edited_corpus[0]
+            .style_source
+            .push_str("\n.app__icon { color: blue; }\n");
+        let edited_workspace =
+            host.sync_workspace(edited_corpus.as_slice(), &[], &[], &[], &resolution_inputs);
+
+        style_fact_entry_probe::reset();
+        {
+            let _ = memo_workspace_diagnostics_substrate(&host.db, edited_workspace);
+        }
+        assert_eq!(
+            style_fact_entry_probe::read(),
+            1,
+            "editing one file must not dirty unchanged file fact entries",
         );
     }
 

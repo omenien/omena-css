@@ -81,6 +81,7 @@ pub use source_usage::{
 pub(super) use substrate::collect_sass_module_graph_reachable_style_paths;
 pub(in crate::style) use substrate::{
     OmenaQueryWorkspaceDiagnosticsSubstrateV0, collect_omena_query_workspace_diagnostics_substrate,
+    collect_omena_query_workspace_diagnostics_substrate_from_entries,
 };
 pub use types::OmenaQueryExternalModuleModeV0;
 

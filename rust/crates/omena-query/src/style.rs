@@ -1116,15 +1116,24 @@ fn collect_omena_query_style_fact_entries(
 ) -> Vec<OmenaQueryStyleFactEntry> {
     style_sources
         .iter()
-        .map(|(style_path, style_source)| OmenaQueryStyleFactEntry {
-            style_path: (*style_path).to_string(),
-            style_source: (*style_source).to_string(),
-            facts: summarize_omena_query_omena_parser_style_facts(
-                style_source,
-                omena_parser_dialect_for_style_path(style_path),
-            ),
+        .map(|(style_path, style_source)| {
+            collect_omena_query_style_fact_entry(style_path, style_source)
         })
         .collect()
+}
+
+fn collect_omena_query_style_fact_entry(
+    style_path: &str,
+    style_source: &str,
+) -> OmenaQueryStyleFactEntry {
+    OmenaQueryStyleFactEntry {
+        style_path: style_path.to_string(),
+        style_source: style_source.to_string(),
+        facts: summarize_omena_query_omena_parser_style_facts(
+            style_source,
+            omena_parser_dialect_for_style_path(style_path),
+        ),
+    }
 }
 
 /// Derive the load-path roots to try when joining a load-path-rooted `@use` (dart-sass

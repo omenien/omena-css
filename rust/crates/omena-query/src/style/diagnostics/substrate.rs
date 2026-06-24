@@ -65,6 +65,22 @@ pub(in crate::style) fn collect_omena_query_workspace_diagnostics_substrate(
         .map(|source| (source.style_path.as_str(), source.style_source.as_str()))
         .collect::<Vec<_>>();
     let style_fact_entries = collect_omena_query_style_fact_entries(style_source_refs.as_slice());
+    collect_omena_query_workspace_diagnostics_substrate_from_entries(
+        style_fact_entries,
+        package_manifests,
+        external_sifs,
+        bundler_path_mappings,
+        tsconfig_path_mappings,
+    )
+}
+
+pub(in crate::style) fn collect_omena_query_workspace_diagnostics_substrate_from_entries(
+    style_fact_entries: Vec<OmenaQueryStyleFactEntry>,
+    package_manifests: &[OmenaQueryStylePackageManifestV0],
+    external_sifs: &[OmenaQueryExternalSifInputV0],
+    bundler_path_mappings: &[OmenaResolverBundlerPathAliasMappingV0],
+    tsconfig_path_mappings: &[OmenaResolverTsconfigPathMappingV0],
+) -> OmenaQueryWorkspaceDiagnosticsSubstrateV0 {
     let sass_resolution = summarize_sass_module_cross_file_resolution(
         &style_fact_entries,
         package_manifests,
